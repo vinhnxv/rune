@@ -24,12 +24,29 @@ VALID_ROLE_RE = re.compile(r'^[a-zA-Z0-9_-]+$')  # SEC-5: role name allowlist
 
 
 def generate_id(role, line_number, file_path):
+    """Generate a deterministic 16-char hex ID for an echo entry.
+
+    The ID is a truncated SHA-256 hash of ``role:file_path:line_number``,
+    ensuring stable identity across re-indexes.
+    """
     # type: (str, int, str) -> str
     raw = "%s:%s:%d" % (role, file_path, line_number)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
 def parse_memory_file(file_path, role):
+    """Parse structured echo entries from a role-specific MEMORY.md file.
+
+    Detects all 5 echo tiers (Inscribed, Etched, Traced, Notes, Observations)
+    using stateful blank-line header detection (EDGE-018).
+
+    Args:
+        file_path: Absolute path to the MEMORY.md file.
+        role: Role name (e.g., ``"reviewer"``, ``"planner"``).
+
+    Returns:
+        List of parsed entry dicts, each with a generated ``id`` field.
+    """
     # type: (str, str) -> List[Dict]
     entries = []  # type: List[Dict]
 
@@ -109,6 +126,17 @@ def parse_memory_file(file_path, role):
 
 
 def discover_and_parse(echo_dir):
+    """Walk the echoes directory and parse all role MEMORY.md files.
+
+    Discovers ``<echo_dir>/<role>/MEMORY.md`` for each valid role
+    subdirectory (SEC-5 allowlist) and returns a flat list of all entries.
+
+    Args:
+        echo_dir: Path to the ``.claude/echoes`` directory.
+
+    Returns:
+        Combined list of entry dicts across all roles.
+    """
     # type: (str) -> List[Dict]
     all_entries = []  # type: List[Dict]
 
