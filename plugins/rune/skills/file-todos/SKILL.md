@@ -85,6 +85,10 @@ tmp/work/1771991022/todos/
 | `priority` | lowercase | `p1` (critical), `p2` (important), `p3` (nice-to-have) |
 | `slug` | kebab-case | Max 40 chars, derived from title |
 
+**Priority normalization**: When reading todo files, normalize priority values from various formats to canonical `p1`/`p2`/`p3`: `high`/`critical` -> `p1`, `medium`/`important` -> `p2`, `low`/`nice-to-have` -> `p3`. This ensures backward compatibility with strive-generated todos that use `priority: medium` instead of `priority: p2`.
+
+**Tolerant file naming**: The reader side accepts BOTH v2 naming (`001-ready-p2-slug.md`) AND strive-generated naming (`task-1.md`, `task-2.md`). The v2 format remains canonical for the `create` subcommand. Glob patterns throughout this spec include `task-[0-9]*.md` alongside the standard `[0-9][0-9][0-9]-*.md` patterns.
+
 **Option A (CRITICAL)**: Filename encodes INITIAL status only. Files are NEVER renamed on status transition. The frontmatter `status` field is authoritative. The `in_progress` status exists only in frontmatter, never in the filename.
 
 ### Slug Algorithm
@@ -108,10 +112,12 @@ Sequential padded IDs, **independent per source subdirectory**. Use 3-digit form
 ```bash
 # zsh-safe: (N) prevents NOMATCH error on empty directory
 # source = "work" | "review" | "audit"
+# Tolerant: count both v2 naming (NNN-*.md) and strive naming (task-N*.md)
 setopt nullglob
 existing_3=("${todos_base}/${source}"/[0-9][0-9][0-9]-*.md(N))
 existing_4=("${todos_base}/${source}"/[0-9][0-9][0-9][0-9]-*.md(N))
-total=$(( ${#existing_3[@]} + ${#existing_4[@]} + 1 ))
+existing_task=("${todos_base}/${source}"/task-[0-9]*.md(N))
+total=$(( ${#existing_3[@]} + ${#existing_4[@]} + ${#existing_task[@]} + 1 ))
 if (( total > 999 )); then
   next_id=$(printf "%04d" $total)
 else
@@ -321,7 +327,13 @@ File-Todos Status
 ------------------------------
 ```
 
-**Scan pattern**: `Glob(\`${todosBase}/*/[0-9][0-9][0-9]-*.md\`)` where `todosBase` is resolved via `resolveSessionContext($ARGUMENTS)`. Only scans the current session's `todos_base`. Arc todos, work todos, and review todos are all session-scoped and accessible via this mechanism.
+**Scan pattern**: Tolerant glob matching all naming formats:
+```javascript
+Glob(`${todosBase}/*/[0-9][0-9][0-9]-*.md`)
+  .concat(Glob(`${todosBase}/*/[0-9][0-9][0-9][0-9]-*.md`))
+  .concat(Glob(`${todosBase}/*/task-[0-9]*.md`))
+```
+where `todosBase` is resolved via `resolveSessionContext($ARGUMENTS)`. Only scans the current session's `todos_base`. Arc todos, work todos, and review todos are all session-scoped and accessible via this mechanism.
 
 **Zero-state**: "No todos found. Run `/rune:file-todos create` or run a review/work workflow to auto-generate todos."
 
@@ -331,7 +343,7 @@ File-Todos Status
 /rune:file-todos list [--status=pending] [--priority=p1] [--source=review] [--tags=security,api]
 ```
 
-Scans all source subdirectories (`{todos_base}/*/[0-9][0-9][0-9]-*.md`). Filters compose as intersection. The `--source` filter restricts to a specific subdirectory (e.g., `--source=review` scans only `{todos_base}/review/`). Invalid filter values produce a clear error, not an empty list. Sort: priority (P1 first), then issue_id ascending. See [subcommands.md](references/subcommands.md) for filter parsing and intersection logic.
+Scans all source subdirectories using tolerant globs (`{todos_base}/*/[0-9][0-9][0-9]-*.md`, `*/[0-9][0-9][0-9][0-9]-*.md`, and `*/task-[0-9]*.md`). Filters compose as intersection. The `--source` filter restricts to a specific subdirectory (e.g., `--source=review` scans only `{todos_base}/review/`). Invalid filter values produce a clear error, not an empty list. Sort: priority (P1 first), then issue_id ascending. See [subcommands.md](references/subcommands.md) for filter parsing and intersection logic.
 
 **Zero-state**: "No todos match the given filters." or "No todos found."
 
@@ -341,7 +353,7 @@ Scans all source subdirectories (`{todos_base}/*/[0-9][0-9][0-9]-*.md`). Filters
 /rune:file-todos next [--auto]
 ```
 
-Scans all source subdirectories (`{todos_base}/*/[0-9][0-9][0-9]-*.md`). Show highest-priority unblocked todo with `status: ready` and no `assigned_to`. Checks `dependencies` against non-complete todos.
+Scans all source subdirectories using tolerant globs (`*/[0-9][0-9][0-9]-*.md`, `*/[0-9][0-9][0-9][0-9]-*.md`, and `*/task-[0-9]*.md`). Show highest-priority unblocked todo with `status: ready` and no `assigned_to`. Checks `dependencies` against non-complete todos.
 
 **`--auto` flag**: Output JSON, claim atomically via lockfile guard (temp-file-then-rename, NOT flock). Sets `assigned_to`, `claimed_at`, `status: in_progress` in frontmatter. See [subcommands.md](references/subcommands.md) for atomic claim protocol.
 
@@ -358,7 +370,7 @@ Scans all source subdirectories (`{todos_base}/*/[0-9][0-9][0-9]-*.md`). Show hi
 /rune:file-todos search <query>
 ```
 
-Case-insensitive search across all source subdirectories (`{todos_base}/*/[0-9][0-9][0-9]-*.md`). Searches todo titles, problem statements, and work logs. Validates query length (2-200 chars), sanitizes regex metacharacters before Grep. Results grouped by file with metadata, showing source subdirectory. See [subcommands.md](references/subcommands.md) for sanitization and display details.
+Case-insensitive search across all source subdirectories using tolerant globs (`*/[0-9][0-9][0-9]-*.md`, `*/[0-9][0-9][0-9][0-9]-*.md`, and `*/task-[0-9]*.md`). Searches todo titles, problem statements, and work logs. Validates query length (2-200 chars), sanitizes regex metacharacters before Grep. Results grouped by file with metadata, showing source subdirectory. See [subcommands.md](references/subcommands.md) for sanitization and display details.
 
 **Zero-state**: "No matches found for '{query}'."
 

@@ -464,11 +464,12 @@ When `has_cycles === true`:
 The glob patterns support both 3-digit (001-999) and 4-digit (0001-9999) IDs for sessions with >999 todos:
 
 ```bash
-# zsh-safe glob for all todo files (both 3 and 4 digit IDs)
+# zsh-safe glob for all todo files (tolerant: v2 3-digit, 4-digit, AND strive task-N naming)
 setopt nullglob
 files=()
 for f in "${todos_base}/${source}"/[0-9][0-9][0-9]-*.md(N) \
-         "${todos_base}/${source}"/[0-9][0-9][0-9][0-9]-*.md(N); do
+         "${todos_base}/${source}"/[0-9][0-9][0-9][0-9]-*.md(N) \
+         "${todos_base}/${source}"/task-[0-9]*.md(N); do
   files+=("$f")
 done
 ```

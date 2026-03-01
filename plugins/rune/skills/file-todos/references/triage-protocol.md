@@ -9,8 +9,13 @@ Triage is the process of reviewing pending todos and deciding their disposition:
 ### Step 1: Gather Pending Todos
 
 ```bash
-# zsh-safe glob
-pending_files=(todos/*/[0-9][0-9][0-9]-*.md(N))
+# zsh-safe glob (tolerant: v2 naming + strive task-N naming)
+pending_files=()
+for f in todos/*/[0-9][0-9][0-9]-*.md(N) \
+         todos/*/[0-9][0-9][0-9][0-9]-*.md(N) \
+         todos/*/task-[0-9]*.md(N); do
+  pending_files+=("$f")
+done
 ```
 
 Filter to only those with frontmatter `status: pending`.

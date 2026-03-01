@@ -101,8 +101,10 @@ Filenames encode the INITIAL status at creation time. Files are NEVER renamed wh
 To find todos by current status, parse frontmatter:
 
 ```bash
-# Find all in-progress todos (zsh-safe)
-for f in todos/*/[0-9][0-9][0-9]-*.md(N); do
+# Find all in-progress todos (zsh-safe, tolerant of all naming formats)
+for f in todos/*/[0-9][0-9][0-9]-*.md(N) \
+         todos/*/[0-9][0-9][0-9][0-9]-*.md(N) \
+         todos/*/task-[0-9]*.md(N); do
   if grep -q '^status: in_progress' "$f"; then
     echo "$f"
   fi
