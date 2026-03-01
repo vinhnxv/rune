@@ -44,17 +44,18 @@ def sanitize_pass(text):
     text = re.sub(r"\x60\x60\x60[^\x60]*\x60\x60\x60", "", text, flags=re.DOTALL)
     text = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", text)
     text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
-    text = re.sub(r"[\u200b\u200c\u200d\ufeff\u00ad]", "", text)
+    text = re.sub(r"[\u200b-\u200f\ufeff\u00ad\ufe00-\ufe0f]", "", text)
     text = re.sub(r"[\u202a-\u202e\u2066-\u2069]", "", text)
+    text = re.sub(r"[\U000e0000-\U000e007f]", "", text)
     text = html.unescape(text)
     return text
 
 text = sys.stdin.read()
-text = sanitize_pass(text)
-text = sanitize_pass(text)
 max_chars = int(sys.argv[1])
 if len(text) > max_chars:
     text = text[:max_chars]
+text = sanitize_pass(text)
+text = sanitize_pass(text)
 sys.stdout.write(text)
 ' "$max_chars" 2>/dev/null) || {
     # P1-FE-006: On python3 failure, passthrough with [UNSANITIZED] prefix
@@ -94,18 +95,19 @@ def sanitize_pass(text):
     text = re.sub(r"\x60\x60\x60[^\x60]*\x60\x60\x60", "", text, flags=re.DOTALL)
     text = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", text)
     text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
-    text = re.sub(r"[\u200b\u200c\u200d\ufeff\u00ad]", "", text)
+    text = re.sub(r"[\u200b-\u200f\ufeff\u00ad\ufe00-\ufe0f]", "", text)
     text = re.sub(r"[\u202a-\u202e\u2066-\u2069]", "", text)
+    text = re.sub(r"[\U000e0000-\U000e007f]", "", text)
     text = html.unescape(text)
     return text
 
 text = sys.stdin.read()
-text = sanitize_pass(text)
-text = sanitize_pass(text)
-text = unicodedata.normalize("NFC", text)
 max_chars = int(sys.argv[1])
 if len(text) > max_chars:
     text = text[:max_chars]
+text = sanitize_pass(text)
+text = sanitize_pass(text)
+text = unicodedata.normalize("NFC", text)
 sys.stdout.write(text)
 ' "$max_chars" 2>/dev/null) || {
     # P1-FE-006: On python3 failure, passthrough with [UNSANITIZED] prefix

@@ -88,7 +88,8 @@ function sanitize(content) {
     .replace(/!\[.*?\]\(.*?\)/g, '')
     .replace(/^#{1,6}\s+/gm, '')
     .replace(/&[a-zA-Z0-9#]+;/g, '')
-    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[\u200B-\u200F\uFEFF\uFE00-\uFE0F]/g, '')
+    .replace(/\uDB40[\uDC00-\uDC7F]/g, '')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .slice(0, 8000)
 }

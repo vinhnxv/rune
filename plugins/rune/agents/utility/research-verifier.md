@@ -89,7 +89,8 @@ function sanitizeUntrustedText(text, maxChars) {
     .replace(/```[\s\S]*?```/g, '[code-block]')    // Neutralize code fences
     .replace(/!\[.*?\]\(.*?\)/g, '')               // Strip image/link injection
     .replace(/^#{1,6}\s+/gm, '')                   // Strip heading overrides
-    .replace(/[\u200B-\u200D\uFEFF]/g, '')         // Strip zero-width chars
+    .replace(/[\u200B-\u200F\uFEFF\uFE00-\uFE0F]/g, '')  // Strip zero-width chars + variation selectors
+    .replace(/\uDB40[\uDC00-\uDC7F]/g, '')         // Strip tag block characters (U+E0000-E007F)
     .replace(/[\u202A-\u202E\u2066-\u2069]/g, '')  // Strip Unicode directional overrides (CVE-2021-42574)
     .replace(/&[a-zA-Z0-9#]+;/g, '')               // Strip HTML entities
     .slice(0, maxChars)
