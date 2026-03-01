@@ -536,6 +536,10 @@ rune-plugin/
         └── README.md             # Detailed component reference
 ```
 
+### State Machine Reference
+
+Every Rune workflow is an explicit state machine with named phases, conditional gates, and error recovery tiers. See [`docs/state-machine.md`](docs/state-machine.md) for mermaid diagrams of all 10 workflows — useful for debugging pipeline failures, understanding phase transitions, and verifying correctness.
+
 ### Key Concepts
 
 | Term | Meaning |
@@ -584,6 +588,7 @@ rune-plugin/
 - [Hướng dẫn xử lý sự cố và tối ưu Rune (Tiếng Việt)](docs/guides/rune-troubleshooting-and-optimization-guide.vi.md) — chẩn đoán lỗi, giảm token, tối ưu hiệu suất
 - [Rune engineering solutions (English)](docs/solutions/architecture/rune-engineering-solutions.en.md) — 30 unique solutions across 200+ commits
 - [Giải pháp kỹ thuật Rune (Tiếng Việt)](docs/solutions/architecture/rune-engineering-solutions.vi.md) — 30 giải pháp đặc biệt qua hơn 200 commits
+- [State machine reference](docs/state-machine.md) — mermaid diagrams of all 10 workflow state machines
 - [Changelog](plugins/rune/CHANGELOG.md) — release history
 - [Configuration guide](plugins/rune/talisman.example.yml) — full talisman schema
 
