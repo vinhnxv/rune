@@ -41,7 +41,7 @@ argument-hint: "[PR# | branch-name] [--headed] [--max-routes N]"
 # /rune:test-browser — Standalone Browser E2E Testing
 
 Runs browser E2E tests against changed routes without spawning an agent team.
-Designed for fast, interactive feedback during development.
+Designed for interactive failure handling during development — no team coordination overhead.
 
 **Load skills**: agent-browser, testing, file-todos, zsh-compat
 
@@ -49,7 +49,7 @@ Designed for fast, interactive feedback during development.
 # ISOLATION CONTRACT
 # This skill MUST NOT call TeamCreate, Agent, or Task.
 # All execution is inline — no agent teams, no background workers.
-# Rationale: standalone mode optimizes for speed and interactivity.
+# Rationale: standalone mode enables interactive failure recovery and simpler state management.
 ```
 
 **References**:
@@ -74,9 +74,13 @@ headed = args.includes("--headed")
 maxRoutesIdx = args.indexOf("--max-routes")
 maxRoutes = maxRoutesIdx >= 0 ? parseInt(args[maxRoutesIdx + 1], 10) || 5 : 5
 
-// Scope: first positional arg (not a flag)
-scopeInput = args.filter(a => !a.startsWith("--") && !/^\d+$/.test(args[args.indexOf(a) - 1] || "")
-             ).filter(a => !["--headed", "--max-routes"].includes(a))[0] ?? ""
+// Scope: first positional arg (not a flag, not the value after --max-routes)
+flagsWithValues = ["--max-routes"]
+scopeInput = args.filter((a, i) => {
+  if (a.startsWith("--")) return false                    // skip flags
+  if (i > 0 && flagsWithValues.includes(args[i - 1])) return false  // skip flag values
+  return true
+})[0] ?? ""
 
 // Validate maxRoutes (injection prevention — must be a positive integer)
 if isNaN(maxRoutes) OR maxRoutes < 1 OR maxRoutes > 50:
@@ -136,8 +140,9 @@ if scope.files.length == 0:
 routes = discoverE2ERoutes(scope.files)
 
 // Cap at maxRoutes (from argument or talisman)
-talisman = readTalismanSection("testing")
-talismanMax = talisman?.testing?.max_routes ?? 5
+// testingConfig hoisted — single readTalismanSection call for entire skill
+testingConfig = readTalismanSection("testing")
+talismanMax = testingConfig?.testing?.tiers?.e2e?.max_routes ?? 5
 effectiveMax = Math.min(maxRoutes, talismanMax)
 routes = routes.slice(0, effectiveMax)
 
@@ -152,27 +157,21 @@ log INFO: "Routes to test (${routes.length}): ${routes.join(', ')}"
 ## Step 3: Headed/Headless Mode
 
 ```
-// Priority: --headed flag > talisman config > DISPLAY env var
+// Priority: --headed flag > talisman config > headless default
+// NOTE: DISPLAY env var intentionally not used — prevents unintended headed mode in CI
 
 if headed:
   mode = "headed"
   modeFlag = "--headed"
 else:
-  talisman = readTalismanSection("testing")
-  talismanHeaded = talisman?.testing?.browser?.headed ?? false
+  talismanHeaded = testingConfig?.testing?.browser?.headed ?? false
 
   if talismanHeaded:
     mode = "headed"
     modeFlag = "--headed"
   else:
-    // Check for display server (macOS/Linux)
-    display = Bash(`echo $DISPLAY 2>/dev/null`).trim()
-    if display is non-empty:
-      mode = "headed"
-      modeFlag = "--headed"
-    else:
-      mode = "headless"
-      modeFlag = ""
+    mode = "headless"
+    modeFlag = ""
 
 log INFO: "Browser mode: ${mode}"
 
@@ -187,17 +186,23 @@ if mode == "headed":
 // Verify the dev server is responding before running tests
 // verifyServerWithSnapshot is defined in testing/references/service-startup.md
 
-baseUrl = readTalismanSection("testing")?.testing?.tiers?.e2e?.base_url ?? "http://localhost:3000"
+baseUrl = testingConfig?.testing?.tiers?.e2e?.base_url ?? "http://localhost:3000"
 sessionName = `test-browser-${Date.now()}`
 
 verifyResult = verifyServerWithSnapshot(baseUrl, sessionName)
 // verifyServerWithSnapshot opens a page, takes a snapshot, and checks for blank/error states.
 
-if verifyResult.status == "error":
+if verifyResult != "ok":
   // Standalone mode: abort with instructions
+  // verifyServerWithSnapshot returns "ok" | "blank" | "error" | "loading" (plain string)
+  instructionMap = {
+    "error": "The page returned a server error.",
+    "blank": "The page appears blank or empty.",
+    "loading": "The page did not finish loading."
+  }
   STOP with message:
     "Dev server not responding at ${baseUrl}.
-    ${verifyResult.instructions}
+    ${instructionMap[verifyResult] ?? 'Unknown verification issue.'}
     Start your server and re-run /rune:test-browser."
 ```
 
@@ -267,10 +272,10 @@ for each route in routes:
 
       // Step 7: Failure handling (interactive in standalone mode)
       // See references/failure-handling.md
-      result = handleFailure(route, failure, sessionName)
+      result = handleFailure(route, failure, sessionName, standalone=true)
       if result == "fixed":
         routeResults[route] = { status: "PASS", note: "Fixed inline", screenshot: screenshotPath }
-      else if result == "todo":
+      else if result == "todo-created":
         routeResults[route] = { status: "FAIL", note: "Todo created", screenshot: screenshotPath }
       else:
         routeResults[route] = { status: "FAIL", note: "Skipped", screenshot: screenshotPath }

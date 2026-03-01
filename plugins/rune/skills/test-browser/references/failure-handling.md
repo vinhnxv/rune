@@ -164,7 +164,7 @@ schema_version: 2
 status: pending
 priority: p2
 issue_id: "{issueId}"
-source: review
+source: test-browser
 source_ref: "test-browser/{sessionName}"
 finding_id: "E2E-{issueId}"
 finding_severity: "P2"
@@ -244,53 +244,13 @@ _Run `/rune:test-browser {route}` after fixing to verify resolution._
 
 ## Route-to-Source-File Mapping
 
+Uses the shared `mapRouteToSourceFiles()` function from [file-route-mapping.md](../../testing/references/file-route-mapping.md).
+Do NOT duplicate the framework detection logic here — always defer to the shared reference.
+
 ```
-mapRouteToSourceFiles(route) → string[]
-
-  // Detect framework using testing/references/file-route-mapping.md algorithm
-  framework = detectFramework()   // "nextjs-app" | "nextjs-pages" | "rails" | "generic-spa"
-  routePath = new URL(route).pathname
-
-  if framework == "nextjs-app":
-    base = routePath == "/" ? "" : routePath
-    candidates = [
-      "src/app${base}/page.tsx",
-      "src/app${base}/page.jsx",
-      "app${base}/page.tsx",
-      "app${base}/page.jsx"
-    ]
-    return candidates.filter(f => Bash(`test -f "${f}" && echo yes`).trim() == "yes")
-
-  if framework == "nextjs-pages":
-    base = routePath == "/" ? "/index" : routePath
-    candidates = [
-      "pages${base}.tsx",
-      "pages${base}.jsx",
-      "pages${base}/index.tsx"
-    ]
-    return candidates.filter(f => Bash(`test -f "${f}" && echo yes`).trim() == "yes")
-
-  if framework == "rails":
-    parts = routePath.split("/").filter(Boolean)
-    controller = parts[0] || "application"
-    candidates = [
-      "app/controllers/${controller}_controller.rb",
-      "app/views/${controller}/index.html.erb"
-    ]
-    return candidates.filter(f => Bash(`test -f "${f}" && echo yes`).trim() == "yes")
-
-  if framework == "generic-spa":
-    segment = routePath.split("/").filter(Boolean)[0] || "index"
-    segmentCap = segment.charAt(0).toUpperCase() + segment.slice(1)
-    candidates = [
-      "src/pages/${segmentCap}.tsx",
-      "src/pages/${segment}.tsx",
-      "src/views/${segment}.vue"
-    ]
-    return candidates.filter(f => Bash(`test -f "${f}" && echo yes`).trim() == "yes")
-
-  // Fallback: return empty (caller warns and falls back to todo without file list)
-  return []
+sourceFiles = mapRouteToSourceFiles(route)
+// See testing/references/file-route-mapping.md for framework detection and candidate resolution
+// Returns: string[] of existing source files that map to this route
 ```
 
 ## Safety: Write Path Containment

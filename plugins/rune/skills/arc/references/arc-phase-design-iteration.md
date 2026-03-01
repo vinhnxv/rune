@@ -67,7 +67,7 @@ if (findings.length === 0) {
 // 2. Check agent-browser availability
 const agentBrowserAvailable = Bash("agent-browser --version 2>/dev/null && echo 'yes' || echo 'no'").trim() === "yes"
 if (!agentBrowserAvailable) {
-  warn("Design iteration skipped — agent-browser not installed. Install: npm i -g @anthropic-ai/agent-browser")
+  warn("Design iteration skipped — agent-browser not installed. Install: npm i -g @vercel/agent-browser")
   updateCheckpoint({ phase: "design_iteration", status: "skipped" })
   return
 }

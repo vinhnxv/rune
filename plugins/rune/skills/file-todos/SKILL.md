@@ -441,6 +441,7 @@ For sessions with >100 todos, per-source manifests (`todos-{source}-manifest.jso
 | `/rune:audit` | TOME findings -> per-finding todos | `audit` | [integration-guide.md](references/integration-guide.md) |
 | `/rune:strive` | Plan tasks -> per-task todos | `work` | [integration-guide.md](references/integration-guide.md) |
 | `/rune:mend` | Resolution tracking -> todo updates | updates existing | [integration-guide.md](references/integration-guide.md) |
+| `/rune:test-browser` | E2E failures -> per-route todos | `test-browser` | [integration-guide.md](references/integration-guide.md) |
 | PR comments | gh API -> per-comment todos | `pr-comment` | [integration-guide.md](references/integration-guide.md) |
 
 ## Concurrent Access

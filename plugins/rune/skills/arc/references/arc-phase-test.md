@@ -255,7 +255,7 @@ if (e2eEnabled && servicesHealthy && agentBrowserAvailable && e2eRoutes.length >
   })
   activeTiers.push('e2e')
 } else if (e2eEnabled && !agentBrowserAvailable) {
-  warn("agent-browser not installed — skipping E2E tier. Install: npm i -g @anthropic-ai/agent-browser")
+  warn("agent-browser not installed — skipping E2E tier. Install: npm i -g @vercel/agent-browser")
 }
 
 // ═══════════════════════════════════════════════════════

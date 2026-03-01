@@ -439,7 +439,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 ## Skills
 
-42 skills providing background knowledge, workflow orchestration, and tool integration:
+43 skills providing background knowledge, workflow orchestration, and tool integration:
 
 | Skill | Type | Purpose |
 |-------|------|---------|
@@ -608,7 +608,7 @@ rune-plugin/
 └── plugins/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
-        │   └── plugin.json       # Plugin manifest (v1.125.2)
+        │   └── plugin.json       # Plugin manifest (v1.126.0)
         ├── agents/               # 90 agent definitions
         │   ├── review/           #   40 review agents
         │   ├── investigation/    #   24 investigation agents
@@ -616,7 +616,7 @@ rune-plugin/
         │   ├── research/         #    5 research agents
         │   ├── testing/          #    4 testing agents
         │   └── work/             #    4 work agents
-        ├── skills/               # 42 skills
+        ├── skills/               # 43 skills
         ├── commands/             # 15 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json
