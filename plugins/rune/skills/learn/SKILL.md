@@ -63,10 +63,10 @@ Read `$ARGUMENTS` and set:
 
 Resolve `PROJECT_DIR` = current working directory.
 
-Resolve `SCRIPT_DIR`:
+Resolve `LEARN_DIR`:
 ```bash
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LEARN_DIR="${SCRIPT_DIR}/../../scripts/learn"
+PLUGIN_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)/plugins/rune
+LEARN_DIR="${PLUGIN_ROOT}/scripts/learn"
 ```
 
 ### Phase 2: Run Detectors
@@ -177,12 +177,13 @@ Otherwise, use `AskUserQuestion`:
 Write 4 patterns to .claude/echoes/workers/MEMORY.md? [y/N]
 ```
 
-On "y": for each pattern, invoke echo-writer.sh:
+On "y": for each pattern, invoke echo-writer.sh with role and layer resolved from the mapping tables below (role varies by pattern type, layer varies by confidence):
 ```bash
+# Simplified example — actual role/layer/source vary per pattern type (see mapping tables)
 printf '%s' "$ENTRY_JSON" | bash "${LEARN_DIR}/echo-writer.sh" \
-  --role workers \
-  --layer notes \
-  --source "learn/session-scanner"
+  --role "${ECHO_ROLE}" \
+  --layer "${ECHO_LAYER}" \
+  --source "learn/${SOURCE_DETECTOR}"
 ```
 
 Map pattern type to role:

@@ -5,6 +5,7 @@
 # Exit: 0 on all pass, 1 on any failure.
 
 set -euo pipefail
+umask 077
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DETECTOR="${SCRIPT_DIR}/../learn/cli-correction-detector.sh"
@@ -148,7 +149,11 @@ events='[
 result=$(mk_events "$events" | bash "$DETECTOR" --window 5)
 # "ok1" at index 1 is Bash and no-error -- should be matched (within window)
 assert_contains "Match within window" '"corrections"' "$result"
-# The match happens at ok1 (same tool, within window)
+# Exactly one correction: ok1 matched (within window), "good command" at index 6 excluded
+count=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(len(d['corrections']))" <<< "$result")
+assert_eq "Exactly one correction within window" "1" "$count"
+# "good command" at index 6 is beyond window=5 and must not appear as corrected_input
+assert_not_contains "Out-of-window success excluded" '"good command"' "$result"
 
 # ===================================================================
 # 8. Confidence calculation -- multi-session bonus

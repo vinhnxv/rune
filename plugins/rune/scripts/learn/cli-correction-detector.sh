@@ -45,6 +45,13 @@ _rune_fail_forward() {
 }
 trap '_rune_fail_forward' ERR
 
+_rune_cleanup() {
+  rm -f "${PY_TMP:-}" 2>/dev/null
+}
+trap '_rune_cleanup' EXIT
+trap '_rune_cleanup; exit 130' INT
+trap '_rune_cleanup; exit 143' TERM
+
 # -- Dependency guards --
 if ! command -v python3 &>/dev/null; then
   printf '{"corrections":[],"error":"python3_not_found"}\n'
@@ -84,8 +91,6 @@ PY_TMP=$(mktemp /tmp/rune-ccd-XXXXXX.py 2>/dev/null) || {
   printf '{"corrections":[],"error":"tmpfile_failed"}\n'
   exit 0
 }
-trap 'rm -f "$PY_TMP" 2>/dev/null; exit 0' EXIT ERR
-
 cat > "$PY_TMP" << 'PYEOF'
 import sys, json, re
 

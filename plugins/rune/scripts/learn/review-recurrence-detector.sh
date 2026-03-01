@@ -89,6 +89,8 @@ TOME_DIRS=(
 )
 
 TOME_FILES=()
+_nullglob_was_set=0
+shopt -q nullglob && _nullglob_was_set=1
 shopt -s nullglob
 for dir in "${TOME_DIRS[@]}"; do
   [[ -d "$dir" ]] || continue
@@ -97,7 +99,7 @@ for dir in "${TOME_DIRS[@]}"; do
     [[ -f "$f" ]] && [[ ! -L "$f" ]] && TOME_FILES+=("$f")
   done
 done
-shopt -u nullglob
+[[ "$_nullglob_was_set" -eq 0 ]] && shopt -u nullglob
 
 if [[ ${#TOME_FILES[@]} -eq 0 ]]; then
   printf '{"recurrences":[]}\n'
@@ -220,9 +222,13 @@ for fid, data in findings.items():
     # Best description: longest unique desc
     best_desc = max(unique_descs, key=len) if unique_descs else ""
 
+    MAX_PATHS = 10
+    capped_paths = tome_paths[:MAX_PATHS]
+    relative_paths = [os.path.relpath(p, project_dir) for p in capped_paths]
+
     recurrences.append({
         "finding_id": fid,
-        "tome_paths": tome_paths,
+        "tome_paths": relative_paths,
         "count": count,
         "severity": infer_severity(fid),
         "description": best_desc,

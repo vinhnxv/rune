@@ -105,7 +105,7 @@ if [[ ! "$ROLE" =~ ^[a-zA-Z0-9_-]+$ ]]; then
 fi
 
 # ── Read input JSON from stdin ──
-INPUT=$(head -c 65536 2>/dev/null || true)
+INPUT=$(cat 2>/dev/null || true)
 [[ -z "$INPUT" ]] && { echo "WARN: empty stdin — nothing to write." >&2; exit 0; }
 
 # ── Parse input fields ──
@@ -264,9 +264,9 @@ if [[ "$LOCK_ACQUIRED" -eq 0 ]]; then
   exit 0
 fi
 
-# Ensure lock is released on exit
+# Ensure lock is released on exit and signals
 _release_lock() { rmdir "$LOCK_DIR" 2>/dev/null || true; }
-trap '_release_lock' EXIT
+trap '_release_lock' EXIT INT TERM
 
 # ── Format and write entry ──
 DATE=$(date +%Y-%m-%d)

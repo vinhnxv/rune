@@ -27,7 +27,17 @@ rediscovered repeatedly.
 - **Modular detector scripts**: Each detector is a standalone script with its own
   input/output contract, making them independently testable and invocable. The
   arc/hook detectors are intentionally inline (grep-based) to avoid over-engineering
-  for what are simple pattern scans.
+  for what are simple pattern scans. The tradeoff: inline saves ~2 files and one shell
+  spawn per invocation, at the cost of testability. For arc/hook detection, the
+  patterns are stable one-liners (`jq -r '...status == "failed"'`, grep for
+  `permissionDecision`), making external scripts unnecessary overhead.
+
+- **Hook denial JSONL field — `permissionDecision` (not `hookDecision`)**: The correct
+  field name in Claude Code session JSONL for hook denial events is
+  `"permissionDecision":"deny"`, as confirmed in `references/detectors.md`. The inline
+  grep in `SKILL.md` originally used `"hookDecision":"deny"`, which is incorrect and
+  would produce zero matches. Corrected per VEIL-004 audit finding. Any inline hook
+  detector or grep pattern must use `permissionDecision`, not `hookDecision`.
 
 - **mtime-based session exclusion (60s window)**: Using `$CLAUDE_SESSION_ID` for
   current-session exclusion would require the script to know its own session ID,
@@ -56,3 +66,4 @@ rediscovered repeatedly.
 | Date | Version | Change | Trigger |
 |------|---------|--------|---------|
 | 2026-03-01 | v1.0 | Initial creation — 4 detectors (cli, review, arc, hook), echo-writer integration, Phase 4 confirmation gate | Session Self-Learning feature (v1.125.0) |
+| 2026-03-01 | v1.0.1 | Corrected inline hook denial grep: `hookDecision` → `permissionDecision` (VEIL-004). Added design rationale for inline arc/hook detector choice and field name correctness. | Audit finding DOC-007 / VEIL-004 |

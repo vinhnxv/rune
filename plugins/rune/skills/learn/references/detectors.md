@@ -55,6 +55,7 @@ Each line in a session JSONL is a JSON object:
       "input_preview": "git push origin main",
       "result_preview": "Branch updated",
       "is_error": false,
+      "soft_error": false,
       "tool_use_id": "toolu_01Abc",
       "file": "session-stem"
     }

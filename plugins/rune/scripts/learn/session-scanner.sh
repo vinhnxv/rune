@@ -12,7 +12,7 @@
 #   --format FORMAT   Output format: json or text (default: json)
 #
 # Output (JSON format):
-#   Array of objects: {tool_name, input_preview, result_preview, timestamp, file}
+#   Array of objects: {tool_name, input_preview, result_preview, is_error, soft_error, tool_use_id, file}
 #
 # Privacy:
 #   - Default: current project only (DA-001 privacy boundary)
@@ -117,6 +117,12 @@ CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 ENCODED_PATH="${PROJECT_PATH//\//-}"
 ENCODED_PATH="${ENCODED_PATH#-}"
 
+# SEC-004: reject encoded paths that could enable traversal (should not occur after pwd -P, defensive)
+[[ "$ENCODED_PATH" == *".."* ]] && {
+  printf '{"error":"encoded path traversal rejected","events":[]}\n'
+  exit 0
+}
+
 SESSION_DIR="${CHOME}/projects/${ENCODED_PATH}"
 
 # Validate session directory exists
@@ -214,11 +220,12 @@ for JSONL in "${JSONL_FILES[@]}"; do
 
   # Pass 1: extract tool_use blocks from assistant messages
   # DA-003: select(.type != "isCompactSummary")
+  # JSONL format: top-level .type == "assistant", content at .message.content
   jq -c --arg file "$JSONL_STEM" '
     select(.type != null) |
     select(.type != "isCompactSummary") |
-    select(.type == "message" or .role == "assistant" or .type == "assistant") |
-    (.content // []) | if type == "array" then .[] else . end |
+    select(.type == "assistant") |
+    (.message.content // []) | if type == "array" then .[] else . end |
     select(.type == "tool_use") |
     select(.id != null and .name != null) |
     {
@@ -231,11 +238,12 @@ for JSONL in "${JSONL_FILES[@]}"; do
 
   # Pass 2: extract tool_result blocks from user messages
   # DA-003: select(.type != "isCompactSummary")
+  # JSONL format: top-level .type == "user", content at .message.content
   jq -c --arg file "$JSONL_STEM" '
     select(.type != null) |
     select(.type != "isCompactSummary") |
-    select(.type == "message" or .role == "user" or .type == "user") |
-    (.content // []) | if type == "array" then .[] else . end |
+    select(.type == "user") |
+    (.message.content // []) | if type == "array" then .[] else . end |
     select(.type == "tool_result") |
     select(.tool_use_id != null) |
     {
@@ -250,6 +258,19 @@ for JSONL in "${JSONL_FILES[@]}"; do
         end
       ),
       is_error: (.is_error // false),
+      soft_error: (
+        if (.is_error // false) then false
+        else
+          (
+            if .content == null then ""
+            elif (.content | type) == "string" then .content
+            elif (.content | type) == "array" then
+              ([.content[] | select(.type == "text") | .text // ""][0] // "")
+            else (.content | tostring)
+            end
+          ) | test("Error:|fatal:|FAILED|command not found|No such file|Permission denied|exit code [1-9]"; "")
+        end
+      ),
       file: $file
     }
   ' "$JSONL" 2>/dev/null >> "$TOOL_RESULT_FILE" || true
@@ -274,14 +295,17 @@ EVENTS_JSON=$(jq -r -n --slurpfile uses "$TOOL_USE_FILE" --slurpfile results "$T
       input_preview: $u.input_preview,
       result_preview: ($r.result_preview // ""),
       is_error: ($r.is_error // false),
+      soft_error: ($r.soft_error // false),
       tool_use_id: $u.tool_use_id,
       file: $u.file
     }
   ]
 ' 2>/dev/null) || EVENTS_JSON="[]"
 
-# Cleanup temp dir
-rm -rf "$TMPDIR_WORK" 2>/dev/null || true
+# Cleanup temp dir (SEC-005: guard non-empty and path is within tmp before rm -rf)
+if [[ -n "${TMPDIR_WORK:-}" && ( "$TMPDIR_WORK" == /tmp/* || "$TMPDIR_WORK" == "${TMPDIR:-/tmp}"/* ) ]]; then
+  rm -rf "$TMPDIR_WORK" 2>/dev/null || true
+fi
 
 # ── Output ──
 if [[ "$OUTPUT_FORMAT" == "text" ]]; then

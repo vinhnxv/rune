@@ -84,41 +84,47 @@ rune_strip_sensitive() {
   local input
   input=$(cat)
 
-  # Build pattern list for python3 inline
-  # Use positional list (_SPAT_LIST) for bash 3 compatibility
-  local patterns_json="["
-  local first=1
+  # Build pattern list for python3 inline.
+  # Use positional list (_SPAT_LIST) for bash 3 compatibility.
+  # SEC-001 FIX: Pass patterns via stdin as NUL-delimited label\x01regex pairs
+  # instead of hand-rolling JSON in shell. Python parses raw bytes — no shell
+  # escaping needed, so special regex chars (backslash, brackets, quotes, etc.)
+  # are transmitted safely.
+  local patterns_stdin=""
   for _spat_entry in "${_SPAT_LIST[@]}"; do
     local _label="${_spat_entry%%:*}"
     local _regex="${_spat_entry#*:}"
-    if [[ $first -eq 1 ]]; then
-      first=0
-    else
-      patterns_json+=","
+    # Validate label is safe (alphanumeric + underscore only) — BACK-005
+    if [[ ! "$_label" =~ ^[A-Za-z0-9_]+$ ]]; then
+      continue
     fi
-    # JSON-encode label and regex (escape backslashes and quotes)
-    local _jlabel _jregex
-    _jlabel=$(printf '%s' "$_label" | sed 's/\\/\\\\/g; s/"/\\"/g')
-    _jregex=$(printf '%s' "$_regex" | sed 's/\\/\\\\/g; s/"/\\"/g')
-    patterns_json+="{\"label\":\"${_jlabel}\",\"regex\":\"${_jregex}\"}"
+    patterns_stdin+="${_label}"$'\x01'"${_regex}"$'\x00'
   done
-  patterns_json+="]"
 
   local result
   result=$(printf '%s' "$input" | python3 -c '
-import sys, re, json
+import sys, re, os
 
 max_chars = int(sys.argv[1])
-patterns_json = sys.argv[2]
-patterns = json.loads(patterns_json)
+
+# Read NUL-delimited "label\x01regex" pairs from fd 3
+raw = os.read(3, 1 << 20)
+patterns = []
+for entry in raw.split(b"\x00"):
+    if not entry:
+        continue
+    sep = entry.find(b"\x01")
+    if sep < 0:
+        continue
+    label = entry[:sep].decode("utf-8", errors="replace")
+    regex = entry[sep+1:].decode("utf-8", errors="replace")
+    patterns.append((label, regex))
 
 text = sys.stdin.read()
 if len(text) > max_chars:
     text = text[:max_chars]
 
-for pat in patterns:
-    label = pat.get("label", "sensitive")
-    regex = pat.get("regex", "")
+for label, regex in patterns:
     if not regex:
         continue
     try:
@@ -128,7 +134,7 @@ for pat in patterns:
         continue
 
 sys.stdout.write(text)
-' "$max_chars" "$patterns_json" 2>/dev/null) || {
+' "$max_chars" 3< <(printf '%s' "$patterns_stdin") 2>/dev/null) || {
     # Fail closed — return empty string on python3 failure
     printf ''
     return 1
