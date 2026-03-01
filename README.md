@@ -89,6 +89,8 @@ Rune requires [Agent Teams](https://code.claude.com/docs/en/agent-teams). Enable
     ".claude/arc/",
     ".claude/echoes/",
     ".claude/arc-batch-loop.local.md",
+    ".claude/arc-hierarchy-loop.local.md",
+    ".claude/arc-issues-loop.local.md",
     ".claude/arc-phase-loop.local.md",
     ".claude/CLAUDE.local.md",
     ".claude/talisman.yml"
@@ -108,7 +110,7 @@ Generate a `talisman.yml` tailored to your project's tech stack:
 /rune:talisman status    # Overview of current configuration health
 ```
 
-See the [Talisman deep dive](docs/guides/rune-talisman-deep-dive-guide.en.md) for all 21 configuration sections.
+See the [Talisman deep dive](docs/guides/rune-talisman-deep-dive-guide.en.md) for all 23 configuration sections.
 
 ---
 
@@ -335,7 +337,7 @@ Compares a plan against its implementation across 9 quality dimensions:
 
 ### Review Agents (40)
 
-Core reviewers that participate in `/rune:appraise` and `/rune:audit`:
+Core reviewers active in every `/rune:appraise` and `/rune:audit` run. Stack specialists (below) are additionally auto-activated based on detected tech stack:
 
 | Agent | Focus |
 |-------|-------|
@@ -393,7 +395,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 |----------|--------|
 | Impact Tracers | API Contract, Business Logic, Data Layer, Config Dependency, Event Message |
 | Quality Inspectors | Grace Warden, Ruin Prophet, Sight Oracle, Vigil Keeper |
-| Deep Analysis | Breach Hunter, Decay Tracer, Decree Auditor, Ember Seer, Fringe Watcher, Order Auditor, Rot Seeker, Ruin Watcher, Signal Watcher, Strand Tracer, Truth Seeker |
+| Deep Analysis | Breach Hunter, Decay Tracer, Decree Auditor, Ember Seer, Fringe Watcher, Hypothesis Investigator, Order Auditor, Rot Seeker, Ruin Watcher, Signal Watcher, Strand Tracer, Truth Seeker |
 | Synthesis | Goldmask Coordinator, Lore Analyst, Wisdom Sage |
 
 ### Research Agents (5)
@@ -497,7 +499,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 ## Configuration
 
-Rune is configured via `talisman.yml` (21 top-level sections, 100+ keys):
+Rune is configured via `talisman.yml` (23 top-level sections, 100+ keys):
 
 ```bash
 # Project-level (highest priority)
@@ -692,7 +694,7 @@ See the [Troubleshooting guide](docs/guides/rune-troubleshooting-and-optimizatio
 - [Hướng dẫn workflow nâng cao Rune (Tiếng Việt): arc-hierarchy + arc-issues + echoes](docs/guides/rune-advanced-workflows-guide.vi.md) — thực thi phân cấp, batch GitHub Issues, và bộ nhớ agent
 - [Rune getting started guide (English)](docs/guides/rune-getting-started.en.md) — quick start for first-time users
 - [Hướng dẫn bắt đầu nhanh Rune (Tiếng Việt)](docs/guides/rune-getting-started.vi.md) — hướng dẫn nhanh cho người mới
-- [Rune talisman deep dive (English)](docs/guides/rune-talisman-deep-dive-guide.en.md) — master all 21 configuration sections
+- [Rune talisman deep dive (English)](docs/guides/rune-talisman-deep-dive-guide.en.md) — master all 23 configuration sections
 - [Hướng dẫn talisman chuyên sâu Rune (Tiếng Việt)](docs/guides/rune-talisman-deep-dive-guide.vi.md) — làm chủ 21 section cấu hình
 - [Rune custom agents and extensions (English)](docs/guides/rune-custom-agents-and-extensions-guide.en.md) — build custom Ashes, CLI-backed reviewers, Forge Gaze integration
 - [Hướng dẫn custom agent và mở rộng Rune (Tiếng Việt)](docs/guides/rune-custom-agents-and-extensions-guide.vi.md) — xây dựng custom Ash, CLI reviewer, tích hợp Forge Gaze

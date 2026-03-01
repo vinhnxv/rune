@@ -307,8 +307,21 @@ class ImageHandler:
         stroke_color = "currentColor"
         if not node.is_icon_candidate and node.strokes:
             for stroke in node.strokes:
-                if stroke.visible and stroke.color:
-                    stroke_color = stroke.color.to_hex()
+                if not stroke.visible:
+                    continue
+                if stroke.color:
+                    candidate = stroke.color.to_hex()
+                    # Validate stroke color against safe fill pattern (SEC-001)
+                    if _SAFE_FILL_RE.match(candidate):
+                        stroke_color = candidate
+                    break
+                # VEIL-001: Gradient stroke fallback — use first stop color
+                if stroke.type in (PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL):
+                    stops = stroke.gradient_stops
+                    if stops and stops[0].color:
+                        candidate = stops[0].color.to_hex()
+                        if _SAFE_FILL_RE.match(candidate):
+                            stroke_color = candidate
                     break
 
         # Render actual paths from fillGeometry and strokeGeometry when available
@@ -356,12 +369,14 @@ class ImageHandler:
                 )
 
         # Fallback: TODO placeholder
+        # SEC-005: Strip */ sequences to prevent JSX comment injection
+        safe_name_comment = safe_name.replace("*/", "* /")
         return (
             f"<svg{class_attr} "
             f'width="{width}" height="{height}" '
             f'viewBox="0 0 {width} {height}" '
             f'fill="none" xmlns="http://www.w3.org/2000/svg">\n'
-            f"  {{/* TODO: SVG paths for {safe_name} */}}\n"
+            f"  {{/* TODO: SVG paths for {safe_name_comment} */}}\n"
             f"</svg>"
         )
 
@@ -414,19 +429,25 @@ def _sanitize_image_url(url: str) -> str:
     return url.replace('"', "%22")
 
 
+_MAX_PATH_LENGTH = 65536  # SEC-002: Cap SVG path data to prevent DoS via oversized paths
+
+
 def _sanitize_svg_path(d: str) -> str:
     """Sanitize an SVG path data string using a character whitelist.
 
     Strips any character not in the SVG path command alphabet or numeric
     data to prevent XSS or injection through malicious path strings from
-    the Figma API.
+    the Figma API. Also enforces a length cap (SEC-002).
 
     Args:
         d: Raw SVG path data string.
 
     Returns:
-        Sanitized path data string (whitelist characters only).
+        Sanitized path data string (whitelist characters only), or empty
+        string if the input exceeds ``_MAX_PATH_LENGTH``.
     """
+    if len(d) > _MAX_PATH_LENGTH:
+        return ""
     return _SVG_PATH_WHITELIST_RE.sub("", d)
 
 

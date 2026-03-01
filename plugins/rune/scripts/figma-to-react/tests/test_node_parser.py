@@ -164,6 +164,51 @@ class TestBooleanOperation:
 
 
 # ---------------------------------------------------------------------------
+# Inherently SVG types (VEIL-002 / BACK-001)
+# ---------------------------------------------------------------------------
+
+class TestInherentlySvgTypes:
+    """LINE, REGULAR_POLYGON, and STAR are always SVG candidates."""
+
+    @pytest.mark.parametrize("node_type", ["LINE", "REGULAR_POLYGON", "STAR"])
+    def test_inherently_svg_type_marked_as_candidate(self, node_type):
+        """Inherently SVG types must be SVG candidates regardless of size."""
+        node = {
+            "id": "50:1",
+            "name": f"Test{node_type}",
+            "type": node_type,
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 800, "height": 800},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 800, "height": 800},
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+            "children": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+        assert ir.is_svg_candidate, (
+            f"{node_type} should always be SVG candidate, even at 800x800"
+        )
+
+    def test_line_small_is_svg_candidate(self):
+        """Small LINE node is still SVG candidate."""
+        node = {
+            "id": "50:2",
+            "name": "SmallLine",
+            "type": "LINE",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 16, "height": 1},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 16, "height": 1},
+            "fills": [],
+            "strokes": [{"type": "SOLID", "color": {"r": 0, "g": 0, "b": 0, "a": 1}}],
+            "effects": [],
+            "children": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+        assert ir.is_svg_candidate
+
+
+# ---------------------------------------------------------------------------
 # Icon detection
 # ---------------------------------------------------------------------------
 

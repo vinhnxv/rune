@@ -50,6 +50,8 @@ Rune generates output files (plans, reviews, temporary artifacts) in directories
     ".claude/arc/",
     ".claude/echoes/",
     ".claude/arc-batch-loop.local.md",
+    ".claude/arc-hierarchy-loop.local.md",
+    ".claude/arc-issues-loop.local.md",
     ".claude/arc-phase-loop.local.md",
     ".claude/CLAUDE.local.md",
     ".claude/talisman.yml"

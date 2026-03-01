@@ -271,14 +271,14 @@ class TestCollectSvgFallbackIds:
         result = _collect_svg_fallback_ids(node)
         assert "20:4" not in result
 
-    def test_recursion_stops_at_svg_candidate(self):
-        """Children of an SVG candidate are NOT scanned (DS-6)."""
+    def test_geometry_less_candidate_recurses_into_children(self):
+        """Geometry-less SVG candidates recurse into children (VEIL-004)."""
         child = _make_node(node_id="21:2", is_svg_candidate=True)
         parent = _make_node(node_id="21:1", is_svg_candidate=True, children=[child])
         result = _collect_svg_fallback_ids(parent)
-        # Parent collected, child NOT collected (recursion stopped)
+        # Both collected — geometry-less candidates recurse into children
         assert "21:1" in result
-        assert "21:2" not in result
+        assert "21:2" in result
 
     def test_nested_candidates_in_non_svg_parent(self):
         """Multiple geometry-less SVG candidates in different branches."""
@@ -300,3 +300,23 @@ class TestCollectSvgFallbackIds:
         # Should not raise RecursionError
         result = _collect_svg_fallback_ids(node)
         assert isinstance(result, list)
+
+    def test_boolean_op_no_geometry_collected_via_parse_node(self):
+        """BACK-003: Boolean op with no geometry is collected via full pipeline."""
+        raw = {
+            "id": "bo:1",
+            "name": "Icon",
+            "type": "BOOLEAN_OPERATION",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 24, "height": 24},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 24, "height": 24},
+            "booleanOperation": "UNION",
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+            "children": [],
+            # note: no fillGeometry key — geometry-less SVG candidate
+        }
+        ir = parse_node(raw)
+        assert ir is not None
+        ids = _collect_svg_fallback_ids(ir)
+        assert "bo:1" in ids

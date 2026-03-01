@@ -657,6 +657,8 @@ context_weaving:
 | `testing` | 3-tier test execution | All tiers on |
 | `goldmask` | Per-workflow impact analysis | All enabled |
 | `codex` | Cross-model verification (17 inline points) | Auto-detect |
+| `codex_review` | Cross-model code review settings | Disabled |
+| `teammate_lifecycle` | Agent runtime caps (max_turns, max_runtime_minutes) | Category defaults |
 | `elicitation` | Structured reasoning | Enabled |
 | `echoes` | Agent memory persistence | FTS enabled |
 | `mend` | Parallel finding resolution | 3 batch, 5 per fixer |

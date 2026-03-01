@@ -87,6 +87,14 @@ _VECTOR_TYPES: FrozenSet[str] = frozenset({
     "STAR",
 })
 
+# VEIL-002: Node types that are inherently SVG — always render as SVG regardless of size
+# LINE, REGULAR_POLYGON, and STAR have no meaningful non-SVG representation
+_INHERENTLY_SVG_TYPES: FrozenSet[str] = frozenset({
+    "LINE",
+    "REGULAR_POLYGON",
+    "STAR",
+})
+
 
 # ---------------------------------------------------------------------------
 # Styled text segment
@@ -736,6 +744,11 @@ def parse_node(
 
     # SVG illustration candidates (64px < size <= 512px, vector-only) are SVG candidates
     if not ir_node.is_svg_candidate and _detect_svg_illustration(pydantic_node):
+        ir_node.is_svg_candidate = True
+
+    # VEIL-002: Inherently SVG types (LINE, REGULAR_POLYGON, STAR) must always
+    # render as SVG — they have no meaningful non-SVG representation
+    if not ir_node.is_svg_candidate and node_type_str in _INHERENTLY_SVG_TYPES:
         ir_node.is_svg_candidate = True
 
     # Recursively parse children

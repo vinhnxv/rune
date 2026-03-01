@@ -10,6 +10,7 @@ manages the client lifecycle.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -29,6 +30,10 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_LENGTH = 50_000  # characters
 DEFAULT_START_INDEX = 0
+
+# BACK-004: Schema version for public API response dicts.
+# Bump when the response shape changes (new fields, removed fields, type changes).
+RESPONSE_SCHEMA_VERSION = 1
 
 
 # ---------------------------------------------------------------------------
@@ -192,8 +197,11 @@ def _collect_svg_fallback_ids(node: FigmaIRNode, _depth: int = 0) -> list[str]:
     result: list[str] = []
 
     if node.is_svg_candidate and not node.fill_geometry and not node.stroke_geometry:
-        # Collect this node and stop — don't recurse into its children (DS-6)
+        # Collect this node — and also recurse into children (VEIL-004)
+        # to find nested geometry-less SVG candidates
         result.append(node.node_id)
+        for child in node.children:
+            result.extend(_collect_svg_fallback_ids(child, _depth + 1))
         return result
 
     # Not an SVG candidate (or has geometry) — recurse into children
@@ -201,6 +209,49 @@ def _collect_svg_fallback_ids(node: FigmaIRNode, _depth: int = 0) -> list[str]:
         result.extend(_collect_svg_fallback_ids(child, _depth + 1))
 
     return result
+
+
+async def _get_images_with_retry(
+    client: FigmaClient,
+    file_key: str,
+    ids: list[str],
+    *,
+    max_retries: int = 3,
+    **kwargs: Any,
+) -> dict[str, str]:
+    """Call client.get_images with exponential backoff on transient failures.
+
+    BACK-005: The Figma Images API is rate-limited and occasionally returns
+    transient 5xx errors. A single failure silently degrades all image fills
+    to placeholders. Retry with exponential backoff gives transient errors
+    a chance to recover.
+
+    Args:
+        client: Figma API client.
+        file_key: Figma file key.
+        ids: Node IDs to resolve image URLs for.
+        max_retries: Maximum number of retry attempts.
+        **kwargs: Additional arguments passed to get_images (format, scale).
+
+    Returns:
+        Dict mapping node IDs to image URLs.
+
+    Raises:
+        FigmaAPIError: If all retry attempts fail.
+    """
+    for attempt in range(max_retries):
+        try:
+            return await client.get_images(file_key, ids, **kwargs)
+        except FigmaAPIError:
+            if attempt == max_retries - 1:
+                raise
+            wait = 2 ** attempt  # 1s, 2s, 4s
+            logger.warning(
+                "get_images attempt %d/%d failed, retrying in %ds",
+                attempt + 1, max_retries, wait,
+            )
+            await asyncio.sleep(wait)
+    return {}  # Unreachable, but satisfies type checker
 
 
 def extract_sub_components(
@@ -316,6 +367,7 @@ async def fetch_design(
 
     tree_dict = ir_to_dict(ir_root)
     output = {
+        "schema_version": RESPONSE_SCHEMA_VERSION,
         "file_key": file_key,
         "node_count": count_nodes(ir_root),
         "tree": tree_dict,
@@ -432,6 +484,7 @@ async def list_components(
             })
 
     output: dict[str, Any] = {
+        "schema_version": RESPONSE_SCHEMA_VERSION,
         "file_key": file_key,
         "total_components": len(components),
         "total_instances": len(instances),
@@ -485,9 +538,8 @@ async def to_react(
 
     if image_refs:
         try:
-            image_urls = await client.get_images(
-                file_key,
-                list(image_refs),
+            image_urls = await _get_images_with_retry(
+                client, file_key, list(image_refs),
             )
         except FigmaAPIError:
             logger.warning("Failed to resolve image URLs — using placeholders")
@@ -503,9 +555,8 @@ async def to_react(
             export_format = "svg"
         export_scale = max(0.01, min(4.0, 1.0))  # scale=1.0 for SVG (scale has no effect on SVG)
         try:
-            raw_svg_urls = await client.get_images(
-                file_key,
-                svg_fallback_ids,
+            raw_svg_urls = await _get_images_with_retry(
+                client, file_key, svg_fallback_ids,
                 format=export_format,
                 scale=export_scale,
             )
@@ -525,6 +576,7 @@ async def to_react(
     )
 
     output: dict[str, Any] = {
+        "schema_version": RESPONSE_SCHEMA_VERSION,
         "file_key": file_key,
         "node_count": count_nodes(ir_root),
         "main_component": main_code,

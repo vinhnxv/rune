@@ -398,7 +398,9 @@ def _resolve_text_styles(style: Optional[TypeStyle]) -> List[str]:
             # an arbitrary Tailwind class — prevents CSS injection via malicious font names
             safe_family = re.sub(r'[^a-zA-Z0-9 \-_]', '', family)
             if safe_family:
-                classes.append(f"font-['{safe_family}']")
+                # SEC-003: Replace spaces with underscores for Tailwind arbitrary values
+                tw_family = safe_family.replace(' ', '_')
+                classes.append(f"font-['{tw_family}']")
 
     if style.italic:
         classes.append("italic")
@@ -723,6 +725,8 @@ def _escape_jsx(text: str) -> str:
     Returns:
         JSX-safe text string.
     """
+    # SEC-004: Escape & first to prevent double-escaping of entities below
+    text = text.replace("&", "&amp;")
     text = text.replace("{", "&#123;")
     text = text.replace("}", "&#125;")
     text = text.replace("<", "&lt;")
