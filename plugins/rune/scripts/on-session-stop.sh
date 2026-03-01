@@ -236,14 +236,15 @@ _kill_stale_teammates() {
       survivor_comm=$(ps -p "$child_pid" -o comm= 2>/dev/null || true)
       case "$survivor_comm" in
         node|claude|claude-*)
-          kill -KILL "$child_pid" 2>/dev/null || true
+          if kill -KILL "$child_pid" 2>/dev/null; then
+            killed=$((killed + 1))
+          fi
           ;;
         *)
           # PID recycled to a non-Claude process — do NOT kill
           ;;
       esac
     fi
-    killed=$((killed + 1))
   done
 
   echo "$killed"

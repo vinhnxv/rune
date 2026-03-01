@@ -433,13 +433,25 @@ if [[ -n "$CHOME" && "$CHOME" == /* && -d "$CHOME/teams/" ]]; then
   # scan $CHOME/teams/ for dirs matching arc-*-{id} and remove any that linger.
   _ARC_ID=$(echo "$CKPT_CONTENT" | jq -r '.id // empty' 2>/dev/null || true)
   if [[ -n "$_ARC_ID" && "$_ARC_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    # BACK-003: Protect glob from NOMATCH error in zsh
+    local _saved_nullglob=$(shopt -p nullglob 2>/dev/null || true)
+    shopt -s nullglob
     for _zombie_dir in "$CHOME/teams/"/arc-*-"${_ARC_ID}"; do
       [[ -d "$_zombie_dir" && ! -L "$_zombie_dir" ]] || continue
       _zombie_team="${_zombie_dir##*/}"
       [[ "$_zombie_team" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
+      # SEC-002: Check if team is owned by a live session before removing
+      _zombie_config="$_zombie_dir/config.json"
+      if [[ -f "$_zombie_config" ]]; then
+        _zombie_pid=$(jq -r '.owner_pid // empty' "$_zombie_config" 2>/dev/null || true)
+        if [[ -n "$_zombie_pid" ]] && kill -0 "$_zombie_pid" 2>/dev/null; then
+          continue  # Owned by live session — skip
+        fi
+      fi
       rm -rf "$CHOME/teams/${_zombie_team}/" "$CHOME/tasks/${_zombie_team}/" 2>/dev/null
       _trace "Zombie fallback cleanup: removed orphaned team dir: ${_zombie_team}"
     done
+    eval "$_saved_nullglob"  # Restore nullglob state
   fi
 fi
 

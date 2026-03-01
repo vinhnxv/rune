@@ -122,17 +122,23 @@ if [[ $orphan_count -gt 0 ]] && [[ -d "$CHOME/teams/" ]]; then
       # BACK-007: Fallback — no .session file. Scan CWD/tmp/ state files for a matching team name.
       # Look for a state file whose team_name (or inferred from filename) matches oname and has a dead PID.
       if [[ -d "${CWD}/tmp/" ]]; then
+        local _saved_nullglob=$(shopt -p nullglob 2>/dev/null || true)
+        shopt -s nullglob
         for sf in "${CWD}/tmp/"/.rune-*.json; do
           [[ -f "$sf" ]] && [[ ! -L "$sf" ]] || continue
           sf_pid=$(jq -r '.owner_pid // empty' "$sf" 2>/dev/null || true)
           sf_cfg=$(jq -r '.config_dir // empty' "$sf" 2>/dev/null || true)
           sf_team=$(jq -r '.team_name // empty' "$sf" 2>/dev/null || true)
+          local sf_status
+          sf_status=$(jq -r '.status // empty' "$sf" 2>/dev/null || true)
+          [[ "$sf_status" == "active" ]] || continue
           [[ "$sf_team" == "$oname" ]] || continue
           [[ -n "$sf_pid" && "$sf_pid" =~ ^[0-9]+$ ]] || continue
           owner_pid="$sf_pid"
           owner_cfg="$sf_cfg"
           break
         done
+        $_saved_nullglob
       fi
       # If no matching state file found, cannot verify PID — skip
       [[ -n "$owner_pid" ]] || continue

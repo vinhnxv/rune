@@ -62,6 +62,7 @@ _trace "ENTER detect-workflow-complete.sh"
 
 # ── GUARD 1: Fast-path — any state files at all? ──
 readarray -t STATE_FILES < <(shopt -s nullglob || true; printf '%s\n' "${CWD}/tmp/"/.rune-*.json)
+[[ ${#STATE_FILES[@]} -eq 1 && -z "${STATE_FILES[0]}" ]] && STATE_FILES=()
 
 if [[ ${#STATE_FILES[@]} -eq 0 ]]; then
   _trace "FAST EXIT: no state files"
@@ -88,7 +89,7 @@ for loop_file in \
       _trace "DEFER: $(basename "$loop_file") — mtime invalid, deferring conservatively"
       exit 0
     fi
-    age_min=$(( ($(date +%s) - _loop_mtime) / 60 ))
+    age_min=$(( ($HOOK_START_TIME - _loop_mtime) / 60 ))
     if [[ $age_min -lt 30 ]]; then
       _trace "DEFER: active loop file $(basename "$loop_file") (${age_min}m old)"
       exit 0
@@ -170,10 +171,16 @@ for sf in "${STATE_FILES[@]}"; do
   SHOULD_CLEAN=false
 
   # REC-5 FIX: Session filter for completed-status path — don't clean another live session's state
-  if [[ "$SF_STATUS" =~ ^(completed|failed|cancelled)$ && -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ ]]; then
-    if [[ "$SF_PID" != "$PPID" ]] && rune_pid_alive "$SF_PID"; then
-      _trace "SKIP $sf: completed state belongs to live session PID=$SF_PID"
+  if [[ "$SF_STATUS" =~ ^(completed|failed|cancelled)$ ]]; then
+    if [[ -z "$SF_PID" ]]; then
+      _trace "TRACE $sf: completed state has no owner_pid attribute, skipping cleanup for unattributable state"
       continue
+    fi
+    if [[ "$SF_PID" =~ ^[0-9]+$ ]]; then
+      if [[ "$SF_PID" != "$PPID" ]] && rune_pid_alive "$SF_PID"; then
+        _trace "SKIP $sf: completed state belongs to live session PID=$SF_PID"
+        continue
+      fi
     fi
   fi
 
@@ -246,6 +253,10 @@ for sf in "${STATE_FILES[@]}"; do
   # Stage 1: SIGTERM to all child processes of this session
   # SEC-003: Collect PIDs into array for reuse in Stage 2 — avoids re-querying pgrep
   # (PID recycling window between Stage 1 and Stage 2 is already guarded by comm= re-verify)
+  # VEIL-004: Cap cleanup iterations to 3 to prevent exceeding 30s timeout budget
+  ESCALATION_ITERATION=0
+  MAX_ESCALATION_ITERATIONS=3
+
   _trace "Stage 1: SIGTERM for team=$SF_TEAM"
   sigterm_pids=()
   if [[ -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ ]]; then
@@ -265,8 +276,11 @@ for sf in "${STATE_FILES[@]}"; do
     done < <(pgrep -P "$SF_PID" 2>/dev/null || true)
   fi
 
-  # Wait for SIGTERM to take effect
-  sleep "$ESCALATION_TIMEOUT" 2>/dev/null || sleep 5
+  # Wait for SIGTERM to take effect (cap iterations)
+  if [[ $ESCALATION_ITERATION -lt $MAX_ESCALATION_ITERATIONS ]]; then
+    sleep "$ESCALATION_TIMEOUT" 2>/dev/null || sleep 5
+    ((ESCALATION_ITERATION++))
+  fi
 
   # Stage 2: SIGKILL survivors — reuse Stage 1 PID list (SEC-003)
   _trace "Stage 2: SIGKILL survivors for team=$SF_TEAM"
