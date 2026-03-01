@@ -12,10 +12,23 @@
 #   detect_homoglyphs_tier_ab            — Mixed-script detection (Latin+Cyrillic/Greek) from stdin
 #
 # All functions read from stdin, write to stdout.
-# Requires: python3 (fallback: passthrough with [UNSANITIZED] prefix)
+# Requires: python3 (on failure: sanitize functions return empty string with exit 1)
 # Compatible: macOS bash 3.2+ / Linux bash 4.0+
 #
 # NOTE: Do NOT set `set -euo pipefail` here — caller's responsibility.
+#
+# VEIL-002: This library is available for sourcing but is not yet sourced by any
+# runtime consumer script (e.g. advise-mcp-untrusted.sh).  Integration requires
+# the caller to `source "${SCRIPT_DIR}/lib/sanitize-text.sh"` and pipe stdin
+# through sanitize_untrusted_text or sanitize_plan_content before use.
+#
+# QUAL-003: sanitize_untrusted_text and sanitize_plan_content share ~90% of the
+# same Python inline code in their sanitize_pass() helpers.  The duplication is
+# intentional for now (both functions are shell-embedded Python strings, so
+# extracting a shared .py helper would require a separate file dependency).
+# ── SYNC NOTE ── Any change to the sanitize_pass() body in one function MUST
+# be mirrored in the other.  The only intentional difference is the YAML
+# frontmatter strip line present only in sanitize_plan_content.
 
 # ── sanitize_untrusted_text ──
 # Strip HTML comments, code fences, image syntax, headings, zero-width chars,
@@ -40,6 +53,10 @@ sanitize_untrusted_text() {
 import sys, re, html
 
 def sanitize_pass(text):
+    # SEC-001: html.unescape FIRST so all regex patterns operate on decoded text.
+    # Double-encoded payloads (e.g. &lt;!-- decoding to <!--) are neutralised here
+    # before any stripping pass, preventing bypass via entity encoding.
+    text = html.unescape(text)
     text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
     text = re.sub(r"\x60\x60\x60[^\x60]*\x60\x60\x60", "", text, flags=re.DOTALL)
     text = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", text)
@@ -47,7 +64,10 @@ def sanitize_pass(text):
     text = re.sub(r"[\u200b-\u200f\ufeff\u00ad\ufe00-\ufe0f]", "", text)
     text = re.sub(r"[\u202a-\u202e\u2066-\u2069]", "", text)
     text = re.sub(r"[\U000e0000-\U000e007f]", "", text)
-    text = html.unescape(text)
+    # BACK-002: Strip mathematical alphanumeric symbols (U+1D400-U+1D7FF).
+    # These visually resemble Latin letters/digits (e.g. 𝐀 ≈ A) and can
+    # smuggle homoglyph payloads past Latin-only script detection.
+    text = re.sub(r"[\U0001D400-\U0001D7FF]", "", text)
     return text
 
 text = sys.stdin.read()
@@ -58,11 +78,11 @@ text = sanitize_pass(text)
 text = sanitize_pass(text)
 sys.stdout.write(text)
 ' "$max_chars" 2>/dev/null) || {
-    # P1-FE-006: On python3 failure, passthrough with [UNSANITIZED] prefix
-    local truncated
-    truncated=$(printf '%s' "$input" | head -c "$(( "${max_chars}" + 0 ))" 2>/dev/null || printf '%s' "$input")
-    printf '[UNSANITIZED] %s' "$truncated"
-    return 0
+    # VEIL-001: On python3 failure, fail closed — return empty string rather than
+    # passing through raw content.  A [UNSANITIZED] prefix gave callers false
+    # confidence while still exposing unsanitised input to downstream consumers.
+    printf ''
+    return 1
   }
 
   printf '%s' "$result"
@@ -90,6 +110,10 @@ sanitize_plan_content() {
 import sys, re, html, unicodedata
 
 def sanitize_pass(text):
+    # SEC-001: html.unescape FIRST so all regex patterns operate on decoded text.
+    # Double-encoded payloads (e.g. &lt;!-- decoding to <!--) are neutralised here
+    # before any stripping pass, preventing bypass via entity encoding.
+    text = html.unescape(text)
     text = re.sub(r"^---\n.*?\n---\n?", "", text, count=1, flags=re.DOTALL)
     text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
     text = re.sub(r"\x60\x60\x60[^\x60]*\x60\x60\x60", "", text, flags=re.DOTALL)
@@ -98,7 +122,10 @@ def sanitize_pass(text):
     text = re.sub(r"[\u200b-\u200f\ufeff\u00ad\ufe00-\ufe0f]", "", text)
     text = re.sub(r"[\u202a-\u202e\u2066-\u2069]", "", text)
     text = re.sub(r"[\U000e0000-\U000e007f]", "", text)
-    text = html.unescape(text)
+    # BACK-002: Strip mathematical alphanumeric symbols (U+1D400-U+1D7FF).
+    # These visually resemble Latin letters/digits (e.g. 𝐀 ≈ A) and can
+    # smuggle homoglyph payloads past Latin-only script detection.
+    text = re.sub(r"[\U0001D400-\U0001D7FF]", "", text)
     return text
 
 text = sys.stdin.read()
@@ -110,11 +137,11 @@ text = sanitize_pass(text)
 text = unicodedata.normalize("NFC", text)
 sys.stdout.write(text)
 ' "$max_chars" 2>/dev/null) || {
-    # P1-FE-006: On python3 failure, passthrough with [UNSANITIZED] prefix
-    local truncated
-    truncated=$(printf '%s' "$input" | head -c "$(( "${max_chars}" + 0 ))" 2>/dev/null || printf '%s' "$input")
-    printf '[UNSANITIZED] %s' "$truncated"
-    return 0
+    # VEIL-001: On python3 failure, fail closed — return empty string rather than
+    # passing through raw content.  A [UNSANITIZED] prefix gave callers false
+    # confidence while still exposing unsanitised input to downstream consumers.
+    printf ''
+    return 1
   }
 
   printf '%s' "$result"
@@ -148,6 +175,12 @@ sys.stdout.write(unicodedata.normalize("NFC", text))
 # Mixed-script detection: flags text containing both Latin AND Cyrillic or Greek characters.
 # Returns JSON: {"detected": true/false, "details": [...]}
 #
+# SEC-002 TIER LIMITATION: This function is Tier A/B only.
+#   Covered scripts : Latin (baseline), Cyrillic, Greek
+#   NOT covered     : Arabic, Armenian, Georgian, Hebrew, Devanagari, CJK, and all
+#                     other scripts that contain visually similar characters to Latin.
+# Callers requiring broader coverage must implement Tier C+ detection separately.
+#
 # Input: stdin
 # Output: stdout (JSON)
 detect_homoglyphs_tier_ab() {
@@ -160,6 +193,11 @@ detect_homoglyphs_tier_ab() {
 import sys, unicodedata, json
 
 text = sys.stdin.read()
+
+# BACK-006: Strip variation selectors (U+FE00-U+FE0F) before analysis.
+# These invisible codepoints can be used to cloak homoglyphs from detection.
+import re
+text = re.sub(r"[\uFE00-\uFE0F]", "", text)
 
 scripts_found = set()
 details = []
@@ -190,6 +228,14 @@ json.dump(result, sys.stdout)
     printf '{"detected":false,"details":[],"error":"python3_unavailable"}'
     return 0
   }
+
+  # SEC-008: Validate that $result is a non-empty, valid-looking JSON object
+  # before printing.  An empty result (e.g. python3 crash without exit code)
+  # would silently emit nothing, causing callers to see a false negative.
+  if [[ -z "$result" ]]; then
+    printf '{"detected":false,"details":[],"error":"empty_result"}'
+    return 0
+  fi
 
   printf '%s' "$result"
 }

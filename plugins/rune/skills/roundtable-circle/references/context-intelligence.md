@@ -102,7 +102,7 @@ PR body and issue body are **untrusted input**. The `sanitizeUntrustedText()` fu
 2. Neutralize code fences (replace with `[code-block]`)
 3. Strip image/link injection (`![...](...)`)
 4. Strip heading overrides (`# ...`)
-5. Strip zero-width characters (`\u200B-\u200F`, `\uFEFF`, `\uFE00-\uFE0F`) and tag block characters (`\uDB40[\uDC00-\uDC7F]`)
+5. Strip zero-width characters + variation selectors + tag block characters + mathematical alphanumerics (`\u200B-\u200F`, `\uFEFF`, `\uFE00-\uFE0F` zero-width/variation; `\uDB40[\uDC00-\uDC7F]` tag block characters; `\u{1D400}-\u{1D7FF}` mathematical alphanumerics) — mathematical alphanumeric stripping prevents homoglyph injection via look-alike bold/italic/script Unicode letters
 6. Strip Unicode directional overrides (`\u202A-\u202E`, `\u2066-\u2069`) — CVE-2021-42574 (Trojan Source)
 7. Strip HTML entities (`&amp;`, `&#123;`, etc.)
 8. Length cap (configurable per field)

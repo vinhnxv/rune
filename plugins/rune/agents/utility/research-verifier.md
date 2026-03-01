@@ -89,9 +89,10 @@ function sanitizeUntrustedText(text, maxChars) {
     .replace(/```[\s\S]*?```/g, '[code-block]')    // Neutralize code fences
     .replace(/!\[.*?\]\(.*?\)/g, '')               // Strip image/link injection
     .replace(/^#{1,6}\s+/gm, '')                   // Strip heading overrides
-    .replace(/[\u200B-\u200F\uFEFF\uFE00-\uFE0F]/g, '')  // Strip zero-width chars + variation selectors
-    .replace(/\uDB40[\uDC00-\uDC7F]/g, '')         // Strip tag block characters (U+E0000-E007F)
+    .replace(/[\u200B-\u200D\uFEFF\uFE00-\uFE0F]/g, '')  // Strip zero-width chars + variation selectors
     .replace(/[\u202A-\u202E\u2066-\u2069]/g, '')  // Strip Unicode directional overrides (CVE-2021-42574)
+    .replace(/\uDB40[\uDC00-\uDC7F]/g, '')         // Strip tag block characters (U+E0000-E007F)
+    .replace(/\uD835[\uDC00-\uDFFF]/g, '')         // Strip mathematical alphanumerics (U+1D400-1D7FF, homoglyph vector)
     .replace(/&[a-zA-Z0-9#]+;/g, '')               // Strip HTML entities
     .slice(0, maxChars)
 }
@@ -249,7 +250,12 @@ const SSRF_BLOCKLIST = [
   /^https?:\/\/[^/]*\.invalid(\/|$)/i,
   /^https?:\/\/[^/]*\.localhost(\/|$)/i,
   /^https?:\/\/\[::1\]/,
-  /^https?:\/\/\[::ffff:127\./
+  /^https?:\/\/\[::ffff:127\./,
+  /^https?:\/\/\[::ffff:10\./,
+  /^https?:\/\/\[::ffff:192\.168\./,
+  /^https?:\/\/\[::ffff:172\.(1[6-9]|2[0-9]|3[01])\./,
+  /^https?:\/\/\[fe[89ab][0-9a-f]:/i,      // Link-local fe80::/10
+  /^https?:\/\/\[f[cd][0-9a-f]{2}:/i       // ULA fc00::/7 (fc00–fdff)
 ]
 ```
 

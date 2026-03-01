@@ -115,9 +115,10 @@ assert_eq "Empty input returns empty" "" "$result"
 
 # 1j. Binary input graceful degradation (null bytes)
 result=$(printf 'hello\x00world' | sanitize_untrusted_text 2>/dev/null)
+exit_code=$?
 # Should not crash — either returns sanitized text or [UNSANITIZED] fallback
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
-if [[ $? -eq 0 ]] || [[ -n "$result" ]]; then
+if [[ $exit_code -eq 0 ]] || [[ -n "$result" ]]; then
   PASS_COUNT=$(( PASS_COUNT + 1 ))
   printf "  PASS: Binary input graceful degradation\n"
 else
@@ -180,8 +181,9 @@ assert_eq "Plan empty input returns empty" "" "$result"
 
 # 2i. Binary input graceful degradation
 result=$(printf 'hello\x00world' | sanitize_plan_content 2>/dev/null)
+exit_code=$?
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
-if [[ $? -eq 0 ]] || [[ -n "$result" ]]; then
+if [[ $exit_code -eq 0 ]] || [[ -n "$result" ]]; then
   PASS_COUNT=$(( PASS_COUNT + 1 ))
   printf "  PASS: Plan binary input graceful degradation\n"
 else
@@ -220,8 +222,9 @@ assert_eq "NFC empty input" "" "$result"
 
 # 3f. Binary input graceful degradation
 result=$(printf 'test\x00data' | normalize_unicode_nfc 2>/dev/null)
+exit_code=$?
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
-if [[ $? -eq 0 ]] || [[ -n "$result" ]]; then
+if [[ $exit_code -eq 0 ]] || [[ -n "$result" ]]; then
   PASS_COUNT=$(( PASS_COUNT + 1 ))
   printf "  PASS: NFC binary input graceful degradation\n"
 else

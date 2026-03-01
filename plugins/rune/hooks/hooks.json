@@ -196,50 +196,14 @@
         ]
       },
       {
-        "matcher": "mcp__plugin_rune_context7__.*",
-        "_rationale": "MCP untrusted output advisory for Context7 documentation tools. PostToolUse — advisory only, cannot block.",
+        "matcher": "mcp__plugin_rune_context7__.*|mcp__plugin_rune_figma-to-react__.*|mcp__plugin_rune_echo-search__.*|WebSearch|WebFetch",
+        "_rationale": "MCP untrusted output advisory for all external/MCP tools (Context7, Figma, echo-search, web). PostToolUse — advisory only, cannot block. QUAL-004: consolidated from 4 redundant entries.",
         "hooks": [
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/advise-mcp-untrusted.sh",
             "timeout": 5,
-            "statusMessage": "Advising on MCP output trust..."
-          }
-        ]
-      },
-      {
-        "matcher": "WebSearch|WebFetch",
-        "_rationale": "MCP untrusted output advisory for web content tools. PostToolUse — advisory only, cannot block.",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/advise-mcp-untrusted.sh",
-            "timeout": 5,
-            "statusMessage": "Advising on web output trust..."
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__plugin_rune_figma-to-react__.*",
-        "_rationale": "MCP untrusted output advisory for Figma design tools. PostToolUse — advisory only, cannot block.",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/advise-mcp-untrusted.sh",
-            "timeout": 5,
-            "statusMessage": "Advising on Figma output trust..."
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__plugin_rune_echo-search__.*",
-        "_rationale": "MCP untrusted output advisory for echo-search memory tools. PostToolUse — advisory only, cannot block.",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/advise-mcp-untrusted.sh",
-            "timeout": 5,
-            "statusMessage": "Advising on echo-search output trust..."
+            "statusMessage": "Advising on MCP/web output trust..."
           }
         ]
       }
@@ -247,6 +211,7 @@
     "TaskCompleted": [
       {
         "_security_note": "WS-007 accepted risk: $ARGUMENTS is platform-substituted before hook execution — cannot be sanitized within prompt hooks. Defense-in-depth: ANCHOR/RE-ANCHOR Truthbinding pattern + structural-only evaluation scope + haiku model limits exploitability. The two validation command hooks (on-task-completed.sh, validate-inner-flame.sh) and one observation hook (on-task-observation.sh) run before the prompt hook.",
+        "_sec_005_note": "SEC-005 accepted risk: The prompt hook uses ANCHOR/RE-ANCHOR structural framing around the untrusted <task-data> block. Advisory output sections (Step 1 legitimacy check, Step 2 completeness scoring) use prose instructions rather than ANCHOR boundaries — this is intentional for readability. The haiku model's limited capability and the structural-only evaluation scope (no tool calls, no writes) bound exploitability. ANCHOR/RE-ANCHOR framing at the top and bottom of the prompt is the primary injection defense.",
         "hooks": [
           {
             "type": "command",

@@ -231,7 +231,7 @@ echo "clean text" | detect_homoglyphs_tier_ab
 
 ### Integration Points
 
-- Invoked by `sanitize_plan_content()` for plan content validation
+- Available alongside `sanitize_plan_content()` for callers needing both
 - Available for ward-sentinel and security review agents via `source scripts/lib/sanitize-text.sh`
 - Returns JSON for programmatic consumption (`{"detected": bool, "details": [...]}`)
 - On python3 failure: returns safe default `{"detected":false,"details":[],"error":"python3_unavailable"}`

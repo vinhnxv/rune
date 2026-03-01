@@ -409,9 +409,29 @@ try {
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
   // FALLBACK: known teammates across all devise phases (some are conditional — safe to send shutdown to absent members)
-  allMembers = ["scroll-reviewer", "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
-    "horizon-sage", "evidence-verifier", "research-verifier", "doubt-seer", "codex-plan-reviewer",
-    "elicitation-sage-1", "elicitation-sage-2", "elicitation-sage-3", "design-inventory-agent"]
+  allMembers = [
+    // Phase 0: Brainstorm
+    "elicitation-sage-1", "elicitation-sage-2", "elicitation-sage-3",
+    "design-inventory-agent",
+    // Phase 1A: Local Research
+    "repo-surveyor", "echo-reader", "git-miner",
+    // Phase 1C: External Research (conditional)
+    "practice-seeker", "lore-scholar", "codex-researcher",
+    // Phase 1C.5: Research Verification (conditional)
+    "research-verifier",
+    // Phase 1D: Spec Validation
+    "flow-seer",
+    // Phase 1.8: Solution Arena (conditional)
+    "devils-advocate", "innovation-scout", "codex-arena-judge",
+    // Phase 2.3: Predictive Goldmask (conditional, 2-8 agents)
+    "devise-lore", "devise-wisdom", "devise-business", "devise-data", "devise-api", "devise-coordinator",
+    // Phase 4A: Scroll Review
+    "scroll-reviewer",
+    // Phase 4C: Technical Review (conditional)
+    "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
+    "horizon-sage", "evidence-verifier", "doubt-seer", "codex-plan-reviewer",
+    "elicitation-sage-review-1", "elicitation-sage-review-2", "elicitation-sage-review-3"
+  ]
 }
 
 // Shutdown all discovered members
@@ -435,14 +455,20 @@ try {
 // CRITICAL: Validate timestamp (/^[a-zA-Z0-9_-]+$/) before rm -rf — path traversal guard
 if (!/^[a-zA-Z0-9_-]+$/.test(timestamp)) throw new Error("Invalid plan identifier")
 if (timestamp.includes('..')) throw new Error('Path traversal detected')
+let cleanupTeamDeleteSucceeded = false
 const CLEANUP_DELAYS = [0, 5000, 10000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
-  try { TeamDelete(); break } catch (e) {
+  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
     if (attempt === CLEANUP_DELAYS.length - 1) warn(`plan cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
   }
 }
-Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/rune-plan-${timestamp}/" "$CHOME/tasks/rune-plan-${timestamp}/" 2>/dev/null`)
+
+// QUAL-012: Filesystem fallback ONLY when TeamDelete failed
+if (!cleanupTeamDeleteSucceeded) {
+  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/rune-plan-${timestamp}/" "$CHOME/tasks/rune-plan-${timestamp}/" 2>/dev/null`)
+  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
+}
 
 // 3.5. Release workflow lock
 Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "devise"`)
