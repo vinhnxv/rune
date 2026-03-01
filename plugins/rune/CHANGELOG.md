@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.124.0] - 2026-03-01
+
+### Added
+- **Hook-driven deterministic post-workflow teammate cleanup** (`detect-workflow-complete.sh`) — Layer 5 defense that fires on every Stop event, detects completed workflows with uncleaned teams, and executes 2-stage process escalation (SIGTERM -> SIGKILL) with filesystem cleanup
+- **Talisman cleanup configuration** (`teammate_lifecycle.cleanup`) — configurable `enabled`, `grace_period_seconds`, and `escalation_timeout_seconds` settings in talisman-defaults.json and talisman.example.yml
+- **Auto-clean PID-dead orphan teams on SessionStart** — `session-team-hygiene.sh` now removes teams whose owner PID is provably dead, without waiting for the 30-minute orphan threshold
+- **Process kill for orphan teammates on session resume** — `session-team-hygiene.sh` sends SIGTERM to child processes of dead owner PIDs found in active state files
+- **Arc phase stop hook zombie team verification** — `arc-phase-stop-hook.sh` checks if the prior phase's team dir still exists before starting next phase, cleaning zombie teams left by context exhaustion
+- **CDX-7 session marker check in arc preflight** — `arc-preflight.md` now checks `.session` marker files and PID liveness before cleaning foreign teams during stale arc team scan
+- **`RUNE_CLEANUP_DRY_RUN=1` dry-run mode** for cleanup scripts — all cleanup hooks (`detect-workflow-complete.sh`, `on-session-stop.sh`, `session-team-hygiene.sh`) log what they would do without actually killing processes, deleting teams, or modifying state files
+
+### Fixed
+- **State file coverage gap in `on-session-stop.sh` Phase 2** — replaced 8 explicit `.rune-*-*.json` patterns with universal `.rune-*.json` glob, covering 4+ previously missing workflow types (codex-review, goldmask, batch, test). Added skip guard for signal files handled by dedicated cleanup blocks.
+
+### Changed
+- **CLAUDE.md Layer 5 defense documentation** — updated from 4-layer to 5-layer defense model, added `detect-workflow-complete.sh` to Hook Infrastructure table, documented `RUNE_CLEANUP_DRY_RUN` env var
+
 ## [1.123.0] - 2026-03-01
 
 ### Added

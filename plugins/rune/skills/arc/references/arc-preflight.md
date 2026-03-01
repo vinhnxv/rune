@@ -542,7 +542,35 @@ for (const prefix of ARC_TEAM_PREFIXES) {
       continue
     }
 
-    // This team is from a different arc session — orphaned
+    // CDX-7 SESSION MARKER CHECK: Verify owning session is dead before cleaning.
+    // .session file may be JSON (v1.124.0+) or plain string (legacy).
+    // If owning session is still alive, skip — this team belongs to a concurrent session.
+    const sessionMarker = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cat "$CHOME/teams/${teamName}/.session" 2>/dev/null || true`).trim()
+    if (sessionMarker) {
+      let markerPid = ""
+      let markerCfg = ""
+      try {
+        const parsed = JSON.parse(sessionMarker)
+        markerPid = parsed.owner_pid || ""
+        markerCfg = parsed.config_dir || ""
+      } catch (e) {
+        // Plain string format — no PID info, fall through to cleanup
+      }
+      if (markerPid && /^\d+$/.test(markerPid)) {
+        // Check config_dir first — different installation means not our concern
+        const currentCfg = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cd "$CHOME" 2>/dev/null && pwd -P || echo "$CHOME"`).trim()
+        if (markerCfg && markerCfg !== currentCfg) {
+          continue  // Different installation — not our orphan
+        }
+        // PID liveness check: kill -0 returns 0 if process exists
+        const pidAlive = Bash(`kill -0 ${markerPid} 2>/dev/null && echo alive || true`).trim()
+        if (pidAlive === "alive") {
+          continue  // Owning session still alive — skip cleanup
+        }
+      }
+    }
+
+    // This team is from a different arc session — orphaned (owner PID dead or no marker)
     warn(`CDX-7: Stale arc team from prior session: ${teamName} — cleaning`)
     Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
   }

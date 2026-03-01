@@ -667,7 +667,12 @@
     },
     "max_runtime_minutes": 20,
     "process_cleanup": true,
-    "shutdown_signal_threshold": 35
+    "shutdown_signal_threshold": 35,
+    "cleanup": {
+      "enabled": true,
+      "grace_period_seconds": 10,
+      "escalation_timeout_seconds": 5
+    }
   },
   "testing": {
     "enabled": true,

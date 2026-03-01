@@ -362,6 +362,16 @@
         "hooks": [
           {
             "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/detect-workflow-complete.sh",
+            "timeout": 30,
+            "statusMessage": "Checking workflow completion cleanup..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/on-session-stop.sh",
             "timeout": 5,
             "statusMessage": "Checking for active Rune workflows..."

@@ -384,6 +384,32 @@ if ! grep -q "^iteration: ${NEW_ITERATION}$" "$STATE_FILE" 2>/dev/null; then
   exit 0
 fi
 
+# ── Zombie team verification: clean up prior phase's team if still present ──
+# When postPhaseCleanup is skipped (e.g., context exhaustion), the prior phase's
+# team dir may linger. Clean it before starting the next phase.
+CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+if [[ -n "$CHOME" && "$CHOME" == /* && -d "$CHOME/teams/" ]]; then
+  # Walk PHASE_ORDER backwards from NEXT_PHASE to find the most recently completed phase
+  PRIOR_PHASE=""
+  for _pp in "${PHASE_ORDER[@]}"; do
+    [[ "$_pp" == "$NEXT_PHASE" ]] && break
+    _pp_status=$(echo "$CKPT_CONTENT" | jq -r ".phases.${_pp}.status // \"pending\"" 2>/dev/null || echo "pending")
+    if [[ "$_pp_status" == "completed" ]]; then
+      PRIOR_PHASE="$_pp"
+    fi
+  done
+
+  if [[ -n "$PRIOR_PHASE" ]]; then
+    PRIOR_TEAM=$(echo "$CKPT_CONTENT" | jq -r ".phases.${PRIOR_PHASE}.team_name // empty" 2>/dev/null || true)
+    if [[ -n "$PRIOR_TEAM" && "$PRIOR_TEAM" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+      if [[ -d "$CHOME/teams/${PRIOR_TEAM}" && ! -L "$CHOME/teams/${PRIOR_TEAM}" ]]; then
+        rm -rf "$CHOME/teams/${PRIOR_TEAM}/" "$CHOME/tasks/${PRIOR_TEAM}/" 2>/dev/null
+        _trace "Zombie cleanup: removed prior phase ${PRIOR_PHASE} team: ${PRIOR_TEAM}"
+      fi
+    fi
+  fi
+fi
+
 # ── Build phase prompt ──
 REF_FILE=$(_phase_ref "$NEXT_PHASE")
 SECTION_HINT=$(_phase_section_hint "$NEXT_PHASE")
