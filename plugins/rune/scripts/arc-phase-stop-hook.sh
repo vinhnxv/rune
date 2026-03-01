@@ -433,9 +433,11 @@ if [[ -n "$CHOME" && "$CHOME" == /* && -d "$CHOME/teams/" ]]; then
   # scan $CHOME/teams/ for dirs matching arc-*-{id} and remove any that linger.
   _ARC_ID=$(echo "$CKPT_CONTENT" | jq -r '.id // empty' 2>/dev/null || true)
   if [[ -n "$_ARC_ID" && "$_ARC_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-    # BACK-003: Protect glob from NOMATCH error in zsh
-    local _saved_nullglob=$(shopt -p nullglob 2>/dev/null || true)
-    shopt -s nullglob
+    # BACK-003: Protect glob from NOMATCH error (bash nullglob)
+    # NOTE: Do NOT use `local` here — this is main script body, not a function.
+    # `local` outside functions is a fatal error in bash 3.2 (macOS /bin/bash).
+    _saved_nullglob=$(shopt -p nullglob 2>/dev/null || true)
+    shopt -s nullglob 2>/dev/null || true
     for _zombie_dir in "$CHOME/teams/"/arc-*-"${_ARC_ID}"; do
       [[ -d "$_zombie_dir" && ! -L "$_zombie_dir" ]] || continue
       _zombie_team="${_zombie_dir##*/}"
@@ -451,7 +453,8 @@ if [[ -n "$CHOME" && "$CHOME" == /* && -d "$CHOME/teams/" ]]; then
       rm -rf "$CHOME/teams/${_zombie_team}/" "$CHOME/tasks/${_zombie_team}/" 2>/dev/null
       _trace "Zombie fallback cleanup: removed orphaned team dir: ${_zombie_team}"
     done
-    eval "$_saved_nullglob"  # Restore nullglob state
+    # Restore nullglob state (eval is safe — _saved_nullglob is from shopt -p output)
+    [[ -n "$_saved_nullglob" ]] && eval "$_saved_nullglob" 2>/dev/null || true
   fi
 fi
 
