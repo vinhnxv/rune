@@ -115,6 +115,8 @@ def ir_to_dict(node: FigmaIRNode, max_depth: int = 20) -> dict[str, Any]:
     # SVG geometry
     if node.fill_geometry:
         result["fill_geometry_count"] = len(node.fill_geometry)
+    if node.stroke_geometry:
+        result["stroke_geometry_count"] = len(node.stroke_geometry)
 
     # Children
     if node.children:
@@ -163,9 +165,48 @@ def paginate_output(
     return result
 
 
+# Valid export formats for the Figma Images API (WS-4)
+_VALID_IMAGE_FORMATS: frozenset[str] = frozenset({"png", "svg", "jpg", "pdf"})
+
+# Max recursion depth for _collect_svg_fallback_ids (WS-8)
+_MAX_SVG_SCAN_DEPTH = 100
+
+
+def _collect_svg_fallback_ids(node: FigmaIRNode, _depth: int = 0) -> list[str]:
+    """Collect node IDs of SVG candidates that have no fill or stroke geometry.
+
+    These are nodes that need a Figma Images API SVG export because they have no
+    inline path data available. Stops recursing into SVG candidates themselves (DS-6)
+    to avoid redundant sub-tree exports.
+
+    Args:
+        node: IR node to scan.
+        _depth: Internal recursion depth counter (WS-8).
+
+    Returns:
+        List of unique node ID strings for geometry-less SVG candidates.
+    """
+    if _depth > _MAX_SVG_SCAN_DEPTH:
+        return []
+
+    result: list[str] = []
+
+    if node.is_svg_candidate and not node.fill_geometry and not node.stroke_geometry:
+        # Collect this node and stop — don't recurse into its children (DS-6)
+        result.append(node.node_id)
+        return result
+
+    # Not an SVG candidate (or has geometry) — recurse into children
+    for child in node.children:
+        result.extend(_collect_svg_fallback_ids(child, _depth + 1))
+
+    return result
+
+
 def extract_sub_components(
     root: FigmaIRNode,
     image_urls: dict[str, str],
+    svg_urls: dict[str, str] | None = None,
     aria: bool = False,
 ) -> list[dict[str, str]]:
     """Extract repeated component instances as separate React components."""
@@ -183,7 +224,7 @@ def extract_sub_components(
         if len(instances) < 2:
             continue
         template = instances[0]
-        code = generate_component(template, image_urls=image_urls, aria=aria)
+        code = generate_component(template, image_urls=image_urls, svg_urls=svg_urls, aria=aria)
         sub_components.append({
             "component_id": comp_id,
             "name": template.name,
@@ -451,12 +492,35 @@ async def to_react(
         except FigmaAPIError:
             logger.warning("Failed to resolve image URLs — using placeholders")
 
+    # Collect SVG fallback IDs for nodes with no geometry (export as SVG via Images API)
+    svg_fallback_ids = _collect_svg_fallback_ids(ir_root)
+    svg_urls: dict[str, str] = {}
+
+    if svg_fallback_ids:
+        # Validate format (WS-4) and clamp scale (WS-9) before calling API
+        export_format = "svg"
+        if export_format not in _VALID_IMAGE_FORMATS:
+            export_format = "svg"
+        export_scale = max(0.01, min(4.0, 1.0))  # scale=1.0 for SVG (scale has no effect on SVG)
+        try:
+            raw_svg_urls = await client.get_images(
+                file_key,
+                svg_fallback_ids,
+                format=export_format,
+                scale=export_scale,
+            )
+            # Filter out None values — failed exports return None in the API response
+            svg_urls = {k: v for k, v in raw_svg_urls.items() if v is not None}
+        except FigmaAPIError:
+            logger.warning("Failed to resolve SVG export URLs — using placeholders")
+
     # Generate main component
     name = component_name if component_name else None
     main_code = generate_component(
         ir_root,
         component_name=name,
         image_urls=image_urls,
+        svg_urls=svg_urls,
         aria=aria,
     )
 
@@ -468,7 +532,7 @@ async def to_react(
 
     # Extract sub-components from repeated instances
     if extract_components:
-        sub = extract_sub_components(ir_root, image_urls, aria=aria)
+        sub = extract_sub_components(ir_root, image_urls, svg_urls=svg_urls, aria=aria)
         if sub:
             output["extracted_components"] = sub
 

@@ -394,7 +394,11 @@ def _resolve_text_styles(style: Optional[TypeStyle]) -> List[str]:
         if tw_font:
             classes.append(tw_font)
         else:
-            classes.append(f"font-['{family}']")
+            # WS-5: Sanitize font family to [a-zA-Z0-9 \-_] before interpolating into
+            # an arbitrary Tailwind class — prevents CSS injection via malicious font names
+            safe_family = re.sub(r'[^a-zA-Z0-9 \-_]', '', family)
+            if safe_family:
+                classes.append(f"font-['{safe_family}']")
 
     if style.italic:
         classes.append("italic")
@@ -591,6 +595,7 @@ def generate_component(
     root: FigmaIRNode,
     component_name: Optional[str] = None,
     image_urls: Optional[Dict[str, str]] = None,
+    svg_urls: Optional[Dict[str, str]] = None,
     aria: bool = False,
 ) -> str:
     """Generate a complete React function component from an IR node tree.
@@ -606,13 +611,15 @@ def generate_component(
         component_name: Override component name. If None, derived from
             the root node's name.
         image_urls: Dict mapping image ref hashes to resolved URLs.
+        svg_urls: Dict mapping node IDs to exported SVG URLs (fallback for
+            nodes with no fill or stroke geometry).
         aria: When True, emit ARIA accessibility attributes.
 
     Returns:
         Complete React component source code as a string.
     """
     name = component_name or _to_component_name(root.name)
-    image_handler = ImageHandler(image_urls)
+    image_handler = ImageHandler(image_urls, svg_urls=svg_urls)
 
     # Collect image refs that need resolution
     refs = collect_image_refs(root)
@@ -647,6 +654,7 @@ def generate_component_with_props(
     component_name: Optional[str] = None,
     prop_names: Optional[List[str]] = None,
     image_urls: Optional[Dict[str, str]] = None,
+    svg_urls: Optional[Dict[str, str]] = None,
     aria: bool = False,
 ) -> str:
     """Generate a React component with typed props interface.
@@ -659,13 +667,15 @@ def generate_component_with_props(
         component_name: Override component name.
         prop_names: List of prop names to include in the interface.
         image_urls: Dict mapping image ref hashes to resolved URLs.
+        svg_urls: Dict mapping node IDs to exported SVG URLs (fallback for
+            nodes with no fill or stroke geometry).
         aria: When True, emit ARIA accessibility attributes.
 
     Returns:
         React component source code with props interface.
     """
     name = component_name or _to_component_name(root.name)
-    image_handler = ImageHandler(image_urls)
+    image_handler = ImageHandler(image_urls, svg_urls=svg_urls)
     props = prop_names or []
 
     jsx = _generate_node_jsx(root, None, image_handler, indent_level=1, aria=aria)

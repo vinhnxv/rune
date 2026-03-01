@@ -8,9 +8,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from image_handler import ImageHandler, collect_image_refs, _sanitize_alt_text
+from image_handler import ImageHandler, collect_image_refs, _sanitize_alt_text, _sanitize_svg_path
 from node_parser import FigmaIRNode
-from figma_types import NodeType
+from figma_types import NodeType, Paint, PaintType, Color
 
 
 # ---------------------------------------------------------------------------
