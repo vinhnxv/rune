@@ -194,6 +194,54 @@
             "statusMessage": "Checking context health..."
           }
         ]
+      },
+      {
+        "matcher": "mcp__plugin_rune_context7__.*",
+        "_rationale": "MCP untrusted output advisory for Context7 documentation tools. PostToolUse — advisory only, cannot block.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/advise-mcp-untrusted.sh",
+            "timeout": 5,
+            "statusMessage": "Advising on MCP output trust..."
+          }
+        ]
+      },
+      {
+        "matcher": "WebSearch|WebFetch",
+        "_rationale": "MCP untrusted output advisory for web content tools. PostToolUse — advisory only, cannot block.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/advise-mcp-untrusted.sh",
+            "timeout": 5,
+            "statusMessage": "Advising on web output trust..."
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__plugin_rune_figma-to-react__.*",
+        "_rationale": "MCP untrusted output advisory for Figma design tools. PostToolUse — advisory only, cannot block.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/advise-mcp-untrusted.sh",
+            "timeout": 5,
+            "statusMessage": "Advising on Figma output trust..."
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__plugin_rune_echo-search__.*",
+        "_rationale": "MCP untrusted output advisory for echo-search memory tools. PostToolUse — advisory only, cannot block.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/advise-mcp-untrusted.sh",
+            "timeout": 5,
+            "statusMessage": "Advising on echo-search output trust..."
+          }
+        ]
       }
     ],
     "TaskCompleted": [

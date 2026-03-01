@@ -151,7 +151,9 @@ const sanitizeOnce = (s) => s
   .replace(/```[\s\S]*?```/g, '[code block]')
   .replace(/!\[.*?\]\(.*?\)/g, '')
   .replace(/&[a-zA-Z0-9#]+;/g, '')
-  .replace(/[\u200B-\u200D\uFEFF]/g, '')
+  .replace(/[\u200B-\u200D\uFEFF\uFE00-\uFE0F]/g, '')  // zero-width + variation selectors
+  .replace(/\uDB40[\uDC00-\uDC7F]/g, '')                // tag block chars (U+E0000-E007F)
+  .replace(/\uD835[\uDC00-\uDFFF]/g, '')                // math alphanumerics (U+1D400-1D7FF, homoglyph vector)
 const sanitizeFindingText = (s) => {
   let result = s || ''
   for (let pass = 0; pass < 2; pass++) { result = sanitizeOnce(result) }
