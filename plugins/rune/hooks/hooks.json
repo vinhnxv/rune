@@ -359,6 +359,7 @@
         ]
       },
       {
+        "_rationale": "CDX-7 hook-driven workflow boundary cleanup (Layer 5). Scans tmp/.rune-*.json state files for completed/failed/cancelled workflows with residual team dirs, and for orphan workflows whose owner PID is dead. Executes 2-stage SIGTERM→SIGKILL process escalation then filesystem cleanup. 30s timeout budget covers full escalation cycle. Runs before on-session-stop.sh so orphan detection does not re-trigger stop-hook loop.",
         "hooks": [
           {
             "type": "command",

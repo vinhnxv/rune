@@ -543,7 +543,8 @@ for (const prefix of ARC_TEAM_PREFIXES) {
     }
 
     // CDX-7 SESSION MARKER CHECK: Verify owning session is dead before cleaning.
-    // .session file may be JSON (v1.124.0+) or plain string (legacy).
+    // .session file is JSON (implemented in v1.124.0 by stamp-team-session.sh) or plain string (legacy).
+    // JSON format: {"session_id":"...","owner_pid":"...","config_dir":"..."}
     // If owning session is still alive, skip — this team belongs to a concurrent session.
     const sessionMarker = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cat "$CHOME/teams/${teamName}/.session" 2>/dev/null || true`).trim()
     if (sessionMarker) {

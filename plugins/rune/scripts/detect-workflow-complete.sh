@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # detect-workflow-complete.sh — Stop hook: deterministic post-workflow teammate cleanup
 # OPERATIONAL hook — fail-forward (ADR-002)
 # Fires on every Stop event. Fast-path exit when no active workflows.
@@ -55,14 +55,13 @@ fi
 
 # Inline _trace (QUAL-007: each hook defines its own — no shared trace-logger.sh exists)
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
-_trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] detect-workflow-complete: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
+_trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && [[ ! -L "${RUNE_TRACE_LOG%/*}" ]] && printf '[%s] detect-workflow-complete: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
+HOOK_START_TIME=$(date +%s)
 _trace "ENTER detect-workflow-complete.sh"
 
 # ── GUARD 1: Fast-path — any state files at all? ──
-shopt -s nullglob
-STATE_FILES=("${CWD}/tmp/"/.rune-*.json)
-shopt -u nullglob
+readarray -t STATE_FILES < <(shopt -s nullglob || true; printf '%s\n' "${CWD}/tmp/"/.rune-*.json)
 
 if [[ ${#STATE_FILES[@]} -eq 0 ]]; then
   _trace "FAST EXIT: no state files"
@@ -78,13 +77,19 @@ for loop_file in \
   "${CWD}/.claude/arc-hierarchy-loop.local.md" \
   "${CWD}/.claude/arc-issues-loop.local.md"; do
   if [[ -f "$loop_file" ]]; then
-    # Check staleness — only defer if loop file is <10 min old
+    # Check staleness — only defer if loop file is <30 min old (matches longest phase timeout)
     if [[ "$(uname)" == "Darwin" ]]; then
-      age_min=$(( ($(date +%s) - $(stat -f %m "$loop_file" 2>/dev/null || echo 0)) / 60 ))
+      _loop_mtime=$(stat -f %m "$loop_file" 2>/dev/null || true)
     else
-      age_min=$(( ($(date +%s) - $(stat -c %Y "$loop_file" 2>/dev/null || echo 0)) / 60 ))
+      _loop_mtime=$(stat -c %Y "$loop_file" 2>/dev/null || true)
     fi
-    if [[ $age_min -lt 10 ]]; then
+    # BACK-002: validate mtime; if invalid, defer conservatively to avoid false cleanup
+    if [[ -z "$_loop_mtime" || ! "$_loop_mtime" =~ ^[0-9]+$ ]]; then
+      _trace "DEFER: $(basename "$loop_file") — mtime invalid, deferring conservatively"
+      exit 0
+    fi
+    age_min=$(( ($(date +%s) - _loop_mtime) / 60 ))
+    if [[ $age_min -lt 30 ]]; then
       _trace "DEFER: active loop file $(basename "$loop_file") (${age_min}m old)"
       exit 0
     fi
@@ -94,16 +99,19 @@ done
 # ── GUARD 3: Read talisman cleanup config ──
 # REC-4 FIX: Use grep/awk instead of python3+PyYAML (simple scalar extraction)
 CLEANUP_ENABLED=true
-GRACE_PERIOD=10
 ESCALATION_TIMEOUT=5
 
 TALISMAN="${CWD}/talisman.yml"
 if [[ -f "$TALISMAN" ]]; then
   CLEANUP_ENABLED=$(grep -A5 'cleanup:' "$TALISMAN" 2>/dev/null | grep 'enabled:' | awk '{print $2}' | head -1 || echo "true")
-  GRACE_PERIOD=$(grep -A5 'cleanup:' "$TALISMAN" 2>/dev/null | grep 'grace_period_seconds:' | awk '{print $2}' | head -1 || echo "10")
   # NOTE: escalation_timeout_seconds must stay < 23s to fit within 30s hook timeout budget (GAP-DOC-4)
+  # BACK-005: grace_period_seconds removed — not used in hook context (SDK-based grace period unavailable)
   ESCALATION_TIMEOUT=$(grep -A5 'cleanup:' "$TALISMAN" 2>/dev/null | grep 'escalation_timeout_seconds:' | awk '{print $2}' | head -1 || echo "5")
 fi
+
+# SEC-002: Validate and clamp talisman-sourced numeric values
+[[ "$ESCALATION_TIMEOUT" =~ ^[0-9]+$ ]] || ESCALATION_TIMEOUT=5
+[[ "$ESCALATION_TIMEOUT" -gt 23 ]] && ESCALATION_TIMEOUT=5
 
 if [[ "$CLEANUP_ENABLED" == "false" ]]; then
   _trace "SKIP: cleanup disabled via talisman"
@@ -114,6 +122,18 @@ fi
 for sf in "${STATE_FILES[@]}"; do
   [[ -f "$sf" ]] || continue
   [[ -L "$sf" ]] && continue  # skip symlinks
+
+  # VEIL-005: Per-iteration timeout budget guard — abort if <5s remaining in 30s budget
+  elapsed_total=$(( $(date +%s) - HOOK_START_TIME ))
+  if [[ $elapsed_total -gt 25 ]]; then
+    _trace "TIMEOUT GUARD: >${elapsed_total}s elapsed, aborting loop"
+    break
+  fi
+
+  # Skip signal/control files — only process workflow state files
+  case "$(basename "$sf")" in
+    .rune-shutdown-signal-*|.rune-force-shutdown-*|.rune-compact-*) continue ;;
+  esac
 
   # Session ownership check
   SF_CFG=$(jq -r '.config_dir // empty' "$sf" 2>/dev/null || true)
@@ -196,22 +216,38 @@ for sf in "${STATE_FILES[@]}"; do
   # The shutdown_request is only possible from the orchestrator context.
   # In hook context, we skip directly to process-level cleanup.
 
+  # BACK-004: Clear SF_PID for orphans — signal escalation is ineffective (dead PID has no
+  # live children via pgrep -P). For orphans, filesystem cleanup is the only reclamation
+  # mechanism on macOS (re-parented processes owned by launchd). Skip signal stages.
+  if [[ "$ORPHAN" == "true" ]]; then
+    SF_PID=""
+  fi
+
   # REC-2 FIX: Validate SF_PID is a Claude Code process before sending signals
   if [[ -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ ]]; then
     sf_pid_cmd=$(ps -p "$SF_PID" -o comm= 2>/dev/null || true)
-    if [[ ! "$sf_pid_cmd" =~ ^(node|claude)$ ]] && [[ "$ORPHAN" != "true" ]]; then
+    if [[ ! "$sf_pid_cmd" =~ ^(node|claude)$ ]]; then
       _trace "SKIP signal escalation: SF_PID=$SF_PID is not a Claude process (cmd=$sf_pid_cmd)"
       # Still do filesystem cleanup below
       SF_PID=""
     fi
   fi
 
+  # VEIL-008: Signal escalation (SIGTERM/SIGKILL via pgrep -P) is effective ONLY for Case 1
+  # (completed workflow with alive owner PID). For Case 2 (orphan, dead owner PID), the owner
+  # process has already exited; its children are re-parented to launchd (PID 1) on macOS.
+  # pgrep -P <dead_pid> returns nothing — signals are a no-op for orphans.
+  # Filesystem cleanup (rm -rf teams/ tasks/) is the sole reclamation mechanism for orphans.
+
   # REC-3: On macOS, orphaned child processes are re-parented to launchd (PID 1).
   # pgrep -P $dead_pid returns nothing for re-parented children.
   # Filesystem cleanup (rm -rf) is the primary reclamation mechanism for orphans.
 
   # Stage 1: SIGTERM to all child processes of this session
+  # SEC-003: Collect PIDs into array for reuse in Stage 2 — avoids re-querying pgrep
+  # (PID recycling window between Stage 1 and Stage 2 is already guarded by comm= re-verify)
   _trace "Stage 1: SIGTERM for team=$SF_TEAM"
+  sigterm_pids=()
   if [[ -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ ]]; then
     # Find teammate processes that are children of the owner PID
     while IFS= read -r child_pid; do
@@ -219,30 +255,32 @@ for sf in "${STATE_FILES[@]}"; do
       [[ "$child_pid" =~ ^[0-9]+$ ]] || continue
       # Verify this is a Claude/node process (not MCP/LSP server)
       child_cmd=$(ps -p "$child_pid" -o comm= 2>/dev/null || true)
-      if [[ "$child_cmd" =~ ^(node|claude) ]]; then
-        kill -TERM "$child_pid" 2>/dev/null || true
-        _trace "SIGTERM sent to PID=$child_pid (cmd=$child_cmd)"
-      fi
+      case "$child_cmd" in
+        node|claude|claude-*)
+          kill -TERM "$child_pid" 2>/dev/null || true
+          sigterm_pids+=("$child_pid")
+          _trace "SIGTERM sent to PID=$child_pid (cmd=$child_cmd)"
+          ;;
+      esac
     done < <(pgrep -P "$SF_PID" 2>/dev/null || true)
   fi
 
   # Wait for SIGTERM to take effect
   sleep "$ESCALATION_TIMEOUT" 2>/dev/null || sleep 5
 
-  # Stage 2: SIGKILL survivors
+  # Stage 2: SIGKILL survivors — reuse Stage 1 PID list (SEC-003)
   _trace "Stage 2: SIGKILL survivors for team=$SF_TEAM"
-  if [[ -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ ]]; then
-    while IFS= read -r child_pid; do
-      [[ -z "$child_pid" ]] && continue
-      [[ "$child_pid" =~ ^[0-9]+$ ]] || continue
-      # Re-verify before SIGKILL (PID recycling guard — SEC-P1-001)
-      child_cmd=$(ps -p "$child_pid" -o comm= 2>/dev/null || true)
-      if [[ "$child_cmd" =~ ^(node|claude) ]]; then
+  for child_pid in "${sigterm_pids[@]}"; do
+    [[ "$child_pid" =~ ^[0-9]+$ ]] || continue
+    # Re-verify before SIGKILL (PID recycling guard — SEC-P1-001)
+    child_cmd=$(ps -p "$child_pid" -o comm= 2>/dev/null || true)
+    case "$child_cmd" in
+      node|claude|claude-*)
         kill -KILL "$child_pid" 2>/dev/null || true
         _trace "SIGKILL sent to PID=$child_pid"
-      fi
-    done < <(pgrep -P "$SF_PID" 2>/dev/null || true)
-  fi
+        ;;
+    esac
+  done
 
   # Filesystem cleanup
   _trace "Filesystem cleanup for team=$SF_TEAM"
@@ -251,10 +289,11 @@ for sf in "${STATE_FILES[@]}"; do
     rm -rf "${CWD}/tmp/.rune-signals/${SF_TEAM}/" 2>/dev/null || true
   fi
 
-  # Update state file
+  # Update state file — SEC-004: use mktemp to avoid predictable temp file path
+  _sf_tmp=$(mktemp "${sf}.XXXXXX" 2>/dev/null) || _sf_tmp="${sf}.tmp"
   jq --arg by "CLEANUP-HOOK" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '. + {status: "stopped", stopped_by: $by, stopped_at: $ts}' "$sf" > "${sf}.tmp" 2>/dev/null \
-    && mv "${sf}.tmp" "$sf" 2>/dev/null || true
+    '. + {status: "stopped", stopped_by: $by, stopped_at: $ts}' "$sf" > "$_sf_tmp" 2>/dev/null \
+    && mv "$_sf_tmp" "$sf" 2>/dev/null || { rm -f "$_sf_tmp" 2>/dev/null; true; }
 
   _trace "DONE escalation for team=$SF_TEAM"
 done

@@ -356,6 +356,8 @@ if [[ -d "${CWD}/tmp/" ]]; then
     case "$(basename "$f")" in
       .rune-shutdown-signal-*|.rune-force-shutdown-*|.rune-compact-*) continue ;;
     esac
+    # BACK-012: Schema validation — skip files that don't have expected .team_name field
+    jq -e '.team_name' "$f" >/dev/null 2>&1 || continue
     if jq -e '.status == "active"' "$f" >/dev/null 2>&1; then
       # ── Ownership filter: only mark THIS session's state files as stopped ──
       f_cfg=$(jq -r '.config_dir // empty' "$f" 2>/dev/null || true)

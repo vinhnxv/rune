@@ -86,7 +86,7 @@ fi
 
 # Atomic write: .session.tmp.$$ then mv
 TMP_FILE=$(mktemp "$TEAM_DIR/.session.tmp.XXXXXX")
-if printf '%s' "$HOOK_SESSION_ID" > "$TMP_FILE" 2>/dev/null; then
+if printf '{"session_id":"%s","owner_pid":"%s","config_dir":"%s"}' "$HOOK_SESSION_ID" "$PPID" "${RUNE_CURRENT_CFG:-}" > "$TMP_FILE" 2>/dev/null; then
   mv -f "$TMP_FILE" "$TEAM_DIR/.session" 2>/dev/null || rm -f "$TMP_FILE" 2>/dev/null
 else
   rm -f "$TMP_FILE" 2>/dev/null

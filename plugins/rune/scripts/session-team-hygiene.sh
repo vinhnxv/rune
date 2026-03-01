@@ -38,6 +38,8 @@ INPUT=$(head -c 1048576)
 # Extract CWD for state file scan
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 if [[ -z "$CWD" ]]; then exit 0; fi
+# SEC-005: Path traversal guard — reject CWD containing ".." before cd
+if [[ "$CWD" == *".."* ]]; then exit 0; fi
 CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || { exit 0; }
 if [[ -z "$CWD" || "$CWD" != /* ]]; then exit 0; fi
 
@@ -50,6 +52,8 @@ fi
 
 # ── Session identity for cross-session ownership filtering ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# QUAL-010: Guard against missing helper before sourcing
+if [[ ! -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then exit 0; fi
 # shellcheck source=resolve-session-identity.sh
 source "${SCRIPT_DIR}/resolve-session-identity.sh"
 
@@ -61,8 +65,11 @@ orphan_count=0
 orphan_names=()
 if [[ -d "$CHOME/teams/" ]]; then
   while IFS= read -r dir; do
+    # SEC-006: Reject symlinks before any processing (defense-in-depth: find -type d filters
+    # most symlinks, but -follow or race conditions could slip one through)
+    [[ -L "$dir" ]] && continue
     dirname=$(basename "$dir")
-    if [[ "$dirname" =~ ^[a-zA-Z0-9_-]+$ ]] && [[ ! -L "$dir" ]]; then
+    if [[ "$dirname" =~ ^[a-zA-Z0-9_-]+$ ]]; then
       # Session ownership filter: skip teams owned by other live sessions
       if [[ -f "$dir/.session" ]] && [[ ! -L "$dir/.session" ]]; then
         marker_session=$(head -c 256 "$dir/.session" 2>/dev/null | tr -d '[:space:]' || true)
@@ -81,7 +88,10 @@ fi
 
 # ── Auto-clean PID-dead orphans (REC-9) ──
 # After detection, actually remove team dirs whose owner PID is provably dead.
-# Only cleans teams where: (1) .session file exists, (2) config_dir matches, (3) PID is dead.
+# Cleans teams where PID is verifiably dead via:
+#   (a) .session file (primary), OR
+#   (b) corresponding state file in CWD/tmp/ (BACK-007: fallback for teams without .session)
+# Also requires: config_dir matches and PID is dead.
 # Handles both JSON and plain string .session files (horizon-sage finding).
 orphans_cleaned=0
 if [[ $orphan_count -gt 0 ]] && [[ -d "$CHOME/teams/" ]]; then
@@ -90,22 +100,46 @@ if [[ $orphan_count -gt 0 ]] && [[ -d "$CHOME/teams/" ]]; then
     [[ -d "$odir" ]] || continue
     [[ -L "$odir" ]] && continue
     session_file="$odir/.session"
-    [[ -f "$session_file" ]] && [[ ! -L "$session_file" ]] || continue
 
-    # Read .session content (max 4KB safety cap)
-    session_content=$(head -c 4096 "$session_file" 2>/dev/null || true)
-    [[ -z "$session_content" ]] && continue
-
-    # Extract owner_pid — handle both JSON and plain string formats
     owner_pid=""
     owner_cfg=""
-    if echo "$session_content" | jq -e '.' >/dev/null 2>&1; then
-      # JSON format: {"session_id":"...","config_dir":"...","owner_pid":"..."}
-      owner_pid=$(echo "$session_content" | jq -r '.owner_pid // empty' 2>/dev/null || true)
-      owner_cfg=$(echo "$session_content" | jq -r '.config_dir // empty' 2>/dev/null || true)
+
+    if [[ -f "$session_file" ]] && [[ ! -L "$session_file" ]]; then
+      # Primary path: read PID from .session file
+      # Read .session content (max 4KB safety cap)
+      session_content=$(head -c 4096 "$session_file" 2>/dev/null || true)
+      [[ -z "$session_content" ]] && continue
+
+      # Extract owner_pid — handle both JSON and plain string formats
+      if echo "$session_content" | jq -e '.' >/dev/null 2>&1; then
+        # JSON format: {"session_id":"...","config_dir":"...","owner_pid":"..."}
+        owner_pid=$(echo "$session_content" | jq -r '.owner_pid // empty' 2>/dev/null || true)
+        owner_cfg=$(echo "$session_content" | jq -r '.config_dir // empty' 2>/dev/null || true)
+      fi
+      # Plain string format has no PID info — skip (can't verify PID is dead)
+      [[ -n "$owner_pid" && "$owner_pid" =~ ^[0-9]+$ ]] || continue
+    else
+      # BACK-007: Fallback — no .session file. Scan CWD/tmp/ state files for a matching team name.
+      # Look for a state file whose team_name (or inferred from filename) matches oname and has a dead PID.
+      if [[ -d "${CWD}/tmp/" ]]; then
+        for sf in "${CWD}/tmp/"/.rune-*.json; do
+          [[ -f "$sf" ]] && [[ ! -L "$sf" ]] || continue
+          sf_pid=$(jq -r '.owner_pid // empty' "$sf" 2>/dev/null || true)
+          sf_cfg=$(jq -r '.config_dir // empty' "$sf" 2>/dev/null || true)
+          sf_team=$(jq -r '.team_name // empty' "$sf" 2>/dev/null || true)
+          [[ "$sf_team" == "$oname" ]] || continue
+          [[ -n "$sf_pid" && "$sf_pid" =~ ^[0-9]+$ ]] || continue
+          owner_pid="$sf_pid"
+          owner_cfg="$sf_cfg"
+          break
+        done
+      fi
+      # If no matching state file found, cannot verify PID — skip
+      [[ -n "$owner_pid" ]] || continue
     fi
-    # Plain string format has no PID info — skip (can't verify PID is dead)
-    [[ -n "$owner_pid" && "$owner_pid" =~ ^[0-9]+$ ]] || continue
+
+    # SEC-008: Exclude sentinel PIDs 0 (kernel) and 1 (init/launchd) — never valid owners
+    if [[ "$owner_pid" == "0" || "$owner_pid" == "1" ]]; then continue; fi
 
     # Layer 1: config_dir mismatch → different installation, skip
     if [[ -n "$owner_cfg" && "$owner_cfg" != "$RUNE_CURRENT_CFG" ]]; then
@@ -175,6 +209,12 @@ if [[ -d "${CWD}/tmp/" ]]; then
         [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: DRY RUN: would kill orphan PID=$cpid (comm=$child_comm)" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
         continue
       fi
+      # BACK-008: Intentional SIGTERM-only design. We do NOT escalate to SIGKILL here because:
+      # (1) This SessionStart hook has a strict 5s timeout budget — SIGKILL escalation with
+      #     a wait loop would risk exceeding the budget and crashing the hook.
+      # (2) SessionStart is informational; hard kills belong in on-session-stop.sh Phase 0
+      #     where SIGTERM+5s+SIGKILL escalation is explicitly budgeted.
+      # (3) Graceful SIGTERM gives node/claude processes time to flush state — safer than SIGKILL.
       kill -TERM "$cpid" 2>/dev/null || true
       orphan_procs_killed=$((orphan_procs_killed + 1))
     done <<< "$child_pids"
