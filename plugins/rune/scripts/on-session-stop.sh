@@ -109,15 +109,20 @@ _check_loop_ownership() {
 
 # ── GUARD 5d: Defer to arc-phase stop hook (with ownership check) ──
 # v1.110.0: Phase loop is the innermost loop — defer here BEFORE batch/hierarchy/issues.
-# If loop file is active but older than 10 min, the loop hook likely crashed.
+# If loop file is active but older than the staleness threshold, the loop hook likely crashed.
 # Force cleanup instead of deferring indefinitely, which would leave the session unable to stop.
+# v1.125.1 FIX: Increased threshold from 10 min to 90 min. Arc phases can legitimately
+# take up to 50 min (test with E2E) and the state file mtime is only updated between
+# phases (by arc-phase-stop-hook.sh iteration increment). The 10-min threshold caused
+# premature deletion of active state files, breaking the phase loop.
+_PHASE_STALE_MIN=90
 [[ -z "${NOW:-}" ]] && NOW=$(date +%s)
 if _check_loop_ownership "${CWD}/.claude/arc-phase-loop.local.md"; then
   _phase_active=$(_get_fm_field "$_LOOP_FM" "active")
   if [[ "$_phase_active" == "true" ]]; then
     _phase_mtime=$(stat -f %m "${CWD}/.claude/arc-phase-loop.local.md" 2>/dev/null || stat -c %Y "${CWD}/.claude/arc-phase-loop.local.md" 2>/dev/null || echo 0)
     _phase_age_min=$(( (NOW - _phase_mtime) / 60 ))
-    if [[ $_phase_age_min -gt 10 ]]; then
+    if [[ $_phase_age_min -gt $_PHASE_STALE_MIN ]]; then
       rm -f "${CWD}/.claude/arc-phase-loop.local.md" 2>/dev/null
     else
       exit 0
@@ -129,16 +134,21 @@ fi
 
 # ── GUARD 5: Defer to arc-batch stop hook (with ownership check) ──
 # v1.101.1 FIX (Finding #5): Add staleness check. If loop file is active but older
-# than 10 minutes, the loop hook likely crashed. Force cleanup instead of deferring
+# than the threshold, the loop hook likely crashed. Force cleanup instead of deferring
 # indefinitely, which would leave the session unable to stop.
+# v1.125.1 FIX: Increased threshold from 10 min to 150 min. A single arc run can
+# take 30-90 minutes (all 26 phases), and the batch loop file mtime is only updated
+# between arc runs (not between phases). The 10-min threshold caused premature deletion
+# of active state files during the first arc's execution.
+_BATCH_STALE_MIN=150
 [[ -z "${NOW:-}" ]] && NOW=$(date +%s)
 if _check_loop_ownership "${CWD}/.claude/arc-batch-loop.local.md"; then
   _batch_active=$(_get_fm_field "$_LOOP_FM" "active")
   if [[ "$_batch_active" == "true" ]]; then
-    # Check staleness — if file is older than 10 min, loop hook likely crashed
+    # Check staleness — if file is older than threshold, loop hook likely crashed
     _batch_mtime=$(stat -f %m "${CWD}/.claude/arc-batch-loop.local.md" 2>/dev/null || stat -c %Y "${CWD}/.claude/arc-batch-loop.local.md" 2>/dev/null || echo 0)
     _batch_age_min=$(( (NOW - _batch_mtime) / 60 ))
-    if [[ $_batch_age_min -gt 10 ]]; then
+    if [[ $_batch_age_min -gt $_BATCH_STALE_MIN ]]; then
       # Stale loop file — force cleanup instead of deferring
       rm -f "${CWD}/.claude/arc-batch-loop.local.md" 2>/dev/null
     else
@@ -152,12 +162,15 @@ if _check_loop_ownership "${CWD}/.claude/arc-batch-loop.local.md"; then
 fi
 
 # ── GUARD 5b: Defer to arc-hierarchy stop hook (with ownership check) ──
+# v1.125.1 FIX: Increased threshold from 10 min to 150 min (same as batch — hierarchy
+# runs multiple child arcs sequentially, each taking 30-90 min).
+_HIERARCHY_STALE_MIN=150
 if _check_loop_ownership "${CWD}/.claude/arc-hierarchy-loop.local.md"; then
   _hier_status=$(_get_fm_field "$_LOOP_FM" "status")
   if [[ "$_hier_status" == "active" ]]; then
     _hier_mtime=$(stat -f %m "${CWD}/.claude/arc-hierarchy-loop.local.md" 2>/dev/null || stat -c %Y "${CWD}/.claude/arc-hierarchy-loop.local.md" 2>/dev/null || echo 0)
     _hier_age_min=$(( (NOW - _hier_mtime) / 60 ))
-    if [[ $_hier_age_min -gt 10 ]]; then
+    if [[ $_hier_age_min -gt $_HIERARCHY_STALE_MIN ]]; then
       rm -f "${CWD}/.claude/arc-hierarchy-loop.local.md" 2>/dev/null
     else
       exit 0
@@ -169,12 +182,15 @@ if _check_loop_ownership "${CWD}/.claude/arc-hierarchy-loop.local.md"; then
 fi
 
 # ── GUARD 5c: Defer to arc-issues stop hook (with ownership check) ──
+# v1.125.1 FIX: Increased threshold from 10 min to 150 min (same as batch — issues
+# runs multiple arcs sequentially, each taking 30-90 min).
+_ISSUES_STALE_MIN=150
 if _check_loop_ownership "${CWD}/.claude/arc-issues-loop.local.md"; then
   _issues_active=$(_get_fm_field "$_LOOP_FM" "active")
   if [[ "$_issues_active" == "true" ]]; then
     _issues_mtime=$(stat -f %m "${CWD}/.claude/arc-issues-loop.local.md" 2>/dev/null || stat -c %Y "${CWD}/.claude/arc-issues-loop.local.md" 2>/dev/null || echo 0)
     _issues_age_min=$(( (NOW - _issues_mtime) / 60 ))
-    if [[ $_issues_age_min -gt 10 ]]; then
+    if [[ $_issues_age_min -gt $_ISSUES_STALE_MIN ]]; then
       rm -f "${CWD}/.claude/arc-issues-loop.local.md" 2>/dev/null
     else
       exit 0
