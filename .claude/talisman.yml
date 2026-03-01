@@ -46,6 +46,8 @@ settings:
     - TDD # TDD Compliance Reviewer (stack specialist, v1.86.0+)
     - DDD # DDD Reviewer (stack specialist, v1.86.0+)
     - DI # DI Reviewer (stack specialist, v1.86.0+)
+    - TLC # Custom: team-lifecycle-reviewer (project-level)
+    - SPAWN # Custom: agent-spawn-reviewer (project-level)
     - DOC # Knowledge Keeper
     - QUAL # Pattern Weaver
     - FRONT # Glyph Scribe
@@ -76,6 +78,48 @@ audit:
       - decay-tracer
     max_dimension_agents: 7
   always_deep: false
+
+# ──────────────────────────────────────────────
+# Ashes — Custom review agents for Rune plugin development
+# ──────────────────────────────────────────────
+ashes:
+  custom:
+    # Validates 5-component Agent Team cleanup pattern:
+    # TeamCreate/TeamDelete pairing, shutdown_request, dynamic discovery,
+    # CHOME pattern, SEC-4 validation, QUAL-012 gating, retry pattern
+    - name: "team-lifecycle-reviewer"
+      agent: "team-lifecycle-reviewer"
+      source: local
+      workflows: [review, audit]
+      trigger:
+        extensions: [".md", ".sh"]
+        paths: ["plugins/rune/skills/", "plugins/rune/commands/", "plugins/rune/scripts/"]
+      context_budget: 25
+      finding_prefix: "TLC"
+      required_sections:
+        - "P1 (Critical)"
+        - "P2 (High)"
+        - "P3 (Medium)"
+        - "Compliance Matrix"
+        - "Self-Review Log"
+
+    # Validates Agent tool (not deprecated Task) for teammate spawning
+    # per Claude Code 2.1.63 rename (PR #172)
+    - name: "agent-spawn-reviewer"
+      agent: "agent-spawn-reviewer"
+      source: local
+      workflows: [review, audit]
+      trigger:
+        extensions: [".md", ".sh", ".json"]
+        paths: ["plugins/rune/skills/", "plugins/rune/commands/", "plugins/rune/scripts/", "plugins/rune/hooks/"]
+      context_budget: 25
+      finding_prefix: "SPAWN"
+      required_sections:
+        - "P1 (Critical)"
+        - "P2 (High)"
+        - "P3 (Medium)"
+        - "Compliance Summary"
+        - "Self-Review Log"
 
 # ──────────────────────────────────────────────
 # Defaults — Disable built-in Ash
