@@ -558,6 +558,47 @@ See [`talisman.example.yml`](plugins/rune/talisman.example.yml) for the full sch
 
 ---
 
+## Codex CLI Integration (Optional)
+
+Rune supports [OpenAI Codex CLI](https://github.com/openai/codex) as a cross-model verification layer. If you have a **ChatGPT Pro** subscription, you can enable Codex to add a second AI perspective alongside Claude — giving you higher-confidence results through independent cross-verification.
+
+### What Codex adds
+
+| Workflow | Codex Role |
+|----------|-----------|
+| `/rune:arc` | Gap analysis phase — Codex independently reviews implementation gaps |
+| `/rune:appraise` | Cross-model review — Claude and Codex review in parallel, findings are cross-verified |
+| `/rune:devise` | Plan validation — Codex provides a second opinion on plan feasibility |
+| `/rune:codex-review` | Dedicated cross-model review — runs Claude + Codex agents side by side |
+
+Findings are tagged with confidence levels: **CROSS-VERIFIED** (both models agree), **STANDARD** (single model), or **DISPUTED** (models disagree).
+
+### Trade-off: quality vs. time
+
+Enabling Codex **increases runtime** for every workflow that uses it — each Codex invocation adds an extra verification pass. For `/rune:arc`, this can add 10–20 minutes on top of the already 1–3 hour pipeline. Enable it when correctness matters more than speed.
+
+### Enable / Disable
+
+Codex integration is controlled via `talisman.yml`:
+
+```yaml
+# .claude/talisman.yml
+codex:
+  enabled: true                          # Set to false to disable entirely
+  workflows: [devise, arc, appraise]     # Which workflows use Codex
+```
+
+To disable: set `codex.enabled: false` or remove the `codex` section. Rune auto-detects whether the `codex` CLI is installed and authenticated — if not available, Codex phases are silently skipped.
+
+### Prerequisites
+
+1. [ChatGPT Pro](https://openai.com/chatgpt/pricing/) subscription (for Codex API access)
+2. Codex CLI installed: `npm install -g @openai/codex`
+3. Authenticated: `codex login`
+4. `.codexignore` file in project root (required for `--full-auto` mode)
+
+---
+
 ## Architecture
 
 ```
