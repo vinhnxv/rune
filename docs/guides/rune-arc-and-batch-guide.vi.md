@@ -90,10 +90,12 @@ Arc pre-flight sẽ kiểm tra:
 
 ### 4.4 Arc chạy những gì
 Arc chạy pipeline theo phase, gồm:
-- Plan readiness: Forge, Plan Review, Plan Refinement, Verification, Semantic Verification, Task Decomposition.
-- Implementation quality: Work, Gap Analysis, Codex Gap Analysis, Gap Remediation, Goldmask Verification.
-- Convergence: Code Review, Goldmask Correlation, Mend, Verify Mend loop.
-- Delivery: Test, Pre-Ship Validation, Ship, Merge (+ bot review phases nếu bật).
+- Plan readiness: Forge, Plan Review, Plan Refinement, Verification, Semantic Verification, Design Extraction, Task Decomposition.
+- Implementation quality: Work, Design Verification, Gap Analysis, Codex Gap Analysis, Gap Remediation, Goldmask Verification.
+- Convergence: Code Review (--deep), Goldmask Correlation, Mend, Verify Mend, Design Iteration loop.
+- Delivery: Test (3 tầng: unit/integration/E2E), Test Coverage Critique, Pre-Ship Validation, Release Quality Check, Ship, Bot Review Wait, PR Comment Resolution, Merge.
+
+> **Lưu ý (v1.120.2+):** Arc pipeline hiện có 26 phase (tăng từ 23), thêm Design Extraction, Design Verification, và Design Iteration cho Figma design sync.
 
 ### 4.5 Theo dõi state ở đâu
 - Checkpoint: `.claude/arc/{arc-id}/checkpoint.json`
@@ -126,6 +128,7 @@ Biến thể queue file:
 | `--no-merge` | Giữ PR mở, không auto-merge |
 | `--resume` | Chạy tiếp các plan pending |
 | `--no-shard-sort` | Giữ nguyên thứ tự input |
+| `--smart-sort` | Buộc sắp xếp thông minh cho mọi loại input (v1.117.0+) |
 
 ### 5.3 Batch pre-flight
 Rune kiểm tra từng plan:
@@ -144,6 +147,15 @@ Batch dùng stop-hook loop (không dùng subprocess polling):
 
 Lưu ý quan trọng:
 - Arc nội bộ trong batch được gọi kèm `--skip-freshness`.
+- Sắp xếp thông minh (v1.117.0+) là **opt-in** — input glob sẽ hỏi 3 lựa chọn: Smart / Alphabetical / As-discovered. Queue file giữ nguyên thứ tự người dùng.
+
+### 5.4.1 Chế độ sắp xếp thông minh
+
+| Chế độ | Hành vi | Cấu hình |
+|---|---|---|
+| `ask` (mặc định) | Hỏi người dùng chọn thứ tự cho glob input | `arc.batch.smart_ordering.mode: "ask"` |
+| `auto` | Luôn áp dụng sắp xếp thông minh | `arc.batch.smart_ordering.mode: "auto"` |
+| `off` | Không sắp xếp thông minh | `arc.batch.smart_ordering.mode: "off"` |
 
 ### 5.5 File state của batch
 - Loop state: `.claude/arc-batch-loop.local.md`
@@ -328,6 +340,9 @@ Hướng dẫn vận hành:
 | Batch dừng sau 1 plan | State loop bị xóa/cancel | Kiểm tra file state + progress |
 | Resume không chạy gì | Không còn plan `pending` | Kiểm tra `tmp/arc-batch/batch-progress.json` |
 | Plan bị từ chối ở pre-flight | Path/file không an toàn | Sửa path/file rồi chạy lại |
+| Design phase bị skip | Không có Figma URL trong plan | Bình thường — design phase chỉ chạy khi `design_sync.enabled` và có URL Figma |
+| Stop hook timeout | Arc phase vượt ngưỡng staleness | Ngưỡng hiện là 90 phút (phase) / 150 phút (batch) từ v1.125.1 |
+| Worker bị loop vô hạn | maxTurns quá cao | Đã sửa trong v1.119.0 — worker có maxTurns=60 với runtime budget enforcement |
 
 ---
 
@@ -346,4 +361,7 @@ Hướng dẫn vận hành:
 # Cancel
 /rune:cancel-arc
 /rune:cancel-arc-batch
+
+# Arc batch với sắp xếp thông minh
+/rune:arc-batch plans/*.md --smart-sort          # Buộc sắp xếp thông minh
 ```

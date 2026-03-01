@@ -79,9 +79,11 @@ Rune detects changed files on your branch, selects appropriate reviewers, and pr
 3. **Rune Gaze** — selects matching Ashes based on file types.
 4. **Team creation** — spawns all Ashes in parallel, each with its own dedicated context window.
 5. **Parallel review** — Ashes write findings to files (not to chat).
-6. **Aggregation** — Runebinder deduplicates, prioritizes, produces TOME.
-7. **Truthsight** — validates P1 evidence against source code.
-8. **Cleanup** — shutdown teammates, persist echoes, present TOME.
+6. **Pre-Aggregation (Phase 5.0)** — condenses individual agent outputs before feeding to Runebinder, reducing context saturation (v1.116.0+).
+7. **Aggregation** — Runebinder deduplicates, prioritizes, produces TOME.
+8. **Citation Verification (Phase 5.2)** — deterministic grep-based verification of TOME `file:line` citations (v1.117.0+). Catches phantom citations (non-existent files, out-of-range lines). Tags unreliable findings as `UNVERIFIED` or `SUSPECT`.
+9. **Truthsight** — validates P1 evidence against source code.
+10. **Cleanup** — shutdown teammates, persist echoes, present TOME.
 
 ### 3.4 Understanding the TOME
 
@@ -96,6 +98,14 @@ The TOME contains structured findings with priority levels:
 | **N** | Nit — trivial suggestion | Filtered out in mend |
 
 Each finding includes: file path, line range, code evidence (Rune Trace), and fix guidance.
+
+**Citation tags (v1.117.0+):**
+
+| Tag | Meaning | Mend behavior |
+|---|---|---|
+| *(none)* | Citation verified successfully | Normal fix |
+| **SUSPECT** | Citation partially verified (pattern mismatch) | Extra caution applied |
+| **UNVERIFIED** | Citation failed verification (file/line not found) | Skipped by mend-fixer |
 
 Output: `tmp/reviews/{id}/TOME.md`
 
@@ -255,9 +265,19 @@ Or use the streamlined flag:
 /rune:mend tmp/audit/{id}/TOME.md
 ```
 
+### Cross-model review
+
+For critical changes, get a second opinion from an independent model:
+
+```bash
+/rune:codex-review
+```
+
+This runs Claude and OpenAI Codex reviewers in parallel, cross-verifies findings between models, and merges consensus issues into a unified TOME. Requires `codex` CLI installed.
+
 ### Full cycle in arc
 
-`/rune:arc` runs review → mend → verify-mend automatically as part of its 23-phase pipeline. Use standalone appraise/mend when you want targeted review without the full pipeline.
+`/rune:arc` runs review → mend → verify-mend automatically as part of its 26-phase pipeline. Use standalone appraise/mend when you want targeted review without the full pipeline.
 
 ---
 
@@ -319,6 +339,9 @@ Spread audit work across multiple sessions without re-scanning reviewed files.
 | Ward check fails after mend | Fix introduced a regression | Mend bisects to identify failing fix, marks it NEEDS_REVIEW |
 | "No TOME found" on mend | No prior review/audit run | Run `/rune:appraise` or `/rune:audit` first |
 | Incremental audit stuck | Lock held by dead session | Lock auto-recovers (PID liveness check). If stuck, `--reset` |
+| TOME has many UNVERIFIED findings | Phantom citations in code references | Phase 5.2 caught bad citations. Check if file paths changed since review |
+| Pre-aggregation skipped | Single agent or very short output | Phase 5.0 only activates when multiple agents produce substantial output |
+| Context saturation during aggregation | Too many Ash outputs for Runebinder | Phase 5.0 pre-aggregation (v1.116.0+) should prevent this; check `pre_aggregate.enabled` |
 
 ---
 
@@ -345,7 +368,11 @@ Spread audit work across multiple sessions without re-scanning reviewed files.
 /rune:mend tmp/reviews/{id}/TOME.md                # Fix review findings
 /rune:mend tmp/audit/{id}/TOME.md                  # Fix audit findings
 
+# Cross-model review
+/rune:codex-review                                 # Claude + Codex in parallel
+
 # Cancel
 /rune:cancel-review
 /rune:cancel-audit
+/rune:cancel-codex-review
 ```

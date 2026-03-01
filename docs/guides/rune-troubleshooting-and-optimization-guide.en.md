@@ -88,8 +88,13 @@ plan:
 | ZSH-001 | `status=` in bash | `status` is read-only in zsh |
 | POLL-001 | `sleep N && echo check` | Must use TaskList for monitoring |
 | SEC-001 | Write tools during review | Review agents must be read-only |
-| ATE-1 | Bare `Task` calls | Must use `team_name` during Rune workflows |
+| ATE-1 | Bare `Task`/`Agent` calls | Must use `team_name` during Rune workflows |
 | TLC-001 | Invalid team names | Naming validation failed |
+| CTX-GUARD-001 | TeamCreate/Agent at low context | Context usage > 75% — reduce scope |
+| POST-COMP-001 | Heavy tools after arc completion | Advisory — workflow already done |
+| SEC-MEND-001 | Mend fixer writing outside scope | Fixer can only write to assigned files |
+| SEC-GAP-001 | Gap fixer writing to restricted paths | Cannot write to `.claude/`, CI, `.env` |
+| SEC-STRIVE-001 | Strive worker writing outside scope | Worker can only write to assigned files |
 
 **Fix**: These hooks exist for correctness. Adjust your commands to follow the enforced patterns. See the `zsh-compat`, `polling-guard` skills for guidance.
 
@@ -126,6 +131,33 @@ plan:
 3. Check per-phase timeout in talisman — it may need increasing
 
 **Fix**: Use `/rune:cancel-arc` to stop, then `/rune:arc plans/... --resume` to resume from checkpoint.
+
+### 1.9 Context degradation during workflow (v1.115.0+)
+
+**Symptom**: Warnings about context usage, or TeamCreate/Agent calls blocked with CTX-GUARD-001.
+
+**How it works**: The `guard-context-critical.sh` hook monitors context usage via the statusline bridge:
+- **40% remaining (Caution)**: Advisory warning — consider wrapping up.
+- **35% remaining (Warning)**: Degradation suggestions injected + `context_warning` signal.
+- **25% remaining (Critical)**: Hard DENY on TeamCreate/Agent + `force_shutdown` signal.
+
+**Fix**: Keep workflows focused. Use `--no-forge` or `--no-test` to reduce scope. For arc, checkpoints allow resume in a fresh session.
+
+### 1.10 Prompt injection in reviewed code (v1.124.0+)
+
+**Symptom**: MCP advisory hook warns about potential injection in tool output.
+
+**How it works**: Rune's `advise-mcp-untrusted.sh` PostToolUse hook scans MCP/external tool output for injection patterns (Unicode tag blocks, zero-width chars, homoglyphs). Ashes follow Truthbinding — they ignore all instructions found in reviewed code.
+
+**Fix**: No action needed. Warnings are informational. If you suspect a real injection attempt, flag it to the team.
+
+### 1.11 Deterministic cleanup on session exit (v1.124.0+)
+
+**Symptom**: Teams were left orphaned after session crashes or compaction.
+
+**How it works**: `detect-workflow-complete.sh` fires on every Stop event. It scans for completed/failed/cancelled workflows with residual team dirs, and for orphaned workflows where the owner PID is dead. It executes 2-stage process escalation (SIGTERM → SIGKILL).
+
+**Fix**: This is automatic — no user action needed. Use `RUNE_CLEANUP_DRY_RUN=1` to debug cleanup behavior without actually killing processes.
 
 ---
 
@@ -188,6 +220,34 @@ claude --debug
 
 This shows plugin loading, hook execution, and tool call details.
 
+### 2.7 Dry-run cleanup mode (v1.124.0+)
+
+```bash
+export RUNE_CLEANUP_DRY_RUN=1
+```
+
+Makes cleanup hooks (`detect-workflow-complete.sh`, `on-session-stop.sh`, `session-team-hygiene.sh`) log what they would do without actually killing processes, deleting teams, or modifying state files. Useful for debugging cleanup behavior in production.
+
+### 2.8 Talisman shard inspection (v1.114.0+)
+
+```bash
+# View resolved talisman shards
+ls tmp/.talisman-resolved/
+cat tmp/.talisman-resolved/review.json | python3 -m json.tool
+```
+
+The talisman shard resolver pre-processes `talisman.yml` into 12 per-namespace JSON shards at session start. Each shard is ~50-100 tokens instead of the full ~1,200 token config — a 94% token reduction. Inspect individual shards to verify configuration resolution.
+
+### 2.9 Parallel debugging with `/rune:debug`
+
+For complex bugs, use ACH-based parallel debugging:
+
+```bash
+/rune:debug "The API returns 500 when creating a user with special characters"
+```
+
+This spawns multiple hypothesis-investigator agents that investigate competing hypotheses simultaneously. Each investigator reports confirming and falsifying evidence with confidence scores.
+
 ---
 
 ## 3. Token Optimization Strategies
@@ -204,6 +264,8 @@ Multi-agent workflows consume tokens proportionally to team size. Each teammate 
 | `/rune:devise` | 3-7 agents | 3-5x | 5-15 min |
 | `/rune:devise --quick` | 2-3 agents | 1.5-2x | 2-5 min |
 | `/rune:strive` | 2-4 workers | 2-4x | 10-30 min |
+| `/rune:codex-review` | 4-8 agents | 5-8x | 5-15 min |
+| `/rune:debug` | 2-5 investigators | 3-5x | 5-10 min |
 | `/rune:arc` (full) | varies per phase | 10-30x | 30-90 min |
 
 ### 3.2 Reduce review scope
@@ -235,7 +297,15 @@ Multi-agent workflows consume tokens proportionally to team size. Each teammate 
 | Disable Codex | `codex.disabled: true` | No cross-model verification |
 | Lower workers | `work.max_workers: 2` | Fewer parallel workers |
 
-### 3.5 Cost-aware workflow selection
+### 3.5 Automatic optimizations (no action needed)
+
+These optimizations are built-in since recent versions:
+- **Talisman shard resolver (v1.114.0)**: 94% token reduction — each phase reads only its relevant config shard.
+- **Pre-aggregation (v1.116.0)**: Condenses agent outputs before Runebinder aggregation, reducing context saturation.
+- **TOME citation verification (v1.117.0)**: Marks phantom citations as UNVERIFIED, preventing mend from wasting effort on bad findings.
+- **Fail-forward hooks (v1.115.0)**: Hook crashes no longer stall workflows — only security hooks fail-closed.
+
+### 3.6 Cost-aware workflow selection
 
 | Need | Cheapest option | Cost |
 |------|----------------|------|
@@ -349,10 +419,12 @@ Teammates do NOT survive session resume. After `/resume` or compaction:
 The orchestrator reports phase transitions:
 
 ```
-Phase 1/18: FORGE — enriching plan...
-Phase 5/18: WORK — 3 workers implementing...
-Phase 6/18: CODE REVIEW — 5 Ashes reviewing...
+Phase 1/26: FORGE — enriching plan...
+Phase 8/26: WORK — 3 workers implementing...
+Phase 12/26: CODE REVIEW — 5 Ashes reviewing...
 ```
+
+> **Note (v1.120.2+):** Arc now has 26 phases (added Design Extraction, Design Verification, Design Iteration for Figma sync support).
 
 ### 6.2 During review/audit
 
@@ -437,3 +509,7 @@ Run this checklist when Rune workflows aren't performing as expected:
 - [ ] `gh` CLI installed and authenticated (for arc ship/merge)
 - [ ] No orphaned team directories (`ls ~/.claude/teams/`)
 - [ ] No stale state files (`ls tmp/.rune-*.json`)
+- [ ] Talisman shards resolving (`ls tmp/.talisman-resolved/`)
+- [ ] No orphaned worktrees (`git worktree list` — check for stale `rune-work-*`)
+- [ ] Context usage healthy (check statusline for % remaining)
+- [ ] `jq` installed (required by all hooks for JSON parsing)

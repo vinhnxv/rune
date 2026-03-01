@@ -9,8 +9,19 @@ import pytest
 # Add parent directory to path so we can import the module under test
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core import extract_react_code, ir_to_dict, paginate_output  # noqa: E402
-from node_parser import parse_node  # noqa: E402
+from core import extract_react_code, ir_to_dict, paginate_output, _collect_svg_fallback_ids  # noqa: E402
+from node_parser import FigmaIRNode, parse_node  # noqa: E402
+from figma_types import NodeType  # noqa: E402
+
+
+# ---------------------------------------------------------------------------
+# Helper
+# ---------------------------------------------------------------------------
+
+def _make_node(**overrides) -> FigmaIRNode:
+    defaults = dict(node_id="1:1", name="Node", node_type=NodeType.RECTANGLE)
+    defaults.update(overrides)
+    return FigmaIRNode(**defaults)
 
 
 # ---------------------------------------------------------------------------
@@ -218,3 +229,74 @@ class TestDataPreservation:
         assert ir.children[0].text_content == "Welcome"
         assert ir.children[1].text_content == "Hello world"
         assert ir.has_auto_layout is True
+
+
+# ---------------------------------------------------------------------------
+# _collect_svg_fallback_ids (Task 6 — DS-6, WS-8)
+# ---------------------------------------------------------------------------
+
+
+class TestCollectSvgFallbackIds:
+    """Test SVG fallback ID collection for geometry-less SVG candidates."""
+
+    def test_geometry_less_candidate_collected(self):
+        """SVG candidate with no geometry is included."""
+        node = _make_node(node_id="20:1", is_svg_candidate=True)
+        result = _collect_svg_fallback_ids(node)
+        assert "20:1" in result
+
+    def test_candidate_with_fill_geometry_excluded(self):
+        """SVG candidate WITH fill_geometry is not collected (has inline paths)."""
+        node = _make_node(
+            node_id="20:2",
+            is_svg_candidate=True,
+            fill_geometry=[{"path": "M0 0 L10 10 Z", "windingRule": "NONZERO"}],
+        )
+        result = _collect_svg_fallback_ids(node)
+        assert "20:2" not in result
+
+    def test_candidate_with_stroke_geometry_excluded(self):
+        """SVG candidate WITH stroke_geometry is not collected."""
+        node = _make_node(
+            node_id="20:3",
+            is_svg_candidate=True,
+            stroke_geometry=[{"path": "M0 0 L10 10 Z", "windingRule": "NONZERO"}],
+        )
+        result = _collect_svg_fallback_ids(node)
+        assert "20:3" not in result
+
+    def test_non_candidate_not_collected(self):
+        """Regular RECTANGLE is not an SVG candidate — not collected."""
+        node = _make_node(node_id="20:4", is_svg_candidate=False)
+        result = _collect_svg_fallback_ids(node)
+        assert "20:4" not in result
+
+    def test_recursion_stops_at_svg_candidate(self):
+        """Children of an SVG candidate are NOT scanned (DS-6)."""
+        child = _make_node(node_id="21:2", is_svg_candidate=True)
+        parent = _make_node(node_id="21:1", is_svg_candidate=True, children=[child])
+        result = _collect_svg_fallback_ids(parent)
+        # Parent collected, child NOT collected (recursion stopped)
+        assert "21:1" in result
+        assert "21:2" not in result
+
+    def test_nested_candidates_in_non_svg_parent(self):
+        """Multiple geometry-less SVG candidates in different branches."""
+        child1 = _make_node(node_id="22:2", is_svg_candidate=True)
+        child2 = _make_node(node_id="22:3", is_svg_candidate=True)
+        root = _make_node(node_id="22:1", is_svg_candidate=False, children=[child1, child2])
+        result = _collect_svg_fallback_ids(root)
+        assert "22:2" in result
+        assert "22:3" in result
+        assert "22:1" not in result
+
+    def test_depth_cap_prevents_infinite_recursion(self):
+        """Pathologically deep trees stop at _MAX_SVG_SCAN_DEPTH."""
+        # Build 105-deep chain — depth limit is 100
+        node = _make_node(node_id="99:1", is_svg_candidate=False)
+        for i in range(105):
+            parent = _make_node(node_id=f"99:{i+2}", is_svg_candidate=False, children=[node])
+            node = parent
+        # Should not raise RecursionError
+        result = _collect_svg_fallback_ids(node)
+        assert isinstance(result, list)

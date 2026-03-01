@@ -79,9 +79,11 @@ Rune phát hiện file thay đổi trên branch, chọn reviewer phù hợp, và
 3. **Rune Gaze** — chọn Ash phù hợp dựa trên loại file.
 4. **Tạo team** — khởi tạo tất cả Ash song song, mỗi Ash có context window riêng.
 5. **Review song song** — Ash viết phát hiện ra file (không viết vào chat).
-6. **Tổng hợp** — Runebinder loại bỏ trùng lặp, ưu tiên, tạo TOME.
-7. **Truthsight** — kiểm tra bằng chứng P1 với source code.
-8. **Dọn dẹp** — shutdown teammate, lưu echo, trình bày TOME.
+6. **Tiền tổng hợp (Phase 5.0)** — nén output từng agent trước khi đưa vào Runebinder, giảm bão hòa context (v1.116.0+).
+7. **Tổng hợp** — Runebinder loại bỏ trùng lặp, ưu tiên, tạo TOME.
+8. **Xác minh trích dẫn (Phase 5.2)** — kiểm tra grep xác định các trích dẫn `file:line` trong TOME (v1.117.0+). Bắt trích dẫn ảo (file không tồn tại, dòng ngoài phạm vi). Đánh dấu `UNVERIFIED` hoặc `SUSPECT`.
+9. **Truthsight** — kiểm tra bằng chứng P1 với source code.
+10. **Dọn dẹp** — shutdown teammate, lưu echo, trình bày TOME.
 
 ### 3.4 Hiểu TOME
 
@@ -94,6 +96,14 @@ TOME chứa các phát hiện có cấu trúc với mức ưu tiên:
 | **P3** | Tư vấn — style, cải thiện nhỏ | Có thể sửa |
 | **Q** | Câu hỏi — cần làm rõ | Bị lọc bỏ trong mend |
 | **N** | Nit — gợi ý nhỏ | Bị lọc bỏ trong mend |
+
+**Tag trích dẫn (v1.117.0+):**
+
+| Tag | Ý nghĩa | Hành vi mend |
+|---|---|---|
+| *(không có)* | Trích dẫn đã xác minh thành công | Sửa bình thường |
+| **SUSPECT** | Trích dẫn xác minh một phần (pattern không khớp) | Thận trọng hơn |
+| **UNVERIFIED** | Trích dẫn xác minh thất bại (file/dòng không tìm thấy) | Bị mend-fixer bỏ qua |
 
 Output: `tmp/reviews/{id}/TOME.md`
 
@@ -244,7 +254,19 @@ Hoặc dùng flag tích hợp:
 
 ### Chu trình đầy đủ trong arc
 
-`/rune:arc` chạy review → mend → verify-mend tự động trong pipeline 23 phase. Dùng appraise/mend riêng khi bạn muốn review có mục tiêu mà không cần full pipeline.
+### Review cross-model
+
+Cho các thay đổi quan trọng, lấy ý kiến thứ hai từ model độc lập:
+
+```bash
+/rune:codex-review
+```
+
+Chạy Claude và OpenAI Codex reviewer song song, kiểm tra chéo phát hiện, và hợp nhất vấn đề đồng thuận thành TOME thống nhất. Cần cài `codex` CLI.
+
+### Chu trình đầy đủ trong arc
+
+`/rune:arc` chạy review → mend → verify-mend tự động trong pipeline 26 phase. Dùng appraise/mend riêng khi bạn muốn review có mục tiêu mà không cần full pipeline.
 
 ---
 
@@ -306,6 +328,8 @@ Phân bổ công việc audit qua nhiều session mà không quét lại file đ
 | Ward check thất bại sau mend | Fix gây regression | Mend bisect để tìm fix gây lỗi, đánh dấu NEEDS_REVIEW |
 | "No TOME found" khi mend | Chưa chạy review/audit | Chạy `/rune:appraise` hoặc `/rune:audit` trước |
 | Incremental audit bị kẹt | Lock bị session chết giữ | Lock tự recovery (kiểm tra PID). Nếu vẫn kẹt, `--reset` |
+| TOME có nhiều finding UNVERIFIED | Trích dẫn ảo trong code reference | Phase 5.2 đã bắt trích dẫn sai. Kiểm tra xem path file có thay đổi không |
+| Tiền tổng hợp bị skip | Chỉ có 1 agent hoặc output quá ngắn | Phase 5.0 chỉ kích hoạt khi nhiều agent tạo output đáng kể |
 
 ---
 
@@ -332,7 +356,11 @@ Phân bổ công việc audit qua nhiều session mà không quét lại file đ
 /rune:mend tmp/reviews/{id}/TOME.md                # Sửa kết quả review
 /rune:mend tmp/audit/{id}/TOME.md                  # Sửa kết quả audit
 
+# Review cross-model
+/rune:codex-review                                 # Claude + Codex song song
+
 # Hủy
 /rune:cancel-review
 /rune:cancel-audit
+/rune:cancel-codex-review
 ```

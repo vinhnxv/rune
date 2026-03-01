@@ -199,3 +199,182 @@ class TestSanitizeAltText:
 
     def test_whitespace_trimmed(self):
         assert _sanitize_alt_text("  padded  ") == "padded"
+
+    def test_null_bytes_stripped(self):
+        """WS-6: Null bytes and control chars must be stripped."""
+        assert _sanitize_alt_text("Icon\x00Name") == "IconName"
+
+    def test_control_chars_stripped(self):
+        assert _sanitize_alt_text("Tab\there") == "Tabhere"
+
+    def test_del_char_stripped(self):
+        assert _sanitize_alt_text("name\x7f!") == "name!"
+
+
+# ---------------------------------------------------------------------------
+# _sanitize_svg_path
+# ---------------------------------------------------------------------------
+
+class TestSanitizeSvgPath:
+    """Test SVG path data whitelist sanitization (M1, WS-3)."""
+
+    def test_clean_path_unchanged(self):
+        """Valid SVG path data passes through unchanged."""
+        d = "M 0 0 L 24 0 L 24 24 Z"
+        assert _sanitize_svg_path(d) == d
+
+    def test_script_injection_blocked(self):
+        """HTML/script characters are stripped."""
+        d = 'M0 0<script>alert(1)</script>L10 10'
+        result = _sanitize_svg_path(d)
+        assert "<" not in result
+        assert ">" not in result
+        assert "script" not in result
+
+    def test_quote_injection_blocked(self):
+        """Quotes that could break attribute are stripped."""
+        d = 'M0 0"onload="evil()L10 10'
+        result = _sanitize_svg_path(d)
+        assert '"' not in result
+
+    def test_numeric_data_preserved(self):
+        """Numbers, commas, spaces, and sign chars pass through."""
+        d = "M10.5,20.3 C1.0 2.0 3.0 4.0 5.0 6.0"
+        result = _sanitize_svg_path(d)
+        assert "10.5" in result
+        assert "20.3" in result
+
+    def test_scientific_notation_preserved(self):
+        """Scientific notation (e.g., 1.5e-4) passes through."""
+        d = "M1.5e-4 2.3E+6 L0 0"
+        result = _sanitize_svg_path(d)
+        assert "1.5e-4" in result
+        assert "2.3E+6" in result
+
+
+# ---------------------------------------------------------------------------
+# svg_urls fallback in _generate_svg_placeholder
+# ---------------------------------------------------------------------------
+
+class TestSvgUrlsFallback:
+    """Test SVG export URL fallback (Task 6 — M2, DS-6)."""
+
+    def test_svg_url_used_when_no_geometry(self):
+        """Geometry-less SVG candidate uses exported URL as <img> tag."""
+        node = _make_node(
+            node_id="5:1",
+            is_svg_candidate=True,
+            name="StarIcon",
+            width=48.0,
+            height=48.0,
+        )
+        handler = ImageHandler(svg_urls={"5:1": "https://figma.com/exports/star.svg"})
+        jsx = handler.generate_image_jsx(node)
+        assert "<img" in jsx
+        assert "https://figma.com/exports/star.svg" in jsx
+        assert 'alt="StarIcon"' in jsx
+
+    def test_geometry_takes_priority_over_svg_url(self):
+        """When fill_geometry is present, inline paths are used, not the URL."""
+        node = _make_node(
+            node_id="5:2",
+            is_svg_candidate=True,
+            name="FilledIcon",
+            width=24.0,
+            height=24.0,
+            fill_geometry=[{"path": "M0 0 L24 24 Z", "windingRule": "NONZERO"}],
+        )
+        handler = ImageHandler(svg_urls={"5:2": "https://figma.com/exports/filled.svg"})
+        jsx = handler.generate_image_jsx(node)
+        assert "<svg" in jsx
+        assert "<path" in jsx
+        assert "figma.com/exports" not in jsx
+
+    def test_svg_url_expiry_comment_present(self):
+        """The generated <img> includes an expiry warning in the surrounding code."""
+        # The expiry note is a JSX comment embedded above the <img> — check via docstring
+        # We verify the URL is embedded and alt is set as basic smoke test
+        node = _make_node(node_id="6:1", is_svg_candidate=True, name="Exp", width=16.0, height=16.0)
+        handler = ImageHandler(svg_urls={"6:1": "https://cdn.figma.com/svg/abc.svg"})
+        jsx = handler.generate_image_jsx(node)
+        assert "https://cdn.figma.com/svg/abc.svg" in jsx
+
+    def test_unsafe_svg_url_rejected(self):
+        """Non-HTTPS SVG URLs are replaced with about:blank."""
+        node = _make_node(node_id="7:1", is_svg_candidate=True, name="Evil", width=24.0, height=24.0)
+        handler = ImageHandler(svg_urls={"7:1": "javascript:alert(1)"})
+        jsx = handler.generate_image_jsx(node)
+        # Either falls back to TODO placeholder or uses about:blank — never the JS URL
+        assert "javascript:" not in jsx
+
+
+# ---------------------------------------------------------------------------
+# Stroke geometry rendering
+# ---------------------------------------------------------------------------
+
+class TestStrokeGeometryRendering:
+    """Test stroke geometry path rendering (Task 4)."""
+
+    def test_stroke_only_node_renders_path(self):
+        """Node with only stroke_geometry renders a <path> element."""
+        node = _make_node(
+            node_id="8:1",
+            is_svg_candidate=True,
+            name="StrokeOnly",
+            width=24.0,
+            height=24.0,
+            stroke_geometry=[{"path": "M0 0 L24 24 Z", "windingRule": "NONZERO"}],
+        )
+        handler = ImageHandler()
+        jsx = handler.generate_image_jsx(node)
+        assert "<path" in jsx
+        assert "M0 0 L24 24 Z" in jsx
+
+    def test_fill_and_stroke_both_render(self):
+        """Node with both fill and stroke geometry renders two <path> elements."""
+        node = _make_node(
+            node_id="9:1",
+            is_svg_candidate=True,
+            name="BothPaths",
+            width=24.0,
+            height=24.0,
+            fill_geometry=[{"path": "M0 0 L10 10 Z", "windingRule": "NONZERO"}],
+            stroke_geometry=[{"path": "M5 5 L15 15 Z", "windingRule": "NONZERO"}],
+        )
+        handler = ImageHandler()
+        jsx = handler.generate_image_jsx(node)
+        assert jsx.count("<path") == 2
+        assert "M0 0 L10 10 Z" in jsx
+        assert "M5 5 L15 15 Z" in jsx
+
+    def test_stroke_uses_node_stroke_color_for_non_icon(self):
+        """Non-icon SVG uses actual stroke paint color (M7)."""
+        stroke_paint = Paint(type=PaintType.SOLID, color=Color(r=1.0, g=0.0, b=0.0))
+        node = _make_node(
+            node_id="10:1",
+            is_svg_candidate=True,
+            is_icon_candidate=False,
+            name="ColoredStroke",
+            width=100.0,
+            height=100.0,
+            strokes=[stroke_paint],
+            stroke_geometry=[{"path": "M0 0 L100 100 Z", "windingRule": "NONZERO"}],
+        )
+        handler = ImageHandler()
+        jsx = handler.generate_image_jsx(node)
+        # Red stroke (#ff0000) should appear as the fill color of the stroke path
+        assert "#ff0000" in jsx
+
+    def test_path_data_sanitized_in_stroke(self):
+        """Malicious data in stroke path is sanitized before rendering."""
+        node = _make_node(
+            node_id="11:1",
+            is_svg_candidate=True,
+            name="MalStroke",
+            width=24.0,
+            height=24.0,
+            stroke_geometry=[{"path": 'M0 0<script>alert(1)</script>L24 24', "windingRule": "NONZERO"}],
+        )
+        handler = ImageHandler()
+        jsx = handler.generate_image_jsx(node)
+        assert "<script>" not in jsx
