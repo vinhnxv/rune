@@ -698,6 +698,23 @@ echoes:
   #   timeout: 4                     # Subprocess timeout in seconds (default: 4)
 
 # ──────────────────────────────────────────────
+# Learn — Session Self-Learning (v1.125.0+)
+# ──────────────────────────────────────────────
+# learn:
+#   # Minimum confidence to surface a pattern in /rune:learn report (0.0-1.0, default: 0.5)
+#   min_confidence: 0.5
+#
+#   # Which detectors to enable by default (default: all)
+#   # detectors: [cli, review, arc, hook]
+#
+#   # Role-to-detector mapping (advanced — override where findings are written)
+#   # roles:
+#   #   cli: workers
+#   #   review: reviewer
+#   #   arc: orchestrator
+#   #   hook: orchestrator
+
+# ──────────────────────────────────────────────
 # Review — Context Intelligence, Linter Awareness, and convergence (v1.35.0+)
 # ──────────────────────────────────────────────
 # review:                                # Uncomment this line AND the desired child keys below to enable review settings.

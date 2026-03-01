@@ -47,6 +47,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **debug** | ACH-based parallel debugging — spawns multiple hypothesis-investigator agents to investigate competing hypotheses simultaneously. Use when bugs are complex or root cause is unclear |
 | **figma-to-react** | Figma-to-React MCP server knowledge — 4 tools for converting Figma designs to React components with Tailwind CSS v4 (non-invocable) |
 | **status** | Worker status reporting — standardized status output for swarm workers (non-invocable) |
+| **learn** | Session self-learning — extracts CLI correction patterns and review recurrence findings from session JSONL history, persists high-confidence patterns to Rune Echoes via 4-phase pipeline (scan → detect → report → confirm+write). `/rune:learn`. `disable-model-invocation: true` |
 
 ## Commands
 
@@ -297,7 +298,7 @@ echo "Commands: $(find plugins/rune/commands -name '*.md' -not -path '*/referenc
 
 ## References
 
-- [Agent registry](references/agent-registry.md) — 40 review + 5 research + 4 work + 12 utility + 24 investigation + 4 testing agents
+- [Agent registry](references/agent-registry.md) — 40 review + 5 research + 4 work + 13 utility + 24 investigation + 4 testing agents
 - [Key concepts](references/key-concepts.md) — Tarnished, Ash, TOME, Arc, Mend, Forge Gaze, Echoes
 - [Lore glossary](references/lore-glossary.md) — Elden Ring terminology mapping
 - [Output conventions](references/output-conventions.md) — Directory structure per workflow

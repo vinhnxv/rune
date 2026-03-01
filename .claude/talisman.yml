@@ -28,7 +28,7 @@ rune-gaze:
 # Settings — Global behavior adjustments
 # ──────────────────────────────────────────────
 settings:
-  max_ashes: 9
+  max_ashes: 10
   max_cli_ashes: 2 # Sub-cap on CLI-backed Ashes (v1.57.0+)
   dedup_hierarchy:
     - SEC # Ward Sentinel (always highest)
@@ -48,6 +48,7 @@ settings:
     - DI # DI Reviewer (stack specialist, v1.86.0+)
     - TLC # Custom: team-lifecycle-reviewer (project-level)
     - SPAWN # Custom: agent-spawn-reviewer (project-level)
+    - CLEAN # Custom: cleanup-completeness-reviewer (project-level)
     - DOC # Knowledge Keeper
     - QUAL # Pattern Weaver
     - FRONT # Glyph Scribe
@@ -119,6 +120,26 @@ ashes:
         - "P2 (High)"
         - "P3 (Medium)"
         - "Compliance Summary"
+        - "Self-Review Log"
+
+    # Validates cleanup fallback array completeness:
+    # Cross-references every Agent() call against the cleanup fallback array
+    # to detect orphan agents. Also checks QUAL-012, TeamCreate/TeamDelete symmetry.
+    - name: "cleanup-completeness-reviewer"
+      agent: "cleanup-completeness-reviewer"
+      source: local
+      workflows: [review, audit]
+      trigger:
+        extensions: [".md"]
+        paths: ["plugins/rune/skills/"]
+      context_budget: 25
+      finding_prefix: "CLEAN"
+      required_sections:
+        - "P1 (Critical)"
+        - "P2 (High)"
+        - "P3 (Medium)"
+        - "Coverage Matrix"
+        - "QUAL-012 Status"
         - "Self-Review Log"
 
 # ──────────────────────────────────────────────

@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.125.0] - 2026-03-01
+
+### Added
+- **Session Self-Learning (`/rune:learn`)** — New user-invocable skill that extracts CLI correction patterns and review recurrence findings from session history and persists them as Rune Echoes memory entries
+- **`session-scanner.sh`** — Scans Claude Code session JSONL files, extracts tool_use + tool_result event pairs using two-pass join architecture. Includes mtime-based session exclusion (60s), `isCompactSummary` filtering, 500-char content truncation, and `find -P` symlink protection
+- **`cli-correction-detector.sh`** — Detects error→success sequences within a sliding window (default: 5). Classifies 7 error types (UnknownFlag, CommandNotFound, WrongPath, WrongSyntax, PermissionDenied, Timeout, UnknownError fallback), scores confidence (base 0.5 + same-tool/similar-args/multi-session bonuses), deduplicates with Jaccard word-overlap
+- **`review-recurrence-detector.sh`** — Cross-references TOME findings across `tmp/reviews/`, `tmp/audit/`, `tmp/arc/` to detect recurring findings not yet in echoes. Severity inference by prefix (SEC→high, BACK/VEIL→medium, QUAL→low)
+- **`echo-writer.sh`** — Writes detected patterns to `.claude/echoes/{role}/MEMORY.md` with symlink guard, role validation, mkdir-based portable locking, 150-line pre-flight warning, Jaccard dedup (80% threshold), and echo-search dirty signal
+- **`sensitive-patterns.sh`** library — Reusable 16-pattern sensitive data filter (API keys, JWTs, connection strings, PEM keys). Exports `rune_strip_sensitive()` function compatible with bash 3.2+
+- **`/rune:learn` skill** (`skills/learn/SKILL.md`) — 4-phase execution: parse args → run detectors → consolidate report → user confirmation + write. Supports `--since`, `--detector`, `--dry-run` flags
+- **Detector reference** (`skills/learn/references/detectors.md`) — Algorithm documentation, JSONL schema, confidence scoring, and output schemas for all detectors
+- **Talisman `learn:` config block** — Optional per-project learning configuration (min_confidence, detectors, roles)
+
 ## [1.124.0] - 2026-03-01
 
 ### Added

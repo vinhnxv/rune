@@ -4,10 +4,10 @@
 
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
-[![Version](https://img.shields.io/badge/version-1.121.0-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-1.125.0-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-89-purple)](#agents)
-[![Skills](https://img.shields.io/badge/skills-41-orange)](#skills)
+[![Agents](https://img.shields.io/badge/agents-90-purple)](#agents)
+[![Skills](https://img.shields.io/badge/skills-42-orange)](#skills)
 
 ---
 
@@ -156,6 +156,7 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 |---------|-------------|
 | `/rune:rest` | Clean up `tmp/` artifacts from completed workflows |
 | `/rune:echoes` | Manage persistent agent memory (show, prune, reset) |
+| `/rune:learn` | Extract CLI corrections and review recurrences from session history into Echoes |
 | `/rune:file-todos` | Structured file-based todo tracking with YAML frontmatter |
 | `/rune:cancel-arc` | Gracefully stop a running arc pipeline |
 | `/rune:cancel-review` | Stop an active code review |
@@ -281,7 +282,7 @@ Compares a plan against its implementation across 9 quality dimensions:
 
 ## Agents
 
-**89 specialized agents** across 6 categories:
+**90 specialized agents** across 6 categories:
 
 ### Review Agents (40)
 
@@ -515,16 +516,16 @@ rune-plugin/
 └── plugins/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
-        │   └── plugin.json       # Plugin manifest (v1.113.2)
-        ├── agents/               # 89 agent definitions
+        │   └── plugin.json       # Plugin manifest (v1.125.0)
+        ├── agents/               # 90 agent definitions
         │   ├── review/           #   40 review agents
         │   ├── investigation/    #   24 investigation agents
-        │   ├── utility/          #   11 utility agents
+        │   ├── utility/          #   13 utility agents
         │   ├── research/         #    5 research agents
         │   ├── testing/          #    4 testing agents
         │   └── work/             #    4 work agents
-        ├── skills/               # 41 skills
-        ├── commands/             # 14 slash commands
+        ├── skills/               # 42 skills
+        ├── commands/             # 15 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json
         ├── scripts/              # Hook scripts (20+)

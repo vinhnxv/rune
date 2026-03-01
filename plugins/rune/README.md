@@ -716,6 +716,7 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | using-rune | Workflow discovery and intent routing |
 | strive | Swarm work execution with self-organizing task pool (+ `--approve`, incremental commits) |
 | zsh-compat | zsh shell compatibility (read-only vars, glob NOMATCH, word splitting) |
+| learn | Session self-learning — extract CLI corrections and review recurrences from session history, write patterns to Echoes. `/rune:learn` |
 
 ## Configuration
 

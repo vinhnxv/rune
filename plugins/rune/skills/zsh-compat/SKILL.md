@@ -3,11 +3,14 @@ name: zsh-compat
 description: |
   Use when generating Bash commands on macOS, when ZSH-001 hook denies a command,
   when "read-only variable", "no matches found", or "command not found: !" errors
-  appear in shell output, or when writing for loops over glob patterns. Covers
-  read-only variables (status, pipestatus, ERRNO), glob NOMATCH protection,
-  history expansion of `!` before `[[`, word splitting, and array indexing.
+  appear in shell output, when writing for loops over glob patterns, or when
+  "bad math expression" errors appear from date commands. Covers read-only
+  variables (status, pipestatus, ERRNO), glob NOMATCH protection, history
+  expansion of `!` before `[[`, word splitting, array indexing, and BSD date
+  missing `%N` nanoseconds (macOS).
   Keywords: zsh, NOMATCH, status variable, read-only, nullglob, glob, ZSH-001,
-  history expansion, command not found.
+  history expansion, command not found, date, %N, nanosecond, millisecond,
+  gdate, bad math expression.
 
   <example>
   Context: LLM generating a Bash command with a loop over glob pattern.
@@ -178,6 +181,48 @@ Same NOMATCH issue as Pitfall 2, but in command arguments (rm, ls, cp, etc.) rat
 
 See [glob-nomatch-patterns.md](references/glob-nomatch-patterns.md) for examples and recommended approaches.
 
+## Pitfall 9: BSD `date` Lacks `%N` (Nanoseconds)
+
+GNU `date` (Linux) supports `%N` for nanoseconds. macOS ships BSD `date`, which does **not** — `%N` is output as the literal letter `N`. This silently corrupts any arithmetic that depends on millisecond timestamps.
+
+```bash
+# BAD — on macOS, date outputs "1740000000N", arithmetic fails
+echo $(($(date +%s%3N)))
+# zsh: bad math expression: operator expected at 'N'
+
+# GOOD — use $SECONDS (integer precision, zero-dependency)
+start=$SECONDS
+# ... work ...
+elapsed=$(( SECONDS - start ))
+
+# GOOD — gdate from coreutils (millisecond precision)
+if command -v gdate &>/dev/null; then
+  epoch_ms=$(gdate +%s%3N)
+else
+  epoch_ms=$(python3 -c 'import time; print(int(time.time() * 1000))')
+fi
+
+# GOOD — python3 one-liner (always available on macOS)
+epoch_ms=$(python3 -c 'import time; print(int(time.time() * 1000))')
+```
+
+### Why This Happens
+
+macOS uses BSD `date` which only supports POSIX format specifiers. `%N` is a GNU extension. When BSD `date` encounters `%3N`, it interprets `%3` (ignored or truncated) and outputs `N` literally. Wrapping in `$((...))` then fails because `1740000000N` is not a valid integer.
+
+### Fix Priority
+
+| Need | Solution | Precision |
+|------|----------|-----------|
+| Elapsed time | `$SECONDS` | Integer seconds (no dependency) |
+| Epoch milliseconds | `gdate +%s%3N` with fallback | Millisecond (requires `brew install coreutils`) |
+| Epoch milliseconds | `python3 -c 'import time; print(int(time.time() * 1000))'` | Millisecond (always available) |
+
+### Existing Codebase Patterns
+
+- `talisman-resolve.sh` uses `$SECONDS` for coarse-grained stall detection
+- `rune-status.sh` uses `gdate` with BSD `date` fallback for duration display
+
 ## Quick Reference — Safe Patterns
 
 | Pattern | Bash-only | zsh-safe |
@@ -189,6 +234,7 @@ See [glob-nomatch-patterns.md](references/glob-nomatch-patterns.md) for examples
 | Array index | `${arr[0]}` | `${arr[1]}` or iterate with `[@]` |
 | Glob in args | `rm path/*` | `setopt nullglob; rm path/*` or use `find` |
 | Escaped `!=` | `[[ "$a" \!= "$b" ]]` | `[[ "$a" != "$b" ]]` |
+| Millisecond timestamp | `date +%s%3N` | `$SECONDS` or `gdate +%s%3N` or `python3` |
 
 ## When This Matters Most
 
