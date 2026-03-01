@@ -11,6 +11,19 @@ Plan, implement, review, test, and audit your codebase using coordinated Agent T
 
 ---
 
+## Why Multi-Agent?
+
+Claude Code is powerful on its own — but a single agent has a single context window. As tasks grow in scope (reviewing a 50-file diff, planning a feature across multiple services, running a full implementation pipeline), one context window becomes the bottleneck:
+
+- **Context saturation** — A single agent reviewing 40 files loses focus on file 35. Rune gives each reviewer its own full context window, so the last file gets the same attention as the first.
+- **Specialization over generalization** — One agent trying to catch security issues, performance bugs, and naming inconsistencies simultaneously does none of them well. Rune dispatches Ward Sentinel for security, Ember Oracle for performance, and Pattern Seer for consistency — each focused on what it does best.
+- **Parallelism** — Sequential work on 6 implementation tasks takes 6x as long. Swarm workers claim and complete tasks independently, bounded only by file-level conflicts.
+- **Separation of concerns** — Planning, implementing, reviewing, and testing in one context creates confirmation bias (the same agent reviews code it just wrote). Rune enforces phase boundaries: different agents plan, build, and critique.
+
+The trade-off is token cost — multi-agent workflows consume more tokens than a single session. Rune is designed for cases where quality, thoroughness, and coverage matter more than minimizing API usage.
+
+---
+
 ## Install
 
 ```bash
