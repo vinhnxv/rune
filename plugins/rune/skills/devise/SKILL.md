@@ -16,7 +16,7 @@ description: |
   </example>
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[--quick] [--no-brainstorm] [--no-forge] [--no-arena] [--exhaustive]"
+argument-hint: "[--quick] [--no-brainstorm] [--no-forge] [--no-arena] [--no-verify-research] [--exhaustive]"
 allowed-tools:
   - Agent
   - TaskCreate
@@ -56,6 +56,7 @@ Orchestrates a planning pipeline using Agent Teams with dependency-aware task sc
 /rune:devise --no-brainstorm              # Skip brainstorm only (granular)
 /rune:devise --no-forge                   # Skip forge only (granular)
 /rune:devise --no-arena                   # Skip Arena only (granular)
+/rune:devise --no-verify-research          # Skip research output verification (Phase 1C.5)
 /rune:devise --exhaustive                 # Exhaustive forge mode (lower threshold, research-budget agents)
 /rune:devise --brainstorm                 # No-op (brainstorm is already default)
 /rune:devise --forge                      # No-op (forge is already default)
@@ -66,10 +67,11 @@ Orchestrates a planning pipeline using Agent Teams with dependency-aware task sc
 ```
 Phase 0: Gather Input (brainstorm by default — auto-skip when requirements are clear)
     ↓
-Phase 1: Research (up to 7 agents, conditional)
+Phase 1: Research (up to 8 agents, conditional)
     ├─ Phase 1A: LOCAL RESEARCH (always — repo-surveyor, echo-reader, git-miner)
     ├─ Phase 1B: RESEARCH DECISION (talisman plan config bypass, risk + local sufficiency scoring, URL sanitization)
     ├─ Phase 1C: EXTERNAL RESEARCH (conditional — practice-seeker + Context7 MCP, lore-scholar + Context7, codex-researcher)
+    ├─ Phase 1C.5: RESEARCH VERIFICATION (conditional — research-verifier, serial/blocking)
     └─ Phase 1D: SPEC VALIDATION (always — flow-seer)
     ↓ (all research tasks converge)
 Phase 1.5: Research Consolidation Validation (AskUserQuestion checkpoint)
@@ -190,9 +192,9 @@ See [brainstorm-phase.md](references/brainstorm-phase.md) for the full protocol 
 
 Read and execute when Phase 0 runs.
 
-## Phase 1: Research (Conditional, up to 7 agents)
+## Phase 1: Research (Conditional, up to 8 agents)
 
-Spawns local research agents (repo-surveyor, echo-reader, git-miner), evaluates risk/sufficiency scores to decide on external research (practice-seeker, lore-scholar, codex-researcher), then runs spec validation (flow-seer). Includes research consolidation validation checkpoint. Phase 1B reads `talisman.plan` config for `external_research` bypass modes (`always`/`auto`/`never`) and `research_urls` with SSRF-defensive URL sanitization. External research agents use Context7 MCP for framework documentation alongside WebSearch.
+Spawns local research agents (repo-surveyor, echo-reader, git-miner), evaluates risk/sufficiency scores to decide on external research (practice-seeker, lore-scholar, codex-researcher), optionally verifies external research outputs for trustworthiness (research-verifier, Phase 1C.5), then runs spec validation (flow-seer). Includes research consolidation validation checkpoint. Phase 1B reads `talisman.plan` config for `external_research` bypass modes (`always`/`auto`/`never`) and `research_urls` with SSRF-defensive URL sanitization. External research agents use Context7 MCP for framework documentation alongside WebSearch. Phase 1C.5 scores findings across 5 dimensions (relevance, accuracy, freshness, cross-validation, security) and maps verdicts (TRUSTED/CAUTION/UNTRUSTED/FLAGGED) — skipped with `--quick`, `--no-verify-research`, or when no external research ran.
 
 **Inputs**: `feature` (sanitized string, from Phase 0), `timestamp` (validated identifier), talisman config (plan section for research control)
 **Outputs**: Research agent outputs in `tmp/plans/{timestamp}/research/`, `inscription.json`
@@ -322,7 +324,7 @@ try {
 } catch (e) {
   // FALLBACK: known teammates across all devise phases (some are conditional — safe to send shutdown to absent members)
   allMembers = ["scroll-reviewer", "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
-    "horizon-sage", "evidence-verifier", "doubt-seer", "codex-plan-reviewer"]
+    "horizon-sage", "evidence-verifier", "research-verifier", "doubt-seer", "codex-plan-reviewer"]
 }
 
 // Shutdown all discovered members
@@ -388,6 +390,7 @@ Read and execute when user selects "Create issue".
 | Error | Recovery |
 |-------|----------|
 | Research agent timeout (>5 min) | Proceed with partial research |
+| Research verification timeout (>5 min) | Proceed with unverified research + warning |
 | No git history (git-miner) | Skip, report gap |
 | No echoes (echo-reader) | Skip, proceed without history |
 | Solution Arena: all solutions killed | Recovery protocol — relax constraints, re-evaluate (see solution-arena.md) |

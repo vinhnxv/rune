@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.123.0] - 2026-03-01
+
+### Added
+- **Research Output Verification Layer (Phase 1C.5)**: New verification phase in `/rune:devise` pipeline that validates external research outputs for relevance, accuracy, freshness, cross-validation, and security before plan synthesis
+- New `research-verifier` utility agent with 5-dimension trust scoring and ANCHOR/RE-ANCHOR truthbinding
+- Talisman config `plan.research_verification` section with per-dimension toggles, safe domain allowlist, and trust threshold
+- Inscription schema `verification.research_verification` field for verification state tracking (findings count by verdict, aggregate score, version mismatches)
+- `--no-verify-research` CLI flag for `/rune:devise` to skip research verification
+
 ## [1.122.1] - 2026-03-01
 
 ### Fixed

@@ -398,6 +398,30 @@ defaults:
 #     max_commit_distance: 100   # Commits beyond this → max drift signal (clamped 1-10000)
 
 # ──────────────────────────────────────────────
+# Plan — Research output verification (v1.123.0+)
+# ──────────────────────────────────────────────
+# Post-research verification layer that validates findings from external
+# research agents (Phase 1C) before they enter synthesis.
+# Runs as Phase 1C.5 during /rune:devise when external research is enabled.
+#
+# NOTE: These settings go under the same `plan:` key as the sections above.
+# In your talisman.yml, merge all plan sub-keys under a single `plan:` key.
+#
+#   plan.research_verification:
+#     enabled: true              # Master switch (default: true when external research runs)
+#     dimensions:
+#       relevance: true          # Check if findings relate to the stated problem
+#       accuracy: true           # Cross-reference claims against codebase + external sources
+#       freshness: true          # Detect version mismatches between research and project deps
+#       cross_validation: true   # Compare findings across multiple research agents
+#       security: true           # Scan for prompt injection, typosquatting, suspicious URLs
+#     freshness_strict: false    # true = major version mismatch → BLOCK; false = UNTRUSTED (default)
+#     security_block: true       # true = FLAGGED findings block synthesis until user review
+#     safe_domains: []           # Additional trusted domains (merged with built-in allowlist)
+#     max_spot_checks: 3         # Max WebFetch calls for accuracy verification (1-10)
+#     trust_threshold: 0.4       # Minimum trust score to include in synthesis (0.0-1.0)
+
+# ──────────────────────────────────────────────
 # Inspect — Plan-vs-implementation audit (v1.50.0+)
 # ──────────────────────────────────────────────
 # /rune:inspect compares a plan against the codebase to measure
