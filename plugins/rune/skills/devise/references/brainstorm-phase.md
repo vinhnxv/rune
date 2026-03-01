@@ -217,21 +217,28 @@ if (!quickMode) {
   })
 }
 
-// 4. Summon sages (inline — no team_name needed, plan team not yet created)
-//    Phase 0 runs BEFORE team creation (Phase 1). Decree-arbiter P2: run inline.
+// 4. Summon sages as Agent Team teammates
+//    ATE-1 COMPLIANT: Plan team created in Phase -1 (Team Bootstrap).
+//    Sages join rune-plan-{timestamp} and are tracked via TaskList.
 //    ATE-1 COMPLIANCE: subagent_type MUST be "general-purpose", identity via prompt.
-//    ATE-1 EXEMPTION: Plan team not yet created at Phase 0. enforce-teams.sh passes
-//    because no plan state file (tmp/.rune-plan-*.json) exists at this point.
-//    NOTE: If another active Rune workflow (review/audit/work) is running concurrently,
-//    enforce-teams.sh WILL block these bare Agent calls. This exemption only holds when
-//    /rune:devise runs standalone.
-//    If a plan state file is ever added pre-Phase 1, add "plan" to the hook's exclusion list.
+
+// Create tasks for each sage
+for (let i = 0; i < sageCount; i++) {
+  const method = selectedMethods[i]
+  TaskCreate({
+    subject: `Elicitation: ${method.method_name}`,
+    description: `Apply ${method.method_name} structured reasoning to brainstorm context`,
+    activeForm: `Applying ${method.method_name}`
+  })
+}
+
 for (let i = 0; i < sageCount; i++) {
   const method = selectedMethods[i]
 
   Agent({
     name: `elicitation-sage-${i + 1}`,
     subagent_type: "general-purpose",
+    team_name: `rune-plan-${timestamp}`,
     prompt: `You are elicitation-sage — a structured reasoning specialist.
 
       ## Bootstrap
@@ -245,17 +252,19 @@ for (let i = 0; i < sageCount; i++) {
       Brainstorm context: Read tmp/plans/{timestamp}/brainstorm-decisions.md
 
       ## Lifecycle
-      1. Read skills/elicitation/SKILL.md and methods.csv (bootstrap)
-      2. Apply ONLY the method "${method.method_name}" to the brainstorm context
-      3. Write output to: tmp/plans/{timestamp}/elicitation-${method.method_name.toLowerCase().replace(/[^a-z0-9-]/g, '-')}.md
-      4. Do not write implementation code. Structured reasoning output only.`,
+      1. Claim the "Elicitation: ${method.method_name}" task via TaskList/TaskUpdate
+      2. Read skills/elicitation/SKILL.md and methods.csv (bootstrap)
+      3. Apply ONLY the method "${method.method_name}" to the brainstorm context
+      4. Write output to: tmp/plans/{timestamp}/elicitation-${method.method_name.toLowerCase().replace(/[^a-z0-9-]/g, '-')}.md
+      5. Do not write implementation code. Structured reasoning output only.
+      6. Mark task complete via TaskUpdate`,
     run_in_background: true
   })
 }
 
 // 5. After all sages complete:
-//    Completion detection: bare background Tasks (no team_name) complete when their
-//    run_in_background promise resolves. Poll for output files as a secondary signal.
+//    Completion detection: TaskList-based monitoring via team task tracking.
+//    Check TaskList for elicitation tasks to reach "completed" status.
 //    Read all tmp/plans/{timestamp}/elicitation-*.md files
 //    Merge structured reasoning insights into brainstorm-decisions.md
 //    Include in research handoff context

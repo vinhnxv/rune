@@ -65,9 +65,11 @@ Orchestrates a planning pipeline using Agent Teams with dependency-aware task sc
 ## Pipeline Overview
 
 ```
+Phase -1: Team Bootstrap (TeamCreate + state file — enables ATE-1 enforcement)
+    ↓
 Phase 0: Gather Input (brainstorm by default — auto-skip when requirements are clear)
     ↓
-Phase 1: Research (up to 8 agents, conditional)
+Phase 1: Research (up to 8 agents, conditional — join existing team)
     ├─ Phase 1A: LOCAL RESEARCH (always — repo-surveyor, echo-reader, git-miner)
     ├─ Phase 1B: RESEARCH DECISION (talisman plan config bypass, risk + local sufficiency scoring, URL sanitization)
     ├─ Phase 1C: EXTERNAL RESEARCH (conditional — practice-seeker + Context7 MCP, lore-scholar + Context7, codex-researcher)
@@ -107,6 +109,83 @@ if (lockConflicts.includes("CONFLICT") || lockConflicts.includes("ADVISORY")) {
   warn(`Active workflow(s) detected:\n${lockConflicts}`)
 }
 Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_acquire_lock "devise" "planner"`)
+```
+
+## Phase -1: Team Bootstrap
+
+Create the Agent Team before any agents spawn. This ensures Phase 0 agents (elicitation sages, design-inventory-agent) can join the team and comply with ATE-1 enforcement.
+
+```javascript
+// teamTransition protocol — moved from research-phase.md to run before Phase 0
+// STEP 1: Validate (defense-in-depth)
+if (!/^[a-zA-Z0-9_-]+$/.test(timestamp)) throw new Error("Invalid plan identifier")
+if (timestamp.includes('..')) throw new Error('Path traversal detected in plan identifier')
+
+// STEP 2: TeamDelete with retry-with-backoff (3 attempts: 0s, 3s, 8s)
+let teamDeleteSucceeded = false
+const RETRY_DELAYS = [0, 3000, 8000]
+for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
+  if (attempt > 0) {
+    warn(`teamTransition: TeamDelete attempt ${attempt + 1} failed, retrying in ${RETRY_DELAYS[attempt]/1000}s...`)
+    Bash(`sleep ${RETRY_DELAYS[attempt] / 1000}`)
+  }
+  try {
+    TeamDelete()
+    teamDeleteSucceeded = true
+    break
+  } catch (e) {
+    if (attempt === RETRY_DELAYS.length - 1) {
+      warn(`teamTransition: TeamDelete failed after ${RETRY_DELAYS.length} attempts. Using filesystem fallback.`)
+    }
+  }
+}
+
+// STEP 3: Filesystem fallback (only when STEP 2 failed — avoids blast radius on happy path)
+// CDX-003 FIX: Gate behind !teamDeleteSucceeded to prevent cross-workflow scan from
+// wiping concurrent workflows when TeamDelete already succeeded cleanly.
+if (!teamDeleteSucceeded) {
+  // Scoped cleanup — only remove THIS session's team/task dirs (not all rune-*/arc-*)
+  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/rune-plan-${timestamp}/" "$CHOME/tasks/rune-plan-${timestamp}/" 2>/dev/null`)
+  try { TeamDelete() } catch (e2) { /* proceed to TeamCreate */ }
+}
+
+// STEP 4: TeamCreate with "Already leading" catch-and-recover
+// Match: "Already leading" — centralized string match for SDK error detection
+try {
+  TeamCreate({ team_name: "rune-plan-{timestamp}" })
+} catch (createError) {
+  if (/already leading/i.test(createError.message)) {
+    warn(`teamTransition: Leadership state leak detected. Attempting final cleanup.`)
+    try { TeamDelete() } catch (e) { /* exhausted */ }
+    Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/rune-plan-${timestamp}/" "$CHOME/tasks/rune-plan-${timestamp}/" 2>/dev/null`)
+    try {
+      TeamCreate({ team_name: "rune-plan-{timestamp}" })
+    } catch (finalError) {
+      throw new Error(`teamTransition failed: unable to create team after exhausting all cleanup strategies. Run /rune:rest --heal to manually clean up, then retry. (${finalError.message})`)
+    }
+  } else {
+    throw createError
+  }
+}
+
+// STEP 5: Post-create verification
+Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && test -f "$CHOME/teams/rune-plan-${timestamp}/config.json" || echo "WARN: config.json not found after TeamCreate"`)
+
+// STEP 6: Write workflow state file with session isolation fields
+// CRITICAL: This state file activates the ATE-1 hook (enforce-teams.sh) which blocks
+// bare Agent calls without team_name. Without this file, agents spawn as local subagents
+// instead of Agent Team teammates, causing context explosion.
+const configDir = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
+const ownerPid = Bash(`echo $PPID`).trim()
+Write(`tmp/.rune-plan-${timestamp}.json`, {
+  team_name: `rune-plan-${timestamp}`,
+  started: new Date().toISOString(),
+  status: "active",
+  config_dir: configDir,
+  owner_pid: ownerPid,
+  session_id: "${CLAUDE_SESSION_ID}",
+  feature: feature
+})
 ```
 
 ## Phase 0: Gather Input
@@ -163,25 +242,32 @@ When `design_sync_candidate === true` AND `talisman.design_sync.enabled === true
 const designSyncEnabled = talisman?.design_sync?.enabled === true
 
 if (design_sync_candidate && designSyncEnabled && figmaUrl) {
-  // ATE-1 EXEMPTION: Plan team not yet created at Phase 0. enforce-teams.sh passes
-  // because no plan state file (tmp/.rune-plan-*.json) exists at this point.
-  // Same exemption pattern as elicitation sages (Step 3.5).
+  // ATE-1 COMPLIANT: Agent joins rune-plan-{timestamp} team created in Phase -1.
+  TaskCreate({
+    subject: "Extract Figma design inventory",
+    description: "Call figma_list_components MCP tool, extract component inventory",
+    activeForm: "Extracting design inventory"
+  })
+
   Agent({
     name: 'design-inventory-agent',
     subagent_type: 'general-purpose',
+    team_name: `rune-plan-${timestamp}`,
     prompt: `You are a design inventory specialist.
 
       ## Assignment
       Figma URL: ${figmaUrl}
 
       ## Lifecycle
-      1. Call the figma_list_components MCP tool with the Figma URL
-      2. Extract component names, node IDs, and hierarchy
-      3. Write component inventory to: tmp/plans/${timestamp}/design-inventory.json
+      1. Claim the "Extract Figma design inventory" task via TaskList/TaskUpdate
+      2. Call the figma_list_components MCP tool with the Figma URL
+      3. Extract component names, node IDs, and hierarchy
+      4. Write component inventory to: tmp/plans/${timestamp}/design-inventory.json
          Format: { "components": [{ "name": "...", "node_id": "...", "type": "..." }] }
-      4. If figma_list_components fails (MCP unavailable), write:
+      5. If figma_list_components fails (MCP unavailable), write:
          { "components": [], "error": "Figma MCP not available", "figma_url": "${figmaUrl}" }
-      5. Do not write implementation code. Inventory only.`,
+      6. Do not write implementation code. Inventory only.
+      7. Mark task complete via TaskUpdate`,
     run_in_background: true
   })
   // Output is read during Phase 2 (Synthesize) to populate Component Inventory table
@@ -324,7 +410,8 @@ try {
 } catch (e) {
   // FALLBACK: known teammates across all devise phases (some are conditional — safe to send shutdown to absent members)
   allMembers = ["scroll-reviewer", "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
-    "horizon-sage", "evidence-verifier", "research-verifier", "doubt-seer", "codex-plan-reviewer"]
+    "horizon-sage", "evidence-verifier", "research-verifier", "doubt-seer", "codex-plan-reviewer",
+    "elicitation-sage-1", "elicitation-sage-2", "elicitation-sage-3", "design-inventory-agent"]
 }
 
 // Shutdown all discovered members
