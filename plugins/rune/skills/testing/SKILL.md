@@ -43,12 +43,23 @@ It is auto-loaded by the arc orchestrator and injected into test runner agents.
 **Strict enforcement**: Team lead (Opus) NEVER executes test commands directly.
 All test execution happens via Sonnet teammates.
 
+## Scope Detection
+
+See [scope-detection.md](references/scope-detection.md) for the shared `resolveTestScope()` algorithm.
+
+Summary:
+- Input: PR number string, branch name, or empty (auto-detect current branch)
+- Output: `{ files: string[], source: "pr"|"branch"|"current", label: string }`
+- Priority: PR files (via `gh`) → branch diff → current-branch diff → fallback warn
+- Security: PR numbers must be digit-only; branch names validated against `[a-zA-Z0-9._/-]+`
+- Shared between arc Phase 7.7 and `/rune:test-browser` standalone
+
 ## Diff-Scoped Test Discovery
 
 See [test-discovery.md](references/test-discovery.md) for the full algorithm.
 
 Summary:
-1. Get changed files from `git diff`
+1. Get changed files from `resolveTestScope()` — NOT from raw `git diff`
 2. Map each source file to its test counterpart by convention
 3. If no test file found → flag as "uncovered implementation"
 4. Include changed test files directly
@@ -62,7 +73,10 @@ Summary:
 1. Auto-detect: docker-compose.yml → Docker; package.json → npm; Makefile → make
 2. Health check: HTTP GET every 2s, max 30 attempts (60s total)
 3. Hard timeout: 3 minutes for Docker startup
-4. Failure → skip integration/E2E tiers, unit tests still run
+4. **Snapshot verification**: after health check, open browser and check page is not blank/error
+   - Arc mode: WARN and proceed if verification fails
+   - Standalone mode: abort with framework-specific fix instructions
+5. Failure → skip integration/E2E tiers, unit tests still run
 
 ## File-to-Route Mapping
 

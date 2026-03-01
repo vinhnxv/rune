@@ -51,6 +51,84 @@ After service startup, verify readiness:
    - Unit tests still execute (they don't need services)
 ```
 
+## Snapshot Verification
+
+After health check passes, perform a lightweight browser-level verification to confirm
+the server returns a real, non-error page. This catches misconfigured apps that respond
+HTTP 200 on `/health` but serve blank/error pages to real users.
+
+```
+verifyServerWithSnapshot(baseUrl, sessionName) → "ok" | "blank" | "error" | "loading"
+
+  // Open a throwaway browser session and take a text snapshot
+  session = sessionName || "startup-verify-" + Date.now()
+  Bash(`agent-browser --session "${session}" open "${baseUrl}" --timeout 15s 2>/dev/null`)
+  Bash(`agent-browser wait --load networkidle --timeout 5s 2>/dev/null || true`)
+  snapshotText = Bash(`agent-browser snapshot --text 2>/dev/null || echo ""`)
+
+  // Clean up throwaway session immediately
+  Bash(`agent-browser close --session "${session}" 2>/dev/null || true`)
+
+  // Classify snapshot content
+  if snapshotText is empty or blank:
+    return "blank"
+
+  blanks  = [/^\s*$/, /no content/i, /empty page/i]
+  errors  = [/internal server error/i, /500/i, /application error/i, /something went wrong/i,
+             /unhandled exception/i, /stack trace:/i, /syntax error/i]
+  loading = [/loading\.{3}/i, /please wait/i, /initializing/i]
+
+  if any errors pattern matches snapshotText:
+    return "error"
+  if any loading pattern matches snapshotText:
+    return "loading"
+  if any blanks pattern matches snapshotText:
+    return "blank"
+
+  return "ok"
+```
+
+### Integration into Service Startup
+
+```
+startServices(testingConfig) → { healthy, dockerStarted }
+
+  // ... existing startup steps ...
+
+  if health check passes:
+    // Snapshot verification (requires agent-browser)
+    agentBrowserAvailable = Bash("agent-browser --version 2>/dev/null && echo yes || echo no").trim() == "yes"
+    if agentBrowserAvailable:
+      baseUrl = testingConfig.tiers?.e2e?.base_url ?? "http://localhost:3000"
+      verifyResult = verifyServerWithSnapshot(baseUrl, "arc-startup-verify-{id}")
+
+      // Framework-specific failure instructions
+      FRAMEWORK_HINTS = {
+        "next.js":    "Check: `npm run dev` output, or run `npx next dev` to see build errors",
+        "rails":      "Check: `bin/rails server` output. Missing migrations? `bin/rails db:migrate`",
+        "django":     "Check: `python manage.py runserver` output. Missing migrations? `python manage.py migrate`"
+      }
+      detectedFramework = detectFrameworkName()  // from test-discovery.md detect_test_framework()
+
+      if verifyResult != "ok":
+        hint = FRAMEWORK_HINTS[detectedFramework] ?? "Check your server logs for startup errors."
+        message = "Server returned ${verifyResult} page at ${baseUrl}. ${hint}"
+
+        // Mode-dependent behavior
+        if standalone:
+          // Abort with instructions — user can fix and retry
+          throw new Error(`Startup verification failed: ${message}`)
+        else:
+          // Arc mode: advisory only — do not block the pipeline
+          warn(`WARN: Startup verification: ${message}. Proceeding with tests — E2E results may be unreliable.`)
+
+  return { healthy, dockerStarted }
+```
+
+**Key behavioral difference**:
+- **Arc mode** (`standalone=false`): verification failure logs a WARN and proceeds — the pipeline must not stall
+- **Standalone mode** (`standalone=true`): verification failure aborts with user instructions for self-service recovery
+
 ## Docker-Specific Patterns
 
 ### Startup
