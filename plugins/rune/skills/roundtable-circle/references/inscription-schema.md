@@ -43,7 +43,18 @@
       "failure_threshold": "integer — max hallucinated findings before flagging",
       "recovery_seconds": "integer — wait before retry"
     },
-    "max_reverify_agents": "integer — max re-verify agents to summon"
+    "max_reverify_agents": "integer — max re-verify agents to summon",
+    "research_verification": {
+      "enabled": "boolean — true when research verification ran (Phase 1C.5 during /rune:devise)",
+      "findings_count": {
+        "trusted": "integer — findings with score >= trust_threshold",
+        "caution": "integer — findings with minor issues (version drift, single-source)",
+        "untrusted": "integer — findings below trust_threshold (excluded from synthesis)",
+        "flagged": "integer — findings with security concerns (prompt injection, suspicious URLs)"
+      },
+      "aggregate_score": "number — 0.0-1.0 weighted average trust score across all findings",
+      "version_mismatches": ["array of { library, research_version, project_version, severity } objects — detected version drift between research claims and project dependencies"]
+    }
   },
 
   "detected_stack": {
@@ -286,5 +297,6 @@
 | `todos` | No | `{ "enabled": true, "dir": "todos/", "schema": "per-task", "filename_template": "{id}-{status}-{priority}-{slug}.md", "summary_file": "_summary.md" }` (v1.43.0+, rune-work only). Always uses `per-task` schema. |
 | `aggregator` | No | No aggregation |
 | `verification` | No | `{ "enabled": false }` |
+| `verification.research_verification` | No | `{ "enabled": false }` — populated by Phase 1C.5 during `/rune:devise` when external research runs. Contains trust verdicts and version mismatch data. (v1.123.0+) |
 | `context_engineering` | No | Defaults applied |
 | `sharding` | No | `{ "enabled": false }` — when absent or `enabled: false`, `teammates[]` works exactly as before (fully backward-compatible). The `sharding` field is purely additive. (v1.98.0+, rune-review `scope=diff` only) |
