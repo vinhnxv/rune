@@ -4,7 +4,7 @@
 
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
-[![Version](https://img.shields.io/badge/version-1.125.0-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-1.125.2-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Agents](https://img.shields.io/badge/agents-90-purple)](#agents)
 [![Skills](https://img.shields.io/badge/skills-42-orange)](#skills)
@@ -377,7 +377,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Design Sync Agent | Figma extraction and Visual Spec Map creation |
 | Design Iterator | Iterative design refinement (screenshot-analyze-fix loop) |
 
-### Utility Agents (11)
+### Utility Agents (13)
 
 | Agent | Purpose |
 |-------|---------|
@@ -390,6 +390,8 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Knowledge Keeper | Documentation coverage review |
 | Horizon Sage | Strategic depth assessment |
 | Veil Piercer | Plan reality-gap analysis |
+| Evidence Verifier | Factual claim validation with grounding scores |
+| Research Verifier | Research output quality verification |
 | Truthseer Validator | Audit coverage quality validation |
 | Deployment Verifier | Deployment artifact generation (Go/No-Go checklists, rollback plans) |
 
@@ -406,7 +408,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 ## Skills
 
-41 skills providing background knowledge, workflow orchestration, and tool integration:
+42 skills providing background knowledge, workflow orchestration, and tool integration:
 
 | Skill | Type | Purpose |
 |-------|------|---------|
@@ -446,6 +448,11 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `resolve-gh-pr-comment` | Workflow | Resolve a single GitHub PR review comment |
 | `resolve-all-gh-pr-comments` | Workflow | Batch resolve all open PR review comments |
 | `skill-testing` | Development | TDD for skill development |
+| `debug` | Debugging | ACH-based parallel hypothesis debugging |
+| `codex-review` | Workflow | Cross-model code review (Claude + Codex in parallel) |
+| `learn` | Memory | Session self-learning (CLI corrections, review recurrences) |
+| `figma-to-react` | Integration | Figma-to-React MCP server knowledge |
+| `status` | Reporting | Worker status reporting for swarm execution |
 | `talisman` | Configuration | Deep talisman.yml management (init, audit, update, guide, status) |
 
 ---
@@ -529,7 +536,7 @@ rune-plugin/
 └── plugins/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
-        │   └── plugin.json       # Plugin manifest (v1.125.0)
+        │   └── plugin.json       # Plugin manifest (v1.125.2)
         ├── agents/               # 90 agent definitions
         │   ├── review/           #   40 review agents
         │   ├── investigation/    #   24 investigation agents
@@ -541,7 +548,7 @@ rune-plugin/
         ├── commands/             # 15 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json
-        ├── scripts/              # Hook scripts (20+)
+        ├── scripts/              # Hook scripts (39+)
         ├── .mcp.json             # MCP server config (echo-search)
         ├── talisman.example.yml  # Configuration reference
         ├── CLAUDE.md             # Plugin instructions
