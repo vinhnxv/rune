@@ -90,10 +90,12 @@ Arc pre-flight validates:
 
 ### 4.4 What arc executes
 Arc runs a phased pipeline including:
-- Plan readiness: Forge, Plan Review, Plan Refinement, Verification, Semantic Verification, Task Decomposition.
-- Implementation quality: Work, Gap Analysis, Codex Gap Analysis, Gap Remediation, Goldmask Verification.
-- Convergence: Code Review, Goldmask Correlation, Mend, Verify Mend loops.
-- Delivery: Test, Pre-Ship Validation, Ship, Merge (+ optional bot review phases).
+- Plan readiness: Forge, Plan Review, Plan Refinement, Verification, Semantic Verification, Design Extraction, Task Decomposition.
+- Implementation quality: Work, Design Verification, Gap Analysis, Codex Gap Analysis, Gap Remediation, Goldmask Verification.
+- Convergence: Code Review (--deep), Goldmask Correlation, Mend, Verify Mend, Design Iteration loops.
+- Delivery: Test (3-tier: unit/integration/E2E), Test Coverage Critique, Pre-Ship Validation, Release Quality Check, Ship, Bot Review Wait, PR Comment Resolution, Merge.
+
+> **Note (v1.120.2+):** The arc pipeline now has 26 phases (up from the original 23), with the addition of Design Extraction, Design Verification, and Design Iteration phases for Figma design sync support.
 
 ### 4.5 Where to inspect state
 - Checkpoint: `.claude/arc/{arc-id}/checkpoint.json`
@@ -126,6 +128,7 @@ Queue file variant:
 | `--no-merge` | Keep PRs open |
 | `--resume` | Continue pending plans |
 | `--no-shard-sort` | Preserve raw input order |
+| `--smart-sort` | Force smart ordering on any input type (v1.117.0+) |
 
 ### 5.3 Batch pre-flight
 Rune validates each plan file for:
@@ -144,6 +147,17 @@ Batch uses a stop-hook loop (not subprocess polling):
 
 Important behavior:
 - Internal arc invocation in batch includes `--skip-freshness`.
+- Smart ordering (v1.117.0+) is **opt-in** — glob inputs prompt with 3 options: Smart / Alphabetical / As-discovered. Queue files respect user order by default.
+
+### 5.4.1 Smart ordering modes
+
+| Mode | Behavior | Configure via |
+|---|---|---|
+| `ask` (default) | Prompt user for ordering preference on glob inputs | `arc.batch.smart_ordering.mode: "ask"` |
+| `auto` | Always apply smart ordering | `arc.batch.smart_ordering.mode: "auto"` |
+| `off` | Never apply smart ordering | `arc.batch.smart_ordering.mode: "off"` |
+
+Resume guard runs before talisman checks to prevent reordering partial batches.
 
 ### 5.5 Batch state files
 - Loop state: `.claude/arc-batch-loop.local.md`
@@ -328,6 +342,9 @@ Operational guidance:
 | Batch stopped after one plan | Loop state removed/cancelled | Check batch state + progress files |
 | Resume runs nothing | No `pending` plans | Inspect `tmp/arc-batch/batch-progress.json` |
 | Plan rejected in pre-flight | Unsafe path/symlink/invalid file | Fix plan path and retry |
+| Design phases skipped | No Figma URL in plan | Expected — design phases only run when `design_sync.enabled` and Figma URL present |
+| Stop hook timeout | Arc phase exceeds staleness threshold | Thresholds are now 90min (phase) / 150min (batch) as of v1.125.1 |
+| Workers stuck in infinite loop | maxTurns too high or idle bypass missing | Fixed in v1.119.0 — workers now have maxTurns=60 with runtime budget enforcement |
 
 ---
 
@@ -346,4 +363,7 @@ Operational guidance:
 # Cancel
 /rune:cancel-arc
 /rune:cancel-arc-batch
+
+# Arc batch with smart ordering
+/rune:arc-batch plans/*.md --smart-sort          # Force smart ordering
 ```

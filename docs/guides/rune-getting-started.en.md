@@ -50,6 +50,9 @@ Rune generates output files (plans, reviews, temporary artifacts) in directories
     ".claude/arc/",
     ".claude/echoes/",
     ".claude/arc-batch-loop.local.md",
+    ".claude/arc-hierarchy-loop.local.md",
+    ".claude/arc-issues-loop.local.md",
+    ".claude/arc-phase-loop.local.md",
     ".claude/CLAUDE.local.md",
     ".claude/talisman.yml"
   ]
@@ -216,6 +219,9 @@ Here's a complete example session:
 | `/rune:review` | Multi-agent code review | `/rune:appraise` |
 | `/rune:review --deep` | Thorough multi-wave review | `/rune:appraise --deep` |
 | `/rune:mend` | Auto-fix review findings | — |
+| `/rune:test-browser` | Standalone browser E2E testing | — |
+| `/rune:learn` | Mine session for reusable patterns | — |
+| `/rune:debug` | Parallel hypothesis debugging | — |
 | `/rune:rest` | Clean up temporary files | — |
 
 ## Common Flags
@@ -226,6 +232,9 @@ Here's a complete example session:
 | `--deep` | `/rune:review` | More thorough review (multiple waves) |
 | `--approve` | `/rune:work` | Require your approval before each task |
 | `--dry-run` | `/rune:review` | Preview what would be reviewed without running |
+| `--worktree` | `/rune:work` | Use git worktree isolation (experimental) |
+| `--smart-sort` | `/rune:arc-batch` | Force smart ordering on plan inputs |
+| `--headed` | `/rune:test-browser` | Run browser tests with visible browser |
 
 ---
 
@@ -281,6 +290,11 @@ Once you're comfortable with the basic workflow, explore these advanced commands
 | Enrich a plan with more detail | `/rune:forge plans/...` |
 | Impact analysis of your changes | `/rune:goldmask` |
 | Structured reasoning (trade-off analysis, etc.) | `/rune:elicit` |
+| Cross-model code review (Claude + Codex) | `/rune:codex-review` |
+| Standalone browser E2E testing | `/rune:test-browser` |
+| Parallel hypothesis debugging | `/rune:debug` |
+| Extract session learnings to memory | `/rune:learn` |
+| Process GitHub issues as work queue | `/rune:arc-issues --label "rune:ready"` |
 
 ### Related Guides
 
@@ -288,7 +302,10 @@ Once you're comfortable with the basic workflow, explore these advanced commands
 - [Planning guide](rune-planning-and-plan-quality-guide.en.md) — Advanced planning
 - [Code review and audit guide](rune-code-review-and-audit-guide.en.md) — Deep reviews
 - [Work execution guide](rune-work-execution-guide.en.md) — Swarm workers
-- [Advanced workflows guide](rune-advanced-workflows-guide.en.md) — Hierarchical plans, GitHub Issues
+- [Advanced workflows guide](rune-advanced-workflows-guide.en.md) — Hierarchical plans, GitHub Issues, self-learning
+- [Custom agents and extensions guide](rune-custom-agents-and-extensions-guide.en.md) — Custom reviewers and CLI-backed Ashes
+- [Talisman deep dive guide](rune-talisman-deep-dive-guide.en.md) — Full configuration reference
+- [Troubleshooting and optimization guide](rune-troubleshooting-and-optimization-guide.en.md) — Debugging, cost optimization
 
 ---
 
@@ -308,3 +325,18 @@ Use `/rune:mend` to auto-fix findings. For false positives, you can ignore speci
 
 **Q: Do I need Agent Teams enabled?**
 Yes, it's required. See the [Setup](#setup) section above for instructions.
+
+**Q: Can I test browser flows without running the full arc pipeline?**
+Yes! Use `/rune:test-browser` for standalone browser E2E testing. It runs a 9-step inline workflow without spawning agent teams.
+
+**Q: How do I debug a complex bug with AI agents?**
+Use `/rune:debug` — it spawns multiple hypothesis-investigator agents in parallel using the Analysis of Competing Hypotheses (ACH) method.
+
+**Q: Can I get a second opinion from a different AI model?**
+Yes. `/rune:codex-review` runs Claude and OpenAI Codex in parallel, cross-verifies findings, and merges consensus issues into a unified TOME.
+
+**Q: How does Rune learn from past sessions?**
+Use `/rune:learn` to extract CLI correction patterns and review recurrence findings from your session history. These are persisted to Rune Echoes for future sessions.
+
+**Q: What is the talisman shard resolver?**
+Starting from v1.114.0, Rune pre-processes `talisman.yml` into per-namespace JSON shards at session start, giving a 94% token reduction. This happens automatically — no configuration needed.

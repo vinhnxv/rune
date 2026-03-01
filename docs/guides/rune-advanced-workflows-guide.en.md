@@ -4,6 +4,9 @@ This guide covers Rune's advanced workflows for power users:
 - `/rune:arc-hierarchy` for executing hierarchical parent/child plan decompositions.
 - `/rune:arc-issues` for GitHub Issues-driven batch execution.
 - `/rune:echoes` for managing persistent agent memory.
+- `/rune:learn` for session self-learning (v1.126.0+).
+- `/rune:test-browser` for standalone browser E2E testing (v1.126.0+).
+- `/rune:debug` for parallel hypothesis debugging.
 
 Related guides:
 - [Arc and batch guide (arc/arc-batch)](rune-arc-and-batch-guide.en.md)
@@ -24,6 +27,10 @@ Related guides:
 | View memory state across roles | `/rune:echoes show` |
 | Remember something permanently | `/rune:echoes remember "Always use UTC timestamps"` |
 | Prune stale memory entries | `/rune:echoes prune` |
+| Extract learnings from current session | `/rune:learn` |
+| Run browser E2E tests without arc | `/rune:test-browser` |
+| Run browser tests for a specific PR | `/rune:test-browser 42` |
+| Debug a complex bug with parallel agents | `/rune:debug "bug description"` |
 
 ---
 
@@ -41,7 +48,7 @@ Use hierarchical plans when a feature has:
 1. **Plan** — run `/rune:devise` and select "Hierarchical" at Phase 2.5 (appears when complexity >= 0.65).
 2. **Review** — inspect the parent plan's execution table and dependency contract matrix.
 3. **Execute** — run `/rune:arc-hierarchy plans/parent-plan.md`.
-4. **Each child** runs its own full 23-phase arc pipeline (forge → work → review → mend → test → ship).
+4. **Each child** runs its own full 26-phase arc pipeline (forge → work → review → mend → test → ship).
 5. **Single PR** to main is created after all children complete.
 
 ### 2.3 Flags
@@ -150,7 +157,7 @@ Use arc-issues when you have a backlog of GitHub issues ready for automated impl
 
 1. Issue body is sanitized and converted to a plan file in `tmp/gh-plans/`.
 2. Plan quality is validated (body >= 50 chars, or `--force` to skip).
-3. Full 23-phase arc pipeline runs (forge → work → review → mend → test → ship → merge).
+3. Full 26-phase arc pipeline runs (forge → work → review → mend → test → ship → merge).
 4. On success: PR with `Fixes #{number}`, success comment, `rune:done` label.
 5. On failure: error comment, `rune:failed` label.
 
@@ -259,16 +266,115 @@ echoes:
 
 ---
 
-## 5. Use Cases
+## 5. `/rune:learn` — Session Self-Learning (v1.126.0+)
 
-### 5.1 Large feature with shattered child plans
+### 5.1 What it does
+
+`/rune:learn` extracts reusable patterns from your current session and persists them to Rune Echoes. It runs a 4-phase pipeline:
+
+1. **Scan** — reads the session transcript for patterns worth inscribing.
+2. **Detect** — two specialized detectors:
+   - **CLI Correction Detector** — finds cases where Claude corrected a CLI command, revealing API behavior.
+   - **Review Recurrence Detector** — finds review findings that recurred across multiple arc cycles.
+3. **Report** — presents discovered patterns for your review.
+4. **Confirm + Write** — writes confirmed patterns to the Echo search index.
+
+### 5.2 Usage
+
+```bash
+/rune:learn
+```
+
+This is a user-invocable skill with `disable-model-invocation: true` — Claude will not auto-invoke it. Run it manually at the end of productive sessions.
+
+### 5.3 What it captures
+
+| Pattern type | Example |
+|---|---|
+| CLI corrections | `git rebase --no-edit` doesn't work → use `--no-verify` instead |
+| Review recurrences | "Missing null check on user.email" found in 3 consecutive reviews |
+| Implementation patterns | Discovered that auth module uses bcrypt, not argon2 |
+
+---
+
+## 6. `/rune:test-browser` — Standalone Browser Testing (v1.126.0+)
+
+### 6.1 When to use
+
+Use standalone browser testing when you want to verify UI flows without running the full arc pipeline. This is a 9-step inline workflow (no agent teams needed).
+
+### 6.2 Usage
+
+```bash
+# Test changed routes from current branch
+/rune:test-browser
+
+# Test a specific PR
+/rune:test-browser 42
+
+# Test with visible browser window
+/rune:test-browser --headed
+
+# Limit routes tested
+/rune:test-browser --max-routes 5
+```
+
+### 6.3 Flags
+
+| Flag | Effect |
+|---|---|
+| `<PR#>` | Test routes changed in a specific PR |
+| `<branch>` | Test routes changed on a branch |
+| `--headed` | Run browser tests with visible browser |
+| `--max-routes <N>` | Limit number of routes tested |
+
+### 6.4 What happens
+
+1. **Scope detection** — discovers changed routes from PR, branch, or current HEAD.
+2. **Route discovery** — maps file changes to UI routes.
+3. **Server verification** — confirms dev server is running.
+4. **Per-route test loop** — navigates each route, captures screenshots, verifies expected elements.
+5. **Human gate handling** — detects OAuth, payment, and 2FA gates. Pauses for manual intervention.
+6. **Interactive failure recovery** — for each failure, offers: Fix / Todo / Skip.
+7. **Summary report** — presents pass/fail results.
+
+Requires `agent-browser` CLI.
+
+---
+
+## 7. `/rune:debug` — Parallel Hypothesis Debugging
+
+### 7.1 When to use
+
+Use when bugs are complex, when single-agent debugging hits 3+ failures, or when root cause is unclear. Uses the **Analysis of Competing Hypotheses (ACH)** method.
+
+### 7.2 Usage
+
+```bash
+/rune:debug "The API returns 500 when creating a user with special characters"
+```
+
+### 7.3 What happens
+
+1. **Observe** — gathers evidence about the bug (error logs, stack traces, reproduction steps).
+2. **Hypothesize** — generates multiple competing hypotheses.
+3. **Investigate** — spawns parallel `hypothesis-investigator` agents, one per hypothesis.
+4. **Synthesize** — merges evidence, assigns confidence scores, identifies most likely root cause.
+
+Each investigator gathers both **confirming** and **falsifying** evidence with file:line citations. The structured output uses categorical verdicts: CONFIRMED / LIKELY / UNCERTAIN / FALSIFIED.
+
+---
+
+## 8. Use Cases
+
+### 8.1 Large feature with shattered child plans
 
 ```bash
 /rune:devise                                              # Select "Hierarchical" when offered
 /rune:arc-hierarchy plans/2026-02-24-feat-auth-plan.md    # Execute all children in order
 ```
 
-### 5.2 Sprint backlog from GitHub Issues
+### 8.2 Sprint backlog from GitHub Issues
 
 ```bash
 # Label issues as ready
@@ -276,7 +382,7 @@ echoes:
 /rune:arc-issues --label "rune:ready" --no-merge   # Run with manual merge gate
 ```
 
-### 5.3 Building project memory from scratch
+### 8.3 Building project memory from scratch
 
 ```bash
 /rune:echoes init                    # Set up directories
@@ -286,7 +392,7 @@ echoes:
 /rune:echoes show                    # Check what was learned
 ```
 
-### 5.4 Processing specific issues
+### 8.4 Processing specific issues
 
 ```bash
 /rune:arc-issues 42 55 78           # Process these three issues
@@ -295,7 +401,22 @@ echoes:
 
 ---
 
-## 6. Troubleshooting
+### 8.5 Debug a complex regression
+
+```bash
+/rune:debug "Payment processing times out intermittently on checkout"
+```
+
+### 8.6 End-of-session learning
+
+```bash
+/rune:learn                    # Extract patterns from this session
+/rune:echoes show              # Verify learnings were persisted
+```
+
+---
+
+## 9. Troubleshooting
 
 | Symptom | Likely cause | Action |
 |---|---|---|
@@ -308,10 +429,13 @@ echoes:
 | Echoes not improving results | Memory not initialized | `/rune:echoes init` first |
 | MEMORY.md too large | Exceeds 150-line cap | `/rune:echoes prune` to archive stale entries |
 | Batch stopped after one issue | Stop hook state file removed | Check `.claude/arc-issues-loop.local.md` |
+| `/rune:learn` finds no patterns | Short session or no corrections | Run after productive sessions with multiple iterations |
+| Browser test fails to start | `agent-browser` CLI not installed | Install agent-browser: `npm install -g @anthropic-ai/agent-browser` |
+| Debug agents return low confidence | Bug is not in the codebase | Check if bug is environment-specific or in dependencies |
 
 ---
 
-## 7. Compact Command Reference
+## 10. Compact Command Reference
 
 ```bash
 # Hierarchical execution
@@ -335,4 +459,15 @@ echoes:
 /rune:echoes remember "Convention or decision"        # Permanent memory
 /rune:echoes prune                                    # Archive stale entries
 /rune:echoes reset                                    # Clear all (with backup)
+
+# Session self-learning
+/rune:learn                                           # Extract patterns from session
+
+# Standalone browser testing
+/rune:test-browser                                    # Test changed routes
+/rune:test-browser 42                                 # Test PR #42
+/rune:test-browser --headed --max-routes 5            # Visible browser, limit routes
+
+# Parallel debugging
+/rune:debug "Bug description"                         # ACH-based parallel debugging
 ```

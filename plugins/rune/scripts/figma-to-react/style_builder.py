@@ -221,6 +221,14 @@ class StyleBuilder:
             self._props["border-width"] = f"{weight}px"
             self._props["border-color"] = color
             self._props["border-style"] = "solid"
+        elif paint.type in (PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL):
+            # BACK-002: Gradient stroke fallback — use first stop color
+            stops = paint.gradient_stops
+            if stops and stops[0].color:
+                color = _color_to_css(stops[0].color, paint.opacity)
+                self._props["border-width"] = f"{weight}px"
+                self._props["border-color"] = color
+                self._props["border-style"] = "solid"
 
         return self
 

@@ -37,7 +37,7 @@ The trade-off is token cost — multi-agent workflows consume more tokens than a
 > | `/rune:appraise` | 5–20 min | Up to 8 review agents analyzing your diff in parallel — scales with LOC changed |
 > | `/rune:audit` | 10–30 min | Full codebase scan — same agents, broader scope |
 > | `/rune:strive` | 10–30 min | Swarm workers implementing tasks in parallel |
-> | `/rune:arc` | **1–2 hours** | Full 18-phase pipeline (forge → work → review → mend → test → ship → merge) |
+> | `/rune:arc` | **1–2 hours** | Full 26-phase pipeline (forge → plan review → work → gap analysis → code review → mend → test → ship → merge) |
 > | `/rune:arc` (complex) | **up to 3 hours** | Large plans with multiple review-mend convergence loops |
 >
 > `/rune:arc` is intentionally slow because it runs the **entire software development lifecycle** autonomously — planning enrichment, parallel implementation, multi-agent code review, automated fixes, 3-tier testing, and PR creation. Each phase spawns and tears down a separate agent team. The result is higher quality, but it takes time.
@@ -89,6 +89,8 @@ Rune requires [Agent Teams](https://code.claude.com/docs/en/agent-teams). Enable
     ".claude/arc/",
     ".claude/echoes/",
     ".claude/arc-batch-loop.local.md",
+    ".claude/arc-hierarchy-loop.local.md",
+    ".claude/arc-issues-loop.local.md",
     ".claude/arc-phase-loop.local.md",
     ".claude/CLAUDE.local.md",
     ".claude/talisman.yml"
@@ -108,7 +110,7 @@ Generate a `talisman.yml` tailored to your project's tech stack:
 /rune:talisman status    # Overview of current configuration health
 ```
 
-See the [Talisman deep dive](docs/guides/rune-talisman-deep-dive-guide.en.md) for all 21 configuration sections.
+See the [Talisman deep dive](docs/guides/rune-talisman-deep-dive-guide.en.md) for all 23 configuration sections.
 
 ---
 
@@ -231,13 +233,16 @@ Output: `plans/YYYY-MM-DD-{type}-{name}-plan.md`
 
 ### <a name="arc"></a> `/rune:arc` — End-to-End Pipeline
 
-The full pipeline from plan to merged PR, with 18 phases:
+The full pipeline from plan to merged PR, with 26 phases:
 
 ```
 Forge → Plan Review → Refinement → Verification → Semantic Verification
-  → Work → Gap Analysis → Codex Gap Analysis → Gap Remediation
-  → Goldmask Verification → Code Review → Goldmask Correlation
-  → Mend → Verify Mend → Test → Pre-Ship Validation → Ship → Merge
+  → Design Extraction → Task Decomposition → Work → Design Verification
+  → Gap Analysis → Codex Gap Analysis → Gap Remediation
+  → Goldmask Verification → Code Review (--deep) → Goldmask Correlation
+  → Mend → Verify Mend → Design Iteration → Test → Test Coverage Critique
+  → Pre-Ship Validation → Release Quality Check → Ship
+  → Bot Review Wait → PR Comment Resolution → Merge
 ```
 
 ```bash
@@ -248,6 +253,8 @@ Forge → Plan Review → Refinement → Verification → Semantic Verification
 ```
 
 Features: checkpoint-based resume, adaptive review-mend convergence loop (3 tiers: LIGHT/STANDARD/THOROUGH), diff-scoped review, co-author propagation.
+
+**How arc phases work:** Arc uses Claude Code's [Stop hook](https://docs.anthropic.com/en/docs/claude-code/hooks) to drive the phase loop — when one phase finishes, the stop hook reads state from `.claude/arc-phase-loop.local.md`, determines the next phase, and re-injects a prompt. Each phase is literally a new Claude Code turn with its own fresh context window. This solves the context degradation problem (phase 18 gets the same quality as phase 1) but means the stop hook chain is a critical path — a bug in any hook silently breaks the pipeline. See [`docs/state-machine.md`](docs/state-machine.md) for the full phase graph.
 
 ### <a name="strive"></a> `/rune:strive` — Swarm Execution
 
@@ -330,7 +337,7 @@ Compares a plan against its implementation across 9 quality dimensions:
 
 ### Review Agents (40)
 
-Core reviewers that participate in `/rune:appraise` and `/rune:audit`:
+Core reviewers active in every `/rune:appraise` and `/rune:audit` run. Stack specialists (below) are additionally auto-activated based on detected tech stack:
 
 | Agent | Focus |
 |-------|-------|
@@ -360,6 +367,7 @@ Core reviewers that participate in `/rune:appraise` and `/rune:audit`:
 | Schema Drift Detector | Schema drift between migrations and ORM/model definitions |
 | Agent Parity Reviewer | Agent-native parity, orphan features, context starvation |
 | Senior Engineer Reviewer | Persona-based senior engineer review, production thinking |
+| Cross-Shard Sentinel | Cross-shard consistency for Inscription Sharding (naming drift, pattern inconsistency, auth boundary gaps) |
 
 **Stack Specialists** (auto-activated by detected tech stack):
 
@@ -372,6 +380,7 @@ Core reviewers that participate in `/rune:appraise` and `/rune:audit`:
 | FastAPI Reviewer | FastAPI (Pydantic, IDOR, dependency injection) |
 | Django Reviewer | Django + DRF (ORM, CSRF, admin, migrations) |
 | Laravel Reviewer | Laravel (Eloquent, Blade, middleware, gates) |
+| Axum Reviewer | Axum/SQLx (extractor ordering, N+1 queries, IDOR, transaction boundaries) |
 | SQLAlchemy Reviewer | SQLAlchemy (async sessions, N+1, eager loading) |
 | TDD Compliance Reviewer | TDD practices (test-first, coverage, assertion quality) |
 | DDD Reviewer | Domain-Driven Design (aggregates, bounded contexts) |
@@ -386,7 +395,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 |----------|--------|
 | Impact Tracers | API Contract, Business Logic, Data Layer, Config Dependency, Event Message |
 | Quality Inspectors | Grace Warden, Ruin Prophet, Sight Oracle, Vigil Keeper |
-| Deep Analysis | Breach Hunter, Decay Tracer, Decree Auditor, Ember Seer, Fringe Watcher, Order Auditor, Rot Seeker, Ruin Watcher, Signal Watcher, Strand Tracer, Truth Seeker |
+| Deep Analysis | Breach Hunter, Decay Tracer, Decree Auditor, Ember Seer, Fringe Watcher, Hypothesis Investigator, Order Auditor, Rot Seeker, Ruin Watcher, Signal Watcher, Strand Tracer, Truth Seeker |
 | Synthesis | Goldmask Coordinator, Lore Analyst, Wisdom Sage |
 
 ### Research Agents (5)
@@ -490,7 +499,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 ## Configuration
 
-Rune is configured via `talisman.yml` (21 top-level sections, 100+ keys):
+Rune is configured via `talisman.yml` (23 top-level sections, 100+ keys):
 
 ```bash
 # Project-level (highest priority)
@@ -620,8 +629,8 @@ rune-plugin/
         ├── commands/             # 15 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json
-        ├── scripts/              # Hook scripts (39+)
-        ├── .mcp.json             # MCP server config (echo-search)
+        ├── scripts/              # Hook & utility scripts (99 .sh/.py files)
+        ├── .mcp.json             # MCP server config (3 servers: echo-search, figma-to-react, context7)
         ├── talisman.example.yml  # Configuration reference
         ├── CLAUDE.md             # Plugin instructions
         ├── CHANGELOG.md
@@ -647,6 +656,22 @@ Every Rune workflow is an explicit state machine with named phases, conditional 
 
 ---
 
+## Known Gotchas
+
+A few things to know when working with Rune — especially if you're debugging a pipeline failure or writing custom hooks/scripts:
+
+| Gotcha | Details |
+|--------|---------|
+| **macOS bash is 3.2** | The system `bash` on macOS is ancient (3.2). No associative arrays, no `readarray`, no `\|&`. Rune's `enforce-zsh-compat.sh` hook auto-fixes 5 common patterns at runtime, but custom scripts must target bash 3.2. |
+| **`status` is read-only in zsh** | zsh (macOS default shell) treats `status` as read-only. Using `status=` in any script will silently fail or crash. Use `task_status` or `tstat` instead. Enforced by `enforce-zsh-compat.sh`. |
+| **Hook timeout budget is tight** | PreToolUse hooks: 5s. Stop hooks: 15s (arc-phase) or 30s (detect-workflow). A slow `git` or `gh` call in a hook can cause silent timeout — the hook is killed and the phase loop breaks. |
+| **Stop hooks chain in sequence** | 6 Stop hooks fire in order: `arc-phase-stop-hook.sh` (inner) → `arc-batch-stop-hook.sh` → `arc-hierarchy-stop-hook.sh` → `arc-issues-stop-hook.sh` → `detect-workflow-complete.sh` → `on-session-stop.sh` (outer). A crash in an inner hook breaks all outer hooks. |
+| **SEAL convention for completion** | Ashes emit `<seal>TAG</seal>` as their last output line. The `on-teammate-idle.sh` hook checks for this marker to distinguish "done writing" from "idle mid-task". Missing seals cause premature aggregation. |
+
+See the [Troubleshooting guide](docs/guides/rune-troubleshooting-and-optimization-guide.en.md) for more operational details.
+
+---
+
 ## Requirements
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with plugin support
@@ -669,7 +694,7 @@ Every Rune workflow is an explicit state machine with named phases, conditional 
 - [Hướng dẫn workflow nâng cao Rune (Tiếng Việt): arc-hierarchy + arc-issues + echoes](docs/guides/rune-advanced-workflows-guide.vi.md) — thực thi phân cấp, batch GitHub Issues, và bộ nhớ agent
 - [Rune getting started guide (English)](docs/guides/rune-getting-started.en.md) — quick start for first-time users
 - [Hướng dẫn bắt đầu nhanh Rune (Tiếng Việt)](docs/guides/rune-getting-started.vi.md) — hướng dẫn nhanh cho người mới
-- [Rune talisman deep dive (English)](docs/guides/rune-talisman-deep-dive-guide.en.md) — master all 21 configuration sections
+- [Rune talisman deep dive (English)](docs/guides/rune-talisman-deep-dive-guide.en.md) — master all 23 configuration sections
 - [Hướng dẫn talisman chuyên sâu Rune (Tiếng Việt)](docs/guides/rune-talisman-deep-dive-guide.vi.md) — làm chủ 21 section cấu hình
 - [Rune custom agents and extensions (English)](docs/guides/rune-custom-agents-and-extensions-guide.en.md) — build custom Ashes, CLI-backed reviewers, Forge Gaze integration
 - [Hướng dẫn custom agent và mở rộng Rune (Tiếng Việt)](docs/guides/rune-custom-agents-and-extensions-guide.vi.md) — xây dựng custom Ash, CLI reviewer, tích hợp Forge Gaze

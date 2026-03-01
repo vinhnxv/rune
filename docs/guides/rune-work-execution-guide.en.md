@@ -57,8 +57,7 @@ Rune parses the plan into tasks, spawns self-organizing workers, and implements 
 | Flag | Effect |
 |---|---|
 | `--approve` | Require human approval before each task starts coding |
-| `--worktree` | Use git worktree isolation (experimental) |
-| `--todos-dir <path>` | Custom todos directory (for arc integration) |
+| `--worktree` | Use git worktree isolation — each worker gets its own copy of the repo (v1.122.0+) |
 
 ### 3.3 What happens during strive
 
@@ -92,7 +91,38 @@ Workers do not commit directly. Instead:
 
 This prevents git index.lock contention when multiple workers finish simultaneously.
 
-### 3.6 Worker scaling
+### 3.6 Worktree isolation (v1.122.0+)
+
+```bash
+/rune:strive plans/my-plan.md --worktree
+```
+
+With `--worktree`, each worker gets its own git worktree — an isolated copy of the repository. Benefits:
+- **No index.lock contention** — workers commit independently.
+- **No merge conflicts during work** — each worktree is independent.
+- **Automatic cleanup** — orphaned worktrees are garbage-collected by 3 safety nets:
+  1. `on-session-stop.sh` auto-cleans on session exit (capped at 3).
+  2. `session-team-hygiene.sh` detects orphans at session start.
+  3. `/rune:rest` includes manual worktree cleanup.
+
+PID liveness checks ensure worktrees from live sessions are never cleaned.
+
+Configure via talisman:
+
+```yaml
+work:
+  worktree:
+    enabled: true        # Enable worktree isolation by default
+```
+
+### 3.7 Worker safety caps (v1.119.0+)
+
+Workers have built-in safety limits to prevent infinite loops:
+- **maxTurns: 60** — hard cap on agentic turns (reduced from 120 in v1.119.0).
+- **Runtime budget enforcement** — `force_shutdown` signal triggers emergency worker shutdown.
+- **TeammateIdle bypass** — work teams skip idle quality gates to prevent false stalls.
+
+### 3.8 Worker scaling
 
 | Task count | Workers |
 |---|---|
@@ -108,7 +138,7 @@ work:
   max_workers: 3
 ```
 
-### 3.7 Human approval mode
+### 3.9 Human approval mode
 
 ```bash
 /rune:strive plans/my-plan.md --approve
@@ -116,7 +146,7 @@ work:
 
 With `--approve`, the orchestrator presents each task via `AskUserQuestion` before workers start coding. This gives you control over task-level decisions for high-risk implementations.
 
-### 3.8 Ship phase
+### 3.10 Ship phase
 
 After all tasks are complete and wards pass, strive optionally:
 1. Pushes the branch to remote.
@@ -299,6 +329,9 @@ goldmask:
 | Goldmask times out | Large diff or many files | Use `--lore` for lighter analysis |
 | "No plan file" | Path incorrect or plan missing | Verify plan exists in `plans/` |
 | Ship phase skipped | `gh` CLI missing or unsafe branch | Install `gh` and authenticate |
+| Worktree cleanup stuck | Orphaned rune-work-* dirs | `/rune:rest` or restart session for auto-GC |
+| Worker loops infinitely | maxTurns exceeded | v1.119.0+ caps at 60 turns with force_shutdown |
+| Worker hangs after task | Idle bypass not active | Check TeammateIdle hook bypass for work teams |
 
 ---
 
@@ -308,6 +341,7 @@ goldmask:
 # Swarm execution
 /rune:strive plans/my-plan.md                      # Standard execution
 /rune:strive plans/my-plan.md --approve            # Human approval per task
+/rune:strive plans/my-plan.md --worktree           # Worktree isolation
 
 # Impact analysis
 /rune:goldmask                                     # Full 3-layer investigation

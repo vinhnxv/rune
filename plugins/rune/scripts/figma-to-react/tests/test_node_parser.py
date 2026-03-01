@@ -8,9 +8,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from figma_types import FigmaNodeBase  # noqa: E402
 from node_parser import (  # noqa: E402
     FigmaIRNode,
     StyledTextSegment,
+    _has_vector_children,
     count_nodes,
     find_by_name,
     merge_text_segments,
@@ -159,6 +161,51 @@ class TestBooleanOperation:
             ir = parse_node(node)
             assert ir is not None
             assert ir.boolean_operation == op_type
+
+
+# ---------------------------------------------------------------------------
+# Inherently SVG types (VEIL-002 / BACK-001)
+# ---------------------------------------------------------------------------
+
+class TestInherentlySvgTypes:
+    """LINE, REGULAR_POLYGON, and STAR are always SVG candidates."""
+
+    @pytest.mark.parametrize("node_type", ["LINE", "REGULAR_POLYGON", "STAR"])
+    def test_inherently_svg_type_marked_as_candidate(self, node_type):
+        """Inherently SVG types must be SVG candidates regardless of size."""
+        node = {
+            "id": "50:1",
+            "name": f"Test{node_type}",
+            "type": node_type,
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 800, "height": 800},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 800, "height": 800},
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+            "children": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+        assert ir.is_svg_candidate, (
+            f"{node_type} should always be SVG candidate, even at 800x800"
+        )
+
+    def test_line_small_is_svg_candidate(self):
+        """Small LINE node is still SVG candidate."""
+        node = {
+            "id": "50:2",
+            "name": "SmallLine",
+            "type": "LINE",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 16, "height": 1},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 16, "height": 1},
+            "fills": [],
+            "strokes": [{"type": "SOLID", "color": {"r": 0, "g": 0, "b": 0, "a": 1}}],
+            "effects": [],
+            "children": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+        assert ir.is_svg_candidate
 
 
 # ---------------------------------------------------------------------------
@@ -504,3 +551,104 @@ class TestNodeParserEdgeCases:
         ir = parse_node(outer)
         assert ir is not None
         assert count_nodes(ir) == 3
+
+
+# ---------------------------------------------------------------------------
+# _has_vector_children — FRAME/GROUP nested detection
+# ---------------------------------------------------------------------------
+
+
+def _make_node(node_type: str, children=None) -> FigmaNodeBase:
+    """Construct a minimal FigmaNodeBase for _has_vector_children tests."""
+    return FigmaNodeBase(
+        id=f"test:{node_type}",
+        type=node_type,
+        children=children or [],
+    )
+
+
+class TestHasVectorChildren:
+    """Tests confirming _has_vector_children() handles FRAME/GROUP nesting via recursion."""
+
+    def test_frame_group_vector_hierarchy_detected(self):
+        """FRAME > GROUP > VECTOR hierarchy detected as icon/SVG candidate.
+
+        Confirms that _has_vector_children recurses through non-leaf container
+        types (FRAME, GROUP) to find vector primitives at any depth.
+        """
+        vector = _make_node("VECTOR")
+        group = _make_node("GROUP", children=[vector])
+        frame = _make_node("FRAME", children=[group])
+        assert _has_vector_children(frame) is True
+
+    def test_frame_group_mixed_not_detected(self):
+        """FRAME > GROUP > (VECTOR + TEXT) hierarchy NOT detected.
+
+        A GROUP containing both a VECTOR and a TEXT node is not a pure vector
+        subtree. TEXT is not in _VECTOR_TYPES, so _has_vector_children returns False.
+        """
+        vector = _make_node("VECTOR")
+        text = _make_node("TEXT")
+        group = _make_node("GROUP", children=[vector, text])
+        frame = _make_node("FRAME", children=[group])
+        assert _has_vector_children(frame) is False
+
+    def test_deep_nesting_recursion_guard(self):
+        """Deeply nested vector hierarchy (depth > 100) is handled by recursion guard.
+
+        _has_vector_children has a depth guard at _MAX_PARSE_DEPTH=100.
+        A chain of 105 nested FRAME nodes terminates with False (guard fires)
+        rather than raising RecursionError.
+        """
+        # Build a chain: leaf VECTOR -> 105 FRAME wrappers
+        node = _make_node("VECTOR")
+        for _ in range(105):
+            node = _make_node("FRAME", children=[node])
+        # Guard fires at depth > 100, returns False for the pathological case
+        result = _has_vector_children(node)
+        assert isinstance(result, bool)
+        # With 105 levels of FRAME wrapping, the guard kicks in and returns False
+        assert result is False
+
+    def test_has_vector_children_empty(self):
+        """Node with no children returns False for leaf non-vector types.
+
+        For a leaf FRAME with no children, `node.type` is FRAME, which is not
+        in _VECTOR_TYPES. So the function correctly returns False.
+        """
+        frame = _make_node("FRAME")
+        assert _has_vector_children(frame) is False
+
+    def test_has_vector_children_single_vector(self):
+        """Single VECTOR child returns True.
+
+        Baseline test: a FRAME with a single VECTOR child is a pure vector
+        subtree (all children are vector primitives).
+        """
+        vector = _make_node("VECTOR")
+        frame = _make_node("FRAME", children=[vector])
+        assert _has_vector_children(frame) is True
+
+    def test_has_vector_children_boolean_op_leaf(self):
+        """Leaf BOOLEAN_OPERATION node returns True (is in _VECTOR_TYPES)."""
+        bool_op = _make_node("BOOLEAN_OPERATION")
+        assert _has_vector_children(bool_op) is True
+
+    def test_has_vector_children_ellipse_leaf(self):
+        """Leaf ELLIPSE node returns True (is in _VECTOR_TYPES)."""
+        ellipse = _make_node("ELLIPSE")
+        assert _has_vector_children(ellipse) is True
+
+    def test_has_vector_children_group_with_all_vectors(self):
+        """GROUP with multiple vector children (ELLIPSE, VECTOR, LINE) returns True."""
+        ellipse = _make_node("ELLIPSE")
+        vector = _make_node("VECTOR")
+        line = _make_node("LINE")
+        group = _make_node("GROUP", children=[ellipse, vector, line])
+        assert _has_vector_children(group) is True
+
+    def test_has_vector_children_group_with_rectangle(self):
+        """GROUP with RECTANGLE child returns True (RECTANGLE is a vector type)."""
+        rect = _make_node("RECTANGLE")
+        group = _make_node("GROUP", children=[rect])
+        assert _has_vector_children(group) is True

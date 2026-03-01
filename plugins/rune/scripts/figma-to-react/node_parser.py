@@ -17,6 +17,7 @@ Inspired by FigmaToCode's AltNode concept.
 from __future__ import annotations
 
 import logging
+import math
 import re
 from collections import deque
 from dataclasses import dataclass, field
@@ -48,6 +49,9 @@ logger = logging.getLogger(__name__)
 # Max dimension (px) for icon candidate detection
 _ICON_MAX_SIZE: float = 64.0
 
+# Max dimension (px) for SVG illustration candidate detection (64px < size <= 512px)
+_SVG_ILLUSTRATION_MAX_SIZE: float = 512.0
+
 # Node types that we skip entirely during parsing
 _UNSUPPORTED_TYPES: FrozenSet[str] = frozenset({
     "STICKY",
@@ -78,6 +82,14 @@ _VECTOR_TYPES: FrozenSet[str] = frozenset({
     "BOOLEAN_OPERATION",
     "ELLIPSE",
     "RECTANGLE",
+    "LINE",
+    "REGULAR_POLYGON",
+    "STAR",
+})
+
+# VEIL-002: Node types that are inherently SVG — always render as SVG regardless of size
+# LINE, REGULAR_POLYGON, and STAR have no meaningful non-SVG representation
+_INHERENTLY_SVG_TYPES: FrozenSet[str] = frozenset({
     "LINE",
     "REGULAR_POLYGON",
     "STAR",
@@ -240,6 +252,8 @@ class FigmaIRNode:
 
     # SVG geometry (for vector nodes — actual path data from fillGeometry)
     fill_geometry: List[Dict[str, Any]] = field(default_factory=list)
+    # SVG stroke geometry (stroke outlines from strokeGeometry)
+    stroke_geometry: List[Dict[str, Any]] = field(default_factory=list)
 
     # Blend mode (e.g., MULTIPLY, SCREEN, OVERLAY — maps to mix-blend-*)
     blend_mode: Optional[str] = None
@@ -427,7 +441,38 @@ def _detect_icon_candidate(node: FigmaNodeBase) -> bool:
     bbox = node.absolute_bounding_box
     if bbox is None:
         return False
+    if not math.isfinite(bbox.width) or not math.isfinite(bbox.height):
+        return False
     if bbox.width > _ICON_MAX_SIZE or bbox.height > _ICON_MAX_SIZE:
+        return False
+    if bbox.width <= 0 or bbox.height <= 0:
+        return False
+    return _has_vector_children(node)
+
+
+def _detect_svg_illustration(node: FigmaNodeBase) -> bool:
+    """Determine if a node qualifies as an SVG illustration candidate.
+
+    SVG illustration candidates are vector-only nodes that are larger than
+    icons (>64px) but within an illustration-scale range (<=512px). These
+    are suitable for inline SVG rendering with actual fill colors (unlike
+    icons which always use currentColor).
+
+    Args:
+        node: Figma node to evaluate.
+
+    Returns:
+        True if the node is an SVG illustration candidate.
+    """
+    bbox = node.absolute_bounding_box
+    if bbox is None:
+        return False
+    if not math.isfinite(bbox.width) or not math.isfinite(bbox.height):
+        return False
+    # Must be larger than icon threshold and within illustration range
+    if bbox.width <= _ICON_MAX_SIZE and bbox.height <= _ICON_MAX_SIZE:
+        return False
+    if bbox.width > _SVG_ILLUSTRATION_MAX_SIZE or bbox.height > _SVG_ILLUSTRATION_MAX_SIZE:
         return False
     if bbox.width <= 0 or bbox.height <= 0:
         return False
@@ -494,15 +539,16 @@ def _can_be_flattened(node: FigmaIRNode) -> bool:
 
 
 _MAX_PARSE_DEPTH = 100  # BACK-P3-004: Guard against pathological nesting
+_MAX_COLLECT_DEPTH = 10  # Depth ceiling for child geometry collection
 
 
-def _collect_child_fill_geometry(
+def _collect_child_geometry(
     children: List[Dict[str, Any]],
     _depth: int = 0,
-) -> List[Dict[str, Any]]:
-    """Recursively collect fillGeometry from descendant vector nodes.
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Recursively collect fillGeometry and strokeGeometry from descendant vector nodes.
 
-    When a BOOLEAN_OPERATION or icon-candidate FRAME has no fillGeometry
+    When a BOOLEAN_OPERATION or icon-candidate FRAME has no geometry
     at its own level, this traverses children to gather path data from
     VECTOR, ELLIPSE, RECTANGLE, etc. nodes.
 
@@ -511,25 +557,32 @@ def _collect_child_fill_geometry(
         _depth: Recursion depth guard.
 
     Returns:
-        Collected fill geometry entries from all descendant vectors.
+        Tuple of (fill_geometry, stroke_geometry) collected from all descendant vectors.
     """
-    if _depth > 10:  # Prevent deep recursion in pathological trees
-        return []
+    if _depth > _MAX_COLLECT_DEPTH:
+        return [], []
 
-    result: List[Dict[str, Any]] = []
+    fill_result: List[Dict[str, Any]] = []
+    stroke_result: List[Dict[str, Any]] = []
     for child in children:
         if not isinstance(child, dict):
             continue
         child_type = child.get("type", "")
         fill_geo = child.get("fillGeometry")
+        stroke_geo = child.get("strokeGeometry")
         if fill_geo and isinstance(fill_geo, list):
-            result.extend(fill_geo)
-        elif child_type in _VECTOR_TYPES or child_type in _FRAME_LIKE_TYPES:
-            # Recurse into nested groups / boolean ops
-            sub_children = child.get("children", [])
-            if sub_children:
-                result.extend(_collect_child_fill_geometry(sub_children, _depth + 1))
-    return result
+            fill_result.extend(fill_geo)
+        if stroke_geo and isinstance(stroke_geo, list):
+            stroke_result.extend(stroke_geo)
+        if not fill_geo and not stroke_geo:
+            if child_type in _VECTOR_TYPES or child_type in _FRAME_LIKE_TYPES:
+                # Recurse into nested groups / boolean ops
+                sub_children = child.get("children", [])
+                if sub_children:
+                    sub_fill, sub_stroke = _collect_child_geometry(sub_children, _depth + 1)
+                    fill_result.extend(sub_fill)
+                    stroke_result.extend(sub_stroke)
+    return fill_result, stroke_result
 
 
 def parse_node(
@@ -663,23 +716,39 @@ def parse_node(
     if isinstance(pydantic_node, TextNode):
         _apply_text_properties(ir_node, pydantic_node)
 
-    # Extract fillGeometry for vector/SVG nodes (actual path data)
+    # Extract fillGeometry and strokeGeometry for vector/SVG nodes (actual path data)
     if node_type_str in _VECTOR_TYPES or ir_node.is_svg_candidate:
         fill_geo = raw.get("fillGeometry")
         if fill_geo and isinstance(fill_geo, list):
             ir_node.fill_geometry = fill_geo
+        # BOOLEAN_OPERATION nodes do not have their own stroke geometry — skip
+        if node_type_str != "BOOLEAN_OPERATION":
+            stroke_geo = raw.get("strokeGeometry")
+            if stroke_geo and isinstance(stroke_geo, list):
+                ir_node.stroke_geometry = stroke_geo
 
-    # For icon/SVG candidates without own fillGeometry, collect from
+    # For icon/SVG candidates without own geometry, collect from
     # descendant VECTOR nodes (e.g., BOOLEAN_OPERATION children, icon frames)
     if (
         ir_node.is_svg_candidate
         and not ir_node.fill_geometry
         and raw.get("children")
     ):
-        ir_node.fill_geometry = _collect_child_fill_geometry(raw.get("children", []))
+        fill_geo, stroke_geo = _collect_child_geometry(raw.get("children", []))
+        ir_node.fill_geometry = fill_geo
+        ir_node.stroke_geometry = stroke_geo
 
     # Override: icon candidates are also SVG candidates
     if ir_node.is_icon_candidate:
+        ir_node.is_svg_candidate = True
+
+    # SVG illustration candidates (64px < size <= 512px, vector-only) are SVG candidates
+    if not ir_node.is_svg_candidate and _detect_svg_illustration(pydantic_node):
+        ir_node.is_svg_candidate = True
+
+    # VEIL-002: Inherently SVG types (LINE, REGULAR_POLYGON, STAR) must always
+    # render as SVG — they have no meaningful non-SVG representation
+    if not ir_node.is_svg_candidate and node_type_str in _INHERENTLY_SVG_TYPES:
         ir_node.is_svg_candidate = True
 
     # Recursively parse children

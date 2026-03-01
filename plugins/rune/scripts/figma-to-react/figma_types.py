@@ -39,6 +39,9 @@ class NodeType(str, Enum):
     SECTION = "SECTION"
     VECTOR = "VECTOR"
     BOOLEAN_OPERATION = "BOOLEAN_OPERATION"
+    LINE = "LINE"
+    REGULAR_POLYGON = "REGULAR_POLYGON"
+    STAR = "STAR"
     # Not a real Figma type -- used internally to tag nodes with image fills
     IMAGE_FILL = "IMAGE_FILL"
 
