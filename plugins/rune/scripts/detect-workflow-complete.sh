@@ -78,7 +78,11 @@ for loop_file in \
   "${CWD}/.claude/arc-hierarchy-loop.local.md" \
   "${CWD}/.claude/arc-issues-loop.local.md"; do
   if [[ -f "$loop_file" ]]; then
-    # Check staleness — only defer if loop file is <30 min old (matches longest phase timeout)
+    # Check staleness — only defer if loop file is fresh enough.
+    # v1.125.1 FIX: Increased from 30 min to 150 min. Phase loop files stay
+    # untouched during long phases (work=35m, test+E2E=50m). Batch/hierarchy/issues
+    # loop files stay untouched for entire arc runs (30-90m). Must match
+    # on-session-stop.sh thresholds to avoid premature cleanup.
     if [[ "$(uname)" == "Darwin" ]]; then
       _loop_mtime=$(stat -f %m "$loop_file" 2>/dev/null || true)
     else
@@ -90,7 +94,7 @@ for loop_file in \
       exit 0
     fi
     age_min=$(( ($HOOK_START_TIME - _loop_mtime) / 60 ))
-    if [[ $age_min -lt 30 ]]; then
+    if [[ $age_min -lt 150 ]]; then
       _trace "DEFER: active loop file $(basename "$loop_file") (${age_min}m old)"
       exit 0
     fi

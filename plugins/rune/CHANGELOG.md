@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.125.1] - 2026-03-01
+
+### Fixed
+- **Premature staleness threshold in `on-session-stop.sh`** — Arc phase loop state files were deleted after 10 minutes, but arc phases routinely take 10-50 minutes (work=35m, test+E2E=50m). This broke the Stop hook phase-loop pattern, causing arc pipelines to stall after completing a single phase. Increased phase loop threshold to 90 minutes and outer loop thresholds (batch/hierarchy/issues) to 150 minutes. All thresholds now use named constants for maintainability.
+- **Premature staleness threshold in `detect-workflow-complete.sh`** — GUARD 2 loop file staleness used 30 minutes, which was insufficient for work (35m) and test+E2E (50m) phases. Increased to 150 minutes to match `on-session-stop.sh` thresholds and prevent the hook from treating active workflows as orphaned.
+
 ## [1.125.0] - 2026-03-01
 
 ### Added
