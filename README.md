@@ -24,6 +24,37 @@ The trade-off is token cost — multi-agent workflows consume more tokens than a
 
 ---
 
+<a name="token-warning"></a>
+
+> [!WARNING]
+> **Rune is token-intensive and time-intensive.**
+>
+> Each workflow spawns multiple agents, each with its own dedicated context window. This means higher token consumption and longer runtimes than single-agent usage.
+>
+> | Workflow | Typical Duration | Why |
+> |----------|-----------------|-----|
+> | `/rune:devise` | 10–30 min | Up to 7 agents across 7 phases (brainstorm, research, synthesize, forge, review) |
+> | `/rune:appraise` | 5–20 min | Up to 8 review agents analyzing your diff in parallel — scales with LOC changed |
+> | `/rune:audit` | 10–30 min | Full codebase scan — same agents, broader scope |
+> | `/rune:strive` | 10–30 min | Swarm workers implementing tasks in parallel |
+> | `/rune:arc` | **1–2 hours** | Full 18-phase pipeline (forge → work → review → mend → test → ship → merge) |
+> | `/rune:arc` (complex) | **up to 3 hours** | Large plans with multiple review-mend convergence loops |
+>
+> `/rune:arc` is intentionally slow because it runs the **entire software development lifecycle** autonomously — planning enrichment, parallel implementation, multi-agent code review, automated fixes, 3-tier testing, and PR creation. Each phase spawns and tears down a separate agent team. The result is higher quality, but it takes time.
+>
+> **Want faster iterations?** Run the steps individually instead of the full pipeline:
+>
+> ```
+> /rune:plan   →  /rune:work   →  /rune:review
+>  (10–30 min)    (10–30 min)     (5–20 min)
+> ```
+>
+> This gives you the same core workflow (plan → implement → review) in **25–80 minutes** with manual control between steps — versus 1–3 hours for `/rune:arc` which adds forge enrichment, gap analysis, automated mend loops, 3-tier testing, and PR creation on top.
+>
+> **Claude Max ($200/month) or higher recommended.** Use `--dry-run` where available to preview scope before committing.
+
+---
+
 ## Install
 
 ```bash
@@ -142,18 +173,18 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 
 ### Core Commands
 
-| Command | What it does | Agents |
-|---------|-------------|--------|
-| [`/rune:devise`](#devise) | Turn ideas into structured plans with parallel research | up to 7 |
-| [`/rune:strive`](#strive) | Execute plans with self-organizing swarm workers | 2-6 |
-| [`/rune:appraise`](#appraise) | Multi-agent code review on your diff | up to 8 |
-| [`/rune:audit`](#audit) | Full codebase audit with specialized reviewers | up to 8 |
-| [`/rune:arc`](#arc) | End-to-end pipeline: plan → work → review → test → ship | varies |
-| [`/rune:mend`](#mend) | Parallel resolution of review findings | 1-5 |
-| [`/rune:forge`](#forge) | Deepen a plan with topic-aware research enrichment | 3-12 |
-| [`/rune:goldmask`](#goldmask) | Impact analysis — what breaks if you change this? | 8 |
-| [`/rune:inspect`](#inspect) | Plan-vs-implementation gap audit (9 dimensions) | 4 |
-| [`/rune:elicit`](#elicit) | Structured reasoning (Tree of Thoughts, Pre-mortem, 5 Whys) | 0 |
+| Command | What it does | Agents | Duration |
+|---------|-------------|--------|----------|
+| [`/rune:devise`](#devise) | Turn ideas into structured plans with parallel research | up to 7 | 10–30 min |
+| [`/rune:strive`](#strive) | Execute plans with self-organizing swarm workers | 2-6 | 10–30 min |
+| [`/rune:appraise`](#appraise) | Multi-agent code review on your diff | up to 8 | 5–20 min |
+| [`/rune:audit`](#audit) | Full codebase audit with specialized reviewers | up to 8 | 10–30 min |
+| [`/rune:arc`](#arc) | End-to-end pipeline: plan → work → review → test → ship | varies | **1–3 hours** |
+| [`/rune:mend`](#mend) | Parallel resolution of review findings | 1-5 | 3–10 min |
+| [`/rune:forge`](#forge) | Deepen a plan with topic-aware research enrichment | 3-12 | 5–15 min |
+| [`/rune:goldmask`](#goldmask) | Impact analysis — what breaks if you change this? | 8 | 5–10 min |
+| [`/rune:inspect`](#inspect) | Plan-vs-implementation gap audit (9 dimensions) | 4 | 5–10 min |
+| [`/rune:elicit`](#elicit) | Structured reasoning (Tree of Thoughts, Pre-mortem, 5 Whys) | 0 | 2–5 min |
 
 ### Batch & Automation
 
@@ -578,10 +609,7 @@ Every Rune workflow is an explicit state machine with named phases, conditional 
 ## Requirements
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with plugin support
-- **Claude Max ($200/month) or higher recommended**
-
-> [!WARNING]
-> **Rune is token-intensive.** Each workflow spawns multiple agents with their own dedicated context windows. A single `/rune:arc` run can consume a significant portion of your weekly usage. Use `--dry-run` where available to preview scope before committing.
+- **Claude Max ($200/month) or higher recommended** — see [token and runtime warning](#token-warning) above
 
 ---
 
