@@ -1004,11 +1004,12 @@ testing:
 # ──────────────────────────────────────────────
 # Teammate Lifecycle — Safety nets (v1.112.0+)
 # ──────────────────────────────────────────────
-# 4-layer defense against stuck teammates when team lead context is exhausted.
+# 5-layer defense against stuck teammates when team lead context is exhausted.
 # Layer 1: Proactive context-aware shutdown signal (guard-context-critical.sh)
 # Layer 2: maxTurns safety net on ALL agents (platform-level enforcement)
 # Layer 3: Process-level SIGTERM/SIGKILL cleanup (on-session-stop.sh)
 # Layer 4: TeammateIdle "all tasks done" coordination (on-teammate-idle.sh)
+# Layer 5: Hook-driven workflow boundary cleanup (detect-workflow-complete.sh)
 teammate_lifecycle:
   max_turns:
     work: 60
@@ -1021,6 +1022,13 @@ teammate_lifecycle:
   max_runtime_minutes: 20    # Max minutes per worker before shutdown_request. Set to 999 to disable.
   shutdown_signal_threshold: 35
   process_cleanup: true
+  cleanup:
+    enabled: true                    # Set to false to disable hook-driven cleanup
+    grace_period_seconds: 10         # Wait time for prompt-driven shutdown_request (orchestrator context only)
+    escalation_timeout_seconds: 5    # Wait time after SIGTERM before SIGKILL (used in hook context)
+    # Note: escalation_timeout_seconds must stay < 23s to fit within 30s hook timeout budget (GAP-DOC-4)
+    # Note: grace_period_seconds is only used in prompt-driven (orchestrator) cleanup.
+    #       Hook-based cleanup uses only escalation_timeout_seconds.
 
 # ──────────────────────────────────────────────
 # Doubt Seer — Evidence quality challenger (v1.61.0+)

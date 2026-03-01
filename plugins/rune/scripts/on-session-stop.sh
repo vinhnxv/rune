@@ -236,14 +236,15 @@ _kill_stale_teammates() {
       survivor_comm=$(ps -p "$child_pid" -o comm= 2>/dev/null || true)
       case "$survivor_comm" in
         node|claude|claude-*)
-          kill -KILL "$child_pid" 2>/dev/null || true
+          if kill -KILL "$child_pid" 2>/dev/null; then
+            killed=$((killed + 1))
+          fi
           ;;
         *)
           # PID recycled to a non-Claude process — do NOT kill
           ;;
       esac
     fi
-    killed=$((killed + 1))
   done
 
   echo "$killed"
@@ -251,7 +252,11 @@ _kill_stale_teammates() {
 }
 
 # ── AUTO-CLEAN PHASE 0: Terminate stale teammate processes ──
-cleaned_processes=$(_kill_stale_teammates)
+if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" == "1" ]]; then
+  cleaned_processes=0
+else
+  cleaned_processes=$(_kill_stale_teammates)
+fi
 
 # ── CHOME resolution ──
 CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
@@ -326,6 +331,10 @@ if [[ -d "$CHOME/teams/" ]]; then
       fi
 
       if [[ "$should_clean" == "true" ]]; then
+        if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" == "1" ]]; then
+          cleaned_teams+=("$dirname")
+          continue
+        fi
         # SEC-1: Re-check symlink immediately before rm-rf (TOCTOU mitigation)
         if [[ ! -L "$CHOME/teams/${dirname}" ]]; then
           rm -rf "$CHOME/teams/${dirname}/" "$CHOME/tasks/${dirname}/" 2>/dev/null
@@ -341,16 +350,15 @@ fi
 cleaned_states=()
 if [[ -d "${CWD}/tmp/" ]]; then
   shopt -s nullglob
-  for f in "${CWD}/tmp/"/.rune-review-*.json \
-           "${CWD}/tmp/"/.rune-audit-*.json \
-           "${CWD}/tmp/"/.rune-work-*.json \
-           "${CWD}/tmp/"/.rune-mend-*.json \
-           "${CWD}/tmp/"/.rune-plan-*.json \
-           "${CWD}/tmp/"/.rune-forge-*.json \
-           "${CWD}/tmp/"/.rune-inspect-*.json \
-           "${CWD}/tmp/"/.rune-arc-*.json; do
+  for f in "${CWD}/tmp/"/.rune-*.json; do
     [[ ! -f "$f" ]] && continue
     [[ -L "$f" ]] && continue
+    # Skip signal files handled by dedicated cleanup blocks above
+    case "$(basename "$f")" in
+      .rune-shutdown-signal-*|.rune-force-shutdown-*|.rune-compact-*) continue ;;
+    esac
+    # BACK-012: Schema validation — skip files that don't have expected .team_name field
+    jq -e '.team_name' "$f" >/dev/null 2>&1 || continue
     if jq -e '.status == "active"' "$f" >/dev/null 2>&1; then
       # ── Ownership filter: only mark THIS session's state files as stopped ──
       f_cfg=$(jq -r '.config_dir // empty' "$f" 2>/dev/null || true)
@@ -360,8 +368,12 @@ if [[ -d "${CWD}/tmp/" ]]; then
         rune_pid_alive "$f_pid" && continue  # alive = different session
       fi
       # Update status to "stopped" (not "completed" — distinguishes clean exit from crash)
-      jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.status = "stopped" | .stopped_by = "STOP-001" | .stopped_at = $ts' "$f" > "${f}.tmp" 2>/dev/null && mv "${f}.tmp" "$f" 2>/dev/null
       fname="${f##*/}"
+      if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" == "1" ]]; then
+        cleaned_states+=("$fname")
+        continue
+      fi
+      jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.status = "stopped" | .stopped_by = "STOP-001" | .stopped_at = $ts' "$f" > "${f}.tmp" 2>/dev/null && mv "${f}.tmp" "$f" 2>/dev/null
       cleaned_states+=("$fname")
     fi
   done

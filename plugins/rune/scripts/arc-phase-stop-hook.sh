@@ -384,6 +384,77 @@ if ! grep -q "^iteration: ${NEW_ITERATION}$" "$STATE_FILE" 2>/dev/null; then
   exit 0
 fi
 
+# ── Zombie team verification: clean up prior phase's team if still present ──
+# When postPhaseCleanup is skipped (e.g., context exhaustion), the prior phase's
+# team dir may linger. Clean it before starting the next phase.
+#
+# ASSUMPTION: zombie cleanup relies on phases recording team_name in the checkpoint.
+# Phases that create teams (plan_review, code_review, mend, test, design_verification,
+# design_iteration, gap_remediation) record team_name at postPhaseCleanup time.
+# Phases that delegate without a direct team (work, mend via /rune:mend) may record
+# team_name after delegation completes. If team_name was never written (e.g., the phase
+# was interrupted before postPhaseCleanup), the primary scan below will find no team.
+# FALLBACK: scan $CHOME/teams/ for dirs matching arc-*-{id} to catch such orphans.
+CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+if [[ -n "$CHOME" && "$CHOME" == /* && -d "$CHOME/teams/" ]]; then
+  # Walk PHASE_ORDER backwards from NEXT_PHASE to find the most recently completed
+  # phase that also recorded a team_name. Backward walk ensures we stop at the phase
+  # immediately before NEXT_PHASE (the most likely zombie), not the earliest one.
+  PRIOR_PHASE=""
+  _phases_before=()
+  for _pp in "${PHASE_ORDER[@]}"; do
+    [[ "$_pp" == "$NEXT_PHASE" ]] && break
+    _phases_before+=("$_pp")
+  done
+  # Iterate backwards through collected phases
+  for (( _pi=${#_phases_before[@]}-1; _pi>=0; _pi-- )); do
+    _pp="${_phases_before[$_pi]}"
+    _pp_status=$(echo "$CKPT_CONTENT" | jq -r ".phases.${_pp}.status // \"pending\"" 2>/dev/null || echo "pending")
+    if [[ "$_pp_status" == "completed" ]]; then
+      _pp_team=$(echo "$CKPT_CONTENT" | jq -r ".phases.${_pp}.team_name // empty" 2>/dev/null || true)
+      if [[ -n "$_pp_team" ]]; then
+        PRIOR_PHASE="$_pp"
+        break
+      fi
+    fi
+  done
+
+  if [[ -n "$PRIOR_PHASE" ]]; then
+    PRIOR_TEAM=$(echo "$CKPT_CONTENT" | jq -r ".phases.${PRIOR_PHASE}.team_name // empty" 2>/dev/null || true)
+    if [[ -n "$PRIOR_TEAM" && "$PRIOR_TEAM" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+      if [[ -d "$CHOME/teams/${PRIOR_TEAM}" && ! -L "$CHOME/teams/${PRIOR_TEAM}" ]]; then
+        rm -rf "$CHOME/teams/${PRIOR_TEAM}/" "$CHOME/tasks/${PRIOR_TEAM}/" 2>/dev/null
+        _trace "Zombie cleanup: removed prior phase ${PRIOR_PHASE} team: ${PRIOR_TEAM}"
+      fi
+    fi
+  fi
+
+  # FALLBACK: when no phase recorded a team_name (interrupted before postPhaseCleanup),
+  # scan $CHOME/teams/ for dirs matching arc-*-{id} and remove any that linger.
+  _ARC_ID=$(echo "$CKPT_CONTENT" | jq -r '.id // empty' 2>/dev/null || true)
+  if [[ -n "$_ARC_ID" && "$_ARC_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    # BACK-003: Protect glob from NOMATCH error in zsh
+    local _saved_nullglob=$(shopt -p nullglob 2>/dev/null || true)
+    shopt -s nullglob
+    for _zombie_dir in "$CHOME/teams/"/arc-*-"${_ARC_ID}"; do
+      [[ -d "$_zombie_dir" && ! -L "$_zombie_dir" ]] || continue
+      _zombie_team="${_zombie_dir##*/}"
+      [[ "$_zombie_team" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
+      # SEC-002: Check if team is owned by a live session before removing
+      _zombie_config="$_zombie_dir/config.json"
+      if [[ -f "$_zombie_config" ]]; then
+        _zombie_pid=$(jq -r '.owner_pid // empty' "$_zombie_config" 2>/dev/null || true)
+        if [[ -n "$_zombie_pid" ]] && kill -0 "$_zombie_pid" 2>/dev/null; then
+          continue  # Owned by live session — skip
+        fi
+      fi
+      rm -rf "$CHOME/teams/${_zombie_team}/" "$CHOME/tasks/${_zombie_team}/" 2>/dev/null
+      _trace "Zombie fallback cleanup: removed orphaned team dir: ${_zombie_team}"
+    done
+    eval "$_saved_nullglob"  # Restore nullglob state
+  fi
+fi
+
 # ── Build phase prompt ──
 REF_FILE=$(_phase_ref "$NEXT_PHASE")
 SECTION_HINT=$(_phase_section_hint "$NEXT_PHASE")

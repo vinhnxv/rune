@@ -14,7 +14,7 @@
     {
       "name": "rune",
       "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspect, test, and audit with Agent Teams. Includes 40 review agents, 5 research agents, 24 investigation agents, 12 utility agents, 4 work agents, 4 testing agents, 15 commands, and 41 skills. Curated elicitation methods for structured reasoning. Stack-aware intelligence with 12 language/framework/pattern specialist reviewers. Figma design sync with VSM-based fidelity scoring. Inscription Sharding for parallel large-diff review. Multi-language quality guidance (Python, TypeScript, Rust, PHP, Axum). Talisman configuration mastery with stack-aware scaffolding.",
-      "version": "1.123.0",
+      "version": "1.124.0",
       "author": {
         "name": "vinhnxv",
         "email": "vinh.ngxv@gmail.com",

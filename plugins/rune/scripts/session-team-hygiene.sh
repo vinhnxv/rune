@@ -38,6 +38,8 @@ INPUT=$(head -c 1048576)
 # Extract CWD for state file scan
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 if [[ -z "$CWD" ]]; then exit 0; fi
+# SEC-005: Path traversal guard — reject CWD containing ".." before cd
+if [[ "$CWD" == *".."* ]]; then exit 0; fi
 CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || { exit 0; }
 if [[ -z "$CWD" || "$CWD" != /* ]]; then exit 0; fi
 
@@ -50,6 +52,8 @@ fi
 
 # ── Session identity for cross-session ownership filtering ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# QUAL-010: Guard against missing helper before sourcing
+if [[ ! -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then exit 0; fi
 # shellcheck source=resolve-session-identity.sh
 source "${SCRIPT_DIR}/resolve-session-identity.sh"
 
@@ -61,8 +65,11 @@ orphan_count=0
 orphan_names=()
 if [[ -d "$CHOME/teams/" ]]; then
   while IFS= read -r dir; do
+    # SEC-006: Reject symlinks before any processing (defense-in-depth: find -type d filters
+    # most symlinks, but -follow or race conditions could slip one through)
+    [[ -L "$dir" ]] && continue
     dirname=$(basename "$dir")
-    if [[ "$dirname" =~ ^[a-zA-Z0-9_-]+$ ]] && [[ ! -L "$dir" ]]; then
+    if [[ "$dirname" =~ ^[a-zA-Z0-9_-]+$ ]]; then
       # Session ownership filter: skip teams owned by other live sessions
       if [[ -f "$dir/.session" ]] && [[ ! -L "$dir/.session" ]]; then
         marker_session=$(head -c 256 "$dir/.session" 2>/dev/null | tr -d '[:space:]' || true)
@@ -78,6 +85,149 @@ if [[ -d "$CHOME/teams/" ]]; then
 fi
 
 [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphan team dirs found: ${orphan_count}" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+
+# ── Auto-clean PID-dead orphans (REC-9) ──
+# After detection, actually remove team dirs whose owner PID is provably dead.
+# Cleans teams where PID is verifiably dead via:
+#   (a) .session file (primary), OR
+#   (b) corresponding state file in CWD/tmp/ (BACK-007: fallback for teams without .session)
+# Also requires: config_dir matches and PID is dead.
+# Handles both JSON and plain string .session files (horizon-sage finding).
+orphans_cleaned=0
+if [[ $orphan_count -gt 0 ]] && [[ -d "$CHOME/teams/" ]]; then
+  for oname in "${orphan_names[@]}"; do
+    odir="$CHOME/teams/${oname}"
+    [[ -d "$odir" ]] || continue
+    [[ -L "$odir" ]] && continue
+    session_file="$odir/.session"
+
+    owner_pid=""
+    owner_cfg=""
+
+    if [[ -f "$session_file" ]] && [[ ! -L "$session_file" ]]; then
+      # Primary path: read PID from .session file
+      # Read .session content (max 4KB safety cap)
+      session_content=$(head -c 4096 "$session_file" 2>/dev/null || true)
+      [[ -z "$session_content" ]] && continue
+
+      # Extract owner_pid — handle both JSON and plain string formats
+      if echo "$session_content" | jq -e '.' >/dev/null 2>&1; then
+        # JSON format: {"session_id":"...","config_dir":"...","owner_pid":"..."}
+        owner_pid=$(echo "$session_content" | jq -r '.owner_pid // empty' 2>/dev/null || true)
+        owner_cfg=$(echo "$session_content" | jq -r '.config_dir // empty' 2>/dev/null || true)
+      fi
+      # Plain string format has no PID info — skip (can't verify PID is dead)
+      [[ -n "$owner_pid" && "$owner_pid" =~ ^[0-9]+$ ]] || continue
+    else
+      # BACK-007: Fallback — no .session file. Scan CWD/tmp/ state files for a matching team name.
+      # Look for a state file whose team_name (or inferred from filename) matches oname and has a dead PID.
+      if [[ -d "${CWD}/tmp/" ]]; then
+        local _saved_nullglob=$(shopt -p nullglob 2>/dev/null || true)
+        shopt -s nullglob
+        for sf in "${CWD}/tmp/"/.rune-*.json; do
+          [[ -f "$sf" ]] && [[ ! -L "$sf" ]] || continue
+          sf_pid=$(jq -r '.owner_pid // empty' "$sf" 2>/dev/null || true)
+          sf_cfg=$(jq -r '.config_dir // empty' "$sf" 2>/dev/null || true)
+          sf_team=$(jq -r '.team_name // empty' "$sf" 2>/dev/null || true)
+          local sf_status
+          sf_status=$(jq -r '.status // empty' "$sf" 2>/dev/null || true)
+          [[ "$sf_status" == "active" ]] || continue
+          [[ "$sf_team" == "$oname" ]] || continue
+          [[ -n "$sf_pid" && "$sf_pid" =~ ^[0-9]+$ ]] || continue
+          owner_pid="$sf_pid"
+          owner_cfg="$sf_cfg"
+          break
+        done
+        $_saved_nullglob
+      fi
+      # If no matching state file found, cannot verify PID — skip
+      [[ -n "$owner_pid" ]] || continue
+    fi
+
+    # SEC-008: Exclude sentinel PIDs 0 (kernel) and 1 (init/launchd) — never valid owners
+    if [[ "$owner_pid" == "0" || "$owner_pid" == "1" ]]; then continue; fi
+
+    # Layer 1: config_dir mismatch → different installation, skip
+    if [[ -n "$owner_cfg" && "$owner_cfg" != "$RUNE_CURRENT_CFG" ]]; then
+      continue
+    fi
+
+    # Layer 2: PID alive → different active session, skip
+    if rune_pid_alive "$owner_pid"; then
+      continue
+    fi
+
+    # PID is provably dead → safe to auto-clean
+    if [[ ! -L "$CHOME/teams/${oname}" ]]; then
+      if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" == "1" ]]; then
+        orphans_cleaned=$((orphans_cleaned + 1))
+        [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: DRY RUN: would auto-clean orphan: ${oname} (dead PID ${owner_pid})" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+        continue
+      fi
+      rm -rf "$CHOME/teams/${oname}/" "$CHOME/tasks/${oname}/" 2>/dev/null
+      orphans_cleaned=$((orphans_cleaned + 1))
+      [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: auto-cleaned orphan: ${oname} (dead PID ${owner_pid})" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+    fi
+  done
+fi
+
+[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphans auto-cleaned: ${orphans_cleaned}" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+
+# ── Kill orphan teammate processes on resume ──
+# Same pattern as on-session-stop.sh Phase 0 (_kill_stale_teammates), but scoped to
+# dead owner PIDs found in state files. On crash-resume, teammate processes from the
+# prior session may still be running as children of the now-dead Claude Code process.
+orphan_procs_killed=0
+if [[ -d "${CWD}/tmp/" ]]; then
+  # Collect dead owner PIDs from active state files
+  dead_pids=()
+  shopt -s nullglob 2>/dev/null
+  for sf in "${CWD}/tmp/"/.rune-*.json; do
+    [[ -f "$sf" ]] && [[ ! -L "$sf" ]] || continue
+    sf_status=$(jq -r '.status // empty' "$sf" 2>/dev/null || true)
+    [[ "$sf_status" == "active" ]] || continue
+    sf_cfg=$(jq -r '.config_dir // empty' "$sf" 2>/dev/null || true)
+    sf_pid=$(jq -r '.owner_pid // empty' "$sf" 2>/dev/null || true)
+    [[ -n "$sf_pid" && "$sf_pid" =~ ^[0-9]+$ ]] || continue
+    # Skip if different config_dir
+    if [[ -n "$sf_cfg" && "$sf_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
+    # Skip if PID is alive (active session — not orphaned)
+    if rune_pid_alive "$sf_pid"; then continue; fi
+    # Dead PID — collect for child process kill
+    dead_pids+=("$sf_pid")
+  done
+  shopt -u nullglob 2>/dev/null
+
+  # Kill child processes of dead owner PIDs
+  for dpid in "${dead_pids[@]+"${dead_pids[@]}"}"; do
+    child_pids=$(pgrep -P "$dpid" 2>/dev/null || true)
+    [[ -z "$child_pids" ]] && continue
+    while IFS= read -r cpid; do
+      [[ -z "$cpid" ]] && continue
+      [[ "$cpid" =~ ^[0-9]+$ ]] || continue
+      child_comm=$(ps -p "$cpid" -o comm= 2>/dev/null || true)
+      case "$child_comm" in
+        node|claude|claude-*) ;;
+        *) continue ;;
+      esac
+      if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" == "1" ]]; then
+        orphan_procs_killed=$((orphan_procs_killed + 1))
+        [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: DRY RUN: would kill orphan PID=$cpid (comm=$child_comm)" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+        continue
+      fi
+      # BACK-008: Intentional SIGTERM-only design. We do NOT escalate to SIGKILL here because:
+      # (1) This SessionStart hook has a strict 5s timeout budget — SIGKILL escalation with
+      #     a wait loop would risk exceeding the budget and crashing the hook.
+      # (2) SessionStart is informational; hard kills belong in on-session-stop.sh Phase 0
+      #     where SIGTERM+5s+SIGKILL escalation is explicitly budgeted.
+      # (3) Graceful SIGTERM gives node/claude processes time to flush state — safer than SIGKILL.
+      kill -TERM "$cpid" 2>/dev/null || true
+      orphan_procs_killed=$((orphan_procs_killed + 1))
+    done <<< "$child_pids"
+  done
+fi
+
+[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphan processes killed: ${orphan_procs_killed}" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
 
 # Count stale state files
 stale_state_count=0
@@ -178,9 +328,19 @@ fi
 
 # Report if anything found
 # BACK-007 FIX: Conditionally append orphan list to avoid trailing "Orphans: " with no names
-if [[ $orphan_count -gt 0 ]] || [[ $stale_state_count -gt 0 ]] || [[ $orphan_checkpoint_count -gt 0 ]] || [[ $orphaned_wt_count -gt 0 ]]; then
-  msg="TLC-003 SESSION HYGIENE: Found ${orphan_count} orphaned team dir(s), ${stale_state_count} stale state file(s), ${orphan_checkpoint_count} orphaned checkpoint(s), and ${orphaned_wt_count} orphaned worktree(s) from prior sessions. Run /rune:rest --heal to clean up."
-  if [[ ${#orphan_names[@]} -gt 0 ]]; then
+remaining_orphans=$((orphan_count - orphans_cleaned))
+if [[ $remaining_orphans -gt 0 ]] || [[ $stale_state_count -gt 0 ]] || [[ $orphan_checkpoint_count -gt 0 ]] || [[ $orphaned_wt_count -gt 0 ]] || [[ $orphans_cleaned -gt 0 ]] || [[ $orphan_procs_killed -gt 0 ]]; then
+  msg="TLC-003 SESSION HYGIENE:"
+  if [[ $orphans_cleaned -gt 0 ]]; then
+    msg+=" Auto-cleaned ${orphans_cleaned} PID-dead orphan(s)."
+  fi
+  if [[ $orphan_procs_killed -gt 0 ]]; then
+    msg+=" Killed ${orphan_procs_killed} orphan teammate process(es)."
+  fi
+  if [[ $remaining_orphans -gt 0 ]] || [[ $stale_state_count -gt 0 ]] || [[ $orphan_checkpoint_count -gt 0 ]] || [[ $orphaned_wt_count -gt 0 ]]; then
+    msg+=" Found ${remaining_orphans} orphaned team dir(s), ${stale_state_count} stale state file(s), ${orphan_checkpoint_count} orphaned checkpoint(s), and ${orphaned_wt_count} orphaned worktree(s) from prior sessions. Run /rune:rest --heal to clean up."
+  fi
+  if [[ ${#orphan_names[@]} -gt 0 ]] && [[ $remaining_orphans -gt 0 ]]; then
     msg+=" Orphans: ${orphan_names[*]:0:5}"
   fi
   jq -n --arg ctx "$msg" '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $ctx}}'
