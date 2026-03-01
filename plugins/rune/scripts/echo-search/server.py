@@ -1022,6 +1022,18 @@ def expand_semantic_groups(
 
 
 def rebuild_index(conn, entries):
+    """Clear and repopulate the FTS5 index from *entries*.
+
+    Runs inside an explicit transaction for crash safety (QUAL-3).
+    Also prunes orphaned access-log rows and entries older than 180 days.
+
+    Args:
+        conn: Open SQLite connection with V2 schema.
+        entries: List of parsed echo entry dicts from ``indexer.parse_memory_file``.
+
+    Returns:
+        Number of entries inserted.
+    """
     # type: (sqlite3.Connection, List[Dict]) -> int
     conn.execute("BEGIN")  # QUAL-3: explicit transaction for crash safety
     try:
@@ -1362,8 +1374,8 @@ def _load_talisman() -> Dict[str, Any]:
                 _talisman_cache["path"] = talisman_path
                 _talisman_cache["config"] = config
                 return config
-        except Exception:
-            pass
+        except (yaml.YAMLError, OSError, ValueError):
+            pass  # Malformed YAML or unreadable file — fall through to default
 
     return {}
 
@@ -1522,6 +1534,11 @@ async def pipeline_search(
 
 
 def build_fts_query(raw_query):
+    """Convert a raw search string into a safe FTS5 MATCH expression.
+
+    Tokenizes, strips stopwords, and joins with OR.  Returns an empty
+    string when no usable tokens remain (caller should short-circuit).
+    """
     # type: (str) -> str
     raw_query = raw_query[:500]  # SEC-7: cap input length
     tokens = re.findall(r"[a-zA-Z0-9_]+", raw_query.lower())
@@ -1534,6 +1551,18 @@ def build_fts_query(raw_query):
 
 
 def search_entries(conn, query, limit=10, layer=None, role=None):
+    """Execute a BM25 full-text search over the echo entries table.
+
+    Args:
+        conn: Open SQLite connection with FTS5 index.
+        query: Raw search query (tokenized internally).
+        limit: Maximum results to return.
+        layer: Optional layer filter (e.g., ``"inscribed"``).
+        role: Optional role filter (e.g., ``"reviewer"``).
+
+    Returns:
+        List of result dicts with content preview (200 chars) and BM25 score.
+    """
     # type: (sqlite3.Connection, str, int, Optional[str], Optional[str]) -> List[Dict]
     fts_query = build_fts_query(query)
     if not fts_query:
@@ -1579,6 +1608,15 @@ def search_entries(conn, query, limit=10, layer=None, role=None):
 
 
 def get_details(conn, ids):
+    """Fetch full content for echo entries by their IDs.
+
+    Args:
+        conn: Open SQLite connection.
+        ids: List of entry ID strings (capped at 100 for safety).
+
+    Returns:
+        List of entry dicts with full content and file path.
+    """
     # type: (sqlite3.Connection, List[str]) -> List[Dict]
     if not ids:
         return []
@@ -1612,6 +1650,11 @@ def get_details(conn, ids):
 
 
 def get_stats(conn):
+    """Return summary statistics about the echo search index.
+
+    Returns a dict with total entry count, breakdown by layer and role,
+    and the last-indexed timestamp.
+    """
     # type: (sqlite3.Connection) -> Dict
     total = conn.execute("SELECT COUNT(*) FROM echo_entries").fetchone()[0]
 
@@ -1946,10 +1989,311 @@ def do_reindex(echo_dir: str, db_path: str) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# MCP tool schemas (raw dicts — converted to types.Tool inside run_mcp_server)
+# ---------------------------------------------------------------------------
+
+TOOL_SCHEMAS = [
+    {
+        "name": "echo_search",
+        "description": (
+            "Search the Rune echo system for learnings, patterns, "
+            "and insights using BM25 full-text search."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query (natural language or keywords)",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results to return (default 10)",
+                    "default": 10,
+                },
+                "layer": {
+                    "type": "string",
+                    "description": "Filter by echo layer (e.g., inscribed)",
+                },
+                "role": {
+                    "type": "string",
+                    "description": "Filter by role (e.g., orchestrator, reviewer, planner)",
+                },
+                "context_files": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Optional list of currently open/edited file paths "
+                        "for proximity scoring"
+                    ),
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "echo_details",
+        "description": "Fetch full content for specific echo entries by their IDs.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of entry IDs to fetch",
+                },
+            },
+            "required": ["ids"],
+        },
+    },
+    {
+        "name": "echo_reindex",
+        "description": "Re-parse all MEMORY.md files and rebuild the search index.",
+        "inputSchema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "echo_stats",
+        "description": "Get summary statistics about the echo search index.",
+        "inputSchema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "echo_record_access",
+        "description": (
+            "Manually record access events for specific echo entry IDs. "
+            "Normally access is auto-recorded on search, but this tool "
+            "allows explicit recording (e.g., when an entry is viewed)."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "entry_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of echo entry IDs to record access for",
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Optional context query that led to this access",
+                    "default": "",
+                },
+            },
+            "required": ["entry_ids"],
+        },
+    },
+    {
+        "name": "echo_upsert_group",
+        "description": (
+            "Create or update a semantic group of echo entries. "
+            "Groups cluster related entries for expanded retrieval."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "description": "Group identifier (16-char hex). Auto-generated if omitted.",
+                },
+                "entry_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of echo entry IDs to include in the group",
+                },
+                "similarities": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "description": "Optional similarity scores per entry (default 0.0)",
+                },
+            },
+            "required": ["entry_ids"],
+        },
+    },
+]
+
+
+# ---------------------------------------------------------------------------
+# MCP tool handlers (module-level — return (data_dict, is_error) tuples)
+# ---------------------------------------------------------------------------
+
+
+def _validate_list_arg(arguments, key, required=True):
+    """Validate a list argument from MCP tool input.
+
+    Returns ``(validated_list, error_tuple_or_None)``.  When the error
+    tuple is not ``None`` the caller should return it immediately.
+    """
+    # type: (Dict, str, bool) -> Tuple
+    val = arguments.get(key, [])
+    if not isinstance(val, list):
+        return None, ({"error": "%s must be a list" % key}, True)
+    if required and not val:
+        return None, ({"error": "%s is required" % key}, True)
+    return val, None
+
+
+async def _mcp_handle_search(arguments):
+    """Handle echo_search — validate input, run pipeline, record access.
+
+    Returns ``(result_dict, is_error)`` for the MCP dispatcher.
+    """
+    # type: (Dict) -> Tuple[Dict, bool]
+    query = arguments.get("query", "")
+    limit = arguments.get("limit", 10)
+    layer = arguments.get("layer")
+    role = arguments.get("role")
+    context_files = arguments.get("context_files")
+
+    if not isinstance(query, str) or not query:
+        return {"error": "query must be a non-empty string"}, True
+    if layer is not None and not isinstance(layer, str):
+        layer = None
+    if role is not None and not isinstance(role, str):
+        role = None
+    if context_files is not None:
+        if not isinstance(context_files, list):
+            context_files = None
+        else:
+            context_files = [
+                str(f) for f in context_files[:20] if isinstance(f, str) and f
+            ]
+            if not context_files:
+                context_files = None
+    if not isinstance(limit, int) or limit < 1:
+        limit = 10
+    limit = min(limit, 50)
+
+    conn = get_db(DB_PATH)
+    try:
+        ensure_schema(conn)
+        count = conn.execute("SELECT COUNT(*) FROM echo_entries").fetchone()[0]
+        is_dirty = _check_and_clear_dirty(ECHO_DIR)
+        if (count == 0 or is_dirty) and ECHO_DIR:
+            conn.close()
+            conn = None  # SEC-P1-002: Mark closed before reindex
+            do_reindex(ECHO_DIR, DB_PATH)
+            conn = get_db(DB_PATH)
+        results = await pipeline_search(conn, query, limit, layer, role, context_files)
+        try:
+            _record_access(conn, results, query)
+        except (sqlite3.Error, OSError):
+            pass  # Non-fatal: access logging failure must not break search
+    finally:
+        if conn is not None:
+            conn.close()
+    return {"entries": results}, False
+
+
+async def _mcp_handle_details(arguments):
+    """Handle echo_details — fetch full content for specific entry IDs."""
+    # type: (Dict) -> Tuple[Dict, bool]
+    ids, err = _validate_list_arg(arguments, "ids")
+    if err is not None:
+        return err
+    ids = ids[:50]  # SEC-1: cap to prevent DoS via large IN clause
+    conn = get_db(DB_PATH)
+    try:
+        ensure_schema(conn)
+        if _check_and_clear_dirty(ECHO_DIR) and ECHO_DIR:
+            conn.close()
+            do_reindex(ECHO_DIR, DB_PATH)
+            conn = get_db(DB_PATH)
+        results = get_details(conn, ids)
+    finally:
+        conn.close()
+    return {"entries": results}, False
+
+
+async def _mcp_handle_reindex(_arguments=None):
+    """Handle echo_reindex — rebuild FTS5 index from MEMORY.md sources."""
+    # type: (Optional[Dict]) -> Tuple[Dict, bool]
+    if not ECHO_DIR:
+        return {"error": "ECHO_DIR not set"}, True
+    return do_reindex(ECHO_DIR, DB_PATH), False
+
+
+async def _mcp_handle_stats(_arguments=None):
+    """Handle echo_stats — return index summary statistics."""
+    # type: (Optional[Dict]) -> Tuple[Dict, bool]
+    conn = get_db(DB_PATH)
+    try:
+        ensure_schema(conn)
+        stats = get_stats(conn)
+    finally:
+        conn.close()
+    return stats, False
+
+
+async def _mcp_handle_record_access(arguments):
+    """Handle echo_record_access — manually record access events."""
+    # type: (Dict) -> Tuple[Dict, bool]
+    entry_ids, err = _validate_list_arg(arguments, "entry_ids")
+    if err is not None:
+        return err
+    query = arguments.get("query", "")
+    if not isinstance(query, str):
+        query = ""
+    entry_ids = [str(eid) for eid in entry_ids if eid is not None][:50]
+    pseudo_results = [{"id": eid} for eid in entry_ids]
+    conn = get_db(DB_PATH)
+    try:
+        ensure_schema(conn)
+        _record_access(conn, pseudo_results, query)
+    finally:
+        conn.close()
+    return {"recorded": len(entry_ids), "entry_ids": entry_ids}, False
+
+
+async def _mcp_handle_upsert_group(arguments):
+    """Handle echo_upsert_group — create or update a semantic group."""
+    # type: (Dict) -> Tuple[Dict, bool]
+    entry_ids, err = _validate_list_arg(arguments, "entry_ids")
+    if err is not None:
+        return err
+    group_id = arguments.get("group_id", "")
+    similarities = arguments.get("similarities")
+    entry_ids = [str(eid) for eid in entry_ids if eid is not None][:50]
+    if not isinstance(group_id, str) or not group_id:
+        group_id = uuid.uuid4().hex[:16]
+    if similarities is not None:
+        if not isinstance(similarities, list):
+            similarities = None
+        else:
+            similarities = [
+                float(s) if isinstance(s, (int, float)) else 0.0
+                for s in similarities[:len(entry_ids)]
+            ]
+            if len(similarities) < len(entry_ids):
+                similarities.extend([0.0] * (len(entry_ids) - len(similarities)))
+    conn = get_db(DB_PATH)
+    try:
+        ensure_schema(conn)
+        count = upsert_semantic_group(conn, group_id, entry_ids, similarities)
+    finally:
+        conn.close()
+    return {"group_id": group_id, "memberships": count, "entry_ids": entry_ids}, False
+
+
+# Handler dispatch table
+_MCP_HANDLERS = {
+    "echo_search": _mcp_handle_search,
+    "echo_details": _mcp_handle_details,
+    "echo_reindex": _mcp_handle_reindex,
+    "echo_stats": _mcp_handle_stats,
+    "echo_record_access": _mcp_handle_record_access,
+    "echo_upsert_group": _mcp_handle_upsert_group,
+}
+
+
+# ---------------------------------------------------------------------------
 # MCP Server
 # ---------------------------------------------------------------------------
 
+
 def run_mcp_server():
+    """Launch the Echo Search MCP stdio server.
+
+    Validates environment, imports MCP dependencies (lazy — only needed
+    in server mode), registers tool handlers, and runs the async loop.
+    """
     # type: () -> None
     if not DB_PATH:  # SEC-4: fail fast instead of silent in-memory DB
         print("Error: DB_PATH environment variable not set", file=sys.stderr)
@@ -1968,452 +2312,45 @@ def run_mcp_server():
 
     server = Server("echo-search")
 
-    # -- list_tools --------------------------------------------------------
-
     @server.list_tools()
     async def handle_list_tools():
-        # type: () -> List[types.Tool]
+        """Return the list of available echo-search tools."""
         return [
             types.Tool(
-                name="echo_search",
-                description=(
-                    "Search the Rune echo system for learnings, patterns, "
-                    "and insights using BM25 full-text search."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Search query (natural language or keywords)",
-                        },
-                        "limit": {
-                            "type": "integer",
-                            "description": "Max results to return (default 10)",
-                            "default": 10,
-                        },
-                        "layer": {
-                            "type": "string",
-                            "description": "Filter by echo layer (e.g., inscribed)",
-                        },
-                        "role": {
-                            "type": "string",
-                            "description": "Filter by role (e.g., orchestrator, reviewer, planner)",
-                        },
-                        "context_files": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Optional list of currently open/edited file paths for proximity scoring",
-                        },
-                    },
-                    "required": ["query"],
-                },
-            ),
-            types.Tool(
-                name="echo_details",
-                description=(
-                    "Fetch full content for specific echo entries by their IDs."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "ids": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "List of entry IDs to fetch",
-                        },
-                    },
-                    "required": ["ids"],
-                },
-            ),
-            types.Tool(
-                name="echo_reindex",
-                description=(
-                    "Re-parse all MEMORY.md files and rebuild the search index."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                    "required": [],
-                },
-            ),
-            types.Tool(
-                name="echo_stats",
-                description=(
-                    "Get summary statistics about the echo search index."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                    "required": [],
-                },
-            ),
-            types.Tool(
-                name="echo_record_access",
-                description=(
-                    "Manually record access events for specific echo entry IDs. "
-                    "Normally access is auto-recorded on search, but this tool "
-                    "allows explicit recording (e.g., when an entry is viewed)."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "entry_ids": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "List of echo entry IDs to record access for",
-                        },
-                        "query": {
-                            "type": "string",
-                            "description": "Optional context query that led to this access",
-                            "default": "",
-                        },
-                    },
-                    "required": ["entry_ids"],
-                },
-            ),
-            types.Tool(
-                name="echo_upsert_group",
-                description=(
-                    "Create or update a semantic group of echo entries. "
-                    "Groups cluster related entries for expanded retrieval."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "group_id": {
-                            "type": "string",
-                            "description": "Group identifier (16-char hex). Auto-generated if omitted.",
-                        },
-                        "entry_ids": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "List of echo entry IDs to include in the group",
-                        },
-                        "similarities": {
-                            "type": "array",
-                            "items": {"type": "number"},
-                            "description": "Optional similarity scores per entry (default 0.0)",
-                        },
-                    },
-                    "required": ["entry_ids"],
-                },
-            ),
+                name=s["name"], description=s["description"],
+                inputSchema=s["inputSchema"],
+            )
+            for s in TOOL_SCHEMAS
         ]
-
-    # -- call_tool ---------------------------------------------------------
 
     @server.call_tool()
     async def handle_call_tool(name, arguments):
-        # type: (str, Dict) -> List[types.TextContent]
+        """Dispatch an MCP tool call to the appropriate handler."""
         try:
-            if name == "echo_search":
-                return await _handle_search(arguments)
-            elif name == "echo_details":
-                return await _handle_details(arguments)
-            elif name == "echo_reindex":
-                return await _handle_reindex()
-            elif name == "echo_stats":
-                return await _handle_stats()
-            elif name == "echo_record_access":
-                return await _handle_record_access(arguments)
-            elif name == "echo_upsert_group":
-                return await _handle_upsert_group(arguments)
+            handler = _MCP_HANDLERS.get(name)
+            if handler is None:
+                data, is_error = {"error": "Unknown tool: %s" % name}, True
             else:
-                return [
-                    types.TextContent(
-                        type="text",
-                        text=json.dumps({"error": "Unknown tool: %s" % name}),
-                        isError=True,
-                    )
-                ]
+                data, is_error = await handler(arguments or {})
+            return [types.TextContent(
+                type="text", text=json.dumps(data, indent=2),
+                isError=True if is_error else None,
+            )]
         except Exception as e:
             # SEC-NEW-001: Cap error message to avoid leaking internal paths
-            # Python exceptions can include absolute filesystem paths in their message.
             err_msg = str(e)[:200] if str(e) else "Internal server error"
-            return [
-                types.TextContent(
-                    type="text",
-                    text=json.dumps({"error": err_msg}),
-                    isError=True,
-                )
-            ]
+            return [types.TextContent(
+                type="text", text=json.dumps({"error": err_msg}),
+                isError=True,
+            )]
 
-    async def _handle_search(arguments):
-        # type: (Dict) -> List[types.TextContent]
-        query = arguments.get("query", "")
-        limit = arguments.get("limit", 10)
-        layer = arguments.get("layer")
-        role = arguments.get("role")
-        context_files = arguments.get("context_files")
-
-        # SEC-3: Type validation
-        if not isinstance(query, str) or not query:
-            return [
-                types.TextContent(
-                    type="text",
-                    text=json.dumps({"error": "query must be a non-empty string"}),
-                    isError=True,
-                )
-            ]
-        if layer is not None and not isinstance(layer, str):
-            layer = None
-        if role is not None and not isinstance(role, str):
-            role = None
-
-        # Validate context_files: must be list of strings, capped at 20
-        if context_files is not None:
-            if not isinstance(context_files, list):
-                context_files = None
-            else:
-                context_files = [
-                    str(f) for f in context_files[:20]
-                    if isinstance(f, str) and f
-                ]
-                if not context_files:
-                    context_files = None
-
-        # Clamp limit
-        if not isinstance(limit, int) or limit < 1:
-            limit = 10
-        limit = min(limit, 50)
-
-        conn = get_db(DB_PATH)
-        try:
-            ensure_schema(conn)
-
-            # Auto-reindex when DB is empty OR dirty signal is present.
-            count = conn.execute("SELECT COUNT(*) FROM echo_entries").fetchone()[0]
-            is_dirty = _check_and_clear_dirty(ECHO_DIR)
-            if (count == 0 or is_dirty) and ECHO_DIR:
-                conn.close()
-                conn = None  # SEC-P1-002: Mark closed before reindex
-                do_reindex(ECHO_DIR, DB_PATH)
-                conn = get_db(DB_PATH)
-
-            # Multi-pass retrieval pipeline (Task 7)
-            results = await pipeline_search(
-                conn, query, limit, layer, role, context_files,
-            )
-
-            # C2 concern: Record access SYNCHRONOUSLY before returning.
-            try:
-                _record_access(conn, results, query)
-            except Exception:
-                pass  # Non-fatal: access logging failure must not break search
-        finally:
-            if conn is not None:
-                conn.close()
-
-        return [
-            types.TextContent(
-                type="text",
-                text=json.dumps({"entries": results}, indent=2),
-            )
-        ]
-
-    async def _handle_details(arguments):
-        # type: (Dict) -> List[types.TextContent]
-        ids = arguments.get("ids", [])
-
-        # SEC-3: Type validation
-        if not isinstance(ids, list):
-            return [
-                types.TextContent(
-                    type="text",
-                    text=json.dumps({"error": "ids must be a list"}),
-                    isError=True,
-                )
-            ]
-        if not ids:
-            return [
-                types.TextContent(
-                    type="text",
-                    text=json.dumps({"error": "ids is required"}),
-                    isError=True,
-                )
-            ]
-
-        ids = ids[:50]  # SEC-1: cap ids to prevent DoS via large IN clause
-
-        conn = get_db(DB_PATH)
-        try:
-            ensure_schema(conn)
-
-            # Reindex on dirty signal so newly-written entries are available
-            if _check_and_clear_dirty(ECHO_DIR) and ECHO_DIR:
-                conn.close()
-                do_reindex(ECHO_DIR, DB_PATH)
-                conn = get_db(DB_PATH)
-
-            results = get_details(conn, ids)
-        finally:
-            conn.close()
-
-        return [
-            types.TextContent(
-                type="text",
-                text=json.dumps({"entries": results}, indent=2),
-            )
-        ]
-
-    async def _handle_reindex():
-        # type: () -> List[types.TextContent]
-        if not ECHO_DIR:
-            return [
-                types.TextContent(
-                    type="text",
-                    text=json.dumps({"error": "ECHO_DIR not set"}),
-                    isError=True,
-                )
-            ]
-
-        result = do_reindex(ECHO_DIR, DB_PATH)
-        return [
-            types.TextContent(
-                type="text",
-                text=json.dumps(result, indent=2),
-            )
-        ]
-
-    async def _handle_stats():
-        # type: () -> List[types.TextContent]
-        conn = get_db(DB_PATH)
-        try:
-            ensure_schema(conn)
-            stats = get_stats(conn)
-        finally:
-            conn.close()
-
-        return [
-            types.TextContent(
-                type="text",
-                text=json.dumps(stats, indent=2),
-            )
-        ]
-
-    async def _handle_record_access(arguments):
-        # type: (Dict) -> List[types.TextContent]
-        """Handle echo_record_access tool — manually record access events."""
-        entry_ids = arguments.get("entry_ids", [])
-        query = arguments.get("query", "")
-
-        # SEC-3: Type validation
-        if not isinstance(entry_ids, list):
-            return [
-                types.TextContent(
-                    type="text",
-                    text=json.dumps({"error": "entry_ids must be a list"}),
-                    isError=True,
-                )
-            ]
-        if not entry_ids:
-            return [
-                types.TextContent(
-                    type="text",
-                    text=json.dumps({"error": "entry_ids is required"}),
-                    isError=True,
-                )
-            ]
-        if not isinstance(query, str):
-            query = ""
-
-        # Coerce and cap
-        entry_ids = [str(eid) for eid in entry_ids if eid is not None][:50]
-
-        # Build pseudo-results for _record_access
-        pseudo_results = [{"id": eid} for eid in entry_ids]
-
-        conn = get_db(DB_PATH)
-        try:
-            ensure_schema(conn)
-            _record_access(conn, pseudo_results, query)
-        finally:
-            conn.close()
-
-        return [
-            types.TextContent(
-                type="text",
-                text=json.dumps({
-                    "recorded": len(entry_ids),
-                    "entry_ids": entry_ids,
-                }),
-            )
-        ]
-
-    async def _handle_upsert_group(arguments):
-        # type: (Dict) -> List[types.TextContent]
-        """Handle echo_upsert_group tool — create or update a semantic group."""
-        entry_ids = arguments.get("entry_ids", [])
-        group_id = arguments.get("group_id", "")
-        similarities = arguments.get("similarities")
-
-        # SEC-3: Type validation
-        if not isinstance(entry_ids, list):
-            return [
-                types.TextContent(
-                    type="text",
-                    text=json.dumps({"error": "entry_ids must be a list"}),
-                    isError=True,
-                )
-            ]
-        if not entry_ids:
-            return [
-                types.TextContent(
-                    type="text",
-                    text=json.dumps({"error": "entry_ids is required"}),
-                    isError=True,
-                )
-            ]
-
-        # Coerce and cap
-        entry_ids = [str(eid) for eid in entry_ids if eid is not None][:50]
-
-        if not isinstance(group_id, str) or not group_id:
-            group_id = uuid.uuid4().hex[:16]
-
-        # Validate similarities if provided
-        if similarities is not None:
-            if not isinstance(similarities, list):
-                similarities = None
-            else:
-                # Ensure same length as entry_ids, pad or truncate
-                similarities = [
-                    float(s) if isinstance(s, (int, float)) else 0.0
-                    for s in similarities[:len(entry_ids)]
-                ]
-                if len(similarities) < len(entry_ids):
-                    similarities.extend([0.0] * (len(entry_ids) - len(similarities)))
-
-        conn = get_db(DB_PATH)
-        try:
-            ensure_schema(conn)
-            count = upsert_semantic_group(conn, group_id, entry_ids, similarities)
-        finally:
-            conn.close()
-
-        return [
-            types.TextContent(
-                type="text",
-                text=json.dumps({
-                    "group_id": group_id,
-                    "memberships": count,
-                    "entry_ids": entry_ids,
-                }),
-            )
-        ]
-
-    # -- run ---------------------------------------------------------------
-
-    async def main():
-        # type: () -> None
+    async def _run():
+        """Run the MCP server async event loop."""
         async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
             await server.run(
-                read_stream,
-                write_stream,
+                read_stream, write_stream,
                 InitializationOptions(
-                    server_name="echo-search",
-                    server_version="1.54.0",
+                    server_name="echo-search", server_version="1.54.0",
                     capabilities=server.get_capabilities(
                         notification_options=NotificationOptions(),
                         experimental_capabilities={},
@@ -2421,7 +2358,7 @@ def run_mcp_server():
                 ),
             )
 
-    asyncio.run(main())
+    asyncio.run(_run())
 
 
 # ---------------------------------------------------------------------------
@@ -2429,6 +2366,7 @@ def run_mcp_server():
 # ---------------------------------------------------------------------------
 
 def main_cli():
+    """CLI entry point — run as MCP server or perform a standalone reindex."""
     # type: () -> None
     parser = argparse.ArgumentParser(
         description="Echo Search MCP Server"

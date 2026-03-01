@@ -712,6 +712,7 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | systematic-debugging | 4-phase debugging methodology (Observe → Narrow → Hypothesize → Fix) for workers hitting repeated failures. Iron Law: no fixes without root cause investigation (DBG-001) |
 | talisman | Deep talisman.yml configuration expertise — init, audit, update, guide, status. Stack-aware scaffolding from canonical template |
 | tarnished | Intelligent master command — unified entry point for all Rune workflows. Parses natural language (VN + EN), checks prerequisites, chains multi-step workflows |
+| test-browser | Standalone browser E2E testing — 9-step inline workflow without agent teams. Scope: PR#, branch, or HEAD. Human gate handling (OAuth/payment/2FA). Interactive failure recovery (Fix/Todo/Skip). `/rune:test-browser [PR# | branch] [--headed] [--max-routes N]` |
 | testing | Test orchestration pipeline knowledge for arc Phase 7.7 (non-invocable) |
 | using-rune | Workflow discovery and intent routing |
 | strive | Swarm work execution with self-organizing task pool (+ `--approve`, incremental commits) |
@@ -840,7 +841,7 @@ plugins/rune/
 │   ├── research/            # 5 research agents (plan pipeline)
 │   ├── testing/             # 4 testing agents (arc Phase 7.7)
 │   ├── work/                # 4 swarm workers (work pipeline)
-│   └── utility/             # 12 utility agents: runebinder, decree-arbiter, truthseer-validator, flow-seer, scroll-reviewer, mend-fixer, knowledge-keeper, elicitation-sage, veil-piercer-plan, horizon-sage, deployment-verifier, evidence-verifier (+ gap-fixer as prompt-template, no .md file)
+│   └── utility/             # 13 utility agents: runebinder, decree-arbiter, truthseer-validator, flow-seer, scroll-reviewer, mend-fixer, knowledge-keeper, elicitation-sage, veil-piercer-plan, horizon-sage, deployment-verifier, evidence-verifier, research-verifier (+ gap-fixer as prompt-template, no .md file)
 ├── commands/
 │   ├── cancel-arc.md           # /rune:cancel-arc
 │   ├── cancel-arc-batch.md     # /rune:cancel-arc-batch

@@ -23,7 +23,23 @@ function resolveSessionContext(args: string): string {
     return resolveTodosBase(dir)  // validates path safety
   }
 
-  // 2. Auto-detect: find most recent active workflow from state files
+  // 2. Direct directory scan: find most recent todos/ in tmp/
+  // This is the PRIMARY strategy — works regardless of state file format or naming
+  const todoDirs = Glob("tmp/*/todos/")
+    .concat(Glob("tmp/*/*/todos/"))
+    .filter(d => {
+      // Verify the directory actually contains todo files (any naming format)
+      const hasV2 = Glob(`${d}*/[0-9][0-9][0-9]-*.md`).length > 0
+      const hasV2_4digit = Glob(`${d}*/[0-9][0-9][0-9][0-9]-*.md`).length > 0
+      const hasTask = Glob(`${d}*/task-[0-9]*.md`).length > 0
+      const hasRootTodos = Glob(`${d}[0-9][0-9][0-9]-*.md`).length > 0
+        || Glob(`${d}task-[0-9]*.md`).length > 0
+      return hasV2 || hasV2_4digit || hasTask || hasRootTodos
+    })
+    .sort().reverse()  // Most recent timestamp-named dir first
+  if (todoDirs.length > 0) return todoDirs[0]
+
+  // 3. Auto-detect: find most recent active workflow from state files
   // Use wildcard + filter instead of brace expansion (not universally supported)
   const stateFiles = Glob("tmp/.rune-*-*.json")
     .filter(f => /\.rune-(work|review|audit|mend|arc)-/.test(f))
@@ -45,7 +61,7 @@ function resolveSessionContext(args: string): string {
     return todosBase
   }
 
-  // 3. Fallback: list recent completed sessions for user selection
+  // 4. Fallback: list recent completed sessions for user selection
   const completedStates = stateFiles
     .map(f => { try { return JSON.parse(Read(f)) } catch { return null } })
     .filter(s => s && s.todos_base)
@@ -80,20 +96,37 @@ Note: `interrupted` is a valid status (session ended before completion). `wont_f
 
 ## Common Helpers
 
-**parseFrontmatter(content)**: Extract YAML frontmatter from todo file content. Returns object with all frontmatter fields. Matches `^---\n([\s\S]*?)\n---` at the start of the file. Returns defaults for missing v2 fields (backward-compatible).
+**parseFrontmatter(content)**: Extract YAML frontmatter from todo file content. Returns object with all frontmatter fields. Matches `^---\n([\s\S]*?)\n---` at the start of the file. Returns defaults for missing v2 fields (backward-compatible). After parsing, apply `normalizePriority()` to the `priority` field.
 
-**readTodoDir(todosBase)**: Scan all source subdirectories for todo files. Returns list of `{ path, source, frontmatter, title }` objects. Uses zsh-safe glob `(N)` qualifier:
+**normalizePriority(raw)**: Normalize priority values from various formats to canonical `p1`/`p2`/`p3`. This ensures backward compatibility with strive-generated todos that use `priority: medium` instead of `priority: p2`:
+
+```javascript
+function normalizePriority(raw) {
+  const map = {
+    p1: 'p1', critical: 'p1', high: 'p1',
+    p2: 'p2', medium: 'p2', important: 'p2',
+    p3: 'p3', low: 'p3', 'nice-to-have': 'p3'
+  }
+  return map[raw?.toLowerCase()] || 'p3'
+}
+```
+
+**readTodoDir(todosBase)**: Scan all source subdirectories for todo files. Returns list of `{ path, source, frontmatter, title }` objects. Supports **all naming formats**: v2 (`001-ready-p2-slug.md`), 4-digit v2 (`0001-*.md`), and strive-generated (`task-1.md`, `task-2.md`). Uses zsh-safe glob `(N)` qualifier:
 
 ```bash
 # Scan all source subdirectories (work/, review/, audit/)
-# Support both 3-digit (001-999) and 4-digit (0001-9999) IDs
+# Tolerant: v2 naming (NNN-*.md), 4-digit (NNNN-*.md), AND strive naming (task-N*.md)
 setopt nullglob
 for f in "${todos_base}"/*/[0-9][0-9][0-9]-*.md(N) \
-         "${todos_base}"/*/[0-9][0-9][0-9][0-9]-*.md(N); do
+         "${todos_base}"/*/[0-9][0-9][0-9][0-9]-*.md(N) \
+         "${todos_base}"/*/task-[0-9]*.md(N); do
   # parse frontmatter from each file
   # derive source from parent directory name: source=$(basename "$(dirname "$f")")
+  # apply normalizePriority() to frontmatter.priority
 done
 ```
+
+**Note on strive-generated files**: Files named `task-N.md` (e.g., `task-1.md`) may use non-canonical priority values like `priority: medium`. The `normalizePriority()` helper maps these to `p2`. Files without a `status:` field in frontmatter are skipped during scanning.
 
 **ensureTodosDir(todosBase, source)**: Create source subdirectory if it does not exist:
 
@@ -160,15 +193,16 @@ AskUserQuestion({
 })
 ```
 
-3. Generate next sequential ID (per-subdirectory sequence):
+3. Generate next sequential ID (per-subdirectory sequence, counting all naming formats):
 
 ```bash
 # ID sequence is independent per source subdirectory
-# Support >999 todos with 4-digit IDs
+# Tolerant: count v2 (NNN-*.md, NNNN-*.md) AND strive (task-N*.md) files
 setopt nullglob
 existing_3=("${todos_base}/${source}"/[0-9][0-9][0-9]-*.md(N))
 existing_4=("${todos_base}/${source}"/[0-9][0-9][0-9][0-9]-*.md(N))
-total=$(( ${#existing_3[@]} + ${#existing_4[@]} + 1 ))
+existing_task=("${todos_base}/${source}"/task-[0-9]*.md(N))
+total=$(( ${#existing_3[@]} + ${#existing_4[@]} + ${#existing_task[@]} + 1 ))
 if (( total > 999 )); then
   next_id=$(printf "%04d" $total)
 else
@@ -188,10 +222,11 @@ fi
 
 Process pending todos in batch (capped at 10 per session). Supports resolution-aware decisions in v2.
 
-1. Scan all source subdirectories (both 3-digit and 4-digit IDs):
+1. Scan all source subdirectories (tolerant: v2 3-digit, 4-digit, and strive task-N naming):
    ```javascript
    Glob("${todosBase}/*/[0-9][0-9][0-9]-*.md")
      .concat(Glob("${todosBase}/*/[0-9][0-9][0-9][0-9]-*.md"))
+     .concat(Glob("${todosBase}/*/task-[0-9]*.md"))
    ```
 2. Filter to `status: pending` (from frontmatter, NOT filename)
 3. Sort by priority (P1 first), then by `issue_id` (oldest first)
@@ -263,11 +298,12 @@ List todos with optional filters composing as intersection.
    ```
    Do NOT return an empty list for invalid filters.
 
-3. Scan source subdirectories. When `--source` is specified, narrow to that source only:
+3. Scan source subdirectories (tolerant globs). When `--source` is specified, narrow to that source only:
    ```bash
    setopt nullglob
    Glob("${todosBase}/${sourceFilter}/[0-9][0-9][0-9]-*.md")
-   Glob("${todosBase}/${sourceFilter}/[0-9][0-9][0-9][0-9]-*.md")
+     .concat(Glob("${todosBase}/${sourceFilter}/[0-9][0-9][0-9][0-9]-*.md"))
+     .concat(Glob("${todosBase}/${sourceFilter}/task-[0-9]*.md"))
    ```
 
 4. Apply filters as intersection:
@@ -353,10 +389,10 @@ Search across todo titles, problem statements, and work logs for matching text.
    - Escape regex metacharacters: `[`, `]`, `(`, `)`, `{`, `}`, `*`, `+`, `?`, `.`, `^`, `$`, `|`, `\`
    - Use the escaped pattern for case-insensitive literal search
 
-3. Search using Grep across all source subdirectories:
+3. Search using Grep across all source subdirectories (tolerant: all naming formats):
 
 ```javascript
-// Search both 3-digit and 4-digit IDs
+// Search v2 3-digit, 4-digit, AND strive task-N naming
 Grep({
   pattern: sanitizedQuery,
   path: todosBase,
@@ -369,6 +405,14 @@ Grep({
   pattern: sanitizedQuery,
   path: todosBase,
   glob: "*/[0-9][0-9][0-9][0-9]-*.md",
+  output_mode: "content",
+  context: 2,
+  "-i": true
+})
+Grep({
+  pattern: sanitizedQuery,
+  path: todosBase,
+  glob: "*/task-[0-9]*.md",
   output_mode: "content",
   context: 2,
   "-i": true
@@ -410,7 +454,7 @@ Search: "sql injection" (3 matches in 2 files)
 1. Resolve `todos_base` from session context (see Session Context Resolution above)
 2. Discover source subdirectories: `${todos_base}/work/`, `${todos_base}/review/`, etc.
 3. For each source with `.dirty` signal (or all with `--all`):
-   a. Scan `${todos_base}/${source}/[0-9][0-9][0-9]-*.md` and `[0-9][0-9][0-9][0-9]-*.md` files
+   a. Scan `${todos_base}/${source}/[0-9][0-9][0-9]-*.md`, `[0-9][0-9][0-9][0-9]-*.md`, and `task-[0-9]*.md` files
    b. Parse frontmatter (v1 and v2 compatible)
    c. Build intra-source dependency graph → topological sort → wave assignment (see [dag-ordering.md](dag-ordering.md))
    d. Collect `cross_source_refs` (dependencies/related_todos that reference other sources)
@@ -609,8 +653,8 @@ The `.todo-index.json` v1 cache is replaced by per-source manifests in v2. Each 
 **Dirty signal per source**: Any sub-command that modifies a todo file writes `{todos_base}/{source}/.dirty` marker. On next `manifest build`, only dirty sources are rebuilt.
 
 **Rebuild protocol** (atomic):
-1. Scan `${todos_base}/${source}/[0-9][0-9][0-9]-*.md` and `[0-9][0-9][0-9][0-9]-*.md` files
-2. Parse frontmatter and compute DAG
+1. Scan `${todos_base}/${source}/[0-9][0-9][0-9]-*.md`, `[0-9][0-9][0-9][0-9]-*.md`, and `task-[0-9]*.md` files
+2. Parse frontmatter (apply `normalizePriority()` to priority field) and compute DAG
 3. Write to temp file: `todos-${source}-manifest.json.tmp`
 4. Atomic rename: `mv todos-${source}-manifest.json.tmp todos-${source}-manifest.json`
 5. Remove dirty marker: `rm -f "${todos_base}/${source}/.dirty"`

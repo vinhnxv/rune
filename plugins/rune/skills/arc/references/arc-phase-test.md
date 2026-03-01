@@ -42,12 +42,24 @@ if (noTestFlag) {
   return
 }
 
-const diffFiles = Bash("git diff --name-only main...HEAD").trim().split('\n').filter(Boolean)
+// Detect PR number from checkpoint or gh CLI for scope resolution
+// See testing/references/scope-detection.md for full resolveTestScope() algorithm
+const prFromCheckpoint = checkpoint.pr_number ? String(checkpoint.pr_number) : ""
+const prFromGh = prFromCheckpoint || Bash("gh pr view --json number --jq '.number' 2>/dev/null").trim()
+const scopeInput = prFromGh || ""  // "" → falls through to current-branch diff in resolveTestScope
+
+const { files: diffFiles, scopeLabel } = resolveTestScope(scopeInput)
+// resolveTestScope: { files: string[], source: "pr"|"branch"|"current", label: string }
+// Defined in testing/references/scope-detection.md — shared with /rune:test-browser
+
 if (diffFiles.length === 0) {
-  Write(`tmp/arc/${id}/test-report.md`, "Phase 7.7 skipped: No changed files.\n<!-- SEAL: test-report-complete -->")
-  updateCheckpoint({ phase: "test", status: "skipped" })
+  Write(`tmp/arc/${id}/test-report.md`, `Phase 7.7 skipped: No changed files (scope: ${scopeLabel}).\n<!-- SEAL: test-report-complete -->`)
+  updateCheckpoint({ phase: "test", status: "skipped", scope_label: scopeLabel })
   return
 }
+
+// Log resolved scope for downstream aggregation and test report header
+warn(`Phase 7.7 scope: ${scopeLabel} (${diffFiles.length} files)`)
 
 // Read talisman testing config
 const testingConfig = talisman?.testing ?? { enabled: true }
@@ -58,9 +70,10 @@ if (testingConfig.enabled === false) {
 }
 
 // ═══════════════════════════════════════════════════════
-// STEP 1: SCOPE DETECTION
+// STEP 1: SCOPE DETECTION (file classification)
 // ═══════════════════════════════════════════════════════
 
+// diffFiles already resolved by resolveTestScope() in STEP 0 — see testing/references/scope-detection.md
 // Classify files via Rune Gaze (backend/frontend/config/test)
 // Cap at top 50 changed files for classification
 const filesToClassify = diffFiles.slice(0, 50)
@@ -104,7 +117,7 @@ const strategy = generateTestStrategy({
   diffFiles, backendFiles, frontendFiles, testFiles,
   has_frontend, enrichedPlan: Read(`tmp/arc/${id}/enriched-plan.md`),
   tiers: { unit: unitEnabled, integration: integrationEnabled, e2e: e2eEnabled },
-  uncoveredImplementations
+  uncoveredImplementations, scopeLabel
 })
 Write(`tmp/arc/${id}/test-strategy.md`, strategy)
 
@@ -242,7 +255,7 @@ if (e2eEnabled && servicesHealthy && agentBrowserAvailable && e2eRoutes.length >
   })
   activeTiers.push('e2e')
 } else if (e2eEnabled && !agentBrowserAvailable) {
-  warn("agent-browser not installed — skipping E2E tier. Install: npm i -g @anthropic-ai/agent-browser")
+  warn("agent-browser not installed — skipping E2E tier. Install: npm i -g @vercel/agent-browser")
 }
 
 // ═══════════════════════════════════════════════════════
@@ -281,7 +294,7 @@ const report = aggregateTestReport({
   integrationResults: exists(`tmp/arc/${id}/test-results-integration.md`) ? Read(`tmp/arc/${id}/test-results-integration.md`) : null,
   e2eResults: exists(`tmp/arc/${id}/test-results-e2e.md`) ? Read(`tmp/arc/${id}/test-results-e2e.md`) : null,
   strategy: Read(`tmp/arc/${id}/test-strategy.md`),
-  uncoveredImplementations
+  uncoveredImplementations, scopeLabel
 })
 
 Write(`tmp/arc/${id}/test-report.md`, report + "\n<!-- SEAL: test-report-complete -->")
@@ -338,7 +351,7 @@ updateCheckpoint({
   tiers_run: activeTiers,
   pass_rate: computePassRate(report),
   coverage_pct: computeDiffCoverage(report),
-  has_frontend
+  has_frontend, scope_label: scopeLabel
 })
 ```
 

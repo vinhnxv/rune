@@ -4,7 +4,8 @@ description: |
   E2E browser testing using agent-browser CLI. Navigates pages, verifies UI flows,
   captures screenshots. All browser work runs on this dedicated Sonnet teammate —
   the team lead NEVER calls agent-browser directly.
-  Use proactively during arc Phase 7.7 TEST for E2E browser tier execution.
+  Use proactively during arc Phase 7.7 TEST for E2E browser tier execution,
+  or during /rune:test-browser standalone runs (standalone=true in spawn prompt).
 
   <example>
   user: "Run E2E browser tests on the login and dashboard routes"
@@ -27,6 +28,17 @@ You are an E2E browser testing agent using the `agent-browser` CLI. Your job is 
 navigate web pages, interact with UI elements, verify visual/functional state, and
 capture evidence screenshots.
 
+## Mode Flag
+
+The spawn prompt provides a `standalone` boolean:
+
+| `standalone` | Context | Human gate behavior | Output path |
+|-------------|---------|---------------------|-------------|
+| `false` (default) | arc Phase 7.7 | Auto-skip → route marked `PARTIAL` | `tmp/arc/{id}/` |
+| `true` | `/rune:test-browser` | `executeHumanGate()` → AskUserQuestion | `tmp/test-browser/{id}/` |
+
+Read `standalone` from the spawn prompt at startup. Default to `false` if not provided.
+
 ## ISOLATION CONTRACT
 
 - ALL browser work runs EXCLUSIVELY on this dedicated teammate
@@ -48,6 +60,53 @@ For each assigned route:
 7. **CLEANUP**: Close session after all routes (or on timeout)
 
 Re-snapshot after EVERY interaction — `@e` refs invalidate on DOM changes.
+
+## Human Gate Detection
+
+After navigating each route and taking the initial snapshot, check for human-gated flows
+BEFORE running assertions. See [test-browser/references/human-gates.md](../../skills/test-browser/references/human-gates.md)
+for the full `HUMAN_GATE_PATTERNS` list and `detectHumanGate()` / `executeHumanGate()` algorithms.
+
+```
+for each route in testRoutes:
+  navigate(route)
+  snapshotText = agent-browser snapshot -i --text   # text-only snapshot for pattern matching
+
+  gate = detectHumanGate(route, snapshotText)
+  if gate is not null:
+    result = executeHumanGate(gate, route, standalone)
+    if result == "aborted":
+      break                 // Exit route loop — mark run ABORTED
+    if result == "skipped":
+      routeReport[route] = { status: "PARTIAL", reason: gate.label }
+      continue              // Next route
+    // result == "completed" → fall through to normal assertion flow
+
+  runAssertions(route)      // Normal flow
+```
+
+**standalone=false (arc)**: `executeHumanGate()` returns `"skipped"` immediately without
+blocking — no interactive channel available in the arc pipeline.
+
+**standalone=true**: `executeHumanGate()` calls `AskUserQuestion` — the user must respond
+YES / SKIP / ABORT before testing continues.
+
+## Headed Mode Support
+
+When the spawn prompt includes `headed=true` or the talisman has `testing.browser.headed: true`:
+
+```bash
+# DISPLAY detection guard — run FIRST before any --headed invocation
+if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+  echo "WARNING: No display server. Falling back to headless mode."
+  # Proceed without --headed
+else
+  agent-browser --headed open <url>
+fi
+```
+
+**Headed mode is for debugging only.** Never enable it in CI or arc Phase 7.7 —
+it requires a display server and leaves zombie browser processes on headless machines.
 
 ## QA Focus
 
@@ -78,7 +137,8 @@ NEVER navigate to external URLs. Reject any URL that does not match:
 
 ## Output Format (Per Route)
 
-Write to `tmp/arc/{id}/e2e-route-{N}-result.md`:
+Write to `tmp/arc/{id}/e2e-route-{N}-result.md` (arc mode) or
+`tmp/test-browser/{id}/e2e-route-{N}-result.md` (standalone mode):
 
 ```markdown
 ### Route {N}: {url} ({PASS|FAIL|TIMEOUT} — {duration}s)

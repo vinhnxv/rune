@@ -297,9 +297,10 @@ function buildManifests(todosBase: string, options: BuildOptions): BuildResult {
       continue
     }
 
-    // 2a. Scan todo files (supports both 3-digit and 4-digit IDs)
+    // 2a. Scan todo files (tolerant: v2 3-digit, 4-digit, AND strive task-N naming)
     const files = Glob(`${todosBase}/${source}/[0-9][0-9][0-9]-*.md`)
       .concat(Glob(`${todosBase}/${source}/[0-9][0-9][0-9][0-9]-*.md`))
+      .concat(Glob(`${todosBase}/${source}/task-[0-9]*.md`))
 
     // 2b. Parse frontmatter (v1 and v2 compatible)
     // Guard: skip files with corrupt or missing frontmatter (no silent ghost todos)

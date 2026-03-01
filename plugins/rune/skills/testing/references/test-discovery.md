@@ -1,10 +1,15 @@
 # Diff-Scoped Test Discovery Algorithm
 
+> **Note**: The set of changed files (`diffFiles`) is resolved upstream by `resolveTestScope()`
+> before test discovery begins. See [scope-detection.md](scope-detection.md) for the shared
+> scope resolution algorithm (PR number → branch → current branch fallback). Test discovery
+> functions receive the already-resolved `files` array — they do NOT call `git diff` themselves.
+
 ## Unit Test Discovery (v1: Python + JS/TS)
 
 ```
-1. Get changed files: git diff --name-only HEAD~1
-   (or git diff --name-only main...HEAD for branch context)
+1. Get changed files: resolveTestScope(prNumber || "").files
+   (scope resolution is handled upstream — see scope-detection.md)
 
 2. For each changed source file:
    a. Search for corresponding test file by convention:

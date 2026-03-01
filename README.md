@@ -4,10 +4,54 @@
 
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
-[![Version](https://img.shields.io/badge/version-1.125.0-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-1.126.0-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Agents](https://img.shields.io/badge/agents-90-purple)](#agents)
-[![Skills](https://img.shields.io/badge/skills-42-orange)](#skills)
+[![Skills](https://img.shields.io/badge/skills-43-orange)](#skills)
+
+---
+
+## Why Multi-Agent?
+
+Claude Code is powerful on its own — but a single agent has a single context window. As tasks grow in scope (reviewing a 50-file diff, planning a feature across multiple services, running a full implementation pipeline), one context window becomes the bottleneck:
+
+- **Context saturation** — A single agent reviewing 40 files loses focus on file 35. Rune gives each reviewer its own full context window, so the last file gets the same attention as the first.
+- **Specialization over generalization** — One agent trying to catch security issues, performance bugs, and naming inconsistencies simultaneously does none of them well. Rune dispatches Ward Sentinel for security, Ember Oracle for performance, and Pattern Seer for consistency — each focused on what it does best.
+- **Parallelism** — Sequential work on 6 implementation tasks takes 6x as long. Swarm workers claim and complete tasks independently, bounded only by file-level conflicts.
+- **Separation of concerns** — Planning, implementing, reviewing, and testing in one context creates confirmation bias (the same agent reviews code it just wrote). Rune enforces phase boundaries: different agents plan, build, and critique.
+
+The trade-off is token cost — multi-agent workflows consume more tokens than a single session. Rune is designed for cases where quality, thoroughness, and coverage matter more than minimizing API usage.
+
+---
+
+<a name="token-warning"></a>
+
+> [!WARNING]
+> **Rune is token-intensive and time-intensive.**
+>
+> Each workflow spawns multiple agents, each with its own dedicated context window. This means higher token consumption and longer runtimes than single-agent usage.
+>
+> | Workflow | Typical Duration | Why |
+> |----------|-----------------|-----|
+> | `/rune:devise` | 10–30 min | Up to 7 agents across 7 phases (brainstorm, research, synthesize, forge, review) |
+> | `/rune:appraise` | 5–20 min | Up to 8 review agents analyzing your diff in parallel — scales with LOC changed |
+> | `/rune:audit` | 10–30 min | Full codebase scan — same agents, broader scope |
+> | `/rune:strive` | 10–30 min | Swarm workers implementing tasks in parallel |
+> | `/rune:arc` | **1–2 hours** | Full 18-phase pipeline (forge → work → review → mend → test → ship → merge) |
+> | `/rune:arc` (complex) | **up to 3 hours** | Large plans with multiple review-mend convergence loops |
+>
+> `/rune:arc` is intentionally slow because it runs the **entire software development lifecycle** autonomously — planning enrichment, parallel implementation, multi-agent code review, automated fixes, 3-tier testing, and PR creation. Each phase spawns and tears down a separate agent team. The result is higher quality, but it takes time.
+>
+> **Want faster iterations?** Run the steps individually instead of the full pipeline:
+>
+> ```
+> /rune:plan   →  /rune:work   →  /rune:review
+>  (10–30 min)    (10–30 min)     (5–20 min)
+> ```
+>
+> This gives you the same core workflow (plan → implement → review) in **25–80 minutes** with manual control between steps — versus 1–3 hours for `/rune:arc` which adds forge enrichment, gap analysis, automated mend loops, 3-tier testing, and PR creation on top.
+>
+> **Claude Max ($200/month) or higher recommended.** Use `--dry-run` where available to preview scope before committing.
 
 ---
 
@@ -129,18 +173,18 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 
 ### Core Commands
 
-| Command | What it does | Agents |
-|---------|-------------|--------|
-| [`/rune:devise`](#devise) | Turn ideas into structured plans with parallel research | up to 7 |
-| [`/rune:strive`](#strive) | Execute plans with self-organizing swarm workers | 2-6 |
-| [`/rune:appraise`](#appraise) | Multi-agent code review on your diff | up to 8 |
-| [`/rune:audit`](#audit) | Full codebase audit with specialized reviewers | up to 8 |
-| [`/rune:arc`](#arc) | End-to-end pipeline: plan → work → review → test → ship | varies |
-| [`/rune:mend`](#mend) | Parallel resolution of review findings | 1-5 |
-| [`/rune:forge`](#forge) | Deepen a plan with topic-aware research enrichment | 3-12 |
-| [`/rune:goldmask`](#goldmask) | Impact analysis — what breaks if you change this? | 8 |
-| [`/rune:inspect`](#inspect) | Plan-vs-implementation gap audit (9 dimensions) | 4 |
-| [`/rune:elicit`](#elicit) | Structured reasoning (Tree of Thoughts, Pre-mortem, 5 Whys) | 0 |
+| Command | What it does | Agents | Duration |
+|---------|-------------|--------|----------|
+| [`/rune:devise`](#devise) | Turn ideas into structured plans with parallel research | up to 7 | 10–30 min |
+| [`/rune:strive`](#strive) | Execute plans with self-organizing swarm workers | 2-6 | 10–30 min |
+| [`/rune:appraise`](#appraise) | Multi-agent code review on your diff | up to 8 | 5–20 min |
+| [`/rune:audit`](#audit) | Full codebase audit with specialized reviewers | up to 8 | 10–30 min |
+| [`/rune:arc`](#arc) | End-to-end pipeline: plan → work → review → test → ship | varies | **1–3 hours** |
+| [`/rune:mend`](#mend) | Parallel resolution of review findings | 1-5 | 3–10 min |
+| [`/rune:forge`](#forge) | Deepen a plan with topic-aware research enrichment | 3-12 | 5–15 min |
+| [`/rune:goldmask`](#goldmask) | Impact analysis — what breaks if you change this? | 8 | 5–10 min |
+| [`/rune:inspect`](#inspect) | Plan-vs-implementation gap audit (9 dimensions) | 4 | 5–10 min |
+| [`/rune:elicit`](#elicit) | Structured reasoning (Tree of Thoughts, Pre-mortem, 5 Whys) | 0 | 2–5 min |
 
 ### Batch & Automation
 
@@ -364,7 +408,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Design Sync Agent | Figma extraction and Visual Spec Map creation |
 | Design Iterator | Iterative design refinement (screenshot-analyze-fix loop) |
 
-### Utility Agents (11)
+### Utility Agents (13)
 
 | Agent | Purpose |
 |-------|---------|
@@ -377,6 +421,8 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Knowledge Keeper | Documentation coverage review |
 | Horizon Sage | Strategic depth assessment |
 | Veil Piercer | Plan reality-gap analysis |
+| Evidence Verifier | Factual claim validation with grounding scores |
+| Research Verifier | Research output quality verification |
 | Truthseer Validator | Audit coverage quality validation |
 | Deployment Verifier | Deployment artifact generation (Go/No-Go checklists, rollback plans) |
 
@@ -393,7 +439,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 ## Skills
 
-41 skills providing background knowledge, workflow orchestration, and tool integration:
+43 skills providing background knowledge, workflow orchestration, and tool integration:
 
 | Skill | Type | Purpose |
 |-------|------|---------|
@@ -433,6 +479,11 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `resolve-gh-pr-comment` | Workflow | Resolve a single GitHub PR review comment |
 | `resolve-all-gh-pr-comments` | Workflow | Batch resolve all open PR review comments |
 | `skill-testing` | Development | TDD for skill development |
+| `debug` | Debugging | ACH-based parallel hypothesis debugging |
+| `codex-review` | Workflow | Cross-model code review (Claude + Codex in parallel) |
+| `learn` | Memory | Session self-learning (CLI corrections, review recurrences) |
+| `figma-to-react` | Integration | Figma-to-React MCP server knowledge |
+| `status` | Reporting | Worker status reporting for swarm execution |
 | `talisman` | Configuration | Deep talisman.yml management (init, audit, update, guide, status) |
 
 ---
@@ -507,6 +558,47 @@ See [`talisman.example.yml`](plugins/rune/talisman.example.yml) for the full sch
 
 ---
 
+## Codex CLI Integration (Optional)
+
+Rune supports [OpenAI Codex CLI](https://github.com/openai/codex) as a cross-model verification layer. If you have a **ChatGPT Pro** subscription, you can enable Codex to add a second AI perspective alongside Claude — giving you higher-confidence results through independent cross-verification.
+
+### What Codex adds
+
+| Workflow | Codex Role |
+|----------|-----------|
+| `/rune:arc` | Gap analysis phase — Codex independently reviews implementation gaps |
+| `/rune:appraise` | Cross-model review — Claude and Codex review in parallel, findings are cross-verified |
+| `/rune:devise` | Plan validation — Codex provides a second opinion on plan feasibility |
+| `/rune:codex-review` | Dedicated cross-model review — runs Claude + Codex agents side by side |
+
+Findings are tagged with confidence levels: **CROSS-VERIFIED** (both models agree), **STANDARD** (single model), or **DISPUTED** (models disagree).
+
+### Trade-off: quality vs. time
+
+Enabling Codex **increases runtime** for every workflow that uses it — each Codex invocation adds an extra verification pass. For `/rune:arc`, this can add 10–20 minutes on top of the already 1–3 hour pipeline. Enable it when correctness matters more than speed.
+
+### Enable / Disable
+
+Codex integration is controlled via `talisman.yml`:
+
+```yaml
+# .claude/talisman.yml
+codex:
+  enabled: true                          # Set to false to disable entirely
+  workflows: [devise, arc, appraise]     # Which workflows use Codex
+```
+
+To disable: set `codex.enabled: false` or remove the `codex` section. Rune auto-detects whether the `codex` CLI is installed and authenticated — if not available, Codex phases are silently skipped.
+
+### Prerequisites
+
+1. [ChatGPT Pro](https://openai.com/chatgpt/pricing/) subscription (for Codex API access)
+2. Codex CLI installed: `npm install -g @openai/codex`
+3. Authenticated: `codex login`
+4. `.codexignore` file in project root (required for `--full-auto` mode)
+
+---
+
 ## Architecture
 
 ```
@@ -516,7 +608,7 @@ rune-plugin/
 └── plugins/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
-        │   └── plugin.json       # Plugin manifest (v1.125.0)
+        │   └── plugin.json       # Plugin manifest (v1.126.0)
         ├── agents/               # 90 agent definitions
         │   ├── review/           #   40 review agents
         │   ├── investigation/    #   24 investigation agents
@@ -524,11 +616,11 @@ rune-plugin/
         │   ├── research/         #    5 research agents
         │   ├── testing/          #    4 testing agents
         │   └── work/             #    4 work agents
-        ├── skills/               # 42 skills
+        ├── skills/               # 43 skills
         ├── commands/             # 15 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json
-        ├── scripts/              # Hook scripts (20+)
+        ├── scripts/              # Hook scripts (39+)
         ├── .mcp.json             # MCP server config (echo-search)
         ├── talisman.example.yml  # Configuration reference
         ├── CLAUDE.md             # Plugin instructions
@@ -558,10 +650,7 @@ Every Rune workflow is an explicit state machine with named phases, conditional 
 ## Requirements
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with plugin support
-- **Claude Max ($200/month) or higher recommended**
-
-> [!WARNING]
-> **Rune is token-intensive.** Each workflow spawns multiple agents with their own dedicated context windows. A single `/rune:arc` run can consume a significant portion of your weekly usage. Use `--dry-run` where available to preview scope before committing.
+- **Claude Max ($200/month) or higher recommended** — see [token and runtime warning](#token-warning) above
 
 ---
 

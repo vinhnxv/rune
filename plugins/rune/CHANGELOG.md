@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.126.0] - 2026-03-01
+
+### Added
+- **Standalone browser E2E testing (`/rune:test-browser`)** — New user-invocable skill that runs agent-browser tests against changed routes without spawning an agent team. 9-step inline workflow: installation guard → scope detection → route discovery → mode selection → server verification → per-route test loop → human gate → failure handling → summary report.
+- **`resolveTestScope()` shared algorithm** (`testing/references/scope-detection.md`) — PR-based scope detection with 3 input modes: PR number (via `gh pr view`), branch name (git diff), or current HEAD. Includes empty-files guard (Gap G-1), base-case git-repo guard (Gap 2.1), and default branch detection (3-strategy fallback). Shared between `/rune:test-browser` and arc Phase 7.7 TEST.
+- **Human verification gates** (`skills/test-browser/references/human-gates.md`) — 5 gate pattern registry (OAuth/SSO, Payment, Email verification, SMS/2FA, External API). Standalone mode: AskUserQuestion pause with Yes/Skip/Abort options. Arc mode: auto-skip with PARTIAL status. Detection via URL patterns + snapshot content matching.
+- **Interactive failure handling** (`skills/test-browser/references/failure-handling.md`) — 3-option recovery for E2E failures: Fix Now (reads source files, applies inline fix, re-tests with concrete pass criteria: console errors == 0 AND snapshot.length > 50), Create Todo (schema v2 file-todo compatible with `/rune:file-todos`), Skip. Implements `mapRouteToSourceFiles()` using framework-specific detection from `file-route-mapping.md`.
+- **Snapshot verification** (`testing/references/service-startup.md`) — `verifyServerWithSnapshot()` opens a page in throwaway session, takes a snapshot, checks for blank/error/loading states before E2E testing begins. Standalone mode: abort with framework-specific start instructions. Arc mode: advisory WARN and proceed.
+- **Arc Phase 7.7 PR scope upgrade** (`arc/references/arc-phase-test.md`) — Phase 7.7 TEST now calls `resolveTestScope()` from shared scope-detection.md, enabling diff-scoped testing based on arc plan PR reference.
+- **e2e-browser-tester agent `standalone` flag** — Agent YAML frontmatter now accepts `standalone` parameter to distinguish interactive (test-browser) from pipeline (arc Phase 7.7) execution context.
+- **agent-browser v0.15.x documentation** — Domain allowlist (`AGENT_BROWSER_ALLOWED_DOMAINS`), content boundaries (`AGENT_BROWSER_CONTENT_BOUNDARIES`), and auth vault (`agent-browser auth save/login`) coverage added to `agent-browser` skill.
+- **CREATION-LOG.md** for `test-browser` skill documenting key design decisions: ISOLATION CONTRACT rationale, E2E-only scope, AskUserQuestion timeout limitation, concrete pass criteria, `mapRouteToSourceFiles` gap fixes.
+
 ## [1.125.2] - 2026-03-01
 
 ### Fixed
