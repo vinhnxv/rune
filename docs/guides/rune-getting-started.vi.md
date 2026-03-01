@@ -50,6 +50,7 @@ Rune tạo các file output (plans, reviews, artifacts tạm) trong các thư m�
     ".claude/arc/",
     ".claude/echoes/",
     ".claude/arc-batch-loop.local.md",
+    ".claude/arc-phase-loop.local.md",
     ".claude/CLAUDE.local.md",
     ".claude/talisman.yml"
   ]
