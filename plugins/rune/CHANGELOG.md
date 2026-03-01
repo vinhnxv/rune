@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.125.2] - 2026-03-01
+
+### Fixed
+- **`local` outside function crashes arc phase stop hook** — `local _saved_nullglob=...` on line 437 of `arc-phase-stop-hook.sh` was outside any function body. In bash 3.2 (macOS `/bin/bash`), `local` is only valid inside functions. This triggered `trap 'exit 0' ERR`, causing the hook to silently exit after incrementing the iteration counter but before outputting the blocking JSON that re-injects the next phase prompt. Result: arc phases stopped after every single phase, breaking `/rune:arc` and `/rune:arc-batch`. Introduced by PR #180 (v1.124.0 zombie team verification feature).
+- **Same `local` outside function bug in `session-team-hygiene.sh`** — Lines 125 and 132 used `local` in the main script body. Fixed to plain variable assignment.
+
 ## [1.125.1] - 2026-03-01
 
 ### Fixed
