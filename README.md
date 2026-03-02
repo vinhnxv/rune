@@ -333,7 +333,7 @@ Compares a plan against its implementation across 9 quality dimensions:
 
 ## Agents
 
-**90 specialized agents** across 6 categories:
+**91 specialized agents** across 6 categories:
 
 ### Review Agents (40)
 
@@ -417,7 +417,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Design Sync Agent | Figma extraction and Visual Spec Map creation |
 | Design Iterator | Iterative design refinement (screenshot-analyze-fix loop) |
 
-### Utility Agents (13)
+### Utility Agents (14)
 
 | Agent | Purpose |
 |-------|---------|
@@ -429,6 +429,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Decree Arbiter | Technical soundness validation |
 | Knowledge Keeper | Documentation coverage review |
 | Horizon Sage | Strategic depth assessment |
+| State Weaver | Plan state machine validation (phases, transitions, I/O contracts) |
 | Veil Piercer | Plan reality-gap analysis |
 | Evidence Verifier | Factual claim validation with grounding scores |
 | Research Verifier | Research output quality verification |

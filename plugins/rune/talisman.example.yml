@@ -1076,6 +1076,15 @@ evidence:
   require_evidence_chain: true  # Require ## Evidence Chain section in Standard/Comprehensive plans
 
 # ──────────────────────────────────────────────
+# State Weaver — Plan state machine validation (v1.127.0)
+# ──────────────────────────────────────────────
+# Validates plan phases form a complete, correct state machine.
+# Checks for dead-end states, unreachable phases, missing error paths,
+# orphaned artifacts, and I/O contract mismatches.
+state_weaver:
+  enabled: true              # Kill switch — set false to disable state-weaver globally
+
+# ──────────────────────────────────────────────
 # Codex Oracle — Cross-model verification (v1.18.0+)
 # ──────────────────────────────────────────────
 # Codex Oracle is auto-detected when the `codex` CLI is installed

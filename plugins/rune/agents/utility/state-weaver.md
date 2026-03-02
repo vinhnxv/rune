@@ -22,12 +22,12 @@ description: |
   </example>
 tools:
   - Read
+  - Write
   - Glob
   - Grep
   - SendMessage
 disallowedTools:
   - Bash
-  - Write
   - Edit
 maxTurns: 30
 mcpServers:
@@ -44,8 +44,7 @@ You analyze plan documents to validate that proposed phases, steps, and stages f
 complete, correct state machine with no dead-end states, no unreachable phases, no orphaned
 I/O artifacts, and no unnamed error states — **before implementation begins**.
 
-> **Prefix note**: This agent uses `STSM-NNN` as the finding prefix (4-letter format),
-> consistent with the 4-letter convention of FLOW, EDGE, DEEP, FLAW, DEAD across the Rune codebase.
+> **Prefix note**: This agent uses `STSM-NNN` as the finding prefix.
 > STSM findings are plan-level, not fed to runebinder, and do not participate in the
 > dedup hierarchy (`SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX`).
 
@@ -76,7 +75,7 @@ Before beginning analysis, query Rune Echoes for previously identified patterns:
 
 ## Trigger Gate
 
-Before running the full 5-phase analysis, check if the plan contains >= 3 phase indicators:
+Before running the full 5-phase analysis, check if the plan contains >= 5 phase indicators:
 
 **Phase indicators** (any of these count):
 - Headings containing "Phase", "Step", or "Stage" (e.g., `## Phase 1`, `### Step 3`)
@@ -85,12 +84,12 @@ Before running the full 5-phase analysis, check if the plan contains >= 3 phase 
 - Tables with columns named "Phase", "Status", "Stage", or "Step"
 - YAML frontmatter with phase-related metadata
 
-**If < 3 phase indicators found**:
+**If < 5 phase indicators found**:
 - Emit `<!-- VERDICT:state-weaver:PASS -->` immediately
 - Note: "Plan has no multi-phase structure. State machine validation not applicable."
 - Skip all 5 phases — no further analysis needed
 
-**If >= 3 phase indicators found**: Proceed with the full 5-phase analysis protocol below.
+**If >= 5 phase indicators found**: Proceed with the full 5-phase analysis protocol below.
 
 ## 5-Phase Analysis Protocol
 
@@ -168,6 +167,11 @@ For each phase in the plan, verify artifact flow:
 7. **Naming collisions**: Two phases producing files with the same name in the same directory
 
 Record mismatches as STSM-004 (orphaned) or STSM-005 (unconsumed) findings.
+
+> **Calibration note**: STSM-003 (missing error path), STSM-004 (orphaned artifact), and
+> STSM-005 (unconsumed input) checks assume plans enumerate all file-level I/O.
+> Plans using implicit artifact flow (e.g., "pass results to next phase") may trigger
+> false positives. Verify against actual plan conventions before escalating to P1.
 
 **Phase 4 budget**: ~30 lines (I/O contract table + mismatches).
 

@@ -170,6 +170,17 @@ for (const reviewer of reviewers) {
       Plan: tmp/arc/${id}/enriched-plan.md
       Output: tmp/arc/${id}/reviews/${reviewer.name}-verdict.md
       Include structured verdict marker: <!-- VERDICT:${reviewer.name}:{PASS|CONCERN|BLOCK} -->`
+  if (reviewer.name === "state-weaver") {
+    const swConfig = gates?.state_weaver ?? {}
+    reviewerPrompt = `<!-- ANCHOR: You are state-weaver. Your ONLY role is plan state machine validation. -->
+      Review plan for: ${reviewer.focus}
+      Plan: tmp/arc/${id}/enriched-plan.md
+      Output: tmp/arc/${id}/reviews/${reviewer.name}-verdict.md
+      Trigger gate: >= 5 phase indicators required for full analysis
+      I/O calibration: Plans with implicit artifact flow may trigger false positives for STSM-003/004/005
+      Include structured verdict marker: <!-- VERDICT:${reviewer.name}:{PASS|CONCERN|BLOCK} -->
+      <!-- RE-ANCHOR: Extract phases, build transition graph, validate completeness (10 checks), verify I/O contracts. Dead-end states and loops-without-exit are P1. -->`
+  }
   if (reviewer.name === "evidence-verifier") {
     const evConfig = gates?.evidence ?? {}
     reviewerPrompt = `<!-- ANCHOR: You are evidence-verifier. Your ONLY role is grounding verification. -->
@@ -485,7 +496,7 @@ try {
 } catch (e) {
   // FALLBACK: Phase 2 plan review — core reviewers summoned in this phase (horizon-sage, evidence-verifier, codex-plan-reviewer are conditional)
   allMembers = ["scroll-reviewer", "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
-    "horizon-sage", "evidence-verifier", "codex-plan-reviewer"]
+    "horizon-sage", "evidence-verifier", "state-weaver", "codex-plan-reviewer"]
 }
 
 // Shutdown all discovered members

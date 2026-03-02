@@ -669,6 +669,7 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | horizon-sage | Strategic depth assessment — Temporal Horizon, Root Cause Depth, Innovation Quotient, Stability, Maintainability |
 | gap-fixer | Gap remediation fixer for Phase 5.8 — prompt-template-based (no dedicated .md file) |
 | deployment-verifier | Deployment artifact generation — Go/No-Go checklists, SQL verification, rollback plans, monitoring |
+| state-weaver | Plan state machine validation — phase extraction, transition graph construction, 10 completeness checks (dead-end states, unreachable phases, missing error paths), I/O contract verification, mermaid diagram generation |
 | evidence-verifier | Evidence-based plan claim validation — 3-layer verification (Codebase/Documentation/External), per-claim grounding scores, weighted overall plan grounding score |
 
 ## Skills
