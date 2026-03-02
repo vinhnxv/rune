@@ -20,6 +20,22 @@ ls tmp/reviews/*-verdict.md 2>/dev/null
 # zsh: no matches found: tmp/reviews/*-verdict.md (2>/dev/null doesn't help!)
 ```
 
+## Quick Before/After
+
+The most common fix — append `(N)` to the glob pattern inside `for` loops:
+
+```bash
+# BEFORE (crashes in zsh when no files match):
+for f in tmp/.rune-*.json; do
+  rm -f "$f"
+done
+
+# AFTER (safe — loop body never executes if no matches):
+for f in tmp/.rune-*.json(N); do
+  rm -f "$f"
+done
+```
+
 ## Fix — Three Options
 
 **Option 1: `(N)` qualifier (preferred)** — zsh-native, scoped to one glob:

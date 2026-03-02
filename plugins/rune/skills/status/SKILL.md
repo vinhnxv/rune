@@ -146,7 +146,10 @@ const WORKER_STALE_MS = 15 * 60 * 1000
 for (const logFile of workerLogs) {
   const mtime = parseInt(Bash(`stat -f "%m" "${logFile}" 2>/dev/null || stat -c "%Y" "${logFile}" 2>/dev/null`).trim(), 10) * 1000
   if (Date.now() - mtime > WORKER_STALE_MS) {
-    staleWorkers.push(logFile.split('/').pop().replace('.md', ''))
+    // SEC-003 FIX: Sanitize worker name to prevent filename injection / path traversal
+    const rawName = logFile.split('/').pop().replace('.md', '')
+    const safeName = rawName.replace(/[^a-zA-Z0-9_-]/g, '_')
+    staleWorkers.push(safeName)
   }
 }
 

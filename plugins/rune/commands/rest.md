@@ -120,20 +120,37 @@ Before removing any directory, verify paths are within `tmp/`:
 
 ```bash
 # Validate each path resolves inside tmp/ (prevents traversal and symlink attacks)
+# Portable path resolution (macOS BSD coreutils lack `realpath -s`)
+_resolve_path() {
+  local p="$1"
+  if [[ -d "$p" ]]; then
+    (cd "$p" 2>/dev/null && pwd -P)
+  elif [[ -d "$(dirname "$p")" ]]; then
+    echo "$(cd "$(dirname "$p")" 2>/dev/null && pwd -P)/$(basename "$p")"
+  else
+    echo ""
+  fi
+}
+
 validated_dirs=()
+tmp_base=$(_resolve_path "tmp")
+if [[ -z "$tmp_base" ]]; then
+  echo "ERROR: cannot resolve tmp/ base directory"
+else
 for dir in "${dirs_to_remove[@]}"; do
   # Reject symlinks — do not follow them
   if [[ -L "$dir" ]]; then
     echo "SKIP: $dir is a symlink (not following)"
     continue
   fi
-  resolved=$(realpath -s "$dir" 2>/dev/null || (cd "$dir" 2>/dev/null && pwd))
-  if [[ "$resolved" != "$(realpath -s tmp 2>/dev/null || (cd tmp && pwd))"/* ]]; then
+  resolved=$(_resolve_path "$dir")
+  if [[ -z "$resolved" || "$resolved" != "$tmp_base"/* ]]; then
     echo "SKIP: $dir resolves outside tmp/ ($resolved)"
     continue
   fi
   validated_dirs+=("$dir")
 done
+fi
 ```
 
 Any path that resolves outside `tmp/` or is a symlink is skipped with a warning.
@@ -144,11 +161,13 @@ Remove only paths that passed validation in Step 4:
 
 ```bash
 # Remove validated workflow directories — re-verify at deletion time (close TOCTOU window)
+# _resolve_path defined in Step 4 above (portable macOS-compatible path resolution)
+tmp_base=$(_resolve_path "tmp")
 for dir in "${validated_dirs[@]}"; do
   # Re-verify immediately before deletion (mitigates TOCTOU race)
   [[ -L "$dir" ]] && { echo "SKIP: $dir became a symlink (TOCTOU detected)"; continue; }
-  resolved=$(realpath "$dir" 2>/dev/null)
-  if [[ "$resolved" == "$(realpath tmp 2>/dev/null)"/* ]]; then
+  resolved=$(_resolve_path "$dir")
+  if [[ -n "$resolved" && -n "$tmp_base" && "$resolved" == "$tmp_base"/* ]]; then
     rm -rf "$resolved"
   else
     echo "SKIP: $dir now resolves outside tmp/ (TOCTOU detected: $resolved)"
