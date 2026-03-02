@@ -8,6 +8,14 @@ Hướng dẫn liên quan:
 - [Hướng dẫn review và audit](rune-code-review-and-audit-guide.vi.md)
 - [Hướng dẫn xử lý sự cố và tối ưu](rune-troubleshooting-and-optimization-guide.vi.md)
 
+## Đọc nhanh (2 phút)
+
+- Bạn chỉ cần review mặc định: chưa cần đọc tài liệu này.
+- Bạn có domain đặc thù (ví dụ fintech, y tế, ERP): nên tạo custom agent.
+- Bạn muốn dùng model ngoài Claude qua CLI: xem mục CLI-backed Ashes.
+- Làm theo thứ tự an toàn: viết agent file -> đăng ký trong `talisman.yml` -> test trên review nhỏ.
+- Thuật ngữ tham khảo: [Thuật ngữ Rune (Tiếng Việt)](rune-glossary.vi.md).
+
 ---
 
 ## 1. Tổng quan kiến trúc
@@ -108,8 +116,8 @@ settings:
 trigger:
   extensions: [".py", ".ts"]       # Extension file
   paths: ["src/api/", "api/"]      # Prefix đường dẫn
-  min_files: 5                     # Chỉ triệu hồi nếu ≥N file khớp
-  always: true                     # Luôn triệu hồi
+  min_files: 5                     # Chỉ kích hoạt (summon) nếu ≥N file khớp
+  always: true                     # Luôn kích hoạt (summon)
 ```
 
 ### Trigger theo topic (forge)

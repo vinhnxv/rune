@@ -409,3 +409,288 @@ class TestAbsolutePosition:
         assert any("top-" in c for c in classes)
         assert any("w-" in c for c in classes)
         assert any("h-" in c for c in classes)
+
+
+# ---------------------------------------------------------------------------
+# Edge-case tests: LayoutClasses
+# ---------------------------------------------------------------------------
+
+
+class TestLayoutClassesEdgeCases:
+    """Edge-case tests for LayoutClasses container."""
+
+    def test_empty_container_all_classes_empty(self):
+        """Empty LayoutClasses returns empty list from all_classes()."""
+        lc = LayoutClasses()
+        assert lc.all_classes() == []
+
+    def test_null_like_none_classes_not_added(self):
+        """LayoutClasses with no items — both lists are empty (null-like state)."""
+        lc = LayoutClasses()
+        assert lc.container == []
+        assert lc.self_classes == []
+
+    def test_large_number_of_classes(self):
+        """LayoutClasses with many classes (large/overflow-like scenario)."""
+        lc = LayoutClasses()
+        lc.container = [f"cls-{i}" for i in range(100)]
+        lc.self_classes = [f"self-{i}" for i in range(100)]
+        all_cls = lc.all_classes()
+        assert len(all_cls) == 200
+
+
+# ---------------------------------------------------------------------------
+# Edge-case tests: resolve_container_layout
+# ---------------------------------------------------------------------------
+
+
+class TestContainerLayoutEdgeCases:
+    """Edge-case tests for resolve_container_layout."""
+
+    def test_zero_item_spacing_no_gap_class(self):
+        """Zero item_spacing (boundary zero) should not generate a gap class."""
+        node = _make_node(
+            has_auto_layout=True,
+            layout_mode=LayoutMode.HORIZONTAL,
+            item_spacing=0.0,
+        )
+        result = resolve_container_layout(node)
+        assert not any(c.startswith("gap-") for c in result.container)
+
+    def test_negative_item_spacing_no_gap_class(self):
+        """Negative item_spacing (negative boundary) should not generate a gap class."""
+        node = _make_node(
+            has_auto_layout=True,
+            layout_mode=LayoutMode.HORIZONTAL,
+            item_spacing=-8.0,
+        )
+        result = resolve_container_layout(node)
+        assert not any(c.startswith("gap-") for c in result.container)
+
+    def test_zero_padding_all_sides_omitted(self):
+        """Zero padding on all sides produces no padding classes (boundary)."""
+        node = _make_node(
+            has_auto_layout=True,
+            layout_mode=LayoutMode.VERTICAL,
+            padding=(0.0, 0.0, 0.0, 0.0),
+        )
+        result = resolve_container_layout(node)
+        padding_classes = [c for c in result.container if c.startswith(("p-", "px-", "py-", "pt-", "pr-", "pb-", "pl-"))]
+        assert padding_classes == []
+
+    def test_zero_min_width_no_constraint_class(self):
+        """min_width=0 (zero boundary) should not produce a min-w class."""
+        node = _make_node(
+            has_auto_layout=True,
+            layout_mode=LayoutMode.HORIZONTAL,
+            min_width=0.0,
+        )
+        result = resolve_container_layout(node)
+        assert not any(c.startswith("min-w-") for c in result.container)
+
+    def test_null_like_no_max_width_constraint(self):
+        """max_width=None (null-like) produces no max-w class."""
+        node = _make_node(
+            has_auto_layout=True,
+            layout_mode=LayoutMode.HORIZONTAL,
+            max_width=None,
+        )
+        result = resolve_container_layout(node)
+        assert not any(c.startswith("max-w-") for c in result.container)
+
+    def test_empty_children_frame_no_relative(self):
+        """Frame-like node with empty children list gets no 'relative' class."""
+        node = _make_node(
+            has_auto_layout=False,
+            is_frame_like=True,
+            children=[],
+        )
+        result = resolve_container_layout(node)
+        assert "relative" not in result.container
+
+    def test_missing_layout_mode_none_no_direction_class(self):
+        """Node with has_auto_layout=True but layout_mode=None produces no direction class."""
+        node = _make_node(
+            has_auto_layout=True,
+            layout_mode=None,
+        )
+        result = resolve_container_layout(node)
+        # Still gets "flex" but no flex-row/flex-col without a valid mode
+        assert "flex" in result.container
+        assert "flex-row" not in result.container
+        assert "flex-col" not in result.container
+
+    def test_boundary_single_pixel_padding(self):
+        """Single pixel padding (boundary minimum useful value)."""
+        node = _make_node(
+            has_auto_layout=True,
+            layout_mode=LayoutMode.HORIZONTAL,
+            padding=(1.0, 1.0, 1.0, 1.0),
+        )
+        result = resolve_container_layout(node)
+        # Should produce some padding class for 1px
+        padding_classes = [c for c in result.container if c.startswith("p")]
+        assert len(padding_classes) > 0
+
+    def test_zero_grid_columns_falls_back_to_flex(self):
+        """layout_grid_columns=0 (zero boundary) falls back to flex layout."""
+        node = _make_node(
+            has_auto_layout=True,
+            layout_mode=LayoutMode.HORIZONTAL,
+            layout_grid_columns=0,
+        )
+        result = resolve_container_layout(node)
+        # grid_columns=0 is falsy → should not get grid layout
+        assert "grid" not in result.container
+
+    def test_missing_counter_axis_align_no_items_class(self):
+        """None counter_axis_align produces no items-* class."""
+        node = _make_node(
+            has_auto_layout=True,
+            layout_mode=LayoutMode.HORIZONTAL,
+            counter_axis_align=None,
+        )
+        result = resolve_container_layout(node)
+        assert not any(c.startswith("items-") for c in result.container)
+
+    def test_missing_primary_axis_align_no_justify_class(self):
+        """None primary_axis_align produces no justify-* class."""
+        node = _make_node(
+            has_auto_layout=True,
+            layout_mode=LayoutMode.HORIZONTAL,
+            primary_axis_align=None,
+        )
+        result = resolve_container_layout(node)
+        assert not any(c.startswith("justify-") for c in result.container)
+
+
+# ---------------------------------------------------------------------------
+# Edge-case tests: resolve_child_layout
+# ---------------------------------------------------------------------------
+
+
+class TestChildLayoutEdgeCases:
+    """Edge-case tests for resolve_child_layout."""
+
+    def test_zero_width_fixed_child_no_width_class(self):
+        """FIXED horizontal sizing with zero width produces no w-* class (zero boundary)."""
+        child = _make_node(
+            node_id="2:1",
+            layout_sizing_horizontal=LayoutSizingMode.FIXED,
+            width=0.0,
+        )
+        parent = _make_node(
+            has_auto_layout=True,
+            layout_mode=LayoutMode.HORIZONTAL,
+        )
+        classes = resolve_child_layout(child, parent)
+        assert not any(c.startswith("w-") for c in classes)
+
+    def test_zero_height_fixed_child_no_height_class(self):
+        """FIXED vertical sizing with zero height produces no h-* class (zero boundary)."""
+        child = _make_node(
+            node_id="2:1",
+            layout_sizing_vertical=LayoutSizingMode.FIXED,
+            height=0.0,
+        )
+        parent = _make_node(
+            has_auto_layout=True,
+            layout_mode=LayoutMode.VERTICAL,
+        )
+        classes = resolve_child_layout(child, parent)
+        assert not any(c.startswith("h-") for c in classes)
+
+    def test_null_like_none_parent_no_layout_classes(self):
+        """Child with no auto-layout parent produces empty class list (null-like parent)."""
+        child = _make_node(node_id="2:1")
+        parent = _make_node(has_auto_layout=False, layout_mode=None)
+        classes = resolve_child_layout(child, parent)
+        assert classes == []
+
+    def test_zero_layout_grow_no_grow_class(self):
+        """layout_grow=0.0 (zero boundary) should not add grow class."""
+        child = _make_node(
+            node_id="2:1",
+            layout_grow=0.0,
+        )
+        parent = _make_node(
+            has_auto_layout=True,
+            layout_mode=LayoutMode.HORIZONTAL,
+        )
+        classes = resolve_child_layout(child, parent)
+        assert "grow" not in classes
+
+    def test_negative_layout_grow_no_grow_class(self):
+        """Negative layout_grow (negative boundary) should not add grow class."""
+        child = _make_node(
+            node_id="2:1",
+            layout_grow=-1.0,
+        )
+        parent = _make_node(
+            has_auto_layout=True,
+            layout_mode=LayoutMode.HORIZONTAL,
+        )
+        classes = resolve_child_layout(child, parent)
+        assert "grow" not in classes
+
+
+# ---------------------------------------------------------------------------
+# Edge-case tests: resolve_absolute_position
+# ---------------------------------------------------------------------------
+
+
+class TestAbsolutePositionEdgeCases:
+    """Edge-case tests for resolve_absolute_position."""
+
+    def test_zero_dimensions_absolute_no_size_classes(self):
+        """Absolutely positioned node with zero width and height gets no w-/h- classes."""
+        node = _make_node(
+            is_absolute_positioned=True,
+            x=5.0,
+            y=5.0,
+            width=0.0,
+            height=0.0,
+        )
+        classes = resolve_absolute_position(node)
+        assert "absolute" in classes
+        assert not any(c.startswith("w-") for c in classes)
+        assert not any(c.startswith("h-") for c in classes)
+
+    def test_zero_xy_position_boundary(self):
+        """Zero x=0, y=0 (boundary) should still generate left-0 and top-0."""
+        node = _make_node(
+            is_absolute_positioned=True,
+            x=0.0,
+            y=0.0,
+            width=50.0,
+            height=50.0,
+        )
+        classes = resolve_absolute_position(node)
+        assert "absolute" in classes
+        # x=0 and y=0 are >= 0, so left- and top- classes should be generated
+        assert any("left-" in c for c in classes)
+        assert any("top-" in c for c in classes)
+
+    def test_missing_absolute_flag_returns_empty(self):
+        """Node that is NOT absolutely positioned returns empty list."""
+        node = _make_node(
+            is_absolute_positioned=False,
+            x=10.0,
+            y=20.0,
+            width=100.0,
+            height=50.0,
+        )
+        assert resolve_absolute_position(node) == []
+
+    def test_large_position_values_boundary(self):
+        """Very large x/y/width/height (overflow-like) generates classes without crashing."""
+        node = _make_node(
+            is_absolute_positioned=True,
+            x=9999.0,
+            y=9999.0,
+            width=9999.0,
+            height=9999.0,
+        )
+        classes = resolve_absolute_position(node)
+        assert "absolute" in classes
+        assert len(classes) > 1

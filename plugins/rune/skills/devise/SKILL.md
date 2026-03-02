@@ -258,14 +258,30 @@ if (design_sync_candidate && designSyncEnabled && figmaUrl) {
       ## Assignment
       Figma URL: ${figmaUrl}
 
+      ## MCP Tool Availability
+      Two Figma MCP namespaces may be available. Try in this order:
+      1. **Rune tools** (preferred): figma_list_components, figma_fetch_design, figma_inspect_node
+      2. **Official Figma MCP** (fallback): mcp__claude_ai_Figma__get_metadata, mcp__claude_ai_Figma__get_design_context
+
+      To extract fileKey from the Figma URL for Official MCP tools:
+      - Parse: https://www.figma.com/design/{fileKey}/{name}?node-id={nodeId}
+      - fileKey is the alphanumeric segment after /design/ or /file/
+      - nodeId in URL uses hyphens ("1-3"); Official MCP needs colons ("1:3")
+
       ## Lifecycle
       1. Claim the "Extract Figma design inventory" task via TaskList/TaskUpdate
-      2. Call the figma_list_components MCP tool with the Figma URL
-      3. Extract component names, node IDs, and hierarchy
+      2. **Try Rune tools first**: Call figma_list_components(url="${figmaUrl}")
+         - On success: extract component names, node IDs, and types from result
+         - Record mcpProvider: "rune" in output
+      3. **If Rune tools fail** (tool not found / MCP unavailable): fall back to Official MCP:
+         - Extract fileKey from the Figma URL
+         - Call mcp__claude_ai_Figma__get_metadata(fileKey="{fileKey}")
+         - Parse component names and node IDs from XML response
+         - Record mcpProvider: "official" in output
       4. Write component inventory to: tmp/plans/${timestamp}/design-inventory.json
-         Format: { "components": [{ "name": "...", "node_id": "...", "type": "..." }] }
-      5. If figma_list_components fails (MCP unavailable), write:
-         { "components": [], "error": "Figma MCP not available", "figma_url": "${figmaUrl}" }
+         Format: { "components": [{ "name": "...", "node_id": "...", "type": "..." }], "mcpProvider": "rune|official" }
+      5. If BOTH tool namespaces fail (MCP unavailable), write:
+         { "components": [], "error": "Figma MCP not available", "figma_url": "${figmaUrl}", "mcpProvider": null }
       6. Do not write implementation code. Inventory only.
       7. Mark task complete via TaskUpdate`,
     run_in_background: true

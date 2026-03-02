@@ -17,10 +17,15 @@ Converts Figma designs into React function components with Tailwind CSS v4 utili
 
 ## Prerequisites
 
-Set `FIGMA_TOKEN` environment variable with a Figma Personal Access Token.
-The token needs read access to the target Figma files.
+`FIGMA_TOKEN` is **optional** when using this MCP server via the Rune figma-to-react MCP.
+The Rune MCP server bundles its own Figma API access and works without a personal token.
+
+`FIGMA_TOKEN` is **required** only when:
+- Using the **Official Figma MCP** (`mcp__claude_ai_Figma__*` tools)
+- Running the `scripts/figma-to-react/cli.py` CLI directly against the Figma REST API
 
 ```bash
+# Only needed for Official MCP or direct CLI usage:
 export FIGMA_TOKEN="figd_..."
 ```
 

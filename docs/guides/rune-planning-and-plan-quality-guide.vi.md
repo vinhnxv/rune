@@ -8,6 +8,14 @@ Các lệnh được bao phủ:
 - `/rune:plan-review`
 - `/rune:inspect`
 
+## Đọc nhanh (2 phút)
+
+- Bạn chưa có plan: bắt đầu bằng `/rune:devise`.
+- Bạn đã có plan nhưng muốn làm sâu hơn: dùng `/rune:forge`.
+- Bạn muốn kiểm tra code mẫu trong plan: dùng `/rune:plan-review`.
+- Bạn muốn so plan với code đã triển khai: dùng `/rune:inspect`.
+- Thuật ngữ tham khảo: [Thuật ngữ Rune (Tiếng Việt)](rune-glossary.vi.md).
+
 ---
 
 ## 1. Bản Đồ Lệnh Planning
@@ -131,7 +139,7 @@ Dùng checkbox để hỗ trợ verification/completion tracking.
 
 - [ ] API endpoint trả về đúng schema
 - [ ] Auth failure trả đúng status code
-- [ ] Unit + integration tests cover luồng chính và luồng lỗi
+- [ ] Unit + integration tests cover main flow và error flow
 ~~~
 
 ## 3.5 Plan Section Convention (bắt buộc khi có pseudocode)

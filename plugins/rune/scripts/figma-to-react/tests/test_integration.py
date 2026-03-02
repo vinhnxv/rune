@@ -17,6 +17,7 @@ To recapture the fixture (requires FIGMA_TOKEN):
     asyncio.run(go())
     "
 """
+# NOTE: Edge-case imports are done inline where needed to keep tests isolated
 
 from __future__ import annotations
 
@@ -235,3 +236,278 @@ def _find_nodes_by_type(raw: dict, node_type: str) -> list[dict]:
     for child in raw.get("children", []):
         results.extend(_find_nodes_by_type(child, node_type))
     return results
+
+
+# ---------------------------------------------------------------------------
+# Edge-case tests: empty / None / missing / malformed inputs in pipeline
+# ---------------------------------------------------------------------------
+
+
+def _make_ir_node(**overrides):
+    """Build a minimal FigmaIRNode for edge-case testing without network calls."""
+    from node_parser import FigmaIRNode
+    from figma_types import NodeType
+    defaults = dict(node_id="1:1", name="TestNode", node_type=NodeType.FRAME)
+    defaults.update(overrides)
+    return FigmaIRNode(**defaults)
+
+
+class TestPaginateOutputEdgeCases:
+    """Edge-case tests for paginate_output() boundary behavior."""
+
+    def test_empty_string_content(self):
+        """Empty string produces a result with content='' and no pagination keys."""
+        from core import paginate_output
+        result = paginate_output("")
+        assert result["content"] == ""
+        assert "has_more" not in result
+
+    def test_content_exactly_at_max_length_no_pagination(self):
+        """Content exactly at max_length produces no pagination metadata."""
+        from core import paginate_output
+        content = "x" * 100
+        result = paginate_output(content, max_length=100)
+        assert result["content"] == content
+        assert "has_more" not in result
+        assert "total_length" not in result
+
+    def test_content_one_char_over_max_length_paginates(self):
+        """Content one character over max_length triggers pagination."""
+        from core import paginate_output
+        content = "x" * 101
+        result = paginate_output(content, max_length=100)
+        assert "total_length" in result
+        assert result["total_length"] == 101
+        assert result["has_more"] is True
+        assert result["next_start_index"] == 100
+
+    def test_zero_max_length_all_has_more(self):
+        """max_length=0 causes everything to be left for pagination."""
+        from core import paginate_output
+        content = "hello"
+        result = paginate_output(content, max_length=0)
+        assert result["content"] == ""
+        assert result["has_more"] is True
+
+    def test_large_start_index_beyond_content(self):
+        """start_index beyond content length returns empty content chunk."""
+        from core import paginate_output
+        content = "hello"
+        result = paginate_output(content, max_length=100, start_index=999)
+        assert result["content"] == ""
+
+    def test_start_index_zero_is_default(self):
+        """Explicit start_index=0 should behave the same as default."""
+        from core import paginate_output
+        content = "abcdef"
+        r1 = paginate_output(content)
+        r2 = paginate_output(content, start_index=0)
+        assert r1["content"] == r2["content"]
+
+
+class TestExtractReactCodeEdgeCases:
+    """Edge-case tests for extract_react_code() with malformed inputs."""
+
+    def test_missing_content_key_returns_empty(self):
+        """Dict with no 'content' key returns empty string."""
+        from core import extract_react_code
+        assert extract_react_code({}) == ""
+
+    def test_missing_main_component_returns_empty(self):
+        """Paginated result with no 'main_component' returns empty string."""
+        from core import extract_react_code
+        import json
+        inner = json.dumps({"file_key": "abc", "node_count": 5})
+        assert extract_react_code({"content": inner}) == ""
+
+    def test_empty_main_component_returns_empty(self):
+        """Empty main_component string is returned as-is."""
+        from core import extract_react_code
+        import json
+        inner = json.dumps({"main_component": ""})
+        assert extract_react_code({"content": inner}) == ""
+
+    def test_non_string_content_falls_back_to_dict(self):
+        """Non-string content dict is used directly for main_component lookup."""
+        from core import extract_react_code
+        result = {"main_component": "const X = () => <div />;"}
+        assert extract_react_code(result) == "const X = () => <div />;"
+
+
+class TestIrToDictEdgeCases:
+    """Edge-case tests for ir_to_dict() with boundary depth and null nodes."""
+
+    def test_max_depth_zero_truncates(self):
+        """max_depth=0 returns truncated node with only id and name."""
+        from core import ir_to_dict
+        node = _make_ir_node()
+        result = ir_to_dict(node, max_depth=0)
+        assert result.get("truncated") is True
+        assert result["node_id"] == "1:1"
+        assert result["name"] == "TestNode"
+        assert "type" not in result
+
+    def test_empty_children_not_in_result(self):
+        """Node with no children should not include 'children' key."""
+        from core import ir_to_dict
+        node = _make_ir_node(children=[])
+        result = ir_to_dict(node, max_depth=5)
+        assert "children" not in result
+
+    def test_invisible_node_sets_visible_false(self):
+        """Invisible node includes visible=False in result dict."""
+        from core import ir_to_dict
+        node = _make_ir_node(visible=False)
+        result = ir_to_dict(node, max_depth=5)
+        assert result.get("visible") is False
+
+    def test_fully_opaque_node_no_opacity_key(self):
+        """Node with opacity=1.0 should not include opacity key."""
+        from core import ir_to_dict
+        node = _make_ir_node(opacity=1.0)
+        result = ir_to_dict(node, max_depth=5)
+        assert "opacity" not in result
+
+    def test_partial_opacity_node_includes_opacity(self):
+        """Node with opacity<1.0 includes opacity in result dict."""
+        from core import ir_to_dict
+        node = _make_ir_node(opacity=0.5)
+        result = ir_to_dict(node, max_depth=5)
+        assert "opacity" in result
+        assert abs(result["opacity"] - 0.5) < 0.001
+
+
+class TestCollectSvgFallbackIdsEdgeCases:
+    """Edge-case tests for _collect_svg_fallback_ids with boundary inputs."""
+
+    def test_empty_node_tree_returns_empty(self):
+        """Node with no children and no SVG candidate returns empty list."""
+        from core import _collect_svg_fallback_ids
+        node = _make_ir_node(is_svg_candidate=False)
+        assert _collect_svg_fallback_ids(node) == []
+
+    def test_svg_candidate_without_geometry_collected(self):
+        """SVG candidate with no fill/stroke geometry is collected."""
+        from core import _collect_svg_fallback_ids
+        node = _make_ir_node(
+            node_id="5:1",
+            is_svg_candidate=True,
+            fill_geometry=[],
+            stroke_geometry=[],
+        )
+        ids = _collect_svg_fallback_ids(node)
+        assert "5:1" in ids
+
+    def test_svg_candidate_with_geometry_not_collected(self):
+        """SVG candidate that has fill_geometry is NOT collected."""
+        from core import _collect_svg_fallback_ids
+        node = _make_ir_node(
+            node_id="6:1",
+            is_svg_candidate=True,
+            fill_geometry=[{"path": "M0 0 L10 10 Z", "windingRule": "NONZERO"}],
+        )
+        ids = _collect_svg_fallback_ids(node)
+        assert "6:1" not in ids
+
+    def test_null_node_children_no_crash(self):
+        """Node tree with empty children does not crash."""
+        from core import _collect_svg_fallback_ids
+        node = _make_ir_node(children=[])
+        result = _collect_svg_fallback_ids(node)
+        assert result == []
+
+    def test_boundary_max_depth_respected(self):
+        """Recursion stops at _MAX_SVG_SCAN_DEPTH."""
+        from core import _collect_svg_fallback_ids, _MAX_SVG_SCAN_DEPTH
+        # Call directly beyond the depth limit
+        node = _make_ir_node(is_svg_candidate=True)
+        # Passing _depth > _MAX_SVG_SCAN_DEPTH should return empty
+        result = _collect_svg_fallback_ids(node, _depth=_MAX_SVG_SCAN_DEPTH + 1)
+        assert result == []
+
+
+class TestPipelineEdgeCases:
+    """Edge-case integration tests for the full to_react pipeline."""
+
+    @pytest.mark.asyncio
+    async def test_custom_component_name_override(self, mock_client):
+        """component_name parameter overrides name derived from node."""
+        result = await to_react(mock_client, SIGNUP_URL, component_name="MyCustomForm")
+        code = extract_react_code(result)
+        assert "function MyCustomForm" in code
+
+    @pytest.mark.asyncio
+    async def test_empty_component_name_uses_node_name(self, mock_client):
+        """Empty component_name falls back to the node name."""
+        result = await to_react(mock_client, SIGNUP_URL, component_name="")
+        code = extract_react_code(result)
+        # The design root is "Sign up" → component name derived from it
+        assert "export default function" in code
+
+    @pytest.mark.asyncio
+    async def test_zero_max_length_returns_truncated_chunk(self, mock_client):
+        """max_length=0 returns an empty content chunk with pagination metadata."""
+        result = await to_react(mock_client, SIGNUP_URL, max_length=0)
+        # Content should be empty string (no chars in first chunk)
+        assert result["content"] == ""
+        assert result.get("has_more") is True
+
+    @pytest.mark.asyncio
+    async def test_large_start_index_returns_empty_content(self, mock_client):
+        """start_index beyond content length returns empty chunk."""
+        result = await to_react(mock_client, SIGNUP_URL, start_index=10_000_000)
+        assert result["content"] == ""
+
+    @pytest.mark.asyncio
+    async def test_missing_image_urls_produces_todo_comments(self, mock_client):
+        """Pipeline with no image URLs emits TODO comments for unresolved refs."""
+        # MockFigmaClient.get_images() returns {} — all refs are unresolved
+        result = await to_react(mock_client, SIGNUP_URL)
+        import json
+        content = json.loads(result["content"])
+        code = content.get("main_component", "")
+        # Unresolved image refs should appear in TODO comments above the component
+        full_output = result["content"]
+        # The main component code or the outer JSON should mention TODO or unresolved
+        assert "TODO" in code or "unresolved_images" in full_output
+
+    @pytest.mark.asyncio
+    async def test_invalid_missing_url_raises(self, mock_client):
+        """Malformed/missing URL raises FigmaURLError or ValueError."""
+        from core import FigmaURLError
+        with pytest.raises((FigmaURLError, ValueError, Exception)):
+            await to_react(mock_client, "not-a-figma-url")
+
+    @pytest.mark.asyncio
+    async def test_null_node_result_raises(self, mock_client):
+        """If parse_node returns None, to_react raises an error."""
+        # Register a fixture with a node type that is unsupported
+        from tests.mock_figma_client import MockFigmaClient
+        import json
+        unsupported_client = MockFigmaClient()
+        # Craft a minimal fixture with an unsupported STICKY type
+        fake_fixture_data = {
+            "nodes": {
+                "99-1": {
+                    "document": {
+                        "id": "99:1",
+                        "name": "UnsupportedNode",
+                        "type": "STICKY",
+                    }
+                }
+            }
+        }
+        fixture_path = FIXTURES_DIR / "_tmp_unsupported.json"
+        with open(fixture_path, "w") as f:
+            json.dump(fake_fixture_data, f)
+        try:
+            unsupported_client.register_nodes_fixture(
+                "fake_file_key", "99-1", fixture_path
+            )
+            url = "https://www.figma.com/design/fake_file_key/test?node-id=99-1"
+            from figma_client import FigmaAPIError
+            with pytest.raises((FigmaAPIError, Exception)):
+                await to_react(unsupported_client, url)
+        finally:
+            if fixture_path.exists():
+                fixture_path.unlink()

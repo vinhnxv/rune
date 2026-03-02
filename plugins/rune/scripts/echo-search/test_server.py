@@ -1523,40 +1523,21 @@ class TestPipelineSearch:
         conn = sqlite3.connect(":memory:")
         conn.row_factory = sqlite3.Row
         ensure_schema(conn)
+        _p = "/echoes/orchestrator/MEMORY.md"
+        _mk = lambda id, role, layer, date, src, content, tags, ln, fp: {
+            "id": id, "role": role, "layer": layer, "date": date,
+            "source": src, "content": content, "tags": tags,
+            "line_number": ln, "file_path": fp}
         entries = [
-            {
-                "id": "pipe-entry-001",
-                "role": "orchestrator",
-                "layer": "inscribed",
-                "date": "2026-02-20",
-                "source": "rune:appraise test",
-                "content": "Guard pattern for team lifecycle management ensures cleanup",
-                "tags": "lifecycle",
-                "line_number": 1,
-                "file_path": "/echoes/orchestrator/MEMORY.md",
-            },
-            {
-                "id": "pipe-entry-002",
-                "role": "reviewer",
-                "layer": "etched",
-                "date": "2026-02-21",
-                "source": "rune:audit session",
-                "content": "Security validation must always check inputs at system boundaries",
-                "tags": "security",
-                "line_number": 10,
-                "file_path": "/echoes/reviewer/MEMORY.md",
-            },
-            {
-                "id": "pipe-entry-003",
-                "role": "orchestrator",
-                "layer": "inscribed",
-                "date": "2026-02-22",
-                "source": "rune:strive work",
-                "content": "Team lifecycle cleanup prevents zombie processes and stale state",
-                "tags": "lifecycle cleanup",
-                "line_number": 5,
-                "file_path": "/echoes/orchestrator/MEMORY.md",
-            },
+            _mk("pipe-entry-001", "orchestrator", "inscribed", "2026-02-20",
+                "rune:appraise test", "Guard pattern for team lifecycle management ensures cleanup",
+                "lifecycle", 1, _p),
+            _mk("pipe-entry-002", "reviewer", "etched", "2026-02-21",
+                "rune:audit session", "Security validation must always check inputs at system boundaries",
+                "security", 10, "/echoes/reviewer/MEMORY.md"),
+            _mk("pipe-entry-003", "orchestrator", "inscribed", "2026-02-22",
+                "rune:strive work", "Team lifecycle cleanup prevents zombie processes and stale state",
+                "lifecycle cleanup", 5, _p),
         ]
         rebuild_index(conn, entries)
         return conn

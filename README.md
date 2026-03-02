@@ -110,7 +110,7 @@ Generate a `talisman.yml` tailored to your project's tech stack:
 /rune:talisman status    # Overview of current configuration health
 ```
 
-See the [Talisman deep dive](docs/guides/rune-talisman-deep-dive-guide.en.md) for all 23 configuration sections.
+See the [Talisman deep dive](docs/guides/rune-talisman-deep-dive-guide.en.md) for full configuration coverage.
 
 ---
 
@@ -499,7 +499,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 ## Configuration
 
-Rune is configured via `talisman.yml` (23 top-level sections, 100+ keys):
+Rune is configured via `talisman.yml` (dozens of top-level sections, 100+ keys):
 
 ```bash
 # Project-level (highest priority)
@@ -682,6 +682,7 @@ See the [Troubleshooting guide](docs/guides/rune-troubleshooting-and-optimizatio
 ## Links
 
 - [Detailed component reference](plugins/rune/README.md) — all agents, skills, commands, hooks
+- [Documentation hub](docs/README.md) — start here to choose the right user guide
 - [Rune user guide (English): arc + arc-batch](docs/guides/rune-arc-and-batch-guide.en.md) — operational guide with greenfield/brownfield use cases
 - [Hướng dẫn Rune (Tiếng Việt): arc + arc-batch](docs/guides/rune-arc-and-batch-guide.vi.md) — hướng dẫn vận hành kèm use case greenfield/brownfield
 - [Rune planning guide (English): devise + forge + plan-review + inspect](docs/guides/rune-planning-and-plan-quality-guide.en.md) — how to write and validate plan files correctly
@@ -694,8 +695,11 @@ See the [Troubleshooting guide](docs/guides/rune-troubleshooting-and-optimizatio
 - [Hướng dẫn workflow nâng cao Rune (Tiếng Việt): arc-hierarchy + arc-issues + echoes](docs/guides/rune-advanced-workflows-guide.vi.md) — thực thi phân cấp, batch GitHub Issues, và bộ nhớ agent
 - [Rune getting started guide (English)](docs/guides/rune-getting-started.en.md) — quick start for first-time users
 - [Hướng dẫn bắt đầu nhanh Rune (Tiếng Việt)](docs/guides/rune-getting-started.vi.md) — hướng dẫn nhanh cho người mới
-- [Rune talisman deep dive (English)](docs/guides/rune-talisman-deep-dive-guide.en.md) — master all 23 configuration sections
-- [Hướng dẫn talisman chuyên sâu Rune (Tiếng Việt)](docs/guides/rune-talisman-deep-dive-guide.vi.md) — làm chủ 21 section cấu hình
+- [Thuật ngữ Rune (Tiếng Việt)](docs/guides/rune-glossary.vi.md) — bảng giải thích thuật ngữ ngắn gọn
+- [Rune command reference (English)](docs/guides/rune-command-reference.en.md) — complete slash-command catalog by workflow
+- [Bảng tra lệnh Rune (Tiếng Việt)](docs/guides/rune-command-reference.vi.md) — danh mục đầy đủ lệnh slash theo workflow
+- [Rune talisman deep dive (English)](docs/guides/rune-talisman-deep-dive-guide.en.md) — full talisman configuration reference
+- [Hướng dẫn talisman chuyên sâu Rune (Tiếng Việt)](docs/guides/rune-talisman-deep-dive-guide.vi.md) — tham chiếu đầy đủ cấu hình talisman
 - [Rune custom agents and extensions (English)](docs/guides/rune-custom-agents-and-extensions-guide.en.md) — build custom Ashes, CLI-backed reviewers, Forge Gaze integration
 - [Hướng dẫn custom agent và mở rộng Rune (Tiếng Việt)](docs/guides/rune-custom-agents-and-extensions-guide.vi.md) — xây dựng custom Ash, CLI reviewer, tích hợp Forge Gaze
 - [Rune troubleshooting and optimization (English)](docs/guides/rune-troubleshooting-and-optimization-guide.en.md) — debug failures, reduce token cost, tune performance

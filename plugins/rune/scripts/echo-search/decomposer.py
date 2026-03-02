@@ -233,6 +233,66 @@ def _validate_facets(raw_output: str) -> Optional[List[str]]:
     return facets
 
 
+async def _spawn_claude_subprocess(prompt: str) -> asyncio.subprocess.Process:
+    """Spawn the claude CLI subprocess for query decomposition.
+
+    Args:
+        prompt: The full prompt string to pass via -p.
+
+    Returns:
+        Running asyncio subprocess.
+    """
+    return await asyncio.create_subprocess_exec(
+        "claude",
+        "--output-format", "json",
+        "-p", prompt,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+
+
+def _parse_subprocess_output(stdout_bytes: bytes, stderr_bytes: bytes, returncode: int) -> Optional[List[str]]:
+    """Parse claude CLI output bytes into validated facets.
+
+    Args:
+        stdout_bytes: Raw stdout from the subprocess.
+        stderr_bytes: Raw stderr from the subprocess.
+        returncode: Process exit code.
+
+    Returns:
+        Validated list of facet strings, or None on failure.
+    """
+    if returncode != 0:
+        logger.warning(
+            "Decompose subprocess failed (rc=%d): %s",
+            returncode,
+            stderr_bytes.decode("utf-8", errors="replace")[:200],
+        )
+        return None
+    raw = stdout_bytes.decode("utf-8", errors="replace")
+    # Parse JSON envelope: {"type":"result","result":"..."}
+    try:
+        envelope = json.loads(raw)
+        content = envelope["result"] if isinstance(envelope, dict) and "result" in envelope else raw
+    except (json.JSONDecodeError, ValueError):
+        content = raw
+    return _validate_facets(content)
+
+
+async def _kill_subprocess(proc: Optional[asyncio.subprocess.Process]) -> None:
+    """Kill and wait for an orphaned subprocess (EDGE-004).
+
+    Args:
+        proc: The subprocess to kill, or None (no-op).
+    """
+    if proc is not None:
+        try:
+            proc.kill()
+            await proc.wait()
+        except ProcessLookupError:
+            pass
+
+
 async def _run_decompose_subprocess(query: str) -> Optional[List[str]]:
     """Run the claude CLI to decompose a query into facets.
 
@@ -250,44 +310,15 @@ async def _run_decompose_subprocess(query: str) -> Optional[List[str]]:
     prompt = _DECOMPOSE_PROMPT.format(query=safe_query)
     proc: Optional[asyncio.subprocess.Process] = None
     try:
-        proc = await asyncio.create_subprocess_exec(
-            "claude",
-            "--output-format", "json",
-            "-p", prompt,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        proc = await _spawn_claude_subprocess(prompt)
         stdout_bytes, stderr_bytes = await asyncio.wait_for(
             proc.communicate(),
             timeout=DECOMPOSE_TIMEOUT_S,
         )
-        if proc.returncode != 0:
-            logger.warning(
-                "Decompose subprocess failed (rc=%d): %s",
-                proc.returncode,
-                stderr_bytes.decode("utf-8", errors="replace")[:200],
-            )
-            return None
-        raw = stdout_bytes.decode("utf-8", errors="replace")
-        # Parse JSON envelope: {"type":"result","result":"..."}
-        try:
-            envelope = json.loads(raw)
-            if isinstance(envelope, dict) and "result" in envelope:
-                content = envelope["result"]
-            else:
-                content = raw
-        except (json.JSONDecodeError, ValueError):
-            content = raw
-        return _validate_facets(content)
+        return _parse_subprocess_output(stdout_bytes, stderr_bytes, proc.returncode)
     except asyncio.TimeoutError:
         logger.warning("Decompose subprocess timed out (%.1fs)", DECOMPOSE_TIMEOUT_S)
-        # EDGE-004: kill orphaned process
-        if proc is not None:
-            try:
-                proc.kill()
-                await proc.wait()
-            except ProcessLookupError:
-                pass
+        await _kill_subprocess(proc)  # EDGE-004: kill orphaned process
         return None
     except (OSError, FileNotFoundError) as exc:
         logger.warning("Decompose subprocess error: %s", exc)

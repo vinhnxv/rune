@@ -34,94 +34,73 @@ def generate_id(role, line_number, file_path):
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
+_HEADER_RE = re.compile(
+    r"^##\s+(Inscribed|Etched|Traced|Notes|Observations)\s*[\u2014\-\u2013]+\s*(.+?)\s*\((\d{4}-\d{2}-\d{2})\)"
+)
+_SOURCE_RE = re.compile(r"^\*\*Source\*\*:\s*`?([^`\n]+)`?")
+
+
+def _flush_entry(current_entry, content_lines, entries, file_path):
+    """Flush a completed entry into the entries list."""
+    # type: (Optional[Dict], List[str], List[Dict], str) -> None
+    if current_entry is None:
+        return
+    current_entry["content"] = "\n".join(content_lines).strip()
+    if current_entry["content"]:
+        entries.append(current_entry)
+    else:
+        print("WARN: empty entry at %s:%d — skipped" % (file_path, current_entry["line_number"]), file=sys.stderr)
+
+
+def _make_entry(role, header_match, line_num, file_path):
+    """Create a new entry dict from a header match."""
+    # type: (str, re.Match, int, str) -> Dict
+    return {
+        "role": role,
+        "layer": header_match.group(1).lower(),
+        "date": header_match.group(3),
+        "source": "",
+        "content": "",
+        "tags": header_match.group(2).strip(),
+        "line_number": line_num,
+        "file_path": file_path,
+    }
+
+
 def parse_memory_file(file_path, role):
-    """Parse structured echo entries from a role-specific MEMORY.md file.
-
-    Detects all 5 echo tiers (Inscribed, Etched, Traced, Notes, Observations)
-    using stateful blank-line header detection (EDGE-018).
-
-    Args:
-        file_path: Absolute path to the MEMORY.md file.
-        role: Role name (e.g., ``"reviewer"``, ``"planner"``).
-
-    Returns:
-        List of parsed entry dicts, each with a generated ``id`` field.
-    """
+    """Parse structured echo entries from a role-specific MEMORY.md file."""
     # type: (str, str) -> List[Dict]
     entries = []  # type: List[Dict]
-
     if not os.path.isfile(file_path):
         return entries
 
     with open(file_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
-    # QUAL-008: Match all 5 echo tiers (Inscribed, Etched, Traced, Notes, Observations)
-    header_re = re.compile(
-        r"^##\s+(Inscribed|Etched|Traced|Notes|Observations)\s*[\u2014\-\u2013]+\s*(.+?)\s*\((\d{4}-\d{2}-\d{2})\)"
-    )
-    source_re = re.compile(r"^\*\*Source\*\*:\s*`?([^`\n]+)`?")
-
     current_entry = None  # type: Optional[Dict]
     content_lines = []  # type: List[str]
-    # EDGE-018: Only match tier headers when previous line was blank (or start of file).
-    # This prevents content H2 lines like "## Notes — inline note (2026-01-01)"
-    # from being misinterpreted as new entry boundaries.
-    prev_line_blank = True  # treat start-of-file as blank
+    prev_line_blank = True  # EDGE-018: treat start-of-file as blank
 
     for i, line in enumerate(lines):
-        line_num = i + 1  # 1-indexed
         stripped = line.rstrip("\n")
-
-        # EDGE-018: Only attempt header match after a blank line
-        header_match = header_re.match(stripped) if prev_line_blank else None
+        header_match = _HEADER_RE.match(stripped) if prev_line_blank else None
         if header_match:
-            # Save previous entry
-            if current_entry is not None:
-                current_entry["content"] = "\n".join(content_lines).strip()
-                if current_entry["content"]:
-                    entries.append(current_entry)
-                else:
-                    print("WARN: empty entry at %s:%d — skipped" % (file_path, current_entry["line_number"]), file=sys.stderr)
-
-            layer_name = header_match.group(1).lower()
-            title = header_match.group(2).strip()
-            date = header_match.group(3)
-
-            current_entry = {
-                "role": role,
-                "layer": layer_name,
-                "date": date,
-                "source": "",
-                "content": "",
-                "tags": title,
-                "line_number": line_num,
-                "file_path": file_path,
-            }
+            _flush_entry(current_entry, content_lines, entries, file_path)
+            current_entry = _make_entry(role, header_match, i + 1, file_path)
             content_lines = []
-            continue
-
+            continue  # preserve prev_line_blank for consecutive headers
         if current_entry is not None:
-            source_match = source_re.match(stripped)
+            source_match = _SOURCE_RE.match(stripped)
             if source_match and not current_entry["source"]:
                 current_entry["source"] = source_match.group(1).strip()
-                continue
-
+                continue  # source lines don't affect blank-line tracking
             content_lines.append(stripped)
-
-        # EDGE-018: Track blank lines for stateful header detection
         prev_line_blank = stripped.strip() == ""
 
-    # Flush last entry
-    if current_entry is not None:
-        current_entry["content"] = "\n".join(content_lines).strip()
-        if current_entry["content"]:
-            entries.append(current_entry)
+    _flush_entry(current_entry, content_lines, entries, file_path)
 
-    # Generate IDs
     for entry in entries:
         entry["id"] = generate_id(entry["role"], entry["line_number"], entry["file_path"])
-
     return entries
 
 

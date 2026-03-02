@@ -41,6 +41,72 @@ RESPONSE_SCHEMA_VERSION = 1
 # ---------------------------------------------------------------------------
 
 
+def _ir_geometry_and_visibility(node: FigmaIRNode, result: dict[str, Any]) -> None:
+    """Extract geometry dimensions and visibility into result dict."""
+    if node.width is not None or node.height is not None:
+        result["width"] = round(node.width or 0.0, 1)
+        result["height"] = round(node.height or 0.0, 1)
+
+    if not node.visible:
+        result["visible"] = False
+    if node.opacity < 1.0:
+        result["opacity"] = round(node.opacity, 3)
+
+
+def _ir_flags(node: FigmaIRNode, result: dict[str, Any]) -> None:
+    """Extract boolean flags into result dict."""
+    for flag_name in (
+        "is_frame_like", "is_svg_candidate", "is_icon_candidate",
+        "is_absolute_positioned", "has_auto_layout", "has_image_fill",
+    ):
+        val = getattr(node, flag_name, False)
+        if val:
+            result[flag_name] = True
+
+
+def _ir_auto_layout(node: FigmaIRNode, result: dict[str, Any]) -> None:
+    """Extract auto-layout and sizing properties into result dict."""
+    if node.has_auto_layout:
+        result["layout_mode"] = node.layout_mode.value
+        if node.item_spacing:
+            result["item_spacing"] = node.item_spacing
+        if node.primary_axis_align:
+            result["primary_axis_align"] = node.primary_axis_align.value
+        if node.counter_axis_align:
+            result["counter_axis_align"] = node.counter_axis_align.value
+        if any(p > 0 for p in node.padding):
+            result["padding"] = node.padding
+
+    if node.layout_sizing_horizontal:
+        result["layout_sizing_horizontal"] = node.layout_sizing_horizontal.value
+    if node.layout_sizing_vertical:
+        result["layout_sizing_vertical"] = node.layout_sizing_vertical.value
+
+    if node.corner_radius:
+        result["corner_radius"] = node.corner_radius
+    if node.corner_radii:
+        result["corner_radii"] = node.corner_radii
+
+
+def _ir_text_and_refs(node: FigmaIRNode, result: dict[str, Any]) -> None:
+    """Extract text content, component/image refs, and SVG geometry counts."""
+    if node.text_content is not None:
+        result["text_content"] = node.text_content
+        if node.text_style and node.text_style.font_family:
+            result["font_family"] = node.text_style.font_family
+            if node.text_style.font_size:
+                result["font_size"] = node.text_style.font_size
+
+    if node.component_id:
+        result["component_id"] = node.component_id
+    if node.image_ref:
+        result["image_ref"] = node.image_ref
+    if node.fill_geometry:
+        result["fill_geometry_count"] = len(node.fill_geometry)
+    if node.stroke_geometry:
+        result["stroke_geometry_count"] = len(node.stroke_geometry)
+
+
 def ir_to_dict(node: FigmaIRNode, max_depth: int = 20) -> dict[str, Any]:
     """Convert an IR node tree to a JSON-serializable dict.
 
@@ -57,71 +123,10 @@ def ir_to_dict(node: FigmaIRNode, max_depth: int = 20) -> dict[str, Any]:
         "unique_name": node.unique_name,
     }
 
-    # Geometry
-    if node.width is not None or node.height is not None:
-        result["width"] = round(node.width or 0.0, 1)
-        result["height"] = round(node.height or 0.0, 1)
-
-    # Visibility
-    if not node.visible:
-        result["visible"] = False
-    if node.opacity < 1.0:
-        result["opacity"] = round(node.opacity, 3)
-
-    # Flags
-    for flag_name in (
-        "is_frame_like", "is_svg_candidate", "is_icon_candidate",
-        "is_absolute_positioned", "has_auto_layout", "has_image_fill",
-    ):
-        val = getattr(node, flag_name, False)
-        if val:
-            result[flag_name] = True
-
-    # Auto-layout
-    if node.has_auto_layout:
-        result["layout_mode"] = node.layout_mode.value
-        if node.item_spacing:
-            result["item_spacing"] = node.item_spacing
-        if node.primary_axis_align:
-            result["primary_axis_align"] = node.primary_axis_align.value
-        if node.counter_axis_align:
-            result["counter_axis_align"] = node.counter_axis_align.value
-        if any(p > 0 for p in node.padding):
-            result["padding"] = node.padding
-
-    # Sizing
-    if node.layout_sizing_horizontal:
-        result["layout_sizing_horizontal"] = node.layout_sizing_horizontal.value
-    if node.layout_sizing_vertical:
-        result["layout_sizing_vertical"] = node.layout_sizing_vertical.value
-
-    # Corner radius
-    if node.corner_radius:
-        result["corner_radius"] = node.corner_radius
-    if node.corner_radii:
-        result["corner_radii"] = node.corner_radii
-
-    # Text
-    if node.text_content is not None:
-        result["text_content"] = node.text_content
-        if node.text_style and node.text_style.font_family:
-            result["font_family"] = node.text_style.font_family
-            if node.text_style.font_size:
-                result["font_size"] = node.text_style.font_size
-
-    # Component
-    if node.component_id:
-        result["component_id"] = node.component_id
-
-    # Image
-    if node.image_ref:
-        result["image_ref"] = node.image_ref
-
-    # SVG geometry
-    if node.fill_geometry:
-        result["fill_geometry_count"] = len(node.fill_geometry)
-    if node.stroke_geometry:
-        result["stroke_geometry_count"] = len(node.stroke_geometry)
+    _ir_geometry_and_visibility(node, result)
+    _ir_flags(node, result)
+    _ir_auto_layout(node, result)
+    _ir_text_and_refs(node, result)
 
     # Children
     if node.children:
@@ -221,23 +226,9 @@ async def _get_images_with_retry(
 ) -> dict[str, str]:
     """Call client.get_images with exponential backoff on transient failures.
 
-    BACK-005: The Figma Images API is rate-limited and occasionally returns
-    transient 5xx errors. A single failure silently degrades all image fills
-    to placeholders. Retry with exponential backoff gives transient errors
-    a chance to recover.
-
-    Args:
-        client: Figma API client.
-        file_key: Figma file key.
-        ids: Node IDs to resolve image URLs for.
-        max_retries: Maximum number of retry attempts.
-        **kwargs: Additional arguments passed to get_images (format, scale).
-
-    Returns:
-        Dict mapping node IDs to image URLs.
-
-    Raises:
-        FigmaAPIError: If all retry attempts fail.
+    BACK-005: Retry with backoff so transient 5xx errors don't silently
+    degrade all image fills to placeholders.
+    Raises FigmaAPIError if all retry attempts fail.
     """
     for attempt in range(max_retries):
         try:
@@ -291,6 +282,44 @@ def extract_sub_components(
 # ---------------------------------------------------------------------------
 
 
+async def _fetch_single_node(
+    client: FigmaClient, file_key: str, node_id: str, branch_key: str | None,
+) -> dict[str, Any]:
+    """Fetch a single Figma node and return its raw document dict."""
+    response_data = await client.get_nodes(
+        file_key, [node_id], branch_key=branch_key
+    )
+    # Extract raw dict directly — avoids Pydantic extra="ignore"
+    # stripping type-specific fields (characters, layoutMode, etc.)
+    node_data = response_data.get("nodes", {}).get(node_id)
+    if node_data is None:
+        raise FigmaAPIError(
+            f"Node '{node_id}' not found in file '{file_key}'. "
+            f"Verify the node ID is correct."
+        )
+    document = node_data.get("document")
+    if document is None:
+        raise FigmaAPIError(f"Node '{node_id}' has no document data.")
+    return document
+
+
+async def _fetch_full_file(
+    client: FigmaClient, file_key: str, branch_key: str | None, depth: int,
+) -> dict[str, Any]:
+    """Fetch a full Figma file and return its raw document dict."""
+    response_data = await client.get_file(
+        file_key, depth=depth, branch_key=branch_key
+    )
+    # Extract raw dict directly — same reason as _fetch_single_node
+    document = response_data.get("document")
+    if document is None:
+        raise FigmaAPIError(
+            f"File '{file_key}' returned no document. "
+            f"The file may be empty or access may be restricted."
+        )
+    return document
+
+
 async def _fetch_node_or_file(
     client: FigmaClient,
     file_key: str,
@@ -303,35 +332,8 @@ async def _fetch_node_or_file(
     Shared logic for fetch_design, inspect_node, list_components, to_react.
     """
     if node_id:
-        response_data = await client.get_nodes(
-            file_key, [node_id], branch_key=branch_key
-        )
-        # Extract raw dict directly — avoids Pydantic extra="ignore"
-        # stripping type-specific fields (characters, layoutMode, etc.)
-        node_data = response_data.get("nodes", {}).get(node_id)
-        if node_data is None:
-            raise FigmaAPIError(
-                f"Node '{node_id}' not found in file '{file_key}'. "
-                f"Verify the node ID is correct."
-            )
-        document = node_data.get("document")
-        if document is None:
-            raise FigmaAPIError(
-                f"Node '{node_id}' has no document data."
-            )
-        return document
-    else:
-        response_data = await client.get_file(
-            file_key, depth=depth, branch_key=branch_key
-        )
-        # Extract raw dict directly — same reason as above
-        document = response_data.get("document")
-        if document is None:
-            raise FigmaAPIError(
-                f"File '{file_key}' returned no document. "
-                f"The file may be empty or access may be restricted."
-            )
-        return document
+        return await _fetch_single_node(client, file_key, node_id, branch_key)
+    return await _fetch_full_file(client, file_key, branch_key, depth)
 
 
 def _parse_url(url: str) -> tuple[str, str | None, str | None]:
@@ -376,32 +378,10 @@ async def fetch_design(
     return paginate_output(content, max_length=max_length, start_index=start_index)
 
 
-async def inspect_node(
-    client: FigmaClient,
-    url: str,
-) -> dict[str, Any]:
-    """Inspect detailed properties of a specific Figma node.
-
-    Requires a URL with ?node-id=... parameter.
-    """
-    file_key, node_id, branch_key = _parse_url(url)
-    if not node_id:
-        raise ValueError(
-            "URL must include a node-id query parameter "
-            "(e.g., ?node-id=1-3). Use `list` to find node IDs."
-        )
-
-    raw_doc = await _fetch_node_or_file(client, file_key, node_id, branch_key)
-
-    ir_node = parse_node(raw_doc)
-    if ir_node is None:
-        raise FigmaAPIError(
-            f"Node '{node_id}' has an unsupported type and cannot be inspected."
-        )
-
-    detail = ir_to_dict(ir_node, max_depth=3)
-
-    # Add fills/strokes/effects detail
+def _enrich_detail_with_paints(
+    ir_node: FigmaIRNode, detail: dict[str, Any],
+) -> None:
+    """Add fills/strokes/effects detail to an inspect_node result dict."""
     if ir_node.fills:
         detail["fills"] = [
             {
@@ -434,24 +414,40 @@ async def inspect_node(
             for e in ir_node.effects
         ]
 
-    return detail
 
-
-async def list_components(
+async def inspect_node(
     client: FigmaClient,
     url: str,
 ) -> dict[str, Any]:
-    """List all components and component instances in a Figma file."""
+    """Inspect detailed properties of a specific Figma node.
+
+    Requires a URL with ?node-id=... parameter.
+    """
     file_key, node_id, branch_key = _parse_url(url)
+    if not node_id:
+        raise ValueError(
+            "URL must include a node-id query parameter "
+            "(e.g., ?node-id=1-3). Use `list` to find node IDs."
+        )
 
-    raw_doc = await _fetch_node_or_file(client, file_key, node_id, branch_key, depth=2)
+    raw_doc = await _fetch_node_or_file(client, file_key, node_id, branch_key)
 
-    ir_root = parse_node(raw_doc)
-    if ir_root is None:
-        raise FigmaAPIError("No supported nodes found in the design.")
+    ir_node = parse_node(raw_doc)
+    if ir_node is None:
+        raise FigmaAPIError(
+            f"Node '{node_id}' has an unsupported type and cannot be inspected."
+        )
 
-    all_nodes = walk_tree(ir_root)
+    detail = ir_to_dict(ir_node, max_depth=3)
+    _enrich_detail_with_paints(ir_node, detail)
 
+    return detail
+
+
+def _classify_nodes(
+    all_nodes: list[FigmaIRNode],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, list[str]]]:
+    """Classify IR nodes into components, instances, and instance-by-component map."""
     components: list[dict[str, Any]] = []
     instances: list[dict[str, Any]] = []
     instance_by_component: dict[str, list[str]] = {}
@@ -473,7 +469,13 @@ async def list_components(
                 instance_by_component.setdefault(n.component_id, []).append(n.node_id)
             instances.append(entry)
 
-    # Detect duplicate instances
+    return components, instances, instance_by_component
+
+
+def _detect_duplicate_instances(
+    instance_by_component: dict[str, list[str]],
+) -> list[dict[str, Any]]:
+    """Detect components with more than one instance."""
     duplicates: list[dict[str, Any]] = []
     for comp_id, inst_ids in instance_by_component.items():
         if len(inst_ids) > 1:
@@ -482,6 +484,25 @@ async def list_components(
                 "instance_count": len(inst_ids),
                 "instance_node_ids": inst_ids,
             })
+    return duplicates
+
+
+async def list_components(
+    client: FigmaClient,
+    url: str,
+) -> dict[str, Any]:
+    """List all components and component instances in a Figma file."""
+    file_key, node_id, branch_key = _parse_url(url)
+
+    raw_doc = await _fetch_node_or_file(client, file_key, node_id, branch_key, depth=2)
+
+    ir_root = parse_node(raw_doc)
+    if ir_root is None:
+        raise FigmaAPIError("No supported nodes found in the design.")
+
+    all_nodes = walk_tree(ir_root)
+    components, instances, instance_by_component = _classify_nodes(all_nodes)
+    duplicates = _detect_duplicate_instances(instance_by_component)
 
     output: dict[str, Any] = {
         "schema_version": RESPONSE_SCHEMA_VERSION,
@@ -493,6 +514,81 @@ async def list_components(
     }
     if duplicates:
         output["duplicate_instances"] = duplicates
+
+    return output
+
+
+async def _resolve_image_urls(
+    client: FigmaClient, file_key: str, ir_root: FigmaIRNode,
+) -> tuple[list[str], dict[str, str]]:
+    """Collect image refs and resolve them to URLs via the Figma Images API."""
+    image_refs = collect_image_refs(ir_root)
+    image_urls: dict[str, str] = {}
+
+    if image_refs:
+        try:
+            image_urls = await _get_images_with_retry(
+                client, file_key, list(image_refs),
+            )
+        except FigmaAPIError:
+            logger.warning("Failed to resolve image URLs — using placeholders")
+
+    return image_refs, image_urls
+
+
+async def _resolve_svg_fallback_urls(
+    client: FigmaClient, file_key: str, ir_root: FigmaIRNode,
+) -> dict[str, str]:
+    """Collect SVG fallback IDs and resolve them to export URLs."""
+    svg_fallback_ids = _collect_svg_fallback_ids(ir_root)
+    svg_urls: dict[str, str] = {}
+
+    if svg_fallback_ids:
+        # Validate format (WS-4) and clamp scale (WS-9) before calling API
+        export_format = "svg"
+        if export_format not in _VALID_IMAGE_FORMATS:
+            export_format = "svg"
+        export_scale = max(0.01, min(4.0, 1.0))  # scale=1.0 for SVG
+        try:
+            raw_svg_urls = await _get_images_with_retry(
+                client, file_key, svg_fallback_ids,
+                format=export_format,
+                scale=export_scale,
+            )
+            # Filter out None values — failed exports return None
+            svg_urls = {k: v for k, v in raw_svg_urls.items() if v is not None}
+        except FigmaAPIError:
+            logger.warning("Failed to resolve SVG export URLs — using placeholders")
+
+    return svg_urls
+
+
+def _build_react_output(
+    file_key: str,
+    ir_root: FigmaIRNode,
+    main_code: str,
+    image_refs: list[str],
+    image_urls: dict[str, str],
+    svg_urls: dict[str, str],
+    extract_components: bool,
+    aria: bool,
+) -> dict[str, Any]:
+    """Build the to_react output dict with optional sub-components."""
+    output: dict[str, Any] = {
+        "schema_version": RESPONSE_SCHEMA_VERSION,
+        "file_key": file_key,
+        "node_count": count_nodes(ir_root),
+        "main_component": main_code,
+    }
+
+    if extract_components:
+        sub = extract_sub_components(ir_root, image_urls, svg_urls=svg_urls, aria=aria)
+        if sub:
+            output["extracted_components"] = sub
+
+    unresolved = [ref for ref in image_refs if ref not in image_urls]
+    if unresolved:
+        output["unresolved_images"] = unresolved
 
     return output
 
@@ -511,87 +607,28 @@ async def to_react(
 
     End-to-end pipeline: URL parsing -> Figma API fetch -> node parsing ->
     style extraction -> layout resolution -> React JSX generation.
-
-    Args:
-        client: Figma API client.
-        url: Full Figma URL.
-        component_name: Override component name.
-        use_tailwind: Generate Tailwind CSS classes.
-        extract_components: Extract repeated instances as components.
-        aria: When True, emit ARIA accessibility attributes.
-        max_length: Max response characters for pagination.
-        start_index: Pagination offset.
     """
     file_key, node_id, branch_key = _parse_url(url)
 
     # Use depth=3 for react generation (need more detail)
-    depth = 3
-    raw_doc = await _fetch_node_or_file(client, file_key, node_id, branch_key, depth)
+    raw_doc = await _fetch_node_or_file(client, file_key, node_id, branch_key, 3)
 
     ir_root = parse_node(raw_doc)
     if ir_root is None:
         raise FigmaAPIError("Failed to parse design — no supported nodes found.")
 
-    # Collect image refs for resolution
-    image_refs = collect_image_refs(ir_root)
-    image_urls: dict[str, str] = {}
+    image_refs, image_urls = await _resolve_image_urls(client, file_key, ir_root)
+    svg_urls = await _resolve_svg_fallback_urls(client, file_key, ir_root)
 
-    if image_refs:
-        try:
-            image_urls = await _get_images_with_retry(
-                client, file_key, list(image_refs),
-            )
-        except FigmaAPIError:
-            logger.warning("Failed to resolve image URLs — using placeholders")
-
-    # Collect SVG fallback IDs for nodes with no geometry (export as SVG via Images API)
-    svg_fallback_ids = _collect_svg_fallback_ids(ir_root)
-    svg_urls: dict[str, str] = {}
-
-    if svg_fallback_ids:
-        # Validate format (WS-4) and clamp scale (WS-9) before calling API
-        export_format = "svg"
-        if export_format not in _VALID_IMAGE_FORMATS:
-            export_format = "svg"
-        export_scale = max(0.01, min(4.0, 1.0))  # scale=1.0 for SVG (scale has no effect on SVG)
-        try:
-            raw_svg_urls = await _get_images_with_retry(
-                client, file_key, svg_fallback_ids,
-                format=export_format,
-                scale=export_scale,
-            )
-            # Filter out None values — failed exports return None in the API response
-            svg_urls = {k: v for k, v in raw_svg_urls.items() if v is not None}
-        except FigmaAPIError:
-            logger.warning("Failed to resolve SVG export URLs — using placeholders")
-
-    # Generate main component
     name = component_name if component_name else None
     main_code = generate_component(
-        ir_root,
-        component_name=name,
-        image_urls=image_urls,
-        svg_urls=svg_urls,
-        aria=aria,
+        ir_root, component_name=name,
+        image_urls=image_urls, svg_urls=svg_urls, aria=aria,
     )
 
-    output: dict[str, Any] = {
-        "schema_version": RESPONSE_SCHEMA_VERSION,
-        "file_key": file_key,
-        "node_count": count_nodes(ir_root),
-        "main_component": main_code,
-    }
-
-    # Extract sub-components from repeated instances
-    if extract_components:
-        sub = extract_sub_components(ir_root, image_urls, svg_urls=svg_urls, aria=aria)
-        if sub:
-            output["extracted_components"] = sub
-
-    # Unresolved images info
-    unresolved = [ref for ref in image_refs if ref not in image_urls]
-    if unresolved:
-        output["unresolved_images"] = unresolved
-
+    output = _build_react_output(
+        file_key, ir_root, main_code, image_refs, image_urls,
+        svg_urls, extract_components, aria,
+    )
     content = json.dumps(output, indent=2)
     return paginate_output(content, max_length=max_length, start_index=start_index)

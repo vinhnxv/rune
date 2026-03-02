@@ -191,6 +191,48 @@ async def figma_list_components(
         raise _handle_figma_error(exc) from exc
 
 
+async def _run_to_react(
+    client: FigmaClient,
+    url: str,
+    component_name: str,
+    use_tailwind: bool,
+    extract_components: bool,
+    aria: bool,
+    max_length: int,
+    start_index: int,
+) -> str:
+    """Invoke core.to_react and return JSON-serialized result.
+
+    Args:
+        client: Shared FigmaClient instance.
+        url: Full Figma URL.
+        component_name: Override component name (empty = auto-detect).
+        use_tailwind: Whether to emit Tailwind CSS classes.
+        extract_components: Extract repeated instances as sub-components.
+        aria: Add ARIA attributes to JSX.
+        max_length: Max response characters.
+        start_index: Pagination offset.
+
+    Returns:
+        JSON string with generated React code and metadata.
+
+    Raises:
+        FigmaURLError: If the URL cannot be parsed.
+        FigmaAPIError: If the Figma API call fails.
+    """
+    result = await core.to_react(
+        client,
+        url,
+        component_name=component_name,
+        use_tailwind=use_tailwind,
+        extract_components=extract_components,
+        aria=aria,
+        max_length=max_length,
+        start_index=start_index,
+    )
+    return json.dumps(result)
+
+
 @mcp.tool()
 async def figma_to_react(
     url: str,
@@ -206,18 +248,15 @@ async def figma_to_react(
 
     End-to-end pipeline: URL parsing -> Figma API fetch -> node parsing ->
     style extraction -> layout resolution -> React JSX generation.
-
-    If extract_components is True, detects repeated INSTANCE nodes pointing
-    to the same COMPONENT ID and generates separate components for them.
+    See _run_to_react for full parameter docs.
 
     Args:
         url: Full Figma URL (must include node-id for specific component).
         ctx: MCP tool context (injected by FastMCP).
-        component_name: Override the React component name. If empty,
-            auto-detected from the Figma node name.
+        component_name: Override React component name (empty = auto-detect).
         use_tailwind: Generate Tailwind CSS classes (default True).
-        extract_components: Extract repeated instances as separate components.
-        aria: Add ARIA accessibility attributes to generated JSX (default False).
+        extract_components: Extract repeated instances as sub-components.
+        aria: Add ARIA accessibility attributes to generated JSX.
         max_length: Max response characters (default 50000).
         start_index: Pagination offset (default 0).
 
@@ -226,17 +265,10 @@ async def figma_to_react(
     """
     client = _get_client(ctx)
     try:
-        result = await core.to_react(
-            client,
-            url,
-            component_name=component_name,
-            use_tailwind=use_tailwind,
-            extract_components=extract_components,
-            aria=aria,
-            max_length=max_length,
-            start_index=start_index,
+        return await _run_to_react(
+            client, url, component_name, use_tailwind,
+            extract_components, aria, max_length, start_index,
         )
-        return json.dumps(result)
     except FigmaURLError as exc:
         raise ToolError(str(exc)) from exc
     except FigmaAPIError as exc:

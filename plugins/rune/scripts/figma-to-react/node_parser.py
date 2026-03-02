@@ -324,6 +324,60 @@ class _NameDeduplicator:
 # ---------------------------------------------------------------------------
 
 
+def _resolve_override_style(
+    override_idx: int,
+    base_style: Optional[TypeStyle],
+    override_table: Dict[str, TypeStyle],
+) -> Optional[TypeStyle]:
+    """Resolve the effective style for a character override index.
+
+    Index 0 means "use the base style". Non-zero indices look up the
+    override table, falling back to the base style if missing.
+
+    Args:
+        override_idx: Character style override index.
+        base_style: Default TypeStyle for the text node.
+        override_table: Map of override index (as string) to TypeStyle.
+
+    Returns:
+        Resolved TypeStyle for the given override index.
+    """
+    if override_idx == 0:
+        return base_style
+    return override_table.get(str(override_idx), base_style)
+
+
+def _build_override_segments(
+    characters: str,
+    base_style: Optional[TypeStyle],
+    overrides: List[int],
+    override_table: Dict[str, TypeStyle],
+) -> List[StyledTextSegment]:
+    """Build styled text segments from per-character override indices."""
+    segments: List[StyledTextSegment] = []
+    effective_overrides = overrides[:len(characters)]
+    current_idx: int = effective_overrides[0]
+    start: int = 0
+
+    for i, char_override in enumerate(effective_overrides):
+        if char_override != current_idx:
+            style = _resolve_override_style(current_idx, base_style, override_table)
+            segments.append(StyledTextSegment(
+                text=characters[start:i], style=style, start=start, end=i,
+            ))
+            current_idx = char_override
+            start = i
+
+    remaining_text = characters[start:]
+    if remaining_text:
+        style = _resolve_override_style(current_idx, base_style, override_table)
+        segments.append(StyledTextSegment(
+            text=remaining_text, style=style, start=start, end=len(characters),
+        ))
+
+    return segments
+
+
 def merge_text_segments(
     characters: str,
     base_style: Optional[TypeStyle],
@@ -352,55 +406,12 @@ def merge_text_segments(
     if not overrides or not override_table:
         return [
             StyledTextSegment(
-                text=characters,
-                style=base_style,
-                start=0,
-                end=len(characters),
+                text=characters, style=base_style,
+                start=0, end=len(characters),
             )
         ]
 
-    segments: List[StyledTextSegment] = []
-    effective_overrides = overrides[:len(characters)]
-    current_idx: int = effective_overrides[0]
-    start: int = 0
-
-    for i, char_override in enumerate(effective_overrides):
-        if char_override != current_idx:
-            # Flush segment
-            style = (
-                override_table.get(str(current_idx), base_style)
-                if current_idx != 0
-                else base_style
-            )
-            segments.append(
-                StyledTextSegment(
-                    text=characters[start:i],
-                    style=style,
-                    start=start,
-                    end=i,
-                )
-            )
-            current_idx = char_override
-            start = i
-
-    # Flush final segment (covers remaining characters beyond overrides)
-    remaining_text = characters[start:]
-    if remaining_text:
-        style = (
-            override_table.get(str(current_idx), base_style)
-            if current_idx != 0
-            else base_style
-        )
-        segments.append(
-            StyledTextSegment(
-                text=remaining_text,
-                style=style,
-                start=start,
-                end=len(characters),
-            )
-        )
-
-    return segments
+    return _build_override_segments(characters, base_style, overrides, override_table)
 
 
 # ---------------------------------------------------------------------------
@@ -542,6 +553,40 @@ _MAX_PARSE_DEPTH = 100  # BACK-P3-004: Guard against pathological nesting
 _MAX_COLLECT_DEPTH = 10  # Depth ceiling for child geometry collection
 
 
+def _extract_geometry_from_child(
+    child: Dict[str, Any],
+    fill_result: List[Dict[str, Any]],
+    stroke_result: List[Dict[str, Any]],
+    _depth: int,
+) -> None:
+    """Extract fill/stroke geometry from a single child node.
+
+    Appends geometry data to *fill_result* and *stroke_result* in place.
+    If the child has no own geometry and is a vector or frame-like type,
+    recurses into its children.
+
+    Args:
+        child: Raw child node dict.
+        fill_result: Accumulator for fill geometry paths.
+        stroke_result: Accumulator for stroke geometry paths.
+        _depth: Current recursion depth.
+    """
+    child_type = child.get("type", "")
+    fill_geo = child.get("fillGeometry")
+    stroke_geo = child.get("strokeGeometry")
+    if fill_geo and isinstance(fill_geo, list):
+        fill_result.extend(fill_geo)
+    if stroke_geo and isinstance(stroke_geo, list):
+        stroke_result.extend(stroke_geo)
+    if not fill_geo and not stroke_geo:
+        if child_type in _VECTOR_TYPES or child_type in _FRAME_LIKE_TYPES:
+            sub_children = child.get("children", [])
+            if sub_children:
+                sub_fill, sub_stroke = _collect_child_geometry(sub_children, _depth + 1)
+                fill_result.extend(sub_fill)
+                stroke_result.extend(sub_stroke)
+
+
 def _collect_child_geometry(
     children: List[Dict[str, Any]],
     _depth: int = 0,
@@ -565,114 +610,71 @@ def _collect_child_geometry(
     fill_result: List[Dict[str, Any]] = []
     stroke_result: List[Dict[str, Any]] = []
     for child in children:
-        if not isinstance(child, dict):
-            continue
-        child_type = child.get("type", "")
-        fill_geo = child.get("fillGeometry")
-        stroke_geo = child.get("strokeGeometry")
-        if fill_geo and isinstance(fill_geo, list):
-            fill_result.extend(fill_geo)
-        if stroke_geo and isinstance(stroke_geo, list):
-            stroke_result.extend(stroke_geo)
-        if not fill_geo and not stroke_geo:
-            if child_type in _VECTOR_TYPES or child_type in _FRAME_LIKE_TYPES:
-                # Recurse into nested groups / boolean ops
-                sub_children = child.get("children", [])
-                if sub_children:
-                    sub_fill, sub_stroke = _collect_child_geometry(sub_children, _depth + 1)
-                    fill_result.extend(sub_fill)
-                    stroke_result.extend(sub_stroke)
+        if isinstance(child, dict):
+            _extract_geometry_from_child(child, fill_result, stroke_result, _depth)
     return fill_result, stroke_result
 
 
-def parse_node(
-    raw: Dict[str, Any],
-    parent_rotation: float = 0.0,
-    deduplicator: Optional[_NameDeduplicator] = None,
-    _depth: int = 0,
-) -> Optional[FigmaIRNode]:
-    """Parse a raw Figma API node dict into an IR node.
+def _resolve_node_type(
+    node_type_str: str, node_name: str, has_children: bool,
+) -> Optional[NodeType]:
+    """Resolve a Figma type string to a NodeType enum value.
 
-    Recursively processes the node tree, applying transformations:
-    - GROUP nodes are treated as FRAME-like containers
-    - BOOLEAN_OPERATION nodes are marked as SVG candidates
-    - TEXT nodes get their styled segments merged
-    - Icon candidates are detected
-    - Unsupported types are skipped with a debug log
+    Unknown types with children are treated as FRAME. Unknown leaf
+    types return None (caller should skip the node).
 
     Args:
-        raw: Raw Figma API node dictionary.
-        parent_rotation: Accumulated rotation from ancestor nodes.
-        deduplicator: Name deduplication tracker. Created automatically
-            for the root call.
-        _depth: Internal recursion depth counter.
+        node_type_str: Raw type string from the Figma API.
+        node_name: Node name for debug logging.
+        has_children: Whether the node has child nodes.
 
     Returns:
-        Parsed FigmaIRNode, or None if the node type is unsupported.
+        Resolved NodeType, or None if the type is unknown and has no children.
     """
-    if _depth > _MAX_PARSE_DEPTH:
-        logger.warning("Max parse depth (%d) exceeded, skipping subtree", _MAX_PARSE_DEPTH)
-        return None
-    if not isinstance(raw, dict):
-        logger.debug("parse_node received non-dict argument: %r", type(raw))
-        return None
-
-    if deduplicator is None:
-        deduplicator = _NameDeduplicator()
-
-    node_type_str = raw.get("type", "")
-    node_id = raw.get("id", "")
-    node_name = raw.get("name", "")
-
-    # Skip unsupported types
-    if node_type_str in _UNSUPPORTED_TYPES:
-        logger.debug("Skipping unsupported node type %s: %s", node_type_str, node_name)
-        return None
-
-    # Parse the raw dict into a Pydantic model for validated access
-    pydantic_node = _parse_pydantic_node(raw, node_type_str)
-
-    # Resolve node type enum
     try:
-        node_type = NodeType(node_type_str)
+        return NodeType(node_type_str)
     except ValueError:
-        # Unknown type -- treat as generic frame if it has children
-        if raw.get("children"):
-            node_type = NodeType.FRAME
+        if has_children:
             logger.debug(
-                "Unknown node type %s (%s) -- treating as FRAME", node_type_str, node_name
+                "Unknown node type %s (%s) -- treating as FRAME",
+                node_type_str, node_name,
             )
-        else:
-            logger.debug("Skipping unknown leaf node type %s: %s", node_type_str, node_name)
-            return None
+            return NodeType.FRAME
+        logger.debug("Skipping unknown leaf node type %s: %s", node_type_str, node_name)
+        return None
 
-    # Extract geometry
+
+def _extract_bbox_geometry(pydantic_node: FigmaNodeBase) -> Tuple[float, float, float, float]:
+    """Extract width, height, x, y from bounding box (defaulting to 0.0)."""
     bbox = pydantic_node.absolute_bounding_box
-    width = bbox.width if bbox else 0.0
-    height = bbox.height if bbox else 0.0
-    x = bbox.x if bbox else 0.0
-    y = bbox.y if bbox else 0.0
+    if bbox:
+        return bbox.width, bbox.height, bbox.x, bbox.y
+    return 0.0, 0.0, 0.0, 0.0
 
-    rotation = pydantic_node.rotation or 0.0
-    cumulative_rotation = parent_rotation + rotation
 
-    # Detect image fills
+def _build_ir_node(
+    raw: Dict[str, Any],
+    node_type: NodeType,
+    node_type_str: str,
+    pydantic_node: FigmaNodeBase,
+    parent_rotation: float,
+    deduplicator: _NameDeduplicator,
+) -> FigmaIRNode:
+    """Construct the base FigmaIRNode from parsed data."""
+    width, height, x, y = _extract_bbox_geometry(pydantic_node)
     has_image_fill, image_ref = _detect_image_fill(pydantic_node.fills)
+    rotation = pydantic_node.rotation or 0.0
 
-    # Build the IR node
-    ir_node = FigmaIRNode(
-        node_id=node_id,
-        name=node_name,
+    return FigmaIRNode(
+        node_id=raw.get("id", ""),
+        name=raw.get("name", ""),
         node_type=node_type,
-        unique_name=deduplicator.get_unique(node_name),
+        unique_name=deduplicator.get_unique(raw.get("name", "")),
         visible=pydantic_node.visible,
         opacity=pydantic_node.opacity if pydantic_node.opacity is not None else 1.0,
-        width=width,
-        height=height,
-        x=x,
-        y=y,
+        width=width, height=height, x=x, y=y,
         rotation=rotation,
-        cumulative_rotation=cumulative_rotation,
+        cumulative_rotation=parent_rotation + rotation,
         fills=pydantic_node.fills,
         strokes=pydantic_node.strokes,
         stroke_weight=pydantic_node.stroke_weight or 0.0,
@@ -683,27 +685,38 @@ def parse_node(
         is_svg_candidate=node_type == NodeType.BOOLEAN_OPERATION,
         is_icon_candidate=_detect_icon_candidate(pydantic_node),
         is_absolute_positioned=_is_absolute_positioned(pydantic_node),
-        has_image_fill=has_image_fill,
-        image_ref=image_ref,
-        component_id=pydantic_node.component_id,
-        raw=raw,
+        has_image_fill=has_image_fill, image_ref=image_ref,
+        component_id=pydantic_node.component_id, raw=raw,
     )
 
-    # Blend mode
+
+def _apply_type_specific_properties(
+    ir_node: FigmaIRNode,
+    raw: Dict[str, Any],
+    node_type_str: str,
+    pydantic_node: FigmaNodeBase,
+) -> None:
+    """Apply blend mode, text-auto-resize, frame, boolean, and text properties.
+
+    Mutates *ir_node* in place based on the concrete Pydantic node type.
+
+    Args:
+        ir_node: IR node to enrich.
+        raw: Raw Figma API node dictionary.
+        node_type_str: Raw type string for set-membership checks.
+        pydantic_node: Validated Pydantic model of the node.
+    """
     blend_mode = raw.get("blendMode")
     if blend_mode and blend_mode != "PASS_THROUGH" and blend_mode != "NORMAL":
         ir_node.blend_mode = blend_mode
 
-    # Text auto-resize mode
     text_auto_resize = raw.get("textAutoResize")
     if text_auto_resize:
         ir_node.text_auto_resize = text_auto_resize
 
-    # Frame-like properties (auto-layout, clipping)
     if isinstance(pydantic_node, FrameNode) or node_type_str in _FRAME_LIKE_TYPES:
         _apply_frame_properties(ir_node, raw)
 
-    # Boolean operation
     if isinstance(pydantic_node, BooleanOperationNode):
         ir_node.boolean_operation = (
             pydantic_node.boolean_operation.value
@@ -712,56 +725,106 @@ def parse_node(
         )
         ir_node.is_svg_candidate = True
 
-    # Text properties
     if isinstance(pydantic_node, TextNode):
         _apply_text_properties(ir_node, pydantic_node)
 
-    # Extract fillGeometry and strokeGeometry for vector/SVG nodes (actual path data)
+
+def _apply_svg_geometry(
+    ir_node: FigmaIRNode,
+    raw: Dict[str, Any],
+    node_type_str: str,
+    pydantic_node: FigmaNodeBase,
+) -> None:
+    """Extract fill/stroke geometry and resolve SVG candidate status.
+
+    Handles own-level geometry extraction, descendant geometry collection,
+    icon candidate promotion, illustration detection, and inherently-SVG types.
+
+    Args:
+        ir_node: IR node to enrich with SVG data.
+        raw: Raw Figma API node dictionary.
+        node_type_str: Raw type string for set-membership checks.
+        pydantic_node: Validated Pydantic model of the node.
+    """
     if node_type_str in _VECTOR_TYPES or ir_node.is_svg_candidate:
         fill_geo = raw.get("fillGeometry")
         if fill_geo and isinstance(fill_geo, list):
             ir_node.fill_geometry = fill_geo
-        # BOOLEAN_OPERATION nodes do not have their own stroke geometry — skip
         if node_type_str != "BOOLEAN_OPERATION":
             stroke_geo = raw.get("strokeGeometry")
             if stroke_geo and isinstance(stroke_geo, list):
                 ir_node.stroke_geometry = stroke_geo
 
-    # For icon/SVG candidates without own geometry, collect from
-    # descendant VECTOR nodes (e.g., BOOLEAN_OPERATION children, icon frames)
-    if (
-        ir_node.is_svg_candidate
-        and not ir_node.fill_geometry
-        and raw.get("children")
-    ):
+    if ir_node.is_svg_candidate and not ir_node.fill_geometry and raw.get("children"):
         fill_geo, stroke_geo = _collect_child_geometry(raw.get("children", []))
         ir_node.fill_geometry = fill_geo
         ir_node.stroke_geometry = stroke_geo
 
-    # Override: icon candidates are also SVG candidates
     if ir_node.is_icon_candidate:
         ir_node.is_svg_candidate = True
 
-    # SVG illustration candidates (64px < size <= 512px, vector-only) are SVG candidates
     if not ir_node.is_svg_candidate and _detect_svg_illustration(pydantic_node):
         ir_node.is_svg_candidate = True
 
-    # VEIL-002: Inherently SVG types (LINE, REGULAR_POLYGON, STAR) must always
-    # render as SVG — they have no meaningful non-SVG representation
     if not ir_node.is_svg_candidate and node_type_str in _INHERENTLY_SVG_TYPES:
         ir_node.is_svg_candidate = True
 
-    # Recursively parse children
-    for child_raw in raw.get("children", []):
-        child = parse_node(child_raw, cumulative_rotation, deduplicator, _depth + 1)
-        if child is not None:
-            ir_node.children.append(child)
 
-    # Compute can_be_flattened after children are parsed
+def _validate_parse_input(
+    raw: Any, _depth: int,
+) -> bool:
+    """Validate parse_node inputs; returns False if node should be skipped."""
+    if _depth > _MAX_PARSE_DEPTH:
+        logger.warning("Max parse depth (%d) exceeded, skipping subtree", _MAX_PARSE_DEPTH)
+        return False
+    if not isinstance(raw, dict):
+        logger.debug("parse_node received non-dict argument: %r", type(raw))
+        return False
+    return True
+
+
+def parse_node(
+    raw: Dict[str, Any],
+    parent_rotation: float = 0.0,
+    deduplicator: Optional[_NameDeduplicator] = None,
+    _depth: int = 0,
+) -> Optional[FigmaIRNode]:
+    """Parse a raw Figma API node dict into an IR node recursively."""
+    if not _validate_parse_input(raw, _depth):
+        return None
+    if deduplicator is None:
+        deduplicator = _NameDeduplicator()
+
+    node_type_str = raw.get("type", "")
+    node_name = raw.get("name", "")
+    if node_type_str in _UNSUPPORTED_TYPES:
+        logger.debug("Skipping unsupported node type %s: %s", node_type_str, node_name)
+        return None
+
+    pydantic_node = _parse_pydantic_node(raw, node_type_str)
+    node_type = _resolve_node_type(node_type_str, node_name, bool(raw.get("children")))
+    if node_type is None:
+        return None
+
+    ir_node = _build_ir_node(raw, node_type, node_type_str, pydantic_node, parent_rotation, deduplicator)
+    _apply_type_specific_properties(ir_node, raw, node_type_str, pydantic_node)
+    _apply_svg_geometry(ir_node, raw, node_type_str, pydantic_node)
+    _parse_children(ir_node, raw, deduplicator, _depth)
+
     if ir_node.is_frame_like:
         ir_node.can_be_flattened = _can_be_flattened(ir_node)
-
     return ir_node
+
+
+def _parse_children(
+    ir_node: FigmaIRNode, raw: Dict[str, Any],
+    deduplicator: _NameDeduplicator, _depth: int,
+) -> None:
+    """Recursively parse and append child nodes."""
+    for child_raw in raw.get("children", []):
+        child = parse_node(child_raw, ir_node.cumulative_rotation, deduplicator, _depth + 1)
+        if child is not None:
+            ir_node.children.append(child)
 
 
 def _parse_pydantic_node(raw: Dict[str, Any], node_type_str: str) -> FigmaNodeBase:
@@ -784,13 +847,19 @@ def _parse_pydantic_node(raw: Dict[str, Any], node_type_str: str) -> FigmaNodeBa
     return FigmaNodeBase.model_validate(raw)
 
 
-def _apply_frame_properties(ir_node: FigmaIRNode, raw: Dict[str, Any]) -> None:
-    """Extract auto-layout and frame properties from raw data.
+def _try_parse_layout_align(value: str, field_name: str) -> Optional[LayoutAlign]:
+    """Parse a layout alignment string, returning None on unknown values."""
+    try:
+        return LayoutAlign(value)
+    except ValueError:
+        logger.debug("Unknown %s value: %s", field_name, value)
+        return None
 
-    Args:
-        ir_node: IR node to populate.
-        raw: Raw Figma API node dictionary.
-    """
+
+def _apply_layout_mode_and_alignment(
+    ir_node: FigmaIRNode, raw: Dict[str, Any],
+) -> None:
+    """Extract layout mode, wrap, and alignment properties from raw data."""
     layout_mode_str = raw.get("layoutMode")
     if layout_mode_str and layout_mode_str != "NONE":
         try:
@@ -799,7 +868,6 @@ def _apply_frame_properties(ir_node: FigmaIRNode, raw: Dict[str, Any]) -> None:
             ir_node.layout_mode = LayoutMode.NONE
         ir_node.has_auto_layout = ir_node.layout_mode != LayoutMode.NONE
 
-    # Wrap
     wrap_str = raw.get("layoutWrap")
     if wrap_str:
         try:
@@ -807,48 +875,47 @@ def _apply_frame_properties(ir_node: FigmaIRNode, raw: Dict[str, Any]) -> None:
         except ValueError:
             logger.debug("Unknown layoutWrap value: %s", wrap_str)
 
-    # Alignment
-    pa = raw.get("primaryAxisAlignItems")
-    if pa:
-        try:
-            ir_node.primary_axis_align = LayoutAlign(pa)
-        except ValueError:
-            logger.debug("Unknown primaryAxisAlignItems value: %s", pa)
+    for raw_key, attr_name in (
+        ("primaryAxisAlignItems", "primary_axis_align"),
+        ("counterAxisAlignItems", "counter_axis_align"),
+        ("counterAxisAlignContent", "counter_axis_align_content"),
+    ):
+        val = raw.get(raw_key)
+        if val:
+            parsed = _try_parse_layout_align(val, raw_key)
+            if parsed is not None:
+                setattr(ir_node, attr_name, parsed)
 
-    ca = raw.get("counterAxisAlignItems")
-    if ca:
-        try:
-            ir_node.counter_axis_align = LayoutAlign(ca)
-        except ValueError:
-            logger.debug("Unknown counterAxisAlignItems value: %s", ca)
 
-    cac = raw.get("counterAxisAlignContent")
-    if cac:
-        try:
-            ir_node.counter_axis_align_content = LayoutAlign(cac)
-        except ValueError:
-            logger.debug("Unknown counterAxisAlignContent value: %s", cac)
-
-    # Spacing
+def _apply_spacing_and_sizing(
+    ir_node: FigmaIRNode, raw: Dict[str, Any],
+) -> None:
+    """Extract spacing, padding, sizing, constraints, grid, and clipping."""
     ir_node.item_spacing = raw.get("itemSpacing", 0.0)
     ir_node.counter_axis_spacing = raw.get("counterAxisSpacing")
-
-    # Padding
     ir_node.padding = (
-        raw.get("paddingTop", 0.0),
-        raw.get("paddingRight", 0.0),
-        raw.get("paddingBottom", 0.0),
-        raw.get("paddingLeft", 0.0),
+        raw.get("paddingTop", 0.0), raw.get("paddingRight", 0.0),
+        raw.get("paddingBottom", 0.0), raw.get("paddingLeft", 0.0),
     )
+    _apply_sizing_modes(ir_node, raw)
+    ir_node.layout_grow = raw.get("layoutGrow")
+    ir_node.min_width = raw.get("minWidth")
+    ir_node.max_width = raw.get("maxWidth")
+    ir_node.min_height = raw.get("minHeight")
+    ir_node.max_height = raw.get("maxHeight")
+    ir_node.layout_grid_columns = raw.get("layoutGridColumns")
+    ir_node.layout_grid_cell_min_width = raw.get("layoutGridCellMinWidth")
+    ir_node.clips_content = raw.get("clipsContent", False)
 
-    # Sizing modes
+
+def _apply_sizing_modes(ir_node: FigmaIRNode, raw: Dict[str, Any]) -> None:
+    """Parse layoutSizingHorizontal and layoutSizingVertical from raw data."""
     lsh = raw.get("layoutSizingHorizontal")
     if lsh:
         try:
             ir_node.layout_sizing_horizontal = LayoutSizingMode(lsh)
         except ValueError:
             logger.debug("Unknown layoutSizingHorizontal value: %s", lsh)
-
     lsv = raw.get("layoutSizingVertical")
     if lsv:
         try:
@@ -856,20 +923,18 @@ def _apply_frame_properties(ir_node: FigmaIRNode, raw: Dict[str, Any]) -> None:
         except ValueError:
             logger.debug("Unknown layoutSizingVertical value: %s", lsv)
 
-    ir_node.layout_grow = raw.get("layoutGrow")
 
-    # Min/max constraints (v5)
-    ir_node.min_width = raw.get("minWidth")
-    ir_node.max_width = raw.get("maxWidth")
-    ir_node.min_height = raw.get("minHeight")
-    ir_node.max_height = raw.get("maxHeight")
+def _apply_frame_properties(ir_node: FigmaIRNode, raw: Dict[str, Any]) -> None:
+    """Extract auto-layout and frame properties from raw data.
 
-    # Grid (v5)
-    ir_node.layout_grid_columns = raw.get("layoutGridColumns")
-    ir_node.layout_grid_cell_min_width = raw.get("layoutGridCellMinWidth")
+    Delegates to focused helpers for layout/alignment and spacing/sizing.
 
-    # Clipping
-    ir_node.clips_content = raw.get("clipsContent", False)
+    Args:
+        ir_node: IR node to populate.
+        raw: Raw Figma API node dictionary.
+    """
+    _apply_layout_mode_and_alignment(ir_node, raw)
+    _apply_spacing_and_sizing(ir_node, raw)
 
 
 def _apply_text_properties(ir_node: FigmaIRNode, text_node: TextNode) -> None:

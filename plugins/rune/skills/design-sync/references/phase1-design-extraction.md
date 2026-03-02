@@ -92,6 +92,65 @@ For each spacing value:
 
 See [design-token-mapping.md](design-token-mapping.md) for detailed snapping algorithm.
 
+## MCP Provider Tool Mapping
+
+The design-sync skill supports two MCP providers. The provider is determined from the workflow state file (`mcpProvider` field). Default is `rune` when field is absent.
+
+| Rune MCP Tool | Official MCP Equivalent | Notes |
+|---------------|------------------------|-------|
+| `figma_fetch_design(url)` | `mcp__claude_ai_Figma__get_design_context(fileKey, nodeId)` | Official returns structured context; Rune returns IR node tree |
+| `figma_list_components(url)` | `mcp__claude_ai_Figma__get_metadata(fileKey)` | Official returns XML — needs parsing; Rune returns JSON component inventory |
+| `figma_inspect_node(url)` | `mcp__claude_ai_Figma__get_code_connect_map(fileKey, nodeIds)` | `nodeIds` is array of colon-separated IDs (e.g. `["1:3"]`) |
+| _(no equivalent)_ | `mcp__claude_ai_Figma__get_variable_defs(fileKey)` | Bonus: retrieves named design tokens (colors, spacing, typography as variables) |
+
+**Key differences:**
+- Official MCP uses `fileKey` + `nodeId` as separate parameters (not full URLs)
+- Official `nodeId` format: colon-separated `"1:3"` (same as Figma internal format)
+- Rune tools accept full Figma URLs; use [figma-url-parser.md](figma-url-parser.md) `convertToOfficialParams()` to convert
+
+### Extraction Algorithm with Provider Branching
+
+```
+state = readWorkflowState()
+mcpProvider = state.mcpProvider ?? "rune"
+
+function fetchDesign(parsedUrl):
+  if mcpProvider == "rune":
+    return figma_fetch_design(url=parsedUrl.original_url, depth=3)
+  else:  // "official"
+    params = convertToOfficialParams(parsedUrl)
+    return mcp__claude_ai_Figma__get_design_context(
+      fileKey=params.fileKey,
+      nodeId=params.nodeId
+    )
+
+function listComponents(parsedUrl):
+  if mcpProvider == "rune":
+    return figma_list_components(url=parsedUrl.original_url)
+  else:  // "official"
+    params = convertToOfficialParams(parsedUrl)
+    rawXml = mcp__claude_ai_Figma__get_metadata(fileKey=params.fileKey)
+    return parseComponentsFromXml(rawXml)  // Extract name/node_id from XML tree
+
+function inspectNode(parsedUrl):
+  if mcpProvider == "rune":
+    return figma_inspect_node(url=parsedUrl.original_url)
+  else:  // "official"
+    params = convertToOfficialParams(parsedUrl)
+    return mcp__claude_ai_Figma__get_code_connect_map(
+      fileKey=params.fileKey,
+      nodeIds=[params.nodeId]  // Colon-separated format: "1:3"
+    )
+
+function fetchDesignTokens(parsedUrl):
+  // Only available via Official MCP — Rune has no equivalent
+  if mcpProvider == "official":
+    params = convertToOfficialParams(parsedUrl)
+    return mcp__claude_ai_Figma__get_variable_defs(fileKey=params.fileKey)
+  else:
+    return null  // Fall back to token extraction from design tree
+```
+
 ## Error Handling
 
 | Error | Action |

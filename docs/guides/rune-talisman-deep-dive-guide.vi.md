@@ -10,6 +10,13 @@ Hướng dẫn liên quan:
 - [Hướng dẫn custom agent và mở rộng](rune-custom-agents-and-extensions-guide.vi.md)
 - [Hướng dẫn xử lý sự cố và tối ưu](rune-troubleshooting-and-optimization-guide.vi.md)
 
+## Đọc nhanh (2 phút)
+
+- Bạn mới dùng Rune: chỉ cần chạy `/rune:talisman init` là đủ cho bước đầu.
+- Khi workflow chạy không như mong đợi: dùng `/rune:talisman audit` trước khi sửa tay.
+- Chỉ sửa các khóa bạn hiểu rõ, thay đổi nhỏ rồi kiểm tra lại.
+- Nếu chưa rõ thuật ngữ cấu hình: xem [Thuật ngữ Rune (Tiếng Việt)](rune-glossary.vi.md).
+
 ---
 
 ## Thiết lập nhanh: `/rune:talisman` (v1.103.0+)
@@ -61,7 +68,7 @@ CLI flags  >  .claude/talisman.yml  >  ~/.claude/talisman.yml  >  hardcoded defa
 
 ## 2. Phân loại file: `rune-gaze`
 
-Rune Gaze phân loại file thay đổi thành các danh mục quyết định Ash nào được triệu hồi.
+Rune Gaze phân loại file thay đổi thành các danh mục quyết định Ash nào được kích hoạt (summon).
 
 ```yaml
 rune-gaze:

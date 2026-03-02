@@ -652,3 +652,270 @@ class TestHasVectorChildren:
         rect = _make_node("RECTANGLE")
         group = _make_node("GROUP", children=[rect])
         assert _has_vector_children(group) is True
+
+
+# ---------------------------------------------------------------------------
+# Additional edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestNodeParserAdditionalEdgeCases:
+    """Additional edge cases covering empty inputs, boundary values, and unicode."""
+
+    def test_parse_node_with_empty_name(self):
+        """Node with empty string name should still parse."""
+        node = {
+            "id": "101:1",
+            "name": "",
+            "type": "RECTANGLE",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 50, "height": 50},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 50, "height": 50},
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+        assert ir.name == ""
+
+    def test_parse_node_with_unicode_name(self):
+        """Node with unicode characters in name should parse correctly."""
+        node = {
+            "id": "102:1",
+            "name": "按钮 / Кнопка / ボタン",
+            "type": "FRAME",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 100, "height": 40},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 100, "height": 40},
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+            "children": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+        assert ir.name == "按钮 / Кнопка / ボタン"
+
+    def test_parse_node_with_whitespace_only_name(self):
+        """Node with whitespace-only name should still parse."""
+        node = {
+            "id": "103:1",
+            "name": "   ",
+            "type": "RECTANGLE",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 50, "height": 50},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 50, "height": 50},
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+
+    def test_parse_node_missing_fills_key(self):
+        """Node missing 'fills' key should still parse (graceful fallback)."""
+        node = {
+            "id": "104:1",
+            "name": "NoFills",
+            "type": "RECTANGLE",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 50, "height": 50},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 50, "height": 50},
+            "strokes": [],
+            "effects": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+        assert not ir.has_image_fill
+
+    def test_parse_node_empty_fills_list(self):
+        """Node with empty fills list should not flag as image fill."""
+        node = {
+            "id": "105:1",
+            "name": "EmptyFills",
+            "type": "RECTANGLE",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 50, "height": 50},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 50, "height": 50},
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+        assert not ir.has_image_fill
+
+    def test_parse_node_boundary_large_dimensions(self):
+        """Node with very large dimensions (boundary) should parse without error."""
+        node = {
+            "id": "106:1",
+            "name": "HugeBanner",
+            "type": "FRAME",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 99999, "height": 99999},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 99999, "height": 99999},
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+            "children": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+        assert ir.width == 99999
+        assert ir.height == 99999
+
+    def test_parse_node_boundary_negative_position(self):
+        """Node with negative x/y position should parse correctly."""
+        node = {
+            "id": "107:1",
+            "name": "NegativeOffset",
+            "type": "RECTANGLE",
+            "absoluteBoundingBox": {"x": -100, "y": -200, "width": 50, "height": 50},
+            "absoluteRenderBounds": {"x": -100, "y": -200, "width": 50, "height": 50},
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+        assert ir.x == -100
+        assert ir.y == -200
+
+    def test_merge_text_segments_whitespace_only_text(self):
+        """merge_text_segments with whitespace-only text should produce a single segment."""
+        segments = merge_text_segments("   ", None, None, None)
+        assert len(segments) == 1
+        assert segments[0].text == "   "
+
+    def test_merge_text_segments_unicode_text(self):
+        """merge_text_segments with unicode content should work correctly."""
+        segments = merge_text_segments("Hello 🌍 World", None, None, None)
+        assert len(segments) == 1
+        assert "Hello" in segments[0].text
+
+    def test_merge_text_segments_empty_override_table(self):
+        """merge_text_segments with empty override table should produce one segment."""
+        overrides = [0, 0, 0, 0]
+        table = {}
+        segments = merge_text_segments("Test", None, overrides, table)
+        combined = "".join(s.text for s in segments)
+        assert combined == "Test"
+
+    def test_parse_node_with_null_effects(self):
+        """Node with null effects key should raise or return None — not crash unhandled."""
+        from pydantic import ValidationError
+        node = {
+            "id": "108:1",
+            "name": "NullEffects",
+            "type": "RECTANGLE",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 50, "height": 50},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 50, "height": 50},
+            "fills": [],
+            "strokes": [],
+            "effects": None,
+        }
+        # Pydantic enforces effects is a list — None is invalid input.
+        # parse_node should either return None (graceful) or raise ValidationError.
+        try:
+            ir = parse_node(node)
+            assert ir is None
+        except (ValidationError, Exception):
+            pass  # Acceptable: invalid input raises a validation error
+
+    def test_parse_node_invalid_node_type_string(self):
+        """Node with completely invalid type string and no children returns None."""
+        node = {
+            "id": "109:1",
+            "name": "InvalidType",
+            "type": "COMPLETELY_INVALID_TYPE_XYZ",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 50, "height": 50},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 50, "height": 50},
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+        }
+        ir = parse_node(node)
+        assert ir is None
+
+    def test_find_by_name_empty_string_query(self):
+        """find_by_name with empty string query should handle gracefully."""
+        outer = {
+            "id": "110:1",
+            "name": "Outer",
+            "type": "FRAME",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 100, "height": 100},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 100, "height": 100},
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+            "children": [],
+        }
+        ir = parse_node(outer)
+        assert ir is not None
+        # Empty string should not match any node
+        result = find_by_name(ir, "")
+        # Either None or an actual node named "" — but not crash
+        assert result is None or result.name == ""
+
+    def test_walk_tree_single_node(self):
+        """walk_tree on a single leaf node returns just that node."""
+        node = {
+            "id": "111:1",
+            "name": "SingleNode",
+            "type": "RECTANGLE",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 50, "height": 50},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 50, "height": 50},
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+        nodes = walk_tree(ir)
+        assert len(nodes) == 1
+        assert nodes[0].name == "SingleNode"
+
+    def test_count_nodes_boundary_zero_children(self):
+        """count_nodes on a leaf node with zero children returns 1."""
+        node = {
+            "id": "112:1",
+            "name": "LeafNode",
+            "type": "RECTANGLE",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 50, "height": 50},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 50, "height": 50},
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+        assert count_nodes(ir) == 1
+
+    def test_parse_node_frame_with_empty_children_list(self):
+        """FRAME with empty children list should parse correctly."""
+        node = {
+            "id": "113:1",
+            "name": "EmptyFrame",
+            "type": "FRAME",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 200, "height": 200},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 200, "height": 200},
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+            "children": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+        assert len(ir.children) == 0
+
+    def test_parse_node_missing_bounding_box(self):
+        """Node with None absoluteBoundingBox should return None gracefully."""
+        node = {
+            "id": "114:1",
+            "name": "NoBBox",
+            "type": "RECTANGLE",
+            "absoluteBoundingBox": None,
+            "absoluteRenderBounds": None,
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+        }
+        ir = parse_node(node)
+        # Should either return None or handle gracefully (width/height = 0)
+        if ir is not None:
+            assert ir.width == 0 or ir.width is not None

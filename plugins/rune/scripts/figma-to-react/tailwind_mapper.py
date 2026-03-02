@@ -272,21 +272,8 @@ def _parse_rgba(rgba_str: str) -> Optional[Tuple[int, int, int]]:
     return None
 
 
-def snap_color(css_color: str, prefix: str = "bg") -> str:
-    """Map a CSS color to the nearest Tailwind palette class.
-
-    If RGB distance to the nearest palette color is within threshold,
-    returns the palette class (e.g., ``bg-blue-500``). Otherwise returns
-    an arbitrary value class (e.g., ``bg-[#1a2b3c]``).
-
-    Args:
-        css_color: CSS color string (hex or rgba).
-        prefix: Tailwind utility prefix ("bg", "text", "border").
-
-    Returns:
-        Tailwind color class string.
-    """
-    # CSS named colors and special values that must not be treated as hex
+def _snap_color_named(css_color: str, prefix: str) -> Optional[str]:
+    """Return a Tailwind class for CSS named colors, or None if not named."""
     _CSS_NAMED_COLORS = {
         "transparent": f"{prefix}-transparent",
         "currentcolor": f"{prefix}-current",
@@ -296,14 +283,11 @@ def snap_color(css_color: str, prefix: str = "bg") -> str:
         "black": f"{prefix}-black",
         "white": f"{prefix}-white",
     }
+    return _CSS_NAMED_COLORS.get(css_color.lower())
 
-    rgb = _parse_hex(css_color) or _parse_rgba(css_color)
-    if rgb is None:
-        named = _CSS_NAMED_COLORS.get(css_color.lower())
-        if named:
-            return named
-        return f"{prefix}-[{css_color}]"
 
+def _snap_color_palette(rgb: Tuple[int, int, int], prefix: str) -> str:
+    """Find the nearest Tailwind palette color for an RGB tuple."""
     best_dist = float("inf")
     best_name = ""
     best_shade = 500
@@ -322,6 +306,30 @@ def snap_color(css_color: str, prefix: str = "bg") -> str:
     # Use hex arbitrary value
     hex_color = f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
     return f"{prefix}-[{hex_color}]"
+
+
+def snap_color(css_color: str, prefix: str = "bg") -> str:
+    """Map a CSS color to the nearest Tailwind palette class.
+
+    If RGB distance to the nearest palette color is within threshold,
+    returns the palette class (e.g., ``bg-blue-500``). Otherwise returns
+    an arbitrary value class (e.g., ``bg-[#1a2b3c]``).
+
+    Args:
+        css_color: CSS color string (hex or rgba).
+        prefix: Tailwind utility prefix ("bg", "text", "border").
+
+    Returns:
+        Tailwind color class string.
+    """
+    rgb = _parse_hex(css_color) or _parse_rgba(css_color)
+    if rgb is None:
+        named = _snap_color_named(css_color, prefix)
+        if named:
+            return named
+        return f"{prefix}-[{css_color}]"
+
+    return _snap_color_palette(rgb, prefix)
 
 
 # ---------------------------------------------------------------------------
@@ -395,109 +403,129 @@ class TailwindMapper:
         Returns:
             List of Tailwind classes for this property.
         """
-        if prop == "background-color":
-            return [snap_color(value, "bg")]
+        result = self._map_color_property(prop, value)
+        if result is not None:
+            return result
 
-        if prop == "color":
-            return [snap_color(value, "text")]
+        result = self._map_border_property(prop, value)
+        if result is not None:
+            return result
 
-        if prop == "background-image":
-            return self._map_gradient(value)
+        result = self._map_dimension_property(prop, value)
+        if result is not None:
+            return result
 
-        if prop == "border-color":
-            return [snap_color(value, "border")]
+        result = self._map_padding_property(prop, value)
+        if result is not None:
+            return result
 
-        if prop == "border-width":
-            return [self._map_border_width(value)]
-
-        if prop == "border-style":
-            return [f"border-{value}"]
-
-        if prop == "border-radius":
-            return self._map_border_radius(value)
-
-        if prop == "box-shadow":
-            return [self._map_shadow(value)]
-
-        if prop == "opacity":
-            return [self._map_opacity(value)]
-
-        if prop == "width":
-            return [self._map_dimension(value, "w")]
-
-        if prop == "height":
-            return [self._map_dimension(value, "h")]
-
-        if prop == "min-width":
-            return [self._map_dimension(value, "min-w")]
-
-        if prop == "max-width":
-            return [self._map_dimension(value, "max-w")]
-
-        if prop == "min-height":
-            return [self._map_dimension(value, "min-h")]
-
-        if prop == "max-height":
-            return [self._map_dimension(value, "max-h")]
-
-        if prop == "padding":
-            px = _parse_px(value)
-            return [f"p-{_px_to_spacing(px)}"] if px is not None else []
-
-        if prop == "padding-x":
-            px = _parse_px(value)
-            return [f"px-{_px_to_spacing(px)}"] if px is not None else []
-
-        if prop == "padding-y":
-            px = _parse_px(value)
-            return [f"py-{_px_to_spacing(px)}"] if px is not None else []
-
-        if prop == "padding-top":
-            px = _parse_px(value)
-            return [f"pt-{_px_to_spacing(px)}"] if px is not None else []
-
-        if prop == "padding-right":
-            px = _parse_px(value)
-            return [f"pr-{_px_to_spacing(px)}"] if px is not None else []
-
-        if prop == "padding-bottom":
-            px = _parse_px(value)
-            return [f"pb-{_px_to_spacing(px)}"] if px is not None else []
-
-        if prop == "padding-left":
-            px = _parse_px(value)
-            return [f"pl-{_px_to_spacing(px)}"] if px is not None else []
-
-        if prop == "gap":
-            px = _parse_px(value)
-            return [f"gap-{_px_to_spacing(px)}"] if px is not None else []
-
-        if prop == "filter" and "blur" in value:
-            return [self._map_blur(value, "blur")]
-
-        if prop == "backdrop-filter" and "blur" in value:
-            return [self._map_blur(value, "backdrop-blur")]
-
-        if prop == "mix-blend-mode":
-            return [f"mix-blend-{value}"]
-
-        if prop == "transform" and "rotate" in value:
-            return [self._map_rotation(value)]
-
-        if prop == "overflow":
-            return [f"overflow-{value}"]
-
-        if prop == "background-size":
-            return [f"bg-{value}"]
-
-        if prop == "background-position":
-            return [f"bg-{value}"]
+        result = self._map_misc_property(prop, value)
+        if result is not None:
+            return result
 
         # Internal markers (e.g., _image_ref) are skipped
         if prop.startswith("_"):
             return []
 
         return []
+
+    def _map_color_property(self, prop: str, value: str) -> Optional[List[str]]:
+        """Map color-related CSS properties to Tailwind classes.
+
+        Returns None if the property is not color-related.
+        """
+        if prop == "background-color":
+            return [snap_color(value, "bg")]
+        if prop == "color":
+            return [snap_color(value, "text")]
+        if prop == "background-image":
+            return self._map_gradient(value)
+        if prop == "opacity":
+            return [self._map_opacity(value)]
+        return None
+
+    def _map_border_property(self, prop: str, value: str) -> Optional[List[str]]:
+        """Map border-related CSS properties to Tailwind classes.
+
+        Returns None if the property is not border-related.
+        """
+        if prop == "border-color":
+            return [snap_color(value, "border")]
+        if prop == "border-width":
+            return [self._map_border_width(value)]
+        if prop == "border-style":
+            return [f"border-{value}"]
+        if prop == "border-radius":
+            return self._map_border_radius(value)
+        if prop == "box-shadow":
+            return [self._map_shadow(value)]
+        return None
+
+    def _map_dimension_property(self, prop: str, value: str) -> Optional[List[str]]:
+        """Map dimension CSS properties to Tailwind classes.
+
+        Returns None if the property is not a dimension property.
+        """
+        _dim_map = {
+            "width": "w", "height": "h",
+            "min-width": "min-w", "max-width": "max-w",
+            "min-height": "min-h", "max-height": "max-h",
+        }
+        prefix = _dim_map.get(prop)
+        if prefix is not None:
+            return [self._map_dimension(value, prefix)]
+        return None
+
+    def _map_padding_property(self, prop: str, value: str) -> Optional[List[str]]:
+        """Map padding and gap CSS properties to Tailwind classes.
+
+        Returns None if the property is not padding/gap-related.
+        """
+        _pad_map = {
+            "padding": "p", "padding-x": "px", "padding-y": "py",
+            "padding-top": "pt", "padding-right": "pr",
+            "padding-bottom": "pb", "padding-left": "pl",
+            "gap": "gap",
+        }
+        tw_prefix = _pad_map.get(prop)
+        if tw_prefix is not None:
+            px = _parse_px(value)
+            return [f"{tw_prefix}-{_px_to_spacing(px)}"] if px is not None else []
+        return None
+
+    def _map_misc_property(self, prop: str, value: str) -> Optional[List[str]]:
+        """Map miscellaneous CSS properties to Tailwind classes.
+
+        Returns None if the property is not recognized.
+        """
+        if prop == "filter" and "blur" in value:
+            return [self._map_blur(value, "blur")]
+        if prop == "backdrop-filter" and "blur" in value:
+            return [self._map_blur(value, "backdrop-blur")]
+        if prop == "mix-blend-mode":
+            return [f"mix-blend-{value}"]
+        if prop == "transform" and "rotate" in value:
+            return [self._map_rotation(value)]
+        if prop == "overflow":
+            return [f"overflow-{value}"]
+        if prop == "background-size":
+            return [f"bg-{value}"]
+        if prop == "background-position":
+            return [f"bg-{value}"]
+        return None
+
+    @staticmethod
+    def _resolve_gradient_direction(value: str) -> str:
+        """Resolve CSS gradient direction to Tailwind shorthand."""
+        _direction_map = {
+            "to bottom": "b", "to top": "t", "to right": "r", "to left": "l",
+            "to bottom right": "br", "to top right": "tr",
+            "to bottom left": "bl", "to top left": "tl",
+        }
+        for css_dir, d in _direction_map.items():
+            if css_dir in value:
+                return d
+        return "b"  # default
 
     def _map_gradient(self, value: str) -> List[str]:
         """Map a CSS gradient to Tailwind v4 gradient classes.
@@ -511,32 +539,15 @@ class TailwindMapper:
         Returns:
             List of Tailwind gradient classes.
         """
-        # Tailwind v4: bg-linear-to-{direction}
-        direction_map = {
-            "to bottom": "b", "to top": "t", "to right": "r", "to left": "l",
-            "to bottom right": "br", "to top right": "tr",
-            "to bottom left": "bl", "to top left": "tl",
-        }
-
-        classes: List[str] = []
-
         if "linear-gradient" in value:
-            tw_dir = "b"  # default
-            for css_dir, d in direction_map.items():
-                if css_dir in value:
-                    tw_dir = d
-                    break
-            classes.append(f"bg-linear-to-{tw_dir}")
-
-            # Extract color stops
-            stop_classes = self._extract_gradient_stops(value)
-            classes.extend(stop_classes)
+            tw_dir = self._resolve_gradient_direction(value)
+            classes = [f"bg-linear-to-{tw_dir}"]
+            classes.extend(self._extract_gradient_stops(value))
             return classes
 
         if "radial-gradient" in value:
-            classes.append("bg-radial")
-            stop_classes = self._extract_gradient_stops(value)
-            classes.extend(stop_classes)
+            classes = ["bg-radial"]
+            classes.extend(self._extract_gradient_stops(value))
             return classes
 
         return []
@@ -660,6 +671,30 @@ class TailwindMapper:
         return best_class
 
     @staticmethod
+    def _shadow_has_custom_color(value: str) -> bool:
+        """Check if a box-shadow uses a non-standard (non-black) color."""
+        color_match = re.search(r"(rgba?\([^)]+\)|#[0-9a-fA-F]{3,8})", value)
+        if not color_match:
+            return False
+        color_str = color_match.group(1)
+        # Standard Tailwind shadows use black with varying opacity
+        return not re.match(r"rgba\(\s*0,\s*0,\s*0,", color_str)
+
+    @staticmethod
+    def _snap_shadow_blur(blur_radius: float) -> str:
+        """Snap a blur radius to the nearest named Tailwind shadow class."""
+        best_class = "shadow"
+        best_diff = float("inf")
+
+        for tw_class, scale_blur in _SHADOW_BLUR_SCALE.items():
+            diff = abs(blur_radius - scale_blur)
+            if diff < best_diff:
+                best_diff = diff
+                best_class = tw_class
+
+        return best_class
+
+    @staticmethod
     def _map_shadow(value: str) -> str:
         """Map a box-shadow to a Tailwind shadow class.
 
@@ -677,7 +712,6 @@ class TailwindMapper:
             return "shadow-inner"
 
         # Parse shadow components: x y blur [spread] color
-        # Match: offset_x offset_y blur_radius
         blur_match = re.search(
             r"(-?\d+(?:\.\d+)?)px\s+(-?\d+(?:\.\d+)?)px\s+(\d+(?:\.\d+)?)px",
             value,
@@ -687,32 +721,13 @@ class TailwindMapper:
 
         blur_radius = float(blur_match.group(3))
 
-        # Check for non-standard color (not black/gray)
-        color_match = re.search(r"(rgba?\([^)]+\)|#[0-9a-fA-F]{3,8})", value)
-        has_custom_color = False
-        if color_match:
-            color_str = color_match.group(1)
-            # Standard Tailwind shadows use black with varying opacity
-            if not re.match(r"rgba\(\s*0,\s*0,\s*0,", color_str):
-                has_custom_color = True
-
         # If non-standard color, use arbitrary value to preserve it
-        if has_custom_color:
-            # Clean value for Tailwind arbitrary: replace spaces in rgba
+        if TailwindMapper._shadow_has_custom_color(value):
             clean = value.strip().replace(", ", ",")
             return f"shadow-[{clean}]"
 
         # Standard shadow — snap to named class
-        best_class = "shadow"
-        best_diff = float("inf")
-
-        for tw_class, scale_blur in _SHADOW_BLUR_SCALE.items():
-            diff = abs(blur_radius - scale_blur)
-            if diff < best_diff:
-                best_diff = diff
-                best_class = tw_class
-
-        return best_class
+        return TailwindMapper._snap_shadow_blur(blur_radius)
 
     @staticmethod
     def _map_opacity(value: str) -> str:

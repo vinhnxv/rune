@@ -2,6 +2,8 @@
 
 Version-controlled solutions promoted from high-confidence [Rune Echoes](../../plugins/rune/skills/rune-echoes/SKILL.md).
 
+Tiếng Việt: [README.vi.md](README.vi.md)
+
 ## Categories
 
 | Directory | Description |

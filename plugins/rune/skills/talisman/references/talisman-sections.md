@@ -1,6 +1,7 @@
 # Talisman Sections Reference
 
-All 25 top-level sections in `plugins/rune/talisman.example.yml` with purpose and key fields.
+Top-level talisman sections with purpose and key fields.
+This list reflects the documented schema used by Rune (including default-injected sections), not only uncommented keys in `plugins/rune/talisman.example.yml`.
 
 ## Section Map
 

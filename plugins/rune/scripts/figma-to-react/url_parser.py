@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 from typing import Optional
-from urllib.parse import unquote, urlparse
+from urllib.parse import ParseResult, unquote, urlparse
 
 
 class FigmaURLError(ValueError):
@@ -70,6 +70,83 @@ def _normalize_node_id(raw: str) -> str:
     return normalized
 
 
+def _validate_figma_url(url: str) -> ParseResult:
+    """Validate URL string, hostname, and scheme for Figma SSRF safety.
+
+    Args:
+        url: Raw URL string to validate.
+
+    Returns:
+        Parsed URL result from urlparse.
+
+    Raises:
+        FigmaURLError: If url is empty, has a bad hostname, or non-https scheme.
+    """
+    if not url or not isinstance(url, str):
+        raise FigmaURLError("URL must be a non-empty string")
+
+    parsed = urlparse(url)
+
+    # SEC-001: SSRF prevention — only allow figma.com hostnames.
+    hostname = (parsed.hostname or "").lower()
+    if hostname not in _ALLOWED_HOSTS:
+        raise FigmaURLError(
+            f"Invalid hostname '{hostname}'. Only figma.com URLs are accepted (SSRF prevention)."
+        )
+
+    if parsed.scheme != "https":
+        raise FigmaURLError(
+            f"Invalid scheme '{parsed.scheme}'. Only https is accepted."
+        )
+
+    return parsed
+
+
+def _match_figma_path(path: str) -> re.Match:
+    """Match a Figma URL path against the known URL type pattern.
+
+    Args:
+        path: The path component of the URL (e.g., /design/abc123/Title).
+
+    Returns:
+        Regex match object with groups: type, file_key, branch_key.
+
+    Raises:
+        FigmaURLError: If the path does not match any known Figma URL pattern.
+    """
+    match = _PATH_RE.match(path)
+    if not match:
+        raise FigmaURLError(
+            f"Cannot parse Figma URL path: {path}. "
+            f"Expected /<type>/<file_key>[/branch/<branch_key>][/title] "
+            f"where type is one of: {', '.join(sorted(_URL_TYPES))}"
+        )
+    return match
+
+
+def _extract_node_id(query: str) -> Optional[str]:
+    """Extract and normalize the node-id query parameter from a URL query string.
+
+    Args:
+        query: Raw query string from URL (e.g., "node-id=1-3&t=abc").
+
+    Returns:
+        Normalized node ID (colon-separated), or None if not present.
+
+    Raises:
+        FigmaURLError: If the node-id value is malformed.
+    """
+    if not query:
+        return None
+    for param in query.split("&"):
+        if param.startswith("node-id="):
+            raw_value = param[len("node-id="):]
+            if raw_value:
+                return _normalize_node_id(raw_value)
+            break
+    return None
+
+
 def parse_figma_url(url: str) -> dict[str, Optional[str]]:
     """Parse a Figma URL into its structural components.
 
@@ -97,43 +174,9 @@ def parse_figma_url(url: str) -> dict[str, Optional[str]]:
     Raises:
         FigmaURLError: If the URL is not a valid Figma document URL.
     """
-    if not url or not isinstance(url, str):
-        raise FigmaURLError("URL must be a non-empty string")
-
-    parsed = urlparse(url)
-
-    # SEC-001: SSRF prevention — only allow figma.com hostnames.
-    hostname = (parsed.hostname or "").lower()
-    if hostname not in _ALLOWED_HOSTS:
-        raise FigmaURLError(
-            f"Invalid hostname '{hostname}'. Only figma.com URLs are accepted (SSRF prevention)."
-        )
-
-    if parsed.scheme != "https":
-        raise FigmaURLError(
-            f"Invalid scheme '{parsed.scheme}'. Only https is accepted."
-        )
-
-    # Match the path against known URL patterns.
-    match = _PATH_RE.match(parsed.path)
-    if not match:
-        raise FigmaURLError(
-            f"Cannot parse Figma URL path: {parsed.path}. "
-            f"Expected /<type>/<file_key>[/branch/<branch_key>][/title] "
-            f"where type is one of: {', '.join(sorted(_URL_TYPES))}"
-        )
-
-    # Extract node-id from query parameters.
-    # Figma uses ?node-id=... in the URL.
-    node_id: Optional[str] = None
-    if parsed.query:
-        # Parse query manually to handle node-id specifically.
-        for param in parsed.query.split("&"):
-            if param.startswith("node-id="):
-                raw_value = param[len("node-id="):]
-                if raw_value:
-                    node_id = _normalize_node_id(raw_value)
-                break
+    parsed = _validate_figma_url(url)
+    match = _match_figma_path(parsed.path)
+    node_id = _extract_node_id(parsed.query)
 
     return {
         "file_key": match.group("file_key"),

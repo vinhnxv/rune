@@ -8,6 +8,13 @@ Hướng dẫn liên quan:
 - [Hướng dẫn custom agent](rune-custom-agents-and-extensions-guide.vi.md)
 - [Hướng dẫn arc và batch](rune-arc-and-batch-guide.vi.md)
 
+## Đọc nhanh (2 phút)
+
+- Bạn gặp lỗi ngay khi chạy lệnh: kiểm tra mục `1.1` đến `1.5` trước.
+- Bạn bị tốn token nhiều: xem mục tối ưu chi phí và chọn workflow nhẹ hơn.
+- Bạn không chắc lỗi nằm ở đâu: bắt đầu từ triệu chứng (symptom), rồi tra bảng "Triệu chứng -> Sửa".
+- Nếu thuật ngữ kỹ thuật khó theo dõi: xem [Thuật ngữ Rune (Tiếng Việt)](rune-glossary.vi.md).
+
 ---
 
 ## 1. Các lỗi thường gặp
@@ -134,7 +141,7 @@ Khởi động lại Claude Code sau khi lưu.
 
 **Triệu chứng**: Team bị bỏ mồ côi sau session crash hoặc compaction.
 
-**Cách hoạt động**: `detect-workflow-complete.sh` kích hoạt mỗi Stop event. Quét workflow hoàn thành/thất bại/hủy có team dir còn sót, và workflow mồ côi có owner PID đã chết. Thực thi process escalation 2 giai đoạn (SIGTERM → SIGKILL).
+**Cách hoạt động**: `detect-workflow-complete.sh` kích hoạt mỗi Stop event. Quét workflow hoàn thành/thất bại/hủy có team dir còn sót, và workflow mồ côi có owner PID đã chết. Thực thi process escalation 2 phase (SIGTERM → SIGKILL).
 
 **Sửa**: Tự động — không cần hành động từ user. Dùng `RUNE_CLEANUP_DRY_RUN=1` để debug cleanup behavior mà không kill process thật.
 
@@ -165,7 +172,7 @@ ls tmp/.rune-signals/*/
 ### 2.4 Xem ash outputs
 
 Mỗi Ash viết output vào `tmp/reviews/{id}/ash-outputs/{ash-name}.md`. So sánh output để hiểu:
-- Ash nào được triệu hồi và tại sao
+- Ash nào được kích hoạt (summon) và vì sao
 - Mỗi Ash tìm thấy gì
 - Seal markers có mặt không
 
@@ -394,7 +401,7 @@ Dùng `TaskList` để xem trạng thái task real-time cho team hiện tại.
 2. `review.diff_scope.tag_pre_existing: true` (mặc định)
 3. Mend tự bỏ pre-existing P2/P3 — chỉ P1 luôn được fix
 
-### "Custom Ash không được triệu hồi"
+### "Custom Ash không được kích hoạt"
 
 1. Kiểm tra `trigger.extensions` khớp file thay đổi
 2. Kiểm tra `trigger.paths` khớp đường dẫn

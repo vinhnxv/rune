@@ -49,20 +49,69 @@ def _sanitize_gradient_id(node_id: str) -> str:
     return re.sub(r'[^a-zA-Z0-9_-]', '-', node_id)
 
 
+def _build_gradient_stops_xml(stops: list) -> str:
+    """Build SVG stop elements XML from gradient stops."""
+    stop_elements: List[str] = []
+    for stop in stops:
+        offset = f"{stop.position:.4f}"
+        color = stop.color.to_hex() if stop.color else "#000000"
+        alpha = stop.color.a if stop.color else 1.0
+        stop_elements.append(
+            f'    <stop offset="{offset}" stopColor="{color}" stopOpacity="{alpha:.4f}" />'
+        )
+    return "\n".join(stop_elements)
+
+
+def _build_linear_gradient_defs(safe_id: str, handles: list, width: float, height: float, stops_xml: str) -> str:
+    """Build SVG <defs> block for a linear gradient."""
+    # handles[0] = start point, handles[1] = end point (normalized coords)
+    x1 = handles[0].x * width
+    y1 = handles[0].y * height
+    x2 = handles[1].x * width
+    y2 = handles[1].y * height
+    return (
+        f"  <defs>\n"
+        f'    <linearGradient id="grad-{safe_id}" '
+        f'x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}" '
+        f'gradientUnits="userSpaceOnUse">\n'
+        f"{stops_xml}\n"
+        f"    </linearGradient>\n"
+        f"  </defs>"
+    )
+
+
+def _build_radial_gradient_defs(safe_id: str, handles: list, width: float, height: float, stops_xml: str) -> str:
+    """Build SVG <defs> block for a radial gradient."""
+    # handles[0] = center, handles[1] = x-radius edge, handles[2] = y-radius edge
+    cx = handles[0].x * width
+    cy = handles[0].y * height
+    rx_vec_x = (handles[1].x - handles[0].x) * width
+    rx_vec_y = (handles[1].y - handles[0].y) * height
+    rx = (rx_vec_x ** 2 + rx_vec_y ** 2) ** 0.5
+    if len(handles) >= 3:
+        # Compute ry from handles[2] for accurate elliptical gradients
+        ry_vec_x = (handles[2].x - handles[0].x) * width
+        ry_vec_y = (handles[2].y - handles[0].y) * height
+        ry = (ry_vec_x ** 2 + ry_vec_y ** 2) ** 0.5
+    else:
+        # Circular approximation when handles[2] is absent
+        ry = rx
+    return (
+        f"  <defs>\n"
+        f'    <radialGradient id="grad-{safe_id}" '
+        f'cx="{cx:.2f}" cy="{cy:.2f}" rx="{rx:.2f}" ry="{ry:.2f}" '
+        f'gradientUnits="userSpaceOnUse">\n'
+        f"{stops_xml}\n"
+        f"    </radialGradient>\n"
+        f"  </defs>"
+    )
+
+
 def _generate_gradient_defs(node: FigmaIRNode, paint: Paint) -> str:
     """Generate an SVG <defs> block with a linear or radial gradient.
 
     Computes gradient coordinates from Figma's gradientHandlePositions,
     which are normalized (0.0-1.0) relative to the node bounding box.
-    Radial gradient ry is computed from handles[2] when available for
-    accurate elliptical shape; falls back to circular approximation (ry=rx).
-
-    Args:
-        node: IR node providing the bounding box dimensions.
-        paint: A GRADIENT_LINEAR or GRADIENT_RADIAL Paint object.
-
-    Returns:
-        SVG <defs> XML string, or empty string if handles/stops are missing.
     """
     handles = paint.gradient_handle_positions
     stops = paint.gradient_stops
@@ -72,58 +121,13 @@ def _generate_gradient_defs(node: FigmaIRNode, paint: Paint) -> str:
     safe_id = _sanitize_gradient_id(node.node_id)
     width = node.width if node.width > 0 else 1.0
     height = node.height if node.height > 0 else 1.0
-
-    # Build stop elements
-    stop_elements: List[str] = []
-    for stop in stops:
-        offset = f"{stop.position:.4f}"
-        color = stop.color.to_hex() if stop.color else "#000000"
-        alpha = stop.color.a if stop.color else 1.0
-        stop_elements.append(
-            f'    <stop offset="{offset}" stopColor="{color}" stopOpacity="{alpha:.4f}" />'
-        )
-    stops_xml = "\n".join(stop_elements)
+    stops_xml = _build_gradient_stops_xml(stops)
 
     if paint.type == PaintType.GRADIENT_LINEAR:
-        # handles[0] = start point, handles[1] = end point (normalized coords)
-        x1 = handles[0].x * width
-        y1 = handles[0].y * height
-        x2 = handles[1].x * width
-        y2 = handles[1].y * height
-        return (
-            f"  <defs>\n"
-            f'    <linearGradient id="grad-{safe_id}" '
-            f'x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}" '
-            f'gradientUnits="userSpaceOnUse">\n'
-            f"{stops_xml}\n"
-            f"    </linearGradient>\n"
-            f"  </defs>"
-        )
+        return _build_linear_gradient_defs(safe_id, handles, width, height, stops_xml)
 
     if paint.type == PaintType.GRADIENT_RADIAL:
-        # handles[0] = center, handles[1] = x-radius edge, handles[2] = y-radius edge
-        cx = handles[0].x * width
-        cy = handles[0].y * height
-        rx_vec_x = (handles[1].x - handles[0].x) * width
-        rx_vec_y = (handles[1].y - handles[0].y) * height
-        rx = (rx_vec_x ** 2 + rx_vec_y ** 2) ** 0.5
-        if len(handles) >= 3:
-            # Compute ry from handles[2] for accurate elliptical gradients
-            ry_vec_x = (handles[2].x - handles[0].x) * width
-            ry_vec_y = (handles[2].y - handles[0].y) * height
-            ry = (ry_vec_x ** 2 + ry_vec_y ** 2) ** 0.5
-        else:
-            # Circular approximation when handles[2] is absent
-            ry = rx
-        return (
-            f"  <defs>\n"
-            f'    <radialGradient id="grad-{safe_id}" '
-            f'cx="{cx:.2f}" cy="{cy:.2f}" rx="{rx:.2f}" ry="{ry:.2f}" '
-            f'gradientUnits="userSpaceOnUse">\n'
-            f"{stops_xml}\n"
-            f"    </radialGradient>\n"
-            f"  </defs>"
-        )
+        return _build_radial_gradient_defs(safe_id, handles, width, height, stops_xml)
 
     return ""
 
@@ -131,21 +135,9 @@ def _generate_gradient_defs(node: FigmaIRNode, paint: Paint) -> str:
 def _resolve_svg_fill(node: FigmaIRNode) -> Tuple[str, str]:
     """Resolve the SVG fill value for a non-icon SVG candidate node.
 
-    Inspects the node's fills list and returns the first visible fill's
-    SVG representation. For SOLID fills, returns a hex color. For
-    GRADIENT_LINEAR/GRADIENT_RADIAL fills, returns defs XML and a url()
-    reference. Icons always return currentColor regardless of fill type.
-
-    Note: Only the first visible fill is used. Figma supports stacked fills
-    for blending effects, but SVG path elements can only reference a single
-    fill at a time without complex compositing (<feBlend> etc.).
-
-    Args:
-        node: IR node to resolve fill for.
-
-    Returns:
-        Tuple of (defs_xml, fill_value). defs_xml is an SVG <defs> block
-        string (may be empty). fill_value is a safe CSS fill value string.
+    Returns the first visible fill as (defs_xml, fill_value). Icons
+    always return currentColor. Only the first visible fill is used
+    since SVG paths support a single fill without complex compositing.
     """
     # Icons always use currentColor for theming compatibility
     if node.is_icon_candidate:
@@ -170,6 +162,90 @@ def _resolve_svg_fill(node: FigmaIRNode) -> Tuple[str, str]:
 
     # Default: currentColor (inherits CSS color for flexibility)
     return "", "currentColor"
+
+
+# ---------------------------------------------------------------------------
+# SVG placeholder helpers (extracted from _generate_svg_placeholder)
+# ---------------------------------------------------------------------------
+
+
+def _resolve_stroke_color(node: FigmaIRNode) -> str:
+    """Resolve stroke color: prefer first visible stroke paint for non-icon SVGs."""
+    stroke_color = "currentColor"
+    if not node.is_icon_candidate and node.strokes:
+        for stroke in node.strokes:
+            if not stroke.visible:
+                continue
+            if stroke.color:
+                candidate = stroke.color.to_hex()
+                # Validate stroke color against safe fill pattern (SEC-001)
+                if _SAFE_FILL_RE.match(candidate):
+                    stroke_color = candidate
+                break
+            # VEIL-001: Gradient stroke fallback — use first stop color
+            if stroke.type in (PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL):
+                stops = stroke.gradient_stops
+                if stops and stops[0].color:
+                    candidate = stops[0].color.to_hex()
+                    if _SAFE_FILL_RE.match(candidate):
+                        stroke_color = candidate
+                break
+    return stroke_color
+
+
+def _build_geometry_path_elements(
+    geometry: list, fill_color: str,
+) -> List[str]:
+    """Build sanitized SVG <path> elements from a geometry list."""
+    paths: List[str] = []
+    for geo in geometry:
+        path_data = _sanitize_svg_path(geo.get("path", ""))
+        wind_rule = geo.get("windingRule", "NONZERO").lower()
+        fill_rule = "evenodd" if wind_rule == "evenodd" else "nonzero"
+        if path_data:
+            paths.append(
+                f'<path d="{path_data}" fillRule="{fill_rule}" fill="{fill_color}" />'
+            )
+    return paths
+
+
+def _render_geometry_paths(
+    node: FigmaIRNode, class_attr: str,
+    width: int, height: int,
+    defs_xml: str, fill_value: str, stroke_color: str,
+) -> str:
+    """Render SVG with path elements from fill and stroke geometry, or empty string."""
+    paths = _build_geometry_path_elements(node.fill_geometry, fill_value)
+    paths.extend(_build_geometry_path_elements(node.stroke_geometry, stroke_color))
+    if not paths:
+        return ""
+    path_lines = "\n".join(f"  {p}" for p in paths)
+    defs_section = f"\n{defs_xml}" if defs_xml else ""
+    return (
+        f"<svg{class_attr} "
+        f'width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}" '
+        f'fill="none" xmlns="http://www.w3.org/2000/svg">'
+        f"{defs_section}\n"
+        f"{path_lines}\n"
+        f"</svg>"
+    )
+
+
+def _render_svg_todo_placeholder(
+    class_attr: str, width: int, height: int, safe_name: str,
+) -> str:
+    """Render a TODO placeholder SVG when no geometry or export URL is available."""
+    # SEC-005: Strip */ sequences to prevent JSX comment injection
+    safe_name_comment = safe_name.replace("*/", "* /")
+    return (
+        f"<svg{class_attr} "
+        f'width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}" '
+        f'fill="none" xmlns="http://www.w3.org/2000/svg">\n'
+        f"  {{/* TODO: SVG paths for {safe_name_comment} */}}\n"
+        f"</svg>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -226,6 +302,25 @@ class ImageHandler:
         """
         return node.has_image_fill or node.is_svg_candidate
 
+    def _generate_img_element(
+        self, node: FigmaIRNode, class_attr: str, extra_attrs: str,
+    ) -> str:
+        """Generate an <img> tag for a node with an image fill."""
+        url = _sanitize_image_url(self.resolve_url(node.image_ref))
+        if not url:
+            return f'<div{class_attr} />'
+        alt = _sanitize_alt_text(node.name)
+        width = round(node.width) if node.width > 0 else ""
+        height = round(node.height) if node.height > 0 else ""
+        size_attrs = ""
+        if width:
+            size_attrs += f' width={{{width}}}'
+        if height:
+            size_attrs += f' height={{{height}}}'
+        return (
+            f'<img src="{url}" alt="{alt}"{class_attr}{size_attrs}{extra_attrs} />'
+        )
+
     def generate_image_jsx(
         self,
         node: FigmaIRNode,
@@ -237,14 +332,6 @@ class ImageHandler:
         For image fills, generates an ``<img>`` tag with resolved URL.
         For SVG candidates (boolean ops, icons), generates an inline
         SVG placeholder.
-
-        Args:
-            node: IR node with image content.
-            classes: Tailwind class string for the element.
-            aria_attrs: Optional ARIA attributes dict (from ``--aria`` flag).
-
-        Returns:
-            JSX string for the image element.
         """
         class_attr = f' className="{classes}"' if classes else ""
 
@@ -259,104 +346,16 @@ class ImageHandler:
             return self._generate_svg_placeholder(node, class_attr + extra_attrs)
 
         if node.has_image_fill and node.image_ref:
-            url = _sanitize_image_url(self.resolve_url(node.image_ref))
-            if not url:
-                return f'<div{class_attr} />'
-            alt = _sanitize_alt_text(node.name)
-            width = round(node.width) if node.width > 0 else ""
-            height = round(node.height) if node.height > 0 else ""
-            size_attrs = ""
-            if width:
-                size_attrs += f' width={{{width}}}'
-            if height:
-                size_attrs += f' height={{{height}}}'
-            return (
-                f'<img src="{url}" alt="{alt}"{class_attr}{size_attrs}{extra_attrs} />'
-            )
+            return self._generate_img_element(node, class_attr, extra_attrs)
 
         # Fallback: div with background image
         return f'<div{class_attr} />'
 
-    def _generate_svg_placeholder(
-        self,
-        node: FigmaIRNode,
-        class_attr: str,
+    def _render_svg_url_fallback(
+        self, node: FigmaIRNode, class_attr: str,
+        width: int, height: int, safe_name: str,
     ) -> str:
-        """Generate inline SVG for vector nodes.
-
-        If ``node.fill_geometry`` or ``node.stroke_geometry`` contains path
-        data from the Figma API, renders actual ``<path>`` elements. If a
-        pre-exported SVG URL is available in ``self._svg_urls``, embeds it
-        via an ``<img>`` tag. Otherwise falls back to a TODO placeholder.
-
-        Args:
-            node: SVG candidate IR node.
-            class_attr: Pre-formatted className attribute string.
-
-        Returns:
-            JSX string with SVG element.
-        """
-        width = round(node.width) if node.width > 0 else 24
-        height = round(node.height) if node.height > 0 else 24
-        safe_name = _sanitize_alt_text(node.name)
-
-        # Determine fill: resolve gradient or solid fill for non-icon SVGs (icons use currentColor)
-        defs_xml, fill_value = _resolve_svg_fill(node)
-
-        # Determine stroke color: prefer first visible stroke paint for non-icon SVGs
-        stroke_color = "currentColor"
-        if not node.is_icon_candidate and node.strokes:
-            for stroke in node.strokes:
-                if not stroke.visible:
-                    continue
-                if stroke.color:
-                    candidate = stroke.color.to_hex()
-                    # Validate stroke color against safe fill pattern (SEC-001)
-                    if _SAFE_FILL_RE.match(candidate):
-                        stroke_color = candidate
-                    break
-                # VEIL-001: Gradient stroke fallback — use first stop color
-                if stroke.type in (PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL):
-                    stops = stroke.gradient_stops
-                    if stops and stops[0].color:
-                        candidate = stops[0].color.to_hex()
-                        if _SAFE_FILL_RE.match(candidate):
-                            stroke_color = candidate
-                    break
-
-        # Render actual paths from fillGeometry and strokeGeometry when available
-        if node.fill_geometry or node.stroke_geometry:
-            paths: List[str] = []
-            for geo in node.fill_geometry:
-                path_data = _sanitize_svg_path(geo.get("path", ""))
-                wind_rule = geo.get("windingRule", "NONZERO").lower()
-                fill_rule = "evenodd" if wind_rule == "evenodd" else "nonzero"
-                if path_data:
-                    paths.append(
-                        f'<path d="{path_data}" fillRule="{fill_rule}" fill="{fill_value}" />'
-                    )
-            for geo in node.stroke_geometry:
-                path_data = _sanitize_svg_path(geo.get("path", ""))
-                wind_rule = geo.get("windingRule", "NONZERO").lower()
-                fill_rule = "evenodd" if wind_rule == "evenodd" else "nonzero"
-                if path_data:
-                    paths.append(
-                        f'<path d="{path_data}" fillRule="{fill_rule}" fill="{stroke_color}" />'
-                    )
-            if paths:
-                path_lines = "\n".join(f"  {p}" for p in paths)
-                defs_section = f"\n{defs_xml}" if defs_xml else ""
-                return (
-                    f"<svg{class_attr} "
-                    f'width="{width}" height="{height}" '
-                    f'viewBox="0 0 {width} {height}" '
-                    f'fill="none" xmlns="http://www.w3.org/2000/svg">'
-                    f"{defs_section}\n"
-                    f"{path_lines}\n"
-                    f"</svg>"
-                )
-
-        # SVG export URL fallback: use pre-exported SVG from Figma Images API
+        """Return an <img> tag using a pre-exported SVG URL, or empty string."""
         svg_url = self._svg_urls.get(node.node_id, "")
         if svg_url:
             safe_url = _sanitize_image_url(svg_url)
@@ -367,18 +366,40 @@ class ImageHandler:
                     f'<img src="{safe_url}" alt="{safe_name}"{class_attr} '
                     f'width={{{width}}} height={{{height}}} />'
                 )
+        return ""
+
+    def _generate_svg_placeholder(
+        self,
+        node: FigmaIRNode,
+        class_attr: str,
+    ) -> str:
+        """Generate inline SVG for vector nodes.
+
+        Renders <path> elements from geometry, falls back to SVG export
+        URL, then to a TODO placeholder.
+        """
+        width = round(node.width) if node.width > 0 else 24
+        height = round(node.height) if node.height > 0 else 24
+        safe_name = _sanitize_alt_text(node.name)
+
+        defs_xml, fill_value = _resolve_svg_fill(node)
+        stroke_color = _resolve_stroke_color(node)
+
+        # Render actual paths from fillGeometry and strokeGeometry when available
+        if node.fill_geometry or node.stroke_geometry:
+            result = _render_geometry_paths(
+                node, class_attr, width, height, defs_xml, fill_value, stroke_color,
+            )
+            if result:
+                return result
+
+        # SVG export URL fallback: use pre-exported SVG from Figma Images API
+        result = self._render_svg_url_fallback(node, class_attr, width, height, safe_name)
+        if result:
+            return result
 
         # Fallback: TODO placeholder
-        # SEC-005: Strip */ sequences to prevent JSX comment injection
-        safe_name_comment = safe_name.replace("*/", "* /")
-        return (
-            f"<svg{class_attr} "
-            f'width="{width}" height="{height}" '
-            f'viewBox="0 0 {width} {height}" '
-            f'fill="none" xmlns="http://www.w3.org/2000/svg">\n'
-            f"  {{/* TODO: SVG paths for {safe_name_comment} */}}\n"
-            f"</svg>"
-        )
+        return _render_svg_todo_placeholder(class_attr, width, height, safe_name)
 
 
 def collect_image_refs(node: FigmaIRNode) -> List[str]:

@@ -392,6 +392,7 @@
     "enabled": false,
     "fidelity_threshold": 80,
     "figma_cache_ttl": 1800,
+    "figma_provider": "auto",
     "iterate_enabled": false,
     "max_extraction_workers": 2,
     "max_implementation_workers": 3,
@@ -547,6 +548,9 @@
     "chunk_size": 15,
     "chunk_target_size": 15,
     "chunk_threshold": 20,
+    "citation_verify_priorities": [
+      "P1"
+    ],
     "context_intelligence": {
       "enabled": true,
       "fetch_linked_issues": true,
@@ -578,10 +582,15 @@
     },
     "max_chunks": 5,
     "max_shards": 5,
+    "pre_aggregate": {
+      "enabled": true,
+      "threshold_bytes": 25000
+    },
     "reshard_threshold": 30,
     "shard_model_policy": "auto",
     "shard_size": 12,
-    "shard_threshold": 15
+    "shard_threshold": 15,
+    "verify_tome_citations": true
   },
   "rune-gaze": {
     "always_review": [
@@ -656,6 +665,12 @@
     "override": null
   },
   "teammate_lifecycle": {
+    "cleanup": {
+      "enabled": true,
+      "escalation_timeout_seconds": 5,
+      "grace_period_seconds": 10
+    },
+    "max_runtime_minutes": 20,
     "max_turns": {
       "aggregation": 60,
       "investigation": 0,
@@ -665,14 +680,8 @@
       "utility": 40,
       "work": 60
     },
-    "max_runtime_minutes": 20,
     "process_cleanup": true,
-    "shutdown_signal_threshold": 35,
-    "cleanup": {
-      "enabled": true,
-      "grace_period_seconds": 10,
-      "escalation_timeout_seconds": 5
-    }
+    "shutdown_signal_threshold": 35
   },
   "testing": {
     "enabled": true,

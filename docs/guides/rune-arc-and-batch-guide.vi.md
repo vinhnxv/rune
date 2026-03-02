@@ -9,6 +9,13 @@ Trọng tâm là an toàn vận hành, khả năng khôi phục, và các kịch
 Tài liệu liên quan:
 - [Hướng dẫn planning Rune (devise/forge/plan-review/inspect)](rune-planning-and-plan-quality-guide.vi.md)
 
+## Đọc nhanh (2 phút)
+
+- Dùng `/rune:arc` khi bạn có **1 plan** cần chạy trọn pipeline.
+- Dùng `/rune:arc-batch` khi bạn có **nhiều plan** cần chạy lần lượt.
+- Nếu pipeline bị ngắt, ưu tiên `--resume` trước khi chạy mới.
+- Nếu chưa quen thuật ngữ, xem [Thuật ngữ Rune (Tiếng Việt)](rune-glossary.vi.md).
+
 ---
 
 ## 1. Chọn Lệnh Nhanh
@@ -195,7 +202,7 @@ Dừng luôn arc đang chạy:
 - Nếu dùng `--confirm`: bắt buộc quyết định rõ từ người dùng.
 
 ### Hành vi pre-ship validator
-Pre-ship có thể ra WARN/BLOCK để tăng visibility, nhưng trong luồng arc chuẩn nó được thiết kế không chặn pipeline.
+Pre-ship có thể ra WARN/BLOCK để tăng visibility, nhưng trong workflow arc chuẩn nó được thiết kế không chặn pipeline.
 
 ### Điều kiện ship/merge bị skip
 Thường do:

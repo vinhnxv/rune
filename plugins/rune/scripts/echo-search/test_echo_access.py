@@ -360,55 +360,25 @@ class TestEdge010BoundedGrowth:
     rebuild_index prunes entries older than 180 days.
     """
 
+    def _insert_access(self, db, entry_id, query, days_ago=0):
+        """Insert an access log entry at a given age."""
+        ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - days_ago * 86400))
+        db.execute("INSERT INTO echo_access_log (entry_id, accessed_at, query) VALUES (?, ?, ?)",
+                   (entry_id, ts, query))
+        db.commit()
+
     def test_age_based_pruning_on_reindex(self, db):
         """Reindex removes access log entries older than 180 days."""
-        entries = [
-            {
-                "id": "age_prune_entry01",
-                "role": "r",
-                "layer": "inscribed",
-                "date": "2026-02-20",
-                "source": "",
-                "content": "content",
-                "tags": "",
-                "line_number": 1,
-                "file_path": "/p",
-            }
-        ]
+        entries = [{"id": "age_prune_entry01", "role": "r", "layer": "inscribed",
+                    "date": "2026-02-20", "source": "", "content": "content",
+                    "tags": "", "line_number": 1, "file_path": "/p"}]
         rebuild_index(db, entries)
-
-        # Insert an old access log entry (200 days ago)
-        old_time = time.strftime(
-            "%Y-%m-%dT%H:%M:%SZ",
-            time.gmtime(time.time() - 200 * 86400),
-        )
-        db.execute(
-            "INSERT INTO echo_access_log (entry_id, accessed_at, query) VALUES (?, ?, ?)",
-            ("age_prune_entry01", old_time, "old query"),
-        )
-        db.commit()
-
-        # Also insert a recent access
-        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        db.execute(
-            "INSERT INTO echo_access_log (entry_id, accessed_at, query) VALUES (?, ?, ?)",
-            ("age_prune_entry01", now, "recent query"),
-        )
-        db.commit()
-
-        count_before = db.execute(
-            "SELECT COUNT(*) FROM echo_access_log"
-        ).fetchone()[0]
-        assert count_before == 2
-
-        # Reindex triggers age-based pruning
+        self._insert_access(db, "age_prune_entry01", "old query", days_ago=200)
+        self._insert_access(db, "age_prune_entry01", "recent query", days_ago=0)
+        assert db.execute("SELECT COUNT(*) FROM echo_access_log").fetchone()[0] == 2
         rebuild_index(db, entries)
-
-        count_after = db.execute(
-            "SELECT COUNT(*) FROM echo_access_log"
-        ).fetchone()[0]
-        # Old entry should be pruned, recent one preserved
-        assert count_after == 1
+        # Old entry pruned, recent preserved
+        assert db.execute("SELECT COUNT(*) FROM echo_access_log").fetchone()[0] == 1
 
     def test_recent_entries_not_pruned(self, db):
         """Recent access log entries survive reindex pruning."""

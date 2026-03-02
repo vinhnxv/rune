@@ -561,3 +561,268 @@ class TestShadowArbitraryValues:
         mapper = TailwindMapper()
         result = mapper._map_shadow("none")
         assert result == "shadow"
+
+
+# ---------------------------------------------------------------------------
+# Additional edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestMapPropertiesEdgeCases:
+    """Edge cases for TailwindMapper.map_properties."""
+
+    def test_empty_dict_returns_empty_list(self):
+        """Empty props dict should produce an empty class list."""
+        result = TailwindMapper().map_properties({})
+        assert result == []
+
+    def test_none_value_for_known_property_skipped(self):
+        """None value for a property should not crash — gracefully skipped."""
+        # This should not raise; unknown/invalid values just get skipped
+        try:
+            result = TailwindMapper().map_properties({"background-color": None})
+            assert isinstance(result, list)
+        except (TypeError, ValueError, KeyError, AttributeError):
+            pass  # Acceptable to raise, but not crash unhandled
+
+    def test_invalid_color_hex_gracefully_handled(self):
+        """Invalid hex color (too short) should fallback to arbitrary or be skipped."""
+        result = TailwindMapper().map_properties({"background-color": "#xyz"})
+        assert isinstance(result, list)
+
+    def test_zero_width_maps_to_w0(self):
+        """width: 0px should map to w-0."""
+        classes = TailwindMapper().map_properties({"width": "0px"})
+        assert "w-0" in classes
+
+    def test_boundary_large_width(self):
+        """Very large width should produce an arbitrary class or a valid class."""
+        classes = TailwindMapper().map_properties({"width": "9999px"})
+        assert len(classes) == 1
+        assert classes[0].startswith("w-")
+
+    def test_negative_gap_boundary(self):
+        """Negative gap value should be handled gracefully without crashing."""
+        try:
+            classes = TailwindMapper().map_properties({"gap": "-8.0px"})
+            assert isinstance(classes, list)
+        except (TypeError, ValueError, KeyError, AttributeError):
+            pass  # Acceptable: negative gap is invalid CSS
+
+    def test_zero_border_radius_boundary(self):
+        """border-radius: 0px should produce rounded-none."""
+        classes = TailwindMapper().map_properties({"border-radius": "0px"})
+        assert "rounded-none" in classes
+
+    def test_boundary_huge_border_radius(self):
+        """border-radius: 9999px should map to rounded-full."""
+        classes = TailwindMapper().map_properties({"border-radius": "9999px"})
+        assert "rounded-full" in classes
+
+    def test_zero_opacity_boundary(self):
+        """opacity: 0.00 should map to opacity-0."""
+        classes = TailwindMapper().map_properties({"opacity": "0.00"})
+        assert "opacity-0" in classes
+
+    def test_full_opacity_boundary(self):
+        """opacity: 1.00 should map to opacity-100."""
+        classes = TailwindMapper().map_properties({"opacity": "1.00"})
+        assert "opacity-100" in classes
+
+    def test_unknown_overflow_value_skipped(self):
+        """Unknown overflow value like 'clip' should not crash."""
+        try:
+            classes = TailwindMapper().map_properties({"overflow": "clip"})
+            assert isinstance(classes, list)
+        except (TypeError, ValueError, KeyError, AttributeError):
+            pass
+
+    def test_unknown_property_key_ignored(self):
+        """Unknown CSS property should be silently ignored."""
+        classes = TailwindMapper().map_properties({"not-a-real-css-property": "value"})
+        assert isinstance(classes, list)
+
+    def test_malformed_rgba_in_background(self):
+        """Malformed rgba string should be handled gracefully."""
+        result = TailwindMapper().map_properties({"background-color": "rgba(not,valid,color)"})
+        assert isinstance(result, list)
+
+    def test_whitespace_only_color_value(self):
+        """Whitespace-only value should not crash."""
+        try:
+            result = TailwindMapper().map_properties({"background-color": "   "})
+            assert isinstance(result, list)
+        except (TypeError, ValueError, KeyError, AttributeError):
+            pass
+
+
+class TestSnapColorEdgeCases:
+    """Edge cases for snap_color."""
+
+    def test_invalid_hex_too_short_returns_arbitrary(self):
+        """Short hex like '#abc' (3-char) should return arbitrary or handle gracefully."""
+        result = snap_color("#abc", "bg")
+        assert result.startswith("bg-")
+
+    def test_empty_string_color_gracefully_handled(self):
+        """Empty string color input should not raise an unhandled exception."""
+        try:
+            result = snap_color("", "bg")
+            assert isinstance(result, str)
+        except (TypeError, ValueError, KeyError, AttributeError):
+            pass
+
+    def test_named_color_transparent(self):
+        """CSS named color 'transparent' should produce transparent class."""
+        result = snap_color("transparent", "bg")
+        assert result == "bg-transparent"
+
+    def test_named_color_black(self):
+        """CSS named color 'black' should produce bg-black class."""
+        result = snap_color("black", "bg")
+        assert result == "bg-black"
+
+    def test_named_color_white(self):
+        """CSS named color 'white' should produce bg-white class."""
+        result = snap_color("white", "bg")
+        assert result == "bg-white"
+
+    def test_hex_with_alpha_channel(self):
+        """Hex color with alpha (#rrggbbaa) should extract RGB correctly."""
+        result = snap_color("#ef444480", "bg")
+        assert result.startswith("bg-")
+
+    def test_boundary_zero_rgba(self):
+        """rgba(0, 0, 0, 0) — fully transparent black — should return a bg- class."""
+        result = snap_color("rgba(0, 0, 0, 0)", "bg")
+        assert result.startswith("bg-")
+
+    def test_boundary_max_rgba(self):
+        """rgba(255, 255, 255, 1) — solid white — should return a bg- class."""
+        result = snap_color("rgba(255, 255, 255, 1)", "bg")
+        assert result.startswith("bg-")
+
+
+class TestMapFontSizeEdgeCases:
+    """Edge cases for map_font_size."""
+
+    def test_zero_font_size_boundary(self):
+        """Font size 0 should return an arbitrary class."""
+        result = map_font_size(0)
+        assert result.startswith("text-")
+
+    def test_negative_font_size_boundary(self):
+        """Negative font size should be handled gracefully."""
+        try:
+            result = map_font_size(-1)
+            assert result.startswith("text-")
+        except (TypeError, ValueError, KeyError, AttributeError):
+            pass
+
+    def test_huge_font_size_boundary(self):
+        """Very large font size (e.g. 999px) should produce arbitrary class."""
+        result = map_font_size(999)
+        assert result == "text-[999px]"
+
+    def test_boundary_exact_scale_value_128px(self):
+        """128px is the top named scale value — should return text-9xl."""
+        result = map_font_size(128)
+        assert result == "text-9xl"
+
+
+class TestMapFontWeightEdgeCases:
+    """Edge cases for map_font_weight."""
+
+    def test_boundary_zero_weight(self):
+        """Font weight 0 should be handled — rounds to nearest valid weight."""
+        result = map_font_weight(0)
+        assert result.startswith("font-")
+
+    def test_boundary_very_large_weight(self):
+        """Font weight > 900 should fall back to font-black or nearest."""
+        result = map_font_weight(1000)
+        assert result.startswith("font-")
+
+    def test_non_standard_weight_450(self):
+        """Non-standard 450 should round to 400 (normal) or 500 (medium)."""
+        result = map_font_weight(450)
+        assert result in ("font-normal", "font-medium")
+
+
+class TestLetterSpacingEdgeCases:
+    """Edge cases for map_letter_spacing."""
+
+    def test_large_positive_letter_spacing_boundary(self):
+        """Very large positive letter spacing should map to widest class or arbitrary."""
+        result = map_letter_spacing(10.0)
+        assert isinstance(result, str)
+        assert result.startswith("tracking-")
+
+    def test_large_negative_letter_spacing_boundary(self):
+        """Very large negative letter spacing (tightest) should map to a class."""
+        result = map_letter_spacing(-10.0)
+        assert isinstance(result, str)
+        assert result.startswith("tracking-")
+
+    def test_zero_letter_spacing_boundary(self):
+        """Letter spacing of 0 should return tracking-normal."""
+        result = map_letter_spacing(0)
+        assert result == "tracking-normal"
+
+
+class TestLineHeightEdgeCases:
+    """Edge cases for map_line_height."""
+
+    def test_zero_line_height_boundary(self):
+        """Line height of 0 with font size 16 should be handled gracefully."""
+        try:
+            result = map_line_height(0, 16)
+            assert isinstance(result, str)
+        except (TypeError, ValueError, KeyError, AttributeError):
+            pass
+
+    def test_equal_line_height_and_font_size_boundary(self):
+        """When line height equals font size ratio is 1.0 — leading-none."""
+        result = map_line_height(20, 20)
+        assert result == "leading-none"
+
+    def test_huge_line_height_boundary(self):
+        """Very large line height (e.g. 200px with 16px font) should map to leading-loose."""
+        result = map_line_height(200, 16)
+        assert result == "leading-loose"
+
+
+class TestBorderRadiusEdgeCases:
+    """Edge cases for TailwindMapper._snap_radius."""
+
+    def _snap(self, px: str) -> str:
+        return TailwindMapper._snap_radius(px)
+
+    def test_boundary_negative_radius(self):
+        """Negative border radius should be handled gracefully."""
+        try:
+            result = self._snap("-4px")
+            assert isinstance(result, str)
+        except (TypeError, ValueError, KeyError, AttributeError):
+            pass
+
+    def test_boundary_zero_string(self):
+        """Border radius '0px' should produce rounded-none."""
+        result = self._snap("0px")
+        assert result == "rounded-none"
+
+    def test_missing_px_suffix_boundary(self):
+        """Missing 'px' suffix should be handled gracefully."""
+        try:
+            result = self._snap("8")
+            assert isinstance(result, str)
+        except (TypeError, ValueError, KeyError, AttributeError):
+            pass
+
+    def test_boundary_empty_string_radius(self):
+        """Empty string border radius should not crash."""
+        try:
+            result = self._snap("")
+            assert isinstance(result, str)
+        except (TypeError, ValueError, KeyError, AttributeError):
+            pass

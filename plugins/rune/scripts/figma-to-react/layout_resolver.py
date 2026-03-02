@@ -113,6 +113,48 @@ def resolve_container_layout(node: FigmaIRNode) -> LayoutClasses:
     return _resolve_flex_layout(node, result)
 
 
+def _resolve_horizontal_sizing(
+    child: FigmaIRNode,
+    is_horizontal: bool,
+    classes: List[str],
+) -> None:
+    """Append horizontal sizing classes for a child node.
+
+    Args:
+        child: The child IR node.
+        is_horizontal: Whether the parent layout is horizontal.
+        classes: List to append classes to (mutated in place).
+    """
+    h_sizing = child.layout_sizing_horizontal
+    if h_sizing == LayoutSizingMode.FILL:
+        classes.append("flex-1" if is_horizontal else "w-full")
+    elif h_sizing == LayoutSizingMode.FIXED:
+        if child.width > 0:
+            classes.append(f"w-{_px_to_spacing(child.width)}")
+    # HUG: default — no class needed
+
+
+def _resolve_vertical_sizing(
+    child: FigmaIRNode,
+    is_horizontal: bool,
+    classes: List[str],
+) -> None:
+    """Append vertical sizing classes for a child node.
+
+    Args:
+        child: The child IR node.
+        is_horizontal: Whether the parent layout is horizontal.
+        classes: List to append classes to (mutated in place).
+    """
+    v_sizing = child.layout_sizing_vertical
+    if v_sizing == LayoutSizingMode.FILL:
+        classes.append("flex-1" if not is_horizontal else "h-full")
+    elif v_sizing == LayoutSizingMode.FIXED:
+        if child.height > 0:
+            classes.append(f"h-{_px_to_spacing(child.height)}")
+    # HUG: default — no class needed
+
+
 def resolve_child_layout(
     child: FigmaIRNode,
     parent: FigmaIRNode,
@@ -141,32 +183,8 @@ def resolve_child_layout(
 
     is_horizontal = parent.layout_mode == LayoutMode.HORIZONTAL
 
-    # Horizontal sizing
-    h_sizing = child.layout_sizing_horizontal
-    if h_sizing == LayoutSizingMode.FILL:
-        if is_horizontal:
-            classes.append("flex-1")
-        else:
-            classes.append("w-full")
-    elif h_sizing == LayoutSizingMode.HUG:
-        # HUG is the default -- no explicit class needed typically
-        pass
-    elif h_sizing == LayoutSizingMode.FIXED:
-        if child.width > 0:
-            classes.append(f"w-{_px_to_spacing(child.width)}")
-
-    # Vertical sizing
-    v_sizing = child.layout_sizing_vertical
-    if v_sizing == LayoutSizingMode.FILL:
-        if not is_horizontal:
-            classes.append("flex-1")
-        else:
-            classes.append("h-full")
-    elif v_sizing == LayoutSizingMode.HUG:
-        pass
-    elif v_sizing == LayoutSizingMode.FIXED:
-        if child.height > 0:
-            classes.append(f"h-{_px_to_spacing(child.height)}")
+    _resolve_horizontal_sizing(child, is_horizontal, classes)
+    _resolve_vertical_sizing(child, is_horizontal, classes)
 
     # Layout grow (explicit flex-grow value)
     if child.layout_grow is not None and child.layout_grow > 0:
@@ -179,6 +197,57 @@ def resolve_child_layout(
 # ---------------------------------------------------------------------------
 # Flex layout
 # ---------------------------------------------------------------------------
+
+
+def _resolve_flex_alignment(node: FigmaIRNode, result: LayoutClasses) -> None:
+    """Append flex alignment classes (justify, items, content) to result.
+
+    Args:
+        node: Container node with auto-layout alignment properties.
+        result: LayoutClasses to append to (mutated in place).
+    """
+    if node.primary_axis_align is not None:
+        justify = _JUSTIFY_MAP.get(node.primary_axis_align)
+        if justify:
+            result.container.append(justify)
+
+    if node.counter_axis_align is not None:
+        items = _ITEMS_MAP.get(node.counter_axis_align)
+        if items:
+            result.container.append(items)
+
+    if (
+        node.layout_wrap == LayoutWrap.WRAP
+        and node.counter_axis_align_content is not None
+    ):
+        content = _CONTENT_MAP.get(node.counter_axis_align_content)
+        if content:
+            result.container.append(content)
+
+
+def _resolve_flex_gap(node: FigmaIRNode, result: LayoutClasses) -> None:
+    """Append flex gap classes (gap, gap-y/gap-x for wrap) to result.
+
+    Args:
+        node: Container node with spacing properties.
+        result: LayoutClasses to append to (mutated in place).
+    """
+    if node.item_spacing > 0:
+        result.container.append(f"gap-{_px_to_spacing(node.item_spacing)}")
+
+    if (
+        node.layout_wrap == LayoutWrap.WRAP
+        and node.counter_axis_spacing is not None
+        and node.counter_axis_spacing > 0
+    ):
+        if node.layout_mode == LayoutMode.HORIZONTAL:
+            result.container.append(
+                f"gap-y-{_px_to_spacing(node.counter_axis_spacing)}"
+            )
+        else:
+            result.container.append(
+                f"gap-x-{_px_to_spacing(node.counter_axis_spacing)}"
+            )
 
 
 def _resolve_flex_layout(
@@ -206,46 +275,8 @@ def _resolve_flex_layout(
     if node.layout_wrap == LayoutWrap.WRAP:
         result.container.append("flex-wrap")
 
-    # Primary axis alignment (justify)
-    if node.primary_axis_align is not None:
-        justify = _JUSTIFY_MAP.get(node.primary_axis_align)
-        if justify:
-            result.container.append(justify)
-
-    # Counter axis alignment (items)
-    if node.counter_axis_align is not None:
-        items = _ITEMS_MAP.get(node.counter_axis_align)
-        if items:
-            result.container.append(items)
-
-    # Counter axis content alignment (for wrapped layouts)
-    if (
-        node.layout_wrap == LayoutWrap.WRAP
-        and node.counter_axis_align_content is not None
-    ):
-        content = _CONTENT_MAP.get(node.counter_axis_align_content)
-        if content:
-            result.container.append(content)
-
-    # Gap
-    if node.item_spacing > 0:
-        result.container.append(f"gap-{_px_to_spacing(node.item_spacing)}")
-
-    # Counter-axis spacing for wrapped layouts (gap-y in flex-wrap)
-    if (
-        node.layout_wrap == LayoutWrap.WRAP
-        and node.counter_axis_spacing is not None
-        and node.counter_axis_spacing > 0
-    ):
-        # In a horizontal wrap, counter-axis = vertical
-        if node.layout_mode == LayoutMode.HORIZONTAL:
-            result.container.append(
-                f"gap-y-{_px_to_spacing(node.counter_axis_spacing)}"
-            )
-        else:
-            result.container.append(
-                f"gap-x-{_px_to_spacing(node.counter_axis_spacing)}"
-            )
+    _resolve_flex_alignment(node, result)
+    _resolve_flex_gap(node, result)
 
     # Padding
     _resolve_padding(node, result)
@@ -265,6 +296,42 @@ def _resolve_flex_layout(
 # ---------------------------------------------------------------------------
 
 
+def _resolve_grid_columns(node: FigmaIRNode, result: LayoutClasses) -> None:
+    """Append grid column classes, handling auto-fill responsive override.
+
+    Args:
+        node: Container node with grid column properties.
+        result: LayoutClasses to append to (mutated in place).
+    """
+    cols = node.layout_grid_columns
+    if cols is not None and cols > 0:
+        result.container.append(f"grid-cols-{cols}")
+
+    if node.layout_grid_cell_min_width is not None and node.layout_grid_cell_min_width > 0:
+        min_w = node.layout_grid_cell_min_width
+        result.container.append(
+            f"grid-cols-[repeat(auto-fill,minmax({min_w:.0f}px,1fr))]"
+        )
+        cols_class = f"grid-cols-{cols}" if cols else None
+        if cols_class and cols_class in result.container:
+            result.container.remove(cols_class)
+
+
+def _resolve_grid_gap(node: FigmaIRNode, result: LayoutClasses) -> None:
+    """Append grid gap classes to result.
+
+    Args:
+        node: Container node with spacing properties.
+        result: LayoutClasses to append to (mutated in place).
+    """
+    if node.item_spacing > 0:
+        result.container.append(f"gap-{_px_to_spacing(node.item_spacing)}")
+    if node.counter_axis_spacing is not None and node.counter_axis_spacing > 0:
+        result.container.append(
+            f"gap-y-{_px_to_spacing(node.counter_axis_spacing)}"
+        )
+
+
 def _resolve_grid_layout(
     node: FigmaIRNode,
     result: LayoutClasses,
@@ -280,36 +347,13 @@ def _resolve_grid_layout(
     """
     result.container.append("grid")
 
-    cols = node.layout_grid_columns
-    if cols is not None and cols > 0:
-        result.container.append(f"grid-cols-{cols}")
-
-    # Gap
-    if node.item_spacing > 0:
-        result.container.append(f"gap-{_px_to_spacing(node.item_spacing)}")
-
-    # Counter-axis spacing
-    if node.counter_axis_spacing is not None and node.counter_axis_spacing > 0:
-        result.container.append(
-            f"gap-y-{_px_to_spacing(node.counter_axis_spacing)}"
-        )
-
-    # Min cell width (for auto-fill responsive grids)
-    if node.layout_grid_cell_min_width is not None and node.layout_grid_cell_min_width > 0:
-        min_w = node.layout_grid_cell_min_width
-        result.container.append(
-            f"grid-cols-[repeat(auto-fill,minmax({min_w:.0f}px,1fr))]"
-        )
-        # Override the fixed column count if auto-fill is used
-        cols_class = f"grid-cols-{cols}" if cols else None
-        if cols_class and cols_class in result.container:
-            result.container.remove(cols_class)
+    _resolve_grid_columns(node, result)
+    _resolve_grid_gap(node, result)
 
     # Alignment
     if node.primary_axis_align is not None:
         justify = _JUSTIFY_MAP.get(node.primary_axis_align)
         if justify:
-            # Grid uses justify-items instead of justify-content for item alignment
             result.container.append(justify)
 
     if node.counter_axis_align is not None:
