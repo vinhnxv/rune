@@ -148,6 +148,17 @@ def _inject_toplevel_feature_defaults(data):
         "max_questions_per_worker": 3, "timeout_seconds": 120,
     })
     data.setdefault("arc_hierarchy", {"cleanup_child_branches": True})
+    data.setdefault("rtk", {
+        "enabled": False,
+        "auto_detect": True,
+        "tee_mode": "always",
+        "exempt_workflows": ["goldmask", "mend", "inspect", "debug"],
+        "exempt_commands": [
+            "git blame",
+            "git diff",
+            "git log.*--format",
+        ],
+    })
 
 
 def _inject_goldmask_defaults(data):

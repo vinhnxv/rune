@@ -1552,3 +1552,33 @@ codex_review:
 #   model: sonnet               # Default investigator model; overridden by cost_tier
 #   re_triage_rounds: 1         # Max re-triage rounds before escalating to user
 #   echo_on_verdict: true       # Persist verdict to rune-echoes after resolution
+
+# ──────────────────────────────────────────────
+# RTK — Rust Token Killer Bash command rewriter (v1.129.0+)
+# ──────────────────────────────────────────────
+# Optional PreToolUse hook that rewrites Bash commands with `rtk` prefix
+# for token compression. Requires the `rtk` CLI to be installed.
+# Disabled by default — enable only if rtk is installed and tested.
+#
+# tee_mode controls when original command is also run alongside rtk:
+#   always   — always tee (run both rtk and original) [default]
+#   failures — tee only when rtk exits non-zero
+#   never    — never tee (rtk output only)
+#
+# Exempt workflows skip RTK rewriting entirely (goldmask/mend/inspect/debug
+# produce structured output that rtk compression would corrupt).
+# Exempt commands are shell patterns matched against the raw command string.
+#
+# rtk:
+#   enabled: false              # Master switch — must be true for hook to activate (default: false)
+#   auto_detect: true           # Auto-disable if `rtk` binary not found (default: true)
+#   tee_mode: "always"          # always | failures | never (default: "always")
+#   exempt_workflows:           # Workflows where RTK is never applied
+#     - goldmask
+#     - mend
+#     - inspect
+#     - debug
+#   exempt_commands:            # Shell patterns — commands matching these are passed through unchanged
+#     - "git blame"
+#     - "git diff"
+#     - "git log.*--format"

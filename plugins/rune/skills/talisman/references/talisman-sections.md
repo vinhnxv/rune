@@ -32,6 +32,7 @@ This list reflects the documented schema used by Rune (including default-injecte
 | 23 | `context_monitor` + `context_weaving` | Context management | `enabled`, `warning_threshold`, `glyph_budget`, `offload_threshold`, `pretooluse_guard.enabled` |
 | 24 | `debug` | ACH parallel debugging | `max_investigators`, `timeout_ms`, `model`, `re_triage_rounds`, `echo_on_verdict` |
 | 25 | `plan` | Research & planning config | `verification_patterns[]`, `freshness` (`enabled`, `warn_threshold`, `block_threshold`, `max_commit_distance`), `external_research` (`"always"` / `"auto"` / `"never"`), `research_urls[]` |
+| 26 | `rtk` | Rust Token Killer integration (v1.129.0+) | `enabled`, `auto_detect`, `tee_mode` (`always`/`failures`/`never`), `exempt_workflows[]`, `exempt_commands[]` |
 
 ## Critical Sections (Must-Have)
 
