@@ -4,9 +4,9 @@
 
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
-[![Version](https://img.shields.io/badge/version-1.126.0-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-1.127.0-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-90-purple)](#agents)
+[![Agents](https://img.shields.io/badge/agents-91-purple)](#agents)
 [![Skills](https://img.shields.io/badge/skills-43-orange)](#skills)
 
 ---
@@ -333,7 +333,7 @@ Compares a plan against its implementation across 9 quality dimensions:
 
 ## Agents
 
-**90 specialized agents** across 6 categories:
+**91 specialized agents** across 6 categories:
 
 ### Review Agents (40)
 
@@ -417,7 +417,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Design Sync Agent | Figma extraction and Visual Spec Map creation |
 | Design Iterator | Iterative design refinement (screenshot-analyze-fix loop) |
 
-### Utility Agents (13)
+### Utility Agents (14)
 
 | Agent | Purpose |
 |-------|---------|
@@ -429,6 +429,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Decree Arbiter | Technical soundness validation |
 | Knowledge Keeper | Documentation coverage review |
 | Horizon Sage | Strategic depth assessment |
+| State Weaver | Plan state machine validation (phases, transitions, I/O contracts) |
 | Veil Piercer | Plan reality-gap analysis |
 | Evidence Verifier | Factual claim validation with grounding scores |
 | Research Verifier | Research output quality verification |
@@ -617,11 +618,11 @@ rune-plugin/
 └── plugins/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
-        │   └── plugin.json       # Plugin manifest (v1.126.0)
-        ├── agents/               # 90 agent definitions
+        │   └── plugin.json       # Plugin manifest (v1.127.0)
+        ├── agents/               # 91 agent definitions
         │   ├── review/           #   40 review agents
         │   ├── investigation/    #   24 investigation agents
-        │   ├── utility/          #   13 utility agents
+        │   ├── utility/          #   14 utility agents
         │   ├── research/         #    5 research agents
         │   ├── testing/          #    4 testing agents
         │   └── work/             #    4 work agents

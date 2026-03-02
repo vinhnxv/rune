@@ -315,6 +315,12 @@ All talisman config keys grouped by section with types, defaults, and descriptio
 | `doubt_seer.block_on_unproven` | boolean | `false` | Block on unproven P1 |
 | `doubt_seer.unproven_threshold` | number | `0.8` | Evidence ratio threshold |
 
+### `state_weaver` — Plan State Machine Validation
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `state_weaver.enabled` | boolean | `true` | Kill switch — set false to disable state-weaver globally |
+
 ### `codex` — Cross-Model Verification
 
 | Key | Type | Default | Description |

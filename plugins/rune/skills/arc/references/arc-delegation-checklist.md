@@ -60,6 +60,9 @@ arc-phase-plan-review.md). This section documents feature parity with plan-revie
 | Technical review — decree-arbiter (4C) | **RUN** | Arc summons decree-arbiter (already implemented) |
 | Technical review — knowledge-keeper (4C) | **RUN** | Arc summons knowledge-keeper (already implemented) |
 | Codex Plan Reviewer (4C) | **RUN** | Per `codex-detection.md`, if `plan` in `talisman.codex.workflows` |
+| State Weaver (4C) | **RUN** | Arc summons state-weaver if `gates.state_weaver.enabled !== false`. Validates plan phase transitions and I/O contracts |
+| Horizon Sage (4C) | **RUN** | Arc summons horizon-sage if `gates.horizon.enabled !== false` |
+| Evidence Verifier (4C) | **RUN** | Arc summons evidence-verifier if `gates.evidence.enabled !== false` |
 | Custom Ash for plan review | **SKIP** | No custom Ash workflow for plan review currently |
 
 ## Phase 5: WORK → `/rune:strive`

@@ -118,6 +118,18 @@ that ensures teammates exit even when the team lead's context is exhausted.
 
 Override via `talisman.yml` → `teammate_lifecycle.max_turns.{category}`.
 
+### Agent `model` Field — Intentional Omission
+
+Most agents (55/91) intentionally **omit** the `model` field in their YAML frontmatter. This is by design, not a defect:
+
+1. When `model:` is omitted → the agent **inherits** the spawning session's model
+2. The orchestrator uses `resolveModelForAgent()` to dynamically select models based on `talisman.yml` → `cost_tier` setting (opus/balanced/efficient/minimal)
+3. Hardcoding `model:` in every agent would **reduce** flexibility — users couldn't adjust via a single talisman config change
+
+Agents that **do** have explicit `model:` are special cases that must always run on a specific model regardless of cost tier (e.g., certain review agents pinned to `sonnet`).
+
+See [cost-tier-mapping.md](references/cost-tier-mapping.md) for the full category-to-tier resolution logic.
+
 ## Core Pseudo-Functions
 
 ### readTalisman() / readTalismanSection()
@@ -299,7 +311,7 @@ echo "Commands: $(find plugins/rune/commands -name '*.md' -not -path '*/referenc
 
 ## References
 
-- [Agent registry](references/agent-registry.md) — 40 review + 5 research + 4 work + 13 utility + 24 investigation + 4 testing agents
+- [Agent registry](references/agent-registry.md) — 40 review + 5 research + 4 work + 14 utility + 24 investigation + 4 testing agents
 - [Key concepts](references/key-concepts.md) — Tarnished, Ash, TOME, Arc, Mend, Forge Gaze, Echoes
 - [Lore glossary](references/lore-glossary.md) — Elden Ring terminology mapping
 - [Output conventions](references/output-conventions.md) — Directory structure per workflow

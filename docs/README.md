@@ -6,6 +6,9 @@ Use this page to quickly find the right Rune docs.
 
 - New user (English): [Getting started](guides/rune-getting-started.en.md)
 - Người dùng mới (Tiếng Việt): [Bắt đầu nhanh](guides/rune-getting-started.vi.md)
+- Need one-page command picks (English): [Quick Cheat Sheet](guides/rune-quick-cheat-sheet.en.md)
+- Need common Q&A (English): [Rune FAQ](guides/rune-faq.en.md)
+- Need term explanations (English): [Rune Glossary](guides/rune-glossary.en.md)
 - Cần lệnh nhanh trong 1 trang (Tiếng Việt): [Quick Cheat Sheet](guides/rune-quick-cheat-sheet.vi.md)
 - Câu hỏi thường gặp (Tiếng Việt): [FAQ Rune](guides/rune-faq.vi.md)
 - Cần giải thích thuật ngữ (Tiếng Việt): [Thuật ngữ Rune](guides/rune-glossary.vi.md)
@@ -20,8 +23,9 @@ Use this page to quickly find the right Rune docs.
 | Implement from plans | `/rune:strive`, `/rune:goldmask` | [Work execution guide](guides/rune-work-execution-guide.en.md) | [Hướng dẫn thực thi](guides/rune-work-execution-guide.vi.md) |
 | Review and fix findings | `/rune:appraise`, `/rune:audit`, `/rune:mend` | [Review and audit guide](guides/rune-code-review-and-audit-guide.en.md) | [Hướng dẫn review và audit](guides/rune-code-review-and-audit-guide.vi.md) |
 | End-to-end orchestration | `/rune:arc`, `/rune:arc-batch` | [Arc and batch guide](guides/rune-arc-and-batch-guide.en.md) | [Hướng dẫn arc và arc-batch](guides/rune-arc-and-batch-guide.vi.md) |
-| Use copy-paste command recipes | quick command picks and common workflows | N/A | [Quick Cheat Sheet](guides/rune-quick-cheat-sheet.vi.md) |
-| Resolve common questions fast | setup, token cost, resume, cancel, paths | N/A | [FAQ Rune](guides/rune-faq.vi.md) |
+| Use copy-paste command recipes | quick command picks and common workflows | [Quick Cheat Sheet](guides/rune-quick-cheat-sheet.en.md) | [Quick Cheat Sheet](guides/rune-quick-cheat-sheet.vi.md) |
+| Resolve common questions fast | setup, token cost, resume, cancel, paths | [Rune FAQ](guides/rune-faq.en.md) | [FAQ Rune](guides/rune-faq.vi.md) |
+| Explain Rune terms quickly | glossary of key workflow terms | [Rune Glossary](guides/rune-glossary.en.md) | [Thuật ngữ Rune](guides/rune-glossary.vi.md) |
 | Advanced workflows | `/rune:arc-hierarchy`, `/rune:arc-issues`, `/rune:echoes`, `/rune:learn`, `/rune:test-browser`, `/rune:debug` | [Advanced workflows](guides/rune-advanced-workflows-guide.en.md) | [Workflow nâng cao](guides/rune-advanced-workflows-guide.vi.md) |
 | Configure Rune behavior | `/rune:talisman` | [Talisman deep dive](guides/rune-talisman-deep-dive-guide.en.md) | [Talisman chuyên sâu](guides/rune-talisman-deep-dive-guide.vi.md) |
 | Extend Rune with custom agents | custom Ashes, Forge Gaze, CLI-backed reviewers | [Custom agents and extensions](guides/rune-custom-agents-and-extensions-guide.en.md) | [Custom agent và mở rộng](guides/rune-custom-agents-and-extensions-guide.vi.md) |

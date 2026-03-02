@@ -1,8 +1,8 @@
 # Agent Registry
 
-**Total: 90 agents** (40 review + 5 research + 4 work + 13 utility* + 24 investigation + 4 testing)
+**Total: 91 agents** (40 review + 5 research + 4 work + 14 utility* + 24 investigation + 4 testing)
 
-\* 13 utility agents; gap-fixer is additionally prompt-template-based (no dedicated .md file) and not counted in the total.
+\* 14 utility agents; gap-fixer is additionally prompt-template-based (no dedicated .md file) and not counted in the total.
 
 Shared resources: [Review Checklist](../agents/review/references/review-checklist.md) (self-review and pre-flight for all review agents)
 
@@ -87,6 +87,7 @@ Shared resources: [Review Checklist](../agents/review/references/review-checklis
 | horizon-sage | Strategic depth assessment — Temporal Horizon, Root Cause Depth, Innovation Quotient, Stability, Maintainability |
 | deployment-verifier | Deployment artifact generation — Go/No-Go checklists, SQL verification, rollback plans, monitoring (DEPLOY-) |
 | research-verifier | Validates external research outputs for relevance, accuracy, freshness, cross-validation, and security before plan synthesis (/rune:devise Phase 1C.5) |
+| state-weaver | Plan state machine validation — extracts phases, builds transition graphs, validates completeness (10 STSM checks), verifies I/O contracts, generates mermaid diagrams |
 
 ## Investigation Agents (`agents/investigation/`)
 
