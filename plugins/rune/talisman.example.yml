@@ -1500,6 +1500,32 @@ context_weaving:
 #   design_tools:                            # Stack-awareness design tool integration
 #     - figma                                # Figma MCP server (required for extraction)
 #     - storybook                            # Storybook integration for component preview (optional)
+#   component_registry:
+#     enabled: false                         # Generate component-registry.json during extraction (default: false)
+#                                            # Enables REUSE > EXTEND > CREATE decision flow.
+#                                            # See registry-integration.md for the full protocol.
+#   token_resolver:
+#     framework: auto                        # Semantic token resolution strategy: auto | shadcn | untitled-ui | generic (default: auto)
+#                                            # auto: detect framework from project dependencies (package.json/imports).
+#                                            # shadcn: use shadcn-token-map.yaml mappings.
+#                                            # untitled-ui: use untitled-ui-token-map.yaml mappings.
+#                                            # generic: CSS custom property passthrough with no framework mapping.
+#   aesthetic_review:
+#     enabled: false                         # Run aesthetic-quality-reviewer after fidelity review (default: false)
+#                                            # Produces a separate 0-100 aesthetic score alongside fidelity.
+#                                            # Detects AI-generated "slop" patterns (generic fonts, predictable layouts).
+#     threshold: 60                          # Minimum aesthetic score to pass (0-100, default: 60)
+#                                            # Below this triggers warnings but does NOT block the pipeline.
+#   competitor_research:
+#     enabled: false                         # Enable competitor URL research in design-iterator (default: false)
+#                                            # When task descriptions include HTTPS URLs, the iterator extracts
+#                                            # design patterns (color, typography, spacing, layout) before iterating.
+#     max_sites: 3                           # Maximum competitor sites to analyze per iteration (default: 3)
+#                                            # Security: HTTPS only, no form submission, 30s timeout per site.
+#   micro_design:
+#     enabled: false                         # Extract micro-design details during design-sync (default: false)
+#                                            # Captures UI states, transitions, keyboard interactions, loading patterns.
+#                                            # Extends VSM with micro_design section per micro-design-protocol.md.
 
 # ──────────────────────────────────────────────
 # Storybook — Component visual verification (arc Phase 3.3) (v1.128.0+)

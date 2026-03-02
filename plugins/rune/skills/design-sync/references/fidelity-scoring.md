@@ -160,7 +160,65 @@ if p1_findings.length > 0:
 | State Coverage | {s}/100 | 10% | {s*0.10} |
 ```
 
+## Aesthetic Quality — Companion Metric
+
+Aesthetic quality is scored as a **separate 0-100 metric** reported alongside the fidelity score. It is NOT integrated into the weighted fidelity formula above. Both scores are independent — a component can have high fidelity (matches the design) but low aesthetic quality (the design itself has slop patterns), or vice versa.
+
+### Why Separate
+
+Fidelity measures **correctness** (does the code match the spec?). Aesthetic quality measures **design quality** (does the result look good?). Mixing them would dilute both signals — a pixel-perfect implementation of a bad design should score high on fidelity and low on aesthetics.
+
+### 7 Aesthetic Dimensions
+
+| Dimension | Weight | What It Measures |
+|-----------|--------|------------------|
+| Visual Hierarchy | 20% | Heading weight progression, contrast between content levels, section separation |
+| Typography Quality | 20% | Font pairing, line-height consistency, letter-spacing variation, absence of generic-only fonts |
+| Whitespace Balance | 15% | Padding/margin consistency, breathing room, content density balance |
+| Color Coherence | 15% | Palette consistency, semantic color use, contrast compliance, temperature variation |
+| Layout Personality | 15% | Avoids cookie-cutter grid, intentional asymmetry, visual rhythm variation |
+| Micro-Interaction Presence | 10% | Hover states, purposeful transitions, designed focus indicators |
+| Design System Fidelity | 5% | Matches project design system personality (sharp vs rounded, dense vs spacious) |
+
+### Aesthetic Score Calculation
+
+```
+aesthetic = (hierarchy * 0.20) + (typography * 0.20) + (whitespace * 0.15) +
+            (color * 0.15) + (layout_personality * 0.15) +
+            (micro_interaction * 0.10) + (system_fidelity * 0.05)
+
+Clamp to [0, 100]
+```
+
+### Aesthetic Verdict Thresholds
+
+| Score Range | Verdict | Meaning |
+|------------|---------|---------|
+| 90-100 | EXCEPTIONAL | Intentional design choices, no slop detected |
+| 70-89 | GOOD | Minor improvement opportunities, no slop patterns |
+| 50-69 | ADEQUATE | Functional but generic, some slop patterns present |
+| 30-49 | BELOW_STANDARD | Multiple slop patterns, lacks visual personality |
+| 0-29 | POOR | Pervasive slop, appears auto-generated |
+
+Default threshold: 60 (configurable via `design_sync.aesthetic_review.threshold`).
+
+### Reporting
+
+Both scores are reported together in the design review output:
+
+```markdown
+**Fidelity Score: {fidelity}/100** — {fidelity_verdict}
+**Aesthetic Score: {aesthetic}/100** — {aesthetic_verdict}
+```
+
+The aesthetic-quality-reviewer agent produces the aesthetic score. See the [anti-slop-guardrails.md](anti-slop-guardrails.md) reference for the slop detection patterns used during scoring.
+
+### Opt-In
+
+Aesthetic review is gated by `design_sync.aesthetic_review.enabled` in talisman.yml (default: `false`). When disabled, only the fidelity score is produced.
+
 ## Cross-References
 
 - [phase3-fidelity-review.md](phase3-fidelity-review.md) — Review pipeline using scores
 - [vsm-spec.md](vsm-spec.md) — Source of truth for comparison
+- [anti-slop-guardrails.md](anti-slop-guardrails.md) — Slop detection patterns for aesthetic scoring

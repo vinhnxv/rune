@@ -1,0 +1,254 @@
+# Untitled UI Token Map — Figma Intent to UntitledUI Semantic Token Mapping
+#
+# Used by the Semantic Token Resolver (semantic-token-resolver.md) to map
+# Figma design intents to Untitled UI framework-specific class/token names.
+#
+# Untitled UI uses CSS custom properties (--fg-*, --bg-*, --border-*) in RGB format.
+# Color matching uses Delta-E (CIE 2000) metric for perceptual accuracy.
+# Tokens resolve to CSS variable references: var(--token-name).
+
+schema: "rune-token-map/v1"
+framework: "untitled-ui"
+version: "2.0"
+color_format: "rgb"
+color_metric: "delta_e_2000"
+
+# ─────────────────────────────────────────────
+# Semantic Mapping: Figma intent → UntitledUI token
+# ─────────────────────────────────────────────
+#
+# Keys use "/" separated Figma intent paths.
+# Values are CSS variable-based utility classes or var() references
+# that map to Untitled UI design tokens.
+
+semantic_mapping:
+
+  # ── Text / Foreground ─────────────────────
+  "text/primary":              "text-fg-primary"
+  "text/secondary":            "text-fg-secondary"
+  "text/tertiary":             "text-fg-tertiary"
+  "text/quaternary":           "text-fg-quaternary"
+  "text/brand/primary":        "text-fg-brand-primary"
+  "text/brand/secondary":      "text-fg-brand-secondary"
+  "text/error":                "text-fg-error-primary"
+  "text/error/secondary":      "text-fg-error-secondary"
+  "text/success":              "text-fg-success-primary"
+  "text/success/secondary":    "text-fg-success-secondary"
+  "text/warning":              "text-fg-warning-primary"
+  "text/warning/secondary":    "text-fg-warning-secondary"
+  "text/disabled":             "text-fg-disabled"
+  "text/placeholder":          "text-fg-tertiary"
+  "text/inverse":              "text-fg-white"
+  "text/link":                 "text-fg-brand-primary"
+
+  # ── Background ────────────────────────────
+  "bg/primary":                "bg-bg-primary"
+  "bg/secondary":              "bg-bg-secondary"
+  "bg/tertiary":               "bg-bg-tertiary"
+  "bg/quaternary":             "bg-bg-quaternary"
+  "bg/brand":                  "bg-bg-brand-solid"
+  "bg/brand/primary":          "bg-bg-brand-primary"
+  "bg/brand/secondary":        "bg-bg-brand-secondary"
+  "bg/brand/solid":            "bg-bg-brand-solid"
+  "bg/brand/section":          "bg-bg-brand-section"
+  "bg/error":                  "bg-bg-error-primary"
+  "bg/error/secondary":        "bg-bg-error-secondary"
+  "bg/error/solid":            "bg-bg-error-solid"
+  "bg/success":                "bg-bg-success-primary"
+  "bg/success/secondary":      "bg-bg-success-secondary"
+  "bg/success/solid":          "bg-bg-success-solid"
+  "bg/warning":                "bg-bg-warning-primary"
+  "bg/warning/secondary":      "bg-bg-warning-secondary"
+  "bg/warning/solid":          "bg-bg-warning-solid"
+  "bg/muted":                  "bg-bg-tertiary"
+  "bg/accent":                 "bg-bg-brand-primary"
+  "bg/overlay":                "bg-bg-overlay"
+  "bg/disabled":               "bg-bg-disabled"
+  "bg/active":                 "bg-bg-active"
+
+  # ── Foreground (Icon) ─────────────────────
+  "fg/primary":                "text-fg-primary"
+  "fg/secondary":              "text-fg-secondary"
+  "fg/tertiary":               "text-fg-tertiary"
+  "fg/quaternary":             "text-fg-quaternary"
+  "fg/brand":                  "text-fg-brand-secondary"
+  "fg/brand/primary":          "text-fg-brand-primary"
+  "fg/error":                  "text-fg-error-primary"
+  "fg/success":                "text-fg-success-primary"
+  "fg/warning":                "text-fg-warning-primary"
+  "fg/white":                  "text-fg-white"
+  "fg/disabled":               "text-fg-disabled"
+
+  # ── Border ────────────────────────────────
+  "border/default":            "border-border-primary"
+  "border/secondary":          "border-border-secondary"
+  "border/tertiary":           "border-border-tertiary"
+  "border/brand":              "border-border-brand"
+  "border/brand/solid":        "border-border-brand-solid"
+  "border/error":              "border-border-error"
+  "border/error/solid":        "border-border-error-solid"
+  "border/disabled":           "border-border-disabled"
+  "border/input":              "border-border-primary"
+
+  # ── Ring (focus) ──────────────────────────
+  "ring/default":              "ring-border-brand"
+  "ring/brand":                "ring-border-brand-solid"
+  "ring/error":                "ring-border-error"
+
+# ─────────────────────────────────────────────
+# CSS Variable Reference
+# ─────────────────────────────────────────────
+#
+# Untitled UI defines tokens in tokens.css using RGB hex values:
+#
+#   :root {
+#     /* Foreground (text/icons) */
+#     --fg-primary: #101828;
+#     --fg-secondary: #344054;
+#     --fg-tertiary: #475467;
+#     --fg-quaternary: #667085;
+#     --fg-white: #ffffff;
+#     --fg-disabled: #98a2b3;
+#     --fg-brand-primary: #7F56D9;
+#     --fg-brand-secondary: #6941c6;
+#     --fg-error-primary: #D92D20;
+#     --fg-error-secondary: #B42318;
+#     --fg-success-primary: #039855;
+#     --fg-success-secondary: #027A48;
+#     --fg-warning-primary: #DC6803;
+#     --fg-warning-secondary: #B54708;
+#
+#     /* Background */
+#     --bg-primary: #ffffff;
+#     --bg-secondary: #f9fafb;
+#     --bg-tertiary: #f2f4f7;
+#     --bg-quaternary: #e4e7ec;
+#     --bg-brand-primary: #f4ebff;
+#     --bg-brand-secondary: #e9d7fe;
+#     --bg-brand-solid: #7F56D9;
+#     --bg-brand-section: #53389e;
+#     --bg-error-primary: #FEF3F2;
+#     --bg-error-secondary: #FEE4E2;
+#     --bg-error-solid: #D92D20;
+#     --bg-success-primary: #ECFDF3;
+#     --bg-success-secondary: #D1FADF;
+#     --bg-success-solid: #039855;
+#     --bg-warning-primary: #FFFAEB;
+#     --bg-warning-secondary: #FEF0C7;
+#     --bg-warning-solid: #DC6803;
+#     --bg-overlay: rgba(16, 24, 40, 0.70);
+#     --bg-disabled: #f2f4f7;
+#     --bg-active: #f9f5ff;
+#
+#     /* Border */
+#     --border-primary: #d0d5dd;
+#     --border-secondary: #e4e7ec;
+#     --border-tertiary: #f2f4f7;
+#     --border-brand: #d6bbfb;
+#     --border-brand-solid: #7F56D9;
+#     --border-error: #FDA29B;
+#     --border-error-solid: #D92D20;
+#     --border-disabled: #d0d5dd;
+#   }
+#
+# Tailwind v4 config maps these to utilities:
+#   text-fg-primary    → color: var(--fg-primary)
+#   bg-bg-primary      → background-color: var(--bg-primary)
+#   border-border-primary → border-color: var(--border-primary)
+
+# ─────────────────────────────────────────────
+# Style Patterns: Figma color style name → intent
+# ─────────────────────────────────────────────
+#
+# When the resolver encounters a Figma color style, it normalizes the name
+# and matches against these patterns to determine the intent before
+# looking up the semantic_mapping.
+#
+# Untitled UI Figma libraries use structured style naming:
+#   Colors/Text/fg-primary, Colors/Background/bg-brand-primary, etc.
+
+style_patterns:
+  - pattern: "Colors/Text/*"
+    intent_prefix: "text"
+  - pattern: "Colors/Foreground/*"
+    intent_prefix: "fg"
+  - pattern: "Colors/Background/*"
+    intent_prefix: "bg"
+  - pattern: "Colors/Border/*"
+    intent_prefix: "border"
+
+  # Direct Figma variable paths (Untitled UI uses fg/bg/border prefixes)
+  - pattern: "fg/*"
+    intent_prefix: "fg"
+  - pattern: "bg/*"
+    intent_prefix: "bg"
+  - pattern: "border/*"
+    intent_prefix: "border"
+
+  # Brand patterns
+  - pattern: "Brand/*"
+    intent_prefix: "bg/brand"
+  - pattern: "Brand/Primary"
+    intent: "bg/brand/primary"
+  - pattern: "Brand/Secondary"
+    intent: "bg/brand/secondary"
+  - pattern: "Brand/Solid"
+    intent: "bg/brand/solid"
+
+  # Status patterns
+  - pattern: "Error/*"
+    intent_prefix: "bg/error"
+  - pattern: "Success/*"
+    intent_prefix: "bg/success"
+  - pattern: "Warning/*"
+    intent_prefix: "bg/warning"
+
+  # Surface patterns (map to bg intents)
+  - pattern: "Surface/Primary"
+    intent: "bg/primary"
+  - pattern: "Surface/Secondary"
+    intent: "bg/secondary"
+  - pattern: "Surface/Tertiary"
+    intent: "bg/tertiary"
+  - pattern: "Surface/*"
+    intent_prefix: "bg"
+
+  # Neutral patterns
+  - pattern: "Neutral/Background"
+    intent: "bg/primary"
+  - pattern: "Neutral/Foreground"
+    intent: "text/primary"
+  - pattern: "Neutral/Muted"
+    intent: "bg/muted"
+  - pattern: "Neutral/Border"
+    intent: "border/default"
+
+# ─────────────────────────────────────────────
+# Foreground Pairing
+# ─────────────────────────────────────────────
+#
+# When a background token is resolved, the resolver should also
+# suggest the matching foreground token for text contrast.
+# Untitled UI has explicit foreground tokens for each background context.
+
+foreground_pairs:
+  "bg-bg-primary":           "text-fg-primary"
+  "bg-bg-secondary":         "text-fg-secondary"
+  "bg-bg-tertiary":          "text-fg-tertiary"
+  "bg-bg-quaternary":        "text-fg-quaternary"
+  "bg-bg-brand-primary":     "text-fg-brand-primary"
+  "bg-bg-brand-secondary":   "text-fg-brand-primary"
+  "bg-bg-brand-solid":       "text-fg-white"
+  "bg-bg-brand-section":     "text-fg-white"
+  "bg-bg-error-primary":     "text-fg-error-primary"
+  "bg-bg-error-secondary":   "text-fg-error-primary"
+  "bg-bg-error-solid":       "text-fg-white"
+  "bg-bg-success-primary":   "text-fg-success-primary"
+  "bg-bg-success-secondary": "text-fg-success-primary"
+  "bg-bg-success-solid":     "text-fg-white"
+  "bg-bg-warning-primary":   "text-fg-warning-primary"
+  "bg-bg-warning-secondary": "text-fg-warning-primary"
+  "bg-bg-warning-solid":     "text-fg-white"
+  "bg-bg-overlay":           "text-fg-white"
+  "bg-bg-disabled":          "text-fg-disabled"
+  "bg-bg-active":            "text-fg-brand-primary"
