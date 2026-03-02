@@ -158,7 +158,7 @@ Bash(`mkdir -p "${todosBase}"`)
 updateCheckpoint({ todos_base: todosBase })
 ```
 
-Each delegated phase resolves `todos_base` via `resolveTodosBase(workflowOutputDir)`, then resolves the source-qualified `todosDir` via `resolveTodosDir(workflowOutputDir, source)` where `workflowOutputDir = tmp/arc/{id}/`. No `--todos-dir` flag is passed. See [arc-delegation-checklist.md](references/arc-delegation-checklist.md) § Phase 5, 6, 7 for per-phase todo resolution contracts.
+Each delegated phase (strive, appraise) detects the active arc checkpoint and redirects todos to `tmp/arc/{id}/todos/` instead of their own output directory. Detection: scan `.claude/arc/*/checkpoint.json` for the relevant phase `in_progress` + `todos_base`. No `--todos-dir` flag is passed. See [arc-delegation-checklist.md](references/arc-delegation-checklist.md) § Phase 5, 6, 7 for per-phase todo resolution contracts.
 
 ### Inter-Phase Cleanup Guard (ARC-6)
 

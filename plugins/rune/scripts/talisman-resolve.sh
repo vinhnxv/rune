@@ -216,6 +216,7 @@ all_shards=$(echo "$merged" | jq '{
     debug: (.debug // {}),
     mend: (.mend // {}),
     design_sync: (.design_sync // {}),
+    storybook: (.storybook // {}),
     stack_awareness: (.stack_awareness // {}),
     question_relay: (.question_relay // {}),
     file_todos: (.file_todos // {}),

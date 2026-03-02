@@ -168,8 +168,8 @@ if (elicitEnabled && (p1Findings.length > 0 || recurringPatterns >= 5)) {
 // - Timeout propagation (--timeout ${mendTimeout})
 // - Team name prefix: arc-mend-{id}
 // - Root cause context: if elicitation-root-cause.md exists, pass to fixers
-// No --todos-dir flag — mend resolves todos_base from TOME path (cross-write isolation)
-// Mend reads review's todos_base via 3-step resolution: arc checkpoint → review state file → TOME path
+// No --todos-dir flag — mend resolves todos_base via 3-step resolution: arc checkpoint → review state file → TOME path
+// In arc context, todos live at tmp/arc/{id}/todos/review/ (created by appraise via arc context detection)
 // Delegation pattern: /rune:mend creates its own team (e.g., rune-mend-{id}).
 // Arc reads the team name from the mend state file or teammate idle notification.
 // Invoke: /rune:mend {tomeSource} --timeout ${innerPolling}

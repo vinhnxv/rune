@@ -174,8 +174,24 @@ Bash(`mkdir -p "tmp/work/${timestamp}/patches" "tmp/work/${timestamp}/proposals"
 // Per-task file-todos: always created (mandatory, session-scoped)
 // See file-todos/references/integration-guide.md for resolveTodosBase() contract
 const workflowOutputDir = `tmp/work/${timestamp}/`
-const todosBase = resolveTodosBase(workflowOutputDir)   // "tmp/work/{timestamp}/todos/"
-const todosDir = resolveTodosDir(workflowOutputDir, "work")  // "tmp/work/{timestamp}/todos/work/"
+
+// Arc context detection: when running inside arc, redirect todos to arc's directory
+// so all phases (work, review, mend) share a single todos_base at tmp/arc/{id}/todos/
+// Detection: check for active arc checkpoint with work phase in_progress
+let todosOutputDir = workflowOutputDir  // default: "tmp/work/{timestamp}/"
+const arcCheckpoints = Glob(".claude/arc/*/checkpoint.json")
+for (const ckpt of arcCheckpoints) {
+  try {
+    const c = JSON.parse(Read(ckpt))
+    if (c.phases?.work?.status === "in_progress" && c.todos_base) {
+      // Extract arc output dir from todos_base: "tmp/arc/{id}/todos/" → "tmp/arc/{id}/"
+      todosOutputDir = c.todos_base.replace(/todos\/?$/, '')
+      break
+    }
+  } catch {}
+}
+const todosBase = resolveTodosBase(todosOutputDir)   // arc: "tmp/arc/{id}/todos/", standalone: "tmp/work/{timestamp}/todos/"
+const todosDir = resolveTodosDir(todosOutputDir, "work")  // arc: "tmp/arc/{id}/todos/work/", standalone: "tmp/work/{timestamp}/todos/work/"
 Bash(`mkdir -p "${todosDir}"`)
 ```
 
@@ -388,7 +404,7 @@ Read and execute [quality-gates.md](references/quality-gates.md) before proceedi
 
 **Phase 4 — Ward Check**: Discover wards from Makefile/package.json/pyproject.toml, execute each with SAFE_WARD validation, run 10-point verification checklist. On ward failure, create fix task and summon worker.
 
-**Phase 4.1 — Todo Summary**: Orchestrator generates `worker-logs/_summary.md` after all workers exit. See [todo-protocol.md](references/todo-protocol.md) for full algorithm. Also updates per-task todo frontmatter status to `complete` for finished tasks and `blocked` for failed tasks. Rebuilds `todos-work-manifest.json` with final status summary. Scans `resolveTodosDir(workflowOutputDir, "work")` only (not other source subdirectories).
+**Phase 4.1 — Todo Summary**: Orchestrator generates `worker-logs/_summary.md` after all workers exit. See [todo-protocol.md](references/todo-protocol.md) for full algorithm. Also updates per-task todo frontmatter status to `complete` for finished tasks and `blocked` for failed tasks. Rebuilds `todos-work-manifest.json` with final status summary. Scans `resolveTodosDir(todosOutputDir, "work")` only (not other source subdirectories). Uses arc-aware `todosOutputDir` from Phase 1.
 
 **Phase 4.3 — Doc-Consistency**: Non-blocking version/count drift detection. See `doc-consistency.md` in `roundtable-circle/references/`.
 
@@ -421,7 +437,7 @@ const allTasks = TaskList()
 //    Filesystem fallback when TeamDelete fails
 // 3.5: Fix stale todo file statuses (FLAW-008 — active → interrupted)
 // 3.55: Per-task file-todos cleanup:
-//       Scope to resolveTodosDir(workflowOutputDir, "work") — work/ subdirectory only
+//       Scope to resolveTodosDir(todosOutputDir, "work") — work/ subdirectory only (arc-aware)
 //       Filter by work_session == timestamp (session isolation)
 //       Mark in_progress todos as interrupted for this session's tasks
 // 3.6: Worktree garbage collection (worktree mode only)
@@ -436,7 +452,7 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_re
 
 See [ship-phase.md](references/ship-phase.md) for gh CLI pre-check, ship decision flow, PR template generation, and smart next steps.
 
-**Summary**: Offer to push branch and create PR. Generates PR body from plan metadata, task list, ward results, verification warnings, and todo summary. See [todo-protocol.md](references/todo-protocol.md) for PR body Work Session format. The PR body also includes a file-todos status table sourced from `resolveTodosDir(workflowOutputDir, "work")` (counts by status/priority).
+**Summary**: Offer to push branch and create PR. Generates PR body from plan metadata, task list, ward results, verification warnings, and todo summary. See [todo-protocol.md](references/todo-protocol.md) for PR body Work Session format. The PR body also includes a file-todos status table sourced from `resolveTodosDir(todosOutputDir, "work")` (counts by status/priority, arc-aware).
 
 ### Completion Report
 

@@ -148,7 +148,8 @@ ${decisions ? decisions : ""}
 })()}
 ${(() => {
   // Per-task file-todos status (no talisman read needed — deduped)
-  const todosDir = resolveTodosDir(workflowOutputDir, "work")
+  // Use todosOutputDir (arc-aware) from Phase 1 — not workflowOutputDir
+  const todosDir = resolveTodosDir(todosOutputDir, "work")
   const todoFiles = Glob(`${todosDir}[0-9][0-9][0-9]-*.md`)
     .concat(Glob(`${todosDir}[0-9][0-9][0-9][0-9]-*.md`))
   if (todoFiles.length > 0) {

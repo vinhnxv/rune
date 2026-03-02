@@ -73,7 +73,7 @@ arc-phase-plan-review.md). This section documents feature parity with plan-revie
 | Environment setup (work Phase 0.5) | **ADAPT** | Branch already created by arc pre-flight; work detects and uses existing branch |
 | Forge team (work Phase 1) | **RUN** | Work creates its own team |
 | Codex Oracle detection | **RUN** | Per `codex-detection.md`, if `work` in `talisman.codex.workflows` |
-| Session-scoped todos | **RUN** | No `--todos-dir` flag needed (removed). Strive auto-resolves to `{workflowOutputDir}/todos/work/` via `resolveTodosDir(workflowOutputDir, "work")`. Arc sets `workflowOutputDir = tmp/arc/{id}/` |
+| Session-scoped todos | **RUN** | No `--todos-dir` flag needed (removed). Strive detects arc context by scanning `.claude/arc/*/checkpoint.json` for `work` phase `in_progress` + `todos_base`. When found, redirects todos to `tmp/arc/{id}/todos/work/` instead of `tmp/work/{timestamp}/todos/work/` |
 
 ## Phase 6: CODE REVIEW (deep) → `/rune:appraise --deep`
 
@@ -86,7 +86,7 @@ arc-phase-plan-review.md). This section documents feature parity with plan-revie
 | Abort conditions check | **RUN** | If no changed files, review should no-op gracefully |
 | Custom Ash loading | **RUN** | `ashes.custom[]` filtered by `workflows: [review]` (no-op if none configured) |
 | Codex Oracle detection | **RUN** | Per `codex-detection.md`, if `review` in `talisman.codex.workflows` |
-| Session-scoped todos | **RUN** | No `--todos-dir` flag needed (removed). Appraise threads to roundtable-circle Phase 5.4 which resolves to `{workflowOutputDir}/todos/review/` via `resolveTodosDir(workflowOutputDir, "review")`. Arc sets `workflowOutputDir = tmp/arc/{id}/` |
+| Session-scoped todos | **RUN** | No `--todos-dir` flag needed (removed). Roundtable-circle Phase 5.4 detects arc context by scanning `.claude/arc/*/checkpoint.json` for `code_review` phase `in_progress` + `todos_base`. When found, redirects todos to `tmp/arc/{id}/todos/review/` instead of `tmp/reviews/{id}/todos/review/` |
 
 ### Arc context adaptations for Phase 6
 
@@ -102,7 +102,7 @@ arc-phase-plan-review.md). This section documents feature parity with plan-revie
 | TOME path resolution | **ADAPT** | Arc provides TOME path from Phase 6 artifact |
 | Parse TOME findings | **RUN** | Mend needs to group findings by file |
 | Custom Ash for mend | **SKIP** | No custom Ash workflow for mend |
-| Session-scoped todos | **RUN** | No `--todos-dir` flag needed (removed). Mend auto-resolves todos base from `workflowOutputDir`. Scans all source subdirectories (`{base}/*/[0-9][0-9][0-9]-*.md` and `[0-9][0-9][0-9][0-9]-*.md`) for cross-source `finding_id` matching. Arc sets `workflowOutputDir = tmp/arc/{id}/` |
+| Session-scoped todos | **RUN** | No `--todos-dir` flag needed (removed). Mend resolves `todos_base` via 3-step resolution (arc checkpoint → review state file → TOME path). In arc context, todos live at `tmp/arc/{id}/todos/review/` (created by appraise via arc context detection). Mend scans all source subdirectories for cross-source `finding_id` matching |
 
 ## Phase 2.5: PLAN REFINEMENT — ORCHESTRATOR-ONLY
 

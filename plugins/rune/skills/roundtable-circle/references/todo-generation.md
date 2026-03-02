@@ -21,13 +21,32 @@ const SAFE_PATH_PATTERN = /^[a-zA-Z0-9._\-\/]+$/
 if (!workflowOutputDir || !SAFE_PATH_PATTERN.test(workflowOutputDir) || workflowOutputDir.includes('..')) {
   throw new Error(`Invalid workflow output dir: ${workflowOutputDir}`)
 }
+
+// Arc context detection: when running inside arc, redirect todos to arc's directory
+// so all phases (work, review, mend) share a single todos_base at tmp/arc/{id}/todos/
+// Detection: check for active arc checkpoint with code_review phase in_progress
+let todosOutputDir = workflowOutputDir
+const arcCheckpoints = Glob(".claude/arc/*/checkpoint.json")
+for (const ckpt of arcCheckpoints) {
+  try {
+    const c = JSON.parse(Read(ckpt))
+    if (c.phases?.code_review?.status === "in_progress" && c.todos_base) {
+      // Extract arc output dir from todos_base: "tmp/arc/{id}/todos/" → "tmp/arc/{id}/"
+      todosOutputDir = c.todos_base.replace(/todos\/?$/, '')
+      break
+    }
+  } catch {}
+}
+
 // CRITICAL: omitting SAFE_PATH_PATTERN is a path traversal vulnerability
-const todosBase = `${workflowOutputDir.replace(/\/?$/, '/')}todos/`
+const todosBase = `${todosOutputDir.replace(/\/?$/, '/')}todos/`
 const VALID_SOURCES = new Set(["work", "review", "audit", "pr-comment", "tech-debt"])
 if (!VALID_SOURCES.has(source)) throw new Error(`Invalid source: ${source}`)
 const todosDir = `${todosBase}${source}/`  // source = "review" | "audit"
 Bash(`mkdir -p "${todosDir}"`)
-// Examples: tmp/reviews/{id}/todos/review/, tmp/audit/{id}/todos/audit/, tmp/arc/{id}/todos/review/
+// Examples:
+//   standalone: tmp/reviews/{id}/todos/review/, tmp/audit/{id}/todos/audit/
+//   arc context: tmp/arc/{id}/todos/review/ (redirected via arc checkpoint detection)
 ```
 
 ## Step 2: Session Nonce Recovery
@@ -148,7 +167,7 @@ Write(`${todosDir}${filename}`, generateTodoFromFinding(finding, {
 ## Step 6: Build Manifest
 
 ```javascript
-const todosBase = `${outputDir}todos/`
+// Use todosBase from Step 1 (arc-aware — resolves to tmp/arc/{id}/todos/ in arc context)
 buildSourceManifest(todosBase, workflowType)
 // Produces: {todosDir}/todos-{source}-manifest.json with DAG ordering
 ```

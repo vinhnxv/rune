@@ -250,11 +250,33 @@ workflow_chain:
 
 **Changes from prior arc integration**:
 
-- Remove `--todos-dir` flag passing — each phase uses arc output dir directly
-- Each phase receives `workflowOutputDir = "tmp/arc/{id}/"` and resolves its own `todos_base`
+- Remove `--todos-dir` flag passing — each phase detects arc context automatically
+- Each delegated phase (strive, appraise) detects the active arc checkpoint and redirects todos to `tmp/arc/{id}/todos/` instead of their own output directory
 - After each phase, mark source-specific dirty: `{todos_base}/work/.dirty`, `{todos_base}/review/.dirty`
 - Arc completion report reads all per-source manifests and aggregates summary
 - Arc checkpoint records `todos_base` for `--resume` restoration
+
+**Arc context detection pattern** (used by strive Phase 1 and roundtable-circle Phase 5.4):
+
+```javascript
+// Scan for active arc checkpoint with the relevant phase in_progress
+let todosOutputDir = workflowOutputDir  // default: own output dir
+const arcCheckpoints = Glob(".claude/arc/*/checkpoint.json")
+for (const ckpt of arcCheckpoints) {
+  try {
+    const c = JSON.parse(Read(ckpt))
+    // strive checks: c.phases?.work?.status === "in_progress"
+    // appraise checks: c.phases?.code_review?.status === "in_progress"
+    if (c.todos_base && relevantPhaseIsInProgress) {
+      todosOutputDir = c.todos_base.replace(/todos\/?$/, '')  // "tmp/arc/{id}/"
+      break
+    }
+  } catch {}
+}
+// todosOutputDir now points to arc's dir when inside arc, own dir when standalone
+```
+
+This ensures strive creates `tmp/arc/{id}/todos/work/` and appraise creates `tmp/arc/{id}/todos/review/` — both under the same `todos_base` that arc reads from its checkpoint.
 
 **Phase-to-source mapping**:
 
