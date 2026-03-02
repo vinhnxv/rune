@@ -57,6 +57,10 @@ current_child: ""
 feature_branch: ""
 execution_table_path: ""
 no_merge: ${noMerge}
+iteration: 0
+max_iterations: ${maxIterations || 0}
+total_children: ${children.length}
+compact_pending: false
 config_dir: ${configDir}
 owner_pid: ${ownerPid}
 session_id: ${CLAUDE_SESSION_ID}
