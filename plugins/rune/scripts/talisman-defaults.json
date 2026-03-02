@@ -597,22 +597,6 @@
     "shard_threshold": 15,
     "verify_tome_citations": true
   },
-  "rtk": {
-    "auto_detect": true,
-    "enabled": false,
-    "exempt_commands": [
-      "git blame",
-      "git diff",
-      "git log.*--format"
-    ],
-    "exempt_workflows": [
-      "goldmask",
-      "mend",
-      "inspect",
-      "debug"
-    ],
-    "tee_mode": "always"
-  },
   "rune-gaze": {
     "always_review": [
       "CLAUDE.md",
