@@ -190,6 +190,10 @@ On resume, validate checkpoint integrity before proceeding:
      if (!checkpoint.todos_base && checkpoint.id) {
        checkpoint.todos_base = `tmp/arc/${checkpoint.id}/todos/`
      }
+     // Ensure todos directory exists on resume (may have been cleaned)
+     if (checkpoint.todos_base) {
+       Bash(`mkdir -p "${checkpoint.todos_base}"`)
+     }
      checkpoint.schema_version = 20
    }
    ```

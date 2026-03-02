@@ -228,8 +228,7 @@ all_shards=$(echo "$merged" | jq '{
     solution_arena: (.solution_arena // {}),
     arc_hierarchy: (.arc_hierarchy // {}),
     schema_drift: (.schema_drift // {}),
-    deployment_verification: (.deployment_verification // {}),
-    rtk: (.rtk // {})
+    deployment_verification: (.deployment_verification // {})
   }
 }' 2>/dev/null)
 

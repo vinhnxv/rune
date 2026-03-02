@@ -36,18 +36,6 @@
         ]
       },
       {
-        "matcher": "Bash",
-        "_rationale": "Must run AFTER enforce-zsh-compat.sh (position 3) to receive zsh-fixed commands. Depends on updatedInput pipeline propagation (verified: Task 4).",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/enforce-rtk.sh",
-            "timeout": 5,
-            "statusMessage": "Checking RTK output compression..."
-          }
-        ]
-      },
-      {
         "matcher": "Write|Edit|NotebookEdit",
         "hooks": [
           {

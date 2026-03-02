@@ -1,9 +1,12 @@
 # Changelog
 
-## [1.129.1] - 2026-03-03
+## [1.129.2] - 2026-03-03
 
 ### Fixed
 - **Arc-hierarchy stop hook parity with batch/issues** — Fixed 4 gaps in `arc-hierarchy-stop-hook.sh` to achieve parity with `arc-batch-stop-hook.sh` and `arc-issues-stop-hook.sh`. Ensures consistent behavior across all stop hook loop drivers.
+
+### Removed
+- **Custom RTK hook (`enforce-rtk.sh`)** — Replaced Rune's custom RTK Bash rewriter with the official `rtk-rewrite.sh` hook from [rtk-ai/rtk](https://github.com/rtk-ai/rtk). The official hook provides smarter command-specific rewriting (30+ commands with dedicated transforms like `cat` → `rtk read`, `grep` → `rtk grep`) vs Rune's blanket `rtk --` prefix approach. Removed: `enforce-rtk.sh`, `lib/rtk-config.sh`, `lib/rtk-exempt.sh`, RTK entry from `hooks.json`, `rtk:` section from talisman defaults/example/resolver/config guide. Users should run `rtk init -g --auto-patch` to install the official hook globally.
 
 ## [1.129.0] - 2026-03-02
 
