@@ -138,6 +138,16 @@ if stack.confidence >= confidence_threshold:
         token_system: detect_token_system() ?? null
       }
 
+  # 4.5. Design System Compliance Gate (conditional on frontend + design system detection)
+  # Triggered by: frontend files (.tsx, .jsx, .css, .scss) AND design system confidence >= 0.5
+  # Keywords: design system, tokens, CVA, cn(), tailwind, component patterns
+  # Separate from design-implementation-reviewer (FIDE): DSYS validates codebase conventions;
+  # FIDE validates Figma-to-code fidelity. Both can be active simultaneously without overlap.
+  ds_confidence = stack.design_system?.confidence ?? 0
+  ds_disabled = talisman.stack_awareness?.design_compliance == false
+  if hasFrontend AND NOT ds_disabled AND ds_confidence >= 0.5:
+    specialist_selections.add("design-system-compliance-reviewer")
+
   # 5. Enforce cap
   specialist_selections = specialist_selections[:max_stack_ashes]
 

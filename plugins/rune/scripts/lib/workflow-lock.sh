@@ -15,8 +15,21 @@
 # Uses: resolve-session-identity.sh (RUNE_CURRENT_CFG, rune_pid_alive) — soft dep; config_dir falls back to CLAUDE_CONFIG_DIR/$HOME/.claude
 # Requires: jq (fail-open stubs if missing)
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/../resolve-session-identity.sh"
+# zsh-compat: BASH_SOURCE is empty in zsh; fall back to $0 for sourced scripts
+if [[ -n "${BASH_VERSION:-}" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+fi
+
+# Soft dep: resolve-session-identity.sh provides RUNE_CURRENT_CFG + rune_pid_alive
+if [[ -f "${SCRIPT_DIR}/../resolve-session-identity.sh" ]]; then
+  source "${SCRIPT_DIR}/../resolve-session-identity.sh"
+fi
+# Fallback stub if rune_pid_alive was not loaded
+if ! type rune_pid_alive &>/dev/null; then
+  rune_pid_alive() { kill -0 "$1" 2>/dev/null; }
+fi
 
 # SEC-001: Resolve LOCK_BASE to absolute path (anchored to git root or CWD)
 _RUNE_LOCK_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -137,7 +150,12 @@ rune_release_lock() {
 # Release ALL locks owned by this PID (for arc final cleanup)
 rune_release_all_locks() {
   [[ -d "$LOCK_BASE" ]] || return 0
-  shopt -s nullglob 2>/dev/null || true
+  # zsh-compat: shopt is bash-only; use setopt localoptions for zsh
+  if [[ -n "${ZSH_VERSION:-}" ]]; then
+    setopt localoptions nullglob 2>/dev/null
+  else
+    shopt -s nullglob 2>/dev/null || true
+  fi
   for lock_dir in "$LOCK_BASE"/*/; do
     [[ -d "$lock_dir" ]] || continue
     _rune_lock_safe "$lock_dir" || continue
@@ -156,7 +174,11 @@ rune_check_conflicts() {
   [[ -d "$LOCK_BASE" ]] || return 0
 
   # FLAW-003: zsh-compat — protect glob from NOMATCH error
-  shopt -s nullglob 2>/dev/null || true
+  if [[ -n "${ZSH_VERSION:-}" ]]; then
+    setopt localoptions nullglob 2>/dev/null
+  else
+    shopt -s nullglob 2>/dev/null || true
+  fi
   for lock_dir in "$LOCK_BASE"/*/; do
     [[ -d "$lock_dir" ]] || continue
     _rune_lock_safe "$lock_dir" || continue

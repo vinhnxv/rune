@@ -52,6 +52,7 @@ detectStack(repoRoot):
     tooling: [],
     confidence: 0.0,
     evidence_files: [],
+    design_system: null,    # Populated by Step 5 when frontend stack detected (see design-system-discovery skill)
   }
 
   # Merge all evidence results
@@ -88,6 +89,44 @@ detectStack(repoRoot):
   else:
     # Extension-only heuristic (no manifest found)
     stack.confidence = 0.4
+
+  # Step 5: Design system sub-pipeline
+  # Runs after framework detection so stack.languages and stack.frameworks are populated.
+  # Sequential (not parallel) — shares evidence_files with parent stack for unified provenance.
+  # Gated by talisman.devise.design_system_discovery.enabled (default: true).
+  is_frontend = (
+    stack.languages intersects ["typescript", "javascript"]
+    AND stack.frameworks intersects ["react", "nextjs", "vuejs", "nuxt", "vite"]
+  )
+
+  if is_frontend:
+    talisman = readTalismanSection("devise")
+    dsd_enabled = talisman?.design_system_discovery?.enabled ?? true
+
+    if dsd_enabled:
+      # discoverDesignSystem() is a sub-pipeline defined in design-system-discovery skill.
+      # It runs Tier 0 → Tier 1 → Tier 2 scanning internally and early-exits when confident.
+      ds_profile = discoverDesignSystem(repoRoot)
+
+      # Merge evidence files from design system scan into parent stack provenance
+      for f in ds_profile.evidence_files:
+        if f not in stack.evidence_files:
+          stack.evidence_files.push(f)
+
+      # Store the full profile on the returned stack for downstream consumers
+      # (context-router, strive Phase 1.5, arc Phase 2.8)
+      stack.design_system = ds_profile
+
+      # Elevate confidence if design system was conclusively identified
+      # (high-confidence design system detection is strong evidence of a real TS/JS frontend)
+      if ds_profile.confidence >= 0.90 AND stack.confidence < 0.95:
+        stack.confidence = 0.95
+    else:
+      # Discovery disabled — leave stack.design_system unset
+      stack.design_system = null
+  else:
+    # Non-frontend stack — skip discovery entirely
+    stack.design_system = null
 
   return stack
 ```
@@ -274,14 +313,28 @@ When any signal is positive, `"storybook"` is added to `detected_stack.framework
 
 ### Design Detection Integration
 
-Design detection merges into the main `detectStack()` flow at three points:
+Design detection merges into the main `detectStack()` flow at four points:
 1. **Step 1b** — Standalone design config files (`.figmarc`, `figma.config.json`)
 2. **Step 1c** — Design tool directories (`.storybook/`)
 3. **Within `detectTypeScriptStack`** — `@figma/*` and `@storybook/*` dependencies in `package.json`
+4. **Step 5** — `discoverDesignSystem()` sub-pipeline for component library, token system, and variant framework detection (frontend stacks only)
 
 All design signals land in `frameworks` — not `tooling`. This ensures Rune Gaze Phase 1A correctly routes to `design-implementation-reviewer` via framework matching.
 
+Step 5 runs **after** Steps 1–4 so that `stack.languages` and `stack.frameworks` are populated before the frontend gate check (`is_frontend`). The sub-pipeline is sequential — it uses `Read()` calls internally (no Bash), and merges its `evidence_files` list back into the parent stack for unified provenance.
+
+**Output field**: `detectedStack.design_system` — a `design-system-profile.yaml` object. Null when:
+- Stack is not frontend (no react/nextjs/vuejs/nuxt/vite framework)
+- `talisman.devise.design_system_discovery.enabled` is `false`
+- `discoverDesignSystem()` runs but returns `confidence: 0.0` (no signals found)
+
+**Downstream consumers** of `detectedStack.design_system`:
+- `computeContextManifest()` — loads design-system-discovery skill when profile is present
+- `strive` Phase 1.5 — injects component constraints into worker prompts
+- `arc` Phase 2.8 — validates implementation against detected token/variant system
+
 See [design/figma.md](design/figma.md) and [design/storybook.md](design/storybook.md) for full knowledge files.
+See [design-system-discovery skill](../../design-system-discovery/SKILL.md) for the full `discoverDesignSystem()` algorithm.
 
 ## Helper Functions
 

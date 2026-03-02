@@ -162,6 +162,13 @@ computeContextManifest(task_type, file_scope, detected_stack, task_description):
     if talisman?.design_sync?.enabled:
       manifest.agents_selected.push("design-implementation-reviewer")
 
+    # Conditionally load design-system compliance reviewer
+    # Triggered when: frontend detected AND design system confidence >= 0.5 AND not disabled
+    ds_confidence = detected_stack.design_system?.confidence ?? 0
+    ds_disabled = talisman?.stack_awareness?.design_compliance == false
+    if NOT ds_disabled AND ds_confidence >= 0.5:
+      manifest.agents_selected.push("design-system-compliance-reviewer")
+
   # Step 6: Load custom rules from talisman
   custom_rules = talisman?.stack_awareness?.custom_rules ?? []
   for rule in custom_rules:
