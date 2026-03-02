@@ -345,14 +345,21 @@ See [orchestration-phases.md](references/orchestration-phases.md) Phase 5.2 for 
 
 ## Phase 5.4: Todo Generation from TOME
 
-Generate per-finding todo files from scope-tagged TOME. Mandatory — no skip conditions.
+**MANDATORY — DO NOT SKIP.** Generate per-finding todo files from scope-tagged TOME. This phase MUST execute after Phase 5.3 and before Phase 6. Without it, downstream mend cannot track finding resolution, and arc's ship phase has no todo summary.
 
-Read and execute [todo-generation.md](references/todo-generation.md).
+Read and execute [todo-generation.md](references/todo-generation.md). This reference file handles:
+- Arc context detection (redirects todos to `tmp/arc/{id}/todos/review/` when inside arc)
+- 3-layer finding extraction (marker+nonce → lenient fallback → heading fallback)
+- Non-actionable filtering (questions, nits, false positives, pre-existing P2/P3)
+- Per-finding todo file generation with v2 schema
+- Per-source manifest building
 
-**Verification**: After execution, confirm:
+**Verification** (REQUIRED — check before proceeding to Phase 6):
 1. `todosDir` exists and contains `[0-9][0-9][0-9]-*.md` or `[0-9][0-9][0-9][0-9]-*.md` files (or log "0 actionable findings")
 2. `todos_base` recorded in state file
 3. Per-source manifest exists at `{todosDir}/todos-{source}-manifest.json`
+
+If verification fails (todosDir empty despite TOME having findings), re-read and re-execute [todo-generation.md](references/todo-generation.md) as recovery.
 
 ## Phase 6: Verify (Truthsight)
 
