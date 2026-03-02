@@ -136,8 +136,8 @@ if [[ -d "$CHOME/teams/" ]]; then
     if [[ "$dirname" =~ ^[a-zA-Z0-9_-]+$ ]] && [[ ! -L "$dir" ]]; then
       # Session scoping: check .session marker before treating as stale
       if [[ -n "$HOOK_SESSION_ID" ]] && [[ -f "$dir/.session" ]] && [[ ! -L "$dir/.session" ]]; then
-        # .session marker exists — read owner session_id
-        marker_session=$(head -c 256 "$dir/.session" 2>/dev/null | tr -d '[:space:]' || true)
+        # .session marker exists — read owner session_id (SEC-001 FIX: parse JSON with jq)
+        marker_session=$(jq -r '.session_id // empty' "$dir/.session" 2>/dev/null || true)
         if [[ -n "$marker_session" ]] && [[ "$marker_session" != "$HOOK_SESSION_ID" ]]; then
           # Different session owns this team — skip it
           continue
@@ -167,6 +167,9 @@ for team in "${stale_teams[@]}"; do
     # Skip if an active state file references this team (cross-check with project state)
     _has_active_state=false
     if [[ -n "${CWD:-}" ]]; then
+      # SEC-009 FIX: Ensure nullglob is active for glob expansion
+      local _prev_nullglob=$(shopt -p nullglob 2>/dev/null || true)
+      shopt -s nullglob 2>/dev/null || true
       for _sf in "${CWD}"/tmp/.rune-*.json; do
         [[ -f "$_sf" ]] || continue
         [[ -L "$_sf" ]] && continue
@@ -178,6 +181,8 @@ for team in "${stale_teams[@]}"; do
         fi
       done
     fi
+    # SEC-009 FIX: Restore nullglob state
+    eval "$_prev_nullglob" 2>/dev/null || true
     if [[ "$_has_active_state" == "false" ]]; then
       rm -rf "$CHOME/teams/${team}/" "$CHOME/tasks/${team}/" 2>/dev/null
       cleaned_teams+=("$team")

@@ -204,7 +204,11 @@ for JSONL in "${JSONL_FILES[@]}"; do
   [[ -r "$JSONL" ]] || continue
 
   # DA-001: Skip files modified within last 60s (current session)
-  fmtime=$(perl -e 'use File::stat; my $s=stat(shift); print $s->mtime if $s' "$JSONL" 2>/dev/null) || fmtime=0
+  # FLAW-010: Fallback to stat when perl is unavailable to prevent privacy violation
+  fmtime=$(perl -e 'use File::stat; my $s=stat(shift); print $s->mtime if $s' "$JSONL" 2>/dev/null) \
+    || fmtime=$(stat -f '%m' "$JSONL" 2>/dev/null) \
+    || fmtime=$(stat -c '%Y' "$JSONL" 2>/dev/null) \
+    || fmtime=$(date +%s)
   if [[ -n "$fmtime" && "$fmtime" -gt "$SESSION_EXCLUDE_CUTOFF" ]]; then
     continue
   fi

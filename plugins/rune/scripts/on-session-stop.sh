@@ -241,10 +241,11 @@ _kill_stale_teammates() {
 
   [[ ${#sigterm_pids[@]} -eq 0 ]] && { echo "0"; return 0; }
 
-  # Phase 2: Wait 2s, then SIGKILL survivors
+  # Phase 2: Wait 1s, then SIGKILL survivors
+  # SEC-005: Reduced from 2s to 1s (40% → 20% of 5s hook timeout budget).
   # SEC-P1-001 FIX: Re-verify process identity before SIGKILL to prevent
-  # killing unrelated processes due to PID recycling in the 2s window.
-  sleep 2
+  # killing unrelated processes due to PID recycling.
+  sleep 1
   for child_pid in "${sigterm_pids[@]}"; do
     if kill -0 "$child_pid" 2>/dev/null; then
       # Re-check command name — PID could have been recycled during sleep
@@ -519,7 +520,9 @@ fi
 
 # ── REPORT ──
 wt_count=0
-[[ -n "$cleaned_worktrees" ]] && wt_count=1
+if [[ -n "$cleaned_worktrees" ]]; then
+  wt_count=$(echo "$cleaned_worktrees" | grep -c . 2>/dev/null || echo 1)
+fi
 total=$((${#cleaned_teams[@]} + ${#cleaned_states[@]} + ${#cleaned_arcs[@]} + cleaned_processes + wt_count))
 
 if [[ $total -eq 0 ]]; then

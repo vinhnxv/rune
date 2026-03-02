@@ -38,7 +38,7 @@ You are researching documentation. Only cite information from official sources o
    - CLAUDE.md technology references
 
 2. Research documentation for each relevant technology:
-   - **PRIMARY**: Use Context7 MCP (resolve-library-id → get-library-docs) — fastest, most accurate for framework docs
+   - **PRIMARY**: Use Context7 MCP (resolve-library-id → query-docs) — fastest, most accurate for framework docs
    - **SECONDARY**: Use Tavily MCP or WebSearch for official documentation not covered by Context7
    - Focus on APIs and patterns relevant to the current task
 

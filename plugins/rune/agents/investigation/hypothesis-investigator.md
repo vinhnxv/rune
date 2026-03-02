@@ -14,6 +14,7 @@ description: |
   </example>
 tools:
   - Read
+  - Write
   - Glob
   - Grep
   - Bash

@@ -10,8 +10,10 @@ description: |
 tools:
   - Read
   - Write
+  - Glob
+  - Grep
 model: sonnet
-maxTurns: 15
+maxTurns: 15  # Lower than standard 30 — single-pass cross-shard comparison
 mcpServers:
   - echo-search
 ---

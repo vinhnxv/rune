@@ -158,11 +158,13 @@ defaults_json=$(cat "$DEFAULTS_FILE")
 
 # ── Deep merge: defaults <- global <- project ──
 # jq -s '.[0] * .[1] * .[2]' performs recursive merge for objects, replaces arrays
+# FLAW-001 FIX: MERGE_STATUS assignment was inside $() subshell — never propagated.
+# Move merge to temp var and detect failure via exit code.
 MERGE_STATUS="full"
 merged=$(jq -s '.[0] * .[1] * .[2]' \
   <(echo "$defaults_json") \
   <(echo "$global_json") \
-  <(echo "$project_json") 2>/dev/null || { MERGE_STATUS="partial"; echo '{}'; })
+  <(echo "$project_json") 2>/dev/null) || { MERGE_STATUS="partial"; merged='{}'; }
 
 if [[ "$merged" == '{}' || -z "$merged" ]]; then
   _trace "WARN: merged config is empty, using defaults only"

@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import logging
 import math
 import os
 import re
@@ -44,6 +45,8 @@ import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger("echo-search")
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -117,6 +120,8 @@ def _signal_path(echo_dir):
     else:
         # Fallback: walk up two directories
         project_root = os.path.dirname(os.path.dirname(normalized))
+    # SEC-007: Re-canonicalize derived project root to prevent path traversal
+    project_root = os.path.realpath(project_root)
     return os.path.join(project_root, "tmp", ".rune-signals", ".echo-dirty")
 
 
@@ -296,8 +301,13 @@ _EVIDENCE_PATH_RE = re.compile(r'`([^`]+\.[a-z]{1,6})`')
 
 
 def _extract_evidence_paths(entry: Dict[str, Any]) -> List[str]:
-    """Extract file paths from entry content/source (C5, max 10, string-only)."""
+    """Extract file paths from entry content/source/file_path (C5, max 10, string-only)."""
     paths = []  # type: List[str]
+
+    # VOID-003: Include entry's own file_path for proximity scoring
+    file_path = entry.get("file_path", "") or ""
+    if file_path and ("/" in file_path or os.sep in file_path):
+        paths.append(os.path.normpath(file_path))
 
     # Extract from content (content_preview in search results)
     content = entry.get("content_preview", "") or entry.get("full_content", "") or ""
@@ -667,7 +677,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             if version < 2:
                 _migrate_v2(conn)
             # SAFE: SCHEMA_VERSION is a module-level integer constant, not user input
-            conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+            conn.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")
             conn.commit()
         except (sqlite3.Error, OSError):
             conn.rollback()
@@ -1277,8 +1287,8 @@ def _try_load_talisman_file(
             _talisman_cache["path"] = talisman_path
             _talisman_cache["config"] = config
             return config
-    except (Exception,):
-        pass
+    except (OSError, ValueError) as exc:
+        logger.debug("talisman load error for %s: %s", talisman_path, exc)
     return None
 
 
@@ -2110,8 +2120,8 @@ async def _mcp_handle_search(arguments):
             args["layer"], args["role"], args["context_files"])
         try:
             _record_access(conn, results, args["query"])
-        except (sqlite3.Error, OSError):
-            pass
+        except (sqlite3.Error, OSError) as exc:
+            logger.debug("access log write failed: %s", exc)
     finally:
         if conn is not None:
             conn.close()

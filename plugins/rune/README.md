@@ -1014,7 +1014,7 @@ Rune includes an MCP server (`context7`) for live framework and library document
 | Tool | Description |
 |------|-------------|
 | `resolve-library-id` | Resolve a library name (e.g., "react", "express") to a Context7-compatible library ID. |
-| `get-library-docs` | Fetch version-specific documentation, API references, and migration guides for a resolved library. |
+| `query-docs` | Fetch version-specific documentation, API references, and migration guides for a resolved library. |
 
 **Integration points:**
 - **practice-seeker** — Uses Tavily/Brave MCP for best practices and pattern documentation. Falls back to WebSearch → WebFetch → offline knowledge.

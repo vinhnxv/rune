@@ -23,12 +23,14 @@ _RUNE_LOCK_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null ||
 LOCK_BASE="${_RUNE_LOCK_ROOT}/tmp/.rune-locks"
 
 # SEC-003: jq dependency guard — fail-open stubs if jq missing
+# VOID-008: These stubs intentionally disable locking (fail-open per ADR-002).
+# rune_check_conflicts returns 0 = "no conflicts" to avoid blocking workflows.
 if ! command -v jq &>/dev/null; then
-  echo "[rune-lock] WARNING: jq not found — workflow locking disabled" >&2
+  echo "[rune-lock] WARNING: jq not found — workflow locking disabled (concurrent edits possible)" >&2
   rune_acquire_lock() { return 0; }
   rune_release_lock() { return 0; }
   rune_release_all_locks() { return 0; }
-  rune_check_conflicts() { return 0; }
+  rune_check_conflicts() { echo "WARNING: jq unavailable — conflict detection disabled" >&2; return 0; }
   return 0 2>/dev/null || exit 0
 fi
 
@@ -196,6 +198,7 @@ rune_check_conflicts() {
   done
 
   # Always exit 0 — encode conflict in stdout for reliable Bash() capture
-  [[ -n "$conflicts" ]] && printf '%s' "$conflicts"
+  # FLAW-002 FIX: Use %b to expand \n sequences in conflict report
+  [[ -n "$conflicts" ]] && printf '%b' "$conflicts"
   return 0
 }

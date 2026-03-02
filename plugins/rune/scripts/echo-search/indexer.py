@@ -88,7 +88,8 @@ def parse_memory_file(file_path, role):
             _flush_entry(current_entry, content_lines, entries, file_path)
             current_entry = _make_entry(role, header_match, i + 1, file_path)
             content_lines = []
-            continue  # preserve prev_line_blank for consecutive headers
+            prev_line_blank = False  # header line is non-blank
+            continue
         if current_entry is not None:
             source_match = _SOURCE_RE.match(stripped)
             if source_match and not current_entry["source"]:

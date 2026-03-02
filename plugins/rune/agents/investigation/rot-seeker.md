@@ -6,6 +6,7 @@ description: |
   Seeks tech debt rot — TODOs, deprecated patterns, complexity hotspots, unmaintained code,
   and dependency debt. Identifies decay that accumulates over time and erodes codebase health.
   Triggers: Summoned by orchestrator during audit/inspect workflows for tech debt analysis.
+  Dedup: Skips naming quality and comment staleness (covered by decay-tracer). Focuses on actionable tech debt items.
 
   <example>
   user: "Find tech debt hotspots in the payment module"

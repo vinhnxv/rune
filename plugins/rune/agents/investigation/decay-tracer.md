@@ -6,6 +6,7 @@ description: |
   Traces progressive decay — naming quality erosion, comment staleness, complexity creep,
   convention drift, and tech debt trajectories. Identifies the slow rot that degrades maintainability over time.
   Triggers: Summoned by orchestrator during audit/inspect workflows for maintainability analysis.
+  Dedup: Skips TODO census and deprecated pattern detection (covered by rot-seeker). Focuses on qualitative decay trends.
 
   <example>
   user: "Assess maintainability health and decay patterns in the core modules"
