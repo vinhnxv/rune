@@ -112,6 +112,33 @@ case "${RTK_TEE_MODE:-}" in
   *) RTK_TEE_MODE="always" ;;
 esac
 
+# ── Helper: portable symlink resolution (Linux + macOS) ──────────────────────
+# Resolves symlinks to the final real binary path.
+# Chain: readlink -f (GNU/Linux, macOS 13+) → realpath → manual loop (BSD)
+_resolve_binary() {
+  local path="$1" resolved
+  # 1. GNU readlink -f (Linux, macOS with coreutils or macOS 13+)
+  if resolved=$(readlink -f "$path" 2>/dev/null) && [[ -n "$resolved" ]]; then
+    printf '%s' "$resolved"; return 0
+  fi
+  # 2. realpath (macOS 12.3+, most Linux distros)
+  if resolved=$(realpath "$path" 2>/dev/null) && [[ -n "$resolved" ]]; then
+    printf '%s' "$resolved"; return 0
+  fi
+  # 3. Manual symlink loop (stock BSD macOS fallback, max 10 hops)
+  local _i=0
+  while [[ -L "$path" ]] && (( _i++ < 10 )); do
+    local _target
+    _target=$(readlink "$path" 2>/dev/null) || break
+    # Handle relative symlinks
+    [[ "$_target" != /* ]] && _target="$(dirname "$path")/$_target"
+    path="$_target"
+  done
+  # Canonicalize the final directory component
+  resolved=$(cd "$(dirname "$path")" 2>/dev/null && pwd -P)/$(basename "$path") 2>/dev/null || return 1
+  printf '%s' "$resolved"
+}
+
 # ── Step 8: Detect rtk binary (SESSION_ID-scoped cache) ──────────────────────
 RTK_CACHE_DIR="${CWD}/tmp/.rune-rtk-cache"
 RTK_CACHE_FILE="${RTK_CACHE_DIR}/rtk-binary-${SESSION_ID:-default}.json"
@@ -129,11 +156,8 @@ fi
 if [[ -z "$RTK_BIN" ]]; then
   RTK_BIN=$(command -v rtk 2>/dev/null || true)
   if [[ -n "$RTK_BIN" ]]; then
-    # Validate: must be absolute, not a symlink
-    RTK_BIN=$(cd "$(dirname "$RTK_BIN")" && pwd -P)/$(basename "$RTK_BIN") 2>/dev/null || RTK_BIN=""
-    if [[ -L "$RTK_BIN" ]]; then
-      RTK_BIN=""
-    fi
+    # Resolve symlinks portably (Homebrew/nix/apt use file-level symlinks)
+    RTK_BIN=$(_resolve_binary "$RTK_BIN") || RTK_BIN=""
   fi
 
   if [[ -z "$RTK_BIN" ]]; then
@@ -156,8 +180,11 @@ if [[ -z "$RTK_BIN" ]]; then
   fi
 fi
 
-# Validate cached binary still exists and is not a symlink
-if [[ ! -x "$RTK_BIN" ]] || [[ -L "$RTK_BIN" ]]; then
+# Validate cached binary still exists and is executable (resolve symlinks if cached path is stale)
+if [[ -L "$RTK_BIN" ]]; then
+  RTK_BIN=$(_resolve_binary "$RTK_BIN") || { exit 0; }
+fi
+if [[ ! -x "$RTK_BIN" ]]; then
   exit 0
 fi
 

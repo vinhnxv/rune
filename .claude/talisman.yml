@@ -575,3 +575,11 @@ context_weaving:
     enabled: true
     word_limit: 300
     enforcement: advisory
+
+# ──────────────────────────────────────────────
+# RTK — Rust Token Killer output compression
+# ──────────────────────────────────────────────
+rtk:
+  enabled: true
+  auto_detect: true
+  tee_mode: "always"
