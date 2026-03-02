@@ -92,7 +92,9 @@ EOF
 if [[ "$EVENT" == "startup" ]]; then
   # Read context_monitor.enabled from talisman (graceful degradation — no yq required)
   CTX_ENABLED="true"
-  CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+  CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+  # SEC-006: Canonicalize CWD before use in path construction
+  [[ -n "$CWD" ]] && CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || CWD=""
   if [[ -n "$CWD" ]]; then
     TALISMAN_FILE="${CWD}/.claude/talisman.yml"
     if [[ -f "$TALISMAN_FILE" && ! -L "$TALISMAN_FILE" ]]; then

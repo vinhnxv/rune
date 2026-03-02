@@ -163,9 +163,9 @@ import sys, unicodedata
 text = sys.stdin.read()
 sys.stdout.write(unicodedata.normalize("NFC", text))
 ' 2>/dev/null) || {
-    # P1-FE-006: On python3 failure, passthrough with [UNSANITIZED] prefix
-    printf '[UNSANITIZED] %s' "$input"
-    return 0
+    # SEC-002 FIX: Fail-closed to match VEIL-001 mandate (consistent with sanitize_untrusted_text)
+    printf ''
+    return 1
   }
 
   printf '%s' "$result"

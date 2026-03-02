@@ -5,6 +5,9 @@
 #
 # SEC-001: PostToolUse can ONLY add additionalContext (not block or modify).
 # SEC-002: Use jq for JSON construction, NOT echo interpolation.
+# SEC-003/VEIL-002: Sanitization of MCP output content is NOT possible in PostToolUse
+# hooks — the output has already been returned to Claude. MCP output sanitization
+# requires a PreToolUse or platform-level filter (future enhancement).
 #
 # Matched tools (via hooks.json matchers):
 #   - mcp__plugin_rune_context7__*   (Context7 documentation)

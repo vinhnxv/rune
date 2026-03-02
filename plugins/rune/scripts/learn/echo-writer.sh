@@ -248,7 +248,10 @@ for _lock_attempt in 1 2 3 4 5; do
   fi
   # Check if lock is stale (> 30s old)
   if [[ -d "$LOCK_DIR" ]]; then
-    _lock_mtime=$(perl -e 'use File::stat; my $s=stat(shift); print $s->mtime if $s' "$LOCK_DIR" 2>/dev/null) || _lock_mtime=0
+    _lock_mtime=$(perl -e 'use File::stat; my $s=stat(shift); print $s->mtime if $s' "$LOCK_DIR" 2>/dev/null) \
+      || _lock_mtime=$(stat -f '%m' "$LOCK_DIR" 2>/dev/null) \
+      || _lock_mtime=$(stat -c '%Y' "$LOCK_DIR" 2>/dev/null) \
+      || _lock_mtime=0
     _now=$(date +%s)
     _age=$(( _now - _lock_mtime ))
     if [[ "$_age" -gt 30 ]]; then

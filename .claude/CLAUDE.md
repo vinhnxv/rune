@@ -300,6 +300,10 @@ if (!cleanupTeamDeleteSucceeded) {
 - **QUAL-012** — gate filesystem fallback behind `!cleanupTeamDeleteSucceeded` to avoid unnecessary `rm -rf` when TeamDelete already succeeded
 - **CHOME pattern** — never hardcode `~/.claude/` in `Bash()` cleanup commands; use `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`
 - **Shared vs separate teams** — if a workflow uses ONE team across multiple phases (e.g., devise), cleanup belongs at the FINAL phase only — not at intermediate phases
+- **Arc team prefix registration** — when adding a new `TeamCreate` in any arc phase (including ephemeral/conditional teams), register the team name prefix in ALL 3 crash recovery layers. Without all 3, orphaned teams become invisible on crash:
+  1. `ARC_TEAM_PREFIXES` in `arc-preflight.md` — preflight stale scan (cross-session)
+  2. `PHASE_PREFIX_MAP` in `arc-phase-cleanup.md` — postPhaseCleanup (inter-phase)
+  3. Crash recovery table in the phase's reference file — documentation for manual recovery
 
 ### Display Modes
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.128.0] - 2026-03-02
+
+### Added
+- **Storybook Arc Integration (Phase 3.3)** — New optional arc pipeline phase for component visual verification via Storybook. Disabled by default — opt-in via `storybook.enabled: true` in talisman `misc` shard. Two verification modes: Mode A (Design Fidelity with VSM spec from Figma) and Mode B (UI Quality Audit with 13-point heuristic checklist SBK-B-001 through SBK-B-013). Three-tier graceful degradation: Full (MCP + agent-browser), MCP-only, File-based.
+- **`storybook-reviewer` agent (`agents/work/storybook-reviewer.md`)** — Read-only verification agent. Captures component screenshots via agent-browser, runs Mode A or Mode B analysis, produces scored findings (0-100) across 6 dimensions (rendering, layout, accessibility, responsive, states, token compliance). 3-tier story discovery: MCP → convention → storybook config. Sonnet model, 30 maxTurns. ANCHOR Truthbinding — treats all browser content as untrusted.
+- **`storybook-fixer` agent (`agents/work/storybook-fixer.md`)** — Write-capable fix agent. Reads structured findings from storybook-reviewer, applies ONE fix per round (SBK-001 Iron Law), re-verifies via agent-browser screenshot. Three-signal convergence stop (score plateau, oscillation detection, P1/P2 clearance). Immediate revert on regression. Sonnet model, 60 maxTurns.
+- **`storybook` skill (`skills/storybook/`)** — Non-invocable knowledge skill auto-loaded by arc Phase 3.3. 4 reference files: CSF3 format guide, MCP tools reference, framework-specific story templates (React/Vue/Svelte/Angular), visual quality checks checklist.
+- **Arc phase reference (`arc-phase-storybook-verification.md`)** — Full 13-step phase algorithm with 6 skip gates (talisman disabled, Storybook not installed, work phase skipped, no frontend relevance, server not running, no component changes). SEC-SBK-004 port validation, SEC-SBK-006 id validation, SEC-SBK-007 component name sanitization. 5-component standard cleanup pattern.
+- **`storybook_verification` in PHASE_ORDER** — Inserted after `work`, before `design_verification`. 15-minute timeout (900,000ms). Non-blocking — never halts pipeline.
+- **Talisman `storybook` config section** — 6 keys: `enabled`, `port`, `auto_start`, `max_workers`, `max_rounds`, `fidelity_threshold`. Added to `misc` shard in talisman-resolve.sh.
+
 ## [1.127.0] - 2026-03-02
 
 ### Added

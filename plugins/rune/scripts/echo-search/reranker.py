@@ -165,7 +165,7 @@ def _extract_plain_text_scores(text: str) -> Optional[List[Dict[str, Any]]]:
             arr = json.loads(text[start:end + 1])
             return _validate_scores(arr)
         except json.JSONDecodeError:
-            pass
+            logger.debug("Plain text score extraction failed for output: %.100s", text)
     return None
 
 

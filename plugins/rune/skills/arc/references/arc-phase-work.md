@@ -49,8 +49,9 @@ workContext += `\n\n## Quality Contract\nAll code must include:\n- Type annotati
 // Actual team name will be discovered post-delegation from state file (see below).
 updateCheckpoint({ phase: "work", status: "in_progress", phase_sequence: 5, team_name: null })
 
-// No --todos-dir flag needed — strive uses session-scoped todos automatically
-// Arc strive session workflowOutputDir = "tmp/arc/{id}/" — todos resolve to "tmp/arc/{id}/todos/work/"
+// No --todos-dir flag needed — strive detects arc context automatically
+// Strive scans .claude/arc/*/checkpoint.json for work phase in_progress + todos_base
+// When found, strive redirects todos to "tmp/arc/{id}/todos/work/" instead of "tmp/work/{timestamp}/todos/work/"
 // checkpoint.todos_base is set by arc scaffolding (pre-Phase 5) and records this path for resume
 // Thread only --approve flag if applicable (no todosFlag needed)
 

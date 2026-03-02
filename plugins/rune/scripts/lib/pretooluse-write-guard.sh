@@ -137,7 +137,10 @@ rune_extract_identifier() {
   local state_file="$1"
   local prefix="$2"
 
-  IDENTIFIER=$(basename "$state_file" .json | sed "s/^${prefix}//")
+  # FLAW-006: Escape sed metacharacters in prefix (dots in .rune-work-)
+  local escaped_prefix
+  escaped_prefix=$(printf '%s' "$prefix" | sed 's/[.[\*^$]/\\&/g')
+  IDENTIFIER=$(basename "$state_file" .json | sed "s/^${escaped_prefix}//")
 
   # Security pattern: SAFE_IDENTIFIER — see security-patterns.md
   # Validate identifier format (safe chars + length cap)

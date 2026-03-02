@@ -19,6 +19,7 @@ description: |
   assistant: "Loading goldmask for impact + wisdom + lore analysis on specified files"
   </example>
 user-invocable: true
+disable-model-invocation: false
 argument-hint: "[diff-spec or file list]"
 allowed-tools:
   - Read

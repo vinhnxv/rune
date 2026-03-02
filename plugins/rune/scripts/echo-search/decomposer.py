@@ -209,8 +209,8 @@ def _validate_facets(raw_output: str) -> Optional[List[str]]:
         Validated list of facet strings, or None if validation fails.
     """
     text = raw_output.strip()
-    # Extract JSON array if embedded in other text
-    match = re.search(r"\[.*?\]", text, re.DOTALL)
+    # Extract outermost JSON array (greedy to handle nested brackets)
+    match = re.search(r"\[.*\]", text, re.DOTALL)
     if not match:
         return None
     try:
@@ -288,6 +288,9 @@ async def _kill_subprocess(proc: Optional[asyncio.subprocess.Process]) -> None:
     if proc is not None:
         try:
             proc.kill()
+        except ProcessLookupError:
+            pass  # Process already exited
+        try:
             await proc.wait()
         except ProcessLookupError:
             pass

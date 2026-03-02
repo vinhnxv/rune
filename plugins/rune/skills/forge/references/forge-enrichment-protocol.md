@@ -203,7 +203,7 @@ for (const agentName of uniqueAgents(assignments)) {
       3. Read the plan section from ${planPath}
       4. Check .claude/echoes/ for relevant past learnings (if directory exists)
       5. Research codebase patterns via Glob/Grep/Read. For external research,
-         use Context7 MCP (resolve-library-id → get-library-docs) for framework docs,
+         use Context7 MCP (resolve-library-id → query-docs) for framework docs,
          and WebSearch for current best practices (2026+).
       6. Write enrichment using the Enrichment Output Format (see below)
          to the output path specified in task description

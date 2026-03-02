@@ -134,9 +134,10 @@ if (exists(verdictPath)) {
 // Actual team name will be discovered post-delegation from state file (see STEP 4.5 below).
 updateCheckpoint({ phase: "code_review", status: "in_progress", phase_sequence: 6, team_name: null })
 
-// No --todos-dir flag needed — appraise uses session-scoped todos automatically
-// outputDir = "tmp/reviews/{review-id}/" → todos at "tmp/reviews/{review-id}/todos/review/"
-// Arc reads todos_base from state file post-delegation (see STEP 4.5 verification below)
+// No --todos-dir flag needed — appraise detects arc context automatically
+// Roundtable-circle Phase 5.4 scans .claude/arc/*/checkpoint.json for code_review phase in_progress + todos_base
+// When found, todo generation redirects to "tmp/arc/{id}/todos/review/" instead of "tmp/reviews/{review-id}/todos/review/"
+// Arc reads todos_base from checkpoint post-delegation (see STEP 4.5 verification below)
 // Invoke: /rune:appraise --deep {scopeFileFlag} {reviewContext}
 
 // BACK-5 FIX: Pass gap analysis context and review context to /rune:appraise

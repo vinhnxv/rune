@@ -23,7 +23,7 @@ Multi-prefix entries cover both arc-owned and sub-command-owned team variants (E
 ```javascript
 const PHASE_PREFIX_MAP = {
   forge:                  ["rune-forge-", "arc-forge-"],        // /rune:forge + arc variant
-  plan_review:            ["arc-plan-review-"],
+  plan_review:            ["arc-plan-review-", "arc-plan-inspect-"],  // Layer 1 + Layer 2 inspect (conditional)
   design_extraction:      ["arc-design-"],                       // Phase 3 (conditional — design_sync)
   work:                   ["rune-work-"],
   design_verification:    ["arc-design-verify-"],               // Phase 5.2 (conditional — VSM fidelity check)
@@ -32,11 +32,12 @@ const PHASE_PREFIX_MAP = {
   gap_remediation:        ["arc-gap-fix-"],
   goldmask_verification:  ["goldmask-"],
   code_review:            ["rune-review-"],
-  mend:                   ["rune-mend-"],
+  mend:                   ["rune-mend-", "arc-sage-"],          // mend sub-command + ephemeral elicitation sage
   design_iteration:       ["arc-design-iter-"],                 // Phase 7.6 (conditional — fidelity < threshold)
   test:                   ["arc-test-"],
 }
 // NOTE: 12 delegated phases (9 original + 3 design phases). Phases removed in v1.67.0 (audit, audit_mend) are NOT listed.
+// Multi-prefix entries: plan_review has Layer 2 inspect team (arc-plan-inspect-), mend has ephemeral sage team (arc-sage-).
 // Design phases are conditional — only create teams when design_sync.enabled === true.
 // Orchestrator-only phases (plan_refine, verification, semantic_verification,
 // goldmask_correlation, verify_mend, ship, merge) do not create teams — no entries needed.

@@ -1466,6 +1466,25 @@ context_weaving:
 #     - storybook                            # Storybook integration for component preview (optional)
 
 # ──────────────────────────────────────────────
+# Storybook — Component visual verification (arc Phase 3.3) (v1.128.0+)
+# ──────────────────────────────────────────────
+# Opt-in Storybook integration for arc pipeline. When enabled, Phase 3.3 captures
+# component screenshots via agent-browser, runs Mode A (Design Fidelity with VSM)
+# or Mode B (UI Quality Audit heuristics), and produces scored findings.
+# Disabled by default — enable when your project uses Storybook for component development.
+#
+# storybook:
+#   enabled: false                           # Master switch — must be true for Phase 3.3 to run (default: false)
+#   port: 6006                               # Storybook dev server port (default: 6006, range: 1024-65535)
+#   auto_start: false                        # Auto-start Storybook if not running (default: false)
+#                                            # When true, runs `npx storybook dev --port {port} --ci --no-open` in background.
+#   max_workers: 2                           # Maximum concurrent storybook-reviewer workers (default: 2)
+#   max_rounds: 3                            # Maximum fix-verify iteration rounds per component (default: 3)
+#                                            # Each round applies ONE fix (SBK-001 Iron Law) and re-verifies.
+#   fidelity_threshold: 85                   # Minimum average score to PASS (0-100, default: 85)
+#                                            # Below threshold: FAIL if P1 findings, NEEDS_ATTENTION otherwise.
+
+# ──────────────────────────────────────────────
 # Codex Review — Cross-model code review (/rune:codex-review) (v1.107.0+)
 # ──────────────────────────────────────────────
 # Runs Claude Ashes and Codex agents in parallel on the same diff, then cross-verifies

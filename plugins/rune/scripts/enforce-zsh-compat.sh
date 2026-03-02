@@ -179,7 +179,8 @@ fix_descriptions=""     # Accumulated fix descriptions for additionalContext
 #   - `setopt nullglob` or `setopt NULL_GLOB` before the for-loop
 #   - `shopt -s nullglob` (bash compat, also works in zsh with emulation)
 if [[ -n "$has_for_glob" ]]; then
-  glob_text=$(printf '%s\n' "$NORMALIZED" | grep -oE 'for[[:space:]]+[a-zA-Z_][a-zA-Z0-9_]*[[:space:]]+in[[:space:]]+[^;]+;[[:space:]]*do' | head -1 || true)
+  # FLAW-007: Use greedy match up to last '; do' to handle multi-statement for-loops
+  glob_text=$(printf '%s\n' "$NORMALIZED" | grep -oE 'for[[:space:]]+[a-zA-Z_][a-zA-Z0-9_]*[[:space:]]+in[[:space:]]+.*;[[:space:]]*do' | head -1 || true)
   if [[ -n "$glob_text" ]]; then
     in_portion=$(printf '%s\n' "$glob_text" | sed 's/.*[[:space:]]in[[:space:]]//' | sed 's/;[[:space:]]*do$//')
     if printf '%s\n' "$in_portion" | grep -qE '[*?]'; then

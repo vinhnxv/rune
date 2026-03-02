@@ -28,10 +28,10 @@ command -v jq &>/dev/null || exit 0
 # ── GUARD 1: Fast-path — skip if stdin doesn't mention checkpoint.json ──
 # This avoids jq parsing entirely for 99.9% of Write/Edit calls (< 5ms exit).
 INPUT=$(head -c 1048576 2>/dev/null || true)
-echo "$INPUT" | grep -q 'checkpoint\.json' || exit 0
+printf '%s\n' "$INPUT" | grep -q 'checkpoint\.json' || exit 0
 
 # ── GUARD 2: Extract file path from tool_input ──
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)
+FILE_PATH=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)
 [[ -n "$FILE_PATH" ]] || exit 0
 
 # ── GUARD 3: Is this an arc checkpoint file? ──
@@ -63,7 +63,7 @@ fi
 # Session identity (owner_pid, config_dir) is inherited from the checkpoint,
 # not from $PPID/$RUNE_CURRENT_CFG. This preserves attribution to the arc session
 # that wrote the checkpoint, ensuring correct session isolation in signal consumers.
-CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 [[ -n "$CWD" && "$CWD" == /* ]] || exit 0
 CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || exit 0
 # SEC-001: Defense-in-depth — verify CWD is inside a project (has .git)
@@ -101,7 +101,7 @@ fi
 # Validate URL format (QUAL-001 parity with arc-issues-stop-hook.sh BACK-005)
 if [[ "$PR_URL" == "null" || "$PR_URL" == "none" || -z "$PR_URL" ]]; then
   PR_URL_JSON="null"
-elif [[ "$PR_URL" =~ ^https://[a-zA-Z0-9._/-]+$ ]]; then
+elif [[ "$PR_URL" =~ ^https://github\.com/[a-zA-Z0-9._/-]+$ ]]; then
   PR_URL_JSON="\"${PR_URL}\""
 else
   PR_URL_JSON="null"

@@ -33,7 +33,9 @@ _rune_fail_forward() {
 }
 trap '_rune_fail_forward' ERR
 
+# FLAW-008 FIX: Canonicalize CWD to avoid relative path issues
 CWD="${CLAUDE_PROJECT_DIR:-.}"
+CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || CWD="."
 CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 # ── GUARD 0: jq dependency (fail-open) ──
@@ -257,9 +259,7 @@ for sf in "${STATE_FILES[@]}"; do
   # Stage 1: SIGTERM to all child processes of this session
   # SEC-003: Collect PIDs into array for reuse in Stage 2 — avoids re-querying pgrep
   # (PID recycling window between Stage 1 and Stage 2 is already guarded by comm= re-verify)
-  # VEIL-004: Cap cleanup iterations to 3 to prevent exceeding 30s timeout budget
-  ESCALATION_ITERATION=0
-  MAX_ESCALATION_ITERATIONS=3
+  # VEIL-004: Single-pass SIGTERM→SIGKILL escalation within 30s timeout budget
 
   _trace "Stage 1: SIGTERM for team=$SF_TEAM"
   sigterm_pids=()
@@ -280,11 +280,8 @@ for sf in "${STATE_FILES[@]}"; do
     done < <(pgrep -P "$SF_PID" 2>/dev/null || true)
   fi
 
-  # Wait for SIGTERM to take effect (cap iterations)
-  if [[ $ESCALATION_ITERATION -lt $MAX_ESCALATION_ITERATIONS ]]; then
-    sleep "$ESCALATION_TIMEOUT" 2>/dev/null || sleep 5
-    ((ESCALATION_ITERATION++))
-  fi
+  # Wait for SIGTERM to take effect
+  sleep "$ESCALATION_TIMEOUT" 2>/dev/null || sleep 5
 
   # Stage 2: SIGKILL survivors — reuse Stage 1 PID list (SEC-003)
   _trace "Stage 2: SIGKILL survivors for team=$SF_TEAM"
