@@ -8,6 +8,14 @@ Rune is a multi-agent orchestration plugin for [Claude Code](https://claude.ai/c
 
 **You don't need to learn everything at once.** Start with three commands and expand from there.
 
+## Quick Read (2 Minutes)
+
+- If you are new to Rune, read this guide from top to bottom.
+- If setup is done, jump to `Plan -> Work -> Review`.
+- If you want copy-paste command flows, use the [Quick Cheat Sheet](rune-quick-cheat-sheet.en.md).
+- If you want short answers to common questions, check [Rune FAQ](rune-faq.en.md).
+- If terms are unclear, see [Rune Glossary](rune-glossary.en.md).
+
 ## Installation
 
 ```bash
