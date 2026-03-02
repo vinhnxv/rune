@@ -2240,6 +2240,13 @@ def _validate_mcp_env():
         print("Error: DB_PATH environment variable not set", file=sys.stderr)
         sys.exit(1)
     db_parent = os.path.dirname(DB_PATH) or "."
+    if not os.path.isdir(db_parent):
+        try:
+            os.makedirs(db_parent, exist_ok=True)
+        except OSError as exc:
+            print("Error: cannot create DB_PATH parent directory: %s (%s)"
+                  % (db_parent, exc), file=sys.stderr)
+            sys.exit(1)
     if not os.access(db_parent, os.W_OK):
         print("Error: DB_PATH parent directory is not writable: %s" % db_parent,
               file=sys.stderr)
