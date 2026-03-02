@@ -20,7 +20,7 @@ Auto-detects project tech stack and loads domain-relevant context for reviews, a
 Layer 0: Context Router — computeContextManifest() decides WHAT to load
 Layer 1: Detection Engine — detectStack() scans manifests for evidence
 Layer 2: Knowledge Skills — 20 reference docs (languages, frameworks, databases, libraries, patterns)
-Layer 3: Enforcement Agents — 12 specialist reviewers with unique finding prefixes
+Layer 3: Enforcement Agents — 13 specialist reviewers with unique finding prefixes
 ```
 
 ## How It Works
@@ -31,7 +31,7 @@ Layer 3: Enforcement Agents — 12 specialist reviewers with unique finding pref
 
 3. **Loading**: Selected reference docs are passed as `Read()` directives to workers and reviewers. Only domain-relevant docs are loaded (e.g., a frontend-only PR won't load Python/SQLAlchemy skills).
 
-4. **Enforcement**: Specialist agents (python-reviewer, fastapi-reviewer, etc.) are conditionally summoned when their stack is detected AND domain matches, producing findings with unique prefixes (PY-, FAPI-, etc.).
+4. **Enforcement**: Specialist agents (python-reviewer, fastapi-reviewer, design-system-compliance-reviewer, etc.) are conditionally summoned when their stack is detected AND domain matches, producing findings with unique prefixes (PY-, FAPI-, etc.).
 
 ## Key Functions
 

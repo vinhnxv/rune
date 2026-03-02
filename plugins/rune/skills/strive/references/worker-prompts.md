@@ -384,6 +384,10 @@ const failureStep = worktreeMode
 
 // Absolute project root for worktree path resolution (GAP-5)
 const absoluteProjectRoot = Bash("pwd").trim()
+// SEC-005: Validate path before injecting into prompts
+if (!/^[a-zA-Z0-9._\/-]+$/.test(absoluteProjectRoot)) {
+  throw new Error(`SEC-005: absoluteProjectRoot contains unsafe characters: ${absoluteProjectRoot}`)
+}
 // Replace {absolute_project_root} in worktree prompts
 ```
 
@@ -491,6 +495,131 @@ When a task has `has_design_context === true`, inject step 4.7 into both rune-sm
 
 // Only inject this step when task.has_design_context === true
 // When false: step numbering goes 4.6 → 5 (no gap, no overhead)
+```
+
+## Component Constraints Injection (conditional)
+
+### Step 4.8: COMPONENT CONSTRAINTS (conditional)
+
+When a task has `isFrontend === true` AND a design system profile exists at `frontend-design-patterns/references/profiles/{library}-profile.md`, inject step 4.8 into rune-smith's lifecycle between step 4.7 (DESIGN SPEC) and step 5 (Read FULL target files). When conditions are not met, this step is omitted entirely — zero overhead.
+
+**Triple-gate pattern**: All three gates must pass before injecting:
+- Gate 1 (talisman): `talisman.strive.frontend_component_context.enabled` is true (opt-in)
+- Gate 2 (task): `task.metadata.isFrontend` is true
+- Gate 3 (profile): design system profile file exists on disk
+
+**Sidecar pattern**: To avoid context overflow (~1300 tokens for an inline profile), workers receive a file path reference (~50 tokens) and read the profile themselves on demand. The profile is NOT inlined into the prompt.
+
+```javascript
+// Build component constraint block — called during strive Phase 1 task decomposition
+// Returns empty string if any gate fails (zero overhead)
+//
+// Plan field reference (plan.component_hierarchy):
+//   component_hierarchy: Array<{ name, type, parent?, children?, responsive_specs?, states?, a11y? }>
+//   When this field is present, strive Phase 1 generates per-component tasks via
+//   buildPerComponentTaskSpec(), which sets task.metadata.isFrontend = true automatically.
+//   For plans WITHOUT component_hierarchy, isFrontend may never be set — in those cases
+//   Gate 2 falls back to stack detection results (see fallback below).
+//
+// See: skills/devise/references/synthesize.md § Component Hierarchy for the plan field schema.
+function buildComponentConstraintBlock(plan, designProfile) {
+  // Gate 1: talisman opt-in
+  if (!talisman?.strive?.frontend_component_context?.enabled) return ''
+
+  // Gate 2: task must be flagged as frontend
+  // Primary: set by buildPerComponentTaskSpec() when plan.component_hierarchy exists
+  // Fallback: use stack detection results for plans without component_hierarchy
+  const isFrontend = task.metadata?.isFrontend
+    ?? (stackDetection?.primaryStack === 'frontend')   // stack detection result fallback
+    ?? false
+  if (!isFrontend) return ''
+
+  // Gate 3: profile file must exist
+  const library = designProfile?.library ?? detectLibraryFromPlan(plan)
+  if (!library) return ''
+  const profilePath = `plugins/rune/skills/frontend-design-patterns/references/profiles/${library}-profile.md`
+  try { Read(profilePath) } catch (e) { return '' }  // Profile not found — skip silently
+
+  // Extract token constraints summary from plan (used in STRICT RULES header)
+  const tokenSummary = plan.design_tokens
+    ? `Tokens detected in plan: ${Object.keys(plan.design_tokens).join(', ')}`
+    : 'Read token list from profile'
+
+  // Extract component hierarchy strategy from plan (used in hierarchy note)
+  const hierarchyStrategy = plan.component_hierarchy?.strategy ?? 'REUSE > EXTEND > CREATE'
+
+  return `
+    4.8. COMPONENT CONSTRAINTS (from design system profile — frontend_component_context active):
+         Design system profile path: ${profilePath}
+         Read this profile file to understand the component library conventions for this project.
+
+         STRICT RULES (enforced during implementation):
+         - Only use tokens listed in the profile (${tokenSummary})
+         - Follow the component patterns defined in the profile (CVA variants, cn() merging)
+         - Check hierarchy strategy for reuse/extend/create decision: ${hierarchyStrategy}
+         - Do NOT introduce arbitrary Tailwind values when a profile token exists
+         - Do NOT use string concatenation for variant logic when CVA is the project pattern
+
+         NOTE: Profile is READ-ONLY. Do not modify it.
+         If a required token or pattern is missing from the profile, note it in your Seal message
+         for the design system owner to update the profile — do NOT add tokens directly.`
+}
+
+// Integration: call during strive Phase 1 per-component TaskCreate spec generation
+// const constraintBlock = buildComponentConstraintBlock(plan, designProfile)
+// Insert AFTER step 4.7 (DESIGN SPEC), BEFORE step 5 (Read FULL target files)
+// Only injected for tasks where task.metadata.isFrontend === true
+```
+
+### Per-Component TaskCreate Specs (Phase 1)
+
+When a plan contains a Component Hierarchy section, the orchestrator generates per-component task specs during strive Phase 1. Each spec embeds responsive/state/a11y requirements extracted from the plan.
+
+```javascript
+// Called during Phase 1 task decomposition when plan.component_hierarchy exists
+function buildPerComponentTaskSpec(component, plan) {
+  const spec = {
+    subject: `Implement ${component.name} component`,
+    metadata: {
+      isFrontend: true,
+      component_name: component.name,
+      component_type: component.type,          // "primitive" | "composite" | "page"
+      parent: component.parent ?? null,
+      children: component.children ?? [],
+    },
+    description: `
+Implement the ${component.name} component following the design system conventions.
+
+**Component contract:**
+- Type: ${component.type}
+- Parent: ${component.parent ?? 'none'}
+- Children: ${component.children?.join(', ') ?? 'none'}
+
+**Responsive requirements (from plan):**
+${component.responsive_specs?.map(s => `- ${s.breakpoint}: ${s.layout}`).join('\n') ?? '- Follow project breakpoint conventions'}
+
+**State requirements (from plan):**
+${component.states?.map(s => `- ${s}: implement with appropriate visual treatment`).join('\n') ?? '- default, disabled'}
+
+**Accessibility requirements (from plan):**
+${component.a11y?.map(a => `- ${a}`).join('\n') ?? '- Follow WCAG 2.1 AA baseline'}
+
+**Design system integration:**
+- Use CVA for variant logic (not string concatenation)
+- Use cn() for class merging (resolves Tailwind conflicts)
+- Use semantic tokens only (no hardcoded hex or arbitrary px values)
+- Co-locate story in ${component.name}.stories.tsx`
+  }
+  return spec
+}
+
+// Usage: when plan.component_hierarchy array exists, map over it
+// const componentTasks = plan.component_hierarchy.map(c => buildPerComponentTaskSpec(c, plan))
+// Add to TaskCreate batch alongside implementation and test tasks
+// Workers receive isFrontend: true metadata → triggers Gate 2 for constraint injection
+
+// Only inject Step 4.8 when ALL THREE gates pass.
+// When any gate fails: step numbering goes 4.7 → 5 (or 4.6 → 5 when no design context).
 ```
 
 ## Scaling Table

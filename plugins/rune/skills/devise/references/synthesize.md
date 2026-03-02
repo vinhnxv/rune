@@ -49,7 +49,7 @@ strategic_intent: "long-term"  # Options: long-term | quick-win | auto
 non_goals: []  # List of explicitly out-of-scope items (from brainstorm or manual entry)
 git_sha: "{run: git rev-parse HEAD}"
 branch: "{run: git branch --show-current}"
-figma_url: ""          # Auto-populated when Figma URL detected in brainstorm (leave empty if none)
+figma_url: ""          # Auto-populated when Figma URL detected in brainstorm (leave empty if none). MUST be double-quoted when populated: figma_url: "https://..."
 design_sync: false     # Set to true when figma_url is detected (enables design context in strive workers)
 session_budget:
   max_concurrent_agents: 3      # Cap on simultaneous teammates (applied silently); see sizing guide
@@ -94,8 +94,13 @@ strategic_intent: "long-term"  # Options: long-term | quick-win | auto
 non_goals: []  # List of explicitly out-of-scope items (from brainstorm or manual entry)
 git_sha: "{run: git rev-parse HEAD}"
 branch: "{run: git branch --show-current}"
-figma_url: ""          # Auto-populated when Figma URL detected in brainstorm (leave empty if none)
+figma_url: ""          # Auto-populated when Figma URL detected in brainstorm (leave empty if none). MUST be double-quoted when populated: figma_url: "https://..."
 design_sync: false     # Set to true when figma_url is detected (enables design context in strive workers)
+design_system_library: ""       # Auto-detected: "shadcn" | "untitled-ui" | "generic" | "" (non-frontend)
+design_system_confidence: 0.0   # Detection confidence 0.0–1.0 (from discoverDesignSystem())
+component_count_new: 0          # Number of CREATE-strategy components (from UI/UX protocol Step 3)
+component_count_extend: 0       # Number of EXTEND-strategy components
+component_count_reuse: 0        # Number of REUSE-strategy components
 session_budget:
   max_concurrent_agents: 5      # Cap on simultaneous teammates (applied silently); see sizing guide
 ---
@@ -127,6 +132,110 @@ session_budget:
 ### Stakeholders
 
 {Who is affected: end users, developers, operations}
+
+## Frontend Architecture (conditional — omit when no frontend stack detected by stacks)
+
+{Omit this entire section when design_system_library is empty or stacks detects no frontend files.}
+
+### Design System Profile
+
+{Always emitted when frontend stack is detected. Populated from discoverDesignSystem() output and brainstorm UI/UX Decisions.}
+
+| Property | Value |
+|----------|-------|
+| Library | {design_system_library — e.g. shadcn, untitled-ui, generic} |
+| Token system | {CSS vars / Tailwind / Style Dictionary / none} |
+| Variant system | {CVA / CSS classes / explicit map / none} |
+| Accessibility layer | {Radix UI / React Aria / manual / none} |
+| Tailwind version | {v3 / v4 / not used} |
+| Class merge utility | {cn() / clsx / none} |
+| Dark mode strategy | {CSS vars (.dark) / data-theme attr / media query / none} |
+| Path convention | {src/components/ui/ / src/components/base/ / other} |
+| Existing components | {component_count_reuse} reuse + {component_count_extend} extend + {component_count_new} new |
+
+### Component Hierarchy
+
+{Emitted when component_count_new >= 1. Populated from UI/UX protocol Step 3 decomposition.}
+
+| Component | Tier | Strategy | Base Component | File Path |
+|-----------|------|----------|---------------|-----------|
+| {ComponentName} | atom \| molecule \| organism \| page | REUSE \| EXTEND \| CREATE \| COMPOSE | {base or —} | {src/components/...} |
+
+### Component Dependency Graph
+
+{Emitted when component_count_new >= 1. Shows which components compose which.}
+
+~~~mermaid
+graph TD
+    A[PageComponent] --> B[OrganismA]
+    A --> C[OrganismB]
+    B --> D[MoleculeX]
+    B --> E[AtomY]
+    D --> E
+    D --> F[AtomZ]
+~~~
+
+### Design Token Constraints
+
+{Emitted when component_count_new >= 1.}
+
+**Allowed tokens** (from detected design system):
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| {--color-primary or bg-primary} | {CSS var or Tailwind class} | {usage description} |
+| {--spacing-4 or p-4} | {value} | {usage description} |
+
+**Forbidden patterns** (from design-system-rules.md):
+- No hex/RGB literals — all colors via tokens
+- No arbitrary px values — all spacing on the scale
+- No inline styles with magic numbers
+
+### Responsive Behavior
+
+{Emitted when component_count_new >= 1. Per-component mobile/tablet/desktop strategy.}
+
+| Component | Mobile (<640px) | Tablet (640–1024px) | Desktop (>1024px) |
+|-----------|----------------|---------------------|-------------------|
+| {Component} | {layout/behavior} | {layout/behavior} | {layout/behavior} |
+
+### State Management Map
+
+{Emitted when component_count_new >= 1. Per-component data source and state scope.}
+
+| Component | Data Source | State Type | Mutation | Cache Strategy |
+|-----------|------------|------------|---------|----------------|
+| {Component} | {API endpoint or local} | server \| URL \| local \| global | {action} | {invalidation strategy} |
+
+### Accessibility Matrix
+
+{Emitted when component_count_new >= 1. Per-component WCAG 2.1 AA requirements.}
+
+| Component | Semantic Element | ARIA Role / Attr | Keyboard Nav | Focus Management |
+|-----------|-----------------|------------------|-------------|-----------------|
+| {Component} | {button/dialog/nav/...} | {role= / aria-*} | {keys} | {trap / return / none} |
+
+### Animation & Interaction Spec
+
+{Emitted when component_count_new >= 1. Only include when interactions are non-trivial.}
+
+| Component | Trigger | Animation | Duration | Easing |
+|-----------|---------|-----------|---------|--------|
+| {Component} | {hover/click/mount/unmount} | {fade/slide/scale/none} | {ms} | {ease-in-out/...} |
+
+### User Flow
+
+{Emitted when component_count_new >= 1. Mermaid flowchart of primary user journey.}
+
+~~~mermaid
+flowchart LR
+    A([Start]) --> B[{Step 1}]
+    B --> C{Decision?}
+    C -- Yes --> D[{Step 2a}]
+    C -- No --> E[{Step 2b}]
+    D --> F([End])
+    E --> F
+~~~
 
 ## Acceptance Criteria
 
@@ -245,8 +354,13 @@ strategic_intent: "long-term"  # Options: long-term | quick-win | auto
 non_goals: []  # List of explicitly out-of-scope items (from brainstorm or manual entry)
 git_sha: "{run: git rev-parse HEAD}"
 branch: "{run: git branch --show-current}"
-figma_url: ""          # Auto-populated when Figma URL detected in brainstorm (leave empty if none)
+figma_url: ""          # Auto-populated when Figma URL detected in brainstorm (leave empty if none). MUST be double-quoted when populated: figma_url: "https://..."
 design_sync: false     # Set to true when figma_url is detected (enables design context in strive workers)
+design_system_library: ""       # Auto-detected: "shadcn" | "untitled-ui" | "generic" | "" (non-frontend)
+design_system_confidence: 0.0   # Detection confidence 0.0–1.0 (from discoverDesignSystem())
+component_count_new: 0          # Number of CREATE-strategy components (from UI/UX protocol Step 3)
+component_count_extend: 0       # Number of EXTEND-strategy components
+component_count_reuse: 0        # Number of REUSE-strategy components
 session_budget:
   max_concurrent_agents: 8      # Cap on simultaneous teammates (applied silently); see sizing guide
 ---
@@ -300,6 +414,110 @@ session_budget:
 ~~~mermaid
 erDiagram
     ENTITY_A ||--o{ ENTITY_B : has
+~~~
+
+## Frontend Architecture (conditional — omit when no frontend stack detected by stacks)
+
+{Omit this entire section when design_system_library is empty or stacks detects no frontend files.}
+
+### Design System Profile
+
+{Always emitted when frontend stack is detected. Populated from discoverDesignSystem() output and brainstorm UI/UX Decisions.}
+
+| Property | Value |
+|----------|-------|
+| Library | {design_system_library — e.g. shadcn, untitled-ui, generic} |
+| Token system | {CSS vars / Tailwind / Style Dictionary / none} |
+| Variant system | {CVA / CSS classes / explicit map / none} |
+| Accessibility layer | {Radix UI / React Aria / manual / none} |
+| Tailwind version | {v3 / v4 / not used} |
+| Class merge utility | {cn() / clsx / none} |
+| Dark mode strategy | {CSS vars (.dark) / data-theme attr / media query / none} |
+| Path convention | {src/components/ui/ / src/components/base/ / other} |
+| Existing components | {component_count_reuse} reuse + {component_count_extend} extend + {component_count_new} new |
+
+### Component Hierarchy
+
+{Emitted when component_count_new >= 1. Populated from UI/UX protocol Step 3 decomposition.}
+
+| Component | Tier | Strategy | Base Component | File Path |
+|-----------|------|----------|---------------|-----------|
+| {ComponentName} | atom \| molecule \| organism \| page | REUSE \| EXTEND \| CREATE \| COMPOSE | {base or —} | {src/components/...} |
+
+### Component Dependency Graph
+
+{Emitted when component_count_new >= 1. Shows which components compose which.}
+
+~~~mermaid
+graph TD
+    A[PageComponent] --> B[OrganismA]
+    A --> C[OrganismB]
+    B --> D[MoleculeX]
+    B --> E[AtomY]
+    D --> E
+    D --> F[AtomZ]
+~~~
+
+### Design Token Constraints
+
+{Emitted when component_count_new >= 1.}
+
+**Allowed tokens** (from detected design system):
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| {--color-primary or bg-primary} | {CSS var or Tailwind class} | {usage description} |
+| {--spacing-4 or p-4} | {value} | {usage description} |
+
+**Forbidden patterns** (from design-system-rules.md):
+- No hex/RGB literals — all colors via tokens
+- No arbitrary px values — all spacing on the scale
+- No inline styles with magic numbers
+
+### Responsive Behavior
+
+{Emitted when component_count_new >= 1. Per-component mobile/tablet/desktop strategy.}
+
+| Component | Mobile (<640px) | Tablet (640–1024px) | Desktop (>1024px) |
+|-----------|----------------|---------------------|-------------------|
+| {Component} | {layout/behavior} | {layout/behavior} | {layout/behavior} |
+
+### State Management Map
+
+{Emitted when component_count_new >= 1. Per-component data source and state scope.}
+
+| Component | Data Source | State Type | Mutation | Cache Strategy |
+|-----------|------------|------------|---------|----------------|
+| {Component} | {API endpoint or local} | server \| URL \| local \| global | {action} | {invalidation strategy} |
+
+### Accessibility Matrix
+
+{Emitted when component_count_new >= 1. Per-component WCAG 2.1 AA requirements.}
+
+| Component | Semantic Element | ARIA Role / Attr | Keyboard Nav | Focus Management |
+|-----------|-----------------|------------------|-------------|-----------------|
+| {Component} | {button/dialog/nav/...} | {role= / aria-*} | {keys} | {trap / return / none} |
+
+### Animation & Interaction Spec
+
+{Emitted when component_count_new >= 1. Only include when interactions are non-trivial.}
+
+| Component | Trigger | Animation | Duration | Easing |
+|-----------|---------|-----------|---------|--------|
+| {Component} | {hover/click/mount/unmount} | {fade/slide/scale/none} | {ms} | {ease-in-out/...} |
+
+### User Flow
+
+{Emitted when component_count_new >= 1. Mermaid flowchart of primary user journey.}
+
+~~~mermaid
+flowchart LR
+    A([Start]) --> B[{Step 1}]
+    B --> C{Decision?}
+    C -- Yes --> D[{Step 2a}]
+    C -- No --> E[{Step 2b}]
+    D --> F([End])
+    E --> F
 ~~~
 
 ## Solution Selection

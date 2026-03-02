@@ -15,11 +15,35 @@
 # Uses: resolve-session-identity.sh (RUNE_CURRENT_CFG, rune_pid_alive) — soft dep; config_dir falls back to CLAUDE_CONFIG_DIR/$HOME/.claude
 # Requires: jq (fail-open stubs if missing)
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/../resolve-session-identity.sh"
+# zsh-compat: BASH_SOURCE is empty in zsh; fall back to $0 for sourced scripts
+if [[ -n "${BASH_VERSION:-}" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+fi
+
+# Soft dep: resolve-session-identity.sh provides RUNE_CURRENT_CFG + rune_pid_alive
+if [[ -f "${SCRIPT_DIR}/../resolve-session-identity.sh" ]]; then
+  source "${SCRIPT_DIR}/../resolve-session-identity.sh"
+fi
+# Fallback stub if rune_pid_alive was not loaded
+if ! type rune_pid_alive &>/dev/null; then
+  rune_pid_alive() { kill -0 "$1" 2>/dev/null; }
+fi
 
 # SEC-001: Resolve LOCK_BASE to absolute path (anchored to git root or CWD)
-_RUNE_LOCK_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || pwd)"
+# SEC-006: git may be absent or output may contain unexpected whitespace — validate output
+if ! command -v git &>/dev/null; then
+  echo "[rune-lock] ERROR: git not found — workflow locking requires git" >&2
+  return 1 2>/dev/null || exit 1
+fi
+_RUNE_LOCK_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null | tr -d '\n' || true)"
+# SEC-006: Reject output if empty or contains path traversal / unsafe characters
+# Note: regex stored in variable to avoid bash/zsh parse errors with character classes
+_RUNE_LOCK_PATTERN='^/[a-zA-Z0-9_./ -]+$'
+if [[ -z "$_RUNE_LOCK_ROOT" ]] || [[ ! "$_RUNE_LOCK_ROOT" =~ $_RUNE_LOCK_PATTERN ]]; then
+  _RUNE_LOCK_ROOT="$(pwd)"
+fi
 LOCK_BASE="${_RUNE_LOCK_ROOT}/tmp/.rune-locks"
 
 # SEC-003: jq dependency guard — fail-open stubs if jq missing
@@ -70,7 +94,13 @@ rune_acquire_lock() {
   local lock_dir="${LOCK_BASE}/${workflow}"
 
   # mkdir is POSIX-atomic — fails if exists
-  if mkdir -p "$(dirname "$lock_dir")" 2>/dev/null && mkdir "$lock_dir" 2>/dev/null; then
+  # BACK-005: Re-check for symlinks on parent dir after mkdir -p (symlink may have been created between checks)
+  if mkdir -p "$(dirname "$lock_dir")" 2>/dev/null; then
+    [[ -L "$(dirname "$lock_dir")" ]] && return 1
+  else
+    return 1
+  fi
+  if mkdir "$lock_dir" 2>/dev/null; then
     _rune_write_meta "$lock_dir" "$workflow" "$class"
     # FLAW-001: Verify meta.json was written; clean up ghost dir on failure
     if [[ ! -f "$lock_dir/meta.json" ]]; then
@@ -87,21 +117,25 @@ rune_acquire_lock() {
     stored_pid=$(jq -r '.pid // empty' "$lock_dir/meta.json" 2>/dev/null || true)
     stored_cfg=$(jq -r '.config_dir // empty' "$lock_dir/meta.json" 2>/dev/null || true)
 
-    # Different installation → not our concern
+    # BACK-003: Different installation → not our concern, fall through (do not block)
     local _current_cfg="${RUNE_CURRENT_CFG:-$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P || echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}")}"
-    [[ -n "$stored_cfg" && "$stored_cfg" != "$_current_cfg" ]] && return 1
+    [[ -n "$stored_cfg" && "$stored_cfg" != "$_current_cfg" ]] && return 0
     # Same session → re-entrant (e.g., arc delegating to strive)
     [[ -n "$stored_pid" && "$stored_pid" == "$PPID" ]] && return 0
 
     # PID dead → orphaned lock, reclaim
+    # SEC-007: TOCTOU fix — remove then immediately mkdir atomically; if mkdir fails treat as
+    # contention loss (another process won the race) without issuing a secondary rm -rf.
     if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
       if ! rune_pid_alive "$stored_pid"; then
         rm -rf "$lock_dir" 2>/dev/null
-        mkdir "$lock_dir" 2>/dev/null && {
+        if mkdir "$lock_dir" 2>/dev/null; then
           _rune_write_meta "$lock_dir" "$workflow" "$class"
           [[ -f "$lock_dir/meta.json" ]] && return 0
           rm -rf "$lock_dir" 2>/dev/null; return 1
-        }
+        fi
+        # mkdir failed → contention loss, do not retry
+        return 1
       fi
     fi
   else
@@ -137,7 +171,15 @@ rune_release_lock() {
 # Release ALL locks owned by this PID (for arc final cleanup)
 rune_release_all_locks() {
   [[ -d "$LOCK_BASE" ]] || return 0
-  shopt -s nullglob 2>/dev/null || true
+  # zsh-compat: shopt is bash-only; use setopt localoptions for zsh
+  # BACK-011: Save and restore nullglob state to avoid leaking into caller
+  if [[ -n "${ZSH_VERSION:-}" ]]; then
+    setopt localoptions nullglob 2>/dev/null
+  else
+    local _nullglob_was_set=0
+    shopt -q nullglob 2>/dev/null && _nullglob_was_set=1
+    shopt -s nullglob 2>/dev/null || true
+  fi
   for lock_dir in "$LOCK_BASE"/*/; do
     [[ -d "$lock_dir" ]] || continue
     _rune_lock_safe "$lock_dir" || continue
@@ -146,6 +188,10 @@ rune_release_all_locks() {
     stored_pid=$(jq -r '.pid // empty' "$lock_dir/meta.json" 2>/dev/null || true)
     [[ "$stored_pid" == "$PPID" ]] && rm -rf "$lock_dir" 2>/dev/null
   done
+  # BACK-011: Restore nullglob state to avoid leaking into caller (bash only)
+  if [[ -z "${ZSH_VERSION:-}" && "${_nullglob_was_set:-0}" == "0" ]]; then
+    shopt -u nullglob 2>/dev/null || true
+  fi
   return 0
 }
 
@@ -156,7 +202,11 @@ rune_check_conflicts() {
   [[ -d "$LOCK_BASE" ]] || return 0
 
   # FLAW-003: zsh-compat — protect glob from NOMATCH error
-  shopt -s nullglob 2>/dev/null || true
+  if [[ -n "${ZSH_VERSION:-}" ]]; then
+    setopt localoptions nullglob 2>/dev/null
+  else
+    shopt -s nullglob 2>/dev/null || true
+  fi
   for lock_dir in "$LOCK_BASE"/*/; do
     [[ -d "$lock_dir" ]] || continue
     _rune_lock_safe "$lock_dir" || continue

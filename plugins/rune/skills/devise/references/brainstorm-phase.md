@@ -161,6 +161,140 @@ if (figmaUrl) {
 // When neither URL nor keywords detected: zero overhead
 ```
 
+### Step 3.3: UI/UX Investigation (conditional — frontend features only)
+
+Triggered when: the feature description contains UI/frontend keywords OR a design system was detected by Step 3.2. Runs after Step 3.2 Design Asset Detection. Zero overhead when neither condition is met.
+
+```javascript
+// Trigger detection
+const UI_KEYWORD_PATTERN = /\b(component|ui|ux|frontend|front-end|design\s*system|interface|page|screen|layout|button|form|modal|table|dashboard|widget|view|navigation|responsive|mobile|styling|css|tailwind|shadcn|react\s*aria)\b/i
+
+const hasFrontendKeywords = UI_KEYWORD_PATTERN.test(featureDescription + " " + selectedApproach)
+const hasDesignSystem = brainstormContext.design_system?.type &&
+  brainstormContext.design_system.type !== "none"
+
+const runUiUxInvestigation = hasFrontendKeywords || hasDesignSystem || design_sync_candidate
+
+if (!runUiUxInvestigation) {
+  // Zero overhead — skip entirely
+} else {
+// ── BEGIN UI/UX investigation ──
+
+// Step 1: Run design system discovery (if not already done in Step 3.2)
+if (!brainstormContext.design_system) {
+  const designSystem = discoverDesignSystem()
+  // discoverDesignSystem() defined in skills/frontend-design-patterns/SKILL.md
+  brainstormContext.design_system = {
+    type: designSystem?.type ?? "unknown",
+    name: designSystem?.name ?? null,
+    confidence: designSystem?.confidence ?? 0,
+    token_system: designSystem?.tokenSystem ?? null,
+    component_paths: designSystem?.componentPaths ?? [],
+    a11y_layer: designSystem?.a11yLayer ?? null,  // "react-aria" | "radix" | "manual" | null
+  }
+}
+
+// Step 2: Present findings to user (non-blocking — informational)
+const ds = brainstormContext.design_system
+const existingComponentCount = (ds.component_paths ?? []).length
+const libraryLabel = ds.name ?? ds.type ?? "unknown"
+const confidenceLabel = ds.confidence >= 0.8 ? "High" : ds.confidence >= 0.5 ? "Medium" : "Low"
+
+// Display summary (no AskUserQuestion needed — informational only)
+// Format: "Design system detected: shadcn/ui (High confidence) — 24 components found, token system: Tailwind CSS vars, a11y: Radix primitives"
+
+// Step 3: Ask for component decomposition approach
+const decompositionResponse = AskUserQuestion({
+  questions: [{
+    question: `Design system: ${libraryLabel} (${confidenceLabel} confidence, ${existingComponentCount} components found). How should components be planned?`,
+    header: "Component Planning",
+    options: [
+      {
+        label: "Auto-decompose (Recommended)",
+        description: "Run component decomposition algorithm — extract UI nouns, classify tiers, assign REUSE/EXTEND/CREATE/COMPOSE strategies"
+      },
+      {
+        label: "I'll specify components",
+        description: "Let me list the components I need manually"
+      },
+      {
+        label: "Skip component planning",
+        description: "Proceed without component breakdown — plan at a higher level"
+      }
+    ],
+    multiSelect: false
+  }]
+})
+
+if (decompositionResponse === "Auto-decompose (Recommended)") {
+  // Run component decomposition from ui-ux-planning-protocol.md Steps 2–3
+  // See skills/devise/references/ui-ux-planning-protocol.md for full algorithm
+  // Step 2: Component inventory scan (automatic)
+  // Step 3: EXTRACT → CLASSIFY → DETERMINE → BUILD → GENERATE → IDENTIFY
+  brainstormContext.run_ui_ux_protocol = true
+  brainstormContext.decomposition_mode = "auto"
+} else if (decompositionResponse === "I'll specify components") {
+  // Collect user-specified component list
+  // AskUserQuestion for free-text component names
+  brainstormContext.run_ui_ux_protocol = false
+  brainstormContext.decomposition_mode = "manual"
+} else {
+  // Skip — no component planning
+  brainstormContext.run_ui_ux_protocol = false
+  brainstormContext.decomposition_mode = "skip"
+}
+
+// Step 4: Ask for user flow type
+const flowResponse = AskUserQuestion({
+  questions: [{
+    question: "What is the primary user flow pattern for this feature?",
+    header: "User Flow",
+    options: [
+      { label: "Single page", description: "All interactions on one route — no navigation" },
+      { label: "Multi-page flow", description: "User moves across multiple routes/pages" },
+      { label: "Modal / overlay flow", description: "Primary route with modal or sheet overlays" },
+      { label: "Tab-based", description: "Content divided into tabs on a single route" },
+      { label: "Wizard / stepper", description: "Sequential guided steps" }
+    ],
+    multiSelect: false
+  }]
+})
+
+brainstormContext.ui_flow_type = flowResponse
+
+// Step 5: Record all decisions under "## UI/UX Decisions" in brainstorm-decisions.md
+// (appended to brainstorm output in Step 4: Capture Decisions)
+brainstormContext.ui_ux_decisions = {
+  design_system: brainstormContext.design_system,
+  decomposition_mode: brainstormContext.decomposition_mode,
+  run_ui_ux_protocol: brainstormContext.run_ui_ux_protocol,
+  ui_flow_type: brainstormContext.ui_flow_type,
+}
+
+// ── END UI/UX investigation ──
+}
+```
+
+**Output written to brainstorm-decisions.md** (under "## UI/UX Decisions"):
+
+```markdown
+## UI/UX Decisions
+
+- **Design system**: {library name} ({confidence}% confidence)
+- **Token system**: {token system or "not detected"}
+- **Accessibility layer**: {a11y layer or "manual"}
+- **Existing components found**: {count}
+- **Component decomposition**: {auto | manual | skip}
+- **User flow type**: {selected flow type}
+```
+
+This section is consumed by:
+- Phase 2 (Synthesize) → populates Frontend Architecture sections in the plan
+- Phase 4 (Strive workers) → injects design system profile into worker prompts
+- `ui-ux-planning-protocol.md` → Step 1 reads `brainstormContext.design_system` (pre-populated here)
+
+See [ui-ux-planning-protocol.md](ui-ux-planning-protocol.md) for the full 7-step protocol and Figma-to-Code mapping algorithm.
+
 ### Step 3.5: Elicitation Methods (Mandatory)
 
 After approach selection, summon 1-3 elicitation-sage teammates for multi-perspective structured reasoning. Skippable via talisman key `elicitation.enabled: false` or user opt-out.
@@ -247,8 +381,8 @@ for (let i = 0; i < sageCount; i++) {
       ## Assignment
       Phase: plan:0 (brainstorm)
       Assigned method: ${method.method_name} (method #${method.num})
-      Feature: ${((featureDescription || '').replace(/<!--[\s\S]*?-->/g, '').replace(/\`\`\`[\s\S]*?\`\`\`/g, '[code-block-removed]').replace(/!\[.*?\]\(.*?\)/g, '').replace(/^#{1,6}\s+/gm, '').replace(/&[a-zA-Z0-9#]+;/g, '').replace(/[\u200B-\u200F\uFEFF\uFE00-\uFE0F]/g, '').replace(/\uDB40[\uDC00-\uDC7F]/g, '').slice(0, 2000))}
-      Chosen approach: ${((selectedApproach || '').replace(/<!--[\s\S]*?-->/g, '').replace(/\`\`\`[\s\S]*?\`\`\`/g, '[code-block-removed]').replace(/!\[.*?\]\(.*?\)/g, '').replace(/^#{1,6}\s+/gm, '').replace(/&[a-zA-Z0-9#]+;/g, '').replace(/[\u200B-\u200F\uFEFF\uFE00-\uFE0F]/g, '').replace(/\uDB40[\uDC00-\uDC7F]/g, '').slice(0, 2000))}
+      Feature: ${((featureDescription || '').replace(/<!--[\s\S]*?-->/g, '').replace(/\`\`\`[\s\S]*?\`\`\`/g, '[code-block-removed]').replace(/`[^`]*`/g, '[code-removed]').replace(/!\[.*?\]\(.*?\)/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/^-{3,}\s*$/gm, '').replace(/^#{1,6}\s+/gm, '').replace(/&[a-zA-Z0-9#]+;/g, '').replace(/[\u200B-\u200F\uFEFF\uFE00-\uFE0F]/g, '').replace(/\uDB40[\uDC00-\uDC7F]/g, '').slice(0, 2000))}
+      Chosen approach: ${((selectedApproach || '').replace(/<!--[\s\S]*?-->/g, '').replace(/\`\`\`[\s\S]*?\`\`\`/g, '[code-block-removed]').replace(/`[^`]*`/g, '[code-removed]').replace(/!\[.*?\]\(.*?\)/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/^-{3,}\s*$/gm, '').replace(/^#{1,6}\s+/gm, '').replace(/&[a-zA-Z0-9#]+;/g, '').replace(/[\u200B-\u200F\uFEFF\uFE00-\uFE0F]/g, '').replace(/\uDB40[\uDC00-\uDC7F]/g, '').slice(0, 2000))}
       Brainstorm context: Read tmp/plans/{timestamp}/brainstorm-decisions.md
 
       ## Lifecycle

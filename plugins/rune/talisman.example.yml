@@ -80,13 +80,14 @@ rune-gaze:
 #   local  → .claude/agents/{name}.md (project-level)
 #   global → ~/.claude/agents/{name}.md (user-level)
 #   plugin → Full namespace like "my-plugin:review:agent-name"
+# ──────────────────────────────────────────────
 
 ashes:
   custom:
     # Example 1: A local project-specific reviewer
     # Add 'forge' to workflows to enable Forge Gaze matching (see Example 3)
     - name: "domain-logic-reviewer"
-      agent: "domain-logic-reviewer"       # Resolves to .claude/agents/domain-logic-reviewer.md
+      agent: "domain-logic-reviewer"       # Resolves to .claude/agents/domain-logic-reviewer.md — must be a valid agent name (alphanumeric, hyphens, colons only; no path traversal)
       source: local
       workflows: [review, audit]
       trigger:
@@ -217,7 +218,7 @@ settings:
   verification:
     layer_2_custom_agents: true
   # NOTE: Enforcement Asymmetry config is in the review: convergence section below.
-  # See review: → enforcement_asymmetry: (line ~652) or agents/review/references/enforcement-asymmetry.md
+  # See review: → enforcement_asymmetry: or agents/review/references/enforcement-asymmetry.md
 
 # ── Deep Audit settings (v1.56.0+) ──────────────
 # Deep investigation teammates for /rune:audit --deep.
@@ -420,6 +421,20 @@ defaults:
 #     safe_domains: []           # Additional trusted domains (merged with built-in allowlist)
 #     max_spot_checks: 3         # Max WebFetch calls for accuracy verification (1-10)
 #     trust_threshold: 0.4       # Minimum trust score to include in synthesis (0.0-1.0)
+
+# ──────────────────────────────────────────────
+# Devise — Design system discovery (v1.129.0+)
+# ──────────────────────────────────────────────
+# Controls design system auto-detection run during /rune:devise Phase 0.5 (pre-brainstorm).
+# discoverDesignSystem() scans for shadcn/ui, Untitled UI, Radix-based custom libraries,
+# token systems (Tailwind v4, Tailwind v3, Style Dictionary, CSS variables), and variant
+# systems (cva, CSS modules, styled-components). Results are injected into brainstorm context.
+devise:
+  design_system_discovery:
+    enabled: true                # Run discoverDesignSystem() before brainstorm phase (default: true)
+                                 # Set false to skip entirely (e.g., backend-only projects)
+    confidence_threshold: 0.5   # Minimum confidence (0.0–1.0) to inject profile into context (default: 0.5)
+                                 # Profiles below this threshold are generated but not injected
 
 # ──────────────────────────────────────────────
 # Inspect — Plan-vs-implementation audit (v1.50.0+)
@@ -942,6 +957,22 @@ work:
   #                                   #   squash — squash child commits into one commit per child
 
 # ──────────────────────────────────────────────
+# Strive — Frontend component context injection (v1.129.0+)
+# ──────────────────────────────────────────────
+# Controls whether the design-system-profile.yaml discovered by /rune:devise is
+# injected into /rune:strive worker prompts (Phase 1.5) as component constraints.
+# When enabled, workers receive: existing components list, token format, variant
+# system, class merge utility, dark mode strategy, and path alias.
+strive:
+  frontend_component_context:
+    enabled: true                # Inject design system profile into worker prompts (default: true)
+                                 # Set false to skip injection (e.g., non-frontend tasks)
+    max_profile_lines: 200       # Maximum lines of profile to inject into each worker (default: 200)
+                                 # Longer profiles are truncated at section boundaries
+    token_cap_lines: 50          # Maximum lines for the token constraint section (default: 50)
+                                 # Prevents token dumps from dominating worker context
+
+# ──────────────────────────────────────────────
 # Mend — (see primary mend: block above, line ~725)
 # Duplicate mend: key removed in v1.101.1 (SIMP-001 audit fix)
 # ──────────────────────────────────────────────
@@ -1430,6 +1461,11 @@ context_weaving:
 #   max_stack_ashes: 3                     # Maximum stack specialist Ashes per review session (default: 3)
 #                                          # Controls how many language/framework/pattern specialists are added.
 #                                          # Does not affect core Ashes (Ward Sentinel, Pattern Weaver, etc.).
+#   design_compliance: true                # Enable design-system-compliance-reviewer Ash (default: true)
+#                                          # When true, summoned during review/audit when a frontend design system
+#                                          # is detected (confidence >= devise.design_system_discovery.confidence_threshold).
+#                                          # Validates token usage, component reuse, variant correctness, and
+#                                          # dark mode adherence. Finding prefix: DSC-.
 #   override:                              # Override detected stack (monorepos, detection failures)
 #     primary_language: python
 #     frameworks: [fastapi, sqlalchemy]

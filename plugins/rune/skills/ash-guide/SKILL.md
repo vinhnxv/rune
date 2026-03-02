@@ -3,7 +3,7 @@ name: ash-guide
 description: |
   Use when summoning Rune agents, when encountering "agent not found" errors, when
   selecting which review agents to use, or when checking agent capabilities and tools.
-  Quick reference for all 89 agents across 6 categories (review, research, work,
+  Quick reference for all 93 agents across 6 categories (review, research, work,
   utility, investigation, testing). Keywords: agent list, Ash, subagent type, agent not found.
 
   <example>
@@ -60,7 +60,7 @@ Tool restriction is enforced via prompt instructions (defense-in-depth).
 
 ## Review Agents
 
-21 specialized reviewers that form Ash teams:
+22 specialized reviewers that form Ash teams:
 
 | Agent | Role | Perspective |
 |-------|------|-------------|
@@ -85,6 +85,7 @@ Tool restriction is enforced via prompt instructions (defense-in-depth).
 | `rune:review:reality-arbiter` | Production viability truth-telling | Integration honesty, production readiness, data reality, error path honesty |
 | `rune:review:assumption-slayer` | Premise validation truth-telling | Problem-solution fit, cargo cult detection, complexity justification |
 | `rune:review:entropy-prophet` | Long-term consequence truth-telling | Complexity compounding, dependency trajectory, lock-in, maintenance burden |
+| `rune:review:design-system-compliance-reviewer` | Design system compliance review | Token usage, variant patterns, import paths, class merge utilities, dark mode implementation |
 
 ## Ash Roles (Consolidated Teammates)
 
