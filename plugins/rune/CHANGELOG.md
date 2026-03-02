@@ -4,6 +4,7 @@
 
 ### Fixed
 - **Arc-hierarchy stop hook parity with batch/issues** — Fixed 4 gaps in `arc-hierarchy-stop-hook.sh` to achieve parity with `arc-batch-stop-hook.sh` and `arc-issues-stop-hook.sh`. Ensures consistent behavior across all stop hook loop drivers.
+- **RTK symlink resolution on Homebrew/nix installations** — `enforce-rtk.sh` rejected symlinked binaries at Step 8, silently disabling RTK on macOS Homebrew (`/opt/homebrew/bin/rtk` → `../Cellar/rtk/…/bin/rtk`) and nix installations. Replaced rigid symlink rejection with portable `_resolve_binary()` helper using 3-layer fallback chain: `readlink -f` (GNU/macOS 13+) → `realpath` (macOS 12.3+) → manual BSD symlink loop (older macOS). Cache validation also updated to resolve instead of reject symlinks.
 
 ## [1.129.0] - 2026-03-02
 
