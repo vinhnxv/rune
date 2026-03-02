@@ -445,7 +445,7 @@ try {
     "scroll-reviewer",
     // Phase 4C: Technical Review (conditional)
     "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
-    "horizon-sage", "evidence-verifier", "doubt-seer", "codex-plan-reviewer",
+    "horizon-sage", "evidence-verifier", "state-weaver", "doubt-seer", "codex-plan-reviewer",
     "elicitation-sage-review-1", "elicitation-sage-review-2", "elicitation-sage-review-3"
   ]
 }

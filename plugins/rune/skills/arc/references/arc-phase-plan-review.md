@@ -140,7 +140,18 @@ if (evidenceEnabled) {
   })
 }
 
-// Codex Plan Reviewer (optional 5th reviewer — see arc-delegation-checklist.md Phase 2)
+// State Weaver — plan state machine validation (v1.127.0)
+// Skipped if talisman state_weaver.enabled === false
+const stateWeaverEnabled = gates?.state_weaver?.enabled !== false
+if (stateWeaverEnabled) {
+  reviewers.push({
+    name: "state-weaver",
+    agent: "agents/utility/state-weaver.md",
+    focus: "Plan state machine validation (phases, transitions, I/O contracts)"
+  })
+}
+
+// Codex Plan Reviewer (optional 6th reviewer — see arc-delegation-checklist.md Phase 2)
 // Detection: canonical codex-detection.md algorithm (9 steps, NOT inline simplified check)
 // Arc-mode adaptation: if .codexignore is missing, skip Codex silently (no AskUserQuestion)
 // — AskUserQuestion would block the automated arc pipeline indefinitely.

@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.127.0] - 2026-03-02
+
+### Added
+- **State Weaver agent (`agents/utility/state-weaver.md`)** — Plan state machine validation agent. Extracts phases/steps/stages from plan documents, builds directed transition graphs, validates completeness via 10 structural checks (STSM-001 through STSM-010: dead-end states, unreachable states, missing error paths, orphaned artifacts, unconsumed inputs, unnamed state gaps, missing terminal states, loop-without-exit, ambiguous transitions, backward dependencies), verifies I/O contracts, and generates mermaid `stateDiagram-v2` diagrams. Trigger gate requires >= 3 phase indicators before full analysis. Uses STSM-NNN finding prefix (plan-level, not fed to runebinder). PASS/CONCERN/BLOCK verdict system consistent with other Phase 4C reviewers.
+- **State Weaver integration into `/rune:devise` Phase 4C** — Conditional reviewer spawned alongside decree-arbiter, knowledge-keeper, and evidence-verifier during plan technical review. Gated by `talisman.yml` → `gates.state_weaver.enabled` (default: true).
+- **State Weaver integration into `/rune:arc` Phase 2 (Plan Review)** — Added to arc reviewer roster as conditional entry, pushed after evidence-verifier. Validates enriched plan state machine before work phase begins.
+- **State Weaver in Forge Gaze topic registry** — Topics: `state-machine, phases, transitions, pipeline, workflow, lifecycle, contracts, dataflow, input, output, steps, stages, dead-end, unreachable`. Subsection: "State Machine Analysis". Participates in topic-aware enrichment for phase-heavy plans.
+- **State Weaver in devise cleanup fallback array** — Ensures cleanup covers the new reviewer even when dynamic member discovery fails.
+
 ## [1.126.0] - 2026-03-01
 
 ### Added
