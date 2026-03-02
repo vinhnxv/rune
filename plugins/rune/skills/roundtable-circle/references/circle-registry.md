@@ -305,8 +305,27 @@ Quick reference for wave assignments across all Ashes. See [wave-scheduling.md](
 | signal-watcher | 3 | true | OBSV | No (all deep) |
 | decay-tracer | 3 | true | MTNB | No (all deep) |
 
+## Weighted Topic Propagation
+
+When an agent's forge topics use weighted format (dict with float values), the weights propagate to Forge Gaze scoring. The scoring algorithm auto-detects whether `agent.topics` is a list (legacy, uniform weight 1.0) or dict (graduated weights) at runtime — see [forge-gaze.md](forge-gaze.md#scoring) for the full algorithm.
+
+### Data Flow: Circle Registry to Forge Gaze Scoring
+
+The weighted topic proficiency data flows through a three-stage pipeline:
+
+1. **Circle Registry defines agent topic weights** — Each agent in this registry declares its topics as either a flat list (uniform weight 1.0) or a dict with float weights in [0.0, 1.0]. Weight overrides are declared in [forge-gaze.md Weight Overrides](forge-gaze.md#weight-overrides), using a graduated scale from 1.0 (core expertise) down to 0.3 (peripheral). Topics below 0.3 are omitted entirely.
+
+2. **Forge Gaze reads these weights at scoring time** — During plan enrichment (`/rune:devise`, `/rune:forge`), the [Forge Gaze scoring algorithm](forge-gaze.md#scoring) iterates over each plan section and scores every registered agent. For dict-format topics, it computes `matched_weight / total_weight` (weighted keyword overlap). For list-format topics, it computes `matches / len(topics)` (uniform overlap). The format is auto-detected at runtime — no migration is required.
+
+3. **Weights influence agent selection, not review orchestration** — The `keyword_score` feeds into the final score alongside `title_bonus` (top-3 topics by weight appearing in the section title), `exclusion_penalty`, and `stack_affinity_bonus`. Agents exceeding the selection threshold are assigned to enrich that plan section. Wave scheduling, context budgets, and Ash-level orchestration are unaffected — weights only influence the Forge Gaze selection step.
+
+Composite Ashes (which embed multiple review agent perspectives) inherit the topic format of their constituent agents. Each agent within a composite is scored independently against plan sections. The Ash-level context budget and wave scheduling are unaffected by topic weighting — weights only influence the Forge Gaze selection step.
+
+Custom Ashes defined in `talisman.yml` follow the same rules: `trigger.topics` accepts both list and dict format. See [forge-gaze.md](forge-gaze.md#custom-forge-agents) for examples of both formats.
+
 ## References
 
 - [Wave Scheduling](wave-scheduling.md) — Wave selection, merge logic, timeout distribution
 - [Smart Selection](smart-selection.md) — File-to-Ash assignment, context budgets
 - [Rune Gaze](rune-gaze.md) — Extension classification rules
+- [Forge Gaze](forge-gaze.md) — Topic-aware agent selection for plan enrichment

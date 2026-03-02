@@ -62,10 +62,13 @@ Remove ephemeral `tmp/` output directories from completed Rune workflows. Preser
 
 ### 1. Check for Active Workflows
 
-```bash
-# Look for active state files (status != completed, cancelled)
-ls tmp/.rune-review-*.json tmp/.rune-audit-*.json tmp/.rune-mend-*.json tmp/.rune-work-*.json tmp/.rune-inspect-*.json tmp/.rune-forge-*.json tmp/.rune-batch-*.json 2>/dev/null
+```javascript
+// Look for active state files (status != completed, cancelled)
+// ZSH-SAFE: Use Glob() — never raw shell globs (ZSH NOMATCH kills `ls tmp/*.json`)
+const stateFiles = Glob("tmp/.rune-{review,audit,mend,work,inspect,forge,batch}-*.json")
+```
 
+```bash
 # Check for active arc sessions via checkpoint.json
 # Arc uses .claude/arc/*/checkpoint.json instead of tmp/.rune-arc-*.json state files
 for f in .claude/arc/*/checkpoint.json(N); do
@@ -117,20 +120,37 @@ Before removing any directory, verify paths are within `tmp/`:
 
 ```bash
 # Validate each path resolves inside tmp/ (prevents traversal and symlink attacks)
+# Portable path resolution (macOS BSD coreutils lack `realpath -s`)
+_resolve_path() {
+  local p="$1"
+  if [[ -d "$p" ]]; then
+    (cd "$p" 2>/dev/null && pwd -P)
+  elif [[ -d "$(dirname "$p")" ]]; then
+    echo "$(cd "$(dirname "$p")" 2>/dev/null && pwd -P)/$(basename "$p")"
+  else
+    echo ""
+  fi
+}
+
 validated_dirs=()
+tmp_base=$(_resolve_path "tmp")
+if [[ -z "$tmp_base" ]]; then
+  echo "ERROR: cannot resolve tmp/ base directory"
+else
 for dir in "${dirs_to_remove[@]}"; do
   # Reject symlinks — do not follow them
   if [[ -L "$dir" ]]; then
     echo "SKIP: $dir is a symlink (not following)"
     continue
   fi
-  resolved=$(realpath -s "$dir" 2>/dev/null || (cd "$dir" 2>/dev/null && pwd))
-  if [[ "$resolved" != "$(realpath -s tmp 2>/dev/null || (cd tmp && pwd))"/* ]]; then
+  resolved=$(_resolve_path "$dir")
+  if [[ -z "$resolved" || "$resolved" != "$tmp_base"/* ]]; then
     echo "SKIP: $dir resolves outside tmp/ ($resolved)"
     continue
   fi
   validated_dirs+=("$dir")
 done
+fi
 ```
 
 Any path that resolves outside `tmp/` or is a symlink is skipped with a warning.
@@ -141,11 +161,13 @@ Remove only paths that passed validation in Step 4:
 
 ```bash
 # Remove validated workflow directories — re-verify at deletion time (close TOCTOU window)
+# _resolve_path defined in Step 4 above (portable macOS-compatible path resolution)
+tmp_base=$(_resolve_path "tmp")
 for dir in "${validated_dirs[@]}"; do
   # Re-verify immediately before deletion (mitigates TOCTOU race)
   [[ -L "$dir" ]] && { echo "SKIP: $dir became a symlink (TOCTOU detected)"; continue; }
-  resolved=$(realpath "$dir" 2>/dev/null)
-  if [[ "$resolved" == "$(realpath tmp 2>/dev/null)"/* ]]; then
+  resolved=$(_resolve_path "$dir")
+  if [[ -n "$resolved" && -n "$tmp_base" && "$resolved" == "$tmp_base"/* ]]; then
     rm -rf "$resolved"
   else
     echo "SKIP: $dir now resolves outside tmp/ (TOCTOU detected: $resolved)"
@@ -303,13 +325,11 @@ fi
 # 3. Final prune
 git worktree prune 2>/dev/null
 
-# Remove completed state files
-rm -f tmp/.rune-review-{completed_ids}.json
-rm -f tmp/.rune-audit-{completed_ids}.json
-rm -f tmp/.rune-mend-{completed_ids}.json
-rm -f tmp/.rune-work-{completed_ids}.json
-rm -f tmp/.rune-inspect-{completed_ids}.json
-rm -f tmp/.rune-batch-{completed_ids}.json
+// Remove completed state files (per-file from earlier Glob discovery)
+// ZSH-SAFE: iterate resolved paths — never use raw glob in Bash
+for (const sf of completedStateFiles) {
+  Bash(`rm -f "${sf}"`)  // "${sf}" is a resolved path — no shell glob
+}
 ```
 
 **Note:** `tmp/plans/` and `tmp/scratch/` are removed unconditionally (no active-state check). `tmp/work/` is conditionally removed — it checks for active work teams first (work proposals in `tmp/work/{timestamp}/proposals/` are needed during `--approve` mode). `tmp/mend/` directories follow the same active-state check as reviews and audits. `tmp/arc/` directories are checked via `.claude/arc/*/checkpoint.json` — if any phase has `in_progress` status, the associated `tmp/arc/{id}/` directory is preserved. Arc checkpoint state at `.claude/arc/` is not cleaned — it lives outside `tmp/` and is needed for `--resume`.
