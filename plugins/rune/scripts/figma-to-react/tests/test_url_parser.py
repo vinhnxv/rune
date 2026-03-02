@@ -250,3 +250,145 @@ class TestEdgeCases:
             parse_figma_url(
                 "http://figma.com/design/ABC123XYZabcdef789012/MyFile"
             )
+
+
+# ---------------------------------------------------------------------------
+# Additional edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestInvalidUrlEdgeCases:
+    """Additional edge cases for invalid and malformed URL inputs."""
+
+    def test_none_input_raises_error(self):
+        """None input should raise FigmaURLError."""
+        with pytest.raises(FigmaURLError):
+            parse_figma_url(None)
+
+    def test_whitespace_only_string_raises_error(self):
+        """Whitespace-only string should raise FigmaURLError."""
+        with pytest.raises(FigmaURLError):
+            parse_figma_url("   ")
+
+    def test_integer_input_raises_error(self):
+        """Non-string input (integer) should raise FigmaURLError."""
+        with pytest.raises(FigmaURLError):
+            parse_figma_url(12345)
+
+    def test_empty_file_key_segment_raises_error(self):
+        """URL where file_key segment is empty raises FigmaURLError."""
+        with pytest.raises(FigmaURLError):
+            parse_figma_url("https://figma.com/design//MyFile")
+
+    def test_malformed_url_no_scheme(self):
+        """URL without scheme should raise FigmaURLError."""
+        with pytest.raises(FigmaURLError):
+            parse_figma_url("figma.com/design/ABC123XYZabcdef789012/MyFile")
+
+    def test_url_with_ftp_scheme_rejected(self):
+        """FTP URL scheme must be rejected."""
+        with pytest.raises(FigmaURLError):
+            parse_figma_url("ftp://figma.com/design/ABC123XYZabcdef789012/MyFile")
+
+    def test_url_path_only_raises_error(self):
+        """Path-only string (no scheme/host) should raise FigmaURLError."""
+        with pytest.raises(FigmaURLError):
+            parse_figma_url("/design/ABC123XYZabcdef789012/MyFile")
+
+    def test_invalid_node_id_with_letters_raises_error(self):
+        """node-id with letters in the numeric part should raise FigmaURLError."""
+        with pytest.raises(FigmaURLError):
+            parse_figma_url(
+                "https://figma.com/design/ABC123XYZabcdef789012/File?node-id=abc-xyz"
+            )
+
+    def test_figma_community_url_rejected(self):
+        """Figma community URLs are not file URLs and should be rejected."""
+        with pytest.raises(FigmaURLError):
+            parse_figma_url("https://figma.com/community/file/ABC123XYZabcdef789012")
+
+    def test_url_with_unicode_in_file_key_position_rejected(self):
+        """File key position with unicode chars should not parse as valid key."""
+        with pytest.raises(FigmaURLError):
+            parse_figma_url(
+                "https://figma.com/design/ABCD🔥1234567890123/MyFile"
+            )
+
+
+class TestMissingNodeIdEdgeCases:
+    """Edge cases around missing or boundary node-id values."""
+
+    def test_node_id_missing_returns_none(self):
+        """URL without node-id should return None for node_id field."""
+        result = parse_figma_url(
+            "https://figma.com/design/ABC123XYZabcdef789012/MyFile"
+        )
+        assert result["node_id"] is None
+
+    def test_node_id_empty_value_returns_none(self):
+        """node-id with empty value in query string should return None."""
+        result = parse_figma_url(
+            "https://figma.com/design/ABC123XYZabcdef789012/MyFile?node-id="
+        )
+        assert result["node_id"] is None
+
+    def test_node_id_zero_boundary(self):
+        """node-id of '0-0' (zero:zero boundary) should parse to '0:0'."""
+        result = parse_figma_url(
+            "https://figma.com/design/ABC123XYZabcdef789012/File?node-id=0-0"
+        )
+        assert result["node_id"] == "0:0"
+
+    def test_node_id_large_number_boundary(self):
+        """Very large node-id numbers should parse correctly."""
+        result = parse_figma_url(
+            "https://figma.com/design/ABC123XYZabcdef789012/File?node-id=999999-888888"
+        )
+        assert result["node_id"] == "999999:888888"
+
+
+class TestSpecialCharsEdgeCases:
+    """Edge cases for special characters in Figma URLs."""
+
+    def test_url_with_unicode_in_filename(self):
+        """URL with unicode characters URL-encoded in filename should parse file_key."""
+        result = parse_figma_url(
+            "https://figma.com/design/ABC123XYZabcdef789012/%E3%83%87%E3%82%B6%E3%82%A4%E3%83%B3"
+        )
+        assert result["file_key"] == "ABC123XYZabcdef789012"
+
+    def test_url_with_multiple_special_chars_in_name(self):
+        """URL with multiple URL-encoded special chars in file name should parse."""
+        result = parse_figma_url(
+            "https://figma.com/design/ABC123XYZabcdef789012/My%20Design%20%28Draft%29"
+        )
+        assert result["file_key"] == "ABC123XYZabcdef789012"
+
+    def test_url_without_file_title_segment(self):
+        """URL with type and file_key but no title segment should parse."""
+        result = parse_figma_url(
+            "https://figma.com/design/ABC123XYZabcdef789012"
+        )
+        assert result["file_key"] == "ABC123XYZabcdef789012"
+        assert result["type"] == "design"
+
+    def test_branch_key_missing_when_no_branch(self):
+        """URL without branch should have None branch_key."""
+        result = parse_figma_url(
+            "https://figma.com/design/ABC123XYZabcdef789012/MyFile"
+        )
+        assert result["branch_key"] is None
+
+    def test_fragment_identifier_in_url(self):
+        """URL with fragment identifier (#...) should parse file_key correctly."""
+        result = parse_figma_url(
+            "https://figma.com/design/ABC123XYZabcdef789012/MyFile#section"
+        )
+        assert result["file_key"] == "ABC123XYZabcdef789012"
+
+    def test_url_with_extra_query_params_before_node_id(self):
+        """URL with query params before node-id should extract node-id correctly."""
+        result = parse_figma_url(
+            "https://figma.com/design/ABC123XYZabcdef789012/File?foo=bar&node-id=5-10&baz=qux"
+        )
+        assert result["node_id"] == "5:10"

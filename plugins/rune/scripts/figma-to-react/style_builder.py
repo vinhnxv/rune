@@ -60,29 +60,16 @@ def _color_to_css(color: Color, opacity: float = 1.0) -> str:
     return f"rgba({r}, {g}, {b}, {effective_alpha:.2f})"
 
 
-def _gradient_direction(positions: List[Any]) -> str:
-    """Determine CSS gradient direction from Figma gradient handle positions.
+def _named_direction(dx: float, dy: float) -> Optional[str]:
+    """Return a CSS named gradient direction for common axis-aligned vectors.
 
     Args:
-        positions: List of Vector2D-like objects with x, y attributes.
+        dx: Horizontal component of gradient direction.
+        dy: Vertical component of gradient direction.
 
     Returns:
-        CSS gradient direction string (e.g., "to right", "135deg").
+        Named CSS direction string, or None for arbitrary angles.
     """
-    if not positions or len(positions) < 2:
-        return "to bottom"
-
-    start = positions[0]
-    end = positions[1]
-    sx = getattr(start, "x", 0.0)
-    sy = getattr(start, "y", 0.0)
-    ex = getattr(end, "x", 0.0)
-    ey = getattr(end, "y", 0.0)
-
-    dx = ex - sx
-    dy = ey - sy
-
-    # Common directions
     if abs(dx) < 0.01 and dy > 0:
         return "to bottom"
     if abs(dx) < 0.01 and dy < 0:
@@ -99,8 +86,30 @@ def _gradient_direction(positions: List[Any]) -> str:
         return "to bottom left"
     if dx < 0 and dy < 0:
         return "to top left"
+    return None
 
-    # Arbitrary angle
+
+def _gradient_direction(positions: List[Any]) -> str:
+    """Determine CSS gradient direction from Figma gradient handle positions.
+
+    Args:
+        positions: List of Vector2D-like objects with x, y attributes.
+
+    Returns:
+        CSS gradient direction string (e.g., "to right", "135deg").
+    """
+    if not positions or len(positions) < 2:
+        return "to bottom"
+
+    start = positions[0]
+    end = positions[1]
+    dx = getattr(end, "x", 0.0) - getattr(start, "x", 0.0)
+    dy = getattr(end, "y", 0.0) - getattr(start, "y", 0.0)
+
+    named = _named_direction(dx, dy)
+    if named is not None:
+        return named
+
     angle_rad = math.atan2(dy, dx)
     angle_deg = round(math.degrees(angle_rad) + 90) % 360
     return f"{angle_deg}deg"
@@ -148,6 +157,43 @@ class StyleBuilder:
     def __init__(self) -> None:
         self._props: Dict[str, str] = {}
 
+    def _apply_solid_fill(self, paint: Paint, is_text: bool) -> None:
+        """Apply a SOLID fill paint to CSS props.
+
+        Args:
+            paint: Solid fill paint object.
+            is_text: If True, maps to ``color``; otherwise ``background-color``.
+        """
+        if paint.color:
+            css_prop = "color" if is_text else "background-color"
+            self._props[css_prop] = _color_to_css(paint.color, paint.opacity)
+
+    def _apply_gradient_fill(self, paint: Paint) -> None:
+        """Apply a LINEAR or RADIAL gradient fill paint to CSS props.
+
+        Args:
+            paint: Gradient fill paint object.
+        """
+        stops = _gradient_stops_css(paint.gradient_stops)
+        if stops is None:
+            return
+        if paint.type == PaintType.GRADIENT_LINEAR:
+            direction = _gradient_direction(paint.gradient_handle_positions or [])
+            self._props["background-image"] = f"linear-gradient({direction}, {stops})"
+        elif paint.type == PaintType.GRADIENT_RADIAL:
+            self._props["background-image"] = f"radial-gradient(circle, {stops})"
+
+    def _apply_image_fill(self, paint: Paint) -> None:
+        """Apply an IMAGE fill paint to CSS props.
+
+        Args:
+            paint: Image fill paint object.
+        """
+        self._props["background-size"] = "cover"
+        self._props["background-position"] = "center"
+        if paint.image_ref:
+            self._props["_image_ref"] = paint.image_ref
+
     def fills(self, paints: List[Paint], *, is_text: bool = False) -> StyleBuilder:
         """Extract background/fill properties from Figma paints.
 
@@ -172,32 +218,12 @@ class StyleBuilder:
 
         paint = visible[0]  # Primary fill
 
-        if paint.type == PaintType.SOLID and paint.color:
-            css_prop = "color" if is_text else "background-color"
-            self._props[css_prop] = _color_to_css(
-                paint.color, paint.opacity
-            )
-
-        elif paint.type == PaintType.GRADIENT_LINEAR:
-            direction = _gradient_direction(paint.gradient_handle_positions or [])
-            stops = _gradient_stops_css(paint.gradient_stops)
-            if stops is not None:
-                self._props["background-image"] = (
-                    f"linear-gradient({direction}, {stops})"
-                )
-
-        elif paint.type == PaintType.GRADIENT_RADIAL:
-            stops = _gradient_stops_css(paint.gradient_stops)
-            if stops is not None:
-                self._props["background-image"] = (
-                    f"radial-gradient(circle, {stops})"
-                )
-
+        if paint.type == PaintType.SOLID:
+            self._apply_solid_fill(paint, is_text)
+        elif paint.type in (PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL):
+            self._apply_gradient_fill(paint)
         elif paint.type == PaintType.IMAGE:
-            self._props["background-size"] = "cover"
-            self._props["background-position"] = "center"
-            if paint.image_ref:
-                self._props["_image_ref"] = paint.image_ref
+            self._apply_image_fill(paint)
 
         return self
 

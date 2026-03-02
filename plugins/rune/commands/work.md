@@ -46,7 +46,7 @@ using a swarm of AI workers.
 ```
 /rune:work plans/my-plan.md            # Implement the specified plan
 /rune:work                             # Auto-detect the most recent plan
-/rune:work --approve plans/my-plan.md  # Skip the plan review confirmation
+/rune:work --approve plans/my-plan.md  # Require your approval before each task
 ```
 
 ## What Happens

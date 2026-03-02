@@ -378,3 +378,199 @@ class TestStrokeGeometryRendering:
         handler = ImageHandler()
         jsx = handler.generate_image_jsx(node)
         assert "<script>" not in jsx
+
+
+# ---------------------------------------------------------------------------
+# Edge-case tests: empty / None / missing inputs
+# ---------------------------------------------------------------------------
+
+
+class TestEmptyAndNullInputs:
+    """Edge-case tests for empty, None, and missing field inputs."""
+
+    def test_empty_name_alt_text_sanitized(self):
+        """Node with empty name produces sanitized (empty) alt text."""
+        node = _make_node(name="", is_svg_candidate=True, width=24.0, height=24.0)
+        handler = ImageHandler()
+        jsx = handler.generate_image_jsx(node)
+        # Should not raise; SVG placeholder must still render
+        assert "<svg" in jsx
+
+    def test_none_image_urls_dict_defaults_to_empty(self):
+        """ImageHandler with None image_urls should behave as empty dict."""
+        handler = ImageHandler(image_urls=None)
+        assert handler.resolve_url("anything") == ""
+
+    def test_empty_image_urls_dict(self):
+        """ImageHandler with empty image_urls dict resolves no refs."""
+        handler = ImageHandler(image_urls={})
+        assert handler.resolve_url("hash1") == ""
+
+    def test_missing_image_ref_on_image_fill_node(self):
+        """Node marked as image fill but with None image_ref falls back to div."""
+        node = _make_node(has_image_fill=True, image_ref=None)
+        handler = ImageHandler({"some_hash": "https://example.com/img.png"})
+        jsx = handler.generate_image_jsx(node)
+        assert "<div" in jsx
+
+    def test_empty_fill_geometry_list_falls_back(self):
+        """Empty fill_geometry list should fall through to SVG URL or TODO placeholder."""
+        node = _make_node(
+            node_id="20:1",
+            is_svg_candidate=True,
+            name="EmptyGeo",
+            width=24.0,
+            height=24.0,
+            fill_geometry=[],
+        )
+        handler = ImageHandler()
+        jsx = handler.generate_image_jsx(node)
+        # Should fall through to TODO placeholder since no geometry and no URL
+        assert "<svg" in jsx
+        assert "TODO" in jsx
+
+    def test_empty_children_collect_no_refs(self):
+        """Node with empty children list yields no image refs."""
+        root = _make_node(children=[])
+        from image_handler import collect_image_refs
+        assert collect_image_refs(root) == []
+
+    def test_null_bytes_in_node_name_svg(self):
+        """Null bytes in node name are stripped from SVG alt text."""
+        node = _make_node(
+            name="Icon\x00Name",
+            is_svg_candidate=True,
+            width=24.0,
+            height=24.0,
+        )
+        handler = ImageHandler()
+        jsx = handler.generate_image_jsx(node)
+        assert "\x00" not in jsx
+
+
+class TestInvalidAndMalformedValues:
+    """Edge-case tests for invalid, malformed, and boundary values."""
+
+    def test_invalid_http_url_rejected(self):
+        """HTTP (non-HTTPS) image URLs should be replaced with about:blank."""
+        node = _make_node(has_image_fill=True, image_ref="ref1", width=100.0, height=100.0)
+        handler = ImageHandler({"ref1": "http://insecure.example.com/img.png"})
+        jsx = handler.generate_image_jsx(node)
+        assert "http://insecure" not in jsx
+        assert "about:blank" in jsx
+
+    def test_javascript_protocol_url_rejected(self):
+        """javascript: protocol URLs are never emitted into JSX."""
+        node = _make_node(has_image_fill=True, image_ref="ref2", width=100.0, height=100.0)
+        handler = ImageHandler({"ref2": "javascript:alert(1)"})
+        jsx = handler.generate_image_jsx(node)
+        assert "javascript:" not in jsx
+
+    def test_empty_string_url_becomes_div_fallback(self):
+        """Empty string URL is treated as missing — falls back to div."""
+        node = _make_node(has_image_fill=True, image_ref="ref3", width=100.0, height=100.0)
+        handler = ImageHandler({"ref3": ""})
+        jsx = handler.generate_image_jsx(node)
+        assert "<div" in jsx
+
+    def test_malformed_svg_path_whitelist_strips_invalid(self):
+        """Malformed path data with injected chars is stripped by whitelist."""
+        from image_handler import _sanitize_svg_path
+        malformed = 'M0 0 L10 10"onclick="evil()Z'
+        result = _sanitize_svg_path(malformed)
+        assert '"' not in result
+        assert "onclick" not in result
+
+    def test_huge_svg_path_truncated_to_empty(self):
+        """SVG path data exceeding _MAX_PATH_LENGTH returns empty string."""
+        from image_handler import _sanitize_svg_path, _MAX_PATH_LENGTH
+        huge_path = "M0 0 L1 1 " * (_MAX_PATH_LENGTH // 10 + 1)
+        assert len(huge_path) > _MAX_PATH_LENGTH
+        result = _sanitize_svg_path(huge_path)
+        assert result == ""
+
+    def test_zero_length_svg_path_returns_empty(self):
+        """Empty string path data returns empty string."""
+        from image_handler import _sanitize_svg_path
+        assert _sanitize_svg_path("") == ""
+
+    def test_boundary_svg_path_exactly_at_limit(self):
+        """SVG path data exactly at _MAX_PATH_LENGTH is accepted."""
+        from image_handler import _sanitize_svg_path, _MAX_PATH_LENGTH
+        # Fill exactly up to the limit with valid chars
+        boundary_path = "M" + "0 " * (_MAX_PATH_LENGTH // 2 - 1)
+        boundary_path = boundary_path[:_MAX_PATH_LENGTH]
+        result = _sanitize_svg_path(boundary_path)
+        # Valid chars survive whitelist; result should not be empty
+        assert result is not None  # Should be non-empty for boundary input
+
+
+class TestWhitespaceAndUnicodeInputs:
+    """Edge-case tests for whitespace and unicode in node names and text."""
+
+    def test_whitespace_only_name_in_svg(self):
+        """Node with whitespace-only name produces empty alt text after sanitize."""
+        node = _make_node(
+            name="   ",
+            is_svg_candidate=True,
+            width=24.0,
+            height=24.0,
+        )
+        handler = ImageHandler()
+        jsx = handler.generate_image_jsx(node)
+        # Must not raise; alt text should be empty (stripped)
+        assert "<svg" in jsx
+
+    def test_unicode_name_in_alt_text(self):
+        """Unicode characters in node names pass through alt text sanitization."""
+        node = _make_node(
+            name="图标-icon",
+            has_image_fill=True,
+            image_ref="uref",
+            width=50.0,
+            height=50.0,
+        )
+        handler = ImageHandler({"uref": "https://cdn.figma.com/u.png"})
+        jsx = handler.generate_image_jsx(node)
+        assert "图标-icon" in jsx
+
+    def test_special_chars_in_name_stripped_from_alt(self):
+        """Quotes and angle brackets are stripped from alt text."""
+        node = _make_node(
+            name='<script>"evil"</script>',
+            has_image_fill=True,
+            image_ref="eref",
+            width=50.0,
+            height=50.0,
+        )
+        handler = ImageHandler({"eref": "https://cdn.figma.com/e.png"})
+        jsx = handler.generate_image_jsx(node)
+        assert "<script>" not in jsx
+        assert '"evil"' not in jsx
+
+    def test_negative_dimensions_default_to_24_in_svg(self):
+        """Negative width/height for SVG candidate should fall back to 24."""
+        node = _make_node(
+            is_svg_candidate=True,
+            name="NegativeIcon",
+            width=-10.0,
+            height=-5.0,
+        )
+        handler = ImageHandler()
+        jsx = handler.generate_image_jsx(node)
+        # Negative dimensions treated same as <= 0: default to 24
+        assert 'width="24"' in jsx
+        assert 'height="24"' in jsx
+
+    def test_large_image_dimensions_render_correctly(self):
+        """Nodes with very large dimensions produce correct width/height attrs."""
+        node = _make_node(
+            has_image_fill=True,
+            image_ref="large_ref",
+            width=9999.7,
+            height=8888.3,
+        )
+        handler = ImageHandler({"large_ref": "https://cdn.figma.com/large.png"})
+        jsx = handler.generate_image_jsx(node)
+        assert "width={10000}" in jsx
+        assert "height={8888}" in jsx

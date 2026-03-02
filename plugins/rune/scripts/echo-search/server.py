@@ -177,59 +177,50 @@ _LAYER_IMPORTANCE = {
 _RECENCY_HALF_LIFE_DAYS = 30.0
 
 
-def _load_scoring_weights() -> Dict[str, float]:
-    """Load composite scoring weights from environment variables.
+_WEIGHT_ENV_MAP = {
+    "relevance": "ECHO_WEIGHT_RELEVANCE",
+    "importance": "ECHO_WEIGHT_IMPORTANCE",
+    "recency": "ECHO_WEIGHT_RECENCY",
+    "proximity": "ECHO_WEIGHT_PROXIMITY",
+    "frequency": "ECHO_WEIGHT_FREQUENCY",
+}
 
-    Each weight is read from ECHO_WEIGHT_<NAME> env var. Falls back to
-    _DEFAULT_WEIGHTS if not set. Weights are auto-normalized to sum to 1.0
-    with a stderr warning if they don't (EDGE-002).
 
-    Returns:
-        Dict mapping factor name to its normalized weight (0.0-1.0).
-    """
-    weights = {}  # type: Dict[str, float]
-    env_map = {
-        "relevance": "ECHO_WEIGHT_RELEVANCE",
-        "importance": "ECHO_WEIGHT_IMPORTANCE",
-        "recency": "ECHO_WEIGHT_RECENCY",
-        "proximity": "ECHO_WEIGHT_PROXIMITY",
-        "frequency": "ECHO_WEIGHT_FREQUENCY",
-    }
-    for key, env_name in env_map.items():
-        raw = os.environ.get(env_name)
-        if raw is not None:
-            try:
-                val = float(raw)
-                if val < 0.0:
-                    raise ValueError("negative weight")
-                weights[key] = val
-            except ValueError:
-                print(
-                    "Warning: invalid %s=%r, using default %.2f"
-                    % (env_name, raw, _DEFAULT_WEIGHTS[key]),
-                    file=sys.stderr,
-                )
-                weights[key] = _DEFAULT_WEIGHTS[key]
-        else:
-            weights[key] = _DEFAULT_WEIGHTS[key]
+def _parse_weight_from_env(key: str, env_name: str) -> float:
+    """Parse a single weight from an env var, falling back to default."""
+    raw = os.environ.get(env_name)
+    if raw is None:
+        return _DEFAULT_WEIGHTS[key]
+    try:
+        val = float(raw)
+        if val < 0.0:
+            raise ValueError("negative weight")
+        return val
+    except ValueError:
+        print("Warning: invalid %s=%r, using default %.2f"
+              % (env_name, raw, _DEFAULT_WEIGHTS[key]), file=sys.stderr)
+        return _DEFAULT_WEIGHTS[key]
 
-    # EDGE-002: Auto-normalize if sum != 1.0
+
+def _normalize_weights(weights: Dict[str, float]) -> Dict[str, float]:
+    """EDGE-002: Auto-normalize weights to sum to 1.0."""
     total = sum(weights.values())
     if total <= 0.0:
-        print(
-            "Warning: scoring weights sum to 0, falling back to defaults",
-            file=sys.stderr,
-        )
+        print("Warning: scoring weights sum to 0, falling back to defaults",
+              file=sys.stderr)
         return dict(_DEFAULT_WEIGHTS)
     if abs(total - 1.0) > 1e-6:
-        print(
-            "Warning: scoring weights sum to %.4f (not 1.0), auto-normalizing"
-            % total,
-            file=sys.stderr,
-        )
-        weights = {k: v / total for k, v in weights.items()}
-
+        print("Warning: scoring weights sum to %.4f (not 1.0), "
+              "auto-normalizing" % total, file=sys.stderr)
+        return {k: v / total for k, v in weights.items()}
     return weights
+
+
+def _load_scoring_weights() -> Dict[str, float]:
+    """Load composite scoring weights from environment variables."""
+    weights = {k: _parse_weight_from_env(k, env)
+               for k, env in _WEIGHT_ENV_MAP.items()}
+    return _normalize_weights(weights)
 
 
 def _score_bm25_relevance(scores: List[float]) -> List[float]:
@@ -305,20 +296,7 @@ _EVIDENCE_PATH_RE = re.compile(r'`([^`]+\.[a-z]{1,6})`')
 
 
 def _extract_evidence_paths(entry: Dict[str, Any]) -> List[str]:
-    """Extract file paths referenced in an echo entry's content and source.
-
-    C5 concern: Parses backtick-fenced tokens matching file path patterns
-    plus the source field. Limited to 10 paths per entry to bound cost.
-
-    SECURITY: These paths are used for string comparison ONLY — never
-    passed to os.path.exists(), open(), or any filesystem operation.
-
-    Args:
-        entry: Echo entry dict with content_preview, source, etc.
-
-    Returns:
-        List of normalized evidence file paths (max 10).
-    """
+    """Extract file paths from entry content/source (C5, max 10, string-only)."""
     paths = []  # type: List[str]
 
     # Extract from content (content_preview in search results)
@@ -351,23 +329,9 @@ def _extract_evidence_paths(entry: Dict[str, Any]) -> List[str]:
 
 
 def compute_file_proximity(evidence_path: str, context_path: str) -> float:
-    """Compute proximity score between an evidence file and a context file.
+    """Compute proximity: 1.0=exact, 0.8=same dir, 0.2-0.6=shared prefix, 0.0=none.
 
-    Scoring tiers:
-    - Exact match: 1.0
-    - Same directory: 0.8
-    - Shared path prefix: 0.2-0.6 (proportional to common depth)
-    - No match: 0.0
-
-    SECURITY: String comparison ONLY. No filesystem operations on
-    untrusted MCP input (context_files are untrusted).
-
-    Args:
-        evidence_path: Normalized path from echo content.
-        context_path: Normalized path from user's context_files.
-
-    Returns:
-        Proximity score in [0.0, 1.0].
+    String comparison ONLY (no filesystem access on untrusted MCP input).
     """
     # EDGE-012: Normalize both paths (no realpath — no filesystem access)
     ev = os.path.normpath(evidence_path)
@@ -504,25 +468,24 @@ def _score_frequency(
     return math.log(1.0 + count) / max_log_count
 
 
+def _cap_access_log(conn: sqlite3.Connection) -> None:
+    """EDGE-010: Prune access log if over 100k rows (keep newest 90k)."""
+    row_count = conn.execute(
+        "SELECT COUNT(*) FROM echo_access_log").fetchone()[0]
+    if row_count > 100000:
+        conn.execute("""DELETE FROM echo_access_log
+            WHERE id NOT IN (
+                SELECT id FROM echo_access_log
+                ORDER BY accessed_at DESC LIMIT 90000)""")
+        conn.commit()
+
+
 def _record_access(
     conn: sqlite3.Connection,
     results: List[Dict[str, Any]],
     query: str,
 ) -> None:
-    """Synchronously record access events for search results.
-
-    C2 concern: This is called SYNCHRONOUSLY before returning results.
-    No asyncio.create_task() — MCP server is single-threaded asyncio.
-    WAL mode allows concurrent reads during this write.
-
-    Also enforces EDGE-010: caps echo_access_log at 100k rows by
-    deleting oldest entries when threshold is exceeded.
-
-    Args:
-        conn: Database connection (WAL mode for concurrent read/write).
-        results: List of search result dicts, each with 'id' key.
-        query: The search query that produced these results.
-    """
+    """Record access events synchronously (C2 concern, EDGE-010 cap)."""
     if not results:
         return
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -531,28 +494,63 @@ def _record_access(
             entry_id = entry.get("id", "")
             if entry_id:
                 conn.execute(
-                    "INSERT INTO echo_access_log (entry_id, accessed_at, query) VALUES (?, ?, ?)",
-                    (entry_id, now, query[:500]),  # SEC-7: cap query length
-                )
+                    "INSERT INTO echo_access_log "
+                    "(entry_id, accessed_at, query) VALUES (?, ?, ?)",
+                    (entry_id, now, query[:500]))
         conn.commit()
-
-        # EDGE-010: Bounded growth — check row count every write and
-        # prune oldest entries if over 100k threshold.
-        row_count = conn.execute("SELECT COUNT(*) FROM echo_access_log").fetchone()[0]
-        if row_count > 100000:
-            # Keep newest 90k rows (delete oldest 10k+ surplus)
-            conn.execute("""
-                DELETE FROM echo_access_log
-                WHERE id NOT IN (
-                    SELECT id FROM echo_access_log
-                    ORDER BY accessed_at DESC
-                    LIMIT 90000
-                )
-            """)
-            conn.commit()
+        _cap_access_log(conn)
     except sqlite3.OperationalError:
-        # Non-fatal: access logging failure should not break search
-        pass
+        pass  # Non-fatal
+
+
+def _prepare_frequency_data(
+    conn: Optional[sqlite3.Connection],
+    results: List[Dict[str, Any]],
+) -> Tuple[Optional[Dict[str, int]], float]:
+    """Batch-fetch access counts for frequency scoring.
+
+    Returns (access_counts, max_log_count) tuple.
+    """
+    if conn is None:
+        return None, 0.0
+    entry_ids = [r.get("id", "") for r in results if r.get("id")]
+    access_counts = _get_access_counts(conn, entry_ids)
+    max_log_count = 0.0
+    if access_counts:
+        max_log_count = max(
+            math.log(1.0 + c) for c in access_counts.values())
+    return access_counts, max_log_count
+
+
+def _compute_entry_factors(
+    entry: Dict[str, Any], bm25_norm: float,
+    context_files: Optional[List[str]],
+    conn: Optional[sqlite3.Connection],
+    access_counts: Optional[Dict[str, int]],
+    max_log_count: float,
+) -> Dict[str, float]:
+    """Compute all 5 scoring factors for a single entry."""
+    return {
+        "relevance": bm25_norm,
+        "importance": _score_importance(entry.get("layer", "")),
+        "recency": _score_recency(entry.get("date", "")),
+        "proximity": _score_proximity(entry, context_files),
+        "frequency": _score_frequency(
+            entry.get("id", ""), conn=conn,
+            access_counts=access_counts, max_log_count=max_log_count),
+    }
+
+
+def _enrich_entry(
+    entry: Dict[str, Any], factors: Dict[str, float],
+    weights: Dict[str, float],
+) -> Tuple[float, Dict[str, Any]]:
+    """Compute composite score and enrich entry with score metadata."""
+    composite = sum(weights.get(k, 0.0) * v for k, v in factors.items())
+    enriched = dict(entry)
+    enriched["composite_score"] = round(composite, 4)
+    enriched["score_factors"] = {k: round(v, 4) for k, v in factors.items()}
+    return composite, enriched
 
 
 def compute_composite_score(
@@ -563,79 +561,30 @@ def compute_composite_score(
 ) -> List[Dict[str, Any]]:
     """Re-rank search results using 5-factor composite scoring.
 
-    Blends BM25 relevance with importance, recency, file proximity, and
-    access frequency to produce a final composite score. Results are sorted
-    by composite score (descending).
-
-    BM25 sign convention: FTS5 bm25() returns negative values where more
-    negative = more relevant. Normalization inverts this to 0.0-1.0 scale
-    via min-max scaling: (bm25_max - score_i) / (bm25_max - bm25_min).
-    The log(1+count) rationale for frequency: logarithmic scaling provides
-    diminishing returns so that entries accessed 100x don't dominate over
-    entries accessed 10x.
-
     Args:
-        results: List of search result dicts from search_entries(), each
-            containing 'score' (raw BM25), 'layer', 'id', etc.
-        weights: Dict of factor weights (relevance, importance, recency,
-            proximity, frequency) summing to 1.0.
+        results: Search result dicts with 'score', 'layer', 'id', etc.
+        weights: Factor weights summing to 1.0.
         conn: Optional DB connection for frequency lookups.
-        context_files: Optional list of current file paths for proximity.
+        context_files: Optional file paths for proximity scoring.
 
     Returns:
-        Results list re-sorted by composite score, with 'composite_score'
-        and 'score_factors' added to each entry. Returns [] for empty input
-        (EDGE-001).
+        Re-sorted results with 'composite_score' and 'score_factors'.
     """
-    # EDGE-001: Empty results → return []
     if not results:
         return []
 
-    # Step 1: Normalize BM25 scores across the result set
     raw_bm25 = [r.get("score", 0.0) for r in results]
     norm_bm25 = _score_bm25_relevance(raw_bm25)
+    access_counts, max_log_count = _prepare_frequency_data(conn, results)
 
-    # Step 1.5: Batch-fetch access counts for frequency scoring
-    access_counts = None  # type: Optional[Dict[str, int]]
-    max_log_count = 0.0
-    if conn is not None:
-        entry_ids = [r.get("id", "") for r in results if r.get("id")]
-        access_counts = _get_access_counts(conn, entry_ids)
-        if access_counts:
-            max_log_count = max(
-                math.log(1.0 + c) for c in access_counts.values()
-            )
-
-    # Step 2: Compute per-entry composite scores
     scored = []  # type: List[Tuple[float, Dict[str, Any]]]
     for i, entry in enumerate(results):
-        factors = {
-            "relevance": norm_bm25[i],
-            "importance": _score_importance(entry.get("layer", "")),
-            "recency": _score_recency(entry.get("date", "")),
-            "proximity": _score_proximity(entry, context_files),
-            "frequency": _score_frequency(
-                entry.get("id", ""),
-                conn=conn,
-                access_counts=access_counts,
-                max_log_count=max_log_count,
-            ),
-        }
+        factors = _compute_entry_factors(
+            entry, norm_bm25[i], context_files,
+            conn, access_counts, max_log_count)
+        scored.append(_enrich_entry(entry, factors, weights))
 
-        composite = sum(
-            weights.get(k, 0.0) * v for k, v in factors.items()
-        )
-
-        enriched = dict(entry)
-        enriched["composite_score"] = round(composite, 4)
-        enriched["score_factors"] = {
-            k: round(v, 4) for k, v in factors.items()
-        }
-        scored.append((composite, enriched))
-
-    # Step 3: Sort by composite score (descending — highest = best)
     scored.sort(key=lambda x: x[0], reverse=True)
-
     return [entry for _, entry in scored]
 
 
@@ -720,7 +669,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             # SAFE: SCHEMA_VERSION is a module-level integer constant, not user input
             conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             conn.commit()
-        except Exception:
+        except (sqlite3.Error, OSError):
             conn.rollback()
             raise
 
@@ -761,72 +710,63 @@ def compute_entry_similarity(entry_a: Dict[str, Any], entry_b: Dict[str, Any]) -
     return len(features_a & features_b) / len(union) if union else 0.0
 
 
-def assign_semantic_groups(
-    conn: sqlite3.Connection, entries: list[Dict[str, Any]],
-    threshold: float = 0.3, max_group_size: int = 20,
-) -> int:
-    """Assign entries to semantic groups based on Jaccard similarity.
+def _merge_pair_into_groups(groups, id_a, id_b, sim):
+    """Merge a similar pair into the groups list (union-find logic)."""
+    group_a = group_b = None
+    for g in groups:
+        if id_a in g[1]:
+            group_a = g
+        if id_b in g[1]:
+            group_b = g
+    if group_a is None and group_b is None:
+        groups.append((uuid.uuid4().hex[:16], {id_a, id_b}, {id_a: sim, id_b: sim}))
+    elif group_a is not None and group_b is None:
+        group_a[1].add(id_b)
+        group_a[2][id_b] = max(group_a[2].get(id_b, 0.0), sim)
+    elif group_a is None and group_b is not None:
+        group_b[1].add(id_a)
+        group_b[2][id_a] = max(group_b[2].get(id_a, 0.0), sim)
+    elif group_a is not None and group_b is not None and group_a is not group_b:
+        group_a[1].update(group_b[1])
+        for eid, s in group_b[2].items():
+            group_a[2][eid] = max(group_a[2].get(eid, 0.0), s)
+        groups.remove(group_b)
+    elif group_a is group_b and group_a is not None:
+        group_a[2][id_a] = max(group_a[2].get(id_a, 0.0), sim)
+        group_a[2][id_b] = max(group_a[2].get(id_b, 0.0), sim)
 
-    Computes pairwise Jaccard similarity between all entries using tokenized
-    content+tags features. Entries with similarity >= threshold are merged into
-    groups using union-find logic. Groups exceeding max_group_size are chunked.
-    Results are written atomically to the semantic_groups table.
 
-    Args:
-        conn: SQLite database connection with V2 schema.
-        entries: List of entry dicts, each with at least 'id', 'content', 'tags'.
-        threshold: Minimum Jaccard similarity to consider two entries related.
-        max_group_size: Maximum number of entries per semantic group chunk.
-
-    Returns:
-        Total number of group membership rows inserted or replaced.
-    """
-    if len(entries) < 2:
-        return 0
-    entry_map = {e["id"]: e for e in entries}
-    entry_ids = list(entry_map.keys())
+def _build_pairwise_groups(entry_map, entry_ids, threshold):
+    """Build groups via pairwise similarity comparison."""
     groups = []  # type: list[tuple[str, set[str], dict[str, float]]]
     for i in range(len(entry_ids)):
         for j in range(i + 1, len(entry_ids)):
             id_a, id_b = entry_ids[i], entry_ids[j]
             sim = compute_entry_similarity(entry_map[id_a], entry_map[id_b])
-            if sim < threshold:
-                continue
-            group_a = group_b = None
-            for g in groups:
-                if id_a in g[1]:
-                    group_a = g
-                if id_b in g[1]:
-                    group_b = g
-            if group_a is None and group_b is None:
-                groups.append((uuid.uuid4().hex[:16], {id_a, id_b}, {id_a: sim, id_b: sim}))
-            elif group_a is not None and group_b is None:
-                group_a[1].add(id_b)
-                group_a[2][id_b] = max(group_a[2].get(id_b, 0.0), sim)
-            elif group_a is None and group_b is not None:
-                group_b[1].add(id_a)
-                group_b[2][id_a] = max(group_b[2].get(id_a, 0.0), sim)
-            elif group_a is not None and group_b is not None and group_a is not group_b:
-                group_a[1].update(group_b[1])
-                for eid, s in group_b[2].items():
-                    group_a[2][eid] = max(group_a[2].get(eid, 0.0), s)
-                groups.remove(group_b)
-            elif group_a is group_b and group_a is not None:
-                group_a[2][id_a] = max(group_a[2].get(id_a, 0.0), sim)
-                group_a[2][id_b] = max(group_a[2].get(id_b, 0.0), sim)
-    groups = [g for g in groups if len(g[1]) >= 2]
-    final_groups = []  # type: list[tuple[str, set[str], dict[str, float]]]
+            if sim >= threshold:
+                _merge_pair_into_groups(groups, id_a, id_b, sim)
+    return [g for g in groups if len(g[1]) >= 2]
+
+
+def _chunk_groups(groups, max_group_size):
+    """Split oversized groups into chunks of max_group_size."""
+    final = []  # type: list[tuple[str, set[str], dict[str, float]]]
     for gid, members, sims in groups:
         if len(members) <= max_group_size:
-            final_groups.append((gid, members, sims))
+            final.append((gid, members, sims))
         else:
             sorted_m = sorted(members, key=lambda eid: sims.get(eid, 0.0), reverse=True)
             for cs in range(0, len(sorted_m), max_group_size):
                 chunk = set(sorted_m[cs:cs + max_group_size])
                 if len(chunk) >= 2:
-                    final_groups.append(
+                    final.append(
                         (gid if cs == 0 else uuid.uuid4().hex[:16], chunk,
                          {eid: sims.get(eid, 0.0) for eid in chunk}))
+    return final
+
+
+def _write_groups(conn, final_groups):
+    """Atomically write group memberships to semantic_groups table."""
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     count = 0
     conn.execute("BEGIN")
@@ -834,35 +774,47 @@ def assign_semantic_groups(
         for gid, members, sims in final_groups:
             for eid in members:
                 conn.execute(
-                    "INSERT OR REPLACE INTO semantic_groups (group_id, entry_id, similarity, created_at) VALUES (?, ?, ?, ?)",
+                    "INSERT OR REPLACE INTO semantic_groups "
+                    "(group_id, entry_id, similarity, created_at) "
+                    "VALUES (?, ?, ?, ?)",
                     (gid, eid, sims.get(eid, 0.0), now))
                 count += 1
         conn.commit()
-    except Exception:
+    except sqlite3.Error:
         conn.rollback()
         raise
     return count
+
+
+def assign_semantic_groups(
+    conn: sqlite3.Connection, entries: list[Dict[str, Any]],
+    threshold: float = 0.3, max_group_size: int = 20,
+) -> int:
+    """Assign entries to semantic groups based on Jaccard similarity.
+
+    Args:
+        conn: SQLite database connection with V2 schema.
+        entries: List of entry dicts with 'id', 'content', 'tags'.
+        threshold: Minimum Jaccard similarity for grouping.
+        max_group_size: Max entries per group chunk.
+
+    Returns:
+        Total group membership rows inserted or replaced.
+    """
+    if len(entries) < 2:
+        return 0
+    entry_map = {e["id"]: e for e in entries}
+    entry_ids = list(entry_map.keys())
+    groups = _build_pairwise_groups(entry_map, entry_ids, threshold)
+    final_groups = _chunk_groups(groups, max_group_size)
+    return _write_groups(conn, final_groups)
 
 
 def upsert_semantic_group(
     conn: sqlite3.Connection, group_id: str,
     entry_ids: list[str], similarities: list[float] | None = None,
 ) -> int:
-    """Insert or update a semantic group with the given entry memberships.
-
-    Writes one row per entry_id into the semantic_groups table using
-    INSERT OR REPLACE semantics. Timestamps are set to the current UTC time.
-
-    Args:
-        conn: SQLite database connection with V2 schema.
-        group_id: Unique identifier for the semantic group (hex string).
-        entry_ids: List of echo entry IDs to include in the group.
-        similarities: Optional per-entry similarity scores (parallel to entry_ids).
-            Defaults to 0.0 for all entries if not provided.
-
-    Returns:
-        Number of group membership rows inserted or replaced.
-    """
+    """Insert or replace semantic group memberships (INSERT OR REPLACE)."""
     if not entry_ids:
         return 0
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -882,10 +834,111 @@ def upsert_semantic_group(
                 (group_id, eid, sim, now))
             count += 1
         conn.commit()
-    except Exception:
+    except sqlite3.Error:
         conn.rollback()
         raise
     return count
+
+
+def _fetch_group_ids(
+    conn: sqlite3.Connection, existing_ids: set,
+) -> List[str]:
+    """Fetch distinct group IDs for a set of entry IDs.
+
+    Returns empty list on pre-V2 schema (table missing).
+    """
+    id_list = list(existing_ids)
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT group_id FROM semantic_groups "
+            "WHERE entry_id IN (%s)" % _in_clause(len(id_list)),
+            id_list,
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    return [r[0] for r in rows]
+
+
+def _fetch_expanded_rows(
+    conn: sqlite3.Connection, group_ids: List[str],
+    existing_ids: set,
+) -> list:
+    """Fetch group member rows not already in results."""
+    id_list = list(existing_ids)
+    try:
+        return conn.execute(
+            """SELECT sg.group_id, e.id, e.source, e.layer, e.role,
+                      e.date, substr(e.content, 1, 200) AS content_preview,
+                      e.line_number, e.tags
+               FROM semantic_groups sg
+               JOIN echo_entries e ON e.id = sg.entry_id
+               WHERE sg.group_id IN (%s)
+                 AND sg.entry_id NOT IN (%s)"""
+            % (_in_clause(len(group_ids)), _in_clause(len(id_list))),
+            group_ids + id_list,
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+
+
+def _rows_to_expanded_entries(rows: list) -> list:
+    """Convert DB rows to expanded entry dicts."""
+    entries = []  # type: list[Dict[str, Any]]
+    for row in rows:
+        entries.append({
+            "id": row["id"], "source": row["source"],
+            "layer": row["layer"], "role": row["role"],
+            "date": row["date"], "content_preview": row["content_preview"],
+            "line_number": row["line_number"], "tags": row["tags"],
+            "score": 0.0, "expansion_source": "group_expansion",
+        })
+    return entries
+
+
+def _dedup_expanded(
+    entries: list, existing_ids: set, cap: int,
+) -> list:
+    """Deduplicate expanded entries and cap total count."""
+    seen = set()  # type: set[str]
+    unique = []  # type: list[Dict[str, Any]]
+    for entry in entries:
+        eid = entry["id"]
+        if eid not in seen and eid not in existing_ids:
+            seen.add(eid)
+            unique.append(entry)
+    return unique[:min(cap, 50)]
+
+
+def _merge_scored_results(
+    original: list, expanded: list,
+) -> list:
+    """Merge original + expanded, dedup by highest composite_score."""
+    combined = {}  # type: dict[str, Dict[str, Any]]
+    for entry in original:
+        eid = entry.get("id", "")
+        if eid:
+            combined[eid] = entry
+    for entry in expanded:
+        eid = entry.get("id", "")
+        if eid and (eid not in combined or
+                    entry.get("composite_score", 0.0) >
+                    combined[eid].get("composite_score", 0.0)):
+            combined[eid] = entry
+    return sorted(
+        combined.values(),
+        key=lambda x: x.get("composite_score", 0.0),
+        reverse=True,
+    )
+
+
+def _apply_expansion_discount(
+    scored_expanded: List[Dict[str, Any]], discount: float,
+) -> None:
+    """Apply discount multiplier and mark expansion source on entries."""
+    for entry in scored_expanded:
+        entry["composite_score"] = round(
+            entry.get("composite_score", 0.0) * discount, 4)
+        entry["expansion_source"] = "group_expansion"
 
 
 def expand_semantic_groups(
@@ -896,217 +949,110 @@ def expand_semantic_groups(
     discount: float = 0.7,
     max_expansion: int = 5,
 ) -> list[Dict[str, Any]]:
-    """Expand search results by fetching semantic group members.
-
-    Runs AFTER composite scoring, BEFORE retry injection. For each
-    result, looks up its group memberships, fetches other members not
-    already in results, computes their composite scores, applies a
-    discount factor, and appends them.
-
-    Pipeline position rationale:
-    - After composite: expanded entries need their OWN composite scores
-    - Before retry: retry entries should NOT trigger group expansion
-    - Before reranking: expanded entries must be in reranking candidate set
-
-    Args:
-        conn: Database connection with V2 schema.
-        scored_results: Results with composite_score from compute_composite_score().
-        weights: Scoring weights dict for composite score computation.
-        context_files: Optional file paths for proximity scoring.
-        discount: Multiplier for expanded entry scores (default 0.7).
-        max_expansion: Max expanded entries to add per group (default 5).
-
-    Returns:
-        Combined list: original results + expanded entries (deduped by
-        highest score per entry ID, EDGE-010).
-    """
+    """Expand results with semantic group members (EDGE-010)."""
     if not scored_results:
         return scored_results
-
-    # Collect entry IDs already in results
     existing_ids = {r.get("id", "") for r in scored_results if r.get("id")}
-
-    # Batch-fetch group_ids for all result entries
     if not existing_ids:
         return scored_results
 
-    id_list = list(existing_ids)
-    try:
-        group_rows = conn.execute(
-            "SELECT DISTINCT group_id FROM semantic_groups WHERE entry_id IN (%s)" % _in_clause(len(id_list)),
-            id_list,
-        ).fetchall()
-    except sqlite3.OperationalError:
-        return scored_results  # Table may not exist (pre-V2)
-
-    group_ids = [r[0] for r in group_rows]
+    group_ids = _fetch_group_ids(conn, existing_ids)
     if not group_ids:
         return scored_results
 
-    # Batch-fetch all members of those groups NOT already in results
-    try:
-        expanded_rows = conn.execute(
-            """SELECT sg.group_id, e.id, e.source, e.layer, e.role, e.date,
-                      substr(e.content, 1, 200) AS content_preview,
-                      e.line_number, e.tags
-               FROM semantic_groups sg
-               JOIN echo_entries e ON e.id = sg.entry_id
-               WHERE sg.group_id IN (%s)
-                 AND sg.entry_id NOT IN (%s)""" % (_in_clause(len(group_ids)), _in_clause(len(existing_ids))),
-            group_ids + id_list,
-        ).fetchall()
-    except sqlite3.OperationalError:
-        return scored_results
-
+    expanded_rows = _fetch_expanded_rows(conn, group_ids, existing_ids)
     if not expanded_rows:
         return scored_results
 
-    # Build expanded entry dicts
-    expanded_entries = []  # type: list[Dict[str, Any]]
-    for row in expanded_rows:
-        expanded_entries.append({
-            "id": row["id"],
-            "source": row["source"],
-            "layer": row["layer"],
-            "role": row["role"],
-            "date": row["date"],
-            "content_preview": row["content_preview"],
-            "line_number": row["line_number"],
-            "tags": row["tags"],
-            "score": 0.0,  # No BM25 score for expanded entries
-            "expansion_source": "group_expansion",
-        })
-
-    # Dedup expanded entries (keep first occurrence per ID)
-    seen = set()  # type: set[str]
-    unique_expanded = []  # type: list[Dict[str, Any]]
-    for entry in expanded_entries:
-        eid = entry["id"]
-        if eid not in seen and eid not in existing_ids:
-            seen.add(eid)
-            unique_expanded.append(entry)
-
-    # Cap at max_expansion per group (apply globally since groups may overlap)
-    unique_expanded = unique_expanded[:min(max_expansion * len(group_ids), 50)]
-
-    if not unique_expanded:
+    entries = _rows_to_expanded_entries(expanded_rows)
+    cap = max_expansion * len(group_ids)
+    unique = _dedup_expanded(entries, existing_ids, cap)
+    if not unique:
         return scored_results
 
-    # Compute composite scores for expanded entries
     scored_expanded = compute_composite_score(
-        unique_expanded, weights, conn=conn, context_files=context_files,
+        unique, weights, conn=conn, context_files=context_files)
+    _apply_expansion_discount(scored_expanded, discount)
+    return _merge_scored_results(scored_results, scored_expanded)
+
+
+def _insert_entries(conn: sqlite3.Connection, entries: list) -> None:
+    """Clear existing entries and insert new ones into echo_entries."""
+    conn.execute("DELETE FROM echo_entries")
+    conn.execute(
+        "INSERT INTO echo_entries_fts(echo_entries_fts) VALUES('delete-all')")
+    for entry in entries:
+        conn.execute(
+            """INSERT OR REPLACE INTO echo_entries
+               (id, role, layer, date, source, content, tags,
+                line_number, file_path)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (entry["id"], entry["role"], entry["layer"],
+             entry.get("date", ""), entry.get("source", ""),
+             entry["content"], entry.get("tags", ""),
+             entry.get("line_number", 0), entry["file_path"]),
+        )
+    conn.execute(
+        "INSERT INTO echo_entries_fts(echo_entries_fts) VALUES('rebuild')")
+
+
+def _prune_access_log(conn: sqlite3.Connection) -> None:
+    """EDGE-007 + EDGE-010: Prune orphaned and aged access log rows."""
+    conn.execute("""
+        DELETE FROM echo_access_log
+        WHERE entry_id NOT IN (SELECT id FROM echo_entries)
+    """)
+    cutoff = time.strftime(
+        "%Y-%m-%dT%H:%M:%SZ",
+        time.gmtime(time.time() - 180 * 86400),
     )
+    conn.execute(
+        "DELETE FROM echo_access_log WHERE accessed_at < ?", (cutoff,))
 
-    # Apply discount to composite scores
-    for entry in scored_expanded:
-        original_score = entry.get("composite_score", 0.0)
-        entry["composite_score"] = round(original_score * discount, 4)
-        entry["expansion_source"] = "group_expansion"
 
-    # Merge: combine original + expanded, dedup by highest composite_score (EDGE-010)
-    combined = {}  # type: dict[str, Dict[str, Any]]
-    for entry in scored_results:
-        eid = entry.get("id", "")
-        if eid:
-            combined[eid] = entry
-
-    for entry in scored_expanded:
-        eid = entry.get("id", "")
-        if eid and (eid not in combined or
-                    entry.get("composite_score", 0.0) > combined[eid].get("composite_score", 0.0)):
-            combined[eid] = entry
-
-    # Sort by composite score descending
-    result = sorted(combined.values(), key=lambda x: x.get("composite_score", 0.0), reverse=True)
-    return result
+def _prune_search_failures(conn: sqlite3.Connection) -> None:
+    """EDGE-020: Cleanup aged-out and orphaned search failures."""
+    failure_cutoff = time.strftime(
+        "%Y-%m-%dT%H:%M:%SZ",
+        time.gmtime(time.time() - 30 * 86400),
+    )
+    try:
+        conn.execute(
+            "DELETE FROM echo_search_failures WHERE first_failed_at < ?",
+            (failure_cutoff,))
+        conn.execute("""
+            DELETE FROM echo_search_failures
+            WHERE entry_id NOT IN (SELECT id FROM echo_entries)
+        """)
+    except sqlite3.OperationalError:
+        pass  # Table may not exist yet (pre-V2 schema)
 
 
 def rebuild_index(conn, entries):
     """Clear and repopulate the FTS5 index from *entries*.
 
     Runs inside an explicit transaction for crash safety (QUAL-3).
-    Also prunes orphaned access-log rows and entries older than 180 days.
 
     Args:
         conn: Open SQLite connection with V2 schema.
-        entries: List of parsed echo entry dicts from ``indexer.parse_memory_file``.
+        entries: List of parsed echo entry dicts.
 
     Returns:
         Number of entries inserted.
     """
     # type: (sqlite3.Connection, List[Dict]) -> int
-    conn.execute("BEGIN")  # QUAL-3: explicit transaction for crash safety
+    conn.execute("BEGIN")  # QUAL-3: explicit transaction
     try:
-        conn.execute("DELETE FROM echo_entries")
-        conn.execute("INSERT INTO echo_entries_fts(echo_entries_fts) VALUES('delete-all')")
-
-        for entry in entries:
-            conn.execute(
-                """INSERT OR REPLACE INTO echo_entries
-                   (id, role, layer, date, source, content, tags, line_number, file_path)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    entry["id"],
-                    entry["role"],
-                    entry["layer"],
-                    entry.get("date", ""),
-                    entry.get("source", ""),
-                    entry["content"],
-                    entry.get("tags", ""),
-                    entry.get("line_number", 0),
-                    entry["file_path"],
-                ),
-            )
-
-        # Rebuild the FTS index from the content table
-        conn.execute(
-            "INSERT INTO echo_entries_fts(echo_entries_fts) VALUES('rebuild')"
-        )
-
-        # EDGE-007: Orphan cleanup — remove access log rows for entry IDs
-        # that no longer exist after reindex (stale references).
-        conn.execute("""
-            DELETE FROM echo_access_log
-            WHERE entry_id NOT IN (SELECT id FROM echo_entries)
-        """)
-
-        # EDGE-010: Age-based pruning — remove access log entries older
-        # than 180 days to prevent unbounded growth.
-        cutoff = time.strftime(
-            "%Y-%m-%dT%H:%M:%SZ",
-            time.gmtime(time.time() - 180 * 86400),
-        )
-        conn.execute(
-            "DELETE FROM echo_access_log WHERE accessed_at < ?",
-            (cutoff,),
-        )
-
-        # EDGE-020: Cleanup aged-out search failures at reindex time.
-        # Removes entries whose first_failed_at is older than 30 days,
-        # and orphaned failures referencing deleted entries.
-        failure_cutoff = time.strftime(
-            "%Y-%m-%dT%H:%M:%SZ",
-            time.gmtime(time.time() - 30 * 86400),
-        )
-        try:
-            conn.execute(
-                "DELETE FROM echo_search_failures WHERE first_failed_at < ?",
-                (failure_cutoff,),
-            )
-            conn.execute("""
-                DELETE FROM echo_search_failures
-                WHERE entry_id NOT IN (SELECT id FROM echo_entries)
-            """)
-        except sqlite3.OperationalError:
-            pass  # Table may not exist yet (pre-V2 schema)
+        _insert_entries(conn, entries)
+        _prune_access_log(conn)
+        _prune_search_failures(conn)
 
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         conn.execute(
-            "INSERT OR REPLACE INTO echo_meta (key, value) VALUES ('last_indexed', ?)",
-            (now,),
-        )
+            "INSERT OR REPLACE INTO echo_meta (key, value) "
+            "VALUES ('last_indexed', ?)", (now,))
         conn.commit()
-    except Exception:
+    except (sqlite3.Error, OSError, KeyError, ValueError):
         conn.rollback()
         raise
     return len(entries)
@@ -1147,17 +1093,7 @@ def record_search_failure(
     entry_id: str,
     token_fingerprint: str,
 ) -> None:
-    """Record a failed match for an entry against a query fingerprint.
-
-    Inserts a new failure record or increments retry_count for an existing
-    one. Respects max retry limit (_FAILURE_MAX_RETRIES). Ages from
-    first failure timestamp, not last retry (EDGE-018).
-
-    Args:
-        conn: SQLite database connection.
-        entry_id: The echo entry ID that was not matched.
-        token_fingerprint: SHA-256 hex digest of query tokens.
-    """
+    """Record or increment a failure for entry+fingerprint (EDGE-018)."""
     if not entry_id or not token_fingerprint:
         return
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -1215,76 +1151,53 @@ def reset_failure_on_match(
         pass  # Table may not exist (pre-V2)
 
 
+def _build_retry_sql(
+    matched_ids: Optional[List[str]],
+) -> Tuple[str, List[Any]]:
+    """Build SQL and params for retry entry retrieval."""
+    age_cutoff = time.strftime(
+        "%Y-%m-%dT%H:%M:%SZ",
+        time.gmtime(time.time() - _FAILURE_MAX_AGE_DAYS * 86400))
+    sql = """SELECT f.entry_id, e.source, e.layer, e.role, e.date,
+                    substr(e.content, 1, 200) AS content_preview,
+                    e.line_number, e.tags, f.retry_count
+             FROM echo_search_failures f
+             JOIN echo_entries e ON e.id = f.entry_id
+             WHERE f.token_fingerprint = ?
+               AND f.retry_count < ? AND f.first_failed_at >= ?"""
+    params: List[Any] = [None, _FAILURE_MAX_RETRIES, age_cutoff]
+    if matched_ids:
+        sql += " AND f.entry_id NOT IN (%s)" % _in_clause(len(matched_ids))
+        params.extend(matched_ids)
+    return sql, params
+
+
+def _row_to_retry_entry(row: sqlite3.Row) -> Dict[str, Any]:
+    """Convert a retry failure row to a result dict with boosted score."""
+    boosted_score = round(-1.0 * _FAILURE_SCORE_BOOST, 4)
+    return {
+        "id": row["entry_id"], "source": row["source"],
+        "layer": row["layer"], "role": row["role"],
+        "date": row["date"], "content_preview": row["content_preview"],
+        "tags": row["tags"], "content": row["content_preview"],
+        "score": boosted_score, "line_number": row["line_number"],
+        "retry_source": True,
+    }
+
+
 def get_retry_entries(
     conn: sqlite3.Connection,
     token_fingerprint: str,
     matched_ids: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
-    """Retrieve entries eligible for retry based on a query fingerprint.
-
-    Returns entries that previously failed to match a similar query
-    (same token fingerprint), haven't exceeded max retries, and aren't
-    older than 30 days. Applies a 20% score boost (EDGE-019).
-
-    Args:
-        conn: SQLite database connection.
-        token_fingerprint: SHA-256 hex digest of query tokens.
-        matched_ids: Entry IDs already in results (to skip duplicates).
-
-    Returns:
-        List of result dicts with boosted scores, ready to merge with
-        primary search results.
-    """
+    """Retrieve entries eligible for retry (EDGE-019 score boost)."""
     if not token_fingerprint:
         return []
-
-    age_cutoff = time.strftime(
-        "%Y-%m-%dT%H:%M:%SZ",
-        time.gmtime(time.time() - _FAILURE_MAX_AGE_DAYS * 86400),
-    )
-
     try:
-        sql = """
-            SELECT
-                f.entry_id,
-                e.source, e.layer, e.role, e.date,
-                substr(e.content, 1, 200) AS content_preview,
-                e.line_number, e.tags,
-                f.retry_count
-            FROM echo_search_failures f
-            JOIN echo_entries e ON e.id = f.entry_id
-            WHERE f.token_fingerprint = ?
-              AND f.retry_count < ?
-              AND f.first_failed_at >= ?
-        """
-        params: List[Any] = [token_fingerprint, _FAILURE_MAX_RETRIES, age_cutoff]
-
-        if matched_ids:
-            sql += " AND f.entry_id NOT IN (%s)" % _in_clause(len(matched_ids))
-            params.extend(matched_ids)
-
+        sql, params = _build_retry_sql(matched_ids)
+        params[0] = token_fingerprint
         cursor = conn.execute(sql, params)
-        results = []
-        for row in cursor.fetchall():
-            # EDGE-019: Score boost — use a base BM25-like score and multiply
-            # by 1.2 to make it more negative (better rank).
-            # Base score: -1.0 (reasonable default for retry entries)
-            base_score = -1.0
-            boosted_score = round(base_score * _FAILURE_SCORE_BOOST, 4)
-            results.append({
-                "id": row["entry_id"],
-                "source": row["source"],
-                "layer": row["layer"],
-                "role": row["role"],
-                "date": row["date"],
-                "content_preview": row["content_preview"],
-                "tags": row["tags"],
-                "content": row["content_preview"],
-                "score": boosted_score,
-                "line_number": row["line_number"],
-                "retry_source": True,
-            })
-        return results
+        return [_row_to_retry_entry(row) for row in cursor.fetchall()]
     except sqlite3.OperationalError:
         return []  # Table may not exist (pre-V2)
 
@@ -1332,51 +1245,53 @@ def _trace(stage: str, start: float) -> None:
         print("[echo-search] %s: %.1fms" % (stage, elapsed_ms), file=sys.stderr)
 
 
-def _load_talisman() -> Dict[str, Any]:
-    """Load talisman.yml config with file mtime caching.
-
-    Lazy-imports PyYAML inside the function. If PyYAML is not installed
-    or talisman.yml doesn't exist, returns empty dict (all features disabled).
-    Config is cached and only re-read when file mtime changes.
-
-    Returns:
-        Parsed talisman config dict, or empty dict on any failure.
-    """
-    # Find talisman.yml: project-level (.claude/talisman.yml)
-    # Fall back to CLAUDE_CONFIG_DIR/talisman.yml
-    talisman_paths = []
+def _talisman_search_paths() -> List[str]:
+    """Build ordered list of talisman.yml candidate paths."""
+    paths = []
     if ECHO_DIR:
-        # ECHO_DIR is <project>/.claude/echoes — go up 2 levels for .claude/
         claude_dir = os.path.dirname(ECHO_DIR.rstrip(os.sep))
-        talisman_paths.append(os.path.join(claude_dir, "talisman.yml"))
-    config_dir = os.environ.get("CLAUDE_CONFIG_DIR", os.path.expanduser("~/.claude"))
-    talisman_paths.append(os.path.join(config_dir, "talisman.yml"))
+        paths.append(os.path.join(claude_dir, "talisman.yml"))
+    config_dir = os.environ.get(
+        "CLAUDE_CONFIG_DIR", os.path.expanduser("~/.claude"))
+    paths.append(os.path.join(config_dir, "talisman.yml"))
+    return paths
 
-    for talisman_path in talisman_paths:
+
+def _try_load_talisman_file(
+    talisman_path: str, mtime: float,
+) -> Optional[Dict[str, Any]]:
+    """Try reading and caching a single talisman.yml file."""
+    if (mtime == _talisman_cache["mtime"]
+            and talisman_path == _talisman_cache["path"]
+            and _talisman_cache["config"]):
+        return _talisman_cache["config"]
+    try:
+        import yaml
+    except ImportError:
+        return None
+    try:
+        with open(talisman_path, "r") as f:
+            config = yaml.safe_load(f)
+        if isinstance(config, dict):
+            _talisman_cache["mtime"] = mtime
+            _talisman_cache["path"] = talisman_path
+            _talisman_cache["config"] = config
+            return config
+    except (Exception,):
+        pass
+    return None
+
+
+def _load_talisman() -> Dict[str, Any]:
+    """Load talisman.yml with mtime caching. Returns {} on failure."""
+    for path in _talisman_search_paths():
         try:
-            mtime = os.path.getmtime(talisman_path)
+            mtime = os.path.getmtime(path)
         except OSError:
             continue
-
-        if mtime == _talisman_cache["mtime"] and talisman_path == _talisman_cache["path"] and _talisman_cache["config"]:
-            return _talisman_cache["config"]
-
-        try:
-            import yaml  # Lazy import — zero cost if file absent
-        except ImportError:
-            return {}
-
-        try:
-            with open(talisman_path, "r") as f:
-                config = yaml.safe_load(f)
-            if isinstance(config, dict):
-                _talisman_cache["mtime"] = mtime
-                _talisman_cache["path"] = talisman_path
-                _talisman_cache["config"] = config
-                return config
-        except (yaml.YAMLError, OSError, ValueError):
-            pass  # Malformed YAML or unreadable file — fall through to default
-
+        result = _try_load_talisman_file(path, mtime)
+        if result is not None:
+            return result
     return {}
 
 
@@ -1401,63 +1316,39 @@ def _get_echoes_config(talisman: Dict[str, Any], key: str) -> Dict[str, Any]:
 # Multi-pass retrieval pipeline (Task 7)
 # ---------------------------------------------------------------------------
 
-async def pipeline_search(
-    conn: sqlite3.Connection,
-    query: str,
-    limit: int,
-    layer: Optional[str] = None,
-    role: Optional[str] = None,
-    context_files: Optional[List[str]] = None,
-) -> List[Dict[str, Any]]:
-    """Multi-pass retrieval pipeline wiring all enhancement stages.
-
-    Pipeline: Query -> decomposition -> per-facet BM25 -> merge ->
-    composite scoring -> group expansion -> retry injection ->
-    reranking -> top N
-
-    Each stage is independently toggleable via talisman.yml config.
-    Config is re-read per call (mtime-cached) for hot-reload support.
-
-    Args:
-        conn: Database connection with V2 schema.
-        query: Search query string.
-        limit: Max results to return.
-        layer: Optional layer filter.
-        role: Optional role filter.
-        context_files: Optional file paths for proximity scoring.
-
-    Returns:
-        Final ranked list of search result dicts, capped at limit.
-    """
-    talisman = _load_talisman()
-    overfetch_limit = min(limit * 3, 150)
-    pipeline_start = time.time()
-
-    # Stage 1: Query decomposition (async subprocess, 3s timeout)
-    decomp_config = _get_echoes_config(talisman, "decomposition")
+async def _pipeline_decompose(
+    query: str, decomp_config: Dict[str, Any],
+) -> List[str]:
+    """Stage 1: Query decomposition (async subprocess, 3s timeout)."""
     facets = [query]
-    if decomp_config.get("enabled", False):
-        t0 = time.time()
-        try:
-            from decomposer import decompose_query
-            facets = await decompose_query(query)
-            if not facets:
-                facets = [query]
-        except (ImportError, OSError) as e:
-            if _RUNE_TRACE:
-                print("[echo-search] decomposition error: %s" % e, file=sys.stderr)
+    if not decomp_config.get("enabled", False):
+        return facets
+    t0 = time.time()
+    try:
+        from decomposer import decompose_query
+        facets = await decompose_query(query)
+        if not facets:
             facets = [query]
-        _trace("decomposition", t0)
+    except (ImportError, OSError) as e:
+        if _RUNE_TRACE:
+            print("[echo-search] decomposition error: %s" % e, file=sys.stderr)
+        facets = [query]
+    _trace("decomposition", t0)
+    return facets
 
-    # Stage 2: Per-facet BM25 search
+
+def _pipeline_bm25_search(
+    conn: sqlite3.Connection, facets: List[str],
+    overfetch_limit: int, layer: Optional[str], role: Optional[str],
+) -> List[Dict[str, Any]]:
+    """Stage 2-3: Per-facet BM25 search and merge."""
     t0 = time.time()
     all_facet_results = []  # type: list[list[Dict[str, Any]]]
     for facet in facets:
-        results = search_entries(conn, facet, overfetch_limit, layer, role)
-        all_facet_results.append(results)
+        all_facet_results.append(
+            search_entries(conn, facet, overfetch_limit, layer, role))
     _trace("bm25_search (%d facets)" % len(facets), t0)
 
-    # Stage 3: Merge multi-facet results (EDGE-013: most-negative = best)
     t0 = time.time()
     if len(all_facet_results) == 1:
         candidates = all_facet_results[0]
@@ -1468,67 +1359,126 @@ async def pipeline_search(
         except ImportError:
             candidates = all_facet_results[0] if all_facet_results else []
     _trace("merge", t0)
+    return candidates
 
-    # Stage 4: Composite scoring
+
+def _pipeline_group_expansion(
+    conn: sqlite3.Connection, scored: List[Dict[str, Any]],
+    groups_config: Dict[str, Any],
+    context_files: Optional[List[str]],
+) -> List[Dict[str, Any]]:
+    """Stage 5: Group expansion (after composite, before retry)."""
+    if not groups_config.get("expansion_enabled", False):
+        return scored
+    t0 = time.time()
+    discount = max(0.0, min(1.0, groups_config.get("discount", 0.7)))
+    max_exp = max(1, min(50, groups_config.get("max_expansion", 5)))
+    scored = expand_semantic_groups(
+        conn, scored, _SCORING_WEIGHTS,
+        context_files=context_files,
+        discount=discount, max_expansion=max_exp,
+    )
+    _trace("group_expansion", t0)
+    return scored
+
+
+def _pipeline_retry_injection(
+    conn: sqlite3.Connection, query: str,
+    scored: List[Dict[str, Any]],
+    retry_config: Dict[str, Any],
+    context_files: Optional[List[str]],
+) -> List[Dict[str, Any]]:
+    """Stage 6: Retry injection (after expansion, before reranking)."""
+    if not retry_config.get("enabled", False):
+        return scored
+    t0 = time.time()
+    fingerprint = compute_token_fingerprint(query)
+    if fingerprint:
+        matched_ids = [r.get("id", "") for r in scored if r.get("id")]
+        retry_entries = get_retry_entries(conn, fingerprint, matched_ids)
+        if retry_entries:
+            scored = _merge_retry_entries(
+                scored, retry_entries, conn, context_files)
+    _trace("retry_injection", t0)
+    return scored
+
+
+def _merge_retry_entries(
+    scored: List[Dict[str, Any]], retry_entries: List[Dict[str, Any]],
+    conn: sqlite3.Connection, context_files: Optional[List[str]],
+) -> List[Dict[str, Any]]:
+    """Score retry entries and merge with existing scored results."""
+    retry_scored = compute_composite_score(
+        retry_entries, _SCORING_WEIGHTS, conn=conn,
+        context_files=context_files,
+    )
+    for entry in retry_scored:
+        entry["retry_source"] = True
+    combined = {r.get("id", ""): r for r in scored if r.get("id")}
+    for entry in retry_scored:
+        eid = entry.get("id", "")
+        if eid and (eid not in combined or
+                    entry.get("composite_score", 0.0) >
+                    combined[eid].get("composite_score", 0.0)):
+            combined[eid] = entry
+    return sorted(
+        combined.values(),
+        key=lambda x: x.get("composite_score", 0.0), reverse=True,
+    )
+
+
+async def _pipeline_rerank(
+    query: str, scored: List[Dict[str, Any]],
+    rerank_config: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    """Stage 7: Haiku reranking (async subprocess, 4s timeout)."""
+    if not rerank_config.get("enabled", False):
+        return scored
+    t0 = time.time()
+    try:
+        from reranker import rerank_results
+        scored = await rerank_results(query, scored, rerank_config)
+    except (ImportError, OSError) as e:
+        if _RUNE_TRACE:
+            print("[echo-search] reranking error: %s" % e, file=sys.stderr)
+    _trace("reranking", t0)
+    return scored
+
+
+async def pipeline_search(
+    conn: sqlite3.Connection,
+    query: str,
+    limit: int,
+    layer: Optional[str] = None,
+    role: Optional[str] = None,
+    context_files: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    """Multi-pass retrieval: decompose -> BM25 -> score -> expand -> retry -> rerank."""
+    talisman = _load_talisman()
+    pipeline_start = time.time()
+    overfetch_limit = min(limit * 3, 150)
+
+    facets = await _pipeline_decompose(
+        query, _get_echoes_config(talisman, "decomposition"))
+    candidates = _pipeline_bm25_search(
+        conn, facets, overfetch_limit, layer, role)
+
     t0 = time.time()
     scored = compute_composite_score(
-        candidates, _SCORING_WEIGHTS, conn=conn, context_files=context_files,
-    )
+        candidates, _SCORING_WEIGHTS, conn=conn,
+        context_files=context_files)
     _trace("composite_scoring", t0)
 
-    # Stage 5: Group expansion (after composite, before retry)
-    groups_config = _get_echoes_config(talisman, "semantic_groups")
-    if groups_config.get("expansion_enabled", False):
-        t0 = time.time()
-        discount = max(0.0, min(1.0, groups_config.get("discount", 0.7)))
-        max_expansion = max(1, min(50, groups_config.get("max_expansion", 5)))
-        scored = expand_semantic_groups(
-            conn, scored, _SCORING_WEIGHTS,
-            context_files=context_files,
-            discount=discount, max_expansion=max_expansion,
-        )
-        _trace("group_expansion", t0)
-
-    # Stage 6: Retry injection (after group expansion, before reranking)
-    retry_config = _get_echoes_config(talisman, "retry")
-    if retry_config.get("enabled", False):
-        t0 = time.time()
-        fingerprint = compute_token_fingerprint(query)
-        if fingerprint:
-            matched_ids = [r.get("id", "") for r in scored if r.get("id")]
-            retry_entries = get_retry_entries(conn, fingerprint, matched_ids)
-            if retry_entries:
-                # Score retry entries and merge
-                retry_scored = compute_composite_score(
-                    retry_entries, _SCORING_WEIGHTS, conn=conn, context_files=context_files,
-                )
-                for entry in retry_scored:
-                    entry["retry_source"] = True
-                # Dedup: keep best composite_score per entry ID
-                combined = {r.get("id", ""): r for r in scored if r.get("id")}
-                for entry in retry_scored:
-                    eid = entry.get("id", "")
-                    if eid and (eid not in combined or
-                                entry.get("composite_score", 0.0) > combined[eid].get("composite_score", 0.0)):
-                        combined[eid] = entry
-                scored = sorted(combined.values(), key=lambda x: x.get("composite_score", 0.0), reverse=True)
-        _trace("retry_injection", t0)
-
-    # Stage 7: Haiku reranking (async subprocess, 4s timeout)
-    # EDGE-028: threshold check happens AFTER all enrichment stages
-    rerank_config = _get_echoes_config(talisman, "reranking")
-    if rerank_config.get("enabled", False):
-        t0 = time.time()
-        try:
-            from reranker import rerank_results
-            scored = await rerank_results(query, scored, rerank_config)
-        except (ImportError, OSError) as e:
-            if _RUNE_TRACE:
-                print("[echo-search] reranking error: %s" % e, file=sys.stderr)
-        _trace("reranking", t0)
+    scored = _pipeline_group_expansion(
+        conn, scored, _get_echoes_config(talisman, "semantic_groups"),
+        context_files)
+    scored = _pipeline_retry_injection(
+        conn, query, scored,
+        _get_echoes_config(talisman, "retry"), context_files)
+    scored = await _pipeline_rerank(
+        query, scored, _get_echoes_config(talisman, "reranking"))
 
     _trace("pipeline_total", pipeline_start)
-
     return scored[:limit]
 
 
@@ -1550,61 +1500,48 @@ def build_fts_query(raw_query):
     return " OR ".join(filtered[:20])  # SEC-7: cap token count
 
 
-def search_entries(conn, query, limit=10, layer=None, role=None):
-    """Execute a BM25 full-text search over the echo entries table.
-
-    Args:
-        conn: Open SQLite connection with FTS5 index.
-        query: Raw search query (tokenized internally).
-        limit: Maximum results to return.
-        layer: Optional layer filter (e.g., ``"inscribed"``).
-        role: Optional role filter (e.g., ``"reviewer"``).
-
-    Returns:
-        List of result dicts with content preview (200 chars) and BM25 score.
-    """
-    # type: (sqlite3.Connection, str, int, Optional[str], Optional[str]) -> List[Dict]
-    fts_query = build_fts_query(query)
-    if not fts_query:
-        return []
-
-    sql = """
-        SELECT
-            e.id, e.source, e.layer, e.role, e.date,
-            substr(e.content, 1, 200) AS content_preview,
-            e.line_number, e.tags,
-            bm25(echo_entries_fts) AS score
-        FROM echo_entries_fts f
-        JOIN echo_entries e ON e.rowid = f.rowid
-        WHERE echo_entries_fts MATCH ?
-    """
+def _build_search_sql(
+    fts_query: str, layer: Optional[str], role: Optional[str], limit: int,
+) -> Tuple[str, List[Any]]:
+    """Build FTS5 search SQL with optional layer/role filters."""
+    sql = """SELECT e.id, e.source, e.layer, e.role, e.date,
+                    substr(e.content, 1, 200) AS content_preview,
+                    e.line_number, e.tags, bm25(echo_entries_fts) AS score
+             FROM echo_entries_fts f
+             JOIN echo_entries e ON e.rowid = f.rowid
+             WHERE echo_entries_fts MATCH ?"""
     params = [fts_query]  # type: List[Any]
-
     if layer:
         sql += " AND e.layer = ?"
         params.append(layer)
     if role:
         sql += " AND e.role = ?"
         params.append(role)
-
-    sql += " ORDER BY bm25(echo_entries_fts) ASC LIMIT ?"  # ASC: more negative = more relevant
+    sql += " ORDER BY bm25(echo_entries_fts) ASC LIMIT ?"
     params.append(limit)
+    return sql, params
 
+
+def _search_row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
+    """Convert a search result row to a result dict."""
+    return {
+        "id": row["id"], "source": row["source"],
+        "layer": row["layer"], "role": row["role"],
+        "date": row["date"], "content_preview": row["content_preview"],
+        "score": round(row["score"], 4),
+        "line_number": row["line_number"], "tags": row["tags"],
+    }
+
+
+def search_entries(conn, query, limit=10, layer=None, role=None):
+    """Execute a BM25 full-text search over the echo entries table."""
+    # type: (sqlite3.Connection, str, int, Optional[str], Optional[str]) -> List[Dict]
+    fts_query = build_fts_query(query)
+    if not fts_query:
+        return []
+    sql, params = _build_search_sql(fts_query, layer, role, limit)
     cursor = conn.execute(sql, params)
-    results = []
-    for row in cursor.fetchall():
-        results.append({
-            "id": row["id"],
-            "source": row["source"],
-            "layer": row["layer"],
-            "role": row["role"],
-            "date": row["date"],
-            "content_preview": row["content_preview"],
-            "score": round(row["score"], 4),
-            "line_number": row["line_number"],
-            "tags": row["tags"],
-        })
-    return results
+    return [_search_row_to_dict(row) for row in cursor.fetchall()]
 
 
 def get_details(conn, ids):
@@ -1702,111 +1639,85 @@ _OBSERVATIONS_HEADER_RE = re.compile(
 )
 
 
-def _promote_observations_in_file(
-    memory_file: str,
-    entry_ids_to_promote: set,
-    entry_line_map: Dict[str, int],
-) -> int:
-    """Rewrite Observations headers to Inscribed in a single MEMORY.md file.
-
-    Uses atomic file rewrite (C3 concern): read -> modify in-memory ->
-    write to temp file -> os.replace().
-
-    Args:
-        memory_file: Absolute path to the MEMORY.md file.
-        entry_ids_to_promote: Set of entry IDs that qualify for promotion.
-        entry_line_map: Mapping of entry_id -> line_number in this file.
-
-    Returns:
-        Number of entries promoted in this file.
-    """
-    # Collect line numbers that need promotion in this file
+def _collect_promote_lines(
+    entry_ids_to_promote: set, entry_line_map: Dict[str, int],
+) -> set:
+    """Collect line numbers that need promotion from entry IDs."""
     promote_lines = set()  # type: set
     for eid in entry_ids_to_promote:
         line_num = entry_line_map.get(eid)
         if line_num is not None:
             promote_lines.add(line_num)
+    return promote_lines
 
-    if not promote_lines:
-        return 0
 
-    # EDGE-023: Check writability before attempting
+def _read_memory_file(memory_file: str) -> Optional[List[str]]:
+    """Read a MEMORY.md file, returning lines or None on failure."""
     if not os.access(memory_file, os.W_OK):
         print(
             "Warning: Observations promotion skipped — file not writable: %s"
             % memory_file,
             file=sys.stderr,
         )
-        return 0
-
+        return None
     try:
         with open(memory_file, "r", encoding="utf-8") as f:
-            lines = f.readlines()
+            return f.readlines()
     except OSError as exc:
         print(
             "Warning: Observations promotion — cannot read %s: %s"
             % (memory_file, exc),
             file=sys.stderr,
         )
-        return 0
+        return None
 
-    # TOME-004 FIX: Build set of already-promoted line indices to avoid
-    # double-promoting when drift scan finds a nearby match.
-    promoted = 0
-    promoted_indices = set()  # type: set
 
-    for target_line in sorted(promote_lines):
-        idx = target_line - 1  # 0-indexed
-        # Try exact line first
-        if 0 <= idx < len(lines):
-            match = _OBSERVATIONS_HEADER_RE.match(lines[idx].rstrip("\n"))
-            if match and idx not in promoted_indices:
-                lines[idx] = match.group(1) + "Inscribed" + match.group(2) + "\n"
-                promoted += 1
-                promoted_indices.add(idx)
+def _try_promote_exact(
+    lines: List[str], idx: int, promoted_indices: set,
+) -> bool:
+    """Try promoting an exact line index. Returns True if promoted."""
+    if not (0 <= idx < len(lines)):
+        return False
+    match = _OBSERVATIONS_HEADER_RE.match(lines[idx].rstrip("\n"))
+    if match and idx not in promoted_indices:
+        lines[idx] = match.group(1) + "Inscribed" + match.group(2) + "\n"
+        promoted_indices.add(idx)
+        return True
+    return False
+
+
+def _try_promote_drift(
+    lines: List[str], idx: int, promoted_indices: set,
+    drift_window: int = 10,
+) -> bool:
+    """TOME-004: Drift fallback — scan nearby lines for header."""
+    for offset in range(1, drift_window + 1):
+        for candidate_idx in (idx - offset, idx + offset):
+            if candidate_idx < 0 or candidate_idx >= len(lines):
                 continue
+            if candidate_idx in promoted_indices:
+                continue
+            match = _OBSERVATIONS_HEADER_RE.match(
+                lines[candidate_idx].rstrip("\n"))
+            if match:
+                lines[candidate_idx] = (
+                    match.group(1) + "Inscribed" + match.group(2) + "\n")
+                promoted_indices.add(candidate_idx)
+                return True
+    return False
 
-        # TOME-004: Line-number drift fallback — scan nearby lines (within
-        # +/-10 lines) for an Observations header that may have shifted due
-        # to file edits since last reindex.
-        _DRIFT_WINDOW = 10
-        found = False
-        for offset in range(1, _DRIFT_WINDOW + 1):
-            for candidate_idx in (idx - offset, idx + offset):
-                if candidate_idx < 0 or candidate_idx >= len(lines):
-                    continue
-                if candidate_idx in promoted_indices:
-                    continue
-                match = _OBSERVATIONS_HEADER_RE.match(
-                    lines[candidate_idx].rstrip("\n")
-                )
-                if match:
-                    lines[candidate_idx] = (
-                        match.group(1) + "Inscribed" + match.group(2) + "\n"
-                    )
-                    promoted += 1
-                    promoted_indices.add(candidate_idx)
-                    found = True
-                    break
-            if found:
-                break
 
-    if promoted == 0:
-        return 0
-
-    # C3: Atomic rewrite — write to temp file in same directory, then
-    # os.replace() which is a POSIX-atomic rename syscall.
+def _atomic_write_file(memory_file: str, lines: List[str]) -> bool:
+    """C3: Atomic rewrite via temp file + os.replace(). Returns success."""
     file_dir = os.path.dirname(memory_file)
     try:
         fd, tmp_path = tempfile.mkstemp(
-            dir=file_dir, prefix=".promote-", suffix=".md"
-        )
+            dir=file_dir, prefix=".promote-", suffix=".md")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as tmp_f:
                 tmp_f.writelines(lines)
             os.replace(tmp_path, memory_file)
         except BaseException:
-            # Clean up temp file on any failure
             try:
                 os.unlink(tmp_path)
             except OSError:
@@ -1818,117 +1729,149 @@ def _promote_observations_in_file(
             % (memory_file, exc),
             file=sys.stderr,
         )
+        return False
+    return True
+
+
+def _promote_observations_in_file(
+    memory_file: str,
+    entry_ids_to_promote: set,
+    entry_line_map: Dict[str, int],
+) -> int:
+    """Rewrite Observations headers to Inscribed in a MEMORY.md file.
+
+    Uses atomic file rewrite (C3 concern).
+
+    Args:
+        memory_file: Absolute path to the MEMORY.md file.
+        entry_ids_to_promote: Set of entry IDs qualifying for promotion.
+        entry_line_map: Mapping of entry_id -> line_number.
+
+    Returns:
+        Number of entries promoted in this file.
+    """
+    promote_lines = _collect_promote_lines(
+        entry_ids_to_promote, entry_line_map)
+    if not promote_lines:
         return 0
 
+    lines = _read_memory_file(memory_file)
+    if lines is None:
+        return 0
+
+    promoted = 0
+    promoted_indices = set()  # type: set
+    for target_line in sorted(promote_lines):
+        idx = target_line - 1  # 0-indexed
+        if _try_promote_exact(lines, idx, promoted_indices):
+            promoted += 1
+        elif _try_promote_drift(lines, idx, promoted_indices):
+            promoted += 1
+
+    if promoted == 0:
+        return 0
+    if not _atomic_write_file(memory_file, lines):
+        return 0
     return promoted
 
 
-def _check_promotions(echo_dir: str, db_path: str) -> int:
-    """Check for Observations entries eligible for promotion to Inscribed.
+def _fetch_observations_entries(
+    conn: sqlite3.Connection,
+) -> Tuple[list, Dict[str, int]]:
+    """Fetch Observations entries and their access counts.
 
-    Called from do_reindex() BEFORE discover_and_parse() so that promoted
-    entries are re-indexed with their new layer name.
-
-    Promotion criteria: access_count >= _PROMOTION_THRESHOLD (3) in
-    echo_access_log (C1 concern: requires Task 2 schema).
-    EDGE-022: Only promotes entries with layer='observations'
-    (skips already-promoted entries for idempotency).
-
-    Args:
-        echo_dir: Path to .claude/echoes/ directory.
-        db_path: Path to SQLite database.
-
-    Returns:
-        Number of entries promoted. Returns 0 on any failure (non-fatal).
+    Returns (obs_entries, access_counts) or ([], {}) if none found.
     """
+    cursor = conn.execute(
+        """SELECT e.id, e.file_path, e.line_number
+           FROM echo_entries e WHERE e.layer = 'observations'""")
+    obs_entries = cursor.fetchall()
+    if not obs_entries:
+        return [], {}
+
+    entry_ids = [row["id"] for row in obs_entries]
+    capped_ids = entry_ids[:200]
+    count_cursor = conn.execute(
+        """SELECT entry_id, COUNT(*) AS cnt
+           FROM echo_access_log
+           WHERE entry_id IN (%s)
+           GROUP BY entry_id""" % _in_clause(len(capped_ids)),
+        capped_ids,
+    )
+    access_counts = {
+        row["entry_id"]: row["cnt"] for row in count_cursor.fetchall()
+    }  # type: Dict[str, int]
+    return obs_entries, access_counts
+
+
+def _build_promote_by_file(
+    obs_entries: list, access_counts: Dict[str, int],
+) -> Dict[str, tuple]:
+    """Group promotion candidates by file path."""
+    promote_by_file = {}  # type: Dict[str, tuple]
+    for row in obs_entries:
+        eid, fpath = row["id"], row["file_path"]
+        if access_counts.get(eid, 0) >= _PROMOTION_THRESHOLD:
+            if fpath not in promote_by_file:
+                promote_by_file[fpath] = (set(), {})
+            promote_by_file[fpath][0].add(eid)
+            promote_by_file[fpath][1][eid] = row["line_number"]
+    return promote_by_file
+
+
+def _validate_and_promote_file(
+    fpath: str, ids_to_promote: set, line_map: Dict[str, int],
+    real_echo_dir: str,
+) -> int:
+    """Validate path is inside echo_dir and promote entries."""
+    real_fpath = os.path.realpath(fpath)
+    try:
+        common = os.path.commonpath([real_echo_dir, real_fpath])
+    except ValueError:
+        return 0
+    if common != real_echo_dir:
+        print(
+            "Warning: Skipping promotion for path outside echo_dir: %s"
+            % fpath, file=sys.stderr)
+        return 0
+    return _promote_observations_in_file(fpath, ids_to_promote, line_map)
+
+
+def _write_dirty_signal(echo_dir: str) -> None:
+    """EDGE-021: Trigger dirty signal after promotion."""
+    sig_path = _signal_path(echo_dir)
+    if sig_path:
+        try:
+            os.makedirs(os.path.dirname(sig_path), exist_ok=True)
+            with open(sig_path, "w") as f:
+                f.write("promoted")
+        except OSError:
+            pass
+
+
+def _check_promotions(echo_dir: str, db_path: str) -> int:
+    """Promote eligible Observations to Inscribed (pre-reindex)."""
     if not echo_dir or not db_path:
         return 0
 
     conn = get_db(db_path)
     try:
         ensure_schema(conn)
-
-        # Find all Observations entries.
-        # EDGE-022: Filter by layer='observations' only — already-promoted
-        # entries have layer='inscribed' and won't match.
-        cursor = conn.execute(
-            """SELECT e.id, e.file_path, e.line_number
-               FROM echo_entries e
-               WHERE e.layer = 'observations'"""
-        )
-        obs_entries = cursor.fetchall()
+        obs_entries, access_counts = _fetch_observations_entries(conn)
         if not obs_entries:
             return 0
 
-        # Batch-fetch access counts from echo_access_log (Task 2).
-        # Uses _get_access_counts() added by Task 2. If the table doesn't
-        # exist yet, the OperationalError catch below handles it gracefully.
-        entry_ids = [row["id"] for row in obs_entries]
-        capped_ids = entry_ids[:200]
-        placeholders = ",".join(["?"] * len(capped_ids))
-        count_cursor = conn.execute(
-            """SELECT entry_id, COUNT(*) AS cnt
-               FROM echo_access_log
-               WHERE entry_id IN (%s)
-               GROUP BY entry_id""" % placeholders,
-            capped_ids,
-        )
-        access_counts = {
-            row["entry_id"]: row["cnt"] for row in count_cursor.fetchall()
-        }  # type: Dict[str, int]
-
-        # Build promotion candidates per file
-        promote_by_file = {}  # type: Dict[str, tuple]
-        for row in obs_entries:
-            eid = row["id"]
-            fpath = row["file_path"]
-            line_num = row["line_number"]
-            count = access_counts.get(eid, 0)
-
-            if count >= _PROMOTION_THRESHOLD:
-                if fpath not in promote_by_file:
-                    promote_by_file[fpath] = (set(), {})
-                promote_by_file[fpath][0].add(eid)
-                promote_by_file[fpath][1][eid] = line_num
-
+        promote_by_file = _build_promote_by_file(obs_entries, access_counts)
         total_promoted = 0
         real_echo_dir = os.path.realpath(echo_dir)
         for fpath, (ids_to_promote, line_map) in promote_by_file.items():
-            # SEC-P1-001: Validate file path is inside echo_dir to prevent
-            # path traversal if database contents are corrupted or tampered.
-            real_fpath = os.path.realpath(fpath)
-            try:
-                common = os.path.commonpath([real_echo_dir, real_fpath])
-            except ValueError:
-                # Different drives on Windows, or empty paths
-                continue
-            if common != real_echo_dir:
-                print(
-                    "Warning: Skipping promotion for path outside echo_dir: %s"
-                    % fpath,
-                    file=sys.stderr,
-                )
-                continue
-            promoted = _promote_observations_in_file(fpath, ids_to_promote, line_map)
-            total_promoted += promoted
+            total_promoted += _validate_and_promote_file(
+                fpath, ids_to_promote, line_map, real_echo_dir)
 
-        # EDGE-021: Trigger dirty signal after promotion so FTS re-indexes
-        # on the next search call (if not already in a reindex cycle).
         if total_promoted > 0:
-            sig_path = _signal_path(echo_dir)
-            if sig_path:
-                try:
-                    sig_dir = os.path.dirname(sig_path)
-                    os.makedirs(sig_dir, exist_ok=True)
-                    with open(sig_path, "w") as f:
-                        f.write("promoted")
-                except OSError:
-                    pass  # Non-fatal: signal write failure doesn't break promotion
+            _write_dirty_signal(echo_dir)
 
     except sqlite3.OperationalError as exc:
-        # Non-fatal: promotion failure should not break reindex.
-        # This also gracefully handles the case where echo_access_log
-        # table doesn't exist yet (before Task 2 schema migration).
         print(
             "Warning: Observations promotion check failed: %s" % exc,
             file=sys.stderr,
@@ -1945,19 +1888,7 @@ def _check_promotions(echo_dir: str, db_path: str) -> int:
 # ---------------------------------------------------------------------------
 
 def do_reindex(echo_dir: str, db_path: str) -> Dict[str, Any]:
-    """Re-parse all MEMORY.md files and rebuild the FTS index.
-
-    Runs auto-promotion of Observations to Inscribed BEFORE parsing,
-    so promoted entries are indexed with their new layer name.
-
-    Args:
-        echo_dir: Path to .claude/echoes/ directory.
-        db_path: Path to SQLite database file.
-
-    Returns:
-        Dict with entries_indexed, time_ms, roles, and optionally
-        observations_promoted count.
-    """
+    """Re-parse MEMORY.md files, auto-promote Observations, rebuild FTS index."""
     from indexer import discover_and_parse
 
     start_ms = int(time.time() * 1000)
@@ -2130,52 +2061,57 @@ def _validate_list_arg(arguments, key, required=True):
     return val, None
 
 
-async def _mcp_handle_search(arguments):
-    """Handle echo_search — validate input, run pipeline, record access.
-
-    Returns ``(result_dict, is_error)`` for the MCP dispatcher.
-    """
-    # type: (Dict) -> Tuple[Dict, bool]
+def _validate_search_args(arguments: Dict) -> Tuple[Optional[Tuple], Dict]:
+    """Validate and sanitize echo_search arguments. Returns (error, cleaned)."""
     query = arguments.get("query", "")
-    limit = arguments.get("limit", 10)
-    layer = arguments.get("layer")
-    role = arguments.get("role")
-    context_files = arguments.get("context_files")
-
     if not isinstance(query, str) or not query:
-        return {"error": "query must be a non-empty string"}, True
+        return ({"error": "query must be a non-empty string"}, True), {}
+    layer = arguments.get("layer")
     if layer is not None and not isinstance(layer, str):
         layer = None
+    role = arguments.get("role")
     if role is not None and not isinstance(role, str):
         role = None
+    context_files = arguments.get("context_files")
     if context_files is not None:
         if not isinstance(context_files, list):
             context_files = None
         else:
             context_files = [
-                str(f) for f in context_files[:20] if isinstance(f, str) and f
-            ]
-            if not context_files:
-                context_files = None
+                str(f) for f in context_files[:20]
+                if isinstance(f, str) and f] or None
+    limit = arguments.get("limit", 10)
     if not isinstance(limit, int) or limit < 1:
         limit = 10
     limit = min(limit, 50)
+    return None, {"query": query, "limit": limit, "layer": layer,
+                  "role": role, "context_files": context_files}
 
+
+async def _mcp_handle_search(arguments):
+    """Handle echo_search — validate, run pipeline, record access."""
+    # type: (Dict) -> Tuple[Dict, bool]
+    err, args = _validate_search_args(arguments)
+    if err is not None:
+        return err
     conn = get_db(DB_PATH)
     try:
         ensure_schema(conn)
-        count = conn.execute("SELECT COUNT(*) FROM echo_entries").fetchone()[0]
+        count = conn.execute(
+            "SELECT COUNT(*) FROM echo_entries").fetchone()[0]
         is_dirty = _check_and_clear_dirty(ECHO_DIR)
         if (count == 0 or is_dirty) and ECHO_DIR:
             conn.close()
-            conn = None  # SEC-P1-002: Mark closed before reindex
+            conn = None
             do_reindex(ECHO_DIR, DB_PATH)
             conn = get_db(DB_PATH)
-        results = await pipeline_search(conn, query, limit, layer, role, context_files)
+        results = await pipeline_search(
+            conn, args["query"], args["limit"],
+            args["layer"], args["role"], args["context_files"])
         try:
-            _record_access(conn, results, query)
+            _record_access(conn, results, args["query"])
         except (sqlite3.Error, OSError):
-            pass  # Non-fatal: access logging failure must not break search
+            pass
     finally:
         if conn is not None:
             conn.close()
@@ -2288,14 +2224,9 @@ _MCP_HANDLERS = {
 # ---------------------------------------------------------------------------
 
 
-def run_mcp_server():
-    """Launch the Echo Search MCP stdio server.
-
-    Validates environment, imports MCP dependencies (lazy — only needed
-    in server mode), registers tool handlers, and runs the async loop.
-    """
-    # type: () -> None
-    if not DB_PATH:  # SEC-4: fail fast instead of silent in-memory DB
+def _validate_mcp_env():
+    """Validate environment for MCP server startup."""
+    if not DB_PATH:
         print("Error: DB_PATH environment variable not set", file=sys.stderr)
         sys.exit(1)
     db_parent = os.path.dirname(DB_PATH) or "."
@@ -2304,17 +2235,12 @@ def run_mcp_server():
               file=sys.stderr)
         sys.exit(1)
 
-    import asyncio
-    import mcp.server.stdio
-    import mcp.types as types
-    from mcp.server.lowlevel import Server, NotificationOptions
-    from mcp.server.models import InitializationOptions
 
-    server = Server("echo-search")
+def _register_mcp_handlers(server, types):
+    """Register list_tools and call_tool handlers on the MCP server."""
 
     @server.list_tools()
     async def handle_list_tools():
-        """Return the list of available echo-search tools."""
         return [
             types.Tool(
                 name=s["name"], description=s["description"],
@@ -2325,7 +2251,6 @@ def run_mcp_server():
 
     @server.call_tool()
     async def handle_call_tool(name, arguments):
-        """Dispatch an MCP tool call to the appropriate handler."""
         try:
             handler = _MCP_HANDLERS.get(name)
             if handler is None:
@@ -2336,16 +2261,30 @@ def run_mcp_server():
                 type="text", text=json.dumps(data, indent=2),
                 isError=True if is_error else None,
             )]
-        except Exception as e:
-            # SEC-NEW-001: Cap error message to avoid leaking internal paths
+        except (ValueError, TypeError, KeyError, sqlite3.Error, OSError) as e:
             err_msg = str(e)[:200] if str(e) else "Internal server error"
             return [types.TextContent(
                 type="text", text=json.dumps({"error": err_msg}),
                 isError=True,
             )]
 
+
+def run_mcp_server():
+    """Launch the Echo Search MCP stdio server.
+
+    Validates environment, imports MCP dependencies, registers handlers,
+    and runs the async loop.
+    """
+    _validate_mcp_env()
+    import asyncio
+    import mcp.server.stdio
+    import mcp.types as types
+    from mcp.server.lowlevel import Server, NotificationOptions
+    from mcp.server.models import InitializationOptions
+    server = Server("echo-search")
+    _register_mcp_handlers(server, types)
+
     async def _run():
-        """Run the MCP server async event loop."""
         async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
             await server.run(
                 read_stream, write_stream,

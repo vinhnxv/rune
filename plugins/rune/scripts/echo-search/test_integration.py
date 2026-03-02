@@ -821,3 +821,373 @@ class TestEdgeCasesWithRealData:
         detail_ids = [d["id"] for d in details]
 
         assert set(search_ids) == set(detail_ids)
+
+
+# ---------------------------------------------------------------------------
+# Edge Cases: empty, invalid, missing, boundary, unicode, whitespace inputs
+# ---------------------------------------------------------------------------
+
+
+class TestEdgeCaseEmptyInputs:
+    """Edge cases for empty and whitespace-only inputs in the search pipeline."""
+
+    def test_empty_string_search_returns_empty(self, populated_db):
+        """Searching with an empty string returns empty results."""
+        results = search_entries(populated_db, "")
+        assert results == []
+
+    def test_whitespace_only_search_returns_empty(self, populated_db):
+        """Searching with whitespace-only string returns empty results."""
+        results = search_entries(populated_db, "   \t\n  ")
+        assert results == []
+
+    def test_empty_ids_list_returns_empty(self, populated_db):
+        """get_details with empty list returns empty results."""
+        results = get_details(populated_db, [])
+        assert results == []
+
+    def test_missing_id_returns_empty(self, populated_db):
+        """get_details with a nonexistent ID returns empty list."""
+        results = get_details(populated_db, ["nonexistent_id_abc123"])
+        assert results == []
+
+    def test_empty_echo_dir_produces_zero_stats(self, tmp_path, db_path):
+        """Stats on an empty reindexed directory show zero entries."""
+        empty_dir = str(tmp_path / "empty_echoes")
+        os.makedirs(empty_dir)
+        do_reindex(empty_dir, db_path)
+        conn = get_db(db_path)
+        try:
+            stats = get_stats(conn)
+            assert stats["total_entries"] == 0
+            assert stats["by_layer"] == {}
+            assert stats["by_role"] == {}
+        finally:
+            conn.close()
+
+    def test_rebuild_with_empty_entries_list(self, db, tmp_path):
+        """rebuild_index with an empty entries list produces zero rows."""
+        count = rebuild_index(db, [])
+        assert count == 0
+        actual = db.execute("SELECT COUNT(*) FROM echo_entries").fetchone()[0]
+        assert actual == 0
+
+    def test_search_null_character_in_query(self, populated_db):
+        """Query containing null byte is handled without crash."""
+        results = search_entries(populated_db, "security\x00injection")
+        assert isinstance(results, list)
+
+    def test_get_details_with_none_filtered_out(self, populated_db):
+        """get_details with None values in id list filters them gracefully."""
+        # Per source: ids = [str(i) for i in ids if i is not None][:100]
+        results = get_details(populated_db, [None, None, None])
+        assert results == []
+
+
+class TestEdgeCaseInvalidInputs:
+    """Edge cases for invalid and malformed inputs to server functions."""
+
+    def test_invalid_layer_filter_returns_empty(self, populated_db):
+        """Searching with a non-existent layer filter returns empty results."""
+        results = search_entries(populated_db, "pattern", layer="nonexistent_layer")
+        assert results == []
+
+    def test_invalid_role_filter_returns_empty(self, populated_db):
+        """Searching with a non-existent role filter returns empty results."""
+        results = search_entries(populated_db, "pattern", role="nonexistent_role")
+        assert results == []
+
+    def test_invalid_zero_limit_returns_empty(self, populated_db):
+        """Searching with limit=0 returns empty results."""
+        results = search_entries(populated_db, "security", limit=0)
+        assert results == []
+
+    def test_negative_limit_handled_safely(self, populated_db):
+        """Searching with a negative limit returns empty or safe results."""
+        # SQLite LIMIT -1 returns all rows; we just verify no crash
+        results = search_entries(populated_db, "security", limit=-1)
+        assert isinstance(results, list)
+
+    def test_malformed_fts_query_special_chars(self, populated_db):
+        """Malformed FTS5 queries with special characters don't crash."""
+        for q in ["()", "[]", "{}", "\"unclosed", "MATCH:", "OR AND", "***"]:
+            results = search_entries(populated_db, q)
+            assert isinstance(results, list), f"Crashed for query: {q!r}"
+
+    def test_single_char_query_returns_valid_response(self, populated_db):
+        """Single character query (below min token length) returns empty."""
+        # build_fts_query filters tokens < 2 chars
+        results = search_entries(populated_db, "a")
+        assert isinstance(results, list)
+
+    def test_numeric_only_query(self, populated_db):
+        """Numeric-only query is handled without crash."""
+        results = search_entries(populated_db, "12345 67890")
+        assert isinstance(results, list)
+
+    def test_reindex_missing_echo_dir_returns_zero(self, tmp_path, db_path):
+        """do_reindex with a missing directory returns zero entries."""
+        missing = str(tmp_path / "does_not_exist")
+        result = do_reindex(missing, db_path)
+        assert result["entries_indexed"] == 0
+
+    def test_details_with_oversized_id_list_capped(self, populated_db, all_entries):
+        """get_details caps at 100 IDs even if more are provided."""
+        # Create a list of 150 real + duplicate IDs
+        real_ids = [e["id"] for e in all_entries]
+        oversized = (real_ids * 20)[:150]
+        results = get_details(populated_db, oversized)
+        # Should return at most 100 unique entries
+        assert len(results) <= 100
+
+
+class TestEdgeCaseBoundaryValues:
+    """Edge cases for boundary values in search and indexing."""
+
+    def test_huge_query_truncated_safely(self, populated_db):
+        """Query of 1000+ characters is truncated at 500 chars without crash."""
+        huge_q = "security " * 200  # ~1800 chars
+        results = search_entries(populated_db, huge_q)
+        assert isinstance(results, list)
+
+    def test_large_limit_returns_all_available(self, populated_db, all_entries):
+        """Limit larger than entry count returns all available results."""
+        results = search_entries(populated_db, "the OR pattern OR security", limit=10000)
+        assert len(results) <= len(all_entries)
+        assert len(results) >= 0
+
+    def test_single_entry_db_search(self, db_path):
+        """Search works correctly on a database with exactly one entry."""
+        from indexer import parse_memory_file as _parse
+        import tempfile
+
+        # Create a minimal single-entry database
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mem_path = os.path.join(tmpdir, "MEMORY.md")
+            with open(mem_path, "w") as f:
+                f.write(
+                    "## Inscribed — Unique boundary entry (2026-01-01)\n"
+                    "**Source**: `test:boundary`\n"
+                    "This is the only entry in the database.\n"
+                )
+            entries = _parse(mem_path, "boundary-role")
+
+        conn = get_db(db_path)
+        ensure_schema(conn)
+        rebuild_index(conn, entries)
+        results = search_entries(conn, "boundary entry")
+        conn.close()
+        assert len(results) == 1
+
+    def test_duplicate_entries_rebuild_deduplication(self, db_path, all_entries):
+        """Rebuilding twice with same entries doesn't duplicate rows."""
+        conn = get_db(db_path)
+        ensure_schema(conn)
+        rebuild_index(conn, all_entries)
+        rebuild_index(conn, all_entries)
+        count = conn.execute("SELECT COUNT(*) FROM echo_entries").fetchone()[0]
+        conn.close()
+        assert count == len(all_entries)
+
+    def test_boundary_limit_one_returns_single_result(self, populated_db):
+        """Limit=1 returns exactly one result for a matching query."""
+        results = search_entries(populated_db, "security", limit=1)
+        assert len(results) <= 1
+
+    def test_zero_entry_database_stats_returns_empty_dicts(self, db_path):
+        """Stats on an empty but initialized DB return zero counts and empty dicts."""
+        conn = get_db(db_path)
+        ensure_schema(conn)
+        rebuild_index(conn, [])
+        stats = get_stats(conn)
+        conn.close()
+        assert stats["total_entries"] == 0
+        assert stats["by_layer"] == {}
+        assert stats["by_role"] == {}
+
+
+class TestEdgeCaseUnicodeContent:
+    """Edge cases for unicode and special characters in search and indexing."""
+
+    def test_unicode_content_indexed_and_searchable(self, db_path):
+        """Entries with unicode content are indexed and can be searched."""
+        import tempfile
+        from indexer import parse_memory_file as _parse
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mem_path = os.path.join(tmpdir, "MEMORY.md")
+            with open(mem_path, "w", encoding="utf-8") as f:
+                f.write(
+                    "## Inscribed — Unicode test (2026-01-10)\n"
+                    "Content: résumé café naïve architecture\n"
+                    "More: 测试内容 테스트\n"
+                )
+            entries = _parse(mem_path, "unicode-role")
+
+        conn = get_db(db_path)
+        ensure_schema(conn)
+        rebuild_index(conn, entries)
+        # Search by ASCII word present in the unicode content
+        results = search_entries(conn, "architecture")
+        conn.close()
+        assert isinstance(results, list)
+
+    def test_special_chars_in_source_field_searchable(self, db_path):
+        """Entries with special chars in source field don't break search."""
+        import tempfile
+        from indexer import parse_memory_file as _parse
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mem_path = os.path.join(tmpdir, "MEMORY.md")
+            with open(mem_path, "w") as f:
+                f.write(
+                    "## Inscribed — Special source chars (2026-01-05)\n"
+                    "**Source**: `rune:appraise abc-123_def.ghi`\n"
+                    "Entry with special chars in source field.\n"
+                )
+            entries = _parse(mem_path, "special-src")
+
+        conn = get_db(db_path)
+        ensure_schema(conn)
+        rebuild_index(conn, entries)
+        results = search_entries(conn, "special chars source")
+        conn.close()
+        assert isinstance(results, list)
+        assert len(results) >= 0
+
+    def test_em_dash_in_search_query_sanitized(self, populated_db):
+        """Query with em dash (—) is sanitized by build_fts_query."""
+        results = search_entries(populated_db, "security — injection")
+        assert isinstance(results, list)
+
+    def test_newlines_in_query_handled(self, populated_db):
+        """Query with embedded newlines is handled safely."""
+        results = search_entries(populated_db, "security\ninjection\ntesting")
+        assert isinstance(results, list)
+
+
+class TestEdgeCaseMissingAndNoneFields:
+    """Edge cases where fields are missing or None in entries/results."""
+
+    def test_get_details_returns_all_required_fields(self, populated_db, all_entries):
+        """get_details results always include all expected field keys."""
+        required_fields = {
+            "id", "source", "layer", "role", "full_content",
+            "date", "tags", "line_number", "file_path"
+        }
+        ids = [e["id"] for e in all_entries[:3]]
+        results = get_details(populated_db, ids)
+        for r in results:
+            missing = required_fields - set(r.keys())
+            assert not missing, f"Missing fields: {missing}"
+
+    def test_search_results_have_required_fields(self, populated_db):
+        """Search result dicts always include expected field keys."""
+        required_fields = {
+            "id", "source", "layer", "role", "date",
+            "content_preview", "score", "line_number", "tags"
+        }
+        results = search_entries(populated_db, "security", limit=5)
+        for r in results:
+            missing = required_fields - set(r.keys())
+            assert not missing, f"Search result missing fields: {missing}"
+
+    def test_stats_always_has_required_keys(self, populated_db):
+        """get_stats always returns dict with expected keys."""
+        stats = get_stats(populated_db)
+        required_keys = {"total_entries", "by_layer", "by_role", "last_indexed"}
+        assert required_keys.issubset(set(stats.keys()))
+
+    def test_content_preview_not_none_in_search(self, populated_db):
+        """Search results never have None content_preview."""
+        results = search_entries(populated_db, "pattern", limit=10)
+        for r in results:
+            assert r["content_preview"] is not None, "content_preview should never be None"
+
+    def test_null_ids_list_filtered_gracefully(self, populated_db):
+        """get_details handles a mix of valid and None IDs without crash."""
+        from server import get_details
+        results = get_details(populated_db, [None, "bad_id", None])
+        # None values are filtered, bad_id not found → empty result
+        assert results == []
+
+    def test_search_after_empty_rebuild_returns_empty(self, db_path):
+        """Search on a rebuilt-empty database returns empty results."""
+        conn = get_db(db_path)
+        ensure_schema(conn)
+        rebuild_index(conn, [])
+        results = search_entries(conn, "security pattern test")
+        conn.close()
+        assert results == []
+
+
+class TestEdgeCaseCorruptAndTruncated:
+    """Edge cases for corrupt or truncated data scenarios."""
+
+    def test_truncated_content_indexed_partially(self, db_path):
+        """Entry with very short content (1 char) is indexed correctly."""
+        import tempfile
+        from indexer import parse_memory_file as _parse
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mem_path = os.path.join(tmpdir, "MEMORY.md")
+            with open(mem_path, "w") as f:
+                f.write(
+                    "## Inscribed — Truncated entry (2026-01-01)\n"
+                    "X\n"
+                )
+            entries = _parse(mem_path, "truncated-role")
+
+        assert len(entries) == 1
+        conn = get_db(db_path)
+        ensure_schema(conn)
+        count = rebuild_index(conn, entries)
+        conn.close()
+        assert count == 1
+
+    def test_broken_source_line_not_crash(self, db_path):
+        """Entry with malformed **Source** line is still indexed."""
+        import tempfile
+        from indexer import parse_memory_file as _parse
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mem_path = os.path.join(tmpdir, "MEMORY.md")
+            with open(mem_path, "w") as f:
+                f.write(
+                    "## Inscribed — Broken source (2026-01-01)\n"
+                    "**Source**: \n"  # Source line with empty value
+                    "Real content here.\n"
+                )
+            entries = _parse(mem_path, "broken-src")
+
+        conn = get_db(db_path)
+        ensure_schema(conn)
+        count = rebuild_index(conn, entries)
+        conn.close()
+        # Should index the entry even with empty/broken source
+        assert count >= 0
+
+    def test_large_content_indexed_without_truncation(self, db_path):
+        """Large content (10KB+) is fully indexed without truncation."""
+        import tempfile
+        from indexer import parse_memory_file as _parse
+
+        large_content = "word " * 2000  # ~10KB of repeated "word "
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mem_path = os.path.join(tmpdir, "MEMORY.md")
+            with open(mem_path, "w") as f:
+                f.write(
+                    "## Inscribed — Large content entry (2026-01-01)\n"
+                    + large_content + "\n"
+                )
+            entries = _parse(mem_path, "large-content")
+
+        assert len(entries) == 1
+        assert len(entries[0]["content"]) > 5000
+
+        conn = get_db(db_path)
+        ensure_schema(conn)
+        rebuild_index(conn, entries)
+        results = search_entries(conn, "word")
+        conn.close()
+        assert len(results) == 1

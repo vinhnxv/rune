@@ -37,6 +37,13 @@ from server import (
 )
 
 
+def _e(id, layer="inscribed", date="2026-02-20", content="content", tags="", line=1):
+    """Compact entry factory for test data."""
+    return {"id": id, "role": "r", "layer": layer, "date": date,
+            "source": "", "content": content, "tags": tags,
+            "line_number": line, "file_path": "/p"}
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -555,48 +562,20 @@ class TestScoringEndToEnd:
     """Full pipeline: index -> search -> re-rank."""
 
     def test_recent_inscribed_beats_old_traced(self, db):
-        """A recent Inscribed entry should rank above an old Traced entry,
-        even if BM25 relevance is similar."""
+        """A recent Inscribed entry should rank above an old Traced entry."""
+        today = time.strftime("%Y-%m-%d")
+        content = "security pattern for input validation defense"
         entries = [
-            {
-                "id": "recent_inscribed_01",
-                "role": "r",
-                "layer": "inscribed",
-                "date": time.strftime("%Y-%m-%d"),
-                "source": "",
-                "content": "security pattern for input validation defense",
-                "tags": "security",
-                "line_number": 1,
-                "file_path": "/p",
-            },
-            {
-                "id": "old_traced_entry_01",
-                "role": "r",
-                "layer": "traced",
-                "date": "2020-01-01",
-                "source": "",
-                "content": "security pattern for input validation defense",
-                "tags": "security",
-                "line_number": 2,
-                "file_path": "/p",
-            },
+            _e("recent_inscribed_01", "inscribed", today, content, "security"),
+            _e("old_traced_entry_01", "traced", "2020-01-01", content, "security", line=2),
         ]
         rebuild_index(db, entries)
         results = search_entries(db, "security validation")
         assert len(results) == 2
-
-        weights = {
-            "relevance": 0.30,
-            "importance": 0.30,
-            "recency": 0.20,
-            "proximity": 0.10,
-            "frequency": 0.10,
-        }
+        weights = {"relevance": 0.30, "importance": 0.30, "recency": 0.20,
+                   "proximity": 0.10, "frequency": 0.10}
         scored = compute_composite_score(results, weights)
-
-        # The recent Inscribed entry should rank higher due to:
-        # - Higher importance (0.6 vs 0.3)
-        # - Higher recency (recent vs 2020)
+        # Recent Inscribed ranks higher: importance 0.6>0.3 + recency boost
         assert scored[0]["id"] == "recent_inscribed_01"
 
     def test_etched_layer_boosts_ranking(self, db):

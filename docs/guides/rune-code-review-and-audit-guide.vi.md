@@ -10,6 +10,14 @@ Các hướng dẫn liên quan:
 - [Hướng dẫn planning (devise/forge/plan-review/inspect)](rune-planning-and-plan-quality-guide.vi.md)
 - [Hướng dẫn thực thi (strive/goldmask)](rune-work-execution-guide.vi.md)
 
+## Đọc nhanh (2 phút)
+
+- Bạn vừa code xong trên branch: dùng `/rune:appraise`.
+- Bạn muốn rà toàn bộ repo: dùng `/rune:audit`.
+- Bạn có file TOME và muốn sửa nhanh: dùng `/rune:mend`.
+- Nếu chưa rõ khác nhau giữa review và audit: bắt đầu với `appraise`, chỉ dùng `audit` khi cần phạm vi rộng.
+- Thuật ngữ tham khảo: [Thuật ngữ Rune (Tiếng Việt)](rune-glossary.vi.md).
+
 ---
 
 ## 1. Chọn lệnh nhanh

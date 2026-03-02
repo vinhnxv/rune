@@ -1068,3 +1068,286 @@ class TestVoidElementAttrSplit:
         # type='button' should be directly on <button>
         import re
         assert re.search(r'<button[^>]*type="button"', code) is not None
+
+
+# ---------------------------------------------------------------------------
+# Edge-case tests: empty / None / missing / invalid inputs
+# ---------------------------------------------------------------------------
+
+
+class TestEmptyNodeInputs:
+    """Edge-case tests for nodes with empty or missing required fields."""
+
+    def test_empty_name_falls_back_to_component(self):
+        """_to_component_name with empty string returns 'Component'."""
+        assert _to_component_name("") == "Component"
+
+    def test_none_text_content_renders_empty_text(self):
+        """Text node with None text_content should render without crash."""
+        text = _make_text_node(text_content=None)
+        root = _make_node(children=[text])
+        code = generate_component(root)
+        assert "<p" in code
+
+    def test_empty_text_content_renders_empty_p_tag(self):
+        """Text node with empty string text_content should render a <p> tag."""
+        text = _make_text_node(text_content="")
+        root = _make_node(children=[text])
+        code = generate_component(root)
+        assert "<p" in code
+
+    def test_whitespace_only_text_content_renders(self):
+        """Whitespace-only text content is still rendered (not filtered)."""
+        text = _make_text_node(text_content="   ")
+        root = _make_node(children=[text])
+        code = generate_component(root)
+        assert "<p" in code
+
+    def test_empty_children_array_produces_self_closing(self):
+        """Frame with empty children list generates self-closing div."""
+        root = _make_node(children=[])
+        code = generate_component(root)
+        assert "/>" in code
+
+    def test_node_with_no_fills_renders_without_bg_class(self):
+        """Node with empty fills list should not emit bg-* class."""
+        root = _make_node(fills=[])
+        code = generate_component(root)
+        assert "bg-" not in code
+
+    def test_missing_text_style_text_node_renders_p(self):
+        """Text node with no text_style should still render as <p>."""
+        text = _make_text_node(text_style=None)
+        root = _make_node(children=[text])
+        code = generate_component(root)
+        assert "<p" in code
+
+    def test_empty_text_segments_list_renders_inline_text(self):
+        """Text node with empty text_segments list uses text_content inline."""
+        text = _make_text_node(text_content="Hello", text_segments=[])
+        root = _make_node(children=[text])
+        code = generate_component(root)
+        assert "Hello" in code
+        assert "<span" not in code
+
+
+class TestInvalidAndMalformedNames:
+    """Edge-case tests for invalid and malformed node names."""
+
+    def test_unicode_name_component_conversion(self):
+        """Unicode characters in names produce valid component names."""
+        # Unicode chars are stripped by _COMPONENT_NAME_RE (non-alphanumeric)
+        result = _to_component_name("图标-icon")
+        # Non-ascii stripped, 'icon' remains after split on '-'
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_whitespace_only_name_to_component(self):
+        """Whitespace-only name falls back to 'Component'."""
+        result = _to_component_name("   ")
+        assert result == "Component"
+
+    def test_special_chars_only_name_to_component(self):
+        """Name with only special chars falls back to 'Component'."""
+        result = _to_component_name("!@#$%^&*()")
+        assert result == "Component"
+
+    def test_number_only_name_prefixed(self):
+        """Name starting with a digit gets 'Component' prefix."""
+        result = _to_component_name("123abc")
+        assert result.startswith("Component")
+
+    def test_large_component_name_with_many_parts(self):
+        """Very long hyphenated name converts to valid PascalCase."""
+        result = _to_component_name("a-b-c-d-e-f-g-h-i-j")
+        # Each single-char part becomes uppercase: A + B + ... + J
+        assert result == "ABCDEFGHIJ"
+
+    def test_invalid_node_name_with_jsx_braces(self):
+        """JSX braces in node names are handled safely."""
+        node = _make_node(name="{template}")
+        code = generate_component(node)
+        # Should not produce invalid JSX from the component name
+        assert "export default function" in code
+
+
+class TestBoundaryValues:
+    """Edge-case tests for boundary and extreme numeric values."""
+
+    def test_zero_width_node_generates_code(self):
+        """Node with zero width should still generate component code."""
+        node = _make_node(width=0.0, height=100.0)
+        code = generate_component(node)
+        assert "export default function" in code
+
+    def test_zero_height_node_generates_code(self):
+        """Node with zero height should still generate component code."""
+        node = _make_node(width=100.0, height=0.0)
+        code = generate_component(node)
+        assert "export default function" in code
+
+    def test_negative_coordinates_no_crash(self):
+        """Node with negative x/y coordinates should not crash."""
+        node = _make_node(x=-50.0, y=-100.0)
+        code = generate_component(node)
+        assert "export default function" in code
+
+    def test_huge_dimensions_generate_large_tailwind_class(self):
+        """Very large dimensions produce a Tailwind arbitrary or large class."""
+        node = _make_node(width=9999.0, height=8888.0)
+        code = generate_component(node)
+        # Should not crash; must produce valid output
+        assert "export default function" in code
+
+    def test_boundary_font_size_exactly_32_is_h1(self):
+        """Font size exactly 32 maps to h1 tag."""
+        style = TypeStyle.model_validate({"fontSize": 32.0, "fontWeight": 700.0})
+        node = _make_text_node(name="Title", text_style=style)
+        from react_generator import _resolve_html_tag
+        assert _resolve_html_tag(node) == "h1"
+
+    def test_boundary_font_size_exactly_24_is_h2(self):
+        """Font size exactly 24 maps to h2 tag."""
+        style = TypeStyle.model_validate({"fontSize": 24.0, "fontWeight": 700.0})
+        node = _make_text_node(name="Subtitle", text_style=style)
+        from react_generator import _resolve_html_tag
+        assert _resolve_html_tag(node) == "h2"
+
+    def test_boundary_font_size_exactly_20_is_h3(self):
+        """Font size exactly 20 maps to h3 tag."""
+        style = TypeStyle.model_validate({"fontSize": 20.0, "fontWeight": 700.0})
+        node = _make_text_node(name="Section", text_style=style)
+        from react_generator import _resolve_html_tag
+        assert _resolve_html_tag(node) == "h3"
+
+    def test_boundary_font_size_just_below_20_is_p(self):
+        """Font size 19 (just below h3 threshold) maps to p."""
+        style = TypeStyle.model_validate({"fontSize": 19.0, "fontWeight": 400.0})
+        node = _make_text_node(name="Body", text_style=style)
+        from react_generator import _resolve_html_tag
+        assert _resolve_html_tag(node) == "p"
+
+    def test_zero_font_size_is_p(self):
+        """Font size of 0 should not match any heading, maps to p."""
+        style = TypeStyle.model_validate({"fontSize": 0.0, "fontWeight": 400.0})
+        node = _make_text_node(name="Tiny", text_style=style)
+        from react_generator import _resolve_html_tag
+        assert _resolve_html_tag(node) == "p"
+
+
+class TestMissingRequiredFields:
+    """Edge-case tests for nodes missing required fields."""
+
+    def test_node_with_no_image_ref_falls_back(self):
+        """Image fill node with empty image_ref produces div fallback."""
+        node = _make_node(
+            node_id="99:1",
+            has_image_fill=True,
+            image_ref="",
+            node_type=NodeType.RECTANGLE,
+            width=100.0,
+            height=100.0,
+        )
+        root = _make_node(children=[node])
+        code = generate_component(root)
+        # Should not produce <img> since ref is empty/missing
+        assert "<div" in code
+
+    def test_invisible_root_node_produces_empty_body(self):
+        """Invisible root node produces no JSX output in component body."""
+        root = _make_node(visible=False)
+        code = generate_component(root)
+        # Component wrapper is always emitted, but JSX body should be empty
+        assert "export default function" in code
+
+    def test_all_invisible_children_produces_self_closing_parent(self):
+        """All invisible children yields self-closing parent tag."""
+        c1 = _make_node(node_id="2:1", visible=False)
+        c2 = _make_node(node_id="3:1", visible=False)
+        root = _make_node(children=[c1, c2])
+        code = generate_component(root)
+        assert "/>" in code
+
+    def test_null_text_style_in_resolve_text_styles(self):
+        """_resolve_text_styles with None should return empty list."""
+        from react_generator import _resolve_text_styles
+        assert _resolve_text_styles(None) == []
+
+    def test_empty_deduplicate_classes_input(self):
+        """Empty input to _deduplicate_classes returns empty list."""
+        assert _deduplicate_classes([]) == []
+
+    def test_single_element_deduplicate_classes(self):
+        """Single element is preserved unchanged."""
+        assert _deduplicate_classes(["flex"]) == ["flex"]
+
+
+class TestNullAndNoneAriaEdgeCases:
+    """Edge-case tests for ARIA attributes with null / None inputs."""
+
+    def test_empty_string_name_is_decorative(self):
+        """Empty string name is treated as decorative."""
+        assert _is_decorative_name("") is True
+
+    def test_none_name_treated_as_decorative(self):
+        """None name treated as decorative (falsy)."""
+        assert _is_decorative_name(None) is True
+
+    def test_decorative_name_returns_no_aria_attrs(self):
+        """Decorative node returns empty dict for any tag."""
+        node = _make_node(name="Frame 1")
+        attrs = _resolve_aria_attrs(node, "div")
+        assert attrs == {}
+
+    def test_format_html_attrs_empty_class_and_empty_aria(self):
+        """Both empty inputs produce empty string."""
+        assert _format_html_attrs("", {}) == ""
+
+    def test_generate_component_with_unicode_name(self):
+        """Component with unicode characters in name generates valid code."""
+        root = _make_node(name="Ñoño Frame")
+        code = generate_component(root)
+        assert "export default function" in code
+        # No SyntaxError or crash; function name must be valid
+        assert "(" in code
+
+    def test_missing_font_family_no_font_class(self):
+        """TypeStyle with no font_family produces no font-* class."""
+        style = TypeStyle.model_validate({"fontSize": 16.0, "fontWeight": 400.0})
+        text = _make_text_node(text_style=style, text_content="Hello")
+        root = _make_node(children=[text])
+        code = generate_component(root)
+        assert "font-['" not in code
+
+    def test_malformed_font_family_injection_blocked(self):
+        """Font family with CSS injection chars is sanitized."""
+        style = TypeStyle.model_validate({
+            "fontSize": 16.0,
+            "fontWeight": 400.0,
+            "fontFamily": "Hack'; alert(1); //",
+        })
+        text = _make_text_node(text_style=style, text_content="Unsafe")
+        root = _make_node(children=[text])
+        code = generate_component(root)
+        # Injection chars stripped — no quote or semicolon in font class
+        if "font-['" in code:
+            import re
+            font_match = re.search(r"font-\['([^']+)'\]", code)
+            if font_match:
+                font_value = font_match.group(1)
+                assert ";" not in font_value
+                assert "'" not in font_value
+
+    def test_overflow_hidden_clips_content_class(self):
+        """Node with clips_content=True should produce overflow-hidden."""
+        node = _make_node(clips_content=True)
+        code = generate_component(node)
+        assert "overflow-hidden" in code
+
+    def test_null_opacity_treated_as_fully_opaque(self):
+        """Node with default opacity 1.0 should not emit opacity class."""
+        node = _make_node(opacity=1.0)
+        code = generate_component(node)
+        # opacity-100 is not a standard tailwind utility that maps from 1.0
+        # The style builder should skip opacity at 1.0 (no class)
+        assert "opacity-0" not in code

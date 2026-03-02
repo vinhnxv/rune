@@ -46,7 +46,7 @@ Deep expertise for `.claude/talisman.yml` — the project-level configuration
 that controls all Rune agent behavior.
 
 **References**:
-- [Talisman sections](references/talisman-sections.md) — all 21 top-level sections with key descriptions
+- [Talisman sections](references/talisman-sections.md) — top-level sections with key descriptions
 - [Configuration guide](../../references/configuration-guide.md) — full schema with types and defaults
 - [Example template](../../talisman.example.yml) — canonical 950+ line example
 
@@ -290,7 +290,7 @@ For each top-level section present:
   - Notable overrides from defaults
 
 Also report:
-  - Total sections: N/21
+  - Total sections: N/[schema total]
   - Codex workflows enabled: [list]
   - Cost tier: [tier]
   - Custom Ashes: [count]
@@ -328,7 +328,7 @@ Use Rune's Elden Ring-inspired tone:
 
 ```
 The Tarnished studies the Talisman...
-  21 sections mapped, 17 active in your project.
+  Section map loaded, 17 active in your project.
   4 gaps detected — 1 critical, 2 recommended, 1 optional.
 ```
 

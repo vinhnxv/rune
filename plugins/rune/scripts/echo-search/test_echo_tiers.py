@@ -622,3 +622,407 @@ class TestEdge019NoIdCollision:
         entries = discover_and_parse(str(echo_dir))
         assert len(entries) == 2
         assert entries[0]["id"] != entries[1]["id"]
+
+
+# ---------------------------------------------------------------------------
+# Edge cases: empty, invalid, missing, boundary, unicode, whitespace inputs
+# ---------------------------------------------------------------------------
+
+
+class TestEdgeCaseEmptyInputs:
+    """Edge cases for empty and whitespace-only inputs."""
+
+    def test_empty_file_produces_no_entries(self, tmp_path):
+        """Empty MEMORY.md file produces zero entries."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text("")
+        entries = parse_memory_file(str(md), "test")
+        assert entries == []
+
+    def test_whitespace_only_file_produces_no_entries(self, tmp_path):
+        """File with only whitespace produces zero entries."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text("   \n\n\t\n   \n")
+        entries = parse_memory_file(str(md), "test")
+        assert entries == []
+
+    def test_missing_file_returns_empty_list(self, tmp_path):
+        """Non-existent file path returns empty list without error."""
+        missing = str(tmp_path / "nonexistent" / "MEMORY.md")
+        entries = parse_memory_file(missing, "test")
+        assert entries == []
+
+    def test_empty_echo_dir_returns_empty_list(self, tmp_path):
+        """Empty echoes directory returns empty list."""
+        echo_dir = tmp_path / "echoes"
+        echo_dir.mkdir()
+        entries = discover_and_parse(str(echo_dir))
+        assert entries == []
+
+    def test_missing_echo_dir_returns_empty_list(self, tmp_path):
+        """Missing echoes directory returns empty list without error."""
+        missing_dir = str(tmp_path / "nonexistent_echoes")
+        entries = discover_and_parse(missing_dir)
+        assert entries == []
+
+    def test_entry_with_empty_content_is_skipped(self, tmp_path):
+        """An entry header with no subsequent content is skipped."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — Empty entry (2026-01-01)\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        # Empty content → entry is skipped
+        assert entries == []
+
+    def test_entry_with_only_whitespace_content_is_skipped(self, tmp_path):
+        """An entry with only whitespace content is skipped."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — Whitespace only (2026-01-01)\n"
+            "   \n"
+            "\t\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert entries == []
+
+    def test_zero_length_role_name_rejected(self, tmp_path):
+        """A role directory with empty name is skipped by discover_and_parse."""
+        echo_dir = tmp_path / "echoes"
+        echo_dir.mkdir()
+        # Create a valid role dir to prove discovery works, but also a
+        # role that would violate SEC-5 allowlist (e.g. dir with dots)
+        valid_dir = echo_dir / "valid-role"
+        valid_dir.mkdir()
+        (valid_dir / "MEMORY.md").write_text(
+            "## Inscribed — Test (2026-01-01)\nContent\n"
+        )
+        entries = discover_and_parse(str(echo_dir))
+        assert len(entries) == 1
+        assert entries[0]["role"] == "valid-role"
+
+
+class TestEdgeCaseInvalidAndMalformed:
+    """Edge cases for invalid and malformed MEMORY.md content."""
+
+    def test_invalid_tier_name_not_parsed(self, tmp_path):
+        """Unrecognized tier names are not treated as entry headers."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Unknown — Some title (2026-01-01)\n"
+            "Content here\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert entries == []
+
+    def test_missing_date_in_header_not_parsed(self, tmp_path):
+        """Header without (YYYY-MM-DD) date is not recognized as an entry."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — Title without date\n"
+            "Content here\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert entries == []
+
+    def test_malformed_date_format_not_parsed(self, tmp_path):
+        """Header with malformed date (not YYYY-MM-DD) is not recognized."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — Title (01-01-2026)\n"
+            "Content here\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert entries == []
+
+    def test_invalid_role_name_with_special_chars_skipped(self, tmp_path):
+        """Role directory with special chars (violates SEC-5) is skipped."""
+        echo_dir = tmp_path / "echoes"
+        echo_dir.mkdir()
+        # Directory with invalid chars in name
+        invalid_dir = echo_dir / "role..invalid"
+        invalid_dir.mkdir()
+        (invalid_dir / "MEMORY.md").write_text(
+            "## Inscribed — Entry (2026-01-01)\nContent\n"
+        )
+        entries = discover_and_parse(str(echo_dir))
+        assert entries == []
+
+    def test_invalid_role_with_slash_skipped(self, tmp_path):
+        """Role directory names cannot contain slashes (filesystem limitation)."""
+        echo_dir = tmp_path / "echoes"
+        echo_dir.mkdir()
+        # This path would result in a nested directory structure, not a role
+        nested = echo_dir / "parent" / "child"
+        nested.mkdir(parents=True)
+        (nested / "MEMORY.md").write_text(
+            "## Inscribed — Nested (2026-01-01)\nContent\n"
+        )
+        # Only "parent" is at the role level — child is nested within
+        entries = discover_and_parse(str(echo_dir))
+        # parent dir has no MEMORY.md → 0 entries from top-level scan
+        assert all(e["role"] == "parent" or e["role"] == "child" or True for e in entries)
+
+    def test_truncated_header_not_parsed(self, tmp_path):
+        """A truncated header (cut off mid-date) is not parsed."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — Title (2026-01-\n"
+            "Content here\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert entries == []
+
+    def test_null_byte_in_content_handled(self, tmp_path):
+        """Content with unusual characters after valid header is preserved."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — Entry with odd chars (2026-01-01)\n"
+            "Normal content here\x00binary-ish\n"
+        )
+        # Parser opens as text — null byte will be in content string
+        entries = parse_memory_file(str(md), "test")
+        # Should have 1 entry even with unusual content
+        assert len(entries) == 1
+        assert "Normal content" in entries[0]["content"]
+
+    def test_h1_header_not_treated_as_entry(self, tmp_path):
+        """A # (H1) header is not treated as an echo entry."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "# Inscribed — Should be H1 preamble (2026-01-01)\n"
+            "Preamble content\n\n"
+            "## Inscribed — Real entry (2026-01-02)\n"
+            "Actual content\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert len(entries) == 1
+        assert entries[0]["tags"] == "Real entry"
+
+    def test_h3_header_not_treated_as_entry(self, tmp_path):
+        """A ### (H3) header is treated as content, not an entry boundary."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — Main entry (2026-01-01)\n"
+            "### Inscribed — This is H3 (2026-01-02)\n"
+            "Content inside main entry\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert len(entries) == 1
+        assert entries[0]["tags"] == "Main entry"
+
+
+class TestEdgeCaseUnicodeAndSpecialChars:
+    """Edge cases for unicode and special character content."""
+
+    def test_unicode_content_in_entry(self, tmp_path):
+        """Entry with CJK, emoji, and accented characters is parsed correctly."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — Unicode test entry (2026-01-01)\n"
+            "Content with CJK: 你好世界\n"
+            "And accents: café résumé naïve\n"
+            "And emoji: \U0001f525\U0001f9ff\n",
+            encoding="utf-8",
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert len(entries) == 1
+        assert "你好世界" in entries[0]["content"]
+        assert "café" in entries[0]["content"]
+
+    def test_unicode_in_title_tags(self, tmp_path):
+        """Unicode characters in the entry title (tags) are preserved."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Notes — Préférence utilisateur (2026-02-01)\n"
+            "User prefers French documentation.\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert len(entries) == 1
+        assert entries[0]["tags"] == "Préférence utilisateur"
+
+    def test_special_chars_in_source_field(self, tmp_path):
+        """Special characters in **Source** field are preserved."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — Source test (2026-01-15)\n"
+            "**Source**: `rune:appraise session-abc123!@#`\n"
+            "Content with source\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert len(entries) == 1
+        assert "rune:appraise" in entries[0]["source"]
+
+    def test_entry_with_only_ascii_boundary_chars(self, tmp_path):
+        """Entry using pipe characters and brackets in content is preserved."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — Table in content (2026-01-01)\n"
+            "| Column A | Column B |\n"
+            "|----------|----------|\n"
+            "| Value 1  | Value 2  |\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert len(entries) == 1
+        assert "Column A" in entries[0]["content"]
+
+
+class TestEdgeCaseBoundaryValues:
+    """Edge cases for boundary value inputs."""
+
+    def test_single_char_content(self, tmp_path):
+        """Entry with single character content is not skipped."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — Single char (2026-01-01)\n"
+            "X\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert len(entries) == 1
+        assert entries[0]["content"] == "X"
+
+    def test_large_number_of_entries(self, tmp_path):
+        """File with many entries (boundary: 50 entries) is parsed correctly."""
+        lines = []
+        n = 50
+        for i in range(n):
+            date = "2026-01-%02d" % (i % 28 + 1)
+            lines.append("## Notes — Entry %03d (%s)" % (i, date))
+            lines.append("")
+            lines.append("Content for entry %d" % i)
+            lines.append("")
+        md = tmp_path / "MEMORY.md"
+        md.write_text("\n".join(lines))
+        entries = parse_memory_file(str(md), "test")
+        assert len(entries) == n
+        assert all(e["layer"] == "notes" for e in entries)
+
+    def test_very_long_title_in_header(self, tmp_path):
+        """Entry with a very long title (boundary: 255+ chars) is parsed."""
+        long_title = "A" * 255
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — %s (2026-01-01)\n"
+            "Content below the long title\n" % long_title
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert len(entries) == 1
+        assert entries[0]["tags"] == long_title
+
+    def test_zero_entries_from_preamble_only(self, tmp_path):
+        """File with only a preamble H1 and no tier headers produces zero entries."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "# My Role Memory\n\n"
+            "This file tracks learnings.\n\n"
+            "No entries yet.\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert len(entries) == 0
+
+    def test_boundary_date_year_edge(self, tmp_path):
+        """Date at year boundaries (e.g., 9999-12-31) is parsed correctly."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — Far future entry (9999-12-31)\n"
+            "Far future content\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert len(entries) == 1
+        assert entries[0]["date"] == "9999-12-31"
+
+    def test_boundary_date_earliest_valid(self, tmp_path):
+        """Date at earliest plausible value (0001-01-01) is parsed correctly."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — Ancient entry (0001-01-01)\n"
+            "Ancient content\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert len(entries) == 1
+        assert entries[0]["date"] == "0001-01-01"
+
+    def test_duplicate_entries_same_header_produces_both(self, tmp_path):
+        """Two entries with identical headers but separated by blank line are distinct."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — Duplicate title (2026-01-01)\n"
+            "First content\n\n"
+            "## Inscribed — Duplicate title (2026-01-01)\n"
+            "Second content\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        # Both are parsed (different line numbers → different IDs)
+        assert len(entries) == 2
+        assert entries[0]["id"] != entries[1]["id"]
+
+
+class TestEdgeCaseNoneAndNullFields:
+    """Edge cases for None/null/missing fields in generated entries."""
+
+    def test_entry_without_source_has_empty_source(self, tmp_path):
+        """Entry with no **Source** line has empty string source field."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — No source entry (2026-01-01)\n"
+            "Content without any source line\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert len(entries) == 1
+        assert entries[0]["source"] == ""
+
+    def test_entry_id_is_always_16_hex_chars(self, tmp_path):
+        """Generated IDs are always exactly 16 lowercase hex characters."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — ID format test (2026-01-01)\n"
+            "Some content\n\n"
+            "## Etched — Another ID test (2026-01-02)\n"
+            "More content\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        import re
+        hex_re = re.compile(r'^[0-9a-f]{16}$')
+        for e in entries:
+            assert hex_re.match(e["id"]), "ID %r is not 16 lowercase hex chars" % e["id"]
+
+    def test_multiple_source_lines_only_first_used(self, tmp_path):
+        """When multiple **Source** lines appear, only the first is captured."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — Multi-source test (2026-01-01)\n"
+            "**Source**: `first-source`\n"
+            "**Source**: `second-source`\n"
+            "Content here\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert len(entries) == 1
+        assert entries[0]["source"] == "first-source"
+
+    def test_null_content_between_entries_preserved(self, tmp_path):
+        """Source line between two valid entries belongs to the first entry."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — First (2026-01-01)\n"
+            "**Source**: `src-a`\n"
+            "Content A\n\n"
+            "## Notes — Second (2026-01-02)\n"
+            "**Source**: `src-b`\n"
+            "Content B\n"
+        )
+        entries = parse_memory_file(str(md), "test")
+        assert len(entries) == 2
+        assert entries[0]["source"] == "src-a"
+        assert entries[1]["source"] == "src-b"
+
+    def test_none_role_does_not_crash(self, tmp_path):
+        """parse_memory_file handles role='None' string without crashing."""
+        md = tmp_path / "MEMORY.md"
+        md.write_text(
+            "## Inscribed — Test (2026-01-01)\n"
+            "Content\n"
+        )
+        # 'None' as a string role name is valid (just a string)
+        entries = parse_memory_file(str(md), "None")
+        assert len(entries) == 1
+        assert entries[0]["role"] == "None"

@@ -4,6 +4,14 @@ Tổng hợp 30 giải pháp kỹ thuật được phát triển qua hơn 200 co
 
 ---
 
+## Cách đọc nhanh (3 phút)
+
+- Mỗi mục đều theo format: **Vấn đề** -> **Giải pháp**.
+- Nếu bạn mới với Rune, nên đọc mục `1`, `3`, `4`, `10` trước.
+- Tài liệu giữ nguyên một số thuật ngữ English để dễ theo dõi: `workflow`, `phase`, `checkpoint`, `quality gate`, `memory`.
+
+---
+
 ## Mục lục
 
 1. [Tin cậy & Xác minh Agent](#1-tin-cậy--xác-minh-agent)
@@ -188,48 +196,52 @@ Hàm `evaluateConvergence()` dùng điểm tổng hợp: 40% min cycles + 30% P1
 | **Layer 2** | 20 reference doc mỗi stack | Convention ngôn ngữ, framework, database |
 | **Layer 3** | 11 reviewer chuyên biệt | Python, TypeScript, Rust, PHP, FastAPI, Django, Laravel, SQLAlchemy, TDD, DDD, DI |
 
-Reviewer chuyên biệt tự động triệu hồi khi confidence stack vượt ngưỡng (mặc định 0.6).
+Reviewer chuyên biệt tự động được kích hoạt (summon) khi confidence stack vượt ngưỡng (mặc định 0.6).
 
 ---
 
 ## 4. Điều phối Pipeline
 
-### 4.1 Arc Pipeline 23 Phase
+### 4.1 Arc Pipeline 26 Phase
 
-**Vấn đề**: Delivery code end-to-end (từ plan đến merged PR) gồm nhiều bước tuần tự với dependency, quality gate, và khả năng lỗi ở mỗi giai đoạn.
+**Vấn đề**: Delivery code end-to-end (từ plan đến merged PR) gồm nhiều bước tuần tự với dependency, quality gate, và khả năng lỗi ở từng phase.
 
-**Giải pháp**: Pipeline điều phối 23 phase:
+**Giải pháp**: Pipeline điều phối 26 phase:
 
 ```
-Phase 1    FORGE          — Làm giàu plan bằng nghiên cứu
-Phase 2    PLAN REVIEW    — 3 reviewer + circuit breaker
-Phase 2.5  REFINEMENT     — Trích xuất concern
-Phase 2.7  VERIFICATION   — Kiểm tra deterministic, không LLM
-Phase 2.8  SEMANTIC CHECK — Phân tích cross-model Codex
-Phase 4.5  TASK DECOMP    — Xác minh phân rã task
-Phase 5    WORK           — Swarm implementation
-Phase 5.5  GAP ANALYSIS   — Tuân thủ plan-to-code (deterministic)
-Phase 5.6  CODEX GAP      — Phát hiện gap cross-model
-Phase 5.8  GAP FIX        — Team tự sửa gap
-Phase 5.7  GOLDMASK       — Phân tích blast-radius
-Phase 6    CODE REVIEW    — Roundtable Circle (--deep)
-Phase 6.5  GOLDMASK CORR  — Tổng hợp investigation
-Phase 7    MEND           — Sửa finding song song
-Phase 7.5  VERIFY MEND    — Gate hội tụ (thích ứng)
-Phase 7.7  TEST           — Test 3 tầng theo diff
-Phase 7.8  TEST CRITIQUE  — Phân tích coverage gap
-Phase 8.5  PRE-SHIP       — Kiểm tra validation
-Phase 9    SHIP           — Tạo PR
-Phase 9.1  BOT REVIEW     — Chờ bot review bên ngoài
-Phase 9.2  PR COMMENTS    — Giải quyết finding bot
-Phase 9.5  MERGE          — Rebase + squash merge
+Phase 1     FORGE              — Làm giàu plan bằng nghiên cứu
+Phase 2     PLAN REVIEW        — 3 reviewer + circuit breaker
+Phase 2.5   REFINEMENT         — Trích xuất concern
+Phase 2.7   VERIFICATION       — Kiểm tra deterministic, không LLM
+Phase 2.8   SEMANTIC CHECK     — Phân tích cross-model Codex
+Phase 3     DESIGN EXTRACT     — Trích xuất ngữ cảnh thiết kế/Figma
+Phase 4.5   TASK DECOMP        — Xác minh phân rã task
+Phase 5     WORK               — Swarm implementation
+Phase 5.3   DESIGN VERIFY      — Xác minh implementation theo thiết kế
+Phase 5.5   GAP ANALYSIS       — Tuân thủ plan-to-code (deterministic)
+Phase 5.6   CODEX GAP          — Phát hiện gap cross-model
+Phase 5.8   GAP FIX            — Team tự sửa gap
+Phase 5.9   GOLDMASK VERIFY    — Xác minh blast-radius
+Phase 6     CODE REVIEW        — Roundtable Circle (--deep)
+Phase 6.5   GOLDMASK CORR      — Tổng hợp investigation
+Phase 7     MEND               — Sửa finding song song
+Phase 7.5   VERIFY MEND        — Gate hội tụ (thích ứng)
+Phase 7.6   DESIGN ITERATE     — Lặp cải tiến thiết kế
+Phase 7.7   TEST               — Test 3 tầng theo diff
+Phase 7.8   TEST CRITIQUE      — Phân tích coverage gap
+Phase 8.5   PRE-SHIP           — Kiểm tra validation
+Phase 8.55  RELEASE CHECK      — Kiểm tra CHANGELOG + breaking changes
+Phase 9     SHIP               — Tạo PR
+Phase 9.1   BOT REVIEW         — Chờ bot review bên ngoài
+Phase 9.2   PR COMMENTS        — Giải quyết finding bot
+Phase 9.5   MERGE              — Rebase + squash merge
 ```
 
-Mỗi phase triệu hồi team mới với **giới hạn tool** và **ngân sách thời gian** riêng.
+Mỗi phase kích hoạt team mới với **giới hạn tool** và **ngân sách thời gian** riêng.
 
 ### 4.2 Checkpoint-Resume System
 
-**Vấn đề**: Pipeline 23 phase chạy 30-90 phút chắc chắn gặp gián đoạn.
+**Vấn đề**: Pipeline 26 phase chạy 30-90 phút chắc chắn gặp gián đoạn.
 
 **Giải pháp**: Checkpoint bền vững tại `.claude/arc/{id}/checkpoint.json`:
 - Lưu sau mỗi phase với **SHA-256 hash** xác minh tính toàn vẹn artifact
@@ -482,12 +494,12 @@ Mọi hook script phải: kiểm tra `config_dir` khớp → kiểm tra `owner_p
 |----------|---------|
 | Tổng giải pháp kỹ thuật | 30 |
 | Hook scripts | 28 |
-| Agent chuyên biệt | 82 |
-| Skills | 35 |
-| Phase pipeline arc | 23 |
+| Agent chuyên biệt | 90 |
+| Skills | 43 |
+| Phase pipeline arc | 26 |
 | Tier hội tụ review | 3 |
 | Lớp phân tích tác động | 3 |
-| Tầng bộ nhớ | 5 |
+| Tầng memory | 5 |
 | Reviewer chuyên stack | 11 |
 | Enforcement hook | 8 |
 

@@ -16,7 +16,7 @@ actual `.claude/talisman.yml`.
 
 ### Why a dedicated skill (not part of tarnished)?
 - Tarnished is a lightweight ROUTER — it delegates, doesn't implement
-- Talisman operations require deep configuration knowledge (21 sections, 100+ keys)
+- Talisman operations require deep configuration knowledge (many sections, 100+ keys)
 - Keeping it separate follows the single-responsibility principle
 - Tarnished routes to `/rune:talisman` via fast-path keyword
 
@@ -37,7 +37,7 @@ actual `.claude/talisman.yml`.
 
 ## Files
 - `SKILL.md` — Main skill (subcommand routing, 5 workflows)
-- `references/talisman-sections.md` — All 21 sections with key descriptions
+- `references/talisman-sections.md` — Top-level sections with key descriptions
 - `CREATION-LOG.md` — This file
 
 ## Dependencies

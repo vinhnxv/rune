@@ -45,7 +45,7 @@ using multi-agent research and synthesis.
 
 ```
 /rune:plan add user authentication     # Full pipeline (brainstorm + research + synthesize + review)
-/rune:plan --quick fix the search bug  # Quick mode (research + synthesize only)
+/rune:plan --quick fix the search bug  # Quick mode (research + synthesize + review)
 ```
 
 ## What Happens

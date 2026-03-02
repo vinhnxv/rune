@@ -169,6 +169,58 @@ async def _cmd_react(client: FigmaClient, args: argparse.Namespace) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _add_fetch_subparser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the 'fetch' subcommand."""
+    p = subparsers.add_parser(
+        "fetch", help="Fetch design and return IR tree",
+        epilog="Example:\n  %(prog)s https://www.figma.com/design/ABC/Title --depth 3",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("url", help="Figma design URL")
+    p.add_argument("--depth", type=int, default=2, help="API traversal depth (default: 2)")
+    p.set_defaults(func=_cmd_fetch)
+
+
+def _add_inspect_subparser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the 'inspect' subcommand."""
+    p = subparsers.add_parser(
+        "inspect", help="Inspect node properties (fills, strokes, layout, text)",
+        epilog="Example:\n  %(prog)s https://www.figma.com/design/ABC/Title?node-id=1-3",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("url", help="Figma URL with ?node-id=... parameter")
+    p.set_defaults(func=_cmd_inspect)
+
+
+def _add_list_subparser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the 'list' subcommand."""
+    p = subparsers.add_parser(
+        "list", help="List all components in a Figma file",
+        epilog="Example:\n  %(prog)s https://www.figma.com/design/ABC/Title",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("url", help="Figma file URL")
+    p.set_defaults(func=_cmd_list)
+
+
+def _add_react_subparser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the 'react' subcommand."""
+    p = subparsers.add_parser(
+        "react", help="Convert design to React + Tailwind CSS code",
+        epilog="Example:\n  %(prog)s https://www.figma.com/design/ABC/Title?node-id=1-3 --name MyCard",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("url", help="Figma URL (include ?node-id= for specific component)")
+    p.add_argument("--name", default="", help="Override React component name")
+    p.add_argument("--no-tailwind", action="store_true", help="Skip Tailwind CSS classes")
+    p.add_argument("--extract", action="store_true", help="Extract repeated instances as components")
+    p.add_argument("--aria", action="store_true", help="Add ARIA accessibility attributes to generated JSX")
+    p.add_argument("--code", action="store_true", help="Print raw TSX code to stdout (no JSON wrapping)")
+    p.add_argument("--write", metavar="PATH",
+                   help="Write .tsx file directly (auto-names from component if PATH is a directory)")
+    p.set_defaults(func=_cmd_react)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser with subcommands."""
     parser = argparse.ArgumentParser(
@@ -182,85 +234,16 @@ def build_parser() -> argparse.ArgumentParser:
             "  %(prog)s list https://www.figma.com/design/ABC/Title --token figd_xxx\n"
         ),
     )
+    parser.add_argument("--token", help="Figma API token (default: $FIGMA_TOKEN env var)")
+    parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON output with indentation")
+    parser.add_argument("--output", "-o", metavar="FILE", help="Write output to file instead of stdout")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show progress messages on stderr")
 
-    # Global options
-    parser.add_argument(
-        "--token",
-        help="Figma API token (default: $FIGMA_TOKEN env var)",
-    )
-    parser.add_argument(
-        "--pretty",
-        action="store_true",
-        help="Pretty-print JSON output with indentation",
-    )
-    parser.add_argument(
-        "--output", "-o",
-        metavar="FILE",
-        help="Write output to file instead of stdout",
-    )
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Show progress messages on stderr",
-    )
-
-    subparsers = parser.add_subparsers(
-        dest="command",
-        required=True,
-        metavar="{fetch,inspect,list,react}",
-    )
-
-    # -- fetch --
-    p_fetch = subparsers.add_parser(
-        "fetch",
-        help="Fetch design and return IR tree",
-        epilog="Example:\n  %(prog)s https://www.figma.com/design/ABC/Title --depth 3",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    p_fetch.add_argument("url", help="Figma design URL")
-    p_fetch.add_argument("--depth", type=int, default=2, help="API traversal depth (default: 2)")
-    p_fetch.set_defaults(func=_cmd_fetch)
-
-    # -- inspect --
-    p_inspect = subparsers.add_parser(
-        "inspect",
-        help="Inspect node properties (fills, strokes, layout, text)",
-        epilog="Example:\n  %(prog)s https://www.figma.com/design/ABC/Title?node-id=1-3",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    p_inspect.add_argument("url", help="Figma URL with ?node-id=... parameter")
-    p_inspect.set_defaults(func=_cmd_inspect)
-
-    # -- list --
-    p_list = subparsers.add_parser(
-        "list",
-        help="List all components in a Figma file",
-        epilog="Example:\n  %(prog)s https://www.figma.com/design/ABC/Title",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    p_list.add_argument("url", help="Figma file URL")
-    p_list.set_defaults(func=_cmd_list)
-
-    # -- react --
-    p_react = subparsers.add_parser(
-        "react",
-        help="Convert design to React + Tailwind CSS code",
-        epilog="Example:\n  %(prog)s https://www.figma.com/design/ABC/Title?node-id=1-3 --name MyCard",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    p_react.add_argument("url", help="Figma URL (include ?node-id= for specific component)")
-    p_react.add_argument("--name", default="", help="Override React component name")
-    p_react.add_argument("--no-tailwind", action="store_true", help="Skip Tailwind CSS classes")
-    p_react.add_argument("--extract", action="store_true", help="Extract repeated instances as components")
-    p_react.add_argument("--aria", action="store_true", help="Add ARIA accessibility attributes to generated JSX")
-    p_react.add_argument("--code", action="store_true", help="Print raw TSX code to stdout (no JSON wrapping)")
-    p_react.add_argument(
-        "--write",
-        metavar="PATH",
-        help="Write .tsx file directly (auto-names from component if PATH is a directory)",
-    )
-    p_react.set_defaults(func=_cmd_react)
-
+    subs = parser.add_subparsers(dest="command", required=True, metavar="{fetch,inspect,list,react}")
+    _add_fetch_subparser(subs)
+    _add_inspect_subparser(subs)
+    _add_list_subparser(subs)
+    _add_react_subparser(subs)
     return parser
 
 
@@ -314,6 +297,26 @@ async def _run(args: argparse.Namespace) -> str:
             os.environ["FIGMA_TOKEN"] = old_token
 
 
+def _emit_output(output: str, args: argparse.Namespace) -> None:
+    """Write output to the appropriate destination (file, --write path, or stdout)."""
+    use_write = getattr(args, "write", None)
+    if use_write:
+        write_path = Path(use_write)
+        if write_path.is_dir() or write_path.suffix not in (".tsx", ".jsx", ".ts", ".js"):
+            write_path = write_path / f"{_extract_component_name(output)}.tsx"
+        write_path = write_path.resolve()
+        write_path.parent.mkdir(parents=True, exist_ok=True)
+        write_path.write_text(output, encoding="utf-8")
+        print(f"  {_green(CHECK)} Written to {write_path}", file=sys.stderr)
+    elif args.output:
+        out_path = Path(args.output).resolve()
+        out_path.write_text(output, encoding="utf-8")
+        if args.verbose:
+            print(f"  {ARROW} Written to {out_path}", file=sys.stderr)
+    else:
+        print(output)
+
+
 def main(argv: list[str] | None = None) -> None:
     """CLI entry point."""
     parser = build_parser()
@@ -338,27 +341,11 @@ def main(argv: list[str] | None = None) -> None:
     except FigmaAPIError as exc:
         print(_red(f"{CROSS} API error: {exc}"), file=sys.stderr)
         sys.exit(2)
-    except Exception as exc:
+    except (RuntimeError, IOError, ValueError, TypeError) as exc:
         print(_red(f"{CROSS} Error: {exc}"), file=sys.stderr)
         sys.exit(3)
 
-    if use_write:
-        write_path = Path(use_write)
-        # Auto-name from component if PATH is a directory (or has no file extension)
-        if write_path.is_dir() or write_path.suffix not in (".tsx", ".jsx", ".ts", ".js"):
-            comp_name = _extract_component_name(output)
-            write_path = write_path / f"{comp_name}.tsx"
-        write_path = write_path.resolve()
-        write_path.parent.mkdir(parents=True, exist_ok=True)
-        write_path.write_text(output, encoding="utf-8")
-        print(f"  {_green(CHECK)} Written to {write_path}", file=sys.stderr)
-    elif args.output:
-        out_path = Path(args.output).resolve()
-        out_path.write_text(output, encoding="utf-8")
-        if args.verbose:
-            print(f"  {ARROW} Written to {out_path}", file=sys.stderr)
-    else:
-        print(output)
+    _emit_output(output, args)
 
 
 if __name__ == "__main__":

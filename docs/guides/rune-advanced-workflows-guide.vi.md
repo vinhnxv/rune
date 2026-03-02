@@ -1,18 +1,26 @@
 # Hướng dẫn Rune (Tiếng Việt): `/rune:arc-hierarchy`, `/rune:arc-issues`, và `/rune:echoes`
 
-Hướng dẫn này bao gồm các workflow nâng cao của Rune dành cho người dùng chuyên sâu:
+Hướng dẫn này bao gồm các workflow nâng cao của Rune dành cho người dùng đã quen vận hành:
 - `/rune:arc-hierarchy` — thực thi phân rã plan cha/con theo thứ tự.
 - `/rune:arc-issues` — thực thi batch dựa trên GitHub Issues.
-- `/rune:echoes` — quản lý bộ nhớ agent bền vững.
+- `/rune:echoes` — quản lý agent memory bền vững.
 - `/rune:learn` — session self-learning (v1.126.0+).
-- `/rune:test-browser` — standalone browser E2E testing (v1.126.0+).
-- `/rune:debug` — parallel hypothesis debugging.
+- `/rune:test-browser` — kiểm tra E2E trình duyệt độc lập (v1.126.0+).
+- `/rune:debug` — debug song song theo nhiều giả thuyết.
 
 Các hướng dẫn liên quan:
 - [Hướng dẫn arc và batch (arc/arc-batch)](rune-arc-and-batch-guide.vi.md)
 - [Hướng dẫn planning (devise/forge/plan-review/inspect)](rune-planning-and-plan-quality-guide.vi.md)
 - [Hướng dẫn review và audit (appraise/audit/mend)](rune-code-review-and-audit-guide.vi.md)
 - [Hướng dẫn thực thi (strive/goldmask)](rune-work-execution-guide.vi.md)
+
+## Đọc nhanh (2 phút)
+
+- Nhiều plan con phụ thuộc nhau: dùng `/rune:arc-hierarchy`.
+- Nhiều GitHub issues cần xử lý hàng loạt: dùng `/rune:arc-issues`.
+- Muốn lưu bài học và quy ước dự án: dùng `/rune:echoes` + `/rune:learn`.
+- Muốn test browser độc lập hoặc debug khó: dùng `/rune:test-browser` và `/rune:debug`.
+- Thuật ngữ tham khảo: [Thuật ngữ Rune (Tiếng Việt)](rune-glossary.vi.md).
 
 ---
 
@@ -23,10 +31,10 @@ Các hướng dẫn liên quan:
 | Thực thi plan cha với các plan con theo thứ tự | `/rune:arc-hierarchy plans/parent-plan.md` |
 | Xử lý GitHub issues như hàng đợi | `/rune:arc-issues --label "rune:ready"` |
 | Xử lý các issue cụ thể | `/rune:arc-issues 42 55 78` |
-| Khởi tạo bộ nhớ agent cho dự án | `/rune:echoes init` |
-| Xem trạng thái bộ nhớ theo vai trò | `/rune:echoes show` |
+| Khởi tạo agent memory cho dự án | `/rune:echoes init` |
+| Xem trạng thái memory theo vai trò | `/rune:echoes show` |
 | Ghi nhớ vĩnh viễn | `/rune:echoes remember "Luôn dùng UTC timestamps"` |
-| Dọn dẹp bộ nhớ cũ | `/rune:echoes prune` |
+| Dọn dẹp memory cũ | `/rune:echoes prune` |
 | Trích xuất bài học từ session hiện tại | `/rune:learn` |
 | Chạy browser E2E test không cần arc | `/rune:test-browser` |
 | Chạy browser test cho PR cụ thể | `/rune:test-browser 42` |
@@ -39,8 +47,8 @@ Các hướng dẫn liên quan:
 ### 2.1 Khi nào dùng
 
 Dùng plan phân cấp khi feature có:
-- Nhiều giai đoạn implementation phải chạy theo thứ tự nghiêm ngặt.
-- Dependency artifact giữa các giai đoạn (giai đoạn trước tạo type/file cho giai đoạn sau).
+- Nhiều phase implementation phải chạy theo thứ tự nghiêm ngặt.
+- Dependency artifact giữa các phase (phase trước tạo type/file cho phase sau).
 - Task quá lớn cho một lần arc nhưng quá liên kết để tách thành plan độc lập.
 
 ### 2.2 Quy trình
@@ -48,7 +56,7 @@ Dùng plan phân cấp khi feature có:
 1. **Lập plan** — chạy `/rune:devise` và chọn "Hierarchical" tại Phase 2.5 (xuất hiện khi complexity >= 0.65).
 2. **Kiểm tra** — xem bảng thực thi và ma trận dependency contract của plan cha.
 3. **Thực thi** — chạy `/rune:arc-hierarchy plans/parent-plan.md`.
-4. **Mỗi plan con** chạy pipeline arc 26 giai đoạn đầy đủ (forge → work → review → mend → test → ship).
+4. **Mỗi plan con** chạy pipeline arc 26 phase đầy đủ (forge → work → review → mend → test → ship).
 5. **Một PR duy nhất** vào main được tạo sau khi tất cả plan con hoàn thành.
 
 ### 2.3 Các flag
@@ -157,7 +165,7 @@ Dùng arc-issues khi bạn có backlog GitHub issues sẵn sàng để implement
 
 1. Body issue được sanitize và chuyển thành file plan trong `tmp/gh-plans/`.
 2. Chất lượng plan được kiểm tra (body >= 50 ký tự, hoặc `--force` để bỏ qua).
-3. Pipeline arc 26 giai đoạn đầy đủ chạy (forge → work → review → mend → test → ship → merge).
+3. Pipeline arc 26 phase đầy đủ chạy (forge → work → review → mend → test → ship → merge).
 4. Thành công: PR với `Fixes #{number}`, comment thành công, label `rune:done`.
 5. Thất bại: comment lỗi, label `rune:failed`.
 
@@ -178,11 +186,11 @@ Nếu phiên crash giữa chừng, issues có thể giữ label `rune:in-progres
 
 ---
 
-## 4. `/rune:echoes` — Bộ nhớ Agent
+## 4. `/rune:echoes` — Agent Memory
 
 ### 4.1 Echoes là gì
 
-Rune Echoes là hệ thống bộ nhớ bền vững lưu trong `.claude/echoes/`. Sau các lần review, audit, và implementation, agent lưu lại pattern và bài học. Các phiên sau đọc echoes này để cải thiện chất lượng theo thời gian.
+Rune Echoes là hệ thống agent memory bền vững lưu trong `.claude/echoes/`. Sau các lần review, audit, và implementation, agent lưu lại pattern và bài học. Các phiên sau đọc echoes này để cải thiện chất lượng theo thời gian.
 
 ### 4.2 Vòng đời năm tầng
 
@@ -197,7 +205,7 @@ Rune Echoes là hệ thống bộ nhớ bền vững lưu trong `.claude/echoes/
 ### 4.3 Các lệnh
 
 ```bash
-/rune:echoes init                    # Khởi tạo thư mục bộ nhớ cho dự án
+/rune:echoes init                    # Khởi tạo thư mục memory cho dự án
 /rune:echoes show                    # Hiển thị thống kê theo vai trò
 /rune:echoes prune                   # Chấm điểm và lưu trữ entry cũ
 /rune:echoes reset                   # Xóa tất cả echoes (có backup)
@@ -225,7 +233,7 @@ Tạo entry tầng Notes vĩnh viễn và không bao giờ tự xóa. Dùng cho 
 | `/rune:devise` | Echo Reader agent đưa ra bài học liên quan từ quá khứ |
 | `/rune:strive` | Worker đọc pattern implementation từ phiên trước |
 
-### 4.6 Cấu trúc bộ nhớ
+### 4.6 Cấu trúc Memory
 
 ```
 .claude/echoes/
@@ -270,7 +278,7 @@ echoes:
 
 ### 5.1 Chức năng
 
-`/rune:learn` trích xuất pattern có thể tái sử dụng từ session hiện tại và lưu vào Rune Echoes. Chạy pipeline 4 giai đoạn:
+`/rune:learn` trích xuất pattern có thể tái sử dụng từ session hiện tại và lưu vào Rune Echoes. Chạy pipeline 4 phase:
 
 1. **Scan** — đọc transcript session để tìm pattern đáng ghi nhớ.
 2. **Detect** — hai detector chuyên biệt:
@@ -382,7 +390,7 @@ Mỗi investigator thu thập cả bằng chứng **xác nhận** và **phủ nh
 /rune:arc-issues --label "rune:ready" --no-merge   # Chạy với gate merge thủ công
 ```
 
-### 8.3 Xây dựng bộ nhớ dự án từ đầu
+### 8.3 Xây dựng agent memory dự án từ đầu
 
 ```bash
 /rune:echoes init                    # Thiết lập thư mục

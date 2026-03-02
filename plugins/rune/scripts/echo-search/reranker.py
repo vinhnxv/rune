@@ -126,6 +126,49 @@ def _extract_from_envelope(envelope: Any) -> List[Dict[str, Any]]:
     )
 
 
+def _parse_json_envelope(text: str) -> Optional[List[Dict[str, Any]]]:
+    """Try to parse text as a JSON envelope and extract scores.
+
+    Returns None if the text does not end with ``}`` or cannot be parsed.
+    """
+    if not text.endswith("}"):
+        return None
+
+    envelope = None
+    try:
+        envelope = json.loads(text)
+    except json.JSONDecodeError:
+        # EDGE-002: non-JSON mixed into stdout — try last line
+        last_line = text.splitlines()[-1].strip()
+        try:
+            envelope = json.loads(last_line)
+        except json.JSONDecodeError:
+            raise ValueError(
+                f"Cannot parse CLI output as JSON: {text[:200]}"
+            )
+
+    if envelope is not None:
+        return _extract_from_envelope(envelope)
+    return None
+
+
+def _extract_plain_text_scores(text: str) -> Optional[List[Dict[str, Any]]]:
+    """Try to extract a JSON array of scores from plain text output.
+
+    EDGE-023: Handles older CLI without ``--output-format json``.
+    Returns None if no valid JSON array is found.
+    """
+    start = text.find("[")
+    end = text.rfind("]")
+    if start != -1 and end > start:
+        try:
+            arr = json.loads(text[start:end + 1])
+            return _validate_scores(arr)
+        except json.JSONDecodeError:
+            pass
+    return None
+
+
 def parse_cli_output(stdout: str) -> List[Dict[str, Any]]:
     """Parse the ``claude --output-format json`` output envelope.
 
@@ -150,33 +193,14 @@ def parse_cli_output(stdout: str) -> List[Dict[str, Any]]:
     text = stdout.strip()
 
     # Try JSON envelope first (normal path)
-    if text.endswith("}"):
-        envelope = None
-        try:
-            envelope = json.loads(text)
-        except json.JSONDecodeError:
-            # EDGE-002: non-JSON mixed into stdout — try last line
-            last_line = text.splitlines()[-1].strip()
-            try:
-                envelope = json.loads(last_line)
-            except json.JSONDecodeError:
-                raise ValueError(
-                    f"Cannot parse CLI output as JSON: {text[:200]}"
-                )
-
-        if envelope is not None:
-            return _extract_from_envelope(envelope)
+    result = _parse_json_envelope(text)
+    if result is not None:
+        return result
 
     # EDGE-023: Plain text — try to find a JSON array in the output
-    # Look for the first '[' and last ']' to extract embedded JSON
-    start = text.find("[")
-    end = text.rfind("]")
-    if start != -1 and end > start:
-        try:
-            arr = json.loads(text[start:end + 1])
-            return _validate_scores(arr)
-        except json.JSONDecodeError:
-            pass
+    result = _extract_plain_text_scores(text)
+    if result is not None:
+        return result
 
     raise ValueError(f"Cannot extract scores from CLI output: {text[:200]}")
 
@@ -224,28 +248,9 @@ def _validate_scores(data: Any) -> List[Dict[str, Any]]:
 # Async subprocess execution
 # ---------------------------------------------------------------------------
 
-async def _invoke_haiku(prompt: str, timeout: float) -> str:
-    """Invoke the claude CLI with Haiku model and return stdout.
-
-    Uses ``asyncio.create_subprocess_exec`` (never ``subprocess.run``)
-    since this runs inside the MCP server's async event loop.
-
-    Implements subprocess orphan prevention (EDGE-004):
-    ``proc.kill()`` + ``await proc.wait()`` on timeout.
-
-    Args:
-        prompt: The prompt to send to the model.
-        timeout: Maximum seconds to wait for the process.
-
-    Returns:
-        Raw stdout string from the CLI.
-
-    Raises:
-        asyncio.TimeoutError: If the process exceeds the timeout.
-        OSError: If the claude CLI cannot be started (EDGE-001).
-        RuntimeError: If the process exits with non-zero return code.
-    """
-    proc = await asyncio.create_subprocess_exec(
+async def _create_haiku_process(prompt: str) -> asyncio.subprocess.Process:
+    """Create a claude CLI subprocess for Haiku model invocation."""
+    return await asyncio.create_subprocess_exec(
         "claude",
         "--model", "haiku",
         "--output-format", "json",
@@ -255,16 +260,18 @@ async def _invoke_haiku(prompt: str, timeout: float) -> str:
         stderr=asyncio.subprocess.PIPE,  # EDGE-005: capture stderr
     )
 
-    try:
-        stdout_bytes, stderr_bytes = await asyncio.wait_for(
-            proc.communicate(), timeout=timeout
-        )
-    except asyncio.TimeoutError:
-        # EDGE-004: Kill orphaned subprocess and reap it
-        proc.kill()
-        await proc.wait()
-        raise
 
+def _check_haiku_result(
+    proc: asyncio.subprocess.Process,
+    stdout_bytes: Optional[bytes],
+    stderr_bytes: Optional[bytes],
+) -> str:
+    """Validate CLI exit code and return decoded stdout.
+
+    Raises:
+        RuntimeError: If the process exits with non-zero return code
+            or returns empty stdout.
+    """
     # EDGE-005: Log stderr on failure
     stderr_text = (stderr_bytes or b"").decode("utf-8", errors="replace").strip()
     stdout_text = (stdout_bytes or b"").decode("utf-8", errors="replace").strip()
@@ -288,53 +295,57 @@ async def _invoke_haiku(prompt: str, timeout: float) -> str:
     return stdout_text
 
 
+async def _invoke_haiku(prompt: str, timeout: float) -> str:
+    """Invoke the claude CLI with Haiku model and return stdout.
+
+    Uses ``asyncio.create_subprocess_exec`` (never ``subprocess.run``)
+    since this runs inside the MCP server's async event loop.
+
+    Implements subprocess orphan prevention (EDGE-004):
+    ``proc.kill()`` + ``await proc.wait()`` on timeout.
+
+    Args:
+        prompt: The prompt to send to the model.
+        timeout: Maximum seconds to wait for the process.
+
+    Returns:
+        Raw stdout string from the CLI.
+
+    Raises:
+        asyncio.TimeoutError: If the process exceeds the timeout.
+        OSError: If the claude CLI cannot be started (EDGE-001).
+        RuntimeError: If the process exits with non-zero return code.
+    """
+    proc = await _create_haiku_process(prompt)
+
+    try:
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(
+            proc.communicate(), timeout=timeout
+        )
+    except asyncio.TimeoutError:
+        # EDGE-004: Kill orphaned subprocess and reap it
+        proc.kill()
+        await proc.wait()
+        raise
+
+    return _check_haiku_result(proc, stdout_bytes, stderr_bytes)
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
-async def rerank_results(
-    query: str,
+def _rerank_should_skip(
     results: List[Dict[str, Any]],
-    config: Optional[Dict[str, Any]] = None,
-) -> List[Dict[str, Any]]:
-    """Rerank search results using Haiku semantic scoring.
-
-    Falls back to the original BM25-ranked results when:
-    - Reranking is disabled in config
-    - The ``claude`` CLI is not available
-    - Results count is below the threshold
-    - The CLI invocation times out or errors
-
-    Each result in the returned list gains a ``rerank_score`` field
-    (float 0.0-1.0) when reranking succeeds. When falling back, results
-    are returned unchanged.
-
-    Args:
-        query: The original search query.
-        results: BM25-ranked search results (list of dicts with ``id``,
-            ``content_preview``, ``score``, etc.).
-        config: Reranking config dict from talisman, e.g.
-            ``{"enabled": True, "threshold": 25, "max_candidates": 40, "timeout": 4}``.
-            Defaults to all-disabled if ``None``.
-
-    Returns:
-        Reranked list of result dicts (sorted by ``rerank_score`` desc),
-        or original results on fallback.
-    """
-    if config is None:
-        config = {}
-
+    config: Dict[str, Any],
+) -> Optional[List[Dict[str, Any]]]:
+    """Check preconditions for reranking. Returns results if skip, else None."""
     enabled = config.get("enabled", False)
     if not enabled:
         logger.debug("Reranking disabled in config")
         return results
 
     threshold = config.get("threshold", DEFAULT_THRESHOLD)
-    max_candidates = config.get("max_candidates", DEFAULT_MAX_CANDIDATES)
-    max_candidates = min(max_candidates, 100)
-    timeout = config.get("timeout", DEFAULT_TIMEOUT)
-
-    # Not enough results to justify the latency cost
     if len(results) < threshold:
         logger.debug(
             "Skipping reranking: %d results below threshold %d",
@@ -348,24 +359,16 @@ async def rerank_results(
         logger.warning("claude CLI not found on PATH; falling back to BM25")
         return results
 
-    # Cap candidates for cost control
-    candidates = results[:max_candidates]
+    return None
 
-    prompt = build_rerank_prompt(query, candidates)
 
-    try:
-        stdout = await _invoke_haiku(prompt, timeout)
-        scores = parse_cli_output(stdout)
-    except asyncio.TimeoutError:
-        logger.warning(
-            "Reranking timed out after %.1fs; falling back to BM25", timeout
-        )
-        return results
-    except (OSError, RuntimeError, ValueError) as exc:
-        logger.warning("Reranking failed: %s; falling back to BM25", exc)
-        return results
-
-    # Build a lookup from scored IDs → rerank_score
+def _merge_rerank_scores(
+    candidates: List[Dict[str, Any]],
+    scores: List[Dict[str, Any]],
+    all_results: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Merge rerank scores into candidates and sort by relevance."""
+    # Build a lookup from scored IDs -> rerank_score
     score_map: Dict[str, float] = {s["id"]: s["score"] for s in scores}
 
     # Merge rerank scores into results
@@ -382,8 +385,64 @@ async def rerank_results(
     )
 
     # Append any results beyond max_candidates unchanged
-    if len(results) > max_candidates:
-        for result in results[max_candidates:]:
+    if len(all_results) > len(candidates):
+        for result in all_results[len(candidates):]:
             reranked.append(result)
 
     return reranked
+
+
+async def _invoke_and_parse(
+    prompt: str, timeout: float,
+) -> Optional[List[Dict[str, Any]]]:
+    """Invoke Haiku and parse scores, returning None on fallback errors."""
+    try:
+        stdout = await _invoke_haiku(prompt, timeout)
+        return parse_cli_output(stdout)
+    except asyncio.TimeoutError:
+        logger.warning(
+            "Reranking timed out after %.1fs; falling back to BM25", timeout
+        )
+        return None
+    except (OSError, RuntimeError, ValueError) as exc:
+        logger.warning("Reranking failed: %s; falling back to BM25", exc)
+        return None
+
+
+async def rerank_results(
+    query: str,
+    results: List[Dict[str, Any]],
+    config: Optional[Dict[str, Any]] = None,
+) -> List[Dict[str, Any]]:
+    """Rerank search results using Haiku semantic scoring.
+
+    Falls back to the original BM25-ranked results when reranking is
+    disabled, the ``claude`` CLI is unavailable, results are below
+    threshold, or the CLI invocation times out or errors.
+
+    Each result gains a ``rerank_score`` (0.0-1.0) when reranking
+    succeeds. When falling back, results are returned unchanged.
+
+    Args:
+        query: The original search query.
+        results: BM25-ranked search results (list of dicts).
+        config: Reranking config from talisman. Defaults to disabled.
+
+    Returns:
+        Reranked results (sorted by ``rerank_score`` desc), or originals.
+    """
+    config = config or {}
+
+    skip_result = _rerank_should_skip(results, config)
+    if skip_result is not None:
+        return skip_result
+
+    max_candidates = min(config.get("max_candidates", DEFAULT_MAX_CANDIDATES), 100)
+    timeout = config.get("timeout", DEFAULT_TIMEOUT)
+    candidates = results[:max_candidates]
+
+    scores = await _invoke_and_parse(build_rerank_prompt(query, candidates), timeout)
+    if scores is None:
+        return results
+
+    return _merge_rerank_scores(candidates, scores, results)

@@ -213,43 +213,46 @@ Specialist reviewers are auto-summoned when stack confidence exceeds the thresho
 
 ## 4. Pipeline Orchestration
 
-### 4.1 Arc 23-Phase Pipeline
+### 4.1 Arc 26-Phase Pipeline
 
 **Problem**: End-to-end code delivery (from plan to merged PR) involves many sequential steps with dependencies, quality gates, and potential failures at each stage.
 
-**Solution**: A 23-phase orchestration pipeline with modular phase delegation:
+**Solution**: A 26-phase orchestration pipeline with modular phase delegation:
 
 ```
-Phase 1    FORGE          — Research enrichment of plan
-Phase 2    PLAN REVIEW    — 3-reviewer circuit breaker
-Phase 2.5  REFINEMENT     — Concern extraction, orchestrator-only
-Phase 2.7  VERIFICATION   — Deterministic checks, zero LLM
-Phase 2.8  SEMANTIC CHECK — Codex cross-model analysis
-Phase 4.5  TASK DECOMP    — Task granularity validation
-Phase 5    WORK           — Swarm implementation
-Phase 5.5  GAP ANALYSIS   — Plan-to-code compliance (deterministic)
-Phase 5.6  CODEX GAP      — Cross-model gap detection
-Phase 5.8  GAP FIX        — Auto-remediation team
-Phase 5.7  GOLDMASK       — Blast-radius analysis
-Phase 6    CODE REVIEW    — Roundtable Circle (--deep)
-Phase 6.5  GOLDMASK CORR  — Investigation findings synthesis
-Phase 7    MEND           — Parallel finding resolution
-Phase 7.5  VERIFY MEND    — Convergence gate (adaptive)
-Phase 7.7  TEST           — Diff-scoped 3-tier testing
-Phase 7.8  TEST CRITIQUE  — Coverage gap analysis
-Phase 8.5  PRE-SHIP       — Validation checks
-Phase 8.55 RELEASE CHECK  — CHANGELOG + breaking changes
-Phase 9    SHIP           — PR creation
-Phase 9.1  BOT REVIEW     — Wait for external review bots
-Phase 9.2  PR COMMENTS    — Resolve bot findings
-Phase 9.5  MERGE          — Rebase + squash merge
+Phase 1     FORGE              — Research enrichment of plan
+Phase 2     PLAN REVIEW        — 3-reviewer circuit breaker
+Phase 2.5   REFINEMENT         — Concern extraction, orchestrator-only
+Phase 2.7   VERIFICATION       — Deterministic checks, zero LLM
+Phase 2.8   SEMANTIC CHECK     — Codex cross-model analysis
+Phase 3     DESIGN EXTRACT     — Figma/design context extraction
+Phase 4.5   TASK DECOMP        — Task granularity validation
+Phase 5     WORK               — Swarm implementation
+Phase 5.3   DESIGN VERIFY      — Design implementation verification
+Phase 5.5   GAP ANALYSIS       — Plan-to-code compliance (deterministic)
+Phase 5.6   CODEX GAP          — Cross-model gap detection
+Phase 5.8   GAP FIX            — Auto-remediation team
+Phase 5.9   GOLDMASK VERIFY    — Blast-radius verification
+Phase 6     CODE REVIEW        — Roundtable Circle (--deep)
+Phase 6.5   GOLDMASK CORR      — Investigation findings synthesis
+Phase 7     MEND               — Parallel finding resolution
+Phase 7.5   VERIFY MEND        — Convergence gate (adaptive)
+Phase 7.6   DESIGN ITERATE     — Design refinement loop
+Phase 7.7   TEST               — Diff-scoped 3-tier testing
+Phase 7.8   TEST CRITIQUE      — Coverage gap analysis
+Phase 8.5   PRE-SHIP           — Validation checks
+Phase 8.55  RELEASE CHECK      — CHANGELOG + breaking changes
+Phase 9     SHIP               — PR creation
+Phase 9.1   BOT REVIEW         — Wait for external review bots
+Phase 9.2   PR COMMENTS        — Resolve bot findings
+Phase 9.5   MERGE              — Rebase + squash merge
 ```
 
 Each phase summons a fresh team with **per-phase tool restrictions** and **per-phase time budgets** for least-privilege execution.
 
 ### 4.2 Checkpoint-Resume System
 
-**Problem**: A 23-phase pipeline running for 30-90 minutes will inevitably encounter interruptions — crashes, token limits, session timeouts.
+**Problem**: A 26-phase pipeline running for 30-90 minutes will inevitably encounter interruptions — crashes, token limits, session timeouts.
 
 **Solution**: Persistent checkpointing at `.claude/arc/{id}/checkpoint.json`:
 - Saves after each phase completion with **SHA-256 hashes** for artifact integrity
@@ -536,9 +539,9 @@ Security-critical hooks exit 2 (blocking) if `jq` is missing. Non-security hooks
 |----------|-------|
 | Total unique solutions | 30 |
 | Hook scripts | 28 |
-| Specialized agents | 82 |
-| Skills | 35 |
-| Arc pipeline phases | 23 |
+| Specialized agents | 90 |
+| Skills | 43 |
+| Arc pipeline phases | 26 |
 | Review convergence tiers | 3 |
 | Impact analysis layers | 3 |
 | Memory tiers | 5 |

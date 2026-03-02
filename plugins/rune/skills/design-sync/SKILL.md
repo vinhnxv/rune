@@ -92,15 +92,62 @@ if figmaUrl AND NOT FIGMA_URL_PATTERN.test(figmaUrl):
   AskUserQuestion("Invalid Figma URL format. Please provide a valid Figma URL.")
   STOP
 
+// Parse URL into components for reuse by Step 3.5 and Phase 1
+parsedUrl = parseFigmaUrl(figmaUrl)
+// parsedUrl = { fileKey: "abc123", nodeId: "1-3" | null, type: "design"|"file" }
+// See references/figma-url-parser.md for full parser logic
+
 // readTalismanSection: "misc"
 config = readTalismanSection("misc")
 if NOT config?.design_sync?.enabled:
   AskUserQuestion("Design sync is disabled. Enable it in talisman.yml:\n\ndesign_sync:\n  enabled: true")
   STOP
 
-// Step 4: Check Figma MCP availability
-// Try calling figma_list_components — if MCP not available, degrade gracefully
-figmaMcpAvailable = true  // set false if MCP call fails
+// Step 3.5: MCP Provider Detection
+// Read talisman override — auto|rune|official|desktop (default: "auto")
+figmaProviderOverride = config?.design_sync?.figma_provider ?? "auto"
+mcpProvider = null  // "rune" | "official" | "desktop" | null
+
+if figmaProviderOverride === "rune" OR figmaProviderOverride === "auto":
+  // Probe Rune MCP — use figma_fetch_design(depth=1) as cheap availability check
+  try:
+    figma_fetch_design(url=figmaUrl, depth=1)
+    mcpProvider = "rune"
+  catch:
+    // Rune MCP not available — fall through to next provider
+
+if mcpProvider === null AND (figmaProviderOverride === "official" OR figmaProviderOverride === "auto"):
+  // Probe Official Figma MCP
+  try:
+    mcp__claude_ai_Figma__get_metadata(fileKey=parsedUrl.fileKey)
+    mcpProvider = "official"
+  catch:
+    // Official MCP not available — fall through
+
+if mcpProvider === null AND figmaProviderOverride === "desktop":
+  // Probe Desktop MCP bridge directly
+  try:
+    mcp__figma_desktop__get_selection()
+    mcpProvider = "desktop"
+  catch:
+    // Desktop bridge not available
+
+if mcpProvider === null:
+  // No provider detected — show setup options
+  AskUserQuestion(
+    "No Figma MCP provider detected. Choose a setup option:\n\n" +
+    "1. **Rune MCP** (recommended): Add to .mcp.json — see scripts/figma-to-react/start.sh\n" +
+    "2. **Official Figma MCP**: Add FIGMA_TOKEN to .mcp.json official server config\n" +
+    "3. **Desktop MCP**: Open Figma Desktop → Enable Dev Mode (Shift+D) → enable MCP bridge\n\n" +
+    "After setup, set `design_sync.figma_provider` in talisman.yml to skip auto-detection."
+  )
+  STOP
+
+// Store mcp_provider in state file (written at Step 7)
+stateExtras = { mcp_provider: mcpProvider, parsed_url: parsedUrl }
+
+// Step 4: (removed — MCP availability now checked in Step 3.5)
+figmaMcpAvailable = mcpProvider !== null
 
 // Step 5: Check agent-browser availability (for Phase 2.5)
 agentBrowserAvailable = checkAgentBrowser()  // non-blocking, used later
@@ -117,6 +164,8 @@ Write(stateFile, JSON.stringify({
   status: "active",
   phase: "pre-flight",
   figma_url: figmaUrl,
+  parsed_url: stateExtras.parsed_url,
+  mcp_provider: stateExtras.mcp_provider,
   work_dir: workDir,
   config_dir: CHOME,
   owner_pid: "$PPID",
@@ -321,6 +370,11 @@ updateState({ status: "completed", phase: "cleanup", fidelity_score: overallScor
 # talisman.yml
 design_sync:
   enabled: false                         # Master toggle (default: false)
+  figma_provider: auto                   # MCP provider: auto|rune|official|desktop (default: auto)
+                                         #   auto     — probe Rune first, then Official, then fail
+                                         #   rune     — Rune figma-to-react MCP only (no FIGMA_TOKEN needed)
+                                         #   official — Official Figma MCP only (requires FIGMA_TOKEN)
+                                         #   desktop  — Figma Desktop bridge (requires Dev Mode Shift+D)
   max_extraction_workers: 2              # Extraction phase workers
   max_implementation_workers: 3          # Implementation phase workers
   max_iteration_workers: 2              # Iteration phase workers
@@ -344,11 +398,34 @@ All state files follow session isolation rules:
   "session_id": "abc-123",
   "started_at": "20260225-120000",
   "figma_url": "https://www.figma.com/design/...",
+  "parsed_url": { "fileKey": "abc123", "nodeId": "1-3", "type": "design" },
+  "mcp_provider": "rune",
   "work_dir": "tmp/design-sync/20260225-120000",
   "components": [],
   "fidelity_scores": {}
 }
 ```
+
+## Error Handling
+
+### MCP Provider Errors
+
+| Error | Rune MCP | Official MCP | Desktop MCP |
+|-------|----------|--------------|-------------|
+| Provider not detected | `figma_fetch_design` probe failed — check `.mcp.json` for Rune server entry | `mcp__claude_ai_Figma__get_metadata` probe failed — check `FIGMA_TOKEN` env var | `mcp__figma_desktop__get_selection` probe failed — Open Figma Desktop → Enable Dev Mode (Shift+D) |
+| Auth failure | Rune MCP uses bundled token — check `scripts/figma-to-react/start.sh` config | `FIGMA_TOKEN` invalid or expired — regenerate at figma.com/settings | Desktop bridge requires active Figma Desktop session |
+| File not found | File key invalid or not accessible to configured account | Same | Same — file must be open in Desktop |
+| Rate limit | Rune MCP handles internally | Figma REST API rate-limited (429) — retry after delay | N/A (local IPC) |
+| Node not found | `node-id` in URL does not exist — use `figma_list_components` to discover valid IDs | Same | Selection-based — ensure node is selected in Figma |
+
+### Setup Options (when no provider detected)
+
+1. **Rune MCP** (recommended, no personal token needed): Add to `.mcp.json`:
+   ```json
+   { "mcpServers": { "figma-to-react": { "command": "bash", "args": ["scripts/figma-to-react/start.sh"] } } }
+   ```
+2. **Official Figma MCP** (requires personal token): Set `FIGMA_TOKEN=figd_...` in env, configure official MCP server
+3. **Desktop MCP**: Open Figma Desktop → Dev Mode (`Shift+D`) → enable MCP bridge in settings
 
 ## References
 

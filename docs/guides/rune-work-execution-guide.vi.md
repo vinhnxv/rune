@@ -9,6 +9,14 @@ Các hướng dẫn liên quan:
 - [Hướng dẫn planning (devise/forge/plan-review/inspect)](rune-planning-and-plan-quality-guide.vi.md)
 - [Hướng dẫn review và audit (appraise/audit/mend)](rune-code-review-and-audit-guide.vi.md)
 
+## Đọc nhanh (2 phút)
+
+- Muốn triển khai plan: dùng `/rune:strive`.
+- Muốn đo rủi ro trước khi sửa: dùng `/rune:goldmask`.
+- Muốn pipeline đầy đủ từ plan tới PR/merge: dùng `/rune:arc`.
+- Nếu bạn mới dùng, chạy theo thứ tự: `plan -> work -> review`.
+- Thuật ngữ tham khảo: [Thuật ngữ Rune (Tiếng Việt)](rune-glossary.vi.md).
+
 ---
 
 ## 1. Chọn lệnh nhanh
