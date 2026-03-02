@@ -101,7 +101,7 @@ fi
 # Validate URL format (QUAL-001 parity with arc-issues-stop-hook.sh BACK-005)
 if [[ "$PR_URL" == "null" || "$PR_URL" == "none" || -z "$PR_URL" ]]; then
   PR_URL_JSON="null"
-elif [[ "$PR_URL" =~ ^https://[a-zA-Z0-9._/-]+$ ]]; then
+elif [[ "$PR_URL" =~ ^https://github\.com/[a-zA-Z0-9._/-]+$ ]]; then
   PR_URL_JSON="\"${PR_URL}\""
 else
   PR_URL_JSON="null"

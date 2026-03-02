@@ -28,6 +28,7 @@ if (!sbEnabled) {
   log("Storybook verification skipped — storybook.enabled is false in talisman.")
   checkpoint.phases.storybook_verification.status = "skipped"
   checkpoint.phases.storybook_verification.skip_reason = "disabled"
+  checkpoint.phases.storybook_verification.verdict = "SKIPPED"
   checkpoint.phases.storybook_verification.completed_at = new Date().toISOString()
   Write(checkpointPath, checkpoint)
   return  // STOP — Stop hook advances to next phase
@@ -51,6 +52,7 @@ if (!hasStorybookDep && !hasStorybookConfig) {
   log("Storybook verification skipped — Storybook not detected in project.")
   checkpoint.phases.storybook_verification.status = "skipped"
   checkpoint.phases.storybook_verification.skip_reason = "storybook_not_installed"
+  checkpoint.phases.storybook_verification.verdict = "SKIPPED"
   checkpoint.phases.storybook_verification.completed_at = new Date().toISOString()
   Write(checkpointPath, checkpoint)
   return
@@ -62,6 +64,7 @@ if (!workPhase || workPhase.status === "skipped") {
   log("Storybook verification skipped — Phase 5 (WORK) was skipped.")
   checkpoint.phases.storybook_verification.status = "skipped"
   checkpoint.phases.storybook_verification.skip_reason = "work_phase_skipped"
+  checkpoint.phases.storybook_verification.verdict = "SKIPPED"
   checkpoint.phases.storybook_verification.completed_at = new Date().toISOString()
   Write(checkpointPath, checkpoint)
   return
@@ -86,6 +89,7 @@ if (!planHasFrontend && !hasFrontendFiles) {
   log("Storybook verification skipped — no frontend relevance detected.")
   checkpoint.phases.storybook_verification.status = "skipped"
   checkpoint.phases.storybook_verification.skip_reason = "no_frontend_relevance"
+  checkpoint.phases.storybook_verification.verdict = "SKIPPED"
   checkpoint.phases.storybook_verification.completed_at = new Date().toISOString()
   Write(checkpointPath, checkpoint)
   return
@@ -94,9 +98,15 @@ if (!planHasFrontend && !hasFrontendFiles) {
 // 4. Verify Storybook server is running
 // SEC-SBK-004: Validate port is numeric and in valid range
 const sbPort = (() => {
-  const p = parseInt(sbConfig.port ?? 6006)
-  if (isNaN(p) || p < 1024 || p > 65535) {
-    warn("Invalid storybook port — using default 6006")
+  // BACK-002 FIX: Strict numeric validation before parseInt (rejects "6006xyz")
+  const rawPort = String(sbConfig.port ?? 6006)
+  if (!/^\d+$/.test(rawPort)) {
+    warn("Non-numeric storybook port — using default 6006")
+    return 6006
+  }
+  const p = parseInt(rawPort, 10)
+  if (p < 1024 || p > 65535) {
+    warn("Storybook port out of range (1024-65535) — using default 6006")
     return 6006
   }
   return p
@@ -112,6 +122,7 @@ if (sbRunning === "down") {
       warn("Storybook server failed to start. Skipping verification.")
       checkpoint.phases.storybook_verification.status = "skipped"
       checkpoint.phases.storybook_verification.skip_reason = "server_start_failed"
+      checkpoint.phases.storybook_verification.verdict = "SKIPPED"
       checkpoint.phases.storybook_verification.completed_at = new Date().toISOString()
       Write(checkpointPath, checkpoint)
       return
@@ -120,6 +131,7 @@ if (sbRunning === "down") {
     warn("Storybook server not running. Start with: npx storybook dev --port " + sbPort)
     checkpoint.phases.storybook_verification.status = "skipped"
     checkpoint.phases.storybook_verification.skip_reason = "server_not_running"
+    checkpoint.phases.storybook_verification.verdict = "SKIPPED"
     checkpoint.phases.storybook_verification.completed_at = new Date().toISOString()
     Write(checkpointPath, checkpoint)
     return
@@ -131,6 +143,13 @@ const agentBrowserAvailable = Bash("command -v agent-browser > /dev/null 2>&1 &&
 if (!agentBrowserAvailable) {
   warn("Storybook verification: agent-browser not installed. Skipping visual checks.")
   // Fall through — continue with MCP-only if possible, otherwise skip
+}
+
+// 5.5. Check Storybook MCP addon availability (VEIL-002 FIX)
+const hasMcpAddon = hasPackageJson &&
+  (JSON.parse(Read("package.json")).devDependencies?.["@storybook/addon-mcp"])
+if (!hasMcpAddon) {
+  warn("@storybook/addon-mcp not detected — MCP-based story discovery unavailable. Falling back to convention-based discovery.")
 }
 
 // 6. Determine verification mode
@@ -152,10 +171,23 @@ if (changedComponents.length === 0) {
   log("Storybook verification skipped — no component files changed in work phase.")
   checkpoint.phases.storybook_verification.status = "skipped"
   checkpoint.phases.storybook_verification.skip_reason = "no_component_changes"
+  checkpoint.phases.storybook_verification.verdict = "SKIPPED"
   checkpoint.phases.storybook_verification.completed_at = new Date().toISOString()
   Write(checkpointPath, checkpoint)
   return
 }
+
+// ── Task Ownership Contract (VEIL-005 FIX) ──
+// Workers claim tasks via TaskUpdate({ taskId, owner: workerName, status: "in_progress" }).
+// Each task corresponds to one component. Workers self-assign from the unowned pool.
+// No two workers should claim the same task — TaskUpdate is atomic per the SDK.
+// If a worker stalls (>10 min), autoRelease makes the task claimable by another worker.
+
+// ── Session Isolation (QUAL-006 / DOC-001 FIX) ──
+// The team name `arc-storybook-${id}` is scoped by the arc session id.
+// Checkpoint fields (started_at, team_name, verdict) are written to the arc checkpoint
+// which includes config_dir + owner_pid for cross-session safety.
+// prePhaseCleanup() cleans up stale teams from prior sessions before TeamCreate.
 
 // 8. Create team + tasks
 prePhaseCleanup(checkpoint)
@@ -181,17 +213,29 @@ for (const component of changedComponents) {
 }
 
 // 9. Spawn workers
+// VEIL-001 FIX: Read agent instructions and inject into prompt
+// (agent .md files are NOT auto-injected into general-purpose subagent context)
+const agentInstructions = (() => {
+  try { return Read("plugins/rune/agents/work/storybook-reviewer.md") } catch { return "" }
+})()
+
 for (let i = 1; i <= maxWorkers; i++) {
   Agent({
     subagent_type: "general-purpose",
     name: `storybook-reviewer-${i}`,
     team_name: teamName,
-    prompt: `You are storybook-reviewer-${i}. Load and follow the storybook-reviewer agent instructions.
+    prompt: `You are storybook-reviewer-${i}.
+
+=== AGENT INSTRUCTIONS ===
+${agentInstructions}
+=== END AGENT INSTRUCTIONS ===
+
       Team: ${teamName}
       Mode: ${mode}
       Max rounds: ${maxRounds}
       Storybook URL: http://localhost:${sbPort}
       Agent-browser available: ${agentBrowserAvailable}
+      MCP addon available: ${hasMcpAddon}
       ${vsmFiles ? `VSM directory: tmp/arc/${id}/vsm/` : 'No VSM — use UI Quality Audit mode (Mode B heuristic checklist).'}
       Output directory: tmp/arc/${id}/storybook-verification/
 
@@ -232,7 +276,10 @@ for (const report of reports) {
 
 const avgScore = reportCount > 0 ? Math.round(totalScore / reportCount) : 0
 const fidelityThreshold = sbConfig.fidelity_threshold ?? 85
-const overallStatus = avgScore >= fidelityThreshold ? "PASS" : (p1Count > 0 ? "FAIL" : "NEEDS_ATTENTION")
+// VEIL-003 FIX: Explicit timeout verdict — do not mask timeouts as PASS/FAIL
+const overallStatus = result.timedOut
+  ? "TIMEOUT"
+  : avgScore >= fidelityThreshold ? "PASS" : (p1Count > 0 ? "FAIL" : "NEEDS_ATTENTION")
 
 // Write aggregate report
 Write(`tmp/arc/${id}/storybook-report.md`, `# Storybook Verification Report

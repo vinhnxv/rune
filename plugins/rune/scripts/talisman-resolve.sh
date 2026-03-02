@@ -272,7 +272,11 @@ RESOLVED_AT=$(python3 -c "from datetime import datetime, timezone; print(datetim
 
 # Session isolation fields
 # QUAL-008 FIX: Canonicalize config_dir via cd+pwd -P (matches resolve-session-identity.sh)
+# SEC-001 FIX: Canonicalize and validate config_dir path structure
 CURRENT_CFG=$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P) || CURRENT_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+if [[ ! "$CURRENT_CFG" =~ ^/ ]]; then
+  CURRENT_CFG="$HOME/.claude"
+fi
 OWNER_PID="${PPID:-0}"
 
 meta_json=$(jq -n \

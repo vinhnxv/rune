@@ -619,14 +619,14 @@ rune-plugin/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
         │   └── plugin.json       # Plugin manifest (v1.127.0)
-        ├── agents/               # 91 agent definitions
-        │   ├── review/           #   40 review agents
+        ├── agents/               # 95 agent definitions
+        │   ├── review/           #   41 review agents
         │   ├── investigation/    #   24 investigation agents
-        │   ├── utility/          #   14 utility agents
+        │   ├── utility/          #   15 utility agents
         │   ├── research/         #    5 research agents
         │   ├── testing/          #    4 testing agents
-        │   └── work/             #    4 work agents
-        ├── skills/               # 43 skills
+        │   └── work/             #    6 work agents
+        ├── skills/               # 44 skills
         ├── commands/             # 15 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json
