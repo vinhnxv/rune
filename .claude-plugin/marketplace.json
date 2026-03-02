@@ -60,6 +60,7 @@
         "./skills/context-weaving",
         "./skills/debug",
         "./skills/design-sync",
+        "./skills/design-system-discovery",
         "./skills/devise",
         "./skills/elicitation",
         "./skills/figma-to-react",

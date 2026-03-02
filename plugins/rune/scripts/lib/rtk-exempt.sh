@@ -50,6 +50,8 @@ rtk_is_workflow_exempt() {
   fi
 
   # Check each active state file
+  local prev_nullglob
+  prev_nullglob=$(shopt -p nullglob)
   shopt -s nullglob
   local f workflow_type file_status
   for f in "${cwd}"/tmp/.rune-review-*.json \
@@ -73,10 +75,12 @@ rtk_is_workflow_exempt() {
     while IFS= read -r exempt; do
       [[ -z "$exempt" ]] && continue
       if [[ "$workflow_type" == "$exempt" ]]; then
+        eval "$prev_nullglob"
         return 0
       fi
     done <<< "$exempt_workflows"
   done
 
+  eval "$prev_nullglob"
   return 1
 }

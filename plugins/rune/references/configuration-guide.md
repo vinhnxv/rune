@@ -943,7 +943,7 @@ Use when auto-detection fails (monorepos, custom frameworks, polyglot projects).
 
 Optional PreToolUse hook that rewrites Bash commands with an `rtk` prefix to compress verbose CLI output, reducing token consumption. Disabled by default — requires RTK binary to be installed (`cargo install rtk-cli`). All Rune workflows function identically with RTK disabled.
 
-**WARNING**: RTK compression reduces output verbosity, which may cause information loss for workflows that need full, unfiltered output. Mitigation: use `tee_mode: "always"` (default) to save full output to disk for every command, and configure `exempt_workflows`/`exempt_commands` to protect critical flows.
+**WARNING**: RTK compression reduces output verbosity, which may cause information loss for workflows that need full, unfiltered output. Mitigation: use `tee_mode: "always"` (default) to run both rtk and the original command for every invocation, and configure `exempt_workflows`/`exempt_commands` to protect critical flows.
 
 ### `rtk` settings
 
@@ -951,7 +951,7 @@ Optional PreToolUse hook that rewrites Bash commands with an `rtk` prefix to com
 |-----|------|---------|-------------|
 | `rtk.enabled` | boolean | `false` | Master switch. Must be `true` for the hook to activate. Enable only after installing RTK and verifying it works. |
 | `rtk.auto_detect` | boolean | `true` | Auto-disable if the `rtk` binary is not found in PATH at session start. Graceful skip — no errors when binary is missing. |
-| `rtk.tee_mode` | string | `"always"` | Controls when original command output is also saved. `"always"` — save full output for all commands (recommended for Rune). `"failures"` — save only on non-zero exit. `"never"` — disable tee entirely. Validated against allowlist before shell interpolation. |
+| `rtk.tee_mode` | string | `"always"` | Controls when the original command is also run alongside rtk (teeing). `"always"` — always tee, running both rtk and the original command (recommended for Rune). `"failures"` — tee only when rtk exits non-zero. `"never"` — never tee, rtk output only. Validated against allowlist before shell interpolation. |
 | `rtk.exempt_workflows` | string[] | `["goldmask","mend","inspect","debug"]` | Workflow types that bypass RTK filtering entirely. Commands run in these workflows receive full unfiltered output. Matched against Rune state file patterns (`tmp/.rune-{workflow}-*.json`). |
 | `rtk.exempt_commands` | string[] | `["git blame","git diff","git log.*--format"]` | Shell patterns (grep -E regex) matched against the raw command string. Commands matching any pattern are passed through unchanged regardless of active workflow. Layer 2 exemption — checked before workflow-level (Layer 1). |
 
@@ -973,19 +973,19 @@ When concurrent state files exist (e.g., both a filter and an exempt workflow), 
 
 **Usage**:
 ```yaml
-# rtk:
-#   enabled: false              # Master switch — must be true for hook to activate
-#   auto_detect: true           # Auto-disable if `rtk` binary not found
-#   tee_mode: "always"          # always | failures | never
-#   exempt_workflows:
-#     - goldmask                # git archaeology needs full git blame/log
-#     - mend                    # fixers need full compiler/lint errors
-#     - inspect                 # inspectors need full output for analysis
-#     - debug                   # investigators need full output for diagnosis
-#   exempt_commands:
-#     - "git blame"             # git archaeology
-#     - "git diff"              # diff-based verification
-#     - "git log.*--format"     # structured log parsing
+rtk:
+  enabled: true                 # Master switch — must be true for hook to activate
+  auto_detect: true             # Auto-disable if `rtk` binary not found
+  tee_mode: "always"            # always | failures | never
+  exempt_workflows:
+    - goldmask                  # git archaeology needs full git blame/log
+    - mend                      # fixers need full compiler/lint errors
+    - inspect                   # inspectors need full output for analysis
+    - debug                     # investigators need full output for diagnosis
+  exempt_commands:
+    - "git blame"               # git archaeology
+    - "git diff"                # diff-based verification
+    - "git log.*--format"       # structured log parsing
 ```
 
 ---

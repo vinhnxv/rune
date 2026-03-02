@@ -65,6 +65,11 @@ fi
 # possible on stdin — use the peeked data plus remaining stdin.
 INPUT="${INPUT_PEEK}$(head -c $((1048576 - ${#INPUT_PEEK})) 2>/dev/null || true)"
 
+# BACK-004: Validate JSON is parseable before extracting fields
+if ! printf '%s\n' "$INPUT" | jq empty 2>/dev/null; then
+  exit 0  # Malformed JSON — skip silently
+fi
+
 TOOL_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)
 if [[ "$TOOL_NAME" != "Bash" ]]; then
   exit 0
@@ -79,6 +84,10 @@ CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || exit 0
 if [[ -z "$CWD" || "$CWD" != /* ]]; then exit 0; fi
 
 SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+# SEC-RTK-002: Sanitize SESSION_ID before use in path construction
+if [[ -n "$SESSION_ID" ]] && ! [[ "$SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+  SESSION_ID=""
+fi
 
 COMMAND=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || true)
 if [[ -z "$COMMAND" ]]; then
@@ -97,10 +106,21 @@ if [[ "$RTK_ENABLED" != "true" ]]; then
   exit 0
 fi
 
+# SEC-RTK-001: Re-validate RTK_TEE_MODE after config load (defense-in-depth)
+case "${RTK_TEE_MODE:-}" in
+  always|failures|never) ;;
+  *) RTK_TEE_MODE="always" ;;
+esac
+
 # ── Step 8: Detect rtk binary (SESSION_ID-scoped cache) ──────────────────────
 RTK_CACHE_DIR="${CWD}/tmp/.rune-rtk-cache"
 RTK_CACHE_FILE="${RTK_CACHE_DIR}/rtk-binary-${SESSION_ID:-default}.json"
 RTK_BIN=""
+
+# BACK-002: TTL cleanup — purge stale cache files older than 24h (once per run, best-effort)
+if [[ -d "$RTK_CACHE_DIR" ]]; then
+  find "$RTK_CACHE_DIR" -name 'rtk-binary-*.json' -type f -mmin +1440 -delete 2>/dev/null || true
+fi
 
 if [[ -f "$RTK_CACHE_FILE" && ! -L "$RTK_CACHE_FILE" ]]; then
   RTK_BIN=$(jq -r '.rtk_bin // empty' "$RTK_CACHE_FILE" 2>/dev/null || true)

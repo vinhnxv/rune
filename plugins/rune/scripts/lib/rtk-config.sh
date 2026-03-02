@@ -36,24 +36,35 @@ rtk_load_config() {
     return 1
   fi
 
-  local rtk_json
-  rtk_json=$(jq -r '.rtk // {}' "$misc_shard" 2>/dev/null) || return 1
-  if [[ -z "$rtk_json" || "$rtk_json" == "null" ]]; then
+  # BACK-005: Single jq call extracts all 5 fields at once (was 6 subprocess forks).
+  # Uses RS (0x1e) as section delimiter — safe since values are config strings.
+  local rtk_parsed
+  rtk_parsed=$(jq -rj '
+    (.rtk // {}) as $r |
+    ($r.enabled // false | tostring),
+    "\u001e",
+    ($r.auto_detect // true | tostring),
+    "\u001e",
+    ($r.tee_mode // "always"),
+    "\u001e",
+    (($r.exempt_workflows // []) | join("\n")),
+    "\u001e",
+    (($r.exempt_commands // []) | join("\n"))
+  ' "$misc_shard" 2>/dev/null) || return 1
+  if [[ -z "$rtk_parsed" ]]; then
     return 1
   fi
 
-  RTK_ENABLED=$(printf '%s\n' "$rtk_json" | jq -r '.enabled // false' 2>/dev/null || echo "false")
-  RTK_AUTO_DETECT=$(printf '%s\n' "$rtk_json" | jq -r '.auto_detect // true' 2>/dev/null || echo "true")
-  RTK_TEE_MODE=$(printf '%s\n' "$rtk_json" | jq -r '.tee_mode // "always"' 2>/dev/null || echo "always")
+  # Split on RS delimiter (0x1e) into positional fields
+  local IFS=$'\x1e'
+  # shellcheck disable=SC2162
+  read -d '' -r RTK_ENABLED RTK_AUTO_DETECT RTK_TEE_MODE RTK_EXEMPT_WORKFLOWS RTK_EXEMPT_COMMANDS <<< "$rtk_parsed" || true
 
   # Validate tee_mode against allowlist
   case "$RTK_TEE_MODE" in
     always|failures|never) ;;
     *) RTK_TEE_MODE="always" ;;
   esac
-
-  RTK_EXEMPT_WORKFLOWS=$(printf '%s\n' "$rtk_json" | jq -r '(.exempt_workflows // []) | .[]' 2>/dev/null || true)
-  RTK_EXEMPT_COMMANDS=$(printf '%s\n' "$rtk_json" | jq -r '(.exempt_commands // []) | .[]' 2>/dev/null || true)
 
   return 0
 }
