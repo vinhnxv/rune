@@ -4,7 +4,7 @@ description: |
   Design system compliance reviewer. Validates that frontend code follows
   the project's design system conventions: token usage, variant patterns,
   import paths, class merge utilities, and dark mode implementation.
-  Activated when frontend stack + design system detected (confidence >= 0.5).
+  Activated when frontend stack + design system detected (confidence >= 0.70).
 
   Covers: Design token compliance (DSYS-TOK), variant/class-merge patterns
   (DSYS-PAT), component primitive usage (DSYS-CMP), import conventions
@@ -22,15 +22,17 @@ description: |
   user: "Review the Button component for design system compliance"
   assistant: "I'll use design-system-compliance-reviewer to validate token usage, CVA patterns, and accessibility."
   </example>
-tools:
+allowed-tools:
   - Read
   - Glob
   - Grep
 model: sonnet
 maxTurns: 30
 ---
-<!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
-     (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
+<!-- NOTE: allowed-tools is enforced by the platform when this agent is spawned
+     directly. When orchestrated via a general-purpose subagent, the platform
+     enforcement may not apply — prompt instructions serve as the restriction boundary
+     in that context. -->
 
 # Design System Compliance Reviewer — Convention Enforcement Agent
 
@@ -436,7 +438,7 @@ Before writing output file, confirm:
 
 ## Activation Condition
 
-Default: **enabled** when design system is detected in the project with confidence >= 0.5.
+Default: **enabled** when design system is detected in the project with confidence >= 0.70.
 
 Detection signals (any 2+ triggers activation):
 - `tailwind.config.ts` or `tailwind.config.js` present

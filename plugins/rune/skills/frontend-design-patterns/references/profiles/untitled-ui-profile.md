@@ -3,11 +3,11 @@
 ```
 profile_schema_version: 1
 library: Untitled UI
-base_primitive: React Aria (Adobe)
+base_primitive: CSS custom properties / design tokens
 styling: CSS custom properties + CSS Modules / Tailwind
 ```
 
-Untitled UI is a large-scale Figma design system + React component library built on React Aria (Adobe's accessibility primitives). It provides production-ready components with comprehensive accessibility baked in, CSS variable-driven theming, and a 3-tier directory structure for organizing components by use case.
+Untitled UI is a large-scale Figma design system + React component library built on CSS custom properties (design tokens) for theming and a 3-tier directory structure for organizing components by use case. It provides production-ready components with comprehensive CSS variable-driven theming and optional React Aria integration for accessible interactive primitives.
 
 ## File Organization — 3-Tier Directory
 

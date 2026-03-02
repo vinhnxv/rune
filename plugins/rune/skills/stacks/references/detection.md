@@ -96,7 +96,7 @@ detectStack(repoRoot):
   # Gated by talisman.devise.design_system_discovery.enabled (default: true).
   is_frontend = (
     stack.languages intersects ["typescript", "javascript"]
-    AND stack.frameworks intersects ["react", "nextjs", "vuejs", "nuxt", "vite"]
+    AND stack.frameworks intersects ["react", "nextjs", "vuejs", "nuxt", "vite", "svelte", "astro", "remix", "solidjs", "qwik"]
   )
 
   if is_frontend:

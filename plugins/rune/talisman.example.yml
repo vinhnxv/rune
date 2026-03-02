@@ -80,13 +80,14 @@ rune-gaze:
 #   local  → .claude/agents/{name}.md (project-level)
 #   global → ~/.claude/agents/{name}.md (user-level)
 #   plugin → Full namespace like "my-plugin:review:agent-name"
+# ──────────────────────────────────────────────
 
 ashes:
   custom:
     # Example 1: A local project-specific reviewer
     # Add 'forge' to workflows to enable Forge Gaze matching (see Example 3)
     - name: "domain-logic-reviewer"
-      agent: "domain-logic-reviewer"       # Resolves to .claude/agents/domain-logic-reviewer.md
+      agent: "domain-logic-reviewer"       # Resolves to .claude/agents/domain-logic-reviewer.md — must be a valid agent name (alphanumeric, hyphens, colons only; no path traversal)
       source: local
       workflows: [review, audit]
       trigger:
@@ -217,7 +218,7 @@ settings:
   verification:
     layer_2_custom_agents: true
   # NOTE: Enforcement Asymmetry config is in the review: convergence section below.
-  # See review: → enforcement_asymmetry: (line ~652) or agents/review/references/enforcement-asymmetry.md
+  # See review: → enforcement_asymmetry: or agents/review/references/enforcement-asymmetry.md
 
 # ── Deep Audit settings (v1.56.0+) ──────────────
 # Deep investigation teammates for /rune:audit --deep.

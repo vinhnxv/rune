@@ -169,7 +169,7 @@ ash_selections.add("veil-piercer")    # Truth: always
 # CLI-gated Ash (always-on when available, conditional on CLI, not file type)
 # Check talisman first (user may have disabled)
 if talisman.codex.disabled is not true:
-  if Bash("command -v codex >/dev/null 2>&1 && echo 'yes' || echo 'no'") == "yes":
+  if Bash("command -v \"codex\" >/dev/null 2>&1 && echo 'yes' || echo 'no'") == "yes":
     ash_selections.add("codex-oracle")  # Cross-model: when codex CLI available
 
 # External model CLI-backed Ashes (multi-model adversarial review, v1.57.0+)

@@ -4,10 +4,10 @@
 
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
-[![Version](https://img.shields.io/badge/version-1.127.0-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-1.128.0-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-91-purple)](#agents)
-[![Skills](https://img.shields.io/badge/skills-43-orange)](#skills)
+[![Agents](https://img.shields.io/badge/agents-94-purple)](#agents)
+[![Skills](https://img.shields.io/badge/skills-45-orange)](#skills)
 
 ---
 
@@ -89,9 +89,9 @@ Rune requires [Agent Teams](https://code.claude.com/docs/en/agent-teams). Enable
     ".claude/arc/",
     ".claude/echoes/",
     ".claude/arc-batch-loop.local.md",
+    ".claude/arc-phase-loop.local.md",
     ".claude/arc-hierarchy-loop.local.md",
     ".claude/arc-issues-loop.local.md",
-    ".claude/arc-phase-loop.local.md",
     ".claude/CLAUDE.local.md",
     ".claude/talisman.yml"
   ]
@@ -618,7 +618,7 @@ rune-plugin/
 └── plugins/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
-        │   └── plugin.json       # Plugin manifest (v1.127.0)
+        │   └── plugin.json       # Plugin manifest (v1.128.0)
         ├── agents/               # 95 agent definitions
         │   ├── review/           #   41 review agents
         │   ├── investigation/    #   24 investigation agents

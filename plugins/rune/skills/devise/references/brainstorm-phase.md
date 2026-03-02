@@ -381,8 +381,8 @@ for (let i = 0; i < sageCount; i++) {
       ## Assignment
       Phase: plan:0 (brainstorm)
       Assigned method: ${method.method_name} (method #${method.num})
-      Feature: ${((featureDescription || '').replace(/<!--[\s\S]*?-->/g, '').replace(/\`\`\`[\s\S]*?\`\`\`/g, '[code-block-removed]').replace(/!\[.*?\]\(.*?\)/g, '').replace(/^#{1,6}\s+/gm, '').replace(/&[a-zA-Z0-9#]+;/g, '').replace(/[\u200B-\u200F\uFEFF\uFE00-\uFE0F]/g, '').replace(/\uDB40[\uDC00-\uDC7F]/g, '').slice(0, 2000))}
-      Chosen approach: ${((selectedApproach || '').replace(/<!--[\s\S]*?-->/g, '').replace(/\`\`\`[\s\S]*?\`\`\`/g, '[code-block-removed]').replace(/!\[.*?\]\(.*?\)/g, '').replace(/^#{1,6}\s+/gm, '').replace(/&[a-zA-Z0-9#]+;/g, '').replace(/[\u200B-\u200F\uFEFF\uFE00-\uFE0F]/g, '').replace(/\uDB40[\uDC00-\uDC7F]/g, '').slice(0, 2000))}
+      Feature: ${((featureDescription || '').replace(/<!--[\s\S]*?-->/g, '').replace(/\`\`\`[\s\S]*?\`\`\`/g, '[code-block-removed]').replace(/`[^`]*`/g, '[code-removed]').replace(/!\[.*?\]\(.*?\)/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/^-{3,}\s*$/gm, '').replace(/^#{1,6}\s+/gm, '').replace(/&[a-zA-Z0-9#]+;/g, '').replace(/[\u200B-\u200F\uFEFF\uFE00-\uFE0F]/g, '').replace(/\uDB40[\uDC00-\uDC7F]/g, '').slice(0, 2000))}
+      Chosen approach: ${((selectedApproach || '').replace(/<!--[\s\S]*?-->/g, '').replace(/\`\`\`[\s\S]*?\`\`\`/g, '[code-block-removed]').replace(/`[^`]*`/g, '[code-removed]').replace(/!\[.*?\]\(.*?\)/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/^-{3,}\s*$/gm, '').replace(/^#{1,6}\s+/gm, '').replace(/&[a-zA-Z0-9#]+;/g, '').replace(/[\u200B-\u200F\uFEFF\uFE00-\uFE0F]/g, '').replace(/\uDB40[\uDC00-\uDC7F]/g, '').slice(0, 2000))}
       Brainstorm context: Read tmp/plans/{timestamp}/brainstorm-decisions.md
 
       ## Lifecycle

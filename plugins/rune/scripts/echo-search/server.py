@@ -55,8 +55,13 @@ logger = logging.getLogger("echo-search")
 ECHO_DIR = os.environ.get("ECHO_DIR", "")
 DB_PATH = os.environ.get("DB_PATH", "")
 
-# SEC-003: Validate env vars don't point to system directories
-_FORBIDDEN_PREFIXES = ("/etc", "/usr", "/bin", "/sbin", "/var/run", "/proc", "/sys")
+# SEC-001/SEC-003: Validate env vars don't point to system or sensitive directories
+_FORBIDDEN_PREFIXES = (
+    "/etc", "/usr", "/bin", "/sbin", "/var/run", "/proc", "/sys",
+    os.path.expanduser("~/.ssh"),
+    os.path.expanduser("~/.gnupg"),
+    os.path.expanduser("~/.aws"),
+)
 for _env_name, _env_val in [("ECHO_DIR", ECHO_DIR), ("DB_PATH", DB_PATH)]:
     if _env_val:
         _resolved = os.path.realpath(_env_val)
@@ -66,6 +71,14 @@ for _env_name, _env_val in [("ECHO_DIR", ECHO_DIR), ("DB_PATH", DB_PATH)]:
                 file=sys.stderr,
             )
             sys.exit(1)
+if DB_PATH:
+    _db_resolved = os.path.realpath(DB_PATH)
+    if not (_db_resolved.endswith(".db") or _db_resolved.endswith(".sqlite")):
+        print(
+            "Error: DB_PATH must end with .db or .sqlite: %s" % _db_resolved,
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 STOPWORDS = frozenset([
     "a", "an", "and", "are", "as", "at", "be", "but", "by", "for",
@@ -685,6 +698,10 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
 
 
 def _tokenize_for_grouping(text: str) -> set[str]:
+    # NOTE: set[str] and other PEP 585 lowercase generics (list[str], dict[K,V])
+    # require `from __future__ import annotations` (present at top of file) for
+    # Python < 3.9 compatibility.  Without that import this annotation would raise
+    # TypeError at import time on Python 3.7/3.8.
     """Extract lowercased, stopword-filtered tokens for Jaccard similarity."""
     tokens = re.findall(r"[a-zA-Z0-9_]+", text.lower())
     return {t for t in tokens if t not in STOPWORDS and len(t) >= 2}
@@ -1074,7 +1091,8 @@ def rebuild_index(conn, entries):
 
 _FAILURE_MAX_RETRIES = 3
 _FAILURE_MAX_AGE_DAYS = 30
-_FAILURE_SCORE_BOOST = 1.2  # Multiply BM25 score by 1.2 (more negative = better)
+_FAILURE_SCORE_BOOST = 1.2  # Used as fixed sentinel: score = -1.0 * _FAILURE_SCORE_BOOST = -1.2
+                             # (BM25 scores are negative; -1.2 ranks retry entries above normal hits)
 
 
 def compute_token_fingerprint(query: str) -> str:
@@ -1162,6 +1180,7 @@ def reset_failure_on_match(
 
 
 def _build_retry_sql(
+    token_fingerprint: str,
     matched_ids: Optional[List[str]],
 ) -> Tuple[str, List[Any]]:
     """Build SQL and params for retry entry retrieval."""
@@ -1175,7 +1194,7 @@ def _build_retry_sql(
              JOIN echo_entries e ON e.id = f.entry_id
              WHERE f.token_fingerprint = ?
                AND f.retry_count < ? AND f.first_failed_at >= ?"""
-    params: List[Any] = [None, _FAILURE_MAX_RETRIES, age_cutoff]
+    params: List[Any] = [token_fingerprint, _FAILURE_MAX_RETRIES, age_cutoff]
     if matched_ids:
         sql += " AND f.entry_id NOT IN (%s)" % _in_clause(len(matched_ids))
         params.extend(matched_ids)
@@ -1204,8 +1223,7 @@ def get_retry_entries(
     if not token_fingerprint:
         return []
     try:
-        sql, params = _build_retry_sql(matched_ids)
-        params[0] = token_fingerprint
+        sql, params = _build_retry_sql(token_fingerprint, matched_ids)
         cursor = conn.execute(sql, params)
         return [_row_to_retry_entry(row) for row in cursor.fetchall()]
     except sqlite3.OperationalError:
@@ -1280,6 +1298,18 @@ def _try_load_talisman_file(
     except ImportError:
         return None
     try:
+        # SEC-002: Verify realpath stays within the expected parent directory
+        # to prevent symlink-based path traversal attacks.
+        expected_root = os.path.realpath(os.path.dirname(talisman_path))
+        real_talisman = os.path.realpath(talisman_path)
+        try:
+            if os.path.commonpath([expected_root, real_talisman]) != expected_root:
+                logger.debug(
+                    "talisman path escapes expected root (symlink?): %s",
+                    talisman_path)
+                return None
+        except ValueError:
+            return None
         with open(talisman_path, "r") as f:
             config = yaml.safe_load(f)
         if isinstance(config, dict):
@@ -1844,7 +1874,9 @@ def _validate_and_promote_file(
             "Warning: Skipping promotion for path outside echo_dir: %s"
             % fpath, file=sys.stderr)
         return 0
-    return _promote_observations_in_file(fpath, ids_to_promote, line_map)
+    # SEC-003: Use real_fpath (symlinks resolved) so the atomic write and
+    # tempfile.mkstemp operate on the verified, canonical path.
+    return _promote_observations_in_file(real_fpath, ids_to_promote, line_map)
 
 
 def _write_dirty_signal(echo_dir: str) -> None:
@@ -2076,12 +2108,18 @@ def _validate_search_args(arguments: Dict) -> Tuple[Optional[Tuple], Dict]:
     query = arguments.get("query", "")
     if not isinstance(query, str) or not query:
         return ({"error": "query must be a non-empty string"}, True), {}
+    # SEC-008: Allowlist validation — layer must be one of the known echo tiers;
+    # role must match safe identifier pattern (alphanumeric + hyphens/underscores).
+    _VALID_LAYERS = frozenset(_LAYER_IMPORTANCE.keys())
+    _SAFE_ROLE_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
     layer = arguments.get("layer")
-    if layer is not None and not isinstance(layer, str):
-        layer = None
+    if layer is not None:
+        if not isinstance(layer, str) or layer.lower() not in _VALID_LAYERS:
+            layer = None
     role = arguments.get("role")
-    if role is not None and not isinstance(role, str):
-        role = None
+    if role is not None:
+        if not isinstance(role, str) or not _SAFE_ROLE_RE.match(role):
+            role = None
     context_files = arguments.get("context_files")
     if context_files is not None:
         if not isinstance(context_files, list):
@@ -2103,7 +2141,7 @@ async def _mcp_handle_search(arguments):
     # type: (Dict) -> Tuple[Dict, bool]
     err, args = _validate_search_args(arguments)
     if err is not None:
-        return err
+        return err[0], err[1]
     conn = get_db(DB_PATH)
     try:
         ensure_schema(conn)
@@ -2140,11 +2178,13 @@ async def _mcp_handle_details(arguments):
         ensure_schema(conn)
         if _check_and_clear_dirty(ECHO_DIR) and ECHO_DIR:
             conn.close()
+            conn = None
             do_reindex(ECHO_DIR, DB_PATH)
             conn = get_db(DB_PATH)
         results = get_details(conn, ids)
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
     return {"entries": results}, False
 
 

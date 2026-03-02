@@ -384,6 +384,10 @@ const failureStep = worktreeMode
 
 // Absolute project root for worktree path resolution (GAP-5)
 const absoluteProjectRoot = Bash("pwd").trim()
+// SEC-005: Validate path before injecting into prompts
+if (!/^[a-zA-Z0-9._\/-]+$/.test(absoluteProjectRoot)) {
+  throw new Error(`SEC-005: absoluteProjectRoot contains unsafe characters: ${absoluteProjectRoot}`)
+}
 // Replace {absolute_project_root} in worktree prompts
 ```
 
@@ -509,12 +513,26 @@ When a task has `isFrontend === true` AND a design system profile exists at `fro
 ```javascript
 // Build component constraint block — called during strive Phase 1 task decomposition
 // Returns empty string if any gate fails (zero overhead)
+//
+// Plan field reference (plan.component_hierarchy):
+//   component_hierarchy: Array<{ name, type, parent?, children?, responsive_specs?, states?, a11y? }>
+//   When this field is present, strive Phase 1 generates per-component tasks via
+//   buildPerComponentTaskSpec(), which sets task.metadata.isFrontend = true automatically.
+//   For plans WITHOUT component_hierarchy, isFrontend may never be set — in those cases
+//   Gate 2 falls back to stack detection results (see fallback below).
+//
+// See: skills/devise/references/synthesize.md § Component Hierarchy for the plan field schema.
 function buildComponentConstraintBlock(plan, designProfile) {
   // Gate 1: talisman opt-in
   if (!talisman?.strive?.frontend_component_context?.enabled) return ''
 
   // Gate 2: task must be flagged as frontend
-  if (!task.metadata?.isFrontend) return ''
+  // Primary: set by buildPerComponentTaskSpec() when plan.component_hierarchy exists
+  // Fallback: use stack detection results for plans without component_hierarchy
+  const isFrontend = task.metadata?.isFrontend
+    ?? (stackDetection?.primaryStack === 'frontend')   // stack detection result fallback
+    ?? false
+  if (!isFrontend) return ''
 
   // Gate 3: profile file must exist
   const library = designProfile?.library ?? detectLibraryFromPlan(plan)

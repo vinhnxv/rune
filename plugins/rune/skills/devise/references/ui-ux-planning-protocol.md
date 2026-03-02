@@ -9,10 +9,19 @@ The protocol runs in 7 steps. Steps 1–2 are automatic (no user interaction). S
 Discover the project's design system before any component decisions are made.
 
 ```javascript
-// Run discoverDesignSystem() — see skills/frontend-design-patterns/SKILL.md
+// Run discoverDesignSystem() — see skills/design-system-discovery/SKILL.md
 const designSystem = discoverDesignSystem()
-// Returns: { type, name, version, tokens, componentPaths, profilePath }
-// type: "shadcn" | "untitled-ui" | "generic" | "none" | "unknown"
+// Returns: { library, confidence, tokens, variants, components, accessibility, ... }
+// library: "shadcn_ui" | "untitled_ui" | "custom_design_system" | "unknown"
+
+// Map library identifier to profile key
+// discoverDesignSystem() uses snake_case library IDs; PROFILE_MAP uses kebab/short keys
+const LIBRARY_TO_PROFILE_KEY = {
+  shadcn_ui:            "shadcn",
+  untitled_ui:          "untitled-ui",
+  custom_design_system: "generic",
+  unknown:              "unknown",
+}
 
 // Load the matching profile
 let systemProfile = null
@@ -20,11 +29,11 @@ const PROFILE_MAP = {
   shadcn:      "skills/frontend-design-patterns/references/profiles/shadcn-profile.md",
   "untitled-ui": "skills/frontend-design-patterns/references/profiles/untitled-ui-profile.md",
   generic:     "skills/frontend-design-patterns/references/profiles/generic-profile.md",
-  none:        "skills/frontend-design-patterns/references/profiles/generic-profile.md",
   unknown:     "skills/frontend-design-patterns/references/profiles/generic-profile.md",
 }
 
-const profilePath = designSystem?.profilePath ?? PROFILE_MAP[designSystem?.type ?? "unknown"]
+const profileKey = LIBRARY_TO_PROFILE_KEY[designSystem?.library ?? "unknown"] ?? "unknown"
+const profilePath = PROFILE_MAP[profileKey]
 try {
   systemProfile = Read(profilePath)
 } catch (e) {
@@ -33,10 +42,10 @@ try {
 
 // Record audit result in brainstorm context
 brainstormContext.design_system = {
-  type: designSystem?.type ?? "unknown",
-  name: designSystem?.name ?? null,
+  type: profileKey,
+  name: designSystem?.library ?? null,
   profile_loaded: systemProfile !== null,
-  component_paths: designSystem?.componentPaths ?? [],
+  component_paths: designSystem?.components?.existing ?? [],
 }
 ```
 
@@ -86,7 +95,8 @@ for (const filePath of discoveredComponents) {
 // - "pages" if: name ends in "Page" or "Layout", OR file is in pages/ or app/ directory
 // - "organisms" if: name contains [Nav,Sidebar,Header,Footer,Table,Form,Dashboard,Profile,Card]
 //   AND > 150 lines
-// - "molecules" default for compositions not matching above
+// - "molecules" if: name is a recognizable composition (2+ nouns, or ends in Bar/Field/Panel/Row)
+// - "unknown" default for components that don't match any of the above heuristics
 
 brainstormContext.component_inventory = inventory
 ```

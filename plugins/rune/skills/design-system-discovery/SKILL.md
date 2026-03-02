@@ -22,15 +22,16 @@ Called by devise Phase 0.5 (pre-brainstorm), strive worker injection (Phase 1.5)
 Writes `tmp/plans/{timestamp}/design-system-profile.yaml` (session-scoped, ephemeral).
 Never writes to `.claude/` — that path is reserved for persistent echoes only.
 
-## discoverDesignSystem(repoRoot)
+## discoverDesignSystem(repoRoot, sessionCacheDir)
 
-**Input**: Repository root path
-**Output**: `design-system-profile.yaml` (written to tmp/), profile object returned to caller
+**Input**: `repoRoot` — repository root path; `sessionCacheDir` — caller-provided session-scoped temp directory (e.g. `tmp/plans/{timestamp}`)
+**Output**: `design-system-profile.yaml` (written to `{sessionCacheDir}/`), profile object returned to caller
 
 ### Phase 0: Pre-flight
 
 ```
-IF tmp/plans/{timestamp}/design-system-profile.yaml EXISTS:
+// sessionCacheDir is passed by caller (e.g. tmp/plans/{timestamp})
+IF {sessionCacheDir}/design-system-profile.yaml EXISTS:
   RETURN cached profile  // Re-use within same session
 ELSE:
   BEGIN tiered scan
@@ -41,7 +42,7 @@ ELSE:
 Scanning proceeds in tiers. Each tier is only entered if the previous tier did not yield a
 conclusive match (confidence >= 0.90). Early exit saves time in well-configured projects.
 
-#### Tier 0 — Root Manifests (target: <5ms)
+#### Tier 0 — Root Manifests (target: ~2 tool calls)
 
 Read these files if present (Read() only — no Bash, no filesystem walk):
 
@@ -58,18 +59,19 @@ components.json      → shadcn/ui canonical marker (HIGHEST PRIORITY)
 ```
 
 Signals from Tier 0:
-- `components.json` present → `shadcn_ui` signal (weight: 1.0, conclusive alone)
+- `components.json` present AND (`$schema` matches shadcn/ui OR `style` field is `"default"` OR `"new-york"` OR `aliases.ui` field exists OR `aliases.components` field exists) → `shadcn_ui` signal (weight: 1.0, conclusive alone). Without at least one of those schema markers, treat components.json as ambiguous (weight: 0.50).
 - `@shadcn/ui` or `shadcn-ui` in package.json deps → `shadcn_ui` signal (weight: 0.85)
 - `@untitled-ui/*` in package.json deps → `untitled_ui` signal (weight: 1.0, conclusive alone)
 - `tailwindcss` in deps with version `^4.*` → `tailwind_v4_theme` token signal
 - `tailwindcss` in deps with version `^3.*` → `tailwind_v3_config` token signal
 - `class-variance-authority` or `cva` in deps → `cva` variant signal
 - `styled-components` in deps → `styled_components` variant signal
-- `@emotion/*` in deps → `styled_components` variant signal (emotion treated as CSS-in-JS)
+- `@emotion/styled` in deps → `styled_components` variant signal (direct CSS-in-JS authoring)
+- `@emotion/react` in deps (without `@emotion/styled`) → `css_in_js_transitive` note only; do NOT assign `styled_components` signal (transitive peer dep, not authoring pattern)
 - `style-dictionary` in deps → `style_dictionary` token signal
 - `@radix-ui/*` packages count → if >=3 → `custom_design_system` signal (weight: 0.6)
 
-#### Tier 1 — Shallow Scan (target: <50ms)
+#### Tier 1 — Shallow Scan (target: ~5 tool calls)
 
 Read these files and directories (Read() only, no recursive walk):
 
@@ -88,9 +90,9 @@ design-tokens/            → design token source (alternate naming)
 ```
 
 Signals from Tier 1:
-- `src/components/ui/` exists with >=3 .tsx files → `shadcn_ui` signal (weight: 0.90)
-- `components/ui/` exists with >=3 .tsx files → `shadcn_ui` signal (weight: 0.85)
-- `cn()` import from `@/lib/utils` in any scanned file → `shadcn_ui` signal (weight: 0.80)
+- `src/components/ui/` exists with >=3 .tsx files → `shadcn_ui` signal (weight: 0.60 max when no components.json confirmed). Upgrade to 0.90 ONLY if `cn()` from `@/lib/utils` is also detected (see next bullet).
+- `components/ui/` exists with >=3 .tsx files → `shadcn_ui` signal (weight: 0.55 max when no components.json confirmed). Upgrade to 0.85 if `cn()` from `@/lib/utils` is also detected.
+- `cn()` import from `@/lib/utils` in any scanned file → `shadcn_ui` signal (weight: 0.80, and upgrades ui/ directory weight as noted above)
 - CSS file contains `--background:`, `--foreground:`, `--primary:` variables → `css_variables` token signal
 - CSS file contains `@layer base { :root {` → `css_variables` token signal (weight: 0.90)
 - `@import "tailwindcss"` in CSS → `tailwind_v4_theme` token signal (v4 marker)
@@ -98,7 +100,7 @@ Signals from Tier 1:
 - `tokens/` or `design-tokens/` directory exists → `style_dictionary` token signal (weight: 0.70)
 - `@untitled-ui/icons-react` import anywhere → `untitled_ui` signal (weight: 0.95)
 
-#### Tier 2 — Deep Content Scan (target: 200ms–2s)
+#### Tier 2 — Deep Content Scan (target: ~20 tool calls)
 
 Only entered when Tier 0 + Tier 1 did not yield conclusive match (confidence < 0.60).
 Read up to 10 source files matching `**/*.{tsx,ts,css}` (excluding node_modules, .next, dist).
@@ -130,7 +132,17 @@ variant_signals    = { cva: [], css_classes: [], styled_components: [] }
 
 ### Phase 3: Confidence Computation
 
-For each library candidate:
+**Step 1: Conclusive single-signal shortcut**
+
+Before running the formula, check for conclusive signals (weight == 1.0):
+
+```
+IF any signal for a library has weight == 1.0:
+  confidence = 1.0  // Skip formula; early-exit with high confidence
+  RETURN confidence
+```
+
+**Step 2: Aggregated formula (no conclusive signal)**
 
 ```
 matchedCount  = number of distinct signals that fired
@@ -150,6 +162,16 @@ Signal totals per library:
 | shadcn_ui              | 6           |
 | untitled_ui            | 3           |
 | custom_design_system   | 5           |
+
+**Worked examples** (formula only — conclusive shortcut already handled):
+
+| Scenario | matchedCount | totalSignals | maxWeight | confidence | Result |
+|----------|-------------|--------------|-----------|------------|--------|
+| components.json validated | conclusive shortcut | — | 1.0 | 1.0 | High |
+| ui/ dir (3+ tsx) + cn() (no components.json) | 2 | 6 | 0.80 | 0.80 × (2/6)^0.3 ≈ 0.56 | Medium |
+| ui/ dir only (no components.json, no cn()) | 1 | 6 | 0.60 | 0.60 × (1/6)^0.3 ≈ 0.35 | Low — do not include |
+| package.json dep + ui/ dir + cn() | 3 | 6 | 0.85 | 0.85 × (3/6)^0.3 ≈ 0.67 | Medium |
+| package.json dep + ui/ dir + cn() + Tier 2 imports | 4 | 6 | 0.85 | 0.85 × (4/6)^0.3 ≈ 0.74 | Medium-high |
 
 **Confidence thresholds**:
 
@@ -305,6 +327,12 @@ evidence_files:
 - Set `monorepo: true` and `workspace_root: apps/web` in profile
 - Component paths are relative to the detected workspace root
 
+**Known failure modes**:
+- **No clear primary workspace**: If two workspaces tie on frontend dep count, pick the one containing `next.config.*` or `vite.config.*`. If still ambiguous, pick alphabetically first and set `monorepo_ambiguous: true` in profile.
+- **Shared component package** (`packages/ui/`): Components may live in a sibling package, not the app workspace. If no ui/ directory found under primary workspace, also scan `packages/ui/` and `packages/design-system/` and merge signals.
+- **Workspace-specific tailwind**: Each workspace may have its own `tailwind.config.*`. Use the config from the detected primary workspace; note others in `evidence_files`.
+- **Glob depth limit**: Do not traverse deeper than depth 3 for `package.json` discovery — avoid scanning `node_modules` nested packages.
+
 ### EC-2: Migration (Two Design Systems Coexist)
 
 **Detection**: Two distinct library signals both exceed 0.50 confidence.
@@ -331,7 +359,7 @@ evidence_files:
 
 **Handling**:
 - Set `library: unknown`
-- Set `confidence: 0.0` for library (not unknown confidence — we ARE confident there's no library)
+- Set `confidence: 0.05` for library (distinguishes "scanned and found no library" from `0.0` which means "no scan was performed or no signals fired at all")
 - Token system still populated from tailwind config
 - Workers advised: no reuse opportunities, create from scratch
 
