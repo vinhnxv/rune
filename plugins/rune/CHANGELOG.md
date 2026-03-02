@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.129.1] - 2026-03-03
+## [1.129.2] - 2026-03-03
 
 ### Fixed
 - **Arc-hierarchy stop hook parity with batch/issues** — Fixed 4 gaps in `arc-hierarchy-stop-hook.sh` to achieve parity with `arc-batch-stop-hook.sh` and `arc-issues-stop-hook.sh`. Ensures consistent behavior across all stop hook loop drivers.
