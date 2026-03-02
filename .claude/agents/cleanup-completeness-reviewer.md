@@ -129,14 +129,29 @@ Every `TeamCreate` must have a corresponding `TeamDelete` in the cleanup section
 - TeamDelete in the final phase (not intermediate)
 - State file marked as "completed" before TeamDelete
 
+### Step 7: Arc Team Prefix Registration (arc workflows only)
+
+For skills under `skills/arc/references/`, verify that every team name prefix used in `TeamCreate` is registered in ALL 3 crash recovery layers:
+
+1. **`ARC_TEAM_PREFIXES`** in `skills/arc/references/arc-preflight.md` — preflight stale scan
+2. **`PHASE_PREFIX_MAP`** in `skills/arc/references/arc-phase-cleanup.md` — postPhaseCleanup
+3. **Crash recovery table** in the phase's own reference file
+
+Extract team name prefixes from `TeamCreate({ team_name: \`prefix-${id}\` })` calls. Check each prefix against all 3 locations. Missing prefix = P1 finding (invisible orphan on crash).
+
+Include ephemeral/conditional teams (e.g., `arc-sage-`, `arc-plan-inspect-`). These are the most likely to be missed because they're inside `if` blocks.
+
 ## Severity Guide
 
 | Issue | Priority | Rationale |
 |-------|----------|-----------|
 | Agent spawned but missing from fallback array | P1 | Orphan risk — process leak if config.json fails |
 | Template agent with insufficient coverage | P1 | e.g., max 3 sages but only sage-1 in fallback |
+| Team prefix missing from ARC_TEAM_PREFIXES | P1 | Invisible orphan — preflight stale scan can't find it |
+| Team prefix missing from PHASE_PREFIX_MAP | P1 | postPhaseCleanup can't scan for orphans between phases |
 | Unconditional filesystem fallback (QUAL-012) | P2 | Unnecessary rm -rf when TeamDelete succeeded |
 | TeamCreate without matching TeamDelete | P2 | Team never cleaned up |
+| Team prefix missing from crash recovery table | P2 | Undocumented orphan resource — manual recovery blind |
 | Stale name in fallback (no matching Agent) | P3 | Dead code — harmless but confusing |
 | Agent missing team_name (ATE-1) | P1 | Context explosion — output pollutes lead context |
 
