@@ -305,8 +305,17 @@ Quick reference for wave assignments across all Ashes. See [wave-scheduling.md](
 | signal-watcher | 3 | true | OBSV | No (all deep) |
 | decay-tracer | 3 | true | MTNB | No (all deep) |
 
+## Weighted Topic Propagation
+
+When an agent's forge topics use weighted format (dict with float values), the weights propagate to Forge Gaze scoring. The scoring algorithm auto-detects whether `agent.topics` is a list (legacy, uniform weight 1.0) or dict (graduated weights) at runtime — see [forge-gaze.md](forge-gaze.md#scoring) for the full algorithm.
+
+Composite Ashes (which embed multiple review agent perspectives) inherit the topic format of their constituent agents. Each agent within a composite is scored independently against plan sections. The Ash-level context budget and wave scheduling are unaffected by topic weighting — weights only influence the Forge Gaze selection step.
+
+Custom Ashes defined in `talisman.yml` follow the same rules: `trigger.topics` accepts both list and dict format. See [forge-gaze.md](forge-gaze.md#custom-forge-agents) for examples of both formats.
+
 ## References
 
 - [Wave Scheduling](wave-scheduling.md) — Wave selection, merge logic, timeout distribution
 - [Smart Selection](smart-selection.md) — File-to-Ash assignment, context budgets
 - [Rune Gaze](rune-gaze.md) — Extension classification rules
+- [Forge Gaze](forge-gaze.md) — Topic-aware agent selection for plan enrichment
