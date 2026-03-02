@@ -494,10 +494,12 @@ CDX-7 Layer 3: Scan for orphaned arc-specific teams from prior sessions. Runs af
 // These values are interpolated into shell `find -name` commands (see find loop below).
 // If externalized to config (e.g., talisman.yml), shell metacharacter injection becomes possible.
 //
-// arc-* prefixes: teams created directly by arc (Phase 2 plan review)
+// arc-* prefixes: teams created directly by arc (plan review, plan inspect, sage, design, gap, test, verify)
 // rune-* prefixes: teams created by delegated sub-commands (forge, work, review, mend, audit)
 const ARC_TEAM_PREFIXES = [
-  "arc-forge-", "arc-plan-review-", "arc-verify-", "arc-gap-fix-", "arc-inspect-", "arc-test-",  // arc-owned teams (arc-gap- removed v1.74.0 — Phase 5.6 no longer creates teams)
+  "arc-forge-", "arc-plan-review-", "arc-plan-inspect-", "arc-verify-", "arc-gap-fix-", "arc-inspect-", "arc-test-",  // arc-owned teams (arc-gap- removed v1.74.0 — Phase 5.6 no longer creates teams)
+  "arc-sage-",  // ephemeral elicitation sage team (mend Phase 7 — conditional on P1 findings)
+  "arc-design-", "arc-design-verify-", "arc-design-iter-",  // design sync teams (conditional — design_sync.enabled)
   "rune-forge-", "rune-work-", "rune-review-", "rune-mend-", "rune-mend-deep-", "rune-audit-",  // sub-command teams
   "goldmask-"  // goldmask skill teams (Phase 5.7 delegation)
 ]
