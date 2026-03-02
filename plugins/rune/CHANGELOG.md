@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.129.0] - 2026-03-02
+
+### Added
+- **Optional RTK Integration (`enforce-rtk.sh`)** — New optional PreToolUse:Bash hook that rewrites Bash commands with an `rtk` prefix for token compression when RTK (Rust Token Killer) is installed. Disabled by default — opt-in via `rtk.enabled: true` in talisman. Zero impact when disabled or RTK binary is not installed. Factored into sourced libraries (`lib/rtk-config.sh`, `lib/rtk-exempt.sh`) for maintainability.
+- **Two-layer exemption system** — Layer 2 (command-level): configurable `exempt_commands` regex patterns checked first. Layer 1 (workflow-level): configurable `exempt_workflows` list (default: `goldmask`, `mend`, `inspect`, `debug`). Exempt wins when concurrent workflows have mixed exemption status.
+- **RTK talisman config section** — New `rtk:` section in `talisman.example.yml` with keys: `enabled`, `auto_detect`, `tee_mode` (`always`/`failures`/`never`), `exempt_workflows`, `exempt_commands`. Registered in talisman-resolve.sh `misc` shard. Defaults injected via `build-talisman-defaults.py`.
+- **Security hardening** — `tee_mode` validated against allowlist before shell interpolation (SEC-002). Compound commands (`&&`, `||`, `;`, `|`) are not rewritten to avoid partial wrapping. Heredoc commands (but not herestrings `<<<`) are skipped. Binary detection cached per session (SESSION_ID-scoped, symlink-checked, atomic write). `permissionDecision: "allow"` intentionally omitted — user sees rewrite in permission prompt (SEC-001).
+- **RTK documentation** — `references/configuration-guide.md` updated with full `rtk:` key table, exemption layer documentation, known limitations, and usage example. `skills/talisman/references/talisman-sections.md` updated with row 26 for `rtk`.
+- **CLAUDE.md Hook Infrastructure table** — New row for `enforce-rtk.sh` (RTK-001).
+
 ## [1.128.0] - 2026-03-02
 
 ### Added
