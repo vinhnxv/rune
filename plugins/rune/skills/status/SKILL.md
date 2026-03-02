@@ -58,8 +58,9 @@ if (timestamp) {
     log("No active background dispatch found. Run /rune:strive --background to start one.")
     return
   }
-  // SEC-008 FIX: Use Glob for discovery (safer than ls), sort by mtime, validate timestamp format
-  stateFile = Bash(`ls -t tmp/.rune-dispatch-*.json 2>/dev/null | head -1`).trim()
+  // SEC-008 FIX: Use Glob for discovery (safer than ls — ZSH NOMATCH kills raw globs).
+  // Glob() returns files sorted by mtime (most recent first). No shell glob expansion needed.
+  stateFile = allDispatchFiles[0]  // Already discovered by Glob above, sorted by mtime
   // Validate discovered file has expected timestamp format
   const discoveredMatch = stateFile.match(/tmp\/\.rune-dispatch-(\d{8}-\d{6})\.json$/)
   if (!discoveredMatch) {

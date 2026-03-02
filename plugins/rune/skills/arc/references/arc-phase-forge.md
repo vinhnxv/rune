@@ -45,6 +45,8 @@ const forgePlanPath = `tmp/arc/${id}/enriched-plan.md`
 // SEC-002 FIX: Clean stale forge state files before delegation to prevent TOCTOU confusion.
 // Only remove completed/cancelled/expired files — preserve active sessions (< 30 min old).
 // DOC-006 FIX: staleForgeFiles = pre-delegation cleanup (lines below); forgeStateFiles = post-delegation discovery (line 65+)
+// ZSH-SAFE: MUST use Glob() for wildcard resolution, then rm per-file with quoted path.
+// NEVER use raw glob in Bash (e.g., `rm -f tmp/.rune-forge-*.json`) — ZSH NOMATCH kills the command.
 const staleForgeFiles = Glob("tmp/.rune-forge-*.json")
 for (const sf of staleForgeFiles) {
   try {
@@ -52,12 +54,12 @@ for (const sf of staleForgeFiles) {
     const age = Date.now() - new Date(state.started).getTime()
     // SEC-007 FIX: NaN guard — malformed state.started produces NaN age, should be treated as stale
     if (state.status === "completed" || state.status === "cancelled" || (!Number.isNaN(age) && age > 1800000)) {
-      Bash(`rm -f "${sf}" 2>/dev/null`)
+      Bash(`rm -f "${sf}" 2>/dev/null`)  // "${sf}" is a resolved path from Glob — no shell glob expansion
     }
     // Preserve active files < 30 min old — concurrent /rune:forge sessions depend on these
   } catch (e) {
     // Unparseable state file — remove as stale
-    Bash(`rm -f "${sf}" 2>/dev/null`)
+    Bash(`rm -f "${sf}" 2>/dev/null`)  // "${sf}" is a resolved path — safe
   }
 }
 // SEC-12 FIX: Use Glob() to resolve wildcard — Read() does not support glob expansion.
