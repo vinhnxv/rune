@@ -43,6 +43,8 @@ Remove ephemeral `tmp/` output directories from completed Rune workflows. Preser
 | `~/.claude/teams/{rune-*/arc-*}/` (or `$CLAUDE_CONFIG_DIR/teams/` if set) | Orphaned team configs from crashed workflows | `--heal` only |
 | `~/.claude/tasks/{rune-*/arc-*}/` (or `$CLAUDE_CONFIG_DIR/tasks/` if set) | Orphaned task lists from crashed workflows | `--heal` only |
 
+**Note:** Per-agent artifact directories (`runs/` subdirectories containing `meta.json` and `input.md`) live inside workflow output directories (e.g., `tmp/plans/{id}/runs/`, `tmp/work/{id}/runs/`, `tmp/reviews/{id}/runs/`). They are cleaned implicitly when their parent workflow directory is removed — no separate cleanup entry is needed.
+
 ## What Is Preserved
 
 | Path | Reason |
@@ -174,8 +176,28 @@ for dir in "${validated_dirs[@]}"; do
   fi
 done
 
+# Helper: validate and remove a tmp/ subdirectory with symlink + path traversal guard
+# Uses _resolve_path from Step 4. Logs permission errors instead of suppressing them.
+_safe_remove_tmp_dir() {
+  local dir="$1"
+  local label="$2"
+  [[ -L "$dir" ]] && { echo "SKIP: $dir is a symlink (not following)"; return 0; }
+  [[ -d "$dir" ]] || return 0  # Nothing to remove
+  local resolved
+  resolved=$(_resolve_path "$dir")
+  if [[ -z "$resolved" || "$resolved" != "$tmp_base"/* ]]; then
+    echo "SKIP: $dir resolves outside tmp/ ($resolved)"
+    return 0
+  fi
+  # Re-verify at deletion time (TOCTOU mitigation)
+  [[ -L "$dir" ]] && { echo "SKIP: $dir became a symlink (TOCTOU detected)"; return 0; }
+  if ! rm -rf "$resolved" 2>&1; then
+    echo "WARN: failed to remove ${label:-$dir} — check permissions"
+  fi
+}
+
 # Remove plan research artifacts (unconditional — no state file)
-rm -rf tmp/plans/
+_safe_remove_tmp_dir "tmp/plans" "plans"
 
 # Remove work artifacts — conditional on no active work teams
 # Check work state files for active status (consistent with review/audit/mend checks)
@@ -184,7 +206,7 @@ for f in tmp/.rune-work-*.json(N); do
   [ -f "$f" ] && grep -q '"status"[[:space:]]*:[[:space:]]*"active"' "$f" && active_work="$f"
 done
 if [ -z "$active_work" ]; then
-  rm -rf tmp/work/
+  _safe_remove_tmp_dir "tmp/work" "work"
 else
   echo "SKIP: tmp/work/ — active work team detected"
 fi
@@ -195,7 +217,7 @@ for f in tmp/.rune-inspect-*.json(N); do
   [ -f "$f" ] && grep -q '"status"[[:space:]]*:[[:space:]]*"active"' "$f" && active_inspect="$f"
 done
 if [ -z "$active_inspect" ]; then
-  rm -rf tmp/inspect/
+  _safe_remove_tmp_dir "tmp/inspect" "inspect"
 else
   echo "SKIP: tmp/inspect/ — active inspect session detected"
 fi
@@ -212,7 +234,7 @@ for f in .claude/arc/*/checkpoint.json(N); do
   fi
 done
 if [ -z "$active_arc" ]; then
-  rm -rf tmp/arc/
+  _safe_remove_tmp_dir "tmp/arc" "arc"
 else
   echo "SKIP: tmp/arc/ — active arc session detected (see above)"
 fi
@@ -231,7 +253,7 @@ for f in tmp/.rune-batch-*.json(N); do
   fi
 done
 if [ -z "$active_batch" ]; then
-  rm -rf tmp/arc-batch/
+  _safe_remove_tmp_dir "tmp/arc-batch" "arc-batch"
 fi
 
 # Remove arc result signal file (v1.109.2+)
@@ -260,24 +282,28 @@ if [ -f "$arc_issues_state" ] && ! [[ -L "$arc_issues_state" ]]; then
   if [[ "$active_issues" == "true" ]]; then
     echo "SKIP: tmp/gh-issues/ tmp/gh-plans/ — active arc-issues loop detected"
   else
-    rm -rf tmp/gh-issues/ tmp/gh-plans/
+    _safe_remove_tmp_dir "tmp/gh-issues" "gh-issues"
+    _safe_remove_tmp_dir "tmp/gh-plans" "gh-plans"
   fi
 else
-  rm -rf tmp/gh-issues/ tmp/gh-plans/
+  _safe_remove_tmp_dir "tmp/gh-issues" "gh-issues"
+  _safe_remove_tmp_dir "tmp/gh-plans" "gh-plans"
 fi
 
 # Remove scratch files (unconditional — no state file)
-rm -rf tmp/scratch/
+_safe_remove_tmp_dir "tmp/scratch" "scratch"
 
 # Talisman resolver cache (regenerated at next SessionStart)
-rm -rf tmp/.talisman-resolved/ 2>/dev/null
+_safe_remove_tmp_dir "tmp/.talisman-resolved" "talisman-resolved"
 
 # Remove event-driven signal files with symlink guard (unconditional — ephemeral hook artifacts)
 # Created by Phase 2 BRIDGE orchestrators when hooks are active. Safe no-op if absent.
+# Note: _safe_remove_tmp_dir already includes symlink guard, but we keep the explicit
+# check here for the find command that runs before removal.
 if [[ ! -L "tmp/.rune-signals" ]] && [[ -d "tmp/.rune-signals" ]]; then
   # Remove .obs-* dedup files older than 7 days (on-task-observation.sh dedup keys)
   find tmp/.rune-signals -maxdepth 2 -name '.obs-*' -mtime +7 -delete 2>/dev/null || true
-  rm -rf tmp/.rune-signals/ 2>/dev/null
+  _safe_remove_tmp_dir "tmp/.rune-signals" "rune-signals"
 fi
 
 # Clean up stale workflow lock directories (PID-guarded)
@@ -299,7 +325,9 @@ if [[ ! -L "tmp/.rune-locks" ]] && [[ -d "tmp/.rune-locks" ]]; then
         fi
       fi
     fi
-    rm -rf "$lock_dir" 2>/dev/null
+    if ! rm -rf "$lock_dir" 2>&1; then
+      echo "WARN: failed to remove $lock_dir — check permissions"
+    fi
   done
   # Remove empty locks dir
   rmdir tmp/.rune-locks 2>/dev/null || true
@@ -510,9 +538,24 @@ AskUserQuestion({
 // STEP 4: Execute cleanup
 for (const teamName of orphanedTeams) {
   // Inline rm -rf pattern (TeamDelete skipped — orphaned teams have no active session)
-  // Defense-in-depth: re-validate despite Step 2 filter
+  // Defense-in-depth: re-validate name AND path (SEC-009)
   if (!/^[a-zA-Z0-9_-]+$/.test(teamName)) continue
-  Bash(`rm -rf "${CHOME}/teams/${teamName}/" "${CHOME}/tasks/${teamName}/" 2>/dev/null`)
+  // Validate resolved paths stay inside CHOME (path traversal guard)
+  const teamsTarget = `${CHOME}/teams/${teamName}/`
+  const tasksTarget = `${CHOME}/tasks/${teamName}/`
+  const resolvedTeams = Bash(`cd "${CHOME}/teams/${teamName}" 2>/dev/null && pwd -P || echo ""`).trim()
+  const resolvedTasks = Bash(`cd "${CHOME}/tasks/${teamName}" 2>/dev/null && pwd -P || echo ""`).trim()
+  if (resolvedTeams && !resolvedTeams.startsWith(CHOME_RESOLVED + "/teams/")) {
+    warn(`SKIP: ${teamsTarget} resolves outside expected dir (${resolvedTeams})`)
+    continue
+  }
+  if (resolvedTasks && !resolvedTasks.startsWith(CHOME_RESOLVED + "/tasks/")) {
+    warn(`SKIP: ${tasksTarget} resolves outside expected dir (${resolvedTasks})`)
+    continue
+  }
+  // Surface permission errors instead of suppressing them (VEIL-008)
+  const result = Bash(`rm -rf "${CHOME}/teams/${teamName}/" "${CHOME}/tasks/${teamName}/" 2>&1`)
+  if (result) warn(`Heal cleanup warning for team ${teamName}: ${result}`)
 }
 
 for (const { file, state } of staleStateFiles) {
@@ -529,15 +572,30 @@ const staleTeamNames = staleStateFiles.map(s => s.state.team_name).filter(Boolea
 const signalDirs = Glob("tmp/.rune-signals/*/")
 for (const dir of signalDirs) {
   const teamName = basename(dir)
+  if (!/^[a-zA-Z0-9_-]+$/.test(teamName)) continue  // SEC-009: validate dir name
   if (orphanedTeams.includes(teamName) || staleTeamNames.includes(teamName)) {
-    Bash(`rm -rf "${dir}" 2>/dev/null`)
+    // Validate path stays inside tmp/.rune-signals/ (SEC-009)
+    const resolved = Bash(`cd "${dir}" 2>/dev/null && pwd -P || echo ""`).trim()
+    if (!resolved || !resolved.includes("/tmp/.rune-signals/")) {
+      warn(`SKIP: ${dir} resolves outside expected dir (${resolved})`)
+      continue
+    }
+    const result = Bash(`rm -rf "${dir}" 2>&1`)  // VEIL-008: surface errors
+    if (result) warn(`Signal dir cleanup warning: ${result}`)
   }
 }
 
 // STEP 5.5: Remove orphaned arc checkpoint directories (v1.110.0)
 // Discovered in STEP 2.5 — execute cleanup here alongside other removals.
 for (const dir of orphanedCheckpoints) {
-  Bash(`rm -rf "${dir}" 2>/dev/null`)
+  // SEC-009: validate resolved path stays inside expected base dirs
+  const resolved = Bash(`cd "${dir}" 2>/dev/null && pwd -P || echo ""`).trim()
+  if (!resolved || (!resolved.includes("/.claude/arc/") && !resolved.includes("/tmp/arc/"))) {
+    warn(`SKIP: ${dir} resolves outside expected dir (${resolved})`)
+    continue
+  }
+  const result = Bash(`rm -rf "${dir}" 2>&1`)  // VEIL-008: surface errors
+  if (result) warn(`Checkpoint cleanup warning: ${result}`)
 }
 
 // STEP 6: Report
@@ -555,6 +613,8 @@ log(`  Orphaned checkpoints removed: ${orphanedCheckpoints.length}`)
 - User confirmation required before any cleanup
 - Team name validated with `/^[a-zA-Z0-9_-]+$/` before any `rm -rf`
 - Uses `find` instead of `ls` for team dir scanning (SEC-007 compliance)
+- All cleanup targets validated via path resolution before removal (SEC-009 compliance)
+- Permission errors surfaced as warnings, never silently suppressed (VEIL-008 compliance)
 
 ## Error Handling
 

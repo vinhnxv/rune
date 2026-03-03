@@ -36,7 +36,7 @@ allowed-tools:
 ---
 
 **Runtime context** (preprocessor snapshot):
-- Active workflows: !`ls tmp/.rune-*-*.json 2>/dev/null | grep -c '"active"' || echo 0`
+- Active workflows: !`find tmp -maxdepth 1 -name '.rune-*-*.json' -exec grep -l '"active"' {} + 2>/dev/null | wc -l | tr -d ' '`
 - Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 # /rune:strive — Multi-Agent Work Execution
@@ -51,6 +51,8 @@ Parses a plan into tasks with dependencies, summons swarm workers, and coordinat
 /rune:strive plans/feat-user-auth-plan.md              # Execute a specific plan
 /rune:strive plans/feat-user-auth-plan.md --approve    # Require plan approval per task
 /rune:strive plans/feat-user-auth-plan.md --worktree   # Use git worktree isolation (experimental)
+/rune:strive plans/feat-user-auth-plan.md --background # Background dispatch (workers run across sessions)
+/rune:strive --collect [timestamp]                      # Gather results from a background dispatch
 /rune:strive                                            # Auto-detect recent plan
 ```
 
@@ -432,6 +434,26 @@ const allTasks = TaskList()
 // 1. Dynamic member discovery — reads team config to find ALL teammates
 // 2. Send shutdown_request to all members
 // 2.5. Grace period — sleep 15s to let teammates deregister before TeamDelete
+// 2.7. Finalize per-worker artifacts (non-blocking — skip if runs/ absent)
+//      Scan tmp/work/{timestamp}/runs/ for agents with status "running"
+//      and mark as completed/failed based on worker output presence
+try {
+  const workRunsDir = `tmp/work/${timestamp}/runs/`
+  const runMetas = Glob(`${workRunsDir}*/meta.json`)
+  for (const metaPath of runMetas) {
+    try {
+      const meta = JSON.parse(Read(metaPath))
+      if (meta.status === "running") {
+        const agentRunDir = metaPath.replace(/\/meta\.json$/, '')
+        const agentName = agentRunDir.split('/').pop()
+        // Check if worker completed any tasks
+        const workerTasks = allTasks.filter(t => t.owner === agentName && t.status === "completed")
+        const agentStatus = workerTasks.length > 0 ? "completed" : "failed"
+        Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/run-artifacts.sh 2>/dev/null && type rune_artifact_finalize &>/dev/null && rune_artifact_finalize "${agentRunDir}" "${agentStatus}"`)
+      }
+    } catch (e) { /* per-agent finalization failure is non-blocking */ }
+  }
+} catch (e) { /* artifact finalization is non-blocking */ }
 // 3. Cleanup team with retry-with-backoff (3 attempts: 0s, 5s, 10s)
 //    Total budget: 15s grace + 15s retry = 30s max
 //    Filesystem fallback when TeamDelete fails
