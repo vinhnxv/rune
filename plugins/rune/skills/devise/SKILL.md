@@ -213,23 +213,28 @@ const FIGMA_URL_PATTERN = /https?:\/\/[^\s]*figma\.com\/[^\s]+/g
 const DESIGN_KEYWORD_PATTERN = /\b(figma|design|mockup|wireframe|prototype|ui\s*kit|design\s*system|style\s*guide|component\s*library)\b/i
 
 // Phase 0 detection (brainstorm mode)
-const figmaUrls = userDescription.match(FIGMA_URL_PATTERN) || []
-const figmaUrl = figmaUrls.length > 0 ? figmaUrls[0] : null
-const designAware = figmaUrl !== null
+const maxFigmaUrls = talisman?.design_sync?.max_figma_urls ?? 10
+let figmaUrls = (userDescription.match(FIGMA_URL_PATTERN) || []).slice(0, maxFigmaUrls)
+if (figmaUrls.length > 5) warn(`Found ${figmaUrls.length} Figma URLs — processing first ${maxFigmaUrls}`)
+let figmaUrl = figmaUrls[0] ?? null  // primary URL for single-URL consumers (backward compat)
+let designAware = figmaUrls.length > 0
 
 // --quick fallback: Phase 0 is skipped, so apply detection before Phase 1
 // The feature description is still available from the user prompt
 if (quickMode && !designAware) {
   // Re-scan: user may have provided Figma URL as part of quick description
-  const quickFigma = featureDescription.match(FIGMA_URL_PATTERN)
-  if (quickFigma) {
-    figmaUrl = quickFigma[0]
+  const quickFigmaUrls = (featureDescription.match(FIGMA_URL_PATTERN) || []).slice(0, maxFigmaUrls)
+  if (quickFigmaUrls.length > 0) {
+    figmaUrls.push(...quickFigmaUrls)
+    figmaUrl = figmaUrls[0]
     designAware = true
   }
 }
 
-// Pass designAware and figmaUrl to brainstorm phase (Step 3.2 design asset detection)
-// Pass designAware and figmaUrl to synthesize phase (frontmatter + Design Implementation section)
+// Pass designAware, figmaUrls (full array), and figmaUrl (primary, backward compat) downstream:
+// - brainstorm phase (Step 3.2 design asset detection)
+// - synthesize phase (figma_urls frontmatter array + Design Implementation section)
+// - design-inventory-agent (iterates figmaUrls for multi-file inventory)
 let design_sync_candidate = designAware
 
 if (designAware) {
@@ -246,11 +251,11 @@ When `design_sync_candidate === true` AND `talisman.design_sync.enabled === true
 // Conditional design research agent — only when design_sync_candidate + talisman enabled
 const designSyncEnabled = talisman?.design_sync?.enabled === true
 
-if (design_sync_candidate && designSyncEnabled && figmaUrl) {
+if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
   // ATE-1 COMPLIANT: Agent joins rune-plan-{timestamp} team created in Phase -1.
   TaskCreate({
     subject: "Extract Figma design inventory",
-    description: "Call figma_list_components MCP tool, extract component inventory",
+    description: "Call figma_list_components MCP tool, extract component inventory for all Figma URLs",
     activeForm: "Extracting design inventory"
   })
 
@@ -261,7 +266,8 @@ if (design_sync_candidate && designSyncEnabled && figmaUrl) {
     prompt: `You are a design inventory specialist.
 
       ## Assignment
-      Figma URL: ${figmaUrl}
+      Figma URLs (${figmaUrls.length} total): ${JSON.stringify(figmaUrls)}
+      Primary URL: ${figmaUrls[0]}
 
       ## MCP Tool Availability
       Two Figma MCP namespaces may be available. Try in this order:
@@ -275,20 +281,21 @@ if (design_sync_candidate && designSyncEnabled && figmaUrl) {
 
       ## Lifecycle
       1. Claim the "Extract Figma design inventory" task via TaskList/TaskUpdate
-      2. **Try Rune tools first**: Call figma_list_components(url="${figmaUrl}")
-         - On success: extract component names, node IDs, and types from result
-         - Record mcpProvider: "rune" in output
-      3. **If Rune tools fail** (tool not found / MCP unavailable): fall back to Official MCP:
-         - Extract fileKey from the Figma URL
-         - Call mcp__claude_ai_Figma__get_metadata(fileKey="{fileKey}")
-         - Parse component names and node IDs from XML response
-         - Record mcpProvider: "official" in output
-      4. Write component inventory to: tmp/plans/${timestamp}/design-inventory.json
-         Format: { "components": [{ "name": "...", "node_id": "...", "type": "..." }], "mcpProvider": "rune|official" }
-      5. If BOTH tool namespaces fail (MCP unavailable), write:
-         { "components": [], "error": "Figma MCP not available", "figma_url": "${figmaUrl}", "mcpProvider": null }
-      6. Do not write implementation code. Inventory only.
-      7. Mark task complete via TaskUpdate`,
+      2. For EACH URL in the Figma URLs list:
+         a. **Try Rune tools first**: Call figma_list_components(url="{url}")
+            - On success: extract component names, node IDs, and types from result
+            - Record mcpProvider: "rune" in output
+         b. **If Rune tools fail** (tool not found / MCP unavailable): fall back to Official MCP:
+            - Extract fileKey from the Figma URL
+            - Call mcp__claude_ai_Figma__get_metadata(fileKey="{fileKey}")
+            - Parse component names and node IDs from XML response
+            - Record mcpProvider: "official" in output
+      3. Write combined component inventory to: tmp/plans/${timestamp}/design-inventory.json
+         Format: { "components": [{ "name": "...", "node_id": "...", "type": "...", "source_url": "..." }], "figma_urls": [...], "mcpProvider": "rune|official" }
+      4. If BOTH tool namespaces fail for a URL, record:
+         { "error": "Figma MCP not available", "figma_url": "{url}" } in components array
+      5. Do not write implementation code. Inventory only.
+      6. Mark task complete via TaskUpdate`,
     run_in_background: true
   })
   // Output is read during Phase 2 (Synthesize) to populate Component Inventory table
@@ -362,11 +369,11 @@ See [solution-arena.md](references/solution-arena.md) for full protocol (sub-ste
 
 Tarnished consolidates research findings into a plan document. User selects detail level (Minimal/Standard/Comprehensive). Includes plan templates, formatting best practices, and the Plan Section Convention (contracts before pseudocode).
 
-**Inputs**: Research outputs from `tmp/plans/{timestamp}/research/`, user detail level selection, `designAware` (boolean from Phase 0), `figmaUrl` (string or null)
+**Inputs**: Research outputs from `tmp/plans/{timestamp}/research/`, user detail level selection, `designAware` (boolean from Phase 0), `figmaUrls` (string[] from Phase 0), `figmaUrl` (string or null — first entry, backward compat)
 **Outputs**: `plans/YYYY-MM-DD-{type}-{feature-name}-plan.md`
 **Error handling**: Missing research files -> proceed with available data
 **Comprehensive only**: Re-runs flow-seer on the drafted plan for a second SpecFlow pass
-**Design-aware**: When `design_sync_candidate === true`, adds `figma_url` and `design_sync: true` to frontmatter, and emits a "Design Implementation" section in the plan body (with component inventory from design-inventory-agent if available)
+**Design-aware**: When `design_sync_candidate === true`, adds `figma_urls` array and `design_sync: true` to frontmatter, and emits a "Design Implementation" section in the plan body (with component inventory from design-inventory-agent if available)
 
 See [synthesize.md](references/synthesize.md) for the full protocol.
 
