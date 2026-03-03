@@ -182,6 +182,77 @@ if talisman.codex.disabled is not true:
 cli_ashes = detectAllCLIAshes(talisman, current_workflow)
 for each cli_ash in cli_ashes:
   ash_selections.add(cli_ash.name)
+
+# Agent-backed custom Ashes (from talisman.yml ashes.custom[], v1.17.0+)
+# Iterate ashes.custom[] entries where cli: is NOT present (agent-backed — see custom-ashes.md).
+# Discovery MUST happen here (Phase 1) so custom Ashes are included in selectedAsh
+# BEFORE Phase 2 (TeamCreate + TaskCreate). Spawning happens in Phase 3 (ash-summoning.md).
+current_workflow = "review"  # or "audit" depending on calling skill
+custom_agent_ashes = []
+if talisman.ashes?.custom:
+  for each entry in talisman.ashes.custom:
+    # Skip CLI-backed entries (handled above by detectAllCLIAshes)
+    if entry.cli:
+      continue
+
+    # 1. Workflow filter: keep only entries matching current workflow
+    if current_workflow not in entry.workflows:
+      continue
+
+    # 2. Validate agent name: must match /^[a-zA-Z0-9_:-]+$/
+    if not /^[a-zA-Z0-9_:-]+$/.test(entry.agent):
+      log("Invalid agent name '{entry.agent}' — skipping")
+      continue
+
+    # 3. Validate unique finding_prefix (2-5 uppercase, no reserved collisions)
+    if entry.finding_prefix in RESERVED_PREFIXES or entry.finding_prefix in existing_prefixes:
+      log("Duplicate/reserved prefix '{entry.finding_prefix}' — skipping")
+      continue
+
+    # 4. Resolve agent file existence
+    if entry.source == "local":
+      if not exists(".claude/agents/{entry.agent}.md"):
+        log("Agent '{entry.agent}' not found in .claude/agents/ — skipping")
+        continue
+    elif entry.source == "global":
+      if not exists("~/.claude/agents/{entry.agent}.md"):
+        log("Agent '{entry.agent}' not found in ~/.claude/agents/ — skipping")
+        continue
+
+    # 5. Trigger matching against changed_files (or all_files for audit)
+    matching_files = []
+    for each file in changed_files:
+      ext_match = file.extension in entry.trigger.extensions OR entry.trigger.extensions == ["*"]
+      path_match = entry.trigger.paths is empty OR file starts with any entry.trigger.paths entry
+      if ext_match AND path_match:
+        matching_files.add(file)
+
+    if len(matching_files) >= (entry.trigger.min_files ?? 1):
+      ash_selections.add(entry.name)
+      custom_agent_ashes.add({
+        name: entry.name,
+        agent: entry.agent,
+        source: entry.source,
+        finding_prefix: entry.finding_prefix,
+        context_budget: entry.context_budget,
+        matching_files: matching_files[:entry.context_budget],
+        required_sections: entry.required_sections
+      })
+    else:
+      # Skip silently (same as conditional built-in Ash)
+
+  # 6. Enforce max_ashes cap (built-in + CLI + agent-backed custom)
+  total_ashes = len(ash_selections)
+  max_ashes = talisman.settings?.max_ashes ?? 9
+  if total_ashes > max_ashes:
+    log("Too many Ashes ({total_ashes}). Max: {max_ashes}. Trimming custom entries.")
+    # Trim custom_agent_ashes from the end until within cap
+    while len(ash_selections) > max_ashes and custom_agent_ashes:
+      removed = custom_agent_ashes.pop()
+      ash_selections.remove(removed.name)
+
+  # 7. Store custom ash context for Phase 3 summoning
+  inscription.custom_agent_ashes = custom_agent_ashes
 ```
 
 **`DOC_LINE_THRESHOLD`**: Default 10. Configurable via `talisman.yml` → `rune-gaze.doc_line_threshold`.

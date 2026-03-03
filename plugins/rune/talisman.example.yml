@@ -1591,6 +1591,78 @@ context_weaving:
 #                                            # Captures UI states, transitions, keyboard interactions, loading patterns.
 #                                            # Extends VSM with micro_design section per micro-design-protocol.md.
 
+# ──────────────────────────────────────────────────────────────────
+# MCP Tool Integrations
+# ──────────────────────────────────────────────────────────────────
+# Declare third-party MCP tools for workflow-aware routing.
+# Each key under mcp_tools = namespace that should match your .mcp.json server name.
+# See docs/guides/mcp-integration-spec.en.md for the full developer guide.
+#
+# 3 Integration Levels:
+#   Level 1 (Basic):    .mcp.json only — tools available but not workflow-aware
+#   Level 2 (Talisman): + integrations section — phase routing, triggers, rules injection
+#   Level 3 (Full):     + companion skill + rules files + metadata
+#
+# Tool categories:
+#   search   — Find/discover resources (e.g., component search)
+#   details  — Get detailed information (e.g., component inspection)
+#   compose  — Plan multi-resource layouts (e.g., page composition)
+#   generate — Generate code/artifacts (e.g., code generation)
+#   suggest  — AI-powered recommendations (e.g., context suggestions)
+#   validate — Check/verify resources (e.g., validation tools)
+#
+# Trigger evaluation: (extension OR path OR keyword match) AND phase match
+# Set trigger.always: true to skip trigger checks and always activate.
+#
+# integrations:
+#   mcp_tools:
+#     # Example: UntitledUI component library integration
+#     untitledui:
+#       server_name: "untitledui"              # Must match key in .mcp.json
+#
+#       # Tool declarations with categories
+#       tools:
+#         - name: "untitledui_find"
+#           category: "search"                 # Semantic component search
+#         - name: "untitledui_get"
+#           category: "details"                # Get component details + code
+#         - name: "untitledui_code_search"
+#           category: "search"                 # Find by code patterns
+#         - name: "untitledui_compose"
+#           category: "compose"                # Plan multi-component layouts
+#         - name: "untitledui_suggest"
+#           category: "suggest"                # AI-powered suggestions
+#
+#       # Workflow phase routing — which phases can use these tools
+#       phases:
+#         devise: true                         # Planning/research
+#         strive: true                         # Implementation
+#         forge: true                          # Plan enrichment
+#         appraise: false                      # Code review (usually read-only tools only)
+#         audit: false                         # Codebase analysis
+#         arc: true                            # Full pipeline (inherits other phase settings)
+#
+#       # Companion skill — auto-loaded when integration is active
+#       skill_binding: "untitledui-builder"    # Must exist in .claude/skills/
+#
+#       # Rules to inject into agent prompts when active
+#       rules:
+#         - ".claude/rules/untitledui-button-icons.md"
+#
+#       # Trigger conditions — when to activate this integration
+#       trigger:
+#         extensions: [".tsx", ".ts", ".jsx"]  # File extensions (OR logic)
+#         paths: ["dashboard/src/", "admin/src/"]  # Path prefixes (OR logic)
+#         keywords: ["frontend", "ui", "component", "design"]  # Task keywords (OR logic)
+#         always: false                        # Override: always active if true
+#
+#       # Optional metadata for discovery and documentation
+#       metadata:
+#         library_name: "UntitledUI PRO"
+#         component_count: 768
+#         version: "1.9.1"
+#         homepage: "https://untitledui.com"
+
 # ──────────────────────────────────────────────
 # Storybook — Component visual verification (arc Phase 3.3) (v1.128.0+)
 # ──────────────────────────────────────────────

@@ -472,6 +472,9 @@ function buildDesignContextBlock(task) {
 // const designBlock = buildDesignContextBlock(task)
 // Insert AFTER the existing prompt sections, BEFORE the task assignment
 // prompt += designBlock  // No-op when empty string (zero overhead)
+// const mcpBlock = buildMCPContextBlock(activeMCPIntegrations)
+// prompt += mcpBlock     // No-op when empty string (zero overhead)
+// Final order: [designContextBlock] [mcpContextBlock] [task list]
 ```
 
 ### Per-Task Step 4.7: DESIGN SPEC (conditional)
@@ -570,6 +573,26 @@ function buildComponentConstraintBlock(plan, designProfile) {
 // Insert AFTER step 4.7 (DESIGN SPEC), BEFORE step 5 (Read FULL target files)
 // Only injected for tasks where task.metadata.isFrontend === true
 ```
+
+### Step 4.9: MCP Tool Context (conditional)
+
+When active MCP integrations are detected by `resolveMCPIntegrations()`, inject tool context:
+
+```javascript
+// Triple-gate: resolveMCPIntegrations("strive", context) returned active integrations
+// See mcp-integration.md for resolver algorithm
+if (activeMCPIntegrations.length > 0) {
+  // Inject MCP context between step 4.8 and step 5
+  // Zero overhead when no integrations active (empty array → skip)
+}
+```
+
+When active, workers receive:
+- Available MCP tool names with categories
+- Loaded rule content (max 2000 chars per rule, truncated if larger)
+- Companion skill reference (auto-loaded by orchestrator)
+
+Workers should use MCP tools when relevant to their implementation task — especially `search` and `details` category tools for discovery, and `generate` tools for scaffolding.
 
 ### Per-Component TaskCreate Specs (Phase 1)
 

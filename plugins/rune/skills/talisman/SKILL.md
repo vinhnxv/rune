@@ -140,6 +140,18 @@ Based on detected stack, customize the template:
 - `audit:` — for projects with large codebases
 - `testing:` — if test framework detected
 - `context_monitor:` / `context_weaving:` — always include defaults
+- `integrations:` — if `.mcp.json` contains custom MCP servers (not built-in like context7)
+
+**MCP Integration Detection (Phase 2.5):**
+```
+If .mcp.json exists:
+  Parse server names from .mcp.json
+  Filter out built-in servers: sequential-thinking, context7, echo-search, figma-to-react
+  If custom servers remain:
+    Include integrations.mcp_tools scaffold with one entry per custom server
+    Pre-fill server_name, empty tools[], default phases (devise+strive+forge=true)
+    Add trigger.always: false with TODO comment for user to configure
+```
 
 ### Phase 5: Write and Confirm
 
@@ -176,6 +188,28 @@ Categories:
   PARTIAL   — Section exists but missing sub-keys
   DIVERGENT — Value differs significantly from example default
   OK        — Section present and up-to-date
+```
+
+### Phase 2.5: Integration Validation
+
+If `integrations.mcp_tools` section exists, validate each entry:
+
+```
+For each integrations.mcp_tools.{namespace}:
+  1. server_name → check exists as key in .mcp.json
+     MISSING: "Server '{server_name}' not found in .mcp.json"
+  2. tools[].category → validate each is one of:
+     search, details, compose, suggest, generate, validate
+     INVALID: "Unknown tool category '{cat}' for tool '{name}'"
+  3. phases → validate keys are valid Rune phases:
+     devise, strive, forge, appraise, audit, arc
+     INVALID: "Unknown phase '{phase}' in {namespace}.phases"
+  4. skill_binding → check .claude/skills/{skill_binding}/SKILL.md exists
+     MISSING: "Companion skill '{skill_binding}' not found"
+  5. rules[] → check each file path exists
+     MISSING: "Rule file '{path}' not found"
+  6. trigger → warn if all trigger conditions are empty AND always !== true
+     WARNING: "No triggers configured — integration will never activate"
 ```
 
 ### Phase 3: Gap Report
@@ -246,15 +280,16 @@ Show summary of changes applied
 Parse remaining args after "guide":
 
 ```
-/rune:talisman guide           → Overview of all sections
-/rune:talisman guide codex     → Codex integration keys
-/rune:talisman guide arc       → Arc pipeline configuration
-/rune:talisman guide review    → Review/sharding/convergence
-/rune:talisman guide work      → Work/strive settings
-/rune:talisman guide ashes     → Custom Ashes configuration
-/rune:talisman guide goldmask  → Goldmask per-workflow integration
-/rune:talisman guide mend      → Mend settings
-/rune:talisman guide [topic]   → Match to closest section
+/rune:talisman guide              → Overview of all sections
+/rune:talisman guide codex        → Codex integration keys
+/rune:talisman guide arc          → Arc pipeline configuration
+/rune:talisman guide review       → Review/sharding/convergence
+/rune:talisman guide work         → Work/strive settings
+/rune:talisman guide ashes        → Custom Ashes configuration
+/rune:talisman guide goldmask     → Goldmask per-workflow integration
+/rune:talisman guide mend         → Mend settings
+/rune:talisman guide integrations → MCP tool integrations (aliases: mcp, mcp-integration)
+/rune:talisman guide [topic]      → Match to closest section
 ```
 
 ### Response Format
@@ -270,6 +305,46 @@ Load details from:
 - [talisman-sections.md](references/talisman-sections.md) for section summaries
 - [configuration-guide.md](../../references/configuration-guide.md) for full schema
 - [talisman.example.yml](../../talisman.example.yml) for canonical values
+
+### Integrations Topic
+
+When topic matches `integrations`, `mcp`, or `mcp-integration`:
+
+```
+Explain 3 Integration Levels:
+
+  Level 1 (Basic): .mcp.json only
+    - Tools are available to Claude but NOT workflow-aware
+    - No phase routing, no trigger conditions
+    - Example: just add server to .mcp.json
+
+  Level 2 (Talisman): + integrations section
+    - Phase routing: which Rune phases can use the tools
+    - Trigger conditions: auto-activate based on file types, paths, keywords
+    - Skill binding: auto-load companion skill when active
+    - Rules injection: inject project-specific rules into agent prompts
+    - Example: add integrations.mcp_tools.{name} to talisman.yml
+
+  Level 3 (Full): + companion skill + rules files + metadata
+    - Dedicated skill with deep domain knowledge
+    - Project-specific rules for quality enforcement
+    - Metadata for discoverability (library_name, version, homepage)
+    - See docs/guides/mcp-integration-spec.en.md for the developer guide
+
+Show example YAML for Level 2:
+  integrations:
+    mcp_tools:
+      my-tool:
+        server_name: "my-tool"
+        tools:
+          - name: "my_tool_search"
+            category: "search"
+        phases:
+          strive: true
+          devise: true
+        trigger:
+          extensions: [".tsx"]
+```
 
 ## STATUS — Talisman Summary
 
@@ -297,6 +372,26 @@ Also report:
   - Ward commands: [list]
 ```
 
+### Phase 2.5: Integration Status
+
+```
+If integrations.mcp_tools exists:
+  For each integration:
+    Show: namespace, server_name, tool count, phase bindings
+    Show: trigger summary (extensions/paths/keywords or "always")
+    Check: server_name found in .mcp.json? (✓ connected / ✗ not in .mcp.json)
+    Check: skill_binding exists? (✓ loaded / ✗ missing / — not configured)
+
+  Example output:
+    MCP Integrations: 2 configured
+      untitledui  → 5 tools, phases: devise/strive/forge
+                    triggers: .tsx,.ts,.jsx | keywords: frontend,ui
+                    server: ✓ connected | skill: untitledui-builder ✓
+      my-api      → 2 tools, phases: strive/arc
+                    triggers: always
+                    server: ✗ not in .mcp.json | skill: — not configured
+```
+
 ### Phase 3: Health Check
 
 ```
@@ -305,6 +400,7 @@ Quick health indicators:
   ✓ file_todos uses schema v2 (no deprecated keys)
   ✓ dedup_hierarchy has stack-appropriate prefixes
   ✓ arc.timeouts defined
+  ✓ integrations: N configured, N connected (if present)
   ✗ Missing: [sections not present]
 ```
 

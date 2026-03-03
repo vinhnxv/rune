@@ -299,6 +299,29 @@ See [brainstorm-phase.md](references/brainstorm-phase.md) for the delegation pro
 
 Read and execute when Phase 0 runs.
 
+### MCP Integration Discovery (Phase 0, conditional)
+
+Resolve active MCP integrations for the `devise` phase. Zero cost when no integrations configured.
+
+See `strive/references/mcp-integration.md` for the shared resolver algorithm.
+
+```javascript
+// After Figma URL detection, before Phase 1
+const mcpIntegrations = resolveMCPIntegrations("devise", {
+  changedFiles: [],  // No changed files during planning
+  taskDescription: userDescription
+})
+
+// If active integrations found:
+// - Load companion skills for research context
+const mcpSkills = loadMCPSkillBindings(mcpIntegrations)
+if (mcpSkills.length > 0) loadedSkills.push(...mcpSkills)
+
+// - Build context block for research agent prompts
+const mcpContextBlock = buildMCPContextBlock(mcpIntegrations)
+// Passed to Phase 1 research agents and Phase 2 synthesis
+```
+
 ## Phase 1: Research (Conditional, up to 8 agents)
 
 Spawns local research agents (repo-surveyor, echo-reader, git-miner), evaluates risk/sufficiency scores to decide on external research (practice-seeker, lore-scholar, codex-researcher), optionally verifies external research outputs for trustworthiness (research-verifier, Phase 1C.5), then runs spec validation (flow-seer). Includes research consolidation validation checkpoint. Phase 1B reads `talisman.plan` config for `external_research` bypass modes (`always`/`auto`/`never`) and `research_urls` with SSRF-defensive URL sanitization. External research agents use Context7 MCP for framework documentation alongside WebSearch. Phase 1C.5 scores findings across 5 dimensions (relevance, accuracy, freshness, cross-validation, security) and maps verdicts (TRUSTED/CAUTION/UNTRUSTED/FLAGGED) — skipped with `--quick`, `--no-verify-research`, or when no external research ran.
@@ -308,6 +331,20 @@ Spawns local research agents (repo-surveyor, echo-reader, git-miner), evaluates 
 **Error handling**: TeamDelete fallback on cleanup, identifier validation before rm-rf, agent timeout (5 min) proceeds with partial findings
 
 See [research-phase.md](references/research-phase.md) for the full protocol.
+
+#### MCP Tool Context in Research Agents
+
+When `mcpIntegrations.length > 0`, append to research agent spawn prompts:
+- **practice-seeker**: Include MCP tool names in "available tools" for best-practice research
+- **lore-scholar**: Include MCP metadata (library_name, version) for framework-specific documentation lookup
+- **repo-surveyor**: Include integration config awareness to discover talisman.yml patterns
+
+```javascript
+// Append to research agent prompt when MCP active
+if (mcpContextBlock) {
+  researchPrompt += mcpContextBlock
+}
+```
 
 ## Phase 1.8: Solution Arena
 
@@ -332,6 +369,20 @@ Tarnished consolidates research findings into a plan document. User selects deta
 **Design-aware**: When `design_sync_candidate === true`, adds `figma_url` and `design_sync: true` to frontmatter, and emits a "Design Implementation" section in the plan body (with component inventory from design-inventory-agent if available)
 
 See [synthesize.md](references/synthesize.md) for the full protocol.
+
+#### MCP Integration Context in Synthesis
+
+When active MCP integrations are available, include in the synthesis prompt:
+- Available MCP tools with categories (for "Implementation Context" section)
+- Companion skill references (for "Dependencies" section)
+- Library metadata (for external resource references)
+
+```javascript
+// Inject into synthesis agent prompt
+if (mcpContextBlock) {
+  synthesisPrompt += `\n## Available MCP Tool Integrations\n${mcpContextBlock}`
+}
+```
 
 ## Phase 2.3: Predictive Goldmask
 

@@ -36,7 +36,16 @@ function resolveSessionContext(args: string): string {
         || Glob(`${d}task-[0-9]*.md`).length > 0
       return hasV2 || hasV2_4digit || hasTask || hasRootTodos
     })
-    .sort().reverse()  // Most recent timestamp-named dir first
+    .sort((a, b) => {
+      // Sort by embedded timestamp (YYYYMMDD-HHMMSS) when present
+      const tsA = a.match(/(\d{8}-\d{6})/)?.[1] || ''
+      const tsB = b.match(/(\d{8}-\d{6})/)?.[1] || ''
+      if (tsA && tsB) return tsB.localeCompare(tsA)
+      if (tsA) return -1  // timestamp paths before non-timestamp
+      if (tsB) return 1
+      // Fallback: reverse lexical (best effort for PR numbers etc.)
+      return b.localeCompare(a)
+    })
   if (todoDirs.length > 0) return todoDirs[0]
 
   // 3. Auto-detect: find most recent active workflow from state files
@@ -45,20 +54,28 @@ function resolveSessionContext(args: string): string {
     .filter(f => /\.rune-(work|review|audit|mend|arc)-/.test(f))
   const activeStates = stateFiles
     .map(f => { try { return JSON.parse(Read(f)) } catch { return null } })
-    .filter(s => s && s.status === "active" && (s.todos_base || s.id))
-    .sort((a, b) => new Date(b.started) - new Date(a.started))
+    // Accept "active" or "running" (audit/review may use "running")
+    // Don't require todos_base — it's only set after Phase 5.4 in review/audit
+    .filter(s => s && (s.status === "active" || s.status === "running"))
+    .sort((a, b) => new Date(b.started || b.started_at || 0) - new Date(a.started || a.started_at || 0))
 
   if (activeStates.length > 0) {
-    let todosBase = activeStates[0].todos_base
-    if (!todosBase && activeStates[0].id) {
+    const state = activeStates[0]
+    let todosBase = state.todos_base
+    if (!todosBase && state.id) {
       // Arc checkpoint stores todos_base at top level; arc state file may not
-      const ckptPath = `.claude/arc/${activeStates[0].id}/checkpoint.json`
+      const ckptPath = `.claude/arc/${state.id}/checkpoint.json`
       try {
         const ckpt = JSON.parse(Read(ckptPath))
         todosBase = ckpt.todos_base
       } catch {}
     }
-    return todosBase
+    if (!todosBase && state.output_dir) {
+      // Derive from output_dir (review/audit set this before todos_base)
+      todosBase = `${state.output_dir.replace(/\/?$/, '/')}todos/`
+    }
+    if (todosBase) return todosBase
+    // State file found but no todos path resolvable — fall through to step 4
   }
 
   // 4. Fallback: list recent completed sessions for user selection
@@ -85,7 +102,7 @@ All user-supplied filter values MUST be validated before use:
 ```
 STATUS_PATTERN  = /^(pending|ready|in_progress|complete|blocked|wont_fix|interrupted)$/
 PRIORITY_PATTERN = /^p[1-3]$/
-SOURCE_PATTERN  = /^(review|work|pr-comment|tech-debt|audit)$/
+SOURCE_PATTERN  = /^(review|work|pr-comment|tech-debt|audit|test-browser|gap|test)$/
 TAG_PATTERN     = /^[a-zA-Z0-9_-]+$/
 TODO_ID_PATTERN = /^[0-9]{3,4}$/
 ```

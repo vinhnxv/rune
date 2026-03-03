@@ -67,4 +67,4 @@ You need a plan file first. Create one with `/rune:plan`.
 ## Execution
 
 Read and execute the `/rune:strive` skill with all arguments passed through.
-All `/rune:strive` flags are supported: `--approve`, `--worktree`, `--todos-dir`.
+All `/rune:strive` flags are supported: `--approve`, `--worktree`.

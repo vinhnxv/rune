@@ -857,7 +857,6 @@ plugins/rune/
 │   ├── elicit.md               # /rune:elicit
 │   ├── echoes.md               # /rune:echoes
 │   ├── file-todos.md           # /rune:file-todos
-│   ├── brainstorm.md            # /rune:brainstorm (alias for /rune:brainstorm skill)
 │   ├── plan.md                 # /rune:plan (alias for /rune:devise)
 │   ├── plan-review.md          # /rune:plan-review
 │   ├── rest.md                 # /rune:rest
@@ -1030,6 +1029,24 @@ Rune includes an MCP server (`context7`) for live framework and library document
 - **forge agents** — Can access Context7 via plugin-level MCP server inheritance (configured in `.mcp.json`) for framework-specific enrichment during `/rune:forge`.
 
 Control research tool availability via `talisman.yml` → `plan.external_research` (`always`, `auto`, `never`). `always` forces external research; `never` disables it; `auto` (default) uses enhanced risk signals. Configuration lives in `.mcp.json`.
+
+## MCP Tool Integrations
+
+Rune's MCP Integration Framework enables declarative routing of third-party MCP tools into workflow phases. Rather than having tools available globally (Level 1), you declare which tools are relevant to which phases and under what conditions.
+
+**3 Integration Levels:**
+1. **Basic** — `.mcp.json` only. Tools available but no workflow guidance.
+2. **Talisman** — Add `integrations.mcp_tools` to `talisman.yml`. Phase routing, trigger conditions, and rules injection.
+3. **Full** — Add companion skill + rules files + metadata for deep integration.
+
+**Key features:**
+- **Phase routing** — tools only activate in configured phases (devise, strive, forge, appraise, audit, arc)
+- **Trigger conditions** — file extensions, path prefixes, keywords, or `always: true`
+- **Rules injection** — coding rules files injected into agent prompts when active
+- **Companion skills** — auto-loaded skill content for persistent domain knowledge
+- **Zero overhead** — empty array/string when no integrations match
+
+Configure via `talisman.yml` → `integrations.mcp_tools`. See the [MCP Integration Developer Guide](docs/guides/mcp-integration-spec.en.md) for the full walkthrough.
 
 ## Lore
 

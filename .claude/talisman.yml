@@ -3,6 +3,7 @@ version: 1
 # ──────────────────────────────────────────────
 # Rune Gaze — File classification overrides
 # ──────────────────────────────────────────────
+
 rune-gaze:
   backend_extensions:
     - .py
@@ -94,7 +95,12 @@ ashes:
       workflows: [review, audit]
       trigger:
         extensions: [".md", ".sh"]
-        paths: ["plugins/rune/skills/", "plugins/rune/commands/", "plugins/rune/scripts/"]
+        paths:
+          [
+            "plugins/rune/skills/",
+            "plugins/rune/commands/",
+            "plugins/rune/scripts/",
+          ]
       context_budget: 25
       finding_prefix: "TLC"
       required_sections:
@@ -112,7 +118,13 @@ ashes:
       workflows: [review, audit]
       trigger:
         extensions: [".md", ".sh", ".json"]
-        paths: ["plugins/rune/skills/", "plugins/rune/commands/", "plugins/rune/scripts/", "plugins/rune/hooks/"]
+        paths:
+          [
+            "plugins/rune/skills/",
+            "plugins/rune/commands/",
+            "plugins/rune/scripts/",
+            "plugins/rune/hooks/",
+          ]
       context_budget: 25
       finding_prefix: "SPAWN"
       required_sections:
@@ -575,3 +587,64 @@ context_weaving:
     enabled: true
     word_limit: 300
     enforcement: advisory
+
+# ──────────────────────────────────────────────
+# Devise — Design system discovery + planning (v1.91.0+)
+# ──────────────────────────────────────────────
+devise:
+  design_system_discovery:
+    enabled: true
+    confidence_threshold: 0.5
+
+# ──────────────────────────────────────────────
+# Strive — Frontend component context (v1.91.0+)
+# ──────────────────────────────────────────────
+strive:
+  frontend_component_context:
+    enabled: true
+    max_profile_lines: 200
+    token_cap_lines: 50
+
+# ──────────────────────────────────────────────
+# Teammate Lifecycle — Worker timeout and cleanup (v1.107.0+)
+# ──────────────────────────────────────────────
+teammate_lifecycle:
+  max_turns:
+    work: 60
+    review: 30
+    research: 40
+    utility: 40
+    aggregation: 60
+  max_runtime_minutes: 20
+  shutdown_signal_threshold: 35
+  process_cleanup: true
+  cleanup:
+    enabled: true
+    grace_period_seconds: 10
+    escalation_timeout_seconds: 5
+
+# ──────────────────────────────────────────────
+# Evidence — External evidence verification (v1.127.0+)
+# ──────────────────────────────────────────────
+evidence:
+  enabled: true
+  external_search: false
+  block_threshold: 0.4
+  concern_threshold: 0.6
+  require_evidence_chain: true
+
+# ──────────────────────────────────────────────
+# State Weaver — Plan state machine validation (v1.127.0+)
+# ──────────────────────────────────────────────
+state_weaver:
+  enabled: true
+
+# ──────────────────────────────────────────────
+# Codex Review — Cross-model verification (v1.18.0+)
+# ──────────────────────────────────────────────
+codex_review:
+  disabled: false
+  timeout: 600000
+  cross_model_bonus: 15
+  confidence_threshold: 80
+  max_agents: 6

@@ -81,6 +81,18 @@
         ]
       },
       {
+        "matcher": "Task|Agent",
+        "_rationale": "STRIVE-TODOS-001: Advisory hook that checks if per-task file-todos exist before worker spawn. Non-blocking (additionalContext only). Only activates for rune-work-* teams.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/validate-strive-todos.sh",
+            "timeout": 5,
+            "statusMessage": "Checking file-todos..."
+          }
+        ]
+      },
+      {
         "matcher": "TeamCreate",
         "hooks": [
           {

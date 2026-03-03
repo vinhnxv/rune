@@ -199,9 +199,13 @@ for each file in changed_files:
   - .claude/**/*.md                                  → Knowledge Keeper + Ward Sentinel
   - Unclassified                                     → Forge Warden (catch-all)
   - Always: Ward Sentinel, Pattern Weaver, Veil Piercer
+  - CLI-backed: detectAllCLIAshes() from talisman
+  - Agent-backed custom: talisman ashes.custom[] trigger matching (see rune-gaze.md)
 ```
 
 Check for project overrides in `.claude/talisman.yml`.
+
+**Custom Ash discovery** happens HERE in Phase 1 (not Phase 3). The Rune Gaze algorithm reads `talisman.yml` → `ashes.custom[]`, validates agent names, matches triggers against `changed_files`, and adds matching custom Ashes to `selectedAsh`. This ensures custom Ashes have tasks created for them in Phase 2 and are spawned in Phase 3. See [rune-gaze.md](../roundtable-circle/references/rune-gaze.md) for the full agent-backed custom Ash discovery algorithm.
 
 ### Dry-Run Exit Point
 

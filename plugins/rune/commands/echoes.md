@@ -40,7 +40,10 @@ Manage the project-level agent memory stored in `.claude/echoes/`.
 /rune:echoes remembrance    # View Remembrance knowledge docs
 ```
 
-**Load skills**: `rune-echoes` for full lifecycle reference.
+## Execution
+
+Load and execute the `rune-echoes` skill (`skills/rune-echoes/SKILL.md`) with all arguments passed through.
+The skill contains echo lifecycle logic, scoring algorithms, and subcommand dispatch.
 
 ## Subcommands
 

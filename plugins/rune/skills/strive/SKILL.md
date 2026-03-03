@@ -195,15 +195,29 @@ for (const ckpt of arcCheckpoints) {
 const todosBase = resolveTodosBase(todosOutputDir)   // arc: "tmp/arc/{id}/todos/", standalone: "tmp/work/{timestamp}/todos/"
 const todosDir = resolveTodosDir(todosOutputDir, "work")  // arc: "tmp/arc/{id}/todos/work/", standalone: "tmp/work/{timestamp}/todos/work/"
 Bash(`mkdir -p "${todosDir}"`)
-```
 
-### Per-Task File-Todo Creation (Phase 1, mandatory)
+// --- Per-task file-todo creation (inline, mandatory) ---
+const today = new Date().toISOString().slice(0, 10)
+for (const task of extractedTasks) {
+  const priority = task.risk_tier === 'critical' ? 'p1' : task.risk_tier === 'high' ? 'p2' : 'p3'
+  const slug = task.subject.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
+  const filename = `task-${task.id}-${slug}.md`
+  Write(`${todosDir}${filename}`, [
+    '---',
+    `id: task-${task.id}-${slug}`,
+    `title: "${task.subject}"`,
+    `status: ready`,
+    `priority: ${priority}`,
+    `source: work`,
+    `task_id: "${task.id}"`,
+    `files:`, ...(task.fileTargets?.map(f => `  - ${f}`) || []),
+    `created_at: "${new Date().toISOString()}"`,
+    '---', '',
+    `## Task`, '', task.description || task.subject, '',
+    `## Checklist`, '', '- [ ] Implementation', '- [ ] Verification',
+  ].join('\n'))
+}
 
-Read and execute [todo-protocol.md](references/todo-protocol.md) § "Orchestrator: Per-Task Todo Creation (Phase 1)" to generate per-task todo files in `{todosDir}` for each extracted task.
-
-After creating all per-task todo files, build the work source manifest using `buildManifests(todosBase, { all: true })` from [manifest-schema.md](../file-todos/references/manifest-schema.md) to compute `todos-work-manifest.json` with DAG ordering and wave assignment.
-
-```javascript
 // Wave-based execution: bounded batches with fresh worker context
 const TODOS_PER_WORKER = talisman?.work?.todos_per_worker ?? 3
 const totalTodos = extractedTasks.length
@@ -238,6 +252,30 @@ Write("tmp/.rune-work-{timestamp}.json", {
 See [design-context.md](references/design-context.md) for the 4-strategy cascade (design-package → arc-artifacts → design-sync → figma-url-only), conditional skill loading, and task annotation flow.
 
 **Summary**: Triple-gated (`design_sync.enabled` + frontend task signals + artifact presence). When active, loads `frontend-design-patterns`, `figma-to-react`, `design-sync` skills and injects DCD/VSM content into worker prompts.
+
+### MCP Integration Discovery (conditional, zero cost if no integrations)
+
+See [mcp-integration.md](references/mcp-integration.md) for the resolver algorithm, trigger evaluation, and prompt block builder.
+
+**Summary**: Triple-gated (`integrations.mcp_tools` exists in talisman + phase match for "strive" + trigger match against task files/description). When active, loads companion skills via `loadMCPSkillBindings()` and passes `buildMCPContextBlock()` output to worker prompt builder.
+
+```javascript
+// After design context discovery, before file ownership
+const mcpIntegrations = resolveMCPIntegrations("strive", {
+  changedFiles: extractedTasks.flatMap(t => t.metadata?.file_targets || []),
+  taskDescription: planContent
+})
+
+if (mcpIntegrations.length > 0) {
+  // Load companion skills
+  const mcpSkills = loadMCPSkillBindings(mcpIntegrations)
+  loadedSkills.push(...mcpSkills)
+
+  // Build context block for worker prompts (injected in Phase 2)
+  const mcpContextBlock = buildMCPContextBlock(mcpIntegrations)
+  // mcpContextBlock passed to worker prompt builder alongside designContextBlock
+}
+```
 
 ### File Ownership and Task Pool
 
