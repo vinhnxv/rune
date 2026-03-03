@@ -13,8 +13,8 @@
   "plugins": [
     {
       "name": "rune",
-      "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspect, test, and audit with Agent Teams. Includes 42 review agents, 5 research agents, 24 investigation agents, 14 utility agents, 6 work agents, 5 testing agents, 16 commands, and 47 skills. Curated elicitation methods for structured reasoning. Stack-aware intelligence with 12 language/framework/pattern specialist reviewers. Figma design sync with VSM-based fidelity scoring. Inscription Sharding for parallel large-diff review. Multi-language quality guidance (Python, TypeScript, Rust, PHP, Axum). Talisman configuration mastery with stack-aware scaffolding. Session self-learning with CLI correction and review recurrence detection. Standalone browser E2E testing with human gate handling and interactive failure recovery.",
-      "version": "1.131.0",
+      "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspect, test, and audit with Agent Teams. Includes 30 review agents, 5 research agents, 24 investigation agents, 14 utility agents, 6 work agents, 5 testing agents, 16 commands, and 47 skills. Curated elicitation methods for structured reasoning. Stack-aware intelligence with 12 language/framework/pattern specialist prompt templates (loaded on-demand). Figma design sync with VSM-based fidelity scoring. Inscription Sharding for parallel large-diff review. Multi-language quality guidance (Python, TypeScript, Rust, PHP, Axum). Talisman configuration mastery with stack-aware scaffolding. Session self-learning with CLI correction and review recurrence detection. Standalone browser E2E testing with human gate handling and interactive failure recovery.",
+      "version": "1.131.1",
       "author": {
         "name": "vinhnxv",
         "email": "vinh.ngxv@gmail.com",

@@ -61,7 +61,7 @@ Before reviewing type safety, query Rune Echoes for previously identified type-r
 
 ## Enforcement Asymmetry
 
-Import and apply [enforcement-asymmetry.md](references/enforcement-asymmetry.md).
+Import and apply [enforcement-asymmetry.md](../../skills/roundtable-circle/references/agent-patterns/enforcement-asymmetry.md).
 In Pragmatic mode: accept `Any`/`any` in new utility files with clear TODO
 comments for future typing. In Strict mode: zero tolerance for untyped code
 in modified shared modules.

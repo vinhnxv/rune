@@ -151,7 +151,7 @@ For each DRIFT item, classify and emit.
 ## Review Checklist
 
 ### Pre-Analysis
-- [ ] Read [enforcement-asymmetry.md](references/enforcement-asymmetry.md) if not already loaded
+- [ ] Read [enforcement-asymmetry.md](../../skills/roundtable-circle/references/agent-patterns/enforcement-asymmetry.md) if not already loaded
 - [ ] For each file in scope, classify Change Type (git status) and Scope Risk
 - [ ] Record strictness level per file in analysis notes
 - [ ] Apply strictness matrix when assigning finding severity

@@ -43,7 +43,7 @@ Cross-cutting consistency specialist. Inconsistency doesn't cause crashes — it
 
 ## Enforcement Asymmetry
 
-Import and apply [enforcement-asymmetry.md](references/enforcement-asymmetry.md).
+Import and apply [enforcement-asymmetry.md](../../skills/roundtable-circle/references/agent-patterns/enforcement-asymmetry.md).
 In Pragmatic mode: accept reasonable naming conventions in new files even if
 they differ slightly from project standard. Only enforce strict naming
 consistency when modifying existing modules where inconsistency causes confusion.

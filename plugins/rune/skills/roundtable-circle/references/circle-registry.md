@@ -130,16 +130,18 @@ Each Ash entry carries two scheduling fields used by [wave-scheduling.md](wave-s
 ### Stack Specialist Ashes (v1.86.0+)
 
 > Stack specialist Ashes are conditionally summoned based on detected project stack. They run alongside Wave 1 Ashes when their activation condition is met. See `skills/stacks/references/detection.md` for detection logic.
+>
+> **Prompt templates**: Stack specialist reviewer prompts are stored in `specialist-prompts/` (not registered as Claude Code agents). They are loaded on-demand by `buildAshPrompt()` via filesystem-derived dispatch — no hardcoded list to maintain.
 
-| Ash | Agent | Activation Condition | Prefix | Context Budget |
-|-----|-------|---------------------|--------|---------------|
-| python-reviewer | python-reviewer | `detected_stack.primary_language == 'python'` | PY | 25 files |
-| fastapi-reviewer | fastapi-reviewer | `detected_stack.frameworks.includes('fastapi')` | FAPI | 20 files |
-| django-reviewer | django-reviewer | `detected_stack.frameworks.includes('django')` | DJG | 20 files |
-| laravel-reviewer | laravel-reviewer | `detected_stack.frameworks.includes('laravel')` | LARV | 20 files |
-| sqlalchemy-reviewer | sqlalchemy-reviewer | `detected_stack.frameworks.includes('sqlalchemy')` | SQLA | 20 files |
-| tdd-compliance-reviewer | tdd-compliance-reviewer | Test files in diff | TDD | 25 files |
-| design-implementation-reviewer | design-implementation-reviewer | `talisman.design_sync?.enabled AND hasFrontend AND (detected_stack.frameworks.includes('figma') \|\| vsm_files_exist)` | FIDE | 25 files |
+| Ash | Prompt Template | Activation Condition | Prefix | Context Budget |
+|-----|----------------|---------------------|--------|---------------|
+| python-reviewer | `specialist-prompts/python-reviewer.md` | `detected_stack.primary_language == 'python'` | PY | 25 files |
+| fastapi-reviewer | `specialist-prompts/fastapi-reviewer.md` | `detected_stack.frameworks.includes('fastapi')` | FAPI | 20 files |
+| django-reviewer | `specialist-prompts/django-reviewer.md` | `detected_stack.frameworks.includes('django')` | DJG | 20 files |
+| laravel-reviewer | `specialist-prompts/laravel-reviewer.md` | `detected_stack.frameworks.includes('laravel')` | LARV | 20 files |
+| sqlalchemy-reviewer | `specialist-prompts/sqlalchemy-reviewer.md` | `detected_stack.frameworks.includes('sqlalchemy')` | SQLA | 20 files |
+| tdd-compliance-reviewer | `specialist-prompts/tdd-compliance-reviewer.md` | Test files in diff | TDD | 25 files |
+| design-implementation-reviewer | `specialist-prompts/design-implementation-reviewer.md` | `talisman.design_sync?.enabled AND hasFrontend AND (detected_stack.frameworks.includes('figma') \|\| vsm_files_exist)` | FIDE | 25 files |
 
 **Cap**: `max_stack_ashes` (default: 3) from `talisman.stack_awareness.max_stack_ashes`.
 

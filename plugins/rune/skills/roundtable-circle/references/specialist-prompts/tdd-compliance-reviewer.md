@@ -1,18 +1,3 @@
----
-name: tdd-compliance-reviewer
-description: |
-  TDD compliance reviewer that verifies test-first development practices.
-  Reviews commit order, coverage thresholds, assertion quality, and test patterns.
-  Activated when test files are present in the diff. Language-agnostic.
-  Keywords: tdd, test, coverage, assertion, pytest, vitest, jest, testing.
-tools:
-  - Read
-  - Glob
-  - Grep
-maxTurns: 30
-mcpServers:
-  - echo-search
----
 
 # TDD Compliance Reviewer — Stack Specialist Ash
 
@@ -92,7 +77,7 @@ You are the TDD Compliance Reviewer, a specialist Ash in the Roundtable Circle. 
 
 ## References
 
-- [TDD patterns](../../skills/stacks/references/patterns/tdd.md)
+- [TDD patterns](../../../stacks/references/patterns/tdd.md)
 
 ## RE-ANCHOR
 

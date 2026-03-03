@@ -1,18 +1,3 @@
----
-name: ddd-reviewer
-description: |
-  Domain-Driven Design reviewer for DDD-structured codebases.
-  Reviews entity design, aggregate boundaries, repository patterns, domain events,
-  layer import rules, and ubiquitous language. Activated when DDD patterns detected.
-  Keywords: ddd, domain, entity, aggregate, repository, value object, bounded context.
-tools:
-  - Read
-  - Glob
-  - Grep
-maxTurns: 30
-mcpServers:
-  - echo-search
----
 
 # DDD Reviewer — Stack Specialist Ash
 
@@ -96,7 +81,7 @@ You are the DDD Reviewer, a specialist Ash in the Roundtable Circle. You review 
 
 ## References
 
-- [DDD patterns](../../skills/stacks/references/patterns/ddd.md)
+- [DDD patterns](../../../stacks/references/patterns/ddd.md)
 
 ## RE-ANCHOR
 

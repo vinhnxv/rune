@@ -64,7 +64,7 @@ Before reviewing async patterns, query Rune Echoes for previously identified con
 
 ## Analysis Framework
 
-For detailed multi-language code examples (BAD/GOOD patterns across Python, Rust, TypeScript, and Go), see [async-patterns.md](references/async-patterns.md).
+For detailed multi-language code examples (BAD/GOOD patterns across Python, Rust, TypeScript, and Go), see [async-patterns.md](../../skills/roundtable-circle/references/agent-patterns/async-patterns.md).
 
 ### 1. Sequential Await / Waterfall Pattern
 
@@ -125,7 +125,7 @@ Specific patterns for frontend async code that interacts with DOM and rendering.
 
 ### 9. Framework-Specific DOM Lifecycle Races
 
-For detailed framework patterns, see [frontend-race-patterns.md](references/frontend-race-patterns.md).
+For detailed framework patterns, see [frontend-race-patterns.md](../../skills/roundtable-circle/references/agent-patterns/frontend-race-patterns.md).
 
 **Hotwire/Turbo/Stimulus:**
 - `initialize()` vs `connect()`: State set in `initialize()` persists across Turbo navigations; state set in `connect()` resets. Using wrong lifecycle = stale state race.

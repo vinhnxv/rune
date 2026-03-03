@@ -89,6 +89,11 @@ for each file in changed_files:
 # based on detected project stack (language, framework, patterns).
 # See skills/stacks/references/detection.md for detectStack() algorithm.
 # See skills/stacks/references/context-router.md for computeContextManifest().
+#
+# NOTE: Stack specialist prompts live in specialist-prompts/ (not agents/review/).
+# buildAshPrompt() derives the prompt directory from the filesystem — if a name
+# matches a file in specialist-prompts/, it loads from there; otherwise ash-prompts/.
+# No hardcoded specialist list exists here — detection drives selection.
 
 stack = detectStack(repoRoot)
 confidence_threshold = talisman.stack_awareness.confidence_threshold ?? 0.6

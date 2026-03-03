@@ -90,7 +90,7 @@ Before checking for over-engineering, query Rune Echoes for previously identifie
 
 ## Enforcement Asymmetry
 
-Import and apply [enforcement-asymmetry.md](references/enforcement-asymmetry.md).
+Import and apply [enforcement-asymmetry.md](../../skills/roundtable-circle/references/agent-patterns/enforcement-asymmetry.md).
 In Pragmatic mode: skip YAGNI findings on new isolated files — new code hasn't
 proven it needs simplification yet. Focus YAGNI enforcement on modifications
 to existing shared code where unnecessary additions compound complexity.

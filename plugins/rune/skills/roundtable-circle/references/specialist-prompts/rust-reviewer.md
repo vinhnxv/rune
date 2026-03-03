@@ -1,18 +1,3 @@
----
-name: rust-reviewer
-description: |
-  Rust specialist reviewer for safe and idiomatic Rust codebases.
-  Reviews ownership patterns, error handling, unsafe code, async (tokio),
-  and Rust-specific performance issues. Activated when Rust stack is detected.
-  Keywords: rust, ownership, borrow checker, unsafe, tokio, thiserror, anyhow.
-tools:
-  - Read
-  - Glob
-  - Grep
-maxTurns: 30
-mcpServers:
-  - echo-search
----
 
 # Rust Reviewer — Stack Specialist Ash
 
@@ -101,7 +86,7 @@ You are the Rust Reviewer, a specialist Ash in the Roundtable Circle. You review
 
 ## References
 
-- [Rust patterns](../../skills/stacks/references/languages/rust.md)
+- [Rust patterns](../../../stacks/references/languages/rust.md)
 
 ## RE-ANCHOR
 

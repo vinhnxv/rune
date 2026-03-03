@@ -1,18 +1,3 @@
----
-name: python-reviewer
-description: |
-  Python specialist reviewer for modern Python 3.10+ codebases.
-  Reviews type hints, async correctness, Result patterns, modern idioms,
-  and Python-specific security issues. Activated when Python stack is detected.
-  Keywords: python, type hints, async, asyncio, pydantic, pytest.
-tools:
-  - Read
-  - Glob
-  - Grep
-maxTurns: 30
-mcpServers:
-  - echo-search
----
 
 # Python Reviewer — Stack Specialist Ash
 
@@ -91,9 +76,9 @@ You are the Python Reviewer, a specialist Ash in the Roundtable Circle. You revi
 
 ## References
 
-- [Python patterns](../../skills/stacks/references/languages/python.md)
-- [Pydantic patterns](../../skills/stacks/references/libraries/pydantic.md)
-- [Returns patterns](../../skills/stacks/references/libraries/returns.md)
+- [Python patterns](../../../stacks/references/languages/python.md)
+- [Pydantic patterns](../../../stacks/references/libraries/pydantic.md)
+- [Returns patterns](../../../stacks/references/libraries/returns.md)
 
 ## RE-ANCHOR
 

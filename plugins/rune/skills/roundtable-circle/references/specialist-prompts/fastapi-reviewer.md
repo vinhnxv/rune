@@ -1,18 +1,3 @@
----
-name: fastapi-reviewer
-description: |
-  FastAPI specialist reviewer for Python async web APIs.
-  Reviews route design, Pydantic validation, dependency injection, IDOR prevention,
-  error responses, and OpenAPI alignment. Activated when FastAPI is detected.
-  Keywords: fastapi, pydantic, depends, async, openapi, idor.
-tools:
-  - Read
-  - Glob
-  - Grep
-maxTurns: 30
-mcpServers:
-  - echo-search
----
 
 # FastAPI Reviewer — Stack Specialist Ash
 
@@ -88,9 +73,9 @@ You are the FastAPI Reviewer, a specialist Ash in the Roundtable Circle.
 
 ## References
 
-- [FastAPI patterns](../../skills/stacks/references/frameworks/fastapi.md)
-- [Pydantic patterns](../../skills/stacks/references/libraries/pydantic.md)
-- [Dishka patterns](../../skills/stacks/references/libraries/dishka.md)
+- [FastAPI patterns](../../../stacks/references/frameworks/fastapi.md)
+- [Pydantic patterns](../../../stacks/references/libraries/pydantic.md)
+- [Dishka patterns](../../../stacks/references/libraries/dishka.md)
 
 ## RE-ANCHOR
 

@@ -1,10 +1,12 @@
 # Agent Registry
 
-**Total: 91 agents** (40 review + 5 research + 4 work + 14 utility* + 24 investigation + 4 testing)
+**Total: 84 agents** (30 review + 5 research + 6 work + 14 utility* + 24 investigation + 5 testing)
 
 \* 14 utility agents; gap-fixer is additionally prompt-template-based (no dedicated .md file) and not counted in the total.
 
-Shared resources: [Review Checklist](../agents/review/references/review-checklist.md) (self-review and pre-flight for all review agents)
+> **Stack specialist reviewers** (python-reviewer, typescript-reviewer, rust-reviewer, php-reviewer, axum-reviewer, fastapi-reviewer, django-reviewer, laravel-reviewer, sqlalchemy-reviewer, tdd-compliance-reviewer, ddd-reviewer, di-reviewer) are NOT registered agents. They are prompt templates at `skills/roundtable-circle/references/specialist-prompts/`, loaded on-demand by `buildAshPrompt()` via stack detection.
+
+Shared resources: [Review Checklist](../skills/roundtable-circle/references/agent-patterns/review-checklist.md) (self-review and pre-flight for all review agents)
 
 ## Review Agents (`agents/review/`)
 
@@ -33,18 +35,6 @@ Shared resources: [Review Checklist](../agents/review/references/review-checklis
 | refactor-guardian | Refactoring completeness, orphaned callers, broken import paths |
 | reference-validator | Cross-file reference integrity, config path validation, frontmatter schema |
 | doubt-seer | Cross-agent claim verification through adversarial interrogation |
-| python-reviewer | Python type safety, async correctness, modern idioms (PY-001 through PY-010) |
-| typescript-reviewer | TypeScript type system, strict mode, generics patterns (TSR-001 through TSR-010) |
-| rust-reviewer | Rust ownership, lifetimes, unsafe blocks, async safety (RST-001 through RST-016) |
-| axum-reviewer | Axum/SQLx web service patterns: N+1 queries, extractor ordering, IDOR, Tower middleware (AXUM-001 through AXUM-010) |
-| php-reviewer | PHP type system, namespacing, security patterns (PHP-001 through PHP-010) |
-| fastapi-reviewer | FastAPI route design, Pydantic validation, dependency injection (FAPI-001 through FAPI-010) |
-| django-reviewer | Django ORM, security, middleware patterns (DJG-001 through DJG-010) |
-| laravel-reviewer | Eloquent, Blade security, authorization (LARV-001 through LARV-010) |
-| sqlalchemy-reviewer | Session management, N+1 detection, migration safety (SQLA-001 through SQLA-010) |
-| tdd-compliance-reviewer | Test-first development, coverage, assertion quality (TDD-001 through TDD-010) |
-| ddd-reviewer | Domain-Driven Design patterns and bounded contexts (DDD-001 through DDD-010) |
-| di-reviewer | Dependency injection patterns and wiring validation (DI-001 through DI-010) |
 | schema-drift-detector | Schema drift between migrations and ORM/model definitions across 8 frameworks (DRIFT-001 through DRIFT-005) |
 | agent-parity-reviewer | Agent-native parity — orphan features, context starvation, sandbox isolation (PARITY-001 through PARITY-005) |
 | senior-engineer-reviewer | Persona-based senior engineer review — production thinking, temporal reasoning (SENIOR-001 through SENIOR-010) |

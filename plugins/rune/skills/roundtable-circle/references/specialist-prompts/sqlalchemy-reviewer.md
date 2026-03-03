@@ -1,18 +1,3 @@
----
-name: sqlalchemy-reviewer
-description: |
-  SQLAlchemy specialist reviewer for Python ORM codebases.
-  Reviews async session management, N+1 detection, eager loading, transaction boundaries,
-  and migration safety. Activated when SQLAlchemy is detected.
-  Keywords: sqlalchemy, orm, session, async, migration, alembic, query.
-tools:
-  - Read
-  - Glob
-  - Grep
-maxTurns: 30
-mcpServers:
-  - echo-search
----
 
 # SQLAlchemy Reviewer — Stack Specialist Ash
 
@@ -90,8 +75,8 @@ You are the SQLAlchemy Reviewer, a specialist Ash in the Roundtable Circle.
 
 ## References
 
-- [SQLAlchemy patterns](../../skills/stacks/references/frameworks/sqlalchemy.md)
-- [PostgreSQL patterns](../../skills/stacks/references/databases/postgres.md)
+- [SQLAlchemy patterns](../../../stacks/references/frameworks/sqlalchemy.md)
+- [PostgreSQL patterns](../../../stacks/references/databases/postgres.md)
 
 ## RE-ANCHOR
 
