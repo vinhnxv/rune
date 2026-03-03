@@ -66,6 +66,13 @@ Phase 0: Parse Plan -> Extract tasks, clarify ambiguities, detect --worktree fla
 Phase 0.5: Environment Setup -> Branch check, stash dirty files, SDK canary (worktree)
     |
 Phase 1: Forge Team -> TeamCreate + TaskCreate pool
+    1. Task Pool Creation (complexity ordering, time estimation)
+    1.5. Design Context Discovery (conditional, zero cost if no artifacts)
+    1.6. MCP Integration Discovery (conditional, zero cost if no integrations)
+    1.7. File Ownership and Task Pool (static serialization via blockedBy)
+    2. Signal Directory Setup (event-driven fast-path infrastructure)
+    3. Per-Task File-Todos Creation (mandatory, session-scoped)
+    → TeamCreate + TaskCreate pool
     |
 Phase 2: Summon Workers -> Self-organizing swarm
     | (workers claim -> implement -> complete -> repeat)
@@ -216,6 +223,63 @@ for (const task of extractedTasks) {
     `## Task`, '', task.description || task.subject, '',
     `## Checklist`, '', '- [ ] Implementation', '- [ ] Verification',
   ].join('\n'))
+}
+
+// --- Complexity-aware task ordering (sort before wave computation) ---
+// Gate: readTalismanSection("work")?.complexity_ordering?.enabled !== false
+//
+// Scoring is additive: Score = (fileCount × wFile) + (wTest if test task) + (wRefactor if refactor keyword)
+//                             + (wLargeScope if fileCount > 5)
+// Tasks are sorted descending by score so highest-complexity tasks start first.
+// Score is a relative ranking, not a time estimate — use estimateTaskMinutes() for time budgeting.
+// Default weights (overridable via talisman complexity_ordering.weights):
+//   wFile=2: cost per touched file — more files → more risk of conflicts
+//   wTest=3: test tasks are slightly harder (require understanding existing coverage)
+//   wRefactor=5: refactors touch structural patterns and carry high regression risk
+//   wLargeScope=3: bonus for >5 files — coordination overhead grows super-linearly
+// Used in both scoreTaskComplexity() and estimateTaskMinutes()
+const REFACTOR_KEYWORDS = ["refactor", "restructure", "extract", "migrate", "rename", "reorganize"]
+
+const complexityConfig = readTalismanSection("work")?.complexity_ordering
+if (complexityConfig?.enabled !== false) {
+  const weights = complexityConfig?.weights ?? {}
+  const wFile = weights.file_count ?? 2
+  const wTest = weights.test ?? 3
+  const wRefactor = weights.refactor ?? 5
+  const wLargeScope = weights.large_scope ?? 3
+
+  function scoreTaskComplexity(task) {
+    const fileCount = (task.fileTargets?.length ?? 0) + (task.dirTargets?.length ?? 0)
+    if (fileCount === 0 && !task.subject && !task.description) return 0  // missing metadata → 0
+
+    let estimate = fileCount * wFile
+    if (task.type === "test") estimate += wTest
+    const text = `${task.subject ?? ''} ${task.description ?? ''}`.toLowerCase()
+    if (REFACTOR_KEYWORDS.some(kw => text.includes(kw))) estimate += wRefactor
+    if (fileCount > 5) estimate += wLargeScope
+    return estimate
+  }
+
+  // Score and sort descending (highest complexity first)
+  for (const task of extractedTasks) {
+    task._complexityScore = scoreTaskComplexity(task)
+    log(`COMPLEXITY-SCORE: task #${task.id} "${task.subject}" → ${task._complexityScore}`)
+  }
+  extractedTasks.sort((a, b) => b._complexityScore - a._complexityScore)
+}
+
+// --- Task time estimation (stored in metadata for Phase 3 reassignment) ---
+function estimateTaskMinutes(task) {
+  const fileCount = (task.fileTargets?.length ?? 0) + (task.dirTargets?.length ?? 0)
+  let estimate = fileCount <= 2 ? 5 : fileCount <= 5 ? 10 : 15
+  if (task.type === "test") estimate = 8
+  const text = `${task.subject ?? ''} ${task.description ?? ''}`.toLowerCase()
+  if (REFACTOR_KEYWORDS.some(kw => text.includes(kw))) estimate = Math.min(20, Math.round(estimate * 1.5))
+  return estimate
+}
+for (const task of extractedTasks) {
+  task.metadata = task.metadata ?? {}
+  task.metadata.estimated_minutes = estimateTaskMinutes(task)
 }
 
 // Wave-based execution: bounded batches with fresh worker context
@@ -369,6 +433,85 @@ if (forceShutdownSignal) {
 }
 ```
 
+### Smart Reassignment (Phase 3 — Inline)
+
+Check whether in-progress tasks have exceeded their estimated time and reassign to idle workers. Runs per poll cycle, BEFORE stuck worker detection. Gated by `work.reassignment.enabled` (default: `true`).
+
+```javascript
+// --- Smart reassignment (per poll cycle, before stuck worker detection) ---
+const reassignConfig = readTalismanSection("work")?.reassignment
+if (reassignConfig?.enabled !== false) {
+  const multiplier = reassignConfig?.multiplier ?? 2.0
+  const graceSeconds = reassignConfig?.grace_seconds ?? 60
+
+  const tasks = TaskList()
+  const idleWorkers = Object.keys(workerSpawnTimes).filter(w =>
+    !tasks.some(t => t.owner === w && t.status === "in_progress")
+  )
+
+  for (const task of tasks) {
+    if (task.status !== "in_progress") continue
+    const estimatedMin = task.metadata?.estimated_minutes ?? 10
+    const elapsed = Date.now() - (task.metadata?.claimed_at ?? Date.now())
+    const thresholdMs = multiplier * estimatedMin * 60_000
+
+    // F15: max 2 reassignments per task
+    const reassignCount = task.metadata?.reassignment_count ?? 0
+    if (reassignCount >= 2) continue
+
+    if (elapsed > thresholdMs) {
+      if (!task.metadata?.reassignment_warned) {
+        // First trigger: warn and set grace period
+        log(`REASSIGN-CHECK: task #${task.id} exceeded ${multiplier}x estimate (${estimatedMin}min). Sending progress check.`)
+        SendMessage({ type: "message", recipient: task.owner, content: `Progress check: task #${task.id} has exceeded its time estimate. Please report status.`, summary: `Progress check for task #${task.id}` })
+        TaskUpdate({ taskId: task.id, metadata: { reassignment_warned: true, warned_at: Date.now() } })
+      } else {
+        // Grace period elapsed — re-read task status (F8 fix)
+        const freshTask = TaskGet(task.id)
+        if (freshTask.status === "in_progress") {
+          const warnedAt = task.metadata?.warned_at ?? 0
+          if (Date.now() - warnedAt > graceSeconds * 1000 && idleWorkers.length > 0) {
+            log(`REASSIGN-FORCE: task #${task.id} still in_progress after grace period. Force-releasing.`)
+            // F9: clear reassignment metadata on release
+            TaskUpdate({
+              taskId: task.id,
+              status: "pending",
+              owner: "",
+              metadata: { reassignment_warned: null, warned_at: null, reassignment_count: reassignCount + 1 }
+            })
+            // Clean up file lock signal for the released task's worker
+            try {
+              Bash(`rm -f "tmp/.rune-signals/${teamName}/${task.owner}-files.json"`)
+            } catch {}
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Stale File Lock Scan (Phase 3 — Inline)
+
+Sweep `tmp/.rune-signals/{team}/*-files.json` for stale lock signals. Runs per poll cycle after smart reassignment. See [file-ownership.md](references/file-ownership.md) for signal format.
+
+```javascript
+// --- Stale lock scan (F1) ---
+const staleLockThreshold = readTalismanSection("work")?.file_lock_signals?.stale_threshold_ms ?? 600_000
+try {
+  const lockFiles = Glob(`tmp/.rune-signals/${teamName}/*-files.json`)
+  for (const lockFile of lockFiles) {
+    try {
+      const signal = JSON.parse(Read(lockFile))
+      if (signal.timestamp && Date.now() - signal.timestamp > staleLockThreshold) {
+        Bash(`rm -f "${lockFile}"`)
+        warn(`Stale file lock removed: ${lockFile} (age: ${Math.round((Date.now() - signal.timestamp) / 60000)}min)`)
+      }
+    } catch {} // skip malformed signals
+  }
+} catch {} // no lock files — nothing to scan
+```
+
 ### Stuck Worker Detection (Phase 3 — Inline)
 
 Track worker spawn times and enforce `max_runtime_minutes` (default: 20). Workers exceeding the runtime budget receive a `shutdown_request` and have their tasks released for reclaim.
@@ -404,7 +547,18 @@ for (const [workerName, spawnTime] of Object.entries(workerSpawnTimes)) {
 }
 ```
 
-**Talisman config**: `teammate_lifecycle.max_runtime_minutes` (default: `20`). Set to `999` to effectively disable.
+#### Stuck Worker Detection Config
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `teammate_lifecycle.max_runtime_minutes` | `20` | Workers exceeding this runtime receive a `shutdown_request` and have their tasks released for reclaim |
+
+**Purpose**: Detects workers that have exceeded their runtime budget — e.g., stuck in an infinite loop, waiting on a blocking tool call, or stalled on a hard task. Without this gate, a single stuck worker can block wave completion indefinitely.
+
+**Tuning guidance**:
+- Default `20` minutes is appropriate for most implementation tasks
+- Set to `999` to effectively disable stuck worker detection (useful when tasks are known to be long-running)
+- Reduce to `10` for resource-constrained environments where you want faster reclaim of stalled tasks
 
 **Wave-aware monitoring (worktree mode)**: Sequential waves, each monitored independently via `waitForCompletion` with `taskFilter`, merge broker runs between waves. Per-wave timeout: 10 minutes.
 

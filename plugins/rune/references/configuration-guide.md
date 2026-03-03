@@ -1,5 +1,17 @@
 # Configuration Guide
 
+## Configuration Resolution Chain
+
+When Rune reads `talisman.yml`, it resolves configuration from three sources in priority order (highest to lowest):
+
+1. **`.claude/talisman.yml`** — project-local configuration (highest priority)
+2. **`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/talisman.yml`** — global user configuration
+3. **Built-in defaults** — hardcoded values used when neither file exists
+
+If both files are present, they are merged with project values overriding global values. Keys present only in the global file are inherited by the project. Keys absent from both files use the built-in defaults listed in the reference tables below.
+
+---
+
 ## Complete Config Key Reference
 
 All talisman config keys grouped by section with types, defaults, and descriptions. Use this as the canonical lookup when writing or auditing `talisman.yml`.
@@ -294,6 +306,26 @@ See [docs/guides/mcp-integration-spec.en.md](../docs/guides/mcp-integration-spec
 | `work.worktree.auto_cleanup` | boolean | `true` | Remove worktrees after merge |
 | `work.worktree.conflict_resolution` | string | `"escalate"` | `escalate` \| `abort` |
 | `work.hierarchy.enabled` | boolean | `true` | Hierarchical plan support |
+| `work.complexity_ordering.enabled` | boolean | `true` | Enable complexity-aware task ordering in Phase 0 |
+| `work.complexity_ordering.weights.file` | number | `2` | Weight for file count in complexity score |
+| `work.complexity_ordering.weights.test_bonus` | number | `3` | Bonus weight for tasks involving test files |
+| `work.complexity_ordering.weights.refactor_bonus` | number | `5` | Bonus weight for refactoring tasks |
+| `work.complexity_ordering.weights.large_scope_bonus` | number | `3` | Bonus weight for large-scope tasks (many files) |
+| `work.file_lock_signals.enabled` | boolean | `true` | Enable file lock signals for worker file ownership |
+| `work.file_lock_signals.stale_threshold_ms` | number | `600000 (10 minutes)` | Stale lock threshold — locks older than this are considered orphaned |
+| `work.reassignment.enabled` | boolean | `false` | Enable smart task reassignment in Phase 3 monitoring |
+| `work.reassignment.multiplier` | number | `2` | Time multiplier before a task is eligible for reassignment |
+| `work.reassignment.grace_seconds` | number | `30` | Grace period (s) after reassignment before re-checking |
+| `work.adaptive_wave.enabled` | boolean | `false` | Enable adaptive wave sizing (dynamic worker count per wave) _(reference pseudocode — requires SKILL.md wiring to take effect)_ |
+| `work.adaptive_wave.failure_threshold` | number | `0.3` | Failure rate above which worker count shrinks by 1 _(reference pseudocode — requires SKILL.md wiring to take effect)_ |
+| `work.adaptive_wave.speed_threshold` | number | `0.5` | Completion ratio below which worker count grows by 1 _(reference pseudocode — requires SKILL.md wiring to take effect)_ |
+| `work.adaptive_wave.min_workers` | number | `1` | Minimum workers per wave — floor for adaptive sizing _(reference pseudocode — requires SKILL.md wiring to take effect)_ |
+
+### `teammate_lifecycle` — Teammate Runtime Limits
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `teammate_lifecycle.max_runtime_minutes` | number | `20` | Maximum runtime per teammate (minutes) before it is considered stale and eligible for cleanup |
 
 ### `file_todos` — Todo Tracking
 

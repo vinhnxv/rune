@@ -27,10 +27,10 @@ _rune_fail_forward() {
   # Best-effort crash marker — if SIGNAL_DIR and TASK_ID are set, write a marker
   # the orchestrator can check to detect "hook ran but crashed before signal write"
   if [[ -n "${SIGNAL_DIR:-}" && -d "${SIGNAL_DIR:-}" && -n "${TASK_ID:-}" ]]; then
-    # SEC-003 FIX: Sanitize TASK_ID for JSON — fail-forward runs before input validation
-    _safe_tid=$(printf '%s' "${TASK_ID}" | tr -cd 'a-zA-Z0-9_-')
-    printf '{"task_id":"%s","crash_line":%s,"timestamp":"%s"}\n' \
-      "$_safe_tid" "$_crash_line" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" \
+    # SEC-003: Use jq --arg for JSON construction — safe encoding without manual sanitization
+    jq -n --arg tid "${TASK_ID}" --arg cl "$_crash_line" \
+      --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" \
+      '{task_id: $tid, crash_line: $cl, timestamp: $ts}' \
       > "${SIGNAL_DIR}/${TASK_ID}.crash-detected" 2>/dev/null || true
   fi
   _ERR_ACTIVE=1  # QUAL-002 FIX: Signal EXIT trap to skip cleanup
@@ -149,6 +149,16 @@ fi
 mv -n "$TEMP_FILE" "$SIGNAL_FILE" 2>/dev/null || { rm -f "$TEMP_FILE"; exit 0; }
 _trace "WRITING signal file: $SIGNAL_FILE"
 
+# File lock signals are written by workers before starting a task. They are cleaned up
+# by this hook after each task completes (RUNE teams only — one signal per worker per wave).
+# BACK-006: Rename to .cleanup-pending instead of immediate deletion — decouples lock
+# lifecycle from TaskCompleted event (worker I/O may not yet be complete at hook fire time).
+if [[ -n "${TEAMMATE_NAME:-}" ]]; then
+  worker_signal="${SIGNAL_DIR}/${TEAMMATE_NAME}-files.json"
+  [ -f "$worker_signal" ] && mv -n "$worker_signal" "${worker_signal}.cleanup-pending"
+  _trace "CLEANUP file lock signal (staged): $worker_signal"
+fi
+
 # Check if all expected tasks are complete
 EXPECTED_FILE="${SIGNAL_DIR}/.expected"
 if [[ ! -f "$EXPECTED_FILE" ]]; then
@@ -157,6 +167,7 @@ fi
 
 # BACK-005: Strengthen .expected validation
 # SEC-004: .expected is write-once by the orchestrator before agents spawn — no real TOCTOU risk.
+# Read expected count (truncate to 4 bytes — supports up to 9999 tasks)
 EXPECTED=$(head -c 4 "$EXPECTED_FILE" 2>/dev/null | tr -d '[:space:]')
 if [[ ! "$EXPECTED" =~ ^[1-9][0-9]*$ ]]; then
   echo "WARN: .expected file contains invalid count: ${EXPECTED}" >&2

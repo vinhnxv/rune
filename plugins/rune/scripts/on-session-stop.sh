@@ -21,6 +21,9 @@
 # Timeout: 5s
 # Exit 0 with no output: Allow stop (nothing to clean)
 # Exit 0 with stdout summary: Report what was cleaned (informational, non-blocking)
+#
+# QUAL-005: Inline fix markers use format: [AREA]-[NNN] (e.g., SEC-005, BACK-012).
+#   These are audit trail comments referencing the finding that motivated the change.
 
 set -euo pipefail
 umask 077
@@ -49,13 +52,13 @@ INPUT=$(head -c 1048576 2>/dev/null || true)
 
 # ── GUARD 3: Loop prevention ──
 # If stop_hook_active is true, we already cleaned on a previous pass — allow stop
-STOP_HOOK_ACTIVE=$(printf '%s\n' "$INPUT" | jq -r '.stop_hook_active // empty' 2>/dev/null || true)  # PAT-003 FIX: printf over echo for JSON safety
+STOP_HOOK_ACTIVE=$(printf '%s\n' "$INPUT" | jq -r '.stop_hook_active // empty' 2>/dev/null || true)  # Use printf instead of echo for JSON safety (prevents shell interpretation of special chars)
 if [[ "$STOP_HOOK_ACTIVE" == "true" ]]; then
   exit 0
 fi
 
 # ── GUARD 4: CWD extraction and canonicalization ──
-CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)  # PAT-003 FIX: printf over echo
+CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)  # Use printf instead of echo for JSON safety (prevents shell interpretation of special chars)
 if [[ -z "$CWD" ]]; then
   exit 0
 fi
@@ -115,6 +118,7 @@ _check_loop_ownership() {
 # take up to 50 min (test with E2E) and the state file mtime is only updated between
 # phases (by arc-phase-stop-hook.sh iteration increment). The 10-min threshold caused
 # premature deletion of active state files, breaking the phase loop.
+# GUARD 5d: 90 min = ~26 phases × ~3.5 min per phase (full arc single-run)
 _PHASE_STALE_MIN=90
 [[ -z "${NOW:-}" ]] && NOW=$(date +%s)
 if _check_loop_ownership "${CWD}/.claude/arc-phase-loop.local.md"; then
@@ -140,6 +144,7 @@ fi
 # take 30-90 minutes (all 26 phases), and the batch loop file mtime is only updated
 # between arc runs (not between phases). The 10-min threshold caused premature deletion
 # of active state files during the first arc's execution.
+# GUARD 5: 150 min = arc runtime (30-90 min) × up to 2 arcs in flight
 _BATCH_STALE_MIN=150
 [[ -z "${NOW:-}" ]] && NOW=$(date +%s)
 if _check_loop_ownership "${CWD}/.claude/arc-batch-loop.local.md"; then
@@ -214,6 +219,10 @@ _kill_stale_teammates() {
 
   # BACK-008: Validate that PPID is actually a Claude Code process before targeting its children.
   # Hook execution model may vary — $PPID is the hook runner, which should be node or claude.
+  # NOTE: This check is best-effort only. $PPID is captured at script start; by the time
+  # this function runs (after sleep 1 in Phase 2), the process table may have changed.
+  # The primary safety net against PID recycling is the child re-verification at Phase 2
+  # (lines below, after sleep 1): each survivor PID is re-checked by command name before SIGKILL.
   local ppid_cmd
   ppid_cmd=$(ps -p "$PPID" -o comm= 2>/dev/null || true)
   if [[ ! "$ppid_cmd" =~ ^(node|claude)$ ]]; then
@@ -293,7 +302,8 @@ if [[ -d "${CWD}/tmp/" ]]; then
     [[ -L "$sf" ]] && continue
     # Extract team_name ONLY from active state files (skip completed/stopped/failed)
     # This prevents matching old state files from previous workflows
-    tname=$(jq -r 'select(.status == "active") | .team_name // empty' "$sf" 2>/dev/null || true)
+    # BACK-011: select(.team_name != null) guards against null team_name passing the // empty filter
+    tname=$(jq -r 'select(.status == "active") | select(.team_name != null) | .team_name // empty' "$sf" 2>/dev/null || true)
     if [[ -n "$tname" ]] && [[ "$tname" =~ ^[a-zA-Z0-9_-]+$ ]]; then
       # ── Ownership filter: only collect teams from THIS session ──
       sf_cfg=$(jq -r '.config_dir // empty' "$sf" 2>/dev/null || true)
@@ -374,8 +384,8 @@ if [[ -d "${CWD}/tmp/" ]]; then
     case "$(basename "$f")" in
       .rune-shutdown-signal-*|.rune-force-shutdown-*|.rune-compact-*) continue ;;
     esac
-    # BACK-012: Schema validation — skip files that don't have expected .team_name field
-    jq -e '.team_name' "$f" >/dev/null 2>&1 || continue
+    # BACK-012: Schema validation — skip files that don't have a non-empty .team_name field
+    jq -e '.team_name | select(length > 0)' "$f" >/dev/null 2>&1 || continue
     if jq -e '.status == "active"' "$f" >/dev/null 2>&1; then
       # ── Ownership filter: only mark THIS session's state files as stopped ──
       f_cfg=$(jq -r '.config_dir // empty' "$f" 2>/dev/null || true)
@@ -506,6 +516,44 @@ for f in "${CWD}/tmp/"/.rune-force-shutdown-*.json; do
 done
 shopt -u nullglob
 
+# ── Signal directory cleanup (F10) ──
+# Clean up tmp/.rune-signals/rune-work-*/ directories where the associated
+# state file has a dead owner_pid. Only clean dirs belonging to dead sessions.
+cleaned_signal_dirs=0
+if [[ -d "${CWD}/tmp/.rune-signals/" ]]; then
+  shopt -s nullglob
+  for sdir in "${CWD}/tmp/.rune-signals/"rune-work-*/; do
+    [[ ! -d "$sdir" ]] && continue
+    [[ -L "$sdir" ]] && continue
+    sdirname="${sdir%/}"
+    sdirname="${sdirname##*/}"
+    [[ "$sdirname" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
+    # Check if there's a matching state file with ownership info
+    state_found=false
+    for sf in "${CWD}/tmp/"/.rune-*.json; do
+      [[ ! -f "$sf" ]] && continue
+      [[ -L "$sf" ]] && continue
+      sf_team=$(jq -r '.team_name // empty' "$sf" 2>/dev/null || true)
+      [[ "$sf_team" != "$sdirname" ]] && continue
+      state_found=true
+      # Ownership filter: check config_dir and owner_pid
+      sf_cfg=$(jq -r '.config_dir // empty' "$sf" 2>/dev/null || true)
+      sf_pid=$(jq -r '.owner_pid // empty' "$sf" 2>/dev/null || true)
+      [[ -n "$sf_cfg" && "$sf_cfg" != "$RUNE_CURRENT_CFG" ]] && continue 2
+      if [[ -n "$sf_pid" && "$sf_pid" =~ ^[0-9]+$ && "$sf_pid" != "$PPID" ]]; then
+        rune_pid_alive "$sf_pid" && continue 2  # alive = different session
+      fi
+      break
+    done
+    # Clean if: state file found with dead/matching owner, or no state file (true orphan)
+    if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" != "1" ]]; then
+      rm -rf "$sdir" 2>/dev/null
+    fi
+    cleaned_signal_dirs=$((cleaned_signal_dirs + 1))
+  done
+  shopt -u nullglob
+fi
+
 # ── AUTO-CLEAN PHASE 4: Orphaned git worktrees (rune-work-*) ──
 # WORKTREE-GC: Remove when SDK provides native worktree lifecycle management
 # Catches worktrees left behind when strive Phase 6 was never reached.
@@ -523,7 +571,7 @@ wt_count=0
 if [[ -n "$cleaned_worktrees" ]]; then
   wt_count=$(echo "$cleaned_worktrees" | grep -c . 2>/dev/null || echo 1)
 fi
-total=$((${#cleaned_teams[@]} + ${#cleaned_states[@]} + ${#cleaned_arcs[@]} + cleaned_processes + wt_count))
+total=$((${#cleaned_teams[@]} + ${#cleaned_states[@]} + ${#cleaned_arcs[@]} + cleaned_processes + wt_count + cleaned_signal_dirs))
 
 if [[ $total -eq 0 ]]; then
   # Nothing to clean — allow stop silently
@@ -557,6 +605,10 @@ fi
 
 if [[ -n "$cleaned_worktrees" ]]; then
   summary="${summary} ${cleaned_worktrees}"
+fi
+
+if [[ "$cleaned_signal_dirs" -gt 0 ]]; then
+  summary="${summary} Signal dirs: ${cleaned_signal_dirs} removed."
 fi
 
 # Log to trace file for debugging (always, not just RUNE_TRACE)

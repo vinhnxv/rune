@@ -232,7 +232,7 @@ Each command passes its own `opts` to `waitForCompletion`:
 
 When `depth=deep` activates wave scheduling, `waitForCompletion` is called once per wave with that wave's timeout allocation (from `distributeTimeouts`). The orchestrator manages the wave loop externally — `waitForCompletion` itself is unchanged.
 
-**Per-wave signal directory:** Each wave uses the same signal directory (`tmp/.rune-signals/{teamName}/`) but the directory is reset between waves. Signal files are cleared, `.expected` is rewritten with the new wave's agent count, and done files use the pattern `{task_id}.done` (matching on-task-completed.sh runtime). Each wave uses its own signal directory (`tmp/.rune-signals/{teamName}-w{N}/`) to prevent cross-wave signal contamination.
+**Per-wave signal directory:** Signal files from completed waves are cleaned up between waves. The shared directory name stays the same across all waves — no per-wave suffix is used. Signal files are cleared, `.expected` is rewritten with the new wave's agent count, and done files use the pattern `{task_id}.done` (matching on-task-completed.sh runtime).
 
 ```javascript
 // Wave-aware signal setup (between waves)
@@ -294,6 +294,7 @@ const result = waitForCompletion(teamName, taskCount, {
 - **zsh reserved variable names**: When translating pseudocode to Bash commands, **NEVER use `status` as a shell variable name**. In zsh (macOS default shell), `$status` is a read-only built-in (equivalent to `$?`). Assigning to it causes `(eval):1: read-only variable: status`. Use alternative names like `task_status`, `tstat`, or `completion_status` instead. Other zsh reserved names to avoid: `pipestatus`, `ERRNO`, `signals`.
 - **Polling loop parameters MUST match config**: When translating `waitForCompletion` to Bash, the loop parameters MUST be derived from the configured values — not invented. Use the formula: `maxIterations = ceil(timeoutMs / pollIntervalMs)` and `sleepSeconds = pollIntervalMs / 1000`. For example, mend with `timeoutMs: 900_000` and `pollIntervalMs: 30_000` → `maxIterations=30, sleep 30`. Never use arbitrary iteration counts or sleep intervals that don't match the per-command configuration table above.
 - **Polling enforcement hook**: `enforce-polling.sh` (POLL-001) blocks `sleep+echo` anti-patterns at runtime during active Rune workflows. The `polling-guard` skill provides background knowledge for the correct monitoring loop pattern. Together, these form a 3-layer enforcement pyramid (hook + skill + text warnings) that prevents the LLM from improvising sleep-based monitoring proxies.
+- **`estimated_minutes` task metadata**: Set by `estimateTaskMinutes()` during `TaskCreate` in Phase 0 (task decomposition). Each task receives an `estimated_minutes` field in its metadata based on complexity heuristics (file count, test presence, refactoring scope). This value is consumed by Phase 3 smart reassignment to determine when a task has exceeded its expected duration (`elapsed > estimated_minutes * reassignment.multiplier`), and by `computeExpectedWaveTime()` to calculate per-wave wall-clock estimates (F12 fix). Default: `5` minutes when not set.
 
 ## Phase 2: Event-Driven Fast Path
 
