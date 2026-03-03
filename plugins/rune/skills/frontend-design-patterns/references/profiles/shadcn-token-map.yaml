@@ -1,0 +1,141 @@
+# shadcn Token Map — Figma Intent to shadcn Semantic Token Mapping
+#
+# Used by the Semantic Token Resolver (semantic-token-resolver.md) to map
+# Figma design intents to shadcn/ui framework-specific class names.
+#
+# shadcn uses oklch color format in CSS custom properties defined in globals.css.
+# Color matching uses Delta-E (CIE 2000) metric for perceptual accuracy.
+
+schema: "rune-token-map/v1"
+framework: "shadcn"
+version: "2.0"
+color_format: "oklch"
+color_metric: "delta_e_2000"
+
+# ─────────────────────────────────────────────
+# Semantic Mapping: Figma intent → shadcn class
+# ─────────────────────────────────────────────
+#
+# Keys use "/" separated Figma intent paths.
+# Values are Tailwind-compatible class names that reference
+# shadcn CSS custom properties (e.g., bg-primary → --primary).
+
+semantic_mapping:
+
+  # ── Text ────────────────────────────────────
+  "text/primary":          "text-foreground"
+  "text/secondary":        "text-muted-foreground"
+  "text/brand":            "text-primary"
+  "text/error":            "text-destructive"
+  "text/success":          "text-green-600"          # No native shadcn success token
+  "text/warning":          "text-yellow-600"          # No native shadcn warning token
+  "text/disabled":         "text-muted-foreground/50"
+  "text/placeholder":      "text-muted-foreground"
+  "text/inverse":          "text-primary-foreground"
+  "text/link":             "text-primary"
+
+  # ── Background ──────────────────────────────
+  "bg/primary":            "bg-background"
+  "bg/secondary":          "bg-secondary"
+  "bg/brand":              "bg-primary"
+  "bg/muted":              "bg-muted"
+  "bg/error":              "bg-destructive"
+  "bg/success":            "bg-green-50"              # No native shadcn success bg
+  "bg/warning":            "bg-yellow-50"             # No native shadcn warning bg
+  "bg/accent":             "bg-accent"
+  "bg/card":               "bg-card"
+  "bg/popover":            "bg-popover"
+  "bg/overlay":            "bg-black/80"
+
+  # ── Border ──────────────────────────────────
+  "border/default":        "border-border"
+  "border/brand":          "border-primary"
+  "border/error":          "border-destructive"
+  "border/input":          "border-input"
+
+  # ── Ring (focus) ────────────────────────────
+  "ring/default":          "ring-ring"
+  "ring/brand":            "ring-primary"
+  "ring/error":            "ring-destructive"
+
+# ─────────────────────────────────────────────
+# CSS Variable Reference
+# ─────────────────────────────────────────────
+#
+# shadcn defines these in globals.css using oklch format:
+#
+#   :root {
+#     --background: oklch(1 0 0);
+#     --foreground: oklch(0.145 0 0);
+#     --card: oklch(1 0 0);
+#     --card-foreground: oklch(0.145 0 0);
+#     --popover: oklch(1 0 0);
+#     --popover-foreground: oklch(0.145 0 0);
+#     --primary: oklch(0.205 0 0);
+#     --primary-foreground: oklch(0.985 0 0);
+#     --secondary: oklch(0.97 0 0);
+#     --secondary-foreground: oklch(0.205 0 0);
+#     --muted: oklch(0.97 0 0);
+#     --muted-foreground: oklch(0.556 0 0);
+#     --accent: oklch(0.97 0 0);
+#     --accent-foreground: oklch(0.205 0 0);
+#     --destructive: oklch(0.577 0.245 27.325);
+#     --border: oklch(0.922 0 0);
+#     --input: oklch(0.922 0 0);
+#     --ring: oklch(0.708 0 0);
+#   }
+#
+# Tailwind v4 resolves these automatically:
+#   bg-primary → var(--primary)
+#   text-foreground → var(--foreground)
+
+# ─────────────────────────────────────────────
+# Style Patterns: Figma color style name → intent
+# ─────────────────────────────────────────────
+#
+# When the resolver encounters a Figma color style, it normalizes the name
+# and matches against these patterns to determine the intent before
+# looking up the semantic_mapping.
+
+style_patterns:
+  - pattern: "Brand/*"
+    intent_prefix: "bg/brand"
+  - pattern: "Brand/Primary"
+    intent: "bg/brand"
+  - pattern: "Brand/Secondary"
+    intent: "bg/secondary"
+  - pattern: "Neutral/Background"
+    intent: "bg/primary"
+  - pattern: "Neutral/Foreground"
+    intent: "text/primary"
+  - pattern: "Neutral/Muted"
+    intent: "bg/muted"
+  - pattern: "Neutral/Border"
+    intent: "border/default"
+  - pattern: "Error/*"
+    intent_prefix: "bg/error"
+  - pattern: "Success/*"
+    intent_prefix: "bg/success"
+  - pattern: "Warning/*"
+    intent_prefix: "bg/warning"
+  - pattern: "Text/*"
+    intent_prefix: "text"
+  - pattern: "Surface/*"
+    intent_prefix: "bg"
+
+# ─────────────────────────────────────────────
+# Foreground Pairing
+# ─────────────────────────────────────────────
+#
+# When a background token is resolved, the resolver should also
+# suggest the matching foreground token for text contrast.
+
+foreground_pairs:
+  "bg-primary":       "text-primary-foreground"
+  "bg-secondary":     "text-secondary-foreground"
+  "bg-destructive":   "text-destructive-foreground"
+  "bg-muted":         "text-muted-foreground"
+  "bg-accent":        "text-accent-foreground"
+  "bg-card":          "text-card-foreground"
+  "bg-popover":       "text-popover-foreground"
+  "bg-background":    "text-foreground"

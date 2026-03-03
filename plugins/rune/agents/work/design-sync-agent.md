@@ -7,7 +7,9 @@ description: |
 
   Covers: Parse Figma URLs, invoke figma_fetch_design / figma_inspect_node /
   figma_list_components MCP tools, extract design tokens, build region trees,
-  map variants to props, create VSM output files, cross-verify extraction accuracy.
+  map variants to props, extract micro-design details (states, transitions,
+  keyboard interactions), generate component-registry.json (machine-readable
+  component catalog), create VSM output files, cross-verify extraction accuracy.
 
   <example>
   user: "Extract the design spec from this Figma frame for the card component"
@@ -88,7 +90,7 @@ Build a semantic region tree following the visual-region-analysis protocol:
 1. Identify major regions (header, sidebar, main, footer)
 2. Decompose each region into sub-regions
 3. Classify each node: semantic role, layout type, sizing, spacing
-4. Map to existing components or flag for creation
+4. Map to existing components or flag for creation (validated by Phase 5.5 registry check)
 ```
 
 ### Phase 4: Variant Mapping
@@ -103,7 +105,167 @@ For each Component Set:
   - Generate TypeScript interface skeleton
 ```
 
-### Phase 5: VSM Output
+### Phase 4.5: Micro-Design Extraction
+
+Extract interactive state details, transitions, and keyboard interactions for each component:
+
+```
+For each component identified in Phases 3-4:
+
+1. INSPECT state variants
+   Check the Figma Component Set for state properties:
+   - Look for properties named: State, Status, Interaction, Mode
+   - Common values: Default, Hover, Pressed, Focused, Disabled, Loading
+   - If no state property exists, check prototype interactions via figma_inspect_node
+
+2. MAP states to Tailwind
+   For each state variant found:
+   a. Run visual diff against the default variant
+   b. Map each changed property to a Tailwind class with state prefix:
+      - Background color change → hover:bg-{token}
+      - Border change → hover:border-{token}
+      - Shadow change → hover:shadow-{token}
+      - Opacity change → hover:opacity-{value}
+      - Transform change → active:scale-{value}
+   c. Apply prefix based on state name:
+      - Hover → hover:
+      - Pressed/Active → active:
+      - Focused → focus-visible: (always use focus-visible, NOT focus)
+      - Disabled → class-based (conditional render + aria-disabled="true")
+
+3. GENERATE transition recommendations
+   Based on which properties change between states:
+   - Color only → transition-colors duration-150
+   - Transform → transition-transform duration-75
+   - Multiple properties → transition-all duration-200
+   - Enter/exit (modals, dropdowns) → animate-in / animate-out patterns
+
+4. DETECT compound interactions
+   Check component type for keyboard navigation requirements:
+   - dropdown/select/combobox → Select keyboard map (Enter, Arrow keys, Escape)
+   - accordion/collapse/expand → Accordion keyboard map
+   - dialog/modal/overlay → Dialog keyboard map (focus trap, Escape)
+   - tabs/tab group → Tabs keyboard map (Arrow keys, Home/End)
+
+5. CHECK responsive interactions
+   Identify interactions that differ between mobile and desktop:
+   - Navigation: hamburger (mobile) vs horizontal nav (desktop)
+   - Sidebar: overlay drawer (mobile) vs persistent (desktop)
+   - Touch gestures that replace hover states on mobile
+```
+
+**Output**: Write `micro_design` section to the VSM file with:
+- `states[]` — mapped state variants with Tailwind classes per state
+- `transitions[]` — recommended transition classes per interaction type
+- `keyboard` — WAI-ARIA keyboard map (if compound component)
+- `responsive_interactions` — breakpoint-specific interaction differences (if any)
+
+**When no micro-design details are found** (static component with no state variants or interactions): set `micro_design: null` in VSM and report `MicroDesign: absent` in Seal.
+
+See [micro-design-protocol.md](../../skills/frontend-design-patterns/references/micro-design-protocol.md) for the full state mapping algorithm, transition catalog, and keyboard interaction specs.
+
+### Phase 5: Component Registry Generation
+
+Generate a machine-readable component catalog (`component-registry.json`) from project source files:
+
+```
+Input:  design-system-profile.yaml (from design-system-discovery), project src/ files
+Output: component-registry.json written to tmp/design-sync/{timestamp}/
+
+Steps:
+1. Read design-system-profile.yaml to determine library type and component directory
+   - shadcn: src/components/ui/
+   - UntitledUI: src/components/
+   - Fallback: heuristic scan (src/components/, components/)
+
+2. Glob for *.tsx component files (exclude index, test, stories files)
+
+3. For each component file:
+   a. Extract component name from default/named export
+   b. Parse variant definitions:
+      - cva() calls → extract variants object keys/values
+      - sortCx() calls → extract sizes/colors objects
+      - TypeScript prop interfaces → extract union types
+   c. Extract design tokens from className strings:
+      - Scan for Tailwind classes: bg-*, text-*, border-*, ring-*, shadow-*
+      - Categorize into token buckets (bg, text, border, ring, shadow, custom)
+   d. Identify accessibility primitives:
+      - @radix-ui/* imports → radix:<Component>
+      - react-aria/* imports → react-aria:<Hook>
+      - No primitives → "native"
+      - Extract keyboard handlers and ARIA attributes from JSX
+   e. Detect composition patterns:
+      - children prop or {children} → accepts_children: true
+      - Named icon/slot props → icon_slots
+      - Multiple exported sub-components → compound_parts
+
+4. Build Figma mapping (if design-inventory.json exists from devise Phase 0)
+   - Match component names (fuzzy: PascalCase → space-separated)
+   - Map Figma variant properties to code variant axes
+
+5. Collect project-wide tokens from CSS custom properties (globals.css / theme file)
+
+6. Detect composition rules (cn/clsx/twMerge, cva/sortCx, Slot/asChild/forwardRef, data-slot/data-state)
+
+7. Write component-registry.json following rune-component-registry/v1 schema
+```
+
+**Error handling:**
+
+| Failure Mode | Fallback |
+|-------------|----------|
+| Component file unparseable | Skip component, log warning |
+| No variant system detected | Set `variants: {}`, continue |
+| No accessibility primitives | Set `primitive: "native"` |
+| design-inventory.json missing | Omit `figma_mapping` for all components |
+| CSS/theme file missing | Set `tokens.colors.semantic: []` |
+| Profile missing component path | Use heuristic scan (`src/components/`, `components/`) |
+| design-system-profile.yaml missing | Skip registry generation entirely, set Registry: skipped in Seal |
+
+See [component-registry-spec.md](../../skills/frontend-design-patterns/references/component-registry-spec.md) for the full JSON schema and examples.
+
+### Phase 5.5: Registry Check (REUSE > INSTALL > EXTEND > CREATE)
+
+Before flagging any component for creation in the VSM, run the registry decision flow against the generated `component-registry.json`:
+
+```
+For each component identified in the Region Decomposition (Phase 3):
+  1. CHECK 1 — Project registry (component-registry.json):
+     - Exact name match → REUSE (import existing component)
+     - Name match but missing variant → EXTEND (add variant to existing)
+     - No match → proceed to CHECK 2
+
+  2. CHECK 2 — External registry (shadcn projects only):
+     - Read components.json for style (default: new-york-v4)
+     - Fetch shadcn registry JSON (5s timeout, graceful degradation)
+     - Component found → INSTALL (npx shadcn add {name})
+     - Not found or timeout → proceed to CHECK 3
+
+  3. CHECK 3 — Base primitive lookup:
+     - Radix UI primitive available → CREATE with Radix base
+     - React Aria primitive available → CREATE with React Aria base
+     - No primitive → CREATE from scratch
+
+Decision: highest-priority match wins (REUSE > INSTALL > EXTEND > CREATE)
+```
+
+**Log each decision in the VSM** under a `## Registry Decisions` section:
+
+```
+Registry Decision: {REUSE|INSTALL|EXTEND|CREATE}
+Component: {ComponentName} (variant={variant}, size={size})
+Registry Match: {components.{Name} — exact match | missing variant | no match}
+Action: {import path | install command | extend description | create justification}
+```
+
+**Rules:**
+- Stop at the first successful decision — do not continue to lower-priority checks
+- Network failures in CHECK 2 degrade to CHECK 3 (never block the pipeline)
+- If component-registry.json is missing (Phase 5 skipped), skip CHECK 1 entirely
+
+See [registry-integration.md](../../skills/frontend-design-patterns/references/registry-integration.md) for the full decision flow and shadcn registry protocol.
+
+### Phase 6: VSM Output
 
 Write the Visual Spec Map file:
 
@@ -175,16 +337,20 @@ Before marking task complete:
 - [ ] Variant map includes all Figma variant properties
 - [ ] Responsive spec present (even if "no responsive variants specified")
 - [ ] Accessibility requirements listed
+- [ ] Micro-design details extracted (states, transitions) or explicitly absent
+- [ ] Component registry generated (or skipped with valid reason)
 
 **Layer 3 — Self-Adversarial:**
 - [ ] What if a token mapping is wrong? (Implementation worker will use incorrect values)
 - [ ] What if the region tree misses a nested component? (Layout structure mismatch)
 - [ ] What if a variant is missing? (Incomplete component implementation)
+- [ ] What if the registry misses a component? (Worker may CREATE instead of REUSE)
+- [ ] What if a hover state is missed? (Implementation lacks interactive feedback)
 
 ## Seal Format
 
 ```
-Seal: task #{id} done. VSM: {output_path}. Tokens: {count}. Regions: {count}. Variants: {count}. Confidence: {0-100}. Inner-flame: {pass|fail|partial}.
+Seal: task #{id} done. VSM: {output_path}. Tokens: {count}. Regions: {count}. Variants: {count}. MicroDesign: {present|absent}. Registry: {generated|skipped}. Confidence: {0-100}. Inner-flame: {pass|fail|partial}.
 ```
 
 ## Exit Conditions
