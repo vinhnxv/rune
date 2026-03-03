@@ -232,7 +232,7 @@ Each command passes its own `opts` to `waitForCompletion`:
 
 When `depth=deep` activates wave scheduling, `waitForCompletion` is called once per wave with that wave's timeout allocation (from `distributeTimeouts`). The orchestrator manages the wave loop externally — `waitForCompletion` itself is unchanged.
 
-**Per-wave signal directory:** Each wave uses the same signal directory (`tmp/.rune-signals/{teamName}/`) but the directory is reset between waves. Signal files are cleared, `.expected` is rewritten with the new wave's agent count, and done files use the pattern `{task_id}.done` (matching on-task-completed.sh runtime). Each wave uses its own signal directory (`tmp/.rune-signals/{teamName}-w{N}/`) to prevent cross-wave signal contamination.
+**Per-wave signal directory:** Signal files from completed waves are cleaned up between waves. The shared directory name stays the same across all waves — no per-wave suffix is used. Signal files are cleared, `.expected` is rewritten with the new wave's agent count, and done files use the pattern `{task_id}.done` (matching on-task-completed.sh runtime).
 
 ```javascript
 // Wave-aware signal setup (between waves)

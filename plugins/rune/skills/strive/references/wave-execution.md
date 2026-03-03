@@ -7,7 +7,7 @@ Wave capacity determines how many tasks run per wave. Derived from talisman conf
 ```javascript
 const TODOS_PER_WORKER = talisman?.work?.todos_per_worker ?? 3
 const maxWorkers = talisman?.work?.max_workers ?? 3
-const waveCapacity = maxWorkers * TODOS_PER_WORKER  // e.g. 3 workers * 3 = 9
+const waveCapacity = Math.max(1, (maxWorkers ?? 3) * (TODOS_PER_WORKER ?? 3))  // e.g. 3 workers * 3 = 9; Math.max(1,...) guards against zero division on next line
 const totalWaves = Math.ceil(totalTodos / waveCapacity)
 ```
 
@@ -20,6 +20,34 @@ Instead of using a static `workerCount = maxWorkers` for every wave, the orchest
 **Gate**: Adaptive wave sizing is enabled by default and can be disabled via `readTalismanSection("work")?.adaptive_wave?.enabled !== false`.
 
 ### `computeWaveWorkerCount(remainingTasks, maxWorkers, todosPerWorker, prevWaveMetrics, talisman)`
+
+<!--
+  Worked example — Adaptive Wave Sizing Feedback Loop:
+
+  Setup: maxWorkers=3, todosPerWorker=3, failureThreshold=0.3, speedThreshold=0.5, minWorkers=1
+
+  Wave 1 (first wave, prevWaveMetrics=null):
+    - baseCount = min(3, ceil(9/3)) = min(3, 3) = 3
+    - prevWaveMetrics is null → skip feedback adjustment
+    - adjustedCount = 3
+    - finalCount = clamp(3, [1, 3]) = 3           → spawn 3 workers
+    - Wave 1 result: 1 of 3 tasks completed (failureRate=0.67, completionRatio=0.33)
+
+  Wave 2 (prevWaveMetrics = { failureRate: 0.67, completionRatio: 0.33 }):
+    - baseCount = min(3, ceil(6/3)) = min(3, 2) = 2
+    - failureRate 0.67 > failureThreshold 0.30 → shrink: adjustedCount = 2 - 1 = 1
+    - finalCount = clamp(1, [1, 3]) = 1           → spawn 1 worker (reduced due to failures)
+    - Wave 2 result: 1 of 1 tasks completed (failureRate=0.0, completionRatio=1.0)
+
+  Wave 3 (prevWaveMetrics = { failureRate: 0.0, completionRatio: 1.0 }):
+    - baseCount = min(3, ceil(5/3)) = min(3, 2) = 2
+    - failureRate 0.0 not > 0.3; completionRatio 1.0 not < 0.5 → no adjustment
+    - finalCount = clamp(2, [1, 3]) = 2           → spawn 2 workers
+
+  Key insight: per-wave metrics (collected from waveTasks after each wave via collectWaveMetrics)
+  are NOT aggregated across waves. Each wave's prevWaveMetrics reflects only the immediately
+  preceding wave, enabling fast adaptation to transient failures or slowdowns.
+-->
 
 ```javascript
 function computeWaveWorkerCount(remainingTasks, maxWorkers, todosPerWorker, prevWaveMetrics, talisman) {
@@ -36,8 +64,9 @@ function computeWaveWorkerCount(remainingTasks, maxWorkers, todosPerWorker, prev
   let baseCount = Math.min(maxWorkers, Math.ceil(remainingTasks / todosPerWorker))
 
   // Feedback loop: adjust based on previous wave performance
+  // Explicit null/undefined guard — prevWaveMetrics is null on the first wave
   let adjustedCount = baseCount
-  if (prevWaveMetrics) {
+  if (prevWaveMetrics !== null && prevWaveMetrics !== undefined) {
     if (prevWaveMetrics.failureRate > failureThreshold) {
       // High failure rate — shrink by 1 to reduce contention/resource pressure
       adjustedCount = baseCount - 1
@@ -50,7 +79,11 @@ function computeWaveWorkerCount(remainingTasks, maxWorkers, todosPerWorker, prev
   }
 
   // Clamp to [minWorkers, maxWorkers]
+  const prevAdjusted = adjustedCount
   const finalCount = Math.max(minWorkers, Math.min(maxWorkers, adjustedCount))
+  if (finalCount !== prevAdjusted) {
+    log(`WAVE-ADAPT: workerCount clamped from ${prevAdjusted} to ${finalCount} (min=${minWorkers}, max=${maxWorkers})`)
+  }
   log(`WAVE-ADAPT: workerCount=${finalCount} (base=${baseCount}, remaining=${remainingTasks})`)
   return finalCount
 }
@@ -62,6 +95,11 @@ Called after each wave completes to gather performance data for the feedback loo
 
 ```javascript
 function collectWaveMetrics(waveTasks) {
+  // Guard: return zeroed metrics if waveTasks is null/undefined/empty to prevent NaN propagation
+  if (!waveTasks || waveTasks.length === 0) {
+    return { totalTasks: 0, completedCount: 0, failedCount: 0, failureRate: 0, completionRatio: 1 }
+  }
+
   const completed = waveTasks.filter(t => t.status === "completed")
   const failed = waveTasks.filter(t => t.status !== "completed")
 
@@ -114,6 +152,10 @@ function computeExpectedWaveTime(waveTasks, workerCount) {
 
 // WRONG (F12): max of ALL tasks (ignores parallelism)
 // const expectedWaveTime = Math.max(...waveTasks.map(t => t.estimated_minutes ?? 5))
+
+// NOTE: expectedWaveTime is computed but currently has no downstream consumer.
+// Consider wiring to timeout allocation (e.g. timeoutMs = expectedWaveTime * 60_000 * 1.5)
+// or removing to avoid maintaining dead logic.
 ```
 
 ## Execution Loop

@@ -72,11 +72,16 @@ The check-then-write pattern is inherently subject to time-of-check-to-time-of-u
 1. **Static serialization first**: `blockedBy` links (Phase 1) catch most overlaps at planning time. File lock signals are a second layer for dynamic overlap that static analysis missed.
 2. **Atomic signal writes**: Workers write signal files atomically (write to temp file + rename).
 3. **Conservative conflict resolution**: On conflict, the worker defers (releases task) rather than proceeding. False positives (unnecessary deferrals) are preferred over false negatives (concurrent edits).
+   > **Note:** At 5+ workers, dual-defer retry storms become more likely. Consider exponential backoff jitter (30s → 45s → 60s) for large plans. Current retry cycle is 3 × 30s = 90s minimum. This is a deliberate trade-off: correctness (no concurrent edits) is prioritized over throughput (retry overhead). With fewer than 5 workers the collision probability is low enough that fixed 30s retries are acceptable.
 4. **Idempotent release**: Workers delete their own signal file on both success and failure paths.
 
 ### Stale Lock Prevention
 
-The orchestrator's Phase 3 monitoring loop includes a stale lock scan that sweeps `tmp/.rune-signals/{team}/*-files.json`. Signals older than `work.file_lock_signals.stale_threshold_ms` (default: 600000ms / 10 minutes) are deleted. This handles:
+The orchestrator's Phase 3 monitoring loop includes a stale lock scan that sweeps `tmp/.rune-signals/{team}/*-files.json`. Signals older than `work.file_lock_signals.stale_threshold_ms` (default: 600000ms / 10 minutes) are deleted.
+
+> **Threshold rationale:** The default `stale_threshold_ms` of 600000 (10 minutes) acts as a filesystem janitor for crashed workers, not a real-time safety net. A worker that crashes leaves its signal file behind; the janitor sweeps it up on the next monitoring cycle. For tighter protection against long-running workers blocking tasks, reduce to 180000 (3 minutes = 1 long task + buffer). The 10-minute default is conservative to avoid false positives on slow I/O or temporarily hung workers. Adjust via `work.file_lock_signals.stale_threshold_ms` in `talisman.yml`.
+
+This handles:
 
 - Worker crashes (signal file left behind without cleanup)
 - Workers that exceed their runtime budget and get force-shutdown

@@ -66,6 +66,13 @@ Phase 0: Parse Plan -> Extract tasks, clarify ambiguities, detect --worktree fla
 Phase 0.5: Environment Setup -> Branch check, stash dirty files, SDK canary (worktree)
     |
 Phase 1: Forge Team -> TeamCreate + TaskCreate pool
+    1. Task Pool Creation (complexity ordering, time estimation)
+    1.5. Design Context Discovery (conditional, zero cost if no artifacts)
+    1.6. MCP Integration Discovery (conditional, zero cost if no integrations)
+    1.7. File Ownership and Task Pool (static serialization via blockedBy)
+    2. Signal Directory Setup (event-driven fast-path infrastructure)
+    3. Per-Task File-Todos Creation (mandatory, session-scoped)
+    → TeamCreate + TaskCreate pool
     |
 Phase 2: Summon Workers -> Self-organizing swarm
     | (workers claim -> implement -> complete -> repeat)
@@ -220,9 +227,21 @@ for (const task of extractedTasks) {
 
 // --- Complexity-aware task ordering (sort before wave computation) ---
 // Gate: readTalismanSection("work")?.complexity_ordering?.enabled !== false
+//
+// Scoring is additive: Score = (fileCount × wFile) + (wTest if test task) + (wRefactor if refactor keyword)
+//                             + (wLargeScope if fileCount > 5)
+// Tasks are sorted descending by score so highest-complexity tasks start first.
+// Score is a relative ranking, not a time estimate — use estimateTaskMinutes() for time budgeting.
+// Default weights (overridable via talisman complexity_ordering.weights):
+//   wFile=2: cost per touched file — more files → more risk of conflicts
+//   wTest=3: test tasks are slightly harder (require understanding existing coverage)
+//   wRefactor=5: refactors touch structural patterns and carry high regression risk
+//   wLargeScope=3: bonus for >5 files — coordination overhead grows super-linearly
+// Used in both scoreTaskComplexity() and estimateTaskMinutes()
+const REFACTOR_KEYWORDS = ["refactor", "restructure", "extract", "migrate", "rename", "reorganize"]
+
 const complexityConfig = readTalismanSection("work")?.complexity_ordering
 if (complexityConfig?.enabled !== false) {
-  const REFACTOR_KEYWORDS = ["refactor", "restructure", "extract", "migrate", "rename", "reorganize"]
   const weights = complexityConfig?.weights ?? {}
   const wFile = weights.file_count ?? 2
   const wTest = weights.test ?? 3
@@ -250,13 +269,12 @@ if (complexityConfig?.enabled !== false) {
 }
 
 // --- Task time estimation (stored in metadata for Phase 3 reassignment) ---
-const REFACTOR_KEYWORDS_EST = ["refactor", "restructure", "extract", "migrate", "rename", "reorganize"]
 function estimateTaskMinutes(task) {
   const fileCount = (task.fileTargets?.length ?? 0) + (task.dirTargets?.length ?? 0)
   let estimate = fileCount <= 2 ? 5 : fileCount <= 5 ? 10 : 15
   if (task.type === "test") estimate = 8
   const text = `${task.subject ?? ''} ${task.description ?? ''}`.toLowerCase()
-  if (REFACTOR_KEYWORDS_EST.some(kw => text.includes(kw))) estimate = Math.min(20, Math.round(estimate * 1.5))
+  if (REFACTOR_KEYWORDS.some(kw => text.includes(kw))) estimate = Math.min(20, Math.round(estimate * 1.5))
   return estimate
 }
 for (const task of extractedTasks) {
@@ -529,7 +547,18 @@ for (const [workerName, spawnTime] of Object.entries(workerSpawnTimes)) {
 }
 ```
 
-**Talisman config**: `teammate_lifecycle.max_runtime_minutes` (default: `20`). Set to `999` to effectively disable.
+#### Stuck Worker Detection Config
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `teammate_lifecycle.max_runtime_minutes` | `20` | Workers exceeding this runtime receive a `shutdown_request` and have their tasks released for reclaim |
+
+**Purpose**: Detects workers that have exceeded their runtime budget — e.g., stuck in an infinite loop, waiting on a blocking tool call, or stalled on a hard task. Without this gate, a single stuck worker can block wave completion indefinitely.
+
+**Tuning guidance**:
+- Default `20` minutes is appropriate for most implementation tasks
+- Set to `999` to effectively disable stuck worker detection (useful when tasks are known to be long-running)
+- Reduce to `10` for resource-constrained environments where you want faster reclaim of stalled tasks
 
 **Wave-aware monitoring (worktree mode)**: Sequential waves, each monitored independently via `waitForCompletion` with `taskFilter`, merge broker runs between waves. Per-wave timeout: 10 minutes.
 
