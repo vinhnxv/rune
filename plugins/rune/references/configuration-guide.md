@@ -96,6 +96,26 @@ All talisman config keys grouped by section with types, defaults, and descriptio
 | `plan.shatter.threshold` | number | `70` | Min shatter score to proceed |
 | `plan.forge_after_synthesis` | boolean | `true` | Auto-forge after synthesis |
 
+### `integrations` — MCP Tool Integrations
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `integrations.mcp_tools.{namespace}.server_name` | string | — | MCP server key (must match `.mcp.json`). Required. |
+| `integrations.mcp_tools.{namespace}.tools` | array | — | Tool declarations. Each: `{ name: string, category: string }`. Required. |
+| `integrations.mcp_tools.{namespace}.tools[].name` | string | — | MCP tool name (must match MCP server tool). |
+| `integrations.mcp_tools.{namespace}.tools[].category` | string | — | Semantic category: `search`, `details`, `compose`, `suggest`, `generate`, `validate`. |
+| `integrations.mcp_tools.{namespace}.phases` | object | — | Phase routing. Keys: `devise`, `strive`, `forge`, `appraise`, `audit`, `arc`. Values: boolean. Required. |
+| `integrations.mcp_tools.{namespace}.trigger` | object | — | Activation conditions. Required. |
+| `integrations.mcp_tools.{namespace}.trigger.extensions` | string[] | `[]` | File extensions to match (e.g., `[".tsx", ".ts"]`). |
+| `integrations.mcp_tools.{namespace}.trigger.paths` | string[] | `[]` | Path prefixes to match (e.g., `["src/api/"]`). |
+| `integrations.mcp_tools.{namespace}.trigger.keywords` | string[] | `[]` | Task description keywords (case-insensitive). |
+| `integrations.mcp_tools.{namespace}.trigger.always` | boolean | `false` | Override: skip all trigger checks. |
+| `integrations.mcp_tools.{namespace}.skill_binding` | string | — | Companion skill name (auto-loaded when active). Optional. |
+| `integrations.mcp_tools.{namespace}.rules` | string[] | `[]` | Rule file paths (project-relative, no `..`). Optional. Max 5 per integration. Truncated to 2000 chars. |
+| `integrations.mcp_tools.{namespace}.metadata` | object | `{}` | Discovery metadata. Optional. Known keys: `library_name`, `component_count`, `version`, `homepage`. |
+
+See [docs/guides/mcp-integration-spec.en.md](../docs/guides/mcp-integration-spec.en.md) for the full developer guide.
+
 ### `inspect` — Plan-vs-Code Audit
 
 | Key | Type | Default | Description |

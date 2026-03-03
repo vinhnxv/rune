@@ -143,12 +143,22 @@ See [cost-tier-mapping.md](references/cost-tier-mapping.md) for the full categor
 Reads `.claude/talisman.yml` (project) → `$CHOME/talisman.yml` (global) → `{}`.
 Where `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`.
 
-**Preferred**: Use `readTalismanSection(sectionName)` — reads pre-resolved JSON shards from `tmp/.talisman-resolved/` for 94% token reduction. Falls back to full-file `readTalisman()` if shards are unavailable. Available shards: `arc`, `codex`, `review`, `work`, `goldmask`, `plan`, `gates`, `settings`, `inspect`, `testing`, `audit`, `misc`.
+**Preferred**: Use `readTalismanSection(sectionName)` — reads pre-resolved JSON shards from `tmp/.talisman-resolved/` for 94% token reduction. Falls back to full-file `readTalisman()` if shards are unavailable. Available shards: `arc`, `codex`, `review`, `work`, `goldmask`, `plan`, `gates`, `settings`, `inspect`, `testing`, `audit`, `misc` (includes `integrations`).
 
 **Rule**: Use SDK `Read()` — NEVER `Bash("cat ...")` or `Bash("test -f ...")`.
 `Read()` auto-resolves `CLAUDE_CONFIG_DIR` and tilde. Bash does not (ZSH `~ not found` bug).
 
 See [references/read-talisman.md](references/read-talisman.md).
+
+### resolveMCPIntegrations()
+
+Discovers and activates third-party MCP tool integrations from talisman config. Triple-gated: `integrations.mcp_tools` exists + phase match + trigger match. Returns an empty array when no integrations match (zero overhead).
+
+**Inputs**: `phase` (string: `"strive"`, `"devise"`, `"forge"`), `context` (object with `changedFiles`, `taskDescription`)
+**Outputs**: Array of active integration objects (namespace, server_name, tools, skill_binding, rules, metadata)
+**Related functions**: `evaluateTriggers()`, `buildMCPContextBlock()`, `loadMCPSkillBindings()`
+
+Used by strive (Phase 1.5), devise (Phase 0), and forge (Phase 1.6). See [skills/strive/references/mcp-integration.md](skills/strive/references/mcp-integration.md) for the full resolver algorithm. Developer guide: [docs/guides/mcp-integration-spec.en.md](docs/guides/mcp-integration-spec.en.md).
 
 ### resolveModelForAgent()
 

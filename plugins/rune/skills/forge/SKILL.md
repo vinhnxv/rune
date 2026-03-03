@@ -80,6 +80,8 @@ Phase 1.3: Extract File References (parse plan for code paths)
     |
 Phase 1.5: Lore Layer (risk scoring on referenced files — Goldmask)
     |
+Phase 1.6: MCP Integration Resolution (resolve active tools for forge phase)
+    |
 Phase 1.7: Codex Section Validation (coverage gap check, v1.51.0+)
     |
 Phase 2: Forge Gaze Selection (topic-to-agent matching, risk-boosted + force-include)
@@ -216,6 +218,25 @@ See [lore-layer-integration.md](../goldmask/references/lore-layer-integration.md
 | < 5 commits in lookback window (G5 guard) | Skip Phase 1.5 |
 | Existing risk-map found (>30% overlap) | Reuse instead of spawning agent |
 
+## Phase 1.6: MCP Integration Resolution
+
+Resolve active MCP tool integrations for the forge phase. Computed once here and passed to Phase 4 agent prompts. Zero overhead when no integrations configured.
+
+See [mcp-integration.md](../strive/references/mcp-integration.md) for the shared resolver algorithm.
+
+```javascript
+// After Lore Layer, before Codex validation
+const mcpIntegrations = resolveMCPIntegrations("forge", {
+  changedFiles: uniqueFiles,  // File refs extracted in Phase 1.3
+  taskDescription: planContent
+})
+const mcpContextBlock = buildMCPContextBlock(mcpIntegrations)
+// mcpContextBlock is empty string when no integrations match (zero overhead)
+// Passed to Phase 4 forge agent prompts
+```
+
+**Skip condition**: If `resolveMCPIntegrations` returns empty array, `mcpContextBlock` is `""` and no injection occurs in Phase 4.
+
 ## Phase 1.7: Codex Section Validation (v1.51.0+)
 
 After Lore Layer risk scoring, validate enrichment coverage cross-model. Identifies plan sections that reference high-risk files but have no Forge Gaze agent match. Produces a `forceIncludeList` consumed by Phase 2.
@@ -320,6 +341,19 @@ Bash(`mkdir -p "tmp/forge/${timestamp}"`)
 ```
 
 See [forge-enrichment-protocol.md](references/forge-enrichment-protocol.md) for: inscription.json format, task creation, agent prompt templates, Elicitation Sage spawning, and Enrichment Output Format.
+
+### MCP Context Injection (Phase 4)
+
+When `mcpContextBlock` is non-empty (computed in Phase 1.6), inject it into each forge agent's spawn prompt after the section content and before the enrichment instructions:
+
+```javascript
+// Append to each forge agent prompt when MCP integrations are active
+// mcpContextBlock from Phase 1.6 — empty string when no integrations (no-op)
+const forgePromptSuffix = mcpContextBlock
+  ? `\n${mcpContextBlock}\n    Consider these MCP tools when suggesting implementation details, best practices, and edge cases for this section.\n`
+  : ''
+// Injected into agent prompt AFTER section content, BEFORE enrichment output format
+```
 
 ### Monitor
 

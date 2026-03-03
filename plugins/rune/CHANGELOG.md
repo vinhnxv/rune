@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.131.0] - 2026-03-03
+
+### Added
+- **MCP Integration Framework** — Declarative `integrations.mcp_tools` talisman section for routing third-party MCP tools into Rune workflow phases. Triple-gated activation (config exists + phase match + trigger match). 3 integration levels (Basic, Talisman, Full). 4 resolver functions (`resolveMCPIntegrations`, `evaluateTriggers`, `buildMCPContextBlock`, `loadMCPSkillBindings`). Integrated into strive (Phase 1.5), devise (Phase 0), and forge (Phase 1.6). 6 tool categories, 6 workflow phases. Talisman audit validation for integrations. Developer guide at `docs/guides/mcp-integration-spec.en.md`.
+- **MCP resolver security hardening** — SEC-001: Path traversal validation for rule files (reject `..` and absolute paths). SEC-002: Nonce-bounded Truthbinding wrapper for injected rule content. SEC-003: Namespace format validation. SEC-004: Tool name/category allowlist enforcement at resolution time. Rule count cap (max 5 per integration). Line-boundary-aware truncation.
+
+### Changed
+- **Talisman shard extraction** — Added `integrations` to `misc` shard in `talisman-resolve.sh` for shard-optimized config reads.
+- **CLAUDE.md** — Added `resolveMCPIntegrations()` to Core Pseudo-Functions section.
+- **configuration-guide.md** — Added full `integrations.mcp_tools` schema reference (16 keys).
+- **talisman-sections.md** — Added row 27 for `integrations` section.
+- **README.md** — Added MCP Tool Integrations section with feature overview.
+
 ## [1.130.0] - 2026-03-03
 
 ### Added

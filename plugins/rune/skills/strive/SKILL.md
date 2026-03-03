@@ -239,6 +239,30 @@ See [design-context.md](references/design-context.md) for the 4-strategy cascade
 
 **Summary**: Triple-gated (`design_sync.enabled` + frontend task signals + artifact presence). When active, loads `frontend-design-patterns`, `figma-to-react`, `design-sync` skills and injects DCD/VSM content into worker prompts.
 
+### MCP Integration Discovery (conditional, zero cost if no integrations)
+
+See [mcp-integration.md](references/mcp-integration.md) for the resolver algorithm, trigger evaluation, and prompt block builder.
+
+**Summary**: Triple-gated (`integrations.mcp_tools` exists in talisman + phase match for "strive" + trigger match against task files/description). When active, loads companion skills via `loadMCPSkillBindings()` and passes `buildMCPContextBlock()` output to worker prompt builder.
+
+```javascript
+// After design context discovery, before file ownership
+const mcpIntegrations = resolveMCPIntegrations("strive", {
+  changedFiles: extractedTasks.flatMap(t => t.metadata?.file_targets || []),
+  taskDescription: planContent
+})
+
+if (mcpIntegrations.length > 0) {
+  // Load companion skills
+  const mcpSkills = loadMCPSkillBindings(mcpIntegrations)
+  loadedSkills.push(...mcpSkills)
+
+  // Build context block for worker prompts (injected in Phase 2)
+  const mcpContextBlock = buildMCPContextBlock(mcpIntegrations)
+  // mcpContextBlock passed to worker prompt builder alongside designContextBlock
+}
+```
+
 ### File Ownership and Task Pool
 
 See [file-ownership.md](references/file-ownership.md) for file target extraction, risk classification, SEC-STRIVE-001 enforcement via inscription.json, and quality contract.
