@@ -186,6 +186,9 @@ The orchestrator creates per-task todo files in `{todos_base}/work/` (session-sc
 
 ### Orchestrator: Per-Task Todo Creation (Phase 1)
 
+> **DEPRECATED (v1.105.0)**: This section's code is now inlined directly in strive/SKILL.md Phase 1.
+> The inline version uses a simplified schema (8 fields). This reference is retained for documentation only.
+
 After creating TaskCreate entries, generate corresponding per-task todo files:
 
 ```javascript

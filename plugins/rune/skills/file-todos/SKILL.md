@@ -139,7 +139,7 @@ schema_version: 2
 status: pending           # pending | ready | in_progress | complete | blocked | wont_fix | interrupted
 priority: p1              # p1 (critical) | p2 (important) | p3 (nice-to-have)
 issue_id: "001"
-source: review            # review | work | pr-comment | tech-debt | audit
+source: review            # review | work | pr-comment | tech-debt | audit | test-browser | gap | test
 source_ref: ""            # path or reference back to origin
 finding_id: ""            # RUNE:FINDING id (for review/audit sources)
 finding_severity: ""      # P1/P2/P3 (for display without re-parsing)

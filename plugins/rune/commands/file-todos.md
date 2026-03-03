@@ -46,7 +46,11 @@ Manage structured file-based todos in session-scoped `tmp/{workflow}/{id}/todos/
 
 Use `--session tmp/work/20260226-100322/` to target a specific session.
 
-**Load skills**: `file-todos` for full reference.
+## Execution
+
+Load and execute the `file-todos` skill (`skills/file-todos/SKILL.md`) with all arguments passed through.
+The skill contains `resolveSessionContext()`, `$ARGUMENTS` parsing, and all subcommand dispatch logic.
+Without loading the skill first, none of the subcommands below will work.
 
 ## Subcommands
 
