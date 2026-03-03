@@ -17,21 +17,22 @@ This list reflects the documented schema used by Rune (including default-injecte
 | 8 | `inspect` | Plan-vs-code audit | `requirement_match_threshold`, `completeness_threshold`, `dimension_weights` |
 | 9 | `arc` | Pipeline config | `defaults`, `ship` (+ `co_authors`), `pre_merge_checks`, `timeouts`, `batch` (+ `smart_ordering`), `gap_analysis` (+ `inspect_enabled`), `sharding`, `consistency` |
 | 10 | `solution_arena` | Devise arena phase | `enabled`, `skip_for_types`, `weights.*`, `convergence_threshold` |
-| 11 | `deployment_verification` | Deploy artifact generation | `enabled`, `go_no_go`, `rollback_plan`, `monitoring_plan` |
-| 12 | `schema_drift` | Migration/model consistency | `enabled`, `frameworks`, `strict`, `ignore_patterns` |
-| 13 | `elicitation` | Reasoning methods | `max_parallel_sages`, `phase_filter` |
-| 14 | `echoes` | Agent memory | `version_controlled`, `fts_enabled`, `auto_observation`, `scoring`, `groups`, `reranking`, `retry` |
-| 15 | `mend` | Finding resolution | `cross_file_batch_size`, `todos_per_fixer` |
-| 16 | `review` | Review settings | `diff_scope`, `convergence`, `arc_convergence_*`, `shard_*` |
-| 17 | `work` | Work/strive settings | `ward_commands`, `max_workers`, `commit_format`, `co_authors`, `branch_prefix`, `unrestricted_shared_files`, `worktree.*` |
-| 18 | `file_todos` | Todo tracking (v2) | `triage`, `manifest`, `history` |
-| 19 | `horizon` | Strategic assessment | `enabled`, `min_score`, `dimensions` |
-| 20 | `testing` | Test orchestration | `tiers.unit`, `tiers.integration`, `tiers.e2e`, `service.*`, `scenarios.*`, `extended_tier.*`, `contract.*`, `visual_regression.*`, `accessibility.*`, `history.*`, `fixtures.*`, `production_readiness.*` |
-| 21 | `doubt_seer` | Claim verification | `enabled`, `min_claims`, `verdict_threshold` |
-| 22 | `codex` | Cross-model verification | `model`, `workflows`, `timeout`, 17 deep integration keys |
-| 23 | `context_monitor` + `context_weaving` | Context management | `enabled`, `warning_threshold`, `glyph_budget`, `offload_threshold`, `pretooluse_guard.enabled` |
-| 24 | `debug` | ACH parallel debugging | `max_investigators`, `timeout_ms`, `model`, `re_triage_rounds`, `echo_on_verdict` |
-| 25 | `plan` | Research & planning config | `verification_patterns[]`, `freshness` (`enabled`, `warn_threshold`, `block_threshold`, `max_commit_distance`), `external_research` (`"always"` / `"auto"` / `"never"`), `research_urls[]` |
+| 11 | `devise` | Planning/design system discovery | `design_system_discovery.enabled`, `confidence_threshold` |
+| 12 | `deployment_verification` | Deploy artifact generation | `enabled`, `go_no_go`, `rollback_plan`, `monitoring_plan` |
+| 13 | `schema_drift` | Migration/model consistency | `enabled`, `frameworks`, `strict`, `ignore_patterns` |
+| 14 | `elicitation` | Reasoning methods | `max_parallel_sages`, `phase_filter` |
+| 15 | `echoes` | Agent memory | `version_controlled`, `fts_enabled`, `auto_observation`, `scoring`, `groups`, `reranking`, `retry` |
+| 16 | `mend` | Finding resolution | `cross_file_batch_size`, `todos_per_fixer` |
+| 17 | `review` | Review settings | `diff_scope`, `convergence`, `arc_convergence_*`, `shard_*` |
+| 18 | `work` | Work/strive settings | `ward_commands`, `max_workers`, `commit_format`, `co_authors`, `branch_prefix`, `unrestricted_shared_files`, `worktree.*` |
+| 19 | `file_todos` | Todo tracking (v2) | `triage`, `manifest`, `history` |
+| 20 | `horizon` | Strategic assessment | `enabled`, `min_score`, `dimensions` |
+| 21 | `testing` | Test orchestration | `tiers.unit`, `tiers.integration`, `tiers.e2e`, `service.*`, `scenarios.*`, `extended_tier.*`, `contract.*`, `visual_regression.*`, `accessibility.*`, `history.*`, `fixtures.*`, `flaky_detection.*`, `production_readiness.*` |
+| 22 | `doubt_seer` | Claim verification | `enabled`, `min_claims`, `verdict_threshold` |
+| 23 | `codex` | Cross-model verification | `model`, `workflows`, `timeout`, 17 deep integration keys |
+| 24 | `context_monitor` + `context_weaving` | Context management | `enabled`, `warning_threshold`, `glyph_budget`, `offload_threshold`, `pretooluse_guard.enabled` |
+| 25 | `debug` | ACH parallel debugging | `max_investigators`, `timeout_ms`, `model`, `re_triage_rounds`, `echo_on_verdict` |
+| 26 | `plan` | Research & planning config | `verification_patterns[]`, `freshness` (`enabled`, `warn_threshold`, `block_threshold`, `max_commit_distance`), `external_research` (`"always"` / `"auto"` / `"never"`), `research_urls[]` |
 
 ## Critical Sections (Must-Have)
 

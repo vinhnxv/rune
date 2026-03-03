@@ -222,7 +222,7 @@ Only present when `testing.history.enabled` is true in talisman.yml. Data source
 ```markdown
 ## Test History
 
-**Regression threshold**: {talisman.testing.history.regression_threshold} minimum recent passes (out of last 10 runs) to classify as regression
+**Regression threshold**: {talisman.testing.history.regression_threshold} — minimum recent passes (out of last 10) for a currently-failing test to be classified as a per-test regression (high-confidence flip from stable to failing)
 **Flaky threshold**: {talisman.testing.history.flaky_threshold} (failure rate)
 
 | Test | Last {N} Runs | Trend | Flaky? | Regression? |

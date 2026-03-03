@@ -1056,7 +1056,7 @@ testing:
   # Opt-in: requires baseline screenshots to be generated first.
   # visual_regression:
   #   enabled: false                  # Enable visual regression testing (default: false)
-  #   baseline_dir: "tests/baselines" # Directory storing baseline screenshots
+  #   baseline_dir: "tests/baselines" # Directory storing baseline screenshots. Default if unset: ".claude/visual-baselines"
   #   threshold: 0.95                 # Pixel similarity threshold (0.0-1.0, default: 0.95)
   #   update_baselines: false         # When true, overwrite baselines instead of comparing
   #   responsive:

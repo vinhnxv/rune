@@ -365,5 +365,5 @@ Dependency fixtures are tracked to avoid redundant execution within the same tes
 |-------------|------|------------|
 | `sql` | SQL injection via seed script | Content trusted (committed code), path restricted to fixture directory |
 | `api_call` | SSRF via URL field, command injection via body/method | Localhost-only restriction, relative paths only, DNS rebinding check, method allowlist validation, body piped via stdin (not interpolated) |
-| `env_set` | Environment injection | Blocklist for sensitive vars (PATH, HOME, CLAUDE_*, ANTHROPIC_*, AWS_*, *_SECRET*, *_PRIVATE_KEY, *_PASSWORD, *_ENCRYPTION_KEY, *_JWT_SECRET, *_SESSION_SECRET, tokens). Runtime enforcement via hook recommended (VEIL-005) |
+| `env_set` | Environment injection | Agent-enforced blocklist (advisory — no runtime hook enforcement). Sensitive vars blocked: PATH, HOME, CLAUDE_*, ANTHROPIC_*, AWS_*, *_SECRET*, *_PRIVATE_KEY, *_PASSWORD, *_ENCRYPTION_KEY, *_JWT_SECRET, *_SESSION_SECRET, tokens. Implement `validate-fixture-env.sh` PreToolUse hook for hard enforcement |
 | `file_create` | Path traversal, code overwrite | SAFE_PATH_PATTERN, relative only, no `..`, restricted to tmp/ or tests/ |

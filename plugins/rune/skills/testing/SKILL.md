@@ -148,9 +148,9 @@ Summary:
 - E2E browser tester captures screenshots during STEP 7
 - Inline comparison against baselines in `testing.visual_regression.baseline_dir`
 - Comparison tool: `agent-browser compare --baseline <path> --current <path> --format json`
-- Metric: diff score (lower = better; 0.0 = identical)
-- Pixel diff threshold: `testing.visual_regression.threshold` (default 0.02 = 2% diff)
-- Fail condition: `diffData.diff > threshold` (exceeds 2% diff)
+- Metric: similarity score (higher = better; 1.0 = identical)
+- Similarity threshold: `testing.visual_regression.threshold` (default 0.95 = 95% similarity)
+- Fail condition: `diffData.similarity < threshold` (below 95% similarity)
 - Failures appended as WARN section in `test-results-e2e.md` (non-blocking)
 - Gate: `testing.visual_regression.enabled`
 - Canonical implementation: arc-phase-test.md lines 381–407

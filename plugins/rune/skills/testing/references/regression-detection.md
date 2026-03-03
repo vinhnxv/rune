@@ -107,6 +107,10 @@ Each regression entry:
 | `recent_pass_count` | number | How many of the last N runs passed |
 | `recent_total` | number | How many recent runs contained this test |
 
+## Data Source Note
+
+> **`per_test` field**: The `detectRegressions()` algorithm operates on **runtime test report data**, not on persisted JSONL history entries. The `currentRun.per_test` array is populated from the current test execution results (parsed from `test-results-*.md` files during STEP 9.5). Historical `per_test` data in `run.per_test` is available only when history entries include per-test granularity — which is **not guaranteed** by the base history entry schema in `history-protocol.md`. When `per_test` is absent from historical entries, the per-test regression loop is a no-op and only the global pass-rate drop check (in arc-phase-test.md STEP 9.5) provides regression signals.
+
 ## Integration with STEP 9.5
 
 Regression detection runs after history persistence within STEP 9.5:
