@@ -46,6 +46,51 @@ for (const task of extractedTasks) {
 
 The hook uses a **flat union** approach: all tasks' file targets are merged into one allowlist. This means worker-A can write to worker-B's files, but files NOT in ANY task's target list are blocked. Talisman `work.unrestricted_shared_files` array is appended to every task's allowlist (for shared config files like `package.json`).
 
+## Dynamic File Lock Signals
+
+Runtime file lock layer that complements static `blockedBy` serialization. Gated by `work.file_lock_signals.enabled` (default: `true`).
+
+### How It Works
+
+Workers write signal files to `tmp/.rune-signals/{team}/{worker-name}-files.json` before starting implementation. Each signal declares which files the worker is actively modifying. Other workers check for overlapping locks before claiming a task:
+
+```json
+{
+  "worker": "rune-smith-w0-1",
+  "task_id": "3",
+  "files": ["src/auth.ts", "src/auth/middleware.ts"],
+  "timestamp": 1709568000000
+}
+```
+
+**Lifecycle**: Signal file is created at step 4.8 (after ownership check, before file reads) and deleted at step 8.5/9.5 (after task completion or ward failure).
+
+### TOCTOU Mitigation
+
+The check-then-write pattern is inherently subject to time-of-check-to-time-of-use (TOCTOU) races. Mitigations:
+
+1. **Static serialization first**: `blockedBy` links (Phase 1) catch most overlaps at planning time. File lock signals are a second layer for dynamic overlap that static analysis missed.
+2. **Atomic signal writes**: Workers write signal files atomically (write to temp file + rename).
+3. **Conservative conflict resolution**: On conflict, the worker defers (releases task) rather than proceeding. False positives (unnecessary deferrals) are preferred over false negatives (concurrent edits).
+4. **Idempotent release**: Workers delete their own signal file on both success and failure paths.
+
+### Stale Lock Prevention
+
+The orchestrator's Phase 3 monitoring loop includes a stale lock scan that sweeps `tmp/.rune-signals/{team}/*-files.json`. Signals older than `work.file_lock_signals.stale_threshold_ms` (default: 600000ms / 10 minutes) are deleted. This handles:
+
+- Worker crashes (signal file left behind without cleanup)
+- Workers that exceed their runtime budget and get force-shutdown
+- Orphaned signals from previous waves
+
+### Talisman Configuration
+
+```yaml
+work:
+  file_lock_signals:
+    enabled: true                # default: true
+    stale_threshold_ms: 600000   # default: 10 minutes
+```
+
 ## Quality Contract
 
 Embedded in every task description:

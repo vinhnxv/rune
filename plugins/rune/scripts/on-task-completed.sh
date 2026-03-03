@@ -149,6 +149,15 @@ fi
 mv -n "$TEMP_FILE" "$SIGNAL_FILE" 2>/dev/null || { rm -f "$TEMP_FILE"; exit 0; }
 _trace "WRITING signal file: $SIGNAL_FILE"
 
+# Clean up file lock signal (F7: use TEAMMATE_NAME, not WORKER_NAME)
+# File lock signals are written by workers to claim file ownership during execution.
+# Once a task completes, the lock signal is no longer needed.
+if [[ -n "${TEAMMATE_NAME:-}" ]]; then
+  worker_signal="${SIGNAL_DIR}/${TEAMMATE_NAME}-files.json"
+  [ -f "$worker_signal" ] && rm -f "$worker_signal"
+  _trace "CLEANUP file lock signal: $worker_signal"
+fi
+
 # Check if all expected tasks are complete
 EXPECTED_FILE="${SIGNAL_DIR}/.expected"
 if [[ ! -f "$EXPECTED_FILE" ]]; then

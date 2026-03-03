@@ -80,6 +80,17 @@ Agent({
            (see risk-tiers.md) + include rollback plan in Seal message
          - Tier 3 (Elden): All of Tier 2 + send AskUserQuestion for human confirmation
            before committing
+    4.8. FILE LOCK CHECK (gated: work.file_lock_signals.enabled, default true):
+         Read ALL *-files.json in tmp/.rune-signals/{team}/ via Glob.
+         Parse each signal file (skip malformed JSON — warn only, do not abort).
+         Compute overlap = intersection(myFiles, lockedFiles from other workers).
+         IF overlap is non-empty:
+           log("FILE-LOCK: conflict on [overlapping files] with [owner]. Deferring task.")
+           TaskUpdate({ taskId, status: "pending", owner: "" })
+           GOTO step 10 (claim next task)
+         IF no overlap:
+           Write tmp/.rune-signals/{team}/{your-name}-files.json with:
+           { worker: "{your-name}", task_id: "{taskId}", files: [myFiles], timestamp: Date.now() }
     5. Read FULL target files (not just the function -- read the entire file to understand
        imports, constants, sibling functions, and naming conventions)
     NOTE: If the plan contains pseudocode, implement from the plan's CONTRACT
@@ -107,10 +118,16 @@ Agent({
        d. Do not run git add or git commit -- the Tarnished handles all commits
        e. TaskUpdate({ taskId, status: "completed" })
        f. SendMessage to the Tarnished: "Seal: task #{id} done. Files: {list}"
+    8.5. RELEASE FILE LOCK (after ward pass):
+         Delete tmp/.rune-signals/{team}/{your-name}-files.json
+         Failure is non-blocking — orphaned signals cleaned by orchestrator stale lock scan.
     9. IF ward fails:
        a. Do not generate patch
        b. TaskUpdate({ taskId, status: "pending", owner: "" })
        c. SendMessage to the Tarnished: "Ward failed on task #{id}: {failure summary}"
+    9.5. RELEASE FILE LOCK (after ward failure):
+         Delete tmp/.rune-signals/{team}/{your-name}-files.json
+         Failure is non-blocking — orphaned signals cleaned by orchestrator stale lock scan.
     10. TaskList() -> claim next or exit
 
     Commits are handled through the Tarnished's commit broker. Do not run git add or git commit directly.
@@ -213,6 +230,17 @@ Agent({
            (see risk-tiers.md) + include rollback plan in Seal message
          - Tier 3 (Elden): All of Tier 2 + send AskUserQuestion for human confirmation
            before committing
+    4.8. FILE LOCK CHECK (gated: work.file_lock_signals.enabled, default true):
+         Read ALL *-files.json in tmp/.rune-signals/{team}/ via Glob.
+         Parse each signal file (skip malformed JSON — warn only, do not abort).
+         Compute overlap = intersection(myFiles, lockedFiles from other workers).
+         IF overlap is non-empty:
+           log("FILE-LOCK: conflict on [overlapping files] with [owner]. Deferring task.")
+           TaskUpdate({ taskId, status: "pending", owner: "" })
+           GOTO step 10 (claim next task)
+         IF no overlap:
+           Write tmp/.rune-signals/{team}/{your-name}-files.json with:
+           { worker: "{your-name}", task_id: "{taskId}", files: [myFiles], timestamp: Date.now() }
     5. Read FULL source files being tested (understand all exports, types, edge cases)
     6. Write tests following discovered patterns
     6.5. SELF-REVIEW before running:
@@ -233,10 +261,16 @@ Agent({
        d. Do not run git add or git commit -- the Tarnished handles all commits
        e. TaskUpdate({ taskId, status: "completed" })
        f. SendMessage to the Tarnished: "Seal: tests for #{id}. Pass: {count}/{total}"
+    8.5. RELEASE FILE LOCK (after test pass):
+         Delete tmp/.rune-signals/{team}/{your-name}-files.json
+         Failure is non-blocking — orphaned signals cleaned by orchestrator stale lock scan.
     9. IF tests fail:
        a. Do not generate patch
        b. TaskUpdate({ taskId, status: "pending", owner: "" })
        c. SendMessage to the Tarnished: "Tests failed on task #{id}: {failure summary}"
+    9.5. RELEASE FILE LOCK (after test failure):
+         Delete tmp/.rune-signals/{team}/{your-name}-files.json
+         Failure is non-blocking — orphaned signals cleaned by orchestrator stale lock scan.
     10. TaskList() -> claim next or exit
 
     Commits are handled through the Tarnished's commit broker. Do not run git add or git commit directly.

@@ -218,6 +218,52 @@ for (const task of extractedTasks) {
   ].join('\n'))
 }
 
+// --- Complexity-aware task ordering (sort before wave computation) ---
+// Gate: readTalismanSection("work")?.complexity_ordering?.enabled !== false
+const complexityConfig = readTalismanSection("work")?.complexity_ordering
+if (complexityConfig?.enabled !== false) {
+  const REFACTOR_KEYWORDS = ["refactor", "restructure", "extract", "migrate", "rename", "reorganize"]
+  const weights = complexityConfig?.weights ?? {}
+  const wFile = weights.file_count ?? 2
+  const wTest = weights.test ?? 3
+  const wRefactor = weights.refactor ?? 5
+  const wLargeScope = weights.large_scope ?? 3
+
+  function scoreTaskComplexity(task) {
+    const fileCount = (task.fileTargets?.length ?? 0) + (task.dirTargets?.length ?? 0)
+    if (fileCount === 0 && !task.subject && !task.description) return 0  // missing metadata → 0
+
+    let estimate = fileCount * wFile
+    if (task.type === "test") estimate += wTest
+    const text = `${task.subject ?? ''} ${task.description ?? ''}`.toLowerCase()
+    if (REFACTOR_KEYWORDS.some(kw => text.includes(kw))) estimate += wRefactor
+    if (fileCount > 5) estimate += wLargeScope
+    return estimate
+  }
+
+  // Score and sort descending (highest complexity first)
+  for (const task of extractedTasks) {
+    task._complexityScore = scoreTaskComplexity(task)
+    log(`COMPLEXITY-SCORE: task #${task.id} "${task.subject}" → ${task._complexityScore}`)
+  }
+  extractedTasks.sort((a, b) => b._complexityScore - a._complexityScore)
+}
+
+// --- Task time estimation (stored in metadata for Phase 3 reassignment) ---
+const REFACTOR_KEYWORDS_EST = ["refactor", "restructure", "extract", "migrate", "rename", "reorganize"]
+function estimateTaskMinutes(task) {
+  const fileCount = (task.fileTargets?.length ?? 0) + (task.dirTargets?.length ?? 0)
+  let estimate = fileCount <= 2 ? 5 : fileCount <= 5 ? 10 : 15
+  if (task.type === "test") estimate = 8
+  const text = `${task.subject ?? ''} ${task.description ?? ''}`.toLowerCase()
+  if (REFACTOR_KEYWORDS_EST.some(kw => text.includes(kw))) estimate = Math.min(20, Math.round(estimate * 1.5))
+  return estimate
+}
+for (const task of extractedTasks) {
+  task.metadata = task.metadata ?? {}
+  task.metadata.estimated_minutes = estimateTaskMinutes(task)
+}
+
 // Wave-based execution: bounded batches with fresh worker context
 const TODOS_PER_WORKER = talisman?.work?.todos_per_worker ?? 3
 const totalTodos = extractedTasks.length
@@ -367,6 +413,85 @@ if (forceShutdownSignal) {
   goto_cleanup = true
   break
 }
+```
+
+### Smart Reassignment (Phase 3 — Inline)
+
+Check whether in-progress tasks have exceeded their estimated time and reassign to idle workers. Runs per poll cycle, BEFORE stuck worker detection. Gated by `work.reassignment.enabled` (default: `true`).
+
+```javascript
+// --- Smart reassignment (per poll cycle, before stuck worker detection) ---
+const reassignConfig = readTalismanSection("work")?.reassignment
+if (reassignConfig?.enabled !== false) {
+  const multiplier = reassignConfig?.multiplier ?? 2.0
+  const graceSeconds = reassignConfig?.grace_seconds ?? 60
+
+  const tasks = TaskList()
+  const idleWorkers = Object.keys(workerSpawnTimes).filter(w =>
+    !tasks.some(t => t.owner === w && t.status === "in_progress")
+  )
+
+  for (const task of tasks) {
+    if (task.status !== "in_progress") continue
+    const estimatedMin = task.metadata?.estimated_minutes ?? 10
+    const elapsed = Date.now() - (task.metadata?.claimed_at ?? Date.now())
+    const thresholdMs = multiplier * estimatedMin * 60_000
+
+    // F15: max 2 reassignments per task
+    const reassignCount = task.metadata?.reassignment_count ?? 0
+    if (reassignCount >= 2) continue
+
+    if (elapsed > thresholdMs) {
+      if (!task.metadata?.reassignment_warned) {
+        // First trigger: warn and set grace period
+        log(`REASSIGN-CHECK: task #${task.id} exceeded ${multiplier}x estimate (${estimatedMin}min). Sending progress check.`)
+        SendMessage({ type: "message", recipient: task.owner, content: `Progress check: task #${task.id} has exceeded its time estimate. Please report status.`, summary: `Progress check for task #${task.id}` })
+        TaskUpdate({ taskId: task.id, metadata: { reassignment_warned: true, warned_at: Date.now() } })
+      } else {
+        // Grace period elapsed — re-read task status (F8 fix)
+        const freshTask = TaskGet(task.id)
+        if (freshTask.status === "in_progress") {
+          const warnedAt = task.metadata?.warned_at ?? 0
+          if (Date.now() - warnedAt > graceSeconds * 1000 && idleWorkers.length > 0) {
+            log(`REASSIGN-FORCE: task #${task.id} still in_progress after grace period. Force-releasing.`)
+            // F9: clear reassignment metadata on release
+            TaskUpdate({
+              taskId: task.id,
+              status: "pending",
+              owner: "",
+              metadata: { reassignment_warned: null, warned_at: null, reassignment_count: reassignCount + 1 }
+            })
+            // Clean up file lock signal for the released task's worker
+            try {
+              Bash(`rm -f "tmp/.rune-signals/${teamName}/${task.owner}-files.json"`)
+            } catch {}
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Stale File Lock Scan (Phase 3 — Inline)
+
+Sweep `tmp/.rune-signals/{team}/*-files.json` for stale lock signals. Runs per poll cycle after smart reassignment. See [file-ownership.md](references/file-ownership.md) for signal format.
+
+```javascript
+// --- Stale lock scan (F1) ---
+const staleLockThreshold = readTalismanSection("work")?.file_lock_signals?.stale_threshold_ms ?? 600_000
+try {
+  const lockFiles = Glob(`tmp/.rune-signals/${teamName}/*-files.json`)
+  for (const lockFile of lockFiles) {
+    try {
+      const signal = JSON.parse(Read(lockFile))
+      if (signal.timestamp && Date.now() - signal.timestamp > staleLockThreshold) {
+        Bash(`rm -f "${lockFile}"`)
+        warn(`Stale file lock removed: ${lockFile} (age: ${Math.round((Date.now() - signal.timestamp) / 60000)}min)`)
+      }
+    } catch {} // skip malformed signals
+  }
+} catch {} // no lock files — nothing to scan
 ```
 
 ### Stuck Worker Detection (Phase 3 — Inline)

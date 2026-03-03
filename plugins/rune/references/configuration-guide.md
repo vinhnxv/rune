@@ -294,6 +294,20 @@ See [docs/guides/mcp-integration-spec.en.md](../docs/guides/mcp-integration-spec
 | `work.worktree.auto_cleanup` | boolean | `true` | Remove worktrees after merge |
 | `work.worktree.conflict_resolution` | string | `"escalate"` | `escalate` \| `abort` |
 | `work.hierarchy.enabled` | boolean | `true` | Hierarchical plan support |
+| `work.complexity_ordering.enabled` | boolean | `true` | Enable complexity-aware task ordering in Phase 0 |
+| `work.complexity_ordering.weights.file_count` | number | `2` | Weight for file count in complexity score |
+| `work.complexity_ordering.weights.test_bonus` | number | `3` | Bonus weight for tasks involving test files |
+| `work.complexity_ordering.weights.refactor_bonus` | number | `5` | Bonus weight for refactoring tasks |
+| `work.complexity_ordering.weights.large_scope_bonus` | number | `3` | Bonus weight for large-scope tasks (many files) |
+| `work.file_lock_signals.enabled` | boolean | `true` | Enable file lock signals for worker file ownership |
+| `work.file_lock_signals.stale_threshold_ms` | number | `600000` | Stale lock threshold (ms) — locks older than this are considered orphaned (10 min) |
+| `work.reassignment.enabled` | boolean | `true` | Enable smart task reassignment in Phase 3 monitoring |
+| `work.reassignment.multiplier` | number | `2.0` | Time multiplier before a task is eligible for reassignment |
+| `work.reassignment.grace_seconds` | number | `60` | Grace period (s) after reassignment before re-checking |
+| `work.adaptive_wave.enabled` | boolean | `true` | Enable adaptive wave sizing (dynamic worker count per wave) |
+| `work.adaptive_wave.failure_threshold` | number | `0.3` | Failure rate above which worker count shrinks by 1 |
+| `work.adaptive_wave.speed_threshold` | number | `0.5` | Completion ratio below which worker count grows by 1 |
+| `work.adaptive_wave.min_workers` | number | `1` | Minimum workers per wave (floor for adaptive sizing) |
 
 ### `file_todos` — Todo Tracking
 
