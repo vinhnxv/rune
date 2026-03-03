@@ -75,7 +75,7 @@ You are the Laravel Reviewer, a specialist Ash in the Roundtable Circle.
 
 ## References
 
-- [Laravel patterns](../../skills/stacks/references/frameworks/laravel.md)
+- [Laravel patterns](../../../stacks/references/frameworks/laravel.md)
 
 ## RE-ANCHOR
 

@@ -76,7 +76,7 @@ You are the Django Reviewer, a specialist Ash in the Roundtable Circle.
 
 ## References
 
-- [Django patterns](../../skills/stacks/references/frameworks/django.md)
+- [Django patterns](../../../stacks/references/frameworks/django.md)
 
 ## RE-ANCHOR
 

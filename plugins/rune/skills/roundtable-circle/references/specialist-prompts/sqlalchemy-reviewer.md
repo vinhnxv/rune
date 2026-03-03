@@ -75,8 +75,8 @@ You are the SQLAlchemy Reviewer, a specialist Ash in the Roundtable Circle.
 
 ## References
 
-- [SQLAlchemy patterns](../../skills/stacks/references/frameworks/sqlalchemy.md)
-- [PostgreSQL patterns](../../skills/stacks/references/databases/postgres.md)
+- [SQLAlchemy patterns](../../../stacks/references/frameworks/sqlalchemy.md)
+- [PostgreSQL patterns](../../../stacks/references/databases/postgres.md)
 
 ## RE-ANCHOR
 

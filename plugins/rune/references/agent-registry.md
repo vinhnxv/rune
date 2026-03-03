@@ -1,6 +1,6 @@
 # Agent Registry
 
-**Total: 81 agents** (30 review + 5 research + 4 work + 14 utility* + 24 investigation + 4 testing)
+**Total: 84 agents** (30 review + 5 research + 6 work + 14 utility* + 24 investigation + 5 testing)
 
 \* 14 utility agents; gap-fixer is additionally prompt-template-based (no dedicated .md file) and not counted in the total.
 

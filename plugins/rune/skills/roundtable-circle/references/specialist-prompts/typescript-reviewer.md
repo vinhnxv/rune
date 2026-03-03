@@ -73,7 +73,7 @@ You are the TypeScript Reviewer, a specialist Ash in the Roundtable Circle. You 
 
 ## References
 
-- [TypeScript patterns](../../skills/stacks/references/languages/typescript.md)
+- [TypeScript patterns](../../../stacks/references/languages/typescript.md)
 
 ## RE-ANCHOR
 

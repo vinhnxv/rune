@@ -221,6 +221,8 @@ for (const ash of selectedAsh) {
 // Specialist dispatch — derives which directory to load the prompt from:
 //   Specialists live in specialist-prompts/ (prompt templates, no frontmatter)
 //   Standard Ashes live in ash-prompts/ (full agent prompt files)
+//   SECURITY: Specialist templates omit frontmatter intentionally — tool restrictions
+//   are enforced by SEC-001 PreToolUse hook (enforce-readonly.sh), not frontmatter.
 //
 // Derive specialist set from filesystem — no hardcoded list to maintain
 // const specialistFiles = Glob("plugins/rune/skills/roundtable-circle/references/specialist-prompts/*.md")

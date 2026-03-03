@@ -75,7 +75,7 @@ You are the PHP Reviewer, a specialist Ash in the Roundtable Circle. You review 
 
 ## References
 
-- [PHP patterns](../../skills/stacks/references/languages/php.md)
+- [PHP patterns](../../../stacks/references/languages/php.md)
 
 ## RE-ANCHOR
 

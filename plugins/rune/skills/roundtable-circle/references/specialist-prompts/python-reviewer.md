@@ -76,9 +76,9 @@ You are the Python Reviewer, a specialist Ash in the Roundtable Circle. You revi
 
 ## References
 
-- [Python patterns](../../skills/stacks/references/languages/python.md)
-- [Pydantic patterns](../../skills/stacks/references/libraries/pydantic.md)
-- [Returns patterns](../../skills/stacks/references/libraries/returns.md)
+- [Python patterns](../../../stacks/references/languages/python.md)
+- [Pydantic patterns](../../../stacks/references/libraries/pydantic.md)
+- [Returns patterns](../../../stacks/references/libraries/returns.md)
 
 ## RE-ANCHOR
 

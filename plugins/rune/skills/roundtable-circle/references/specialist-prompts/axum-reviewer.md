@@ -116,7 +116,7 @@ rg 'axum\s*=' Cargo.toml
 
 ## References
 
-- [Axum patterns](../../skills/stacks/references/frameworks/axum.md)
+- [Axum patterns](../../../stacks/references/frameworks/axum.md)
 
 ## RE-ANCHOR
 

@@ -113,23 +113,22 @@ When a stack specialist and a core Ash find the same issue, the core Ash's findi
 ## Skill-to-Prompt Mapping
 
 > Stack specialists are prompt templates loaded by `buildAshPrompt()`, not registered agents.
-> Paths are relative to `skills/roundtable-circle/references/`.
+> Values are specialist slug names used by `buildAshPrompt()` dispatch (not file paths).
+> Design reviewers are full registered agents loaded via `computeContextManifest()` Step 5 — not listed here.
 
 ```
 SKILL_TO_PROMPT_MAP = {
-  "languages/python":     "specialist-prompts/python-reviewer.md",
-  "languages/typescript":  "specialist-prompts/typescript-reviewer.md",
-  "languages/rust":        "specialist-prompts/rust-reviewer.md",
-  "languages/php":         "specialist-prompts/php-reviewer.md",
-  "frameworks/axum":       "specialist-prompts/axum-reviewer.md",
-  "frameworks/fastapi":    "specialist-prompts/fastapi-reviewer.md",
-  "frameworks/django":     "specialist-prompts/django-reviewer.md",
-  "frameworks/laravel":    "specialist-prompts/laravel-reviewer.md",
-  "frameworks/sqlalchemy": "specialist-prompts/sqlalchemy-reviewer.md",
-  "patterns/tdd":          "specialist-prompts/tdd-compliance-reviewer.md",
-  "patterns/ddd":          "specialist-prompts/ddd-reviewer.md",
-  "patterns/di":           "specialist-prompts/di-reviewer.md",
-  "design/figma":          "specialist-prompts/design-implementation-reviewer.md",
-  "design/design-system":  "specialist-prompts/design-system-compliance-reviewer.md",
+  "languages/python":      "python-reviewer",
+  "languages/typescript":   "typescript-reviewer",
+  "languages/rust":         "rust-reviewer",
+  "languages/php":          "php-reviewer",
+  "frameworks/axum":        "axum-reviewer",
+  "frameworks/fastapi":     "fastapi-reviewer",
+  "frameworks/django":      "django-reviewer",
+  "frameworks/laravel":     "laravel-reviewer",
+  "frameworks/sqlalchemy":  "sqlalchemy-reviewer",
+  "patterns/tdd":           "tdd-compliance-reviewer",
+  "patterns/ddd":           "ddd-reviewer",
+  "patterns/di":            "di-reviewer",
 }
 ```

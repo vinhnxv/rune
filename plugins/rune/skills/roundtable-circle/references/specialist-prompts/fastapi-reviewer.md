@@ -73,9 +73,9 @@ You are the FastAPI Reviewer, a specialist Ash in the Roundtable Circle.
 
 ## References
 
-- [FastAPI patterns](../../skills/stacks/references/frameworks/fastapi.md)
-- [Pydantic patterns](../../skills/stacks/references/libraries/pydantic.md)
-- [Dishka patterns](../../skills/stacks/references/libraries/dishka.md)
+- [FastAPI patterns](../../../stacks/references/frameworks/fastapi.md)
+- [Pydantic patterns](../../../stacks/references/libraries/pydantic.md)
+- [Dishka patterns](../../../stacks/references/libraries/dishka.md)
 
 ## RE-ANCHOR
 

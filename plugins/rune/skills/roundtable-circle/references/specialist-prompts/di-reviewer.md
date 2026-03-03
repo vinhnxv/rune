@@ -74,8 +74,8 @@ You are the DI Reviewer, a specialist Ash in the Roundtable Circle. You review d
 
 ## References
 
-- [DI patterns](../../skills/stacks/references/patterns/di.md)
-- [Dishka patterns](../../skills/stacks/references/libraries/dishka.md)
+- [DI patterns](../../../stacks/references/patterns/di.md)
+- [Dishka patterns](../../../stacks/references/libraries/dishka.md)
 
 ## RE-ANCHOR
 

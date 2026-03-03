@@ -77,7 +77,7 @@ You are the TDD Compliance Reviewer, a specialist Ash in the Roundtable Circle. 
 
 ## References
 
-- [TDD patterns](../../skills/stacks/references/patterns/tdd.md)
+- [TDD patterns](../../../stacks/references/patterns/tdd.md)
 
 ## RE-ANCHOR
 

@@ -81,7 +81,7 @@ You are the DDD Reviewer, a specialist Ash in the Roundtable Circle. You review 
 
 ## References
 
-- [DDD patterns](../../skills/stacks/references/patterns/ddd.md)
+- [DDD patterns](../../../stacks/references/patterns/ddd.md)
 
 ## RE-ANCHOR
 

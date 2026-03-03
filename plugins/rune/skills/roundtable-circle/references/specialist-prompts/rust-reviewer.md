@@ -86,7 +86,7 @@ You are the Rust Reviewer, a specialist Ash in the Roundtable Circle. You review
 
 ## References
 
-- [Rust patterns](../../skills/stacks/references/languages/rust.md)
+- [Rust patterns](../../../stacks/references/languages/rust.md)
 
 ## RE-ANCHOR
 
