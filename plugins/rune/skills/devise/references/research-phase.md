@@ -30,6 +30,11 @@ If the user redirects ("skip git history" or "also research X"), adjust agent se
 // State file tmp/.rune-plan-{timestamp}.json is active at this point.
 // Research agents join the existing rune-plan-{timestamp} team.
 
+// 0. Source artifact tracking library (non-blocking — guarded)
+// Bash: source plugins/rune/scripts/lib/run-artifacts.sh
+// If sourcing fails, artifact functions will be undefined — the type guard below handles this.
+const artifactAvailable = Bash(`source plugins/rune/scripts/lib/run-artifacts.sh 2>/dev/null && type rune_artifact_init &>/dev/null && echo "yes" || echo "no"`).trim() === "yes"
+
 // 1. Create research output directory
 mkdir -p tmp/plans/{timestamp}/research/
 
@@ -52,11 +57,18 @@ TaskCreate({ subject: "Research repo patterns", description: "..." })       // #
 TaskCreate({ subject: "Read past echoes", description: "..." })             // #2
 TaskCreate({ subject: "Analyze git history", description: "..." })          // #3
 
-Agent({
-  team_name: "rune-plan-{timestamp}",
-  name: "repo-surveyor",
-  subagent_type: "general-purpose",
-  prompt: `You are Repo Surveyor -- a RESEARCH agent. Do not write implementation code.
+// 3.1. Per-agent artifact tracking (non-blocking)
+// Each agent gets: rune_artifact_init → rune_artifact_write_input (before spawn)
+//                  rune_artifact_finalize (after completion in monitor phase)
+const agentRunDirs = {}  // Map<agentName, runDir> for finalization after monitoring
+if (artifactAvailable) {
+  for (const agentName of ["repo-surveyor", "echo-reader", "git-miner"]) {
+    const runDir = Bash(`source plugins/rune/scripts/lib/run-artifacts.sh && rune_artifact_init "plans" "${timestamp}" "${agentName}" "rune-plan-${timestamp}"`).trim()
+    if (runDir) agentRunDirs[agentName] = runDir
+  }
+}
+
+const repoSurveyorPrompt = `You are Repo Surveyor -- a RESEARCH agent. Do not write implementation code.
     Explore the codebase for: {feature}.
     Write findings to tmp/plans/{timestamp}/research/repo-analysis.md.
     Claim the "Research repo patterns" task via TaskList/TaskUpdate.
@@ -68,15 +80,21 @@ Agent({
     - Verify all cited file paths exist (Glob)
     - Re-read source files to confirm patterns you described
     - Remove tangential findings that don't serve the research question
-    - Append Self-Review Log to your output file`,
-  run_in_background: true
-})
+    - Append Self-Review Log to your output file`
+
+if (artifactAvailable && agentRunDirs["repo-surveyor"]) {
+  Bash(`source plugins/rune/scripts/lib/run-artifacts.sh && rune_artifact_write_input "${agentRunDirs["repo-surveyor"]}" "${repoSurveyorPrompt.replace(/"/g, '\\"')}"`)
+}
 
 Agent({
   team_name: "rune-plan-{timestamp}",
-  name: "echo-reader",
+  name: "repo-surveyor",
   subagent_type: "general-purpose",
-  prompt: `You are Echo Reader -- a RESEARCH agent. Do not write implementation code.
+  prompt: repoSurveyorPrompt,
+  run_in_background: true
+})
+
+const echoReaderPrompt = `You are Echo Reader -- a RESEARCH agent. Do not write implementation code.
     Read .claude/echoes/ for relevant past learnings.
     Write findings to tmp/plans/{timestamp}/research/past-echoes.md.
     Claim the "Read past echoes" task via TaskList/TaskUpdate.
@@ -88,15 +106,21 @@ Agent({
     - Verify all cited file paths exist (Glob)
     - Re-read source files to confirm patterns you described
     - Remove tangential findings that don't serve the research question
-    - Append Self-Review Log to your output file`,
-  run_in_background: true
-})
+    - Append Self-Review Log to your output file`
+
+if (artifactAvailable && agentRunDirs["echo-reader"]) {
+  Bash(`source plugins/rune/scripts/lib/run-artifacts.sh && rune_artifact_write_input "${agentRunDirs["echo-reader"]}" "${echoReaderPrompt.replace(/"/g, '\\"')}"`)
+}
 
 Agent({
   team_name: "rune-plan-{timestamp}",
-  name: "git-miner",
+  name: "echo-reader",
   subagent_type: "general-purpose",
-  prompt: `You are Git Miner -- a RESEARCH agent. Do not write implementation code.
+  prompt: echoReaderPrompt,
+  run_in_background: true
+})
+
+const gitMinerPrompt = `You are Git Miner -- a RESEARCH agent. Do not write implementation code.
     Analyze git history for: {feature}.
     Look for: related past changes, contributors who touched relevant files,
     why current patterns exist, previous attempts at similar features.
@@ -110,7 +134,17 @@ Agent({
     - Verify all cited file paths exist (Glob)
     - Re-read source files to confirm patterns you described
     - Remove tangential findings that don't serve the research question
-    - Append Self-Review Log to your output file`,
+    - Append Self-Review Log to your output file`
+
+if (artifactAvailable && agentRunDirs["git-miner"]) {
+  Bash(`source plugins/rune/scripts/lib/run-artifacts.sh && rune_artifact_write_input "${agentRunDirs["git-miner"]}" "${gitMinerPrompt.replace(/"/g, '\\"')}"`)
+}
+
+Agent({
+  team_name: "rune-plan-{timestamp}",
+  name: "git-miner",
+  subagent_type: "general-purpose",
+  prompt: gitMinerPrompt,
   run_in_background: true
 })
 ```
@@ -331,11 +365,15 @@ Summon only if the research decision requires external input.
 TaskCreate({ subject: "Research best practices", description: "..." })      // #4
 TaskCreate({ subject: "Research framework docs", description: "..." })      // #5
 
-Agent({
-  team_name: "rune-plan-{timestamp}",
-  name: "practice-seeker",
-  subagent_type: "general-purpose",
-  prompt: `You are Practice Seeker -- a RESEARCH agent. Do not write implementation code.
+// Per-agent artifact tracking for external research (non-blocking)
+if (artifactAvailable) {
+  for (const agentName of ["practice-seeker", "lore-scholar"]) {
+    const runDir = Bash(`source plugins/rune/scripts/lib/run-artifacts.sh && rune_artifact_init "plans" "${timestamp}" "${agentName}" "rune-plan-${timestamp}"`).trim()
+    if (runDir) agentRunDirs[agentName] = runDir
+  }
+}
+
+const practiceSeekerPrompt = `You are Practice Seeker -- a RESEARCH agent. Do not write implementation code.
     Research best practices for: {feature}.
     Write findings to tmp/plans/{timestamp}/research/best-practices.md.
     Claim the "Research best practices" task via TaskList/TaskUpdate.
@@ -348,15 +386,21 @@ Agent({
     - Verify all cited file paths exist (Glob)
     - Re-read source files to confirm patterns you described
     - Remove tangential findings that don't serve the research question
-    - Append Self-Review Log to your output file`,
-  run_in_background: true
-})
+    - Append Self-Review Log to your output file`
+
+if (artifactAvailable && agentRunDirs["practice-seeker"]) {
+  Bash(`source plugins/rune/scripts/lib/run-artifacts.sh && rune_artifact_write_input "${agentRunDirs["practice-seeker"]}" "${practiceSeekerPrompt.replace(/"/g, '\\"')}"`)
+}
 
 Agent({
   team_name: "rune-plan-{timestamp}",
-  name: "lore-scholar",
+  name: "practice-seeker",
   subagent_type: "general-purpose",
-  prompt: `You are Lore Scholar -- a RESEARCH agent. Do not write implementation code.
+  prompt: practiceSeekerPrompt,
+  run_in_background: true
+})
+
+const loreScholarPrompt = `You are Lore Scholar -- a RESEARCH agent. Do not write implementation code.
     Research framework docs for: {feature}.
     Write findings to tmp/plans/{timestamp}/research/framework-docs.md.
     Claim the "Research framework docs" task via TaskList/TaskUpdate.
@@ -369,7 +413,17 @@ Agent({
     - Verify all cited file paths exist (Glob)
     - Re-read source files to confirm patterns you described
     - Remove tangential findings that don't serve the research question
-    - Append Self-Review Log to your output file`,
+    - Append Self-Review Log to your output file`
+
+if (artifactAvailable && agentRunDirs["lore-scholar"]) {
+  Bash(`source plugins/rune/scripts/lib/run-artifacts.sh && rune_artifact_write_input "${agentRunDirs["lore-scholar"]}" "${loreScholarPrompt.replace(/"/g, '\\"')}"`)
+}
+
+Agent({
+  team_name: "rune-plan-{timestamp}",
+  name: "lore-scholar",
+  subagent_type: "general-purpose",
+  prompt: loreScholarPrompt,
   run_in_background: true
 })
 ```
@@ -403,6 +457,12 @@ if (codexAvailable && !codexDisabled) {
     const safeFeature = SAFE_FEATURE_PATTERN.test(feature) ? feature : feature.replace(/[^a-zA-Z0-9 ._\-]/g, "").slice(0, 200)
 
     TaskCreate({ subject: "Codex research", description: "Cross-model research via codex exec" })
+
+    // Artifact tracking for codex-researcher (non-blocking)
+    if (artifactAvailable) {
+      const runDir = Bash(`source plugins/rune/scripts/lib/run-artifacts.sh && rune_artifact_init "plans" "${timestamp}" "codex-researcher" "rune-plan-${timestamp}"`).trim()
+      if (runDir) agentRunDirs["codex-researcher"] = runDir
+    }
 
     Agent({
       team_name: "rune-plan-{timestamp}",
@@ -530,6 +590,12 @@ TaskCreate({
   description: `Verify ${externalFiles.length} external research outputs for trustworthiness`
 })
 
+// Artifact tracking for research-verifier (non-blocking)
+if (artifactAvailable) {
+  const runDir = Bash(`source plugins/rune/scripts/lib/run-artifacts.sh && rune_artifact_init "plans" "${timestamp}" "research-verifier" "rune-plan-${timestamp}"`).trim()
+  if (runDir) agentRunDirs["research-verifier"] = runDir
+}
+
 Agent({
   team_name: "rune-plan-{timestamp}",
   name: "research-verifier",
@@ -606,6 +672,12 @@ After 1A, 1C, and 1C.5 (if triggered) complete, run flow analysis.
 ```javascript
 TaskCreate({ subject: "Spec flow analysis", description: "..." })          // #6
 
+// Artifact tracking for flow-seer (non-blocking)
+if (artifactAvailable) {
+  const runDir = Bash(`source plugins/rune/scripts/lib/run-artifacts.sh && rune_artifact_init "plans" "${timestamp}" "flow-seer" "rune-plan-${timestamp}"`).trim()
+  if (runDir) agentRunDirs["flow-seer"] = runDir
+}
+
 Agent({
   team_name: "rune-plan-{timestamp}",
   name: "flow-seer",
@@ -647,6 +719,28 @@ const result = waitForCompletion(teamName, researchTaskCount, {
   label: "Plan Research"
   // No autoReleaseMs -- research tasks are non-fungible
 })
+
+// Finalize artifact tracking for all research agents (non-blocking)
+// Map agent names to their expected output files for byte-size recording
+if (artifactAvailable) {
+  const agentOutputMap = {
+    "repo-surveyor": `tmp/plans/${timestamp}/research/repo-analysis.md`,
+    "echo-reader": `tmp/plans/${timestamp}/research/past-echoes.md`,
+    "git-miner": `tmp/plans/${timestamp}/research/git-history.md`,
+    "practice-seeker": `tmp/plans/${timestamp}/research/best-practices.md`,
+    "lore-scholar": `tmp/plans/${timestamp}/research/framework-docs.md`,
+    "codex-researcher": `tmp/plans/${timestamp}/research/codex-analysis.md`,
+    "research-verifier": `tmp/plans/${timestamp}/research/research-verification.md`,
+    "flow-seer": `tmp/plans/${timestamp}/research/specflow-analysis.md`
+  }
+  for (const [agentName, runDir] of Object.entries(agentRunDirs)) {
+    const outputFile = agentOutputMap[agentName] || ""
+    // Determine status: check if output file exists
+    const outputExists = outputFile ? Bash(`test -f "${outputFile}" && echo "yes" || echo "no"`).trim() === "yes" : false
+    const artifactStatus = outputExists ? "completed" : "failed"
+    Bash(`source plugins/rune/scripts/lib/run-artifacts.sh && rune_artifact_finalize "${runDir}" "${artifactStatus}" "${outputFile}"`)
+  }
+}
 ```
 
 ## Phase 1.5: Research Consolidation Validation

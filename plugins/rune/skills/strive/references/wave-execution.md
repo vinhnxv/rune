@@ -30,6 +30,20 @@ for (let wave = 0; wave < totalWaves; wave++) {
   // Workers receive pre-assigned tasks (no dynamic claiming)
   // See worker-prompts.md for wave-aware prompt template
 
+  // Per-worker artifact tracking (non-blocking — skip if library unavailable)
+  // Records each worker's initial system prompt as input.md for debugging/inspection
+  for (let i = 0; i < workerCount; i++) {
+    const workerName = totalWaves === 1
+      ? `rune-smith-${i + 1}`
+      : `rune-smith-w${wave}-${i + 1}`
+    try {
+      const _wkRunDir = Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/run-artifacts.sh 2>/dev/null && type rune_artifact_init &>/dev/null && rune_artifact_init "work" "${timestamp}" "${workerName}" "${teamName}"`)?.trim() || null
+      if (_wkRunDir) {
+        Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/run-artifacts.sh 2>/dev/null && rune_artifact_write_input "${_wkRunDir}" "Worker system prompt for ${workerName} (see worker-prompts.md)"`)
+      }
+    } catch (e) { /* artifact tracking is non-blocking */ }
+  }
+
   // Monitor this wave
   waitForCompletion(teamName, waveTasks.length, {
     timeoutMs: totalWaves === 1 ? 1_800_000 : 600_000,  // 30 min single / 10 min per wave

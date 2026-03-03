@@ -313,5 +313,67 @@ for sf in "${STATE_FILES[@]}"; do
   _trace "DONE escalation for team=$SF_TEAM"
 done
 
+# ── Stale artifact crash detection (non-blocking, advisory) ──
+# Scan runs/ directories for artifacts stuck in "running" status with stale timestamps.
+# Updates their meta.json to "crashed" so /rune:runs can report them accurately.
+STALE_ARTIFACT_THRESHOLD=1800  # 30 minutes
+
+_artifact_now=$(date -u +%s 2>/dev/null || echo 0)
+if [[ "$_artifact_now" =~ ^[0-9]+$ && "$_artifact_now" -gt 0 ]]; then
+  # Use find to locate all meta.json files in runs/ subdirectories
+  # Pattern: tmp/{workflow}/{timestamp}/runs/{agent}/meta.json
+  while IFS= read -r meta_file; do
+    [[ -f "$meta_file" ]] || continue
+    [[ -L "$meta_file" ]] && continue  # skip symlinks
+
+    # Per-iteration timeout guard
+    _art_elapsed=$(( $(date +%s) - HOOK_START_TIME ))
+    if [[ $_art_elapsed -gt 28 ]]; then
+      _trace "ARTIFACT SCAN TIMEOUT: >${_art_elapsed}s elapsed, aborting"
+      break
+    fi
+
+    _art_status=$(jq -r '.status // empty' "$meta_file" 2>/dev/null || true)
+    [[ "$_art_status" == "running" ]] || continue
+
+    # Session isolation: config_dir must match
+    _art_cfg=$(jq -r '.config_dir // empty' "$meta_file" 2>/dev/null || true)
+    if [[ -n "$_art_cfg" && "$_art_cfg" != "$RUNE_CURRENT_CFG" ]]; then
+      continue
+    fi
+
+    # Check staleness: started_at > threshold ago
+    _art_started=$(jq -r '.started_at // empty' "$meta_file" 2>/dev/null || true)
+    if [[ -z "$_art_started" ]]; then
+      continue
+    fi
+
+    # Parse started_at timestamp (macOS + GNU date compat)
+    _art_start_epoch=$(TZ=UTC date -jf "%Y-%m-%dT%H:%M:%SZ" "$_art_started" +%s 2>/dev/null || \
+                       date -d "$_art_started" +%s 2>/dev/null || echo "0")
+    if [[ ! "$_art_start_epoch" =~ ^[0-9]+$ || "$_art_start_epoch" -eq 0 ]]; then
+      continue
+    fi
+
+    _art_age=$(( _artifact_now - _art_start_epoch ))
+    if [[ $_art_age -lt $STALE_ARTIFACT_THRESHOLD ]]; then
+      continue
+    fi
+
+    # Stale artifact detected — update status to "crashed"
+    _art_agent=$(jq -r '.agent_name // "unknown"' "$meta_file" 2>/dev/null || echo "unknown")
+    _trace "STALE ARTIFACT: ${_art_agent} (age=${_art_age}s) — marking as crashed: $meta_file"
+
+    if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" != "1" ]]; then
+      _art_tmp=$(mktemp "${meta_file}.XXXXXX" 2>/dev/null) || _art_tmp="${meta_file}.tmp"
+      jq --arg tstat "crashed" --arg completed "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --argjson dur "$_art_age" \
+        '.status = $tstat | .completed_at = $completed | .duration_seconds = $dur' \
+        "$meta_file" > "$_art_tmp" 2>/dev/null \
+        && mv -f "$_art_tmp" "$meta_file" 2>/dev/null || { rm -f "$_art_tmp" 2>/dev/null; true; }
+    fi
+  done < <(find "${CWD}/tmp" -path '*/runs/*/meta.json' -type f 2>/dev/null || true)
+fi
+
 _trace "EXIT detect-workflow-complete.sh"
 exit 0

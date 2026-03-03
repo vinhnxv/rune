@@ -172,12 +172,24 @@ Summon Ashes — single wave for standard depth, multi-wave loop for deep depth.
 ```javascript
 // Summon ALL selected Ash in a single message (parallel execution)
 for (const ash of selectedAsh) {
+  const ashPrompt = buildAshPrompt(ash, { scope, outputDir, fileList, dirScope, customPromptBlock })
+
+  // Per-agent artifact tracking (non-blocking — skip if library unavailable)
+  // Uses rune_artifact_init_at with outputDir to keep runs/ co-located with Ash outputs
+  let _runDir = null
+  try {
+    _runDir = Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/run-artifacts.sh 2>/dev/null && type rune_artifact_init_at &>/dev/null && rune_artifact_init_at "${outputDir}" "${ash}" "${workflow}" "${teamName}"`)?.trim() || null
+    if (_runDir) {
+      Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/run-artifacts.sh 2>/dev/null && rune_artifact_write_input "${_runDir}" "${ashPrompt.substring(0, 50000)}"`)
+    }
+  } catch (e) { /* artifact tracking is non-blocking */ }
+
   Agent({
     team_name: teamName,
     name: ash,  // slug name, no wave suffix
     subagent_type: "general-purpose",
     model: resolveModelForAgent(ash, talisman),  // Cost tier mapping (references/cost-tier-mapping.md)
-    prompt: buildAshPrompt(ash, { scope, outputDir, fileList, dirScope, customPromptBlock }),
+    prompt: ashPrompt,
     run_in_background: true
   })
 }
@@ -250,12 +262,24 @@ for (const wave of waves) {
     const priorFindings = wave.waveNumber > 1
       ? collectWaveFindings(outputDir, wave.waveNumber - 1)  // file:line + severity only
       : null
+    const waveAshPrompt = buildAshPrompt(ash.name, { scope, outputDir, fileList, priorFindings, dirScope, customPromptBlock })
+    const waveTeamName = wave.waveNumber === 1 ? teamName : `${teamName}-w${wave.waveNumber}`
+
+    // Per-agent artifact tracking (non-blocking — skip if library unavailable)
+    // Uses rune_artifact_init_at with outputDir to keep runs/ co-located with Ash outputs
+    try {
+      const _wRunDir = Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/run-artifacts.sh 2>/dev/null && type rune_artifact_init_at &>/dev/null && rune_artifact_init_at "${outputDir}" "${ash.slug}" "${workflow}" "${waveTeamName}"`)?.trim() || null
+      if (_wRunDir) {
+        Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/run-artifacts.sh 2>/dev/null && rune_artifact_write_input "${_wRunDir}" "${waveAshPrompt.substring(0, 50000)}"`)
+      }
+    } catch (e) { /* artifact tracking is non-blocking */ }
+
     Agent({
-      team_name: wave.waveNumber === 1 ? teamName : `${teamName}-w${wave.waveNumber}`,
+      team_name: waveTeamName,
       name: ash.slug,  // NO -w1 suffix — preserves hook compatibility
       subagent_type: "general-purpose",
       model: resolveModelForAgent(ash.name, talisman),  // Cost tier mapping
-      prompt: buildAshPrompt(ash.name, { scope, outputDir, fileList, priorFindings, dirScope, customPromptBlock }),
+      prompt: waveAshPrompt,
       run_in_background: true
     })
   }
@@ -1106,6 +1130,25 @@ for (const member of allMembers) {
 if (allMembers.length > 0) {
   Bash(`sleep 15`)
 }
+
+// 3.3. Finalize per-agent artifacts (non-blocking — skip if library or runs/ absent)
+// Scan runs/ directory for agents with status "running" and mark as completed/failed
+try {
+  const runsDirPath = `${outputDir}runs/`
+  const runDirs = Glob(`${runsDirPath}*/meta.json`)
+  for (const metaPath of runDirs) {
+    try {
+      const meta = JSON.parse(Read(metaPath))
+      if (meta.status === "running") {
+        const agentRunDir = metaPath.replace(/\/meta\.json$/, '')
+        const agentName = agentRunDir.split('/').pop()
+        const outputFilePath = `${outputDir}${agentName}.md`
+        const agentStatus = Glob(outputFilePath).length > 0 ? "completed" : "failed"
+        Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/run-artifacts.sh 2>/dev/null && type rune_artifact_finalize &>/dev/null && rune_artifact_finalize "${agentRunDir}" "${agentStatus}" "${outputFilePath}"`)
+      }
+    } catch (e) { /* per-agent finalization failure is non-blocking */ }
+  }
+} catch (e) { /* artifact finalization is non-blocking */ }
 
 // 4. TeamDelete with retry-with-backoff (0s, 5s, 10s — 15s retry budget after 15s grace)
 const CLEANUP_DELAYS = [0, 5000, 10000]

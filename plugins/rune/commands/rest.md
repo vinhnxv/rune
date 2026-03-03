@@ -43,6 +43,8 @@ Remove ephemeral `tmp/` output directories from completed Rune workflows. Preser
 | `~/.claude/teams/{rune-*/arc-*}/` (or `$CLAUDE_CONFIG_DIR/teams/` if set) | Orphaned team configs from crashed workflows | `--heal` only |
 | `~/.claude/tasks/{rune-*/arc-*}/` (or `$CLAUDE_CONFIG_DIR/tasks/` if set) | Orphaned task lists from crashed workflows | `--heal` only |
 
+**Note:** Per-agent artifact directories (`runs/` subdirectories containing `meta.json` and `input.md`) live inside workflow output directories (e.g., `tmp/plans/{id}/runs/`, `tmp/work/{id}/runs/`, `tmp/reviews/{id}/runs/`). They are cleaned implicitly when their parent workflow directory is removed — no separate cleanup entry is needed.
+
 ## What Is Preserved
 
 | Path | Reason |
