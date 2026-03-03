@@ -122,6 +122,18 @@ that ensures teammates exit even when the team lead's context is exhausted.
 
 Override via `talisman.yml` → `teammate_lifecycle.max_turns.{category}`.
 
+### In-Process Teammate Ghost Entries (Platform Limitation)
+
+In long-running sessions (e.g., `arc-batch` with multiple sequential arcs), in-process teammates persist in the SDK's session-level member registry after `TeamDelete()` completes. The UI status bar shows `@teammate-name` badges for teammates whose team has been fully deleted from filesystem.
+
+**Root cause**: `TeamDelete()` clears team leadership state and removes `$CHOME/teams/{name}/` and `$CHOME/tasks/{name}/`, but does **not** terminate or deregister in-process teammates from the session member list. The Claude Code SDK currently provides no API to forcefully terminate in-process teammates or deregister members from a session.
+
+**Observed behavior**: Ghost entries like `@elicitation-sage-mend` (from mend phase) and `@lore-analyst` (from goldmask phase) accumulate across sequential arcs within the same session. They are non-functional (Idle state, no matching OS process) but occupy UI slots.
+
+**Impact**: Cosmetic. Ghost entries do not block subsequent arc phases or teammate spawning. They are cleared when the session process exits.
+
+**Mitigation**: No Rune-side fix is possible until the SDK exposes a deregister/terminate API. Use shorter sessions or restart between arcs to prevent accumulation.
+
 ### Agent `model` Field — Intentional Omission
 
 Most agents (55/91) intentionally **omit** the `model` field in their YAML frontmatter. This is by design, not a defect:

@@ -428,6 +428,19 @@ Dùng `TaskList` để xem trạng thái task real-time cho team hiện tại.
 3. Bật `goldmask.mend.inject_context: true` cho nhận biết rủi ro
 4. Kiểm tra TOME finding — một số có thể là false positive. Kiểm tra tag LOW confidence
 
+### "Ghost `@teammate-name` hiện trong status bar sau khi arc hoàn thành"
+
+Trong các session chạy lâu (ví dụ `arc-batch` chạy nhiều plan liên tiếp), status bar UI có thể hiển thị `@elicitation-sage-mend`, `@lore-analyst`, hoặc tên teammate khác từ các arc trước — dù những team đó đã bị xoá hoàn toàn.
+
+**Nguyên nhân**: Đây là giới hạn của Claude Code SDK. `TeamDelete()` xoá team leadership state và filesystem (`teams/`, `tasks/`), nhưng **không** terminate hoặc deregister in-process teammate khỏi session member list. SDK hiện không cung cấp API để forcefully terminate in-process teammate hoặc deregister member khỏi session.
+
+**Ảnh hưởng**: Chỉ là hiển thị. Ghost entry không chặn các arc phase tiếp theo và không ngăn việc spawn teammate mới. Chúng biến mất khi session process kết thúc.
+
+**Xử lý**:
+1. Kết thúc và khởi động lại session giữa các arc
+2. Bỏ qua badge — không ảnh hưởng chức năng
+3. Với `arc-batch`, ghost entry tích luỹ nhưng không ảnh hưởng tính đúng đắn
+
 ---
 
 ## 8. Checklist kiểm tra sức khoẻ

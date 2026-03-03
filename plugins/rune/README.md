@@ -1053,6 +1053,7 @@ Configure via `talisman.yml` → `teammate_lifecycle` section.
 - **Incremental audit coverage** — `/rune:audit --incremental` uses persistent state for prioritized batch auditing, but the standard `/rune:audit` (without `--incremental`) still scans all files each run. For stateful 3-tier auditing across sessions, always use the `--incremental` flag.
 - **Concurrent sessions** — Only one `/rune:appraise`, `/rune:audit`, or `/rune:arc` can run at a time. Use `/rune:cancel-review`, `/rune:cancel-audit`, or `/rune:cancel-arc` to stop an active session.
 - **Manual cleanup optional** — Run `/rune:rest` to remove `tmp/` artifacts, or let the OS handle them.
+- **In-process teammate ghost entries** — In long-running sessions (e.g., `arc-batch`), teammates spawned as in-process (default `teammateMode: "auto"`) persist in the SDK's session-level member registry after `TeamDelete()`. The UI status bar continues to show `@teammate-name` badges even though the team directory and filesystem artifacts have been fully cleaned up. This is a Claude Code SDK limitation: `TeamDelete()` clears team leadership state and filesystem, but does **not** terminate or deregister in-process teammates from the session member list. There is currently no SDK API to forcefully terminate in-process teammates or deregister members from the session. Ghost entries accumulate across sequential arcs within the same session (e.g., `@elicitation-sage-mend` from arc N visible during arc N+2). **Workaround**: Use shorter sessions or restart between arcs. Ghost entries are cleared when the session process exits.
 
 ## Troubleshooting
 
@@ -1064,6 +1065,7 @@ Configure via `talisman.yml` → `teammate_lifecycle` section.
 | Echo files causing merge conflicts | Add `.gitattributes` with `merge=union` for echo paths (see Configuration) |
 | No files to review | Ensure you have uncommitted changes on a feature branch (not main) |
 | `/rune:strive` stalled workers | Workers are warned at 5 minutes and auto-released at 10 minutes. Lead re-assigns stuck tasks |
+| Ghost `@teammate-name` in status bar | In-process teammates persist after `TeamDelete()` in long sessions. Cosmetic — does not block functionality. Clear by ending the session. See Known Limitations above |
 
 ## Security
 
