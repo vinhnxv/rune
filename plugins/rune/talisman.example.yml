@@ -1592,6 +1592,22 @@ context_weaving:
 #     enabled: false                         # Extract micro-design details during design-sync (default: false)
 #                                            # Captures UI states, transitions, keyboard interactions, loading patterns.
 #                                            # Extends VSM with micro_design section per micro-design-protocol.md.
+#   multi_url: true                          # Enable multi-URL extraction from figma_urls array (default: true)
+#                                            # When true, processes all entries in plan's figma_urls field.
+#                                            # When false, only figma_url scalar is used (legacy mode).
+#   max_urls: 10                             # Maximum Figma URLs to process per plan (default: 10)
+#                                            # Prevents runaway extraction on plans with many URLs.
+#   max_total_components: 40                 # Maximum total components across all URLs (default: 40)
+#                                            # Cap applied after deduplication across URL batches.
+#   max_extraction_workers: 4               # Override default extraction workers for multi-URL mode (default: 4)
+#                                            # Each URL gets its own worker up to this cap.
+#   state_detection_threshold: 0.75         # Minimum confidence to auto-classify a component as a state variant (default: 0.75)
+#                                            # Below this, component is treated as a standalone (not grouped).
+#   state_detection_ambiguous: 0.50         # Confidence range [ambiguous, threshold) triggers confirmation (default: 0.50)
+#                                            # Below ambiguous threshold, component is classified as standalone without asking.
+#   relationship_confirmation: true         # Prompt user to confirm detected URL relationships before extraction (default: true)
+#                                            # When false, relationships are inferred silently.
+#   max_extraction_timeout: 900000          # Maximum timeout in ms for the full multi-URL extraction phase (default: 900000 = 15 min)
 
 # ──────────────────────────────────────────────────────────────────
 # MCP Tool Integrations

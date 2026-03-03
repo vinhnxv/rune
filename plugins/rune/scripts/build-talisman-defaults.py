@@ -122,11 +122,17 @@ def _inject_toplevel_defaults(data):
 def _inject_toplevel_feature_defaults(data):
     """Inject feature-flag top-level keys (design_sync, deploy, schema, etc.)."""
     data.setdefault("design_sync", {
-        "enabled": False, "max_extraction_workers": 2,
+        "enabled": False, "max_extraction_workers": 4,
         "max_implementation_workers": 3, "max_iteration_workers": 2,
         "max_iterations": 5, "iterate_enabled": False,
         "fidelity_threshold": 80, "token_snap_distance": 20,
         "figma_cache_ttl": 1800,
+        "multi_url": True, "max_urls": 10,
+        "max_total_components": 40,
+        "state_detection_threshold": 0.75,
+        "state_detection_ambiguous": 0.50,
+        "relationship_confirmation": True,
+        "max_extraction_timeout": 900000,
     })
     data.setdefault("deployment_verification", {
         "enabled": False, "auto_run_on_migrations": False,
