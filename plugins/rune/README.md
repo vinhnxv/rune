@@ -857,7 +857,6 @@ plugins/rune/
 │   ├── elicit.md               # /rune:elicit
 │   ├── echoes.md               # /rune:echoes
 │   ├── file-todos.md           # /rune:file-todos
-│   ├── brainstorm.md            # /rune:brainstorm (alias for /rune:brainstorm skill)
 │   ├── plan.md                 # /rune:plan (alias for /rune:devise)
 │   ├── plan-review.md          # /rune:plan-review
 │   ├── rest.md                 # /rune:rest
