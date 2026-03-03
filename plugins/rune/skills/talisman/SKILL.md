@@ -325,10 +325,10 @@ Explain 3 Integration Levels:
     - Rules injection: inject project-specific rules into agent prompts
     - Example: add integrations.mcp_tools.{name} to talisman.yml
 
-  Level 3 (Full): + companion skill + rules files + rune-manifest.json
+  Level 3 (Full): + companion skill + rules files + metadata
     - Dedicated skill with deep domain knowledge
     - Project-specific rules for quality enforcement
-    - Full manifest for discoverability and version tracking
+    - Metadata for discoverability (library_name, version, homepage)
     - See docs/guides/mcp-integration-spec.en.md for the developer guide
 
 Show example YAML for Level 2:

@@ -1601,7 +1601,7 @@ context_weaving:
 # 3 Integration Levels:
 #   Level 1 (Basic):    .mcp.json only — tools available but not workflow-aware
 #   Level 2 (Talisman): + integrations section — phase routing, triggers, rules injection
-#   Level 3 (Full):     + companion skill + rules files + rune-manifest.json
+#   Level 3 (Full):     + companion skill + rules files + metadata
 #
 # Tool categories:
 #   search   — Find/discover resources (e.g., component search)

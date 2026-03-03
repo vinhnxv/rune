@@ -554,3 +554,45 @@ A: Project-level config goes in `.claude/talisman.yml`. Global (user-level) conf
 
 **Q: What is the token cost of an integration?**
 A: An active integration adds approximately 100-300 tokens to each agent prompt (tool list, categories, usage guidance). Rules files add their full content. Companion skills add their SKILL.md content. Use specific triggers to avoid activating integrations on irrelevant tasks.
+
+---
+
+## Troubleshooting & Error Behavior
+
+### Integration Not Activating
+
+| Symptom | Likely Cause | Fix |
+|---------|-------------|-----|
+| Integration not appearing in agent prompts | `server_name` not in `.mcp.json` | Register MCP server in `.mcp.json` first |
+| Integration ignored for a phase | Phase flag set to `false` or missing | Set `phases.{phase}: true` in talisman config |
+| Triggers not matching | File extensions or keywords don't match context | Check `trigger.file_extensions` and `trigger.keywords` against actual changed files |
+| `server_name` silently skipped | Invalid format (contains spaces, special chars) | Use only `[a-zA-Z0-9_-]` characters |
+| `namespace` silently skipped | Invalid format | Use only `[a-z0-9_-]` characters (lowercase) |
+
+### Error Behavior by Component
+
+| Component | Failure Mode | Behavior |
+|-----------|-------------|----------|
+| `readTalismanSection("integrations")` | Talisman unavailable or parse error | Returns `null` → `resolveMCPIntegrations()` returns `[]` (fail-open, zero overhead) |
+| `evaluateTriggers()` | Trigger config malformed | Returns `false` → integration skipped for this context |
+| `buildMCPContextBlock()` | Rule file not found | Inline error: `[rule unavailable: path]` — other rules still processed |
+| `buildMCPContextBlock()` | Rule file blocked (path traversal) | Inline error: `[rule blocked: invalid path]` — security violation logged |
+| `loadMCPSkillBindings()` | Companion skill not installed | Logged as warning — integration still activates without skill |
+| MCP server unreachable | Server process crashed or not started | Tools listed in prompt but calls fail at runtime — not an integration framework error |
+
+### Validation Errors
+
+Run `/rune:talisman audit` to detect common configuration issues:
+
+- **Missing `server_name`**: Every namespace must have a `server_name` that matches a key in `.mcp.json`
+- **Invalid tool categories**: Only `search`, `details`, `compose`, `suggest`, `generate`, `validate` are accepted
+- **Rule file paths**: Must be relative paths without `..` traversal — absolute paths and parent directory references are rejected
+- **Skill binding format**: Must match `[a-z0-9-]+` (lowercase kebab-case)
+
+### Debug Checklist
+
+1. Verify MCP server is registered: check `.mcp.json` for `server_name` key
+2. Verify talisman config: run `/rune:talisman audit` for schema validation
+3. Check phase routing: ensure the workflow phase has `true` in `phases`
+4. Check triggers: verify `file_extensions` or `keywords` match your context
+5. Check agent prompts: look for `MCP TOOL INTEGRATIONS (Active)` section in agent output

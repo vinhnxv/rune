@@ -31,6 +31,9 @@ function resolveMCPIntegrations(phase, context) {
     // Gate 3: Trigger match — at least one trigger condition must match
     if (!evaluateTriggers(config.trigger, context)) continue
 
+    // Validate server_name format (SEC-009: prevent injection via malformed server names)
+    if (!config.server_name || !/^[a-zA-Z0-9_-]+$/.test(config.server_name)) continue
+
     // All gates passed — mark as ACTIVE
     activeIntegrations.push({
       namespace,                          // e.g., "untitledui"
