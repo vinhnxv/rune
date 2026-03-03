@@ -36,7 +36,7 @@ allowed-tools:
 ---
 
 **Runtime context** (preprocessor snapshot):
-- Active workflows: !`ls tmp/.rune-*-*.json 2>/dev/null | grep -c '"active"' || echo 0`
+- Active workflows: !`find tmp -maxdepth 1 -name '.rune-*-*.json' -exec grep -l '"active"' {} + 2>/dev/null | wc -l | tr -d ' '`
 - Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 # /rune:strive — Multi-Agent Work Execution
@@ -51,6 +51,8 @@ Parses a plan into tasks with dependencies, summons swarm workers, and coordinat
 /rune:strive plans/feat-user-auth-plan.md              # Execute a specific plan
 /rune:strive plans/feat-user-auth-plan.md --approve    # Require plan approval per task
 /rune:strive plans/feat-user-auth-plan.md --worktree   # Use git worktree isolation (experimental)
+/rune:strive plans/feat-user-auth-plan.md --background # Background dispatch (workers run across sessions)
+/rune:strive --collect [timestamp]                      # Gather results from a background dispatch
 /rune:strive                                            # Auto-detect recent plan
 ```
 

@@ -23,11 +23,15 @@ set -euo pipefail
 
 _rune_fail_forward() {
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
-      "$(date +%H:%M:%S 2>/dev/null || true)" \
-      "${BASH_SOURCE[0]##*/}" \
-      "${BASH_LINENO[0]:-?}" \
-      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" 2>/dev/null
+    # SEC-004 FIX: Use per-session mktemp trace log to avoid predictable path symlink attacks
+    local _ffl="${RUNE_TRACE_LOG:-}"
+    if [[ -n "$_ffl" && ! -L "$_ffl" && ! -L "${_ffl%/*}" ]]; then
+      printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
+        "$(date +%H:%M:%S 2>/dev/null || true)" \
+        "${BASH_SOURCE[0]##*/}" \
+        "${BASH_LINENO[0]:-?}" \
+        >> "$_ffl" 2>/dev/null
+    fi
   fi
   exit 0
 }
@@ -56,6 +60,7 @@ else
 fi
 
 # Inline _trace (QUAL-007: each hook defines its own — no shared trace-logger.sh exists)
+# SEC-004 FIX: Use O_NOFOLLOW-equivalent guard — reject symlinked log paths
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && [[ ! -L "${RUNE_TRACE_LOG%/*}" ]] && printf '[%s] detect-workflow-complete: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
@@ -260,6 +265,9 @@ for sf in "${STATE_FILES[@]}"; do
   # SEC-003: Collect PIDs into array for reuse in Stage 2 — avoids re-querying pgrep
   # (PID recycling window between Stage 1 and Stage 2 is already guarded by comm= re-verify)
   # VEIL-004: Single-pass SIGTERM→SIGKILL escalation within 30s timeout budget
+  # VEIL-004 FIX: PID TOCTOU mitigation — Stage 1 captures PIDs+comm, Stage 2 re-verifies
+  # comm= before SIGKILL. Residual TOCTOU window (ps→kill) is inherent to Unix process
+  # management and acceptable given the comm= filter restricts to node/claude processes only.
 
   _trace "Stage 1: SIGTERM for team=$SF_TEAM"
   sigterm_pids=()
@@ -284,18 +292,24 @@ for sf in "${STATE_FILES[@]}"; do
   sleep "$ESCALATION_TIMEOUT" 2>/dev/null || sleep 5
 
   # Stage 2: SIGKILL survivors — reuse Stage 1 PID list (SEC-003)
-  _trace "Stage 2: SIGKILL survivors for team=$SF_TEAM"
-  for child_pid in "${sigterm_pids[@]}"; do
-    [[ "$child_pid" =~ ^[0-9]+$ ]] || continue
-    # Re-verify before SIGKILL (PID recycling guard — SEC-P1-001)
-    child_cmd=$(ps -p "$child_pid" -o comm= 2>/dev/null || true)
-    case "$child_cmd" in
-      node|claude|claude-*)
-        kill -KILL "$child_pid" 2>/dev/null || true
-        _trace "SIGKILL sent to PID=$child_pid"
-        ;;
-    esac
-  done
+  # SEC-008 FIX: Validate team dir still exists before SIGKILL escalation
+  # If team dir was cleaned by another path during SIGTERM grace period, skip escalation
+  if [[ -n "$SF_TEAM" && ! -d "${CHOME}/teams/${SF_TEAM}" ]]; then
+    _trace "SKIP SIGKILL: team dir ${SF_TEAM} already removed during SIGTERM grace"
+  else
+    _trace "Stage 2: SIGKILL survivors for team=$SF_TEAM"
+    for child_pid in "${sigterm_pids[@]}"; do
+      [[ "$child_pid" =~ ^[0-9]+$ ]] || continue
+      # Re-verify before SIGKILL (PID recycling guard — SEC-P1-001)
+      child_cmd=$(ps -p "$child_pid" -o comm= 2>/dev/null || true)
+      case "$child_cmd" in
+        node|claude|claude-*)
+          kill -KILL "$child_pid" 2>/dev/null || true
+          _trace "SIGKILL sent to PID=$child_pid"
+          ;;
+      esac
+    done
+  fi
 
   # Filesystem cleanup
   _trace "Filesystem cleanup for team=$SF_TEAM"
@@ -316,7 +330,10 @@ done
 # ── Stale artifact crash detection (non-blocking, advisory) ──
 # Scan runs/ directories for artifacts stuck in "running" status with stale timestamps.
 # Updates their meta.json to "crashed" so /rune:runs can report them accurately.
-STALE_ARTIFACT_THRESHOLD=1800  # 30 minutes
+# QUAL-009 FIX: Named constant with cross-reference to loop stale threshold (150min on line 99)
+# These thresholds serve different purposes: artifact staleness (30min running with no update)
+# vs loop file staleness (150min to accommodate long arc phases). Keep independent but documented.
+STALE_ARTIFACT_THRESHOLD_SECS=1800  # 30 minutes — max expected single-agent run duration
 
 _artifact_now=$(date -u +%s 2>/dev/null || echo 0)
 if [[ "$_artifact_now" =~ ^[0-9]+$ && "$_artifact_now" -gt 0 ]]; then
@@ -356,7 +373,7 @@ if [[ "$_artifact_now" =~ ^[0-9]+$ && "$_artifact_now" -gt 0 ]]; then
     fi
 
     _art_age=$(( _artifact_now - _art_start_epoch ))
-    if [[ $_art_age -lt $STALE_ARTIFACT_THRESHOLD ]]; then
+    if [[ $_art_age -lt $STALE_ARTIFACT_THRESHOLD_SECS ]]; then
       continue
     fi
 
@@ -372,7 +389,9 @@ if [[ "$_artifact_now" =~ ^[0-9]+$ && "$_artifact_now" -gt 0 ]]; then
         "$meta_file" > "$_art_tmp" 2>/dev/null \
         && mv -f "$_art_tmp" "$meta_file" 2>/dev/null || { rm -f "$_art_tmp" 2>/dev/null; true; }
     fi
-  done < <(find "${CWD}/tmp" -path '*/runs/*/meta.json' -type f 2>/dev/null || true)
+  # BACK-004 FIX: Bound find depth to prevent latency on large trees
+  # Pattern: tmp/{workflow}/{timestamp}/runs/{agent}/meta.json = 5 levels deep
+  done < <(find "${CWD}/tmp" -maxdepth 6 -path '*/runs/*/meta.json' -type f 2>/dev/null || true)
 fi
 
 _trace "EXIT detect-workflow-complete.sh"

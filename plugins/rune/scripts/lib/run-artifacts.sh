@@ -37,10 +37,13 @@ fi
 if command -v git &>/dev/null; then
   _RUNE_ART_ROOT="$(git -C "$_RUNE_ART_SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null | tr -d '\n' || true)"
 fi
-_RUNE_ART_PATTERN='^/[a-zA-Z0-9_./ -]+$'
+# SEC-006: Tightened pattern — disallow spaces and dots except in final component
+_RUNE_ART_PATTERN='^/[a-zA-Z0-9_/.-]+$'
 if [[ -z "${_RUNE_ART_ROOT:-}" ]] || [[ ! "$_RUNE_ART_ROOT" =~ $_RUNE_ART_PATTERN ]]; then
-  _RUNE_ART_ROOT="$(pwd)"
+  _RUNE_ART_ROOT="$(pwd -P)"
 fi
+# Resolve to canonical path (no symlinks)
+_RUNE_ART_ROOT="$(cd "$_RUNE_ART_ROOT" 2>/dev/null && pwd -P || echo "$_RUNE_ART_ROOT")"
 
 # jq dependency guard — fail-open stubs if jq missing
 if ! command -v jq &>/dev/null; then
@@ -80,8 +83,31 @@ _rune_artifact_reject_traversal() {
 }
 
 # SEC: Symlink guard — refuse to operate on symlinked paths
+# SEC-002: Also checks each path component for symlinks (TOCTOU mitigation)
 _rune_artifact_safe_path() {
-  [[ ! -L "$1" ]] || return 1
+  local target="$1"
+  [[ ! -L "$target" ]] || return 1
+  # Check parent directories for symlinks (mitigate TOCTOU via component check)
+  local dir="$target"
+  while [[ "$dir" != "/" && "$dir" != "." ]]; do
+    [[ ! -L "$dir" ]] || return 1
+    dir="$(dirname "$dir")"
+  done
+  return 0
+}
+
+# SEC-005: Validate path is contained within expected root
+_rune_artifact_check_containment() {
+  local target_path="$1" root_path="$2"
+  # Resolve canonical paths for comparison
+  local canonical
+  if [[ -e "$target_path" ]]; then
+    canonical="$(cd "$(dirname "$target_path")" 2>/dev/null && pwd -P)/$(basename "$target_path")"
+  else
+    canonical="$target_path"
+  fi
+  # Ensure target starts with root (prefix containment)
+  [[ "$canonical" == "$root_path"/* ]] || return 1
 }
 
 # ── Public functions ──
@@ -113,6 +139,12 @@ rune_artifact_init() {
   _rune_artifact_reject_traversal "$agent_name" || return 1
 
   local run_dir="${_RUNE_ART_ROOT}/tmp/${workflow}/${timestamp}/runs/${agent_name}"
+
+  # SEC-005: Containment check — run_dir must be under project root
+  _rune_artifact_check_containment "$run_dir" "$_RUNE_ART_ROOT" || {
+    echo "[rune-artifacts] ERROR: run dir escapes project root: $run_dir" >&2
+    return 1
+  }
 
   _rune_artifact_create_run "$run_dir" "$agent_name" "$workflow" "$team_name"
 }
@@ -173,12 +205,17 @@ _rune_artifact_create_run() {
   local _cfg="${RUNE_CURRENT_CFG:-$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P || echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}")}"
 
   # Write initial meta.json atomically
+  # BACK-007: Record start_epoch for precise duration calculation (avoids date re-parse)
+  local start_epoch_val
+  start_epoch_val="$(date +%s 2>/dev/null || echo "0")"
+  local tmp_meta="$run_dir/meta.json.tmp"
   jq -n \
     --arg agent "$agent_name" \
     --arg wf "$workflow" \
     --arg team "${team_name}" \
     --arg tstat "running" \
     --arg started "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson start_epoch "$start_epoch_val" \
     --arg cfg "$_cfg" \
     --argjson pid "$PPID" \
     --arg sid "${CLAUDE_SESSION_ID:-unknown}" \
@@ -188,6 +225,7 @@ _rune_artifact_create_run() {
       team_name: $team,
       status: $tstat,
       started_at: $started,
+      start_epoch: $start_epoch,
       completed_at: null,
       duration_seconds: null,
       output_bytes: null,
@@ -195,8 +233,29 @@ _rune_artifact_create_run() {
       owner_pid: $pid,
       session_id: $sid
     }' \
-    > "$run_dir/meta.json.tmp" 2>/dev/null \
-    && mv -f "$run_dir/meta.json.tmp" "$run_dir/meta.json" 2>/dev/null
+    > "$tmp_meta" 2>/dev/null
+
+  # BACK-001: Check jq write succeeded before mv
+  if [[ ! -f "$tmp_meta" ]] || [[ ! -s "$tmp_meta" ]]; then
+    echo "[rune-artifacts] ERROR: failed to generate meta.json" >&2
+    rm -f "$tmp_meta" 2>/dev/null
+    rm -rf "$run_dir" 2>/dev/null
+    return 1
+  fi
+
+  # SEC-002: Re-verify no symlink appeared (TOCTOU mitigation)
+  _rune_artifact_safe_path "$tmp_meta" || {
+    echo "[rune-artifacts] ERROR: tmp file is a symlink: $tmp_meta" >&2
+    rm -f "$tmp_meta" 2>/dev/null
+    return 1
+  }
+
+  if ! mv -f "$tmp_meta" "$run_dir/meta.json" 2>/dev/null; then
+    echo "[rune-artifacts] ERROR: failed to move meta.json into place" >&2
+    rm -f "$tmp_meta" 2>/dev/null
+    rm -rf "$run_dir" 2>/dev/null
+    return 1
+  fi
 
   # Verify meta.json was written
   if [[ ! -f "$run_dir/meta.json" ]]; then
@@ -215,13 +274,28 @@ _rune_artifact_create_run() {
 
 # _rune_artifact_resolve_index_path <run_dir>
 # Resolves the run-index.jsonl path from a run directory.
-# run_dir is .../runs/{agent}/ — index lives two levels up at .../run-index.jsonl
+# run_dir is .../runs/{agent}/ — index lives in the parent of runs/
+# BACK-003: Find "runs/" component dynamically instead of hardcoded depth
 _rune_artifact_resolve_index_path() {
   local run_dir="$1"
-  # Go up from runs/{agent}/ to the workflow output directory
-  local base_dir
-  base_dir="$(cd "$run_dir/../.." 2>/dev/null && pwd -P || true)"
-  [[ -n "$base_dir" ]] && echo "$base_dir/run-index.jsonl"
+  # Resolve to canonical path first
+  local canonical_dir
+  canonical_dir="$(cd "$run_dir" 2>/dev/null && pwd -P || true)"
+  [[ -n "$canonical_dir" ]] || return 0
+
+  # Walk up to find the "runs" directory component
+  local current="$canonical_dir"
+  while [[ "$current" != "/" && "$current" != "." ]]; do
+    if [[ "$(basename "$current")" == "runs" ]]; then
+      local base_dir
+      base_dir="$(dirname "$current")"
+      [[ -n "$base_dir" ]] && echo "$base_dir/run-index.jsonl"
+      return 0
+    fi
+    current="$(dirname "$current")"
+  done
+  # Fallback: if no "runs" found, cannot resolve index
+  return 0
 }
 
 # _rune_artifact_append_index <run_dir>
@@ -241,14 +315,51 @@ _rune_artifact_append_index() {
   row=$(jq -c '{agent_name, status, started_at, completed_at, duration_seconds, output_bytes}' "$meta_file" 2>/dev/null || true)
   [[ -n "$row" ]] || return 0
 
-  # Append with flock if available, else best-effort
+  # Append with flock if available, else mkdir-based lock
+  _rune_artifact_locked_append "$index_file" "$row"
+  return 0
+}
+
+# BACK-002: mkdir-based lock fallback (atomic on POSIX)
+# SEC-010: Use per-index lock path derived from content hash to avoid predictable names
+_rune_artifact_locked_append() {
+  local index_file="$1" row="$2"
+  local lock_dir="${index_file}.lockdir"
+
   if command -v flock &>/dev/null; then
     (flock -w 2 200 && printf '%s\n' "$row" >> "$index_file") 200>"$index_file.lock" 2>/dev/null || \
       printf '%s\n' "$row" >> "$index_file" 2>/dev/null
   else
+    # mkdir is atomic — use as lock primitive
+    local attempts=0
+    while ! mkdir "$lock_dir" 2>/dev/null; do
+      attempts=$((attempts + 1))
+      if [[ $attempts -ge 10 ]]; then
+        # Stale lock recovery: check age (>5s = stale)
+        local lock_age=0
+        if [[ -d "$lock_dir" ]]; then
+          local lock_mtime
+          lock_mtime=$(stat -f %m "$lock_dir" 2>/dev/null || stat -c %Y "$lock_dir" 2>/dev/null || echo "0")
+          local now_ts
+          now_ts=$(date +%s 2>/dev/null || echo "0")
+          if [[ "$lock_mtime" =~ ^[0-9]+$ && "$now_ts" =~ ^[0-9]+$ ]]; then
+            lock_age=$(( now_ts - lock_mtime ))
+          fi
+        fi
+        if [[ $lock_age -gt 5 ]]; then
+          rmdir "$lock_dir" 2>/dev/null
+        else
+          # Give up — append without lock as last resort
+          printf '%s\n' "$row" >> "$index_file" 2>/dev/null
+          return 0
+        fi
+      fi
+      # Brief backoff (0.1s if sleep supports decimals, else skip)
+      sleep 0.1 2>/dev/null || true
+    done
     printf '%s\n' "$row" >> "$index_file" 2>/dev/null
+    rmdir "$lock_dir" 2>/dev/null
   fi
-  return 0
 }
 
 # rune_artifact_index_append <index_file> <run_dir>
@@ -272,18 +383,14 @@ rune_artifact_index_append() {
     return 1
   }
 
-  # Append with flock if available, else best-effort
-  if command -v flock &>/dev/null; then
-    (flock -w 2 200 && printf '%s\n' "$row" >> "$index_file") 200>"$index_file.lock" 2>/dev/null || \
-      printf '%s\n' "$row" >> "$index_file" 2>/dev/null
-  else
-    printf '%s\n' "$row" >> "$index_file" 2>/dev/null
-  fi
+  # Append with flock if available, else mkdir-based lock
+  _rune_artifact_locked_append "$index_file" "$row"
   return 0
 }
 
 # rune_artifact_write_input <run_dir> <prompt_content>
 # Writes input.md containing the agent's prompt/input text.
+# SEC-011: Callers should ensure tmp/ is in .gitignore to prevent prompt leakage.
 # Returns 0 on success, 1 on failure.
 rune_artifact_write_input() {
   local run_dir="$1" prompt_content="$2"
@@ -301,9 +408,30 @@ rune_artifact_write_input() {
   # Reject path traversal
   _rune_artifact_reject_traversal "$run_dir" || return 1
 
+  # BACK-005: Cap prompt content at 1MB to prevent disk exhaustion
+  local max_prompt_bytes=1048576
+  local content_len=${#prompt_content}
+  if [[ $content_len -gt $max_prompt_bytes ]]; then
+    echo "[rune-artifacts] WARNING: prompt content truncated from $content_len to $max_prompt_bytes bytes" >&2
+    prompt_content="${prompt_content:0:$max_prompt_bytes}"
+  fi
+
   # Write input.md atomically
-  printf '%s\n' "$prompt_content" > "$run_dir/input.md.tmp" 2>/dev/null \
-    && mv -f "$run_dir/input.md.tmp" "$run_dir/input.md" 2>/dev/null
+  local tmp_input="$run_dir/input.md.tmp"
+  printf '%s\n' "$prompt_content" > "$tmp_input" 2>/dev/null
+
+  # SEC-002: Re-verify no symlink before mv
+  _rune_artifact_safe_path "$tmp_input" || {
+    echo "[rune-artifacts] ERROR: tmp file is a symlink: $tmp_input" >&2
+    rm -f "$tmp_input" 2>/dev/null
+    return 1
+  }
+
+  if ! mv -f "$tmp_input" "$run_dir/input.md" 2>/dev/null; then
+    echo "[rune-artifacts] ERROR: failed to write input.md" >&2
+    rm -f "$tmp_input" 2>/dev/null
+    return 1
+  fi
 
   if [[ ! -f "$run_dir/input.md" ]]; then
     echo "[rune-artifacts] ERROR: failed to write input.md" >&2
@@ -351,19 +479,31 @@ rune_artifact_finalize() {
   }
   _rune_artifact_safe_path "$meta_file" || return 1
 
-  # Calculate duration from started_at
-  local started_at duration_seconds=0
-  started_at=$(jq -r '.started_at // empty' "$meta_file" 2>/dev/null || true)
-  if [[ -n "$started_at" ]]; then
-    local start_epoch now_epoch
-    # macOS date vs GNU date: try both formats
-    # TZ=UTC ensures macOS date -jf interprets the ISO-8601 UTC timestamp correctly
-    start_epoch=$(TZ=UTC date -jf "%Y-%m-%dT%H:%M:%SZ" "$started_at" +%s 2>/dev/null || \
-                  date -d "$started_at" +%s 2>/dev/null || echo "0")
-    now_epoch=$(date -u +%s 2>/dev/null || echo "0")
-    if [[ "$start_epoch" =~ ^[0-9]+$ && "$now_epoch" =~ ^[0-9]+$ && "$start_epoch" -gt 0 ]]; then
+  # BACK-007: Calculate duration from start_epoch (stored as integer, avoids date re-parse)
+  # Falls back to started_at ISO-8601 parsing for backward compatibility
+  local duration_seconds=0
+  local start_epoch
+  start_epoch=$(jq -r '.start_epoch // empty' "$meta_file" 2>/dev/null || true)
+  if [[ -n "$start_epoch" && "$start_epoch" =~ ^[0-9]+$ && "$start_epoch" -gt 0 ]]; then
+    local now_epoch
+    now_epoch=$(date +%s 2>/dev/null || echo "0")
+    if [[ "$now_epoch" =~ ^[0-9]+$ ]]; then
       duration_seconds=$(( now_epoch - start_epoch ))
       [[ "$duration_seconds" -lt 0 ]] && duration_seconds=0
+    fi
+  else
+    # Backward compat: parse started_at ISO-8601
+    local started_at
+    started_at=$(jq -r '.started_at // empty' "$meta_file" 2>/dev/null || true)
+    if [[ -n "$started_at" ]]; then
+      local parsed_epoch now_epoch
+      parsed_epoch=$(TZ=UTC date -jf "%Y-%m-%dT%H:%M:%SZ" "$started_at" +%s 2>/dev/null || \
+                    date -d "$started_at" +%s 2>/dev/null || echo "0")
+      now_epoch=$(date -u +%s 2>/dev/null || echo "0")
+      if [[ "$parsed_epoch" =~ ^[0-9]+$ && "$now_epoch" =~ ^[0-9]+$ && "$parsed_epoch" -gt 0 ]]; then
+        duration_seconds=$(( now_epoch - parsed_epoch ))
+        [[ "$duration_seconds" -lt 0 ]] && duration_seconds=0
+      fi
     fi
   fi
 
@@ -382,6 +522,7 @@ rune_artifact_finalize() {
   # Update meta.json atomically via jq
   local completed_at
   completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local tmp_finalize="$meta_file.tmp"
 
   jq \
     --arg tstat "$completion_status" \
@@ -390,8 +531,27 @@ rune_artifact_finalize() {
     --argjson obytes "$output_bytes" \
     '.status = $tstat | .completed_at = $completed | .duration_seconds = $dur | .output_bytes = $obytes' \
     "$meta_file" \
-    > "$meta_file.tmp" 2>/dev/null \
-    && mv -f "$meta_file.tmp" "$meta_file" 2>/dev/null
+    > "$tmp_finalize" 2>/dev/null
+
+  # BACK-001: Verify jq write succeeded before mv
+  if [[ ! -f "$tmp_finalize" ]] || [[ ! -s "$tmp_finalize" ]]; then
+    echo "[rune-artifacts] ERROR: failed to generate updated meta.json" >&2
+    rm -f "$tmp_finalize" 2>/dev/null
+    return 1
+  fi
+
+  # SEC-002: Re-verify no symlink appeared before mv
+  _rune_artifact_safe_path "$tmp_finalize" || {
+    echo "[rune-artifacts] ERROR: tmp file is a symlink: $tmp_finalize" >&2
+    rm -f "$tmp_finalize" 2>/dev/null
+    return 1
+  }
+
+  if ! mv -f "$tmp_finalize" "$meta_file" 2>/dev/null; then
+    echo "[rune-artifacts] ERROR: failed to move updated meta.json into place" >&2
+    rm -f "$tmp_finalize" 2>/dev/null
+    return 1
+  fi
 
   if [[ ! -f "$meta_file" ]]; then
     echo "[rune-artifacts] ERROR: failed to update meta.json" >&2

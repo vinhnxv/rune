@@ -1,5 +1,20 @@
 # Wave-Based Execution (Phase 2)
 
+## Wave Capacity Calculation
+
+Wave capacity determines how many tasks run per wave. Derived from talisman config:
+
+```javascript
+const TODOS_PER_WORKER = talisman?.work?.todos_per_worker ?? 3
+const maxWorkers = talisman?.work?.max_workers ?? 3
+const waveCapacity = maxWorkers * TODOS_PER_WORKER  // e.g. 3 workers * 3 = 9
+const totalWaves = Math.ceil(totalTodos / waveCapacity)
+```
+
+The last wave may contain fewer tasks than `waveCapacity` (remainder from the division). The `slice()` call handles this naturally since it clamps to array bounds.
+
+## Execution Loop
+
 When `totalWaves > 1`, workers are spawned per-wave with bounded task assignments. Each wave:
 1. Slice tasks for this wave from the priority-ordered list
 2. Distribute tasks across workers via `TaskUpdate({ owner })`
@@ -12,7 +27,13 @@ When `totalWaves > 1`, workers are spawned per-wave with bounded task assignment
 **Single-wave optimization**: When `totalWaves === 1`, all tasks are assigned upfront and the existing behavior applies (no wave overhead).
 
 ```javascript
-// Wave loop (Phase 2 + 3 combined)
+// Guard: skip wave loop entirely if no tasks
+if (priorityOrderedTasks.length === 0) {
+  // No tasks to execute — proceed to Phase 4 (commit/cleanup)
+  return
+}
+
+// Wave loop (Phase 2: Summon + Phase 3: Monitor)
 for (let wave = 0; wave < totalWaves; wave++) {
   const waveStart = wave * waveCapacity
   const waveTasks = priorityOrderedTasks.slice(waveStart, waveStart + waveCapacity)

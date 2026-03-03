@@ -42,7 +42,16 @@ Inspect structured artifacts (meta.json, input.md) written by Rune workflows for
 Discover and list all workflow runs that contain per-agent artifacts.
 
 ```javascript
-const subcommand = "$ARGUMENTS".split(/\s+/)[0] || "list"
+// SEC-013: sanitize arguments before processing
+const rawArgs = "$ARGUMENTS" || ""
+const subcommand = rawArgs.split(/\s+/)[0] || "list"
+
+// VEIL-007: validate subcommand against known set
+const VALID_SUBCOMMANDS = ["list", "show", "stats", "failures"]
+if (!VALID_SUBCOMMANDS.includes(subcommand)) {
+  error(`Unknown subcommand: "${subcommand}". Valid: ${VALID_SUBCOMMANDS.join(", ")}`)
+  return
+}
 
 if (subcommand === "list") {
   // Scan for run directories across all workflow output dirs
@@ -61,7 +70,9 @@ if (subcommand === "list") {
     if (!runsByWorkflow[runDir]) {
       runsByWorkflow[runDir] = []
     }
-    const meta = JSON.parse(Read(metaPath))
+    // VEIL-010: guard against partially-written meta.json from concurrent workflows
+    let meta
+    try { meta = JSON.parse(Read(metaPath)) } catch (e) { continue }
     runsByWorkflow[runDir].push(meta)
   }
 
@@ -91,7 +102,7 @@ Show detailed information for a specific agent's run.
 
 ```javascript
 if (subcommand === "show") {
-  const agentName = "$ARGUMENTS".split(/\s+/)[1]
+  const agentName = rawArgs.split(/\s+/)[1]
   if (!agentName) {
     log("Usage: /rune:runs show <agent-name>")
     log("Example: /rune:runs show ward-sentinel")
@@ -116,7 +127,12 @@ if (subcommand === "show") {
   // Show most recent run (last in list, Glob sorts by mtime)
   const metaPath = metaFiles[0]
   const runDir = metaPath.replace(/\/meta\.json$/, '')
-  const meta = JSON.parse(Read(metaPath))
+  // VEIL-010: guard against partially-written meta.json
+  let meta
+  try { meta = JSON.parse(Read(metaPath)) } catch (e) {
+    error(`Failed to parse meta.json for "${agentName}". The file may be incomplete (workflow still running?).`)
+    return
+  }
 
   log(`## Agent Run: ${agentName}\n`)
   log(`- **Workflow**: ${meta.workflow}`)
@@ -144,7 +160,8 @@ if (subcommand === "show") {
   if (metaFiles.length > 1) {
     log(`\n### Other runs for ${agentName} (${metaFiles.length - 1} more)\n`)
     for (const other of metaFiles.slice(1)) {
-      const otherMeta = JSON.parse(Read(other))
+      let otherMeta
+      try { otherMeta = JSON.parse(Read(other)) } catch (e) { continue }
       log(`- ${other.replace(/\/meta\.json$/, '')} (${otherMeta.status}, ${otherMeta.started_at})`)
     }
   }
@@ -225,7 +242,9 @@ if (subcommand === "failures") {
 
   const failures = []
   for (const metaPath of metaFiles) {
-    const meta = JSON.parse(Read(metaPath))
+    // VEIL-010: guard against partially-written meta.json
+    let meta
+    try { meta = JSON.parse(Read(metaPath)) } catch (e) { continue }
     if (meta.status === "failed" || meta.status === "crashed") {
       const runDir = metaPath.replace(/\/meta\.json$/, '')
       failures.push({ ...meta, runDir })
@@ -266,8 +285,15 @@ if (subcommand === "failures") {
 ## Security
 
 - Agent names validated with `^[a-zA-Z0-9_-]+$` before path construction
+- Subcommands validated against known set (`list`, `show`, `stats`, `failures`)
 - All file access is read-only (no writes)
 - Path traversal rejected by the underlying run-artifacts.sh library
+
+## Error Recovery
+
+- **Malformed meta.json**: If a `meta.json` file cannot be parsed (e.g., truncated by a concurrent write), the entry is silently skipped in `list`, `stats`, and `failures`. In `show`, an explicit error is returned directing the user to check if the workflow is still running.
+- **Concurrent access**: All JSON reads are wrapped in try/catch to handle race conditions where a workflow is actively writing artifacts. Re-run the command after the workflow completes for complete results.
+- **Missing artifacts**: When no `run-index.jsonl` or `meta.json` files are found, each subcommand exits with a descriptive message explaining which workflows create artifacts.
 
 ## Library Reference
 
