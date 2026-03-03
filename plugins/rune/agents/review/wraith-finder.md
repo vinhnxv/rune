@@ -59,7 +59,7 @@ Before scanning for dead code, query Rune Echoes for previously identified orpha
 
 ## Analysis Framework
 
-For detailed framework-specific code examples, DI wiring patterns, router registration templates, and event handler verification patterns across Python, Rust, and TypeScript, see [dead-code-patterns.md](references/dead-code-patterns.md).
+For detailed framework-specific code examples, DI wiring patterns, router registration templates, and event handler verification patterns across Python, Rust, and TypeScript, see [dead-code-patterns.md](../../skills/roundtable-circle/references/agent-patterns/dead-code-patterns.md).
 
 ### 1. Classical Dead Code Detection
 

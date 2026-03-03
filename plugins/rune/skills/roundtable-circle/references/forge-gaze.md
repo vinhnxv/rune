@@ -73,9 +73,11 @@ Each agent declares which plan section topics it can enrich, what subsection it 
 | horizon-sage | strategy, sustainability, long-term, root-cause, future-risk, tech-debt, innovation, resilience, maintainability-trajectory, depth, viability, quick-fix, temporal-horizon | — | Strategic Depth Analysis | strategic viability, long-term sustainability, and root-cause depth |
 | state-weaver | state-machine, phases, transitions, pipeline, workflow, lifecycle, contracts, dataflow, input, output, steps, stages, dead-end, unreachable | — | State Machine Analysis | plan phase completeness, transition correctness, and I/O contract validation |
 
-### Stack Specialist Agents (Enrichment Budget, v1.86.0+)
+### Stack Specialist Prompts (Enrichment Budget, v1.86.0+)
 
-> Stack specialist agents participate in Forge Gaze when the project stack is detected. They provide stack-specific enrichment with affinity-boosted scoring. See `skills/stacks/references/detection.md` for detection logic.
+> Stack specialist prompts participate in Forge Gaze when the project stack is detected. They provide stack-specific enrichment with affinity-boosted scoring. See `skills/stacks/references/detection.md` for detection logic.
+>
+> These are prompt templates at `specialist-prompts/` (not registered agents). `buildAshPrompt()` loads them via filesystem-derived dispatch when the specialist name is detected in `specialist-prompts/`.
 
 | Agent | Topics | Excludes | Stack Affinities | Subsection | Perspective |
 |-------|--------|----------|-----------------|------------|-------------|

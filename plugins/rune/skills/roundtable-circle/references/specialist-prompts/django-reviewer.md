@@ -1,18 +1,3 @@
----
-name: django-reviewer
-description: |
-  Django specialist reviewer for Django and Django REST Framework codebases.
-  Reviews ORM queries, CSRF protection, admin security, signals, migration safety,
-  and Django-specific patterns. Activated when Django is detected.
-  Keywords: django, orm, csrf, admin, migration, drf, serializer.
-tools:
-  - Read
-  - Glob
-  - Grep
-maxTurns: 30
-mcpServers:
-  - echo-search
----
 
 # Django Reviewer — Stack Specialist Ash
 

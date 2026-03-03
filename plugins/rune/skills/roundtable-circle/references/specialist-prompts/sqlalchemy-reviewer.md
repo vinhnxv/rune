@@ -1,18 +1,3 @@
----
-name: sqlalchemy-reviewer
-description: |
-  SQLAlchemy specialist reviewer for Python ORM codebases.
-  Reviews async session management, N+1 detection, eager loading, transaction boundaries,
-  and migration safety. Activated when SQLAlchemy is detected.
-  Keywords: sqlalchemy, orm, session, async, migration, alembic, query.
-tools:
-  - Read
-  - Glob
-  - Grep
-maxTurns: 30
-mcpServers:
-  - echo-search
----
 
 # SQLAlchemy Reviewer — Stack Specialist Ash
 

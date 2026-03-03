@@ -59,7 +59,7 @@ Before reviewing migration safety, query Rune Echoes for previously identified m
 
 ## Analysis Framework
 
-For detailed multi-framework code examples (Alembic, Django, Knex, Prisma, Diesel, sqlx), lock tables, safe deployment patterns, and PII detection templates, see [data-integrity-patterns.md](references/data-integrity-patterns.md).
+For detailed multi-framework code examples (Alembic, Django, Knex, Prisma, Diesel, sqlx), lock tables, safe deployment patterns, and PII detection templates, see [data-integrity-patterns.md](../../skills/roundtable-circle/references/agent-patterns/data-integrity-patterns.md).
 
 ### 1. Migration Reversibility
 
@@ -154,7 +154,7 @@ NEVER accept migration correctness based on test fixtures alone. For any data tr
 - Enum changes: Trace all comparison/switch/match statements using the enum
 - FK target changes: Trace all JOIN queries and eager-loading declarations
 
-For dual-write implementation details and production verification query templates, see [migration-gatekeeper-patterns.md](references/migration-gatekeeper-patterns.md).
+For dual-write implementation details and production verification query templates, see [migration-gatekeeper-patterns.md](../../skills/roundtable-circle/references/agent-patterns/migration-gatekeeper-patterns.md).
 
 ### 9. Rollback Verification Depth
 

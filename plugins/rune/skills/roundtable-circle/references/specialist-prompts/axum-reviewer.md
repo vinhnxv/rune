@@ -1,18 +1,3 @@
----
-name: axum-reviewer
-description: |
-  Axum/SQLx specialist reviewer for Rust web services.
-  Reviews extractor ordering, N+1 queries, IDOR prevention, transaction boundaries,
-  and input validation. Activated when Axum framework is detected.
-  Keywords: axum, sqlx, extractor, handler, tower, middleware, pool.
-tools:
-  - Read
-  - Glob
-  - Grep
-maxTurns: 30
-mcpServers:
-  - echo-search
----
 
 # Axum Reviewer — Stack Specialist Ash
 

@@ -231,7 +231,7 @@ function extractFindingBlocks(content) {
 
 ## Marker Attribute Parsing: parseMarkerAttributes()
 
-Parses key="value" pairs from the attribute string inside a RUNE:FINDING marker. All attributes defined in [review-checklist.md](review-checklist.md) are extracted.
+Parses key="value" pairs from the attribute string inside a RUNE:FINDING marker. All attributes defined in [review-checklist.md](agent-patterns/review-checklist.md) are extracted.
 
 ```javascript
 // Parses 'nonce="abc" id="SEC-001" file="api/users.py" line="42" severity="P1"'
@@ -552,7 +552,7 @@ The threshold check and compression are designed to be independent per wave. A w
 
 ## References
 
-- [review-checklist.md](review-checklist.md) — Canonical RUNE:FINDING marker format and attribute spec
+- [review-checklist.md](agent-patterns/review-checklist.md) — Canonical RUNE:FINDING marker format and attribute spec
 - [dedup-runes.md](dedup-runes.md) — Deduplication hierarchy (applied by Runebinder AFTER pre-aggregation)
 - [orchestration-phases.md](orchestration-phases.md) — Phase 5.0 integration point and Phase 5 condensed input redirect
 - [monitor-utility.md](monitor-utility.md) — Phase 4 monitoring that precedes pre-aggregation

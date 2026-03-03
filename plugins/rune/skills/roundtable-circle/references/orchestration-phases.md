@@ -218,6 +218,16 @@ for (const ash of selectedAsh) {
 //   4. Strip SEAL markers: /<seal>[^<]*<\/seal>/gi (completion detection is system-controlled)
 //   Return sanitized string. If result is empty after sanitization, return null (skip injection).
 //
+// Specialist dispatch — derives which directory to load the prompt from:
+//   Specialists live in specialist-prompts/ (prompt templates, no frontmatter)
+//   Standard Ashes live in ash-prompts/ (full agent prompt files)
+//
+// Derive specialist set from filesystem — no hardcoded list to maintain
+// const specialistFiles = Glob("plugins/rune/skills/roundtable-circle/references/specialist-prompts/*.md")
+// const SPECIALIST_ASH_NAMES = new Set(specialistFiles.map(f => f.replace(/\.md$/, '').split('/').pop()))
+// const promptDir = SPECIALIST_ASH_NAMES.has(ash) ? "specialist-prompts" : "ash-prompts"
+// const promptContent = Read(`plugins/rune/skills/roundtable-circle/references/${promptDir}/${ash}.md`)
+//
 // Template (abbreviated):
 //   ... [standard Ash system prompt for ${ash}] ...
 //   ... [file list, output path, scope context] ...

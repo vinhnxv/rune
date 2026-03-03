@@ -1,18 +1,3 @@
----
-name: php-reviewer
-description: |
-  PHP specialist reviewer for modern PHP 8.1+ codebases.
-  Reviews type declarations, null safety, enum usage, readonly properties,
-  and PHP-specific security issues. Activated when PHP stack is detected.
-  Keywords: php, strict_types, enums, readonly, fibers, laravel.
-tools:
-  - Read
-  - Glob
-  - Grep
-maxTurns: 30
-mcpServers:
-  - echo-search
----
 
 # PHP Reviewer — Stack Specialist Ash
 

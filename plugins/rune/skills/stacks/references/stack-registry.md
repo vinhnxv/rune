@@ -13,12 +13,12 @@ Complete registry of supported languages, frameworks, databases, libraries, and 
 
 ## Frameworks
 
-| Framework | Language | Detection Signal | Knowledge Skill | Agent |
-|-----------|----------|-----------------|-----------------|-------|
-| FastAPI | Python | `fastapi` in deps | `frameworks/fastapi.md` | `fastapi-reviewer` (FAPI) |
-| Django | Python | `django` in deps | `frameworks/django.md` | `django-reviewer` (DJG) |
+| Framework | Language | Detection Signal | Knowledge Skill | Prompt Template |
+|-----------|----------|-----------------|-----------------|-----------------|
+| FastAPI | Python | `fastapi` in deps | `frameworks/fastapi.md` | `specialist-prompts/fastapi-reviewer.md` (FAPI) |
+| Django | Python | `django` in deps | `frameworks/django.md` | `specialist-prompts/django-reviewer.md` (DJG) |
 | Flask | Python | `flask` in deps | (none — covered by python profile) | (none) |
-| SQLAlchemy | Python | `sqlalchemy` in deps | `frameworks/sqlalchemy.md` | `sqlalchemy-reviewer` (SQLA) |
+| SQLAlchemy | Python | `sqlalchemy` in deps | `frameworks/sqlalchemy.md` | `specialist-prompts/sqlalchemy-reviewer.md` (SQLA) |
 | Next.js | TypeScript | `next` in deps | `frameworks/nextjs.md` | (none — future) |
 | React | TypeScript | `react` in deps | `frameworks/react.md` | (none — future) |
 | Vue.js | TypeScript | `vue` in deps | `frameworks/vuejs.md` | (none — future) |
@@ -26,9 +26,9 @@ Complete registry of supported languages, frameworks, databases, libraries, and 
 | Express | TypeScript | `express` in deps | (none — covered by typescript profile) | (none) |
 | NestJS | TypeScript | `nestjs` or `@nestjs` in deps | (none — covered by typescript profile) | (none) |
 | Actix-web | Rust | `actix` in deps | (none — covered by rust profile) | (none) |
-| Axum | Rust | `axum` or `axum-extra` in deps (tower, sqlx corroborate) | `frameworks/axum.md` | `axum-reviewer` (AXUM) |
+| Axum | Rust | `axum` or `axum-extra` in deps (tower, sqlx corroborate) | `frameworks/axum.md` | `specialist-prompts/axum-reviewer.md` (AXUM) |
 | Rocket | Rust | `rocket` in deps | (none — covered by rust profile) | (none) |
-| Laravel | PHP | `laravel` in deps | `frameworks/laravel.md` | `laravel-reviewer` (LARV) |
+| Laravel | PHP | `laravel` in deps | `frameworks/laravel.md` | `specialist-prompts/laravel-reviewer.md` (LARV) |
 | Symfony | PHP | `symfony` in deps | (none — covered by php profile) | (none) |
 
 ## Databases
@@ -63,11 +63,11 @@ Complete registry of supported languages, frameworks, databases, libraries, and 
 
 ## Cross-Cutting Patterns
 
-| Pattern | Trigger Condition | Knowledge Skill | Agent |
-|---------|------------------|-----------------|-------|
-| TDD | Test files present in changed files | `patterns/tdd.md` | `tdd-compliance-reviewer` (TDD) |
-| DDD | `domain/`, `src/domain/`, `entities/`, `bounded_contexts/`, `app/Domain/`, `src/Domain/` directory exists | `patterns/ddd.md` | `ddd-reviewer` (DDD) |
-| DI | `dishka`, `dependency-injector`, `tsyringe`, `inversify`, or `php-di` in detected libraries | `patterns/di.md` | `di-reviewer` (DI) |
+| Pattern | Trigger Condition | Knowledge Skill | Prompt Template |
+|---------|------------------|-----------------|-----------------|
+| TDD | Test files present in changed files | `patterns/tdd.md` | `specialist-prompts/tdd-compliance-reviewer.md` (TDD) |
+| DDD | `domain/`, `src/domain/`, `entities/`, `bounded_contexts/`, `app/Domain/`, `src/Domain/` directory exists | `patterns/ddd.md` | `specialist-prompts/ddd-reviewer.md` (DDD) |
+| DI | `dishka`, `dependency-injector`, `tsyringe`, `inversify`, or `php-di` in detected libraries | `patterns/di.md` | `specialist-prompts/di-reviewer.md` (DI) |
 
 ## Design Tools
 
@@ -110,23 +110,26 @@ SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > FIDE > DSYS > CDX > PY > TSR > 
 
 When a stack specialist and a core Ash find the same issue, the core Ash's finding takes priority.
 
-## Skill-to-Agent Mapping
+## Skill-to-Prompt Mapping
+
+> Stack specialists are prompt templates loaded by `buildAshPrompt()`, not registered agents.
+> Paths are relative to `skills/roundtable-circle/references/`.
 
 ```
-SKILL_TO_AGENT_MAP = {
-  "languages/python":     "python-reviewer",
-  "languages/typescript":  "typescript-reviewer",
-  "languages/rust":        "rust-reviewer",
-  "languages/php":         "php-reviewer",
-  "frameworks/axum":       "axum-reviewer",
-  "frameworks/fastapi":    "fastapi-reviewer",
-  "frameworks/django":     "django-reviewer",
-  "frameworks/laravel":    "laravel-reviewer",
-  "frameworks/sqlalchemy": "sqlalchemy-reviewer",
-  "patterns/tdd":          "tdd-compliance-reviewer",
-  "patterns/ddd":          "ddd-reviewer",
-  "patterns/di":           "di-reviewer",
-  "design/figma":          "design-implementation-reviewer",
-  "design/design-system":  "design-system-compliance-reviewer",
+SKILL_TO_PROMPT_MAP = {
+  "languages/python":     "specialist-prompts/python-reviewer.md",
+  "languages/typescript":  "specialist-prompts/typescript-reviewer.md",
+  "languages/rust":        "specialist-prompts/rust-reviewer.md",
+  "languages/php":         "specialist-prompts/php-reviewer.md",
+  "frameworks/axum":       "specialist-prompts/axum-reviewer.md",
+  "frameworks/fastapi":    "specialist-prompts/fastapi-reviewer.md",
+  "frameworks/django":     "specialist-prompts/django-reviewer.md",
+  "frameworks/laravel":    "specialist-prompts/laravel-reviewer.md",
+  "frameworks/sqlalchemy": "specialist-prompts/sqlalchemy-reviewer.md",
+  "patterns/tdd":          "specialist-prompts/tdd-compliance-reviewer.md",
+  "patterns/ddd":          "specialist-prompts/ddd-reviewer.md",
+  "patterns/di":           "specialist-prompts/di-reviewer.md",
+  "design/figma":          "specialist-prompts/design-implementation-reviewer.md",
+  "design/design-system":  "specialist-prompts/design-system-compliance-reviewer.md",
 }
 ```

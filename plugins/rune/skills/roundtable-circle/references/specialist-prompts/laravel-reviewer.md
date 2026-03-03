@@ -1,18 +1,3 @@
----
-name: laravel-reviewer
-description: |
-  Laravel specialist reviewer for PHP Laravel codebases.
-  Reviews Eloquent patterns, middleware, authorization, Blade XSS prevention,
-  migration safety, and queue patterns. Activated when Laravel is detected.
-  Keywords: laravel, eloquent, blade, middleware, gate, policy, artisan.
-tools:
-  - Read
-  - Glob
-  - Grep
-maxTurns: 30
-mcpServers:
-  - echo-search
----
 
 # Laravel Reviewer — Stack Specialist Ash
 

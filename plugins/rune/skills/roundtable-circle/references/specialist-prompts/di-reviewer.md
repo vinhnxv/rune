@@ -1,18 +1,3 @@
----
-name: di-reviewer
-description: |
-  Dependency Injection reviewer for codebases using DI containers.
-  Reviews scope management, protocol binding, circular dependencies, container lifecycle,
-  and service locator anti-patterns. Activated when DI framework detected.
-  Keywords: dependency injection, dishka, tsyringe, container, scope, provide, inject.
-tools:
-  - Read
-  - Glob
-  - Grep
-maxTurns: 30
-mcpServers:
-  - echo-search
----
 
 # DI Reviewer — Stack Specialist Ash
 

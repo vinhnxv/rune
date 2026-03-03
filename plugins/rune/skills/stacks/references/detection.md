@@ -361,6 +361,10 @@ has_di_framework(detected_stack):
 
 ### prioritize(specialist_selections, max_stack_ashes)
 
+> Specialist names here are prompt template identifiers, not agent names.
+> Prompts live in `skills/roundtable-circle/references/specialist-prompts/`.
+> `buildAshPrompt()` resolves the correct directory via filesystem-derived dispatch.
+
 ```
 prioritize(specialist_selections, max_stack_ashes):
   # Ordering: language > framework > pattern specialists

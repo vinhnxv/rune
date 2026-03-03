@@ -51,9 +51,11 @@ Centralized reference for the `cost_tier` system that controls which Claude mode
 
 `breach-hunter`, `truth-seeker`, `fringe-watcher`, `ruin-watcher`, `ruin-prophet`, `grace-warden`, `sight-oracle`, `vigil-keeper`, `ember-seer`, `decay-tracer`, `rot-seeker`, `signal-watcher`, `order-auditor`, `decree-auditor`, `strand-tracer`, `depth-seer`, `blight-seer`, `rune-architect`, `hypothesis-investigator`
 
-### Standard review (32)
+### Standard review (20)
 
-`flaw-hunter`, `void-analyzer`, `wraith-finder`, `mimic-detector`, `pattern-seer`, `tide-watcher`, `trial-oracle`, `type-warden`, `forge-keeper`, `ember-oracle`, `schema-drift-detector`, `phantom-checker`, `refactor-guardian`, `reference-validator`, `naming-intent-analyzer`, `simplicity-warden`, `agent-parity-reviewer`, `tdd-compliance-reviewer`, `ward-sentinel`, `python-reviewer`, `typescript-reviewer`, `rust-reviewer`, `php-reviewer`, `fastapi-reviewer`, `django-reviewer`, `laravel-reviewer`, `sqlalchemy-reviewer`, `ddd-reviewer`, `di-reviewer`, `cross-shard-sentinel`, `design-implementation-reviewer`, `axum-reviewer`
+`flaw-hunter`, `void-analyzer`, `wraith-finder`, `mimic-detector`, `pattern-seer`, `tide-watcher`, `trial-oracle`, `type-warden`, `forge-keeper`, `ember-oracle`, `schema-drift-detector`, `phantom-checker`, `refactor-guardian`, `reference-validator`, `naming-intent-analyzer`, `simplicity-warden`, `agent-parity-reviewer`, `ward-sentinel`, `cross-shard-sentinel`, `design-implementation-reviewer`
+
+> **Note:** Stack specialist reviewers (`python-reviewer`, `typescript-reviewer`, `rust-reviewer`, `php-reviewer`, `axum-reviewer`, `fastapi-reviewer`, `django-reviewer`, `laravel-reviewer`, `sqlalchemy-reviewer`, `tdd-compliance-reviewer`, `ddd-reviewer`, `di-reviewer`) are prompt templates in `specialist-prompts/`, not registered agents. They inherit the Standard review model tier when invoked via `buildAshPrompt()` stack dispatch.
 
 ### Code workers (5)
 

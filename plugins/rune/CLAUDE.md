@@ -16,7 +16,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **chome-pattern** | CLAUDE_CONFIG_DIR resolution pattern for multi-account support |
 | **polling-guard** | Monitoring loop fidelity — correct waitForCompletion translation, anti-pattern reference |
 | **skill-testing** | TDD methodology for skills — pressure testing, rationalization counters, Iron Law (SKT-001). `disable-model-invocation: true` |
-| **stacks** | Stack-aware intelligence — 4-layer detection engine (manifest scanning → context routing → knowledge skills → enforcement agents). 12 specialist reviewers (Python, TypeScript, Rust, PHP, Axum, FastAPI, Django, Laravel, SQLAlchemy, TDD, DDD, DI). Non-invocable — auto-loaded by Rune Gaze Phase 1A |
+| **stacks** | Stack-aware intelligence — 4-layer detection engine (manifest scanning → context routing → knowledge skills → enforcement agents). 12 specialist prompt templates in `specialist-prompts/` (Python, TypeScript, Rust, PHP, Axum, FastAPI, Django, Laravel, SQLAlchemy, TDD, DDD, DI) loaded on-demand by `buildAshPrompt()`. Non-invocable — auto-loaded by Rune Gaze Phase 1A |
 | **frontend-design-patterns** | Frontend design implementation knowledge — design systems, design tokens, accessibility (WCAG 2.1 AA), responsive patterns, component reuse (REUSE > EXTEND > CREATE), layout alignment, variant mapping, Storybook, visual region analysis, UI state handling. Non-invocable — auto-loaded by Stacks context router for frontend files |
 | **storybook** | Storybook component verification knowledge — CSF3 format, MCP tools reference, story generation patterns, visual quality checks (SBK-B-001 through SBK-B-013), Mode A (Design Fidelity with VSM) and Mode B (UI Quality Audit heuristics), responsive breakpoints. Non-invocable — auto-loaded by arc Phase 3.3 when `storybook.enabled: true` in talisman |
 | **design-system-discovery** | Design system auto-detection — scans repo for component libraries, token systems, and variant frameworks to build `design-system-profile.yaml`. Provides `discoverDesignSystem()` algorithm. Non-invocable — auto-loaded by devise Phase 0.5, strive worker injection Phase 1.5, and arc Phase 2.8 |
@@ -173,6 +173,10 @@ Centralized model selection based on `cost_tier` config. Maps agent name → cat
 
 See [references/cost-tier-mapping.md](references/cost-tier-mapping.md) for the full category-to-tier map, agent assignments, and pseudocode.
 
+## Agent Placement Rules
+
+- New stack-specific reviewers go to `specialist-prompts/`, not `agents/review/`.
+
 ## Versioning & Pre-Commit Checklist
 
 Every change to this plugin MUST include updates to all four files:
@@ -328,7 +332,7 @@ echo "Commands: $(find plugins/rune/commands -name '*.md' -not -path '*/referenc
 
 ## References
 
-- [Agent registry](references/agent-registry.md) — 40 review + 5 research + 4 work + 14 utility + 24 investigation + 4 testing agents
+- [Agent registry](references/agent-registry.md) — 30 review + 5 research + 4 work + 14 utility + 24 investigation + 4 testing agents (12 stack specialist reviewers are prompt templates, not registered agents)
 - [Key concepts](references/key-concepts.md) — Tarnished, Ash, TOME, Arc, Mend, Forge Gaze, Echoes
 - [Lore glossary](references/lore-glossary.md) — Elden Ring terminology mapping
 - [Output conventions](references/output-conventions.md) — Directory structure per workflow

@@ -102,7 +102,7 @@ breakdown is sufficient.
 Generate a permutation matrix covering 7 dimensions (skip irrelevant ones):
 User Type, Entry Point, Client/Context, Network Condition, Prior State, Data State, Timing.
 
-For the full dimension table, see [flow-analysis-categories.md](references/flow-analysis-categories.md).
+For the full dimension table, see [flow-analysis-categories.md](../../skills/roundtable-circle/references/agent-patterns/flow-analysis-categories.md).
 
 For each relevant combination, assess:
 - **Spec Coverage**: Explicit / Implicit / Missing
@@ -126,7 +126,7 @@ Check the spec against 12 categories: Error Handling, State Management, Input Va
 User Feedback, Security, Accessibility, Data Persistence, Timeout & Rate Limiting,
 Resume & Cancellation, Integration Contracts, Concurrency, Internationalization.
 
-For the full category checklist, see [flow-analysis-categories.md](references/flow-analysis-categories.md).
+For the full category checklist, see [flow-analysis-categories.md](../../skills/roundtable-circle/references/agent-patterns/flow-analysis-categories.md).
 
 Before checking, emit a category relevance assessment:
 ```

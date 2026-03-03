@@ -200,9 +200,10 @@ computeContextManifest(task_type, file_scope, detected_stack, task_description):
         "Domain filter: requires " + rule_domains.join("/") +
         " but current domains are " + Object.keys(domains).filter(k => domains[k]).join("/")
 
-  # Step 7: Select agents from SKILL_TO_AGENT_MAP
+  # Step 7: Select specialists from SKILL_TO_PROMPT_MAP
+  # Note: Specialist names are prompt template identifiers (specialist-prompts/), not agent files.
   for skill in manifest.skills_to_load:
-    agent = SKILL_TO_AGENT_MAP[skill]
+    agent = SKILL_TO_PROMPT_MAP[skill]  # Returns specialist name for buildAshPrompt() dispatch
     if agent:
       manifest.agents_selected.push(agent)
 
@@ -254,7 +255,7 @@ The context manifest is written to `inscription.json` immediately after `detecte
     "domains": { "backend": true, "frontend": false, "database": true },
     "skills_loaded": ["languages/python", "frameworks/fastapi", "databases/postgres"],
     "skills_excluded": { "languages/typescript": "No TypeScript files in scope" },
-    "agents_selected": ["python-reviewer", "fastapi-reviewer"],
+    "agents_selected": ["python-reviewer", "fastapi-reviewer"],  // specialist prompt names, not agent files
     "loading_strategy": "domain-scoped"
   }
 }

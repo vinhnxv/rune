@@ -1,18 +1,3 @@
----
-name: typescript-reviewer
-description: |
-  TypeScript specialist reviewer for strict-mode TypeScript codebases.
-  Reviews type safety, discriminated unions, exhaustive matching, async patterns,
-  and TS-specific security issues. Activated when TypeScript stack is detected.
-  Keywords: typescript, tsx, type safety, strict mode, zod, discriminated union.
-tools:
-  - Read
-  - Glob
-  - Grep
-maxTurns: 30
-mcpServers:
-  - echo-search
----
 
 # TypeScript Reviewer — Stack Specialist Ash
 

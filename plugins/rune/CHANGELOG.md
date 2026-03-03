@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.131.1] - 2026-03-04
+
+### Removed
+- Specialist reviewer agents (python-reviewer, typescript-reviewer, etc.) are no longer
+  registered in the Claude Code agent registry. They are invoked exclusively through
+  `/rune:appraise` via stack detection. If you have custom Ashes in talisman.yml referencing
+  specialist agent names (e.g., `agent: "python-reviewer"`), replace with
+  `agent: "general-purpose"` and add the specialist name to your custom Ash's prompt field.
+
 ## [1.131.0] - 2026-03-03
 
 ### Added

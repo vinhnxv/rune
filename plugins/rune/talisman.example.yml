@@ -195,17 +195,17 @@ settings:
     - BACK         # Forge Warden
     - VEIL         # Veil Piercer (truth-telling)
     - DOUBT        # Doubt Seer (meta-findings, non-deduplicable)
-    - PY           # Python Reviewer (stack specialist, v1.86.0+)
-    - TSR          # TypeScript Reviewer (stack specialist, v1.86.0+)
-    - RST          # Rust Reviewer (stack specialist, v1.86.0+)
-    - PHP          # PHP Reviewer (stack specialist, v1.86.0+)
-    - FAPI         # FastAPI Reviewer (stack specialist, v1.86.0+)
-    - DJG          # Django Reviewer (stack specialist, v1.86.0+)
-    - LARV         # Laravel Reviewer (stack specialist, v1.86.0+)
-    - SQLA         # SQLAlchemy Reviewer (stack specialist, v1.86.0+)
-    - TDD          # TDD Compliance Reviewer (stack specialist, v1.86.0+)
-    - DDD          # DDD Reviewer (stack specialist, v1.86.0+)
-    - DI           # DI Reviewer (stack specialist, v1.86.0+)
+    - PY           # Python Reviewer (stack specialist prompt template, v1.86.0+)
+    - TSR          # TypeScript Reviewer (stack specialist prompt template, v1.86.0+)
+    - RST          # Rust Reviewer (stack specialist prompt template, v1.86.0+)
+    - PHP          # PHP Reviewer (stack specialist prompt template, v1.86.0+)
+    - FAPI         # FastAPI Reviewer (stack specialist prompt template, v1.86.0+)
+    - DJG          # Django Reviewer (stack specialist prompt template, v1.86.0+)
+    - LARV         # Laravel Reviewer (stack specialist prompt template, v1.86.0+)
+    - SQLA         # SQLAlchemy Reviewer (stack specialist prompt template, v1.86.0+)
+    - TDD          # TDD Compliance Reviewer (stack specialist prompt template, v1.86.0+)
+    - DDD          # DDD Reviewer (stack specialist prompt template, v1.86.0+)
+    - DI           # DI Reviewer (stack specialist prompt template, v1.86.0+)
     - API          # Custom: api-contract-reviewer
     - DOM          # Custom: domain-logic-reviewer
     - PERF         # Custom: perf-deep-scan
@@ -218,7 +218,7 @@ settings:
   verification:
     layer_2_custom_agents: true
   # NOTE: Enforcement Asymmetry config is in the review: convergence section below.
-  # See review: → enforcement_asymmetry: or agents/review/references/enforcement-asymmetry.md
+  # See review: → enforcement_asymmetry: or skills/roundtable-circle/references/agent-patterns/enforcement-asymmetry.md
 
 # ── Deep Audit settings (v1.56.0+) ──────────────
 # Deep investigation teammates for /rune:audit --deep.
@@ -781,7 +781,7 @@ echoes:
   # per-chunk convergence within a single Phase 6 invocation.
   # Enforcement Asymmetry (v1.88.0+)
   # Applies variable strictness based on change context (new file vs edit, shared vs isolated).
-  # See agents/review/references/enforcement-asymmetry.md for full protocol.
+  # See skills/roundtable-circle/references/agent-patterns/enforcement-asymmetry.md for full protocol.
   # enforcement_asymmetry:
   #   enabled: true                    # Master toggle (default: true)
   #   security_always_strict: true     # Cannot be disabled
@@ -1518,6 +1518,8 @@ context_weaving:
 
 # ── Stack-Aware Intelligence (v1.86.0+) ──
 # Controls stack detection engine behavior and specialist reviewer selection.
+# Specialist reviewers are prompt templates (specialist-prompts/), not registered agents.
+# buildAshPrompt() loads them on-demand via filesystem-derived dispatch.
 # stack_awareness:
 #   enabled: true                          # Master switch — disables all stack detection when false (default: true)
 #   confidence_threshold: 0.6              # Minimum confidence for stack detection to activate (0.0-1.0, default: 0.6)
