@@ -16,7 +16,7 @@ description: |
   </example>
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[--quick] [--no-brainstorm] [--no-forge] [--no-arena] [--no-verify-research] [--exhaustive]"
+argument-hint: "[--quick] [--brainstorm-context PATH] [--no-brainstorm] [--no-forge] [--no-arena] [--no-verify-research] [--exhaustive]"
 allowed-tools:
   - Agent
   - TaskCreate
@@ -48,6 +48,7 @@ Orchestrates a planning pipeline using Agent Teams with dependency-aware task sc
 ```
 /rune:devise                              # Full pipeline (brainstorm + research + validate + synthesize + shatter? + forge + review)
 /rune:devise --quick                      # Quick: research + synthesize + review only (skip brainstorm, forge, shatter)
+/rune:devise --brainstorm-context PATH    # Skip Phase 0, use existing brainstorm workspace for rich research context
 ```
 
 ### Legacy Flags (still functional, undocumented)
@@ -67,7 +68,7 @@ Orchestrates a planning pipeline using Agent Teams with dependency-aware task sc
 ```
 Phase -1: Team Bootstrap (TeamCreate + state file — enables ATE-1 enforcement)
     ↓
-Phase 0: Gather Input (brainstorm by default — auto-skip when requirements are clear)
+Phase 0: Gather Input (3 paths: --brainstorm-context → read workspace, --quick → skip, default → delegate to brainstorm protocol)
     ↓
 Phase 1: Research (up to 8 agents, conditional — join existing team)
     ├─ Phase 1A: LOCAL RESEARCH (always — repo-surveyor, echo-reader, git-miner)
@@ -190,9 +191,13 @@ Write(`tmp/.rune-plan-${timestamp}.json`, {
 
 ## Phase 0: Gather Input
 
-Runs a structured brainstorm session by default. Auto-detects recent brainstorms in `docs/brainstorms/` and `tmp/plans/*/brainstorm-decisions.md`. Skips when requirements are already clear.
+Three paths based on flags:
 
-**Skip conditions**: `--quick` flag, user provided specific acceptance criteria, scope is constrained and well-defined.
+1. **`--brainstorm-context PATH`**: Read existing brainstorm workspace. Skip brainstorm entirely. Inject workspace context (advisor research, decisions, quality score) into Phase 1 research agents. Quality score from `workspace-meta.json` determines confidence level (>= 0.70: high-confidence, < 0.70: flag as "exploratory").
+
+2. **`--quick`**: Skip brainstorm entirely. Ask user for a feature description via AskUserQuestion. Proceed directly to Phase 1.
+
+3. **Default**: Delegate to the brainstorm protocol defined in `skills/brainstorm/SKILL.md`. Brainstorm runs with these devise-specific overrides: advisors join existing `rune-plan-{timestamp}` team (not a separate team), workspace co-located at `tmp/brainstorm-{timestamp}/`, also writes to `tmp/plans/{timestamp}/brainstorm-decisions.md` (legacy location), skips the brainstorm handoff phase (devise continues to research).
 
 **Elicitation**: After approach selection, summons 1-3 elicitation-sage teammates (keyword-count fan-out, 15-keyword list). Skippable via `talisman.elicitation.enabled: false`.
 
@@ -290,7 +295,7 @@ if (design_sync_candidate && designSyncEnabled && figmaUrl) {
 }
 ```
 
-See [brainstorm-phase.md](references/brainstorm-phase.md) for the full protocol — all steps, elicitation sage spawning, decision capture templates, design asset detection (Step 3.2), and ATE-1 compliance notes.
+See [brainstorm-phase.md](references/brainstorm-phase.md) for the delegation protocol, `--brainstorm-context` workspace reading, and devise-specific overrides.
 
 Read and execute when Phase 0 runs.
 

@@ -25,7 +25,8 @@ description: |
 
   Keywords: tarnished, master command, route, guide, what should I do,
   figure it out, do everything, help me, which command, rune help,
-  how does rune work, explain, teach, recommend, best practice.
+  how does rune work, explain, teach, recommend, best practice,
+  brainstorm, explore idea, khám phá, thảo luận.
 
   <example>
   user: "/rune:tarnished plan add dark mode"
@@ -89,6 +90,8 @@ Read `$ARGUMENTS`. Three paths:
   - If uncommitted changes exist: "Review my changes" (→ appraise)
   - If plans/ has recent plans: "Implement latest plan" (→ strive)
   - If TOME exists: "Fix review findings" (→ mend)
+  - If docs/brainstorms/ has recent brainstorms: "Continue brainstorming" (→ brainstorm)
+  - Always: "Brainstorm an idea" (→ brainstorm)
   - Always: "Plan a new feature" (→ devise)
 ```
 
@@ -100,10 +103,10 @@ Read `$ARGUMENTS`. Three paths:
 → Example: "plan add auth" → Skill("rune:devise", args: "add auth")
 ```
 
-Fast-path keywords: `plan`, `work`, `review`, `devise`, `strive`, `appraise`,
-`audit`, `arc`, `arc-batch`, `arc-issues`, `arc-hierarchy`, `forge`, `mend`,
-`inspect`, `goldmask`, `elicit`, `rest`, `echoes`, `clean`, `ship`, `fix`,
-`debug`, `cancel`.
+Fast-path keywords: `plan`, `work`, `review`, `brainstorm`, `explore`, `devise`,
+`strive`, `appraise`, `audit`, `arc`, `arc-batch`, `arc-issues`, `arc-hierarchy`,
+`forge`, `mend`, `inspect`, `goldmask`, `elicit`, `rest`, `echoes`, `clean`,
+`ship`, `fix`, `debug`, `cancel`.
 
 **Path C — Natural language** (no keyword match):
 ```
@@ -164,10 +167,11 @@ Input implies a skill but doesn't specify required input (e.g., "implement it" w
 User wants to think before acting.
 
 ```
-1. If discussion/reasoning needed → Skill("rune:elicit", args: "{topic}")
-2. If research needed → gather context inline (Read, Grep, Glob)
-3. After exploration, suggest next step:
-   "Research complete. Ready to create a plan?"
+1. If idea exploration / brainstorm intent → Skill("rune:brainstorm", args: "{topic}")
+2. If structured reasoning needed → Skill("rune:elicit", args: "{topic}")
+3. If research needed → gather context inline (Read, Grep, Glob)
+4. After exploration, suggest next step:
+   "Ready to create a plan?"
    → AskUserQuestion
 ```
 

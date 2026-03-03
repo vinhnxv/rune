@@ -81,6 +81,8 @@ New to Rune? Start with three commands:
 
 These are beginner-friendly aliases for `/rune:devise`, `/rune:strive`, and `/rune:appraise`.
 
+**Tip**: Not sure what to build? Start with `/rune:brainstorm` to explore ideas before planning.
+
 See the [Getting Started guide (EN)](../../docs/guides/rune-getting-started.en.md) | [Hướng dẫn bắt đầu (VI)](../../docs/guides/rune-getting-started.vi.md) for a complete walkthrough.
 
 ### `/rune:tarnished` — The Unified Entry Point
@@ -585,7 +587,7 @@ Each Ash embeds several review agents as specialized perspectives. For example, 
 
 ### Review Agents
 
-40 specialized agents that Ash embed as perspectives:
+42 specialized agents that Ash embed as perspectives:
 
 | Agent | Focus |
 |-------|-------|
@@ -677,6 +679,7 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | Skill | Purpose |
 |-------|---------|
 | agent-browser | Browser automation knowledge injection for E2E testing (non-invocable) |
+| brainstorm | Collaborative idea exploration — 3 modes: Solo (conversation), Roundtable Advisors (3 agent personas), Deep (advisors + elicitation sages). Persistent output in `docs/brainstorms/`. `disable-model-invocation: true` |
 | arc | End-to-end orchestration pipeline (pre-flight freshness gate + 26 phases: forge → plan review → plan refinement → verification → semantic verification → design extraction → task decomposition → work → design verification → gap analysis → codex gap analysis → gap remediation → goldmask verification → code review → goldmask correlation → mend → verify mend → design iteration → test → test coverage critique → pre-ship validation → release quality check → ship → bot review wait → PR comment resolution → merge) |
 | arc-batch | Sequential batch arc execution with crash recovery and progress tracking |
 | arc-hierarchy | Hierarchical plan execution — parent/child plan decomposition with dependency DAGs and requires/provides contracts |
@@ -837,12 +840,12 @@ plugins/rune/
 │   └── plugin.json
 ├── agents/
 │   ├── investigation/       # 24 investigation agents (Goldmask + Inspect)
-│   ├── review/              # 40 review agents
+│   ├── review/              # 42 review agents
 │   │   └── references/      # Shared review checklists
 │   ├── research/            # 5 research agents (plan pipeline)
-│   ├── testing/             # 4 testing agents (arc Phase 7.7)
-│   ├── work/                # 4 swarm workers (work pipeline)
-│   └── utility/             # 15 utility agents: runebinder, decree-arbiter, truthseer-validator, flow-seer, scroll-reviewer, mend-fixer, knowledge-keeper, elicitation-sage, veil-piercer-plan, horizon-sage, deployment-verifier, evidence-verifier, research-verifier, state-weaver, design-iterator (+ gap-fixer as prompt-template, no .md file)
+│   ├── testing/             # 5 testing agents (arc Phase 7.7)
+│   ├── work/                # 6 swarm workers (work pipeline)
+│   └── utility/             # 14 utility agents: runebinder, decree-arbiter, truthseer-validator, flow-seer, scroll-reviewer, mend-fixer, knowledge-keeper, elicitation-sage, veil-piercer-plan, horizon-sage, deployment-verifier, evidence-verifier, research-verifier, state-weaver (+ gap-fixer as prompt-template, no .md file)
 ├── commands/
 │   ├── cancel-arc.md           # /rune:cancel-arc
 │   ├── cancel-arc-batch.md     # /rune:cancel-arc-batch
@@ -854,6 +857,7 @@ plugins/rune/
 │   ├── elicit.md               # /rune:elicit
 │   ├── echoes.md               # /rune:echoes
 │   ├── file-todos.md           # /rune:file-todos
+│   ├── brainstorm.md            # /rune:brainstorm (alias for /rune:brainstorm skill)
 │   ├── plan.md                 # /rune:plan (alias for /rune:devise)
 │   ├── plan-review.md          # /rune:plan-review
 │   ├── rest.md                 # /rune:rest
@@ -868,6 +872,10 @@ plugins/rune/
 │   ├── arc-hierarchy/       # /rune:arc-hierarchy (hierarchical plan execution)
 │   ├── arc-issues/          # /rune:arc-issues (GitHub Issues-driven batch arc)
 │   │   └── references/      # arc-issues-algorithm.md
+│   ├── brainstorm/          # /rune:brainstorm (collaborative idea exploration)
+│   │   ├── SKILL.md
+│   │   ├── CREATION-LOG.md
+│   │   └── references/      # brainstorm-output-template.md
 │   ├── ash-guide/           # Agent reference
 │   ├── audit/               # /rune:audit (full codebase audit, --deep mode)
 │   │   └── references/      # deep-mode.md

@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.130.0] - 2026-03-03
+
+### Added
+- **Standalone `/rune:brainstorm` skill** — Collaborative idea exploration with 3 modes: Solo (conversation, no agents), Roundtable (3 advisor agents: User Advocate, Tech Realist, Devil's Advocate), Deep (advisors + elicitation sages). Persistent output in `docs/brainstorms/` survives `/rune:rest`. 7-dimension quality gate scores brainstorm readiness for planning handoff.
+- **Brainstorm workspace** — Full context chain preserved at `tmp/brainstorm-{timestamp}/` (advisor observations, codebase research, round history, elicitation outputs) for rich `/rune:devise` starting context.
+- **`/rune:brainstorm` beginner alias command** — Thin wrapper routing to `/rune:brainstorm`.
+- **Tarnished routing for brainstorm** — Fast-path keywords (`brainstorm`, `explore`), Vietnamese keywords (`kham pha`, `thao luan`), exploratory intent classification, brainstorm-then-plan and brainstorm-then-arc workflow chains.
+- **Devise `--brainstorm-context PATH` flag** — Skip Phase 0, read existing brainstorm workspace for rich research context with quality-score-based confidence level.
+
+### Changed
+- **Devise Phase 0 delegates to brainstorm protocol** — `brainstorm-phase.md` replaced with thin delegation wrapper (~99 lines, from 474). Brainstorm skill is now the single source of truth for brainstorm logic. Three Phase 0 paths: `--brainstorm-context` (read workspace), `--quick` (skip), default (delegate to brainstorm protocol with devise-specific overrides).
+
 ## [1.129.2] - 2026-03-03
 
 ### Fixed

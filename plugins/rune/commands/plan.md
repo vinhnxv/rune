@@ -17,7 +17,7 @@ description: |
   </example>
 user-invocable: true
 allowed-tools:
-  - Task
+  - Agent
   - TaskCreate
   - TaskList
   - TaskUpdate
@@ -56,6 +56,8 @@ using multi-agent research and synthesis.
 4. **Review** — Validates the plan for completeness
 
 **Output**: `plans/YYYY-MM-DD-{type}-{name}-plan.md`
+
+**Tip**: Not sure what to build? Use `/rune:brainstorm` first to explore ideas before planning.
 
 ## After Planning
 

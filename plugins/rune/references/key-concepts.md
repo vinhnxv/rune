@@ -12,6 +12,25 @@ the protagonist who journeys through the Lands Between. In Rune, the Tarnished:
 
 The Tarnished is the lead agent in every team. Machine identifier: `team-lead`.
 
+## Brainstorm (Idea Exploration)
+
+Standalone skill for collaborative exploration of WHAT to build before planning HOW. Three modes:
+- **Solo** (`--quick`) — pure conversation, no agents. Lead asks questions directly.
+- **Roundtable** (default) — 3 advisor agents engage the user in structured dialogue with lightweight codebase research.
+- **Deep** (`--deep`) — advisors + 1-3 elicitation sages for structured reasoning.
+
+Output: `docs/brainstorms/YYYY-MM-DD-topic-brainstorm.md` (persistent, survives `/rune:rest`).
+Devise Phase 0 delegates to brainstorm logic via `--brainstorm-context` flag.
+
+## Roundtable Advisors
+
+Three advisor personas used in brainstorm roundtable and deep modes:
+- **User Advocate** — focuses on user needs, personas, pain points, accessibility
+- **Tech Realist** — evaluates feasibility, existing patterns, complexity, trade-offs
+- **Devil's Advocate** — challenges assumptions, proposes alternatives, applies YAGNI
+
+Advisors do lightweight codebase research (Glob, Grep, Read) to ground their questions in reality. This is NOT a replacement for full research agents in `/rune:devise` Phase 1.
+
 ## Implementation Gap Analysis (Arc Phase 5.5)
 
 Deterministic, orchestrator-only phase between WORK and CODE REVIEW. Cross-references plan acceptance criteria against committed code changes. Categories: ADDRESSED, MISSING, PARTIAL. Also runs doc-consistency checking via talisman verification_patterns (phase-filtered for post-work). Advisory only — warns but never halts.

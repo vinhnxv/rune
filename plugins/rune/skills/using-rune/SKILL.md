@@ -1,14 +1,15 @@
 ---
 name: using-rune
 description: |
-  Use when the user asks to review code, plan features, audit a codebase,
-  implement a plan, fix review findings, debug failed builds, analyze code
-  impact, or run end-to-end workflows. Also use when the user seems unsure
-  which Rune command to use, when the user says "review", "plan", "audit",
-  "implement", "fix findings", "ship it", "check my code", "what changed",
-  or "help me think through this". Routes user intent to the correct
+  Use when the user asks to review code, plan features, brainstorm ideas,
+  audit a codebase, implement a plan, fix review findings, debug failed
+  builds, analyze code impact, or run end-to-end workflows. Also use when
+  the user seems unsure which Rune command to use, when the user says
+  "review", "plan", "brainstorm", "explore idea", "audit", "implement",
+  "fix findings", "ship it", "check my code", "what changed", or
+  "help me think through this". Routes user intent to the correct
   /rune:* command. Keywords: which command, what to use, rune help, workflow
-  routing, review, audit, plan, implement.
+  routing, review, audit, plan, brainstorm, explore, implement.
 user-invocable: false
 disable-model-invocation: false
 ---
@@ -24,11 +25,12 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 |-----------|---------|-----|
 | "Review my code" / "check this PR" / "code review" | `/rune:appraise` | Multi-agent review of changed files |
 | "Audit the codebase" / "security scan" / "full review" | `/rune:audit` | Comprehensive codebase analysis (all files, not just diff) |
+| "Brainstorm" / "explore idea" / "what should we build" / "thảo luận" | `/rune:brainstorm` | Collaborative idea exploration (3 modes: solo, roundtable, deep) |
 | "Plan a feature" / "design this" / "how should we build" | `/rune:devise` | Multi-agent planning pipeline (brainstorm + research + synthesize) |
 | "Quick plan" / "just outline it" | `/rune:devise --quick` | Lightweight planning (research + synthesize, skip brainstorm/forge) |
 | "Implement this" / "build it" / "execute the plan" | `/rune:strive plans/...` | Swarm workers execute a plan file |
 | "Fix these findings" / "resolve the review" | `/rune:mend tmp/.../TOME.md` | Parallel resolution of review findings |
-| "Run everything" / "ship it" / "end to end" | `/rune:arc plans/...` | Full 18-phase pipeline (forge → work → review → mend → test → goldmask → ship → merge) |
+| "Run everything" / "ship it" / "end to end" | `/rune:arc plans/...` | Full 26-phase pipeline (forge → work → review → mend → test → goldmask → ship → merge) |
 | "Batch arc" / "run all plans" / "overnight" / "multiple plans" | `/rune:arc-batch plans/*.md` | Sequential batch arc execution with auto-merge and crash recovery |
 | "Process GitHub issues" / "run issues" / "issue backlog" / "auto-implement from issues" | `/rune:arc-issues --label "rune:ready"` | GitHub Issues-driven batch arc — fetches issues, generates plans, runs arc, comments results |
 | "Deepen this plan" / "add more detail" / "enrich" | `/rune:forge plans/...` | Forge Gaze topic-aware enrichment |
@@ -45,6 +47,7 @@ For users new to Rune, these simpler commands forward to the full versions:
 
 | User Says | Suggest | Equivalent |
 |-----------|---------|------------|
+| "brainstorm" / "explore" | `/rune:brainstorm` | `/rune:brainstorm` skill |
 | "plan" / "plan this" | `/rune:plan` | `/rune:devise` |
 | "work" / "build" / "implement" | `/rune:work` | `/rune:strive` |
 | "review" / "check my code" | `/rune:review` | `/rune:appraise` |
@@ -81,6 +84,7 @@ For users new to Rune, these simpler commands forward to the full versions:
 | `/rune:talisman` | No | 1-3 min | Subcommand (init/audit/update/guide/status) |
 | `/rune:codex-review` | Yes (up to 4) | 5-15 min | Git diff (auto-detected) |
 | `/rune:rest` | No | <1 min | None |
+| `/rune:brainstorm` | Yes (0-3 advisors) | 1-8 min | Feature idea |
 | `/rune:plan` | (alias for `/rune:devise`) |||
 | `/rune:work` | (alias for `/rune:strive`) |||
 | `/rune:review` | (alias for `/rune:appraise`) |||

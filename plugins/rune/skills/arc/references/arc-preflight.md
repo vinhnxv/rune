@@ -501,6 +501,7 @@ const ARC_TEAM_PREFIXES = [
   "arc-sage-",  // ephemeral elicitation sage team (mend Phase 7 — conditional on P1 findings)
   "arc-design-", "arc-design-verify-", "arc-design-iter-",  // design sync teams (conditional — design_sync.enabled)
   "rune-forge-", "rune-work-", "rune-review-", "rune-mend-", "rune-mend-deep-", "rune-audit-",  // sub-command teams
+  "rune-brainstorm-",  // brainstorm skill teams (Solo/Roundtable/Deep modes)
   "goldmask-"  // goldmask skill teams (Phase 5.7 delegation)
 ]
 
