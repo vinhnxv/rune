@@ -3,8 +3,6 @@ version: 1
 # ──────────────────────────────────────────────
 # Rune Gaze — File classification overrides
 # ──────────────────────────────────────────────
-agent_teams:
-  enabled: true
 
 rune-gaze:
   backend_extensions:
