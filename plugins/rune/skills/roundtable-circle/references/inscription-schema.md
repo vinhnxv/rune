@@ -79,7 +79,14 @@
     "enabled": "boolean — true when design_sync.enabled AND frontend files AND VSM available",
     "vsm_dir": "string | null — path to VSM directory (e.g., 'tmp/arc/{id}/vsm/')",
     "dcd_dir": "string | null — path to DCD directory (e.g., 'tmp/arc/{id}/design/')",
-    "figma_url": "string | null — Figma file URL from plan frontmatter or talisman",
+    "figma_urls": [
+      {
+        "url": "string — full Figma URL",
+        "role": "string — primary | variant | breakpoint | unknown",
+        "screen": "string | null — human-readable screen label (e.g., 'Desktop', 'Mobile')"
+      }
+    ],
+    "figma_url": "string | null — DEPRECATED: first entry of figma_urls[].url. Kept for backward compat. New consumers MUST read figma_urls[] instead.",
     "fidelity_threshold": "number — minimum fidelity score (default: 0.8, from talisman.design_sync.fidelity_threshold)",
     "components": ["array of component name strings extracted from VSM"],
     "token_system": "string | null — design token system identifier (e.g., 'figma-tokens', 'style-dictionary')"
@@ -300,3 +307,5 @@
 | `verification.research_verification` | No | `{ "enabled": false }` — populated by Phase 1C.5 during `/rune:devise` when external research runs. Contains trust verdicts and version mismatch data. (v1.123.0+) |
 | `context_engineering` | No | Defaults applied |
 | `sharding` | No | `{ "enabled": false }` — when absent or `enabled: false`, `teammates[]` works exactly as before (fully backward-compatible). The `sharding` field is purely additive. (v1.98.0+, rune-review `scope=diff` only) |
+| `design_context.figma_urls` | No | `[]` — array of `{ url, role, screen }` objects. Replaces deprecated `figma_url` scalar. Populated by arc Phase 3 (design extraction) when `design_sync.enabled: true`. (v1.201.0+) |
+| `design_context.figma_url` | No | `null` — DEPRECATED scalar. Set to `figma_urls[0].url` for backward compat. New consumers MUST read `figma_urls[]`. |

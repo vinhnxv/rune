@@ -5,18 +5,52 @@ The VSM is the intermediate representation between Figma design data and code im
 ## Schema Version
 
 ```yaml
-vsm_schema_version: "1.0"
+vsm_schema_version: "1.0"  # single-URL extraction (original)
+vsm_schema_version: "1.1"  # multi-URL extraction with variant_sources
 ```
 
 All VSM files MUST include the schema version as the first field in the YAML frontmatter.
 
+**Version compatibility:**
+- v1.0 VSMs remain fully valid — all consumers MUST accept both versions.
+- v1.1 adds optional fields only — v1.0 consumers MUST guard with `schema_version >= "1.1"` before reading new fields.
+- Single-URL fast path: when only 1 Figma URL is present, write v1.0 and omit `variant_sources`.
+
+## Consumer Guard Pattern
+
+Before reading v1.1-only fields, consumers MUST apply this guard:
+
+```javascript
+function readVSM(vsmPath):
+  vsm = parseYAML(Read(vsmPath))
+  // Guard: v1.1+ fields are optional in v1.0 VSMs
+  const isV11 = parseFloat(vsm.vsm_schema_version ?? "1.0") >= 1.1
+  return {
+    ...vsm,
+    variant_sources: isV11 ? (vsm.variant_sources ?? []) : [],
+    relationship_group: isV11 ? (vsm.relationship_group ?? null) : null,
+    relationship_confidence: isV11 ? (vsm.relationship_confidence ?? null) : null
+  }
+```
+
+Six required guard checks:
+1. `vsm_schema_version` field exists before comparing
+2. Default to `"1.0"` if field absent (backward compat)
+3. Parse as float before numeric comparison
+4. `variant_sources` defaults to `[]` when absent
+5. `relationship_group` defaults to `null` when absent
+6. `relationship_confidence` defaults to `null` when absent
+
 ## File Location
 
 ```
-tmp/design-sync/{timestamp}/vsm/{component-name}.md
+tmp/design-sync/{timestamp}/vsm/{component-name}.md  # single-URL
+tmp/arc/{id}/vsm/{component-name}.json               # arc pipeline
 ```
 
 ## Full Schema
+
+### v1.0 (Single-URL)
 
 ```yaml
 ---
@@ -26,6 +60,32 @@ figma_url: "https://www.figma.com/design/abc123/MyApp?node-id=1-3"
 figma_file_key: "abc123"
 figma_node_id: "1-3"
 extracted_at: "2026-02-25T12:00:00Z"
+---
+```
+
+### v1.1 (Multi-URL — merged same-screen group)
+
+```yaml
+---
+vsm_schema_version: "1.1"
+component_name: "CardComponent"
+figma_url: "https://www.figma.com/design/abc123/MyApp?node-id=1-3"
+figma_file_key: "abc123"
+figma_node_id: "1-3"
+extracted_at: "2026-02-25T12:00:00Z"
+
+# v1.1 additions — only present when vsm_schema_version is "1.1"
+variant_sources:
+  - url: "https://www.figma.com/design/abc123/MyApp?node-id=1-3"
+    role: "primary"         # primary | variant | breakpoint
+    node_id: "1-3"
+    state_name: "Desktop"   # human-readable screen/state label
+  - url: "https://www.figma.com/design/abc123/MyApp?node-id=4-7"
+    role: "breakpoint"
+    node_id: "4-7"
+    state_name: "Mobile"
+relationship_group: "grp-001"     # group_id from design-analyst relationship graph
+relationship_confidence: 0.82     # analyst composite score for the primary pair
 ---
 ```
 
@@ -305,10 +365,91 @@ Each compound interaction defines:
 
 Keyboard maps follow WAI-ARIA Authoring Practices for the component pattern.
 
+## Variant Map Merge Algorithm (v1.1 Only)
+
+When a VSM is generated from a same-screen group (multiple `variant_sources`), the
+Variant Map merges properties across all source frames:
+
+```javascript
+function mergeVariantMaps(sources):
+  // 1. Collect all variant property keys across all sources
+  allKeys = union(sources.map(s => Object.keys(s.variantMap)))
+
+  // 2. For each key, collect values and token diffs per source
+  merged = {}
+  for key in allKeys:
+    values = sources
+      .filter(s => key in s.variantMap)
+      .map(s => ({ state_name: s.state_name, ...s.variantMap[key] }))
+    merged[key] = { values, merged: true }
+
+  // 3. Classify properties
+  for key in merged:
+    merged[key].classification = classifyProperty(key, merged[key].values)
+
+  return merged
+```
+
+### Property Classification for Diffing
+
+Properties are classified to determine how they should be diffed across sources:
+
+| Classification | Description | Examples |
+|---------------|-------------|---------|
+| `structurally_immutable` | Same value in all sources — not a variant axis | background color, font family |
+| `state_mutable` | Differs across sources — is a variant axis | width (desktop vs mobile), padding |
+| `content_variable` | Text/image content — differs by design intent | label text, hero image |
+
+```javascript
+function classifyProperty(key, values):
+  uniqueTokenValues = new Set(values.map(v => v.token ?? v.value))
+  if uniqueTokenValues.size === 1: return "structurally_immutable"
+  if key.includes("text") || key.includes("content"): return "content_variable"
+  return "state_mutable"
+```
+
+Only `state_mutable` properties are surfaced in the merged Variant Map diff column.
+`structurally_immutable` properties are listed once. `content_variable` properties
+are omitted from the merged map (implementation handles content separately).
+
+## Region Tree Diff Layer (v1.1 Only)
+
+When sources differ structurally (e.g., Desktop adds a sidebar region absent on Mobile),
+the Region Tree includes an additive diff layer using node path matching:
+
+```markdown
+## Region Tree
+
+- **AppRoot** — `<div>`, flex-row [ALL SOURCES]
+  - **Sidebar** — `<aside>`, w-64 [Desktop only] <!-- state_name: Desktop -->
+  - **Main** — `<main>`, flex-1 [ALL SOURCES]
+    - **Header** — `<header>`, h-16 [ALL SOURCES]
+```
+
+**Node path matching**: Nodes are matched by semantic hierarchy (element type + role),
+NOT by Figma node IDs (which differ across files). Matching algorithm:
+
+```javascript
+function matchNodes(nodesA, nodesB):
+  // Match by: element type + auto-layout direction + child count ± 2
+  for nodeA in nodesA:
+    candidates = nodesB.filter(b =>
+      b.elementType == nodeA.elementType AND
+      b.layoutMode == nodeA.layoutMode AND
+      abs(b.children.length - nodeA.children.length) <= 2
+    )
+    // Best match: highest structural similarity score
+    match = argmax(c in candidates, structuralSimilarity(nodeA, c))
+    if match: yield (nodeA, match)
+    else: yield (nodeA, null)  // Desktop-only node
+```
+
+Unmatched nodes are annotated with `[{state_name} only]` in the Region Tree.
+
 ## Validation Rules
 
 ```
-1. vsm_schema_version MUST be "1.0"
+1. vsm_schema_version MUST be "1.0" or "1.1"
 2. figma_url MUST match FIGMA_URL_PATTERN
 3. Token Map MUST have at least 1 entry
 4. Region Tree MUST have at least 1 root node
@@ -321,4 +462,11 @@ Keyboard maps follow WAI-ARIA Authoring Practices for the component pattern.
 11. If micro_design.compound_interactions is present, each entry MUST have a "keyboard" map
 12. micro_design.scroll entries MUST have "trigger" and "effect" keys (or be set to false)
 13. micro_design.transitions values MUST be valid Tailwind class strings
+// v1.1-only rules (only apply when vsm_schema_version == "1.1")
+14. variant_sources MUST be an array with at least 1 entry
+15. Each variant_sources entry MUST have url, role, node_id, state_name
+16. variant_sources[].role MUST be "primary" | "variant" | "breakpoint"
+17. relationship_group MUST match /^grp-\d{3}$/ when present
+18. relationship_confidence MUST be in [0.0, 1.0] when present
+19. Exactly one variant_sources entry MUST have role: "primary"
 ```
