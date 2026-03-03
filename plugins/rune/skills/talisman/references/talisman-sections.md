@@ -26,7 +26,7 @@ This list reflects the documented schema used by Rune (including default-injecte
 | 17 | `work` | Work/strive settings | `ward_commands`, `max_workers`, `commit_format`, `co_authors`, `branch_prefix`, `unrestricted_shared_files`, `worktree.*` |
 | 18 | `file_todos` | Todo tracking (v2) | `triage`, `manifest`, `history` |
 | 19 | `horizon` | Strategic assessment | `enabled`, `min_score`, `dimensions` |
-| 20 | `testing` | Test orchestration | `unit`, `integration`, `e2e`, `service_startup` |
+| 20 | `testing` | Test orchestration | `tiers.unit`, `tiers.integration`, `tiers.e2e`, `service.*`, `scenarios.*`, `extended_tier.*`, `contract.*`, `visual_regression.*`, `accessibility.*`, `history.*`, `fixtures.*`, `production_readiness.*` |
 | 21 | `doubt_seer` | Claim verification | `enabled`, `min_claims`, `verdict_threshold` |
 | 22 | `codex` | Cross-model verification | `model`, `workflows`, `timeout`, 17 deep integration keys |
 | 23 | `context_monitor` + `context_weaving` | Context management | `enabled`, `warning_threshold`, `glyph_budget`, `offload_threshold`, `pretooluse_guard.enabled` |

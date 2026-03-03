@@ -19,8 +19,10 @@
 | Orchestration (STEP 0-4, 9-10) | Opus (team lead) | Always |
 | Test strategy (STEP 1.5) | Opus (team lead) | Always |
 | Unit test runner | Sonnet | STEP 5 |
+| Contract validator | Sonnet | STEP 5.5, only if contracts enabled |
 | Integration test runner | Sonnet | STEP 6 |
 | E2E browser tester | Sonnet | STEP 7 |
+| Extended test runner | Sonnet | STEP 7.5, only if extended tier enabled |
 | Failure analyst | Opus (inherit) | STEP 8, only if failures |
 
 Team lead NEVER runs `agent-browser` CLI or test commands directly.
@@ -70,6 +72,54 @@ if (testingConfig.enabled === false) {
 }
 
 // ═══════════════════════════════════════════════════════
+// STEP 0.5: SCENARIO DISCOVERY
+// ═══════════════════════════════════════════════════════
+
+// Gate: testing.scenarios.enabled (default true)
+// See testing/references/scenario-schema.md for YAML scenario format
+const scenariosEnabled = testingConfig.scenarios?.enabled !== false
+let scenarios = []
+
+if (scenariosEnabled) {
+  const scenarioFiles = Glob(".claude/test-scenarios/*.yml")
+  const maxPerRun = testingConfig.scenarios?.max_per_run ?? 50
+
+  for (const scenarioFile of scenarioFiles) {
+    try {
+      const raw = Read(scenarioFile)
+      const parsed = parseYAML(raw)  // dispatcher-provided utility
+      // Validate against scenario schema (scenario-schema.md)
+      if (!parsed.name || !parsed.tier) {
+        warn(`Scenario file ${scenarioFile} missing required fields — skipping`)
+        continue
+      }
+      scenarios.push(parsed)
+    } catch (e) {
+      warn(`Failed to parse scenario file ${scenarioFile}: ${e.message} — skipping`)
+    }
+  }
+
+  // Filter by active tiers — only include scenarios whose tier will run
+  scenarios = scenarios.filter(s => {
+    if (s.tier === 'unit') return true  // unitEnabled checked later in STEP 1
+    if (s.tier === 'integration') return true
+    if (s.tier === 'e2e') return has_frontend  // pre-check: e2e requires frontend
+    if (s.tier === 'extended') return testingConfig.extended_tier?.enabled !== false
+    if (s.tier === 'contract') return testingConfig.contract?.enabled !== false
+    return false
+  })
+
+  // Cap at max_per_run
+  if (scenarios.length > maxPerRun) {
+    warn(`Scenario count (${scenarios.length}) exceeds max_per_run (${maxPerRun}) — truncating`)
+    scenarios = scenarios.slice(0, maxPerRun)
+  }
+
+  warn(`Scenario discovery: ${scenarios.length} scenario(s) found across ${scenarioFiles.length} file(s)`)
+}
+// Output: scenarios[] — fed into STEP 1.5 generateTestStrategy()
+
+// ═══════════════════════════════════════════════════════
 // STEP 1: SCOPE DETECTION (file classification)
 // ═══════════════════════════════════════════════════════
 
@@ -113,11 +163,14 @@ const uncoveredImplementations = backendFiles.filter(f => {
 
 // Team lead (Opus) generates strategy document BEFORE any test execution
 // Strategy is the instruction document for all downstream test runners
+// Includes scenarios[] from STEP 0.5 — merged with auto-discovered tests in each tier
 const strategy = generateTestStrategy({
   diffFiles, backendFiles, frontendFiles, testFiles,
   has_frontend, enrichedPlan: Read(`tmp/arc/${id}/enriched-plan.md`),
   tiers: { unit: unitEnabled, integration: integrationEnabled, e2e: e2eEnabled },
-  uncoveredImplementations, scopeLabel
+  uncoveredImplementations, scopeLabel,
+  scenarios  // STEP 0.5 output: injected so runners can merge scenario-driven tests
+             // with auto-discovered tests. See testing/references/scenario-schema.md.
 })
 Write(`tmp/arc/${id}/test-strategy.md`, strategy)
 
@@ -196,6 +249,46 @@ if (unitEnabled && unitTests.length > 0) {
 }
 
 // ═══════════════════════════════════════════════════════
+// STEP 5.5: CONTRACT VALIDATION (non-blocking, after unit)
+// ═══════════════════════════════════════════════════════
+
+// Gate: testing.contract.enabled AND (contract scenarios exist OR spec file detected)
+// See testing/references/scenario-schema.md for contract scenario format
+// Non-blocking: contract failures are WARN only — never gate integration
+const contractEnabled = testingConfig.contract?.enabled !== false
+const contractScenarios = scenarios.filter(s => s.tier === 'contract')
+const openApiSpecExists = exists('openapi.yml') || exists('openapi.yaml') || exists('openapi.json')
+  || exists('swagger.yml') || exists('swagger.yaml')
+const contractGate = contractEnabled && (contractScenarios.length > 0 || openApiSpecExists)
+
+if (contractGate) {
+  Agent({
+    subagent_type: "general-purpose", model: resolveModelForAgent("contract-validator", talisman),
+    name: "contract-validator", team_name: `arc-test-${id}`,
+    prompt: `You are contract-validator. Validate API contracts against schema specifications.
+      Contract scenarios: ${JSON.stringify(contractScenarios)}
+      Spec files: openapi.yml / openapi.yaml / openapi.json / swagger.yml (whichever exists)
+      Validate:
+        - API responses against OpenAPI/JSON Schema spec
+        - Hook outputs against hookEventName schema
+      Non-blocking: record WARN findings only. Do NOT fail the pipeline.
+      Output to: tmp/arc/${id}/test-results-contract.md
+      Strategy: ${Read(`tmp/arc/${id}/test-strategy.md`)}
+      [inject agent contract-validator.md content]`
+  })
+  waitForCompletion(["contract-validator"], {
+    timeoutMs: Math.min(120_000, remainingBudget())
+  })
+  // Non-blocking result — warn but continue regardless of outcome
+  if (exists(`tmp/arc/${id}/test-results-contract.md`)) {
+    const contractResult = Read(`tmp/arc/${id}/test-results-contract.md`)
+    if (contractResult.includes('FAIL') || contractResult.includes('ERROR')) {
+      warn("Contract validation found issues — review test-results-contract.md. Pipeline continues.")
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════
 // STEP 6: TIER 2 — INTEGRATION TESTS (after unit)
 // ═══════════════════════════════════════════════════════
 
@@ -254,8 +347,106 @@ if (e2eEnabled && servicesHealthy && agentBrowserAvailable && e2eRoutes.length >
     timeoutMs: Math.min(e2eTimeout + 60_000, remainingBudget())
   })
   activeTiers.push('e2e')
+
+  // Visual regression sub-step (inline, team lead only)
+  // Gate: testing.visual_regression.enabled
+  // See testing/references/visual-regression.md for full protocol
+  const visualRegressionEnabled = testingConfig.visual_regression?.enabled === true
+  if (visualRegressionEnabled && agentBrowserAvailable) {
+    const baselineDir = testingConfig.visual_regression?.baseline_dir ?? ".claude/visual-baselines"
+    const pixelDiffThreshold = testingConfig.visual_regression?.threshold ?? 0.02  // 2% default
+    const screenshotDir = `tmp/arc/${id}/screenshots`
+
+    // e2e-browser-tester already captured screenshots — compare against baselines
+    const capturedScreenshots = Glob(`${screenshotDir}/*.png`)
+    if (capturedScreenshots.length > 0) {
+      let visualFailures = []
+      for (const screenshotPath of capturedScreenshots) {
+        const screenshotName = screenshotPath.split('/').pop()
+        const baselinePath = `${baselineDir}/${screenshotName}`
+        if (exists(baselinePath)) {
+          // agent-browser compare provides pixel diff score
+          const diffResult = Bash(`agent-browser compare --baseline "${baselinePath}" --current "${screenshotPath}" --format json 2>/dev/null || echo '{"diff":0,"error":"compare-unavailable"}'`)
+          try {
+            const diffData = JSON.parse(diffResult)
+            if (diffData.error === 'compare-unavailable') {
+              warn(`Visual regression compare unavailable for ${screenshotName} — skipping`)
+            } else if (diffData.diff > pixelDiffThreshold) {
+              visualFailures.push({ screenshot: screenshotName, diff: diffData.diff, threshold: pixelDiffThreshold })
+            }
+          } catch (e) {
+            warn(`Visual regression parse error for ${screenshotName}: ${e.message} — skipping`)
+          }
+        } else {
+          warn(`No baseline found for ${screenshotName} at ${baselinePath} — treating as new baseline candidate`)
+        }
+      }
+      if (visualFailures.length > 0) {
+        warn(`Visual regression: ${visualFailures.length} screenshot(s) exceeded diff threshold ${pixelDiffThreshold}. Review tmp/arc/${id}/screenshots/`)
+        // Append visual regression section to E2E results (non-blocking)
+        const vrSection = `\n## Visual Regression\n${visualFailures.map(f => `- ${f.screenshot}: diff=${f.diff.toFixed(4)} (threshold=${f.threshold})`).join('\n')}\n`
+        if (exists(`tmp/arc/${id}/test-results-e2e.md`)) {
+          Write(`tmp/arc/${id}/test-results-e2e.md`, Read(`tmp/arc/${id}/test-results-e2e.md`) + vrSection)
+        }
+      } else {
+        warn(`Visual regression: all ${capturedScreenshots.length} screenshot(s) within threshold`)
+      }
+    }
+  }
 } else if (e2eEnabled && !agentBrowserAvailable) {
   warn("agent-browser not installed — skipping E2E tier. Install: npm i -g @vercel/agent-browser")
+}
+
+// ═══════════════════════════════════════════════════════
+// STEP 7.5: EXTENDED TIER (after E2E, before failure analysis)
+// ═══════════════════════════════════════════════════════
+
+// Gate: testing.extended_tier.enabled AND extended scenarios exist
+// See testing/references/checkpoint-protocol.md for checkpoint/resume protocol
+const extendedEnabled = testingConfig.extended_tier?.enabled === true
+const extendedScenarios = scenarios.filter(s => s.tier === 'extended')
+
+if (extendedEnabled && extendedScenarios.length > 0 && remainingBudget() > 120_000) {
+  const extendedBudget = testingConfig.extended_tier?.timeout_ms ?? 3_600_000  // 1 hour default
+  const checkpointIntervalMs = testingConfig.extended_tier?.checkpoint_interval_ms ?? 300_000  // 5 min
+
+  // Resume support: read existing checkpoint if present
+  const extendedCheckpointPath = `tmp/arc/${id}/extended-checkpoint.json`
+  let extendedResumeState = null
+  if (exists(extendedCheckpointPath)) {
+    try {
+      extendedResumeState = JSON.parse(Read(extendedCheckpointPath))
+      warn(`Extended tier: resuming from checkpoint (${extendedResumeState.completed_scenarios ?? 0} scenarios completed)`)
+    } catch (e) {
+      warn(`Extended tier: checkpoint parse failed (${e.message}) — starting fresh`)
+    }
+  }
+
+  Agent({
+    subagent_type: "general-purpose", model: resolveModelForAgent("extended-test-runner", talisman),
+    name: "extended-test-runner", team_name: `arc-test-${id}`,
+    prompt: `You are extended-test-runner. Run extended-tier test scenarios with checkpoint support.
+      Extended scenarios: ${JSON.stringify(extendedScenarios)}
+      Budget: ${Math.min(extendedBudget, remainingBudget())}ms
+      Checkpoint interval: ${checkpointIntervalMs}ms — write progress to tmp/arc/${id}/extended-checkpoint.json
+      Resume state: ${extendedResumeState ? JSON.stringify(extendedResumeState) : 'none (fresh run)'}
+      On timeout: write partial results and set status=timeout in output
+      Output to: tmp/arc/${id}/test-results-extended.md
+      Strategy: ${Read(`tmp/arc/${id}/test-strategy.md`)}
+      [inject agent extended-test-runner.md content]`
+  })
+
+  const extendedWaitBudget = Math.min(extendedBudget + 60_000, remainingBudget())
+  const extendedCompleted = waitForCompletion(["extended-test-runner"], {
+    timeoutMs: extendedWaitBudget
+  })
+
+  if (!extendedCompleted) {
+    warn(`Extended tier timed out after ${extendedWaitBudget}ms — partial results may be available in test-results-extended.md`)
+    updateCheckpoint({ extended_tier_status: "timeout" })
+  } else {
+    activeTiers.push('extended')
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -300,14 +491,149 @@ const report = aggregateTestReport({
 Write(`tmp/arc/${id}/test-report.md`, report + "\n<!-- SEAL: test-report-complete -->")
 
 // ═══════════════════════════════════════════════════════
+// STEP 9.1: PRODUCTION READINESS CHECK (inline, no agent spawn)
+// ═══════════════════════════════════════════════════════
+
+// Gate: testing.production_readiness.enabled
+// Inline scan — team lead only. Appends section to test-report.md.
+const productionReadinessEnabled = testingConfig.production_readiness?.enabled !== false
+
+if (productionReadinessEnabled) {
+  const prChecks = []
+
+  // 1. Scan for mock/fake/stub patterns in src/ (not test files)
+  // Use Grep — not Bash — to avoid ZSH NOMATCH on glob patterns
+  const mockPatterns = ['TODO(mock)', 'FIXME(fake)', 'os.environ.get.*TODO', 'stub_', 'fake_', 'mock_']
+  for (const pattern of mockPatterns) {
+    const mockHits = Grep({ pattern, path: 'src/', glob: '**/*.{ts,tsx,py,go,rs,rb}', output_mode: 'files_with_matches' })
+    if (mockHits.length > 0) {
+      prChecks.push(`WARN: mock/stub pattern "${pattern}" found in src/ (${mockHits.length} file(s)) — verify not production code`)
+    }
+  }
+
+  // 2. Validate referenced env vars exist
+  const requiredEnvVars = testingConfig.production_readiness?.required_env_vars ?? []
+  for (const envVar of requiredEnvVars) {
+    const envResult = Bash(`printenv "${envVar}" >/dev/null 2>&1 && echo "set" || echo "missing"`)
+    if (envResult.trim() === 'missing') {
+      prChecks.push(`WARN: Required env var ${envVar} is not set`)
+    }
+  }
+
+  // 3. Check health endpoints
+  const healthEndpoints = testingConfig.production_readiness?.health_endpoints ?? []
+  for (const endpoint of healthEndpoints) {
+    // SEC: validate URL is localhost only (mirrors STEP 7 SEC-003 guard)
+    try {
+      const epHost = new URL(endpoint).hostname
+      if (epHost !== 'localhost' && epHost !== '127.0.0.1') {
+        prChecks.push(`SKIP: health endpoint ${endpoint} is not localhost — skipped for security`)
+        continue
+      }
+    } catch (e) {
+      prChecks.push(`SKIP: health endpoint ${endpoint} is not a valid URL — skipped`)
+      continue
+    }
+    const healthResult = Bash(`curl -sf --max-time 5 "${endpoint}" >/dev/null 2>&1 && echo "healthy" || echo "unhealthy"`)
+    if (healthResult.trim() !== 'healthy') {
+      prChecks.push(`WARN: Health endpoint ${endpoint} returned non-200 or timed out`)
+    }
+  }
+
+  // Append production readiness section to test-report.md (non-blocking)
+  if (prChecks.length > 0) {
+    const prSection = `\n## Production Readiness Check\n${prChecks.map(c => `- ${c}`).join('\n')}\n`
+    Write(`tmp/arc/${id}/test-report.md`, Read(`tmp/arc/${id}/test-report.md`) + prSection)
+    warn(`Production readiness: ${prChecks.length} item(s) flagged — see test-report.md`)
+  } else {
+    const prSection = `\n## Production Readiness Check\n- All checks passed\n`
+    Write(`tmp/arc/${id}/test-report.md`, Read(`tmp/arc/${id}/test-report.md`) + prSection)
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// STEP 9.5: HISTORY PERSISTENCE (inline, no agent spawn)
+// ═══════════════════════════════════════════════════════
+
+// Gate: testing.history.enabled (default true)
+// See testing/references/history-protocol.md for persistence format
+// See testing/references/regression-detection.md for regression threshold logic
+const historyEnabled = testingConfig.history?.enabled !== false
+
+if (historyEnabled) {
+  const historyDir = `.claude/test-history`
+  Bash(`mkdir -p "${historyDir}"`)
+
+  const maxEntries = testingConfig.history?.max_entries ?? 50
+  const regressionThreshold = testingConfig.history?.regression_threshold ?? 0.05  // 5% drop
+
+  // Compute tier breakdown for history entry
+  const tierBreakdown = {}
+  for (const tier of activeTiers) {
+    const resultsFile = `tmp/arc/${id}/test-results-${tier}.md`
+    if (exists(resultsFile)) {
+      tierBreakdown[tier] = {
+        pass: countPatternInFile(resultsFile, /PASS|✓|passed/gi),
+        fail: countPatternInFile(resultsFile, /FAIL|✗|failed/gi),
+        duration_ms: computeTierDuration(tier, phaseStart)  // dispatcher utility
+      }
+    }
+  }
+
+  // Compute flaky scores from history (see testing/references/flaky-detection.md)
+  const flakyScores = computeFlakyScores(historyDir, activeTiers)
+
+  const historyEntry = {
+    id, timestamp: new Date().toISOString(),
+    scope_label: scopeLabel,
+    pass_rate: computePassRate(report),
+    coverage_pct: computeDiffCoverage(report),
+    tiers_run: activeTiers,
+    tier_breakdown: tierBreakdown,
+    flaky_scores: flakyScores,
+    pr_number: prFromGh || null
+  }
+
+  // Append to rolling history (JSON lines format)
+  const historyFile = `${historyDir}/test-history.jsonl`
+  const existingHistory = exists(historyFile)
+    ? Read(historyFile).trim().split('\n').filter(Boolean).map(l => JSON.parse(l))
+    : []
+
+  existingHistory.push(historyEntry)
+
+  // Rolling window — keep last maxEntries
+  const trimmedHistory = existingHistory.slice(-maxEntries)
+  Write(historyFile, trimmedHistory.map(e => JSON.stringify(e)).join('\n') + '\n')
+
+  // Regression threshold check (see testing/references/regression-detection.md)
+  if (trimmedHistory.length >= 2) {
+    const previousEntry = trimmedHistory[trimmedHistory.length - 2]
+    const currentPassRate = historyEntry.pass_rate ?? 0
+    const previousPassRate = previousEntry.pass_rate ?? 0
+    const passRateDrop = previousPassRate - currentPassRate
+
+    if (passRateDrop > regressionThreshold) {
+      warn(`Test regression detected: pass rate dropped ${(passRateDrop * 100).toFixed(1)}% (${(previousPassRate * 100).toFixed(1)}% → ${(currentPassRate * 100).toFixed(1)}%). Threshold: ${(regressionThreshold * 100).toFixed(1)}%`)
+      updateCheckpoint({ test_regression_detected: true, regression_pass_rate_drop: passRateDrop })
+    }
+  }
+
+  warn(`Test history persisted to ${historyFile} (${trimmedHistory.length}/${maxEntries} entries)`)
+}
+
+// ═══════════════════════════════════════════════════════
 // STEP 10: CLEANUP (correct ordering — prevents deadlocks)
 // ═══════════════════════════════════════════════════════
 
 // 1. Shutdown teammates FIRST (30s max wait)
-SendMessage({ type: "shutdown_request", recipient: "unit-test-runner" })
-SendMessage({ type: "shutdown_request", recipient: "integration-test-runner" })
-SendMessage({ type: "shutdown_request", recipient: "e2e-browser-tester" })
-SendMessage({ type: "shutdown_request", recipient: "test-failure-analyst" })
+const testAgents = [
+  "unit-test-runner", "integration-test-runner", "e2e-browser-tester",
+  "test-failure-analyst", "extended-test-runner", "contract-validator"
+]
+for (const agentName of testAgents) {
+  SendMessage({ type: "shutdown_request", recipient: agentName })
+}
 sleep(30_000)  // Wait for shutdown acknowledgment
 
 // 2. Close browser sessions (teammates already closed)
@@ -366,6 +692,10 @@ If this phase crashes before cleanup:
 | Browser sessions | `arc-e2e-{id}` (check `agent-browser session list`) |
 | Docker containers | `tmp/arc/{id}/docker-containers.json` |
 | Screenshots | `tmp/arc/{id}/screenshots/` |
+| Extended tier checkpoint | `tmp/arc/{id}/extended-checkpoint.json` |
+| Test history | `.claude/test-history/test-history.jsonl` |
+| Contract validation results | `tmp/arc/{id}/test-results-contract.md` |
+| Extended tier results | `tmp/arc/{id}/test-results-extended.md` |
 
 Recovery: `prePhaseCleanup()` handles team/task cleanup before phase, `postPhaseCleanup()` handles cleanup after. See [arc-phase-cleanup.md](arc-phase-cleanup.md). Docker containers auto-stop on Docker daemon restart. Browser sessions time out after 5 minutes of inactivity.
 
