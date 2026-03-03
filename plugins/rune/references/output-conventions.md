@@ -12,6 +12,7 @@
 | Mend | `tmp/mend/{id}/` | `resolution-report.md`, fixer outputs |
 | Arc | `tmp/arc/{id}/` | Phase artifacts (`enriched-plan.md`, `plan-review.md`, `concern-context.md`, `verification-report.md`, `work-summary.md`, `tome.md`, `tome-round-{N}.md`, `resolution-report.md`, `resolution-report-round-{N}.md`, `review-focus-round-{N}.json`, `audit-report.md`, `gap-analysis.md`) |
 | Arc State | `.claude/arc/{id}/` | `checkpoint.json` (persistent, NOT in tmp/) |
+| Storybook | `tmp/storybook/{id}/` | Story files, visual snapshots (arc Phase 3.3, when `storybook.enabled` in talisman) |
 | Scratch | `tmp/scratch/` | Session state |
 | Codex | Per-workflow (see codex-cli skill) | `codex-oracle.md`, `codex-analysis.md`, `codex-plan-review.md`, `codex-advisory.md` |
 | File-Todos | `todos/` (project root) | `{NNN}-{status}-{slug}.md` with YAML frontmatter. Persistent, project-scoped. Always active (suppress with `--todos=false`). Distinct from `tmp/work/*/todos/` (session-scoped per-worker logs) |

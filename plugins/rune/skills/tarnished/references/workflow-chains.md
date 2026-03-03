@@ -19,7 +19,8 @@ Multi-step workflow definitions for `/rune:tarnished`.
 ```
 Step 1: /rune:brainstorm {idea}
    ↓ (brainstorm complete, workspace at tmp/brainstorm-{timestamp}/)
-Step 2: /rune:devise --brainstorm-context tmp/brainstorm-{timestamp} {idea}
+   ↓ Discover workspace: Glob("tmp/brainstorm-*") → use most recent match
+Step 2: /rune:devise --brainstorm-context {discovered workspace path} {idea}
 ```
 
 ### brainstorm-then-arc
@@ -29,7 +30,8 @@ Step 2: /rune:devise --brainstorm-context tmp/brainstorm-{timestamp} {idea}
 ```
 Step 1: /rune:brainstorm {idea}
    ↓ (brainstorm complete)
-Step 2: /rune:devise --brainstorm-context tmp/brainstorm-{timestamp} {idea}
+   ↓ Discover workspace: Glob("tmp/brainstorm-*") → use most recent match
+Step 2: /rune:devise --brainstorm-context {discovered workspace path} {idea}
    ↓ (plan created at plans/*.md)
 Step 3: /rune:arc {plan path from step 2}
 ```

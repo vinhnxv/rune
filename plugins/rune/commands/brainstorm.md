@@ -17,7 +17,7 @@ description: |
   </example>
 user-invocable: true
 allowed-tools:
-  - Task
+  - Agent
   - TaskCreate
   - TaskList
   - TaskUpdate
@@ -63,5 +63,5 @@ structured dialogue before committing to a full planning pipeline.
 
 ## Execution
 
-Read and execute the `/rune:brainstorm` skill with all arguments passed through.
-All `/rune:brainstorm` flags are supported: `--quick`, `--deep`.
+Load and execute the brainstorm skill (`skills/brainstorm/SKILL.md`) with all arguments passed through.
+All brainstorm flags are supported: `--quick`, `--deep`.

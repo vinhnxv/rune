@@ -190,16 +190,25 @@ The Lead generates advisor prompts by reading this file and substituting:
 
 Content sanitization (applied to feature_description before injection):
 ```javascript
+// SEC-002: Multi-layer sanitization to prevent prompt injection via feature descriptions.
+// Order matters — structural removals first, then inline stripping, then length cap LAST.
 const sanitized = (raw || '')
-  .replace(/<!--[\s\S]*?-->/g, '')
-  .replace(/```[\s\S]*?```/g, '[code-block-removed]')
-  .replace(/`[^`]*`/g, '[code-removed]')
-  .replace(/!\[.*?\]\(.*?\)/g, '')
-  .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-  .replace(/^-{3,}\s*$/gm, '')
-  .replace(/^#{1,6}\s+/gm, '')
-  .replace(/&[a-zA-Z0-9#]+;/g, '')
-  .replace(/[\u200B-\u200F\uFEFF\uFE00-\uFE0F]/g, '')
-  .replace(/\uDB40[\uDC00-\uDC7F]/g, '')
+  // Phase 1: Remove structural/block-level content
+  .replace(/<!--[\s\S]*?-->/g, '')                    // HTML comments (may contain hidden instructions)
+  .replace(/```[\s\S]*?```/g, '[code-block-removed]') // Fenced code blocks
+  .replace(/`[^`]*`/g, '[code-removed]')              // Inline code
+  .replace(/!\[.*?\]\(.*?\)/g, '')                     // Markdown images
+  .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')             // Markdown links (keep text)
+  // Phase 2: Prevent YAML frontmatter injection (--- delimiters that could break template boundaries)
+  .replace(/^---.*$/gm, '')                            // YAML frontmatter delimiters
+  .replace(/^-{3,}\s*$/gm, '')                         // Horizontal rules (triple-dash variants)
+  // Phase 3: Strip HTML/XML tags (prevents injected <system>, <anchor>, or arbitrary tags)
+  .replace(/<[^>]*>/g, '')                             // All angle-bracket tags
+  // Phase 4: Remove formatting and encoding artifacts
+  .replace(/^#{1,6}\s+/gm, '')                        // Markdown headings
+  .replace(/&[a-zA-Z0-9#]+;/g, '')                    // HTML entities
+  .replace(/[\u200B-\u200F\uFEFF\uFE00-\uFE0F]/g, '') // Zero-width and variation selectors
+  .replace(/\uDB40[\uDC00-\uDC7F]/g, '')              // Tag characters (U+E0000 range)
+  // Phase 5: Enforce length cap AFTER all sanitization (prevents pre-strip bloat bypass)
   .slice(0, 2000)
 ```

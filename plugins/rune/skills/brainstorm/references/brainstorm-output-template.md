@@ -163,6 +163,10 @@ Conditional sections (include when applicable):
 
 If Non-Goals section is empty after brainstorm: warn user "Non-Goals section is empty — consider adding at least one exclusion to prevent scope creep."
 
+If Key Constraints section has fewer than 2 items: warn user "Key Constraints section has fewer than 2 items — consider identifying technical or business constraints."
+
+If Success Criteria section has fewer than 2 items: warn user "Success Criteria section has fewer than 2 items — consider adding measurable outcomes."
+
 ## Devise Consumption
 
 When `/rune:devise --brainstorm-context tmp/brainstorm-{timestamp}/` reads this document:

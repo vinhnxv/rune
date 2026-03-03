@@ -19,6 +19,7 @@
 #      - tmp/.rune-mend-*.json with "active" status
 #      - tmp/.rune-plan-*.json with "active" status
 #      - tmp/.rune-forge-*.json with "active" status
+#      - tmp/.rune-brainstorm-*.json with "active" status
 #   3. If active workflow found, verify Task input includes team_name
 #   4. Block if team_name missing — output deny JSON
 #
@@ -132,7 +133,8 @@ if [[ -z "$active_workflow" ]]; then
   for f in "${CWD}"/tmp/.rune-review-*.json "${CWD}"/tmp/.rune-audit-*.json \
            "${CWD}"/tmp/.rune-work-*.json "${CWD}"/tmp/.rune-inspect-*.json \
            "${CWD}"/tmp/.rune-mend-*.json "${CWD}"/tmp/.rune-plan-*.json \
-           "${CWD}"/tmp/.rune-forge-*.json "${CWD}"/tmp/.rune-goldmask-*.json; do
+           "${CWD}"/tmp/.rune-forge-*.json "${CWD}"/tmp/.rune-goldmask-*.json \
+           "${CWD}"/tmp/.rune-brainstorm-*.json; do
     # Skip files older than STALE_THRESHOLD_MIN minutes
     if [[ -f "$f" ]] && find "$f" -maxdepth 0 -mmin -${STALE_THRESHOLD_MIN} -print -quit 2>/dev/null | grep -q . && jq -e '.status == "active"' "$f" &>/dev/null; then
       # ── Ownership filter: skip state files from other sessions ──

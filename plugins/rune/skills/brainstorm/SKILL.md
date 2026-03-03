@@ -82,9 +82,9 @@ Phase 3.5: Design Asset Detection (conditional — Figma URL scan)
     |
 Phase 4: Elicitation Sages (Deep mode only — structured reasoning)
     |
-Phase 4.5: State Machine Pre-Validation (Deep mode, conditional — >= 5 phase indicators)
+Phase 4.5: State Machine Pre-Validation (RESERVED — not yet implemented)
     |
-Phase 5: Quality Gate (7-dimension scoring model)
+Phase 5: Quality Gate (7-dimension checklist)
     |
 Phase 6: Capture Decisions + Cleanup + Handoff
     |
@@ -92,12 +92,31 @@ Output: docs/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md
         tmp/brainstorm-{timestamp}/ (workspace)
 ```
 
+## Configuration
+
+```javascript
+const miscConfig = readTalismanSection("misc") || {}
+const advisorTimeoutMs = miscConfig.brainstorm?.advisor_timeout_ms ?? 90000
+const maxRounds = miscConfig.brainstorm?.max_rounds ?? 4
+const wordLimit = miscConfig.brainstorm?.advisor_word_limit ?? 300
+```
+
 ## Workflow Lock (writer)
 
 ```javascript
-const lockConflicts = Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_check_conflicts "writer"`)
-if (lockConflicts.includes("CONFLICT")) {
-  AskUserQuestion({ question: `Active workflow conflict:\n${lockConflicts}\nProceed anyway?` })
+const CWD = Bash(`pwd -P`).trim()
+const lockResult = Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_check_conflicts "writer"`)
+// Parse structured fields: status (CONFLICT|CLEAR), holder, lock_type
+const hasConflict = lockResult.startsWith("CONFLICT")
+if (hasConflict) {
+  const holder = lockResult.match(/holder=(\S+)/)?.[1] || "unknown"
+  const lockType = lockResult.match(/type=(\S+)/)?.[1] || "unknown"
+  AskUserQuestion({ question: `Active workflow conflict: ${holder} holds a ${lockType} lock. Proceed anyway?` })
+}
+// QUAL-303: Check for ADVISORY signal (e.g., context degradation warning)
+const advisorySignal = Glob(`tmp/.rune-signals/advisory-*.json`)
+if (advisorySignal.length > 0) {
+  // Surface advisory but do not block — brainstorm is low-risk
 }
 Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_acquire_lock "brainstorm" "writer"`)
 ```
@@ -115,18 +134,16 @@ const brainstorms = [
   ...Glob("tmp/plans/*/brainstorm-decisions.md"),
   ...Glob("tmp/brainstorm-*/brainstorm-decisions.md")
 ]
-// Filter: created within last 14 days, topic matches feature
-// Matching thresholds:
-//   Auto-use (>= 0.85): Exact/fuzzy title match or strong tag overlap (>= 2 tags)
-//   Ask user (0.70-0.85): Single semantic match, show with confirmation
-//   Skip (< 0.70): No relevant brainstorm found
-// Recency decay: >14d: 0.7x, >30d: 0.4x, >90d: skip
+// Slug matching: extract slug from filename (e.g., "auth-flow" from "2026-03-01-auth-flow-brainstorm.md")
+// Match when the feature description slug appears in the filename slug
+// Recency filter: skip files older than 90 days (by filename date prefix)
+// If match found: AskUserQuestion to confirm reuse (never auto-use)
 ```
 
 Also check echo search for related brainstorms:
 ```javascript
 const echoResults = mcp__plugin_rune_echo_search__echo_search({ query: featureDescription, limit: 3 })
-// If echo match >= 0.70 fuzzy similarity to feature: offer reuse
+// If echo results contain brainstorm-related entries: AskUserQuestion to offer reuse
 ```
 
 ### Clarity Check
@@ -176,16 +193,33 @@ For Team or Deep mode, create the Agent Team and spawn advisors:
 
 ```javascript
 const timestamp = Date.now().toString()
+// SEC-001: Validate timestamp is exactly 13 digits, reject path traversal
+if (!/^\d{13}$/.test(timestamp)) throw new Error("Invalid timestamp")
 
-// teamTransition protocol (standard 6-step pattern — see devise SKILL.md Phase -1):
-// STEP 1: Validate timestamp, STEP 2: TeamDelete retry-with-backoff (3 attempts),
-// STEP 3: Filesystem fallback (gated on !teamDeleteSucceeded),
-// STEP 4: TeamCreate with "Already leading" catch-and-recover,
+// teamTransition protocol (standard 6-step pattern):
+const teamName = `rune-brainstorm-${timestamp}`
+// STEP 1: Timestamp already validated above (SEC-001)
+// STEP 2: TeamDelete retry-with-backoff (3 attempts: 0s, 5s, 10s)
+let teamDeleteSucceeded = false
+for (const delay of [0, 5000, 10000]) {
+  if (delay > 0) Bash(`sleep ${delay / 1000}`)
+  try { TeamDelete(); teamDeleteSucceeded = true; break } catch (e) { /* retry */ }
+}
+// STEP 3: Filesystem fallback (gated on !teamDeleteSucceeded)
+if (!teamDeleteSucceeded) {
+  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
+}
+// STEP 4: TeamCreate with "Already leading" catch-and-recover
+try { TeamCreate({ name: teamName }) } catch (e) {
+  if (e.message?.includes("Already leading")) { TeamDelete(); TeamCreate({ name: teamName }) }
+  else throw e
+}
 // STEP 5: Post-create verification
-// Team name: rune-brainstorm-{timestamp}
+const teamConfig = Read(`\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/teams/${teamName}/config.json`)
+if (!teamConfig) throw new Error("TeamCreate verification failed")
 
 // STEP 6: Write workflow state file with session isolation fields
-const configDir = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
+const configDir = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cd "$CHOME" 2>/dev/null && pwd -P`).trim()
 const ownerPid = Bash(`echo $PPID`).trim()
 Write(`tmp/.rune-brainstorm-${timestamp}.json`, {
   team_name: `rune-brainstorm-${timestamp}`,
@@ -220,6 +254,7 @@ for (const advisor of ["user-advocate", "tech-realist", "devils-advocate"]) {
 }
 
 // Signal directory for fast completion detection
+// SEC-007: timestamp already validated as /^\d{13}$/ above (SEC-001)
 const signalDir = `tmp/.rune-signals/rune-brainstorm-${timestamp}`
 Bash(`mkdir -p "${signalDir}" && find "${signalDir}" -mindepth 1 -delete`)
 ```
@@ -236,7 +271,7 @@ See [advisor-prompts.md](references/advisor-prompts.md) for full advisor persona
 For each round (max 4):
   1. Lead formulates round context (feature + all previous answers)
   2. Lead sends context to each advisor via SendMessage
-  3. Wait for advisor responses (TaskList-based, 60s timeout)
+  3. Wait for advisor responses (signal files in tmp/.rune-signals/{teamName}/ + TaskList fallback, advisorTimeoutMs from config, default 90s)
   4. Lead curates advisor inputs into coherent discussion
   5. Present to user via normal conversation output
   6. User responds
@@ -250,7 +285,7 @@ Round topics:
 
 Rules (all modes):
   - Apply YAGNI: recommend simplest approach
-  - 200-300 words max per advisor contribution
+  - wordLimit words max per advisor contribution (default 300, from config)
   - Exit when idea is clear OR user says "proceed"
 ```
 
@@ -284,19 +319,24 @@ AskUserQuestion({
 Reuse existing Figma URL detection pattern:
 
 ```javascript
-// SYNC: figma-url-pattern — shared with brainstorm-phase.md and devise SKILL.md
+// SYNC: figma-url-pattern — shared with devise SKILL.md
 const FIGMA_URL_PATTERN = /https?:\/\/[^\s]*figma\.com\/[^\s]+/g
 const DESIGN_KEYWORD_PATTERN = /\b(figma|design|mockup|wireframe|prototype|ui\s*kit|design\s*system|style\s*guide|component\s*library)\b/i
 
-const figmaUrls = (featureDescription + " " + selectedApproach).match(FIGMA_URL_PATTERN) || []
+// Also scan round transcripts for Figma URLs shared during discussion
+const roundFiles = Glob(`tmp/brainstorm-${timestamp}/rounds/*.md`)
+const roundContent = roundFiles.map(f => Read(f)).join(" ")
+const searchText = featureDescription + " " + selectedApproach + " " + roundContent
+
+const figmaUrls = searchText.match(FIGMA_URL_PATTERN) || []
 const figmaUrl = figmaUrls.length > 0 ? figmaUrls[0] : null
-const hasDesignKeywords = DESIGN_KEYWORD_PATTERN.test(featureDescription + " " + selectedApproach)
+const hasDesignKeywords = DESIGN_KEYWORD_PATTERN.test(searchText)
 
 if (figmaUrl) {
   design_sync_candidate = true
   // Append Design Assets section to brainstorm context
 } else if (hasDesignKeywords) {
-  // Ask user if they have a Figma file
+  AskUserQuestion({ question: "Design keywords detected — do you have a Figma file URL to include?" })
 }
 ```
 
@@ -329,57 +369,39 @@ for (let i = 0; i < sageCount; i++) {
 // 5. Merge sage outputs into brainstorm document
 ```
 
-### Phase 4.5: State Machine Pre-Validation (Deep mode, conditional)
+### Phase 4.5: State Machine Pre-Validation (Deep mode, conditional — RESERVED)
 
-Only fires when brainstorm output describes a multi-phase approach:
-
-```
-Trigger gate:
-  - Count phase indicators in brainstorm-decisions.md:
-    headings with "Phase"/"Step"/"Stage", numbered lists >= 3, tables with phase columns
-  - If < 5 indicators: SKIP (most brainstorms won't trigger this)
-  - If >= 5 indicators: spawn state-weaver on team
-
-When triggered:
-  1. Spawn state-weaver on rune-brainstorm-{timestamp} team
-  2. Wait for completion (60s timeout)
-  3. VERDICT:BLOCK -> surface P1 findings to user before handoff
-  4. VERDICT:CONCERN -> include as advisory in brainstorm output
-  5. VERDICT:PASS or timeout -> proceed silently
-```
+Reserved for future state-weaver agent. Currently skipped — no state-weaver agent exists.
+When implemented, will validate multi-phase brainstorm outputs for state machine consistency.
 
 ## Phase 5: Quality Gate
 
-Score brainstorm output across 7 dimensions:
+Evaluate brainstorm output via a 7-dimension checklist. Each dimension is pass/fail.
 
-| # | Dimension | Weight | Score 1.0 When |
-|---|-----------|--------|----------------|
-| 1 | Completeness | 0.25 | All 4 mandatory sections present |
-| 2 | Decision Coverage | 0.20 | >= 3 concrete decisions captured |
-| 3 | Scope Precision | 0.20 | <= 5 scope items, each actionable |
-| 4 | Constraint Clarity | 0.10 | >= 2 constraints classified |
-| 5 | Advisor Convergence | 0.10 | All advisors align (1.0 for Solo) |
-| 6 | Round Depth | 0.05 | >= 2 rounds with new insights |
-| 7 | Handoff Readiness | 0.10 | Enough specificity for devise |
+| # | Dimension | Pass When |
+|---|-----------|-----------|
+| 1 | Completeness | All 4 mandatory sections present |
+| 2 | Decision Coverage | >= 3 concrete decisions captured |
+| 3 | Scope Precision | <= 5 scope items, each actionable |
+| 4 | Constraint Clarity | >= 2 constraints classified |
+| 5 | Advisor Convergence | All advisors align (auto-pass for Solo) |
+| 6 | Round Depth | >= 2 rounds with new insights |
+| 7 | Handoff Readiness | Enough specificity for devise |
 
 ```javascript
-const quality = (
-  completeness * 0.25 +
-  decision_coverage * 0.20 +
-  scope_precision * 0.20 +
-  constraint_clarity * 0.10 +
-  advisor_convergence * 0.10 +
-  round_depth * 0.05 +
-  handoff_readiness * 0.10
-)
+// Count how many of the 7 dimensions pass
+const passed = [completeness, decisionCoverage, scopePrecision,
+  constraintClarity, advisorConvergence, roundDepth, handoffReadiness]
+  .filter(Boolean).length
+// Advisor Convergence: auto-pass for Solo mode (no advisors to disagree)
 
-// Quality tiers:
-//   >= 0.85: Excellent — auto-suggest devise
-//   0.70-0.84: Good — suggest handoff, mention "one more round"
-//   0.50-0.69: Developing — suggest another round
-//   < 0.50: Early — continue brainstorming
+// Quality tiers (based on checklist completeness):
+//   7/7: Excellent — auto-suggest devise
+//   5-6/7: Good — suggest handoff, mention which dimensions need work
+//   3-4/7: Developing — suggest another round, list failing dimensions
+//   0-2/7: Early — continue brainstorming
 
-// Write score to workspace-meta.json
+// Write tier and checklist results to workspace-meta.json
 ```
 
 ## Phase 6: Capture Decisions + Cleanup + Handoff
@@ -395,7 +417,7 @@ See [brainstorm-output-template.md](references/brainstorm-output-template.md) fo
 
 Mandatory sections: What we're building, Advisor Perspectives (Team/Deep), Chosen approach, Key constraints, Non-Goals, Constraint Classification, Success Criteria, Scope Boundary, Open Questions.
 
-Write `workspace-meta.json` with session metadata (mode, feature, advisors, timing, quality score).
+Write `workspace-meta.json` with session metadata (mode, feature, advisors, timing, quality tier, config_dir, session_id).
 
 ### Cleanup (Team/Deep modes)
 
@@ -420,7 +442,7 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_re
 ```javascript
 AskUserQuestion({
   questions: [{
-    question: `Brainstorm complete (quality: ${quality.toFixed(2)} — ${tier}).
+    question: `Brainstorm complete (quality: ${passed}/7 — ${tier}).
 Your brainstorm is saved at docs/brainstorms/${outputFilename}.
 What would you like to do next?`,
     header: "Next Steps",
@@ -469,7 +491,7 @@ tmp/brainstorm-{timestamp}/
 
 | Error | Recovery |
 |-------|----------|
-| Advisor timeout (>60s per round) | Proceed with available responses |
+| Advisor timeout (>advisorTimeoutMs per round, default 90s) | Proceed with available responses |
 | Sage timeout (>5 min) | Proceed without sage output |
 | State-weaver timeout (>60s) | Proceed silently |
 | TeamCreate failure | Catch-and-recover via teamTransition |

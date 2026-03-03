@@ -35,7 +35,7 @@ as Phase 0 of the devise pipeline, making it inaccessible as a standalone workfl
 - **Roundtable Advisors as Agent Team teammates**: Advisors run in their own context
   windows (subagent isolation) with tool access for lightweight codebase research.
   This grounds their questions in codebase reality without needing separate research
-  agents. 100-word limit per response prevents context bloat.
+  agents. 200-300 word limit per response prevents context bloat.
 
 - **Lead as moderator (not relay)**: All advisor communication flows through the Lead,
   who curates inputs into a coherent discussion. Advisors never communicate with each
@@ -53,6 +53,11 @@ as Phase 0 of the devise pipeline, making it inaccessible as a standalone workfl
 - **disable-model-invocation: true**: Prevents Claude from auto-loading this skill
   when it sees brainstorm-related keywords. The skill creates agent teams and interactive
   sessions — user must always consent via explicit invocation.
+
+- **State Machine Pre-Validation (Phase 4.5)**: In Deep mode, when >= 5 phase indicators
+  are detected, state-weaver pre-validation triggers automatically. Provides early
+  PASS/CONCERN/BLOCK verdict before handoff to devise, preventing state machine
+  complexity from being discovered late in the planning pipeline.
 
 - **Workspace at tmp/brainstorm-{timestamp}/**: Preserves full context chain (advisor
   observations, codebase scans, round history, elicitation outputs) for devise

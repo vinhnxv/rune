@@ -36,7 +36,7 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `devise` | `--quick`, `--brainstorm-context PATH`, `--no-brainstorm`, `--no-forge`, `--exhaustive` |
 | `appraise` | `--deep` |
 | `audit` | `--deep`, `--standard`, `--incremental`, `--dirs`, `--focus` |
-| `arc` | `--resume`, `--skip-forge`, `--no-forge`, `--skip-freshness` |
+| `arc` | `--resume`, `--no-forge`, `--skip-freshness` |
 | `arc-batch` | `--auto-merge`, `--no-merge` |
 | `arc-issues` | `--label`, `--issue`, `--max-issues` |
 | `strive` | `--approve`, `--worktree` |
