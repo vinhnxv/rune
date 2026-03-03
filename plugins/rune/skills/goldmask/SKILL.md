@@ -380,9 +380,31 @@ If a layer fails:
 ### 7. Cleanup
 
 ```
+# Dynamic member discovery with hardcoded fallback
+let allMembers = []
+try {
+  const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${session_id}/config.json`))
+  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
+  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+} catch (e) {
+  // FALLBACK: hardcoded list of all 8 goldmask teammates
+  allMembers = [
+    "lore-analyst",
+    "data-layer-tracer",
+    "api-contract-tracer",
+    "business-logic-tracer",
+    "event-message-tracer",
+    "config-dependency-tracer",
+    "wisdom-sage",
+    "goldmask-coordinator"
+  ]
+}
+
 # Shutdown all teammates
-for each teammate in team config:
-    SendMessage(type: "shutdown_request", recipient: teammate)
+for (const member of allMembers) {
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Goldmask complete" }) } catch (e) { /* member may have already exited */ }
+}
 
 # Grace period — let teammates deregister before TeamDelete
 sleep 15
