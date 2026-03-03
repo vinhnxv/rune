@@ -6,12 +6,6 @@ description: |
   mermaid state diagrams. Used during /rune:devise Phase 4C and /rune:arc
   Phase 2 alongside decree-arbiter and knowledge-keeper.
 
-  Covers: Dead-end state detection, unreachable state detection, missing error
-  paths, orphaned artifact detection, unconsumed input detection, unnamed state
-  gaps, missing terminal states, loop-without-exit detection, ambiguous
-  transitions, backward dependency detection, I/O contract validation,
-  mermaid diagram generation.
-
   <example>
   user: "Validate this plan's state machine"
   assistant: "I'll use state-weaver to check for dead-end states and broken I/O contracts."

@@ -3,11 +3,7 @@ name: reference-validator
 description: |
   Import path validation, config-to-source reference checking, agent/skill frontmatter schema
   validation, and version sync verification. Ensures all cross-file references resolve correctly.
-  Covers: import path existence verification, config file path validation (plugin.json, talisman.yml,
-  hooks.json), frontmatter required fields and format checking, tool name validation against known
-  tool list, version number consistency across manifest files, dedup with doc-consistency agent.
-  Framework-agnostic with patterns for Python, Rust, and TypeScript. Named for Elden Ring's
-  validators who ensure the integrity of the Golden Order's references.
+  Framework-agnostic (Python, Rust, TypeScript).
   Triggers: New files, renamed modules, config changes, version bumps, plugin manifest updates,
   frontmatter edits.
 

@@ -2,16 +2,8 @@
 name: research-verifier
 description: |
   Validates external research outputs for relevance, accuracy, freshness,
-  cross-validation, and security before plan synthesis. Used during
-  /rune:devise Phase 1C.5 (research output verification) to ensure that
-  findings from practice-seeker, lore-scholar, and codex-researcher are
-  trustworthy before they influence plan generation.
-
-  Covers: 5-dimension verification (relevance, accuracy, freshness,
-  cross-validation, security), composite trust scoring with weighted
-  dimensions, per-finding detail tables, version mismatch detection,
-  prompt injection scanning, typosquatting detection, and security flagging.
-
+  cross-validation, and security before plan synthesis. Ensures findings
+  from practice-seeker, lore-scholar, and codex-researcher are trustworthy.
   Trigger keywords: research verification, validate research, trust score,
   research output, verify findings, research quality, external research check.
 

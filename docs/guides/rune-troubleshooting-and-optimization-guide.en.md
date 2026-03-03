@@ -491,6 +491,19 @@ Use `TaskList` to see real-time task status for the current team.
 3. Enable `goldmask.mend.inject_context: true` for risk awareness
 4. Review the TOME findings — some may be false positives. Check for LOW confidence tags
 
+### "Ghost `@teammate-name` badges in status bar after arc completes"
+
+In long-running sessions (e.g., `arc-batch` running multiple plans), the UI status bar may show `@elicitation-sage-mend`, `@lore-analyst`, or other teammate names from previous arcs — even though those teams were deleted.
+
+**Why it happens**: This is a Claude Code SDK platform limitation. `TeamDelete()` clears team leadership state and removes filesystem artifacts (`teams/`, `tasks/`), but does **not** terminate or deregister in-process teammates from the session-level member list. The SDK currently provides no API to forcefully terminate in-process teammates or deregister members from a session.
+
+**Impact**: Cosmetic only. Ghost entries do not block subsequent arc phases or prevent new teammates from spawning. They disappear when the session process exits.
+
+**Workaround**:
+1. End and restart the session between arcs
+2. Ignore the badges — they have no functional impact
+3. For `arc-batch`, ghost entries accumulate but do not affect correctness
+
 ---
 
 ## 8. Health Check Checklist

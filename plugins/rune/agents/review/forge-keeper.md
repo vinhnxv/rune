@@ -3,14 +3,7 @@ name: forge-keeper
 description: |
   Data integrity, migration safety, and migration gatekeeper reviewer. Validates database
   migrations for reversibility, lock safety, data transformation correctness, transaction
-  boundaries, and referential integrity across any ORM/migration framework. Covers: migration
-  reversibility/rollback verification, table lock impact analysis (PostgreSQL, MySQL,
-  SQLite), data transformation safety (NULL handling, type conversions), transaction
-  boundary/isolation level validation, referential integrity/cascade behavior checks,
-  safe deployment patterns, privacy compliance (PII detection, audit trails), production
-  data reality verification, dual-write patterns, rollback verification depth, and
-  gatekeeper verdicts (GATE findings) for migrations that must not ship without safeguards.
-  Named for Elden Ring's forge keepers — guardians who ensure nothing forged is corrupted.
+  boundaries, and referential integrity across any ORM/migration framework.
   Triggers: Migration files, schema changes, database model changes, transaction code,
   data migration, rollback plan, dual-write, gatekeeper.
 

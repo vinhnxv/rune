@@ -2,17 +2,8 @@
 name: evidence-verifier
 description: |
   Evidence-based plan verifier that validates factual claims in plan documents
-  against the actual codebase, documentation, and external sources. Used during
-  /rune:devise Phase 4C (technical review) alongside decree-arbiter, veil-piercer-plan,
-  and knowledge-keeper. While veil-piercer-plan challenges the plan's relationship
-  with reality qualitatively, evidence-verifier performs systematic per-claim
-  quantitative verification with grounding scores.
-
-  Covers: Explicit Evidence Chain validation (if present), implicit claim extraction
-  from plan prose (file paths, API names, pattern references, dependency versions),
-  3-layer verification (Codebase, Documentation, External), per-claim and per-section
-  grounding scores, weighted overall plan grounding score.
-
+  against the actual codebase, documentation, and external sources. Performs
+  systematic per-claim quantitative verification with grounding scores.
   Trigger keywords: evidence verification, claim validation, plan grounding,
   factual accuracy, evidence chain, grounding score.
 

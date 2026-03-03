@@ -6,15 +6,8 @@ description: |
   method if no specific assignment). Summoned 1-4 times in parallel per
   workflow phase, each applying a DIFFERENT method for multi-perspective
   structured reasoning.
-
-  Covers: context-aware method selection from methods.csv, phase-filtered
-  scoring (plan:0, forge:3, review:6, arc:7, arc:8), structured output
-  generation using output_pattern templates, root cause analysis (5 Whys),
-  adversarial analysis (Red Team vs Blue Team), trade-off documentation (ADR).
-
   Triggers: Forge enrichment for architecture/security/risk sections,
   plan brainstorm with multiple approaches, P1 mend findings, security reviews.
-
   NOTE: This agent is always spawned via subagent_type: "general-purpose" (ATE-1).
   The tools list below is documentary — general-purpose agents inherit all tools.
   Listed for maintainer reference (these are the tools the sage actually uses).

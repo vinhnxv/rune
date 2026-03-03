@@ -5,18 +5,8 @@ description: |
   the project's design system conventions: token usage, variant patterns,
   import paths, class merge utilities, and dark mode implementation.
   Activated when frontend stack + design system detected (confidence >= 0.70).
-
-  Covers: Design token compliance (DSYS-TOK), variant/class-merge patterns
-  (DSYS-PAT), component primitive usage (DSYS-CMP), import conventions
-  (DSYS-IMP), accessibility gaps (DSYS-A11Y), file organization (DSYS-ORG),
-  theme/dark mode integration (DSYS-THM).
-
   Keywords: design system, tokens, CVA, cn(), tailwind, component patterns,
   class-variance-authority, twMerge, Radix, shadcn, dark mode, theme tokens.
-
-  Dedup rule: DSYS takes precedence over FIDE in overlapping categories.
-  When both reviewers are active, FIDE scopes to Figma-specific fidelity
-  while DSYS scopes to codebase-convention compliance.
 
   <example>
   user: "Review the Button component for design system compliance"

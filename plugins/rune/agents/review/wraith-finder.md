@@ -3,13 +3,7 @@ name: wraith-finder
 description: |
   Dead code and unwired code detection. Finds unreachable code paths, unused exports,
   orphaned files, commented-out code, missing DI wiring, unregistered routes/handlers,
-  and AI-generated orphan code. Covers: unused function/class detection, unreachable code
-  path identification, commented-out code blocks, orphaned file detection, unused import
-  flagging, DI wiring verification (Python/Rust/TypeScript), router/endpoint registration
-  checks, event handler subscription verification, AI-generated orphan code detection,
-  root cause classification (Case A/B/C/D), confidence scoring with risk escalation.
-  Framework-agnostic with patterns for Python, Rust, and TypeScript. Named for Elden
-  Ring's Wraith — a ghost/dead entity.
+  and AI-generated orphan code. Framework-agnostic (Python, Rust, TypeScript).
   Triggers: Refactoring, large PRs, after AI code generation, new services/routes/handlers.
 
   <example>

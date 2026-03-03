@@ -309,7 +309,20 @@ arc:
     test: 2400000        # 40 phút khi E2E chậm
 ```
 
-### 4.3 Audit tăng dần cho codebase lớn
+### 4.3 Tối ưu echo search
+
+Với cơ sở dữ liệu echo lớn:
+
+```yaml
+echoes:
+  reranking:
+    enabled: true         # Độ chính xác tốt hơn với chi phí nhỏ
+    threshold: 25         # Chỉ rerank khi có 25+ kết quả
+  decomposition:
+    enabled: true         # Truy vấn nhiều từ khoá tốt hơn
+```
+
+### 4.4 Audit tăng dần cho codebase lớn
 
 Codebase 500+ file nên dùng incremental audit:
 
@@ -427,6 +440,19 @@ Dùng `TaskList` để xem trạng thái task real-time cho team hiện tại.
 2. Thuật toán bisection nên bắt fix lỗi — kiểm tra resolution FAILED
 3. Bật `goldmask.mend.inject_context: true` cho nhận biết rủi ro
 4. Kiểm tra TOME finding — một số có thể là false positive. Kiểm tra tag LOW confidence
+
+### "Ghost `@teammate-name` hiện trong status bar sau khi arc hoàn thành"
+
+Trong các session chạy lâu (ví dụ `arc-batch` chạy nhiều plan liên tiếp), status bar UI có thể hiển thị `@elicitation-sage-mend`, `@lore-analyst`, hoặc tên teammate khác từ các arc trước — dù những team đó đã bị xoá hoàn toàn.
+
+**Nguyên nhân**: Đây là giới hạn của Claude Code SDK. `TeamDelete()` xoá team leadership state và filesystem (`teams/`, `tasks/`), nhưng **không** terminate hoặc deregister in-process teammate khỏi session member list. SDK hiện không cung cấp API để forcefully terminate in-process teammate hoặc deregister member khỏi session.
+
+**Ảnh hưởng**: Chỉ là hiển thị. Ghost entry không chặn các arc phase tiếp theo và không ngăn việc spawn teammate mới. Chúng biến mất khi session process kết thúc.
+
+**Xử lý**:
+1. Kết thúc và khởi động lại session giữa các arc
+2. Bỏ qua badge — không ảnh hưởng chức năng
+3. Với `arc-batch`, ghost entry tích luỹ nhưng không ảnh hưởng tính đúng đắn
 
 ---
 

@@ -572,7 +572,7 @@ arc:
     semantic_verification: 180000  # 3 minutes (default, v1.39.0+)
     # task_decomposition: 180000       # Phase 4.5: Task decomposition (3 min)
     codex_gap_analysis: 660000   # 11 minutes (default, v1.39.0+)
-    test: 900000                 # 15 minutes (default, v1.43.0+; 40 min with E2E: 2_400_000)
+    test: 900000                 # 15 min outer timeout (inner: 600s without E2E, 2100s with E2E)
     # design_extraction: 300000        # Phase D1: Figma design extraction (5 min)
     # design_iteration: 600000         # Phase D2: Design iteration loop (10 min)
     # design_verification: 300000      # Phase D3: Design fidelity review (5 min)
@@ -1031,6 +1031,70 @@ testing:
     startup_command: null           # Override auto-detection (e.g., "bin/dev", "docker compose up -d")
     health_endpoint: null           # Override health check endpoint (e.g., "/api/health")
     startup_timeout: 180000         # Max wait for service readiness in ms (default: 180000 = 3min)
+  # ── Scenarios ──────────────────────────────
+  # Declarative scenario-driven testing (v1.200.0+)
+  # Opt-in: scenarios must be declared as YAML files in scenarios.directory.
+  scenarios:
+    enabled: true                   # Enable scenario discovery and execution (default: true)
+    directory: ".claude/test-scenarios"  # Directory containing scenario YAML files
+    max_per_run: 50                 # Max scenarios executed per arc run (default: 50)
+  # ── Extended Tier ───────────────────────────
+  # Long-running scenario suite beyond normal test budget (v1.200.0+)
+  # Opt-in: disabled by default due to long runtime.
+  # extended_tier:
+  #   enabled: false                  # Enable extended tier execution (default: false)
+  #   timeout_ms: 3600000             # Total timeout for extended suite in ms (default: 3600000 = 1hr)
+  #   checkpoint_interval_ms: 300000  # Checkpoint state every N ms for crash recovery (default: 300000 = 5min)
+  # ── Contract Validation ─────────────────────
+  # API contract testing against OpenAPI/JSON Schema spec (v1.200.0+)
+  # Opt-in: requires a spec file to be configured.
+  # contract:
+  #   enabled: false                  # Enable contract validation tier (default: false)
+  #   spec_path: null                 # Path to OpenAPI spec (e.g., "docs/openapi.yaml"). Required.
+  # ── Visual Regression ───────────────────────
+  # Screenshot comparison against stored baselines (v1.200.0+)
+  # Opt-in: requires baseline screenshots to be generated first.
+  # visual_regression:
+  #   enabled: false                  # Enable visual regression testing (default: false)
+  #   baseline_dir: "tests/baselines" # Directory storing baseline screenshots. Default if unset: ".claude/visual-baselines"
+  #   threshold: 0.95                 # Pixel similarity threshold (0.0-1.0, default: 0.95)
+  #   update_baselines: false         # When true, overwrite baselines instead of comparing
+  #   responsive:
+  #     enabled: false                # Test across multiple viewport sizes (default: false)
+  #     viewports:                    # Viewport sizes to test (default: common breakpoints)
+  #       - { width: 375, height: 812, name: "mobile" }
+  #       - { width: 768, height: 1024, name: "tablet" }
+  #       - { width: 1440, height: 900, name: "desktop" }
+  # ── Accessibility ────────────────────────────
+  # WCAG accessibility compliance checks (v1.200.0+)
+  # Opt-in: disabled by default.
+  # accessibility:
+  #   enabled: false                  # Enable accessibility checks (default: false)
+  #   level: "AA"                     # WCAG conformance level: "A", "AA", or "AAA" (default: "AA")
+  # ── Test History ─────────────────────────────
+  # Persistent test trend tracking across arc runs (v1.200.0+)
+  history:
+    enabled: true                   # Enable history recording (default: true)
+    directory: ".claude/test-history"  # Directory for persistent history files
+    max_entries: 50                 # Max history entries retained per test (default: 50; matches arc-phase-test.md implementation)
+    pass_rate_drop_threshold: 0.05  # Global pass-rate drop threshold (0.0-1.0, default: 0.05 = 5%)
+    regression_threshold: 7         # Minimum passing runs in last 10 to classify as regression (default: 7)
+    flaky_threshold: 0.1            # Failure rate above this flags test as flaky (default: 0.1 = 10%)
+  # ── Fixtures ─────────────────────────────────
+  # Test data fixture loading for database-backed tests (v1.200.0+)
+  # Opt-in: requires fixture files and optionally a db connection.
+  # fixtures:
+  #   enabled: false                  # Enable fixture loading before test run (default: false)
+  #   directory: "tests/fixtures"     # Directory containing fixture YAML/JSON/SQL files
+  #   db_connection: null             # Database connection string (e.g., "postgres://localhost/testdb")
+  # ── Production Readiness ─────────────────────
+  # Pre-ship checks: mock pattern scan, env validation, health checks (v1.200.0+)
+  # Opt-in: disabled by default.
+  # production_readiness:
+  #   enabled: false                  # Enable production readiness gate (default: false)
+  #   scan_mock_patterns: true        # Scan production code for test mock patterns (default: true)
+  #   validate_env_vars: true         # Validate required env vars are set (default: true)
+  #   health_check_all_endpoints: true  # Health-check all registered API endpoints (default: true)
 
 # ──────────────────────────────────────────────
 # Inner Flame — Self-review protocol (v1.46.0+)

@@ -3,9 +3,14 @@ name: testing
 description: |
   Test orchestration pipeline for arc Phase 7.7. Provides 3-tier testing
   (unit, integration, E2E/browser) with diff-scoped discovery, service startup,
-  and structured reporting. Auto-loaded by arc orchestrator during test phase.
+  and structured reporting. Includes extended tier with checkpoint/resume,
+  contract validation, visual regression, design token compliance, accessibility
+  checks, test history persistence, regression detection, and flaky test
+  identification. Auto-loaded by arc orchestrator during test phase.
   Trigger keywords: testing, test pipeline, unit test, integration test, E2E test,
-  test discovery, test report, QA, quality assurance.
+  test discovery, test report, QA, quality assurance, scenario schema, checkpoint,
+  fixture, visual regression, design token, accessibility, test history,
+  regression detection, flaky test, extended tier, contract validation.
 user-invocable: false
 disable-model-invocation: false
 ---
@@ -36,8 +41,10 @@ It is auto-loaded by the arc orchestrator and injected into test runner agents.
 |------|-------|-----------|
 | Test orchestration (team lead) | Opus | Complex coordination, strategy |
 | Unit test runner | Sonnet | Fast execution, low complexity |
+| Contract validator | Sonnet | API/schema validation, non-blocking |
 | Integration test runner | Sonnet | Moderate complexity, service interaction |
 | E2E browser tester | Sonnet | Browser interaction, snapshot analysis |
+| Extended test runner | Sonnet | Long-running scenarios, checkpoint support |
 | Failure analyst | Opus (inherit) | Root cause analysis, multi-file reasoning |
 
 **Strict enforcement**: Team lead (Opus) NEVER executes test commands directly.
@@ -100,6 +107,116 @@ Test runner detects failure
       → Analyst produces: root cause + fix proposal + confidence
     → If analyst times out: attach raw test output instead
 ```
+
+## Test Scenario Schema
+
+See [scenario-schema.md](references/scenario-schema.md) for the YAML test scenario format.
+
+Summary:
+- Scenarios live in `.claude/test-scenarios/*.yml`
+- Required fields: `name`, `tier` (unit/integration/e2e/extended/contract)
+- Discovered in STEP 0.5, merged into strategy in STEP 1.5
+- Capped at `testing.scenarios.max_per_run` (default 50)
+- Gate: `testing.scenarios.enabled` (default true)
+
+## Extended Tier Checkpoint/Resume
+
+See [checkpoint-protocol.md](references/checkpoint-protocol.md) for the checkpoint/resume protocol.
+
+Summary:
+- Extended scenarios write progress to `tmp/arc/{id}/extended-checkpoint.json`
+- On resume: orchestrator reads checkpoint and passes as `extendedResumeState`
+- Checkpoint interval: `testing.extended_tier.checkpoint_interval_ms` (default 300_000ms)
+- Budget: `testing.extended_tier.timeout_ms` (default 3_600_000ms)
+- Gate: `testing.extended_tier.enabled` AND extended scenarios exist
+
+## Test Data Fixtures
+
+See [fixture-protocol.md](references/fixture-protocol.md) for test data fixture execution.
+
+Summary:
+- Fixtures define seed data for integration and E2E tiers
+- Applied before scenario steps, within the test runner agent (STEPs 5/6/7)
+- Teardown runs after each scenario completes (regardless of pass/fail), not per-tier
+- Gate: `testing.fixtures.enabled`
+
+## Visual Regression
+
+See [visual-regression.md](references/visual-regression.md) for the visual regression protocol.
+
+Summary:
+- E2E browser tester captures screenshots during STEP 7
+- Inline comparison against baselines in `testing.visual_regression.baseline_dir`
+- Comparison tool: `agent-browser compare --baseline <path> --current <path> --format json`
+- Metric: similarity score (higher = better; 1.0 = identical)
+- Similarity threshold: `testing.visual_regression.threshold` (default 0.95 = 95% similarity)
+- Fail condition: `diffData.similarity < threshold` (below 95% similarity)
+- Failures appended as WARN section in `test-results-e2e.md` (non-blocking)
+- Gate: `testing.visual_regression.enabled`
+- Canonical implementation: arc-phase-test.md lines 381–407
+
+## Design Token Compliance
+
+See [design-token-check.md](references/design-token-check.md) for design token compliance checks.
+
+Summary:
+- Validates that changed frontend files use token-based values (not hardcoded colors/spacing)
+- Runs inline after E2E tier (team lead only)
+- Findings appended to test report as WARN
+- Gate: `testing.design_tokens.enabled`
+
+## Accessibility Validation
+
+See [accessibility-check.md](references/accessibility-check.md) for accessibility validation protocol.
+
+Summary:
+- WCAG 2.1 AA compliance checks on rendered routes
+- Runs via e2e-browser-tester (injected instructions)
+- Findings appended to `test-results-e2e.md`
+- Gate: `testing.accessibility.enabled`
+
+## Test History Persistence
+
+See [history-protocol.md](references/history-protocol.md) for test history persistence format.
+
+Summary:
+- Written to `.claude/test-history/test-history.jsonl` (JSONL rolling window)
+- Includes: pass/fail counts, durations, tier breakdown, flaky scores, PR number
+- Rolling window: `testing.history.max_entries` (default 50)
+- Gate: `testing.history.enabled` (default true)
+- Inline in STEP 9.5 (no agent spawn)
+- Canonical implementation: arc-phase-test.md STEP 9.5 (lines 580–635)
+
+## Regression Detection
+
+See [regression-detection.md](references/regression-detection.md) for regression signal detection.
+
+Two complementary regression signals are evaluated in STEP 9.5. They use different config keys,
+different algorithms, and different data granularities — they are NOT the same check:
+
+**Signal 1 — Global pass-rate drop** (arc-phase-test.md STEP 9.5, inline):
+- Compares current run pass rate against the immediately preceding history entry
+- Config: `testing.history.pass_rate_drop_threshold` (float, 0.0–1.0, default `0.05` = 5% drop)
+- Algorithm: `passRateDrop = previousPassRate - currentPassRate; if passRateDrop > threshold → warn`
+- On detection: `updateCheckpoint({ test_regression_detected: true, regression_pass_rate_drop: passRateDrop })` + warn
+- Gate: history must have ≥ 2 entries
+
+**Signal 2 — Per-test historical series** (regression-detection.md, per-test algorithm):
+- Evaluates each currently-failing test against its pass/fail history over last 10 runs
+- Config: `testing.history.regression_threshold` (integer, default `7`) — minimum recent passing runs out of last 10 to classify as a regression
+- Algorithm: `passCount = recentRuns.filter(passed).length; if passCount >= threshold → regression`
+- On detection: test listed in regression report with confidence score
+- Gate: history must have ≥ 2 entries; test must exist in history (skips new tests)
+
+## Flaky Test Identification
+
+See [flaky-detection.md](references/flaky-detection.md) for flaky test identification.
+
+Summary:
+- Computes per-test flaky scores from history: `pass_in_some_runs AND fail_in_others`
+- Scores persisted in history entries as `flaky_scores` map
+- High-flaky tests surfaced in test report for human review
+- Gate: `testing.flaky_detection.enabled` (default true)
 
 ## Security Patterns
 
