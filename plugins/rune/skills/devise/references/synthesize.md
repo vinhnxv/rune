@@ -50,6 +50,7 @@ non_goals: []  # List of explicitly out-of-scope items (from brainstorm or manua
 git_sha: "{run: git rev-parse HEAD}"
 branch: "{run: git branch --show-current}"
 figma_url: ""          # Auto-populated when Figma URL detected in brainstorm (leave empty if none). MUST be double-quoted when populated: figma_url: "https://..."
+figma_urls: []         # NEW — array of {url, role?, screen?}. role: auto|primary|variant (default: auto). screen: group label, null = auto-detect. Leave empty if none.
 design_sync: false     # Set to true when figma_url is detected (enables design context in strive workers)
 session_budget:
   max_concurrent_agents: 3      # Cap on simultaneous teammates (applied silently); see sizing guide
@@ -95,6 +96,7 @@ non_goals: []  # List of explicitly out-of-scope items (from brainstorm or manua
 git_sha: "{run: git rev-parse HEAD}"
 branch: "{run: git branch --show-current}"
 figma_url: ""          # Auto-populated when Figma URL detected in brainstorm (leave empty if none). MUST be double-quoted when populated: figma_url: "https://..."
+figma_urls: []         # NEW — array of {url, role?, screen?}. role: auto|primary|variant (default: auto). screen: group label, null = auto-detect. Leave empty if none.
 design_sync: false     # Set to true when figma_url is detected (enables design context in strive workers)
 design_system_library: ""       # Auto-detected: "shadcn" | "untitled-ui" | "generic" | "" (non-frontend)
 design_system_confidence: 0.0   # Detection confidence 0.0–1.0 (from discoverDesignSystem())
@@ -355,6 +357,7 @@ non_goals: []  # List of explicitly out-of-scope items (from brainstorm or manua
 git_sha: "{run: git rev-parse HEAD}"
 branch: "{run: git branch --show-current}"
 figma_url: ""          # Auto-populated when Figma URL detected in brainstorm (leave empty if none). MUST be double-quoted when populated: figma_url: "https://..."
+figma_urls: []         # NEW — array of {url, role?, screen?}. role: auto|primary|variant (default: auto). screen: group label, null = auto-detect. Leave empty if none.
 design_sync: false     # Set to true when figma_url is detected (enables design context in strive workers)
 design_system_library: ""       # Auto-detected: "shadcn" | "untitled-ui" | "generic" | "" (non-frontend)
 design_system_confidence: 0.0   # Detection confidence 0.0–1.0 (from discoverDesignSystem())
