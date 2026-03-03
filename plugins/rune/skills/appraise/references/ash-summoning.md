@@ -174,7 +174,23 @@ Write("tmp/reviews/{identifier}/inscription.json", {
 
 ## Talisman Custom Ashes
 
-After collecting changed files, check for custom Ash config:
+Agent-backed custom Ashes are **discovered in Phase 1 (Rune Gaze)** — NOT here in Phase 3.
+The discovery step in `rune-gaze.md` validates, trigger-matches, and stores results in
+`inscription.custom_agent_ashes`. Phase 3 reads that list and spawns them.
+
+**Phase 3 spawning (reads from Phase 1 discovery):**
+
+```
+1. Read inscription.custom_agent_ashes (populated by Phase 1 Rune Gaze)
+2. For each custom Ash in the list:
+   a. Load wrapper prompt template from roundtable-circle/references/custom-ashes.md
+   b. Substitute: {name}, {file_list}, {output_dir}, {finding_prefix}, {context_budget}
+   c. Spawn via Agent({ team_name, name: entry.name, subagent_type: entry.agent, prompt: wrapper })
+3. If inscription.custom_agent_ashes is empty or absent → no custom Ashes to spawn (skip silently)
+```
+
+**Important:** If `inscription.custom_agent_ashes` is not populated (e.g., legacy inscription without
+Phase 1 discovery), fall back to the original discovery flow:
 
 ```
 1. Read .claude/talisman.yml (project) or ~/.claude/talisman.yml (global)

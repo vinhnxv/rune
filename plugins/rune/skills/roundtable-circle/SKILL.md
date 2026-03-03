@@ -192,6 +192,10 @@ See [Rune Gaze](references/rune-gaze.md) for the full file classification algori
 | ALL files | Ward Sentinel (always) |
 | ALL files | Pattern Weaver (always) |
 | ALL files | Veil Piercer (always) |
+| `talisman.yml` `ashes.custom[]` (agent-backed) | Custom Ash (trigger-matched) |
+| `talisman.yml` `ashes.custom[]` (CLI-backed) | CLI Ash (via `detectAllCLIAshes()`) |
+
+**Custom Ash discovery** happens in Phase 1 (not Phase 3). Agent-backed custom Ashes from `talisman.yml` → `ashes.custom[]` are validated, trigger-matched against `changed_files`, and added to `selectedAsh` here. This ensures they get tasks in Phase 2 and are spawned in Phase 3. See [custom-ashes.md](references/custom-ashes.md) for the full schema.
 
 ### Large-Diff Detection (Post-Phase 1)
 
