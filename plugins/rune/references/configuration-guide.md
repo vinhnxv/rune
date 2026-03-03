@@ -75,6 +75,15 @@ All talisman config keys grouped by section with types, defaults, and descriptio
 | `forge.max_total_agents` | number | `8` | Max total forge agents (cap: 15) |
 | `forge.model` | string | — | Override forge agent model |
 
+### `brainstorm` — Brainstorm Settings
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `brainstorm.default_mode` | string | `"roundtable"` | Default mode: `solo`, `roundtable`, `deep` |
+| `brainstorm.max_rounds` | number | `5` | Max discussion rounds in roundtable/deep mode |
+| `brainstorm.advisor_timeout_ms` | number | `60000` | Per-round advisor response timeout (ms) |
+| `brainstorm.persistent_output` | boolean | `true` | Save output to `docs/brainstorms/` (false = `tmp/` only) |
+
 ### `plan` — Plan Settings
 
 | Key | Type | Default | Description |

@@ -57,6 +57,8 @@ using multi-agent research and synthesis.
 
 **Output**: `plans/YYYY-MM-DD-{type}-{name}-plan.md`
 
+**Tip**: Not sure what to build? Use `/rune:brainstorm` first to explore ideas before planning.
+
 ## After Planning
 
 - `/rune:work plans/...` — Implement the plan

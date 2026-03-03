@@ -9,6 +9,7 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `plan` | `/rune:plan` | `/rune:devise` | Feature description | `plans/*.md` |
 | `work` | `/rune:work` | `/rune:strive` | Plan file path | Code changes + commits |
 | `review` | `/rune:review` | `/rune:appraise` | Git diff (auto) | `tmp/reviews/*/TOME.md` |
+| `brainstorm` | `/rune:brainstorm` | — | Feature idea | `docs/brainstorms/*.md` |
 | `devise` | `/rune:devise` | — | Feature description | `plans/*.md` |
 | `strive` | `/rune:strive` | — | Plan file path | Code changes + commits |
 | `appraise` | `/rune:appraise` | — | Git diff (auto) | `tmp/reviews/*/TOME.md` |
@@ -31,7 +32,8 @@ Complete reference for `/rune:tarnished` routing decisions.
 
 | Skill | Key Flags |
 |-------|-----------|
-| `devise` | `--quick`, `--no-brainstorm`, `--no-forge`, `--exhaustive` |
+| `brainstorm` | `--quick`, `--deep` |
+| `devise` | `--quick`, `--brainstorm-context PATH`, `--no-brainstorm`, `--no-forge`, `--exhaustive` |
 | `appraise` | `--deep` |
 | `audit` | `--deep`, `--standard`, `--incremental`, `--dirs`, `--focus` |
 | `arc` | `--resume`, `--skip-forge`, `--no-forge`, `--skip-freshness` |
@@ -43,6 +45,7 @@ Complete reference for `/rune:tarnished` routing decisions.
 
 | Skill | Requires | Check |
 |-------|----------|-------|
+| `brainstorm` | None | Always available |
 | `strive` | Plan file | `Glob("plans/*.md")` |
 | `mend` | TOME file | `Glob("tmp/reviews/*/TOME.md")` or `Glob("tmp/audit/*/TOME.md")` |
 | `appraise` | Git changes | `git diff --stat` |
@@ -57,6 +60,9 @@ Complete reference for `/rune:tarnished` routing decisions.
 
 | Skill | Agents | Duration |
 |-------|--------|----------|
+| `brainstorm` (solo) | None | 1-2 min |
+| `brainstorm` (roundtable) | 3 advisors | 3-5 min |
+| `brainstorm` (deep) | 3 advisors + sages | 5-8 min |
 | `devise` | Up to 7 | 5-15 min |
 | `devise --quick` | 2-3 | 2-5 min |
 | `strive` | Swarm | 10-30 min |

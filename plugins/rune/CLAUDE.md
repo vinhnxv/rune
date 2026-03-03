@@ -41,6 +41,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **git-worktree** | Use when running /rune:strive with --worktree flag or when work.worktree.enabled is set in talisman. Covers worktree lifecycle, wave-based execution, merge strategy, and conflict resolution patterns |
 | **inspect** | Plan-vs-implementation deep audit with 4 Inspector Ashes (9 dimensions, 8 gap categories). Goldmask Lore Layer integration (Phase 1.3) for risk-aware gap prioritization |
 | **mend** | Parallel finding resolution from TOME. Goldmask data passthrough (risk-overlaid severity, risk context injection) + quick check (Phase 5.95) |
+| **brainstorm** | Collaborative idea exploration — 3 modes: Solo (conversation), Roundtable Advisors (3 agent personas), Deep (advisors + elicitation sages). Persistent output in `docs/brainstorms/`. `disable-model-invocation: true` |
 | **devise** | Multi-agent planning: brainstorm, research, validate, synthesize, shatter, forge, review (+ `--quick`). Predictive Goldmask (2-8 agents, basic default) for pre-implementation risk assessment |
 | **appraise** | Multi-agent code review with up to 7 built-in Ashes (+ custom from talisman.yml). Default: standard. Use `--deep` for multi-wave deep review. |
 | **codex-review** | Cross-model code review — runs Claude and Codex agents in parallel, cross-verifies findings, merges consensus issues into a unified TOME. Use when you want a second opinion from an independent model on critical changes. |
@@ -68,6 +69,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | `/rune:elicit` | Interactive elicitation method selection |
 | `/rune:file-todos` | Manage file-based todos (create, triage, status, list, next, search, manifest, dedup, resolve) |
 | `/rune:rest` | Remove tmp/ artifacts from completed workflows |
+| `/rune:brainstorm` | Beginner alias for `/rune:brainstorm` skill — explore ideas through dialogue |
 | `/rune:plan` | Beginner alias for `/rune:devise` — plan a feature or task |
 | `/rune:work` | Beginner alias for `/rune:strive` — implement a plan |
 | `/rune:review` | Beginner alias for `/rune:appraise` — review code changes |

@@ -29,6 +29,8 @@ These keywords at the START of `$ARGUMENTS` trigger immediate routing (no classi
 | `arc-hierarchy` | `/rune:arc-hierarchy` | Yes |
 | `ship` | `/rune:arc` | Yes |
 | `fix` | `/rune:mend` | Yes — check for TOME prerequisite |
+| `brainstorm` | `/rune:brainstorm` | Yes |
+| `explore` | `/rune:brainstorm` | Yes — alias for brainstorm |
 | `debug` | `/rune:debug` | Yes |
 | `talisman` | `/rune:talisman` | Yes |
 | `config` | `/rune:talisman` | Yes — alias for talisman |
@@ -46,6 +48,8 @@ These keywords at the START of `$ARGUMENTS` trigger immediate routing (no classi
 | `triển khai` / `thực hiện` | `/rune:strive` |
 | `kiểm tra` / `đánh giá` | `/rune:appraise` |
 | `sửa` / `fix lỗi` | `/rune:mend` |
+| `khám phá` / `khám phá ý tưởng` | `/rune:brainstorm` |
+| `thảo luận` / `brainstorm` | `/rune:brainstorm` |
 | `dọn dẹp` | `/rune:rest` |
 | `cấu hình` / `thiết lập` | `/rune:talisman` |
 | `tạo talisman` / `init talisman` | `/rune:talisman init` |
@@ -62,6 +66,7 @@ Multi-step workflows detected by connectors: "then", "and then", "after that",
 | `{plan-intent} then {work-intent}` | devise → strive |
 | `{plan-intent} then {arc-intent}` | devise → arc |
 | `{review-intent} then {fix-intent}` | appraise → mend |
+| `{brainstorm-intent} then {plan-intent}` | brainstorm → devise |
 | `{discuss-intent} then {plan-intent}` | elicit → devise |
 | `{work-intent} then {review-intent}` | strive → appraise |
 
@@ -71,6 +76,7 @@ Requires artifact scanning before routing.
 
 | Pattern | Action |
 |---------|--------|
+| "plan this brainstorm" / "plan from brainstorm" | Scan `docs/brainstorms/` → latest → devise --brainstorm-context |
 | "implement it" / "build it" (no plan specified) | Scan `plans/` → latest plan → strive |
 | "fix the findings" (no TOME specified) | Scan `tmp/reviews/` → latest TOME → mend |
 | "continue" / "tiếp tục" | Check last workflow artifacts → resume |
@@ -82,7 +88,10 @@ Needs structured thinking before action.
 
 | Pattern | Action |
 |---------|--------|
-| "discuss" / "thảo luận" / "think about" | Start discussion inline or → elicit |
+| "brainstorm" / "explore idea" / "what should we build" | → brainstorm |
+| "khám phá" / "thảo luận ý tưởng" / "brainstorm this" | → brainstorm |
+| "thinking about" / "what if" / "explore" | → brainstorm (exploratory intent) |
+| "discuss" / "thảo luận" / "think about" | → brainstorm (or elicit if structured reasoning needed) |
 | "research" / "nghiên cứu" / "tìm hiểu" | Research inline, then suggest devise |
 | "compare approaches" / "so sánh" | → elicit (Tree of Thoughts) |
 | "analyze risk" / "đánh giá rủi ro" | → elicit (Pre-mortem) |

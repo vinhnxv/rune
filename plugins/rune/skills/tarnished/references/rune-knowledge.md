@@ -11,19 +11,21 @@ code. Think of it as a CI/CD pipeline — but for AI-assisted development.
 The name comes from Elden Ring — the Tarnished (you/Claude) coordinates Ashes (agents)
 through the Lands Between (your codebase).
 
-## Core Workflow: Plan → Work → Review
+## Core Workflow: Brainstorm → Plan → Work → Review
 
-The most common Rune workflow is a 3-step cycle:
+The most common Rune workflow is a 4-step cycle:
 
 ```
-/rune:plan    →  Create a detailed plan for a feature
+/rune:brainstorm  →  Explore the idea (optional but recommended)
      ↓
-/rune:work    →  AI agents implement the plan
+/rune:plan        →  Create a detailed plan for a feature
      ↓
-/rune:review  →  AI agents review the code changes
+/rune:work        →  AI agents implement the plan
+     ↓
+/rune:review      →  AI agents review the code changes
 ```
 
-This is the recommended starting point for new users.
+Start with `/rune:brainstorm` when the idea is vague, or skip to `/rune:plan` when requirements are clear.
 
 ## When to Use Which Command
 
@@ -31,6 +33,9 @@ This is the recommended starting point for new users.
 
 | Goal | Command | Notes |
 |------|---------|-------|
+| **Explore an idea** | `/rune:brainstorm idea` | 3 modes: solo, roundtable, deep |
+| **Quick brainstorm** | `/rune:brainstorm --quick idea` | Solo conversation, no agents |
+| **Deep brainstorm** | `/rune:brainstorm --deep idea` | Advisors + elicitation sages |
 | **Plan a feature** | `/rune:plan description` | Multi-agent research + synthesis |
 | **Quick plan** | `/rune:plan --quick description` | Skip brainstorm + forge |
 | **Implement a plan** | `/rune:work plans/my-plan.md` | Swarm workers execute tasks |
@@ -50,7 +55,8 @@ This is the recommended starting point for new users.
 Do you have a plan file?
 ├── No → Do you know what to build?
 │   ├── Yes → /rune:plan "your feature"
-│   └── No → /rune:tarnished (this command) to discuss
+│   └── No → /rune:brainstorm "your idea" (explore first)
+│       └── After brainstorm → /rune:plan (auto-suggested)
 └── Yes → Do you want full automation?
     ├── Yes → /rune:arc plans/my-plan.md
     └── No → /rune:work plans/my-plan.md
@@ -63,6 +69,19 @@ After implementation:
 ```
 
 ## Key Concepts Explained
+
+### Brainstorm (Idea Exploration)
+The brainstorm skill (`/rune:brainstorm`) explores ideas before planning. Three modes:
+- **Solo** — pure conversation, no agents. Fastest option.
+- **Roundtable** — 3 advisor agents (User Advocate, Tech Realist, Devil's Advocate) engage you through structured discussion rounds. Advisors do lightweight codebase research.
+- **Deep** — advisors + 1-3 elicitation sages for structured reasoning.
+
+Output: `docs/brainstorms/YYYY-MM-DD-topic-brainstorm.md` (persistent project knowledge).
+When ready to plan, brainstorm hands off to `/rune:devise --brainstorm-context` which reads the full workspace for rich research context.
+
+**When to use brainstorm vs devise**:
+- Use brainstorm when the idea is vague, you want to explore trade-offs, or multiple approaches exist
+- Use devise directly when requirements are clear and specific
 
 ### Ashes (Agents)
 Each "Ash" is a specialized AI agent with its own context window. Rune has 89 agents:

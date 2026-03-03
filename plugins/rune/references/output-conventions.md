@@ -4,6 +4,8 @@
 |----------|----------|-------|
 | Reviews | `tmp/reviews/{id}/` | `{ash}.md`, `TOME.md` (with RUNE:FINDING markers), `inscription.json` |
 | Audits | `tmp/audit/{id}/` | Same pattern |
+| Brainstorms | `docs/brainstorms/YYYY-MM-DD-{name}-brainstorm.md` (persistent) | Brainstorm document with decisions, questions, insights |
+| Brainstorm Workspace | `tmp/brainstorm-{timestamp}/` (session-scoped) | Advisor outputs, round transcripts, quality scores |
 | Plans | `tmp/plans/{id}/research/`, `plans/YYYY-MM-DD-{type}-{name}-plan.md` | Research findings, brainstorm decisions, plan document |
 | Forge | `tmp/forge/{id}/` | `{section-slug}-{agent-name}.md` enrichment files, `inscription.json`, `original-plan.md` (backup) |
 | Work | `tmp/work/{timestamp}/` | `inscription.json`, `patches/*.patch`, `patches/*.json`, `proposals/*.md`, `codex-advisory.md` |
@@ -16,5 +18,7 @@
 | Echoes | `.claude/echoes/{role}/` | `MEMORY.md`, `knowledge.md`, `archive/` |
 
 All `tmp/` directories are ephemeral and can be safely deleted after workflows complete.
+
+Brainstorm documents in `docs/brainstorms/` are persistent project knowledge and survive `/rune:rest`.
 
 Echo files in `.claude/echoes/` are persistent and survive across sessions.

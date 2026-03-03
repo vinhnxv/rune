@@ -12,6 +12,28 @@ Multi-step workflow definitions for `/rune:tarnished`.
 
 ## Defined Chains
 
+### brainstorm-then-plan
+
+**Triggers**: "brainstorm then plan", "brainstorm rồi plan", "explore then plan", "khám phá rồi plan"
+
+```
+Step 1: /rune:brainstorm {idea}
+   ↓ (brainstorm complete, workspace at tmp/brainstorm-{timestamp}/)
+Step 2: /rune:devise --brainstorm-context tmp/brainstorm-{timestamp} {idea}
+```
+
+### brainstorm-then-arc
+
+**Triggers**: "brainstorm then ship", "brainstorm rồi ship", "explore and build"
+
+```
+Step 1: /rune:brainstorm {idea}
+   ↓ (brainstorm complete)
+Step 2: /rune:devise --brainstorm-context tmp/brainstorm-{timestamp} {idea}
+   ↓ (plan created at plans/*.md)
+Step 3: /rune:arc {plan path from step 2}
+```
+
 ### discuss-then-plan
 
 **Triggers**: "discuss then plan", "thảo luận rồi tạo plan", "think about it then plan"
