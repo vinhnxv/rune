@@ -54,7 +54,19 @@ function detectRegressions(currentRun, historyDir, talismanConfig):
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `testing.history.regression_threshold` | number | `7` | Minimum recent passes (out of last 10) to classify a failure as a regression |
+| `testing.history.regression_threshold` | integer | `7` | Minimum recent passes (out of last 10) to classify a currently-failing test as a per-test regression |
+
+> **Two complementary regression signals.** The Rune testing pipeline uses two
+> distinct regression checks, each with its own config key:
+>
+> | Signal | Config Key | Type | Scope | Algorithm |
+> |--------|-----------|------|-------|-----------|
+> | Per-test regression | `testing.history.regression_threshold` | integer (default `7`) | Individual test series | A test that passes in >= threshold of its last 10 runs but fails now is flagged as a regression (this file) |
+> | Global pass-rate drop | `testing.history.pass_rate_drop_threshold` | float 0.0--1.0 (default `0.05`) | Entire test suite | If the overall pass rate drops by more than this fraction compared to the rolling baseline, the STEP 9.5 global gate fires (see arc-phase-test.md) |
+>
+> These signals are independent — a run can trigger one, both, or neither. The
+> per-test check (this algorithm) identifies *which* tests regressed; the global
+> gate detects *aggregate* quality drops that might not surface in any single test.
 
 ### Threshold Tuning
 

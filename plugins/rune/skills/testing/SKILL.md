@@ -136,8 +136,8 @@ See [fixture-protocol.md](references/fixture-protocol.md) for test data fixture 
 
 Summary:
 - Fixtures define seed data for integration and E2E tiers
-- Applied before service startup (STEP 3)
-- Cleanup order: after each tier completes, before STEP 10 Docker shutdown
+- Applied before scenario steps, within the test runner agent (STEPs 5/6/7)
+- Teardown runs after each scenario completes (regardless of pass/fail), not per-tier
 - Gate: `testing.fixtures.enabled`
 
 ## Visual Regression
@@ -147,9 +147,13 @@ See [visual-regression.md](references/visual-regression.md) for the visual regre
 Summary:
 - E2E browser tester captures screenshots during STEP 7
 - Inline comparison against baselines in `testing.visual_regression.baseline_dir`
-- Pixel diff threshold: `testing.visual_regression.threshold` (default 0.02 = 2%)
+- Comparison tool: `agent-browser compare --baseline <path> --current <path> --format json`
+- Metric: diff score (lower = better; 0.0 = identical)
+- Pixel diff threshold: `testing.visual_regression.threshold` (default 0.02 = 2% diff)
+- Fail condition: `diffData.diff > threshold` (exceeds 2% diff)
 - Failures appended as WARN section in `test-results-e2e.md` (non-blocking)
 - Gate: `testing.visual_regression.enabled`
+- Canonical implementation: arc-phase-test.md lines 381–407
 
 ## Design Token Compliance
 
@@ -181,16 +185,28 @@ Summary:
 - Rolling window: `testing.history.max_entries` (default 50)
 - Gate: `testing.history.enabled` (default true)
 - Inline in STEP 9.5 (no agent spawn)
+- Canonical implementation: arc-phase-test.md STEP 9.5 (lines 580–635)
 
 ## Regression Detection
 
 See [regression-detection.md](references/regression-detection.md) for regression signal detection.
 
-Summary:
-- Compares current pass rate against previous history entry
-- Threshold: `testing.history.regression_threshold` (default 0.05 = 5% drop)
-- On detection: `updateCheckpoint({ test_regression_detected: true })` + warn
+Two complementary regression signals are evaluated in STEP 9.5. They use different config keys,
+different algorithms, and different data granularities — they are NOT the same check:
+
+**Signal 1 — Global pass-rate drop** (arc-phase-test.md STEP 9.5, inline):
+- Compares current run pass rate against the immediately preceding history entry
+- Config: `testing.history.pass_rate_drop_threshold` (float, 0.0–1.0, default `0.05` = 5% drop)
+- Algorithm: `passRateDrop = previousPassRate - currentPassRate; if passRateDrop > threshold → warn`
+- On detection: `updateCheckpoint({ test_regression_detected: true, regression_pass_rate_drop: passRateDrop })` + warn
 - Gate: history must have ≥ 2 entries
+
+**Signal 2 — Per-test historical series** (regression-detection.md, per-test algorithm):
+- Evaluates each currently-failing test against its pass/fail history over last 10 runs
+- Config: `testing.history.regression_threshold` (integer, default `7`) — minimum recent passing runs out of last 10 to classify as a regression
+- Algorithm: `passCount = recentRuns.filter(passed).length; if passCount >= threshold → regression`
+- On detection: test listed in regression report with confidence score
+- Gate: history must have ≥ 2 entries; test must exist in history (skips new tests)
 
 ## Flaky Test Identification
 

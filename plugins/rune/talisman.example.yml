@@ -572,7 +572,7 @@ arc:
     semantic_verification: 180000  # 3 minutes (default, v1.39.0+)
     # task_decomposition: 180000       # Phase 4.5: Task decomposition (3 min)
     codex_gap_analysis: 660000   # 11 minutes (default, v1.39.0+)
-    test: 900000                 # 15 minutes (default, v1.43.0+; 40 min with E2E: 2_400_000)
+    test: 900000                 # 15 min outer timeout (inner: 600s without E2E, 2100s with E2E)
     # design_extraction: 300000        # Phase D1: Figma design extraction (5 min)
     # design_iteration: 600000         # Phase D2: Design iteration loop (10 min)
     # design_verification: 300000      # Phase D3: Design fidelity review (5 min)
@@ -1062,9 +1062,9 @@ testing:
   #   responsive:
   #     enabled: false                # Test across multiple viewport sizes (default: false)
   #     viewports:                    # Viewport sizes to test (default: common breakpoints)
-  #       - { width: 375, height: 812, label: "mobile" }
-  #       - { width: 768, height: 1024, label: "tablet" }
-  #       - { width: 1440, height: 900, label: "desktop" }
+  #       - { width: 375, height: 812, name: "mobile" }
+  #       - { width: 768, height: 1024, name: "tablet" }
+  #       - { width: 1440, height: 900, name: "desktop" }
   # ── Accessibility ────────────────────────────
   # WCAG accessibility compliance checks (v1.200.0+)
   # Opt-in: disabled by default.
@@ -1076,8 +1076,9 @@ testing:
   history:
     enabled: true                   # Enable history recording (default: true)
     directory: ".claude/test-history"  # Directory for persistent history files
-    max_entries: 100                # Max history entries retained per test (default: 100)
-    regression_threshold: 7         # Consecutive failures before flagging as regression (default: 7)
+    max_entries: 50                 # Max history entries retained per test (default: 50; matches arc-phase-test.md implementation)
+    pass_rate_drop_threshold: 0.05  # Global pass-rate drop threshold (0.0-1.0, default: 0.05 = 5%)
+    regression_threshold: 7         # Minimum passing runs in last 10 to classify as regression (default: 7)
     flaky_threshold: 0.1            # Failure rate above this flags test as flaky (default: 0.1 = 10%)
   # ── Fixtures ─────────────────────────────────
   # Test data fixture loading for database-backed tests (v1.200.0+)

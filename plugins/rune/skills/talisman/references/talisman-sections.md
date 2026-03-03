@@ -55,7 +55,7 @@ These sections affect core workflow correctness:
 
 ### `arc.timeouts`
 **Impact**: Per-phase timeout controls for arc pipeline.
-**Must have**: All 18 phase timeout entries for predictable behavior.
+**Must have**: All 24 phase timeout entries for predictable behavior.
 
 ## Stack-Specific Configuration
 
@@ -136,7 +136,7 @@ work:
 
 ## Arc Timeouts
 
-All 22 phase timeouts (ms):
+All 24 phase timeouts (ms):
 
 | Phase | Key | Default |
 |-------|-----|---------|
@@ -152,6 +152,7 @@ All 22 phase timeouts (ms):
 | 5.8 Gap Remediation | `gap_remediation` | 900000 |
 | 5.9 Goldmask Verify | `goldmask_verification` | 300000 |
 | 6 Code Review | `code_review` | 900000 |
+| 6.2 Audit | `audit` | 1200000 |
 | 6.5 Goldmask Corr. | `goldmask_correlation` | 300000 |
 | 7 Mend | `mend` | 1380000 |
 | 7.5 Verify Mend | `verify_mend` | 240000 |
@@ -162,3 +163,4 @@ All 22 phase timeouts (ms):
 | D2 Design Iteration | `design_iteration` | 600000 |
 | D3 Design Verification | `design_verification` | 300000 |
 | — Bot Review Wait | `bot_review_wait` | 900000 |
+| — PR Comment Resolution | `pr_comment_resolution` | 1200000 |

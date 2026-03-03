@@ -109,9 +109,15 @@ executeApiFixture(fixture):
   if resolved.hostname !== parsedBase.hostname:
     reject("API fixture URL resolved to non-localhost host")
 
-  // Execute HTTP call
+  // Validate HTTP method before shell interpolation (SEC-P2-003)
+  ALLOWED_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH"]
+  if !ALLOWED_METHODS.includes(fixture.method.toUpperCase()):
+    reject("Invalid HTTP method: ${fixture.method}")
+  method = fixture.method.toUpperCase()
+
+  // Execute HTTP call — pipe body via stdin to prevent shell injection (SEC-P2-002)
   bodyJson = JSON.stringify(fixture.body ?? {})
-  Bash(`curl -s -X ${fixture.method} "${fullUrl}" -H "Content-Type: application/json" -d '${bodyJson}'`)
+  Bash(`printf '%s' ${shellQuote(bodyJson)} | curl -s -X ${method} "${fullUrl}" -H "Content-Type: application/json" --data-binary @-`)
 ```
 
 **Security notes**:
@@ -134,24 +140,54 @@ preconditions:
 
 ```
 executeEnvFixture(fixture):
+  // ENFORCEMENT NOTE (VEIL-005): This blocklist MUST be validated at runtime
+  // by the test runner agent. Implementers SHOULD add a PreToolUse hook
+  // (e.g., validate-fixture-env.sh) to enforce blocklist checks before
+  // any env_set fixture executes. Without runtime enforcement, security
+  // depends on agent compliance with this pseudocode.
+
   // Blocklist sensitive variables
   BLOCKED_ENV_VARS = [
     "PATH", "HOME", "USER", "SHELL",
     "CLAUDE_*",                         # All Claude env vars
+    "ANTHROPIC_*",                      # Anthropic API keys and credentials
     "AWS_*",                            # AWS credentials
     "GITHUB_TOKEN", "GH_TOKEN",         # GitHub tokens
-    "OPENAI_API_KEY",                   # API keys
-    "DATABASE_URL",                     # Connection strings
+    "OPENAI_*",                         # OpenAI API keys and credentials
+    "COHERE_*",                         # Cohere API keys
+    "GEMINI_*",                         # Google Gemini API keys
+    "AZURE_OPENAI_*",                   # Azure OpenAI credentials
+    "HUGGINGFACE_*",                    # HuggingFace tokens
+    "REPLICATE_*",                      # Replicate API tokens
+    "*_SECRET", "*_SECRET_KEY",         # Framework secret keys (Django, Flask, Rails) (SEC-P2-004)
+    "*_PRIVATE_KEY",                    # Signing/encryption private keys (SEC-P2-004)
+    "*_PASSWORD", "*_PASSWD",           # Database and service passwords (SEC-P2-004)
+    "*_ENCRYPTION_KEY",                 # Encryption keys (SEC-P2-004)
+    "JWT_SECRET", "*_JWT_SECRET",       # JWT signing secrets (SEC-P2-004)
+    "SESSION_SECRET", "*_SESSION_SECRET", # Session secrets (SEC-P2-004)
+    "DATABASE_URL", "*_DATABASE_URL",   # Connection strings
     "NODE_ENV",                         # Runtime mode
     "FIGMA_ACCESS_TOKEN"                # Service tokens
   ]
 
   for pattern in BLOCKED_ENV_VARS:
-    if pattern.endsWith("*"):
+    if pattern.startsWith("*") && pattern.endsWith("*"):
+      // Infix match: *SUBSTRING* (not currently used, but defensive)
+      infix = pattern.slice(1, -1)
+      if fixture.key.includes(infix):
+        reject("Cannot set blocked env var: ${fixture.key}")
+    else if pattern.startsWith("*"):
+      // Suffix match: *_SECRET, *_PASSWORD, etc. (SEC-P2-004)
+      suffix = pattern.slice(1)
+      if fixture.key.endsWith(suffix):
+        reject("Cannot set blocked env var: ${fixture.key}")
+    else if pattern.endsWith("*"):
+      // Prefix match: CLAUDE_*, AWS_*, etc.
       prefix = pattern.slice(0, -1)
       if fixture.key.startsWith(prefix):
         reject("Cannot set blocked env var: ${fixture.key}")
     else:
+      // Exact match
       if fixture.key === pattern:
         reject("Cannot set blocked env var: ${fixture.key}")
 
@@ -168,7 +204,7 @@ executeEnvFixture(fixture):
 
 **Security notes**:
 - Blocklist prevents overwriting security-critical variables
-- Wildcard patterns (`CLAUDE_*`, `AWS_*`) block entire prefixes
+- Wildcard patterns (`CLAUDE_*`, `ANTHROPIC_*`, `AWS_*`, `OPENAI_*`, etc.) block entire credential prefixes
 - Key format enforced: uppercase letters, digits, underscores only
 - Original values saved for teardown restoration
 
@@ -253,13 +289,33 @@ teardown:
     url: "/api/test/cleanup"        # Same localhost restriction as fixture api_call
 
   - type: run_command
-    command: "npm run db:reset-test" # Validated against SAFE_TEST_COMMAND_PATTERN
+    command: "npm run db:reset-test" # Validated against SAFE_TEST_COMMAND_PATTERN + ALLOWED_TEARDOWN_PREFIXES
 
   - type: file_delete
     path: "tmp/test-config.json"    # Same path restrictions as file_create
 ```
 
 Teardown actions use the same security validation as their fixture counterparts.
+
+**`run_command` defense-in-depth** (SEC-P2-005): `SAFE_TEST_COMMAND_PATTERN` (`/^[a-zA-Z0-9._\-\/ ]+$/`)
+blocks shell metacharacters but still allows destructive alphanumeric commands. Implementers
+SHOULD additionally validate commands against an allowlist of known test-runner prefixes:
+
+```
+ALLOWED_TEARDOWN_PREFIXES = [
+  "npm run ", "npx ", "yarn ", "pnpm ",   # Node.js package runners
+  "pytest ", "python -m pytest ",          # Python test runners
+  "cargo test", "cargo run ",             # Rust test runners
+  "bundle exec ", "rails ",               # Ruby runners
+  "make ", "go test"                      # Build system / Go runners
+]
+
+if !ALLOWED_TEARDOWN_PREFIXES.some(p => command.startsWith(p)):
+  reject("Teardown command does not match allowed test-runner prefixes")
+```
+
+Since teardown commands come from committed scenario YAML files (same trust level as test
+code), the allowlist is a defense-in-depth measure — not a primary security boundary.
 
 ## Idempotency Requirements
 
@@ -308,6 +364,6 @@ Dependency fixtures are tracked to avoid redundant execution within the same tes
 | Fixture Type | Risk | Mitigation |
 |-------------|------|------------|
 | `sql` | SQL injection via seed script | Content trusted (committed code), path restricted to fixture directory |
-| `api_call` | SSRF via URL field | Localhost-only restriction, relative paths only, DNS rebinding check |
-| `env_set` | Environment injection | Blocklist for sensitive vars (PATH, HOME, CLAUDE_*, AWS_*, tokens) |
+| `api_call` | SSRF via URL field, command injection via body/method | Localhost-only restriction, relative paths only, DNS rebinding check, method allowlist validation, body piped via stdin (not interpolated) |
+| `env_set` | Environment injection | Blocklist for sensitive vars (PATH, HOME, CLAUDE_*, ANTHROPIC_*, AWS_*, *_SECRET*, *_PRIVATE_KEY, *_PASSWORD, *_ENCRYPTION_KEY, *_JWT_SECRET, *_SESSION_SECRET, tokens). Runtime enforcement via hook recommended (VEIL-005) |
 | `file_create` | Path traversal, code overwrite | SAFE_PATH_PATTERN, relative only, no `..`, restricted to tmp/ or tests/ |

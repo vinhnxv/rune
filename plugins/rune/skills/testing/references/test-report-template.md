@@ -17,8 +17,10 @@ tmp/arc/{id}/
 ├── screenshots/
 │   └── route-{N}-step-{S}.png
 ├── docker-containers.json              # For crash recovery cleanup
-└── .claude/test-history/               # Persistent test history across runs
-    └── {arc-id}-summary.json
+│
+# Persistent test history (stored at PROJECT ROOT, not under tmp/arc/):
+.claude/test-history/
+└── test-history.jsonl                  # Rolling window (JSONL single-file)
 ```
 
 ## Main Report Format (test-report.md)
@@ -220,14 +222,14 @@ Only present when `testing.history.enabled` is true in talisman.yml. Data source
 ```markdown
 ## Test History
 
-**Regression threshold**: {talisman.testing.history.regression_threshold} consecutive failures
+**Regression threshold**: {talisman.testing.history.regression_threshold} minimum recent passes (out of last 10 runs) to classify as regression
 **Flaky threshold**: {talisman.testing.history.flaky_threshold} (failure rate)
 
 | Test | Last {N} Runs | Trend | Flaky? | Regression? |
 |------|--------------|-------|--------|------------|
 | unit:UserService.create | ✓✓✓✓✓ | stable | NO | NO |
 | unit:PaymentService.charge | ✓✗✓✗✓ | unstable | YES (40%) | NO |
-| integration:OrderFlow | ✗✗✗✗✗ | declining | NO | YES (5 consecutive) |
+| integration:OrderFlow | ✓✓✓✓✓✓✓✓✗ | declining | NO | YES (8/10 passes, now failing) |
 
 **Regression signals**: {N} tests newly failing across {N} consecutive runs.
 **Flaky indicators**: {N} tests with failure rate ≥ {threshold}.

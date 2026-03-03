@@ -100,12 +100,30 @@ if (scenariosEnabled) {
   }
 
   // Filter by active tiers — only include scenarios whose tier will run
+  // Lightweight frontend detection for scenario filtering (full classification in STEP 1)
+  const frontendExtsPrecheck = talisman?.['rune-gaze']?.frontend_extensions ?? ['.tsx', '.ts', '.jsx']
+  const has_frontend_precheck = diffFiles.some(f =>
+    frontendExtsPrecheck.some(e => f.endsWith(e)) && !f.includes('test') && !f.includes('spec')
+  )
   scenarios = scenarios.filter(s => {
     if (s.tier === 'unit') return true  // unitEnabled checked later in STEP 1
     if (s.tier === 'integration') return true
-    if (s.tier === 'e2e') return has_frontend  // pre-check: e2e requires frontend
+    if (s.tier === 'e2e') return has_frontend_precheck  // pre-check: e2e requires frontend
     if (s.tier === 'extended') return testingConfig.extended_tier?.enabled !== false
     if (s.tier === 'contract') return testingConfig.contract?.enabled !== false
+    if (s.tier === 'visual') {
+      // visual requires frontend AND explicit opt-in (disabled by default)
+      if (!has_frontend_precheck) {
+        warn(`Scenario "${s.name}" skipped: tier=visual requires frontend files (none detected)`)
+        return false
+      }
+      if (testingConfig.visual_regression?.enabled !== true) {
+        warn(`Scenario "${s.name}" skipped: tier=visual requires testing.visual_regression.enabled=true`)
+        return false
+      }
+      return true
+    }
+    warn(`Scenario "${s.name}" skipped: unknown tier "${s.tier}"`)
     return false
   })
 
@@ -354,7 +372,7 @@ if (e2eEnabled && servicesHealthy && agentBrowserAvailable && e2eRoutes.length >
   const visualRegressionEnabled = testingConfig.visual_regression?.enabled === true
   if (visualRegressionEnabled && agentBrowserAvailable) {
     const baselineDir = testingConfig.visual_regression?.baseline_dir ?? ".claude/visual-baselines"
-    const pixelDiffThreshold = testingConfig.visual_regression?.threshold ?? 0.02  // 2% default
+    const similarityThreshold = testingConfig.visual_regression?.threshold ?? 0.95  // 95% similarity default (matches talisman docs)
     const screenshotDir = `tmp/arc/${id}/screenshots`
 
     // e2e-browser-tester already captured screenshots — compare against baselines
@@ -371,8 +389,8 @@ if (e2eEnabled && servicesHealthy && agentBrowserAvailable && e2eRoutes.length >
             const diffData = JSON.parse(diffResult)
             if (diffData.error === 'compare-unavailable') {
               warn(`Visual regression compare unavailable for ${screenshotName} — skipping`)
-            } else if (diffData.diff > pixelDiffThreshold) {
-              visualFailures.push({ screenshot: screenshotName, diff: diffData.diff, threshold: pixelDiffThreshold })
+            } else if (diffData.similarity < similarityThreshold) {
+              visualFailures.push({ screenshot: screenshotName, similarity: diffData.similarity, threshold: similarityThreshold })
             }
           } catch (e) {
             warn(`Visual regression parse error for ${screenshotName}: ${e.message} — skipping`)
@@ -382,9 +400,9 @@ if (e2eEnabled && servicesHealthy && agentBrowserAvailable && e2eRoutes.length >
         }
       }
       if (visualFailures.length > 0) {
-        warn(`Visual regression: ${visualFailures.length} screenshot(s) exceeded diff threshold ${pixelDiffThreshold}. Review tmp/arc/${id}/screenshots/`)
+        warn(`Visual regression: ${visualFailures.length} screenshot(s) below similarity threshold ${similarityThreshold}. Review tmp/arc/${id}/screenshots/`)
         // Append visual regression section to E2E results (non-blocking)
-        const vrSection = `\n## Visual Regression\n${visualFailures.map(f => `- ${f.screenshot}: diff=${f.diff.toFixed(4)} (threshold=${f.threshold})`).join('\n')}\n`
+        const vrSection = `\n## Visual Regression\n${visualFailures.map(f => `- ${f.screenshot}: similarity=${f.similarity.toFixed(4)} (threshold=${f.threshold})`).join('\n')}\n`
         if (exists(`tmp/arc/${id}/test-results-e2e.md`)) {
           Write(`tmp/arc/${id}/test-results-e2e.md`, Read(`tmp/arc/${id}/test-results-e2e.md`) + vrSection)
         }
@@ -565,7 +583,7 @@ if (historyEnabled) {
   Bash(`mkdir -p "${historyDir}"`)
 
   const maxEntries = testingConfig.history?.max_entries ?? 50
-  const regressionThreshold = testingConfig.history?.regression_threshold ?? 0.05  // 5% drop
+  const passRateDropThreshold = testingConfig.history?.pass_rate_drop_threshold ?? 0.05  // 5% drop
 
   // Compute tier breakdown for history entry
   const tierBreakdown = {}
@@ -613,8 +631,8 @@ if (historyEnabled) {
     const previousPassRate = previousEntry.pass_rate ?? 0
     const passRateDrop = previousPassRate - currentPassRate
 
-    if (passRateDrop > regressionThreshold) {
-      warn(`Test regression detected: pass rate dropped ${(passRateDrop * 100).toFixed(1)}% (${(previousPassRate * 100).toFixed(1)}% → ${(currentPassRate * 100).toFixed(1)}%). Threshold: ${(regressionThreshold * 100).toFixed(1)}%`)
+    if (passRateDrop > passRateDropThreshold) {
+      warn(`Test regression detected: pass rate dropped ${(passRateDrop * 100).toFixed(1)}% (${(previousPassRate * 100).toFixed(1)}% → ${(currentPassRate * 100).toFixed(1)}%). Threshold: ${(passRateDropThreshold * 100).toFixed(1)}%`)
       updateCheckpoint({ test_regression_detected: true, regression_pass_rate_drop: passRateDrop })
     }
   }

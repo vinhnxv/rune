@@ -309,7 +309,20 @@ arc:
     test: 2400000        # 40 phút khi E2E chậm
 ```
 
-### 4.3 Audit tăng dần cho codebase lớn
+### 4.3 Tối ưu echo search
+
+Với cơ sở dữ liệu echo lớn:
+
+```yaml
+echoes:
+  reranking:
+    enabled: true         # Độ chính xác tốt hơn với chi phí nhỏ
+    threshold: 25         # Chỉ rerank khi có 25+ kết quả
+  decomposition:
+    enabled: true         # Truy vấn nhiều từ khoá tốt hơn
+```
+
+### 4.4 Audit tăng dần cho codebase lớn
 
 Codebase 500+ file nên dùng incremental audit:
 

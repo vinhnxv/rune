@@ -12,219 +12,100 @@ Override via talisman: `testing.history.directory`.
 
 ```
 .claude/test-history/
-├── test-run-2026-03-02T123000Z.json   # Individual run entries
-├── test-run-2026-03-01T154500Z.json
-├── ...
-└── history-index.json                  # Lightweight index for fast queries
+└── test-history.jsonl   # Rolling window of history entries (JSONL format)
 ```
+
+Each line in `test-history.jsonl` is one JSON object representing a single arc run.
+The file is a rolling window: when it exceeds `max_entries` lines, the oldest entries
+are trimmed from the top. No separate index file is maintained.
 
 ## History Entry Format
 
-Each run produces a file named `test-run-{timestamp}.json`:
+Each run appends one JSON line to `test-history.jsonl`:
 
 ```json
-{
-  "run_id": "arc-1772309747014",
-  "timestamp": "2026-03-02T12:30:00Z",
-  "scope": "PR #42",
-  "branch": "feat/auth",
-  "commit": "abc1234",
-  "summary": {
-    "overall_status": "PASS",
-    "pass_rate": 0.95,
-    "coverage_pct": 82.3,
-    "tiers_run": ["unit", "integration", "e2e"],
-    "total_tests": 45,
-    "passed": 43,
-    "failed": 1,
-    "skipped": 1,
-    "flaky": 0,
-    "duration_ms": 120000
-  },
-  "per_test": [
-    {
-      "name": "test_auth_login_valid",
-      "tier": "unit",
-      "status": "passed",
-      "duration_ms": 150,
-      "file": "tests/test_auth.py"
-    },
-    {
-      "name": "login-flow",
-      "tier": "e2e",
-      "status": "failed",
-      "duration_ms": 8500,
-      "scenario_source": ".claude/test-scenarios/login-flow.yml",
-      "failure_trace": "TEST-001"
-    }
-  ],
-  "scenarios_run": 3,
-  "scenarios_passed": 2,
-  "scenarios_failed": 1,
-  "ac_coverage": {
-    "AC-001": "COVERED",
-    "AC-002": "NOT_COVERED"
-  }
-}
+{"id":"arc-1772309747014","timestamp":"2026-03-02T12:30:00Z","scope_label":"PR #42","pass_rate":0.95,"coverage_pct":82.3,"tiers_run":["unit","integration","e2e"],"tier_breakdown":{"unit":{"pass":38,"fail":1,"duration_ms":8000},"integration":{"pass":5,"fail":0,"duration_ms":12000},"e2e":{"pass":0,"fail":0,"duration_ms":100000}},"flaky_scores":{},"pr_number":42}
 ```
 
 ### Field Definitions
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `run_id` | string | YES | Arc pipeline run identifier |
+| `id` | string | YES | Arc pipeline run identifier |
 | `timestamp` | ISO 8601 | YES | Run completion time |
-| `scope` | string | YES | Scope label from `resolveTestScope()` |
-| `branch` | string | YES | Git branch at time of run |
-| `commit` | string | YES | Git commit SHA (short) |
-| `summary.overall_status` | enum | YES | `PASS`, `WARN`, `FAIL` |
-| `summary.pass_rate` | number | YES | 0.0–1.0, `null` if no tests |
-| `summary.coverage_pct` | number | NO | Diff coverage percentage |
-| `summary.tiers_run` | string[] | YES | Tiers executed |
-| `summary.total_tests` | number | YES | Total test count |
-| `summary.passed` | number | YES | Passed count |
-| `summary.failed` | number | YES | Failed count |
-| `summary.skipped` | number | YES | Skipped count |
-| `summary.flaky` | number | YES | Flaky count (passed on retry) |
-| `summary.duration_ms` | number | YES | Total execution time |
-| `per_test[].name` | string | YES | Test identifier |
-| `per_test[].tier` | enum | YES | `unit`, `integration`, `e2e` |
-| `per_test[].status` | enum | YES | `passed`, `failed`, `skipped`, `flaky` |
-| `per_test[].duration_ms` | number | YES | Individual test duration |
-| `per_test[].file` | string | NO | Source file (unit/integration) |
-| `per_test[].scenario_source` | string | NO | Scenario YAML path (e2e) |
-| `per_test[].failure_trace` | string | NO | TEST-NNN finding reference |
-| `scenarios_run` | number | NO | Total scenarios executed |
-| `scenarios_passed` | number | NO | Passed scenarios |
-| `scenarios_failed` | number | NO | Failed scenarios |
-| `ac_coverage` | object | NO | AC-NNN → `COVERED` / `NOT_COVERED` |
+| `scope_label` | string | YES | Scope label from `resolveTestScope()` |
+| `pass_rate` | number | YES | 0.0–1.0, `null` if no tests |
+| `coverage_pct` | number | NO | Diff coverage percentage |
+| `tiers_run` | string[] | YES | Tiers executed |
+| `tier_breakdown` | object | NO | Per-tier pass/fail/duration |
+| `tier_breakdown[tier].pass` | number | YES | Passed count for tier |
+| `tier_breakdown[tier].fail` | number | YES | Failed count for tier |
+| `tier_breakdown[tier].duration_ms` | number | YES | Tier execution time |
+| `flaky_scores` | object | NO | Per-test flakiness scores (see [flaky-detection.md](flaky-detection.md)) |
+| `pr_number` | number | NO | Associated PR number (`null` if none) |
 
 ## Persistence Algorithm (STEP 9.5)
 
 ```
 function persistTestHistory(reportData, talismanConfig):
   historyDir = talismanConfig.testing?.history?.directory ?? ".claude/test-history"
-  maxEntries = talismanConfig.testing?.history?.max_entries ?? 100
+  maxEntries = talismanConfig.testing?.history?.max_entries ?? 50
+  passRateDropThreshold = talismanConfig.testing?.history?.pass_rate_drop_threshold ?? 0.05
+  regressionThreshold = talismanConfig.testing?.history?.regression_threshold ?? 7
 
   // 1. Ensure directory exists
-  mkdir -p historyDir
+  Bash(`mkdir -p "${historyDir}"`)
 
   // 2. Build history entry from report data
   entry = buildHistoryEntry(reportData)
 
-  // 3. Atomic write (tmp + rename to prevent corruption on crash)
-  timestamp = entry.timestamp.replace(/[:-]/g, "")  // e.g., "20260302T123000Z"
-  tmpFile = "${historyDir}/.tmp-${Date.now()}.json"
-  targetFile = "${historyDir}/test-run-${timestamp}.json"
-  Write(tmpFile, JSON.stringify(entry, null, 2))
-  rename(tmpFile, targetFile)
+  // 3. Append to rolling history (JSON lines format)
+  historyFile = "${historyDir}/test-history.jsonl"
+  existingHistory = exists(historyFile)
+    ? Read(historyFile).trim().split('\n').filter(Boolean).map(l => JSON.parse(l))
+    : []
 
-  // 4. Prune old entries (rolling window)
-  entries = glob("${historyDir}/test-run-*.json").sort().reverse()
-  if entries.length > maxEntries:
-    for entry in entries.slice(maxEntries):
-      rm(entry)
+  existingHistory.push(entry)
 
-  // 5. Update index (lightweight summary for fast queries)
-  updateHistoryIndex(historyDir, entries.slice(0, maxEntries))
+  // 4. Rolling window — keep last maxEntries
+  trimmedHistory = existingHistory.slice(-maxEntries)
+  Write(historyFile, trimmedHistory.map(e => JSON.stringify(e)).join('\n') + '\n')
+
+  // 5. Global pass-rate regression check (STEP 9.5 gate)
+  //    Uses pass_rate_drop_threshold — a float representing the max tolerated drop
+  if (trimmedHistory.length >= 2):
+    previousEntry = trimmedHistory[trimmedHistory.length - 2]
+    currentPassRate = entry.pass_rate ?? 0
+    previousPassRate = previousEntry.pass_rate ?? 0
+    passRateDrop = previousPassRate - currentPassRate
+
+    if (passRateDrop > passRateDropThreshold):
+      WARN: "Test regression detected: pass rate dropped ${(passRateDrop * 100).toFixed(1)}%" +
+            " (${(previousPassRate * 100).toFixed(1)}% → ${(currentPassRate * 100).toFixed(1)}%)." +
+            " Threshold: ${(passRateDropThreshold * 100).toFixed(1)}%"
+      updateCheckpoint({ test_regression_detected: true, regression_pass_rate_drop: passRateDrop })
 ```
 
 ### buildHistoryEntry(reportData)
 
 Extracts fields from the test report output. Maps:
-- `reportData.summary` → `entry.summary`
-- `reportData.per_tier_results` → flattened `entry.per_test` array
-- `reportData.scenario_results` → `entry.scenarios_*` counts
-- `reportData.ac_traceability` → `entry.ac_coverage` map
-- `Bash("git rev-parse --short HEAD")` → `entry.commit`
-- `Bash("git rev-parse --abbrev-ref HEAD")` → `entry.branch`
-
-## History Index Format
-
-The index file (`history-index.json`) provides O(1) lookup by test name.
-Aggregated per-test rather than flat entry storage (performance optimization
-for large history sets).
-
-```json
-{
-  "last_updated": "2026-03-02T12:30:00Z",
-  "total_runs": 42,
-  "tests": {
-    "test_auth_login_valid": {
-      "last_status": "passed",
-      "recent_results": ["passed", "passed", "failed", "passed", "passed"],
-      "flakiness_score": 0.05,
-      "pass_rate": 0.95,
-      "avg_duration_ms": 145
-    },
-    "login-flow": {
-      "last_status": "failed",
-      "recent_results": ["failed", "passed", "passed", "passed", "passed"],
-      "flakiness_score": 0.10,
-      "pass_rate": 0.80,
-      "avg_duration_ms": 8200
-    }
-  }
-}
-```
-
-### Index Fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `last_updated` | ISO 8601 | When index was last rebuilt |
-| `total_runs` | number | Total history entries on disk |
-| `tests[name].last_status` | enum | Most recent run result |
-| `tests[name].recent_results` | string[] | Last N results (newest first) |
-| `tests[name].flakiness_score` | number | 0.0–0.5 (see [flaky-detection.md](flaky-detection.md)) |
-| `tests[name].pass_rate` | number | 0.0–1.0 across all stored runs |
-| `tests[name].avg_duration_ms` | number | Mean duration across stored runs |
-
-### updateHistoryIndex Algorithm
-
-```
-function updateHistoryIndex(historyDir, entries):
-  index = { last_updated: now(), total_runs: entries.length, tests: {} }
-
-  for entryFile in entries:
-    entry = JSON.parse(Read(entryFile))
-    for test in entry.per_test:
-      if !index.tests[test.name]:
-        index.tests[test.name] = {
-          last_status: null,
-          recent_results: [],
-          flakiness_score: 0,
-          pass_rate: 0,
-          avg_duration_ms: 0
-        }
-      record = index.tests[test.name]
-      record.recent_results.push(test.status)
-
-  // Compute aggregates per test
-  for [name, record] in Object.entries(index.tests):
-    results = record.recent_results
-    record.last_status = results[0]    // entries are newest-first
-    record.pass_rate = results.filter(r => r === "passed").length / results.length
-    passCount = results.filter(r => r === "passed").length
-    failCount = results.filter(r => r === "failed").length
-    record.flakiness_score = (passCount > 0 && failCount > 0)
-      ? Math.min(passCount, failCount) / results.length
-      : 0
-    // avg_duration_ms computed from per_test entries (not shown for brevity)
-
-  // Atomic write
-  tmpFile = "${historyDir}/.tmp-index-${Date.now()}.json"
-  Write(tmpFile, JSON.stringify(index, null, 2))
-  rename(tmpFile, "${historyDir}/history-index.json")
-```
+- `reportData.arc_id` → `entry.id`
+- `reportData.scope_label` → `entry.scope_label`
+- `reportData.summary.pass_rate` → `entry.pass_rate`
+- `reportData.summary.coverage_pct` → `entry.coverage_pct`
+- `reportData.active_tiers` → `entry.tiers_run`
+- Per-tier results → `entry.tier_breakdown`
+- Computed flaky scores → `entry.flaky_scores`
+- `Bash("gh pr view --json number -q .number")` → `entry.pr_number`
 
 ## Talisman Configuration
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `testing.history.directory` | string | `.claude/test-history` | History storage path |
-| `testing.history.max_entries` | number | `100` | Rolling window size |
-| `testing.history.regression_threshold` | number | `7` | Min recent passes to flag regression (out of last 10) |
+| `testing.history.max_entries` | number | `50` | Rolling window size (number of JSONL entries retained) |
+| `testing.history.pass_rate_drop_threshold` | float | `0.05` | Maximum tolerated global pass-rate drop between consecutive runs before flagging a regression (STEP 9.5 gate). Values are 0.0–1.0 (e.g., `0.05` = 5% drop). Used by the arc-phase-test.md persistence algorithm. |
+| `testing.history.regression_threshold` | integer | `7` | Minimum number of recent passing runs (out of last 10) required for a per-test historical series to be considered healthy. Used by regression-detection.md per-test series check. |
 
 ## Cold Start Handling
 
@@ -232,7 +113,10 @@ When fewer than 2 history entries exist:
 
 ```
 function checkColdStart(historyDir):
-  entries = glob("${historyDir}/test-run-*.json")
+  historyFile = "${historyDir}/test-history.jsonl"
+  entries = exists(historyFile)
+    ? Read(historyFile).trim().split('\n').filter(Boolean)
+    : []
   if entries.length < 2:
     INFO: "Test history has ${entries.length} run(s). Regression detection " +
           "and flaky test analysis require at least 2 runs. " +
@@ -246,49 +130,41 @@ History is still written — subsequent runs will have enough data.
 
 ## Corruption Handling
 
-All history reads are wrapped in try-catch:
+All history reads are wrapped in try-catch. Corrupt JSONL lines are skipped:
 
 ```
 function readRecentHistory(historyDir, count):
-  entries = glob("${historyDir}/test-run-*.json").sort().reverse().slice(0, count)
+  historyFile = "${historyDir}/test-history.jsonl"
+  if !exists(historyFile):
+    return []
+  lines = Read(historyFile).trim().split('\n').filter(Boolean)
   results = []
-  for entryFile in entries:
+  for line in lines:
     try:
-      data = JSON.parse(Read(entryFile))
+      data = JSON.parse(line)
       results.push(data)
     catch (e):
-      WARN: "Corrupt history entry: ${entryFile}. Skipping. Error: ${e.message}"
-      // Do NOT abort — continue with remaining entries
-  return results
-```
-
-On index corruption:
-```
-function readHistoryIndex(historyDir):
-  try:
-    return JSON.parse(Read("${historyDir}/history-index.json"))
-  catch (e):
-    WARN: "History index corrupt or missing. Rebuilding from entries."
-    entries = glob("${historyDir}/test-run-*.json").sort().reverse()
-    updateHistoryIndex(historyDir, entries)
-    return JSON.parse(Read("${historyDir}/history-index.json"))
+      WARN: "Corrupt history entry (skipping): ${e.message}"
+      // Do NOT abort — continue with remaining lines
+  // Return last `count` entries (most recent)
+  return results.slice(-count)
 ```
 
 ## Integration Points
 
-- **STEP 9.5**: Called after test report generation (STEP 9). Persists the current run.
+- **STEP 9.5**: Called after test report generation (STEP 9). Persists the current run to `test-history.jsonl`.
 - **Regression detection**: Reads history via `readRecentHistory()`. See [regression-detection.md](regression-detection.md).
 - **Flaky test detection**: Reads history via `readRecentHistory()`. See [flaky-detection.md](flaky-detection.md).
 - **Test report template**: History-derived sections (regressions, flaky tests) appear in the report. See [test-report-template.md](test-report-template.md).
-- **History index**: Queried at STEP 1.5 (test strategy) for trend-informed predictions.
+- **Trend prediction**: `readRecentHistory()` is called at STEP 1.5 (test strategy) for trend-informed scope decisions.
 
 ## Edge Cases
 
 | Scenario | Handling |
 |----------|----------|
-| No git repo | `commit` and `branch` fields set to `"unknown"` |
-| No tests found | Entry written with `total_tests: 0`, `pass_rate: null` |
-| Timeout (all tiers) | Entry written with `overall_status: "FAIL"`, partial `per_test` |
-| Concurrent arc runs | Timestamp in filename prevents collision; index rebuild is idempotent |
-| Disk full | Atomic write fails at tmp stage; existing history preserved |
+| No tests found | Entry written with `pass_rate: null`, `tier_breakdown: {}` |
+| Timeout (all tiers) | Entry written with `pass_rate: 0` reflecting failures |
+| Concurrent arc runs | JSONL append is non-atomic; entries may interleave on the same millisecond — acceptable because rolling-window trim is idempotent |
+| Corrupt JSONL line | Skipped silently; remaining valid lines are processed |
+| Disk full | `Write()` fails; existing `.jsonl` content is preserved (no partial overwrite) |
 | `.claude/test-history/` deleted | Next run recreates directory; cold start handling activates |
