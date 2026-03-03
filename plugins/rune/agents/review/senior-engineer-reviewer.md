@@ -3,12 +3,7 @@ name: senior-engineer-reviewer
 description: |
   Opinionated code review from a senior engineer persona. Challenges over-engineering,
   questions unnecessary abstractions, enforces "duplication over wrong abstraction"
-  philosophy, and pushes for the simplest solution that works. Covers: necessity auditing
-  (every added file/class/function must earn its place), abstraction challenges (single-
-  implementation interfaces, forwarding-only services), dependency scrutiny (weekly
-  downloads, last release, transitive count, could-write-in-50-lines test), complexity
-  budgeting (additions offset by removals).
-  Named for the seasoned engineers who have seen every architectural fad come and go.
+  philosophy, and pushes for the simplest solution that works.
   Triggers: Senior review, opinionated review, over-engineering check, simplicity
   enforcement, code philosophy, abstraction audit, dependency review.
 

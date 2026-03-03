@@ -3,16 +3,7 @@ name: tide-watcher
 description: |
   Async and concurrency patterns reviewer. Detects waterfall awaits, unbounded concurrency,
   missing cancellation handling, race conditions, timer/resource cleanup issues, and
-  structured concurrency violations across Python, Rust, TypeScript, and Go. Covers:
-  sequential await/waterfall detection, unbounded concurrency detection, structured
-  concurrency enforcement (TaskGroup, JoinSet, Promise.allSettled), cancellation handling
-  verification, race condition detection (TOCTOU, shared mutable state), timer/resource
-  cleanup, blocking calls in async context, frontend timing and DOM lifecycle issues,
-  framework-specific race conditions (React hooks, Vue composition API, Hotwire/Turbo/Stimulus),
-  browser API synchronization (IndexedDB, localStorage cross-tab, IntersectionObserver),
-  state machine enforcement for UI state.
-  Named for Elden Ring's tides — concurrent operations that ebb and flow, overwhelming
-  systems when uncontrolled.
+  structured concurrency violations across Python, Rust, TypeScript, and Go.
   Triggers: Async code, concurrent operations, event handlers, timers, promises, channels,
   frontend lifecycle, DOM races, state machine patterns.
 
