@@ -605,9 +605,10 @@ When a task has `has_design_context === true`, inject step 4.7.5 into both rune-
            - figma_to_react() reference code is LOW trust (~50-60% accurate)
            - NEVER copy-paste reference code. Extract INTENT only.
            - Check match_score in enriched-vsm.json per region before importing:
+             LOW_THRESHOLD = config.design_sync.trust_hierarchy.low_confidence_threshold ?? 0.60
              score >= 0.80 (high): import directly
-             score 0.60-0.79 (medium): import but verify against VSM tokens
-             score < 0.60 (low): do NOT import, build from scratch using VSM`
+             score >= LOW_THRESHOLD and < 0.80 (medium): import but verify against VSM tokens
+             score < LOW_THRESHOLD (low): do NOT import, build from scratch using VSM`
 
 // Only inject this step when task.has_design_context === true
 // When false: step numbering goes 4.7 → 4.8 (no gap, no overhead)

@@ -14,7 +14,9 @@ vsm_regions = parseVsmRegions(vsm_files)
 extraction_regions = parseExtractionOutput(reference_code, design_context)
 
 unmatched = vsm_regions.filter(r => !extraction_regions.covers(r))
-mismatch_pct = (unmatched.length / vsm_regions.length) * 100
+mismatch_pct = vsm_regions.length > 0
+  ? (unmatched.length / vsm_regions.length) * 100
+  : 0  // No regions = 0% mismatch (PASS)
 ```
 
 ## Verdicts
@@ -87,3 +89,35 @@ Each region in the element inventory MUST have a Source column:
 | Visual | Identified from screenshot VSM analysis only |
 | Both | Confirmed by both code extraction and visual analysis |
 | Manual | Added by user during WARN/BLOCK resolution |
+
+## Helper Function Signatures
+
+```javascript
+// countVsmRegions(vsmFiles: string[]): number
+// Counts total visual regions across all VSM JSON files.
+// Each VSM file contains a `regions` array — returns the sum of all region counts.
+
+// countCoveredRegions(vsmFiles: string[]): number
+// Counts regions that have at least one matched extraction source.
+// A region is "covered" when region.source !== "Visual" (i.e., has code extraction or both).
+// In design-sync standalone: also accepts (enrichedVsm, referenceCode) — counts regions
+// where enrichedVsm regions overlap with referenceCode component names.
+```
+
+## Unit Testing Strategy
+
+The gate algorithm is a pure function (mismatch percentage → verdict). It can be unit-tested with fixture data without live Figma or MCP connections.
+
+**Fixture-based test cases:**
+
+| Scenario | vsmRegionCount | extractionCoverage | Expected Verdict |
+|----------|---------------|--------------------|------------------|
+| All matched | 10 | 10 | PASS (0%) |
+| Below warn threshold | 10 | 9 | PASS (10%) |
+| At warn threshold exactly | 10 | 8 | PASS (20% — strict `>`) |
+| Above warn, below block | 10 | 7 | WARN (30%) |
+| At block threshold exactly | 10 | 6 | WARN (40% — strict `>`) |
+| Above block threshold | 10 | 5 | BLOCK (50%) |
+| Zero regions (empty VSM) | 0 | 0 | PASS (0% — zero guard) |
+| All unmatched | 10 | 0 | BLOCK (100%) |
+| Gate disabled | any | any | SKIP (no verdict) |

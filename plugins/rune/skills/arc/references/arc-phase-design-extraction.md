@@ -438,6 +438,7 @@ if (allVsmFiles.length > maxTotalComponents) {
 // === STEP 13.5: Verification Gate ===
 // Run cross-verification gate on collected VSM files
 // See design-sync/references/verification-gate.md for full algorithm
+const checkpointErrors = []  // Declared before gate — gate pushes verdict here
 const gateConfig = designSyncConfig.verification_gate ?? {}
 const gateEnabled = gateConfig.enabled !== false  // default: true
 if (gateEnabled && allVsmFiles.length > 0) {
@@ -494,7 +495,7 @@ const finalVsmFiles = Bash(`find "tmp/arc/${id}/vsm" -name "*.json" 2>/dev/null`
   .trim().split('\n').filter(Boolean)
 
 // Build structured error log for checkpoint — errors are always recorded even on "completed" status
-const checkpointErrors = []
+// Note: checkpointErrors[] declared at STEP 13.5 (before verification gate)
 for (const f of failedUrls) {
   checkpointErrors.push({
     type: "url_extraction_failure",

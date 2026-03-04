@@ -403,11 +403,12 @@ for each vsm in vsmFiles:
       consecutiveFailures = 0  // reset on success
 
       // Step 4c: Score results against region requirements
-      matches = scoreMatches(results, region, threshold: 0.6)
+      const lowThreshold = config?.design_sync?.trust_hierarchy?.low_confidence_threshold ?? 0.60
+      matches = scoreMatches(results, region, threshold: lowThreshold)
       region.component_matches = matches.map(m => ({
         name: m.name,
         score: m.score,
-        confidence: m.score >= 0.80 ? 'high' : m.score >= 0.60 ? 'medium' : 'low'
+        confidence: m.score >= 0.80 ? 'high' : m.score >= lowThreshold ? 'medium' : 'low'
       }))
 
       // Step 4d: If match found, get full component source for worker context
@@ -464,7 +465,9 @@ const gateConfig = config?.design_sync?.verification_gate ?? {}
 if (gateConfig.enabled !== false) {
   const vsmRegionCount = countVsmRegions(vsmFiles)
   const extractionCoverage = countCoveredRegions(enrichedVsm, referenceCode)
-  const mismatchPct = ((vsmRegionCount - extractionCoverage) / vsmRegionCount) * 100
+  const mismatchPct = vsmRegionCount > 0
+    ? ((vsmRegionCount - extractionCoverage) / vsmRegionCount) * 100
+    : 0  // No regions = 0% mismatch (PASS)
 
   const warnThreshold = gateConfig.warn_threshold ?? 20
   const blockThreshold = gateConfig.block_threshold ?? 40
