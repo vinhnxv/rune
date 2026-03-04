@@ -155,6 +155,7 @@ if (allMembers.length > 0) {
 if (!/^[a-zA-Z0-9_-]+$/.test(team_name)) throw new Error("Invalid team_name")
 // TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s)
 const RETRY_DELAYS = [0, 5000, 10000]
+let cleanupTeamDeleteSucceeded = false
 for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
   if (attempt > 0) {
     warn(`Cancel cleanup: TeamDelete attempt ${attempt + 1} failed, retrying in ${RETRY_DELAYS[attempt]/1000}s...`)
@@ -162,6 +163,7 @@ for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
   }
   try {
     TeamDelete()
+    cleanupTeamDeleteSucceeded = true
     break
   } catch (e) {
     if (attempt === RETRY_DELAYS.length - 1) {
@@ -169,8 +171,11 @@ for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
     }
   }
 }
-// Filesystem fallback with CHOME
-Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && [[ "${team_name}" =~ ^[a-zA-Z0-9_-]+$ ]] && rm -rf "$CHOME/teams/${team_name}/" "$CHOME/tasks/${team_name}/" 2>/dev/null`)
+// Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+if (!cleanupTeamDeleteSucceeded) {
+  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${team_name}/" "$CHOME/tasks/${team_name}/" 2>/dev/null`)
+  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
+}
 
 // NOTE: identifier is derived from team_name via .replace("rune-codex-review-", "").
 // The team_name regex guard above implicitly validates identifier (it's a substring).

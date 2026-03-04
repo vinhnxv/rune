@@ -6,7 +6,9 @@
 - **Mend Phase 7 cleanup: wave-based fixer name coverage** — Phase 7 cleanup fallback now uses `spawnedFixerNames` from Phase 3 (which includes wave-based names like `mend-fixer-w1-1`, `mend-fixer-w2-3`) instead of base inscription names (`mend-fixer-1`, `mend-fixer-2`). Prevents zombie fixers when `config.json` dynamic discovery fails during wave-based execution (6+ file groups).
 - **Strive Phase 6 cleanup: wave-based worker name coverage** — Added `spawnedWorkerNames` tracking in `wave-execution.md` for the same wave-naming gap as mend. Workers named `rune-smith-w{wave}-{idx}` are now tracked for Phase 6 cleanup fallback.
 - **QUAL-012 naming compliance (codebase-wide)** — Renamed `cleanupSucceeded` → `cleanupTeamDeleteSucceeded` in 7 files: both copies of `team-lifecycle-guard.md` (rune-orchestration + roundtable-circle), `forge-cleanup.md`, `orchestration-phases.md`, `verdict-synthesis.md`, `goldmask/SKILL.md`, and `mend/SKILL.md`.
-- **Missing final `TeamDelete()` in filesystem fallback (codebase-wide)** — Added `try { TeamDelete() } catch (e) {}` after `rm -rf` in all 7 affected cleanup patterns. Clears SDK leadership state after filesystem cleanup, preventing "Already leading team" errors on next `TeamCreate`.
+- **Missing final `TeamDelete()` in filesystem fallback (codebase-wide)** — Added `try { TeamDelete() } catch (e) {}` after `rm -rf` in all affected cleanup patterns. Clears SDK leadership state after filesystem cleanup, preventing "Already leading team" errors on next `TeamCreate`.
+- **Cancel commands: ungated filesystem fallback** — All 4 cancel commands (`cancel-review`, `cancel-audit`, `cancel-arc`, `cancel-codex-review`) executed `rm -rf` unconditionally after the TeamDelete retry loop. Now gated behind `cleanupTeamDeleteSucceeded` flag per QUAL-012.
+- **arc-phase-storybook-verification.md** — Missing final `TeamDelete()` after filesystem fallback rm-rf.
 
 ## [1.133.0] - 2026-03-04
 

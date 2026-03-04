@@ -326,8 +326,10 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   }
 }
 
+// Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
 if (!cleanupTeamDeleteSucceeded) {
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
+  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
 
 // 13. Update checkpoint
