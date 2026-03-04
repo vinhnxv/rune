@@ -6,7 +6,7 @@ description: |
   appear in shell output, when writing for loops over glob patterns, or when
   "bad math expression" errors appear from date commands. Covers read-only
   variables (status, pipestatus, ERRNO), glob NOMATCH protection, history
-  expansion of `!` before `[[`, word splitting, array indexing, and BSD date
+  expansion of the "!" operator before "[[", word splitting, array indexing, and BSD date
   missing `%N` nanoseconds (macOS).
   Keywords: zsh, NOMATCH, status variable, read-only, nullglob, glob, ZSH-001,
   history expansion, command not found, date, %N, nanosecond, millisecond,
@@ -127,12 +127,12 @@ echo =ls
 
 This rarely affects generated code but can cause confusion in path handling.
 
-## Pitfall 6: `!` History Expansion Before `[[`
+## Pitfall 6: "!" History Expansion Before `[[`
 
-In zsh, `!` at the start of a command is interpreted as **history expansion** (like `!!` or `!$`). When used for logical negation before `[[ ]]`, it causes `command not found: !`.
+In zsh, the exclamation mark at the start of a command is interpreted as **history expansion** (like `!!` or `!$`). When used for logical negation before `[[ ]]`, it causes "command not found: !".
 
 ```bash
-# BAD — zsh interprets `!` as history expansion
+# BAD — zsh interprets "!" as history expansion
 if ! [[ "$epoch" =~ ^[0-9]+$ ]]; then
   echo "not numeric"
 fi
@@ -146,11 +146,11 @@ fi
 
 ### Why This Happens
 
-In bash, `!` before `[[ ]]` is recognized as the pipeline negation operator. In zsh's eval context (which is how Claude Code's Bash tool executes commands), `!` can trigger history expansion before the parser reaches `[[`.
+In bash, the exclamation mark before `[[ ]]` is recognized as the pipeline negation operator. In zsh's eval context (which is how Claude Code's Bash tool executes commands), it can trigger history expansion before the parser reaches `[[`.
 
 ### Fix
 
-Move the `!` inside `[[ ]]`. For single-expression conditionals, `! [[ expr ]]` and `[[ ! expr ]]` are semantically equivalent.
+Move the negation inside `[[ ]]`. For single-expression conditionals, `! [[ expr ]]` and `[[ ! expr ]]` are semantically equivalent.
 
 **Note**: `! command` (e.g., `! grep -q pattern file`) is generally safe because the command name that follows is a real command. The issue is specifically `! [[` where zsh gets confused.
 

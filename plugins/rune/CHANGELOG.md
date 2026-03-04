@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.134.1] - 2026-03-05
+
+### Fixed
+- **zsh-compat skill preprocessor collision** — Replaced backtick-quoted `!` patterns (`` `!` ``) with double-quoted or descriptive text to prevent Claude Code's `` !`command` `` preprocessor from misinterpreting them as shell directives. Fixes "not enough arguments" error on skill load.
+
 ## [1.134.0] - 2026-03-04
 
 ### Added
