@@ -67,6 +67,8 @@ Write a single JSON file at `output_path`:
 {
   "schema_version": "1.0",
   "generated_at": "ISO-8601",
+  "status": "success | partial | error",
+  "error_message": null,
   "groups": [
     {
       "group_id": "grp-001",
@@ -101,9 +103,18 @@ Write a single JSON file at `output_path`:
       "frame_a": "...",
       "frame_b": "..."
     }
+  ],
+  "validation_warnings": [
+    "Skipped frame 3-7: failed metadata validation (invalid layoutMode: 'AUTO')"
   ]
 }
 ```
+
+**Status field semantics** — the arc orchestrator MUST check `status` before proceeding:
+
+- `"success"` — all frames were processed successfully. Empty `groups[]` with `status=success` means no frames were found to compare (legitimate — zero IR files or all frames filtered). The orchestrator should proceed normally.
+- `"partial"` — some frames were skipped due to validation failures (see `validation_warnings`). Output is valid but incomplete. The orchestrator may proceed with a logged caveat.
+- `"error"` — the analyst encountered a fatal error and could not complete classification. `error_message` contains the reason. Empty `groups[]` with `status=error` means the analyst crashed or aborted. The orchestrator should retry or escalate — do NOT proceed with downstream phases.
 
 ## Algorithm
 
@@ -129,6 +140,31 @@ For each frame pair (A, B):
 1. **Different file_key** → `classification: DIFFERENT-SCREEN`, `confidence: 1.0`, skip scoring
 2. **Same COMPONENT_SET parent** → `classification: VARIANT`, `confidence: 1.0`, skip scoring
 3. **User screen labels** (`screen:` prefix in frame name) → use label directly, skip scoring
+
+### Pre-Computation Validation
+
+Before computing signals for any frame pair, validate all required metadata fields. Invalid frames must be skipped with a warning — not scored — to prevent garbage-in/garbage-out corruption of composite scores.
+
+**Required field validation rules:**
+
+- `file_key`: must match `/^[a-zA-Z0-9]+$/` — reject frames with missing, null, or path-traversal-style file keys
+- `component_ids`: must be an array of strings — reject frames where this field is not an array or contains non-string elements
+- `dimensions` (`width`, `height`): both must be positive numbers (> 0) — reject frames with zero, negative, or non-numeric dimensions
+- `layoutMode`: must be one of the known values: `NONE`, `HORIZONTAL`, `VERTICAL` — reject frames with unrecognized layout modes
+
+**Handling invalid frames:**
+
+```
+for each frame in frames:
+  if not validateFrameMetadata(frame):
+    warn("Skipping frame {frame_id}: failed metadata validation")
+    frames.remove(frame)
+
+// Any frame pair where either frame was skipped is excluded from pairwise scoring
+// Skipped frames are NOT added to any group — they do not appear in the output
+```
+
+Log all skipped frames in a `"validation_warnings"` array in the output JSON (see Output Schema).
 
 ### Step 3: 5-Signal Computation
 

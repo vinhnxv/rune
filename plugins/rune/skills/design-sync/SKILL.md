@@ -132,6 +132,31 @@ const figmaUrl = figmaUrls[0] ?? null
 // Step 2: Validate all Figma URLs
 FIGMA_URL_STRICT_PATTERN = /^https:\/\/www\.figma\.com\/(design|file)\/[A-Za-z0-9]+/
 const invalidUrls = figmaUrls.filter(u => !FIGMA_URL_STRICT_PATTERN.test(u))
+```
+
+### Figma URL Validation Constants
+
+Two URL patterns are used depending on context:
+
+- **`FIGMA_URL_STRICT`**: `/^https:\/\/(?:www\.)?figma\.com\/(?:design|file)\/[a-zA-Z0-9]+/`
+  - HTTPS only (no HTTP)
+  - Restricts path to `design` or `file` types
+  - Use for **all MCP tool invocations** (`figma_fetch_design`, `figma_inspect_node`, `figma_list_components`, `figma_to_react`)
+  - Rejects HTTP, invalid path types, and malformed file keys before making API calls
+
+- **`FIGMA_URL_LENIENT`**: `/^https?:\/\/[^\s]*figma\.com\/[^\s]+/`
+  - Accepts HTTP or HTTPS
+  - Permissive path matching — accepts any non-whitespace path
+  - Use for **user input parsing** (filtering positional arguments, reading URLs from `--urls` file)
+  - Accepts the broadest set of recognizable Figma URLs before strict validation
+
+**When each applies**:
+- Step 1 (collect URLs from arguments): use `FIGMA_URL_LENIENT` — cast wide net for URL collection
+- Step 2 (validate before MCP probing): use `FIGMA_URL_STRICT` — reject invalid URLs early, before API calls
+- MCP tool calls: always validate with `FIGMA_URL_STRICT` first; never pass unvalidated URLs to MCP tools
+
+```
+// [pseudocode continues]
 if invalidUrls.length > 0:
   AskUserQuestion(`Invalid Figma URL format for: ${invalidUrls.join(", ")}\nPlease provide valid Figma URLs (https://www.figma.com/design/...).`)
   STOP
@@ -143,6 +168,25 @@ parsedUrl = parseFigmaUrl(figmaUrl)
 
 // Step 3.5: MCP Provider Detection
 // Read talisman override — auto|rune|official|desktop (default: "auto")
+```
+
+### MCP Provider Fallback Strategy
+
+MCP provider availability handling differs between design-sync and arc orchestration:
+
+| Context | Behavior when no MCP provider detected | Rationale |
+|---------|----------------------------------------|-----------|
+| **design-sync standalone** (this skill) | `AskUserQuestion(...)` + `STOP` — **mandatory, fail with user error** | Interactive skill: user is present and can act on setup instructions immediately |
+| **arc-phase-design-extraction** (arc Phase 6) | Log warning + `continue` — **skippable, non-blocking** | Orchestration: arc must not block an entire pipeline run due to optional Figma integration |
+
+**Rule**: design-sync is interactive (user-facing) — MCP is required and the user must be told how to fix it. Arc orchestration is non-blocking — Figma extraction is best-effort and arc continues without it.
+
+When adding new callers of the MCP detection block, classify them explicitly:
+- User-facing workflow: REQUIRED — treat missing MCP as fatal
+- Orchestration/automation: SKIPPABLE — log warning and continue
+
+```
+// [pseudocode continues]
 figmaProviderOverride = config?.design_sync?.figma_provider ?? "auto"
 mcpProvider = null  // "rune" | "official" | "desktop" | null
 
@@ -523,6 +567,23 @@ All state files follow session isolation rules:
    ```
 2. **Official Figma MCP** (requires personal token): Set `FIGMA_TOKEN=figd_...` in env, configure official MCP server
 3. **Desktop MCP**: Open Figma Desktop → Dev Mode (`Shift+D`) → enable MCP bridge in settings
+
+### Error Response Convention
+
+Error response type depends on execution context:
+
+| Context | Error Response Type | Mechanism | Examples |
+|---------|--------------------|-----------|----|
+| **design-sync** (this skill, interactive) | INTERACTIVE | `AskUserQuestion(...)` + `STOP` | No Figma URL provided; design_sync not enabled; no MCP provider; invalid URL format |
+| **arc orchestration** (e.g., arc-phase-design-extraction) | NON-BLOCKING | `warn(...)` + `continue` | MCP unavailable during arc Phase 6; URL parse failure on one of many URLs |
+
+**Guidelines**:
+- design-sync is user-facing: always surface errors interactively so the user can take immediate corrective action
+- Arc orchestration is automated: log warnings and skip non-critical failures to avoid blocking an entire pipeline run
+- `AskUserQuestion` is reserved for design-sync standalone contexts — never use it in arc subphases
+- For arc contexts where a fatal condition is reached (e.g., zero valid URLs after filtering), log the error and set the phase result to `skipped` rather than `failed`
+
+**Decision rule**: If a human is waiting for a response → INTERACTIVE. If running as part of automated orchestration → NON-BLOCKING.
 
 ## References
 

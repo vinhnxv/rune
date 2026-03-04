@@ -299,8 +299,19 @@ DIFFERENT-SCREEN pairs remain in their separate single-frame groups.
 
 ## Per-Signal Breakdown for User Confirmation
 
-When a pair is in the RELATED band and added to `user_confirmation_required`, include
-the per-signal breakdown in the output so the user can understand what drove the score:
+When a pair is in the RELATED band and added to `user_confirmation_required`, present
+the per-signal breakdown and ask the user whether to merge the pair into one group.
+
+**Step 11 — AskUserQuestion for RELATED pairs:**
+
+Use `AskUserQuestion` with:
+- `timeout: 60` (60 seconds)
+- Default behavior on timeout: treat all RELATED pairs as DIFFERENT-SCREEN (conservative
+  default — separate VSMs generated for each)
+- If user does not respond within 60s, the conservative default is applied automatically
+
+When prompting, include the per-signal breakdown in the output so the user can understand
+what drove the score:
 
 ```json
 {

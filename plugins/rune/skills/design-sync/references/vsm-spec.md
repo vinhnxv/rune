@@ -41,6 +41,49 @@ Six required guard checks:
 5. `relationship_group` defaults to `null` when absent
 6. `relationship_confidence` defaults to `null` when absent
 
+### Consumer Guard Enforcement
+
+**All VSM consumers MUST apply this guard before reading v1.1 fields.** Known consumers:
+
+- **design-analyst** agent (`agents/design-analyst.md`) — reads VSMs to classify relationships and build the relationship graph
+- **arc-phase-design-extraction** (`skills/arc/references/arc-phase-design-extraction.md`) — reads and writes VSMs during Phase 3 design extraction
+- **strive workers** — read VSMs when performing design-sync implementation tasks
+
+Any new consumer added to the pipeline MUST apply the guard above before accessing `variant_sources`, `relationship_group`, or `relationship_confidence`.
+
+### Generation-Time Validation
+
+Before writing a VSM file, the generator MUST validate the output against the schema. Validation failures are not silent — they must downgrade or abort.
+
+**Required validation checklist (v1.1):**
+
+- [ ] `vsm_schema_version` is present and set to `"1.1"`
+- [ ] `variant_sources` array is present and has at least 1 entry
+- [ ] Each `variant_sources` entry has `url`, `role`, `node_id`, `state_name`
+- [ ] Exactly one `variant_sources` entry has `role: "primary"`
+- [ ] `variant_sources[].role` is one of `"primary"` | `"variant"` | `"breakpoint"`
+- [ ] `figma_url` matches the primary source URL
+- [ ] `relationship_group` matches `/^grp-\d{3}$/` when present
+- [ ] `relationship_confidence` is in `[0.0, 1.0]` when present
+
+**On validation failure:**
+
+```javascript
+function validateAndWriteVSM(vsm, outputPath):
+  errors = validateVSMSchema(vsm)
+  if errors.length > 0:
+    if canDowngradeToV10(vsm):
+      // Single URL present — safe to omit v1.1 fields
+      vsm = downgradeToV10(vsm)  // removes variant_sources, relationship_group, relationship_confidence
+      vsm.vsm_schema_version = "1.0"
+      writeVSM(vsm, outputPath)
+    else:
+      // Cannot produce a valid VSM — fail the extraction task explicitly
+      throw ExtractionError(`VSM validation failed: ${errors.join(", ")}`)
+```
+
+`canDowngradeToV10()` returns `true` only when a single Figma URL was processed and no multi-source merge was required.
+
 ## File Location
 
 ```
@@ -61,6 +104,22 @@ figma_file_key: "abc123"
 figma_node_id: "1-3"
 extracted_at: "2026-02-25T12:00:00Z"
 ---
+
+## Token Map
+
+| Property | Figma Value | Design Token | Tailwind | Status |
+|----------|------------|-------------|----------|--------|
+| Background | #FFFFFF | --color-background | bg-white | matched |
+
+## Region Tree
+
+- **CardRoot** — `<article>`, flex-col, gap-3, p-4, rounded-lg
+
+## Variant Map
+
+| Figma Property | Prop Name | Type | Default | Token Diff |
+|---------------|-----------|------|---------|------------|
+| Type | variant | "default" \| "featured" | default | featured: border-primary |
 ```
 
 ### v1.1 (Multi-URL — merged same-screen group)
@@ -389,6 +448,15 @@ function mergeVariantMaps(sources):
 
   return merged
 ```
+
+### Implementation Sites
+
+`mergeVariantMaps()` is not defined inline — it is implemented by specific agents and triggered at a defined point in the pipeline:
+
+- **Who implements it**: The `design-analyst` agent (`agents/design-analyst.md`). After classifying the relationship group, the analyst merges the per-source variant maps using this algorithm before writing the final v1.1 VSM.
+- **Where it is triggered**: Arc Phase 3 design extraction (`skills/arc/references/arc-phase-design-extraction.md`), specifically after the analyst has completed relationship classification for a same-screen group. The merge occurs before the VSM is written to `tmp/arc/{id}/vsm/{component-name}.json`.
+- **Input**: An array of per-source extraction results, each containing a `variantMap` keyed by property name and a `state_name` label.
+- **Output**: A merged variant map where each property is annotated with `classification` (`structurally_immutable`, `state_mutable`, or `content_variable`) and a `values` array with per-source entries.
 
 ### Property Classification for Diffing
 

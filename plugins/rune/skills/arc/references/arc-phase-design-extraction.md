@@ -306,6 +306,33 @@ if (irFiles.length >= 2) {
   warn("Design analyst skipped — fewer than 2 IR trees available.")
 }
 
+// Track failed URL extractions
+const failedUrls = []
+for (let i = 0; i < urlCount; i++) {
+  const urlHash = sha256(dedupedUrls[i]).slice(0, 8)
+  const irPath = `tmp/arc/${id}/extraction/${urlHash}/ir-tree.json`
+  if (!exists(irPath)) {
+    failedUrls.push({ url: dedupedUrls[i], url_index: i, reason: "IR tree not found after extraction" })
+  }
+}
+
+// If some URLs failed but others succeeded, confirm with user before proceeding
+if (failedUrls.length > 0 && irFiles.length > 0) {
+  const failureList = failedUrls
+    .map(f => `  - URL ${f.url_index + 1}: ${f.url}`)
+    .join('\n')
+  const userChoice = AskUserQuestion(
+    `Design extraction: ${failedUrls.length} of ${urlCount} URL(s) failed IR extraction:\n\n${failureList}\n\n` +
+    `${irFiles.length} URL(s) succeeded. Proceed with partial data (partial VSM coverage)?` +
+    ` Reply "yes" to continue, "no" to abort design extraction.`
+  )
+  if (userChoice?.trim().toLowerCase().startsWith('n')) {
+    warn("Design extraction aborted by user after partial URL failure.")
+    updateCheckpoint({ phase: "design_extraction", status: "skipped", failed_urls: failedUrls })
+    return
+  }
+}
+
 // === STEP 11: User Confirmation for RELATED Pairs ===
 // Skip if all groups resolved (no RELATED pairs) or all frames had user screen: labels
 let confirmedGroups = relationshipGraph?.groups ?? null
@@ -431,6 +458,25 @@ if (!cleanupTeamDeleteSucceeded) {
 const finalVsmFiles = Bash(`find "tmp/arc/${id}/vsm" -name "*.json" 2>/dev/null`)
   .trim().split('\n').filter(Boolean)
 
+// Build structured error log for checkpoint — errors are always recorded even on "completed" status
+const checkpointErrors = []
+for (const f of failedUrls) {
+  checkpointErrors.push({
+    type: "url_extraction_failure",
+    url_or_component: f.url,
+    recovery_strategy: "skipped_url_continued_with_partial_data",
+    timestamp: new Date().toISOString()
+  })
+}
+if (!analystRan && irFiles.length >= 2) {
+  checkpointErrors.push({
+    type: "analyst_failure",
+    url_or_component: `tmp/arc/${id}/extraction/relationship-graph.json`,
+    recovery_strategy: "treat_all_urls_as_different_screen",
+    timestamp: new Date().toISOString()
+  })
+}
+
 updateCheckpoint({
   phase: "design_extraction", status: "completed",
   phase_sequence: 5.1, team_name: null,
@@ -439,7 +485,8 @@ updateCheckpoint({
   figma_urls: dedupedUrls,
   figma_url: dedupedUrls[0],  // backward-compat scalar (first URL)
   url_count: urlCount,
-  relationship_graph: analystRan ? `tmp/arc/${id}/extraction/relationship-graph.json` : null
+  relationship_graph: analystRan ? `tmp/arc/${id}/extraction/relationship-graph.json` : null,
+  errors: checkpointErrors.length > 0 ? checkpointErrors : undefined
 })
 ```
 
@@ -466,9 +513,23 @@ function readFigmaUrls(planContent):
 | All URLs fail format validation | Skip phase — status "skipped", warn user |
 | Figma MCP tools unavailable | Skip phase — status "skipped", warn user |
 | Figma API timeout (>60s) on URL N | Skip that URL's tasks, continue with others |
-| Design analyst fails or times out | Skip classification, treat all URLs as DIFFERENT-SCREEN |
+| Some URLs fail IR extraction (partial) | Track in `failedUrls[]`; ask user via `AskUserQuestion` to confirm proceeding with partial data. If user declines, status "skipped". If user confirms, continue with available IR files. |
+| Design analyst fails or times out | Skip classification, treat all URLs as DIFFERENT-SCREEN. Recorded in checkpoint `errors[]` with recovery_strategy "treat_all_urls_as_different_screen". |
 | User confirmation skipped (timeout) | Default: treat RELATED pairs as DIFFERENT-SCREEN |
 | Agent failure on VSM generation | Skip phase — design phases are non-blocking |
+
+### Checkpoint Error Logging
+
+Errors are always written to the `errors[]` field of the checkpoint update, even when phase status is "completed". This enables recovery strategies and diagnostics to identify partial failures. Each entry:
+
+```json
+{
+  "type": "url_extraction_failure | analyst_failure",
+  "url_or_component": "<url or file path>",
+  "recovery_strategy": "<description of how the failure was handled>",
+  "timestamp": "<ISO 8601 timestamp>"
+}
+```
 
 ## Crash Recovery
 

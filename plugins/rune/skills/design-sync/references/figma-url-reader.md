@@ -14,6 +14,14 @@ type FigmaUrlEntry = {
 }
 ```
 
+### Role Semantics
+
+| Role | Meaning |
+|------|---------|
+| `primary` | Main canonical file — the authoritative design source for this plan |
+| `variant` | Alternate breakpoint or UI state (e.g., mobile layout, dark mode, error state) |
+| `auto` | Deferred to analyst — role not specified by author; design-sync agent infers scope |
+
 **Input**: Raw plan file content (string with YAML frontmatter).
 **Output**: Ordered array of `FigmaUrlEntry` objects, deduplicated by URL.
 **Side effects**: Logs warnings for malformed URLs (does not throw).
@@ -29,6 +37,15 @@ type FigmaUrlEntry = {
 | Both `figma_urls:` and `figma_url:` present | `figma_urls:` takes precedence, ignore scalar | Log a warning that scalar is ignored |
 | Neither present | `[]` | No-op |
 | Malformed URL in array | Filter out, warn — do not crash | Log: `warn: skipping malformed Figma URL: {url}` |
+
+### Canonical Naming
+
+| Field | Status | Usage |
+|-------|--------|-------|
+| `figma_urls: []` | **Canonical** — always present in new plans | Array of `FigmaUrlEntry` objects (may be empty) |
+| `figma_url:` | **Legacy** — optional backward-compat only | Scalar string; accepted but not emitted by new tooling |
+
+New consumers MUST read `figma_urls` via `readFigmaUrls()`. Never read `figma_url:` directly — it is only supported as a fallback inside `readFigmaUrls()` itself.
 
 ## Array Entry Format (`figma_urls:`)
 
@@ -82,7 +99,7 @@ function readFigmaUrls(planContent: string) → FigmaUrlEntry[]:
           warn(`skipping malformed Figma URL: ${JSON.stringify(item)}`)
           continue
         entries.push(entry)
-      return deduplicateByUrl(entries)
+      return deduplicateByUrl(entries).urls
 
   // 2. Fall back to figma_url (legacy scalar)
   if "figma_url" in frontmatter:
@@ -126,16 +143,19 @@ function normalizeEntry(item) → FigmaUrlEntry | null:
 
   return null  // Unsupported type
 
-function deduplicateByUrl(entries: FigmaUrlEntry[]) → FigmaUrlEntry[]:
+// Return type: { urls: FigmaUrlEntry[], deduped: boolean, removed_count: number }
+function deduplicateByUrl(entries: FigmaUrlEntry[]) → { urls: FigmaUrlEntry[], deduped: boolean, removed_count: number }:
   seen = new Set()
   result = []
+  removed = 0
   for each entry in entries:
     if NOT seen.has(entry.url):
       seen.add(entry.url)
       result.push(entry)
     else:
       warn(`duplicate Figma URL removed: ${entry.url}`)
-  return result
+      removed++
+  return { urls: result, deduped: removed > 0, removed_count: removed }
 ```
 
 ## Edge Cases
@@ -154,20 +174,71 @@ function deduplicateByUrl(entries: FigmaUrlEntry[]) → FigmaUrlEntry[]:
 
 ## Consumer Migration List
 
-The following 12 points in the codebase previously read `figma_url` directly from plan frontmatter. All must be updated to call `readFigmaUrls(planContent)` instead:
+The following 12 points in the codebase previously read `figma_url` directly from plan frontmatter. All must be updated to call `readFigmaUrls(planContent)` instead. **All consumers MUST call `readFigmaUrls()` instead of direct frontmatter access.**
 
-1. **devise/SKILL.md Phase 0** — Design Signal Detection (`figmaUrls[0]` → `readFigmaUrls(...)`)
-2. **devise/SKILL.md Phase 0 --quick fallback** — (`quickFigma[0]` → full `readFigmaUrls(...)`)
-3. **brainstorm/SKILL.md Phase 3.5** — Design Asset Detection (`figmaUrls[0]` → `readFigmaUrls(...)`)
-4. **design-sync/SKILL.md Phase 0** — Pre-flight URL argument parsing (add multi-URL loop)
-5. **design-sync/SKILL.md Phase 0** — State file `figma_url` field (→ `figma_urls` array)
-6. **design-sync/SKILL.md Phase 1** — `figma_fetch_design` call (→ iterate over `figmaUrls`)
-7. **arc/references/arc-phase-design-extraction.md** — Single-URL extraction loop (→ multi-URL)
-8. **devise/references/synthesize.md** — Frontmatter emission (`figma_url:` → `figma_urls:` array)
-9. **design-sync/references/vsm-spec.md** — VSM `figma_url` metadata field (→ `figma_urls`)
-10. **design-sync/references/phase1-design-extraction.md** — `fetchDesign(parsedUrl)` call site
-11. **agents/design-sync-agent.md** — Agent prompt URL variable (→ array iteration)
-12. **inscription-schema.md** — `figma_url` inscription field (→ `figma_urls: string[]`)
+| # | Consumer | Migration | Status |
+|---|----------|-----------|--------|
+| 1 | **devise/SKILL.md Phase 0** — Design Signal Detection | `figmaUrls[0]` → `readFigmaUrls(...)` | MIGRATED |
+| 2 | **devise/SKILL.md Phase 0 --quick fallback** | `quickFigma[0]` → full `readFigmaUrls(...)` | MIGRATED |
+| 3 | **brainstorm/SKILL.md Phase 3.5** — Design Asset Detection | `figmaUrls[0]` → `readFigmaUrls(...)` | MIGRATED |
+| 4 | **design-sync/SKILL.md Phase 0** — Pre-flight URL argument parsing | add multi-URL loop | PENDING |
+| 5 | **design-sync/SKILL.md Phase 0** — State file `figma_url` field | → `figma_urls` array | PENDING |
+| 6 | **design-sync/SKILL.md Phase 1** — `figma_fetch_design` call | → iterate over `figmaUrls` | PENDING |
+| 7 | **arc/references/arc-phase-design-extraction.md** — Single-URL extraction loop | → multi-URL | PENDING |
+| 8 | **devise/references/synthesize.md** — Frontmatter emission | `figma_url:` → `figma_urls:` array | PENDING |
+| 9 | **design-sync/references/vsm-spec.md** — VSM `figma_url` metadata field | → `figma_urls` | PENDING |
+| 10 | **design-sync/references/phase1-design-extraction.md** — `fetchDesign(parsedUrl)` call site | update to loop | PENDING |
+| 11 | **agents/design-sync-agent.md** — Agent prompt URL variable | → array iteration | PENDING |
+| 12 | **inscription-schema.md** — `figma_url` inscription field | → `figma_urls: string[]` | PENDING |
+
+### Migration Examples
+
+**Example 1 — Scalar to array (consumers #1, #2, #3)**
+
+```javascript
+// BEFORE (scalar direct access)
+const figmaUrl = frontmatter.figma_url ?? null
+if (figmaUrl) {
+  const parsed = parseFigmaUrl(figmaUrl)
+  // single-URL logic
+}
+
+// AFTER (readFigmaUrls — scalar handled internally)
+const figmaEntries = readFigmaUrls(planContent)
+const primaryUrl = figmaEntries.find(e => e.role === 'primary')?.url ?? figmaEntries[0]?.url ?? null
+if (primaryUrl) {
+  const parsed = parseFigmaUrl(primaryUrl)
+  // same single-URL logic — backward compatible
+}
+```
+
+**Example 2 — Array iteration (consumers #4, #6, #10, #11)**
+
+```javascript
+// BEFORE (assumed single URL from array index)
+const figmaUrls = frontmatter.figma_urls ?? []
+const firstUrl = figmaUrls[0] ?? null
+if (firstUrl) { await figma_fetch_design({ url: firstUrl }) }
+
+// AFTER (iterate all entries)
+const figmaEntries = readFigmaUrls(planContent)
+for (const entry of figmaEntries) {
+  await figma_fetch_design({ url: entry.url })
+  // entry.role and entry.screen available for grouping
+}
+```
+
+**Example 3 — Dedup check (VEIL-003 structured result)**
+
+```javascript
+// Consumers that need to detect whether deduplication occurred
+const result = deduplicateByUrl(rawEntries)
+// result: { urls: FigmaUrlEntry[], deduped: boolean, removed_count: number }
+if (result.deduped) {
+  warn(`Removed ${result.removed_count} duplicate Figma URL(s) from plan frontmatter`)
+}
+const cleanEntries = result.urls
+```
 
 ## Integration Pattern
 
@@ -195,7 +266,7 @@ for (const entry of figmaEntries) {
 
 ## Cross-References
 
-- [figma-url-parser.md](figma-url-parser.md) — URL structure parsing (file_key, node_id extraction)
+- [figma-url-parser.md](figma-url-parser.md) — URL structure parsing (file_key, node_id extraction) `[NOT IN SCOPE for this release]`
 - [vsm-spec.md](vsm-spec.md) — VSM schema that records `figma_urls` in metadata
 - [phase1-design-extraction.md](phase1-design-extraction.md) — Extraction loop that iterates `readFigmaUrls()`
 - [devise/references/synthesize.md](../../devise/references/synthesize.md) — Emits `figma_urls:` frontmatter

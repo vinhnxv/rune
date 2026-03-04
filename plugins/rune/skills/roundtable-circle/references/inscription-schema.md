@@ -215,6 +215,40 @@
 }
 ```
 
+### Population Contract
+
+The `design_context` field is populated exclusively by **arc Phase 3 (design extraction)**, after VSM generation completes. It is a ghost field in all other phases — do not pre-populate or default it.
+
+**Responsible phase**: arc Phase 3 — design extraction. This phase runs after `design_sync.enabled: true` is confirmed in talisman, frontend files are detected, and VSM files have been generated and written to disk.
+
+**Write timing**: After VSM files are written to disk, the orchestrator MUST update `inscription.json` with `design_context` fields. VSM generation is a prerequisite — `design_context.vsm_dir` must reference the confirmed VSM output path before any design verification agents are spawned.
+
+**Inscription update pattern**:
+
+```json
+// After VSM generation completes in arc Phase 3:
+// 1. Read existing inscription.json
+// 2. Merge design_context into the inscription object
+// 3. Write back atomically
+
+{
+  "design_context": {
+    "enabled": true,
+    "vsm_dir": "tmp/arc/{id}/vsm/",
+    "dcd_dir": "tmp/arc/{id}/design/",
+    "figma_urls": [
+      { "url": "https://www.figma.com/design/...", "role": "primary", "screen": "Desktop" }
+    ],
+    "figma_url": "https://www.figma.com/design/...",
+    "fidelity_threshold": 0.8,
+    "components": ["Button", "Card", "NavBar"],
+    "token_system": "figma-tokens"
+  }
+}
+```
+
+**When design_sync is disabled**: Omit the `design_context` key entirely from `inscription.json`. Do NOT set it to `null`, `false`, or an empty object — downstream agents check for key presence. An absent key signals "no design context available" cleanly; a `null` value may trigger unexpected code paths in consumers that do not guard against null.
+
 ## Example: Review Inscription
 
 ```json
