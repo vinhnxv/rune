@@ -103,6 +103,11 @@ design_system_confidence: 0.0   # Detection confidence 0.0–1.0 (from discoverD
 component_count_new: 0          # Number of CREATE-strategy components (from UI/UX protocol Step 3)
 component_count_extend: 0       # Number of EXTEND-strategy components
 component_count_reuse: 0        # Number of REUSE-strategy components
+ui_builder:                     # Auto-populated by discoverUIBuilder() — omit when no builder detected
+  builder_skill: ""             # Builder skill name (e.g. "untitledui-mcp" or project override)
+  builder_mcp: ""               # MCP server name in .mcp.json (e.g. "untitledui")
+  conventions: ""               # Path to conventions file (relative to skill dir)
+  capabilities: {}              # Map of capability → tool name from builder-protocol frontmatter
 session_budget:
   max_concurrent_agents: 5      # Cap on simultaneous teammates (applied silently); see sizing guide
 ---
@@ -154,6 +159,32 @@ session_budget:
 | Dark mode strategy | {CSS vars (.dark) / data-theme attr / media query / none} |
 | Path convention | {src/components/ui/ / src/components/base/ / other} |
 | Existing components | {component_count_reuse} reuse + {component_count_extend} extend + {component_count_new} new |
+
+### Component Strategy (conditional — omit when ui_builder is absent)
+
+{Omit this entire section when `ui_builder` frontmatter is empty. Only emit when discoverUIBuilder() returned a builder profile.}
+
+**UI Builder**: {ui_builder.builder_skill} via {ui_builder.builder_mcp} MCP
+**Capabilities**: {comma-separated list of capability names from ui_builder.capabilities}
+
+#### Component Mapping
+
+{Populated from builder search during devise Phase 1 — flow-seer + repo-surveyor search for UI elements and match against library.}
+{If no search was performed, write "Pending — will be populated during arc Phase 1.5 Component Match."}
+
+| UI Element | Library Component | Search Query | Confidence | Notes |
+|------------|------------------|-------------|-----------|-------|
+| {sidebar navigation} | {SidebarNav} | {search_components("sidebar navigation with icons")} | High | |
+| {data table with pagination} | {Table + Pagination} | {search_components("data table pagination")} | Medium | PRO |
+| {form with email field} | {FormField + Input} | {search_components("form email input")} | High | |
+
+#### Conventions Summary
+
+{Key conventions from ui_builder.conventions — pull 3-5 most critical rules. Full conventions in the builder skill reference.}
+
+- {e.g. React Aria imports use Aria* prefix: `import { Button as AriaButton } from "react-aria-components"`}
+- {e.g. Files MUST be kebab-case: date-picker.tsx not DatePicker.tsx}
+- {e.g. Colors MUST be semantic: text-primary not text-gray-900}
 
 ### Component Hierarchy
 
@@ -364,6 +395,11 @@ design_system_confidence: 0.0   # Detection confidence 0.0–1.0 (from discoverD
 component_count_new: 0          # Number of CREATE-strategy components (from UI/UX protocol Step 3)
 component_count_extend: 0       # Number of EXTEND-strategy components
 component_count_reuse: 0        # Number of REUSE-strategy components
+ui_builder:                     # Auto-populated by discoverUIBuilder() — omit when no builder detected
+  builder_skill: ""             # Builder skill name (e.g. "untitledui-mcp" or project override)
+  builder_mcp: ""               # MCP server name in .mcp.json (e.g. "untitledui")
+  conventions: ""               # Path to conventions file (relative to skill dir)
+  capabilities: {}              # Map of capability → tool name from builder-protocol frontmatter
 session_budget:
   max_concurrent_agents: 8      # Cap on simultaneous teammates (applied silently); see sizing guide
 ---
@@ -438,6 +474,32 @@ erDiagram
 | Dark mode strategy | {CSS vars (.dark) / data-theme attr / media query / none} |
 | Path convention | {src/components/ui/ / src/components/base/ / other} |
 | Existing components | {component_count_reuse} reuse + {component_count_extend} extend + {component_count_new} new |
+
+### Component Strategy (conditional — omit when ui_builder is absent)
+
+{Omit this entire section when `ui_builder` frontmatter is empty. Only emit when discoverUIBuilder() returned a builder profile.}
+
+**UI Builder**: {ui_builder.builder_skill} via {ui_builder.builder_mcp} MCP
+**Capabilities**: {comma-separated list of capability names from ui_builder.capabilities}
+
+#### Component Mapping
+
+{Populated from builder search during devise Phase 1 — flow-seer + repo-surveyor search for UI elements and match against library.}
+{If no search was performed, write "Pending — will be populated during arc Phase 1.5 Component Match."}
+
+| UI Element | Library Component | Search Query | Confidence | Notes |
+|------------|------------------|-------------|-----------|-------|
+| {sidebar navigation} | {SidebarNav} | {search_components("sidebar navigation with icons")} | High | |
+| {data table with pagination} | {Table + Pagination} | {search_components("data table pagination")} | Medium | PRO |
+| {form with email field} | {FormField + Input} | {search_components("form email input")} | High | |
+
+#### Conventions Summary
+
+{Key conventions from ui_builder.conventions — pull 3-5 most critical rules. Full conventions in the builder skill reference.}
+
+- {e.g. React Aria imports use Aria* prefix: `import { Button as AriaButton } from "react-aria-components"`}
+- {e.g. Files MUST be kebab-case: date-picker.tsx not DatePicker.tsx}
+- {e.g. Colors MUST be semantic: text-primary not text-gray-900}
 
 ### Component Hierarchy
 
