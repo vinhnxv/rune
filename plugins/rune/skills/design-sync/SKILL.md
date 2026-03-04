@@ -69,10 +69,18 @@ Extracts design specifications from Figma, creates Visual Spec Maps (VSM), coord
 Phase 0: Pre-Flight → Validate URL, check MCP availability, read talisman config
     |
 Phase 1: Design Extraction (PLAN) → Fetch Figma data, create VSM files
+         figma_to_react() → REFERENCE CODE (~50-60% match) stored, NOT applied directly
     |
 Phase 1.5: User Confirmation → Show VSM summary, confirm or edit before implementation
     |
+[Phase 1.6: Component Match — conditional on builderProfile.capabilities.search]
+           → Analyze reference code for component intent
+           → Search UI builder MCP for real library components
+           → Enrich VSM with real component matches (~85-95% match path)
+    |
 Phase 2: Implementation (WORK) → Create components from VSM using swarm workers
+         With builder: workers receive enriched VSM + real library component code
+         Without builder: workers apply figma-to-react reference code directly (fallback)
     |
 Phase 2.5: Design Iteration → Optional screenshot→analyze→fix loop for fidelity
     |
@@ -80,6 +88,11 @@ Phase 3: Fidelity Review (REVIEW) → Score implementation against VSM
     |
 Phase 4: Cleanup → Shutdown workers, persist echoes, report results
 ```
+
+> **figma-to-react output is REFERENCE CODE** (~50-60% match). When a UI builder MCP is
+> available (`builderProfile !== null`), it is analyzed for visual intent and used as
+> search queries against the real component library — NOT applied to workers directly.
+> When no builder is available, the reference code is used as-is (graceful fallback).
 
 ## Phase 0: Pre-Flight
 
@@ -371,13 +384,40 @@ codegenContext = "Codegen profile: {codegenProfile}. " +
   (tokenMapRef ? "Use semantic tokens from {tokenMapRef}. " : "") +
   "Do NOT mix framework patterns (e.g., no cva() in UntitledUI, no CSS Modules in shadcn)."
 
+// Step 1.6: Resolve builder profile (conditional — zero overhead when absent)
+// Read builder-profile.yaml written by discoverUIBuilder() if it exists
+builderProfile = null
+builderContext = ""
+enrichedVsmDir = "{workDir}/vsm"  // default — may be enriched-vsm/ when builder ran Phase 1.6
+try:
+  builderProfilePath = "{workDir}/../builder-profile.yaml"  // written by discoverUIBuilder()
+  builderProfile = Read(builderProfilePath)
+catch:
+  // No builder profile — proceed with fallback path (unchanged behavior)
+
+if builderProfile !== null:
+  // Builder available: workers receive enriched VSM with real component matches
+  // enriched-vsm.json written by Phase 1.6 Component Match (separate task #4)
+  enrichedVsmExists = Glob("{workDir}/vsm/enriched-vsm.json").length > 0
+  if enrichedVsmExists:
+    enrichedVsmDir = "{workDir}/vsm"  // enriched-vsm.json co-located with VSM files
+    builderContext = "UI builder available: {builderProfile.builder_skill} ({builderProfile.builder_mcp}). " +
+      "enriched-vsm.json contains real library component matches for each region. " +
+      "IMPORT real components instead of generating Tailwind approximations. " +
+      "Fallback: regions with no component_matches → use reference code + Tailwind."
+  else:
+    // Phase 1.6 skipped or failed — fall back to reference code path
+    builderContext = "UI builder detected ({builderProfile.builder_skill}) but no enriched VSM found. " +
+      "Use figma-to-react reference code as starting point (fallback path)."
+// else: no builder — builderContext remains empty, workers use reference code path
+
 // Step 2: Parse VSM files into implementation tasks
 vsmFiles = Glob("{workDir}/vsm/*.md")
 for each vsm in vsmFiles:
   TaskCreate({
     subject: "Implement {component_name} from VSM",
-    description: "Read VSM at {vsm.path}. Create component following design tokens, layout, variants, and a11y requirements. " + codegenContext,
-    metadata: { phase: "implementation", vsm_path: vsm.path, codegen_profile: codegenProfile }
+    description: "Read VSM at {vsm.path}. Create component following design tokens, layout, variants, and a11y requirements. " + codegenContext + (builderContext ? " " + builderContext : ""),
+    metadata: { phase: "implementation", vsm_path: vsm.path, codegen_profile: codegenProfile, has_builder: builderProfile !== null }
   })
 
 // Step 3: Summon rune-smith workers
@@ -385,7 +425,7 @@ maxWorkers = config?.design_sync?.max_implementation_workers ?? 3
 for i in range(maxWorkers):
   Agent(team_name="rune-design-sync-{timestamp}", name="rune-smith-{i+1}", ...)
     // Spawn rune-smith with VSM context + frontend-design-patterns skill
-    // Worker prompt includes: codegenContext for framework-native code generation
+    // Worker prompt includes: codegenContext + builderContext (if builder available)
 
 // Step 4: Monitor until implementation complete
 ```

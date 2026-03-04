@@ -2,6 +2,33 @@
 
 Algorithm for creating frontend components from Visual Spec Maps (VSM).
 
+## Builder-Aware Implementation Paths
+
+Two paths exist depending on whether a UI builder MCP was detected:
+
+```
+WITHOUT builder (fallback — existing behavior, unchanged):
+  figma_to_react() reference code (~50-60% match) → workers apply directly
+  Steps 1-8 below apply as documented.
+
+WITH builder (preferred — when enriched-vsm.json exists):
+  enriched-vsm.json contains real library component matches per region.
+  Workers IMPORT real components instead of generating approximations.
+  Regions without component_matches fall back to the standard token-based path.
+```
+
+### Worker Decision Tree (Step 2 addition when builder active)
+
+```
+For each VSM region:
+  IF region.component_matches exists (from enriched-vsm.json):
+    1. Import the matched component: import { ComponentName } from "library"
+    2. Customize using builder conventions (props, variants from VSM)
+    3. Skip Steps 3-5 below for this region (token application still applies for customization)
+  ELSE (no library match or no builder):
+    Apply Steps 3-8 below as documented (Tailwind token-based implementation)
+```
+
 ## Implementation Workflow
 
 ### Step 1: VSM Parsing
@@ -146,6 +173,8 @@ From VSM accessibility requirements:
 5. Responsive breakpoints match VSM spec
 6. Accessibility attributes present per VSM requirements
 7. Component registered (exported, Storybook story if applicable)
+8. [Builder path only] Regions with component_matches use real library imports,
+   not Tailwind-only approximations (prefer library component over hand-built)
 ```
 
 ## Cross-References

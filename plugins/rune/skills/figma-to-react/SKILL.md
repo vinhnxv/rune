@@ -1,19 +1,43 @@
 ---
 name: figma-to-react
 description: |
-  Figma-to-React MCP server knowledge. Provides 4 tools for converting
-  Figma designs to React components with Tailwind CSS v4.
+  Figma visual intent extractor — MCP server knowledge for the 4 Figma tools.
+  figma_to_react() produces REFERENCE CODE (~50-60% match), NOT production code.
+  Its primary role in the design-sync pipeline is as a search input: the generated
+  code is analyzed for component intent, which drives library MCP searches when a
+  UI builder is available. Without a builder, it serves as a starting point for
+  direct implementation.
   Use when agents need to fetch Figma designs, inspect node properties,
-  list components, or generate React + Tailwind code from design files.
+  list components, or extract visual intent from design files.
   Trigger keywords: figma, design, react, component, tailwind, MCP,
-  design-to-code, figma URL, figma API, component extraction.
+  design-to-code, figma URL, figma API, component extraction, visual intent.
 user-invocable: false
 disable-model-invocation: false
 ---
 
 # Figma-to-React MCP Server
 
-Converts Figma designs into React function components with Tailwind CSS v4 utility classes via 4 MCP tools.
+Extracts visual intent from Figma designs and generates reference React + Tailwind CSS v4 code via 4 MCP tools.
+
+> **CRITICAL**: `figma_to_react()` output is REFERENCE CODE (~50-60% match). It is NOT production-ready implementation. When a UI builder MCP is available, this output is analyzed for component intent and used as search queries against the real component library — NOT applied directly.
+
+## Reference-as-Search-Input Pattern
+
+```
+WITHOUT builder (fallback):
+  figma_to_react() → reference code → workers apply directly → ~50-60% match
+
+WITH builder (preferred):
+  figma_to_react() → reference code → ANALYZE intent → SEARCH library MCP
+                   → MATCH real components → workers import REAL code → ~85-95% match
+```
+
+Example: `<nav className="w-64"><a>Dashboard</a></nav>` is analyzed as:
+```
+{ type: "sidebar", layout: "vertical", items: ["Dashboard"], icons: false }
+→ search_components("sidebar navigation") → SidebarNavigation component
+→ get_component("SidebarNavigation") → REAL component code
+```
 
 ## Prerequisites
 
@@ -115,12 +139,21 @@ python3 cli.py react URL --write ./SignUp.tsx
 
 ## Workflow
 
-Typical usage flow:
+### Without UI Builder (fallback — direct reference application)
 
 1. **Browse**: `figma_list_components(url)` to discover available components
 2. **Inspect**: `figma_inspect_node(url?node-id=X)` to understand a specific node
-3. **Generate**: `figma_to_react(url?node-id=X)` to produce React code
-4. **Iterate**: Adjust generated code based on project conventions
+3. **Generate**: `figma_to_react(url?node-id=X)` to produce reference code (~50-60% match)
+4. **Apply**: Workers use reference code as starting point, fix the ~40-50% gap manually
+
+### With UI Builder (preferred — reference-as-search-input)
+
+1. **Browse**: `figma_list_components(url)` to discover components
+2. **Extract**: `figma_to_react(url?node-id=X)` to extract visual intent as reference code
+3. **Analyze**: Parse reference code to extract component intents (sidebar, table, form, card...)
+4. **Search**: Use intent as query for builder MCP (e.g., `search_components("sidebar navigation")`)
+5. **Match**: Score results, select best match, retrieve real component via `get_component(name)`
+6. **Compose**: Workers import real library components instead of approximating from reference
 
 ## Supported Features
 
@@ -135,7 +168,14 @@ Typical usage flow:
 
 ## Rune Integration
 
-When running `/rune:work` or `/rune:strive`, rune-smith worker Ashes have access to the figma-to-react MCP tools. Workers can call `figma_to_react`, `figma_inspect_node`, `figma_list_components`, and `figma_fetch_design` directly during implementation to generate component code from Figma designs without leaving the workflow.
+When running `/rune:design-sync`, the figma-to-react MCP tools are used in Phase 1 (Design Extraction) to produce a reference code artifact. This reference code is stored as `tmp/design-sync/{timestamp}/figma-reference.tsx` and serves as visual intent input for Phase 1.5 (Component Match) when a UI builder is available.
+
+**Role in design-sync pipeline**:
+- Phase 1: `figma_to_react()` → `figma-reference.tsx` (reference artifact, ~50-60% match)
+- Phase 1.5 (when builder available): reference analyzed for component intent → library MCP search
+- Phase 2: workers receive either enriched VSM with real components (builder path) or reference code directly (fallback path)
+
+When running `/rune:work` or `/rune:strive` directly, rune-smith worker Ashes also have access to these tools. In that context, treat `figma_to_react` output as reference only — use it to understand visual intent, not as final implementation code.
 
 ## Configuration
 
