@@ -134,19 +134,20 @@ Bash("sleep 15")
 
 // TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s)
 const CLEANUP_DELAYS = [0, 5000, 10000]
-let cleanupSucceeded = false
+let cleanupTeamDeleteSucceeded = false
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
-  try { TeamDelete(); cleanupSucceeded = true; break } catch (e) {
+  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
     if (attempt === CLEANUP_DELAYS.length - 1) warn(`inspect cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
   }
 }
-// Filesystem fallback if TeamDelete failed
-if (!cleanupSucceeded) {
+// Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+if (!cleanupTeamDeleteSucceeded) {
   const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
   if (/^[a-zA-Z0-9_-]+$/.test(teamName)) {
     Bash(`rm -rf "${CHOME}/teams/${teamName}/" "${CHOME}/tasks/${teamName}/" 2>/dev/null`)
   }
+  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
 ```
 
