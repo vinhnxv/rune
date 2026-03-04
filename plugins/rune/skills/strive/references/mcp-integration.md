@@ -51,6 +51,25 @@ function resolveMCPIntegrations(phase, context) {
       mcpStatus = "unavailable"
     }
 
+    // Resolve access tier from metadata.access_token_env (build-time PRO detection)
+    // When the env var is set, agents know PRO features are available BEFORE calling tools.
+    // Without this, agents only discover PRO access at runtime (when a tool call succeeds/fails).
+    let accessTier = "free"  // default — free tier components only
+    const tokenEnvVar = config.metadata?.access_token_env
+    if (tokenEnvVar && /^[A-Z_][A-Z0-9_]*$/.test(tokenEnvVar)) {
+      // SEC-011: Validate env var name format (uppercase + underscores only)
+      try {
+        // Check existence without echoing the secret value (avoids API key in session logs)
+        const hasToken = Bash(`[ -n "\${${tokenEnvVar}:-}" ] && echo "1" || echo "0"`).trim() === "1"
+        if (hasToken) {
+          accessTier = "pro"
+        }
+      } catch (e) {
+        // Fail-open: env check failure or Bash tool denial → assume free tier
+        accessTier = "free"
+      }
+    }
+
     // All gates passed — mark as ACTIVE
     activeIntegrations.push({
       namespace,                          // e.g., "untitledui"
@@ -58,8 +77,9 @@ function resolveMCPIntegrations(phase, context) {
       tools: config.tools || [],          // Array of { name, category }
       skill_binding: config.skill_binding || null,  // Companion skill name
       rules: config.rules || [],          // Rule file paths to inject
-      metadata: config.metadata || {},    // Library name, version, homepage
+      metadata: config.metadata || {},    // Library name, version, homepage, access_token_env
       mcp_status: mcpStatus,              // "available" | "unavailable" (VEIL-RA-003)
+      access_tier: accessTier,            // "pro" | "free" (build-time detection via access_token_env)
       server_version: config.server_version || null  // Optional — enables schema version validation (VEIL-EP-002)
     })
   }
@@ -152,6 +172,14 @@ function buildMCPContextBlock(activeIntegrations, excludeTools = new Set()) {
     const displayName = rawDisplayName.replace(/[\n\r#\x00-\x1f]/g, '').slice(0, 100)
     block += `    ### ${integration.namespace} (${displayName})\n`
 
+    // Access tier indicator — workers know upfront if PRO features are available
+    // This prevents wasted tool calls to PRO-only endpoints when only free tier is active
+    if (integration.access_tier === "pro") {
+      block += `    **Access**: PRO tier — all tools and components available.\n`
+    } else {
+      block += `    **Access**: Free tier — base components only. PRO-only tools (page templates, marketing components) will return auth errors. Fall back to Tailwind + conventions.\n`
+    }
+
     // Tool list with categories (SEC-004: validate tool names and categories)
     if (integration.tools.length > 0) {
       block += `    **Tools**:\n`
@@ -241,11 +269,17 @@ Generates a workflow guidance block for UI builder MCP integration. Returns a tu
 `[block, injectedTools]` — where `injectedTools` is a Set of tool names already included
 in the block, used by `buildMCPContextBlock()` to avoid duplicate guidance (A-4 dedup).
 
+The `uiBuilder` object comes from `discoverUIBuilder()` and is enriched with `access_tier`
+from the matching `resolveMCPIntegrations()` entry before being passed here (bridge pattern
+in strive Phase 1.5). When `access_tier` is `"pro"`, workers get full tool guidance;
+when `"free"`, PRO-only tools (templates, marketing) are skipped with fallback guidance.
+
 Returns `['', new Set()]` when no builder is passed (zero overhead — matches null-check pattern).
 
 ```javascript
 // Build builder workflow block for worker prompt injection
-// Input: uiBuilder (object from discoverUIBuilder(), or null)
+// Input: uiBuilder (object from discoverUIBuilder(), enriched with access_tier from resolveMCPIntegrations(), or null)
+//   - access_tier: "pro" | "free" | undefined — set by bridge pattern in strive Phase 1.5
 // Output: [string, Set<string>] — [prompt block, set of injected tool names for dedup]
 // Security: SEC-002 Truthbinding nonce on conventions content, SEC-001 path validation
 // Error handling: conventions Read failure → warn + inject "[conventions unavailable]", continue
@@ -257,6 +291,14 @@ function buildBuilderWorkflowBlock(uiBuilder) {
   block += `Library MCP: ${uiBuilder.builder_mcp}\n`
   if (uiBuilder.builder_skill) {
     block += `Builder skill: ${uiBuilder.builder_skill}\n`
+  }
+
+  // Access tier from resolved integration — tells workers what's available
+  // uiBuilder.access_tier is passed through from resolveMCPIntegrations()
+  if (uiBuilder.access_tier === "pro") {
+    block += `Access tier: **PRO** — all components, page templates, and marketing components available.\n`
+  } else {
+    block += `Access tier: **Free** — base components only. Do NOT call get_page_templates or get_page_template_files (PRO-only). For marketing/shared-assets components, build from scratch with Tailwind + conventions.\n`
   }
 
   // Structured workflow guidance — SEARCH → GET → CUSTOMIZE → VALIDATE
@@ -283,15 +325,26 @@ function buildBuilderWorkflowBlock(uiBuilder) {
   if (uiBuilder.capabilities?.list) {
     injectedTools.add(uiBuilder.capabilities.list)
   }
-  if (uiBuilder.capabilities?.templates) {
-    injectedTools.add(uiBuilder.capabilities.templates)
-  }
-  if (uiBuilder.capabilities?.template_files) {
-    injectedTools.add(uiBuilder.capabilities.template_files)
+  // Templates are PRO-only — only inject when access_tier is "pro"
+  // Free tier workers should not attempt these calls (they'll get auth errors)
+  if (uiBuilder.access_tier === "pro") {
+    if (uiBuilder.capabilities?.templates) {
+      injectedTools.add(uiBuilder.capabilities.templates)
+    }
+    if (uiBuilder.capabilities?.template_files) {
+      injectedTools.add(uiBuilder.capabilities.template_files)
+    }
   }
 
   block += `3. CUSTOMIZE: Apply project-specific modifications following conventions\n`
   block += `4. VALIDATE: Check implementation against conventions below\n`
+
+  // Source Trust Warning — ensures workers never over-trust figma_to_react output
+  block += `\n### Source Trust Warning\n`
+  block += `figma_to_react() output is REFERENCE CODE (~50-60% match).\n`
+  block += `It extracts visual INTENT — not production structure.\n`
+  block += `ALWAYS prefer: VSM tokens > library components > project patterns > reference code.\n`
+  block += `For regions with match_score < 0.60 in enriched-vsm.json: build from scratch using VSM.\n`
 
   // Inject conventions content, truncated to 2000 chars at a line boundary
   // SEC-002: Wrap in Truthbinding nonce block to prevent prompt injection from conventions files
@@ -446,6 +499,13 @@ const mcpSkills = loadMCPSkillBindings(mcpIntegrations)
 
 // Step 1: Build builder workflow block first (highest priority)
 // uiBuilder comes from discoverUIBuilder() in design-system-discovery (Phase 0.5 / 1.5)
+// Enrich uiBuilder with access_tier from the matching MCP integration (bridge pattern)
+if (uiBuilder && mcpIntegrations.length > 0) {
+  const matchingIntegration = mcpIntegrations.find(i => i.server_name === uiBuilder.builder_mcp)
+  if (matchingIntegration) {
+    uiBuilder.access_tier = matchingIntegration.access_tier  // "pro" | "free"
+  }
+}
 const [builderBlock, injectedTools] = buildBuilderWorkflowBlock(uiBuilder)
 
 // Step 2: Build MCP context block, excluding tools already in builder block (A-4 dedup)

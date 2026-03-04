@@ -1608,6 +1608,28 @@ context_weaving:
 #   relationship_confirmation: true         # Prompt user to confirm detected URL relationships before extraction (default: true)
 #                                            # When false, relationships are inferred silently.
 #   max_extraction_timeout: 900000          # Maximum timeout in ms for the full multi-URL extraction phase (default: 900000 = 15 min)
+#   verification_gate:
+#     enabled: true                          # Cross-verify VSM regions vs extraction output (default: true)
+#                                            # Computes mismatch percentage between expected and extracted regions.
+#                                            # See verification-gate.md for the full algorithm.
+#     warn_threshold: 20                     # Mismatch percentage to emit WARN verdict (default: 20)
+#                                            # Below this → PASS. Above this but below block → WARN + continue.
+#     block_threshold: 40                    # Mismatch percentage to emit BLOCK verdict (default: 40)
+#                                            # Above this → BLOCK + user confirmation required.
+#                                            # Set to 100 to effectively disable blocking.
+#   trust_hierarchy:
+#     enabled: true                          # Inject Step 4.7.5 worker trust hierarchy (default: true)
+#                                            # Controls source priority: VSM > library > tokens > patterns > reference code.
+#                                            # See worker-trust-hierarchy.md for canonical priority order.
+#     low_confidence_threshold: 0.60         # Match score below which library imports are forbidden (default: 0.60)
+#                                            # Regions below this threshold build from scratch using VSM tokens.
+#   backend_impact:
+#     enabled: true                          # Frontend-only default with backend impact assessment (default: true)
+#                                            # When enabled, Phase 2 Step 0 runs assessBackendImpact() before workers.
+#                                            # See backend-impact.md for the decision tree.
+#     auto_scope: frontend-only              # Default scope assumption: frontend-only | full-stack (default: frontend-only)
+#                                            # frontend-only: workers create interfaces + mock data, skip backend.
+#                                            # full-stack: workers include backend implementation in scope.
 
 # ──────────────────────────────────────────────────────────────────
 # MCP Tool Integrations
@@ -1635,8 +1657,9 @@ context_weaving:
 # integrations:
 #   mcp_tools:
 #     # Example: UntitledUI official MCP integration
-#     # Setup: claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp
-#     # PRO:   claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp --header "Authorization: Bearer YOUR_API_KEY"
+#     # Free:  claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp
+#     # PRO:   export UNTITLEDUI_ACCESS_TOKEN="your-api-key"
+#     #        claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp --header "Authorization: Bearer $UNTITLEDUI_ACCESS_TOKEN"
 #     untitledui:
 #       server_name: "untitledui"              # Must match key in .mcp.json
 #
@@ -1684,6 +1707,7 @@ context_weaving:
 #         mcp_endpoint: "https://www.untitledui.com/react/api/mcp"
 #         transport: "http"
 #         auth: "oauth2.1-pkce"               # or "api-key" or "none"
+#         access_token_env: "UNTITLEDUI_ACCESS_TOKEN"  # env var for PRO API key (optional — free tier works without it)
 
 # ──────────────────────────────────────────────
 # Storybook — Component visual verification (arc Phase 3.3) (v1.128.0+)

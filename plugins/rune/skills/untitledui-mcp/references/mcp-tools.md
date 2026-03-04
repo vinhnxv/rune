@@ -4,7 +4,7 @@
 
 **Endpoint**: `https://www.untitledui.com/react/api/mcp`
 **Transport**: HTTP (Streamable HTTP)
-**Authentication**: OAuth 2.1 with PKCE (recommended) | API Key header | None (free only)
+**Authentication**: OAuth 2.1 with PKCE (recommended) | `UNTITLEDUI_ACCESS_TOKEN` env var | None (free only)
 
 ### `.mcp.json` Configuration
 
@@ -19,7 +19,7 @@
 }
 ```
 
-With API key:
+With API key (`UNTITLEDUI_ACCESS_TOKEN`):
 ```json
 {
   "mcpServers": {
@@ -27,12 +27,16 @@ With API key:
       "type": "http",
       "url": "https://www.untitledui.com/react/api/mcp",
       "headers": {
-        "Authorization": "Bearer YOUR_API_KEY"
+        "Authorization": "Bearer ${UNTITLEDUI_ACCESS_TOKEN}"
       }
     }
   }
 }
 ```
+
+> **Environment variable**: Set `export UNTITLEDUI_ACCESS_TOKEN="<your-token-here>"` in your shell
+> profile. This is the same key used in `Authorization: Bearer` headers and the per-call `key`
+> parameter. When set, agents gain PRO access (all components, page templates, shared assets).
 
 ## Tool Details
 

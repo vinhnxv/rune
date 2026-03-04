@@ -47,7 +47,7 @@ def build_defaults():
             print(f"ERROR: Failed to parse {EXAMPLE_FILE}: {e}", file=sys.stderr)
             sys.exit(1)
 
-    if not data or not isinstance(data, dict):
+    if data is None or not isinstance(data, dict):
         print("ERROR: talisman.example.yml is empty or not a mapping", file=sys.stderr)
         sys.exit(1)
 
@@ -134,7 +134,7 @@ def _inject_toplevel_feature_defaults(data):
     """Inject feature-flag top-level keys (design_sync, deploy, schema, etc.)."""
     # Source of truth: design-sync/SKILL.md "## Talisman Configuration" section. Keep in sync.
     data.setdefault("design_sync", {
-        "enabled": False, "max_extraction_workers": 4,
+        "enabled": False, "max_extraction_workers": 2,
         "max_implementation_workers": 3, "max_iteration_workers": 2,
         "max_iterations": 5, "iterate_enabled": False,
         "fidelity_threshold": 80, "token_snap_distance": 20,
@@ -145,6 +145,15 @@ def _inject_toplevel_feature_defaults(data):
         "state_detection_ambiguous": 0.50,
         "relationship_confirmation": True,
         "max_extraction_timeout": 900000,
+        "verification_gate": {
+            "enabled": True, "warn_threshold": 20, "block_threshold": 40,
+        },
+        "trust_hierarchy": {
+            "enabled": True, "low_confidence_threshold": 0.60,
+        },
+        "backend_impact": {
+            "enabled": True, "auto_scope": "frontend-only",
+        },
     })
     data.setdefault("deployment_verification", {
         "enabled": False, "auto_run_on_migrations": False,

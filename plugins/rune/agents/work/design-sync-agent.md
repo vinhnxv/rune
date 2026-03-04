@@ -59,6 +59,12 @@ You are a swarm worker that extracts design specifications from Figma and produc
 
 ## Extraction Pipeline
 
+### Extraction Order (Visual-First Protocol)
+
+Follow the Visual-First Protocol defined in [visual-first-protocol.md](../../skills/design-sync/references/visual-first-protocol.md).
+
+**Key rule**: Screenshot analysis FIRST, `figma_to_react()` LAST (intent reference only, never copy-paste).
+
 ### Phase 1: Figma Data Retrieval
 
 ```
