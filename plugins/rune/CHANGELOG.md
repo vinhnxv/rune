@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.133.0] - 2026-03-04
+
+### Added
+- **UI Builder Protocol** — Pluggable abstraction layer for component library MCPs (UntitledUI, shadcn/ui, custom). Extends `integrations.mcp_tools` with `builder-protocol` SKILL.md frontmatter to declare capabilities (`search`, `list`, `details`, `bundle`, `templates`, `template_files`) and conventions reference path. Enables `discoverUIBuilder()` auto-detection, plan frontmatter `ui_builder` section, Phase 1.5 Component Match in design-sync, and `DSYS-BLD-*` compliance reviewer findings. Zero-cost when no builder is detected — pipeline unchanged.
+- **`docs/guides/ui-builder-protocol.en.md`** — Developer guide covering: What is the UI Builder Protocol, Creating a Builder Skill (minimal example), Builder Frontmatter Contract (full schema), Capability Interface Reference (6 capabilities), Conventions File Format (size constraints, structure), Testing Your Builder Integration (6 steps), Examples (UntitledUI built-in, shadcn/ui, custom), Troubleshooting, Upgrading from MCP Integration Level 2.
+
+### Changed
+- **README.md** — Added UI Builder Protocol to MCP Tool Integrations section.
+- **design-sync SKILL.md** — Phase 1.5 Component Match: `figma_to_react()` reference code is analyzed for component intent and used as search queries against the builder library MCP, producing an annotated VSM with real components instead of reference approximations.
+- **design-system-discovery SKILL.md** — `discoverUIBuilder()` algorithm (5-step priority cascade: talisman binding → project skill frontmatter → plugin skill frontmatter → known MCP registry → heuristic) documented with `builder-protocol` frontmatter contract.
+- **mcp-integration-spec.en.md** — Added builder workflow block for MCP-integrated pipelines (`figma_to_react → analyze intent → search_components → get_component → compose`).
+
+## [1.132.0] - 2026-03-04
+
+### Added
+- **UntitledUI official MCP integration** — New `untitledui-mcp` skill providing built-in support for the official UntitledUI MCP server (6 tools: `search_components`, `list_components`, `get_component`, `get_component_bundle`, `get_page_templates`, `get_page_template_files`). Includes `builder-protocol` frontmatter for auto-discovery, complete code conventions (React Aria `Aria*` prefix, Tailwind v4.1 semantic colors, kebab-case files, `data-icon` attribute, compound components), and talisman configuration template. Non-invocable — auto-loaded by `design-system-discovery` when UntitledUI is detected. Supports free + PRO tiers with graceful fallback.
+- **Builder Protocol metadata** — Skills can declare `builder-protocol:` in YAML frontmatter with `library`, `mcp_server`, `capabilities` (search/list/details/bundle/templates), and `conventions` reference path. Enables `discoverUIBuilder()` auto-detection.
+
+### Changed
+- **talisman.example.yml** — Updated MCP integrations example from custom tool names (`untitledui_find`, `untitledui_get`, etc.) to official UntitledUI MCP tool names (`search_components`, `get_component`, etc.). Updated `skill_binding` from `untitledui-builder` to `untitledui-mcp` (built-in). Added setup instructions with `claude mcp add` commands.
+- **mcp-integration-spec.en.md** — Updated Level 1 server config to HTTP transport with official endpoint. Updated all tool name references to official names. Updated companion skill section to reference built-in `untitledui-mcp` Rune skill. Moved from `plugins/rune/docs/guides/` to repo root `docs/guides/`.
+- **talisman SKILL.md** — Updated status output example from `untitledui-builder` to `untitledui-mcp`.
+
 ## [1.131.1] - 2026-03-04
 
 ### Removed

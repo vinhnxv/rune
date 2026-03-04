@@ -329,7 +329,7 @@ Explain 3 Integration Levels:
     - Dedicated skill with deep domain knowledge
     - Project-specific rules for quality enforcement
     - Metadata for discoverability (library_name, version, homepage)
-    - See docs/guides/mcp-integration-spec.en.md for the developer guide
+    - See docs/guides/mcp-integration-spec.en.md (repo root) for the developer guide
 
 Show example YAML for Level 2:
   integrations:
@@ -386,7 +386,7 @@ If integrations.mcp_tools exists:
     MCP Integrations: 2 configured
       untitledui  → 5 tools, phases: devise/strive/forge
                     triggers: .tsx,.ts,.jsx | keywords: frontend,ui
-                    server: ✓ connected | skill: untitledui-builder ✓
+                    server: ✓ connected | skill: untitledui-mcp ✓
       my-api      → 2 tools, phases: strive/arc
                     triggers: always
                     server: ✗ not in .mcp.json | skill: — not configured

@@ -69,10 +69,18 @@ Extracts design specifications from Figma, creates Visual Spec Maps (VSM), coord
 Phase 0: Pre-Flight → Validate URL, check MCP availability, read talisman config
     |
 Phase 1: Design Extraction (PLAN) → Fetch Figma data, create VSM files
+         figma_to_react() → REFERENCE CODE (~50-60% match) stored, NOT applied directly
     |
 Phase 1.5: User Confirmation → Show VSM summary, confirm or edit before implementation
     |
+[Phase 1.3: Component Match — conditional on builderProfile.capabilities.search]
+           → Analyze reference code for component intent
+           → Search UI builder MCP for real library components
+           → Enrich VSM with real component matches (~85-95% match path)
+    |
 Phase 2: Implementation (WORK) → Create components from VSM using swarm workers
+         With builder: workers receive enriched VSM + real library component code
+         Without builder: workers apply figma-to-react reference code directly (fallback)
     |
 Phase 2.5: Design Iteration → Optional screenshot→analyze→fix loop for fidelity
     |
@@ -80,6 +88,11 @@ Phase 3: Fidelity Review (REVIEW) → Score implementation against VSM
     |
 Phase 4: Cleanup → Shutdown workers, persist echoes, report results
 ```
+
+> **figma-to-react output is REFERENCE CODE** (~50-60% match). When a UI builder MCP is
+> available (`builderProfile !== null`), it is analyzed for visual intent and used as
+> search queries against the real component library — NOT applied to workers directly.
+> When no builder is available, the reference code is used as-is (graceful fallback).
 
 ## Phase 0: Pre-Flight
 
@@ -130,7 +143,7 @@ if figmaUrls.length > maxFigmaUrls:
 const figmaUrl = figmaUrls[0] ?? null
 
 // Step 2: Validate all Figma URLs
-FIGMA_URL_STRICT_PATTERN = /^https:\/\/www\.figma\.com\/(design|file)\/[A-Za-z0-9]+/
+FIGMA_URL_STRICT_PATTERN = /^https:\/\/www\.figma\.com\/(design|file)\/[A-Za-z0-9]{22,26}/
 const invalidUrls = figmaUrls.filter(u => !FIGMA_URL_STRICT_PATTERN.test(u))
 ```
 
@@ -315,6 +328,124 @@ See [phase1-design-extraction.md](references/phase1-design-extraction.md) for th
 
 See [vsm-spec.md](references/vsm-spec.md) for the complete Visual Spec Map schema.
 
+## Phase 1.3: Component Match (Conditional)
+
+Only runs when `builderProfile.capabilities.search` is available. Zero overhead otherwise.
+
+```
+// Step 1: Read builder profile (written by discoverUIBuilder())
+builderProfile = null
+try:
+  builderProfile = Read("{workDir}/../builder-profile.yaml")
+catch:
+  // No builder — skip Phase 1.3 entirely, proceed to Phase 1.5
+  warn("No UI builder detected. Using figma-to-react reference output (~50-60% component match). To enable enhanced component matching (85-95%), configure a builder MCP — see docs/guides/ui-builder-protocol.en.md")
+  goto Phase1_5
+
+if NOT builderProfile?.capabilities?.search:
+  // Builder exists but has no search capability — skip
+  goto Phase1_5
+
+// Step 2: Read reference code produced in Phase 1 by figma_to_react()
+// NOTE: figma_to_react() output is REFERENCE CODE (~50-60% match) — NOT implementation.
+// Its purpose here is to extract visual intent for library component searches.
+referenceCodePath = "{workDir}/figma-reference.tsx"
+referenceCode = null
+try:
+  referenceCode = Read(referenceCodePath)
+catch:
+  // No reference code — fallback to VSM-only queries
+  referenceCode = null
+
+// Step 3: Read VSM files to extract region list
+vsmFiles = Glob("{workDir}/vsm/*.md")
+enrichedVsm = {}  // will be written as enriched-vsm.json
+
+// Phase-level circuit breaker: if 3 consecutive MCP calls fail, skip remaining
+consecutiveFailures = 0
+CIRCUIT_BREAKER_THRESHOLD = 3
+CALL_TIMEOUT_MS = 10000  // 10s per MCP call
+PHASE_TIMEOUT_MS = 60000 // 60s total for this phase
+phaseStartTime = Date.now()
+
+// Step 4: For each VSM region, search builder library for real components
+for each vsm in vsmFiles:
+  if (Date.now() - phaseStartTime) > PHASE_TIMEOUT_MS:
+    warn("Phase 1.3 timeout ({PHASE_TIMEOUT_MS}ms) — using partial results")
+    break
+
+  vsmContent = Read(vsm.path)
+  regions = parseVsmRegions(vsmContent)  // extract top-level regions from VSM
+
+  for each region in regions:
+    if consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD:
+      warn("Phase 1.3 circuit breaker: {consecutiveFailures} consecutive MCP failures — skipping remaining regions")
+      break
+
+    // Step 4a: Build search query from region + reference code visual intent
+    // Reference code is analyzed here as a visual intent source (not applied as code)
+    searchQuery = buildSearchQuery(region, referenceCode)
+    // e.g., { type: "sidebar", layout: "vertical" } + "<nav className='w-64'>" →
+    //        "sidebar navigation vertical"
+
+    // Step 4b: Call builder search MCP tool (agent-mediated MCP call)
+    // The spawned worker has MCP access to the builder's server
+    // Per-call timeout: 10s; consecutive failure tracking: circuit breaker at 3
+    try:
+      results = callMCPTool(
+        builderProfile.capabilities.search,
+        { query: searchQuery, limit: 5 },
+        timeout: CALL_TIMEOUT_MS
+      )
+      consecutiveFailures = 0  // reset on success
+
+      // Step 4c: Score results against region requirements
+      matches = scoreMatches(results, region, threshold: 0.6)
+      region.component_matches = matches
+
+      // Step 4d: If match found, get full component source for worker context
+      if matches.length > 0 AND builderProfile.capabilities.details:
+        try:
+          region.component_details = callMCPTool(
+            builderProfile.capabilities.details,
+            { name: matches[0].name },
+            timeout: CALL_TIMEOUT_MS
+          )
+        catch:
+          // Details call failed — matches still useful without source
+          consecutiveFailures++
+
+    catch:
+      // Search call failed — mark region as unmatched, increment failure count
+      region.component_matches = []
+      consecutiveFailures++
+
+  enrichedVsm[vsm.name] = regions
+
+// Step 5: Check for page-level template match (PRO feature, optional)
+if builderProfile.capabilities.templates AND NOT flags.skipTemplates:
+  try:
+    templates = callMCPTool(builderProfile.capabilities.templates, {}, timeout: CALL_TIMEOUT_MS)
+    enrichedVsm._page_template = matchPageTemplate(templates, Object.values(enrichedVsm).flat())
+  catch:
+    // Template check failed — not fatal
+
+// Step 6: Write enriched VSM
+Bash("mkdir -p {workDir}/vsm")
+Write("{workDir}/vsm/enriched-vsm.json", JSON.stringify(enrichedVsm, null, 2))
+
+// Step 7: Update state
+updateState({ phase: "component-match", builder_skill: builderProfile.builder_skill,
+              matched_regions: countMatches(enrichedVsm) })
+```
+
+**Phase 1.3 notes**:
+- `callMCPTool()` = agent-mediated MCP invocation (the spawned worker has the builder MCP configured)
+- Circuit breaker prevents hanging on a disconnected MCP server (3 consecutive failures → skip)
+- Phase timeout (60s) prevents blocking the full pipeline on slow library searches
+- Unmatched regions fall back to Tailwind-based implementation in Phase 2 (graceful degradation)
+- `buildSearchQuery()` uses both the VSM region type and the reference code's structural hints
+
 ## Phase 1.5: User Confirmation
 
 ```
@@ -371,13 +502,40 @@ codegenContext = "Codegen profile: {codegenProfile}. " +
   (tokenMapRef ? "Use semantic tokens from {tokenMapRef}. " : "") +
   "Do NOT mix framework patterns (e.g., no cva() in UntitledUI, no CSS Modules in shadcn)."
 
+// Step 1.6: Resolve builder profile (conditional — zero overhead when absent)
+// Read builder-profile.yaml written by discoverUIBuilder() if it exists
+builderProfile = null
+builderContext = ""
+enrichedVsmDir = "{workDir}/vsm"  // default — may be enriched-vsm/ when builder ran Phase 1.3
+try:
+  builderProfilePath = "{workDir}/../builder-profile.yaml"  // written by discoverUIBuilder()
+  builderProfile = Read(builderProfilePath)
+catch:
+  // No builder profile — proceed with fallback path (unchanged behavior)
+
+if builderProfile !== null:
+  // Builder available: workers receive enriched VSM with real component matches
+  // enriched-vsm.json written by Phase 1.3 Component Match
+  enrichedVsmExists = Glob("{workDir}/vsm/enriched-vsm.json").length > 0
+  if enrichedVsmExists:
+    enrichedVsmDir = "{workDir}/vsm"  // enriched-vsm.json co-located with VSM files
+    builderContext = "UI builder available: {builderProfile.builder_skill} ({builderProfile.builder_mcp}). " +
+      "enriched-vsm.json contains real library component matches for each region. " +
+      "IMPORT real components instead of generating Tailwind approximations. " +
+      "Fallback: regions with no component_matches → use reference code + Tailwind."
+  else:
+    // Phase 1.3 skipped or failed — fall back to reference code path
+    builderContext = "UI builder detected ({builderProfile.builder_skill}) but no enriched VSM found. " +
+      "Use figma-to-react reference code as starting point (fallback path)."
+// else: no builder — builderContext remains empty, workers use reference code path
+
 // Step 2: Parse VSM files into implementation tasks
 vsmFiles = Glob("{workDir}/vsm/*.md")
 for each vsm in vsmFiles:
   TaskCreate({
     subject: "Implement {component_name} from VSM",
-    description: "Read VSM at {vsm.path}. Create component following design tokens, layout, variants, and a11y requirements. " + codegenContext,
-    metadata: { phase: "implementation", vsm_path: vsm.path, codegen_profile: codegenProfile }
+    description: "Read VSM at {vsm.path}. Create component following design tokens, layout, variants, and a11y requirements. " + codegenContext + (builderContext ? " " + builderContext : ""),
+    metadata: { phase: "implementation", vsm_path: vsm.path, codegen_profile: codegenProfile, has_builder: builderProfile !== null }
   })
 
 // Step 3: Summon rune-smith workers
@@ -385,7 +543,7 @@ maxWorkers = config?.design_sync?.max_implementation_workers ?? 3
 for i in range(maxWorkers):
   Agent(team_name="rune-design-sync-{timestamp}", name="rune-smith-{i+1}", ...)
     // Spawn rune-smith with VSM context + frontend-design-patterns skill
-    // Worker prompt includes: codegenContext for framework-native code generation
+    // Worker prompt includes: codegenContext + builderContext (if builder available)
 
 // Step 4: Monitor until implementation complete
 ```

@@ -19,7 +19,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **stacks** | Stack-aware intelligence — 4-layer detection engine (manifest scanning → context routing → knowledge skills → enforcement agents). 12 specialist prompt templates in `specialist-prompts/` (Python, TypeScript, Rust, PHP, Axum, FastAPI, Django, Laravel, SQLAlchemy, TDD, DDD, DI) loaded on-demand by `buildAshPrompt()`. Non-invocable — auto-loaded by Rune Gaze Phase 1A |
 | **frontend-design-patterns** | Frontend design implementation knowledge — design systems, design tokens, accessibility (WCAG 2.1 AA), responsive patterns, component reuse (REUSE > EXTEND > CREATE), layout alignment, variant mapping, Storybook, visual region analysis, UI state handling. Non-invocable — auto-loaded by Stacks context router for frontend files |
 | **storybook** | Storybook component verification knowledge — CSF3 format, MCP tools reference, story generation patterns, visual quality checks (SBK-B-001 through SBK-B-013), Mode A (Design Fidelity with VSM) and Mode B (UI Quality Audit heuristics), responsive breakpoints. Non-invocable — auto-loaded by arc Phase 3.3 when `storybook.enabled: true` in talisman |
-| **design-system-discovery** | Design system auto-detection — scans repo for component libraries, token systems, and variant frameworks to build `design-system-profile.yaml`. Provides `discoverDesignSystem()` algorithm. Non-invocable — auto-loaded by devise Phase 0.5, strive worker injection Phase 1.5, and arc Phase 2.8 |
+| **design-system-discovery** | Design system auto-detection — scans repo for component libraries, token systems, and variant frameworks to build `design-system-profile.yaml`. Provides `discoverDesignSystem()` algorithm (library detection) and `discoverUIBuilder()` algorithm (builder MCP detection with 5-step priority cascade: talisman binding > project skill frontmatter > plugin skill frontmatter > known MCP registry > heuristic). Non-invocable — auto-loaded by devise Phase 0.5, strive worker injection Phase 1.5, and arc Phase 2.8 |
 | **design-sync** | Figma design synchronization workflow — 3-phase pipeline (PLAN: extraction → WORK: implementation → REVIEW: fidelity). VSM intermediate format, Figma MCP integration, fidelity scoring (6 dimensions), iterative refinement. Gated by `design_sync.enabled` |
 | **systematic-debugging** | 4-phase debugging methodology (Observe → Narrow → Hypothesize → Fix) for workers hitting repeated failures. Iron Law: no fixes without root cause investigation (DBG-001) |
 | **zsh-compat** | zsh shell compatibility — read-only variables, glob NOMATCH, word splitting, array indexing |
@@ -50,6 +50,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **strive** | Swarm work execution with self-organizing task pool (+ `--approve`, incremental commits) |
 | **debug** | ACH-based parallel debugging — spawns multiple hypothesis-investigator agents to investigate competing hypotheses simultaneously. Use when bugs are complex or root cause is unclear |
 | **figma-to-react** | Figma-to-React MCP server knowledge — 4 tools for converting Figma designs to React components with Tailwind CSS v4 (non-invocable) |
+| **untitledui-mcp** | UntitledUI official MCP integration — 6 tools (search_components, list_components, get_component, get_component_bundle, get_page_templates, get_page_template_files), code conventions (React Aria `Aria*` prefix, Tailwind v4.1 semantic colors, kebab-case, compound components), builder-protocol metadata for automated pipeline integration. Non-invocable — auto-loaded by design-system-discovery when UntitledUI is detected |
 | **status** | Background dispatch status — check progress, pending questions, and worker health for `/rune:strive --background` dispatches |
 | **learn** | Session self-learning — extracts CLI correction patterns and review recurrence findings from session JSONL history, persists high-confidence patterns to Rune Echoes via 4-phase pipeline (scan → detect → report → confirm+write). `/rune:learn`. `disable-model-invocation: true` |
 
@@ -158,7 +159,7 @@ Discovers and activates third-party MCP tool integrations from talisman config. 
 **Outputs**: Array of active integration objects (namespace, server_name, tools, skill_binding, rules, metadata)
 **Related functions**: `evaluateTriggers()`, `buildMCPContextBlock()`, `loadMCPSkillBindings()`
 
-Used by strive (Phase 1.5), devise (Phase 0), and forge (Phase 1.6). See [skills/strive/references/mcp-integration.md](skills/strive/references/mcp-integration.md) for the full resolver algorithm. Developer guide: [docs/guides/mcp-integration-spec.en.md](docs/guides/mcp-integration-spec.en.md).
+Used by strive (Phase 1.5), devise (Phase 0), and forge (Phase 1.6). See [skills/strive/references/mcp-integration.md](skills/strive/references/mcp-integration.md) for the full resolver algorithm. Developer guide: [docs/guides/mcp-integration-spec.en.md](../../docs/guides/mcp-integration-spec.en.md).
 
 ### resolveModelForAgent()
 

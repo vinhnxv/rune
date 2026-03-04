@@ -126,7 +126,7 @@ All talisman config keys grouped by section with types, defaults, and descriptio
 | `integrations.mcp_tools.{namespace}.rules` | string[] | `[]` | Rule file paths (project-relative, no `..`). Optional. Max 5 per integration. Truncated to 2000 chars. |
 | `integrations.mcp_tools.{namespace}.metadata` | object | `{}` | Discovery metadata. Optional. Known keys: `library_name`, `component_count`, `version`, `homepage`. |
 
-See [docs/guides/mcp-integration-spec.en.md](../docs/guides/mcp-integration-spec.en.md) for the full developer guide.
+See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integration-spec.en.md) for the full developer guide.
 
 ### `inspect` — Plan-vs-Code Audit
 

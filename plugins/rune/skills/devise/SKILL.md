@@ -274,6 +274,12 @@ if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
       1. **Rune tools** (preferred): figma_list_components, figma_fetch_design, figma_inspect_node
       2. **Official Figma MCP** (fallback): mcp__claude_ai_Figma__get_metadata, mcp__claude_ai_Figma__get_design_context
 
+      **IMPORTANT — MCP namespace verification**: Before calling any MCP tool, verify it exists
+      in your available MCP server list. Tool name resolution relies on Claude Code's MCP
+      namespace isolation — the same tool may be unavailable if its server is not registered.
+      If figma_list_components is not listed in your available tools, skip to the Official MCP
+      fallback (step 2). Do not attempt to call a tool that is not present in your tool list.
+
       To extract fileKey from the Figma URL for Official MCP tools:
       - Parse: https://www.figma.com/design/{fileKey}/{name}?node-id={nodeId}
       - fileKey is the alphanumeric segment after /design/ or /file/
@@ -305,6 +311,25 @@ if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
 See [brainstorm-phase.md](references/brainstorm-phase.md) for the delegation protocol, `--brainstorm-context` workspace reading, and devise-specific overrides.
 
 Read and execute when Phase 0 runs.
+
+### Design System & Builder Discovery (Phase 0.5)
+
+Runs design system and UI builder discovery after Figma URL detection, before Phase 1.
+Zero cost when no design system or builder is detected.
+
+See [design-system-discovery/SKILL.md](../design-system-discovery/SKILL.md) for the full algorithms.
+
+```javascript
+// Phase 0.5: Discover design system and UI builder
+// discoverDesignSystem() and discoverUIBuilder() run in ui-ux-planning-protocol.md Step 1
+// when design_sync_candidate === true or frontend stack is detected.
+
+// When uiBuilder is found, load its companion skill for research context
+if (brainstormContext.ui_builder?.builder_skill) {
+  loadedSkills.push(brainstormContext.ui_builder.builder_skill)
+  // e.g., loads untitledui-mcp skill for conventions and builder protocol knowledge
+}
+```
 
 ### MCP Integration Discovery (Phase 0, conditional)
 

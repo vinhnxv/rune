@@ -1614,7 +1614,7 @@ context_weaving:
 # ──────────────────────────────────────────────────────────────────
 # Declare third-party MCP tools for workflow-aware routing.
 # Each key under mcp_tools = namespace that should match your .mcp.json server name.
-# See docs/guides/mcp-integration-spec.en.md for the full developer guide.
+# See docs/guides/mcp-integration-spec.en.md (repo root) for the full developer guide.
 #
 # 3 Integration Levels:
 #   Level 1 (Basic):    .mcp.json only — tools available but not workflow-aware
@@ -1634,22 +1634,26 @@ context_weaving:
 #
 # integrations:
 #   mcp_tools:
-#     # Example: UntitledUI component library integration
+#     # Example: UntitledUI official MCP integration
+#     # Setup: claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp
+#     # PRO:   claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp --header "Authorization: Bearer YOUR_API_KEY"
 #     untitledui:
 #       server_name: "untitledui"              # Must match key in .mcp.json
 #
-#       # Tool declarations with categories
+#       # Tool declarations with categories (official UntitledUI MCP tool names)
 #       tools:
-#         - name: "untitledui_find"
-#           category: "search"                 # Semantic component search
-#         - name: "untitledui_get"
-#           category: "details"                # Get component details + code
-#         - name: "untitledui_code_search"
-#           category: "search"                 # Find by code patterns
-#         - name: "untitledui_compose"
-#           category: "compose"                # Plan multi-component layouts
-#         - name: "untitledui_suggest"
-#           category: "suggest"                # AI-powered suggestions
+#         - name: "search_components"
+#           category: "search"                 # Natural language component search
+#         - name: "list_components"
+#           category: "search"                 # Browse by category
+#         - name: "get_component"
+#           category: "details"                # Install single component source
+#         - name: "get_component_bundle"
+#           category: "details"                # Install multiple components
+#         - name: "get_page_templates"
+#           category: "search"                 # Browse page templates (PRO)
+#         - name: "get_page_template_files"
+#           category: "details"                # Install page template (PRO)
 #
 #       # Workflow phase routing — which phases can use these tools
 #       phases:
@@ -1661,25 +1665,25 @@ context_weaving:
 #         arc: true                            # Full pipeline (inherits other phase settings)
 #
 #       # Companion skill — auto-loaded when integration is active
-#       skill_binding: "untitledui-builder"    # Must exist in .claude/skills/
+#       skill_binding: "untitledui-mcp"        # Built-in Rune plugin skill (no project-level skill needed)
 #
 #       # Rules to inject into agent prompts when active
-#       rules:
-#         - ".claude/rules/untitledui-button-icons.md"
+#       rules: []                              # Conventions loaded via skill, not rule files
 #
 #       # Trigger conditions — when to activate this integration
 #       trigger:
 #         extensions: [".tsx", ".ts", ".jsx"]  # File extensions (OR logic)
-#         paths: ["dashboard/src/", "admin/src/"]  # Path prefixes (OR logic)
-#         keywords: ["frontend", "ui", "component", "design"]  # Task keywords (OR logic)
+#         paths: ["src/components/", "src/pages/"]  # Path prefixes (OR logic)
+#         keywords: ["frontend", "ui", "component", "design", "untitledui"]
 #         always: false                        # Override: always active if true
 #
 #       # Optional metadata for discovery and documentation
 #       metadata:
-#         library_name: "UntitledUI PRO"
-#         component_count: 768
-#         version: "1.9.1"
-#         homepage: "https://untitledui.com"
+#         library_name: "UntitledUI"
+#         homepage: "https://www.untitledui.com"
+#         mcp_endpoint: "https://www.untitledui.com/react/api/mcp"
+#         transport: "http"
+#         auth: "oauth2.1-pkce"               # or "api-key" or "none"
 
 # ──────────────────────────────────────────────
 # Storybook — Component visual verification (arc Phase 3.3) (v1.128.0+)

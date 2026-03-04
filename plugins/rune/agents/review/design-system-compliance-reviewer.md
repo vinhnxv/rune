@@ -45,6 +45,50 @@ Design system compliance specialist. Validates that component code adheres to th
 - File organization and naming conventions
 - Accessibility attribute completeness (ARIA, keyboard, focus management)
 
+## Builder Conventions Check (Conditional)
+
+Before reviewing, check if a UI builder is active for this session:
+
+```
+// Step 0: Resolve builder profile (zero overhead when absent)
+builderConventions = null
+builderSkillName = null
+try:
+  // builder-profile.yaml written by discoverUIBuilder() during devise/design-sync
+  // Glob returns mtime-sorted (most recent first) — this is the desired behavior:
+  // the first result is the current session's profile when multiple workflows exist.
+  builderProfiles = Glob("tmp/*/builder-profile.yaml")  // any workflow's builder profile
+  if builderProfiles.length > 0:
+    builderProfile = Read(builderProfiles[0])  // most recent session (mtime-sorted)
+    if builderProfile.conventions AND builderProfile.builder_skill:
+      // Resolve conventions path relative to skill directory
+      skillDir = Glob("plugins/rune/skills/{builderProfile.builder_skill}/")[0] ??
+                 Glob(".claude/skills/{builderProfile.builder_skill}/")[0]
+      if skillDir:
+        // Path traversal guard (SEC-UI-BUILDER-003)
+        if builderProfile.conventions.includes('..') || builderProfile.conventions.startsWith('/'):
+          warn(`Invalid conventions path: ${builderProfile.conventions} — skipping builder conventions`)
+          builderConventions = null
+        else:
+          conventionsPath = skillDir + builderProfile.conventions
+          // Verify resolved path stays within skill directory
+          const fullContent = Read(conventionsPath)
+          // VEIL-RA-004: Warn before silently truncating conventions content
+          if fullContent.length > 2000:
+            warn(`Conventions file truncated from ${fullContent.length} to 2000 chars. Place critical rules in the first 50 lines.`)
+          builderConventions = fullContent.substring(0, 2000)
+          builderSkillName = builderProfile.builder_skill
+catch:
+  // No builder profile — skip builder convention checks entirely
+```
+
+When `builderConventions !== null`, add to your review context as:
+> **Builder-Specific Conventions** ({builderSkillName}): {builderConventions}
+
+Generate DSYS-BLD-* findings for violations of these builder-specific conventions.
+
+**DSYS vs DSYS-BLD precedence rule**: If a violation breaks BOTH a standard design convention AND a builder-specific convention, emit a DSYS-BLD-* finding only (builder is more specific), add a note referencing the standard violation (e.g., "also violates DSYS-TOK token discipline"), and do NOT emit both. One finding per violation.
+
 ## Echo Integration (Past Design System Patterns)
 
 Before reviewing, query Rune Echoes for previously identified design system violations:
@@ -350,7 +394,8 @@ Dark mode or theme token usage errors:
 5. [ ] Check **ARIA completeness** — icon buttons labeled, custom controls have role + keyboard
 6. [ ] Verify **file organization** — components in correct directories, naming conventions
 7. [ ] Check **theme integration** — dark mode via semantic tokens, not hardcoded dark: values
-8. [ ] **Apply Hypothesis Protocol** for each finding: form hypothesis → check disconfirming evidence → confirm before flagging
+8. [ ] [When builder active] Check **builder conventions** — import paths, prop patterns, naming rules from builderConventions context. Emit DSYS-BLD-* findings.
+9. [ ] **Apply Hypothesis Protocol** for each finding: form hypothesis → check disconfirming evidence → confirm before flagging
 
 ### Self-Review
 After completing analysis, verify:
@@ -380,6 +425,7 @@ Before writing output file, confirm:
 | Token Violation | DSYS-TOK | P2 | Breaks visual consistency; difficult to maintain at scale |
 | Pattern Violation | DSYS-PAT | P2 | Class conflict risks; prevents safe prop override |
 | Import Convention | DSYS-IMP | P2 | Fragile imports break on refactoring; barrel violations hide dead code |
+| Builder Convention | DSYS-BLD | P2 | Violates library-specific conventions (import paths, prop patterns, naming). Only emitted when builder active. |
 | File Organization | DSYS-ORG | P3 | Convention violation — doesn't block runtime but increases cognitive overhead |
 | Theme Integration | DSYS-THM | P3 | Dark mode issues — visible to users but not always a regression |
 
