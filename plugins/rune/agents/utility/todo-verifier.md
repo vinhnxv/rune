@@ -6,8 +6,8 @@ description: |
   is VALID (real issue) or FALSE_POSITIVE (hallucinated or already fixed).
   Combines flaw-hunter's Hypothesis Protocol with staleness-specific checklist.
 tools: Read, Grep, Glob, Write
-# Edit/Bash intentionally excluded — verifiers should only read and write verdict files
-model: haiku
+disallowedTools: Edit, Bash, NotebookEdit
+model: haiku  # Mechanical operations (grep + read + classify); 7-verdict taxonomy is simple enumeration, not deep reasoning
 maxTurns: 20
 permissionMode: default
 mcpServers:

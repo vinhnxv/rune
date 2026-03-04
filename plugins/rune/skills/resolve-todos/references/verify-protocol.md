@@ -37,7 +37,9 @@ NOTE: {contextSummary} = aggregated output from Phase 2 context agents, capped a
 {todosList} = sanitized TODO descriptions (post-sanitizeTodoBody), placed INSIDE the nonce boundary.
 
 ## TODOs to Verify:
+<todos nonce="{nonce}">
 {todosList}
+</todos>
 
 ## Verification Checklist (per TODO)
 0. **Locate actual code** — grep-first, don't trust line numbers (drift detection)
@@ -48,7 +50,7 @@ NOTE: {contextSummary} = aggregated output from Phase 2 context agents, capped a
 5. Does the TODO match the file's actual behavior (not assumed behavior)?
 
 ## Output
-Write to: tmp/resolve-{timestamp}/verdicts/{file}.json
+Write to: tmp/resolve-todos-{timestamp}/verdicts/{file}.json
 Format:
 {
   "file": "{file}",
@@ -113,6 +115,10 @@ function sanitizeTodoBody(body) {
     /RE-ANCHOR/i,                                     // RE-ANCHOR spoofing
     /atob\s*\(/i,                                     // Base64 decoding attempt
     /Buffer\.from\s*\(/i,                             // Node.js base64 decoding
+    /\b(disregard|forget)\s+(all|previous|above)\s+(instructions|rules)/i, // Instruction override variants
+    /\bfrom\s+now\s+on\b/i,                           // Behavioral override
+    /\bassistant\s*:/i,                                // Role injection (ChatML)
+    /\bhuman\s*:/i,                                    // Role injection (ChatML)
   ]
   const matchedPattern = SUSPECT_PATTERNS.find(p => p.test(clean))
   const isSuspect = !!matchedPattern

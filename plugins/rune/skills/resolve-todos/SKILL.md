@@ -40,7 +40,7 @@ allowed-tools:
 
 Resolves file-based TODOs using Agent Teams with a **verify-before-fix** pipeline. Combines parallel batch processing with hallucination prevention patterns.
 
-**Load skills**: `file-todos`, `inner-flame`, `zsh-compat`, `roundtable-circle`, `rune-orchestration`, `polling-guard`
+**Load skills**: `file-todos`, `inner-flame`, `zsh-compat`, `rune-orchestration`, `polling-guard`
 
 ## Overview
 
@@ -82,7 +82,7 @@ See [discovery-algorithm.md](references/discovery-algorithm.md) for full details
 ```javascript
 // Parse source filter from $ARGUMENTS
 const args = "$ARGUMENTS"
-const sourceFilter = args.match(/--source[=\s]+(\S+)/)?.[1] ?? args.split(' ')[0] ?? null
+const sourceFilter = args.split(' ').filter(a => !a.startsWith('--'))[0] ?? null
 const dryRun = args.includes("--dry-run")
 const batchSize = parseInt(args.match(/--batch-size[=\s]+(\d+)/)?.[1] ?? "5")
 
@@ -96,7 +96,13 @@ if (todos.length === 0) {
 // Cap at reasonable limit
 const MAX_TODOS = 50
 if (todos.length > MAX_TODOS) {
-  const answer = AskUserQuestion(`Found ${todos.length} TODOs. Process first ${MAX_TODOS}?`)
+  const answer = AskUserQuestion({
+    question: `Found ${todos.length} TODOs. Process first ${MAX_TODOS}?`,
+    options: [
+      { label: `Process first ${MAX_TODOS}`, value: true },
+      { label: "Cancel", value: false }
+    ]
+  })
   if (!answer) return
   todos = todos.slice(0, MAX_TODOS)
 }
@@ -403,7 +409,7 @@ if (!cleanupTeamDeleteSucceeded) {
 
 ## Dependencies
 
-- **Existing skills**: `file-todos` (TODO file format), `inner-flame` (self-review), `zsh-compat` (shell safety)
+- **Existing skills**: `file-todos` (TODO file format), `inner-flame` (self-review), `zsh-compat` (shell safety), `rune-orchestration` (team coordination), `polling-guard` (TaskList polling)
 - **Existing agents**: `mend-fixer` (reused for fixes)
 - **New agent**: `todo-verifier` (custom verifier agent)
 - **New hook**: `validate-resolve-fixer-paths.sh` (SEC-RESOLVE-001)

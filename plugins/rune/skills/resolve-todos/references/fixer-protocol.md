@@ -29,7 +29,7 @@ Follow existing code patterns exactly.
 - Keep changes minimal and focused
 
 ## Output
-Write to: tmp/resolve-{timestamp}/fixes/{file}.json
+Write to: tmp/resolve-todos-{timestamp}/fixes/{file}.json
 Format:
 {
   "file": "{file}",
@@ -85,8 +85,8 @@ interface FixEntry {
 ```javascript
 // Write to temp file first, then atomic rename
 const reportJson = JSON.stringify(fixReport, null, 2)
-Write(`tmp/resolve-${timestamp}/fixes/.tmp-${groupId}.json`, reportJson)
-Bash(`mv "tmp/resolve-${timestamp}/fixes/.tmp-${groupId}.json" "tmp/resolve-${timestamp}/fixes/${basename(file)}.json"`)
+Write(`tmp/resolve-todos-${timestamp}/fixes/.tmp-${groupId}.json`, reportJson)
+Bash(`mv "tmp/resolve-todos-${timestamp}/fixes/.tmp-${groupId}.json" "tmp/resolve-todos-${timestamp}/fixes/${basename(file)}.json"`)
 // THEN mark task complete
 TaskUpdate({ taskId, status: "completed" })
 ```

@@ -65,7 +65,7 @@ Fail-open design means zero cost in non-resolve-todos sessions.
 
 ## Dependencies
 
-- **Skills**: file-todos, inner-flame, zsh-compat, roundtable-circle
+- **Skills**: file-todos, inner-flame, zsh-compat, rune-orchestration, polling-guard
 - **Agents**: mend-fixer (reused), todo-verifier (new)
 - **Hooks**: enforce-teams.sh, on-task-completed.sh, SEC-RESOLVE-001
 

@@ -71,7 +71,7 @@
       },
       {
         "matcher": "Write|Edit|NotebookEdit",
-        "_security_note": "SEC-RESOLVE-001: Mandatory, fail-open hook for resolve-todos fixers. Validates path against inscription.json allowlist.",
+        "_rationale": "SEC-RESOLVE-001: Mandatory, fail-open hook for resolve-todos fixers. Validates path against inscription.json allowlist. Accepted risk: Bash tool not covered (constrained by prompt-level Truthbinding).",
         "hooks": [
           {
             "type": "command",

@@ -46,7 +46,7 @@ function discoverTodos(args) {
       for (const f of files) {
         if (f.includes("manifest")) continue
         const frontmatter = parseFrontmatter(Read(f))
-        if (["pending", "ready"].includes(frontmatter.status)) {
+        if (["pending", "ready", "interrupted"].includes(frontmatter.status)) {
           todos.push({ path: f, ...frontmatter })
         }
       }
