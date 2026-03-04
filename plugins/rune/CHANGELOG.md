@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.134.0] - 2026-03-04
+
+### Added
+- **Design-sync accuracy parity with frontend-figma-sync** — Ported 6 high-accuracy patterns from custom per-project workflow to reusable plugin skill: visual-first protocol, worker trust hierarchy (6-level source priority), cross-verification gate (PASS/WARN/BLOCK with configurable thresholds), element inventory template, backend impact assessment (4-branch decision tree), and phase 2 design implementation guidance.
+- **Configurable match confidence thresholds** — `design_sync.trust_hierarchy.low_confidence_threshold` in talisman.yml now fully propagated to worker prompts and SKILL.md scoring logic.
+- **Verification gate reference docs** — New `verification-gate.md` with full algorithm, helper function signatures, and 9 fixture-based unit test scenarios.
+- **Multi-URL design extraction** — Arc Phase 3 supports multiple Figma URLs with per-URL worker spawning, component cap enforcement, and cached VSM file lists.
+
+### Fixed
+- **Division by zero in verification gate** — Added zero guard for empty VSM regions (0 regions = 0% mismatch = PASS).
+- **checkpointErrors used before declaration** — Moved array declaration before Step 13.5 verification gate in arc-phase-design-extraction.md.
+- **PRO tier gate missing** — Template capability check now requires `builderProfile.accessTier === 'pro'`. OAuth access detection docs updated for consistency.
+- **Visual-first protocol DRY violation** — Agent file now references canonical `visual-first-protocol.md` instead of duplicating inline.
+- **Trust hierarchy reference guard** — Worker prompt injection now validates file existence before injecting Step 4.7.5.
+- **Redundant filesystem scans** — Cached VSM file list between Step 13 (cap enforcement) and Step 15 (result collection) in arc-phase-design-extraction.md.
+- **Example secret placeholders** — Replaced `"your-api-key-here"` with `"<your-token-here>"` across untitledui-mcp docs.
+
 ## [1.133.1] - 2026-03-04
 
 ### Fixed
