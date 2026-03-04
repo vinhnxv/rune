@@ -28,6 +28,15 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `talisman` | `/rune:talisman` | — | Subcommand (init/audit/update/guide/status) | Talisman config |
 | `codex-review` | `/rune:codex-review` | — | Git diff (auto) | `tmp/codex-reviews/*/TOME.md` |
 
+## MCP Integration Skills (Non-Invocable)
+
+| Skill | Triggers | Purpose |
+|-------|----------|---------|
+| `untitledui-mcp` | Auto-loaded by design-system-discovery | UntitledUI 6-tool MCP integration, code conventions, builder protocol |
+| `figma-to-react` | Auto-loaded during design-sync workflows | Figma MCP 4-tool integration for design extraction |
+
+MCP integration is configured via `talisman.yml` → `integrations.mcp_tools`. Use `/rune:talisman guide integrations` for setup help.
+
 ## Skill Flags Quick Reference
 
 | Skill | Key Flags |

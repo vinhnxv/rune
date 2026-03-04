@@ -116,6 +116,99 @@ read these to avoid repeating mistakes. Three layers:
 - **Inscribed** — tactical patterns (90-day TTL)
 - **Traced** — session observations (30-day TTL)
 
+## MCP Integration — Extending Rune with External Tools
+
+Rune supports third-party MCP (Model Context Protocol) servers as tool integrations.
+This lets Rune agents use external tools during workflows like planning, implementation, and review.
+
+### What is MCP Integration?
+
+MCP servers provide AI-accessible tools via a standard protocol. Rune integrates these
+at the workflow level — controlling which phases can use which tools, and when to activate them.
+
+### 3 Levels of Integration
+
+```
+Level 1 (Basic): .mcp.json only
+├── Tools available to Claude but NOT workflow-aware
+├── No phase routing, no trigger conditions
+└── Example: claude mcp add --transport http my-tool https://api.example.com
+
+Level 2 (Talisman): + integrations.mcp_tools in talisman.yml
+├── Phase routing: which Rune phases can use the tools (devise/strive/forge/arc...)
+├── Trigger conditions: auto-activate based on file types, paths, keywords
+├── Skill binding: auto-load companion skill when active
+└── Rules injection: inject project-specific rules into agent prompts
+
+Level 3 (Full): + companion skill + rules files + metadata
+├── Dedicated skill with deep domain knowledge
+├── Project-specific rules for quality enforcement
+├── Metadata for discoverability (library name, homepage, MCP endpoint)
+└── Example: untitledui-mcp skill (canonical reference implementation)
+```
+
+### Setting Up an MCP Integration
+
+**Step 1**: Add the MCP server
+```bash
+claude mcp add --transport http my-tool https://api.example.com
+```
+
+**Step 2**: Configure in talisman (for workflow-aware integration)
+```yaml
+# .claude/talisman.yml
+integrations:
+  mcp_tools:
+    my-tool:
+      server_name: "my-tool"
+      tools:
+        - name: "search_items"
+          category: "search"
+        - name: "get_item_details"
+          category: "details"
+      phases:
+        devise: true     # Available during planning
+        strive: true     # Available during implementation
+        forge: true      # Available during enrichment
+      trigger:
+        extensions: [".tsx", ".jsx"]
+        keywords: ["frontend", "ui"]
+```
+
+**Step 3** (optional): Use `/rune:talisman init` — it auto-detects custom MCP servers
+in `.mcp.json` and scaffolds the integrations section for you.
+
+### UntitledUI — Canonical MCP Integration Example
+
+UntitledUI is the first full Level 3 MCP integration in Rune. It provides:
+- **6 MCP tools**: `search_components`, `list_components`, `get_component`, `get_component_bundle`, `get_page_templates`, `get_page_template_files`
+- **Companion skill**: `untitledui-mcp` (auto-loaded by design-system-discovery)
+- **Agent conventions**: React Aria `Aria*` prefix, Tailwind v4.1 semantic colors, kebab-case files
+- **Builder Protocol**: Structured SEARCH → GET → CUSTOMIZE → VALIDATE workflow
+
+**Setup**:
+```bash
+# Free tier (no auth needed)
+claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp
+
+# PRO tier (with API key)
+claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp \
+  --header "Authorization: Bearer YOUR_API_KEY"
+```
+
+**Key functions** (used by strive, devise, forge):
+- `resolveMCPIntegrations(phase, context)` — triple-gated activation (config + phase + trigger)
+- `buildMCPContextBlock(integrations)` — generates prompt injection for agents
+- `buildBuilderWorkflowBlock(uiBuilder)` — generates structured workflow guidance
+
+### MCP Integration Tips
+
+1. Use `/rune:talisman guide integrations` for detailed configuration help
+2. Use `/rune:talisman audit` to validate your integration config
+3. Use `/rune:talisman status` to check if MCP servers are connected
+4. The `trigger.always: true` setting forces the integration active for all matching phases
+5. File-based triggers (`extensions`, `paths`) only fire during strive/forge (not devise, since no files exist yet during planning)
+
 ## Common Pitfalls & Tips
 
 ### 1. "Which plan do I use?"

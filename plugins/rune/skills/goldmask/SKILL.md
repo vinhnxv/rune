@@ -414,16 +414,17 @@ if (!/^[a-zA-Z0-9_-]+$/.test(session_id)) { error("Invalid session_id"); return 
 
 # TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s)
 CLEANUP_DELAYS=(0 5 10)
-cleanupSucceeded=false
+cleanupTeamDeleteSucceeded=false
 for delay in "${CLEANUP_DELAYS[@]}"; do
     [ "$delay" -gt 0 ] && sleep "$delay"
-    if TeamDelete("{session_id}"); then cleanupSucceeded=true; break; fi
+    if TeamDelete("{session_id}"); then cleanupTeamDeleteSucceeded=true; break; fi
 done
 
-# Filesystem fallback if TeamDelete failed
-if [ "$cleanupSucceeded" = false ]; then
+# Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+if [ "$cleanupTeamDeleteSucceeded" = false ]; then
     CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
     rm -rf "$CHOME/teams/${session_id}" "$CHOME/tasks/${session_id}" 2>/dev/null
+    TeamDelete("{session_id}") 2>/dev/null || true  # best effort — clear SDK leadership state
 fi
 
 # Clean up state file

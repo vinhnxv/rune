@@ -37,15 +37,17 @@ if (!/^[a-zA-Z0-9_-]+$/.test(timestamp)) throw new Error("Invalid forge identifi
 // Cleanup team with retry-with-backoff (3 attempts: 0s, 5s, 10s)
 // Total budget: 15s grace + 15s retry = 30s max
 const CLEANUP_DELAYS = [0, 5000, 10000]
-let cleanupSucceeded = false
+let cleanupTeamDeleteSucceeded = false
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
-  try { TeamDelete(); cleanupSucceeded = true; break } catch (e) {
+  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
     if (attempt === CLEANUP_DELAYS.length - 1) warn(`forge cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
   }
 }
-if (!cleanupSucceeded) {
+// Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+if (!cleanupTeamDeleteSucceeded) {
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/rune-forge-${timestamp}/" "$CHOME/tasks/rune-forge-${timestamp}/" 2>/dev/null`)
+  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
 
 // Update state file to completed (preserve session identity)

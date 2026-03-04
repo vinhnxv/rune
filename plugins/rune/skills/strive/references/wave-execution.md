@@ -182,6 +182,11 @@ if (priorityOrderedTasks.length === 0) {
 let prevWaveMetrics = null
 let consecutiveFullFailures = 0
 
+// Track all spawned worker names (including wave-based names) for Phase 6 fallback cleanup.
+// When config.json dynamic discovery fails, this array ensures wave-named workers
+// (e.g., rune-smith-w0-1, rune-smith-w1-2) are included in shutdown — not just base names.
+const spawnedWorkerNames = []
+
 // Wave loop (Phase 2: Summon + Phase 3: Monitor)
 for (let wave = 0; wave < totalWaves; wave++) {
   const waveStart = wave * waveCapacity
@@ -215,6 +220,7 @@ for (let wave = 0; wave < totalWaves; wave++) {
     const workerName = totalWaves === 1
       ? `rune-smith-${i + 1}`
       : `rune-smith-w${wave}-${i + 1}`
+    spawnedWorkerNames.push(workerName)
     try {
       const _wkRunDir = Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/run-artifacts.sh 2>/dev/null && type rune_artifact_init &>/dev/null && rune_artifact_init "work" "${timestamp}" "${workerName}" "${teamName}"`)?.trim() || null
       if (_wkRunDir) {

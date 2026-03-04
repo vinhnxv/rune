@@ -288,6 +288,7 @@ if (phase_team && phase_team.includes('..')) throw new Error('Path traversal det
 if (phase_team) {
   // TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s)
   const RETRY_DELAYS = [0, 5000, 10000]
+  let cleanupTeamDeleteSucceeded = false
   for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
     if (attempt > 0) {
       warn(`Cancel cleanup: TeamDelete attempt ${attempt + 1} failed, retrying in ${RETRY_DELAYS[attempt]/1000}s...`)
@@ -295,6 +296,7 @@ if (phase_team) {
     }
     try {
       TeamDelete()
+      cleanupTeamDeleteSucceeded = true
       break
     } catch (e) {
       if (attempt === RETRY_DELAYS.length - 1) {
@@ -302,9 +304,12 @@ if (phase_team) {
       }
     }
   }
-  // Filesystem fallback with CHOME
+  // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
   // SEC-003: phase_team validated above — contains only [a-zA-Z0-9_-]
-  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${phase_team}/" "$CHOME/tasks/${phase_team}/" 2>/dev/null`)
+  if (!cleanupTeamDeleteSucceeded) {
+    Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${phase_team}/" "$CHOME/tasks/${phase_team}/" 2>/dev/null`)
+    try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
+  }
 } // end if (phase_team)
 ```
 
