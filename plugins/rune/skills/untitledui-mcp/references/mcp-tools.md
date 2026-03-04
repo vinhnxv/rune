@@ -34,7 +34,7 @@ With API key (`UNTITLEDUI_ACCESS_TOKEN`):
 }
 ```
 
-> **Environment variable**: Set `export UNTITLEDUI_ACCESS_TOKEN="your-api-key"` in your shell
+> **Environment variable**: Set `export UNTITLEDUI_ACCESS_TOKEN="<your-token-here>"` in your shell
 > profile. This is the same key used in `Authorization: Bearer` headers and the per-call `key`
 > parameter. When set, agents gain PRO access (all components, page templates, shared assets).
 

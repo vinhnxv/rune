@@ -430,8 +430,10 @@ for each vsm in vsmFiles:
 
   enrichedVsm[vsm.name] = regions
 
-// Step 5: Check for page-level template match (PRO feature, optional)
-if builderProfile.capabilities.templates AND NOT flags.skipTemplates:
+// Step 5: Check for page-level template match (requires PRO tier or OAuth, optional)
+// Only attempt when builder reports templates capability AND access tier is 'pro'
+// Access tier is resolved by resolveMCPIntegrations() — 'pro' when access_token_env is set or OAuth authenticated
+if builderProfile.capabilities.templates AND NOT flags.skipTemplates AND builderProfile.accessTier === 'pro':
   try:
     templates = callMCPTool(builderProfile.capabilities.templates, {}, timeout: CALL_TIMEOUT_MS)
     enrichedVsm._page_template = matchPageTemplate(templates, Object.values(enrichedVsm).flat())

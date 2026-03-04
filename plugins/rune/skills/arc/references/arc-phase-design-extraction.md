@@ -423,16 +423,19 @@ waitForCompletion(vsmWorkers, { timeoutMs: Math.max(300_000, vsmTaskIds.length *
 
 // === STEP 13: Component Cap Enforcement ===
 // Global cap: trim VSM files to max_total_components
-const allVsmFiles = Bash(`find "tmp/arc/${id}/vsm" -name "*.json" 2>/dev/null`)
+// Cache file list — reused in Step 15 to avoid redundant filesystem scan
+let cachedVsmFiles = Bash(`find "tmp/arc/${id}/vsm" -name "*.json" 2>/dev/null`)
   .trim().split('\n').filter(Boolean)
 
-if (allVsmFiles.length > maxTotalComponents) {
-  warn(`Component cap enforced: ${allVsmFiles.length} VSMs trimmed to ${maxTotalComponents}.`)
+if (cachedVsmFiles.length > maxTotalComponents) {
+  warn(`Component cap enforced: ${cachedVsmFiles.length} VSMs trimmed to ${maxTotalComponents}.`)
   // Keep first maxTotalComponents files (sorted by filename for determinism)
-  const excess = allVsmFiles.sort().slice(maxTotalComponents)
+  const sorted = cachedVsmFiles.sort()
+  const excess = sorted.slice(maxTotalComponents)
   for (const f of excess) {
     Bash(`rm -f "${f}"`)
   }
+  cachedVsmFiles = sorted.slice(0, maxTotalComponents)  // update cache to reflect trim
 }
 
 // === STEP 13.5: Verification Gate ===
@@ -491,8 +494,8 @@ if (!cleanupTeamDeleteSucceeded) {
 }
 
 // === STEP 15: Collect Results ===
-const finalVsmFiles = Bash(`find "tmp/arc/${id}/vsm" -name "*.json" 2>/dev/null`)
-  .trim().split('\n').filter(Boolean)
+// Reuse cached file list from Step 13 (avoids redundant filesystem scan)
+const finalVsmFiles = cachedVsmFiles
 
 // Build structured error log for checkpoint — errors are always recorded even on "completed" status
 // Note: checkpointErrors[] declared at STEP 13.5 (before verification gate)

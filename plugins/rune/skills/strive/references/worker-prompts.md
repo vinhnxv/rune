@@ -598,6 +598,12 @@ When a task has `has_design_context === true`, inject step 4.7.5 into both rune-
 ```javascript
 // Injected into worker prompt when task.has_design_context === true
 // Placed between step 4.7 (DESIGN SPEC) and step 4.8 (COMPONENT CONSTRAINTS)
+// Guard: verify reference file exists before injection — skip with warning if missing
+const trustHierarchyPath = "plugins/rune/skills/design-sync/references/worker-trust-hierarchy.md"
+if (!Glob(trustHierarchyPath).length) {
+  warn(`Trust hierarchy reference missing: ${trustHierarchyPath}. Skipping step 4.7.5.`)
+  // Step numbering falls through to 4.8 — no design trust hierarchy guidance for this task
+} else {
 `    4.7.5. TRUST HIERARCHY (design_sync active):
            Read: plugins/rune/skills/design-sync/references/worker-trust-hierarchy.md
            This defines your source priority order. Key rules:
@@ -609,6 +615,7 @@ When a task has `has_design_context === true`, inject step 4.7.5 into both rune-
              score >= 0.80 (high): import directly
              score >= LOW_THRESHOLD and < 0.80 (medium): import but verify against VSM tokens
              score < LOW_THRESHOLD (low): do NOT import, build from scratch using VSM`
+}  // end trust hierarchy file existence guard
 
 // Only inject this step when task.has_design_context === true
 // When false: step numbering goes 4.7 → 4.8 (no gap, no overhead)

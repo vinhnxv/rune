@@ -30,7 +30,7 @@ used in `Authorization: Bearer <key>` headers and the per-call `key` parameter.
 
 ```bash
 # Set in shell profile or .env
-export UNTITLEDUI_ACCESS_TOKEN="your-api-key-here"
+export UNTITLEDUI_ACCESS_TOKEN="<your-token-here>"
 ```
 
 **MCP server setup**:

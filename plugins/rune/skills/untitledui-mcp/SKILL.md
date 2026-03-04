@@ -41,14 +41,15 @@ This skill provides background knowledge for Rune agents working with UntitledUI
 claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp
 
 # PRO with API key (set UNTITLEDUI_ACCESS_TOKEN in your shell profile):
-export UNTITLEDUI_ACCESS_TOKEN="your-api-key-here"
+export UNTITLEDUI_ACCESS_TOKEN="<your-token-here>"
 claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp \
   --header "Authorization: Bearer $UNTITLEDUI_ACCESS_TOKEN"
 ```
 
-**Access detection**: When `UNTITLEDUI_ACCESS_TOKEN` is set, agents have PRO access
-(all components, page templates). Without it, agents use free tier (base components only)
-or fall back to Tailwind + conventions. See [agent-conventions.md](references/agent-conventions.md)
+**Access detection**: Agents have PRO access when `UNTITLEDUI_ACCESS_TOKEN` is set OR when
+the MCP server is OAuth-authenticated (both grant full access to all components and page
+templates). Without either, agents use free tier (base components only) or fall back to
+Tailwind + conventions. See [agent-conventions.md](references/agent-conventions.md)
 for the full tier behavior matrix.
 
 ## MCP Tools (6)
