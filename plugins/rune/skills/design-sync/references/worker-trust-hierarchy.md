@@ -41,6 +41,8 @@ When enriched-vsm.json provides `match_score` per region:
 | < 0.60 | LOW | Do NOT import — implement from scratch using VSM tokens + project patterns |
 | No match | FALLBACK | Build from Tailwind + project design system, guided by VSM (not reference code) |
 
+**Threshold sources**: The LOW boundary (0.60) is configurable via `design_sync.trust_hierarchy.low_confidence_threshold` in talisman.yml. The HIGH boundary (0.80) is a fixed constant in the Phase 1.3 scoring logic.
+
 ## Decision Flowchart
 
 For each VSM region:

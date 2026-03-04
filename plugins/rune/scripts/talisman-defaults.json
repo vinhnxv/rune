@@ -389,15 +389,35 @@
     "output_dir": "tmp/deploy/"
   },
   "design_sync": {
+    "backend_impact": {
+      "auto_scope": "frontend-only",
+      "enabled": true
+    },
     "enabled": false,
     "fidelity_threshold": 80,
     "figma_cache_ttl": 1800,
     "iterate_enabled": false,
+    "max_extraction_timeout": 900000,
     "max_extraction_workers": 2,
     "max_implementation_workers": 3,
     "max_iteration_workers": 2,
     "max_iterations": 5,
-    "token_snap_distance": 20
+    "max_total_components": 40,
+    "max_urls": 10,
+    "multi_url": true,
+    "relationship_confirmation": true,
+    "state_detection_ambiguous": 0.5,
+    "state_detection_threshold": 0.75,
+    "token_snap_distance": 20,
+    "trust_hierarchy": {
+      "enabled": true,
+      "low_confidence_threshold": 0.6
+    },
+    "verification_gate": {
+      "block_threshold": 40,
+      "enabled": true,
+      "warn_threshold": 20
+    }
   },
   "devise": {
     "design_system_discovery": {
@@ -700,6 +720,19 @@
   },
   "testing": {
     "enabled": true,
+    "history": {
+      "directory": ".claude/test-history",
+      "enabled": true,
+      "flaky_threshold": 0.1,
+      "max_entries": 50,
+      "pass_rate_drop_threshold": 0.05,
+      "regression_threshold": 7
+    },
+    "scenarios": {
+      "directory": ".claude/test-scenarios",
+      "enabled": true,
+      "max_per_run": 50
+    },
     "service": {
       "health_endpoint": null,
       "startup_command": null,

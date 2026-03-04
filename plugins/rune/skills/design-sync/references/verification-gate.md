@@ -21,9 +21,11 @@ mismatch_pct = (unmatched.length / vsm_regions.length) * 100
 
 | Mismatch % | Verdict | Action |
 |------------|---------|--------|
-| <= 20% | **PASS** | Proceed to implementation |
-| 21-40% | **WARN** | Show gap summary, user decides: proceed / pause / manual extraction |
-| > 40% | **BLOCK** | Stop — try smaller Figma node, break into parts, or manual extraction |
+| <= warn_threshold (default 20%) | **PASS** | Proceed to implementation |
+| > warn_threshold and <= block_threshold | **WARN** | Show gap summary, user decides: proceed / pause / manual extraction |
+| > block_threshold (default 40%) | **BLOCK** | Stop — try smaller Figma node, break into parts, or manual extraction |
+
+**Boundary rule**: Code uses strict `>` comparisons. A mismatch exactly at the threshold gets the lower verdict (e.g., exactly 40% = WARN, not BLOCK). Mismatch is a float (0.0-100.0).
 
 ## Configurable Thresholds
 

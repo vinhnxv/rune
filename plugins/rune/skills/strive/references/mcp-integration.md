@@ -59,12 +59,13 @@ function resolveMCPIntegrations(phase, context) {
     if (tokenEnvVar && /^[A-Z_][A-Z0-9_]*$/.test(tokenEnvVar)) {
       // SEC-011: Validate env var name format (uppercase + underscores only)
       try {
-        const tokenValue = Bash(`echo "\${${tokenEnvVar}:-}"`).trim()
-        if (tokenValue.length > 0) {
+        // Check existence without echoing the secret value (avoids API key in session logs)
+        const hasToken = Bash(`[ -n "\${${tokenEnvVar}:-}" ] && echo "1" || echo "0"`).trim() === "1"
+        if (hasToken) {
           accessTier = "pro"
         }
       } catch (e) {
-        // Fail-open: env check failure → assume free tier
+        // Fail-open: env check failure or Bash tool denial → assume free tier
         accessTier = "free"
       }
     }
