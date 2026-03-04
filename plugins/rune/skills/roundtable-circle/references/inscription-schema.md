@@ -79,7 +79,14 @@
     "enabled": "boolean — true when design_sync.enabled AND frontend files AND VSM available",
     "vsm_dir": "string | null — path to VSM directory (e.g., 'tmp/arc/{id}/vsm/')",
     "dcd_dir": "string | null — path to DCD directory (e.g., 'tmp/arc/{id}/design/')",
-    "figma_url": "string | null — Figma file URL from plan frontmatter or talisman",
+    "figma_urls": [
+      {
+        "url": "string — full Figma URL",
+        "role": "string — primary | variant | breakpoint | unknown",
+        "screen": "string | null — human-readable screen label (e.g., 'Desktop', 'Mobile')"
+      }
+    ],
+    "figma_url": "string | null — DEPRECATED: first entry of figma_urls[].url. Kept for backward compat. New consumers MUST read figma_urls[] instead.",
     "fidelity_threshold": "number — minimum fidelity score (default: 0.8, from talisman.design_sync.fidelity_threshold)",
     "components": ["array of component name strings extracted from VSM"],
     "token_system": "string | null — design token system identifier (e.g., 'figma-tokens', 'style-dictionary')"
@@ -208,6 +215,40 @@
 }
 ```
 
+### Population Contract
+
+The `design_context` field is populated exclusively by **arc Phase 3 (design extraction)**, after VSM generation completes. It is a ghost field in all other phases — do not pre-populate or default it.
+
+**Responsible phase**: arc Phase 3 — design extraction. This phase runs after `design_sync.enabled: true` is confirmed in talisman, frontend files are detected, and VSM files have been generated and written to disk.
+
+**Write timing**: After VSM files are written to disk, the orchestrator MUST update `inscription.json` with `design_context` fields. VSM generation is a prerequisite — `design_context.vsm_dir` must reference the confirmed VSM output path before any design verification agents are spawned.
+
+**Inscription update pattern**:
+
+```json
+// After VSM generation completes in arc Phase 3:
+// 1. Read existing inscription.json
+// 2. Merge design_context into the inscription object
+// 3. Write back atomically
+
+{
+  "design_context": {
+    "enabled": true,
+    "vsm_dir": "tmp/arc/{id}/vsm/",
+    "dcd_dir": "tmp/arc/{id}/design/",
+    "figma_urls": [
+      { "url": "https://www.figma.com/design/...", "role": "primary", "screen": "Desktop" }
+    ],
+    "figma_url": "https://www.figma.com/design/...",
+    "fidelity_threshold": 0.8,
+    "components": ["Button", "Card", "NavBar"],
+    "token_system": "figma-tokens"
+  }
+}
+```
+
+**When design_sync is disabled**: Omit the `design_context` key entirely from `inscription.json`. Do NOT set it to `null`, `false`, or an empty object — downstream agents check for key presence. An absent key signals "no design context available" cleanly; a `null` value may trigger unexpected code paths in consumers that do not guard against null.
+
 ## Example: Review Inscription
 
 ```json
@@ -300,3 +341,5 @@
 | `verification.research_verification` | No | `{ "enabled": false }` — populated by Phase 1C.5 during `/rune:devise` when external research runs. Contains trust verdicts and version mismatch data. (v1.123.0+) |
 | `context_engineering` | No | Defaults applied |
 | `sharding` | No | `{ "enabled": false }` — when absent or `enabled: false`, `teammates[]` works exactly as before (fully backward-compatible). The `sharding` field is purely additive. (v1.98.0+, rune-review `scope=diff` only) |
+| `design_context.figma_urls` | No | `[]` — array of `{ url, role, screen }` objects. Replaces deprecated `figma_url` scalar. Populated by arc Phase 3 (design extraction) when `design_sync.enabled: true`. (v1.201.0+) |
+| `design_context.figma_url` | No | `null` — DEPRECATED scalar. Set to `figma_urls[0].url` for backward compat. New consumers MUST read `figma_urls[]`. |

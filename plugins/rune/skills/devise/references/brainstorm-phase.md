@@ -77,9 +77,10 @@ Follow the brainstorm protocol from `skills/brainstorm/SKILL.md` with these devi
 ### Design Asset Detection
 
 Design Signal Detection (Figma URLs and design keywords) runs during brainstorm Phase 3.5. Results flow through to devise:
-- `designAware` and `figmaUrl` are set based on brainstorm output
+- `designAware`, `figmaUrls` (full array), and `figmaUrl` (first entry, backward compat) are set based on brainstorm output
+- The brainstorm context object stores `design_urls: figmaUrls` — the full URL array, not just the first match
 - If detected, `design-sync` and `frontend-design-patterns` skills are loaded
-- Design Inventory Agent spawning (in devise SKILL.md Phase 0 post-step) uses these values
+- Design Inventory Agent spawning (in devise SKILL.md Phase 0 post-step) iterates `figmaUrls` for multi-file component inventory
 
 ### Elicitation Sages
 

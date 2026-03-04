@@ -25,6 +25,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PLUGIN_ROOT = os.path.dirname(SCRIPT_DIR)
 EXAMPLE_FILE = os.path.join(PLUGIN_ROOT, "talisman.example.yml")
 OUTPUT_FILE = os.path.join(SCRIPT_DIR, "talisman-defaults.json")
+MAX_YAML_FILE_SIZE = 1_048_576  # 1 MB — prevents memory exhaustion on malformed input
 
 
 def build_defaults():
@@ -34,18 +35,24 @@ def build_defaults():
         sys.exit(1)
 
     # Guard: file size limit to prevent pathological YAML (BACK-004)
-    MAX_FILE_SIZE = 1024 * 1024  # 1MB
     file_size = os.path.getsize(EXAMPLE_FILE)
-    if file_size > MAX_FILE_SIZE:
-        print(f"ERROR: {EXAMPLE_FILE} exceeds {MAX_FILE_SIZE} byte limit ({file_size} bytes)", file=sys.stderr)
+    if file_size > MAX_YAML_FILE_SIZE:
+        print(f"ERROR: {EXAMPLE_FILE} exceeds {MAX_YAML_FILE_SIZE} byte limit ({file_size} bytes)", file=sys.stderr)
         sys.exit(1)
 
     with open(EXAMPLE_FILE, encoding="utf-8-sig") as f:
-        data = yaml.safe_load(f)
+        try:
+            data = yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            print(f"ERROR: Failed to parse {EXAMPLE_FILE}: {e}", file=sys.stderr)
+            sys.exit(1)
 
     if not data or not isinstance(data, dict):
         print("ERROR: talisman.example.yml is empty or not a mapping", file=sys.stderr)
         sys.exit(1)
+
+    if isinstance(data, dict) and len(data) == 0:
+        print(f"WARN: {EXAMPLE_FILE} has no configured keys — all defaults will be injected", file=sys.stderr)
 
     # Add schema version for shard resolver compatibility
     data["_schema_version"] = 1
@@ -74,6 +81,10 @@ def _inject_commented_defaults(data):
 
     The example file documents these as comments with default values.
     We add them here so the shard resolver has a complete defaults registry.
+
+    NOTE: This script generates defaults only. Runtime resolution order:
+    user talisman.yml > project talisman.yml > these defaults.
+    This script does NOT overwrite user config.
     """
     _inject_toplevel_defaults(data)
     _inject_goldmask_defaults(data)
@@ -121,12 +132,19 @@ def _inject_toplevel_defaults(data):
 
 def _inject_toplevel_feature_defaults(data):
     """Inject feature-flag top-level keys (design_sync, deploy, schema, etc.)."""
+    # Source of truth: design-sync/SKILL.md "## Talisman Configuration" section. Keep in sync.
     data.setdefault("design_sync", {
-        "enabled": False, "max_extraction_workers": 2,
+        "enabled": False, "max_extraction_workers": 4,
         "max_implementation_workers": 3, "max_iteration_workers": 2,
         "max_iterations": 5, "iterate_enabled": False,
         "fidelity_threshold": 80, "token_snap_distance": 20,
         "figma_cache_ttl": 1800,
+        "multi_url": True, "max_urls": 10,
+        "max_total_components": 40,
+        "state_detection_threshold": 0.75,
+        "state_detection_ambiguous": 0.50,
+        "relationship_confirmation": True,
+        "max_extraction_timeout": 900000,
     })
     data.setdefault("deployment_verification", {
         "enabled": False, "auto_run_on_migrations": False,
@@ -153,7 +171,23 @@ def _inject_toplevel_feature_defaults(data):
 def _inject_goldmask_defaults(data):
     """Inject goldmask defaults — large nested structure with layers config."""
     if "goldmask" not in data:
-        data["goldmask"] = _build_goldmask_defaults()
+        defaults = _build_goldmask_defaults()
+        _validate_goldmask_defaults(defaults)
+        data["goldmask"] = defaults
+
+
+def _validate_goldmask_defaults(goldmask):
+    """Validate goldmask defaults structure integrity."""
+    required_keys = {"enabled", "layers", "coordinator_model", "priority_weights"}
+    missing = required_keys - set(goldmask.keys())
+    if missing:
+        print(f"WARN: goldmask defaults missing required keys: {missing}", file=sys.stderr)
+
+    weights = goldmask.get("priority_weights", {})
+    if weights:
+        total = sum(weights.values())
+        if abs(total - 1.0) > 0.01:
+            print(f"WARN: goldmask priority_weights sum to {total:.4f}, expected ~1.0", file=sys.stderr)
 
 
 def _build_goldmask_defaults():
