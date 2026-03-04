@@ -5,10 +5,88 @@ Rune worker prompts when UntitledUI is the active UI builder.
 
 ## Architecture Foundation
 
-- **React 19** with TypeScript
+- **React 19.1.1** with TypeScript
 - **Tailwind CSS v4.1** for styling
 - **React Aria Components** as the accessibility and behavior foundation
 - All components follow the **compound component pattern** (e.g., `Select.Item`, `Select.ComboBox`)
+
+## Development Commands
+
+```bash
+npm run dev        # Start Vite dev server (http://localhost:5173)
+npm run build      # Production build
+```
+
+## Authentication & Access Tiers
+
+UntitledUI MCP supports 3 authentication modes. The access tier determines which
+components and templates are available to agents.
+
+### `UNTITLEDUI_ACCESS_TOKEN` Environment Variable
+
+This is the UntitledUI PRO API key. When set, agents gain access to all PRO
+components, page templates, and shared assets. The value is the same API key
+used in `Authorization: Bearer <key>` headers and the per-call `key` parameter.
+
+```bash
+# Set in shell profile or .env
+export UNTITLEDUI_ACCESS_TOKEN="your-api-key-here"
+```
+
+**MCP server setup**:
+```bash
+# OAuth (recommended — auto-handles login flow, no env var needed):
+claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp
+
+# API key (explicit — passes UNTITLEDUI_ACCESS_TOKEN as Bearer token):
+claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp \
+  --header "Authorization: Bearer $UNTITLEDUI_ACCESS_TOKEN"
+```
+
+### Access Tier Detection
+
+Agents determine the access tier at runtime based on MCP tool response:
+
+| Tier | Detection | Available |
+|------|-----------|-----------|
+| **PRO** | `UNTITLEDUI_ACCESS_TOKEN` set OR OAuth authenticated | All 6 tools, all categories, page templates |
+| **Free** | MCP server configured, no auth | `search_components`, `list_components`, `get_component` (base only), `get_component_bundle` (free only) |
+| **None** | No `untitledui` MCP server | Fall back to Tailwind + conventions from this file |
+
+### Agent Behavior by Tier
+
+```
+PRO tier:
+  1. search_components("query") → match found
+  2. get_component("Name") → full source code
+  3. get_page_templates() → browse page layouts (PRO exclusive)
+  4. Customize with project conventions
+
+Free tier:
+  1. search_components("query") → match found
+  2. get_component("Name") → success (base) OR auth error (PRO-only)
+  3. Auth error → build from scratch with Tailwind + conventions below
+  4. NEVER retry with fabricated keys
+
+None tier (no MCP):
+  1. Skip MCP tool calls entirely
+  2. Build components from scratch using Tailwind + conventions below
+  3. Follow import patterns, semantic colors, and kebab-case naming
+```
+
+### Per-Call `key` Parameter
+
+All UntitledUI MCP tools accept an optional `key` parameter as an alternative
+to OAuth. When `UNTITLEDUI_ACCESS_TOKEN` is available, agents MAY pass it:
+
+```typescript
+// Agent tool call with explicit key
+search_components({ query: "sidebar navigation", key: process.env.UNTITLEDUI_ACCESS_TOKEN })
+get_component({ name: "SidebarNavigation", key: process.env.UNTITLEDUI_ACCESS_TOKEN })
+```
+
+**Important**: Agents MUST NOT hardcode, fabricate, or guess API keys. If no token
+is available and a PRO component is needed, fall back to conventions-guided Tailwind.
 
 ## Import Conventions
 

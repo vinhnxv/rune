@@ -30,8 +30,8 @@ At this level, you register the MCP server and its tools become available to Cla
 ```
 
 > **Note**: UntitledUI provides an official HTTP MCP server at `https://www.untitledui.com/react/api/mcp`.
-> Authentication: OAuth 2.1 with PKCE (auto browser login), API Key header, or none (free components only).
-> For API key auth, add `"headers": { "Authorization": "Bearer YOUR_API_KEY" }`.
+> Authentication: OAuth 2.1 with PKCE (auto browser login), `UNTITLEDUI_ACCESS_TOKEN` env var, or none (free components only).
+> For API key auth, set `export UNTITLEDUI_ACCESS_TOKEN="your-api-key"` and add `"headers": { "Authorization": "Bearer ${UNTITLEDUI_ACCESS_TOKEN}" }`.
 > The official MCP exposes 6 tools: `search_components`, `list_components`, `get_component`, `get_component_bundle`, `get_page_templates` (PRO), `get_page_template_files` (PRO).
 
 **What you get:** Tools appear in Claude's tool list. Agents _can_ call them if they decide to.
@@ -160,6 +160,7 @@ integrations:
         component_count: 768
         version: "1.9.1"
         homepage: "https://untitledui.com"
+        access_token_env: "UNTITLEDUI_ACCESS_TOKEN"
 ```
 
 **What you get:** Everything from Level 2, plus: companion skill is auto-loaded when integration activates (providing persistent component knowledge), metadata enables discovery via `/rune:talisman audit`, and rules ensure consistent coding patterns across all agents.
@@ -433,8 +434,10 @@ Add to `.mcp.json` (project root):
 
 > **Authentication options**:
 > - **OAuth 2.1 with PKCE** (recommended): Auto browser login, no API key needed
-> - **API Key**: Add `"headers": { "Authorization": "Bearer YOUR_API_KEY" }`
+> - **API Key**: Set `export UNTITLEDUI_ACCESS_TOKEN="your-api-key"`, then add `"headers": { "Authorization": "Bearer ${UNTITLEDUI_ACCESS_TOKEN}" }`
 > - **None**: Free components only (base UI, some application components)
+>
+> The `UNTITLEDUI_ACCESS_TOKEN` env var enables PRO access (all components, page templates, shared assets).
 
 ### 2. Add Talisman Integration
 
@@ -484,6 +487,7 @@ integrations:
         component_count: 768
         version: "1.9.1"
         homepage: "https://untitledui.com"
+        access_token_env: "UNTITLEDUI_ACCESS_TOKEN"
 ```
 
 ### 3. Companion Skill (Built-in)

@@ -29,6 +29,30 @@ For each VSM region:
     Apply Steps 3-8 below as documented (Tailwind token-based implementation)
 ```
 
+### Match Confidence Handling
+
+For each VSM region with component_matches in enriched-vsm.json:
+
+```
+IF region.component_matches[0].confidence === 'high' (score >= 0.80):
+  -> Import directly: import { Component } from "library"
+  -> Customize props from VSM variant map
+  -> Trust: HIGH — minimal customization needed
+
+ELSE IF region.component_matches[0].confidence === 'medium' (score 0.60-0.79):
+  -> Import component as starting point
+  -> Verify EVERY token against VSM (colors, spacing, typography may differ)
+  -> Trust: MEDIUM — expect 20-40% customization
+
+ELSE (confidence === 'low' or no match):
+  -> Do NOT import library component
+  -> Build from scratch using VSM tokens + project design system patterns
+  -> Reference code provides INTENT hint only (component type, layout direction)
+  -> Trust: LOW — implement entirely from VSM spec
+```
+
+See [worker-trust-hierarchy.md](worker-trust-hierarchy.md) for the full source priority order.
+
 ## Implementation Workflow
 
 ### Step 1: VSM Parsing
@@ -175,6 +199,8 @@ From VSM accessibility requirements:
 7. Component registered (exported, Storybook story if applicable)
 8. [Builder path only] Regions with component_matches use real library imports,
    not Tailwind-only approximations (prefer library component over hand-built)
+9. [Trust hierarchy] Regions with match_score < 0.60 do NOT use library imports
+   (fallback to VSM-guided Tailwind implementation per worker-trust-hierarchy.md)
 ```
 
 ## Cross-References

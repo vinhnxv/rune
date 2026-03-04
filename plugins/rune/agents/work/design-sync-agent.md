@@ -59,6 +59,20 @@ You are a swarm worker that extracts design specifications from Figma and produc
 
 ## Extraction Pipeline
 
+### Extraction Order (Visual-First Protocol)
+
+You MUST extract design data in this order:
+1. **Screenshot analysis FIRST** — identify regions visually before any code extraction
+2. `figma_fetch_design()` for structure/metadata
+3. `figma_inspect_node()` for detailed properties per region
+4. `figma_to_react()` LAST and ONLY as intent reference (~50-60% match)
+
+The VSM you produce is the PRIMARY source of truth for downstream workers.
+`figma_to_react()` output is stored as a reference artifact — workers are instructed
+to extract intent from it, never copy-paste it.
+
+See: `plugins/rune/skills/design-sync/references/visual-first-protocol.md`
+
 ### Phase 1: Figma Data Retrieval
 
 ```

@@ -393,13 +393,17 @@ UntitledUI is the reference implementation. Rune ships a built-in `untitledui-mc
 
 **Setup:**
 ```bash
-# Register MCP server
+# Free + OAuth (recommended — auto-handles login flow):
 claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp
 
-# For PRO: add API key
+# PRO with API key (set UNTITLEDUI_ACCESS_TOKEN in your shell profile):
+export UNTITLEDUI_ACCESS_TOKEN="your-api-key-here"
 claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp \
-  --header "Authorization: Bearer YOUR_API_KEY"
+  --header "Authorization: Bearer $UNTITLEDUI_ACCESS_TOKEN"
 ```
+
+> **Access tiers**: When `UNTITLEDUI_ACCESS_TOKEN` is set, agents have PRO access (all components,
+> page templates, shared assets). Without it, agents use free tier or fall back to Tailwind + conventions.
 
 **Talisman config (`.claude/talisman.yml`):**
 ```yaml
@@ -436,6 +440,7 @@ integrations:
       metadata:
         library_name: "UntitledUI"
         homepage: "https://www.untitledui.com"
+        access_token_env: "UNTITLEDUI_ACCESS_TOKEN"
 ```
 
 The `untitledui-mcp` built-in skill provides:

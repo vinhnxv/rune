@@ -435,6 +435,41 @@ if (allVsmFiles.length > maxTotalComponents) {
   }
 }
 
+// === STEP 13.5: Verification Gate ===
+// Run cross-verification gate on collected VSM files
+// See design-sync/references/verification-gate.md for full algorithm
+const gateConfig = designSyncConfig.verification_gate ?? {}
+const gateEnabled = gateConfig.enabled !== false  // default: true
+if (gateEnabled && allVsmFiles.length > 0) {
+  const vsmRegionCount = countVsmRegions(allVsmFiles)
+  const extractionCoverage = countCoveredRegions(allVsmFiles)
+  const mismatchPct = vsmRegionCount > 0
+    ? ((vsmRegionCount - extractionCoverage) / vsmRegionCount) * 100
+    : 0
+
+  const warnThreshold = gateConfig.warn_threshold ?? 20
+  const blockThreshold = gateConfig.block_threshold ?? 40
+
+  const verdict = mismatchPct > blockThreshold ? 'BLOCK'
+    : mismatchPct > warnThreshold ? 'WARN' : 'PASS'
+
+  checkpointErrors.push({
+    type: 'verification_gate',
+    verdict,
+    mismatch_pct: mismatchPct,
+    matched: extractionCoverage,
+    total: vsmRegionCount,
+    timestamp: new Date().toISOString()
+  })
+
+  if (verdict === 'BLOCK') {
+    // In arc context: non-blocking — log warning, continue pipeline
+    warn(`Design extraction verification gate: BLOCK (${mismatchPct.toFixed(0)}% unmatched). Implementation quality may be reduced.`)
+  } else if (verdict === 'WARN') {
+    warn(`Design extraction verification gate: WARN (${mismatchPct.toFixed(0)}% unmatched). ${vsmRegionCount - extractionCoverage} regions may need manual attention.`)
+  }
+}
+
 // === STEP 14: Shutdown + Cleanup ===
 for (const workerName of vsmWorkers) {
   SendMessage({ type: "shutdown_request", recipient: workerName })

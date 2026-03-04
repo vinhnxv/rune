@@ -145,6 +145,15 @@ def _inject_toplevel_feature_defaults(data):
         "state_detection_ambiguous": 0.50,
         "relationship_confirmation": True,
         "max_extraction_timeout": 900000,
+        "verification_gate": {
+            "enabled": True, "warn_threshold": 20, "block_threshold": 40,
+        },
+        "trust_hierarchy": {
+            "enabled": True, "low_confidence_threshold": 0.60,
+        },
+        "backend_impact": {
+            "enabled": True, "auto_scope": "frontend-only",
+        },
     })
     data.setdefault("deployment_verification", {
         "enabled": False, "auto_run_on_migrations": False,

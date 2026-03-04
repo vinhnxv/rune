@@ -591,6 +591,28 @@ When a task has `has_design_context === true`, inject step 4.7 into both rune-sm
 // When false: step numbering goes 4.6 → 5 (no gap, no overhead)
 ```
 
+### Per-Task Step 4.7.5: TRUST HIERARCHY (conditional)
+
+When a task has `has_design_context === true`, inject step 4.7.5 into both rune-smith and trial-forger lifecycles between step 4.7 (DESIGN SPEC) and step 4.8 (COMPONENT CONSTRAINTS). Same gate as Step 4.7 — zero overhead when no design context.
+
+```javascript
+// Injected into worker prompt when task.has_design_context === true
+// Placed between step 4.7 (DESIGN SPEC) and step 4.8 (COMPONENT CONSTRAINTS)
+`    4.7.5. TRUST HIERARCHY (design_sync active):
+           Read: plugins/rune/skills/design-sync/references/worker-trust-hierarchy.md
+           This defines your source priority order. Key rules:
+           - VSM is PRIMARY, library components are SECONDARY
+           - figma_to_react() reference code is LOW trust (~50-60% accurate)
+           - NEVER copy-paste reference code. Extract INTENT only.
+           - Check match_score in enriched-vsm.json per region before importing:
+             score >= 0.80 (high): import directly
+             score 0.60-0.79 (medium): import but verify against VSM tokens
+             score < 0.60 (low): do NOT import, build from scratch using VSM`
+
+// Only inject this step when task.has_design_context === true
+// When false: step numbering goes 4.7 → 4.8 (no gap, no overhead)
+```
+
 ## Component Constraints Injection (conditional)
 
 ### Step 4.8: COMPONENT CONSTRAINTS (conditional)

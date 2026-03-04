@@ -32,18 +32,24 @@ This skill provides background knowledge for Rune agents working with UntitledUI
 ## Prerequisites
 
 - MCP server configured in `.mcp.json` with server name `untitledui`
-- For PRO components: OAuth authentication or API key
+- For PRO components: `UNTITLEDUI_ACCESS_TOKEN` env var OR OAuth authentication
 - For free components: no authentication required
 
 **Setup** (Claude Code):
 ```bash
+# Free + OAuth (recommended — auto-handles login flow):
 claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp
+
+# PRO with API key (set UNTITLEDUI_ACCESS_TOKEN in your shell profile):
+export UNTITLEDUI_ACCESS_TOKEN="your-api-key-here"
+claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp \
+  --header "Authorization: Bearer $UNTITLEDUI_ACCESS_TOKEN"
 ```
 
-**With API Key** (for PRO):
-```bash
-claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp --header "Authorization: Bearer YOUR_API_KEY"
-```
+**Access detection**: When `UNTITLEDUI_ACCESS_TOKEN` is set, agents have PRO access
+(all components, page templates). Without it, agents use free tier (base components only)
+or fall back to Tailwind + conventions. See [agent-conventions.md](references/agent-conventions.md)
+for the full tier behavior matrix.
 
 ## MCP Tools (6)
 
@@ -281,6 +287,7 @@ integrations:
         mcp_endpoint: "https://www.untitledui.com/react/api/mcp"
         transport: "http"
         auth: "oauth2.1-pkce"                     # or "api-key" or "none"
+        access_token_env: "UNTITLEDUI_ACCESS_TOKEN"  # env var for PRO API key (optional — free tier works without it)
 ```
 
 ## Design System Discovery Integration
