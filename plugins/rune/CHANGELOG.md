@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.134.2] - 2026-03-05
+
+### Fixed
+- **yq `//` operator treating `false` as falsy** — Replaced `yq -r '.key // true'` with explicit `if .key == false then "false" else "true" end` in `validate-inner-flame.sh` and `rune-context-monitor.sh`. Users can now properly disable Inner Flame and Context Monitor via `talisman.yml`.
+- **`local` keyword outside function context** — Removed invalid `local` from top-level script body in `enforce-team-lifecycle.sh` (bash 3.2 compatibility). Moved `local stored_pid` to function top in `workflow-lock.sh`.
+- **Legacy comment-style type hints** — Modernized `indexer.py` to Python 3.10+ annotations with `from __future__ import annotations`. Added type annotations to `build-talisman-defaults.py` helpers.
+- **Stale `Task` in allowed-tools** — Updated `plan-review.md`, `review.md`, `work.md` from `Task` to `Agent` per Claude Code 2.1.63 rename.
+- **Variable hygiene** — Added `unset _prev_nullglob` after nullglob restore in `enforce-team-lifecycle.sh`.
+
 ## [1.134.1] - 2026-03-05
 
 ### Fixed
