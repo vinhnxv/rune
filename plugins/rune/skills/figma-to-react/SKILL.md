@@ -7,6 +7,10 @@ description: |
   code is analyzed for component intent, which drives library MCP searches when a
   UI builder is available. Without a builder, it serves as a starting point for
   direct implementation.
+  Builder protocol role: figma-to-react provides baseline visual extraction;
+  builder MCPs (UntitledUI, shadcn/ui, custom) enhance with library-specific
+  component matching via Phase 1.5 Component Match in design-sync. When a builder
+  is active, figma_to_react() output is consumed as search input — not applied directly.
   Use when agents need to fetch Figma designs, inspect node properties,
   list components, or extract visual intent from design files.
   Trigger keywords: figma, design, react, component, tailwind, MCP,

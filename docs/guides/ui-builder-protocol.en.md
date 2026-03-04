@@ -184,16 +184,16 @@ For custom/unknown libraries, use `custom`. The protocol will match via MCP serv
 
 ### `capabilities` Required vs Optional
 
-All capabilities are optional to declare, but the more you declare, the better the protocol can orchestrate your builder:
+| Capability | Required | Purpose |
+|------------|----------|---------|
+| `search` | YES | Natural-language component search — used by devise and design-sync Phase 1.5 |
+| `list` | NO | Browse components by category — used by strive worker browse workflow |
+| `details` | YES | Fetch component source code — used by strive implementation and design-sync Phase 2 |
+| `bundle` | NO | Batch install multiple components — used by design-sync Phase 2 |
+| `templates` | NO | Page/screen templates — used by design-sync Phase 1.5 |
+| `template_files` | NO | Template asset files — used by design-sync Phase 2 full page install |
 
-| Capability | Required? | Used by |
-|-----------|----------|---------|
-| `search` | Strongly recommended | devise (component availability check), design-sync Phase 1.5 |
-| `list` | Recommended | strive (worker browse workflow) |
-| `details` | Strongly recommended | strive (worker implementation), design-sync Phase 2 |
-| `bundle` | Optional | design-sync Phase 2 (batch page implementation) |
-| `templates` | Optional | design-sync Phase 1.5 (page-level template match) |
-| `template_files` | Optional | design-sync Phase 2 (full page install) |
+**Minimum viable builder**: `search` + `details` only. The protocol degrades gracefully — omitting `bundle`, `templates`, and `template_files` disables their respective pipeline optimisations but does not break the integration.
 
 ---
 
@@ -327,6 +327,13 @@ The audit checks:
 - `skill_binding` resolves to an installed skill
 - At least one `phases` flag is `true`
 - Trigger has at least one condition
+
+**Builder skill alignment** (3-component drift check): `/rune:talisman audit` also validates that the three protocol components are in sync:
+1. Every `skill_binding` in talisman references an installed skill in `.claude/skills/` or the plugin
+2. Each referenced skill has `builder-protocol:` frontmatter
+3. The `conventions:` path in that frontmatter exists relative to the skill root
+
+If any of these three are out of sync, the audit emits a warning rather than failing silently at runtime.
 
 ### Step 3: Verify MCP Server
 
@@ -633,6 +640,35 @@ If `DSYS-BLD-*` findings are missing when expected:
 - Verify `builder-protocol.conventions` path is correct (relative to skill dir)
 - Check the conventions file is under 2000 characters or critical rules are in the first 150 lines
 - Verify the file under review matches the trigger extensions/paths
+
+### Conventions Not Applied (Silent Failure)
+
+If builder conventions are not injected into worker context despite the builder being detected:
+
+**Root causes:**
+
+| Cause | Symptom |
+|-------|---------|
+| `skill_binding` points to non-existent skill | Builder detected but conventions block absent from worker prompts |
+| Skill exists but lacks `builder-protocol:` frontmatter | `discoverUIBuilder()` finds the skill but reads no capabilities |
+| `conventions:` path is wrong | Builder active, no conventions text in worker context |
+
+**Important**: `conventions:` is relative to the **skill directory**, not the repo root. `.claude/skills/my-builder/references/conventions.md` → set `conventions: references/conventions.md`, not `.claude/skills/my-builder/references/conventions.md`.
+
+**Debug steps:**
+
+```bash
+# 1. Verify the skill exists
+ls .claude/skills/{skill_name}/
+
+# 2. Verify builder-protocol frontmatter is present
+grep -n "builder-protocol:" .claude/skills/{skill_name}/SKILL.md
+
+# 3. Verify the conventions file path (relative to skill dir)
+ls .claude/skills/{skill_name}/references/{path}
+```
+
+Then run `/rune:talisman audit` — it will flag missing skills and broken conventions paths.
 
 ### TrueDigital Migration Note
 

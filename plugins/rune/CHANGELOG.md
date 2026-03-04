@@ -8,6 +8,9 @@
 
 ### Changed
 - **README.md** — Added UI Builder Protocol to MCP Tool Integrations section.
+- **design-sync SKILL.md** — Phase 1.5 Component Match: `figma_to_react()` reference code is analyzed for component intent and used as search queries against the builder library MCP, producing an annotated VSM with real components instead of reference approximations.
+- **design-system-discovery SKILL.md** — `discoverUIBuilder()` algorithm (5-step priority cascade: talisman binding → project skill frontmatter → plugin skill frontmatter → known MCP registry → heuristic) documented with `builder-protocol` frontmatter contract.
+- **mcp-integration-spec.en.md** — Added builder workflow block for MCP-integrated pipelines (`figma_to_react → analyze intent → search_components → get_component → compose`).
 
 ## [1.132.0] - 2026-03-04
 

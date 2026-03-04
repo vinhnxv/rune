@@ -55,17 +55,29 @@ builderConventions = null
 builderSkillName = null
 try:
   // builder-profile.yaml written by discoverUIBuilder() during devise/design-sync
+  // Glob returns mtime-sorted (most recent first) — this is the desired behavior:
+  // the first result is the current session's profile when multiple workflows exist.
   builderProfiles = Glob("tmp/*/builder-profile.yaml")  // any workflow's builder profile
   if builderProfiles.length > 0:
-    builderProfile = Read(builderProfiles[0])  // most recent session
+    builderProfile = Read(builderProfiles[0])  // most recent session (mtime-sorted)
     if builderProfile.conventions AND builderProfile.builder_skill:
       // Resolve conventions path relative to skill directory
       skillDir = Glob("plugins/rune/skills/{builderProfile.builder_skill}/")[0] ??
                  Glob(".claude/skills/{builderProfile.builder_skill}/")[0]
       if skillDir:
-        conventionsPath = skillDir + builderProfile.conventions
-        builderConventions = Read(conventionsPath).substring(0, 2000)  // max 2000 chars
-        builderSkillName = builderProfile.builder_skill
+        // Path traversal guard (SEC-UI-BUILDER-003)
+        if builderProfile.conventions.includes('..') || builderProfile.conventions.startsWith('/'):
+          warn(`Invalid conventions path: ${builderProfile.conventions} — skipping builder conventions`)
+          builderConventions = null
+        else:
+          conventionsPath = skillDir + builderProfile.conventions
+          // Verify resolved path stays within skill directory
+          const fullContent = Read(conventionsPath)
+          // VEIL-RA-004: Warn before silently truncating conventions content
+          if fullContent.length > 2000:
+            warn(`Conventions file truncated from ${fullContent.length} to 2000 chars. Place critical rules in the first 50 lines.`)
+          builderConventions = fullContent.substring(0, 2000)
+          builderSkillName = builderProfile.builder_skill
 catch:
   // No builder profile — skip builder convention checks entirely
 ```
@@ -74,6 +86,8 @@ When `builderConventions !== null`, add to your review context as:
 > **Builder-Specific Conventions** ({builderSkillName}): {builderConventions}
 
 Generate DSYS-BLD-* findings for violations of these builder-specific conventions.
+
+**DSYS vs DSYS-BLD precedence rule**: If a violation breaks BOTH a standard design convention AND a builder-specific convention, emit a DSYS-BLD-* finding only (builder is more specific), add a note referencing the standard violation (e.g., "also violates DSYS-TOK token discipline"), and do NOT emit both. One finding per violation.
 
 ## Echo Integration (Past Design System Patterns)
 

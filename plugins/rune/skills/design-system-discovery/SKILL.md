@@ -410,6 +410,22 @@ evidence_files:
 Discovers which UI builder MCP is available for the detected design system.
 Called after `discoverDesignSystem()` during devise Phase 0.5 and strive Phase 1.5.
 
+### discoverUIBuilder() Algorithm
+
+**Return type**: `{ name: string, library: string, capabilities: object, conventions: string|null }` on success, or `null` when no builder is found.
+
+**Tiebreaker**: When two skills at the same priority step match the same library, the skill with the alphabetically first name (directory basename) wins. This ensures deterministic selection when multiple builder skills are installed.
+
+**Priority cascade summary**:
+
+| Step | Source | Confidence | Notes |
+|------|--------|-----------|-------|
+| 1 | Session cache | — | Short-circuit if already run this session |
+| 2 | Talisman `integrations.mcp_tools[*].skill_binding` | 0.95 | Explicit binding wins |
+| 3 | Project skill frontmatter (`.claude/skills/*/SKILL.md`) | 0.90 | Project overrides plugin |
+| 4 | Plugin skill frontmatter (`plugins/*/skills/*/SKILL.md`) | 0.90 | Plugin fallback |
+| 5 | Known MCP registry + heuristic (`.mcp.json`) | 0.50 | Last resort |
+
 ### Pre-flight (Session-Level Cache)
 
 ```
@@ -443,13 +459,15 @@ FOR each ns IN talisman.integrations.mcp_tools:
 
 // Step 3 (confidence: 0.90) — Project skill with builder-protocol frontmatter
 // Priority: project > plugin skills
-FOR each skillDir IN Glob(".claude/skills/*/SKILL.md"):
+// Tiebreaker: sort by skill name alphabetically, pick first match
+FOR each skillDir IN Glob(".claude/skills/*/SKILL.md") SORTED by basename ASC:
   protocol = parseBuilderFrontmatter(skillDir)
   IF protocol AND protocol.library === detectedLibrary:
     RETURN buildBuilderProfile(skillDir, protocol.mcp_server, protocol, "skill_frontmatter", 0.90)
 
 // Step 4 (confidence: 0.90) — Plugin skill with builder-protocol frontmatter
-FOR each skillDir IN Glob("plugins/*/skills/*/SKILL.md"):
+// Tiebreaker: sort by skill name alphabetically, pick first match
+FOR each skillDir IN Glob("plugins/*/skills/*/SKILL.md") SORTED by basename ASC:
   protocol = parseBuilderFrontmatter(skillDir)
   IF protocol AND protocol.library === detectedLibrary:
     RETURN buildBuilderProfile(skillDir, protocol.mcp_server, protocol, "skill_frontmatter", 0.90)
@@ -467,6 +485,18 @@ IF mcpConfig EXISTS:
 
 RETURN null  // No builder found — pipeline proceeds unchanged
 ```
+
+### builder-protocol Frontmatter Fields
+
+The `builder-protocol` YAML block in a skill's frontmatter uses the following fields:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `library` | Yes | Design library this builder targets (e.g., `untitled_ui`, `shadcn_ui`) |
+| `mcp_server` | Yes | MCP server name as it appears in `.mcp.json` |
+| `capabilities` | No | Map of capability names to MCP tool names |
+| `conventions` | No | Relative path to conventions doc (no `..`, `/`, or `~`) |
+| `min_version` | No | Minimum required semver for the MCP server (e.g., `"1.2.0"`). Version mismatch emits a warning but does NOT block detection. Omit to skip version checks. |
 
 ### parseBuilderFrontmatter(skillPath)
 
@@ -490,6 +520,16 @@ protocol = parsedYaml["builder-protocol"]
 // Validate required fields
 IF protocol.library is null OR protocol.mcp_server is null:
   RETURN null
+
+// SEC-UI-BUILDER-005: Optional version pinning — warn on mismatch, do NOT block
+// min_version field: semver string e.g. "1.2.0" (optional; omit to skip version check)
+IF protocol.min_version is not null:
+  detectedVersion = resolveInstalledVersion(protocol.mcp_server)  // null if unknown
+  IF detectedVersion is not null AND semverLessThan(detectedVersion, protocol.min_version):
+    WARN "Builder version mismatch: detected " + detectedVersion +
+         " < required " + protocol.min_version + " for " + protocol.mcp_server +
+         ". Detection proceeds — capabilities may differ."
+    // Do NOT return null — version mismatch is advisory only, not a hard block
 
 // S-2: Validate conventions path — reject traversal and absolute paths
 IF protocol.conventions is not null:

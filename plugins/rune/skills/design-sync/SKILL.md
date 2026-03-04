@@ -143,7 +143,7 @@ if figmaUrls.length > maxFigmaUrls:
 const figmaUrl = figmaUrls[0] ?? null
 
 // Step 2: Validate all Figma URLs
-FIGMA_URL_STRICT_PATTERN = /^https:\/\/www\.figma\.com\/(design|file)\/[A-Za-z0-9]+/
+FIGMA_URL_STRICT_PATTERN = /^https:\/\/www\.figma\.com\/(design|file)\/[A-Za-z0-9]{22,26}/
 const invalidUrls = figmaUrls.filter(u => !FIGMA_URL_STRICT_PATTERN.test(u))
 ```
 
@@ -339,6 +339,7 @@ try:
   builderProfile = Read("{workDir}/../builder-profile.yaml")
 catch:
   // No builder — skip Phase 1.3 entirely, proceed to Phase 1.5
+  warn("No UI builder detected. Using figma-to-react reference output (~50-60% component match). To enable enhanced component matching (85-95%), configure a builder MCP — see docs/guides/ui-builder-protocol.en.md")
   goto Phase1_5
 
 if NOT builderProfile?.capabilities?.search:

@@ -15,7 +15,9 @@ const designSystem = discoverDesignSystem()
 // library: "shadcn_ui" | "untitled_ui" | "custom_design_system" | "unknown"
 
 // Map library identifier to profile key
-// discoverDesignSystem() uses snake_case library IDs; PROFILE_MAP uses kebab/short keys
+// discoverDesignSystem() returns snake_case IDs (e.g., "shadcn_ui", "untitled_ui").
+// These are mapped to profile key names below — mixed formats (kebab, bare-word, generic) are intentional:
+// snake_case input → kebab/bare-word output reflects each design system's conventional naming.
 const LIBRARY_TO_PROFILE_KEY = {
   shadcn_ui:            "shadcn",
   untitled_ui:          "untitled-ui",
@@ -24,6 +26,10 @@ const LIBRARY_TO_PROFILE_KEY = {
 }
 
 // Load the matching profile
+// NOTE: Profile files below are scaffolded for future implementation.
+// shadcn-profile.md, untitled-ui-profile.md, and generic-profile.md do not yet exist on disk.
+// The null fallback in the catch block is intentional: profile loading is best-effort.
+// When profiles are absent, downstream logic proceeds without them (fail-open design).
 let systemProfile = null
 const PROFILE_MAP = {
   shadcn:      "skills/frontend-design-patterns/references/profiles/shadcn-profile.md",
@@ -31,13 +37,16 @@ const PROFILE_MAP = {
   generic:     "skills/frontend-design-patterns/references/profiles/generic-profile.md",
   unknown:     "skills/frontend-design-patterns/references/profiles/generic-profile.md",
 }
+// custom_design_system (weight 0.6 in discoverDesignSystem) falls back to the generic profile.
+// Only shadcn/ui and untitled-ui have distinct profiles (confidence weight >= 0.85).
+// All other libraries (custom_design_system, unknown) map to generic.
 
 const profileKey = LIBRARY_TO_PROFILE_KEY[designSystem?.library ?? "unknown"] ?? "unknown"
 const profilePath = PROFILE_MAP[profileKey]
 try {
   systemProfile = Read(profilePath)
 } catch (e) {
-  systemProfile = null  // Fail-open: proceed without profile
+  systemProfile = null  // Fail-open: proceed without profile (profile files are not yet implemented)
 }
 
 // Record audit result in brainstorm context

@@ -274,6 +274,12 @@ if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
       1. **Rune tools** (preferred): figma_list_components, figma_fetch_design, figma_inspect_node
       2. **Official Figma MCP** (fallback): mcp__claude_ai_Figma__get_metadata, mcp__claude_ai_Figma__get_design_context
 
+      **IMPORTANT — MCP namespace verification**: Before calling any MCP tool, verify it exists
+      in your available MCP server list. Tool name resolution relies on Claude Code's MCP
+      namespace isolation — the same tool may be unavailable if its server is not registered.
+      If figma_list_components is not listed in your available tools, skip to the Official MCP
+      fallback (step 2). Do not attempt to call a tool that is not present in your tool list.
+
       To extract fileKey from the Figma URL for Official MCP tools:
       - Parse: https://www.figma.com/design/{fileKey}/{name}?node-id={nodeId}
       - fileKey is the alphanumeric segment after /design/ or /file/
