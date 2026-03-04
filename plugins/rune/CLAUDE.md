@@ -48,6 +48,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **resolve-gh-pr-comment** | Resolve a single GitHub PR review comment — fetch, analyze, fix, reply, and resolve thread |
 | **resolve-all-gh-pr-comments** | Batch resolve all open PR review comments with pagination and progress tracking |
 | **strive** | Swarm work execution with self-organizing task pool (+ `--approve`, incremental commits) |
+| **resolve-todos** | Resolve file-based TODOs using Agent Teams with verify-before-fix pipeline. Each TODO is reviewed before any fix is applied, preventing hallucinated fixes |
 | **debug** | ACH-based parallel debugging — spawns multiple hypothesis-investigator agents to investigate competing hypotheses simultaneously. Use when bugs are complex or root cause is unclear |
 | **figma-to-react** | Figma-to-React MCP server knowledge — 4 tools for converting Figma designs to React components with Tailwind CSS v4 (non-invocable) |
 | **untitledui-mcp** | UntitledUI official MCP integration — 6 tools (search_components, list_components, get_component, get_component_bundle, get_page_templates, get_page_template_files), code conventions (React Aria `Aria*` prefix, Tailwind v4.1 semantic colors, kebab-case, compound components), builder-protocol metadata for automated pipeline integration. Non-invocable — auto-loaded by design-system-discovery when UntitledUI is detected |

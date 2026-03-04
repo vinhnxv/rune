@@ -70,6 +70,18 @@
         ]
       },
       {
+        "matcher": "Write|Edit|NotebookEdit",
+        "_security_note": "SEC-RESOLVE-001: Mandatory, fail-open hook for resolve-todos fixers. Validates path against inscription.json allowlist.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/validate-resolve-fixer-paths.sh",
+            "timeout": 5,
+            "statusMessage": "Checking resolve-todos fixer file scope..."
+          }
+        ]
+      },
+      {
         "matcher": "Task|Agent",
         "hooks": [
           {
