@@ -50,6 +50,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **strive** | Swarm work execution with self-organizing task pool (+ `--approve`, incremental commits) |
 | **debug** | ACH-based parallel debugging — spawns multiple hypothesis-investigator agents to investigate competing hypotheses simultaneously. Use when bugs are complex or root cause is unclear |
 | **figma-to-react** | Figma-to-React MCP server knowledge — 4 tools for converting Figma designs to React components with Tailwind CSS v4 (non-invocable) |
+| **untitledui-mcp** | UntitledUI official MCP integration — 6 tools (search_components, list_components, get_component, get_component_bundle, get_page_templates, get_page_template_files), code conventions (React Aria `Aria*` prefix, Tailwind v4.1 semantic colors, kebab-case, compound components), builder-protocol metadata for automated pipeline integration. Non-invocable — auto-loaded by design-system-discovery when UntitledUI is detected |
 | **status** | Background dispatch status — check progress, pending questions, and worker health for `/rune:strive --background` dispatches |
 | **learn** | Session self-learning — extracts CLI correction patterns and review recurrence findings from session JSONL history, persists high-confidence patterns to Rune Echoes via 4-phase pipeline (scan → detect → report → confirm+write). `/rune:learn`. `disable-model-invocation: true` |
 
@@ -158,7 +159,7 @@ Discovers and activates third-party MCP tool integrations from talisman config. 
 **Outputs**: Array of active integration objects (namespace, server_name, tools, skill_binding, rules, metadata)
 **Related functions**: `evaluateTriggers()`, `buildMCPContextBlock()`, `loadMCPSkillBindings()`
 
-Used by strive (Phase 1.5), devise (Phase 0), and forge (Phase 1.6). See [skills/strive/references/mcp-integration.md](skills/strive/references/mcp-integration.md) for the full resolver algorithm. Developer guide: [docs/guides/mcp-integration-spec.en.md](docs/guides/mcp-integration-spec.en.md).
+Used by strive (Phase 1.5), devise (Phase 0), and forge (Phase 1.6). See [skills/strive/references/mcp-integration.md](skills/strive/references/mcp-integration.md) for the full resolver algorithm. Developer guide: [docs/guides/mcp-integration-spec.en.md](../../docs/guides/mcp-integration-spec.en.md).
 
 ### resolveModelForAgent()
 

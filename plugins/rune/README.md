@@ -695,6 +695,7 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | elicitation | Curated structured reasoning methods (Tree of Thoughts, Pre-mortem, Red Team, 5 Whys, etc.) with phase-aware auto-selection |
 | file-todos | Unified file-based todo tracking (schema v2, status history, per-source manifests, DAG ordering, 13 subcommands). Always active (mandatory). Session-scoped in `tmp/{workflow}/{id}/todos/`. |
 | figma-to-react | Figma-to-React MCP server — 4 tools (figma_fetch_design, figma_inspect_node, figma_list_components, figma_to_react) for converting Figma designs to React + Tailwind CSS v4 components (non-invocable) |
+| untitledui-mcp | UntitledUI official MCP integration — 6 tools for searching, browsing, and installing UntitledUI components (free + PRO). Code conventions, builder-protocol metadata, talisman config template. Auto-loaded by design-system-discovery (non-invocable) |
 | frontend-design-patterns | Frontend design implementation — design tokens, accessibility (WCAG 2.1 AA), responsive patterns, component reuse (REUSE > EXTEND > CREATE), layout alignment, variant mapping, Storybook. Auto-loaded by Stacks for frontend files (non-invocable) |
 | forge | Deepen existing plan with Forge Gaze enrichment (+ `--exhaustive`). Goldmask Lore Layer (Phase 1.5) for risk-aware section prioritization |
 | git-worktree | Worktree isolation for /rune:strive (experimental `--worktree` flag) |
@@ -1046,7 +1047,7 @@ Rune's MCP Integration Framework enables declarative routing of third-party MCP 
 - **Companion skills** — auto-loaded skill content for persistent domain knowledge
 - **Zero overhead** — empty array/string when no integrations match
 
-Configure via `talisman.yml` → `integrations.mcp_tools`. See the [MCP Integration Developer Guide](docs/guides/mcp-integration-spec.en.md) for the full walkthrough.
+Configure via `talisman.yml` → `integrations.mcp_tools`. See the [MCP Integration Developer Guide](../../docs/guides/mcp-integration-spec.en.md) for the full walkthrough.
 
 ## Lore
 

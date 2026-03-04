@@ -22,13 +22,17 @@ At this level, you register the MCP server and its tools become available to Cla
 {
   "mcpServers": {
     "untitledui": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@untitledui/mcp-server@latest"]
+      "type": "http",
+      "url": "https://www.untitledui.com/react/api/mcp"
     }
   }
 }
 ```
+
+> **Note**: UntitledUI provides an official HTTP MCP server at `https://www.untitledui.com/react/api/mcp`.
+> Authentication: OAuth 2.1 with PKCE (auto browser login), API Key header, or none (free components only).
+> For API key auth, add `"headers": { "Authorization": "Bearer YOUR_API_KEY" }`.
+> The official MCP exposes 6 tools: `search_components`, `list_components`, `get_component`, `get_component_bundle`, `get_page_templates` (PRO), `get_page_template_files` (PRO).
 
 **What you get:** Tools appear in Claude's tool list. Agents _can_ call them if they decide to.
 
@@ -51,12 +55,18 @@ integrations:
       server_name: "untitledui"
 
       tools:
-        - name: "untitledui_find"
+        - name: "search_components"
           category: "search"
-        - name: "untitledui_get"
+        - name: "list_components"
+          category: "search"
+        - name: "get_component"
           category: "details"
-        - name: "untitledui_compose"
-          category: "compose"
+        - name: "get_component_bundle"
+          category: "details"
+        - name: "get_page_templates"
+          category: "search"
+        - name: "get_page_template_files"
+          category: "details"
 
       phases:
         devise: true
@@ -66,17 +76,18 @@ integrations:
         audit: false
         arc: true
 
+      skill_binding: "untitledui-mcp"
+
+      rules: []
+
       trigger:
         extensions: [".tsx", ".ts", ".jsx"]
-        paths: ["dashboard/src/", "admin/src/"]
-        keywords: ["frontend", "ui", "component"]
+        paths: ["src/components/", "src/pages/"]
+        keywords: ["frontend", "ui", "component", "untitledui"]
         always: false
-
-      rules:
-        - ".claude/rules/untitledui-button-icons.md"
 ```
 
-**What you get:** Phase-aware tool activation. Workers see "Use `untitledui_find` to search for components" in their prompt only when implementing `.tsx` files in `dashboard/src/`. Reviewers never see write-heavy tools. Rules are injected for consistent usage patterns.
+**What you get:** Phase-aware tool activation. Workers see "Use `search_components` to find UntitledUI components" in their prompt only when implementing `.tsx` files in `src/components/`. Reviewers never see write-heavy tools. Conventions from the companion skill are injected for consistent usage patterns.
 
 ### Level 3: Full (`+ skill + rules + manifest`)
 
@@ -85,14 +96,20 @@ For deep integrations, add a companion skill and discovery metadata. This provid
 **Directory structure:**
 
 ```
+# Built-in Rune plugin skill (no project-level skill needed):
+plugins/rune/skills/untitledui-mcp/
+  SKILL.md                      # Builder-protocol skill with conventions
+  references/
+    agent-conventions.md        # UntitledUI code conventions (from AGENT.md)
+    mcp-tools.md                # Detailed MCP tool documentation
+
+# Optional project-level override:
 .claude/
   skills/
-    untitledui-builder/
-      SKILL.md            # Companion skill with usage patterns
-      references/
-        component-map.md  # Component inventory
+    untitledui-builder/         # Custom project-specific conventions (overrides built-in)
+      SKILL.md
   rules/
-    untitledui-button-icons.md   # Coding rules
+    untitledui-conventions.md   # Project-specific coding rules
   talisman.yml            # Integration config
 .mcp.json                 # MCP server registration
 ```
@@ -106,16 +123,18 @@ integrations:
       server_name: "untitledui"
 
       tools:
-        - name: "untitledui_find"
+        - name: "search_components"
           category: "search"
-        - name: "untitledui_get"
+        - name: "list_components"
+          category: "search"
+        - name: "get_component"
           category: "details"
-        - name: "untitledui_code_search"
+        - name: "get_component_bundle"
+          category: "details"
+        - name: "get_page_templates"
           category: "search"
-        - name: "untitledui_compose"
-          category: "compose"
-        - name: "untitledui_suggest"
-          category: "suggest"
+        - name: "get_page_template_files"
+          category: "details"
 
       phases:
         devise: true
@@ -125,7 +144,7 @@ integrations:
         audit: false
         arc: true
 
-      skill_binding: "untitledui-builder"
+      skill_binding: "untitledui-mcp"
 
       rules:
         - ".claude/rules/untitledui-button-icons.md"
@@ -255,7 +274,7 @@ Each entry in the `tools` array declares a single MCP tool with its semantic cat
 
 ```yaml
 tools:
-  - name: "untitledui_find"      # Must match the MCP tool name exactly
+  - name: "search_components"    # Must match the MCP tool name exactly
     category: "search"           # Semantic category (see table below)
 ```
 
@@ -265,11 +284,11 @@ Categories provide semantic meaning that helps agents understand tool purpose wi
 
 | Category | Purpose | Example Tools |
 |----------|---------|---------------|
-| `search` | Find/discover resources | `untitledui_find`, `untitledui_code_search` |
-| `details` | Get detailed information about a specific resource | `untitledui_get`, `figma_inspect_node` |
-| `compose` | Plan multi-resource layouts or assemblies | `untitledui_compose` |
+| `search` | Find/discover resources | `search_components`, `list_components`, `get_page_templates` |
+| `details` | Get detailed information about a specific resource | `get_component`, `get_component_bundle`, `figma_inspect_node` |
+| `compose` | Plan multi-resource layouts or assemblies | `get_page_template_files` |
 | `generate` | Generate code or artifacts | `figma_to_react` |
-| `suggest` | AI-powered recommendations | `untitledui_suggest` |
+| `suggest` | AI-powered recommendations | (custom tool) |
 | `validate` | Check, verify, or lint resources | `storybook_validate` |
 
 Categories influence prompt injection. For example, `search` tools receive "Use X to find..." phrasing, while `generate` tools receive "Use X to produce..." phrasing. Workers receive all active categories; reviewers only receive `search` and `details` categories (read-only).
@@ -339,13 +358,14 @@ During the strive workflow, the orchestrator resolves MCP integrations at worker
 Workers receive guidance like:
 
 ```
-## Available MCP Tools (UntitledUI PRO)
+## Available MCP Tools (UntitledUI)
 
-**Search**: Use `untitledui_find` to search for components by name or description.
-**Details**: Use `untitledui_get` to retrieve component code, variants, and props.
-**Compose**: Use `untitledui_compose` to plan multi-component page layouts.
+**Search**: Use `search_components` to find components by natural language description.
+**Browse**: Use `list_components` to browse components by category.
+**Details**: Use `get_component` to install a component's full source code.
+**Bundle**: Use `get_component_bundle` to install multiple components at once.
 
-Rules: Follow patterns in .claude/rules/untitledui-button-icons.md
+Conventions: React Aria Aria* prefix, semantic colors only, kebab-case files.
 ```
 
 ### How `/rune:devise` Uses Integrations
@@ -394,7 +414,7 @@ The arc pipeline inherits integration settings across all sub-phases. When `arc:
 
 ## Example: UntitledUI Integration
 
-A complete walkthrough of integrating UntitledUI PRO --- a component library with 768+ components accessible via MCP tools.
+A complete walkthrough of integrating UntitledUI --- a component library with 768+ components accessible via the official MCP server.
 
 ### 1. Register MCP Server
 
@@ -404,13 +424,17 @@ Add to `.mcp.json` (project root):
 {
   "mcpServers": {
     "untitledui": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@nicepkg/untitledui-mcp@latest"]
+      "type": "http",
+      "url": "https://www.untitledui.com/react/api/mcp"
     }
   }
 }
 ```
+
+> **Authentication options**:
+> - **OAuth 2.1 with PKCE** (recommended): Auto browser login, no API key needed
+> - **API Key**: Add `"headers": { "Authorization": "Bearer YOUR_API_KEY" }`
+> - **None**: Free components only (base UI, some application components)
 
 ### 2. Add Talisman Integration
 
@@ -423,16 +447,18 @@ integrations:
       server_name: "untitledui"
 
       tools:
-        - name: "untitledui_find"
+        - name: "search_components"
           category: "search"
-        - name: "untitledui_get"
+        - name: "list_components"
+          category: "search"
+        - name: "get_component"
           category: "details"
-        - name: "untitledui_code_search"
+        - name: "get_component_bundle"
+          category: "details"
+        - name: "get_page_templates"
           category: "search"
-        - name: "untitledui_compose"
-          category: "compose"
-        - name: "untitledui_suggest"
-          category: "suggest"
+        - name: "get_page_template_files"
+          category: "details"
 
       phases:
         devise: true
@@ -442,7 +468,7 @@ integrations:
         audit: false
         arc: true
 
-      skill_binding: "untitledui-builder"
+      skill_binding: "untitledui-mcp"
 
       rules:
         - ".claude/rules/untitledui-button-icons.md"
@@ -460,46 +486,30 @@ integrations:
         homepage: "https://untitledui.com"
 ```
 
-### 3. Create Companion Skill
+### 3. Companion Skill (Built-in)
 
-Create `.claude/skills/untitledui-builder/SKILL.md`:
+The Rune plugin includes a built-in `untitledui-mcp` skill that provides:
+- Complete code conventions from the official UntitledUI AGENT.md (React Aria, Tailwind v4.1, semantic colors, kebab-case files, icon rules)
+- MCP tool documentation with search strategies and usage patterns
+- Builder protocol metadata for automated pipeline integration
+- Component implementation workflow (search → get → customize → validate)
 
-```yaml
----
-name: untitledui-builder
-description: |
-  UntitledUI PRO component library usage patterns.
-  Auto-loaded when untitledui MCP integration is active.
-  Provides component selection heuristics and variant mapping.
-user-invocable: false
----
+This skill is auto-loaded when the `skill_binding: "untitledui-mcp"` is set in talisman config. No project-level skill creation is required.
 
-# UntitledUI Builder Knowledge
+> **For advanced customization**: You can still create a project-level `.claude/skills/untitledui-builder/SKILL.md` with project-specific conventions. Project skills take priority over plugin skills. Set `skill_binding: "untitledui-builder"` in talisman to use your custom skill instead.
 
-## Component Selection
+### 4. Create Rules File (Optional)
 
-1. Search with `untitledui_find` using natural language (e.g., "settings form with toggles")
-2. Get details with `untitledui_get` for exact props, variants, and import paths
-3. Use `untitledui_compose` for multi-component layouts (e.g., "sidebar + content + header")
-
-## Variant Mapping
-
-- Size: sm | md | lg (default: md)
-- Theme: light | dark (inherits from provider)
-- State: default | hover | active | disabled | loading
-```
-
-### 4. Create Rules File
-
-Create `.claude/rules/untitledui-button-icons.md`:
+For project-specific coding rules, create `.claude/rules/untitledui-conventions.md`:
 
 ```markdown
-# UntitledUI Button + Icon Rules
+# UntitledUI Project Rules
 
 - Always use `<Button>` from UntitledUI instead of raw `<button>` elements
-- Icons must come from UntitledUI icon set (search with `untitledui_find`)
-- Button variants: primary, secondary, tertiary, link, destructive
-- Never hardcode icon SVGs --- use the component library's icon components
+- Icons: use `iconLeading`/`iconTrailing` props, never pass as children
+- Colors: use semantic classes (text-primary, bg-brand-solid) --- never raw Tailwind (text-gray-900)
+- Files: kebab-case only (date-picker.tsx, not DatePicker.tsx)
+- React Aria imports: always prefix with Aria* (import { Button as AriaButton })
 ```
 
 ### 5. Verify with Audit
@@ -510,9 +520,8 @@ Create `.claude/rules/untitledui-button-icons.md`:
 
 Expected output includes validation of:
 - `untitledui` server found in `.mcp.json`
-- 5 tools declared with valid categories
-- `skill_binding` resolves to `.claude/skills/untitledui-builder/`
-- Rules file `.claude/rules/untitledui-button-icons.md` exists
+- 6 tools declared with valid categories
+- `skill_binding` resolves to built-in `untitledui-mcp` skill (or project override)
 - Trigger has 4 conditions configured
 
 ### 6. Use in Workflow
