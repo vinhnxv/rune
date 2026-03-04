@@ -181,8 +181,9 @@ for team in "${stale_teams[@]}"; do
         fi
       done
     fi
-    # SEC-009 FIX: Restore nullglob state
+    # SEC-009 FIX: Restore nullglob state and clean up temp variable
     eval "$_prev_nullglob" 2>/dev/null || true
+    unset _prev_nullglob
     if [[ "$_has_active_state" == "false" ]]; then
       rm -rf "$CHOME/teams/${team}/" "$CHOME/tasks/${team}/" 2>/dev/null
       cleaned_teams+=("$team")

@@ -68,6 +68,7 @@ if [[ -n "$CWD" && "$CWD" == /* ]]; then
   if [[ -f "$TALISMAN" ]] && command -v yq &>/dev/null; then
     # Fast-path: skip yq if context_monitor section doesn't exist
     if grep -q 'context_monitor:' "$TALISMAN" 2>/dev/null; then
+      # NOTE: Checks YAML boolean false only. String "false" is not treated as disabled (standard YAML convention).
       ENABLED=$(yq -r 'if .context_monitor.enabled == false then "false" else "true" end' "$TALISMAN" 2>/dev/null || echo "true")
       [[ "$ENABLED" == "false" ]] && exit 0
       _WARN=$(yq -r '.context_monitor.warning_threshold // ""' "$TALISMAN" 2>/dev/null || true)

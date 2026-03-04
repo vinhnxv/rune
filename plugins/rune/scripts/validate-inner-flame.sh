@@ -71,6 +71,7 @@ INNER_FLAME_ENABLED=true
 for TALISMAN_PATH in "${CWD}/.claude/talisman.yml" "${CHOME}/talisman.yml"; do
   if [[ -f "$TALISMAN_PATH" ]]; then
     if command -v yq &>/dev/null; then
+      # NOTE: Checks YAML boolean false only. String "false" is not treated as disabled (standard YAML convention).
       INNER_FLAME_ENABLED=$(yq -r 'if .inner_flame.enabled == false then "false" else "true" end' "$TALISMAN_PATH" 2>/dev/null) || INNER_FLAME_ENABLED="true"
       BLOCK_ON_FAIL=$(yq -r 'if .inner_flame.block_on_fail == false then "false" else "true" end' "$TALISMAN_PATH" 2>/dev/null) || BLOCK_ON_FAIL="true"
       # VEIL-004: If yq returned empty (v3/v4 mismatch), default to safe values
