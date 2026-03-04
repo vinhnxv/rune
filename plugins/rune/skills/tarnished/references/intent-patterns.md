@@ -35,6 +35,9 @@ These keywords at the START of `$ARGUMENTS` trigger immediate routing (no classi
 | `talisman` | `/rune:talisman` | Yes |
 | `config` | `/rune:talisman` | Yes — alias for talisman |
 | `setup` | `/rune:talisman` | Yes — alias for talisman init |
+| `mcp` | `/rune:talisman guide integrations` | Yes — MCP integration guidance |
+| `mcp setup` / `setup mcp` / `add mcp` | `/rune:talisman guide integrations` | MCP integration setup walkthrough |
+| `untitledui` / `untitled-ui` | `/rune:talisman guide integrations` | UntitledUI MCP integration guidance |
 | `codex review` / `cross-model review` / `second opinion` / `codex check` | `/rune:codex-review` | Cross-model code review with Codex |
 | `cancel` | (cancel mode) | Detect active workflow → route to correct cancel command |
 | `help` | (guidance mode) | Show Rune overview + suggest next action |
@@ -53,6 +56,7 @@ These keywords at the START of `$ARGUMENTS` trigger immediate routing (no classi
 | `dọn dẹp` | `/rune:rest` |
 | `cấu hình` / `thiết lập` | `/rune:talisman` |
 | `tạo talisman` / `init talisman` | `/rune:talisman init` |
+| `cài đặt mcp` / `thêm mcp` / `tích hợp mcp` | `/rune:talisman guide integrations` |
 
 ## Intent Classification (for non-keyword input)
 
@@ -109,6 +113,8 @@ User seeks knowledge about Rune or recommendations.
 | "when to use X vs Y" / "khi nào dùng X" | Read skill-catalog.md → compare and recommend |
 | "best practice" / "nên làm thế nào" | Read rune-knowledge.md → provide guidance |
 | "troubleshoot" / "bị lỗi" / "failed" | Read rune-knowledge.md pitfalls → diagnose |
+| "how to add mcp" / "mcp integration" / "setup untitledui" | Read rune-knowledge.md MCP section → guide setup |
+| "tích hợp mcp" / "cách thêm mcp" / "untitledui là gì" | Read rune-knowledge.md MCP section → guide setup |
 
 ### Category: meta (legacy alias for guidance)
 

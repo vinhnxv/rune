@@ -26,7 +26,8 @@ description: |
   Keywords: tarnished, master command, route, guide, what should I do,
   figure it out, do everything, help me, which command, rune help,
   how does rune work, explain, teach, recommend, best practice,
-  brainstorm, explore idea, khám phá, thảo luận.
+  brainstorm, explore idea, khám phá, thảo luận, mcp, mcp integration,
+  untitledui, setup mcp, tích hợp mcp, cài đặt mcp.
 
   <example>
   user: "/rune:tarnished plan add dark mode"
@@ -106,7 +107,7 @@ Read `$ARGUMENTS`. Three paths:
 Fast-path keywords: `plan`, `work`, `review`, `brainstorm`, `explore`, `devise`,
 `strive`, `appraise`, `audit`, `arc`, `arc-batch`, `arc-issues`, `arc-hierarchy`,
 `forge`, `mend`, `inspect`, `goldmask`, `elicit`, `rest`, `echoes`, `clean`,
-`ship`, `fix`, `debug`, `cancel`.
+`ship`, `fix`, `debug`, `cancel`, `mcp`, `untitledui`.
 
 **Path C — Natural language** (no keyword match):
 ```
@@ -266,6 +267,17 @@ load [rune-knowledge.md](references/rune-knowledge.md) and provide educational g
 → Read references/rune-knowledge.md for relevant section
 → Read references/skill-catalog.md for details
 → Explain with context from the user's actual codebase
+
+### MCP Integration Guidance
+```
+/rune:tarnished mcp
+/rune:tarnished how to add mcp
+/rune:tarnished setup untitledui
+/rune:tarnished tích hợp mcp
+```
+→ Read references/rune-knowledge.md "MCP Integration" section
+→ For setup: route to `/rune:talisman guide integrations`
+→ For UntitledUI-specific: explain setup + route to talisman guide
 
 ### Troubleshooting
 ```

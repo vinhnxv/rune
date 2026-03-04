@@ -33,7 +33,7 @@ This list reflects the documented schema used by Rune (including default-injecte
 | 24 | `context_monitor` + `context_weaving` | Context management | `enabled`, `warning_threshold`, `glyph_budget`, `offload_threshold`, `pretooluse_guard.enabled` |
 | 25 | `debug` | ACH parallel debugging | `max_investigators`, `timeout_ms`, `model`, `re_triage_rounds`, `echo_on_verdict` |
 | 26 | `plan` | Research & planning config | `verification_patterns[]`, `freshness` (`enabled`, `warn_threshold`, `block_threshold`, `max_commit_distance`), `external_research` (`"always"` / `"auto"` / `"never"`), `research_urls[]` |
-| 27 | `integrations` | MCP tool integrations | `mcp_tools.{namespace}.server_name`, `tools[]`, `phases{}`, `trigger{}`, `skill_binding`, `rules[]`, `metadata{}` |
+| 27 | `integrations` | MCP tool integrations | `mcp_tools.{namespace}.server_name`, `server_version`, `tools[]`, `phases{}`, `trigger{}`, `skill_binding`, `rules[]`, `metadata{}` |
 
 ## Critical Sections (Must-Have)
 
@@ -166,3 +166,89 @@ All 24 phase timeouts (ms):
 | D3 Design Verification | `design_verification` | 300000 |
 | — Bot Review Wait | `bot_review_wait` | 900000 |
 | — PR Comment Resolution | `pr_comment_resolution` | 1200000 |
+
+## MCP Integrations (`integrations.mcp_tools`)
+
+Controls workflow-aware third-party MCP tool routing. Each namespace represents one MCP server integration.
+
+### Configuration Schema
+
+| Key | Type | Required | Description |
+|-----|------|----------|-------------|
+| `server_name` | string | Yes | Must match key in `.mcp.json` |
+| `server_version` | string | No | Semver for schema drift detection (VEIL-EP-002) |
+| `tools[]` | array | Yes | Array of `{ name, category }` objects |
+| `tools[].name` | string | Yes | Tool function name (alphanumeric + underscore/hyphen) |
+| `tools[].category` | string | Yes | One of: `search`, `details`, `compose`, `suggest`, `generate`, `validate` |
+| `phases` | object | Yes | Which Rune phases can use these tools |
+| `phases.devise` | bool | No | Available during planning |
+| `phases.strive` | bool | No | Available during implementation |
+| `phases.forge` | bool | No | Available during enrichment |
+| `phases.appraise` | bool | No | Available during review |
+| `phases.audit` | bool | No | Available during full audit |
+| `phases.arc` | bool | No | Available during arc pipeline (fallback for unset phases) |
+| `skill_binding` | string | No | Companion skill auto-loaded when active |
+| `rules[]` | array | No | Rule file paths injected into agent prompts |
+| `trigger` | object | No | Activation conditions (OR logic within, AND with phase) |
+| `trigger.extensions[]` | array | No | File extensions to match (e.g., `.tsx`) |
+| `trigger.paths[]` | array | No | Path prefixes to match (e.g., `src/components/`) |
+| `trigger.keywords[]` | array | No | Keywords in task description (case-insensitive) |
+| `trigger.always` | bool | No | Override: always active when phase matches |
+| `metadata` | object | No | Discoverability metadata |
+| `metadata.library_name` | string | No | Display name for the library |
+| `metadata.homepage` | string | No | Library documentation URL |
+| `metadata.mcp_endpoint` | string | No | MCP server endpoint URL |
+| `metadata.transport` | string | No | Transport type: `http`, `stdio` |
+| `metadata.auth` | string | No | Auth method: `oauth2.1-pkce`, `api-key`, `none` |
+
+### UntitledUI (Reference Implementation)
+
+UntitledUI is the canonical Level 3 MCP integration with 6 tools, companion skill, and builder protocol:
+
+```yaml
+untitledui:
+  server_name: "untitledui"
+  tools:
+    - { name: "search_components", category: "search" }
+    - { name: "list_components", category: "search" }
+    - { name: "get_component", category: "details" }
+    - { name: "get_component_bundle", category: "details" }
+    - { name: "get_page_templates", category: "search" }
+    - { name: "get_page_template_files", category: "details" }
+  phases:
+    devise: true
+    strive: true
+    forge: true
+    arc: true
+  skill_binding: "untitledui-mcp"
+  trigger:
+    extensions: [".tsx", ".ts", ".jsx"]
+    paths: ["src/components/", "src/pages/"]
+    keywords: ["frontend", "ui", "component"]
+  metadata:
+    library_name: "UntitledUI"
+    homepage: "https://www.untitledui.com"
+    mcp_endpoint: "https://www.untitledui.com/react/api/mcp"
+    transport: "http"
+    auth: "oauth2.1-pkce | api-key | none"
+```
+
+### Activation Pipeline
+
+```
+resolveMCPIntegrations(phase, context)
+  → Gate 1: integrations.mcp_tools exists?
+  → Gate 2: phases[currentPhase] === true?
+  → Gate 3: evaluateTriggers(trigger, context) === true?
+  → All gates pass → integration ACTIVE
+  → buildMCPContextBlock() → inject into agent prompts
+```
+
+### Validation Rules (checked by /rune:talisman audit)
+
+1. `server_name` must exist as key in `.mcp.json`
+2. `tools[].category` must be one of the 6 valid categories
+3. `phases` keys must be valid Rune phases
+4. `skill_binding` skill must exist at plugin or project level
+5. `rules[]` file paths must exist
+6. At least one trigger condition must be configured (or `always: true`)
