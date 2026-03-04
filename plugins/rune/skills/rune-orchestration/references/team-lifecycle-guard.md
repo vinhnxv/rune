@@ -210,13 +210,15 @@ if (allMembers.length > 0) {
 
 // 5. TeamDelete with retry-with-backoff (0s, 5s, 10s)
 const CLEANUP_DELAYS = [0, 5000, 10000]
-let cleanupSucceeded = false
+let cleanupTeamDeleteSucceeded = false
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
-  try { TeamDelete(); cleanupSucceeded = true; break } catch (e) {}
+  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {}
 }
-if (!cleanupSucceeded) {
+// Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+if (!cleanupTeamDeleteSucceeded) {
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamPrefix}-${identifier}/" "$CHOME/tasks/${teamPrefix}-${identifier}/" 2>/dev/null`)
+  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
 ```
 
@@ -289,15 +291,17 @@ if (allMembers.length > 0) {
 // SEC-9 FIX: Re-validate team_name before rm -rf (defense-in-depth — team_name was read from config.json)
 if (!/^[a-zA-Z0-9_-]+$/.test(team_name)) throw new Error(`Invalid team_name: ${team_name}`)
 const CLEANUP_DELAYS = [0, 5000, 10000]
-let cleanupSucceeded = false
+let cleanupTeamDeleteSucceeded = false
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
-  try { TeamDelete(); cleanupSucceeded = true; break } catch (e) {
+  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
     if (attempt === CLEANUP_DELAYS.length - 1) warn(`cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
   }
 }
-if (!cleanupSucceeded) {
+// Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+if (!cleanupTeamDeleteSucceeded) {
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${team_name}/" "$CHOME/tasks/${team_name}/" 2>/dev/null`)
+  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
 ```
 

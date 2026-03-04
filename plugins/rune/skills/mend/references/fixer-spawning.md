@@ -200,6 +200,11 @@ const fixerEntries = inscription.fixers
 const totalWaves = Math.ceil(fixerEntries.length / WAVE_SIZE)
 const perWaveTimeout = Math.floor(innerPollingTimeout / totalWaves)
 
+// Track all spawned fixer names (including wave-based names) for Phase 7 fallback cleanup.
+// When config.json dynamic discovery fails, this array ensures wave-named fixers
+// (e.g., mend-fixer-w1-1, mend-fixer-w2-3) are included in shutdown — not just base names.
+const spawnedFixerNames = []
+
 for (let waveIdx = 0; waveIdx < totalWaves; waveIdx++) {
   const wave = fixerEntries.slice(waveIdx * WAVE_SIZE, (waveIdx + 1) * WAVE_SIZE)
 
@@ -208,6 +213,7 @@ for (let waveIdx = 0; waveIdx < totalWaves; waveIdx++) {
     const fixerName = totalWaves > 1
       ? `mend-fixer-w${waveIdx + 1}-${fixer.name.split('-').pop()}`
       : fixer.name
+    spawnedFixerNames.push(fixerName)
     Agent({
       team_name: "rune-mend-{id}",
       name: fixerName,

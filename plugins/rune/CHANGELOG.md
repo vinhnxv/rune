@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.133.1] - 2026-03-04
+
+### Fixed
+- **Mend Phase 7 cleanup: wave-based fixer name coverage** — Phase 7 cleanup fallback now uses `spawnedFixerNames` from Phase 3 (which includes wave-based names like `mend-fixer-w1-1`, `mend-fixer-w2-3`) instead of base inscription names (`mend-fixer-1`, `mend-fixer-2`). Prevents zombie fixers when `config.json` dynamic discovery fails during wave-based execution (6+ file groups).
+- **QUAL-012 naming in team-lifecycle-guard.md** — Renamed `cleanupSucceeded` → `cleanupTeamDeleteSucceeded` in both the Dynamic Discovery Pattern and Cancel Command Pattern to match CLAUDE.md's 5-component standard cleanup convention.
+- **Missing final `TeamDelete()` in filesystem fallback** — Added `try { TeamDelete() } catch (e) {}` after `rm -rf` in team-lifecycle-guard.md canonical patterns and mend Phase 7 pseudocode. Clears SDK leadership state after filesystem cleanup, preventing "Already leading team" errors on next `TeamCreate`.
+
 ## [1.133.0] - 2026-03-04
 
 ### Added
