@@ -306,6 +306,25 @@ See [brainstorm-phase.md](references/brainstorm-phase.md) for the delegation pro
 
 Read and execute when Phase 0 runs.
 
+### Design System & Builder Discovery (Phase 0.5)
+
+Runs design system and UI builder discovery after Figma URL detection, before Phase 1.
+Zero cost when no design system or builder is detected.
+
+See [design-system-discovery/SKILL.md](../design-system-discovery/SKILL.md) for the full algorithms.
+
+```javascript
+// Phase 0.5: Discover design system and UI builder
+// discoverDesignSystem() and discoverUIBuilder() run in ui-ux-planning-protocol.md Step 1
+// when design_sync_candidate === true or frontend stack is detected.
+
+// When uiBuilder is found, load its companion skill for research context
+if (brainstormContext.ui_builder?.builder_skill) {
+  loadedSkills.push(brainstormContext.ui_builder.builder_skill)
+  // e.g., loads untitledui-mcp skill for conventions and builder protocol knowledge
+}
+```
+
 ### MCP Integration Discovery (Phase 0, conditional)
 
 Resolve active MCP integrations for the `devise` phase. Zero cost when no integrations configured.

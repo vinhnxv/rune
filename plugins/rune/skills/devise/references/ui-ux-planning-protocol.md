@@ -47,9 +47,29 @@ brainstormContext.design_system = {
   profile_loaded: systemProfile !== null,
   component_paths: designSystem?.components?.existing ?? [],
 }
+
+// Discover UI builder MCP — zero-cost when absent
+// See skills/design-system-discovery/SKILL.md → discoverUIBuilder()
+const uiBuilder = discoverUIBuilder(sessionCacheDir, repoRoot)
+// Returns: { builder_skill, builder_mcp, capabilities, conventions, detection_source, confidence }
+// OR null when no builder is detected (pipeline proceeds unchanged)
+
+if (uiBuilder !== null) {
+  // Record builder in brainstorm context for downstream phases
+  brainstormContext.ui_builder = {
+    builder_skill: uiBuilder.builder_skill,    // e.g., "untitledui-mcp"
+    builder_mcp: uiBuilder.builder_mcp,        // e.g., "untitledui"
+    capabilities: uiBuilder.capabilities,       // { search, list, details, bundle, templates }
+    conventions: uiBuilder.conventions,         // Relative path or null
+    detection_source: uiBuilder.detection_source,
+    confidence: uiBuilder.confidence,
+  }
+}
+// When uiBuilder is null, brainstormContext.ui_builder is not set — no injection, no overhead
 ```
 
 **Output**: `brainstormContext.design_system` — used in Steps 2–7 and injected into strive worker prompts.
+`brainstormContext.ui_builder` — set when a UI builder MCP is detected; used in Phase 2 synthesis and strive worker injection.
 
 ## Step 2: Component Inventory (automatic)
 
