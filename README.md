@@ -609,6 +609,52 @@ To disable: set `codex.enabled: false` or remove the `codex` section. Rune auto-
 
 ---
 
+## MCP Tool Integrations (Optional)
+
+Rune supports third-party MCP servers for component libraries and design tools. Declare them in `talisman.yml` and Rune routes them into the right workflow phases automatically.
+
+### UI Builder Protocol (v1.133.0+)
+
+The **UI Builder Protocol** integrates any component library MCP (UntitledUI, shadcn/ui, custom) into Rune's full pipeline — planning, implementation, design sync, and code review:
+
+| Integration Point | What happens |
+|------------------|-------------|
+| `/rune:devise` | Plan includes `ui_builder` frontmatter section + Component Strategy |
+| `/rune:strive` | Workers injected with builder workflow (search → get → customize) |
+| `/rune:design-sync` | Phase 1.5 Component Match: reference code → library search → annotated VSM |
+| `/rune:appraise` | Compliance reviewer generates `DSYS-BLD-*` findings for convention violations |
+
+**UntitledUI** is supported out of the box — register the MCP server and add talisman config. No project skill needed.
+
+**shadcn/ui and custom libraries**: create a builder skill with `builder-protocol` frontmatter.
+
+```yaml
+# .claude/talisman.yml — minimal builder integration
+integrations:
+  mcp_tools:
+    untitledui:
+      server_name: "untitledui"
+      tools:
+        - { name: "search_components", category: "search" }
+        - { name: "get_component", category: "details" }
+      phases: { devise: true, strive: true, arc: true }
+      skill_binding: "untitledui-mcp"   # built-in plugin skill
+      trigger:
+        extensions: [".tsx", ".ts"]
+        keywords: ["ui", "component"]
+        always: false
+```
+
+See [docs/guides/ui-builder-protocol.en.md](docs/guides/ui-builder-protocol.en.md) for the full developer guide.
+
+### MCP Integration Framework (v1.131.0+)
+
+Declarative `integrations.mcp_tools` talisman config routes any MCP tool into the right workflow phases, with trigger conditions, rules injection, and companion skill auto-loading.
+
+See [docs/guides/mcp-integration-spec.en.md](docs/guides/mcp-integration-spec.en.md) for the full spec (3 integration levels, schema reference, trigger system, worked examples).
+
+---
+
 ## Architecture
 
 ```

@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.133.0] - 2026-03-04
+
+### Added
+- **UI Builder Protocol** — Pluggable abstraction layer for component library MCPs (UntitledUI, shadcn/ui, custom). Extends `integrations.mcp_tools` with `builder-protocol` SKILL.md frontmatter to declare capabilities (`search`, `list`, `details`, `bundle`, `templates`, `template_files`) and conventions reference path. Enables `discoverUIBuilder()` auto-detection, plan frontmatter `ui_builder` section, Phase 1.5 Component Match in design-sync, and `DSYS-BLD-*` compliance reviewer findings. Zero-cost when no builder is detected — pipeline unchanged.
+- **`docs/guides/ui-builder-protocol.en.md`** — Developer guide covering: What is the UI Builder Protocol, Creating a Builder Skill (minimal example), Builder Frontmatter Contract (full schema), Capability Interface Reference (6 capabilities), Conventions File Format (size constraints, structure), Testing Your Builder Integration (6 steps), Examples (UntitledUI built-in, shadcn/ui, custom), Troubleshooting, Upgrading from MCP Integration Level 2.
+
+### Changed
+- **README.md** — Added UI Builder Protocol to MCP Tool Integrations section.
+
 ## [1.132.0] - 2026-03-04
 
 ### Added
