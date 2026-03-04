@@ -17,7 +17,7 @@ description: |
   </example>
 user-invocable: true
 allowed-tools:
-  - Task
+  - Agent
   - TaskCreate
   - TaskList
   - TaskUpdate

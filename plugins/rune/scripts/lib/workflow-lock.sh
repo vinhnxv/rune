@@ -171,6 +171,7 @@ rune_release_lock() {
 # Release ALL locks owned by this PID (for arc final cleanup)
 rune_release_all_locks() {
   [[ -d "$LOCK_BASE" ]] || return 0
+  local stored_pid
   # zsh-compat: shopt is bash-only; use setopt localoptions for zsh
   # BACK-011: Save and restore nullglob state to avoid leaking into caller
   if [[ -n "${ZSH_VERSION:-}" ]]; then
@@ -184,7 +185,6 @@ rune_release_all_locks() {
     [[ -d "$lock_dir" ]] || continue
     _rune_lock_safe "$lock_dir" || continue
     [[ -f "$lock_dir/meta.json" ]] || { rm -rf "$lock_dir" 2>/dev/null; continue; }
-    local stored_pid
     stored_pid=$(jq -r '.pid // empty' "$lock_dir/meta.json" 2>/dev/null || true)
     [[ "$stored_pid" == "$PPID" ]] && rm -rf "$lock_dir" 2>/dev/null
   done

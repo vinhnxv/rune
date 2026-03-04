@@ -11,9 +11,12 @@ Usage:
 Requires: PyYAML (pip install pyyaml)
 """
 
+from __future__ import annotations
+
 import json
 import os
 import sys
+from typing import Any
 
 try:
     import yaml
@@ -75,7 +78,7 @@ def build_defaults():
     print(f"OK: wrote {OUTPUT_FILE} ({len(output)} bytes, {len(data)} top-level keys)")
 
 
-def _inject_commented_defaults(data):
+def _inject_commented_defaults(data: dict[str, Any]) -> None:
     """
     Inject defaults for keys that are commented out in the example YAML.
 
@@ -93,7 +96,7 @@ def _inject_commented_defaults(data):
     _inject_remaining_section_defaults(data)
 
 
-def _inject_toplevel_defaults(data):
+def _inject_toplevel_defaults(data: dict[str, Any]) -> None:
     """Inject simple top-level keys with scalar or small dict defaults."""
     if "cost_tier" not in data:
         data["cost_tier"] = "balanced"
@@ -185,7 +188,7 @@ def _inject_goldmask_defaults(data):
         data["goldmask"] = defaults
 
 
-def _validate_goldmask_defaults(goldmask):
+def _validate_goldmask_defaults(goldmask: dict[str, Any]) -> None:
     """Validate goldmask defaults structure integrity."""
     required_keys = {"enabled", "layers", "coordinator_model", "priority_weights"}
     missing = required_keys - set(goldmask.keys())

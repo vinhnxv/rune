@@ -168,7 +168,7 @@ for team in "${stale_teams[@]}"; do
     _has_active_state=false
     if [[ -n "${CWD:-}" ]]; then
       # SEC-009 FIX: Ensure nullglob is active for glob expansion
-      local _prev_nullglob=$(shopt -p nullglob 2>/dev/null || true)
+      _prev_nullglob=$(shopt -p nullglob 2>/dev/null || true)
       shopt -s nullglob 2>/dev/null || true
       for _sf in "${CWD}"/tmp/.rune-*.json; do
         [[ -f "$_sf" ]] || continue
