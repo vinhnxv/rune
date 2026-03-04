@@ -12,24 +12,22 @@ Expected format:
     - Content describing the learning
 """
 
+from __future__ import annotations
+
 import hashlib
 import os
 import re
 import sys
 
-# Type aliases for Python 3.7 compat
-from typing import Dict, List, Optional
-
 VALID_ROLE_RE = re.compile(r'^[a-zA-Z0-9_-]+$')  # SEC-5: role name allowlist
 
 
-def generate_id(role, line_number, file_path):
+def generate_id(role: str, line_number: int, file_path: str) -> str:
     """Generate a deterministic 16-char hex ID for an echo entry.
 
     The ID is a truncated SHA-256 hash of ``role:file_path:line_number``,
     ensuring stable identity across re-indexes.
     """
-    # type: (str, int, str) -> str
     raw = "%s:%s:%d" % (role, file_path, line_number)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
@@ -40,9 +38,8 @@ _HEADER_RE = re.compile(
 _SOURCE_RE = re.compile(r"^\*\*Source\*\*:\s*`?([^`\n]+)`?")
 
 
-def _flush_entry(current_entry, content_lines, entries, file_path):
+def _flush_entry(current_entry: dict | None, content_lines: list[str], entries: list[dict], file_path: str) -> None:
     """Flush a completed entry into the entries list."""
-    # type: (Optional[Dict], List[str], List[Dict], str) -> None
     if current_entry is None:
         return
     current_entry["content"] = "\n".join(content_lines).strip()
@@ -52,9 +49,8 @@ def _flush_entry(current_entry, content_lines, entries, file_path):
         print("WARN: empty entry at %s:%d — skipped" % (file_path, current_entry["line_number"]), file=sys.stderr)
 
 
-def _make_entry(role, header_match, line_num, file_path):
+def _make_entry(role: str, header_match: re.Match, line_num: int, file_path: str) -> dict:
     """Create a new entry dict from a header match."""
-    # type: (str, re.Match, int, str) -> Dict
     return {
         "role": role,
         "layer": header_match.group(1).lower(),
@@ -67,18 +63,17 @@ def _make_entry(role, header_match, line_num, file_path):
     }
 
 
-def parse_memory_file(file_path, role):
+def parse_memory_file(file_path: str, role: str) -> list[dict]:
     """Parse structured echo entries from a role-specific MEMORY.md file."""
-    # type: (str, str) -> List[Dict]
-    entries = []  # type: List[Dict]
+    entries: list[dict] = []
     if not os.path.isfile(file_path):
         return entries
 
     with open(file_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
-    current_entry = None  # type: Optional[Dict]
-    content_lines = []  # type: List[str]
+    current_entry: dict | None = None
+    content_lines: list[str] = []
     prev_line_blank = True  # EDGE-018: treat start-of-file as blank
 
     for i, line in enumerate(lines):
@@ -105,7 +100,7 @@ def parse_memory_file(file_path, role):
     return entries
 
 
-def discover_and_parse(echo_dir):
+def discover_and_parse(echo_dir: str) -> list[dict]:
     """Walk the echoes directory and parse all role MEMORY.md files.
 
     Discovers ``<echo_dir>/<role>/MEMORY.md`` for each valid role
@@ -117,8 +112,7 @@ def discover_and_parse(echo_dir):
     Returns:
         Combined list of entry dicts across all roles.
     """
-    # type: (str) -> List[Dict]
-    all_entries = []  # type: List[Dict]
+    all_entries: list[dict] = []
 
     if not os.path.isdir(echo_dir):
         return all_entries
