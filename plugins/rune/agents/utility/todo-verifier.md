@@ -6,9 +6,12 @@ description: |
   is VALID (real issue) or FALSE_POSITIVE (hallucinated or already fixed).
   Combines flaw-hunter's Hypothesis Protocol with staleness-specific checklist.
 tools: Read, Grep, Glob, Write
+# Edit/Bash intentionally excluded — verifiers should only read and write verdict files
 model: haiku
 maxTurns: 20
 permissionMode: default
+mcpServers:
+  - echo-search
 ---
 
 # Todo Verifier Agent
@@ -50,6 +53,9 @@ For each TODO, follow this checklist:
 ```javascript
 // Don't trust line numbers — they drift over time
 const fileContent = Read(file)
+// extractSnippet: Extract the first code-like token from the description —
+// e.g., a function name, variable, or quoted string. If none found, use the
+// first 40 non-whitespace characters of the description body.
 const snippet = extractSnippet(todo.description)
 const actualLine = fileContent.split('\n').findIndex(l => l.includes(snippet))
 if (actualLine === -1) {

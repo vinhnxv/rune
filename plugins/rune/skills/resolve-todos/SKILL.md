@@ -119,16 +119,21 @@ for (const todo of todos) {
   fileGroups.get(primary)?.push(todo) ?? fileGroups.set(primary, [todo])
 }
 
-// Write inscription.json for hook enforcement
+// Write inscription.json for hook enforcement (includes session isolation fields per Core Rule 11)
 const timestamp = Date.now()
+const configDir = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+const ownerPid = Bash(`echo $PPID`).trim()
 const inscription = {
   workflow: "rune-resolve-todos",
   timestamp: timestamp,
+  config_dir: configDir,
+  owner_pid: ownerPid,
+  session_id: "${CLAUDE_SESSION_ID}",
   verifiers: [],
   fixers: [],
   task_ownership: {}
 }
-Write("tmp/.rune-signals/rune-resolve-todos/inscription.json", JSON.stringify(inscription))
+Write(`tmp/.rune-signals/rune-resolve-todos-${timestamp}/inscription.json`, JSON.stringify(inscription))
 ```
 
 ## Phase 2: Codebase Deep Dive
@@ -137,23 +142,38 @@ Context gathering agents read affected files in parallel. See references for ful
 
 ```javascript
 // Team bootstrap
-TeamCreate({ team_name: `rune-resolve-todos-${timestamp}` })
+const teamName = `rune-resolve-todos-${timestamp}`
+TeamCreate({ team_name: teamName })
 
 // Spawn context gathering agents (Explore, read-only)
+// NOTE: Phase 2 is optional — verifiers in Phase 3 also read files directly.
+// Consider skipping Phase 2 for small batches (< 5 file groups) where the
+// context summary adds marginal value over direct verifier reads.
+let fileIdx = 0
 for (const [file, todos] of fileGroups) {
   if (file === "__unscoped__") continue
   Agent({
     name: `context-${fileIdx}`,
     subagent_type: "Explore",
-    team_name: `rune-resolve-todos-${timestamp}`,
+    team_name: teamName,
     model: "haiku",
     prompt: `Gather context for ${file}. Read the file, identify imports, callers, and existing patterns.`,
     run_in_background: true
   })
+  fileIdx++
 }
 
-// Wait with timeout
-waitForCompletion(teamName, contextTaskCount, { timeoutMs: 180000 })
+// Wait with timeout — uses TaskList-based polling per Core Rule 9.
+// See roundtable-circle/references/monitor-utility.md for the shared polling utility.
+// maxIterations = ceil(timeoutMs / pollIntervalMs) = ceil(180000 / 30000) = 6
+// Per cycle: TaskList() → count completed → check stale → Bash("sleep 30") → repeat
+const contextTaskCount = fileIdx
+waitForCompletion(teamName, contextTaskCount, {
+  timeoutMs: 180_000,
+  pollIntervalMs: 30_000,
+  staleWarnMs: 120_000,
+  label: "Context"
+})
 ```
 
 ## Phase 3: Review Gate (Verify Before Fix)
@@ -163,13 +183,27 @@ waitForCompletion(teamName, contextTaskCount, { timeoutMs: 180000 })
 See [verify-protocol.md](references/verify-protocol.md) for verifier prompts and verdict taxonomy.
 
 ```javascript
-// Spawn verifiers (use custom todo-verifier agent)
+// Build verifier waves — group by file, no two verifiers in same wave share a file
+// See fixer-protocol.md "No-Overlap Wave Invariant" for the wave construction algorithm.
+// Verifier waves use the same algorithm: one verifier per file group per wave.
+const verifierWaves = buildWaves(fileGroups, { maxPerWave: 5 })
+
+// Sanitize TODO bodies before prompt injection (SEC-003: prevent prompt injection)
+// See verify-protocol.md "TODO Body Sanitization" for sanitizeTodoBody() definition.
+const sanitizedTodos = todos.map(t => ({
+  ...t,
+  description: sanitizeTodoBody(t.description).clean
+}))
+
+// Spawn verifiers (modeled after todo-verifier agent — model: haiku, tools: Read, Grep, Glob, Write)
+let fileIdx = 0
 for (const wave of verifierWaves) {
-  for (const [file, todos] of wave) {
+  for (const [file, fileTodos] of wave) {
     Agent({
       name: `verifier-${fileIdx}`,
       subagent_type: "general-purpose",
-      team_name: `rune-resolve-todos-${timestamp}`,
+      team_name: teamName,
+      model: "haiku",
       prompt: `You are todo-verifier. Verify each TODO in ${file}.
 
       Verdict taxonomy: VALID | FALSE_POSITIVE | ALREADY_FIXED | NEEDS_CLARIFICATION | PARTIAL | DUPLICATE | DEFERRED
@@ -179,11 +213,21 @@ for (const wave of verifierWaves) {
       - FALSE_POSITIVE: >= 0.85
       - ALREADY_FIXED: >= 0.80
 
+      TODOs with PARTIAL verdict: fix the unresolved parts. Include partial evidence.
+
       Write verdicts to: tmp/resolve-todos-${timestamp}/verdicts/${basename(file)}.json`,
       run_in_background: true
     })
+    fileIdx++
   }
-  waitForCompletion(teamName, wave.length, { timeoutMs: 300000 })
+  // Wait with TaskList-based polling per Core Rule 9
+  // maxIterations = ceil(300000 / 30000) = 10
+  waitForCompletion(teamName, wave.length, {
+    timeoutMs: 300_000,
+    pollIntervalMs: 30_000,
+    staleWarnMs: 180_000,
+    label: "Verify"
+  })
 }
 ```
 
@@ -192,21 +236,40 @@ for (const wave of verifierWaves) {
 Wave-based fixer agents resolve verified TODOs. See [fixer-protocol.md](references/fixer-protocol.md).
 
 ```javascript
-// Spawn fixers (reuse mend-fixer agent)
+// Build fixer waves — no two fixers in same wave share a file (prevents write conflicts)
+// See fixer-protocol.md "No-Overlap Wave Invariant" for the wave construction algorithm:
+//   1. Group fixers by file → check overlap → assign to wave → defer conflicts to next wave
+const fixerWaves = buildWaves(validFileGroups, { maxPerWave: 5 })
+
+// Spawn fixers (reuse mend-fixer agent pattern)
+// SEC-003: Sanitize TODO descriptions before prompt injection
+let fileIdx = 0
 for (const wave of fixerWaves) {
   for (const [file, validTodos] of wave) {
+    const sanitizedDescriptions = validTodos.map(t => {
+      const { clean } = sanitizeTodoBody(t.description)
+      return `- [${t.issue_id}] ${clean}`
+    }).join('\n')
     Agent({
       name: `fixer-${fileIdx}`,
       subagent_type: "general-purpose",
-      team_name: `rune-resolve-todos-${timestamp}`,
+      team_name: teamName,
       prompt: `Fix the following TODOs in ${file}:
-      ${validTodos.map(t => `- [${t.issue_id}] ${t.description}`).join('\n')}
+      ${sanitizedDescriptions}
 
       Write fix report to: tmp/resolve-todos-${timestamp}/fixes/${basename(file)}.json`,
       run_in_background: true
     })
+    fileIdx++
   }
-  waitForCompletion(teamName, wave.length, { timeoutMs: 300000 })
+  // Wait with TaskList-based polling per Core Rule 9
+  // maxIterations = ceil(300000 / 30000) = 10
+  waitForCompletion(teamName, wave.length, {
+    timeoutMs: 300_000,
+    pollIntervalMs: 30_000,
+    staleWarnMs: 180_000,
+    label: "Fix"
+  })
 }
 ```
 
@@ -229,6 +292,35 @@ for (const cmd of qualityCommands) {
 ## Phase 6: Report & Commit
 
 ```javascript
+// Aggregate results from verdict and fix report files
+const verdictFiles = Glob(`tmp/resolve-todos-${timestamp}/verdicts/*.json`)
+const fixFiles = Glob(`tmp/resolve-todos-${timestamp}/fixes/*.json`)
+
+let validCount = 0, falsePositiveCount = 0, alreadyFixedCount = 0
+let needsClarificationCount = 0, partialCount = 0, duplicateCount = 0, deferredCount = 0
+for (const vf of verdictFiles) {
+  const data = JSON.parse(Read(vf))
+  for (const v of data.verdicts ?? []) {
+    if (v.verdict === "VALID") validCount++
+    else if (v.verdict === "FALSE_POSITIVE") falsePositiveCount++
+    else if (v.verdict === "ALREADY_FIXED") alreadyFixedCount++
+    else if (v.verdict === "NEEDS_CLARIFICATION") needsClarificationCount++
+    else if (v.verdict === "PARTIAL") partialCount++
+    else if (v.verdict === "DUPLICATE") duplicateCount++
+    else if (v.verdict === "DEFERRED") deferredCount++
+  }
+}
+
+let fixedCount = 0, failedCount = 0, skippedCount = 0
+for (const ff of fixFiles) {
+  const data = JSON.parse(Read(ff))
+  for (const f of data.fixes ?? []) {
+    if (f.status === "FIXED") fixedCount++
+    else if (f.status === "FAILED") failedCount++
+    else if (f.status === "SKIPPED") skippedCount++
+  }
+}
+
 const summary = `
 # TODO Resolution Summary
 
@@ -238,33 +330,57 @@ const summary = `
 | Verified VALID | ${validCount} |
 | Successfully FIXED | ${fixedCount} |
 | FALSE POSITIVE | ${falsePositiveCount} |
+| ALREADY FIXED | ${alreadyFixedCount} |
 | FAILED to fix | ${failedCount} |
+| SKIPPED | ${skippedCount} |
+| NEEDS CLARIFICATION | ${needsClarificationCount} |
 `
-Write("tmp/resolve-todos-${timestamp}/summary.md", summary)
+Write(`tmp/resolve-todos-${timestamp}/summary.md`, summary)
 ```
 
 ## Phase 7: Cleanup
 
-```javascript
-// 1. Dynamic member discovery
-const allMembers = teamConfig.members.map(m => m.name).filter(n => /^[a-zA-Z0-9_-]+$/.test(n))
+Standard 5-component cleanup pattern per CLAUDE.md Agent Team Cleanup (QUAL-012).
 
-// 2. Shutdown request to all
+```javascript
+// 1. Dynamic member discovery — read team config for ALL teammates
+const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+let allMembers = []
+try {
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
+  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
+  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+} catch (e) {
+  // FALLBACK: hardcoded list of all known teammate name patterns for this workflow
+  // Safe to send shutdown_request to absent members — no-op
+  allMembers = []
+}
+
+// 2. Shutdown request to all members
 for (const member of allMembers) {
   SendMessage({ type: "shutdown_request", recipient: member, content: "Workflow complete" })
 }
 
-// 3. Grace period
-Bash("sleep 15")
-
-// 4. TeamDelete with retry
-for (const delay of [0, 5000, 10000]) {
-  if (delay > 0) Bash(`sleep ${delay / 1000}`)
-  try { TeamDelete(); break } catch (e) { /* retry */ }
+// 3. Grace period — let teammates deregister before TeamDelete
+if (allMembers.length > 0) {
+  Bash("sleep 15")
 }
 
-// 5. Filesystem fallback if needed
-TeamDelete() // Best effort
+// 4. TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s)
+let cleanupTeamDeleteSucceeded = false
+const CLEANUP_DELAYS = [0, 5000, 10000]
+for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
+  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
+  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
+    if (attempt === CLEANUP_DELAYS.length - 1) warn(`cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
+  }
+}
+
+// 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+if (!cleanupTeamDeleteSucceeded) {
+  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
+  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
+}
 ```
 
 ## Error Handling
