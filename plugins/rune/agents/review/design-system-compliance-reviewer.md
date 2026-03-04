@@ -45,6 +45,36 @@ Design system compliance specialist. Validates that component code adheres to th
 - File organization and naming conventions
 - Accessibility attribute completeness (ARIA, keyboard, focus management)
 
+## Builder Conventions Check (Conditional)
+
+Before reviewing, check if a UI builder is active for this session:
+
+```
+// Step 0: Resolve builder profile (zero overhead when absent)
+builderConventions = null
+builderSkillName = null
+try:
+  // builder-profile.yaml written by discoverUIBuilder() during devise/design-sync
+  builderProfiles = Glob("tmp/*/builder-profile.yaml")  // any workflow's builder profile
+  if builderProfiles.length > 0:
+    builderProfile = Read(builderProfiles[0])  // most recent session
+    if builderProfile.conventions AND builderProfile.builder_skill:
+      // Resolve conventions path relative to skill directory
+      skillDir = Glob("plugins/rune/skills/{builderProfile.builder_skill}/")[0] ??
+                 Glob(".claude/skills/{builderProfile.builder_skill}/")[0]
+      if skillDir:
+        conventionsPath = skillDir + builderProfile.conventions
+        builderConventions = Read(conventionsPath).substring(0, 2000)  // max 2000 chars
+        builderSkillName = builderProfile.builder_skill
+catch:
+  // No builder profile — skip builder convention checks entirely
+```
+
+When `builderConventions !== null`, add to your review context as:
+> **Builder-Specific Conventions** ({builderSkillName}): {builderConventions}
+
+Generate DSYS-BLD-* findings for violations of these builder-specific conventions.
+
 ## Echo Integration (Past Design System Patterns)
 
 Before reviewing, query Rune Echoes for previously identified design system violations:
@@ -350,7 +380,8 @@ Dark mode or theme token usage errors:
 5. [ ] Check **ARIA completeness** — icon buttons labeled, custom controls have role + keyboard
 6. [ ] Verify **file organization** — components in correct directories, naming conventions
 7. [ ] Check **theme integration** — dark mode via semantic tokens, not hardcoded dark: values
-8. [ ] **Apply Hypothesis Protocol** for each finding: form hypothesis → check disconfirming evidence → confirm before flagging
+8. [ ] [When builder active] Check **builder conventions** — import paths, prop patterns, naming rules from builderConventions context. Emit DSYS-BLD-* findings.
+9. [ ] **Apply Hypothesis Protocol** for each finding: form hypothesis → check disconfirming evidence → confirm before flagging
 
 ### Self-Review
 After completing analysis, verify:
@@ -380,6 +411,7 @@ Before writing output file, confirm:
 | Token Violation | DSYS-TOK | P2 | Breaks visual consistency; difficult to maintain at scale |
 | Pattern Violation | DSYS-PAT | P2 | Class conflict risks; prevents safe prop override |
 | Import Convention | DSYS-IMP | P2 | Fragile imports break on refactoring; barrel violations hide dead code |
+| Builder Convention | DSYS-BLD | P2 | Violates library-specific conventions (import paths, prop patterns, naming). Only emitted when builder active. |
 | File Organization | DSYS-ORG | P3 | Convention violation — doesn't block runtime but increases cognitive overhead |
 | Theme Integration | DSYS-THM | P3 | Dark mode issues — visible to users but not always a regression |
 
