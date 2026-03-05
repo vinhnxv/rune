@@ -20,6 +20,7 @@ import re
 import sys
 
 VALID_ROLE_RE = re.compile(r'^[a-zA-Z0-9_-]+$')  # SEC-5: role name allowlist
+ALLOWED_CATEGORIES = {"pattern", "anti-pattern", "decision", "debugging", "general"}
 
 
 def generate_id(role: str, line_number: int, file_path: str) -> str:
@@ -36,6 +37,7 @@ _HEADER_RE = re.compile(
     r"^##\s+(Inscribed|Etched|Traced|Notes|Observations)\s*[\u2014\-\u2013]+\s*(.+?)\s*\((\d{4}-\d{2}-\d{2})\)"
 )
 _SOURCE_RE = re.compile(r"^\*\*Source\*\*:\s*`?([^`\n]+)`?")
+_CATEGORY_RE = re.compile(r"^\*\*Category\*\*:\s*(\S+)")
 
 
 def _flush_entry(current_entry: dict | None, content_lines: list[str], entries: list[dict], file_path: str) -> None:
@@ -56,6 +58,7 @@ def _make_entry(role: str, header_match: re.Match, line_num: int, file_path: str
         "layer": header_match.group(1).lower(),
         "date": header_match.group(3),
         "source": "",
+        "category": "general",
         "content": "",
         "tags": header_match.group(2).strip(),
         "line_number": line_num,
@@ -74,6 +77,7 @@ def parse_memory_file(file_path: str, role: str) -> list[dict]:
 
     current_entry: dict | None = None
     content_lines: list[str] = []
+    in_metadata = False
     prev_line_blank = True  # EDGE-018: treat start-of-file as blank
 
     for i, line in enumerate(lines):
@@ -83,6 +87,7 @@ def parse_memory_file(file_path: str, role: str) -> list[dict]:
             _flush_entry(current_entry, content_lines, entries, file_path)
             current_entry = _make_entry(role, header_match, i + 1, file_path)
             content_lines = []
+            in_metadata = True
             prev_line_blank = False  # header line is non-blank
             continue
         if current_entry is not None:
@@ -90,6 +95,21 @@ def parse_memory_file(file_path: str, role: str) -> list[dict]:
             if source_match and not current_entry["source"]:
                 current_entry["source"] = source_match.group(1).strip()
                 continue  # source lines don't affect blank-line tracking
+            # Only parse category in metadata section (before first ### or content)
+            if in_metadata:
+                category_match = _CATEGORY_RE.match(stripped)
+                if category_match:
+                    raw_category = category_match.group(1).strip().lower()
+                    if raw_category in ALLOWED_CATEGORIES:
+                        current_entry["category"] = raw_category
+                    else:
+                        print("WARN: unknown category '%s' at %s:%d, defaulting to 'general'" % (
+                            raw_category, file_path, i + 1), file=sys.stderr)
+                        current_entry["category"] = "general"
+                    continue
+                # First non-blank, non-source, non-category line → end metadata
+                if stripped.strip() and not stripped.startswith("**"):
+                    in_metadata = False
             content_lines.append(stripped)
         prev_line_blank = stripped.strip() == ""
 
