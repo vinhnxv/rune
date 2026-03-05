@@ -182,6 +182,44 @@ if (Bash(`test -L "${planFile}" && echo "symlink"`).includes("symlink")) {
 }
 ```
 
+## Git Instructions Check (v2.1.69+)
+
+Warn if `includeGitInstructions` is disabled — arc ship/merge phases (23-27) depend on
+built-in git workflow instructions for commit, PR, and merge operations.
+
+```javascript
+// ── GIT INSTRUCTIONS CHECK ──
+// Claude Code 2.1.69 added includeGitInstructions setting and
+// CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS env var. When disabled, the system
+// prompt omits built-in commit/PR workflow instructions — arc's ship and
+// merge phases may fail or produce malformed commits/PRs.
+
+let gitInstructionsDisabled = false
+
+for (const settingsFile of [
+  `${CWD}/.claude/settings.json`,
+  `${CWD}/.claude/settings.local.json`
+]) {
+  try {
+    const settings = JSON.parse(Read(settingsFile))
+    if (settings.includeGitInstructions === false) {
+      gitInstructionsDisabled = true
+      break
+    }
+  } catch (e) { /* file missing or invalid JSON — OK */ }
+}
+
+// Also check env var (takes precedence in Claude Code)
+const envDisabled = Bash('echo "${CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS:-}"').trim()
+if (envDisabled === "1" || envDisabled === "true") {
+  gitInstructionsDisabled = true
+}
+
+if (gitInstructionsDisabled) {
+  warn("includeGitInstructions is disabled — arc ship/merge phases (23-27) may fail without built-in git workflow instructions. Consider re-enabling for arc runs.")
+}
+```
+
 ## Shard Detection (v1.66.0+)
 
 Detect shard plans via filename regex and verify prerequisite shards are complete.
