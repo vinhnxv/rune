@@ -313,6 +313,12 @@ function sendMessage(handle, msg) {
 
 ```javascript
 function shutdown(handle) {
+  // Guard: handle may be null after compaction or fallback failure
+  if (!handle || !handle.teamName) {
+    warn("shutdown() called with null/incomplete handle — skipping")
+    return
+  }
+
   // --- 1. Dynamic member discovery ---
   // Read team config to find ALL teammates (not just those we spawned)
   const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
@@ -379,25 +385,37 @@ Post-shutdown state management. Called after `shutdown()`.
 
 ```javascript
 function cleanup(handle) {
+  // Guard: handle may be null after compaction or fallback failure
+  if (!handle) {
+    warn("cleanup() called with null handle — skipping")
+    return
+  }
+
   // 1. Update state file to completed (preserve session identity fields)
-  try {
-    const state = JSON.parse(Read(handle.stateFile))
-    Write(handle.stateFile, {
-      ...state,
-      status: "completed"
-    })
-  } catch (e) {
-    // Non-blocking — state file may already be cleaned
+  if (handle.stateFile) {
+    try {
+      const state = JSON.parse(Read(handle.stateFile))
+      Write(handle.stateFile, {
+        ...state,
+        status: "completed"
+      })
+    } catch (e) {
+      warn(`cleanup: state file update failed for ${handle.stateFile}: ${e.message}`)
+    }
   }
 
   // 2. Release workflow lock
-  const CWD = Bash(`pwd`).trim()
-  Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "${handle.workflow}"`)
+  if (handle.workflow) {
+    const CWD = Bash(`pwd`).trim()
+    Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "${handle.workflow}"`)
+  }
 
   // 3. Clean up signal directory (non-blocking)
-  try {
-    Bash(`rm -rf "tmp/.rune-signals/${handle.teamName}" 2>/dev/null`)
-  } catch (e) { /* non-blocking */ }
+  if (handle.teamName) {
+    try {
+      Bash(`rm -rf "tmp/.rune-signals/${handle.teamName}" 2>/dev/null`)
+    } catch (e) { /* non-blocking */ }
+  }
 }
 ```
 
@@ -407,6 +425,10 @@ Returns current team status for diagnostics and the `/rune:team-status` command.
 
 ```javascript
 function getStatus(handle) {
+  if (!handle || !handle.teamName) {
+    return { teamName: "unknown", members: [], tasks: [], stateFile: {}, healthy: false }
+  }
+
   const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
 
   // Read team config
