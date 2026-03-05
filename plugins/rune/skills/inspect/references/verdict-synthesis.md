@@ -117,22 +117,36 @@ log("═════════════════════════
 ### Step 7.1-7.2 — Shutdown and TeamDelete
 
 ```javascript
-// Send shutdown to all active teammates
-for (const inspector of Object.keys(inspectorAssignments)) {
-  try {
-    SendMessage({ type: "shutdown_request", recipient: inspector, content: "Inspection complete." })
-  } catch { /* Inspector may have already exited */ }
+// --- 1. Dynamic member discovery (team-sdk standard pattern) ---
+const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+let allMembers = []
+try {
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
+  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
+  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+} catch (e) {
+  // FALLBACK: config.json read failed — use exhaustive list of all possible inspect agents.
+  // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
+  allMembers = [
+    "grace-warden", "ruin-prophet", "sight-oracle", "vigil-keeper",
+    "verdict-binder", "gap-fixer"
+  ]
 }
 
-// Also shutdown verdict-binder if still active
-try {
-  SendMessage({ type: "shutdown_request", recipient: "verdict-binder", content: "Aggregation complete." })
-} catch { /* pass */ }
+// --- 2. Send shutdown_request to all discovered members ---
+for (const member of allMembers) {
+  SendMessage({ type: "shutdown_request", recipient: member, content: "Inspection complete." })
+}
 
-// Grace period — let teammates deregister before TeamDelete
-Bash("sleep 15")
+// --- 3. Grace period — let teammates deregister before TeamDelete ---
+if (allMembers.length > 0) {
+  Bash("sleep 15")
+}
 
-// TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s)
+// --- 4. TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s) ---
+if (!/^[a-zA-Z0-9_-]+$/.test(teamName)) {
+  throw new Error(`Invalid team_name: ${teamName}`)
+}
 const CLEANUP_DELAYS = [0, 5000, 10000]
 let cleanupTeamDeleteSucceeded = false
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
@@ -141,12 +155,9 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
     if (attempt === CLEANUP_DELAYS.length - 1) warn(`inspect cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
   }
 }
-// Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+// --- 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012) ---
 if (!cleanupTeamDeleteSucceeded) {
-  const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
-  if (/^[a-zA-Z0-9_-]+$/.test(teamName)) {
-    Bash(`rm -rf "${CHOME}/teams/${teamName}/" "${CHOME}/tasks/${teamName}/" 2>/dev/null`)
-  }
+  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
 ```

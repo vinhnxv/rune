@@ -27,7 +27,7 @@ function createTeam(config) {
   // Rationale: Members need time to finish current tool call and approve shutdown.
   // 3s covers most cases; 8s covers complex file writes. Total max 11s wait.
   let teamDeleteSucceeded = false
-  const RETRY_DELAYS = config.retryDelays ?? [0, 3000, 8000]
+  const RETRY_DELAYS = config.retryDelays ?? [0, 3000, 8000]  // Faster cadence than shutdown() [0,5s,10s] — pre-create recovery prioritizes speed
   for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
     if (attempt > 0) {
       warn(`teamTransition: TeamDelete attempt ${attempt + 1} failed, retrying in ${RETRY_DELAYS[attempt]/1000}s...`)
@@ -50,6 +50,8 @@ function createTeam(config) {
   if (!teamDeleteSucceeded && !config.skipPreCreateGuard) {
     // Scoped cleanup — only remove THIS team's dirs
     // CHOME: Must use CLAUDE_CONFIG_DIR pattern for multi-account support
+    // SEC-001: Re-validate teamName before rm-rf (defense-in-depth)
+    if (!/^[a-zA-Z0-9_-]+$/.test(teamName)) throw new Error(`Invalid teamName for cleanup: ${teamName}`)
     Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
     try { TeamDelete() } catch (e2) { /* proceed to TeamCreate */ }
   }
@@ -62,6 +64,8 @@ function createTeam(config) {
     if (/already leading/i.test(createError.message)) {
       warn(`teamTransition: Leadership state leak detected. Attempting final cleanup.`)
       try { TeamDelete() } catch (e) { /* exhausted */ }
+      // SEC-001: Re-validate teamName before rm-rf (defense-in-depth)
+      if (!/^[a-zA-Z0-9_-]+$/.test(teamName)) throw new Error(`Invalid teamName for cleanup: ${teamName}`)
       Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
       try {
         TeamCreate({ team_name: teamName })
@@ -84,8 +88,12 @@ function createTeam(config) {
   // CRITICAL: This state file activates the ATE-1 hook (enforce-teams.sh) which blocks
   // bare Agent calls without team_name. Without this file, agents spawn as local subagents
   // instead of Agent Team teammates, causing context explosion.
+  // IMPORTANT: Steps 4-6 must complete atomically before any Agent() calls.
+  // spawnAgent() is only called after createTeam() returns, so this race
+  // does not manifest for SDK-mediated workflows.
   const configDir = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
   const ownerPid = Bash(`echo $PPID`).trim()
+  const sessionId = Bash(`echo "\${CLAUDE_SESSION_ID:-}"`).trim()
   const stateFile = `${stateFilePrefix}-${identifier}.json`
 
   Write(stateFile, {
@@ -94,7 +102,7 @@ function createTeam(config) {
     status: "active",
     config_dir: configDir,
     owner_pid: ownerPid,
-    session_id: "${CLAUDE_SESSION_ID}",
+    session_id: sessionId,
     ...metadata
   })
 
@@ -104,7 +112,7 @@ function createTeam(config) {
     identifier,
     configDir,
     ownerPid,
-    sessionId: "${CLAUDE_SESSION_ID}",
+    sessionId,
     stateFile,
     createdAt: new Date().toISOString(),
     spawnedAgents: []  // Populated by spawnAgent/spawnWave
@@ -135,6 +143,8 @@ function ensureTeam(config) {
       try {
         const state = JSON.parse(Read(stateFile))
         if (state.status === "active" && state.owner_pid === Bash(`echo $PPID`).trim()) {
+          // Note: PID reuse within a single session's lifetime is astronomically unlikely.
+          // Adding session_id as a secondary check would close this theoretical gap.
           // Our team, our session — recover handle
           return {
             teamName: config.teamName,
@@ -475,6 +485,8 @@ function cleanup(handle) {
   }
 
   // 2. Release workflow lock
+  // Assumes CWD is project root — stable in Claude Code sessions.
+  // After compaction recovery, CWD could theoretically differ.
   if (handle.workflow) {
     const CWD = Bash(`pwd`).trim()
     Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "${handle.workflow}"`)

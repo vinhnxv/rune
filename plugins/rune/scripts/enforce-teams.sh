@@ -51,14 +51,20 @@ _rune_fail_closed() {
 }
 trap '_rune_fail_closed' ERR
 
+INPUT=$(head -c 1048576 2>/dev/null || true)  # SEC-2: 1MB cap to prevent unbounded stdin read
+
+# VEIL-002 FIX: grep-based fast-path BEFORE jq availability check.
+# If the input contains "team_name", the Agent/Task call already has what we need — allow it.
+if printf '%s' "$INPUT" | grep -q '"team_name"'; then
+  exit 0
+fi
+
 # Pre-flight: jq is required for JSON parsing.
 # If missing, exit 2 (fail-closed) — consistent with _rune_fail_closed ERR trap.
 if ! command -v jq &>/dev/null; then
   echo "ERROR: jq not found — enforce-teams.sh requires jq (fail-closed)" >&2
   exit 2
 fi
-
-INPUT=$(head -c 1048576 2>/dev/null || true)  # SEC-2: 1MB cap to prevent unbounded stdin read
 
 # Fast path: if caller is team-lead (not subagent), check for team_name in input.
 # Team leads MUST also use team_name — this is the whole point of ATE-1.
@@ -91,7 +97,8 @@ if [[ -z "$CWD" || "$CWD" != /* ]]; then exit 0; fi
 # STALENESS GUARD (v1.61.0): Skip files older than 30 minutes (mtime-based).
 # Stale checkpoints from crashed/interrupted sessions should not block new work.
 # Mirrors the 30-min threshold from enforce-team-lifecycle.sh (TLC-001).
-STALE_THRESHOLD_MIN=30
+# 120 min — longer than TLC-001 (30 min) to support long-running arc phases
+STALE_THRESHOLD_MIN=120
 active_workflow=""
 detected_team_name=""   # team name inferred from non-state-file signals
 detected_source=""      # which signal triggered detection (state-file|inscription|signal-dir|agent-name)
@@ -150,6 +157,7 @@ if [[ -z "$active_workflow" ]]; then
            "${CWD}"/tmp/.rune-forge-*.json "${CWD}"/tmp/.rune-goldmask-*.json \
            "${CWD}"/tmp/.rune-brainstorm-*.json; do
     # Skip files older than STALE_THRESHOLD_MIN minutes
+    # PERF: per-file `find -maxdepth 0 -mmin` is O(n) but safe; batch find risks glob/ownership edge cases
     if [[ -f "$f" ]] && find "$f" -maxdepth 0 -mmin -${STALE_THRESHOLD_MIN} -print -quit 2>/dev/null | grep -q . && jq -e '.status == "active"' "$f" &>/dev/null; then
       # ── Ownership filter: skip state files from other sessions ──
       stored_cfg=$(jq -r '.config_dir // empty' "$f" 2>/dev/null || true)
@@ -190,13 +198,27 @@ if [[ -z "$active_workflow" ]]; then
         CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
         session_file="${CHOME}/teams/${local_team}/.session"
         if [[ -f "$session_file" ]]; then
-          stored_sid=$(cat "$session_file" 2>/dev/null || true)
+          stored_sid=$(head -c 128 "$session_file" 2>/dev/null || true)
           # CDX-GAP-001 FIX: Compare session marker to current session
           # Skip if session marker exists but belongs to different session
           # (stamp-team-session.sh writes this via PostToolUse:TeamCreate)
-          current_sid=$(echo "${CLAUDE_SESSION_ID:-}" | head -c 64)
+          current_sid=$(printf '%s' "${CLAUDE_SESSION_ID:-}" | head -c 64)
+          # SEC-002: Validate session ID format
+          [[ -z "$current_sid" || "$current_sid" =~ ^[a-zA-Z0-9_-]+$ ]] || current_sid=""
           if [[ -n "$stored_sid" && -n "$current_sid" && "$stored_sid" != "$current_sid" ]]; then
             continue  # Different session — skip this inscription
+          fi
+          # VEIL-001 FIX: When both SIDs are empty, session identity is unknown —
+          # fall back to PPID-based ownership check instead of treating as "ours"
+          if [[ -z "$stored_sid" && -z "$current_sid" ]]; then
+            # Cannot verify session ownership — check if team config has owner_pid
+            local_team_cfg="${CHOME}/teams/${local_team}/config.json"
+            if [[ -f "$local_team_cfg" ]]; then
+              team_owner_pid=$(jq -r '.members[0].pid // empty' "$local_team_cfg" 2>/dev/null || true)
+              if [[ -n "$team_owner_pid" && "$team_owner_pid" =~ ^[0-9]+$ && "$team_owner_pid" != "$PPID" ]]; then
+                rune_pid_alive "$team_owner_pid" && continue  # alive = different session
+              fi
+            fi
           fi
         fi
         active_workflow=1
@@ -223,10 +245,22 @@ if [[ -z "$active_workflow" ]]; then
         CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
         sig_session_file="${CHOME}/teams/${local_team}/.session"
         if [[ -f "$sig_session_file" ]]; then
-          sig_stored_sid=$(cat "$sig_session_file" 2>/dev/null || true)
-          sig_current_sid=$(echo "${CLAUDE_SESSION_ID:-}" | head -c 64)
+          sig_stored_sid=$(head -c 128 "$sig_session_file" 2>/dev/null || true)
+          sig_current_sid=$(printf '%s' "${CLAUDE_SESSION_ID:-}" | head -c 64)
+          # SEC-002: Validate session ID format
+          [[ -z "$sig_current_sid" || "$sig_current_sid" =~ ^[a-zA-Z0-9_-]+$ ]] || sig_current_sid=""
           if [[ -n "$sig_stored_sid" && -n "$sig_current_sid" && "$sig_stored_sid" != "$sig_current_sid" ]]; then
             continue  # Different session — skip this signal dir
+          fi
+          # VEIL-001 FIX: When both SIDs are empty, fall back to PPID-based ownership
+          if [[ -z "$sig_stored_sid" && -z "$sig_current_sid" ]]; then
+            sig_team_cfg="${CHOME}/teams/${local_team}/config.json"
+            if [[ -f "$sig_team_cfg" ]]; then
+              sig_team_owner_pid=$(jq -r '.members[0].pid // empty' "$sig_team_cfg" 2>/dev/null || true)
+              if [[ -n "$sig_team_owner_pid" && "$sig_team_owner_pid" =~ ^[0-9]+$ && "$sig_team_owner_pid" != "$PPID" ]]; then
+                rune_pid_alive "$sig_team_owner_pid" && continue  # alive = different session
+              fi
+            fi
           fi
         fi
         active_workflow=1
@@ -306,6 +340,9 @@ elif [[ -n "${AGENT_NAME:-}" ]]; then
       WORKFLOW_TYPE="unknown" ;;
   esac
 fi
+
+# SEC-004: Validate detected_team_name before use in recovery message
+[[ -z "$detected_team_name" || "$detected_team_name" =~ ^[a-zA-Z0-9_-]+$ ]] || detected_team_name=""
 
 # Build recovery JSON with exact commands
 RECOVERY_STEPS="Step 1: TeamCreate({ team_name: '${SUGGESTED_TEAM:-rune-WORKFLOW-TIMESTAMP}' }). Step 2: Write state file: Write('tmp/.rune-WORKFLOW-ID.json', { team_name: '...', status: 'active', config_dir: configDir, owner_pid: ownerPid, session_id: sessionId }). Step 3: Retry Agent() with team_name parameter."

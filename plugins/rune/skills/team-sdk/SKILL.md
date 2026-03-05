@@ -124,7 +124,7 @@ Same `config` input as `createTeam()`. See [engines.md](references/engines.md) f
 
 #### spawnAgent(handle, spec) -> AgentRef
 
-Spawns a single teammate into the existing team. Creates a task via `TaskCreate`, then spawns via `Agent` with `team_name` (ATE-1 compliant).
+Spawns a single teammate into the existing team. Creates a task via `TaskCreate`, then spawns via `Agent` with `team_name` (ATE-1 compliant). Accepts either a TeamHandle (from createTeam/ensureTeam) or a config object for auto-bootstrap (calls ensureTeam internally).
 
 ```
 spec: {
@@ -149,7 +149,7 @@ AgentRef: {
 
 #### spawnWave(handle, specs) -> AgentRef[]
 
-Batch spawns multiple agents for wave-based execution. Calls `spawnAgent` for each spec in parallel. Returns array of AgentRefs for monitoring.
+Batch spawns multiple agents for wave-based execution. Calls `spawnAgent` for each spec in parallel. Returns array of AgentRefs for monitoring. Accepts either a TeamHandle (from createTeam/ensureTeam) or a config object for auto-bootstrap (calls ensureTeam internally).
 
 ```
 specs: AgentSpec[]          // Array of spawnAgent specs
@@ -358,9 +358,8 @@ Some workflows need to override default teamTransition behavior:
 
 ## References
 
-- [engines.md](references/engines.md) — Full TeamEngine implementation with all 9 methods (includes ensureTeam)
+- [engines.md](references/engines.md) — Full TeamEngine implementation with all 10 methods, teamTransition protocol, and cleanup patterns (canonical reference, consolidated from team-lifecycle-guard.md)
 - [protocols.md](references/protocols.md) — Session isolation, workflow lock, signal detection, handle serialization
 - [presets.md](references/presets.md) — Per-workflow preset configurations
 - [monitoring.md](references/monitoring.md) — Monitoring patterns, signal checks, per-command config table
-- [engines.md](references/engines.md) — teamTransition protocol and cleanup patterns (canonical reference, consolidated from team-lifecycle-guard.md)
 - [monitor-utility.md](../roundtable-circle/references/monitor-utility.md) — Shared waitForCompletion polling utility
