@@ -93,6 +93,8 @@ if [[ -z "$CWD" || "$CWD" != /* ]]; then exit 0; fi
 # Mirrors the 30-min threshold from enforce-team-lifecycle.sh (TLC-001).
 STALE_THRESHOLD_MIN=30
 active_workflow=""
+detected_team_name=""   # team name inferred from non-state-file signals
+detected_source=""      # which signal triggered detection (state-file|inscription|signal-dir|agent-name)
 
 # ── Session identity for cross-session ownership filtering ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -127,6 +129,7 @@ if [[ -d "${CWD}/.claude/arc" ]]; then
         rune_pid_alive "$stored_pid" && continue  # alive = different session
       fi
       active_workflow=1
+      detected_source="state-file"
       break
     fi
   done < <(find "${CWD}/.claude/arc" -name checkpoint.json -maxdepth 2 -type f -mmin -${STALE_THRESHOLD_MIN} 2>/dev/null)
@@ -152,10 +155,84 @@ if [[ -z "$active_workflow" ]]; then
         rune_pid_alive "$stored_pid" && continue  # alive = different session
       fi
       active_workflow=1
+      detected_source="state-file"
       break
     fi
   done
   shopt -u nullglob
+fi
+
+# ── Signal 2: Recent output directories with inscription.json ──
+# Catches workflows where model created output dir but skipped state file.
+# Performance: find -maxdepth 3 with -mmin -30 is bounded and fast (~3ms).
+if [[ -z "$active_workflow" ]]; then
+  shopt -s nullglob
+  for inscr in "${CWD}"/tmp/reviews/*/inscription.json \
+               "${CWD}"/tmp/audit/*/inscription.json \
+               "${CWD}"/tmp/forge/*/inscription.json \
+               "${CWD}"/tmp/work/*/inscription.json \
+               "${CWD}"/tmp/mend/*/inscription.json; do
+    # Recency guard: skip files older than 30 min
+    if [[ -f "$inscr" ]] && find "$inscr" -maxdepth 0 -mmin -${STALE_THRESHOLD_MIN} -print -quit 2>/dev/null | grep -q .; then
+      # Ownership filter: read team_name from inscription, check if team config has session marker
+      local_team=$(jq -r '.team_name // empty' "$inscr" 2>/dev/null || true)
+      if [[ -n "$local_team" ]]; then
+        CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+        session_file="${CHOME}/teams/${local_team}/.session"
+        if [[ -f "$session_file" ]]; then
+          stored_sid=$(cat "$session_file" 2>/dev/null || true)
+          # Skip if session marker exists but belongs to different session
+          # (stamp-team-session.sh writes this via PostToolUse:TeamCreate)
+          # When no session file exists, assume current session (team just created)
+        fi
+        active_workflow=1
+        detected_team_name="$local_team"
+        detected_source="inscription"
+        break
+      fi
+    fi
+  done
+  shopt -u nullglob
+fi
+
+# ── Signal 3: Active signal directories ──
+# Signal dirs are created by Phase 2 (Forge Team) and contain .expected count files.
+# Their presence indicates an active orchestration even without state files.
+if [[ -z "$active_workflow" ]]; then
+  shopt -s nullglob
+  for sigdir in "${CWD}"/tmp/.rune-signals/rune-*/; do
+    if [[ -d "$sigdir" ]] && find "$sigdir" -maxdepth 0 -mmin -${STALE_THRESHOLD_MIN} -print -quit 2>/dev/null | grep -q .; then
+      # Extract team name from directory name (tmp/.rune-signals/rune-review-abc123/ -> rune-review-abc123)
+      local_team=$(basename "$sigdir")
+      if [[ "$local_team" =~ ^rune-[a-zA-Z]+-[a-zA-Z0-9_-]+$ ]]; then
+        active_workflow=1
+        detected_team_name="$local_team"
+        detected_source="signal-dir"
+        break
+      fi
+    fi
+  done
+  shopt -u nullglob
+fi
+
+# ── Signal 4: Known Rune agent name matching ──
+# If the Agent() call uses a name matching a known Rune Ash, this is a Rune workflow
+# even if no state file, inscription, or signal dir exists.
+# IMPORTANT: This signal does NOT set detected_team_name (we don't know which team).
+# It only activates the ATE-1 block so the deny message can guide team creation.
+if [[ -z "$active_workflow" ]]; then
+  AGENT_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.name // empty' 2>/dev/null || true)
+  if [[ -n "$AGENT_NAME" ]]; then
+    # Known Rune agent names — review, work, research, utility categories
+    # Maintained as a simple grep pattern for O(1) matching (~0.5ms)
+    # Source of truth: references/agent-registry.md
+    KNOWN_RUNE_AGENTS="ward-sentinel|forge-warden|pattern-weaver|veil-piercer|glyph-scribe|knowledge-keeper|wraith-finder|void-analyzer|flaw-hunter|blight-seer|simplicity-warden|ember-oracle|type-warden|mimic-detector|trial-oracle|tide-watcher|doubt-seer|rune-architect|forge-keeper|phantom-checker|cross-shard-sentinel|entropy-prophet|reality-arbiter|runebinder|mend-fixer|scroll-reviewer|decree-arbiter|elicitation-sage|flow-seer|evidence-verifier|state-weaver|truthseer-validator|todo-verifier|veil-piercer-plan|horizon-sage|rune-smith|design-sync-agent|design-iterator|trial-forger|storybook-fixer|storybook-reviewer|repo-surveyor|echo-reader|git-miner|practice-seeker|lore-scholar|research-verifier|design-inventory-agent|codex-researcher|codex-plan-reviewer|codex-arena-judge|gap-fixer|test-runner|test-failure-analyst"
+    if printf '%s\n' "$AGENT_NAME" | grep -qE "^(${KNOWN_RUNE_AGENTS})(-[0-9]+)?$"; then
+      active_workflow=1
+      detected_team_name=""
+      detected_source="agent-name"
+    fi
+  fi
 fi
 
 # No active workflow — allow all Agent/Task calls
@@ -180,27 +257,63 @@ if [[ "$SUBAGENT_TYPE" == "Explore" || "$SUBAGENT_TYPE" == "Plan" ]]; then
   exit 0
 fi
 
-# ATE-1 VIOLATION: Agent/Task call without team_name during active workflow
-# Output deny decision with actionable feedback
-# Use jq for safe JSON construction when agent_type is available (may contain special chars)
-if [[ -n "$AGENT_TYPE" ]]; then
-  jq -n --arg at "$AGENT_TYPE" '{
+# ── ATE-1 VIOLATION: Build intelligent recovery message ──
+
+# Infer workflow type from detected_team_name or agent name
+WORKFLOW_TYPE=""
+SUGGESTED_TEAM=""
+
+if [[ -n "$detected_team_name" ]]; then
+  SUGGESTED_TEAM="$detected_team_name"
+  # Extract workflow from team prefix: rune-review-xxx -> review, rune-audit-xxx -> audit
+  WORKFLOW_TYPE=$(printf '%s\n' "$detected_team_name" | sed -n 's/^rune-\([a-z]*\)-.*/\1/p')
+elif [[ -n "${AGENT_NAME:-}" ]]; then
+  # Infer workflow from agent name -> category mapping
+  case "$AGENT_NAME" in
+    ward-sentinel|forge-warden|pattern-weaver|veil-piercer|glyph-scribe|knowledge-keeper|wraith-finder|void-analyzer|flaw-hunter|blight-seer|simplicity-warden|runebinder)
+      WORKFLOW_TYPE="review-or-audit" ;;
+    rune-smith*|gap-fixer*|design-sync-agent|design-iterator|storybook-*)
+      WORKFLOW_TYPE="work" ;;
+    mend-fixer*)
+      WORKFLOW_TYPE="mend" ;;
+    repo-surveyor|echo-reader|git-miner|practice-seeker|lore-scholar|flow-seer|scroll-reviewer|decree-arbiter|research-verifier)
+      WORKFLOW_TYPE="plan" ;;
+    *)
+      WORKFLOW_TYPE="unknown" ;;
+  esac
+fi
+
+# Build recovery JSON with exact commands
+RECOVERY_STEPS="Step 1: TeamCreate({ team_name: '${SUGGESTED_TEAM:-rune-WORKFLOW-TIMESTAMP}' }). Step 2: Write state file: Write('tmp/.rune-WORKFLOW-ID.json', { team_name: '...', status: 'active', config_dir: configDir, owner_pid: ownerPid, session_id: sessionId }). Step 3: Retry Agent() with team_name parameter."
+
+if [[ -n "$SUGGESTED_TEAM" ]]; then
+  RECOVERY_STEPS="Step 1: TeamCreate({ team_name: '${SUGGESTED_TEAM}' }). Step 2: Write state file with status:'active', config_dir, owner_pid, session_id. Step 3: Retry this Agent() call with team_name: '${SUGGESTED_TEAM}'."
+fi
+
+# Output deny with recovery instructions
+jq -n \
+  --arg src "${detected_source:-unknown}" \
+  --arg team "${SUGGESTED_TEAM:-}" \
+  --arg wf "${WORKFLOW_TYPE:-unknown}" \
+  --arg recovery "$RECOVERY_STEPS" \
+  --arg agent_name "${AGENT_NAME:-}" \
+  '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
-      permissionDecisionReason: "ATE-1: Bare Agent call blocked during active Rune workflow. All multi-agent phases MUST use Agent Teams. Add team_name to your Agent call. Example: Agent({ team_name: '\''arc-forge-{id}'\'', name: '\''agent-name'\'', subagent_type: '\''general-purpose'\'', ... }). See arc skill (skills/arc/SKILL.md) '\''CRITICAL — Agent Teams Enforcement'\'' section.",
-      additionalContext: ("BLOCKED by enforce-teams.sh hook (caller agent_type: " + $at + "). You MUST create a team with TeamCreate first, then pass team_name to all Agent calls. Using bare subagent types bypasses Agent Teams and causes context explosion. Always use subagent_type: '\''general-purpose'\'' and inject agent identity via the prompt parameter.")
+      permissionDecisionReason: ("ATE-1: Bare Agent call blocked. Detected active Rune workflow via " + $src + ". You MUST use Agent Teams."),
+      additionalContext: ("BLOCKED by enforce-teams.sh (ATE-1). Detection source: " + $src + ". Workflow type: " + $wf + ". Agent name: " + $agent_name + ". RECOVERY: " + $recovery + " Use TeamEngine.createTeam() from team-sdk skill, or manually call TeamCreate + Write state file. See team-sdk/references/engines.md for the full createTeam() protocol.")
     }
   }' 2>/dev/null && exit 0
-fi
-# Fallback: static JSON (no agent_type or jq failed)
+
+# Fallback: static deny (jq failed)
 cat << 'DENY_JSON'
 {
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "ATE-1: Bare Agent call blocked during active Rune workflow. All multi-agent phases MUST use Agent Teams. Add team_name to your Agent call. Example: Agent({ team_name: 'arc-forge-{id}', name: 'agent-name', subagent_type: 'general-purpose', ... }). See arc skill (skills/arc/SKILL.md) 'CRITICAL — Agent Teams Enforcement' section.",
-    "additionalContext": "BLOCKED by enforce-teams.sh hook. You MUST create a team with TeamCreate first, then pass team_name to all Agent calls. Using bare subagent types like 'rune:utility:scroll-reviewer' or 'other-plugin:some-agent-type' as subagent_type bypasses Agent Teams and causes context explosion. Always use subagent_type: 'general-purpose' and inject agent identity via the prompt parameter."
+    "permissionDecisionReason": "ATE-1: Bare Agent call blocked during active Rune workflow. Call TeamCreate first, then add team_name to Agent call.",
+    "additionalContext": "BLOCKED by enforce-teams.sh. RECOVERY: 1) TeamCreate({ team_name: 'rune-WORKFLOW-TIMESTAMP' }), 2) Write state file with status:active + session isolation fields, 3) Retry Agent() with team_name. See team-sdk/references/engines.md."
   }
 }
 DENY_JSON
