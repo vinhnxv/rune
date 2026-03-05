@@ -103,11 +103,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
   source "${SCRIPT_DIR}/resolve-session-identity.sh"
 else
-  # File missing — log warning and set safe defaults
-  printf '[%s] enforce-teams.sh: resolve-session-identity.sh not found at %s — ownership filtering disabled\n' \
+  # FLAW-007 FIX: Fail-closed when identity script is missing.
+  # Previous behavior: rune_pid_alive() { return 1; } treated ALL PIDs as dead,
+  # causing ALL state files to be processed regardless of ownership — cross-session interference.
+  # Now: deny the tool call so the user sees a clear error instead of silent mis-ownership.
+  printf '[%s] enforce-teams.sh: CRITICAL — resolve-session-identity.sh not found at %s\n' \
     "$(date +%H:%M:%S 2>/dev/null || true)" "${SCRIPT_DIR}" >&2
-  RUNE_CURRENT_CFG=""
-  rune_pid_alive() { return 1; }  # treat all PIDs as dead (conservative: own everything)
+  printf 'Session ownership filtering unavailable — blocking to prevent cross-session interference.\n' >&2
+  exit 2
 fi
 
 # Check arc checkpoints (skip stale files older than STALE_THRESHOLD_MIN)
