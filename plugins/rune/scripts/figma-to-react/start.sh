@@ -18,7 +18,7 @@ if ! python3 -c "import mcp; import httpx; import pydantic" 2>/dev/null; then
     REQUIREMENTS="$SCRIPT_DIR/requirements.txt"
     if [ -f "$REQUIREMENTS" ]; then
         echo "Installing figma-to-react dependencies..." >&2
-        python3 -m pip install -r "$REQUIREMENTS" >&2
+        python3 -m pip install -r "$REQUIREMENTS" --break-system-packages >&2
     else
         echo "Error: Missing dependencies and no requirements.txt found" >&2
         exit 1

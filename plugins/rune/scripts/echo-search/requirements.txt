@@ -1,0 +1,2 @@
+# Echo Search MCP Server dependencies
+mcp[cli]>=1.2.0
