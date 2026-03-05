@@ -103,8 +103,29 @@ function getTodoStatus(todoId, todoBases) {
   return undefined  // dep not found — treat as incomplete
 }
 
+// Detect circular dependencies before filtering (warn, don't deadlock)
+const depGraph = new Map()
+for (const todo of todos) {
+  if (todo.dependencies?.length > 0) depGraph.set(todo.id, todo.dependencies)
+}
+function hasCycle(id, visited = new Set(), stack = new Set()) {
+  visited.add(id); stack.add(id)
+  for (const dep of depGraph.get(id) ?? []) {
+    if (!visited.has(dep) && hasCycle(dep, visited, stack)) return true
+    if (stack.has(dep)) return true
+  }
+  stack.delete(id); return false
+}
+for (const id of depGraph.keys()) {
+  if (hasCycle(id)) {
+    warn(`Circular dependency detected involving TODO ${id} — excluding from resolution`)
+  }
+}
+
 const readyTodos = todos.filter(todo => {
   if (!todo.dependencies || todo.dependencies.length === 0) return true
+  // Skip TODOs involved in circular dependencies
+  if (hasCycle(todo.id)) return false
   return todo.dependencies.every(dep => {
     return getTodoStatus(dep, todoBases) === "complete"
   })

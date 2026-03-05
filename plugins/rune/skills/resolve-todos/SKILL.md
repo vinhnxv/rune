@@ -125,6 +125,18 @@ for (const todo of todos) {
   fileGroups.get(primary)?.push(todo) ?? fileGroups.set(primary, [todo])
 }
 
+// Handle __unscoped__ TODOs: these have no target file and cannot be processed by fixers.
+// Report them separately and exclude from downstream phases.
+const unscopedTodos = fileGroups.get("__unscoped__") ?? []
+if (unscopedTodos.length > 0) {
+  warn(`${unscopedTodos.length} TODO(s) have no target file — excluded from resolution.`)
+  for (const todo of unscopedTodos) {
+    todo.verdict = "NEEDS_CLARIFICATION"
+    todo.verdict_reason = "TODO has no target file specified"
+  }
+  fileGroups.delete("__unscoped__")
+}
+
 // Write inscription.json for hook enforcement (includes session isolation fields per Core Rule 11)
 const timestamp = Date.now()
 const configDir = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
@@ -176,6 +188,8 @@ for (const [file, fileTodos] of fileGroups) {
     name: `context-${fileIdx}`,
     subagent_type: "Explore",
     team_name: teamName,
+    // Haiku pinned: context gathering is mechanical (read + list imports). Cost-tier override
+    // not applied here because Explore agents don't benefit from higher-capability models.
     model: "haiku",
     prompt: `Gather context for ${file}. Read the file, identify imports, callers, and existing patterns.`,
     run_in_background: true
@@ -188,6 +202,7 @@ for (const [file, fileTodos] of fileGroups) {
 // maxIterations = ceil(timeoutMs / pollIntervalMs) = ceil(180000 / 30000) = 6
 // Per cycle: TaskList() → count completed → check stale → Bash("sleep 30") → repeat
 const contextTaskCount = fileIdx
+// Context gathering is read-only (no analysis) → shorter 3 min timeout
 waitForCompletion(teamName, contextTaskCount, {
   timeoutMs: 180_000,
   pollIntervalMs: 30_000,
@@ -259,6 +274,7 @@ for (const wave of verifierWaves) {
   totalVerifiersSpawned += waveSize
   // waitForCompletion(): See polling-guard skill for definition.
   // Count arg is CUMULATIVE (total completed tasks to wait for across team).
+  // Verification requires code analysis → longer 5 min timeout
   // Count is CUMULATIVE across all phases: context agents + verifiers spawned so far
   waitForCompletion(teamName, contextTaskCount + totalVerifiersSpawned, {
     timeoutMs: 300_000,
@@ -285,6 +301,11 @@ for (const [file, fileTodos] of fileGroups) {
     // Verifier crashed or wrote malformed JSON — treat all TODOs in this group
     // as NEEDS_CLARIFICATION so they are not silently dropped
     warn(`Verdict file missing or malformed for ${file} — marking as NEEDS_CLARIFICATION`)
+    // Track for Phase 6 report (not silently dropped)
+    for (const t of fileTodos) {
+      t.verdict = "NEEDS_CLARIFICATION"
+      t.verdict_reason = "Verifier crashed or wrote malformed JSON"
+    }
     continue
   }
   const validTodos = fileTodos.filter(t => {

@@ -116,6 +116,38 @@ if (todos.length > MAX_TODOS_PER_FIXER) {
 }
 ```
 
+## buildWaves() Function Definition
+
+Constructs sequential waves of file groups, ensuring no two agents in the same wave share a file.
+Returns `Array<Map<file, todos[]>>`. Each wave has at most `maxPerWave` entries.
+
+```javascript
+function buildWaves(fileGroups, { maxPerWave = 5 }) {
+  const waves = []
+  const entries = [...fileGroups.entries()]
+
+  for (const [file, todos] of entries) {
+    let placed = false
+    for (const wave of waves) {
+      // Check capacity and file uniqueness
+      if (wave.size < maxPerWave && !wave.has(file)) {
+        wave.set(file, todos)
+        placed = true
+        break
+      }
+    }
+    if (!placed) {
+      const newWave = new Map([[file, todos]])
+      waves.push(newWave)
+    }
+  }
+
+  return waves  // Array<Map<string, Todo[]>>
+}
+```
+
+**Note**: Since Phase 1 groups all TODOs for a file into one entry, the no-overlap invariant is trivially satisfied — each file appears in exactly one entry. Waves only matter when `fileGroups.size > maxPerWave` (batching for concurrency control).
+
 ## No-Overlap Wave Invariant
 
 **Hard requirement**: No two fixers in the same wave may share a file in their `file_group`.
@@ -146,7 +178,28 @@ contextMeta.sha = Bash("git rev-parse HEAD").trim()
 // Phase 4: check for drift before spawning fixer
 const currentSha = Bash("git rev-parse HEAD").trim()
 if (currentSha !== contextMeta.sha) {
-  // Run grep-based line validation per file
-  // Mark drifted TODOs as SKIPPED with reason "file modified externally"
+  // Identify which files changed since context was gathered
+  const changedFiles = Bash(`git diff --name-only ${contextMeta.sha} ${currentSha}`).trim().split('\n')
+  for (const [file, fileTodos] of validFileGroups) {
+    if (!changedFiles.includes(file)) continue
+    // File was modified externally — validate each TODO's target still exists
+    const fileContent = Read(file)
+    const lines = fileContent.split('\n')
+    for (const todo of fileTodos) {
+      const snippet = extractSnippet(todo.description)
+      if (!snippet || snippet.trim().length < 5) continue
+      const actualLine = lines.findIndex(l => l.includes(snippet))
+      if (actualLine === -1 || Math.abs(actualLine - (todo.line_hint ?? 0)) > 10) {
+        todo.status = "SKIPPED"
+        todo.skip_reason = `file modified externally (SHA drift: ${contextMeta.sha.slice(0,7)}→${currentSha.slice(0,7)})`
+      }
+    }
+  }
+  // Remove fully-skipped file groups from validFileGroups
+  for (const [file, fileTodos] of validFileGroups) {
+    if (fileTodos.every(t => t.status === "SKIPPED")) {
+      validFileGroups.delete(file)
+    }
+  }
 }
 ```
