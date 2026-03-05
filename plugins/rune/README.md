@@ -13,6 +13,23 @@ Each Ash teammate gets its own dedicated context window, eliminating single-cont
 
 Restart Claude Code after installation to load the plugin.
 
+### Prerequisites: Python MCP Dependencies
+
+Rune's MCP servers (`echo-search` and `figma-to-react`) require Python packages. They are **auto-installed on first use** — no manual setup needed.
+
+If you prefer to pre-install them manually:
+
+```bash
+python3 -m pip install "mcp[cli]>=1.2.0" "httpx>=0.27.0" "pydantic>=2.0" --break-system-packages
+```
+
+> **Note:** The `--break-system-packages` flag is required on macOS and some Linux distributions where system Python is protected. If you use a virtual environment or pyenv, you can omit this flag.
+
+**Why these packages:**
+- `mcp[cli]` — Model Context Protocol SDK for MCP server communication
+- `httpx` — HTTP client used by the Figma-to-React server
+- `pydantic` — Data validation used by both MCP servers
+
 ### Local Development
 
 ```bash

@@ -9,6 +9,23 @@ set -euo pipefail
 # Do NOT replace this with a direct python3 call in .mcp.json — it will
 # fail silently because ECHO_DIR/DB_PATH would be unset.
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# --- Package check ---
+# Verify required packages are importable. If any import fails,
+# install from requirements.txt. This is fast when packages exist
+# (single python3 invocation) and self-healing when they don't.
+if ! python3 -c "import mcp" 2>/dev/null; then
+    REQUIREMENTS="$SCRIPT_DIR/requirements.txt"
+    if [ -f "$REQUIREMENTS" ]; then
+        echo "Installing echo-search dependencies..." >&2
+        python3 -m pip install -r "$REQUIREMENTS" --break-system-packages >&2
+    else
+        echo "Error: Missing dependencies and no requirements.txt found" >&2
+        exit 1
+    fi
+fi
+
 # SEC-006: Canonicalize PROJECT_DIR and validate absoluteness
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 PROJECT_DIR=$(cd "$PROJECT_DIR" 2>/dev/null && pwd -P) || { echo "ERROR: invalid PROJECT_DIR" >&2; exit 1; }
@@ -16,5 +33,4 @@ PROJECT_DIR=$(cd "$PROJECT_DIR" 2>/dev/null && pwd -P) || { echo "ERROR: invalid
 export ECHO_DIR="$PROJECT_DIR/.claude/echoes"
 export DB_PATH="$PROJECT_DIR/.claude/echoes/.search-index.db"
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 exec python3 "$SCRIPT_DIR/server.py"
