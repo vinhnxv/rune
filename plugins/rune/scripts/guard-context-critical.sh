@@ -56,6 +56,9 @@ if [[ "$TOOL_NAME" == "Task" || "$TOOL_NAME" == "Agent" ]]; then
 fi
 
 # --- Read bridge file ---
+# SEC-004 NOTE: Bridge path is predictable (/tmp/rune-ctx-{SESSION_ID}.json).
+# Mitigated by: (1) symlink guard below, (2) UID ownership check (EC-H5),
+# (3) bridge freshness check (30s staleness), (4) umask 077 on writer.
 BRIDGE_FILE="/tmp/rune-ctx-${SESSION_ID}.json"
 
 # Bridge must exist

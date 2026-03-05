@@ -337,9 +337,13 @@ if (e2eEnabled && servicesHealthy && agentBrowserAvailable && e2eRoutes.length >
   let baseUrl = testingConfig.tiers?.e2e?.base_url ?? "http://localhost:3000"
 
   // URL scope restriction (T10): hard-block non-localhost URLs (SEC-003)
+  // L-5 FIX: Log as error (not just warning) — non-localhost E2E URLs are a security concern.
   const urlHost = new URL(baseUrl).hostname
   if (urlHost !== 'localhost' && urlHost !== '127.0.0.1') {
-    warn(`E2E base_url ${baseUrl} is not localhost — overriding to localhost`)
+    const msg = `E2E base_url "${baseUrl}" is not localhost — forced override to localhost. Fix talisman.yml testing.tiers.e2e.base_url.`
+    warn(msg)
+    // Write to audit trail for post-arc review
+    Bash(`printf '%s\\n' "${msg.replace(/"/g, '\\"')}" >> "tmp/arc/${id}/security-warnings.log"`)
     baseUrl = "http://localhost:3000"
   }
 

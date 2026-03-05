@@ -61,6 +61,9 @@ fi
 
 # Inline _trace (QUAL-007: each hook defines its own — no shared trace-logger.sh exists)
 # SEC-004 FIX: Use O_NOFOLLOW-equivalent guard — reject symlinked log paths
+# SEC-003 NOTE: RUNE_TRACE=1 logs team names, file paths, and state file contents.
+# Trace logs go to $RUNE_TRACE_LOG (default /tmp/, mode 600 via umask 077).
+# Do NOT enable RUNE_TRACE in shared environments without reviewing log contents.
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && [[ ! -L "${RUNE_TRACE_LOG%/*}" ]] && printf '[%s] detect-workflow-complete: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 

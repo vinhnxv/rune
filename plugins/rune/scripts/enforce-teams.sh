@@ -30,27 +30,26 @@
 set -euo pipefail
 umask 077
 
-# --- Fail-forward guard (OPERATIONAL hook) ---
-# Crash before validation → allow operation (don't stall workflows).
-_rune_fail_forward() {
-  # BACK-003 FIX: Always emit stderr warning for enforcement hooks.
-  # Silent fail-forward in a security-adjacent hook masks mid-validation crashes.
-  printf 'WARNING: %s: ERR trap — fail-forward activated (line %s). ATE-1 check skipped.\n' \
+# --- Fail-closed guard (SECURITY-ADJACENT hook) ---
+# SEC-001 FIX: ATE-1 enforcement is security-adjacent — crash mid-validation
+# MUST block the operation (exit 2), not silently allow it (exit 0).
+# A fail-open crash here allows bare Agent/Task calls → context explosion.
+_rune_fail_closed() {
+  printf 'ERROR: %s: ERR trap — fail-closed activated (line %s). ATE-1 blocking operation.\n' \
     "${BASH_SOURCE[0]##*/}" \
     "${BASH_LINENO[0]:-?}" \
     >&2 2>/dev/null || true
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    # SEC-004 FIX: Use ${UID} shell builtin to avoid subprocess fork
     local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-${UID:-$(id -u)}.log}"
-    [[ ! -L "$_log" ]] && printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
+    [[ ! -L "$_log" ]] && printf '[%s] %s: ERR trap — fail-closed activated (line %s)\n' \
       "$(date +%H:%M:%S 2>/dev/null || true)" \
       "${BASH_SOURCE[0]##*/}" \
       "${BASH_LINENO[0]:-?}" \
       >> "$_log" 2>/dev/null
   fi
-  exit 0
+  exit 2
 }
-trap '_rune_fail_forward' ERR
+trap '_rune_fail_closed' ERR
 
 # Pre-flight: jq is required for JSON parsing.
 # If missing, exit 0 (non-blocking) — allow rather than crash.

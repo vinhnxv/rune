@@ -508,7 +508,7 @@ if [[ "$NEXT_PLAN" == *".."* ]] || [[ "$NEXT_PLAN" == /* ]] || [[ "$NEXT_PLAN" =
 fi
 
 # ── COMPACT INTERLUDE (v1.105.2): Force context compaction between iterations ──
-# Root cause: arc's 26-phase pipeline fills 80-90% of context window. Without
+# Root cause: arc's 27-phase pipeline fills 80-90% of context window. Without
 # compaction, Plan 2+ starts in a nearly-full context and hits "Context limit
 # reached" within the first few phases.
 #
@@ -723,7 +723,7 @@ ${GH_STATUS_STEPS}1. Verify git state is clean: git status
 
    CRITICAL — SKILL INVOCATION REQUIRED:
    - /rune:arc is a SKILL (slash command). You MUST call it via the Skill tool.
-   - The Skill tool loads the full arc pipeline (26 phases: forge → review → work → ship → merge).
+   - The Skill tool loads the full arc pipeline (27 phases: forge → review → work → ship → merge).
    - DO NOT implement the plan code directly. DO NOT skip to coding or the work phase.
    - DO NOT read the plan and start implementing. Only the arc skill should orchestrate execution.
    - If you cannot find the Skill tool, type /rune:arc and let the system invoke it.

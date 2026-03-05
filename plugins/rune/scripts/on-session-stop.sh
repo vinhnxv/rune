@@ -102,6 +102,9 @@ _check_loop_ownership() {
     return 1
   fi
   # Check PID (EPERM-safe: rune_pid_alive from resolve-session-identity.sh)
+  # VEIL-006 NOTE: $PPID in hook context is the hook runner's PID, not the Claude
+  # Code main process. This comparison is best-effort — CLAUDE_SESSION_ID would be
+  # more reliable but is not available in the shell environment of hook scripts.
   if [[ -n "$pid" && "$pid" =~ ^[0-9]+$ && "$pid" != "$PPID" ]]; then
     if rune_pid_alive "$pid"; then
       return 1
@@ -118,7 +121,7 @@ _check_loop_ownership() {
 # take up to 50 min (test with E2E) and the state file mtime is only updated between
 # phases (by arc-phase-stop-hook.sh iteration increment). The 10-min threshold caused
 # premature deletion of active state files, breaking the phase loop.
-# GUARD 5d: 90 min = ~26 phases × ~3.5 min per phase (full arc single-run)
+# GUARD 5d: 95 min = ~27 phases × ~3.5 min per phase (full arc single-run)
 _PHASE_STALE_MIN=90
 [[ -z "${NOW:-}" ]] && NOW=$(date +%s)
 if _check_loop_ownership "${CWD}/.claude/arc-phase-loop.local.md"; then
@@ -141,7 +144,7 @@ fi
 # than the threshold, the loop hook likely crashed. Force cleanup instead of deferring
 # indefinitely, which would leave the session unable to stop.
 # v1.125.1 FIX: Increased threshold from 10 min to 150 min. A single arc run can
-# take 30-90 minutes (all 26 phases), and the batch loop file mtime is only updated
+# take 30-95 minutes (all 27 phases), and the batch loop file mtime is only updated
 # between arc runs (not between phases). The 10-min threshold caused premature deletion
 # of active state files during the first arc's execution.
 # GUARD 5: 150 min = arc runtime (30-90 min) × up to 2 arcs in flight

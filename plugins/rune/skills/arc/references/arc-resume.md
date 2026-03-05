@@ -304,8 +304,16 @@ On resume, validate checkpoint integrity before proceeding:
 
     for (const { task_id, context_path, reason } of suspendedTasks) {
       // Validate context path (SEC-002: no path traversal)
+      // L-1 FIX: Use realpath canonicalization to defeat symlink-based traversal.
+      // The prefix check alone misses symlinks like tmp/work/link -> /etc/passwd.
       if (!context_path.startsWith(`tmp/work/`) || context_path.includes('..')) {
         warn(`Suspended task #${task_id}: invalid context path "${context_path}" — skipping`)
+        continue
+      }
+      const resolvedPath = Bash(`realpath -m "${context_path}" 2>/dev/null || echo ""`).trim()
+      const resolvedCwd = Bash(`realpath -m "$(pwd)/tmp/work/" 2>/dev/null || echo ""`).trim()
+      if (!resolvedPath || !resolvedCwd || !resolvedPath.startsWith(resolvedCwd)) {
+        warn(`Suspended task #${task_id}: context path escapes tmp/work/ after canonicalization — skipping`)
         continue
       }
 

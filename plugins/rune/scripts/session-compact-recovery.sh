@@ -287,7 +287,7 @@ if [[ -n "$ARC_PHASE" ]] && [[ "$ARC_PHASE" =~ ^[a-zA-Z0-9_:\ -]+$ ]] && [[ ${#A
   # Claude MUST continue to the next arc phase. Without this instruction, context
   # rot after 5+ compactions causes Claude to stop after one phase, believing the
   # pipeline will "proceed automatically" (it won't — Claude is the orchestrator).
-  ARC_INFO="${ARC_INFO} PIPELINE CONTINUATION: You are in an active /rune:arc pipeline (phase: ${ARC_PHASE}). After completing this phase, you MUST continue to the NEXT arc phase. Re-invoke the arc skill via Skill(\"rune:arc\", \"--resume\") to reload the full 26-phase pipeline and continue from the checkpoint. DO NOT stop after completing just one phase."
+  ARC_INFO="${ARC_INFO} PIPELINE CONTINUATION: You are in an active /rune:arc pipeline (phase: ${ARC_PHASE}). After completing this phase, you MUST continue to the NEXT arc phase. Re-invoke the arc skill via Skill(\"rune:arc\", \"--resume\") to reload the full 27-phase pipeline and continue from the checkpoint. DO NOT stop after completing just one phase."
 fi
 
 # Team member count

@@ -96,11 +96,10 @@ let scopeStats = null
 const sessionNonce = checkpoint.session_nonce
 // BACK-013 FIX: Validate nonce format before use in string matching (defense-in-depth)
 // SEC-001 FIX: On invalid nonce, set effectiveNonce to null so ternary takes allMarkers branch.
-// Previously, invalid nonce was used in filter → matched zero markers → silently disabled smart scoring.
-// Note: permissive regex ([a-zA-Z0-9_-]+) vs generation format ([0-9a-f]{12}).
-// Tampered nonces pass validation but never match real markers. Tightening: separate PR.
+// L-4 FIX: Tightened regex to match generation format ([0-9a-f]{12}) exactly.
+// Previously used permissive [a-zA-Z0-9_-]+ which allowed tampered nonces to pass validation.
 let effectiveNonce = sessionNonce
-if (sessionNonce && !/^[a-zA-Z0-9_-]+$/.test(sessionNonce)) {
+if (sessionNonce && !/^[0-9a-f]{12}$/.test(sessionNonce)) {
   warn(`Invalid session nonce format: ${sessionNonce} — falling back to unfiltered markers`)
   effectiveNonce = null
 }
