@@ -20,6 +20,8 @@ import re
 import sys
 
 VALID_ROLE_RE = re.compile(r'^[a-zA-Z0-9_-]+$')  # SEC-5: role name allowlist
+ALLOWED_CATEGORIES = {"pattern", "anti-pattern", "decision", "debugging", "general"}
+VALID_LAYERS = frozenset({"etched", "notes", "inscribed", "observations", "traced"})
 
 
 def generate_id(role: str, line_number: int, file_path: str) -> str:
@@ -32,10 +34,13 @@ def generate_id(role: str, line_number: int, file_path: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
+# Layer alternation built from VALID_LAYERS for single-source-of-truth (QUAL-007)
+_LAYER_ALT = "|".join(l.capitalize() for l in sorted(VALID_LAYERS))
 _HEADER_RE = re.compile(
-    r"^##\s+(Inscribed|Etched|Traced|Notes|Observations)\s*[\u2014\-\u2013]+\s*(.+?)\s*\((\d{4}-\d{2}-\d{2})\)"
+    r"^##\s+(%s)\s*[\u2014\-\u2013]+\s*(.+?)\s*\((\d{4}-\d{2}-\d{2})\)" % _LAYER_ALT
 )
 _SOURCE_RE = re.compile(r"^\*\*Source\*\*:\s*`?([^`\n]+)`?")
+_CATEGORY_RE = re.compile(r"^\*\*Category\*\*:\s*(\S+)")
 
 
 def _flush_entry(current_entry: dict | None, content_lines: list[str], entries: list[dict], file_path: str) -> None:
@@ -56,6 +61,7 @@ def _make_entry(role: str, header_match: re.Match, line_num: int, file_path: str
         "layer": header_match.group(1).lower(),
         "date": header_match.group(3),
         "source": "",
+        "category": "general",
         "content": "",
         "tags": header_match.group(2).strip(),
         "line_number": line_num,
@@ -69,11 +75,16 @@ def parse_memory_file(file_path: str, role: str) -> list[dict]:
     if not os.path.isfile(file_path):
         return entries
 
-    with open(file_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+    except UnicodeDecodeError:
+        print("WARN: skipping binary/corrupted file: %s" % file_path, file=sys.stderr)
+        return entries
 
     current_entry: dict | None = None
     content_lines: list[str] = []
+    in_metadata = False
     prev_line_blank = True  # EDGE-018: treat start-of-file as blank
 
     for i, line in enumerate(lines):
@@ -83,6 +94,7 @@ def parse_memory_file(file_path: str, role: str) -> list[dict]:
             _flush_entry(current_entry, content_lines, entries, file_path)
             current_entry = _make_entry(role, header_match, i + 1, file_path)
             content_lines = []
+            in_metadata = True
             prev_line_blank = False  # header line is non-blank
             continue
         if current_entry is not None:
@@ -90,6 +102,24 @@ def parse_memory_file(file_path: str, role: str) -> list[dict]:
             if source_match and not current_entry["source"]:
                 current_entry["source"] = source_match.group(1).strip()
                 continue  # source lines don't affect blank-line tracking
+            # Only parse category in metadata section (before first ### or content).
+            # BACK-007: **Category**: must appear before the first non-metadata content
+            # line (i.e., before any heading or body text). Category lines after content
+            # starts will be treated as regular content, not metadata.
+            if in_metadata:
+                category_match = _CATEGORY_RE.match(stripped)
+                if category_match:
+                    raw_category = category_match.group(1).strip().lower()
+                    if raw_category in ALLOWED_CATEGORIES:
+                        current_entry["category"] = raw_category
+                    else:
+                        print("WARN: unknown category '%s' at %s:%d, defaulting to 'general'" % (
+                            raw_category, file_path, i + 1), file=sys.stderr)
+                        current_entry["category"] = "general"
+                    continue
+                # First non-blank, non-source, non-category line → end metadata
+                if stripped.strip() and not stripped.startswith("**"):
+                    in_metadata = False
             content_lines.append(stripped)
         prev_line_blank = stripped.strip() == ""
 

@@ -215,68 +215,104 @@ class TestScoreImportance:
 
 
 class TestScoreRecency:
-    """Test recency scoring with exponential decay."""
+    """Test recency scoring with layer-aware exponential decay.
 
-    def test_missing_date_returns_zero(self):
-        """EDGE-003: Empty date string -> recency 0.0."""
-        assert _score_recency("") == pytest.approx(0.0)
+    _score_recency now accepts (entry_dict, access_counts) instead of a
+    plain date string. These tests wrap dates in entry dicts accordingly.
+    """
 
-    def test_none_date_returns_zero(self):
-        """EDGE-003: None date -> recency 0.0."""
-        assert _score_recency(None) == pytest.approx(0.0)
+    def _entry(self, date="", layer="inscribed"):
+        """Helper to build a minimal entry dict for recency scoring."""
+        return {"date": date, "layer": layer, "id": "test_entry"}
 
-    def test_malformed_date_returns_zero(self):
-        """EDGE-003: Non-ISO date strings -> recency 0.0."""
+    def test_missing_date_returns_floor(self):
+        """EDGE-003: Empty date string -> recency floor (0.1 with decay enabled)."""
+        score = _score_recency(self._entry(""))
+        assert score == pytest.approx(0.1)
+
+    def test_none_entry_returns_floor(self):
+        """EDGE-003: Non-dict entry -> recency floor."""
+        score = _score_recency(self._entry(None))
+        assert score == pytest.approx(0.1)
+
+    def test_malformed_date_returns_floor(self):
+        """EDGE-003: Non-ISO date strings -> recency floor."""
         for bad_date in ["not-a-date", "2026/01/01", "01-2026-01", "yesterday"]:
-            assert _score_recency(bad_date) == pytest.approx(0.0), (
-                f"Expected 0.0 for date: {bad_date}"
+            score = _score_recency(self._entry(bad_date))
+            assert score == pytest.approx(0.1), (
+                f"Expected 0.1 for date: {bad_date}"
             )
 
     def test_today_scores_approximately_one(self):
         """Today's date should score very high (close to 1.0)."""
         today = time.strftime("%Y-%m-%d")
-        score = _score_recency(today)
+        score = _score_recency(self._entry(today))
         assert score > 0.9, f"Today's date should score >0.9, got {score}"
 
-    def test_30_days_ago_scores_approximately_half(self):
-        """An entry from ~30 days ago should score approximately 0.5 (half-life)."""
+    def test_inscribed_90day_halflife(self):
+        """Inscribed layer has 90-day half-life; ~90 days ago scores ~0.5."""
         import datetime
-        thirty_days_ago = (datetime.datetime.utcnow() - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
-        score = _score_recency(thirty_days_ago)
-        assert 0.4 <= score <= 0.6, f"30-day-old entry should score ~0.5, got {score}"
+        ninety_days_ago = (datetime.datetime.utcnow() - datetime.timedelta(days=90)).strftime("%Y-%m-%d")
+        score = _score_recency(self._entry(ninety_days_ago, "inscribed"))
+        assert 0.4 <= score <= 0.6, f"90-day-old inscribed should score ~0.5, got {score}"
 
-    def test_very_old_date_scores_low(self):
-        """Very old date should score near 0.0."""
-        score = _score_recency("2020-01-01")
-        assert score < 0.05, f"Old date should score very low, got {score}"
+    def test_etched_always_one(self):
+        """Etched layer has infinite half-life — always scores 1.0."""
+        score = _score_recency(self._entry("2020-01-01", "etched"))
+        assert score == pytest.approx(1.0)
 
-    def test_recency_bounded_0_1(self):
-        """Recency scores are always in [0.0, 1.0]."""
+    def test_very_old_date_scores_at_floor(self):
+        """Very old date should score at or near the recency floor."""
+        score = _score_recency(self._entry("2020-01-01", "traced"))
+        assert score == pytest.approx(0.1), f"Old traced entry should score at floor, got {score}"
+
+    def test_recency_bounded_floor_to_1(self):
+        """Recency scores are always in [floor, 1.0]."""
         dates = [
             time.strftime("%Y-%m-%d"),
             "2025-01-01",
             "2020-06-15",
             "",
-            None,
             "invalid",
         ]
         for d in dates:
-            score = _score_recency(d)
+            score = _score_recency(self._entry(d))
             assert 0.0 <= score <= 1.0, f"Score {score} out of range for date {d!r}"
 
     def test_recency_monotonically_decreasing(self):
-        """More recent dates should always score higher."""
+        """More recent dates should always score higher or equal."""
         import datetime
         now = datetime.datetime.utcnow()
         scores = []
         for days_ago in [0, 10, 30, 60, 180, 365]:
             date = (now - datetime.timedelta(days=days_ago)).strftime("%Y-%m-%d")
-            scores.append(_score_recency(date))
-        # Each score should be >= the next
+            scores.append(_score_recency(self._entry(date)))
         for i in range(len(scores) - 1):
             assert scores[i] >= scores[i + 1], (
                 f"Score for {i} days ago ({scores[i]}) < {i+1} days ago ({scores[i+1]})"
             )
+
+    def test_access_boost_reduces_effective_age(self):
+        """Access counts should boost recency by reducing effective age."""
+        import datetime
+        old_date = (datetime.datetime.utcnow() - datetime.timedelta(days=60)).strftime("%Y-%m-%d")
+        entry = self._entry(old_date, "inscribed")
+        entry["id"] = "boosted_entry"
+        score_no_access = _score_recency(entry)
+        score_with_access = _score_recency(entry, access_counts={"boosted_entry": 5})
+        assert score_with_access > score_no_access, (
+            f"Access boost should increase score: {score_with_access} <= {score_no_access}"
+        )
+
+    def test_layer_halflife_ordering(self):
+        """Notes (180d) decays slower than Traced (30d) for the same age."""
+        import datetime
+        sixty_days_ago = (datetime.datetime.utcnow() - datetime.timedelta(days=60)).strftime("%Y-%m-%d")
+        score_notes = _score_recency(self._entry(sixty_days_ago, "notes"))
+        score_traced = _score_recency(self._entry(sixty_days_ago, "traced"))
+        assert score_notes > score_traced, (
+            f"Notes should decay slower: {score_notes} <= {score_traced}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -285,15 +321,20 @@ class TestScoreRecency:
 
 
 class TestScoreProximity:
-    """Test file proximity scoring — verifies the no-context-files edge case."""
+    """Test file proximity scoring against context files.
+
+    _score_proximity extracts evidence paths from the entry (file_path,
+    content, source) and computes best proximity against context_files
+    using compute_file_proximity (exact=1.0, same-dir=0.8, shared-prefix=0.2-0.6).
+    """
 
     def test_returns_zero_without_context_files(self):
         """Proximity returns 0.0 when no context_files are provided."""
         entry = {"file_path": "/echoes/reviewer/MEMORY.md"}
         assert _score_proximity(entry) == pytest.approx(0.0)
 
-    def test_returns_zero_with_context_files(self):
-        """Even with context_files provided, returns 0.0 (placeholder)."""
+    def test_returns_zero_with_non_overlapping_context(self):
+        """Non-overlapping paths produce 0.0 (no shared prefix components)."""
         entry = {"file_path": "/echoes/reviewer/MEMORY.md"}
         assert _score_proximity(entry, context_files=["/src/main.py"]) == pytest.approx(0.0)
 
@@ -306,6 +347,33 @@ class TestScoreProximity:
         """EDGE-011: context_files=[] returns 0.0."""
         entry = {"file_path": "/echoes/reviewer/MEMORY.md"}
         assert _score_proximity(entry, context_files=[]) == pytest.approx(0.0)
+
+    def test_exact_match_returns_one(self):
+        """Exact file_path match with context_files returns 1.0."""
+        entry = {"file_path": "/echoes/reviewer/MEMORY.md"}
+        score = _score_proximity(entry, context_files=["/echoes/reviewer/MEMORY.md"])
+        assert score == pytest.approx(1.0)
+
+    def test_same_directory_returns_high_score(self):
+        """File in same directory as context file returns 0.8."""
+        entry = {"file_path": "/echoes/reviewer/MEMORY.md"}
+        score = _score_proximity(entry, context_files=["/echoes/reviewer/other.md"])
+        assert score == pytest.approx(0.8)
+
+    def test_shared_prefix_returns_partial_score(self):
+        """Shared path prefix produces a score between 0.2 and 0.6."""
+        entry = {"file_path": "/echoes/reviewer/MEMORY.md"}
+        score = _score_proximity(entry, context_files=["/echoes/planner/MEMORY.md"])
+        assert 0.2 <= score <= 0.6, f"Expected 0.2-0.6 for shared prefix, got {score}"
+
+    def test_best_proximity_wins(self):
+        """When multiple context_files are provided, best proximity is returned."""
+        entry = {"file_path": "/echoes/reviewer/MEMORY.md"}
+        score = _score_proximity(entry, context_files=[
+            "/src/unrelated.py",
+            "/echoes/reviewer/MEMORY.md",  # exact match
+        ])
+        assert score == pytest.approx(1.0)
 
 
 # ---------------------------------------------------------------------------

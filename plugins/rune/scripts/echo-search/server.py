@@ -5,12 +5,13 @@ A Model Context Protocol (MCP) stdio server that provides full-text search
 over the Rune plugin's echo system (persistent learnings stored in
 .claude/echoes/<role>/MEMORY.md files).
 
-Provides 5 tools:
+Provides 6 tools:
   - echo_search:        BM25 full-text search with composite re-ranking
   - echo_details:       Fetch full content for specific entry IDs
   - echo_reindex:       Re-parse all MEMORY.md files and rebuild the FTS index
   - echo_stats:         Summary statistics of the echo index
   - echo_record_access: Manually record access events for entries
+  - echo_upsert_group:  Create or update semantic groups
 
 Environment variables:
   ECHO_DIR  - Path to the echoes directory (e.g., .claude/echoes)
@@ -224,6 +225,35 @@ _LAYER_IMPORTANCE = {
 # Recency half-life in days — entries older than this get < 0.5 score
 _RECENCY_HALF_LIFE_DAYS = 30.0
 
+# Layer-aware decay: per-layer half-life defaults (days).
+# Etched = permanent (infinite half-life), Notes = slow decay, etc.
+_LAYER_HALF_LIFE_DAYS = {
+    "etched": float("inf"),
+    "notes": 180.0,
+    "inscribed": 90.0,
+    "observations": 45.0,
+    "traced": 30.0,
+}
+
+# Layer-aware decay env var config
+_DECAY_ENABLED = os.environ.get("ECHO_DECAY_ENABLED", "true").lower() != "false"
+_RECENCY_FLOOR = float(os.environ.get("ECHO_RECENCY_FLOOR", "0.1"))
+_ACCESS_BOOST_DAYS = float(os.environ.get("ECHO_ACCESS_BOOST_DAYS", "15.0"))
+
+# Override per-layer half-lives via env vars
+for _lyr, _env_suffix in [
+    ("etched", "ETCHED"), ("notes", "NOTES"), ("inscribed", "INSCRIBED"),
+    ("observations", "OBSERVATIONS"), ("traced", "TRACED"),
+]:
+    _env_val = os.environ.get("ECHO_HALF_LIFE_%s" % _env_suffix)
+    if _env_val is not None:
+        try:
+            _parsed = float(_env_val)
+            if _parsed > 0:
+                _LAYER_HALF_LIFE_DAYS[_lyr] = max(_parsed, 0.001)
+        except ValueError:
+            pass
+
 
 _WEIGHT_ENV_MAP = {
     "relevance": "ECHO_WEIGHT_RELEVANCE",
@@ -309,32 +339,61 @@ def _score_importance(layer: str) -> float:
     return _LAYER_IMPORTANCE.get(layer.lower() if layer else "", 0.3)
 
 
-def _score_recency(date_str: Optional[str]) -> float:
-    """Score entry recency using exponential decay.
+def _score_recency(
+    entry: Dict[str, Any],
+    access_counts: Optional[Dict[str, int]] = None,
+) -> float:
+    """Score entry recency using layer-aware exponential decay.
 
-    Uses a half-life of 30 days: an entry from 30 days ago scores ~0.5,
-    from 60 days ago ~0.25, etc.
+    When ECHO_DECAY_ENABLED=true (default), uses per-layer half-lives:
+    Etched=inf (always 1.0), Notes=180d, Inscribed=90d, Observations=45d,
+    Traced=30d. Access counts provide a freshness boost (each access
+    subtracts virtual days from age).
+
+    When ECHO_DECAY_ENABLED=false, falls back to fixed 30-day half-life.
 
     Args:
-        date_str: ISO date string (YYYY-MM-DD) or None/empty.
+        entry: Entry dict with 'date', 'layer', and optionally 'id' keys.
+        access_counts: Optional dict mapping entry_id -> access count.
 
     Returns:
-        Recency score in [0.0, 1.0]. Returns 0.0 for missing/malformed dates
-        (EDGE-003).
+        Recency score in [_RECENCY_FLOOR, 1.0]. Returns _RECENCY_FLOOR for
+        missing/malformed dates (EDGE-003).
     """
+    date_str = entry.get("date", "") if isinstance(entry, dict) else ""
     if not date_str:
-        return 0.0
+        return _RECENCY_FLOOR if _DECAY_ENABLED else 0.0
     try:
         entry_date = datetime.strptime(date_str[:10], "%Y-%m-%d").replace(
             tzinfo=timezone.utc
         )
         now = datetime.now(timezone.utc)
         age_days = max((now - entry_date).days, 0)
-        # Exponential decay: score = 2^(-age/half_life)
-        return math.pow(2.0, -age_days / _RECENCY_HALF_LIFE_DAYS)
+
+        if not _DECAY_ENABLED:
+            # Legacy mode: fixed 30-day half-life, no floor
+            return math.pow(2.0, -age_days / _RECENCY_HALF_LIFE_DAYS)
+
+        # Access freshness boost: each access subtracts virtual days
+        if access_counts:
+            entry_id = entry.get("id", "")
+            count = access_counts.get(entry_id, 0)
+            if count > 0:
+                age_days = max(age_days - count * _ACCESS_BOOST_DAYS, 0)
+
+        # Layer-aware half-life
+        layer = (entry.get("layer", "") or "").lower()
+        half_life = _LAYER_HALF_LIFE_DAYS.get(layer, _RECENCY_HALF_LIFE_DAYS)
+
+        # Infinite half-life → always fresh
+        if half_life == float("inf"):
+            return 1.0
+
+        score = math.pow(2.0, -age_days / half_life)
+        return max(score, _RECENCY_FLOOR)
     except (ValueError, TypeError):
-        # EDGE-003: Malformed date → recency 0.0
-        return 0.0
+        # EDGE-003: Malformed date → floor score
+        return _RECENCY_FLOOR if _DECAY_ENABLED else 0.0
 
 
 # Regex for extracting file paths from echo content (C5 concern).
@@ -401,8 +460,8 @@ def compute_file_proximity(evidence_path: str, context_path: str) -> float:
         return 0.8
 
     # Shared prefix — score proportional to common path depth
-    ev_parts = ev.split(os.sep)
-    ctx_parts = ctx.split(os.sep)
+    ev_parts = [p for p in ev.split(os.sep) if p]
+    ctx_parts = [p for p in ctx.split(os.sep) if p]
     common = 0
     for a, b in zip(ev_parts, ctx_parts):
         if a == b:
@@ -550,6 +609,11 @@ def _record_access(
                     "INSERT INTO echo_access_log "
                     "(entry_id, accessed_at, query) VALUES (?, ?, ?)",
                     (entry_id, now, query[:500]))
+                # BACK-014: Auto-unarchive entries when accessed
+                conn.execute(
+                    "UPDATE echo_entries SET archived = 0 "
+                    "WHERE id = ? AND archived = 1",
+                    (entry_id,))
         conn.commit()
         _cap_access_log(conn)
     except sqlite3.OperationalError:
@@ -586,7 +650,7 @@ def _compute_entry_factors(
     return {
         "relevance": bm25_norm,
         "importance": _score_importance(entry.get("layer", "")),
-        "recency": _score_recency(entry.get("date", "")),
+        "recency": _score_recency(entry, access_counts),
         "proximity": _score_proximity(entry, context_files),
         "frequency": _score_frequency(
             entry.get("id", ""), conn=conn,
@@ -668,7 +732,7 @@ def get_db(db_path):
     return conn
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def _migrate_v1(conn: sqlite3.Connection) -> None:
@@ -707,6 +771,20 @@ def _migrate_v2(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_search_failures_entry ON echo_search_failures(entry_id)")
 
 
+def _migrate_v3(conn: sqlite3.Connection) -> None:
+    """Apply V3 schema: category and archived columns."""
+    try:
+        conn.execute("ALTER TABLE echo_entries ADD COLUMN category TEXT DEFAULT 'general'")
+    except sqlite3.OperationalError:
+        pass  # Already exists
+    try:
+        conn.execute("ALTER TABLE echo_entries ADD COLUMN archived INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass  # Already exists
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_echo_entries_category ON echo_entries(category)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_echo_entries_archived ON echo_entries(archived)")
+
+
 def ensure_schema(conn: sqlite3.Connection) -> None:
     """Ensure database schema is at the current version via PRAGMA user_version."""
     conn.execute("PRAGMA foreign_keys = ON")
@@ -719,12 +797,16 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
                 _migrate_v1(conn)
             if version < 2:
                 _migrate_v2(conn)
-            # SAFE: SCHEMA_VERSION is a module-level integer constant, not user input
-            conn.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")
+            if version < 3:
+                _migrate_v3(conn)
             conn.commit()
         except (sqlite3.Error, OSError):
             conn.rollback()
             raise
+        # SAFE: SCHEMA_VERSION is a module-level integer constant, not user input.
+        # Set user_version AFTER commit — PRAGMA is not transactional in SQLite,
+        # so placing it inside the transaction would persist even on rollback.
+        conn.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")
 
 
 def _tokenize_for_grouping(text: str) -> set[str]:
@@ -795,6 +877,9 @@ def _merge_pair_into_groups(groups, id_a, id_b, sim):
 
 def _build_pairwise_groups(entry_map, entry_ids, threshold):
     """Build groups via pairwise similarity comparison."""
+    if len(entry_ids) > 500:
+        logger.warning("_build_pairwise_groups: skipping — %d entries exceeds 500 cap", len(entry_ids))
+        return []
     groups = []  # type: list[tuple[str, set[str], dict[str, float]]]
     for i in range(len(entry_ids)):
         for j in range(i + 1, len(entry_ids)):
@@ -826,7 +911,7 @@ def _write_groups(conn, final_groups):
     """Atomically write group memberships to semantic_groups table."""
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     count = 0
-    conn.execute("BEGIN")
+    conn.execute("SAVEPOINT write_groups")
     try:
         for gid, members, sims in final_groups:
             for eid in members:
@@ -836,9 +921,9 @@ def _write_groups(conn, final_groups):
                     "VALUES (?, ?, ?, ?)",
                     (gid, eid, sims.get(eid, 0.0), now))
                 count += 1
-        conn.commit()
+        conn.execute("RELEASE SAVEPOINT write_groups")
     except sqlite3.Error:
-        conn.rollback()
+        conn.execute("ROLLBACK TO SAVEPOINT write_groups")
         raise
     return count
 
@@ -871,7 +956,11 @@ def upsert_semantic_group(
     conn: sqlite3.Connection, group_id: str,
     entry_ids: list[str], similarities: list[float] | None = None,
 ) -> int:
-    """Insert or replace semantic group memberships (INSERT OR REPLACE)."""
+    """Insert or replace semantic group memberships (INSERT OR REPLACE).
+
+    Validates that all entry_ids exist in echo_entries before inserting.
+    Returns count of memberships created. Raises ValueError for missing entries.
+    """
     if not entry_ids:
         return 0
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -882,10 +971,26 @@ def upsert_semantic_group(
             f"entry_ids ({len(entry_ids)}) and similarities ({len(similarities)}) "
             f"must have the same length"
         )
+    # FK validation: filter to existing entry_ids (partial success — skip missing)
+    existing = frozenset(
+        r[0] for r in conn.execute(
+            "SELECT id FROM echo_entries WHERE id IN (%s)"
+            % _in_clause(len(entry_ids)),
+            entry_ids,
+        ).fetchall()
+    )
+    skipped = [eid for eid in entry_ids if eid not in existing]
+    # Filter entry_ids and similarities to only existing entries
+    filtered = [
+        (eid, sim) for eid, sim in zip(entry_ids, similarities)
+        if eid in existing
+    ]
+    if not filtered:
+        return 0
     count = 0
     conn.execute("BEGIN")
     try:
-        for eid, sim in zip(entry_ids, similarities):
+        for eid, sim in filtered:
             conn.execute(
                 "INSERT OR REPLACE INTO semantic_groups (group_id, entry_id, similarity, created_at) VALUES (?, ?, ?, ?)",
                 (group_id, eid, sim, now))
@@ -894,6 +999,9 @@ def upsert_semantic_group(
     except sqlite3.Error:
         conn.rollback()
         raise
+    if skipped:
+        logger.warning("upsert_semantic_group: skipped %d missing entry_ids: %s",
+                        len(skipped), skipped)
     return count
 
 
@@ -926,11 +1034,12 @@ def _fetch_expanded_rows(
         return conn.execute(
             """SELECT sg.group_id, e.id, e.source, e.layer, e.role,
                       e.date, substr(e.content, 1, 200) AS content_preview,
-                      e.line_number, e.tags
+                      e.line_number, e.tags, e.category
                FROM semantic_groups sg
                JOIN echo_entries e ON e.id = sg.entry_id
                WHERE sg.group_id IN (%s)
-                 AND sg.entry_id NOT IN (%s)"""
+                 AND sg.entry_id NOT IN (%s)
+                 AND e.archived = 0"""
             % (_in_clause(len(group_ids)), _in_clause(len(id_list))),
             group_ids + id_list,
         ).fetchall()
@@ -1042,12 +1151,13 @@ def _insert_entries(conn: sqlite3.Connection, entries: list) -> None:
         conn.execute(
             """INSERT OR REPLACE INTO echo_entries
                (id, role, layer, date, source, content, tags,
-                line_number, file_path)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                line_number, file_path, category)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (entry["id"], entry["role"], entry["layer"],
              entry.get("date", ""), entry.get("source", ""),
              entry["content"], entry.get("tags", ""),
-             entry.get("line_number", 0), entry["file_path"]),
+             entry.get("line_number", 0), entry["file_path"],
+             entry.get("category", "general")),
         )
     conn.execute(
         "INSERT INTO echo_entries_fts(echo_entries_fts) VALUES('rebuild')")
@@ -1085,13 +1195,113 @@ def _prune_search_failures(conn: sqlite3.Connection) -> None:
         pass  # Table may not exist yet (pre-V2 schema)
 
 
+# ---------------------------------------------------------------------------
+# Auto-Archive and semantic group preservation
+# ---------------------------------------------------------------------------
+
+_ARCHIVE_ENABLED = os.environ.get("ECHO_ARCHIVE_ENABLED", "true").lower() != "false"
+try:
+    _ARCHIVE_MIN_AGE = int(os.environ.get("ECHO_ARCHIVE_MIN_AGE", "60"))
+except ValueError:
+    _ARCHIVE_MIN_AGE = 60
+_ARCHIVE_LAYERS = frozenset(
+    l.strip().lower()
+    for l in os.environ.get("ECHO_ARCHIVE_LAYERS", "observations").split(",")
+    if l.strip()
+)
+
+
+def _backup_semantic_groups(conn: sqlite3.Connection) -> List[Tuple[str, str, float, str]]:
+    """Back up semantic group memberships before DELETE+INSERT cycle."""
+    try:
+        rows = conn.execute(
+            "SELECT group_id, entry_id, similarity, created_at "
+            "FROM semantic_groups"
+        ).fetchall()
+        return [(r[0], r[1], r[2], r[3]) for r in rows]
+    except sqlite3.OperationalError:
+        return []  # Pre-V2 schema
+
+
+def _restore_semantic_groups(
+    conn: sqlite3.Connection,
+    backup: List[Tuple[str, str, float, str]],
+) -> int:
+    """Restore semantic group memberships, skipping entries that no longer exist."""
+    if not backup:
+        return 0
+    existing_ids = frozenset(
+        r[0] for r in conn.execute("SELECT id FROM echo_entries").fetchall()
+    )
+    restored = 0
+    for group_id, entry_id, similarity, created_at in backup:
+        if entry_id not in existing_ids:
+            continue
+        try:
+            conn.execute(
+                "INSERT OR IGNORE INTO semantic_groups "
+                "(group_id, entry_id, similarity, created_at) "
+                "VALUES (?, ?, ?, ?)",
+                (group_id, entry_id, similarity, created_at),
+            )
+            restored += 1
+        except sqlite3.Error:
+            continue
+    # Cleanup degenerate groups (fewer than 2 members)
+    try:
+        conn.execute("""
+            DELETE FROM semantic_groups WHERE group_id IN (
+                SELECT group_id FROM semantic_groups
+                GROUP BY group_id HAVING COUNT(*) < 2
+            )
+        """)
+    except sqlite3.Error:
+        pass
+    return restored
+
+
+def _archive_stale_entries(conn: sqlite3.Connection) -> int:
+    """Mark old, unaccessed entries as archived=1.
+
+    Archive criteria:
+    - Layer is in ECHO_ARCHIVE_LAYERS
+    - Date is older than ECHO_ARCHIVE_MIN_AGE days
+    - Zero access log entries
+    - Not a member of any semantic group
+    """
+    if not _ARCHIVE_ENABLED:
+        return 0
+    cutoff = time.strftime(
+        "%Y-%m-%d",
+        time.gmtime(time.time() - _ARCHIVE_MIN_AGE * 86400),
+    )
+    try:
+        placeholders = ",".join("?" for _ in _ARCHIVE_LAYERS)
+        params = list(_ARCHIVE_LAYERS) + [cutoff]  # type: List[Any]
+        cursor = conn.execute(
+            """UPDATE echo_entries SET archived = 1
+               WHERE archived = 0
+                 AND layer IN (%s)
+                 AND date < ?
+                 AND id NOT IN (SELECT DISTINCT entry_id FROM echo_access_log)
+                 AND id NOT IN (SELECT DISTINCT entry_id FROM semantic_groups)"""
+            % placeholders,
+            params,
+        )
+        return cursor.rowcount
+    except sqlite3.OperationalError:
+        return 0  # Pre-V3 schema
+
+
 def rebuild_index(conn, entries):
     """Clear and repopulate the FTS5 index from *entries*.
 
     Runs inside an explicit transaction for crash safety (QUAL-3).
+    Preserves semantic groups across the DELETE+INSERT cycle and
+    archives stale entries afterward.
 
     Args:
-        conn: Open SQLite connection with V2 schema.
+        conn: Open SQLite connection with V3 schema.
         entries: List of parsed echo entry dicts.
 
     Returns:
@@ -1100,7 +1310,10 @@ def rebuild_index(conn, entries):
     # type: (sqlite3.Connection, List[Dict]) -> int
     conn.execute("BEGIN")  # QUAL-3: explicit transaction
     try:
+        group_backup = _backup_semantic_groups(conn)
         _insert_entries(conn, entries)
+        _restore_semantic_groups(conn, group_backup)
+        _archive_stale_entries(conn)
         _prune_access_log(conn)
         _prune_search_failures(conn)
 
@@ -1410,13 +1623,14 @@ async def _pipeline_decompose(
 def _pipeline_bm25_search(
     conn: sqlite3.Connection, facets: List[str],
     overfetch_limit: int, layer: Optional[str], role: Optional[str],
+    category: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Stage 2-3: Per-facet BM25 search and merge."""
     t0 = time.time()
     all_facet_results = []  # type: list[list[Dict[str, Any]]]
     for facet in facets:
         all_facet_results.append(
-            search_entries(conn, facet, overfetch_limit, layer, role))
+            search_entries(conn, facet, overfetch_limit, layer, role, category))
     _trace("bm25_search (%d facets)" % len(facets), t0)
 
     t0 = time.time()
@@ -1430,6 +1644,82 @@ def _pipeline_bm25_search(
             candidates = all_facet_results[0] if all_facet_results else []
     _trace("merge", t0)
     return candidates
+
+
+def _populate_related_entries(
+    results: List[Dict[str, Any]],
+    conn: sqlite3.Connection,
+    category_filter: Optional[str] = None,
+) -> None:
+    """Add related_entries field to each result via semantic group co-membership.
+
+    For each result, finds other entries in the same semantic groups,
+    excluding archived entries and optionally filtering by category.
+    Modifies results in place.
+    """
+    if not results:
+        return
+    entry_ids = [r.get("id", "") for r in results if r.get("id")]
+    if not entry_ids:
+        return
+    result_id_set = frozenset(entry_ids)
+    # Batch: get all group memberships for result entry IDs
+    try:
+        group_rows = conn.execute(
+            "SELECT entry_id, group_id FROM semantic_groups "
+            "WHERE entry_id IN (%s)" % _in_clause(len(entry_ids)),
+            entry_ids,
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return  # Pre-V2 schema
+    if not group_rows:
+        for r in results:
+            r["related_entries"] = []
+        return
+    # Map entry_id -> set of group_ids
+    entry_groups = {}  # type: Dict[str, set]
+    all_group_ids = set()  # type: set
+    for row in group_rows:
+        eid = row[0]
+        gid = row[1]
+        entry_groups.setdefault(eid, set()).add(gid)
+        all_group_ids.add(gid)
+    # Fetch all members of those groups (excluding archived)
+    gid_list = list(all_group_ids)
+    base_sql = """SELECT sg.group_id, e.id, e.tags, e.layer, e.role
+                  FROM semantic_groups sg
+                  JOIN echo_entries e ON e.id = sg.entry_id
+                  WHERE sg.group_id IN (%s) AND e.archived = 0""" % _in_clause(len(gid_list))
+    params = list(gid_list)  # type: List[Any]
+    if category_filter:
+        base_sql += " AND e.category = ?"
+        params.append(category_filter)
+    try:
+        member_rows = conn.execute(base_sql, params).fetchall()
+    except sqlite3.OperationalError:
+        for r in results:
+            r["related_entries"] = []
+        return
+    # Map group_id -> list of member dicts
+    group_members = {}  # type: Dict[str, List[Dict[str, Any]]]
+    for row in member_rows:
+        gid = row[0]
+        member = {
+            "id": row[1], "tags": row[2],
+            "layer": row[3], "role": row[4],
+        }
+        group_members.setdefault(gid, []).append(member)
+    # Populate related_entries for each result
+    for r in results:
+        eid = r.get("id", "")
+        groups = entry_groups.get(eid, set())
+        related = {}  # type: Dict[str, Dict[str, Any]]
+        for gid in groups:
+            for member in group_members.get(gid, []):
+                mid = member["id"]
+                if mid != eid and mid not in result_id_set and mid not in related:
+                    related[mid] = member
+        r["related_entries"] = list(related.values())[:10]
 
 
 def _pipeline_group_expansion(
@@ -1522,6 +1812,7 @@ async def pipeline_search(
     layer: Optional[str] = None,
     role: Optional[str] = None,
     context_files: Optional[List[str]] = None,
+    category: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Multi-pass retrieval: decompose -> BM25 -> score -> expand -> retry -> rerank."""
     talisman = _load_talisman()
@@ -1531,13 +1822,15 @@ async def pipeline_search(
     facets = await _pipeline_decompose(
         query, _get_echoes_config(talisman, "decomposition"))
     candidates = _pipeline_bm25_search(
-        conn, facets, overfetch_limit, layer, role)
+        conn, facets, overfetch_limit, layer, role, category)
 
     t0 = time.time()
     scored = compute_composite_score(
         candidates, _SCORING_WEIGHTS, conn=conn,
         context_files=context_files)
     _trace("composite_scoring", t0)
+
+    _populate_related_entries(scored, conn, category)
 
     scored = _pipeline_group_expansion(
         conn, scored, _get_echoes_config(talisman, "semantic_groups"),
@@ -1572,14 +1865,15 @@ def build_fts_query(raw_query):
 
 def _build_search_sql(
     fts_query: str, layer: Optional[str], role: Optional[str], limit: int,
+    category: Optional[str] = None,
 ) -> Tuple[str, List[Any]]:
-    """Build FTS5 search SQL with optional layer/role filters."""
+    """Build FTS5 search SQL with optional layer/role/category filters."""
     sql = """SELECT e.id, e.source, e.layer, e.role, e.date,
                     substr(e.content, 1, 200) AS content_preview,
                     e.line_number, e.tags, bm25(echo_entries_fts) AS score
              FROM echo_entries_fts f
              JOIN echo_entries e ON e.rowid = f.rowid
-             WHERE echo_entries_fts MATCH ?"""
+             WHERE echo_entries_fts MATCH ? AND e.archived = 0"""
     params = [fts_query]  # type: List[Any]
     if layer:
         sql += " AND e.layer = ?"
@@ -1587,6 +1881,9 @@ def _build_search_sql(
     if role:
         sql += " AND e.role = ?"
         params.append(role)
+    if category:
+        sql += " AND e.category = ?"
+        params.append(category)
     sql += " ORDER BY bm25(echo_entries_fts) ASC LIMIT ?"
     params.append(limit)
     return sql, params
@@ -1603,13 +1900,13 @@ def _search_row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
     }
 
 
-def search_entries(conn, query, limit=10, layer=None, role=None):
+def search_entries(conn, query, limit=10, layer=None, role=None, category=None):
     """Execute a BM25 full-text search over the echo entries table."""
-    # type: (sqlite3.Connection, str, int, Optional[str], Optional[str]) -> List[Dict]
+    # type: (sqlite3.Connection, str, int, Optional[str], Optional[str], Optional[str]) -> List[Dict]
     fts_query = build_fts_query(query)
     if not fts_query:
         return []
-    sql, params = _build_search_sql(fts_query, layer, role, limit)
+    sql, params = _build_search_sql(fts_query, layer, role, limit, category)
     cursor = conn.execute(sql, params)
     return [_search_row_to_dict(row) for row in cursor.fetchall()]
 
@@ -1677,6 +1974,23 @@ def get_stats(conn):
     ):
         by_role[row["role"]] = row["cnt"]
 
+    by_category = {}  # type: Dict[str, int]
+    try:
+        for row in conn.execute(
+            "SELECT category, COUNT(*) as cnt FROM echo_entries GROUP BY category"
+        ):
+            by_category[row["category"] or "general"] = row["cnt"]
+    except sqlite3.OperationalError:
+        pass  # Pre-V3 schema without category column
+
+    archived_count = 0
+    try:
+        archived_count = conn.execute(
+            "SELECT COUNT(*) FROM echo_entries WHERE archived = 1"
+        ).fetchone()[0]
+    except sqlite3.OperationalError:
+        pass  # Pre-V3 schema without archived column
+
     last_row = conn.execute(
         "SELECT value FROM echo_meta WHERE key='last_indexed'"
     ).fetchone()
@@ -1686,6 +2000,8 @@ def get_stats(conn):
         "total_entries": total,
         "by_layer": by_layer,
         "by_role": by_role,
+        "by_category": by_category,
+        "archived_count": archived_count,
         "last_indexed": last_indexed,
     }
 
@@ -2030,6 +2346,11 @@ TOOL_SCHEMAS = [
                         "for proximity scoring"
                     ),
                 },
+                "category": {
+                    "type": "string",
+                    "enum": ["general", "pattern", "anti-pattern", "decision", "debugging"],
+                    "description": "Filter by entry category",
+                },
             },
             "required": ["query"],
         },
@@ -2158,12 +2479,20 @@ def _validate_search_args(arguments: Dict) -> Tuple[Optional[Tuple], Dict]:
             context_files = [
                 str(f) for f in context_files[:20]
                 if isinstance(f, str) and f] or None
+    _VALID_CATEGORIES = frozenset({"general", "pattern", "anti-pattern", "decision", "debugging"})
+    category = arguments.get("category")
+    if category is not None:
+        if not isinstance(category, str) or category.lower() not in _VALID_CATEGORIES:
+            category = None
+        else:
+            category = category.lower()
     limit = arguments.get("limit", 10)
     if not isinstance(limit, int) or limit < 1:
         limit = 10
     limit = min(limit, 50)
     return None, {"query": query, "limit": limit, "layer": layer,
-                  "role": role, "context_files": context_files}
+                  "role": role, "context_files": context_files,
+                  "category": category}
 
 
 async def _mcp_handle_search(arguments):
@@ -2185,7 +2514,8 @@ async def _mcp_handle_search(arguments):
             conn = get_db(DB_PATH)
         results = await pipeline_search(
             conn, args["query"], args["limit"],
-            args["layer"], args["role"], args["context_files"])
+            args["layer"], args["role"], args["context_files"],
+            args.get("category"))
         try:
             _record_access(conn, results, args["query"])
         except (sqlite3.Error, OSError) as exc:
@@ -2210,6 +2540,8 @@ async def _mcp_handle_details(arguments):
             conn.close()
             conn = None
             do_reindex(ECHO_DIR, DB_PATH)
+            conn = get_db(DB_PATH)
+        if conn is None:
             conn = get_db(DB_PATH)
         results = get_details(conn, ids)
     finally:
@@ -2282,7 +2614,10 @@ async def _mcp_handle_upsert_group(arguments):
     conn = get_db(DB_PATH)
     try:
         ensure_schema(conn)
-        count = upsert_semantic_group(conn, group_id, entry_ids, similarities)
+        try:
+            count = upsert_semantic_group(conn, group_id, entry_ids, similarities)
+        except ValueError as exc:
+            return {"error": str(exc)}, True
     finally:
         conn.close()
     return {"group_id": group_id, "memberships": count, "entry_ids": entry_ids}, False
