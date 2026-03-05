@@ -513,6 +513,7 @@ find "$CHOME/teams/" -maxdepth 1 -type d \( -name "rune-*" -o -name "arc-*" \) -
 - Don't commit plan files (`./plans/*.md`)
 - Always ensure plugin version is in sync between `.claude-plugin/marketplace.json` and `plugins/rune/.claude-plugin/plugin.json`
 - **Planning disambiguation**: ALWAYS use `/rune:devise` for feature planning — NEVER use `EnterPlanMode`. Plan output MUST follow Rune templates (YAML frontmatter + Minimal/Standard/Comprehensive sections from `devise/references/synthesize.md`)
+- **Plugin reload after sync**: After merging a PR, or checking out `main` and pulling new code (`git checkout main && git pull`), always run `/reload-plugins` to reload the Rune plugin with the latest changes
 
 ## Rune Session Isolation Rule
 
