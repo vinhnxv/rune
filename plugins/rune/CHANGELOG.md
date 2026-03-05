@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.136.0] - 2026-03-05
+
+### Added
+- **Team Management SDK** — Centralized `team-sdk` skill providing ExecutionEngine interface (9 methods: createTeam, spawnAgent, spawnWave, shutdownWave, monitor, sendMessage, shutdown, cleanup, getStatus), TeamEngine implementation with full teamTransition protocol, shared protocols (session isolation, workflow lock, signals, handle serialization), 6 built-in presets (review, work, plan, fix, debug, audit), and extracted monitoring utilities. Reduces ~900 lines of duplicated code across 11 skills.
+- **`/rune:team-status`** — Team monitoring dashboard command for inspecting active teams, teammates, and task progress. First user-facing command built on the Team Management SDK.
+- **MCP auto-install** — Python MCP dependencies (`mcp[cli]`) are now auto-installed on first use for echo-search and figma-to-react servers. Eliminates manual setup steps for users. Added `--break-system-packages` flag for macOS SIP compatibility.
+
+### Fixed
+- **CDX-RELEASE-001** — Closed unclosed quote in echo-search `start.sh` that prevented MCP server from launching.
+- **DOC-001** — Fixed method count "8 methods" → "9 methods" in team-sdk SKILL.md.
+- **DOC-002** — Aligned stuck worker default to `teammate_lifecycle` section with 20min default (matching strive implementation).
+- **DOC-003** — Documented co-firing race condition when `staleWarnMs` equals `autoReleaseMs` in forge preset monitoring config.
+
 ## [1.135.1] - 2026-03-05
 
 ### Fixed
