@@ -78,7 +78,43 @@ if (!qualityPassed) {
   }
 
   if (answer === "fix") {
-    // Create quality fix tasks and spawn workers
+    // Re-run quality commands to collect specific failures
+    const failedCommands = results.filter(r => !r.passed)
+    const failureContext = failedCommands.map(r =>
+      `Command: ${r.command}\nOutput:\n${r.output?.slice(0, 500)}`
+    ).join('\n---\n')
+
+    // Spawn a single fixer agent to address quality issues
+    Agent({
+      name: `quality-fixer`,
+      subagent_type: "rune:utility:mend-fixer",
+      team_name: teamName,
+      prompt: `Fix the quality gate failures below. Only modify files that were
+      changed by the resolve-todos fixers (check tmp/resolve-todos-${timestamp}/fixes/*.json
+      for the list of modified files).
+
+      Quality failures:
+      ${failureContext}
+
+      After fixing, re-run the failed commands to verify.`,
+      run_in_background: true
+    })
+
+    waitForCompletion(teamName, totalFixersSpawned + 1, {
+      timeoutMs: 180_000,
+      pollIntervalMs: 30_000,
+      staleWarnMs: 120_000,
+      label: "QualityFix"
+    })
+
+    // Re-run quality gate after fix attempt
+    for (const cmd of failedCommands.map(r => r.command)) {
+      const recheck = Bash(cmd, { timeout: 120000 })
+      if (recheck.exitCode !== 0) {
+        warn(`Quality check still failing after fix attempt: ${cmd}`)
+        qualityPassed = false
+      }
+    }
   }
 }
 ```

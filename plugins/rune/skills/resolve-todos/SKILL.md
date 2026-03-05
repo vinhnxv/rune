@@ -262,7 +262,15 @@ const validFileGroups = new Map()
 for (const [file, fileTodos] of fileGroups) {
   const fileSlug = file.replace(/\//g, '__')
   const verdictPath = `tmp/resolve-todos-${timestamp}/verdicts/${fileSlug}.json`
-  const verdictData = JSON.parse(Read(verdictPath))
+  let verdictData
+  try {
+    verdictData = JSON.parse(Read(verdictPath))
+  } catch (e) {
+    // Verifier crashed or wrote malformed JSON — treat all TODOs in this group
+    // as NEEDS_CLARIFICATION so they are not silently dropped
+    warn(`Verdict file missing or malformed for ${file} — marking as NEEDS_CLARIFICATION`)
+    continue
+  }
   const validTodos = fileTodos.filter(t => {
     const v = verdictData.verdicts?.find(v => v.todo_id === t.id)
     return v && (v.verdict === "VALID" || v.verdict === "PARTIAL")
@@ -303,10 +311,12 @@ for (const wave of fixerWaves) {
     const fileSlug = file.replace(/\//g, '__')
     Agent({
       name: `fixer-${fixerIdx}`,
-      subagent_type: "general-purpose",
+      subagent_type: "rune:utility:mend-fixer",
       team_name: teamName,
       prompt: `Fix the following TODOs in ${file}:
       ${sanitizedDescriptions}
+
+      CONSTRAINT: Do NOT use the Bash tool. Use only Read, Write, Edit, Glob, Grep.
 
       Write fix report to: tmp/resolve-todos-${timestamp}/fixes/${fileSlug}.json`,
       run_in_background: true
@@ -393,10 +403,12 @@ try {
   // FALLBACK: hardcoded list of all known teammate name patterns for this workflow.
   // Safe to send shutdown_request to absent members — no-op.
   // Must list ALL possible teammates: context agents, verifiers, and fixers.
+  // Length matches MAX_TODOS (50) to cover worst-case (1 fixer per file).
   allMembers = [
-    ...Array.from({length: 10}, (_, i) => `context-${i}`),
-    ...Array.from({length: 10}, (_, i) => `verifier-${i}`),
-    ...Array.from({length: 10}, (_, i) => `fixer-${i}`)
+    ...Array.from({length: MAX_TODOS}, (_, i) => `context-${i}`),
+    ...Array.from({length: MAX_TODOS}, (_, i) => `verifier-${i}`),
+    ...Array.from({length: MAX_TODOS}, (_, i) => `fixer-${i}`),
+    "quality-fixer"
   ]
 }
 
