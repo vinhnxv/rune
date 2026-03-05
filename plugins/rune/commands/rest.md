@@ -58,6 +58,7 @@ Remove ephemeral `tmp/` output directories from completed Rune workflows. Preser
 | `tmp/.rune-inspect-*.json` (active) | Active inspect workflow state |
 | `tmp/.rune-forge-*.json` (active) | Active forge workflow state |
 | `tmp/.rune-batch-*.json` (active) | Active batch workflow state |
+| `tmp/.rune-team-*.json` (active) | Active team-spawn workflow state |
 | `~/.claude/teams/{name}/` (active, < 30 min) | Teams referenced by active state files (`--heal` preserves these) |
 
 ## Steps
@@ -67,7 +68,7 @@ Remove ephemeral `tmp/` output directories from completed Rune workflows. Preser
 ```javascript
 // Look for active state files (status != completed, cancelled)
 // ZSH-SAFE: Use Glob() — never raw shell globs (ZSH NOMATCH kills `ls tmp/*.json`)
-const stateFiles = Glob("tmp/.rune-{review,audit,mend,work,inspect,forge,batch}-*.json")
+const stateFiles = Glob("tmp/.rune-{review,audit,mend,work,inspect,forge,batch,team}-*.json")
 ```
 
 ```bash
@@ -443,7 +444,7 @@ const staleStateFiles = []
 const activeStateFiles = []  // CC-1 FIX: separate list for safety check
 
 // See team-sdk/references/engines.md §Stale State File Scan Contract for canonical type list and threshold
-for (const type of ["work", "review", "mend", "audit", "forge", "inspect", "batch"]) {  // CC-4: include forge, QUAL-003: include batch, v1.50.0: include inspect
+for (const type of ["work", "review", "mend", "audit", "forge", "inspect", "batch", "team"]) {  // CC-4: include forge, QUAL-003: include batch, v1.50.0: include inspect
   const files = Glob(`tmp/.rune-${type}-*.json`)
   for (const f of files) {
     try {
