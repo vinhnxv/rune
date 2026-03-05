@@ -9,7 +9,7 @@ set -euo pipefail
 # Do NOT replace this with a direct python3 call in .mcp.json — it will
 # fail silently because ECHO_DIR/DB_PATH would be unset.
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # --- Package check ---
 # Verify required packages are importable. If any import fails,
