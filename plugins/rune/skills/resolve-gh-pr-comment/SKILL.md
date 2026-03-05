@@ -207,17 +207,22 @@ Detect whether the comment is from a known bot or a human reviewer. Parse struct
 const arc = readTalismanSection("arc")
 const botReviewConfig = arc?.ship?.bot_review ?? {}
 
-const knownBots = botReviewConfig.known_bots ?? [
+// M-3 FIX: Explicit allowlist of known bot names — prevents spoofing via attacker[bot].
+const TRUSTED_BOTS = new Set([
   "gemini-code-assist[bot]",
   "coderabbitai[bot]",
   "copilot[bot]",
   "cubic-dev-ai[bot]",
-  "chatgpt-codex-connector[bot]"
-]
-
-// Validate bot names (SEC: regex guard for interpolation safety)
-const BOT_NAME_RE = /^[a-zA-Z0-9_\-\[\]]+$/
-const validBots = knownBots.filter(b => BOT_NAME_RE.test(b))
+  "chatgpt-codex-connector[bot]",
+  "github-actions[bot]",
+  "dependabot[bot]",
+  "renovate[bot]",
+  "sonarcloud[bot]"
+])
+const talismanBots = botReviewConfig.known_bots ?? []
+const validBots = talismanBots.length > 0
+  ? talismanBots.filter(b => TRUSTED_BOTS.has(b))
+  : [...TRUSTED_BOTS]
 
 const authorLogin = commentData.user?.login ?? ""
 const authorType = commentData.user?.type ?? ""

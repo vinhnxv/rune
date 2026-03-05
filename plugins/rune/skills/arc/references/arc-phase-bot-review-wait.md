@@ -74,15 +74,29 @@ if (!owner || !repo) {
   return
 }
 
-// 2. Get known bots list — validated via BOT_NAME_RE
-const BOT_NAME_RE = /^[a-zA-Z0-9_-]+(\[bot\])?$/
-const knownBots = (botReviewConfig.known_bots ?? [
+// 2. Get known bots list — M-3 FIX: explicit allowlist replaces regex-based validation.
+// Prevents bot name spoofing via attacker[bot] usernames.
+const TRUSTED_BOTS = new Set([
   "gemini-code-assist[bot]",
   "coderabbitai[bot]",
   "copilot[bot]",
   "cubic-dev-ai[bot]",
-  "chatgpt-codex-connector[bot]"
-]).filter(b => BOT_NAME_RE.test(b))
+  "chatgpt-codex-connector[bot]",
+  "github-actions[bot]",
+  "dependabot[bot]",
+  "renovate[bot]",
+  "sonarcloud[bot]"
+])
+const talismanBots = botReviewConfig.known_bots ?? []
+const knownBots = talismanBots.length > 0
+  ? talismanBots.filter(b => {
+      if (!TRUSTED_BOTS.has(b)) {
+        warn(`Bot "${b}" not in trusted allowlist — ignored. Add to TRUSTED_BOTS if legitimate.`)
+        return false
+      }
+      return true
+    })
+  : [...TRUSTED_BOTS]
 
 // Escape special regex chars in bot names for jq test()
 const botLoginPattern = knownBots
@@ -114,6 +128,18 @@ let lastCheckRunCount = 0
 let lastMaxUpdatedAt = ""
 
 while (Date.now() - phaseStart < HARD_TIMEOUT_MS) {
+  // L-6 FIX: Check GitHub API rate limit before polling cycle (4 API calls per cycle).
+  // If remaining < 50, back off with exponential delay to avoid hitting the limit.
+  const rateLimitRaw = Bash(`${GH_ENV} gh api rate_limit --jq '.rate.remaining' 2>/dev/null || echo "5000"`).trim()
+  const rateLimitRemaining = parseInt(rateLimitRaw, 10)
+  if (rateLimitRemaining < 50) {
+    const resetRaw = Bash(`${GH_ENV} gh api rate_limit --jq '.rate.reset' 2>/dev/null || echo "0"`).trim()
+    const resetTime = parseInt(resetRaw, 10)
+    const waitSecs = Math.max(0, resetTime - Math.floor(Date.now() / 1000)) + 5
+    warn(`GitHub API rate limit low (${rateLimitRemaining} remaining). Waiting ${waitSecs}s for reset.`)
+    Bash(`sleep ${Math.min(waitSecs, 120)}`)  // Cap at 2 min wait
+  }
+
   // Signal 1: Check Runs (definitive for copilot, gemini-code-assist)
   const totalCheckRuns = Bash(`${GH_ENV} gh api "repos/${owner}/${repo}/commits/${headSha}/check-runs" --jq '[.check_runs[] | select(.app.slug != null)] | length'`).trim()
   const completedCheckRuns = Bash(`${GH_ENV} gh api "repos/${owner}/${repo}/commits/${headSha}/check-runs" --jq '[.check_runs[] | select(.status == "completed")] | length'`).trim()

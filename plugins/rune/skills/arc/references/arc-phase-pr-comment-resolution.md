@@ -78,19 +78,42 @@ const BATCH_SIZE = botReviewConfig.max_comment_batch_size ?? 10
 const HALLUCINATION_CHECK = botReviewConfig.hallucination_check ?? true
 const AUTO_RESOLVE_OUTDATED = botReviewConfig.auto_resolve_outdated !== false
 const MAX_ROUNDS = botReviewConfig.max_review_rounds ?? 3
-const QUALITY_COMMANDS = botReviewConfig.quality_commands ?? []
+// M-1 FIX: Validate quality commands against allowlist before execution.
+// Prevents command injection if talisman.yml is compromised.
+const SAFE_COMMAND_RE = /^[a-zA-Z0-9_\-\.]+(\s+[a-zA-Z0-9_\-\.\/]+)*$/
+const QUALITY_COMMANDS = (botReviewConfig.quality_commands ?? []).filter(cmd => {
+  if (typeof cmd !== 'string' || !SAFE_COMMAND_RE.test(cmd)) {
+    warn(`Quality command rejected (unsafe pattern): "${cmd}"`)
+    return false
+  }
+  return true
+})
 const outputDir = `tmp/arc/${id}/pr-comments`
 Bash(`mkdir -p "${outputDir}"`)
 
-// Known bots — validated via BOT_NAME_RE
-const BOT_NAME_RE = /^[a-zA-Z0-9_-]+(\[bot\])?$/
-const knownBots = (botReviewConfig.known_bots ?? [
+// M-3 FIX: Explicit allowlist of known bot names — prevents spoofing via attacker[bot].
+// Talisman overrides are validated against this allowlist (union, not replacement).
+const TRUSTED_BOTS = new Set([
   "gemini-code-assist[bot]",
   "coderabbitai[bot]",
   "copilot[bot]",
   "cubic-dev-ai[bot]",
-  "chatgpt-codex-connector[bot]"
-]).filter(b => BOT_NAME_RE.test(b))
+  "chatgpt-codex-connector[bot]",
+  "github-actions[bot]",
+  "dependabot[bot]",
+  "renovate[bot]",
+  "sonarcloud[bot]"
+])
+const talismanBots = botReviewConfig.known_bots ?? []
+const knownBots = talismanBots.length > 0
+  ? talismanBots.filter(b => {
+      if (!TRUSTED_BOTS.has(b)) {
+        warn(`Bot "${b}" not in trusted allowlist — ignored. Add to TRUSTED_BOTS if legitimate.`)
+        return false
+      }
+      return true
+    })
+  : [...TRUSTED_BOTS]
 const botPattern = knownBots
   .map(b => b.replace(/\[/g, '\\[').replace(/\]/g, '\\]'))
   .join('|')
@@ -163,8 +186,10 @@ while (round < MAX_ROUNDS) {
   if (AUTO_RESOLVE_OUTDATED) {
     const outdatedCount = parseInt(Bash(`jq 'length' "${outputDir}/outdated-threads-r${round}.json"`).trim(), 10)
     if (outdatedCount > 0) {
+      // M-2 FIX: Tighten thread ID regex — GitHub GraphQL node IDs are base64-encoded,
+      // typically 20+ chars of [A-Za-z0-9+/] with optional = padding.
       Bash(`jq -r '.[].id' "${outputDir}/outdated-threads-r${round}.json" | while read tid; do
-        if echo "$tid" | grep -qE '^[A-Za-z0-9_=-]+$'; then
+        if echo "$tid" | grep -qE '^[A-Za-z0-9+/]{20,}={0,2}$'; then
           ${GH_ENV} gh api graphql -f query="mutation { resolveReviewThread(input: {threadId: \\"$tid\\"}) { thread { isResolved } } }" 2>/dev/null
         fi
       done`)
