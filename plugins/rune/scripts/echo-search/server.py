@@ -460,8 +460,8 @@ def compute_file_proximity(evidence_path: str, context_path: str) -> float:
         return 0.8
 
     # Shared prefix — score proportional to common path depth
-    ev_parts = ev.split(os.sep)
-    ctx_parts = ctx.split(os.sep)
+    ev_parts = [p for p in ev.split(os.sep) if p]
+    ctx_parts = [p for p in ctx.split(os.sep) if p]
     common = 0
     for a, b in zip(ev_parts, ctx_parts):
         if a == b:
