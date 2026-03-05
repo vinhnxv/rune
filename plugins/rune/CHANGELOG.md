@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.135.1] - 2026-03-05
+
+### Fixed
+- **FLAW-003**: Guard `dir_mtime=0` from causing fresh team directories to be incorrectly classified as stale and cleaned up in `on-session-stop.sh`
+- **FLAW-007**: Changed `enforce-teams.sh` from fail-open to fail-closed when `resolve-session-identity.sh` is missing — prevents cross-session interference
+- **SEC-002**: Added allowlist character validation for Codex prompt file paths in `codex-exec.sh`
+- **SEC-003**: Added ECHO_DIR allowlist validation (home/project/tmp) in echo-search `server.py`, matching existing DB_PATH pattern
+- **SEC-004**: Two-pass prompt sanitization in echo-search `decomposer.py` — strips control/zero-width chars before HTML escape
+
 ## [1.135.0] - 2026-03-05
 
 ### Added
