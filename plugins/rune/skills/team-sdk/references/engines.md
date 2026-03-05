@@ -27,7 +27,7 @@ function createTeam(config) {
   // Rationale: Members need time to finish current tool call and approve shutdown.
   // 3s covers most cases; 8s covers complex file writes. Total max 11s wait.
   let teamDeleteSucceeded = false
-  const RETRY_DELAYS = config.retryDelays ?? [0, 3000, 8000]
+  const RETRY_DELAYS = config.retryDelays ?? [0, 3000, 8000]  // Faster cadence than shutdown() [0,5s,10s] — pre-create recovery prioritizes speed
   for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
     if (attempt > 0) {
       warn(`teamTransition: TeamDelete attempt ${attempt + 1} failed, retrying in ${RETRY_DELAYS[attempt]/1000}s...`)
@@ -50,6 +50,8 @@ function createTeam(config) {
   if (!teamDeleteSucceeded && !config.skipPreCreateGuard) {
     // Scoped cleanup — only remove THIS team's dirs
     // CHOME: Must use CLAUDE_CONFIG_DIR pattern for multi-account support
+    // SEC-001: Re-validate teamName before rm-rf (defense-in-depth)
+    if (!/^[a-zA-Z0-9_-]+$/.test(teamName)) throw new Error(`Invalid teamName for cleanup: ${teamName}`)
     Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
     try { TeamDelete() } catch (e2) { /* proceed to TeamCreate */ }
   }
@@ -62,6 +64,8 @@ function createTeam(config) {
     if (/already leading/i.test(createError.message)) {
       warn(`teamTransition: Leadership state leak detected. Attempting final cleanup.`)
       try { TeamDelete() } catch (e) { /* exhausted */ }
+      // SEC-001: Re-validate teamName before rm-rf (defense-in-depth)
+      if (!/^[a-zA-Z0-9_-]+$/.test(teamName)) throw new Error(`Invalid teamName for cleanup: ${teamName}`)
       Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
       try {
         TeamCreate({ team_name: teamName })
@@ -84,8 +88,12 @@ function createTeam(config) {
   // CRITICAL: This state file activates the ATE-1 hook (enforce-teams.sh) which blocks
   // bare Agent calls without team_name. Without this file, agents spawn as local subagents
   // instead of Agent Team teammates, causing context explosion.
+  // IMPORTANT: Steps 4-6 must complete atomically before any Agent() calls.
+  // spawnAgent() is only called after createTeam() returns, so this race
+  // does not manifest for SDK-mediated workflows.
   const configDir = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
   const ownerPid = Bash(`echo $PPID`).trim()
+  const sessionId = Bash(`echo "\${CLAUDE_SESSION_ID:-}"`).trim()
   const stateFile = `${stateFilePrefix}-${identifier}.json`
 
   Write(stateFile, {
@@ -94,7 +102,7 @@ function createTeam(config) {
     status: "active",
     config_dir: configDir,
     owner_pid: ownerPid,
-    session_id: "${CLAUDE_SESSION_ID}",
+    session_id: sessionId,
     ...metadata
   })
 
@@ -104,7 +112,7 @@ function createTeam(config) {
     identifier,
     configDir,
     ownerPid,
-    sessionId: "${CLAUDE_SESSION_ID}",
+    sessionId,
     stateFile,
     createdAt: new Date().toISOString(),
     spawnedAgents: []  // Populated by spawnAgent/spawnWave
@@ -112,12 +120,74 @@ function createTeam(config) {
 }
 ```
 
-## spawnAgent(handle, spec) -> AgentRef
+## ensureTeam(config) -> TeamHandle
 
-Spawns a single teammate. ATE-1 compliant: always includes `team_name` and uses `subagent_type: "general-purpose"`.
+Idempotent team creation. Safe to call multiple times — checks if team already exists and belongs to current session before creating. Used by auto-bootstrap pattern and compaction recovery.
 
 ```javascript
-function spawnAgent(handle, spec) {
+function ensureTeam(config) {
+  // Idempotent team creation — safe to call multiple times.
+  // If team already exists AND belongs to current session, returns recovered handle.
+  // If team doesn't exist, calls createTeam().
+  // If team exists but belongs to different session, calls createTeam() (which cleans up first).
+
+  const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+  const configPath = `${CHOME}/teams/${config.teamName}/config.json`
+
+  // Check if team already exists
+  try {
+    const teamConfig = Read(configPath)
+    if (teamConfig) {
+      // Team exists — check if it's ours (session isolation)
+      const stateFile = `${config.stateFilePrefix}-${config.identifier}.json`
+      try {
+        const state = JSON.parse(Read(stateFile))
+        if (state.status === "active" && state.owner_pid === Bash(`echo $PPID`).trim()) {
+          // Note: PID reuse within a single session's lifetime is astronomically unlikely.
+          // Adding session_id as a secondary check would close this theoretical gap.
+          // Our team, our session — recover handle
+          return {
+            teamName: config.teamName,
+            workflow: config.workflow,
+            identifier: config.identifier,
+            configDir: state.config_dir,
+            ownerPid: state.owner_pid,
+            sessionId: state.session_id,
+            stateFile,
+            createdAt: state.started,
+            spawnedAgents: []  // Cannot recover spawned list — fresh start
+          }
+        }
+      } catch (e) {
+        // State file missing or corrupted — fall through to createTeam()
+      }
+    }
+  } catch (e) {
+    // Team dir doesn't exist — fall through to createTeam()
+  }
+
+  // Team doesn't exist or belongs to another session — create fresh
+  return createTeam(config)
+}
+```
+
+## spawnAgent(handle, spec) -> AgentRef
+
+Spawns a single teammate. ATE-1 compliant: always includes `team_name` and uses `subagent_type: "general-purpose"`. Accepts either a TeamHandle or a config object (auto-bootstrap).
+
+```javascript
+function spawnAgent(handleOrConfig, spec) {
+  // Auto-bootstrap: accept either a TeamHandle or a config object.
+  // If config object (no createdAt field), call ensureTeam() first.
+  let handle = handleOrConfig
+  if (!handleOrConfig.createdAt) {
+    // This is a config object, not a handle — auto-bootstrap
+    handle = ensureTeam(handleOrConfig)
+    if (!handle) {
+      throw new Error("Auto-bootstrap failed: ensureTeam() returned null. Check team-sdk logs.")
+    }
+  }
+
   const {
     name, prompt, taskSubject, taskDescription,
     activeForm, tools, maxTurns, metadata
@@ -162,10 +232,20 @@ function spawnAgent(handle, spec) {
 
 ## spawnWave(handle, specs) -> AgentRef[]
 
-Batch spawns for wave-based execution. Creates all tasks first, then spawns agents. Used by strive (worker waves) and mend (fixer waves).
+Batch spawns for wave-based execution. Creates all tasks first, then spawns agents. Used by strive (worker waves) and mend (fixer waves). Accepts either a TeamHandle or a config object (auto-bootstrap).
 
 ```javascript
-function spawnWave(handle, specs) {
+function spawnWave(handleOrConfig, specs) {
+  // Auto-bootstrap: accept either a TeamHandle or a config object.
+  // If config object (no createdAt field), call ensureTeam() first.
+  let handle = handleOrConfig
+  if (!handleOrConfig.createdAt) {
+    handle = ensureTeam(handleOrConfig)
+    if (!handle) {
+      throw new Error("Auto-bootstrap failed: ensureTeam() returned null. Check team-sdk logs.")
+    }
+  }
+
   const refs = []
 
   // Create all tasks first (ordering matters for dependency chains)
@@ -405,6 +485,8 @@ function cleanup(handle) {
   }
 
   // 2. Release workflow lock
+  // Assumes CWD is project root — stable in Claude Code sessions.
+  // After compaction recovery, CWD could theoretically differ.
   if (handle.workflow) {
     const CWD = Bash(`pwd`).trim()
     Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "${handle.workflow}"`)

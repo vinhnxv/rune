@@ -14,7 +14,7 @@ disable-model-invocation: false
 
 # Team Management SDK
 
-Centralizes Agent Team lifecycle operations that are currently duplicated across 11+ workflow skills (~900 lines of shared patterns). Provides a single ExecutionEngine interface with 9 methods covering the full team lifecycle: creation, agent spawning, monitoring, shutdown, and cleanup.
+Centralizes Agent Team lifecycle operations that are currently duplicated across 11+ workflow skills (~900 lines of shared patterns). Provides a single ExecutionEngine interface with 10 methods covering the full team lifecycle: creation, idempotent bootstrap, agent spawning, monitoring, shutdown, and cleanup.
 
 **Load skills**: `chome-pattern`, `polling-guard`, `zsh-compat`
 
@@ -35,6 +35,29 @@ The Claude Agent SDK enforces a strict one-team-per-lead constraint: a session c
 
 **Implication**: Workflows that need multiple teams (e.g., arc phases) must create and destroy teams sequentially — never concurrently.
 
+## Iron Law -- NO AGENTS WITHOUT TEAM (TEAM-001)
+
+> **This rule is absolute. No exceptions.**
+>
+> Every `Agent()` call in a Rune workflow MUST include `team_name`.
+> Every `team_name` MUST reference a team created via `TeamEngine.createTeam()` or `TeamEngine.ensureTeam()`.
+>
+> If you find yourself spawning agents without calling createTeam() first, STOP.
+> The enforce-teams.sh hook (ATE-1) will block bare Agent() calls, but
+> prevention is better than correction.
+>
+> **Preferred pattern**: Use `ensureTeam()` which is idempotent -- safe to call
+> even if a team already exists. When in doubt, call ensureTeam().
+
+### Rationalization Red Flags
+
+| Rationalization | Why It's Wrong |
+|----------------|----------------|
+| "Just one agent, no need for a team" | One bare agent causes context explosion. ATE-1 exists for a reason. |
+| "TeamCreate is slow, skip it" | TeamCreate takes <1s. Context explosion recovery takes minutes. |
+| "The state file isn't important" | Without the state file, ATE-1 hook cannot protect subsequent Agent calls. |
+| "I'll create the team after spawning" | Agents spawned before TeamCreate run as plain subagents. Order matters. |
+
 ## ExecutionEngine Interface
 
 All team lifecycle operations go through this interface. Currently only `TeamEngine` implements it (see [engines.md](references/engines.md)). `resolveEngine()` always returns `TeamEngine`.
@@ -44,6 +67,7 @@ All team lifecycle operations go through this interface. Currently only `TeamEng
 ```
 ExecutionEngine {
   createTeam(config)      → TeamHandle
+  ensureTeam(config)      → TeamHandle
   spawnAgent(handle, spec) → AgentRef
   spawnWave(handle, specs) → AgentRef[]
   shutdownWave(handle)     → void
@@ -92,9 +116,15 @@ TeamHandle: {
 
 See [engines.md](references/engines.md) for full implementation.
 
+#### ensureTeam(config) -> TeamHandle
+
+Idempotent team creation — safe to call multiple times. If the team already exists AND belongs to the current session, returns a recovered handle. If the team doesn't exist or belongs to a different session, calls `createTeam()`. Recommended for compaction recovery and auto-bootstrap patterns.
+
+Same `config` input as `createTeam()`. See [engines.md](references/engines.md) for full implementation.
+
 #### spawnAgent(handle, spec) -> AgentRef
 
-Spawns a single teammate into the existing team. Creates a task via `TaskCreate`, then spawns via `Agent` with `team_name` (ATE-1 compliant).
+Spawns a single teammate into the existing team. Creates a task via `TaskCreate`, then spawns via `Agent` with `team_name` (ATE-1 compliant). Accepts either a TeamHandle (from createTeam/ensureTeam) or a config object for auto-bootstrap (calls ensureTeam internally).
 
 ```
 spec: {
@@ -119,7 +149,7 @@ AgentRef: {
 
 #### spawnWave(handle, specs) -> AgentRef[]
 
-Batch spawns multiple agents for wave-based execution. Calls `spawnAgent` for each spec in parallel. Returns array of AgentRefs for monitoring.
+Batch spawns multiple agents for wave-based execution. Calls `spawnAgent` for each spec in parallel. Returns array of AgentRefs for monitoring. Accepts either a TeamHandle (from createTeam/ensureTeam) or a config object for auto-bootstrap (calls ensureTeam internally).
 
 ```
 specs: AgentSpec[]          // Array of spawnAgent specs
@@ -261,8 +291,10 @@ See [protocols.md](references/protocols.md) for full protocol specifications.
 
 Workflow skills use the SDK like this:
 
+### Standard Pattern (explicit handle)
+
 ```javascript
-// 1. Create team
+// 1. Create team (MUST be first — activates ATE-1 enforcement)
 const handle = TeamEngine.createTeam({
   teamName: `rune-work-${timestamp}`,
   workflow: "strive",
@@ -275,15 +307,38 @@ const handle = TeamEngine.createTeam({
 const agents = TeamEngine.spawnWave(handle, workerSpecs)
 
 // 3. Monitor
-const result = TeamEngine.monitor(handle, {
-  timeoutMs: 1_800_000,
-  label: "Work"
-})
+const result = TeamEngine.monitor(handle, { timeoutMs: 1_800_000, label: "Work" })
 
 // 4. Shutdown + cleanup (always in try/finally)
 try {
   // ... process results ...
 } finally {
+  TeamEngine.shutdown(handle)
+  TeamEngine.cleanup(handle)
+}
+```
+
+### Auto-Bootstrap Pattern (idempotent — recommended)
+
+```javascript
+// ensureTeam() is idempotent — creates if not exists, recovers if exists.
+// Safe to call multiple times (e.g., after compaction recovery).
+const config = {
+  teamName: `rune-work-${timestamp}`,
+  workflow: "strive",
+  identifier: timestamp,
+  stateFilePrefix: "tmp/.rune-work",
+  metadata: { plan: planPath }
+}
+
+const handle = TeamEngine.ensureTeam(config)
+
+// Or: spawnAgent/spawnWave auto-call ensureTeam() when given config instead of handle
+const agents = TeamEngine.spawnWave(config, workerSpecs)  // auto-bootstraps team
+
+// Monitor and cleanup remain the same
+const result = TeamEngine.monitor(handle, { timeoutMs: 1_800_000, label: "Work" })
+try { /* ... */ } finally {
   TeamEngine.shutdown(handle)
   TeamEngine.cleanup(handle)
 }
@@ -303,9 +358,8 @@ Some workflows need to override default teamTransition behavior:
 
 ## References
 
-- [engines.md](references/engines.md) — Full TeamEngine implementation with all 8 methods
+- [engines.md](references/engines.md) — Full TeamEngine implementation with all 10 methods, teamTransition protocol, and cleanup patterns (canonical reference, consolidated from team-lifecycle-guard.md)
 - [protocols.md](references/protocols.md) — Session isolation, workflow lock, signal detection, handle serialization
 - [presets.md](references/presets.md) — Per-workflow preset configurations
 - [monitoring.md](references/monitoring.md) — Monitoring patterns, signal checks, per-command config table
-- [engines.md](references/engines.md) — teamTransition protocol and cleanup patterns (canonical reference, consolidated from team-lifecycle-guard.md)
 - [monitor-utility.md](../roundtable-circle/references/monitor-utility.md) — Shared waitForCompletion polling utility

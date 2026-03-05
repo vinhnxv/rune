@@ -17,7 +17,20 @@ try {
   const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
-  allMembers = []  // Team config unavailable — no members to shutdown
+  // FALLBACK: config.json read failed — use exhaustive list of all possible forge agents.
+  // Includes: topic agents (from forge-gaze selection) + elicitation sages (up to 6).
+  // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
+  allMembers = [
+    // Topic agents (forge-gaze assigns from the full review agent pool)
+    "rune-architect", "pattern-seer", "ward-sentinel", "flaw-hunter",
+    "ember-oracle", "simplicity-warden", "depth-seer", "tide-watcher",
+    "blight-seer", "wraith-finder", "void-analyzer", "mimic-detector",
+    "forge-keeper", "type-warden", "trial-oracle", "assumption-slayer",
+    "reality-arbiter", "entropy-prophet", "senior-engineer-reviewer",
+    // Elicitation sages (up to MAX_FORGE_SAGES=6, indexed by section)
+    "elicitation-sage-0", "elicitation-sage-1", "elicitation-sage-2",
+    "elicitation-sage-3", "elicitation-sage-4", "elicitation-sage-5"
+  ]
 }
 
 // Shutdown all discovered members

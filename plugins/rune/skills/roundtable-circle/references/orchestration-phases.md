@@ -1148,10 +1148,14 @@ const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
 // 1. Dynamic member discovery
 let allMembers = []
 try {
-  const teamConfig = Read(`${CHOME}/teams/${teamName}/config.json`)
-  allMembers = teamConfig.members.map(m => m.name).filter(Boolean)
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
+  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
+  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
-  allMembers = [...selectedAsh, "runebinder"]
+  // FALLBACK: config.json read failed — include all possible agents.
+  // selectedAsh + runebinder + conditionally-spawned agents (doubt-seer, cross-shard-sentinel).
+  // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
+  allMembers = [...selectedAsh, "runebinder", "doubt-seer", "cross-shard-sentinel"]
 }
 
 // 2. Shutdown all teammates
