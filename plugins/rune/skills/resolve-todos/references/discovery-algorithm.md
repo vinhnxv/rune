@@ -13,6 +13,11 @@ Three strategies in priority order:
 ## Implementation
 
 ```javascript
+// Pseudocode utility functions used below:
+// - Glob(pattern): Rune SDK file pattern match tool (returns string[] or null)
+// - Read(path): Rune SDK file read tool
+// - parseFrontmatter(content): Extract YAML frontmatter from markdown file
+
 function discoverTodos(args) {
   const sourceFilter = args.source ?? null  // "work", "review", "pr-comment"
 
@@ -28,9 +33,11 @@ function discoverTodos(args) {
         todoBases.push(`tmp/${state.workflow}/${state.timestamp}/todos/`)
       }
     }
-    // Fallback: scan all
+    // Fallback: scan all todo directories
+    // Glob returns paths like "tmp/arc-123/todos/" — these ARE the todo dirs,
+    // no dirname() needed (dirname would only strip the trailing slash).
     if (todoBases.length === 0) {
-      todoBases = Glob("tmp/*/todos/").map(p => dirname(p))
+      todoBases = Glob("tmp/*/todos/") ?? []
     }
   }
 
@@ -82,12 +89,24 @@ for (const todo of todos) {
 ### EDGE-002: Blocked TODOs with cascade dependencies
 
 ```javascript
-// Reject TODOs whose dependencies are not complete
+// Reject TODOs whose dependencies are not complete.
+// NOTE: `todos` only contains pending/ready/interrupted items (completed filtered at L49).
+// To check dep completion, we need ALL todo statuses — query from filesystem directly.
+function getTodoStatus(todoId, todoBases) {
+  for (const base of todoBases) {
+    const matches = Glob(`${base}*/*-${todoId}.md`) ?? []
+    if (matches.length > 0) {
+      const fm = parseFrontmatter(Read(matches[0]))
+      return fm.status
+    }
+  }
+  return undefined  // dep not found — treat as incomplete
+}
+
 const readyTodos = todos.filter(todo => {
   if (!todo.dependencies || todo.dependencies.length === 0) return true
   return todo.dependencies.every(dep => {
-    const depTodo = todos.find(t => t.id === dep)
-    return depTodo?.status === "complete"
+    return getTodoStatus(dep, todoBases) === "complete"
   })
 })
 ```
@@ -128,11 +147,12 @@ for (const todo of todos) {
 ### EDGE-005: TODO references deleted file
 
 ```javascript
-// Validate file targets exist
+// Validate file targets exist (Rune SDK has no exists() — use Glob for file check)
 for (const todo of todos) {
   if (!todo.files || todo.files.length === 0) continue
   for (const file of todo.files) {
-    if (!exists(file)) {
+    const matches = Glob(file) ?? []
+    if (matches.length === 0) {
       todo.needs_clarification = true
       todo.clarification_reason = `Referenced file not found: ${file}`
     }
@@ -156,6 +176,14 @@ if (todos.length > MAX_TODOS) {
   if (!answer) return
   todos = todos.slice(0, MAX_TODOS)
 }
+
+// Compute source statistics for summary
+const bySource = {}
+for (const todo of todos) {
+  const source = todo.source ?? "unknown"
+  bySource[source] = (bySource[source] ?? 0) + 1
+}
+const uniqueSources = Object.keys(bySource)
 
 // Present summary
 log(`Found ${todos.length} pending TODOs across ${uniqueSources.length} source(s)`)

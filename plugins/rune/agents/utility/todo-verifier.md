@@ -73,6 +73,9 @@ if (actualLine === -1) {
 - **FALSE_POSITIVE** (>= 0.85): The code does not contain the issue, or the issue is already fixed
 - **ALREADY_FIXED** (>= 0.80): The exact fix described is already present in the code
 - **NEEDS_CLARIFICATION** (< 0.70): Cannot determine with confidence
+- **PARTIAL** (>= 0.70): Some but not all parts of the multi-part TODO are resolved
+- **DUPLICATE** (>= 0.90): Exact file+line match with another TODO in the same batch
+- **DEFERRED** (>= 0.70): Issue is confirmed valid but risk assessment recommends deferral
 
 ## Output Format
 

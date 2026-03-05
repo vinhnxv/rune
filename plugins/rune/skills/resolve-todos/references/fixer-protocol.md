@@ -84,9 +84,12 @@ interface FixEntry {
 
 ```javascript
 // Write to temp file first, then atomic rename
+// Use full path slug (not basename) to prevent collision for same-named files in different dirs.
+// e.g., src/auth/index.ts → src__auth__index.ts
+const fileSlug = file.replace(/\//g, '__')
 const reportJson = JSON.stringify(fixReport, null, 2)
-Write(`tmp/resolve-todos-${timestamp}/fixes/.tmp-${groupId}.json`, reportJson)
-Bash(`mv "tmp/resolve-todos-${timestamp}/fixes/.tmp-${groupId}.json" "tmp/resolve-todos-${timestamp}/fixes/${basename(file)}.json"`)
+Write(`tmp/resolve-todos-${timestamp}/fixes/.tmp-${fileSlug}.json`, reportJson)
+Bash(`mv "tmp/resolve-todos-${timestamp}/fixes/.tmp-${fileSlug}.json" "tmp/resolve-todos-${timestamp}/fixes/${fileSlug}.json"`)
 // THEN mark task complete
 TaskUpdate({ taskId, status: "completed" })
 ```
@@ -99,12 +102,15 @@ Cap per `MAX_TODOS_PER_FIXER` (talisman default: 8). Files exceeding the cap spl
 const MAX_TODOS_PER_FIXER = talisman?.resolve_todos?.max_per_fixer ?? 8
 if (todos.length > MAX_TODOS_PER_FIXER) {
   const chunks = chunk(todos, MAX_TODOS_PER_FIXER)
+  const chunkTaskIds = []  // Track task IDs for blockedBy chaining
+  const fileSlug = file.replace(/\//g, '__')
   // Each chunk gets its own fixer; chunk N+1 blockedBy chunk N
-  for (const [idx, chunk] of chunks.entries()) {
+  for (const [idx, chunkItems] of chunks.entries()) {
     const taskId = TaskCreate({
-      subject: `Fix chunk ${idx + 1} for ${basename(file)}`,
+      subject: `Fix chunk ${idx + 1} for ${fileSlug}`,
       blockedBy: idx > 0 ? [chunkTaskIds[idx - 1]] : []
     })
+    chunkTaskIds.push(taskId)
     // Spawn fixer for this chunk
   }
 }

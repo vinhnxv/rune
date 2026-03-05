@@ -17,7 +17,11 @@
 # Fail-forward design: On any parsing/validation error, allow the operation.
 # Fail-closed on missing jq (SECURITY-class requirement).
 
-set -euo pipefail
+# Fail-forward: errors allow the operation (exit 0) rather than blocking.
+# Using set -u for unset variable detection, but NOT set -e (which interacts
+# poorly with the ERR trap — unexpected failures would silently allow writes).
+# Each critical command uses explicit error handling instead.
+set -u -o pipefail
 umask 077
 trap 'exit 0' ERR
 

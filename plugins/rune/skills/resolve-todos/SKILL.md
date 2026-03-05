@@ -86,8 +86,8 @@ const sourceFilter = args.split(' ').filter(a => !a.startsWith('--'))[0] ?? null
 const dryRun = args.includes("--dry-run")
 const batchSize = parseInt(args.match(/--batch-size[=\s]+(\d+)/)?.[1] ?? "5")
 
-// Discover TODO files
-const todos = discoverTodos({ sourceFilter, path: null })
+// Discover TODO files (let — reassigned below if capped at MAX_TODOS)
+let todos = discoverTodos({ sourceFilter, path: null })
 if (todos.length === 0) {
   log("No pending TODOs found. Nothing to resolve.")
   return
@@ -169,8 +169,8 @@ for (const [file, todos] of fileGroups) {
   fileIdx++
 }
 
-// Wait with timeout — uses TaskList-based polling per Core Rule 9.
-// See roundtable-circle/references/monitor-utility.md for the shared polling utility.
+// waitForCompletion(): Defined in polling-guard skill / monitor-utility.md.
+// TaskList-based polling per Core Rule 9. Count arg is CUMULATIVE total.
 // maxIterations = ceil(timeoutMs / pollIntervalMs) = ceil(180000 / 30000) = 6
 // Per cycle: TaskList() → count completed → check stale → Bash("sleep 30") → repeat
 const contextTaskCount = fileIdx
@@ -189,27 +189,39 @@ waitForCompletion(teamName, contextTaskCount, {
 See [verify-protocol.md](references/verify-protocol.md) for verifier prompts and verdict taxonomy.
 
 ```javascript
-// Build verifier waves — group by file, no two verifiers in same wave share a file
-// See fixer-protocol.md "No-Overlap Wave Invariant" for the wave construction algorithm.
-// Verifier waves use the same algorithm: one verifier per file group per wave.
+// buildWaves(): See fixer-protocol.md "No-Overlap Wave Invariant" for definition.
+// Groups entries by file, assigns to waves ensuring no two agents in same wave share a file.
+// Returns Array<Map<file, todos[]>>. Each wave has at most maxPerWave entries.
 const verifierWaves = buildWaves(fileGroups, { maxPerWave: 5 })
 
 // Sanitize TODO bodies before prompt injection (SEC-003: prevent prompt injection)
-// See verify-protocol.md "TODO Body Sanitization" for sanitizeTodoBody() definition.
+// sanitizeTodoBody() is defined in verify-protocol.md "TODO Body Sanitization" section.
+// Two-pass: strip control patterns → detect SUSPECT injection vectors.
+// Returns { clean: string, isSuspect: boolean, matchedPattern: string|null }.
 const sanitizedTodos = todos.map(t => ({
   ...t,
   description: sanitizeTodoBody(t.description).clean
 }))
 
-// Spawn verifiers (modeled after todo-verifier agent — model: haiku, tools: Read, Grep, Glob, Write)
-let fileIdx = 0
+// Spawn verifiers (modeled after todo-verifier agent — model set in agent frontmatter)
+// Use sanitized TODO descriptions in verifier prompts (not raw fileTodos)
+let verifierIdx = 0
+let totalVerifiersSpawned = 0
 for (const wave of verifierWaves) {
+  const waveSize = wave.size ?? wave.length
   for (const [file, fileTodos] of wave) {
+    // Use sanitized descriptions from sanitizedTodos (not raw fileTodos)
+    const safeTodos = fileTodos.map(t => {
+      const sanitized = sanitizedTodos.find(st => st.id === t.id)
+      return sanitized ?? t
+    })
+    // Output path: use full path slug to prevent collision (e.g., src/auth/index.ts → src__auth__index.ts)
+    const fileSlug = file.replace(/\//g, '__')
     Agent({
-      name: `verifier-${fileIdx}`,
+      name: `verifier-${verifierIdx}`,
       subagent_type: "general-purpose",
       team_name: teamName,
-      model: "haiku",
+      // model omitted — todo-verifier.md agent frontmatter sets model: haiku
       prompt: `You are todo-verifier. Verify each TODO in ${file}.
 
       Verdict taxonomy: VALID | FALSE_POSITIVE | ALREADY_FIXED | NEEDS_CLARIFICATION | PARTIAL | DUPLICATE | DEFERRED
@@ -218,17 +230,21 @@ for (const wave of verifierWaves) {
       - VALID: >= 0.70
       - FALSE_POSITIVE: >= 0.85
       - ALREADY_FIXED: >= 0.80
+      - PARTIAL: >= 0.70
+      - DUPLICATE: >= 0.90
+      - DEFERRED: >= 0.70
 
       TODOs with PARTIAL verdict: fix the unresolved parts. Include partial evidence.
 
-      Write verdicts to: tmp/resolve-todos-${timestamp}/verdicts/${basename(file)}.json`,
+      Write verdicts to: tmp/resolve-todos-${timestamp}/verdicts/${fileSlug}.json`,
       run_in_background: true
     })
-    fileIdx++
+    verifierIdx++
   }
-  // Wait with TaskList-based polling per Core Rule 9
-  // maxIterations = ceil(300000 / 30000) = 10
-  waitForCompletion(teamName, wave.length, {
+  totalVerifiersSpawned += waveSize
+  // waitForCompletion(): See polling-guard skill for definition.
+  // Count arg is CUMULATIVE (total completed tasks to wait for across team).
+  waitForCompletion(teamName, totalVerifiersSpawned, {
     timeoutMs: 300_000,
     pollIntervalMs: 30_000,
     staleWarnMs: 180_000,
@@ -237,40 +253,69 @@ for (const wave of verifierWaves) {
 }
 ```
 
+### Phase 3.5: Verdict Aggregation
+
+```javascript
+// Aggregate verifier verdicts to build validFileGroups for Phase 4.
+// Only TODOs with verdict=VALID or verdict=PARTIAL proceed to fixers.
+const validFileGroups = new Map()
+for (const [file, fileTodos] of fileGroups) {
+  const fileSlug = file.replace(/\//g, '__')
+  const verdictPath = `tmp/resolve-todos-${timestamp}/verdicts/${fileSlug}.json`
+  const verdictData = JSON.parse(Read(verdictPath))
+  const validTodos = fileTodos.filter(t => {
+    const v = verdictData.verdicts?.find(v => v.todo_id === t.id)
+    return v && (v.verdict === "VALID" || v.verdict === "PARTIAL")
+  })
+  if (validTodos.length > 0) {
+    validFileGroups.set(file, validTodos)
+  }
+}
+
+if (validFileGroups.size === 0) {
+  log("No VALID or PARTIAL TODOs after verification. Skipping Phase 4.")
+  // Jump to Phase 6 for report
+}
+```
+
 ## Phase 4: Batch Fix
 
 Wave-based fixer agents resolve verified TODOs. See [fixer-protocol.md](references/fixer-protocol.md).
 
 ```javascript
-// Build fixer waves — no two fixers in same wave share a file (prevents write conflicts)
-// See fixer-protocol.md "No-Overlap Wave Invariant" for the wave construction algorithm:
-//   1. Group fixers by file → check overlap → assign to wave → defer conflicts to next wave
+// buildWaves(): See fixer-protocol.md "No-Overlap Wave Invariant" for definition.
+// No two fixers in same wave share a file (prevents write conflicts).
 const fixerWaves = buildWaves(validFileGroups, { maxPerWave: 5 })
 
 // Spawn fixers (reuse mend-fixer agent pattern)
 // SEC-003: Sanitize TODO descriptions before prompt injection
-let fileIdx = 0
+let fixerIdx = 0
+let totalFixersSpawned = 0
 for (const wave of fixerWaves) {
+  const waveSize = wave.size ?? wave.length
   for (const [file, validTodos] of wave) {
+    // Use sanitizeTodoBody() from verify-protocol.md for injection defense
     const sanitizedDescriptions = validTodos.map(t => {
       const { clean } = sanitizeTodoBody(t.description)
       return `- [${t.issue_id}] ${clean}`
     }).join('\n')
+    // Output path: use full path slug to prevent collision (matches verifier pattern)
+    const fileSlug = file.replace(/\//g, '__')
     Agent({
-      name: `fixer-${fileIdx}`,
+      name: `fixer-${fixerIdx}`,
       subagent_type: "general-purpose",
       team_name: teamName,
       prompt: `Fix the following TODOs in ${file}:
       ${sanitizedDescriptions}
 
-      Write fix report to: tmp/resolve-todos-${timestamp}/fixes/${basename(file)}.json`,
+      Write fix report to: tmp/resolve-todos-${timestamp}/fixes/${fileSlug}.json`,
       run_in_background: true
     })
-    fileIdx++
+    fixerIdx++
   }
-  // Wait with TaskList-based polling per Core Rule 9
-  // maxIterations = ceil(300000 / 30000) = 10
-  waitForCompletion(teamName, wave.length, {
+  totalFixersSpawned += waveSize
+  // waitForCompletion(): See polling-guard skill. Count is CUMULATIVE.
+  waitForCompletion(teamName, totalFixersSpawned, {
     timeoutMs: 300_000,
     pollIntervalMs: 30_000,
     staleWarnMs: 180_000,
@@ -281,19 +326,7 @@ for (const wave of fixerWaves) {
 
 ## Phase 5: Quality Gate
 
-See [quality-gate.md](references/quality-gate.md) for talisman integration.
-
-```javascript
-const qualityCommands = ["npm run lint --if-present", "npm run typecheck --if-present"]
-let qualityPassed = true
-for (const cmd of qualityCommands) {
-  const result = Bash(cmd, { timeout: 120000 })
-  if (result.exitCode !== 0) {
-    qualityPassed = false
-    warn(`Quality check failed: ${cmd}`)
-  }
-}
-```
+See [quality-gate.md](references/quality-gate.md) for the canonical implementation (talisman-aware command discovery, auto-detection, results file, and failure handling).
 
 ## Phase 6: Report & Commit
 
@@ -357,9 +390,14 @@ try {
   const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
-  // FALLBACK: hardcoded list of all known teammate name patterns for this workflow
-  // Safe to send shutdown_request to absent members — no-op
-  allMembers = []
+  // FALLBACK: hardcoded list of all known teammate name patterns for this workflow.
+  // Safe to send shutdown_request to absent members — no-op.
+  // Must list ALL possible teammates: context agents, verifiers, and fixers.
+  allMembers = [
+    ...Array.from({length: 10}, (_, i) => `context-${i}`),
+    ...Array.from({length: 10}, (_, i) => `verifier-${i}`),
+    ...Array.from({length: 10}, (_, i) => `fixer-${i}`)
+  ]
 }
 
 // 2. Shutdown request to all members

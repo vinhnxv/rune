@@ -74,11 +74,28 @@ mark as FALSE_POSITIVE with evidence "referenced code not found at stated locati
 ## Line Number Drift Detection
 
 ```javascript
+// extractSnippet: Extract the first code-like token from a TODO description.
+// Looks for function names, variable names, quoted strings, or backtick-wrapped code.
+// Returns null if no meaningful snippet found (prevents false "found" from empty string).
+function extractSnippet(description) {
+  // Try backtick-wrapped code first
+  const backtick = description.match(/`([^`]{3,})`/)
+  if (backtick) return backtick[1].trim()
+  // Try function/method patterns
+  const funcMatch = description.match(/\b([a-zA-Z_]\w+)\s*\(/)
+  if (funcMatch) return funcMatch[1]
+  // Fallback: first 40 non-whitespace chars of body (skip common prefixes)
+  const body = description.replace(/^(Fix|Add|Remove|Update|Change|Ensure|Check)\s+/i, '').trim()
+  return body.length >= 5 ? body.slice(0, 40) : null
+}
+
 // Verifier Step 0: Locate actual code
 // Don't trust line numbers from the TODO — they may have drifted
 const fileContent = Read(file)
 for (const todo of todos) {
   const snippet = extractSnippet(todo.description)
+  // Guard: skip drift check for empty/trivial snippets (prevents false matches)
+  if (!snippet || snippet.trim().length < 5) continue
   const actualLine = fileContent.split('\n').findIndex(l => l.includes(snippet))
   if (actualLine === -1) {
     todo.verdict = "FALSE_POSITIVE"
@@ -101,6 +118,7 @@ function sanitizeTodoBody(body) {
     .replace(/\uDB40[\uDC00-\uDC7F]/g, '')          // Tag block characters (U+E0000-E007F)
     .replace(/[\u202A-\u202E\u2066-\u2069]/g, '')   // Unicode directional overrides (CVE-2021-42574)
     .replace(/<\/context>/gi, '[/context]')          // SEC-008: prevent nonce boundary escape
+    .replace(/<\/todos>/gi, '[/todos]')              // SEC-008: prevent todos nonce boundary escape
 
   // Pass 2: Detect SUSPECT patterns (SEC-005: extended injection vectors)
   const SUSPECT_PATTERNS = [

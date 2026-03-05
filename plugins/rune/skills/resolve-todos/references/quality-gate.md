@@ -12,11 +12,11 @@ const qualityCommands = readTalismanSection("gates")?.quality_commands ?? []
 // Default quality checks (if no talisman config)
 if (qualityCommands.length === 0) {
   // Auto-detect from project
-  if (exists("package.json")) {
+  if ((Glob("package.json") ?? []).length > 0) {
     qualityCommands.push("npm run lint --if-present")
     qualityCommands.push("npm run typecheck --if-present")
   }
-  if (exists("pyproject.toml")) {
+  if ((Glob("pyproject.toml") ?? []).length > 0) {
     qualityCommands.push("python -m ruff check . --fix")
   }
 }
@@ -41,8 +41,8 @@ for (const cmd of qualityCommands) {
   }
 }
 
-// Write results
-Write(`tmp/resolve-${timestamp}/quality-results.json`, JSON.stringify(results))
+// Write results (path prefix matches all other phases: resolve-todos-)
+Write(`tmp/resolve-todos-${timestamp}/quality-results.json`, JSON.stringify(results))
 ```
 
 ## Failure Handling
@@ -59,8 +59,21 @@ if (!qualityPassed) {
   })
 
   if (answer === "abort") {
-    Bash("git checkout -- .")
-    log("All changes reverted.")
+    // Revert ONLY files modified by fixer agents (not ALL uncommitted changes).
+    // Fixer reports list the files they modified — use those for targeted revert.
+    const fixFiles = Glob(`tmp/resolve-todos-${timestamp}/fixes/*.json`) ?? []
+    const modifiedFiles = new Set()
+    for (const ff of fixFiles) {
+      const data = JSON.parse(Read(ff))
+      for (const f of data.fixes ?? []) {
+        if (f.status === "FIXED") modifiedFiles.add(f.file)
+      }
+    }
+    if (modifiedFiles.size > 0) {
+      const fileList = [...modifiedFiles].map(f => `"${f}"`).join(' ')
+      Bash(`git checkout -- ${fileList}`)
+    }
+    log(`Reverted ${modifiedFiles.size} file(s) modified by fixers.`)
     return
   }
 
