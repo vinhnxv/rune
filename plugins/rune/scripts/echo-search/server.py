@@ -5,12 +5,13 @@ A Model Context Protocol (MCP) stdio server that provides full-text search
 over the Rune plugin's echo system (persistent learnings stored in
 .claude/echoes/<role>/MEMORY.md files).
 
-Provides 5 tools:
+Provides 6 tools:
   - echo_search:        BM25 full-text search with composite re-ranking
   - echo_details:       Fetch full content for specific entry IDs
   - echo_reindex:       Re-parse all MEMORY.md files and rebuild the FTS index
   - echo_stats:         Summary statistics of the echo index
   - echo_record_access: Manually record access events for entries
+  - echo_upsert_group:  Create or update semantic groups
 
 Environment variables:
   ECHO_DIR  - Path to the echoes directory (e.g., .claude/echoes)
@@ -237,7 +238,7 @@ _LAYER_HALF_LIFE_DAYS = {
 # Layer-aware decay env var config
 _DECAY_ENABLED = os.environ.get("ECHO_DECAY_ENABLED", "true").lower() != "false"
 _RECENCY_FLOOR = float(os.environ.get("ECHO_RECENCY_FLOOR", "0.1"))
-_ACCESS_BOOST_DAYS = float(os.environ.get("ECHO_ACCESS_BOOST_DAYS", "7.0"))
+_ACCESS_BOOST_DAYS = float(os.environ.get("ECHO_ACCESS_BOOST_DAYS", "15.0"))
 
 # Override per-layer half-lives via env vars
 for _lyr, _env_suffix in [
@@ -249,7 +250,7 @@ for _lyr, _env_suffix in [
         try:
             _parsed = float(_env_val)
             if _parsed > 0:
-                _LAYER_HALF_LIFE_DAYS[_lyr] = _parsed
+                _LAYER_HALF_LIFE_DAYS[_lyr] = max(_parsed, 0.001)
         except ValueError:
             pass
 
@@ -608,6 +609,11 @@ def _record_access(
                     "INSERT INTO echo_access_log "
                     "(entry_id, accessed_at, query) VALUES (?, ?, ?)",
                     (entry_id, now, query[:500]))
+                # BACK-014: Auto-unarchive entries when accessed
+                conn.execute(
+                    "UPDATE echo_entries SET archived = 0 "
+                    "WHERE id = ? AND archived = 1",
+                    (entry_id,))
         conn.commit()
         _cap_access_log(conn)
     except sqlite3.OperationalError:
@@ -793,12 +799,14 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
                 _migrate_v2(conn)
             if version < 3:
                 _migrate_v3(conn)
-            # SAFE: SCHEMA_VERSION is a module-level integer constant, not user input
-            conn.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")
             conn.commit()
         except (sqlite3.Error, OSError):
             conn.rollback()
             raise
+        # SAFE: SCHEMA_VERSION is a module-level integer constant, not user input.
+        # Set user_version AFTER commit — PRAGMA is not transactional in SQLite,
+        # so placing it inside the transaction would persist even on rollback.
+        conn.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")
 
 
 def _tokenize_for_grouping(text: str) -> set[str]:
@@ -869,6 +877,9 @@ def _merge_pair_into_groups(groups, id_a, id_b, sim):
 
 def _build_pairwise_groups(entry_map, entry_ids, threshold):
     """Build groups via pairwise similarity comparison."""
+    if len(entry_ids) > 500:
+        logger.warning("_build_pairwise_groups: skipping — %d entries exceeds 500 cap", len(entry_ids))
+        return []
     groups = []  # type: list[tuple[str, set[str], dict[str, float]]]
     for i in range(len(entry_ids)):
         for j in range(i + 1, len(entry_ids)):
@@ -900,7 +911,7 @@ def _write_groups(conn, final_groups):
     """Atomically write group memberships to semantic_groups table."""
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     count = 0
-    conn.execute("BEGIN")
+    conn.execute("SAVEPOINT write_groups")
     try:
         for gid, members, sims in final_groups:
             for eid in members:
@@ -910,9 +921,9 @@ def _write_groups(conn, final_groups):
                     "VALUES (?, ?, ?, ?)",
                     (gid, eid, sims.get(eid, 0.0), now))
                 count += 1
-        conn.commit()
+        conn.execute("RELEASE SAVEPOINT write_groups")
     except sqlite3.Error:
-        conn.rollback()
+        conn.execute("ROLLBACK TO SAVEPOINT write_groups")
         raise
     return count
 
@@ -960,7 +971,7 @@ def upsert_semantic_group(
             f"entry_ids ({len(entry_ids)}) and similarities ({len(similarities)}) "
             f"must have the same length"
         )
-    # FK validation: verify all entry_ids exist in echo_entries
+    # FK validation: filter to existing entry_ids (partial success — skip missing)
     existing = frozenset(
         r[0] for r in conn.execute(
             "SELECT id FROM echo_entries WHERE id IN (%s)"
@@ -968,15 +979,18 @@ def upsert_semantic_group(
             entry_ids,
         ).fetchall()
     )
-    missing = [eid for eid in entry_ids if eid not in existing]
-    if missing:
-        raise ValueError(
-            f"entry_ids not found in echo_entries: {missing}"
-        )
+    skipped = [eid for eid in entry_ids if eid not in existing]
+    # Filter entry_ids and similarities to only existing entries
+    filtered = [
+        (eid, sim) for eid, sim in zip(entry_ids, similarities)
+        if eid in existing
+    ]
+    if not filtered:
+        return 0
     count = 0
     conn.execute("BEGIN")
     try:
-        for eid, sim in zip(entry_ids, similarities):
+        for eid, sim in filtered:
             conn.execute(
                 "INSERT OR REPLACE INTO semantic_groups (group_id, entry_id, similarity, created_at) VALUES (?, ?, ?, ?)",
                 (group_id, eid, sim, now))
@@ -985,6 +999,9 @@ def upsert_semantic_group(
     except sqlite3.Error:
         conn.rollback()
         raise
+    if skipped:
+        logger.warning("upsert_semantic_group: skipped %d missing entry_ids: %s",
+                        len(skipped), skipped)
     return count
 
 
@@ -1183,7 +1200,10 @@ def _prune_search_failures(conn: sqlite3.Connection) -> None:
 # ---------------------------------------------------------------------------
 
 _ARCHIVE_ENABLED = os.environ.get("ECHO_ARCHIVE_ENABLED", "true").lower() != "false"
-_ARCHIVE_MIN_AGE = int(os.environ.get("ECHO_ARCHIVE_MIN_AGE", "60"))
+try:
+    _ARCHIVE_MIN_AGE = int(os.environ.get("ECHO_ARCHIVE_MIN_AGE", "60"))
+except ValueError:
+    _ARCHIVE_MIN_AGE = 60
 _ARCHIVE_LAYERS = frozenset(
     l.strip().lower()
     for l in os.environ.get("ECHO_ARCHIVE_LAYERS", "observations").split(",")
@@ -2328,7 +2348,7 @@ TOOL_SCHEMAS = [
                 },
                 "category": {
                     "type": "string",
-                    "enum": ["general", "pattern", "decision", "debug", "config"],
+                    "enum": ["general", "pattern", "anti-pattern", "decision", "debugging"],
                     "description": "Filter by entry category",
                 },
             },
@@ -2459,7 +2479,7 @@ def _validate_search_args(arguments: Dict) -> Tuple[Optional[Tuple], Dict]:
             context_files = [
                 str(f) for f in context_files[:20]
                 if isinstance(f, str) and f] or None
-    _VALID_CATEGORIES = frozenset({"general", "pattern", "decision", "debug", "config"})
+    _VALID_CATEGORIES = frozenset({"general", "pattern", "anti-pattern", "decision", "debugging"})
     category = arguments.get("category")
     if category is not None:
         if not isinstance(category, str) or category.lower() not in _VALID_CATEGORIES:
@@ -2520,6 +2540,8 @@ async def _mcp_handle_details(arguments):
             conn.close()
             conn = None
             do_reindex(ECHO_DIR, DB_PATH)
+            conn = get_db(DB_PATH)
+        if conn is None:
             conn = get_db(DB_PATH)
         results = get_details(conn, ids)
     finally:

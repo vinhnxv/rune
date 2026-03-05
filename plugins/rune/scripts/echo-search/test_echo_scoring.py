@@ -321,15 +321,20 @@ class TestScoreRecency:
 
 
 class TestScoreProximity:
-    """Test file proximity scoring — verifies the no-context-files edge case."""
+    """Test file proximity scoring against context files.
+
+    _score_proximity extracts evidence paths from the entry (file_path,
+    content, source) and computes best proximity against context_files
+    using compute_file_proximity (exact=1.0, same-dir=0.8, shared-prefix=0.2-0.6).
+    """
 
     def test_returns_zero_without_context_files(self):
         """Proximity returns 0.0 when no context_files are provided."""
         entry = {"file_path": "/echoes/reviewer/MEMORY.md"}
         assert _score_proximity(entry) == pytest.approx(0.0)
 
-    def test_returns_zero_with_context_files(self):
-        """Even with context_files provided, returns 0.0 (placeholder)."""
+    def test_returns_zero_with_non_overlapping_context(self):
+        """Non-overlapping paths produce 0.0 (no shared prefix components)."""
         entry = {"file_path": "/echoes/reviewer/MEMORY.md"}
         assert _score_proximity(entry, context_files=["/src/main.py"]) == pytest.approx(0.0)
 
@@ -342,6 +347,33 @@ class TestScoreProximity:
         """EDGE-011: context_files=[] returns 0.0."""
         entry = {"file_path": "/echoes/reviewer/MEMORY.md"}
         assert _score_proximity(entry, context_files=[]) == pytest.approx(0.0)
+
+    def test_exact_match_returns_one(self):
+        """Exact file_path match with context_files returns 1.0."""
+        entry = {"file_path": "/echoes/reviewer/MEMORY.md"}
+        score = _score_proximity(entry, context_files=["/echoes/reviewer/MEMORY.md"])
+        assert score == pytest.approx(1.0)
+
+    def test_same_directory_returns_high_score(self):
+        """File in same directory as context file returns 0.8."""
+        entry = {"file_path": "/echoes/reviewer/MEMORY.md"}
+        score = _score_proximity(entry, context_files=["/echoes/reviewer/other.md"])
+        assert score == pytest.approx(0.8)
+
+    def test_shared_prefix_returns_partial_score(self):
+        """Shared path prefix produces a score between 0.2 and 0.6."""
+        entry = {"file_path": "/echoes/reviewer/MEMORY.md"}
+        score = _score_proximity(entry, context_files=["/echoes/planner/MEMORY.md"])
+        assert 0.2 <= score <= 0.6, f"Expected 0.2-0.6 for shared prefix, got {score}"
+
+    def test_best_proximity_wins(self):
+        """When multiple context_files are provided, best proximity is returned."""
+        entry = {"file_path": "/echoes/reviewer/MEMORY.md"}
+        score = _score_proximity(entry, context_files=[
+            "/src/unrelated.py",
+            "/echoes/reviewer/MEMORY.md",  # exact match
+        ])
+        assert score == pytest.approx(1.0)
 
 
 # ---------------------------------------------------------------------------

@@ -21,6 +21,7 @@ import sys
 
 VALID_ROLE_RE = re.compile(r'^[a-zA-Z0-9_-]+$')  # SEC-5: role name allowlist
 ALLOWED_CATEGORIES = {"pattern", "anti-pattern", "decision", "debugging", "general"}
+VALID_LAYERS = frozenset({"etched", "notes", "inscribed", "observations", "traced"})
 
 
 def generate_id(role: str, line_number: int, file_path: str) -> str:
@@ -33,8 +34,10 @@ def generate_id(role: str, line_number: int, file_path: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
+# Layer alternation built from VALID_LAYERS for single-source-of-truth (QUAL-007)
+_LAYER_ALT = "|".join(l.capitalize() for l in sorted(VALID_LAYERS))
 _HEADER_RE = re.compile(
-    r"^##\s+(Inscribed|Etched|Traced|Notes|Observations)\s*[\u2014\-\u2013]+\s*(.+?)\s*\((\d{4}-\d{2}-\d{2})\)"
+    r"^##\s+(%s)\s*[\u2014\-\u2013]+\s*(.+?)\s*\((\d{4}-\d{2}-\d{2})\)" % _LAYER_ALT
 )
 _SOURCE_RE = re.compile(r"^\*\*Source\*\*:\s*`?([^`\n]+)`?")
 _CATEGORY_RE = re.compile(r"^\*\*Category\*\*:\s*(\S+)")
@@ -72,8 +75,12 @@ def parse_memory_file(file_path: str, role: str) -> list[dict]:
     if not os.path.isfile(file_path):
         return entries
 
-    with open(file_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+    except UnicodeDecodeError:
+        print("WARN: skipping binary/corrupted file: %s" % file_path, file=sys.stderr)
+        return entries
 
     current_entry: dict | None = None
     content_lines: list[str] = []
@@ -95,7 +102,10 @@ def parse_memory_file(file_path: str, role: str) -> list[dict]:
             if source_match and not current_entry["source"]:
                 current_entry["source"] = source_match.group(1).strip()
                 continue  # source lines don't affect blank-line tracking
-            # Only parse category in metadata section (before first ### or content)
+            # Only parse category in metadata section (before first ### or content).
+            # BACK-007: **Category**: must appear before the first non-metadata content
+            # line (i.e., before any heading or body text). Category lines after content
+            # starts will be treated as regular content, not metadata.
             if in_metadata:
                 category_match = _CATEGORY_RE.match(stripped)
                 if category_match:
