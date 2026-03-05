@@ -14,7 +14,7 @@ disable-model-invocation: false
 
 # Team Management SDK
 
-Centralizes Agent Team lifecycle operations that are currently duplicated across 11+ workflow skills (~900 lines of shared patterns). Provides a single ExecutionEngine interface with 8 methods covering the full team lifecycle: creation, agent spawning, monitoring, shutdown, and cleanup.
+Centralizes Agent Team lifecycle operations that are currently duplicated across 11+ workflow skills (~900 lines of shared patterns). Provides a single ExecutionEngine interface with 9 methods covering the full team lifecycle: creation, agent spawning, monitoring, shutdown, and cleanup.
 
 **Load skills**: `chome-pattern`, `polling-guard`, `zsh-compat`
 

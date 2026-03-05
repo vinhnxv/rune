@@ -99,7 +99,7 @@ Key differences:
 - `review` and `audit`: no `autoReleaseMs` — each Ash produces unique findings (non-fungible)
 - `work` and `fix`: `autoReleaseMs` enabled — tasks are fungible (any worker can pick up a released task)
 - `plan`: no `timeoutMs` — research runs until all tasks complete or stale detection intervenes
-- `forge`: `staleWarnMs === autoReleaseMs` (5 min) — warn and release fire on the same tick (by design)
+- `forge`: `staleWarnMs === autoReleaseMs` (5 min) — warn and release fire on the same tick (by design). Note: when both timers co-fire, the auto-release may execute before the stale warning is logged, so the warning may not appear in output before the task is released to the pool
 
 ### Loop Parameter Derivation
 
@@ -277,7 +277,7 @@ Workers that exceed `max_runtime_minutes` (from talisman) are flagged for interv
 ```
 // Per poll cycle, after TaskList
 for (const task of inProgress) {
-  const maxMinutes = talisman?.work?.max_runtime_minutes ?? 30
+  const maxMinutes = talisman?.teammate_lifecycle?.max_runtime_minutes ?? 20
   const elapsedMinutes = task.stale / 60_000
 
   if (elapsedMinutes > maxMinutes) {
