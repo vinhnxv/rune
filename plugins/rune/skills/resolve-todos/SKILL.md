@@ -139,6 +139,17 @@ const inscription = {
   fixers: [],
   task_ownership: {}
 }
+
+// Populate task_ownership BEFORE fixer spawning so SEC-RESOLVE-001 hook can enforce file scope.
+// Each fixer's assigned files are registered here; the hook reads this to build the allowlist.
+for (const [file, fileTodos] of fileGroups) {
+  if (file === "__unscoped__") continue
+  const fixerName = `fixer-${[...fileGroups.keys()].indexOf(file)}`
+  inscription.task_ownership[fixerName] = {
+    files: [file, ...fileTodos.flatMap(t => (t.files ?? []).slice(1))]
+  }
+}
+
 Write(`tmp/.rune-signals/rune-resolve-todos-${timestamp}/inscription.json`, JSON.stringify(inscription))
 ```
 
@@ -155,8 +166,11 @@ TeamCreate({ team_name: teamName })
 // NOTE: Phase 2 is optional — verifiers in Phase 3 also read files directly.
 // Consider skipping Phase 2 for small batches (< 5 file groups) where the
 // context summary adds marginal value over direct verifier reads.
+// KNOWN GAP: Phase 2 output is not currently wired to Phase 3 verifier prompts.
+// The {contextSummary} variable in verifier templates is unpopulated.
+// TODO: Either wire Phase 2 output to Phase 3 or remove Phase 2 entirely.
 let fileIdx = 0
-for (const [file, todos] of fileGroups) {
+for (const [file, fileTodos] of fileGroups) {
   if (file === "__unscoped__") continue
   Agent({
     name: `context-${fileIdx}`,
@@ -191,7 +205,8 @@ See [verify-protocol.md](references/verify-protocol.md) for verifier prompts and
 ```javascript
 // buildWaves(): See fixer-protocol.md "No-Overlap Wave Invariant" for definition.
 // Groups entries by file, assigns to waves ensuring no two agents in same wave share a file.
-// Returns Array<Map<file, todos[]>>. Each wave has at most maxPerWave entries.
+// Returns Array<Map<file, todos[]>>. Each wave is a Map<string, Todo[]>.
+// For typical batches (< 5 file groups), a single wave suffices — wave overhead is minimal.
 const verifierWaves = buildWaves(fileGroups, { maxPerWave: 5 })
 
 // Sanitize TODO bodies before prompt injection (SEC-003: prevent prompt injection)
@@ -212,16 +227,16 @@ for (const wave of verifierWaves) {
   for (const [file, fileTodos] of wave) {
     // Use sanitized descriptions from sanitizedTodos (not raw fileTodos)
     const safeTodos = fileTodos.map(t => {
-      const sanitized = sanitizedTodos.find(st => st.id === t.id)
+      const sanitized = sanitizedTodos.find(st => st.path === t.path)
       return sanitized ?? t
     })
     // Output path: use full path slug to prevent collision (e.g., src/auth/index.ts → src__auth__index.ts)
     const fileSlug = file.replace(/\//g, '__')
     Agent({
       name: `verifier-${verifierIdx}`,
-      subagent_type: "general-purpose",
+      subagent_type: "rune:utility:todo-verifier",
       team_name: teamName,
-      // model omitted — todo-verifier.md agent frontmatter sets model: haiku
+      // model + tools set by todo-verifier.md agent frontmatter (haiku, read-only tools)
       prompt: `You are todo-verifier. Verify each TODO in ${file}.
 
       Verdict taxonomy: VALID | FALSE_POSITIVE | ALREADY_FIXED | NEEDS_CLARIFICATION | PARTIAL | DUPLICATE | DEFERRED
@@ -244,7 +259,8 @@ for (const wave of verifierWaves) {
   totalVerifiersSpawned += waveSize
   // waitForCompletion(): See polling-guard skill for definition.
   // Count arg is CUMULATIVE (total completed tasks to wait for across team).
-  waitForCompletion(teamName, totalVerifiersSpawned, {
+  // Count is CUMULATIVE across all phases: context agents + verifiers spawned so far
+  waitForCompletion(teamName, contextTaskCount + totalVerifiersSpawned, {
     timeoutMs: 300_000,
     pollIntervalMs: 30_000,
     staleWarnMs: 180_000,
@@ -282,9 +298,11 @@ for (const [file, fileTodos] of fileGroups) {
 
 if (validFileGroups.size === 0) {
   log("No VALID or PARTIAL TODOs after verification. Skipping Phase 4.")
-  // Jump to Phase 6 for report
+  // Jump directly to Phase 6 — do NOT fall through to Phase 4/5
 }
 ```
+
+**Control flow**: If `validFileGroups.size === 0`, skip Phase 4 and Phase 5 entirely and proceed to Phase 6 (Report). The orchestrator MUST guard Phases 4-5 with `if (validFileGroups.size > 0)`.
 
 ## Phase 4: Batch Fix
 

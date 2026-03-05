@@ -7,11 +7,8 @@ description: |
   Combines flaw-hunter's Hypothesis Protocol with staleness-specific checklist.
 tools: Read, Grep, Glob, Write
 disallowedTools: Edit, Bash, NotebookEdit
-model: haiku  # Mechanical operations (grep + read + classify); 7-verdict taxonomy is simple enumeration, not deep reasoning
+model: haiku  # Mechanical operations (grep + read + classify); 7-verdict taxonomy is simple enumeration, not deep reasoning. ACCEPTED RISK: Haiku may miss subtle hallucinations from higher-capability models — cost/accuracy tradeoff documented in CREATION-LOG.md.
 maxTurns: 20
-permissionMode: default
-mcpServers:
-  - echo-search
 ---
 
 # Todo Verifier Agent

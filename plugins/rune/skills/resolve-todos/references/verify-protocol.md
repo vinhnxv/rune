@@ -89,19 +89,13 @@ function extractSnippet(description) {
   return body.length >= 5 ? body.slice(0, 40) : null
 }
 
-// Verifier Step 0: Locate actual code
-// Don't trust line numbers from the TODO — they may have drifted
-const fileContent = Read(file)
-for (const todo of todos) {
-  const snippet = extractSnippet(todo.description)
-  // Guard: skip drift check for empty/trivial snippets (prevents false matches)
-  if (!snippet || snippet.trim().length < 5) continue
-  const actualLine = fileContent.split('\n').findIndex(l => l.includes(snippet))
-  if (actualLine === -1) {
-    todo.verdict = "FALSE_POSITIVE"
-    todo.evidence = "referenced code not found at stated location (line drift or deletion)"
-  }
-}
+// Verifier Step 0: Locate actual code (VERIFIER-SIDE instruction)
+// This is a natural language instruction for the verifier agent prompt, NOT orchestrator code.
+// The verifier should: Read the target file, extract a code snippet from the TODO description,
+// grep for it in the file content. If the snippet is not found anywhere in the file,
+// the verifier should return verdict "FALSE_POSITIVE" with evidence
+// "referenced code not found at stated location (line drift or deletion)".
+// The verifier makes this judgment — the orchestrator does NOT pre-filter verdicts.
 ```
 
 ## TODO Body Sanitization (Injection Defense)
@@ -117,8 +111,8 @@ function sanitizeTodoBody(body) {
     .replace(/[\u200B-\u200F\uFEFF\uFE00-\uFE0F]/g, '')  // Zero-width + variation selectors
     .replace(/\uDB40[\uDC00-\uDC7F]/g, '')          // Tag block characters (U+E0000-E007F)
     .replace(/[\u202A-\u202E\u2066-\u2069]/g, '')   // Unicode directional overrides (CVE-2021-42574)
-    .replace(/<\/context>/gi, '[/context]')          // SEC-008: prevent nonce boundary escape
-    .replace(/<\/todos>/gi, '[/todos]')              // SEC-008: prevent todos nonce boundary escape
+    .replace(/<\/?context[^>]*>/gi, '[context]')      // SEC-008: prevent nonce boundary escape (opening + closing)
+    .replace(/<\/?todos[^>]*>/gi, '[todos]')          // SEC-008: prevent todos nonce boundary escape (opening + closing)
 
   // Pass 2: Detect SUSPECT patterns (SEC-005: extended injection vectors)
   const SUSPECT_PATTERNS = [

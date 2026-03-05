@@ -17,7 +17,7 @@ if (qualityCommands.length === 0) {
     qualityCommands.push("npm run typecheck --if-present")
   }
   if ((Glob("pyproject.toml") ?? []).length > 0) {
-    qualityCommands.push("python -m ruff check . --fix")
+    qualityCommands.push("python -m ruff check .")
   }
 }
 ```
@@ -100,7 +100,8 @@ if (!qualityPassed) {
       run_in_background: true
     })
 
-    waitForCompletion(teamName, totalFixersSpawned + 1, {
+    // qualityFixerCount tracks agents spawned in quality fix phase (independent of Phase 4 fixers)
+    waitForCompletion(teamName, contextTaskCount + totalVerifiersSpawned + totalFixersSpawned + 1, {
       timeoutMs: 180_000,
       pollIntervalMs: 30_000,
       staleWarnMs: 120_000,
@@ -108,11 +109,40 @@ if (!qualityPassed) {
     })
 
     // Re-run quality gate after fix attempt
+    let fixSucceeded = true
     for (const cmd of failedCommands.map(r => r.command)) {
       const recheck = Bash(cmd, { timeout: 120000 })
       if (recheck.exitCode !== 0) {
         warn(`Quality check still failing after fix attempt: ${cmd}`)
         qualityPassed = false
+        fixSucceeded = false
+      }
+    }
+
+    // If fix attempt failed, re-prompt user (don't silently continue)
+    if (!fixSucceeded) {
+      const retryAnswer = AskUserQuestion({
+        question: "Quality fix attempt failed. Some checks still failing. What would you like to do?",
+        options: [
+          { label: "Commit anyway (with warning)", value: "commit_anyway" },
+          { label: "Abort (revert all changes)", value: "abort" }
+        ]
+      })
+      if (retryAnswer === "abort") {
+        // Revert fixer-modified files (same logic as abort branch above)
+        const fixFiles = Glob(`tmp/resolve-todos-${timestamp}/fixes/*.json`) ?? []
+        const modifiedFiles = new Set()
+        for (const ff of fixFiles) {
+          const data = JSON.parse(Read(ff))
+          for (const f of data.fixes ?? []) {
+            if (f.status === "FIXED") modifiedFiles.add(f.file)
+          }
+        }
+        if (modifiedFiles.size > 0) {
+          const fileList = [...modifiedFiles].map(f => `"${f}"`).join(' ')
+          Bash(`git checkout -- ${fileList}`)
+        }
+        return
       }
     }
   }

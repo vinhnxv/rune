@@ -88,8 +88,8 @@ interface FixEntry {
 // e.g., src/auth/index.ts → src__auth__index.ts
 const fileSlug = file.replace(/\//g, '__')
 const reportJson = JSON.stringify(fixReport, null, 2)
-Write(`tmp/resolve-todos-${timestamp}/fixes/.tmp-${fileSlug}.json`, reportJson)
-Bash(`mv "tmp/resolve-todos-${timestamp}/fixes/.tmp-${fileSlug}.json" "tmp/resolve-todos-${timestamp}/fixes/${fileSlug}.json"`)
+// Write directly to final path (no tmp+mv pattern — fixers cannot use Bash tool)
+Write(`tmp/resolve-todos-${timestamp}/fixes/${fileSlug}.json`, reportJson)
 // THEN mark task complete
 TaskUpdate({ taskId, status: "completed" })
 ```
@@ -121,14 +121,15 @@ if (todos.length > MAX_TODOS_PER_FIXER) {
 **Hard requirement**: No two fixers in the same wave may share a file in their `file_group`.
 
 ```javascript
+// Each wave is a Map<file, todos[]> (consistent with SKILL.md iteration pattern).
+// This invariant check iterates the wave's entries to detect file conflicts.
 const waveFiles = new Set()
 const deferredToNextWave = []
-for (const fixer of wave) {
-  const conflict = fixer.file_group.some(f => waveFiles.has(f))
-  if (conflict) {
-    deferredToNextWave.push(fixer)
+for (const [file, fileTodos] of wave) {
+  if (waveFiles.has(file)) {
+    deferredToNextWave.push([file, fileTodos])
   } else {
-    fixer.file_group.forEach(f => waveFiles.add(f))
+    waveFiles.add(file)
   }
 }
 // deferredToNextWave items join the next wave

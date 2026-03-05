@@ -18,10 +18,9 @@
 # Fail-closed on missing jq (SECURITY-class requirement).
 
 # Fail-forward: errors allow the operation (exit 0) rather than blocking.
-# Using set -u for unset variable detection, but NOT set -e (which interacts
-# poorly with the ERR trap — unexpected failures would silently allow writes).
-# Each critical command uses explicit error handling instead.
-set -u -o pipefail
+# Using set -euo pipefail (aligned with sibling validate-*-paths.sh scripts).
+# The ERR trap exits 0 before -e would trigger for most failures.
+set -euo pipefail
 umask 077
 trap 'exit 0' ERR
 
@@ -109,7 +108,8 @@ while IFS= read -r allowed; do
 done <<< "$ALLOWED_FILES"
 
 # Also allow writes to the resolve-todos output directory (agents write reports there)
-RESOLVE_OUTPUT_PREFIX="tmp/resolve-todos-"
+# Scope output prefix to current workflow's timestamp (not any resolve-todos- dir)
+RESOLVE_OUTPUT_PREFIX="tmp/resolve-todos-${IDENTIFIER}"
 if [[ "$REL_FILE_PATH" == ${RESOLVE_OUTPUT_PREFIX}* ]]; then
   exit 0
 fi
