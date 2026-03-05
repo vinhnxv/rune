@@ -130,6 +130,11 @@ if [[ -d "${CWD}/.claude/arc" ]]; then
       fi
       active_workflow=1
       detected_source="state-file"
+      # CDX-GAP-002 FIX: Extract team_name from arc checkpoint for recovery context
+      local_team_name=$(jq -r '.phases.work.team_name // empty' "$f" 2>/dev/null || true)
+      if [[ -n "$local_team_name" ]]; then
+        detected_team_name="$local_team_name"
+      fi
       break
     fi
   done < <(find "${CWD}/.claude/arc" -name checkpoint.json -maxdepth 2 -type f -mmin -${STALE_THRESHOLD_MIN} 2>/dev/null)
@@ -156,6 +161,11 @@ if [[ -z "$active_workflow" ]]; then
       fi
       active_workflow=1
       detected_source="state-file"
+      # CDX-GAP-002 FIX: Extract team_name from state file for recovery context
+      local_team_name=$(jq -r '.team_name // empty' "$f" 2>/dev/null || true)
+      if [[ -n "$local_team_name" ]]; then
+        detected_team_name="$local_team_name"
+      fi
       break
     fi
   done
@@ -181,9 +191,13 @@ if [[ -z "$active_workflow" ]]; then
         session_file="${CHOME}/teams/${local_team}/.session"
         if [[ -f "$session_file" ]]; then
           stored_sid=$(cat "$session_file" 2>/dev/null || true)
+          # CDX-GAP-001 FIX: Compare session marker to current session
           # Skip if session marker exists but belongs to different session
           # (stamp-team-session.sh writes this via PostToolUse:TeamCreate)
-          # When no session file exists, assume current session (team just created)
+          current_sid=$(echo "${CLAUDE_SESSION_ID:-}" | head -c 64)
+          if [[ -n "$stored_sid" && -n "$current_sid" && "$stored_sid" != "$current_sid" ]]; then
+            continue  # Different session — skip this inscription
+          fi
         fi
         active_workflow=1
         detected_team_name="$local_team"
@@ -205,6 +219,16 @@ if [[ -z "$active_workflow" ]]; then
       # Extract team name from directory name (tmp/.rune-signals/rune-review-abc123/ -> rune-review-abc123)
       local_team=$(basename "$sigdir")
       if [[ "$local_team" =~ ^rune-[a-zA-Z]+-[a-zA-Z0-9_-]+$ ]]; then
+        # CDX-GAP-004 FIX: Session ownership check for signal directories
+        CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+        sig_session_file="${CHOME}/teams/${local_team}/.session"
+        if [[ -f "$sig_session_file" ]]; then
+          sig_stored_sid=$(cat "$sig_session_file" 2>/dev/null || true)
+          sig_current_sid=$(echo "${CLAUDE_SESSION_ID:-}" | head -c 64)
+          if [[ -n "$sig_stored_sid" && -n "$sig_current_sid" && "$sig_stored_sid" != "$sig_current_sid" ]]; then
+            continue  # Different session — skip this signal dir
+          fi
+        fi
         active_workflow=1
         detected_team_name="$local_team"
         detected_source="signal-dir"
