@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.138.1] - 2026-03-06
+
+### Fixed
+- **ERR-001**: Added null handle guards to `shutdown()`, `cleanup()`, and `getStatus()` in team-sdk engines — prevents crash when handle is null after compaction or fallback failure
+- **ERR-003**: `cleanup()` now logs warnings on state file operation failures instead of silently swallowing errors
+
 ## [1.138.0] - 2026-03-06
 
 ### Fixed
