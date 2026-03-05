@@ -94,6 +94,12 @@ case "$PROMPT_FILE" in
     ;;
 esac
 
+# SEC-002 FIX: Allowlist validation — reject special characters that could be exploited in shell contexts
+if [[ ! "$PROMPT_FILE" =~ ^[a-zA-Z0-9_/.\-]+$ ]]; then
+  echo "ERROR: Prompt file path contains invalid characters — rejected for security" >&2
+  exit 2
+fi
+
 # Check prompt file exists and is readable
 if [[ ! -f "$PROMPT_FILE" ]]; then
   echo "ERROR: Prompt file not found: $PROMPT_FILE" >&2
