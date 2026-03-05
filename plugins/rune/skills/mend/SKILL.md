@@ -39,7 +39,7 @@ allowed-tools:
 
 Parses a TOME file for structured findings, groups them by file to prevent concurrent edits, summons restricted mend-fixer teammates, and produces a resolution report.
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `codex-cli`, `polling-guard`, `zsh-compat`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `codex-cli`, `team-sdk`, `polling-guard`, `zsh-compat`
 
 ## Usage
 
@@ -446,7 +446,7 @@ if (!cleanupTeamDeleteSucceeded) {
 }
 ```
 
-See [team-lifecycle-guard.md](../rune-orchestration/references/team-lifecycle-guard.md) for full cleanup retry pattern.
+See [engines.md](../team-sdk/references/engines.md) § cleanup for full cleanup retry pattern.
 
 ## Goldmask Skip Conditions
 

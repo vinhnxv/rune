@@ -44,8 +44,8 @@ This phase creates a team and spawns agents. It MUST follow the Agent Teams patt
 ```javascript
 updateCheckpoint({ phase: "plan_review", status: "in_progress", phase_sequence: 2, team_name: `arc-plan-review-${id}` })
 
-// Pre-create guard (see team-lifecycle-guard.md)
-// QUAL-13 FIX: Full regex validation per team-lifecycle-guard.md (defense-in-depth)
+// Pre-create guard (see team-sdk/references/engines.md)
+// QUAL-13 FIX: Full regex validation per team-sdk/references/engines.md (defense-in-depth)
 if (!/^arc-[a-zA-Z0-9_-]+$/.test(id)) throw new Error('Invalid arc id')
 // SEC-3 FIX: Redundant path traversal check — defense-in-depth (matches arc-phase-forge.md pattern)
 if (id.includes('..')) throw new Error('Path traversal detected in arc id')
@@ -53,7 +53,7 @@ if (id.includes('..')) throw new Error('Path traversal detected in arc id')
 // clearing SDK leadership state + prior phase team dirs. This inline guard is
 // defense-in-depth for the specific team being created (stale same-name team).
 // postPhaseCleanup(checkpoint, "plan_review") runs AFTER checkpoint update (v1.68.0).
-// teamTransition — inlined 5-step protocol (see team-lifecycle-guard.md)
+// teamTransition — inlined 5-step protocol (see team-sdk/references/engines.md)
 // STEP 1: Validate — done above at lines 37-39 (defense-in-depth, upstream validated at arc init)
 // STEP 2: TeamDelete with retry-with-backoff (3 attempts: 0s, 3s, 8s)
 let teamDeleteSucceeded = false

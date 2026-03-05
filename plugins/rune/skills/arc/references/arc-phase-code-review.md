@@ -7,7 +7,7 @@ Invoke `/rune:appraise --deep` on the implemented changes. Multi-wave review (Wa
 **Timeout**: 15 min (PHASE_TIMEOUTS.code_review = 900_000 — inner 10m + 5m setup). Deep mode extends internally via wave timeout distribution.
 **Inputs**: id (string), gap analysis path (optional: `tmp/arc/{id}/gap-analysis.md`)
 **Outputs**: `tmp/arc/{id}/tome.md`
-**Error handling**: Does not halt — review always produces findings or a clean report. Timeout → partial results collected. Team creation failure → cleanup fallback via `rm -rf` (see [team-lifecycle-guard.md](../../rune-orchestration/references/team-lifecycle-guard.md)).
+**Error handling**: Does not halt — review always produces findings or a clean report. Timeout → partial results collected. Team creation failure → cleanup fallback via `rm -rf` (see [engines.md](../../team-sdk/references/engines.md)).
 **Consumers**: SKILL.md (Phase 6 stub)
 
 > **Note**: `sha256()`, `updateCheckpoint()`, `exists()`, `warn()`, and `parseFrontmatter()` (from file-todos/references/subcommands.md Common Helpers) are dispatcher-provided utilities available in the arc orchestrator context. Phase reference files call these without import.
@@ -317,7 +317,7 @@ When both conditions are met, the Codex Oracle is included as an additional revi
 
 ## Team Lifecycle
 
-Delegated to `/rune:appraise` — manages its own TeamCreate/TeamDelete with guards (see [team-lifecycle-guard.md](../../rune-orchestration/references/team-lifecycle-guard.md)). Arc records the actual `team_name` in checkpoint for cancel-arc discovery.
+Delegated to `/rune:appraise` — manages its own TeamCreate/TeamDelete with guards (see [engines.md](../../team-sdk/references/engines.md)). Arc records the actual `team_name` in checkpoint for cancel-arc discovery.
 
 Arc runs `prePhaseCleanup(checkpoint)` before delegation (ARC-6) and `postPhaseCleanup(checkpoint, "code_review")` after checkpoint update. See SKILL.md Inter-Phase Cleanup Guard section and [arc-phase-cleanup.md](arc-phase-cleanup.md).
 
@@ -342,4 +342,4 @@ If this phase crashes, the orphaned resources above are recovered by the 3-layer
 Layer 1 (ORCH-1 resume), Layer 2 (`/rune:rest --heal`), Layer 3 (arc pre-flight stale scan).
 Review phase teams use `rune-review-*` prefix — handled by the sub-command's own pre-create guard (not Layer 3).
 
-See [team-lifecycle-guard.md](../../rune-orchestration/references/team-lifecycle-guard.md) §Orphan Recovery Pattern for full layer descriptions and coverage matrix.
+See [engines.md](../../team-sdk/references/engines.md) § cleanup and [protocols.md](../../team-sdk/references/protocols.md) § Handle Serialization for full orphan recovery documentation.

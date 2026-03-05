@@ -305,11 +305,11 @@ if (reviewTodosBase) {
 | >3 FAILED findings | HALT pipeline. User fixes manually, then `/rune:arc --resume` |
 | Mend timeout (inner polling exceeded) | Phase marked failed. Partial fixes preserved in committed code |
 | No fixable findings in TOME | Mend completes with empty resolution (all findings are false positives or unfixable) |
-| Team creation fails | Cleanup fallback via `rm -rf` (see team-lifecycle-guard.md) |
+| Team creation fails | Cleanup fallback via `rm -rf` (see team-sdk/references/engines.md) |
 
 ## Team Lifecycle
 
-Delegated to `/rune:mend` — manages its own TeamCreate/TeamDelete with guards (see [team-lifecycle-guard.md](../../rune-orchestration/references/team-lifecycle-guard.md)). Arc records the actual `team_name` in checkpoint for cancel-arc discovery.
+Delegated to `/rune:mend` — manages its own TeamCreate/TeamDelete with guards (see [engines.md](../../team-sdk/references/engines.md)). Arc records the actual `team_name` in checkpoint for cancel-arc discovery.
 
 Arc runs `prePhaseCleanup(checkpoint)` before delegation (ARC-6) and `postPhaseCleanup(checkpoint, "mend")` after checkpoint update. See SKILL.md Inter-Phase Cleanup Guard section and [arc-phase-cleanup.md](arc-phase-cleanup.md).
 
@@ -336,4 +336,4 @@ If this phase crashes, the orphaned resources above are recovered by the 3-layer
 Layer 1 (ORCH-1 resume), Layer 2 (`/rune:rest --heal`), Layer 3 (arc pre-flight stale scan).
 Mend phase teams use `rune-mend-*` prefix — handled by the sub-command's own pre-create guard (not Layer 3).
 
-See [team-lifecycle-guard.md](../../rune-orchestration/references/team-lifecycle-guard.md) §Orphan Recovery Pattern for full layer descriptions and coverage matrix.
+See [engines.md](../../team-sdk/references/engines.md) § cleanup and [protocols.md](../../team-sdk/references/protocols.md) § Handle Serialization for full orphan recovery documentation.

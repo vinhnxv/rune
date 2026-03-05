@@ -354,4 +354,4 @@ function isStale(startedTimestamp) {
 // NaN guard: missing/malformed `started` is treated as stale (conservative)
 ```
 
-See [team-lifecycle-guard.md](../../rune-orchestration/references/team-lifecycle-guard.md) for the full orphan recovery documentation and the three-layer recovery architecture.
+See [engines.md](engines.md) § cleanup for the full orphan recovery documentation and the three-layer recovery architecture.

@@ -77,7 +77,7 @@ BINDING CONSTRAINTS:
 Orchestrate a cross-model code review using both Claude Code agents and OpenAI Codex
 agents in parallel. Cross-verify findings between models for higher-confidence results.
 
-**Load skills**: `codex-cli`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `polling-guard`, `zsh-compat`, `inner-flame`
+**Load skills**: `codex-cli`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`, `inner-flame`
 
 ## Flags
 
@@ -126,7 +126,7 @@ See [phase1-setup.md](references/phase1-setup.md) for full pseudocode (talisman 
 
 ### Pre-Create Guard
 
-Follow the team-lifecycle-guard pattern from [team-lifecycle-guard.md](../rune-orchestration/references/team-lifecycle-guard.md):
+Follow the teamTransition pattern from [engines.md](../team-sdk/references/engines.md) § createTeam:
 
 ```javascript
 const teamName = `rune-codex-review-${identifier}`
@@ -443,7 +443,7 @@ AskUserQuestion({
 | All Claude agents fail | ERROR if `--claude-only`; else proceed Codex-only |
 | All Codex agents fail | ERROR if `--codex-only`; else proceed Claude-only |
 | No files in scope | ERROR: "No files to review. Try: /rune:codex-review --staged or specify a path." |
-| TeamCreate failure | Catch-and-recover via team-lifecycle-guard.md retry pattern |
+| TeamCreate failure | Catch-and-recover via team-sdk engines.md retry pattern |
 | Cross-verification finds 0 matches | Normal — all findings reported as STANDARD |
 | Empty Codex output | All Claude findings → STANDARD (not DISPUTED) |
 | Hallucinated findings > 50% of Codex output | Warn: "High hallucination rate. Consider --claude-only for this scope." |
@@ -503,7 +503,7 @@ Also inherits from `codex:` section (model, reasoning, disabled flags).
 - [cross-verification.md](references/cross-verification.md) — Cross-verification algorithm detail
 - [report-template.md](references/report-template.md) — CROSS-REVIEW.md template
 - [codex-detection.md](../roundtable-circle/references/codex-detection.md) — 9-step Codex detection algorithm
-- [team-lifecycle-guard.md](../rune-orchestration/references/team-lifecycle-guard.md) — Pre-create guard pattern
+- [engines.md](../team-sdk/references/engines.md) — teamTransition and pre-create guard pattern
 - [dedup-runes.md](../roundtable-circle/references/dedup-runes.md) — Line range bucket logic
 - [cost-tier-mapping.md](../../references/cost-tier-mapping.md) — Model selection per agent
 - [security-patterns.md](../roundtable-circle/references/security-patterns.md) — Codex security validation patterns

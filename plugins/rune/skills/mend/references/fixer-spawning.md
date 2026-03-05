@@ -112,7 +112,7 @@ Bash(`mkdir -p "tmp/mend/${id}"`)
 Bash(`git diff > "tmp/mend/${id}/pre-mend.patch" 2>/dev/null`)
 Bash(`git diff --cached > "tmp/mend/${id}/pre-mend-staged.patch" 2>/dev/null`)
 
-// 2. Pre-create guard: teamTransition protocol (see team-lifecycle-guard.md)
+// 2. Pre-create guard: teamTransition protocol (see team-sdk/references/engines.md)
 let teamDeleteSucceeded = false
 const RETRY_DELAYS = [0, 3000, 8000]
 for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {

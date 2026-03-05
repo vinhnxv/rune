@@ -53,7 +53,7 @@ Chains twenty-seven phases into a single automated pipeline. Each phase runs as 
 
 **Context budget advisory**: Full arc run: 27 phases x ~3.5min avg = ~95 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. The `PreCompact` hook saves checkpoint state automatically.
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `codex-cli`, `testing`, `agent-browser`, `polling-guard`, `zsh-compat`, `design-sync`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `codex-cli`, `team-sdk`, `testing`, `agent-browser`, `polling-guard`, `zsh-compat`, `design-sync`
 
 ## CRITICAL — Agent Teams Enforcement (ATE-1)
 

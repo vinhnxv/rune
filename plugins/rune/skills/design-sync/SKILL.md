@@ -44,7 +44,7 @@ allowed-tools:
 
 Extracts design specifications from Figma, creates Visual Spec Maps (VSM), coordinates implementation, and reviews design-to-code fidelity.
 
-**Load skills**: `frontend-design-patterns`, `figma-to-react`, `context-weaving`, `rune-orchestration`, `polling-guard`, `zsh-compat`
+**Load skills**: `frontend-design-patterns`, `figma-to-react`, `context-weaving`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`
 
 ## Usage
 

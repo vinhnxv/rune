@@ -40,6 +40,8 @@ allowed-tools:
 
 # Goldmask Skill — Cross-Layer Impact Analysis
 
+**Load skills**: `rune-orchestration`, `context-weaving`, `team-sdk`, `polling-guard`, `zsh-compat`
+
 Three-layer investigation that answers: **WHAT** must change (Impact), **WHY** it was built that way (Wisdom), and **HOW RISKY** the area is (Lore). Includes Collateral Damage Detection (CDD) to predict blast radius.
 
 ## ATE-1 ENFORCEMENT
@@ -203,7 +205,7 @@ rune_acquire_lock "goldmask" "reader"
 
 ### 3. Pre-Create Guard + Team Lifecycle
 
-Follow the 3-step pre-create guard from `team-lifecycle-guard.md`:
+Follow the 3-step pre-create guard from [engines.md](../team-sdk/references/engines.md) § createTeam:
 
 ```
 Step 0: Try TeamDelete("{session_id}") — may succeed if leftover

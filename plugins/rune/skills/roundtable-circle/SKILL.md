@@ -36,6 +36,8 @@ allowed-tools:
 
 # Roundtable Circle Skill
 
+**Load skills**: `rune-orchestration`, `context-weaving`, `rune-echoes`, `team-sdk`, `polling-guard`, `zsh-compat`
+
 Orchestrates multi-agent code reviews using Claude Code Agent Teams. Each Ash teammate gets its own dedicated context window, eliminating single-context bottlenecks.
 
 ## Iron Law
@@ -433,7 +435,7 @@ Layer 2 summon: 3+ Ashes (review) or 5+ Ashes (audit). Full spec: [Truthsight Pi
 5. **Persist learnings** to Rune Echoes (`.claude/echoes/`)
 6. **Present TOME.md** to user
 
-See [orchestration-phases.md](references/orchestration-phases.md) Phase 7 and [team-lifecycle-guard.md](references/team-lifecycle-guard.md) for full cleanup pseudocode.
+See [orchestration-phases.md](references/orchestration-phases.md) Phase 7 and [engines.md](../team-sdk/references/engines.md) § shutdown + cleanup for full cleanup pseudocode.
 
 ## Error Handling
 

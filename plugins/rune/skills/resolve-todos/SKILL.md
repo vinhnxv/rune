@@ -40,7 +40,7 @@ allowed-tools:
 
 Resolves file-based TODOs using Agent Teams with a **verify-before-fix** pipeline. Combines parallel batch processing with hallucination prevention patterns.
 
-**Load skills**: `file-todos`, `inner-flame`, `zsh-compat`, `rune-orchestration`, `polling-guard`
+**Load skills**: `file-todos`, `inner-flame`, `zsh-compat`, `rune-orchestration`, `team-sdk`, `polling-guard`
 
 ## Overview
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.137.0] - 2026-03-05
+
+### Changed
+- **team-sdk adoption** — All 14 workflow skills (devise, strive, brainstorm, forge, inspect, goldmask, mend, appraise, audit, codex-review, resolve-todos, debug, design-sync, arc) now include `team-sdk` in their Load skills list. Team lifecycle references point to centralized SDK instead of duplicated guard files.
+- **team-lifecycle-guard.md consolidated** — Both copies (rune-orchestration 569 lines, roundtable-circle 368 lines) replaced with 11-line redirect stubs pointing to team-sdk/references/engines.md and protocols.md.
+- **49 cross-references updated** — All team-lifecycle-guard.md links across SKILL.md files, arc references, roundtable-circle references, and project CLAUDE.md now point to team-sdk canonical references.
+- **team-sdk self-references fixed** — 4 circular links within team-sdk (SKILL.md, engines.md, protocols.md) converted to self-relative sibling links.
+- **roundtable-circle Load skills** — Added `team-sdk` to roundtable-circle, cascading to appraise, audit, and codex-review.
+
 ## [1.136.0] - 2026-03-05
 
 ### Added

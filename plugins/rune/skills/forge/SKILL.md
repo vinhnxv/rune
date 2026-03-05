@@ -41,7 +41,7 @@ allowed-tools:
 
 Deepens an existing plan with Forge Gaze topic-aware enrichment. Each plan section is matched to specialized agents who provide expert perspectives. Enrichments are written back into the plan via Edit (not overwrite).
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `codex-cli`, `polling-guard`, `zsh-compat`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `codex-cli`, `team-sdk`, `polling-guard`, `zsh-compat`
 
 ## ANCHOR — TRUTHBINDING PROTOCOL
 
@@ -297,7 +297,7 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_ac
 
 ## Phase 4: Summon Forge Agents
 
-Follow the `teamTransition` protocol (see `team-lifecycle-guard.md`):
+Follow the `teamTransition` protocol (see [engines.md](../team-sdk/references/engines.md) § createTeam):
 1. Validate timestamp: `!/^[a-zA-Z0-9_-]+$/` check
 2. TeamDelete with retry-with-backoff (3 attempts: 0s, 3s, 8s)
 3. Filesystem fallback if TeamDelete fails (gated on `!teamDeleteSucceeded`)
@@ -417,7 +417,7 @@ See [forge-cleanup.md](references/forge-cleanup.md) for the full protocol — me
 | Forge Gaze risk boost NaN | Use original score (guard: `Math.min(..., 1.0)`) |
 | No agents matched any section | Warn user, suggest `--exhaustive` for lower threshold |
 | Agent timeout (>5 min) | Release task, warn user, proceed with available enrichments |
-| Team lifecycle failure | Pre-create guard + rm fallback (see team-lifecycle-guard.md) |
+| Team lifecycle failure | Pre-create guard + rm fallback (see team-sdk/references/engines.md) |
 | Edit conflict (section changed) | Re-read plan, retry Edit with updated content |
 | Enrichment quality poor | User can revert from backup (`tmp/forge/{id}/original-plan.md`) |
 | Backup file missing | Warn user — cannot revert. Suggest `git checkout` as fallback |

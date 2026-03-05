@@ -7,7 +7,7 @@ Invoke `/rune:forge` logic on the plan. Forge Gaze topic-aware enrichment with C
 **Timeout**: 15 min (PHASE_TIMEOUTS.forge = 900_000 — inner 10m + 5m setup)
 **Inputs**: planFile (string, validated at arc init), id (string, validated at arc init)
 **Outputs**: `tmp/arc/{id}/enriched-plan.md` (enriched copy of original plan)
-**Error handling**: Forge timeout — proceed with original plan copy (warn user, offer `--no-forge`). No enrichments — use original plan copy. Team lifecycle failure — delegated to forge cleanup (see [team-lifecycle-guard.md](../../rune-orchestration/references/team-lifecycle-guard.md)).
+**Error handling**: Forge timeout — proceed with original plan copy (warn user, offer `--no-forge`). No enrichments — use original plan copy. Team lifecycle failure — delegated to forge cleanup (see [engines.md](../../team-sdk/references/engines.md)).
 **Consumers**: SKILL.md (Phase 1 stub)
 
 > **Note**: `sha256()`, `updateCheckpoint()`, `exists()`, and `warn()` are dispatcher-provided utilities available in the arc orchestrator context. Phase reference files call these without import.
@@ -104,7 +104,7 @@ updateCheckpoint({
 
 ## Team Lifecycle
 
-Delegated to `/rune:forge` — manages its own TeamCreate/TeamDelete with guards (see [team-lifecycle-guard.md](../../rune-orchestration/references/team-lifecycle-guard.md)). Arc records the actual `team_name` in checkpoint for cancel-arc discovery.
+Delegated to `/rune:forge` — manages its own TeamCreate/TeamDelete with guards (see [engines.md](../../team-sdk/references/engines.md)). Arc records the actual `team_name` in checkpoint for cancel-arc discovery.
 
 Arc MUST record the actual `team_name` created by `/rune:forge` in the checkpoint. This enables `/rune:cancel-arc` to discover and shut down the forge team if the user cancels mid-pipeline. The forge command creates its own team with its own naming convention — arc reads the team name back after delegation.
 

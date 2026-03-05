@@ -113,7 +113,7 @@ async function reviewSingleChunk(chunk, identifier, flags, securityPins, arcRema
     : 660_000  // 11 min default when not in arc context
 
   // ── PRE-CREATE GUARD ──────────────────────────────────────────────────────
-  // See: team-lifecycle-guard.md for the canonical 3-step escalation pattern
+  // See: team-sdk/references/engines.md for the canonical 3-step escalation pattern
   // Step 1: try TeamDelete (graceful)
   // Step 2: rm -rf target team dirs (filesystem fallback)
   // Step 3: cross-workflow find scan + retry TeamDelete
@@ -158,7 +158,7 @@ async function reviewSingleChunk(chunk, identifier, flags, securityPins, arcRema
 
   // ── PRE-DELETE GUARD + CLEANUP ────────────────────────────────────────────
   // Broadcast shutdown, wait for teammate acknowledgements, then TeamDelete
-  // rm -rf fallback if TeamDelete fails (see team-lifecycle-guard.md)
+  // rm -rf fallback if TeamDelete fails (see team-sdk/references/engines.md)
   shutdownAndCleanup(teamName)
 
   writeChunkProgress(identifier, chunk.chunkIndex, 'completed')
@@ -450,6 +450,6 @@ updateCheckpoint({
 - [Chunk Scoring](chunk-scoring.md) — `scoreFile`, `groupIntoChunks`, security pins
 - [Convergence Gate](convergence-gate.md) — Tier selection, quality metrics, decision matrix
 - [Dedup Runes](dedup-runes.md) — Cross-chunk dedup algorithm and finding ID format
-- [Team Lifecycle Guard](../../rune-orchestration/references/team-lifecycle-guard.md) — Pre-create guard (3-step escalation)
+- [Team SDK engines.md](../../team-sdk/references/engines.md) — teamTransition and pre-create guard (3-step escalation)
 - [Monitor Utility](monitor-utility.md) — `waitForCompletion` parameters per command
 - [Smart Selection](smart-selection.md) — Ash budgets and file classification

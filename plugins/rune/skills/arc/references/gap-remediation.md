@@ -174,7 +174,7 @@ Write(stateFile, JSON.stringify({
 
 ---
 
-## STEP 5: Pre-Create Guard (team-lifecycle-guard.md 3-step protocol)
+## STEP 5: Pre-Create Guard (team-sdk/references/engines.md 3-step protocol)
 
 ```javascript
 const fixTeamName = `arc-gap-fix-${id}`

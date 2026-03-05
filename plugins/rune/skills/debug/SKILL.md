@@ -42,7 +42,7 @@ Implements Analysis of Competing Hypotheses (ACH) methodology for multi-agent de
 Instead of sequential hypothesis testing (systematic-debugging), this spawns parallel
 investigators — each assigned ONE hypothesis to confirm or falsify with evidence.
 
-**Load skills**: `systematic-debugging`, `rune-orchestration`, `context-weaving`, `zsh-compat`
+**Load skills**: `systematic-debugging`, `rune-orchestration`, `context-weaving`, `team-sdk`, `zsh-compat`
 
 ## When to Use
 

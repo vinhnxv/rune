@@ -108,7 +108,7 @@ CHOME resolves **installation isolation** (which Claude Code config dir). Two ad
 | `owner_pid` | `$PPID` in Bash | Session — different sessions with same config |
 | `session_id` | `CLAUDE_SESSION_ID` / `${CLAUDE_SESSION_ID}` in skills | Diagnostic — correlation across hooks and logs |
 
-All Rune state files must include all three fields. See `team-lifecycle-guard.md` for the full ownership verification matrix.
+All Rune state files must include all three fields. See [protocols.md](../team-sdk/references/protocols.md) § Session Isolation Protocol for the full ownership verification matrix.
 
 ## Security: Always Quote CHOME
 

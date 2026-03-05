@@ -133,7 +133,7 @@ Write(`${outputDir}inscription.json`, {
   verification: { enabled: true }
 })
 
-// 2. Pre-create guard: teamTransition protocol (see team-lifecycle-guard.md)
+// 2. Pre-create guard: teamTransition protocol (see team-sdk/references/engines.md)
 const teamName = `${teamPrefix}-${identifier}`
 // Validate → TeamDelete with retry-with-backoff → Filesystem fallback → TeamCreate
 // with "Already leading" catch-and-recover → Post-create verification
@@ -1340,6 +1340,6 @@ const params = {
 - [Circle Registry](circle-registry.md) — Ash wave assignments, deepOnly flags
 - [Smart Selection](smart-selection.md) — File-to-Ash assignment, wave integration
 - [Dedup Runes](dedup-runes.md) — Cross-wave dedup hierarchy
-- [Team Lifecycle Guard](../../rune-orchestration/references/team-lifecycle-guard.md) — Pre-create guard pattern
+- [Team SDK engines.md](../../team-sdk/references/engines.md) — teamTransition and pre-create guard pattern
 - [Inscription Schema](inscription-schema.md) — inscription.json format
 - [File-Todos Integration](../../file-todos/references/integration-guide.md) — Phase 5.4 todo generation from TOME

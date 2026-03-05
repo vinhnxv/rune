@@ -226,7 +226,7 @@ function resolveEngine(workflow) {
 
 The `enforce-team-lifecycle.sh` hook (TLC-001) uses `permissionDecision: "allow"` with `additionalContext` for stale team detection. It NEVER uses `deny` for stale detection — doing so would deadlock the teamTransition Step 4 catch-and-recover block. Hard `deny` is reserved ONLY for invalid team names (shell injection prevention).
 
-This is an **advisory-only** posture by design — see [team-lifecycle-guard.md](../rune-orchestration/references/team-lifecycle-guard.md) for the D-1 rationale.
+This is an **advisory-only** posture by design — see [engines.md](references/engines.md) § Advisory Enforcement for the D-1 rationale.
 
 ## Presets
 
@@ -307,5 +307,5 @@ Some workflows need to override default teamTransition behavior:
 - [protocols.md](references/protocols.md) — Session isolation, workflow lock, signal detection, handle serialization
 - [presets.md](references/presets.md) — Per-workflow preset configurations
 - [monitoring.md](references/monitoring.md) — Monitoring patterns, signal checks, per-command config table
-- [team-lifecycle-guard.md](../rune-orchestration/references/team-lifecycle-guard.md) — teamTransition protocol and cleanup patterns (canonical reference)
+- [engines.md](references/engines.md) — teamTransition protocol and cleanup patterns (canonical reference, consolidated from team-lifecycle-guard.md)
 - [monitor-utility.md](../roundtable-circle/references/monitor-utility.md) — Shared waitForCompletion polling utility

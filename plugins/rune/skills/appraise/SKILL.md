@@ -39,7 +39,7 @@ allowed-tools:
 
 Orchestrate a multi-agent code review using the Roundtable Circle architecture. Each Ash gets its own dedicated context window via Agent Teams.
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `codex-cli`, `polling-guard`, `zsh-compat`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `codex-cli`, `team-sdk`, `polling-guard`, `zsh-compat`
 
 ## Orchestration Parameters
 
@@ -241,7 +241,7 @@ Write("tmp/.rune-review-{identifier}.json", {
 // 4. Generate inscription.json — includes diff_scope, context_intelligence, linter_context
 // See roundtable-circle/references/inscription-schema.md
 
-// 5. Pre-create guard: teamTransition protocol (see team-lifecycle-guard.md)
+// 5. Pre-create guard: teamTransition protocol (see team-sdk/references/engines.md)
 //    STEP 1: Validate identifier (/^[a-zA-Z0-9_-]+$/)
 //    STEP 2: TeamDelete with retry-with-backoff (3 attempts: 0s, 3s, 8s)
 //    STEP 3: Filesystem fallback if TeamDelete failed (CDX-003 gate: !teamDeleteSucceeded)

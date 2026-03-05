@@ -132,7 +132,7 @@ If this phase crashes, the orphaned resources above are recovered by the 3-layer
 Layer 1 (ORCH-1 resume), Layer 2 (`/rune:rest --heal`), Layer 3 (arc pre-flight stale scan).
 Work phase teams use `rune-work-*` prefix — handled by the sub-command's own pre-create guard (not Layer 3).
 
-See [team-lifecycle-guard.md](../../rune-orchestration/references/team-lifecycle-guard.md) §Orphan Recovery Pattern for full layer descriptions and coverage matrix.
+See [engines.md](../../team-sdk/references/engines.md) § cleanup and [protocols.md](../../team-sdk/references/protocols.md) § Handle Serialization for full orphan recovery documentation.
 
 ## --approve Routing
 
@@ -140,7 +140,7 @@ The `--approve` flag routes to the **human user** via `AskUserQuestion` (not to 
 
 ## Team Lifecycle
 
-Delegated to `/rune:strive` — manages its own TeamCreate/TeamDelete with guards (see [team-lifecycle-guard.md](../../rune-orchestration/references/team-lifecycle-guard.md)). Arc records the actual `team_name` in checkpoint for cancel-arc discovery.
+Delegated to `/rune:strive` — manages its own TeamCreate/TeamDelete with guards (see [engines.md](../../team-sdk/references/engines.md)). Arc records the actual `team_name` in checkpoint for cancel-arc discovery.
 
 Arc MUST record the actual `team_name` created by `/rune:strive` in the checkpoint. This enables `/rune:cancel-arc` to discover and shut down the work team if the user cancels mid-pipeline. The work command creates its own team with its own naming convention — arc reads the team name back after delegation.
 
