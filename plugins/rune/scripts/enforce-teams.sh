@@ -71,6 +71,10 @@ if [[ "$TOOL_NAME" != "Task" && "$TOOL_NAME" != "Agent" ]]; then
   exit 0
 fi
 
+# Claude Code 2.1.69+: agent_type identifies the calling agent (diagnostic/trace).
+# Not used for control flow — team_name prefix matching remains the primary mechanism.
+AGENT_TYPE=$(printf '%s\n' "$INPUT" | jq -r '.agent_type // empty' 2>/dev/null || true)
+
 # QUAL-5: Canonicalize CWD to resolve symlinks (matches on-task-completed.sh pattern)
 CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 if [[ -z "$CWD" ]]; then
@@ -175,6 +179,18 @@ fi
 
 # ATE-1 VIOLATION: Agent/Task call without team_name during active workflow
 # Output deny decision with actionable feedback
+# Use jq for safe JSON construction when agent_type is available (may contain special chars)
+if [[ -n "$AGENT_TYPE" ]]; then
+  jq -n --arg at "$AGENT_TYPE" '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: "ATE-1: Bare Agent call blocked during active Rune workflow. All multi-agent phases MUST use Agent Teams. Add team_name to your Agent call. Example: Agent({ team_name: '\''arc-forge-{id}'\'', name: '\''agent-name'\'', subagent_type: '\''general-purpose'\'', ... }). See arc skill (skills/arc/SKILL.md) '\''CRITICAL — Agent Teams Enforcement'\'' section.",
+      additionalContext: ("BLOCKED by enforce-teams.sh hook (caller agent_type: " + $at + "). You MUST create a team with TeamCreate first, then pass team_name to all Agent calls. Using bare subagent types bypasses Agent Teams and causes context explosion. Always use subagent_type: '\''general-purpose'\'' and inject agent identity via the prompt parameter.")
+    }
+  }' 2>/dev/null && exit 0
+fi
+# Fallback: static JSON (no agent_type or jq failed)
 cat << 'DENY_JSON'
 {
   "hookSpecificOutput": {

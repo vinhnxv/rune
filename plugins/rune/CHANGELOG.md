@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.135.0] - 2026-03-05
+
+### Added
+- **Teammate stop mechanism (Claude Code 2.1.69+)** — `on-teammate-idle.sh` now stops stuck teammates via `{"continue": false, "stopReason": "..."}` after 3 consecutive quality gate failures, replacing infinite exit-2 blocking. File-based retry counter in `tmp/.rune-signals/{team}/{teammate}.idle-retries`. Security exits (path traversal) bypass retry — always hard exit 2.
+- **`agent_type` hook tracing (Claude Code 2.1.69+)** — `on-teammate-idle.sh`, `on-task-completed.sh`, and `enforce-teams.sh` now parse and log the new `agent_type` field from hook events. Included in ATE-1 deny JSON `additionalContext` for diagnostics.
+- **`includeGitInstructions` arc preflight check** — Warns when `includeGitInstructions: false` or `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS` env var is set. Arc ship/merge phases (23-27) depend on built-in git workflow instructions.
+
+### Fixed
+- **SEC-003 stderr swallowed by group redirect** — Replaced `{ echo ... >&2; } 2>/dev/null; exit 2` pattern with `printf ... >&2 2>/dev/null || true; exit 2` in `on-teammate-idle.sh`. The old pattern redirected fd 2 to /dev/null for the entire group, silently discarding stderr messages. Fixes 7 pre-existing test failures (5 in `test_on_teammate_idle.py`, 2 in `test_hooks.py`).
+
 ## [1.134.2] - 2026-03-05
 
 ### Fixed

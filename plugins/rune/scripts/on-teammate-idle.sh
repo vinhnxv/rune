@@ -3,6 +3,7 @@
 # Validates teammate work quality before allowing idle.
 # Exit 2 + stderr = block idle and send feedback to teammate.
 # Exit 0 = allow teammate to go idle normally.
+# Exit 0 + {"continue": false} JSON = stop teammate (Claude Code 2.1.69+).
 
 set -euo pipefail
 umask 077
@@ -49,6 +50,8 @@ _trace "ENTER"
 
 TEAM_NAME=$(printf '%s\n' "$INPUT" | jq -r '.team_name // empty' 2>/dev/null || true)
 TEAMMATE_NAME=$(printf '%s\n' "$INPUT" | jq -r '.teammate_name // empty' 2>/dev/null || true)
+# Claude Code 2.1.69+: agent_type identifies the calling agent type (diagnostic/trace)
+AGENT_TYPE=$(printf '%s\n' "$INPUT" | jq -r '.agent_type // empty' 2>/dev/null || true)
 
 # Validate TEAMMATE_NAME characters
 if [[ -n "$TEAMMATE_NAME" && ! "$TEAMMATE_NAME" =~ ^[a-zA-Z0-9_:-]+$ ]]; then
@@ -65,7 +68,7 @@ fi
 
 # Guard: only process Rune and Arc teams
 # QUAL-001: Guard includes arc-* for arc pipeline support
-_trace "PARSED team=$TEAM_NAME teammate=$TEAMMATE_NAME"
+_trace "PARSED team=$TEAM_NAME teammate=$TEAMMATE_NAME agent_type=$AGENT_TYPE"
 if [[ "$TEAM_NAME" != rune-* && "$TEAM_NAME" != arc-* ]]; then
   _trace "SKIP non-rune team: $TEAM_NAME"
   exit 0
@@ -81,6 +84,47 @@ CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || { echo "WARN: Cannot canonicalize CWD:
 if [[ -z "$CWD" || "$CWD" != /* ]]; then
   exit 0
 fi
+
+# --- Retry-based quality gate with teammate stop (Claude Code 2.1.69+) ---
+# After MAX_IDLE_RETRIES consecutive quality gate failures, stop the teammate
+# via {"continue": false} instead of blocking indefinitely with exit 2.
+# Uses file-based counter in signal dir. Security exits (path traversal) bypass this.
+MAX_IDLE_RETRIES=3
+
+_block_or_stop() {
+  local msg="$1"
+  local sig_dir="${CWD}/tmp/.rune-signals/${TEAM_NAME}"
+  local retry_file="${sig_dir}/${TEAMMATE_NAME}.idle-retries"
+  local retries=0
+
+  # Read current retry count (fail-safe: default to 0)
+  if [[ -f "$retry_file" && ! -L "$retry_file" ]]; then
+    retries=$(head -c 4 "$retry_file" 2>/dev/null | tr -dc '0-9')
+    [[ -z "$retries" ]] && retries=0
+  fi
+  retries=$((retries + 1))
+
+  # Write updated count atomically
+  if [[ -d "$sig_dir" ]]; then
+    printf '%d' "$retries" > "${retry_file}.tmp.$$" 2>/dev/null && \
+      mv -f "${retry_file}.tmp.$$" "$retry_file" 2>/dev/null || true
+  fi
+
+  if [[ "$retries" -ge "$MAX_IDLE_RETRIES" ]]; then
+    _trace "STOP teammate after $retries retries: $TEAMMATE_NAME"
+    # Claude Code 2.1.69+: {"continue": false} stops the teammate cleanly
+    jq -n --arg reason "${msg} (stopped after ${retries} quality gate failures)" \
+      '{"continue": false, "stopReason": $reason}' 2>/dev/null || \
+      printf '{"continue":false,"stopReason":"Quality gate failed %d times"}\n' "$retries"
+    exit 0
+  fi
+
+  _trace "BLOCK retry $retries/$MAX_IDLE_RETRIES: $msg"
+  # Write to stderr: >&2 sends stdout→real stderr, 2>/dev/null silences printf's own errors.
+  # || true prevents ERR trap if stderr is broken (replaces SEC-003 group pattern).
+  printf '%s\n' "$msg" >&2 2>/dev/null || true
+  exit 2
+}
 
 # --- Guard: Skip output file gate for work teams ---
 # Work agents communicate via SendMessage (Seal) and TaskUpdate, not output files.
@@ -115,8 +159,8 @@ EXPECTED_OUTPUT=$(jq -r --arg name "$TEAMMATE_NAME" \
 # SEC-C01: Fast-fail heuristic only — rejects obvious traversal patterns early.
 # The real security boundary is the realpath+prefix canonicalization at lines 104-110.
 if [[ "$EXPECTED_OUTPUT" == *".."* || "$EXPECTED_OUTPUT" == /* ]]; then
-  # SEC-003: exit 2 before echo — prevents ERR trap preemption on broken stderr
-  { echo "ERROR: inscription output_file contains path traversal: ${EXPECTED_OUTPUT}" >&2; } 2>/dev/null; exit 2
+  # SEC-003: >&2 sends to real stderr, 2>/dev/null silences printf errors, || true prevents ERR trap
+  printf 'ERROR: inscription output_file contains path traversal: %s\n' "${EXPECTED_OUTPUT}" >&2 2>/dev/null || true; exit 2
 fi
 
 if [[ -z "$EXPECTED_OUTPUT" ]]; then
@@ -136,11 +180,11 @@ fi
 # SEC-003: Path traversal check for OUTPUT_DIR
 if [[ "$OUTPUT_DIR" == *".."* ]]; then
   # SEC-003: exit 2 before echo — prevents ERR trap preemption on broken stderr
-  { echo "ERROR: inscription output_dir contains path traversal: ${OUTPUT_DIR}" >&2; } 2>/dev/null; exit 2
+  printf 'ERROR: inscription output_dir contains path traversal: %s\n' "${OUTPUT_DIR}" >&2 2>/dev/null || true; exit 2
 fi
 if [[ "$OUTPUT_DIR" != tmp/* ]]; then
   # SEC-003: exit 2 before echo — prevents ERR trap preemption on broken stderr
-  { echo "ERROR: inscription output_dir outside tmp/: ${OUTPUT_DIR}" >&2; } 2>/dev/null; exit 2
+  printf 'ERROR: inscription output_dir outside tmp/: %s\n' "${OUTPUT_DIR}" >&2 2>/dev/null || true; exit 2
 fi
 
 # Normalize trailing slash
@@ -161,13 +205,12 @@ RESOLVED_OUTPUT=$(resolve_path "$FULL_OUTPUT_PATH")
 RESOLVED_OUTDIR=$(resolve_path "${CWD}/${OUTPUT_DIR}")
 if [[ "$RESOLVED_OUTPUT" != "$RESOLVED_OUTDIR"* ]]; then
   # SEC-003: exit 2 before echo — prevents ERR trap preemption on broken stderr
-  { echo "ERROR: output_file resolves outside output_dir" >&2; } 2>/dev/null; exit 2
+  printf 'ERROR: output_file resolves outside output_dir\n' >&2 2>/dev/null || true; exit 2
 fi
 
 if [[ ! -f "$FULL_OUTPUT_PATH" ]]; then
   _trace "BLOCK output missing: $FULL_OUTPUT_PATH"
-  # SEC-003: exit 2 guarded — prevents ERR trap preemption on broken stderr
-  { echo "Output file not found: ${OUTPUT_DIR}${EXPECTED_OUTPUT}. Please complete your review and write findings before stopping." >&2; } 2>/dev/null; exit 2
+  _block_or_stop "Output file not found: ${OUTPUT_DIR}${EXPECTED_OUTPUT}. Please complete your review and write findings before stopping."
 fi
 
 # BACK-007: Minimum output size gate
@@ -176,8 +219,7 @@ FILE_SIZE=$(wc -c < "$FULL_OUTPUT_PATH" 2>/dev/null | tr -dc '0-9')
 [[ -z "$FILE_SIZE" ]] && FILE_SIZE=0
 if [[ "$FILE_SIZE" -lt "$MIN_OUTPUT_SIZE" ]]; then
   _trace "BLOCK output too small: ${FILE_SIZE} bytes < ${MIN_OUTPUT_SIZE}"
-  # SEC-003: exit 2 guarded — prevents ERR trap preemption on broken stderr
-  { echo "Output file is empty or too small: ${FULL_OUTPUT_PATH} (${FILE_SIZE} bytes). Please write your findings." >&2; } 2>/dev/null; exit 2
+  _block_or_stop "Output file is empty or too small (${FILE_SIZE} bytes). Please write your findings."
 fi
 
 # --- Quality Gate: Check for SEAL marker (Roundtable Circle only) ---
@@ -191,8 +233,7 @@ if [[ "$TEAM_NAME" =~ ^(rune|arc)-(review|audit)- ]]; then
   # Check for SEAL in output file: YAML format (^SEAL:), XML tag (<seal>), or Inner Flame self-review marker
   if ! grep -q "^SEAL:" "$FULL_OUTPUT_PATH" 2>/dev/null && ! grep -q "<seal>" "$FULL_OUTPUT_PATH" 2>/dev/null && ! grep -q "^Inner Flame:" "$FULL_OUTPUT_PATH" 2>/dev/null; then
     _trace "BLOCK SEAL missing: $FULL_OUTPUT_PATH"
-    # SEC-003: exit 2 guarded — prevents ERR trap preemption on broken stderr
-    { echo "SEAL marker missing in ${FULL_OUTPUT_PATH}. Review output incomplete — add SEAL block." >&2; } 2>/dev/null; exit 2
+    _block_or_stop "SEAL marker missing. Review output incomplete — add SEAL block."
   fi
 fi
 
