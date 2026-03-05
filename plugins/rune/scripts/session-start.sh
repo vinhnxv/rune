@@ -39,7 +39,7 @@ fi
 INPUT=$(head -c 1048576 2>/dev/null || true)
 EVENT=""
 if command -v jq &>/dev/null; then
-  EVENT=$(echo "$INPUT" | jq -r '.event // empty' 2>/dev/null || true)
+  EVENT=$(printf '%s\n' "$INPUT" | jq -r '.event // empty' 2>/dev/null || true)
 fi
 
 # Read skill content, strip frontmatter

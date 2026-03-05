@@ -56,7 +56,7 @@ reject_symlink "$STATE_FILE"
 # NOTE: arc-batch deliberately skips this check because it uses decision=block to drive
 # the loop. Hierarchy also uses decision=block, but a crashed child (Claude exits immediately)
 # would re-fire Stop → this hook → another block → crash → infinite loop without this guard.
-STOP_HOOK_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // empty' 2>/dev/null || true)
+STOP_HOOK_ACTIVE=$(printf '%s\n' "$INPUT" | jq -r '.stop_hook_active // empty' 2>/dev/null || true)
 if [[ "$STOP_HOOK_ACTIVE" == "true" ]]; then
   _trace "stop_hook_active detected — exiting to prevent infinite re-injection loop"
   exit 0
@@ -157,7 +157,7 @@ CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 validate_session_ownership "$STATE_FILE" "" "skip"
 
 # ── Extract session_id for prompt Truthbinding ──
-HOOK_SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
 # SEC-004 FIX: Validate HOOK_SESSION_ID against UUID/alphanumeric pattern
 if [[ -n "$HOOK_SESSION_ID" ]] && [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
   _trace "Invalid session_id format — sanitizing to empty"

@@ -151,7 +151,7 @@ if (allMembers.length > 0) {
 ### 6. Cleanup
 
 ```javascript
-// Delete team with retry-with-backoff + CHOME fallback (see team-lifecycle-guard.md)
+// Delete team with retry-with-backoff + CHOME fallback (see team-sdk/references/engines.md)
 // Validate team_name before shell interpolation
 if (!/^[a-zA-Z0-9_-]+$/.test(team_name)) throw new Error("Invalid team_name")
 // TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s)

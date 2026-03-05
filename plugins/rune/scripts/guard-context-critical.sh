@@ -21,18 +21,18 @@ trap '_fail_open' ERR
 command -v jq >/dev/null 2>&1 || exit 0
 
 # --- Guard: Input size cap (SEC-2) ---
-INPUT=$(head -c 65536)
+INPUT=$(head -c 65536 2>/dev/null || true)
 [[ -z "$INPUT" ]] && exit 0
 
 # --- Single-pass jq extraction (performance: runs on EVERY TeamCreate/Task) ---
 IFS=$'\t' read -r TOOL_NAME SUBAGENT_TYPE CWD SESSION_ID < <(
-  echo "$INPUT" | jq -r '[.tool_name//"", .tool_input.subagent_type//"", .cwd//"", .session_id//""] | @tsv' 2>/dev/null || echo ""
+  printf '%s\n' "$INPUT" | jq -r '[.tool_name//"", .tool_input.subagent_type//"", .cwd//"", .session_id//""] | @tsv' 2>/dev/null || echo ""
 ) || true
 
 [[ -z "$TOOL_NAME" || -z "$CWD" || -z "$SESSION_ID" ]] && exit 0
 
 # --- Guard: Teammate bypass (subagents can't spawn teams) ---
-TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
+TRANSCRIPT_PATH=$(printf '%s\n' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
 if [[ -n "$TRANSCRIPT_PATH" && "$TRANSCRIPT_PATH" == *"/subagents/"* ]]; then
   exit 0
 fi
@@ -45,7 +45,12 @@ fi
 # --- Session identity ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=resolve-session-identity.sh
-source "${SCRIPT_DIR}/resolve-session-identity.sh"
+if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
+  source "${SCRIPT_DIR}/resolve-session-identity.sh"
+else
+  RUNE_CURRENT_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  rune_pid_alive() { kill -0 "$1" 2>/dev/null; }
+fi
 
 # --- Explore/Plan exemption (Agent/Task tool only, NOT TeamCreate per EC-4) ---
 # Claude Code 2.1.63+ renamed "Task" → "Agent". Match both for backward compat.

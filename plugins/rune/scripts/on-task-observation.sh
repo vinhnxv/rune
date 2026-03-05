@@ -45,7 +45,7 @@ INPUT=$(head -c 1048576 2>/dev/null || true)
 
 # --- Guard 1: Only process Rune workflow tasks ---
 IFS=$'\t' read -r TEAM_NAME TASK_ID TASK_SUBJECT TASK_DESC AGENT_NAME < <(
-  echo "$INPUT" | jq -r '
+  printf '%s\n' "$INPUT" | jq -r '
     [
       .team_name // "",
       .task_id // "",
@@ -70,7 +70,7 @@ case "${TASK_SUBJECT,,}" in
 esac
 
 # --- Guard 3: Resolve project directory ---
-CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 [[ -z "$CWD" ]] && exit 0
 CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || exit 0
 [[ -n "$CWD" && "$CWD" == /* ]] || exit 0

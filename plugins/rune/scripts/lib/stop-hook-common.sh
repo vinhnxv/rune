@@ -45,7 +45,7 @@ parse_input() {
 # Sets: CWD
 # Exits 0 if CWD is empty, non-absolute, or unresolvable.
 resolve_cwd() {
-  CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+  CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
   if [[ -z "$CWD" ]]; then
     exit 0
   fi

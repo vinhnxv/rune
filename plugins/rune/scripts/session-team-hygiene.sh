@@ -33,10 +33,10 @@ if ! command -v jq &>/dev/null; then
   exit 0
 fi
 
-INPUT=$(head -c 1048576)
+INPUT=$(head -c 1048576 2>/dev/null || true)
 
 # Extract CWD for state file scan
-CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 if [[ -z "$CWD" ]]; then exit 0; fi
 # SEC-005: Path traversal guard — reject CWD containing ".." before cd
 if [[ "$CWD" == *".."* ]]; then exit 0; fi
@@ -58,7 +58,7 @@ if [[ ! -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then exit 0; fi
 source "${SCRIPT_DIR}/resolve-session-identity.sh"
 
 # Extract session_id from hook input JSON (same pattern as enforce-team-lifecycle.sh)
-HOOK_SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
 
 # Count orphaned team dirs (older than 30 min)
 orphan_count=0

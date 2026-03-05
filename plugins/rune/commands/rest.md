@@ -442,7 +442,7 @@ const ORPHAN_STALE_THRESHOLD = 1_800_000  // 30 min (CC-6)
 const staleStateFiles = []
 const activeStateFiles = []  // CC-1 FIX: separate list for safety check
 
-// See team-lifecycle-guard.md §Stale State File Scan Contract for canonical type list and threshold
+// See team-sdk/references/engines.md §Stale State File Scan Contract for canonical type list and threshold
 for (const type of ["work", "review", "mend", "audit", "forge", "inspect", "batch"]) {  // CC-4: include forge, QUAL-003: include batch, v1.50.0: include inspect
   const files = Glob(`tmp/.rune-${type}-*.json`)
   for (const f of files) {
