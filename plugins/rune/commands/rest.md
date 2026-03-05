@@ -466,7 +466,9 @@ for (const type of ["work", "review", "mend", "audit", "forge", "inspect", "batc
 // STEP 2: Scan teams dir for orphaned rune-prefixed team dirs
 // CHOME pattern: resolve CLAUDE_CONFIG_DIR for multi-account support
 const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
-const RUNE_TEAM_PATTERN = /^(rune-work|rune-review|rune-mend|rune-audit|rune-plan|rune-forge|rune-inspect|arc-forge|arc-plan-review|arc-verify)-/
+const RUNE_TEAM_PATTERN = /^(rune-work|rune-review|rune-mend|rune-audit|rune-plan|rune-forge|rune-inspect|rune-custom|arc-forge|arc-plan-review|arc-verify)-/
+// Note: User-provided --name values from /rune:team-spawn cannot be predicted by this pattern.
+// Orphan detection for custom-named teams relies on the state file scan (type "team" in Step 1).
 const teamDirsRaw = Bash(`find "${CHOME}/teams" -mindepth 1 -maxdepth 1 -type d 2>/dev/null`)  // CC-3: find not ls; -mindepth 1 excludes base dir
 const teamDirs = teamDirsRaw.split('\n').filter(Boolean)
 // BACK-003 FIX: Warn when teams directory is missing (matches error handling table promise)

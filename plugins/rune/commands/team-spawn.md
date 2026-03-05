@@ -33,7 +33,7 @@ allowed-tools:
   - AskUserQuestion
 ---
 
-# /rune:team-spawn -- Spawn Agent Team
+# /rune:team-spawn — Spawn Agent Team
 
 Spawn an Agent Team using presets or custom composition. Wraps `TeamEngine.ensureTeam()` and `spawnWave()` from team-sdk.
 
@@ -111,7 +111,7 @@ if (activeStates.length > 0) {
   })
   // If "Cancel": return
   // If "Shutdown and proceed": run 5-component cleanup on existing team
-  // (see Step 3 cleanup protocol — apply to activeStates[0].state.team_name)
+  // (see team-shutdown.md Step 5 — apply to activeStates[0].state.team_name)
 }
 ```
 
@@ -142,7 +142,7 @@ if (presetName === "custom") {
   // Map selections to concrete agent names
   const agentMap = {
     "Reviewers": ["ward-sentinel", "pattern-weaver", "forge-warden", "veil-piercer"],
-    "Workers": ["rune-smith"],
+    "Workers": ["rune-smith", "trial-forger"],
     "Researchers": ["repo-surveyor", "echo-reader", "git-miner"],
     "Investigators": ["hypothesis-investigator"]
   }
@@ -160,6 +160,7 @@ if (presetName === "custom") {
   }
 } else if (KNOWN_PRESETS.includes(presetName)) {
   // Use resolvePreset() from team-sdk — delegates to presets.md resolution order
+  // team-sdk functions used: resolvePreset(), readTalismanSection(), TeamEngine.ensureTeam(), TeamEngine.spawnWave()
   preset = resolvePreset(presetName)
 } else {
   // Check talisman custom presets

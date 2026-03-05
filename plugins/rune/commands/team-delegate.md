@@ -33,7 +33,7 @@ allowed-tools:
   - AskUserQuestion
 ---
 
-# /rune:team-delegate -- Task Delegation Dashboard
+# /rune:team-delegate — Task Delegation Dashboard
 
 Manage team workload, assign tasks, send messages to teammates, and create new tasks. Shows a delegation dashboard by default.
 
@@ -53,7 +53,7 @@ Manage team workload, assign tasks, send messages to teammates, and create new t
 ```javascript
 const args = "$ARGUMENTS"
 const assignMatch = args.match(/--assign\s+(\d+)=(\S+)/)
-const messageMatch = args.match(/--message\s+(\S+)\s+'([^']+)'/)
+const messageMatch = args.match(/--message\s+(\S+)\s+(?:'([^']+)'|"([^"]+)"|(.+))/)
 const createMatch = args.match(/--create\s+'([^']+)'/)
 ```
 
@@ -172,11 +172,17 @@ if (assignMatch) {
 ```javascript
 if (messageMatch) {
   const memberName = messageMatch[1]
-  const content = messageMatch[2]
+  const content = messageMatch[2] || messageMatch[3] || messageMatch[4]
 
   // SEC-4: validate member name
   if (!/^[a-zA-Z0-9_-]+$/.test(memberName)) {
     error("Invalid member name. Must match [a-zA-Z0-9_-]+.")
+    return
+  }
+
+  // VEIL-003: enforce message length limit to prevent context exhaustion
+  if (content.length > 2000) {
+    error("Message too long (max 2000 chars).")
     return
   }
 

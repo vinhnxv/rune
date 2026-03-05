@@ -13,7 +13,7 @@ description: |
 
   <example>
   user: "/rune:team-shutdown --force"
-  assistant: "Force shutdown -- skipping grace period..."
+  assistant: "Force shutdown — skipping grace period..."
   </example>
 user-invocable: true
 disable-model-invocation: true
@@ -31,7 +31,7 @@ allowed-tools:
   - AskUserQuestion
 ---
 
-# /rune:team-shutdown -- Graceful Team Shutdown
+# /rune:team-shutdown — Graceful Team Shutdown
 
 Gracefully shut down an active agent team and clean up resources. For standalone teams only -- workflow teams should use their respective `/rune:cancel-*` commands.
 
@@ -122,7 +122,7 @@ if (target.workflowType && target.state.workflow !== "standalone") {
   const cancelCommands = {
     review: "/rune:cancel-review",
     audit: "/rune:cancel-audit",
-    work: "/rune:cancel-review (or wait for strive to complete)",
+    work: "/rune:cancel-arc (or wait for strive to complete)",
     plan: "(wait for devise to complete)",
     mend: "(wait for mend to complete)",
     debug: "(wait for debug to complete)",
@@ -215,7 +215,9 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
 
 // ── 5. Filesystem fallback (only if TeamDelete never succeeded -- QUAL-012) ──
 if (!cleanupTeamDeleteSucceeded) {
-  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${team_name}/" "$CHOME/tasks/${team_name}/" 2>/dev/null`)
+  // SEC-4 defense-in-depth: re-validate before rm -rf (VEIL-008)
+  if (!/^[a-zA-Z0-9_-]+$/.test(team_name)) throw new Error(`Invalid team_name for cleanup: ${team_name}`)
+  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${team_name}/" "$CHOME/tasks/${team_name}/" 2>&1`)
   try { TeamDelete() } catch (e) { /* best effort -- clear SDK leadership state */ }
 }
 ```
@@ -230,7 +232,8 @@ if (stateFilePath) {
     Write(stateFilePath, JSON.stringify({
       ...state,
       status: "completed",
-      completed_at: new Date().toISOString()
+      completed_at: new Date().toISOString(),
+      session_id: state.session_id || "${CLAUDE_SESSION_ID}"
     }))
   } catch (e) { /* non-blocking */ }
 }
