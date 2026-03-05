@@ -309,7 +309,11 @@ async def _run_decompose_subprocess(query: str) -> Optional[List[str]]:
     Returns:
         List of facet strings, or None on error/timeout.
     """
-    safe_query = html.escape(query[:500])  # SEC: cap length + escape XML chars
+    # SEC-004 FIX: Two-pass sanitization for LLM prompt injection defense.
+    # Pass 1: strip control chars and zero-width chars that could hide injected instructions.
+    # Pass 2: HTML-escape remaining content to neutralize XML/HTML-based injection vectors.
+    _stripped = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\u200b-\u200f\u2028-\u202f\ufeff]', '', query[:500])
+    safe_query = html.escape(_stripped)
     prompt = _DECOMPOSE_PROMPT.format(query=safe_query)
     proc: Optional[asyncio.subprocess.Process] = None
     try:

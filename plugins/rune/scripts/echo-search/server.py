@@ -71,6 +71,22 @@ for _env_name, _env_val in [("ECHO_DIR", ECHO_DIR), ("DB_PATH", DB_PATH)]:
                 file=sys.stderr,
             )
             sys.exit(1)
+# SEC-003 FIX: Allowlist validation for ECHO_DIR — must be under user home,
+# project dir, or system temp. Prevents reading from arbitrary locations.
+if ECHO_DIR:
+    _echo_resolved = os.path.realpath(ECHO_DIR)
+    _home = os.path.expanduser("~")
+    _cwd = os.path.realpath(os.getcwd())
+    _tmpdir = os.path.realpath(os.environ.get("TMPDIR", "/tmp"))
+    _allowed_echo_prefixes = (_home, _cwd, _tmpdir)
+    if not any(_echo_resolved.startswith(p) for p in _allowed_echo_prefixes):
+        print(
+            "Error: ECHO_DIR must be under home, project, or temp directory: %s"
+            % _echo_resolved,
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
 if DB_PATH:
     _db_resolved = os.path.realpath(DB_PATH)
     if not (_db_resolved.endswith(".db") or _db_resolved.endswith(".sqlite")):

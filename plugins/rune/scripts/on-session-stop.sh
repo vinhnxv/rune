@@ -351,7 +351,13 @@ if [[ -d "$CHOME/teams/" ]]; then
       else
         # No state file → only clean if older than 30 min (true orphan)
         dir_mtime=$(stat -f %m "$dir" 2>/dev/null || stat -c %Y "$dir" 2>/dev/null || echo 0)
-        dir_age_min=$(( (NOW - dir_mtime) / 60 ))
+        # FLAW-003 FIX: When stat fails, dir_mtime=0 causes age=(NOW-0)/60 ≈ 28M min,
+        # incorrectly marking fresh dirs as stale. Guard against zero/invalid mtime.
+        if [[ "$dir_mtime" -gt 0 ]]; then
+          dir_age_min=$(( (NOW - dir_mtime) / 60 ))
+        else
+          dir_age_min=0  # stat failed — treat as fresh (safe default)
+        fi
         if [[ $dir_age_min -gt 30 ]]; then
           should_clean=true
         fi
