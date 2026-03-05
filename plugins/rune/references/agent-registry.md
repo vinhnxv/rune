@@ -1,8 +1,8 @@
 # Agent Registry
 
-**Total: 84 agents** (30 review + 5 research + 6 work + 14 utility* + 24 investigation + 5 testing)
+**Total: 86 agents** (30 review + 5 research + 6 work + 16 utility + 24 investigation + 5 testing)
 
-\* 14 utility agents; gap-fixer is additionally prompt-template-based (no dedicated .md file) and not counted in the total.
+> Agent count verified by `find agents/ -name "*.md" -type f | wc -l` on 2026-03-05.
 
 > **Stack specialist reviewers** (python-reviewer, typescript-reviewer, rust-reviewer, php-reviewer, axum-reviewer, fastapi-reviewer, django-reviewer, laravel-reviewer, sqlalchemy-reviewer, tdd-compliance-reviewer, ddd-reviewer, di-reviewer) are NOT registered agents. They are prompt templates at `skills/roundtable-circle/references/specialist-prompts/`, loaded on-demand by `buildAshPrompt()` via stack detection.
 

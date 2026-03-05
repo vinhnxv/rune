@@ -79,6 +79,20 @@ if DB_PATH:
             file=sys.stderr,
         )
         sys.exit(1)
+    # SEC-007 FIX: Allowlist DB_PATH parent directory — must be under user home,
+    # project dir, or system temp. Prevents writes to arbitrary locations.
+    _db_parent = os.path.dirname(_db_resolved)
+    _home = os.path.expanduser("~")
+    _cwd = os.path.realpath(os.getcwd())
+    _tmpdir = os.path.realpath(os.environ.get("TMPDIR", "/tmp"))
+    _allowed_prefixes = (_home, _cwd, _tmpdir)
+    if not any(_db_parent.startswith(p) for p in _allowed_prefixes):
+        print(
+            "Error: DB_PATH must be under home, project, or temp directory: %s"
+            % _db_resolved,
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 STOPWORDS = frozenset([
     "a", "an", "and", "are", "as", "at", "be", "but", "by", "for",
