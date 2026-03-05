@@ -112,12 +112,72 @@ function createTeam(config) {
 }
 ```
 
-## spawnAgent(handle, spec) -> AgentRef
+## ensureTeam(config) -> TeamHandle
 
-Spawns a single teammate. ATE-1 compliant: always includes `team_name` and uses `subagent_type: "general-purpose"`.
+Idempotent team creation. Safe to call multiple times — checks if team already exists and belongs to current session before creating. Used by auto-bootstrap pattern and compaction recovery.
 
 ```javascript
-function spawnAgent(handle, spec) {
+function ensureTeam(config) {
+  // Idempotent team creation — safe to call multiple times.
+  // If team already exists AND belongs to current session, returns recovered handle.
+  // If team doesn't exist, calls createTeam().
+  // If team exists but belongs to different session, calls createTeam() (which cleans up first).
+
+  const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+  const configPath = `${CHOME}/teams/${config.teamName}/config.json`
+
+  // Check if team already exists
+  try {
+    const teamConfig = Read(configPath)
+    if (teamConfig) {
+      // Team exists — check if it's ours (session isolation)
+      const stateFile = `${config.stateFilePrefix}-${config.identifier}.json`
+      try {
+        const state = JSON.parse(Read(stateFile))
+        if (state.status === "active" && state.owner_pid === Bash(`echo $PPID`).trim()) {
+          // Our team, our session — recover handle
+          return {
+            teamName: config.teamName,
+            workflow: config.workflow,
+            identifier: config.identifier,
+            configDir: state.config_dir,
+            ownerPid: state.owner_pid,
+            sessionId: state.session_id,
+            stateFile,
+            createdAt: state.started,
+            spawnedAgents: []  // Cannot recover spawned list — fresh start
+          }
+        }
+      } catch (e) {
+        // State file missing or corrupted — fall through to createTeam()
+      }
+    }
+  } catch (e) {
+    // Team dir doesn't exist — fall through to createTeam()
+  }
+
+  // Team doesn't exist or belongs to another session — create fresh
+  return createTeam(config)
+}
+```
+
+## spawnAgent(handle, spec) -> AgentRef
+
+Spawns a single teammate. ATE-1 compliant: always includes `team_name` and uses `subagent_type: "general-purpose"`. Accepts either a TeamHandle or a config object (auto-bootstrap).
+
+```javascript
+function spawnAgent(handleOrConfig, spec) {
+  // Auto-bootstrap: accept either a TeamHandle or a config object.
+  // If config object (no createdAt field), call ensureTeam() first.
+  let handle = handleOrConfig
+  if (!handleOrConfig.createdAt) {
+    // This is a config object, not a handle — auto-bootstrap
+    handle = ensureTeam(handleOrConfig)
+    if (!handle) {
+      throw new Error("Auto-bootstrap failed: ensureTeam() returned null. Check team-sdk logs.")
+    }
+  }
+
   const {
     name, prompt, taskSubject, taskDescription,
     activeForm, tools, maxTurns, metadata
@@ -162,10 +222,20 @@ function spawnAgent(handle, spec) {
 
 ## spawnWave(handle, specs) -> AgentRef[]
 
-Batch spawns for wave-based execution. Creates all tasks first, then spawns agents. Used by strive (worker waves) and mend (fixer waves).
+Batch spawns for wave-based execution. Creates all tasks first, then spawns agents. Used by strive (worker waves) and mend (fixer waves). Accepts either a TeamHandle or a config object (auto-bootstrap).
 
 ```javascript
-function spawnWave(handle, specs) {
+function spawnWave(handleOrConfig, specs) {
+  // Auto-bootstrap: accept either a TeamHandle or a config object.
+  // If config object (no createdAt field), call ensureTeam() first.
+  let handle = handleOrConfig
+  if (!handleOrConfig.createdAt) {
+    handle = ensureTeam(handleOrConfig)
+    if (!handle) {
+      throw new Error("Auto-bootstrap failed: ensureTeam() returned null. Check team-sdk logs.")
+    }
+  }
+
   const refs = []
 
   // Create all tasks first (ordering matters for dependency chains)
