@@ -77,7 +77,7 @@ def build_rerank_prompt(query: str, entries: List[Dict[str, Any]]) -> str:
     Returns:
         A prompt string ready to send to the Haiku model.
     """
-    query = query[:500]
+    query = html.escape(query[:500])
     lines: list[str] = []
     for entry in entries:
         entry_id = entry.get("id", "unknown")

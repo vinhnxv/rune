@@ -56,13 +56,13 @@ else
 fi
 
 # ── GUARD 3: Trigger must be "compact" ──
-TRIGGER=$(echo "$INPUT" | jq -r '.trigger // empty' 2>/dev/null || true)
+TRIGGER=$(printf '%s\n' "$INPUT" | jq -r '.trigger // empty' 2>/dev/null || true)
 if [[ "$TRIGGER" != "compact" ]]; then
   exit 0
 fi
 
 # ── GUARD 4: CWD extraction and canonicalization ──
-CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 if [[ -z "$CWD" ]]; then exit 0; fi
 CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || { exit 0; }
 if [[ -z "$CWD" || "$CWD" != /* ]]; then exit 0; fi

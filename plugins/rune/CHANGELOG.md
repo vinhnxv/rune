@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.138.0] - 2026-03-06
+
+### Fixed
+- **SEC-INJECT-001**: Added `html.escape()` to echo-search `reranker.py` query string before prompt interpolation — prevents prompt injection via crafted search queries
+- **SEC-FAIL-CLOSED-001**: Changed `enforce-teams.sh` jq-missing exit from 0 (fail-open) to 2 (fail-closed) — security hook must block when dependencies are unavailable
+- **SHELL-001**: Migrated all `echo "$INPUT" | jq` to `printf '%s\n' "$INPUT" | jq` across 17 hook scripts — prevents unintended escape interpretation in shell pipelines
+- **SHELL-002**: Added `2>/dev/null || true` guards to 5 unprotected `head -c` calls — prevents pipeline errors from propagating to hook exit codes
+- **SHELL-003**: Added source file existence guard in `guard-context-critical.sh` for `resolve-session-identity.sh` — graceful fallback when dependency is missing
+- **REF-001**: Updated 4 stale `team-lifecycle-guard.md` references in cancel commands and `rest.md` to point to `team-sdk/references/engines.md`
+- **REF-002**: Updated `security-patterns.md` consumer list from `team-lifecycle-guard.md` to `team-sdk/references/engines.md`
+
 ## [1.137.0] - 2026-03-05
 
 ### Changed

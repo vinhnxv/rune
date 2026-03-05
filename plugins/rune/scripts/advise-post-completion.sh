@@ -19,20 +19,20 @@ trap '_fail_open' ERR
 command -v jq >/dev/null 2>&1 || exit 0
 
 # --- Guard: Input size cap (SEC-2) ---
-INPUT=$(head -c 65536)
+INPUT=$(head -c 65536 2>/dev/null || true)
 [[ -z "$INPUT" ]] && exit 0
 
 # --- Guard: Teammate bypass (subagents skip) ---
-TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
+TRANSCRIPT_PATH=$(printf '%s\n' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
 if [[ -n "$TRANSCRIPT_PATH" && "$TRANSCRIPT_PATH" == *"/subagents/"* ]]; then
   exit 0
 fi
 
 # --- Extract CWD and SESSION_ID ---
-CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 [[ -z "$CWD" ]] && exit 0
 
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
 [[ -z "$SESSION_ID" ]] && exit 0
 
 # SESSION_ID validation (prevent path injection)

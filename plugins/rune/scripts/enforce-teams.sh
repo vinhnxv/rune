@@ -52,10 +52,10 @@ _rune_fail_closed() {
 trap '_rune_fail_closed' ERR
 
 # Pre-flight: jq is required for JSON parsing.
-# If missing, exit 0 (non-blocking) — allow rather than crash.
+# If missing, exit 2 (fail-closed) — consistent with _rune_fail_closed ERR trap.
 if ! command -v jq &>/dev/null; then
-  echo "WARNING: jq not found — enforce-teams.sh hook is inactive" >&2
-  exit 0
+  echo "ERROR: jq not found — enforce-teams.sh requires jq (fail-closed)" >&2
+  exit 2
 fi
 
 INPUT=$(head -c 1048576 2>/dev/null || true)  # SEC-2: 1MB cap to prevent unbounded stdin read

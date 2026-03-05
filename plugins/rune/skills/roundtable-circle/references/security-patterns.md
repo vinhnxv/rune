@@ -12,7 +12,7 @@
 **Regex**: `/^[a-zA-Z0-9_-]+$/`
 **Threat model**: Guards `rm -rf` and `TeamDelete` cleanup operations. Sole barrier preventing path traversal in team/task directory cleanup. Does NOT allow dots, slashes, or spaces.
 **ReDoS safe**: Yes (character class only, no quantifier nesting)
-**Consumers**: plan.md, work.md, arc SKILL.md, mend.md, review.md, audit.md, forge.md, cancel-review.md, cancel-audit.md, cancel-arc.md, team-lifecycle-guard.md
+**Consumers**: plan.md, work.md, arc SKILL.md, mend.md, review.md, audit.md, forge.md, cancel-review.md, cancel-audit.md, cancel-arc.md, team-sdk/references/engines.md
 
 ## Path Validators
 

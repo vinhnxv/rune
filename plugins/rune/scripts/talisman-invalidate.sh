@@ -39,7 +39,7 @@ fi
 
 # ── Slower path: confirm via jq for precision ──
 if command -v jq &>/dev/null; then
-  FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.filePath // ""' 2>/dev/null || true)
+  FILE_PATH=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.filePath // ""' 2>/dev/null || true)
 else
   # No jq — trust the grep match
   FILE_PATH="talisman.yml"

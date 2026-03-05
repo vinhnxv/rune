@@ -38,18 +38,18 @@ if ! command -v jq &>/dev/null; then
 fi
 
 # --- Read stdin (1MB cap) ---
-INPUT=$(head -c 1048576)
+INPUT=$(head -c 1048576 2>/dev/null || true)
 
 # AT-2 FIX: Fast-exit for teammates — they don't have bridge files (lead-only monitoring)
 # Pattern from enforce-readonly.sh line 34: transcript_path contains /subagents/ for teammates.
 # This avoids wasting jq parse + file stat for every teammate tool call during strive/review.
-TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
+TRANSCRIPT_PATH=$(printf '%s\n' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
 if [[ -n "$TRANSCRIPT_PATH" && "$TRANSCRIPT_PATH" == */subagents/* ]]; then
   _trace "SKIP: teammate (subagent) — lead-only monitoring"
   exit 0
 fi
 
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
 [[ -z "$SESSION_ID" ]] && exit 0
 
 # Validate session_id
@@ -60,7 +60,7 @@ BRIDGE_FILE="${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}.json"
 WARN_STATE="${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}-warned.json"
 
 # --- Read talisman config (optional) ---
-CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 # SEC-MON-001: Canonicalize CWD before use in file paths
 [[ -n "$CWD" ]] && CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || CWD=""
 if [[ -n "$CWD" && "$CWD" == /* ]]; then

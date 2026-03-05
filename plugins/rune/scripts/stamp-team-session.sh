@@ -39,22 +39,22 @@ if ! command -v jq &>/dev/null; then
 fi
 
 # Input size cap (SEC-2: 1MB DoS prevention)
-INPUT=$(head -c 1048576)
+INPUT=$(head -c 1048576 2>/dev/null || true)
 
 # Tool name match (fast path)
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)
+TOOL_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)
 if [[ "$TOOL_NAME" != "TeamCreate" ]]; then
   exit 0
 fi
 
 # Extract session_id from hook input
-HOOK_SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
 if [[ -z "$HOOK_SESSION_ID" ]]; then
   exit 0
 fi
 
 # Extract team_name from tool_input
-TEAM_NAME=$(echo "$INPUT" | jq -r '.tool_input.team_name // empty' 2>/dev/null || true)
+TEAM_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.team_name // empty' 2>/dev/null || true)
 if [[ -z "$TEAM_NAME" ]]; then
   exit 0
 fi

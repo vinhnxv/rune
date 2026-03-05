@@ -38,13 +38,13 @@ fi
 
 INPUT=$(head -c 1048576 2>/dev/null || true)
 
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)
+TOOL_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)
 if [[ "$TOOL_NAME" != "TeamDelete" ]]; then
   exit 0
 fi
 
 # Extract session context for report prefixing
-HOOK_SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
 SHORT_SID="${HOOK_SESSION_ID:0:8}"
 
 # SEC-2 NOTE: CWD not extracted — TLC-002 operates only on $CHOME paths.
