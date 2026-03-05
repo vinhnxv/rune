@@ -469,7 +469,7 @@ Three independent layers catch orphaned teams from different crash scenarios:
 | `/rune:rest --heal` | User command | Cross-session orphans |
 | Arc Pre-Flight Stale Scan | Any `arc` invocation | Stale arc-prefixed teams |
 
-See [team-lifecycle-guard.md](../../rune-orchestration/references/team-lifecycle-guard.md) for full orphan recovery documentation.
+See [protocols.md](protocols.md) § Handle Serialization Protocol for full orphan recovery documentation.
 
 ### Common Errors
 

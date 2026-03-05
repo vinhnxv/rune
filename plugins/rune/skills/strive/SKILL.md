@@ -43,7 +43,7 @@ allowed-tools:
 
 Parses a plan into tasks with dependencies, summons swarm workers, and coordinates parallel implementation.
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `codex-cli`, `git-worktree` (when worktree mode active), `polling-guard`, `zsh-compat`, `frontend-design-patterns` + `figma-to-react` + `design-sync` (when design context active)
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `codex-cli`, `team-sdk`, `git-worktree` (when worktree mode active), `polling-guard`, `zsh-compat`, `frontend-design-patterns` + `figma-to-react` + `design-sync` (when design context active)
 
 ## Usage
 
@@ -153,7 +153,7 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_ac
 ## Phase 1: Forge Team
 
 ```javascript
-// Pre-create guard: teamTransition protocol (see team-lifecycle-guard.md)
+// Pre-create guard: teamTransition protocol (see team-sdk/references/engines.md)
 // STEP 1: Validate (defense-in-depth)
 if (!/^[a-zA-Z0-9_-]+$/.test(timestamp)) throw new Error("Invalid work identifier")
 if (timestamp.includes('..')) throw new Error('Path traversal detected in work identifier')

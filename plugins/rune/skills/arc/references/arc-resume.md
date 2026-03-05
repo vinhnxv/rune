@@ -222,7 +222,7 @@ On resume, validate checkpoint integrity before proceeding:
 
    // Clear SDK leadership state before filesystem cleanup
    // Same rationale as prePhaseCleanup — TeamDelete must run while dirs exist
-   // See team-lifecycle-guard.md "Team Completion Verification" section.
+   // See team-sdk/references/engines.md "Team Completion Verification" section.
    // Retry-with-backoff (3 attempts: 0s, 3s, 8s)
    const ORCH1_PRE_DELAYS = [0, 3000, 8000]
    for (let attempt = 0; attempt < ORCH1_PRE_DELAYS.length; attempt++) {
@@ -262,7 +262,7 @@ On resume, validate checkpoint integrity before proceeding:
    }
 
    // Clean stale state files from crashed sub-commands (CC-4: includes forge, gap-fix)
-   // See team-lifecycle-guard.md §Stale State File Scan Contract for canonical type list and threshold
+   // See team-sdk/references/engines.md §Stale State File Scan Contract for canonical type list and threshold
    // "audit" retained for backward-compat: pre-v13 state files (tmp/.rune-audit-*.json)
    // may still exist from interrupted sessions. Safe to scan — no-op if absent.
    for (const type of ["work", "review", "mend", "audit", "forge", "gap-fix", "inspect"]) {

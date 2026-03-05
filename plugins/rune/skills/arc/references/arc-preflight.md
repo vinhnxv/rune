@@ -407,7 +407,7 @@ Runs before every delegated phase to ensure no stale team blocks TeamCreate. Ide
 
 ```javascript
 // prePhaseCleanup(checkpoint): Clean stale teams from prior phases.
-// Runs before EVERY delegated phase. See team-lifecycle-guard.md Pre-Create Guard.
+// Runs before EVERY delegated phase. See team-sdk/references/engines.md Pre-Create Guard.
 // NOTE: Assumes checkpoint schema v5+ where each phase entry has { status, team_name, ... }
 // SYNC-POINT: team_name validation regex must stay in sync with post-arc.md
 
@@ -423,7 +423,7 @@ function prePhaseCleanup(checkpoint) {
     // TeamDelete() targets the CURRENT SESSION's active team. Must run BEFORE rm -rf
     // so the SDK finds the directory and properly clears internal leadership tracking.
     // If dirs are already gone, TeamDelete may not clear state — hence "first" ordering.
-    // See team-lifecycle-guard.md "Team Completion Verification" section.
+    // See team-sdk/references/engines.md "Team Completion Verification" section.
     // Retry-with-backoff (3 attempts: 0s, 3s, 8s)
     const CLEANUP_DELAYS = [0, 3000, 8000]
     for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
@@ -483,7 +483,7 @@ function prePhaseCleanup(checkpoint) {
     // can find it and release leadership. When TeamDelete succeeds, we've found the
     // ghost team and cleared state. Only iterates completed/failed/skipped phases.
     // This handles the Phase 2 → Phase 6+ leadership leak where Phase 2's rm-rf fallback
-    // cleared dirs before TeamDelete could clear SDK state (see team-lifecycle-guard.md).
+    // cleared dirs before TeamDelete could clear SDK state (see team-sdk/references/engines.md).
     let strategy4Resolved = false
     for (const [pn, pi] of Object.entries(checkpoint.phases)) {
       if (FORBIDDEN_PHASE_KEYS.has(pn)) continue

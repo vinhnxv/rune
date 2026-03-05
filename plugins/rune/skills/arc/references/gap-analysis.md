@@ -1175,7 +1175,7 @@ const scopeFiles = [...new Set([
 ])].filter(f => /^[a-zA-Z0-9._\-\/]+$/.test(f) && !f.includes('..'))
   .slice(0, 80)  // Cap at 80 files for arc context budget
 
-// STEP B.5: Pre-create guard (team-lifecycle-guard.md 3-step protocol)
+// STEP B.5: Pre-create guard (team-sdk/references/engines.md 3-step protocol)
 const inspectTeamName = `arc-inspect-${id}`
 // SEC-003: Validate team name
 if (!/^[a-zA-Z0-9_-]+$/.test(inspectTeamName)) {

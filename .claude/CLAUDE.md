@@ -506,7 +506,7 @@ find "$CHOME/teams/" -maxdepth 1 -type d \( -name "rune-*" -o -name "arc-*" \) -
 
 - `TeamCreate`/`TeamDelete`/`Read` of config.json — the SDK resolves the config dir automatically
 - `Bash()` with `rm -rf` or `find` — must resolve via `CHOME` (shell commands run literally)
-- See `team-lifecycle-guard.md` for the canonical pre-create guard pattern
+- See `team-sdk/references/engines.md` for the canonical pre-create guard pattern (consolidated from team-lifecycle-guard.md)
 
 ## Project Rules
 

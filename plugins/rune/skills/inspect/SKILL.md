@@ -39,7 +39,7 @@ allowed-tools:
 
 Orchestrate a multi-agent inspection that measures implementation completeness and quality against a plan. Each Inspector Ash gets its own dedicated context window via Agent Teams.
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `polling-guard`, `zsh-compat`, `goldmask`, `codex-cli`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`, `goldmask`, `codex-cli`
 
 ## Flags
 
