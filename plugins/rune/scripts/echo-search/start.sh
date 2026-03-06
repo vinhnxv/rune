@@ -15,15 +15,20 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Verify required packages are importable. If any import fails,
 # install from requirements.txt. This is fast when packages exist
 # (single python3 invocation) and self-healing when they don't.
-if ! python3 -c "import mcp" 2>/dev/null; then
+VENV_DIR="$SCRIPT_DIR/.venv"
+PYTHON="python3"
+if [ -d "$VENV_DIR" ]; then
+    PYTHON="$VENV_DIR/bin/python3"
+fi
+if ! "$PYTHON" -c "import mcp" 2>/dev/null; then
     REQUIREMENTS="$SCRIPT_DIR/requirements.txt"
     if [ -f "$REQUIREMENTS" ]; then
         echo "Installing echo-search dependencies..." >&2
-        VENV_DIR="$SCRIPT_DIR/.venv"
         if [ ! -d "$VENV_DIR" ]; then
             python3 -m venv "$VENV_DIR" >&2
         fi
         "$VENV_DIR/bin/pip" install -r "$REQUIREMENTS" >&2
+        PYTHON="$VENV_DIR/bin/python3"
     else
         echo "Error: Missing dependencies and no requirements.txt found" >&2
         exit 1
@@ -37,4 +42,4 @@ PROJECT_DIR=$(cd "$PROJECT_DIR" 2>/dev/null && pwd -P) || { echo "ERROR: invalid
 export ECHO_DIR="$PROJECT_DIR/.claude/echoes"
 export DB_PATH="$PROJECT_DIR/.claude/echoes/.search-index.db"
 
-exec python3 "$SCRIPT_DIR/server.py"
+exec "$PYTHON" "$SCRIPT_DIR/server.py"

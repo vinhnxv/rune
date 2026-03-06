@@ -2513,8 +2513,9 @@ async def _mcp_handle_search(arguments):
             conn = None
             try:
                 do_reindex(ECHO_DIR, DB_PATH)
-            except Exception as exc:
-                logger.warning("reindex failed, proceeding with stale index: %s", exc)
+            except (sqlite3.Error, OSError, IOError) as exc:
+                logger.warning("reindex failed, proceeding with %s index: %s",
+                               "empty" if count == 0 else "stale", exc)
             conn = get_db(DB_PATH)
         results = await pipeline_search(
             conn, args["query"], args["limit"],

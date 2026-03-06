@@ -260,6 +260,8 @@ async def _run(args: argparse.Namespace) -> str:
     token = _resolve_token(args)
     if token:
         _verbose(f"Using token: {_dim(_mask_token(token))}", args)
+    else:
+        _verbose("No FIGMA_TOKEN found — Desktop MCP fallback will be attempted", args)
 
     # FigmaClient reads FIGMA_TOKEN from env — set before construction.
     old_token = os.environ.get("FIGMA_TOKEN")
