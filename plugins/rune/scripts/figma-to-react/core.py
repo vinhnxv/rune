@@ -18,7 +18,7 @@ from typing import Any
 from figma_client import FigmaClient, FigmaAPIError  # noqa: F401
 from figma_types import NodeType
 from image_handler import collect_image_refs
-from node_parser import FigmaIRNode, count_nodes, parse_node, walk_tree
+from node_parser import FigmaIRNode, count_nodes, mark_cross_file_refs, parse_node, walk_tree
 from react_generator import (
     generate_component, generate_split_components, _collect_node_classes,
 )
@@ -640,6 +640,7 @@ async def fetch_design(
     ir_root = parse_node(raw_doc)
     if ir_root is None:
         raise FigmaAPIError("Failed to parse design — no supported nodes found.")
+    mark_cross_file_refs(ir_root)
 
     tree_dict = ir_to_dict(ir_root)
     output = {
@@ -711,6 +712,7 @@ async def inspect_node(
         raise FigmaAPIError(
             f"Node '{node_id}' has an unsupported type and cannot be inspected."
         )
+    mark_cross_file_refs(ir_node)
 
     detail = ir_to_dict(ir_node, max_depth=3)
     _enrich_detail_with_paints(ir_node, detail)
@@ -782,6 +784,7 @@ async def list_components(
     ir_root = parse_node(raw_doc)
     if ir_root is None:
         raise FigmaAPIError("No supported nodes found in the design.")
+    mark_cross_file_refs(ir_root)
 
     all_nodes = walk_tree(ir_root)
     components, instances, instance_by_component = _classify_nodes(all_nodes)
@@ -905,6 +908,7 @@ async def to_react(
     ir_root = parse_node(raw_doc)
     if ir_root is None:
         raise FigmaAPIError("Failed to parse design — no supported nodes found.")
+    mark_cross_file_refs(ir_root)
 
     image_refs, image_urls = await _resolve_image_urls(client, file_key, ir_root)
     svg_urls = await _resolve_svg_fallback_urls(client, file_key, ir_root)

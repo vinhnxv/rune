@@ -13,6 +13,7 @@ from figma_types import (  # noqa: E402
     ComponentPropertyDefinition,
     FigmaNodeBase,
     FigmaPropertyType,
+    NodeType,
 )
 from node_parser import (  # noqa: E402
     FigmaIRNode,
@@ -24,6 +25,7 @@ from node_parser import (  # noqa: E402
     _has_vector_children,
     count_nodes,
     find_by_name,
+    mark_cross_file_refs,
     merge_text_segments,
     parse_node,
     walk_tree,
@@ -1203,6 +1205,136 @@ class TestInstanceRoleClassification:
         role = _classify_instance_role(ir)
         # Zero dimensions should not be treated as small icon
         assert role == InstanceRole.CHILD
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 Edge Cases: Cross-file refs and depth limit
+# ---------------------------------------------------------------------------
+
+
+class TestCrossFileRef:
+    """Test mark_cross_file_refs post-processing."""
+
+    def test_local_component_not_flagged(self):
+        """Instance referencing a local COMPONENT should not be cross_file_ref."""
+        root = FigmaIRNode(
+            node_id="0:1", node_type=NodeType.FRAME, is_frame_like=True,
+            children=[
+                FigmaIRNode(
+                    node_id="1:1", node_type=NodeType.COMPONENT,
+                ),
+                FigmaIRNode(
+                    node_id="2:1", node_type=NodeType.INSTANCE,
+                    component_id="1:1",
+                ),
+            ],
+        )
+        mark_cross_file_refs(root)
+        instance = root.children[1]
+        assert instance.cross_file_ref is False
+
+    def test_external_component_flagged(self):
+        """Instance referencing a component not in this tree should be cross_file_ref."""
+        root = FigmaIRNode(
+            node_id="0:1", node_type=NodeType.FRAME, is_frame_like=True,
+            children=[
+                FigmaIRNode(
+                    node_id="1:1", node_type=NodeType.COMPONENT,
+                ),
+                FigmaIRNode(
+                    node_id="2:1", node_type=NodeType.INSTANCE,
+                    component_id="999:1",  # Not in this tree
+                ),
+            ],
+        )
+        mark_cross_file_refs(root)
+        local_instance = root.children[0]
+        external_instance = root.children[1]
+        assert not hasattr(local_instance, 'cross_file_ref') or local_instance.cross_file_ref is False
+        assert external_instance.cross_file_ref is True
+
+    def test_component_set_counts_as_local(self):
+        """COMPONENT_SET node IDs should be recognized as local."""
+        root = FigmaIRNode(
+            node_id="0:1", node_type=NodeType.FRAME, is_frame_like=True,
+            children=[
+                FigmaIRNode(
+                    node_id="1:1", node_type=NodeType.COMPONENT_SET,
+                ),
+                FigmaIRNode(
+                    node_id="2:1", node_type=NodeType.INSTANCE,
+                    component_id="1:1",
+                ),
+            ],
+        )
+        mark_cross_file_refs(root)
+        assert root.children[1].cross_file_ref is False
+
+    def test_no_instances_no_error(self):
+        """Tree with no instances should not raise."""
+        root = FigmaIRNode(
+            node_id="0:1", node_type=NodeType.FRAME, is_frame_like=True,
+            children=[FigmaIRNode(node_id="1:1", node_type=NodeType.TEXT)],
+        )
+        mark_cross_file_refs(root)  # Should not raise
+
+    def test_via_parse_node(self):
+        """cross_file_ref defaults to False on freshly parsed nodes."""
+        node = {
+            "id": "300:1", "name": "Icon", "type": "INSTANCE",
+            "componentId": "ext:99",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 24, "height": 24},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 24, "height": 24},
+            "fills": [], "strokes": [], "effects": [], "children": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+        # Before mark_cross_file_refs, defaults to False
+        assert ir.cross_file_ref is False
+
+
+class TestDepthLimitRoleClassification:
+    """Test that instance role classification stops at depth > 5."""
+
+    def _build_nested_instance(self, depth):
+        """Build a chain of nested INSTANCE nodes to the given depth."""
+        innermost = {
+            "id": f"{depth}:1", "name": "DeepIcon", "type": "INSTANCE",
+            "componentId": "comp:deep",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 24, "height": 24},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 24, "height": 24},
+            "fills": [], "strokes": [], "effects": [], "children": [],
+        }
+        current = innermost
+        for d in range(depth - 1, -1, -1):
+            current = {
+                "id": f"{d}:1", "name": f"Level{d}", "type": "FRAME",
+                "absoluteBoundingBox": {"x": 0, "y": 0, "width": 200, "height": 200},
+                "absoluteRenderBounds": {"x": 0, "y": 0, "width": 200, "height": 200},
+                "fills": [], "strokes": [], "effects": [], "children": [current],
+            }
+        return current
+
+    def test_shallow_instance_classified(self):
+        """Instance at depth <= 5 should get role classification."""
+        raw = self._build_nested_instance(depth=3)
+        ir = parse_node(raw)
+        assert ir is not None
+        # Walk to find the INSTANCE node
+        nodes = walk_tree(ir)
+        instances = [n for n in nodes if n.component_id]
+        assert len(instances) == 1
+        assert instances[0].instance_role is not None  # Classified
+
+    def test_deep_instance_not_classified(self):
+        """Instance at depth > 5 should NOT get role classification."""
+        raw = self._build_nested_instance(depth=7)
+        ir = parse_node(raw)
+        assert ir is not None
+        nodes = walk_tree(ir)
+        instances = [n for n in nodes if n.component_id]
+        assert len(instances) == 1
+        assert instances[0].instance_role is None  # Skipped due to depth
 
 
 # ---------------------------------------------------------------------------

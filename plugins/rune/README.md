@@ -649,6 +649,10 @@ Each Ash embeds several review agents as specialized perspectives. For example, 
 | axum-reviewer | Axum/SQLx specialist — extractor ordering, N+1 queries, IDOR prevention, transaction boundaries (AXUM) |
 | cross-shard-sentinel | Cross-shard consistency — naming drift, pattern inconsistency, auth boundary gaps across shard boundaries (SHARD) |
 | design-implementation-reviewer | Design-to-code fidelity review — token compliance, layout, a11y, responsiveness (DSGN) |
+| ux-heuristic-reviewer | UX heuristic evaluation — Nielsen Norman 10 heuristics at code level, 50+ checklist items (UXH) |
+| ux-flow-validator | User flow completeness — loading states, error boundaries, empty states, confirmations (UXF) |
+| ux-interaction-auditor | Micro-interaction audit — hover/focus states, keyboard a11y, touch targets, animation (UXI) |
+| ux-cognitive-walker | Cognitive walkthrough — first-time user simulation, discoverability, learnability (UXC) |
 
 ### Research Agents
 

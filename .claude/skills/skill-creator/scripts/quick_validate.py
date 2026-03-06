@@ -3,59 +3,45 @@
 Quick validation script for skills - minimal version
 """
 
-from __future__ import annotations
-
 import sys
+import os
 import re
-try:
-    import yaml
-except ImportError:
-    yaml = None
+import yaml
 from pathlib import Path
 
-
-def validate_skill(skill_path: str | Path) -> tuple[bool, str]:
+def validate_skill(skill_path):
     """Basic validation of a skill"""
     skill_path = Path(skill_path)
 
+    # Check SKILL.md exists
     skill_md = skill_path / 'SKILL.md'
     if not skill_md.exists():
         return False, "SKILL.md not found"
 
+    # Read and validate frontmatter
     content = skill_md.read_text()
     if not content.startswith('---'):
         return False, "No YAML frontmatter found"
 
+    # Extract frontmatter
     match = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
     if not match:
         return False, "Invalid frontmatter format"
 
     frontmatter_text = match.group(1)
 
-    if len(frontmatter_text) > 10000:
-        return False, "Frontmatter too large (max 10KB)"
-
-    if yaml is None:
-        # Fallback: basic regex validation when PyYAML not installed
-        if 'name:' not in frontmatter_text:
-            return False, "Missing 'name' in frontmatter (install PyYAML for full validation: pip install pyyaml)"
-        if 'description:' not in frontmatter_text:
-            return False, "Missing 'description' in frontmatter (install PyYAML for full validation: pip install pyyaml)"
-        return True, "Skill is valid! (basic validation — install PyYAML for full validation)"
-
+    # Parse YAML frontmatter
     try:
-        frontmatter = yaml.safe_load(frontmatter_text)  # type: ignore[union-attr]
+        frontmatter = yaml.safe_load(frontmatter_text)
         if not isinstance(frontmatter, dict):
             return False, "Frontmatter must be a YAML dictionary"
-    except yaml.YAMLError as e:  # type: ignore[union-attr]
+    except yaml.YAMLError as e:
         return False, f"Invalid YAML in frontmatter: {e}"
 
-    ALLOWED_PROPERTIES = {
-        'name', 'description', 'license', 'allowed-tools', 'metadata', 'compatibility',
-        'user-invocable', 'disable-model-invocation', 'model', 'context', 'agent',
-        'argument-hint', 'hooks'
-    }
+    # Define allowed properties
+    ALLOWED_PROPERTIES = {'name', 'description', 'license', 'allowed-tools', 'metadata', 'compatibility'}
 
+    # Check for unexpected properties (excluding nested keys under metadata)
     unexpected_keys = set(frontmatter.keys()) - ALLOWED_PROPERTIES
     if unexpected_keys:
         return False, (
@@ -63,33 +49,41 @@ def validate_skill(skill_path: str | Path) -> tuple[bool, str]:
             f"Allowed properties are: {', '.join(sorted(ALLOWED_PROPERTIES))}"
         )
 
+    # Check required fields
     if 'name' not in frontmatter:
         return False, "Missing 'name' in frontmatter"
     if 'description' not in frontmatter:
         return False, "Missing 'description' in frontmatter"
 
+    # Extract name for validation
     name = frontmatter.get('name', '')
     if not isinstance(name, str):
         return False, f"Name must be a string, got {type(name).__name__}"
     name = name.strip()
     if name:
+        # Check naming convention (kebab-case: lowercase with hyphens)
         if not re.match(r'^[a-z0-9-]+$', name):
             return False, f"Name '{name}' should be kebab-case (lowercase letters, digits, and hyphens only)"
         if name.startswith('-') or name.endswith('-') or '--' in name:
             return False, f"Name '{name}' cannot start/end with hyphen or contain consecutive hyphens"
+        # Check name length (max 64 characters per spec)
         if len(name) > 64:
             return False, f"Name is too long ({len(name)} characters). Maximum is 64 characters."
 
+    # Extract and validate description
     description = frontmatter.get('description', '')
     if not isinstance(description, str):
         return False, f"Description must be a string, got {type(description).__name__}"
     description = description.strip()
     if description:
+        # Check for angle brackets
         if '<' in description or '>' in description:
             return False, "Description cannot contain angle brackets (< or >)"
+        # Check description length (max 1024 characters per spec)
         if len(description) > 1024:
             return False, f"Description is too long ({len(description)} characters). Maximum is 1024 characters."
 
+    # Validate compatibility field if present (optional)
     compatibility = frontmatter.get('compatibility', '')
     if compatibility:
         if not isinstance(compatibility, str):
@@ -97,19 +91,13 @@ def validate_skill(skill_path: str | Path) -> tuple[bool, str]:
         if len(compatibility) > 500:
             return False, f"Compatibility is too long ({len(compatibility)} characters). Maximum is 500 characters."
 
-    # Warn about leftover TODO markers (template sections not yet completed)
-    body_content = content[match.end():]
-    if '[TODO:' in body_content:
-        return True, "Skill is valid! (Warning: Contains [TODO:] markers — template sections may be incomplete)"
-
     return True, "Skill is valid!"
-
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Usage: python quick_validate.py <skill_directory>")
         sys.exit(1)
-
+    
     valid, message = validate_skill(sys.argv[1])
     print(message)
     sys.exit(0 if valid else 1)

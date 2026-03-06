@@ -2319,6 +2319,12 @@ TOOL_SCHEMAS = [
             "Search the Rune echo system for learnings, patterns, "
             "and insights using BM25 full-text search."
         ),
+        "annotations": {
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -2328,8 +2334,13 @@ TOOL_SCHEMAS = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Max results to return (default 10)",
+                    "description": "Max results to return (default 10, max 50)",
                     "default": 10,
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Number of results to skip for pagination (default 0)",
+                    "default": 0,
                 },
                 "layer": {
                     "type": "string",
@@ -2352,6 +2363,12 @@ TOOL_SCHEMAS = [
                     "enum": ["general", "pattern", "anti-pattern", "decision", "debugging"],
                     "description": "Filter by entry category",
                 },
+                "response_format": {
+                    "type": "string",
+                    "enum": ["json", "markdown"],
+                    "description": "Output format: json (default, structured) or markdown (human-readable)",
+                    "default": "json",
+                },
             },
             "required": ["query"],
         },
@@ -2359,6 +2376,12 @@ TOOL_SCHEMAS = [
     {
         "name": "echo_details",
         "description": "Fetch full content for specific echo entries by their IDs.",
+        "annotations": {
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -2374,11 +2397,23 @@ TOOL_SCHEMAS = [
     {
         "name": "echo_reindex",
         "description": "Re-parse all MEMORY.md files and rebuild the search index.",
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
         "inputSchema": {"type": "object", "properties": {}, "required": []},
     },
     {
         "name": "echo_stats",
         "description": "Get summary statistics about the echo search index.",
+        "annotations": {
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
         "inputSchema": {"type": "object", "properties": {}, "required": []},
     },
     {
@@ -2388,6 +2423,12 @@ TOOL_SCHEMAS = [
             "Normally access is auto-recorded on search, but this tool "
             "allows explicit recording (e.g., when an entry is viewed)."
         ),
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": False,
+        },
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -2411,6 +2452,12 @@ TOOL_SCHEMAS = [
             "Create or update a semantic group of echo entries. "
             "Groups cluster related entries for expanded retrieval."
         ),
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -2491,9 +2538,38 @@ def _validate_search_args(arguments: Dict) -> Tuple[Optional[Tuple], Dict]:
     if not isinstance(limit, int) or limit < 1:
         limit = 10
     limit = min(limit, 50)
-    return None, {"query": query, "limit": limit, "layer": layer,
-                  "role": role, "context_files": context_files,
-                  "category": category}
+    offset = arguments.get("offset", 0)
+    if not isinstance(offset, int) or offset < 0:
+        offset = 0
+    response_format = arguments.get("response_format", "json")
+    if response_format not in ("json", "markdown"):
+        response_format = "json"
+    return None, {"query": query, "limit": limit, "offset": offset,
+                  "layer": layer, "role": role, "context_files": context_files,
+                  "category": category, "response_format": response_format}
+
+
+def _format_search_markdown(entries, total_count, offset, limit, has_more):
+    """Format search results as a human-readable markdown string."""
+    # type: (List[Dict], int, int, int, bool) -> str
+    lines = ["## Echo Search Results", ""]
+    lines.append("**%d results** (showing %d-%d of %d)%s" % (
+        len(entries), offset + 1, offset + len(entries), total_count,
+        " | *more available*" if has_more else ""))
+    lines.append("")
+    for i, e in enumerate(entries, 1):
+        lines.append("### %d. %s" % (i + offset, e.get("id", "?")))
+        lines.append("- **Layer**: %s | **Role**: %s | **Score**: %.4f" % (
+            e.get("layer", "?"), e.get("role", "?"), e.get("score", 0)))
+        if e.get("tags"):
+            lines.append("- **Tags**: %s" % e["tags"])
+        preview = e.get("content_preview", "")
+        if preview:
+            lines.append("- %s" % preview)
+        lines.append("")
+    if has_more:
+        lines.append("*Use `offset: %d` to fetch next page.*" % (offset + limit))
+    return "\n".join(lines)
 
 
 async def _mcp_handle_search(arguments):
@@ -2502,6 +2578,10 @@ async def _mcp_handle_search(arguments):
     err, args = _validate_search_args(arguments)
     if err is not None:
         return err[0], err[1]
+    offset = args["offset"]
+    response_format = args["response_format"]
+    # Fetch limit + offset results so we can paginate and know total_candidates
+    fetch_limit = args["limit"] + offset
     conn = get_db(DB_PATH)
     try:
         ensure_schema(conn)
@@ -2517,10 +2597,14 @@ async def _mcp_handle_search(arguments):
                 logger.warning("reindex failed, proceeding with %s index: %s",
                                "empty" if count == 0 else "stale", exc)
             conn = get_db(DB_PATH)
-        results = await pipeline_search(
-            conn, args["query"], args["limit"],
+        # Fetch extra to detect has_more
+        all_results = await pipeline_search(
+            conn, args["query"], fetch_limit + 1,
             args["layer"], args["role"], args["context_files"],
             args.get("category"))
+        total_candidates = len(all_results)
+        has_more = total_candidates > fetch_limit
+        results = all_results[offset:fetch_limit]
         try:
             _record_access(conn, results, args["query"])
         except (sqlite3.Error, OSError) as exc:
@@ -2528,7 +2612,18 @@ async def _mcp_handle_search(arguments):
     finally:
         if conn is not None:
             conn.close()
-    return {"entries": results}, False
+    if response_format == "markdown":
+        md = _format_search_markdown(
+            results, total_candidates, offset, args["limit"], has_more)
+        return {"text": md}, False
+    return {
+        "entries": results,
+        "total_count": total_candidates,
+        "count": len(results),
+        "offset": offset,
+        "limit": args["limit"],
+        "has_more": has_more,
+    }, False
 
 
 async def _mcp_handle_details(arguments):
@@ -2668,13 +2763,18 @@ def _register_mcp_handlers(server, types):
 
     @server.list_tools()
     async def handle_list_tools():
-        return [
-            types.Tool(
-                name=s["name"], description=s["description"],
-                inputSchema=s["inputSchema"],
-            )
-            for s in TOOL_SCHEMAS
-        ]
+        tools = []
+        for s in TOOL_SCHEMAS:
+            kwargs = {
+                "name": s["name"],
+                "description": s["description"],
+                "inputSchema": s["inputSchema"],
+            }
+            if "annotations" in s:
+                kwargs["annotations"] = types.ToolAnnotations(
+                    **s["annotations"])
+            tools.append(types.Tool(**kwargs))
+        return tools
 
     @server.call_tool()
     async def handle_call_tool(name, arguments):

@@ -60,7 +60,7 @@ Tool restriction is enforced via prompt instructions (defense-in-depth).
 
 ## Review Agents
 
-26 specialized reviewers that form Ash teams:
+36 specialized reviewers that form Ash teams:
 
 | Agent | Role | Perspective |
 |-------|------|-------------|
