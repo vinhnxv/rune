@@ -1,0 +1,232 @@
+{
+  "skill_name": "brainstorm",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I want to run /rune:brainstorm for 'add real-time notifications'. Walk me through what happens: (1) How does mode selection work? (2) What are the 3 modes and their differences? (3) What does Phase 0 Clarity Check do? (4) How does brainstorm auto-detection prevent duplicate sessions?",
+      "expected_output": "Mode selection walkthrough: (1) Parses $ARGUMENTS for --quick (Solo) and --deep (Deep) flags. If neither flag, presents AskUserQuestion with 3 options. (2) Three modes: Solo (pure Q&A, no agents, fastest), Roundtable (3 advisor agents: user-advocate, tech-realist, devils-advocate), Deep (advisors + up to 3 elicitation sages). (3) Clarity Check assesses whether brainstorming is needed — clear signals (acceptance criteria, specific patterns, constrained scope) suggest skipping to /rune:devise; brainstorm signals (vague terms, multiple interpretations, undiscussed trade-offs) proceed. (4) Auto-detection: scans docs/brainstorms/*.md, tmp/plans/*/brainstorm-decisions.md, tmp/brainstorm-*/brainstorm-decisions.md for slug matches; also checks echo search for related entries. Recency filter: skip files older than 90 days. Always AskUserQuestion to confirm reuse.",
+      "files": [],
+      "expectations": [
+        "Lists 3 modes: Solo, Roundtable, Deep",
+        "Explains --quick forces Solo, --deep forces Deep",
+        "Describes AskUserQuestion with 3 options for mode selection",
+        "Lists 3 advisor agents: user-advocate, tech-realist, devils-advocate",
+        "Describes Clarity Check: clear signals vs brainstorm signals",
+        "Explains brainstorm auto-detection with slug matching",
+        "Notes 90-day recency filter for brainstorm reuse",
+        "Notes AskUserQuestion always required for reuse confirmation (never auto-use)"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Explain the Team Bootstrap phase for brainstorm. What is the teamTransition protocol? What are the 6 steps? How does session isolation work with the state file?",
+      "expected_output": "Team Bootstrap (Phase 1, Team/Deep modes only): The teamTransition protocol is a standard 6-step pattern. Step 1: Validate timestamp (SEC-001, exactly 13 digits). Step 2: TeamDelete retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s). Step 3: Filesystem fallback gated on !teamDeleteSucceeded (rm team/task dirs via CHOME pattern). Step 4: TeamCreate with 'Already leading' catch-and-recover. Step 5: Post-create verification (read config.json). Step 6: Write state file tmp/.rune-brainstorm-{timestamp}.json with session isolation fields: config_dir, owner_pid, session_id, feature, mode. Workspace created with subdirs: rounds/, advisors/, research/, elicitation/, design/. Signal directory created for fast completion detection.",
+      "files": [],
+      "expectations": [
+        "Lists all 6 steps of teamTransition protocol",
+        "Notes timestamp validation: exactly 13 digits (SEC-001)",
+        "Notes TeamDelete retry delays: 0s, 5s, 10s, 15s",
+        "Explains filesystem fallback gated on !teamDeleteSucceeded",
+        "Describes 'Already leading' catch-and-recover",
+        "Lists state file fields: config_dir, owner_pid, session_id",
+        "Lists workspace subdirectories: rounds, advisors, research, elicitation, design",
+        "Mentions signal directory for fast completion detection"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Describe the Understanding Rounds phase in detail. How do rounds work in Solo vs Team/Deep mode? What are the 4 round topics? When does the system advance phases?",
+      "expected_output": "Understanding Rounds (Phase 2): Solo mode: Lead asks questions directly via AskUserQuestion (one at a time). Team/Deep mode: Lead orchestrates advisor rounds — sends context to each advisor via SendMessage, waits for responses (signal files + TaskList fallback, advisorTimeoutMs default 90s), curates inputs, presents to user. 4 round topics: Round 1 Understanding (purpose, users, motivation), Round 2 Approaches (proposals, challenges, trade-offs), Round 3 Refinement (edge cases, constraints, priorities), Round 4 Convergence (optional — final alignment, open concerns). Max 4 rounds (configurable via talisman misc.brainstorm.max_rounds). Advance when idea is clear OR user says 'proceed'. Word limit: 300 words per advisor (configurable). YAGNI applied throughout.",
+      "files": [],
+      "expectations": [
+        "Distinguishes Solo mode (AskUserQuestion) from Team/Deep mode (advisor rounds)",
+        "Lists 4 round topics with descriptions",
+        "Notes Round 4 is optional",
+        "Mentions advisorTimeoutMs default 90s",
+        "Notes max 4 rounds from talisman config",
+        "Notes 300-word limit per advisor contribution",
+        "Mentions YAGNI principle",
+        "Describes advance condition: idea clear OR user says 'proceed'"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Explain Phase 3.5 Design Asset Detection. How does Figma URL scanning work? What SSRF protections exist? When is the user prompted for a Figma URL?",
+      "expected_output": "Design Asset Detection (Phase 3.5, all modes): Scans feature description, selected approach, AND round transcripts for Figma URLs using FIGMA_URL_PATTERN regex. SSRF defense: extracted URLs are filtered through SSRF_BLOCKLIST (localhost, 127.x, 0.0.0.0, private ranges 10.x, 192.168.x, 172.16-31.x, link-local 169.254.x, IPv6 ::1 and ::ffff:127, reserved TLDs .local/.internal/.corp/.test/.example/.invalid/.localhost). URLs must also contain 'figma.com' to pass. When Figma URL found: sets design_sync_candidate=true, appends Design Assets section. When no URL but design keywords detected (figma, design, mockup, wireframe, prototype, ui kit, etc): prompts user via AskUserQuestion.",
+      "files": [],
+      "expectations": [
+        "Notes scanning covers feature description, approach, AND round transcripts",
+        "Describes FIGMA_URL_PATTERN for URL extraction",
+        "Lists SSRF blocklist entries: localhost, 127.x, private ranges, IPv6",
+        "Notes URLs must contain 'figma.com' to pass validation",
+        "Explains design_sync_candidate flag when Figma URL found",
+        "Describes DESIGN_KEYWORD_PATTERN trigger for user prompt",
+        "Notes AskUserQuestion used when keywords detected but no URL"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Walk me through the Elicitation Sages phase (Phase 4). When does it trigger? How are sage count and methods selected? How do sages integrate with the brainstorm team?",
+      "expected_output": "Elicitation Sages (Phase 4, Deep mode only): Triggered only in Deep mode after advisor rounds complete. Sage count determined by keyword fan-out: 15 brainstorm-specific keywords (architecture, security, risk, design, trade-off, migration, performance, decision, approach, comparison, breaking-change, auth, api, complex, novel-approach). Hits >= 4: 3 sages; >= 2: 2 sages; else: 1 sage. Methods scored and assigned from methods.csv (plan:0 phase). Sages spawned on the SAME rune-brainstorm-{timestamp} team via Agent() with run_in_background. Tasks created per sage. Outputs merged into brainstorm document after TaskList-based polling completion.",
+      "files": [],
+      "expectations": [
+        "Notes Deep mode only",
+        "Lists keyword count thresholds: >= 4 (3 sages), >= 2 (2 sages), else 1",
+        "Notes 15 brainstorm-specific keywords (wider than forge/review)",
+        "Explains methods assigned from methods.csv",
+        "Notes sages join the SAME team (not a separate team)",
+        "Describes TaskList-based polling for completion",
+        "Mentions outputs merged into brainstorm document"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Explain the Quality Gate (Phase 5). What are the 7 dimensions? How do they map to quality tiers? How does Advisor Convergence work in Solo mode?",
+      "expected_output": "Quality Gate (Phase 5): 7 dimensions — (1) Completeness: all 4 mandatory sections present; (2) Decision Coverage: >= 3 concrete decisions; (3) Scope Precision: <= 5 scope items, each actionable; (4) Constraint Clarity: >= 2 constraints classified; (5) Advisor Convergence: all advisors align (auto-pass for Solo); (6) Round Depth: >= 2 rounds with new insights; (7) Handoff Readiness: enough specificity for devise. Quality tiers: 7/7 Excellent (auto-suggest devise), 5-6/7 Good (suggest handoff, mention failing dimensions), 3-4/7 Developing (suggest another round), 0-2/7 Early (continue brainstorming). Advisor Convergence auto-passes in Solo mode since there are no advisors to disagree. Results written to workspace-meta.json.",
+      "files": [],
+      "expectations": [
+        "Lists all 7 dimensions with pass conditions",
+        "Notes Advisor Convergence auto-passes in Solo mode",
+        "Lists 4 quality tiers: Excellent, Good, Developing, Early",
+        "Maps tiers to score ranges: 7/7, 5-6/7, 3-4/7, 0-2/7",
+        "Notes Excellent tier auto-suggests devise",
+        "Mentions results written to workspace-meta.json"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Walk me through Phase 6 Cleanup and Handoff. What are the 5 cleanup components? What is the fallback array for brainstorm? What handoff options are presented?",
+      "expected_output": "Phase 6 Cleanup and Handoff: Output written to TWO locations: tmp/brainstorm-{timestamp}/brainstorm-decisions.md (workspace) and docs/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md (persistent). Cleanup (Team/Deep modes) follows the standard 5-component pattern: (1) Dynamic member discovery from team config; (2) shutdown_request to all members; (3) Grace period (20s); (4) TeamDelete retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s); (5) Filesystem fallback gated on !cleanupTeamDeleteSucceeded. Fallback array: user-advocate, tech-realist, devils-advocate, elicitation-sage-1, elicitation-sage-2, elicitation-sage-3, state-weaver. SEC-4 validated. Workflow lock released. Handoff: 4 options via AskUserQuestion — Plan with /rune:devise (Recommended), Refine brainstorm, Ask more questions, Save and stop.",
+      "files": [],
+      "expectations": [
+        "Notes output written to TWO locations: workspace and docs/brainstorms/",
+        "Lists all 5 cleanup components in order",
+        "Notes grace period is 20 seconds",
+        "Lists fallback array with all 7 possible teammates",
+        "Notes SEC-4 validation on member names",
+        "Notes QUAL-012: filesystem fallback gated on !cleanupTeamDeleteSucceeded",
+        "Lists 4 handoff options including /rune:devise recommendation",
+        "Notes workflow lock is released"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "I want to run /rune:brainstorm --quick 'improve auth'. What phases are skipped? What does the output look like? How does it differ from roundtable mode?",
+      "expected_output": "--quick flag forces Solo mode: Skips Phase 1 (Team Bootstrap — no agents spawned), Phase 4 (Elicitation Sages). Understanding Rounds (Phase 2) use AskUserQuestion directly instead of advisor SendMessage. Phase 3 Explore Approaches: Lead proposes 2-3 options directly. Design Asset Detection (Phase 3.5) still runs. Quality Gate (Phase 5) still runs but Advisor Convergence auto-passes. Output: same template structure but omits Advisor Perspectives section, omits Elicitation Insights section. Key difference from Roundtable: no agents spawned, no team created, no cleanup needed, faster execution. Output is same markdown format with YAML frontmatter (mode: solo).",
+      "files": [],
+      "expectations": [
+        "Notes --quick forces Solo mode",
+        "Phase 1 (Team Bootstrap) skipped — no agents",
+        "Phase 4 (Elicitation Sages) skipped",
+        "Understanding Rounds use AskUserQuestion directly",
+        "Quality Gate still runs with auto-pass on Advisor Convergence",
+        "Output omits Advisor Perspectives and Elicitation Insights sections",
+        "Notes no team created, no cleanup needed",
+        "Notes mode: solo in frontmatter"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Explain the brainstorm output template. What sections are mandatory vs conditional? What is the workspace-meta.json structure? How does devise consume brainstorm output?",
+      "expected_output": "Output template: Mandatory sections (all modes): What We're Building, Chosen Approach (with rationale), Key Constraints, Non-Goals (>= 1 item), Constraint Classification (>= 2 rows), Success Criteria (>= 2 items), Scope Boundary (In-Scope + Out-of-Scope), Open Questions. Conditional sections: Advisor Perspectives (Roundtable/Deep only), Design Assets (when Figma detected), Elicitation Insights (Deep only), State Machine Analysis (Deep, when triggered). YAML frontmatter: title, date, mode, quality_score, quality_tier, workspace, advisors, rounds_completed, approach_selected, devise_ready. workspace-meta.json: mode, feature, advisors, timing, quality tier, config_dir, session_id. Devise consumption: quality_score >= 0.70 = high-confidence; approach_selected becomes research starting point; Non-Goals/Success Criteria/Scope pre-populated into plan; Open Questions guide research agent focus.",
+      "files": ["evals/files/brainstorm-decisions.md"],
+      "expectations": [
+        "Lists all 8 mandatory sections",
+        "Lists 4 conditional sections with trigger conditions",
+        "Lists YAML frontmatter fields",
+        "Describes workspace-meta.json contents",
+        "Notes quality_score >= 0.70 triggers high-confidence in devise",
+        "Notes approach_selected becomes research starting point",
+        "Notes Non-Goals/Success Criteria/Scope pre-populated into plan"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "What error handling exists in brainstorm? Explain what happens when: (1) An advisor times out, (2) A sage times out, (3) TeamCreate fails, (4) Echo search is unavailable, (5) Figma MCP is unavailable.",
+      "expected_output": "Error handling matrix: (1) Advisor timeout (>advisorTimeoutMs, default 90s): proceed with available responses — don't block on one slow advisor. (2) Sage timeout (>5 min): proceed without sage output. (3) TeamCreate failure: catch-and-recover via teamTransition protocol (TeamDelete retry + filesystem fallback + 'Already leading' recovery). (4) Echo search unavailable: skip auto-detection, start fresh brainstorm. (5) Figma MCP unavailable: skip design inventory, proceed without design section. Also: State-weaver timeout (>60s): proceed silently. No matching brainstorm found: start fresh. TeamDelete failure during cleanup: retry-with-backoff, filesystem fallback.",
+      "files": [],
+      "expectations": [
+        "Advisor timeout: proceed with available responses",
+        "Sage timeout: proceed without sage output",
+        "TeamCreate failure: catch-and-recover via teamTransition",
+        "Echo search unavailable: skip auto-detection, start fresh",
+        "Figma MCP unavailable: skip design inventory",
+        "State-weaver timeout: proceed silently",
+        "TeamDelete cleanup failure: retry-with-backoff + filesystem fallback"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "I ran /rune:brainstorm --deep 'redesign the API layer'. Walk me through the full pipeline: which phases run, how many agents are spawned, and what the final output structure looks like.",
+      "expected_output": "Deep mode full pipeline: Phase 0 (--deep skips mode choice). Phase 1 Team Bootstrap: creates rune-brainstorm-{timestamp} team, spawns 3 advisor agents (user-advocate, tech-realist, devils-advocate). Phase 2 Understanding Rounds: 2-4 advisor rounds with user interaction. Phase 3 Explore Approaches: advisors propose/challenge, user selects. Phase 3.5 Design Asset Detection: Figma URL scan with SSRF defense. Phase 4 Elicitation Sages: 1-3 sages based on keyword fan-out (15 keywords). Phase 4.5 State Machine Pre-Validation: RESERVED (skipped). Phase 5 Quality Gate: 7-dimension checklist. Phase 6 Capture + Cleanup + Handoff. Total agents: 3 advisors + 1-3 sages = 4-6 agents. Output: brainstorm-decisions.md with all sections including Advisor Perspectives AND Elicitation Insights.",
+      "files": [],
+      "expectations": [
+        "Notes --deep skips mode choice",
+        "Lists all phases that run including Phase 4 Elicitation",
+        "Notes 3 advisor agents spawned in Phase 1",
+        "Notes 1-3 elicitation sages in Phase 4",
+        "Total agents: 4-6 (3 advisors + 1-3 sages)",
+        "Notes Phase 4.5 is RESERVED (skipped)",
+        "Output includes both Advisor Perspectives AND Elicitation Insights",
+        "Notes SSRF defense in Phase 3.5"
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "What are the 3 brainstorm mode type prefixes in workspace-meta.json? Are there 3 or 6 types? How does mode affect the output template?",
+      "expected_output": "There are exactly 3 brainstorm mode types: 'solo', 'roundtable', 'deep'. These are the ONLY valid values for the mode field in both workspace-meta.json and the brainstorm output YAML frontmatter. There are NOT 6 types — the 3 modes map to: Solo (--quick flag, no agents), Roundtable (default team mode, 3 advisors), Deep (--deep flag, advisors + sages). Mode affects output template: Solo omits Advisor Perspectives and Elicitation Insights sections. Roundtable includes Advisor Perspectives but omits Elicitation Insights. Deep includes both Advisor Perspectives AND Elicitation Insights (plus State Machine Analysis when triggered).",
+      "files": ["evals/files/workspace-meta.json"],
+      "expectations": [
+        "States exactly 3 mode types: solo, roundtable, deep",
+        "Explicitly notes there are NOT 6 types",
+        "Maps modes to flags: solo=--quick, deep=--deep, roundtable=default",
+        "Solo omits Advisor Perspectives and Elicitation Insights",
+        "Roundtable includes Advisor Perspectives, omits Elicitation Insights",
+        "Deep includes Advisor Perspectives AND Elicitation Insights"
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "What talisman configuration options affect brainstorm? How are defaults resolved? What happens when the misc section is absent?",
+      "expected_output": "Talisman brainstorm config lives under misc.brainstorm: advisor_timeout_ms (default 90000), max_rounds (default 4), advisor_word_limit (default 300). Read via readTalismanSection('misc'). When misc section is absent: all defaults apply (90s timeout, 4 rounds, 300 words). Merge order: defaults < global talisman < project talisman. Configuration is non-blocking — missing talisman doesn't prevent brainstorm from running.",
+      "files": [],
+      "expectations": [
+        "Lists 3 config options: advisor_timeout_ms, max_rounds, advisor_word_limit",
+        "Lists defaults: 90000ms, 4 rounds, 300 words",
+        "Notes config lives under misc.brainstorm",
+        "Notes readTalismanSection('misc') is used",
+        "Notes all defaults apply when misc section is absent",
+        "Notes configuration is non-blocking"
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "What happens when a brainstorm already exists for 'auth-flow' and I run /rune:brainstorm 'improve auth flow'? How does slug matching and echo search work together?",
+      "expected_output": "Brainstorm auto-detection: Scans 3 locations (docs/brainstorms/*.md, tmp/plans/*/brainstorm-decisions.md, tmp/brainstorm-*/brainstorm-decisions.md). Slug matching: extracts slug from filename (e.g., 'auth-flow' from '2026-03-01-auth-flow-brainstorm.md'), matches when feature description slug appears in filename slug. 'improve auth flow' contains 'auth-flow' — match found. Recency filter: skip files older than 90 days. Echo search: also queries echo_search MCP for related brainstorm entries. Both results presented together. If match found: AskUserQuestion to confirm reuse — NEVER auto-use. User decides: reuse existing context or start fresh.",
+      "files": [],
+      "expectations": [
+        "Lists all 3 scan locations",
+        "Explains slug extraction from filenames",
+        "Shows 'auth-flow' slug would match",
+        "Notes 90-day recency filter",
+        "Notes echo_search also queried in parallel",
+        "Notes AskUserQuestion required — NEVER auto-use",
+        "User can choose reuse or start fresh"
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "How does brainstorm handle the workflow lock? What lock type is used? What happens on conflict with an active arc or review?",
+      "expected_output": "Workflow lock: brainstorm acquires a 'writer' lock via rune_check_conflicts/rune_acquire_lock from workflow-lock.sh. Writer lock type means it conflicts with other writer locks (arc, strive, mend) but NOT with reader locks (review, audit). On conflict: reports the holder workflow and lock type via AskUserQuestion — user decides whether to proceed. QUAL-303: also checks for advisory signals (tmp/.rune-signals/advisory-*.json) but doesn't block (brainstorm is low-risk). Lock released in Phase 6 cleanup via rune_release_lock.",
+      "files": [],
+      "expectations": [
+        "Notes 'writer' lock type",
+        "Describes conflict detection via rune_check_conflicts",
+        "Notes writer conflicts with other writers but not readers",
+        "Notes AskUserQuestion on conflict — user decides",
+        "Notes QUAL-303 advisory signal check (non-blocking)",
+        "Notes lock released in Phase 6 cleanup"
+      ]
+    }
+  ]
+}

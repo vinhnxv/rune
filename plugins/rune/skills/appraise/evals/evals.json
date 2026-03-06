@@ -1,0 +1,241 @@
+{
+  "skill_name": "appraise",
+  "skill_path": "plugins/rune/skills/appraise",
+  "description": "Eval tests for /rune:appraise multi-agent code review skill",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Run /rune:appraise on my current branch changes. Walk me through what happens in Phase 0 (Pre-flight) and Phase 1 (Rune Gaze). Explain: (1) How are changed files detected? (2) What is the file classification algorithm? (3) How are Ashes selected for each file type? (4) What is the dry-run exit path? Don't actually execute anything — just explain the decision tree.",
+      "expected_output": "A detailed walkthrough of: (1) Phase 0 Pre-flight — detect default_branch from git remote, build changed_files list (committed + staged + unstaged + untracked or staged-only for --partial), filter non-existent files and symlinks, generate diff ranges for Phase 5.3 scope tagging. Abort conditions: no changed files or only non-reviewable files. (2) Phase 1 Rune Gaze — classify files by extension (Python → ward-sentinel, forge-keeper, pattern-seer, depth-seer; TypeScript → ward-sentinel, tide-watcher, pattern-seer, design-system-compliance-reviewer; Rust → ward-sentinel, ember-oracle, blight-seer, pattern-seer), discover custom Ashes from talisman.yml, add UX reviewers when talisman.ux.enabled + frontend files detected. Dry-run exits after Phase 1 with summary.",
+      "files": [],
+      "expectations": [
+        "Describes Phase 0 changed file detection from git diff",
+        "Mentions default_branch detection from git remote",
+        "Lists the 4 sources of changed files: committed, staged, unstaged, untracked",
+        "Notes --partial flag limits to staged-only files",
+        "Describes Phase 1 file classification by extension",
+        "Maps Python files to ward-sentinel, forge-keeper, pattern-seer, depth-seer",
+        "Maps TypeScript files to ward-sentinel, tide-watcher, pattern-seer, design-system-compliance-reviewer",
+        "Maps Rust files to ward-sentinel, ember-oracle, blight-seer, pattern-seer",
+        "Mentions custom Ash discovery from talisman.yml",
+        "Describes UX reviewer conditional addition based on talisman.ux.enabled",
+        "Notes dry-run exits after Phase 1 with summary"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Analyze the --deep flag behavior for /rune:appraise. Explain the 3 waves of review. What Ashes are in each wave? What is the wave scheduling algorithm? How does it interact with other flags like --max-agents and --no-converge?",
+      "expected_output": "Deep review analysis: Wave 1 (Core, up to 7 Ashes) — standard review Ashes selected by Rune Gaze. Wave 2 (Investigation, 4 Ashes) — lore-analyst, strand-tracer, signal-watcher, ruin-watcher. Wave 3 (Dimension, up to 7 Ashes) — decree-auditor, order-auditor, truth-seeker, ember-seer, breach-hunter, fringe-watcher, grace-warden. Wave scheduling: each wave runs as full Roundtable Circle pass with its own team, tasks, monitor cycle. --max-agents applies to Wave 1 only — Wave 2/3 are deepOnly and not subject to cap. --no-converge affects per-chunk convergence, not wave scheduling. Deep mode runs up to 18 Ashes total across 3 waves.",
+      "files": [],
+      "expectations": [
+        "Describes Wave 1 as Core with up to 7 standard review Ashes",
+        "Lists Wave 2 Investigation Ashes: lore-analyst, strand-tracer, signal-watcher, ruin-watcher",
+        "Lists Wave 3 Dimension Ashes: decree-auditor, order-auditor, truth-seeker, ember-seer, breach-hunter, fringe-watcher, grace-warden",
+        "Notes each wave runs as full Roundtable Circle pass",
+        "Explains --max-agents applies to Wave 1 only",
+        "Notes Wave 2/3 are deepOnly and not subject to cap",
+        "Explains --no-converge affects per-chunk convergence not wave scheduling",
+        "Mentions total up to 18 Ashes across 3 waves"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Explain Phase 2 (Forge Team) for /rune:appraise. What is the session-scoped identifier format? What fields go into the state file for session isolation? What is inscription.json and what does it contain?",
+      "expected_output": "Phase 2 Forge Team breakdown: Session identifier format: {gitHash}-{shortSession} where gitHash is first 7 chars of HEAD commit and shortSession is first 8 chars of CLAUDE_SESSION_ID. State file fields (session isolation): config_dir (CLAUDE_CONFIG_DIR path), owner_pid ($PPID for session isolation), session_id (CLAUDE_SESSION_ID), workflow ('rune-review'), scope ('diff'), depth ('standard' or 'deep'), identifier, created_at, status. inscription.json contains: diff_scope (file paths with line ranges for Phase 5.3 tagging), context_intelligence (PR metadata, linked issues from Phase 0.3), linter_context (discovered linters from Phase 0.4), risk_map (from Phase 0.5 Lore Layer if enabled).",
+      "files": [],
+      "expectations": [
+        "Describes identifier format: {gitHash}-{shortSession}",
+        "Notes gitHash is first 7 chars of HEAD commit",
+        "Notes shortSession is first 8 chars of CLAUDE_SESSION_ID",
+        "Lists state file fields: config_dir, owner_pid, session_id, workflow, scope, depth, identifier, created_at, status",
+        "Explains config_dir is for installation isolation",
+        "Explains owner_pid is for session isolation via $PPID",
+        "Describes inscription.json contents: diff_scope, context_intelligence, linter_context, risk_map",
+        "Notes diff_scope is used for Phase 5.3 scope tagging"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "How does Phase 3 (Summon Ash) work in /rune:appraise? What is the prompt generation contract? How are built-in vs custom Ashes handled? What security measures protect against prompt injection via file paths?",
+      "expected_output": "Phase 3 Summon Ash: Prompt generation contract: (1) Load Ash prompt from roundtable-circle/references/ash-prompts/{role}.md for built-in, (2) Use wrapper template from custom-ashes.md for custom Ashes, (3) Inject inscription contract (file list read from tmp/reviews/{identifier}/changed-files.txt), (4) Include talisman config overrides. Parallel execution: summon ALL selected Ash in a single message. Built-in Ashes: prompt loaded from predefined role.md files. Custom Ashes: agent-backed resolve agent file, CLI-backed invoke external binary with prompt template. Security: SEC-006 — file list written to changed-files.txt, NOT embedded raw paths in prompts to prevent injection. CLI-backed Ashes have 4-step Hallucination Guard. Nonce-bounded content injection for diffs.",
+      "files": [],
+      "expectations": [
+        "Describes prompt loading from roundtable-circle/references/ash-prompts/{role}.md",
+        "Notes custom Ashes use wrapper template",
+        "Explains parallel execution: all Ashes summoned in single message",
+        "Describes inscription contract injection",
+        "Mentions file list written to changed-files.txt (SEC-006)",
+        "Notes raw paths NOT embedded in prompts for security",
+        "Describes CLI-backed Ash 4-step Hallucination Guard",
+        "Mentions nonce-bounded content injection"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Explain Phase 4 (Monitor) and the polling loop pattern. What are the polling parameters? How is stale detection handled? What happens when an Ash times out?",
+      "expected_output": "Phase 4 Monitor: Polling parameters: POLL_INTERVAL = 30 seconds, MAX_ITERATIONS = 20 (ceil(600000/30000) = 10 min timeout), STALE_WARN = 300000 (5 min). Correct pattern: TaskList() → count completed → check stale/timeout → Bash('sleep 30') → repeat. Stale detection: any task in_progress > 5 min logs warning, no auto-release (review findings are non-fungible). Ash timeout (>5 min): proceed with partial results, report gap in TOME.md. Total timeout (>10 min): final sweep, collect partial results, report incomplete. The polling-guard skill provides background knowledge, and POLL-001 hook blocks sleep+echo anti-patterns.",
+      "files": [],
+      "expectations": [
+        "States POLL_INTERVAL = 30 seconds",
+        "States MAX_ITERATIONS = 20 (10 min timeout)",
+        "States STALE_WARN = 300000 (5 min)",
+        "Describes correct pattern: TaskList() → count → check → sleep → repeat",
+        "Notes stale detection logs warning at 5 min, no auto-release",
+        "Explains Ash timeout: proceed with partial results, report gap",
+        "Explains total timeout: final sweep, collect partial, report incomplete",
+        "Mentions POLL-001 hook blocks sleep+echo anti-patterns"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Walk me through Phase 5 (Runebinder Aggregation) for /rune:appraise. What is the deduplication hierarchy? How are findings formatted for mend parsing? What is the TOME.md structure?",
+      "expected_output": "Phase 5 Runebinder: Deduplication hierarchy: SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX > external model prefixes. Finding format: every finding MUST be wrapped in <!-- RUNE:FINDING ... --> markers for mend parsing. TOME.md structure: Executive Summary, P1 Critical Findings, P2 Important Findings, P3 Minor Findings, Per-File Summary, Aggregation Metadata. Phase 5.3 Diff-Scope Tagging: orchestrator tags findings with scope='in-diff' or scope='pre-existing'. Phase 5.5 Cross-Model Verification: only if Codex Oracle was summoned, verifies CDX findings, removes HALLUCINATED + UNVERIFIED findings. Phase 6 Truthsight: Layer 0 inline checks + Layer 2 verifier for P1 findings.",
+      "files": [],
+      "expectations": [
+        "Lists deduplication hierarchy: SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX > external",
+        "Notes findings must be wrapped in <!-- RUNE:FINDING ... --> markers",
+        "Describes TOME.md structure: Executive Summary, P1/P2/P3 Findings, Per-File Summary, Metadata",
+        "Explains Phase 5.3 scope tagging: in-diff vs pre-existing",
+        "Describes Phase 5.5 Codex verification for CDX findings",
+        "Notes removal of HALLUCINATED + UNVERIFIED findings",
+        "Mentions Phase 6 Truthsight: Layer 0 + Layer 2 for P1"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Explain Phase 7 (Cleanup & Echo Persist) for /rune:appraise. What are the 5 components of the standard cleanup pattern? What is the CHOME pattern? What gets persisted to Echoes?",
+      "expected_output": "Phase 7 Cleanup: 5 components: (1) Dynamic member discovery — read team config for all teammates; (2) shutdown_request to all members via SendMessage; (3) Grace period — 20 seconds for deregistration; (4) TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s); (5) Filesystem fallback — only if TeamDelete never succeeded (QUAL-012). CHOME pattern: CHOME='${CLAUDE_CONFIG_DIR:-$HOME/.claude}' — never hardcode ~/.claude/ in Bash cleanup. Echo persist: P1/P2 patterns with recurrence potential are persisted to .claude/echoes/{role}/MEMORY.md. Workflow lock released. State file updated to completed. Auto-mend invocation if --auto-mend and P1/P2 findings exist.",
+      "files": [],
+      "expectations": [
+        "Lists 5 cleanup components in order",
+        "Notes grace period is 20 seconds",
+        "Lists TeamDelete retry delays: 0s, 5s, 10s, 15s",
+        "Explains QUAL-012: gate filesystem fallback behind !cleanupTeamDeleteSucceeded",
+        "Describes CHOME pattern for multi-account support",
+        "Notes P1/P2 patterns persisted to Echoes",
+        "Mentions workflow lock release",
+        "Notes auto-mend option with --auto-mend flag"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "What are all the flag interactions for /rune:appraise? Explain what happens with: --deep + --partial, --deep + --cycles N, --deep + --max-agents N, --deep + --no-converge, --cycles N standalone.",
+      "expected_output": "Flag interactions: --deep + --partial: Warning about sparse findings from investigation Ashes, proceeds (not hard error). --deep + --cycles N (N>1): Warning about N x 3 waves = up to {N*18} agent invocations, proceeds with cost warning. --deep + --max-agents N: Applies to Wave 1 only, Wave 2/3 are deepOnly and not subject to cap. --deep + --no-converge: Deep waves still execute, --no-converge affects per-chunk convergence not wave scheduling. --cycles N standalone: Run N standalone review passes with TOME merge between passes, no deep waves, useful for catching issues that require multiple passes.",
+      "files": [],
+      "expectations": [
+        "Describes --deep + --partial: warning, proceeds",
+        "Describes --deep + --cycles N: warning about N*18 agents",
+        "Describes --deep + --max-agents: Wave 1 only",
+        "Describes --deep + --no-converge: affects chunk convergence, not waves",
+        "Describes --cycles N standalone: N passes with TOME merge",
+        "Notes all interactions are non-blocking warnings"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Explain the error handling matrix for /rune:appraise. What happens when: (1) Ash timeout (>5 min), (2) Total timeout (>10 min), (3) Ash crash, (4) ALL Ash fail, (5) Concurrent review running, (6) Codex CLI not installed, (7) Codex not authenticated.",
+      "expected_output": "Error handling: (1) Ash timeout (>5 min): proceed with partial results, log gap, report in TOME. (2) Total timeout (>10 min): final sweep, collect partial results, report incomplete. (3) Ash crash: report gap in TOME.md. (4) ALL Ash fail: abort, notify user. (5) Concurrent review: warn, offer to cancel previous workflow. (6) Codex CLI not installed: skip Codex Oracle, log 'CLI not found'. (7) Codex not authenticated: skip Codex Oracle, log 'run codex login'. (8) Codex exec timeout (>10 min): Codex Oracle partial results, log 'timeout — reduce context_budget'. (9) jq unavailable: Codex Oracle uses raw text fallback instead of JSONL parsing. All errors are non-blocking where possible.",
+      "files": [],
+      "expectations": [
+        "Ash timeout: proceed with partial, log gap",
+        "Total timeout: final sweep, partial results, report incomplete",
+        "Ash crash: report gap in TOME.md",
+        "ALL Ash fail: abort, notify user",
+        "Concurrent review: warn, offer cancel",
+        "Codex not installed: skip Oracle, log message",
+        "Codex not authenticated: skip Oracle, suggest login",
+        "Codex timeout: partial results, suggest reduce budget",
+        "jq unavailable: raw text fallback"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "How does Phase 0.5 Lore Layer work in /rune:appraise? When is it skipped? What does lore-analyst output? How does it affect file ordering?",
+      "expected_output": "Phase 0.5 Lore Layer: Purpose: git history risk scoring runs BEFORE team creation. lore-analyst agent (bare Agent, no team yet — ATE-1 exemption) outputs risk-map.json and lore-analysis.md. Risk tiers: CRITICAL, HIGH, MEDIUM, LOW, STALE. File re-sorting: changed_files re-sorted by risk tier (CRITICAL → HIGH → MEDIUM → LOW → STALE). Skip conditions: non-git repo, --no-lore flag, talisman.goldmask.layers.lore.enabled === false, fewer than 5 commits in lookback window (G5 guard). The risk scores are used for prioritized review ordering and injected into inscription.json.",
+      "files": [],
+      "expectations": [
+        "Notes lore-analyst runs as bare Agent (ATE-1 exemption)",
+        "Lists outputs: risk-map.json, lore-analysis.md",
+        "Lists risk tiers: CRITICAL, HIGH, MEDIUM, LOW, STALE",
+        "Describes file re-sorting by risk tier",
+        "Lists skip conditions: non-git, --no-lore, lore.enabled === false, <5 commits (G5 guard)",
+        "Notes risk scores injected into inscription.json"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "Explain Phase 0.3 Context Intelligence and Phase 0.4 Linter Detection for /rune:appraise. What metadata is gathered? How does linter awareness prevent duplicate findings?",
+      "expected_output": "Phase 0.3 Context Intelligence: Gathers PR metadata and linked issue context via gh CLI. Injects contextIntel into inscription.json. Includes sanitizeUntrustedText() for CDX-001/CVE-2021-42574 protection (Unicode bidi character stripping). Skipped when no gh CLI, --partial, or disabled in talisman. Phase 0.4 Linter Detection: Discovers project linters (eslint, prettier, ruff, clippy, etc.) via manifest scanning. Injects linter_context into inscription.json. Linter awareness suppresses duplicate findings — Ash skip reporting issues that linters would catch. SEC-*/VEIL-* findings are NEVER suppressed (security always reported). Configurable via talisman.review.linter_awareness.",
+      "files": [],
+      "expectations": [
+        "Describes Phase 0.3: PR metadata, linked issues via gh CLI",
+        "Mentions sanitizeUntrustedText() for Unicode bidi protection",
+        "Notes skip conditions: no gh CLI, --partial, disabled",
+        "Describes Phase 0.4: linter discovery via manifest scanning",
+        "Lists example linters: eslint, prettier, ruff, clippy",
+        "Notes linter awareness suppresses duplicate findings",
+        "Mentions SEC-*/VEIL-* findings are NEVER suppressed",
+        "Notes configurable via talisman.review.linter_awareness"
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "How does the Workflow Lock work in /rune:appraise? What lock type is used? What happens when there's a conflict? How is the lock released?",
+      "expected_output": "Workflow Lock: Lock type: 'reader' (appraise reads repository state, doesn't modify files). Conflict detection: rune_check_conflicts('reader') checks for active writers (strive, mend, arc work phases). On conflict: AskUserQuestion prompts user to proceed anyway or wait. Lock acquisition: rune_acquire_lock('appraise', 'reader') creates lock file. Lock file location: tmp/.rune-lock-appraise-{identifier}.json. Lock release: Phase 7 cleanup releases lock via rm -f. Lock file includes: config_dir, owner_pid, session_id, workflow, lock_type, acquired_at. Session isolation: hooks verify owner_pid matches $PPID before acting on lock files.",
+      "files": [],
+      "expectations": [
+        "States lock type is 'reader'",
+        "Notes conflict detection checks for active writers",
+        "Describes AskUserQuestion prompt on conflict",
+        "Names lock acquisition function: rune_acquire_lock",
+        "Notes lock release in Phase 7 cleanup",
+        "Lists lock file contents: config_dir, owner_pid, session_id, workflow, lock_type, acquired_at",
+        "Notes session isolation via owner_pid verification"
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "Explain the chunk routing logic for /rune:appraise. When does chunking trigger? What is CHUNK_THRESHOLD? How does the chunk lifecycle work?",
+      "expected_output": "Chunk routing: CHUNK_THRESHOLD = 20 files (default, configurable via --chunk-size N). Trigger: changed_files.length > CHUNK_THRESHOLD AND --no-chunk NOT set. Chunk lifecycle: (1) Split files into chunks of CHUNK_SIZE (default 20), (2) Each chunk runs full Roundtable Circle pass, (3) TOMEs merged between chunks, (4) Convergence loop runs after all chunks complete (unless --no-converge). Convergence: re-review files with P1/P2 findings from previous pass, up to MAX_CONVERGENCE_CYCLES. --no-chunk: forces single-pass review regardless of file count. --cycles N: alternative to chunking, runs N standalone passes with TOME merge.",
+      "files": [],
+      "expectations": [
+        "States CHUNK_THRESHOLD = 20 files (default)",
+        "Notes configurable via --chunk-size N",
+        "Describes trigger: file count > threshold AND --no-chunk not set",
+        "Describes chunk lifecycle: split → pass per chunk → TOME merge → convergence",
+        "Mentions --no-chunk forces single-pass",
+        "Mentions --cycles N as alternative multi-pass approach",
+        "Notes convergence re-reviews P1/P2 files"
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "What is Phase 4.5 Doubt Seer in /rune:appraise? When does it run? What is the verdict format? How does BLOCK verdict affect the workflow?",
+      "expected_output": "Phase 4.5 Doubt Seer: CONDITIONAL — strict opt-in via talisman.doubt_seer.enabled = true. Purpose: cross-examines P1/P2 findings with adversarial questioning. Timeout: 5 minutes. Output: VERDICT field for each finding. Verdicts: PROVEN (high confidence), LIKELY (reasonable confidence), UNCERTAIN (needs investigation), UNPROVEN (evidence insufficient). BLOCK verdict: sets workflow_blocked flag in state file, prompts user to address issues before proceeding. Non-blocking: proceeds with findings, reports uncertainty. Spawned as bare Agent (ATE-1 exemption) for cross-examination. Uses categorical verdicts for structured output.",
+      "files": [],
+      "expectations": [
+        "Notes strict opt-in: talisman.doubt_seer.enabled = true",
+        "States purpose: cross-examine P1/P2 findings",
+        "Notes 5 minute timeout",
+        "Lists verdicts: PROVEN, LIKELY, UNCERTAIN, UNPROVEN",
+        "Describes BLOCK verdict: sets workflow_blocked flag",
+        "Notes spawned as bare Agent (ATE-1 exemption)",
+        "Mentions categorical verdicts for structured output"
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "Explain the --dry-run flag behavior for /rune:appraise. What phases execute? What is displayed? What is NOT created?",
+      "expected_output": "--dry-run behavior: Executes Phase 0 (Pre-flight) and Phase 1 (Rune Gaze) only. Displays: changed files classified by type, which Ash would be summoned, file assignments per Ash, estimated team size, chunk plan if file count exceeds CHUNK_THRESHOLD, warnings about sparse findings (if --deep + --partial). Does NOT create: teams (TeamCreate), tasks (TaskCreate), state files, inscription.json, signal directories, agents (Agent tool). Exits after display with summary. Useful for previewing review scope before committing to full execution.",
+      "files": [],
+      "expectations": [
+        "States executes Phase 0 and Phase 1 only",
+        "Lists displayed info: files, Ash plan, assignments, team size, chunk plan",
+        "Notes --deep + --partial warning shown",
+        "Lists NOT created: teams, tasks, state files, inscription.json, signals, agents",
+        "Notes exits after display with summary",
+        "Describes use case: preview scope before full execution"
+      ]
+    }
+  ]
+}

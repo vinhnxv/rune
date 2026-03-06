@@ -3,13 +3,25 @@
 ## [1.141.0] - 2026-03-07
 
 ### Added
-- **tome-digest agent** — Haiku-tier utility agent that extracts structured JSON digest from TOME files (P1/P2/P3 counts, recurring patterns, affected files) for arc Phase 7 token optimization
-- **gap-digest script** — Shell script that extracts MISSING/PARTIAL counts from gap-analysis files for arc Phase 6 token optimization
-- **Arc utility crew references** — Phase integration docs for digest-based artifact reading in arc pipeline
+- **Arc Utility Crew** — 5 new utility agents + 2 shell scripts for arc team lead context optimization
+  - `tome-digest` agent — Extracts P1/P2/P3 counts, recurring patterns, affected files from TOME
+  - `condenser-gap` agent — Extracts MISSING/PARTIAL/COMPLETE counts from gap-analysis.md
+  - `condenser-verdict` agent — Extracts dimension scores, flags low-scoring (<7) dimensions
+  - `condenser-plan` agent — Extracts sections, acceptance criteria, file targets from enriched-plan.md
+  - `condenser-work` agent — Extracts committed files, task counts from work-summary.md
+  - `utility-crew-extract.sh` — Unified shell-based extraction script (5 modes, zero LLM tokens)
+  - `write-phase-summary.sh` — Deterministic phase group summary generator (reads digests + checkpoint)
+- **Talisman utility_crew config** — Master toggle + per-agent/mode toggles for all utility crew features
+- **Agent count**: 91 → 96 (5 new utility agents)
 
 ### Changed
-- **Arc Phase 7 (Mend)** — Lead reads tome-digest JSON (500 tokens) instead of full TOME (10-50K tokens) with graceful fallback
-- **Arc Phase 6 (Code Review)** — Lead reads gap-digest output instead of full gap-analysis files (5-10K tokens saved)
+- **Arc Phase 7 (Mend)** — Lead uses shell-extracted tome-digest JSON (~500 tokens) instead of reading full TOME (10-50K tokens) with graceful fallback
+- **Arc Phase 6 (Code Review)** — Lead uses shell-extracted gap/verdict digests instead of reading full artifacts (7-15K tokens saved)
+- **Arc Phase 5.5 (Gap Analysis)** — Pre-extracts plan and work-summary digests for orchestrator quick-checks
+- **Arc Phase 7.5 (Verify Mend)** — Round-aware tome-digest extraction for convergence checks
+
+### Fixed
+- **Decree-arbiter P1 resolution** — All digest extraction uses shell scripts instead of Explore subagents (which cannot Write files). Zero LLM token cost, sub-second execution
 
 ## [1.140.3] - 2026-03-06
 
