@@ -83,9 +83,11 @@ fi
 # ── Helper: Extract a YAML frontmatter field value (single-line, simple values only) ──
 _get_fm_field() {
   local fm="$1" field="$2"
+  # SEC-002: Validate field name to prevent regex injection via maintenance drift
+  [[ "$field" =~ ^[a-zA-Z_]+$ ]] || return 1
   # || true: grep returning no match (exit 1) must not trigger ERR trap (set -euo pipefail)
   # Without this, callers outside `if` conditions (lines 94, 105) would exit 0 via ERR trap
-  echo "$fm" | grep "^${field}:" | sed "s/^${field}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true
+  printf '%s\n' "$fm" | grep "^${field}:" | sed "s/^${field}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true
 }
 
 # ── Helper: Check if this session owns a loop state file ──
@@ -474,7 +476,7 @@ shopt -u nullglob
 # Ownership-scan pattern — session_id not available in Stop hook
 # NOTE: $RUNE_CURRENT_CFG is already available (sourced at top of script)
 shopt -s nullglob
-for f in /tmp/rune-ctx-*-warned.json /tmp/rune-ctx-*.json; do
+for f in "${TMPDIR:-/tmp}"/rune-ctx-*-warned.json "${TMPDIR:-/tmp}"/rune-ctx-*.json; do
   [[ -f "$f" ]] || continue
   [[ -L "$f" ]] && { rm -f "$f" 2>/dev/null; continue; }  # symlink guard
   B_CFG=$(jq -r '.config_dir // empty' "$f" 2>/dev/null || true)

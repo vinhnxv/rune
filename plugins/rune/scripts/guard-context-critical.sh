@@ -147,6 +147,7 @@ WARNING_THRESHOLD=35
 if [[ "$REM_INT" -le "$WARNING_THRESHOLD" && "$REM_INT" -gt "$CRITICAL_THRESHOLD" ]]; then
   # Detect current workflow from state files (explicit paths — Concern C3)
   WORKFLOW="unknown"
+  shopt -s nullglob
   for sf in \
     "$CWD/tmp/.rune-review-"*.json \
     "$CWD/tmp/.rune-audit-"*.json \
@@ -172,6 +173,7 @@ if [[ "$REM_INT" -le "$WARNING_THRESHOLD" && "$REM_INT" -gt "$CRITICAL_THRESHOLD
     WORKFLOW=$(jq -r '.workflow // "unknown"' < "$sf" 2>/dev/null || echo "unknown")
     break
   done
+  shopt -u nullglob
 
   SUGGESTION=""
   case "$WORKFLOW" in
