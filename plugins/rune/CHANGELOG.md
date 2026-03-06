@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.139.0] - 2026-03-06
+
+### Added
+- **`/rune:team-spawn`** — Spawn Agent Teams using presets (review, work, plan, fix, debug, audit) or custom composition. Wraps team-sdk `TeamEngine.ensureTeam()` and `spawnWave()` for ad-hoc team creation outside workflow skills.
+- **`/rune:team-shutdown`** — Gracefully shut down standalone agent teams and clean up resources. Wraps team-sdk `TeamEngine.shutdown()` and `cleanup()`. Supports `--force` flag for immediate termination.
+- **`/rune:team-delegate`** — Task delegation dashboard for managing team workload, assignments, and messaging. Works with both standalone and workflow-spawned teams. Supports `--assign`, `--message`, and `--create` subcommands.
+- **rest.md cleanup** — Added `team` to state file cleanup scan for `/rune:rest` and `--heal` mode.
+
 ## [1.138.1] - 2026-03-06
 
 ### Fixed

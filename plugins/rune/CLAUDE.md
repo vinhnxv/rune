@@ -75,6 +75,9 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | `/rune:plan` | Beginner alias for `/rune:devise` — plan a feature or task |
 | `/rune:work` | Beginner alias for `/rune:strive` — implement a plan |
 | `/rune:review` | Beginner alias for `/rune:appraise` — review code changes |
+| `/rune:team-spawn` | Spawn an Agent Team using presets or custom composition |
+| `/rune:team-shutdown` | Gracefully shutdown a team and cleanup resources |
+| `/rune:team-delegate` | Task delegation dashboard — assign, message, create tasks |
 
 ## Core Rules
 
