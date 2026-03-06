@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.140.1] - 2026-03-06
+
+### Fixed
+- **SEC-002**: TOCTOU race between symlink check and `rm -rf` → atomic `find ... -not -type l -exec rm` in `on-session-stop.sh`, `detect-workflow-complete.sh`
+- **SEC-003**: `eval` usage for shell option restoration → conditional `shopt -q`/`shopt -u` pattern in `enforce-team-lifecycle.sh`, `session-team-hygiene.sh`, `arc-phase-stop-hook.sh`
+- **SEC-006**: `enforce-polling.sh` PID fallback always returns dead → actual `kill -0` liveness check
+- **BUG-001**: Dead PID leaves stale state file blocking enforcement → self-healing cleanup in `pretooluse-write-guard.sh`
+- **BUG-002**: EXIT trap overwrite leaks `$DEDUP_FILE` → unified `_cleanup_shard` in `arc-batch-preflight.sh`
+- **BUG-003**: Unpopulated `SEEN` array → read from dedup file in `arc-batch-preflight.sh`
+- **BUG-004**: `echo-writer.sh` EXIT trap overwrites ERR → combined trap with `exit 0`
+- **BUG-006**: `rune-status.sh` missing `storybook_verification` in PHASE_ORDER
+- **PAT-006**: stdin cap inconsistency (64KB vs 1MB) → standardized `head -c 1048576 2>/dev/null || true` across 5 scripts
+- **PAT-008**: 4 learn/ scripts missing `RUNE_TRACE_LOG` and `_trace()` declarations
+
 ## [1.140.0] - 2026-03-06
 
 ### Added

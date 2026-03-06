@@ -322,8 +322,10 @@ for sf in "${STATE_FILES[@]}"; do
   # Filesystem cleanup
   _trace "Filesystem cleanup for team=$SF_TEAM"
   if [[ -n "$SF_TEAM" && "$SF_TEAM" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-    rm -rf "${CHOME}/teams/${SF_TEAM}/" "${CHOME}/tasks/${SF_TEAM}/" 2>/dev/null || true
-    rm -rf "${CWD}/tmp/.rune-signals/${SF_TEAM}/" 2>/dev/null || true
+    # SEC-002: Atomic symlink-safe delete (eliminates TOCTOU window)
+    find "${CHOME}/teams/${SF_TEAM}" -maxdepth 0 -not -type l -exec rm -rf {} + 2>/dev/null
+    find "${CHOME}/tasks/${SF_TEAM}" -maxdepth 0 -not -type l -exec rm -rf {} + 2>/dev/null
+    find "${CWD}/tmp/.rune-signals/${SF_TEAM}" -maxdepth 0 -not -type l -exec rm -rf {} + 2>/dev/null
   fi
 
   # Update state file — SEC-004: use mktemp to avoid predictable temp file path

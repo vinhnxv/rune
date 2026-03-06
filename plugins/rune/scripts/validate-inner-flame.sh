@@ -24,8 +24,8 @@ trap '_rune_fail_forward' ERR
 # BACK-004 FIX: Removed early yq guard (was: exit 0 before stdin read).
 # yq is only needed for talisman config parsing (lines 68-81), guarded there.
 
-# Read hook input (64KB cap — sufficient for TaskCompleted JSON payloads)
-INPUT=$(head -c 65536 2>/dev/null || true)
+# Read hook input (1MB cap — sufficient for TaskCompleted JSON payloads)
+INPUT=$(head -c 1048576 2>/dev/null || true)
 
 # Pre-flight: jq required
 if ! command -v jq &>/dev/null; then
