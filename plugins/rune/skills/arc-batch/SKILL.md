@@ -125,206 +125,21 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_ac
 
 ### Phase 0: Parse Arguments
 
-```javascript
-const args = "$ARGUMENTS".trim()
-let planPaths = []
-let inputType = "glob"  // "queue" | "glob" | "resume"
-let resumeMode = args.includes('--resume')
-let dryRun = args.includes('--dry-run')
-let noMerge = args.includes('--no-merge')
-let noSmartSort = args.includes('--no-smart-sort')
-// Token-based parsing: prevents substring match collision with --no-smart-sort
-let forceSmartSort = args.split(/\s+/).includes('--smart-sort')
+Parse `$ARGUMENTS` into `planPaths`, `inputType`, and flag booleans. Handles 3 input types: glob, queue file (`.txt`), and `--resume` (reads `batch-progress.json`, resets stale `in_progress` plans). Includes shard group detection (v1.66.0+).
 
-// Conflicting flags: --no-smart-sort wins (fail-safe)
-if (forceSmartSort && noSmartSort) {
-  warn("Conflicting flags: --smart-sort and --no-smart-sort both present. Using --no-smart-sort.")
-  log("Conflicting flags detected: --smart-sort and --no-smart-sort. Using --no-smart-sort.")
-  forceSmartSort = false
-}
-
-if (resumeMode) {
-  inputType = "resume"
-  const progress = JSON.parse(Read("tmp/arc-batch/batch-progress.json"))
-  const allPlans = progress.plans
-
-  // Bug 4 FIX (v1.110.0): Reset in_progress plans from crashed sessions to pending.
-  // A plan stuck in "in_progress" means the previous session died mid-execution.
-  const staleInProgress = allPlans.filter(p => p.status === "in_progress")
-  if (staleInProgress.length > 0) {
-    warn(`Found ${staleInProgress.length} in_progress plan(s) from crashed session — resetting to pending`)
-    for (const plan of staleInProgress) {
-      plan.status = "pending"
-      plan.recovery_note = "reset_from_in_progress_on_resume"
-    }
-    progress.updated_at = new Date().toISOString()
-    Write("tmp/arc-batch/batch-progress.json", JSON.stringify(progress, null, 2))
-  }
-
-  // P1-FIX: Filter to pending plans only — don't re-execute completed plans
-  const pendingPlans = allPlans.filter(p => p.status === "pending")
-  planPaths = pendingPlans.map(p => p.path)
-  log(`Resuming batch: ${allPlans.filter(p => p.status === "completed").length}/${allPlans.length} completed, ${planPaths.length} remaining`)
-  if (planPaths.length === 0) {
-    log("All plans already completed. Nothing to resume.")
-    return
-  }
-} else {
-  const inputArg = args.replace(/--\S+/g, '').trim()
-  if (inputArg.endsWith('.txt')) {
-    inputType = "queue"
-    planPaths = Read(inputArg).split('\n').filter(l => l.trim() && !l.startsWith('#'))
-  } else {
-    inputType = "glob"
-    planPaths = Glob(inputArg)
-  }
-}
-
-if (planPaths.length === 0) {
-  error("No plan files found. Usage: /rune:arc-batch plans/*.md")
-  return
-}
-
-// ── SHARD GROUP DETECTION (v1.66.0+) ──
-// Separates shard plans from regular, groups by feature prefix, sorts by shard number,
-// detects gaps, auto-excludes parent plans (shattered: true).
-// See [batch-shard-parsing.md](references/batch-shard-parsing.md) for full algorithm.
-// Outputs: reordered planPaths, shardGroups Map (used in Phase 3 progress file)
-Read("references/batch-shard-parsing.md")
-// Execute the shard detection algorithm. Sets planPaths and shardGroups.
-```
+See [phase-0-1-input-parsing.md](references/phase-0-1-input-parsing.md) for full pseudocode.
 
 ### Phase 1: Pre-flight Validation
 
-```javascript
-// SEC-007 FIX: Write paths to temp file first to avoid shell injection via echo interpolation.
-// Queue file paths (untrusted input) could contain shell metacharacters.
-Write("tmp/arc-batch/preflight-input.txt", planPaths.join('\n'))
-const validated = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/arc-batch-preflight.sh" < "tmp/arc-batch/preflight-input.txt"`)
-if (validated.exitCode !== 0) {
-  error("Pre-flight validation failed. Fix errors above and retry.")
-  return
-}
-planPaths = validated.stdout.trim().split('\n')
+Runs `arc-batch-preflight.sh` via temp file (SEC-007: avoids shell injection from untrusted queue paths). Checks `arc.ship.auto_merge` talisman setting when `--no-merge` is not set.
 
-// Check auto-merge setting (unless --no-merge)
-if (!noMerge) {
-  // readTalismanSection: "arc"
-  const arc = readTalismanSection("arc")
-  if (arc?.ship?.auto_merge === false) {
-    warn("talisman.yml has arc.ship.auto_merge: false")
-    AskUserQuestion({
-      questions: [{
-        question: "Auto-merge is disabled in talisman.yml. How to proceed?",
-        header: "Merge",
-        options: [
-          { label: "Enable auto-merge for this batch", description: "Temporarily set auto_merge: true" },
-          { label: "Run with --no-merge", description: "PRs created but not merged" },
-          { label: "Abort", description: "Fix talisman config first" }
-        ],
-        multiSelect: false
-      }]
-    })
-  }
-}
-```
+See [phase-0-1-input-parsing.md](references/phase-0-1-input-parsing.md) for full pseudocode.
 
 ### Phase 1.5: Plan Ordering (Opt-In Smart Ordering)
 
-Input-type-aware ordering with 3 modes. Queue files respect user order by default. Glob inputs present ordering options. CLI flags override all modes.
+Input-type-aware ordering with 3 modes. Decision tree: CLI flags > resume guard > talisman mode > input-type heuristic. Queue files respect user order by default. Glob inputs present ordering options (Smart/Alphabetical/As discovered). Talisman modes: `ask` | `auto` | `off` (default).
 
-See [smart-ordering.md](references/smart-ordering.md) for the full algorithm when smart ordering is selected.
-
-```javascript
-// ── Phase 1.5: Plan Ordering (opt-in smart ordering) ──
-// Decision tree: CLI flags > resume guard > talisman mode > input-type heuristic
-
-// readTalismanSection: "arc"
-const arcConfig = readTalismanSection("arc")
-const smartOrderingConfig = arcConfig?.batch?.smart_ordering || {}
-const smartOrderingEnabled = smartOrderingConfig.enabled !== false  // default: true
-const smartOrderingMode = smartOrderingConfig.mode || "off"        // "ask" | "auto" | "off" — default "off" ensures smart ordering is truly opt-in
-
-// Validate mode (single check)
-const validModes = ["ask", "auto", "off"]
-const modeIsValid = validModes.includes(smartOrderingMode)
-if (!modeIsValid) {
-  warn(`Unknown smart_ordering.mode: '${smartOrderingMode}', defaulting to 'off'.`)
-}
-const effectiveMode = modeIsValid ? smartOrderingMode : "off"
-
-// ── Priority 1: CLI flags (always win) ──
-if (noSmartSort) {
-  log("Plan ordering: --no-smart-sort flag — preserving raw order")
-} else if (forceSmartSort && planPaths.length === 1) {
-  warn("--smart-sort flag ignored: only 1 plan file, no ordering needed")
-} else if (forceSmartSort && planPaths.length > 1) {
-  log("Plan ordering: --smart-sort flag — applying smart ordering")
-  Read("references/smart-ordering.md")
-  // Execute smart ordering algorithm
-}
-// ── Priority 1.5: Resume guard (before talisman — prevents reordering partial batches) ──
-else if (resumeMode) {
-  log("Plan ordering: resume mode — preserving batch order")
-}
-// ── Priority 2: Kill switch ──
-else if (!smartOrderingEnabled) {
-  log("Plan ordering: disabled by talisman (arc.batch.smart_ordering.enabled: false)")
-}
-// ── Priority 3: Talisman mode ──
-else if (effectiveMode === "off") {
-  log("Plan ordering: talisman mode='off' — preserving raw order")
-} else if (effectiveMode === "auto" && planPaths.length > 1) {
-  log("Plan ordering: talisman mode='auto' — auto-applying smart ordering")
-  Read("references/smart-ordering.md")
-  // Execute smart ordering algorithm
-}
-// ── Priority 4: Input-type heuristic (mode="ask" or default) ──
-else if (inputType === "resume") {
-  // skip — resume mode already handled above (Priority 1.5 resume guard)
-} else if (inputType === "queue") {
-  log("Plan ordering: queue file detected — respecting user-specified order")
-} else if (inputType === "glob" && planPaths.length > 1) {
-  // Present ordering options to user
-  const answer = AskUserQuestion({
-    questions: [{
-      question: `How should the ${planPaths.length} plans be ordered for execution?`,
-      header: "Order",
-      options: [
-        {
-          label: "Smart ordering (Recommended)",
-          description: "Dependency-aware: isolated plans first, then by version target. Reduces merge conflicts."
-        },
-        {
-          label: "Alphabetical",
-          description: "Sort by filename A→Z. Deterministic and predictable."
-        },
-        {
-          label: "As discovered",
-          description: "Keep the default glob expansion order."
-        }
-      ],
-      multiSelect: false
-    }]
-  })
-
-  if (answer === "Smart ordering (Recommended)") {
-    Read("references/smart-ordering.md")
-    // Execute smart ordering algorithm
-  } else if (answer === "Alphabetical") {
-    planPaths.sort((a, b) => a.localeCompare(b))
-    log(`Plan ordering: alphabetical — ${planPaths.length} plans sorted A→Z`)
-  } else if (answer === "As discovered") {
-    log("Plan ordering: discovery order — preserving glob expansion order")
-  } else {
-    warn(`Plan ordering: unrecognized answer '${answer}', using discovery order`)
-    log("Plan ordering: discovery order — preserving glob expansion order")
-  }
-} else {
-  warn("Plan ordering: no applicable rule matched, preserving order")
-}
-// Single plan or no action needed
-```
+See [phase-1.5-plan-ordering.md](references/phase-1.5-plan-ordering.md) for full pseudocode. See [smart-ordering.md](references/smart-ordering.md) for the smart ordering algorithm.
 
 ### Phase 2: Dry Run
 
@@ -342,40 +157,9 @@ if (dryRun) {
 
 ### Phase 3: Initialize Progress File
 
-```javascript
-const progressFile = "tmp/arc-batch/batch-progress.json"
-if (!resumeMode) {
-  Bash("mkdir -p tmp/arc-batch")
-  Write(progressFile, JSON.stringify({
-    schema_version: 2,  // v2: shard metadata (v1.66.0+)
-    status: "running",
-    started_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    total_plans: planPaths.length,
-    // NEW (v1.66.0): shard group summary for progress display
-    shard_groups: (shardGroups.size > 0)  // F-004: outer-scope Map, always defined
-      ? Array.from(shardGroups.entries()).map(([prefix, shards]) => ({
-          feature: prefix.replace(/.*\//, ''),  // basename of prefix
-          shards: shards.map(s => s.shardNum),
-          total: shards.length
-        }))
-      : [],
-    plans: planPaths.map(p => {
-      const shardMatch = p.match(/-shard-(\d+)-/)
-      return {
-        path: p,
-        status: "pending",
-        error: null,
-        completed_at: null,
-        arc_session_id: null,
-        // NEW (v1.66.0): shard metadata (null for non-shard plans)
-        shard_group: shardMatch ? p.replace(/-shard-\d+-[^/]*$/, '').replace(/.*\//, '') : null,
-        shard_num: shardMatch ? parseInt(shardMatch[1]) : null
-      }
-    })
-  }, null, 2))
-}
-```
+Writes `tmp/arc-batch/batch-progress.json` (schema v2) with plan statuses, shard group metadata (v1.66.0+), and timestamps. Skipped in `--resume` mode.
+
+See [phase-3-progress-init.md](references/phase-3-progress-init.md) for full pseudocode.
 
 ### Phase 4: Confirm Batch
 

@@ -150,6 +150,14 @@ if (elicitEnabled && securityFiles.length >= 3) {
 }
 ```
 
+### Communication Protocol for Review Ashes
+
+All review Ashes (built-in and custom) follow this communication protocol:
+- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Review Seal format (see team-sdk/references/seal-protocol.md).
+- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+- **Recipient**: Always use recipient: "team-lead".
+- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).
+
 The Tarnished does not review code directly. Focus solely on coordination.
 
 ## Inscription Contract

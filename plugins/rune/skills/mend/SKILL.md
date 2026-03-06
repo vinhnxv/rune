@@ -104,32 +104,7 @@ Finds TOME, validates freshness, extracts `<!-- RUNE:FINDING -->` markers with n
 
 ### UNVERIFIED Finding Handling
 
-When Phase 5.2 (Citation Verification) runs before mend, some findings may be
-tagged as `[UNVERIFIED]` or `[SUSPECT]` in the TOME:
-
-| Tag | Mend Behavior |
-|-----|--------------|
-| `[UNVERIFIED: ...]` | **SKIP** — finding excluded from fixer assignment. Reported in resolution report as "skipped: citation unverified" |
-| `[SUSPECT: ...]` | **CAUTION** — finding assigned to fixer with extra verification instruction. Fixer must confirm file:line before fixing |
-| (no tag) | **NORMAL** — standard fix protocol |
-
-**Tag detection**: During Phase 0 TOME parsing, after extracting each `<!-- RUNE:FINDING -->` marker block, scan the finding body text for verification tags using these patterns:
-
-```
-UNVERIFIED_PATTERN = /\[UNVERIFIED:\s*(.+?)\]/
-SUSPECT_PATTERN    = /\[SUSPECT:\s*(.+?)\]/
-```
-
-For each finding:
-1. Match against `UNVERIFIED_PATTERN` — if found, set `finding.verification = "unverified"` and `finding.verification_reason` from capture group
-2. Else match against `SUSPECT_PATTERN` — if found, set `finding.verification = "suspect"` and `finding.verification_reason` from capture group
-3. Else set `finding.verification = "normal"`
-
-Findings with `verification = "unverified"` are excluded from `fileGroups` during grouping but retained in `allFindings` for Phase 6 reporting.
-
-When invoked from arc Phase 7 (mend), citation verification has already run in
-Phase 5.2. When invoked standalone (`/rune:mend`), citation verification has NOT
-run — all findings are treated as NORMAL.
+Findings tagged `[UNVERIFIED: ...]` are SKIPPED (excluded from fixers). `[SUSPECT: ...]` findings get extra verification instruction. Untagged = NORMAL. When standalone, all findings are NORMAL (no prior citation verification).
 
 See [parse-tome.md](references/parse-tome.md) for detailed TOME finding extraction, freshness validation, nonce verification, deduplication, file grouping, and FALSE_POSITIVE handling.
 
@@ -156,36 +131,9 @@ Discover existing Goldmask outputs from upstream workflows (arc, appraise, audit
 
 ## Phase 1: PLAN
 
-### Analyze Dependencies
+Analyzes cross-file dependencies (B before A if A depends on B), orders by severity then line number, determines fixer count (max 5 per wave), and optionally overlays Goldmask risk tiers on severity ordering (CRITICAL P3 → effective P2).
 
-Check for cross-file dependencies between findings:
-
-1. If finding A (in file X) depends on finding B (in file Y): B's file group completes before A's
-2. Within a file group, order by severity (P1 -> P2 -> P3), then by line number (top-down)
-3. Triage threshold: if total findings > 20, instruct fixers to FIX all P1, SHOULD FIX P2, MAY SKIP P3
-
-### Determine Fixer Count and Waves
-
-```javascript
-const TODOS_PER_FIXER = talisman?.mend?.todos_per_fixer ?? 5
-fixer_count = min(file_groups.length, 5)
-totalWaves = Math.ceil(file_groups.length / fixer_count)
-```
-
-| File Groups | Fixers per Wave | Waves |
-|-------------|-----------------|-------|
-| 1 | 1 | 1 |
-| 2-5 | file_groups.length | 1 |
-| 6-10 | 5 | 2 |
-| 11+ | 5 | ceil(groups / 5) |
-
-**Zero-fixer guard**: If all findings were deduplicated, skipped, or marked FALSE_POSITIVE, skip directly to Phase 6 with "no actionable findings" summary.
-
-### Risk-Overlaid Severity Ordering (Goldmask Enhancement)
-
-When `parsedRiskMap` is available from Phase 0.5, overlay risk tiers on finding severity ordering: annotate findings with risk tier/score, sort within same priority by tier (CRITICAL first, alphabetical tiebreaker), promote P3 in CRITICAL-tier files to effective P2. Skip when `parsedRiskMap` is `null`.
-
-See [risk-overlay-ordering.md](references/risk-overlay-ordering.md) for the full algorithm.
+See [phase-1-4-plan-and-monitor.md](references/phase-1-4-plan-and-monitor.md) for dependency analysis, fixer/wave calculation table, and risk overlay algorithm. See [risk-overlay-ordering.md](references/risk-overlay-ordering.md) for the full Goldmask overlay.
 
 ## Phase 1.5: Workflow Lock (writer)
 
@@ -238,52 +186,15 @@ See [fixer-spawning.md](references/fixer-spawning.md) for full fixer prompt temp
 
 ## Phase 4: MONITOR
 
-Poll TaskList to track fixer progress per wave. Each wave has its own monitoring cycle with proportional timeout (`totalTimeout / totalWaves`).
+Per-wave polling with proportional timeout (`totalTimeout / totalWaves`). Inner timeout = `outerTimeout - 5min setup - 3min extra`, minimum 120s. 30s poll interval, 5min stale warn, 10min auto-release.
 
-```javascript
-const SETUP_BUDGET = 300_000        // 5 min
-const MEND_EXTRA_BUDGET = 180_000   // 3 min
-const DEFAULT_MEND_TIMEOUT = 900_000 // 15 min standalone
-const innerPollingTimeout = timeoutFlag
-  ? Math.max(timeoutFlag - SETUP_BUDGET - MEND_EXTRA_BUDGET, 120_000)
-  : DEFAULT_MEND_TIMEOUT
-
-const result = waitForCompletion(teamName, Object.keys(fileGroups).length, {
-  timeoutMs: innerPollingTimeout,
-  staleWarnMs: 300_000,
-  autoReleaseMs: 600_000,
-  pollIntervalMs: 30_000,
-  label: "Mend"
-})
-```
-
-See [monitor-utility.md](../roundtable-circle/references/monitor-utility.md) for the shared polling utility.
-
-**Anti-pattern**: NEVER `Bash("sleep 60 && echo poll check")` — call `TaskList` every cycle.
-
-**zsh compatibility**: Never use `status` as a variable name — read-only in zsh. Use `task_status` or `tstat`.
+See [phase-1-4-plan-and-monitor.md](references/phase-1-4-plan-and-monitor.md) for timeout calculation and polling config.
 
 ## Phase 5: WARD CHECK
 
-Ward checks run **once after all fixers complete**, not per-fixer.
+Runs **once after all fixers complete** (not per-fixer). Discovers wards, validates executables against CDX-004 allowlist (sh/bash excluded), runs each ward, bisects on failure to identify the breaking fix.
 
-```javascript
-wards = discoverWards()
-// CDX-004: Character allowlisting + executable allowlist (primary defense)
-// SAFE_EXECUTABLES: pytest, python, npm, npx, cargo, eslint, tsc, git, etc.
-// sh/bash intentionally excluded — prevents arbitrary command execution
-for (const ward of wards) {
-  const executable = ward.command.trim().split(/\s+/)[0].split('/').pop()
-  if (!SAFE_EXECUTABLES.has(executable)) { warn(`...`); continue }
-  if (!SAFE_WARD.test(ward.command)) { warn(`...`); continue }
-  result = Bash(ward.command)
-  if (result.exitCode !== 0) {
-    bisectResult = bisect(fixerOutputs, wards)
-  }
-}
-```
-
-See [ward-check.md](../roundtable-circle/references/ward-check.md) for ward discovery protocol and bisection algorithm.
+See [ward-check.md](../roundtable-circle/references/ward-check.md) for ward discovery protocol, SAFE_EXECUTABLES list, and bisection algorithm.
 
 ## Phase 5.5: Cross-File Mend (orchestrator-only)
 
@@ -320,29 +231,7 @@ After all fixes are applied and verified, update corresponding file-todos for re
 
 **Skip conditions**: No todo files found in any subdirectory OR no todo files match any resolved finding IDs.
 
-**Read and execute** the full protocol from [todo-update-phase.md](references/todo-update-phase.md).
-
-**Algorithm summary** (7 steps):
-1. **Resolve `todos_base`** — from TOME path (cross-write isolation): `TOME path → strip filename → append 'todos/'`. E.g., `tmp/arc/{id}/tome.md` → `tmp/arc/{id}/todos/`. Session-scoped model resolves `todos_base` from `workflowOutputDir` automatically
-2. **Read manifest** — parse `{todos_base}{source}/manifest.json` for indexed todo entries
-3. **Set claim** — mark matched todo as `in_progress` (orchestrator claim lock)
-4. **Update frontmatter** — set `status`, `resolution`, `resolution_reason`, `updated` date
-5. **Append `workflow_chain`** — add `mend:{identifier}` to the chain array
-6. **Mark dirty** — signal manifest rebuild needed
-7. **Rebuild manifest** — call `buildManifests(todosBase, { all: true })` after all updates complete
-
-**Note**: `resolution` and `resolution_reason` values come from fixer SEAL messages (Phase 3 output).
-
-**Resolution-to-status mapping**:
-
-| Mend Resolution | Todo Status | Rationale |
-|----------------|-------------|-----------|
-| `FIXED` | `complete` | Finding resolved |
-| `FIXED_CROSS_FILE` | `complete` | Cross-file fix resolved |
-| `FALSE_POSITIVE` | `wont_fix` | Not a real issue |
-| `FAILED` | (unchanged) | Needs manual intervention |
-| `SKIPPED` | (unchanged) | Blocked or deferred |
-| `CONSISTENCY_FIX` | (no todo) | Doc-consistency has no todos |
+See [todo-update-phase.md](references/todo-update-phase.md) for the full 7-step protocol (resolve base, read manifest, claim, update frontmatter, append workflow_chain, rebuild) and resolution-to-status mapping (FIXED→complete, FALSE_POSITIVE→wont_fix, FAILED/SKIPPED→unchanged).
 
 ## Phase 5.95: Goldmask Quick Check (Deterministic)
 
@@ -358,104 +247,15 @@ See [goldmask-quick-check.md](../goldmask/references/goldmask-quick-check.md) fo
 
 ## Phase 6: RESOLUTION REPORT
 
-Aggregates fixer SEAL messages, cross-file fixes, and doc-consistency fixes into `tmp/mend/{id}/resolution-report.md`.
+Aggregates fixer SEALs, cross-file fixes, doc-consistency fixes into `tmp/mend/{id}/resolution-report.md`. Convergence: FIXED > FALSE_POSITIVE > FAILED > SKIPPED. P1 FAILED/SKIPPED triggers escalation warning. Optional Todo column (cross-source glob) and Goldmask Integration section (risk overlay + quick check results).
 
-**Convergence logic**: Last reported status wins (FIXED > FALSE_POSITIVE > FAILED > SKIPPED). Cross-file adds `FIXED_CROSS_FILE`. Doc-consistency adds `CONSISTENCY_FIX`.
-
-**P1 Escalation**: If any P1 finding ends in FAILED or SKIPPED, present escalation warning prominently before next-steps.
-
-**Todo cross-references**: When todo files exist in source subdirectories, add a `Todo` column to the resolution table. Scan cross-source via `Glob(\`${base}*/[0-9][0-9][0-9]-*.md\`)`:
-
-```markdown
-## Resolution Summary
-
-| Finding | Status | Todo |
-|---------|--------|------|
-| SEC-001 | FIXED | `todos/review/001-pending-p1-fix-sql-injection.md` (complete) |
-| BACK-002 | SKIPPED | `todos/review/002-pending-p2-add-validation.md` (unchanged) |
-| QUAL-003 | FIXED | (no todo) |
-```
-
-Only include the `Todo` column when at least one finding has a corresponding todo file. Use the cross-source glob (`${base}*/[0-9][0-9][0-9]-*.md`) before rendering each row — do not emit dangling paths.
-
-### Goldmask Section in Resolution Report
-
-When Phase 0.5 found Goldmask data or Phase 5.95 produced quick check results, add a Goldmask section to the resolution report.
-
-When `parsedRiskMap` or `quickCheckResults` exist, append a `## Goldmask Integration` section with:
-- **Risk Overlay** subsection: data source path, CRITICAL-tier finding count, promoted P3→P2 count
-- **Quick Check Results** subsection: MUST-CHANGE files in scope, verified/untouched/unexpected counts, link to full report
-
-See [resolution-report.md](references/resolution-report.md) for the full report format, convergence logic, and Codex verification section.
-
-Read and execute when Phase 6 runs.
+See [resolution-report.md](references/resolution-report.md) for the full report format, convergence logic, todo cross-refs, Goldmask section, and Codex verification.
 
 ## Phase 7: CLEANUP
 
-1. **Dynamic member discovery** — read team config for ALL teammates (fallback: `spawnedFixerNames` from Phase 3 — includes wave-based names like `mend-fixer-w1-1`)
-2. **Shutdown all members** — `SendMessage(shutdown_request)` to each
-3. **Grace period** — `sleep 20` for teammate deregistration
-4. **ID validation** — defense-in-depth `..` check + regex guard (SEC-003)
-5. **TeamDelete with retry-with-backoff** (4 attempts: 0s, 5s, 10s, 15s) + process kill + filesystem fallback
-6. **Update state file** — status → `"completed"` or `"partial"`
-7. **Release workflow lock** — `rune_release_lock "mend"`
-8. **Persist learnings** to Rune Echoes (TRACED layer)
+Standard 8-step cleanup: dynamic member discovery (fallback: `spawnedFixerNames` with wave-based names) → shutdown_request → grace period → SEC-003 ID validation → TeamDelete retry-with-backoff (4 attempts) → process kill + filesystem fallback → state file update (`"completed"` or `"partial"`) → workflow lock release → echo persist.
 
-### Phase 7 Cleanup Pseudocode
-
-```javascript
-// 1. Dynamic member discovery — read team config for ALL teammates
-const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
-let allMembers = []
-try {
-  const teamConfig = Read(`${CHOME}/teams/rune-mend-${id}/config.json`)
-  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
-  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
-} catch (e) {
-  // FALLBACK: config.json read failed — use spawnedFixerNames from Phase 3.
-  // This includes wave-based names (mend-fixer-w1-1, mend-fixer-w2-3, etc.),
-  // not just base inscription names (mend-fixer-1, mend-fixer-2).
-  allMembers = [...spawnedFixerNames]
-}
-
-// 2. Shutdown all discovered members
-for (const member of allMembers) {
-  SendMessage({ type: "shutdown_request", recipient: member, content: "Mend complete" })
-}
-
-// 3. Grace period — let teammates deregister
-if (allMembers.length > 0) {
-  Bash("sleep 20")
-}
-
-// 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
-if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error(`Invalid mend id: ${id}`)
-const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
-let cleanupTeamDeleteSucceeded = false
-for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
-  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
-  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
-    if (attempt === CLEANUP_DELAYS.length - 1) warn(`cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
-  }
-}
-
-// 5a. Process-level kill — terminate orphaned teammate processes
-if (!cleanupTeamDeleteSucceeded) {
-  const ownerPid = Bash(`echo $PPID`).trim()
-  if (ownerPid && /^\d+$/.test(ownerPid)) {
-    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash(`sleep 3`)
-    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
-  }
-}
-// 5b. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
-if (!cleanupTeamDeleteSucceeded) {
-  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/rune-mend-${id}/" "$CHOME/tasks/rune-mend-${id}/" 2>/dev/null`)
-  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
-}
-```
-
-See [engines.md](../team-sdk/references/engines.md) § cleanup for full cleanup retry pattern.
+See [phase-7-cleanup.md](references/phase-7-cleanup.md) for full pseudocode. See [engines.md](../team-sdk/references/engines.md) § cleanup for the shared pattern.
 
 ## Goldmask Skip Conditions
 

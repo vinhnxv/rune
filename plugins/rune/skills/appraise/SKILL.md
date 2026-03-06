@@ -124,59 +124,13 @@ After file collection — route to chunked path if `changed_files.length > CHUNK
 
 ## Phase 0.3: Context Intelligence
 
-Gather PR metadata and linked issue context for downstream Ash consumption. Runs AFTER Phase 0, BEFORE Phase 0.5.
-
-**Skip conditions**: `talisman.review.context_intelligence.enabled === false`, no `gh` CLI, `--partial` mode, non-git repo.
-
-See [context-intelligence.md](../roundtable-circle/references/context-intelligence.md) for the full contract, schema, and security model.
-
-```javascript
-// sanitizeUntrustedText — canonical sanitization for user-authored content
-// Used by: Phase 0.3 (PR body, issue body), plan.md (plan content)
-// Security: CDX-001 (prompt injection), CVE-2021-42574 (Trojan Source)
-function sanitizeUntrustedText(text, maxChars) {
-  return (text || '')
-    .replace(/<!--[\s\S]*?-->/g, '')              // Strip HTML comments
-    .replace(/```[\s\S]*?```/g, '[code-block]')    // Neutralize code fences
-    .replace(/!\[.*?\]\(.*?\)/g, '')               // Strip image/link injection
-    .replace(/^#{1,6}\s+/gm, '')                   // Strip heading overrides
-    .replace(/[\u200B-\u200F\uFEFF\uFE00-\uFE0F]/g, '')  // Strip zero-width chars + variation selectors
-    .replace(/\uDB40[\uDC00-\uDC7F]/g, '')         // Strip tag block characters (U+E0000-E007F)
-    .replace(/[\u202A-\u202E\u2066-\u2069]/g, '')  // Strip Unicode directional overrides (CVE-2021-42574)
-    .replace(/&[a-zA-Z0-9#]+;/g, '')               // Strip HTML entities
-    .slice(0, maxChars)
-}
-```
-
-Context intelligence result (`contextIntel`) is injected into inscription.json in Phase 2, making PR metadata available to all Ashes without increasing per-Ash prompt size.
-
-Each ash-prompt template receives a conditional `## PR Context` section when `context_intelligence.available === true`, injected during Phase 3 prompt construction.
-
-**Note**: During arc `code_review` (Phase 6), no PR exists yet if Phase 9 SHIP hasn't run. Context Intelligence correctly reports `available: false` — this is expected.
+Gathers PR metadata and linked issue context. Injects `contextIntel` into inscription.json (Phase 2). Includes `sanitizeUntrustedText()` for CDX-001/CVE-2021-42574 protection. Skipped when no `gh` CLI, `--partial`, or disabled in talisman.
 
 ## Phase 0.4: Linter Detection
 
-Discover project linters from config files and provide linter awareness context to Ashes. Prevents Ashes from flagging issues that project linters already handle (formatting, import order, unused vars).
+Discovers project linters (eslint, prettier, ruff, clippy, etc.) to suppress duplicate findings. SEC-*/VEIL-* findings are NEVER suppressed. Configurable via `talisman.review.linter_awareness`.
 
-**Position**: After Phase 0.3, before Phase 0.5.
-**Skip conditions**: `talisman.review.linter_awareness.enabled === false`.
-
-Detects: eslint, prettier, biome, typescript (JS/TS), ruff, black, flake8, mypy, pyright, isort (Python), rubocop, standard (Ruby), golangci-lint (Go), clippy, rustfmt (Rust), editorconfig (general).
-
-```javascript
-// linterContext is injected into inscription.json in Phase 2 (linter_context field)
-// Ashes receive suppression list in their prompts — DO NOT flag in suppressed categories
-// SEC-* and VEIL-* findings are NEVER suppressed by linter awareness
-```
-
-Talisman config:
-```yaml
-review:
-  linter_awareness:
-    enabled: true
-    always_review:          # Categories to review even if linter covers them
-      - type-checking
-```
+See [phase-0.3-0.4-context-and-linter.md](references/phase-0.3-0.4-context-and-linter.md) for full pseudocode, sanitization function, and talisman config.
 
 ## Phase 0.5: Lore Layer (Risk Intelligence)
 
@@ -186,110 +140,15 @@ Runs BEFORE team creation. Summons `lore-analyst` as a bare Agent (no team yet �
 
 ## Phase 1: Rune Gaze (Scope Selection)
 
-Classify changed files by extension. See [rune-gaze.md](../roundtable-circle/references/rune-gaze.md).
+Classifies changed files by extension → selects Ashes. Custom Ash discovery (agent-backed + CLI-backed) happens here. Phase 1.5 adds UX reviewers when `talisman.ux.enabled` + frontend files detected. `--dry-run` exits after this phase.
 
-```
-for each file in changed_files:
-  - *.py, *.go, *.rs, *.rb, *.java, etc.           → select Forge Warden
-  - *.ts, *.tsx, *.js, *.jsx, etc.                  → select Glyph Scribe
-  - Dockerfile, *.sh, *.sql, *.tf, CI/CD configs    → select Forge Warden (infra)
-  - *.yml, *.yaml, *.json, *.toml, *.ini            → select Forge Warden (config)
-  - *.md (>= 10 lines changed)                      → select Knowledge Keeper
-  - .claude/**/*.md                                  → Knowledge Keeper + Ward Sentinel
-  - Unclassified                                     → Forge Warden (catch-all)
-  - Always: Ward Sentinel, Pattern Weaver, Veil Piercer
-  - CLI-backed: detectAllCLIAshes() from talisman
-  - Agent-backed custom: talisman ashes.custom[] trigger matching (see rune-gaze.md)
-```
-
-Check for project overrides in `.claude/talisman.yml`.
-
-**Custom Ash discovery** happens HERE in Phase 1 (not Phase 3). The Rune Gaze algorithm reads `talisman.yml` → `ashes.custom[]`, validates agent names, matches triggers against `changed_files`, and adds matching custom Ashes to `selectedAsh`. This ensures custom Ashes have tasks created for them in Phase 2 and are spawned in Phase 3. See [rune-gaze.md](../roundtable-circle/references/rune-gaze.md) for the full agent-backed custom Ash discovery algorithm.
-
-### Phase 1.5: UX Reviewer Selection
-
-Conditional UX agent spawning. Gated by `talisman.ux.enabled` AND frontend files detected in `changed_files`.
-
-```javascript
-// UX Reviewer Gate — follows the same pattern as design-implementation-reviewer (rune-gaze.md §4)
-const uxEnabled = talisman?.ux?.enabled === true
-const hasFrontendFiles = changed_files.some(f =>
-  [".tsx", ".jsx", ".vue", ".svelte", ".css", ".scss"].some(ext => f.endsWith(ext))
-)
-
-if (uxEnabled && hasFrontendFiles) {
-  ash_selections.add("ux-heuristic-reviewer")  // UXH-prefixed findings, non-blocking
-
-  // Optional deep UX agents (--deep flag or talisman overrides)
-  if (flags['--deep']) {
-    ash_selections.add("ux-flow-validator")       // UXF-prefixed findings
-    ash_selections.add("ux-interaction-auditor")   // UXI-prefixed findings
-
-    // Cognitive walker: expensive (opus), opt-in only
-    if (talisman?.ux?.cognitive_walkthrough === true) {
-      ash_selections.add("ux-cognitive-walker")    // UXC-prefixed findings
-    }
-  }
-}
-```
-
-**Skip conditions**: `talisman.ux.enabled` is not `true`, or no frontend files in diff.
-
-### Dry-Run Exit Point
-
-If `--dry-run` flag is set, display the plan (file counts per Ash, chunk plan, dedup hierarchy) and stop. Do NOT proceed to Phase 2.
+See [phase-1-rune-gaze.md](references/phase-1-rune-gaze.md) for full classification table, UX gate, and dry-run exit. See [rune-gaze.md](../roundtable-circle/references/rune-gaze.md) for the base algorithm.
 
 ## Phase 2: Forge Team
 
-```javascript
-// 0. Construct session-scoped identifier (prevents team name collision across sessions)
-const gitHash = Bash(`git rev-parse --short HEAD`).trim()
-const shortSession = "${CLAUDE_SESSION_ID}".slice(0, 4)
-const identifier = `${gitHash}-${shortSession}`
-// Result: e.g., "abc1234-a1b2" → team name "rune-review-abc1234-a1b2"
+Creates session-scoped identifier (`{gitHash}-{shortSession}`), writes state file with session isolation, generates inscription.json (diff_scope + context_intelligence + linter_context), runs teamTransition protocol, creates signal dir, and creates one task per Ash.
 
-// 1. Check for concurrent review (tmp/.rune-review-{identifier}.json < 30 min old → abort)
-
-// 2. Create output directory
-Bash("mkdir -p tmp/reviews/{identifier}")
-
-// 3. Write state file with session isolation fields
-const configDir = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
-const ownerPid = Bash(`echo $PPID`).trim()
-Write("tmp/.rune-review-{identifier}.json", {
-  team_name: "rune-review-{identifier}",
-  started: timestamp,
-  status: "active",
-  config_dir: configDir,
-  owner_pid: ownerPid,
-  session_id: "${CLAUDE_SESSION_ID}",
-  expected_files: selectedAsh.map(r => `tmp/reviews/${identifier}/${r}.md`)
-})
-
-// 4. Generate inscription.json — includes diff_scope, context_intelligence, linter_context
-// See roundtable-circle/references/inscription-schema.md
-
-// 5. Pre-create guard: teamTransition protocol (see team-sdk/references/engines.md)
-//    STEP 1: Validate identifier (/^[a-zA-Z0-9_-]+$/)
-//    STEP 2: TeamDelete with retry-with-backoff (3 attempts: 0s, 3s, 8s)
-//    STEP 3: Filesystem fallback if TeamDelete failed (CDX-003 gate: !teamDeleteSucceeded)
-//    STEP 4: TeamCreate with "Already leading" catch-and-recover
-//    STEP 5: Post-create verification (config.json exists)
-
-// 6. Create signal dir for event-driven sync
-const signalDir = `tmp/.rune-signals/rune-review-${identifier}`
-Bash(`mkdir -p "${signalDir}" && find "${signalDir}" -mindepth 1 -delete`)
-Write(`${signalDir}/.expected`, String(selectedAsh.length))
-
-// 7. Create tasks (one per Ash)
-for (const ash of selectedAsh) {
-  TaskCreate({
-    subject: `Review as ${ash}`,
-    description: `Files: [...], Output: tmp/reviews/{identifier}/${ash}.md`,
-    activeForm: `${ash} reviewing...`
-  })
-}
-```
+See [phase-2-forge-team.md](references/phase-2-forge-team.md) for full pseudocode. See [engines.md](../team-sdk/references/engines.md) for teamTransition protocol.
 
 ## Phase 3: Summon Ash
 
@@ -333,52 +192,9 @@ Read and execute [tome-aggregation.md](references/tome-aggregation.md) for the f
 
 ## Phase 7: Cleanup & Echo Persist
 
-```javascript
-// 1. Dynamic teammate discovery from team config
-const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
-let allMembers = []
-try {
-  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
-  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
-  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
-} catch (e) {
-  // FALLBACK: built-in Ashes + runebinder (safe to send shutdown to absent members)
-  allMembers = ["forge-warden", "ward-sentinel", "pattern-weaver", "veil-piercer",
-    "glyph-scribe", "knowledge-keeper", "codex-oracle", "runebinder"]
-}
-for (const member of allMembers) {
-  SendMessage({ type: "shutdown_request", recipient: member, content: "Review complete" })
-}
+Dynamic member discovery → shutdown_request → grace period → TeamDelete with retry-with-backoff (4 attempts) → filesystem fallback → release workflow lock → update state file → persist P1/P2 patterns to echoes → present TOME → auto-mend or interactive prompt.
 
-// 2. Grace period — let teammates deregister before TeamDelete
-if (allMembers.length > 0) {
-  Bash(`sleep 20`)
-}
-
-// 3. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s — CLEANUP_DELAYS: [0, 5000, 10000, 15000])
-//    On failure: process-level kill (SIGTERM→3s→SIGKILL) then filesystem fallback (CHOME pattern)
-
-// 3.5. Release workflow lock
-Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "appraise"`)
-
-// 3.6. Update state file to "completed" (preserve config_dir, owner_pid, session_id)
-
-// 4. Persist P1/P2 patterns to .claude/echoes/reviewer/MEMORY.md (if exists)
-
-// 5. Read and present TOME.md to user
-
-// 6. Auto-mend or interactive prompt based on findings
-const autoMend = flags['--auto-mend'] || (talisman?.review?.auto_mend === true)
-if (totalFindings > 0 && autoMend) {
-  Skill("rune:mend", `tmp/reviews/${identifier}/TOME.md`)
-} else if (totalFindings > 0) {
-  AskUserQuestion({
-    options: ["/rune:mend (Recommended)", "Review TOME manually", "/rune:rest"]
-  })
-} else {
-  log("No P1/P2 findings. Codebase looks clean.")
-}
-```
+See [phase-7-cleanup.md](references/phase-7-cleanup.md) for full pseudocode.
 
 ## Error Handling
 

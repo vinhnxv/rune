@@ -107,6 +107,15 @@ for (const { inspector, taskId, reqIds } of tasks) {
 }
 ```
 
+### Communication Protocol for Inspector Ashes
+
+All Inspector Ashes follow this communication protocol:
+- **Heartbeat**: Send "Starting: inspecting {dimensions}" via SendMessage after claiming task.
+- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Review Seal format (see team-sdk/references/seal-protocol.md).
+- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+- **Recipient**: Always use recipient: "team-lead".
+- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).
+
 ### --focus Mode: Single Inspector
 
 When `--focus` is active, only 1 inspector is summoned:

@@ -348,3 +348,10 @@ If a chunk TOME is missing (timeout or error):
 | `{completed_count}` | Ash that finished | `4` |
 | `{summoned_count}` | Ash that were summoned | `5` |
 | `{PREFIX}` | Finding ID prefix per Ash (SEC, BACK, DOC, QUAL, FRONT, CDX) | `SEC` |
+
+## Communication Protocol
+
+- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Review Seal format (see team-sdk/references/seal-protocol.md).
+- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+- **Recipient**: Always use recipient: "team-lead".
+- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).

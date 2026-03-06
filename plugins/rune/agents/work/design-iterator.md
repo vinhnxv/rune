@@ -350,6 +350,13 @@ Seal: task #{id} done. Iterations: {N}/{max}. Status: {converged|max_reached|blo
 - No unblocked tasks: wait 30s, retry 3x, idle notification
 - Shutdown request: approve immediately
 
+## Communication Protocol
+- **Heartbeat**: Send "Starting: iteration {N}" via SendMessage after claiming task.
+- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Work Seal format (see team-sdk/references/seal-protocol.md).
+- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+- **Recipient**: Always use recipient: "team-lead".
+- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).
+
 ## RE-ANCHOR — TRUTHBINDING REMINDER
 
 Make one change at a time. Verify each change. Do not combine multiple fixes in a single iteration. If unsure about a fix, revert and try a different approach. Your goal is measurable, incremental improvement toward the design specification.

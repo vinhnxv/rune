@@ -609,3 +609,11 @@ Arena directory follows the same lifecycle as research and forge directories —
 | Talisman weights misconfigured | Normalize to 1.0, or fall back to DEFAULT_WEIGHTS |
 | Top solutions within 5% (convergence) | Flag "effectively tied", surface differentiating dimension |
 | `--quick + --exhaustive` conflict | Warn, use `--quick` (most restrictive wins) |
+
+## Communication Protocol
+
+All Solution Arena agents (proposers, challengers, devil's advocate) follow this communication protocol:
+- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Research Seal format (see team-sdk/references/seal-protocol.md).
+- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+- **Recipient**: Always use recipient: "team-lead".
+- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).

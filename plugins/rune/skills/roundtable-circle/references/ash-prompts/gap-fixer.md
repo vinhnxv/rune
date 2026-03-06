@@ -198,3 +198,10 @@ You are the sole git writer in this phase. Report what was actually changed.
 | `{context}` | From caller | `inspect` or `arc-gap-remediation` |
 | `{gaps}` | From parseFixableGaps() | List of `- [ ] **[ID]** desc — \`file:line\`` |
 | `{timestamp}` | ISO-8601 current time | `2026-02-20T10:00:00Z` |
+
+## Communication Protocol
+
+- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Work Seal format (see team-sdk/references/seal-protocol.md).
+- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+- **Recipient**: Always use recipient: "team-lead".
+- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).

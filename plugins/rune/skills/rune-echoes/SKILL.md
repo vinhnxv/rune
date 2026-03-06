@@ -98,115 +98,23 @@ See [entry-examples.md](references/entry-examples.md) for the full set of exampl
 
 ## Multi-Factor Pruning Algorithm
 
-When MEMORY.md exceeds 150 lines, calculate Echo Score for each entry:
-
-```
-Echo Score = (Importance × 0.4) + (Relevance × 0.3) + (Recency × 0.3)
-
-Where:
-  Importance = layer weight (etched=1.0, notes=0.9, inscribed=0.7, observations=0.5, traced=0.3)
-  Relevance  = times referenced in recent workflows / total workflows (0.0-1.0)
-  Recency    = 1.0 - (days_since_verified / max_age_for_layer)
-```
-
-### Pruning Rules
-
-- **Etched**: Score locked at 1.0 — never pruned automatically
-- **Notes**: Score locked at 0.9 — never auto-pruned (user-created = permanent)
-- **Inscribed**: Archive if score < 0.3 AND age > 90 days unreferenced
-- **Observations**: Auto-prune when days_since_last_access > 60 (EDGE-025). Auto-promote to Inscribed when access_count >= 3
-- **Traced**: Archive if score < 0.2 AND age > 30 days
-- Prune ONLY between workflows, never during active phases
-- Always backup before pruning: copy MEMORY.md to `archive/MEMORY-{date}.md`
-
-### Active Context Compression
-
-When a role's `knowledge.md` exceeds 300 lines:
-1. Group related entries by topic
-2. Compress each group into a "knowledge block" (3-5 line summary)
-3. Preserve evidence references but remove verbose descriptions
-4. Expected savings: ~22% token reduction
+Echo Score = `(Importance × 0.4) + (Relevance × 0.3) + (Recency × 0.3)`. Etched/Notes never pruned. Inscribed archives at score < 0.3 + 90 days. Observations auto-prune at 60 days, auto-promote after 3 references. Traced archives at score < 0.2 + 30 days. Prune only between workflows. Active context compression at 300 lines in `knowledge.md`.
 
 ## Concurrent Write Protocol
 
-Multiple Ash may discover learnings simultaneously. To prevent write conflicts:
+Each Ash writes to `{agent-name}-findings.md` (unique per agent). Tarnished consolidates post-workflow into MEMORY.md. Cross-role learnings → `team/MEMORY.md` only.
 
-1. **During workflow**: Each Ash writes to `.claude/echoes/{role}/{agent-name}-findings.md` (unique file per agent)
-2. **Post-workflow**: The Tarnished consolidates all `{agent-name}-findings.md` into `.claude/echoes/{role}/MEMORY.md`
-3. **Cross-role learnings**: Only lead writes to `.claude/echoes/team/MEMORY.md`
-4. **Consolidation protocol**: Read existing MEMORY.md → append new entries → check 150-line limit → prune if needed → write
-
-### Write Protocol Steps
-
-```
-1. Read .claude/echoes/{role}/MEMORY.md (or create if missing)
-2. Read all .claude/echoes/{role}/*-findings.md files
-3. For each finding:
-   a. Check if it duplicates an existing entry (same evidence + pattern)
-   b. If duplicate: update verified date and confidence (higher wins)
-   c. If new: append with entry format
-4. If MEMORY.md > 150 lines: run pruning algorithm
-5. Write updated MEMORY.md
-6. Delete processed *-findings.md files
-```
+See [pruning-and-write-protocol.md](references/pruning-and-write-protocol.md) for full scoring formula, pruning rules, compression algorithm, and write protocol steps.
 
 ## Security
 
-### Sensitive Data Filter
-
-Before persisting any echo entry, reject if content matches:
-
-```
-Patterns to reject:
-- API keys: /[A-Za-z0-9_-]{20,}/ in context suggesting key/token
-- Passwords: /password\s*[:=]\s*\S+/i
-- Tokens: /bearer\s+[A-Za-z0-9._-]+/i
-- Connection strings: /[a-z]+:\/\/[^:]+:[^@]+@/
-- Email addresses in evidence (unless the learning IS about email handling)
-```
-
-If a finding triggers the filter, persist the learning but strip the sensitive evidence.
-
-### Default Exclusion
-
-`.gitignore` excludes `.claude/echoes/` by default. Users opt-in to version control:
-
-```yaml
-# .claude/talisman.yml
-echoes:
-  version_controlled: true  # Remove .claude/echoes/ from .gitignore
-```
+Sensitive data filter rejects API keys, passwords, tokens, connection strings before persisting. `.gitignore` excludes `.claude/echoes/` by default — opt-in via `echoes.version_controlled: true`.
 
 ## Integration Points
 
-### After Review (`/rune:appraise`)
+Echoes integrate with all major workflows: appraise (P1/P2 → reviewer/), audit (→ auditor/), devise (echo-reader → planner/), strive (→ workers/).
 
-In Phase 7 (Cleanup), before presenting TOME.md:
-
-```
-1. Read TOME.md for high-confidence patterns (P1/P2 findings)
-2. Convert recurring patterns to Inscribed entries
-3. Write to .claude/echoes/reviewer/MEMORY.md via consolidation protocol
-```
-
-### After Audit (`/rune:audit`)
-
-Same as review, writing to `.claude/echoes/auditor/MEMORY.md`.
-
-### During Plan (`/rune:devise`, v1.0)
-
-```
-1. echo-reader agent reads .claude/echoes/planner/MEMORY.md + .claude/echoes/team/MEMORY.md
-2. Surfaces relevant past learnings for current feature
-3. After plan: persist architectural discoveries to .claude/echoes/planner/
-```
-
-### During Work (`/rune:strive`, v1.0)
-
-```
-1. Read .claude/echoes/workers/MEMORY.md for implementation patterns
-2. After work: persist TDD patterns, gotchas to .claude/echoes/workers/
-```
+See [security-and-integration.md](references/security-and-integration.md) for sensitive data patterns, exclusion config, and per-workflow integration protocols.
 
 ## Auto-Observation Recording (Automated)
 
@@ -249,88 +157,11 @@ Remembrance is a parallel knowledge axis alongside Echoes. While Echoes are agen
 
 See [remembrance-promotion.md](references/remembrance-promotion.md) for the full promotion rules, directory structure, and decision tree.
 
-### YAML Frontmatter Schema
+### YAML Frontmatter Schema + Commands
 
-Remembrance documents use structured YAML frontmatter. See [remembrance-schema.md](references/remembrance-schema.md) for the full schema specification.
+Remembrance docs use structured YAML frontmatter with `echo_ref` cross-referencing (SHA-256 content hash). Commands: `remember` (Notes entry), `remembrance` (query), `promote` (echo → Remembrance), `migrate` (RENAME-2 stale name updates).
 
-**Required fields**: `title`, `category`, `tags`, `date`, `symptom`, `root_cause`, `solution_summary`, `confidence`, `verified_by`
-
-**Key fields:**
-
-```yaml
----
-title: "Descriptive title of the problem and solution"
-category: architecture        # one of the 8 categories
-tags: [n-plus-one, eager-loading]
-date: 2026-02-12
-symptom: "User list endpoint takes 5+ seconds"
-root_cause: "N+1 query pattern in user.posts association"
-solution_summary: "Added includes(:posts) to User.list scope"
-echo_ref: ".claude/echoes/reviewer/MEMORY.md#etched-004@sha256:a1b2c3..."  # cross-ref with content hash
-confidence: high              # high | medium
-verified_by: human            # human | agent — REQUIRED for security category
-requires_human_approval: false
----
-```
-
-The `echo_ref` field uses format `{echo_path}#{entry_id}@sha256:{hash}` to cross-reference version-controlled Remembrance to non-version-controlled echoes. The promotion process MUST compute and store the SHA-256 hash.
-
-## Agent Awareness
-
-Before implementing fixes, agents SHOULD check `docs/solutions/` for existing solutions to the problem at hand. This avoids re-discovering known solutions and ensures consistency.
-
-### Remembrance Commands
-
-The `/rune:echoes` command includes Notes and Remembrance subcommands:
-
-```
-/rune:echoes remember <text>                   # Create a Notes entry (user-explicit memory)
-/rune:echoes remembrance [category|search]     # Query Remembrance documents
-/rune:echoes promote <echo-ref> --category <cat>  # Promote echo to Remembrance
-/rune:echoes migrate                           # Migrate echoes with old naming
-```
-
-**remember** — Create a Notes entry from user-provided text. Writes to `.claude/echoes/notes/MEMORY.md` (creates directory and file on demand). Notes are user-explicit memories that agents should always respect. They are never auto-pruned.
-
-**Protocol:**
-1. Read `.claude/echoes/notes/MEMORY.md` (or create with `<!-- echo-schema: v1 -->` header if missing)
-2. Generate H2 entry: `## Notes — <title> (YYYY-MM-DD)` where title is extracted or summarized from user text
-3. Add `**Source**: user:remember` metadata line
-4. Append user-provided content as the entry body
-5. Write back to `.claude/echoes/notes/MEMORY.md`
-6. Confirm to user what was remembered
-
-**Examples:**
-```
-/rune:echoes remember always use bun instead of npm
-/rune:echoes remember the auth service requires Redis to be running locally
-/rune:echoes remember PR reviews should check for N+1 queries in service layers
-```
-
-**remembrance** — Query existing Remembrance documents by category or search term. Returns matching documents with their frontmatter metadata.
-
-**promote** — Promote an ETCHED echo to a Remembrance document. Validates promotion rules, computes content hash for `echo_ref`, checks for duplicates, and writes to `docs/solutions/{category}/`. For security category, prompts for human verification via `AskUserQuestion`.
-
-**migrate** — Scans `.claude/echoes/` and updates old agent/concept names to current terminology (RENAME-2). Useful after version upgrades that rename agents or concepts.
-
-## Echo Migration (RENAME-2)
-
-When agent or concept names change across versions, existing echoes may reference stale names. The `migrate` subcommand handles this:
-
-```
-/rune:echoes migrate
-```
-
-**Steps:**
-1. Scan all `.claude/echoes/**/*.md` files
-2. Build a rename map from old names to new names
-3. Apply renames to entry metadata (source, evidence references)
-4. Report changes made
-
-**Safety:**
-- Backup all modified files before renaming
-- Only rename in metadata fields, not in learning content
-- Report all changes for user review
+See [remembrance-commands.md](references/remembrance-commands.md) for full schema, command protocols, examples, and migration steps. See [remembrance-schema.md](references/remembrance-schema.md) for the complete YAML spec.
 
 ## Commands
 

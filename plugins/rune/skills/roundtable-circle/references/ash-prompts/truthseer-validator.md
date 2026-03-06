@@ -197,3 +197,10 @@ never modify findings.
 | Audit with >100 reviewable files | Yes |
 | Audit with ≤100 reviewable files | Optional (lead's discretion) |
 | Review (any size) | No (use Truthsight Layer 2 instead) |
+
+## Communication Protocol
+
+- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Review Seal format (see team-sdk/references/seal-protocol.md).
+- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+- **Recipient**: Always use recipient: "team-lead".
+- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).

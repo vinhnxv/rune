@@ -445,6 +445,15 @@ updateCheckpoint({
 })
 ```
 
+## Communication Protocol
+
+All agents spawned within chunked review follow this communication protocol:
+- **Heartbeat**: Send "Starting: reviewing chunk {N}" via SendMessage after claiming task.
+- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Review Seal format (see team-sdk/references/seal-protocol.md).
+- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+- **Recipient**: Always use recipient: "team-lead".
+- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).
+
 ## References
 
 - [Chunk Scoring](chunk-scoring.md) — `scoreFile`, `groupIntoChunks`, security pins
