@@ -52,18 +52,18 @@
     {
       "id": 4,
       "prompt": "Explain the Solution Arena phase (1.8) in detail. When does it run vs skip? What are the 4 sub-steps (1.8A through 1.8D)? How does the recovery protocol work if all solutions are killed? What is the complexity gate?",
-      "expected_output": "Solution Arena analysis: Skip conditions: --quick, --no-arena, bug fixes, high-confidence refactors (confidence >= 0.9), sparse research (<2 viable approaches). 4 sub-steps: 1.8A GENERATE — create competing solutions from research; 1.8B EVALUATE — score on weighted dimensions; 1.8C CHALLENGE — adversarial agents attack solutions; 1.8D SELECT — present decision matrix for approach selection. Recovery protocol: if all solutions killed, relax constraints and re-evaluate. Complexity gate: Arena checks if complexity score >= 0.65 to justify multi-solution evaluation; below threshold may skip to synthesize directly. Output: arena-selection.md with winning solution and rationale.",
+      "expected_output": "Solution Arena analysis: Skip conditions: --quick, --no-arena, bug fixes, high-confidence refactors (confidence >= 0.9), sparse research (<2 viable approaches). 4 sub-steps: 1.8A COMPLEXITY GATE + GENERATE — check skip conditions, then create 2-5 competing solutions from research; 1.8B CHALLENGE — adversarial agents (Devil's Advocate, Innovation Scout) attack solutions; 1.8C CONSOLIDATE & SCORE — build weighted evaluation matrix on 6 dimensions; 1.8D SELECT — present decision matrix for user approach selection. Recovery protocol: if all solutions killed, offer (a) proceed with least-flawed, (b) return to research (max 1 retry), or (c) abandon feature. Complexity gate: evaluated at start of 1.8A to determine if Arena should run based on skip conditions. Output: arena-selection.md with winning solution and rationale.",
       "files": [],
       "expectations": [
         "Lists skip conditions: --quick, --no-arena, bug fixes, high-confidence refactors, sparse research",
         "Notes high-confidence threshold is >= 0.9",
         "Notes sparse research threshold is <2 viable approaches",
-        "Describes 1.8A GENERATE: create competing solutions from research",
-        "Describes 1.8B EVALUATE: score on weighted dimensions",
-        "Describes 1.8C CHALLENGE: adversarial agents attack solutions",
-        "Describes 1.8D SELECT: present decision matrix for approach selection",
-        "Explains recovery protocol: relax constraints, re-evaluate",
-        "Mentions complexity gate at 0.65 threshold",
+        "Describes 1.8A: Complexity gate check + generate competing solutions from research",
+        "Describes 1.8B CHALLENGE: adversarial agents (Devil's Advocate, Innovation Scout) attack solutions",
+        "Describes 1.8C CONSOLIDATE & SCORE: build weighted evaluation matrix on 6 dimensions",
+        "Describes 1.8D SELECT: present decision matrix for user approach selection",
+        "Explains recovery protocol: proceed with least-flawed, return to research (max 1 retry), or abandon",
+        "Mentions complexity gate is evaluated at start of 1.8A",
         "Notes output is arena-selection.md"
       ]
     },
@@ -219,7 +219,7 @@
     {
       "id": 15,
       "prompt": "Explain how plan output filenames are generated. What is the naming convention? Give examples for different feature types. What happens when a plan is shattered?",
-      "expected_output": "Plan filename convention: plans/YYYY-MM-DD-{type}-{feature-name}-plan.md. Types: feat, fix, refactor, docs, test, chore. Examples: plans/2026-02-12-feat-user-authentication-plan.md, plans/2026-02-12-fix-checkout-race-condition-plan.md, plans/2026-02-12-refactor-api-client-plan.md. Shattered plans: plans/YYYY-MM-DD-{type}-{feature-name}-shard-N-plan.md for horizontal shards, or parent plan with children/ subdirectory for hierarchical decomposition. The feature name is slugified from the user's description.",
+      "expected_output": "Plan filename convention: plans/YYYY-MM-DD-{type}-{feature-name}-plan.md. Types: feat, fix, refactor, docs, test, chore. Examples: plans/2026-02-12-feat-user-authentication-plan.md, plans/2026-02-12-fix-checkout-race-condition-plan.md, plans/2026-02-12-refactor-api-client-plan.md. Shattered plans: plans/YYYY-MM-DD-{type}-{feature-name}-shard-N-{phase-name}-plan.md for horizontal shards (independent execution via /rune:strive), or parent plan with children/ subdirectory containing child plans (e.g., plans/children/YYYY-MM-DD-{type}-{name}-child-N-{phase-slug}-plan.md) for hierarchical decomposition (executed via /rune:arc-hierarchy). The feature name is slugified from the user's description.",
       "files": [],
       "expectations": [
         "States the filename pattern: YYYY-MM-DD-{type}-{feature-name}-plan.md",
