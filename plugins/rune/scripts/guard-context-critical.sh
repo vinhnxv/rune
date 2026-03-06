@@ -221,7 +221,38 @@ if [[ "$REM_INT" -gt "$CRITICAL_THRESHOLD" ]]; then
   exit 0
 fi
 
-# --- DENY: Context at critical level ---
+# --- Rune workflow scope check ---
+# Only hard-deny TeamCreate/Agent for Rune agents during active Rune workflows.
+# Non-Rune agents from other plugins pass through even at critical context.
+# Source shared registry for is_known_rune_agent().
+SCRIPT_DIR_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+if [[ -f "${SCRIPT_DIR_LIB}/lib/known-rune-agents.sh" ]]; then
+  # shellcheck source=lib/known-rune-agents.sh
+  source "${SCRIPT_DIR_LIB}/lib/known-rune-agents.sh"
+fi
+
+# For Agent/Task calls: check if the agent name is a known Rune agent.
+# If not a Rune agent, allow through (other plugins can manage their own context).
+# TeamCreate is always checked (could create a Rune team — but we add a name check).
+if [[ "$TOOL_NAME" == "Task" || "$TOOL_NAME" == "Agent" ]]; then
+  CTX_AGENT_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.name // empty' 2>/dev/null || true)
+  if [[ -n "$CTX_AGENT_NAME" ]] && type -t is_known_rune_agent &>/dev/null; then
+    if ! is_known_rune_agent "$CTX_AGENT_NAME"; then
+      exit 0  # Non-Rune agent — allow even at critical context
+    fi
+  fi
+fi
+
+# For TeamCreate: check if the team name starts with "rune-" prefix.
+# Non-Rune teams pass through — other plugins manage their own lifecycle.
+if [[ "$TOOL_NAME" == "TeamCreate" ]]; then
+  CTX_TEAM_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.team_name // empty' 2>/dev/null || true)
+  if [[ -n "$CTX_TEAM_NAME" && ! "$CTX_TEAM_NAME" =~ ^rune- ]]; then
+    exit 0  # Non-Rune team — allow even at critical context
+  fi
+fi
+
+# --- DENY: Context at critical level (Rune workflow confirmed) ---
 USED_PCT=$(( 100 - REM_INT ))
 
 # --- Force Shutdown Signal: Write signal file for orchestrator emergency shutdown ---

@@ -3,9 +3,16 @@
 ## [1.141.1] - 2026-03-07
 
 ### Fixed
+- **Hook scope isolation** — `enforce-teams.sh` (ATE-1) and `guard-context-critical.sh` (CTX-GUARD-001) now scope enforcement to Rune agents only. Non-Rune agents from other plugins pass through unblocked during active Rune workflows
+- **Shared agent registry** — Extract `KNOWN_RUNE_AGENTS` into `scripts/lib/known-rune-agents.sh` (single source of truth, sourced by both hooks). Adds `is_known_rune_agent()` helper with compound suffix support (`-inspect`, `-plan-review`, `-deep`)
+- **Agent registry sync** — Add 3 missing agents (`codex-oracle`, `shard-reviewer`, `verdict-binder`) to registry. Total: 121 base names + suffix matching
 - **XXE fallback warning** — `figma_desktop_bridge.py` now logs a warning when `defusedxml` is not installed, making the silent fallback to stdlib ET visible to operators
 - **Bridge file path consistency** — Updated `rune-statusline.sh` and `guard-context-critical.sh` to use `${TMPDIR:-/tmp}` for bridge file paths, matching the cleanup path in `on-session-stop.sh`. Prevents orphaned bridge files on macOS where `$TMPDIR` differs from `/tmp`
 - **Audit finding resolutions** — 1 P1 XXE fix (defusedxml with warning), 4 P2 security hardening (field regex validation, printf over echo, nullglob scoping, TMPDIR consistency), 2 P3 improvements (Optional import, TMPDIR bridge path)
+
+### Added
+- **`scripts/audit-agent-registry.sh`** — Validates registry stays in sync with `agents/**/*.md`, `specialist-prompts/*.md`, and `ash-prompts/*.md`. Understands suffix-matched compound names
+- **New test cases** — 7 new tests for enforce-teams.sh (non-Rune exemption, Rune still blocked, unnamed blocked, suffix variants), 4 new tests for guard-context-critical.sh (non-Rune TeamCreate/Agent allowed at critical)
 
 ## [1.141.0] - 2026-03-07
 

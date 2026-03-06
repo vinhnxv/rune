@@ -86,6 +86,17 @@ fi
 CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || { exit 0; }
 if [[ -z "$CWD" || "$CWD" != /* ]]; then exit 0; fi
 
+# ── Early AGENT_NAME extraction (before workflow detection) ──
+# Extract agent name once — reused by non-Rune exemption and Signal 4.
+AGENT_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.name // empty' 2>/dev/null || true)
+
+# ── Source shared agent registry ──
+SCRIPT_DIR_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "${SCRIPT_DIR_LIB}/lib/known-rune-agents.sh" ]]; then
+  # shellcheck source=lib/known-rune-agents.sh
+  source "${SCRIPT_DIR_LIB}/lib/known-rune-agents.sh"
+fi
+
 # Check for active Rune workflows
 # NOTE: File-based state detection has inherent TOCTOU window (SEC-3). A workflow
 # could start between this check and the Task executing. Claude Code processes tool
@@ -281,14 +292,12 @@ fi
 # even if no state file, inscription, or signal dir exists.
 # IMPORTANT: This signal does NOT set detected_team_name (we don't know which team).
 # It only activates the ATE-1 block so the deny message can guide team creation.
+# Uses AGENT_NAME extracted early (before workflow detection) and shared registry
+# from lib/known-rune-agents.sh. Supports numbered (-1, -2) and named (-deep,
+# -exhaustive) suffixes via is_known_rune_agent().
 if [[ -z "$active_workflow" ]]; then
-  AGENT_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.name // empty' 2>/dev/null || true)
-  if [[ -n "$AGENT_NAME" ]]; then
-    # Known Rune agent names — review, work, research, utility categories
-    # Maintained as a simple grep pattern for O(1) matching (~0.5ms)
-    # Source of truth: references/agent-registry.md
-    KNOWN_RUNE_AGENTS="aesthetic-quality-reviewer|agent-parity-reviewer|api-contract-tracer|assumption-slayer|axum-reviewer|blight-seer|breach-hunter|business-logic-tracer|codex-arena-judge|codex-plan-reviewer|codex-researcher|condenser-gap|condenser-plan|condenser-verdict|condenser-work|config-dependency-tracer|cross-shard-sentinel|data-layer-tracer|ddd-reviewer|decay-tracer|decree-arbiter|decree-auditor|deployment-verifier|depth-seer|design-analyst|design-implementation-reviewer|design-inventory-agent|design-iterator|design-sync-agent|design-system-compliance-reviewer|di-reviewer|django-reviewer|doubt-seer|e2e-browser-tester|echo-reader|elicitation-sage|ember-oracle|ember-seer|entropy-prophet|event-message-tracer|evidence-verifier|extended-test-runner|fastapi-reviewer|flaw-hunter|flow-seer|forge-keeper|forge-warden|fringe-watcher|gap-fixer|git-miner|glyph-scribe|goldmask-coordinator|grace-warden|horizon-sage|hypothesis-investigator|integration-test-runner|knowledge-keeper|laravel-reviewer|lore-analyst|lore-scholar|mend-fixer|mimic-detector|naming-intent-analyzer|order-auditor|pattern-seer|pattern-weaver|phantom-checker|php-reviewer|practice-seeker|python-reviewer|reality-arbiter|refactor-guardian|reference-validator|repo-surveyor|research-verifier|rot-seeker|ruin-prophet|ruin-watcher|rune-architect|rune-smith|runebinder|rust-reviewer|schema-drift-detector|scroll-reviewer|senior-engineer-reviewer|sight-oracle|signal-watcher|simplicity-warden|sqlalchemy-reviewer|state-weaver|storybook-fixer|storybook-reviewer|strand-tracer|tdd-compliance-reviewer|test-failure-analyst|test-runner|tide-watcher|todo-verifier|tome-digest|trial-forger|trial-oracle|truth-seeker|truthseer-validator|type-warden|typescript-reviewer|unit-test-runner|ux-cognitive-walker|ux-flow-validator|ux-heuristic-reviewer|ux-interaction-auditor|ux-pattern-analyzer|veil-piercer|veil-piercer-plan|vigil-keeper|void-analyzer|ward-sentinel|wisdom-sage|wraith-finder"
-    if printf '%s\n' "$AGENT_NAME" | grep -qE "^(${KNOWN_RUNE_AGENTS})(-[0-9]+)?$"; then
+  if [[ -n "$AGENT_NAME" ]] && type -t is_known_rune_agent &>/dev/null; then
+    if is_known_rune_agent "$AGENT_NAME"; then
       active_workflow=1
       detected_team_name=""
       detected_source="agent-name"
@@ -299,6 +308,19 @@ fi
 # No active workflow — allow all Agent/Task calls
 if [[ -z "$active_workflow" ]]; then
   exit 0
+fi
+
+# ── Non-Rune agent exemption ──
+# If the Agent call uses a name that is NOT a known Rune agent, allow it through.
+# This enables other plugins (and user-defined agents) to coexist with Rune
+# workflows without being blocked by ATE-1 enforcement.
+# Named agents only — unnamed bare Agent calls are still blocked (could be Rune).
+if [[ -n "$AGENT_NAME" ]]; then
+  if type -t is_known_rune_agent &>/dev/null; then
+    if ! is_known_rune_agent "$AGENT_NAME"; then
+      exit 0
+    fi
+  fi
 fi
 
 # Active workflow detected — verify Agent/Task input includes team_name

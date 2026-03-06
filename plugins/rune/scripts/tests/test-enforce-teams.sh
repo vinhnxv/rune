@@ -348,19 +348,53 @@ assert_contains "Signal 4: goldmask-coordinator detected" "ATE-1" "$output"
 rm -rf "$SIGNAL4_CWD"
 
 # ═══════════════════════════════════════════════════════════════
-# 9. Edge cases
+# 9. Non-Rune agent exemption (hook scope isolation)
+# ═══════════════════════════════════════════════════════════════
+printf "\n=== Non-Rune Agent Exemption ===\n"
+
+# 9a. Non-Rune named agent allowed during active Rune workflow
+result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$ACTIVECWD\", \"tool_input\": {\"name\": \"my-custom-plugin-agent\", \"subagent_type\": \"general-purpose\", \"prompt\": \"Do work\"}}")
+exit_code=$(get_exit_code "$result")
+output=$(get_output "$result")
+assert_eq "Non-Rune agent exits 0" "0" "$exit_code"
+assert_not_contains "Non-Rune agent not blocked" "ATE-1" "$output"
+
+# 9b. Known Rune agent still blocked during active Rune workflow
+result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$ACTIVECWD\", \"tool_input\": {\"name\": \"ward-sentinel\", \"subagent_type\": \"general-purpose\", \"prompt\": \"Review code\"}}")
+output=$(get_output "$result")
+assert_contains "Rune agent still blocked" "ATE-1" "$output"
+
+# 9c. Unnamed bare Agent call still blocked (could be Rune)
+result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$ACTIVECWD\", \"tool_input\": {\"subagent_type\": \"general-purpose\", \"prompt\": \"Do work\"}}")
+output=$(get_output "$result")
+assert_contains "Unnamed agent still blocked" "ATE-1" "$output"
+
+# 9d. Non-Rune agent with numbered suffix also allowed
+result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$ACTIVECWD\", \"tool_input\": {\"name\": \"external-code-checker-2\", \"subagent_type\": \"general-purpose\", \"prompt\": \"Check code\"}}")
+exit_code=$(get_exit_code "$result")
+output=$(get_output "$result")
+assert_eq "Non-Rune numbered agent exits 0" "0" "$exit_code"
+assert_not_contains "Non-Rune numbered agent not blocked" "ATE-1" "$output"
+
+# 9e. Rune agent with named suffix still blocked (e.g., rot-seeker-deep)
+result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$ACTIVECWD\", \"tool_input\": {\"name\": \"rot-seeker-deep\", \"subagent_type\": \"general-purpose\", \"prompt\": \"Deep review\"}}")
+output=$(get_output "$result")
+assert_contains "Rune agent with named suffix still blocked" "ATE-1" "$output"
+
+# ═══════════════════════════════════════════════════════════════
+# 10. Edge cases
 # ═══════════════════════════════════════════════════════════════
 printf "\n=== Edge Cases ===\n"
 
-# 9a. Empty stdin
+# 10a. Empty stdin
 result=$(printf '' | bash "$ENFORCE_SCRIPT" 2>/dev/null; echo $?)
 assert_eq "Empty stdin exits 0" "0" "$result"
 
-# 9b. Invalid JSON
+# 10b. Invalid JSON
 result=$(printf 'garbage' | bash "$ENFORCE_SCRIPT" 2>/dev/null; echo $?)
 assert_eq "Invalid JSON exits 0" "0" "$result"
 
-# 9c. Missing tool_input
+# 10c. Missing tool_input
 result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$ACTIVECWD\"}")
 output=$(get_output "$result")
 # Missing tool_input means HAS_TEAM_NAME will be "no" → deny

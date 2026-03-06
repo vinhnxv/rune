@@ -269,7 +269,56 @@ result=$(echo "$BAD_INPUT" | CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" 
 assert_eq "Invalid session ID → exit 0" "0" "$result_code"
 
 # ═══════════════════════════════════════════════════════════════
-# 11. Teammate bypass
+# 11. Non-Rune scope isolation (hook scope isolation)
+# ═══════════════════════════════════════════════════════════════
+printf "\n=== Non-Rune Scope Isolation ===\n"
+
+# 11a. Non-Rune TeamCreate allowed at critical context
+create_bridge 20
+NONRUNE_TEAM_INPUT=$(jq -n \
+  --arg tool "TeamCreate" \
+  --arg cwd "$MOCK_CWD" \
+  --arg sid "$SESSION_ID" \
+  '{tool_name: $tool, tool_input: {team_name: "other-plugin-team-123", subagent_type: "general-purpose"}, cwd: $cwd, session_id: $sid}')
+result=$(echo "$NONRUNE_TEAM_INPUT" | CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" 2>/dev/null)
+assert_eq "Non-Rune TeamCreate at critical → no deny" "" "$result"
+cleanup_bridge
+
+# 11b. Rune TeamCreate still denied at critical context
+create_bridge 20
+RUNE_TEAM_INPUT=$(jq -n \
+  --arg tool "TeamCreate" \
+  --arg cwd "$MOCK_CWD" \
+  --arg sid "$SESSION_ID" \
+  '{tool_name: $tool, tool_input: {team_name: "rune-review-abc123", subagent_type: "general-purpose"}, cwd: $cwd, session_id: $sid}')
+result=$(echo "$RUNE_TEAM_INPUT" | CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" 2>/dev/null)
+assert_contains "Rune TeamCreate at critical → deny" '"permissionDecision": "deny"' "$result"
+cleanup_bridge
+
+# 11c. Non-Rune Agent allowed at critical context
+create_bridge 20
+NONRUNE_AGENT_INPUT=$(jq -n \
+  --arg tool "Agent" \
+  --arg cwd "$MOCK_CWD" \
+  --arg sid "$SESSION_ID" \
+  '{tool_name: $tool, tool_input: {name: "external-linter-agent", subagent_type: "general-purpose"}, cwd: $cwd, session_id: $sid}')
+result=$(echo "$NONRUNE_AGENT_INPUT" | CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" 2>/dev/null)
+assert_eq "Non-Rune Agent at critical → no deny" "" "$result"
+cleanup_bridge
+
+# 11d. Known Rune Agent still denied at critical context
+create_bridge 20
+RUNE_AGENT_INPUT=$(jq -n \
+  --arg tool "Agent" \
+  --arg cwd "$MOCK_CWD" \
+  --arg sid "$SESSION_ID" \
+  '{tool_name: $tool, tool_input: {name: "ward-sentinel", subagent_type: "general-purpose"}, cwd: $cwd, session_id: $sid}')
+result=$(echo "$RUNE_AGENT_INPUT" | CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" 2>/dev/null)
+assert_contains "Rune Agent at critical → deny" '"permissionDecision": "deny"' "$result"
+cleanup_bridge
+
+# ═══════════════════════════════════════════════════════════════
+# 12. Teammate bypass
 # ═══════════════════════════════════════════════════════════════
 printf "\n=== Teammate Bypass ===\n"
 
