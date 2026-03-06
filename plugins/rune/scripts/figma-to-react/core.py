@@ -813,9 +813,11 @@ async def _resolve_image_urls(
 
     if image_refs:
         try:
-            image_urls = await _get_images_with_retry(
+            raw_image_urls = await _get_images_with_retry(
                 client, file_key, list(image_refs),
             )
+            # Filter out None values — failed exports return None
+            image_urls = {k: v for k, v in raw_image_urls.items() if v is not None}
         except FigmaAPIError:
             logger.warning("Failed to resolve image URLs — using placeholders")
 

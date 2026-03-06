@@ -212,3 +212,11 @@ const sanitized = (raw || '')
   // Phase 5: Enforce length cap AFTER all sanitization (prevents pre-strip bloat bypass)
   .slice(0, 2000)
 ```
+
+## Communication Protocol
+
+All brainstorm advisors follow this communication protocol:
+- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Research Seal format (see team-sdk/references/seal-protocol.md).
+- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+- **Recipient**: Always use recipient: "team-lead".
+- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).

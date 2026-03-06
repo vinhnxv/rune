@@ -243,6 +243,13 @@ SEAL: {
 - If partial output exists: use whatever was verified, note incomplete coverage
 - If no output: fallback to Layer 0 results only, flag for human review
 
+## Communication Protocol
+
+- **Seal**: On completion, send Seal via SendMessage with Research Seal format (see team-sdk/references/seal-protocol.md).
+- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+- **Recipient**: Always use recipient: "team-lead".
+- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).
+
 ## References
 
 - [Inscription Protocol](inscription-protocol.md) — Truthbinding rules, Seal format

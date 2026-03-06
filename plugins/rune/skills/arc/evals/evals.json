@@ -1,0 +1,150 @@
+{
+  "skill_name": "arc",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a plan file at plugins/rune/skills/arc/evals/files/sample-plan.md — I want to run the full arc pipeline on it. Walk me through what the arc skill would do in the first 3 phases (pre-flight, checkpoint init, and Phase 1 FORGE). Don't actually execute it — just explain the decision tree and what artifacts would be created. Pay special attention to: branch strategy (we're on a feature branch already), freshness gate signals, checkpoint schema version, and the Phase 1 FORGE team creation pattern.",
+      "expected_output": "A detailed walkthrough with exact implementation values: (1) Pre-flight — freshness gate with 5 named signals and weights (commit_distance=0.25, file_drift=0.35, identifier_loss=0.25, branch_divergence=0.10, time_decay=0.05), score formula freshnessScore=clamp(1-weightedSum,0,1), ARC_TEAM_PREFIXES stale scan with specific prefixes, rune_acquire_lock('arc','writer'). (2) Checkpoint init — session_nonce via crypto.randomBytes(6).toString('hex') validated with /^[0-9a-f]{12}$/, todos_base set eagerly to tmp/arc/{id}/todos/, PHASE_ORDER starting forge→plan_review→plan_refine→verification→semantic_verification. (3) Phase 1 FORGE — ATE-1 sequence: TeamCreate→TaskCreate→Agent with team_name.",
+      "files": ["evals/files/sample-plan.md"],
+      "expectations": [
+        "Describes freshness gate 5 signals by their actual names: commit_distance (0.25), file_drift (0.35), identifier_loss (0.25), branch_divergence (0.10), time_decay (0.05) — not generic names like 'structural/dependency/api/config/test'",
+        "Explains the freshness score formula: freshnessScore = clamp(1 - weightedSum, 0, 1) where weightedSum is the sum of each signal * its weight",
+        "Describes session_nonce generation: crypto.randomBytes(6).toString('hex') validated with /^[0-9a-f]{12}$/ — not derived from timestamp or arc id (security requirement)",
+        "Mentions todos_base is set eagerly during checkpoint init to 'tmp/arc/{id}/todos/' — not as a separate post-init step",
+        "Describes the ATE-1 pattern: TeamCreate first, then TaskCreate, then Agent with team_name — the exact 3-step sequence (not just 'delegates')",
+        "References ARC_TEAM_PREFIXES array in arc-preflight.md for stale team scan — lists at least 3 specific prefixes (e.g., arc-forge-, rune-review-, rune-work-)",
+        "Mentions workflow lock acquired via rune_acquire_lock('arc', 'writer') — specifying both the workflow name and lock type",
+        "Lists the first 5 phases of PHASE_ORDER in correct order: forge, plan_review, plan_refine, verification, semantic_verification"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I had an arc run that crashed midway. The checkpoint file is at plugins/rune/skills/arc/evals/files/sample-checkpoint.json. Analyze this checkpoint and tell me: (1) What phases completed successfully? (2) What phases were skipped and why? (3) What is the next phase that would execute on --resume? (4) What validation would the resume logic perform before continuing? (5) Are there any concerns about the checkpoint state (e.g., schema version, session ownership, convergence config)?",
+      "expected_output": "Analysis showing: 8 phases completed (forge through gap_remediation), 6 phases skipped (design_extraction, storybook_verification, design_verification, ux_verification, codex_gap_analysis, design_iteration — all due to disabled features), next phase is goldmask_verification (first pending in PHASE_ORDER), resume validation includes session_nonce format check, config_dir comparison, owner_pid liveness check, and schema version migration if needed. Should note the owner_pid 99999 is likely dead and would be claimed by the new session.",
+      "files": ["evals/files/sample-checkpoint.json"],
+      "expectations": [
+        "Correctly identifies 8 completed phases (forge, plan_review, plan_refine, verification, semantic_verification, task_decomposition, work, gap_analysis, gap_remediation)",
+        "Correctly identifies all skipped phases and their skip_reason values",
+        "Correctly identifies goldmask_verification as the next pending phase",
+        "Mentions session_nonce validation (hex format /^[0-9a-f]{12}$/)",
+        "Mentions config_dir comparison for cross-session safety",
+        "Mentions owner_pid liveness check (kill -0) and orphan recovery for dead PIDs",
+        "Notes that owner_pid 99999 would need to be checked and likely reclaimed",
+        "References schema version 20 and notes it's current (no migration needed)"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I want to run an arc pipeline with these flags: --no-forge --draft --no-test --bot-review on plans/feat-notifications-plan.md. Explain exactly how each flag affects the phase execution. Which phases get skipped? Which phases get modified behavior? What's the effective PHASE_ORDER after applying these flags? Also explain how --bot-review interacts with the ship and merge phases.",
+      "expected_output": "Detailed flag analysis: --no-forge skips Phase 1 (forge) entirely, using the plan as-is. --draft makes Phase 9 (ship) create a draft PR instead of a regular PR. --no-test skips Phase 7.7 (test). --bot-review enables Phase 9.1 (bot_review_wait) and Phase 9.2 (pr_comment_resolution) which are otherwise skipped. The effective pipeline runs 24-25 phases (28 minus forge, test, and any conditional phases). Bot review wait polls for external bot comments after PR creation, then pr_comment_resolution resolves them before merge.",
+      "files": [],
+      "expectations": [
+        "Correctly identifies --no-forge skips the forge phase (Phase 1)",
+        "Correctly identifies --draft modifies ship phase to create draft PR (not skip it)",
+        "Correctly identifies --no-test skips the test phase",
+        "Correctly identifies --bot-review enables bot_review_wait and pr_comment_resolution phases",
+        "Explains that bot_review_wait polls for external bot comments after ship (PR creation)",
+        "Explains that pr_comment_resolution resolves bot comments before merge",
+        "Notes that --draft and --bot-review interact with ship/merge phases but don't skip them",
+        "Mentions that conditional phases (design_*, storybook_*, ux_*, codex_*) are gated by talisman config, not flags"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Analyze this checkpoint at plugins/rune/skills/arc/evals/files/convergence-checkpoint.json. The arc completed its first code_review → mend → verify_mend cycle (convergence round 1). The convergence history shows 2 P1 findings were found and resolved, plus 8 P2 findings with 3 resolved. (1) Should the convergence loop continue to round 2? Explain the decision logic including tier config, minCycles, and the evaluateConvergence algorithm. (2) If it loops back, which phases get reset to 'pending' and which keep their 'completed' status? (3) What happens to the team_name fields of reset phases? (4) How does the progressive focus mechanism change what review looks at in round 2?",
+      "expected_output": "Detailed convergence analysis with exact values: (1) STANDARD tier (minCycles=2, maxCycles=3). evaluateConvergence 3-step cascade: minCycles gate → P1+P2 threshold (default p2Threshold=0, any P2 blocks) → computeConvergenceScore with 4 weights (0.4*p3Ratio + 0.3*preExistingRatio + 0.2*trendDecreasing + 0.1*base) against convergenceThreshold=0.7. Round 1 < minCycles=2 → mandatory continuation. (2) ALL 4 phases reset: code_review, mend, verify_mend, goldmask_correlation. team_name cleared to null. prePhaseCleanup runs before re-review. (3) buildProgressiveFocus() outputs to review-focus-round-{N}.json: mend-modified + unfixed P2 paths + 1-hop deps (max 10). (4) convergence_score 0.72 would pass 0.7 threshold but minCycles gate prevents early convergence.",
+      "files": ["evals/files/convergence-checkpoint.json"],
+      "expectations": [
+        "States STANDARD tier defaults: minCycles=2, maxCycles=3 — and that round 1 < minCycles=2 forces continuation regardless of convergence score",
+        "Describes evaluateConvergence as a 3-step cascade: (1) minCycles gate, (2) P1 AND P2 threshold check (both must pass), (3) smart scoring via computeConvergenceScore when diff-scope enabled",
+        "Identifies ALL 4 phases that reset to 'pending': code_review, mend, verify_mend, AND goldmask_correlation — not just the first 3",
+        "States default p2Threshold is 0 (from arc_convergence_p2_threshold config) meaning ANY P2 finding blocks convergence at step 2",
+        "References prePhaseCleanup by name (not generic 'cleanup') as running before each re-review round to clean stale teams",
+        "Describes computeConvergenceScore 4-component formula with exact weights: 0.4*p3Ratio + 0.3*preExistingRatio + 0.2*trendDecreasing + 0.1*base (sum=1.0)",
+        "States the default convergenceThreshold is 0.7 (not 0.85) — the smart scoring threshold from review-mend-convergence.md",
+        "Explains that buildProgressiveFocus() outputs to tmp/arc/{id}/review-focus-round-{N}.json with 3 file sources: mend-modified files, unfixed P2 file paths, and 1-hop dependency files (capped at max 10)",
+        "Notes convergence_score 0.72 from round 1 history and explains it would pass the 0.7 threshold IF minCycles were met AND P1/P2 thresholds passed"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "I have a very old checkpoint at plugins/rune/skills/arc/evals/files/old-schema-checkpoint.json with schema_version 6. It crashed during the mend phase (status: 'in_progress'). Walk me through the complete schema migration chain that --resume would execute to bring this from v6 to the current version. For each migration step, explain: (a) what fields are added, (b) what default values are used, and (c) any special handling needed. Also explain what happens to the 'in_progress' mend phase during ORCH-1 orphan cleanup.",
+      "expected_output": "Complete migration chain from v6 to v21: v6→v7 (add ship/merge phases, arc_config, pr_url), v7→v8 (add minCycles to convergence.tier), v8→v9 (add goldmask_verification, goldmask_correlation, test phases), v9→v10 (add gap_remediation), v10→v11 (add audit phases + audit_convergence), v11→v12 (add shard field), v12→v13 (mark audit phases as skipped, delete audit_convergence), v13→v14 (add parent_plan), v14→v15 (add stagnation, no_test flag), v15→v16 (add suspended_tasks), v16→v17 (add 5 missing phases), plus later migrations. ORCH-1 cleanup: in_progress mend → team_name preserved for team cleanup → status demoted to 'pending' → team dir removed.",
+      "files": ["evals/files/old-schema-checkpoint.json"],
+      "expectations": [
+        "Lists the v6→v7 migration: adds ship and merge phases, arc_config, pr_url",
+        "Lists the v7→v8 migration: adds minCycles to convergence.tier with SEC-005 guard for corrupt tier",
+        "Lists the v8→v9 migration: adds goldmask_verification, goldmask_correlation, and test phases",
+        "Lists the v14→v15 migration: adds stagnation field and no_test flag",
+        "Lists the v16→v17 migration: adds 5 missing phase entries (task_decomposition, test_coverage_critique, release_quality_check, bot_review_wait, pr_comment_resolution)",
+        "Explains ORCH-1 handling of in_progress mend: team_name preserved for cleanup, then status demoted to pending",
+        "Notes that convergence.tier is missing minCycles (v6 checkpoint) and v7→v8 migration backfills it",
+        "Mentions at least 10 migration steps in the chain from v6 to current"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "During an arc run, a phase fails — specifically, the work phase (Phase 5) times out after 35 minutes with 3 of 4 worker agents completing but one stuck. Explain the complete error handling sequence: (1) What does the stagnation sentinel detect? (2) How does the failure policy handle a work phase timeout? (3) What gets written to the checkpoint? (4) Can the arc continue to code_review with partial work, or does it abort? (5) What cleanup happens for the timed-out worker's team? (6) If I run --resume after this, what state do I land in?",
+      "expected_output": "Error handling walkthrough: (1) Stagnation sentinel detects repeated timeout pattern, updates error_patterns in checkpoint. (2) Work phase timeout → failure policy from arc-failure-policy.md determines action: work is 'abort-arc' on hard failure but 'proceed-with-warning' on timeout with partial completion. (3) Checkpoint records work phase as 'failed' or 'completed' depending on partial result policy, with timing data. (4) Depends on failure policy — if partial work is usable (commits exist), pipeline can proceed with warning. (5) Team cleanup: shutdown_request to all workers, TeamDelete with retry, filesystem fallback. (6) On --resume: work phase is demoted to 'pending' (or stays 'completed' if partial), orphan team cleaned, resume from first pending phase.",
+      "files": [],
+      "expectations": [
+        "Describes stagnation sentinel's role in detecting repeated timeout patterns",
+        "References the failure policy (arc-failure-policy.md) for work phase timeout handling",
+        "Explains that the checkpoint records the work phase status (failed or timeout)",
+        "Discusses whether partial work results allow the pipeline to continue",
+        "Describes team cleanup sequence: shutdown_request, TeamDelete, filesystem fallback",
+        "Explains --resume behavior: orphan cleanup via ORCH-1, phase status evaluation",
+        "Mentions that workers' commits are preserved even on timeout (git commits survive)",
+        "Notes the 35-minute timeout budget from PHASE_TIMEOUTS.work"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "I have a checkpoint at plugins/rune/skills/arc/evals/files/ship-ready-checkpoint.json. All phases through pre_ship_validation and release_quality_check are complete — the arc is ready for Phase 9 SHIP. This is a shard (shard 2 of 5, 'api-endpoints'). Walk me through: (1) What pre-checks does Phase 9 SHIP run before creating a PR? (2) How is the PR title generated for this shard? (3) What sections appear in the PR body? (4) After PR creation, what does Phase 9.5 MERGE do? (5) What is the pre-merge checklist and how are different severity issues handled? (6) What happens if rebase onto main produces conflicts?",
+      "expected_output": "Detailed walkthrough: (1) Pre-checks: parent_plan.skip_ship_pr child arc guard, arcConfig.ship.auto_pr, gh CLI availability + auth, branch not main/detached, commits exist (rev-list --count), branch name validated against BRANCH_RE regex. (2) Shard PR title: 'feat(shard 2 of 5): api-endpoints - user authentication' with safePrTitle sanitizer (strip non-safe chars, max 70). (3) PR body sections: Summary (plan path, pipeline phase count), Shard Context (num, parent, dependencies), Changes (diffStat), Arc Pipeline Results (commits, review, convergence cycles), File-Todos Summary, Review Summary (TOME in code fence for SEC-006), Post-Deploy Monitoring (if pr_monitoring), co_authors. (4) Phase 9.5: auto_merge check, pr_url check, fetch main, pre-merge checklist, rebase with force-with-lease, merge via gh pr merge with strategy flag. (5) Pre-merge: 4 checks (migration conflict, schema conflict, lock file, uncommitted changes). CRITICAL→abort, HIGH→AskUserQuestion, MEDIUM→proceed with warning. (6) Rebase conflicts: git rebase --abort, warn with recovery steps, write CONFLICT merge report, phase failed.",
+      "files": ["evals/files/ship-ready-checkpoint.json"],
+      "expectations": [
+        "Mentions parent_plan.skip_ship_pr child arc guard (skips PR when child delegates to parent hierarchy)",
+        "Describes GH_PROMPT_DISABLED=1 or disabling gh interactive prompts in automation",
+        "Explains shard-aware PR title format: feat(shard N of M) with safePrTitle sanitizer",
+        "Notes that TOME review summary in PR body is wrapped in code fence (SEC-006 against markdown injection)",
+        "Lists pre-merge checklist items: migration conflict, schema conflict, lock file conflict, uncommitted changes",
+        "Explains severity handling: CRITICAL aborts merge, HIGH prompts user via AskUserQuestion, MEDIUM proceeds",
+        "Mentions --force-with-lease (not --force) for post-rebase push to prevent overwriting teammate commits",
+        "References preRebaseSha saved before rebase for recovery if force-push fails"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "During an arc run, Phase 5 (WORK) needs to execute. The plan has been enriched and task decomposition is done. Explain the complete delegation pattern: (1) How does arc invoke /rune:strive for the work phase? (2) After strive finishes, how does arc discover the actual team name that strive created? (3) What is the completedRatio threshold and what happens when it's not met? (4) How do incremental commits work during the work phase? (5) If I cancel the arc mid-work via /rune:cancel-arc, how does it find the work team to shut down? (6) What cleanup runs before and after the work phase?",
+      "expected_output": "Delegation walkthrough: (1) Stop hook (arc-phase-stop-hook.sh) finds 'work' as next pending phase, re-injects prompt executing arc-phase-work.md. Arc stamps checkpoint with team_name: null before delegation. (2) Post-delegation: arc reads state files via Glob('tmp/.rune-work-*.json'), filters by age (< PHASE_TIMEOUTS.work) and status (active or recently completed within 5s), discovers actual team_name. (3) completedRatio >= 0.5 threshold: >=50% = 'completed', <50% = 'failed' (halts pipeline). (4) Patch-based commit broker: workers generate patches (never commit), orchestrator applies via git apply --3way, dedup by taskId. (5) cancel-arc uses 3-layer discovery: checkpoint team_name → legacy map → state file fallback. (6) prePhaseCleanup (4-strategy escalation) before, postPhaseCleanup (prefix-based orphan scan) after. Strive detects arc context by scanning .claude/arc/*/checkpoint.json for phases.work.status === 'in_progress' and redirects todos.",
+      "files": [],
+      "expectations": [
+        "Describes the Stop hook re-injection mechanism: arc-phase-stop-hook.sh finds 'work' as next pending phase and re-injects a prompt that executes arc-phase-work.md (not just 'delegates to strive')",
+        "Explains postWorkStateFiles discovery: Glob('tmp/.rune-work-*.json') with age filtering and status check",
+        "States the 50% completion threshold (completedRatio >= 0.5) — completed if met, failed if not",
+        "Describes the patch-based commit broker: workers generate patches (never commit directly), orchestrator applies via git apply with --3way fallback and dedup by taskId",
+        "Explains cancel-arc 3-layer discovery: (1) checkpoint.phases.work.team_name primary, (2) legacy fallback map, (3) state file scan of tmp/.rune-work-*.json",
+        "References prePhaseCleanup (4-strategy escalation) before and postPhaseCleanup (prefix-based orphan scan) after the work phase",
+        "Describes that arc stamps checkpoint with team_name: null before delegation, then discovers actual team name post-delegation from strive's state file",
+        "Mentions that strive detects arc context by scanning .claude/arc/*/checkpoint.json for phases.work.status === 'in_progress' and redirects todos to tmp/arc/{id}/todos/work/"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "After the work phase completes, the arc runs Goldmask Verification (Phase 5.7) and then Goldmask Correlation (Phase 6.5). The goldmask findings file is at plugins/rune/skills/arc/evals/files/goldmask-findings.json. Explain: (1) How does Phase 5.7 invoke the goldmask skill and what agents does it summon? (2) How does it compare plan-time predictions with actual findings? (3) After code review produces a TOME, how does Phase 6.5 correlate TOME findings with goldmask findings? (4) What triggers human review flagging in the correlation? (5) Looking at the findings file, which findings would be flagged for human review and why? (6) What happens to goldmask_correlation during a convergence loop-back?",
+      "expected_output": "Goldmask walkthrough: (1) Phase 5.7 delegates via Skill('rune:goldmask', diffSpec). 8 agents by name: api-contract-tracer, business-logic-tracer, data-layer-tracer, config-dependency-tracer, event-message-tracer (Haiku), wisdom-sage (Sonnet), lore-analyst (Haiku), goldmask-coordinator (Sonnet). (2) Prediction comparison: reads risk-map.json from tmp/plans/{timestamp}/, categorizes as confirmed/missed/unexpected. (3) Phase 6.5 orchestrator-only (no team). Parses TOME via TOME_FINDING_REGEX for [PREFIX-NNN] patterns, correlates by file path. (4) Exact threshold: caution >= 0.75 OR blast_radius === 'WIDE'. (5) Flagged with threshold citation: GM-IMP-001 (0.88 >= 0.75 + WIDE), GM-IMP-004 (0.80 >= 0.75), GM-LORE-001 (0.85 >= 0.75 + WIDE). (6) goldmask_correlation resets to pending but goldmask_verification does NOT (diff unchanged, only TOME is new).",
+      "files": ["evals/files/goldmask-findings.json"],
+      "expectations": [
+        "States Phase 5.7 delegates via Skill('rune:goldmask', diffSpec) or equivalent invocation",
+        "Lists all 8 goldmask agents by name: api-contract-tracer, business-logic-tracer, data-layer-tracer, config-dependency-tracer, event-message-tracer, wisdom-sage, lore-analyst, goldmask-coordinator",
+        "Describes prediction comparison: reads plan-time risk-map.json from tmp/plans/{timestamp}/ and categorizes findings as confirmed, missed, or unexpected",
+        "Notes Phase 6.5 is orchestrator-only (no team spawned, deterministic correlation)",
+        "References TOME_FINDING_REGEX by name as the parsing mechanism for extracting [PREFIX-NNN] patterns from TOME",
+        "States the exact human review threshold: caution >= 0.75 OR blast_radius === 'WIDE' (not approximate values like 0.80 or 0.85)",
+        "Identifies flagged findings AND cites the threshold value as justification: GM-IMP-001 (0.88 >= 0.75 + WIDE), GM-LORE-001 (0.85 >= 0.75 + WIDE), GM-IMP-004 (0.80 >= 0.75)",
+        "Explains goldmask_correlation resets to pending on loop-back BUT goldmask_verification does NOT reset (the underlying diff hasn't changed, only the TOME is new)"
+      ]
+    }
+  ]
+}

@@ -109,6 +109,17 @@
         "hooks": [
           {
             "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/guard-agent-teams-flag.sh",
+            "timeout": 5,
+            "statusMessage": "Checking Agent Teams feature flag..."
+          }
+        ]
+      },
+      {
+        "matcher": "TeamCreate",
+        "hooks": [
+          {
+            "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/enforce-team-lifecycle.sh",
             "timeout": 5,
             "statusMessage": "Validating team lifecycle..."

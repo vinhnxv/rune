@@ -195,6 +195,14 @@ Agent({
     - Append Self-Review Log to your Seal message
     Include: Inner-flame: {pass|fail|partial}. Revised: {count}.
 
+    ## Communication Protocol
+    - **Heartbeat**: Send "Starting: {action}" via SendMessage after claiming task. Optional mid-point for tasks >5 min.
+    - **Seal**: On completion, TaskUpdate(completed) then SendMessage with Work Seal format (see team-sdk/references/seal-protocol.md).
+    - **Dependency notification**: After TaskUpdate(completed), call TaskList(). For any task that was blocked by yours and now has empty blockedBy, send notification (see team-sdk/references/integration-messaging.md).
+    - **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+    - **Recipient**: Always use recipient: "team-lead".
+    - **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).
+
     RE-ANCHOR -- Match existing patterns. Minimal changes. Ask lead if unclear.`,
   run_in_background: true
 })
@@ -353,6 +361,14 @@ Agent({
     - Verify test fixtures are consistent with source types
     - Append Self-Review Log to your Seal message
     Include: Inner-flame: {pass|fail|partial}. Revised: {count}.
+
+    ## Communication Protocol
+    - **Heartbeat**: Send "Starting: {action}" via SendMessage after claiming task. Optional mid-point for tasks >5 min.
+    - **Seal**: On completion, TaskUpdate(completed) then SendMessage with Work Seal format (see team-sdk/references/seal-protocol.md).
+    - **Dependency notification**: After TaskUpdate(completed), call TaskList(). For any task that was blocked by yours and now has empty blockedBy, send notification (see team-sdk/references/integration-messaging.md).
+    - **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+    - **Recipient**: Always use recipient: "team-lead".
+    - **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).
 
     RE-ANCHOR -- Match existing test patterns. No new test utilities.`,
   run_in_background: true

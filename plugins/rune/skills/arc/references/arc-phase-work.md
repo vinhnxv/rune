@@ -54,6 +54,8 @@ updateCheckpoint({ phase: "work", status: "in_progress", phase_sequence: 5, team
 // When found, strive redirects todos to "tmp/arc/{id}/todos/work/" instead of "tmp/work/{timestamp}/todos/work/"
 // checkpoint.todos_base is set by arc scaffolding (pre-Phase 5) and records this path for resume
 // Thread only --approve flag if applicable (no todosFlag needed)
+// --approve routing: routes to HUMAN USER via AskUserQuestion (not to AI leader).
+// Phase 5 only — do NOT propagate --approve to /rune:mend in Phase 7.
 
 // STEP 4: After work completes, produce work summary
 // CDX-003 FIX: Assign workSummary to a variable so sha256() in STEP 5 can reference it.

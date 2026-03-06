@@ -99,58 +99,9 @@ Output: Enriched plan (same file, sections deepened)
 
 ## Phase 0: Locate Plan
 
-### With Argument
+Validates plan path (shell injection guard), or auto-detects most recent plan in `plans/`. In arc context (`tmp/arc/` prefix), skips all interactive phases.
 
-```javascript
-const planPath = args[0]
-
-// Validate plan path: prevent shell injection in Bash cp/diff calls
-if (!/^[a-zA-Z0-9._\/-]+$/.test(planPath)) {
-  error(`Invalid plan path: ${planPath}. Path must contain only alphanumeric, dot, slash, hyphen, and underscore characters.`)
-  return
-}
-
-if (!exists(planPath)) {
-  error(`Plan not found: ${planPath}. Create one with /rune:devise first.`)
-  return
-}
-```
-
-### Auto-Detect
-
-If no plan specified:
-```bash
-# Look for most recently modified plans
-ls -t plans/*.md 2>/dev/null | head -5
-```
-
-If multiple found, ask user which to deepen:
-
-```javascript
-AskUserQuestion({
-  questions: [{
-    question: `Found ${count} recent plans:\n${planList}\n\nWhich plan should I deepen?`,
-    header: "Select plan",
-    options: recentPlans.map(p => ({
-      label: p.name,
-      description: `${p.date} — ${p.title}`
-    })),
-    multiSelect: false
-  }]
-})
-```
-
-If none found, suggest `/rune:devise` first.
-
-## Arc Context Detection
-
-When invoked as part of `/rune:arc` pipeline, forge detects arc context via plan path prefix.
-This skips interactive phases (scope confirmation, post-enhancement options) since arc is automated.
-
-```javascript
-// Normalize "./" prefix — paths may arrive as "./tmp/arc/" or "tmp/arc/"
-const isArcContext = planPath.replace(/^\.\//, '').startsWith("tmp/arc/")
-```
+See [phase-0-locate-plan.md](references/phase-0-locate-plan.md) for full pseudocode.
 
 ## Phase 1: Parse Plan Sections
 
@@ -168,36 +119,9 @@ for (const section of sections) {
 
 ## Phase 1.3: Extract File References
 
-Parse plan content for file paths referenced in code blocks, backtick-wrapped paths, and annotations.
-These files become the scope for Lore Layer risk scoring.
+Extracts file paths from plan content (backtick-wrapped, `File:`/`Path:`/`Module:` annotations). Validates against path traversal (`..`), deduplicates. Output: `uniqueFiles[]` — scope for Lore Layer. If empty, Phase 1.5 is skipped.
 
-```javascript
-// Extract file paths mentioned in plan text
-// Patterns: `src/foo/bar.py`, backtick-wrapped paths, "File:" / "Path:" / "Module:" annotations,
-//           YAML paths, markdown link targets
-const fileRefPattern = /(?:`([^`]+\.\w+)`|(?:File|Path|Module):\s*(\S+\.\w+))/g
-const planContent = Read(planPath)
-const referencedFiles: string[] = []
-
-for (const match of planContent.matchAll(fileRefPattern)) {
-  const filePath: string = match[1] || match[2]
-  // Validate: must not contain path traversal, must exist on disk
-  if (filePath.includes('..')) continue
-  try {
-    Read(filePath)  // Existence check via Read — TOCTOU safe (we use the content later anyway)
-    referencedFiles.push(filePath)
-  } catch (readError) {
-    // File doesn't exist — skip silently
-    continue
-  }
-}
-
-// Deduplicate
-const uniqueFiles: string[] = [...new Set(referencedFiles)]
-log(`Phase 1.3: Extracted ${uniqueFiles.length} file references from plan`)
-```
-
-**Skip condition**: If `uniqueFiles.length === 0`, skip Phase 1.5 entirely (no files to score).
+See [phase-1.3-file-references.md](references/phase-1.3-file-references.md) for full pseudocode.
 
 ## Phase 1.5: Lore Layer (Goldmask)
 
@@ -263,122 +187,11 @@ See also [forge-gaze.md](../roundtable-circle/references/forge-gaze.md) for the 
 
 These can be overridden via `talisman.yml` `forge:` section.
 
-## Phase 3: Confirm Scope
+## Phase 3–4: Confirm Scope, Lock, and Summon Forge Agents
 
-Before summoning agents, confirm with the user. **Skipped in arc context** — arc is automated, no user gate needed.
+**Phase 3**: Confirm agent selection with user (skipped in arc context). **Phase 3.5**: Acquire workflow lock. **Phase 4**: Team lifecycle via `teamTransition` protocol, concurrent session check, state file with session isolation, inscription.json, MCP context injection, and polling-based monitoring (20min timeout).
 
-```javascript
-if (!isArcContext) {
-  AskUserQuestion({
-    questions: [{
-      question: `Forge Gaze selected ${totalAgents} agents across ${sectionCount} sections.\n\n${selectionSummary}\n\nProceed with enrichment?`,
-      header: "Forge scope",
-      options: [
-        { label: "Proceed (Recommended)", description: "Summon agents and enrich plan" },
-        { label: "Skip sections", description: "I'll tell you which sections to skip" },
-        { label: "Cancel", description: "Exit without changes" }
-      ],
-      multiSelect: false
-    }]
-  })
-}
-// In arc context: proceed directly to Phase 4 (agent summoning)
-```
-
-## Phase 3.5: Workflow Lock (writer)
-
-```javascript
-const lockConflicts = Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_check_conflicts "writer"`)
-if (lockConflicts.includes("CONFLICT")) {
-  AskUserQuestion({ question: `Active workflow conflict:\n${lockConflicts}\nProceed anyway?` })
-}
-Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_acquire_lock "forge" "writer"`)
-```
-
-## Phase 4: Summon Forge Agents
-
-Follow the `teamTransition` protocol (see [engines.md](../team-sdk/references/engines.md) § createTeam):
-1. Validate timestamp: `!/^[a-zA-Z0-9_-]+$/` check
-2. TeamDelete with retry-with-backoff (3 attempts: 0s, 3s, 8s)
-3. Filesystem fallback if TeamDelete fails (gated on `!teamDeleteSucceeded`)
-4. TeamCreate with "Already leading" catch-and-recover
-5. Post-create verification via config.json check
-
-After team creation:
-
-```javascript
-// Concurrent session check
-const existingForge = Glob("tmp/.rune-forge-*.json")
-for (const sf of existingForge) {
-  let state
-  try { state = JSON.parse(Read(sf)) } catch (e) { continue }  // Skip corrupt state files
-  if (state.status === "active") {
-    const age = Date.now() - new Date(state.started).getTime()
-    if (age < 1800000) { // 30 minutes
-      warn(`Active forge session detected: ${sf} (${Math.round(age/60000)}min old). Aborting.`)
-      return
-    }
-  }
-}
-
-// ── Resolve session identity for cross-session isolation ──
-const configDir = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
-const ownerPid = Bash(`echo $PPID`).trim()
-
-const startedTimestamp = new Date().toISOString()
-Write(`tmp/.rune-forge-${timestamp}.json`, {
-  team_name: `rune-forge-${timestamp}`,
-  plan: planPath,
-  started: startedTimestamp,
-  status: "active",
-  config_dir: configDir,
-  owner_pid: ownerPid,
-  session_id: "${CLAUDE_SESSION_ID}"
-})
-
-// Create output directory + inscription.json
-Bash(`mkdir -p "tmp/forge/${timestamp}"`)
-```
-
-See [forge-enrichment-protocol.md](references/forge-enrichment-protocol.md) for: inscription.json format, task creation, agent prompt templates, Elicitation Sage spawning, and Enrichment Output Format.
-
-### MCP Context Injection (Phase 4)
-
-When `mcpContextBlock` is non-empty (computed in Phase 1.6), inject it into each forge agent's spawn prompt after the section content and before the enrichment instructions:
-
-```javascript
-// Append to each forge agent prompt when MCP integrations are active
-// mcpContextBlock from Phase 1.6 — empty string when no integrations (no-op)
-const forgePromptSuffix = mcpContextBlock
-  ? `\n${mcpContextBlock}\n    Consider these MCP tools when suggesting implementation details, best practices, and edge cases for this section.\n`
-  : ''
-// Injected into agent prompt AFTER section content, BEFORE enrichment output format
-```
-
-### Monitor
-
-Uses the shared polling utility — see [`skills/roundtable-circle/references/monitor-utility.md`](../roundtable-circle/references/monitor-utility.md) for full pseudocode and contract.
-
-> **ANTI-PATTERN — NEVER DO THIS:**
-> `Bash("sleep 60 && echo poll check")` — This skips TaskList entirely. You MUST call `TaskList` every cycle. See review Phase 4 for the correct inline loop template.
-
-```javascript
-// QUAL-006 MITIGATION (P2): Hard timeout to prevent runaway forge sessions.
-const FORGE_TIMEOUT = 1_200_000 // 20 minutes
-
-// See skills/roundtable-circle/references/monitor-utility.md
-const result = waitForCompletion(teamName, totalEnrichmentTasks, {
-  timeoutMs: FORGE_TIMEOUT,   // 20 minutes hard timeout
-  staleWarnMs: 300_000,      // 5 minutes
-  autoReleaseMs: 300_000,    // 5 minutes — enrichment tasks are reassignable
-  pollIntervalMs: 30_000,    // 30 seconds
-  label: "Forge"
-})
-
-if (result.timedOut) {
-  warn(`Forge timed out after ${FORGE_TIMEOUT / 60_000} minutes. Proceeding with ${result.completed.length}/${totalEnrichmentTasks} enrichments.`)
-}
-```
+See [phase-3-4-scope-and-summon.md](references/phase-3-4-scope-and-summon.md) for full pseudocode. See [forge-enrichment-protocol.md](references/forge-enrichment-protocol.md) for inscription format, task creation, and agent prompts. See [engines.md](../team-sdk/references/engines.md) for teamTransition protocol.
 
 ## Phase 5: Merge Enrichments
 

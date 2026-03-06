@@ -93,6 +93,7 @@ for (const [section, agents] of assignments) {
 |----------|---------|------------|
 | Threshold | 0.30 | 0.15 |
 | Max per section | 3 | 5 |
+| Max concurrent | 5 | 5 |
 | Max total agents | 8 | 12 |
 
 These can be overridden via `talisman.yml` `forge:` section.

@@ -169,9 +169,20 @@ Agent({
 })
 ```
 
+### Communication Protocol for Research Agents
+
+All research agents (repo-surveyor, echo-reader, git-miner, practice-seeker, lore-scholar, codex-researcher, flow-seer) follow this communication protocol:
+- **Heartbeat**: Send "Starting: {research action}" via SendMessage after claiming task. Optional mid-point for tasks >5 min.
+- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Research Seal format (see team-sdk/references/seal-protocol.md).
+- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+- **Recipient**: Always use recipient: "team-lead".
+- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).
+
 ## Phase 1B: Research Decision
 
 After local research completes, evaluate whether external research is needed.
+
+Phase 1B encompasses three sub-steps in order: (1) talisman bypass check, (2) URL sanitization with SSRF defense (see [URL Sanitization](#url-sanitization-ssrf-defense) below), and (3) risk + local sufficiency scoring. All three run before any external agent is spawned.
 
 ### Talisman Config Read
 

@@ -127,6 +127,8 @@ if (findingMarkers.some(m => /scope="(in-diff|pre-existing)"/.test(m))) {
 
 Uses shared `evaluateConvergence()` from review-mend-convergence.md. Passes `p2Count` (v1.41.0+) for P2 awareness and `scopeStats` (v1.38.0+) for smart convergence scoring when diff-scope data is available.
 
+**evaluateConvergence cascade** (3 key gates): (1) minCycles gate — `round + 1 < minCycles` → forced retry, (2) P1 AND P2 threshold — `p1Count <= findingThreshold && p2Count <= p2Threshold` (default p2Threshold=0 — any P2 blocks), (3) smart scoring via `computeConvergenceScore()` when diff-scope enabled — 4-component formula: `0.4*p3Ratio + 0.3*preExistingRatio + 0.2*trendDecreasing + 0.1*base` against convergenceThreshold=0.7 (default). P2 hard gate: returns score 0.0 if `p2Count > p2Threshold`.
+
 ```javascript
 // readTalismanSection: "review"
 const review = readTalismanSection("review")
@@ -193,10 +195,13 @@ if (verdict === 'converged') {
   Write(`tmp/arc/${id}/review-focus-round-${nextRound}.json`, JSON.stringify(focusResult))
   checkpoint.convergence.round = nextRound
 
-  // CRITICAL: Reset code_review, mend, and verify_mend phases to "pending"
+  // CRITICAL: Reset code_review, goldmask_correlation, mend, and verify_mend phases to "pending"
   // The dispatcher scans PHASE_ORDER for the first "pending" phase.
   // Resetting code_review (index 6) ensures the dispatcher loops back to Phase 6
   // before reaching verify_mend (index 8).
+  // NOTE: prePhaseCleanup(checkpoint) runs automatically before the re-review round
+  // (called by the dispatcher for every delegated phase) to clean stale teams from
+  // the prior round. This is what prevents team name collisions between rounds.
   // ASSERTION (decree-arbiter P2): Verify code_review precedes verify_mend in PHASE_ORDER
   const crIdx = PHASE_ORDER.indexOf('code_review')
   const vmIdx = PHASE_ORDER.indexOf('verify_mend')

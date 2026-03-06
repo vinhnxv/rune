@@ -145,3 +145,12 @@ Shard findings (`shard-a-findings.md`, etc.) and cross-shard findings (`cross-sh
 are standard finding files — Runebinder reads them without modification.
 Shard summary JSONs (`shard-*-summary.json`) are skipped (JSON, not MD).
 Finding prefixes `SH{X}-` and `XSH-` follow the 2-5 char convention — no Runebinder changes.
+
+## Communication Protocol
+
+All shard reviewers and cross-shard analysts follow this communication protocol:
+- **Heartbeat**: Send "Starting: reviewing shard {N}" via SendMessage after claiming task.
+- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Review Seal format (see team-sdk/references/seal-protocol.md).
+- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+- **Recipient**: Always use recipient: "team-lead".
+- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).

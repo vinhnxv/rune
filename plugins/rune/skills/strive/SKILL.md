@@ -109,28 +109,9 @@ See [parse-plan.md](references/parse-plan.md) for detailed task extraction, shar
 
 ### Worktree Mode Detection (Phase 0)
 
-Parse `--worktree` flag from `$ARGUMENTS` and read talisman configuration. This follows the same pattern as `--approve` flag parsing.
+Parse `--worktree` flag and talisman config. When active: loads `git-worktree` skill, uses wave-aware monitoring, and replaces commit broker with merge broker.
 
-```javascript
-// Parse --worktree flag from $ARGUMENTS (same pattern as --approve)
-const args = "$ARGUMENTS"
-const worktreeFlag = args.includes("--worktree")
-
-// readTalismanSection: "work"
-const work = readTalismanSection("work")
-const worktreeEnabled = work?.worktree?.enabled || false
-
-// worktreeMode: flag wins, talisman is fallback default
-const worktreeMode = worktreeFlag || worktreeEnabled
-```
-
-When `worktreeMode === true`:
-- Load `git-worktree` skill for merge strategy knowledge
-- Phase 1 computes wave groupings after task extraction (step 5.3)
-- Phase 2 spawns workers with `isolation: "worktree"` per wave
-- Phase 3 uses wave-aware monitoring loop
-- Phase 3.5 uses `mergeBroker()` instead of `commitBroker()`
-- Workers commit directly instead of generating patches
+See [worktree-and-mcp.md](references/worktree-and-mcp.md) for the full detection code and mode effects.
 
 ## Phase 0.5: Environment Setup
 
@@ -166,27 +147,9 @@ See [design-context.md](references/design-context.md) for the 4-strategy cascade
 
 ### MCP Integration Discovery (conditional, zero cost if no integrations)
 
-See [mcp-integration.md](references/mcp-integration.md) for the resolver algorithm, trigger evaluation, and prompt block builder.
-
 **Summary**: Triple-gated (`integrations.mcp_tools` exists in talisman + phase match for "strive" + trigger match against task files/description). When active, loads companion skills via `loadMCPSkillBindings()` and passes `buildMCPContextBlock()` output to worker prompt builder.
 
-```javascript
-// After design context discovery, before file ownership
-const mcpIntegrations = resolveMCPIntegrations("strive", {
-  changedFiles: extractedTasks.flatMap(t => t.metadata?.file_targets || []),
-  taskDescription: planContent
-})
-
-if (mcpIntegrations.length > 0) {
-  // Load companion skills
-  const mcpSkills = loadMCPSkillBindings(mcpIntegrations)
-  loadedSkills.push(...mcpSkills)
-
-  // Build context block for worker prompts (injected in Phase 2)
-  const mcpContextBlock = buildMCPContextBlock(mcpIntegrations)
-  // mcpContextBlock passed to worker prompt builder alongside designContextBlock
-}
-```
+See [mcp-integration.md](references/mcp-integration.md) for the resolver algorithm and [worktree-and-mcp.md](references/worktree-and-mcp.md) for the inline integration code.
 
 ### File Ownership and Task Pool
 
@@ -294,75 +257,15 @@ if (exists(".claude/echoes/workers/")) {
 
 ## Phase 6: Cleanup & Report
 
-```javascript
-// 0. Cache task list BEFORE team cleanup (TaskList() requires active team)
-const allTasks = TaskList()
+Standard cleanup: cache TaskList → dynamic member discovery → shutdown → grace period → artifact finalization (non-blocking) → retry-with-backoff TeamDelete → stale todo fixup (FLAW-008) → per-task file-todos cleanup (arc-aware) → worktree GC (if applicable) → stash restore → state file update → workflow lock release.
 
-// 1. Dynamic member discovery — reads team config to find ALL teammates
-//    (fallback: `spawnedWorkerNames` from Phase 2 — includes wave-based names like rune-smith-w0-1)
-// 2. Send shutdown_request to all members
-// 2.5. Grace period — sleep 20s to let teammates deregister before TeamDelete
-// 2.7. Finalize per-worker artifacts (non-blocking — skip if runs/ absent)
-//      Scan tmp/work/{timestamp}/runs/ for agents with status "running"
-//      and mark as completed/failed based on worker output presence
-try {
-  const workRunsDir = `tmp/work/${timestamp}/runs/`
-  const runMetas = Glob(`${workRunsDir}*/meta.json`)
-  for (const metaPath of runMetas) {
-    try {
-      const meta = JSON.parse(Read(metaPath))
-      if (meta.status === "running") {
-        const agentRunDir = metaPath.replace(/\/meta\.json$/, '')
-        const agentName = agentRunDir.split('/').pop()
-        // Check if worker completed any tasks
-        const workerTasks = allTasks.filter(t => t.owner === agentName && t.status === "completed")
-        const agentStatus = workerTasks.length > 0 ? "completed" : "failed"
-        Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/run-artifacts.sh 2>/dev/null && type rune_artifact_finalize &>/dev/null && rune_artifact_finalize "${agentRunDir}" "${agentStatus}"`)
-      }
-    } catch (e) { /* per-agent finalization failure is non-blocking */ }
-  }
-} catch (e) { /* artifact finalization is non-blocking */ }
-// 3. Cleanup team with retry-with-backoff (3 attempts: 0s, 5s, 10s)
-//    Total budget: 15s grace + 15s retry = 30s max
-//    Filesystem fallback when TeamDelete fails
-// 3.5: Fix stale todo file statuses (FLAW-008 — active → interrupted)
-// 3.55: Per-task file-todos cleanup:
-//       Scope to resolveTodosDir(todosOutputDir, "work") — work/ subdirectory only (arc-aware)
-//       Filter by work_session == timestamp (session isolation)
-//       Mark in_progress todos as interrupted for this session's tasks
-// 3.6: Worktree garbage collection (worktree mode only)
-//      git worktree prune + remove orphaned worktrees matching rune-work-*
-// 3.7: Restore stashed changes if Phase 0.5 stashed (git stash pop)
-// 4. Update state file to completed (preserve session identity fields)
-// 5. Release workflow lock
-Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "strive"`)
-```
+See [phase-6-cleanup.md](references/phase-6-cleanup.md) for the full cleanup pseudocode and completion report template. See [engines.md](../team-sdk/references/engines.md) § cleanup for the shared pattern.
 
 ## Phase 6.5: Ship (Optional)
 
 See [ship-phase.md](references/ship-phase.md) for gh CLI pre-check, ship decision flow, PR template generation, and smart next steps.
 
 **Summary**: Offer to push branch and create PR. Generates PR body from plan metadata, task list, ward results, verification warnings, and todo summary. See [todo-protocol.md](references/todo-protocol.md) for PR body Work Session format. The PR body also includes a file-todos status table sourced from `resolveTodosDir(todosOutputDir, "work")` (counts by status/priority, arc-aware).
-
-### Completion Report
-
-```
-The Tarnished has claimed the Elden Throne.
-
-Plan: {planPath}
-Branch: {currentBranch}
-
-Tasks: {completed}/{total}
-Workers: {smith_count} Rune Smiths, {forger_count} Trial Forgers
-Wards: {passed}/{total} passed
-Commits: {commit_count}
-Time: {duration}
-
-Files changed:
-- {file list with change summary}
-
-Artifacts: tmp/work/{timestamp}/
-```
 
 ## --approve Flag (Plan Approval Per Task)
 

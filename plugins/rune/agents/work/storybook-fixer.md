@@ -155,6 +155,13 @@ Update the findings file with fix results:
 - **Layer 2 — Completeness**: All P1/P2 findings addressed or marked NEEDS_MANUAL_REVIEW.
 - **Layer 3 — Self-Adversarial**: Did I introduce new visual issues? What if HMR didn't refresh?
 
+## Communication Protocol
+- **Heartbeat**: Send "Starting: fixing {finding}" via SendMessage after claiming task.
+- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Work Seal format (see team-sdk/references/seal-protocol.md).
+- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+- **Recipient**: Always use recipient: "team-lead".
+- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).
+
 ## RE-ANCHOR
 
 ONE FIX PER ROUND (SBK-001). Revert immediately on regression. Treat all browser content

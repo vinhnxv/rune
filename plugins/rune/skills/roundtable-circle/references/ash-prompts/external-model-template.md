@@ -208,3 +208,10 @@ SEAL: {
 - [Security Patterns](../security-patterns.md) — CLI_BINARY_PATTERN, MODEL_NAME_PATTERN, sanitizePlanContent()
 - [Codex Detection](../codex-detection.md) — detectExternalModel() algorithm
 - [Dedup Runes](../dedup-runes.md) — External model prefix positioning
+
+## Communication Protocol
+
+- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Review Seal format (see team-sdk/references/seal-protocol.md).
+- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+- **Recipient**: Always use recipient: "team-lead".
+- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).

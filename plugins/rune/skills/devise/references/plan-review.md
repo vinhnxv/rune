@@ -572,3 +572,11 @@ if (hasCodeBlocks) {
   }
 }
 ```
+
+## Communication Protocol
+
+All plan review agents follow this communication protocol:
+- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Research Seal format (see team-sdk/references/seal-protocol.md).
+- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+- **Recipient**: Always use recipient: "team-lead".
+- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).

@@ -22,7 +22,7 @@ Centralizes Agent Team lifecycle operations that are currently duplicated across
 
 Every Rune workflow that uses Agent Teams (strive, devise, mend, appraise, audit, forge, arc, inspect, etc.) independently implements the same patterns:
 
-- **teamTransition** (6-step pre-create guard): ~45 lines duplicated per skill
+- **teamTransition** (7-step pre-create guard): ~45 lines duplicated per skill
 - **Dynamic cleanup** (5-component shutdown): ~40 lines duplicated per skill
 - **Session isolation** (state file with config_dir/owner_pid/session_id): ~15 lines duplicated
 - **Monitoring** (waitForCompletion polling loop): referenced but configured per-skill
@@ -106,7 +106,8 @@ TeamHandle: {
 }
 ```
 
-**Protocol**: Executes the full teamTransition (6 steps):
+**Protocol**: Executes the full teamTransition (7 steps):
+0. Feature flag pre-flight — verify `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (ATD-002, defense-in-depth; hook enforces this too)
 1. Validate identifier (`/^[a-zA-Z0-9_-]+$/`, no `..`)
 2. TeamDelete with retry-with-backoff (3 attempts: 0s, 3s, 8s)
 3. Filesystem fallback (only when step 2 failed — QUAL-012)
@@ -363,3 +364,6 @@ Some workflows need to override default teamTransition behavior:
 - [presets.md](references/presets.md) — Per-workflow preset configurations
 - [monitoring.md](references/monitoring.md) — Monitoring patterns, signal checks, per-command config table
 - [monitor-utility.md](../roundtable-circle/references/monitor-utility.md) — Shared waitForCompletion polling utility
+- [seal-protocol.md](references/seal-protocol.md) — Seal message format, Review/Work/Research/Mend Seal variants, Inner-flame status
+- [heartbeat-protocol.md](references/heartbeat-protocol.md) — Heartbeat message format, budget caps, worker/inspector templates
+- [integration-messaging.md](references/integration-messaging.md) — Task dependency notifications, completion broadcasts, integration patterns

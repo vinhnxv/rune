@@ -1,0 +1,72 @@
+{
+  "schema_version": 20,
+  "id": "20260301-143022",
+  "plan_file": "plans/feat-avatar-upload-plan.md",
+  "branch": "rune/arc-feat-avatar-upload-20260301-143022",
+  "started_at": "2026-03-01T14:30:22.000Z",
+  "session_nonce": "a1b2c3d4e5f6",
+  "config_dir": "/Users/test/.claude",
+  "owner_pid": 99999,
+  "session_id": "test-session-123",
+  "todos_base": "tmp/arc/20260301-143022/todos/",
+  "freshness": {
+    "score": 0.95,
+    "signals": { "structural": true, "dependency": true, "api": true, "config": true, "test": true }
+  },
+  "flags": {
+    "no_forge": false,
+    "approve": false,
+    "skip_freshness": false,
+    "no_pr": false,
+    "no_merge": false,
+    "no_test": false,
+    "draft": false,
+    "bot_review": false
+  },
+  "phases": {
+    "forge": { "status": "completed", "artifact": "tmp/arc/20260301-143022/forge-output.md", "artifact_hash": "abc123", "team_name": "forge-20260301-143022", "started_at": "2026-03-01T14:30:25.000Z", "completed_at": "2026-03-01T14:42:10.000Z" },
+    "plan_review": { "status": "completed", "artifact": "tmp/arc/20260301-143022/plan-review.md", "artifact_hash": "def456", "team_name": "review-20260301-143022", "started_at": "2026-03-01T14:42:15.000Z", "completed_at": "2026-03-01T14:53:30.000Z" },
+    "plan_refine": { "status": "completed", "artifact": "tmp/arc/20260301-143022/plan-refined.md", "artifact_hash": "ghi789", "team_name": null, "started_at": "2026-03-01T14:53:35.000Z", "completed_at": "2026-03-01T14:55:00.000Z" },
+    "verification": { "status": "completed", "artifact": null, "artifact_hash": null, "team_name": null, "started_at": "2026-03-01T14:55:05.000Z", "completed_at": "2026-03-01T14:55:20.000Z" },
+    "semantic_verification": { "status": "completed", "artifact": null, "artifact_hash": null, "team_name": null },
+    "design_extraction": { "status": "skipped", "artifact": null, "artifact_hash": null, "team_name": null, "skip_reason": "design_sync disabled" },
+    "task_decomposition": { "status": "completed", "artifact": "tmp/arc/20260301-143022/task-decomposition.md", "artifact_hash": null, "team_name": null },
+    "work": { "status": "completed", "artifact": "tmp/work/20260301-143022/", "artifact_hash": null, "team_name": "work-20260301-143022" },
+    "storybook_verification": { "status": "skipped", "artifact": null, "artifact_hash": null, "team_name": null, "skip_reason": "storybook disabled" },
+    "design_verification": { "status": "skipped", "artifact": null, "artifact_hash": null, "team_name": null, "skip_reason": "no VSM files" },
+    "ux_verification": { "status": "skipped", "artifact": null, "artifact_hash": null, "team_name": null, "skip_reason": "ux disabled" },
+    "gap_analysis": { "status": "completed", "artifact": "tmp/arc/20260301-143022/gap-analysis.md", "artifact_hash": null, "team_name": "gap-20260301-143022" },
+    "codex_gap_analysis": { "status": "skipped", "artifact": null, "artifact_hash": null, "team_name": null, "skip_reason": "codex disabled" },
+    "gap_remediation": { "status": "completed", "artifact": null, "artifact_hash": null, "team_name": null },
+    "goldmask_verification": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "code_review": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "goldmask_correlation": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "mend": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "verify_mend": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "design_iteration": { "status": "skipped", "artifact": null, "artifact_hash": null, "team_name": null, "skip_reason": "design_sync disabled" },
+    "test": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "test_coverage_critique": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "pre_ship_validation": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "release_quality_check": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "ship": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "bot_review_wait": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "pr_comment_resolution": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "merge": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null }
+  },
+  "convergence": {
+    "round": 0,
+    "max_rounds": 3,
+    "tier": { "name": "STANDARD", "maxCycles": 3, "minCycles": 2, "focus": "p1_only" },
+    "history": []
+  },
+  "totals": {
+    "phase_times": {
+      "forge": 700000,
+      "plan_review": 675000,
+      "plan_refine": 85000,
+      "verification": 15000
+    },
+    "total_duration_ms": null,
+    "cost_at_completion": null
+  }
+}

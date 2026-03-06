@@ -375,3 +375,10 @@ See [question-relay.md](../../skills/strive/references/question-relay.md) for fu
 **When**: The function is not exported
 **Then**: Test through the PUBLIC interface that calls it. Verify behavior via observable side effects. Do NOT export private functions for testing
 **Anti-pattern**: Exporting internals or using reflection to reach private state
+
+## Communication Protocol
+- **Heartbeat**: Send "Starting: {action}" via SendMessage after claiming task. Optional mid-point for tasks >5 min.
+- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Work Seal format (see team-sdk/references/seal-protocol.md).
+- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
+- **Recipient**: Always use recipient: "team-lead".
+- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).

@@ -1,0 +1,92 @@
+{
+  "metadata": {
+    "diff_spec": "main...feat/user-auth-shard-2",
+    "timestamp": "2026-03-07T02:00:00Z",
+    "agents_completed": 8
+  },
+  "findings": [
+    {
+      "id": "GM-IMP-001",
+      "file": "src/auth/middleware.ts",
+      "priority": 0.92,
+      "blast_radius": "WIDE",
+      "layer": "impact",
+      "tracer": "api-contract-tracer",
+      "description": "Auth middleware change affects 14 downstream routes",
+      "caution": 0.88,
+      "wisdom": {
+        "intent": "SECURITY_CRITICAL",
+        "original_author": "alice",
+        "commit_message": "feat: add JWT validation middleware",
+        "age_days": 45
+      }
+    },
+    {
+      "id": "GM-IMP-002",
+      "file": "src/models/user.ts",
+      "priority": 0.85,
+      "blast_radius": "MEDIUM",
+      "layer": "impact",
+      "tracer": "data-layer-tracer",
+      "description": "User model schema change requires migration",
+      "caution": 0.72,
+      "wisdom": {
+        "intent": "DATA_MODEL",
+        "original_author": "bob",
+        "commit_message": "refactor: normalize user fields",
+        "age_days": 120
+      }
+    },
+    {
+      "id": "GM-IMP-003",
+      "file": "src/routes/users.ts",
+      "priority": 0.78,
+      "blast_radius": "NARROW",
+      "layer": "impact",
+      "tracer": "api-contract-tracer",
+      "description": "New user routes added — no breaking change to existing",
+      "caution": 0.35,
+      "wisdom": {
+        "intent": "FEATURE_ADD",
+        "original_author": "alice",
+        "commit_message": "feat: add user CRUD endpoints",
+        "age_days": 10
+      }
+    },
+    {
+      "id": "GM-IMP-004",
+      "file": "src/config/auth.ts",
+      "priority": 0.65,
+      "blast_radius": "MEDIUM",
+      "layer": "impact",
+      "tracer": "config-dependency-tracer",
+      "description": "Auth config change read by 3 services",
+      "caution": 0.80,
+      "wisdom": {
+        "intent": "CONFIG_MANAGEMENT",
+        "original_author": "carol",
+        "commit_message": "fix: centralize auth configuration",
+        "age_days": 200
+      }
+    },
+    {
+      "id": "GM-LORE-001",
+      "file": "src/auth/middleware.ts",
+      "priority": 0.90,
+      "blast_radius": "WIDE",
+      "layer": "lore",
+      "tracer": "lore-analyst",
+      "description": "High churn file (12 commits in 30 days), co-changes with src/routes/*.ts",
+      "caution": 0.85,
+      "wisdom": null
+    }
+  ],
+  "summary": {
+    "total_findings": 5,
+    "critical_count": 2,
+    "high_count": 2,
+    "medium_count": 1,
+    "collateral_files": ["src/services/session.ts", "src/utils/token.ts"],
+    "swarm_detected": false
+  }
+}
