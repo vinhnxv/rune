@@ -90,6 +90,11 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | evidence-verifier | Evidence-based plan claim validation — systematic per-claim verification against codebase/docs/external sources with grounding scores. Used by /rune:devise |
 | todo-verifier | TODO staleness verification — classifies TODOs as VALID or FALSE_POSITIVE via code-grounded checking. Model: haiku. Used by /rune:resolve-todos Phase 3 |
 | ux-pattern-analyzer | Codebase UX maturity assessment — inventories loading, error handling, form validation, navigation, empty state, confirmation/undo, and feedback patterns. 4-level maturity scale. Used by devise Phase 0.3 |
+| tome-digest | TOME finding extraction — counts P1/P2/P3 severity, extracts recurring prefixes, top findings. Shell-based extraction via utility-crew-extract.sh (zero LLM tokens). Used by arc Phase 7 (Mend) |
+| condenser-gap | Gap analysis digest — MISSING/PARTIAL/COMPLETE counts from gap-analysis.md. Shell-based extraction. Used by arc Phase 6 (Code Review) |
+| condenser-verdict | Verdict digest — dimension scores, low-scoring flags from gap-analysis-verdict.md. Shell-based extraction. Used by arc Phase 6 (Code Review) |
+| condenser-plan | Enriched plan digest — section count, acceptance criteria, file targets. Shell-based extraction. Used by arc Phase 5.5 (Gap Analysis) |
+| condenser-work | Work summary digest — committed files, task counts. Shell-based extraction. Used by arc Phase 5.5 (Gap Analysis) |
 
 ## Investigation Agents (`agents/investigation/`)
 

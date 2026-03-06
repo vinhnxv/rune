@@ -88,15 +88,15 @@ rune_acquire_lock "goldmask" "reader"
 Follow the 3-step pre-create guard from [engines.md](../../team-sdk/references/engines.md) § createTeam:
 
 ```
-Step 0: Try TeamDelete("{session_id}") — may succeed if leftover
+Step 0: Try TeamDelete() — may succeed if leftover (no arguments — clears current leadership)
 Step A: rm -rf target team/task dirs (use CHOME pattern)
 Step B: Cross-workflow find scan for stale goldmask-* dirs
-Step C: Retry TeamDelete if Step A found dirs
+Step C: Retry TeamDelete() if Step A found dirs
 ```
 
 Then:
 ```
-TeamCreate("{session_id}")
+TeamCreate({ team_name: session_id })
 ```
 
 Create state file for session hook discovery (STOP-001, TLC-003):

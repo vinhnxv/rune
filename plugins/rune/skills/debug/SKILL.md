@@ -160,7 +160,7 @@ rune_acquire_lock "debug" "writer"
 
 ```
 teamName = "rune-debug-{timestamp}"
-TeamCreate({ name: teamName })
+TeamCreate({ team_name: teamName })
 ```
 
 **Fallback**: If `TeamCreate` fails, fall back to single-agent `systematic-debugging`.

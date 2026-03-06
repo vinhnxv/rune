@@ -85,7 +85,10 @@ try {
 const tome = Read(tomePath)
 
 // Inline parseTOMEFindings: extract findings from TOME markdown
-// Pattern: finding lines contain [PREFIX-NNN] and a file path
+// Uses TOME_FINDING_REGEX — the canonical regex for extracting [PREFIX-NNN] finding IDs
+// and associated file paths from TOME markdown. Pattern matches lines like:
+//   [SEC-001] Found vulnerability in `src/auth.ts`
+//   [QUAL-003] Missing validation in "api/handler.js"
 const TOME_FINDING_REGEX = /\[([A-Z]+-\d+)\].*?[`"]([a-zA-Z0-9._\/-]+\.[a-zA-Z0-9]+)[`"]/g
 const tomeFindings = []
 let match

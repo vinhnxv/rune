@@ -11,9 +11,41 @@ Hybrid analysis: deterministic orchestrator-only checks (STEP A) + 9-dimension L
 
 _(Formerly STEP 1–5. All logic unchanged — orchestrator-only, zero LLM cost.)_
 
+## STEP A.0: Utility Crew Pre-Extraction (v1.141.0)
+
+```javascript
+// UTILITY CREW: Pre-extract plan and work-summary digests via shell script.
+// Shell extraction: zero LLM tokens, sub-second. Digests used for orchestrator's
+// quick checks only — gap analysis inspectors still read full artifacts for deep context.
+// readTalismanSection: "settings"
+const utilityCrewEnabled = readTalismanSection("settings")?.utility_crew?.enabled !== false
+
+if (utilityCrewEnabled) {
+  try {
+    Bash(`cd "${CWD}" && bash plugins/rune/scripts/utility-crew-extract.sh plan "${id}"`)
+  } catch (e) { warn(`utility-crew plan digest failed: ${e.message}`) }
+
+  try {
+    Bash(`cd "${CWD}" && bash plugins/rune/scripts/utility-crew-extract.sh work-summary "${id}"`)
+  } catch (e) { warn(`utility-crew work-summary digest failed: ${e.message}`) }
+}
+
+// Read digests for orchestrator quick-checks (tiny JSON, ~300 tokens each)
+const planDigest = (() => {
+  try { return JSON.parse(Read(`tmp/arc/${id}/plan-digest.json`)) } catch { return null }
+})()
+const workDigest = (() => {
+  try { return JSON.parse(Read(`tmp/arc/${id}/work-summary-digest.json`)) } catch { return null }
+})()
+// Quick-check metrics for downstream use
+const acceptanceCriteriaCount = planDigest?.acceptance_criteria_count ?? "unknown"
+const committedFileCount = workDigest?.committed_file_count ?? "unknown"
+```
+
 ## STEP A.1: Extract Acceptance Criteria
 
 ```javascript
+// Gap analysis inspectors still read full plan (they need deep context for requirement matching)
 const enrichedPlan = Read(`tmp/arc/${id}/enriched-plan.md`)
 // Parse lines matching: "- [ ] " or "- [x] " (checklist items)
 // Also parse lines matching: "**Acceptance criteria**:" section content

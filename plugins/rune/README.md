@@ -695,6 +695,15 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | deployment-verifier | Deployment artifact generation — Go/No-Go checklists, SQL verification, rollback plans, monitoring |
 | state-weaver | Plan state machine validation — phase extraction, transition graph construction, 10 completeness checks (dead-end states, unreachable phases, missing error paths), I/O contract verification, mermaid diagram generation |
 | evidence-verifier | Evidence-based plan claim validation — 3-layer verification (Codebase/Documentation/External), per-claim grounding scores, weighted overall plan grounding score |
+| design-analyst | Figma frame relationship classifier — 5-signal weighted composite scoring, same-screen clustering, variant detection |
+| research-verifier | External research output validation — relevance, accuracy, freshness, cross-validation, and security checks |
+| todo-verifier | TODO staleness classification — verifies TODOs as VALID or FALSE_POSITIVE during /rune:resolve-todos |
+| ux-pattern-analyzer | UX pattern usage and maturity analysis — loading, error handling, form validation, navigation patterns |
+| tome-digest | TOME finding digest extraction — P1 counts, recurring patterns, affected files for mend gating |
+| condenser-gap | Gap analysis artifact condenser — MISSING/PARTIAL/COMPLETE counts for inter-phase context reduction |
+| condenser-verdict | Gap verdict artifact condenser — dimension scores and low-scoring flags for inter-phase context reduction |
+| condenser-plan | Enriched plan artifact condenser — section count, acceptance criteria, file targets for inter-phase context reduction |
+| condenser-work | Work summary artifact condenser — committed file list and task counts for inter-phase context reduction |
 
 ## Skills
 
@@ -868,7 +877,7 @@ plugins/rune/
 │   ├── research/            # 5 research agents (plan pipeline)
 │   ├── testing/             # 5 testing agents (arc Phase 7.7)
 │   ├── work/                # 6 swarm workers (work pipeline)
-│   └── utility/             # 17 utility agents: runebinder, decree-arbiter, truthseer-validator, flow-seer, scroll-reviewer, mend-fixer, knowledge-keeper, elicitation-sage, veil-piercer-plan, horizon-sage, deployment-verifier, evidence-verifier, research-verifier, state-weaver, ux-pattern-analyzer (+ gap-fixer as prompt-template, no .md file)
+│   └── utility/             # 22 utility agents: runebinder, decree-arbiter, truthseer-validator, flow-seer, scroll-reviewer, mend-fixer, knowledge-keeper, elicitation-sage, veil-piercer-plan, horizon-sage, deployment-verifier, evidence-verifier, research-verifier, state-weaver, ux-pattern-analyzer, tome-digest, condenser-gap, condenser-verdict, condenser-plan, condenser-work (+ gap-fixer as prompt-template, no .md file)
 ├── commands/
 │   ├── cancel-arc.md           # /rune:cancel-arc
 │   ├── cancel-arc-batch.md     # /rune:cancel-arc-batch

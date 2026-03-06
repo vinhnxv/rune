@@ -78,43 +78,81 @@ The orchestrator's role in Phase 6 is limited to:
 
 ```javascript
 // STEP 1: Propagate gap analysis to reviewers as additional context
+// UTILITY CREW (v1.141.0): Use shell-based digest extraction to avoid reading full artifacts.
+// Shell extraction: zero LLM tokens, sub-second, no ATE-1 concern.
+// readTalismanSection: "settings"
+const utilityCrewEnabled = readTalismanSection("settings")?.utility_crew?.enabled !== false
 let reviewContext = ""
+
 if (exists(`tmp/arc/${id}/gap-analysis.md`)) {
-  const gapReport = Read(`tmp/arc/${id}/gap-analysis.md`)
-  const missingMatch = gapReport.match(/\| MISSING \| (\d+) \|/)
-  const missingCount = missingMatch ? parseInt(missingMatch[1], 10) : 0
-  const partialMatch = gapReport.match(/\| PARTIAL \| (\d+) \|/)
-  const partialCount = partialMatch ? parseInt(partialMatch[1], 10) : 0
-  if (missingCount > 0 || partialCount > 0) {
-    reviewContext = `\n\nGap Analysis Context: ${missingCount} MISSING, ${partialCount} PARTIAL criteria.\nSee tmp/arc/${id}/gap-analysis.md.`
+  let gapDigest = null
+
+  if (utilityCrewEnabled) {
+    try {
+      Bash(`cd "${CWD}" && bash plugins/rune/scripts/utility-crew-extract.sh gap-analysis "${id}"`)
+      const parsed = JSON.parse(Read(`tmp/arc/${id}/gap-analysis-digest.json`))
+      if (typeof parsed.missing_count === 'number') gapDigest = parsed
+    } catch (e) {
+      warn(`utility-crew gap-analysis digest failed: ${e.message} — falling back to direct read`)
+    }
+  }
+
+  if (gapDigest) {
+    if (gapDigest.missing_count > 0 || gapDigest.partial_count > 0) {
+      reviewContext = `\n\n${gapDigest.review_context}\nSee tmp/arc/${id}/gap-analysis.md.`
+    }
+  } else {
+    // FALLBACK: Current behavior — lead reads full gap-analysis
+    const gapReport = Read(`tmp/arc/${id}/gap-analysis.md`)
+    const missingMatch = gapReport.match(/\| MISSING \| (\d+) \|/)
+    const missingCount = missingMatch ? parseInt(missingMatch[1], 10) : 0
+    const partialMatch = gapReport.match(/\| PARTIAL \| (\d+) \|/)
+    const partialCount = partialMatch ? parseInt(partialMatch[1], 10) : 0
+    if (missingCount > 0 || partialCount > 0) {
+      reviewContext = `\n\nGap Analysis Context: ${missingCount} MISSING, ${partialCount} PARTIAL criteria.\nSee tmp/arc/${id}/gap-analysis.md.`
+    }
   }
 }
 
-// STEP 1.5: Inject low-scoring dimensions from VERDICT.md as reviewer focus areas
-// If Phase 5.5 produced a VERDICT.md (via Inspector Ashes), extract dimension scores.
-// Dimensions with score < 7 are flagged as focus areas for code reviewers.
+// STEP 1.5: Inject low-scoring dimensions from VERDICT as reviewer focus areas
 const verdictPath = `tmp/arc/${id}/gap-analysis-verdict.md`
 if (exists(verdictPath)) {
-  try {
-    const verdictContent = Read(verdictPath)
-    // Parse dimension score table rows: | Dimension Name | score/10 | ... |
-    const dimensionRows = verdictContent.match(/\|\s*([A-Za-z &]+?)\s*\|\s*(\d+(?:\.\d+)?)\/10\s*\|/g) || []
-    const lowScoringDimensions = []
-    for (const row of dimensionRows) {
-      const match = row.match(/\|\s*([A-Za-z &]+?)\s*\|\s*(\d+(?:\.\d+)?)\/10\s*\|/)
-      if (match) {
-        const dimName = match[1].trim()
-        const score = parseFloat(match[2])
-        if (!Number.isNaN(score) && score < 7) {
-          lowScoringDimensions.push(`${dimName} (${score}/10)`)
+  let verdictDigest = null
+
+  if (utilityCrewEnabled) {
+    try {
+      Bash(`cd "${CWD}" && bash plugins/rune/scripts/utility-crew-extract.sh verdict "${id}"`)
+      const parsed = JSON.parse(Read(`tmp/arc/${id}/verdict-digest.json`))
+      if (Array.isArray(parsed.dimensions)) verdictDigest = parsed
+    } catch (e) {
+      warn(`utility-crew verdict digest failed: ${e.message} — falling back to direct read`)
+    }
+  }
+
+  if (verdictDigest && verdictDigest.low_scoring.length > 0) {
+    reviewContext += `\n\n${verdictDigest.focus_areas_text}\nThese dimensions scored below 7/10 in the inspection report — pay extra attention to these areas.`
+  } else if (!verdictDigest) {
+    // FALLBACK: Current behavior — lead reads full verdict
+    try {
+      const verdictContent = Read(verdictPath)
+      const dimensionRows = verdictContent.match(/\|\s*([A-Za-z &]+?)\s*\|\s*(\d+(?:\.\d+)?)\/10\s*\|/g) || []
+      const lowScoringDimensions = []
+      for (const row of dimensionRows) {
+        const match = row.match(/\|\s*([A-Za-z &]+?)\s*\|\s*(\d+(?:\.\d+)?)\/10\s*\|/)
+        if (match) {
+          const dimName = match[1].trim()
+          const score = parseFloat(match[2])
+          if (!Number.isNaN(score) && score < 7) {
+            lowScoringDimensions.push(`${dimName} (${score}/10)`)
+          }
         }
       }
+      if (lowScoringDimensions.length > 0) {
+        reviewContext += `\n\nFocus areas from gap analysis: ${lowScoringDimensions.join(', ')}.\nThese dimensions scored below 7/10 in the inspection report — pay extra attention to these areas.`
+      }
+    } catch (e) {
+      warn(`Failed to parse VERDICT.md for dimension scores: ${e.message}`)
     }
-    if (lowScoringDimensions.length > 0) {
-      reviewContext += `\n\nFocus areas from gap analysis: ${lowScoringDimensions.join(', ')}.\nThese dimensions scored below 7/10 in the inspection report — pay extra attention to these areas.`
-    }
-  } catch (e) {
-    warn(`Failed to parse VERDICT.md for dimension scores: ${e.message}`)
   }
 }
 

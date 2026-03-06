@@ -35,7 +35,7 @@ AskUserQuestion({
       },
       {
         label: "Hierarchical (parent + children)",
-        description: "Decompose into parent plan with child sub-plans. Each child gets its own arc run with dependency DAG, requires/provides contracts, and branch strategy."
+        description: "Decompose into parent plan with child sub-plans. Each child gets its own arc run with dependency DAG, requires/provides contracts, and feature branch per child (e.g., feature/{id}/child-N-{phase-slug})."
       },
       {
         label: "Keep as one plan",

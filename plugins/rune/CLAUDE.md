@@ -132,7 +132,7 @@ Override via `talisman.yml` → `teammate_lifecycle.max_turns.{category}`.
 
 ### Agent `model` Field — Intentional Omission
 
-Most agents (55/91) intentionally **omit** the `model` field in their YAML frontmatter. This is by design, not a defect:
+Most agents (61/96) intentionally **omit** the `model` field in their YAML frontmatter. This is by design, not a defect:
 
 1. When `model:` is omitted → the agent **inherits** the spawning session's model
 2. The orchestrator uses `resolveModelForAgent()` to dynamically select models based on `talisman.yml` → `cost_tier` setting (opus/balanced/efficient/minimal)
@@ -341,7 +341,7 @@ echo "Commands: $(find plugins/rune/commands -name '*.md' -not -path '*/referenc
 
 ## References
 
-- [Agent registry](references/agent-registry.md) — 34 review + 5 research + 6 work + 17 utility + 24 investigation + 5 testing agents (12 stack specialist reviewers are prompt templates, not registered agents)
+- [Agent registry](references/agent-registry.md) — 34 review + 5 research + 6 work + 22 utility + 24 investigation + 5 testing agents (12 stack specialist reviewers are prompt templates, not registered agents)
 - [Key concepts](references/key-concepts.md) — Tarnished, Ash, TOME, Arc, Mend, Forge Gaze, Echoes
 - [Lore glossary](references/lore-glossary.md) — Elden Ring terminology mapping
 - [Output conventions](references/output-conventions.md) — Directory structure per workflow

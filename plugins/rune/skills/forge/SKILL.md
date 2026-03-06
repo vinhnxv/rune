@@ -183,7 +183,10 @@ See also [forge-gaze.md](../roundtable-circle/references/forge-gaze.md) for the 
 |----------|---------|------------|
 | Threshold | 0.30 | 0.15 |
 | Max per section | 3 | 5 |
+| **Max concurrent (recommended)** | **5** | **5** |
 | Max total agents | 8 | 12 |
+
+> **Summon throttle**: The recommended maximum is 5 concurrent forge agents regardless of mode. When total agents exceed 5, remaining agents should be queued and spawned as earlier agents complete to prevent resource exhaustion and context window pressure on the team lead.
 
 These can be overridden via `talisman.yml` `forge:` section.
 

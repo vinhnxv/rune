@@ -1,0 +1,20 @@
+{
+  "team_name": "rune-brainstorm-1709812345678",
+  "started": "2026-03-07T10:00:00.000Z",
+  "status": "completed",
+  "config_dir": "/Users/testuser/.claude",
+  "owner_pid": "12345",
+  "session_id": "test-session-001",
+  "feature": "add real-time notifications",
+  "mode": "roundtable",
+  "quality_score": 0.85,
+  "quality_tier": "excellent",
+  "rounds_completed": 3,
+  "approach_selected": "WebSocket-based push notifications",
+  "advisors": ["user-advocate", "tech-realist", "devils-advocate"],
+  "timing": {
+    "started": "2026-03-07T10:00:00.000Z",
+    "completed": "2026-03-07T10:15:32.000Z",
+    "duration_ms": 932000
+  }
+}

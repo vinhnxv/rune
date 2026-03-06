@@ -71,7 +71,7 @@ const params = {
 |------|-------------|---------|
 | `--deep` | Run multi-wave deep review: Wave 1 (core, up to 7 Ashes) + Wave 2 (investigation, 4 Ashes) + Wave 3 (dimension, up to 7 Ashes). Each wave runs as a full Roundtable Circle pass. | Off |
 | `--partial` | Review only staged files (`git diff --cached`) instead of full branch diff | Off |
-| `--dry-run` | Show scope selection, Ash plan, and chunk plan without summoning agents | Off |
+| `--dry-run` | Execute Phase 0 (Pre-flight) and Phase 1 (Rune Gaze) only. Display changed files, Ash selections, chunk plan, then exit. Does NOT create teams, tasks, state files, or spawn agents. | Off |
 | `--max-agents <N>` | Limit total Ash summoned (1-8). Priority: Ward Sentinel > Forge Warden > Veil Piercer > Pattern Weaver > Glyph Scribe > Knowledge Keeper > Codex Oracle | All selected |
 | `--no-chunk` | Force single-pass review (disable chunking) | Off |
 | `--chunk-size <N>` | Override chunk threshold — file count that triggers chunking (default: 20) | 20 |
@@ -85,7 +85,7 @@ const params = {
 
 **Deep mode** runs 3 waves of review with up to 18 Ashes total. See [orchestration-phases.md](../roundtable-circle/references/orchestration-phases.md) for the wave execution pattern and [wave-scheduling.md](../roundtable-circle/references/wave-scheduling.md) for wave selection logic.
 
-**Dry-run mode** executes Phase 0 (Pre-flight) and Phase 1 (Rune Gaze) only, then displays changed files classified by type, which Ash would be summoned, file assignments per Ash, estimated team size, and chunk plan if file count exceeds `CHUNK_THRESHOLD`. No teams, tasks, state files, or agents are created.
+**Dry-run mode** executes Phase 0 (Pre-flight) and Phase 1 (Rune Gaze) only, then displays changed files classified by type, which Ash would be summoned, file assignments per Ash, estimated team size, and chunk plan if file count exceeds `CHUNK_THRESHOLD`. No teams, tasks, state files, or agents are created. If `--deep + --partial` is used, displays a warning about sparse findings from investigation Ashes.
 
 ### Flag Interactions
 
@@ -120,7 +120,7 @@ Collect changed files and generate diff ranges. For detailed scope algorithms, s
 - No changed files → "Nothing to review. Make some changes first."
 - Only non-reviewable files → "No reviewable changes found."
 
-After file collection — route to chunked path if `changed_files.length > CHUNK_THRESHOLD` and `--no-chunk` is not set. Route to multi-pass if `--cycles N` with N > 1.
+After file collection — route to chunked path if `changed_files.length > CHUNK_THRESHOLD` and `--no-chunk` is not set. Route to multi-pass if `--cycles N` with N > 1. Note: `--cycles N` is an alternative to chunking — it runs N standalone review passes with TOME merge between passes, useful for catching issues that require multiple passes.
 
 ## Phase 0.3: Context Intelligence
 

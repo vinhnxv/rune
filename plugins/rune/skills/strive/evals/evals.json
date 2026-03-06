@@ -1,0 +1,143 @@
+{
+  "skill_name": "strive",
+  "skill_path": "plugins/rune/skills/strive",
+  "description": "Eval tests for /rune:strive multi-agent work execution skill",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/rune:strive plans/test-simple-feature-plan.md",
+      "expected_output": "The skill should parse the plan, create a team, spawn workers, execute tasks, run quality gates, and cleanup the team.",
+      "files": ["evals/files/test-simple-feature-plan.md"],
+      "expectations": [
+        "TeamCreate is called with team_name starting with 'strive-'",
+        "Plan is parsed into 3 tasks matching the plan structure",
+        "Workers (rune-smith and/or trial-forger) are spawned via Agent tool",
+        "TeamDelete is called after workflow completes",
+        "Completion report includes task execution summary"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/rune:strive plans/test-dependent-tasks-plan.md",
+      "expected_output": "Tasks with dependencies should be serialized via blockedBy relationships. Task 2 should wait for Task 1 to complete.",
+      "files": ["evals/files/test-dependent-tasks-plan.md"],
+      "expectations": [
+        "Task dependencies are detected from plan 'Depends on' field",
+        "Tasks with dependencies have blockedBy set correctly",
+        "Task 2 is blockedBy Task 1 (Database Schema)",
+        "Task 3 is blockedBy Task 2 (Auth Service)",
+        "Dependent tasks execute sequentially, not in parallel"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/rune:strive plans/test-ambiguous-plan.md",
+      "expected_output": "The skill should detect ambiguity and ask clarifying questions before proceeding with implementation.",
+      "files": ["evals/files/test-ambiguous-plan.md"],
+      "expectations": [
+        "Ambiguous task descriptions are detected in Phase 0",
+        "AskUserQuestion is called for clarification",
+        "Clarification questions are specific to the ambiguous content",
+        "No Agent spawns occur before user confirmation",
+        "User response is incorporated into task definitions"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/rune:strive plans/test-conflict-plan.md",
+      "expected_output": "Tasks that modify the same file should be serialized via blockedBy to prevent conflicts.",
+      "files": ["evals/files/test-conflict-plan.md"],
+      "expectations": [
+        "File ownership conflict is detected for src/api/users.py",
+        "All three tasks targeting the same file are identified",
+        "Tasks are serialized via blockedBy relationships",
+        "inscription.json task_ownership reflects the serialization",
+        "Tasks execute sequentially, not concurrently"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/rune:strive plans/test-simple-feature-plan.md",
+      "context": {
+        "git_branch": "main",
+        "git_status": "clean"
+      },
+      "expected_output": "Should warn about committing to main branch and offer to create a feature branch.",
+      "files": ["evals/files/test-simple-feature-plan.md"],
+      "expectations": [
+        "Branch check detects current branch is main",
+        "Warning is displayed about committing to main/master",
+        "AskUserQuestion offers branch creation option",
+        "Feature branch is created if user approves",
+        "Workflow continues on new branch after user confirmation"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/rune:strive",
+      "context": {
+        "recent_plans": ["plans/feat-dashboard-plan.md", "plans/fix-login-bug-plan.md"]
+      },
+      "expected_output": "Should auto-detect and offer the most recent plan for execution.",
+      "files": [],
+      "expectations": [
+        "Plans directory is scanned for available plan files",
+        "Available plans are listed or most recent is selected",
+        "AskUserQuestion presents plan options to user",
+        "User selection is respected and correct plan is loaded"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "/rune:strive plans/test-isolated-work-plan.md --worktree",
+      "expected_output": "Should create isolated git worktrees for each worker, enabling parallel work without index conflicts.",
+      "files": ["evals/files/test-isolated-work-plan.md"],
+      "expectations": [
+        "--worktree flag is detected and activates worktree mode",
+        "git-worktree skill is loaded for worktree management",
+        "merge broker is used instead of commit broker",
+        "Workers execute in isolated worktrees",
+        "Worktrees are cleaned up after workflow completes"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "/rune:strive plans/test-quality-gates-plan.md",
+      "expected_output": "Should run quality gates (lint, typecheck, test) after implementation and report results.",
+      "files": ["evals/files/test-quality-gates-plan.md"],
+      "expectations": [
+        "Quality gates are discovered from package.json/Makefile/pyproject.toml",
+        "All discovered wards are executed (lint, typecheck, test)",
+        "Ward results are included in completion report",
+        "Failed wards trigger fix task creation",
+        "Fix worker is spawned to address ward failures"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "/rune:strive plans/test-proposal-plan.md --approve",
+      "expected_output": "Each task should require user approval of implementation proposal before coding begins.",
+      "files": ["evals/files/test-proposal-plan.md"],
+      "expectations": [
+        "--approve flag activates proposal approval flow",
+        "Worker writes proposal to tmp/work/*/proposals/*.md",
+        "Proposal is presented to user via AskUserQuestion",
+        "Proposal includes Approach, Files to Modify, Files to Create, Risks sections",
+        "Implementation only starts after user approval"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "/rune:strive plans/test-cleanup-on-error-plan.md",
+      "expected_output": "Should clean up team and resources even when workers crash or fail.",
+      "files": ["evals/files/test-cleanup-on-error-plan.md"],
+      "expectations": [
+        "Worker crash is handled gracefully",
+        "TeamDelete is called even on error",
+        "Partial progress is reported in completion report",
+        "Stale team directories are cleaned up",
+        "Workflow lock is released on exit"
+      ]
+    }
+  ]
+}

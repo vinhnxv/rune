@@ -59,6 +59,9 @@ if (!cleanupTeamDeleteSucceeded) {
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/rune-mend-${id}/" "$CHOME/tasks/rune-mend-${id}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
+
+// 7. Release workflow lock
+Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "mend"`)
 ```
 
 See [engines.md](../../team-sdk/references/engines.md) § cleanup for full cleanup retry pattern.

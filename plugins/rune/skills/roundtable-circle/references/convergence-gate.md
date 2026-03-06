@@ -319,6 +319,30 @@ Circuit breaker:
   round >= tier.maxRounds → HALTED regardless of metric state
 ```
 
+### Convergence States
+
+| State | Meaning | Next Action |
+|-------|---------|-------------|
+| **CONVERGED** | All chunks pass quality thresholds | Review complete, proceed to TOME finalization |
+| **RETRY** | Some chunks failed but improvement detected | Re-review ONLY flagged chunks |
+| **HALTED** | Quality not improving (stagnation/oscillation) | Stop loop, proceed with current TOME |
+
+### Disabling Convergence
+
+The `--no-converge` flag disables the convergence loop entirely — single review pass per chunk with no re-reviews. This is useful when:
+- Quick turnaround is needed and quality gates can be skipped
+- Changeset is well-understood and re-review adds minimal value
+- CI/CD pipeline has time constraints
+
+### Reduced Timeout Per Pass
+
+Each re-review pass gets **50% of the initial timeout** (configurable via `convergence.timeout_reduction_factor`). For example, if the initial timeout is 600 seconds:
+- Round 0: 600s
+- Round 1: 300s (50% reduction)
+- Round 2: 150s (50% reduction from Round 1)
+
+This prevents convergence from indefinitely extending review time. The `MAX_CONVERGENCE_CYCLES` (derived from tier) also prevents infinite loops.
+
 ## `selectCrossChunkContext(flaggedChunk, allChunks, currentTome)`
 
 On re-review, flagged chunks receive read-only context from related chunks to improve coverage.

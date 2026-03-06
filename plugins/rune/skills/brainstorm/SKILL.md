@@ -259,7 +259,26 @@ const roundContent = roundFiles.map(f => Read(f)).join(" ")
 const searchText = featureDescription + " " + selectedApproach + " " + roundContent
 
 const figmaUrls = searchText.match(FIGMA_URL_PATTERN) || []
-const figmaUrl = figmaUrls.length > 0 ? figmaUrls[0] : null
+
+// SEC: SSRF defense — sanitize URLs extracted from user-provided round transcripts.
+// Round transcripts contain user input, so extracted URLs must be validated.
+// Reuses the same SSRF blocklist as devise research-phase.md (URL Sanitization section).
+const SSRF_BLOCKLIST = [
+  /^https?:\/\/localhost/i,
+  /^https?:\/\/127\./,
+  /^https?:\/\/0\.0\.0\.0/,
+  /^https?:\/\/10\./,
+  /^https?:\/\/192\.168\./,
+  /^https?:\/\/172\.(1[6-9]|2[0-9]|3[01])\./,
+  /^https?:\/\/169\.254\./,
+  /^https?:\/\/\[::1\]/,
+  /^https?:\/\/\[::ffff:127\./,
+  /^https?:\/\/[^/]*\.(local|internal|corp|test|example|invalid|localhost)(\/|$)/i,
+]
+const safeFigmaUrls = figmaUrls.filter(url =>
+  url.includes("figma.com") && !SSRF_BLOCKLIST.some(re => re.test(url))
+)
+const figmaUrl = safeFigmaUrls.length > 0 ? safeFigmaUrls[0] : null
 const hasDesignKeywords = DESIGN_KEYWORD_PATTERN.test(searchText)
 
 if (figmaUrl) {

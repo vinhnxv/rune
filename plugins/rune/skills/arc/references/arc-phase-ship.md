@@ -23,9 +23,10 @@ Orchestrator-only phase (no team). Creates a GitHub PR after test completes.
 0. Check `checkpoint.parent_plan.skip_ship_pr` -- if true, skip phase (child arc, parent manages PR)
 1. Check `arcConfig.ship.auto_pr` -- if false, skip phase entirely
 2. Verify `gh` CLI availability and authentication (`gh auth status`)
-3. Verify current branch is not main/master (detached HEAD also skipped)
-4. Verify there are commits to push (`git rev-list --count`)
-5. Validate branch names against `BRANCH_RE`
+3. Set `GH_PROMPT_DISABLED=1` environment variable before ALL `gh` commands (SEC-DECREE-003 / concern C-7) — disables interactive prompts in automation
+4. Verify current branch is not main/master (detached HEAD also skipped)
+5. Verify there are commits to push (`git rev-list --count`)
+6. Validate branch names against `BRANCH_RE`
 
 ## Algorithm
 

@@ -218,9 +218,12 @@ if (!cleanupTeamDeleteSucceeded) {
   // SEC-4 defense-in-depth: re-validate before rm -rf (VEIL-008)
   if (!/^[a-zA-Z0-9_-]+$/.test(team_name)) throw new Error(`Invalid team_name for cleanup: ${team_name}`)
   // 5a. Process-level kill -- terminate lingering teammates before filesystem cleanup
-  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-  Bash(`sleep 3`)
-  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  const ownerPid = Bash(`echo $PPID`).trim()
+  if (ownerPid && /^\d+$/.test(ownerPid)) {
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+    Bash(`sleep 3`)
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  }
   // 5b. Filesystem cleanup
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${team_name}/" "$CHOME/tasks/${team_name}/" 2>&1`)
   try { TeamDelete() } catch (e) { /* best effort -- clear SDK leadership state */ }
