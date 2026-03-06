@@ -199,9 +199,9 @@ if (!/^\d{13}$/.test(timestamp)) throw new Error("Invalid timestamp")
 // teamTransition protocol (standard 6-step pattern):
 const teamName = `rune-brainstorm-${timestamp}`
 // STEP 1: Timestamp already validated above (SEC-001)
-// STEP 2: TeamDelete retry-with-backoff (3 attempts: 0s, 5s, 10s)
+// STEP 2: TeamDelete retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
 let teamDeleteSucceeded = false
-for (const delay of [0, 5000, 10000]) {
+for (const delay of [0, 5000, 10000, 15000]) {
   if (delay > 0) Bash(`sleep ${delay / 1000}`)
   try { TeamDelete(); teamDeleteSucceeded = true; break } catch (e) { /* retry */ }
 }
@@ -428,9 +428,9 @@ Standard 5-component team cleanup (see CLAUDE.md "Agent Team Cleanup"):
 //    Fallback list: ["user-advocate", "tech-realist", "devils-advocate",
 //      "elicitation-sage-1", "elicitation-sage-2", "elicitation-sage-3", "state-weaver"]
 // 2. shutdown_request to all members
-// 3. Grace period (sleep 15)
-// 4. TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s)
-// 5. Filesystem fallback (gated on !cleanupTeamDeleteSucceeded)
+// 3. Grace period (sleep 20)
+// 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
+// 5. Process-level kill (SIGTERM→3s→SIGKILL) + filesystem fallback (gated on !cleanupTeamDeleteSucceeded)
 
 // Post-cleanup: update state file status to "completed"
 // Release workflow lock:

@@ -152,9 +152,9 @@ try {
     SendMessage({ type: "shutdown_request", recipient: member.name, content: "Arc pipeline complete — final sweep" })
   }
 
-  // ── Step 3: ONE single grace period (15s max) ──
+  // ── Step 3: ONE single grace period (20s max) ──
   if (allMembers.length > 0) {
-    Bash(`sleep 15`)
+    Bash(`sleep 20`)
   }
 
   // ── Step 4: TeamDelete — single attempt ──

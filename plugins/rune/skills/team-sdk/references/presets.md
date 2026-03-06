@@ -47,8 +47,8 @@ state_file: "tmp/.rune-review-{id}.json"
 signal_dir: "tmp/.rune-signals/rune-review-{id}"
 readonly: true            # SEC-001: .readonly-active marker written
 cleanup:
-  grace_period_s: 15
-  retry_delays_ms: [0, 5000, 10000]
+  grace_period_s: 20
+  retry_delays_ms: [0, 5000, 10000, 15000]
 monitoring:
   timeoutMs: 600000       # 10 min
   staleWarnMs: 300000     # 5 min
@@ -78,8 +78,8 @@ state_file: "tmp/.rune-work-{id}.json"
 signal_dir: "tmp/.rune-signals/rune-work-{id}"
 readonly: false
 cleanup:
-  grace_period_s: 15
-  retry_delays_ms: [0, 5000, 10000]
+  grace_period_s: 20
+  retry_delays_ms: [0, 5000, 10000, 15000]
 monitoring:
   timeoutMs: 1800000      # 30 min
   staleWarnMs: 300000     # 5 min
@@ -113,8 +113,8 @@ state_file: "tmp/.rune-plan-{id}.json"
 signal_dir: "tmp/.rune-signals/rune-plan-{id}"
 readonly: true            # Research agents are read-only
 cleanup:
-  grace_period_s: 15
-  retry_delays_ms: [0, 5000, 10000]
+  grace_period_s: 20
+  retry_delays_ms: [0, 5000, 10000, 15000]
 monitoring:
   timeoutMs: null         # No timeout — runs until all tasks complete
   staleWarnMs: 300000     # 5 min
@@ -141,8 +141,8 @@ state_file: "tmp/.rune-mend-{id}.json"
 signal_dir: "tmp/.rune-signals/rune-mend-{id}"
 readonly: false
 cleanup:
-  grace_period_s: 15
-  retry_delays_ms: [0, 5000, 10000]
+  grace_period_s: 20
+  retry_delays_ms: [0, 5000, 10000, 15000]
 monitoring:
   timeoutMs: 900000       # 15 min (overridable by arc --timeout)
   staleWarnMs: 300000     # 5 min
@@ -169,8 +169,8 @@ state_file: "tmp/.rune-debug-{id}.json"
 signal_dir: "tmp/.rune-signals/rune-debug-{id}"
 readonly: true            # Investigators are read-only
 cleanup:
-  grace_period_s: 15
-  retry_delays_ms: [0, 5000, 10000]
+  grace_period_s: 20
+  retry_delays_ms: [0, 5000, 10000, 15000]
 monitoring:
   timeoutMs: 600000       # 10 min
   staleWarnMs: 300000     # 5 min
@@ -204,8 +204,8 @@ state_file: "tmp/.rune-audit-{id}.json"
 signal_dir: "tmp/.rune-signals/rune-audit-{id}"
 readonly: true            # SEC-001: .readonly-active marker written
 cleanup:
-  grace_period_s: 15
-  retry_delays_ms: [0, 5000, 10000]
+  grace_period_s: 20
+  retry_delays_ms: [0, 5000, 10000, 15000]
 monitoring:
   timeoutMs: 900000       # 15 min
   staleWarnMs: 300000     # 5 min
@@ -230,7 +230,7 @@ team:
           - ward-sentinel
       cleanup:
         grace_period_s: 20
-        retry_delays_ms: [0, 5000, 10000]
+        retry_delays_ms: [0, 5000, 10000, 15000]
       monitoring:
         timeoutMs: 600000
         staleWarnMs: 300000
@@ -242,7 +242,7 @@ team:
 
 1. **prefix** is required — must match `^[a-zA-Z0-9_-]+$` (SEC-4)
 2. **agents** must reference registered agent names from [agent-registry.md](../../../references/agent-registry.md)
-3. **cleanup** inherits defaults if omitted: `grace_period_s: 15`, `retry_delays_ms: [0, 5000, 10000]`
+3. **cleanup** inherits defaults if omitted: `grace_period_s: 20`, `retry_delays_ms: [0, 5000, 10000, 15000]`
 4. **monitoring** inherits from the closest built-in preset when fields are omitted
 5. Custom presets cannot set `readonly: true` — only built-in review/audit/debug presets enforce SEC-001
 

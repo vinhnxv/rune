@@ -140,14 +140,14 @@ for (const member of allMembers) {
 
 // --- 3. Grace period — let teammates deregister before TeamDelete ---
 if (allMembers.length > 0) {
-  Bash("sleep 15")
+  Bash("sleep 20")
 }
 
-// --- 4. TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s) ---
+// --- 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s) ---
 if (!/^[a-zA-Z0-9_-]+$/.test(teamName)) {
   throw new Error(`Invalid team_name: ${teamName}`)
 }
-const CLEANUP_DELAYS = [0, 5000, 10000]
+const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
 let cleanupTeamDeleteSucceeded = false
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)

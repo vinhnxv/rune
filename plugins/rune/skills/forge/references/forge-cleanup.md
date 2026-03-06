@@ -41,15 +41,15 @@ for (const member of allMembers) {
 // Grace period — let teammates process shutdown_request and deregister.
 // Without this sleep, TeamDelete fires immediately → "active members" error → filesystem fallback.
 if (allMembers.length > 0) {
-  Bash(`sleep 15`)
+  Bash(`sleep 20`)
 }
 
 // Validate identifier before rm -rf
 if (!/^[a-zA-Z0-9_-]+$/.test(timestamp)) throw new Error("Invalid forge identifier")
 
-// Cleanup team with retry-with-backoff (3 attempts: 0s, 5s, 10s)
-// Total budget: 15s grace + 15s retry = 30s max
-const CLEANUP_DELAYS = [0, 5000, 10000]
+// Cleanup team with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
+// Total budget: 20s grace + 30s retry = 50s max
+const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
 let cleanupTeamDeleteSucceeded = false
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)

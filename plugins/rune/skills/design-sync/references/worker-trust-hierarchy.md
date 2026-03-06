@@ -57,8 +57,8 @@ For each VSM region:
    - Cross-check layout/spacing before committing
 4. ELSE IF match with score < `low_confidence_threshold` → **LOW confidence**:
    - Do NOT import — implement from scratch using VSM tokens + project patterns
-5. ELSE IF no match but builder MCP available:
-   - Search manually with region description
+5. ELSE IF no match but builder MCP available (Phase 2 implementation workers only — extraction agents do not have direct builder MCP access):
+   - Search manually with region description via builder MCP
    - If found: score against thresholds above, then follow matching branch
 6. ELSE → **FALLBACK**:
    - Read VSM tokens (colors, spacing, typography)

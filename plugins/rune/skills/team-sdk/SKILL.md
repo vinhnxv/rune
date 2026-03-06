@@ -212,9 +212,9 @@ Executes the 5-component cleanup protocol to tear down the team:
 1. **Dynamic member discovery** — read `$CHOME/teams/{teamName}/config.json`
    Fallback: use `handle.spawnedAgents` list from spawn phase
 2. **Shutdown all members** — `SendMessage(shutdown_request)` to each
-3. **Grace period** — `sleep 15` for teammate deregistration
-4. **TeamDelete with retry-with-backoff** (3 attempts: 0s, 5s, 10s)
-5. **Filesystem fallback** — only if TeamDelete never succeeded (QUAL-012)
+3. **Grace period** — `sleep 20` for teammate deregistration
+4. **TeamDelete with retry-with-backoff** (4 attempts: 0s, 5s, 10s, 15s)
+5. **Process-level kill** (SIGTERM→3s→SIGKILL with comm= re-verification) + **Filesystem fallback** — only if TeamDelete never succeeded (QUAL-012)
    `rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/"`
 
 See [engines.md](references/engines.md) for full implementation with SEC-4 validation.

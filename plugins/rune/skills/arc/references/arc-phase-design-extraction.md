@@ -136,10 +136,10 @@ if (urlCount === 1) {
   for (let i = 0; i < maxWorkers; i++) {
     SendMessage({ type: "shutdown_request", recipient: `design-syncer-${i + 1}` })
   }
-  sleep(15_000)
+  sleep(20_000)
 
   let cleanupTeamDeleteSucceeded = false
-  const CLEANUP_DELAYS = [0, 5000, 10000]
+  const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
   for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
     if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
     try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
@@ -259,7 +259,7 @@ waitForCompletion(spawnedWorkers, { timeoutMs: innerTimeoutMs })
 for (const workerName of spawnedWorkers) {
   SendMessage({ type: "shutdown_request", recipient: workerName })
 }
-sleep(15_000)
+sleep(20_000)
 
 // === STEP 10: Design Analyst Classification ===
 // Spawn design-analyst to classify relationships between extracted frames
@@ -478,10 +478,10 @@ if (gateEnabled && cachedVsmFiles.length > 0) {
 for (const workerName of vsmWorkers) {
   SendMessage({ type: "shutdown_request", recipient: workerName })
 }
-sleep(15_000)
+sleep(20_000)
 
 let cleanupTeamDeleteSucceeded = false
-const CLEANUP_DELAYS = [0, 5000, 10000]
+const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
   try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {

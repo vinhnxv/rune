@@ -153,9 +153,10 @@ def _inject_toplevel_feature_defaults(data):
         },
         "trust_hierarchy": {
             "enabled": True, "low_confidence_threshold": 0.60,
+            "high_confidence_threshold": 0.80,
         },
         "backend_impact": {
-            "enabled": True, "auto_scope": "frontend-only",
+            "enabled": False, "auto_scope": "frontend-only",
         },
     })
     data.setdefault("deployment_verification", {

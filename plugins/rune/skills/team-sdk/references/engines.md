@@ -320,7 +320,7 @@ function shutdownWave(handle) {
 
   // 3. Grace period — let teammates deregister
   if (waveMembers.length > 0) {
-    Bash(`sleep 15`)
+    Bash(`sleep 20`)
   }
 
   // 4. Clean up completed tasks (prepare pool for next wave)

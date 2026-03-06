@@ -315,14 +315,14 @@ for (const member of allMembers) {
   SendMessage({ type: "shutdown_request", recipient: member, content: "Storybook verification complete" })
 }
 
-if (allMembers.length > 0) { Bash("sleep 15") }
+if (allMembers.length > 0) { Bash("sleep 20") }
 
 let cleanupTeamDeleteSucceeded = false
-const CLEANUP_DELAYS = [0, 5000, 10000]
+const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
   try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
-    if (attempt === CLEANUP_DELAYS.length - 1) warn("cleanup: TeamDelete failed after 3 attempts")
+    if (attempt === CLEANUP_DELAYS.length - 1) warn("cleanup: TeamDelete failed after 4 attempts")
   }
 }
 
