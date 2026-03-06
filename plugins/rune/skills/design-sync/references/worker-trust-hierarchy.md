@@ -41,21 +41,27 @@ When enriched-vsm.json provides `match_score` per region:
 | < 0.60 | LOW | Do NOT import — implement from scratch using VSM tokens + project patterns |
 | No match | FALLBACK | Build from Tailwind + project design system, guided by VSM (not reference code) |
 
-**Threshold sources**: The LOW boundary (0.60) is configurable via `design_sync.trust_hierarchy.low_confidence_threshold` in talisman.yml. The HIGH boundary (0.80) is a fixed constant in the Phase 1.3 scoring logic.
+**Threshold sources**: Both boundaries are configurable via talisman.yml:
+- LOW boundary (default 0.60): `design_sync.trust_hierarchy.low_confidence_threshold`
+- HIGH boundary (default 0.80): `design_sync.trust_hierarchy.high_confidence_threshold`
 
 ## Decision Flowchart
 
 For each VSM region:
 1. Check enriched-vsm.json for component_matches
-2. IF match with score >= 0.60:
-   - Import real component
-   - Customize from VSM tokens
-   - Validate against VSM layout/spacing specs
-3. ELSE IF builder MCP available:
+2. IF match with score >= `high_confidence_threshold` (default 0.80) → **HIGH confidence**:
+   - Import library component directly, customize props from VSM
+   - Minimal verification needed
+3. ELSE IF match with score >= `low_confidence_threshold` (default 0.60) → **MEDIUM confidence**:
+   - Import component, but verify visual match against VSM tokens
+   - Cross-check layout/spacing before committing
+4. ELSE IF match with score < `low_confidence_threshold` → **LOW confidence**:
+   - Do NOT import — implement from scratch using VSM tokens + project patterns
+5. ELSE IF no match but builder MCP available:
    - Search manually with region description
-   - If found: Import, customize, validate
-4. ELSE:
+   - If found: score against thresholds above, then follow matching branch
+6. ELSE → **FALLBACK**:
    - Read VSM tokens (colors, spacing, typography)
    - Implement with project design system patterns
    - Reference code is INTENT hint only, not implementation base
-5. ALWAYS: Cross-check result against VSM layout/spacing/token specs
+7. ALWAYS: Cross-check result against VSM layout/spacing/token specs

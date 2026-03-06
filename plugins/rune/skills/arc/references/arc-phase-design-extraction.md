@@ -444,9 +444,9 @@ if (cachedVsmFiles.length > maxTotalComponents) {
 const checkpointErrors = []  // Declared before gate — gate pushes verdict here
 const gateConfig = designSyncConfig.verification_gate ?? {}
 const gateEnabled = gateConfig.enabled !== false  // default: true
-if (gateEnabled && allVsmFiles.length > 0) {
-  const vsmRegionCount = countVsmRegions(allVsmFiles)
-  const extractionCoverage = countCoveredRegions(allVsmFiles)
+if (gateEnabled && cachedVsmFiles.length > 0) {
+  const vsmRegionCount = countVsmRegions(cachedVsmFiles)
+  const extractionCoverage = countCoveredRegions(cachedVsmFiles)
   const mismatchPct = vsmRegionCount > 0
     ? ((vsmRegionCount - extractionCoverage) / vsmRegionCount) * 100
     : 0

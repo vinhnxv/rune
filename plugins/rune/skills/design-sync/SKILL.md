@@ -404,11 +404,12 @@ for each vsm in vsmFiles:
 
       // Step 4c: Score results against region requirements
       const lowThreshold = config?.design_sync?.trust_hierarchy?.low_confidence_threshold ?? 0.60
+      const highThreshold = config?.design_sync?.trust_hierarchy?.high_confidence_threshold ?? 0.80
       matches = scoreMatches(results, region, threshold: lowThreshold)
       region.component_matches = matches.map(m => ({
         name: m.name,
         score: m.score,
-        confidence: m.score >= 0.80 ? 'high' : m.score >= lowThreshold ? 'medium' : 'low'
+        confidence: m.score >= highThreshold ? 'high' : m.score >= lowThreshold ? 'medium' : 'low'
       }))
 
       // Step 4d: If match found, get full component source for worker context
@@ -741,7 +742,24 @@ design_sync:
   codegen_profile: null                  # Force codegen profile: null (auto-detect) | shadcn | untitled-ui | generic
   token_snap_distance: 20               # Max RGB distance for color snapping
   figma_cache_ttl: 1800                  # Figma API cache TTL (seconds)
+  verification_gate:
+    enabled: true                        # Enable cross-verification gate
+    warn_threshold: 20                   # Mismatch % that triggers WARN
+    block_threshold: 40                  # Mismatch % that triggers BLOCK
+  trust_hierarchy:
+    enabled: true
+    low_confidence_threshold: 0.60       # Below this = LOW confidence
+    high_confidence_threshold: 0.80      # Above this = HIGH confidence
+  backend_impact:
+    enabled: true
+    auto_scope: frontend-only            # Default scope assumption
 ```
+
+**`verification_gate`**: Controls the cross-verification gate that compares extracted design specs against implementation output. When mismatch percentage exceeds `warn_threshold`, the gate emits a WARN verdict (proceed with advisory). When it exceeds `block_threshold`, the gate emits a BLOCK verdict (halt and require manual review).
+
+**`trust_hierarchy`**: Configures confidence thresholds for the 6-level source trust hierarchy used by implementation workers. Sources with confidence below `low_confidence_threshold` are tagged LOW and require manual verification. Sources above `high_confidence_threshold` are tagged HIGH and trusted for automated implementation.
+
+**`backend_impact`**: Controls the backend impact decision tree that determines whether a design change requires backend modifications. `auto_scope` sets the default assumption — `frontend-only` means changes are assumed UI-only unless the decision tree detects API, data model, or integration impacts across its 4 branches.
 
 ## State Persistence
 
@@ -822,3 +840,8 @@ Error response type depends on execution context:
 - [fidelity-scoring.md](references/fidelity-scoring.md) — Scoring algorithm
 - [screenshot-comparison.md](references/screenshot-comparison.md) — Agent-browser integration
 - [framework-codegen-profiles.md](../frontend-design-patterns/references/framework-codegen-profiles.md) — Framework-specific codegen transformation rules
+- [verification-gate.md](references/verification-gate.md) — Cross-verification gate algorithm (PASS/WARN/BLOCK verdicts)
+- [worker-trust-hierarchy.md](references/worker-trust-hierarchy.md) — Source trust order (6 levels) for implementation workers
+- [visual-first-protocol.md](references/visual-first-protocol.md) — Visual-first extraction principle with 4-level hierarchy
+- [element-inventory-template.md](references/element-inventory-template.md) — Element inventory with source tracking (Code/Visual/Both/Manual)
+- [backend-impact.md](references/backend-impact.md) — Backend impact decision tree (4 branches)
