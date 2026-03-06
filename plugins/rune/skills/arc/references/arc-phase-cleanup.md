@@ -27,6 +27,7 @@ const PHASE_PREFIX_MAP = {
   design_extraction:      ["arc-design-"],                       // Phase 3 (conditional — design_sync)
   work:                   ["rune-work-"],
   design_verification:    ["arc-design-verify-"],               // Phase 5.2 (conditional — VSM fidelity check)
+  ux_verification:        ["arc-ux-"],                           // Phase 5.3 (conditional — ux.enabled + frontend files)
   gap_analysis:           ["rune-inspect-", "arc-inspect-"],    // both prefix variants
   // codex_gap_analysis removed in v1.74.0 — Phase 5.6 no longer creates teams (inline Bash pattern)
   gap_remediation:        ["arc-gap-fix-"],
@@ -36,9 +37,10 @@ const PHASE_PREFIX_MAP = {
   design_iteration:       ["arc-design-iter-"],                 // Phase 7.6 (conditional — fidelity < threshold)
   test:                   ["arc-test-"],
 }
-// NOTE: 12 delegated phases (9 original + 3 design phases). Phases removed in v1.67.0 (audit, audit_mend) are NOT listed.
+// NOTE: 13 delegated phases (9 original + 3 design phases + 1 UX phase). Phases removed in v1.67.0 (audit, audit_mend) are NOT listed.
 // Multi-prefix entries: plan_review has Layer 2 inspect team (arc-plan-inspect-), mend has ephemeral sage team (arc-sage-).
 // Design phases are conditional — only create teams when design_sync.enabled === true.
+// UX verification is conditional — only creates teams when ux.enabled === true + frontend files detected.
 // Orchestrator-only phases (plan_refine, verification, semantic_verification,
 // goldmask_correlation, verify_mend, ship, merge) do not create teams — no entries needed.
 ```

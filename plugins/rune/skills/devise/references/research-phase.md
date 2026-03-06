@@ -10,14 +10,18 @@ Before spawning agents, announce the research scope transparently (non-blocking)
 
 ```
 Research scope for: {feature}
+  Pre-research: ux-pattern-analyzer (if ux.enabled + frontend files — Phase 0.3)
   Agents:     repo-surveyor, echo-reader, git-miner (always)
   Conditional: practice-seeker, lore-scholar (after risk scoring in Phase 1B)
   Conditional: codex-researcher (if codex CLI available + "plan" in codex.workflows)
   Validation:  flow-seer (always, after research)
   Dimensions:  codebase patterns, past learnings, git history, spec completeness
+               + UX maturity assessment (if ux.enabled — 7 pattern categories)
                + best practices, framework docs (if external research triggered)
                + cross-model research (if Codex Oracle available)
 ```
+
+**Phase 0.3 UX Research** (runs BEFORE Phase 1, see SKILL.md): When `talisman.ux.enabled` is true and frontend files are detected, `ux-pattern-analyzer` runs as a bare Agent to inventory existing UX patterns (loading, error handling, forms, navigation, empty states, confirmation/undo, feedback). Its output feeds `brainstormContext.ux_maturity` for Phase 2 synthesis. Integrates with [ui-ux-planning-protocol.md](ui-ux-planning-protocol.md) Step 0 for greenfield/brownfield methodology routing.
 
 If the user redirects ("skip git history" or "also research X"), adjust agent selection before spawning.
 

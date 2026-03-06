@@ -1,8 +1,8 @@
 # Agent Registry
 
-**Total: 86 agents** (30 review + 5 research + 6 work + 16 utility + 24 investigation + 5 testing)
+**Total: 94 agents** (36 review + 5 research + 6 work + 18 utility + 24 investigation + 5 testing)
 
-> Agent count verified by `find agents/ -name "*.md" -type f | wc -l` on 2026-03-05.
+> Agent count verified by `find agents/ -name "*.md" -type f | wc -l` on 2026-03-06.
 
 > **Stack specialist reviewers** (python-reviewer, typescript-reviewer, rust-reviewer, php-reviewer, axum-reviewer, fastapi-reviewer, django-reviewer, laravel-reviewer, sqlalchemy-reviewer, tdd-compliance-reviewer, ddd-reviewer, di-reviewer) are NOT registered agents. They are prompt templates at `skills/roundtable-circle/references/specialist-prompts/`, loaded on-demand by `buildAshPrompt()` via stack detection.
 
@@ -40,6 +40,12 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | senior-engineer-reviewer | Persona-based senior engineer review — production thinking, temporal reasoning (SENIOR-001 through SENIOR-010) |
 | cross-shard-sentinel | Cross-shard consistency analysis — reads only shard summary JSONs, detects import mismatches, auth boundary gaps, naming drift (XSH-001+). Active only when Inscription Sharding is enabled (v1.98.0+) |
 | design-implementation-reviewer | Design-to-code fidelity — token compliance, layout matching, responsive coverage, accessibility, variant completeness (FIDE-001 through FIDE-010) |
+| ux-heuristic-reviewer | UX heuristic evaluation — Nielsen Norman 10 heuristics at code level, 50+ checklist items (UXH-). Conditional: `ux.enabled` + frontend files |
+| ux-flow-validator | User flow completeness — loading states, error boundaries, empty states, confirmation dialogs, undo mechanisms, graceful degradation (UXF-). Conditional: `ux.enabled` + frontend files |
+| ux-interaction-auditor | Micro-interaction audit — hover/focus states, keyboard accessibility, touch targets (44px), animation performance, prefers-reduced-motion, scroll behavior (UXI-). Conditional: `ux.enabled` + frontend files |
+| ux-cognitive-walker | Cognitive walkthrough — first-time user simulation, discoverability, learnability, error recovery, progressive disclosure (UXC-). Model: opus. Off by default (`cognitive_walkthrough: true` to enable) |
+| aesthetic-quality-reviewer | Aesthetic quality beyond pixel fidelity — anti-slop detection, visual coherence, typography, whitespace balance, design personality scoring (0-100). Complements design-implementation-reviewer |
+| design-system-compliance-reviewer | Design system convention enforcement — token usage, variant patterns (CVA), import paths, class merge utilities, dark mode. Conditional: frontend stack + design system detected (confidence >= 0.70) |
 
 ## Research Agents (`agents/research/`)
 
@@ -59,6 +65,8 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | trial-forger | Test generation (swarm worker) |
 | design-sync-agent | Figma extraction and VSM creation (design swarm worker) |
 | design-iterator | Design fidelity iteration — screenshot→analyze→improve loop (design swarm worker) |
+| storybook-reviewer | Storybook component verification (read-only) — screenshot capture, Mode A (Design Fidelity) / Mode B (UI Quality Audit), structured findings for storybook-fixer |
+| storybook-fixer | Storybook finding fixer — applies one fix per round (SBK-001), re-verifies via screenshot, three-signal stop convergence detection |
 
 ## Utility Agents (`agents/utility/`)
 
@@ -78,6 +86,10 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | deployment-verifier | Deployment artifact generation — Go/No-Go checklists, SQL verification, rollback plans, monitoring (DEPLOY-) |
 | research-verifier | Validates external research outputs for relevance, accuracy, freshness, cross-validation, and security before plan synthesis (/rune:devise Phase 1C.5) |
 | state-weaver | Plan state machine validation — extracts phases, builds transition graphs, validates completeness (10 STSM checks), verifies I/O contracts, generates mermaid diagrams |
+| design-analyst | Figma frame relationship classifier — 5-signal weighted composite (name 0.35, component set 0.25, structure 0.20, dimension 0.10, shared instances 0.10), single-linkage clustering. Used by arc Phase 3 (Design Extraction) |
+| evidence-verifier | Evidence-based plan claim validation — systematic per-claim verification against codebase/docs/external sources with grounding scores. Used by /rune:devise |
+| todo-verifier | TODO staleness verification — classifies TODOs as VALID or FALSE_POSITIVE via code-grounded checking. Model: haiku. Used by /rune:resolve-todos Phase 3 |
+| ux-pattern-analyzer | Codebase UX maturity assessment — inventories loading, error handling, form validation, navigation, empty state, confirmation/undo, and feedback patterns. 4-level maturity scale. Used by devise Phase 0.3 |
 
 ## Investigation Agents (`agents/investigation/`)
 
@@ -133,4 +145,5 @@ Used by `/rune:debug` skill:
 | unit-test-runner | Diff-scoped unit test execution — pytest, jest, vitest (model: sonnet) |
 | integration-test-runner | Integration test execution with service dependency management (model: sonnet) |
 | e2e-browser-tester | E2E browser testing via agent-browser with file-to-route mapping (model: sonnet) |
+| extended-test-runner | Extended-tier test execution with checkpoint/resume protocol — heartbeat liveness, budget enforcement, atomic checkpoint writes for crash recovery (model: sonnet) |
 | test-failure-analyst | Read-only failure analysis — root cause classification and fix suggestions (maxTurns: 15) |

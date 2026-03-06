@@ -23,7 +23,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **design-sync** | Figma design synchronization workflow — 3-phase pipeline (PLAN: extraction → WORK: implementation → REVIEW: fidelity). VSM intermediate format, Figma MCP integration, fidelity scoring (6 dimensions), iterative refinement. Gated by `design_sync.enabled` |
 | **systematic-debugging** | 4-phase debugging methodology (Observe → Narrow → Hypothesize → Fix) for workers hitting repeated failures. Iron Law: no fixes without root cause investigation (DBG-001) |
 | **zsh-compat** | zsh shell compatibility — read-only variables, glob NOMATCH, word splitting, array indexing |
-| **arc** | End-to-end orchestration pipeline (pre-flight freshness gate + 27 phases: forge → plan review → plan refinement → verification → semantic verification → design extraction → task decomposition → work → storybook verification → design verification → gap analysis → codex gap analysis → gap remediation → goldmask verification → code review (--deep) → goldmask correlation → mend → verify mend → design iteration → test → test coverage critique → pre-ship validation → release quality check → ship → bot review wait → PR comment resolution → merge) |
+| **arc** | End-to-end orchestration pipeline (pre-flight freshness gate + 28 phases: forge → plan review → plan refinement → verification → semantic verification → design extraction → task decomposition → work → storybook verification → design verification → ux verification → gap analysis → codex gap analysis → gap remediation → goldmask verification → code review (--deep) → goldmask correlation → mend → verify mend → design iteration → test → test coverage critique → pre-ship validation → release quality check → ship → bot review wait → PR comment resolution → merge) |
 | **testing** | Test orchestration pipeline knowledge for arc Phase 7.7 (non-invocable) |
 | **agent-browser** | Browser automation knowledge injection for E2E testing (non-invocable) |
 | **test-browser** | Standalone browser E2E testing — 9-step inline workflow (no agent teams): scope detection, route discovery, headed/headless mode, server verification, per-route test loop, human gate handling (OAuth/payment/2FA), interactive failure recovery (Fix/Todo/Skip), summary report. Uses scope-detection.md + human-gates.md + failure-handling.md. `/rune:test-browser [PR# | branch] [--headed] [--max-routes N]` |
@@ -149,7 +149,7 @@ See [cost-tier-mapping.md](references/cost-tier-mapping.md) for the full categor
 Reads `.claude/talisman.yml` (project) → `$CHOME/talisman.yml` (global) → `{}`.
 Where `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`.
 
-**Preferred**: Use `readTalismanSection(sectionName)` — reads pre-resolved JSON shards from `tmp/.talisman-resolved/` for 94% token reduction. Falls back to full-file `readTalisman()` if shards are unavailable. Available shards: `arc`, `codex`, `review`, `work`, `goldmask`, `plan`, `gates`, `settings`, `inspect`, `testing`, `audit`, `misc` (includes `integrations`).
+**Preferred**: Use `readTalismanSection(sectionName)` — reads pre-resolved JSON shards from `tmp/.talisman-resolved/` for 94% token reduction. Falls back to full-file `readTalisman()` if shards are unavailable. Available shards: `arc`, `codex`, `review`, `work`, `goldmask`, `plan`, `gates`, `settings`, `inspect`, `testing`, `audit`, `ux`, `misc` (includes `integrations`).
 
 **Rule**: Use SDK `Read()` — NEVER `Bash("cat ...")` or `Bash("test -f ...")`.
 `Read()` auto-resolves `CLAUDE_CONFIG_DIR` and tilde. Bash does not (ZSH `~ not found` bug).
@@ -341,7 +341,7 @@ echo "Commands: $(find plugins/rune/commands -name '*.md' -not -path '*/referenc
 
 ## References
 
-- [Agent registry](references/agent-registry.md) — 30 review + 5 research + 6 work + 14 utility + 24 investigation + 5 testing agents (12 stack specialist reviewers are prompt templates, not registered agents)
+- [Agent registry](references/agent-registry.md) — 34 review + 5 research + 6 work + 17 utility + 24 investigation + 5 testing agents (12 stack specialist reviewers are prompt templates, not registered agents)
 - [Key concepts](references/key-concepts.md) — Tarnished, Ash, TOME, Arc, Mend, Forge Gaze, Echoes
 - [Lore glossary](references/lore-glossary.md) — Elden Ring terminology mapping
 - [Output conventions](references/output-conventions.md) — Directory structure per workflow

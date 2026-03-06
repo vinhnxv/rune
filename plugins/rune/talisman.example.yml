@@ -1729,6 +1729,27 @@ context_weaving:
 #                                            # Below threshold: FAIL if P1 findings, NEEDS_ATTENTION otherwise.
 
 # ──────────────────────────────────────────────
+# UX Verification — UX heuristic review (arc Phase 5.3) (v1.140.0+)
+# ──────────────────────────────────────────────
+# Opt-in UX verification for arc pipeline. When enabled AND frontend files are
+# detected in the diff, Phase 5.3 spawns up to 4 UX review agents to evaluate
+# usability heuristics, user flow integrity, interaction patterns, and cognitive load.
+# Disabled by default — enable for projects with user-facing UI.
+#
+# ux:
+#   enabled: false                             # Master switch — must be true for Phase 5.3 to run (default: false)
+#   blocking: false                            # When true, P1 UX findings halt the pipeline (default: false, non-blocking)
+#   cognitive_walkthrough: false               # Enable cognitive walker agent for cognitive load analysis (default: false)
+#   agents:                                    # Agent selection (all enabled when ux.enabled is true)
+#     - ux-heuristic-reviewer                  # Nielsen heuristics evaluation (UXH- prefix)
+#     - ux-flow-validator                      # User flow integrity checks (UXF- prefix)
+#     - ux-interaction-auditor                 # Interaction pattern analysis (UXI- prefix)
+#     - ux-cognitive-walker                    # Cognitive walkthrough (UXC- prefix, gated by cognitive_walkthrough)
+#   thresholds:
+#     min_score: 70                            # Minimum UX score to pass (0-100, default: 70)
+#     max_p1_findings: 0                       # Maximum P1 findings before blocking (when blocking: true, default: 0)
+
+# ──────────────────────────────────────────────
 # Codex Review — Cross-model code review (/rune:codex-review) (v1.107.0+)
 # ──────────────────────────────────────────────
 # Runs Claude Ashes and Codex agents in parallel on the same diff, then cross-verifies

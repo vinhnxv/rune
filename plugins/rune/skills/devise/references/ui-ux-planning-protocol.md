@@ -2,7 +2,49 @@
 
 Structured protocol for frontend planning during Phase 0 of `/rune:devise`. Activated when the feature involves UI components, design systems, or Figma assets. Runs automatically when `design_sync_candidate = true` or when the feature description contains design-related keywords.
 
-The protocol runs in 7 steps. Steps 1–2 are automatic (no user interaction). Steps 3–7 are semi-automatic or guided. Each step feeds its output into the plan synthesis (Phase 2) and the strive worker context (Phase 4).
+The protocol runs in 8 steps (0-7). Step 0 routes to greenfield/brownfield UX methodology when `ux.enabled` is true in talisman (opt-in, backward compatible). Steps 1-2 are automatic (no user interaction). Steps 3-7 are semi-automatic or guided. Each step feeds its output into the plan synthesis (Phase 2) and the strive worker context (Phase 4).
+
+## Step 0: UX Process Selection (automatic)
+
+When `ux.enabled === true` in talisman, determine the UX methodology before running Steps 1-7. Routes to greenfield or brownfield UX process based on project context. This step is additive — it enriches the existing protocol without replacing it.
+
+```javascript
+// readTalismanSection: "ux"
+const uxConfig = readTalismanSection("ux")
+const uxEnabled = uxConfig?.enabled === true
+
+if (uxEnabled) {
+  // Detect project context for UX methodology routing
+  const hasComponents = Glob("src/components/**/*.{tsx,jsx}").length > 0
+    || Glob("components/**/*.{tsx,jsx}").length > 0
+  const hasExistingUI = hasComponents || Glob("app/**/*.{tsx,jsx}").length > 10
+
+  const uxProcess = hasExistingUI ? "brownfield" : "greenfield"
+
+  // Load UX process reference
+  // Greenfield: new project — focus on information architecture, user research, wireframes
+  // Brownfield: existing codebase — focus on heuristic audit, pattern consistency, incremental improvement
+  const uxProcessRef = uxProcess === "greenfield"
+    ? Read("skills/ux-design-process/references/greenfield-process.md")
+    : Read("skills/ux-design-process/references/brownfield-process.md")
+
+  brainstormContext.ux_process = {
+    type: uxProcess,
+    enabled: true,
+    cognitive_walkthrough: uxConfig.cognitive_walkthrough === true,
+    blocking: uxConfig.blocking === true,
+    reference_loaded: uxProcessRef !== null,
+  }
+
+  // Load heuristic checklist for both processes
+  const heuristicChecklist = Read("skills/ux-design-process/references/heuristic-checklist.md")
+  brainstormContext.ux_heuristics_loaded = heuristicChecklist !== null
+} else {
+  brainstormContext.ux_process = { type: null, enabled: false }
+}
+```
+
+**Output**: `brainstormContext.ux_process` — gates UX-specific enrichment in Steps 3-7. When `ux.enabled` is false, Steps 1-7 run unchanged (backward compatible).
 
 ## Step 1: Design System Audit (automatic)
 
@@ -578,6 +620,10 @@ This output is consumed by:
 
 ## Cross-References
 
+- [ux-design-process SKILL.md](../../ux-design-process/SKILL.md) — UX design intelligence skill (Step 0 routing)
+- [greenfield-process.md](../../ux-design-process/references/greenfield-process.md) — Greenfield UX methodology
+- [brownfield-process.md](../../ux-design-process/references/brownfield-process.md) — Brownfield UX methodology
+- [heuristic-checklist.md](../../ux-design-process/references/heuristic-checklist.md) — Nielsen+Baymard heuristic checklist
 - [brainstorm-phase.md](brainstorm-phase.md) — Phase 0 where UI/UX protocol is triggered
 - [synthesize.md](synthesize.md) — Phase 2 that consumes protocol output
 - [design-system-rules.md](../../frontend-design-patterns/references/design-system-rules.md) — Token constraints enforced during decomposition

@@ -1,10 +1,10 @@
 # Initialize Checkpoint (ARC-2) — Full Algorithm
 
 Checkpoint initialization: config resolution (3-layer), session identity,
-checkpoint schema v20 creation, and initial state write.
+checkpoint schema v21 creation, and initial state write.
 
 **Inputs**: plan path, talisman config, arc arguments, `freshnessResult` from Freshness Check
-**Outputs**: checkpoint object (schema v20), resolved arc config (`arcConfig`)
+**Outputs**: checkpoint object (schema v21), resolved arc config (`arcConfig`)
 **Error handling**: Fail arc if plan file missing or config invalid
 **Consumers**: SKILL.md checkpoint-init stub, resume logic in [arc-resume.md](arc-resume.md)
 
@@ -143,9 +143,9 @@ const changedFiles = diffStats.files || []
 const arcTotalTimeout = calculateDynamicTimeout(tier)
 ```
 
-## Checkpoint Schema v20
+## Checkpoint Schema v21
 
-// Schema history: see CHANGELOG.md for migration notes from v12-v20.
+// Schema history: see CHANGELOG.md for migration notes from v12-v21.
 
 ```javascript
 // ── Resolve session identity for cross-session isolation ──
@@ -168,7 +168,7 @@ const parentPlanMeta = {
 // The arc-hierarchy SKILL.md documents the injection protocol.
 
 Write(`.claude/arc/${id}/checkpoint.json`, {
-  id, schema_version: 20, plan_file: planFile,
+  id, schema_version: 21, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}",
   flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, bot_review: arcConfig.bot_review ?? false, no_bot_review: arcConfig.no_bot_review ?? false },
   arc_config: arcConfig,
@@ -198,6 +198,7 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
                     // context_path scoped to arc checkpoint id (FAIL-008): context/{id}/{task_id}.md
                     suspended_tasks: [], started_at: null, completed_at: null },
     design_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
+    ux_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     gap_analysis: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     codex_gap_analysis: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     gap_remediation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, fixed_count: null, deferred_count: null, started_at: null, completed_at: null },
@@ -246,6 +247,6 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
 // the directory existing when they scan for arc context.
 Bash(`mkdir -p "tmp/arc/${id}/todos/"`)
 
-// Schema migration is handled in arc-resume.md (steps 3a through 3u).
-// Migrations v1→v20 are defined there. See arc-resume.md for the full chain.
+// Schema migration is handled in arc-resume.md (steps 3a through 3v).
+// Migrations v1→v21 are defined there. See arc-resume.md for the full chain.
 ```

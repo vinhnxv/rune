@@ -3,7 +3,7 @@ name: ash-guide
 description: |
   Use when summoning Rune agents, when encountering "agent not found" errors, when
   selecting which review agents to use, or when checking agent capabilities and tools.
-  Quick reference for all 93 agents across 6 categories (review, research, work,
+  Quick reference for all 91 agents across 6 categories (review, research, work,
   utility, investigation, testing). Keywords: agent list, Ash, subagent type, agent not found.
 
   <example>
@@ -60,7 +60,7 @@ Tool restriction is enforced via prompt instructions (defense-in-depth).
 
 ## Review Agents
 
-22 specialized reviewers that form Ash teams:
+26 specialized reviewers that form Ash teams:
 
 | Agent | Role | Perspective |
 |-------|------|-------------|
@@ -86,6 +86,10 @@ Tool restriction is enforced via prompt instructions (defense-in-depth).
 | `rune:review:assumption-slayer` | Premise validation truth-telling | Problem-solution fit, cargo cult detection, complexity justification |
 | `rune:review:entropy-prophet` | Long-term consequence truth-telling | Complexity compounding, dependency trajectory, lock-in, maintenance burden |
 | `rune:review:design-system-compliance-reviewer` | Design system compliance review | Token usage, variant patterns, import paths, class merge utilities, dark mode implementation |
+| `rune:review:ux-heuristic-reviewer` | UX heuristic evaluation | Nielsen Norman 10 heuristics at code level, 50+ checklist items (UXH-). Conditional: `ux.enabled` + frontend files |
+| `rune:review:ux-flow-validator` | User flow completeness | Loading states, error boundaries, empty states, confirmation dialogs, undo, graceful degradation (UXF-). Conditional: `ux.enabled` + frontend files |
+| `rune:review:ux-interaction-auditor` | Micro-interaction audit | Hover/focus states, keyboard accessibility, touch targets (44px), animation, prefers-reduced-motion (UXI-). Conditional: `ux.enabled` + frontend files |
+| `rune:review:ux-cognitive-walker` | Cognitive walkthrough | First-time user simulation, discoverability, learnability, error recovery, progressive disclosure (UXC-). Conditional: `ux.enabled` + `cognitive_walkthrough: true` |
 
 ## Ash Roles (Consolidated Teammates)
 
@@ -115,6 +119,7 @@ In `/rune:appraise`, agents are grouped into 7 built-in Ashes (extensible via ta
 | `rune:utility:mend-fixer` | Parallel code fixer for /rune:mend findings |
 | `rune:utility:knowledge-keeper` | Documentation coverage reviewer for plans |
 | `rune:utility:veil-piercer-plan` | Plan-level truth-teller (Phase 4C plan review) |
+| `rune:utility:ux-pattern-analyzer` | Codebase UX maturity assessment — inventories loading, error, form, navigation, empty state, confirmation/undo patterns (devise Phase 0.3) |
 
 ## Research Agents
 
