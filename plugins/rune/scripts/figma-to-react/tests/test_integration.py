@@ -29,8 +29,12 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core import extract_react_code, fetch_design, to_react  # noqa: E402
-from node_parser import parse_node, walk_tree  # noqa: E402
+from core import (  # noqa: E402
+    extract_react_code, fetch_design, to_react,
+    classify_variant_strategy, generate_cva_from_variants,
+)
+from node_parser import parse_node, walk_tree, InstanceRole, _GENERIC_SLOT_NAMES  # noqa: E402
+from react_generator import generate_component, _is_promotable_text  # noqa: E402
 from tests.mock_figma_client import MockFigmaClient, FIXTURES_DIR  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -511,3 +515,119 @@ class TestPipelineEdgeCases:
         finally:
             if fixture_path.exists():
                 fixture_path.unlink()
+
+
+# ---------------------------------------------------------------------------
+# Cross-phase integration tests
+# ---------------------------------------------------------------------------
+
+
+class TestCrossPhaseIntegration:
+    """Verify interactions between phases work correctly end-to-end."""
+
+    @pytest.fixture
+    def component_set_raw(self):
+        """Load COMPONENT_SET node from sample fixture."""
+        fixture_path = FIXTURES_DIR / "sample_figma_response.json"
+        with open(fixture_path) as f:
+            data = json.load(f)
+        # Navigate to the COMPONENT_SET node (20:1)
+        canvas = data["document"]["children"][0]
+        for node in canvas["children"]:
+            if node["id"] == "20:1":
+                return node
+        pytest.skip("COMPONENT_SET node 20:1 not found in fixture")
+
+    def test_component_set_parses_with_variants(self, component_set_raw):
+        """Phase 1+3: COMPONENT_SET parses correctly with variant children."""
+        ir = parse_node(component_set_raw)
+        assert ir is not None
+        assert ir.name == "ButtonGroup"
+        # Should have COMPONENT children
+        component_children = [
+            c for c in ir.children if c.node_type.value == "COMPONENT"
+        ]
+        assert len(component_children) == 2
+        assert component_children[0].name == "Type=Primary"
+        assert component_children[1].name == "Type=Secondary"
+
+    def test_variant_strategy_for_similar_variants(self, component_set_raw):
+        """Phase 3: Similar variants produce MERGE or CONDITIONAL strategy (not SPLIT)."""
+        ir = parse_node(component_set_raw)
+        strategy, score = classify_variant_strategy(ir)
+        assert strategy in ("merge", "conditional")
+        assert score >= 0.5  # Not split
+
+    def test_cva_generation_for_component_set(self, component_set_raw):
+        """Phase 3+5: MERGE strategy triggers CVA generation."""
+        ir = parse_node(component_set_raw)
+        cva = generate_cva_from_variants(ir)
+        assert "base" in cva
+        assert "variants" in cva
+        assert "type" in cva["variants"]
+        assert "primary" in cva["variants"]["type"]
+        assert "secondary" in cva["variants"]["type"]
+
+    def test_slot_detection_in_component_variant(self, component_set_raw):
+        """Phase 6: Content frame inside COMPONENT is detected as slot."""
+        ir = parse_node(component_set_raw)
+        primary = [c for c in ir.children if c.name == "Type=Primary"][0]
+        # The "Content" frame inside Primary should be a slot candidate
+        content_nodes = [c for c in primary.children if c.name == "Content"]
+        assert len(content_nodes) == 1
+        content = content_nodes[0]
+        assert content.is_slot_candidate is True
+        assert content.is_empty_slot is True
+
+    def test_text_promotion_in_component_variant(self, component_set_raw):
+        """Phase 4: Label text inside COMPONENT is promotable."""
+        ir = parse_node(component_set_raw)
+        primary = [c for c in ir.children if c.name == "Type=Primary"][0]
+        label_nodes = [c for c in primary.children if c.name == "Label"]
+        assert len(label_nodes) == 1
+        label = label_nodes[0]
+        assert _is_promotable_text(label, primary) is True
+
+    def test_text_promotion_guard_inside_slot(self, component_set_raw):
+        """Phase 4+6: Text promotion is blocked inside slot parents."""
+        ir = parse_node(component_set_raw)
+        primary = [c for c in ir.children if c.name == "Type=Primary"][0]
+        content = [c for c in primary.children if c.name == "Content"][0]
+        # Slot candidate as parent → text promotion should be rejected
+        from node_parser import FigmaIRNode
+        from figma_types import NodeType
+        fake_text = FigmaIRNode(
+            node_id="fake:1", name="Title", node_type=NodeType.TEXT,
+            text_content="Hello",
+        )
+        assert _is_promotable_text(fake_text, content) is False
+
+    def test_generate_component_for_variant_produces_props(self, component_set_raw):
+        """Phase 4+6: generate_component for a variant with Label produces props interface."""
+        ir = parse_node(component_set_raw)
+        primary = [c for c in ir.children if c.name == "Type=Primary"][0]
+        code = generate_component(primary, component_name="ButtonPrimary")
+        # Label text should be promoted to a prop
+        assert "label" in code.lower()
+        # Content slot should produce {children} or named slot
+        assert "{" in code
+
+    def test_node_normalizer_backward_compat(self):
+        """Phase 7: Functions from node_normalizer are importable from node_parser."""
+        from node_parser import (
+            _sanitize_name, _NameDeduplicator, _can_be_flattened,
+            _has_vector_children, _detect_icon_candidate,
+            _detect_image_fill, _is_absolute_positioned,
+            _GENERIC_SLOT_NAMES, _SLOT_KEYWORDS,
+        )
+        assert callable(_sanitize_name)
+        assert callable(_can_be_flattened)
+        assert callable(_has_vector_children)
+        assert callable(_detect_icon_candidate)
+        assert callable(_detect_image_fill)
+        assert callable(_is_absolute_positioned)
+        assert "content" in _GENERIC_SLOT_NAMES
+        assert "slot" in _SLOT_KEYWORDS
+        dedup = _NameDeduplicator()
+        assert dedup.get_unique("test") == "test"
+        assert dedup.get_unique("test") == "test_1"

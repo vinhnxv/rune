@@ -9,9 +9,14 @@ import pytest
 # Add parent directory to path so we can import the module under test
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core import extract_react_code, ir_to_dict, paginate_output, _collect_svg_fallback_ids  # noqa: E402
+from core import (  # noqa: E402
+    extract_react_code, ir_to_dict, paginate_output, _collect_svg_fallback_ids,
+    structural_diff_score, classify_variant_strategy,
+    _parse_variant_name, _is_multi_dimensional,
+    generate_cva_from_variants, infer_dimension_name,
+)
 from node_parser import FigmaIRNode, parse_node  # noqa: E402
-from figma_types import NodeType  # noqa: E402
+from figma_types import Color, NodeType, Paint, PaintType  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -568,3 +573,321 @@ class TestCollectSvgFallbackIdsEdgeCases:
         result = _collect_svg_fallback_ids(root)
         for i in range(50):
             assert f"40:{i}" in result
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Variant-to-Component Splitting
+# ---------------------------------------------------------------------------
+
+
+class TestParseVariantName:
+    def test_key_value_format(self):
+        result = _parse_variant_name("Type=Primary, Size=Large")
+        assert result == {"Type": "Primary", "Size": "Large"}
+
+    def test_flat_format(self):
+        result = _parse_variant_name("Primary")
+        assert result == {"variant": "Primary"}
+
+    def test_single_key_value(self):
+        result = _parse_variant_name("State=Hover")
+        assert result == {"State": "Hover"}
+
+    def test_whitespace_handling(self):
+        result = _parse_variant_name(" Type = Primary , Size = Large ")
+        assert result == {"Type": "Primary", "Size": "Large"}
+
+
+class TestIsMultiDimensional:
+    def test_multi_dimensional(self):
+        v = _make_node(name="Type=Primary, Size=Large", node_type=NodeType.COMPONENT)
+        assert _is_multi_dimensional([v]) is True
+
+    def test_single_dimensional(self):
+        v = _make_node(name="Type=Primary", node_type=NodeType.COMPONENT)
+        assert _is_multi_dimensional([v]) is False
+
+    def test_flat_name(self):
+        v = _make_node(name="Primary", node_type=NodeType.COMPONENT)
+        assert _is_multi_dimensional([v]) is False
+
+    def test_empty_list(self):
+        assert _is_multi_dimensional([]) is False
+
+
+class TestStructuralDiffScore:
+    def test_identical_structure(self):
+        a = _make_node(
+            name="A", node_type=NodeType.COMPONENT, layout_mode="HORIZONTAL",
+            children=[_make_node(node_type=NodeType.TEXT)],
+        )
+        b = _make_node(
+            name="B", node_type=NodeType.COMPONENT, layout_mode="HORIZONTAL",
+            children=[_make_node(node_type=NodeType.TEXT)],
+        )
+        assert structural_diff_score(a, b) == pytest.approx(1.0)
+
+    def test_different_child_count(self):
+        a = _make_node(
+            name="A", node_type=NodeType.COMPONENT, layout_mode="HORIZONTAL",
+            children=[_make_node(node_type=NodeType.TEXT)],
+        )
+        b = _make_node(
+            name="B", node_type=NodeType.COMPONENT, layout_mode="HORIZONTAL",
+            children=[
+                _make_node(node_type=NodeType.TEXT),
+                _make_node(node_type=NodeType.RECTANGLE),
+                _make_node(node_type=NodeType.FRAME),
+            ],
+        )
+        score = structural_diff_score(a, b)
+        assert 0.0 < score < 1.0
+
+    def test_different_layout_mode(self):
+        a = _make_node(
+            name="A", node_type=NodeType.COMPONENT, layout_mode="HORIZONTAL",
+            children=[_make_node(node_type=NodeType.TEXT)],
+        )
+        b = _make_node(
+            name="B", node_type=NodeType.COMPONENT, layout_mode="VERTICAL",
+            children=[_make_node(node_type=NodeType.TEXT)],
+        )
+        score = structural_diff_score(a, b)
+        # Same children but different layout: child_count=1.0*0.4, type=1.0*0.35, layout=0.5*0.25
+        assert score == pytest.approx(0.4 + 0.35 + 0.125)
+
+    def test_no_children(self):
+        a = _make_node(name="A", node_type=NodeType.COMPONENT)
+        b = _make_node(name="B", node_type=NodeType.COMPONENT)
+        # Both empty: child_count=0/1=0, type=0, layout same=1.0*0.25
+        score = structural_diff_score(a, b)
+        assert score == pytest.approx(0.25)
+
+    def test_completely_different(self):
+        a = _make_node(
+            name="A", node_type=NodeType.COMPONENT, layout_mode="HORIZONTAL",
+            children=[_make_node(node_type=NodeType.TEXT)],
+        )
+        b = _make_node(
+            name="B", node_type=NodeType.COMPONENT, layout_mode="VERTICAL",
+            children=[
+                _make_node(node_type=NodeType.RECTANGLE),
+                _make_node(node_type=NodeType.FRAME),
+                _make_node(node_type=NodeType.ELLIPSE),
+            ],
+        )
+        score = structural_diff_score(a, b)
+        assert score < 0.5
+
+
+class TestClassifyVariantStrategy:
+    def _make_component_set(self, variant_specs):
+        """Build a COMPONENT_SET with variant children.
+
+        variant_specs: list of (name, children, layout_mode) tuples
+        """
+        children = []
+        for name, child_nodes, layout in variant_specs:
+            children.append(_make_node(
+                name=name, node_type=NodeType.COMPONENT,
+                layout_mode=layout, children=child_nodes,
+            ))
+        return _make_node(
+            name="ButtonGroup", node_type=NodeType.COMPONENT_SET,
+            children=children,
+        )
+
+    def test_single_variant_merge(self):
+        cs = self._make_component_set([
+            ("Primary", [_make_node(node_type=NodeType.TEXT)], "HORIZONTAL"),
+        ])
+        strategy, score = classify_variant_strategy(cs)
+        assert strategy == "merge"
+        assert score == 1.0
+
+    def test_identical_variants_merge(self):
+        cs = self._make_component_set([
+            ("Primary", [_make_node(node_type=NodeType.TEXT)], "HORIZONTAL"),
+            ("Secondary", [_make_node(node_type=NodeType.TEXT)], "HORIZONTAL"),
+        ])
+        strategy, score = classify_variant_strategy(cs)
+        assert strategy == "merge"
+        assert score >= 0.75
+
+    def test_very_different_variants_split(self):
+        cs = self._make_component_set([
+            ("Icon", [_make_node(node_type=NodeType.RECTANGLE)], "HORIZONTAL"),
+            ("Text", [
+                _make_node(node_type=NodeType.TEXT),
+                _make_node(node_type=NodeType.FRAME),
+                _make_node(node_type=NodeType.ELLIPSE),
+            ], "VERTICAL"),
+        ])
+        strategy, score = classify_variant_strategy(cs)
+        assert strategy == "split"
+        assert score < 0.50
+
+    def test_multi_dimensional_always_merge(self):
+        cs = self._make_component_set([
+            ("Type=Primary, Size=Large",
+             [_make_node(node_type=NodeType.RECTANGLE)], "HORIZONTAL"),
+            ("Type=Secondary, Size=Small",
+             [_make_node(node_type=NodeType.TEXT),
+              _make_node(node_type=NodeType.FRAME),
+              _make_node(node_type=NodeType.ELLIPSE)], "VERTICAL"),
+        ])
+        strategy, score = classify_variant_strategy(cs)
+        assert strategy == "merge"
+
+    def test_large_set_always_merge(self):
+        specs = [
+            (f"Variant{i}", [_make_node(node_type=NodeType.TEXT)], "HORIZONTAL")
+            for i in range(10)
+        ]
+        cs = self._make_component_set(specs)
+        strategy, score = classify_variant_strategy(cs)
+        assert strategy == "merge"
+        assert score == 1.0
+
+    def test_empty_component_set(self):
+        cs = _make_node(
+            name="Empty", node_type=NodeType.COMPONENT_SET, children=[],
+        )
+        strategy, score = classify_variant_strategy(cs)
+        assert strategy == "merge"
+        assert score == 1.0
+
+    def test_non_component_children_ignored(self):
+        children = [
+            _make_node(name="Primary", node_type=NodeType.COMPONENT,
+                       layout_mode="HORIZONTAL",
+                       children=[_make_node(node_type=NodeType.TEXT)]),
+            _make_node(name="Divider", node_type=NodeType.RECTANGLE),
+        ]
+        cs = _make_node(
+            name="Set", node_type=NodeType.COMPONENT_SET, children=children,
+        )
+        strategy, score = classify_variant_strategy(cs)
+        assert strategy == "merge"
+        assert score == 1.0
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: CVA Generation
+# ---------------------------------------------------------------------------
+
+
+class TestInferDimensionName:
+    def test_key_value_format(self):
+        assert infer_dimension_name("Type=Primary") == "type"
+
+    def test_flat_format(self):
+        assert infer_dimension_name("Primary") == "variant"
+
+    def test_multi_dimensional(self):
+        assert infer_dimension_name("Type=Primary, Size=Large") == "type"
+
+
+class TestGenerateCvaFromVariants:
+    _FILL_BLUE = Paint(type=PaintType.SOLID, visible=True, opacity=1.0,
+                       color=Color(r=0.0, g=0.0, b=1.0, a=1.0))
+    _FILL_RED = Paint(type=PaintType.SOLID, visible=True, opacity=1.0,
+                      color=Color(r=1.0, g=0.0, b=0.0, a=1.0))
+
+    def _make_variant(self, name, fills=None, corner_radius=0.0,
+                      width=100, height=50, layout_mode="HORIZONTAL"):
+        """Build a COMPONENT variant with styling that produces classes."""
+        return _make_node(
+            name=name, node_type=NodeType.COMPONENT,
+            layout_mode=layout_mode,
+            fills=fills or [],
+            corner_radius=corner_radius,
+            width=width, height=height,
+        )
+
+    def _make_component_set(self, variants):
+        return _make_node(
+            name="Button", node_type=NodeType.COMPONENT_SET,
+            children=variants,
+        )
+
+    def test_empty_set(self):
+        cs = self._make_component_set([])
+        result = generate_cva_from_variants(cs)
+        assert result["base"] == []
+        assert result["variants"] == {}
+        assert result["defaultVariants"] == {}
+        assert result["compoundVariants"] == []
+
+    def test_single_variant_all_base(self):
+        v = self._make_variant("Primary")
+        cs = self._make_component_set([v])
+        result = generate_cva_from_variants(cs)
+        assert isinstance(result["base"], list)
+        assert result["variants"] == {}
+
+    def test_two_variants_shared_and_diff_classes(self):
+        v1 = self._make_variant(
+            "Type=Primary", fills=[self._FILL_BLUE], corner_radius=8.0,
+        )
+        v2 = self._make_variant(
+            "Type=Secondary", fills=[self._FILL_RED], corner_radius=8.0,
+        )
+        cs = self._make_component_set([v1, v2])
+        result = generate_cva_from_variants(cs)
+        # Shared: rounded-md, w-25, h-12.5. Diff: bg colors
+        assert "rounded-md" in result["base"]
+        assert "type" in result["variants"]
+        assert "primary" in result["variants"]["type"]
+        assert "secondary" in result["variants"]["type"]
+
+    def test_default_variants_from_first(self):
+        v1 = self._make_variant("Type=Primary")
+        v2 = self._make_variant("Type=Secondary")
+        cs = self._make_component_set([v1, v2])
+        result = generate_cva_from_variants(cs)
+        assert result["defaultVariants"] == {"type": "primary"}
+
+    def test_flat_variant_names(self):
+        v1 = self._make_variant("Primary")
+        v2 = self._make_variant("Secondary")
+        cs = self._make_component_set([v1, v2])
+        result = generate_cva_from_variants(cs)
+        assert "variant" in result["variants"]
+        assert "primary" in result["variants"]["variant"]
+        assert "secondary" in result["variants"]["variant"]
+
+    def test_multi_dimensional_compound_variants(self):
+        v1 = self._make_variant(
+            "Type=Primary, Size=Small",
+            fills=[self._FILL_BLUE], corner_radius=4.0,
+        )
+        v2 = self._make_variant(
+            "Type=Secondary, Size=Large",
+            fills=[self._FILL_RED], corner_radius=16.0,
+        )
+        cs = self._make_component_set([v1, v2])
+        result = generate_cva_from_variants(cs)
+        # Different fills + radii → diff classes → compoundVariants populated
+        assert len(result["compoundVariants"]) > 0
+        cv0 = result["compoundVariants"][0]
+        assert "type" in cv0
+        assert "size" in cv0
+
+    def test_non_component_children_ignored(self):
+        v = self._make_variant("Primary")
+        rect = _make_node(name="Divider", node_type=NodeType.RECTANGLE)
+        cs = self._make_component_set([v, rect])
+        result = generate_cva_from_variants(cs)
+        # Only one COMPONENT child → single variant, all base
+        assert result["variants"] == {}
+
+    def test_result_structure(self):
+        v1 = self._make_variant("Type=Primary")
+        v2 = self._make_variant("Type=Ghost")
+        cs = self._make_component_set([v1, v2])
+        result = generate_cva_from_variants(cs)
+        assert "base" in result
+        assert "variants" in result
+        assert "defaultVariants" in result
+        assert "compoundVariants" in result

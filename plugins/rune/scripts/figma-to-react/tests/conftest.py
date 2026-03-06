@@ -167,6 +167,16 @@ def section_node(sample_figma_response: dict) -> dict:
 
 
 @pytest.fixture()
+def instance_node(sample_figma_response: dict) -> dict:
+    """Extract the MyComponentInstance instance node."""
+    page = sample_figma_response["document"]["children"][0]
+    for child in page["children"]:
+        if child["id"] == "11:1":
+            return child
+    raise ValueError("Instance node not found in fixture")
+
+
+@pytest.fixture()
 def grid_frame_node(sample_figma_response: dict) -> dict:
     """Extract the GridLayout frame node with GRID layoutMode."""
     page = sample_figma_response["document"]["children"][0]

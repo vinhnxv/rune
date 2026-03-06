@@ -19,7 +19,9 @@ from figma_client import FigmaClient, FigmaAPIError  # noqa: F401
 from figma_types import NodeType
 from image_handler import collect_image_refs
 from node_parser import FigmaIRNode, count_nodes, parse_node, walk_tree
-from react_generator import generate_component
+from react_generator import (
+    generate_component, generate_split_components, _collect_node_classes,
+)
 from url_parser import FigmaURLError, parse_figma_url  # noqa: F401
 
 logger = logging.getLogger(__name__)
@@ -99,6 +101,20 @@ def _ir_text_and_refs(node: FigmaIRNode, result: dict[str, Any]) -> None:
 
     if node.component_id:
         result["component_id"] = node.component_id
+    if node.component_property_definitions:
+        result["component_property_definitions"] = {
+            k: {
+                "type": v.type.value,
+                "defaultValue": v.default_value,
+                **({"variantOptions": v.variant_options} if v.variant_options else {}),
+            }
+            for k, v in node.component_property_definitions.items()
+        }
+    if node.component_property_values:
+        result["component_property_values"] = {
+            k: {"type": v.type.value, "value": v.value}
+            for k, v in node.component_property_values.items()
+        }
     if node.image_ref:
         result["image_ref"] = node.image_ref
     if node.fill_geometry:
@@ -243,6 +259,240 @@ async def _get_images_with_retry(
             )
             await asyncio.sleep(wait)
     return {}  # Unreachable, but satisfies type checker
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Variant-to-Component Splitting
+# ---------------------------------------------------------------------------
+
+# Decision thresholds
+_MERGE_THRESHOLD = 0.75
+_SPLIT_THRESHOLD = 0.50
+_MAX_VARIANTS_FOR_SCORING = 8
+
+
+def structural_diff_score(
+    variant_a: FigmaIRNode, variant_b: FigmaIRNode,
+) -> float:
+    """Compute structural similarity between two variant IR nodes.
+
+    Returns a score from 0.0 (completely different) to 1.0 (identical structure).
+    Uses a weighted metric: child count (0.40), type matching (0.35),
+    layout mode agreement (0.25).
+    """
+    a_children = variant_a.children
+    b_children = variant_b.children
+    max_children = max(len(a_children), len(b_children), 1)
+
+    # Child count similarity (weight 0.40)
+    child_count_sim = min(len(a_children), len(b_children)) / max_children
+
+    # Child type matching per position (weight 0.35)
+    min_len = min(len(a_children), len(b_children))
+    type_matches = sum(
+        1 for i in range(min_len)
+        if a_children[i].node_type == b_children[i].node_type
+    )
+    type_sim = type_matches / max_children
+
+    # Layout mode agreement (weight 0.25)
+    layout_sim = 1.0 if variant_a.layout_mode == variant_b.layout_mode else 0.5
+
+    return (child_count_sim * 0.4) + (type_sim * 0.35) + (layout_sim * 0.25)
+
+
+def _parse_variant_name(name: str) -> dict[str, str]:
+    """Parse variant name into dimension-value pairs.
+
+    Handles both "Type=Primary, Size=Large" and flat "Primary" formats.
+    """
+    result: dict[str, str] = {}
+    if "=" in name:
+        for part in name.split(","):
+            part = part.strip()
+            if "=" in part:
+                key, value = part.split("=", 1)
+                result[key.strip()] = value.strip()
+    else:
+        result["variant"] = name.strip()
+    return result
+
+
+def _is_multi_dimensional(variants: list[FigmaIRNode]) -> bool:
+    """Check if variants span multiple dimensions (e.g., Type + Size)."""
+    if not variants:
+        return False
+    parsed = _parse_variant_name(variants[0].name)
+    return len(parsed) > 1
+
+
+def classify_variant_strategy(
+    component_set: FigmaIRNode,
+) -> tuple[str, float]:
+    """Classify whether a COMPONENT_SET should be MERGE or SPLIT.
+
+    Returns (strategy, avg_score) where strategy is "merge", "split",
+    or "conditional".
+    """
+    variants = [
+        c for c in component_set.children
+        if c.node_type == NodeType.COMPONENT
+    ]
+
+    if len(variants) <= 1:
+        return "merge", 1.0
+
+    # Multi-dimensional → always MERGE
+    if _is_multi_dimensional(variants):
+        return "merge", 1.0
+
+    # Short-circuit for large sets
+    if len(variants) > _MAX_VARIANTS_FOR_SCORING:
+        return "merge", 1.0
+
+    # Pairwise scoring
+    scores: list[float] = []
+    for i in range(len(variants)):
+        for j in range(i + 1, len(variants)):
+            scores.append(structural_diff_score(variants[i], variants[j]))
+
+    avg_score = sum(scores) / len(scores) if scores else 1.0
+
+    if avg_score >= _MERGE_THRESHOLD:
+        return "merge", avg_score
+    if avg_score < _SPLIT_THRESHOLD:
+        return "split", avg_score
+    return "conditional", avg_score
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: CVA (Class Variance Authority) Generation
+# ---------------------------------------------------------------------------
+
+# Layout-class prefixes — if >50% of variants disagree, move to variants
+_LAYOUT_PREFIXES = frozenset({
+    "flex", "grid", "block", "inline", "hidden",
+    "items-", "justify-", "gap-", "space-",
+    "flex-row", "flex-col", "flex-wrap",
+})
+
+
+def _is_layout_class(cls: str) -> bool:
+    """Check if a Tailwind class is layout-related."""
+    return any(cls == p or cls.startswith(p) for p in _LAYOUT_PREFIXES)
+
+
+def infer_dimension_name(variant_name: str) -> str:
+    """Infer CVA dimension name from a variant name string.
+
+    For "Type=Primary" → "type". For flat "Primary" → "variant".
+    For multi-dimensional "Type=Primary, Size=Large" → uses first dimension.
+    """
+    parsed = _parse_variant_name(variant_name)
+    if "variant" in parsed:
+        return "variant"
+    keys = list(parsed.keys())
+    return keys[0].lower() if keys else "variant"
+
+
+def _collect_variant_class_lists(
+    component_set: FigmaIRNode,
+) -> list[tuple[str, list[str]]]:
+    """Collect Tailwind classes for each variant in a COMPONENT_SET.
+
+    Returns list of (variant_name, classes) tuples.
+    """
+    result = []
+    for child in component_set.children:
+        if child.node_type != NodeType.COMPONENT:
+            continue
+        classes = _collect_node_classes(child, component_set)
+        result.append((child.name, list(classes)))
+    return result
+
+
+def generate_cva_from_variants(
+    component_set: FigmaIRNode,
+) -> dict[str, Any]:
+    """Generate CVA configuration from a COMPONENT_SET's variants.
+
+    Computes:
+    - base: intersection of all variant class lists
+    - variants: per-dimension, per-value diff classes
+    - defaultVariants: first variant's values as defaults
+    - compoundVariants: cross-dimension interactions (if multi-dimensional)
+
+    Returns a dict with base, variants, defaultVariants, compoundVariants.
+    """
+    variant_classes = _collect_variant_class_lists(component_set)
+
+    if not variant_classes:
+        return {"base": [], "variants": {}, "defaultVariants": {}, "compoundVariants": []}
+
+    # Single variant → all classes are base, no variants needed
+    if len(variant_classes) == 1:
+        return {
+            "base": variant_classes[0][1],
+            "variants": {},
+            "defaultVariants": {},
+            "compoundVariants": [],
+        }
+
+    # Compute base classes (intersection of all variants)
+    all_class_sets = [set(classes) for _, classes in variant_classes]
+    base_set = set.intersection(*all_class_sets)
+
+    # Check layout class divergence: if >50% of classes differ, move layout to variants
+    layout_in_base = {c for c in base_set if _is_layout_class(c)}
+    for cls in layout_in_base:
+        # Count how many variants have this class
+        has_count = sum(1 for _, classes in variant_classes if cls in classes)
+        if has_count / len(variant_classes) <= 0.5:
+            base_set.discard(cls)
+
+    # Preserve insertion order from first variant
+    base_ordered = [c for c in variant_classes[0][1] if c in base_set]
+
+    # Build per-dimension variant diffs
+    variants: dict[str, dict[str, list[str]]] = {}
+    default_variants: dict[str, str] = {}
+
+    # Parse dimension info from first variant to determine structure
+    first_parsed = _parse_variant_name(variant_classes[0][0])
+
+    for vname, classes in variant_classes:
+        parsed = _parse_variant_name(vname)
+        diff = [c for c in classes if c not in base_set]
+
+        for dim_key, dim_value in parsed.items():
+            dim_lower = dim_key.lower()
+            if dim_lower not in variants:
+                variants[dim_lower] = {}
+            variants[dim_lower][dim_value.lower()] = diff
+
+    # Default variants from first variant
+    for dim_key, dim_value in first_parsed.items():
+        default_variants[dim_key.lower()] = dim_value.lower()
+
+    # Compound variants for multi-dimensional sets
+    compound_variants: list[dict[str, Any]] = []
+    if len(first_parsed) > 1:
+        for vname, classes in variant_classes:
+            parsed = _parse_variant_name(vname)
+            diff = [c for c in classes if c not in base_set]
+            if diff:
+                condition = {k.lower(): v.lower() for k, v in parsed.items()}
+                compound_variants.append({
+                    **condition,
+                    "class": diff,
+                })
+
+    return {
+        "base": base_ordered,
+        "variants": variants,
+        "defaultVariants": default_variants,
+        "compoundVariants": compound_variants,
+    }
 
 
 def extract_sub_components(
@@ -462,6 +712,15 @@ def _classify_nodes(
             entry["size"] = f"{round(n.width or 0)}x{round(n.height or 0)}"
 
         if n.node_type.value in ("COMPONENT", "COMPONENT_SET"):
+            if n.component_property_definitions:
+                entry["property_definitions"] = {
+                    k: {
+                        "type": v.type.value,
+                        "defaultValue": v.default_value,
+                        **({"variantOptions": v.variant_options} if v.variant_options else {}),
+                    }
+                    for k, v in n.component_property_definitions.items()
+                }
             components.append(entry)
         elif n.node_type.value == "INSTANCE":
             if n.component_id:
@@ -572,6 +831,9 @@ def _build_react_output(
     svg_urls: dict[str, str],
     extract_components: bool,
     aria: bool,
+    variant_components: list[dict[str, str]] | None = None,
+    variant_strategy: str | None = None,
+    cva_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the to_react output dict with optional sub-components."""
     output: dict[str, Any] = {
@@ -580,6 +842,14 @@ def _build_react_output(
         "node_count": count_nodes(ir_root),
         "main_component": main_code,
     }
+
+    if variant_components:
+        output["variant_components"] = variant_components
+        output["variant_strategy"] = variant_strategy
+
+    if cva_config:
+        output["cva_config"] = cva_config
+        output["variant_strategy"] = variant_strategy
 
     if extract_components:
         sub = extract_sub_components(ir_root, image_urls, svg_urls=svg_urls, aria=aria)
@@ -626,9 +896,27 @@ async def to_react(
         image_urls=image_urls, svg_urls=svg_urls, aria=aria,
     )
 
+    # Phase 3: Variant-to-Component Splitting for COMPONENT_SET roots
+    # Phase 5: CVA generation for MERGE strategy
+    variant_components = None
+    variant_strategy = None
+    cva_config = None
+    if ir_root.node_type == NodeType.COMPONENT_SET:
+        strategy, _score = classify_variant_strategy(ir_root)
+        variant_strategy = strategy
+        if strategy == "split":
+            variant_components = generate_split_components(
+                ir_root, image_urls=image_urls, svg_urls=svg_urls, aria=aria,
+            )
+        elif strategy in ("merge", "conditional"):
+            cva_config = generate_cva_from_variants(ir_root)
+
     output = _build_react_output(
         file_key, ir_root, main_code, image_refs, image_urls,
         svg_urls, extract_components, aria,
+        variant_components=variant_components,
+        variant_strategy=variant_strategy,
+        cva_config=cva_config,
     )
     content = json.dumps(output, indent=2)
     return paginate_output(content, max_length=max_length, start_index=start_index)

@@ -8,10 +8,19 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from figma_types import FigmaNodeBase  # noqa: E402
+from figma_types import (  # noqa: E402
+    ComponentProperty,
+    ComponentPropertyDefinition,
+    FigmaNodeBase,
+    FigmaPropertyType,
+)
 from node_parser import (  # noqa: E402
     FigmaIRNode,
+    InstanceRole,
     StyledTextSegment,
+    _classify_instance_role,
+    _clean_property_name,
+    _detect_slot_candidate,
     _has_vector_children,
     count_nodes,
     find_by_name,
@@ -19,6 +28,7 @@ from node_parser import (  # noqa: E402
     parse_node,
     walk_tree,
 )
+from figma_types import LayoutMode  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -919,3 +929,430 @@ class TestNodeParserAdditionalEdgeCases:
         # Should either return None or handle gracefully (width/height = 0)
         if ir is not None:
             assert ir.width == 0 or ir.width is not None
+
+
+# ---------------------------------------------------------------------------
+# Phase 1: Typed Property Extraction
+# ---------------------------------------------------------------------------
+
+
+class TestCleanPropertyName:
+    """Test _clean_property_name hash suffix stripping."""
+
+    def test_strips_hash_suffix(self):
+        assert _clean_property_name("Label#1234") == "Label"
+
+    def test_no_hash_unchanged(self):
+        assert _clean_property_name("variant") == "variant"
+
+    def test_multiple_hashes_strips_first(self):
+        assert _clean_property_name("Name#123#456") == "Name"
+
+    def test_empty_string(self):
+        assert _clean_property_name("") == ""
+
+    def test_hash_only(self):
+        assert _clean_property_name("#1234") == ""
+
+
+class TestComponentPropertyDefinitionsParsing:
+    """Test componentPropertyDefinitions extraction from COMPONENT nodes."""
+
+    def test_component_has_property_definitions(self, component_node):
+        """COMPONENT node with componentPropertyDefinitions should parse them."""
+        ir = parse_node(component_node)
+        assert ir is not None
+        assert ir.component_property_definitions is not None
+        # Hash suffixes should be stripped from keys
+        assert "label" in ir.component_property_definitions
+        assert "variant" in ir.component_property_definitions
+        assert "disabled" in ir.component_property_definitions
+        assert "icon" in ir.component_property_definitions
+
+    def test_text_property_type(self, component_node):
+        """TEXT property should have correct type and default value."""
+        ir = parse_node(component_node)
+        assert ir is not None
+        label_def = ir.component_property_definitions["label"]
+        assert label_def.type == FigmaPropertyType.TEXT
+        assert label_def.default_value == "Button"
+
+    def test_variant_property_type(self, component_node):
+        """VARIANT property should have variant_options."""
+        ir = parse_node(component_node)
+        assert ir is not None
+        variant_def = ir.component_property_definitions["variant"]
+        assert variant_def.type == FigmaPropertyType.VARIANT
+        assert variant_def.default_value == "primary"
+        assert variant_def.variant_options == ["primary", "secondary"]
+
+    def test_boolean_property_type(self, component_node):
+        """BOOLEAN property should have bool default value."""
+        ir = parse_node(component_node)
+        assert ir is not None
+        disabled_def = ir.component_property_definitions["disabled"]
+        assert disabled_def.type == FigmaPropertyType.BOOLEAN
+        assert disabled_def.default_value is False
+
+    def test_instance_swap_property_type(self, component_node):
+        """INSTANCE_SWAP property should have preferred values."""
+        ir = parse_node(component_node)
+        assert ir is not None
+        icon_def = ir.component_property_definitions["icon"]
+        assert icon_def.type == FigmaPropertyType.INSTANCE_SWAP
+        assert icon_def.default_value == "99:1"
+        assert icon_def.preferred_values is not None
+        assert len(icon_def.preferred_values) == 2
+        assert icon_def.preferred_values[0].type == "COMPONENT"
+        assert icon_def.preferred_values[0].key == "icon-heart-key"
+
+    def test_empty_definitions_treated_as_none(self):
+        """Empty componentPropertyDefinitions dict should be treated as None."""
+        node = {
+            "id": "200:1",
+            "name": "EmptyProps",
+            "type": "COMPONENT",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 100, "height": 50},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 100, "height": 50},
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+            "componentPropertyDefinitions": {},
+            "children": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+        # Empty dict is falsy, so it should not be propagated
+        assert ir.component_property_definitions is None
+
+    def test_frame_without_definitions(self, hero_card_node):
+        """Regular FRAME nodes should have None for component_property_definitions."""
+        ir = parse_node(hero_card_node)
+        assert ir is not None
+        assert ir.component_property_definitions is None
+
+
+class TestComponentPropertiesParsing:
+    """Test componentProperties extraction from INSTANCE nodes."""
+
+    def test_instance_has_property_values(self, instance_node):
+        """INSTANCE node with componentProperties should parse them."""
+        ir = parse_node(instance_node)
+        assert ir is not None
+        assert ir.component_property_values is not None
+        # Hash suffixes should be stripped
+        assert "label" in ir.component_property_values
+        assert "variant" in ir.component_property_values
+        assert "disabled" in ir.component_property_values
+        assert "icon" in ir.component_property_values
+
+    def test_instance_text_override(self, instance_node):
+        """TEXT property override value should be extracted."""
+        ir = parse_node(instance_node)
+        assert ir is not None
+        label_prop = ir.component_property_values["label"]
+        assert label_prop.type == FigmaPropertyType.TEXT
+        assert label_prop.value == "Submit"
+
+    def test_instance_variant_override(self, instance_node):
+        """VARIANT property override value should be extracted."""
+        ir = parse_node(instance_node)
+        assert ir is not None
+        variant_prop = ir.component_property_values["variant"]
+        assert variant_prop.type == FigmaPropertyType.VARIANT
+        assert variant_prop.value == "secondary"
+
+    def test_instance_boolean_override(self, instance_node):
+        """BOOLEAN property override value should be extracted."""
+        ir = parse_node(instance_node)
+        assert ir is not None
+        disabled_prop = ir.component_property_values["disabled"]
+        assert disabled_prop.type == FigmaPropertyType.BOOLEAN
+        assert disabled_prop.value is True
+
+    def test_instance_swap_override(self, instance_node):
+        """INSTANCE_SWAP property override value should be extracted."""
+        ir = parse_node(instance_node)
+        assert ir is not None
+        icon_prop = ir.component_property_values["icon"]
+        assert icon_prop.type == FigmaPropertyType.INSTANCE_SWAP
+        assert icon_prop.value == "99:2"
+
+    def test_instance_has_component_id(self, instance_node):
+        """INSTANCE node should still have component_id."""
+        ir = parse_node(instance_node)
+        assert ir is not None
+        assert ir.component_id == "6:1"
+
+    def test_non_instance_has_no_property_values(self, component_node):
+        """COMPONENT nodes should have None for component_property_values."""
+        ir = parse_node(component_node)
+        assert ir is not None
+        assert ir.component_property_values is None
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: Instance Role Classification
+# ---------------------------------------------------------------------------
+
+
+class TestInstanceRoleClassification:
+    """Test _classify_instance_role heuristic and parse_node integration."""
+
+    def test_instance_with_children_is_child(self):
+        """Instance with children should always be CHILD (never PROP)."""
+        ir = FigmaIRNode(
+            node_id="r:1", component_id="comp:1",
+            children=[FigmaIRNode(node_id="r:2")],
+            width=24, height=24, is_icon_candidate=True,
+        )
+        role = _classify_instance_role(ir)
+        assert role == InstanceRole.CHILD
+
+    def test_small_instance_no_children_is_prop(self):
+        """Small instance (<=48px) with no children should be PROP."""
+        ir = FigmaIRNode(
+            node_id="r:1", component_id="comp:1",
+            width=24, height=24,
+        )
+        role = _classify_instance_role(ir)
+        assert role == InstanceRole.PROP
+
+    def test_icon_candidate_is_prop(self):
+        """Icon candidate instance with no children should be PROP."""
+        ir = FigmaIRNode(
+            node_id="r:1", component_id="comp:1",
+            is_icon_candidate=True, width=32, height=32,
+        )
+        role = _classify_instance_role(ir)
+        assert role == InstanceRole.PROP
+
+    def test_large_instance_no_children_is_child(self):
+        """Large instance (>48px) without icon flag should be CHILD."""
+        ir = FigmaIRNode(
+            node_id="r:1", component_id="comp:1",
+            width=200, height=60,
+        )
+        role = _classify_instance_role(ir)
+        assert role == InstanceRole.CHILD
+
+    def test_absolute_positioned_is_standalone(self):
+        """Absolutely positioned instance should be STANDALONE."""
+        ir = FigmaIRNode(
+            node_id="r:1", component_id="comp:1",
+            is_absolute_positioned=True, width=200, height=60,
+        )
+        role = _classify_instance_role(ir)
+        assert role == InstanceRole.STANDALONE
+
+    def test_non_instance_returns_none(self):
+        """Node without component_id should return None."""
+        ir = FigmaIRNode(node_id="r:1")
+        role = _classify_instance_role(ir)
+        assert role is None
+
+    def test_instance_swap_parent_makes_prop(self):
+        """Instance matching parent's INSTANCE_SWAP definition should be PROP."""
+        parent = FigmaIRNode(
+            node_id="p:1",
+            component_property_definitions={
+                "icon": ComponentPropertyDefinition(
+                    type=FigmaPropertyType.INSTANCE_SWAP,
+                    defaultValue="99:1",
+                ),
+            },
+        )
+        ir = FigmaIRNode(
+            node_id="r:1", component_id="comp:1",
+            width=100, height=100,  # Large, but INSTANCE_SWAP takes priority
+        )
+        role = _classify_instance_role(ir, parent_ir=parent)
+        assert role == InstanceRole.PROP
+
+    def test_instance_role_prevents_flattening(self):
+        """Nodes with instance_role should have can_be_flattened = False."""
+        node = {
+            "id": "300:1",
+            "name": "SmallIcon",
+            "type": "INSTANCE",
+            "componentId": "comp:1",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 24, "height": 24},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 24, "height": 24},
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+            "children": [],
+        }
+        ir = parse_node(node)
+        assert ir is not None
+        assert ir.instance_role is not None
+        assert ir.can_be_flattened is False
+
+    def test_fixture_instance_gets_child_role(self, instance_node):
+        """Fixture INSTANCE node (has children, >48px) should be CHILD."""
+        ir = parse_node(instance_node)
+        assert ir is not None
+        assert ir.instance_role == InstanceRole.CHILD
+
+    def test_zero_dimension_instance_not_prop(self):
+        """Instance with zero dimensions should not be classified as PROP."""
+        ir = FigmaIRNode(
+            node_id="r:1", component_id="comp:1",
+            width=0, height=0,
+        )
+        role = _classify_instance_role(ir)
+        # Zero dimensions should not be treated as small icon
+        assert role == InstanceRole.CHILD
+
+
+# ---------------------------------------------------------------------------
+# Phase 6: Slot Detection
+# ---------------------------------------------------------------------------
+
+
+class TestSlotDetection:
+    """Test _detect_slot_candidate and slot integration in parse_node."""
+
+    def _make_component_with_slot(self, slot_name, slot_layout="VERTICAL",
+                                   slot_children=None):
+        """Build a COMPONENT with a named child frame for slot testing."""
+        slot_child_list = slot_children or []
+        return {
+            "id": "400:1",
+            "name": "CardComponent",
+            "type": "COMPONENT",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 400, "height": 300},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 400, "height": 300},
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 8,
+            "paddingLeft": 0, "paddingRight": 0,
+            "paddingTop": 0, "paddingBottom": 0,
+            "children": [
+                {
+                    "id": "400:2",
+                    "name": slot_name,
+                    "type": "FRAME",
+                    "absoluteBoundingBox": {"x": 0, "y": 0, "width": 400, "height": 200},
+                    "absoluteRenderBounds": {"x": 0, "y": 0, "width": 400, "height": 200},
+                    "fills": [],
+                    "strokes": [],
+                    "effects": [],
+                    "layoutMode": slot_layout,
+                    "itemSpacing": 0,
+                    "paddingLeft": 0, "paddingRight": 0,
+                    "paddingTop": 0, "paddingBottom": 0,
+                    "children": slot_child_list,
+                },
+            ],
+        }
+
+    def test_content_frame_inside_component_is_slot(self):
+        """Frame named 'Content' inside COMPONENT should be detected as slot."""
+        raw = self._make_component_with_slot("Content")
+        ir = parse_node(raw)
+        assert ir is not None
+        content_child = ir.children[0]
+        assert content_child.is_slot_candidate is True
+        assert content_child.slot_name == "Content"
+
+    def test_body_frame_is_slot(self):
+        """Frame named 'body' should be detected as slot."""
+        raw = self._make_component_with_slot("body")
+        ir = parse_node(raw)
+        content_child = ir.children[0]
+        assert content_child.is_slot_candidate is True
+
+    def test_actions_frame_is_slot(self):
+        """Frame named 'actions' should be detected as slot."""
+        raw = self._make_component_with_slot("actions")
+        ir = parse_node(raw)
+        content_child = ir.children[0]
+        assert content_child.is_slot_candidate is True
+
+    def test_non_slot_name_not_detected(self):
+        """Frame named 'Frame 42' inside COMPONENT should NOT be a slot."""
+        raw = self._make_component_with_slot("Frame 42")
+        ir = parse_node(raw)
+        content_child = ir.children[0]
+        assert content_child.is_slot_candidate is False
+
+    def test_empty_slot_detected(self):
+        """Empty frame named 'Content' should be an empty slot."""
+        raw = self._make_component_with_slot("Content", slot_children=[])
+        ir = parse_node(raw)
+        content_child = ir.children[0]
+        assert content_child.is_slot_candidate is True
+        assert content_child.is_empty_slot is True
+
+    def test_layout_none_is_not_slot(self):
+        """Frame named 'Content' with layoutMode=NONE should NOT be a slot."""
+        raw = self._make_component_with_slot("Content", slot_layout="NONE")
+        ir = parse_node(raw)
+        content_child = ir.children[0]
+        assert content_child.is_slot_candidate is False
+
+    def test_decorative_container_flagged(self):
+        """Frame with NONE layout and no styling should be flagged decorative."""
+        raw = self._make_component_with_slot("Content", slot_layout="NONE")
+        ir = parse_node(raw)
+        content_child = ir.children[0]
+        assert content_child.is_decorative_container is True
+
+    def test_slot_prevents_flattening(self):
+        """Slot candidates should have can_be_flattened = False."""
+        raw = self._make_component_with_slot("Content")
+        ir = parse_node(raw)
+        content_child = ir.children[0]
+        assert content_child.is_slot_candidate is True
+        assert content_child.can_be_flattened is False
+
+    def test_slot_not_detected_outside_component(self):
+        """Frame named 'Content' inside a regular FRAME should NOT be a slot."""
+        raw = {
+            "id": "401:1",
+            "name": "Wrapper",
+            "type": "FRAME",
+            "absoluteBoundingBox": {"x": 0, "y": 0, "width": 400, "height": 300},
+            "absoluteRenderBounds": {"x": 0, "y": 0, "width": 400, "height": 300},
+            "fills": [], "strokes": [], "effects": [],
+            "layoutMode": "VERTICAL",
+            "itemSpacing": 0,
+            "paddingLeft": 0, "paddingRight": 0,
+            "paddingTop": 0, "paddingBottom": 0,
+            "children": [
+                {
+                    "id": "401:2",
+                    "name": "Content",
+                    "type": "FRAME",
+                    "absoluteBoundingBox": {"x": 0, "y": 0, "width": 400, "height": 200},
+                    "absoluteRenderBounds": {"x": 0, "y": 0, "width": 400, "height": 200},
+                    "fills": [], "strokes": [], "effects": [],
+                    "layoutMode": "VERTICAL",
+                    "itemSpacing": 0,
+                    "paddingLeft": 0, "paddingRight": 0,
+                    "paddingTop": 0, "paddingBottom": 0,
+                    "children": [],
+                },
+            ],
+        }
+        ir = parse_node(raw)
+        assert ir is not None
+        assert ir.children[0].is_slot_candidate is False
+
+    def test_keyword_prefix_match(self):
+        """Frame named 'header section' should match 'header' keyword."""
+        raw = self._make_component_with_slot("header section")
+        ir = parse_node(raw)
+        content_child = ir.children[0]
+        assert content_child.is_slot_candidate is True
+
+    def test_substring_mismatch(self):
+        """Frame named 'mainNavigation' should NOT match 'main' substring."""
+        raw = self._make_component_with_slot("mainNavigation")
+        ir = parse_node(raw)
+        content_child = ir.children[0]
+        # Only match if name equals or starts with keyword + separator
+        assert content_child.is_slot_candidate is False

@@ -166,6 +166,18 @@ class BooleanOperationType(str, Enum):
     EXCLUDE = "EXCLUDE"
 
 
+class FigmaPropertyType(str, Enum):
+    """Component property types from the Figma REST API.
+
+    Reference: https://github.com/figma/rest-api-spec/blob/main/dist/api_types.ts
+    """
+
+    BOOLEAN = "BOOLEAN"
+    INSTANCE_SWAP = "INSTANCE_SWAP"
+    TEXT = "TEXT"
+    VARIANT = "VARIANT"
+
+
 class ConstraintType(str, Enum):
     """Constraint types for absolute positioning.
 
@@ -412,6 +424,57 @@ class AutoLayoutProperties(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Component property models
+# ---------------------------------------------------------------------------
+
+
+class InstanceSwapPreferredValue(BaseModel):
+    """Preferred value for INSTANCE_SWAP properties."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    type: str = ""  # "COMPONENT" or "COMPONENT_SET"
+    key: str = ""
+
+
+class ComponentPropertyDefinition(BaseModel):
+    """Schema definition for a component property.
+
+    Found on COMPONENT and COMPONENT_SET nodes under
+    ``componentPropertyDefinitions``.
+    """
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    type: FigmaPropertyType
+    default_value: Union[bool, str] = Field(alias="defaultValue")
+    variant_options: Optional[List[str]] = Field(
+        None, alias="variantOptions"
+    )
+    preferred_values: Optional[List[InstanceSwapPreferredValue]] = Field(
+        None, alias="preferredValues"
+    )
+
+
+class ComponentProperty(BaseModel):
+    """Override value for a component property on INSTANCE nodes.
+
+    Found under ``componentProperties``.
+    """
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    type: FigmaPropertyType
+    value: Union[bool, str]
+    preferred_values: Optional[List[InstanceSwapPreferredValue]] = Field(
+        None, alias="preferredValues"
+    )
+    bound_variables: Optional[Dict[str, Any]] = Field(
+        None, alias="boundVariables"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Node models
 # ---------------------------------------------------------------------------
 
@@ -475,6 +538,16 @@ class FigmaNodeBase(BaseModel):
 
     # Component references
     component_id: Optional[str] = Field(default=None, alias="componentId")
+
+    # Component property definitions (on COMPONENT and COMPONENT_SET nodes)
+    component_property_definitions: Optional[
+        Dict[str, ComponentPropertyDefinition]
+    ] = Field(default=None, alias="componentPropertyDefinitions")
+
+    # Component property override values (on INSTANCE nodes)
+    component_properties: Optional[Dict[str, ComponentProperty]] = Field(
+        default=None, alias="componentProperties"
+    )
 
     # Export settings (for detecting image exports)
     export_settings: Optional[List[Dict[str, Any]]] = Field(

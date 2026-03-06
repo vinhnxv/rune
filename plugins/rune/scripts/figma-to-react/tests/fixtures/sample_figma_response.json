@@ -389,7 +389,7 @@
             "paddingBottom": 8,
             "itemSpacing": 8,
             "componentPropertyDefinitions": {
-              "label": {
+              "label#1234": {
                 "type": "TEXT",
                 "defaultValue": "Button"
               },
@@ -397,6 +397,18 @@
                 "type": "VARIANT",
                 "defaultValue": "primary",
                 "variantOptions": ["primary", "secondary"]
+              },
+              "disabled#5678": {
+                "type": "BOOLEAN",
+                "defaultValue": false
+              },
+              "icon#9012": {
+                "type": "INSTANCE_SWAP",
+                "defaultValue": "99:1",
+                "preferredValues": [
+                  { "type": "COMPONENT", "key": "icon-heart-key" },
+                  { "type": "COMPONENT", "key": "icon-star-key" }
+                ]
               }
             },
             "children": [
@@ -407,6 +419,73 @@
                 "absoluteBoundingBox": { "x": 12, "y": 608, "width": 176, "height": 44 },
                 "absoluteRenderBounds": { "x": 12, "y": 608, "width": 176, "height": 44 },
                 "characters": "Button",
+                "style": {
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": 500,
+                  "lineHeightPx": 20,
+                  "textAlignHorizontal": "CENTER"
+                },
+                "characterStyleOverrides": [],
+                "styleOverrideTable": {},
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "visible": true,
+                    "opacity": 1.0,
+                    "blendMode": "NORMAL",
+                    "color": { "r": 0.067, "g": 0.067, "b": 0.067, "a": 1.0 }
+                  }
+                ],
+                "strokes": [],
+                "effects": []
+              }
+            ]
+          },
+          {
+            "id": "11:1",
+            "name": "MyComponentInstance",
+            "type": "INSTANCE",
+            "absoluteBoundingBox": { "x": 300, "y": 600, "width": 200, "height": 60 },
+            "absoluteRenderBounds": { "x": 300, "y": 600, "width": 200, "height": 60 },
+            "componentId": "6:1",
+            "componentProperties": {
+              "label#1234": {
+                "type": "TEXT",
+                "value": "Submit"
+              },
+              "variant": {
+                "type": "VARIANT",
+                "value": "secondary"
+              },
+              "disabled#5678": {
+                "type": "BOOLEAN",
+                "value": true
+              },
+              "icon#9012": {
+                "type": "INSTANCE_SWAP",
+                "value": "99:2"
+              }
+            },
+            "fills": [
+              {
+                "type": "SOLID",
+                "visible": true,
+                "opacity": 1.0,
+                "blendMode": "NORMAL",
+                "color": { "r": 0.8, "g": 0.8, "b": 0.8, "a": 1.0 }
+              }
+            ],
+            "strokes": [],
+            "effects": [],
+            "children": [
+              {
+                "id": "11:2",
+                "name": "Label",
+                "type": "TEXT",
+                "absoluteBoundingBox": { "x": 312, "y": 608, "width": 176, "height": 44 },
+                "absoluteRenderBounds": { "x": 312, "y": 608, "width": 176, "height": 44 },
+                "characters": "Submit",
                 "style": {
                   "fontFamily": "Inter",
                   "fontSize": 14,
@@ -535,6 +614,118 @@
             "strokeWeight": 2,
             "effects": [],
             "cornerRadius": 12
+          },
+          {
+            "id": "20:1",
+            "name": "ButtonGroup",
+            "type": "COMPONENT_SET",
+            "absoluteBoundingBox": { "x": 0, "y": 500, "width": 400, "height": 100 },
+            "absoluteRenderBounds": { "x": 0, "y": 500, "width": 400, "height": 100 },
+            "clipsContent": false,
+            "fills": [],
+            "strokes": [],
+            "effects": [],
+            "children": [
+              {
+                "id": "20:2",
+                "name": "Type=Primary",
+                "type": "COMPONENT",
+                "absoluteBoundingBox": { "x": 0, "y": 500, "width": 200, "height": 50 },
+                "absoluteRenderBounds": { "x": 0, "y": 500, "width": 200, "height": 50 },
+                "clipsContent": false,
+                "layoutMode": "HORIZONTAL",
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "visible": true,
+                    "opacity": 1.0,
+                    "blendMode": "NORMAL",
+                    "color": { "r": 0.227, "g": 0.388, "b": 0.851, "a": 1.0 }
+                  }
+                ],
+                "strokes": [],
+                "effects": [],
+                "cornerRadius": 8,
+                "children": [
+                  {
+                    "id": "20:3",
+                    "name": "Label",
+                    "type": "TEXT",
+                    "absoluteBoundingBox": { "x": 10, "y": 510, "width": 80, "height": 30 },
+                    "absoluteRenderBounds": { "x": 10, "y": 510, "width": 80, "height": 30 },
+                    "characters": "Click me",
+                    "style": { "fontFamily": "Inter", "fontSize": 14, "fontWeight": 500 },
+                    "fills": [
+                      {
+                        "type": "SOLID",
+                        "visible": true,
+                        "opacity": 1.0,
+                        "blendMode": "NORMAL",
+                        "color": { "r": 1.0, "g": 1.0, "b": 1.0, "a": 1.0 }
+                      }
+                    ],
+                    "strokes": [],
+                    "effects": []
+                  },
+                  {
+                    "id": "20:10",
+                    "name": "Content",
+                    "type": "FRAME",
+                    "absoluteBoundingBox": { "x": 100, "y": 510, "width": 90, "height": 30 },
+                    "absoluteRenderBounds": { "x": 100, "y": 510, "width": 90, "height": 30 },
+                    "clipsContent": false,
+                    "layoutMode": "HORIZONTAL",
+                    "fills": [],
+                    "strokes": [],
+                    "effects": [],
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "20:4",
+                "name": "Type=Secondary",
+                "type": "COMPONENT",
+                "absoluteBoundingBox": { "x": 200, "y": 500, "width": 200, "height": 50 },
+                "absoluteRenderBounds": { "x": 200, "y": 500, "width": 200, "height": 50 },
+                "clipsContent": false,
+                "layoutMode": "HORIZONTAL",
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "visible": true,
+                    "opacity": 1.0,
+                    "blendMode": "NORMAL",
+                    "color": { "r": 0.9, "g": 0.9, "b": 0.9, "a": 1.0 }
+                  }
+                ],
+                "strokes": [],
+                "effects": [],
+                "cornerRadius": 8,
+                "children": [
+                  {
+                    "id": "20:5",
+                    "name": "Label",
+                    "type": "TEXT",
+                    "absoluteBoundingBox": { "x": 210, "y": 510, "width": 80, "height": 30 },
+                    "absoluteRenderBounds": { "x": 210, "y": 510, "width": 80, "height": 30 },
+                    "characters": "Cancel",
+                    "style": { "fontFamily": "Inter", "fontSize": 14, "fontWeight": 500 },
+                    "fills": [
+                      {
+                        "type": "SOLID",
+                        "visible": true,
+                        "opacity": 1.0,
+                        "blendMode": "NORMAL",
+                        "color": { "r": 0.2, "g": 0.2, "b": 0.2, "a": 1.0 }
+                      }
+                    ],
+                    "strokes": [],
+                    "effects": []
+                  }
+                ]
+              }
+            ]
           }
         ]
       }

@@ -21,13 +21,17 @@ import math
 import re
 from collections import deque
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Dict, FrozenSet, List, Optional, Tuple
 
 from figma_types import (
     BooleanOperationNode,
     Color,
+    ComponentProperty,
+    ComponentPropertyDefinition,
     Effect,
     FigmaNodeBase,
+    FigmaPropertyType,
     FrameNode,
     LayoutAlign,
     LayoutMode,
@@ -40,6 +44,25 @@ from figma_types import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Instance role classification
+# ---------------------------------------------------------------------------
+
+
+class InstanceRole(str, Enum):
+    """Semantic role of an INSTANCE node within its parent context.
+
+    Used by the React generator to decide rendering strategy:
+    - PROP: Render as a JSX expression prop (e.g., ``icon={<IconHeart />}``)
+    - CHILD: Render as inline children (default behavior)
+    - STANDALONE: Render as a separate component reference
+    """
+
+    PROP = "prop"
+    CHILD = "child"
+    STANDALONE = "standalone"
 
 
 # ---------------------------------------------------------------------------
@@ -242,6 +265,20 @@ class FigmaIRNode:
 
     # Component
     component_id: Optional[str] = None
+    # Component property definitions (from COMPONENT/COMPONENT_SET parent)
+    component_property_definitions: Optional[
+        Dict[str, ComponentPropertyDefinition]
+    ] = None
+    # Component property override values (from INSTANCE nodes)
+    component_property_values: Optional[Dict[str, ComponentProperty]] = None
+    # Instance role classification (Phase 2)
+    instance_role: Optional[InstanceRole] = None
+
+    # Slot detection (Phase 6)
+    is_slot_candidate: bool = False
+    is_empty_slot: bool = False
+    is_decorative_container: bool = False
+    slot_name: Optional[str] = None
 
     # Image
     has_image_fill: bool = False
@@ -282,55 +319,25 @@ class FigmaIRNode:
 _NAME_CLEANUP_RE = re.compile(r"[^a-zA-Z0-9_]")
 
 
-def _sanitize_name(name: str) -> str:
-    """Convert a Figma node name to a valid identifier.
+# ---------------------------------------------------------------------------
+# Delegated to node_normalizer.py — normalization functions extracted
+# for module decomposition. Re-exported here for backward compatibility.
+# ---------------------------------------------------------------------------
 
-    Replaces non-alphanumeric characters with underscores and ensures
-    the result starts with a letter or underscore.
-
-    Args:
-        name: Raw Figma node name.
-
-    Returns:
-        Sanitized identifier string.
-    """
-    cleaned = _NAME_CLEANUP_RE.sub("_", name).strip("_")
-    if not cleaned:
-        return "Node"
-    if cleaned[0].isdigit():
-        cleaned = "_" + cleaned
-    return cleaned
-
-
-class _NameDeduplicator:
-    """Tracks used names and appends numeric suffixes for uniqueness.
-
-    Used during a single parse pass to ensure every ``FigmaIRNode.unique_name``
-    is unique within the tree.
-    """
-
-    def __init__(self) -> None:
-        self._counts: Dict[str, int] = {}
-
-    def get_unique(self, name: str) -> str:
-        """Return a unique version of the given name.
-
-        Args:
-            name: Sanitized base name.
-
-        Returns:
-            The name itself if unused, otherwise name + numeric suffix.
-        """
-        base = _sanitize_name(name)
-        count = self._counts.get(base, 0)
-        self._counts[base] = count + 1
-        if count == 0:
-            return base
-        return f"{base}_{count}"
+from node_normalizer import (  # noqa: E402
+    _sanitize_name,
+    _NameDeduplicator,
+    _has_vector_children,
+    _detect_icon_candidate,
+    _detect_svg_illustration,
+    _detect_image_fill,
+    _is_absolute_positioned,
+    _can_be_flattened as _can_be_flattened,
+)
 
 
 # ---------------------------------------------------------------------------
-# Text segment merging
+# Text segment merging (kept in node_parser — constructs StyledTextSegment)
 # ---------------------------------------------------------------------------
 
 
@@ -339,19 +346,7 @@ def _resolve_override_style(
     base_style: Optional[TypeStyle],
     override_table: Dict[str, TypeStyle],
 ) -> Optional[TypeStyle]:
-    """Resolve the effective style for a character override index.
-
-    Index 0 means "use the base style". Non-zero indices look up the
-    override table, falling back to the base style if missing.
-
-    Args:
-        override_idx: Character style override index.
-        base_style: Default TypeStyle for the text node.
-        override_table: Map of override index (as string) to TypeStyle.
-
-    Returns:
-        Resolved TypeStyle for the given override index.
-    """
+    """Resolve the effective style for a character override index."""
     if override_idx == 0:
         return base_style
     return override_table.get(str(override_idx), base_style)
@@ -394,22 +389,7 @@ def merge_text_segments(
     overrides: Optional[List[int]],
     override_table: Optional[Dict[str, TypeStyle]],
 ) -> List[StyledTextSegment]:
-    """Merge characterStyleOverrides with styleOverrideTable into segments.
-
-    Figma represents styled text as a character string plus a parallel
-    array of style override indices. This function groups consecutive
-    characters with the same override index into ``StyledTextSegment``
-    objects, each carrying the resolved ``TypeStyle``.
-
-    Args:
-        characters: The raw text content.
-        base_style: Default TypeStyle for the text node.
-        overrides: Per-character style override indices (0 = base style).
-        override_table: Map of override index (as string) to TypeStyle.
-
-    Returns:
-        List of StyledTextSegment with contiguous style runs.
-    """
+    """Merge characterStyleOverrides with styleOverrideTable into segments."""
     if not characters:
         return []
 
@@ -429,134 +409,38 @@ def merge_text_segments(
 # ---------------------------------------------------------------------------
 
 
-def _has_vector_children(node: FigmaNodeBase, _depth: int = 0) -> bool:
-    """Check if a node's subtree contains only vector primitives.
-
-    Args:
-        node: Figma node to check.
-        _depth: Internal recursion depth counter.
-
-    Returns:
-        True if all children (recursively) are vector types.
-    """
-    if _depth > _MAX_PARSE_DEPTH:
-        return False
-    if not node.children:
-        return node.type in _VECTOR_TYPES
-    return all(_has_vector_children(child, _depth + 1) for child in node.children)
+def _clean_property_name(name: str) -> str:
+    """Strip ``#hash`` suffix from Figma component property names."""
+    return name.split("#")[0]
 
 
-def _detect_icon_candidate(node: FigmaNodeBase) -> bool:
-    """Determine if a node qualifies as an icon candidate.
+# Thin wrappers for _classify_instance_role and _detect_slot_candidate
+# that bind the InstanceRole enum (defined above in this module).
+# The actual logic lives in node_normalizer.py.
 
-    Icon candidates are nodes that are small (<=64x64) and contain
-    only vector primitives. These are good candidates for inline SVG
-    or image export rather than div-based rendering.
-
-    Args:
-        node: Figma node to evaluate.
-
-    Returns:
-        True if the node is an icon candidate.
-    """
-    bbox = node.absolute_bounding_box
-    if bbox is None:
-        return False
-    if not math.isfinite(bbox.width) or not math.isfinite(bbox.height):
-        return False
-    if bbox.width > _ICON_MAX_SIZE or bbox.height > _ICON_MAX_SIZE:
-        return False
-    if bbox.width <= 0 or bbox.height <= 0:
-        return False
-    return _has_vector_children(node)
+from node_normalizer import (  # noqa: E402
+    _classify_instance_role as _classify_instance_role_impl,
+    _detect_slot_candidate as _detect_slot_candidate_impl,
+    _SLOT_KEYWORDS,
+    _GENERIC_SLOT_NAMES,
+    _INSTANCE_PROP_MAX_SIZE,
+)
 
 
-def _detect_svg_illustration(node: FigmaNodeBase) -> bool:
-    """Determine if a node qualifies as an SVG illustration candidate.
-
-    SVG illustration candidates are vector-only nodes that are larger than
-    icons (>64px) but within an illustration-scale range (<=512px). These
-    are suitable for inline SVG rendering with actual fill colors (unlike
-    icons which always use currentColor).
-
-    Args:
-        node: Figma node to evaluate.
-
-    Returns:
-        True if the node is an SVG illustration candidate.
-    """
-    bbox = node.absolute_bounding_box
-    if bbox is None:
-        return False
-    if not math.isfinite(bbox.width) or not math.isfinite(bbox.height):
-        return False
-    # Must be larger than icon threshold and within illustration range
-    if bbox.width <= _ICON_MAX_SIZE and bbox.height <= _ICON_MAX_SIZE:
-        return False
-    if bbox.width > _SVG_ILLUSTRATION_MAX_SIZE or bbox.height > _SVG_ILLUSTRATION_MAX_SIZE:
-        return False
-    if bbox.width <= 0 or bbox.height <= 0:
-        return False
-    return _has_vector_children(node)
+def _classify_instance_role(
+    ir_node: FigmaIRNode,
+    parent_ir: Optional[FigmaIRNode] = None,
+) -> Optional[InstanceRole]:
+    """Classify the semantic role of an INSTANCE node."""
+    return _classify_instance_role_impl(ir_node, parent_ir, InstanceRole=InstanceRole)
 
 
-def _detect_image_fill(fills: List[Paint]) -> Tuple[bool, Optional[str]]:
-    """Check fills for IMAGE type and extract image reference.
-
-    Args:
-        fills: List of Paint objects from a node.
-
-    Returns:
-        Tuple of (has_image_fill, image_ref_hash).
-    """
-    for fill in fills:
-        if fill.type.value == "IMAGE" and fill.visible:
-            return True, fill.image_ref
-    return False, None
-
-
-def _is_absolute_positioned(node: FigmaNodeBase) -> bool:
-    """Determine if a node uses absolute positioning.
-
-    A node is absolute-positioned if its ``layoutPositioning`` is set
-    to ``"ABSOLUTE"`` in the Figma API response.
-
-    Args:
-        node: Figma node to check.
-
-    Returns:
-        True if the node is absolutely positioned.
-    """
-    return getattr(node, "layout_positioning", None) == "ABSOLUTE"
-
-
-def _can_be_flattened(node: FigmaIRNode) -> bool:
-    """Determine if a frame-like node can be flattened into its parent.
-
-    A node can be flattened if it:
-    - Has exactly one child
-    - Has no auto-layout
-    - Has no fills, strokes, or effects of its own
-    - Has no corner radius
-    - Is not clipping content
-
-    Args:
-        node: Parsed IR node to evaluate.
-
-    Returns:
-        True if the node can be safely flattened.
-    """
-    if len(node.children) != 1:
-        return False
-    if node.has_auto_layout:
-        return False
-    if node.fills or node.strokes or node.effects:
-        return False
-    if node.corner_radius > 0 or node.corner_radii:
-        return False
-    if node.clips_content:
-        return False
-    return True
+def _detect_slot_candidate(
+    ir_node: FigmaIRNode,
+    parent_ir: Optional[FigmaIRNode] = None,
+) -> bool:
+    """Detect whether a frame-like node qualifies as a slot."""
+    return _detect_slot_candidate_impl(ir_node, parent_ir)
 
 
 _MAX_PARSE_DEPTH = 100  # BACK-P3-004: Guard against pathological nesting
@@ -753,6 +637,20 @@ def _apply_type_specific_properties(
     if isinstance(pydantic_node, TextNode):
         _apply_text_properties(ir_node, pydantic_node)
 
+    # Component property definitions (COMPONENT / COMPONENT_SET)
+    if pydantic_node.component_property_definitions:
+        ir_node.component_property_definitions = {
+            _clean_property_name(k): v
+            for k, v in pydantic_node.component_property_definitions.items()
+        }
+
+    # Component property override values (INSTANCE)
+    if pydantic_node.component_properties:
+        ir_node.component_property_values = {
+            _clean_property_name(k): v
+            for k, v in pydantic_node.component_properties.items()
+        }
+
 
 def _apply_svg_geometry(
     ir_node: FigmaIRNode,
@@ -813,6 +711,7 @@ def parse_node(
     parent_rotation: float = 0.0,
     deduplicator: Optional[_NameDeduplicator] = None,
     _depth: int = 0,
+    parent_ir: Optional[FigmaIRNode] = None,
 ) -> Optional[FigmaIRNode]:
     """Parse a raw Figma API node dict into an IR node recursively."""
     if not _validate_parse_input(raw, _depth):
@@ -836,7 +735,17 @@ def parse_node(
     _apply_svg_geometry(ir_node, raw, node_type_str, pydantic_node)
     _parse_children(ir_node, raw, deduplicator, _depth)
 
-    if ir_node.is_frame_like:
+    # Classify instance role (Phase 2) — after children are populated
+    if ir_node.component_id:
+        ir_node.instance_role = _classify_instance_role(ir_node, parent_ir)
+        if ir_node.instance_role is not None:
+            ir_node.can_be_flattened = False
+
+    # Detect slot candidates (Phase 6) — after children are populated
+    if _detect_slot_candidate(ir_node, parent_ir):
+        ir_node.can_be_flattened = False
+
+    if ir_node.is_frame_like and ir_node.instance_role is None and not ir_node.is_slot_candidate:
         ir_node.can_be_flattened = _can_be_flattened(ir_node)
     return ir_node
 
@@ -847,7 +756,10 @@ def _parse_children(
 ) -> None:
     """Recursively parse and append child nodes."""
     for child_raw in raw.get("children", []):
-        child = parse_node(child_raw, ir_node.cumulative_rotation, deduplicator, _depth + 1)
+        child = parse_node(
+            child_raw, ir_node.cumulative_rotation, deduplicator,
+            _depth + 1, parent_ir=ir_node,
+        )
         if child is not None:
             ir_node.children.append(child)
 
