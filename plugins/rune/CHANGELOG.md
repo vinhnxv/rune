@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.141.0] - 2026-03-07
+
+### Added
+- **tome-digest agent** — Haiku-tier utility agent that extracts structured JSON digest from TOME files (P1/P2/P3 counts, recurring patterns, affected files) for arc Phase 7 token optimization
+- **gap-digest script** — Shell script that extracts MISSING/PARTIAL counts from gap-analysis files for arc Phase 6 token optimization
+- **Arc utility crew references** — Phase integration docs for digest-based artifact reading in arc pipeline
+
+### Changed
+- **Arc Phase 7 (Mend)** — Lead reads tome-digest JSON (500 tokens) instead of full TOME (10-50K tokens) with graceful fallback
+- **Arc Phase 6 (Code Review)** — Lead reads gap-digest output instead of full gap-analysis files (5-10K tokens saved)
+
 ## [1.140.3] - 2026-03-06
 
 ### Changed
