@@ -9,14 +9,6 @@ description: |
 
   Produces a separate aesthetic score (0-100) alongside fidelity score — NOT averaged in.
   Complements design-implementation-reviewer (correctness) with aesthetic judgment (quality).
-
-  Keywords: aesthetic, design quality, visual coherence, anti-slop, typography, whitespace,
-  layout personality, micro-interaction, color coherence, AI slop detection.
-
-  <example>
-  user: "Check the aesthetic quality of the new dashboard components"
-  assistant: "I'll use aesthetic-quality-reviewer to score visual quality and detect slop patterns."
-  </example>
 tools:
   - Read
   - Glob
@@ -26,6 +18,17 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Keywords: aesthetic, design quality, visual coherence, anti-slop, typography, whitespace,
+layout personality, micro-interaction, color coherence, AI slop detection.
+
+<example>
+  user: "Check the aesthetic quality of the new dashboard components"
+  assistant: "I'll use aesthetic-quality-reviewer to score visual quality and detect slop patterns."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

@@ -5,12 +5,6 @@ maxTurns: 35
 description: |
   Sees the dying embers of performance — resource lifecycle degradation, memory patterns,
   pool management, async correctness, and algorithmic complexity. Detects slow burns that erode system health.
-  Triggers: Summoned by orchestrator during audit/inspect workflows for performance-deep analysis.
-
-  <example>
-  user: "Investigate resource lifecycle and memory patterns in the data pipeline"
-  assistant: "I'll use ember-seer to analyze resource lifecycle, trace memory patterns, evaluate pool management, verify async correctness, and assess algorithmic complexity."
-  </example>
 tools:
   - Read
   - Write
@@ -20,6 +14,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by orchestrator during audit/inspect workflows for performance-deep analysis.
+
+<example>
+  user: "Investigate resource lifecycle and memory patterns in the data pipeline"
+  assistant: "I'll use ember-seer to analyze resource lifecycle, trace memory patterns, evaluate pool management, verify async correctness, and assess algorithmic complexity."
+  </example>
+
 
 # Ember Seer — Investigation Agent
 

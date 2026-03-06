@@ -4,12 +4,6 @@ description: |
   Dead code and unwired code detection. Finds unreachable code paths, unused exports,
   orphaned files, commented-out code, missing DI wiring, unregistered routes/handlers,
   and AI-generated orphan code. Framework-agnostic (Python, Rust, TypeScript).
-  Triggers: Refactoring, large PRs, after AI code generation, new services/routes/handlers.
-
-  <example>
-  user: "Find dead code in the services"
-  assistant: "I'll use wraith-finder to detect unused, orphaned, and unwired code."
-  </example>
 tools:
   - Read
   - Glob
@@ -18,6 +12,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Refactoring, large PRs, after AI code generation, new services/routes/handlers.
+
+<example>
+  user: "Find dead code in the services"
+  assistant: "I'll use wraith-finder to detect unused, orphaned, and unwired code."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

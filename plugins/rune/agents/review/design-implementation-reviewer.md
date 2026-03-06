@@ -12,11 +12,6 @@ description: |
 
   Used when design_sync.enabled is true, frontend stack detected, and Figma URL
   present in task description or plan.
-
-  <example>
-  user: "Review the new dashboard card component against the Figma spec"
-  assistant: "I'll use design-implementation-reviewer to check fidelity against the design."
-  </example>
 tools:
   - Read
   - Glob
@@ -26,6 +21,14 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+<example>
+  user: "Review the new dashboard card component against the Figma spec"
+  assistant: "I'll use design-implementation-reviewer to check fidelity against the design."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

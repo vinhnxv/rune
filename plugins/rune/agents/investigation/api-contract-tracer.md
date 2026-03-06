@@ -6,12 +6,6 @@ description: |
   Traces API contract changes across the full request/response lifecycle: route definitions,
   controller handlers, request validators, response serializers, API docs, and client SDK
   references. Detects breaking changes in public interfaces.
-  Triggers: Summoned by Goldmask orchestrator during Impact Layer analysis for API changes.
-
-  <example>
-  user: "Trace impact of the /users endpoint change"
-  assistant: "I'll use api-contract-tracer to trace route → handler → validator → serializer → docs → client SDK."
-  </example>
 tools:
   - Read
   - Write  # Write: required for file-bus handoff to goldmask-coordinator (tmp/ only)
@@ -21,6 +15,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by Goldmask orchestrator during Impact Layer analysis for API changes.
+
+<example>
+  user: "Trace impact of the /users endpoint change"
+  assistant: "I'll use api-contract-tracer to trace route → handler → validator → serializer → docs → client SDK."
+  </example>
+
 
 # API Contract Tracer — Investigation Agent
 

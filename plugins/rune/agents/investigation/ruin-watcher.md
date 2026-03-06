@@ -5,12 +5,6 @@ maxTurns: 40
 description: |
   Watches for ruin in failure modes — network failures, crash recovery, circuit breakers,
   timeout chains, and resource lifecycle. Identifies how systems collapse under stress.
-  Triggers: Summoned by orchestrator during audit/inspect workflows for failure mode analysis.
-
-  <example>
-  user: "Analyze failure handling in the payment gateway integration"
-  assistant: "I'll use ruin-watcher to trace network failure paths, evaluate crash recovery, check circuit breakers, analyze timeout chains, and verify resource cleanup."
-  </example>
 tools:
   - Read
   - Write
@@ -20,6 +14,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by orchestrator during audit/inspect workflows for failure mode analysis.
+
+<example>
+  user: "Analyze failure handling in the payment gateway integration"
+  assistant: "I'll use ruin-watcher to trace network failure paths, evaluate crash recovery, check circuit breakers, analyze timeout chains, and verify resource cleanup."
+  </example>
+
 
 # Ruin Watcher — Investigation Agent
 

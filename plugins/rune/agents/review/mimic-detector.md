@@ -6,12 +6,6 @@ description: |
   files, similar logic pattern identification, duplicated validation rules, repeated
   error handling blocks. Named for Elden Ring's Mimic — a duplicate entity — perfect
   metaphor for duplication detection.
-  Triggers: PRs with 5+ files, technical debt audits.
-
-  <example>
-  user: "Check for duplicated code"
-  assistant: "I'll use mimic-detector to find DRY violations and similar patterns."
-  </example>
 tools:
   - Read
   - Glob
@@ -20,6 +14,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: PRs with 5+ files, technical debt audits.
+
+<example>
+  user: "Check for duplicated code"
+  assistant: "I'll use mimic-detector to find DRY violations and similar patterns."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

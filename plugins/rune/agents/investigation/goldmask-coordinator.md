@@ -6,12 +6,6 @@ description: |
   Three-layer synthesis agent — merges Impact Layer (5 tracers), Wisdom Layer (intent + caution),
   and Lore Layer (risk scores) outputs into a unified GOLDMASK.md report with prioritized
   findings, collateral damage assessment, and swarm detection.
-  Triggers: Summoned by Goldmask orchestrator after all investigation agents complete.
-
-  <example>
-  user: "Synthesize all investigation findings into the final Goldmask report"
-  assistant: "I'll use goldmask-coordinator to merge Impact, Wisdom, and Lore outputs into GOLDMASK.md."
-  </example>
 tools:
   - Read
   - Write  # Write: required for GOLDMASK.md synthesis output (tmp/ only)
@@ -21,6 +15,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by Goldmask orchestrator after all investigation agents complete.
+
+<example>
+  user: "Synthesize all investigation findings into the final Goldmask report"
+  assistant: "I'll use goldmask-coordinator to merge Impact, Wisdom, and Lore outputs into GOLDMASK.md."
+  </example>
+
 
 # Goldmask Coordinator — Investigation Agent
 

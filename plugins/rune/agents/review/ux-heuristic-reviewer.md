@@ -9,15 +9,6 @@ description: |
 
   Produces UXH-prefixed findings. Non-blocking by default. Conditional activation:
   ux.enabled + frontend files detected.
-
-  Keywords: heuristic evaluation, Nielsen Norman, usability, visibility, feedback,
-  consistency, error prevention, recognition, flexibility, aesthetics, recovery,
-  help documentation, WCAG, accessibility.
-
-  <example>
-  user: "Run a heuristic evaluation on the checkout flow components"
-  assistant: "I'll use ux-heuristic-reviewer to evaluate against 50+ usability heuristics."
-  </example>
 tools:
   - Read
   - Glob
@@ -26,6 +17,18 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Keywords: heuristic evaluation, Nielsen Norman, usability, visibility, feedback,
+consistency, error prevention, recognition, flexibility, aesthetics, recovery,
+help documentation, WCAG, accessibility.
+
+<example>
+  user: "Run a heuristic evaluation on the checkout flow components"
+  assistant: "I'll use ux-heuristic-reviewer to evaluate against 50+ usability heuristics."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

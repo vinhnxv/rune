@@ -5,13 +5,6 @@ maxTurns: 35
 description: |
   Watches the fringes for edge cases — missing boundary checks, unhandled null/empty inputs,
   race conditions, overflow risks, and off-by-one errors. Guards the edges where behavior breaks.
-  Triggers: Summoned by orchestrator during audit/inspect workflows for edge case analysis.
-  Dedup: Skips files already flagged by tide-watcher. Focuses on non-async race conditions.
-
-  <example>
-  user: "Check the data processing pipeline for edge cases"
-  assistant: "I'll use fringe-watcher to analyze null/empty handling, boundary values, race conditions, error boundaries, and overflow risks."
-  </example>
 tools:
   - Read
   - Write
@@ -21,6 +14,17 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by orchestrator during audit/inspect workflows for edge case analysis.
+Dedup: Skips files already flagged by tide-watcher. Focuses on non-async race conditions.
+
+<example>
+  user: "Check the data processing pipeline for edge cases"
+  assistant: "I'll use fringe-watcher to analyze null/empty handling, boundary values, race conditions, error boundaries, and overflow risks."
+  </example>
+
 
 # Fringe Watcher — Investigation Agent
 

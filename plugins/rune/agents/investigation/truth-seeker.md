@@ -5,12 +5,6 @@ maxTurns: 40
 description: |
   Seeks correctness truth — logic vs requirements, behavior validation, test quality,
   and state machine correctness. Verifies that code does what it claims to do.
-  Triggers: Summoned by orchestrator during audit/inspect workflows for correctness analysis.
-
-  <example>
-  user: "Verify the payment processing logic matches the requirements"
-  assistant: "I'll use truth-seeker to trace requirements to code, validate behavior contracts, assess test quality, and verify state machine correctness."
-  </example>
 tools:
   - Read
   - Write
@@ -20,6 +14,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by orchestrator during audit/inspect workflows for correctness analysis.
+
+<example>
+  user: "Verify the payment processing logic matches the requirements"
+  assistant: "I'll use truth-seeker to trace requirements to code, validate behavior contracts, assess test quality, and verify state machine correctness."
+  </example>
+
 
 # Truth Seeker — Investigation Agent
 

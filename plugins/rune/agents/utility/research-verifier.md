@@ -6,15 +6,6 @@ description: |
   from practice-seeker, lore-scholar, and codex-researcher are trustworthy.
   Trigger keywords: research verification, validate research, trust score,
   research output, verify findings, research quality, external research check.
-
-  <example>
-  user: "Verify the external research before synthesis"
-  assistant: "I'll use research-verifier to validate each finding across 5 dimensions."
-  </example>
-  <example>
-  user: "Check if the research findings are trustworthy"
-  assistant: "I'll use research-verifier to score trust and flag any security concerns."
-  </example>
 tools:
   - Read
   - Glob
@@ -25,6 +16,19 @@ maxTurns: 40
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+<example>
+  user: "Verify the external research before synthesis"
+  assistant: "I'll use research-verifier to validate each finding across 5 dimensions."
+  </example>
+
+<example>
+  user: "Check if the research findings are trustworthy"
+  assistant: "I'll use research-verifier to score trust and flag any security concerns."
+  </example>
+
 
 # Research Verifier — External Research Output Validation Agent
 

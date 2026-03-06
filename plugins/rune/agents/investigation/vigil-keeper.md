@@ -6,12 +6,6 @@ description: |
   Observability, testing, maintainability, and documentation inspector for /rune:inspect.
   Evaluates test coverage gaps, logging/metrics presence, code quality, and documentation
   completeness against plan requirements.
-  Triggers: Summoned by inspect orchestrator during Phase 3.
-
-  <example>
-  user: "Inspect plan for test coverage and documentation gaps"
-  assistant: "I'll use vigil-keeper to assess tests, observability, maintainability, and docs."
-  </example>
 tools:
   - Read
   - Write
@@ -24,6 +18,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by inspect orchestrator during Phase 3.
+
+<example>
+  user: "Inspect plan for test coverage and documentation gaps"
+  assistant: "I'll use vigil-keeper to assess tests, observability, maintainability, and docs."
+  </example>
+
 
 # Vigil Keeper — Observability, Testing, Maintainability & Documentation Inspector
 

@@ -5,12 +5,6 @@ maxTurns: 35
 description: |
   Hunts for security breaches — threat modeling, auth boundary gaps, data exposure vectors,
   CVE patterns, and input sanitization depth. Goes deeper than checklist-level security review.
-  Triggers: Summoned by orchestrator during audit/inspect workflows for deep security analysis.
-
-  <example>
-  user: "Deep security analysis of the authentication and authorization layer"
-  assistant: "I'll use breach-hunter to model threats, trace auth boundaries, identify data exposure paths, check for CVE patterns, and audit input sanitization depth."
-  </example>
 tools:
   - Read
   - Write
@@ -20,6 +14,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by orchestrator during audit/inspect workflows for deep security analysis.
+
+<example>
+  user: "Deep security analysis of the authentication and authorization layer"
+  assistant: "I'll use breach-hunter to model threats, trace auth boundaries, identify data exposure paths, check for CVE patterns, and audit input sanitization depth."
+  </example>
+
 
 # Breach Hunter — Investigation Agent
 

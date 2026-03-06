@@ -6,13 +6,6 @@ description: |
   that don't correspond to migrations included in the PR. Supports 8 migration
   frameworks: Rails (ActiveRecord), Django, Alembic (SQLAlchemy), Prisma, TypeORM,
   Knex, Drizzle, Flyway/Liquibase. Surgical scope: one class of bug only.
-  Triggers: Schema file changes, migration files, db/schema.rb, prisma/schema.prisma,
-  alembic versions, django migrations, schema drift, migration mismatch, branch contamination.
-
-  <example>
-  user: "Check if the schema changes match the migrations in this PR"
-  assistant: "I'll use schema-drift-detector to cross-reference schema changes against PR migrations."
-  </example>
 tools:
   - Read
   - Glob
@@ -22,6 +15,17 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Schema file changes, migration files, db/schema.rb, prisma/schema.prisma,
+alembic versions, django migrations, schema drift, migration mismatch, branch contamination.
+
+<example>
+  user: "Check if the schema changes match the migrations in this PR"
+  assistant: "I'll use schema-drift-detector to cross-reference schema changes against PR migrations."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

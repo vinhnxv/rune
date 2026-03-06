@@ -128,6 +128,21 @@ Each chunk is scored on 4 orthogonal dimensions after every TOME merge round.
 
 **Chunk type**: Code if >50% of files are source code (per smart-selection.md extension mapping), otherwise doc.
 
+**P1/P2 Findings as Quality Gate Trigger**:
+
+In addition to metric thresholds, chunks with P1 or P2 findings are flagged for re-review when:
+- `convergence.re_review_p1_p2: true` in talisman (default: false)
+- The chunk has P1 or P2 findings that could potentially be resolved or improved by a second review pass
+- This is useful for high-stakes reviews where critical findings warrant extra scrutiny
+
+**Re-review trigger logic** (when `re_review_p1_p2` is enabled):
+```
+if (chunk.has_p1_p2_findings && !chunk.passed_previous_review) {
+  flag_for_re_review = true
+  reason = "P1/P2 findings present — re-review for validation"
+}
+```
+
 **Edge cases**:
 - Chunks with < 3 files auto-pass (too few files for meaningful density measurement)
 - `Math.max(chunkFindings.length, 1)` prevents division by zero in Evidence Ratio
@@ -341,7 +356,20 @@ Each re-review pass gets **50% of the initial timeout** (configurable via `conve
 - Round 1: 300s (50% reduction)
 - Round 2: 150s (50% reduction from Round 1)
 
-This prevents convergence from indefinitely extending review time. The `MAX_CONVERGENCE_CYCLES` (derived from tier) also prevents infinite loops.
+This prevents convergence from indefinitely extending review time. The `MAX_CONVERGENCE_CYCLES` (derived from tier, equivalent to `tier.maxRounds`) also prevents infinite loops.
+
+**Variable Alias**:
+- `MAX_CONVERGENCE_CYCLES` = `tier.maxRounds` (both names refer to the same value)
+- CHUNK_MINIMAL: `MAX_CONVERGENCE_CYCLES = 1`
+- CHUNK_STANDARD: `MAX_CONVERGENCE_CYCLES = 2`
+- CHUNK_THOROUGH: `MAX_CONVERGENCE_CYCLES = 3`
+
+```javascript
+// Both are valid:
+const maxRounds = tier.maxRounds           // From tier selection
+const maxCycles = MAX_CONVERGENCE_CYCLES   // Alias for clarity
+// maxRounds === maxCycles (same value, different naming)
+```
 
 ## `selectCrossChunkContext(flaggedChunk, allChunks, currentTome)`
 

@@ -8,15 +8,6 @@ description: |
 
   Produces UXI-prefixed findings. Non-blocking by default. Conditional activation:
   ux.enabled + frontend files detected.
-
-  Keywords: micro-interaction, hover state, focus state, touch target, keyboard
-  accessibility, animation, prefers-reduced-motion, scroll behavior, input feedback,
-  tap target, focus indicator, transition, cursor, pointer events.
-
-  <example>
-  user: "Check if the form components have proper interaction feedback"
-  assistant: "I'll use ux-interaction-auditor to check hover/focus states, touch targets, and keyboard accessibility."
-  </example>
 tools:
   - Read
   - Glob
@@ -25,6 +16,18 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Keywords: micro-interaction, hover state, focus state, touch target, keyboard
+accessibility, animation, prefers-reduced-motion, scroll behavior, input feedback,
+tap target, focus indicator, transition, cursor, pointer events.
+
+<example>
+  user: "Check if the form components have proper interaction feedback"
+  assistant: "I'll use ux-interaction-auditor to check hover/focus states, touch targets, and keyboard accessibility."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

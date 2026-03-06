@@ -8,13 +8,6 @@ description: |
   Covers: Read verification findings, apply targeted CSS/layout/component fixes,
   re-verify via agent-browser screenshot, detect convergence via three-signal stop,
   report fix results with IMPROVED/REGRESSED/NO_CHANGE status per round.
-
-  Triggers: arc Phase 3.3 STORYBOOK VERIFICATION fix loop.
-
-  <example>
-  user: "Fix the spacing issue found in the Card component"
-  assistant: "I'll use storybook-fixer to apply a targeted fix and re-verify."
-  </example>
 tools:
   - Read
   - Write
@@ -31,6 +24,16 @@ maxTurns: 60
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: arc Phase 3.3 STORYBOOK VERIFICATION fix loop.
+
+<example>
+  user: "Fix the spacing issue found in the Card component"
+  assistant: "I'll use storybook-fixer to apply a targeted fix and re-verify."
+  </example>
+
 
 # Storybook Fixer — Component Visual Fix Agent
 

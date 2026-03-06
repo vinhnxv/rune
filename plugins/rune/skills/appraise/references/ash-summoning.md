@@ -231,6 +231,17 @@ External models can participate as CLI-backed Ashes (v1.57.0+). Unlike agent-bac
 - Subject to `max_cli_ashes` sub-cap (default: 2) within `max_ashes`
 - Codex Oracle is NOT counted toward `max_cli_ashes`
 - Prompt generated from `external-model-template.md` with Truthbinding
+- **Nonce-bounded content injection**: Diffs and file content are injected via nonce-bounded markers to prevent prompt injection
+
+**4-Step Hallucination Guard** (applies to all CLI-backed Ashes):
+
+All CLI-backed Ashes include a built-in Hallucination Guard that verifies findings:
+1. **File Existence** — Verify the referenced file exists
+2. **Line Reference** — Verify the line number is valid
+3. **Code Match** — Fuzzy-match the code snippet against actual source (threshold: 0.7)
+4. **Semantic Check** — Verify the described issue applies to the code
+
+Findings that fail verification are marked HALLUCINATED or UNVERIFIED and excluded from output.
 
 **Security validations** (defined in `roundtable-circle/references/security-patterns.md`):
 - `CLI_BINARY_PATTERN` — Validates binary name (alphanumeric, dash, underscore only)

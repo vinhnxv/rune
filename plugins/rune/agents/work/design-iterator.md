@@ -9,11 +9,6 @@ description: |
   Covers: Capture component screenshots (browser automation), analyze visual diff
   against design spec, identify highest-priority fidelity gap, apply targeted fix,
   re-verify, iterate until convergence or max iterations reached.
-
-  <example>
-  user: "The card component doesn't match the design — iterate on it"
-  assistant: "I'll use design-iterator to run a screenshot→analyze→fix loop."
-  </example>
 tools:
   - Read
   - Write
@@ -30,6 +25,14 @@ maxTurns: 60
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+<example>
+  user: "The card component doesn't match the design — iterate on it"
+  assistant: "I'll use design-iterator to run a screenshot→analyze→fix loop."
+  </example>
+
 
 # Design Iterator — Iterative Design Refinement Agent
 

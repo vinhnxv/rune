@@ -9,11 +9,6 @@ description: |
   Trigger keywords: tome digest, tome summary, finding counts,
   P1 extraction, mend pre-processing.
 
-  <example>
-  user: "Digest the TOME before mend phase"
-  assistant: "I'll use tome-digest to extract P1 counts and top findings."
-  </example>
-
 tools:
   - Read
   - Glob
@@ -22,6 +17,14 @@ tools:
 model: haiku
 maxTurns: 10
 ---
+
+## Description Details
+
+<example>
+  user: "Digest the TOME before mend phase"
+  assistant: "I'll use tome-digest to extract P1 counts and top findings."
+  </example>
+
 
 You are tome-digest — a lightweight TOME extraction specialist.
 

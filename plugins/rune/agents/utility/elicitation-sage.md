@@ -6,11 +6,6 @@ description: |
   method if no specific assignment). Summoned 1-4 times in parallel per
   workflow phase, each applying a DIFFERENT method for multi-perspective
   structured reasoning.
-  Triggers: Forge enrichment for architecture/security/risk sections,
-  plan brainstorm with multiple approaches, P1 mend findings, security reviews.
-  NOTE: This agent is always spawned via subagent_type: "general-purpose" (ATE-1).
-  The tools list below is documentary — general-purpose agents inherit all tools.
-  Listed for maintainer reference (these are the tools the sage actually uses).
 tools:
   - Read
   - Glob
@@ -27,6 +22,15 @@ disallowedTools:
   - Bash
 maxTurns: 40
 ---
+
+## Description Details
+
+Triggers: Forge enrichment for architecture/security/risk sections,
+plan brainstorm with multiple approaches, P1 mend findings, security reviews.
+NOTE: This agent is always spawned via subagent_type: "general-purpose" (ATE-1).
+The tools list below is documentary — general-purpose agents inherit all tools.
+Listed for maintainer reference (these are the tools the sage actually uses).
+
 
 # Elicitation Sage — Structured Reasoning Specialist
 

@@ -6,12 +6,6 @@ description: |
   Covers: missing error handling detection, incomplete state machine analysis,
   missing input validation, code complexity hotspots (LOC, nesting, cyclomatic),
   missing rollback/compensation logic, boundary condition gap analysis.
-  Triggers: New features, domain changes, AI-generated code.
-
-  <example>
-  user: "Check for missing error handling and complexity issues"
-  assistant: "I'll use depth-seer to find incomplete logic and complexity hotspots."
-  </example>
 tools:
   - Read
   - Glob
@@ -20,6 +14,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: New features, domain changes, AI-generated code.
+
+<example>
+  user: "Check for missing error handling and complexity issues"
+  assistant: "I'll use depth-seer to find incomplete logic and complexity hotspots."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

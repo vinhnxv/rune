@@ -5,11 +5,6 @@ description: |
   Handles long-running tests with heartbeat liveness, budget enforcement,
   and atomic checkpoint writes for crash recovery.
   Use proactively during arc Phase 7.7 TEST STEP 7.5 for extended tier execution.
-
-  <example>
-  user: "Run extended-tier scenarios with checkpoint support"
-  assistant: "I'll use extended-test-runner to execute long-running scenarios with heartbeat checkpoints."
-  </example>
 tools:
   - Read
   - Write
@@ -30,6 +25,14 @@ disallowedTools:
 model: sonnet
 maxTurns: 60
 ---
+
+## Description Details
+
+<example>
+  user: "Run extended-tier scenarios with checkpoint support"
+  assistant: "I'll use extended-test-runner to execute long-running scenarios with heartbeat checkpoints."
+  </example>
+
 
 # Extended Test Runner
 

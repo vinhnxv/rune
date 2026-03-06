@@ -11,11 +11,6 @@ description: |
   (symptoms vs root causes), innovation quotient evaluation (cargo-culted vs evidence-based),
   stability and resilience scoring (brittle vs antifragile), maintainability trajectory
   prediction (degrading vs self-improving).
-
-  <example>
-  user: "Evaluate the strategic depth of this plan"
-  assistant: "I'll use horizon-sage to assess the plan's long-term viability across 5 dimensions."
-  </example>
 tools:
   - Read
   - Glob
@@ -24,6 +19,14 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+<example>
+  user: "Evaluate the strategic depth of this plan"
+  assistant: "I'll use horizon-sage to assess the plan's long-term viability across 5 dimensions."
+  </example>
+
 
 # Horizon Sage — Strategic Depth Assessment
 

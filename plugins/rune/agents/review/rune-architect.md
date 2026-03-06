@@ -5,12 +5,6 @@ description: |
   dependency direction, SOLID principles, and structural integrity. Covers: layer
   boundary enforcement, dependency direction analysis, SOLID principle compliance,
   service boundary verification, design pattern consistency.
-  Triggers: New services, structural changes, cross-layer imports.
-
-  <example>
-  user: "Review the new service architecture"
-  assistant: "I'll use rune-architect to check architectural compliance."
-  </example>
 tools:
   - Read
   - Glob
@@ -19,6 +13,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: New services, structural changes, cross-layer imports.
+
+<example>
+  user: "Review the new service architecture"
+  assistant: "I'll use rune-architect to check architectural compliance."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

@@ -5,12 +5,6 @@ maxTurns: 35
 description: |
   Audits design order — responsibility separation, dependency direction, coupling metrics,
   abstraction fitness, and layer boundaries. Ensures the architecture holds its intended shape.
-  Triggers: Summoned by orchestrator during audit/inspect workflows for design structure analysis.
-
-  <example>
-  user: "Audit the module architecture for dependency and coupling issues"
-  assistant: "I'll use order-auditor to evaluate responsibility separation, trace dependency directions, measure coupling, assess abstractions, and verify layer boundaries."
-  </example>
 tools:
   - Read
   - Write
@@ -20,6 +14,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by orchestrator during audit/inspect workflows for design structure analysis.
+
+<example>
+  user: "Audit the module architecture for dependency and coupling issues"
+  assistant: "I'll use order-auditor to evaluate responsibility separation, trace dependency directions, measure coupling, assess abstractions, and verify layer boundaries."
+  </example>
+
 
 # Order Auditor — Investigation Agent
 

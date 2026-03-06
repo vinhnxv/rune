@@ -6,12 +6,6 @@ description: |
   Traces configuration and dependency impact across environment variables, config files,
   deployment manifests, CI/CD pipelines, and feature flags. Detects deployment-time
   breakage from config drift.
-  Triggers: Summoned by Goldmask orchestrator during Impact Layer analysis for config/infra changes.
-
-  <example>
-  user: "Trace impact of the DATABASE_URL environment variable change"
-  assistant: "I'll use config-dependency-tracer to trace env var → config reads → Dockerfile → CI pipeline → feature flags."
-  </example>
 tools:
   - Read
   - Write  # Write: required for file-bus handoff to goldmask-coordinator (tmp/ only)
@@ -21,6 +15,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by Goldmask orchestrator during Impact Layer analysis for config/infra changes.
+
+<example>
+  user: "Trace impact of the DATABASE_URL environment variable change"
+  assistant: "I'll use config-dependency-tracer to trace env var → config reads → Dockerfile → CI pipeline → feature flags."
+  </example>
+
 
 # Config/Dependency Tracer — Investigation Agent
 

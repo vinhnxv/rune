@@ -7,15 +7,6 @@ description: |
   Use proactively after code review passes and before deployment.
   Trigger keywords: deployment verification, go/no-go, rollback plan, deploy checklist,
   production readiness, monitoring plan, pre-deploy audit, post-deploy verification.
-
-  <example>
-  user: "Generate a deployment checklist for this migration PR"
-  assistant: "I'll use deployment-verifier to generate verification artifacts."
-  </example>
-  <example>
-  user: "What's the rollback plan for this database change?"
-  assistant: "I'll use deployment-verifier to produce a rollback procedure and monitoring plan."
-  </example>
 tools:
   - Read
   - Glob
@@ -25,6 +16,19 @@ maxTurns: 40
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+<example>
+  user: "Generate a deployment checklist for this migration PR"
+  assistant: "I'll use deployment-verifier to generate verification artifacts."
+  </example>
+
+<example>
+  user: "What's the rollback plan for this database change?"
+  assistant: "I'll use deployment-verifier to produce a rollback procedure and monitoring plan."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

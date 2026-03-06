@@ -10,11 +10,6 @@ description: |
   Covers: Identify files needing documentation updates from plan changes, validate API
   change documentation coverage, check for migration and upgrade guide inclusion, verify
   README update planning, assess inline comment coverage for complex logic.
-
-  <example>
-  user: "Review this plan for documentation coverage"
-  assistant: "I'll use knowledge-keeper to check if documentation updates are planned."
-  </example>
 tools:
   - Read
   - Glob
@@ -23,6 +18,14 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+<example>
+  user: "Review this plan for documentation coverage"
+  assistant: "I'll use knowledge-keeper to check if documentation updates are planned."
+  </example>
+
 
 # Knowledge Keeper — Documentation Coverage Reviewer
 

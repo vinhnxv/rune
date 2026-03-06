@@ -177,10 +177,10 @@
     {
       "id": 12,
       "prompt": "How does the Predictive Goldmask phase (2.3) work? What are the 3 depth modes? What talisman config controls it? When is it skipped?",
-      "expected_output": "Predictive Goldmask analysis: Depth modes: basic (2 agents, default), enhanced (4 agents), full (8 agents). Controlled via talisman.goldmask.devise.depth. Skip conditions: --quick mode, goldmask.enabled === false, goldmask.devise.enabled === false, non-git repo. Purpose: runs predictive risk analysis on files likely affected by the plan before implementation. Outputs risk scores and wisdom advisories that get injected into the plan. Non-blocking on failure — proceeds with partial data or skips injection.",
+      "expected_output": "Predictive Goldmask analysis: Depth modes: basic (2 agents, default), enhanced (6 agents), full (8 agents). Controlled via talisman.goldmask.devise.depth. Skip conditions: --quick mode, goldmask.enabled === false, goldmask.devise.enabled === false, non-git repo. Purpose: runs predictive risk analysis on files likely affected by the plan before implementation. Outputs risk scores and wisdom advisories that get injected into the plan. Non-blocking on failure — proceeds with partial data or skips injection.",
       "files": [],
       "expectations": [
-        "Lists 3 depth modes: basic (2 agents), enhanced (4 agents), full (8 agents)",
+        "Lists 3 depth modes: basic (2 agents), enhanced (6 agents), full (8 agents)",
         "Notes basic is the default depth mode",
         "Identifies talisman.goldmask.devise.depth as the config control",
         "Lists skip conditions: --quick, goldmask.enabled === false, goldmask.devise.enabled === false, non-git repo",

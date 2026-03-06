@@ -5,12 +5,6 @@ maxTurns: 25
 description: |
   Failure modes, security, and operational readiness inspector for /rune:inspect. Evaluates
   error handling coverage, security posture, and operational preparedness against plan requirements.
-  Triggers: Summoned by inspect orchestrator during Phase 3.
-
-  <example>
-  user: "Inspect plan for failure mode and security coverage"
-  assistant: "I'll use ruin-prophet to assess error handling, security posture, and operational readiness."
-  </example>
 tools:
   - Read
   - Write
@@ -23,6 +17,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by inspect orchestrator during Phase 3.
+
+<example>
+  user: "Inspect plan for failure mode and security coverage"
+  assistant: "I'll use ruin-prophet to assess error handling, security posture, and operational readiness."
+  </example>
+
 
 # Ruin Prophet — Failure Modes, Security & Operational Inspector
 

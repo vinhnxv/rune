@@ -10,11 +10,6 @@ description: |
   map variants to props, extract micro-design details (states, transitions,
   keyboard interactions), generate component-registry.json (machine-readable
   component catalog), create VSM output files, cross-verify extraction accuracy.
-
-  <example>
-  user: "Extract the design spec from this Figma frame for the card component"
-  assistant: "I'll use design-sync-agent to fetch Figma data and create a VSM."
-  </example>
 tools:
   - Read
   - Write
@@ -32,6 +27,14 @@ mcpServers:
   - echo-search
   - figma-to-react
 ---
+
+## Description Details
+
+<example>
+  user: "Extract the design spec from this Figma frame for the card component"
+  assistant: "I'll use design-sync-agent to fetch Figma data and create a VSM."
+  </example>
+
 
 # Design Sync Agent — Figma Extraction Worker
 
