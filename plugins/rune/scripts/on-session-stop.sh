@@ -371,11 +371,10 @@ if [[ -d "$CHOME/teams/" ]]; then
           cleaned_teams+=("$dirname")
           continue
         fi
-        # SEC-1: Re-check symlink immediately before rm-rf (TOCTOU mitigation)
-        if [[ ! -L "$CHOME/teams/${dirname}" ]]; then
-          rm -rf "$CHOME/teams/${dirname}/" "$CHOME/tasks/${dirname}/" 2>/dev/null
-          cleaned_teams+=("$dirname")
-        fi
+        # SEC-002: Atomic symlink-safe delete (eliminates TOCTOU window)
+        find "$CHOME/teams/${dirname}" -maxdepth 0 -not -type l -exec rm -rf {} + 2>/dev/null
+        find "$CHOME/tasks/${dirname}" -maxdepth 0 -not -type l -exec rm -rf {} + 2>/dev/null
+        cleaned_teams+=("$dirname")
       fi
     fi
   done
@@ -504,7 +503,8 @@ for f in "${CWD}/tmp/"/.rune-shutdown-signal-*.json; do
   if [[ -n "$SS_PID" && "$SS_PID" =~ ^[0-9]+$ && "$SS_PID" != "$PPID" ]]; then
     rune_pid_alive "$SS_PID" && continue
   fi
-  rm -f "$f" 2>/dev/null
+  # SEC-002: Atomic symlink-safe delete (eliminates TOCTOU window)
+  find "$f" -maxdepth 0 -not -type l -exec rm -f {} + 2>/dev/null
 done
 shopt -u nullglob
 
@@ -521,7 +521,8 @@ for f in "${CWD}/tmp/"/.rune-force-shutdown-*.json; do
   if [[ -n "$FS_PID" && "$FS_PID" =~ ^[0-9]+$ && "$FS_PID" != "$PPID" ]]; then
     rune_pid_alive "$FS_PID" && continue
   fi
-  rm -f "$f" 2>/dev/null
+  # SEC-002: Atomic symlink-safe delete (eliminates TOCTOU window)
+  find "$f" -maxdepth 0 -not -type l -exec rm -f {} + 2>/dev/null
 done
 shopt -u nullglob
 
@@ -556,7 +557,8 @@ if [[ -d "${CWD}/tmp/.rune-signals/" ]]; then
     done
     # Clean if: state file found with dead/matching owner, or no state file (true orphan)
     if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" != "1" ]]; then
-      rm -rf "$sdir" 2>/dev/null
+      # SEC-002: Atomic symlink-safe delete (eliminates TOCTOU window)
+      find "$sdir" -maxdepth 0 -not -type l -exec rm -rf {} + 2>/dev/null
     fi
     cleaned_signal_dirs=$((cleaned_signal_dirs + 1))
   done

@@ -168,7 +168,8 @@ for team in "${stale_teams[@]}"; do
     _has_active_state=false
     if [[ -n "${CWD:-}" ]]; then
       # SEC-009 FIX: Ensure nullglob is active for glob expansion
-      _prev_nullglob=$(shopt -p nullglob 2>/dev/null || true)
+      _nullglob_was_set=1
+      shopt -q nullglob && _nullglob_was_set=0
       shopt -s nullglob 2>/dev/null || true
       for _sf in "${CWD}"/tmp/.rune-*.json; do
         [[ -f "$_sf" ]] || continue
@@ -181,9 +182,9 @@ for team in "${stale_teams[@]}"; do
         fi
       done
     fi
-    # SEC-009 FIX: Restore nullglob state and clean up temp variable
-    eval "$_prev_nullglob" 2>/dev/null || true
-    unset _prev_nullglob
+    # SEC-009 FIX: Restore nullglob state (SEC-003: conditional instead of eval)
+    [[ "$_nullglob_was_set" -eq 1 ]] && shopt -u nullglob
+    unset _nullglob_was_set
     if [[ "$_has_active_state" == "false" ]]; then
       rm -rf "$CHOME/teams/${team}/" "$CHOME/tasks/${team}/" 2>/dev/null
       cleaned_teams+=("$team")

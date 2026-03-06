@@ -27,6 +27,9 @@
 set -euo pipefail
 umask 077  # Secure temp file creation
 
+RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+_trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] %s: %s\n' "$(date +%H:%M:%S)" "${BASH_SOURCE[0]##*/}" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
+
 # ── Fail-forward trap (OPERATIONAL hook pattern) ──
 _rune_fail_forward() {
   local _crash_line="${BASH_LINENO[0]:-unknown}"

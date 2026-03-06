@@ -118,7 +118,7 @@ if printf '%s\n' "$NORMALIZED" | grep -qE '(^|[[:space:];|&(])sleep[[:space:]]+[
     printf 'WARNING: %s: resolve-session-identity.sh not found — using PID-based ownership fallback\n' \
       "${BASH_SOURCE[0]##*/}" >&2 2>/dev/null || true
     RUNE_CURRENT_CFG=""
-    rune_pid_alive() { return 1; }  # treat all PIDs as dead (conservative: own everything)
+    rune_pid_alive() { kill -0 "$1" 2>/dev/null; }  # PID liveness check (matches other scripts)
   fi
 
   # Arc checkpoint detection

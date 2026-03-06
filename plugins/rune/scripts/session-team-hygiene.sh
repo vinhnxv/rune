@@ -129,7 +129,8 @@ if [[ $orphan_count -gt 0 ]] && [[ -d "$CHOME/teams/" ]]; then
       # Look for a state file whose team_name (or inferred from filename) matches oname and has a dead PID.
       if [[ -d "${CWD}/tmp/" ]]; then
         # NOTE: Do NOT use `local` here — this is main script body, not a function.
-        _saved_nullglob=$(shopt -p nullglob 2>/dev/null || true)
+        _nullglob_was_set=1
+        shopt -q nullglob && _nullglob_was_set=0
         shopt -s nullglob 2>/dev/null || true
         for sf in "${CWD}/tmp/"/.rune-*.json; do
           [[ -f "$sf" ]] && [[ ! -L "$sf" ]] || continue
@@ -144,12 +145,8 @@ if [[ $orphan_count -gt 0 ]] && [[ -d "$CHOME/teams/" ]]; then
           owner_cfg="$sf_cfg"
           break
         done
-        # Restore nullglob — explicit instead of eval (SEC-001)
-        if [[ "$_saved_nullglob" == *"-s nullglob"* ]]; then
-          shopt -s nullglob 2>/dev/null || true
-        else
-          shopt -u nullglob 2>/dev/null || true
-        fi
+        # Restore nullglob state (SEC-003: conditional instead of eval)
+        [[ "$_nullglob_was_set" -eq 1 ]] && shopt -u nullglob
       fi
       # If no matching state file found, cannot verify PID — skip
       [[ -n "$owner_pid" ]] || continue

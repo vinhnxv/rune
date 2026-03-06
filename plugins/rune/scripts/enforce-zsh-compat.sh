@@ -91,7 +91,7 @@ if ! command -v jq &>/dev/null; then
   exit 0
 fi
 
-INPUT=$(head -c 1048576)  # SEC-2: 1MB cap to prevent unbounded stdin read
+INPUT=$(head -c 1048576 2>/dev/null || true)  # SEC-2: 1MB cap to prevent unbounded stdin read
 
 TOOL_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)
 if [[ "$TOOL_NAME" != "Bash" ]]; then

@@ -31,6 +31,9 @@
 set -euo pipefail
 umask 077
 
+RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+_trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] %s: %s\n' "$(date +%H:%M:%S)" "${BASH_SOURCE[0]##*/}" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
+
 # ── Fail-forward trap (OPERATIONAL) ──
 _rune_fail_forward() {
   local _crash_line="${BASH_LINENO[0]:-unknown}"
@@ -269,7 +272,7 @@ fi
 
 # Ensure lock is released on exit and signals
 _release_lock() { rmdir "$LOCK_DIR" 2>/dev/null || true; }
-trap '_release_lock' EXIT INT TERM
+trap '_release_lock; exit 0' EXIT INT TERM ERR
 
 # ── Format and write entry ──
 DATE=$(date +%Y-%m-%d)

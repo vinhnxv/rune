@@ -88,11 +88,11 @@ done
 # No associative arrays — uses grep/sort for macOS bash 3.x compatibility.
 
 SHARD_TMPFILE=$(mktemp "${TMPDIR:-/tmp}/shard-check-XXXXXX")
-_cleanup_shard() { rm -f "$SHARD_TMPFILE"; }
+_cleanup_shard() { rm -f "$SHARD_TMPFILE" "$DEDUP_FILE"; }
 trap _cleanup_shard EXIT
 
-# Collect shard info: "prefix:num" per shard plan in SEEN array
-for plan in "${SEEN[@]+"${SEEN[@]}"}"; do
+# Collect shard info: "prefix:num" per validated plan in DEDUP_FILE
+while IFS= read -r plan; do
   case "$plan" in
     *-shard-[0-9]*-*)
       # Extract shard number (POSIX-compatible — no BASH_REMATCH)
@@ -103,7 +103,7 @@ for plan in "${SEEN[@]+"${SEEN[@]}"}"; do
       fi
       ;;
   esac
-done
+done < "$DEDUP_FILE"
 
 # Analyze groups (if any shards found)
 if [[ -s "$SHARD_TMPFILE" ]]; then

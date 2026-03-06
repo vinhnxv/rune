@@ -14,7 +14,7 @@ source "${SCRIPT_DIR}/resolve-session-identity.sh"
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] rune-statusline: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
-input=$(head -c 1048576)
+INPUT=$(head -c 1048576 2>/dev/null || true)
 
 # Extract fields with jq, fallback if unavailable
 if ! command -v jq &>/dev/null; then
@@ -24,7 +24,7 @@ fi
 
 # SB-PERF-001: Single jq call with @tsv instead of 6 separate invocations
 IFS=$'\t' read -r MODEL DIR SESSION_ID REMAINING USED COST <<< "$(
-  echo "$input" | jq -r '[
+  echo "$INPUT" | jq -r '[
     (.model.display_name // "Claude"),
     (.workspace.current_dir // ""),
     (.session_id // ""),

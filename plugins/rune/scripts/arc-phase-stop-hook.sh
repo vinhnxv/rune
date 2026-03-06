@@ -437,7 +437,8 @@ if [[ -n "$CHOME" && "$CHOME" == /* && -d "$CHOME/teams/" ]]; then
     # BACK-003: Protect glob from NOMATCH error (bash nullglob)
     # NOTE: Do NOT use `local` here — this is main script body, not a function.
     # `local` outside functions is a fatal error in bash 3.2 (macOS /bin/bash).
-    _saved_nullglob=$(shopt -p nullglob 2>/dev/null || true)
+    _nullglob_was_set=1
+    shopt -q nullglob && _nullglob_was_set=0
     shopt -s nullglob 2>/dev/null || true
     # Scan arc-*, rune-*, and goldmask-* prefixed teams with the arc ID suffix.
     # Extended from arc-* only: sub-commands (strive, appraise, mend, forge, inspect)
@@ -465,8 +466,8 @@ if [[ -n "$CHOME" && "$CHOME" == /* && -d "$CHOME/teams/" ]]; then
       rm -rf "$CHOME/teams/${_zombie_team}/" "$CHOME/tasks/${_zombie_team}/" 2>/dev/null
       _trace "Zombie fallback cleanup: removed orphaned team dir: ${_zombie_team}"
     done
-    # Restore nullglob state (eval is safe — _saved_nullglob is from shopt -p output)
-    [[ -n "$_saved_nullglob" ]] && eval "$_saved_nullglob" 2>/dev/null || true
+    # Restore nullglob state (SEC-003: conditional instead of eval)
+    [[ "$_nullglob_was_set" -eq 1 ]] && shopt -u nullglob
   fi
 fi
 

@@ -21,7 +21,7 @@ trap '_fail_open' ERR
 command -v jq >/dev/null 2>&1 || exit 0
 
 # --- Guard: Input size cap (SEC-2) ---
-INPUT=$(head -c 65536 2>/dev/null || true)
+INPUT=$(head -c 1048576 2>/dev/null || true)
 [[ -z "$INPUT" ]] && exit 0
 
 # --- Single-pass jq extraction (performance: runs on EVERY TeamCreate/Task) ---
