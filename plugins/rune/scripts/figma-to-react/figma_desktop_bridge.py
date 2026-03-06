@@ -28,6 +28,10 @@ try:
     import defusedxml.ElementTree as SafeET
 except ImportError:
     SafeET = ET  # type: ignore[misc]  # Fallback to stdlib if defusedxml not installed
+    logging.getLogger(__name__).warning(
+        "defusedxml not installed — XML parsing lacks XXE protection. "
+        "Install with: pip install defusedxml>=0.7.1"
+    )
 
 import httpx
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.141.1] - 2026-03-07
+
+### Fixed
+- **XXE fallback warning** — `figma_desktop_bridge.py` now logs a warning when `defusedxml` is not installed, making the silent fallback to stdlib ET visible to operators
+- **Bridge file path consistency** — Updated `rune-statusline.sh` and `guard-context-critical.sh` to use `${TMPDIR:-/tmp}` for bridge file paths, matching the cleanup path in `on-session-stop.sh`. Prevents orphaned bridge files on macOS where `$TMPDIR` differs from `/tmp`
+- **Audit finding resolutions** — 1 P1 XXE fix (defusedxml with warning), 4 P2 security hardening (field regex validation, printf over echo, nullglob scoping, TMPDIR consistency), 2 P3 improvements (Optional import, TMPDIR bridge path)
+
 ## [1.141.0] - 2026-03-07
 
 ### Added

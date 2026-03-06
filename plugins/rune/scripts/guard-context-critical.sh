@@ -64,7 +64,7 @@ fi
 # SEC-004 NOTE: Bridge path is predictable (/tmp/rune-ctx-{SESSION_ID}.json).
 # Mitigated by: (1) symlink guard below, (2) UID ownership check (EC-H5),
 # (3) bridge freshness check (30s staleness), (4) umask 077 on writer.
-BRIDGE_FILE="/tmp/rune-ctx-${SESSION_ID}.json"
+BRIDGE_FILE="${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}.json"
 
 # Bridge must exist
 [[ -f "$BRIDGE_FILE" ]] || exit 0
