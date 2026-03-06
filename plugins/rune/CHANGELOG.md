@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.139.1] - 2026-03-06
+
+### Fixed
+- **GAP-F-001**: Zero-region PASS bug — verification gate now ABORTs when VSM extraction produces 0 regions instead of emitting misleading PASS verdict (SKILL.md + arc-phase-design-extraction.md)
+- **GAP-S-001/S-002**: VSM field injection — added `sanitizeForPrompt()` to strip prompt injection patterns from Figma-derived component names before worker task description injection
+- **GAP-S-003**: Threshold validation — gate now clamps warn/block to 0-100, detects inverted thresholds, and reverts to defaults with config warning
+- **GAP-S-004**: Added `high_confidence_threshold: 0.80` to `build-talisman-defaults.py` trust_hierarchy defaults
+- **GAP-I-001**: Resolved `backend_impact.enabled` default inconsistency — aligned to `false` in both SKILL.md config block and build-talisman-defaults.py (talisman-sections.md was already `false`)
+- **GAP-F-002/F-003**: BLOCK verdict now propagated to Phase 2 workers via `gateContext` string in task descriptions and `checkpoint.vsm_quality` in arc context
+- **GAP-F-004**: Multi-URL enriched-vsm.json key collision — keys now URL-namespaced (`url-1/Button.md`) when multiple Figma URLs are used
+- **SEC-04**: Gate `enabled` flag now type-checked — string `"false"` emits warning instead of silently disabling gate
+- **GAP-O-002**: Echo integration — BLOCK verdicts now persist to `.claude/echoes/workers/MEMORY.md` for pattern detection
+- **GAP-O-003**: Confidence distribution summary logged after gate execution (HIGH/MEDIUM/LOW counts)
+- **GAP-I-003**: Clarified worker-trust-hierarchy.md flowchart Step 5 applies to Phase 2 implementation workers only
+- **GAP-M-002**: Linked orphaned `state-detection-algorithm.md` in SKILL.md References section
+- **DSAP-D-003**: Clarified `countCoveredRegions` dual calling convention (array form vs enriched form) in verification-gate.md
+- Build-time threshold cross-validation in `build-talisman-defaults.py` (warns on inverted thresholds)
+- Negative mismatch clamping (`Math.max(0, ...)`) with diagnostic warning on over-coverage
+
+### Added
+- **GAP-T-001-004**: Executable test harness in verification-gate.md with `computeVerdict()` and `classifyConfidence()` pure functions, 15 gate fixture cases (including custom thresholds, inverted thresholds, non-integer mismatch, over-coverage), 8 confidence boundary tests (exact 0.60/0.80 boundaries), and 3 negative regression test assertions
+- **GAP-M-001**: Migration guide (`references/migration-guide.md`) — enabling accuracy features, rollback paths for BLOCK storms, threshold tuning, troubleshooting
+
 ## [1.139.0] - 2026-03-06
 
 ### Added

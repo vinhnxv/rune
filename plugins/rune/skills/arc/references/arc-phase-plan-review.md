@@ -472,7 +472,7 @@ if (layer2Active) {
   for (const inspector of inspectors) {
     try { SendMessage({ type: "shutdown_request", recipient: inspector, content: "Plan review complete" }) } catch(e) {}
   }
-  Bash("sleep 15")  // Grace period — let teammates deregister
+  Bash("sleep 20")  // Grace period — let teammates deregister
   // Layer 2 cleanup: always use filesystem fallback
   // (SDK tracks Layer 1 as "current team" — TeamDelete() would delete Layer 1, not Layer 2)
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${layer2TeamName}/" "$CHOME/tasks/${layer2TeamName}/" 2>/dev/null`)
@@ -504,13 +504,13 @@ for (const member of allMembers) { SendMessage({ type: "shutdown_request", recip
 
 // Grace period — let teammates deregister before TeamDelete
 if (allMembers.length > 0) {
-  Bash(`sleep 15`)
+  Bash(`sleep 20`)
 }
 
 // SEC-003: id validated at arc init (/^arc-[a-zA-Z0-9_-]+$/) — see Initialize Checkpoint section
-// TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s)
+// TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
 let cleanupTeamDeleteSucceeded = false
-const CLEANUP_DELAYS = [0, 5000, 10000]
+const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
   try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {

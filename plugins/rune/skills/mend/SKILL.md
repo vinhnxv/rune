@@ -394,9 +394,9 @@ Read and execute when Phase 6 runs.
 
 1. **Dynamic member discovery** — read team config for ALL teammates (fallback: `spawnedFixerNames` from Phase 3 — includes wave-based names like `mend-fixer-w1-1`)
 2. **Shutdown all members** — `SendMessage(shutdown_request)` to each
-3. **Grace period** — `sleep 15` for teammate deregistration
+3. **Grace period** — `sleep 20` for teammate deregistration
 4. **ID validation** — defense-in-depth `..` check + regex guard (SEC-003)
-5. **TeamDelete with retry-with-backoff** (3 attempts: 0s, 5s, 10s) + filesystem fallback
+5. **TeamDelete with retry-with-backoff** (4 attempts: 0s, 5s, 10s, 15s) + process kill + filesystem fallback
 6. **Update state file** — status → `"completed"` or `"partial"`
 7. **Release workflow lock** — `rune_release_lock "mend"`
 8. **Persist learnings** to Rune Echoes (TRACED layer)
@@ -425,12 +425,12 @@ for (const member of allMembers) {
 
 // 3. Grace period — let teammates deregister
 if (allMembers.length > 0) {
-  Bash("sleep 15")
+  Bash("sleep 20")
 }
 
-// 4. TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s)
+// 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
 if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error(`Invalid mend id: ${id}`)
-const CLEANUP_DELAYS = [0, 5000, 10000]
+const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
 let cleanupTeamDeleteSucceeded = false
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
@@ -439,7 +439,16 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   }
 }
 
-// 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+// 5a. Process-level kill — terminate orphaned teammate processes
+if (!cleanupTeamDeleteSucceeded) {
+  const ownerPid = Bash(`echo $PPID`).trim()
+  if (ownerPid && /^\d+$/.test(ownerPid)) {
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+    Bash(`sleep 3`)
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  }
+}
+// 5b. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
 if (!cleanupTeamDeleteSucceeded) {
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/rune-mend-${id}/" "$CHOME/tasks/rune-mend-${id}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }

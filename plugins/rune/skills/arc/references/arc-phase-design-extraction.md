@@ -136,10 +136,10 @@ if (urlCount === 1) {
   for (let i = 0; i < maxWorkers; i++) {
     SendMessage({ type: "shutdown_request", recipient: `design-syncer-${i + 1}` })
   }
-  sleep(15_000)
+  sleep(20_000)
 
   let cleanupTeamDeleteSucceeded = false
-  const CLEANUP_DELAYS = [0, 5000, 10000]
+  const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
   for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
     if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
     try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
@@ -259,7 +259,7 @@ waitForCompletion(spawnedWorkers, { timeoutMs: innerTimeoutMs })
 for (const workerName of spawnedWorkers) {
   SendMessage({ type: "shutdown_request", recipient: workerName })
 }
-sleep(15_000)
+sleep(20_000)
 
 // === STEP 10: Design Analyst Classification ===
 // Spawn design-analyst to classify relationships between extracted frames
@@ -443,34 +443,69 @@ if (cachedVsmFiles.length > maxTotalComponents) {
 // See design-sync/references/verification-gate.md for full algorithm
 const checkpointErrors = []  // Declared before gate — gate pushes verdict here
 const gateConfig = designSyncConfig.verification_gate ?? {}
-const gateEnabled = gateConfig.enabled !== false  // default: true
-if (gateEnabled && allVsmFiles.length > 0) {
-  const vsmRegionCount = countVsmRegions(allVsmFiles)
-  const extractionCoverage = countCoveredRegions(allVsmFiles)
-  const mismatchPct = vsmRegionCount > 0
-    ? ((vsmRegionCount - extractionCoverage) / vsmRegionCount) * 100
-    : 0
 
-  const warnThreshold = gateConfig.warn_threshold ?? 20
-  const blockThreshold = gateConfig.block_threshold ?? 40
+// SEC-04: Type-check enabled flag
+if (gateConfig.enabled !== undefined && typeof gateConfig.enabled !== 'boolean') {
+  warn(`verification_gate.enabled must be a boolean, got: ${typeof gateConfig.enabled}. Treating as enabled.`)
+}
+const gateEnabled = gateConfig.enabled === false ? false : true
 
-  const verdict = mismatchPct > blockThreshold ? 'BLOCK'
-    : mismatchPct > warnThreshold ? 'WARN' : 'PASS'
+if (gateEnabled && cachedVsmFiles.length > 0) {
+  const vsmRegionCount = countVsmRegions(cachedVsmFiles)
 
-  checkpointErrors.push({
-    type: 'verification_gate',
-    verdict,
-    mismatch_pct: mismatchPct,
-    matched: extractionCoverage,
-    total: vsmRegionCount,
-    timestamp: new Date().toISOString()
-  })
+  // Zero-region guard: flag as needs_attention if extraction produced no regions
+  if (vsmRegionCount === 0) {
+    warn("Zero VSM regions found — extraction produced no usable data.")
+    checkpointErrors.push({
+      type: 'verification_gate',
+      verdict: 'ABORT',
+      reason: 'zero-regions',
+      mismatch_pct: 0,
+      matched: 0,
+      total: 0,
+      timestamp: new Date().toISOString()
+    })
+  } else {
+    const extractionCoverage = countCoveredRegions(cachedVsmFiles)
+    const rawMismatchPct = ((vsmRegionCount - extractionCoverage) / vsmRegionCount) * 100
+    const mismatchPct = Math.max(0, rawMismatchPct)  // Clamp negative (over-coverage)
 
-  if (verdict === 'BLOCK') {
-    // In arc context: non-blocking — log warning, continue pipeline
-    warn(`Design extraction verification gate: BLOCK (${mismatchPct.toFixed(0)}% unmatched). Implementation quality may be reduced.`)
-  } else if (verdict === 'WARN') {
-    warn(`Design extraction verification gate: WARN (${mismatchPct.toFixed(0)}% unmatched). ${vsmRegionCount - extractionCoverage} regions may need manual attention.`)
+    if (rawMismatchPct < 0) {
+      warn(`countCoveredRegions (${extractionCoverage}) exceeds vsmRegionCount (${vsmRegionCount}) — possible VSM parsing inconsistency`)
+    }
+
+    // Threshold validation: clamp to 0-100, detect inverted thresholds
+    let warnThreshold = Math.max(0, Math.min(100, gateConfig.warn_threshold ?? 20))
+    let blockThreshold = Math.max(0, Math.min(100, gateConfig.block_threshold ?? 40))
+    if (warnThreshold >= blockThreshold) {
+      warn(`Inverted thresholds: warn_threshold (${warnThreshold}) >= block_threshold (${blockThreshold}). Reverting to defaults (20/40).`)
+      warnThreshold = 20
+      blockThreshold = 40
+    }
+
+    const verdict = mismatchPct > blockThreshold ? 'BLOCK'
+      : mismatchPct > warnThreshold ? 'WARN' : 'PASS'
+
+    checkpointErrors.push({
+      type: 'verification_gate',
+      verdict,
+      mismatch_pct: mismatchPct,
+      matched: extractionCoverage,
+      total: vsmRegionCount,
+      timestamp: new Date().toISOString()
+    })
+
+    // Store gate result in checkpoint for downstream Phase 5 (WORK) worker injection
+    checkpoint.vsm_quality = verdict === 'BLOCK' ? 'blocked' : verdict === 'WARN' ? 'degraded' : 'good'
+    checkpoint.gate_verdict = { verdict, mismatchPct, matched: extractionCoverage, total: vsmRegionCount }
+
+    if (verdict === 'BLOCK') {
+      // In arc context: non-blocking — log warning, continue pipeline
+      // Workers will receive vsm_quality: "blocked" flag
+      warn(`Design extraction verification gate: BLOCK (${mismatchPct.toFixed(0)}% unmatched). Implementation quality may be reduced.`)
+    } else if (verdict === 'WARN') {
+      warn(`Design extraction verification gate: WARN (${mismatchPct.toFixed(0)}% unmatched). ${vsmRegionCount - extractionCoverage} regions may need manual attention.`)
+    }
   }
 }
 
@@ -478,10 +513,10 @@ if (gateEnabled && allVsmFiles.length > 0) {
 for (const workerName of vsmWorkers) {
   SendMessage({ type: "shutdown_request", recipient: workerName })
 }
-sleep(15_000)
+sleep(20_000)
 
 let cleanupTeamDeleteSucceeded = false
-const CLEANUP_DELAYS = [0, 5000, 10000]
+const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
   try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {

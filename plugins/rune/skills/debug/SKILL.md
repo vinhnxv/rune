@@ -398,15 +398,24 @@ for (const member of allMembers) {
 }
 
 // Grace period for shutdown acknowledgment
-if (allMembers.length > 0) { Bash("sleep 15") }
+if (allMembers.length > 0) { Bash("sleep 20") }
 
-// TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s)
+// TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
 let cleanupTeamDeleteSucceeded = false
-const CLEANUP_DELAYS = [0, 5000, 10000]
+const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
   try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
     if (attempt === CLEANUP_DELAYS.length - 1) warn(`debug cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
+  }
+}
+// Process-level kill — terminate orphaned teammate processes (step 5a)
+if (!cleanupTeamDeleteSucceeded) {
+  const ownerPid = Bash(`echo $PPID`).trim()
+  if (ownerPid && /^\d+$/.test(ownerPid)) {
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+    Bash(`sleep 3`)
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   }
 }
 // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)

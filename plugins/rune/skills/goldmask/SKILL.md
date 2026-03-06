@@ -409,19 +409,32 @@ for (const member of allMembers) {
 }
 
 # Grace period — let teammates deregister before TeamDelete
-sleep 15
+sleep 20
 
 # SEC-5: Validate session_id before rm-rf (project convention)
 if (!/^[a-zA-Z0-9_-]+$/.test(session_id)) { error("Invalid session_id"); return }
 
-# TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s)
-CLEANUP_DELAYS=(0 5 10)
+# TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
+CLEANUP_DELAYS=(0 5 10 15)
 cleanupTeamDeleteSucceeded=false
 for delay in "${CLEANUP_DELAYS[@]}"; do
     [ "$delay" -gt 0 ] && sleep "$delay"
     if TeamDelete("{session_id}"); then cleanupTeamDeleteSucceeded=true; break; fi
 done
 
+# Process-level kill — terminate orphaned teammate processes (step 5a)
+if [ "$cleanupTeamDeleteSucceeded" = false ]; then
+    ownerPid=$PPID
+    if [ -n "$ownerPid" ]; then
+        for pid in $(pgrep -P "$ownerPid" 2>/dev/null); do
+            case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac
+        done
+        sleep 3
+        for pid in $(pgrep -P "$ownerPid" 2>/dev/null); do
+            case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac
+        done
+    fi
+fi
 # Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
 if [ "$cleanupTeamDeleteSucceeded" = false ]; then
     CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"

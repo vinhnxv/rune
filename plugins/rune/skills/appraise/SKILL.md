@@ -324,11 +324,11 @@ for (const member of allMembers) {
 
 // 2. Grace period — let teammates deregister before TeamDelete
 if (allMembers.length > 0) {
-  Bash(`sleep 15`)
+  Bash(`sleep 20`)
 }
 
-// 3. TeamDelete with retry-with-backoff (CLEANUP_DELAYS: [0, 5000, 10000])
-//    On failure: filesystem fallback (CHOME pattern)
+// 3. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s — CLEANUP_DELAYS: [0, 5000, 10000, 15000])
+//    On failure: process-level kill (SIGTERM→3s→SIGKILL) then filesystem fallback (CHOME pattern)
 
 // 3.5. Release workflow lock
 Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "appraise"`)

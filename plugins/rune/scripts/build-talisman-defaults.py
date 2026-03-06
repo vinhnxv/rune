@@ -153,11 +153,23 @@ def _inject_toplevel_feature_defaults(data):
         },
         "trust_hierarchy": {
             "enabled": True, "low_confidence_threshold": 0.60,
+            "high_confidence_threshold": 0.80,
         },
         "backend_impact": {
-            "enabled": True, "auto_scope": "frontend-only",
+            "enabled": False, "auto_scope": "frontend-only",
         },
     })
+    # Validate design_sync thresholds at build time
+    ds = data.get("design_sync", {})
+    vg = ds.get("verification_gate", {})
+    if vg.get("warn_threshold", 20) >= vg.get("block_threshold", 40):
+        print("WARN: design_sync.verification_gate: warn_threshold >= block_threshold (inverted)", file=sys.stderr)
+    th = ds.get("trust_hierarchy", {})
+    low_t = th.get("low_confidence_threshold", 0.60)
+    high_t = th.get("high_confidence_threshold", 0.80)
+    if low_t >= high_t:
+        print(f"WARN: design_sync.trust_hierarchy: low_confidence_threshold ({low_t}) >= high_confidence_threshold ({high_t})", file=sys.stderr)
+
     data.setdefault("deployment_verification", {
         "enabled": False, "auto_run_on_migrations": False,
         "output_dir": "tmp/deploy/", "monitoring_stack": None,

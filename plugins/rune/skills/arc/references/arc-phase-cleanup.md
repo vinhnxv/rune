@@ -74,11 +74,22 @@ function postPhaseCleanup(checkpoint, phaseName) {
             try { SendMessage({ type: "shutdown_request", recipient: m.name, content: `Phase ${phaseName} complete — cleanup` }) } catch (e) { /* member may already be gone */ }
           }
         }
-        if (members.length > 0) Bash(`sleep 15`)  // Grace period — let teammates deregister
+        if (members.length > 0) Bash(`sleep 20`)  // Grace period — 20s covers slow tool calls
       } catch (e) { /* team config unreadable — proceed to filesystem cleanup */ }
 
       // SDK state clear + filesystem rm-rf (TeamDelete clears SDK leadership, not the named team)
-      try { TeamDelete() } catch (e) { /* may already be deleted */ }
+      try { TeamDelete() } catch (e) {
+        // TeamDelete failed — teammates likely still running.
+        // Process-level kill before filesystem cleanup to prevent zombie processes.
+        const ownerPid = Bash(`echo $PPID`).trim()
+        if (ownerPid && /^\d+$/.test(ownerPid)) {
+          Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+          Bash(`sleep 3`)
+          Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+        }
+        // Retry TeamDelete after process kill
+        try { TeamDelete() } catch (e2) { /* proceed to filesystem cleanup */ }
+      }
       // SEC: teamName validated above with /^[a-zA-Z0-9_-]+$/ — shell injection not possible
       Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
     }

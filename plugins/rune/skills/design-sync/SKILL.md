@@ -380,9 +380,14 @@ for each vsm in vsmFiles:
   vsmContent = Read(vsm.path)
   regions = parseVsmRegions(vsmContent)  // extract top-level regions from VSM
 
+  const skippedRegions = []  // Track regions skipped by circuit breaker
+
   for each region in regions:
     if consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD:
-      warn("Phase 1.3 circuit breaker: {consecutiveFailures} consecutive MCP failures — skipping remaining regions")
+      // Track remaining regions as skipped for downstream observability
+      const remaining = regions.slice(regions.indexOf(region))
+      skippedRegions.push(...remaining.map(r => ({ name: r.name, reason: 'circuit_breaker' })))
+      warn("Phase 1.3 circuit breaker: {consecutiveFailures} consecutive MCP failures — skipping {remaining.length} remaining regions")
       break
 
     // Step 4a: Build search query from region + reference code visual intent
@@ -404,11 +409,12 @@ for each vsm in vsmFiles:
 
       // Step 4c: Score results against region requirements
       const lowThreshold = config?.design_sync?.trust_hierarchy?.low_confidence_threshold ?? 0.60
+      const highThreshold = config?.design_sync?.trust_hierarchy?.high_confidence_threshold ?? 0.80
       matches = scoreMatches(results, region, threshold: lowThreshold)
       region.component_matches = matches.map(m => ({
         name: m.name,
         score: m.score,
-        confidence: m.score >= 0.80 ? 'high' : m.score >= lowThreshold ? 'medium' : 'low'
+        confidence: m.score >= highThreshold ? 'high' : m.score >= lowThreshold ? 'medium' : 'low'
       }))
 
       // Step 4d: If match found, get full component source for worker context
@@ -428,7 +434,9 @@ for each vsm in vsmFiles:
       region.component_matches = []
       consecutiveFailures++
 
-  enrichedVsm[vsm.name] = regions
+  // Multi-URL namespace: use URL-prefixed keys to prevent collisions (e.g., "url-1/Button.md")
+  const vsmKey = figmaUrls.length > 1 ? `url-${urlIndex}/${vsm.name}` : vsm.name
+  enrichedVsm[vsmKey] = regions
 
 // Step 5: Check for page-level template match (requires PRO tier or OAuth, optional)
 // Only attempt when builder reports templates capability AND access tier is 'pro'
@@ -440,8 +448,15 @@ if builderProfile.capabilities.templates AND NOT flags.skipTemplates AND builder
   catch:
     // Template check failed — not fatal
 
-// Step 6: Write enriched VSM
+// Step 6: Write enriched VSM (includes skipped regions metadata for observability)
 Bash("mkdir -p {workDir}/vsm")
+if (skippedRegions.length > 0) {
+  enrichedVsm._metadata = enrichedVsm._metadata ?? {}
+  enrichedVsm._metadata.skipped_regions = skippedRegions
+  enrichedVsm._metadata.circuit_breaker_fired = true
+  enrichedVsm._metadata.skipped_count = skippedRegions.length
+  warn(`Phase 1.3: ${skippedRegions.length} regions skipped due to circuit breaker — workers will receive incomplete enrichment`)
+}
 Write("{workDir}/vsm/enriched-vsm.json", JSON.stringify(enrichedVsm, null, 2))
 
 // Step 7: Update state
@@ -464,30 +479,87 @@ Validates VSM coverage before proceeding to implementation. See [verification-ga
 // Phase 1.4: Verification Gate
 // See references/verification-gate.md for full algorithm
 const gateConfig = config?.design_sync?.verification_gate ?? {}
-if (gateConfig.enabled !== false) {
+
+// SEC-04: Type-check enabled flag — string "false" is truthy but user probably meant boolean false
+if (gateConfig.enabled !== undefined && typeof gateConfig.enabled !== 'boolean') {
+  warn(`verification_gate.enabled must be a boolean, got: ${typeof gateConfig.enabled}. Treating as enabled.`)
+}
+const gateEnabled = gateConfig.enabled === false ? false : true
+
+if (gateEnabled) {
   const vsmRegionCount = countVsmRegions(vsmFiles)
-  const extractionCoverage = countCoveredRegions(enrichedVsm, referenceCode)
-  const mismatchPct = vsmRegionCount > 0
-    ? ((vsmRegionCount - extractionCoverage) / vsmRegionCount) * 100
-    : 0  // No regions = 0% mismatch (PASS)
 
-  const warnThreshold = gateConfig.warn_threshold ?? 20
-  const blockThreshold = gateConfig.block_threshold ?? 40
-
-  if (mismatchPct > blockThreshold) {
-    // BLOCK — in standalone design-sync, offer user options
+  // Zero-region guard: if no regions were extracted, skip implementation entirely
+  if (vsmRegionCount === 0) {
+    warn("Zero VSM regions found — extraction produced no usable data.")
     const action = AskUserQuestion(
-      `VERIFICATION GATE: BLOCK (${mismatchPct.toFixed(0)}% regions unmatched)\n\n` +
-      `Only ${extractionCoverage}/${vsmRegionCount} regions extracted successfully.\n` +
-      `Options:`,
-      ["Proceed anyway (expect manual fixes)", "Try smaller Figma node", "Stop and extract manually"]
+      "VERIFICATION GATE: No regions extracted.\n\n" +
+      "VSM is empty — implementation would produce no meaningful output.\n" +
+      "Options:",
+      ["Try a different Figma node", "Extract manually", "Stop"]
     )
-    if (action === "Stop and extract manually") STOP
-  } else if (mismatchPct > warnThreshold) {
-    // WARN — inform user in Phase 1.5 confirmation
-    verificationWarning = `Warning: ${(vsmRegionCount - extractionCoverage)} regions may need manual attention`
+    if (action === "Stop") STOP
+    // User chose to proceed with alternative — skip gate percentage check
+  } else {
+    const extractionCoverage = countCoveredRegions(enrichedVsm, referenceCode)
+    const rawMismatchPct = ((vsmRegionCount - extractionCoverage) / vsmRegionCount) * 100
+    const mismatchPct = Math.max(0, rawMismatchPct)  // Clamp: over-coverage → 0%
+
+    if (rawMismatchPct < 0) {
+      warn(`countCoveredRegions (${extractionCoverage}) exceeds vsmRegionCount (${vsmRegionCount}) — possible VSM parsing inconsistency`)
+    }
+
+    // Threshold validation: clamp to 0-100, detect inverted thresholds
+    let warnThreshold = Math.max(0, Math.min(100, gateConfig.warn_threshold ?? 20))
+    let blockThreshold = Math.max(0, Math.min(100, gateConfig.block_threshold ?? 40))
+    if (warnThreshold >= blockThreshold) {
+      warn(`Inverted thresholds: warn_threshold (${warnThreshold}) >= block_threshold (${blockThreshold}). Reverting to defaults (20/40).`)
+      warnThreshold = 20
+      blockThreshold = 40
+    }
+
+    // Store gate result for Phase 2 worker context injection
+    let gateVerdict = 'PASS'
+
+    if (mismatchPct > blockThreshold) {
+      gateVerdict = 'BLOCK'
+      // BLOCK — in standalone design-sync, offer user options
+      const action = AskUserQuestion(
+        `VERIFICATION GATE: BLOCK (${mismatchPct.toFixed(0)}% regions unmatched)\n\n` +
+        `Only ${extractionCoverage}/${vsmRegionCount} regions extracted successfully.\n` +
+        `Options:`,
+        ["Proceed anyway (expect manual fixes)", "Try smaller Figma node", "Stop and extract manually"]
+      )
+      if (action === "Stop and extract manually") STOP
+      // User chose to proceed — gateVerdict stays BLOCK for worker injection
+    } else if (mismatchPct > warnThreshold) {
+      gateVerdict = 'WARN'
+      // WARN — inform user in Phase 1.5 confirmation
+      verificationWarning = `Warning: ${(vsmRegionCount - extractionCoverage)} regions may need manual attention`
+    }
+    // PASS — proceed silently
+
+    // Confidence distribution summary (observability)
+    if (enrichedVsm) {
+      const regions = Object.values(enrichedVsm).flatMap(v => v.component_matches ?? [])
+      const highCount = regions.filter(m => m.confidence === 'high').length
+      const medCount = regions.filter(m => m.confidence === 'medium').length
+      const lowCount = regions.filter(m => m.confidence === 'low').length
+      log(`CONFIDENCE DISTRIBUTION: ${highCount} HIGH, ${medCount} MEDIUM, ${lowCount} LOW (total regions: ${vsmRegionCount})`)
+    }
+
+    // Echo integration: persist BLOCK verdicts for pattern detection
+    if (gateVerdict === 'BLOCK') {
+      appendEchoEntry(".claude/echoes/workers/MEMORY.md", {
+        layer: "observations",
+        source: `design-sync:verification-gate`,
+        content: `BLOCK verdict: ${mismatchPct.toFixed(0)}% regions unmatched (${extractionCoverage}/${vsmRegionCount}). Figma source: ${figmaUrls?.[0] ?? 'unknown'}.`
+      })
+    }
+
+    // Store for Phase 2 worker prompt injection
+    verificationGateResult = { verdict: gateVerdict, mismatchPct, matched: extractionCoverage, total: vsmRegionCount }
   }
-  // PASS — proceed silently
 }
 ```
 
@@ -586,7 +658,12 @@ if builderProfile !== null:
   enrichedVsmExists = Glob("{workDir}/vsm/enriched-vsm.json").length > 0
   if enrichedVsmExists:
     enrichedVsmDir = "{workDir}/vsm"  // enriched-vsm.json co-located with VSM files
-    builderContext = "UI builder available: {builderProfile.builder_skill} ({builderProfile.builder_mcp}). " +
+    // SEC-01/SEC-02: Sanitize Figma-derived fields before prompt injection
+  // Strip newlines, backtick-delimited blocks, and INSTRUCTION:-like prefixes from component names
+  const sanitizedBuilderSkill = sanitizeForPrompt(builderProfile.builder_skill)
+  const sanitizedBuilderMcp = sanitizeForPrompt(builderProfile.builder_mcp)
+
+  builderContext = `UI builder available: ${sanitizedBuilderSkill} (${sanitizedBuilderMcp}). ` +
       "enriched-vsm.json contains real library component matches for each region. " +
       "IMPORT real components instead of generating Tailwind approximations. " +
       "Fallback: regions with no component_matches → use reference code + Tailwind."
@@ -597,12 +674,35 @@ if builderProfile !== null:
 // else: no builder — builderContext remains empty, workers use reference code path
 
 // Step 2: Parse VSM files into implementation tasks
+// SEC-01: Sanitize VSM-derived component names before task description injection
+function sanitizeForPrompt(str) {
+  if (!str) return ''
+  return str.replace(/[\n\r]/g, ' ').replace(/`{3,}/g, '').replace(/^(INSTRUCTION|SYSTEM|OVERRIDE):/gi, '').trim().slice(0, 200)
+}
+
+// Propagate verification gate status to worker prompts (GAP-F-002/F-003)
+let gateContext = ''
+if (verificationGateResult?.verdict === 'BLOCK') {
+  gateContext = `NOTE: Verification gate was BLOCK (${verificationGateResult.mismatchPct.toFixed(0)}% regions unmatched). ` +
+    "Implement available regions only; add TODO markers for unmatched regions."
+} else if (verificationGateResult?.verdict === 'WARN') {
+  gateContext = `NOTE: Verification gate was WARN (${verificationGateResult.mismatchPct.toFixed(0)}% regions unmatched). ` +
+    "Some regions may need manual attention."
+}
+
+// SEC-06: Validate component names from enriched-vsm.json against project package.json
+// before instructing workers to import them. Only import components whose names
+// appear in the project's package.json dependencies or devDependencies.
+
 vsmFiles = Glob("{workDir}/vsm/*.md")
 for each vsm in vsmFiles:
+  const componentName = sanitizeForPrompt(vsm.component_name)
   TaskCreate({
-    subject: "Implement {component_name} from VSM",
-    description: "Read VSM at {vsm.path}. Create component following design tokens, layout, variants, and a11y requirements. " + codegenContext + (builderContext ? " " + builderContext : ""),
-    metadata: { phase: "implementation", vsm_path: vsm.path, codegen_profile: codegenProfile, has_builder: builderProfile !== null }
+    subject: `Implement ${componentName} from VSM`,
+    description: "Read VSM at {vsm.path}. Create component following design tokens, layout, variants, and a11y requirements. " +
+      codegenContext + (builderContext ? " " + builderContext : "") + (gateContext ? " " + gateContext : ""),
+    metadata: { phase: "implementation", vsm_path: vsm.path, codegen_profile: codegenProfile, has_builder: builderProfile !== null,
+      gate_verdict: verificationGateResult?.verdict ?? 'NONE' }
   })
 
 // Step 3: Summon rune-smith workers
@@ -697,15 +797,24 @@ for (const member of allMembers) {
 }
 
 // Grace period for shutdown acknowledgment
-if (allMembers.length > 0) { Bash("sleep 15") }
+if (allMembers.length > 0) { Bash("sleep 20") }
 
-// Step 4: Cleanup team — TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s)
+// Step 4: Cleanup team — TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
 let cleanupTeamDeleteSucceeded = false
-const CLEANUP_DELAYS = [0, 5000, 10000]
+const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
   try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
     if (attempt === CLEANUP_DELAYS.length - 1) warn(`design-sync cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
+  }
+}
+// Process-level kill — terminate orphaned teammate processes (step 5a)
+if (!cleanupTeamDeleteSucceeded) {
+  const ownerPid = Bash(`echo $PPID`).trim()
+  if (ownerPid && /^\d+$/.test(ownerPid)) {
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+    Bash(`sleep 3`)
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   }
 }
 // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
@@ -741,7 +850,24 @@ design_sync:
   codegen_profile: null                  # Force codegen profile: null (auto-detect) | shadcn | untitled-ui | generic
   token_snap_distance: 20               # Max RGB distance for color snapping
   figma_cache_ttl: 1800                  # Figma API cache TTL (seconds)
+  verification_gate:
+    enabled: true                        # Enable cross-verification gate
+    warn_threshold: 20                   # Mismatch % that triggers WARN
+    block_threshold: 40                  # Mismatch % that triggers BLOCK
+  trust_hierarchy:
+    enabled: true
+    low_confidence_threshold: 0.60       # Below this = LOW confidence
+    high_confidence_threshold: 0.80      # Above this = HIGH confidence
+  backend_impact:
+    enabled: false                       # Default: disabled (opt-in). Enable to auto-assess backend changes.
+    auto_scope: frontend-only            # Default scope assumption
 ```
+
+**`verification_gate`**: Controls the cross-verification gate that compares extracted design specs against implementation output. When mismatch percentage exceeds `warn_threshold`, the gate emits a WARN verdict (proceed with advisory). When it exceeds `block_threshold`, the gate emits a BLOCK verdict (halt and require manual review).
+
+**`trust_hierarchy`**: Configures confidence thresholds for the 6-level source trust hierarchy used by implementation workers. Sources with confidence below `low_confidence_threshold` are tagged LOW and require manual verification. Sources above `high_confidence_threshold` are tagged HIGH and trusted for automated implementation.
+
+**`backend_impact`**: Controls the backend impact decision tree that determines whether a design change requires backend modifications. `auto_scope` sets the default assumption — `frontend-only` means changes are assumed UI-only unless the decision tree detects API, data model, or integration impacts across its 4 branches.
 
 ## State Persistence
 
@@ -822,3 +948,10 @@ Error response type depends on execution context:
 - [fidelity-scoring.md](references/fidelity-scoring.md) — Scoring algorithm
 - [screenshot-comparison.md](references/screenshot-comparison.md) — Agent-browser integration
 - [framework-codegen-profiles.md](../frontend-design-patterns/references/framework-codegen-profiles.md) — Framework-specific codegen transformation rules
+- [verification-gate.md](references/verification-gate.md) — Cross-verification gate algorithm (PASS/WARN/BLOCK verdicts)
+- [worker-trust-hierarchy.md](references/worker-trust-hierarchy.md) — Source trust order (6 levels) for implementation workers
+- [visual-first-protocol.md](references/visual-first-protocol.md) — Visual-first extraction principle with 4-level hierarchy
+- [element-inventory-template.md](references/element-inventory-template.md) — Element inventory with source tracking (Code/Visual/Both/Manual)
+- [backend-impact.md](references/backend-impact.md) — Backend impact decision tree (4 branches)
+- [state-detection-algorithm.md](references/state-detection-algorithm.md) — 5-signal weighted composite algorithm for multi-URL frame classification
+- [migration-guide.md](references/migration-guide.md) — Migration guide for accuracy-parity features (thresholds, rollback, troubleshooting)

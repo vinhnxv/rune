@@ -1320,11 +1320,11 @@ if (!/^[a-zA-Z0-9_-]+$/.test(inspectTeamName)) {
     try { SendMessage({ type: "shutdown_request", recipient: inspector }) } catch (e) { /* already exited */ }
   }
   try { SendMessage({ type: "shutdown_request", recipient: "verdict-binder" }) } catch (e) { /* already exited */ }
-  Bash("sleep 15")  // Grace period — let teammates deregister
+  Bash("sleep 20")  // Grace period — let teammates deregister
 
-  // TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s)
+  // TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
   let cleanupTeamDeleteSucceeded = false
-  const CLEANUP_DELAYS = [0, 5000, 10000]
+  const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
   for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
     if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
     try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {

@@ -267,13 +267,13 @@ for (const member of allMembers) {
 }
 ```
 
-#### 3c. Grace Period (15s)
+#### 3c. Grace Period (20s)
 
 Let teammates process shutdown_request and deregister before TeamDelete.
 
 ```javascript
 if (allMembers.length > 0) {
-  Bash(`sleep 15`)
+  Bash(`sleep 20`)
 }
 ```
 
@@ -286,8 +286,8 @@ if (allMembers.length > 0) {
 if (phase_team && !/^[a-zA-Z0-9_-]+$/.test(phase_team)) throw new Error("Invalid phase_team")
 if (phase_team && phase_team.includes('..')) throw new Error('Path traversal detected in phase_team')
 if (phase_team) {
-  // TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s)
-  const RETRY_DELAYS = [0, 5000, 10000]
+  // TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
+  const RETRY_DELAYS = [0, 5000, 10000, 15000]
   let cleanupTeamDeleteSucceeded = false
   for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
     if (attempt > 0) {
@@ -302,6 +302,15 @@ if (phase_team) {
       if (attempt === RETRY_DELAYS.length - 1) {
         warn(`Cancel cleanup: TeamDelete failed after ${RETRY_DELAYS.length} attempts. Using filesystem fallback.`)
       }
+    }
+  }
+  // Process-level kill — terminate orphaned teammate processes (step 5a)
+  if (!cleanupTeamDeleteSucceeded) {
+    const ownerPid = Bash(`echo $PPID`).trim()
+    if (ownerPid && /^\d+$/.test(ownerPid)) {
+      Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+      Bash(`sleep 3`)
+      Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
     }
   }
   // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)

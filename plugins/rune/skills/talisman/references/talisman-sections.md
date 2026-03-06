@@ -34,6 +34,7 @@ This list reflects the documented schema used by Rune (including default-injecte
 | 25 | `debug` | ACH parallel debugging | `max_investigators`, `timeout_ms`, `model`, `re_triage_rounds`, `echo_on_verdict` |
 | 26 | `plan` | Research & planning config | `verification_patterns[]`, `freshness` (`enabled`, `warn_threshold`, `block_threshold`, `max_commit_distance`), `external_research` (`"always"` / `"auto"` / `"never"`), `research_urls[]` |
 | 27 | `integrations` | MCP tool integrations | `mcp_tools.{namespace}.server_name`, `server_version`, `tools[]`, `phases{}`, `trigger{}`, `skill_binding`, `rules[]`, `metadata{}` |
+| 28 | `design_sync` | Figma design synchronization | `enabled`, `figma_provider`, `max_figma_urls`, `max_extraction_workers`, `max_implementation_workers`, `max_iteration_workers`, `max_iterations`, `iterate_enabled`, `trust_hierarchy.*`, `verification_gate.*`, `backend_impact.*`, `codegen_profile` |
 
 ## Critical Sections (Must-Have)
 
@@ -252,3 +253,27 @@ resolveMCPIntegrations(phase, context)
 4. `skill_binding` skill must exist at plugin or project level
 5. `rules[]` file paths must exist
 6. At least one trigger condition must be configured (or `always: true`)
+
+## Design Sync (`design_sync`)
+
+Figma design synchronization pipeline configuration. Gated by `enabled: true`.
+
+### Configuration Schema
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | bool | `false` | Enable design sync pipeline |
+| `figma_provider` | string | `"auto"` | Figma MCP provider (`"auto"` for auto-detection) |
+| `max_figma_urls` | number | `10` | Maximum Figma URLs per invocation |
+| `max_extraction_workers` | number | `2` | Parallel workers for design extraction phase |
+| `max_implementation_workers` | number | `3` | Parallel workers for implementation phase |
+| `max_iteration_workers` | number | `2` | Parallel workers for iteration phase |
+| `max_iterations` | number | `5` | Max screenshot-analyze-improve iterations |
+| `iterate_enabled` | bool | `false` | Enable browser-based iteration loop |
+| `codegen_profile` | string | `null` | Override codegen profile for workers |
+| `trust_hierarchy.low_confidence_threshold` | number | `0.60` | Score below this = low confidence match |
+| `trust_hierarchy.high_confidence_threshold` | number | `0.80` | Score at or above this = high confidence match |
+| `verification_gate.enabled` | bool | `true` | Enable cross-verification gate on VSM files |
+| `verification_gate.warn_threshold` | number | `20` | Mismatch % triggering WARN verdict |
+| `verification_gate.block_threshold` | number | `40` | Mismatch % triggering BLOCK verdict |
+| `backend_impact.enabled` | bool | `false` | Enable backend impact analysis |

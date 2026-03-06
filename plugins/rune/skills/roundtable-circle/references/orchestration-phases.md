@@ -339,15 +339,15 @@ for (const wave of waves) {
     }
     // Grace period — let wave teammates deregister
     if (wave.agents.length > 0) {
-      Bash(`sleep 15`)
+      Bash(`sleep 20`)
     }
     // Force-delete remaining tasks to prevent zombie contamination
     const remaining = TaskList().filter(t => t.status !== "completed")
     for (const task of remaining) {
       TaskUpdate({ taskId: task.id, status: "deleted" })
     }
-    // Inter-wave TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s)
-    const WAVE_CLEANUP_DELAYS = [0, 5000, 10000]
+    // Inter-wave TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
+    const WAVE_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
     let waveCleanupOk = false
     for (let attempt = 0; attempt < WAVE_CLEANUP_DELAYS.length; attempt++) {
       if (attempt > 0) Bash(`sleep ${WAVE_CLEANUP_DELAYS[attempt] / 1000}`)
@@ -1165,7 +1165,7 @@ for (const member of allMembers) {
 
 // 3. Grace period — let teammates deregister before TeamDelete
 if (allMembers.length > 0) {
-  Bash(`sleep 15`)
+  Bash(`sleep 20`)
 }
 
 // 3.3. Finalize per-agent artifacts (non-blocking — skip if library or runs/ absent)
@@ -1187,8 +1187,8 @@ try {
   }
 } catch (e) { /* artifact finalization is non-blocking */ }
 
-// 4. TeamDelete with retry-with-backoff (0s, 5s, 10s — 15s retry budget after 15s grace)
-const CLEANUP_DELAYS = [0, 5000, 10000]
+// 4. TeamDelete with retry-with-backoff (0s, 5s, 10s, 15s — 30s retry budget after 20s grace)
+const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
 let cleanupTeamDeleteSucceeded = false
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
