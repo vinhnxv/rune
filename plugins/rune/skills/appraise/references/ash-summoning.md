@@ -40,8 +40,9 @@ Summon ALL selected Ash in a **single message** (parallel execution):
      both 'rune-review' and 'rune-audit'). Audit Ashes have the same tool inheritance
      issue as review Ashes (see audit.md Phase 3).
 
-     TODO: Create composite Ash agent files with restricted allowed-tools frontmatter
-     to enforce read-only at the agent definition level (eliminates need for hook). -->
+     FUTURE: Composite Ash agent files with restricted allowed-tools frontmatter
+     would enforce read-only at the agent definition level (eliminating need for hook).
+     Current mitigation: enforce-readonly.sh hook blocks Write/Edit/Bash for review/audit Ashes. -->
 
 ```javascript
 // Built-in Ash: load prompt from ash-prompts/{role}.md

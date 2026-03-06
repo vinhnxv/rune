@@ -159,10 +159,10 @@ class ResponseCache:
             data: The data to cache.
             is_image: If True, uses the longer image TTL.
         """
-        # Evict oldest entry if at capacity (BACK-P3-007)
+        # Evict soonest-to-expire entry if at capacity (BACK-P3-007)
         if len(self._store) >= self.max_entries and key not in self._store:
-            oldest_key = min(self._store, key=lambda k: self._store[k].expires_at)
-            del self._store[oldest_key]
+            expiring_key = min(self._store, key=lambda k: self._store[k].expires_at)
+            del self._store[expiring_key]
         ttl = self.image_ttl if is_image else self.file_ttl
         self._store[key] = _CacheEntry(
             data=data,

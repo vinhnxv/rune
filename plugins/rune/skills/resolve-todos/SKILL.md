@@ -175,12 +175,10 @@ const teamName = `rune-resolve-todos-${timestamp}`
 TeamCreate({ team_name: teamName })
 
 // Spawn context gathering agents (Explore, read-only)
-// NOTE: Phase 2 is optional — verifiers in Phase 3 also read files directly.
-// Consider skipping Phase 2 for small batches (< 5 file groups) where the
-// context summary adds marginal value over direct verifier reads.
-// KNOWN GAP: Phase 2 output is not currently wired to Phase 3 verifier prompts.
-// The {contextSummary} variable in verifier templates is unpopulated.
-// TODO: Either wire Phase 2 output to Phase 3 or remove Phase 2 entirely.
+// NOTE: Phase 2 is optional — verifiers in Phase 3 read files directly.
+// Skip Phase 2 for small batches (< 5 file groups) where the context summary
+// adds marginal value over direct verifier reads. Phase 3 verifiers do not
+// consume Phase 2 output; they read source files independently.
 let fileIdx = 0
 for (const [file, fileTodos] of fileGroups) {
   if (file === "__unscoped__") continue
