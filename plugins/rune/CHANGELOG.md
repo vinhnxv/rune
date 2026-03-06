@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.140.3] - 2026-03-06
+
+### Changed
+- **Progressive disclosure refactoring** — Extract 9 oversized SKILL.md files (>500 lines) into `references/*.md` files per skill-creator best practices
+  - 21 new reference files across devise, codex-review, goldmask, resolve-todos, talisman, brainstorm, strive, design-sync, design-system-discovery
+  - Net -2,945 lines from SKILL.md bodies; all 9 skills now under 500 lines (range: 221-438)
+  - Common extraction targets: team bootstrap protocols, cleanup phases, codex integration blocks, large inline agent spawn prompts
+
+### Added
+- **trace-logger.sh** — Shared `_trace()` function for hook scripts with auto-detected caller via `BASH_SOURCE[1]`, symlink-safe, zero overhead when `RUNE_TRACE` disabled
+
+### Fixed
+- **DOC-001**: Removed duplicated Phases 4-5 pseudocode from design-system-discovery SKILL.md (content already in signal-aggregation.md)
+- **PAT-003**: Split dual-link See line in brainstorm SKILL.md into two separate sentences for pattern consistency
+
 ## [1.140.2] - 2026-03-06
 
 ### Fixed
