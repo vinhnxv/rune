@@ -287,7 +287,10 @@ workflow_file=""
 workflow_file=$(find "${CWD}/tmp/" -maxdepth 1 -type f \
   \( -name ".rune-review-*.json" -o -name ".rune-audit-*.json" \
      -o -name ".rune-work-*.json" -o -name ".rune-mend-*.json" \
-     -o -name ".rune-inspect-*.json" -o -name ".rune-forge-*.json" \
+     -o -name ".rune-inspect-*.json" -o -name ".rune-plan-*.json" \
+     -o -name ".rune-forge-*.json" -o -name ".rune-goldmask-*.json" \
+     -o -name ".rune-brainstorm-*.json" -o -name ".rune-debug-*.json" \
+     -o -name ".rune-resolve-todos-*.json" -o -name ".rune-design-sync-*.json" \
      -o -name ".rune-arc-*.json" \) 2>/dev/null | while read -r f; do
     [[ -L "$f" ]] && continue
     echo "$f"
@@ -332,8 +335,8 @@ if [[ "$arc_checkpoint" != "{}" ]]; then
   # BACK-005 FIX: Use printf instead of echo to avoid flag interpretation
   _raw_summaries=$(printf '%s\n' "$arc_checkpoint" | jq -r '.phase_summaries // {} | to_entries[] | "\(.key)\t\(.value)"' 2>/dev/null || true)
   if [[ -n "$_raw_summaries" ]]; then
-    _valid_pairs="{"
-    _first=1
+    # SEC-003 FIX: Build JSON via jq --arg instead of shell string interpolation
+    _built_summaries="{}"
     while IFS=$'\t' read -r _group _path; do
       # Validate group name and path (SEC: allowlist chars, prevent traversal)
       [[ "$_group" =~ ^[a-zA-Z0-9_-]{1,32}$ ]] || continue
@@ -342,15 +345,12 @@ if [[ "$arc_checkpoint" != "{}" ]]; then
       # Verify file exists on disk
       _full="${CWD}/${_path}"
       [[ -f "$_full" ]] && [[ ! -L "$_full" ]] || continue
-      [[ "$_first" -eq 0 ]] && _valid_pairs="${_valid_pairs},"
-      _valid_pairs="${_valid_pairs}\"${_group}\":\"${_path}\""
-      _first=0
+      _built_summaries=$(printf '%s\n' "$_built_summaries" | jq -c \
+        --arg k "$_group" --arg v "$_path" '. + {($k): $v}' 2>/dev/null || echo "$_built_summaries")
     done <<< "$_raw_summaries"
-    _valid_pairs="${_valid_pairs}}"
     # Only use if we got at least one entry
-    if [[ "$_valid_pairs" != "{}" ]]; then
-      # BACK-005 FIX: Use printf instead of echo to avoid flag interpretation
-      arc_phase_summaries=$(printf '%s\n' "$_valid_pairs" | jq -c '.' 2>/dev/null || echo '{}')
+    if [[ "$_built_summaries" != "{}" ]]; then
+      arc_phase_summaries="$_built_summaries"
     fi
   fi
 fi

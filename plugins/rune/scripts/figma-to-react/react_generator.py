@@ -19,7 +19,7 @@ from typing import Dict, List, Optional
 from figma_types import NodeType, TypeStyle
 from image_handler import ImageHandler, _sanitize_alt_text, collect_image_refs
 from layout_resolver import resolve_child_layout, resolve_container_layout
-from node_parser import FigmaIRNode
+from node_parser import FigmaIRNode, InstanceRole, _GENERIC_SLOT_NAMES
 from style_builder import StyleBuilder
 from tailwind_mapper import (
     TailwindMapper,
@@ -396,6 +396,16 @@ _SYSTEM_FONTS = {
     "monospace": "font-mono",
 }
 
+_TEXT_CASE_MAP = {
+    "UPPER": "uppercase",
+    "LOWER": "lowercase",
+    "TITLE": "capitalize",
+    "SMALL_CAPS": "small-caps",
+    "SMALL_CAPS_FORCED": "small-caps",
+}
+
+_VALIGN_MAP = {"CENTER": "items-center", "BOTTOM": "items-end"}
+
 
 def _resolve_font_family(family: str) -> Optional[str]:
     """Map a font family name to a Tailwind font class.
@@ -498,13 +508,6 @@ def _resolve_text_styles(style: Optional[TypeStyle]) -> List[str]:
     # Text case transform (UPPER, LOWER, TITLE, ORIGINAL, SMALL_CAPS, etc.)
     if style.text_case is not None:
         case_val = style.text_case.value if hasattr(style.text_case, 'value') else str(style.text_case)
-        _TEXT_CASE_MAP = {
-            "UPPER": "uppercase",
-            "LOWER": "lowercase",
-            "TITLE": "capitalize",
-            "SMALL_CAPS": "small-caps",
-            "SMALL_CAPS_FORCED": "small-caps",
-        }
         tw_case = _TEXT_CASE_MAP.get(case_val)
         if tw_case == "small-caps":
             classes.append("font-variant-[small-caps]")
@@ -643,7 +646,6 @@ def _collect_node_classes(
         and node.text_align_vertical
         and not is_truncated
     ):
-        _VALIGN_MAP = {"CENTER": "items-center", "BOTTOM": "items-end"}
         valign_cls = _VALIGN_MAP.get(node.text_align_vertical)
         if valign_cls:
             all_classes.extend(["flex", valign_cls])
@@ -679,10 +681,113 @@ def _generate_void_element_jsx(
     return f"<div{div_attr}>\n  <{tag}{void_attr} />\n{children_str}\n</div>"
 
 
+def _to_prop_name(name: str) -> str:
+    """Convert a Figma node name to a camelCase prop name.
+
+    Args:
+        name: Raw Figma node name.
+
+    Returns:
+        camelCase prop name (e.g., ``"Submit Button"`` -> ``"submitButton"``).
+    """
+    parts = _COMPONENT_NAME_RE.split(name)
+    parts = [p for p in parts if p]
+    if not parts:
+        return "prop"
+    result = parts[0].lower()
+    for p in parts[1:]:
+        result += p.capitalize()
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: Text-to-Prop Promotion
+# ---------------------------------------------------------------------------
+
+_SEMANTIC_TEXT_RE = re.compile(
+    r"^(title|heading|label|description|subtitle|caption|placeholder|"
+    r"text|name|message|error|hint|helper|value|content|badge|tag|"
+    r"button\s*text|btn\s*text|cta\s*text)$",
+    re.IGNORECASE,
+)
+
+_MAX_PROMOTABLE_LENGTH = 200
+
+
+def _is_promotable_text(
+    node: FigmaIRNode,
+    parent: Optional[FigmaIRNode],
+) -> bool:
+    """Check if a TEXT node should be promoted to a React prop.
+
+    Promotion criteria:
+    - Parent is COMPONENT or INSTANCE
+    - Node has a semantic name (matches _SEMANTIC_TEXT_RE)
+    - Direct child of the parent (not nested)
+    - Not inside a PROP-role instance or slot
+
+    Rejection criteria:
+    - Text longer than 200 characters
+    - Multi-segment text with newlines
+    - Font size variance > 4px across segments
+    - Node is inside a slot or has PROP instance_role
+    """
+    if parent is None:
+        return False
+
+    # Only promote direct children of COMPONENT/INSTANCE nodes
+    if parent.node_type not in (NodeType.COMPONENT, NodeType.INSTANCE):
+        return False
+
+    # Guard: never promote inside PROP-role instances
+    if getattr(parent, "instance_role", None) == InstanceRole.PROP:
+        return False
+
+    # Guard: never promote if the text itself is a slot candidate
+    if getattr(node, "is_slot_candidate", False):
+        return False
+
+    # Guard: never promote inside a slot parent
+    if getattr(parent, "is_slot_candidate", False):
+        return False
+
+    # Must have a semantic name
+    if not _SEMANTIC_TEXT_RE.match(node.name.strip()):
+        return False
+
+    # Check text content length
+    text = node.text_content or ""
+    if len(text) > _MAX_PROMOTABLE_LENGTH:
+        return False
+
+    # Reject text with newlines
+    if "\n" in text:
+        return False
+
+    # Check font size variance across styled segments
+    if node.text_segments and len(node.text_segments) > 1:
+        font_sizes = [
+            seg.style.font_size
+            for seg in node.text_segments
+            if seg.style and seg.style.font_size
+        ]
+        if font_sizes and (max(font_sizes) - min(font_sizes)) > 4.0:
+            return False
+
+    # Phase 1 integration: TEXT type in component_properties → always promote
+    if parent.component_property_values:
+        for _key, prop in parent.component_property_values.items():
+            if prop.type.value == "TEXT":
+                return True
+
+    return True
+
+
 def _generate_container_jsx(
     node: FigmaIRNode, tag: str, attr_str: str,
     class_str: str, node_aria: Dict[str, str],
     image_handler: ImageHandler, indent_level: int, aria: bool,
+    promoted_props: Optional[List[str]] = None,
 ) -> str:
     """Generate JSX for a container node with children.
 
@@ -695,6 +800,7 @@ def _generate_container_jsx(
         image_handler: Image handler for child nodes.
         indent_level: Current indentation level.
         aria: Whether to emit ARIA attributes.
+        promoted_props: Collector list for text-to-prop promoted prop names.
 
     Returns:
         JSX string for the container and its children.
@@ -703,10 +809,61 @@ def _generate_container_jsx(
         return f"<{tag}{attr_str} />"
 
     child_jsxs: List[str] = []
+    prop_attrs: List[str] = []
+    slot_children: List[FigmaIRNode] = []
     for child in node.children:
-        child_jsx = _generate_node_jsx(child, node, image_handler, indent_level + 1, aria=aria)
+        # PROP-role instances render as JSX expression props on the parent
+        if (
+            getattr(child, "instance_role", None) == InstanceRole.PROP
+            and child.visible
+        ):
+            comp_name = _to_component_name(child.name)
+            prop_name = _to_prop_name(child.name)
+            prop_attrs.append(f'{prop_name}={{<{comp_name} />}}')
+            continue
+        # Slot candidates render as {children} or named slot props
+        if getattr(child, "is_slot_candidate", False) and child.visible:
+            slot_children.append(child)
+            continue
+        # Phase 4: Text-to-Prop Promotion
+        if (
+            child.node_type == NodeType.TEXT
+            and child.visible
+            and _is_promotable_text(child, node)
+            and promoted_props is not None
+        ):
+            prop_name = _to_prop_name(child.name)
+            if prop_name not in promoted_props:
+                promoted_props.append(prop_name)
+            child_jsxs.append("{" + prop_name + "}")
+            continue
+        child_jsx = _generate_node_jsx(
+            child, node, image_handler, indent_level + 1, aria=aria,
+            promoted_props=promoted_props,
+        )
         if child_jsx:
             child_jsxs.append(child_jsx)
+
+    # Render slot children
+    if slot_children:
+        if len(slot_children) == 1:
+            slot = slot_children[0]
+            slot_name_lower = (slot.slot_name or "").lower().strip()
+            if slot_name_lower in _GENERIC_SLOT_NAMES:
+                child_jsxs.append("{children}")
+            else:
+                prop_name = _to_prop_name(slot.slot_name or slot.name)
+                child_jsxs.append("{" + prop_name + "}")
+        else:
+            # Multiple slots → each as a named prop expression
+            for slot in slot_children:
+                prop_name = _to_prop_name(slot.slot_name or slot.name)
+                child_jsxs.append("{" + prop_name + "}")
+
+    # Append prop attrs to the tag's attribute string
+    if prop_attrs:
+        prop_str = " " + " ".join(prop_attrs)
+        attr_str = attr_str + prop_str
 
     if not child_jsxs:
         return f"<{tag}{attr_str} />"
@@ -769,6 +926,7 @@ def _generate_node_jsx(
     image_handler: ImageHandler,
     indent_level: int = 0,
     aria: bool = False,
+    promoted_props: Optional[List[str]] = None,
 ) -> str:
     """Recursively generate JSX for an IR node and its children.
 
@@ -778,6 +936,7 @@ def _generate_node_jsx(
         image_handler: Image handler for resolving image fills.
         indent_level: Current indentation level.
         aria: When True, emit ARIA accessibility attributes.
+        promoted_props: Collector list for text-to-prop promoted prop names.
 
     Returns:
         JSX string for the node subtree.
@@ -812,6 +971,7 @@ def _generate_node_jsx(
             if not has_constraints:
                 return _generate_node_jsx(
                     child, parent, image_handler, indent_level, aria,
+                    promoted_props=promoted_props,
                 )
 
     all_classes = _collect_node_classes(node, parent)
@@ -830,6 +990,7 @@ def _generate_node_jsx(
     return _generate_container_jsx(
         node, tag, attr_str, class_str, node_aria,
         image_handler, indent_level, aria,
+        promoted_props=promoted_props,
     )
 
 
@@ -901,7 +1062,25 @@ def generate_component(
     name = component_name or _to_component_name(root.name)
     image_handler = ImageHandler(image_urls, svg_urls=svg_urls)
     refs = collect_image_refs(root)
-    jsx = _generate_node_jsx(root, None, image_handler, indent_level=1, aria=aria)
+    promoted_props: List[str] = []
+    jsx = _generate_node_jsx(
+        root, None, image_handler, indent_level=1, aria=aria,
+        promoted_props=promoted_props,
+    )
+
+    if promoted_props:
+        # Route through props interface when text was promoted
+        lines: List[str] = []
+        lines.append("import React from 'react';")
+        lines.append("")
+        _generate_props_interface(lines, name, promoted_props)
+        lines.append("  return (")
+        lines.append(_indent(jsx, 2))
+        lines.append("  );")
+        lines.append("}")
+        lines.append("")
+        _append_unresolved_image_comments(lines, refs, image_urls)
+        return "\n".join(lines)
 
     lines = _build_component_lines(name, jsx)
     _append_unresolved_image_comments(lines, refs, image_urls)
@@ -935,6 +1114,60 @@ def _generate_props_interface(
         )
     else:
         lines.append(f"export default function {name}() {{")
+
+
+def generate_split_components(
+    component_set: FigmaIRNode,
+    image_urls: Optional[Dict[str, str]] = None,
+    svg_urls: Optional[Dict[str, str]] = None,
+    aria: bool = False,
+) -> List[Dict[str, str]]:
+    """Generate separate React components for each variant in a COMPONENT_SET.
+
+    Used when variant strategy is SPLIT — variants are structurally different
+    enough that a single merged component would be confusing.
+
+    Each variant becomes ``{ComponentSetName}{VariantValue}``.
+
+    Args:
+        component_set: IR node of type COMPONENT_SET.
+        image_urls: Dict mapping image ref hashes to resolved URLs.
+        svg_urls: Dict mapping node IDs to exported SVG URLs.
+        aria: When True, emit ARIA accessibility attributes.
+
+    Returns:
+        List of dicts with ``name`` and ``code`` keys for each variant.
+    """
+    set_name = _to_component_name(component_set.name)
+    results: List[Dict[str, str]] = []
+
+    for child in component_set.children:
+        if child.node_type != NodeType.COMPONENT:
+            continue
+        # Parse variant value from name (e.g., "Type=Primary" → "Primary")
+        variant_parts = {}
+        if "=" in child.name:
+            for part in child.name.split(","):
+                part = part.strip()
+                if "=" in part:
+                    _key, value = part.split("=", 1)
+                    variant_parts[_key.strip()] = value.strip()
+        else:
+            variant_parts["variant"] = child.name.strip()
+
+        # Build variant suffix from values
+        variant_suffix = "".join(
+            _to_component_name(v) for v in variant_parts.values()
+        )
+        comp_name = f"{set_name}{variant_suffix}" if variant_suffix else set_name
+
+        code = generate_component(
+            child, component_name=comp_name,
+            image_urls=image_urls, svg_urls=svg_urls, aria=aria,
+        )
+        results.append({"name": comp_name, "code": code})
+
+    return results
 
 
 def generate_component_with_props(

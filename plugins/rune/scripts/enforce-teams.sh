@@ -12,14 +12,8 @@
 #   1. Check if tool_name is "Task" or "Agent" (only tools this hook targets)
 #   2. Check for active Rune workflow via state files:
 #      - .claude/arc/*/checkpoint.json with "in_progress" phase
-#      - tmp/.rune-review-*.json with "active" status
-#      - tmp/.rune-audit-*.json with "active" status
-#      - tmp/.rune-work-*.json with "active" status
-#      - tmp/.rune-inspect-*.json with "active" status
-#      - tmp/.rune-mend-*.json with "active" status
-#      - tmp/.rune-plan-*.json with "active" status
-#      - tmp/.rune-forge-*.json with "active" status
-#      - tmp/.rune-brainstorm-*.json with "active" status
+#      - tmp/.rune-{review,audit,work,inspect,mend,plan,forge,goldmask,
+#        brainstorm,debug,resolve-todos,design-sync}-*.json with "active" status
 #   3. If active workflow found, verify Task input includes team_name
 #   4. Block if team_name missing — output deny JSON
 #
@@ -54,8 +48,10 @@ trap '_rune_fail_closed' ERR
 INPUT=$(head -c 1048576 2>/dev/null || true)  # SEC-2: 1MB cap to prevent unbounded stdin read
 
 # VEIL-002 FIX: grep-based fast-path BEFORE jq availability check.
-# If the input contains "team_name", the Agent/Task call already has what we need — allow it.
-if printf '%s' "$INPUT" | grep -q '"team_name"'; then
+# If the input contains a non-empty "team_name", the Agent/Task call already has what we need — allow it.
+# FLAW-017 FIX: Previous pattern `grep -q '"team_name"'` matched empty values ("team_name": ""),
+# allowing bare Agent calls to bypass enforcement. Now requires at least one non-quote char.
+if printf '%s' "$INPUT" | grep -qE '"team_name"[[:space:]]*:[[:space:]]*"[^"]+"'; then
   exit 0
 fi
 
@@ -161,7 +157,8 @@ if [[ -z "$active_workflow" ]]; then
            "${CWD}"/tmp/.rune-work-*.json "${CWD}"/tmp/.rune-inspect-*.json \
            "${CWD}"/tmp/.rune-mend-*.json "${CWD}"/tmp/.rune-plan-*.json \
            "${CWD}"/tmp/.rune-forge-*.json "${CWD}"/tmp/.rune-goldmask-*.json \
-           "${CWD}"/tmp/.rune-brainstorm-*.json; do
+           "${CWD}"/tmp/.rune-brainstorm-*.json "${CWD}"/tmp/.rune-debug-*.json \
+           "${CWD}"/tmp/.rune-resolve-todos-*.json "${CWD}"/tmp/.rune-design-sync-*.json; do
     # Skip files older than STALE_THRESHOLD_MIN minutes
     # PERF: per-file `find -maxdepth 0 -mmin` is O(n) but safe; batch find risks glob/ownership edge cases
     if [[ -f "$f" ]] && find "$f" -maxdepth 0 -mmin -${STALE_THRESHOLD_MIN} -print -quit 2>/dev/null | grep -q . && jq -e '.status == "active"' "$f" &>/dev/null; then
@@ -290,7 +287,7 @@ if [[ -z "$active_workflow" ]]; then
     # Known Rune agent names — review, work, research, utility categories
     # Maintained as a simple grep pattern for O(1) matching (~0.5ms)
     # Source of truth: references/agent-registry.md
-    KNOWN_RUNE_AGENTS="ward-sentinel|forge-warden|pattern-weaver|veil-piercer|glyph-scribe|knowledge-keeper|wraith-finder|void-analyzer|flaw-hunter|blight-seer|simplicity-warden|ember-oracle|type-warden|mimic-detector|trial-oracle|tide-watcher|doubt-seer|rune-architect|forge-keeper|phantom-checker|cross-shard-sentinel|entropy-prophet|reality-arbiter|runebinder|mend-fixer|scroll-reviewer|decree-arbiter|elicitation-sage|flow-seer|evidence-verifier|state-weaver|truthseer-validator|todo-verifier|veil-piercer-plan|horizon-sage|rune-smith|design-sync-agent|design-iterator|trial-forger|storybook-fixer|storybook-reviewer|repo-surveyor|echo-reader|git-miner|practice-seeker|lore-scholar|research-verifier|design-inventory-agent|codex-researcher|codex-plan-reviewer|codex-arena-judge|gap-fixer|test-runner|test-failure-analyst"
+    KNOWN_RUNE_AGENTS="aesthetic-quality-reviewer|agent-parity-reviewer|api-contract-tracer|assumption-slayer|axum-reviewer|blight-seer|breach-hunter|business-logic-tracer|codex-arena-judge|codex-plan-reviewer|codex-researcher|config-dependency-tracer|cross-shard-sentinel|data-layer-tracer|ddd-reviewer|decay-tracer|decree-arbiter|decree-auditor|deployment-verifier|depth-seer|design-analyst|design-implementation-reviewer|design-inventory-agent|design-iterator|design-sync-agent|design-system-compliance-reviewer|di-reviewer|django-reviewer|doubt-seer|e2e-browser-tester|echo-reader|elicitation-sage|ember-oracle|ember-seer|entropy-prophet|event-message-tracer|evidence-verifier|extended-test-runner|fastapi-reviewer|flaw-hunter|flow-seer|forge-keeper|forge-warden|fringe-watcher|gap-fixer|git-miner|glyph-scribe|goldmask-coordinator|grace-warden|horizon-sage|hypothesis-investigator|integration-test-runner|knowledge-keeper|laravel-reviewer|lore-analyst|lore-scholar|mend-fixer|mimic-detector|naming-intent-analyzer|order-auditor|pattern-seer|pattern-weaver|phantom-checker|php-reviewer|practice-seeker|python-reviewer|reality-arbiter|refactor-guardian|reference-validator|repo-surveyor|research-verifier|rot-seeker|ruin-prophet|ruin-watcher|rune-architect|rune-smith|runebinder|rust-reviewer|schema-drift-detector|scroll-reviewer|senior-engineer-reviewer|sight-oracle|signal-watcher|simplicity-warden|sqlalchemy-reviewer|state-weaver|storybook-fixer|storybook-reviewer|strand-tracer|tdd-compliance-reviewer|test-failure-analyst|test-runner|tide-watcher|todo-verifier|trial-forger|trial-oracle|truth-seeker|truthseer-validator|type-warden|typescript-reviewer|unit-test-runner|veil-piercer|veil-piercer-plan|vigil-keeper|void-analyzer|ward-sentinel|wisdom-sage|wraith-finder"
     if printf '%s\n' "$AGENT_NAME" | grep -qE "^(${KNOWN_RUNE_AGENTS})(-[0-9]+)?$"; then
       active_workflow=1
       detected_team_name=""
@@ -327,6 +324,11 @@ fi
 WORKFLOW_TYPE=""
 SUGGESTED_TEAM=""
 
+# SEC-004: Validate detected_team_name before use in recovery message
+# SEC-007 FIX: Moved validation BEFORE SUGGESTED_TEAM assignment to prevent
+# shell-special chars from being interpolated into RECOVERY_STEPS unvalidated.
+[[ -z "$detected_team_name" || "$detected_team_name" =~ ^[a-zA-Z0-9_-]+$ ]] || detected_team_name=""
+
 if [[ -n "$detected_team_name" ]]; then
   SUGGESTED_TEAM="$detected_team_name"
   # Extract workflow from team prefix: rune-review-xxx -> review, rune-audit-xxx -> audit
@@ -346,9 +348,6 @@ elif [[ -n "${AGENT_NAME:-}" ]]; then
       WORKFLOW_TYPE="unknown" ;;
   esac
 fi
-
-# SEC-004: Validate detected_team_name before use in recovery message
-[[ -z "$detected_team_name" || "$detected_team_name" =~ ^[a-zA-Z0-9_-]+$ ]] || detected_team_name=""
 
 # Build recovery JSON with exact commands
 RECOVERY_STEPS="Step 1: TeamCreate({ team_name: '${SUGGESTED_TEAM:-rune-WORKFLOW-TIMESTAMP}' }). Step 2: Write state file: Write('tmp/.rune-WORKFLOW-ID.json', { team_name: '...', status: 'active', config_dir: configDir, owner_pid: ownerPid, session_id: sessionId }). Step 3: Retry Agent() with team_name parameter."

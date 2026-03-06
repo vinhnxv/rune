@@ -39,6 +39,7 @@ for _mod_name in [
     "figma_types",
     "url_parser",
     "figma_client",
+    "node_normalizer",
     "node_parser",
     "style_builder",
     "tailwind_mapper",
@@ -164,6 +165,16 @@ def section_node(sample_figma_response: dict) -> dict:
         if child["id"] == "7:1":
             return child
     raise ValueError("Section node not found in fixture")
+
+
+@pytest.fixture()
+def instance_node(sample_figma_response: dict) -> dict:
+    """Extract the MyComponentInstance instance node."""
+    page = sample_figma_response["document"]["children"][0]
+    for child in page["children"]:
+        if child["id"] == "11:1":
+            return child
+    raise ValueError("Instance node not found in fixture")
 
 
 @pytest.fixture()

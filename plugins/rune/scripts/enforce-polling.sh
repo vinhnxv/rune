@@ -145,13 +145,15 @@ if printf '%s\n' "$NORMALIZED" | grep -qE '(^|[[:space:];|&(])sleep[[:space:]]+[
     done < <(find "${CWD}/.claude/arc" -name checkpoint.json -maxdepth 2 -type f 2>/dev/null)
   fi
 
-  # State file detection — all 8 workflow types
+  # State file detection — all workflow types
   if [[ -z "$active_workflow" ]]; then
     shopt -s nullglob
     for f in "${CWD}"/tmp/.rune-review-*.json "${CWD}"/tmp/.rune-audit-*.json \
              "${CWD}"/tmp/.rune-work-*.json "${CWD}"/tmp/.rune-mend-*.json \
              "${CWD}"/tmp/.rune-plan-*.json "${CWD}"/tmp/.rune-forge-*.json \
-             "${CWD}"/tmp/.rune-inspect-*.json "${CWD}"/tmp/.rune-goldmask-*.json; do
+             "${CWD}"/tmp/.rune-inspect-*.json "${CWD}"/tmp/.rune-goldmask-*.json \
+             "${CWD}"/tmp/.rune-brainstorm-*.json "${CWD}"/tmp/.rune-debug-*.json \
+             "${CWD}"/tmp/.rune-resolve-todos-*.json "${CWD}"/tmp/.rune-design-sync-*.json; do
       if [[ ! -f "$f" ]]; then continue; fi
       # SEC-4 FIX: Use jq for precise status extraction instead of grep substring match
       file_status=$(jq -r '.status // empty' "$f" 2>/dev/null || true)

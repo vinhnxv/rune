@@ -144,7 +144,12 @@ if [[ $orphan_count -gt 0 ]] && [[ -d "$CHOME/teams/" ]]; then
           owner_cfg="$sf_cfg"
           break
         done
-        [[ -n "$_saved_nullglob" ]] && eval "$_saved_nullglob" 2>/dev/null || true
+        # Restore nullglob — explicit instead of eval (SEC-001)
+        if [[ "$_saved_nullglob" == *"-s nullglob"* ]]; then
+          shopt -s nullglob 2>/dev/null || true
+        else
+          shopt -u nullglob 2>/dev/null || true
+        fi
       fi
       # If no matching state file found, cannot verify PID — skip
       [[ -n "$owner_pid" ]] || continue
@@ -248,7 +253,7 @@ stale_state_count=$(
   count=0
   # BACK-015 FIX: Capture epoch once before loop (consistency + efficiency)
   NOW=$(date +%s)
-  for f in "${CWD}"/tmp/.rune-review-*.json "${CWD}"/tmp/.rune-audit-*.json "${CWD}"/tmp/.rune-work-*.json "${CWD}"/tmp/.rune-mend-*.json "${CWD}"/tmp/.rune-inspect-*.json "${CWD}"/tmp/.rune-forge-*.json "${CWD}"/tmp/.rune-goldmask-*.json "${CWD}"/tmp/.rune-brainstorm-*.json "${CWD}"/tmp/.rune-resolve-todos-*.json; do
+  for f in "${CWD}"/tmp/.rune-review-*.json "${CWD}"/tmp/.rune-audit-*.json "${CWD}"/tmp/.rune-work-*.json "${CWD}"/tmp/.rune-mend-*.json "${CWD}"/tmp/.rune-inspect-*.json "${CWD}"/tmp/.rune-plan-*.json "${CWD}"/tmp/.rune-forge-*.json "${CWD}"/tmp/.rune-goldmask-*.json "${CWD}"/tmp/.rune-brainstorm-*.json "${CWD}"/tmp/.rune-debug-*.json "${CWD}"/tmp/.rune-resolve-todos-*.json "${CWD}"/tmp/.rune-design-sync-*.json; do
     if [[ -f "$f" ]]; then
       # Check if status is "active" and file is older than 30 min
       # FIX-2: Fallback to epoch 0 (Jan 1 1970) if stat fails. Math: (NOW - 0) / 60 = ~29M minutes

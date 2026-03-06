@@ -281,6 +281,73 @@ result=$(run_hook '{"tool_name": "Agent", "cwd": "/nonexistent/does/not/exist", 
 assert_eq "Invalid CWD exits 0" "0" "$(get_exit_code "$result")"
 
 # ═══════════════════════════════════════════════════════════════
+# 8b. Signal 4 — Known agent name matching (last resort detection)
+# ═══════════════════════════════════════════════════════════════
+printf "\n=== Signal 4: Known Agent Name Matching ===\n"
+
+# Create a CWD with NO state files, NO inscription, NO signal dirs
+# Signal 4 should still detect known Rune agents by name alone
+SIGNAL4_CWD=$(mktemp -d)
+
+# 8b-1. Audit Ash: rot-seeker (previously missing from KNOWN_RUNE_AGENTS)
+result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$SIGNAL4_CWD\", \"tool_input\": {\"name\": \"rot-seeker\"}}")
+output=$(get_output "$result")
+assert_contains "Signal 4: rot-seeker detected" "ATE-1" "$output"
+
+# 8b-2. Audit Ash: strand-tracer
+result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$SIGNAL4_CWD\", \"tool_input\": {\"name\": \"strand-tracer\"}}")
+output=$(get_output "$result")
+assert_contains "Signal 4: strand-tracer detected" "ATE-1" "$output"
+
+# 8b-3. Audit Ash: decree-auditor
+result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$SIGNAL4_CWD\", \"tool_input\": {\"name\": \"decree-auditor\"}}")
+output=$(get_output "$result")
+assert_contains "Signal 4: decree-auditor detected" "ATE-1" "$output"
+
+# 8b-4. Audit Ash: fringe-watcher
+result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$SIGNAL4_CWD\", \"tool_input\": {\"name\": \"fringe-watcher\"}}")
+output=$(get_output "$result")
+assert_contains "Signal 4: fringe-watcher detected" "ATE-1" "$output"
+
+# 8b-5. Specialist: python-reviewer (from specialist-prompts/)
+result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$SIGNAL4_CWD\", \"tool_input\": {\"name\": \"python-reviewer\"}}")
+output=$(get_output "$result")
+assert_contains "Signal 4: python-reviewer detected" "ATE-1" "$output"
+
+# 8b-6. Specialist: typescript-reviewer
+result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$SIGNAL4_CWD\", \"tool_input\": {\"name\": \"typescript-reviewer\"}}")
+output=$(get_output "$result")
+assert_contains "Signal 4: typescript-reviewer detected" "ATE-1" "$output"
+
+# 8b-7. Previously-present agent: ward-sentinel (sanity check)
+result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$SIGNAL4_CWD\", \"tool_input\": {\"name\": \"ward-sentinel\"}}")
+output=$(get_output "$result")
+assert_contains "Signal 4: ward-sentinel detected" "ATE-1" "$output"
+
+# 8b-8. Numbered suffix: rot-seeker-2 (Agent Teams appends instance numbers)
+result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$SIGNAL4_CWD\", \"tool_input\": {\"name\": \"rot-seeker-2\"}}")
+output=$(get_output "$result")
+assert_contains "Signal 4: rot-seeker-2 (numbered) detected" "ATE-1" "$output"
+
+# 8b-9. Unknown agent name should NOT be detected by Signal 4
+result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$SIGNAL4_CWD\", \"tool_input\": {\"name\": \"random-unknown-agent\"}}")
+exit_code=$(get_exit_code "$result")
+output=$(get_output "$result")
+assert_eq "Signal 4: unknown agent passes through" "0" "$exit_code"
+assert_not_contains "Signal 4: unknown agent not blocked" "ATE-1" "$output"
+
+# 8b-10. New agents: breach-hunter, goldmask-coordinator
+result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$SIGNAL4_CWD\", \"tool_input\": {\"name\": \"breach-hunter\"}}")
+output=$(get_output "$result")
+assert_contains "Signal 4: breach-hunter detected" "ATE-1" "$output"
+
+result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$SIGNAL4_CWD\", \"tool_input\": {\"name\": \"goldmask-coordinator\"}}")
+output=$(get_output "$result")
+assert_contains "Signal 4: goldmask-coordinator detected" "ATE-1" "$output"
+
+rm -rf "$SIGNAL4_CWD"
+
+# ═══════════════════════════════════════════════════════════════
 # 9. Edge cases
 # ═══════════════════════════════════════════════════════════════
 printf "\n=== Edge Cases ===\n"

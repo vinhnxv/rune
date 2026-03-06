@@ -11,11 +11,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from react_generator import (
     generate_component,
     generate_component_with_props,
+    generate_split_components,
     _to_component_name,
     _escape_jsx,
     _resolve_html_tag,
     _deduplicate_classes,
     _is_decorative_name,
+    _is_promotable_text,
     _resolve_aria_attrs,
     _format_html_attrs,
 )
@@ -1351,3 +1353,205 @@ class TestNullAndNoneAriaEdgeCases:
         # opacity-100 is not a standard tailwind utility that maps from 1.0
         # The style builder should skip opacity at 1.0 (no class)
         assert "opacity-0" not in code
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: generate_split_components
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateSplitComponents:
+    def _make_component_set(self, variant_specs):
+        """Build a COMPONENT_SET with variant COMPONENT children.
+
+        variant_specs: list of (name, children) tuples
+        """
+        children = []
+        for name, child_nodes in variant_specs:
+            children.append(_make_node(
+                name=name, node_type=NodeType.COMPONENT,
+                children=child_nodes,
+            ))
+        return _make_node(
+            name="Button", node_type=NodeType.COMPONENT_SET,
+            children=children,
+        )
+
+    def test_split_generates_per_variant_component(self):
+        cs = self._make_component_set([
+            ("Type=Primary", [_make_node(node_type=NodeType.TEXT, name="Label")]),
+            ("Type=Secondary", [_make_node(node_type=NodeType.TEXT, name="Label")]),
+        ])
+        results = generate_split_components(cs)
+        assert len(results) == 2
+        assert results[0]["name"] == "ButtonPrimary"
+        assert results[1]["name"] == "ButtonSecondary"
+
+    def test_split_flat_variant_names(self):
+        cs = self._make_component_set([
+            ("Primary", [_make_node(node_type=NodeType.TEXT, name="Label")]),
+            ("Ghost", [_make_node(node_type=NodeType.TEXT, name="Label")]),
+        ])
+        results = generate_split_components(cs)
+        assert results[0]["name"] == "ButtonPrimary"
+        assert results[1]["name"] == "ButtonGhost"
+
+    def test_split_generates_valid_react_code(self):
+        cs = self._make_component_set([
+            ("Type=Primary", [_make_node(node_type=NodeType.RECTANGLE, name="Icon")]),
+        ])
+        results = generate_split_components(cs)
+        assert len(results) == 1
+        code = results[0]["code"]
+        assert "export default function ButtonPrimary()" in code
+        assert "import React" in code
+
+    def test_split_ignores_non_component_children(self):
+        children = [
+            _make_node(name="Type=Primary", node_type=NodeType.COMPONENT,
+                       children=[_make_node(node_type=NodeType.TEXT, name="Label")]),
+            _make_node(name="Divider", node_type=NodeType.RECTANGLE),
+        ]
+        cs = _make_node(name="Button", node_type=NodeType.COMPONENT_SET, children=children)
+        results = generate_split_components(cs)
+        assert len(results) == 1
+        assert results[0]["name"] == "ButtonPrimary"
+
+    def test_split_empty_set(self):
+        cs = _make_node(name="Empty", node_type=NodeType.COMPONENT_SET, children=[])
+        results = generate_split_components(cs)
+        assert results == []
+
+    def test_split_multi_key_variant_name(self):
+        cs = self._make_component_set([
+            ("Type=Primary, State=Default",
+             [_make_node(node_type=NodeType.TEXT, name="Label")]),
+        ])
+        results = generate_split_components(cs)
+        assert results[0]["name"] == "ButtonPrimaryDefault"
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: Text-to-Prop Promotion
+# ---------------------------------------------------------------------------
+
+
+class TestIsPromotableText:
+    def _make_parent(self, **overrides):
+        defaults = dict(
+            node_id="1:0", name="Card", node_type=NodeType.COMPONENT,
+        )
+        defaults.update(overrides)
+        return _make_node(**defaults)
+
+    def _make_text(self, name="Title", text_content="Hello", **overrides):
+        defaults = dict(
+            node_id="1:1", name=name, node_type=NodeType.TEXT,
+            text_content=text_content,
+        )
+        defaults.update(overrides)
+        return _make_node(**defaults)
+
+    def test_semantic_name_promotes(self):
+        parent = self._make_parent()
+        node = self._make_text(name="Title")
+        assert _is_promotable_text(node, parent) is True
+
+    def test_label_promotes(self):
+        parent = self._make_parent()
+        node = self._make_text(name="Label")
+        assert _is_promotable_text(node, parent) is True
+
+    def test_description_promotes(self):
+        parent = self._make_parent()
+        node = self._make_text(name="Description")
+        assert _is_promotable_text(node, parent) is True
+
+    def test_non_semantic_name_rejected(self):
+        parent = self._make_parent()
+        node = self._make_text(name="Frame 42")
+        assert _is_promotable_text(node, parent) is False
+
+    def test_no_parent_rejected(self):
+        node = self._make_text(name="Title")
+        assert _is_promotable_text(node, None) is False
+
+    def test_non_component_parent_rejected(self):
+        parent = self._make_parent(node_type=NodeType.FRAME)
+        node = self._make_text(name="Title")
+        assert _is_promotable_text(node, parent) is False
+
+    def test_long_text_rejected(self):
+        parent = self._make_parent()
+        node = self._make_text(name="Title", text_content="x" * 201)
+        assert _is_promotable_text(node, parent) is False
+
+    def test_text_with_newlines_rejected(self):
+        parent = self._make_parent()
+        node = self._make_text(name="Title", text_content="Hello\nWorld")
+        assert _is_promotable_text(node, parent) is False
+
+    def test_prop_role_parent_rejected(self):
+        from node_parser import InstanceRole
+        parent = self._make_parent(
+            node_type=NodeType.INSTANCE, instance_role=InstanceRole.PROP,
+        )
+        node = self._make_text(name="Title")
+        assert _is_promotable_text(node, parent) is False
+
+    def test_slot_candidate_text_rejected(self):
+        parent = self._make_parent()
+        node = self._make_text(name="Title", is_slot_candidate=True)
+        assert _is_promotable_text(node, parent) is False
+
+    def test_slot_parent_rejected(self):
+        parent = self._make_parent(is_slot_candidate=True)
+        node = self._make_text(name="Title")
+        assert _is_promotable_text(node, parent) is False
+
+
+class TestTextToPromotionIntegration:
+    def test_promoted_text_generates_props_interface(self):
+        text_child = _make_node(
+            node_id="2:1", name="Title", node_type=NodeType.TEXT,
+            text_content="Hello",
+        )
+        root = _make_node(
+            node_id="1:1", name="Card", node_type=NodeType.COMPONENT,
+            children=[text_child],
+        )
+        code = generate_component(root)
+        assert "interface CardProps" in code
+        assert "title?: string;" in code
+        assert "{title}" in code
+        assert "{ title }: CardProps" in code
+
+    def test_non_promotable_text_no_props(self):
+        text_child = _make_node(
+            node_id="2:1", name="RandomText123", node_type=NodeType.TEXT,
+            text_content="Hello",
+        )
+        root = _make_node(
+            node_id="1:1", name="Card", node_type=NodeType.COMPONENT,
+            children=[text_child],
+        )
+        code = generate_component(root)
+        assert "Props" not in code
+        assert "export default function Card()" in code
+
+    def test_multiple_promoted_texts(self):
+        children = [
+            _make_node(node_id="2:1", name="Title", node_type=NodeType.TEXT,
+                       text_content="Hello"),
+            _make_node(node_id="2:2", name="Description", node_type=NodeType.TEXT,
+                       text_content="World"),
+        ]
+        root = _make_node(
+            node_id="1:1", name="Card", node_type=NodeType.COMPONENT,
+            children=children,
+        )
+        code = generate_component(root)
+        assert "title?: string;" in code
+        assert "description?: string;" in code
+        assert "{title}" in code
+        assert "{description}" in code
