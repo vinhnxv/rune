@@ -1,0 +1,32 @@
+{
+  "timestamp": "20260307-143052",
+  "quality_score": 0.85,
+  "advisors": [
+    {"name": "security-advisor", "confidence": 0.92},
+    {"name": "ux-advisor", "confidence": 0.78},
+    {"name": "architecture-advisor", "confidence": 0.88}
+  ],
+  "decisions": {
+    "approach": "OAuth2 with PKCE flow",
+    "providers": ["Google", "GitHub"],
+    "session_strategy": "JWT with refresh tokens",
+    "storage": "Encrypted session store in Redis"
+  },
+  "constraints": {
+    "must_support": ["iOS 14+", "Android 11+", "Web"],
+    "compliance": ["GDPR", "SOC2"],
+    "latency_budget_ms": 200
+  },
+  "success_criteria": [
+    "Login completion < 3 clicks",
+    "Session refresh < 100ms",
+    "Support 10K concurrent sessions"
+  ],
+  "non_goals": [
+    "Social login providers beyond Google/GitHub",
+    "Enterprise SSO integration",
+    "Password-based authentication"
+  ],
+  "design_aware": true,
+  "figma_urls": []
+}

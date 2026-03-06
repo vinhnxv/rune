@@ -1,0 +1,234 @@
+{
+  "skill_name": "devise",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I want to run /rune:devise for a new feature: 'Add OAuth2 authentication with Google and GitHub providers'. Walk me through what happens in Phase -1 (Team Bootstrap) and Phase 0 (Gather Input). Explain: (1) What the teamTransition protocol does, (2) How ATE-1 enforcement is enabled, (3) What happens if brainstorm-context is NOT provided vs if it IS provided, (4) How design signal detection works for Figma URLs. Don't actually execute anything — just explain the decision tree.",
+      "expected_output": "A detailed walkthrough of: (1) Team Bootstrap — the 6-step teamTransition protocol (validate → TeamDelete with retry → filesystem fallback → TeamCreate with 'Already leading' recovery → post-create verification → state file write with config_dir, owner_pid, session_id). (2) ATE-1 enforcement — enabled by team creation BEFORE any Agent() calls, all subsequent Agent() calls must include team_name. (3) Phase 0 paths — default: delegate to brainstorm protocol with devise-specific overrides (advisors join existing team, workspace co-located, skips handoff); --brainstorm-context PATH: read existing workspace, skip brainstorm, inject context; --quick: skip brainstorm, ask for feature description via AskUserQuestion. (4) Design signal detection — FIGMA_URL_PATTERN scan, set designAware flag, conditionally spawn design-inventory-agent with figma_list_components MCP.",
+      "files": [],
+      "expectations": [
+        "Describes the 6-step teamTransition protocol in Phase -1",
+        "Mentions TeamCreate with 'Already leading' recovery pattern",
+        "Explains state file includes config_dir, owner_pid, session_id for session isolation",
+        "Describes ATE-1 enforcement: team created before any Agent() calls, all Agents need team_name",
+        "Explains the three Phase 0 paths: default (brainstorm), --brainstorm-context, --quick",
+        "Notes that brainstorm advisors join the devise team (not a separate team)",
+        "Describes FIGMA_URL_PATTERN scanning for design signal detection",
+        "Mentions design-inventory-agent spawns conditionally when Figma URLs detected"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Analyze the research phase decision tree for devise. I have a feature that uses React 19 and Next.js 15. Explain: (1) What local research agents always run? (2) How does Phase 1B decide whether to run external research? (3) What talisman config controls external research bypass? (4) How does Context7 MCP integrate with lore-scholar? (5) What happens in Phase 1C.5 research verification? (6) What triggers the research consolidation checkpoint in Phase 1.5?",
+      "expected_output": "Detailed Phase 1 research analysis: (1) Local research always runs: repo-surveyor (codebase patterns), echo-reader (Rune Echoes), git-miner (git history). (2) Phase 1B decision: risk score + local sufficiency scoring, reads talisman plan.external_research for bypass modes (always/auto/never), URL sanitization for SSRF defense. (3) talisman.yml plan.external_research: 'always' forces external, 'never' skips, 'auto' uses decision logic. (4) Context7 MCP: lore-scholar uses resolve-library-id then query-docs for framework-specific docs. (5) Phase 1C.5: research-verifier scores findings on 5 dimensions (relevance, accuracy, freshness, cross-validation, security), maps to verdicts (TRUSTED/CAUTION/UNTRUSTED/FLAGGED). (6) Phase 1.5 checkpoint: AskUserQuestion after all research tasks converge, validates consolidation before proceeding.",
+      "files": [],
+      "expectations": [
+        "Lists the 3 local research agents: repo-surveyor, echo-reader, git-miner",
+        "Explains Phase 1B decision uses risk + local sufficiency scoring",
+        "Mentions talisman plan.external_research bypass modes: always/auto/never",
+        "Notes SSRF-defensive URL sanitization in Phase 1B",
+        "Describes Context7 MCP integration: resolve-library-id then query-docs",
+        "Lists the 5 research verification dimensions",
+        "Maps the 4 verdicts: TRUSTED/CAUTION/UNTRUSTED/FLAGGED",
+        "Describes Phase 1.5 AskUserQuestion checkpoint for consolidation validation"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I'm running /rune:devise --quick for a bug fix. Explain what phases are skipped and why. Then explain what happens if I also pass --no-arena but don't pass --quick. Also explain the --exhaustive flag for forge mode and when it auto-triggers.",
+      "expected_output": "Flag impact analysis: --quick skips: Phase 0 brainstorm (asks for description directly), Phase 1.8 Solution Arena, Phase 2.3 Predictive Goldmask, Phase 2.5 Shatter Assessment, Phase 3 Forge. These are skipped because --quick is designed for straightforward tasks that don't need competitive evaluation or deep enrichment. --no-arena alone skips only Phase 1.8 Solution Arena — useful when you want forge enrichment but know there's only one viable approach. --exhaustive forge mode: threshold 0.15 (vs 0.30 default), max 5 agents/section (vs 3), max 12 total (vs 8), includes research-budget agents, two-tier aggregation, cost warning before summoning. Auto-triggers when user message contains ULTRATHINK, DEEP, or ARCHITECT keywords.",
+      "files": [],
+      "expectations": [
+        "Lists phases skipped by --quick: brainstorm, arena, predictive goldmask, shatter, forge",
+        "Explains --quick is for straightforward tasks without competitive evaluation",
+        "Notes --no-arena skips only Phase 1.8 Solution Arena",
+        "Describes --exhaustive thresholds: 0.15 vs 0.30, 5 agents/section vs 3, 12 total vs 8",
+        "Mentions --exhaustive includes research-budget agents and two-tier aggregation",
+        "Lists auto-trigger keywords: ULTRATHINK, DEEP, ARCHITECT",
+        "Notes cost warning is shown before summoning in exhaustive mode",
+        "Explains the difference between --quick (multi-phase skip) vs granular flags (--no-arena, --no-forge)"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Explain the Solution Arena phase (1.8) in detail. When does it run vs skip? What are the 4 sub-steps (1.8A through 1.8D)? How does the recovery protocol work if all solutions are killed? What is the complexity gate?",
+      "expected_output": "Solution Arena analysis: Skip conditions: --quick, --no-arena, bug fixes, high-confidence refactors (confidence >= 0.9), sparse research (<2 viable approaches). 4 sub-steps: 1.8A GENERATE — create competing solutions from research; 1.8B EVALUATE — score on weighted dimensions; 1.8C CHALLENGE — adversarial agents attack solutions; 1.8D SELECT — present decision matrix for approach selection. Recovery protocol: if all solutions killed, relax constraints and re-evaluate. Complexity gate: Arena checks if complexity score >= 0.65 to justify multi-solution evaluation; below threshold may skip to synthesize directly. Output: arena-selection.md with winning solution and rationale.",
+      "files": [],
+      "expectations": [
+        "Lists skip conditions: --quick, --no-arena, bug fixes, high-confidence refactors, sparse research",
+        "Notes high-confidence threshold is >= 0.9",
+        "Notes sparse research threshold is <2 viable approaches",
+        "Describes 1.8A GENERATE: create competing solutions from research",
+        "Describes 1.8B EVALUATE: score on weighted dimensions",
+        "Describes 1.8C CHALLENGE: adversarial agents attack solutions",
+        "Describes 1.8D SELECT: present decision matrix for approach selection",
+        "Explains recovery protocol: relax constraints, re-evaluate",
+        "Mentions complexity gate at 0.65 threshold",
+        "Notes output is arena-selection.md"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Analyze the Phase 2.5 Shatter Assessment algorithm. What signals are scored and their weights? When is shatter offered vs skipped? What is the difference between shard generation and hierarchical decomposition? How does coherence checking work?",
+      "expected_output": "Shatter Assessment breakdown: Signal weights: Task count (40%, threshold >=8), Phase count (30%, threshold >=3), Cross-cutting concerns (20%, threshold >=2 shared deps), Estimated effort (10%, threshold >=2 L-size phases). Offer shatter when score >= 0.65, skip below. Shard generation: horizontal split into parallel shards (shard-N files), each shard is independent plan. Hierarchical decomposition: parent/child structure with dependency DAG, requires/provides contracts, feature branch per child. Coherence checking: validates that shards/children together cover full scope, no orphan requirements, no circular dependencies. Output: either original plan, shard files, or child plan references in parent.",
+      "files": [],
+      "expectations": [
+        "Lists 4 signals with weights: Task count 40%, Phase count 30%, Cross-cutting concerns 20%, Estimated effort 10%",
+        "States the offer threshold: score >= 0.65",
+        "Describes shard generation: horizontal split into parallel shards (shard-N files)",
+        "Describes hierarchical decomposition: parent/child with dependency DAG, requires/provides contracts",
+        "Notes hierarchical uses feature branch per child",
+        "Explains coherence checking: validates full scope coverage, no orphans, no circular deps",
+        "Mentions the score calculation combines all 4 signals"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Walk me through Phase 6 Cleanup for devise. What are the 5 components of the standard cleanup pattern? What is the fallback array and why does it need to be complete? How does SEC-4 validation work? What is QUAL-012?",
+      "expected_output": "Phase 6 Cleanup breakdown: 5 components: (1) Dynamic member discovery — read team config for all teammates; (2) shutdown_request to all members via SendMessage; (3) Grace period — let teammates deregister (20s); (4) TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s); (5) Filesystem fallback — only if TeamDelete never succeeded. Fallback array: hardcoded list of ALL possible teammates for the workflow, covers conditional phases, safe to send shutdown_request to absent members. SEC-4 validation: filter member names with /^[a-zA-Z0-9_-]+$/ before use in SendMessage (prevents injection). QUAL-012: gate filesystem fallback behind !cleanupTeamDeleteSucceeded — avoid unnecessary rm -rf when TeamDelete already succeeded. Also includes workflow lock release.",
+      "files": [],
+      "expectations": [
+        "Lists 5 cleanup components in order: discovery, shutdown_request, grace period, TeamDelete retry, filesystem fallback",
+        "Notes grace period is 20 seconds",
+        "Lists TeamDelete retry delays: 0s, 5s, 10s, 15s (4 attempts)",
+        "Explains fallback array covers all conditional phases",
+        "Describes SEC-4 validation: /^[a-zA-Z0-9_-]+$/ regex for member names",
+        "Explains QUAL-012: gate filesystem fallback behind !cleanupTeamDeleteSucceeded",
+        "Notes workflow lock is released as part of cleanup",
+        "Mentions CHOME pattern for multi-account support"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "I have a brainstorm workspace at tmp/brainstorm-20260307/ with workspace-meta.json showing quality_score: 0.85. I want to run /rune:devise --brainstorm-context tmp/brainstorm-20260307/. What happens differently compared to running devise without this flag? How does the quality score affect the workflow? What context gets injected into Phase 1 research agents?",
+      "expected_output": "Brainstorm-context flow: Skips Phase 0 brainstorm entirely (no advisor summoning). Reads workspace-meta.json for quality_score (0.85 >= 0.70 = high-confidence). Injects into Phase 1 research agents: advisor research outputs, brainstorm decisions, constraint classification, success criteria. Quality score 0.85 means high-confidence mode — research agents proceed with stronger priors, less exploration needed. If score was < 0.70, would flag as 'exploratory' and suggest additional validation. The brainstorm-decisions.md sections (Non-Goals, Constraint Classification, Success Criteria, Scope Boundary) become inputs to synthesis. Design-aware flags and Figma URLs from brainstorm are also passed through.",
+      "files": ["evals/files/workspace-meta.json"],
+      "expectations": [
+        "Notes Phase 0 brainstorm is skipped entirely",
+        "Explains quality_score 0.85 >= 0.70 triggers high-confidence mode",
+        "Describes what gets injected: advisor research, decisions, constraints, success criteria",
+        "Notes < 0.70 would flag as 'exploratory'",
+        "Mentions brainstorm-decisions.md sections become synthesis inputs",
+        "Notes design-aware flags and Figma URLs are passed through"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Explain the Forge phase (Phase 3) in detail. What is Forge Gaze? How does topic-aware agent matching work? What is the truthbinding pattern with ANCHOR/RE-ANCHOR blocks? How does the fallback work when no agent scores above threshold?",
+      "expected_output": "Forge phase analysis: Forge Gaze is topic-aware agent matching — parses plan sections, matches topics to specialized Ashes. Topic matching: registry maps keywords/topics to agent capabilities, threshold 0.30 for default mode, max 3 agents per section. Truthbinding: ANCHOR block at start of prompt (original plan content), RE-ANCHOR blocks during iteration (reference back to anchor), plan content sanitized (strip HTML comments, code fences, headings, entities, zero-width chars) before injection to prevent prompt injection. Fallback: if no agent scores above threshold, use inline generic Task prompt for standard enrichment. Elicitation sages: up to MAX_FORGE_SAGES=6 per eligible section with keyword pre-filter. Summon throttle: max 5 concurrent, max 8 total agents.",
+      "files": [],
+      "expectations": [
+        "Describes Forge Gaze: topic-aware agent matching for plan sections",
+        "Notes threshold 0.30 for default mode",
+        "Notes max 3 agents per section in default mode",
+        "Describes ANCHOR block for original plan content",
+        "Describes RE-ANCHOR blocks for iteration reference",
+        "Lists sanitization steps: strip HTML comments, code fences, headings, entities, zero-width chars",
+        "Explains fallback: generic Task prompt when no agent above threshold",
+        "Notes MAX_FORGE_SAGES=6 with keyword pre-filter",
+        "Notes summon throttle: 5 concurrent, 8 total"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "What error handling exists in the devise workflow? Explain what happens when: (1) A research agent times out (>5 min), (2) Solution Arena has sparse research (<2 approaches), (3) Forge agent times out, (4) TeamCreate fails with 'Already leading', (5) Plan review returns BLOCK verdict.",
+      "expected_output": "Error handling matrix: (1) Research timeout: proceed with partial research, log gap, continue to synthesis with available data. (2) Sparse research (<2 approaches): skip Arena entirely, proceed directly to Phase 2 synthesize with available research. (3) Forge timeout (>5 min): proceed with partial enrichment, use what completed, don't block pipeline. (4) TeamCreate 'Already leading': catch-and-recover via teamTransition protocol — check for existing team, validate ownership, either join existing or force cleanup. (5) Plan review BLOCK: address blocking issues before presenting plan, max 2 refinement passes for HIGH severity issues. All errors are non-blocking where possible — devise prefers partial output over abort.",
+      "files": [],
+      "expectations": [
+        "Research timeout: proceed with partial research",
+        "Sparse research: skip Arena, proceed to synthesize",
+        "Forge timeout: proceed with partial enrichment",
+        "TeamCreate 'Already leading': catch-and-recover via teamTransition",
+        "Plan review BLOCK: address issues before presenting, max 2 refinement passes",
+        "Notes devise prefers partial output over abort",
+        "Mentions research verification timeout proceeds with unverified + warning"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Explain Phase 4 Plan Review in detail. What checks does scroll-reviewer perform? What is the automated verification gate? When does Phase 4.5 Technical Review run and what agents does it summon? What happens with BLOCK vs CONCERN verdicts?",
+      "expected_output": "Plan Review breakdown: Scroll-reviewer checks: document structure, clarity, completeness, actionability, ambiguous language, cross-references. Automated verification gate: deterministic checks including talisman pattern compliance, universal checks, CommonMark compliance, measurability (specific metrics), filler detection. Phase 4.5 Technical Review: optional, summons decree-arbiter (architecture fit, feasibility, security/performance risks), knowledge-keeper (documentation coverage), codex-plan-reviewer (cross-model verification). BLOCK verdict: address before presenting plan, iterative refinement. CONCERN verdicts: include as warnings, non-blocking. Max 2 refinement passes for HIGH severity. Outputs: scroll-review.md, decree-review.md, knowledge-review.md, codex-plan-review.md.",
+      "files": [],
+      "expectations": [
+        "Describes scroll-reviewer checks: structure, clarity, completeness, actionability",
+        "Lists automated gate checks: talisman patterns, CommonMark, measurability, filler detection",
+        "Explains Phase 4.5 is optional",
+        "Lists Phase 4.5 agents: decree-arbiter, knowledge-keeper, codex-plan-reviewer",
+        "Explains BLOCK verdict: address before presenting",
+        "Explains CONCERN verdicts: include as warnings, non-blocking",
+        "Notes max 2 refinement passes for HIGH severity"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "Explain the session isolation requirements for devise state files. What fields must be included? How do hook scripts verify ownership? What happens when a state file belongs to another live session vs a dead session?",
+      "expected_output": "Session isolation analysis: State files MUST include: config_dir (CLAUDE_CONFIG_DIR path for installation isolation), owner_pid (Claude Code process PID via $PPID for session isolation), session_id (CLAUDE_SESSION_ID for diagnostics). Hook scripts must: (1) Check config_dir matches current session before acting, (2) Check owner_pid matches $PPID with kill -0 liveness check, (3) Skip silently if state belongs to another live session, (4) Clean up if state belongs to a dead session (orphan recovery). This prevents cross-session interference when multiple Claude Code sessions work on the same repo.",
+      "files": [],
+      "expectations": [
+        "Lists 3 required fields: config_dir, owner_pid, session_id",
+        "Explains config_dir is for installation isolation",
+        "Explains owner_pid is for session isolation via $PPID",
+        "Mentions kill -0 liveness check for PID verification",
+        "Describes skip silently behavior for another live session",
+        "Describes cleanup behavior for dead session (orphan recovery)",
+        "Notes this prevents cross-session interference"
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "How does the Predictive Goldmask phase (2.3) work? What are the 3 depth modes? What talisman config controls it? When is it skipped?",
+      "expected_output": "Predictive Goldmask analysis: Depth modes: basic (2 agents, default), enhanced (4 agents), full (8 agents). Controlled via talisman.goldmask.devise.depth. Skip conditions: --quick mode, goldmask.enabled === false, goldmask.devise.enabled === false, non-git repo. Purpose: runs predictive risk analysis on files likely affected by the plan before implementation. Outputs risk scores and wisdom advisories that get injected into the plan. Non-blocking on failure — proceeds with partial data or skips injection.",
+      "files": [],
+      "expectations": [
+        "Lists 3 depth modes: basic (2 agents), enhanced (4 agents), full (8 agents)",
+        "Notes basic is the default depth mode",
+        "Identifies talisman.goldmask.devise.depth as the config control",
+        "Lists skip conditions: --quick, goldmask.enabled === false, goldmask.devise.enabled === false, non-git repo",
+        "Notes non-blocking behavior on failure",
+        "Mentions risk scores and wisdom advisories are outputs"
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "Explain Phase 2.3.5 Research Conflict Tiebreaker. When does it trigger? What is the Codex integration pattern? How does it resolve conflicting research recommendations?",
+      "expected_output": "Research Conflict Tiebreaker: CONDITIONAL — only runs when research agents produce conflicting recommendations (~20% trigger rate). Codex integration: spawns codex-tiebreaker agent with cross-model verification. Resolution process: (1) Detect conflicts between research agent outputs, (2) Present conflicting viewpoints to Codex, (3) Codex provides independent analysis, (4) Tarnished makes final decision with Codex input as additional signal. See conflict-tiebreaker.md for full protocol. Skipped when no conflicts detected.",
+      "files": [],
+      "expectations": [
+        "Notes this is CONDITIONAL with ~20% trigger rate",
+        "Explains it runs when research agents produce conflicting recommendations",
+        "Mentions codex-tiebreaker agent for cross-model verification",
+        "Describes the 4-step resolution process",
+        "References conflict-tiebreaker.md for full protocol",
+        "Notes it's skipped when no conflicts detected"
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "How does Phase 0.3 UX Pattern Analysis work? When does it run? What conditions must be met? What output does it produce for Phase 2 synthesis?",
+      "expected_output": "UX Pattern Analysis (Phase 0.3): Conditions: talisman.ux.enabled === true AND frontend files detected (src/components/**/*.{tsx,jsx}, components/**/*.{tsx,jsx}, or app/**/*.{tsx,jsx} > 10 files). Spawns ux-pattern-analyzer agent to inventory existing UX patterns (7 categories: loading, error handling, form validation, navigation, empty states, confirmation/undo, feedback). Output: brainstormContext.ux_maturity object with analyzed: true, process type, cognitive_walkthrough flag. Used by Phase 2 synthesis to include 'UX Considerations' section in plan. Skipped when UX disabled or no frontend files.",
+      "files": [],
+      "expectations": [
+        "Identifies the trigger conditions: ux.enabled === true AND frontend files detected",
+        "Lists frontend file patterns: src/components, components, app directories",
+        "Names the agent: ux-pattern-analyzer",
+        "Lists 7 UX pattern categories",
+        "Describes the output: brainstormContext.ux_maturity object",
+        "Notes this feeds into Phase 2 synthesis for UX Considerations section"
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "Explain how plan output filenames are generated. What is the naming convention? Give examples for different feature types. What happens when a plan is shattered?",
+      "expected_output": "Plan filename convention: plans/YYYY-MM-DD-{type}-{feature-name}-plan.md. Types: feat, fix, refactor, docs, test, chore. Examples: plans/2026-02-12-feat-user-authentication-plan.md, plans/2026-02-12-fix-checkout-race-condition-plan.md, plans/2026-02-12-refactor-api-client-plan.md. Shattered plans: plans/YYYY-MM-DD-{type}-{feature-name}-shard-N-plan.md for horizontal shards, or parent plan with children/ subdirectory for hierarchical decomposition. The feature name is slugified from the user's description.",
+      "files": [],
+      "expectations": [
+        "States the filename pattern: YYYY-MM-DD-{type}-{feature-name}-plan.md",
+        "Lists common types: feat, fix, refactor, docs, test, chore",
+        "Provides at least 2 example filenames",
+        "Describes shattered plan naming: shard-N suffix",
+        "Notes hierarchical uses children/ subdirectory",
+        "Mentions feature name is slugified from description"
+      ]
+    }
+  ]
+}

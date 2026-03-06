@@ -38,6 +38,9 @@ target/
 **/*.rs.bk
 *.pdb
 
+# Eval workspace outputs (ephemeral, machine-specific)
+*-workspace/
+
 # Test outputs
 tests/reports/
 plugins/rune/ROADMAP.md

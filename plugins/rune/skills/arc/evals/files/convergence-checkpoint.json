@@ -1,0 +1,57 @@
+{
+  "schema_version": 20,
+  "id": "20260305-091500",
+  "plan_file": "plans/feat-search-api-plan.md",
+  "branch": "rune/arc-feat-search-api-20260305-091500",
+  "started_at": "2026-03-05T09:15:00.000Z",
+  "session_nonce": "1a2b3c4d5e6f",
+  "config_dir": "/Users/dev/.claude",
+  "owner_pid": 12345,
+  "session_id": "conv-session-789",
+  "todos_base": "tmp/arc/20260305-091500/todos/",
+  "freshness": { "score": 0.91, "signals": { "structural": true, "dependency": true, "api": true, "config": true, "test": true } },
+  "flags": {
+    "no_forge": false, "approve": false, "skip_freshness": false,
+    "no_pr": false, "no_merge": false, "no_test": false, "draft": false, "bot_review": false
+  },
+  "phases": {
+    "forge": { "status": "completed", "artifact": "tmp/arc/20260305-091500/enriched-plan.md", "artifact_hash": "a1b2c3", "team_name": "forge-20260305" },
+    "plan_review": { "status": "completed", "artifact": "tmp/arc/20260305-091500/plan-review.md", "artifact_hash": "d4e5f6", "team_name": "review-20260305" },
+    "plan_refine": { "status": "completed", "artifact": "tmp/arc/20260305-091500/plan-refined.md", "artifact_hash": null, "team_name": null },
+    "verification": { "status": "completed", "artifact": null, "artifact_hash": null, "team_name": null },
+    "semantic_verification": { "status": "completed", "artifact": null, "artifact_hash": null, "team_name": null },
+    "design_extraction": { "status": "skipped", "artifact": null, "artifact_hash": null, "team_name": null, "skip_reason": "design_sync disabled" },
+    "task_decomposition": { "status": "completed", "artifact": "tmp/arc/20260305-091500/task-decomposition.md", "artifact_hash": null, "team_name": null },
+    "work": { "status": "completed", "artifact": "tmp/work/20260305-091500/", "artifact_hash": null, "team_name": "work-20260305" },
+    "storybook_verification": { "status": "skipped", "artifact": null, "artifact_hash": null, "team_name": null, "skip_reason": "storybook disabled" },
+    "design_verification": { "status": "skipped", "artifact": null, "artifact_hash": null, "team_name": null, "skip_reason": "no VSM" },
+    "ux_verification": { "status": "skipped", "artifact": null, "artifact_hash": null, "team_name": null, "skip_reason": "ux disabled" },
+    "gap_analysis": { "status": "completed", "artifact": "tmp/arc/20260305-091500/gap-analysis.md", "artifact_hash": null, "team_name": "gap-20260305" },
+    "codex_gap_analysis": { "status": "skipped", "artifact": null, "artifact_hash": null, "team_name": null, "skip_reason": "codex disabled" },
+    "gap_remediation": { "status": "completed", "artifact": null, "artifact_hash": null, "team_name": null },
+    "goldmask_verification": { "status": "completed", "artifact": "tmp/arc/20260305-091500/goldmask.md", "artifact_hash": null, "team_name": "goldmask-20260305" },
+    "code_review": { "status": "completed", "artifact": "tmp/reviews/20260305-091500/TOME.md", "artifact_hash": null, "team_name": "review-20260305-r1" },
+    "goldmask_correlation": { "status": "completed", "artifact": null, "artifact_hash": null, "team_name": null },
+    "mend": { "status": "completed", "artifact": "tmp/mend/20260305-091500/", "artifact_hash": null, "team_name": "mend-20260305-r1" },
+    "verify_mend": { "status": "completed", "artifact": "tmp/arc/20260305-091500/verify-mend.md", "artifact_hash": null, "team_name": null },
+    "design_iteration": { "status": "skipped", "artifact": null, "artifact_hash": null, "team_name": null, "skip_reason": "design_sync disabled" },
+    "test": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "test_coverage_critique": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "pre_ship_validation": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "release_quality_check": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "ship": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "bot_review_wait": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "pr_comment_resolution": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null },
+    "merge": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null }
+  },
+  "convergence": {
+    "round": 1,
+    "max_rounds": 3,
+    "tier": { "name": "STANDARD", "maxCycles": 3, "minCycles": 2, "focus": "p1_only" },
+    "history": [
+      { "round": 1, "p1_count": 2, "p2_count": 8, "p1_resolved": 2, "p2_resolved": 3, "action": "mend", "convergence_score": 0.72 }
+    ]
+  },
+  "stagnation": { "error_patterns": [], "file_velocity": [], "budget": null },
+  "totals": { "phase_times": {}, "total_duration_ms": null, "cost_at_completion": null }
+}

@@ -1,0 +1,43 @@
+{
+  "schema_version": 6,
+  "id": "arc-1709300222000",
+  "plan_file": "plans/feat-payment-gateway-plan.md",
+  "branch": "rune/arc-feat-payment-gateway-20260215-120000",
+  "started_at": "2026-02-15T12:00:22.000Z",
+  "session_nonce": "f0e1d2c3b4a5",
+  "config_dir": "/Users/test/.claude",
+  "owner_pid": 88888,
+  "session_id": "old-session-456",
+  "freshness": {
+    "score": 0.82,
+    "signals": { "structural": true, "dependency": true, "api": true, "config": false, "test": true }
+  },
+  "flags": {
+    "no_forge": false,
+    "approve": false,
+    "skip_freshness": false,
+    "no_pr": false,
+    "no_merge": false
+  },
+  "phases": {
+    "forge": { "status": "completed", "artifact": "tmp/arc/arc-1709300222000/forge-output.md", "artifact_hash": null, "team_name": "forge-arc-1709300222000" },
+    "plan_review": { "status": "completed", "artifact": "tmp/arc/arc-1709300222000/plan-review.md", "artifact_hash": null, "team_name": "review-arc-1709300222000" },
+    "plan_refine": { "status": "completed", "artifact": "tmp/arc/arc-1709300222000/plan-refined.md", "artifact_hash": null, "team_name": null },
+    "verification": { "status": "completed", "artifact": null, "artifact_hash": null, "team_name": null },
+    "semantic_verification": { "status": "skipped", "artifact": null, "artifact_hash": null, "team_name": null },
+    "design_extraction": { "status": "skipped", "artifact": null, "artifact_hash": null, "team_name": null },
+    "work": { "status": "completed", "artifact": "tmp/work/arc-1709300222000/", "artifact_hash": null, "team_name": "work-arc-1709300222000" },
+    "gap_analysis": { "status": "completed", "artifact": "tmp/arc/arc-1709300222000/gap-analysis.md", "artifact_hash": null, "team_name": null },
+    "code_review": { "status": "completed", "artifact": "tmp/reviews/arc-1709300222000/TOME.md", "artifact_hash": null, "team_name": "review-arc-1709300222000-r1" },
+    "mend": { "status": "in_progress", "artifact": null, "artifact_hash": null, "team_name": "mend-arc-1709300222000" },
+    "verify_mend": { "status": "pending", "artifact": null, "artifact_hash": null, "team_name": null }
+  },
+  "convergence": {
+    "round": 1,
+    "max_rounds": 3,
+    "tier": { "name": "STANDARD", "maxCycles": 3 },
+    "history": [
+      { "round": 1, "p1_count": 3, "p2_count": 5, "action": "mend" }
+    ]
+  }
+}

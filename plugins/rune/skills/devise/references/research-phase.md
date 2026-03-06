@@ -182,6 +182,8 @@ All research agents (repo-surveyor, echo-reader, git-miner, practice-seeker, lor
 
 After local research completes, evaluate whether external research is needed.
 
+Phase 1B encompasses three sub-steps in order: (1) talisman bypass check, (2) URL sanitization with SSRF defense (see [URL Sanitization](#url-sanitization-ssrf-defense) below), and (3) risk + local sufficiency scoring. All three run before any external agent is spawned.
+
 ### Talisman Config Read
 
 ```javascript
