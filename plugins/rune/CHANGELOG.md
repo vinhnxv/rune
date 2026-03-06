@@ -41,7 +41,7 @@
 
 ### Added
 - **UX Design Intelligence** — Full UX review pipeline with greenfield/brownfield methodology
-  - **ux-design-process** skill — UX-aware planning with greenfield (8-step) and brownfield (6-step) methodologies, 6 reference files (aesthetic-direction, web-interface-rules, interaction-patterns, heuristic-checklist, ux-pattern-library, ux-scoring)
+  - **ux-design-process** skill — UX-aware planning with greenfield (8-step) and brownfield (6-step) methodologies, 8 reference files (aesthetic-direction, web-interface-rules, interaction-patterns, heuristic-checklist, ux-pattern-library, ux-scoring, greenfield-process, brownfield-process)
   - **ux-heuristic-reviewer** agent (UXH-) — Nielsen Norman 10 heuristics at code level, 50+ checklist items. Conditional: `ux.enabled` + frontend files
   - **ux-flow-validator** agent (UXF-) — User flow completeness: loading states, error boundaries, empty states, confirmation dialogs, undo, graceful degradation. Conditional: `ux.enabled` + frontend files
   - **ux-interaction-auditor** agent (UXI-) — Micro-interaction audit: hover/focus states, keyboard accessibility, touch targets (44px min), animation performance, prefers-reduced-motion. Conditional: `ux.enabled` + frontend files
