@@ -261,6 +261,16 @@ class FigmaIRNode:
     # Text auto-resize mode (WIDTH_AND_HEIGHT, HEIGHT, NONE, TRUNCATE)
     text_auto_resize: Optional[str] = None
 
+    # Stroke alignment (INSIDE, OUTSIDE, CENTER)
+    stroke_align: Optional[str] = None
+
+    # Constraint-based positioning
+    constraint_horizontal: Optional[str] = None
+    constraint_vertical: Optional[str] = None
+
+    # Vertical text alignment (TOP, CENTER, BOTTOM)
+    text_align_vertical: Optional[str] = None
+
     # Raw data for fallback
     raw: Optional[Dict[str, Any]] = field(default=None, repr=False)
 
@@ -687,6 +697,21 @@ def _build_ir_node(
         is_absolute_positioned=_is_absolute_positioned(pydantic_node),
         has_image_fill=has_image_fill, image_ref=image_ref,
         component_id=pydantic_node.component_id, raw=raw,
+        stroke_align=(
+            pydantic_node.stroke_align.value
+            if pydantic_node.stroke_align is not None
+            else None
+        ),
+        constraint_horizontal=(
+            pydantic_node.constraints.horizontal.value
+            if pydantic_node.constraints is not None
+            else None
+        ),
+        constraint_vertical=(
+            pydantic_node.constraints.vertical.value
+            if pydantic_node.constraints is not None
+            else None
+        ),
     )
 
 
@@ -946,6 +971,8 @@ def _apply_text_properties(ir_node: FigmaIRNode, text_node: TextNode) -> None:
     """
     ir_node.text_content = text_node.characters
     ir_node.text_style = text_node.style
+    if text_node.style and text_node.style.text_align_vertical is not None:
+        ir_node.text_align_vertical = text_node.style.text_align_vertical.value
     ir_node.text_segments = merge_text_segments(
         characters=text_node.characters,
         base_style=text_node.style,

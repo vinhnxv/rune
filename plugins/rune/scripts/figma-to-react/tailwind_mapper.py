@@ -459,6 +459,20 @@ class TailwindMapper:
             return self._map_border_radius(value)
         if prop == "box-shadow":
             return [self._map_shadow(value)]
+        if prop == "outline-width":
+            px = _parse_px(value)
+            if px is not None:
+                return [f"outline-{max(1, round(px))}"]
+            return []
+        if prop == "outline-color":
+            return [snap_color(value, "outline")]
+        if prop == "outline-style":
+            return [f"outline-{value}"]
+        if prop == "outline-offset":
+            px = _parse_px(value)
+            if px is not None:
+                return [f"outline-offset-[{value}]"]
+            return []
         return None
 
     def _map_dimension_property(self, prop: str, value: str) -> Optional[List[str]]:
@@ -512,6 +526,8 @@ class TailwindMapper:
             return [f"bg-{value}"]
         if prop == "background-position":
             return [f"bg-{value}"]
+        if prop == "background-repeat":
+            return [f"bg-{value}"]
         return None
 
     @staticmethod
@@ -547,6 +563,11 @@ class TailwindMapper:
 
         if "radial-gradient" in value:
             classes = ["bg-radial"]
+            classes.extend(self._extract_gradient_stops(value))
+            return classes
+
+        if "conic-gradient" in value:
+            classes = ["bg-conic"]
             classes.extend(self._extract_gradient_stops(value))
             return classes
 

@@ -129,6 +129,10 @@ def _generate_gradient_defs(node: FigmaIRNode, paint: Paint) -> str:
     if paint.type == PaintType.GRADIENT_RADIAL:
         return _build_radial_gradient_defs(safe_id, handles, width, height, stops_xml)
 
+    if paint.type in (PaintType.GRADIENT_ANGULAR, PaintType.GRADIENT_DIAMOND):
+        # SVG has no native conic gradient — approximate with radial gradient
+        return _build_radial_gradient_defs(safe_id, handles, width, height, stops_xml)
+
     return ""
 
 
@@ -151,7 +155,10 @@ def _resolve_svg_fill(node: FigmaIRNode) -> Tuple[str, str]:
             if fill.color:
                 return "", fill.color.to_hex()
 
-        if fill.type in (PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL):
+        if fill.type in (
+            PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL,
+            PaintType.GRADIENT_ANGULAR, PaintType.GRADIENT_DIAMOND,
+        ):
             defs_xml = _generate_gradient_defs(node, fill)
             if defs_xml:
                 safe_id = _sanitize_gradient_id(node.node_id)

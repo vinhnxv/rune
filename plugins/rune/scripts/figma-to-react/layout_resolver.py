@@ -176,6 +176,8 @@ def resolve_child_layout(
     # Absolute positioning overrides layout participation
     if child.is_absolute_positioned:
         classes.append("absolute")
+        # Constraint-based positioning for absolutely positioned children
+        _apply_constraint_classes(child, classes)
         return classes
 
     if not parent.has_auto_layout:
@@ -426,6 +428,51 @@ def _resolve_constraints(node: FigmaIRNode, result: LayoutClasses) -> None:
         result.container.append(f"min-h-{_px_to_spacing(node.min_height)}")
     if node.max_height is not None and node.max_height > 0:
         result.container.append(f"max-h-{_px_to_spacing(node.max_height)}")
+
+
+def _apply_constraint_classes(node: FigmaIRNode, classes: List[str]) -> None:
+    """Apply Tailwind position classes based on Figma constraint settings.
+
+    Maps Figma's constraint system to CSS inset properties:
+    - TOP/LEFT/MIN: pin to start edge (top-N / left-N)
+    - BOTTOM/RIGHT/MAX: pin to end edge (bottom-N / right-N)
+    - TOP_BOTTOM/LEFT_RIGHT/STRETCH: pin both edges (inset-y-0 / inset-x-0)
+    - CENTER/SCALE: center with translate
+
+    Args:
+        node: Absolutely-positioned IR node with constraint fields.
+        classes: List to append constraint classes to (mutated).
+    """
+    h = node.constraint_horizontal
+    v = node.constraint_vertical
+
+    # Vertical constraints
+    if v in ("TOP", "MIN"):
+        classes.append(f"top-{_px_to_spacing(node.y)}")
+    elif v in ("BOTTOM", "MAX"):
+        classes.append("bottom-0")
+    elif v in ("TOP_BOTTOM", "STRETCH"):
+        classes.append("inset-y-0")
+    elif v in ("CENTER", "SCALE"):
+        classes.append("top-1/2")
+        classes.append("-translate-y-1/2")
+    else:
+        # Default: use y position
+        classes.append(f"top-{_px_to_spacing(node.y)}")
+
+    # Horizontal constraints
+    if h in ("LEFT", "MIN"):
+        classes.append(f"left-{_px_to_spacing(node.x)}")
+    elif h in ("RIGHT", "MAX"):
+        classes.append("right-0")
+    elif h in ("LEFT_RIGHT", "STRETCH"):
+        classes.append("inset-x-0")
+    elif h in ("CENTER", "SCALE"):
+        classes.append("left-1/2")
+        classes.append("-translate-x-1/2")
+    else:
+        # Default: use x position
+        classes.append(f"left-{_px_to_spacing(node.x)}")
 
 
 def resolve_absolute_position(node: FigmaIRNode) -> List[str]:
