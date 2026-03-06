@@ -76,11 +76,12 @@ TASK_SUBJECT="${TASK_SUBJECT:0:256}"
 # BACK-012: Default empty subject
 [[ -z "$TASK_SUBJECT" ]] && TASK_SUBJECT="Task $TASK_ID"
 
-# Claude Code 2.1.69+: agent_type identifies the calling agent type (diagnostic/trace)
+# Claude Code 2.1.69+: agent_type/agent_id identify the calling agent (diagnostic/trace)
 AGENT_TYPE=$(printf '%s\n' "$INPUT" | jq -r '.agent_type // empty' 2>/dev/null || true)
+AGENT_ID=$(printf '%s\n' "$INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
 
 # Guard: skip non-team tasks (TodoWrite, etc. have no team_name)
-_trace "PARSED team=$TEAM_NAME task=$TASK_ID teammate=$TEAMMATE_NAME agent_type=$AGENT_TYPE"
+_trace "PARSED team=$TEAM_NAME task=$TASK_ID teammate=$TEAMMATE_NAME agent_type=$AGENT_TYPE agent_id=$AGENT_ID"
 if [[ -z "$TEAM_NAME" || -z "$TASK_ID" ]]; then
   _trace "SKIP empty team_name or task_id"
   exit 0

@@ -880,7 +880,7 @@ ${GIT_INSTRUCTIONS}
      [[ -d \"\$dir\" ]] || continue; [[ -L \"\$dir\" ]] && continue
      if [[ -n \"\$MY_SESSION\" ]] && [[ -f \"\$dir/.session\" ]]; then
        [[ -L \"\$dir/.session\" ]] && continue
-       owner=\$(head -c 256 \"\$dir/.session\" 2>/dev/null | tr -d '[:space:]' || true)
+       owner=\$(jq -r '.session_id // empty' \"\$dir/.session\" 2>/dev/null || true)
        [[ -n \"\$owner\" ]] && [[ \"\$owner\" != \"\$MY_SESSION\" ]] && continue
      fi
      tname=\$(basename \"\$dir\"); rm -rf \"\$CHOME/teams/\$tname\" \"\$CHOME/tasks/\$tname\" 2>/dev/null

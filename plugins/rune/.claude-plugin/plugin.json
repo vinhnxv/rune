@@ -1,6 +1,6 @@
 {
   "name": "rune",
-  "version": "1.139.1",
+  "version": "1.139.2",
   "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspect, test, and audit with Agent Teams. Includes 86 agent definitions (prompt templates — max 8 concurrent runtime agents via Agent Teams): 30 review, 5 research, 24 investigation, 16 utility, 6 work, 5 testing. 19 commands, 51 skills. Curated elicitation methods for structured reasoning. Stack-aware intelligence with 12 language/framework/pattern specialist prompt templates (loaded on-demand). Figma design sync with VSM-based fidelity scoring. Inscription Sharding for parallel large-diff review. Multi-language quality guidance (Python, TypeScript, Rust, PHP, Axum). Talisman configuration mastery with stack-aware scaffolding. Session self-learning with CLI correction and review recurrence detection. Standalone browser E2E testing with human gate handling and interactive failure recovery. UntitledUI official MCP integration with builder-protocol metadata. Resolve file-based TODOs with verify-before-fix pipeline. Team Management SDK for centralized agent team orchestration.",
   "author": {
     "name": "vinhnxv",
