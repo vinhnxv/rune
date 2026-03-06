@@ -299,10 +299,17 @@ See [phase6-cleanup.md](references/phase6-cleanup.md) for the full cleanup proto
 
 Plan file written to: `plans/YYYY-MM-DD-{type}-{feature-name}-plan.md`
 
+**Filename convention**: `plans/YYYY-MM-DD-{type}-{feature-name}-plan.md`
+
+**Type options**: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
+
 **Filename examples**:
 - `plans/2026-02-12-feat-user-authentication-plan.md`
 - `plans/2026-02-12-fix-checkout-race-condition-plan.md`
 - `plans/2026-02-12-refactor-api-client-plan.md`
+- `plans/2026-02-12-docs-api-reference-plan.md`
+- `plans/2026-02-12-test-auth-flow-plan.md`
+- `plans/2026-02-12-chore-deps-update-plan.md`
 
 After presenting the plan, offer next steps using AskUserQuestion:
 - `/rune:strive` → `Skill("rune:strive", plan_path)`

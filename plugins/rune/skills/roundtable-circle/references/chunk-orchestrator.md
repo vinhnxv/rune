@@ -27,9 +27,10 @@ This routing check lives in **review.md Phase 0** as a conditional branch — no
 
 ```javascript
 // Phase 0: Pre-flight + chunk decision (routing concern, not a new pipeline phase)
-const CHUNK_THRESHOLD   = config?.chunk_threshold   ?? 20
-const CHUNK_TARGET_SIZE = config?.chunk_target_size ?? 15
-const MAX_CHUNKS        = config?.max_chunks        ?? 5
+// CONFIGURATION DEFAULTS:
+const CHUNK_THRESHOLD   = config?.chunk_threshold   ?? 20  // Trigger: files > 20 → chunked
+const CHUNK_TARGET_SIZE = config?.chunk_target_size ?? 15  // Target files per chunk
+const MAX_CHUNKS        = config?.max_chunks        ?? 5   // Cap total chunks
 
 // SEC-001 FIX: Use object key lookup (flags['--key']) not array-style flags.includes()
 // Must match review.md's BACK-013 FIX pattern for consistent flags access

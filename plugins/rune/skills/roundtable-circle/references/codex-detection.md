@@ -55,10 +55,60 @@ Canonical detection logic for the Codex Oracle built-in Ash. Used by review, aud
    b. Log: "Codex Oracle: CLI detected and authenticated, adding cross-model reviewer"
 ```
 
-## Timeout Resolution
+## Execution
 
-```javascript
-// resolveCodexTimeouts(talisman) — resolve configurable timeouts from talisman.yml
+When Codex Oracle is selected, it executes via the `codex exec` command:
+
+```bash
+timeout {kill_after_flag} {codex_timeout} codex exec \
+  -m {codex_model} \
+  --config stream_idle_timeout_ms={stream_idle_ms} \
+  --full-auto \
+  --prompt-file {prompt_path} \
+  2>&1
+```
+
+**Key flags:**
+- `-m {codex_model}` — Model to use (from `talisman.codex.model`, default: `gpt-5.3-codex`)
+- `--full-auto` — Enable autonomous mode with tool access
+- `--config stream_idle_timeout_ms` — Timeout if no output received
+- `--prompt-file` — Path to the prompt file (generated from template)
+
+**Prompt template**: `roundtable-circle/references/ash-prompts/codex-oracle.md`
+- NOT `external-model-template.md` (that's for OTHER CLI-backed Ashes)
+- Codex Oracle has its own dedicated prompt with Codex-specific instructions
+
+## Hallucination Guard (4 Steps)
+
+The in-Ash Hallucination Guard runs inside the Codex Oracle agent itself (NOT at orchestrator level):
+
+```
+Step 0: Diff Relevance Check (review mode only)
+   - Filter findings about code that is NOT in the diff
+   - Mark as OUT_OF_SCOPE if the file/line is outside diff ranges
+   - Skip to next finding if OUT_OF_SCOPE
+
+Step 1: File Existence Verification
+   - Read the file referenced in the finding
+   - If file does NOT exist → mark as HALLUCINATED, exclude from output
+
+Step 2: Line Reference Validation
+   - Read code at the referenced line number (±2 lines for context)
+   - Compare finding's Rune Trace snippet against actual code
+   - Use fuzzy matching (threshold from talisman.codex.verification.fuzzy_match_threshold, default: 0.7)
+   - If code does NOT match → mark as UNVERIFIED, exclude from output
+
+Step 3: Semantic Check
+   - Verify the described issue actually applies to the code
+   - E.g., if finding claims "SQL injection", verify user input flows into query
+   - If semantic mismatch → mark as UNVERIFIED, include note in output
+```
+
+**Note**: Phase 5.5 Cross-Model Verification (at orchestrator level) runs AFTER the Hallucination Guard and performs additional validation against all Ash outputs. These are separate systems:
+- **Hallucination Guard**: In-Ash, runs during Codex execution
+- **Phase 5.5 Verification**: Orchestrator-level, runs after all Ashes complete
+
+## Timeout Resolution
 // Returns { timeout, streamIdleTimeout, streamIdleMs, killAfterFlag }
 // Security pattern: CODEX_TIMEOUT_ALLOWLIST — see security-patterns.md
 function resolveCodexTimeouts(talisman) {
