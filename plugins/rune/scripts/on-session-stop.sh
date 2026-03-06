@@ -104,9 +104,8 @@ _check_loop_ownership() {
     return 1
   fi
   # Check PID (EPERM-safe: rune_pid_alive from resolve-session-identity.sh)
-  # VEIL-006 NOTE: $PPID in hook context is the hook runner's PID, not the Claude
-  # Code main process. This comparison is best-effort — CLAUDE_SESSION_ID would be
-  # more reliable but is not available in the shell environment of hook scripts.
+  # $PPID is the Claude Code process PID — consistent between skills (Bash('echo $PPID'))
+  # and hooks ($PPID directly). Verified via arc-batch iteration 1 (PR #230).
   if [[ -n "$pid" && "$pid" =~ ^[0-9]+$ && "$pid" != "$PPID" ]]; then
     if rune_pid_alive "$pid"; then
       return 1

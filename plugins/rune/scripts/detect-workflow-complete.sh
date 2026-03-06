@@ -64,6 +64,19 @@ else
   rune_pid_alive() { kill -0 "$1" 2>/dev/null; }
 fi
 
+# Source frontmatter utils for loop file ownership checks
+if [[ -f "${SCRIPT_DIR}/lib/frontmatter-utils.sh" ]]; then
+  # shellcheck source=lib/frontmatter-utils.sh
+  source "${SCRIPT_DIR}/lib/frontmatter-utils.sh"
+else
+  # Fallback: inline _get_fm_field
+  _get_fm_field() {
+    local fm="$1" field="$2"
+    [[ "$field" =~ ^[a-zA-Z_]+$ ]] || return 1
+    printf '%s\n' "$fm" | grep "^${field}:" | sed "s/^${field}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true
+  }
+fi
+
 # Inline _trace (QUAL-007: each hook defines its own — no shared trace-logger.sh exists)
 # SEC-004 FIX: Use O_NOFOLLOW-equivalent guard — reject symlinked log paths
 # SEC-003 NOTE: RUNE_TRACE=1 logs team names, file paths, and state file contents.
@@ -84,16 +97,38 @@ if [[ ${#STATE_FILES[@]} -eq 0 ]]; then
   exit 0
 fi
 
-# ── GUARD 2: Defer to arc loop hooks ──
+# ── GUARD 2: Defer to arc loop hooks — NOW session-scoped ──
 # REC-1 FIX: Loop files live at ${CWD}/.claude/, NOT ${CHOME}/
-# If any arc loop is active, this hook must NOT interfere — the loop hooks handle transitions.
+# If OUR session's arc loop is active, this hook must NOT interfere — the loop hooks handle transitions.
+# Other sessions' loop files are skipped so their cleanup hooks can run independently.
 for loop_file in \
   "${CWD}/.claude/arc-phase-loop.local.md" \
   "${CWD}/.claude/arc-batch-loop.local.md" \
   "${CWD}/.claude/arc-hierarchy-loop.local.md" \
   "${CWD}/.claude/arc-issues-loop.local.md"; do
-  if [[ -f "$loop_file" ]]; then
-    # Check staleness — only defer if loop file is fresh enough.
+  if [[ -f "$loop_file" ]] && [[ ! -L "$loop_file" ]]; then
+    # Session ownership check: only defer for OUR loop files
+    _loop_fm=$(sed -n '/^---$/,/^---$/p' "$loop_file" 2>/dev/null | sed '1d;$d')
+    _loop_cfg=$(_get_fm_field "$_loop_fm" "config_dir")
+    _loop_pid=$(_get_fm_field "$_loop_fm" "owner_pid")
+
+    # Skip loop files from different installations
+    if [[ -n "$_loop_cfg" && "$_loop_cfg" != "$RUNE_CURRENT_CFG" ]]; then
+      _trace "SKIP loop file $(basename "$loop_file"): config_dir mismatch"
+      continue
+    fi
+    # Skip loop files from other live sessions
+    if [[ -n "$_loop_pid" && "$_loop_pid" =~ ^[0-9]+$ && "$_loop_pid" != "$PPID" ]]; then
+      if rune_pid_alive "$_loop_pid"; then
+        _trace "SKIP loop file $(basename "$loop_file"): belongs to live session PID=$_loop_pid"
+        continue
+      fi
+      # Owner dead → orphaned loop file, don't defer — let cleanup proceed
+      _trace "ORPHAN loop file $(basename "$loop_file"): owner PID=$_loop_pid dead"
+      continue
+    fi
+
+    # OUR loop file — check freshness and defer
     # v1.125.1 FIX: Increased from 30 min to 150 min. Phase loop files stay
     # untouched during long phases (work=35m, test+E2E=50m). Batch/hierarchy/issues
     # loop files stay untouched for entire arc runs (30-90m). Must match
@@ -110,7 +145,7 @@ for loop_file in \
     fi
     age_min=$(( ($HOOK_START_TIME - _loop_mtime) / 60 ))
     if [[ $age_min -lt 150 ]]; then
-      _trace "DEFER: active loop file $(basename "$loop_file") (${age_min}m old)"
+      _trace "DEFER: OUR active loop file $(basename "$loop_file") (${age_min}m old)"
       exit 0
     fi
   fi

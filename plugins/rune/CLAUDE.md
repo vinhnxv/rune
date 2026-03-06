@@ -109,6 +109,8 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 11. **Session isolation** (CRITICAL): All workflow state files (`tmp/.rune-*.json`) and arc checkpoints (`.claude/arc/*/checkpoint.json`) MUST include `config_dir` and `owner_pid` for cross-session safety. Different sessions MUST NOT interfere with each other.
     - State file creation: Always include `config_dir`, `owner_pid`, `session_id`
     - Hook scripts: Always filter by ownership before acting on state files
+    - `$PPID` is consistent between skills (`Bash('echo $PPID')`) and hooks (direct `$PPID`) — verified via arc-batch (PR #230)
+    - **Cross-session concurrency**: Multiple sessions can run workflows simultaneously. Supported combinations: reader + writer (e.g., audit while arc runs), planner + writer (e.g., devise while arc runs), reader + reader (e.g., two reviews). Writer + writer conflicts are correctly blocked. Each session has its own team (one-team-per-session SDK constraint). Hook scripts (`detect-workflow-complete.sh`, `on-session-stop.sh`) scope cleanup to their own session via `config_dir` + `owner_pid` matching.
 12. **Iron Law TEAM-001**: Every Agent() call in a Rune workflow MUST include `team_name`. Use `TeamEngine.ensureTeam()` for idempotent team creation. See team-sdk SKILL.md.
     - Cancel commands: Warn if cancelling another session's workflow
     - Pattern: `resolve-session-identity.sh` provides `RUNE_CURRENT_CFG`; `$PPID` = Claude Code PID

@@ -105,6 +105,9 @@ const sessionId = "${CLAUDE_SESSION_ID}"  // Standalone variable for use in stat
 const lockConflicts = Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_check_conflicts "reader"`)
 if (lockConflicts.includes("CONFLICT")) {
   AskUserQuestion({ question: `Active workflow conflict:\n${lockConflicts}\nProceed anyway?` })
+} else if (lockConflicts.includes("ADVISORY")) {
+  // Cross-session concurrency: inform that other workflows are running but won't interfere
+  log(`Other workflow(s) detected in separate session(s):\n${lockConflicts}\nCross-session concurrency is supported — proceeding normally.`)
 }
 Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_acquire_lock "audit" "reader"`)
 ```

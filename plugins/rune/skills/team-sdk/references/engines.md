@@ -31,23 +31,44 @@ function createTeam(config) {
     throw new Error(`Invalid team name: ${teamName}`)
   }
 
-  // --- STEP 2: TeamDelete with retry-with-backoff (3 attempts: 0s, 3s, 8s) ---
-  // Rationale: Members need time to finish current tool call and approve shutdown.
-  // 3s covers most cases; 8s covers complex file writes. Total max 11s wait.
+  // --- STEP 1.5: Quick probe — single TeamDelete to detect state ---
+  // For fresh sessions with no existing team, this avoids 3 failed retries (~11s latency).
+  // The SDK throws specific errors: "not leading" when no team exists vs
+  // "members still active" when cleanup is needed.
   let teamDeleteSucceeded = false
-  const RETRY_DELAYS = config.retryDelays ?? [0, 3000, 8000]  // Faster cadence than shutdown() [0,5s,10s] — pre-create recovery prioritizes speed
-  for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
-    if (attempt > 0) {
-      warn(`teamTransition: TeamDelete attempt ${attempt + 1} failed, retrying in ${RETRY_DELAYS[attempt]/1000}s...`)
-      Bash(`sleep ${RETRY_DELAYS[attempt] / 1000}`)
+  let needsRetry = false
+  try {
+    TeamDelete()
+    teamDeleteSucceeded = true  // Succeeded on first try — team existed and was cleaned
+  } catch (probeError) {
+    if (/not leading|no team/i.test(probeError.message)) {
+      // No team to clean — skip remaining retries entirely
+      needsRetry = false
+    } else if (/members|active/i.test(probeError.message)) {
+      // Team exists but has active members — need retry with backoff
+      needsRetry = true
+    } else {
+      // Unknown error — conservative: proceed with retry
+      needsRetry = true
     }
-    try {
-      TeamDelete()
-      teamDeleteSucceeded = true
-      break
-    } catch (e) {
-      if (attempt === RETRY_DELAYS.length - 1) {
-        warn(`teamTransition: TeamDelete failed after ${RETRY_DELAYS.length} attempts. Using filesystem fallback.`)
+  }
+
+  // --- STEP 2: TeamDelete with retry-with-backoff (ONLY if probe indicated need) ---
+  // Rationale: Members need time to finish current tool call and approve shutdown.
+  // 3s covers most cases; 8s covers complex file writes.
+  if (!teamDeleteSucceeded && needsRetry) {
+    const RETRY_DELAYS = config.retryDelays ?? [3000, 8000]  // Skip first 0s delay (already done in probe)
+    for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
+      warn(`teamTransition: TeamDelete retry ${attempt + 1}, waiting ${RETRY_DELAYS[attempt]/1000}s...`)
+      Bash(`sleep ${RETRY_DELAYS[attempt] / 1000}`)
+      try {
+        TeamDelete()
+        teamDeleteSucceeded = true
+        break
+      } catch (e) {
+        if (attempt === RETRY_DELAYS.length - 1) {
+          warn(`teamTransition: TeamDelete failed after retries. Using filesystem fallback.`)
+        }
       }
     }
   }
