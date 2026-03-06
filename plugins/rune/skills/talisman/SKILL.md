@@ -77,96 +77,11 @@ Parse `$ARGUMENTS` to determine subcommand:
    → If not: create it
 ```
 
-### Phase 2: Detect Project Stack
+### Phases 2-5: Stack Detection, Template Read, Generate, Write
 
-Scan project root for stack signals:
+Detects project stack from manifest files (10 languages + CI/Docker/ORM signals), reads canonical `talisman.example.yml`, generates stack-customized talisman with core + optional sections, detects MCP integrations from `.mcp.json`, writes to `.claude/talisman.yml`, and shows summary with next steps.
 
-```
-Signal Detection:
-  - package.json → Node.js/TypeScript (check for tsx/ts in dependencies)
-  - requirements.txt / pyproject.toml / setup.py → Python
-  - Cargo.toml → Rust
-  - composer.json → PHP (check for laravel/framework)
-  - go.mod → Go
-  - Gemfile → Ruby
-  - pom.xml / build.gradle → Java/Kotlin
-  - .csproj → C#/.NET
-  - Makefile / CMakeLists.txt → C/C++
-  - mix.exs → Elixir
-
-Also detect:
-  - .github/workflows/ → CI/CD present
-  - docker-compose.yml / Dockerfile → Docker present
-  - prisma/ → Prisma ORM
-  - alembic/ → Alembic migrations
-  - db/migrate/ → Rails migrations
-```
-
-### Phase 3: Read Example Template
-
-```
-Read the canonical example:
-  Read("${CLAUDE_PLUGIN_ROOT}/talisman.example.yml")
-
-This is the SINGLE SOURCE OF TRUTH for all talisman keys.
-```
-
-### Phase 4: Generate Project Talisman
-
-Based on detected stack, customize the template:
-
-**Core sections (always include):**
-- `version: 1`
-- `rune-gaze:` — with stack-appropriate extensions
-- `settings:` — with dedup_hierarchy including stack prefixes
-- `codex:` — with workflows including arc
-- `review:` — diff_scope + convergence + sharding
-- `work:` — ward commands from detected stack
-- `arc:` — defaults + ship + timeouts
-- `file_todos:` — schema v2 (triage, manifest, history)
-
-**Stack-specific customization:**
-
-| Stack | `backend_extensions` | `ward_commands` | `dedup_hierarchy` additions |
-|-------|---------------------|-----------------|----------------------------|
-| Python | `.py` | `make check`, `pytest` | PY, FAPI/DJG (if detected) |
-| TypeScript | `.ts`, `.tsx` | `npm test`, `npm run lint` | TSR |
-| Rust | `.rs` | `cargo test`, `cargo clippy` | RST |
-| PHP | `.php` | `composer test` | PHP, LARV (if Laravel) |
-| Go | `.go` | `go test ./...`, `go vet ./...` | — |
-| Ruby | `.rb` | `bundle exec rspec` | — |
-
-**Optional sections (include if relevant):**
-- `ashes.custom:` — only if user has `.claude/agents/` with custom agents
-- `audit:` — for projects with large codebases
-- `testing:` — if test framework detected
-- `context_monitor:` / `context_weaving:` — always include defaults
-- `integrations:` — if `.mcp.json` contains custom MCP servers (not built-in like context7)
-
-**MCP Integration Detection (Phase 2.5):**
-```
-If .mcp.json exists:
-  Parse server names from .mcp.json
-  Filter out built-in servers: sequential-thinking, context7, echo-search, figma-to-react
-  If custom servers remain:
-    Include integrations.mcp_tools scaffold with one entry per custom server
-    Pre-fill server_name, empty tools[], default phases (devise+strive+forge=true)
-    Add trigger.always: false with TODO comment for user to configure
-```
-
-### Phase 5: Write and Confirm
-
-```
-1. Write to .claude/talisman.yml
-2. Show summary of what was generated:
-   - Detected stack
-   - Sections included
-   - Key customizations made
-3. Suggest next steps:
-   - "Review the generated file"
-   - "Run /rune:talisman audit to verify completeness"
-   - "Customize further with /rune:talisman guide [section]"
-```
+See [init-protocol.md](references/init-protocol.md) for the full Phase 2-5 pseudocode (stack signals, customization table, MCP detection).
 
 ## AUDIT — Compare Against Template
 
@@ -178,64 +93,11 @@ If .mcp.json exists:
 2. Read example template: ${CLAUDE_PLUGIN_ROOT}/talisman.example.yml
 ```
 
-### Phase 2: Deep Comparison
+### Phases 2-4: Deep Comparison, Integration Validation, Gap Report
 
-For each top-level section in the example:
+Classifies each section as MISSING/OUTDATED/PARTIAL/DIVERGENT/OK. Validates MCP integration entries (6 checks: server existence, tool categories, phase keys, skill bindings, rule files, trigger configuration). Presents gaps in priority order (CRITICAL → RECOMMENDED → OPTIONAL → DIVERGENT) with suggested actions.
 
-```
-Categories:
-  MISSING   — Section exists in example but not in project
-  OUTDATED  — Section exists but has deprecated/removed keys
-  PARTIAL   — Section exists but missing sub-keys
-  DIVERGENT — Value differs significantly from example default
-  OK        — Section present and up-to-date
-```
-
-### Phase 2.5: Integration Validation
-
-If `integrations.mcp_tools` section exists, validate each entry:
-
-```
-For each integrations.mcp_tools.{namespace}:
-  1. server_name → check exists as key in .mcp.json
-     MISSING: "Server '{server_name}' not found in .mcp.json"
-  2. tools[].category → validate each is one of:
-     search, details, compose, suggest, generate, validate
-     INVALID: "Unknown tool category '{cat}' for tool '{name}'"
-  3. phases → validate keys are valid Rune phases:
-     devise, strive, forge, appraise, audit, arc
-     INVALID: "Unknown phase '{phase}' in {namespace}.phases"
-  4. skill_binding → check .claude/skills/{skill_binding}/SKILL.md exists
-     MISSING: "Companion skill '{skill_binding}' not found"
-  5. rules[] → check each file path exists
-     MISSING: "Rule file '{path}' not found"
-  6. trigger → warn if all trigger conditions are empty AND always !== true
-     WARNING: "No triggers configured — integration will never activate"
-```
-
-### Phase 3: Gap Report
-
-Present findings in priority order:
-
-```
-1. CRITICAL gaps — missing sections that affect core functionality
-   (codex.workflows missing entries, deprecated file_todos keys, etc.)
-2. RECOMMENDED — sections that improve workflow quality
-   (missing codex deep integration keys, missing arc timeouts, etc.)
-3. OPTIONAL — nice-to-have sections
-   (context_monitor, horizon, etc.)
-4. DIVERGENT — intentional? values that differ from defaults
-   (max_budget, max_turns, etc.)
-```
-
-### Phase 4: Suggest Actions
-
-```
-For each gap:
-  - Show the example value
-  - Explain why it matters
-  - Offer to fix via UPDATE subcommand
-```
+See [audit-protocol.md](references/audit-protocol.md) for the full comparison and gap report pseudocode.
 
 ## UPDATE — Add Missing Sections
 

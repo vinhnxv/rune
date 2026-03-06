@@ -69,171 +69,27 @@ For full prompt templates, focus mode, --max-agents redistribution, and --fix ga
 
 ## Phase 0: Pre-flight
 
-### Step 0.1 — Parse Input
+Parses input (file path or inline description), validates with SEC-003 path guard, reads talisman config with runtime clamping (RUIN-001), and generates a base-36 identifier.
 
-```
-input = $ARGUMENTS
-
-if (input matches /\.(md|txt)$/):
-  // SEC-003: Validate plan path BEFORE filesystem access
-  // SEC-001 FIX: Regex guard must run before fileExists() to prevent information oracle
-  if (!/^[a-zA-Z0-9._\/-]+$/.test(input) || input.includes('..')):
-    error("Invalid plan path: contains unsafe characters or path traversal")
-  if (!fileExists(input)):
-    error("Plan file not found: " + input)
-  planPath = input
-  planContent = Read(planPath)
-  mode = "file"
-else:
-  planContent = input
-  planPath = null
-  mode = "inline"
-
-if (!planContent || planContent.trim().length < 10):
-  error("Plan is empty or too short.")
-
-// Parse inspect mode flag
-const inspectMode = flag("--mode") ?? "implementation"
-// SEC: validate against fixed allowlist
-if (!["implementation", "plan"].includes(inspectMode)):
-  error("Unknown --mode value. Valid: implementation, plan")
-```
-
-### Step 0.2 — Read Talisman Config
-
-```javascript
-// readTalismanSection: "inspect"
-const inspectConfig = readTalismanSection("inspect")
-
-// RUIN-001 FIX: Runtime clamping prevents misconfiguration-based DoS/bypass
-maxInspectors = Math.max(1, Math.min(4, flag("--max-agents") ?? inspectConfig.max_inspectors ?? 4))
-timeout = Math.max(60_000, Math.min(inspectConfig.timeout ?? 720_000, 3_600_000))
-completionThreshold = Math.max(0, Math.min(100, flag("--threshold") ?? inspectConfig.completion_threshold ?? 80))
-gapThreshold = Math.max(0, Math.min(100, inspectConfig.gap_threshold ?? 20))
-```
-
-### Step 0.3 — Generate Identifier
-
-```javascript
-identifier = Date.now().toString(36)  // e.g., "lz5k8m2"
-if (!/^[a-zA-Z0-9_-]+$/.test(identifier)):
-  error("Invalid identifier generated")
-outputDir = `tmp/inspect/${identifier}`
-```
+See [phase-0-preflight.md](references/phase-0-preflight.md) for the full pseudocode (Steps 0.1–0.3).
 
 ## Phase 0.5: Classification
 
-### Step 0.5.1 — Extract Requirements
+Extracts requirements from plan using [plan-parser.md](../roundtable-circle/references/plan-parser.md) algorithm, assigns to inspectors via keyword classification, applies `--focus` and `--max-agents` redistribution.
 
-Follow the algorithm in [plan-parser.md](../roundtable-circle/references/plan-parser.md):
-
-1. Parse YAML frontmatter (if present)
-2. Extract requirements from explicit sections (Requirements, Deliverables, Tasks)
-3. Extract requirements from implementation sections (Files to Create/Modify)
-4. Fallback: extract action sentences from full text
-5. Extract plan identifiers (file paths, code names, config keys)
-
-```javascript
-parsedPlan = parsePlan(planContent)
-requirements = parsedPlan.requirements
-identifiers = parsedPlan.identifiers
-
-if (requirements.length === 0):
-  error("No requirements could be extracted from the plan.")
-
-// Plan mode: additionally extract code blocks as reviewable artifacts
-if (inspectMode === "plan"):
-  // Extract up to 20 code blocks, each capped at 1500 chars
-```
-
-### Steps 0.5.2–0.5.4 — Assign, Focus, Limit
-
-1. **Assign** requirements to inspectors via keyword-based classification (plan-parser.md Step 5)
-2. **Apply `--focus`**: redirect all requirements to a single inspector
-3. **Apply `--max-agents`**: redistribute cut-inspector requirements to grace-warden
-
-See [inspector-prompts.md](references/inspector-prompts.md) for step-by-step logic.
+See [phase-0-preflight.md](references/phase-0-preflight.md) for Steps 0.5.1–0.5.4. See [inspector-prompts.md](references/inspector-prompts.md) for assignment logic.
 
 ## Phase 1: Scope
 
-### Step 1.1 — Identify Relevant Codebase Files
+Identifies relevant codebase files by type (file → Glob, code → Grep, config → Grep with glob filter), deduplicates, caps at 120 files. In `--dry-run`, displays scope + assignments and stops.
 
-```javascript
-scopeFiles = []
-
-for (const id of identifiers):
-  if (id.type === "file"):
-    matches = Glob(id.value)
-    scopeFiles.push(...matches)
-  elif (id.type === "code"):
-    matches = Grep(id.value, { output_mode: "files_with_matches", head_limit: 10 })
-    scopeFiles.push(...matches)
-  elif (id.type === "config"):
-    matches = Grep(id.value, { glob: "*.{yml,yaml,json,toml,env}", output_mode: "files_with_matches", head_limit: 5 })
-    scopeFiles.push(...matches)
-
-// Deduplicate
-scopeFiles = [...new Set(scopeFiles)]
-
-// Plan mode: plan file is primary scope; only keep existing files
-if (inspectMode === "plan" && planPath):
-  scopeFiles = scopeFiles.filter(f => f === planPath || exists(f))
-
-// Cap at 120 files (30 per inspector max)
-if (scopeFiles.length > 120):
-  scopeFiles = scopeFiles.slice(0, 120)
-```
-
-### Step 1.2 — Dry-Run Output
-
-If `--dry-run`, display scope + assignments and stop. No teams, tasks, or agents created.
+See [phase-1-scope.md](references/phase-1-scope.md) for the full scope resolution code and dry-run output.
 
 ## Phase 1.3: Lore Layer (Risk Intelligence)
 
-Runs AFTER scope is known (Phase 1) but BEFORE team creation (Phase 2). Discovers existing risk-map or spawns `lore-analyst` as a bare Agent (no team yet — ATE-1 exemption). Re-sorts `scopeFiles` by risk tier and enriches requirement classification.
+Runs AFTER scope (Phase 1), BEFORE team creation (Phase 2). Discovers existing risk-map or spawns `lore-analyst`. Re-sorts `scopeFiles` by risk tier and enriches requirement classification.
 
-See [data-discovery.md](../goldmask/references/data-discovery.md) for the discovery protocol and [risk-context-template.md](../goldmask/references/risk-context-template.md) for prompt injection format.
-
-### Skip Conditions
-
-| Condition | Effect |
-|-----------|--------|
-| `talisman.goldmask.enabled === false` | Skip Phase 1.3 entirely |
-| `talisman.goldmask.inspect.enabled === false` | Skip Phase 1.3 entirely |
-| `talisman.goldmask.layers.lore.enabled === false` | Skip Phase 1.3 entirely |
-| `--no-lore` flag | Skip Phase 1.3 entirely |
-| Non-git repo | Skip Phase 1.3 |
-| < 5 commits in lookback window (G5 guard) | Skip Phase 1.3 |
-| `talisman.goldmask.inspect.wisdom_passthrough === false` | Skip wisdom injection in Phase 3 only |
-| Existing risk-map found (>= 30% scope overlap) | Reuse instead of spawning agent |
-
-### Steps 1.3.1–1.3.2 — Skip Gate, Discovery, and Spawning
-
-See [lore-layer-integration.md](../goldmask/references/lore-layer-integration.md) for the shared skip gate, data discovery, lore-analyst spawning, and polling timeout protocol.
-
-**inspect-specific**: Also loads wisdom data for Phase 3 injection when `config.goldmask.inspect.wisdom_passthrough !== false`.
-
-**Output**: `tmp/inspect/{identifier}/risk-map.json` + `tmp/inspect/{identifier}/lore-analysis.md`
-
-### Step 1.3.3 — Risk-Weighted Scope Sorting and Requirement Enhancement
-
-See [risk-tier-sorting.md](../goldmask/references/risk-tier-sorting.md) for the shared tier enumeration, `getMaxRiskTier` helper, and sorting algorithm.
-
-**inspect-specific dual-inspector gate**: When a requirement touches CRITICAL-tier files AND the plan has security-sensitive sections (or `inspectConfig.dual_inspector_gate` is enabled), assign both `grace-warden` AND `ruin-prophet` to the requirement:
-
-```javascript
-if (maxRiskTier === 'CRITICAL') {
-  req.inspectionPriority = 'HIGH'
-  req.riskNote = "Touches CRITICAL-tier files — requires thorough inspection"
-  const hasSecurity = requirements.some(r => /security|auth|crypt|token|inject|xss|sqli/i.test(r.text))
-  const dualGateEnabled = inspectConfig.dual_inspector_gate ?? hasSecurity
-  if (dualGateEnabled) {
-    req.assignedInspectors = ['grace-warden', 'ruin-prophet']
-  }
-} else if (maxRiskTier === 'HIGH') {
-  req.inspectionPriority = 'ELEVATED'
-}
-```
+See [phase-1-scope.md](references/phase-1-scope.md) for skip conditions, discovery steps, and the dual-inspector gate. See [lore-layer-integration.md](../goldmask/references/lore-layer-integration.md) for the shared protocol and [risk-tier-sorting.md](../goldmask/references/risk-tier-sorting.md) for sorting.
 
 ## Phase 1.5: Codex Drift Detection (v1.51.0)
 
@@ -245,49 +101,9 @@ See [codex-drift-detection.md](references/codex-drift-detection.md) for the full
 
 ## Phase 2: Forge Team
 
-```javascript
-// Step 2.1 — Write state file with session isolation fields
-const configDir = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
-const ownerPid = Bash(`echo $PPID`).trim()
-Write(`tmp/.rune-inspect-${identifier}.json`, JSON.stringify({
-  status: "active", identifier, mode: inspectMode, plan_path: planPath,
-  output_dir: outputDir, started: new Date().toISOString(),
-  config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}",
-  inspectors: Object.keys(inspectorAssignments),
-  requirement_count: requirements.length
-}))
+Writes state file (with session isolation: `config_dir`, `owner_pid`, `session_id`), creates output directory + inscription.json, acquires workflow lock (reader), runs pre-create guard (teamTransition), TeamCreate + signal directory, creates tasks per inspector + aggregator.
 
-// Step 2.2 — Create output directory
-Bash(`mkdir -p "tmp/inspect/${identifier}"`)
-
-// Step 2.3 — Write inscription.json (output contract)
-// Includes context budgets: grace-warden=40, ruin-prophet=30, sight-oracle=35, vigil-keeper=30
-// instruction_anchoring: true, reanchor_interval: 5
-
-// Step 2.3.5 — Workflow lock (reader)
-const lockConflicts = Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_check_conflicts "reader"`)
-if (lockConflicts.includes("CONFLICT")) {
-  AskUserQuestion({ question: `Active workflow conflict:\n${lockConflicts}\nProceed anyway?` })
-}
-Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_acquire_lock "inspect" "reader"`)
-
-// Step 2.4 — Pre-create guard (teamTransition pattern)
-//   Step A: TeamDelete with retry-with-backoff (3 attempts: 0s, 3s, 8s)
-//   Step B: Filesystem fallback if Step A failed (CDX-003 gate: !teamDeleteSucceeded)
-//   Step C: Cross-workflow scan (stale inspect teams only — mmin +30)
-const teamName = `rune-inspect-${identifier}`
-// Validate: /^[a-zA-Z0-9_-]+$/ before any rm -rf
-
-// Step 2.5 — Create team and signal dir
-TeamCreate({ team_name: teamName })
-// SEC-003: .readonly-active NOT created for inspect — inspectors need Write for output files
-const signalDir = `tmp/.rune-signals/${teamName}`
-Bash(`mkdir -p "${signalDir}"`)
-Write(`${signalDir}/.expected`, String(Object.keys(inspectorAssignments).length))
-
-// Step 2.6 — Create tasks (one per inspector + aggregator)
-// Aggregator task blocked by all inspector tasks
-```
+See [phase-2-forge-team.md](references/phase-2-forge-team.md) for the full pseudocode (Steps 2.1–2.6).
 
 ## Phase 3: Summon Inspectors
 
@@ -305,18 +121,7 @@ If `riskMap` is available from Phase 1.3, inject risk context (file tiers, wisdo
 
 ## Phase 4: Monitor
 
-```
-POLL_INTERVAL = 30 seconds
-maxIterations = ceil(timeout / 30_000)  // e.g., 24 for 12 min
-staleCount: 3 consecutive no-progress polls → "Inspection appears stalled" warning
-
-for (let i = 0; i < maxIterations; i++):
-  1. Call TaskList                       ← MANDATORY every cycle
-  2. Count completed vs totalTasks
-  3. If completed === totalTasks → break
-  4. Stale detection: 3 consecutive no-progress → break with warning
-  5. Bash("sleep 30")
-```
+Poll TaskList every 30s with stale detection (3 consecutive no-progress → break with warning). See [monitor-utility.md](../roundtable-circle/references/monitor-utility.md) for the shared polling utility.
 
 ## Phase 5 + Phase 6: Verdict
 
