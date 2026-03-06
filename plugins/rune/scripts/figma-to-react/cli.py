@@ -28,6 +28,7 @@ import re
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 # Import bootstrap — same pattern as tests/conftest.py.
 # The directory is named "figma-to-react" (hyphenated — invalid Python package).

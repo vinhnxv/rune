@@ -64,7 +64,7 @@ fi
 # SEC-004 NOTE: Bridge path is predictable (/tmp/rune-ctx-{SESSION_ID}.json).
 # Mitigated by: (1) symlink guard below, (2) UID ownership check (EC-H5),
 # (3) bridge freshness check (30s staleness), (4) umask 077 on writer.
-BRIDGE_FILE="/tmp/rune-ctx-${SESSION_ID}.json"
+BRIDGE_FILE="${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}.json"
 
 # Bridge must exist
 [[ -f "$BRIDGE_FILE" ]] || exit 0
@@ -147,6 +147,7 @@ WARNING_THRESHOLD=35
 if [[ "$REM_INT" -le "$WARNING_THRESHOLD" && "$REM_INT" -gt "$CRITICAL_THRESHOLD" ]]; then
   # Detect current workflow from state files (explicit paths — Concern C3)
   WORKFLOW="unknown"
+  shopt -s nullglob
   for sf in \
     "$CWD/tmp/.rune-review-"*.json \
     "$CWD/tmp/.rune-audit-"*.json \
@@ -172,6 +173,7 @@ if [[ "$REM_INT" -le "$WARNING_THRESHOLD" && "$REM_INT" -gt "$CRITICAL_THRESHOLD
     WORKFLOW=$(jq -r '.workflow // "unknown"' < "$sf" 2>/dev/null || echo "unknown")
     break
   done
+  shopt -u nullglob
 
   SUGGESTION=""
   case "$WORKFLOW" in

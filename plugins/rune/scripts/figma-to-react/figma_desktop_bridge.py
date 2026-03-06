@@ -24,6 +24,15 @@ import logging
 import xml.etree.ElementTree as ET
 from typing import Any, Optional
 
+try:
+    import defusedxml.ElementTree as SafeET
+except ImportError:
+    SafeET = ET  # type: ignore[misc]  # Fallback to stdlib if defusedxml not installed
+    logging.getLogger(__name__).warning(
+        "defusedxml not installed — XML parsing lacks XXE protection. "
+        "Install with: pip install defusedxml>=0.7.1"
+    )
+
 import httpx
 
 from figma_client import (
@@ -480,7 +489,7 @@ class DesktopMCPBridge:
         """
         if len(xml_text) > 10_000_000:
             raise ValueError("XML response too large (>10MB)")
-        root = ET.fromstring(xml_text)
+        root = SafeET.fromstring(xml_text)
 
         file_key = root.get("file_key", "")
         file_name = root.get("file_name", "unknown")

@@ -37,7 +37,7 @@ _trace "PARSED model=$MODEL used=$USED remaining=$REMAINING"
 
 # --- Bridge file write (best-effort, never crash statusline) ---
 if [[ -n "$SESSION_ID" && -n "$REMAINING" ]]; then
-  BRIDGE_FILE="/tmp/rune-ctx-${SESSION_ID}.json"
+  BRIDGE_FILE="${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}.json"
   # Validate session_id characters (prevent path traversal)
   if [[ "$SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     # SB-SEC-004: Symlink guard before write
