@@ -107,7 +107,7 @@ function postPhaseCleanup(checkpoint, phaseName) {
         // .session contains session_id (written by stamp-team-session.sh TLC-004)
         // If session_id differs from ours, skip — belongs to another session
         // (EC-1/EC-2: CRITICAL — must not delete concurrent session's teams)
-        const sessionCheck = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && test -f "$CHOME/teams/${orphanName}/.session" && cat "$CHOME/teams/${orphanName}/.session" 2>/dev/null`).trim()
+        const sessionCheck = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && jq -r '.session_id // empty' "$CHOME/teams/${orphanName}/.session" 2>/dev/null`).trim()
         const arcSessionId = Bash(`echo "$CLAUDE_SESSION_ID"`).trim()
         if (!sessionCheck || sessionCheck !== arcSessionId) {
           warn(`postPhaseCleanup: Skipping ${orphanName} — no session marker or belongs to another session`)

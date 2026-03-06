@@ -77,9 +77,10 @@ if [[ "$TOOL_NAME" != "Task" && "$TOOL_NAME" != "Agent" ]]; then
   exit 0
 fi
 
-# Claude Code 2.1.69+: agent_type identifies the calling agent (diagnostic/trace).
+# Claude Code 2.1.69+: agent_type/agent_id identify the calling agent (diagnostic/trace).
 # Not used for control flow — team_name prefix matching remains the primary mechanism.
 AGENT_TYPE=$(printf '%s\n' "$INPUT" | jq -r '.agent_type // empty' 2>/dev/null || true)
+AGENT_ID=$(printf '%s\n' "$INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
 
 # QUAL-5: Canonicalize CWD to resolve symlinks (matches on-task-completed.sh pattern)
 CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
@@ -94,10 +95,15 @@ if [[ -z "$CWD" || "$CWD" != /* ]]; then exit 0; fi
 # could start between this check and the Task executing. Claude Code processes tool
 # calls sequentially within a session, making the race window effectively zero.
 #
-# STALENESS GUARD (v1.61.0): Skip files older than 30 minutes (mtime-based).
+# STALENESS GUARD (v1.61.0): Skip files older than STALE_THRESHOLD_MIN (mtime-based).
 # Stale checkpoints from crashed/interrupted sessions should not block new work.
-# Mirrors the 30-min threshold from enforce-team-lifecycle.sh (TLC-001).
-# 120 min — longer than TLC-001 (30 min) to support long-running arc phases
+# STALE THRESHOLD CROSS-REFERENCE:
+#   TLC-001 enforce-team-lifecycle.sh: 30 min (team DIRS, PreToolUse:TeamCreate)
+#   TLC-003 session-team-hygiene.sh:   30 min (team DIRS, SessionStart)
+#   ATE-1  enforce-teams.sh:          120 min (STATE FILES, PreToolUse:Agent — this file)
+#   CDX-7  detect-workflow-complete.sh: 150 min (LOOP FILES, Stop hook)
+# 120 min here — longer than TLC-001 (30 min) to support long-running arc phases.
+# These operate on different file types so direct conflict is minimal.
 STALE_THRESHOLD_MIN=120
 active_workflow=""
 detected_team_name=""   # team name inferred from non-state-file signals
@@ -198,7 +204,7 @@ if [[ -z "$active_workflow" ]]; then
         CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
         session_file="${CHOME}/teams/${local_team}/.session"
         if [[ -f "$session_file" ]]; then
-          stored_sid=$(head -c 128 "$session_file" 2>/dev/null || true)
+          stored_sid=$(jq -r '.session_id // empty' "$session_file" 2>/dev/null || true)
           # CDX-GAP-001 FIX: Compare session marker to current session
           # Skip if session marker exists but belongs to different session
           # (stamp-team-session.sh writes this via PostToolUse:TeamCreate)
@@ -245,7 +251,7 @@ if [[ -z "$active_workflow" ]]; then
         CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
         sig_session_file="${CHOME}/teams/${local_team}/.session"
         if [[ -f "$sig_session_file" ]]; then
-          sig_stored_sid=$(head -c 128 "$sig_session_file" 2>/dev/null || true)
+          sig_stored_sid=$(jq -r '.session_id // empty' "$sig_session_file" 2>/dev/null || true)
           sig_current_sid=$(printf '%s' "${CLAUDE_SESSION_ID:-}" | head -c 64)
           # SEC-002: Validate session ID format
           [[ -z "$sig_current_sid" || "$sig_current_sid" =~ ^[a-zA-Z0-9_-]+$ ]] || sig_current_sid=""

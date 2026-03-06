@@ -50,8 +50,9 @@ _trace "ENTER"
 
 TEAM_NAME=$(printf '%s\n' "$INPUT" | jq -r '.team_name // empty' 2>/dev/null || true)
 TEAMMATE_NAME=$(printf '%s\n' "$INPUT" | jq -r '.teammate_name // empty' 2>/dev/null || true)
-# Claude Code 2.1.69+: agent_type identifies the calling agent type (diagnostic/trace)
+# Claude Code 2.1.69+: agent_type/agent_id identify the calling agent (diagnostic/trace)
 AGENT_TYPE=$(printf '%s\n' "$INPUT" | jq -r '.agent_type // empty' 2>/dev/null || true)
+AGENT_ID=$(printf '%s\n' "$INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
 
 # Validate TEAMMATE_NAME characters
 if [[ -n "$TEAMMATE_NAME" && ! "$TEAMMATE_NAME" =~ ^[a-zA-Z0-9_:-]+$ ]]; then
@@ -68,7 +69,7 @@ fi
 
 # Guard: only process Rune and Arc teams
 # QUAL-001: Guard includes arc-* for arc pipeline support
-_trace "PARSED team=$TEAM_NAME teammate=$TEAMMATE_NAME agent_type=$AGENT_TYPE"
+_trace "PARSED team=$TEAM_NAME teammate=$TEAMMATE_NAME agent_type=$AGENT_TYPE agent_id=$AGENT_ID"
 if [[ "$TEAM_NAME" != rune-* && "$TEAM_NAME" != arc-* ]]; then
   _trace "SKIP non-rune team: $TEAM_NAME"
   exit 0

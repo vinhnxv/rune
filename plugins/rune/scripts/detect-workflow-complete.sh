@@ -37,15 +37,20 @@ _rune_fail_forward() {
 }
 trap '_rune_fail_forward' ERR
 
-# FLAW-008 FIX: Canonicalize CWD to avoid relative path issues
-CWD="${CLAUDE_PROJECT_DIR:-.}"
-CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || CWD="."
 CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 # ── GUARD 0: jq dependency (fail-open) ──
 if ! command -v jq &>/dev/null; then
   exit 0
 fi
+
+# ── GUARD 1: Read CWD from stdin (consistent with other Stop hooks) ──
+# Stop hooks receive JSON input with .cwd field (same as PreToolUse/PostToolUse).
+# Fallback to CLAUDE_PROJECT_DIR for backwards compatibility.
+INPUT=$(head -c 1048576 2>/dev/null || true)
+CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+[[ -z "$CWD" ]] && CWD="${CLAUDE_PROJECT_DIR:-.}"
+CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || CWD="."
 
 # ── Source shared libraries ──
 # REC-6 FIX: resolve-session-identity.sh lives at scripts/, NOT scripts/lib/

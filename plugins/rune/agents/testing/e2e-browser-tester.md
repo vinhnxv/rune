@@ -16,6 +16,7 @@ tools:
   - Glob
   - Grep
   - Bash
+  - AskUserQuestion
 mcpServers:
   - echo-search
 model: sonnet

@@ -61,6 +61,12 @@ source "${SCRIPT_DIR}/resolve-session-identity.sh"
 HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
 
 # Count orphaned team dirs (older than 30 min)
+# STALE THRESHOLD CROSS-REFERENCE:
+#   TLC-001 enforce-team-lifecycle.sh: 30 min (team DIRS, PreToolUse:TeamCreate)
+#   TLC-003 session-team-hygiene.sh:   30 min (team DIRS, SessionStart — this file)
+#   ATE-1  enforce-teams.sh:          120 min (STATE FILES, PreToolUse:Agent)
+#   CDX-7  detect-workflow-complete.sh: 150 min (LOOP FILES, Stop hook)
+# Thresholds differ intentionally — they check different file types at different lifecycle points.
 orphan_count=0
 orphan_names=()
 if [[ -d "$CHOME/teams/" ]]; then
@@ -72,7 +78,7 @@ if [[ -d "$CHOME/teams/" ]]; then
     if [[ "$dirname" =~ ^[a-zA-Z0-9_-]+$ ]]; then
       # Session ownership filter: skip teams owned by other live sessions
       if [[ -f "$dir/.session" ]] && [[ ! -L "$dir/.session" ]]; then
-        marker_session=$(head -c 256 "$dir/.session" 2>/dev/null | tr -d '[:space:]' || true)
+        marker_session=$(jq -r '.session_id // empty' "$dir/.session" 2>/dev/null || true)
         if [[ -n "$marker_session" ]] && [[ -n "$HOOK_SESSION_ID" ]] && [[ "$marker_session" != "$HOOK_SESSION_ID" ]]; then
           continue  # Different session owns this team — not an orphan for us
         fi
