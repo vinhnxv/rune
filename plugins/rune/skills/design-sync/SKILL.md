@@ -429,7 +429,9 @@ for each vsm in vsmFiles:
       region.component_matches = []
       consecutiveFailures++
 
-  enrichedVsm[vsm.name] = regions
+  // Multi-URL namespace: use URL-prefixed keys to prevent collisions (e.g., "url-1/Button.md")
+  const vsmKey = figmaUrls.length > 1 ? `url-${urlIndex}/${vsm.name}` : vsm.name
+  enrichedVsm[vsmKey] = regions
 
 // Step 5: Check for page-level template match (requires PRO tier or OAuth, optional)
 // Only attempt when builder reports templates capability AND access tier is 'pro'
@@ -644,7 +646,12 @@ if builderProfile !== null:
   enrichedVsmExists = Glob("{workDir}/vsm/enriched-vsm.json").length > 0
   if enrichedVsmExists:
     enrichedVsmDir = "{workDir}/vsm"  // enriched-vsm.json co-located with VSM files
-    builderContext = "UI builder available: {builderProfile.builder_skill} ({builderProfile.builder_mcp}). " +
+    // SEC-01/SEC-02: Sanitize Figma-derived fields before prompt injection
+  // Strip newlines, backtick-delimited blocks, and INSTRUCTION:-like prefixes from component names
+  const sanitizedBuilderSkill = sanitizeForPrompt(builderProfile.builder_skill)
+  const sanitizedBuilderMcp = sanitizeForPrompt(builderProfile.builder_mcp)
+
+  builderContext = `UI builder available: ${sanitizedBuilderSkill} (${sanitizedBuilderMcp}). ` +
       "enriched-vsm.json contains real library component matches for each region. " +
       "IMPORT real components instead of generating Tailwind approximations. " +
       "Fallback: regions with no component_matches → use reference code + Tailwind."
@@ -655,12 +662,35 @@ if builderProfile !== null:
 // else: no builder — builderContext remains empty, workers use reference code path
 
 // Step 2: Parse VSM files into implementation tasks
+// SEC-01: Sanitize VSM-derived component names before task description injection
+function sanitizeForPrompt(str) {
+  if (!str) return ''
+  return str.replace(/[\n\r]/g, ' ').replace(/`{3,}/g, '').replace(/^(INSTRUCTION|SYSTEM|OVERRIDE):/gi, '').trim().slice(0, 200)
+}
+
+// Propagate verification gate status to worker prompts (GAP-F-002/F-003)
+let gateContext = ''
+if (verificationGateResult?.verdict === 'BLOCK') {
+  gateContext = `NOTE: Verification gate was BLOCK (${verificationGateResult.mismatchPct.toFixed(0)}% regions unmatched). ` +
+    "Implement available regions only; add TODO markers for unmatched regions."
+} else if (verificationGateResult?.verdict === 'WARN') {
+  gateContext = `NOTE: Verification gate was WARN (${verificationGateResult.mismatchPct.toFixed(0)}% regions unmatched). ` +
+    "Some regions may need manual attention."
+}
+
+// SEC-06: Validate component names from enriched-vsm.json against project package.json
+// before instructing workers to import them. Only import components whose names
+// appear in the project's package.json dependencies or devDependencies.
+
 vsmFiles = Glob("{workDir}/vsm/*.md")
 for each vsm in vsmFiles:
+  const componentName = sanitizeForPrompt(vsm.component_name)
   TaskCreate({
-    subject: "Implement {component_name} from VSM",
-    description: "Read VSM at {vsm.path}. Create component following design tokens, layout, variants, and a11y requirements. " + codegenContext + (builderContext ? " " + builderContext : ""),
-    metadata: { phase: "implementation", vsm_path: vsm.path, codegen_profile: codegenProfile, has_builder: builderProfile !== null }
+    subject: `Implement ${componentName} from VSM`,
+    description: "Read VSM at {vsm.path}. Create component following design tokens, layout, variants, and a11y requirements. " +
+      codegenContext + (builderContext ? " " + builderContext : "") + (gateContext ? " " + gateContext : ""),
+    metadata: { phase: "implementation", vsm_path: vsm.path, codegen_profile: codegenProfile, has_builder: builderProfile !== null,
+      gate_verdict: verificationGateResult?.verdict ?? 'NONE' }
   })
 
 // Step 3: Summon rune-smith workers
@@ -912,3 +942,4 @@ Error response type depends on execution context:
 - [element-inventory-template.md](references/element-inventory-template.md) — Element inventory with source tracking (Code/Visual/Both/Manual)
 - [backend-impact.md](references/backend-impact.md) — Backend impact decision tree (4 branches)
 - [state-detection-algorithm.md](references/state-detection-algorithm.md) — 5-signal weighted composite algorithm for multi-URL frame classification
+- [migration-guide.md](references/migration-guide.md) — Migration guide for accuracy-parity features (thresholds, rollback, troubleshooting)

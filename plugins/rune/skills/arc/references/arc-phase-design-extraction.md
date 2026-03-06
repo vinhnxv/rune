@@ -443,34 +443,69 @@ if (cachedVsmFiles.length > maxTotalComponents) {
 // See design-sync/references/verification-gate.md for full algorithm
 const checkpointErrors = []  // Declared before gate — gate pushes verdict here
 const gateConfig = designSyncConfig.verification_gate ?? {}
-const gateEnabled = gateConfig.enabled !== false  // default: true
+
+// SEC-04: Type-check enabled flag
+if (gateConfig.enabled !== undefined && typeof gateConfig.enabled !== 'boolean') {
+  warn(`verification_gate.enabled must be a boolean, got: ${typeof gateConfig.enabled}. Treating as enabled.`)
+}
+const gateEnabled = gateConfig.enabled === false ? false : true
+
 if (gateEnabled && cachedVsmFiles.length > 0) {
   const vsmRegionCount = countVsmRegions(cachedVsmFiles)
-  const extractionCoverage = countCoveredRegions(cachedVsmFiles)
-  const mismatchPct = vsmRegionCount > 0
-    ? ((vsmRegionCount - extractionCoverage) / vsmRegionCount) * 100
-    : 0
 
-  const warnThreshold = gateConfig.warn_threshold ?? 20
-  const blockThreshold = gateConfig.block_threshold ?? 40
+  // Zero-region guard: flag as needs_attention if extraction produced no regions
+  if (vsmRegionCount === 0) {
+    warn("Zero VSM regions found — extraction produced no usable data.")
+    checkpointErrors.push({
+      type: 'verification_gate',
+      verdict: 'ABORT',
+      reason: 'zero-regions',
+      mismatch_pct: 0,
+      matched: 0,
+      total: 0,
+      timestamp: new Date().toISOString()
+    })
+  } else {
+    const extractionCoverage = countCoveredRegions(cachedVsmFiles)
+    const rawMismatchPct = ((vsmRegionCount - extractionCoverage) / vsmRegionCount) * 100
+    const mismatchPct = Math.max(0, rawMismatchPct)  // Clamp negative (over-coverage)
 
-  const verdict = mismatchPct > blockThreshold ? 'BLOCK'
-    : mismatchPct > warnThreshold ? 'WARN' : 'PASS'
+    if (rawMismatchPct < 0) {
+      warn(`countCoveredRegions (${extractionCoverage}) exceeds vsmRegionCount (${vsmRegionCount}) — possible VSM parsing inconsistency`)
+    }
 
-  checkpointErrors.push({
-    type: 'verification_gate',
-    verdict,
-    mismatch_pct: mismatchPct,
-    matched: extractionCoverage,
-    total: vsmRegionCount,
-    timestamp: new Date().toISOString()
-  })
+    // Threshold validation: clamp to 0-100, detect inverted thresholds
+    let warnThreshold = Math.max(0, Math.min(100, gateConfig.warn_threshold ?? 20))
+    let blockThreshold = Math.max(0, Math.min(100, gateConfig.block_threshold ?? 40))
+    if (warnThreshold >= blockThreshold) {
+      warn(`Inverted thresholds: warn_threshold (${warnThreshold}) >= block_threshold (${blockThreshold}). Reverting to defaults (20/40).`)
+      warnThreshold = 20
+      blockThreshold = 40
+    }
 
-  if (verdict === 'BLOCK') {
-    // In arc context: non-blocking — log warning, continue pipeline
-    warn(`Design extraction verification gate: BLOCK (${mismatchPct.toFixed(0)}% unmatched). Implementation quality may be reduced.`)
-  } else if (verdict === 'WARN') {
-    warn(`Design extraction verification gate: WARN (${mismatchPct.toFixed(0)}% unmatched). ${vsmRegionCount - extractionCoverage} regions may need manual attention.`)
+    const verdict = mismatchPct > blockThreshold ? 'BLOCK'
+      : mismatchPct > warnThreshold ? 'WARN' : 'PASS'
+
+    checkpointErrors.push({
+      type: 'verification_gate',
+      verdict,
+      mismatch_pct: mismatchPct,
+      matched: extractionCoverage,
+      total: vsmRegionCount,
+      timestamp: new Date().toISOString()
+    })
+
+    // Store gate result in checkpoint for downstream Phase 5 (WORK) worker injection
+    checkpoint.vsm_quality = verdict === 'BLOCK' ? 'blocked' : verdict === 'WARN' ? 'degraded' : 'good'
+    checkpoint.gate_verdict = { verdict, mismatchPct, matched: extractionCoverage, total: vsmRegionCount }
+
+    if (verdict === 'BLOCK') {
+      // In arc context: non-blocking — log warning, continue pipeline
+      // Workers will receive vsm_quality: "blocked" flag
+      warn(`Design extraction verification gate: BLOCK (${mismatchPct.toFixed(0)}% unmatched). Implementation quality may be reduced.`)
+    } else if (verdict === 'WARN') {
+      warn(`Design extraction verification gate: WARN (${mismatchPct.toFixed(0)}% unmatched). ${vsmRegionCount - extractionCoverage} regions may need manual attention.`)
+    }
   }
 }
 
