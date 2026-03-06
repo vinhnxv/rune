@@ -4,6 +4,7 @@ description: |
   Extracts structured digest from work-summary.md artifact.
   Produces a lightweight summary with committed file list and task counts.
   Used between arc phases to reduce team lead context consumption.
+  Planned fallback: invoked when shell-based extraction (utility-crew-extract.sh) fails.
   Trigger keywords: work digest, work summary condense, committed files summary.
 
 tools:

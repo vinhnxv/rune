@@ -15,6 +15,7 @@
 - **Agent count**: 91 → 96 (5 new utility agents)
 
 ### Changed
+- **Brainstorm SSRF defense** — Phase 3.5 Design Asset Detection filters Figma URLs through SSRF blocklist (localhost, private ranges, link-local, IPv6 loopback, reserved TLDs) before fetch
 - **Arc Phase 7 (Mend)** — Lead uses shell-extracted tome-digest JSON (~500 tokens) instead of reading full TOME (10-50K tokens) with graceful fallback
 - **Arc Phase 6 (Code Review)** — Lead uses shell-extracted gap/verdict digests instead of reading full artifacts (7-15K tokens saved)
 - **Arc Phase 5.5 (Gap Analysis)** — Pre-extracts plan and work-summary digests for orchestrator quick-checks

@@ -69,13 +69,13 @@ Centralized reference for the `cost_tier` system that controls which Claude mode
 
 `api-contract-tracer`, `business-logic-tracer`, `config-dependency-tracer`, `data-layer-tracer`, `event-message-tracer`, `lore-analyst`
 
-### Utility (15)
+### Utility (22)
 
-`runebinder`, `scroll-reviewer`, `knowledge-keeper`, `flow-seer`, `elicitation-sage`, `deployment-verifier`, `truthseer-validator`, `evidence-verifier`, `research-verifier`, `state-weaver`, `tome-digest`, `condenser-gap`, `condenser-verdict`, `condenser-plan`, `condenser-work`
+`runebinder`, `scroll-reviewer`, `knowledge-keeper`, `flow-seer`, `elicitation-sage`, `deployment-verifier`, `truthseer-validator`, `evidence-verifier`, `research-verifier`, `state-weaver`, `tome-digest`, `condenser-gap`, `condenser-verdict`, `condenser-plan`, `condenser-work`, `decree-arbiter`, `design-analyst`, `horizon-sage`, `veil-piercer-plan`, `todo-verifier`, `ux-pattern-analyzer`, `mend-fixer`
 
-### Testing (4)
+### Testing (5)
 
-`unit-test-runner`, `integration-test-runner`, `e2e-browser-tester`, `test-failure-analyst` (exception: see above)
+`unit-test-runner`, `integration-test-runner`, `e2e-browser-tester`, `extended-test-runner`, `test-failure-analyst` (exception: see above)
 
 ## resolveModelForAgent()
 

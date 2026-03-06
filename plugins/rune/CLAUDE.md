@@ -132,7 +132,7 @@ Override via `talisman.yml` → `teammate_lifecycle.max_turns.{category}`.
 
 ### Agent `model` Field — Intentional Omission
 
-Most agents (55/91) intentionally **omit** the `model` field in their YAML frontmatter. This is by design, not a defect:
+Most agents (61/96) intentionally **omit** the `model` field in their YAML frontmatter. This is by design, not a defect:
 
 1. When `model:` is omitted → the agent **inherits** the spawning session's model
 2. The orchestrator uses `resolveModelForAgent()` to dynamically select models based on `talisman.yml` → `cost_tier` setting (opus/balanced/efficient/minimal)

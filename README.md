@@ -417,7 +417,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Design Sync Agent | Figma extraction and Visual Spec Map creation |
 | Design Iterator | Iterative design refinement (screenshot-analyze-fix loop) |
 
-### Utility Agents (19)
+### Utility Agents (22)
 
 | Agent | Purpose |
 |-------|---------|
@@ -435,13 +435,16 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Research Verifier | Research output quality verification |
 | Truthseer Validator | Audit coverage quality validation |
 | Deployment Verifier | Deployment artifact generation (Go/No-Go checklists, rollback plans) |
+| Design Analyst | Figma frame relationship classifier (5-signal weighted composite) |
+| Todo Verifier | TODO staleness verification — classifies TODOs as VALID or FALSE_POSITIVE |
+| UX Pattern Analyzer | Codebase UX maturity assessment (loading, error, form, navigation patterns) |
 | Tome Digest | TOME finding extraction (P1/P2/P3 counts, recurring patterns) — shell-based |
 | Condenser Gap | Gap analysis digest (MISSING/PARTIAL counts) — shell-based |
 | Condenser Verdict | Verdict digest (dimension scores, low-scoring flags) — shell-based |
 | Condenser Plan | Plan digest (sections, acceptance criteria, file targets) — shell-based |
 | Condenser Work | Work summary digest (committed files, task counts) — shell-based |
 
-### Testing Agents (4)
+### Testing Agents (5)
 
 | Agent | Purpose |
 |-------|---------|
@@ -449,6 +452,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Integration Test Runner | API, database, and business logic tests |
 | E2E Browser Tester | Browser automation via agent-browser CLI |
 | Test Failure Analyst | Root cause analysis of test failures |
+| Extended Test Runner | Extended-tier test execution with checkpoint/resume protocol |
 
 ---
 

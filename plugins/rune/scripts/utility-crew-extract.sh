@@ -12,7 +12,7 @@ set -euo pipefail
 
 # Sanitize a string for safe JSON interpolation
 _json_escape() {
-  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr -d '\n'
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g; s/\r/\\r/g; s/\f/\\f/g; s/\x08/\\b/g' | tr -d '\n'
 }
 
 # Check jq availability (required for JSON array construction)
@@ -24,6 +24,12 @@ fi
 MODE="${1:?Missing mode (tome-digest|gap-analysis|verdict|plan|work-summary)}"
 ARC_ID="${2:?Missing arc ID}"
 MEND_ROUND="${3:-0}"
+
+# SEC-001: Validate mend round is numeric
+if [[ ! "$MEND_ROUND" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: Invalid mend round: $MEND_ROUND" >&2
+  exit 1
+fi
 
 # SEC-003: Validate arc ID
 if [[ ! "$ARC_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
@@ -50,11 +56,13 @@ case "$MODE" in
       done
       # Try review output directories
       if [[ -z "$TOME_SOURCE" ]]; then
+        shopt -s nullglob 2>/dev/null || true
         for f in tmp/reviews/*/TOME.md; do
           [[ -f "$f" ]] || continue
           TOME_SOURCE="$f"
           break
         done
+        shopt -u nullglob 2>/dev/null || true
       fi
       DIGEST_PATH="${ARC_DIR}/tome-digest.json"
     fi
@@ -72,13 +80,13 @@ case "$MODE" in
     TOTAL=$(grep -c '<!-- RUNE:FINDING' "$TOME_SOURCE" 2>/dev/null || echo 0)
 
     # Extract unique file paths from file= attribute
-    FILES_JSON=$(grep -oP 'file="[^"]*"' "$TOME_SOURCE" 2>/dev/null | sed 's/file="//;s/"//' | sort -u | jq -R . | jq -s . 2>/dev/null || echo '[]')
+    FILES_JSON=$(grep -oE 'file="[^"]*"' "$TOME_SOURCE" 2>/dev/null | sed 's/file="//;s/"//' | sort -u | jq -R . | jq -s . 2>/dev/null || echo '[]')
 
     # Extract first 5 P1 finding summaries (text after the marker, first line)
     TOP_P1=$(grep -A1 '<!-- RUNE:FINDING.*severity="P1"' "$TOME_SOURCE" 2>/dev/null | grep -v '^--$' | grep -v '<!-- RUNE:FINDING' | head -5 | sed 's/^[[:space:]]*//' | jq -R . | jq -s . 2>/dev/null || echo '[]')
 
     # Detect recurring prefixes (id prefixes appearing 2+ times)
-    RECURRING=$(grep -oP 'id="([A-Z]+)-' "$TOME_SOURCE" 2>/dev/null | sed 's/id="//;s/-$//' | sort | uniq -c | awk '$1 >= 2 {print $2}' | jq -R . | jq -s . 2>/dev/null || echo '[]')
+    RECURRING=$(grep -oE 'id="[A-Z]+-' "$TOME_SOURCE" 2>/dev/null | sed 's/id="//;s/-$//' | sort | uniq -c | awk '$1 >= 2 {print $2}' | jq -R . | jq -s . 2>/dev/null || echo '[]')
     RECURRING_COUNT=$(echo "$RECURRING" | jq 'length' 2>/dev/null || echo 0)
 
     # Calculate needs_elicitation
@@ -116,10 +124,10 @@ EOJSON
     fi
 
     # Count requirement statuses from table rows
-    MISSING_COUNT=$(grep -ciP '\|\s*MISSING\s*\|' "$INPUT" 2>/dev/null || echo 0)
-    PARTIAL_COUNT=$(grep -ciP '\|\s*PARTIAL\s*\|' "$INPUT" 2>/dev/null || echo 0)
-    ADDRESSED_COUNT=$(grep -ciP '\|\s*ADDRESSED\s*\|' "$INPUT" 2>/dev/null || echo 0)
-    COMPLETE_COUNT=$(grep -ciP '\|\s*COMPLETE\s*\|' "$INPUT" 2>/dev/null || echo 0)
+    MISSING_COUNT=$(grep -ci '|[[:space:]]*MISSING[[:space:]]*|' "$INPUT" 2>/dev/null || echo 0)
+    PARTIAL_COUNT=$(grep -ci '|[[:space:]]*PARTIAL[[:space:]]*|' "$INPUT" 2>/dev/null || echo 0)
+    ADDRESSED_COUNT=$(grep -ci '|[[:space:]]*ADDRESSED[[:space:]]*|' "$INPUT" 2>/dev/null || echo 0)
+    COMPLETE_COUNT=$(grep -ci '|[[:space:]]*COMPLETE[[:space:]]*|' "$INPUT" 2>/dev/null || echo 0)
     TOTAL=$((MISSING_COUNT + PARTIAL_COUNT + ADDRESSED_COUNT + COMPLETE_COUNT))
 
     if [[ "$TOTAL" -gt 0 ]]; then
@@ -129,7 +137,7 @@ EOJSON
     fi
 
     # Extract MISSING requirement names
-    MISSING_REQS=$(grep -iP '\|\s*MISSING\s*\|' "$INPUT" 2>/dev/null | awk -F'|' '{gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2}' | jq -R . | jq -s . 2>/dev/null || echo '[]')
+    MISSING_REQS=$(grep -iE '\|[[:space:]]*MISSING[[:space:]]*\|' "$INPUT" 2>/dev/null | awk -F'|' '{gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2}' | jq -R . | jq -s . 2>/dev/null || echo '[]')
 
     REVIEW_CTX="Gap Analysis Context: ${MISSING_COUNT} MISSING, ${PARTIAL_COUNT} PARTIAL criteria."
 
@@ -160,7 +168,7 @@ EOJSON
     fi
 
     # Extract dimension scores from table: | Name | X/10 | or | Name | X.Y |
-    DIMENSIONS=$(grep -P '\|\s*\S+.*\|\s*[\d.]+\s*(\/10)?\s*\|' "$INPUT" 2>/dev/null | \
+    DIMENSIONS=$(grep -E '\|[[:space:]]*[^[:space:]]+.*\|[[:space:]]*[0-9.]+[[:space:]]*(\/10)?[[:space:]]*\|' "$INPUT" 2>/dev/null | \
       awk -F'|' '{
         gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2);
         gsub(/^[[:space:]]+|[[:space:]]+$/, "", $3);
@@ -251,17 +259,17 @@ EOJSON
     FILE_COUNT=$(echo "$COMMITTED_FILES" | jq 'length' 2>/dev/null || echo 0)
 
     # Extract task counts (look for X/Y pattern)
-    TASKS_LINE=$(grep -oP '\d+/\d+\s*tasks' "$INPUT" 2>/dev/null | head -1 || echo "")
+    TASKS_LINE=$(grep -oE '[0-9]+/[0-9]+[[:space:]]*tasks' "$INPUT" 2>/dev/null | head -1 || echo "")
     if [[ -n "$TASKS_LINE" ]]; then
-      TASKS_COMPLETED=$(echo "$TASKS_LINE" | grep -oP '^\d+')
-      TASKS_TOTAL=$(echo "$TASKS_LINE" | grep -oP '/\K\d+')
+      TASKS_COMPLETED=$(echo "$TASKS_LINE" | grep -oE '^[0-9]+')
+      TASKS_TOTAL=$(echo "$TASKS_LINE" | grep -oE '[0-9]+/[0-9]+' | sed 's|.*/||')
     else
       TASKS_COMPLETED=0
       TASKS_TOTAL=0
     fi
 
     # Extract warnings
-    WARNINGS=$(grep -iP '(warn|issue|error|failed)' "$INPUT" 2>/dev/null | head -5 | sed 's/^[[:space:]]*//' | jq -R . | jq -s . 2>/dev/null || echo '[]')
+    WARNINGS=$(grep -iE '(warn|issue|error|failed)' "$INPUT" 2>/dev/null | head -5 | sed 's/^[[:space:]]*//' | jq -R . | jq -s . 2>/dev/null || echo '[]')
 
     cat > "$OUTPUT" <<EOJSON
 {

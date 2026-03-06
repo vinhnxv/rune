@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # write-phase-summary.sh — Deterministic phase group summary generator
+# NOTE: Not yet wired into arc phases — planned for future integration
 # Usage: write-phase-summary.sh <group_name> <arc_id> <phase_range>
 # Reads: .claude/arc/{id}/checkpoint.json, tmp/arc/{id}/*-digest.json
 # Writes: tmp/arc/{id}/phase-summary-{group}.md
 # Token cost: ZERO (pure shell, no LLM)
 set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
 GROUP_NAME="${1:?Missing group name (forge|verify|work|review|ship)}"
 ARC_ID="${2:?Missing arc ID}"
@@ -55,10 +58,11 @@ DIGEST_LINES=""
 if [[ -f "${ARC_DIR}/tome-digest.json" ]]; then
   # Pick latest tome-digest (handles round-aware naming)
   LATEST_TOME=""
+  shopt -s nullglob
   for f in "${ARC_DIR}"/tome-digest*.json; do
-    [[ -f "$f" ]] || continue
     LATEST_TOME="$f"
   done
+  shopt -u nullglob
   if [[ -n "$LATEST_TOME" ]]; then
     TOME_LINE=$(jq -r '"- TOME: P1=\(.p1_count // 0), P2=\(.p2_count // 0), P3=\(.p3_count // 0), total=\(.total_findings // 0)"' "$LATEST_TOME" 2>/dev/null || echo "- TOME: digest parse error")
     DIGEST_LINES="${DIGEST_LINES}${TOME_LINE}\n"

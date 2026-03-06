@@ -1,5 +1,7 @@
 {
   "skill_name": "brainstorm",
+  "skill_path": "plugins/rune/skills/brainstorm",
+  "description": "Eval tests for /rune:brainstorm multi-mode brainstorming skill",
   "evals": [
     {
       "id": 1,
