@@ -9,7 +9,7 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 ## Phase Order
 
 ```javascript
-const PHASE_ORDER = ['forge', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'task_decomposition', 'work', 'storybook_verification', 'design_verification', 'gap_analysis', 'codex_gap_analysis', 'gap_remediation', 'goldmask_verification', 'code_review', 'goldmask_correlation', 'mend', 'verify_mend', 'design_iteration', 'test', 'test_coverage_critique', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
+const PHASE_ORDER = ['forge', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'task_decomposition', 'work', 'storybook_verification', 'design_verification', 'ux_verification', 'gap_analysis', 'codex_gap_analysis', 'gap_remediation', 'goldmask_verification', 'code_review', 'goldmask_correlation', 'mend', 'verify_mend', 'design_iteration', 'test', 'test_coverage_critique', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
 
 // Heavy phases that MUST be delegated to sub-skills — never implemented inline.
 // These phases consume significant tokens and require fresh teammate context windows.
@@ -52,6 +52,7 @@ const PHASE_TIMEOUTS = {
   work:          talismanTimeouts.work ?? 2_100_000,    // 35 min (inner 30m + 5m setup)
   storybook_verification: talismanTimeouts.storybook_verification ?? 900_000,  // 15 min (conditional — gated by storybook.enabled in talisman misc)
   design_verification: talismanTimeouts.design_verification ?? 480_000,  //  8 min (conditional — gated by VSM files from design_extraction)
+  ux_verification: talismanTimeouts.ux_verification ?? 300_000,  //  5 min (conditional — gated by ux.enabled + frontend files detected)
   gap_analysis:  talismanTimeouts.gap_analysis ?? 720_000,   // 12 min (inner 8m + 2m setup + 2m aggregate)
   codex_gap_analysis: talismanTimeouts.codex_gap_analysis ?? 660_000,  // 11 min (orchestrator-only, inline codex exec)
   gap_remediation: talismanTimeouts.gap_remediation ?? 900_000,  // 15 min (inner 10m + 5m setup)
@@ -97,6 +98,7 @@ function calculateDynamicTimeout(tier) {
     PHASE_TIMEOUTS.semantic_verification + PHASE_TIMEOUTS.design_extraction +
     PHASE_TIMEOUTS.task_decomposition + PHASE_TIMEOUTS.work +
     PHASE_TIMEOUTS.storybook_verification + PHASE_TIMEOUTS.design_verification +
+    PHASE_TIMEOUTS.ux_verification +
     PHASE_TIMEOUTS.gap_analysis +
     PHASE_TIMEOUTS.codex_gap_analysis + PHASE_TIMEOUTS.gap_remediation +
     PHASE_TIMEOUTS.goldmask_verification + PHASE_TIMEOUTS.goldmask_correlation +

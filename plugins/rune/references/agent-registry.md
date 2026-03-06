@@ -1,6 +1,6 @@
 # Agent Registry
 
-**Total: 86 agents** (30 review + 5 research + 6 work + 16 utility + 24 investigation + 5 testing)
+**Total: 91 agents** (34 review + 5 research + 6 work + 17 utility + 24 investigation + 5 testing)
 
 > Agent count verified by `find agents/ -name "*.md" -type f | wc -l` on 2026-03-05.
 
@@ -40,6 +40,10 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | senior-engineer-reviewer | Persona-based senior engineer review — production thinking, temporal reasoning (SENIOR-001 through SENIOR-010) |
 | cross-shard-sentinel | Cross-shard consistency analysis — reads only shard summary JSONs, detects import mismatches, auth boundary gaps, naming drift (XSH-001+). Active only when Inscription Sharding is enabled (v1.98.0+) |
 | design-implementation-reviewer | Design-to-code fidelity — token compliance, layout matching, responsive coverage, accessibility, variant completeness (FIDE-001 through FIDE-010) |
+| ux-heuristic-reviewer | UX heuristic evaluation — Nielsen Norman 10 heuristics at code level, 50+ checklist items (UXH-). Conditional: `ux.enabled` + frontend files |
+| ux-flow-validator | User flow completeness — loading states, error boundaries, empty states, confirmation dialogs, undo mechanisms, graceful degradation (UXF-). Conditional: `ux.enabled` + frontend files |
+| ux-interaction-auditor | Micro-interaction audit — hover/focus states, keyboard accessibility, touch targets (44px), animation performance, prefers-reduced-motion, scroll behavior (UXI-). Conditional: `ux.enabled` + frontend files |
+| ux-cognitive-walker | Cognitive walkthrough — first-time user simulation, discoverability, learnability, error recovery, progressive disclosure (UXC-). Model: opus. Off by default (`cognitive_walkthrough: true` to enable) |
 
 ## Research Agents (`agents/research/`)
 
@@ -78,6 +82,7 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | deployment-verifier | Deployment artifact generation — Go/No-Go checklists, SQL verification, rollback plans, monitoring (DEPLOY-) |
 | research-verifier | Validates external research outputs for relevance, accuracy, freshness, cross-validation, and security before plan synthesis (/rune:devise Phase 1C.5) |
 | state-weaver | Plan state machine validation — extracts phases, builds transition graphs, validates completeness (10 STSM checks), verifies I/O contracts, generates mermaid diagrams |
+| ux-pattern-analyzer | Codebase UX maturity assessment — inventories loading, error handling, form validation, navigation, empty state, confirmation/undo, and feedback patterns. 4-level maturity scale. Used by devise Phase 0.3 |
 
 ## Investigation Agents (`agents/investigation/`)
 

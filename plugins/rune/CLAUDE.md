@@ -149,7 +149,7 @@ See [cost-tier-mapping.md](references/cost-tier-mapping.md) for the full categor
 Reads `.claude/talisman.yml` (project) → `$CHOME/talisman.yml` (global) → `{}`.
 Where `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`.
 
-**Preferred**: Use `readTalismanSection(sectionName)` — reads pre-resolved JSON shards from `tmp/.talisman-resolved/` for 94% token reduction. Falls back to full-file `readTalisman()` if shards are unavailable. Available shards: `arc`, `codex`, `review`, `work`, `goldmask`, `plan`, `gates`, `settings`, `inspect`, `testing`, `audit`, `misc` (includes `integrations`).
+**Preferred**: Use `readTalismanSection(sectionName)` — reads pre-resolved JSON shards from `tmp/.talisman-resolved/` for 94% token reduction. Falls back to full-file `readTalisman()` if shards are unavailable. Available shards: `arc`, `codex`, `review`, `work`, `goldmask`, `plan`, `gates`, `settings`, `inspect`, `testing`, `audit`, `ux`, `misc` (includes `integrations`).
 
 **Rule**: Use SDK `Read()` — NEVER `Bash("cat ...")` or `Bash("test -f ...")`.
 `Read()` auto-resolves `CLAUDE_CONFIG_DIR` and tilde. Bash does not (ZSH `~ not found` bug).
@@ -341,7 +341,7 @@ echo "Commands: $(find plugins/rune/commands -name '*.md' -not -path '*/referenc
 
 ## References
 
-- [Agent registry](references/agent-registry.md) — 30 review + 5 research + 6 work + 14 utility + 24 investigation + 5 testing agents (12 stack specialist reviewers are prompt templates, not registered agents)
+- [Agent registry](references/agent-registry.md) — 34 review + 5 research + 6 work + 17 utility + 24 investigation + 5 testing agents (12 stack specialist reviewers are prompt templates, not registered agents)
 - [Key concepts](references/key-concepts.md) — Tarnished, Ash, TOME, Arc, Mend, Forge Gaze, Echoes
 - [Lore glossary](references/lore-glossary.md) — Elden Ring terminology mapping
 - [Output conventions](references/output-conventions.md) — Directory structure per workflow

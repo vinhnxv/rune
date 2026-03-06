@@ -858,12 +858,12 @@ plugins/rune/
 │   └── plugin.json
 ├── agents/
 │   ├── investigation/       # 24 investigation agents (Goldmask + Inspect)
-│   ├── review/              # 30 review agents (12 specialist prompt templates in specialist-prompts/)
+│   ├── review/              # 34 review agents (12 specialist prompt templates in specialist-prompts/)
 │   │   └── references/      # Shared review checklists
 │   ├── research/            # 5 research agents (plan pipeline)
 │   ├── testing/             # 5 testing agents (arc Phase 7.7)
 │   ├── work/                # 6 swarm workers (work pipeline)
-│   └── utility/             # 14 utility agents: runebinder, decree-arbiter, truthseer-validator, flow-seer, scroll-reviewer, mend-fixer, knowledge-keeper, elicitation-sage, veil-piercer-plan, horizon-sage, deployment-verifier, evidence-verifier, research-verifier, state-weaver (+ gap-fixer as prompt-template, no .md file)
+│   └── utility/             # 17 utility agents: runebinder, decree-arbiter, truthseer-validator, flow-seer, scroll-reviewer, mend-fixer, knowledge-keeper, elicitation-sage, veil-piercer-plan, horizon-sage, deployment-verifier, evidence-verifier, research-verifier, state-weaver, ux-pattern-analyzer (+ gap-fixer as prompt-template, no .md file)
 ├── commands/
 │   ├── cancel-arc.md           # /rune:cancel-arc
 │   ├── cancel-arc-batch.md     # /rune:cancel-arc-batch

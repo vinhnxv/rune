@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.140.0] - 2026-03-06
+
+### Added
+- **UX Design Intelligence** — Full UX review pipeline with greenfield/brownfield methodology
+  - **ux-design-process** skill — UX-aware planning with greenfield (8-step) and brownfield (6-step) methodologies, 6 reference files (aesthetic-direction, web-interface-rules, interaction-patterns, heuristic-checklist, ux-pattern-library, ux-scoring)
+  - **ux-heuristic-reviewer** agent (UXH-) — Nielsen Norman 10 heuristics at code level, 50+ checklist items. Conditional: `ux.enabled` + frontend files
+  - **ux-flow-validator** agent (UXF-) — User flow completeness: loading states, error boundaries, empty states, confirmation dialogs, undo, graceful degradation. Conditional: `ux.enabled` + frontend files
+  - **ux-interaction-auditor** agent (UXI-) — Micro-interaction audit: hover/focus states, keyboard accessibility, touch targets (44px min), animation performance, prefers-reduced-motion. Conditional: `ux.enabled` + frontend files
+  - **ux-cognitive-walker** agent (UXC-) — Cognitive walkthrough: first-time user simulation, discoverability, learnability, error recovery. Conditional: `ux.enabled` + `cognitive_walkthrough: true`
+  - **ux-pattern-analyzer** utility agent — Codebase UX maturity assessment for devise Phase 0.3
+  - **Arc Phase 5.3 UX Verification** — Conditional arc phase with up to 4 UX review agents, 5-min timeout, full 3-layer crash recovery (ARC_TEAM_PREFIXES + PHASE_PREFIX_MAP + phase reference)
+  - **Checkpoint schema v21** — Added `ux_verification` phase slot with v20→v21 migration
+  - **Talisman `ux:` namespace** — enabled, blocking, cognitive_walkthrough, agents, thresholds config
+  - **Dedup hierarchy** — UXH/UXF/UXI/UXC positioned below FRONT, above CDX
+  - **aesthetic-quality-reviewer** extended with Vercel-inspired web interface quality rules (semantic HTML, responsive breakpoints, animation performance, reduced motion compliance)
+  - **aesthetic-thinking.md** — Design token enforcement + 4 anti-slop detection rules for frontend-design-patterns
+  - **react-performance-rules.md** — 18 React performance rules (PERF-R01 through PERF-R18)
+  - **react-composition-rules.md** — React composition patterns + 5 anti-patterns (COMP-A01 through COMP-A05)
+  - **ui-ux-planning-protocol.md** — Added Step 0 UX Process Selection for greenfield/brownfield routing
+  - **devise cleanup** — Added ux-pattern-analyzer to fallback array
+
 ## [1.139.2] - 2026-03-06
 
 ### Fixed

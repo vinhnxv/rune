@@ -212,6 +212,7 @@ all_shards=$(echo "$merged" | jq '{
   inspect: (.inspect // {}),
   testing: (.testing // {}),
   audit: (.audit // {}),
+  ux: (.ux // {}),
   misc: {
     debug: (.debug // {}),
     mend: (.mend // {}),
@@ -239,7 +240,7 @@ if [[ -z "$all_shards" || "$all_shards" == "null" ]]; then
 fi
 
 # ── Write shards atomically (mktemp in $SHARD_DIR + mv) ──
-SHARD_NAMES=("arc" "codex" "review" "work" "goldmask" "plan" "gates" "settings" "inspect" "testing" "audit" "misc")
+SHARD_NAMES=("arc" "codex" "review" "work" "goldmask" "plan" "gates" "settings" "inspect" "testing" "audit" "ux" "misc")
 shard_count=0
 
 for shard_name in "${SHARD_NAMES[@]}"; do

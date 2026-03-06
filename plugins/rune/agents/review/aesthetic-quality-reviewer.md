@@ -280,9 +280,71 @@ _Note: Aesthetic score is a SEPARATE metric from fidelity score. Both should be 
   - **Improvement:** Add `focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`
 ```
 
+## Web Interface Quality Rules (Vercel-Inspired)
+
+Additional checks adapted from Vercel web interface best practices. Apply these alongside the core aesthetic dimensions.
+
+### Semantic HTML Check
+
+```
+Verify:
+- Headings use proper h1-h6 hierarchy (not styled divs)
+- Navigation uses <nav> with aria-label
+- Main content wrapped in <main>
+- Lists use <ul>/<ol> (not styled divs)
+- Buttons are <button> (not clickable divs or spans)
+- Forms use <form> with proper <label> associations
+
+Flag: Div-soup patterns — interactive elements built from divs instead of semantic HTML
+```
+
+### Responsive Breakpoint Consistency
+
+```
+Check:
+- Breakpoint usage is consistent across components (sm/md/lg/xl)
+- No mixed breakpoint systems (px media queries alongside Tailwind breakpoints)
+- Mobile layout is not just "stack everything vertically"
+- Touch targets meet 44px minimum at mobile breakpoints
+- Font sizes scale appropriately across breakpoints (not just same size everywhere)
+
+Flag: Components that only define desktop layout with no responsive behavior
+```
+
+### Animation Performance Rules
+
+```
+Verify:
+- prefers-reduced-motion is respected (media query present)
+- Animations use transform and opacity only (GPU-accelerated)
+- No layout-triggering animations (width, height, top, left, margin)
+- Transition durations are in the right range:
+  - Micro-interactions: 100-200ms
+  - Content transitions: 200-300ms
+  - Page transitions: 300-500ms
+- No animation on page load for content above the fold
+
+Flag: Animations that cause Cumulative Layout Shift (CLS)
+```
+
+### Reduced Motion Compliance
+
+```
+Critical check:
+- @media (prefers-reduced-motion: reduce) blocks exist
+- Animated components have motion-safe/motion-reduce variants
+- Essential information is not conveyed through animation alone
+- Parallax effects are disabled under reduced-motion
+- Auto-playing carousels/sliders pause under reduced-motion
+
+Flag: Any animation without a reduced-motion alternative (P1 severity)
+```
+
+For detailed web interface rules, see [web-interface-rules.md](../../skills/ux-design-process/references/web-interface-rules.md).
+
 ## Boundary
 
-This agent covers **aesthetic quality**: visual hierarchy, typography quality, whitespace balance, color coherence, layout personality, micro-interactions, and design system personality. It does NOT cover pixel-perfect fidelity (handled by design-implementation-reviewer), functional correctness, performance, or security.
+This agent covers **aesthetic quality**: visual hierarchy, typography quality, whitespace balance, color coherence, layout personality, micro-interactions, design system personality, and web interface quality (semantic HTML, responsive breakpoints, animation performance). It does NOT cover pixel-perfect fidelity (handled by design-implementation-reviewer), functional correctness, performance, or security.
 
 **Relationship to design-implementation-reviewer:**
 - design-implementation-reviewer: "Does the code match the design?" (correctness)

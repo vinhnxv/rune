@@ -33,9 +33,9 @@ test, test_coverage_critique, pre_ship_validation, release_quality_check,
 bot_review_wait, pr_comment_resolution, ship, merge
 ```
 
-Conditional phases (not in PHASE_ORDER, gated by talisman):
+Conditional phases (gated by talisman):
 ```
-design_extraction, design_verification, design_iteration
+design_extraction, design_verification, design_iteration, ux_verification
 ```
 
 ## Finding Prefixes
@@ -51,6 +51,10 @@ design_extraction, design_verification, design_iteration
 | `PAT-` | Pattern consistency | TOME.md |
 | `DOC-` | Documentation findings | TOME.md |
 | `FRONT-` | Frontend findings | TOME.md |
+| `UXH-` | UX heuristic findings | TOME.md (ux_verification) |
+| `UXF-` | UX flow findings | TOME.md (ux_verification) |
+| `UXI-` | UX interaction findings | TOME.md (ux_verification) |
+| `UXC-` | UX cognitive findings | TOME.md (ux_verification) |
 | `PERF-` | Performance findings | TOME.md |
 
 ## Status Values
