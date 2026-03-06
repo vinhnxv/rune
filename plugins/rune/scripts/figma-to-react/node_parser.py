@@ -267,6 +267,9 @@ class FigmaIRNode:
     # Instance role classification (Phase 2)
     instance_role: Optional[InstanceRole] = None
 
+    # Cross-file component reference (Phase 2 edge case)
+    cross_file_ref: bool = False
+
     # Slot detection (Phase 6)
     is_slot_candidate: bool = False
     is_empty_slot: bool = False
@@ -431,6 +434,7 @@ def _detect_slot_candidate(
 
 _MAX_PARSE_DEPTH = 100  # BACK-P3-004: Guard against pathological nesting
 _MAX_COLLECT_DEPTH = 10  # Depth ceiling for child geometry collection
+_MAX_ROLE_CLASSIFICATION_DEPTH = 5  # Phase 2 edge case: skip role classification for deeply nested instances
 
 
 def _extract_geometry_from_child(
@@ -722,7 +726,9 @@ def parse_node(
     _parse_children(ir_node, raw, deduplicator, _depth)
 
     # Classify instance role (Phase 2) — after children are populated
-    if ir_node.component_id:
+    # Skip classification for deeply nested instances (depth > 5) to avoid
+    # misclassifying instance→instance→...→icon chains far from component surface.
+    if ir_node.component_id and _depth <= _MAX_ROLE_CLASSIFICATION_DEPTH:
         ir_node.instance_role = _classify_instance_role(ir_node, parent_ir)
         if ir_node.instance_role is not None:
             ir_node.can_be_flattened = False
@@ -940,3 +946,22 @@ def count_nodes(node: FigmaIRNode) -> int:
         for child in current.children:
             stack.append(child)
     return total
+
+
+def mark_cross_file_refs(root: FigmaIRNode) -> None:
+    """Mark INSTANCE nodes that reference components not defined in this tree.
+
+    Walks the IR tree twice:
+    1. Collect all local component IDs (COMPONENT/COMPONENT_SET nodes).
+    2. Flag any INSTANCE whose component_id is not in the local set.
+    """
+    local_component_ids: set[str] = set()
+    all_nodes = walk_tree(root)
+
+    for node in all_nodes:
+        if node.node_type.value in ("COMPONENT", "COMPONENT_SET"):
+            local_component_ids.add(node.node_id)
+
+    for node in all_nodes:
+        if node.component_id and node.component_id not in local_component_ids:
+            node.cross_file_ref = True
