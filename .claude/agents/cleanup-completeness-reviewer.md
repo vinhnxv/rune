@@ -8,13 +8,6 @@ description: |
   cleanup if dynamic member discovery (config.json read) fails.
   Also validates QUAL-012 compliance (filesystem fallback gating) and
   TeamCreate/TeamDelete symmetry.
-  Triggers: Changes to skills/ that add/remove/rename Agent() calls,
-  changes to cleanup sections, new workflow phases with agent spawning.
-
-  <example>
-  user: "Check if all agents are covered by the cleanup fallback array"
-  assistant: "I'll use cleanup-completeness-reviewer to cross-reference Agent() spawns against cleanup coverage."
-  </example>
 tools:
   - Read
   - Glob
@@ -22,6 +15,17 @@ tools:
 model: sonnet
 maxTurns: 30
 ---
+
+## Description Details
+
+Triggers: Changes to skills/ that add/remove/rename Agent() calls,
+changes to cleanup sections, new workflow phases with agent spawning.
+
+<example>
+  user: "Check if all agents are covered by the cleanup fallback array"
+  assistant: "I'll use cleanup-completeness-reviewer to cross-reference Agent() spawns against cleanup coverage."
+  </example>
+
 
 # Cleanup Completeness Reviewer — Agent Coverage Audit
 

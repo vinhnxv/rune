@@ -7,11 +7,6 @@ description: |
   Covers: Generate unit tests following project conventions, generate integration tests
   for service boundaries, discover and use existing test utilities and fixtures, verify
   tests pass before marking complete.
-
-  <example>
-  user: "Generate tests for the auth module"
-  assistant: "I'll use trial-forger to generate tests following project conventions."
-  </example>
 tools:
   - Read
   - Write
@@ -27,6 +22,14 @@ maxTurns: 60
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+<example>
+  user: "Generate tests for the auth module"
+  assistant: "I'll use trial-forger to generate tests following project conventions."
+  </example>
+
 
 # Trial Forger — Test Generation Agent
 

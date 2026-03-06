@@ -8,13 +8,6 @@ description: |
   root cause classification (Case A/B/C/D), confidence scoring with risk escalation.
   Framework-agnostic with patterns for Python, Rust, and TypeScript. Named for Elden Ring's
   guardians who protect the integrity of their domain.
-  Triggers: Refactoring, file moves, renames, module extraction, directory reorganization,
-  code splitting, large structural PRs.
-
-  <example>
-  user: "Verify the refactoring didn't break any references"
-  assistant: "I'll use refactor-guardian to detect orphaned callers and incomplete migrations."
-  </example>
 tools:
   - Read
   - Glob
@@ -23,6 +16,17 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Refactoring, file moves, renames, module extraction, directory reorganization,
+code splitting, large structural PRs.
+
+<example>
+  user: "Verify the refactoring didn't break any references"
+  assistant: "I'll use refactor-guardian to detect orphaned callers and incomplete migrations."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

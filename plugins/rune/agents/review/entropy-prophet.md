@@ -7,12 +7,6 @@ description: |
   clever abstractions, architectural decisions that foreclose future options,
   dependencies that will become liabilities, scaling assumptions that create
   time bombs.
-  Triggers: Always run — entropy is always increasing.
-
-  <example>
-  user: "Review the new caching layer"
-  assistant: "I'll use entropy-prophet to predict the hidden costs and long-term consequences of this design."
-  </example>
 tools:
   - Read
   - Glob
@@ -21,6 +15,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Always run — entropy is always increasing.
+
+<example>
+  user: "Review the new caching layer"
+  assistant: "I'll use entropy-prophet to predict the hidden costs and long-term consequences of this design."
+  </example>
+
 
 # Entropy Prophet — Long-term Consequence Agent
 

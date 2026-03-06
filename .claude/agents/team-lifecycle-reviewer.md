@@ -7,13 +7,6 @@ description: |
   filesystem fallback gated by !cleanupTeamDeleteSucceeded (QUAL-012), use
   CHOME pattern instead of hardcoded ~/.claude/, and filter member names
   with SEC-4 regex validation.
-  Triggers: Changes to skills/ or commands/ that use TeamCreate, Agent Teams,
-  or multi-agent workflow orchestration.
-
-  <example>
-  user: "Review the new workflow skill for team cleanup compliance"
-  assistant: "I'll use team-lifecycle-reviewer to validate TeamCreate/TeamDelete pairing and cleanup patterns."
-  </example>
 tools:
   - Read
   - Glob
@@ -21,6 +14,17 @@ tools:
 model: sonnet
 maxTurns: 30
 ---
+
+## Description Details
+
+Triggers: Changes to skills/ or commands/ that use TeamCreate, Agent Teams,
+or multi-agent workflow orchestration.
+
+<example>
+  user: "Review the new workflow skill for team cleanup compliance"
+  assistant: "I'll use team-lifecycle-reviewer to validate TeamCreate/TeamDelete pairing and cleanup patterns."
+  </example>
+
 
 # Team Lifecycle Reviewer — Agent Team Cleanup Compliance
 

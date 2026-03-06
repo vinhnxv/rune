@@ -5,12 +5,6 @@ description: |
   and silent failure patterns. Covers: Null/None handling issues, empty collection
   edge cases, boundary value problems, race conditions and concurrency bugs, silent
   failure patterns, missing exhaustive handling. Low overhead, catches subtle bugs.
-  Triggers: Always run — logic bugs are subtle and missed by linters.
-
-  <example>
-  user: "Review the order processing logic"
-  assistant: "I'll use flaw-hunter to check for edge cases and logic bugs."
-  </example>
 tools:
   - Read
   - Glob
@@ -19,6 +13,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Always run — logic bugs are subtle and missed by linters.
+
+<example>
+  user: "Review the order processing logic"
+  assistant: "I'll use flaw-hunter to check for edge cases and logic bugs."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

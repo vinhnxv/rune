@@ -5,12 +5,6 @@ description: |
   optimization (N+1, missing indexes), memory and allocation patterns, async/concurrent
   performance issues, and scalability bottleneck identification. Named for Elden Ring's
   embers — performance hot spots glow like embers under load.
-  Triggers: Backend code changes, database queries, API endpoints.
-
-  <example>
-  user: "Check the API for performance issues"
-  assistant: "I'll use ember-oracle to analyze performance bottlenecks."
-  </example>
 tools:
   - Read
   - Glob
@@ -19,6 +13,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Backend code changes, database queries, API endpoints.
+
+<example>
+  user: "Check the API for performance issues"
+  assistant: "I'll use ember-oracle to analyze performance bottlenecks."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

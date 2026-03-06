@@ -5,12 +5,6 @@ maxTurns: 25
 description: |
   Design, architecture, and performance inspector for /rune:inspect. Evaluates architectural
   alignment with plan, coupling analysis, and performance profile against requirements.
-  Triggers: Summoned by inspect orchestrator during Phase 3.
-
-  <example>
-  user: "Inspect plan for architectural alignment and performance"
-  assistant: "I'll use sight-oracle to assess architecture fit, coupling, and performance profile."
-  </example>
 tools:
   - Read
   - Write
@@ -23,6 +17,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by inspect orchestrator during Phase 3.
+
+<example>
+  user: "Inspect plan for architectural alignment and performance"
+  assistant: "I'll use sight-oracle to assess architecture fit, coupling, and performance profile."
+  </example>
+
 
 # Sight Oracle — Design, Architecture & Performance Inspector
 

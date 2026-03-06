@@ -4,13 +4,6 @@ description: |
   Async and concurrency patterns reviewer. Detects waterfall awaits, unbounded concurrency,
   missing cancellation handling, race conditions, timer/resource cleanup issues, and
   structured concurrency violations across Python, Rust, TypeScript, and Go.
-  Triggers: Async code, concurrent operations, event handlers, timers, promises, channels,
-  frontend lifecycle, DOM races, state machine patterns.
-
-  <example>
-  user: "Check the async handlers for concurrency issues"
-  assistant: "I'll use tide-watcher to analyze async patterns and race conditions."
-  </example>
 tools:
   - Read
   - Glob
@@ -19,6 +12,17 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Async code, concurrent operations, event handlers, timers, promises, channels,
+frontend lifecycle, DOM races, state machine patterns.
+
+<example>
+  user: "Check the async handlers for concurrency issues"
+  assistant: "I'll use tide-watcher to analyze async patterns and race conditions."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

@@ -9,14 +9,6 @@ description: |
 
   Used during devise Phase 0.3 UX Research to assess current UX maturity before
   planning new features. Produces a structured UX pattern inventory — not findings.
-
-  Keywords: UX pattern, loading state, error handling, form validation, navigation,
-  empty state, confirmation, undo, pattern inventory, UX maturity, codebase analysis.
-
-  <example>
-  user: "Analyze what UX patterns are already in use in this project"
-  assistant: "I'll use ux-pattern-analyzer to inventory loading, error, form, and navigation patterns."
-  </example>
 tools:
   - Read
   - Glob
@@ -30,6 +22,17 @@ maxTurns: 40
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Keywords: UX pattern, loading state, error handling, form validation, navigation,
+empty state, confirmation, undo, pattern inventory, UX maturity, codebase analysis.
+
+<example>
+  user: "Analyze what UX patterns are already in use in this project"
+  assistant: "I'll use ux-pattern-analyzer to inventory loading, error, form, and navigation patterns."
+  </example>
+
 
 # UX Pattern Analyzer — Codebase UX Maturity Assessment Agent
 

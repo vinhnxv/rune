@@ -6,12 +6,6 @@ description: |
   Traces event and message impact across the async communication stack: event schemas,
   producers, consumers, dead letter queues, and retry policies. Detects contract drift
   in event-driven architectures.
-  Triggers: Summoned by Goldmask orchestrator during Impact Layer analysis for event/message changes.
-
-  <example>
-  user: "Trace impact of the UserCreated event schema change"
-  assistant: "I'll use event-message-tracer to trace event type → publishers → subscribers → DLQ → retry."
-  </example>
 tools:
   - Read
   - Write  # Write: required for file-bus handoff to goldmask-coordinator (tmp/ only)
@@ -21,6 +15,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by Goldmask orchestrator during Impact Layer analysis for event/message changes.
+
+<example>
+  user: "Trace impact of the UserCreated event schema change"
+  assistant: "I'll use event-message-tracer to trace event type → publishers → subscribers → DLQ → retry."
+  </example>
+
 
 # Event/Message Tracer — Investigation Agent
 

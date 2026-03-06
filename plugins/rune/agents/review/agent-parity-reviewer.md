@@ -6,13 +6,6 @@ description: |
   (not encoded workflows). Detects: Orphan Features, Context Starvation, Sandbox Isolation,
   Workflow Tools, and Silent Actions anti-patterns. Validates tool granularity and audit
   trail coverage for agent-first architectures.
-  Triggers: Agent integration code, MCP server configs, tool definitions, UI feature additions,
-  permission changes, agent workspace code.
-
-  <example>
-  user: "Review the new tool definitions for agent parity"
-  assistant: "I'll use agent-parity-reviewer to check that every UI action has a matching agent tool."
-  </example>
 tools:
   - Read
   - Glob
@@ -22,6 +15,17 @@ mcpServers:
 model: sonnet
 maxTurns: 30
 ---
+
+## Description Details
+
+Triggers: Agent integration code, MCP server configs, tool definitions, UI feature additions,
+permission changes, agent workspace code.
+
+<example>
+  user: "Review the new tool definitions for agent parity"
+  assistant: "I'll use agent-parity-reviewer to check that every UI action has a matching agent tool."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

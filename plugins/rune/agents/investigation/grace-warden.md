@@ -6,12 +6,6 @@ description: |
   Correctness and completeness inspector for /rune:inspect. Evaluates each plan requirement
   against the codebase to determine COMPLETE/PARTIAL/MISSING/DEVIATED status. Provides
   evidence-based completion percentages and correctness findings.
-  Triggers: Summoned by inspect orchestrator during Phase 3.
-
-  <example>
-  user: "Inspect plan requirements against codebase for completeness"
-  assistant: "I'll use grace-warden to assess each requirement's implementation status with evidence."
-  </example>
 tools:
   - Read
   - Write
@@ -24,6 +18,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by inspect orchestrator during Phase 3.
+
+<example>
+  user: "Inspect plan requirements against codebase for completeness"
+  assistant: "I'll use grace-warden to assess each requirement's implementation status with evidence."
+  </example>
+
 
 # Grace Warden — Correctness & Completeness Inspector
 

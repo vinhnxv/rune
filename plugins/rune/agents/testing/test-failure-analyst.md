@@ -5,11 +5,6 @@ description: |
   and error logs to produce fix proposals. Read-only analyst — does not modify code.
   Spawned by team lead ONLY when test failures are detected.
   Use proactively during arc Phase 7.7 TEST for failure analysis.
-
-  <example>
-  user: "Analyze the 3 test failures from the integration tier"
-  assistant: "I'll use test-failure-analyst to determine root causes and propose fixes."
-  </example>
 tools:
   - Read
   - Glob
@@ -19,6 +14,14 @@ mcpServers:
 model: inherit
 maxTurns: 15
 ---
+
+## Description Details
+
+<example>
+  user: "Analyze the 3 test failures from the integration tier"
+  assistant: "I'll use test-failure-analyst to determine root causes and propose fixes."
+  </example>
+
 
 # Test Failure Analyst
 

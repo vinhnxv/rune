@@ -6,12 +6,6 @@ description: |
   Traces impact of data layer changes across the full persistence stack: schema definitions,
   ORM models, serializers, migrations, and seed data. Identifies ripple effects when data
   models change.
-  Triggers: Summoned by Goldmask orchestrator during Impact Layer analysis for data model changes.
-
-  <example>
-  user: "Trace impact of the User model schema change"
-  assistant: "I'll use data-layer-tracer to trace schema → ORM → serializer → migration dependencies."
-  </example>
 tools:
   - Read
   - Write  # Write: required for file-bus handoff to goldmask-coordinator (tmp/ only)
@@ -21,6 +15,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by Goldmask orchestrator during Impact Layer analysis for data model changes.
+
+<example>
+  user: "Trace impact of the User model schema change"
+  assistant: "I'll use data-layer-tracer to trace schema → ORM → serializer → migration dependencies."
+  </example>
+
 
 # Data Layer Tracer — Investigation Agent
 

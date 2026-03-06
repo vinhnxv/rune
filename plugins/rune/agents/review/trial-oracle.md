@@ -6,12 +6,6 @@ description: |
   test-first commit order verification, coverage gap detection (missing test files),
   assertion quality analysis, edge case test coverage assessment, test naming convention
   enforcement, AAA (Arrange-Act-Assert) structure validation.
-  Triggers: Always run — test quality directly impacts reliability.
-
-  <example>
-  user: "Check if the tests follow TDD and have good quality"
-  assistant: "I'll use trial-oracle to verify TDD compliance and test coverage."
-  </example>
 tools:
   - Read
   - Glob
@@ -20,6 +14,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Always run — test quality directly impacts reliability.
+
+<example>
+  user: "Check if the tests follow TDD and have good quality"
+  assistant: "I'll use trial-oracle to verify TDD compliance and test coverage."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

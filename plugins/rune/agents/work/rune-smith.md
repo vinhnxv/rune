@@ -7,11 +7,6 @@ description: |
   Covers: Implement features following existing codebase patterns, write code with TDD
   cycle (test first, then implement), run project quality gates (linting, type checking),
   commit changes with conventional format.
-
-  <example>
-  user: "Implement the user authentication feature"
-  assistant: "I'll use rune-smith to implement the feature following TDD patterns."
-  </example>
 tools:
   - Read
   - Write
@@ -28,6 +23,14 @@ mcpServers:
   - echo-search
   - figma-to-react
 ---
+
+## Description Details
+
+<example>
+  user: "Implement the user authentication feature"
+  assistant: "I'll use rune-smith to implement the feature following TDD patterns."
+  </example>
+
 
 # Rune Smith — Code Implementation Agent
 

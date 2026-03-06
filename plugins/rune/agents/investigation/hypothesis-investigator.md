@@ -6,12 +6,6 @@ description: |
   Hypothesis investigator for ACH-based parallel debugging. Assigned ONE hypothesis
   to confirm or falsify with evidence. Gathers confirming and falsifying evidence,
   assigns confidence scores, and reports structured findings with file:line citations.
-  Triggers: Summoned by /rune:debug during INVESTIGATE phase (1 agent per hypothesis).
-
-  <example>
-  user: "Investigate hypothesis H-REG-001: Recent commit abc1234 changed auth middleware"
-  assistant: "I'll use hypothesis-investigator to gather evidence for/against this regression hypothesis."
-  </example>
 tools:
   - Read
   - Write
@@ -22,6 +16,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by /rune:debug during INVESTIGATE phase (1 agent per hypothesis).
+
+<example>
+  user: "Investigate hypothesis H-REG-001: Recent commit abc1234 changed auth middleware"
+  assistant: "I'll use hypothesis-investigator to gather evidence for/against this regression hypothesis."
+  </example>
+
 
 # Hypothesis Investigator — Investigation Agent
 

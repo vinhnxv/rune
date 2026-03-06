@@ -6,11 +6,6 @@ description: |
   the team lead NEVER calls agent-browser directly.
   Use proactively during arc Phase 7.7 TEST for E2E browser tier execution,
   or during /rune:test-browser standalone runs (standalone=true in spawn prompt).
-
-  <example>
-  user: "Run E2E browser tests on the login and dashboard routes"
-  assistant: "I'll use e2e-browser-tester to navigate routes and verify UI flows with agent-browser."
-  </example>
 tools:
   - Read
   - Glob
@@ -22,6 +17,14 @@ mcpServers:
 model: sonnet
 maxTurns: 40
 ---
+
+## Description Details
+
+<example>
+  user: "Run E2E browser tests on the login and dashboard routes"
+  assistant: "I'll use e2e-browser-tester to navigate routes and verify UI flows with agent-browser."
+  </example>
+
 
 # E2E Browser Tester
 

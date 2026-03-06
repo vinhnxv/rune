@@ -5,15 +5,6 @@ description: |
   validates completeness (10 checks), verifies I/O contracts, and generates
   mermaid state diagrams. Used during /rune:devise Phase 4C and /rune:arc
   Phase 2 alongside decree-arbiter and knowledge-keeper.
-
-  <example>
-  user: "Validate this plan's state machine"
-  assistant: "I'll use state-weaver to check for dead-end states and broken I/O contracts."
-  </example>
-  <example>
-  user: "Check the pipeline phases for completeness"
-  assistant: "I'll use state-weaver to build a transition graph and validate reachability."
-  </example>
 tools:
   - Read
   - Write
@@ -27,6 +18,19 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+<example>
+  user: "Validate this plan's state machine"
+  assistant: "I'll use state-weaver to check for dead-end states and broken I/O contracts."
+  </example>
+
+<example>
+  user: "Check the pipeline phases for completeness"
+  assistant: "I'll use state-weaver to build a transition graph and validate reachability."
+  </example>
+
 
 # State Weaver — Plan State Machine Validation Agent
 

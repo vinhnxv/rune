@@ -5,12 +5,6 @@ maxTurns: 20
 description: |
   Traces business logic impact across service methods, domain rules, validators, and state
   machines. Identifies ripple effects when core business rules change.
-  Triggers: Summoned by Goldmask orchestrator during Impact Layer analysis for service/domain changes.
-
-  <example>
-  user: "Trace impact of the order status transition change"
-  assistant: "I'll use business-logic-tracer to trace service → domain → validator → state machine dependencies."
-  </example>
 tools:
   - Read
   - Write  # Write: required for file-bus handoff to goldmask-coordinator (tmp/ only)
@@ -20,6 +14,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by Goldmask orchestrator during Impact Layer analysis for service/domain changes.
+
+<example>
+  user: "Trace impact of the order status transition change"
+  assistant: "I'll use business-logic-tracer to trace service → domain → validator → state machine dependencies."
+  </example>
+
 
 # Business Logic Tracer — Investigation Agent
 

@@ -4,13 +4,6 @@ description: |
   Opinionated code review from a senior engineer persona. Challenges over-engineering,
   questions unnecessary abstractions, enforces "duplication over wrong abstraction"
   philosophy, and pushes for the simplest solution that works.
-  Triggers: Senior review, opinionated review, over-engineering check, simplicity
-  enforcement, code philosophy, abstraction audit, dependency review.
-
-  <example>
-  user: "Give me an opinionated senior review of this PR"
-  assistant: "I'll use senior-engineer-reviewer to challenge abstractions and complexity."
-  </example>
 tools:
   - Read
   - Glob
@@ -19,6 +12,17 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Senior review, opinionated review, over-engineering check, simplicity
+enforcement, code philosophy, abstraction audit, dependency review.
+
+<example>
+  user: "Give me an opinionated senior review of this PR"
+  assistant: "I'll use senior-engineer-reviewer to challenge abstractions and complexity."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

@@ -6,12 +6,6 @@ description: |
   Quantitative git history analysis agent — computes per-file risk scores, churn metrics,
   co-change clustering, and ownership concentration. Produces risk-map.json for the
   Goldmask coordinator. Uses Bash for git log, ls-files, and rev-list commands.
-  Triggers: Summoned by Goldmask orchestrator during Lore Layer analysis.
-
-  <example>
-  user: "Compute risk scores for files affected by the auth refactor"
-  assistant: "I'll use lore-analyst to analyze git history, compute churn metrics, and build a risk map."
-  </example>
 tools:
   - Bash
   - Read
@@ -22,6 +16,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by Goldmask orchestrator during Lore Layer analysis.
+
+<example>
+  user: "Compute risk scores for files affected by the auth refactor"
+  assistant: "I'll use lore-analyst to analyze git history, compute churn metrics, and build a risk map."
+  </example>
+
 
 # Lore Analyst — Investigation Agent
 

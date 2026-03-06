@@ -6,12 +6,6 @@ description: |
   Abstraction identification, Temporal Coupling analysis, Missing Observability scanning,
   Wrong Consistency Model detection, Premature Optimization/Scaling flagging, Failure Mode
   blindspot detection, Tech Stack Overchoice identification.
-  Triggers: New services, structural changes, plan review, architecture decisions.
-
-  <example>
-  user: "Check for design anti-patterns in the new service"
-  assistant: "I'll use blight-seer to scan for architectural smells and design flaws."
-  </example>
 tools:
   - Read
   - Glob
@@ -20,6 +14,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: New services, structural changes, plan review, architecture decisions.
+
+<example>
+  user: "Check for design anti-patterns in the new service"
+  assistant: "I'll use blight-seer to scan for architectural smells and design flaws."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

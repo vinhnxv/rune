@@ -9,13 +9,6 @@ description: |
   against design spec or heuristic checklist, verify state coverage (loading, error,
   empty, disabled), check responsive behavior at standard breakpoints, produce
   scored findings for storybook-fixer.
-
-  Triggers: arc Phase 3.3 STORYBOOK VERIFICATION.
-
-  <example>
-  user: "Verify the Button component renders correctly in Storybook"
-  assistant: "I'll use storybook-reviewer to screenshot and analyze the component."
-  </example>
 tools:
   - Read
   - Glob
@@ -30,6 +23,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: arc Phase 3.3 STORYBOOK VERIFICATION.
+
+<example>
+  user: "Verify the Button component renders correctly in Storybook"
+  assistant: "I'll use storybook-reviewer to screenshot and analyze the component."
+  </example>
+
 
 # Storybook Reviewer — Component Visual Verification Agent
 

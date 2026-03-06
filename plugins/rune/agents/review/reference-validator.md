@@ -4,13 +4,6 @@ description: |
   Import path validation, config-to-source reference checking, agent/skill frontmatter schema
   validation, and version sync verification. Ensures all cross-file references resolve correctly.
   Framework-agnostic (Python, Rust, TypeScript).
-  Triggers: New files, renamed modules, config changes, version bumps, plugin manifest updates,
-  frontmatter edits.
-
-  <example>
-  user: "Check if all imports and config references are valid"
-  assistant: "I'll use reference-validator to verify import paths, config refs, and version sync."
-  </example>
 tools:
   - Read
   - Glob
@@ -19,6 +12,17 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: New files, renamed modules, config changes, version bumps, plugin manifest updates,
+frontmatter edits.
+
+<example>
+  user: "Check if all imports and config references are valid"
+  assistant: "I'll use reference-validator to verify import paths, config refs, and version sync."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

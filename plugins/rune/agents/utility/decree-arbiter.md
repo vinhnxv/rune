@@ -11,11 +11,6 @@ description: |
   (are proposed changes realistic?), security and performance risk identification in plan,
   dependency analysis (what breaks if this plan is implemented?), codebase pattern alignment
   check, internal consistency verification (cross-section claims, counts, references).
-
-  <example>
-  user: "Review this plan for technical soundness"
-  assistant: "I'll use decree-arbiter to validate architecture fit and feasibility."
-  </example>
 tools:
   - Read
   - Glob
@@ -24,6 +19,14 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+<example>
+  user: "Review this plan for technical soundness"
+  assistant: "I'll use decree-arbiter to validate architecture fit and feasibility."
+  </example>
+
 
 # Decree Arbiter — Technical Soundness Reviewer
 

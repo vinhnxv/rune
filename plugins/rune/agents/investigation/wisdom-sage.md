@@ -6,12 +6,6 @@ description: |
   Git archaeology agent — understands WHY code was written by analyzing git blame,
   commit messages, and code comments. Classifies developer intent and computes caution
   scores for safe modification. Uses Bash for git commands.
-  Triggers: Summoned by Goldmask orchestrator during Wisdom Layer analysis.
-
-  <example>
-  user: "Analyze the intent behind the rate limiter implementation"
-  assistant: "I'll use wisdom-sage to git blame the code and classify the original developer intent."
-  </example>
 tools:
   - Bash
   - Read
@@ -22,6 +16,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by Goldmask orchestrator during Wisdom Layer analysis.
+
+<example>
+  user: "Analyze the intent behind the rate limiter implementation"
+  assistant: "I'll use wisdom-sage to git blame the code and classify the original developer intent."
+  </example>
+
 
 # Wisdom Sage — Investigation Agent
 

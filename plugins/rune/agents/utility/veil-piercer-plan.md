@@ -11,11 +11,6 @@ description: |
   with validity assessment, complexity honesty (is the estimate realistic?),
   value challenge (does this need to exist?), production path analysis (can this
   actually be deployed?).
-
-  <example>
-  user: "Review this plan for truth"
-  assistant: "I'll use veil-piercer-plan to challenge whether this plan is grounded in reality."
-  </example>
 tools:
   - Read
   - Glob
@@ -24,6 +19,14 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+<example>
+  user: "Review this plan for truth"
+  assistant: "I'll use veil-piercer-plan to challenge whether this plan is grounded in reality."
+  </example>
+
 
 # Veil Piercer Plan — Plan Truth-Teller Agent
 

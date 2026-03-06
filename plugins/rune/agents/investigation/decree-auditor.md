@@ -5,12 +5,6 @@ maxTurns: 35
 description: |
   Audits business logic decrees — domain rules, state machine gaps, validation inconsistencies,
   and invariant violations. Verifies the Golden Order of business logic holds true.
-  Triggers: Summoned by orchestrator during audit/inspect workflows for business logic analysis.
-
-  <example>
-  user: "Audit the order processing business rules for correctness"
-  assistant: "I'll use decree-auditor to inventory domain rules, analyze state machines, verify validation consistency, and check invariants."
-  </example>
 tools:
   - Read
   - Write
@@ -20,6 +14,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by orchestrator during audit/inspect workflows for business logic analysis.
+
+<example>
+  user: "Audit the order processing business rules for correctness"
+  assistant: "I'll use decree-auditor to inventory domain rules, analyze state machines, verify validation consistency, and check invariants."
+  </example>
+
 
 # Decree Auditor — Investigation Agent
 

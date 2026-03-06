@@ -5,7 +5,6 @@ description: |
   where the name suggests different behavior than what the code does.
   Covers: name-behavior mismatch, vague names hiding complexity, boolean
   inversion, side-effect hiding, abbreviation ambiguity.
-  Triggers: Large PRs, refactoring, AI-generated code, audit mode.
 tools:
   - Read
   - Glob
@@ -14,6 +13,11 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Large PRs, refactoring, AI-generated code, audit mode.
+
 
 # Naming Intent Analyzer
 

@@ -6,12 +6,6 @@ description: |
   type hint verification (mypy strict), modern Python idiom enforcement (3.10+),
   async/await correctness detection, error handling pattern validation (Result types),
   import organization and style checks.
-  Triggers: Python code review, backend review, type hint verification.
-
-  <example>
-  user: "Review type safety in the Python backend"
-  assistant: "I'll use type-warden to check type hints, mypy compliance, and Python idioms."
-  </example>
 tools:
   - Read
   - Glob
@@ -20,6 +14,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Python code review, backend review, type hint verification.
+
+<example>
+  user: "Review type safety in the Python backend"
+  assistant: "I'll use type-warden to check type hints, mypy compliance, and Python idioms."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

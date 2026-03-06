@@ -5,12 +5,6 @@ maxTurns: 35
 description: |
   Watches signal propagation — logging adequacy, metrics coverage, distributed tracing,
   error classification, and incident reproducibility. Ensures systems can be observed and debugged.
-  Triggers: Summoned by orchestrator during audit/inspect workflows for observability analysis.
-
-  <example>
-  user: "Assess observability coverage of the order processing service"
-  assistant: "I'll use signal-watcher to evaluate logging adequacy, check metrics coverage, trace distributed request flows, classify error handling, and assess incident reproducibility."
-  </example>
 tools:
   - Read
   - Write
@@ -20,6 +14,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by orchestrator during audit/inspect workflows for observability analysis.
+
+<example>
+  user: "Assess observability coverage of the order processing service"
+  assistant: "I'll use signal-watcher to evaluate logging adequacy, check metrics coverage, trace distributed request flows, classify error handling, and assess incident reproducibility."
+  </example>
+
 
 # Signal Watcher — Investigation Agent
 

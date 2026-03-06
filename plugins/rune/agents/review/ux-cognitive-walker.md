@@ -10,15 +10,6 @@ description: |
   Produces UXC-prefixed findings. Off by default — enabled via talisman
   cognitive_walkthrough: true or --deep flag. Model: opus (expensive, deep
   reasoning required). Conditional activation: ux.enabled + frontend files detected.
-
-  Keywords: cognitive walkthrough, first-time user, discoverability, learnability,
-  error recovery, progressive disclosure, mental model, affordance, signifier,
-  task completion, user journey.
-
-  <example>
-  user: "Simulate a first-time user trying to complete the onboarding flow"
-  assistant: "I'll use ux-cognitive-walker to walk through the flow as a novice user."
-  </example>
 tools:
   - Read
   - Glob
@@ -28,6 +19,18 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Keywords: cognitive walkthrough, first-time user, discoverability, learnability,
+error recovery, progressive disclosure, mental model, affordance, signifier,
+task completion, user journey.
+
+<example>
+  user: "Simulate a first-time user trying to complete the onboarding flow"
+  assistant: "I'll use ux-cognitive-walker to walk through the flow as a novice user."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

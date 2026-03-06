@@ -7,12 +7,6 @@ description: |
   features that look complete but are disconnected from the system architecture,
   error handling that exists but doesn't handle real errors, APIs that are
   technically correct but practically unusable.
-  Triggers: Always run — illusions hide in every review.
-
-  <example>
-  user: "Review the new payment processing module"
-  assistant: "I'll use reality-arbiter to check if this actually works in production or just looks like it does."
-  </example>
 tools:
   - Read
   - Glob
@@ -21,6 +15,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Always run — illusions hide in every review.
+
+<example>
+  user: "Review the new payment processing module"
+  assistant: "I'll use reality-arbiter to check if this actually works in production or just looks like it does."
+  </example>
+
 
 # Reality Arbiter — Production Viability Agent
 

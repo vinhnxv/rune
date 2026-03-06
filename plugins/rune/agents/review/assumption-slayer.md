@@ -7,12 +7,6 @@ description: |
   architecture decisions based on hype rather than requirements, technically
   impressive code that serves no real purpose, cargo cult implementations copied
   without understanding.
-  Triggers: Always run — wrong assumptions are invisible to domain-specific reviewers.
-
-  <example>
-  user: "Review the new microservices architecture"
-  assistant: "I'll use assumption-slayer to check if microservices is the right answer or just a fashionable one."
-  </example>
 tools:
   - Read
   - Glob
@@ -21,6 +15,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Always run — wrong assumptions are invisible to domain-specific reviewers.
+
+<example>
+  user: "Review the new microservices architecture"
+  assistant: "I'll use assumption-slayer to check if microservices is the right answer or just a fashionable one."
+  </example>
+
 
 # Assumption Slayer — Premise Validation Agent
 

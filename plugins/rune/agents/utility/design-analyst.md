@@ -13,15 +13,6 @@ description: |
   Fast paths: different file_key → DIFFERENT-SCREEN immediately; Component Set
   membership → VARIANT immediately; user-labeled screen frames → skip.
   Single-linkage clustering with correlation discount for correlated signal pairs.
-
-  <example>
-  user: "Classify the relationship between these Figma frames from two URLs"
-  assistant: "I'll use design-analyst to compute a 5-signal composite and group the frames."
-  </example>
-  <example>
-  user: "Are these extracted Figma frames the same screen or different screens?"
-  assistant: "I'll use design-analyst to run the state-detection algorithm and report groupings."
-  </example>
 tools:
   - Read
   - Glob
@@ -34,6 +25,19 @@ disallowedTools:
 model: sonnet
 maxTurns: 20
 ---
+
+## Description Details
+
+<example>
+  user: "Classify the relationship between these Figma frames from two URLs"
+  assistant: "I'll use design-analyst to compute a 5-signal composite and group the frames."
+  </example>
+
+<example>
+  user: "Are these extracted Figma frames the same screen or different screens?"
+  assistant: "I'll use design-analyst to run the state-detection algorithm and report groupings."
+  </example>
+
 
 # Design Analyst — Frame Relationship Classification Agent
 

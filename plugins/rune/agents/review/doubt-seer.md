@@ -4,12 +4,6 @@ description: |
   Cross-agent claim verification through adversarial interrogation.
   Challenges FACTUAL, ANALYTICAL, and PRESCRIPTIVE claims in teammate outputs
   using categorical verdicts: PROVEN / LIKELY / UNCERTAIN / UNPROVEN.
-  Triggers: After Ash outputs complete, before Runebinder aggregation.
-
-  <example>
-  user: "Verify the review findings for evidence quality"
-  assistant: "I'll use doubt-seer to cross-examine teammate claims against the codebase."
-  </example>
 tools:
   - Read
   - Glob
@@ -18,6 +12,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: After Ash outputs complete, before Runebinder aggregation.
+
+<example>
+  user: "Verify the review findings for evidence quality"
+  assistant: "I'll use doubt-seer to cross-examine teammate claims against the codebase."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

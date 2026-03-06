@@ -5,13 +5,6 @@ description: |
   the project's design system conventions: token usage, variant patterns,
   import paths, class merge utilities, and dark mode implementation.
   Activated when frontend stack + design system detected (confidence >= 0.70).
-  Keywords: design system, tokens, CVA, cn(), tailwind, component patterns,
-  class-variance-authority, twMerge, Radix, shadcn, dark mode, theme tokens.
-
-  <example>
-  user: "Review the Button component for design system compliance"
-  assistant: "I'll use design-system-compliance-reviewer to validate token usage, CVA patterns, and accessibility."
-  </example>
 allowed-tools:
   - Read
   - Glob
@@ -19,6 +12,17 @@ allowed-tools:
 model: sonnet
 maxTurns: 30
 ---
+
+## Description Details
+
+Keywords: design system, tokens, CVA, cn(), tailwind, component patterns,
+class-variance-authority, twMerge, Radix, shadcn, dark mode, theme tokens.
+
+<example>
+  user: "Review the Button component for design system compliance"
+  assistant: "I'll use design-system-compliance-reviewer to validate token usage, CVA patterns, and accessibility."
+  </example>
+
 <!-- NOTE: allowed-tools is enforced by the platform when this agent is spawned
      directly. When orchestrated via a general-purpose subagent, the platform
      enforcement may not apply — prompt instructions serve as the restriction boundary

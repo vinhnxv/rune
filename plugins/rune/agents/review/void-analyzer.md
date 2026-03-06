@@ -5,12 +5,6 @@ description: |
   stub functions, and partial feature implementations. Covers: TODO/FIXME/HACK marker
   detection, stub function identification, missing error handling paths, partial feature
   implementation flagging, placeholder value detection.
-  Triggers: New features, domain changes, AI-generated code.
-
-  <example>
-  user: "Check for incomplete implementations"
-  assistant: "I'll use void-analyzer to find missing logic and stubs."
-  </example>
 tools:
   - Read
   - Glob
@@ -19,6 +13,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: New features, domain changes, AI-generated code.
+
+<example>
+  user: "Check for incomplete implementations"
+  assistant: "I'll use void-analyzer to find missing logic and stubs."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

@@ -4,11 +4,6 @@ description: |
   Run unit tests scoped to changed files, report pass/fail/coverage.
   Verifies boundary values, null/empty inputs, and error paths — not just happy paths.
   Use proactively during arc Phase 7.7 TEST for unit tier execution.
-
-  <example>
-  user: "Run unit tests for the changed auth module files"
-  assistant: "I'll use unit-test-runner to execute diff-scoped unit tests and report results."
-  </example>
 tools:
   - Read
   - Glob
@@ -19,6 +14,14 @@ mcpServers:
 model: sonnet
 maxTurns: 25
 ---
+
+## Description Details
+
+<example>
+  user: "Run unit tests for the changed auth module files"
+  assistant: "I'll use unit-test-runner to execute diff-scoped unit tests and report results."
+  </example>
+
 
 # Unit Test Runner
 

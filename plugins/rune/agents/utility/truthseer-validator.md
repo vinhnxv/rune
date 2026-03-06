@@ -3,12 +3,6 @@ name: truthseer-validator
 description: |
   Validates audit coverage quality before aggregation (Phase 5.5).
   Cross-references finding density against file importance to detect under-reviewed areas.
-  Triggers: Audit workflows with >100 reviewable files.
-
-  <example>
-  user: "Validate audit coverage"
-  assistant: "I'll use truthseer-validator to check finding density against file importance."
-  </example>
 tools:
   - Read
   - Glob
@@ -19,6 +13,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Audit workflows with >100 reviewable files.
+
+<example>
+  user: "Validate audit coverage"
+  assistant: "I'll use truthseer-validator to check finding density against file importance."
+  </example>
+
 
 # Truthseer Validator — Audit Coverage Validation Agent
 

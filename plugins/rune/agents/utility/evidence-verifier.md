@@ -6,15 +6,6 @@ description: |
   systematic per-claim quantitative verification with grounding scores.
   Trigger keywords: evidence verification, claim validation, plan grounding,
   factual accuracy, evidence chain, grounding score.
-
-  <example>
-  user: "Verify the factual claims in this plan"
-  assistant: "I'll use evidence-verifier to systematically validate every claim against the codebase."
-  </example>
-  <example>
-  user: "Check if the plan's evidence chain holds up"
-  assistant: "I'll use evidence-verifier to score each claim in the evidence chain."
-  </example>
 tools:
   - Read
   - Glob
@@ -25,6 +16,19 @@ maxTurns: 40
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+<example>
+  user: "Verify the factual claims in this plan"
+  assistant: "I'll use evidence-verifier to systematically validate every claim against the codebase."
+  </example>
+
+<example>
+  user: "Check if the plan's evidence chain holds up"
+  assistant: "I'll use evidence-verifier to score each claim in the evidence chain."
+  </example>
+
 
 # Evidence Verifier — Plan Claim Validation Agent
 

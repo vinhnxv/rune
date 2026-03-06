@@ -9,12 +9,6 @@ description: |
   format consistency, convention deviation flagging, naming intent quality analysis
   (name-behavior mismatch, vague names hiding complexity, side-effect hiding,
   boolean inversion). The silent killer of system health.
-  Triggers: New files, new services, pattern-sensitive areas, cross-module changes.
-
-  <example>
-  user: "Check if the new code follows our patterns"
-  assistant: "I'll use pattern-seer to verify pattern consistency."
-  </example>
 tools:
   - Read
   - Glob
@@ -23,6 +17,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: New files, new services, pattern-sensitive areas, cross-module changes.
+
+<example>
+  user: "Check if the new code follows our patterns"
+  assistant: "I'll use pattern-seer to verify pattern consistency."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

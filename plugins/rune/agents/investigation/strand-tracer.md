@@ -5,12 +5,6 @@ maxTurns: 40
 description: |
   Traces integration strands — unconnected modules, broken imports, unused exports, dead routes,
   and unwired dependency injection. Identifies severed golden threads between components.
-  Triggers: Summoned by orchestrator during audit/inspect workflows for integration gap analysis.
-
-  <example>
-  user: "Check for broken integrations in the API layer"
-  assistant: "I'll use strand-tracer to map module connectivity, detect dead routes, find unused exports, and verify DI wiring."
-  </example>
 tools:
   - Read
   - Write
@@ -20,6 +14,16 @@ tools:
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Summoned by orchestrator during audit/inspect workflows for integration gap analysis.
+
+<example>
+  user: "Check for broken integrations in the API layer"
+  assistant: "I'll use strand-tracer to map module connectivity, detect dead routes, find unused exports, and verify DI wiring."
+  </example>
+
 
 # Strand Tracer — Investigation Agent
 

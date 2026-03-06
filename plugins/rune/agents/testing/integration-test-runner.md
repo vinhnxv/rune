@@ -4,11 +4,6 @@ description: |
   Run integration tests for API, database, and business logic validation.
   Verifies API contracts, auth boundaries, data validation, and error response consistency.
   Use proactively during arc Phase 7.7 TEST for integration tier execution.
-
-  <example>
-  user: "Run integration tests for the users API endpoints"
-  assistant: "I'll use integration-test-runner to execute API and service integration tests."
-  </example>
 tools:
   - Read
   - Glob
@@ -19,6 +14,14 @@ mcpServers:
 model: sonnet
 maxTurns: 30
 ---
+
+## Description Details
+
+<example>
+  user: "Run integration tests for the users API endpoints"
+  assistant: "I'll use integration-test-runner to execute API and service integration tests."
+  </example>
+
 
 # Integration Test Runner
 

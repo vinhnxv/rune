@@ -8,13 +8,6 @@ description: |
   Task/Agent naming in same files, and incomplete Agent call parameters.
   Does NOT flag Task* management tools (TaskCreate, TaskUpdate, etc.) — those
   are correct usage.
-  Triggers: Changes to skills/ or commands/ that spawn teammates or reference
-  Agent/Task tools.
-
-  <example>
-  user: "Check if all teammate spawns use Agent tool instead of Task"
-  assistant: "I'll use agent-spawn-reviewer to verify Agent tool usage per Claude Code 2.1.63 rename."
-  </example>
 tools:
   - Read
   - Glob
@@ -22,6 +15,17 @@ tools:
 model: sonnet
 maxTurns: 30
 ---
+
+## Description Details
+
+Triggers: Changes to skills/ or commands/ that spawn teammates or reference
+Agent/Task tools.
+
+<example>
+  user: "Check if all teammate spawns use Agent tool instead of Task"
+  assistant: "I'll use agent-spawn-reviewer to verify Agent tool usage per Claude Code 2.1.63 rename."
+  </example>
+
 
 # Agent Spawn Reviewer — Teammate Spawn Tool Compliance
 

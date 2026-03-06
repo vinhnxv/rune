@@ -4,13 +4,6 @@ description: |
   Data integrity, migration safety, and migration gatekeeper reviewer. Validates database
   migrations for reversibility, lock safety, data transformation correctness, transaction
   boundaries, and referential integrity across any ORM/migration framework.
-  Triggers: Migration files, schema changes, database model changes, transaction code,
-  data migration, rollback plan, dual-write, gatekeeper.
-
-  <example>
-  user: "Review the new database migration"
-  assistant: "I'll use forge-keeper to check migration safety and reversibility."
-  </example>
 tools:
   - Read
   - Glob
@@ -19,6 +12,17 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Migration files, schema changes, database model changes, transaction code,
+data migration, rollback plan, dual-write, gatekeeper.
+
+<example>
+  user: "Review the new database migration"
+  assistant: "I'll use forge-keeper to check migration safety and reversibility."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

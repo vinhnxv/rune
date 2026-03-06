@@ -8,14 +8,6 @@ description: |
 
   Produces UXF-prefixed findings. Non-blocking by default. Conditional activation:
   ux.enabled + frontend files detected.
-
-  Keywords: user flow, loading state, error boundary, empty state, confirmation dialog,
-  undo, graceful degradation, skeleton, fallback, optimistic update, toast, snackbar.
-
-  <example>
-  user: "Check if the dashboard components handle all UI states"
-  assistant: "I'll use ux-flow-validator to check for missing loading, error, and empty states."
-  </example>
 tools:
   - Read
   - Glob
@@ -24,6 +16,17 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Keywords: user flow, loading state, error boundary, empty state, confirmation dialog,
+undo, graceful degradation, skeleton, fallback, optimistic update, toast, snackbar.
+
+<example>
+  user: "Check if the dashboard components handle all UI states"
+  assistant: "I'll use ux-flow-validator to check for missing loading, error, and empty states."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

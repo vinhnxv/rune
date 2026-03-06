@@ -6,12 +6,6 @@ description: |
   string-based reference detection (getattr, globals, reflection), framework registration
   verification (decorators, middleware), plugin/extension system reference checks,
   re-export and barrel file analysis.
-  Triggers: Before flagging code as orphaned, when code might be dynamically referenced.
-
-  <example>
-  user: "Check if this class is referenced dynamically"
-  assistant: "I'll use phantom-checker to search for string-based references."
-  </example>
 tools:
   - Read
   - Glob
@@ -20,6 +14,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Before flagging code as orphaned, when code might be dynamically referenced.
+
+<example>
+  user: "Check if this class is referenced dynamically"
+  assistant: "I'll use phantom-checker to search for string-based references."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

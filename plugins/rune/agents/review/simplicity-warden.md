@@ -5,12 +5,6 @@ description: |
   Flags premature abstractions, unnecessary indirection, and speculative generality. Covers:
   YAGNI violation detection, premature abstraction flagging, unnecessary complexity
   identification, speculative generality detection, dead configuration removal.
-  Triggers: After implementation, large PRs, new abstractions.
-
-  <example>
-  user: "Check if the code is over-engineered"
-  assistant: "I'll use simplicity-warden to identify YAGNI violations."
-  </example>
 tools:
   - Read
   - Glob
@@ -19,6 +13,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: After implementation, large PRs, new abstractions.
+
+<example>
+  user: "Check if the code is over-engineered"
+  assistant: "I'll use simplicity-warden to identify YAGNI violations."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 

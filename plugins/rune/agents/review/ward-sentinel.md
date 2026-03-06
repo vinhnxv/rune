@@ -5,12 +5,6 @@ description: |
   vulnerability detection, authentication/authorization review, input validation
   and sanitization checks, secrets/credential detection, agent/AI prompt security
   analysis.
-  Triggers: Always run on every review — security issues can hide in any file type.
-
-  <example>
-  user: "Review the authentication changes"
-  assistant: "I'll use ward-sentinel to check for security vulnerabilities."
-  </example>
 tools:
   - Read
   - Glob
@@ -19,6 +13,16 @@ maxTurns: 30
 mcpServers:
   - echo-search
 ---
+
+## Description Details
+
+Triggers: Always run on every review — security issues can hide in any file type.
+
+<example>
+  user: "Review the authentication changes"
+  assistant: "I'll use ward-sentinel to check for security vulnerabilities."
+  </example>
+
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
      (general-purpose subagent_type), tool restriction relies on prompt instructions. -->
 
