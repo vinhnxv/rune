@@ -32,8 +32,8 @@ This design preserves auditability: readers can see that a lower-priority Ash fl
 **Default (built-in only):**
 
 ```
-Ward Sentinel > Forge Warden > Veil Piercer > Knowledge Keeper > Pattern Weaver > Glyph Scribe > Codex Oracle > Shard Reviewers > Cross-Shard Sentinel
-SEC > BACK > VEIL > DOUBT > SH{X} > DOC > QUAL > FRONT > UXH > UXF > UXI > UXC > CDX > XSH
+Ward Sentinel > Forge Warden > Veil Piercer > Knowledge Keeper > Pattern Weaver > Glyph Scribe > Aesthetic Quality Reviewer > Codex Oracle > Shard Reviewers > Cross-Shard Sentinel
+SEC > BACK > VEIL > DOUBT > SH{X} > DOC > QUAL > FRONT > AESTH > UXH > UXF > UXI > UXC > CDX > XSH
 ```
 
 > **Sharding dedup note (v1.98.0+):** `SH{X}-` prefixes (`SHA-`, `SHB-`, `SHC-`, `SHD-`, `SHE-`)
@@ -61,16 +61,16 @@ SEC > COMP > BACK > RAIL > PERF > DOC > QUAL > FRONT > CDX
 - If `settings.dedup_hierarchy` is defined in config, use it as-is (user controls the order)
 - If NOT defined, append custom prefixes AFTER built-in hierarchy (lowest priority):
   ```
-  SEC > BACK > VEIL > DOUBT > SH{X} > DOC > QUAL > FRONT > UXH > UXF > UXI > UXC > CDX > XSH > {custom_1} > {custom_2} > ...
+  SEC > BACK > VEIL > DOUBT > SH{X} > DOC > QUAL > FRONT > AESTH > UXH > UXF > UXI > UXC > CDX > XSH > {custom_1} > {custom_2} > ...
   ```
 - **External model prefix ordering (v1.57.0+):** CLI-backed Ash prefixes (from `ashes.custom[]` entries with `cli:` field) are positioned BELOW `CDX` in the default hierarchy. Built-in prefixes (`SEC`, `BACK`, `DOC`, `QUAL`, `FRONT`, `CDX`) MUST always precede external model prefixes. This enforcement applies ONLY to CLI-backed external model prefixes — agent-backed custom Ashes can be placed anywhere in a user-defined hierarchy.
   ```
   Default with external models:
-  SEC > BACK > VEIL > DOUBT > SH{X} > DOC > QUAL > FRONT > UXH > UXF > UXI > UXC > CDX > XSH > {cli_ext_1} > {cli_ext_2} > {agent_custom_1} > ...
+  SEC > BACK > VEIL > DOUBT > SH{X} > DOC > QUAL > FRONT > AESTH > UXH > UXF > UXI > UXC > CDX > XSH > {cli_ext_1} > {cli_ext_2} > {agent_custom_1} > ...
   ```
 - Every active Ash's prefix MUST appear in the hierarchy. Missing prefixes → warn and append at end
 - Prefix format: 2-5 uppercase alphanumeric characters (A-Z, 0-9)
-- Reserved built-in prefixes: `SEC`, `BACK`, `VEIL`, `DOUBT`, `QUAL`, `FRONT`, `DOC`, `CDX`, `UXH`, `UXF`, `UXI`, `UXC`, `PY`, `TSR`, `RST`, `PHP`, `FAPI`, `DJG`, `LARV`, `SQLA`, `TDD`, `DDD`, `DI`, `SHA`, `SHB`, `SHC`, `SHD`, `SHE`, `XSH` — cannot be used by custom Ash
+- Reserved built-in prefixes: `SEC`, `BACK`, `VEIL`, `DOUBT`, `QUAL`, `FRONT`, `AESTH`, `DOC`, `CDX`, `UXH`, `UXF`, `UXI`, `UXC`, `PY`, `TSR`, `RST`, `PHP`, `FAPI`, `DJG`, `LARV`, `SQLA`, `TDD`, `DDD`, `DI`, `SHA`, `SHB`, `SHC`, `SHD`, `SHE`, `XSH` — cannot be used by custom Ash
 - Reserved meta-prefix: `CUSTOM` — cannot be used as a custom Ash finding prefix. This prefix is reserved to distinguish `source="custom"` findings in dedup logic (see below).
 - **`source="custom"` attribute**: Findings emitted by custom-criteria Ashes (i.e., those injected via `customPromptBlock`) carry a `source="custom"` attribute in their RUNE:FINDING markers. The Runebinder uses this attribute to annotate deduplicated findings so reviewers know the finding originated from a user-defined inspection criterion rather than a built-in Ash perspective. Custom-criteria findings use standard finding prefixes (e.g., `SEC-001`, `BACK-001`) — the `source="custom"` attribute is the sole differentiator, NOT a separate prefix namespace.
 - Reserved standalone prefixes: `DATA`, `GATE`, `ASYNC`, `DRIFT`, `DEPLOY`, `PARITY`, `SENIOR`, `PAT`, `SIMP`, `TYPE` — used by standalone review/utility agents, mapped to embedded prefixes when inside Ash
@@ -84,8 +84,8 @@ When `depth=deep` is active (via `--deep` flag or audit), the dedup hierarchy ex
 1. **Intra-wave dedup** — within each wave's Runebinder pass (standard rules)
 2. **Cross-wave dedup** — when merging TOME from all waves into final TOME.md
 
-**Standard hierarchy (Wave 1 only)**: `SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX`
-**Deep hierarchy (full, all waves)**: `SEC > BACK > CORR > FAIL > DSEC > DEBT > INTG > BIZL > EDGE > VEIL > DOUBT > DSGN > RSRC > DOC > OBSV > MTNB > QUAL > FRONT > CDX`
+**Standard hierarchy (Wave 1 only)**: `SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > AESTH > CDX`
+**Deep hierarchy (full, all waves)**: `SEC > BACK > CORR > FAIL > DSEC > DEBT > INTG > BIZL > EDGE > VEIL > DOUBT > DSGN > RSRC > DOC > OBSV > MTNB > QUAL > FRONT > AESTH > CDX`
 
 **Which hierarchy is used where:**
 - **Wave 1 Runebinder** (TOME-w1.md): Standard hierarchy
@@ -93,7 +93,7 @@ When `depth=deep` is active (via `--deep` flag or audit), the dedup hierarchy ex
 - **Wave 3 Runebinder** (TOME-w3.md, if not merged into Wave 2): Dimension sub-hierarchy
 - **Merge Runebinder** (final TOME.md): Full extended hierarchy with cross-wave dedup
 
-**Merge hierarchy (cross-wave dedup):** `SEC > CORR > FAIL > DSEC > BACK > DSGN > RSRC > VEIL > DOUBT > OBSV > MTNB > DOC > QUAL > FRONT > CDX`
+**Merge hierarchy (cross-wave dedup):** `SEC > CORR > FAIL > DSEC > BACK > DSGN > RSRC > VEIL > DOUBT > OBSV > MTNB > DOC > QUAL > FRONT > AESTH > CDX`
 
 **Per-wave sub-hierarchies:**
 - Wave 2 (deep investigation): `DEBT > INTG > BIZL > EDGE`
@@ -118,6 +118,7 @@ Each Ash uses a unique prefix for finding IDs:
 | Veil Piercer | `VEIL-` | `VEIL-001` | Built-in |
 | Pattern Weaver | `QUAL-` | `QUAL-001` | Built-in |
 | Glyph Scribe | `FRONT-` | `FRONT-001` | Built-in |
+| Aesthetic Quality Reviewer | `AESTH-` | `AESTH-001` | Built-in |
 | Knowledge Keeper | `DOC-` | `DOC-001` | Built-in |
 | Codex Oracle | `CDX-` | `CDX-001` | Built-in |
 | Doubt Seer | `DOUBT-` | `DOUBT-001` | Built-in |

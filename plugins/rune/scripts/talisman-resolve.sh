@@ -172,6 +172,23 @@ if [[ "$merged" == '{}' || -z "$merged" ]]; then
   MERGE_STATUS="defaults_only"
 fi
 
+# ── SEC-003: Content validation — reject injection patterns in resolved config ──
+# Talisman values are user-authored YAML. Validate merged JSON before writing shards.
+# Check 1: Size cap (512KB) — prevents memory exhaustion in downstream consumers
+merged_size=${#merged}
+if [[ $merged_size -gt 524288 ]]; then
+  _trace "WARN: merged config exceeds 512KB ($merged_size bytes), using defaults only"
+  merged="$defaults_json"
+  MERGE_STATUS="defaults_only"
+fi
+# Check 2: Reject values containing shell injection patterns (backticks, $(), process substitution)
+# These should never appear in talisman config values — they indicate tampering or misconfiguration
+if printf '%s' "$merged" | grep -qE '`[^`]+`|\$\([^)]+\)|<\(|>\(' 2>/dev/null; then
+  _trace "WARN: merged config contains shell injection patterns, using defaults only"
+  merged="$defaults_json"
+  MERGE_STATUS="defaults_only"
+fi
+
 # ── Create shard directory ──
 mkdir -p "$SHARD_DIR" 2>/dev/null || { _trace "WARN: cannot create $SHARD_DIR"; exit 0; }
 
@@ -246,6 +263,16 @@ shard_count=0
 for shard_name in "${SHARD_NAMES[@]}"; do
   shard_data=$(echo "$all_shards" | jq --arg s "$shard_name" '.[$s]' 2>/dev/null)
   if [[ -n "$shard_data" && "$shard_data" != "null" ]]; then
+    # SEC-003: Basic content validation — ensure valid JSON and reasonable size (1MB max)
+    if ! echo "$shard_data" | jq empty 2>/dev/null; then
+      _trace "WARN: shard $shard_name failed JSON validation, skipping"
+      continue
+    fi
+    shard_len=${#shard_data}
+    if [[ "$shard_len" -gt 1048576 ]]; then
+      _trace "WARN: shard $shard_name exceeds 1MB ($shard_len bytes), skipping"
+      continue
+    fi
     tmp_file=$(mktemp "$SHARD_DIR/.tmp-${shard_name}.XXXXXX") || continue
     if printf '%s\n' "$shard_data" > "$tmp_file" 2>/dev/null; then
       mv -f "$tmp_file" "$SHARD_DIR/${shard_name}.json" 2>/dev/null || rm -f "$tmp_file" 2>/dev/null

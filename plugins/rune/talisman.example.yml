@@ -1729,7 +1729,7 @@ context_weaving:
 #                                            # Below threshold: FAIL if P1 findings, NEEDS_ATTENTION otherwise.
 
 # ──────────────────────────────────────────────
-# UX Verification — UX heuristic review (arc Phase 5.3) (v1.129.0+)
+# UX Verification — UX heuristic review (arc Phase 5.3) (v1.140.0+)
 # ──────────────────────────────────────────────
 # Opt-in UX verification for arc pipeline. When enabled AND frontend files are
 # detected in the diff, Phase 5.3 spawns up to 4 UX review agents to evaluate

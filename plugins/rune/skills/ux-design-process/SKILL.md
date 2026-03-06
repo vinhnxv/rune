@@ -32,10 +32,11 @@ ux:
   cognitive_walkthrough: false  # Default: false (expensive -- uses Opus model)
   touch_target_minimum: 44  # px -- 48px recommended
   finding_prefix: true      # Emit UXH/UXF/UXI/UXC prefixed findings
-  blocking_findings: false  # UX findings are non-blocking by default
+  blocking: false           # UX findings are non-blocking by default
 ```
 
 **Important**: `ux.enabled` defaults to `false`. Users must explicitly opt in via talisman.yml.
+When the `ux:` section is missing entirely from talisman.yml, all UX features default to disabled (`enabled: false`, `cognitive_walkthrough: false`, `blocking: false`, `touch_target_minimum: 44`, `finding_prefix: true`).
 
 ## Process Routing
 
@@ -159,7 +160,7 @@ UX review agents participate in the Roundtable Circle as conditional Ashes:
 Activation: talisman.yml → ux.enabled === true
 Trigger: changed files include frontend components (*.tsx, *.jsx, *.vue, *.svelte)
 Position: After standard Wave 1 Ashes, before Wave 2 investigation
-Blocking: false (by default -- configurable via talisman.yml → ux.blocking_findings)
+Blocking: false (by default -- configurable via talisman.yml → ux.blocking)
 ```
 
 ### Cognitive Walkthrough (Optional)
@@ -176,6 +177,7 @@ See [heuristic-checklist.md](references/heuristic-checklist.md) for cognitive wa
 - [appraise](../appraise/SKILL.md) -- Multi-agent code review (UX agents join as conditional Ashes)
 - [devise](../devise/SKILL.md) -- Planning (Phase 0.3 UX Research integration)
 - [roundtable-circle](../roundtable-circle/SKILL.md) -- Review orchestration framework
+- [arc-phase-ux-verification](../arc/references/arc-phase-ux-verification.md) -- Arc Phase 5.3 UX verification algorithm
 
 ## References
 

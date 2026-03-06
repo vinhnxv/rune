@@ -34,6 +34,16 @@ if (!uxEnabled) {
   return
 }
 
+// 0.5. Validate Figma URL if present (SEC-001: untrusted user content from plan files)
+const figmaUrl = uxConfig?.figma_url ?? null
+if (figmaUrl) {
+  const FIGMA_URL_PATTERN = /^https:\/\/(www\.)?figma\.com\//
+  if (!FIGMA_URL_PATTERN.test(figmaUrl)) {
+    warn(`UX verification: invalid Figma URL rejected — must start with https://figma.com/ or https://www.figma.com/`)
+    // Continue without Figma reference — do not pass untrusted URL to MCP tools
+  }
+}
+
 // 1. Detect frontend files in diff
 const frontendExts = ['.tsx', '.jsx', '.ts', '.js', '.css', '.scss', '.vue', '.svelte']
 const changedFiles = Bash(`git diff --name-only ${defaultBranch}...HEAD`).trim().split('\n').filter(Boolean)
@@ -124,15 +134,20 @@ for (const { name, prefix } of agents) {
   }
 }
 
-// 9. Write aggregated report
-const report = generateUXReport(allFindings, agents, frontendFiles)
+// 9. Write aggregated report (SEC-002: nonce-bounded markers for structured findings)
+const nonce = crypto.randomUUID()
+const report = generateUXReport(allFindings, agents, frontendFiles, {
+  findingWrapper: (finding) =>
+    `<!-- RUNE:UX_FINDING nonce=${nonce} -->\n${finding}\n<!-- /RUNE:UX_FINDING nonce=${nonce} -->`
+})
 Write(`tmp/arc/${id}/ux-verification-report.md`, report)
 Write(`tmp/arc/${id}/ux-findings.json`, JSON.stringify(allFindings, null, 2))
 
-// 10. Check blocking condition
-const blocking = uxConfig?.blocking === true
+// 10. Check blocking condition (BACK-003: fallback defaults for talisman keys)
+const blocking = uxConfig?.blocking ?? false
 const p1Count = allFindings.filter(f => f.severity === "P1").length
-const maxP1 = uxConfig?.thresholds?.max_p1_findings ?? 0
+const threshold = uxConfig?.thresholds ?? {}
+const maxP1 = threshold.max_p1_findings ?? 0
 
 if (blocking && p1Count > maxP1) {
   warn(`UX verification: ${p1Count} P1 findings exceed threshold (${maxP1}). Blocking pipeline.`)
