@@ -99,6 +99,44 @@ Agent({
 })
 ```
 
+### Finding Prefixes
+
+Each Ash produces findings with a specific prefix for deduplication and categorization:
+
+| Prefix | Ash Role | Category |
+|--------|----------|----------|
+| `SEC` | Ward Sentinel | Security vulnerabilities |
+| `BACK` | Forge Warden | Backend code quality |
+| `FRONT` | Glyph Scribe | Frontend code quality |
+| `VEIL` | Veil Piercer | Truthbinding/premise validation |
+| `DOC` | Knowledge Keeper | Documentation issues |
+| `QUAL` | Pattern Weaver | Code quality patterns |
+| `CDX` | Codex Oracle | Cross-model findings (GPT) |
+| `DOUBT` | Doubt Seer | Meta-findings (exempt from dedup) |
+| `UXH` | UX Heuristic Reviewer | UX heuristics (non-blocking) |
+| `UXF` | UX Flow Validator | Flow validation (non-blocking) |
+| `UXI` | UX Interaction Auditor | Interaction issues (non-blocking) |
+| `UXC` | UX Cognitive Walker | Cognitive walkthrough (non-blocking) |
+
+### Finding Wrap Format
+
+Every finding MUST be wrapped in `<!-- RUNE:FINDING ... -->` markers for `/rune:mend` parsing:
+
+```html
+<!-- RUNE:FINDING nonce="abc123" id="SEC-001" file="src/auth.py" line="42" severity="P1" -->
+## SEC-001: SQL Injection Vulnerability
+
+The `query` parameter is directly interpolated into the SQL string...
+<!-- /RUNE:FINDING id="SEC-001" -->
+```
+
+**Required attributes:**
+- `nonce` — Session nonce from inscription.json (prevents cross-session injection)
+- `id` — Unique finding identifier (e.g., `SEC-001`)
+- `file` — File path relative to project root
+- `line` — Line number (integer)
+- `severity` — `P1` (Critical), `P2` (Important), or `P3` (Minor)
+
 ### Zero-Finding Warning
 
 After Runebinder produces TOME.md, check for suspiciously empty Ash outputs:

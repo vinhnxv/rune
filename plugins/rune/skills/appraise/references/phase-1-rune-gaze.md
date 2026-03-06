@@ -34,7 +34,8 @@ const hasFrontendFiles = changed_files.some(f =>
 )
 
 if (uxEnabled && hasFrontendFiles) {
-  ash_selections.add("ux-heuristic-reviewer")  // UXH-prefixed findings, non-blocking
+  // Default: ux-heuristic-reviewer (UXH-prefixed findings, non-blocking by default)
+  ash_selections.add("ux-heuristic-reviewer")
 
   // Optional deep UX agents (--deep flag or talisman overrides)
   if (flags['--deep']) {
@@ -50,6 +51,12 @@ if (uxEnabled && hasFrontendFiles) {
 ```
 
 **Skip conditions**: `talisman.ux.enabled` is not `true`, or no frontend files in diff.
+
+**UX findings are non-blocking by default** — they inform but don't block workflows. Prefixes:
+- `UXH` — heuristic evaluation (Nielsen Norman 10 + Baymard guidelines)
+- `UXF` — flow validation (loading/error/empty states)
+- `UXI` — interaction audit (hover/focus/touch targets)
+- `UXC` — cognitive walkthrough (first-time user simulation)
 
 ### Dry-Run Exit Point
 

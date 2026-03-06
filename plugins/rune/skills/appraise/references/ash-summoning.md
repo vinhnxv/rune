@@ -232,4 +232,9 @@ External models can participate as CLI-backed Ashes (v1.57.0+). Unlike agent-bac
 - Codex Oracle is NOT counted toward `max_cli_ashes`
 - Prompt generated from `external-model-template.md` with Truthbinding
 
+**Security validations** (defined in `roundtable-circle/references/security-patterns.md`):
+- `CLI_BINARY_PATTERN` — Validates binary name (alphanumeric, dash, underscore only)
+- `MODEL_NAME_PATTERN` — Validates model identifier format
+- `CLI_PATH_VALIDATION` — Ensures binary path does NOT resolve within project directory (prevents executing project files)
+
 See `roundtable-circle/references/custom-ashes.md` and `roundtable-circle/references/codex-detection.md` for full specs.

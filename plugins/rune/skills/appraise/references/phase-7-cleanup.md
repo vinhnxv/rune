@@ -56,10 +56,16 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_re
 // 5. Read and present TOME.md to user
 
 // 6. Auto-mend or interactive prompt based on findings
+// Auto-mend triggers when P1 (Critical) or P2 (Important) findings exist:
+// - SEC-* (security vulnerabilities)
+// - BACK-* with severity P1/P2 (critical backend bugs)
+// - VEIL-* with severity P1/P2 (truthbinding violations)
+// Does NOT trigger for: P3 (Minor) only, DOC-* (documentation), UXH-* (UX heuristic, non-blocking)
 const autoMend = flags['--auto-mend'] || (talisman?.review?.auto_mend === true)
-if (totalFindings > 0 && autoMend) {
+const hasP1P2Findings = /* check TOME.md for P1/P2 severity attributes */
+if (hasP1P2Findings && autoMend) {
   Skill("rune:mend", `tmp/reviews/${identifier}/TOME.md`)
-} else if (totalFindings > 0) {
+} else if (hasP1P2Findings) {
   AskUserQuestion({
     options: ["/rune:mend (Recommended)", "Review TOME manually", "/rune:rest"]
   })
