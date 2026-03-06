@@ -72,6 +72,9 @@ if (!cleanupTeamDeleteSucceeded) {
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
 
+// Release workflow lock
+Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "forge"`)
+
 // Update state file to completed (preserve session identity)
 Write(`tmp/.rune-forge-${timestamp}.json`, {
   team_name: `rune-forge-${timestamp}`,

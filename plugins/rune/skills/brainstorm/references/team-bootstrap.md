@@ -23,8 +23,8 @@ if (!teamDeleteSucceeded) {
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
 }
 // STEP 4: TeamCreate with "Already leading" catch-and-recover
-try { TeamCreate({ name: teamName }) } catch (e) {
-  if (e.message?.includes("Already leading")) { TeamDelete(); TeamCreate({ name: teamName }) }
+try { TeamCreate({ team_name: teamName }) } catch (e) {
+  if (e.message?.includes("Already leading")) { TeamDelete(); TeamCreate({ team_name: teamName }) }
   else throw e
 }
 // STEP 5: Post-create verification
