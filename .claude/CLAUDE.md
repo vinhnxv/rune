@@ -493,10 +493,12 @@ These skills live in `.claude/skills/` and take priority over plugin-level skill
 |-------|--------|---------|
 | `create-agent-skills` | `/create-agent-skills` | Expert guidance for creating and auditing SKILL.md files, slash commands, and skill structure. Includes references, templates, and workflows. |
 | `skill-creator` | `/skill-creator` | Guide for creating skills that extend Claude's capabilities with specialized knowledge, workflows, and tool integrations. Includes init/validate/package scripts. |
+| `mcp-builder` | `/mcp-builder` | Guide for creating high-quality MCP servers that enable LLMs to interact with external services. Covers Python (FastMCP) and Node/TypeScript (MCP SDK), best practices, evaluation, and connections testing. |
 
 **When to use which:**
 - `/create-agent-skills` — comprehensive reference with 13 reference docs, 2 templates, 10 workflows. Use for auditing existing skills, understanding best practices, or building complex router-style skills.
 - `/skill-creator` — lightweight guide with init/validate/package scripts. Use for quick skill scaffolding and packaging.
+- `/mcp-builder` — MCP server development guide. Use when building new MCP servers to integrate external APIs or services, with reference docs for Python and Node/TypeScript implementations.
 
 ## CLAUDE_CONFIG_DIR — Multi-Account Support
 

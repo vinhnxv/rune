@@ -30,6 +30,7 @@ from typing import Any, AsyncIterator
 
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
+from mcp.types import ToolAnnotations
 
 import core
 from figma_client import FigmaAPIError, FigmaClient
@@ -97,7 +98,10 @@ def _handle_figma_error(exc: FigmaAPIError) -> ToolError:
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    readOnlyHint=True, destructiveHint=False,
+    idempotentHint=True, openWorldHint=True,
+))
 async def figma_fetch_design(
     url: str,
     ctx: Context,
@@ -135,7 +139,10 @@ async def figma_fetch_design(
         raise _handle_figma_error(exc) from exc
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    readOnlyHint=True, destructiveHint=False,
+    idempotentHint=True, openWorldHint=True,
+))
 async def figma_inspect_node(
     url: str,
     ctx: Context,
@@ -163,7 +170,10 @@ async def figma_inspect_node(
         raise _handle_figma_error(exc) from exc
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    readOnlyHint=True, destructiveHint=False,
+    idempotentHint=True, openWorldHint=True,
+))
 async def figma_list_components(
     url: str,
     ctx: Context,
@@ -233,7 +243,10 @@ async def _run_to_react(
     return json.dumps(result)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    readOnlyHint=True, destructiveHint=False,
+    idempotentHint=True, openWorldHint=True,
+))
 async def figma_to_react(
     url: str,
     ctx: Context,

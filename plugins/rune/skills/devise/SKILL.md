@@ -114,80 +114,9 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_ac
 
 ## Phase -1: Team Bootstrap
 
-Create the Agent Team before any agents spawn. This ensures Phase 0 agents (elicitation sages, design-inventory-agent) can join the team and comply with ATE-1 enforcement.
+Creates the Agent Team before any agents spawn using the `teamTransition` protocol (6-step: validate → TeamDelete with retry → filesystem fallback → TeamCreate with "Already leading" recovery → post-create verification → state file write). Enables ATE-1 enforcement for all subsequent phases.
 
-```javascript
-// teamTransition protocol — moved from research-phase.md to run before Phase 0
-// STEP 1: Validate (defense-in-depth)
-if (!/^[a-zA-Z0-9_-]+$/.test(timestamp)) throw new Error("Invalid plan identifier")
-if (timestamp.includes('..')) throw new Error('Path traversal detected in plan identifier')
-
-// STEP 2: TeamDelete with retry-with-backoff (3 attempts: 0s, 3s, 8s)
-let teamDeleteSucceeded = false
-const RETRY_DELAYS = [0, 3000, 8000]
-for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
-  if (attempt > 0) {
-    warn(`teamTransition: TeamDelete attempt ${attempt + 1} failed, retrying in ${RETRY_DELAYS[attempt]/1000}s...`)
-    Bash(`sleep ${RETRY_DELAYS[attempt] / 1000}`)
-  }
-  try {
-    TeamDelete()
-    teamDeleteSucceeded = true
-    break
-  } catch (e) {
-    if (attempt === RETRY_DELAYS.length - 1) {
-      warn(`teamTransition: TeamDelete failed after ${RETRY_DELAYS.length} attempts. Using filesystem fallback.`)
-    }
-  }
-}
-
-// STEP 3: Filesystem fallback (only when STEP 2 failed — avoids blast radius on happy path)
-// CDX-003 FIX: Gate behind !teamDeleteSucceeded to prevent cross-workflow scan from
-// wiping concurrent workflows when TeamDelete already succeeded cleanly.
-if (!teamDeleteSucceeded) {
-  // Scoped cleanup — only remove THIS session's team/task dirs (not all rune-*/arc-*)
-  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/rune-plan-${timestamp}/" "$CHOME/tasks/rune-plan-${timestamp}/" 2>/dev/null`)
-  try { TeamDelete() } catch (e2) { /* proceed to TeamCreate */ }
-}
-
-// STEP 4: TeamCreate with "Already leading" catch-and-recover
-// Match: "Already leading" — centralized string match for SDK error detection
-try {
-  TeamCreate({ team_name: "rune-plan-{timestamp}" })
-} catch (createError) {
-  if (/already leading/i.test(createError.message)) {
-    warn(`teamTransition: Leadership state leak detected. Attempting final cleanup.`)
-    try { TeamDelete() } catch (e) { /* exhausted */ }
-    Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/rune-plan-${timestamp}/" "$CHOME/tasks/rune-plan-${timestamp}/" 2>/dev/null`)
-    try {
-      TeamCreate({ team_name: "rune-plan-{timestamp}" })
-    } catch (finalError) {
-      throw new Error(`teamTransition failed: unable to create team after exhausting all cleanup strategies. Run /rune:rest --heal to manually clean up, then retry. (${finalError.message})`)
-    }
-  } else {
-    throw createError
-  }
-}
-
-// STEP 5: Post-create verification
-Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && test -f "$CHOME/teams/rune-plan-${timestamp}/config.json" || echo "WARN: config.json not found after TeamCreate"`)
-
-// STEP 6: Write workflow state file with session isolation fields
-// CRITICAL: This state file activates the ATE-1 hook (enforce-teams.sh) which blocks
-// bare Agent calls without team_name. Without this file, agents spawn as local subagents
-// instead of Agent Team teammates, causing context explosion.
-const configDir = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
-const ownerPid = Bash(`echo $PPID`).trim()
-Write(`tmp/.rune-plan-${timestamp}.json`, {
-  team_name: `rune-plan-${timestamp}`,
-  started: new Date().toISOString(),
-  status: "active",
-  config_dir: configDir,
-  owner_pid: ownerPid,
-  session_id: "${CLAUDE_SESSION_ID}",
-  feature: feature
-})
-```
+See [team-bootstrap.md](references/team-bootstrap.md) for the full protocol.
 
 ## Phase 0: Gather Input
 
@@ -203,110 +132,11 @@ Three paths based on flags:
 
 **Output**: `tmp/plans/{timestamp}/brainstorm-decisions.md` with mandatory sections: Non-Goals, Constraint Classification, Success Criteria, Scope Boundary.
 
-### Design Signal Detection (Phase 0 pre-step)
+### Design Signal Detection & Inventory Agent
 
-Before brainstorm questions, scan the user description for Figma URLs. When detected, enables design-aware planning throughout the pipeline. With `--quick` (Phase 0 skipped), a fallback applies `FIGMA_URL_PATTERN` to the feature description before Phase 1 agents spawn.
+Scans user description for Figma URLs (`FIGMA_URL_PATTERN`), sets `designAware` flag, and conditionally spawns `design-inventory-agent` to call `figma_list_components` MCP for component pre-population. Includes `--quick` fallback for re-scanning feature description when Phase 0 is skipped.
 
-```javascript
-// SYNC: figma-url-pattern — shared with brainstorm-phase.md Step 3.2
-const FIGMA_URL_PATTERN = /https?:\/\/[^\s]*figma\.com\/[^\s]+/g
-const DESIGN_KEYWORD_PATTERN = /\b(figma|design|mockup|wireframe|prototype|ui\s*kit|design\s*system|style\s*guide|component\s*library)\b/i
-
-// Phase 0 detection (brainstorm mode)
-const maxFigmaUrls = talisman?.design_sync?.max_figma_urls ?? 10
-let figmaUrls = (userDescription.match(FIGMA_URL_PATTERN) || []).slice(0, maxFigmaUrls)
-if (figmaUrls.length > 5) warn(`Found ${figmaUrls.length} Figma URLs — processing first ${maxFigmaUrls}`)
-let figmaUrl = figmaUrls[0] ?? null  // primary URL for single-URL consumers (backward compat)
-let designAware = figmaUrls.length > 0
-
-// --quick fallback: Phase 0 is skipped, so apply detection before Phase 1
-// The feature description is still available from the user prompt
-if (quickMode && !designAware) {
-  // Re-scan: user may have provided Figma URL as part of quick description
-  const quickFigmaUrls = (featureDescription.match(FIGMA_URL_PATTERN) || []).slice(0, maxFigmaUrls)
-  if (quickFigmaUrls.length > 0) {
-    figmaUrls.push(...quickFigmaUrls)
-    figmaUrl = figmaUrls[0]
-    designAware = true
-  }
-}
-
-// Pass designAware, figmaUrls (full array), and figmaUrl (primary, backward compat) downstream:
-// - brainstorm phase (Step 3.2 design asset detection)
-// - synthesize phase (figma_urls frontmatter array + Design Implementation section)
-// - design-inventory-agent (iterates figmaUrls for multi-file inventory)
-let design_sync_candidate = designAware
-
-if (designAware) {
-  loadedSkills.push('design-sync')
-  loadedSkills.push('frontend-design-patterns')
-}
-```
-
-### Design Inventory Agent (conditional, Phase 0 post-step)
-
-When `design_sync_candidate === true` AND `talisman.design_sync.enabled === true`, spawn a lightweight design-inventory-agent that calls `figma_list_components` MCP tool to pre-populate the component inventory for the plan.
-
-```javascript
-// Conditional design research agent — only when design_sync_candidate + talisman enabled
-const designSyncEnabled = talisman?.design_sync?.enabled === true
-
-if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
-  // ATE-1 COMPLIANT: Agent joins rune-plan-{timestamp} team created in Phase -1.
-  TaskCreate({
-    subject: "Extract Figma design inventory",
-    description: "Call figma_list_components MCP tool, extract component inventory for all Figma URLs",
-    activeForm: "Extracting design inventory"
-  })
-
-  Agent({
-    name: 'design-inventory-agent',
-    subagent_type: 'general-purpose',
-    team_name: `rune-plan-${timestamp}`,
-    prompt: `You are a design inventory specialist.
-
-      ## Assignment
-      Figma URLs (${figmaUrls.length} total): ${JSON.stringify(figmaUrls)}
-      Primary URL: ${figmaUrls[0]}
-
-      ## MCP Tool Availability
-      Two Figma MCP namespaces may be available. Try in this order:
-      1. **Rune tools** (preferred): figma_list_components, figma_fetch_design, figma_inspect_node
-      2. **Official Figma MCP** (fallback): mcp__claude_ai_Figma__get_metadata, mcp__claude_ai_Figma__get_design_context
-
-      **IMPORTANT — MCP namespace verification**: Before calling any MCP tool, verify it exists
-      in your available MCP server list. Tool name resolution relies on Claude Code's MCP
-      namespace isolation — the same tool may be unavailable if its server is not registered.
-      If figma_list_components is not listed in your available tools, skip to the Official MCP
-      fallback (step 2). Do not attempt to call a tool that is not present in your tool list.
-
-      To extract fileKey from the Figma URL for Official MCP tools:
-      - Parse: https://www.figma.com/design/{fileKey}/{name}?node-id={nodeId}
-      - fileKey is the alphanumeric segment after /design/ or /file/
-      - nodeId in URL uses hyphens ("1-3"); Official MCP needs colons ("1:3")
-
-      ## Lifecycle
-      1. Claim the "Extract Figma design inventory" task via TaskList/TaskUpdate
-      2. For EACH URL in the Figma URLs list:
-         a. **Try Rune tools first**: Call figma_list_components(url="{url}")
-            - On success: extract component names, node IDs, and types from result
-            - Record mcpProvider: "rune" in output
-         b. **If Rune tools fail** (tool not found / MCP unavailable): fall back to Official MCP:
-            - Extract fileKey from the Figma URL
-            - Call mcp__claude_ai_Figma__get_metadata(fileKey="{fileKey}")
-            - Parse component names and node IDs from XML response
-            - Record mcpProvider: "official" in output
-      3. Write combined component inventory to: tmp/plans/${timestamp}/design-inventory.json
-         Format: { "components": [{ "name": "...", "node_id": "...", "type": "...", "source_url": "..." }], "figma_urls": [...], "mcpProvider": "rune|official" }
-      4. If BOTH tool namespaces fail for a URL, record:
-         { "error": "Figma MCP not available", "figma_url": "{url}" } in components array
-      5. Do not write implementation code. Inventory only.
-      6. Mark task complete via TaskUpdate`,
-    run_in_background: true
-  })
-  // Output is read during Phase 2 (Synthesize) to populate Component Inventory table
-}
-```
+See [design-signal-detection.md](references/design-signal-detection.md) for the full detection logic and inventory agent spawn protocol.
 
 See [brainstorm-phase.md](references/brainstorm-phase.md) for the delegation protocol, `--brainstorm-context` workspace reading, and devise-specific overrides.
 
@@ -544,96 +374,9 @@ if (exists(".claude/echoes/planner/")) {
 
 ## Phase 6: Cleanup & Present
 
-```javascript
-// Resolve config directory once (CLAUDE_CONFIG_DIR aware)
-const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+Standard 5-component team cleanup: dynamic member discovery (with 30+ member fallback array covering all conditional phases), shutdown_request broadcast, grace period, retry-with-backoff TeamDelete (4 attempts), process-level kill + filesystem fallback (QUAL-012 gated), workflow lock release, then present plan to user.
 
-// 1. Dynamic member discovery — reads team config to find ALL teammates
-let allMembers = []
-try {
-  const teamConfig = JSON.parse(Read(`${CHOME}/teams/rune-plan-${timestamp}/config.json`))
-  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
-  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
-} catch (e) {
-  // FALLBACK: known teammates across all devise phases (some are conditional — safe to send shutdown to absent members)
-  allMembers = [
-    // Phase 0: Brainstorm
-    "elicitation-sage-1", "elicitation-sage-2", "elicitation-sage-3",
-    "design-inventory-agent",
-    // Phase 0.3: UX Research (conditional — ux.enabled)
-    "ux-pattern-analyzer",
-    // Phase 1A: Local Research
-    "repo-surveyor", "echo-reader", "git-miner",
-    // Phase 1C: External Research (conditional)
-    "practice-seeker", "lore-scholar", "codex-researcher",
-    // Phase 1C.5: Research Verification (conditional)
-    "research-verifier",
-    // Phase 1D: Spec Validation
-    "flow-seer",
-    // Phase 1.8: Solution Arena (conditional)
-    "devils-advocate", "innovation-scout", "codex-arena-judge",
-    // Phase 2.3: Predictive Goldmask (conditional, 2-8 agents)
-    "devise-lore", "devise-wisdom", "devise-business", "devise-data", "devise-api", "devise-coordinator",
-    // Phase 4A: Scroll Review
-    "scroll-reviewer",
-    // Phase 4C: Technical Review (conditional)
-    "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
-    "horizon-sage", "evidence-verifier", "state-weaver", "doubt-seer", "codex-plan-reviewer",
-    "elicitation-sage-review-1", "elicitation-sage-review-2", "elicitation-sage-review-3"
-  ]
-}
-
-// Shutdown all discovered members
-for (const member of allMembers) {
-  SendMessage({ type: "shutdown_request", recipient: member, content: "Planning workflow complete" })
-}
-
-// 2. Grace period — let teammates deregister before TeamDelete
-if (allMembers.length > 0) {
-  Bash(`sleep 20`)
-}
-
-// 2.5. Mark state file as completed (deactivates ATE-1 enforcement for this workflow)
-try {
-  const stateFile = `tmp/.rune-plan-${timestamp}.json`
-  const state = JSON.parse(Read(stateFile))
-  Write(stateFile, { ...state, status: "completed" })
-} catch (e) { /* non-blocking — state file may already be cleaned */ }
-
-// 3. Cleanup team — QUAL-004: retry-with-backoff
-// CRITICAL: Validate timestamp (/^[a-zA-Z0-9_-]+$/) before rm -rf — path traversal guard
-if (!/^[a-zA-Z0-9_-]+$/.test(timestamp)) throw new Error("Invalid plan identifier")
-if (timestamp.includes('..')) throw new Error('Path traversal detected')
-let cleanupTeamDeleteSucceeded = false
-const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
-for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
-  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
-  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
-    if (attempt === CLEANUP_DELAYS.length - 1) warn(`plan cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
-  }
-}
-
-// Process-level kill — terminate orphaned teammate processes (step 5a)
-if (!cleanupTeamDeleteSucceeded) {
-  const ownerPid = Bash(`echo $PPID`).trim()
-  if (ownerPid && /^\d+$/.test(ownerPid)) {
-    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash(`sleep 3`)
-    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
-  }
-}
-// QUAL-012: Filesystem fallback ONLY when TeamDelete failed
-if (!cleanupTeamDeleteSucceeded) {
-  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/rune-plan-${timestamp}/" "$CHOME/tasks/rune-plan-${timestamp}/" 2>/dev/null`)
-  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
-}
-
-// 3.5. Release workflow lock
-Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "devise"`)
-
-// 4. Present plan to user
-Read("plans/YYYY-MM-DD-{type}-{feature-name}-plan.md")
-```
+See [phase6-cleanup.md](references/phase6-cleanup.md) for the full cleanup protocol.
 
 ## Output
 

@@ -272,67 +272,9 @@ Spawn Wisdom Sage after all Phase 1+2 tasks complete:
 
 **Phase 3.5: Codex Risk Amplification (parallel with Phase 3, v1.51.0+):**
 
-Runs in parallel with Wisdom Sage. Traces 2nd/3rd-order risk chains that single-model analysis likely misses.
+Traces 2nd/3rd-order risk chains via Codex (transitive dependencies, runtime config cascades, deployment topology). 4-condition gate: `detectCodex()` + `!codex.disabled` + `risk_amplification.enabled` + `goldmask` in `codex.workflows`. Outputs `risk-amplification.md` with CDX-RISK prefix findings.
 
-```javascript
-// Phase 3.5: Codex Risk Amplification
-// 4-condition detection gate (canonical pattern)
-// Reference: codex-detection.md for canonical detectCodex()
-const codexAvailable = detectCodex()
-const codexDisabled = talisman?.codex?.disabled === true
-const riskAmpEnabled = talisman?.codex?.risk_amplification?.enabled === true
-const workflowIncluded = (talisman?.codex?.workflows ?? []).includes("goldmask")
-
-if (codexAvailable && !codexDisabled && riskAmpEnabled && workflowIncluded) {
-  const { timeout, reasoning, model: codexModel } = resolveCodexConfig(talisman, "risk_amplification", {
-    timeout: 600, reasoning: "xhigh"  // xhigh — deep transitive dependency tracing
-  })
-
-  // Read Impact tracer outputs + risk-map.json (both available from Phase 1+2)
-  const impactOutputs = []
-  for (const tracer of ["data-layer", "api-contract", "business-logic", "event-message", "config-dependency"]) {
-    try { impactOutputs.push(Read(`${output_dir}${tracer}.md`)) } catch (e) { /* tracer may not exist */ }
-  }
-  const riskMapContent = exists(`${output_dir}risk-map.json`) ? Read(`${output_dir}risk-map.json`) : ""
-
-  const combinedInput = (impactOutputs.join("\n\n") + "\n\n" + riskMapContent).substring(0, 30000)
-  const nonce = Bash(`openssl rand -hex 16`).trim()
-  const promptTmpFile = `${output_dir}.codex-prompt-risk-amplify.tmp`
-  try {
-    const sanitizedInput = sanitizePlanContent(combinedInput)
-    const promptContent = `SYSTEM: You are a cross-model risk chain amplifier.
-
-Trace 2nd-order (transitive dependency) and 3rd-order (runtime config, deployment topology)
-risk chains for CRITICAL/HIGH files. Focus on chains that single-model analysis likely misses:
-- Transitive dependencies (A→B→C where B is not in the diff)
-- Runtime configuration cascades (env var changes that affect multiple services)
-- Deployment topology risks (load balancer, circuit breaker, rate limiter implications)
-
-=== IMPACT + RISK DATA ===
-<<<NONCE_${nonce}>>>
-${sanitizedInput}
-<<<END_NONCE_${nonce}>>>
-
-For each risk chain, output: CDX-RISK-NNN: [CRITICAL|HIGH|MEDIUM] — chain description
-Include the full dependency path (A → B → C) for each chain.
-Base findings on actual dependency data, not assumptions.`
-
-    Write(promptTmpFile, promptContent)
-    const result = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g "${promptTmpFile}"`)
-    const classified = classifyCodexError(result)
-
-    Write(`${output_dir}risk-amplification.md`, formatRiskAmplificationReport(classified, result))
-  } finally {
-    Bash(`rm -f "${promptTmpFile}"`)  // Guaranteed cleanup
-  }
-} else {
-  const skipReason = !codexAvailable ? "codex not available"
-    : codexDisabled ? "codex.disabled=true"
-    : !riskAmpEnabled ? "codex.risk_amplification.enabled=false"
-    : "goldmask not in codex.workflows"
-  Write(`${output_dir}risk-amplification.md`, `# Codex Risk Amplification\n\nSkipped: ${skipReason}`)
-}
-```
+See [codex-risk-amplification.md](references/codex-risk-amplification.md) for the full protocol.
 
 **Phase 4 (sequential — after Wisdom + Phase 3.5 complete):**
 
@@ -381,75 +323,9 @@ If a layer fails:
 
 ### 7. Cleanup
 
-```
-# Dynamic member discovery with hardcoded fallback
-let allMembers = []
-try {
-  const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
-  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${session_id}/config.json`))
-  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
-  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
-} catch (e) {
-  // FALLBACK: hardcoded list of all 8 goldmask teammates
-  allMembers = [
-    "lore-analyst",
-    "data-layer-tracer",
-    "api-contract-tracer",
-    "business-logic-tracer",
-    "event-message-tracer",
-    "config-dependency-tracer",
-    "wisdom-sage",
-    "goldmask-coordinator"
-  ]
-}
+Standard 5-component team cleanup with 8-member fallback array, SEC-5 session_id validation before rm-rf, state file removal, and workflow lock release.
 
-# Shutdown all teammates
-for (const member of allMembers) {
-  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Goldmask complete" }) } catch (e) { /* member may have already exited */ }
-}
-
-# Grace period — let teammates deregister before TeamDelete
-sleep 20
-
-# SEC-5: Validate session_id before rm-rf (project convention)
-if (!/^[a-zA-Z0-9_-]+$/.test(session_id)) { error("Invalid session_id"); return }
-
-# TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
-CLEANUP_DELAYS=(0 5 10 15)
-cleanupTeamDeleteSucceeded=false
-for delay in "${CLEANUP_DELAYS[@]}"; do
-    [ "$delay" -gt 0 ] && sleep "$delay"
-    if TeamDelete("{session_id}"); then cleanupTeamDeleteSucceeded=true; break; fi
-done
-
-# Process-level kill — terminate orphaned teammate processes (step 5a)
-if [ "$cleanupTeamDeleteSucceeded" = false ]; then
-    ownerPid=$PPID
-    if [ -n "$ownerPid" ]; then
-        for pid in $(pgrep -P "$ownerPid" 2>/dev/null); do
-            case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac
-        done
-        sleep 3
-        for pid in $(pgrep -P "$ownerPid" 2>/dev/null); do
-            case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac
-        done
-    fi
-fi
-# Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
-if [ "$cleanupTeamDeleteSucceeded" = false ]; then
-    CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-    rm -rf "$CHOME/teams/${session_id}" "$CHOME/tasks/${session_id}" 2>/dev/null
-    TeamDelete("{session_id}") 2>/dev/null || true  # best effort — clear SDK leadership state
-fi
-
-# Clean up state file
-rm -f "tmp/.rune-goldmask-${session_id}.json" 2>/dev/null
-
-# Release workflow lock
-CWD="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-source "${CWD}/plugins/rune/scripts/lib/workflow-lock.sh"
-rune_release_lock "goldmask"
-```
+See [phase7-cleanup.md](references/phase7-cleanup.md) for the full cleanup protocol.
 
 ### 8. Report
 
