@@ -53,4 +53,22 @@ if (uxEnabled && hasFrontendFiles) {
 
 ### Dry-Run Exit Point
 
-If `--dry-run` flag is set, display the plan (file counts per Ash, chunk plan, dedup hierarchy) and stop. Do NOT proceed to Phase 2.
+If `--dry-run` flag is set, display the plan and stop. Do NOT proceed to Phase 2.
+
+**Displays:**
+- Changed files grouped by classification (backend, frontend, docs, infra, config)
+- Selected Ashes with file assignments per Ash
+- Estimated team size (total Ash count)
+- Chunk plan if file count exceeds CHUNK_THRESHOLD (default: 20)
+- Dedup hierarchy preview: `SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX`
+- Warnings (e.g., `--deep + --partial` sparse findings warning)
+
+**Does NOT create:**
+- Teams (TeamCreate not called)
+- Tasks (TaskCreate not called)
+- State files (no `tmp/.rune-review-*.json`)
+- inscription.json
+- Signal directories (`tmp/.rune-signals/`)
+- Agents (Agent tool not invoked)
+
+**Use case:** Preview review scope before committing to full execution cost.

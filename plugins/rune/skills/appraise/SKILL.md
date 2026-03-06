@@ -71,7 +71,7 @@ const params = {
 |------|-------------|---------|
 | `--deep` | Run multi-wave deep review: Wave 1 (core, up to 7 Ashes) + Wave 2 (investigation, 4 Ashes) + Wave 3 (dimension, up to 7 Ashes). Each wave runs as a full Roundtable Circle pass. | Off |
 | `--partial` | Review only staged files (`git diff --cached`) instead of full branch diff | Off |
-| `--dry-run` | Show scope selection, Ash plan, and chunk plan without summoning agents | Off |
+| `--dry-run` | Execute Phase 0 (Pre-flight) and Phase 1 (Rune Gaze) only. Display changed files, Ash selections, chunk plan, then exit. Does NOT create teams, tasks, state files, or spawn agents. | Off |
 | `--max-agents <N>` | Limit total Ash summoned (1-8). Priority: Ward Sentinel > Forge Warden > Veil Piercer > Pattern Weaver > Glyph Scribe > Knowledge Keeper > Codex Oracle | All selected |
 | `--no-chunk` | Force single-pass review (disable chunking) | Off |
 | `--chunk-size <N>` | Override chunk threshold — file count that triggers chunking (default: 20) | 20 |

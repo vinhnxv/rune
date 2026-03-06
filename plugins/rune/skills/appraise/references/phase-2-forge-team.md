@@ -3,9 +3,9 @@
 ```javascript
 // 0. Construct session-scoped identifier (prevents team name collision across sessions)
 const gitHash = Bash(`git rev-parse --short HEAD`).trim()
-const shortSession = "${CLAUDE_SESSION_ID}".slice(0, 4)
+const shortSession = "${CLAUDE_SESSION_ID}".slice(0, 8)
 const identifier = `${gitHash}-${shortSession}`
-// Result: e.g., "abc1234-a1b2" → team name "rune-review-abc1234-a1b2"
+// Result: e.g., "abc1234-a1b2c3d4" → team name "rune-review-abc1234-a1b2c3d4"
 
 // 1. Check for concurrent review (tmp/.rune-review-{identifier}.json < 30 min old → abort)
 
