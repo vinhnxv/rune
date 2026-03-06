@@ -91,7 +91,7 @@ if [[ -z "$CWD" || "$CWD" != /* ]]; then exit 0; fi
 AGENT_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.name // empty' 2>/dev/null || true)
 
 # ── Source shared agent registry ──
-SCRIPT_DIR_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 if [[ -f "${SCRIPT_DIR_LIB}/lib/known-rune-agents.sh" ]]; then
   # shellcheck source=lib/known-rune-agents.sh
   source "${SCRIPT_DIR_LIB}/lib/known-rune-agents.sh"
@@ -117,7 +117,7 @@ detected_team_name=""   # team name inferred from non-state-file signals
 detected_source=""      # which signal triggered detection (state-file|inscription|signal-dir|agent-name)
 
 # ── Session identity for cross-session ownership filtering ──
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=resolve-session-identity.sh
 # SEC-001/VEIL-005 FIX: Guard against missing resolve-session-identity.sh.
 # Without this guard, a missing file triggers the ERR trap which exits 0,
@@ -287,6 +287,10 @@ if [[ -z "$active_workflow" ]]; then
   shopt -u nullglob
 fi
 
+# Signal 4: Agent name matching (defense-in-depth fallback).
+# YAGNI-001 NOTE: This signal fires only when Signals 1-3 all miss AND the agent
+# name matches the registry. Narrow scenario but provides a safety net for workflows
+# that start without creating state files. Kept intentionally for defense-in-depth.
 # ── Signal 4: Known Rune agent name matching ──
 # If the Agent() call uses a name matching a known Rune Ash, this is a Rune workflow
 # even if no state file, inscription, or signal dir exists.
@@ -310,6 +314,9 @@ if [[ -z "$active_workflow" ]]; then
   exit 0
 fi
 
+# YAGNI-002 NOTE: Registry-based exemption is intentional over team_name prefix matching.
+# The registry provides precise agent identification (name-level, not team-level).
+# Prefix matching would miss agents spawned without a rune- prefixed team name.
 # ── Non-Rune agent exemption ──
 # If the Agent call uses a name that is NOT a known Rune agent, allow it through.
 # This enables other plugins (and user-defined agents) to coexist with Rune
@@ -373,11 +380,12 @@ elif [[ -n "${AGENT_NAME:-}" ]]; then
   esac
 fi
 
-# Build recovery JSON with exact commands
-RECOVERY_STEPS="Step 1: TeamCreate({ team_name: '${SUGGESTED_TEAM:-rune-WORKFLOW-TIMESTAMP}' }). Step 2: Write state file: Write('tmp/.rune-WORKFLOW-ID.json', { team_name: '...', status: 'active', config_dir: configDir, owner_pid: ownerPid, session_id: sessionId }). Step 3: Retry Agent() with team_name parameter."
-
+# SEC-003 FIX: Build recovery steps without bash interpolation of SUGGESTED_TEAM.
+# The team name is passed via jq --arg below (line ~384) for safe escaping.
 if [[ -n "$SUGGESTED_TEAM" ]]; then
-  RECOVERY_STEPS="Step 1: TeamCreate({ team_name: '${SUGGESTED_TEAM}' }). Step 2: Write state file with status:'active', config_dir, owner_pid, session_id. Step 3: Retry this Agent() call with team_name: '${SUGGESTED_TEAM}'."
+  RECOVERY_STEPS="Step 1: TeamCreate with the suggested team name. Step 2: Write state file with status:'active', config_dir, owner_pid, session_id. Step 3: Retry this Agent() call with the team_name parameter."
+else
+  RECOVERY_STEPS="Step 1: TeamCreate({ team_name: 'rune-WORKFLOW-TIMESTAMP' }). Step 2: Write state file: Write('tmp/.rune-WORKFLOW-ID.json', { team_name: '...', status: 'active', config_dir: configDir, owner_pid: ownerPid, session_id: sessionId }). Step 3: Retry Agent() with team_name parameter."
 fi
 
 # Output deny with recovery instructions

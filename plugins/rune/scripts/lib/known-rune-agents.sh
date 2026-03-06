@@ -14,10 +14,12 @@ KNOWN_RUNE_AGENTS="aesthetic-quality-reviewer|agent-parity-reviewer|api-contract
 
 # Helper function: Test if agent name is in the registry.
 # Handles numbered suffixes (-1, -2), named suffixes (-deep, -exhaustive),
-# and compound suffixes (-plan-review, -inspect) via repeated (-[0-9a-z]+)*.
+# and explicit named suffixes (-deep, -exhaustive, -plan, -inspect, -wN) via suffix allowlist.
 # Args: $1 = agent name (may include suffix)
 # Returns: 0 if known Rune agent, 1 if unknown or empty
 is_known_rune_agent() {
   local name="$1"
-  [[ -n "$name" ]] && printf '%s\n' "$name" | grep -qE "^(${KNOWN_RUNE_AGENTS})(-[0-9a-z]+)*$"
+  [[ -n "$name" ]] || return 1
+  [[ "$name" == *$'\n'* ]] && return 1
+  printf '%s\n' "$name" | grep -qE "^(${KNOWN_RUNE_AGENTS})(-[0-9]+|-deep|-exhaustive|-plan|-inspect|-w[0-9]+)*$"
 }

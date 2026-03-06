@@ -49,7 +49,12 @@ if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
   source "${SCRIPT_DIR}/resolve-session-identity.sh"
 else
   RUNE_CURRENT_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-  rune_pid_alive() { kill -0 "$1" 2>/dev/null; }
+  # QUAL-002 FIX: EPERM-aware PID liveness check — EPERM means alive (different user)
+  rune_pid_alive() {
+    kill -0 "$1" 2>/dev/null && return 0
+    [[ $? -eq 1 ]] && return 0  # EPERM — process exists but owned by different user
+    return 1
+  }
 fi
 
 # --- Explore/Plan exemption (Agent/Task tool only, NOT TeamCreate per EC-4) ---
@@ -166,7 +171,8 @@ if [[ "$REM_INT" -le "$WARNING_THRESHOLD" && "$REM_INT" -gt "$CRITICAL_THRESHOLD
     # Session ownership check before reading
     SF_CFG=$(jq -r '.config_dir // empty' < "$sf" 2>/dev/null || true)
     SF_PID=$(jq -r '.owner_pid // empty' < "$sf" 2>/dev/null || true)
-    [[ -n "$SF_CFG" && "$SF_CFG" != "$RUNE_CURRENT_CFG" ]] && continue
+    # QUAL-004 FIX: Three-way VEIL-007 guard — skip only when BOTH values are non-empty and different
+    [[ -n "$SF_CFG" && -n "$RUNE_CURRENT_CFG" && "$SF_CFG" != "$RUNE_CURRENT_CFG" ]] && continue
     if [[ -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ && "$SF_PID" != "$PPID" ]]; then
       rune_pid_alive "$SF_PID" && continue
     fi
@@ -236,9 +242,17 @@ fi
 # TeamCreate is always checked (could create a Rune team — but we add a name check).
 if [[ "$TOOL_NAME" == "Task" || "$TOOL_NAME" == "Agent" ]]; then
   CTX_AGENT_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.name // empty' 2>/dev/null || true)
-  if [[ -n "$CTX_AGENT_NAME" ]] && type -t is_known_rune_agent &>/dev/null; then
-    if ! is_known_rune_agent "$CTX_AGENT_NAME"; then
-      exit 0  # Non-Rune agent — allow even at critical context
+  if [[ -n "$CTX_AGENT_NAME" ]]; then
+    if type -t is_known_rune_agent &>/dev/null; then
+      if ! is_known_rune_agent "$CTX_AGENT_NAME"; then
+        exit 0  # Non-Rune agent — allow even at critical context
+      fi
+    else
+      # BACK-104 FIX: Registry unavailable — fail-open for named agents to preserve scope isolation.
+      # Without the registry we cannot distinguish Rune from non-Rune agents.
+      # Denying all would break other plugins. Allow and log warning.
+      printf 'WARN: guard-context-critical: is_known_rune_agent unavailable — allowing agent "%s" (scope isolation degraded)\n' "$CTX_AGENT_NAME" >&2 2>/dev/null || true
+      exit 0
     fi
   fi
 fi
