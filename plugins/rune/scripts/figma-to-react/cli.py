@@ -88,25 +88,14 @@ def _verbose(msg: str, args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _resolve_token(args: argparse.Namespace) -> str:
-    """Resolve Figma API token from --token flag or FIGMA_TOKEN env var."""
+def _resolve_token(args: argparse.Namespace) -> Optional[str]:
+    """Resolve Figma API token from --token flag or FIGMA_TOKEN env var.
+
+    Returns None when no token is available, allowing Desktop MCP fallback.
+    """
     token = getattr(args, "token", None) or os.environ.get("FIGMA_TOKEN", "")
     token = token.strip()  # Handle copy-paste trailing whitespace
-    if not token:
-        print(
-            _red(f"{CROSS} Error: No Figma API token provided."),
-            file=sys.stderr,
-        )
-        print(
-            "  Use --token <TOKEN> or set FIGMA_TOKEN environment variable.",
-            file=sys.stderr,
-        )
-        print(
-            "  Generate at: https://www.figma.com/developers/api#access-tokens",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    return token
+    return token or None
 
 
 def _mask_token(token: str) -> str:
@@ -269,11 +258,13 @@ async def _run(args: argparse.Namespace) -> str:
     otherwise returns JSON.
     """
     token = _resolve_token(args)
-    _verbose(f"Using token: {_dim(_mask_token(token))}", args)
+    if token:
+        _verbose(f"Using token: {_dim(_mask_token(token))}", args)
 
     # FigmaClient reads FIGMA_TOKEN from env — set before construction.
     old_token = os.environ.get("FIGMA_TOKEN")
-    os.environ["FIGMA_TOKEN"] = token
+    if token:
+        os.environ["FIGMA_TOKEN"] = token
 
     t0 = time.monotonic()
     client = None

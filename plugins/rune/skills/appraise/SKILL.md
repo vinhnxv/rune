@@ -24,7 +24,6 @@ allowed-tools:
   - SendMessage
   - Read
   - Write
-  - Edit
   - Bash
   - Glob
   - Grep
@@ -339,7 +338,7 @@ Read and execute [tome-aggregation.md](references/tome-aggregation.md) for the f
 const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
 let allMembers = []
 try {
-  const teamConfig = Read(`${CHOME}/teams/${teamName}/config.json`)
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
   const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {

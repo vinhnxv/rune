@@ -115,7 +115,7 @@ def _generate_gradient_defs(node: FigmaIRNode, paint: Paint) -> str:
     """
     handles = paint.gradient_handle_positions
     stops = paint.gradient_stops
-    if not handles or not stops:
+    if not handles or not stops or len(handles) < 2:
         return ""
 
     safe_id = _sanitize_gradient_id(node.node_id)

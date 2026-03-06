@@ -46,7 +46,7 @@ Three-layer investigation that answers: **WHAT** must change (Impact), **WHY** i
 
 ## ATE-1 ENFORCEMENT
 
-**CRITICAL**: Every `Task` call in this skill MUST include `team_name`. Bare `Task` calls without `team_name` cause context explosion and are blocked by the `enforce-teams.sh` hook.
+**CRITICAL**: Every `Agent` call in this skill MUST include `team_name`. Bare `Agent` calls without `team_name` cause context explosion and are blocked by the `enforce-teams.sh` hook.
 
 ## Architecture — Goldmask's Three Eyes
 
@@ -238,7 +238,7 @@ Write(`tmp/.rune-goldmask-${session_id}.json`, JSON.stringify({
 
 ### 4. Create Tasks + Spawn Agents
 
-Create 8 tasks (one per agent), then spawn via `Task` with `team_name`:
+Create 8 tasks (one per agent), then spawn via `Agent` with `team_name`:
 
 **Phase 1+2 (parallel — Lore + 5 Impact tracers):**
 
@@ -251,7 +251,7 @@ TaskCreate("Event/message tracing — event schemas, pub/sub, DLQ")
 TaskCreate("Config/dependency tracing — env vars, config reads, CI/CD")
 ```
 
-Spawn all 6 in parallel using `Task` with:
+Spawn all 6 in parallel using `Agent` with:
 - `team_name: "{session_id}"`
 - `subagent_type: "general-purpose"`
 - Agent identity via prompt (not agent file reference)
