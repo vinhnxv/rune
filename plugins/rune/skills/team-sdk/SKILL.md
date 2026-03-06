@@ -106,7 +106,8 @@ TeamHandle: {
 }
 ```
 
-**Protocol**: Executes the full teamTransition (6 steps):
+**Protocol**: Executes the full teamTransition (7 steps):
+0. Feature flag pre-flight — verify `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (ATD-002, defense-in-depth; hook enforces this too)
 1. Validate identifier (`/^[a-zA-Z0-9_-]+$/`, no `..`)
 2. TeamDelete with retry-with-backoff (3 attempts: 0s, 3s, 8s)
 3. Filesystem fallback (only when step 2 failed — QUAL-012)
