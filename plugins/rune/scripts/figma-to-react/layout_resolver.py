@@ -475,30 +475,3 @@ def _apply_constraint_classes(node: FigmaIRNode, classes: List[str]) -> None:
         classes.append(f"left-{_px_to_spacing(node.x)}")
 
 
-def resolve_absolute_position(node: FigmaIRNode) -> List[str]:
-    """Generate position classes for absolutely-positioned nodes.
-
-    Uses the node's x/y coordinates relative to its parent's bounding box
-    to set top/left/right/bottom values.
-
-    Args:
-        node: IR node with absolute positioning.
-
-    Returns:
-        List of Tailwind position classes.
-    """
-    if not node.is_absolute_positioned:
-        return []
-
-    classes = ["absolute"]
-
-    if node.x >= 0:
-        classes.append(f"left-{_px_to_spacing(node.x)}")
-    if node.y >= 0:
-        classes.append(f"top-{_px_to_spacing(node.y)}")
-    if node.width > 0:
-        classes.append(f"w-{_px_to_spacing(node.width)}")
-    if node.height > 0:
-        classes.append(f"h-{_px_to_spacing(node.height)}")
-
-    return classes

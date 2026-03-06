@@ -24,6 +24,7 @@ Usage::
 
 from __future__ import annotations
 
+import logging
 import math
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -213,7 +214,6 @@ class StyleBuilder:
             self._props["background-image"] = f"conic-gradient(from {angle}, {stops})"
         elif paint.type == PaintType.GRADIENT_DIAMOND:
             # Diamond → radial-gradient approximation (no native CSS diamond gradient)
-            import logging
             logging.getLogger(__name__).warning(
                 "Diamond gradient approximated as radial-gradient"
             )

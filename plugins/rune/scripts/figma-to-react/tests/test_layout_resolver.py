@@ -12,7 +12,6 @@ from layout_resolver import (
     LayoutClasses,
     resolve_container_layout,
     resolve_child_layout,
-    resolve_absolute_position,
 )
 from node_parser import FigmaIRNode
 from figma_types import (
@@ -385,33 +384,6 @@ class TestChildLayout:
 
 
 # ---------------------------------------------------------------------------
-# resolve_absolute_position
-# ---------------------------------------------------------------------------
-
-class TestAbsolutePosition:
-    """Test absolute position class generation."""
-
-    def test_non_absolute_returns_empty(self):
-        node = _make_node(is_absolute_positioned=False)
-        assert resolve_absolute_position(node) == []
-
-    def test_absolute_with_position(self):
-        node = _make_node(
-            is_absolute_positioned=True,
-            x=10.0,
-            y=20.0,
-            width=100.0,
-            height=50.0,
-        )
-        classes = resolve_absolute_position(node)
-        assert "absolute" in classes
-        assert any("left-" in c for c in classes)
-        assert any("top-" in c for c in classes)
-        assert any("w-" in c for c in classes)
-        assert any("h-" in c for c in classes)
-
-
-# ---------------------------------------------------------------------------
 # Edge-case tests: LayoutClasses
 # ---------------------------------------------------------------------------
 
@@ -634,63 +606,3 @@ class TestChildLayoutEdgeCases:
         assert "grow" not in classes
 
 
-# ---------------------------------------------------------------------------
-# Edge-case tests: resolve_absolute_position
-# ---------------------------------------------------------------------------
-
-
-class TestAbsolutePositionEdgeCases:
-    """Edge-case tests for resolve_absolute_position."""
-
-    def test_zero_dimensions_absolute_no_size_classes(self):
-        """Absolutely positioned node with zero width and height gets no w-/h- classes."""
-        node = _make_node(
-            is_absolute_positioned=True,
-            x=5.0,
-            y=5.0,
-            width=0.0,
-            height=0.0,
-        )
-        classes = resolve_absolute_position(node)
-        assert "absolute" in classes
-        assert not any(c.startswith("w-") for c in classes)
-        assert not any(c.startswith("h-") for c in classes)
-
-    def test_zero_xy_position_boundary(self):
-        """Zero x=0, y=0 (boundary) should still generate left-0 and top-0."""
-        node = _make_node(
-            is_absolute_positioned=True,
-            x=0.0,
-            y=0.0,
-            width=50.0,
-            height=50.0,
-        )
-        classes = resolve_absolute_position(node)
-        assert "absolute" in classes
-        # x=0 and y=0 are >= 0, so left- and top- classes should be generated
-        assert any("left-" in c for c in classes)
-        assert any("top-" in c for c in classes)
-
-    def test_missing_absolute_flag_returns_empty(self):
-        """Node that is NOT absolutely positioned returns empty list."""
-        node = _make_node(
-            is_absolute_positioned=False,
-            x=10.0,
-            y=20.0,
-            width=100.0,
-            height=50.0,
-        )
-        assert resolve_absolute_position(node) == []
-
-    def test_large_position_values_boundary(self):
-        """Very large x/y/width/height (overflow-like) generates classes without crashing."""
-        node = _make_node(
-            is_absolute_positioned=True,
-            x=9999.0,
-            y=9999.0,
-            width=9999.0,
-            height=9999.0,
-        )
-        classes = resolve_absolute_position(node)
-        assert "absolute" in classes
-        assert len(classes) > 1
