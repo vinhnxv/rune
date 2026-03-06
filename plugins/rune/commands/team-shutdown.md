@@ -190,13 +190,13 @@ for (const member of allMembers) {
 
 // ── 3. Grace period (skip if --force) ──
 if (allMembers.length > 0 && !forceFlag) {
-  Bash(`sleep 15`)
+  Bash(`sleep 20`)
 }
 
-// ── 4. TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s) ──
+// ── 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s) ──
 // SEC-4: team_name already validated above
 let cleanupTeamDeleteSucceeded = false
-const CLEANUP_DELAYS = [0, 5000, 10000]
+const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) {
     warn(`TeamDelete attempt ${attempt + 1} -- retrying in ${CLEANUP_DELAYS[attempt] / 1000}s...`)
@@ -217,6 +217,11 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
 if (!cleanupTeamDeleteSucceeded) {
   // SEC-4 defense-in-depth: re-validate before rm -rf (VEIL-008)
   if (!/^[a-zA-Z0-9_-]+$/.test(team_name)) throw new Error(`Invalid team_name for cleanup: ${team_name}`)
+  // 5a. Process-level kill -- terminate lingering teammates before filesystem cleanup
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+  Bash(`sleep 3`)
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  // 5b. Filesystem cleanup
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${team_name}/" "$CHOME/tasks/${team_name}/" 2>&1`)
   try { TeamDelete() } catch (e) { /* best effort -- clear SDK leadership state */ }
 }

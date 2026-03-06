@@ -424,20 +424,22 @@ function shutdown(handle) {
 
   // --- 3. Grace period — let teammates deregister before TeamDelete ---
   // Without this, TeamDelete fires before teammates approve shutdown
-  // → "active members" error. 15s covers most cases.
+  // → "active members" error. 20s covers most cases including slow tool calls.
+  // Increased from 15s to 20s: teammates in mid-Write/Edit often need 15-18s to finish.
   if (allMembers.length > 0) {
-    Bash(`sleep 15`)
+    Bash(`sleep 20`)
   }
 
-  // --- 4. TeamDelete with retry-with-backoff (3 attempts: 0s, 5s, 10s) ---
-  // Total budget: 15s grace + 15s retry = 30s max
+  // --- 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s) ---
+  // Total budget: 20s grace + 30s retry = 50s max
+  // Added 4th attempt: some teammates take >25s to deregister after complex tool calls.
   // SEC-9: Re-validate teamName before rm-rf (defense-in-depth)
   if (!/^[a-zA-Z0-9_-]+$/.test(handle.teamName)) {
     throw new Error(`Invalid team_name: ${handle.teamName}`)
   }
 
   let cleanupTeamDeleteSucceeded = false
-  const CLEANUP_DELAYS = [0, 5000, 10000]
+  const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
   for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
     if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
     try {
@@ -453,6 +455,20 @@ function shutdown(handle) {
 
   // --- 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012) ---
   if (!cleanupTeamDeleteSucceeded) {
+    // 5a. Process-level kill: terminate lingering teammate processes before filesystem cleanup.
+    // When TeamDelete fails, teammates are likely still running. Filesystem cleanup alone
+    // leaves zombie processes that hold file locks and consume resources.
+    // pgrep -P finds children of the Claude Code process (our session).
+    const ownerPid = handle.ownerPid || Bash(`echo $PPID`).trim()
+    if (ownerPid && /^\d+$/.test(ownerPid)) {
+      // SIGTERM first — give teammates a chance to exit cleanly
+      Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+      Bash(`sleep 3`)
+      // SIGKILL survivors — re-verify command name before kill (PID recycling guard)
+      Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+    }
+
+    // 5b. Filesystem cleanup
     Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${handle.teamName}/" "$CHOME/tasks/${handle.teamName}/" 2>/dev/null`)
     try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
   }

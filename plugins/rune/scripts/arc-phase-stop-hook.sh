@@ -439,7 +439,10 @@ if [[ -n "$CHOME" && "$CHOME" == /* && -d "$CHOME/teams/" ]]; then
     # `local` outside functions is a fatal error in bash 3.2 (macOS /bin/bash).
     _saved_nullglob=$(shopt -p nullglob 2>/dev/null || true)
     shopt -s nullglob 2>/dev/null || true
-    for _zombie_dir in "$CHOME/teams/"/arc-*-"${_ARC_ID}"; do
+    # Scan arc-*, rune-*, and goldmask-* prefixed teams with the arc ID suffix.
+    # Extended from arc-* only: sub-commands (strive, appraise, mend, forge, inspect)
+    # create rune-* prefixed teams that can become zombies when postPhaseCleanup is skipped.
+    for _zombie_dir in "$CHOME/teams/"{arc,rune,goldmask}-*"${_ARC_ID}"*; do
       [[ -d "$_zombie_dir" && ! -L "$_zombie_dir" ]] || continue
       _zombie_team="${_zombie_dir##*/}"
       [[ "$_zombie_team" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
@@ -449,6 +452,14 @@ if [[ -n "$CHOME" && "$CHOME" == /* && -d "$CHOME/teams/" ]]; then
         _zombie_pid=$(jq -r '.owner_pid // empty' "$_zombie_config" 2>/dev/null || true)
         if [[ -n "$_zombie_pid" ]] && kill -0 "$_zombie_pid" 2>/dev/null; then
           continue  # Owned by live session — skip
+        fi
+      fi
+      # Also check .session marker (TLC-004) for cross-session safety
+      _zombie_session="$_zombie_dir/.session"
+      if [[ -f "$_zombie_session" ]]; then
+        _zombie_sid=$(cat "$_zombie_session" 2>/dev/null || true)
+        if [[ -n "$_zombie_sid" && -n "$HOOK_SESSION_ID" && "$_zombie_sid" != "$HOOK_SESSION_ID" ]]; then
+          continue  # Different session — skip
         fi
       fi
       rm -rf "$CHOME/teams/${_zombie_team}/" "$CHOME/tasks/${_zombie_team}/" 2>/dev/null
