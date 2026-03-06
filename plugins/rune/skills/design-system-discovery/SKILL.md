@@ -52,48 +52,11 @@ See [signal-aggregation.md](references/signal-aggregation.md) for the aggregatio
 **Winner selection**: The library with the highest confidence is `primary_library`.
 If two libraries both exceed 0.50, include both (migration edge case — see §Edge Cases).
 
-### Phase 4: Token System Resolution
+### Phase 4–5: Token & Variant System Resolution
 
-```
-IF tailwind_v4_theme signals fired:
-  tokens.format = "tailwind-v4-theme"
-  tokens.source_file = CSS file containing @theme block
-ELSE IF tailwind_v3_config signals fired:
-  tokens.format = "tailwind-v3-config"
-  tokens.source_file = tailwind.config.{js,ts}
-ELSE IF style_dictionary signals fired:
-  tokens.format = "style-dictionary"
-  tokens.source_file = tokens/ or design-tokens/ directory
-ELSE IF css_variables signals fired:
-  tokens.format = "css-variables"
-  tokens.source_file = globals.css or app/globals.css
-ELSE:
-  tokens.format = "unknown"
-  tokens.source_file = null
-```
+Resolves the project's design token format (Tailwind v4 theme, v3 config, Style Dictionary, CSS variables) and variant system (CVA, styled-components, CSS modules). Extracts semantic colors, spacing, border radius, and shadow scales from detected source files.
 
-Extract token values from source_file if readable:
-- `semantic_colors`: CSS variables named `--color-*`, `--background`, `--foreground`, `--primary`, `--secondary`, `--muted`, `--accent`, `--destructive`
-- `spacing_scale`: CSS variables named `--spacing-*` or Tailwind `spacing` config values
-- `border_radius_scale`: CSS variables `--radius-*` or Tailwind `borderRadius` config
-- `shadow_scale`: CSS variables `--shadow-*` or Tailwind `boxShadow` config
-
-### Phase 5: Variant System Resolution
-
-```
-IF cva signals fired:
-  variants.system = "cva"
-  variants.pattern = "class-variance-authority"
-ELSE IF styled_components signals fired:
-  variants.system = "css-in-js"
-  variants.pattern = "styled-components"
-ELSE IF css_classes signals fired:
-  variants.system = "css-modules"
-  variants.pattern = "css-modules"
-ELSE:
-  variants.system = "unknown"
-  variants.pattern = null
-```
+See [signal-aggregation.md](references/signal-aggregation.md) for the full Phase 4 (Token System Resolution) and Phase 5 (Variant System Resolution) pseudocode.
 
 ### Phase 6: Component Inventory
 

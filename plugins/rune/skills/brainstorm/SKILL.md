@@ -189,7 +189,7 @@ if (quickFlag) {
 
 Skip for Solo mode — proceed directly to Phase 2. For Team or Deep mode: standard 6-step `teamTransition` protocol (validate SEC-001 → TeamDelete retry → filesystem fallback → TeamCreate with "Already leading" recovery → post-create verification → state file write), workspace directory creation, and 3 advisor agent spawns (user-advocate, tech-realist, devils-advocate).
 
-See [team-bootstrap.md](references/team-bootstrap.md) for the full bootstrap protocol and [advisor-prompts.md](references/advisor-prompts.md) for advisor persona definitions.
+See [team-bootstrap.md](references/team-bootstrap.md) for the full bootstrap protocol. See [advisor-prompts.md](references/advisor-prompts.md) for advisor persona definitions.
 
 ## Phase 2: Understanding Rounds (all modes)
 
