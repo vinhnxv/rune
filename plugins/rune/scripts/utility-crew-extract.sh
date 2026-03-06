@@ -10,6 +10,17 @@
 # Token cost: ZERO (pure shell extraction).
 set -euo pipefail
 
+# Sanitize a string for safe JSON interpolation
+_json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr -d '\n'
+}
+
+# Check jq availability (required for JSON array construction)
+if ! command -v jq &>/dev/null; then
+  echo "WARN: jq not available — utility-crew-extract requires jq" >&2
+  exit 1
+fi
+
 MODE="${1:?Missing mode (tome-digest|gap-analysis|verdict|plan|work-summary)}"
 ARC_ID="${2:?Missing arc ID}"
 MEND_ROUND="${3:-0}"
@@ -88,7 +99,7 @@ case "$MODE" in
   "top_p1_findings": ${TOP_P1},
   "recurring_prefixes": ${RECURRING},
   "needs_elicitation": ${NEEDS_ELICIT},
-  "tome_source": "${TOME_SOURCE}",
+  "tome_source": "$(_json_escape "$TOME_SOURCE")",
   "mend_round": ${MEND_ROUND}
 }
 EOJSON
@@ -133,7 +144,7 @@ EOJSON
   "completion_pct": ${COMPLETION_PCT},
   "missing_requirements": ${MISSING_REQS},
   "partial_requirements": [],
-  "review_context": "${REVIEW_CTX}"
+  "review_context": "$(_json_escape "$REVIEW_CTX")"
 }
 EOJSON
     echo "Digest written: ${OUTPUT}"
@@ -166,7 +177,7 @@ EOJSON
   "mode": "verdict",
   "dimensions": ${DIMENSIONS},
   "low_scoring": ${LOW_SCORING},
-  "focus_areas_text": "${FOCUS_AREAS}"
+  "focus_areas_text": "$(_json_escape "$FOCUS_AREAS")"
 }
 EOJSON
     echo "Digest written: ${OUTPUT}"
@@ -203,14 +214,14 @@ EOJSON
     cat > "$OUTPUT" <<EOJSON
 {
   "mode": "enriched-plan",
-  "frontmatter": {"type": "${PLAN_TYPE}", "name": "${PLAN_NAME}", "complexity": "${COMPLEXITY}"},
+  "frontmatter": {"type": "$(_json_escape "$PLAN_TYPE")", "name": "$(_json_escape "$PLAN_NAME")", "complexity": "$(_json_escape "$COMPLEXITY")"},
   "section_count": ${SECTION_COUNT},
   "sections": ${SECTIONS},
   "acceptance_criteria_count": ${AC_COUNT},
   "acceptance_criteria": ${AC_LIST},
   "task_count": ${TASK_COUNT},
   "file_targets": ${FILE_TARGETS},
-  "estimated_size": "${COMPLEXITY}"
+  "estimated_size": "$(_json_escape "$COMPLEXITY")"
 }
 EOJSON
     echo "Digest written: ${OUTPUT}"

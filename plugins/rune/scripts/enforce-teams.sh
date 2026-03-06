@@ -344,6 +344,8 @@ elif [[ -n "${AGENT_NAME:-}" ]]; then
       WORKFLOW_TYPE="mend" ;;
     repo-surveyor|echo-reader|git-miner|practice-seeker|lore-scholar|flow-seer|scroll-reviewer|decree-arbiter|research-verifier)
       WORKFLOW_TYPE="plan" ;;
+    tome-digest|condenser-gap|condenser-plan|condenser-verdict|condenser-work)
+      WORKFLOW_TYPE="utility" ;;
     *)
       WORKFLOW_TYPE="unknown" ;;
   esac

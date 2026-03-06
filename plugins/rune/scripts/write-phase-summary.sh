@@ -104,14 +104,23 @@ $(printf '%b' "$DIGEST_LINES")
 
 ## Artifacts Produced
 
-| Phase | Path | Status |
-|-------|------|--------|
+| Artifact | Path | Status |
+|----------|------|--------|
 ${ARTIFACTS}
 
 ## Carry-Forward State
 
 - Phase group: ${GROUP_NAME} (${PHASE_RANGE})
 - Status: ${STATUS}
+
+## Decisions Made
+
+- Phase group ${GROUP_NAME} completed with status: ${STATUS}
+$(if [[ -n "$FAILED_PHASES" ]]; then echo "- Decision: Continue pipeline despite failures in: ${FAILED_PHASES}"; fi)
+
+## Issues Encountered
+
+$(if [[ -n "$FAILED_PHASES" ]]; then echo "- Failed phases: ${FAILED_PHASES}"; else echo "- No issues encountered"; fi)
 EOF
 
 echo "Phase summary written: ${OUTPUT}"
