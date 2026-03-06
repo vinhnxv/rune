@@ -47,6 +47,33 @@ When enriched-vsm.json provides `match_score` per region:
 
 ## Decision Flowchart
 
+```mermaid
+flowchart TD
+    A[VSM Region] --> B{component_matches\nin enriched-vsm.json?}
+    B -->|Yes| C{score >= HIGH\nthreshold 0.80?}
+    B -->|No| F{Builder MCP\navailable?}
+
+    C -->|Yes| D["HIGH confidence\nImport directly\nCustomize props from VSM"]
+    C -->|No| E{score >= LOW\nthreshold 0.60?}
+
+    E -->|Yes| G["MEDIUM confidence\nImport + verify\nCross-check VSM tokens"]
+    E -->|No| H["LOW confidence\nDo NOT import\nBuild from scratch"]
+
+    F -->|"Yes (Phase 2 workers only)"| I["Search manually\nvia builder MCP"]
+    F -->|No| J["FALLBACK\nUse VSM tokens +\nproject design system"]
+
+    I --> K{Match found?}
+    K -->|Yes| C
+    K -->|No| J
+
+    D --> L["ALWAYS: Cross-check\nvs VSM layout/spacing/tokens"]
+    G --> L
+    H --> L
+    J --> L
+```
+
+### Steps (prose reference)
+
 For each VSM region:
 1. Check enriched-vsm.json for component_matches
 2. IF match with score >= `high_confidence_threshold` (default 0.80) → **HIGH confidence**:

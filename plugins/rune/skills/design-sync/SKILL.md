@@ -380,9 +380,14 @@ for each vsm in vsmFiles:
   vsmContent = Read(vsm.path)
   regions = parseVsmRegions(vsmContent)  // extract top-level regions from VSM
 
+  const skippedRegions = []  // Track regions skipped by circuit breaker
+
   for each region in regions:
     if consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD:
-      warn("Phase 1.3 circuit breaker: {consecutiveFailures} consecutive MCP failures — skipping remaining regions")
+      // Track remaining regions as skipped for downstream observability
+      const remaining = regions.slice(regions.indexOf(region))
+      skippedRegions.push(...remaining.map(r => ({ name: r.name, reason: 'circuit_breaker' })))
+      warn("Phase 1.3 circuit breaker: {consecutiveFailures} consecutive MCP failures — skipping {remaining.length} remaining regions")
       break
 
     // Step 4a: Build search query from region + reference code visual intent
@@ -443,8 +448,15 @@ if builderProfile.capabilities.templates AND NOT flags.skipTemplates AND builder
   catch:
     // Template check failed — not fatal
 
-// Step 6: Write enriched VSM
+// Step 6: Write enriched VSM (includes skipped regions metadata for observability)
 Bash("mkdir -p {workDir}/vsm")
+if (skippedRegions.length > 0) {
+  enrichedVsm._metadata = enrichedVsm._metadata ?? {}
+  enrichedVsm._metadata.skipped_regions = skippedRegions
+  enrichedVsm._metadata.circuit_breaker_fired = true
+  enrichedVsm._metadata.skipped_count = skippedRegions.length
+  warn(`Phase 1.3: ${skippedRegions.length} regions skipped due to circuit breaker — workers will receive incomplete enrichment`)
+}
 Write("{workDir}/vsm/enriched-vsm.json", JSON.stringify(enrichedVsm, null, 2))
 
 // Step 7: Update state
