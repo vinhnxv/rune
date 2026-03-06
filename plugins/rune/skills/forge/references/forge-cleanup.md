@@ -57,6 +57,15 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
     if (attempt === CLEANUP_DELAYS.length - 1) warn(`forge cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
   }
 }
+// Process-level kill — terminate orphaned teammate processes (step 5a)
+if (!cleanupTeamDeleteSucceeded) {
+  const ownerPid = Bash(`echo $PPID`).trim()
+  if (ownerPid && /^\d+$/.test(ownerPid)) {
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+    Bash(`sleep 3`)
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  }
+}
 // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
 if (!cleanupTeamDeleteSucceeded) {
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/rune-forge-${timestamp}/" "$CHOME/tasks/rune-forge-${timestamp}/" 2>/dev/null`)

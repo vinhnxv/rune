@@ -47,9 +47,12 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
 
 // 5a. Process-level kill — terminate orphaned teammate processes
 if (!cleanupTeamDeleteSucceeded) {
-  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-  Bash(`sleep 3`)
-  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  const ownerPid = Bash(`echo $PPID`).trim()
+  if (ownerPid && /^\d+$/.test(ownerPid)) {
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+    Bash(`sleep 3`)
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  }
 }
 
 // 5b. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
