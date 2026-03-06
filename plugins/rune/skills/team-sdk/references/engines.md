@@ -140,6 +140,8 @@ function ensureTeam(config) {
   // If team exists but belongs to different session, calls createTeam() (which cleans up first).
 
   // --- STEP 0: Feature flag pre-flight (ATD-002, defense-in-depth) ---
+  // The guard-agent-teams-flag.sh hook enforces this at PreToolUse:TeamCreate,
+  // but check here too in case the hook is bypassed or not loaded.
   const flagValue = Bash(`echo "\${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-}"`).trim()
   if (flagValue !== "1") {
     throw new Error("ATD-002: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS is not set to '1'. Enable it in .claude/settings.json or .claude/settings.local.json.")

@@ -3,7 +3,20 @@
 # ATD-002: Block all team operations when feature flag is not set.
 # Matcher: TeamCreate (only)
 # Behavior: fail-closed (SECURITY pattern)
+set -euo pipefail
 umask 077
+
+# ERR trap: fail-closed — emit deny JSON on any unexpected error
+trap 'cat <<'"'"'ERRDENY'"'"'
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "ATD-002: guard-agent-teams-flag.sh crashed — fail-closed."
+  }
+}
+ERRDENY
+exit 2' ERR
 
 # Fast path: feature flag is set
 if [[ "${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-}" == "1" ]]; then

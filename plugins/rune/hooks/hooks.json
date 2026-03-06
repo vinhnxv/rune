@@ -110,7 +110,8 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/guard-agent-teams-flag.sh",
-            "timeout": 5
+            "timeout": 5,
+            "statusMessage": "Checking Agent Teams feature flag..."
           }
         ]
       },
