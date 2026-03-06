@@ -343,6 +343,9 @@ def _resolve_sizing_overrides(node: FigmaIRNode):
             sizing_v = "HUG"
         elif node.text_auto_resize == "HEIGHT":
             sizing_v = "HUG"
+        elif node.text_auto_resize == "TRUNCATE":
+            sizing_h = "FIXED"
+            sizing_v = "FIXED"
 
     return sizing_h, sizing_v
 
@@ -368,7 +371,7 @@ def _resolve_node_styles(node: FigmaIRNode) -> List[str]:
     props = (
         StyleBuilder()
         .fills(node.fills, is_text=is_text)
-        .strokes(node.strokes, node.stroke_weight)
+        .strokes(node.strokes, node.stroke_weight, stroke_align=node.stroke_align)
         .effects(node.effects)
         .corner_radius(node.corner_radius, node.corner_radii)
         .opacity(node.opacity)
@@ -492,6 +495,22 @@ def _resolve_text_styles(style: Optional[TypeStyle]) -> List[str]:
 
     classes.extend(_resolve_text_decoration(style))
 
+    # Text case transform (UPPER, LOWER, TITLE, ORIGINAL, SMALL_CAPS, etc.)
+    if style.text_case is not None:
+        case_val = style.text_case.value if hasattr(style.text_case, 'value') else str(style.text_case)
+        _TEXT_CASE_MAP = {
+            "UPPER": "uppercase",
+            "LOWER": "lowercase",
+            "TITLE": "capitalize",
+            "SMALL_CAPS": "small-caps",
+            "SMALL_CAPS_FORCED": "small-caps",
+        }
+        tw_case = _TEXT_CASE_MAP.get(case_val)
+        if tw_case == "small-caps":
+            classes.append("font-variant-[small-caps]")
+        elif tw_case:
+            classes.append(tw_case)
+
     color_cls = _resolve_text_color(style)
     if color_cls:
         classes.append(color_cls)
@@ -605,6 +624,29 @@ def _collect_node_classes(
 
     if node.node_type == NodeType.ELLIPSE:
         all_classes.append("rounded-full")
+
+    # Text truncation (TRUNCATE auto-resize mode)
+    if (
+        node.node_type == NodeType.TEXT
+        and node.text_auto_resize == "TRUNCATE"
+    ):
+        all_classes.extend(["overflow-hidden", "text-ellipsis", "whitespace-nowrap"])
+
+    # Vertical text alignment (only for non-TOP since TOP is default)
+    # Skip when TRUNCATE is active — flex wrapper breaks single-line truncation
+    is_truncated = (
+        node.node_type == NodeType.TEXT
+        and node.text_auto_resize == "TRUNCATE"
+    )
+    if (
+        node.node_type == NodeType.TEXT
+        and node.text_align_vertical
+        and not is_truncated
+    ):
+        _VALIGN_MAP = {"CENTER": "items-center", "BOTTOM": "items-end"}
+        valign_cls = _VALIGN_MAP.get(node.text_align_vertical)
+        if valign_cls:
+            all_classes.extend(["flex", valign_cls])
 
     return _deduplicate_classes(all_classes)
 
@@ -742,6 +784,35 @@ def _generate_node_jsx(
     """
     if not node.visible:
         return ""
+
+    # Node flattening: skip wrapper divs that add no value.
+    # A frame-like node with exactly one visible child, no fills/strokes/effects,
+    # and no auto-layout can be flattened — render the child directly.
+    # Guard: don't flatten if child has constraint positioning (needs parent wrapper)
+    if (
+        node.can_be_flattened
+        and node.is_frame_like
+        and not image_handler.has_image(node)
+    ):
+        visible_children = [c for c in node.children if c.visible]
+        has_styling = (
+            any(f.visible for f in node.fills)
+            or any(s.visible for s in node.strokes)
+            or any(e.visible for e in node.effects)
+            or node.corner_radius > 0
+            or node.clips_content
+        )
+        if len(visible_children) == 1 and not has_styling:
+            child = visible_children[0]
+            # Don't flatten if child has constraints that depend on parent
+            has_constraints = (
+                getattr(child, "constraint_horizontal", None)
+                or getattr(child, "constraint_vertical", None)
+            )
+            if not has_constraints:
+                return _generate_node_jsx(
+                    child, parent, image_handler, indent_level, aria,
+                )
 
     all_classes = _collect_node_classes(node, parent)
     class_str = " ".join(all_classes)

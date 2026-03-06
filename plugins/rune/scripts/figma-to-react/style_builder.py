@@ -24,6 +24,7 @@ Usage::
 
 from __future__ import annotations
 
+import logging
 import math
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -115,6 +116,27 @@ def _gradient_direction(positions: List[Any]) -> str:
     return f"{angle_deg}deg"
 
 
+def _conic_gradient_angle(positions: List[Any]) -> str:
+    """Determine CSS conic-gradient starting angle from Figma handle positions.
+
+    Args:
+        positions: List of Vector2D-like objects with x, y attributes.
+
+    Returns:
+        CSS angle string (e.g., "0deg", "90deg").
+    """
+    if not positions or len(positions) < 2:
+        return "0deg"
+
+    start = positions[0]
+    end = positions[1]
+    dx = getattr(end, "x", 0.0) - getattr(start, "x", 0.0)
+    dy = getattr(end, "y", 0.0) - getattr(start, "y", 0.0)
+    angle_rad = math.atan2(dy, dx)
+    angle_deg = round(math.degrees(angle_rad) + 90) % 360
+    return f"{angle_deg}deg"
+
+
 def _gradient_stops_css(stops: Optional[List[Any]]) -> Optional[str]:
     """Convert Figma gradient stops to CSS gradient color stops.
 
@@ -169,7 +191,11 @@ class StyleBuilder:
             self._props[css_prop] = _color_to_css(paint.color, paint.opacity)
 
     def _apply_gradient_fill(self, paint: Paint) -> None:
-        """Apply a LINEAR or RADIAL gradient fill paint to CSS props.
+        """Apply a gradient fill paint to CSS props.
+
+        Supports LINEAR, RADIAL, ANGULAR (conic), and DIAMOND gradients.
+        Angular gradients map to CSS conic-gradient.
+        Diamond gradients are approximated as conic-gradient (closest CSS equivalent).
 
         Args:
             paint: Gradient fill paint object.
@@ -182,15 +208,42 @@ class StyleBuilder:
             self._props["background-image"] = f"linear-gradient({direction}, {stops})"
         elif paint.type == PaintType.GRADIENT_RADIAL:
             self._props["background-image"] = f"radial-gradient(circle, {stops})"
+        elif paint.type == PaintType.GRADIENT_ANGULAR:
+            # Angular → conic-gradient (native CSS equivalent)
+            angle = _conic_gradient_angle(paint.gradient_handle_positions or [])
+            self._props["background-image"] = f"conic-gradient(from {angle}, {stops})"
+        elif paint.type == PaintType.GRADIENT_DIAMOND:
+            # Diamond → radial-gradient approximation (no native CSS diamond gradient)
+            logging.getLogger(__name__).warning(
+                "Diamond gradient approximated as radial-gradient"
+            )
+            self._props["background-image"] = f"radial-gradient(circle, {stops})"
 
     def _apply_image_fill(self, paint: Paint) -> None:
         """Apply an IMAGE fill paint to CSS props.
 
+        Maps Figma scaleMode to CSS background-size:
+        - FILL → cover (default)
+        - FIT → contain
+        - CROP → cover
+        - TILE → auto + repeat
+
         Args:
             paint: Image fill paint object.
         """
-        self._props["background-size"] = "cover"
+        scale_mode = paint.scale_mode if paint.scale_mode else "FILL"
+        _SCALE_MODE_MAP = {
+            "FILL": "cover",
+            "FIT": "contain",
+            "CROP": "cover",
+            "TILE": "auto",
+        }
+        self._props["background-size"] = _SCALE_MODE_MAP.get(scale_mode, "cover")
         self._props["background-position"] = "center"
+        if scale_mode == "TILE":
+            self._props["background-repeat"] = "repeat"
+        elif scale_mode == "FIT":
+            self._props["background-repeat"] = "no-repeat"
         if paint.image_ref:
             self._props["_image_ref"] = paint.image_ref
 
@@ -216,23 +269,77 @@ class StyleBuilder:
         if not visible:
             return self
 
-        paint = visible[0]  # Primary fill
+        # Multi-fill support: Figma layers fills bottom-to-top.
+        # For single fills, use the simple path (most common case).
+        # For multiple fills, stack gradients/images via comma-separated
+        # background-image and use the topmost solid as background-color.
+        if len(visible) == 1:
+            paint = visible[0]
+            if paint.type == PaintType.SOLID:
+                self._apply_solid_fill(paint, is_text)
+            elif paint.type in (
+                PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL,
+                PaintType.GRADIENT_ANGULAR, PaintType.GRADIENT_DIAMOND,
+            ):
+                self._apply_gradient_fill(paint)
+            elif paint.type == PaintType.IMAGE:
+                self._apply_image_fill(paint)
+        else:
+            # Multi-fill: collect gradient layers and use last solid as bg-color
+            gradient_layers: List[str] = []
+            for paint in reversed(visible):  # bottom-to-top in Figma = CSS stacking order
+                if paint.type == PaintType.SOLID:
+                    self._apply_solid_fill(paint, is_text)
+                elif paint.type in (
+                    PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL,
+                    PaintType.GRADIENT_ANGULAR, PaintType.GRADIENT_DIAMOND,
+                ):
+                    stops = _gradient_stops_css(paint.gradient_stops)
+                    if stops:
+                        if paint.type == PaintType.GRADIENT_LINEAR:
+                            direction = _gradient_direction(
+                                paint.gradient_handle_positions or [],
+                            )
+                            gradient_layers.append(
+                                f"linear-gradient({direction}, {stops})",
+                            )
+                        elif paint.type == PaintType.GRADIENT_RADIAL:
+                            gradient_layers.append(
+                                f"radial-gradient(circle, {stops})",
+                            )
+                        elif paint.type in (
+                            PaintType.GRADIENT_ANGULAR,
+                            PaintType.GRADIENT_DIAMOND,
+                        ):
+                            angle = _conic_gradient_angle(
+                                paint.gradient_handle_positions or [],
+                            )
+                            gradient_layers.append(
+                                f"conic-gradient(from {angle}, {stops})",
+                            )
+                elif paint.type == PaintType.IMAGE:
+                    self._apply_image_fill(paint)
 
-        if paint.type == PaintType.SOLID:
-            self._apply_solid_fill(paint, is_text)
-        elif paint.type in (PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL):
-            self._apply_gradient_fill(paint)
-        elif paint.type == PaintType.IMAGE:
-            self._apply_image_fill(paint)
+            if gradient_layers:
+                self._props["background-image"] = ", ".join(gradient_layers)
 
         return self
 
-    def strokes(self, paints: List[Paint], weight: float = 0.0) -> StyleBuilder:
+    def strokes(
+        self, paints: List[Paint], weight: float = 0.0,
+        stroke_align: Optional[str] = None,
+    ) -> StyleBuilder:
         """Extract border/stroke properties from Figma paints.
+
+        Stroke alignment controls how the stroke is rendered:
+        - CENTER (default): standard CSS border
+        - INSIDE: uses outline with negative offset to render inside
+        - OUTSIDE: uses outline to render outside the element
 
         Args:
             paints: List of Figma Paint objects (typically node.strokes).
             weight: Stroke weight in pixels.
+            stroke_align: Figma stroke alignment (INSIDE, OUTSIDE, CENTER).
 
         Returns:
             Self for chaining.
@@ -242,19 +349,33 @@ class StyleBuilder:
             return self
 
         paint = visible[0]
+        color: Optional[str] = None
         if paint.type == PaintType.SOLID and paint.color:
             color = _color_to_css(paint.color, paint.opacity)
-            self._props["border-width"] = f"{weight}px"
-            self._props["border-color"] = color
-            self._props["border-style"] = "solid"
         elif paint.type in (PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL):
             # BACK-002: Gradient stroke fallback — use first stop color
             stops = paint.gradient_stops
             if stops and stops[0].color:
                 color = _color_to_css(stops[0].color, paint.opacity)
-                self._props["border-width"] = f"{weight}px"
-                self._props["border-color"] = color
-                self._props["border-style"] = "solid"
+
+        if color is None:
+            return self
+
+        if stroke_align == "INSIDE":
+            self._props["outline-width"] = f"{weight}px"
+            self._props["outline-color"] = color
+            self._props["outline-style"] = "solid"
+            self._props["outline-offset"] = f"-{weight}px"
+        elif stroke_align == "OUTSIDE":
+            self._props["outline-width"] = f"{weight}px"
+            self._props["outline-color"] = color
+            self._props["outline-style"] = "solid"
+            self._props["outline-offset"] = "0px"
+        else:
+            # CENTER (default) — standard border
+            self._props["border-width"] = f"{weight}px"
+            self._props["border-color"] = color
+            self._props["border-style"] = "solid"
 
         return self
 
