@@ -149,9 +149,17 @@ if [[ "$REM_INT" -le "$WARNING_THRESHOLD" && "$REM_INT" -gt "$CRITICAL_THRESHOLD
   WORKFLOW="unknown"
   for sf in \
     "$CWD/tmp/.rune-review-"*.json \
+    "$CWD/tmp/.rune-audit-"*.json \
     "$CWD/tmp/.rune-work-"*.json \
+    "$CWD/tmp/.rune-mend-"*.json \
+    "$CWD/tmp/.rune-inspect-"*.json \
     "$CWD/tmp/.rune-forge-"*.json \
     "$CWD/tmp/.rune-plan-"*.json \
+    "$CWD/tmp/.rune-goldmask-"*.json \
+    "$CWD/tmp/.rune-brainstorm-"*.json \
+    "$CWD/tmp/.rune-debug-"*.json \
+    "$CWD/tmp/.rune-resolve-todos-"*.json \
+    "$CWD/tmp/.rune-design-sync-"*.json \
     "$CWD/tmp/.rune-arc-"*.json; do
     [[ -f "$sf" ]] || continue
     # Session ownership check before reading
