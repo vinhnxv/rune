@@ -10,6 +10,10 @@ Invoke `/rune:strive` logic on the enriched plan. Swarm workers implement tasks 
 **Error handling**: Halt if <50% tasks complete. Partial work is committed via incremental commits (E5).
 **Consumers**: SKILL.md (Phase 5 stub)
 
+**Phase loop mechanism**: The arc dispatcher invokes this phase via the **Stop hook re-injection** pattern (`arc-phase-stop-hook.sh`). The Stop hook reads `.claude/arc-phase-loop.local.md`, finds "work" as the next pending phase in `PHASE_ORDER`, and re-injects a prompt that executes this reference file. Each arc phase runs in its own Claude Code turn, preventing context accumulation across phases.
+
+**Arc context detection**: Strive detects arc orchestration by scanning `.claude/arc/*/checkpoint.json` for `phases.work.status === 'in_progress'`. When found, strive redirects todo output to `tmp/arc/{id}/todos/work/` instead of its default `tmp/work/{timestamp}/todos/work/`, enabling arc to track work artifacts across phases.
+
 > **Note**: `sha256()`, `updateCheckpoint()`, `exists()`, and `warn()` are dispatcher-provided utilities available in the arc orchestrator context. Phase reference files call these without import.
 
 ## Algorithm
@@ -50,7 +54,7 @@ workContext += `\n\n## Quality Contract\nAll code must include:\n- Type annotati
 updateCheckpoint({ phase: "work", status: "in_progress", phase_sequence: 5, team_name: null })
 
 // No --todos-dir flag needed — strive detects arc context automatically
-// Strive scans .claude/arc/*/checkpoint.json for work phase in_progress + todos_base
+// ARC CONTEXT DETECTION: Strive scans .claude/arc/*/checkpoint.json for work phase in_progress + todos_base
 // When found, strive redirects todos to "tmp/arc/{id}/todos/work/" instead of "tmp/work/{timestamp}/todos/work/"
 // checkpoint.todos_base is set by arc scaffolding (pre-Phase 5) and records this path for resume
 // Thread only --approve flag if applicable (no todosFlag needed)
