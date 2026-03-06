@@ -633,7 +633,16 @@ def _collect_node_classes(
         all_classes.extend(["overflow-hidden", "text-ellipsis", "whitespace-nowrap"])
 
     # Vertical text alignment (only for non-TOP since TOP is default)
-    if node.node_type == NodeType.TEXT and node.text_align_vertical:
+    # Skip when TRUNCATE is active — flex wrapper breaks single-line truncation
+    is_truncated = (
+        node.node_type == NodeType.TEXT
+        and node.text_auto_resize == "TRUNCATE"
+    )
+    if (
+        node.node_type == NodeType.TEXT
+        and node.text_align_vertical
+        and not is_truncated
+    ):
         _VALIGN_MAP = {"CENTER": "items-center", "BOTTOM": "items-end"}
         valign_cls = _VALIGN_MAP.get(node.text_align_vertical)
         if valign_cls:
@@ -779,6 +788,7 @@ def _generate_node_jsx(
     # Node flattening: skip wrapper divs that add no value.
     # A frame-like node with exactly one visible child, no fills/strokes/effects,
     # and no auto-layout can be flattened — render the child directly.
+    # Guard: don't flatten if child has constraint positioning (needs parent wrapper)
     if (
         node.can_be_flattened
         and node.is_frame_like
@@ -793,9 +803,16 @@ def _generate_node_jsx(
             or node.clips_content
         )
         if len(visible_children) == 1 and not has_styling:
-            return _generate_node_jsx(
-                visible_children[0], parent, image_handler, indent_level, aria,
+            child = visible_children[0]
+            # Don't flatten if child has constraints that depend on parent
+            has_constraints = (
+                getattr(child, "constraint_horizontal", None)
+                or getattr(child, "constraint_vertical", None)
             )
+            if not has_constraints:
+                return _generate_node_jsx(
+                    child, parent, image_handler, indent_level, aria,
+                )
 
     all_classes = _collect_node_classes(node, parent)
     class_str = " ".join(all_classes)

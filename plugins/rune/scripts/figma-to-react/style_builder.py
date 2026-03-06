@@ -207,10 +207,17 @@ class StyleBuilder:
             self._props["background-image"] = f"linear-gradient({direction}, {stops})"
         elif paint.type == PaintType.GRADIENT_RADIAL:
             self._props["background-image"] = f"radial-gradient(circle, {stops})"
-        elif paint.type in (PaintType.GRADIENT_ANGULAR, PaintType.GRADIENT_DIAMOND):
-            # Angular/Diamond → conic-gradient (diamond is a best-effort approximation)
+        elif paint.type == PaintType.GRADIENT_ANGULAR:
+            # Angular → conic-gradient (native CSS equivalent)
             angle = _conic_gradient_angle(paint.gradient_handle_positions or [])
             self._props["background-image"] = f"conic-gradient(from {angle}, {stops})"
+        elif paint.type == PaintType.GRADIENT_DIAMOND:
+            # Diamond → radial-gradient approximation (no native CSS diamond gradient)
+            import logging
+            logging.getLogger(__name__).warning(
+                "Diamond gradient approximated as radial-gradient"
+            )
+            self._props["background-image"] = f"radial-gradient(circle, {stops})"
 
     def _apply_image_fill(self, paint: Paint) -> None:
         """Apply an IMAGE fill paint to CSS props.
@@ -235,6 +242,8 @@ class StyleBuilder:
         self._props["background-position"] = "center"
         if scale_mode == "TILE":
             self._props["background-repeat"] = "repeat"
+        elif scale_mode == "FIT":
+            self._props["background-repeat"] = "no-repeat"
         if paint.image_ref:
             self._props["_image_ref"] = paint.image_ref
 
