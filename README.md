@@ -6,7 +6,7 @@ Plan, implement, review, test, and audit your codebase using coordinated Agent T
 
 [![Version](https://img.shields.io/badge/version-1.141.0-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-91-purple)](#agents)
+[![Agents](https://img.shields.io/badge/agents-96-purple)](#agents)
 [![Skills](https://img.shields.io/badge/skills-52-orange)](#skills)
 
 ---
@@ -333,7 +333,7 @@ Compares a plan against its implementation across 9 quality dimensions:
 
 ## Agents
 
-**91 specialized agents** across 6 categories:
+**96 specialized agents** across 6 categories:
 
 ### Review Agents (40)
 
@@ -417,7 +417,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Design Sync Agent | Figma extraction and Visual Spec Map creation |
 | Design Iterator | Iterative design refinement (screenshot-analyze-fix loop) |
 
-### Utility Agents (14)
+### Utility Agents (19)
 
 | Agent | Purpose |
 |-------|---------|
@@ -435,6 +435,11 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Research Verifier | Research output quality verification |
 | Truthseer Validator | Audit coverage quality validation |
 | Deployment Verifier | Deployment artifact generation (Go/No-Go checklists, rollback plans) |
+| Tome Digest | TOME finding extraction (P1/P2/P3 counts, recurring patterns) — shell-based |
+| Condenser Gap | Gap analysis digest (MISSING/PARTIAL counts) — shell-based |
+| Condenser Verdict | Verdict digest (dimension scores, low-scoring flags) — shell-based |
+| Condenser Plan | Plan digest (sections, acceptance criteria, file targets) — shell-based |
+| Condenser Work | Work summary digest (committed files, task counts) — shell-based |
 
 ### Testing Agents (4)
 
