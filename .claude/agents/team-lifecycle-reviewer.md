@@ -33,7 +33,7 @@ From `.claude/CLAUDE.md` → "Agent Team Cleanup (MANDATORY)":
 1. **Dynamic member discovery** — read team config for ALL teammates
 2. **shutdown_request to all members**
 3. **Grace period** — sleep before TeamDelete
-4. **TeamDelete with retry-with-backoff** (3 attempts: 0s, 5s, 10s)
+4. **TeamDelete with retry-with-backoff** (4 attempts: 0s, 5s, 10s, 15s)
 5. **Filesystem fallback** — only if TeamDelete never succeeded (QUAL-012)
 
 Additional rules:
@@ -100,9 +100,9 @@ Bash("sleep 15")
 
 #### 2d. TeamDelete with Retry (P2 if single attempt)
 
-3-attempt retry with backoff:
+4-attempt retry with backoff:
 ```
-for (let attempt = 0; attempt < 3; attempt++) {
+for (let attempt = 0; attempt < 4; attempt++) {
   if (attempt > 0) sleep(delays[attempt])
   try { TeamDelete(); break } catch (e) { ... }
 }

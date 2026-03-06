@@ -478,6 +478,8 @@ class DesktopMCPBridge:
         Raises:
             ET.ParseError: If the XML is malformed (caller handles this).
         """
+        if len(xml_text) > 10_000_000:
+            raise ValueError("XML response too large (>10MB)")
         root = ET.fromstring(xml_text)
 
         file_key = root.get("file_key", "")

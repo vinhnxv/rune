@@ -616,8 +616,8 @@ def _record_access(
                     (entry_id,))
         conn.commit()
         _cap_access_log(conn)
-    except sqlite3.OperationalError:
-        pass  # Non-fatal
+    except sqlite3.OperationalError as exc:
+        logger.debug("_record_access failed: %s", exc)
 
 
 def _prepare_frequency_data(
@@ -733,6 +733,7 @@ def get_db(db_path):
 
 
 SCHEMA_VERSION = 3
+assert isinstance(SCHEMA_VERSION, int) and 0 <= SCHEMA_VERSION <= 1000
 
 
 def _migrate_v1(conn: sqlite3.Connection) -> None:
@@ -2510,7 +2511,11 @@ async def _mcp_handle_search(arguments):
         if (count == 0 or is_dirty) and ECHO_DIR:
             conn.close()
             conn = None
-            do_reindex(ECHO_DIR, DB_PATH)
+            try:
+                do_reindex(ECHO_DIR, DB_PATH)
+            except (sqlite3.Error, OSError, IOError) as exc:
+                logger.warning("reindex failed, proceeding with %s index: %s",
+                               "empty" if count == 0 else "stale", exc)
             conn = get_db(DB_PATH)
         results = await pipeline_search(
             conn, args["query"], args["limit"],

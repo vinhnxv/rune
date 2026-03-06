@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.140.2] - 2026-03-06
+
+### Fixed
+- **SEC-001**: Venv packages installed but server runs with system python3 — both `echo-search/start.sh` and `figma-to-react/start.sh` now use `$PYTHON` variable resolving to venv python for import check and exec
+- **SEC-002**: Bare `except Exception` on reindex narrowed to `(sqlite3.Error, OSError, IOError)` with differentiated empty/stale log message in `server.py`
+- **SEC-003**: Token-less FigmaClient produces confusing error — added diagnostic warning when `_resolve_token()` returns None in `cli.py`
+- **QUAL-003**: README updated to reflect venv-based auto-install (removed `--break-system-packages` instructions)
+
 ## [1.140.1] - 2026-03-06
 
 ### Fixed

@@ -348,9 +348,10 @@ const hasFrontendFiles = Glob("src/components/**/*.{tsx,jsx}").length > 0
 if (uxEnabled && hasFrontendFiles) {
   // Spawn ux-pattern-analyzer (utility agent) to inventory existing UX patterns
   // Output: structured UX maturity assessment (7 pattern categories, 4-level scale)
-  // This runs as a bare Agent (no team yet — Phase 1 creates the team)
+  // Spawned with team_name from Phase -1 team creation
   Agent({
     name: "ux-pattern-analyzer",
+    team_name: `rune-plan-${timestamp}`,
     prompt: `Analyze the codebase for UX pattern usage and maturity.
       Scan frontend files for: loading patterns, error handling, form validation,
       navigation, empty states, confirmation/undo, and feedback patterns.
