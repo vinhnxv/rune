@@ -1163,7 +1163,7 @@ class TestInstanceRoleClassification:
             },
         )
         ir = FigmaIRNode(
-            node_id="r:1", component_id="comp:1",
+            node_id="r:1", name="icon", component_id="comp:1",
             width=100, height=100,  # Large, but INSTANCE_SWAP takes priority
         )
         role = _classify_instance_role(ir, parent_ir=parent)

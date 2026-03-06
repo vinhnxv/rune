@@ -1,22 +1,16 @@
 """Tests for core.py — business logic extracted from server.py."""
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
 
-# Add parent directory to path so we can import the module under test
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from core import (  # noqa: E402
+from core import (
     extract_react_code, ir_to_dict, paginate_output, _collect_svg_fallback_ids,
     structural_diff_score, classify_variant_strategy,
     _parse_variant_name, _is_multi_dimensional,
     generate_cva_from_variants, infer_dimension_name,
 )
-from node_parser import FigmaIRNode, parse_node  # noqa: E402
-from figma_types import Color, NodeType, Paint, PaintType  # noqa: E402
+from node_parser import FigmaIRNode, parse_node
+from figma_types import Color, NodeType, Paint, PaintType
 
 
 # ---------------------------------------------------------------------------

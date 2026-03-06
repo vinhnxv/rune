@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import math
 import re
-from typing import Any, Dict, FrozenSet, List, Optional, Tuple
+from typing import Any
 
 from figma_types import (
     FigmaNodeBase,
@@ -34,7 +34,7 @@ _ICON_MAX_SIZE: float = 64.0
 _SVG_ILLUSTRATION_MAX_SIZE: float = 512.0
 _MAX_PARSE_DEPTH = 100
 
-_VECTOR_TYPES: FrozenSet[str] = frozenset({
+_VECTOR_TYPES: frozenset[str] = frozenset({
     "VECTOR", "BOOLEAN_OPERATION", "ELLIPSE", "RECTANGLE",
     "LINE", "REGULAR_POLYGON", "STAR",
 })
@@ -43,12 +43,12 @@ _NAME_CLEANUP_RE = re.compile(r"[^a-zA-Z0-9_]")
 
 _INSTANCE_PROP_MAX_SIZE: float = 48.0
 
-_SLOT_KEYWORDS: FrozenSet[str] = frozenset({
+_SLOT_KEYWORDS: frozenset[str] = frozenset({
     "content", "slot", "body", "actions", "header", "footer",
     "children", "main", "sidebar", "overlay",
 })
 
-_GENERIC_SLOT_NAMES: FrozenSet[str] = frozenset({
+_GENERIC_SLOT_NAMES: frozenset[str] = frozenset({
     "content", "children", "body", "slot",
 })
 
@@ -80,7 +80,7 @@ class _NameDeduplicator:
     """
 
     def __init__(self) -> None:
-        self._counts: Dict[str, int] = {}
+        self._counts: dict[str, int] = {}
 
     def get_unique(self, name: str) -> str:
         """Return a unique version of the given name."""
@@ -144,7 +144,7 @@ def _detect_svg_illustration(node: FigmaNodeBase) -> bool:
     return _has_vector_children(node)
 
 
-def _detect_image_fill(fills: List[Paint]) -> Tuple[bool, Optional[str]]:
+def _detect_image_fill(fills: list[Paint]) -> tuple[bool, str | None]:
     """Check fills for IMAGE type and extract image reference."""
     for fill in fills:
         if fill.type.value == "IMAGE" and fill.visible:
@@ -189,7 +189,15 @@ def _classify_instance_role(
     if parent_ir and parent_ir.component_property_definitions:
         for _key, prop_def in parent_ir.component_property_definitions.items():
             if prop_def.type == FigmaPropertyType.INSTANCE_SWAP:
-                return InstanceRole.PROP
+                preferred = getattr(prop_def, "preferred_values", None) or []
+                preferred_ids = {
+                    pv.get("value") for pv in preferred
+                    if isinstance(pv, dict) and pv.get("type") == "COMPONENT" and pv.get("value")
+                }
+                if ir_node.component_id in preferred_ids:
+                    return InstanceRole.PROP
+                if _key and _key.lower() == ir_node.name.lower():
+                    return InstanceRole.PROP
 
     if (
         ir_node.is_icon_candidate

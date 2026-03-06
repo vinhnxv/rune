@@ -144,7 +144,12 @@ if [[ $orphan_count -gt 0 ]] && [[ -d "$CHOME/teams/" ]]; then
           owner_cfg="$sf_cfg"
           break
         done
-        [[ -n "$_saved_nullglob" ]] && eval "$_saved_nullglob" 2>/dev/null || true
+        # Restore nullglob — explicit instead of eval (SEC-001)
+        if [[ "$_saved_nullglob" == *"-s nullglob"* ]]; then
+          shopt -s nullglob 2>/dev/null || true
+        else
+          shopt -u nullglob 2>/dev/null || true
+        fi
       fi
       # If no matching state file found, cannot verify PID — skip
       [[ -n "$owner_pid" ]] || continue

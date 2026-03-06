@@ -324,6 +324,11 @@ fi
 WORKFLOW_TYPE=""
 SUGGESTED_TEAM=""
 
+# SEC-004: Validate detected_team_name before use in recovery message
+# SEC-007 FIX: Moved validation BEFORE SUGGESTED_TEAM assignment to prevent
+# shell-special chars from being interpolated into RECOVERY_STEPS unvalidated.
+[[ -z "$detected_team_name" || "$detected_team_name" =~ ^[a-zA-Z0-9_-]+$ ]] || detected_team_name=""
+
 if [[ -n "$detected_team_name" ]]; then
   SUGGESTED_TEAM="$detected_team_name"
   # Extract workflow from team prefix: rune-review-xxx -> review, rune-audit-xxx -> audit
@@ -343,9 +348,6 @@ elif [[ -n "${AGENT_NAME:-}" ]]; then
       WORKFLOW_TYPE="unknown" ;;
   esac
 fi
-
-# SEC-004: Validate detected_team_name before use in recovery message
-[[ -z "$detected_team_name" || "$detected_team_name" =~ ^[a-zA-Z0-9_-]+$ ]] || detected_team_name=""
 
 # Build recovery JSON with exact commands
 RECOVERY_STEPS="Step 1: TeamCreate({ team_name: '${SUGGESTED_TEAM:-rune-WORKFLOW-TIMESTAMP}' }). Step 2: Write state file: Write('tmp/.rune-WORKFLOW-ID.json', { team_name: '...', status: 'active', config_dir: configDir, owner_pid: ownerPid, session_id: sessionId }). Step 3: Retry Agent() with team_name parameter."

@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import logging
 import math
-import re
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
@@ -68,12 +67,6 @@ class InstanceRole(str, Enum):
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-
-# Max dimension (px) for icon candidate detection
-_ICON_MAX_SIZE: float = 64.0
-
-# Max dimension (px) for SVG illustration candidate detection (64px < size <= 512px)
-_SVG_ILLUSTRATION_MAX_SIZE: float = 512.0
 
 # Node types that we skip entirely during parsing
 _UNSUPPORTED_TYPES: FrozenSet[str] = frozenset({
@@ -310,13 +303,6 @@ class FigmaIRNode:
 
     # Raw data for fallback
     raw: Optional[Dict[str, Any]] = field(default=None, repr=False)
-
-
-# ---------------------------------------------------------------------------
-# Name deduplication
-# ---------------------------------------------------------------------------
-
-_NAME_CLEANUP_RE = re.compile(r"[^a-zA-Z0-9_]")
 
 
 # ---------------------------------------------------------------------------

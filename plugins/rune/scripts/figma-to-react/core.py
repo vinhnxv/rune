@@ -442,11 +442,12 @@ def generate_cva_from_variants(
     all_class_sets = [set(classes) for _, classes in variant_classes]
     base_set = set.intersection(*all_class_sets)
 
-    # Check layout class divergence: if >50% of classes differ, move layout to variants
-    layout_in_base = {c for c in base_set if _is_layout_class(c)}
-    for cls in layout_in_base:
-        # Count how many variants have this class
-        has_count = sum(1 for _, classes in variant_classes if cls in classes)
+    # Check layout class divergence: if a layout class appears in fewer than
+    # half of variants, remove it from base (it belongs in variant diffs)
+    all_classes_union = set.union(*all_class_sets)
+    layout_candidates = {c for c in all_classes_union if _is_layout_class(c)}
+    for cls in layout_candidates:
+        has_count = sum(1 for cs in all_class_sets if cls in cs)
         if has_count / len(variant_classes) <= 0.5:
             base_set.discard(cls)
 
@@ -460,15 +461,38 @@ def generate_cva_from_variants(
     # Parse dimension info from first variant to determine structure
     first_parsed = _parse_variant_name(variant_classes[0][0])
 
+    # Group variant classes by dimension values for per-dimension diff computation
+    dim_value_class_sets: dict[str, dict[str, list[set[str]]]] = {}
     for vname, classes in variant_classes:
         parsed = _parse_variant_name(vname)
-        diff = [c for c in classes if c not in base_set]
-
         for dim_key, dim_value in parsed.items():
             dim_lower = dim_key.lower()
-            if dim_lower not in variants:
-                variants[dim_lower] = {}
-            variants[dim_lower][dim_value.lower()] = diff
+            val_lower = dim_value.lower()
+            dim_value_class_sets.setdefault(dim_lower, {}).setdefault(val_lower, []).append(
+                set(classes) - base_set
+            )
+
+    # For each dimension, compute classes unique to that dimension value
+    for dim_lower, value_map in dim_value_class_sets.items():
+        variants[dim_lower] = {}
+        # Collect all non-base classes across all values of this dimension
+        all_dim_classes: set[str] = set()
+        for class_sets in value_map.values():
+            for cs in class_sets:
+                all_dim_classes.update(cs)
+        # For each value, keep only classes that appear in this value but not in all other values
+        for val_lower, class_sets in value_map.items():
+            other_values_classes: set[str] = set()
+            for other_val, other_sets in value_map.items():
+                if other_val != val_lower:
+                    for cs in other_sets:
+                        other_values_classes.update(cs)
+            # Classes unique to this dimension value: present here, not in all others
+            value_classes = set()
+            for cs in class_sets:
+                value_classes.update(cs)
+            dim_diff = sorted(value_classes - other_values_classes)
+            variants[dim_lower][val_lower] = dim_diff
 
     # Default variants from first variant
     for dim_key, dim_value in first_parsed.items():
@@ -803,16 +827,11 @@ async def _resolve_svg_fallback_urls(
     svg_urls: dict[str, str] = {}
 
     if svg_fallback_ids:
-        # Validate format (WS-4) and clamp scale (WS-9) before calling API
-        export_format = "svg"
-        if export_format not in _VALID_IMAGE_FORMATS:
-            export_format = "svg"
-        export_scale = max(0.01, min(4.0, 1.0))  # scale=1.0 for SVG
         try:
             raw_svg_urls = await _get_images_with_retry(
                 client, file_key, svg_fallback_ids,
-                format=export_format,
-                scale=export_scale,
+                format="svg",
+                scale=1.0,
             )
             # Filter out None values — failed exports return None
             svg_urls = {k: v for k, v in raw_svg_urls.items() if v is not None}

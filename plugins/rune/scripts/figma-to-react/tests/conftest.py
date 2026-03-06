@@ -39,6 +39,7 @@ for _mod_name in [
     "figma_types",
     "url_parser",
     "figma_client",
+    "node_normalizer",
     "node_parser",
     "style_builder",
     "tailwind_mapper",

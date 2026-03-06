@@ -396,6 +396,16 @@ _SYSTEM_FONTS = {
     "monospace": "font-mono",
 }
 
+_TEXT_CASE_MAP = {
+    "UPPER": "uppercase",
+    "LOWER": "lowercase",
+    "TITLE": "capitalize",
+    "SMALL_CAPS": "small-caps",
+    "SMALL_CAPS_FORCED": "small-caps",
+}
+
+_VALIGN_MAP = {"CENTER": "items-center", "BOTTOM": "items-end"}
+
 
 def _resolve_font_family(family: str) -> Optional[str]:
     """Map a font family name to a Tailwind font class.
@@ -498,13 +508,6 @@ def _resolve_text_styles(style: Optional[TypeStyle]) -> List[str]:
     # Text case transform (UPPER, LOWER, TITLE, ORIGINAL, SMALL_CAPS, etc.)
     if style.text_case is not None:
         case_val = style.text_case.value if hasattr(style.text_case, 'value') else str(style.text_case)
-        _TEXT_CASE_MAP = {
-            "UPPER": "uppercase",
-            "LOWER": "lowercase",
-            "TITLE": "capitalize",
-            "SMALL_CAPS": "small-caps",
-            "SMALL_CAPS_FORCED": "small-caps",
-        }
         tw_case = _TEXT_CASE_MAP.get(case_val)
         if tw_case == "small-caps":
             classes.append("font-variant-[small-caps]")
@@ -643,7 +646,6 @@ def _collect_node_classes(
         and node.text_align_vertical
         and not is_truncated
     ):
-        _VALIGN_MAP = {"CENTER": "items-center", "BOTTOM": "items-end"}
         valign_cls = _VALIGN_MAP.get(node.text_align_vertical)
         if valign_cls:
             all_classes.extend(["flex", valign_cls])
@@ -766,7 +768,7 @@ def _is_promotable_text(
     if node.text_segments and len(node.text_segments) > 1:
         font_sizes = [
             seg.style.font_size
-            for seg in node.styled_text_segments
+            for seg in node.text_segments
             if seg.style and seg.style.font_size
         ]
         if font_sizes and (max(font_sizes) - min(font_sizes)) > 4.0:
