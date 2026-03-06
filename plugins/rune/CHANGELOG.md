@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.139.2] - 2026-03-06
+
+### Fixed
+- **Session parsing**: Switch `.session` file reading from `head -c` to `jq -r '.session_id'` in enforce-teams.sh, arc-batch/hierarchy/issues stop hooks for consistent JSON-based session ownership
+- **CWD resolution**: Fix `detect-workflow-complete.sh` to read CWD from stdin JSON input (consistent with other Stop hooks) instead of `CLAUDE_PROJECT_DIR`
+- **agent_id support**: Extract `agent_id` from Claude Code 2.1.69+ input in enforce-teams.sh, on-task-completed.sh, on-teammate-idle.sh
+- **session-team-hygiene**: Session-aware orphan checkpoint counting
+- **e2e-browser-tester**: Add `AskUserQuestion` to allowed tools
+- **enforce-teams**: Document stale threshold cross-reference table (TLC-001/TLC-003/ATE-1/CDX-7)
+
 ## [1.139.1] - 2026-03-06
 
 ### Fixed
