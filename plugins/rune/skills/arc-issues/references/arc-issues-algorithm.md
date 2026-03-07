@@ -694,7 +694,7 @@ if (firstPlanEntry) {
 // at the BEGINNING of the next arc turn (CC-2/BACK-008) to avoid Stop hook 15s timeout
 // ARC-BATCH-001 FIX: Use "rune:arc" prefix for reliable plugin skill resolution.
 const mergeFlag = !autoMerge ? ' --no-merge' : ''
-Skill('rune:arc', `${firstIssue.planPath} --skip-freshness${mergeFlag}`)
+Skill('rune:arc', `${firstIssue.planPath} --skip-freshness --accept-external${mergeFlag}`)
 
 // CRITICAL — SKILL INVOCATION REQUIRED:
 // - /rune:arc is a SKILL. You MUST call it via the Skill tool.

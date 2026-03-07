@@ -49,6 +49,7 @@ function resolveArcConfig(arc, work, inlineFlags) {
     skip_freshness: false,
     confirm: false,
     no_test: false,
+    accept_external_changes: true,
     ship: {
       auto_pr: true,
       auto_merge: false,
@@ -72,6 +73,7 @@ function resolveArcConfig(arc, work, inlineFlags) {
     skip_freshness:  talismanDefaults.skip_freshness ?? defaults.skip_freshness,
     confirm:         talismanDefaults.confirm ?? defaults.confirm,
     no_test:         talismanDefaults.no_test ?? defaults.no_test,
+    accept_external_changes: talismanDefaults.accept_external_changes ?? defaults.accept_external_changes,
     ship: {
       auto_pr:       talismanShip.auto_pr ?? defaults.ship.auto_pr,
       auto_merge:    talismanShip.auto_merge ?? defaults.ship.auto_merge,
@@ -104,6 +106,7 @@ function resolveArcConfig(arc, work, inlineFlags) {
   if (inlineFlags.skip_freshness !== undefined) config.skip_freshness = inlineFlags.skip_freshness
   if (inlineFlags.confirm !== undefined) config.confirm = inlineFlags.confirm
   if (inlineFlags.no_test !== undefined) config.no_test = inlineFlags.no_test
+  if (inlineFlags.accept_external_changes !== undefined) config.accept_external_changes = inlineFlags.accept_external_changes
   // Ship flags can also be overridden inline
   if (inlineFlags.no_pr !== undefined) config.ship.auto_pr = !inlineFlags.no_pr
   if (inlineFlags.no_merge !== undefined) config.ship.auto_merge = !inlineFlags.no_merge
@@ -123,6 +126,9 @@ const inlineFlags = {
   skip_freshness: args.includes('--skip-freshness') ? true : undefined,
   confirm: args.includes('--confirm') ? true : undefined,
   no_test: args.includes('--no-test') ? true : undefined,
+  // --no-accept-external (force off) > --accept-external (force on) > talisman default (true)
+  accept_external_changes: args.includes('--no-accept-external') ? false
+    : args.includes('--accept-external') ? true : undefined,
   no_pr: args.includes('--no-pr') ? true : undefined,
   no_merge: args.includes('--no-merge') ? true : undefined,
   draft: args.includes('--draft') ? true : undefined,
@@ -170,7 +176,7 @@ const parentPlanMeta = {
 Write(`.claude/arc/${id}/checkpoint.json`, {
   id, schema_version: 21, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}",
-  flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, bot_review: arcConfig.bot_review ?? false, no_bot_review: arcConfig.no_bot_review ?? false },
+  flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, accept_external_changes: arcConfig.accept_external_changes ?? true, bot_review: arcConfig.bot_review ?? false, no_bot_review: arcConfig.no_bot_review ?? false },
   arc_config: arcConfig,
   pr_url: null,
   freshness: freshnessResult || null,

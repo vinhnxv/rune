@@ -749,7 +749,7 @@ You are continuing a hierarchical plan execution. Process the next child plan.
      tname=\$(basename \"\$dir\"); rm -rf \"\$CHOME/teams/\$tname\" \"\$CHOME/tasks/\$tname\" 2>/dev/null
    done
 4. Invoke the arc pipeline by calling the Skill tool:
-   Skill(\"rune:arc\", \"${NEXT_CHILD_FULL} --skip-freshness --no-pr\")
+   Skill(\"rune:arc\", \"${NEXT_CHILD_FULL} --skip-freshness --accept-external --no-pr\")
 
    CRITICAL — SKILL INVOCATION REQUIRED:
    - /rune:arc is a SKILL (slash command). You MUST call it via the Skill tool.

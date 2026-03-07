@@ -105,7 +105,9 @@ if (planEntry) {
 // Without the prefix, the Skill tool may not resolve the plugin-scoped skill,
 // and Claude may skip the skill entirely and implement the plan directly.
 const mergeFlag = !autoMerge ? " --no-merge" : ""
-Skill("rune:arc", `${firstPlan} --skip-freshness${mergeFlag}`)
+// Arc-batch always passes --accept-external: batch runs commonly accumulate
+// commits from prior arcs or parallel sessions on the same branch.
+Skill("rune:arc", `${firstPlan} --skip-freshness --accept-external${mergeFlag}`)
 
 // CRITICAL — SKILL INVOCATION REQUIRED:
 // - /rune:arc is a SKILL (slash command). You MUST call it via the Skill tool.

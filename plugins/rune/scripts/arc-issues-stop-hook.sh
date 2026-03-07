@@ -719,7 +719,7 @@ ${GH_STATUS_STEPS}1. Verify git state is clean: git status
      tname=\$(basename \"\$dir\"); rm -rf \"\$CHOME/teams/\$tname\" \"\$CHOME/tasks/\$tname\" 2>/dev/null
    done
 5. Invoke the arc pipeline by calling the Skill tool:
-   Skill(\"rune:arc\", \"${NEXT_PLAN} --skip-freshness${MERGE_FLAG}\")${FIXES_INSTRUCTION}
+   Skill(\"rune:arc\", \"${NEXT_PLAN} --skip-freshness --accept-external${MERGE_FLAG}\")${FIXES_INSTRUCTION}
 
    CRITICAL — SKILL INVOCATION REQUIRED:
    - /rune:arc is a SKILL (slash command). You MUST call it via the Skill tool.

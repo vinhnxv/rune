@@ -118,7 +118,7 @@ while (true) {
 ```javascript
   // ARC-BATCH-001 FIX: Use "rune:arc" prefix for reliable plugin skill resolution.
   const mergeFlag = noMerge ? " --no-merge" : ""
-  Skill("rune:arc", `${next.path}${mergeFlag}`)
+  Skill("rune:arc", `${next.path} --accept-external${mergeFlag}`)
 
   // CRITICAL — SKILL INVOCATION REQUIRED:
   // - /rune:arc is a SKILL. You MUST call it via the Skill tool.
