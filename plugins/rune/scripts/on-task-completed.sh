@@ -3,6 +3,25 @@
 # Writes signal files for Rune task completion detection.
 # Called by Claude Code's TaskCompleted hook for EVERY task completion —
 # including non-Rune tasks (TodoWrite, etc.). Must be fast and safe to no-op.
+#
+# ════════════════════════════════════════════════════════════════════════════════
+# EVIDENCE TIMING CONTRACT (DOC-001)
+# ════════════════════════════════════════════════════════════════════════════════
+# Workers MUST write evidence files BEFORE calling TaskUpdate(status: completed).
+#
+# WHY: This hook fires IMMEDIATELY when TaskUpdate(status: completed) is called.
+# If evidence is written AFTER TaskUpdate, validation hooks running BEFORE this
+# hook (e.g., validate-test-evidence.sh) will find no evidence and block.
+#
+# REQUIRED ORDER:
+#   1. Perform work (code changes, tests, etc.)
+#   2. Write evidence files (test results, output artifacts)
+#   3. Call TaskUpdate(status: completed) ← Hooks fire HERE in sequence:
+#      a) validate-test-evidence.sh (checks for evidence)
+#      b) on-task-completed.sh (writes .done signal) ← YOU ARE HERE
+#
+# This script assumes validate-test-evidence.sh already validated evidence exists.
+# ════════════════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
 umask 077

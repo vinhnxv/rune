@@ -161,14 +161,71 @@ _block_or_stop() {
   exit 2
 }
 
-# --- Guard: Skip output file gate for work teams ---
+# --- Guard: Worker Completion Evidence Check ---
 # Work agents communicate via SendMessage (Seal) and TaskUpdate, not output files.
-# Inscription includes output_file entries for signal tracking but work agents
-# should NOT be blocked for missing output files. (FIX: stuck rune-smith agents)
-# Layer 4 all-tasks-done signal (below) still applies to work teams.
+# Instead of blanket bypass, verify completion evidence before allowing idle.
+# Evidence 1: TaskCompletion signals (.done files per assigned task)
+# Evidence 2: No assigned tasks (worker spawned but pool was empty)
+# Evidence 3: Block if worker has assigned tasks but no completion signal
 if [[ "$TEAM_NAME" =~ ^(rune|arc)-work- ]]; then
-  _trace "SKIP output file gate for work team: $TEAM_NAME"
-  # Fall through to Layer 4 all-tasks-done signal below
+  _trace "WORKER evidence check for: $TEAMMATE_NAME in $TEAM_NAME"
+
+  # Get tasks assigned to this teammate from task files
+  TASK_DIR="$CHOME/tasks/$TEAM_NAME"
+  ASSIGNED_TASKS=()
+  IN_PROGRESS_TASKS=()
+
+  if [[ -d "$TASK_DIR" ]]; then
+    shopt -s nullglob
+    for task_file in "$TASK_DIR"/*.json; do
+      [[ -L "$task_file" ]] && continue
+      [[ -f "$task_file" ]] || continue
+
+      # Extract task owner and status
+      task_owner=$(jq -r '.owner // empty' "$task_file" 2>/dev/null || true)
+      task_status=$(jq -r '.status // empty' "$task_file" 2>/dev/null || true)
+      task_id=$(jq -r '.id // empty' "$task_file" 2>/dev/null || true)
+
+      # Check if assigned to this teammate and not completed/deleted
+      if [[ "$task_owner" == "$TEAMMATE_NAME" && "$task_status" != "completed" && "$task_status" != "deleted" ]]; then
+        ASSIGNED_TASKS+=("$task_id")
+        if [[ "$task_status" == "in_progress" ]]; then
+          IN_PROGRESS_TASKS+=("$task_id")
+        fi
+      fi
+    done
+    shopt -u nullglob
+  fi
+
+  # Evidence 2: No assigned tasks → allow idle (worker spawned but pool empty)
+  if [[ ${#ASSIGNED_TASKS[@]} -eq 0 ]]; then
+    _trace "WORKER no assigned tasks: $TEAMMATE_NAME — allow idle"
+    # Fall through to Layer 4 all-tasks-done signal below
+  else
+    # Evidence 1: Check for .done signal files for each assigned task
+    SIG_DIR="${CWD}/tmp/.rune-signals/${TEAM_NAME}"
+    MISSING_SIGNALS=()
+
+    for task_id in "${ASSIGNED_TASKS[@]}"; do
+      [[ -z "$task_id" ]] && continue
+      done_signal="${SIG_DIR}/${task_id}.done"
+      if [[ ! -f "$done_signal" ]]; then
+        MISSING_SIGNALS+=("$task_id")
+      fi
+    done
+
+    # Evidence 3: Block if assigned tasks missing completion signals
+    if [[ ${#MISSING_SIGNALS[@]} -gt 0 ]]; then
+      _trace "BLOCK worker missing completion signals: $TEAMMATE_NAME tasks=${MISSING_SIGNALS[*]}"
+      missing_list=$(IFS=', '; echo "${MISSING_SIGNALS[*]:0:3}")
+      [[ ${#MISSING_SIGNALS[@]} -gt 3 ]] && missing_list="${missing_list}, and $(( ${#MISSING_SIGNALS[@]} - 3 )) more"
+      _block_or_stop "Worker ${TEAMMATE_NAME} has ${#ASSIGNED_TASKS[@]} assigned task(s) but no completion signal for: ${missing_list}. Complete the task(s) or report blockers."
+    fi
+
+    # All assigned tasks have .done signals → allow idle
+    _trace "WORKER all tasks signaled done: $TEAMMATE_NAME (${#ASSIGNED_TASKS[@]} tasks)"
+    # Fall through to Layer 4 all-tasks-done signal below
+  fi
 else
 
 # --- Quality Gate: Check if teammate wrote its output file ---
@@ -269,6 +326,105 @@ if [[ "$TEAM_NAME" =~ ^(rune|arc)-(review|audit)- ]]; then
   if ! grep -q "^SEAL:" "$FULL_OUTPUT_PATH" 2>/dev/null && ! grep -q "<seal>" "$FULL_OUTPUT_PATH" 2>/dev/null && ! grep -q "^Inner Flame:" "$FULL_OUTPUT_PATH" 2>/dev/null; then
     _trace "BLOCK SEAL missing: $FULL_OUTPUT_PATH"
     _block_or_stop "SEAL marker missing. Review output incomplete — add SEAL block."
+  fi
+fi
+
+# --- Layer 3.5: Semantic Content Depth Validation ---
+# Validates output has meaningful content depth beyond structural markers.
+# Three checks: (1) Minimum line count, (2) Finding density, (3) File grounding.
+# Runs after SEAL check, before required_sections.
+if [[ "$TEAM_NAME" =~ ^(rune|arc)-(review|audit)- ]]; then
+  # Read output content for analysis
+  OUTPUT_CONTENT=$(cat "$FULL_OUTPUT_PATH" 2>/dev/null || true)
+  OUTPUT_LINES=$(wc -l < "$FULL_OUTPUT_PATH" 2>/dev/null | tr -dc '0-9')
+  [[ -z "$OUTPUT_LINES" ]] && OUTPUT_LINES=0
+
+  # --- Check 1: Minimum Content Depth ---
+  # Skip for very large outputs (>500 lines) — already substantive
+  if [[ "$OUTPUT_LINES" -lt 500 ]]; then
+    # Calibrated thresholds: 50 lines (review), 80 lines (audit)
+    # Based on empirical data: P25=111 lines, P10=78 lines from 522 historical outputs
+    BASE_MIN_LINES=50
+    if [[ "$TEAM_NAME" =~ -audit- ]]; then
+      BASE_MIN_LINES=80
+    fi
+
+    # Scale down for small scopes
+    # Get scope files from inscription
+    SCOPE_FILES_COUNT=$(jq -r '.scope_files // [] | length' "$INSCRIPTION" 2>/dev/null || echo "0")
+    [[ -z "$SCOPE_FILES_COUNT" || "$SCOPE_FILES_COUNT" == "null" ]] && SCOPE_FILES_COUNT=0
+
+    # Calculate scaled minimum: max(20, base * files / 5)
+    # For 1-2 files: ~20-32 lines. For 5+ files: full threshold.
+    SCALED_MIN_LINES=20
+    if [[ "$SCOPE_FILES_COUNT" -gt 0 ]]; then
+      SCALED_MIN_LINES=$((BASE_MIN_LINES * SCOPE_FILES_COUNT / 5))
+      [[ "$SCALED_MIN_LINES" -lt 20 ]] && SCALED_MIN_LINES=20
+      [[ "$SCALED_MIN_LINES" -gt "$BASE_MIN_LINES" ]] && SCALED_MIN_LINES=$BASE_MIN_LINES
+    fi
+
+    if [[ "$OUTPUT_LINES" -lt "$SCALED_MIN_LINES" ]]; then
+      _trace "BLOCK content too shallow: ${OUTPUT_LINES} lines < ${SCALED_MIN_LINES} (scaled from ${BASE_MIN_LINES}, scope=${SCOPE_FILES_COUNT} files)"
+      _block_or_stop "Output is too shallow (${OUTPUT_LINES} lines, expected ${SCALED_MIN_LINES}+ for ${SCOPE_FILES_COUNT} scope files). Please provide substantive analysis."
+    fi
+  fi
+
+  # --- Check 2: Finding Density ---
+  # Count P1/P2/P3 finding markers in output
+  # Patterns: "P1:", "P2:", "P3:", "Priority 1:", "Priority 2:", "Priority 3:"
+  # Also check for domain-specific findings: vulnerability, issue, problem, finding
+  FINDING_COUNT=$(grep -cE '(P[123]:|Priority [123]:|Finding #|VULN-|SEC-|BUG-|CRITICAL|HIGH|MEDIUM|LOW):?' "$FULL_OUTPUT_PATH" 2>/dev/null || echo "0")
+  [[ -z "$FINDING_COUNT" || "$FINDING_COUNT" == "null" ]] && FINDING_COUNT=0
+
+  # If no findings found, require explicit "no issues found" declaration
+  if [[ "$FINDING_COUNT" -eq 0 ]]; then
+    # Enhanced regex for domain-specific "no findings" declarations
+    # Matches: "no issues found", "no findings", "no problems detected", "no vulnerabilities"
+    if ! grep -qiE '(no\s+(issues?|findings?|problems?|vulnerabilities?|concerns?|defects?)(\s+(found|detected|identified|observed))?)' "$FULL_OUTPUT_PATH" 2>/dev/null; then
+      _trace "BLOCK no findings and no explicit declaration: $FULL_OUTPUT_PATH"
+      _block_or_stop "No findings detected in output. If no issues were found, please explicitly state 'No issues found' or similar declaration."
+    fi
+  fi
+
+  # --- Check 3: File Reference Grounding (advisory only) ---
+  # Warn if output references <20% of scope files
+  # Get scope files list from inscription
+  SCOPE_FILES=$(jq -r '.scope_files // [] | .[]' "$INSCRIPTION" 2>/dev/null || true)
+  if [[ -n "$SCOPE_FILES" ]]; then
+    TOTAL_SCOPE=0
+    REFERENCED=0
+    BINARY_EXCLUDED=0
+
+    while IFS= read -r scope_file; do
+      [[ -z "$scope_file" ]] && continue
+      TOTAL_SCOPE=$((TOTAL_SCOPE + 1))
+
+      # Skip binary files from grounding ratio
+      # Common binary extensions: .png, .jpg, .jpeg, .gif, .ico, .woff, .woff2, .ttf, .eot, .pdf, .zip, .gz, .tar
+      if [[ "$scope_file" =~ \.(png|jpg|jpeg|gif|ico|woff|woff2|ttf|eot|pdf|zip|gz|tar|bin|exe|so|dylib)$ ]]; then
+        BINARY_EXCLUDED=$((BINARY_EXCLUDED + 1))
+        continue
+      fi
+
+      # Check if file is referenced in output (basename match)
+      FILE_BASENAME=$(basename "$scope_file" 2>/dev/null || true)
+      if [[ -n "$FILE_BASENAME" ]] && grep -qiF "$FILE_BASENAME" "$FULL_OUTPUT_PATH" 2>/dev/null; then
+        REFERENCED=$((REFERENCED + 1))
+      fi
+    done <<< "$SCOPE_FILES"
+
+    # Calculate grounding ratio (excluding binaries)
+    ELIGIBLE_SCOPE=$((TOTAL_SCOPE - BINARY_EXCLUDED))
+    if [[ "$ELIGIBLE_SCOPE" -gt 0 ]]; then
+      GROUNDING_RATIO=$((REFERENCED * 100 / ELIGIBLE_SCOPE))
+
+      # Advisory warning at <20% grounding (do not block)
+      if [[ "$GROUNDING_RATIO" -lt 20 ]]; then
+        _trace "WARN low file grounding: ${REFERENCED}/${ELIGIBLE_SCOPE} files (${GROUNDING_RATIO}%)"
+        # Advisory only — output to stderr but do not block
+        echo "Warning: Output references only ${REFERENCED} of ${ELIGIBLE_SCOPE} scope files (${GROUNDING_RATIO}%). Consider reviewing more files." >&2
+      fi
+    fi
   fi
 fi
 
