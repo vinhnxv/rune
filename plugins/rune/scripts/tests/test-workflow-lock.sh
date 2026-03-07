@@ -431,6 +431,70 @@ assert_eq "Custom class preserved" "planner" "$wf_class"
 rune_release_lock "custom-class"
 
 # ═══════════════════════════════════════════════════════════════
+# 11. Cross-session lock coexistence
+# ═══════════════════════════════════════════════════════════════
+printf "\n=== Cross-session lock coexistence ===\n"
+
+rm -rf "$LOCK_BASE" 2>/dev/null || true
+
+# 11a. Writer + reader coexistence (different PIDs)
+# Simulate Session A: arc (writer) with a foreign PID
+mkdir -p "$LOCK_BASE/arc"
+jq -n --argjson pid "$$" --arg cfg "$RUNE_CURRENT_CFG" \
+  '{workflow:"arc",class:"writer",pid:$pid,config_dir:$cfg,started:"2026-01-01T00:00:00Z"}' \
+  > "$LOCK_BASE/arc/meta.json"
+# Session B: acquire audit (reader) — should succeed without CONFLICT
+rune_acquire_lock "audit" "reader" && rc=0 || rc=1
+assert_eq "Writer + reader coexistence: reader acquires" "0" "$rc"
+# Check conflicts from reader perspective → should be ADVISORY, not CONFLICT
+result=$(rune_check_conflicts "reader")
+assert_not_contains "Writer + reader: no CONFLICT" "CONFLICT" "$result"
+rune_release_lock "audit"
+rm -rf "$LOCK_BASE/arc"
+
+# 11b. Writer + planner coexistence (different PIDs)
+mkdir -p "$LOCK_BASE/arc"
+jq -n --argjson pid "$$" --arg cfg "$RUNE_CURRENT_CFG" \
+  '{workflow:"arc",class:"writer",pid:$pid,config_dir:$cfg,started:"2026-01-01T00:00:00Z"}' \
+  > "$LOCK_BASE/arc/meta.json"
+rune_acquire_lock "devise" "planner" && rc=0 || rc=1
+assert_eq "Writer + planner coexistence: planner acquires" "0" "$rc"
+rune_release_lock "devise"
+rm -rf "$LOCK_BASE/arc"
+
+# 11c. Dead PID reclamation in cross-session scenario
+rm -rf "$LOCK_BASE" 2>/dev/null || true
+mkdir -p "$LOCK_BASE/stale-arc"
+jq -n --argjson pid 99999 --arg cfg "$RUNE_CURRENT_CFG" \
+  '{workflow:"stale-arc",class:"writer",pid:$pid,config_dir:$cfg,started:"2026-01-01T00:00:00Z"}' \
+  > "$LOCK_BASE/stale-arc/meta.json"
+# New session tries to acquire same lock — should reclaim (PID 99999 is dead)
+rune_acquire_lock "stale-arc" "writer" && rc=0 || rc=1
+assert_eq "Dead PID lock reclaimed by new session" "0" "$rc"
+new_pid=$(jq -r '.pid' "$LOCK_BASE/stale-arc/meta.json" 2>/dev/null || echo "")
+assert_eq "Reclaimed lock has new session PID" "$PPID" "$new_pid"
+rune_release_lock "stale-arc"
+
+# 11d. Same-workflow re-entry (same PID acquires same lock twice)
+rm -rf "$LOCK_BASE" 2>/dev/null || true
+rune_acquire_lock "reentrant-wf" "writer" && rc=0 || rc=1
+assert_eq "First acquire for re-entry test" "0" "$rc"
+rune_acquire_lock "reentrant-wf" "writer" && rc=0 || rc=1
+assert_eq "Re-entrant acquire succeeds" "0" "$rc"
+rune_release_lock "reentrant-wf"
+
+# 11e. Conflict detection accuracy: writer sees ADVISORY for reader, not CONFLICT
+rm -rf "$LOCK_BASE" 2>/dev/null || true
+mkdir -p "$LOCK_BASE/foreign-audit"
+jq -n --argjson pid "$$" --arg cfg "$RUNE_CURRENT_CFG" \
+  '{workflow:"foreign-audit",class:"reader",pid:$pid,config_dir:$cfg,started:"2026-01-01T00:00:00Z"}' \
+  > "$LOCK_BASE/foreign-audit/meta.json"
+result=$(rune_check_conflicts "writer")
+assert_contains "Writer sees ADVISORY for reader" "ADVISORY" "$result"
+assert_not_contains "Writer does NOT see CONFLICT for reader" "CONFLICT" "$result"
+rm -rf "$LOCK_BASE/foreign-audit"
+
+# ═══════════════════════════════════════════════════════════════
 # Results
 # ═══════════════════════════════════════════════════════════════
 printf "\n═══════════════════════════════════════════════════\n"

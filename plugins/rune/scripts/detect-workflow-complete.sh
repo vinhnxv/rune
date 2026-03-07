@@ -64,6 +64,19 @@ else
   rune_pid_alive() { kill -0 "$1" 2>/dev/null; }
 fi
 
+# Source frontmatter utils for loop file ownership checks
+if [[ -f "${SCRIPT_DIR}/lib/frontmatter-utils.sh" ]]; then
+  # shellcheck source=lib/frontmatter-utils.sh
+  source "${SCRIPT_DIR}/lib/frontmatter-utils.sh"
+else
+  # Fallback: inline _get_fm_field
+  _get_fm_field() {
+    local fm="$1" field="$2"
+    [[ "$field" =~ ^[a-zA-Z_]+$ ]] || return 1
+    printf '%s\n' "$fm" | grep "^${field}:" | sed "s/^${field}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true
+  }
+fi
+
 # Inline _trace (QUAL-007: each hook defines its own — no shared trace-logger.sh exists)
 # SEC-004 FIX: Use O_NOFOLLOW-equivalent guard — reject symlinked log paths
 # SEC-003 NOTE: RUNE_TRACE=1 logs team names, file paths, and state file contents.
@@ -84,16 +97,39 @@ if [[ ${#STATE_FILES[@]} -eq 0 ]]; then
   exit 0
 fi
 
-# ── GUARD 2: Defer to arc loop hooks ──
+# ── GUARD 2: Defer to arc loop hooks — NOW session-scoped ──
 # REC-1 FIX: Loop files live at ${CWD}/.claude/, NOT ${CHOME}/
-# If any arc loop is active, this hook must NOT interfere — the loop hooks handle transitions.
+# If OUR session's arc loop is active, this hook must NOT interfere — the loop hooks handle transitions.
+# Other sessions' loop files are skipped so their cleanup hooks can run independently.
 for loop_file in \
   "${CWD}/.claude/arc-phase-loop.local.md" \
   "${CWD}/.claude/arc-batch-loop.local.md" \
   "${CWD}/.claude/arc-hierarchy-loop.local.md" \
   "${CWD}/.claude/arc-issues-loop.local.md"; do
-  if [[ -f "$loop_file" ]]; then
-    # Check staleness — only defer if loop file is fresh enough.
+  if [[ -f "$loop_file" ]] && [[ ! -L "$loop_file" ]]; then
+    # Session ownership check: only defer for OUR loop files
+    _loop_fm=$(sed -n '/^---$/,/^---$/p' "$loop_file" 2>/dev/null | sed '1d;$d')
+    _loop_cfg=$(_get_fm_field "$_loop_fm" "config_dir")
+    _loop_pid=$(_get_fm_field "$_loop_fm" "owner_pid")
+
+    # Skip loop files from different installations
+    if [[ -n "$_loop_cfg" && "$_loop_cfg" != "$RUNE_CURRENT_CFG" ]]; then
+      _trace "SKIP loop file $(basename "$loop_file"): config_dir mismatch"
+      continue
+    fi
+    # Skip loop files from other live sessions
+    if [[ -n "$_loop_pid" && "$_loop_pid" =~ ^[0-9]+$ && "$_loop_pid" != "$PPID" ]]; then
+      if rune_pid_alive "$_loop_pid"; then
+        _trace "SKIP loop file $(basename "$loop_file"): belongs to live session PID=$_loop_pid"
+        continue
+      fi
+      # Owner dead → orphaned loop file, don't defer — let cleanup proceed
+      _trace "ORPHAN loop file $(basename "$loop_file"): owner PID=$_loop_pid dead"
+      continue
+    fi
+
+    # No ownership fields → legacy loop file — fall through to freshness check (backward compat)
+    # OUR loop file — check freshness and defer
     # v1.125.1 FIX: Increased from 30 min to 150 min. Phase loop files stay
     # untouched during long phases (work=35m, test+E2E=50m). Batch/hierarchy/issues
     # loop files stay untouched for entire arc runs (30-90m). Must match
@@ -110,7 +146,7 @@ for loop_file in \
     fi
     age_min=$(( ($HOOK_START_TIME - _loop_mtime) / 60 ))
     if [[ $age_min -lt 150 ]]; then
-      _trace "DEFER: active loop file $(basename "$loop_file") (${age_min}m old)"
+      _trace "DEFER: OUR active loop file $(basename "$loop_file") (${age_min}m old)"
       exit 0
     fi
   fi
@@ -190,16 +226,17 @@ for sf in "${STATE_FILES[@]}"; do
   SHOULD_CLEAN=false
 
   # REC-5 FIX: Session filter for completed-status path — don't clean another live session's state
+  # BACK-2 FIX: Use ORPHAN flag from first check (lines 211-222) instead of re-calling rune_pid_alive.
+  # Re-checking PID liveness creates a TOCTOU window: if PID is recycled between checks,
+  # first check sets ORPHAN=true but second check sees the recycled PID as alive and skips cleanup.
   if [[ "$SF_STATUS" =~ ^(completed|failed|cancelled)$ ]]; then
     if [[ -z "$SF_PID" ]]; then
       _trace "TRACE $sf: completed state has no owner_pid attribute, skipping cleanup for unattributable state"
       continue
     fi
-    if [[ "$SF_PID" =~ ^[0-9]+$ ]]; then
-      if [[ "$SF_PID" != "$PPID" ]] && rune_pid_alive "$SF_PID"; then
-        _trace "SKIP $sf: completed state belongs to live session PID=$SF_PID"
-        continue
-      fi
+    if [[ "$SF_PID" =~ ^[0-9]+$ && "$SF_PID" != "$PPID" && "$ORPHAN" != "true" ]]; then
+      _trace "SKIP $sf: completed state belongs to live session PID=$SF_PID"
+      continue
     fi
   fi
 
@@ -219,8 +256,10 @@ for sf in "${STATE_FILES[@]}"; do
     fi
   fi
 
-  # Case 2: Orphan (PID dead, status still active)
-  if [[ "$ORPHAN" == "true" && "$SF_STATUS" == "active" ]]; then
+  # Case 2: Orphan (PID dead, status not terminal)
+  # BACK-6 FIX: Match any non-terminal status, not just "active". Non-standard status
+  # values (e.g., custom states) would otherwise create permanent orphans.
+  if [[ "$ORPHAN" == "true" && ! "$SF_STATUS" =~ ^(completed|failed|cancelled|stopped)$ ]]; then
     if [[ -n "$SF_TEAM" && -d "${CHOME}/teams/${SF_TEAM}" ]]; then
       _trace "ORPHAN CLEANUP: $SF_TEAM (dead PID=$SF_PID)"
       SHOULD_CLEAN=true

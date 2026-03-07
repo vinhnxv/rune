@@ -102,6 +102,11 @@ const params = {
 const lockConflicts = Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_check_conflicts "reader"`)
 if (lockConflicts.includes("CONFLICT")) {
   AskUserQuestion({ question: `Active workflow conflict:\n${lockConflicts}\nProceed anyway?` })
+} else if (lockConflicts.includes("ADVISORY")) {
+  // ADVISORY = reader/planner + writer coexistence (see workflow-lock.sh compatibility matrix)
+  // SEC-6 FIX: sanitize lockConflicts output before interpolation
+  const sanitizedConflicts = lockConflicts.replace(/[<>&"']/g, '')
+  log(`Other workflow(s) detected in separate session(s):\n${sanitizedConflicts}\nCross-session concurrency is supported — proceeding normally.`)
 }
 Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_acquire_lock "appraise" "reader"`)
 ```
