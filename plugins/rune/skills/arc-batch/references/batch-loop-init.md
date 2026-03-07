@@ -98,23 +98,32 @@ if (planEntry) {
   Write(progressFile, JSON.stringify(progress, null, 2))
 }
 
+// ── Write plan path to fallback file (FIX-001: ensures arc receives plan path) ──
+const mergeFlag = !autoMerge ? " --no-merge" : ""
+const arcArgs = `${firstPlan} --skip-freshness --accept-external${mergeFlag}`
+Write("tmp/.rune-arc-batch-next-plan.txt", arcArgs)
+
 // ── Invoke arc for first plan ──
 // Native skill invocation — no subprocess, no timeout limit.
 // Each arc runs as a full Claude Code turn with complete tool access.
 // ARC-BATCH-001 FIX: Use "rune:arc" (not "arc") — must match stop hook naming.
 // Without the prefix, the Skill tool may not resolve the plugin-scoped skill,
 // and Claude may skip the skill entirely and implement the plan directly.
-const mergeFlag = !autoMerge ? " --no-merge" : ""
 // Arc-batch always passes --accept-external: batch runs commonly accumulate
 // commits from prior arcs or parallel sessions on the same branch.
-Skill("rune:arc", `${firstPlan} --skip-freshness --accept-external${mergeFlag}`)
+//
+// ⚠️ FIX-001: You MUST pass TWO arguments to the Skill tool:
+//   First argument: "rune:arc" (the skill name)
+//   Second argument: the plan path + flags string (arcArgs above)
+// If you call Skill("rune:arc") WITHOUT the second argument, the arc will fail.
+Skill("rune:arc", arcArgs)
+// Equivalent to: Skill("rune:arc", "${firstPlan} --skip-freshness --accept-external${mergeFlag}")
 
 // CRITICAL — SKILL INVOCATION REQUIRED:
 // - /rune:arc is a SKILL (slash command). You MUST call it via the Skill tool.
-// - The Skill tool loads the full arc pipeline (28 phases: forge → review → work → ship → merge).
+// - The Skill tool takes TWO parameters: skill name AND arguments string.
 // - DO NOT implement the plan code directly. DO NOT skip to coding or the work phase.
 // - DO NOT read the plan and start implementing. Only the arc skill should orchestrate execution.
-// - If you cannot find the Skill tool, type /rune:arc and let the system invoke it.
 
 // After the first arc completes, Claude's response ends.
 // The Stop hook fires, reads the state file, marks plan 1 as completed,

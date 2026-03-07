@@ -149,6 +149,38 @@ fi
 # See scripts/lib/workflow-lock.sh for the full API.
 ```
 
+## Resolve Plan Path (FIX-001: arc-batch fallback)
+
+```javascript
+// FIX-001: When invoked from arc-batch, the plan path may be missing from $ARGUMENTS
+// due to a known model behavior issue where Skill() is called without the second argument.
+// Fallback: read from tmp/.rune-arc-batch-next-plan.txt (written by arc-batch stop hook).
+if (!planFile || planFile.trim() === '') {
+  const fallbackFile = "tmp/.rune-arc-batch-next-plan.txt"
+  try {
+    const fallbackContent = Read(fallbackFile).trim()
+    if (fallbackContent) {
+      // Parse: first token is plan path, rest are flags
+      const parts = fallbackContent.split(/\s+/)
+      planFile = parts[0]
+      // Re-parse flags from fallback content
+      const fallbackFlags = parts.slice(1).join(' ')
+      warn(`Plan path recovered from ${fallbackFile}: ${planFile} ${fallbackFlags}`)
+      // Clean up fallback file after consumption
+      Bash(`rm -f "${fallbackFile}" 2>/dev/null`)
+    }
+  } catch (e) {
+    // Fallback file doesn't exist — not an arc-batch invocation
+  }
+}
+
+if (!planFile || planFile.trim() === '') {
+  error("No plan path provided. Usage: /rune:arc <plan-file.md>")
+  error("If running from arc-batch, check that the Skill tool was called with both arguments.")
+  return
+}
+```
+
 ## Validate Plan Path
 
 ```javascript

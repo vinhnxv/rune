@@ -384,7 +384,11 @@ _child_started=$(echo "$UPDATED_TABLE" | jq -r \
 
 if [[ -n "$_child_started" ]] && [[ "$_child_started" != "null" ]]; then
   _now_epoch=$(date +%s 2>/dev/null || echo "0")
-  _started_epoch=$(_iso_to_epoch "$_child_started" || echo "")
+  # FIX-004: Use if-context to isolate _iso_to_epoch from set -e
+  _started_epoch=""
+  if _started_epoch_val=$(_iso_to_epoch "$_child_started" 2>/dev/null); then
+    _started_epoch="$_started_epoch_val"
+  fi
 
   if [[ -n "$_started_epoch" ]] && [[ "$_now_epoch" -gt 0 ]]; then
     _elapsed=$(( _now_epoch - _started_epoch ))
@@ -744,7 +748,7 @@ You are continuing a hierarchical plan execution. Process the next child plan.
      if [[ -n \"\$MY_SESSION\" ]] && [[ -f \"\$dir/.session\" ]]; then
        [[ -L \"\$dir/.session\" ]] && continue
        owner=\$(jq -r '.session_id // empty' \"\$dir/.session\" 2>/dev/null || true)
-       [[ -n \"\$owner\" ]] && [[ \"\$owner\" != \"\$MY_SESSION\" ]] && continue
+       [[ -z \"\$owner\" ]] || [[ \"\$owner\" = \"\$MY_SESSION\" ]] || continue
      fi
      tname=\$(basename \"\$dir\"); rm -rf \"\$CHOME/teams/\$tname\" \"\$CHOME/tasks/\$tname\" 2>/dev/null
    done

@@ -544,7 +544,14 @@ _current_started=$(echo "$UPDATED_PROGRESS" | jq -r \
 
 if [[ -n "$_current_started" ]] && [[ "$_current_started" != "null" ]]; then
   _now_epoch=$(date +%s 2>/dev/null || echo "0")
-  _started_epoch=$(_iso_to_epoch "$_current_started" || echo "")
+  # FIX-004: Use if-context to isolate _iso_to_epoch from set -e.
+  # In bash/zsh, commands inside `if` conditions are exempt from set -e.
+  # The previous `$(...) || echo ""` pattern could fail under set -euo pipefail
+  # in certain shell versions, causing GUARD 10 to silently skip.
+  _started_epoch=""
+  if _started_epoch_val=$(_iso_to_epoch "$_current_started" 2>/dev/null); then
+    _started_epoch="$_started_epoch_val"
+  fi
 
   if [[ -n "$_started_epoch" ]] && [[ "$_now_epoch" -gt 0 ]]; then
     _elapsed=$(( _now_epoch - _started_epoch ))
@@ -618,8 +625,9 @@ if [[ -z "$NEXT_PLAN" ]]; then
     fi
   fi
 
-  # Safety net: clean up any leftover arc result signal
+  # Safety net: clean up any leftover arc result signal and fallback plan file
   rm -f "${CWD}/tmp/arc-result-current.json" 2>/dev/null
+  rm -f "${CWD}/tmp/.rune-arc-batch-next-plan.txt" 2>/dev/null
 
   # Release workflow lock on final iteration
   CWD="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -870,6 +878,12 @@ if [[ -n "$SUMMARY_PATH" ]]; then
   _trace "ARC_PROMPT: injecting step 4.5 with summary path ${SUMMARY_PATH}"
 fi
 
+# ── Write next plan path to fallback file (FIX-001: ensures arc receives plan path) ──
+# Primary: prompt tells Claude to pass arguments to Skill tool
+# Fallback: arc skill reads this file when $ARGUMENTS is empty
+_NEXT_PLAN_FILE="${CWD}/tmp/.rune-arc-batch-next-plan.txt"
+printf '%s\n' "${NEXT_PLAN} --skip-freshness --accept-external${MERGE_FLAG}" > "$_NEXT_PLAN_FILE" 2>/dev/null || true
+
 # ── Construct arc prompt for next plan ──
 # P1-FIX (SEC-TRUTHBIND): Wrap plan path in data delimiters with Truthbinding preamble.
 # NEXT_PLAN passes the metachar allowlist but could contain adversarial natural language.
@@ -892,19 +906,27 @@ ${GIT_INSTRUCTIONS}
      if [[ -n \"\$MY_SESSION\" ]] && [[ -f \"\$dir/.session\" ]]; then
        [[ -L \"\$dir/.session\" ]] && continue
        owner=\$(jq -r '.session_id // empty' \"\$dir/.session\" 2>/dev/null || true)
-       [[ -n \"\$owner\" ]] && [[ \"\$owner\" != \"\$MY_SESSION\" ]] && continue
+       [[ -z \"\$owner\" ]] || [[ \"\$owner\" = \"\$MY_SESSION\" ]] || continue
      fi
      tname=\$(basename \"\$dir\"); rm -rf \"\$CHOME/teams/\$tname\" \"\$CHOME/tasks/\$tname\" 2>/dev/null
    done
-${SUMMARY_STEP}5. Invoke the arc pipeline by calling the Skill tool:
+${SUMMARY_STEP}5. Invoke the arc pipeline using the Skill tool WITH the plan path as the second argument.
+
+   Read the plan path from: tmp/.rune-arc-batch-next-plan.txt
+   Then call the Skill tool with BOTH parameters:
+
    Skill(\"rune:arc\", \"${NEXT_PLAN} --skip-freshness --accept-external${MERGE_FLAG}\")
 
-   CRITICAL — SKILL INVOCATION REQUIRED:
-   - /rune:arc is a SKILL (slash command). You MUST call it via the Skill tool.
-   - The Skill tool loads the full arc pipeline (27 phases: forge → review → work → ship → merge).
-   - DO NOT implement the plan code directly. DO NOT skip to coding or the work phase.
-   - DO NOT read the plan and start implementing. Only the arc skill should orchestrate execution.
-   - If you cannot find the Skill tool, type /rune:arc and let the system invoke it.
+   ⚠️ YOU MUST PASS TWO ARGUMENTS TO THE SKILL TOOL:
+   - First argument (skill name): \"rune:arc\"
+   - Second argument (plan path + flags): \"${NEXT_PLAN} --skip-freshness --accept-external${MERGE_FLAG}\"
+
+   If you call Skill(\"rune:arc\") WITHOUT the second argument, the arc pipeline
+   will have no plan to process and will fail immediately. This is the #1 cause
+   of batch failures.
+
+   DO NOT implement the plan code directly. DO NOT skip to coding or the work phase.
+   Only the arc skill should orchestrate execution.
 
 IMPORTANT: Execute autonomously — do NOT ask for confirmation.
 
