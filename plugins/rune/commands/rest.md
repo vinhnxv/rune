@@ -38,6 +38,7 @@ Remove ephemeral `tmp/` output directories from completed Rune workflows. Preser
 | `tmp/gh-issues/` | GitHub Issues batch progress, issue list JSON | Yes (if no active arc-issues loop) |
 | `tmp/gh-plans/` | Auto-generated plan files from GitHub Issues | Yes (if no active arc-issues loop) |
 | `tmp/.talisman-resolved/` | Talisman shard resolver cache (JSON shards) | Yes (unconditional, regenerated at next SessionStart) |
+| `tmp/{workflow}/{id}/context-packs/` | Utility Crew context packs, manifest, verdict (subdirectory of workflow outputs) | Yes (cleaned with parent) |
 | `tmp/.rune-signals/` | Event-driven signal files from Phase 2 hooks | Yes (unconditional, symlink-guarded) |
 | `tmp/.rune-locks/` | Workflow lock directories (PID-guarded) | Yes (dead PIDs only; live PIDs preserved) |
 | `~/.claude/teams/{rune-*/arc-*}/` (or `$CLAUDE_CONFIG_DIR/teams/` if set) | Orphaned team configs from crashed workflows | `--heal` only |

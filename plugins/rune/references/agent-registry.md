@@ -1,6 +1,6 @@
 # Agent Registry
 
-**Total: 94 agents** (36 review + 5 research + 6 work + 18 utility + 24 investigation + 5 testing)
+**Total: 100 agents** (34 review + 5 research + 6 work + 26 utility + 24 investigation + 5 testing)
 
 > Agent count verified by `find agents/ -name "*.md" -type f | wc -l` on 2026-03-06.
 
@@ -95,6 +95,10 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | condenser-verdict | Verdict digest — dimension scores, low-scoring flags from gap-analysis-verdict.md. Shell-based extraction. Used by arc Phase 6 (Code Review) |
 | condenser-plan | Enriched plan digest — section count, acceptance criteria, file targets. Shell-based extraction. Used by arc Phase 5.5 (Gap Analysis) |
 | condenser-work | Work summary digest — committed files, task counts. Shell-based extraction. Used by arc Phase 5.5 (Gap Analysis) |
+| codex-phase-handler | Delegated Codex phase execution — runs Codex CLI commands as a teammate to keep Tarnished context clean |
+| context-scribe | Context pack composer — reads templates + runtime data, writes per-teammate `.context.md` files for Utility Crew phase |
+| prompt-warden | Context pack validator — 12-point checklist, verdict.json with PROCEED/WARN/BLOCK recommendation |
+| dispatch-herald | Context pack staleness detector — file list drift, TOME drift, plan modification, convergence iteration tracking (arc/arc-batch only) |
 
 ## Investigation Agents (`agents/investigation/`)
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.143.0] - 2026-03-07
+
+### Added
+- **Utility Crew — Context Pack Protocol** — 3 new utility agents for file-based prompt composition and validation
+  - `context-scribe` — Composes per-teammate `.context.md` files from templates + runtime data (9-section format)
+  - `prompt-warden` — Validates context packs via 12-point checklist, writes verdict.json (PROCEED/WARN/BLOCK)
+  - `dispatch-herald` — Detects context pack staleness between arc phases (file drift, TOME drift, plan modification, convergence iteration)
+- **utility-crew skill** — Non-invocable skill with `spawnUtilityCrew()` and `refreshStalePacks()` protocols, talisman-gated
+- **Context pack references** — `context-pack-schema.md`, `review-checklist.md`, `scribe-template-map.md`
+- **Talisman utility_crew config** — `settings.utility_crew` namespace with per-agent configuration (timeouts, thresholds, gates)
+- **Workflow integrations** — Crew phase inserted into appraise/audit (Phase 2.5-2.8), strive (Phase 1.5), devise (Phase -0.5), arc (inter-phase herald)
+
+### Changed
+- **Tarnished context reduction** — Prompt composition delegated to context-scribe, reducing lead context from O(N) to O(1) for N teammates
+- **Agent count**: 97 → 100 (3 new utility agents: context-scribe, prompt-warden, dispatch-herald)
+- **Skill count**: 52 → 53 (new utility-crew skill)
+
 ## [1.142.0] - 2026-03-07
 
 ### Added

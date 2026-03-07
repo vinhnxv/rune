@@ -164,6 +164,16 @@ Resolve active MCP integrations for the `devise` phase. Zero cost when no integr
 
 See [ux-and-mcp-discovery.md](references/ux-and-mcp-discovery.md) for the inline integration code. See `strive/references/mcp-integration.md` for the shared resolver algorithm.
 
+## Phase 0.8: Utility Crew (Context Pack Composition)
+
+> Gated by `utility_crew.enabled` in talisman settings. When disabled or on failure, falls back to inline prompt composition in Phase 1.
+
+Invokes the Utility Crew to compose per-agent context packs for research agents before spawning them. Uses `spawnUtilityCrew()` from the [utility-crew](../utility-crew/SKILL.md) skill.
+
+**Summary**: Read talisman gate → spawn context-scribe with research agent list → wait for completion → spawn prompt-warden → read verdict → if PROCEED, research agents read from `tmp/plans/{timestamp}/context-packs/{agent-name}.context.md`. If Crew fails, fall back to inline prompts from `research-phase.md`.
+
+Add `"context-scribe"` and `"prompt-warden"` to the cleanup fallback in [phase6-cleanup.md](references/phase6-cleanup.md).
+
 ## Phase 1: Research (Conditional, up to 8 agents)
 
 Spawns local research agents (repo-surveyor, echo-reader, git-miner), evaluates risk/sufficiency scores to decide on external research (practice-seeker, lore-scholar, codex-researcher), optionally verifies external research outputs for trustworthiness (research-verifier, Phase 1C.5), then runs spec validation (flow-seer). Includes research consolidation validation checkpoint. Phase 1B reads `talisman.plan` config for `external_research` bypass modes (`always`/`auto`/`never`) and `research_urls` with SSRF-defensive URL sanitization. External research agents use Context7 MCP for framework documentation alongside WebSearch. Phase 1C.5 scores findings across 5 dimensions (relevance, accuracy, freshness, cross-validation, security) and maps verdicts (TRUSTED/CAUTION/UNTRUSTED/FLAGGED) — skipped with `--quick`, `--no-verify-research`, or when no external research ran.
