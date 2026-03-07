@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.143.6] - 2026-03-08
+
+### Fixed
+- **arc phase desync: `ux_verification` missing from stop hook** — PR #222 (UX Design Intelligence) added `ux_verification` to `arc-phase-constants.md`, `arc-checkpoint-init.md`, `arc-phase-cleanup.md`, and `arc-preflight.md` but never updated `arc-phase-stop-hook.sh`. Stop hook had 27 phases vs the canonical 28, silently skipping `ux_verification`. Added to PHASE_ORDER, `_phase_ref()`, verified alignment across all 5 sources.
+- **arc phase desync: `storybook_verification` missing from checkpoint init** — PR #188 (Storybook Arc Integration) added `storybook_verification` to PHASE_ORDER, stop hook, and reference files but never added it to `arc-checkpoint-init.md`. Checkpoint schema created without `storybook_verification` entry. Also missing from `arc-phase-cleanup.md` PHASE_PREFIX_MAP and `arc-preflight.md` ARC_TEAM_PREFIXES. Added to all 3.
+- **arc dispatch herald phantom checkpoint fields** — PR #234 (Utility Crew) referenced 5 non-existent checkpoint fields: `checkpoint.team_name` (root-level, only exists per-phase), `checkpoint.crew_used` (never initialized), `checkpoint.context_packs_dir`, `checkpoint.output_dir`, `checkpoint.plan_path` (should be `plan_file`). Fixed all references to use correct schema paths.
+- **arc dispatch herald duplicate code block** — Two nearly-identical herald blocks existed in SKILL.md (lines 233-273 and 361-409). First block was dead code (gated by `checkpoint.crew_used` which is never set). Removed dead block, kept and fixed the second block.
+- **arc dispatch herald default-enabled** — `utility_crew` defaulted to `{ enabled: true }` when absent from talisman, causing unexpected herald spawn attempts for all users. Changed to `{ enabled: false }` (opt-in).
+
 ## [1.143.5] - 2026-03-08
 
 ### Fixed

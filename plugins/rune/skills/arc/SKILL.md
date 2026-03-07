@@ -230,48 +230,7 @@ Between delegated phases that use Utility Crew context packs, the dispatch-heral
 - After `work` → before `code_review` (file list may have changed from worker commits)
 - After `code_review` → before `mend` (TOME content is new since pack creation)
 
-```javascript
-// Dispatch Herald — inter-phase staleness check
-// Called by the phase reference file at the START of code_review and mend phases
-const crewConfig = readTalismanSection("settings")?.utility_crew
-const heraldEnabled = crewConfig?.enabled !== false && crewConfig?.dispatch_herald?.enabled !== false
-
-if (heraldEnabled && checkpoint.crew_used) {
-  // Spawn herald into the current phase's team
-  const heraldTimeout = crewConfig?.dispatch_herald?.staleness_check_ms ?? 30000
-
-  Agent({
-    team_name: currentTeamName,
-    name: "dispatch-herald",
-    subagent_type: "general-purpose",
-    model: "haiku",
-    prompt: `You are dispatch-herald. Read your agent definition, then check context pack staleness.
-Context packs dir: ${checkpoint.context_packs_dir}
-Manifest: ${checkpoint.context_packs_dir}/manifest.json
-Current phase: ${phaseName}
-Previous phase: ${previousPhaseName}
-TOME path: ${checkpoint.tome_path ?? "N/A"}
-Plan path: ${planFile}
-Mend round: ${checkpoint.mend_round ?? 0}`,
-    run_in_background: false
-  })
-
-  // Read staleness report
-  try {
-    const report = JSON.parse(Read(`${checkpoint.context_packs_dir}/staleness-report.json`))
-    if (report.recommendation === "refresh" || report.recommendation === "full_refresh") {
-      // Re-invoke context-scribe for affected packs only (incremental refresh)
-      checkpoint.crew_refresh_needed = true
-      checkpoint.stale_packs = report.affected_packs
-    }
-  } catch (e) {
-    warn("dispatch-herald: staleness report not found or unparseable — proceeding without refresh")
-  }
-
-  // Shutdown herald before phase proceeds
-  SendMessage({ type: "shutdown_request", recipient: "dispatch-herald", content: "Staleness check complete" })
-}
-```
+Herald logic is implemented in the First Phase Invocation section below (single source of truth).
 
 ### Inter-Phase Cleanup Guard (ARC-6)
 
@@ -363,8 +322,8 @@ if (!firstPending) {
 // Only runs when: (1) utility_crew.enabled, (2) dispatch_herald.enabled,
 // (3) context-packs/ exists from a previous Crew invocation,
 // (4) transition is between phases that use context packs (work→review, review→mend).
-const crewConfig = readTalismanSection("settings")?.utility_crew ?? { enabled: true }
-const packsDir = `${checkpoint.output_dir ?? `tmp/arc/${checkpoint.id}/`}context-packs/`
+const crewConfig = readTalismanSection("settings")?.utility_crew ?? { enabled: false }
+const packsDir = `tmp/arc/${checkpoint.id}/context-packs/`
 const HERALD_TRANSITIONS = new Set(["code_review", "mend"])  // phases where packs may be stale
 if (crewConfig.enabled && crewConfig.dispatch_herald?.enabled !== false
     && HERALD_TRANSITIONS.has(firstPending)
@@ -372,19 +331,20 @@ if (crewConfig.enabled && crewConfig.dispatch_herald?.enabled !== false
   try {
     const completedPhase = PHASE_ORDER.slice(0, PHASE_ORDER.indexOf(firstPending))
       .reverse().find(p => checkpoint.phases[p]?.status === 'completed') ?? "unknown"
+    const currentPhaseTeam = checkpoint.phases[firstPending].team_name
 
-    // Spawn herald into the current arc team
+    // Spawn herald into the current arc team (per-phase team_name, not root-level)
     Agent({
-      team_name: checkpoint.team_name,
+      team_name: currentPhaseTeam,
       name: "dispatch-herald",
       subagent_type: "general-purpose",
       model: "haiku",
-      prompt: `Check staleness: context_packs_dir=${packsDir}, manifest_path=${packsDir}manifest.json, current_phase=${firstPending}, previous_phase=${completedPhase}, tome_path=${checkpoint.output_dir ?? ""}TOME.md, plan_path=${checkpoint.plan_path ?? ""}, mend_round=${checkpoint.mend_round ?? 0}`,
+      prompt: `Check staleness: context_packs_dir=${packsDir}, manifest_path=${packsDir}manifest.json, current_phase=${firstPending}, previous_phase=${completedPhase}, tome_path=tmp/arc/${checkpoint.id}/TOME.md, plan_path=${checkpoint.plan_file ?? ""}, mend_round=${checkpoint.mend_round ?? 0}`,
       run_in_background: true
     })
 
     const heraldTimeout = crewConfig.dispatch_herald?.staleness_check_ms ?? 30000
-    waitForCompletion(checkpoint.team_name, 1, {
+    waitForCompletion(currentPhaseTeam, 1, {
       timeoutMs: heraldTimeout,
       pollIntervalMs: 30000,
       label: "Dispatch Herald"
