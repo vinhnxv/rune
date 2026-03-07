@@ -84,15 +84,15 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | 2 | `plan_review` | Team | 15 min | `/rune:appraise` (inspect mode) |
 | 2.5 | `plan_refine` | Inline | 3 min | — |
 | 2.7 | `verification` | Inline | 30 sec | — |
-| 2.8 | `semantic_verification` | Inline | 3 min | Codex (conditional) |
+| 2.8 | `semantic_verification` | Team | 12 min | Codex (conditional) |
 | 3 | `design_extraction` | Team | 10 min | Conditional: `design_sync.enabled` |
-| 4.5 | `task_decomposition` | Inline | 5 min | Codex (conditional) |
+| 4.5 | `task_decomposition` | Team | 10 min | Codex (conditional) |
 | 5 | `work` | Team | 35 min | `/rune:strive` |
 | 3.3 | `storybook_verification` | Team | 15 min | Conditional: `storybook.enabled` |
 | 5.2 | `design_verification` | Team | 8 min | Conditional: VSM files |
 | 5.3 | `ux_verification` | Team | 5 min | Conditional: `ux.enabled` |
 | 5.5 | `gap_analysis` | Team | 12 min | — |
-| 5.6 | `codex_gap_analysis` | Inline | 11 min | Codex (conditional) |
+| 5.6 | `codex_gap_analysis` | Team | 16 min | Codex (conditional) |
 | 5.8 | `gap_remediation` | Team | 15 min | — |
 | 5.7 | `goldmask_verification` | Team | 15 min | `/rune:goldmask` |
 | 6 | `code_review` | Team | 15 min | `/rune:appraise --deep` |
@@ -101,9 +101,9 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | 7.3 | `verify_mend` | Inline | 4 min | — |
 | 7.4 | `design_iteration` | Team | 15 min | Conditional: design fidelity |
 | 7.7 | `test` | Team | 25-50 min | Testing agents |
-| 7.8 | `test_coverage_critique` | Inline | 10 min | Codex (conditional) |
+| 7.8 | `test_coverage_critique` | Team | 15 min | Codex (conditional) |
 | 8.5 | `pre_ship_validation` | Inline | 6 min | — |
-| 8.55 | `release_quality_check` | Inline | 5 min | Codex (conditional) |
+| 8.55 | `release_quality_check` | Team | 10 min | Codex (conditional) |
 | 9 | `ship` | Inline | 5 min | — |
 | 9.1 | `bot_review_wait` | Inline | 15 min | Conditional: `--bot-review` |
 | 9.2 | `pr_comment_resolution` | Inline | 20 min | Conditional: `--bot-review` |

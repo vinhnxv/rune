@@ -17,6 +17,7 @@
 #   -j                Enable --json + jq JSONL parsing
 #   -g                Pass --skip-git-repo-check
 #   -k KILL_AFTER     Kill-after grace period seconds (default: 30, 0=disable)
+#   -o OUTPUT_FILE    Redirect Codex stdout to file (atomic write via tmp+mv)
 #
 # Exit codes:
 #   0   — success
@@ -51,20 +52,22 @@ STREAM_IDLE=540000
 JSON_MODE=0
 SKIP_GIT_CHECK=0
 KILL_AFTER=30
+OUTPUT_FILE=""
 
 # ─── Parse options ────────────────────────────────────────────────────────────
-while getopts "m:r:t:s:k:jg" opt; do
+while getopts "m:r:t:s:k:o:jg" opt; do
   case "$opt" in
     m) MODEL="$OPTARG" ;;
     r) REASONING="$OPTARG" ;;
     t) TIMEOUT="$OPTARG" ;;
     s) STREAM_IDLE="$OPTARG" ;;
     k) KILL_AFTER="$OPTARG" ;;
+    o) OUTPUT_FILE="$OPTARG" ;;
     j) JSON_MODE=1 ;;
     g) SKIP_GIT_CHECK=1 ;;
     *)
       echo "Usage: codex-exec.sh [OPTIONS] PROMPT_FILE" >&2
-      echo "Options: -m MODEL -r REASONING -t TIMEOUT -s STREAM_IDLE -j -g -k KILL_AFTER" >&2
+      echo "Options: -m MODEL -r REASONING -t TIMEOUT -s STREAM_IDLE -j -g -k KILL_AFTER -o OUTPUT_FILE" >&2
       exit 2
       ;;
   esac
@@ -116,6 +119,36 @@ PROMPT_SIZE=$(wc -c < "$PROMPT_FILE" 2>/dev/null || echo 0)
 if [[ "$PROMPT_SIZE" -gt 1048576 ]]; then
   echo "ERROR: Prompt file exceeds 1MB limit (${PROMPT_SIZE} bytes)" >&2
   exit 2
+fi
+
+# ─── Validation: output file security (SEC-010) ─────────────────────────────
+if [[ -n "$OUTPUT_FILE" ]]; then
+  # SEC-010: Reject symlinks (prevent writing to unintended locations)
+  if [[ -L "$OUTPUT_FILE" ]]; then
+    echo "ERROR: Output file path is a symlink — rejected for security" >&2
+    exit 2
+  fi
+
+  # SEC-010: Reject path traversal
+  case "$OUTPUT_FILE" in
+    *..*)
+      echo "ERROR: Output file path contains '..' — rejected for security" >&2
+      exit 2
+      ;;
+  esac
+
+  # SEC-010: Allowlist validation — reject special characters
+  if [[ ! "$OUTPUT_FILE" =~ ^[a-zA-Z0-9_/.\-]+$ ]]; then
+    echo "ERROR: Output file path contains invalid characters — rejected for security" >&2
+    exit 2
+  fi
+
+  # Ensure parent directory exists
+  OUTPUT_DIR=$(dirname "$OUTPUT_FILE")
+  if [[ ! -d "$OUTPUT_DIR" ]]; then
+    echo "ERROR: Output directory does not exist: $OUTPUT_DIR" >&2
+    exit 2
+  fi
 fi
 
 # ─── Validation: model allowlist ──────────────────────────────────────────────
@@ -196,7 +229,7 @@ if [[ "$JSON_MODE" -eq 1 ]]; then
 fi
 
 # ─── Build command ────────────────────────────────────────────────────────────
-_trace "EXEC model=$MODEL reasoning=$REASONING timeout=$TIMEOUT json=$JSON_MODE git_skip=$SKIP_GIT_CHECK file=$PROMPT_FILE"
+_trace "EXEC model=$MODEL reasoning=$REASONING timeout=$TIMEOUT json=$JSON_MODE git_skip=$SKIP_GIT_CHECK file=$PROMPT_FILE output=$OUTPUT_FILE"
 
 # Capture stderr to temp file for error classification
 # QUAL-001 FIX: Use accumulative cleanup pattern to avoid overwriting prior EXIT traps
@@ -227,21 +260,62 @@ CODEX_FLAGS+=(-)
 
 # ─── Execute ──────────────────────────────────────────────────────────────────
 CODEX_EXIT=0
-if [[ "$JSON_MODE" -eq 1 ]]; then
-  # JSON mode: pipe through jq to extract agent message text
-  if [[ "$HAS_TIMEOUT" -eq 1 ]]; then
-    cat "$PROMPT_FILE" | timeout $KILL_AFTER_FLAG "$TIMEOUT" codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" | \
-      jq -r 'select(.type == "item.completed" and .item.type == "agent_message") | .item.text' || CODEX_EXIT=$?
+
+if [[ -n "$OUTPUT_FILE" ]]; then
+  # File-write mode: redirect stdout to output file via atomic tmp+mv
+  OUTPUT_TMP="${OUTPUT_FILE}.tmp"
+  _CLEANUP_FILES+=("$OUTPUT_TMP")
+
+  if [[ "$JSON_MODE" -eq 1 ]]; then
+    # JSON mode + file output: jq filter BEFORE redirect (SEC-010a)
+    if [[ "$HAS_TIMEOUT" -eq 1 ]]; then
+      cat "$PROMPT_FILE" | timeout $KILL_AFTER_FLAG "$TIMEOUT" codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" | \
+        jq -r 'select(.type == "item.completed" and .item.type == "agent_message") | .item.text' > "$OUTPUT_TMP" || CODEX_EXIT=$?
+    else
+      cat "$PROMPT_FILE" | codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" | \
+        jq -r 'select(.type == "item.completed" and .item.type == "agent_message") | .item.text' > "$OUTPUT_TMP" || CODEX_EXIT=$?
+    fi
   else
-    cat "$PROMPT_FILE" | codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" | \
-      jq -r 'select(.type == "item.completed" and .item.type == "agent_message") | .item.text' || CODEX_EXIT=$?
+    # Raw mode + file output
+    if [[ "$HAS_TIMEOUT" -eq 1 ]]; then
+      cat "$PROMPT_FILE" | timeout $KILL_AFTER_FLAG "$TIMEOUT" codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" > "$OUTPUT_TMP" || CODEX_EXIT=$?
+    else
+      cat "$PROMPT_FILE" | codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" > "$OUTPUT_TMP" || CODEX_EXIT=$?
+    fi
+  fi
+
+  # Atomic move on success (prevents partial file reads by downstream consumers)
+  if [[ "$CODEX_EXIT" -eq 0 ]] && [[ -s "$OUTPUT_TMP" ]]; then
+    mv "$OUTPUT_TMP" "$OUTPUT_FILE"
+  elif [[ "$CODEX_EXIT" -eq 0 ]] && [[ ! -s "$OUTPUT_TMP" ]]; then
+    # Codex succeeded but produced empty output — write marker so downstream exists() checks pass
+    echo "(No output from Codex)" > "$OUTPUT_FILE"
+    rm -f "$OUTPUT_TMP"
+  elif [[ "$CODEX_EXIT" -eq 124 ]] && [[ -s "$OUTPUT_TMP" ]]; then
+    # Timeout with partial output — move for debugging
+    mv "$OUTPUT_TMP" "$OUTPUT_FILE"
+  else
+    # Other error — remove tmp, don't create output file (let caller handle skip path)
+    rm -f "$OUTPUT_TMP"
   fi
 else
-  # Raw mode: direct output
-  if [[ "$HAS_TIMEOUT" -eq 1 ]]; then
-    cat "$PROMPT_FILE" | timeout $KILL_AFTER_FLAG "$TIMEOUT" codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" || CODEX_EXIT=$?
+  # Current behavior — stdout passthrough (unchanged)
+  if [[ "$JSON_MODE" -eq 1 ]]; then
+    # JSON mode: pipe through jq to extract agent message text
+    if [[ "$HAS_TIMEOUT" -eq 1 ]]; then
+      cat "$PROMPT_FILE" | timeout $KILL_AFTER_FLAG "$TIMEOUT" codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" | \
+        jq -r 'select(.type == "item.completed" and .item.type == "agent_message") | .item.text' || CODEX_EXIT=$?
+    else
+      cat "$PROMPT_FILE" | codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" | \
+        jq -r 'select(.type == "item.completed" and .item.type == "agent_message") | .item.text' || CODEX_EXIT=$?
+    fi
   else
-    cat "$PROMPT_FILE" | codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" || CODEX_EXIT=$?
+    # Raw mode: direct output
+    if [[ "$HAS_TIMEOUT" -eq 1 ]]; then
+      cat "$PROMPT_FILE" | timeout $KILL_AFTER_FLAG "$TIMEOUT" codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" || CODEX_EXIT=$?
+    else
+      cat "$PROMPT_FILE" | codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" || CODEX_EXIT=$?
+    fi
   fi
 fi
 

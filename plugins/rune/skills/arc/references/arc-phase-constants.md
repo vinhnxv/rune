@@ -46,24 +46,24 @@ const PHASE_TIMEOUTS = {
   plan_review:   talismanTimeouts.plan_review ?? 900_000,    // 15 min (inner 10m + 5m setup)
   plan_refine:   talismanTimeouts.plan_refine ?? 180_000,    //  3 min (orchestrator-only, no team)
   verification:  talismanTimeouts.verification ?? 30_000,    // 30 sec (orchestrator-only, no team)
-  semantic_verification: talismanTimeouts.semantic_verification ?? 180_000,  //  3 min (orchestrator-only, inline codex exec)
+  semantic_verification: talismanTimeouts.semantic_verification ?? 720_000,  // 12 min (delegated to codex-phase-handler teammate)
   design_extraction: talismanTimeouts.design_extraction ?? 600_000,  // 10 min (conditional — gated by design_sync.enabled + Figma URL)
-  task_decomposition: talismanTimeouts.task_decomposition ?? 300_000,  //  5 min (orchestrator-only, inline codex exec)
+  task_decomposition: talismanTimeouts.task_decomposition ?? 600_000,  // 10 min (delegated to codex-phase-handler teammate)
   work:          talismanTimeouts.work ?? 2_100_000,    // 35 min (inner 30m + 5m setup)
   storybook_verification: talismanTimeouts.storybook_verification ?? 900_000,  // 15 min (conditional — gated by storybook.enabled in talisman misc)
   design_verification: talismanTimeouts.design_verification ?? 480_000,  //  8 min (conditional — gated by VSM files from design_extraction)
   ux_verification: talismanTimeouts.ux_verification ?? 300_000,  //  5 min (conditional — gated by ux.enabled + frontend files detected)
   gap_analysis:  talismanTimeouts.gap_analysis ?? 720_000,   // 12 min (inner 8m + 2m setup + 2m aggregate)
-  codex_gap_analysis: talismanTimeouts.codex_gap_analysis ?? 660_000,  // 11 min (orchestrator-only, inline codex exec)
+  codex_gap_analysis: talismanTimeouts.codex_gap_analysis ?? 960_000,  // 16 min (delegated to codex-phase-handler teammate)
   gap_remediation: talismanTimeouts.gap_remediation ?? 900_000,  // 15 min (inner 10m + 5m setup)
   code_review:   talismanTimeouts.code_review ?? 900_000,    // 15 min (inner 10m + 5m setup)
   mend:          talismanTimeouts.mend ?? 1_380_000,    // 23 min (inner 15m + 5m setup + 3m ward/cross-file)
   verify_mend:   talismanTimeouts.verify_mend ?? 240_000,    //  4 min (orchestrator-only, no team)
   design_iteration: talismanTimeouts.design_iteration ?? 900_000,  // 15 min (conditional)
   test:          talismanTimeouts.test ?? 1_500_000,      // 25 min without E2E. Dynamic: 50 min with E2E (3_000_000)
-  test_coverage_critique: talismanTimeouts.test_coverage_critique ?? 600_000,  // 10 min (orchestrator-only, inline codex exec)
+  test_coverage_critique: talismanTimeouts.test_coverage_critique ?? 900_000,  // 15 min (delegated to codex-phase-handler teammate)
   pre_ship_validation: talismanTimeouts.pre_ship_validation ?? 360_000,  //  6 min (orchestrator-only)
-  release_quality_check: talismanTimeouts.release_quality_check ?? 300_000,  //  5 min (orchestrator-only, inline codex exec)
+  release_quality_check: talismanTimeouts.release_quality_check ?? 600_000,  // 10 min (delegated to codex-phase-handler teammate)
   bot_review_wait: talismanTimeouts.bot_review_wait ?? 900_000,  // 15 min (orchestrator-only, polling)
   pr_comment_resolution: talismanTimeouts.pr_comment_resolution ?? 1_200_000,  // 20 min (orchestrator-only)
   goldmask_verification: talismanTimeouts.goldmask_verification ?? 900_000,  // 15 min (inner 10m + 5m setup)
@@ -122,7 +122,8 @@ function calculateDynamicTimeout(tier) {
 const FORBIDDEN_PHASE_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
 
 // Cascade circuit breaker tracker — updates codex_cascade checkpoint fields.
-// Called after every classifyCodexError() in Codex integration phases (4.5, 7.8, 8.55).
+// Called after every Codex phase completion in phases (2.8, 4.5, 5.6, 7.8, 8.55).
+// With delegation, the Tarnished calls this using error_class from teammate's SendMessage metadata.
 function updateCascadeTracker(checkpoint, classified) {
   if (!checkpoint.codex_cascade) {
     checkpoint.codex_cascade = {

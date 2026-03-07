@@ -43,8 +43,10 @@ design_extraction, design_verification, design_iteration, ux_verification
 | Prefix | Source | Used By |
 |--------|--------|---------|
 | `CDX-TASK` | Codex task decomposition (Phase 4.5) | task-validation.md |
-| `CDX-GAP` | Codex gap analysis (Phase 5.7) | codex-gap-analysis.md |
-| `CDX-SEM` | Codex semantic verification (Phase 3.5) | semantic-check.md |
+| `CDX-GAP` | Codex gap analysis (Phase 5.6) | codex-gap-analysis.md |
+| `CDX-SEM` | Codex semantic verification (Phase 2.8) | codex-semantic-verification.md |
+| `CDX-TEST` | Codex test coverage critique (Phase 7.8) | test-critique.md |
+| `CDX-RELEASE` | Codex release quality check (Phase 8.55) | release-quality.md |
 | `SEC-` | Security findings | TOME.md (review/audit) |
 | `BACK-` | Backend/logic findings | TOME.md |
 | `QUAL-` | Code quality findings | TOME.md |
@@ -56,6 +58,23 @@ design_extraction, design_verification, design_iteration, ux_verification
 | `UXI-` | UX interaction findings | TOME.md (ux_verification) |
 | `UXC-` | UX cognitive findings | TOME.md (ux_verification) |
 | `PERF-` | Performance findings | TOME.md |
+
+## Team Name Patterns
+
+| Pattern | Phase(s) | Example |
+|---------|----------|---------|
+| `arc-forge-{id}` | Phase 1 Forge | `arc-forge-1772843794749` |
+| `arc-plan-review-{id}` | Phase 2 Plan Review | `arc-plan-review-1772843794749` |
+| `arc-plan-inspect-{id}` | Phase 2 Plan Inspect | `arc-plan-inspect-1772843794749` |
+| `arc-codex-sv-{id}` | Phase 2.8 Semantic Verification | `arc-codex-sv-1772843794749` |
+| `arc-codex-td-{id}` | Phase 4.5 Task Decomposition | `arc-codex-td-1772843794749` |
+| `arc-codex-ga-{id}` | Phase 5.6 Codex Gap Analysis | `arc-codex-ga-1772843794749` |
+| `arc-codex-tc-{id}` | Phase 7.8 Test Coverage Critique | `arc-codex-tc-1772843794749` |
+| `arc-codex-rq-{id}` | Phase 8.55 Release Quality Check | `arc-codex-rq-1772843794749` |
+| `arc-design-{id}` | Phase 3 Design Extraction | `arc-design-1772843794749` |
+| `arc-test-{id}` | Phase 7.7 Test | `arc-test-1772843794749` |
+
+Codex handler teams (`arc-codex-*`) use the `codex-phase-handler` utility agent and are created only when Codex is available.
 
 ## Status Values
 
