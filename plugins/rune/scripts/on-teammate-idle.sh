@@ -86,6 +86,40 @@ if [[ -z "$CWD" || "$CWD" != /* ]]; then
   exit 0
 fi
 
+# --- Layer 0: Force-Stop Orphaned Teammates (Claude Code 2.1.69+) ---
+# When team dir no longer exists (TeamDelete already ran) or workflow state is
+# "completed"/"failed"/"cancelled", the teammate is orphaned — force stop it.
+# This catches in-process teammates that acknowledged shutdown_request but whose
+# process didn't exit (they go idle → TeammateIdle fires → we stop them here).
+# Runs BEFORE quality gates — no point checking output if team is already gone.
+CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+TEAM_CONFIG_DIR="$CHOME/teams/$TEAM_NAME"
+if [[ ! -d "$TEAM_CONFIG_DIR" ]]; then
+  _trace "STOP orphaned teammate (team dir gone): $TEAMMATE_NAME in $TEAM_NAME"
+  jq -n --arg reason "Team directory no longer exists — teammate orphaned after cleanup" \
+    '{"continue": false, "stopReason": $reason}' 2>/dev/null || \
+    printf '{"continue":false,"stopReason":"Team directory gone — orphaned teammate"}\n'
+  exit 0
+fi
+
+# Check workflow state files — if workflow completed, stop lingering teammates
+# Use find instead of glob to avoid zsh NOMATCH when no state files exist
+while IFS= read -r state_file; do
+  [[ -f "$state_file" && ! -L "$state_file" ]] || continue
+  state_team=$(jq -r '.team_name // empty' "$state_file" 2>/dev/null || true)
+  if [[ "$state_team" == "$TEAM_NAME" ]]; then
+    state_status=$(jq -r '.status // empty' "$state_file" 2>/dev/null || true)
+    if [[ "$state_status" == "completed" || "$state_status" == "failed" || "$state_status" == "cancelled" ]]; then
+      _trace "STOP orphaned teammate (workflow $state_status): $TEAMMATE_NAME in $TEAM_NAME"
+      jq -n --arg reason "Workflow status is ${state_status} — teammate should have exited" \
+        '{"continue": false, "stopReason": $reason}' 2>/dev/null || \
+        printf '{"continue":false,"stopReason":"Workflow %s — orphaned teammate"}\n' "$state_status"
+      exit 0
+    fi
+    break
+  fi
+done < <(find "${CWD}/tmp" -maxdepth 1 -name '.rune-*.json' -type f 2>/dev/null)
+
 # --- Retry-based quality gate with teammate stop (Claude Code 2.1.69+) ---
 # After MAX_IDLE_RETRIES consecutive quality gate failures, stop the teammate
 # via {"continue": false} instead of blocking indefinitely with exit 2.
@@ -302,7 +336,7 @@ _trace "PASS all gates for $TEAMMATE_NAME"
 # --- Layer 4: All-Tasks-Done Signal ---
 # After quality gates pass, check if ALL tasks in this team are done.
 # If so, write a signal file so orchestrators can skip remaining poll cycles.
-CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# NOTE: CHOME already set in Layer 0 above
 TASK_DIR="$CHOME/tasks/$TEAM_NAME"
 if [[ -d "$TASK_DIR" ]]; then
   ALL_DONE=true
