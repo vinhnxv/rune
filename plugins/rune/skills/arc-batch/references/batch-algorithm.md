@@ -12,7 +12,7 @@ SKILL.md (orchestration layer)
   ├── Phase 2: Dry run (if --dry-run) → early return
   ├── Phase 3: Initialize batch-progress.json
   ├── Phase 4: Confirm batch → AskUserQuestion
-  └── Phase 5: Start loop → write state file + Skill("arc", firstPlan)
+  └── Phase 5: Start loop → write state file + Skill("rune:arc", firstPlan)
                 │
                 └── Stop hook drives all subsequent iterations:
 

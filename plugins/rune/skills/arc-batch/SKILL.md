@@ -187,5 +187,5 @@ See [batch-loop-init.md](references/batch-loop-init.md) for the full algorithm.
 ```javascript
 Read("references/batch-loop-init.md")
 // Execute: resolve session identity → pre-creation guard → write state file →
-// mark first plan in_progress → Skill("arc", firstPlan + flags)
+// mark first plan in_progress → Skill("rune:arc", firstPlan + flags)
 ```

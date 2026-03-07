@@ -897,7 +897,7 @@ ${GIT_INSTRUCTIONS}
      tname=\$(basename \"\$dir\"); rm -rf \"\$CHOME/teams/\$tname\" \"\$CHOME/tasks/\$tname\" 2>/dev/null
    done
 ${SUMMARY_STEP}5. Invoke the arc pipeline by calling the Skill tool:
-   Skill(\"rune:arc\", \"${NEXT_PLAN} --skip-freshness${MERGE_FLAG}\")
+   Skill(\"rune:arc\", \"${NEXT_PLAN} --skip-freshness --accept-external${MERGE_FLAG}\")
 
    CRITICAL — SKILL INVOCATION REQUIRED:
    - /rune:arc is a SKILL (slash command). You MUST call it via the Skill tool.

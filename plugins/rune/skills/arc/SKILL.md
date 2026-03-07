@@ -125,6 +125,7 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 /rune:arc <plan_file.md> --draft           # Create PR as draft
 /rune:arc <plan_file.md> --bot-review     # Enable bot review wait + comment resolution
 /rune:arc <plan_file.md> --no-bot-review  # Force-disable bot review
+/rune:arc <plan_file.md> --no-accept-external  # Prompt when unrelated changes detected (default: accept)
 ```
 
 ## Flags
@@ -140,10 +141,27 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | `--no-merge` | Skip Phase 9.5 (auto merge) | Off |
 | `--no-test` | Skip Phase 7.7 (testing) | Off |
 | `--draft` | Create PR as draft | Off |
+| `--accept-external` | Accept external changes (bug fixes, audit commits) on branch without prompting | **On** |
+| `--no-accept-external` | Prompt user when unrelated changes are detected on branch | Off |
 | `--bot-review` | Enable bot review wait + PR comment resolution (Phase 9.1/9.2) | Off |
 | `--no-bot-review` | Force-disable bot review (overrides both `--bot-review` and talisman) | Off |
 
 > **Note**: Worktree mode for `/rune:strive` (Phase 5) is activated via `work.worktree.enabled: true` in talisman.yml, not via a `--worktree` flag on arc.
+
+## External Changes Policy (`accept_external_changes`)
+
+When `--accept-external` is passed (or `arc.defaults.accept_external_changes: true` in talisman), the pipeline tolerates commits on the working branch that are NOT part of the plan. This is common when:
+- Running `/rune:arc-batch` where prior arcs leave commits on the branch
+- Running `/rune:audit` or manual bug fixes in a parallel session that commit to the same branch
+- Cherry-picking hotfixes onto the arc's working branch
+
+**Behavior when enabled:**
+- Do NOT pause or prompt the user about unrelated changes — continue autonomously
+- Gap analysis evaluates only plan criteria coverage; external changes are not flagged as drift
+- Code review reviews all changes but does not halt for code outside plan scope
+- All commits (plan-related and external) are included in the PR
+
+**Default**: `true` (accept external changes silently). Use `--no-accept-external` or `arc.defaults.accept_external_changes: false` to restore the prompting behavior.
 
 ## Workflow Lock (writer)
 

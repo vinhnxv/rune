@@ -824,7 +824,7 @@ Base findings on actual test report content, not assumptions.
 1. Claim the "Codex test coverage critique" task
 2. Gate check: command -v codex
 3. Write the prompt to the prompt file path
-4. Run: codex-exec.sh -m "${codexModel}" -r "${reasoning}" -t ${timeout} -g -o tmp/arc/${id}/test-critique.md tmp/arc/${id}/.codex-prompt-test-critique.tmp
+4. Run: "${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -g -o tmp/arc/${id}/test-critique.md tmp/arc/${id}/.codex-prompt-test-critique.tmp
 5. Clean up prompt file
 6. Compute sha256sum of final report
 7. Count CDX-TEST findings and CRITICAL findings

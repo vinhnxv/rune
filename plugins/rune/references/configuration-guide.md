@@ -146,6 +146,7 @@ See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integratio
 | `arc.defaults.approve` | boolean | `false` | Auto-approve tasks (CLI: `--approve`) |
 | `arc.defaults.skip_freshness` | boolean | `false` | Skip freshness gate (CLI: `--skip-freshness`) |
 | `arc.defaults.confirm` | boolean | `false` | Require confirmation (CLI: `--confirm`) |
+| `arc.defaults.accept_external_changes` | boolean | `true` | Accept external commits on branch without prompting (CLI: `--no-accept-external` to disable). |
 | `arc.sharding.enabled` | boolean | `true` | Enable plan sharding |
 | `arc.sharding.exclude_parent` | boolean | `true` | Auto-exclude parent plans |
 | `arc.sharding.prerequisite_check` | boolean | `true` | Verify shard prerequisites |

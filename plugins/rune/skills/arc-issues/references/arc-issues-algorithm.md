@@ -692,8 +692,14 @@ if (firstPlanEntry) {
 // Invoke arc for first issue
 // NOTE: GH API actions (comment, label updates) for completed issues are handled
 // at the BEGINNING of the next arc turn (CC-2/BACK-008) to avoid Stop hook 15s timeout
+// ARC-BATCH-001 FIX: Use "rune:arc" prefix for reliable plugin skill resolution.
 const mergeFlag = !autoMerge ? ' --no-merge' : ''
-Skill('arc', `${firstIssue.planPath} --skip-freshness${mergeFlag}`)
+Skill('rune:arc', `${firstIssue.planPath} --skip-freshness --accept-external${mergeFlag}`)
+
+// CRITICAL — SKILL INVOCATION REQUIRED:
+// - /rune:arc is a SKILL. You MUST call it via the Skill tool.
+// - DO NOT implement the plan code directly. DO NOT skip to coding.
+// - Only the arc skill should orchestrate execution.
 
 // After the first arc completes, Claude's response ends.
 // The Stop hook fires, reads .claude/arc-issues-loop.local.md,
