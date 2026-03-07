@@ -163,6 +163,125 @@ for (const ash of selectedAsh) {
 }
 ```
 
+## Phase 2.5-2.8: Utility Crew (Context Pack Composition)
+
+> Gated by `utility_crew.enabled` in talisman settings. When disabled or on failure, falls back to inline `buildAshPrompt()` in Phase 3.
+
+```javascript
+// Phase 2.5: Check Utility Crew gate
+const settingsShard = readTalismanSection("settings")
+const crewConfig = settingsShard?.utility_crew ?? { enabled: true }
+let crewResult = { mode: "inline", reason: "disabled" }
+
+if (crewConfig.enabled) {
+  // Phase 2.6: Spawn context-scribe
+  const packsDir = `${outputDir}context-packs/`
+  Bash(`mkdir -p "${packsDir}"`)
+
+  const crewRequest = [
+    "## Crew Request",
+    `- workflow: ${workflow}`,
+    `- identifier: ${identifier}`,
+    `- team_name: ${teamName}`,
+    `- phase: summon-ash`,
+    `- selected_agents: [${selectedAsh.join(", ")}]`,
+    `- talisman_shards_path: tmp/.talisman-resolved/`,
+    `- output_dir: ${outputDir}`,
+    `- changed_files_path: ${outputDir}file-list.txt`,
+    `- inscription_path: ${outputDir}inscription.json`,
+    `- extra_context: ${customPromptBlock ? "custom prompt active" : "none"}`
+  ].join("\n")
+
+  try {
+    Agent({
+      team_name: teamName,
+      name: "context-scribe",
+      subagent_type: "general-purpose",
+      model: resolveModelForAgent("context-scribe", talisman),
+      prompt: crewRequest,
+      run_in_background: true
+    })
+
+    // Wait for scribe (timeout from talisman, default 90s)
+    const scribeTimeout = crewConfig.context_scribe?.timeout_ms ?? 90000
+    const scribeResult = waitForCompletion(teamName, 1, {
+      timeoutMs: scribeTimeout,
+      pollIntervalMs: 30000,
+      label: "Context Scribe"
+    })
+
+    if (!scribeResult.allComplete) {
+      throw new Error("context-scribe timeout")
+    }
+
+    // Phase 2.7: Spawn prompt-warden (if enabled)
+    if (crewConfig.prompt_warden?.enabled !== false) {
+      Agent({
+        team_name: teamName,
+        name: "prompt-warden",
+        subagent_type: "general-purpose",
+        model: "haiku",
+        prompt: `Validate context packs at ${packsDir}. Read manifest.json first.`,
+        run_in_background: true
+      })
+
+      const wardenTimeout = 30000
+      const wardenResult = waitForCompletion(teamName, 1, {
+        timeoutMs: wardenTimeout,
+        pollIntervalMs: 30000,
+        label: "Prompt Warden"
+      })
+
+      if (!wardenResult.allComplete) {
+        throw new Error("prompt-warden timeout")
+      }
+    }
+
+    // Phase 2.8: Read verdict and decide
+    const verdict = JSON.parse(Read(`${packsDir}verdict.json`))
+
+    // Sanity checks (warden self-validation gap defense)
+    if (!["PROCEED", "WARN", "BLOCK"].includes(verdict.recommendation)) {
+      throw new Error(`Invalid verdict recommendation: ${verdict.recommendation}`)
+    }
+    if (verdict.critical_blocks > 0 && verdict.recommendation === "PROCEED") {
+      throw new Error("Verdict inconsistency: critical_blocks > 0 but recommendation is PROCEED")
+    }
+
+    if (verdict.recommendation === "BLOCK" && crewConfig.prompt_warden?.block_on_critical) {
+      const failedChecks = verdict.issues
+        .filter(i => i.severity === "CRITICAL")
+        .map(i => `#${i.check_id} ${i.check_name}`)
+        .join(", ")
+      throw new Error(`Warden BLOCK: ${failedChecks}`)
+    }
+
+    if (verdict.recommendation === "WARN") {
+      // Log warning but continue with Crew packs
+    }
+
+    // Shutdown Crew agents to free teammate slots before spawning Ashes
+    SendMessage({ type: "shutdown_request", recipient: "context-scribe", content: "Crew phase complete" })
+    SendMessage({ type: "shutdown_request", recipient: "prompt-warden", content: "Crew phase complete" })
+    Bash(`sleep 12`)  // Grace period for deregistration
+
+    const manifest = JSON.parse(Read(`${packsDir}manifest.json`))
+    crewResult = { mode: "crew", manifest, verdict, packsDir }
+
+  } catch (crewError) {
+    // Fallback to inline composition
+    crewResult = { mode: "inline", reason: crewError.message }
+    // Set crew_fallback flag in state file for diagnostics
+    // (state file update is best-effort, non-blocking)
+
+    // Shutdown any active Crew agents
+    SendMessage({ type: "shutdown_request", recipient: "context-scribe", content: "Fallback" })
+    SendMessage({ type: "shutdown_request", recipient: "prompt-warden", content: "Fallback" })
+    Bash(`sleep 10`)
+  }
+}
+```
+
 ## Phase 3: Summon
 
 Summon Ashes — single wave for standard depth, multi-wave loop for deep depth.
@@ -172,7 +291,10 @@ Summon Ashes — single wave for standard depth, multi-wave loop for deep depth.
 ```javascript
 // Summon ALL selected Ash in a single message (parallel execution)
 for (const ash of selectedAsh) {
-  const ashPrompt = buildAshPrompt(ash, { scope, outputDir, fileList, dirScope, customPromptBlock })
+  // Use Crew context pack if available, otherwise fall back to inline buildAshPrompt()
+  const ashPrompt = crewResult.mode === "crew"
+    ? `Read your context from: ${crewResult.packsDir}${ash}.context.md. Start by reading that file.`
+    : buildAshPrompt(ash, { scope, outputDir, fileList, dirScope, customPromptBlock })
 
   // Per-agent artifact tracking (non-blocking — skip if library unavailable)
   // Uses rune_artifact_init_at with outputDir to keep runs/ co-located with Ash outputs
@@ -292,7 +414,11 @@ for (const wave of waves) {
     const priorFindings = wave.waveNumber > 1
       ? collectWaveFindings(outputDir, wave.waveNumber - 1)  // file:line + severity only
       : null
-    const waveAshPrompt = buildAshPrompt(ash.name, { scope, outputDir, fileList, priorFindings, dirScope, customPromptBlock })
+    // Use Crew context pack for Wave 1 if available, otherwise fall back to inline buildAshPrompt()
+    // Wave 2+ always uses inline (packs are composed for Wave 1 agents only)
+    const waveAshPrompt = (crewResult.mode === "crew" && wave.waveNumber === 1)
+      ? `Read your context from: ${crewResult.packsDir}${ash.name}.context.md. Start by reading that file.`
+      : buildAshPrompt(ash.name, { scope, outputDir, fileList, priorFindings, dirScope, customPromptBlock })
     const waveTeamName = wave.waveNumber === 1 ? teamName : `${teamName}-w${wave.waveNumber}`
 
     // Per-agent artifact tracking (non-blocking — skip if library unavailable)
@@ -1155,7 +1281,7 @@ try {
   // FALLBACK: config.json read failed — include all possible agents.
   // selectedAsh + runebinder + conditionally-spawned agents (doubt-seer, cross-shard-sentinel).
   // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
-  allMembers = [...selectedAsh, "runebinder", "doubt-seer", "cross-shard-sentinel"]
+  allMembers = [...selectedAsh, "runebinder", "doubt-seer", "cross-shard-sentinel", "context-scribe", "prompt-warden"]
 }
 
 // 2. Shutdown all teammates

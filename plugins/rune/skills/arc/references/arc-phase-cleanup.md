@@ -48,6 +48,11 @@ const PHASE_PREFIX_MAP = {
 // Codex handler phases: delegated to codex-phase-handler teammate (5 phases: 2.8, 4.5, 5.6, 7.8, 8.55). Conditional on Codex availability.
 // Orchestrator-only phases (plan_refine, verification,
 // goldmask_correlation, verify_mend, ship, merge) do not create teams — no entries needed.
+//
+// Inter-phase agents (no PHASE_PREFIX_MAP entry needed — they join existing teams):
+// - dispatch-herald: Utility Crew staleness detector. Joins parent arc team between phases
+//   (code_review, mend). Shutdown via SendMessage after staleness check. Conditional on
+//   utility_crew.enabled + dispatch_herald.enabled. Safe to include in shutdown fallback arrays.
 ```
 
 ## postPhaseCleanup(checkpoint, phaseName)
