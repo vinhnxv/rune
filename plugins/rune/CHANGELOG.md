@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.143.3] - 2026-03-07
+
+### Fixed
+- **ARC-BATCH-001 regression: first plan never invokes arc pipeline** — `batch-loop-init.md` Phase 5 used `Skill("arc", ...)` without the `rune:` prefix, causing Claude to either fail skill resolution or skip the pipeline and implement the plan directly. Changed to `Skill("rune:arc", ...)` with CRITICAL anti-skip instructions, matching the stop hook's convention (fixed in v1.109.4 but not applied to Phase 5). Also fixed the same bug in `arc-hierarchy/references/main-loop.md`.
+
 ## [1.143.2] - 2026-03-07
 
 ### Fixed

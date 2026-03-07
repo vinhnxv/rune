@@ -101,8 +101,18 @@ if (planEntry) {
 // ── Invoke arc for first plan ──
 // Native skill invocation — no subprocess, no timeout limit.
 // Each arc runs as a full Claude Code turn with complete tool access.
+// ARC-BATCH-001 FIX: Use "rune:arc" (not "arc") — must match stop hook naming.
+// Without the prefix, the Skill tool may not resolve the plugin-scoped skill,
+// and Claude may skip the skill entirely and implement the plan directly.
 const mergeFlag = !autoMerge ? " --no-merge" : ""
-Skill("arc", `${firstPlan} --skip-freshness${mergeFlag}`)
+Skill("rune:arc", `${firstPlan} --skip-freshness${mergeFlag}`)
+
+// CRITICAL — SKILL INVOCATION REQUIRED:
+// - /rune:arc is a SKILL (slash command). You MUST call it via the Skill tool.
+// - The Skill tool loads the full arc pipeline (28 phases: forge → review → work → ship → merge).
+// - DO NOT implement the plan code directly. DO NOT skip to coding or the work phase.
+// - DO NOT read the plan and start implementing. Only the arc skill should orchestrate execution.
+// - If you cannot find the Skill tool, type /rune:arc and let the system invoke it.
 
 // After the first arc completes, Claude's response ends.
 // The Stop hook fires, reads the state file, marks plan 1 as completed,
