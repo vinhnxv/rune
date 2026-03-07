@@ -1,0 +1,216 @@
+{
+  "skill_name": "forge",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Explain the Phase 0 plan location logic in forge. What happens when: (1) A valid plan path is provided as argument, (2) No plan is specified and auto-detect finds multiple plans, (3) The plan path contains shell injection characters like semicolons or backticks, (4) The path starts with tmp/arc/ prefix. Don't execute anything — explain the decision tree and validation rules.",
+      "expected_output": "Phase 0 walkthrough: (1) Valid path: Validate with SAFE_PATH_PATTERN (/^[a-zA-Z0-9._\\/-]+$/), check existence via Read, proceed if valid. (2) No argument: Run `ls -t plans/*.md | head -5`, if multiple found use AskUserQuestion to let user select which plan to deepen. (3) Shell injection: Path validation regex rejects paths containing characters outside the allowlist (no semicolons, backticks, $(), pipes, etc.), error with 'Invalid plan path' message. (4) tmp/arc/ prefix: Detected as arc context via isArcContext check (normalizes ./ prefix), skips interactive phases (scope confirmation, post-enhancement options) since arc is automated.",
+      "files": [],
+      "expectations": [
+        "Describes SAFE_PATH_PATTERN regex validation for plan paths",
+        "Explains auto-detect uses ls -t plans/*.md | head -5",
+        "Notes AskUserQuestion for multiple plan selection",
+        "Describes shell injection protection via character allowlist",
+        "Explains arc context detection via tmp/arc/ prefix",
+        "Notes arc context skips interactive phases"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Analyze the Phase 1.3 file reference extraction algorithm. What patterns are matched? How is path traversal prevented? What happens when a referenced file doesn't exist on disk?",
+      "expected_output": "Phase 1.3 file extraction: Pattern matches: backtick-wrapped paths like `src/foo/bar.py`, File:/Path:/Module: annotations, YAML paths, markdown link targets. The regex is: /(?:`([^`]+\\.\\w+)`|(?:File|Path|Module):\\s*(\\S+\\.\\w+))/g. Path traversal prevention: skip any path containing '..' substring before Read attempt. Non-existent files: try Read(filePath), catch the error, skip silently (don't add to referencedFiles array). Output: uniqueFiles[] array with deduplication via Set, logged count. Skip condition: if uniqueFiles.length === 0, skip Phase 1.5 (Lore Layer) entirely.",
+      "files": [],
+      "expectations": [
+        "Lists pattern matches: backtick-wrapped, File/Path/Module annotations, YAML paths, markdown links",
+        "States the regex pattern for file extraction",
+        "Describes path traversal prevention via '..' substring check",
+        "Explains non-existent files are skipped silently via try/catch on Read",
+        "Notes deduplication via Set spread operator",
+        "Mentions skip condition: uniqueFiles.length === 0 skips Phase 1.5"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Explain the Phase 1.5 Lore Layer (Goldmask) integration in forge. What are all the skip conditions? When is lore-analyst spawned vs reusing existing data? What timeout is used?",
+      "expected_output": "Phase 1.5 Lore Layer: Skip conditions: talisman.goldmask.enabled === false, talisman.goldmask.forge.enabled === false, talisman.goldmask.layers.lore.enabled === false, --no-lore CLI flag, non-git repo, no file references from Phase 1.3 (<5 files triggers skip), <5 commits in lookback window (G5 guard). Data discovery: check for existing risk-map.json with >30% file overlap, reuse if found (skip spawning). Fallback: spawn lore-analyst as bare Agent (ATE-1 exemption for utility agents). Timeout: 30 seconds for lore-analyst spawn, non-blocking on timeout (proceed without risk data). Output: risk-map.json with per-file risk scores, tiers (CRITICAL/HIGH/MEDIUM/LOW/STALE/UNKNOWN).",
+      "files": [],
+      "expectations": [
+        "Lists all skip conditions: talisman gates, --no-lore, non-git, no file refs, <5 commits",
+        "Notes G5 guard: <5 commits in lookback window skips Lore Layer",
+        "Explains data discovery: check for existing risk-map with >30% overlap",
+        "Notes lore-analyst spawn is ATE-1 exempt (bare Agent allowed)",
+        "States 30 second timeout for lore-analyst",
+        "Notes non-blocking behavior on timeout"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Describe the Phase 2 Forge Gaze selection algorithm in detail. What are the selection constants for default vs exhaustive mode? How does risk boosting work? What is the force-include list from Phase 1.7?",
+      "expected_output": "Phase 2 Forge Gaze: Selection constants - Default: threshold 0.30, max 3 agents/section, max 5 concurrent, max 8 total. Exhaustive: threshold 0.15, max 5 agents/section, max 5 concurrent, max 12 total. Risk boosting: CRITICAL files +0.15 to all agent scores, HIGH files +0.08, capped at 1.0 via Math.min. Force-include: from Phase 1.7 Codex Section Validation, sections that reference high-risk files but have no Forge Gaze agent match get default rune-architect with 0.50 score. Topic matching: registry maps keywords to agent capabilities, each section matched against agent topics. Output: assignments map (section -> [[agent, score]] pairs), riskBoost flags on sections.",
+      "files": [],
+      "expectations": [
+        "Lists default constants: threshold 0.30, max 3 agents/section, max 8 total",
+        "Lists exhaustive constants: threshold 0.15, max 5 agents/section, max 12 total",
+        "Notes max concurrent is 5 for both modes",
+        "Describes risk boosting: CRITICAL +0.15, HIGH +0.08",
+        "Mentions Math.min cap at 1.0 for boosted scores",
+        "Explains force-include from Phase 1.7 Codex Section Validation",
+        "Notes default agent for force-include is rune-architect with 0.50 score"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Explain the Phase 1.7 Codex Section Validation. When does it run? What conditions skip it? What output does it produce for Phase 2?",
+      "expected_output": "Phase 1.7 Codex Section Validation: Trigger: Codex CLI available AND codex.disabled !== true AND codex.section_validation.enabled !== false AND 'forge' in codex.workflows AND sections.length > 5. Skip conditions: Codex unavailable, codex.disabled, section_validation.enabled === false, 'forge' not in workflows, <=5 sections. Process: cross-model validation of enrichment coverage, identifies sections referencing high-risk files with no Forge Gaze match. Output: forceIncludeList[] consumed by Phase 2. Prompt: nonce-bounded, 4-condition gate. Security: SEC-003 compliance via temp file for prompt (not shell string interpolation). Purpose: catches gaps where file risk doesn't match agent selection.",
+      "files": [],
+      "expectations": [
+        "Lists trigger conditions: Codex available, enabled, forge in workflows, >5 sections",
+        "Lists all skip conditions",
+        "Describes purpose: catch sections with high-risk files but no agent match",
+        "Notes output is forceIncludeList[] for Phase 2",
+        "Mentions SEC-003 compliance via temp file",
+        "Notes 4-condition gate in prompt"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "What is the enrichment output format that forge agents must produce? List all subsections and what each should contain. What sections can be omitted?",
+      "expected_output": "Enrichment Output Format: ## Enrichment: {section title} — {agent name} followed by subsections: ### Best Practices (industry standards, community conventions, proven patterns), ### Performance Considerations (complexity analysis, bottlenecks, optimization opportunities), ### Implementation Details (concrete recommendations, code patterns from codebase, specific approaches), ### Edge Cases & Risks (failure modes, boundary conditions, security implications), ### References (file paths with line numbers, external docs, related PRs/issues). Empty subsections should be omitted entirely, not left blank. Output must include evidence from actual source files (Rune Traces), not generic advice. Agents should NOT write implementation code — research and enrichment only.",
+      "files": [],
+      "expectations": [
+        "Lists 5 subsections: Best Practices, Performance, Implementation Details, Edge Cases & Risks, References",
+        "Notes empty subsections should be omitted, not left blank",
+        "Requires evidence from actual source files",
+        "States agents must NOT write implementation code",
+        "Notes enrichment is research-based, not code generation"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Explain the Phase 3-4 scope confirmation and agent summoning process. What happens in arc context? What is the inscription.json schema for forge? How does risk context injection work?",
+      "expected_output": "Phase 3-4 flow: Phase 3 (Confirm Scope): AskUserQuestion with selected agents, skipped in arc context (tmp/arc/ prefix). Phase 3.5: Acquire workflow lock. Phase 4: Team lifecycle via teamTransition. Inscription schema: { workflow: 'rune-forge', timestamp, plan, output_dir, teammates: [{ name, role: 'enrichment', output_file, required_sections }], verification: { enabled: false } }. Risk context injection: from Phase 1.5 risk-map, render per-section risk context template for files referenced in that section, inject into agent prompts. Also includes wisdom passthrough from prior Goldmask runs (7-day lookback). Session isolation: state file includes config_dir, owner_pid, session_id. Summon throttle: max 5 concurrent, queue remaining.",
+      "files": [],
+      "expectations": [
+        "Notes Phase 3 confirmation skipped in arc context",
+        "Describes Phase 3.5 workflow lock acquisition",
+        "Lists inscription.json fields: workflow, timestamp, plan, output_dir, teammates, verification",
+        "Notes teammates have role: 'enrichment' and required_sections",
+        "Explains risk context injection from risk-map per section",
+        "Mentions wisdom passthrough with 7-day lookback",
+        "Notes session isolation fields in state file",
+        "Mentions summon throttle: max 5 concurrent"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Describe the Phase 5 plan merging algorithm. How are enrichments merged? What is the backup strategy? How are section end markers detected?",
+      "expected_output": "Phase 5 Merging: Backup: Before any edits, cp planPath to tmp/forge/{timestamp}/original-plan.md for rollback capability. Merge algorithm: For each section with enrichments, read all agent output files, join with newlines, find section end marker (next ## heading or EOF), use Edit tool to insert enrichment block before marker. Edit strategy: old_string = sectionEndMarker, new_string = enrichmentBlock + '\\n\\n' + sectionEndMarker. Each enrichment file already contains ### headings per the format, so they nest correctly under ## section. Conflict handling: if Edit fails (section changed), re-read plan, retry with updated content. Output: enriched plan (same file, sections deepened in-place).",
+      "files": [],
+      "expectations": [
+        "Describes backup to tmp/forge/{timestamp}/original-plan.md",
+        "Notes Edit tool is used (not overwrite)",
+        "Explains section end marker detection: next ## heading or EOF",
+        "Describes Edit strategy: insert before marker",
+        "Notes enrichment files contain ### headings that nest correctly",
+        "Mentions conflict handling: re-read and retry on Edit failure"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Explain the Phase 6 cleanup protocol for forge. What are the 5 components? What is the workflow lock release pattern? What post-enhancement options are offered?",
+      "expected_output": "Phase 6 Cleanup: 5 components: (1) Dynamic member discovery — read team config for all teammates; (2) shutdown_request to all members via SendMessage; (3) Grace period (20s) for deregistration; (4) TeamDelete with retry-with-backoff (0s, 5s, 10s, 15s); (5) Filesystem fallback if TeamDelete never succeeded. Workflow lock release: Bash with source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock 'forge'. Post-enhancement options (skipped in arc): AskUserQuestion with options like 'Run /rune:strive to implement', 'Run /rune:appraise on changed files', 'View enrichment diff', 'Done'. Completion report: summary of sections enriched, agents summoned, files modified. CHOME pattern: ${CLAUDE_CONFIG_DIR:-$HOME/.claude} for multi-account support.",
+      "files": [],
+      "expectations": [
+        "Lists 5 cleanup components in order",
+        "Notes 20s grace period",
+        "Lists TeamDelete retry delays: 0s, 5s, 10s, 15s",
+        "Describes workflow lock release command",
+        "Lists post-enhancement options",
+        "Notes arc context skips post-enhancement options",
+        "Mentions CHOME pattern for multi-account support"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "What error handling exists in the forge workflow? Explain recovery for: (1) Plan file not found, (2) No agents matched any section, (3) Lore-analyst timeout, (4) Forge agent timeout (>5 min), (5) Edit conflict during merge, (6) Backup file missing.",
+      "expected_output": "Error handling matrix: (1) Plan not found: error message + suggest /rune:devise first, abort workflow. (2) No agents matched: warn user, suggest --exhaustive for lower threshold, offer to proceed with generic enrichment. (3) Lore-analyst timeout (30s): proceed without risk data, non-blocking. (4) Forge agent timeout (>5 min): release task, warn user, proceed with available enrichments (partial output). (5) Edit conflict: re-read plan, retry Edit with updated content. (6) Backup missing: warn cannot revert, suggest git checkout as fallback. All errors prefer partial output over abort — forge is non-blocking where possible. Risk-map parse error: proceed without risk boost or context injection.",
+      "files": [],
+      "expectations": [
+        "Plan not found: suggest /rune:devise",
+        "No agents matched: suggest --exhaustive",
+        "Lore-analyst timeout: non-blocking, proceed without risk data",
+        "Forge agent timeout: release task, proceed with partial enrichments",
+        "Edit conflict: re-read and retry",
+        "Backup missing: warn, suggest git checkout",
+        "Notes forge prefers partial output over abort"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "Explain the Codex Oracle integration in forge. When does Codex participate? How is the prompt constructed? What sanitization is applied to plan content before passing to Codex?",
+      "expected_output": "Codex Oracle in forge: Trigger: command -v codex returns 0 AND codex.disabled !== true AND 'forge' in codex.workflows. Entry in topic registry: topics [security, performance, api, architecture, testing, quality], threshold_override 0.25. Prompt construction: Write to temp file (SEC-003), not shell interpolation. Sanitization (CDX-010): strip HTML comments, replace code fences with [code-block-removed], strip zero-width chars (U+200B-U+200D, U+FEFF, U+FE00-U+FE0F), strip tag block chars (U+E0000-E007F), strip math alphanumerics (U+1D400-1D7FF homoglyphs), strip angle brackets, cap at 500 chars. Architecture: Codex runs INSIDE forge agent teammate (not dedicated teammate) — exception to Architecture Rule #1.",
+      "files": [],
+      "expectations": [
+        "Lists trigger conditions: codex available, enabled, forge in workflows",
+        "Notes threshold_override is 0.25 for Codex",
+        "Describes temp file approach for SEC-003 compliance",
+        "Lists sanitization steps: HTML comments, code fences, zero-width chars, homoglyphs",
+        "Notes 500 char cap on plan content",
+        "Mentions Codex runs inside forge agent teammate (Architecture Rule #1 exception)"
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "What is the Elicitation Sage spawning logic in forge? What keyword pre-filter is used? What is MAX_FORGE_SAGES and why is it capped?",
+      "expected_output": "Elicitation Sage spawning: Gate: readTalismanSection('gates')?.elicitation?.enabled !== false. Keyword pre-filter: ['architecture', 'security', 'risk', 'design', 'trade-off', 'migration', 'performance', 'decision', 'approach', 'comparison']. Section text = title + first 200 chars of content, lowercased. If any keyword matches, spawn sage for that section. MAX_FORGE_SAGES = 6, capped to prevent resource exhaustion. Each sage gets 2000 char section content limit (vs 8000 for regular forge agents). Auto-selects top method from methods.csv for forge:3 phase. Output: {section-slug}-elicitation-sage.md. Spawns as general-purpose subagent with elicitation-sage-{sectionIndex} naming.",
+      "files": [],
+      "expectations": [
+        "Lists the 10 elicitation keywords",
+        "Notes keyword check uses title + first 200 chars",
+        "States MAX_FORGE_SAGES = 6",
+        "Notes 2000 char limit for sages vs 8000 for regular agents",
+        "Describes auto-select from methods.csv for forge:3 phase",
+        "Mentions subagent naming: elicitation-sage-{sectionIndex}"
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "How does section slug generation work? Why is sanitization important? What pattern is used?",
+      "expected_output": "Section slug generation: Input: section.title from ## heading. Pattern: (1) toLowerCase(), (2) replace /[^a-z0-9_-]/g with '-', (3) replace /-+/g with single '-', (4) replace /^-|-$/g with empty string. Example: 'API Integration (v2.0)' -> 'api-integration-v2-0'. Purpose: REVIEW-013 fix — prevents path traversal and special character issues in output file paths. Used in output files like {section-slug}-{agent-name}.md. Matches same sanitization applied to all Rune workflows that use section titles in file paths.",
+      "files": [],
+      "expectations": [
+        "Describes the 4-step sanitization process",
+        "Provides an example transformation",
+        "Notes REVIEW-013 fix for path traversal prevention",
+        "Explains use in output file naming"
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "Explain the --exhaustive flag behavior in forge. What changes compared to default mode? When would you use it?",
+      "expected_output": "--exhaustive flag changes: (1) Threshold: 0.15 vs 0.30 default — catches more agent matches. (2) Max per section: 5 agents vs 3 — deeper coverage. (3) Max total: 12 agents vs 8 — broader perspective. (4) Research-budget agents included even without CRITICAL/HIGH risk boost. (5) Two-tier aggregation for larger output. (6) Cost warning shown before summoning. Use cases: complex features with cross-cutting concerns, security-critical changes, architecture refactors, high-risk file modifications. Not needed for straightforward tasks or when cost is a concern. The flag can be combined with specific plan path: /rune:forge plans/my-plan.md --exhaustive.",
+      "files": [],
+      "expectations": [
+        "Lists threshold change: 0.15 vs 0.30",
+        "Lists max agents changes: 5/section vs 3, 12 total vs 8",
+        "Notes research-budget agents included without risk boost",
+        "Mentions two-tier aggregation",
+        "Notes cost warning before summoning",
+        "Lists use cases: complex features, security-critical, architecture refactors"
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "What MCP integrations are resolved in Phase 1.6? How does the resolver work? What is the zero-overhead principle?",
+      "expected_output": "Phase 1.6 MCP Integration Resolution: Resolver: resolveMCPIntegrations('forge', { changedFiles: uniqueFiles, taskDescription: planContent }). Triple-gated: (1) integrations.mcp_tools exists in talisman, (2) phase match ('forge'), (3) trigger match (file patterns or keywords). Output: mcpContextBlock string for injection into Phase 4 agent prompts. Zero-overhead principle: if resolver returns empty array, mcpContextBlock is '' — no injection occurs, no token cost. Output is computed once in Phase 1.6 and passed to all Phase 4 agents. See strive/references/mcp-integration.md for the shared resolver algorithm.",
+      "files": [],
+      "expectations": [
+        "Describes resolveMCPIntegrations function signature",
+        "Lists triple-gate: integrations exist, phase match, trigger match",
+        "Notes mcpContextBlock is empty string when no integrations match",
+        "Explains zero-overhead principle: no injection = no token cost",
+        "Notes computed once and passed to all agents"
+      ]
+    }
+  ]
+}
