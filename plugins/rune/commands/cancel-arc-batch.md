@@ -11,8 +11,11 @@ description: |
 user-invocable: true
 allowed-tools:
   - Read
+  - Write
   - Bash
   - Glob
+  - CronList
+  - CronDelete
 ---
 
 # /rune:cancel-arc-batch — Cancel Active Arc Batch Loop
@@ -83,6 +86,36 @@ if (Bash(`test -f "${progressFile}" && echo "yes" || echo "no"`).trim() === "yes
     }
   } catch (e) {
     // Progress file unreadable — proceed with state file removal anyway
+  }
+}
+```
+
+### 2.6. Cancel Scheduled Monitoring Task (if any)
+
+If the batch was scheduled with a monitoring task, cancel it:
+
+```javascript
+// Check for scheduled task ID in progress file
+const progressFile = "tmp/arc-batch/batch-progress.json"
+if (Bash(`test -f "${progressFile}" && echo "yes" || echo "no"`).trim() === "yes") {
+  try {
+    const progress = JSON.parse(Read(progressFile))
+    const cronTaskId = progress.cron_task_id
+    if (cronTaskId) {
+      try {
+        const existingTasks = CronList()
+        const taskExists = existingTasks.some(t => t.id === cronTaskId)
+        if (taskExists) {
+          CronDelete({ task_id: cronTaskId })
+          log(`Cancelled scheduled monitoring task: ${cronTaskId}`)
+        }
+      } catch (e) {
+        warn(`Failed to cancel scheduled task ${cronTaskId}: ${e.message}`)
+        // Non-blocking — batch cancellation proceeds regardless
+      }
+    }
+  } catch (e) {
+    // Progress file unreadable — skip scheduled task cleanup
   }
 }
 ```

@@ -1,10 +1,10 @@
 # Initialize Checkpoint (ARC-2) — Full Algorithm
 
 Checkpoint initialization: config resolution (3-layer), session identity,
-checkpoint schema v21 creation, and initial state write.
+checkpoint schema v22 creation, and initial state write.
 
 **Inputs**: plan path, talisman config, arc arguments, `freshnessResult` from Freshness Check
-**Outputs**: checkpoint object (schema v21), resolved arc config (`arcConfig`)
+**Outputs**: checkpoint object (schema v22), resolved arc config (`arcConfig`)
 **Error handling**: Fail arc if plan file missing or config invalid
 **Consumers**: SKILL.md checkpoint-init stub, resume logic in [arc-resume.md](arc-resume.md)
 
@@ -149,9 +149,9 @@ const changedFiles = diffStats.files || []
 const arcTotalTimeout = calculateDynamicTimeout(tier)
 ```
 
-## Checkpoint Schema v21
+## Checkpoint Schema v22
 
-// Schema history: see CHANGELOG.md for migration notes from v12-v21.
+// Schema history: see CHANGELOG.md for migration notes from v12-v22.
 
 ```javascript
 // ── Resolve session identity for cross-session isolation ──
@@ -174,7 +174,7 @@ const parentPlanMeta = {
 // The arc-hierarchy SKILL.md documents the injection protocol.
 
 Write(`.claude/arc/${id}/checkpoint.json`, {
-  id, schema_version: 21, plan_file: planFile,
+  id, schema_version: 22, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}",
   flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, accept_external_changes: arcConfig.accept_external_changes ?? true, bot_review: arcConfig.bot_review ?? false, no_bot_review: arcConfig.no_bot_review ?? false },
   arc_config: arcConfig,
@@ -244,6 +244,28 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
   // CRITICAL: Set todos_base eagerly during init — NOT as a separate post-init step.
   // Previously null here, causing downstream phases to scatter todos across standalone dirs.
   todos_base: `tmp/arc/${id}/todos/`,
+  // Schema v22 addition (v1.144.0): cancellation tracking
+  user_cancelled: false,
+  cancel_reason: null,
+  cancelled_at: null,
+  stop_reason: null,
+  // Schema v22 addition (v1.144.0): scheduled task linkage
+  cron_task_id: null,
+  // Schema v22 addition (v1.144.0): resume analytics for crash recovery
+  resume_tracking: {
+    total_resume_count: 0,
+    resume_history: [],
+    last_resume_at: null,
+    consecutive_failures: 0
+  },
+  // Schema v22 addition (v1.144.0): scheduler state for recurring arcs
+  scheduler: {
+    created_at: null,
+    interval_minutes: null,
+    expires_at: null,
+    renewal_count: 0,
+    last_renewal_at: null
+  },
   commits: [],
   started_at: new Date().toISOString(),
   updated_at: new Date().toISOString()
@@ -254,6 +276,80 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
 // the directory existing when they scan for arc context.
 Bash(`mkdir -p "tmp/arc/${id}/todos/"`)
 
-// Schema migration is handled in arc-resume.md (steps 3a through 3v).
-// Migrations v1→v21 are defined there. See arc-resume.md for the full chain.
+// ── Scheduled Monitoring Task Creation (Schema v22) ──
+// Create a scheduled task to monitor arc health and auto-resume on unexpected stops.
+// Only runs when scheduler is enabled and CronCreate is available.
+const schedulerConfig = readTalismanSection("arc")?.scheduler ?? {}
+const schedulerEnabled = schedulerConfig.enabled !== false
+
+if (schedulerEnabled && typeof CronCreate !== 'undefined') {
+  const intervalMinutes = schedulerConfig.interval_minutes ?? 15
+  const cronExpr = `*/${intervalMinutes} * * * *`
+
+  // Build the monitoring prompt with all necessary context
+  const monitoringPrompt = buildArcMonitoringPrompt(checkpoint)
+
+  try {
+    const cronResult = CronCreate({
+      cron_expression: cronExpr,
+      prompt: monitoringPrompt,
+      recurring: true
+    })
+
+    // Update checkpoint with scheduler info
+    checkpoint.cron_task_id = cronResult.id
+    checkpoint.scheduler = {
+      created_at: new Date().toISOString(),
+      interval_minutes: intervalMinutes,
+      expires_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+      renewal_count: 0,
+      last_renewal_at: null
+    }
+
+    log(`[ARC-SCHEDULER] Created monitoring task ${cronResult.id} for arc ${checkpoint.id}`)
+  } catch (error) {
+    warn(`Failed to create monitoring task: ${error.message}`)
+    // Non-fatal - arc continues without monitoring
+  }
+} else {
+  log("[ARC-SCHEDULER] Scheduled tasks not available or disabled")
+}
+
+// Schema migration is handled in arc-resume.md (steps 3a through 3w).
+// Migrations v1→v22 are defined there. See arc-resume.md for the full chain.
 ```
+
+## buildArcMonitoringPrompt()
+
+Generate the monitoring prompt for the scheduled task. This prompt is injected as plain text into CronCreate and must be self-contained.
+
+```javascript
+function buildArcMonitoringPrompt(checkpoint) {
+  const cooldownMinutes = schedulerConfig?.auto_resume?.cooldown_minutes ?? 5
+  const maxTotalResumes = schedulerConfig?.auto_resume?.max_total_resumes ?? 10
+  const maxConsecutiveFailures = schedulerConfig?.auto_resume?.max_consecutive_failures ?? 3
+
+  return `[ARC-SCHEDULER MONITORING] Arc ID: ${checkpoint.id}
+
+You are a monitoring task for an active Rune arc pipeline. Check if the arc needs to be resumed.
+
+1. Read the file .claude/arc-phase-loop.local.md
+2. Parse its YAML frontmatter
+
+Decision tree:
+- If file does not exist → arc was cleaned up. Delete this monitoring task: CronDelete task_id=${checkpoint.cron_task_id}
+- If user_cancelled=true or stop_reason="completed" or stop_reason="user_cancel" → arc finished or was cancelled. Delete this task: CronDelete task_id=${checkpoint.cron_task_id}
+- If active=true AND no phase is currently in_progress in the checkpoint at .claude/arc/${checkpoint.id}/checkpoint.json → unexpected stop detected. Check cooldown first (see below), then Run: /rune:arc --resume
+- If active=true AND a phase IS in_progress → arc is still running normally. No action needed.
+
+Cooldown check (prevents concurrent resumes):
+- Read checkpoint.resume_tracking.last_resume_at
+- If last_resume_at is within the last ${cooldownMinutes} minutes → skip this cycle. Another resume may still be in progress.
+
+Resume limits (read from checkpoint resume_tracking):
+- If total_resume_count >= ${maxTotalResumes} → do NOT resume. Delete this task.
+- If consecutive_failures >= ${maxConsecutiveFailures} → do NOT resume. Delete this task.
+
+Before resuming, update checkpoint.resume_tracking: increment total_resume_count, set last_resume_at to now, add entry to resume_history with timestamp and trigger="scheduled_monitor".
+After a SUCCESSFUL resume completes a phase: reset consecutive_failures to 0.`
+}
