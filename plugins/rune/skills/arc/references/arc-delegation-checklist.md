@@ -152,7 +152,7 @@ Delegated to codex-phase-handler teammate in team `arc-codex-td-{id}`.
 |------|--------|--------|
 | Gate check (4 conditions + cascade breaker) | **RUN** | Tarnished checks before spawning teammate |
 | TeamCreate + TaskCreate + Agent | **RUN** | Spawn codex-phase-handler with single aspect (task validation) |
-| Plan content sanitization | **ADAPT** | Teammate sanitizes plan content inline (10k char limit) per codex-phase-handler Content Sanitization rules |
+| Plan content sanitization | **ADAPT** | Teammate sanitizes plan content inline (10k char limit) per sanitization rules embedded in spawn prompt |
 | Codex execution | **SKIP** | Teammate handles via `codex-exec.sh -o` |
 | CDX-TASK finding count extraction | **SKIP** | Teammate extracts and sends via SendMessage |
 | Checkpoint update | **ADAPT** | Tarnished updates checkpoint from teammate's metadata |

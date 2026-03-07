@@ -153,7 +153,7 @@ fi
 
 # ─── Validation: model allowlist ──────────────────────────────────────────────
 MODEL=$(echo "$MODEL" | tr '[:upper:]' '[:lower:]')
-CODEX_MODEL_ALLOWLIST='^gpt-5(\.[0-9]+)?-codex(-spark)?$'
+CODEX_MODEL_ALLOWLIST='^gpt-5(\.[0-9]{1,3})?-codex(-spark)?$'
 if [[ ! "$MODEL" =~ $CODEX_MODEL_ALLOWLIST ]]; then
   _trace "WARN: Model '$MODEL' rejected by allowlist — falling back to gpt-5.3-codex"
   echo "WARN: Model '$MODEL' not in allowlist — using gpt-5.3-codex" >&2
@@ -269,16 +269,22 @@ if [[ -n "$OUTPUT_FILE" ]]; then
   if [[ "$JSON_MODE" -eq 1 ]]; then
     # JSON mode + file output: jq filter BEFORE redirect (SEC-010a)
     if [[ "$HAS_TIMEOUT" -eq 1 ]]; then
-      cat "$PROMPT_FILE" | timeout $KILL_AFTER_FLAG "$TIMEOUT" codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" | \
-        jq -r 'select(.type == "item.completed" and .item.type == "agent_message") | .item.text' > "$OUTPUT_TMP" || CODEX_EXIT=$?
+      set +o pipefail
+      cat "$PROMPT_FILE" | timeout ${KILL_AFTER_FLAG:+"$KILL_AFTER_FLAG"} "$TIMEOUT" codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" | \
+        jq -r 'select(.type == "item.completed" and .item.type == "agent_message") | .item.text' > "$OUTPUT_TMP"
+      _ps=("${PIPESTATUS[@]}"); CODEX_EXIT="${_ps[1]}"
+      set -o pipefail
     else
+      set +o pipefail
       cat "$PROMPT_FILE" | codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" | \
-        jq -r 'select(.type == "item.completed" and .item.type == "agent_message") | .item.text' > "$OUTPUT_TMP" || CODEX_EXIT=$?
+        jq -r 'select(.type == "item.completed" and .item.type == "agent_message") | .item.text' > "$OUTPUT_TMP"
+      _ps=("${PIPESTATUS[@]}"); CODEX_EXIT="${_ps[1]}"
+      set -o pipefail
     fi
   else
     # Raw mode + file output
     if [[ "$HAS_TIMEOUT" -eq 1 ]]; then
-      cat "$PROMPT_FILE" | timeout $KILL_AFTER_FLAG "$TIMEOUT" codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" > "$OUTPUT_TMP" || CODEX_EXIT=$?
+      cat "$PROMPT_FILE" | timeout ${KILL_AFTER_FLAG:+"$KILL_AFTER_FLAG"} "$TIMEOUT" codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" > "$OUTPUT_TMP" || CODEX_EXIT=$?
     else
       cat "$PROMPT_FILE" | codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" > "$OUTPUT_TMP" || CODEX_EXIT=$?
     fi
@@ -303,16 +309,22 @@ else
   if [[ "$JSON_MODE" -eq 1 ]]; then
     # JSON mode: pipe through jq to extract agent message text
     if [[ "$HAS_TIMEOUT" -eq 1 ]]; then
-      cat "$PROMPT_FILE" | timeout $KILL_AFTER_FLAG "$TIMEOUT" codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" | \
-        jq -r 'select(.type == "item.completed" and .item.type == "agent_message") | .item.text' || CODEX_EXIT=$?
+      set +o pipefail
+      cat "$PROMPT_FILE" | timeout ${KILL_AFTER_FLAG:+"$KILL_AFTER_FLAG"} "$TIMEOUT" codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" | \
+        jq -r 'select(.type == "item.completed" and .item.type == "agent_message") | .item.text'
+      _ps=("${PIPESTATUS[@]}"); CODEX_EXIT="${_ps[1]}"
+      set -o pipefail
     else
+      set +o pipefail
       cat "$PROMPT_FILE" | codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" | \
-        jq -r 'select(.type == "item.completed" and .item.type == "agent_message") | .item.text' || CODEX_EXIT=$?
+        jq -r 'select(.type == "item.completed" and .item.type == "agent_message") | .item.text'
+      _ps=("${PIPESTATUS[@]}"); CODEX_EXIT="${_ps[1]}"
+      set -o pipefail
     fi
   else
     # Raw mode: direct output
     if [[ "$HAS_TIMEOUT" -eq 1 ]]; then
-      cat "$PROMPT_FILE" | timeout $KILL_AFTER_FLAG "$TIMEOUT" codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" || CODEX_EXIT=$?
+      cat "$PROMPT_FILE" | timeout ${KILL_AFTER_FLAG:+"$KILL_AFTER_FLAG"} "$TIMEOUT" codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" || CODEX_EXIT=$?
     else
       cat "$PROMPT_FILE" | codex exec "${CODEX_FLAGS[@]}" 2>"$STDERR_FILE" || CODEX_EXIT=$?
     fi

@@ -1,6 +1,6 @@
 # Codex Phases — Full Algorithm
 
-Two Codex-powered phases sharing common patterns: availability check, talisman config,
+Five Codex-powered phases sharing common patterns: availability check, talisman config,
 nonce-bounded prompt, codex exec, checkpoint update.
 
 **Inputs**: enrichedPlanPath (Phase 2.8), plan file + git diff (Phase 5.6), talisman config
@@ -26,6 +26,9 @@ Codex-powered semantic contradiction detection on the enriched plan. Runs AFTER 
 updateCheckpoint({ phase: "semantic_verification", status: "in_progress", phase_sequence: 4.5, team_name: null })
 
 // 5th condition: cascade circuit breaker — check FIRST (matches SKILL.md pattern at line 533)
+// QUAL-004: This gate check is intentionally duplicated in SKILL.md (defense-in-depth).
+// Both the SKILL.md stub and this reference file independently verify the cascade breaker
+// to ensure skip behavior even if one check is bypassed during context loading.
 if (checkpoint.codex_cascade?.cascade_warning === true) {
   Write(`tmp/arc/${id}/codex-semantic-verification.md`, "Codex semantic verification skipped: cascade circuit breaker active.")
   updateCheckpoint({ phase: "semantic_verification", status: "skipped", artifact: `tmp/arc/${id}/codex-semantic-verification.md`, artifact_hash: sha256("Codex semantic verification skipped: cascade circuit breaker active."), phase_sequence: 4.5, team_name: null })
@@ -73,7 +76,7 @@ if (codexAvailable && !codexDisabled && codexWorkflows.includes("arc")) {
     Agent({
       name: "codex-phase-handler-sv",
       team_name: teamName,
-      subagent_type: "codex-phase-handler",
+      subagent_type: "general-purpose",
       prompt: `You are codex-phase-handler for Phase 2.8 SEMANTIC VERIFICATION.
 
 ## Assignment
@@ -156,7 +159,23 @@ If no contradictions found, output: "No scope/timeline contradictions detected."
     // Cleanup team (single-member optimization: 5s grace instead of standard 20s)
     SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-sv", content: "Phase complete" })
     Bash("sleep 5")
-    TeamDelete()  // with retry-with-backoff pattern per CLAUDE.md cleanup standard
+    // Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 5s, 10s, 15s)
+    let svCleanupSucceeded = false
+    const SV_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+    for (let attempt = 0; attempt < SV_CLEANUP_DELAYS.length; attempt++) {
+      if (attempt > 0) Bash(`sleep ${SV_CLEANUP_DELAYS[attempt] / 1000}`)
+      try { TeamDelete(); svCleanupSucceeded = true; break } catch (e) {
+        if (attempt === SV_CLEANUP_DELAYS.length - 1) warn(`cleanup: TeamDelete failed after ${SV_CLEANUP_DELAYS.length} attempts`)
+      }
+    }
+    // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+    if (!svCleanupSucceeded) {
+      Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+      Bash("sleep 3")
+      Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+      Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
+      try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
+    }
 
     // Read only hash from the report (NOT content) — zero Codex tokens in Tarnished context
     const artifactHash = Bash(`sha256sum "tmp/arc/${id}/codex-semantic-verification.md" | cut -d' ' -f1`).trim()
@@ -216,6 +235,9 @@ Codex-powered cross-model gap detection that compares the plan against the actua
 updateCheckpoint({ phase: "codex_gap_analysis", status: "in_progress", phase_sequence: 5.6, team_name: null })
 
 // 5th condition: cascade circuit breaker — check FIRST (matches SKILL.md pattern at line 828)
+// QUAL-004: This gate check is intentionally duplicated in SKILL.md (defense-in-depth).
+// Both the SKILL.md stub and this reference file independently verify the cascade breaker
+// to ensure skip behavior even if one check is bypassed during context loading.
 if (checkpoint.codex_cascade?.cascade_warning === true) {
   Write(`tmp/arc/${id}/codex-gap-analysis.md`, "Codex gap analysis skipped: cascade circuit breaker active.")
   updateCheckpoint({ phase: "codex_gap_analysis", status: "skipped", artifact: `tmp/arc/${id}/codex-gap-analysis.md`, artifact_hash: sha256("Codex gap analysis skipped: cascade circuit breaker active."), phase_sequence: 5.6, team_name: null, codex_needs_remediation: false })
@@ -247,10 +269,14 @@ if (codexAvailable && !codexDisabled && codexWorkflows.includes("arc")) {
     const GIT_SHA_PATTERN = /^[0-9a-f]{7,40}$/
     const rawGitSha = checkpoint.freshness?.git_sha
     const safeGitSha = GIT_SHA_PATTERN.test(rawGitSha ?? '') ? rawGitSha : null
+    // SEC-004: gitDiffRange is safe to interpolate into prompts because safeGitSha
+    // is validated above against GIT_SHA_PATTERN (/^[0-9a-f]{7,40}$/).
     const gitDiffRange = safeGitSha ? `${safeGitSha}..HEAD` : 'HEAD~5..HEAD'
 
-    // Model, reasoning, timeout — validated by codex-exec.sh (SEC-006, SEC-004, CODEX_MODEL_ALLOWLIST)
-    const codexModel = codexConfig?.model ?? "gpt-5.3-codex"
+    // Security pattern: CODEX_MODEL_ALLOWLIST — see security-patterns.md
+    const CODEX_MODEL_ALLOWLIST = /^gpt-5(\.\d+)?-codex(-spark)?$/
+    const codexModel = CODEX_MODEL_ALLOWLIST.test(codexConfig?.model ?? "")
+      ? codexConfig.model : "gpt-5.3-codex"
     const codexReasoning = codexConfig?.gap_analysis?.reasoning ?? "xhigh"
     const rawGapTimeout = Number(codexConfig?.gap_analysis?.timeout)
     const perAspectTimeout = Number.isFinite(rawGapTimeout) ? rawGapTimeout : 900
@@ -273,7 +299,7 @@ if (codexAvailable && !codexDisabled && codexWorkflows.includes("arc")) {
     Agent({
       name: "codex-phase-handler-ga",
       team_name: teamName,
-      subagent_type: "codex-phase-handler",
+      subagent_type: "general-purpose",
       prompt: `You are codex-phase-handler for Phase 5.6 CODEX GAP ANALYSIS.
 
 ## Assignment
@@ -364,14 +390,32 @@ If no issues found, output: "No integrity gaps detected."
     // Cleanup team (single-member optimization: 5s grace instead of standard 20s)
     SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-ga", content: "Phase complete" })
     Bash("sleep 5")
-    TeamDelete()  // with retry-with-backoff pattern per CLAUDE.md cleanup standard
+    // Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 5s, 10s, 15s)
+    let gaCleanupSucceeded = false
+    const GA_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+    for (let attempt = 0; attempt < GA_CLEANUP_DELAYS.length; attempt++) {
+      if (attempt > 0) Bash(`sleep ${GA_CLEANUP_DELAYS[attempt] / 1000}`)
+      try { TeamDelete(); gaCleanupSucceeded = true; break } catch (e) {
+        if (attempt === GA_CLEANUP_DELAYS.length - 1) warn(`cleanup: TeamDelete failed after ${GA_CLEANUP_DELAYS.length} attempts`)
+      }
+    }
+    // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+    if (!gaCleanupSucceeded) {
+      Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+      Bash("sleep 3")
+      Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+      Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
+      try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
+    }
 
     // Read only hash from the report (NOT content) — zero Codex tokens in Tarnished context
     const artifactHash = Bash(`sha256sum "tmp/arc/${id}/codex-gap-analysis.md" | cut -d' ' -f1`).trim()
 
-    // Parse metadata from teammate's SendMessage (codex_needs_remediation, finding counts)
-    // If no message received (teammate crash), compute from file as fallback
-    // Fallback: read just the finding-count lines (a few bytes, not full report content)
+    // BACK-006: teammateMetadata is populated by the SDK's SendMessage reception handler.
+    // When the codex-phase-handler-ga teammate sends a message to team-lead (step 8 in
+    // its instructions), the SDK captures the JSON payload as teammateMetadata on the
+    // Tarnished's side. If the teammate crashes before sending, teammateMetadata is null
+    // and the fallback defaults below apply.
     const codexNeedsRemediation = teammateMetadata?.codex_needs_remediation ?? false
     const codexFindingCount = teammateMetadata?.codex_finding_count ?? 0
 

@@ -64,8 +64,8 @@ Worker and fixer agent prompts include: "Do not modify files in `.claude/arc/`".
 | GOLDMASK CORRELATION | 1 min | Orchestrator-only, deterministic TOME-to-Goldmask correlation |
 | MEND | 23 min | Inner 15m + 5m setup + 3m ward/cross-file |
 | VERIFY MEND | 4 min | Convergence evaluation (orchestrator-only); re-review cycles run as separate Phase 6+7 |
-| TEST | 15 min | Inner 10m + 5m setup; dynamic 40 min with E2E (arc-test-{id} team) |
-| PRE-SHIP VALIDATION | 30 sec | Orchestrator-only, deterministic dual-gate check |
+| TEST | 25 min | Inner 20m + 5m setup; dynamic 50 min with E2E (arc-test-{id} team) |
+| PRE-SHIP VALIDATION | 6 min | Orchestrator-only, deterministic dual-gate check |
 | RELEASE QUALITY CHECK | 10 min | Delegated to codex-phase-handler teammate (arc-codex-rq-{id}) |
 | SHIP | 5 min | Orchestrator-only, push + PR creation |
 | BOT REVIEW WAIT | 15 min | Orchestrator-only, polling for bot reviews (disabled by default — opt-in via talisman or `--bot-review`) |

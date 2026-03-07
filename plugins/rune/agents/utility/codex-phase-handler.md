@@ -8,7 +8,7 @@ description: |
   back — only structured metadata (finding counts, flags, hashes).
   Triggers: Spawned by arc Tarnished during Codex phases (2.8, 4.5, 5.6, 7.8, 8.55).
 tools: Read, Write, Bash, Glob, Grep, SendMessage, TaskList, TaskGet, TaskUpdate
-model: sonnet  # Minimal reasoning required — orchestrates shell commands and parses output. Bypasses resolveModelForAgent() intentionally.
+model: sonnet  # Intentional cost-tier override: Codex phase orchestration requires minimal reasoning (shell commands + output parsing). Sonnet is sufficient and saves ~80% vs Opus. Bypasses resolveModelForAgent() by design.
 maxTurns: 25
 ---
 
@@ -70,6 +70,7 @@ For each aspect in `aspects[]`:
 4. **Clean up prompt file**: `rm -f "{prompt_file}"`
 
 When multiple aspects exist, run them in **parallel** (separate Bash calls).
+If any aspect fails during parallel execution: (1) record the failure with its `error_class` and stderr, (2) continue with remaining aspects — do not abort the batch, (3) report partial results with `status: "partial"` in the final SendMessage, listing failed vs succeeded aspects in separate arrays (`failed_aspects[]` and `succeeded_aspects[]`).
 
 ### 4. Aggregate (Multi-Aspect Phases)
 
@@ -99,7 +100,7 @@ Send structured metadata to the recipient (team lead / Tarnished):
 ```json
 {
   "phase": "{phase_name}",
-  "status": "completed|skipped|error",
+  "status": "completed|partial|skipped|error",
   "artifact": "{report_output_path}",
   "artifact_hash": "{sha256}",
   "finding_count": 0,

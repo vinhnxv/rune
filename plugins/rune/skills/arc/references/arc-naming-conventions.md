@@ -26,7 +26,7 @@ Canonical taxonomy for arc pipeline terminology. Ensures consistent naming acros
 Phase keys in `checkpoint.phases` use snake_case and match PHASE_ORDER entries:
 
 ```
-forge, plan_review, plan_refine, verification_gate, semantic_verification,
+forge, plan_review, plan_refine, verification, semantic_verification,
 task_decomposition, work, gap_analysis, codex_gap_analysis, gap_remediation,
 goldmask_verification, code_review, goldmask_correlation, mend, verify_mend,
 test, test_coverage_critique, pre_ship_validation, release_quality_check,

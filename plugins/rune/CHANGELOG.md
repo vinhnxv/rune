@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.142.0] - 2026-03-07
+
+### Added
+- **codex-phase-handler** — New utility agent for delegated Codex phase execution
+
+### Changed
+- **Arc Codex delegation** — Delegated 5 Codex phases (2.8, 4.5, 5.6, 7.8, 8.55) to codex-phase-handler teammate
+- **Tarnished context optimization** — Zero Codex output tokens in Tarnished context window (~60k token savings per pipeline)
+
 ## [1.141.2] - 2026-03-07
 
 ### Fixed
