@@ -123,7 +123,7 @@ Base findings on actual plan content, not assumptions.
 2. Gate check: command -v codex
 3. Read and sanitize plan content from tmp/arc/${id}/enriched-plan.md
 4. Write the prompt (with sanitized plan inserted) to the prompt file path
-5. Run: codex-exec.sh -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g -o tmp/arc/${id}/task-validation.md tmp/arc/${id}/.codex-prompt-task-decomp.tmp
+5. Run: "${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g -o tmp/arc/${id}/task-validation.md tmp/arc/${id}/.codex-prompt-task-decomp.tmp
 6. Clean up prompt file
 7. Compute sha256sum of final report
 8. Count CDX-TASK findings in report
