@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.141.2] - 2026-03-07
+
+### Fixed
+- **Figma MCP server** — Fix `FigmaClient not available in server context` error caused by MCP Python SDK v1.26.0 breaking change. Updated lifespan context access path: `ctx.request_context["figma_client"]` → `ctx.request_context.lifespan_context["figma_client"]`
+- **MCP SDK version pin** — Pin `mcp[cli]>=1.6.0,<2.0.0` to prevent future breakage from SDK API changes
+
 ## [1.141.1] - 2026-03-07
 
 ### Fixed
