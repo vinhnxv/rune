@@ -107,8 +107,6 @@ Write("tmp/.rune-arc-batch-next-plan.txt", arcArgs)
 // Native skill invocation — no subprocess, no timeout limit.
 // Each arc runs as a full Claude Code turn with complete tool access.
 // ARC-BATCH-001 FIX: Use "rune:arc" (not "arc") — must match stop hook naming.
-// Without the prefix, the Skill tool may not resolve the plugin-scoped skill,
-// and Claude may skip the skill entirely and implement the plan directly.
 // Arc-batch always passes --accept-external: batch runs commonly accumulate
 // commits from prior arcs or parallel sessions on the same branch.
 //
@@ -119,11 +117,19 @@ Write("tmp/.rune-arc-batch-next-plan.txt", arcArgs)
 Skill("rune:arc", arcArgs)
 // Equivalent to: Skill("rune:arc", "${firstPlan} --skip-freshness --accept-external${mergeFlag}")
 
-// CRITICAL — SKILL INVOCATION REQUIRED:
-// - /rune:arc is a SKILL (slash command). You MUST call it via the Skill tool.
-// - The Skill tool takes TWO parameters: skill name AND arguments string.
-// - DO NOT implement the plan code directly. DO NOT skip to coding or the work phase.
-// - DO NOT read the plan and start implementing. Only the arc skill should orchestrate execution.
+// ⚠️ MANDATORY CONTINUATION — DO NOT STOP AFTER SKILL LOADS:
+// The Skill tool returns "Successfully loaded skill" — this means the arc pipeline
+// INSTRUCTIONS are now in your context. Loading != executing. You MUST immediately
+// begin following the loaded arc instructions:
+//   1. Parse plan path from $ARGUMENTS (or fallback: tmp/.rune-arc-batch-next-plan.txt)
+//   2. Read and execute arc-preflight.md (branch strategy, plan validation)
+//   3. Read and execute arc-checkpoint-init.md (create checkpoint)
+//   4. Write the phase loop state file
+//   5. Execute the first pending phase
+//
+// DO NOT end your response after the Skill call. The Skill call LOADS instructions.
+// You must EXECUTE them. The arc pipeline has 28 phases — start the first one.
+// DO NOT implement the plan code directly. Follow the loaded arc skill instructions.
 
 // After the first arc completes, Claude's response ends.
 // The Stop hook fires, reads the state file, marks plan 1 as completed,
