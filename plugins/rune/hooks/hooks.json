@@ -249,6 +249,13 @@
         "_sec_005_note": "SEC-005 accepted risk: The prompt hook uses ANCHOR/RE-ANCHOR structural framing around the untrusted <task-data> block. Advisory output sections (Step 1 legitimacy check, Step 2 completeness scoring) use prose instructions rather than ANCHOR boundaries — this is intentional for readability. The haiku model's limited capability and the structural-only evaluation scope (no tool calls, no writes) bound exploitability. ANCHOR/RE-ANCHOR framing at the top and bottom of the prompt is the primary injection defense.",
         "hooks": [
           {
+            "_rationale": "VERIFICATION-HARDENING Task 1: Blocks task completion for worker teams (rune-work-*, arc-work-*) when tests exist but no test evidence files found. Checks signal files, worker logs, and ward results. Last-task-only optimization to avoid redundant checks.",
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/validate-test-evidence.sh",
+            "timeout": 15,
+            "statusMessage": "Validating test evidence..."
+          },
+          {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/on-task-completed.sh",
             "timeout": 15,

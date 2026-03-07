@@ -80,6 +80,8 @@ Phase 3: Monitor -> TaskList polling, stale detection
     |
 Phase 3.5: Commit/Merge Broker -> Apply patches or merge worktree branches (orchestrator-only)
     |
+Phase 3.6: Mini Test Phase -> Lightweight unit test verification (orchestrator-only)
+    |
 Phase 3.7: Codex Post-monitor Critique -> Architectural drift detection (optional, non-blocking)
     |
 Phase 4: Ward Check -> Quality gates + verification checklist
@@ -231,6 +233,22 @@ Key steps: validate patch path, read patch + metadata, skip empty patches, dedup
 Replaces the commit broker when `worktreeMode === true`. Called between waves. See [worktree-merge.md](references/worktree-merge.md) for the complete algorithm, conflict resolution flow, and cleanup procedures.
 
 Key guarantees: sorted by task ID for deterministic merge order, dedup guard, `--no-ff` merge, file-based commit message, escalate conflicts to user via `AskUserQuestion` (NEVER auto-resolve), worktree cleanup on completion.
+
+### Phase 3.6: Mini Test Phase (Lightweight Verification)
+
+After the commit/merge broker finishes, optionally run a lightweight test phase to catch obvious regressions before quality gates. Non-blocking — failures create fix tasks but don't block the pipeline.
+
+**Pre-flight**: Check `testing.strive_test.enabled` (default: `true`). Worker drain gate waits for ALL active workers before running tests.
+
+**Scope detection**: Uses `resolveTestScope("")` from testing skill — empty string = current branch diff (no PR number in strive context).
+
+**Test discovery**: Uses `discoverUnitTests(changedFiles)` from testing references — maps changed files to test counterparts by convention.
+
+**Execution**: Spawns `unit-test-runner` on existing team with 3-minute timeout. Runs diff-scoped unit tests only (not full testing pipeline).
+
+**Failure handling**: If failures >= `testing.strive_test.failure_analysis_threshold` (default: 3), spawns `test-failure-analyst` for root cause analysis. Creates fix task for workers.
+
+See [test-phase.md](references/test-phase.md) for the full protocol — pre-flight gates, scope detection, test discovery, runner spawning, failure analysis, and cleanup integration.
 
 ### Phase 3.7: Codex Post-monitor Architectural Critique (Optional, Non-blocking)
 

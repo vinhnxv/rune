@@ -757,6 +757,11 @@
       }
     }
   },
+  "test_evidence": {
+    "block_on_fail": true,
+    "enabled": true,
+    "skip_patterns": []
+  },
   "version": 1,
   "work": {
     "approve_timeout": 180,
