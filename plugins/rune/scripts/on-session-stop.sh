@@ -81,14 +81,20 @@ else
 fi
 
 # ── Helper: Extract a YAML frontmatter field value (single-line, simple values only) ──
-_get_fm_field() {
-  local fm="$1" field="$2"
-  # SEC-002: Validate field name to prevent regex injection via maintenance drift
-  [[ "$field" =~ ^[a-zA-Z_]+$ ]] || return 1
-  # || true: grep returning no match (exit 1) must not trigger ERR trap (set -euo pipefail)
-  # Without this, callers outside `if` conditions (lines 94, 105) would exit 0 via ERR trap
-  printf '%s\n' "$fm" | grep "^${field}:" | sed "s/^${field}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true
-}
+# QUAL-1 FIX: Source canonical frontmatter-utils.sh first, fall back to inline copy.
+# Matches the pattern used by detect-workflow-complete.sh.
+if [[ -f "${SCRIPT_DIR}/lib/frontmatter-utils.sh" ]]; then
+  source "${SCRIPT_DIR}/lib/frontmatter-utils.sh"
+else
+  _get_fm_field() {
+    local fm="$1" field="$2"
+    # SEC-002: Validate field name to prevent regex injection via maintenance drift
+    [[ "$field" =~ ^[a-zA-Z_]+$ ]] || return 1
+    # || true: grep returning no match (exit 1) must not trigger ERR trap (set -euo pipefail)
+    # Without this, callers outside `if` conditions (lines 94, 105) would exit 0 via ERR trap
+    printf '%s\n' "$fm" | grep "^${field}:" | sed "s/^${field}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true
+  }
+fi
 
 # ── Helper: Check if this session owns a loop state file ──
 # Returns 0 (true) if owned, 1 (false) if not. Sets _LOOP_FM for caller to extract extra fields.
@@ -122,13 +128,19 @@ _check_loop_ownership() {
 # take up to 50 min (test with E2E) and the state file mtime is only updated between
 # phases (by arc-phase-stop-hook.sh iteration increment). The 10-min threshold caused
 # premature deletion of active state files, breaking the phase loop.
-# GUARD 5d: 95 min = ~27 phases × ~3.5 min per phase (full arc single-run)
-_PHASE_STALE_MIN=90
+# GUARD 5d: 150 min — aligned with detect-workflow-complete.sh threshold.
+# BACK-3/QUAL-3 FIX: Was 90 min (comment said 95), creating a 90-150 min window
+# where on-session-stop.sh considered phase loop stale but detect-workflow-complete.sh
+# would still defer. Now both scripts use the same 150 min threshold.
+_PHASE_STALE_MIN=150
 [[ -z "${NOW:-}" ]] && NOW=$(date +%s)
 if _check_loop_ownership "${CWD}/.claude/arc-phase-loop.local.md"; then
   _phase_active=$(_get_fm_field "$_LOOP_FM" "active")
   if [[ "$_phase_active" == "true" ]]; then
     _phase_mtime=$(stat -f %m "${CWD}/.claude/arc-phase-loop.local.md" 2>/dev/null || stat -c %Y "${CWD}/.claude/arc-phase-loop.local.md" 2>/dev/null || echo 0)
+    # BACK-8 FIX: Guard against mtime=0 (stat failure → file deleted between check and stat).
+    # mtime=0 produces age ~936,000 min, exceeding all staleness thresholds.
+    if [[ "$_phase_mtime" -le 0 ]]; then exit 0; fi
     _phase_age_min=$(( (NOW - _phase_mtime) / 60 ))
     if [[ $_phase_age_min -gt $_PHASE_STALE_MIN ]]; then
       rm -f "${CWD}/.claude/arc-phase-loop.local.md" 2>/dev/null
@@ -156,6 +168,7 @@ if _check_loop_ownership "${CWD}/.claude/arc-batch-loop.local.md"; then
   if [[ "$_batch_active" == "true" ]]; then
     # Check staleness — if file is older than threshold, loop hook likely crashed
     _batch_mtime=$(stat -f %m "${CWD}/.claude/arc-batch-loop.local.md" 2>/dev/null || stat -c %Y "${CWD}/.claude/arc-batch-loop.local.md" 2>/dev/null || echo 0)
+    if [[ "$_batch_mtime" -le 0 ]]; then exit 0; fi
     _batch_age_min=$(( (NOW - _batch_mtime) / 60 ))
     if [[ $_batch_age_min -gt $_BATCH_STALE_MIN ]]; then
       # Stale loop file — force cleanup instead of deferring
@@ -178,6 +191,7 @@ if _check_loop_ownership "${CWD}/.claude/arc-hierarchy-loop.local.md"; then
   _hier_status=$(_get_fm_field "$_LOOP_FM" "status")
   if [[ "$_hier_status" == "active" ]]; then
     _hier_mtime=$(stat -f %m "${CWD}/.claude/arc-hierarchy-loop.local.md" 2>/dev/null || stat -c %Y "${CWD}/.claude/arc-hierarchy-loop.local.md" 2>/dev/null || echo 0)
+    if [[ "$_hier_mtime" -le 0 ]]; then exit 0; fi
     _hier_age_min=$(( (NOW - _hier_mtime) / 60 ))
     if [[ $_hier_age_min -gt $_HIERARCHY_STALE_MIN ]]; then
       rm -f "${CWD}/.claude/arc-hierarchy-loop.local.md" 2>/dev/null
@@ -198,6 +212,7 @@ if _check_loop_ownership "${CWD}/.claude/arc-issues-loop.local.md"; then
   _issues_active=$(_get_fm_field "$_LOOP_FM" "active")
   if [[ "$_issues_active" == "true" ]]; then
     _issues_mtime=$(stat -f %m "${CWD}/.claude/arc-issues-loop.local.md" 2>/dev/null || stat -c %Y "${CWD}/.claude/arc-issues-loop.local.md" 2>/dev/null || echo 0)
+    if [[ "$_issues_mtime" -le 0 ]]; then exit 0; fi
     _issues_age_min=$(( (NOW - _issues_mtime) / 60 ))
     if [[ $_issues_age_min -gt $_ISSUES_STALE_MIN ]]; then
       rm -f "${CWD}/.claude/arc-issues-loop.local.md" 2>/dev/null

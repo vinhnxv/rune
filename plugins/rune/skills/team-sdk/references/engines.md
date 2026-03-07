@@ -35,6 +35,7 @@ function createTeam(config) {
   // For fresh sessions with no existing team, this avoids 3 failed retries (~11s latency).
   // The SDK throws specific errors: "not leading" when no team exists vs
   // "members still active" when cleanup is needed.
+  // SDK error patterns verified against Claude Code 2.1.63. Update regex if SDK error messages change.
   let teamDeleteSucceeded = false
   let needsRetry = false
   try {

@@ -128,6 +128,7 @@ for loop_file in \
       continue
     fi
 
+    # No ownership fields → legacy loop file — fall through to freshness check (backward compat)
     # OUR loop file — check freshness and defer
     # v1.125.1 FIX: Increased from 30 min to 150 min. Phase loop files stay
     # untouched during long phases (work=35m, test+E2E=50m). Batch/hierarchy/issues
@@ -225,16 +226,17 @@ for sf in "${STATE_FILES[@]}"; do
   SHOULD_CLEAN=false
 
   # REC-5 FIX: Session filter for completed-status path — don't clean another live session's state
+  # BACK-2 FIX: Use ORPHAN flag from first check (lines 211-222) instead of re-calling rune_pid_alive.
+  # Re-checking PID liveness creates a TOCTOU window: if PID is recycled between checks,
+  # first check sets ORPHAN=true but second check sees the recycled PID as alive and skips cleanup.
   if [[ "$SF_STATUS" =~ ^(completed|failed|cancelled)$ ]]; then
     if [[ -z "$SF_PID" ]]; then
       _trace "TRACE $sf: completed state has no owner_pid attribute, skipping cleanup for unattributable state"
       continue
     fi
-    if [[ "$SF_PID" =~ ^[0-9]+$ ]]; then
-      if [[ "$SF_PID" != "$PPID" ]] && rune_pid_alive "$SF_PID"; then
-        _trace "SKIP $sf: completed state belongs to live session PID=$SF_PID"
-        continue
-      fi
+    if [[ "$SF_PID" =~ ^[0-9]+$ && "$SF_PID" != "$PPID" && "$ORPHAN" != "true" ]]; then
+      _trace "SKIP $sf: completed state belongs to live session PID=$SF_PID"
+      continue
     fi
   fi
 
@@ -254,8 +256,10 @@ for sf in "${STATE_FILES[@]}"; do
     fi
   fi
 
-  # Case 2: Orphan (PID dead, status still active)
-  if [[ "$ORPHAN" == "true" && "$SF_STATUS" == "active" ]]; then
+  # Case 2: Orphan (PID dead, status not terminal)
+  # BACK-6 FIX: Match any non-terminal status, not just "active". Non-standard status
+  # values (e.g., custom states) would otherwise create permanent orphans.
+  if [[ "$ORPHAN" == "true" && ! "$SF_STATUS" =~ ^(completed|failed|cancelled|stopped)$ ]]; then
     if [[ -n "$SF_TEAM" && -d "${CHOME}/teams/${SF_TEAM}" ]]; then
       _trace "ORPHAN CLEANUP: $SF_TEAM (dead PID=$SF_PID)"
       SHOULD_CLEAN=true
