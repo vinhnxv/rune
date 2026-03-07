@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.143.1] - 2026-03-07
+
+### Fixed
+- **README sync** — Updated all component counts and tables to match actual plugin state
+  - Version badge: 1.141.0 → 1.143.1
+  - Agent count: 96 → 100 (added 6 UX/design review, 2 storybook work, 4 utility crew agents)
+  - Skills count: 43 → 53 (added 11 missing skills to table)
+  - Arc phases: 26 → 28 (added Storybook Verification, UX Verification)
+  - Commands: added 8 missing commands to Utilities table + brainstorm alias
+  - Architecture section: corrected all file counts (agents 100, review 34, utility 26, testing 5, skills 53, commands 18, scripts 156)
+
 ## [1.143.0] - 2026-03-07
 
 ### Added

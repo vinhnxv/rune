@@ -4,10 +4,10 @@
 
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
-[![Version](https://img.shields.io/badge/version-1.141.0-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-1.143.0-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-96-purple)](#agents)
-[![Skills](https://img.shields.io/badge/skills-52-orange)](#skills)
+[![Agents](https://img.shields.io/badge/agents-100-purple)](#agents)
+[![Skills](https://img.shields.io/badge/skills-53-orange)](#skills)
 
 ---
 
@@ -37,7 +37,7 @@ The trade-off is token cost — multi-agent workflows consume more tokens than a
 > | `/rune:appraise` | 5–20 min | Up to 8 review agents analyzing your diff in parallel — scales with LOC changed |
 > | `/rune:audit` | 10–30 min | Full codebase scan — same agents, broader scope |
 > | `/rune:strive` | 10–30 min | Swarm workers implementing tasks in parallel |
-> | `/rune:arc` | **1–2 hours** | Full 26-phase pipeline (forge → plan review → work → gap analysis → code review → mend → test → ship → merge) |
+> | `/rune:arc` | **1–2 hours** | Full 28-phase pipeline (forge → plan review → work → gap analysis → code review → mend → test → ship → merge) |
 > | `/rune:arc` (complex) | **up to 3 hours** | Large plans with multiple review-mend convergence loops |
 >
 > `/rune:arc` is intentionally slow because it runs the **entire software development lifecycle** autonomously — planning enrichment, parallel implementation, multi-agent code review, automated fixes, 3-tier testing, and PR creation. Each phase spawns and tears down a separate agent team. The result is higher quality, but it takes time.
@@ -143,6 +143,7 @@ You ──► /rune:devise ──► Plan
 | `/rune:plan` | Plan a feature or task | `/rune:devise` |
 | `/rune:work` | Implement a plan with AI workers | `/rune:strive` |
 | `/rune:review` | Review your code changes | `/rune:appraise` |
+| `/rune:brainstorm` | Explore ideas through dialogue | `/rune:brainstorm` |
 
 ### `/rune:tarnished` — The Unified Entry Point
 
@@ -207,6 +208,14 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 | `/rune:cancel-arc` | Gracefully stop a running arc pipeline |
 | `/rune:cancel-review` | Stop an active code review |
 | `/rune:cancel-audit` | Stop an active audit |
+| `/rune:cancel-arc-batch` | Stop an active arc-batch loop |
+| `/rune:cancel-arc-hierarchy` | Stop an active arc-hierarchy loop |
+| `/rune:cancel-arc-issues` | Stop an active arc-issues loop |
+| `/rune:cancel-codex-review` | Stop an active codex review |
+| `/rune:team-spawn` | Spawn an Agent Team using presets |
+| `/rune:team-shutdown` | Gracefully shutdown a team |
+| `/rune:team-delegate` | Task delegation dashboard |
+| `/rune:plan-review` | Review plan code samples for correctness |
 
 ---
 
@@ -233,16 +242,16 @@ Output: `plans/YYYY-MM-DD-{type}-{name}-plan.md`
 
 ### <a name="arc"></a> `/rune:arc` — End-to-End Pipeline
 
-The full pipeline from plan to merged PR, with 26 phases:
+The full pipeline from plan to merged PR, with 28 phases:
 
 ```
 Forge → Plan Review → Refinement → Verification → Semantic Verification
-  → Design Extraction → Task Decomposition → Work → Design Verification
-  → Gap Analysis → Codex Gap Analysis → Gap Remediation
-  → Goldmask Verification → Code Review (--deep) → Goldmask Correlation
-  → Mend → Verify Mend → Design Iteration → Test → Test Coverage Critique
-  → Pre-Ship Validation → Release Quality Check → Ship
-  → Bot Review Wait → PR Comment Resolution → Merge
+  → Design Extraction → Task Decomposition → Work → Storybook Verification
+  → Design Verification → UX Verification → Gap Analysis → Codex Gap Analysis
+  → Gap Remediation → Goldmask Verification → Code Review (--deep)
+  → Goldmask Correlation → Mend → Verify Mend → Design Iteration
+  → Test → Test Coverage Critique → Pre-Ship Validation → Release Quality Check
+  → Ship → Bot Review Wait → PR Comment Resolution → Merge
 ```
 
 ```bash
@@ -333,11 +342,11 @@ Compares a plan against its implementation across 9 quality dimensions:
 
 ## Agents
 
-**96 specialized agents** across 6 categories:
+**100 specialized agents** across 6 categories:
 
-### Review Agents (40)
+### Review Agents (47)
 
-Core reviewers active in every `/rune:appraise` and `/rune:audit` run. Stack specialists (below) are additionally auto-activated based on detected tech stack:
+Core reviewers active in every `/rune:appraise` and `/rune:audit` run. UX and design reviewers (below) are conditionally activated for frontend files. Stack specialists are additionally auto-activated based on detected tech stack:
 
 | Agent | Focus |
 |-------|-------|
@@ -368,6 +377,17 @@ Core reviewers active in every `/rune:appraise` and `/rune:audit` run. Stack spe
 | Agent Parity Reviewer | Agent-native parity, orphan features, context starvation |
 | Senior Engineer Reviewer | Persona-based senior engineer review, production thinking |
 | Cross-Shard Sentinel | Cross-shard consistency for Inscription Sharding (naming drift, pattern inconsistency, auth boundary gaps) |
+
+**UX & Design Reviewers** (conditionally activated for frontend files):
+
+| Agent | Focus |
+|-------|-------|
+| Aesthetic Quality Reviewer | Visual quality beyond pixel-perfect fidelity (AI slop detection, generic layouts) |
+| Design System Compliance Reviewer | Design system convention adherence (token usage, variant patterns) |
+| UX Heuristic Reviewer | Nielsen Norman + Baymard heuristic evaluation (50+ items) |
+| UX Flow Validator | User flow completeness (loading, error, empty states, confirmations) |
+| UX Interaction Auditor | Micro-interactions (hover/focus, keyboard a11y, touch targets, animation) |
+| UX Cognitive Walker | First-time user cognitive walkthrough (discoverability, learnability) |
 
 **Stack Specialists** (auto-activated by detected tech stack):
 
@@ -408,7 +428,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Lore Scholar | Framework docs via Context7 MCP + web search fallback |
 | Practice Seeker | External best practices and industry patterns |
 
-### Work Agents (4)
+### Work Agents (6)
 
 | Agent | Purpose |
 |-------|---------|
@@ -416,8 +436,10 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Trial Forger | Test generation following project patterns |
 | Design Sync Agent | Figma extraction and Visual Spec Map creation |
 | Design Iterator | Iterative design refinement (screenshot-analyze-fix loop) |
+| Storybook Reviewer | Component verification via screenshots (Mode A/B quality checks) |
+| Storybook Fixer | Applies Storybook finding fixes with re-verification |
 
-### Utility Agents (22)
+### Utility Agents (26)
 
 | Agent | Purpose |
 |-------|---------|
@@ -438,6 +460,10 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Design Analyst | Figma frame relationship classifier (5-signal weighted composite) |
 | Todo Verifier | TODO staleness verification — classifies TODOs as VALID or FALSE_POSITIVE |
 | UX Pattern Analyzer | Codebase UX maturity assessment (loading, error, form, navigation patterns) |
+| Context Scribe | Per-teammate context pack composition from templates and runtime data |
+| Prompt Warden | Context pack validator (12-point quality checklist) |
+| Dispatch Herald | Context pack staleness detection across arc phases |
+| Codex Phase Handler | Isolated Codex phase execution (codex-exec.sh wrapper) |
 | Tome Digest | TOME finding extraction (P1/P2/P3 counts, recurring patterns) — shell-based |
 | Condenser Gap | Gap analysis digest (MISSING/PARTIAL counts) — shell-based |
 | Condenser Verdict | Verdict digest (dimension scores, low-scoring flags) — shell-based |
@@ -458,7 +484,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 ## Skills
 
-43 skills providing background knowledge, workflow orchestration, and tool integration:
+53 skills providing background knowledge, workflow orchestration, and tool integration:
 
 | Skill | Type | Purpose |
 |-------|------|---------|
@@ -503,6 +529,17 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `learn` | Memory | Session self-learning (CLI corrections, review recurrences) |
 | `figma-to-react` | Integration | Figma-to-React MCP server knowledge |
 | `status` | Reporting | Worker status reporting for swarm execution |
+| `brainstorm` | Workflow | Collaborative idea exploration (solo, roundtable, deep modes) |
+| `design-system-discovery` | Intelligence | Design system auto-detection (libraries, tokens, variants) |
+| `resolve-todos` | Workflow | File-based TODO resolution with verify-before-fix pipeline |
+| `runs` | Reporting | Inspect per-agent structured artifacts from workflow runs |
+| `storybook` | Intelligence | Storybook component verification knowledge (CSF3, MCP tools) |
+| `team-sdk` | Orchestration | Centralized team management SDK (ExecutionEngine, lifecycle) |
+| `team-status` | Reporting | Active agent team monitoring dashboard |
+| `test-browser` | Testing | Standalone browser E2E testing (no agent teams) |
+| `untitledui-mcp` | Integration | UntitledUI MCP integration (6 tools, builder-protocol) |
+| `utility-crew` | Orchestration | Agent context composition and validation (context-scribe, prompt-warden) |
+| `ux-design-process` | Intelligence | UX design methodology (heuristic evaluation, flow validation) |
 | `talisman` | Configuration | Deep talisman.yml management (init, audit, update, guide, status) |
 
 ---
@@ -674,18 +711,18 @@ rune-plugin/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
         │   └── plugin.json       # Plugin manifest (v1.128.0)
-        ├── agents/               # 95 agent definitions
-        │   ├── review/           #   41 review agents
+        ├── agents/               # 100 agent definitions
+        │   ├── review/           #   34 review agents
         │   ├── investigation/    #   24 investigation agents
-        │   ├── utility/          #   15 utility agents
+        │   ├── utility/          #   26 utility agents
         │   ├── research/         #    5 research agents
-        │   ├── testing/          #    4 testing agents
+        │   ├── testing/          #    5 testing agents
         │   └── work/             #    6 work agents
-        ├── skills/               # 44 skills
-        ├── commands/             # 15 slash commands
+        ├── skills/               # 53 skills
+        ├── commands/             # 18 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json
-        ├── scripts/              # Hook & utility scripts (99 .sh/.py files)
+        ├── scripts/              # Hook & utility scripts (156 .sh/.py files)
         ├── .mcp.json             # MCP server config (3 servers: echo-search, figma-to-react, context7)
         ├── talisman.example.yml  # Configuration reference
         ├── CLAUDE.md             # Plugin instructions
