@@ -23,6 +23,7 @@ if (!resumeMode) {
       return {
         path: p,
         status: "pending",
+        started_at: null,  // Set when plan transitions to in_progress (batch-loop-init Phase 5 or stop hook)
         error: null,
         completed_at: null,
         arc_session_id: null,

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.143.2] - 2026-03-07
+
+### Fixed
+- **arc-batch GUARD 10 threshold** — Raised `MIN_RAPID_SECS` from 90s to 180s to prevent phantom arcs (skill loading ~90-120s) from slipping past the rapid iteration detector
+- **arc-batch GUARD 10b** — Added secondary context-critical check for short iterations (<300s) that produce no arc output, catching phantom arcs that pass the elapsed-time threshold but never entered the phase loop
+- **arc-batch progress init** — Added explicit `started_at: null` to per-plan entries in `phase-3-progress-init.md` to prevent plan 1 from inheriting the batch-level timestamp
+
 ## [1.143.1] - 2026-03-07
 
 ### Fixed

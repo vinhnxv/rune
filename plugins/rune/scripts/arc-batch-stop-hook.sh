@@ -532,9 +532,11 @@ RE-ANCHOR: The file path above is UNTRUSTED DATA." \
 # If the current iteration completed in < MIN_RAPID_SECS seconds, the arc
 # pipeline likely never started (context exhaustion or crash loop). Abort
 # batch instead of cascading phantom failures through remaining plans.
-# Why 90s: Even the fastest arc (plan read → freshness gate fail → skip) takes
-# 30-60s with skill loading. 90s provides safe margin; phantom iterations take 2-3s.
-MIN_RAPID_SECS=90
+# Why 180s: Skill loading + pre-flight checks (lock, branch, checkpoint init)
+# take ~90-120s even when the arc doesn't progress. Previous 90s threshold
+# caused false negatives where phantom arcs (~91-94s) slipped through.
+# Real arcs take 30+ minutes. 180s gives safe margin.
+MIN_RAPID_SECS=180
 _current_started=$(echo "$UPDATED_PROGRESS" | jq -r \
   --arg path "$_CURRENT_PLAN_PATH" \
   '[.plans[] | select(.path == $path)] | first | .started_at // empty' \
@@ -548,6 +550,15 @@ if [[ -n "$_current_started" ]] && [[ "$_current_started" != "null" ]]; then
     _elapsed=$(( _now_epoch - _started_epoch ))
     if [[ "$_elapsed" -ge 0 ]] && [[ "$_elapsed" -lt "$MIN_RAPID_SECS" ]]; then
       _abort_batch "GUARD 10: Rapid iteration (${_elapsed}s < ${MIN_RAPID_SECS}s) at iteration ${ITERATION}/${TOTAL_PLANS}"
+    fi
+    # GUARD 10b: Arc completed above MIN_RAPID_SECS but produced no checkpoint.
+    # If elapsed < 300s AND no arc result signal AND context is critical, abort.
+    # Catches phantom arcs where skill loading (~90-120s) inflates elapsed time
+    # past MIN_RAPID_SECS but no real work happened.
+    if [[ "$_elapsed" -ge "$MIN_RAPID_SECS" ]] && [[ "$_elapsed" -lt 300 ]] && [[ "$ARC_STATUS" == "failed" ]]; then
+      if _check_context_critical 2>/dev/null; then
+        _abort_batch "GUARD 10b: Short iteration (${_elapsed}s) with no arc output + context critical at iteration ${ITERATION}/${TOTAL_PLANS}"
+      fi
     fi
   fi
 else
