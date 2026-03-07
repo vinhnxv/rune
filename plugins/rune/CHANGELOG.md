@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.143.4] - 2026-03-08
+
+### Fixed
+- **arc-batch plan path loss (FIX-001)** — Claude drops the second argument from `Skill("rune:arc", "plan-path ...")`, causing every arc iteration to be a no-op. Two-pronged fix: stop hook writes plan path to `tmp/.rune-arc-batch-next-plan.txt` as fallback, arc preflight reads it when `$ARGUMENTS` is empty. Prompt reinforced with explicit two-argument warning. Applied to both stop hook and `batch-loop-init.md` Phase 5.
+- **ZSH `\!=` in team cleanup prompt (FIX-002)** — Stop hook injects team cleanup script where `[[ "$owner" != "$MY_SESSION" ]]` gets escaped to `\!=` by Claude, causing `condition expected: \!=` in ZSH. Replaced with ZSH-safe positive matching: `[[ -z "$owner" ]] || [[ "$owner" = "$MY_SESSION" ]] || continue`. Applied to all 3 stop hooks (batch, hierarchy, issues).
+- **GUARD 10 `_iso_to_epoch` silent failure (FIX-004)** — `$(_iso_to_epoch ... || echo "")` could fail under `set -euo pipefail`, causing rapid iteration detection to silently skip. Changed to if-context pattern (`if _val=$(...); then`) which is exempt from `set -e`. Applied to all 3 stop hooks (batch, hierarchy, issues).
+
 ## [1.143.3] - 2026-03-07
 
 ### Fixed
