@@ -72,7 +72,22 @@ Follow the brainstorm protocol from `skills/brainstorm/SKILL.md` with these devi
 
 5. **Skip handoff**: Do NOT run brainstorm Phase 6 handoff (AskUserQuestion with next steps). Devise continues to Phase 1 research automatically after decisions are captured.
 
-6. **Quality gate influences research**: If brainstorm quality score < 0.70, Phase 1 research agents should treat brainstorm decisions as "exploratory" and validate assumptions independently.
+6. **Mid-pipeline advisor cleanup**: After brainstorm decisions are captured and before Phase 1 starts, shutdown brainstorm-specific teammates that are no longer needed. They joined the `rune-plan-{timestamp}` team but have no role in subsequent phases.
+
+```javascript
+// Shutdown brainstorm advisors + sages (they're done — no role in Phase 1+)
+const brainstormMembers = [
+  "user-advocate", "tech-realist", "devils-advocate",
+  "elicitation-sage-1", "elicitation-sage-2", "elicitation-sage-3"
+]
+for (const member of brainstormMembers) {
+  SendMessage({ type: "shutdown_request", recipient: member, content: "Brainstorm complete — devise continuing to research" })
+}
+// Brief grace period for deregistration (shorter than full cleanup — no TeamDelete needed)
+Bash("sleep 10")
+```
+
+7. **Quality gate influences research**: If brainstorm quality score < 0.70, Phase 1 research agents should treat brainstorm decisions as "exploratory" and validate assumptions independently.
 
 ### Design Asset Detection
 

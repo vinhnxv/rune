@@ -126,7 +126,7 @@ Three paths based on flags:
 
 2. **`--quick`**: Skip brainstorm entirely. Ask user for a feature description via AskUserQuestion. Proceed directly to Phase 1.
 
-3. **Default**: Delegate to the brainstorm protocol defined in `skills/brainstorm/SKILL.md`. Brainstorm runs with these devise-specific overrides: advisors join existing `rune-plan-{timestamp}` team (not a separate team), workspace co-located at `tmp/brainstorm-{timestamp}/`, also writes to `tmp/plans/{timestamp}/brainstorm-decisions.md` (legacy location), skips the brainstorm handoff phase (devise continues to research).
+3. **Default**: Delegate to the brainstorm protocol defined in `skills/brainstorm/SKILL.md`. Brainstorm runs with these devise-specific overrides: advisors join existing `rune-plan-{timestamp}` team (not a separate team), workspace co-located at `tmp/brainstorm-{timestamp}/`, also writes to `tmp/plans/{timestamp}/brainstorm-decisions.md` (legacy location), skips the brainstorm handoff phase (devise continues to research). After decisions are captured, sends `shutdown_request` to brainstorm advisors and sages before Phase 1 (mid-pipeline cleanup — they have no role in subsequent phases).
 
 **Elicitation**: After approach selection, summons 1-3 elicitation-sage teammates (keyword-count fan-out, 15-keyword list). Skippable via `talisman.elicitation.enabled: false`.
 
