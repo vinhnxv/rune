@@ -120,13 +120,21 @@ No delegation. Runs inline in arc orchestrator context.
 - **Pre-flight steps**: N/A
 - **Post-phase cleanup**: Standard checkpoint update
 
-## Phase 2.8: SEMANTIC VERIFICATION — ORCHESTRATOR-ONLY
+## Phase 2.8: SEMANTIC VERIFICATION → `codex-phase-handler` teammate
 
-No delegation. Runs inline in arc orchestrator context.
+Delegated to codex-phase-handler teammate in team `arc-codex-sv-{id}`.
 
-- **Delegation**: None (orchestrator-only)
-- **Pre-flight steps**: N/A
-- **Post-phase cleanup**: Standard checkpoint update
+| Step | Action | Reason |
+|------|--------|--------|
+| Gate check (4 conditions + cascade breaker) | **RUN** | Tarnished checks before spawning teammate |
+| TeamCreate + TaskCreate + Agent | **RUN** | Spawn codex-phase-handler with 2 parallel aspects (tech-deps, scope-timeline) |
+| Codex execution | **SKIP** | Teammate handles via `codex-exec.sh -o` |
+| Output aggregation | **SKIP** | Teammate aggregates aspect outputs into report |
+| Metadata extraction | **SKIP** | Teammate extracts and sends via SendMessage |
+| Checkpoint update | **ADAPT** | Tarnished updates checkpoint from teammate's metadata |
+| Cascade tracker | **ADAPT** | Tarnished calls `updateCascadeTracker()` using teammate's `error_class` |
+| Team cleanup | **RUN** | shutdown_request + TeamDelete with retry |
+| Skip path (Codex unavailable) | **RUN** | Tarnished writes skip file directly — no team created |
 
 ## Phase 3: DESIGN EXTRACTION — ORCHESTRATOR-ONLY
 
@@ -136,13 +144,21 @@ No delegation. Runs inline in arc orchestrator context.
 - **Pre-flight steps**: N/A
 - **Post-phase cleanup**: Standard checkpoint update
 
-## Phase 4: TASK DECOMPOSITION — ORCHESTRATOR-ONLY
+## Phase 4.5: TASK DECOMPOSITION → `codex-phase-handler` teammate
 
-No delegation. Runs inline in arc orchestrator context.
+Delegated to codex-phase-handler teammate in team `arc-codex-td-{id}`.
 
-- **Delegation**: None (orchestrator-only)
-- **Pre-flight steps**: N/A
-- **Post-phase cleanup**: Standard checkpoint update
+| Step | Action | Reason |
+|------|--------|--------|
+| Gate check (4 conditions + cascade breaker) | **RUN** | Tarnished checks before spawning teammate |
+| TeamCreate + TaskCreate + Agent | **RUN** | Spawn codex-phase-handler with single aspect (task validation) |
+| Plan content sanitization | **ADAPT** | Teammate sanitizes plan content inline (10k char limit) per sanitization rules embedded in spawn prompt |
+| Codex execution | **SKIP** | Teammate handles via `codex-exec.sh -o` |
+| CDX-TASK finding count extraction | **SKIP** | Teammate extracts and sends via SendMessage |
+| Checkpoint update | **ADAPT** | Tarnished updates checkpoint from teammate's metadata |
+| Cascade tracker | **ADAPT** | Tarnished calls `updateCascadeTracker()` using teammate's `error_class` |
+| Team cleanup | **RUN** | shutdown_request + TeamDelete with retry |
+| Skip path (Codex unavailable) | **RUN** | Tarnished writes skip file directly — no team created |
 
 ## Phase 5.2: DESIGN VERIFICATION — ORCHESTRATOR-ONLY
 
@@ -160,13 +176,20 @@ No delegation. Runs inline in arc orchestrator context.
 - **Pre-flight steps**: N/A
 - **Post-phase cleanup**: Standard checkpoint update
 
-## Phase 5.6: CODEX GAP ANALYSIS — ORCHESTRATOR-ONLY
+## Phase 5.6: CODEX GAP ANALYSIS → `codex-phase-handler` teammate
 
-No delegation. Runs inline in arc orchestrator context.
+Delegated to codex-phase-handler teammate in team `arc-codex-ga-{id}`.
 
-- **Delegation**: None (orchestrator-only)
-- **Pre-flight steps**: N/A
-- **Post-phase cleanup**: Standard checkpoint update
+| Step | Action | Reason |
+|------|--------|--------|
+| Gate check (4 conditions + cascade breaker) | **RUN** | Tarnished checks before spawning teammate |
+| TeamCreate + TaskCreate + Agent | **RUN** | Spawn codex-phase-handler with 2 parallel aspects (completeness, integrity) |
+| Codex execution | **SKIP** | Teammate handles via `codex-exec.sh -o` |
+| CDX-GAP finding count + remediation threshold | **SKIP** | Teammate computes `codex_needs_remediation` flag and sends via SendMessage |
+| Checkpoint update | **ADAPT** | Tarnished updates checkpoint with `codex_needs_remediation`, `codex_finding_count`, `codex_threshold` from metadata |
+| Cascade tracker | **ADAPT** | Tarnished calls `updateCascadeTracker()` using teammate's `error_class` |
+| Team cleanup | **RUN** | shutdown_request + TeamDelete with retry |
+| Skip path (Codex unavailable) | **RUN** | Tarnished writes skip file directly — no team created |
 
 ## Phase 5.8: GAP REMEDIATION → `/rune:*` (gap-fix team)
 
@@ -238,13 +261,20 @@ Delegated to the respective test team (`arc-test-{id}`).
 | E2E detection | **RUN** | Detects E2E tests and applies extended timeout (dynamic 40 min) |
 | Session-scoped todos | **RUN** | Test runners write todos to `{workflowOutputDir}/todos/test/` |
 
-## Phase 7.8: TEST COVERAGE CRITIQUE — ORCHESTRATOR-ONLY
+## Phase 7.8: TEST COVERAGE CRITIQUE → `codex-phase-handler` teammate
 
-No delegation. Runs inline in arc orchestrator context.
+Delegated to codex-phase-handler teammate in team `arc-codex-tc-{id}`.
 
-- **Delegation**: None (orchestrator-only)
-- **Pre-flight steps**: N/A
-- **Post-phase cleanup**: Standard checkpoint update
+| Step | Action | Reason |
+|------|--------|--------|
+| Gate check (4 conditions + cascade breaker) | **RUN** | Tarnished checks before spawning teammate |
+| TeamCreate + TaskCreate + Agent | **RUN** | Spawn codex-phase-handler with single aspect (test critique) |
+| Codex execution | **SKIP** | Teammate handles via `codex-exec.sh -o` |
+| CDX-TEST finding count extraction | **SKIP** | Teammate extracts and sends via SendMessage |
+| Checkpoint update | **ADAPT** | Tarnished updates checkpoint from teammate's metadata |
+| Cascade tracker | **ADAPT** | Tarnished calls `updateCascadeTracker()` using teammate's `error_class` |
+| Team cleanup | **RUN** | shutdown_request + TeamDelete with retry |
+| Skip path (Codex unavailable) | **RUN** | Tarnished writes skip file directly — no team created |
 
 ## Phase 8.5: PRE-SHIP VALIDATION — ORCHESTRATOR-ONLY
 
@@ -254,13 +284,20 @@ No delegation. Runs inline in arc orchestrator context.
 - **Pre-flight steps**: N/A
 - **Post-phase cleanup**: Standard checkpoint update
 
-## Phase 8.55: RELEASE QUALITY CHECK — ORCHESTRATOR-ONLY
+## Phase 8.55: RELEASE QUALITY CHECK → `codex-phase-handler` teammate
 
-No delegation. Runs inline in arc orchestrator context.
+Delegated to codex-phase-handler teammate in team `arc-codex-rq-{id}`.
 
-- **Delegation**: None (orchestrator-only)
-- **Pre-flight steps**: N/A
-- **Post-phase cleanup**: Standard checkpoint update
+| Step | Action | Reason |
+|------|--------|--------|
+| Gate check (4 conditions + cascade breaker) | **RUN** | Tarnished checks before spawning teammate |
+| TeamCreate + TaskCreate + Agent | **RUN** | Spawn codex-phase-handler with single aspect (release quality) |
+| Codex execution | **SKIP** | Teammate handles via `codex-exec.sh -o` |
+| CDX-RELEASE finding count extraction | **SKIP** | Teammate extracts and sends via SendMessage |
+| Checkpoint update | **ADAPT** | Tarnished updates checkpoint from teammate's metadata |
+| Cascade tracker | **ADAPT** | Tarnished calls `updateCascadeTracker()` using teammate's `error_class` |
+| Team cleanup | **RUN** | shutdown_request + TeamDelete with retry |
+| Skip path (Codex unavailable) | **RUN** | Tarnished writes skip file directly — no team created |
 
 ## Phase 9.1: BOT REVIEW WAIT — ORCHESTRATOR-ONLY
 

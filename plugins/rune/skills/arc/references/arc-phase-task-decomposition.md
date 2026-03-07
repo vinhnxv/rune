@@ -2,12 +2,12 @@
 
 Cross-model validation of plan task structure using Codex. Checks granularity, dependencies, file ownership conflicts, and missing tasks. Gated by 5-condition detection.
 
-**Team**: None (orchestrator-only Codex invocation)
-**Tools**: Read, Write, Bash (codex-exec.sh)
-**Timeout**: 5 min (resolveCodexConfig default: 300s)
+**Team**: `arc-codex-td-{id}` (delegated to codex-phase-handler teammate)
+**Tools**: Read, Write, Bash, TeamCreate, TeamDelete, Agent, SendMessage, TaskCreate, TaskUpdate, TaskList
+**Timeout**: 10 min (600s — includes team lifecycle overhead)
 **Inputs**: id (string), enriched plan (`tmp/arc/{id}/enriched-plan.md`), talisman config
 **Outputs**: `tmp/arc/{id}/task-validation.md`
-**Error handling**: Non-blocking — skip path always writes output MD. Cascade circuit breaker prevents repeated Codex failures from stalling the pipeline.
+**Error handling**: Non-blocking — skip path always writes output MD. Cascade circuit breaker prevents repeated Codex failures from stalling the pipeline. Teammate timeout → fallback skip file.
 **Consumers**: SKILL.md (Phase 4.5 stub)
 
 > **Note**: `sha256()`, `updateCheckpoint()`, `exists()`, `warn()`, `detectCodex()`, `resolveCodexConfig()`, `classifyCodexError()`, `updateCascadeTracker()`, `sanitizePlanContent()`, and `formatReport()` are dispatcher-provided utilities available in the arc orchestrator context. Phase reference files call these without import.
@@ -38,7 +38,7 @@ if (checkpoint.codex_cascade?.cascade_warning === true) {
 4. `codex.workflows` includes `"arc"` — Arc is in the allowed workflow list
 5. `codex_cascade.cascade_warning !== true` — No active cascade circuit breaker
 
-## STEP 1: Prepare Codex Prompt
+## STEP 1: Delegate to codex-phase-handler Teammate
 
 ```javascript
 if (codexAvailable && !codexDisabled && taskDecompEnabled && workflowIncluded) {
@@ -46,27 +46,58 @@ if (codexAvailable && !codexDisabled && taskDecompEnabled && workflowIncluded) {
     timeout: 300, reasoning: "high"
   })
 
-  // Read enriched plan for task structure
-  const planContent = Read(`tmp/arc/${id}/enriched-plan.md`)
   const todosBase = checkpoint.todos_base ?? `tmp/arc/${id}/todos/`
 
-  // SEC-003: Prompt via temp file (NEVER inline string interpolation)
-  const promptTmpFile = `tmp/arc/${id}/.codex-prompt-task-decomp.tmp`
-```
+  // ── Delegate to codex-phase-handler teammate ──
+  // Token optimization: plan content (~10k chars) stays in teammate's context, not Tarnished's
+  const teamName = `arc-codex-td-${id}`
+  TeamCreate({ team_name: teamName })
+  TaskCreate({
+    subject: "Codex task decomposition validation",
+    description: "Execute single-aspect task decomposition check via codex-exec.sh"
+  })
 
-**Security note**: The plan content is written to a temp file and passed via `-g` flag to `codex-exec.sh`. This avoids shell injection via inline string interpolation (SEC-003).
+  Agent({
+    name: "codex-phase-handler-td",
+    team_name: teamName,
+    subagent_type: "general-purpose",
+    prompt: `You are codex-phase-handler for Phase 4.5 TASK DECOMPOSITION.
 
-## STEP 2: Execute Codex Validation
+## Assignment
+- phase_name: task_decomposition
+- arc_id: ${id}
+- report_output_path: tmp/arc/${id}/task-validation.md
+- recipient: Tarnished
 
-```javascript
-  try {
-    const sanitizedPlan = sanitizePlanContent(planContent.substring(0, 10000))
-    const promptContent = `SYSTEM: You are a cross-model task decomposition validator.
+## Codex Config
+- model: ${codexModel}
+- reasoning: ${reasoning}
+- timeout: ${timeout}
+
+## Aspects (single aspect — run sequentially)
+
+### Aspect 1: task-structure
+Output path: tmp/arc/${id}/task-validation.md
+Prompt file path: tmp/arc/${id}/.codex-prompt-task-decomp.tmp
+
+**IMPORTANT — Content Sanitization Required:**
+Before writing the prompt, you MUST:
+1. Read the enriched plan from: tmp/arc/${id}/enriched-plan.md
+2. Sanitize the content:
+   - Strip HTML comments (<!-- ... -->)
+   - Strip zero-width characters (\\u200B, \\uFEFF, etc.)
+   - Replace HTML entities (&amp; → &, &lt; → <, &gt; → >, &nbsp; → space)
+   - Truncate to 10,000 characters
+3. Then write the sanitized content into the prompt below where indicated
+
+Prompt content (write to prompt file path):
+"""
+SYSTEM: You are a cross-model task decomposition validator.
 
 Analyze this plan's task structure for decomposition quality:
 
 === PLAN ===
-${sanitizedPlan}
+{INSERT SANITIZED PLAN CONTENT HERE — max 10,000 chars}
 === END PLAN ===
 
 For each finding, provide:
@@ -80,21 +111,65 @@ Check for:
 3. File ownership conflicts (multiple tasks modifying the same file)
 4. Missing tasks (plan sections with no corresponding task)
 
-Base findings on actual plan content, not assumptions.`
+Base findings on actual plan content, not assumptions.
+"""
 
-    Write(promptTmpFile, promptContent)
-    const result = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g "${promptTmpFile}"`)
-    const classified = classifyCodexError(result)
+## Metadata Extraction
+- Count findings matching pattern: CDX-TASK-\\d+
+- Report finding_count in SendMessage
 
-    // Update cascade tracker
-    updateCascadeTracker(checkpoint, classified)
+## Instructions
+1. Claim the "Codex task decomposition validation" task
+2. Gate check: command -v codex
+3. Read and sanitize plan content from tmp/arc/${id}/enriched-plan.md
+4. Write the prompt (with sanitized plan inserted) to the prompt file path
+5. Run: codex-exec.sh -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g -o tmp/arc/${id}/task-validation.md tmp/arc/${id}/.codex-prompt-task-decomp.tmp
+6. Clean up prompt file
+7. Compute sha256sum of final report
+8. Count CDX-TASK findings in report
+9. SendMessage to Tarnished:
+   { "phase": "task_decomposition", "status": "completed", "artifact": "tmp/arc/${id}/task-validation.md", "artifact_hash": "{hash}", "finding_count": N }
+10. Mark task complete`
+  })
 
-    // Write output (even on error — CDX-TASK prefix)
-    Write(`tmp/arc/${id}/task-validation.md`, formatReport(classified, result, "Task Decomposition Validation"))
-    updateCheckpoint({ phase: "task_decomposition", status: "completed", artifact: `tmp/arc/${id}/task-validation.md` })
-  } finally {
-    Bash(`rm -f "${promptTmpFile}"`)  // Guaranteed cleanup
+  // Monitor teammate completion (single agent, simple wait)
+  // waitForCompletion: pollIntervalMs=30000, timeoutMs=600000
+  let completed = false
+  const maxIterations = Math.ceil(600000 / 30000) // 20 iterations
+  for (let i = 0; i < maxIterations && !completed; i++) {
+    const tasks = TaskList()
+    completed = tasks.every(t => t.status === "completed")
+    if (!completed) Bash("sleep 30")
   }
+
+  // Fallback: if teammate timed out, check file directly
+  if (!exists(`tmp/arc/${id}/task-validation.md`)) {
+    Write(`tmp/arc/${id}/task-validation.md`, "# Task Decomposition Validation (Codex)\n\nSkipped: codex-phase-handler teammate timed out.")
+  }
+
+  // Cleanup team (single-member optimization: 5s grace instead of standard 20s)
+  SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-td", content: "Phase complete" })
+  Bash("sleep 5")
+  TeamDelete()  // with retry-with-backoff pattern
+
+  // Read metadata from teammate's SendMessage (structured JSON)
+  // Extract error_class for cascade tracker (if teammate reported an error)
+  // If no message received, use fallback classification
+  const classified = teammateMetadata?.error_class
+    ? { error_class: teammateMetadata.error_class }
+    : classifyCodexError({ exitCode: 0 })  // assume success if file exists
+  updateCascadeTracker(checkpoint, classified)
+
+  // Read only hash from the report (not content — token optimization)
+  const artifactHash = Bash(`sha256sum "tmp/arc/${id}/task-validation.md" | cut -d' ' -f1`).trim()
+
+  updateCheckpoint({
+    phase: "task_decomposition",
+    status: "completed",
+    artifact: `tmp/arc/${id}/task-validation.md`,
+    artifact_hash: artifactHash,
+    team_name: teamName
+  })
 ```
 
 ### Finding Categories
@@ -112,7 +187,17 @@ The cascade tracker (shared across all Codex phases) prevents repeated Codex fai
 
 See [arc-codex-phases.md](arc-codex-phases.md) for the cascade tracker algorithm and threshold configuration.
 
-## STEP 3: Skip Path
+### Token Savings
+
+The Tarnished no longer reads plan content (~10k chars) or Codex output into its context. Only spawns the agent (~150 tokens) and receives metadata via SendMessage (~50 tokens). **Estimated savings: ~13k tokens** — the largest saving of any Codex phase, since plan content is 10k chars.
+
+### Team Lifecycle
+
+- Team `arc-codex-td-{id}` is created AFTER the gate check passes (zero overhead on skip path)
+- Single teammate: 5s grace period before TeamDelete (single-member optimization)
+- Crash recovery: `arc-codex-td-` prefix registered in `arc-preflight.md` and `arc-phase-cleanup.md`
+
+## STEP 2: Skip Path
 
 ```javascript
 } else {

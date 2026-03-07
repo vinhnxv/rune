@@ -839,12 +839,14 @@ updateCheckpoint({
 
 Cross-model gap detection using Codex to compare plan expectations against actual implementation. Runs AFTER the deterministic Phase 5.5 as a separate phase with its own time budget. Phase 5.5 has a 60-second timeout — Codex exec takes 300-900s and cannot reliably fit within it.
 
-**Team**: None (orchestrator-only, inline codex exec — matching Phase 2.8 pattern)
-**Tools**: Read, Write, Bash (codex exec)
-**Timeout**: 11 minutes (660_000ms)
+**Team**: `arc-codex-ga-{id}` (delegated to codex-phase-handler teammate, v1.142.0)
+**Tools**: Read, Write, Bash (codex exec), Agent, TeamCreate, TeamDelete, SendMessage, TaskCreate, TaskUpdate, TaskList
+**Timeout**: 16 minutes (960_000ms)
 **Talisman key**: `codex.gap_analysis`
 
-// Architecture Rule #1 lightweight inline exception: reasoning=high, timeout<=900s, path-based input (CTX-001), single-value output (CC-5)
+// Hybrid delegation: Codex writes report to file (via -o flag) → codex-phase-handler teammate
+// verifies output, extracts checkpoint metadata (codex_needs_remediation, finding counts) →
+// Tarnished receives only metadata via SendMessage.
 
 ### STEP 1: Gate Check
 
@@ -1035,102 +1037,84 @@ Confidence thresholds:
 }
 ```
 
-### STEP 4: Run Codex Gap Analysis (inline)
+### STEP 4: Delegate to codex-phase-handler teammate (v1.142.0)
 
 ```javascript
 // NOTE: CODEX_MODEL_ALLOWLIST already declared in STEP 3.5 via claimCodexModel (reused here)
 const codexModel = CODEX_MODEL_ALLOWLIST.test(talisman?.codex?.model ?? "")
   ? talisman.codex.model : "gpt-5.3-codex"
 
-// SEC-006 FIX: Validate reasoning against allowlist before shell interpolation
+// SEC-006 FIX: Validate reasoning against allowlist before passing to teammate
 const CODEX_REASONING_ALLOWLIST = ["xhigh", "high", "medium", "low"]
 const codexReasoning = CODEX_REASONING_ALLOWLIST.includes(talisman?.codex?.gap_analysis?.reasoning ?? "")
   ? talisman.codex.gap_analysis.reasoning : "xhigh"
 
-// SEC-008 FIX: Verify .codexignore exists before --full-auto
-const codexIgnoreCheck = Bash("test -f .codexignore && echo yes || echo no").trim()
-if (codexIgnoreCheck !== "yes") {
-  warn("Codex Gap Analysis: .codexignore not found — skipping (SEC-008)")
-  Write(`tmp/arc/${id}/codex-gap-analysis.md`, "Codex gap analysis skipped (.codexignore not found).")
-  // H2 FIX: Use "skipped" — codex didn't actually run
-  updateCheckpoint({ phase: "codex_gap_analysis", status: "skipped", phase_sequence: 5.6, team_name: null })
-  return
-}
-
-// SEC-004 FIX: Validate and clamp timeout before shell interpolation
-// Clamp range: 30s min, 900s max (phase budget allows talisman override up to 15 min)
+// SEC-004 FIX: Validate and clamp timeout before passing to teammate
 const rawGapTimeout = Number(talisman?.codex?.gap_analysis?.timeout)
 const perAspectTimeout = Math.max(300, Math.min(900, Number.isFinite(rawGapTimeout) ? rawGapTimeout : 900))
 
-// Define focused gap aspects for parallel Codex calls (matching arc-codex-phases.md pattern)
-const gapAspects = [
-  { name: "completeness", prompt: codexGapPromptCompleteness },  // From STEP 3 prompt construction
-  { name: "integrity", prompt: codexGapPromptIntegrity }          // From STEP 3 prompt construction
-]
+// RUIN-001: Clamp threshold to [1, 20] range — passed to teammate for metadata extraction
+const codexThreshold = Math.max(1, Math.min(20, talisman?.codex?.gap_analysis?.remediation_threshold ?? 5))
 
-// Write aspect prompts to temp files
-for (const aspect of gapAspects) {
-  Write(`tmp/arc/${id}/codex-gap-${aspect.name}-prompt.txt`, aspect.prompt)
-}
-
-// Run all aspects in PARALLEL (separate Bash tool calls, matching arc-codex-phases.md pattern)
-// C3 FIX: Use codex-exec.sh wrapper (SEC-009) instead of raw codex exec.
-// CTX-001: Prompt uses file PATHS not inline content — Codex reads files itself.
-const aspectResults = gapAspects.map(aspect => {
-  return Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
-    -m "${codexModel}" -r "${codexReasoning}" -t ${perAspectTimeout} -g \
-    "tmp/arc/${id}/codex-gap-${aspect.name}-prompt.txt"`)
+// ── Delegate to codex-phase-handler teammate ──
+// Tarnished spawns handler → handler writes report via -o → handler sends metadata → Tarnished updates checkpoint
+// Zero Codex output tokens flow through the Tarnished's context window
+const teamName = `arc-codex-ga-${id}`
+TeamCreate({ team_name: teamName })
+TaskCreate({
+  subject: "Codex gap analysis",
+  description: "Execute 2-aspect gap analysis (completeness + integrity) via codex-exec.sh -o"
 })
-// NOTE: The orchestrator MUST issue these Bash calls as PARALLEL tool calls (not sequential).
-// Exit code 2 from codex-exec.sh = pre-flight failure (e.g., .codexignore missing) — treat as skip.
+
+// Teammate receives full aspect config including prompt content from STEP 3
+// The teammate writes prompts to files, executes codex-exec.sh -o, aggregates, and extracts metadata
+// See arc-codex-phases.md Phase 5.6 for the full spawn prompt template
+Agent({
+  name: "codex-phase-handler-ga",
+  team_name: teamName,
+  subagent_type: "codex-phase-handler",
+  prompt: /* Full prompt with aspects, codex config, metadata extraction rules — see arc-codex-phases.md */
+})
+
+// Monitor teammate completion
+// waitForCompletion: pollIntervalMs=30000, timeoutMs=960000 (16 min — includes team overhead)
+let completed = false
+const maxIterations = Math.ceil(960000 / 30000) // 32 iterations
+for (let i = 0; i < maxIterations && !completed; i++) {
+  const tasks = TaskList()
+  completed = tasks.every(t => t.status === "completed")
+  if (!completed) Bash("sleep 30")
+}
 ```
 
-### STEP 5: Process Results and Cleanup
+### STEP 5: Receive Metadata and Cleanup
 
 ```javascript
-// Aggregate results from all aspects
-const outputParts = ["# Codex Gap Analysis (Parallel Aspects)\n"]
-for (let i = 0; i < gapAspects.length; i++) {
-  const aspect = gapAspects[i]
-  const result = aspectResults[i]
-  outputParts.push(`## ${aspect.name}`)
-  if (result.exitCode === 2) {
-    // codex-exec.sh pre-flight failure (e.g., .codexignore missing) — matching arc-codex-phases.md pattern
-    outputParts.push(`_Skipped: codex-exec.sh pre-flight failure (exit 2)._`)
-  } else if (result.exitCode === 0 && result.stdout.trim().length > 0) {
-    outputParts.push(result.stdout.trim())
-  } else if (result.exitCode === 124) {
-    outputParts.push(`_Codex timed out for this aspect (${perAspectTimeout}s)._`)
-  } else {
-    outputParts.push("No gaps detected.")
-  }
-  outputParts.push("")
-}
-Write(`tmp/arc/${id}/codex-gap-analysis.md`, outputParts.join('\n'))
-
-// Cleanup temp prompt files
-for (const aspect of gapAspects) {
-  Bash(`rm -f "tmp/arc/${id}/codex-gap-${aspect.name}-prompt.txt" 2>/dev/null`)
+// If teammate timed out or crashed, ensure output file exists for downstream consumers
+if (!exists(`tmp/arc/${id}/codex-gap-analysis.md`)) {
+  Write(`tmp/arc/${id}/codex-gap-analysis.md`, "Codex gap analysis: teammate timed out — no output.")
 }
 
-// Compute codex_needs_remediation from aggregated gap findings
-// Only actionable findings count (MISSING/INCOMPLETE/DRIFT — EXTRA excluded)
-const codexGapContent = Read(`tmp/arc/${id}/codex-gap-analysis.md`)
-const codexWasSkipped = codexGapContent.startsWith("Codex gap analysis skipped") || codexGapContent.startsWith("Skipped:")
-const completenessFindings = codexWasSkipped ? [] : (codexGapContent.match(/\[CDX-GAP-\d+\]\s+MISSING\b/g) || [])
-const incompleteFindings = codexWasSkipped ? [] : (codexGapContent.match(/\[CDX-GAP-\d+\]\s+INCOMPLETE\b/g) || [])
-const driftFindings = codexWasSkipped ? [] : (codexGapContent.match(/\[CDX-GAP-\d+\]\s+DRIFT\b/g) || [])
-const codexFindingCount = completenessFindings.length + incompleteFindings.length + driftFindings.length
-const codexThreshold = Math.max(1, Math.min(20, talisman?.codex?.gap_analysis?.remediation_threshold ?? 5))
-const codexNeedsRemediation = !codexWasSkipped && codexFindingCount >= codexThreshold
+// Cleanup team (single-member optimization: 5s grace instead of standard 20s)
+SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-ga", content: "Phase complete" })
+Bash("sleep 5")
+TeamDelete()  // with retry-with-backoff pattern per CLAUDE.md cleanup standard
+
+// Read only hash from the report (NOT content) — zero Codex tokens in Tarnished context
+const artifactHash = Bash(`sha256sum "tmp/arc/${id}/codex-gap-analysis.md" | cut -d' ' -f1`).trim()
+
+// Parse metadata from teammate's SendMessage (codex_needs_remediation, finding counts)
+// If no message received (teammate crash), fallback to safe defaults
+const codexNeedsRemediation = teammateMetadata?.codex_needs_remediation ?? false
+const codexFindingCount = teammateMetadata?.codex_finding_count ?? 0
 
 updateCheckpoint({
   phase: "codex_gap_analysis",
   status: "completed",
   artifact: `tmp/arc/${id}/codex-gap-analysis.md`,
-  artifact_hash: sha256(Read(`tmp/arc/${id}/codex-gap-analysis.md`)),
+  artifact_hash: artifactHash,
   phase_sequence: 5.6,
-  team_name: null,
+  team_name: teamName,
   codex_needs_remediation: codexNeedsRemediation,
   codex_finding_count: codexFindingCount,
   codex_threshold: codexThreshold

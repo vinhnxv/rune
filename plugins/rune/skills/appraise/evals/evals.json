@@ -382,6 +382,299 @@
         "Mentions SEAL convention for deterministic detection",
         "Notes hook verifies expected file before idle"
       ]
+    },
+    {
+      "id": 26,
+      "prompt": "Explain the CLI-backed Ash Hallucination Guard in detail. What are the 4 steps? What is Step 0? What happens when a finding fails verification?",
+      "expected_output": "Hallucination Guard 4-step verification for CLI-backed Ashes: Step 0 (diff relevance check) — verifies the finding references code that was actually changed. Step 1 (file existence) — confirms the file path exists in the repository. Step 2 (line range validation) — checks that referenced line numbers fall within actual file bounds. Step 3 (cross-reference) — compares finding against Claude Ash output for consensus. When a finding fails verification: tagged as HALLUCINATED or UNVERIFIED, removed in Phase 5.5 cross-model verification step. Purpose: prevent external models from generating plausible-sounding but fictitious findings. Nonce-bounded content injection prevents cross-session contamination.",
+      "files": [],
+      "expectations": [
+        "Describes Step 0: diff relevance check",
+        "Describes Step 1: file existence verification",
+        "Describes Step 2: line range validation",
+        "Describes Step 3: cross-reference with Claude findings",
+        "Notes failed findings tagged as HALLUCINATED or UNVERIFIED",
+        "Mentions removal in Phase 5.5",
+        "Notes nonce-bounded content injection prevents cross-session contamination"
+      ]
+    },
+    {
+      "id": 27,
+      "prompt": "How does Phase 1 handle file classification for mixed-stack projects? What happens with monorepos containing Python backend + TypeScript frontend? What about files with unknown extensions?",
+      "expected_output": "Mixed-stack file classification in Phase 1: Monorepo with Python backend + TypeScript frontend triggers BOTH Forge Warden (backend) and Glyph Scribe (frontend) Ashes. Files are assigned to the appropriate Ash based on extension. Backend files (.py, .go, .rs, .php) → Forge Warden. Frontend files (.tsx, .jsx, .vue, .svelte, .css, .scss) → Glyph Scribe. Config files (.yml, .yaml, .json, .toml) → Pattern Weaver quality review. Unknown extensions: classified as 'general', reviewed by Pattern Weaver + Ward Sentinel + Veil Piercer (always-on Ashes). The classification table in rune-gaze.md provides the full mapping. Each file can match multiple reviewers (e.g., .py matches Forge Warden AND always-on Ashes).",
+      "files": [],
+      "expectations": [
+        "Notes Python + TypeScript monorepo triggers both Forge Warden and Glyph Scribe",
+        "Lists backend extensions: .py, .go, .rs, .php",
+        "Lists frontend extensions: .tsx, .jsx, .vue, .svelte, .css, .scss",
+        "Notes config files → Pattern Weaver",
+        "Describes unknown extensions as 'general' reviewed by always-on Ashes",
+        "Mentions each file can match multiple reviewers"
+      ]
+    },
+    {
+      "id": 28,
+      "prompt": "Explain finding deduplication in Phase 5 Runebinder. How are duplicate findings detected? What is the prefix hierarchy? How are findings with different severity levels handled?",
+      "expected_output": "Finding deduplication in Phase 5: Duplicate detection uses 5-line proximity window — findings within 5 lines of each other referencing the same issue are candidates for dedup. Prefix hierarchy (highest wins): SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX > external. When findings overlap: higher-priority prefix wins, severity is max() of all duplicates. Example: if Ward Sentinel reports SEC-001 P2 and Forge Warden reports BACK-042 P1 for the same issue → SEC-001 P1 (SEC wins, max severity). DOUBT prefix is exempt from dedup — Doubt Seer meta-findings are always preserved. The dedup step runs BEFORE TOME.md generation to ensure clean output for mend parsing.",
+      "files": [],
+      "expectations": [
+        "Notes 5-line proximity window for duplicate detection",
+        "Lists prefix hierarchy: SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX > external",
+        "Explains higher prefix wins on overlap",
+        "Notes severity is max() of duplicates",
+        "Gives example: SEC P2 + BACK P1 → SEC P1",
+        "Notes DOUBT prefix exempt from dedup",
+        "Notes dedup runs BEFORE TOME.md generation"
+      ]
+    },
+    {
+      "id": 29,
+      "prompt": "How does Phase 5.3 diff-scope tagging work? What determines if a finding is 'in-diff' vs 'pre-existing'? Why does this matter for mend priority?",
+      "expected_output": "Phase 5.3 diff-scope tagging: Determined by whether the finding's file:line falls within the git diff ranges from Phase 0. In-diff: finding location is within changed lines (added or modified). Pre-existing: finding location is in unchanged lines (file was touched but line wasn't modified). The diff_scope data from inscription.json contains the line ranges. Why it matters for mend: in-diff findings are HIGH priority (user's changes caused them), pre-existing findings are LOWER priority (existing tech debt, not introduced by this PR). The scope attribute is added to each finding's RUNE:FINDING marker. Pre-existing findings may be deferred to a separate tech debt ticket rather than blocking the PR.",
+      "files": [],
+      "expectations": [
+        "Explains in-diff: finding within changed lines",
+        "Explains pre-existing: finding in unchanged lines of touched file",
+        "Notes diff_scope from inscription.json contains line ranges",
+        "Describes mend priority: in-diff HIGH, pre-existing LOWER",
+        "Notes scope attribute in RUNE:FINDING marker",
+        "Mentions pre-existing may be deferred to tech debt ticket"
+      ]
+    },
+    {
+      "id": 30,
+      "prompt": "Explain Phase 6 Truthsight verification. What is Layer 0 vs Layer 2? When does each apply? What triggers Layer 2 verification?",
+      "expected_output": "Phase 6 Truthsight verification: Layer 0 (inline checks) — quick sanity checks run inline by Runebinder: (1) File exists at path, (2) Line number within bounds, (3) No contradictory findings. Runs on ALL findings. Layer 2 (verifier agent) — deep verification by dedicated agent. Triggers: (1) P1 severity findings, (2) Layer 0 flagged as suspicious, (3) CDX findings from Codex Oracle. Layer 2 spawns a haiku-model verifier agent that re-reads the source file and confirms the finding's accuracy. If Layer 2 fails: finding is tagged as UNVERIFIED and removed from final TOME. Layer 1 is intentionally skipped (reserved for future use). The two-layer approach balances speed (Layer 0 on everything) with depth (Layer 2 on critical).",
+      "files": [],
+      "expectations": [
+        "Describes Layer 0: inline sanity checks on ALL findings",
+        "Lists Layer 0 checks: file exists, line in bounds, no contradictions",
+        "Describes Layer 2: deep verification by agent",
+        "Lists Layer 2 triggers: P1 findings, Layer 0 suspicious, CDX findings",
+        "Notes Layer 2 spawns haiku-model verifier",
+        "Mentions UNVERIFIED findings removed from TOME",
+        "Notes Layer 1 is intentionally skipped"
+      ]
+    },
+    {
+      "id": 31,
+      "prompt": "How does the Glyph Budget work for inter-agent communication? What is the limit? What happens when exceeded?",
+      "expected_output": "Glyph Budget for inter-agent communication: Default limit is 300 words per SendMessage. Enforced by the enforce-glyph-budget.sh PostToolUse hook. When exceeded: advisory context injected (non-blocking), warns teammate to compress their message. The budget applies to SendMessage tool only — not to agent output files. Purpose: prevent context explosion when teammates send verbose messages to each other. Compression strategies: (1) Use bullet points, (2) Reference file paths instead of quoting code, (3) Summarize instead of full transcripts. Configurable via talisman.yml context_weaving.glyph_budget. The hook counts words using simple whitespace splitting. Not a hard limit — advisory to encourage brevity.",
+      "files": [],
+      "expectations": [
+        "States default limit: 300 words per SendMessage",
+        "Notes enforced by enforce-glyph-budget.sh PostToolUse hook",
+        "Describes behavior: advisory context injected (non-blocking)",
+        "Lists compression strategies: bullets, file paths, summaries",
+        "Notes configurable via talisman context_weaving.glyph_budget",
+        "Clarifies applies to SendMessage only, not output files"
+      ]
+    },
+    {
+      "id": 32,
+      "prompt": "Explain the ATE-1 hook enforcement. When are bare Agent() calls blocked? What are the 4 detection signals? What agents are exempt?",
+      "expected_output": "ATE-1 hook enforcement: Blocks bare Agent() calls (without team_name) during active Rune workflows. 4 detection signals: (1) tmp/.rune-*-*.json state files, (2) inscription.json in output directories, (3) tmp/.rune-signals/ directories, (4) agent names matching known Rune patterns. Exemptions: (1) Non-Rune agents (names not in lib/known-rune-agents.sh), (2) Explore/Plan agent types, (3) Phase 0.5 lore-analyst (runs before team exists, ATE-1 exemption documented). The hook filters by session ownership (config_dir + owner_pid match). Unnamed agents (no name parameter) are always blocked. Purpose: ensure all agents participate in the team coordination protocol for proper cleanup and monitoring.",
+      "files": [],
+      "expectations": [
+        "States blocks bare Agent() calls without team_name",
+        "Lists 4 signals: state files, inscription.json, signal dirs, name patterns",
+        "Notes exemptions: non-Rune agents, Explore/Plan types, lore-analyst",
+        "Notes session ownership filtering: config_dir + owner_pid",
+        "Mentions unnamed agents always blocked",
+        "Explains purpose: team coordination for cleanup/monitoring"
+      ]
+    },
+    {
+      "id": 33,
+      "prompt": "What is the max_cli_ashes limit? How does it interact with max_ashes? What security validations apply to CLI binary paths?",
+      "expected_output": "max_cli_ashes limit: Default is 2. This is a sub-cap within max_ashes — you can have at most 2 CLI-backed Ashes even if max_ashes is higher. Purpose: limit external model exposure (higher hallucination risk). Security validations for CLI binary paths: (1) CLI_BINARY_PATTERN — must match ^[a-zA-Z0-9_-]+$ (alphanumeric, dash, underscore only), (2) MODEL_NAME_PATTERN — validates model identifier format, (3) CLI_PATH_VALIDATION — binary path must NOT resolve within project directory (prevents executing project-local binaries). Example: './local-llama' would be rejected, '/usr/local/bin/gemini' would be allowed. These patterns are defined in roundtable-circle/references/security-patterns.md. Codex Oracle is NOT counted toward max_cli_ashes — it has its own dedicated gate.",
+      "files": [],
+      "expectations": [
+        "States max_cli_ashes default: 2",
+        "Notes it's a sub-cap within max_ashes",
+        "Explains purpose: limit external model hallucination risk",
+        "Lists CLI_BINARY_PATTERN: alphanumeric, dash, underscore",
+        "Lists CLI_PATH_VALIDATION: must not resolve within project",
+        "Gives example: './local-llama' rejected, '/usr/local/bin/gemini' allowed",
+        "Notes Codex Oracle not counted toward limit"
+      ]
+    },
+    {
+      "id": 34,
+      "prompt": "Explain the SEAL convention for Ash completion. What is the format? How does it enable deterministic detection? What hook validates it?",
+      "expected_output": "SEAL convention for Ash completion: Format is <seal>TAG</seal> as the LAST line of agent output. TAG identifies the Ash (e.g., 'ward-sentinel', 'forge-warden'). Enables deterministic completion detection: the on-teammate-idle.sh hook scans for SEAL marker before allowing idle transition. If missing, the hook blocks idle and logs a warning. This ensures Ashes don't go idle prematurely before writing their output file. The SEAL marker is separate from the signal file system — it's a content-based check that the agent actually completed its work. Combined with signal files (Phase 2 setup), provides two-layer completion verification. The SEAL must be the exact last line — trailing whitespace or newlines invalidate it.",
+      "files": [],
+      "expectations": [
+        "States format: <seal>TAG</seal> as last line",
+        "Notes TAG identifies the Ash",
+        "Describes hook: on-teammate-idle.sh validates before idle",
+        "Notes missing SEAL blocks idle with warning",
+        "Explains purpose: prevent premature idle before output written",
+        "Mentions two-layer verification with signal files",
+        "Notes SEAL must be exact last line, no trailing whitespace"
+      ]
+    },
+    {
+      "id": 35,
+      "prompt": "How does the Inner Flame self-review protocol work for Ashes? What are the 3 layers? How is it enforced?",
+      "expected_output": "Inner Flame self-review protocol for Ashes: 3 layers — (1) Grounding: verify all claims reference actual code from the reviewed files, not hallucinated content. (2) Completeness: confirm all assigned files were reviewed, no gaps. (3) Self-Adversarial: challenge own findings — would a skeptic accept this evidence? Enforcement: validate-inner-flame.sh TaskCompleted hook checks output for Grounding/Completeness/Self-Adversarial markers. Missing markers → advisory warning (non-blocking for review Ashes). Configurable via talisman.inner_flame.enabled. The protocol is adapted per agent role: review Ashes focus on evidence quality, work Ashes focus on implementation correctness, fixer Ashes focus on change scope. The hook uses pattern matching to detect marker presence, not semantic validation.",
+      "files": [],
+      "expectations": [
+        "Lists 3 layers: Grounding, Completeness, Self-Adversarial",
+        "Describes Grounding: claims reference actual code",
+        "Describes Completeness: all assigned files reviewed",
+        "Describes Self-Adversarial: challenge own findings",
+        "Notes hook: validate-inner-flame.sh on TaskCompleted",
+        "Mentions configurable via talisman.inner_flame.enabled",
+        "Notes adapted per agent role"
+      ]
+    },
+    {
+      "id": 36,
+      "prompt": "Explain the sanitizeUntrustedText() function used in Phase 0.3 Context Intelligence. What does it protect against? What characters are stripped?",
+      "expected_output": "sanitizeUntrustedText() function in Phase 0.3: Protects against CDX-001/CVE-2021-42574 (Unicode bidi character attack). Characters stripped: (1) U+202A-U+202E (LRE, RLE, PDF, LRO, RLO bidi overrides), (2) U+2066-U+2069 (LRI, RLI, FSI, PDI isolate controls), (3) U+200E-U+200F (LRM, RLM marks). Purpose: prevent attackers from embedding invisible bidi characters in issue titles/PR descriptions that could cause misleading code display. Applied to all external text before inclusion in inscription.json. The function is defined in phase-0.3-0.4-context-and-linter.md. This is a defense-in-depth measure — even if upstream sources are compromised, the sanitized output cannot contain bidi obfuscation attacks.",
+      "files": [],
+      "expectations": [
+        "References CDX-001/CVE-2021-42574",
+        "Lists bidi override codes: U+202A-U+202E",
+        "Lists isolate controls: U+2066-U+2069",
+        "Lists directional marks: U+200E-U+200F",
+        "Notes applied to external text before inscription.json",
+        "Mentions function defined in phase-0.3-0.4-context-and-linter.md"
+      ]
+    },
+    {
+      "id": 37,
+      "prompt": "What happens when Phase 0.4 detects multiple linters for the same file type? How does linter awareness suppress findings? Which finding types are NEVER suppressed?",
+      "expected_output": "Multiple linters for same file type: Phase 0.4 detects all configured linters, not just one. Example: a TypeScript project may have eslint, prettier, AND typescript compiler checks. All are included in linter_context. Finding suppression logic: when an Ash would report an issue that a configured linter already catches, the finding is suppressed to avoid duplicate noise. NEVER suppressed: SEC-* (security findings always reported regardless of linter), VEIL-* (truthbinding violations always reported), P1 critical findings (safety net — even if linter should catch it, report anyway). Rationale: security issues may slip through linter gaps, and truthbinding violations indicate fundamental problems that require human attention. Configurable via talisman.review.linter_awareness.",
+      "files": [],
+      "expectations": [
+        "Notes all configured linters detected, not just one",
+        "Gives example: TypeScript with eslint + prettier + tsc",
+        "Describes suppression: avoid duplicate findings",
+        "Lists NEVER suppressed: SEC-*, VEIL-*, P1 critical",
+        "Notes configurable via talisman.review.linter_awareness",
+        "Explains rationale: security may slip through, truthbinding needs attention"
+      ]
+    },
+    {
+      "id": 38,
+      "prompt": "How does the G5 guard work in Phase 0.5 Lore Layer? What happens when there are fewer than 5 commits? Why is this threshold important?",
+      "expected_output": "G5 guard in Phase 0.5 Lore Layer: Skips Lore Layer when git history has fewer than 5 commits in the lookback window. Why this threshold: with <5 commits, there's insufficient git history for meaningful risk scoring. Risk patterns (churn, ownership concentration, co-change clustering) require a minimum sample size to be statistically valid. Without G5 guard: every repo would run Lore Layer even on initial commits, producing misleading 'all files LOW risk' results due to lack of historical signal. Implementation: `git log --oneline --since='6 months ago' | wc -l` — if count < 5, skip entire Phase 0.5. The risk-map.json is not generated, and changed_files keeps its original ordering (no re-sort by risk tier).",
+      "files": [],
+      "expectations": [
+        "States threshold: fewer than 5 commits in lookback",
+        "Explains reason: insufficient history for risk scoring",
+        "Notes patterns need minimum sample: churn, ownership, co-change",
+        "Describes consequence: skip Phase 0.5 entirely",
+        "Notes risk-map.json not generated",
+        "Notes changed_files keeps original ordering"
+      ]
+    },
+    {
+      "id": 39,
+      "prompt": "Explain how the resolve-session-identity.sh script works. What environment variables does it provide? How is it used by hooks?",
+      "expected_output": "resolve-session-identity.sh script: Provides RUNE_CURRENT_CFG variable for consistent session identity comparison. Environment variables: (1) RUNE_CURRENT_CFG — resolved CLAUDE_CONFIG_DIR or $HOME/.claude fallback, (2) RUNE_CURRENT_PID — $PPID (Claude Code process), (3) RUNE_SESSION_ID — $CLAUDE_SESSION_ID. Used by hooks: (1) PreToolUse hooks compare RUNE_CURRENT_CFG against state file config_dir to verify ownership, (2) Cleanup hooks use RUNE_CURRENT_PID + kill -0 liveness check before acting on stale state, (3) Session isolation logic uses all three to prevent cross-session interference. The script is sourced, not executed — variables are exported to the calling shell. Location: plugins/rune/scripts/lib/resolve-session-identity.sh.",
+      "files": [],
+      "expectations": [
+        "Lists RUNE_CURRENT_CFG: resolved CLAUDE_CONFIG_DIR",
+        "Lists RUNE_CURRENT_PID: $PPID",
+        "Lists RUNE_SESSION_ID: $CLAUDE_SESSION_ID",
+        "Notes used by PreToolUse for ownership comparison",
+        "Notes used by cleanup with kill -0 liveness check",
+        "Mentions script is sourced, not executed",
+        "Gives location: scripts/lib/resolve-session-identity.sh"
+      ]
+    },
+    {
+      "id": 40,
+      "prompt": "What is the difference between CONVERGED, HALTED, and RETRY convergence states? When does each occur? What triggers transition between them?",
+      "expected_output": "Convergence states: CONVERGED — no new findings from re-review, quality metrics acceptable (delta < threshold). Triggers exit from convergence loop. HALTED — max cycles reached without achieving convergence. MAX_CONVERGENCE_CYCLES exceeded, loop terminates with warning. RETRY — new findings detected or quality below threshold. Triggers another re-review pass with reduced timeout (50% per pass). Transitions: Initial review → check quality gates → if gates fail, RETRY → run re-review → if delta < threshold, CONVERGED; else if cycles < MAX, RETRY; else HALTED. Quality gates that trigger RETRY: (1) P1/P2 findings exist, (2) confidence below threshold, (3) coverage gaps. The CONVERGED state is the happy path — findings stabilized and review complete. HALTED indicates diminishing returns — further cycles unlikely to improve quality.",
+      "files": [],
+      "expectations": [
+        "Defines CONVERGED: no new findings, quality acceptable",
+        "Defines HALTED: max cycles reached without convergence",
+        "Defines RETRY: new findings or quality below threshold",
+        "Describes transition: RETRY → re-review → CONVERGED or HALTED",
+        "Lists quality gates: P1/P2 findings, confidence, coverage",
+        "Notes reduced timeout: 50% per pass",
+        "Notes HALTED indicates diminishing returns"
+      ]
+    },
+    {
+      "id": 41,
+      "prompt": "How does the quality gate in TaskCompleted hook work? What does the haiku model check? What happens when a task is marked complete prematurely?",
+      "expected_output": "Quality gate in TaskCompleted hook: on-task-completed.sh triggers haiku-model validation. Checks: (1) Output file exists at expected path, (2) File contains structured findings (RUNE:FINDING markers), (3) Findings have required attributes (nonce, id, file, line, severity), (4) No generic/copypaste content patterns. Premature completion: if haiku gate fails, the hook exits 2 (blocking). The task remains in_progress, teammate cannot go idle. Feedback is injected via stderr. This prevents teammates from gaming the system by marking tasks complete without doing the work. The haiku model is used for cost efficiency — it's a lightweight structural check, not deep semantic validation. The hook reads expected_files from inscription.json to know what output to check.",
+      "files": [],
+      "expectations": [
+        "Notes hook: on-task-completed.sh with haiku validation",
+        "Lists checks: output exists, RUNE:FINDING markers, required attrs",
+        "Notes check for generic/copypaste patterns",
+        "Describes premature completion: exit 2, task stays in_progress",
+        "Notes feedback injected via stderr",
+        "Mentions haiku used for cost efficiency",
+        "Notes expected_files from inscription.json"
+      ]
+    },
+    {
+      "id": 42,
+      "prompt": "Explain the cross-session concurrency model. Which workflow combinations are supported? Which cause conflicts? How does the workflow lock compatibility matrix work?",
+      "expected_output": "Cross-session concurrency model: Supported combinations — reader + reader (multiple reviews), reader + writer (review while strive/mend runs), planner + writer (devise while strive runs). Conflict combinations — writer + writer (two strive instances, two mends). Compatibility matrix in workflow-lock.sh: READER conflicts with WRITER only; WRITER conflicts with READER and WRITER; PLANNER conflicts with none (planners don't modify files). When conflict detected: AskUserQuestion offers choice: proceed anyway (dangerous) or wait. Each session has its own team (SDK one-team-per-session constraint). Hook scripts scope cleanup by session ownership — TeamDelete only affects current session's team. Workflow locks prevent file-level conflicts; session isolation prevents team-level conflicts.",
+      "files": [],
+      "expectations": [
+        "Lists supported: reader+reader, reader+writer, planner+writer",
+        "Lists conflict: writer+writer",
+        "Describes compatibility matrix: READER vs WRITER",
+        "Notes PLANNER conflicts with none",
+        "Describes conflict handling: AskUserQuestion choice",
+        "Notes each session has own team (SDK constraint)",
+        "Mentions hook cleanup scoped by session"
+      ]
+    },
+    {
+      "id": 43,
+      "prompt": "What is the expected_files array in inscription.json? How is it used for output validation? What happens when an expected file is missing?",
+      "expected_output": "expected_files array in inscription.json: Lists all output file paths that each Ash should produce. Format: [{ ash: 'ward-sentinel', path: 'tmp/reviews/{id}/ward-sentinel.md', status: 'pending' }]. Used for output validation: (1) Phase 4 Monitor checks expected files during polling, (2) Phase 7 Cleanup verifies all expected files exist before cleanup, (3) TaskCompleted hook validates file creation before allowing idle. Missing expected file: (1) Monitor logs warning after timeout, (2) TOME.md includes gap report for missing Ash output, (3) Cleanup still proceeds — partial results are collected. The array is generated in Phase 2 based on selectedAsh list. Each Ash knows its expected output path from the inscription contract injected in Phase 3.",
+      "files": [],
+      "expectations": [
+        "Describes format: ash name, path, status",
+        "Notes Phase 4 Monitor checks during polling",
+        "Notes Phase 7 Cleanup verifies before cleanup",
+        "Notes TaskCompleted hook validates before idle",
+        "Describes missing file: warning + gap report in TOME",
+        "Notes cleanup proceeds with partial results",
+        "Mentions generated in Phase 2 from selectedAsh"
+      ]
+    },
+    {
+      "id": 44,
+      "prompt": "How does the codex exec timeout handling work? What is the timeout value? What happens when it's exceeded? How does jq fallback work?",
+      "expected_output": "codex exec timeout: 10 minutes (600,000 ms). Configured via talisman.codex.timeout_ms. When exceeded: Codex Oracle returns partial results (whatever was generated before timeout). Log message: 'Codex exec timeout — consider reducing context_budget'. The partial results still go through Hallucination Guard verification. jq fallback: Codex outputs JSONL format. If jq is unavailable, Codex Oracle uses raw text parsing — regex-based extraction of findings instead of structured JSON parsing. Less reliable but functional. Detection: `which jq` returns non-zero → enable fallback mode. The fallback mode may miss structured metadata (severity, file path) and relies more heavily on Hallucination Guard to validate extracted findings. Error handling never blocks the review — Codex failure is non-fatal.",
+      "files": [],
+      "expectations": [
+        "States timeout: 10 minutes (600,000 ms)",
+        "Notes configurable via talisman.codex.timeout_ms",
+        "Describes timeout: partial results + log message",
+        "Notes partial results go through Hallucination Guard",
+        "Describes jq fallback: raw text parsing with regex",
+        "Notes fallback may miss metadata",
+        "Notes Codex failure is non-fatal"
+      ]
+    },
+    {
+      "id": 45,
+      "prompt": "Explain the file-based handoff pattern between phases. What files are written and read between phases? How does this enable phase independence?",
+      "expected_output": "File-based handoff between phases: Phase 0 writes: changed_files.txt (file list), diff-ranges.json (line ranges). Phase 0.3 writes: context-intel.json. Phase 0.4 writes: linter-context.json. Phase 0.5 writes: risk-map.json, lore-analysis.md. Phase 2 writes: inscription.json (combines all above), state file .rune-review-{id}.json. Phase 3 reads: inscription.json, changed-files.txt. Phase 4 reads: signal directory, expected files. Phase 5 reads: all Ash output files. Phase 7 writes: TOME.md, echoes. Phase independence: each phase only reads files from previous phases, never directly calls functions. This enables: (1) Crash recovery — can resume from last written file, (2) Debugging — inspect intermediate state, (3) Parallel development — phases can be tested in isolation. The pattern follows the 'files as API' principle.",
+      "files": [],
+      "expectations": [
+        "Lists Phase 0 outputs: changed_files.txt, diff-ranges.json",
+        "Lists Phase 0.3: context-intel.json",
+        "Lists Phase 0.4: linter-context.json",
+        "Lists Phase 0.5: risk-map.json, lore-analysis.md",
+        "Lists Phase 2: inscription.json, state file",
+        "Notes Phase 3 reads inscription.json",
+        "Explains independence: files as API, crash recovery"
+      ]
     }
   ]
 }

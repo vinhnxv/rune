@@ -182,14 +182,19 @@ _phase_ref() {
 }
 
 # ── Section hint for shared reference files ──
-# Only needed when multiple phases share the same reference file (e.g. arc-codex-phases.md).
-# Phases with dedicated reference files (e.g. test_coverage_critique → arc-phase-test.md,
-# release_quality_check → arc-phase-pre-ship-validator.md) do NOT need section hints.
+# Required when multiple phases share the same reference file. Without hints,
+# Claude reads the full file and may execute multiple phases in one turn,
+# preventing the Stop hook from firing between them.
+# Shared files: arc-codex-phases.md, arc-phase-test.md, arc-phase-pre-ship-validator.md
 _phase_section_hint() {
   local phase="$1"
   case "$phase" in
-    semantic_verification)    echo "Execute Phase 2.8 (Semantic Verification) section." ;;
-    codex_gap_analysis)       echo "Execute Phase 5.6 (Codex Gap Analysis) section." ;;
+    semantic_verification)    echo "Execute Phase 2.8 (Semantic Verification) section ONLY. Do NOT execute Phase 5.6." ;;
+    codex_gap_analysis)       echo "Execute Phase 5.6 (Codex Gap Analysis) section ONLY. Do NOT execute Phase 2.8." ;;
+    test)                     echo "Execute Phase 7.7 (TEST) section ONLY. Do NOT execute Phase 7.8 (TEST COVERAGE CRITIQUE)." ;;
+    test_coverage_critique)   echo "Execute Phase 7.8 (TEST COVERAGE CRITIQUE) section ONLY. Do NOT execute Phase 7.7 (TEST)." ;;
+    pre_ship_validation)      echo "Execute Phase 8.5 (Pre-Ship Completion Validator) section ONLY. Do NOT execute Phase 8.55 (Release Quality Check)." ;;
+    release_quality_check)    echo "Execute Phase 8.55 (Release Quality Check) section ONLY. Do NOT execute Phase 8.5 (Pre-Ship Completion Validator)." ;;
     *)                        echo "" ;;
   esac
 }

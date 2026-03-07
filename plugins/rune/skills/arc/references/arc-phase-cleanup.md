@@ -29,7 +29,11 @@ const PHASE_PREFIX_MAP = {
   design_verification:    ["arc-design-verify-"],               // Phase 5.2 (conditional — VSM fidelity check)
   ux_verification:        ["arc-ux-"],                           // Phase 5.3 (conditional — ux.enabled + frontend files)
   gap_analysis:           ["rune-inspect-", "arc-inspect-"],    // both prefix variants
-  // codex_gap_analysis removed in v1.74.0 — Phase 5.6 no longer creates teams (inline Bash pattern)
+  semantic_verification:  ["arc-codex-sv-"],                    // delegated to codex-phase-handler teammate
+  task_decomposition:     ["arc-codex-td-"],                    // delegated to codex-phase-handler teammate
+  codex_gap_analysis:     ["arc-codex-ga-"],                    // delegated to codex-phase-handler teammate
+  test_coverage_critique: ["arc-codex-tc-"],                    // delegated to codex-phase-handler teammate
+  release_quality_check:  ["arc-codex-rq-"],                    // delegated to codex-phase-handler teammate
   gap_remediation:        ["arc-gap-fix-"],
   goldmask_verification:  ["goldmask-"],
   code_review:            ["rune-review-"],
@@ -37,11 +41,12 @@ const PHASE_PREFIX_MAP = {
   design_iteration:       ["arc-design-iter-"],                 // Phase 7.6 (conditional — fidelity < threshold)
   test:                   ["arc-test-"],
 }
-// NOTE: 13 delegated phases (9 original + 3 design phases + 1 UX phase). Phases removed in v1.67.0 (audit, audit_mend) are NOT listed.
+// NOTE: 18 delegated phases (9 original + 3 design phases + 1 UX phase + 5 Codex handler phases). Phases removed in v1.67.0 (audit, audit_mend) are NOT listed.
 // Multi-prefix entries: plan_review has Layer 2 inspect team (arc-plan-inspect-), mend has ephemeral sage team (arc-sage-).
 // Design phases are conditional — only create teams when design_sync.enabled === true.
 // UX verification is conditional — only creates teams when ux.enabled === true + frontend files detected.
-// Orchestrator-only phases (plan_refine, verification, semantic_verification,
+// Codex handler phases: delegated to codex-phase-handler teammate (5 phases: 2.8, 4.5, 5.6, 7.8, 8.55). Conditional on Codex availability.
+// Orchestrator-only phases (plan_refine, verification,
 // goldmask_correlation, verify_mend, ship, merge) do not create teams — no entries needed.
 ```
 

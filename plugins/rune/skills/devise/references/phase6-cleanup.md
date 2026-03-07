@@ -15,7 +15,8 @@ try {
 } catch (e) {
   // FALLBACK: known teammates across all devise phases (some are conditional — safe to send shutdown to absent members)
   allMembers = [
-    // Phase 0: Brainstorm
+    // Phase 0: Brainstorm (advisors + sages — normally shutdown mid-pipeline, listed here as safety net)
+    "user-advocate", "tech-realist", "devils-advocate",
     "elicitation-sage-1", "elicitation-sage-2", "elicitation-sage-3",
     "design-inventory-agent",
     // Phase 0.3: UX Research (conditional — ux.enabled)
