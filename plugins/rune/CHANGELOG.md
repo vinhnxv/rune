@@ -3,7 +3,7 @@
 ## [1.143.5] - 2026-03-08
 
 ### Fixed
-- **arc-batch skill-load-without-execute (FIX-005)** — When the Stop hook injects an arc prompt telling Claude to call `Skill("rune:arc", ...)`, Claude loads the skill but ends its response without executing the loaded instructions. No checkpoint is created, no phase loop starts, and each batch iteration completes in ~1-2 minutes doing nothing. Root cause: Claude treats "Successfully loaded skill" as task completion rather than the beginning of execution. Fix: restructured all 3 Stop hook prompts (batch, issues, hierarchy) and `batch-loop-init.md` Phase 5 to separate "LOAD" (step 5) from "EXECUTE" (step 6) with explicit mandatory continuation instructions. Step 6 spells out the concrete entry points (arc-preflight.md → arc-checkpoint-init.md → phase loop state file → first phase) so Claude has an actionable path after skill loading.
+- **arc-batch skill-load-without-execute (FIX-005)** — When the Stop hook injects an arc prompt telling Claude to call `Skill("rune:arc", ...)`, Claude loads the skill but ends its response without executing the loaded instructions. No checkpoint is created, no phase loop starts, and each batch iteration completes in ~1-2 minutes doing nothing. Root cause: Claude treats `Skill()` as a terminal action in Stop hook context — "Successfully loaded skill" becomes the end of the response. Fix: replaced all `Skill()` calls with direct `Read()` calls to arc SKILL.md and reference files (arc-preflight.md, arc-checkpoint-init.md) in all 3 Stop hooks (batch, issues, hierarchy) and `batch-loop-init.md` Phase 5. `Read()` returns content inline that Claude must process as part of its response flow, bypassing the "loaded" terminal endpoint entirely.
 
 ## [1.143.4] - 2026-03-08
 

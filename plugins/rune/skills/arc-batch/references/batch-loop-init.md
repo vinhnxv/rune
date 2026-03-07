@@ -103,33 +103,31 @@ const mergeFlag = !autoMerge ? " --no-merge" : ""
 const arcArgs = `${firstPlan} --skip-freshness --accept-external${mergeFlag}`
 Write("tmp/.rune-arc-batch-next-plan.txt", arcArgs)
 
-// ── Invoke arc for first plan ──
-// Native skill invocation — no subprocess, no timeout limit.
-// Each arc runs as a full Claude Code turn with complete tool access.
+// ── Load and execute arc for first plan ──
+// FIX-005 (v1.143.5): Bypass Skill() call entirely. Claude treats Skill() as a
+// terminal action in Stop hook context — loads the skill but ends response without
+// executing the loaded instructions. Instead, Read() the arc SKILL.md and reference
+// files directly. Read() returns content inline, which Claude processes as part of
+// its response flow (no "loaded" endpoint).
+//
 // ARC-BATCH-001 FIX: Use "rune:arc" (not "arc") — must match stop hook naming.
 // Arc-batch always passes --accept-external: batch runs commonly accumulate
 // commits from prior arcs or parallel sessions on the same branch.
-//
-// ⚠️ FIX-001: You MUST pass TWO arguments to the Skill tool:
-//   First argument: "rune:arc" (the skill name)
-//   Second argument: the plan path + flags string (arcArgs above)
-// If you call Skill("rune:arc") WITHOUT the second argument, the arc will fail.
-Skill("rune:arc", arcArgs)
-// Equivalent to: Skill("rune:arc", "${firstPlan} --skip-freshness --accept-external${mergeFlag}")
+const pluginRel = "plugins/rune" // relative path from CWD to plugin root
+Read(`${pluginRel}/skills/arc/SKILL.md`)
+Read(`${pluginRel}/skills/arc/references/arc-preflight.md`)
+Read(`${pluginRel}/skills/arc/references/arc-checkpoint-init.md`)
 
-// ⚠️ MANDATORY CONTINUATION — DO NOT STOP AFTER SKILL LOADS:
-// The Skill tool returns "Successfully loaded skill" — this means the arc pipeline
-// INSTRUCTIONS are now in your context. Loading != executing. You MUST immediately
-// begin following the loaded arc instructions:
-//   1. Parse plan path from $ARGUMENTS (or fallback: tmp/.rune-arc-batch-next-plan.txt)
-//   2. Read and execute arc-preflight.md (branch strategy, plan validation)
-//   3. Read and execute arc-checkpoint-init.md (create checkpoint)
-//   4. Write the phase loop state file
-//   5. Execute the first pending phase
+// Now execute the arc pipeline with these parameters:
+//   - Plan file: firstPlan (= planPaths[0])
+//   - Flags: --skip-freshness --accept-external + mergeFlag
+//   - Follow the instructions from the Read() calls above, starting at "Pre-flight"
+//   - Create the arc checkpoint (arc-checkpoint-init.md)
+//   - Write the phase loop state file (.claude/arc-phase-loop.local.md)
+//   - Execute the first pending phase
 //
-// DO NOT end your response after the Skill call. The Skill call LOADS instructions.
-// You must EXECUTE them. The arc pipeline has 28 phases — start the first one.
-// DO NOT implement the plan code directly. Follow the loaded arc skill instructions.
+// DO NOT call Skill("rune:arc") — you already have the instructions from Read().
+// DO NOT implement the plan code directly. Follow the arc SKILL.md instructions.
 
 // After the first arc completes, Claude's response ends.
 // The Stop hook fires, reads the state file, marks plan 1 as completed,
@@ -139,7 +137,7 @@ Skill("rune:arc", arcArgs)
 
 ## How the Loop Works
 
-1. Phase 5 invokes `/rune:arc` for the first plan (native turn)
+1. Phase 5 reads arc SKILL.md + reference files directly (Read, not Skill) and executes the pipeline
 2. When arc completes, Claude's response ends → Stop event fires
 3. `arc-batch-stop-hook.sh` reads `.claude/arc-batch-loop.local.md`
 4. Marks current plan as completed in `batch-progress.json`
