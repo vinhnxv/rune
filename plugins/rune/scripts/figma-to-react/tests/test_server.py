@@ -38,10 +38,8 @@ from server import (  # noqa: E402
 def _make_ctx(figma_client=None) -> MagicMock:
     """Build a mock MCP Context with optional FigmaClient."""
     ctx = MagicMock(spec=Context)
-    if figma_client is not None:
-        ctx.request_context = {"figma_client": figma_client}
-    else:
-        ctx.request_context = {"figma_client": MagicMock()}
+    lifespan_ctx = {"figma_client": figma_client if figma_client is not None else MagicMock()}
+    ctx.request_context.lifespan_context = lifespan_ctx
     return ctx
 
 
@@ -72,25 +70,25 @@ class TestGetClient:
         assert result is mock_client
 
     def test_missing_figma_client_key_raises_tool_error(self):
-        """Missing 'figma_client' key raises ToolError."""
+        """Missing 'figma_client' key in lifespan_context raises ToolError."""
         ctx = MagicMock(spec=Context)
-        ctx.request_context = {}  # no figma_client key
+        ctx.request_context.lifespan_context = {}  # no figma_client key
         with pytest.raises(ToolError, match="FigmaClient not available"):
             _get_client(ctx)
 
-    def test_none_request_context_raises_tool_error(self):
-        """None request_context raises ToolError."""
+    def test_none_lifespan_context_raises_tool_error(self):
+        """None lifespan_context raises ToolError."""
         ctx = MagicMock(spec=Context)
-        ctx.request_context = None
+        ctx.request_context.lifespan_context = None
         with pytest.raises(ToolError, match="FigmaClient not available"):
             _get_client(ctx)
 
-    def test_missing_request_context_attr_raises_tool_error(self):
-        """Non-subscriptable request_context raises ToolError."""
+    def test_non_subscriptable_lifespan_context_raises_tool_error(self):
+        """Non-subscriptable lifespan_context raises ToolError."""
         ctx = MagicMock(spec=Context)
-        # Set request_context to a non-dict type — subscript will raise TypeError,
+        # Set lifespan_context to a non-dict type — subscript will raise TypeError,
         # which _get_client wraps into ToolError via except (AttributeError, KeyError, TypeError)
-        ctx.request_context = "not-a-dict"
+        ctx.request_context.lifespan_context = "not-a-dict"
         with pytest.raises(ToolError, match="FigmaClient not available"):
             _get_client(ctx)
 
@@ -227,7 +225,7 @@ class TestFigmaFetchDesign:
     async def test_malformed_request_context_raises_tool_error(self):
         """Context with no FigmaClient raises ToolError before calling core."""
         ctx = MagicMock(spec=Context)
-        ctx.request_context = {}  # missing figma_client
+        ctx.request_context.lifespan_context = {}  # missing figma_client
         with pytest.raises(ToolError, match="FigmaClient not available"):
             await figma_fetch_design(
                 url="https://www.figma.com/design/ABC/Title",
@@ -410,7 +408,7 @@ class TestFigmaListComponents:
     async def test_missing_figma_client_raises_tool_error(self):
         """Missing FigmaClient in context raises ToolError before API call."""
         ctx = MagicMock(spec=Context)
-        ctx.request_context = {}
+        ctx.request_context.lifespan_context = {}
         with pytest.raises(ToolError, match="FigmaClient not available"):
             await figma_list_components(
                 url="https://www.figma.com/design/ABC/Title",
@@ -535,7 +533,7 @@ class TestFigmaToReact:
     async def test_malformed_request_no_client_raises_tool_error(self):
         """No FigmaClient in context raises ToolError before calling core."""
         ctx = MagicMock(spec=Context)
-        ctx.request_context = {}
+        ctx.request_context.lifespan_context = {}
         with pytest.raises(ToolError, match="FigmaClient not available"):
             await figma_to_react(
                 url="https://www.figma.com/design/ABC/Title?node-id=1-2",

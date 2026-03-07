@@ -81,7 +81,7 @@ mcp = FastMCP(
 def _get_client(ctx: Context) -> FigmaClient:
     """Extract the shared FigmaClient from the MCP context."""
     try:
-        return ctx.request_context["figma_client"]
+        return ctx.request_context.lifespan_context["figma_client"]
     except (AttributeError, KeyError, TypeError) as exc:
         raise ToolError(
             "Internal error: FigmaClient not available in server context."
