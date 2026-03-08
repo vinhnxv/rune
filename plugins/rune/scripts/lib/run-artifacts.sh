@@ -499,7 +499,7 @@ rune_artifact_finalize() {
     started_at=$(jq -r '.started_at // empty' "$meta_file" 2>/dev/null || true)
     if [[ -n "$started_at" ]]; then
       local parsed_epoch now_epoch
-      parsed_epoch=$(TZ=UTC date -jf "%Y-%m-%dT%H:%M:%SZ" "$started_at" +%s 2>/dev/null || \
+      parsed_epoch=$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%SZ" "$started_at" +%s 2>/dev/null || \
                     date -d "$started_at" +%s 2>/dev/null || echo "0")
       now_epoch=$(date -u +%s 2>/dev/null || echo "0")
       if [[ "$parsed_epoch" =~ ^[0-9]+$ && "$now_epoch" =~ ^[0-9]+$ && "$parsed_epoch" -gt 0 ]]; then

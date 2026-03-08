@@ -417,7 +417,7 @@ if [[ "$_artifact_now" =~ ^[0-9]+$ && "$_artifact_now" -gt 0 ]]; then
     fi
 
     # Parse started_at timestamp (macOS + GNU date compat)
-    _art_start_epoch=$(TZ=UTC date -jf "%Y-%m-%dT%H:%M:%SZ" "$_art_started" +%s 2>/dev/null || \
+    _art_start_epoch=$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%SZ" "$_art_started" +%s 2>/dev/null || \
                        date -d "$_art_started" +%s 2>/dev/null || echo "0")
     if [[ ! "$_art_start_epoch" =~ ^[0-9]+$ || "$_art_start_epoch" -eq 0 ]]; then
       continue

@@ -234,7 +234,7 @@ jq -n \
   '{session_id: $sid, remaining_percentage: $rem, used_pct: $used, timestamp: $ts, config_dir: $cfg, owner_pid: $pid}' \
   > "$BRIDGE_FILE"
 # Set file mtime to 2 minutes ago so script treats it as stale (>30s threshold)
-touch -t "$(date -v-2M +%Y%m%d%H%M.%S)" "$BRIDGE_FILE"
+touch -t "$(date -v-2M +%Y%m%d%H%M.%S 2>/dev/null || date -d '2 minutes ago' +%Y%m%d%H%M.%S 2>/dev/null)" "$BRIDGE_FILE"
 
 result=$(echo "$INPUT" | CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" 2>/dev/null)
 assert_eq "Stale bridge → no output (allow)" "" "$result"
