@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.144.7] - 2026-03-08
+## [1.144.8] - 2026-03-08
 
 ### Fixed
 - **Test: stale threshold alignment** — `test_enforce_teams.py` used 30-min threshold (35-min backdate), updated to 120-min threshold (130-min backdate) matching `enforce-teams.sh` `STALE_THRESHOLD_MIN=120`
