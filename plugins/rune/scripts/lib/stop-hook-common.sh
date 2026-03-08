@@ -45,9 +45,15 @@ parse_input() {
 
 # ── resolve_cwd(): Guard 3 — CWD extraction and canonicalization ──
 # Sets: CWD
-# Exits 0 if CWD is empty, non-absolute, or unresolvable.
+# Exits 0 if CWD is empty (after fallback), non-absolute, or unresolvable.
+# BUG FIX (v1.144.12): Added CLAUDE_PROJECT_DIR fallback. Previously exited
+# silently when .cwd was missing from Stop hook input, while detect-workflow-complete.sh
+# (which works correctly) had this fallback. Parity fix.
 resolve_cwd() {
   CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+  if [[ -z "$CWD" ]]; then
+    CWD="${CLAUDE_PROJECT_DIR:-}"
+  fi
   if [[ -z "$CWD" ]]; then
     exit 0
   fi

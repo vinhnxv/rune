@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.144.12] - 2026-03-09
+
+### Fixed
+- **arc-phase-stop-hook.sh** — Replaced bare `trap 'exit 0' ERR` with `_rune_fail_forward` ERR trap that logs crash location (line number) to trace log before exiting. The bare trap silently swallowed all errors, making it impossible to debug which guard was causing the hook to exit without injecting the next phase prompt.
+- **arc-phase-stop-hook.sh** — Added `_trace` calls at every guard exit point (ENTER, CWD, state file, checkpoint path, session ownership, active flag, iteration, max iterations, checkpoint file). Previously the first trace call was at line 215 after ~15 silent exit paths.
+- **stop-hook-common.sh** — Added `CLAUDE_PROJECT_DIR` fallback in `resolve_cwd()` when `.cwd` is missing from Stop hook input. Parity fix with `detect-workflow-complete.sh` which had this fallback and worked correctly.
+
 ## [1.144.11] - 2026-03-09
 
 ### Fixed
