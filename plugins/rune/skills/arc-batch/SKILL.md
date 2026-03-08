@@ -43,6 +43,8 @@ Executes `/rune:arc` across multiple plan files sequentially. Each arc run compl
 /rune:arc-batch --resume                      # Resume interrupted batch from progress file
 ```
 
+> **Single-Plan Batches**: Running with a single plan file works correctly — it runs as a normal arc with minimal batch infrastructure overhead. The Stop hook fires after completion, finds no more pending plans, and cleans up. For simple single-plan cases, consider using `/rune:arc` directly to skip batch tracking.
+
 ## Flags
 
 | Flag | Description | Default |
@@ -71,7 +73,7 @@ Executes `/rune:arc` across multiple plan files sequentially. Each arc run compl
 
 ## Algorithm
 
-See [batch-algorithm.md](references/batch-algorithm.md) for full pseudocode. See [smart-ordering.md](references/smart-ordering.md) for the Tier 1 smart ordering algorithm.
+See [batch-algorithm.md](references/batch-algorithm.md) for full pseudocode. See [smart-ordering.md](references/smart-ordering.md) for the Tier 1 smart ordering algorithm. Read this SKILL.md for full documentation on all phases, flags, and edge cases.
 
 ## Inter-Iteration Summaries (v1.72.0)
 
@@ -79,7 +81,7 @@ Between arc iterations, the Stop hook writes a structured summary file capturing
 
 **Location**: `tmp/arc-batch/summaries/iteration-{N}.md` (flat path — no PID subdirectory; session isolation is handled by Guard 5.7 in the Stop hook).
 
-**Contents**: Plan path, status, branch name, PR URL, git log (last 5 commits), and a `## Context Note` section where Claude adds a brief qualitative summary during the next turn.
+**Contents**: Plan path, status, branch name, PR URL, git log (last 5 commits), and a `## Context Note` section where Claude adds a brief qualitative summary during the next turn that captures insights and learnings from the completed arc.
 
 **Behavior**:
 - Summaries are written BEFORE marking the plan as completed (crash-safe ordering)
@@ -125,13 +127,13 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_ac
 
 ### Phase 0: Parse Arguments
 
-Parse `$ARGUMENTS` into `planPaths`, `inputType`, and flag booleans. Handles 3 input types: glob, queue file (`.txt`), and `--resume` (reads `batch-progress.json`, resets stale `in_progress` plans). Includes shard group detection (v1.66.0+).
+Parse `$ARGUMENTS` into `planPaths`, `inputType`, and flag booleans. Handles 3 input types: glob, queue file (`.txt`), and `--resume` (reads `batch-progress.json`, resets stale `in_progress` plans). Queue files preserve user order by default — plans are processed in the exact order listed. Includes shard group detection (v1.66.0+).
 
 See [phase-0-1-input-parsing.md](references/phase-0-1-input-parsing.md) for full pseudocode.
 
 ### Phase 1: Pre-flight Validation
 
-Runs `arc-batch-preflight.sh` via temp file (SEC-007: avoids shell injection from untrusted queue paths). Checks `arc.ship.auto_merge` talisman setting when `--no-merge` is not set.
+Runs `arc-batch-preflight.sh` via temp file (SEC-007: avoids shell injection from untrusted queue paths). Validates plan paths exist, are not symlinks, pass character allowlist, and checks `arc.ship.auto_merge` talisman setting when `--no-merge` is not set.
 
 See [phase-0-1-input-parsing.md](references/phase-0-1-input-parsing.md) for full pseudocode.
 
@@ -162,6 +164,8 @@ Writes `tmp/arc-batch/batch-progress.json` (schema v2) with plan statuses, shard
 See [phase-3-progress-init.md](references/phase-3-progress-init.md) for full pseudocode.
 
 ### Phase 4: Confirm Batch
+
+Shows plan count and time estimate before execution. The dialog presents three options:
 
 ```javascript
 AskUserQuestion({

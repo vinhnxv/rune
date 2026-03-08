@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.144.1] - 2026-03-08
+
+### Fixed
+- **DECREE-001 documentation** — Converted unimplemented assertion pseudocode to reference pattern in collapsible details block. Clarified that the WARNING block documents the risk; implementers are trusted to follow `PHASE_ORDER`.
+- **DECREE-003 documentation** — Removed incorrect claim about `audit-agent-registry.sh` validation. The script validates agent registry, not PHASE_PREFIX_MAP sync. Sync is now documented as a manual check with warning on mismatch.
+- **CFG-DECREE-002 naming** — Removed confusing hybrid prefix, replaced with plain comment about timeout clamping.
+- **arc-failure-policy.md cross-reference** — Replaced inline DECREE-002 reference with proper markdown link to convergence-gate.md.
+
+### Changed
+- **DECREE-004: reader+writer race condition semantics** — Documented accepted race condition behavior for simultaneous reader+writer execution (advisory) in workflow-lock.sh. Users seeking atomic consistency should run workflows sequentially or use git commits as synchronization points.
+
 ## [1.144.0] - 2026-03-08
 
 ### Added
@@ -23,6 +34,12 @@
 - Claude Code >= v2.1.71 (CronCreate/CronDelete/CronList tools)
 - `CLAUDE_CODE_DISABLE_CRON` must not be set
 
+## [1.143.8] - 2026-03-08
+
+### Fixed
+- **Convergence gate circuit breaker** — Added hard limit check for `maxRounds` in `evaluateConvergence()` that halts review regardless of metric state when tier limit is reached. Ensures bounded review rounds per tier (CHUNK_STANDARD=2, CHUNK_DEEP=3).
+### Fixed
+- **arc-batch plan path loss (FIX-001)** — Claude drops the second argument from `Skill("rune:arc", "plan-path ...")`, causing every arc iteration to be a no-op. Two-pronged fix: stop hook writes plan path to `tmp/.rune-arc-batch-next-plan.txt` as fallback, arc preflight reads it when `$ARGUMENTS` is empty. Prompt reinforced with explicit two-argument warning. Applied to both stop hook and `batch-loop-init.md` Phase 5.
 ## [1.143.6] - 2026-03-08
 
 ### Fixed
