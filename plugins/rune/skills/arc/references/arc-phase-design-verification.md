@@ -30,7 +30,7 @@ const designSyncConfig = arcConfig.design_sync ?? {}
 const designSyncEnabled = designSyncConfig.enabled === true
 if (!designSyncEnabled) {
   log("Design verification skipped — design_sync.enabled is false in talisman.")
-  updateCheckpoint({ phase: "design_verification", status: "skipped" })
+  updateCheckpoint({ phase: "design_verification", status: "skipped", skip_reason: "design_sync_disabled" })
   return
 }
 
@@ -38,7 +38,7 @@ if (!designSyncEnabled) {
 const extractionPhase = checkpoint.phases?.design_extraction
 if (!extractionPhase || extractionPhase.status === "skipped") {
   log("Design verification skipped — Phase 3 (DESIGN EXTRACTION) was skipped.")
-  updateCheckpoint({ phase: "design_verification", status: "skipped" })
+  updateCheckpoint({ phase: "design_verification", status: "skipped", skip_reason: "design_extraction_skipped" })
   return
 }
 
@@ -46,7 +46,7 @@ if (!extractionPhase || extractionPhase.status === "skipped") {
 const vsmFiles = Bash(`find "tmp/arc/${id}/vsm" -name "*.json" 2>/dev/null`).trim().split('\n').filter(Boolean)
 if (vsmFiles.length === 0) {
   warn("Design verification: No VSM files found from Phase 3. Skipping.")
-  updateCheckpoint({ phase: "design_verification", status: "skipped" })
+  updateCheckpoint({ phase: "design_verification", status: "skipped", skip_reason: "no_vsm_files" })
   return
 }
 

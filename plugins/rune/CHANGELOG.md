@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.144.13] - 2026-03-09
+
+### Fixed
+- **arc-phase-stop-hook.sh** — Added Tier 0 post-heavy-phase compact interlude. After heavy phases (work, code_review, mend) complete, the stop hook now triggers context compaction before injecting the next phase prompt. Previously, the 40+ minute work phase exhausted context, the statusline bridge file went stale (>180s), all 3 compact tiers failed open, and the session died before the next phase could start. Root cause of "arc stops after work phase" recurring issue.
+- **arc-phase-stop-hook.sh** — Fixed CWD path in demote checkpoint write: bare `$CHECKPOINT_PATH` (relative) → `${CWD}/${CHECKPOINT_PATH}` (absolute). The hook's working directory may differ from the project directory, causing the write to fail and the ERR trap to exit the script silently.
+- **arc-phase-stop-hook.sh** — Added defensive demote logic: phases marked "skipped" without `skip_reason` are reset to "pending" for re-evaluation. Catches LLM batch-skip violations where the orchestrator skips conditional phases without reading their reference files.
+- **arc SKILL.md** — Added Single-Phase-Per-Turn Rule: orchestrator MUST execute exactly ONE phase per turn, then STOP. Prevents batch-processing of multiple phases which bypasses per-phase gate logic.
+- **arc-codex-phases.md** — Added `skip_reason` to all 7 skip paths (semantic_verification: 4, codex_gap_analysis: 3). Previously skipped without recording the reason.
+- **arc-phase-design-extraction.md** — Added `skip_reason` to all 5 skip paths (design_sync_disabled, no_figma_urls, invalid_figma_urls, figma_mcp_unavailable, user_aborted_partial_failure).
+- **arc-phase-task-decomposition.md** — Added `skip_reason` to both skip paths (cascade_circuit_breaker, dynamic reason).
+- **arc-phase-design-verification.md** — Added `skip_reason` to all 3 skip paths (design_sync_disabled, design_extraction_skipped, no_vsm_files).
+- **arc-phase-ux-verification.md** — Added `skip_reason` to both skip paths (ux_disabled, no_frontend_files).
+
+### Added
+- **arc-phase-stop-hook.sh** — Phase observability via `phase-log.jsonl`. Append-only JSONL log in `tmp/arc/{id}/` records every phase transition (started, completed, skipped, failed, demoted, pipeline_complete) with timestamps, skip reasons, and artifact paths. Optimized: single jq call extracts all phase data.
+- **arc-phase-stop-hook.sh** — `phase_skip_log` checkpoint array records demotion events for user tracing when illegitimate skips are detected and corrected.
+
 ## [1.144.12] - 2026-03-09
 
 ### Fixed

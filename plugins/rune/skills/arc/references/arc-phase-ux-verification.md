@@ -30,7 +30,7 @@ const uxConfig = readTalismanSection("ux")
 const uxEnabled = uxConfig?.enabled === true
 if (!uxEnabled) {
   log("UX verification skipped — ux.enabled is false in talisman.")
-  updateCheckpoint({ phase: "ux_verification", status: "skipped" })
+  updateCheckpoint({ phase: "ux_verification", status: "skipped", skip_reason: "ux_disabled" })
   return
 }
 
@@ -51,7 +51,7 @@ const frontendFiles = changedFiles.filter(f => frontendExts.some(ext => f.endsWi
 
 if (frontendFiles.length === 0) {
   log("UX verification skipped — no frontend files in diff.")
-  updateCheckpoint({ phase: "ux_verification", status: "skipped" })
+  updateCheckpoint({ phase: "ux_verification", status: "skipped", skip_reason: "no_frontend_files" })
   return
 }
 

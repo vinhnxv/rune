@@ -31,7 +31,7 @@ updateCheckpoint({ phase: "semantic_verification", status: "in_progress", phase_
 // to ensure skip behavior even if one check is bypassed during context loading.
 if (checkpoint.codex_cascade?.cascade_warning === true) {
   Write(`tmp/arc/${id}/codex-semantic-verification.md`, "Codex semantic verification skipped: cascade circuit breaker active.")
-  updateCheckpoint({ phase: "semantic_verification", status: "skipped", artifact: `tmp/arc/${id}/codex-semantic-verification.md`, artifact_hash: sha256("Codex semantic verification skipped: cascade circuit breaker active."), phase_sequence: 4.5, team_name: null })
+  updateCheckpoint({ phase: "semantic_verification", status: "skipped", skip_reason: "cascade_circuit_breaker", artifact: `tmp/arc/${id}/codex-semantic-verification.md`, artifact_hash: sha256("Codex semantic verification skipped: cascade circuit breaker active."), phase_sequence: 4.5, team_name: null })
   return
 }
 
@@ -193,6 +193,7 @@ If no contradictions found, output: "No scope/timeline contradictions detected."
     updateCheckpoint({
       phase: "semantic_verification",
       status: "skipped",
+      skip_reason: "codex_semantic_verification_disabled",
       artifact: `tmp/arc/${id}/codex-semantic-verification.md`,
       artifact_hash: sha256("Codex semantic verification disabled via talisman."),
       phase_sequence: 4.5,
@@ -204,6 +205,7 @@ If no contradictions found, output: "No scope/timeline contradictions detected."
   updateCheckpoint({
     phase: "semantic_verification",
     status: "skipped",
+    skip_reason: "codex_unavailable",
     artifact: `tmp/arc/${id}/codex-semantic-verification.md`,
     artifact_hash: sha256("Codex unavailable — semantic verification skipped."),
     phase_sequence: 4.5,
@@ -240,7 +242,7 @@ updateCheckpoint({ phase: "codex_gap_analysis", status: "in_progress", phase_seq
 // to ensure skip behavior even if one check is bypassed during context loading.
 if (checkpoint.codex_cascade?.cascade_warning === true) {
   Write(`tmp/arc/${id}/codex-gap-analysis.md`, "Codex gap analysis skipped: cascade circuit breaker active.")
-  updateCheckpoint({ phase: "codex_gap_analysis", status: "skipped", artifact: `tmp/arc/${id}/codex-gap-analysis.md`, artifact_hash: sha256("Codex gap analysis skipped: cascade circuit breaker active."), phase_sequence: 5.6, team_name: null, codex_needs_remediation: false })
+  updateCheckpoint({ phase: "codex_gap_analysis", status: "skipped", skip_reason: "cascade_circuit_breaker", artifact: `tmp/arc/${id}/codex-gap-analysis.md`, artifact_hash: sha256("Codex gap analysis skipped: cascade circuit breaker active."), phase_sequence: 5.6, team_name: null, codex_needs_remediation: false })
   return
 }
 
@@ -260,7 +262,7 @@ if (codexAvailable && !codexDisabled && codexWorkflows.includes("arc")) {
     if (!/^[a-zA-Z0-9._\/-]+$/.test(rawPlanFile) || rawPlanFile.includes('..') || rawPlanFile.startsWith('-') || rawPlanFile.startsWith('/')) {
       warn(`Phase 5.6: Invalid plan_file in checkpoint ("${rawPlanFile}") — skipping Codex gap analysis`)
       Write(`tmp/arc/${id}/codex-gap-analysis.md`, "Skipped: invalid plan_file path in checkpoint.")
-      updateCheckpoint({ phase: "codex_gap_analysis", status: "skipped", artifact: `tmp/arc/${id}/codex-gap-analysis.md`, phase_sequence: 5.6, team_name: null, codex_needs_remediation: false })
+      updateCheckpoint({ phase: "codex_gap_analysis", status: "skipped", skip_reason: "invalid_plan_file_path", artifact: `tmp/arc/${id}/codex-gap-analysis.md`, phase_sequence: 5.6, team_name: null, codex_needs_remediation: false })
       return
     }
     const planFilePath = rawPlanFile
@@ -435,6 +437,7 @@ If no issues found, output: "No integrity gaps detected."
     updateCheckpoint({
       phase: "codex_gap_analysis",
       status: "skipped",
+      skip_reason: "codex_gap_analysis_disabled",
       artifact: `tmp/arc/${id}/codex-gap-analysis.md`,
       artifact_hash: sha256("Codex gap analysis disabled via talisman."),
       phase_sequence: 5.6,
@@ -447,6 +450,7 @@ If no issues found, output: "No integrity gaps detected."
   updateCheckpoint({
     phase: "codex_gap_analysis",
     status: "skipped",
+    skip_reason: "codex_unavailable",
     artifact: `tmp/arc/${id}/codex-gap-analysis.md`,
     artifact_hash: sha256("Codex gap analysis skipped (unavailable or disabled)."),
     phase_sequence: 5.6,
