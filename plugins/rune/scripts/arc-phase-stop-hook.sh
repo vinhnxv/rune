@@ -23,7 +23,6 @@
 # Exit 0 with top-level decision=block: Re-inject next phase prompt
 
 set -euo pipefail
-trap 'exit 0' ERR
 trap '[[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit' EXIT
 umask 077
 
@@ -31,8 +30,29 @@ umask 077
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] arc-phase-stop: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
+# ── ERR trap: fail-forward with trace logging ──
+# BUG FIX (v1.144.12): Previously used bare `trap 'exit 0' ERR` which silently
+# swallowed ALL errors — making it impossible to debug which guard was failing.
+# Now logs crash location before exiting, matching detect-workflow-complete.sh pattern.
+_rune_fail_forward() {
+  if [[ "${RUNE_TRACE:-}" == "1" ]]; then
+    local _ffl="${RUNE_TRACE_LOG:-}"
+    if [[ -n "$_ffl" && ! -L "$_ffl" && ! -L "${_ffl%/*}" ]]; then
+      printf '[%s] arc-phase-stop: ERR trap — fail-forward activated (line %s)\n' \
+        "$(date +%H:%M:%S 2>/dev/null || true)" \
+        "${BASH_LINENO[0]:-?}" \
+        >> "$_ffl" 2>/dev/null
+    fi
+  fi
+  exit 0
+}
+trap '_rune_fail_forward' ERR
+
+_trace "ENTER arc-phase-stop-hook.sh"
+
 # ── GUARD 1: jq dependency (fail-open) ──
 if ! command -v jq &>/dev/null; then
+  _trace "EXIT: jq not found"
   exit 0
 fi
 
@@ -46,10 +66,14 @@ source "${SCRIPT_DIR}/lib/platform.sh"
 # ── GUARD 2: Input size cap + GUARD 3: CWD extraction ──
 parse_input
 resolve_cwd
+_trace "CWD=${CWD}"
 
 # ── GUARD 4: State file existence ──
 STATE_FILE="${CWD}/.claude/arc-phase-loop.local.md"
-check_state_file "$STATE_FILE"
+if [[ ! -f "$STATE_FILE" ]]; then
+  _trace "EXIT: no state file at ${STATE_FILE}"
+  exit 0
+fi
 
 # ── GUARD 5: Symlink rejection ──
 reject_symlink "$STATE_FILE"
@@ -70,16 +94,22 @@ ARC_FLAGS=$(get_field "arc_flags")
 # Validate ARC_FLAGS before prompt embedding (SEC-001: only allow known flag characters)
 [[ "$ARC_FLAGS" =~ ^[a-zA-Z0-9\ _.=-]{0,256}$ ]] || ARC_FLAGS=""
 
+# ── Trace parsed fields for debugging ──
+_trace "PARSED active=${ACTIVE} iteration=${ITERATION} checkpoint_path=${CHECKPOINT_PATH}"
+
 # ── GUARD 5.5: Validate CHECKPOINT_PATH (SEC-001: path traversal prevention) ──
 if [[ -z "$CHECKPOINT_PATH" ]] || [[ "$CHECKPOINT_PATH" == *".."* ]] || [[ "$CHECKPOINT_PATH" == /* ]]; then
+  _trace "EXIT: CHECKPOINT_PATH validation failed (empty/traversal/absolute): '${CHECKPOINT_PATH}'"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi
 if [[ "$CHECKPOINT_PATH" =~ [^a-zA-Z0-9._/-] ]]; then
+  _trace "EXIT: CHECKPOINT_PATH contains invalid chars: '${CHECKPOINT_PATH}'"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi
 if [[ -L "${CWD}/${CHECKPOINT_PATH}" ]]; then
+  _trace "EXIT: CHECKPOINT_PATH is symlink"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi
@@ -94,28 +124,33 @@ fi
 # ── GUARD 5.7: Session isolation (between 5.5 and 6 — intentional; phase hook
 # requires session check after CHECKPOINT_PATH validation, unlike batch/issues hooks) ──
 # "phase" mode: no progress file to update on orphan — falls through to "skip" (remove state + exit 0)
+_trace "Session check: stored_pid=$(get_field 'owner_pid') PPID=${PPID}"
 validate_session_ownership "$STATE_FILE" "" "phase"
 
 # ── GUARD 6: Validate active flag ──
 if [[ "$ACTIVE" != "true" ]]; then
+  _trace "EXIT: active=${ACTIVE} (not 'true')"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi
 
 # ── GUARD 7: Validate numeric fields ──
 if ! [[ "$ITERATION" =~ ^[0-9]+$ ]]; then
+  _trace "EXIT: iteration '${ITERATION}' is not numeric"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi
 
 # ── GUARD 8: Max iterations check (safety cap at 50 — 27 phases + convergence rounds) ──
 if [[ "$MAX_ITERATIONS" =~ ^[0-9]+$ ]] && [[ "$MAX_ITERATIONS" -gt 0 ]] && [[ "$ITERATION" -ge "$MAX_ITERATIONS" ]]; then
+  _trace "EXIT: max iterations reached (${ITERATION} >= ${MAX_ITERATIONS})"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi
 
 # ── Read checkpoint ──
 if [[ ! -f "${CWD}/${CHECKPOINT_PATH}" ]]; then
+  _trace "EXIT: checkpoint file not found at ${CWD}/${CHECKPOINT_PATH}"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi
