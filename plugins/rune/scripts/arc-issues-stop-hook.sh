@@ -675,7 +675,7 @@ if [[ -n "$_CURRENT_ISSUE_NUM" ]]; then
   GH_STATUS_STEPS="At the BEGINNING of this response (before any other steps), post the arc result to GitHub Issue #${_CURRENT_ISSUE_NUM}:
 
 Step A — Write comment body to temp file and post (SEC-001: use --body-file):
-  COMMENT_TMP=\$(mktemp /tmp/rune-arc-comment-XXXXXX.md 2>/dev/null) || COMMENT_TMP=\"\"
+  COMMENT_TMP=\$(mktemp \"\${TMPDIR:-/tmp}/rune-arc-comment-XXXXXX.md\" 2>/dev/null) || COMMENT_TMP=\"\"
   if [[ -n \"\$COMMENT_TMP\" ]]; then
     cat > \"\$COMMENT_TMP\" << 'COMMENT_EOF'
 ${_GH_COMMENT_TITLE}

@@ -74,7 +74,8 @@ DENY_PATTERNS=(
   ".env."
   "hooks/"
   ".hooks/"
-  "scripts/"
+  "plugins/rune/scripts/"
+  ".claude/scripts/"
 )
 
 # Normalize the target file path (resolve relative to CWD, strip ./)

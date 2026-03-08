@@ -209,8 +209,8 @@ def _validate_facets(raw_output: str) -> Optional[List[str]]:
         Validated list of facet strings, or None if validation fails.
     """
     text = raw_output.strip()
-    # Extract outermost JSON array (greedy to handle nested brackets)
-    match = re.search(r"\[.*\]", text, re.DOTALL)
+    # Extract first JSON array (non-greedy to avoid spanning multiple arrays)
+    match = re.search(r"\[.*?\]", text, re.DOTALL)
     if not match:
         return None
     try:

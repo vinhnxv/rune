@@ -553,7 +553,14 @@ shopt -u nullglob
 cleaned_signal_dirs=0
 if [[ -d "${CWD}/tmp/.rune-signals/" ]]; then
   shopt -s nullglob
-  for sdir in "${CWD}/tmp/.rune-signals/"rune-work-*/; do
+  for sdir in "${CWD}/tmp/.rune-signals/"rune-work-*/ \
+               "${CWD}/tmp/.rune-signals/"rune-review-*/ \
+               "${CWD}/tmp/.rune-signals/"arc-review-*/ \
+               "${CWD}/tmp/.rune-signals/"rune-audit-*/ \
+               "${CWD}/tmp/.rune-signals/"arc-audit-*/ \
+               "${CWD}/tmp/.rune-signals/"rune-inspect-*/ \
+               "${CWD}/tmp/.rune-signals/"rune-mend-*/ \
+               "${CWD}/tmp/.rune-signals/"rune-resolve-todos-*/; do
     [[ ! -d "$sdir" ]] && continue
     [[ -L "$sdir" ]] && continue
     sdirname="${sdir%/}"

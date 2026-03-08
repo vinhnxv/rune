@@ -82,7 +82,7 @@ WINDOW=$(( "${WINDOW}" + 0 )) 2>/dev/null || WINDOW=5
 [[ "$WINDOW" -lt 1 ]] && WINDOW=5
 
 # -- Read scanner output from stdin --
-INPUT=$(cat 2>/dev/null || true)
+INPUT=$(head -c 1048576 2>/dev/null || true)
 
 if [[ -z "$INPUT" ]]; then
   printf '{"corrections":[],"error":"empty_input"}\n'

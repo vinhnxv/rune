@@ -402,8 +402,8 @@ for ckpt in "${CHECKPOINT_FILES[@]}"; do
     [[ $FILLED -gt 10 ]] && FILLED=10
     EMPTY=$(( 10 - FILLED ))
     BAR=""
-    [[ $FILLED -gt 0 ]] && BAR=$(printf "%${FILLED}s" | tr ' ' '█')
-    [[ $EMPTY -gt 0 ]] && BAR="${BAR}$(printf "%${EMPTY}s" | tr ' ' '░')"
+    _i=0; while [[ $_i -lt "$FILLED" ]]; do BAR="${BAR}█"; _i=$((_i+1)); done
+    _i=0; while [[ $_i -lt "$EMPTY" ]]; do BAR="${BAR}░"; _i=$((_i+1)); done
     echo "│  Context: [${BAR}] ${CTX_USED}% used (${CTX_REM}% remaining)"
     if [[ -n "$CTX_COST" && "$CTX_COST" != "0" && "$CTX_COST" != "" ]]; then
       printf '│  Cost:    $%s\n' "$CTX_COST"

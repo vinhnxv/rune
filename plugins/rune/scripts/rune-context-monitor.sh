@@ -171,9 +171,10 @@ else
       NEW_CALLS=$((PREV_CALLS + 1))
       # Symlink guard on WARN_STATE write
       [[ -L "$WARN_STATE" ]] && rm -f "$WARN_STATE" 2>/dev/null
-      jq -n --argjson calls "$NEW_CALLS" --arg level "$PREV_LEVEL" \
-        '{callsSinceWarn: $calls, lastLevel: $level}' \
-        > "$WARN_STATE" 2>/dev/null || true
+      _tmp=$(mktemp "${WARN_STATE}.XXXXXX") && \
+        jq -n --argjson calls "$NEW_CALLS" --arg level "$PREV_LEVEL" \
+          '{callsSinceWarn: $calls, lastLevel: $level}' \
+          > "$_tmp" && mv "$_tmp" "$WARN_STATE" 2>/dev/null || { rm -f "$_tmp" 2>/dev/null; true; }
       _trace "DEBOUNCE: $ALERT_LEVEL suppressed (${NEW_CALLS}/${DEBOUNCE_CALLS})"
       exit 0
     fi
@@ -185,9 +186,10 @@ if [[ "$FIRE" == "true" ]]; then
   # Symlink guard on WARN_STATE write
   [[ -L "$WARN_STATE" ]] && rm -f "$WARN_STATE" 2>/dev/null
   # Reset debounce state
-  jq -n --arg level "$ALERT_LEVEL" \
-    '{callsSinceWarn: 0, lastLevel: $level}' \
-    > "$WARN_STATE" 2>/dev/null || true
+  _tmp=$(mktemp "${WARN_STATE}.XXXXXX") && \
+    jq -n --arg level "$ALERT_LEVEL" \
+      '{callsSinceWarn: 0, lastLevel: $level}' \
+      > "$_tmp" && mv "$_tmp" "$WARN_STATE" 2>/dev/null || { rm -f "$_tmp" 2>/dev/null; true; }
 
   if [[ "$ALERT_LEVEL" == "critical" ]]; then
     MSG="RUNE CONTEXT MONITOR CRITICAL: Context usage at ${USED_PCT}%. Remaining: ${REM_INT}%. STOP new work immediately. Complete current task minimally, write state to files, and inform the user that context is nearly exhausted. Consider /rune:rest to clean up artifacts."
