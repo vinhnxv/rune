@@ -5,7 +5,8 @@
 ### Fixed
 - **annotate-hook.sh** — Added `|| true` to jq pipe (line 30) to prevent ERR trap on empty/malformed stdin. Matches existing pattern on line 35.
 - **echo-writer.sh** — `_is_duplicate()` returned exit code 1 with no stdout when existing titles were empty, triggering ERR trap under `set -e`. Now returns `echo "UNIQUE"; return 0`.
-- **talisman-resolve.sh** — SEC-003 injection regex false-positived on `ward_commands` containing legitimate `$(jq ...)` shell substitution. Now excludes `work.ward_commands` via `jq del()` before checking.
+- **talisman-resolve.sh** — SEC-003 injection regex false-positived on `ward_commands` containing legitimate `$(jq ...)` shell substitution. Now excludes `work.ward_commands` via `jq del()` before checking. Added PyYAML auto-install fallback when venv exists but PyYAML is missing.
+- **session-start.sh** — Added post-install verification logging for venv PyYAML availability diagnostics.
 
 ## [1.144.9] - 2026-03-09
 

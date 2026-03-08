@@ -43,6 +43,12 @@ if [[ -f "$RUNE_REQUIREMENTS" ]] && command -v python3 &>/dev/null; then
     if [[ -x "${RUNE_VENV}/bin/pip" ]]; then
       "${RUNE_VENV}/bin/pip" install -q -r "$RUNE_REQUIREMENTS" 2>/dev/null || true
     fi
+    # Verify install succeeded — log result for trace diagnostics
+    if [[ -x "${RUNE_VENV}/bin/python3" ]] && "${RUNE_VENV}/bin/python3" -c "import yaml" 2>/dev/null; then
+      _trace "[ensure-venv] OK: venv ready at ${RUNE_VENV}"
+    else
+      _trace "[ensure-venv] WARN: pip install completed but PyYAML not importable"
+    fi
   fi
 fi
 

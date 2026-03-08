@@ -106,6 +106,15 @@ if "$RUNE_PYTHON" -c "import yaml" 2>/dev/null; then
   HAS_PYYAML=true
 fi
 
+# ── Fallback: if venv exists but PyYAML missing, try quick install ──
+if [[ "$HAS_PYYAML" != "true" ]] && [[ -x "${RUNE_VENV}/bin/pip" ]]; then
+  "${RUNE_VENV}/bin/pip" install -q PyYAML 2>/dev/null || true
+  if "$RUNE_PYTHON" -c "import yaml" 2>/dev/null; then
+    HAS_PYYAML=true
+    _trace "OK: auto-installed PyYAML into ${RUNE_VENV}"
+  fi
+fi
+
 # ── Guard: warn if no YAML parser available (VEIL-007) ──
 if [[ "$HAS_PYYAML" != "true" ]] && ! command -v yq &>/dev/null; then
   _trace "WARN: No YAML parser available (need python3+PyYAML or yq). Using defaults only."
