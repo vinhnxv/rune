@@ -35,7 +35,7 @@ const designSyncConfig = arcConfig.design_sync ?? {}
 const designSyncEnabled = designSyncConfig.enabled === true
 if (!designSyncEnabled) {
   log("Design extraction skipped — design_sync.enabled is false in talisman.")
-  updateCheckpoint({ phase: "design_extraction", status: "skipped" })
+  updateCheckpoint({ phase: "design_extraction", status: "skipped", skip_reason: "design_sync_disabled" })
   return
 }
 
@@ -46,7 +46,7 @@ const figmaUrls = readFigmaUrls(planContent)
 
 if (figmaUrls.length === 0) {
   log("Design extraction skipped — no figma_url(s) found in plan frontmatter.")
-  updateCheckpoint({ phase: "design_extraction", status: "skipped" })
+  updateCheckpoint({ phase: "design_extraction", status: "skipped", skip_reason: "no_figma_urls" })
   return
 }
 
@@ -73,7 +73,7 @@ for (const url of figmaUrls) {
 
 if (validUrls.length === 0) {
   warn("Design extraction: all figma_urls failed format validation.")
-  updateCheckpoint({ phase: "design_extraction", status: "skipped" })
+  updateCheckpoint({ phase: "design_extraction", status: "skipped", skip_reason: "invalid_figma_urls" })
   return
 }
 
@@ -88,7 +88,7 @@ try {
   figmaMcpAvailable = true
 } catch (e) {
   warn("Design extraction: Figma MCP tools unavailable. Skipping design extraction. Check .mcp.json configuration.")
-  updateCheckpoint({ phase: "design_extraction", status: "skipped" })
+  updateCheckpoint({ phase: "design_extraction", status: "skipped", skip_reason: "figma_mcp_unavailable" })
   return
 }
 
@@ -328,7 +328,7 @@ if (failedUrls.length > 0 && irFiles.length > 0) {
   )
   if (userChoice?.trim().toLowerCase().startsWith('n')) {
     warn("Design extraction aborted by user after partial URL failure.")
-    updateCheckpoint({ phase: "design_extraction", status: "skipped", failed_urls: failedUrls })
+    updateCheckpoint({ phase: "design_extraction", status: "skipped", skip_reason: "user_aborted_partial_failure", failed_urls: failedUrls })
     return
   }
 }

@@ -25,7 +25,7 @@ const workflowIncluded = (talisman?.codex?.workflows ?? []).includes("arc")
 // 5th condition: cascade circuit breaker (check before the 4-condition pattern)
 if (checkpoint.codex_cascade?.cascade_warning === true) {
   Write(`tmp/arc/${id}/task-validation.md`, "# Task Decomposition Validation (Codex)\n\nSkipped: Codex cascade circuit breaker active")
-  updateCheckpoint({ phase: "task_decomposition", status: "skipped" })
+  updateCheckpoint({ phase: "task_decomposition", status: "skipped", skip_reason: "cascade_circuit_breaker" })
   // Proceed to Phase 5 (WORK)
   return
 }
@@ -207,7 +207,7 @@ The Tarnished no longer reads plan content (~10k chars) or Codex output into its
     : !taskDecompEnabled ? "codex.task_decomposition.enabled=false"
     : "arc not in codex.workflows"
   Write(`tmp/arc/${id}/task-validation.md`, `# Task Decomposition Validation (Codex)\n\nSkipped: ${skipReason}`)
-  updateCheckpoint({ phase: "task_decomposition", status: "skipped" })
+  updateCheckpoint({ phase: "task_decomposition", status: "skipped", skip_reason: skipReason })
 }
 // Proceed to Phase 5 (WORK)
 ```
