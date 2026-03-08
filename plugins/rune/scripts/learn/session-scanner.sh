@@ -158,11 +158,14 @@ SESSION_EXCLUDE_CUTOFF=$(( NOW_EPOCH - 60 ))
 SINCE_CUTOFF=$(( NOW_EPOCH - SINCE_DAYS * 86400 ))
 
 # Format cutoff timestamp for -newermt (cross-platform)
-# macOS: date -r; Linux: date -d @
+# macOS: date -r; Linux: date -d @; perl fallback
 _epoch_to_datetime() {
   local epoch="$1"
+  # macOS BSD date uses -r for epoch → formatted
   date -r "$epoch" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || \
+  # GNU date uses -d @epoch
   date -d "@${epoch}" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || \
+  # perl fallback for edge cases
   perl -e "use POSIX qw(strftime); print strftime('%Y-%m-%d %H:%M:%S', localtime($epoch));" 2>/dev/null || \
   echo ""
 }
