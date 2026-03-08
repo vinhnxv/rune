@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.144.7] - 2026-03-08
+
+### Fixed
+- **Test: stale threshold alignment** — `test_enforce_teams.py` used 30-min threshold (35-min backdate), updated to 120-min threshold (130-min backdate) matching `enforce-teams.sh` `STALE_THRESHOLD_MIN=120`
+- **Test: fail-forward ERR trap** — `test_annotate_hook.py` expected non-zero exit on invalid JSON, updated to expect exit 0 matching fail-forward ERR trap behavior
+- **Test: VOID-003 proximity scoring** — `test_echo_proximity.py` asserted file_path excluded from proximity; updated to match VOID-003 which adds entry's own file_path to evidence paths
+- **Test: macOS symlink resolution** — `conftest.py` and `test_on_session_stop.py` now resolve `/var` → `/private/var` symlink for config_dir ownership matching
+- **Test: hook team directory setup** — `test_hooks.py` and `test_on_teammate_idle.py` create team directories so hooks don't treat teammates as orphaned
+- **Test: idle retry counter cleanup** — New `autouse` fixture in `conftest.py` cleans up `*.idle-retries` files between tests
+- **Test: echo-search `search_entries` signature** — `test_server.py` updated tracking wrapper to include `category` parameter
+- **Test: `pre-compact-checkpoint.sh` output format** — Updated docstrings to clarify PreCompact hooks use `systemMessage` (not `hookSpecificOutput`)
+- **Shell: `session-start.sh` zsh glob** — Replaced zsh-only `*(N)/` glob with bash `shopt -s nullglob` + `*/` for cross-shell compatibility
+- **Shell: `on-session-stop.sh` find ERR trap** — Added `|| true` to `find -exec rm -rf` to prevent ERR trap when directory is removed mid-traversal
+- **Figma: `FigmaCredentialError`** — New error subclass for clearer credential failure messages (missing token + no Desktop MCP)
+- **Echo: indexer consecutive headers** — Fixed `prev_line_blank` flag to allow consecutive headers in MEMORY.md parsing
+
+### Added
+- **`measure-startup-tokens.py`** — Startup token measurement script
+- **`measure-startup-tokens.sh`** — Shell wrapper for startup token measurement
+- **`arc-batch/evals/evals.json`** — Arc-batch evaluation fixtures
+
 ## [1.144.6] - 2026-03-08
 
 ### Fixed
