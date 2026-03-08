@@ -225,19 +225,18 @@ _find_arc_checkpoint() {
 # Args: $1 = ISO-8601 timestamp (must match YYYY-MM-DDTHH:MM:SSZ exactly)
 # Returns: epoch seconds via stdout, exit 1 on failure.
 # SEC-GUARD10: Validates format to prevent shell injection via crafted timestamps.
+# Delegates to _parse_iso_epoch from lib/platform.sh for cross-platform date parsing.
 _iso_to_epoch() {
   local ts="$1"
   # Strip optional fractional seconds (.NNN) before terminal Z
-  # JavaScript toISOString() produces "2026-02-22T00:00:00.000Z"
   if [[ "$ts" =~ \.[0-9]+Z$ ]]; then
     ts="${ts%%.*}Z"
   fi
   # Validate strict format: YYYY-MM-DDTHH:MM:SSZ (no other chars allowed)
   [[ "$ts" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || return 1
-  # macOS BSD date
-  date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts" +%s 2>/dev/null && return 0
-  # GNU date fallback
-  date -d "$ts" +%s 2>/dev/null && return 0
+  local result
+  result=$(_parse_iso_epoch "$ts")
+  [[ "$result" != "0" ]] && echo "$result" && return 0
   return 1
 }
 

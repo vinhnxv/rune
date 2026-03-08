@@ -13,6 +13,10 @@ ERRORS=0
 DEDUP_FILE=$(mktemp "${TMPDIR:-/tmp}/arc-batch-dedup-XXXXXX")
 trap 'rm -f "$DEDUP_FILE"' EXIT
 
+# Source cross-platform helpers
+_PREFLIGHT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${_PREFLIGHT_DIR}/lib/platform.sh"
+
 while IFS= read -r plan || [[ -n "$plan" ]]; do
   [[ -z "$plan" || "$plan" == \#* ]] && continue
 
@@ -54,8 +58,8 @@ while IFS= read -r plan || [[ -n "$plan" ]]; do
     continue
   fi
 
-  # 5. Canonicalize path
-  CANONICAL=$(realpath "$plan" 2>/dev/null || echo "$plan")
+  # 5. Canonicalize path (cross-platform via lib/platform.sh)
+  CANONICAL=$(_resolve_path "$plan")
 
   # 6. Duplicate check — O(N) via temp file + grep (QUAL-003 FIX)
   DUPLICATE=false

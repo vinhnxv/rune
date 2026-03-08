@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.144.4] - 2026-03-08
+
+### Fixed
+- **Cross-platform date parsing bug** — `rune-status.sh:383` used `date +%s%3N` instead of `gdate +%s%3N` inside the gdate branch, producing wrong timing on macOS
+- **Consolidated date/path helpers into `lib/platform.sh`** — Added `_parse_iso_epoch()`, `_parse_iso_epoch_ms()`, `_now_epoch_ms()`, `_resolve_path()` to eliminate 6 copy-pasted date parsing blocks across scripts
+- **Refactored 6 scripts** to use shared helpers: `rune-status.sh`, `lib/stop-hook-common.sh`, `detect-workflow-complete.sh`, `lib/run-artifacts.sh`, `learn/session-scanner.sh`, `arc-batch-preflight.sh`
+
+### Added
+- **Cross-platform shell compatibility rules** in `.claude/CLAUDE.md` — 14-pattern table (stat, date, readlink, sed, grep, timeout, flock, etc.) with 6 mandatory rules for all `.sh` scripts
+- **87-case test suite** for `lib/platform.sh` — covers edge cases, injection attempts, temporal consistency, subshell/pipe safety, idempotent sourcing
+
 ## [1.144.3] - 2026-03-08
 
 ### Fixed

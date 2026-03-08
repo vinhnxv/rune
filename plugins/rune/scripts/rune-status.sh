@@ -80,18 +80,8 @@ _fmt_ms() {
 _fmt_ago() {
   local ts="${1:-}"
   [[ -z "$ts" || "$ts" == "null" ]] && echo "" && return
-  local epoch_ts=0
-  # macOS gdate (from coreutils) or GNU date preferred; fallback to BSD date -j
-  if command -v gdate &>/dev/null; then
-    epoch_ts=$(gdate -d "$ts" +%s 2>/dev/null || echo 0)
-  elif date --version &>/dev/null 2>&1; then
-    epoch_ts=$(date -d "$ts" +%s 2>/dev/null || echo 0)
-  else
-    local ts_clean="${ts%%.*}"
-    ts_clean="${ts_clean%+*}"
-    ts_clean="${ts_clean%Z}Z"
-    epoch_ts=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts_clean" +%s 2>/dev/null || echo 0)
-  fi
+  local epoch_ts
+  epoch_ts=$(_parse_iso_epoch "$ts")
   local now elapsed
   now=$(date +%s)
   elapsed=$(( now - epoch_ts ))
@@ -374,27 +364,12 @@ for ckpt in "${CHECKPOINT_FILES[@]}"; do
       sym=$(_status_sym "$ph_status")
       timing=""
       if [[ -n "$ph_started" ]]; then
-        # Calculate duration using date arithmetic
-        if command -v gdate &>/dev/null; then
-          ep_s=$(gdate -d "$ph_started" +%s%3N 2>/dev/null || echo 0)
-          if [[ -n "$ph_completed" && "$ph_completed" != "null" && "$ph_completed" =~ ^[0-9] ]]; then
-            ep_e=$(gdate -d "$ph_completed" +%s%3N 2>/dev/null || echo 0)
-          else
-            ep_e=$(date +%s%3N 2>/dev/null || echo 0)
-          fi
-        elif date --version &>/dev/null 2>&1; then
-          ep_s=$(date -d "$ph_started" +%s 2>/dev/null || echo 0)
-          ep_s=$(( ep_s * 1000 ))
-          if [[ -n "$ph_completed" && "$ph_completed" != "null" ]]; then
-            ep_e=$(date -d "$ph_completed" +%s 2>/dev/null || echo 0)
-            ep_e=$(( ep_e * 1000 ))
-          else
-            ep_e=$(( $(date +%s) * 1000 ))
-          fi
+        # Calculate duration using cross-platform helpers from lib/platform.sh
+        ep_s=$(_parse_iso_epoch_ms "$ph_started")
+        if [[ -n "$ph_completed" && "$ph_completed" != "null" && "$ph_completed" =~ ^[0-9] ]]; then
+          ep_e=$(_parse_iso_epoch_ms "$ph_completed")
         else
-          ep_s=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ph_started" +%s 2>/dev/null || echo 0)
-          ep_s=$(( ep_s * 1000 ))
-          ep_e=$(( $(date +%s) * 1000 ))
+          ep_e=$(_now_epoch_ms)
         fi
         dur_ms=$(( ep_e - ep_s ))
         [[ $dur_ms -lt 0 ]] && dur_ms=0

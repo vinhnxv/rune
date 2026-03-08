@@ -472,6 +472,38 @@ This applies to ALL hook events (SessionStart, PreToolUse, PostToolUse, etc.).
 
 Update `plugin.json` version before distributing. Document changes in CHANGELOG.md.
 
+## Cross-Platform Shell Compatibility (macOS + Linux)
+
+All `.sh` scripts, Bash commands, hooks, and shell code blocks in skills/commands MUST work on both macOS and Linux. Never assume GNU-only or BSD-only tools.
+
+### Required Patterns
+
+| Pattern | macOS | Linux | Portable solution |
+|---------|-------|-------|-------------------|
+| `stat` mtime/uid | `stat -f '%m'` | `stat -c '%Y'` | Use `_stat_mtime()` / `_stat_uid()` from `lib/platform.sh` |
+| ISO-8601 date parse | `date -j -f "fmt" "$ts" +%s` | `date -d "$ts" +%s` | Use `_parse_iso_epoch()` from `lib/platform.sh` (try `gdate` → GNU `date -d` → BSD `date -j`) |
+| `date` milliseconds | `gdate +%s%3N` (requires coreutils) | `date +%s%3N` | Check `command -v gdate` first; fallback to `$(date +%s)000` |
+| `readlink -f` | Not available (use `grealpath`) | Works | `grealpath -m "$1" \|\| realpath -m "$1" \|\| readlink -f "$1" \|\| echo "$1"` |
+| `timeout` | Not default (install via coreutils) | Available | `command -v timeout` guard; proceed without wrapper if missing |
+| `timeout --kill-after` | May not exist | GNU extension | Probe with `timeout --kill-after=1 0.1 true`; set flag only if supported |
+| `sed -i` | `sed -i '' 's/…'` (requires empty string) | `sed -i 's/…'` | Avoid `sed -i`; use temp file: `sed 's/…' f > f.tmp && mv f.tmp f` |
+| `grep -P` | Not available (BSD grep) | GNU grep | Use `grep -E` (extended regex) instead |
+| `find -printf` | Not available | GNU find | Use `find … -exec stat` or portable alternatives |
+| `sort -V` | Not available | GNU sort | Avoid version sort; use alternative logic |
+| `flock` | Not available | Available | `command -v flock` guard; use `mkdir`-based locking as fallback |
+| `mktemp` | Works | Works | Use POSIX format: `mktemp "${TMPDIR:-/tmp}/prefix-XXXXXX"` |
+| `pgrep -P` | Supported (10.15+) | Supported | Always wrap with `2>/dev/null \|\| true` |
+| Temp directory | `$TMPDIR` (set by OS) | `/tmp` | Always use `"${TMPDIR:-/tmp}"` |
+
+### Rules
+
+1. **Use `lib/platform.sh` helpers** — `source` it for `_stat_mtime()`, `_stat_uid()`, and `_parse_iso_epoch()`. Never inline platform-specific `stat` or `date` logic.
+2. **Bash 3.2 compatibility** — macOS ships Bash 3.2. No associative arrays (`declare -A`), no `${var,,}` lowercase, no `|&` pipe, no `&>` in arrays. Use positional logic and `tr '[:upper:]' '[:lower:]'`.
+3. **Guard optional tools** — Always `command -v <tool>` before using `timeout`, `flock`, `gdate`, `grealpath`, `jq`. Provide graceful fallback or skip.
+4. **Never hardcode paths** — Use `"${TMPDIR:-/tmp}"` not `/tmp`, `"${CLAUDE_CONFIG_DIR:-$HOME/.claude}"` not `~/.claude/`.
+5. **Test fallback chains** — When writing multi-tier fallbacks (`gdate` → `date -d` → `date -j`), ensure the LAST fallback always succeeds or returns a safe default.
+6. **`sed -E` not `sed -r`** — Both macOS and Linux support `-E` for extended regex. GNU's `-r` is not available on macOS.
+
 ## Security Rules
 
 - Always quote shell variables: `"$VAR"` not `$VAR`
