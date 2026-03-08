@@ -39,6 +39,9 @@ allowed-tools:
   - TaskUpdate
   - TaskGet
   - TaskList
+  - CronCreate
+  - CronDelete
+  - CronList
   - TeamCreate
   - TeamDelete
   - SendMessage
@@ -277,6 +280,10 @@ config_dir: ${configDir}
 owner_pid: ${ownerPid}
 session_id: ${sessionId}
 compact_pending: false
+user_cancelled: false
+cancel_reason: null
+cancelled_at: null
+stop_reason: null
 ---
 `
 Write('.claude/arc-phase-loop.local.md', stateContent)

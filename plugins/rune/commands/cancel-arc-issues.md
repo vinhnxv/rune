@@ -13,6 +13,8 @@ allowed-tools:
   - Read
   - Bash
   - Glob
+  - CronList
+  - CronDelete
 ---
 
 # /rune:cancel-arc-issues — Cancel Active Arc Issues Loop
@@ -69,6 +71,36 @@ if (foreignSession) {
 
 ```javascript
 Bash('rm -f .claude/arc-issues-loop.local.md')
+```
+
+### 3.5. Cancel Scheduled Monitoring Task (if any)
+
+If the issues loop was scheduled with a monitoring task, cancel it:
+
+```javascript
+// Check for scheduled task ID in progress file
+const progressFile = "tmp/gh-issues/batch-progress.json"
+if (Bash(`test -f "${progressFile}" && echo "yes" || echo "no"`).trim() === "yes") {
+  try {
+    const progress = JSON.parse(Read(progressFile))
+    const cronTaskId = progress.cron_task_id
+    if (cronTaskId) {
+      try {
+        const existingTasks = CronList()
+        const taskExists = existingTasks.some(t => t.id === cronTaskId)
+        if (taskExists) {
+          CronDelete({ task_id: cronTaskId })
+          log(`Cancelled scheduled monitoring task: ${cronTaskId}`)
+        }
+      } catch (e) {
+        warn(`Failed to cancel scheduled task ${cronTaskId}: ${e.message}`)
+        // Non-blocking — issues cancellation proceeds regardless
+      }
+    }
+  } catch (e) {
+    // Progress file unreadable — skip scheduled task cleanup
+  }
+}
 ```
 
 ### 4. Report

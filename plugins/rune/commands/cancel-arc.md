@@ -22,6 +22,8 @@ allowed-tools:
   - TaskGet
   - TeamDelete
   - SendMessage
+  - CronList
+  - CronDelete
   - Read
   - Write
   - Bash
@@ -77,8 +79,14 @@ if (phaseExists === "yes") {
   }
 
   if (isOwner) {
-    Bash('rm -f .claude/arc-phase-loop.local.md')
-    log("Arc phase loop cancelled (Stop hook will no longer re-inject phases)")
+    // Set cancellation flags instead of deleting the file
+    // This allows the monitoring task to detect the cancellation
+    const updatedContent = phaseContent.replace(/user_cancelled:\s*false/, 'user_cancelled: true')
+      .replace(/cancel_reason:\s*null/, 'cancel_reason: "user_request"')
+      .replace(/cancelled_at:\s*null/, `cancelled_at: "${new Date().toISOString()}"`)
+      .replace(/stop_reason:\s*null/, 'stop_reason: "user_cancel"')
+    Write(phaseStateFile, updatedContent)
+    log("Arc phase loop cancelled (user_cancelled flag set)")
   } else {
     warn(`Arc phase loop belongs to another session (PID: ${ownerPid}). Skipping.`)
   }
@@ -333,6 +341,42 @@ Update the checkpoint so that:
 - `phases[{current_phase}].status` = `"cancelled"` (where `current_phase` is derived from scanning `phases` for `"in_progress"`)
 - `phases[{current_phase}].cancelled_at` = ISO timestamp
 - Overall arc status remains intact (not "completed")
+
+#### 4b. Set Cancellation Fields (Schema v22)
+
+```javascript
+// Set user cancellation tracking fields
+checkpoint.user_cancelled = true
+checkpoint.cancel_reason = "user_requested"
+checkpoint.cancelled_at = new Date().toISOString()
+checkpoint.stop_reason = "cancel-arc command invoked"
+Write(`.claude/arc/${id}/checkpoint.json`, checkpoint)
+```
+
+### 4c. Cancel Scheduled Task (if any)
+
+If the arc was scheduled via CronCreate, cancel the monitoring task:
+
+```javascript
+// Check for scheduled task linkage
+const cronTaskId = checkpoint.cron_task_id
+if (cronTaskId) {
+  try {
+    // Verify task exists before attempting deletion
+    const existingTasks = CronList()
+    const taskExists = existingTasks.some(t => t.id === cronTaskId)
+    if (taskExists) {
+      CronDelete({ task_id: cronTaskId })
+      log(`Cancelled scheduled task: ${cronTaskId}`)
+    } else {
+      warn(`Scheduled task ${cronTaskId} not found — may have already been deleted`)
+    }
+  } catch (e) {
+    warn(`Failed to cancel scheduled task ${cronTaskId}: ${e.message}`)
+    // Non-blocking — arc cancellation proceeds regardless
+  }
+}
+```
 
 ### 5. Preserve Completed Artifacts
 

@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.144.0] - 2026-03-08
+
+### Added
+- **Arc Scheduler — Scheduled Task Monitoring** — Automatic crash recovery for arc pipelines. When an arc's stop hook fails (timeout, error, crash), a scheduled monitoring task detects the unexpected stop and automatically resumes via `/rune:arc --resume`. Features:
+  - Configurable check interval (default: 15 minutes)
+  - Resume limits (max 10 total, max 3 consecutive failures)
+  - Cooldown period (5 min) to prevent concurrent resumes
+  - User cancellation detection (user_cancelled flag prevents auto-resume)
+  - 3-day task renewal for long-running arcs
+  - Session isolation (config_dir + owner_pid verification)
+  - Graceful degradation when scheduler unavailable (Claude Code < v2.1.71 or `CLAUDE_CODE_DISABLE_CRON=1`)
+- **Checkpoint schema v22** — New fields: `user_cancelled`, `cancel_reason`, `cancelled_at`, `stop_reason`, `cron_task_id`, `resume_tracking`, `scheduler`
+- **Arc state file schema update** — Added `user_cancelled`, `cancel_reason`, `cancelled_at`, `stop_reason` fields to `.claude/arc-phase-loop.local.md`
+- **Talisman configuration** — New `arc.scheduler` section with enabled, interval_minutes, auto_renew, auto_resume settings
+
+### Changed
+- **cancel-arc command** — Now sets user_cancelled flags instead of deleting state file, allowing monitoring task to detect cancellation
+- **post-arc cleanup** — CronDelete runs FIRST before echo persist to close race window
+
+### Prerequisites
+- Claude Code >= v2.1.71 (CronCreate/CronDelete/CronList tools)
+- `CLAUDE_CODE_DISABLE_CRON` must not be set
+
 ## [1.143.6] - 2026-03-08
 
 ### Fixed

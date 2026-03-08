@@ -22,3 +22,47 @@ plan:
   # research_urls:
   #   - https://reactjs.org/docs/getting-started.html
   #   - https://docs.python.org/3/
+
+# ──────────────────────────────────────────────
+# Arc — Scheduler configuration
+# ──────────────────────────────────────────────
+# Controls scheduled task monitoring for arc workflows.
+# When enabled, a monitoring task is created when an arc starts and
+# automatically detects and resumes arcs that stop unexpectedly.
+#
+# Prerequisites:
+#   - Claude Code >= v2.1.71 (CronCreate/CronDelete/CronList shipped in this version)
+#   - CLAUDE_CODE_DISABLE_CRON is not set (env var disables scheduler entirely)
+#
+arc:
+  scheduler:
+    # Enable/disable scheduled monitoring
+    enabled: true
+
+    # Check interval in minutes (5, 10, 15, 30)
+    interval_minutes: 15
+
+    # Automatically renew tasks before 3-day expiry
+    auto_renew: true
+
+    # Renew when less than this many hours remain
+    renewal_threshold_hours: 12
+
+    # Clean orphaned tasks on session start
+    cleanup_orphans_on_start: true
+
+    auto_resume:
+      # Enable automatic resume on unexpected stop
+      enabled: true
+
+      # Maximum total resume attempts per arc
+      max_total_resumes: 10
+
+      # Stop if this many consecutive failures
+      max_consecutive_failures: 3
+
+      # Wait between resume attempts
+      cooldown_minutes: 5
+
+      # Notify user when auto-resume occurs
+      notify_on_resume: true

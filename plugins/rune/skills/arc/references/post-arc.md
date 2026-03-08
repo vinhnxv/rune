@@ -1,14 +1,53 @@
 # Post-Arc — Full Algorithm
 
-Post-pipeline lifecycle steps that run after all 27 phases complete (or after the last non-skipped phase). Covers echo persistence, completion report display, and final zombie teammate sweep.
+Post-pipeline lifecycle steps that run after all 27 phases complete (or after the last non-skipped phase). Covers scheduled task cleanup, echo persistence, completion report display, and final zombie teammate sweep.
 
 **Inputs**: completed checkpoint, plan path, echo config, `arcStart` timestamp
-**Outputs**: echoes persisted, completion report displayed to user, stale teams cleaned
+**Outputs**: scheduled task deleted, echoes persisted, completion report displayed to user, stale teams cleaned
 **Error handling**: Echo persist failure is non-blocking; ARC-9 sweep uses retry with backoff
 **Consumers**: SKILL.md (Post-Arc stub)
 
 > **Note**: The Plan Completion Stamp runs BEFORE these steps — see [arc-phase-completion-stamp.md](arc-phase-completion-stamp.md).
 > `FORBIDDEN_PHASE_KEYS` is defined inline in SKILL.md and available in the orchestrator's context.
+
+## Scheduled Task Cleanup (FIRST — Before All Other Steps)
+
+Delete the monitoring task as the FIRST operation. This must run before echo persist, completion report, or ARC-9 sweep to close the race window where the monitoring task could fire on a completed arc.
+
+```javascript
+// ── Delete Monitoring Task (CronDelete) ──
+// This MUST be the first operation in post-arc to prevent spurious resumes.
+const cronTaskId = checkpoint.cron_task_id
+if (cronTaskId && typeof CronDelete !== 'undefined') {
+  try {
+    // Verify task exists before attempting deletion
+    const existingTasks = CronList()
+    const taskExists = existingTasks.some(t => t.id === cronTaskId)
+    if (taskExists) {
+      CronDelete({ task_id: cronTaskId })
+      log(`[ARC-SCHEDULER] Deleted monitoring task ${cronTaskId} on completion`)
+    } else {
+      log(`[ARC-SCHEDULER] Monitoring task ${cronTaskId} already expired or deleted`)
+    }
+    checkpoint.cron_task_id = null
+  } catch (e) {
+    warn(`[ARC-SCHEDULER] Failed to delete monitoring task ${cronTaskId}: ${e.message}`)
+    // Non-blocking — arc completion proceeds regardless
+  }
+}
+
+// ── Update State File with Completion ──
+// Set stop_reason to prevent monitoring task from resuming
+const stateFile = ".claude/arc-phase-loop.local.md"
+const stateExists = Bash(`test -f "${stateFile}" && echo "yes" || echo "no"`).trim()
+if (stateExists === "yes") {
+  const stateContent = Read(stateFile)
+  const updatedContent = stateContent
+    .replace(/active:\s*true/, 'active: false')
+    .replace(/stop_reason:\s*null/, 'stop_reason: "completed"')
+  Write(stateFile, updatedContent)
+}
+```
 
 ## Post-Arc Echo Persist
 
