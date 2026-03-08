@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.144.14] - 2026-03-09
+
+### Fixed
+- **Stop hook exit code (ROOT CAUSE)** — All 5 Stop hook scripts used `exit 0` + JSON stdout, which Claude Code silently discards for Stop events. Changed to `exit 2` + stderr output across 21 blocking outputs in `arc-phase-stop-hook.sh` (3), `arc-batch-stop-hook.sh` (5), `arc-hierarchy-stop-hook.sh` (7), `arc-issues-stop-hook.sh` (5), and `on-session-stop.sh` (1). This was the root cause of "arc stops after any phase" — the phase loop prompt was being silently discarded every time.
+- **arc-phase-stop-hook.sh** — Batched demote loop into single jq call. Previously used 28×4 = 112 per-phase jq calls (~3.5s). Now ~30ms. Added JSON validation (`jq -e`) before checkpoint write to prevent corruption.
+- **arc SKILL.md** — Fixed `session_id: unknown` in phase loop state file. The template used undefined `${sessionId}` variable. Now uses `Bash('echo "$CLAUDE_SESSION_ID"').trim()` consistent with `arc-checkpoint-init.md`.
+- **CLAUDE.md** — Updated PAT-011 Stop hook format documentation: from incorrect JSON format to correct `exit 2` + stderr mechanism.
+
 ## [1.144.13] - 2026-03-09
 
 ### Fixed

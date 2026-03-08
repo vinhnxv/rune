@@ -15,12 +15,10 @@
 # but iterates over PHASE_ORDER instead of plans[].
 #
 # State file: .claude/arc-phase-loop.local.md (YAML frontmatter)
-# Decision output: {"decision":"block","reason":"<prompt>","systemMessage":"<info>"}
-#
 # Hook event: Stop
 # Timeout: 15s
-# Exit 0 with no output: No active phase loop — allow stop (batch hook may fire)
-# Exit 0 with top-level decision=block: Re-inject next phase prompt
+# Exit 0: No active phase loop — allow stop (batch hook may fire). stdout/stderr discarded.
+# Exit 2 with stderr prompt: Re-inject next phase prompt and continue conversation.
 
 set -euo pipefail
 trap '[[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit' EXIT
@@ -271,27 +269,51 @@ _phase_section_hint() {
 # without reading reference files (which set skip_reason). Phases skipped legitimately
 # by their reference files always include skip_reason. Missing skip_reason = illegitimate skip.
 # See: v1.144.13 fix for arc-1772993768763 (semantic_verification, design_extraction, task_decomposition).
+# PERF FIX (v1.144.14): Single jq call replaces 28×4 per-phase jq calls (~3.5s → ~30ms).
+_now=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
+_demote_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '
+  [.phases | to_entries[] | select(.value.status == "skipped" and (.value.skip_reason == null or .value.skip_reason == ""))] as $to_demote |
+  if ($to_demote | length) > 0 then
+    {
+      demoted: [$to_demote[].key],
+      checkpoint: (
+        reduce $to_demote[] as $d (.;
+          .phases[$d.key].status = "pending" |
+          .phases[$d.key].started_at = null |
+          .phases[$d.key].completed_at = null
+        ) |
+        .phase_skip_log = (.phase_skip_log // []) + [$to_demote[] | {phase: .key, event: "demoted_to_pending", reason: "missing_skip_reason", timestamp: $ts}]
+      )
+    }
+  else
+    { demoted: [], checkpoint: . }
+  end
+' 2>/dev/null || true)
+
 _demoted_count=0
-for phase in "${PHASE_ORDER[@]}"; do
-  _ps=$(echo "$CKPT_CONTENT" | jq -r ".phases.${phase}.status // \"pending\"" 2>/dev/null || echo "pending")
-  if [[ "$_ps" == "skipped" ]]; then
-    _skip_reason=$(echo "$CKPT_CONTENT" | jq -r ".phases.${phase}.skip_reason // \"\"" 2>/dev/null || echo "")
-    if [[ -z "$_skip_reason" ]]; then
-      _trace "DEMOTE: phase ${phase} was skipped without skip_reason — resetting to pending"
-          _log_phase "phase_demoted" "$phase" "reason=missing_skip_reason"
-      CKPT_CONTENT=$(echo "$CKPT_CONTENT" | jq ".phases.${phase}.status = \"pending\" | .phases.${phase}.started_at = null | .phases.${phase}.completed_at = null" 2>/dev/null || echo "$CKPT_CONTENT")
-      _demoted_count=$(( _demoted_count + 1 ))
-      # Log the demotion event for user tracing
-      _now=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
-      CKPT_CONTENT=$(echo "$CKPT_CONTENT" | jq --arg phase "$phase" --arg ts "$_now" \
-        '.phase_skip_log = (.phase_skip_log // []) + [{ phase: $phase, event: "demoted_to_pending", reason: "missing_skip_reason", timestamp: $ts }]' 2>/dev/null || echo "$CKPT_CONTENT")
+if [[ -n "$_demote_result" ]]; then
+  _demoted_count=$(echo "$_demote_result" | jq -r '.demoted | length' 2>/dev/null || echo "0")
+  if [[ "$_demoted_count" -gt 0 ]]; then
+    _demoted_ckpt=$(echo "$_demote_result" | jq -c '.checkpoint' 2>/dev/null || true)
+    if [[ -n "$_demoted_ckpt" && "$_demoted_ckpt" != "null" ]]; then
+      CKPT_CONTENT="$_demoted_ckpt"
+      _trace "Demoted ${_demoted_count} illegitimately skipped phase(s) — writing checkpoint"
+      # Log each demoted phase
+      _demoted_phases=$(echo "$_demote_result" | jq -r '.demoted[]' 2>/dev/null || true)
+      while IFS= read -r _dp; do
+        [[ -n "$_dp" ]] && _log_phase "phase_demoted" "$_dp" "reason=missing_skip_reason"
+      done <<< "$_demoted_phases"
+      # Validate JSON before writing (prevent corrupted checkpoint from killing the loop)
+      if echo "$CKPT_CONTENT" | jq -e '.' > "${CWD}/${CHECKPOINT_PATH}.tmp" 2>/dev/null; then
+        mv -f "${CWD}/${CHECKPOINT_PATH}.tmp" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true
+      else
+        _trace "WARNING: demoted checkpoint JSON validation failed — skipping write"
+        rm -f "${CWD}/${CHECKPOINT_PATH}.tmp" 2>/dev/null
+        # Re-read original checkpoint to avoid corrupted in-memory state
+        CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
+      fi
     fi
   fi
-done
-
-if [[ "$_demoted_count" -gt 0 ]]; then
-  _trace "Demoted ${_demoted_count} illegitimately skipped phase(s) — writing checkpoint"
-  echo "$CKPT_CONTENT" | jq '.' > "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true
 fi
 
 # ── Find next pending phase in PHASE_ORDER ──
@@ -369,15 +391,10 @@ if [[ -z "$NEXT_PHASE" ]]; then
     exit 0
   fi
 
-  jq -n \
-    --arg prompt "Arc pipeline complete — all phases finished. The checkpoint at ${CHECKPOINT_PATH} has been fully updated. Present a brief summary of the arc execution and STOP responding." \
-    --arg msg "Arc phase loop complete. All phases processed." \
-    '{
-      decision: "block",
-      reason: $prompt,
-      systemMessage: $msg
-    }'
-  exit 0
+  # Stop hook: exit 2 = show stderr to model and continue conversation.
+  # Exit 0 silently discards all output for Stop hooks (stdout/stderr not shown).
+  printf '%s\n' "Arc pipeline complete — all phases finished. The checkpoint at ${CHECKPOINT_PATH} has been fully updated. Present a brief summary of the arc execution and STOP responding." >&2
+  exit 2
 fi
 
 # ── COMPACT INTERLUDE: Force context compaction before heavy phases ──
@@ -489,21 +506,15 @@ if [[ "$_needs_compact" == "true" ]] && [[ "$COMPACT_PENDING" != "true" ]] && [[
   fi
   _trace "Compact interlude Phase A [${_compact_reason}] before: ${NEXT_PHASE}"
 
-  jq -n \
-    --arg prompt "Arc Pipeline — Context Checkpoint (phase: ${NEXT_PHASE} upcoming)
+  # Stop hook: exit 2 = show stderr to model and continue conversation.
+  printf '%s\n' "Arc Pipeline — Context Checkpoint (phase: ${NEXT_PHASE} upcoming)
 
 The previous phase has completed. Acknowledge this checkpoint by responding with only:
 
 **Ready for next phase.**
 
-Then STOP responding immediately. Do NOT execute any commands, read any files, or perform any actions." \
-    --arg msg "Arc phase loop: context compaction interlude before ${NEXT_PHASE}." \
-    '{
-      decision: "block",
-      reason: $prompt,
-      systemMessage: $msg
-    }'
-  exit 0
+Then STOP responding immediately. Do NOT execute any commands, read any files, or perform any actions." >&2
+  exit 2
 fi
 
 # Phase B: Reset compact_pending if it was set
@@ -710,13 +721,10 @@ SYSTEM_MSG="Arc phase loop — executing phase: ${NEXT_PHASE} (iteration ${NEW_I
 # ── Log phase start ──
 _log_phase "phase_started" "$NEXT_PHASE" "iteration=${NEW_ITERATION}" "ref_file=${REF_FILE}"
 
-# ── Output blocking JSON ──
-jq -n \
-  --arg prompt "$PHASE_PROMPT" \
-  --arg msg "$SYSTEM_MSG" \
-  '{
-    decision: "block",
-    reason: $prompt,
-    systemMessage: $msg
-  }'
-exit 0
+# ── Output phase prompt to stderr and exit 2 to continue conversation ──
+# Stop hook semantics: exit 0 = allow stop (stdout/stderr discarded).
+# Exit 2 = show stderr to model and continue conversation.
+# BUG FIX (v1.144.14): Previous versions used exit 0 + JSON stdout, which was
+# silently discarded by Claude Code — the root cause of "arc stops after work phase".
+printf '%s\n' "$PHASE_PROMPT" >&2
+exit 2

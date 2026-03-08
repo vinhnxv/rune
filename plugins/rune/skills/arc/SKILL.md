@@ -278,7 +278,7 @@ branch: ${branch}
 arc_flags: ${args.replace(/\s+/g, ' ').trim()}
 config_dir: ${configDir}
 owner_pid: ${ownerPid}
-session_id: ${sessionId}
+session_id: ${Bash('echo "$CLAUDE_SESSION_ID"').trim() || 'unknown'}
 compact_pending: false
 user_cancelled: false
 cancel_reason: null
