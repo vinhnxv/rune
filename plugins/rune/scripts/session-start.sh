@@ -57,6 +57,77 @@ while IFS= read -r line; do
   fi
 done < "$SKILL_FILE"
 
+# ── CWD resolution (runs for ALL events, not just startup) ──
+# Must be resolved BEFORE echo injection
+CWD=""
+if command -v jq &>/dev/null; then
+  CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+fi
+# SEC-006: Canonicalize CWD before use in path construction
+[[ -n "$CWD" ]] && CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || CWD=""
+
+# ── Phase 2: Echo summary injection ──
+ECHO_SUMMARY=""
+inject_echo_summary() {
+  [[ -n "$CWD" ]] || return 0
+
+  # Gate: talisman config check (grep-based, no yq dependency)
+  local talisman="${CWD}/.claude/talisman.yml"
+  if [[ -f "$talisman" && ! -L "$talisman" ]]; then
+    local sess_sum=$(grep -A1 'session_summary:' "$talisman" 2>/dev/null | grep -o 'false' || true)
+    [[ "$sess_sum" == "false" ]] && return 0
+  fi
+
+  local echo_dir="${CWD}/.claude/echoes"
+  [[ -d "$echo_dir" && ! -L "$echo_dir" ]] || return 0
+
+  local summary=""
+  local count=0
+  local max_entries=5
+  local max_chars=500
+  local total_chars=0
+
+  # Collect entries from all role directories
+  # zsh glob compat: *(N)/ provides nullglob behavior
+  for role_dir in "$echo_dir"/*(N)/; do
+    [[ -d "$role_dir" ]] || continue
+    local mem="${role_dir}MEMORY.md"
+    [[ -f "$mem" && ! -L "$mem" ]] || continue
+
+    # Parse entries: match title heading, then check layer on next lines
+    # Entry format: ### [YYYY-MM-DD] Pattern: {description}
+    #               - **layer**: etched|inscribed
+    # Use glob matching (==), NOT regex (=~) for markdown bold
+    # Bash regex treats ** as quantifier; glob treats ** as literal via quoting
+    local current_title=""
+    while IFS= read -r line; do
+      if [[ "$line" == "### "* && "$line" == *"Pattern:"* ]]; then
+        current_title="$line"
+      elif [[ -n "$current_title" && "$line" == *"**layer**: etched"* ]]; then
+        # Etched entry — always include (highest priority)
+        summary="${summary}- ${current_title#\#\#\# }\\n"
+        total_chars=$((total_chars + ${#current_title}))
+        count=$((count + 1))
+        current_title=""
+      elif [[ -n "$current_title" && "$line" == *"**layer**: inscribed"* ]]; then
+        # Inscribed entry — include if under budget
+        summary="${summary}- ${current_title#\#\#\# }\\n"
+        total_chars=$((total_chars + ${#current_title}))
+        count=$((count + 1))
+        current_title=""
+      elif [[ "$line" == "### "* || "$line" == "## "* ]]; then
+        current_title=""  # Reset on next heading
+      fi
+      [[ "$count" -ge "$max_entries" || "$total_chars" -ge "$max_chars" ]] && break 2
+    done < "$mem"
+  done
+
+  [[ "$count" -gt 0 ]] && ECHO_SUMMARY="\\n\\n## Echo Learnings (${count} entries)\\n${summary}"
+}
+
+# Call within fail-forward context — errors caught by ERR trap
+inject_echo_summary 2>/dev/null || true
+
 # JSON-escape the content (jq handles all control chars per RFC 8259)
 if command -v jq &>/dev/null; then
   ESCAPED_CONTENT=$(printf '%s' "$CONTENT" | jq -Rs '.' | sed 's/^"//;s/"$//')
@@ -84,17 +155,16 @@ fi
 
 # Output as hookSpecificOutput with additionalContext
 # This injects the skill routing table into Claude's context
+# Echo summary appended if available (P2: Session-Start Echo Summary Injection)
 cat <<EOF
-{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"[Rune Plugin Active] ${ESCAPED_CONTENT}"}}
+{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"[Rune Plugin Active] ${ESCAPED_CONTENT}${ECHO_SUMMARY}"}}
 EOF
 
 # Statusline configuration diagnostic (startup only, non-blocking)
+# CWD already resolved unconditionally above for echo injection
 if [[ "$EVENT" == "startup" ]]; then
   # Read context_monitor.enabled from talisman (graceful degradation — no yq required)
   CTX_ENABLED="true"
-  CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
-  # SEC-006: Canonicalize CWD before use in path construction
-  [[ -n "$CWD" ]] && CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || CWD=""
   if [[ -n "$CWD" ]]; then
     TALISMAN_FILE="${CWD}/.claude/talisman.yml"
     if [[ -f "$TALISMAN_FILE" && ! -L "$TALISMAN_FILE" ]]; then

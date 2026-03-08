@@ -20,6 +20,12 @@ In addition to the universal 3-layer protocol:
 - [ ] **Test evidence**: Test commands run + pass/fail counts (not just "tests pass")
 - [ ] **Type checker evidence**: Output shown if applicable to language
 
+### Elegance Check (when `inner_flame.elegance_check: true` AND non-trivial change)
+- [ ] Simplest solution: no unnecessary abstraction, no speculative generality
+- [ ] Pattern reuse: Grep'd for existing patterns before inventing new ones
+- [ ] Readability: self-explanatory code, descriptive names, minimal comments needed
+- [ ] YAGNI: no features added "just in case"
+
 ## Fixer Checklist (mend-fixer)
 
 In addition to the universal 3-layer protocol:
@@ -36,6 +42,12 @@ In addition to the universal 3-layer protocol:
 - [ ] **Before/after shown**: Diff or line comparison for each fix
 - [ ] **Verification cited**: Command that confirms the fix works + output
 - [ ] **Regression check**: Test run output proving no regression (not just "no regression")
+
+### Elegance Check (when `inner_flame.elegance_check: true` AND non-trivial change)
+- [ ] Simplest solution: no unnecessary abstraction, no speculative generality
+- [ ] Pattern reuse: Grep'd for existing patterns before inventing new ones
+- [ ] Readability: self-explanatory code, descriptive names, minimal comments needed
+- [ ] YAGNI: no features added "just in case"
 
 ## Reviewer Checklist (all review Ashes)
 

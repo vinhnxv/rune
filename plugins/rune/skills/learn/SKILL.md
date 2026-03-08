@@ -43,6 +43,8 @@ Extract CLI correction patterns and review recurrence findings from session hist
 
 ```
 /rune:learn [--since DAYS] [--detector cli|review|arc|hook|all] [--dry-run]
+/rune:learn --watch    # Enable real-time correction detection for this session
+/rune:learn --unwatch  # Disable real-time detection
 ```
 
 | Flag | Default | Description |
@@ -51,12 +53,32 @@ Extract CLI correction patterns and review recurrence findings from session hist
 | `--detector TYPE` | all | Which detectors to run (cli, review, arc, hook, all) |
 | `--dry-run` | false | Report findings without writing to echoes |
 | `--project PATH` | CWD | Project directory to scan (implicit) |
+| `--watch` | false | Enable real-time correction detection (two-hook pipeline) |
+| `--unwatch` | false | Disable real-time correction detection |
 
 ## Execution Flow
 
-### Phase 1: Parse Arguments
+### Phase 0: Parse Arguments
 
-Read `$ARGUMENTS` and set:
+Read `$ARGUMENTS` and handle special flags first:
+
+**--watch flag**:
+1. Create `tmp/.rune-learn-watch` marker file with session identity:
+   ```json
+   {"config_dir": "${CLAUDE_CONFIG_DIR:-$HOME/.claude}", "owner_pid": "$PPID", "session_id": "${CLAUDE_SESSION_ID}"}
+   ```
+2. Create `tmp/.rune-signals/.learn-edits/` directory
+3. Output: "Real-time correction detection enabled for this session."
+4. Exit (skip remaining phases)
+
+**--unwatch flag**:
+1. Remove `tmp/.rune-learn-watch` marker if it exists
+2. Remove `tmp/.rune-signals/.learn-edits/` directory
+3. Remove `tmp/.rune-signals/.learn-correction-detected` signal
+4. Output: "Real-time correction detection disabled."
+5. Exit (skip remaining phases)
+
+**Regular flags**: Set the following:
 - `SINCE_DAYS` (default 7)
 - `DETECTOR` (default all)
 - `DRY_RUN` (default false)
@@ -237,3 +259,39 @@ Description: SQL injection in query() method — use parameterized queries.
 ## References
 
 - [detectors.md](references/detectors.md) — Detector algorithms and JSONL schema documentation
+
+## Real-Time Correction Detection (--watch)
+
+The `--watch` flag activates a two-hook pipeline for automatic correction detection:
+
+1. **PostToolUse hook** (`correction-signal-writer.sh`) — Detects file-revert patterns
+2. **Stop hook** (`detect-corrections.sh`) — Aggregates signals and suggests Echo persist
+
+### Activation
+
+```bash
+/rune:learn --watch    # Creates marker file tmp/.rune-learn-watch
+/rune:learn --unwatch  # Removes marker file and signal directory
+```
+
+### What Gets Detected
+
+| Signal Type | Description | Source |
+|-------------|-------------|--------|
+| File revert | Same file edited 2+ times | PostToolUse hook |
+| CLI errors | `is_error:true` in JSONL | Stop hook JSONL scan |
+
+### How It Works
+
+1. **Marker file**: `tmp/.rune-learn-watch` contains session identity (`config_dir`, `owner_pid`, `session_id`)
+2. **Edit tracking**: `tmp/.rune-signals/.learn-edits/{hash}.log` per-file timestamps
+3. **Signal file**: `tmp/.rune-signals/.learn-correction-detected` written on 2+ edits to same file
+4. **Debounce**: Max 1 suggestion per session via `.learn-suggested-{PID}` marker
+5. **Session isolation**: Only activates when marker owner matches current session
+
+### Guardrails
+
+- Fast-path exit when marker absent (< 1ms overhead)
+- Active workflow guard: Skips during arc/strive/batch pipelines
+- Fail-forward: Crashes are silent (non-blocking hooks)
+- Signal cleanup after suggestion (prevents accumulation)

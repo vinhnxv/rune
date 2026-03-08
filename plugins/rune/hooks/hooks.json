@@ -208,6 +208,18 @@
       },
       {
         "matcher": "Write|Edit",
+        "_rationale": "LEARN-001: Lightweight signal writer for file-revert detection. Only activates when tmp/.rune-learn-watch marker exists. Fast-path exit (<1ms) when marker absent.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/learn/correction-signal-writer.sh",
+            "timeout": 5,
+            "statusMessage": "Checking for correction patterns..."
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
         "_rationale": "Talisman shard invalidation. Fast-path exit (<5ms) via grep for non-talisman writes. Only triggers full resolver (~0.6s) when talisman.yml is modified. PostToolUse (not PreToolUse) so it does not block the write.",
         "hooks": [
           {
@@ -421,6 +433,17 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/detect-workflow-complete.sh",
             "timeout": 30,
             "statusMessage": "Checking workflow completion cleanup..."
+          }
+        ]
+      },
+      {
+        "_rationale": "LEARN-002: Stop hook for real-time correction detection. Reads signals from PostToolUse hook + scans JSONL for error patterns. Only activates when tmp/.rune-learn-watch marker exists. Fast-path exit (<1ms) when marker absent. Debounced to max 1 suggestion per session.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/learn/detect-corrections.sh",
+            "timeout": 5,
+            "statusMessage": "Checking for correction learning opportunities..."
           }
         ]
       },
