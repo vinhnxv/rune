@@ -1,0 +1,291 @@
+{
+  "skill_name": "team-sdk",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need to implement a new Rune workflow called 'deploy' that uses Agent Teams. Write the team creation code following the team-sdk patterns. The workflow should: (1) Create a team with prefix 'rune-deploy', (2) Use timestamp as identifier, (3) Store the plan path in metadata. Show me the complete createTeam call with all 6 steps of the teamTransition protocol.",
+      "expected_output": "Complete team creation code following the 6-step teamTransition protocol from team-sdk: (1) Feature flag pre-flight, (2) Validate identifier, (3) TeamDelete with retry-with-backoff, (4) Filesystem fallback, (5) TeamCreate with catch-and-recover, (6) Write state file with session isolation fields.",
+      "files": [],
+      "expectations": [
+        "The code includes CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS flag check (Step 0)",
+        "The code validates identifier with regex /^[a-zA-Z0-9_-]+$/ and checks for '..' path traversal (Step 1)",
+        "The code implements TeamDelete with retry-with-backoff (delays: 0s, 3s, 8s or similar)",
+        "The code includes filesystem fallback gated by !teamDeleteSucceeded (QUAL-012)",
+        "The code handles 'Already leading' error with catch-and-recover",
+        "The code writes state file with all three session isolation fields: config_dir, owner_pid, session_id",
+        "The code uses CHOME pattern for multi-account support: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}",
+        "The team name follows the pattern 'rune-deploy-{timestamp}'"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I'm implementing a workflow that might be called multiple times (e.g., after compaction recovery). Show me how to use ensureTeam for idempotent team creation. The workflow is 'strive' with identifier '20260307-143022' and state file prefix 'tmp/.rune-work'.",
+      "expected_output": "Idempotent team creation code using ensureTeam pattern that: (1) Checks if team already exists via config.json, (2) Verifies ownership via state file, (3) Returns recovered handle if same session, (4) Calls createTeam if different session or team doesn't exist.",
+      "files": [],
+      "expectations": [
+        "The code checks if team config.json exists before creating",
+        "The code reads state file and checks owner_pid matches $PPID",
+        "The code returns recovered handle with all required fields (teamName, workflow, identifier, configDir, ownerPid, sessionId, stateFile, createdAt, spawnedAgents)",
+        "The code falls through to createTeam() if team doesn't exist or belongs to different session",
+        "The code handles missing/corrupted state file gracefully (falls through to createTeam)",
+        "The recovered handle includes empty spawnedAgents array (cannot recover spawned list)"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I need to spawn 3 worker agents for a 'strive' workflow. Show me the spawnWave code with auto-bootstrap pattern. Each worker should be named 'rune-smith-w0-{N}' and have a task to implement part of a plan. The team config is: teamName='rune-work-20260307-143022', workflow='strive', identifier='20260307-143022', stateFilePrefix='tmp/.rune-work'.",
+      "expected_output": "spawnWave code that: (1) Accepts config object and calls ensureTeam internally (auto-bootstrap), (2) Creates all tasks first, (3) Spawns all agents with team_name, (4) Returns array of AgentRefs, (5) Tracks spawned agents on handle for cleanup fallback.",
+      "files": [],
+      "expectations": [
+        "The code accepts a config object (not just a TeamHandle) and calls ensureTeam() for auto-bootstrap",
+        "The code validates agent names with SEC-4 regex /^[a-zA-Z0-9_-]+$/",
+        "The code creates all tasks BEFORE spawning agents (ordering for dependencies)",
+        "Each Agent call includes team_name parameter (ATE-1 compliance)",
+        "Each Agent uses subagent_type: 'general-purpose' (not 'explore' or 'plan')",
+        "The code returns AgentRef objects with name, taskId, and spawnedAt fields",
+        "The code tracks spawned agents on handle.spawnedAgents array for cleanup fallback"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "My workflow is complete and I need to shut down the team. Write the complete shutdown code following the 5-component cleanup protocol. The handle has: teamName='rune-work-20260307-143022', workflow='strive', ownerPid='12345', stateFile='tmp/.rune-work-20260307-143022.json', spawnedAgents=[{name:'rune-smith-w0-1'}, {name:'rune-smith-w0-2'}, {name:'rune-smith-w0-3'}].",
+      "expected_output": "Complete 5-component shutdown code: (1) Dynamic member discovery, (2) shutdown_request to all members, (3) Grace period (20s), (4) TeamDelete with retry-with-backoff (4 attempts), (5) Filesystem fallback with process-level kill and rm-rf gated by !cleanupTeamDeleteSucceeded.",
+      "files": [],
+      "expectations": [
+        "The code reads team config.json for dynamic member discovery (not just spawnedAgents)",
+        "The code filters member names with SEC-4 regex /^[a-zA-Z0-9_-]+$/ before SendMessage",
+        "The code sends shutdown_request (not 'shutdown' or 'kill') to all discovered members",
+        "The code has a 20-second grace period after sending shutdown requests",
+        "The code implements TeamDelete with retry-with-backoff using 4 attempts (0s, 5s, 10s, 15s delays)",
+        "The code gates filesystem fallback behind !cleanupTeamDeleteSucceeded (QUAL-012)",
+        "The filesystem fallback includes process-level kill (SIGTERM then SIGKILL) before rm-rf",
+        "The code uses CHOME pattern: ${CLAUDE_CONFIG_DIR:-$HOME/.claude} for rm-rf paths",
+        "The code re-validates teamName with SEC-4 regex before rm-rf (defense-in-depth)",
+        "The code cleans up both teams/ and tasks/ directories"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "I need to implement session isolation for my workflow state file. Show me how to write the state file with all required session identity fields. The workflow is 'devise' with teamName='rune-plan-20260307-143022' and identifier='20260307-143022'.",
+      "expected_output": "State file creation code with all session isolation fields: config_dir (resolved CLAUDE_CONFIG_DIR), owner_pid ($PPID), session_id (CLAUDE_SESSION_ID), plus workflow metadata (team_name, started, status).",
+      "files": [],
+      "expectations": [
+        "The code resolves config_dir using: cd ${CLAUDE_CONFIG_DIR:-$HOME/.claude} && pwd -P",
+        "The code gets owner_pid using: echo $PPID",
+        "The code gets session_id using: echo ${CLAUDE_SESSION_ID:-}",
+        "The state file includes team_name field matching teamName",
+        "The state file includes started timestamp in ISO-8601 format",
+        "The state file includes status: 'active'",
+        "The state file path follows convention: tmp/.rune-plan-{identifier}.json"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "I need to write a hook script that checks if a state file belongs to the current session before acting on it. Show me the verifyOwnership function in bash.",
+      "expected_output": "Bash implementation of verifyOwnership that: (1) Resolves current config_dir, (2) Gets current PPID, (3) Checks config_dir match, (4) Checks owner_pid match with kill -0 liveness check, (5) Returns appropriate action based on decision matrix.",
+      "files": [],
+      "expectations": [
+        "The script sources or defines rune_pid_alive function for kill -0 liveness check",
+        "The script resolves RUNE_CURRENT_CFG or uses ${CLAUDE_CONFIG_DIR:-$HOME/.claude}",
+        "The script checks config_dir matches current session before proceeding",
+        "The script checks owner_pid matches $PPID",
+        "If PID doesn't match, the script checks if the owning process is still alive (kill -0)",
+        "The script returns/skips silently if different live session owns the state",
+        "The script proceeds with cleanup if owner PID is dead (orphan recovery)"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Show me how to resolve the correct preset for a 'review' workflow and what fields it provides. Include how preset resolution works with talisman.yml overrides.",
+      "expected_output": "Preset resolution code and documentation showing: (1) Resolution order (explicit override > talisman custom > built-in), (2) Built-in 'review' preset fields (prefix, agents, max_agents, state_file, readonly, cleanup, monitoring), (3) How to use preset fields in createTeam.",
+      "files": [],
+      "expectations": [
+        "The code shows preset resolution order: explicit override > talisman custom_presets > built-in",
+        "The review preset includes prefix: 'rune-review'",
+        "The review preset includes agents.always list (forge-warden, ward-sentinel, pattern-weaver, veil-piercer)",
+        "The review preset includes readonly: true (SEC-001 enforcement)",
+        "The review preset includes cleanup config with grace_period_s and retry_delays_ms",
+        "The review preset includes monitoring config with timeoutMs, staleWarnMs, pollIntervalMs",
+        "Custom presets in talisman.yml completely override built-in presets (no merging)"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "I need to implement wave-based execution for a 'mend' workflow. Show me how to use spawnWave, shutdownWave, and the wave scheduling pattern. The workflow should spawn up to 5 fixers per wave.",
+      "expected_output": "Wave-based execution code showing: (1) spawnWave for first wave, (2) monitor with waitForCompletion, (3) shutdownWave between waves, (4) Signal file cleanup between waves, (5) Loop until all findings processed.",
+      "files": [],
+      "expectations": [
+        "The code uses spawnWave to spawn up to 5 mend-fixer agents",
+        "The code uses monitor or waitForCompletion to wait for wave completion",
+        "Between waves, the code calls shutdownWave (not full shutdown)",
+        "shutdownWave sends shutdown_request to all wave members",
+        "shutdownWave cleans up completed tasks (prepares pool for next wave)",
+        "shutdownWave does NOT call TeamDelete (team persists)",
+        "The code clears signal files between waves",
+        "The code tracks remaining findings and spawns new waves until complete"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "My session underwent context compaction and I lost the TeamHandle. Show me how to recover the handle using recoverHandle() from the state file. The workflow was 'strive' with identifier '20260307-143022'.",
+      "expected_output": "Handle recovery code that: (1) Locates state file by convention using prefixMap, (2) Reads and validates state file, (3) Checks status is 'active', (4) Reconstructs TeamHandle with all fields, (5) Returns null if state file missing/malformed or status is not active.",
+      "files": [],
+      "expectations": [
+        "The code uses prefixMap to resolve state file path: tmp/.rune-work-{identifier}.json",
+        "The code reads state file and parses as JSON with try/catch",
+        "The code checks state.status === 'active' before proceeding",
+        "The code returns null if state file missing, malformed, or status != 'active'",
+        "The reconstructed handle includes all required fields: teamName, workflow, identifier, configDir, ownerPid, sessionId, stateFile, createdAt",
+        "The reconstructed handle sets spawnedAgents to empty array (cannot recover spawned list)",
+        "The code handles the case where team dir no longer exists (correlation guard)"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "I'm implementing an arc preflight stale scan. Show me how to detect stale teams (30-minute threshold) and distinguish between same-session orphans vs cross-session teams.",
+      "expected_output": "Stale detection code that: (1) Scans for teams with state files older than 30 minutes, (2) Checks owner_pid matches current session, (3) Uses kill -0 to check if owner process is alive, (4) Only cleans up orphaned teams from dead sessions, (5) Skips teams owned by other live sessions.",
+      "files": [],
+      "expectations": [
+        "The code uses ORPHAN_STALE_THRESHOLD of 1_800_000ms (30 minutes)",
+        "The code compares state.started timestamp against Date.now()",
+        "The code handles NaN from missing/malformed 'started' field (treats as stale)",
+        "The code checks owner_pid matches current $PPID",
+        "If owner_pid differs, the code uses kill -0 to check process liveness",
+        "The code skips cleanup if another live session owns the team",
+        "The code only proceeds with cleanup when owner PID is dead (orphan recovery)",
+        "The code validates teamName with SEC-4 regex before rm-rf"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "A user tries to create a team with a malicious identifier: '../../../etc/passwd'. Show me how the validation in Step 1 prevents this attack.",
+      "expected_output": "Security validation code that: (1) Validates identifier with regex /^[a-zA-Z0-9_-]+$/, (2) Checks for '..' path traversal pattern, (3) Validates teamName with same regex, (4) Throws error on validation failure before any filesystem operations.",
+      "files": [],
+      "expectations": [
+        "The code validates identifier with regex /^[a-zA-Z0-9_-]+$/",
+        "The code explicitly checks for '..' substring (path traversal)",
+        "The code validates teamName with regex /^[a-zA-Z0-9_-]+$/",
+        "Validation happens BEFORE any TeamCreate or filesystem operations",
+        "The code throws descriptive error on validation failure",
+        "The code re-validates teamName before rm-rf operations (defense-in-depth)"
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "TeamDelete keeps failing even after all 4 retry attempts. Show me how the filesystem fallback handles this gracefully. The teamName is 'rune-work-20260307-143022' and ownerPid is '12345'.",
+      "expected_output": "Complete filesystem fallback code that: (1) Gates behind !cleanupTeamDeleteSucceeded, (2) Sends SIGTERM to lingering processes, (3) Waits 3 seconds, (4) Sends SIGKILL to survivors, (5) Removes team and task directories, (6) Re-validates teamName before rm-rf.",
+      "files": [],
+      "expectations": [
+        "The code is gated by !cleanupTeamDeleteSucceeded (QUAL-012)",
+        "The code finds child processes using pgrep -P with ownerPid",
+        "The code filters by command name (node|claude|claude-*) before killing",
+        "The code sends SIGTERM first, then waits 3 seconds",
+        "The code re-verifies command name before SIGKILL (PID recycling guard)",
+        "The code uses CHOME pattern: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}",
+        "The code re-validates teamName with SEC-4 regex before rm-rf",
+        "The code cleans both teams/ and tasks/ directories",
+        "The code calls TeamDelete() one final time (best effort to clear SDK state)"
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "I need to implement the three signal checks in my monitoring loop. Show me how to check for: (1) context_warning signal, (2) all-tasks-done signal, (3) force_shutdown signal. The teamName is 'rune-work-20260307-143022'.",
+      "expected_output": "Signal check code that: (1) Reads tmp/.rune-shutdown-signal-{session_id}.json for context_warning, (2) Reads tmp/.rune-signals/{teamName}/all-tasks-done for completion, (3) Reads tmp/.rune-force-shutdown-{session_id}.json for force_shutdown, (4) Handles missing files gracefully.",
+      "files": [],
+      "expectations": [
+        "Signal 1 reads from tmp/.rune-shutdown-signal-${CLAUDE_SESSION_ID}.json",
+        "Signal 1 checks signal === 'context_warning'",
+        "Signal 1 triggers early teammate shutdown with warning message",
+        "Signal 2 reads from tmp/.rune-signals/{teamName}/all-tasks-done",
+        "Signal 2 uses try/catch to handle missing file (returns false)",
+        "Signal 2 triggers fast-path exit from monitor loop",
+        "Signal 3 reads from tmp/.rune-force-shutdown-${CLAUDE_SESSION_ID}.json",
+        "Signal 3 checks signal === 'force_shutdown'",
+        "Signal 3 sends shutdown_request to ALL workers before breaking",
+        "All three signals use try/catch to handle missing/malformed files"
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "I'm implementing a cancel command that needs to warn if the workflow belongs to another session. Show me how to check ownership and warn appropriately. The state file is at 'tmp/.rune-work-20260307-143022.json'.",
+      "expected_output": "Ownership check code that: (1) Reads state file, (2) Compares config_dir with current session, (3) Compares owner_pid with $PPID, (4) Uses kill -0 to check if owner is alive, (5) Warns if different live session owns the workflow.",
+      "files": [],
+      "expectations": [
+        "The code reads state file with try/catch for missing file",
+        "The code resolves current config_dir using ${CLAUDE_CONFIG_DIR:-$HOME/.claude}",
+        "The code compares state.config_dir with current config_dir",
+        "The code compares state.owner_pid with $PPID",
+        "If owner_pid differs, the code uses kill -0 to check liveness",
+        "The code warns user if another live session owns the workflow",
+        "The code allows proceeding if owner PID is dead (orphan recovery)",
+        "The code handles missing state file gracefully"
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "Show me the complete getStatus() implementation that returns team diagnostics. The handle has teamName='rune-work-20260307-143022' and stateFile='tmp/.rune-work-20260307-143022.json'.",
+      "expected_output": "getStatus implementation that: (1) Reads team config.json for members, (2) Calls TaskList for tasks, (3) Reads state file, (4) Returns TeamStatus with healthy boolean, (5) Handles missing team dir gracefully.",
+      "files": [],
+      "expectations": [
+        "The code handles null/undefined handle gracefully (returns default status)",
+        "The code uses CHOME pattern to resolve team config path",
+        "The code reads config.json and extracts members array",
+        "The code sets healthy=true if config.json exists and is readable",
+        "The code sets healthy=false if team dir or config.json is missing",
+        "The code calls TaskList() to get current tasks",
+        "The code reads state file for workflow metadata",
+        "The code returns TeamStatus with: teamName, members, tasks, stateFile, healthy",
+        "Each member object includes name and status fields",
+        "Each task object includes id, subject, status, owner fields"
+      ]
+    },
+    {
+      "id": 16,
+      "prompt": "I'm implementing monitoring with the waitForCompletion pattern. Show me how to correctly poll TaskList with signal checks. The timeout is 600000ms (10 min), poll interval is 30000ms (30s), and expected count is 5 tasks.",
+      "expected_output": "Correct polling loop that: (1) Calculates maxIterations from timeout/interval, (2) Calls TaskList on every cycle, (3) Checks for completion signals, (4) Sleeps for pollIntervalMs between cycles, (5) Handles stale detection.",
+      "files": [],
+      "expectations": [
+        "The code calculates maxIterations = Math.ceil(timeoutMs / pollIntervalMs)",
+        "The code calls TaskList() at the START of each poll cycle",
+        "The code checks all three signals AFTER TaskList (context_warning, all-tasks-done, force_shutdown)",
+        "The code uses Bash('sleep 30') for the poll interval (not arbitrary values)",
+        "The code tracks completed task count from TaskList result",
+        "The code implements stale detection with staleWarnMs threshold",
+        "The code breaks early if all tasks complete (matches expectedCount)",
+        "The code NEVER uses Bash('sleep N && echo check') anti-pattern",
+        "The code tracks poll iteration count and respects maxIterations"
+      ]
+    },
+    {
+      "id": 17,
+      "prompt": "A user has CLAUDE_CONFIG_DIR set to ~/.claude-work for a work account. Show me how to correctly resolve the config directory for team operations.",
+      "expected_output": "CHOME resolution code that: (1) Uses ${CLAUDE_CONFIG_DIR:-$HOME/.claude} pattern, (2) Resolves to absolute path with cd && pwd -P, (3) Works correctly for both default and custom config dirs.",
+      "files": [],
+      "expectations": [
+        "The code uses CHOME pattern: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}",
+        "The code resolves to absolute path using: cd \"$CHOME\" && pwd -P",
+        "The code uses this resolved path for team config reads",
+        "The code uses this resolved path for rm-rf operations",
+        "The code handles case where CLAUDE_CONFIG_DIR is not set (uses default)",
+        "The code handles case where CLAUDE_CONFIG_DIR is set to custom path",
+        "The code quotes CHOME variable in all Bash commands"
+      ]
+    },
+    {
+      "id": 18,
+      "prompt": "I need to implement the cleanup() function that runs after shutdown(). Show me the complete implementation. The handle has teamName='rune-work-20260307-143022', workflow='strive', stateFile='tmp/.rune-work-20260307-143022.json'.",
+      "expected_output": "cleanup implementation that: (1) Updates state file status to 'completed', (2) Releases workflow lock, (3) Cleans up signal directory, (4) Handles null handle gracefully.",
+      "files": [],
+      "expectations": [
+        "The code handles null/undefined handle gracefully (warns and returns)",
+        "The code reads existing state file content",
+        "The code preserves all existing fields and only updates status to 'completed'",
+        "The code preserves session identity fields (config_dir, owner_pid, session_id)",
+        "The code releases workflow lock using workflow-lock.sh",
+        "The code cleans up signal directory: tmp/.rune-signals/{teamName}",
+        "Signal cleanup is non-blocking (wrapped in try/catch)",
+        "The code handles missing state file gracefully"
+      ]
+    }
+  ]
+}
