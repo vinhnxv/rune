@@ -240,6 +240,13 @@ rune_check_conflicts() {
     #   writer vs writer → CONFLICT
     #   writer vs reader/planner → ADVISORY
     #   reader vs reader → OK
+    #
+    # DECREE-004: ADVISORY allows reader+writer simultaneous execution.
+    # Race condition behavior: A code review (reader) running simultaneously
+    # with strive (writer) may see inconsistent file states if files are
+    # modified during the read. This is accepted for parallel workflow
+    # efficiency. Users seeking atomic consistency should run workflows
+    # sequentially or use git commits as synchronization points.
     if [[ "$my_class" == "writer" && "$stored_class" == "writer" ]]; then
       conflicts="${conflicts}CONFLICT: /rune:${stored_workflow} (writer, PID ${stored_pid})\n"
     elif [[ "$my_class" == "writer" || "$stored_class" == "writer" ]]; then

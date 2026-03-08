@@ -23,6 +23,16 @@
 - Claude Code >= v2.1.71 (CronCreate/CronDelete/CronList tools)
 - `CLAUDE_CODE_DISABLE_CRON` must not be set
 
+## [1.143.8] - 2026-03-08
+
+### Fixed
+- **DECREE-002: convergence gate circuit breaker** — Added hard limit check for `maxRounds` in `evaluateConvergence()` that halts review regardless of metric state when tier limit is reached. Ensures bounded review rounds per tier (CHUNK_STANDARD=2, CHUNK_DEEP=3).
+
+### Changed
+- **DECREE-001: phase dispatch assertion** — Documented mandatory use of `PHASE_ORDER` for iteration in arc-phase-constants.md with assertion pseudocode to prevent non-monotonic execution ordering bugs.
+- **DECREE-003: pre-flight sync validation** — Documented validation script cross-references TeamCreate/Agent patterns against PHASE_PREFIX_MAP to catch orphan-prone mismatches at preflight.
+- **DECREE-004: reader+writer race condition semantics** — Documented accepted race condition behavior for simultaneous reader+writer execution (advisory) in workflow-lock.sh. Users seeking atomic consistency should run workflows sequentially or use git commits as synchronization points.
+
 ## [1.143.6] - 2026-03-08
 
 ### Fixed

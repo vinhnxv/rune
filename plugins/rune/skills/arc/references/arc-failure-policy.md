@@ -21,7 +21,7 @@ Extracted from SKILL.md in v1.110.0 for phase-isolated context architecture.
 | GAP REMEDIATION | Non-blocking — gate miss → skip cleanly. Fixer timeout → partial fixes, proceed | Advisory (v1.51.0) |
 | CODE REVIEW | Does not halt | Produces findings or clean report |
 | MEND | Halt if >3 FAILED findings | User fixes, `/rune:arc --resume` |
-| VERIFY MEND | Non-blocking — retries up to tier max cycles, then proceeds | Convergence gate is advisory |
+| VERIFY MEND | Non-blocking — retries up to tier max cycles, then proceeds | Convergence gate is advisory (DECREE-002: max_rounds enforced in evaluateConvergence()) |
 | DESIGN ITERATION | Non-blocking — fidelity score >= threshold → skip cleanly. Agent-browser unavailable → skip with warning | Conditional (v1.109.0) |
 | TEST | Non-blocking WARN only. Test failures recorded in report | `--no-test` to skip entirely |
 | TEST COVERAGE CRITIQUE | Non-blocking — Codex timeout/unavailable → skip, proceed | Advisory (v1.51.0) |

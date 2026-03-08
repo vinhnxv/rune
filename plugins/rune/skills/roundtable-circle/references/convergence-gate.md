@@ -259,10 +259,21 @@ function passesThresholds(density, evidence, confidence, coverage, isCode, confi
 **Error handling**: If metrics cannot be parsed for a chunk, it is treated as failing (conservative bias).
 
 ```javascript
-function evaluateConvergence(unifiedTome, reviewedChunks, allChunks, round, history, config) {
+function evaluateConvergence(unifiedTome, reviewedChunks, allChunks, round, history, config, tier) {
   // BACK-001 FIX: Pass config through to computeChunkMetrics so talisman threshold overrides take effect
   const chunkMetrics = reviewedChunks.map(chunk => computeChunkMetrics(unifiedTome, chunk, config))
   const failedChunks = chunkMetrics.filter(m => !m.pass)
+
+  // DECREE-002 FIX: Circuit breaker — hard limit check FIRST before any other logic.
+  // This ensures we halt when max rounds is reached regardless of metric state.
+  // The tier is selected once at review start and passed through to this function.
+  const maxRounds = tier?.maxRounds ?? 2  // Default: CHUNK_STANDARD
+  if (round >= maxRounds) {
+    return {
+      verdict: 'halted', flaggedChunks: [], chunkMetrics,
+      reason: `Circuit breaker: round ${round} >= maxRounds ${maxRounds}`,
+    }
+  }
 
   // CONVERGED: all chunks pass thresholds
   if (failedChunks.length === 0) {

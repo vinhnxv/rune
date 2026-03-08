@@ -27,6 +27,19 @@ const HEAVY_PHASES = ['work', 'code_review', 'mend']
 
 **WARNING — Non-monotonic execution order**: Phase 5.8 (GAP REMEDIATION) executes **before** Phase 5.7 (GOLDMASK VERIFICATION). The `PHASE_ORDER` array defines the canonical execution sequence using phase **names**, not numbers. Any tooling that sorts by numeric phase ID will get the wrong order. The non-sequential numbering preserves backward compatibility with older checkpoints — do NOT renumber. Always use `PHASE_ORDER` for iteration order.
 
+**DECREE-001 Guard — Phase dispatch assertion**: All phase dispatch code MUST use `PHASE_ORDER` for iteration. The following assertion validates correct ordering:
+
+```javascript
+// Assertion: Verify phase dispatch uses PHASE_ORDER, not numeric sorting
+function assertPhaseOrderCorrect(nextPhase, currentPhase) {
+  const currentIndex = PHASE_ORDER.indexOf(currentPhase)
+  const nextIndex = PHASE_ORDER.indexOf(nextPhase)
+  if (nextIndex !== currentIndex + 1) {
+    throw new Error(`DECREE-001: Phase ordering violation — ${currentPhase} (index ${currentIndex}) should be followed by ${PHASE_ORDER[currentIndex + 1]}, not ${nextPhase} (index ${nextIndex})`)
+  }
+}
+```
+
 ## Phase Timeouts
 
 ```javascript
