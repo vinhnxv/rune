@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.144.15] - 2026-03-09
+
+### Added
+- **stop-hook-common.sh** — `RUNE_SKIP_OWNERSHIP=1` env var to bypass session ownership checks in all Stop hooks. For debugging arc phase loop failures. Set in `.claude/settings.local.json` env.
+- **stop-hook-common.sh** — Detailed trace logging inside `validate_session_ownership()` — logs config_dir comparison, PID comparison, and rejection reason when `RUNE_TRACE=1`.
+
 ## [1.144.14] - 2026-03-09
 
 ### Fixed
