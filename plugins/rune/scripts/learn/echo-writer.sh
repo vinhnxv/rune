@@ -198,7 +198,7 @@ EXISTING_TITLES=$(grep -E '^## ' "$MEMORY_FILE" 2>/dev/null | sed 's/^## //' || 
 _is_duplicate() {
   local new_title="$1"
   local existing_titles="$2"
-  [[ -z "$existing_titles" ]] && return 1
+  [[ -z "$existing_titles" ]] && { echo "UNIQUE"; return 0; }
 
   python3 -c '
 import sys

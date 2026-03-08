@@ -27,7 +27,7 @@ fi
 # SEC-006: Cap stdin to 64KB (only need file_path, not full content)
 TOOL_INPUT=$(head -c 65536 2>/dev/null || true)
 
-FILE_PATH=$(printf '%s' "$TOOL_INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
+FILE_PATH=$(printf '%s' "$TOOL_INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)
 
 if [[ "$FILE_PATH" == *".claude/echoes/"*"MEMORY.md" ]]; then
   # Write dirty signal for next echo-reader invocation to pick up

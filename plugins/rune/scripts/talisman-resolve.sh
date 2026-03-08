@@ -106,6 +106,15 @@ if "$RUNE_PYTHON" -c "import yaml" 2>/dev/null; then
   HAS_PYYAML=true
 fi
 
+# ── Fallback: if venv exists but PyYAML missing, try quick install ──
+if [[ "$HAS_PYYAML" != "true" ]] && [[ -x "${RUNE_VENV}/bin/pip" ]]; then
+  "${RUNE_VENV}/bin/pip" install -q PyYAML 2>/dev/null || true
+  if "$RUNE_PYTHON" -c "import yaml" 2>/dev/null; then
+    HAS_PYYAML=true
+    _trace "OK: auto-installed PyYAML into ${RUNE_VENV}"
+  fi
+fi
+
 # ── Guard: warn if no YAML parser available (VEIL-007) ──
 if [[ "$HAS_PYYAML" != "true" ]] && ! command -v yq &>/dev/null; then
   _trace "WARN: No YAML parser available (need python3+PyYAML or yq). Using defaults only."
@@ -190,7 +199,8 @@ if [[ $merged_size -gt 524288 ]]; then
 fi
 # Check 2: Reject values containing shell injection patterns (backticks, $(), process substitution)
 # These should never appear in talisman config values — they indicate tampering or misconfiguration
-if printf '%s' "$merged" | grep -qE '`[^`]+`|\$\([^)]+\)|<\(|>\(' 2>/dev/null; then
+# Exclude ward_commands (intentionally shell commands) before checking
+if printf '%s' "$merged" | jq 'del(.work.ward_commands)' 2>/dev/null | grep -qE '`[^`]+`|\$\([^)]+\)|<\(|>\(' 2>/dev/null; then
   _trace "WARN: merged config contains shell injection patterns, using defaults only"
   merged="$defaults_json"
   MERGE_STATUS="defaults_only"
