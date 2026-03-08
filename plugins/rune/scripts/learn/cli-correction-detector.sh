@@ -90,7 +90,7 @@ if [[ -z "$INPUT" ]]; then
 fi
 
 # -- Write python3 processor to temp file (avoids heredoc+pipe stdin conflict) --
-PY_TMP=$(mktemp /tmp/rune-ccd-XXXXXX.py 2>/dev/null) || {
+PY_TMP=$(mktemp "${TMPDIR:-/tmp}/rune-ccd-XXXXXX.py" 2>/dev/null) || {
   printf '{"corrections":[],"error":"tmpfile_failed"}\n'
   exit 0
 }

@@ -529,7 +529,7 @@ assert_eq "No bridge file: returns 1 (fail-open)" "1" "$rc"
 
 # 10b. Valid bridge file under threshold -> returns 0
 session_id_for_bridge="test-ctx-$$"
-bridge_file="/tmp/rune-ctx-${session_id_for_bridge}.json"
+bridge_file="${TMPDIR:-/tmp}/rune-ctx-${session_id_for_bridge}.json"
 # Create bridge file owned by us with fresh timestamp
 printf '{"remaining_percentage": 20}' > "$bridge_file"
 INPUT="{\"session_id\":\"${session_id_for_bridge}\"}"

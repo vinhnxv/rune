@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.144.5] - 2026-03-08
+
+### Fixed
+- **Cross-platform: `readarray` → Bash 3.2 loop** — `detect-workflow-complete.sh` used `readarray` (Bash 4+ only), replaced with `for` loop + `shopt -s nullglob`
+- **Cross-platform: `${var,,}` → `tr` lowercase** — `on-task-observation.sh` used Bash 4+ case conversion, replaced with `tr '[:upper:]' '[:lower:]'`
+- **Cross-platform: `tr ' ' '█'` → while-loop** — `rune-statusline.sh` progress bar used `tr` with multi-byte UTF-8 chars (byte-oriented, corrupts output), replaced with character-level loop
+- **Cross-platform: `tr -dc` range bug** — `advise-mcp-untrusted.sh` had `tr -dc '[:alnum:]_-.'` where `-` between `_` and `.` created a byte range, silently stripping tool names on Linux. Fixed: dash moved to end
+- **Hardcoded `/tmp` → `${TMPDIR:-/tmp}`** in 5 scripts: `rune-statusline.sh`, `cli-correction-detector.sh`, `validate-test-evidence.sh`, `lib/stop-hook-common.sh`, `rune-status.sh`
+- **Test: `on-teammate-idle.sh`** — Missing team dirs for Layer 0 orphan guard; retry counter not reset; output too shallow for content depth check
+- **Test: `arc-issues-preflight.sh`** — PATH isolation didn't exclude `gh` from `/usr/bin`
+- **Test: `talisman-resolve.sh`** — Graceful skip when no YAML parser available
+- **Test: bridge file paths** — 4 test files used hardcoded `/tmp` instead of `${TMPDIR:-/tmp}`
+
+### Added
+- **`test-cross-platform.sh`** — 59-case cross-platform compatibility test suite: 10 static analysis checks (forbidden Bash 4+ patterns, GNU-only tools, hardcoded paths), TMPDIR portability, `tr` character class edge cases, UTF-8 progress bar, Bash 3.2-compatible file collection, case-insensitive matching, tool name sanitization, shell builtins portability, `sed -E`/`grep -E` tests
+
 ## [1.144.4] - 2026-03-08
 
 ### Fixed

@@ -179,8 +179,12 @@ mkdir -p "$NO_GH_BIN"
 ln -sf "$(command -v jq)" "$NO_GH_BIN/jq"
 
 # PATH must include system bins (date, head, etc.) but NOT gh
-# Filter gh out by using a custom path that excludes the mock bin
-result=$(PATH="$NO_GH_BIN:/usr/bin:/bin" bash "$UNDER_TEST" 42 2>/dev/null)
+# Create symlinks for essential system tools, excluding gh
+for _cmd in bash date head cat sed grep printf tr jq wc mkdir rm id test; do
+  _path=$(PATH="/usr/bin:/bin" command -v "$_cmd" 2>/dev/null || true)
+  [[ -n "$_path" && -x "$_path" ]] && ln -sf "$_path" "$NO_GH_BIN/$_cmd" 2>/dev/null || true
+done
+result=$(PATH="$NO_GH_BIN" bash "$UNDER_TEST" 42 2>/dev/null)
 assert_contains "gh not found → error" "gh CLI not found" "$result"
 assert_contains "gh not found → ok false" '"ok":false' "$(echo "$result" | tr -d ' ')"
 

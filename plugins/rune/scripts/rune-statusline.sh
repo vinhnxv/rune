@@ -79,13 +79,14 @@ BAR_WIDTH=10
 FILLED=$((USED * BAR_WIDTH / 100))
 [[ "$FILLED" -gt "$BAR_WIDTH" ]] && FILLED=$BAR_WIDTH
 EMPTY=$((BAR_WIDTH - FILLED))
+# Build progress bar using printf loop (tr is byte-oriented, can't handle multi-byte UTF-8 chars)
 BAR=""
-[[ "$FILLED" -gt 0 ]] && BAR=$(printf "%${FILLED}s" | tr ' ' '█')
-[[ "$EMPTY" -gt 0 ]] && BAR="${BAR}$(printf "%${EMPTY}s" | tr ' ' '░')"
+_i=0; while [[ $_i -lt "$FILLED" ]]; do BAR="${BAR}█"; _i=$((_i+1)); done
+_i=0; while [[ $_i -lt "$EMPTY" ]]; do BAR="${BAR}░"; _i=$((_i+1)); done
 
 # Git branch (cached 5s to avoid lag)
 # SB-SEC-005: Scope cache to user
-CACHE_FILE="/tmp/rune-statusline-git-cache-$(id -u)"
+CACHE_FILE="${TMPDIR:-/tmp}/rune-statusline-git-cache-$(id -u)"
 CACHE_MAX_AGE=5
 BRANCH=""
 if [[ -d "${DIR}/.git" ]] || git -C "$DIR" rev-parse --git-dir &>/dev/null 2>&1; then

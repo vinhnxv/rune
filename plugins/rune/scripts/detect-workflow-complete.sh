@@ -95,8 +95,14 @@ HOOK_START_TIME=$(date +%s)
 _trace "ENTER detect-workflow-complete.sh"
 
 # ── GUARD 1: Fast-path — any state files at all? ──
-readarray -t STATE_FILES < <(shopt -s nullglob || true; printf '%s\n' "${CWD}/tmp/"/.rune-*.json)
-[[ ${#STATE_FILES[@]} -eq 1 && -z "${STATE_FILES[0]}" ]] && STATE_FILES=()
+# Bash 3.2 compatible (no readarray): collect state files via loop
+STATE_FILES=()
+_saved_nullglob=$(shopt -p nullglob 2>/dev/null || true)
+shopt -s nullglob 2>/dev/null || true
+for _sf in "${CWD}/tmp/"/.rune-*.json; do
+  STATE_FILES+=("$_sf")
+done
+eval "$_saved_nullglob" 2>/dev/null || true
 
 if [[ ${#STATE_FILES[@]} -eq 0 ]]; then
   _trace "FAST EXIT: no state files"

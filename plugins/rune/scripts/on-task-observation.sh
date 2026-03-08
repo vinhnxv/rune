@@ -65,7 +65,8 @@ IFS=$'\t' read -r TEAM_NAME TASK_ID TASK_SUBJECT TASK_DESC AGENT_NAME < <(
 [[ "$TASK_ID" =~ ^[a-zA-Z0-9_-]+$ ]] || exit 0
 
 # --- Guard 2: Skip cleanup/shutdown/meta tasks ---
-case "${TASK_SUBJECT,,}" in
+# Bash 3.2 compatible: use tr instead of ${var,,}
+case "$(printf '%s' "$TASK_SUBJECT" | tr '[:upper:]' '[:lower:]')" in
   *shutdown*|*cleanup*|*aggregate*|*monitor*|*"shut down"*) exit 0 ;;
 esac
 
