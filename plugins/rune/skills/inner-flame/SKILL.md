@@ -101,6 +101,31 @@ Ask yourself these questions as if you were reviewing someone ELSE's work:
    - Am I padding output with obvious/trivial content?
    - Does every finding/change earn its place?
 
+## Layer 3B: Elegance Check (Conditional)
+
+**Gate**: Only runs when ALL conditions are met:
+1. `inner_flame.elegance_check` is `true` in talisman (default: false)
+2. Change is non-trivial: modified 3+ files OR added 50+ lines (per-worker scope —
+   counts files THIS agent modified in the current task, not global total)
+3. Role is Worker or Fixer (skip for Reviewer, Researcher, Forger, Aggregator)
+
+When active, ask:
+
+1. **Simplest solution?** Is there a simpler approach that achieves the same result?
+   - Could I delete code instead of adding it?
+   - Am I introducing unnecessary abstraction for a one-time operation?
+   - "Knowing everything I know now, is this the solution I'd write from scratch?"
+2. **Pattern reuse?** Does the codebase already have a pattern for this?
+   - Am I inventing a new pattern when an existing one would work?
+   - Grep for similar patterns before claiming uniqueness
+3. **Future reader?** Would a developer reading this in 6 months understand it immediately?
+   - If I need comments to explain it, can I make the code self-explanatory instead?
+   - Is there a more descriptive name for this variable/function?
+
+**Critical nuance**: "Skip this for simple, obvious fixes — don't over-engineer"
+The complexity gate (3+ files OR 50+ lines) enforces this. Trivial fixes should NOT
+trigger elegance analysis — that would itself be inelegant.
+
 ## Self-Review Log Format
 
 Append this to your output or include in your Seal message:
@@ -118,6 +143,9 @@ Append this to your output or include in your Seal message:
 | Adversarial: weakest point identified | — | [description] |
 | Adversarial: missed scope checked | — | [description] |
 | Adversarial: value assessment | — | [description] |
+| Elegance: simplest approach | YES/NO/SKIPPED | [actions] |
+| Elegance: pattern reuse | YES/NO/SKIPPED | [actions] |
+| Elegance: readability | YES/NO/SKIPPED | [actions] |
 
 **Pre-review confidence**: {N}
 **Post-review confidence**: {N} (adjusted {up/down/unchanged} because {reason})
@@ -127,7 +155,8 @@ Append this to your output or include in your Seal message:
 ## Seal Enhancement
 
 Add these fields to your Seal message:
-- `Inner-flame: pass` — all 3 layers passed, with fresh evidence cited for every completion claim
+- `Inner-flame: pass (elegant)` — elegance check passed (was active and passed)
+- `Inner-flame: pass` — elegance check skipped (disabled or trivial change)
 - `Inner-flame: partial` — items were revised/deleted but issues resolved, or evidence incomplete due to timeout
 - `Inner-flame: fail` — grounding failure, missing fresh evidence for completion claims, or post-review confidence below 60
 - `Revised: N` — total items changed (confirmed: X, revised: Y, deleted: Z)

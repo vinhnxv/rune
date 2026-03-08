@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.144.2] - 2026-03-08
+
+### Added
+- **Self-Improvement Loop — Session Learning** — Real-time correction detection and session-start echo injection for continuous learning. Features:
+  - **P1: Real-Time Correction Detection** — Two new hooks detect when Claude self-corrects during a session:
+    - `correction-signal-writer.sh` (PostToolUse:Write|Edit) — Detects file-revert patterns (same file edited 2+ times)
+    - `detect-corrections.sh` (Stop) — Scans JSONL for error→success patterns with confidence scoring
+    - Session isolation via `config_dir` + `owner_pid` guards
+    - Fast-path exit (<1ms) when watch marker absent
+    - Debounce (max 1 suggestion per session)
+    - Guard 4: Skips during active Rune workflows
+  - **P2: Session-Start Echo Summary Injection** — Injects top 5 etched/inscribed echoes on session start:
+    - Pure file reads (no MCP dependency)
+    - Glob matching for layer priority
+    - Symlink guard on MEMORY.md and echoes/
+    - Total injection under 500 chars
+    - Gated by `echoes.session_summary` talisman config
+  - **P3: Elegance Check in Inner Flame** — Layer 3B self-review for non-trivial changes:
+    - Complexity gate (3+ files OR 50+ lines per worker scope)
+    - 3 elegance questions in self-review log
+    - Gated by `inner_flame.elegance_check` talisman config
+
+### Changed
+- **learn skill** — Added `--watch`/`--unwatch` documentation for activating correction detection
+- **session-start.sh** — Added echo injection function with layer priority
+- **role-checklists.md** — Added elegance items for Worker/Fixer roles
+- **CLAUDE.md** — Updated hook infrastructure table with LEARN-001/LEARN-002 entries
+
 ## [1.144.1] - 2026-03-08
 
 ### Fixed

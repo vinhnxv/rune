@@ -21,7 +21,7 @@ This list reflects the documented schema used by Rune (including default-injecte
 | 12 | `deployment_verification` | Deploy artifact generation | `enabled`, `go_no_go`, `rollback_plan`, `monitoring_plan` |
 | 13 | `schema_drift` | Migration/model consistency | `enabled`, `frameworks`, `strict`, `ignore_patterns` |
 | 14 | `elicitation` | Reasoning methods | `max_parallel_sages`, `phase_filter` |
-| 15 | `echoes` | Agent memory | `version_controlled`, `fts_enabled`, `auto_observation`, `scoring`, `groups`, `reranking`, `retry` |
+| 15 | `echoes` | Agent memory | `version_controlled`, `session_summary`, `fts_enabled`, `auto_observation`, `scoring`, `groups`, `reranking`, `retry` |
 | 16 | `mend` | Finding resolution | `cross_file_batch_size`, `todos_per_fixer` |
 | 17 | `review` | Review settings | `diff_scope`, `convergence`, `arc_convergence_*`, `shard_*` |
 | 18 | `work` | Work/strive settings | `ward_commands`, `max_workers`, `commit_format`, `co_authors`, `branch_prefix`, `unrestricted_shared_files`, `worktree.*` |
@@ -35,6 +35,7 @@ This list reflects the documented schema used by Rune (including default-injecte
 | 26 | `plan` | Research & planning config | `verification_patterns[]`, `freshness` (`enabled`, `warn_threshold`, `block_threshold`, `max_commit_distance`), `external_research` (`"always"` / `"auto"` / `"never"`), `research_urls[]` |
 | 27 | `integrations` | MCP tool integrations | `mcp_tools.{namespace}.server_name`, `server_version`, `tools[]`, `phases{}`, `trigger{}`, `skill_binding`, `rules[]`, `metadata{}` |
 | 28 | `design_sync` | Figma design synchronization | `enabled`, `figma_provider`, `max_figma_urls`, `max_extraction_workers`, `max_implementation_workers`, `max_iteration_workers`, `max_iterations`, `iterate_enabled`, `trust_hierarchy.*`, `verification_gate.*`, `backend_impact.*`, `codegen_profile` |
+| 29 | `inner_flame` | Self-review protocol | `enabled`, `block_on_fail`, `elegance_check` |
 
 ## Critical Sections (Must-Have)
 
@@ -277,3 +278,26 @@ Figma design synchronization pipeline configuration. Gated by `enabled: true`.
 | `verification_gate.warn_threshold` | number | `20` | Mismatch % triggering WARN verdict |
 | `verification_gate.block_threshold` | number | `40` | Mismatch % triggering BLOCK verdict |
 | `backend_impact.enabled` | bool | `false` | Enable backend impact analysis |
+
+## Inner Flame (`inner_flame`)
+
+Universal self-review protocol configuration for all teammates. Controls grounding, completeness, and elegance checks.
+
+### Configuration Schema
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | bool | `true` | Enable Inner Flame self-review protocol |
+| `block_on_fail` | bool | `true` | Block task completion on Inner Flame failure |
+| `elegance_check` | bool | `false` | Enable Layer 3B elegance checks for non-trivial changes (Worker/Fixer roles only) |
+
+### Elegance Check Details
+
+When `elegance_check: true` is enabled, the following additional checks activate for Worker and Fixer roles when changes are non-trivial (3+ files OR 50+ lines):
+
+1. **Simplest solution?** — No unnecessary abstraction, no speculative generality
+2. **Pattern reuse?** — Checked for existing patterns before inventing new ones
+3. **Readability?** — Self-explanatory code, descriptive names
+4. **YAGNI?** — No features added "just in case"
+
+The elegance check is **opt-in** (default: false) because it adds overhead for code changes where elegance analysis would itself be inelegant (simple, obvious fixes).
