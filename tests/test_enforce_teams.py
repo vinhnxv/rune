@@ -970,16 +970,17 @@ class TestEnforceTeamsEdgeCases:
     def test_stale_review_state_file_not_detected(
         self, hook_runner, project_env
     ) -> None:
-        """State files older than 30 minutes must not trigger enforcement.
+        """State files older than 120 minutes must not trigger enforcement.
 
         We simulate staleness by backdating the mtime using os.utime().
+        Note: STALE_THRESHOLD_MIN is 120 in enforce-teams.sh, so we use 130 min.
         """
         project, config = project_env
         state_file = _write_review_state(
             project, config_dir=config, owner_pid=os.getpid()
         )
-        # Backdate to 35 minutes ago
-        stale_time = time.time() - (35 * 60)
+        # Backdate to 130 minutes ago (beyond 120-min threshold)
+        stale_time = time.time() - (130 * 60)
         os.utime(state_file, (stale_time, stale_time))
         result = hook_runner(ENFORCE_TEAMS, _make_task_input(project))
         assert not _is_deny(result)
@@ -988,12 +989,16 @@ class TestEnforceTeamsEdgeCases:
     def test_stale_arc_checkpoint_not_detected(
         self, hook_runner, project_env
     ) -> None:
-        """Arc checkpoint older than 30 minutes must be ignored."""
+        """Arc checkpoint older than 120 minutes must be ignored.
+
+        Note: STALE_THRESHOLD_MIN is 120 in enforce-teams.sh, so we use 130 min.
+        """
         project, config = project_env
         checkpoint_file = _write_arc_checkpoint(
             project, config_dir=config, owner_pid=os.getpid()
         )
-        stale_time = time.time() - (35 * 60)
+        # Backdate to 130 minutes ago (beyond 120-min threshold)
+        stale_time = time.time() - (130 * 60)
         os.utime(checkpoint_file, (stale_time, stale_time))
         result = hook_runner(ENFORCE_TEAMS, _make_task_input(project))
         assert not _is_deny(result)
@@ -1206,16 +1211,19 @@ class TestEnforceTeamsEdgeCases:
     def test_stale_plus_fresh_state_enforces_on_fresh(
         self, hook_runner, project_env
     ) -> None:
-        """One stale and one fresh state file → fresh triggers enforcement."""
+        """One stale and one fresh state file → fresh triggers enforcement.
+
+        Note: STALE_THRESHOLD_MIN is 120 in enforce-teams.sh, so we use 130 min for stale.
+        """
         project, config = project_env
-        # Write stale state
+        # Write stale state (130 min ago = beyond 120-min threshold)
         stale_file = _write_review_state(
             project,
             suffix="stale-one",
             config_dir=config,
             owner_pid=os.getpid(),
         )
-        stale_time = time.time() - 35 * 60
+        stale_time = time.time() - 130 * 60
         os.utime(stale_file, (stale_time, stale_time))
         # Write fresh state
         _write_review_state(

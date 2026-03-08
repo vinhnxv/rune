@@ -67,6 +67,16 @@ def setup_inscription(
     return path
 
 
+def setup_team_dir(
+    config: Path,
+    team_name: str = "rune-review-test123",
+) -> Path:
+    """Create team directory in config dir (required for hook to proceed)."""
+    team_dir = config / "teams" / team_name
+    team_dir.mkdir(parents=True, exist_ok=True)
+    return team_dir
+
+
 # ---------------------------------------------------------------------------
 # Guard Clauses
 # ---------------------------------------------------------------------------
@@ -129,6 +139,7 @@ class TestTeammateIdleGuardClauses:
             project,
             teammates=[{"name": "other-ash", "output_file": "other-ash.md"}],
         )
+        setup_team_dir(config)
         result = run_idle_hook(project, config, teammate_name="ward-sentinel")
         assert result.returncode == 0
 
@@ -144,6 +155,7 @@ class TestTeammateIdleOutputValidation:
         """Missing output file → exit 2 (block idle)."""
         project, config = project_env
         setup_inscription(project)
+        setup_team_dir(config)
         # Don't create the output file
         (project / "tmp" / "reviews" / "test123").mkdir(parents=True, exist_ok=True)
         result = run_idle_hook(project, config)
@@ -155,6 +167,7 @@ class TestTeammateIdleOutputValidation:
         """Output file under 50 bytes → exit 2 (block idle)."""
         project, config = project_env
         setup_inscription(project)
+        setup_team_dir(config)
         output_dir = project / "tmp" / "reviews" / "test123"
         output_dir.mkdir(parents=True, exist_ok=True)
         (output_dir / "ward-sentinel.md").write_text("tiny")
@@ -167,11 +180,16 @@ class TestTeammateIdleOutputValidation:
         """Output file with enough content → exit 0 (allow idle)."""
         project, config = project_env
         setup_inscription(project)
+        setup_team_dir(config)
         output_dir = project / "tmp" / "reviews" / "test123"
         output_dir.mkdir(parents=True, exist_ok=True)
-        # Write 100 bytes of content (above 50-byte minimum)
-        content = "# Review Findings\n\n" + "Finding details here. " * 5
-        content += "\nSEAL: ward-sentinel\n"
+        # Write content with 20+ lines (hook requires minimum depth)
+        lines = ["# Review Findings", ""]
+        for i in range(20):
+            lines.append(f"- Finding {i+1}: Details about this finding")
+        lines.append("")
+        lines.append("SEAL: ward-sentinel")
+        content = "\n".join(lines)
         (output_dir / "ward-sentinel.md").write_text(content)
         result = run_idle_hook(project, config)
         assert result.returncode == 0
@@ -188,6 +206,7 @@ class TestTeammateIdleSealEnforcement:
         """Review team output without SEAL → exit 2."""
         project, config = project_env
         setup_inscription(project)
+        setup_team_dir(config)
         output_dir = project / "tmp" / "reviews" / "test123"
         output_dir.mkdir(parents=True, exist_ok=True)
         content = "# Review Findings\n\n" + "Finding details. " * 10
@@ -201,9 +220,16 @@ class TestTeammateIdleSealEnforcement:
         """SEAL: marker at line start → passes."""
         project, config = project_env
         setup_inscription(project)
+        setup_team_dir(config)
         output_dir = project / "tmp" / "reviews" / "test123"
         output_dir.mkdir(parents=True, exist_ok=True)
-        content = "# Review\n" + "Detail " * 10 + "\nSEAL: ward-sentinel\n"
+        # Write content with 20+ lines (hook requires minimum depth)
+        lines = ["# Review", ""]
+        for i in range(20):
+            lines.append(f"- Detail {i+1}: More details here")
+        lines.append("")
+        lines.append("SEAL: ward-sentinel")
+        content = "\n".join(lines)
         (output_dir / "ward-sentinel.md").write_text(content)
         result = run_idle_hook(project, config)
         assert result.returncode == 0
@@ -213,9 +239,16 @@ class TestTeammateIdleSealEnforcement:
         """<seal> tag → passes."""
         project, config = project_env
         setup_inscription(project)
+        setup_team_dir(config)
         output_dir = project / "tmp" / "reviews" / "test123"
         output_dir.mkdir(parents=True, exist_ok=True)
-        content = "# Review\n" + "Detail " * 10 + "\n<seal>ward-sentinel</seal>\n"
+        # Write content with 20+ lines (hook requires minimum depth)
+        lines = ["# Review", ""]
+        for i in range(20):
+            lines.append(f"- Detail {i+1}: More details here")
+        lines.append("")
+        lines.append("<seal>ward-sentinel</seal>")
+        content = "\n".join(lines)
         (output_dir / "ward-sentinel.md").write_text(content)
         result = run_idle_hook(project, config)
         assert result.returncode == 0
@@ -229,6 +262,7 @@ class TestTeammateIdleSealEnforcement:
             team_name="rune-work-abc",
             output_dir="tmp/work/abc/",
         )
+        setup_team_dir(config, team_name="rune-work-abc")
         output_dir = project / "tmp" / "work" / "abc"
         output_dir.mkdir(parents=True, exist_ok=True)
         content = "# Implementation\n" + "Code changes. " * 10
@@ -245,6 +279,7 @@ class TestTeammateIdleSealEnforcement:
             team_name="rune-audit-abc",
             output_dir="tmp/audit/abc/",
         )
+        setup_team_dir(config, team_name="rune-audit-abc")
         output_dir = project / "tmp" / "audit" / "abc"
         output_dir.mkdir(parents=True, exist_ok=True)
         content = "# Audit\n" + "Finding details. " * 10
@@ -271,6 +306,7 @@ class TestTeammateIdleSecurity:
                 {"name": "ward-sentinel", "output_file": "../../../etc/passwd"}
             ],
         )
+        setup_team_dir(config)
         result = run_idle_hook(project, config)
         assert result.returncode == 2
         assert "path traversal" in result.stderr.lower()
@@ -287,6 +323,7 @@ class TestTeammateIdleSecurity:
             "teammates": [{"name": "ward-sentinel", "output_file": "ward.md"}],
         }
         (signal_dir / "inscription.json").write_text(json.dumps(inscription))
+        setup_team_dir(config)
         result = run_idle_hook(project, config)
         assert result.returncode == 2
 
@@ -302,6 +339,7 @@ class TestTeammateIdleSecurity:
             "teammates": [{"name": "ward-sentinel", "output_file": "ward.md"}],
         }
         (signal_dir / "inscription.json").write_text(json.dumps(inscription))
+        setup_team_dir(config)
         result = run_idle_hook(project, config)
         assert result.returncode == 2
 

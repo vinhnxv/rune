@@ -252,21 +252,32 @@ class TestEdge013EvidenceFromContent:
     """EDGE-013: Proximity uses paths from content, not the MEMORY.md file_path."""
 
     def test_content_path_used_not_file_path(self):
-        """file_path of the MEMORY.md is NOT used for proximity."""
+        """file_path of the MEMORY.md IS used for proximity (VOID-003).
+
+        VOID-003 added entry's own file_path to evidence paths for proximity
+        scoring. Both content paths AND file_path contribute to proximity.
+        """
         entry = {
             "file_path": "/echoes/reviewer/MEMORY.md",
             "content_preview": "Found XSS in `src/frontend/app.tsx`",
         }
-        # Proximity should use src/frontend/app.tsx, not /echoes/reviewer/MEMORY.md
+        # Proximity uses BOTH src/frontend/app.tsx (from content) AND
+        # /echoes/reviewer/MEMORY.md (from file_path via VOID-003)
+        # The content path gives the exact match for src/frontend/app.tsx
         score = _score_proximity(entry, context_files=["src/frontend/app.tsx"])
         assert score == pytest.approx(1.0)
 
-    def test_file_path_alone_not_proximity_source(self):
-        """Entry with no backtick paths in content gets 0.0 even if file_path is close."""
+    def test_file_path_also_used_for_proximity(self):
+        """Entry with no backtick paths can still score via file_path (VOID-003).
+
+        VOID-003 added entry's own file_path to evidence paths. Even without
+        backtick paths in content, file_path can provide proximity scoring.
+        """
         entry = {
             "file_path": "src/auth/MEMORY.md",  # Close to context
             "content_preview": "General observation with no file references",
         }
         score = _score_proximity(entry, context_files=["src/auth/login.py"])
-        # No evidence paths extracted from content -> 0.0
-        assert score == pytest.approx(0.0)
+        # file_path src/auth/MEMORY.md is same directory as src/auth/login.py
+        # VOID-003: file_path is now extracted as evidence → proximity score > 0
+        assert score >= 0.7  # same directory gives 0.8

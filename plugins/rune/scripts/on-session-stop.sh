@@ -392,8 +392,9 @@ if [[ -d "$CHOME/teams/" ]]; then
           continue
         fi
         # SEC-002: Atomic symlink-safe delete (eliminates TOCTOU window)
-        find "$CHOME/teams/${dirname}" -maxdepth 0 -not -type l -exec rm -rf {} + 2>/dev/null
-        find "$CHOME/tasks/${dirname}" -maxdepth 0 -not -type l -exec rm -rf {} + 2>/dev/null
+        # Note: || true prevents ERR trap on successful deletion (find returns non-zero when dir is removed mid-traversal)
+        find "$CHOME/teams/${dirname}" -maxdepth 0 -not -type l -exec rm -rf {} + 2>/dev/null || true
+        find "$CHOME/tasks/${dirname}" -maxdepth 0 -not -type l -exec rm -rf {} + 2>/dev/null || true
         cleaned_teams+=("$dirname")
       fi
     fi

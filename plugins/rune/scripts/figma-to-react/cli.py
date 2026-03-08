@@ -37,7 +37,7 @@ if str(_PKG_DIR) not in sys.path:
     sys.path.insert(0, str(_PKG_DIR))
 
 import core  # noqa: E402
-from figma_client import FigmaAPIError, FigmaClient  # noqa: E402
+from figma_client import FigmaAPIError, FigmaClient, FigmaCredentialError  # noqa: E402
 from url_parser import FigmaURLError  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -331,6 +331,9 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(130)  # POSIX: 128 + SIGINT(2)
     except FigmaURLError as exc:
         print(_red(f"{CROSS} URL error: {exc}"), file=sys.stderr)
+        sys.exit(1)
+    except FigmaCredentialError as exc:
+        print(_red(f"{CROSS} Credential error: {exc}"), file=sys.stderr)
         sys.exit(1)
     except FigmaAPIError as exc:
         print(_red(f"{CROSS} API error: {exc}"), file=sys.stderr)

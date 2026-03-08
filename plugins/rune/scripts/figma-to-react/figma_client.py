@@ -99,6 +99,10 @@ class FigmaBadRequestError(FigmaAPIError):
     """Raised on 400 — malformed request (invalid node IDs, etc.)."""
 
 
+class FigmaCredentialError(FigmaAPIError):
+    """Raised when no valid credentials are available (missing token and no Desktop MCP)."""
+
+
 # ---------------------------------------------------------------------------
 # Cache
 # ---------------------------------------------------------------------------
@@ -390,7 +394,7 @@ class FigmaClient:
             logger.info("FigmaClient: selected Desktop MCP backend (127.0.0.1:3845).")
             return None
 
-        raise FigmaAPIError(
+        raise FigmaCredentialError(
             "No Figma backend available. Either:\n"
             "  1. Set the FIGMA_TOKEN environment variable to your Personal Access Token, or\n"
             "  2. Open the Figma Desktop app (required for Desktop MCP at 127.0.0.1:3845).",

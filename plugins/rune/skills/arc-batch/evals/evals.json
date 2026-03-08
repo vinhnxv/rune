@@ -1,0 +1,333 @@
+{
+  "skill_name": "arc-batch",
+  "evals": [
+    {
+      "id": 1,
+      "name": "glob-input-basic",
+      "prompt": "Run batch arc on plans/feat-*.md",
+      "expected_output": "Parse glob pattern, validate plans, confirm with user before starting batch",
+      "assertions": [
+        {
+          "name": "glob-expansion",
+          "description": "Correctly expands glob pattern to list of plan files",
+          "check": "Glob tool or equivalent used to expand plans/feat-*.md"
+        },
+        {
+          "name": "preflight-validation",
+          "description": "Runs preflight validation on expanded paths",
+          "check": "arc-batch-preflight.sh invoked or validation logic executed"
+        },
+        {
+          "name": "user-confirmation",
+          "description": "Asks user to confirm batch before starting",
+          "check": "AskUserQuestion called with batch confirmation options"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "queue-file-input",
+      "prompt": "Process the plans in batch-queue.txt",
+      "expected_output": "Read queue file, parse plan paths, maintain order, confirm batch",
+      "assertions": [
+        {
+          "name": "queue-file-read",
+          "description": "Reads and parses the .txt queue file",
+          "check": "Read tool used on batch-queue.txt, lines filtered for non-empty non-comment"
+        },
+        {
+          "name": "order-preserved",
+          "description": "Queue file order is preserved by default (no smart sorting without flag)",
+          "check": "Phase 1.5 skip logic triggered for queue input type"
+        },
+        {
+          "name": "input-type-detected",
+          "description": "Correctly identifies inputType as 'queue'",
+          "check": "Args endswith .txt triggers queue input path"
+        }
+      ],
+      "files": ["batch-queue.txt"]
+    },
+    {
+      "id": 3,
+      "name": "dry-run-preview",
+      "prompt": "Preview batch arc for plans/*.md without running",
+      "expected_output": "Show plan list and time estimate, exit without starting batch",
+      "assertions": [
+        {
+          "name": "dry-run-flag-detected",
+          "description": "Detects --dry-run flag in arguments",
+          "check": "dryRun boolean set from args.includes('--dry-run') or similar"
+        },
+        {
+          "name": "plan-list-output",
+          "description": "Outputs list of plans that would be processed",
+          "check": "Plans enumerated with numbering or bullet list"
+        },
+        {
+          "name": "time-estimate",
+          "description": "Shows time estimate (45-240 min per plan)",
+          "check": "Estimate range shown based on plan count"
+        },
+        {
+          "name": "no-state-file",
+          "description": "Does not write state file in dry-run mode",
+          "check": "Early return before Phase 3/5 state file creation"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "resume-crashed-session",
+      "prompt": "Resume the interrupted batch arc",
+      "expected_output": "Read progress file, reset stale in_progress plans, continue with remaining plans",
+      "assertions": [
+        {
+          "name": "resume-mode-detected",
+          "description": "Detects --resume flag and sets inputType to 'resume'",
+          "check": "resumeMode from args.includes('--resume'), inputType set to 'resume'"
+        },
+        {
+          "name": "progress-file-read",
+          "description": "Reads batch-progress.json for existing state",
+          "check": "Read tool used on tmp/arc-batch/batch-progress.json"
+        },
+        {
+          "name": "stale-in-progress-reset",
+          "description": "Resets in_progress plans from crashed session to pending",
+          "check": "Plans with status 'in_progress' changed to 'pending'"
+        },
+        {
+          "name": "filter-pending-only",
+          "description": "Only resumes pending plans, skips completed",
+          "check": "planPaths filtered to status === 'pending' only"
+        }
+      ],
+      "files": ["tmp/arc-batch/batch-progress.json"]
+    },
+    {
+      "id": 5,
+      "name": "smart-ordering-isolated-first",
+      "prompt": "Run batch arc on plans/*.md with smart ordering",
+      "expected_output": "Reorder plans so isolated plans (no file overlap) run first, then by version_target",
+      "assertions": [
+        {
+          "name": "smart-sort-triggered",
+          "description": "Smart ordering is activated (--smart-sort or input-type heuristic)",
+          "check": "Phase 1.5 logic executes, smartOrderPlans() called or equivalent"
+        },
+        {
+          "name": "file-target-extraction",
+          "description": "Extracts file targets from each plan",
+          "check": "YAML frontmatter scope/files_modified parsed, or backtick paths extracted"
+        },
+        {
+          "name": "overlap-detection",
+          "description": "Detects file overlap between plans (excluding universal files)",
+          "check": "intersect() check or equivalent overlap logic executed"
+        },
+        {
+          "name": "isolated-first-sort",
+          "description": "Sorts isolated plans before conflicting plans",
+          "check": "is_isolated DESC in sort comparator"
+        },
+        {
+          "name": "version-target-sort",
+          "description": "Within same isolation class, sorts by version_target ASC",
+          "check": "version_target ASC in sort comparator, nulls last"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 6,
+      "name": "shard-grouping-detection",
+      "prompt": "Run batch arc on plans/feat-auth-*.md plans/feat-user-*.md",
+      "expected_output": "Detect shard patterns (1of3, 2of3, etc.), group by feature, sort by shard number",
+      "assertions": [
+        {
+          "name": "shard-pattern-detected",
+          "description": "Detects shard naming pattern in plan filenames",
+          "check": "Regex matching for -([0-9]+)of([0-9]+) or similar shard pattern"
+        },
+        {
+          "name": "feature-grouping",
+          "description": "Groups shards by feature prefix",
+          "check": "Map or object keyed by feature prefix (feat-auth, feat-user)"
+        },
+        {
+          "name": "numeric-ordering",
+          "description": "Sorts shards within groups by shard number",
+          "check": "Shards sorted 1of3, 2of3, 3of3 within each feature group"
+        },
+        {
+          "name": "parent-exclusion",
+          "description": "Excludes parent plans with shattered: true from execution",
+          "check": "Plans with shattered: true filtered out of execution list"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 7,
+      "name": "conflicting-flags",
+      "prompt": "Run batch arc on plans/*.md --smart-sort --no-smart-sort",
+      "expected_output": "Warn about conflicting flags, use --no-smart-sort (fail-safe)",
+      "assertions": [
+        {
+          "name": "conflict-detected",
+          "description": "Detects both --smart-sort and --no-smart-sort in arguments",
+          "check": "forceSmartSort && noSmartSort condition checked"
+        },
+        {
+          "name": "warning-issued",
+          "description": "Warns user about conflicting flags",
+          "check": "Warning message logged or shown to user"
+        },
+        {
+          "name": "no-smart-sort-wins",
+          "description": "Uses --no-smart-sort as winner (fail-safe)",
+          "check": "forceSmartSort set to false, no smart ordering applied"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 8,
+      "name": "empty-glob-error",
+      "prompt": "Run batch arc on plans/nonexistent-*.md",
+      "expected_output": "Error message about no plan files found",
+      "assertions": [
+        {
+          "name": "glob-returns-empty",
+          "description": "Glob expansion returns empty array",
+          "check": "Glob tool returns [] or empty result"
+        },
+        {
+          "name": "error-message",
+          "description": "Shows error message about no plan files found",
+          "check": "Error output includes 'No plan files found' or similar"
+        },
+        {
+          "name": "early-return",
+          "description": "Returns early without creating state files",
+          "check": "Function returns before Phase 3 progress file creation"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 9,
+      "name": "progress-file-initialization",
+      "prompt": "Start batch arc for plans/feat-a.md plans/feat-b.md",
+      "expected_output": "Create batch-progress.json with correct schema v2 structure",
+      "assertions": [
+        {
+          "name": "progress-file-created",
+          "description": "Creates tmp/arc-batch/batch-progress.json",
+          "check": "Write tool used on tmp/arc-batch/batch-progress.json"
+        },
+        {
+          "name": "schema-version",
+          "description": "Uses schema_version 2",
+          "check": "JSON includes schema_version: 2"
+        },
+        {
+          "name": "plan-statuses",
+          "description": "All plans initialized with status 'pending'",
+          "check": "Each plan in plans array has status: 'pending'"
+        },
+        {
+          "name": "timestamps",
+          "description": "Includes started_at and updated_at timestamps",
+          "check": "ISO-8601 timestamps present in progress file"
+        },
+        {
+          "name": "total-count",
+          "description": "total_plans matches actual plan count",
+          "check": "total_plans field equals length of plans array"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 10,
+      "name": "state-file-session-isolation",
+      "prompt": "Start batch arc for plans/feat-a.md",
+      "expected_output": "State file includes config_dir and owner_pid for session isolation",
+      "assertions": [
+        {
+          "name": "state-file-created",
+          "description": "Creates .claude/arc-batch-loop.local.md state file",
+          "check": "Write tool used on .claude/arc-batch-loop.local.md"
+        },
+        {
+          "name": "config-dir-field",
+          "description": "State file includes config_dir field",
+          "check": "YAML frontmatter includes config_dir"
+        },
+        {
+          "name": "owner-pid-field",
+          "description": "State file includes owner_pid field",
+          "check": "YAML frontmatter includes owner_pid"
+        },
+        {
+          "name": "session-id-field",
+          "description": "State file includes session_id field",
+          "check": "YAML frontmatter includes session_id"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 11,
+      "name": "no-merge-flag",
+      "prompt": "Run batch arc on plans/*.md --no-merge",
+      "expected_output": "Pass --no-merge to each arc run, skip auto-merge step",
+      "assertions": [
+        {
+          "name": "flag-detected",
+          "description": "Detects --no-merge flag",
+          "check": "noMerge set from args.includes('--no-merge')"
+        },
+        {
+          "name": "skip-merge-check",
+          "description": "Skips auto-merge talisman check when flag present",
+          "check": "!noMerge condition gates talisman auto_merge check"
+        },
+        {
+          "name": "flag-propagated",
+          "description": "Flag passed to arc invocation",
+          "check": "--no-merge included in Skill('rune:arc', ...) call"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 12,
+      "name": "talisman-auto-merge-disabled",
+      "prompt": "Start batch arc for plans/*.md (with talisman arc.ship.auto_merge: false)",
+      "expected_output": "Prompt user about disabled auto-merge, offer options",
+      "assertions": [
+        {
+          "name": "talisman-check",
+          "description": "Reads arc.ship.auto_merge from talisman",
+          "check": "readTalismanSection('arc') called, ship.auto_merge checked"
+        },
+        {
+          "name": "user-prompt",
+          "description": "Asks user how to proceed with disabled auto-merge",
+          "check": "AskUserQuestion with options for enabling, --no-merge, or abort"
+        },
+        {
+          "name": "skip-if-flag",
+          "description": "Skips check when --no-merge already set",
+          "check": "Condition gated by !noMerge"
+        }
+      ],
+      "files": ["talisman.yml"]
+    }
+  ]
+}
