@@ -157,6 +157,14 @@ Where `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`.
 **Rule**: Use SDK `Read()` — NEVER `Bash("cat ...")` or `Bash("test -f ...")`.
 `Read()` auto-resolves `CLAUDE_CONFIG_DIR` and tilde. Bash does not (ZSH `~ not found` bug).
 
+**Verify resolution**: Check `tmp/.talisman-resolved/_meta.json` to confirm talisman.yml was properly merged:
+```bash
+jq '{merge_status, resolver_status, sources}' tmp/.talisman-resolved/_meta.json
+```
+- `merge_status: "full"` — talisman.yml successfully merged (defaults + project)
+- `merge_status: "defaults_only"` — using defaults only, talisman.yml was ignored (check PyYAML availability and trace log)
+- `resolver_status` — `full` (PyYAML), `partial` (yq), `fallback` (no parser), `defaults_only` (no talisman files found)
+
 See [references/read-talisman.md](references/read-talisman.md).
 
 ### resolveMCPIntegrations()
