@@ -40,6 +40,8 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/stop-hook-common.sh
 source "${SCRIPT_DIR}/lib/stop-hook-common.sh"
+# shellcheck source=lib/platform.sh
+source "${SCRIPT_DIR}/lib/platform.sh"
 
 # ── GUARD 2: Input size cap + GUARD 3: CWD extraction ──
 parse_input
@@ -264,7 +266,7 @@ COMPACT_PENDING=$(get_field "compact_pending")
 
 # Stale compact_pending recovery (same pattern as arc-batch F-02)
 if [[ "$COMPACT_PENDING" == "true" ]]; then
-  _sf_mtime=$(stat -f %m "$STATE_FILE" 2>/dev/null || stat -c %Y "$STATE_FILE" 2>/dev/null || echo 0)
+  _sf_mtime=$(_stat_mtime "$STATE_FILE"); _sf_mtime="${_sf_mtime:-0}"
   _sf_now=$(date +%s)
   _sf_age=$(( _sf_now - _sf_mtime ))
   if [[ "$_sf_age" -gt 300 ]]; then

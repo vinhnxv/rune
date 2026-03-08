@@ -44,6 +44,10 @@ _rune_fail_forward() {
 }
 trap '_rune_fail_forward' ERR
 
+# ── Source cross-platform stat helpers ──
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$(cd "${SCRIPT_DIR}/../lib" && pwd)/platform.sh"
+
 # ── Guard: jq required ──
 if ! command -v jq &>/dev/null; then
   printf '{"error":"jq not found","events":[]}\n'
@@ -208,10 +212,7 @@ for JSONL in "${JSONL_FILES[@]}"; do
 
   # DA-001: Skip files modified within last 60s (current session)
   # FLAW-010: Fallback to stat when perl is unavailable to prevent privacy violation
-  fmtime=$(perl -e 'use File::stat; my $s=stat(shift); print $s->mtime if $s' "$JSONL" 2>/dev/null) \
-    || fmtime=$(stat -f '%m' "$JSONL" 2>/dev/null) \
-    || fmtime=$(stat -c '%Y' "$JSONL" 2>/dev/null) \
-    || fmtime=$(date +%s)
+  fmtime=$(_stat_mtime "$JSONL"); fmtime="${fmtime:-$(date +%s)}"
   if [[ -n "$fmtime" && "$fmtime" -gt "$SESSION_EXCLUDE_CUTOFF" ]]; then
     continue
   fi

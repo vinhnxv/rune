@@ -57,6 +57,11 @@ if [[ ! -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then exit 0; fi
 # shellcheck source=resolve-session-identity.sh
 source "${SCRIPT_DIR}/resolve-session-identity.sh"
 
+# shellcheck source=lib/platform.sh
+if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
+  source "${SCRIPT_DIR}/lib/platform.sh"
+fi
+
 # Extract session_id from hook input JSON (same pattern as enforce-team-lifecycle.sh)
 HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
 
@@ -257,7 +262,7 @@ stale_state_count=$(
       # = always triggers stale (>30 min). Forge suggested 999999999 but that's wrong: (NOW - 999999999)
       # could be small for timestamps near 2001. Epoch 0 is the safe default.
       # BACK-002 NOTE: macOS stat -f first, then Linux stat -c, then epoch-0 (assume stale)
-      file_mtime=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0)
+      file_mtime=$(_stat_mtime "$f"); file_mtime="${file_mtime:-0}"
       file_age_min=$(( (NOW - file_mtime) / 60 ))
       if [[ $file_age_min -gt 30 ]]; then
         # SEC-4 FIX: Use jq for precise status extraction instead of grep string match

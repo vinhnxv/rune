@@ -43,12 +43,19 @@ _trace() {
   return 0
 }
 
+# ── Source platform helpers for cross-platform stat ──
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
+  # shellcheck source=lib/platform.sh
+  source "${SCRIPT_DIR}/lib/platform.sh"
+fi
+
 # ── PW-005 FIX: Cross-platform mtime sort helper (DRY — used for team and workflow discovery) ──
 # Reads paths from stdin, emits them sorted by mtime descending
 _sort_by_mtime() {
   while IFS= read -r p; do
     [[ -z "$p" ]] && continue
-    mtime=$(stat -f %m "$p" 2>/dev/null || stat -c %Y "$p" 2>/dev/null || echo 0)
+    mtime=$(_stat_mtime "$p"); mtime="${mtime:-0}"
     printf '%s\t%s\n' "$mtime" "$p"
   done | sort -rn | cut -f2
 }
@@ -314,7 +321,7 @@ if [[ -d "$_ckpt_dir" ]]; then
     [[ -f "$_f" ]] && [[ ! -L "$_f" ]] || continue
     _pid=$(jq -r '.owner_pid // empty' "$_f" 2>/dev/null) || continue
     [[ "$_pid" == "$PPID" ]] || continue
-    _mt=$(stat -f %m "$_f" 2>/dev/null) || _mt=$(stat -c %Y "$_f" 2>/dev/null) || continue
+    _mt=$(_stat_mtime "$_f"); [[ -n "$_mt" ]] || continue
     if [[ "$_mt" -gt "$_newest_mtime" ]]; then
       _newest_mtime="$_mt"
       arc_file="$_f"

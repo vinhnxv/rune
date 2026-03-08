@@ -83,6 +83,10 @@ fi
 # ── Helper: Extract a YAML frontmatter field value (single-line, simple values only) ──
 # QUAL-1 FIX: Source canonical frontmatter-utils.sh first, fall back to inline copy.
 # Matches the pattern used by detect-workflow-complete.sh.
+if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
+  source "${SCRIPT_DIR}/lib/platform.sh"
+fi
+
 if [[ -f "${SCRIPT_DIR}/lib/frontmatter-utils.sh" ]]; then
   source "${SCRIPT_DIR}/lib/frontmatter-utils.sh"
 else
@@ -137,7 +141,7 @@ _PHASE_STALE_MIN=150
 if _check_loop_ownership "${CWD}/.claude/arc-phase-loop.local.md"; then
   _phase_active=$(_get_fm_field "$_LOOP_FM" "active")
   if [[ "$_phase_active" == "true" ]]; then
-    _phase_mtime=$(stat -f %m "${CWD}/.claude/arc-phase-loop.local.md" 2>/dev/null || stat -c %Y "${CWD}/.claude/arc-phase-loop.local.md" 2>/dev/null || echo 0)
+    _phase_mtime=$(_stat_mtime "${CWD}/.claude/arc-phase-loop.local.md"); _phase_mtime="${_phase_mtime:-0}"
     # BACK-8 FIX: Guard against mtime=0 (stat failure → file deleted between check and stat).
     # mtime=0 produces age ~936,000 min, exceeding all staleness thresholds.
     if [[ "$_phase_mtime" -le 0 ]]; then exit 0; fi
@@ -167,7 +171,7 @@ if _check_loop_ownership "${CWD}/.claude/arc-batch-loop.local.md"; then
   _batch_active=$(_get_fm_field "$_LOOP_FM" "active")
   if [[ "$_batch_active" == "true" ]]; then
     # Check staleness — if file is older than threshold, loop hook likely crashed
-    _batch_mtime=$(stat -f %m "${CWD}/.claude/arc-batch-loop.local.md" 2>/dev/null || stat -c %Y "${CWD}/.claude/arc-batch-loop.local.md" 2>/dev/null || echo 0)
+    _batch_mtime=$(_stat_mtime "${CWD}/.claude/arc-batch-loop.local.md"); _batch_mtime="${_batch_mtime:-0}"
     if [[ "$_batch_mtime" -le 0 ]]; then exit 0; fi
     _batch_age_min=$(( (NOW - _batch_mtime) / 60 ))
     if [[ $_batch_age_min -gt $_BATCH_STALE_MIN ]]; then
@@ -190,7 +194,7 @@ _HIERARCHY_STALE_MIN=150
 if _check_loop_ownership "${CWD}/.claude/arc-hierarchy-loop.local.md"; then
   _hier_status=$(_get_fm_field "$_LOOP_FM" "status")
   if [[ "$_hier_status" == "active" ]]; then
-    _hier_mtime=$(stat -f %m "${CWD}/.claude/arc-hierarchy-loop.local.md" 2>/dev/null || stat -c %Y "${CWD}/.claude/arc-hierarchy-loop.local.md" 2>/dev/null || echo 0)
+    _hier_mtime=$(_stat_mtime "${CWD}/.claude/arc-hierarchy-loop.local.md"); _hier_mtime="${_hier_mtime:-0}"
     if [[ "$_hier_mtime" -le 0 ]]; then exit 0; fi
     _hier_age_min=$(( (NOW - _hier_mtime) / 60 ))
     if [[ $_hier_age_min -gt $_HIERARCHY_STALE_MIN ]]; then
@@ -211,7 +215,7 @@ _ISSUES_STALE_MIN=150
 if _check_loop_ownership "${CWD}/.claude/arc-issues-loop.local.md"; then
   _issues_active=$(_get_fm_field "$_LOOP_FM" "active")
   if [[ "$_issues_active" == "true" ]]; then
-    _issues_mtime=$(stat -f %m "${CWD}/.claude/arc-issues-loop.local.md" 2>/dev/null || stat -c %Y "${CWD}/.claude/arc-issues-loop.local.md" 2>/dev/null || echo 0)
+    _issues_mtime=$(_stat_mtime "${CWD}/.claude/arc-issues-loop.local.md"); _issues_mtime="${_issues_mtime:-0}"
     if [[ "$_issues_mtime" -le 0 ]]; then exit 0; fi
     _issues_age_min=$(( (NOW - _issues_mtime) / 60 ))
     if [[ $_issues_age_min -gt $_ISSUES_STALE_MIN ]]; then
@@ -369,7 +373,7 @@ if [[ -d "$CHOME/teams/" ]]; then
         should_clean=true
       else
         # No state file → only clean if older than 30 min (true orphan)
-        dir_mtime=$(stat -f %m "$dir" 2>/dev/null || stat -c %Y "$dir" 2>/dev/null || echo 0)
+        dir_mtime=$(_stat_mtime "$dir"); dir_mtime="${dir_mtime:-0}"
         # FLAW-003 FIX: When stat fails, dir_mtime=0 causes age=(NOW-0)/60 ≈ 28M min,
         # incorrectly marking fresh dirs as stale. Guard against zero/invalid mtime.
         if [[ "$dir_mtime" -gt 0 ]]; then
@@ -443,7 +447,7 @@ if [[ -d "${CWD}/.claude/arc/" ]]; then
     [[ ! -f "$f" ]] && continue
     [[ -L "$f" ]] && continue
     # Age guard: skip checkpoints modified within the last 5 minutes
-    f_mtime=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0)
+    f_mtime=$(_stat_mtime "$f"); f_mtime="${f_mtime:-0}"
     f_age_min=$(( (NOW - f_mtime) / 60 ))
     if [[ $f_age_min -le 5 ]]; then
       continue

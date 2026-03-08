@@ -30,6 +30,8 @@
 #
 # DEPENDENCIES: jq (Guard 1 check must be in caller before sourcing)
 
+source "$(dirname "${BASH_SOURCE[0]}")/platform.sh"
+
 # ── GUARD 1: jq dependency ──
 # NOTE: Callers must check for jq BEFORE sourcing this library, because `source` itself
 # may call functions. Standard pattern:
@@ -202,9 +204,9 @@ _find_arc_checkpoint() {
         # Also try numeric (non-quoted) format
         grep -qE "\"owner_pid\"[[:space:]]*:[[:space:]]*${PPID}([^0-9]|$)" "$f" 2>/dev/null || continue
       fi
-      # Get mtime (macOS: stat -f %m; Linux: stat -c %Y)
+      # Get mtime via cross-platform helper
       local mtime
-      mtime=$(stat -f %m "$f" 2>/dev/null) || mtime=$(stat -c %Y "$f" 2>/dev/null) || continue
+      mtime=$(_stat_mtime "$f"); [[ -n "$mtime" ]] || continue
       if [[ "$mtime" -gt "$newest_mtime" ]]; then
         newest_mtime="$mtime"
         newest="$f"
@@ -257,11 +259,7 @@ _check_context_at_threshold() {
 
   # UID ownership check (prevent reading other users' bridge files)
   local bridge_uid=""
-  if [[ "$(uname)" == "Darwin" ]]; then
-    bridge_uid=$(stat -f %u "$bridge_file" 2>/dev/null || true)
-  else
-    bridge_uid=$(stat -c %u "$bridge_file" 2>/dev/null || true)
-  fi
+  bridge_uid=$(_stat_uid "$bridge_file")
   [[ -n "$bridge_uid" && "$bridge_uid" != "$(id -u)" ]] && return 1
 
   # Freshness check (180s — more lenient than PreToolUse's 30s because
@@ -270,11 +268,7 @@ _check_context_at_threshold() {
   # by the time the batch hook fires after the phase completion + summary turn,
   # the bridge file can be 60-120s old. 180s provides safe margin.)
   local file_mtime now age
-  if [[ "$(uname)" == "Darwin" ]]; then
-    file_mtime=$(stat -f %m "$bridge_file" 2>/dev/null || echo 0)
-  else
-    file_mtime=$(stat -c %Y "$bridge_file" 2>/dev/null || echo 0)
-  fi
+  file_mtime=$(_stat_mtime "$bridge_file"); file_mtime="${file_mtime:-0}"
   now=$(date +%s)
   age=$(( now - file_mtime ))
   [[ "$age" -ge 0 && "$age" -lt 180 ]] || return 1

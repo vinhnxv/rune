@@ -64,6 +64,12 @@ else
   rune_pid_alive() { kill -0 "$1" 2>/dev/null; }
 fi
 
+# Source platform helpers for cross-platform stat
+if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
+  # shellcheck source=lib/platform.sh
+  source "${SCRIPT_DIR}/lib/platform.sh"
+fi
+
 # Source frontmatter utils for loop file ownership checks
 if [[ -f "${SCRIPT_DIR}/lib/frontmatter-utils.sh" ]]; then
   # shellcheck source=lib/frontmatter-utils.sh
@@ -134,11 +140,7 @@ for loop_file in \
     # untouched during long phases (work=35m, test+E2E=50m). Batch/hierarchy/issues
     # loop files stay untouched for entire arc runs (30-90m). Must match
     # on-session-stop.sh thresholds to avoid premature cleanup.
-    if [[ "$(uname)" == "Darwin" ]]; then
-      _loop_mtime=$(stat -f %m "$loop_file" 2>/dev/null || true)
-    else
-      _loop_mtime=$(stat -c %Y "$loop_file" 2>/dev/null || true)
-    fi
+    _loop_mtime=$(_stat_mtime "$loop_file"); _loop_mtime="${_loop_mtime:-}"
     # BACK-002: validate mtime; if invalid, defer conservatively to avoid false cleanup
     if [[ -z "$_loop_mtime" || ! "$_loop_mtime" =~ ^[0-9]+$ ]]; then
       _trace "DEFER: $(basename "$loop_file") — mtime invalid, deferring conservatively"
@@ -415,7 +417,7 @@ if [[ "$_artifact_now" =~ ^[0-9]+$ && "$_artifact_now" -gt 0 ]]; then
     fi
 
     # Parse started_at timestamp (macOS + GNU date compat)
-    _art_start_epoch=$(TZ=UTC date -jf "%Y-%m-%dT%H:%M:%SZ" "$_art_started" +%s 2>/dev/null || \
+    _art_start_epoch=$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%SZ" "$_art_started" +%s 2>/dev/null || \
                        date -d "$_art_started" +%s 2>/dev/null || echo "0")
     if [[ ! "$_art_start_epoch" =~ ^[0-9]+$ || "$_art_start_epoch" -eq 0 ]]; then
       continue

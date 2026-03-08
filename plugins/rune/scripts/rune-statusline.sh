@@ -9,6 +9,7 @@ umask 077            # SB-SEC-003: bridge file not world-readable
 # GAP-2 FIX: Source shared resolver instead of inlining (matches all 5 ownership-check scripts)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/resolve-session-identity.sh"
+source "${SCRIPT_DIR}/lib/platform.sh"
 
 # Trace logging (SB-IMPL: match all Rune hooks)
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
@@ -88,7 +89,8 @@ CACHE_FILE="/tmp/rune-statusline-git-cache-$(id -u)"
 CACHE_MAX_AGE=5
 BRANCH=""
 if [[ -d "${DIR}/.git" ]] || git -C "$DIR" rev-parse --git-dir &>/dev/null 2>&1; then
-  if [[ ! -f "$CACHE_FILE" ]] || [[ $(($(date +%s) - $(stat -f %m "$CACHE_FILE" 2>/dev/null || stat -c %Y "$CACHE_FILE" 2>/dev/null || echo 0))) -gt $CACHE_MAX_AGE ]]; then
+  _cache_mtime=$(_stat_mtime "$CACHE_FILE"); _cache_mtime="${_cache_mtime:-0}"
+  if [[ ! -f "$CACHE_FILE" ]] || [[ $(($(date +%s) - _cache_mtime)) -gt $CACHE_MAX_AGE ]]; then
     BRANCH=$(git -C "$DIR" branch --show-current 2>/dev/null || true)
     # P2-1 FIX: Symlink guard before cache write
     [[ -L "$CACHE_FILE" ]] && rm -f "$CACHE_FILE" 2>/dev/null
