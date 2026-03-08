@@ -10,25 +10,25 @@ set -euo pipefail
 # fail silently because ECHO_DIR/DB_PATH would be unset.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # --- Package check ---
-# Verify required packages are importable. If any import fails,
-# install from requirements.txt. This is fast when packages exist
-# (single python3 invocation) and self-healing when they don't.
-VENV_DIR="$SCRIPT_DIR/.venv"
+# Use shared plugin venv (created by session-start.sh).
+# Fallback: create venv from shared requirements.txt if not ready.
+RUNE_VENV="${PLUGIN_ROOT}/.venv"
 PYTHON="python3"
-if [ -d "$VENV_DIR" ]; then
-    PYTHON="$VENV_DIR/bin/python3"
+if [[ -x "${RUNE_VENV}/bin/python3" ]]; then
+    PYTHON="${RUNE_VENV}/bin/python3"
 fi
 if ! "$PYTHON" -c "import mcp" 2>/dev/null; then
-    REQUIREMENTS="$SCRIPT_DIR/requirements.txt"
-    if [ -f "$REQUIREMENTS" ]; then
-        echo "Installing echo-search dependencies..." >&2
-        if [ ! -d "$VENV_DIR" ]; then
-            python3 -m venv "$VENV_DIR" >&2
+    REQUIREMENTS="${PLUGIN_ROOT}/requirements.txt"
+    if [[ -f "$REQUIREMENTS" ]]; then
+        echo "Installing shared plugin dependencies..." >&2
+        if [[ ! -d "$RUNE_VENV" ]]; then
+            python3 -m venv "$RUNE_VENV" >&2
         fi
-        "$VENV_DIR/bin/pip" install -r "$REQUIREMENTS" >&2
-        PYTHON="$VENV_DIR/bin/python3"
+        "${RUNE_VENV}/bin/pip" install -r "$REQUIREMENTS" >&2
+        PYTHON="${RUNE_VENV}/bin/python3"
     else
         echo "Error: Missing dependencies and no requirements.txt found" >&2
         exit 1

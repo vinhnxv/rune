@@ -29,6 +29,23 @@ _trace() {
 }
 
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+
+# ── Shared venv setup (once per install) ──
+# All plugin scripts (echo-search, figma-to-react, talisman-resolve) share this venv.
+RUNE_VENV="${PLUGIN_ROOT}/scripts/.venv"
+RUNE_REQUIREMENTS="${PLUGIN_ROOT}/scripts/requirements.txt"
+if [[ -f "$RUNE_REQUIREMENTS" ]] && command -v python3 &>/dev/null; then
+  if ! [[ -x "${RUNE_VENV}/bin/python3" ]] || ! "${RUNE_VENV}/bin/python3" -c "import yaml, mcp" 2>/dev/null; then
+    _trace "Installing shared plugin dependencies..."
+    if [[ ! -d "$RUNE_VENV" ]]; then
+      python3 -m venv "$RUNE_VENV" 2>/dev/null || true
+    fi
+    if [[ -x "${RUNE_VENV}/bin/pip" ]]; then
+      "${RUNE_VENV}/bin/pip" install -q -r "$RUNE_REQUIREMENTS" 2>/dev/null || true
+    fi
+  fi
+fi
+
 SKILL_FILE="${PLUGIN_ROOT}/skills/using-rune/SKILL.md"
 
 if [ ! -f "$SKILL_FILE" ]; then

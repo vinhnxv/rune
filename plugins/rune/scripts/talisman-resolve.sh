@@ -94,8 +94,15 @@ if [[ ! -f "$DEFAULTS_FILE" ]] || [[ -L "$DEFAULTS_FILE" ]]; then
 fi
 
 # ── Pre-check python3+PyYAML availability (once) ──
+# Use shared plugin venv (created by session-start.sh), fallback to system python3
+RUNE_PYTHON="python3"
+RUNE_VENV="${PLUGIN_ROOT}/scripts/.venv"
+if [[ -x "${RUNE_VENV}/bin/python3" ]]; then
+  RUNE_PYTHON="${RUNE_VENV}/bin/python3"
+fi
+
 HAS_PYYAML=false
-if python3 -c "import yaml" 2>/dev/null; then
+if "$RUNE_PYTHON" -c "import yaml" 2>/dev/null; then
   HAS_PYYAML=true
 fi
 
@@ -114,9 +121,9 @@ yaml_to_json() {
     return 0
   fi
 
-  # Attempt 1: python3 with PyYAML
+  # Attempt 1: python3 with PyYAML (via shared venv)
   if [[ "$HAS_PYYAML" == "true" ]]; then
-    python3 -c "
+    "$RUNE_PYTHON" -c "
 import yaml, json, sys
 try:
     with open(sys.argv[1], encoding='utf-8-sig') as f:
@@ -297,7 +304,7 @@ if [[ "$project_json" == '{}' && "$global_json" == '{}' ]]; then
 fi
 
 # ── Write _meta.json LAST (commit signal) ──
-RESOLVED_AT=$(python3 -c "from datetime import datetime, timezone; print(datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))" 2>/dev/null || date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo "unknown")
+RESOLVED_AT=$("$RUNE_PYTHON" -c "from datetime import datetime, timezone; print(datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))" 2>/dev/null || date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo "unknown")
 
 # Session isolation fields
 # QUAL-008 FIX: Canonicalize config_dir via cd+pwd -P (matches resolve-session-identity.sh)

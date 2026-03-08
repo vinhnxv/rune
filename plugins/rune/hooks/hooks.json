@@ -327,7 +327,7 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh",
-            "timeout": 5,
+            "timeout": 30,
             "async": false,
             "statusMessage": "Loading Rune workflow routing..."
           }
@@ -335,7 +335,7 @@
       },
       {
         "matcher": "startup|resume",
-        "_rationale": "Resolves talisman.yml into per-namespace JSON shards for 94% token reduction. Must run after session-start.sh (workflow routing) and before team hygiene. Not async — shards must be ready before first readTalismanSection() call. Excluded from clear (no workflows run) and compact (shards still valid).",
+        "_rationale": "Resolves talisman.yml into per-namespace JSON shards for 94% token reduction. Must run after session-start.sh (workflow routing + venv setup) and before team hygiene. Not async — shards must be ready before first readTalismanSection() call. Excluded from clear (no workflows run) and compact (shards still valid).",
         "hooks": [
           {
             "type": "command",
