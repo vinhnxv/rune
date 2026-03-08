@@ -124,6 +124,15 @@ validate_session_ownership() {
   local progress_file="${2:-}"
   local orphan_mode="${3:-skip}"
 
+  # Debug bypass: RUNE_SKIP_OWNERSHIP=1 disables all ownership checks.
+  # Use in settings.local.json env to isolate ownership issues from other bugs.
+  if [[ "${RUNE_SKIP_OWNERSHIP:-}" == "1" ]]; then
+    if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+      _trace "ownership: BYPASSED (RUNE_SKIP_OWNERSHIP=1)"
+    fi
+    return 0
+  fi
+
   # Source session identity resolver (idempotent — checks RUNE_CURRENT_CFG)
   local script_dir
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -134,15 +143,31 @@ validate_session_ownership() {
   stored_config_dir=$(get_field "config_dir")
   stored_pid=$(get_field "owner_pid")
 
+  # Trace: log ownership check details for debugging (uses caller's _trace if available)
+  if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+    _trace "ownership: stored_cfg='${stored_config_dir}' RUNE_CURRENT_CFG='${RUNE_CURRENT_CFG}'"
+    _trace "ownership: stored_pid='${stored_pid}' PPID='${PPID}'"
+  fi
+
   # Layer 1: Config-dir isolation (different Claude Code installations)
   if [[ -n "$stored_config_dir" && "$stored_config_dir" != "$RUNE_CURRENT_CFG" ]]; then
+    if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+      _trace "ownership: REJECTED — config_dir mismatch"
+    fi
     exit 0
   fi
 
   # Layer 2: PID isolation (same config dir, different session)
   if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
     if [[ "$stored_pid" != "$PPID" ]]; then
+      local _pid_alive=false
       if rune_pid_alive "$stored_pid"; then
+        _pid_alive=true
+      fi
+      if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+        _trace "ownership: PID mismatch — stored=${stored_pid} hook_PPID=${PPID} owner_alive=${_pid_alive}"
+      fi
+      if [[ "$_pid_alive" == "true" ]]; then
         # Owner is alive and it's a different session — not ours
         exit 0
       fi
