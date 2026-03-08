@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.144.10] - 2026-03-09
+
+### Fixed
+- **annotate-hook.sh** — Added `|| true` to jq pipe (line 30) to prevent ERR trap on empty/malformed stdin. Matches existing pattern on line 35.
+- **echo-writer.sh** — `_is_duplicate()` returned exit code 1 with no stdout when existing titles were empty, triggering ERR trap under `set -e`. Now returns `echo "UNIQUE"; return 0`.
+- **talisman-resolve.sh** — SEC-003 injection regex false-positived on `ward_commands` containing legitimate `$(jq ...)` shell substitution. Now excludes `work.ward_commands` via `jq del()` before checking.
+
 ## [1.144.9] - 2026-03-09
 
 ### Changed
