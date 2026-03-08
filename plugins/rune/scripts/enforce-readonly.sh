@@ -15,10 +15,26 @@
 set -euo pipefail
 umask 077
 
-# --- SECURITY hook (fail-closed) --- NO ERR trap ---
-# This hook MUST crash-to-block. Failing open would bypass SEC-001 read-only enforcement.
-# Unlike OPERATIONAL hooks, this script intentionally has NO _rune_fail_forward ERR trap.
+# --- SECURITY hook (two-phase ERR trap) ---
+# Phase 1 (fast-path): fail-FORWARD — crashes in non-subagent detection exit 0.
+#   The fast-path (non-subagent) has no security risk, so failing open is safe.
+#   This prevents intermittent "PreToolUse:Bash hook error" in Claude Code logs
+#   from edge cases in jq parsing or system-level issues.
+# Phase 2 (subagent detected): fail-CLOSED — crashes exit 2 to block the tool.
+#   Once we know a subagent is running during a review/audit, failing open would
+#   bypass SEC-001 read-only enforcement.
 # See CLAUDE.md "Hook Crash Classification" for the SECURITY vs OPERATIONAL distinction.
+_rune_fail_forward() {
+  if [[ "${RUNE_TRACE:-}" == "1" ]]; then
+    printf '[%s] %s: ERR trap — fail-forward (line %s)\n' \
+      "$(date +%H:%M:%S 2>/dev/null || true)" \
+      "${BASH_SOURCE[0]##*/}" \
+      "${BASH_LINENO[0]:-?}" \
+      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" 2>/dev/null
+  fi
+  exit 0
+}
+trap '_rune_fail_forward' ERR
 
 # Pre-flight: jq is required for JSON parsing.
 # If missing, exit 2 (blocking) — deny rather than silently disable enforcement.
@@ -41,6 +57,15 @@ TRANSCRIPT_PATH=$(printf '%s\n' "$INPUT" | jq -r '.transcript_path // empty' 2>/
 if [[ -z "$TRANSCRIPT_PATH" ]] || [[ "$TRANSCRIPT_PATH" != */subagents/* ]]; then
   exit 0
 fi
+
+# ── Phase 2: Subagent detected — switch to fail-closed ──
+# From this point, any crash should BLOCK the tool (exit 2) to enforce SEC-001.
+_rune_fail_closed() {
+  printf 'ERROR: %s: unexpected crash at line %s — blocking for safety (SEC-001)\n' \
+    "${BASH_SOURCE[0]##*/}" "${BASH_LINENO[0]:-?}" >&2 2>/dev/null || true
+  exit 2
+}
+trap '_rune_fail_closed' ERR
 
 # Subagent detected — check if any review/audit team has a readonly marker.
 # Detection differs from enforce-teams.sh: this script checks transcript_path

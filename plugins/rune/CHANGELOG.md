@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.144.6] - 2026-03-08
+
+### Fixed
+- **Pre hook error: `enforce-readonly.sh` two-phase ERR trap** — SECURITY hook had NO ERR trap, causing any unexpected failure to exit 1 → Claude Code logged intermittent "PreToolUse:Bash hook error" on every Bash command. Fixed with two-phase ERR trap: fail-forward (exit 0) during fast-path (non-subagent detection), fail-closed (exit 2) after subagent confirmed. The fast-path covers 99%+ of Bash commands.
+- **Invalid JSON: `enforce-zsh-compat.sh` auto-fix output** — Heredoc-based JSON used unquoted `${ESCAPED_COMMAND}` variable which produced broken JSON (`"command":  },`) if jq failed. Also `${fix_descriptions}` was unescaped in the heredoc. Replaced with `jq -n --arg` for guaranteed valid JSON output.
+
+### Added
+- **5 test cases for `enforce-readonly.sh`** — Two-phase ERR trap behavior: non-subagent with bad CWD, null transcript_path, missing tool_input, subagent with missing CWD, subagent with inaccessible CWD
+- **7 test cases for `enforce-zsh-compat.sh`** — Auto-fix JSON validity: Check B valid JSON + hookEventName, Check C+D combined, special chars (quotes/backslashes in commands)
+
 ## [1.144.5] - 2026-03-08
 
 ### Fixed
