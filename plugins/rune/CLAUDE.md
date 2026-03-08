@@ -286,7 +286,7 @@ Rune uses Claude Code hooks for event-driven agent synchronization, quality gate
 
 **Seal Convention**: Ashes emit `<seal>TAG</seal>` as the last line of output for deterministic completion detection. See `roundtable-circle/references/monitor-utility.md` "Seal Convention" section.
 
-**Stop hook JSON format** (PAT-011): Stop hooks use a DIFFERENT JSON format from PreToolUse hooks. Stop hooks output `{"decision":"block","reason":"...","systemMessage":"..."}` — NOT wrapped in `hookSpecificOutput`. The `systemMessage` field becomes Claude's next prompt. PreToolUse hooks use `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow|deny|ask",...}}`.
+**Stop hook output format** (PAT-011): Stop hooks use `exit 2` with stderr output to continue the conversation. The stderr content becomes Claude's next prompt. This is DIFFERENT from PreToolUse hooks which use JSON on stdout with `hookSpecificOutput`. Stop hooks that `exit 0` have their stdout/stderr silently discarded. PreToolUse hooks use `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow|deny|ask",...}}`.
 
 ### Hook Crash Classification (ADR: Fail-Forward)
 

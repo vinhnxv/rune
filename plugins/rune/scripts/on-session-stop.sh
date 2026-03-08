@@ -14,13 +14,13 @@
 #   1. Fail-open — if anything goes wrong, allow the stop (exit 0)
 #   2. Loop prevention — check stop_hook_active field to avoid re-entry
 #   3. rune-*/arc-* prefix filter (never touch foreign plugin state)
-#   4. Auto-clean, don't block — "janitor on the way out, not security guard"
-#   5. Report what was cleaned via additionalContext (informational)
+#   4. Auto-clean, then report — exit 2 + stderr so Claude sees the cleanup summary
+#   5. Report what was cleaned via stderr (visible to model)
 #
 # Hook event: Stop
 # Timeout: 5s
 # Exit 0 with no output: Allow stop (nothing to clean)
-# Exit 0 with stdout summary: Report what was cleaned (informational, non-blocking)
+# Exit 2 with stderr summary: Report what was cleaned (shown to model, continues conversation)
 #
 # QUAL-005: Inline fix markers use format: [AREA]-[NNN] (e.g., SEC-005, BACK-012).
 #   These are audit trail comments referencing the finding that motivated the change.
@@ -653,8 +653,6 @@ fi
 # Log to trace file for debugging (always, not just RUNE_TRACE)
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] $summary" >> "${CWD}/tmp/.rune-stop-cleanup.log" 2>/dev/null
 
-# Silent cleanup — allow stop immediately, no block
-# NOTE: Stop hooks do NOT support hookSpecificOutput (unlike PreToolUse/SessionStart).
-# The "Stop hook error:" UI label is a known Claude Code UX issue (#12667), not fixable from hook side.
-echo "$summary"
-exit 0
+# Stop hook: exit 2 = show stderr to model and continue conversation
+printf '%s\n' "$summary" >&2
+exit 2

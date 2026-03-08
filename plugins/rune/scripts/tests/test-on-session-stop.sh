@@ -174,10 +174,10 @@ jq -n --arg cfg "$FAKE_CONFIG_DIR" --arg pid "$DEAD_PID" \
   > "$FAKE_CWD/tmp/.rune-review-test5.json"
 
 run_hook "{\"cwd\": \"$FAKE_CWD\"}"
-assert_eq "Team cleanup exits 0" "0" "$(get_exit_code)"
-STDOUT_5=$(get_stdout)
-assert_contains "Report mentions cleaned teams" "Teams:" "$STDOUT_5"
-assert_contains "Report mentions team name" "rune-review-test5" "$STDOUT_5"
+assert_eq "Team cleanup exits 2 (stderr prompt)" "2" "$(get_exit_code)"
+STDERR_5=$(get_stderr)
+assert_contains "Report mentions cleaned teams" "Teams:" "$STDERR_5"
+assert_contains "Report mentions team name" "rune-review-test5" "$STDERR_5"
 
 # In dry-run mode, team dirs still exist
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
@@ -203,9 +203,9 @@ mkdir -p "$ORPHAN_DIR"
 touch -t 202601010000 "$ORPHAN_DIR" 2>/dev/null || true
 
 run_hook "{\"cwd\": \"$FAKE_CWD\"}"
-assert_eq "Orphan team cleanup exits 0" "0" "$(get_exit_code)"
-STDOUT_6=$(get_stdout)
-assert_contains "Report includes orphan cleanup" "rune-orphan-test6" "$STDOUT_6"
+assert_eq "Orphan team cleanup exits 2 (stderr prompt)" "2" "$(get_exit_code)"
+STDERR_6=$(get_stderr)
+assert_contains "Report includes orphan cleanup" "rune-orphan-test6" "$STDERR_6"
 
 # ═══════════════════════════════════════════════════════════════
 # 7. Phase 1: Non-Rune Team Dirs Ignored
@@ -247,7 +247,7 @@ jq -n --arg cfg "$FAKE_CONFIG_DIR" --arg pid "$DEAD_PID" \
 
 # Run in NON-dry-run mode to verify actual state file update
 run_hook "{\"cwd\": \"$FAKE_CWD\"}" "0"
-assert_eq "State cleanup exits 0" "0" "$(get_exit_code)"
+assert_eq "State cleanup exits 2 (stderr prompt)" "2" "$(get_exit_code)"
 
 # Verify status was updated to "stopped"
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
@@ -311,7 +311,7 @@ jq -n --arg cfg "$FAKE_CONFIG_DIR" --arg pid "$DEAD_PID" \
 touch -t 202601010000 "$ARC_DIR_10/checkpoint.json" 2>/dev/null || true
 
 run_hook "{\"cwd\": \"$FAKE_CWD\"}" "0"
-assert_eq "Arc checkpoint cleanup exits 0" "0" "$(get_exit_code)"
+assert_eq "Arc checkpoint cleanup exits 2 (stderr prompt)" "2" "$(get_exit_code)"
 
 # Verify in_progress phases were cancelled
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
@@ -401,10 +401,10 @@ jq -n --arg cfg "$FAKE_CONFIG_DIR" --arg pid "$DEAD_PID" \
   > "$FAKE_CWD/tmp/.rune-review-rpt13.json"
 
 run_hook "{\"cwd\": \"$FAKE_CWD\"}"
-assert_eq "Report cleanup exits 0" "0" "$(get_exit_code)"
-STDOUT_13=$(get_stdout)
-assert_contains "Report starts with STOP-001" "STOP-001" "$STDOUT_13"
-assert_contains "Report mentions AUTO-CLEANUP" "AUTO-CLEANUP" "$STDOUT_13"
+assert_eq "Report cleanup exits 2 (stderr prompt)" "2" "$(get_exit_code)"
+STDERR_13=$(get_stderr)
+assert_contains "Report starts with STOP-001" "STOP-001" "$STDERR_13"
+assert_contains "Report mentions AUTO-CLEANUP" "AUTO-CLEANUP" "$STDERR_13"
 
 rm -f "$FAKE_CWD/tmp/.rune-review-rpt13.json"
 
@@ -564,8 +564,8 @@ mkdir -p "$GOLDMASK_DIR"
 touch -t 202601010000 "$GOLDMASK_DIR" 2>/dev/null || true
 
 run_hook "{\"cwd\": \"$FAKE_CWD\"}"
-STDOUT_20=$(get_stdout)
-assert_contains "Goldmask team included in cleanup" "goldmask-test20" "$STDOUT_20"
+STDERR_20=$(get_stderr)
+assert_contains "Goldmask team included in cleanup" "goldmask-test20" "$STDERR_20"
 
 # ═══════════════════════════════════════════════════════════════
 # 21. Symlink Guards
@@ -595,11 +595,17 @@ fi
 rm -f "$FAKE_CONFIG_DIR/teams/rune-symlink-test21"
 
 # ═══════════════════════════════════════════════════════════════
-# 22. Always Exit 0 (Never Block Stop)
+# 22. Exit Codes (exit 0 when nothing to clean, exit 2 when cleanup done)
 # ═══════════════════════════════════════════════════════════════
-printf "\n=== Always Exit 0 ===\n"
+printf "\n=== Exit Codes ===\n"
 
-# Multiple scenarios -- all should exit 0
+# Clean all residual state from previous tests
+rm -rf "$FAKE_CONFIG_DIR/teams/rune-"* "$FAKE_CONFIG_DIR/teams/arc-"* "$FAKE_CONFIG_DIR/teams/goldmask-"* 2>/dev/null || true
+rm -rf "$FAKE_CONFIG_DIR/tasks/rune-"* "$FAKE_CONFIG_DIR/tasks/arc-"* 2>/dev/null || true
+rm -f "$FAKE_CWD"/tmp/.rune-*.json 2>/dev/null || true
+rm -rf "$FAKE_CWD/.claude/arc/"* 2>/dev/null || true
+
+# No cleanup needed -- exits 0
 run_hook "{\"cwd\": \"$FAKE_CWD\"}"
 assert_eq "Normal case exits 0" "0" "$(get_exit_code)"
 
