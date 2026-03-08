@@ -175,7 +175,7 @@ class TestEnsureSchema:
         ).fetchone()
         assert row is not None
         assert row[0] == "V1 content"
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         conn.close()
 
     def test_migration_idempotent_rerun(self):
@@ -1640,9 +1640,9 @@ class TestPipelineSearch:
         original_search = search_entries
         called_with_limit = []
 
-        def tracking_search(conn, query, limit=10, layer=None, role=None):
+        def tracking_search(conn, query, limit=10, layer=None, role=None, category=None):
             called_with_limit.append(limit)
-            return original_search(conn, query, limit, layer, role)
+            return original_search(conn, query, limit, layer, role, category)
 
         monkeypatch.setattr("server.search_entries", tracking_search)
         self._run(pipeline_search(pipeline_db, "lifecycle", 5))
@@ -1655,9 +1655,9 @@ class TestPipelineSearch:
         original_search = search_entries
         called_with_limit = []
 
-        def tracking_search(conn, query, limit=10, layer=None, role=None):
+        def tracking_search(conn, query, limit=10, layer=None, role=None, category=None):
             called_with_limit.append(limit)
-            return original_search(conn, query, limit, layer, role)
+            return original_search(conn, query, limit, layer, role, category)
 
         monkeypatch.setattr("server.search_entries", tracking_search)
         self._run(pipeline_search(pipeline_db, "lifecycle", 100))

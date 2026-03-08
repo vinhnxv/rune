@@ -48,16 +48,16 @@ class TestBasicBehavior:
         result = run_hook("", env_override={"CLAUDE_PROJECT_DIR": project_dir})
         assert result.returncode == 0
 
-    def test_exits_nonzero_on_invalid_json(self, project_dir):
-        """Malformed JSON triggers jq parse error; set -e propagates it.
+    def test_exits_zero_on_invalid_json(self, project_dir):
+        """Malformed JSON triggers ERR trap, but fail-forward exits 0.
 
-        Note: The script header says "exit 0 always" but set -euo pipefail
-        causes jq's non-zero exit (code 5) to propagate on invalid input.
-        This is acceptable — the hook runs in PostToolUse where the platform
-        ignores non-zero exits from non-blocking hooks.
+        Note: The script has a fail-forward ERR trap that exits 0 even on
+        errors. This is intentional — OPERATIONAL hooks should not block
+        workflows due to hook failures. Invalid JSON causes jq to fail,
+        but the ERR trap catches it and exits 0.
         """
         result = run_hook("not json at all", env_override={"CLAUDE_PROJECT_DIR": project_dir})
-        assert result.returncode != 0  # jq exits 5 on parse error
+        assert result.returncode == 0  # fail-forward exits 0
 
     def test_exits_zero_on_empty_stdin(self, project_dir):
         """Empty stdin is handled gracefully."""
@@ -194,8 +194,8 @@ class TestStdinCap:
 
         head -c 65536 chops the closing braces off large JSON, so jq
         cannot parse any field — even file_path appearing early.
-        set -euo pipefail propagates jq's non-zero exit (code 5).
-        This is acceptable: PostToolUse hooks ignore non-zero exits.
+        The fail-forward ERR trap catches the jq failure and exits 0.
+        No signal is created because file_path extraction failed.
         """
         inner = json.dumps({
             "tool_input": {
@@ -204,8 +204,8 @@ class TestStdinCap:
             }
         })
         result = run_hook(inner, env_override={"CLAUDE_PROJECT_DIR": project_dir})
-        # jq fails on truncated (invalid) JSON → set -e propagates exit 5
-        assert result.returncode != 0
+        # jq fails on truncated (invalid) JSON → ERR trap → fail-forward exits 0
+        assert result.returncode == 0
         # No signal: jq failed before file_path could be extracted
         assert not os.path.exists(signal_path(project_dir))
 
@@ -213,13 +213,14 @@ class TestStdinCap:
         """If file_path is positioned after 64KB, truncation hides it from jq.
 
         The 70KB padding causes head -c 65536 to chop mid-string, making
-        the JSON invalid. jq exits non-zero, so no signal is created.
+        the JSON invalid. jq fails, ERR trap catches it, fail-forward exits 0.
+        No signal is created because file_path was beyond the 64KB cap.
         """
         padding = '"padding": "' + ("A" * 70_000) + '"'
         crafted = '{"tool_input": {' + padding + ', "file_path": "/project/.claude/echoes/r/MEMORY.md"}}'
         result = run_hook(crafted, env_override={"CLAUDE_PROJECT_DIR": project_dir})
-        # Truncated JSON → jq parse error → set -e propagates
-        assert result.returncode != 0
+        # Truncated JSON → jq parse error → ERR trap → fail-forward exits 0
+        assert result.returncode == 0
         # No signal regardless — file_path was beyond the 64KB cap
         assert not os.path.exists(signal_path(project_dir))
 

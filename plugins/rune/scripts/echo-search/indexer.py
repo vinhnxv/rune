@@ -95,7 +95,7 @@ def parse_memory_file(file_path: str, role: str) -> list[dict]:
             current_entry = _make_entry(role, header_match, i + 1, file_path)
             content_lines = []
             in_metadata = True
-            prev_line_blank = False  # header line is non-blank
+            prev_line_blank = True  # allow consecutive headers (next header can follow)
             continue
         if current_entry is not None:
             source_match = _SOURCE_RE.match(stripped)

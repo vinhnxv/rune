@@ -39,7 +39,11 @@ def run_stop_hook(
     if stop_hook_active:
         input_json["stop_hook_active"] = True
     env = os.environ.copy()
-    env["CLAUDE_CONFIG_DIR"] = str(config.resolve())
+    # Resolve symlinks for config_dir to match what state files store
+    # (on macOS, /var is a symlink to /private/var)
+    resolved_config = str(config.resolve())
+    env["CLAUDE_CONFIG_DIR"] = resolved_config
+    env["RUNE_CURRENT_CFG"] = resolved_config  # For ownership matching
     if env_override:
         env.update(env_override)
     return subprocess.run(

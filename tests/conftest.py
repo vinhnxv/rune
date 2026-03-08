@@ -199,6 +199,9 @@ def hook_runner(project_env: tuple[Path, Path]):
     import os
 
     project, config = project_env
+    # Resolve symlinks for config_dir to match what state files store
+    # (on macOS, /var is a symlink to /private/var)
+    resolved_config = config.resolve()
 
     def _run(
         script: Path,
@@ -217,6 +220,7 @@ def hook_runner(project_env: tuple[Path, Path]):
 
         env = os.environ.copy()
         env["CLAUDE_CONFIG_DIR"] = str(config)
+        env["RUNE_CURRENT_CFG"] = str(resolved_config)  # Resolved for ownership matching
         env["PPID"] = str(os.getpid())  # Use test process PID
         if env_override:
             env.update(env_override)
@@ -232,3 +236,22 @@ def hook_runner(project_env: tuple[Path, Path]):
         )
 
     return _run
+
+
+@pytest.fixture(autouse=True)
+def cleanup_idle_retry_counters():
+    """Clean up *.idle-retries files between tests to prevent cross-test contamination."""
+    import glob
+
+    yield
+
+    # Clean up any idle retry counter files in /tmp
+    for pattern in [
+        "/tmp/*.idle-retries",
+        "/tmp/**/**/*.idle-retries",
+    ]:
+        for f in glob.glob(pattern):
+            try:
+                Path(f).unlink(missing_ok=True)
+            except OSError:
+                pass

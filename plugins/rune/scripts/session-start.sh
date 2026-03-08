@@ -88,8 +88,9 @@ inject_echo_summary() {
   local total_chars=0
 
   # Collect entries from all role directories
-  # zsh glob compat: *(N)/ provides nullglob behavior
-  for role_dir in "$echo_dir"/*(N)/; do
+  # Portable nullglob: shopt -s for bash, restore after loop
+  shopt -s nullglob
+  for role_dir in "$echo_dir"/*/; do
     [[ -d "$role_dir" ]] || continue
     local mem="${role_dir}MEMORY.md"
     [[ -f "$mem" && ! -L "$mem" ]] || continue
@@ -121,6 +122,7 @@ inject_echo_summary() {
       [[ "$count" -ge "$max_entries" || "$total_chars" -ge "$max_chars" ]] && break 2
     done < "$mem"
   done
+  shopt -u nullglob
 
   [[ "$count" -gt 0 ]] && ECHO_SUMMARY="\\n\\n## Echo Learnings (${count} entries)\\n${summary}"
 }

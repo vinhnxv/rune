@@ -54,12 +54,17 @@ LEAD_TRANSCRIPT = "/home/user/.claude/projects/my-project/transcript.jsonl"
 
 
 def _make_state(project: Path, config: Path, identifier: str = "test123") -> None:
-    """Create a minimal active mend state file under project/tmp/."""
+    """Create a minimal active mend state file under project/tmp/.
+
+    config_dir is stored as its resolved (symlink-free) path because
+    resolve-session-identity.sh uses ``pwd -P`` to canonicalize the path,
+    which on macOS turns /var/... into /private/var/...
+    """
     state = {
         "team_name": f"arc-mend-{identifier}",
         "status": "active",
-        "config_dir": str(config),
-        "owner_pid": str(os.getpid()),
+        "config_dir": str(config.resolve()),
+        "owner_pid": os.getpid(),
     }
     (project / "tmp" / f".rune-mend-{identifier}.json").write_text(
         json.dumps(state)
@@ -320,8 +325,8 @@ class TestMendFixerGuardClauses:
         state = {
             "team_name": "arc-mend-test123",
             "status": "completed",
-            "config_dir": str(config),
-            "owner_pid": str(os.getpid()),
+            "config_dir": str(config.resolve()),
+            "owner_pid": os.getpid(),
         }
         (project / "tmp" / ".rune-mend-test123.json").write_text(
             json.dumps(state)
@@ -628,8 +633,8 @@ class TestMendFixerSecurity:
         state = {
             "team_name": f"arc-mend-{max_id}",
             "status": "active",
-            "config_dir": str(config),
-            "owner_pid": str(os.getpid()),
+            "config_dir": str(config.resolve()),
+            "owner_pid": os.getpid(),
         }
         (project / "tmp" / f".rune-mend-{max_id}.json").write_text(
             json.dumps(state)
@@ -949,8 +954,8 @@ class TestMendFixerEdgeCases:
             state = {
                 "team_name": f"arc-mend-{ident}",
                 "status": "active",
-                "config_dir": str(config),
-                "owner_pid": str(os.getpid()),
+                "config_dir": str(config.resolve()),
+                "owner_pid": os.getpid(),
             }
             (project / "tmp" / f".rune-mend-{ident}.json").write_text(
                 json.dumps(state)

@@ -84,7 +84,11 @@ def signal_dir() -> Iterator[Path]:
 
 @pytest.fixture
 def inscription_dir() -> Iterator[Path]:
-    """Create a temporary directory with an inscription.json for idle tests."""
+    """Create a temporary directory with an inscription.json for idle tests.
+
+    Also creates a config directory with the team directory so the hook
+    doesn't treat the teammate as orphaned.
+    """
     with tempfile.TemporaryDirectory(prefix="rune-idle-test-") as tmpdir:
         tmp = Path(tmpdir)
         signals = tmp / "tmp" / ".rune-signals" / "rune-review-test"
@@ -104,7 +108,18 @@ def inscription_dir() -> Iterator[Path]:
         output_dir = tmp / "tmp" / "reviews" / "test"
         output_dir.mkdir(parents=True)
 
+        # Create config directory with team directory (required for hook to proceed)
+        config_dir = tmp / "config"
+        team_dir = config_dir / "teams" / "rune-review-test"
+        team_dir.mkdir(parents=True)
+
+        # Set environment variable for tests that use run_hook
+        os.environ["CLAUDE_CONFIG_DIR"] = str(config_dir.resolve())
+
         yield tmp
+
+        # Cleanup
+        os.environ.pop("CLAUDE_CONFIG_DIR", None)
 
 
 # ===========================================================================
@@ -552,6 +567,11 @@ class TestTeammateIdle:
             "output_dir": "tmp/reviews/test/",
         }
         (signals / "inscription.json").write_text(json.dumps(inscription))
+
+        # Create team directory for arc-review-test (required for hook to proceed)
+        config_dir = Path(os.environ.get("CLAUDE_CONFIG_DIR", ""))
+        arc_team_dir = config_dir / "teams" / "arc-review-test"
+        arc_team_dir.mkdir(parents=True, exist_ok=True)
 
         output_file = inscription_dir / "tmp" / "reviews" / "test" / "ash.md"
         output_file.write_text("# Arc review output without seal.\n" * 5)

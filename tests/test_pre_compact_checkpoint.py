@@ -288,7 +288,11 @@ class TestPreCompactCheckpointWrite:
     def test_checkpoint_outputs_hook_json(
         self, team_env: tuple[Path, Path]
     ) -> None:
-        """Hook should output hookSpecificOutput JSON to stdout."""
+        """Hook should output systemMessage JSON to stdout.
+
+        Note: PreCompact hooks do NOT support hookSpecificOutput format.
+        They output systemMessage directly for advisory context injection.
+        """
         project_root, config_dir = team_env
 
         result = run_hook(
@@ -298,12 +302,16 @@ class TestPreCompactCheckpointWrite:
         )
 
         output = json.loads(result.stdout.strip())
-        assert output["hookSpecificOutput"]["hookEventName"] == "PreCompact"
-        assert "rune-review-test123" in output["hookSpecificOutput"]["additionalContext"]
+        assert "systemMessage" in output
+        assert "rune-review-test123" in output["systemMessage"]
 
     @requires_jq
     def test_no_team_outputs_skip_message(self, compact_env: Path) -> None:
-        """No active team → outputs skip message (not error)."""
+        """No active team → outputs skip message (not error).
+
+        Note: PreCompact hooks do NOT support hookSpecificOutput format.
+        They output systemMessage directly for advisory context injection.
+        """
         with tempfile.TemporaryDirectory(prefix="rune-config-") as config_dir:
             (Path(config_dir) / "teams").mkdir()
 
@@ -314,8 +322,8 @@ class TestPreCompactCheckpointWrite:
             )
 
             output = json.loads(result.stdout.strip())
-            assert output["hookSpecificOutput"]["hookEventName"] == "PreCompact"
-            assert "skipped" in output["hookSpecificOutput"]["additionalContext"].lower()
+            assert "systemMessage" in output
+            assert "skipped" in output["systemMessage"].lower()
 
 
 class TestPreCompactTeamNameValidation:
