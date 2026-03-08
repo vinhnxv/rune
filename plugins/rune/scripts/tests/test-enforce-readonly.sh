@@ -299,6 +299,34 @@ output=$(get_output "$result")
 assert_contains "Read tool also blocked by script" "SEC-001" "$output"
 
 # ═══════════════════════════════════════════════════════════════
+# 9. Two-phase ERR trap behavior
+# ═══════════════════════════════════════════════════════════════
+printf "\n=== Two-Phase ERR Trap ===\n"
+
+# 9a. Fast-path (non-subagent) should exit 0 even on unexpected errors
+# The fail-forward ERR trap covers the fast-path before subagent detection.
+# This test verifies that edge cases in the fast-path don't produce exit 1 ("hook error").
+result=$(printf '{"tool_name":"Bash","cwd":"/nonexistent/path","tool_input":{"command":"echo hi"}}' | bash "$ENFORCE_SCRIPT" 2>/dev/null; echo $?)
+assert_eq "Non-subagent with bad CWD exits 0 (not hook error)" "0" "$result"
+
+# 9b. Non-subagent with malformed transcript_path should still exit 0
+result=$(printf '{"tool_name":"Bash","cwd":"/tmp","transcript_path":null,"tool_input":{"command":"echo hi"}}' | bash "$ENFORCE_SCRIPT" 2>/dev/null; echo $?)
+assert_eq "Null transcript_path exits 0" "0" "$result"
+
+# 9c. Non-subagent with missing tool_input should exit 0
+result=$(printf '{"tool_name":"Bash","cwd":"/tmp"}' | bash "$ENFORCE_SCRIPT" 2>/dev/null; echo $?)
+assert_eq "Missing tool_input exits 0" "0" "$result"
+
+# 9d. Subagent with missing CWD should exit 0 or 2 (fail-closed after subagent detection)
+result=$(printf '{"tool_name":"Bash","transcript_path":"/subagents/a/t.jsonl","tool_input":{"command":"echo hi"}}' | bash "$ENFORCE_SCRIPT" 2>/dev/null; echo $?)
+assert_eq "Subagent with missing CWD exits 0" "0" "$result"
+
+# 9e. Subagent with inaccessible CWD should not produce exit 1 (hook error)
+result=$(printf '{"tool_name":"Bash","cwd":"/nonexistent/restricted","transcript_path":"/subagents/a/t.jsonl","tool_input":{"command":"echo hi"}}' | bash "$ENFORCE_SCRIPT" 2>/dev/null; echo $?)
+# Should exit 0 (CWD cd fails, caught by || { exit 0; })
+assert_eq "Subagent with bad CWD exits 0" "0" "$result"
+
+# ═══════════════════════════════════════════════════════════════
 # Results
 # ═══════════════════════════════════════════════════════════════
 printf "\n═══════════════════════════════════════════════════\n"

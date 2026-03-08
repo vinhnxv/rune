@@ -129,7 +129,7 @@ fi
 printf "\n=== Bridge file written ===\n"
 
 BRIDGE_SID="test-bridge-sid"
-BRIDGE_FILE="/tmp/rune-ctx-${BRIDGE_SID}.json"
+BRIDGE_FILE="${TMPDIR:-/tmp}/rune-ctx-${BRIDGE_SID}.json"
 rm -f "$BRIDGE_FILE" 2>/dev/null
 
 mk_input "Claude" "$FAKE_DIR" "$BRIDGE_SID" 70 30 0.50 | bash "$STATUSLINE" >/dev/null 2>&1
@@ -224,13 +224,13 @@ BAD_SID="../evil-path"
 mk_input "Claude" "$FAKE_DIR" "$BAD_SID" 70 30 0.50 | bash "$STATUSLINE" >/dev/null 2>&1
 # Should not create a bridge file for invalid session_id
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
-if [[ ! -f "/tmp/rune-ctx-${BAD_SID}.json" ]]; then
+if [[ ! -f "${TMPDIR:-/tmp}/rune-ctx-${BAD_SID}.json" ]]; then
   PASS_COUNT=$(( PASS_COUNT + 1 ))
   printf "  PASS: No bridge file for invalid session_id\n"
 else
   FAIL_COUNT=$(( FAIL_COUNT + 1 ))
   printf "  FAIL: Bridge file created for invalid session_id\n"
-  rm -f "/tmp/rune-ctx-${BAD_SID}.json" 2>/dev/null
+  rm -f "${TMPDIR:-/tmp}/rune-ctx-${BAD_SID}.json" 2>/dev/null
 fi
 
 # ===================================================================

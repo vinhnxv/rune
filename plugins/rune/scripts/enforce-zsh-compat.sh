@@ -268,17 +268,19 @@ if [[ -n "$fix_applied" ]]; then
   if [[ -n "$needs_nullglob" ]]; then
     COMMAND="setopt nullglob; ${COMMAND}"
   fi
-  ESCAPED_COMMAND=$(printf '%s' "$COMMAND" | jq -Rs '.' || { exit 0; })
-  cat << AUTOFIX_JSON
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PreToolUse",
-    "permissionDecision": "allow",
-    "updatedInput": { "command": ${ESCAPED_COMMAND} },
-    "additionalContext": "ZSH-001 auto-fix: ${fix_descriptions}."
-  }
-}
-AUTOFIX_JSON
+  # Use jq to build valid JSON — prevents broken output from unescaped variables
+  # or partial jq output. If jq fails, exit 0 (fail-forward: allow the command as-is).
+  jq -n \
+    --arg command "$COMMAND" \
+    --arg context "ZSH-001 auto-fix: ${fix_descriptions}." \
+    '{
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "allow",
+        updatedInput: { command: $command },
+        additionalContext: $context
+      }
+    }' 2>/dev/null || true
   exit 0
 fi
 

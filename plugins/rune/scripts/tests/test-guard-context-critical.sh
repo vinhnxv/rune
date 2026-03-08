@@ -81,7 +81,7 @@ SESSION_ID="test-guard-session-$$"
 # consecutive tabs as one delimiter, shifting remaining fields left.
 create_bridge() {
   local rem_pct="$1"
-  local bridge_file="/tmp/rune-ctx-${SESSION_ID}.json"
+  local bridge_file="${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}.json"
   jq -n \
     --arg sid "$SESSION_ID" \
     --argjson rem "$rem_pct" \
@@ -94,7 +94,7 @@ create_bridge() {
 }
 
 cleanup_bridge() {
-  rm -f "/tmp/rune-ctx-${SESSION_ID}.json"
+  rm -f "${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}.json"
   rm -f "$MOCK_CWD/tmp/.rune-shutdown-signal-${SESSION_ID}.json"
   rm -f "$MOCK_CWD/tmp/.rune-force-shutdown-${SESSION_ID}.json"
 }
@@ -223,7 +223,7 @@ cleanup_bridge
 printf "\n=== Stale Bridge ===\n"
 
 # Create bridge with old FILE mtime (script checks file mtime, not JSON timestamp)
-BRIDGE_FILE="/tmp/rune-ctx-${SESSION_ID}.json"
+BRIDGE_FILE="${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}.json"
 jq -n \
   --arg sid "$SESSION_ID" \
   --argjson rem 10 \
@@ -246,7 +246,7 @@ cleanup_bridge
 printf "\n=== Symlink Bridge ===\n"
 
 echo '{}' > "$TMP_DIR/fake-bridge.json"
-ln -sf "$TMP_DIR/fake-bridge.json" "/tmp/rune-ctx-${SESSION_ID}.json"
+ln -sf "$TMP_DIR/fake-bridge.json" "${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}.json"
 
 result_code=0
 result=$(echo "$INPUT" | CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" 2>/dev/null) || result_code=$?

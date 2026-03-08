@@ -196,6 +196,8 @@ printf "\n=== Inscription + Missing Output ===\n"
 TEAM_NAME_7="rune-review-test7"
 SIGNAL_DIR_7="$FAKE_CWD/tmp/.rune-signals/$TEAM_NAME_7"
 mkdir -p "$SIGNAL_DIR_7"
+# Layer 0 guard: create team dir so hook doesn't short-circuit as orphan
+mkdir -p "$FAKE_CONFIG_DIR/teams/$TEAM_NAME_7"
 
 # Create inscription with expected output
 cat > "$SIGNAL_DIR_7/inscription.json" <<'INSC'
@@ -239,6 +241,7 @@ TEAM_NAME_9="rune-plan-test9"
 SIGNAL_DIR_9="$FAKE_CWD/tmp/.rune-signals/$TEAM_NAME_9"
 mkdir -p "$SIGNAL_DIR_9"
 mkdir -p "$FAKE_CWD/tmp/plans/test9"
+mkdir -p "$FAKE_CONFIG_DIR/teams/$TEAM_NAME_9"
 
 cat > "$SIGNAL_DIR_9/inscription.json" <<'INSC9'
 {
@@ -261,6 +264,9 @@ assert_eq "Adequate output exits 0 (pass)" "0" "$(get_exit_code)"
 # ═══════════════════════════════════════════════════════════════
 printf "\n=== SEAL Enforcement ===\n"
 
+# Clear retry counters from previous block tests (sections 7-8)
+rm -f "$FAKE_CWD/tmp/.rune-signals/$TEAM_NAME_7/"*.idle-retries 2>/dev/null || true
+
 # Write large output WITHOUT SEAL for the review team from section 7
 python3 -c "print('x' * 200)" > "$FAKE_CWD/tmp/reviews/test7/forge-warden.md"
 
@@ -268,18 +274,28 @@ run_hook "{\"team_name\": \"$TEAM_NAME_7\", \"teammate_name\": \"forge-warden\",
 assert_eq "Missing SEAL exits 2 (block)" "2" "$(get_exit_code)"
 
 # 10b. With SEAL: header at column 0 → pass
+# Content depth check requires 20+ lines, so generate enough output
 {
-  python3 -c "print('x' * 200)"
-  printf '\nSEAL: test-seal\n'
+  python3 -c "
+for i in range(25):
+    print(f'P2: Finding #{i+1} in file.ts — description of issue')
+"
+  printf 'SEAL: test-seal\n'
 } > "$FAKE_CWD/tmp/reviews/test7/forge-warden.md"
+
+# Clear retry counter from 10a block
+rm -f "$FAKE_CWD/tmp/.rune-signals/$TEAM_NAME_7/"*.idle-retries 2>/dev/null || true
 
 run_hook "{\"team_name\": \"$TEAM_NAME_7\", \"teammate_name\": \"forge-warden\", \"cwd\": \"$FAKE_CWD\"}"
 assert_eq "Output with SEAL exits 0 (pass)" "0" "$(get_exit_code)"
 
 # 10c. With <seal> XML tag → also pass
 {
-  python3 -c "print('x' * 200)"
-  printf '\n<seal>test</seal>\n'
+  python3 -c "
+for i in range(25):
+    print(f'P2: Finding #{i+1} in file.ts — description of issue')
+"
+  printf '<seal>test</seal>\n'
 } > "$FAKE_CWD/tmp/reviews/test7/forge-warden.md"
 
 run_hook "{\"team_name\": \"$TEAM_NAME_7\", \"teammate_name\": \"forge-warden\", \"cwd\": \"$FAKE_CWD\"}"
@@ -287,8 +303,11 @@ assert_eq "Output with <seal> tag exits 0 (pass)" "0" "$(get_exit_code)"
 
 # 10d. With Inner Flame marker → also pass
 {
-  python3 -c "print('x' * 200)"
-  printf '\nInner Flame: verified\n'
+  python3 -c "
+for i in range(25):
+    print(f'P2: Finding #{i+1} in file.ts — description of issue')
+"
+  printf 'Inner Flame: verified\n'
 } > "$FAKE_CWD/tmp/reviews/test7/forge-warden.md"
 
 run_hook "{\"team_name\": \"$TEAM_NAME_7\", \"teammate_name\": \"forge-warden\", \"cwd\": \"$FAKE_CWD\"}"
@@ -302,6 +321,7 @@ printf "\n=== Path Traversal Guards ===\n"
 TEAM_NAME_11="rune-review-sec11"
 SIGNAL_DIR_11="$FAKE_CWD/tmp/.rune-signals/$TEAM_NAME_11"
 mkdir -p "$SIGNAL_DIR_11"
+mkdir -p "$FAKE_CONFIG_DIR/teams/$TEAM_NAME_11"
 
 # 11a. output_file with .. → exit 2
 cat > "$SIGNAL_DIR_11/inscription.json" <<'INSC11A'
@@ -361,6 +381,7 @@ printf "\n=== All-Tasks-Done Signal ===\n"
 TEAM_NAME_13="rune-work-atd13"
 SIGNAL_DIR_13="$FAKE_CWD/tmp/.rune-signals/$TEAM_NAME_13"
 mkdir -p "$SIGNAL_DIR_13"
+mkdir -p "$FAKE_CONFIG_DIR/teams/$TEAM_NAME_13"
 
 # Create task directory with all tasks completed
 TASK_DIR_13="$FAKE_CONFIG_DIR/tasks/$TEAM_NAME_13"
@@ -395,6 +416,7 @@ fi
 TEAM_NAME_13B="rune-work-notdone13"
 SIGNAL_DIR_13B="$FAKE_CWD/tmp/.rune-signals/$TEAM_NAME_13B"
 mkdir -p "$SIGNAL_DIR_13B"
+mkdir -p "$FAKE_CONFIG_DIR/teams/$TEAM_NAME_13B"
 TASK_DIR_13B="$FAKE_CONFIG_DIR/tasks/$TEAM_NAME_13B"
 mkdir -p "$TASK_DIR_13B"
 echo '{"status": "completed"}' > "$TASK_DIR_13B/task-1.json"
@@ -420,6 +442,7 @@ printf "\n=== Absolute Path in output_file ===\n"
 TEAM_NAME_14="rune-review-abs14"
 SIGNAL_DIR_14="$FAKE_CWD/tmp/.rune-signals/$TEAM_NAME_14"
 mkdir -p "$SIGNAL_DIR_14"
+mkdir -p "$FAKE_CONFIG_DIR/teams/$TEAM_NAME_14"
 cat > "$SIGNAL_DIR_14/inscription.json" <<'INSC14'
 {
   "team_name": "rune-review-abs14",

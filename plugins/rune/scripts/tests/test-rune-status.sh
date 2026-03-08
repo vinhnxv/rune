@@ -60,7 +60,7 @@ assert_not_contains() {
 
 # ── Setup ──
 TMP_DIR=$(mktemp -d)
-trap 'rm -rf "$TMP_DIR"; rm -f /tmp/rune-ctx-test-status-sess-*.json /tmp/rune-statusline-git-cache-$(id -u)' EXIT
+trap 'rm -rf "$TMP_DIR"; rm -f "${TMPDIR:-/tmp}"/rune-ctx-test-status-sess-*.json "${TMPDIR:-/tmp}"/rune-statusline-git-cache-"$(id -u)"' EXIT
 
 MOCK_CWD="$TMP_DIR/project"
 mkdir -p "$MOCK_CWD/tmp"
@@ -110,7 +110,7 @@ assert_contains "Output contains model" "Claude" "$plain"
 # ═══════════════════════════════════════════════════════════════
 printf "\n=== Bridge File ===\n"
 
-BRIDGE="/tmp/rune-ctx-${SESSION_ID}.json"
+BRIDGE="${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}.json"
 rm -f "$BRIDGE"
 build_input 70 30 2.50 | CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" >/dev/null 2>&1
 
@@ -170,7 +170,7 @@ assert_contains "High usage has red color" $'\033[31m' "$result"
 result=$(build_input 95 5 0 | CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" 2>/dev/null)
 assert_contains "Very high usage has blink red" $'\033[5;31m' "$result"
 
-rm -f "/tmp/rune-ctx-${SESSION_ID}.json"
+rm -f "${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}.json"
 
 # ═══════════════════════════════════════════════════════════════
 # 4. Missing jq
@@ -198,7 +198,7 @@ result=$(build_input 50 50 0 | CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST
 assert_contains "Has filled blocks" "█" "$result"
 assert_contains "Has empty blocks" "░" "$result"
 
-rm -f "/tmp/rune-ctx-${SESSION_ID}.json"
+rm -f "${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}.json"
 
 # ═══════════════════════════════════════════════════════════════
 # 6. Fail-open guard (ERR trap)
@@ -243,7 +243,7 @@ plain=$(echo "$result" | sed 's/\x1b\[[0-9;]*m//g')
 assert_contains "Workflow detected in output" "review" "$plain"
 
 rm -f "$MOCK_CWD/tmp/.rune-review-active.json"
-rm -f "/tmp/rune-ctx-${SESSION_ID}.json"
+rm -f "${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}.json"
 
 # ═══════════════════════════════════════════════════════════════
 # Results

@@ -231,7 +231,7 @@ for ckpt in "${CHECKPOINT_FILES[@]}"; do
   CTX_REM=""
   CTX_COST=""
   if [[ -n "$SESSION_ID" && "$SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-    BRIDGE_FILE="/tmp/rune-ctx-${SESSION_ID}.json"
+    BRIDGE_FILE="${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}.json"
     if [[ -f "$BRIDGE_FILE" && ! -L "$BRIDGE_FILE" ]]; then
       B_MTIME=$(_stat_mtime "$BRIDGE_FILE"); B_MTIME="${B_MTIME:-0}"
       B_NOW=$(date +%s)

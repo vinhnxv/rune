@@ -253,7 +253,7 @@ _check_context_at_threshold() {
   session_id=$(echo "${INPUT:-}" | jq -r '.session_id // empty' 2>/dev/null || true)
   [[ -n "$session_id" && "$session_id" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
 
-  local bridge_file="/tmp/rune-ctx-${session_id}.json"
+  local bridge_file="${TMPDIR:-/tmp}/rune-ctx-${session_id}.json"
   [[ -f "$bridge_file" && ! -L "$bridge_file" ]] || return 1
 
   # UID ownership check (prevent reading other users' bridge files)

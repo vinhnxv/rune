@@ -51,7 +51,7 @@ else
 fi
 
 # SEC-003: Sanitize TOOL_NAME — strip non-alphanumeric chars (except _ - .) and cap length
-TOOL_NAME=$(printf '%s' "$TOOL_NAME" | tr -dc '[:alnum:]_-.' | head -c 200)
+TOOL_NAME=$(printf '%s' "$TOOL_NAME" | tr -dc '[:alnum:]_.:-' | head -c 200)
 
 [[ -z "$TOOL_NAME" ]] && exit 0
 

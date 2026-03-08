@@ -244,7 +244,7 @@ fi
 TASK_DIR="$CHOME/tasks/$TEAM_NAME"
 if [[ -d "$TASK_DIR" ]]; then
   # Create lock file specific to this worker (prevents cross-worker contention)
-  LOCK_FILE="/tmp/rune-test-evidence-${TEAM_NAME}-${TEAMMATE_NAME}.lock"
+  LOCK_FILE="${TMPDIR:-/tmp}/rune-test-evidence-${TEAM_NAME}-${TEAMMATE_NAME}.lock"
   LOCK_FD=200
 
   # Use flock with 2-second timeout (fail-open on lock contention)
