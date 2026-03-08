@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.144.3] - 2026-03-08
+
+### Fixed
+- **Cross-platform stat bug on Linux** — `stat -f %m` (macOS syntax) on Linux outputs filesystem text to stdout before failing, polluting variables with garbage data and causing `set -u` crashes when bash arithmetic evaluates `File` as an unbound variable name
+- **Created `scripts/lib/platform.sh`** — Shared cross-platform helper that detects OS once via `uname -s` (cached in `_RUNE_PLATFORM`), exposes `_stat_mtime()` and `_stat_uid()` functions that call the correct stat variant directly (no fallback chain, no stdout pollution)
+- **Refactored 17 scripts** to use `_stat_mtime`/`_stat_uid` instead of inline stat fallback chains or `if/else uname` blocks: `arc-batch-stop-hook.sh`, `arc-issues-stop-hook.sh`, `arc-phase-stop-hook.sh`, `arc-hierarchy-stop-hook.sh`, `on-session-stop.sh` (6 instances), `session-team-hygiene.sh`, `detect-workflow-complete.sh`, `pre-compact-checkpoint.sh` (2 instances), `rune-statusline.sh`, `rune-context-monitor.sh`, `rune-status.sh`, `guard-context-critical.sh` (2 instances), `advise-mcp-untrusted.sh`, `lib/stop-hook-common.sh` (3 instances), `lib/run-artifacts.sh`, `learn/echo-writer.sh`, `learn/session-scanner.sh`
+
 ## [1.144.2] - 2026-03-08
 
 ### Added

@@ -21,6 +21,8 @@
 [[ -n "${_RUNE_ARTIFACTS_LOADED:-}" ]] && return 0
 _RUNE_ARTIFACTS_LOADED=1
 
+source "$(dirname "${BASH_SOURCE[0]}")/platform.sh"
+
 # zsh-compat: BASH_SOURCE is empty in zsh; fall back to $0 for sourced scripts
 if [[ -n "${BASH_VERSION:-}" ]]; then
   _RUNE_ART_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -339,7 +341,7 @@ _rune_artifact_locked_append() {
         local lock_age=0
         if [[ -d "$lock_dir" ]]; then
           local lock_mtime
-          lock_mtime=$(stat -f %m "$lock_dir" 2>/dev/null || stat -c %Y "$lock_dir" 2>/dev/null || echo "0")
+          lock_mtime=$(_stat_mtime "$lock_dir"); lock_mtime="${lock_mtime:-0}"
           local now_ts
           now_ts=$(date +%s 2>/dev/null || echo "0")
           if [[ "$lock_mtime" =~ ^[0-9]+$ && "$now_ts" =~ ^[0-9]+$ ]]; then

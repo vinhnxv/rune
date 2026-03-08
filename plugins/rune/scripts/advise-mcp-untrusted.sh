@@ -31,6 +31,9 @@ _rune_fail_forward() {
 }
 trap '_rune_fail_forward' ERR
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/lib/platform.sh"
+
 # Read hook input from stdin (1MB cap)
 INPUT=$(head -c 1048576 2>/dev/null || true)
 [[ -z "$INPUT" ]] && exit 0
@@ -74,7 +77,7 @@ RATE_FILE="$RATE_DIR/${TOOL_CLASS}-${PPID}"
 if [[ -f "$RATE_FILE" ]]; then
   # Check if less than 30 seconds old
   NOW=$(date +%s 2>/dev/null || true)
-  FILE_TIME=$(stat -f '%m' "$RATE_FILE" 2>/dev/null || stat -c '%Y' "$RATE_FILE" 2>/dev/null || echo "$NOW")
+  FILE_TIME=$(_stat_mtime "$RATE_FILE"); FILE_TIME="${FILE_TIME:-$NOW}"
   DIFF=$(( NOW - FILE_TIME ))
   if [[ "$DIFF" -lt 30 ]]; then
     exit 0  # Rate-limited — skip advisory

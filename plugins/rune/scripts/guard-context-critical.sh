@@ -44,6 +44,7 @@ fi
 
 # --- Session identity ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+source "${SCRIPT_DIR}/lib/platform.sh"
 # shellcheck source=resolve-session-identity.sh
 if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
   source "${SCRIPT_DIR}/resolve-session-identity.sh"
@@ -78,23 +79,14 @@ BRIDGE_FILE="${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}.json"
 [[ -L "$BRIDGE_FILE" ]] && exit 0
 
 # OS-level UID check (EC-H5)
-BRIDGE_UID=""
-if [[ "$(uname)" == "Darwin" ]]; then
-  BRIDGE_UID=$(stat -f %u "$BRIDGE_FILE" 2>/dev/null || true)
-else
-  BRIDGE_UID=$(stat -c %u "$BRIDGE_FILE" 2>/dev/null || true)
-fi
+BRIDGE_UID=$(_stat_uid "$BRIDGE_FILE")
 if [[ -n "$BRIDGE_UID" && "$BRIDGE_UID" != "$(id -u)" ]]; then
   exit 0  # Not our file
 fi
 
 # --- Bridge freshness (30s for blocking guard per EC-1) ---
 STALE_SECONDS=30
-if [[ "$(uname)" == "Darwin" ]]; then
-  FILE_MTIME=$(stat -f %m "$BRIDGE_FILE" 2>/dev/null || echo 0)
-else
-  FILE_MTIME=$(stat -c %Y "$BRIDGE_FILE" 2>/dev/null || echo 0)
-fi
+FILE_MTIME=$(_stat_mtime "$BRIDGE_FILE"); FILE_MTIME="${FILE_MTIME:-0}"
 NOW=$(date +%s)
 AGE=$(( NOW - FILE_MTIME ))
 

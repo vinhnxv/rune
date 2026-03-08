@@ -21,6 +21,7 @@ umask 077
 # GAP-2 FIX: Source shared resolver instead of inlining (matches all 5 ownership-check scripts)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/resolve-session-identity.sh"
+source "${SCRIPT_DIR}/lib/platform.sh"
 
 # Trace logging (match all Rune hooks)
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
@@ -89,12 +90,7 @@ fi
 [[ -L "$BRIDGE_FILE" ]] && exit 0
 
 # OS-level UID check (consistent with guard-context-critical.sh EC-H5)
-_BRIDGE_UID=""
-if [[ "$(uname)" == "Darwin" ]]; then
-  _BRIDGE_UID=$(stat -f %u "$BRIDGE_FILE" 2>/dev/null || true)
-else
-  _BRIDGE_UID=$(stat -c %u "$BRIDGE_FILE" 2>/dev/null || true)
-fi
+_BRIDGE_UID=$(_stat_uid "$BRIDGE_FILE")
 if [[ -n "$_BRIDGE_UID" && "$_BRIDGE_UID" != "$(id -u)" ]]; then
   _trace "SKIP: bridge UID mismatch (file=$_BRIDGE_UID, us=$(id -u))"
   exit 0

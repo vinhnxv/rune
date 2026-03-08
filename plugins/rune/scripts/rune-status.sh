@@ -31,6 +31,7 @@ done
 # ── Source session identity (RUNE_CURRENT_CFG + rune_pid_alive) ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/resolve-session-identity.sh"
+source "${SCRIPT_DIR}/lib/platform.sh"
 
 # ── CWD (script is run from project root) ──
 CWD="$(pwd -P)"
@@ -242,11 +243,7 @@ for ckpt in "${CHECKPOINT_FILES[@]}"; do
   if [[ -n "$SESSION_ID" && "$SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     BRIDGE_FILE="/tmp/rune-ctx-${SESSION_ID}.json"
     if [[ -f "$BRIDGE_FILE" && ! -L "$BRIDGE_FILE" ]]; then
-      if [[ "$(uname)" == "Darwin" ]]; then
-        B_MTIME=$(stat -f %m "$BRIDGE_FILE" 2>/dev/null || echo 0)
-      else
-        B_MTIME=$(stat -c %Y "$BRIDGE_FILE" 2>/dev/null || echo 0)
-      fi
+      B_MTIME=$(_stat_mtime "$BRIDGE_FILE"); B_MTIME="${B_MTIME:-0}"
       B_NOW=$(date +%s)
       B_AGE=$(( B_NOW - B_MTIME ))
       if [[ $B_AGE -lt 120 ]]; then
