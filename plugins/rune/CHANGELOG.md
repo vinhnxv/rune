@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.144.9] - 2026-03-09
+
+### Changed
+- **Shared plugin venv** — Consolidated all Python dependencies into a single `scripts/requirements.txt` and shared `.venv/`. `session-start.sh` creates the venv on first run. `echo-search/start.sh`, `figma-to-react/start.sh`, and `talisman-resolve.sh` all use it. Removed per-server `requirements.txt` files and duplicate venv creation logic. Eliminates "No YAML parser available" warning (resolver status: `defaults_only` → `full`).
+
 ## [1.144.8] - 2026-03-08
 
 ### Fixed
