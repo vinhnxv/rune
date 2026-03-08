@@ -52,9 +52,11 @@ else
   RUNE_CURRENT_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   # QUAL-002 FIX: EPERM-aware PID liveness check — EPERM means alive (different user)
   rune_pid_alive() {
-    kill -0 "$1" 2>/dev/null && return 0
-    [[ $? -eq 1 ]] && return 0  # EPERM — process exists but owned by different user
-    return 1
+    local _out _rc
+    _out=$(kill -0 "$1" 2>&1) && return 0
+    _rc=$?
+    case "$_out" in *"Operation not permitted"*|*"EPERM"*|*"permission"*) return 0 ;; esac
+    return "$_rc"
   }
 fi
 

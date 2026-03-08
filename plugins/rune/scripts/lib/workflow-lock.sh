@@ -205,6 +205,9 @@ rune_check_conflicts() {
   if [[ -n "${ZSH_VERSION:-}" ]]; then
     setopt localoptions nullglob 2>/dev/null
   else
+    # FLAW-005 FIX: Save nullglob state to restore after loop
+    local _ng_was_set=1
+    shopt -q nullglob 2>/dev/null && _ng_was_set=0
     shopt -s nullglob 2>/dev/null || true
   fi
   for lock_dir in "$LOCK_BASE"/*/; do
@@ -253,6 +256,11 @@ rune_check_conflicts() {
       conflicts="${conflicts}ADVISORY: /rune:${stored_workflow} (${stored_class}, PID ${stored_pid})\n"
     fi
   done
+
+  # FLAW-005 FIX: Restore nullglob state (bash only — zsh uses localoptions)
+  if [[ -z "${ZSH_VERSION:-}" && "${_ng_was_set:-1}" -eq 1 ]]; then
+    shopt -u nullglob 2>/dev/null || true
+  fi
 
   # Always exit 0 — encode conflict in stdout for reliable Bash() capture
   # FLAW-002 FIX: Use %b to expand \n sequences in conflict report

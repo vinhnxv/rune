@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.144.7] - 2026-03-08
+## [1.144.8] - 2026-03-08
 
 ### Fixed
 - **Test: stale threshold alignment** — `test_enforce_teams.py` used 30-min threshold (35-min backdate), updated to 120-min threshold (130-min backdate) matching `enforce-teams.sh` `STALE_THRESHOLD_MIN=120`
@@ -15,6 +15,17 @@
 - **Shell: `on-session-stop.sh` find ERR trap** — Added `|| true` to `find -exec rm -rf` to prevent ERR trap when directory is removed mid-traversal
 - **Figma: `FigmaCredentialError`** — New error subclass for clearer credential failure messages (missing token + no Desktop MCP)
 - **Echo: indexer consecutive headers** — Fixed `prev_line_blank` flag to allow consecutive headers in MEMORY.md parsing
+- **P1: Broken PID liveness check** — `guard-context-critical.sh` inline `rune_pid_alive()` fallback used `$?` after `&&` chain, couldn't distinguish EPERM from ESRCH. Replaced with two-variable stderr capture pattern matching `resolve-session-identity.sh`
+- **P1: Overly broad `scripts/` deny pattern** — `validate-resolve-fixer-paths.sh` blocked ALL `scripts/` directories. Narrowed to `plugins/rune/scripts/` and `.claude/scripts/`
+- **P1: Greedy regex in decomposer.py** — `\[.*\]` with `re.DOTALL` matched from first `[` to last `]` across multiple arrays. Changed to non-greedy `\[.*?\]`
+- **Nullglob state leak** — `workflow-lock.sh` `rune_check_conflicts()` enabled nullglob but never restored it. Added save/restore pattern
+- **Incomplete signal dir cleanup** — `on-session-stop.sh` only cleaned `rune-work-*` signal dirs. Extended to all workflow prefixes (review, audit, inspect, mend, resolve-todos)
+- **Unbounded stdin in learn scripts** — `cli-correction-detector.sh` and `echo-writer.sh` used `cat` instead of SEC-2 `head -c 1048576` cap
+- **echo→printf consistency** — `validate-test-evidence.sh`, `rune-statusline.sh`, `talisman-invalidate.sh` used `echo "$INPUT"` risking flag interpretation. Replaced with `printf '%s\n'`
+- **Hardcoded `/tmp`** — `session-start.sh` and `arc-issues-stop-hook.sh` used `/tmp` instead of `${TMPDIR:-/tmp}`
+- **Incomplete state file patterns** — `enforce-glyph-budget.sh` only checked 5 of 13 workflow patterns. Extended to match `enforce-polling.sh`
+- **Non-atomic debounce write** — `rune-context-monitor.sh` wrote `WARN_STATE` directly. Replaced with mktemp+mv atomic pattern
+- **Multi-byte UTF-8 progress bar** — `rune-status.sh` used `tr ' ' '█'` which corrupts on byte-oriented `tr`. Replaced with while-loop
 
 ### Added
 - **`measure-startup-tokens.py`** — Startup token measurement script

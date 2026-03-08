@@ -56,10 +56,10 @@ fi
 
 # ── Parse JSON input ──
 # Requires jq - validated at session start
-TEAM_NAME=$(echo "$INPUT" | jq -r '.team_name // empty' 2>/dev/null || echo "")
-TASK_ID=$(echo "$INPUT" | jq -r '.task_id // empty' 2>/dev/null || echo "")
-TEAMMATE_NAME=$(echo "$INPUT" | jq -r '.teammate_name // empty' 2>/dev/null || echo "")
-CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || echo "")
+TEAM_NAME=$(printf '%s\n' "$INPUT" | jq -r '.team_name // empty' 2>/dev/null || echo "")
+TASK_ID=$(printf '%s\n' "$INPUT" | jq -r '.task_id // empty' 2>/dev/null || echo "")
+TEAMMATE_NAME=$(printf '%s\n' "$INPUT" | jq -r '.teammate_name // empty' 2>/dev/null || echo "")
+CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || echo "")
 
 # ── GUARD: Only process worker teams ──
 if [[ -z "$TEAM_NAME" ]] || [[ ! "$TEAM_NAME" =~ ^(rune|arc)-work- ]]; then

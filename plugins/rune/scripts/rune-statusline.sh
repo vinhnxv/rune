@@ -25,7 +25,7 @@ fi
 
 # SB-PERF-001: Single jq call with @tsv instead of 6 separate invocations
 IFS=$'\t' read -r MODEL DIR SESSION_ID REMAINING USED COST <<< "$(
-  echo "$INPUT" | jq -r '[
+  printf '%s\n' "$INPUT" | jq -r '[
     (.model.display_name // "Claude"),
     (.workspace.current_dir // ""),
     (.session_id // ""),

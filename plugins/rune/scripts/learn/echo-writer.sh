@@ -109,7 +109,7 @@ if [[ ! "$ROLE" =~ ^[a-zA-Z0-9_-]+$ ]]; then
 fi
 
 # ── Read input JSON from stdin ──
-INPUT=$(cat 2>/dev/null || true)
+INPUT=$(head -c 1048576 2>/dev/null || true)
 [[ -z "$INPUT" ]] && { echo "WARN: empty stdin — nothing to write." >&2; exit 0; }
 
 # ── Parse input fields ──

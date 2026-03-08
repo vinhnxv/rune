@@ -33,7 +33,7 @@ INPUT=$(head -c 1048576 2>/dev/null || true)
 
 # Quick grep — exit immediately if not talisman
 # Matches file_path or filePath containing "talisman.yml"
-if ! echo "$INPUT" | grep -q 'talisman\.yml' 2>/dev/null; then
+if ! printf '%s\n' "$INPUT" | grep -q 'talisman\.yml' 2>/dev/null; then
   exit 0
 fi
 
@@ -62,7 +62,7 @@ PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 RESOLVER="${PLUGIN_ROOT}/scripts/talisman-resolve.sh"
 
 if [[ -x "$RESOLVER" ]] && [[ ! -L "$RESOLVER" ]]; then
-  echo "$INPUT" | "$RESOLVER" || {
+  printf '%s\n' "$INPUT" | "$RESOLVER" || {
     if [[ "${RUNE_TRACE:-}" == "1" ]]; then
       _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
       [[ ! -L "$_log" ]] && echo "[talisman-invalidate] WARN: resolver failed with exit code $?" >> "$_log" 2>/dev/null

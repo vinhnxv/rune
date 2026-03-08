@@ -175,7 +175,7 @@ if [[ "$EVENT" == "startup" ]]; then
     fi
   fi
   if [[ "${CTX_ENABLED:-true}" != "false" ]]; then
-    RECENT_BRIDGE=$(find /tmp -maxdepth 1 -name "rune-ctx-*.json" -mmin -60 2>/dev/null | head -1)
+    RECENT_BRIDGE=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name "rune-ctx-*.json" -mmin -60 2>/dev/null | head -1)
     if [[ -z "$RECENT_BRIDGE" ]]; then
       _trace "NOTE: No recent bridge file found. Context monitoring requires statusline configuration."
     fi
