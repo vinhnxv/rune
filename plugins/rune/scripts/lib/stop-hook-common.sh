@@ -139,14 +139,21 @@ validate_session_ownership() {
   # shellcheck source=../resolve-session-identity.sh
   source "${script_dir}/../resolve-session-identity.sh"
 
-  local stored_config_dir stored_pid
+  local stored_config_dir stored_pid stored_session_id
   stored_config_dir=$(get_field "config_dir")
   stored_pid=$(get_field "owner_pid")
+  stored_session_id=$(get_field "session_id")
+
+  # Extract session_id from hook input JSON (injected by Claude Code — always reliable)
+  local hook_session_id=""
+  if [[ -n "${INPUT:-}" ]]; then
+    hook_session_id=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+  fi
 
   # Trace: log ownership check details for debugging (uses caller's _trace if available)
   if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
     _trace "ownership: stored_cfg='${stored_config_dir}' RUNE_CURRENT_CFG='${RUNE_CURRENT_CFG}'"
-    _trace "ownership: stored_pid='${stored_pid}' PPID='${PPID}'"
+    _trace "ownership: stored_sid='${stored_session_id}' hook_sid='${hook_session_id}' stored_pid='${stored_pid}' PPID='${PPID}'"
   fi
 
   # Layer 1: Config-dir isolation (different Claude Code installations)
@@ -157,42 +164,86 @@ validate_session_ownership() {
     exit 0
   fi
 
-  # Layer 2: PID isolation (same config dir, different session)
-  if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
+  # Layer 2: Session isolation (same config dir, different session)
+  # BUG FIX (v1.144.16): $PPID in hook context differs from $PPID in Bash tool context
+  # because Claude Code spawns hooks via a hook runner subprocess. Use session_id from
+  # hook input JSON instead — it's always consistent with the session that wrote the state file.
+  #
+  # Priority: session_id (reliable) > owner_pid (unreliable in hooks)
+  # Fallback to PID check only when session_id is unavailable in BOTH state file and hook input.
+  local _session_match=""
+  if [[ -n "$stored_session_id" && "$stored_session_id" != "unknown" && -n "$hook_session_id" ]]; then
+    # Both session IDs available — use session_id comparison (reliable)
+    if [[ "$stored_session_id" == "$hook_session_id" ]]; then
+      _session_match="yes"
+    else
+      _session_match="no"
+    fi
+    if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+      _trace "ownership: session_id comparison — match=${_session_match}"
+    fi
+  fi
+
+  if [[ "$_session_match" == "yes" ]]; then
+    # Same session — proceed (skip PID check entirely)
+    return 0
+  elif [[ "$_session_match" == "no" ]]; then
+    # Different session — check if owner is still alive for orphan handling
+    if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
+      if rune_pid_alive "$stored_pid"; then
+        if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+          _trace "ownership: REJECTED — different session_id, owner alive (pid=${stored_pid})"
+        fi
+        exit 0
+      fi
+    fi
+    # Owner dead or no PID — orphaned workflow, handle below
+  fi
+
+  # Fallback: PID-based check (when session_id unavailable — legacy state files)
+  if [[ -z "$_session_match" && -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
     if [[ "$stored_pid" != "$PPID" ]]; then
       local _pid_alive=false
       if rune_pid_alive "$stored_pid"; then
         _pid_alive=true
       fi
       if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-        _trace "ownership: PID mismatch — stored=${stored_pid} hook_PPID=${PPID} owner_alive=${_pid_alive}"
+        _trace "ownership: PID fallback — stored=${stored_pid} hook_PPID=${PPID} owner_alive=${_pid_alive}"
       fi
       if [[ "$_pid_alive" == "true" ]]; then
-        # Owner is alive and it's a different session — not ours
         exit 0
       fi
-      # Owner died — orphaned workflow. Handle based on mode.
-      if [[ "$orphan_mode" == "batch" && -n "$progress_file" && -f "${CWD}/${progress_file}" ]]; then
-        # Mark in_progress plan as failed to prevent stale "in_progress" status (BACK-1)
-        local orphan_progress
-        orphan_progress=$(jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
-          (.plans[] | select(.status == "in_progress")) |= (
-            .status = "failed" |
-            .failed_at = $ts |
-            .failure_reason = "orphaned: owner session died"
-          )
-        ' "${CWD}/${progress_file}" 2>/dev/null || true)
-        if [[ -n "$orphan_progress" ]]; then
-          local tmpfile
-          tmpfile=$(mktemp "${CWD}/${progress_file}.XXXXXX" 2>/dev/null) || true
-          if [[ -n "$tmpfile" ]]; then
-            printf '%s\n' "$orphan_progress" > "$tmpfile" && mv -f "$tmpfile" "${CWD}/${progress_file}" 2>/dev/null || rm -f "$tmpfile" 2>/dev/null
-          fi
+      # Owner died — fall through to orphan handling
+    else
+      # PID matches — same session
+      return 0
+    fi
+  fi
+
+  # If we reach here with _session_match="no" or PID mismatch+dead: orphan handling
+  if [[ "$_session_match" == "no" ]] || [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
+    if [[ "$orphan_mode" == "batch" && -n "$progress_file" && -f "${CWD}/${progress_file}" ]]; then
+      local orphan_progress
+      orphan_progress=$(jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+        (.plans[] | select(.status == "in_progress")) |= (
+          .status = "failed" |
+          .failed_at = $ts |
+          .failure_reason = "orphaned: owner session died"
+        )
+      ' "${CWD}/${progress_file}" 2>/dev/null || true)
+      if [[ -n "$orphan_progress" ]]; then
+        local tmpfile
+        tmpfile=$(mktemp "${CWD}/${progress_file}.XXXXXX" 2>/dev/null) || true
+        if [[ -n "$tmpfile" ]]; then
+          printf '%s\n' "$orphan_progress" > "$tmpfile" && mv -f "$tmpfile" "${CWD}/${progress_file}" 2>/dev/null || rm -f "$tmpfile" 2>/dev/null
         fi
       fi
-      rm -f "$state_file" 2>/dev/null
-      exit 0
     fi
+    rm -f "$state_file" 2>/dev/null
+    if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+      _trace "ownership: orphan cleanup — removed state file"
+    fi
+    exit 0
   fi
 }
 
@@ -230,10 +281,20 @@ _find_arc_checkpoint() {
 
     while IFS= read -r f; do
       [[ -f "$f" ]] && [[ ! -L "$f" ]] || continue
-      # Session isolation: fast grep for owner_pid (avoids jq startup per file)
-      if ! grep -q "\"owner_pid\"[[:space:]]*:[[:space:]]*\"${PPID}\"" "$f" 2>/dev/null; then
-        # Also try numeric (non-quoted) format
-        grep -qE "\"owner_pid\"[[:space:]]*:[[:space:]]*${PPID}([^0-9]|$)" "$f" 2>/dev/null || continue
+      # Session isolation: prefer session_id match (reliable in hooks), fallback to owner_pid
+      # BUG FIX (v1.144.16): $PPID in hooks differs from $PPID in Bash tool.
+      local _ckpt_matched=false
+      # Try session_id first (from hook input JSON — set by caller or extracted from INPUT)
+      if [[ -n "${HOOK_SESSION_ID:-}" ]]; then
+        if grep -q "\"session_id\"[[:space:]]*:[[:space:]]*\"${_HOOK_SESSION_ID}\"" "$f" 2>/dev/null; then
+          _ckpt_matched=true
+        fi
+      fi
+      # Fallback to owner_pid (works when session_id unavailable)
+      if [[ "$_ckpt_matched" != "true" ]]; then
+        if ! grep -q "\"owner_pid\"[[:space:]]*:[[:space:]]*\"${PPID}\"" "$f" 2>/dev/null; then
+          grep -qE "\"owner_pid\"[[:space:]]*:[[:space:]]*${PPID}([^0-9]|$)" "$f" 2>/dev/null || continue
+        fi
       fi
       # Get mtime via cross-platform helper
       local mtime
@@ -365,8 +426,15 @@ _read_arc_result_signal() {
 
   # SEC-010: Numeric PID validation (parity with validate_session_ownership)
   [[ -n "$signal_pid" && "$signal_pid" =~ ^[0-9]+$ ]] || return 1
-  # Session isolation: verify owner_pid matches current session
-  [[ "$signal_pid" == "$PPID" ]] || return 1
+  # Session isolation: prefer session_id match (reliable in hooks), fallback to owner_pid
+  # BUG FIX (v1.144.16): $PPID in hooks differs from $PPID in Bash tool.
+  local signal_session_id
+  signal_session_id=$(jq -r '.session_id // empty' "$signal_file" 2>/dev/null || true)
+  if [[ -n "${HOOK_SESSION_ID:-}" && -n "$signal_session_id" ]]; then
+    [[ "$signal_session_id" == "$_HOOK_SESSION_ID" ]] || return 1
+  else
+    [[ "$signal_pid" == "$PPID" ]] || return 1
+  fi
 
   # Config-dir isolation: verify same Claude Code installation
   if [[ -n "${RUNE_CURRENT_CFG:-}" && -n "$signal_config" && "$signal_config" != "$RUNE_CURRENT_CFG" ]]; then
