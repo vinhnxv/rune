@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.144.16] - 2026-03-09
+
+### Fixed
+- **stop-hook-common.sh (ROOT CAUSE #2)** — `$PPID` in hook context differs from `$PPID` in Bash tool context because Claude Code spawns hooks via a hook runner subprocess. Replaced PID-based session isolation with `session_id` comparison (from hook input JSON vs state file). PID check retained as fallback for legacy state files without session_id. Affects `validate_session_ownership()`, `_find_arc_checkpoint()`, and `_read_arc_result_signal()`.
+- **CLAUDE.md** — Corrected "$PPID is consistent" claim to document the actual behavior: hooks get different PPID, use session_id instead.
+
 ## [1.144.15] - 2026-03-09
 
 ### Added
