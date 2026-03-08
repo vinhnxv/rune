@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.144.11] - 2026-03-09
+
+### Fixed
+- **talisman-resolve.sh** — Added Fallback 2: creates venv and installs PyYAML when venv doesn't exist yet. Fixes race condition where SessionStart hooks fire in parallel and `session-start.sh` hasn't completed venv setup before `talisman-resolve.sh` runs, causing `resolver_status: defaults_only`.
+
 ## [1.144.10] - 2026-03-09
 
 ### Fixed
