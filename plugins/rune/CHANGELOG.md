@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.145.0] - 2026-03-10
+
+### Fixed
+- **Arc crash recovery**: CronCreate monitoring (Layer 1) now paired with SessionStart detection (Layer 2) for cross-session crash recovery. Previously, CronCreate alone could not recover from session crashes (OOM, terminal closure) because scheduled tasks are session-scoped.
+- **P1: consecutive_failures reset** — After successful resume, `consecutive_failures` is now properly reset to 0 in the monitoring prompt and checkpoint logic
+- **P1: Prompt injection vector** — `buildArcMonitoringPrompt()` now validates `checkpoint.id` format before string interpolation
+- **P1: Monitoring prompt simplified** — Reduced from multi-paragraph natural language to minimal 4-line instruction, lowering hallucination risk
+
+### Added
+- **Dual-layer arc recovery architecture**: Layer 1 (CronCreate, in-session stop-hook failure) + Layer 2 (SessionStart hook, cross-session crash detection)
+- **Resumable arc detection** in `session-team-hygiene.sh` — orphaned checkpoints with dead `owner_pid` are classified as resumable vs terminal. Advisory message includes arc ID, plan file, last completed phase, and resume instructions
+- **Documentation**: Recovery matrix, dual-layer architecture explanation in `arc-monitoring-task.md`
+
+### Changed
+- **Documentation**: "crash recovery" → "dual-layer arc recovery" throughout arc scheduler docs
+- **Talisman config**: `arc.scheduler` section updated to document both recovery layers
+
 ## [1.144.18] - 2026-03-10
 
 ### Fixed
