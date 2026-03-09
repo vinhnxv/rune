@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.144.18] - 2026-03-10
+
+### Fixed
+- **BIZL-004: Session ID validation in workflow locks** — `workflow-lock.sh` acquire/release now validates `session_id` alongside PID to detect PID recycling across Claude Code sessions
+- **BIZL-010: Null PID guard** — Empty `stored_pid` in lock meta.json no longer bypasses regex validation; corrupt locks are treated as orphans
+- **EDGE-001/006: Bounds check in cleanup summary** — `enforce-team-lifecycle.sh` array subtraction no longer produces negative display values
+- **EDGE-002: Clock skew guard** — `detect-workflow-complete.sh` clamps negative age to 0, preventing indefinite cleanup deferral
+- **EDGE-004: Numeric validation on stat results** — `run-artifacts.sh` strips whitespace and validates before arithmetic to prevent script crash
+- **EDGE-007: Ghost lock retry with jitter** — `workflow-lock.sh` retries with 0-50ms random jitter to reduce concurrent write race window
+- **EDGE-008: PID deduplication** — `detect-workflow-complete.sh` pipes pgrep through `sort -u` before SIGTERM dispatch
+- **EDGE-016: Path containment with spaces** — `run-artifacts.sh` prefix check now handles paths containing spaces and glob characters
+- **SEC-005: Session PID in trace log path** — `detect-workflow-complete.sh` includes `${PPID}` in trace log filename to reduce predictability
+- **SEC-008: PPID in cleanup log** — `on-session-stop.sh` uses per-session log files for forensic traceability
+
 ## [1.144.17] - 2026-03-09
 
 ### Fixed

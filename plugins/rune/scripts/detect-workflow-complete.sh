@@ -88,7 +88,8 @@ fi
 # SEC-003 NOTE: RUNE_TRACE=1 logs team names, file paths, and state file contents.
 # Trace logs go to $RUNE_TRACE_LOG (default /tmp/, mode 600 via umask 077).
 # Do NOT enable RUNE_TRACE in shared environments without reviewing log contents.
-RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+# SEC-005 FIX: Include session PID in trace log path to avoid predictable path
+RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && [[ ! -L "${RUNE_TRACE_LOG%/*}" ]] && printf '[%s] detect-workflow-complete: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
 HOOK_START_TIME=$(date +%s)
@@ -153,6 +154,8 @@ for loop_file in \
       exit 0
     fi
     age_min=$(( ($HOOK_START_TIME - _loop_mtime) / 60 ))
+    # EDGE-002 FIX: Guard against clock skew producing negative age
+    [[ $age_min -lt 0 ]] && age_min=0
     if [[ $age_min -lt 150 ]]; then
       _trace "DEFER: OUR active loop file $(basename "$loop_file") (${age_min}m old)"
       exit 0
@@ -340,7 +343,7 @@ for sf in "${STATE_FILES[@]}"; do
           _trace "SIGTERM sent to PID=$child_pid (cmd=$child_cmd)"
           ;;
       esac
-    done < <(pgrep -P "$SF_PID" 2>/dev/null || true)
+    done < <(pgrep -P "$SF_PID" 2>/dev/null | sort -u || true)  # EDGE-008 FIX: deduplicate PIDs
   fi
 
   # Wait for SIGTERM to take effect
@@ -447,6 +450,9 @@ if [[ "$_artifact_now" =~ ^[0-9]+$ && "$_artifact_now" -gt 0 ]]; then
     fi
   # BACK-004 FIX: Bound find depth to prevent latency on large trees
   # Pattern: tmp/{workflow}/{timestamp}/runs/{agent}/meta.json = 5 levels deep
+  # EDGE-020 NOTE: maxdepth 6 is intentional — matches the exact nesting depth of the
+  # runs/*/meta.json pattern (tmp/workflow/timestamp/runs/agent/meta.json). Deeper nesting
+  # would indicate a non-standard layout and should not be auto-discovered here.
   done < <(find "${CWD}/tmp" -maxdepth 6 -path '*/runs/*/meta.json' -type f 2>/dev/null || true)
 fi
 

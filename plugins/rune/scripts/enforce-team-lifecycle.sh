@@ -198,7 +198,10 @@ cleaned_list=""
 count=0
 for team in "${cleaned_teams[@]+"${cleaned_teams[@]}"}"; do
   if [[ $count -ge 5 ]]; then
-    cleaned_list="${cleaned_list}, ... and $((${#cleaned_teams[@]} - 5)) more"
+    # EDGE-001/EDGE-006 FIX: Bounds check to prevent negative display
+    _remaining=$(( ${#cleaned_teams[@]} - 5 ))
+    [[ $_remaining -lt 0 ]] && _remaining=0
+    cleaned_list="${cleaned_list}, ... and ${_remaining} more"
     break
   fi
   if [[ -n "$cleaned_list" ]]; then
