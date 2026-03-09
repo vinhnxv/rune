@@ -343,7 +343,7 @@ for sf in "${STATE_FILES[@]}"; do
           _trace "SIGTERM sent to PID=$child_pid (cmd=$child_cmd)"
           ;;
       esac
-    done < <(pgrep -P "$SF_PID" 2>/dev/null | sort -u || true)
+    done < <(pgrep -P "$SF_PID" 2>/dev/null | sort -u || true)  # EDGE-008 FIX: deduplicate PIDs
   fi
 
   # Wait for SIGTERM to take effect
