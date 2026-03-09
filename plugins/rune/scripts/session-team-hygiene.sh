@@ -319,6 +319,64 @@ orphan_checkpoint_count=$(
 
 [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphaned checkpoints found: ${orphan_checkpoint_count}" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
 
+# ── Layer 2: Resumable arc detection (v1.145.0) ──
+# Extends orphaned checkpoint scan with resumability classification.
+# Detects interrupted arcs from crashed sessions and advises user to resume.
+# Time budget: must complete within 5s SessionStart timeout (early-exit after first match).
+resumable_arcs=""
+resumable_count=0
+# BACK-001 FIX: Save/restore nullglob around outer loop (matches convention at line 137-154).
+# Must wrap OUTER loop because break 2 at line 359 would skip inner-loop restore.
+_l2_nullglob_was_set=1
+shopt -q nullglob 2>/dev/null && _l2_nullglob_was_set=0
+shopt -s nullglob 2>/dev/null || true
+for ckpt_dir in "${CWD}/.claude/arc" "${CWD}/tmp/arc"; do
+  [[ -d "$ckpt_dir" ]] || continue
+  for f in "$ckpt_dir"/*/checkpoint.json; do
+    [[ -f "$f" ]] && [[ ! -L "$f" ]] || continue
+    # Reuse ownership check from orphan scan
+    ckpt_pid=$(jq -r '.owner_pid // empty' "$f" 2>/dev/null || true)
+    [[ -n "$ckpt_pid" && "$ckpt_pid" =~ ^[0-9]+$ ]] || continue
+    [[ "$ckpt_pid" == "$PPID" ]] && continue
+    rune_pid_alive "$ckpt_pid" && continue
+    # Dead owner — check if resumable (not cancelled, not completed, not exhausted)
+    cancelled=$(jq -r '.user_cancelled // false' "$f" 2>/dev/null || echo "false")
+    stop_reason=$(jq -r '.stop_reason // ""' "$f" 2>/dev/null || echo "")
+    [[ "$cancelled" == "true" ]] && continue
+    [[ "$stop_reason" == "completed" || "$stop_reason" == "user_cancel" ]] && continue
+    # Check resume limits
+    # NOTE: Hardcoded defaults (matches talisman default). Cannot read talisman within 5s hook timeout.
+    total_resumes=$(jq -r '.resume_tracking.total_resume_count // 0' "$f" 2>/dev/null || echo "0")
+    consec_failures=$(jq -r '.resume_tracking.consecutive_failures // 0' "$f" 2>/dev/null || echo "0")
+    # BACK-002 FIX: Validate integer format before arithmetic comparison (corrupted JSON safety)
+    [[ "$total_resumes" =~ ^[0-9]+$ ]] || total_resumes=0
+    [[ "$consec_failures" =~ ^[0-9]+$ ]] || consec_failures=0
+    [[ "$total_resumes" -ge 10 ]] && continue
+    [[ "$consec_failures" -ge 3 ]] && continue
+    # Has pending/in_progress/failed phases?
+    has_incomplete=$(jq '[.phases | to_entries[] | select(.value.status == "pending" or .value.status == "in_progress" or .value.status == "failed")] | length > 0' "$f" 2>/dev/null || echo "false")
+    [[ "$has_incomplete" == "true" ]] || continue
+    # Extract arc details for advisory message
+    arc_id=$(jq -r '.id // "unknown"' "$f" 2>/dev/null || echo "unknown")
+    # SEC-001 FIX: Re-validate arc_id on read (write-side validation in arc-checkpoint-init.md
+    # does not protect against file tampering between write and read)
+    [[ "$arc_id" =~ ^arc-[a-zA-Z0-9_-]+$ ]] || continue
+    plan_file=$(jq -r '.plan_file // "unknown"' "$f" 2>/dev/null || echo "unknown")
+    # SEC-001 FIX: Sanitize plan_file to prevent prompt injection via additionalContext
+    plan_file="${plan_file//[^a-zA-Z0-9._\/-]/_}"
+    last_completed=$(jq -r '[.phases | to_entries[] | select(.value.status == "completed")] | last | .key // "none"' "$f" 2>/dev/null || echo "none")
+    interrupted=$(jq -r '[.phases | to_entries[] | select(.value.status == "in_progress" or .value.status == "failed")] | first | .key // "unknown"' "$f" 2>/dev/null || echo "unknown")
+    resumable_arcs+="Arc '${arc_id}' (plan: ${plan_file##*/}, last: ${last_completed}, interrupted: ${interrupted}, resumes: ${total_resumes}/10). "
+    resumable_count=$((resumable_count + 1))
+    # Early exit: only report first resumable arc (time budget constraint)
+    break 2
+  done
+done
+# BACK-001 FIX: Restore nullglob to pre-Layer-2 state
+[[ "$_l2_nullglob_was_set" -eq 1 ]] && shopt -u nullglob 2>/dev/null
+
+[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: resumable arcs found: ${resumable_count}" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+
 # ── Orphaned worktree detection ──
 # WORKTREE-GC: Remove when SDK provides native worktree lifecycle management
 # Detect rune-work-* worktrees left by crashed sessions (informational only — no auto-cleanup at startup)
@@ -342,7 +400,7 @@ fi
 # Report if anything found
 # BACK-007 FIX: Conditionally append orphan list to avoid trailing "Orphans: " with no names
 remaining_orphans=$((orphan_count - orphans_cleaned))
-if [[ $remaining_orphans -gt 0 ]] || [[ $stale_state_count -gt 0 ]] || [[ $orphan_checkpoint_count -gt 0 ]] || [[ $orphaned_wt_count -gt 0 ]] || [[ $orphans_cleaned -gt 0 ]] || [[ $orphan_procs_killed -gt 0 ]]; then
+if [[ $remaining_orphans -gt 0 ]] || [[ $stale_state_count -gt 0 ]] || [[ $orphan_checkpoint_count -gt 0 ]] || [[ $orphaned_wt_count -gt 0 ]] || [[ $orphans_cleaned -gt 0 ]] || [[ $orphan_procs_killed -gt 0 ]] || [[ $resumable_count -gt 0 ]]; then
   msg="TLC-003 SESSION HYGIENE:"
   if [[ $orphans_cleaned -gt 0 ]]; then
     msg+=" Auto-cleaned ${orphans_cleaned} PID-dead orphan(s)."
@@ -355,6 +413,10 @@ if [[ $remaining_orphans -gt 0 ]] || [[ $stale_state_count -gt 0 ]] || [[ $orpha
   fi
   if [[ ${#orphan_names[@]} -gt 0 ]] && [[ $remaining_orphans -gt 0 ]]; then
     msg+=" Orphans: ${orphan_names[*]:0:5}"
+  fi
+  # Layer 2: Append resumable arc advisory (v1.145.0)
+  if [[ $resumable_count -gt 0 ]]; then
+    msg+=" ARC CRASH RECOVERY: ${resumable_count} interrupted arc(s) from prior session(s). ${resumable_arcs}Resume: /rune:arc --resume | Cleanup: /rune:rest --heal"
   fi
   jq -n --arg ctx "$msg" '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $ctx}}'
 fi

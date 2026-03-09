@@ -321,35 +321,22 @@ if (schedulerEnabled && typeof CronCreate !== 'undefined') {
 
 ## buildArcMonitoringPrompt()
 
-Generate the monitoring prompt for the scheduled task. This prompt is injected as plain text into CronCreate and must be self-contained.
+Generate the monitoring prompt for the scheduled task (Layer 1). This prompt is injected
+as plain text into CronCreate and must be self-contained. Simplified in v1.145.0 to
+reduce hallucination surface (P1 fix).
 
 ```javascript
 function buildArcMonitoringPrompt(checkpoint) {
-  const cooldownMinutes = schedulerConfig?.auto_resume?.cooldown_minutes ?? 5
-  const maxTotalResumes = schedulerConfig?.auto_resume?.max_total_resumes ?? 10
-  const maxConsecutiveFailures = schedulerConfig?.auto_resume?.max_consecutive_failures ?? 3
+  // SEC: Validate interpolated values before prompt construction (P1 fix)
+  if (!/^arc-[a-zA-Z0-9_-]+$/.test(checkpoint.id)) {
+    throw new Error("Invalid arc id format — refusing to build monitoring prompt")
+  }
+  const stateFile = ".claude/arc-phase-loop.local.md"
+  const ckptFile = `.claude/arc/${checkpoint.id}/checkpoint.json`
 
-  return `[ARC-SCHEDULER MONITORING] Arc ID: ${checkpoint.id}
-
-You are a monitoring task for an active Rune arc pipeline. Check if the arc needs to be resumed.
-
-1. Read the file .claude/arc-phase-loop.local.md
-2. Parse its YAML frontmatter
-
-Decision tree:
-- If file does not exist → arc was cleaned up. Delete this monitoring task: CronDelete task_id=${checkpoint.cron_task_id}
-- If user_cancelled=true or stop_reason="completed" or stop_reason="user_cancel" → arc finished or was cancelled. Delete this task: CronDelete task_id=${checkpoint.cron_task_id}
-- If active=true AND no phase is currently in_progress in the checkpoint at .claude/arc/${checkpoint.id}/checkpoint.json → unexpected stop detected. Check cooldown first (see below), then Run: /rune:arc --resume
-- If active=true AND a phase IS in_progress → arc is still running normally. No action needed.
-
-Cooldown check (prevents concurrent resumes):
-- Read checkpoint.resume_tracking.last_resume_at
-- If last_resume_at is within the last ${cooldownMinutes} minutes → skip this cycle. Another resume may still be in progress.
-
-Resume limits (read from checkpoint resume_tracking):
-- If total_resume_count >= ${maxTotalResumes} → do NOT resume. Delete this task.
-- If consecutive_failures >= ${maxConsecutiveFailures} → do NOT resume. Delete this task.
-
-Before resuming, update checkpoint.resume_tracking: increment total_resume_count, set last_resume_at to now, add entry to resume_history with timestamp and trigger="scheduled_monitor".
-After a SUCCESSFUL resume completes a phase: reset consecutive_failures to 0.`
+  // Simplified prompt: minimal, unambiguous instructions (P1 fix — reduced hallucination surface)
+  return `[ARC-MONITOR] Check arc ${checkpoint.id}.
+Read ${stateFile}. If missing or user_cancelled=true or stop_reason is "completed" or "user_cancel": run CronDelete for this task and stop.
+Otherwise read ${ckptFile}. If no phase has status "in_progress": run /rune:arc --resume.
+If a phase IS in_progress: do nothing (arc is running).`
 }
