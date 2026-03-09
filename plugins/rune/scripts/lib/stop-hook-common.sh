@@ -171,6 +171,26 @@ validate_session_ownership() {
   #
   # Priority: session_id (reliable) > owner_pid (unreliable in hooks)
   # Fallback to PID check only when session_id is unavailable in BOTH state file and hook input.
+  # "Claim on first touch": CLAUDE_SESSION_ID is not available in Bash tool context,
+  # so the skill writes session_id: unknown. On the first Stop hook execution, we claim
+  # ownership by writing the hook's session_id into the state file. This is safe because:
+  # 1. The state file is created by the skill in the SAME session
+  # 2. The first Stop hook fires in the SAME session (immediately after the skill's turn)
+  # 3. Config-dir isolation (Layer 1) already passed at this point
+  if [[ -n "$hook_session_id" && ( -z "$stored_session_id" || "$stored_session_id" == "unknown" ) ]]; then
+    if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+      _trace "ownership: claim-on-first-touch — writing hook_sid='${hook_session_id}' to state file"
+    fi
+    # Write session_id into state file YAML frontmatter (sed: replace session_id line)
+    local _tmp_state
+    _tmp_state=$(mktemp "${state_file}.XXXXXX" 2>/dev/null) || true
+    if [[ -n "$_tmp_state" ]]; then
+      sed "s/^session_id:.*/session_id: ${hook_session_id}/" "$state_file" > "$_tmp_state" 2>/dev/null && \
+        mv -f "$_tmp_state" "$state_file" 2>/dev/null || rm -f "$_tmp_state" 2>/dev/null
+    fi
+    stored_session_id="$hook_session_id"
+  fi
+
   local _session_match=""
   if [[ -n "$stored_session_id" && "$stored_session_id" != "unknown" && -n "$hook_session_id" ]]; then
     # Both session IDs available — use session_id comparison (reliable)

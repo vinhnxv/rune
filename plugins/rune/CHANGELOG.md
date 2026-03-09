@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.144.17] - 2026-03-09
+
+### Fixed
+- **stop-hook-common.sh** — "Claim on first touch" for `session_id: unknown` state files. `CLAUDE_SESSION_ID` is not available in Bash tool context, so the skill always writes `session_id: unknown`. On the first Stop hook execution, the hook claims ownership by writing its `session_id` (from hook input JSON) into the state file. Subsequent executions compare normally.
+
 ## [1.144.16] - 2026-03-09
 
 ### Fixed
