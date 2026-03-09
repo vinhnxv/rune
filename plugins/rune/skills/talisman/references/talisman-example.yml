@@ -40,7 +40,8 @@ plan:
 #
 arc:
   scheduler:
-    # Enable/disable both recovery layers
+    # Enable/disable Layer 1 (CronCreate) recovery.
+    # Layer 2 (SessionStart) always runs — it has no config dependency.
     enabled: true
 
     # Layer 1 (CronCreate) settings:

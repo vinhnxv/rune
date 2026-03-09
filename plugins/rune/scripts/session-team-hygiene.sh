@@ -325,9 +325,13 @@ orphan_checkpoint_count=$(
 # Time budget: must complete within 5s SessionStart timeout (early-exit after first match).
 resumable_arcs=""
 resumable_count=0
+# BACK-001 FIX: Save/restore nullglob around outer loop (matches convention at line 137-154).
+# Must wrap OUTER loop because break 2 at line 359 would skip inner-loop restore.
+_l2_nullglob_was_set=1
+shopt -q nullglob 2>/dev/null && _l2_nullglob_was_set=0
+shopt -s nullglob 2>/dev/null || true
 for ckpt_dir in "${CWD}/.claude/arc" "${CWD}/tmp/arc"; do
   [[ -d "$ckpt_dir" ]] || continue
-  shopt -s nullglob 2>/dev/null || true
   for f in "$ckpt_dir"/*/checkpoint.json; do
     [[ -f "$f" ]] && [[ ! -L "$f" ]] || continue
     # Reuse ownership check from orphan scan
@@ -341,8 +345,12 @@ for ckpt_dir in "${CWD}/.claude/arc" "${CWD}/tmp/arc"; do
     [[ "$cancelled" == "true" ]] && continue
     [[ "$stop_reason" == "completed" || "$stop_reason" == "user_cancel" ]] && continue
     # Check resume limits
+    # NOTE: Hardcoded defaults (matches talisman default). Cannot read talisman within 5s hook timeout.
     total_resumes=$(jq -r '.resume_tracking.total_resume_count // 0' "$f" 2>/dev/null || echo "0")
     consec_failures=$(jq -r '.resume_tracking.consecutive_failures // 0' "$f" 2>/dev/null || echo "0")
+    # BACK-002 FIX: Validate integer format before arithmetic comparison (corrupted JSON safety)
+    [[ "$total_resumes" =~ ^[0-9]+$ ]] || total_resumes=0
+    [[ "$consec_failures" =~ ^[0-9]+$ ]] || consec_failures=0
     [[ "$total_resumes" -ge 10 ]] && continue
     [[ "$consec_failures" -ge 3 ]] && continue
     # Has pending/in_progress/failed phases?
@@ -350,7 +358,12 @@ for ckpt_dir in "${CWD}/.claude/arc" "${CWD}/tmp/arc"; do
     [[ "$has_incomplete" == "true" ]] || continue
     # Extract arc details for advisory message
     arc_id=$(jq -r '.id // "unknown"' "$f" 2>/dev/null || echo "unknown")
+    # SEC-001 FIX: Re-validate arc_id on read (write-side validation in arc-checkpoint-init.md
+    # does not protect against file tampering between write and read)
+    [[ "$arc_id" =~ ^arc-[a-zA-Z0-9_-]+$ ]] || continue
     plan_file=$(jq -r '.plan_file // "unknown"' "$f" 2>/dev/null || echo "unknown")
+    # SEC-001 FIX: Sanitize plan_file to prevent prompt injection via additionalContext
+    plan_file="${plan_file//[^a-zA-Z0-9._\/-]/_}"
     last_completed=$(jq -r '[.phases | to_entries[] | select(.value.status == "completed")] | last | .key // "none"' "$f" 2>/dev/null || echo "none")
     interrupted=$(jq -r '[.phases | to_entries[] | select(.value.status == "in_progress" or .value.status == "failed")] | first | .key // "unknown"' "$f" 2>/dev/null || echo "unknown")
     resumable_arcs+="Arc '${arc_id}' (plan: ${plan_file##*/}, last: ${last_completed}, interrupted: ${interrupted}, resumes: ${total_resumes}/10). "
@@ -359,6 +372,8 @@ for ckpt_dir in "${CWD}/.claude/arc" "${CWD}/tmp/arc"; do
     break 2
   done
 done
+# BACK-001 FIX: Restore nullglob to pre-Layer-2 state
+[[ "$_l2_nullglob_was_set" -eq 1 ]] && shopt -u nullglob 2>/dev/null
 
 [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: resumable arcs found: ${resumable_count}" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
 
