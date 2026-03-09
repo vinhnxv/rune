@@ -651,7 +651,8 @@ if [[ "$cleaned_signal_dirs" -gt 0 ]]; then
 fi
 
 # Log to trace file for debugging (always, not just RUNE_TRACE)
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] $summary" >> "${CWD}/tmp/.rune-stop-cleanup.log" 2>/dev/null
+# SEC-008 FIX: Include PPID in log filename for forensic traceability across sessions.
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] $summary" >> "${CWD}/tmp/.rune-stop-cleanup-${PPID}.log" 2>/dev/null
 
 # Stop hook: exit 2 = show stderr to model and continue conversation
 printf '%s\n' "$summary" >&2

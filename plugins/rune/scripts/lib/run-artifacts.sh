@@ -108,8 +108,9 @@ _rune_artifact_check_containment() {
   else
     canonical="$target_path"
   fi
-  # Ensure target starts with root (prefix containment)
-  [[ "$canonical" == "$root_path"/* ]] || return 1
+  # EDGE-016: Use string prefix check (safe with spaces and glob chars in paths)
+  local root_prefix="${root_path}/"
+  [[ "${canonical}/" == "${root_prefix}"* ]] || return 1
 }
 
 # ── Public functions ──
@@ -341,9 +342,14 @@ _rune_artifact_locked_append() {
         local lock_age=0
         if [[ -d "$lock_dir" ]]; then
           local lock_mtime
-          lock_mtime=$(_stat_mtime "$lock_dir"); lock_mtime="${lock_mtime:-0}"
+          lock_mtime=$(_stat_mtime "$lock_dir")
+          # EDGE-004: Strip whitespace and validate numeric before arithmetic
+          lock_mtime="${lock_mtime//[[:space:]]/}"
+          lock_mtime="${lock_mtime:-0}"
           local now_ts
           now_ts=$(date +%s 2>/dev/null || echo "0")
+          now_ts="${now_ts//[[:space:]]/}"
+          now_ts="${now_ts:-0}"
           if [[ "$lock_mtime" =~ ^[0-9]+$ && "$now_ts" =~ ^[0-9]+$ ]]; then
             lock_age=$(( now_ts - lock_mtime ))
           fi

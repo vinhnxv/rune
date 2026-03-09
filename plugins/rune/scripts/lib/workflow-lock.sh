@@ -113,15 +113,37 @@ rune_acquire_lock() {
   _rune_lock_safe "$lock_dir" || return 1
   if [[ -f "$lock_dir/meta.json" ]]; then
     _rune_lock_safe "$lock_dir/meta.json" || return 1
-    local stored_pid stored_cfg
+    local stored_pid stored_cfg stored_sid
     stored_pid=$(jq -r '.pid // empty' "$lock_dir/meta.json" 2>/dev/null || true)
     stored_cfg=$(jq -r '.config_dir // empty' "$lock_dir/meta.json" 2>/dev/null || true)
+    stored_sid=$(jq -r '.session_id // empty' "$lock_dir/meta.json" 2>/dev/null || true)
 
     # BACK-003: Different installation → not our concern, fall through (do not block)
     local _current_cfg="${RUNE_CURRENT_CFG:-$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P || echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}")}"
     [[ -n "$stored_cfg" && "$stored_cfg" != "$_current_cfg" ]] && return 0
-    # Same session → re-entrant (e.g., arc delegating to strive)
-    [[ -n "$stored_pid" && "$stored_pid" == "$PPID" ]] && return 0
+    # BIZL-004: Same session → re-entrant (e.g., arc delegating to strive)
+    # Validate both PID and session_id when available for stronger session identity
+    local _current_sid="${CLAUDE_SESSION_ID:-unknown}"
+    if [[ -n "$stored_pid" && "$stored_pid" == "$PPID" ]]; then
+      # PID matches — also verify session_id if both sides have one
+      if [[ "$stored_sid" != "unknown" && "$_current_sid" != "unknown" && "$stored_sid" != "$_current_sid" ]]; then
+        # Same PID but different session_id → PID was recycled, treat as stale
+        :
+      else
+        return 0
+      fi
+    fi
+
+    # BIZL-010: Null pid guard — empty stored_pid means corrupt meta.json, treat as orphan
+    if [[ -z "$stored_pid" ]]; then
+      rm -rf "$lock_dir" 2>/dev/null
+      if mkdir "$lock_dir" 2>/dev/null; then
+        _rune_write_meta "$lock_dir" "$workflow" "$class"
+        [[ -f "$lock_dir/meta.json" ]] && return 0
+        rm -rf "$lock_dir" 2>/dev/null; return 1
+      fi
+      return 1
+    fi
 
     # PID dead → orphaned lock, reclaim
     # SEC-007: TOCTOU fix — remove then immediately mkdir atomically; if mkdir fails treat as
@@ -139,13 +161,24 @@ rune_acquire_lock() {
       fi
     fi
   else
-    # Ghost lock dir (no meta.json) — clean up and retry once
-    rm -rf "$lock_dir" 2>/dev/null
-    mkdir "$lock_dir" 2>/dev/null && {
-      _rune_write_meta "$lock_dir" "$workflow" "$class"
-      [[ -f "$lock_dir/meta.json" ]] && return 0
-      rm -rf "$lock_dir" 2>/dev/null; return 1
-    }
+    # Ghost lock dir (no meta.json) — clean up and retry with jitter
+    # EDGE-007: Add retry with random jitter to reduce concurrent write race window
+    local _ghost_attempt
+    for _ghost_attempt in 1 2; do
+      rm -rf "$lock_dir" 2>/dev/null
+      # Jitter: sleep 0-50ms on retry to desynchronize concurrent acquirers
+      if [[ "$_ghost_attempt" -gt 1 ]]; then
+        # POSIX-portable sub-second sleep via perl or sleep fallback
+        perl -e 'select(undef,undef,undef,rand(0.05))' 2>/dev/null || sleep 0 2>/dev/null || true
+      fi
+      if mkdir "$lock_dir" 2>/dev/null; then
+        _rune_write_meta "$lock_dir" "$workflow" "$class"
+        [[ -f "$lock_dir/meta.json" ]] && return 0
+        rm -rf "$lock_dir" 2>/dev/null
+        # First attempt failed to write meta — retry
+        continue
+      fi
+    done
   fi
 
   return 1  # Conflict — another live session holds the lock
@@ -159,11 +192,18 @@ rune_release_lock() {
   [[ -d "$lock_dir" ]] || return 0
   _rune_lock_safe "$lock_dir" || return 0
 
-  # Ownership check — only release our own locks
+  # Ownership check — only release our own locks (PID + session_id)
   if [[ -f "$lock_dir/meta.json" ]]; then
-    local stored_pid
+    local stored_pid stored_sid
     stored_pid=$(jq -r '.pid // empty' "$lock_dir/meta.json" 2>/dev/null || true)
-    [[ "$stored_pid" == "$PPID" ]] && rm -rf "$lock_dir" 2>/dev/null
+    stored_sid=$(jq -r '.session_id // empty' "$lock_dir/meta.json" 2>/dev/null || true)
+    local _current_sid="${CLAUDE_SESSION_ID:-unknown}"
+    # BIZL-004: Require both PID and session_id match for release (when available)
+    if [[ "$stored_pid" == "$PPID" ]]; then
+      if [[ "$stored_sid" == "unknown" || "$_current_sid" == "unknown" || "$stored_sid" == "$_current_sid" ]]; then
+        rm -rf "$lock_dir" 2>/dev/null
+      fi
+    fi
   fi
   return 0
 }
