@@ -366,7 +366,15 @@ for ckpt_dir in "${CWD}/.claude/arc" "${CWD}/tmp/arc"; do
     plan_file="${plan_file//[^a-zA-Z0-9._\/-]/_}"
     last_completed=$(jq -r '[.phases | to_entries[] | select(.value.status == "completed")] | last | .key // "none"' "$f" 2>/dev/null || echo "none")
     interrupted=$(jq -r '[.phases | to_entries[] | select(.value.status == "in_progress" or .value.status == "failed")] | first | .key // "unknown"' "$f" 2>/dev/null || echo "unknown")
-    resumable_arcs+="Arc '${arc_id}' (plan: ${plan_file##*/}, last: ${last_completed}, interrupted: ${interrupted}, resumes: ${total_resumes}/10). "
+    # ── Heartbeat enrichment (v1.146.0) ──
+    # Read last activity from heartbeat file for richer advisory message.
+    # Construct path from CWD (NOT relative to checkpoint — avoids fragile ../../../ traversal).
+    hb_file="${CWD}/tmp/arc/${arc_id}/heartbeat.json"
+    last_activity="unknown"
+    if [[ -f "$hb_file" && ! -L "$hb_file" ]]; then
+      last_activity=$(jq -r '.last_activity // "unknown"' "$hb_file" 2>/dev/null || echo "unknown")
+    fi
+    resumable_arcs+="Arc '${arc_id}' (plan: ${plan_file##*/}, last: ${last_completed}, interrupted: ${interrupted}, last_activity: ${last_activity}, resumes: ${total_resumes}/10). "
     resumable_count=$((resumable_count + 1))
     # Early exit: only report first resumable arc (time budget constraint)
     break 2

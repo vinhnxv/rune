@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.146.0] - 2026-03-10
+
+### Added
+- **Arc Phase Heartbeat — Stuck Phase Detection**: PostToolUse heartbeat writer tracks arc activity for enhanced crash recovery diagnostics
+- **PostToolUse heartbeat hook** (`arc-heartbeat-writer.sh`): Writes `last_activity` timestamp during active arc phases
+- **30-second throttle**: Prevents I/O storm while maintaining fresh activity data
+- **Fail-open design**: Heartbeat failures never block tool execution
+- **Layer 1 integration**: CronCreate monitoring enriched with `last_activity` display in stuck arc reports
+- **Layer 2 integration**: SessionStart hygiene reports `last_activity` for resumable arc checkpoints
+- **rune-status.sh enriched**: Displays `last_activity` timestamp for active arcs
+
+### Changed
+- **arc-monitoring-task.md**: Documented heartbeat integration for stuck detection
+- **CLAUDE.md hook table**: Added ARC-HEARTBEAT-001 entry documenting the heartbeat hook
+
 ## [1.145.0] - 2026-03-10
 
 ### Fixed

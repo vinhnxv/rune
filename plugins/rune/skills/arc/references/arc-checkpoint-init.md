@@ -322,8 +322,16 @@ if (schedulerEnabled && typeof CronCreate !== 'undefined') {
 ## buildArcMonitoringPrompt()
 
 Generate the monitoring prompt for the scheduled task (Layer 1). This prompt is injected
-as plain text into CronCreate and must be self-contained. Simplified in v1.145.0 to
-reduce hallucination surface (P1 fix).
+as plain text into CronCreate and must be self-contained.
+
+**Heartbeat Staleness Detection (v1.146.0)**: The monitor checks `heartbeat.json` to detect
+stuck phases. A phase is considered stuck if `last_activity` is older than 15 minutes AND
+the checkpoint shows a phase with `in_progress` status. The 15-minute threshold is conservative
+to avoid false positives during long-running test/build operations.
+
+**Backward Compatibility**: Arcs started before v1.146.0 won't have heartbeat files. The
+monitor falls back to existing behavior (check `in_progress` status only) instead of
+triggering a false positive.
 
 ```javascript
 function buildArcMonitoringPrompt(checkpoint) {
@@ -333,10 +341,13 @@ function buildArcMonitoringPrompt(checkpoint) {
   }
   const stateFile = ".claude/arc-phase-loop.local.md"
   const ckptFile = `.claude/arc/${checkpoint.id}/checkpoint.json`
+  const heartbeatFile = `tmp/arc/${checkpoint.id}/heartbeat.json`
 
-  // Simplified prompt: minimal, unambiguous instructions (P1 fix — reduced hallucination surface)
+  // Monitoring prompt with heartbeat staleness check (v1.146.0)
+  // Handles 3 heartbeat states: stale (>15 min), fresh (<15 min), missing (backward compat)
   return `[ARC-MONITOR] Check arc ${checkpoint.id}.
 Read ${stateFile}. If missing or user_cancelled=true or stop_reason is "completed" or "user_cancel": run CronDelete for this task and stop.
 Otherwise read ${ckptFile}. If no phase has status "in_progress": run /rune:arc --resume.
-If a phase IS in_progress: do nothing (arc is running).`
+If a phase IS in_progress: read ${heartbeatFile}. If file exists and last_activity is older than 15 minutes: the phase is stuck — run /rune:arc --resume. If file missing (hook not yet installed or arc started before v1.146.0): do nothing — fall back to existing detection.
+If last_activity is recent (<15 min): arc is running normally — do nothing.`
 }
