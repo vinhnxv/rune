@@ -25,9 +25,12 @@ INPUT=$(head -c 1048576 2>/dev/null || true)
 [[ -z "$INPUT" ]] && exit 0
 
 # --- Single-pass jq extraction (performance: runs on EVERY TeamCreate/Task) ---
-IFS=$'\t' read -r TOOL_NAME SUBAGENT_TYPE CWD SESSION_ID < <(
-  printf '%s\n' "$INPUT" | jq -r '[.tool_name//"", .tool_input.subagent_type//"", .cwd//"", .session_id//""] | @tsv' 2>/dev/null || echo ""
-) || true
+# CDXB-001 FIX: Handle empty subagent_type field correctly
+# Previous TSV-based approach collapsed empty middle fields, shifting SESSION_ID
+TOOL_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || echo "")
+SUBAGENT_TYPE=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.subagent_type // empty' 2>/dev/null || echo "")
+CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || echo "")
+SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || echo "")
 
 [[ -z "$TOOL_NAME" || -z "$CWD" || -z "$SESSION_ID" ]] && exit 0
 

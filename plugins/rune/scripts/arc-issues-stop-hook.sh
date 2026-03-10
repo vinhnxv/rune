@@ -456,9 +456,9 @@ if [[ -z "$NEXT_PLAN" ]]; then
   rm -f "${CWD}/tmp/arc-result-current.json" 2>/dev/null
 
   # Release workflow lock on final iteration
-  CWD="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-  if [[ -f "${CWD}/plugins/rune/scripts/lib/workflow-lock.sh" ]]; then
-    source "${CWD}/plugins/rune/scripts/lib/workflow-lock.sh"
+  # CDX-001 FIX: Use SCRIPT_DIR (trusted) instead of CWD (untrusted) for sourcing
+  if [[ -f "${SCRIPT_DIR}/lib/workflow-lock.sh" ]]; then
+    source "${SCRIPT_DIR}/lib/workflow-lock.sh"
     rune_release_lock "arc-issues"
   fi
 

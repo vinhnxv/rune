@@ -114,7 +114,9 @@ if [[ -s "$SHARD_TMPFILE" ]]; then
   # Extract unique prefixes
   cut -d: -f1 "$SHARD_TMPFILE" | sort -u | while IFS= read -r prefix; do
     # Get shard numbers for this group (in input order)
-    nums=$(grep "^${prefix}:" "$SHARD_TMPFILE" | cut -d: -f2)
+    # CDX-006 FIX: Escape regex metacharacters in prefix for literal matching
+    escaped_prefix=$(printf '%s' "$prefix" | sed 's/[.[\*^$()+?{|\\]/\\&/g')
+    nums=$(grep "^${escaped_prefix}:" "$SHARD_TMPFILE" | cut -d: -f2)
     max_num=$(echo "$nums" | sort -n | tail -1)
 
     # F-005 FIX: Validate max_num is a positive integer; warn on shard-0

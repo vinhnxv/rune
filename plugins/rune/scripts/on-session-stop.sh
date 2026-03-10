@@ -429,7 +429,9 @@ if [[ -d "${CWD}/tmp/" ]]; then
         cleaned_states+=("$fname")
         continue
       fi
-      jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.status = "stopped" | .stopped_by = "STOP-001" | .stopped_at = $ts' "$f" > "${f}.tmp" 2>/dev/null && mv "${f}.tmp" "$f" 2>/dev/null
+      # CDX-007 FIX: Use mktemp for unique temp file to avoid concurrent hook race
+      _sf_tmp=$(mktemp "${f}.XXXXXX" 2>/dev/null) || continue
+      jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.status = "stopped" | .stopped_by = "STOP-001" | .stopped_at = $ts' "$f" > "$_sf_tmp" 2>/dev/null && mv "$_sf_tmp" "$f" 2>/dev/null || rm -f "$_sf_tmp" 2>/dev/null
       cleaned_states+=("$fname")
     fi
   done
@@ -462,7 +464,9 @@ if [[ -d "${CWD}/.claude/arc/" ]]; then
         rune_pid_alive "$f_pid" && continue  # alive = different session
       fi
       # Cancel all in_progress phases
-      jq '.phases |= with_entries(if .value.status == "in_progress" then .value.status = "cancelled" else . end)' "$f" > "${f}.tmp" 2>/dev/null && mv "${f}.tmp" "$f" 2>/dev/null
+      # CDX-007 FIX: Use mktemp for unique temp file to avoid concurrent hook race
+      _arc_tmp=$(mktemp "${f}.XXXXXX" 2>/dev/null) || continue
+      jq '.phases |= with_entries(if .value.status == "in_progress" then .value.status = "cancelled" else . end)' "$f" > "$_arc_tmp" 2>/dev/null && mv "$_arc_tmp" "$f" 2>/dev/null || rm -f "$_arc_tmp" 2>/dev/null
       arc_id="${f%/*}"
       arc_id="${arc_id##*/}"
       cleaned_arcs+=("$arc_id")

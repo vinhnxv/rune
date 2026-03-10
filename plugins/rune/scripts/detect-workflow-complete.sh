@@ -259,9 +259,11 @@ for sf in "${STATE_FILES[@]}"; do
     else
       # Team dir already gone — prompt-driven cleanup worked. Just mark state file.
       if [[ "$SF_STATUS" != "stopped" ]]; then
+        # CDX-007 FIX: Use mktemp for unique temp file to avoid concurrent hook race
+        _sf_tmp=$(mktemp "${sf}.XXXXXX" 2>/dev/null) || continue
         jq --arg by "CLEANUP-HOOK-VERIFIED" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-          '. + {stopped_by: $by, stopped_at: $ts}' "$sf" > "${sf}.tmp" 2>/dev/null \
-          && mv "${sf}.tmp" "$sf" 2>/dev/null || true
+          '. + {stopped_by: $by, stopped_at: $ts}' "$sf" > "$_sf_tmp" 2>/dev/null \
+          && mv "$_sf_tmp" "$sf" 2>/dev/null || rm -f "$_sf_tmp" 2>/dev/null
       fi
       continue
     fi
