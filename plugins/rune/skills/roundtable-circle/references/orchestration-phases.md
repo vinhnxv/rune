@@ -22,7 +22,7 @@ Both appraise and audit set these parameters before invoking shared phases:
 | 10 | `label` | string | `"Review"` | `"Audit"` |
 | 11 | `configDir` | string | Resolved `CLAUDE_CONFIG_DIR` | Resolved `CLAUDE_CONFIG_DIR` |
 | 12 | `ownerPid` | string | `$PPID` (Claude Code PID) | `$PPID` (Claude Code PID) |
-| 13 | `sessionId` | string | `${CLAUDE_SESSION_ID}` | `${CLAUDE_SESSION_ID}` |
+| 13 | `sessionId` | string | `${CLAUDE_SESSION_ID}` or `${RUNE_SESSION_ID}` | `${CLAUDE_SESSION_ID}` or `${RUNE_SESSION_ID}` |
 | 14 | `maxAgents` | number | From `--max-agents` or all | From `--max-agents` or all |
 | 15 | `workflow` | string | `"rune-review"` | `"rune-audit"` |
 | 16 | `focusArea` | string | `"full"` (appraise has no focus flag) | From `--focus` or `"full"` |
@@ -52,7 +52,7 @@ Parameters 11-13 (`configDir`, `ownerPid`, `sessionId`) are CRITICAL for session
 // Canonical resolution — run once at orchestrator startup
 const configDir = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
 const ownerPid = Bash(`echo $PPID`).trim()
-const sessionId = "${CLAUDE_SESSION_ID}"
+const sessionId = "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim()
 ```
 
 ## Phase 1: Setup

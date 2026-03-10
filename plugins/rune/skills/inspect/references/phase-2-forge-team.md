@@ -7,7 +7,7 @@ const ownerPid = Bash(`echo $PPID`).trim()
 Write(`tmp/.rune-inspect-${identifier}.json`, JSON.stringify({
   status: "active", identifier, mode: inspectMode, plan_path: planPath,
   output_dir: outputDir, started: new Date().toISOString(),
-  config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}",
+  config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   inspectors: Object.keys(inspectorAssignments),
   requirement_count: requirements.length
 }))

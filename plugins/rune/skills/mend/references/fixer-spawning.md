@@ -104,7 +104,7 @@ const configDir = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null &&
 const ownerPid = Bash(`echo $PPID`).trim()
 Write("tmp/.rune-mend-{id}.json", {
   status: "active", started: timestamp, tome_path: tome_path, fixer_count: fixer_count,
-  config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}"
+  config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim()
 })
 
 // 1d. Snapshot pre-mend working tree for bisection safety

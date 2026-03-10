@@ -146,7 +146,7 @@ const inscription = {
   timestamp: timestamp,
   config_dir: configDir,
   owner_pid: ownerPid,
-  session_id: "${CLAUDE_SESSION_ID}",
+  session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   verifiers: [],
   fixers: [],
   task_ownership: {}

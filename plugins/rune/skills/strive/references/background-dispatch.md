@@ -42,7 +42,7 @@ Written to `tmp/.rune-dispatch-{timestamp}.json` before the orchestrator exits.
   // Session isolation triple (SEC-004)
   "config_dir": "/Users/alice/.claude",
   "owner_pid": "12345",
-  "session_id": "${CLAUDE_SESSION_ID}",
+  "session_id": "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
 
   // Worker inventory
   "worker_count": 2,
@@ -100,7 +100,7 @@ Bash(`mkdir -m 700 -p tmp/`)
 const lockContent = JSON.stringify({
   timestamp,
   owner_pid: currentPid,
-  session_id: "${CLAUDE_SESSION_ID}",
+  session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   status: "active",
   created_at: new Date().toISOString()
 })

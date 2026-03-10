@@ -211,7 +211,7 @@ Write(`tmp/.rune-team-${timestamp}.json`, JSON.stringify({
   status: "active",
   config_dir: configDir,
   owner_pid: ownerPid,
-  session_id: "${CLAUDE_SESSION_ID}",
+  session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   workflow: "standalone",
   preset: presetName,
   agents: preset.agents

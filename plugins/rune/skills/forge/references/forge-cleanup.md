@@ -84,7 +84,7 @@ Write(`tmp/.rune-forge-${timestamp}.json`, {
   completed: new Date().toISOString(),
   config_dir: configDir,
   owner_pid: ownerPid,
-  session_id: "${CLAUDE_SESSION_ID}"
+  session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim()
 })
 ```
 

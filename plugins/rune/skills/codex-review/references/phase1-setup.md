@@ -90,7 +90,7 @@ Write(`${REVIEW_DIR}/inscription.json`, JSON.stringify({
   status: "active",
   config_dir: RUNE_CURRENT_CFG,  // from resolve-session-identity.sh
   owner_pid: PPID,               // $PPID
-  session_id: CLAUDE_SESSION_ID,
+  session_id: CLAUDE_SESSION_ID || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   identifier,
   team_name: `rune-codex-review-${identifier}`,
   output_dir: REVIEW_DIR,
@@ -111,7 +111,7 @@ Write(`tmp/.rune-codex-review-${identifier}.json`, JSON.stringify({
   status: "active",
   config_dir: RUNE_CURRENT_CFG,
   owner_pid: PPID,
-  session_id: CLAUDE_SESSION_ID,
+  session_id: CLAUDE_SESSION_ID || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   identifier,
   team_name: `rune-codex-review-${identifier}`,
   phase: "spawning"
