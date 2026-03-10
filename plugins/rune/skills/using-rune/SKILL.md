@@ -40,6 +40,7 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 | "Clean up" / "remove temp files" | `/rune:rest` | Remove tmp/ artifacts from completed workflows |
 | "Cancel the review" / "stop the audit" | `/rune:cancel-review` or `/rune:cancel-audit` | Graceful shutdown of active workflows |
 | "Cross-model review" / "codex review" / "second opinion" | `/rune:codex-review` | Cross-model code review — Claude + Codex in parallel |
+| "prototype from figma" / "preview design" / "storybook from figma" / "generate components from figma" | `/rune:design-prototype` | Standalone prototype generator |
 
 ### Beginner Aliases
 
@@ -83,6 +84,7 @@ For users new to Rune, these simpler commands forward to the full versions:
 | `/rune:elicit` | No | 2-5 min | Topic |
 | `/rune:talisman` | No | 1-3 min | Subcommand (init/audit/update/guide/status) |
 | `/rune:codex-review` | Yes (up to 4) | 5-15 min | Git diff (auto-detected) |
+| `/rune:design-prototype` | Yes (0-5) | 5-15 min | Figma URL or text description |
 | `/rune:rest` | No | <1 min | None |
 | `/rune:brainstorm` | Yes (0-3 advisors) | 1-8 min | Feature idea |
 | `/rune:plan` | (alias for `/rune:devise`) |||
