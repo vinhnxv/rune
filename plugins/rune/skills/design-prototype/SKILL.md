@@ -2,7 +2,7 @@
 name: design-prototype
 description: |
   Generate prototype React components + Storybook stories from Figma URLs.
-  Three-stage pipeline: figma_to_react → UntitledUI matching → prototype synthesis.
+  5-phase pipeline: figma_to_react → UntitledUI matching → prototype synthesis → verify → present.
   Input: Figma URL(s). Output: design-references/ directory with prototypes + stories.
   Use when you want to preview design implementation before coding.
   Trigger keywords: prototype, figma prototype, storybook from figma, design preview,
@@ -39,7 +39,7 @@ allowed-tools:
 ---
 
 **Runtime context** (preprocessor snapshot):
-- Active workflows: !`grep -rl '"active"' tmp/.rune-*-*.json 2>/dev/null | wc -l | tr -d ' '`
+- Active workflows: !`grep -rl '"active"' tmp/.rune-*-*.json 2>/dev/null || true | wc -l | tr -d ' '`
 - Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 # /rune:design-prototype — Figma-to-Storybook Prototype Generator
@@ -63,7 +63,7 @@ Standalone prototype generator: extracts Figma designs, matches against UI libra
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--components N` | `10` | Max components to extract from Figma |
+| `--components N` | `5` | Max components to extract from Figma |
 | `--no-storybook` | `false` | Skip Storybook story generation |
 | `--describe 'text'` | — | Text-only mode: skip Figma extraction, search library by description |
 | `--no-team` | `false` | Force single-agent mode (no Agent Team even for >= 3 components) |
@@ -119,6 +119,13 @@ Parse `$ARGUMENTS` to determine input mode:
 - **No input**: → `AskUserQuestion("Provide a Figma URL or use --describe 'text'")`
 
 ```
+// Guard empty --describe (BACK-005) + harden input (SEC-005)
+if flags.describe !== undefined:
+  if (!flags.describe || flags.describe.trim().length === 0):
+    AskUserQuestion("--describe requires a non-empty description. Example: --describe 'login form with email and social login'")
+    STOP
+  flags.describe = flags.describe.replace(/<[^>]*>/g, '').slice(0, 500)  // strip HTML, cap at 500 chars
+
 talisman = readTalismanSection("settings")
 if NOT talisman?.design_sync?.enabled:
   AskUserQuestion("design_sync.enabled is false. Enable it in talisman.yml to use this skill.")
@@ -131,7 +138,7 @@ timestamp = formatTimestamp()
 outputDir = "design-references/{timestamp}"
 Bash("mkdir -p {outputDir}")
 
-maxComponents = flags.components ?? talisman?.design_sync?.max_reference_components ?? 10
+maxComponents = flags.components ?? talisman?.design_sync?.max_reference_components ?? 5
 ```
 
 See [pipeline-phases.md](references/pipeline-phases.md) for detailed input parsing logic.
@@ -155,8 +162,9 @@ for url in figmaUrls:
   nodes = listing.components.slice(0, maxComponents)
   for node in nodes:
     result = figma_to_react(node.id)
-    Write("{outputDir}/extractions/{node.name}.tsx", result.code)
-    components.push({ name: node.name, code: result.code, nodeId: node.id, url })
+    safeName = node.name.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 64)  // SEC-002: path sanitization
+    Write("{outputDir}/extractions/{safeName}.tsx", result.code)
+    components.push({ name: node.name, safeName, code: result.code, nodeId: node.id, url })
 
 Write("{outputDir}/tokens-snapshot.json", extractDesignTokens(components))
 ```
@@ -174,8 +182,8 @@ if builderProfile === null:
 
 matchResults = []
 consecutiveFailures = 0
-timeout = talisman?.design_sync?.reference_timeout_ms ?? 30000
-threshold = talisman?.design_sync?.library_match_threshold ?? 0.6
+timeout = talisman?.design_sync?.reference_timeout_ms ?? 15000
+threshold = talisman?.design_sync?.library_match_threshold ?? 0.5
 
 for component in components:
   if consecutiveFailures >= 3:
@@ -282,21 +290,15 @@ See [report-format.md](references/report-format.md) for summary formatting.
 ## Output Directory Structure
 
 ```
-design-references/{timestamp}/
-├── extractions/                    # Raw figma-to-react output
-│   ├── Button.tsx
-│   ├── Header.tsx
-│   └── ...
-├── prototypes/                     # Synthesized prototypes
-│   ├── Button/
-│   │   ├── prototype.tsx           # React component
-│   │   └── prototype.stories.tsx   # Storybook CSF3 story
-│   ├── Header/
-│   │   ├── prototype.tsx
-│   │   └── prototype.stories.tsx
-│   └── ...
+tmp/design-prototype/{timestamp}/{component-name}/
+├── extraction.tsx                  # Raw figma-to-react output
+├── prototype.tsx                   # Synthesized React component
+├── prototype.stories.tsx           # Storybook CSF3 story
+└── match.json                      # Library match result for this component
+
+tmp/design-prototype/{timestamp}/
 ├── tokens-snapshot.json            # Extracted design tokens
-├── match-report.json               # Library match results
+├── match-report.json               # Library match results (all components)
 ├── flow-map.md                     # UX flow mapping (>= 2 components)
 ├── verify-report.md                # Verification results
 └── summary.json                    # Aggregate summary
@@ -385,10 +387,10 @@ design_sync:
   enabled: false                         # Master toggle (shared with design-sync)
   prototype_generation: true             # Enable prototype output (default: true)
   storybook_preview: true                # Generate Storybook stories (default: true)
-  max_reference_components: 10           # Max components to extract per URL
-  reference_timeout_ms: 30000            # Timeout per builder search call
-  library_timeout_ms: 60000              # Total timeout for library matching phase
-  library_match_threshold: 0.6           # Min score to accept a library match
+  max_reference_components: 5            # Max components to extract per URL
+  reference_timeout_ms: 15000            # Per-component figma_to_react timeout in ms (Phase 1 extraction)
+  library_timeout_ms: 10000             # Per-component UntitledUI search timeout in ms
+  library_match_threshold: 0.5          # Min score to accept a library match
 ```
 
 ## References

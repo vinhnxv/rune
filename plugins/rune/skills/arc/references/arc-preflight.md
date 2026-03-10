@@ -575,6 +575,7 @@ const ARC_TEAM_PREFIXES = [
   "arc-codex-sv-", "arc-codex-td-", "arc-codex-ga-", "arc-codex-tc-", "arc-codex-rq-",  // Codex phase handler teams (delegated to codex-phase-handler teammate)
   "rune-forge-", "rune-work-", "rune-review-", "rune-mend-", "rune-mend-deep-", "rune-audit-",  // sub-command teams
   "rune-brainstorm-",  // brainstorm skill teams (Solo/Roundtable/Deep modes)
+  "rune-prototype-",  // design-prototype skill teams (conditional — design_sync.enabled)
   "goldmask-"  // goldmask skill teams (Phase 5.7 delegation)
 ]
 

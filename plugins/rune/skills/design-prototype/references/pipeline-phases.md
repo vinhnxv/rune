@@ -9,8 +9,10 @@ const components = inventory.slice(0, maxComponents)  // talisman cap
 
 for (const comp of components) {
   try {
-    const ref = figma_to_react(url + '?node-id=' + comp.nodeId, comp.name)
-    Write(`${outputDir}/${comp.name}/figma-reference.tsx`, ref.code)
+    // Sanitize external API names before use in paths (SEC-003: path traversal prevention)
+    const safeName = comp.name.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 64)
+    const ref = figma_to_react(url + '?node-id=' + comp.nodeId, safeName)
+    Write(`${outputDir}/${safeName}/figma-reference.tsx`, ref.code)
     // Extract tokens from ref code
     tokens.push(...extractTokens(ref))
   } catch (e) {
@@ -68,10 +70,11 @@ Write(`${outputDir}/library-manifest.json`, usedPackages)
 ## Phase 3: Synthesize (Prototype Generation)
 
 ```javascript
-// Gate: React stack detected AND at least 1 library match
+// Always runs when React stack detected
+// When no library matches from Phase 2, falls back to raw figma-ref output
 for (const comp of componentsWithBothRefs) {
   const figmaRef = Read(`${comp}/figma-reference.tsx`)
-  const libraryMatch = Read(`${comp}/library-match.tsx`)
+  const libraryMatch = comp.hasLibraryMatch ? Read(`${comp}/library-match.tsx`) : null
 
   // Extract LAYOUT INTENT from figma-ref (flex, grid, hierarchy)
   // Extract REAL API from library-match (imports, props, variants)
@@ -90,8 +93,8 @@ Write(`${outputDir}/prototypes-manifest.json`, prototypeMetadata)
 
 **Inputs**: Phase 1 `figma-reference.tsx` + Phase 2 `library-match.tsx`
 **Outputs**: `prototype.tsx` + `prototype.stories.tsx` per component, report 04, `prototypes-manifest.json`
-**Gate**: React stack detected AND >= 1 library match from Phase 2
-**Conditional**: Skipped when Phase 2 produces no matches (falls back to figma-ref only report)
+**Gate**: React stack detected
+**Fallback**: When Phase 2 produces no library matches, synthesizes from figma-ref only (raw figma-ref output)
 
 ## Phase 3.5: UX Flow Mapping (Conditional)
 
@@ -124,15 +127,16 @@ Write(`${outputDir}/ux-patterns.md`, analyzeUXPatterns(prototypes))
 // Optional: page-level composition (>= 3 related components)
 if (relatedComponents.length >= 3) {
   for (const page of detectPages(relatedComponents)) {
-    Write(`${outputDir}/_pages/${page.name}.tsx`, composePage(page))
+    const safePageName = page.name.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 64)
+    Write(`${outputDir}/_pages/${safePageName}.tsx`, composePage(page))
   }
 }
 
-Write(`${outputDir}/reports/03b-ux-flow-mapping.md`, flowReport)
+Write(`${outputDir}/reports/03.5-ux-flow-mapping.md`, flowReport)
 ```
 
 **Inputs**: Phase 3 prototypes, Figma inventory
-**Outputs**: `flow-map.md`, enhanced stories (data states + interactions), `ux-patterns.md`, optional `_pages/`, report 03b
+**Outputs**: `flow-map.md`, enhanced stories (data states + interactions), `ux-patterns.md`, optional `_pages/`, report 03.5
 **Gate**: >= 2 prototype components
 **Conditional**: Page composition requires >= 3 related components
 
@@ -145,7 +149,7 @@ const elementCoverage = checkElements(figmaRefs, prototypes)      // element-lev
 const stateCoverage = checkStates(figmaRefs, stories)             // variants vs stories
 const apiCoverage = checkAPIs(libraryMatches, prototypes)         // library props vs usage
 
-Write(`${outputDir}/reports/04b-self-review.md`, selfReviewReport)
+Write(`${outputDir}/reports/04.5-self-review.md`, selfReviewReport)
 
 // Step 4.1: Storybook MCP validation (conditional)
 if (storybookMCP) {
@@ -169,7 +173,7 @@ Write(`${outputDir}/reports/05-verification-summary.md`, verificationReport)
 ```
 
 **Inputs**: All Phase 1-3 outputs
-**Outputs**: Reports 04b (self-review) + 05 (verification summary)
+**Outputs**: Reports 04.5 (self-review) + 05 (verification summary)
 **Steps**: 4.0 always runs; 4.1 conditional on Storybook MCP; 4.2 conditional on agent-browser; 4.3 merges all
 **Dimensions**: Completeness, Element Coverage, State Coverage, API Coverage
 
@@ -205,3 +209,18 @@ AskUserQuestion({
 **Inputs**: All reports from Phases 1-4
 **Outputs**: `PIPELINE-SUMMARY.md`, `SUMMARY.md`, user prompt
 **Always runs**: This phase has no gates
+
+## Crash Recovery
+
+If the design-prototype pipeline crashes mid-run, orphaned teams with prefix `rune-prototype-` may remain. On session resume:
+
+| Prefix | Recovery | Notes |
+|--------|----------|-------|
+| `rune-prototype-` | `prePhaseCleanup()` preflight scan (ARC_TEAM_PREFIXES) + `postPhaseCleanup()` (PHASE_PREFIX_MAP: `design_prototype`) | Conditional on design_sync.enabled. Filesystem fallback: `rm -rf "$CHOME/teams/rune-prototype-*/"` |
+
+Manual cleanup:
+```bash
+CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+find "$CHOME/teams/" -maxdepth 1 -type d -name "rune-prototype-*" -exec rm -rf {} +
+find "$CHOME/tasks/" -maxdepth 1 -type d -name "rune-prototype-*" -exec rm -rf {} +
+```

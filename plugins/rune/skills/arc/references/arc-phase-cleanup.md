@@ -48,8 +48,9 @@ const PHASE_PREFIX_MAP = {
   mend:                   ["rune-mend-", "arc-sage-"],          // mend sub-command + ephemeral elicitation sage
   design_iteration:       ["arc-design-iter-"],                 // Phase 7.6 (conditional — fidelity < threshold)
   test:                   ["arc-test-"],
+  design_prototype:       ["rune-prototype-"],                   // /rune:design-prototype standalone skill (conditional — design_sync.enabled)
 }
-// NOTE: 19 delegated phases (9 original + 1 storybook phase + 3 design phases + 1 UX phase + 5 Codex handler phases). Phases removed in v1.67.0 (audit, audit_mend) are NOT listed.
+// NOTE: 20 delegated phases (9 original + 1 storybook phase + 3 design phases + 1 UX phase + 5 Codex handler phases + 1 design-prototype). Phases removed in v1.67.0 (audit, audit_mend) are NOT listed.
 // Multi-prefix entries: plan_review has Layer 2 inspect team (arc-plan-inspect-), mend has ephemeral sage team (arc-sage-).
 // Design phases are conditional — only create teams when design_sync.enabled === true.
 // UX verification is conditional — only creates teams when ux.enabled === true + frontend files detected.

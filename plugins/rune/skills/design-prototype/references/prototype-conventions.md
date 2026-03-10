@@ -108,7 +108,7 @@ export const Default: Story = {
   args: {
     name: 'Jane Doe',
     email: 'jane@example.com',
-    avatarUrl: 'https://i.pravatar.cc/150?u=jane',
+    avatarUrl: '/placeholder-avatar.png',
   },
 }
 
