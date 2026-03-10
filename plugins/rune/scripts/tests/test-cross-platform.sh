@@ -322,7 +322,7 @@ touch "$TMP_DIR/collect-test/tmp/.rune-c.json"
 FILES=()
 _saved=$(shopt -p nullglob 2>/dev/null || true)
 shopt -s nullglob 2>/dev/null || true
-for _sf in "$TMP_DIR/collect-test/tmp/"/.rune-*.json; do
+for _sf in "$TMP_DIR/collect-test/tmp"/.rune-*.json; do
   FILES+=("$_sf")
 done
 eval "$_saved" 2>/dev/null || true
@@ -333,7 +333,7 @@ assert_eq "Loop collects 3 files" "3" "${#FILES[@]}"
 FILES_EMPTY=()
 _saved=$(shopt -p nullglob 2>/dev/null || true)
 shopt -s nullglob 2>/dev/null || true
-for _sf in "$TMP_DIR/collect-test/tmp/"/.nonexistent-*.json; do
+for _sf in "$TMP_DIR/collect-test/tmp"/.nonexistent-*.json; do
   FILES_EMPTY+=("$_sf")
 done
 eval "$_saved" 2>/dev/null || true
@@ -347,7 +347,7 @@ touch "$TMP_DIR/collect test/tmp/.rune-spaced.json"
 FILES_SPACED=()
 _saved=$(shopt -p nullglob 2>/dev/null || true)
 shopt -s nullglob 2>/dev/null || true
-for _sf in "$TMP_DIR/collect test/tmp/"/.rune-*.json; do
+for _sf in "$TMP_DIR/collect test/tmp"/.rune-*.json; do
   FILES_SPACED+=("$_sf")
 done
 eval "$_saved" 2>/dev/null || true
@@ -562,7 +562,7 @@ CWD="$MOCK_CWD"
 STATE_FILES=()
 _saved_nullglob=$(shopt -p nullglob 2>/dev/null || true)
 shopt -s nullglob 2>/dev/null || true
-for _sf in "${CWD}/tmp/"/.rune-*.json; do
+for _sf in "${CWD}/tmp"/.rune-*.json; do
   STATE_FILES+=("$_sf")
 done
 eval "$_saved_nullglob" 2>/dev/null || true
@@ -573,7 +573,7 @@ assert_eq "Collects state files correctly" "2" "${#STATE_FILES[@]}"
 STATE_FILES2=()
 _saved_nullglob=$(shopt -p nullglob 2>/dev/null || true)
 shopt -s nullglob 2>/dev/null || true
-for _sf in "${CWD}/tmp/"/.nonexistent-*.json; do
+for _sf in "${CWD}/tmp"/.nonexistent-*.json; do
   STATE_FILES2+=("$_sf")
 done
 eval "$_saved_nullglob" 2>/dev/null || true

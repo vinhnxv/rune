@@ -320,7 +320,7 @@ fi
 state_team_names=()
 if [[ -d "${CWD}/tmp/" ]]; then
   shopt -s nullglob
-  for sf in "${CWD}/tmp/"/.rune-*.json; do
+  for sf in "${CWD}/tmp"/.rune-*.json; do
     [[ ! -f "$sf" ]] && continue
     [[ -L "$sf" ]] && continue
     # Extract team_name ONLY from active state files (skip completed/stopped/failed)
@@ -406,7 +406,7 @@ fi
 cleaned_states=()
 if [[ -d "${CWD}/tmp/" ]]; then
   shopt -s nullglob
-  for f in "${CWD}/tmp/"/.rune-*.json; do
+  for f in "${CWD}/tmp"/.rune-*.json; do
     [[ ! -f "$f" ]] && continue
     [[ -L "$f" ]] && continue
     # Skip signal files handled by dedicated cleanup blocks above
@@ -518,7 +518,7 @@ shopt -u nullglob
 # ── Shutdown signal file cleanup ──
 # Clean up .rune-shutdown-signal-*.json files created by guard-context-critical.sh (Layer 1)
 shopt -s nullglob
-for f in "${CWD}/tmp/"/.rune-shutdown-signal-*.json; do
+for f in "${CWD}/tmp"/.rune-shutdown-signal-*.json; do
   [[ -f "$f" ]] || continue
   [[ -L "$f" ]] && continue
   # Session ownership check
@@ -536,7 +536,7 @@ shopt -u nullglob
 # ── Force shutdown signal file cleanup ──
 # Clean up .rune-force-shutdown-*.json files created by guard-context-critical.sh (Tier 3)
 shopt -s nullglob
-for f in "${CWD}/tmp/"/.rune-force-shutdown-*.json; do
+for f in "${CWD}/tmp"/.rune-force-shutdown-*.json; do
   [[ -f "$f" ]] || continue
   [[ -L "$f" ]] && continue
   # Session ownership check
@@ -572,7 +572,7 @@ if [[ -d "${CWD}/tmp/.rune-signals/" ]]; then
     [[ "$sdirname" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
     # Check if there's a matching state file with ownership info
     state_found=false
-    for sf in "${CWD}/tmp/"/.rune-*.json; do
+    for sf in "${CWD}/tmp"/.rune-*.json; do
       [[ ! -f "$sf" ]] && continue
       [[ -L "$sf" ]] && continue
       sf_team=$(jq -r '.team_name // empty' "$sf" 2>/dev/null || true)

@@ -100,7 +100,7 @@ _trace "ENTER detect-workflow-complete.sh"
 STATE_FILES=()
 _saved_nullglob=$(shopt -p nullglob 2>/dev/null || true)
 shopt -s nullglob 2>/dev/null || true
-for _sf in "${CWD}/tmp/"/.rune-*.json; do
+for _sf in "${CWD}/tmp"/.rune-*.json; do
   STATE_FILES+=("$_sf")
 done
 eval "$_saved_nullglob" 2>/dev/null || true

@@ -137,7 +137,7 @@ if [[ $orphan_count -gt 0 ]] && [[ -d "$CHOME/teams/" ]]; then
         _nullglob_was_set=1
         shopt -q nullglob && _nullglob_was_set=0
         shopt -s nullglob 2>/dev/null || true
-        for sf in "${CWD}/tmp/"/.rune-*.json; do
+        for sf in "${CWD}/tmp"/.rune-*.json; do
           [[ -f "$sf" ]] && [[ ! -L "$sf" ]] || continue
           sf_pid=$(jq -r '.owner_pid // empty' "$sf" 2>/dev/null || true)
           sf_cfg=$(jq -r '.config_dir // empty' "$sf" 2>/dev/null || true)
@@ -195,7 +195,7 @@ if [[ -d "${CWD}/tmp/" ]]; then
   # Collect dead owner PIDs from active state files
   dead_pids=()
   shopt -s nullglob 2>/dev/null
-  for sf in "${CWD}/tmp/"/.rune-*.json; do
+  for sf in "${CWD}/tmp"/.rune-*.json; do
     [[ -f "$sf" ]] && [[ ! -L "$sf" ]] || continue
     sf_status=$(jq -r '.status // empty' "$sf" 2>/dev/null || true)
     [[ "$sf_status" == "active" ]] || continue
