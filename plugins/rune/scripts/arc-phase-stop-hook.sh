@@ -304,11 +304,13 @@ if [[ -n "$_demote_result" ]]; then
         [[ -n "$_dp" ]] && _log_phase "phase_demoted" "$_dp" "reason=missing_skip_reason"
       done <<< "$_demoted_phases"
       # Validate JSON before writing (prevent corrupted checkpoint from killing the loop)
-      if echo "$CKPT_CONTENT" | jq -e '.' > "${CWD}/${CHECKPOINT_PATH}.tmp" 2>/dev/null; then
-        mv -f "${CWD}/${CHECKPOINT_PATH}.tmp" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true
+      # CDX-007 FIX: Use mktemp for unique temp file to avoid concurrent hook race
+      _ckpt_tmp=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null) || { _trace "WARNING: mktemp failed for checkpoint"; continue; }
+      if echo "$CKPT_CONTENT" | jq -e '.' > "$_ckpt_tmp" 2>/dev/null; then
+        mv -f "$_ckpt_tmp" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || rm -f "$_ckpt_tmp" 2>/dev/null
       else
         _trace "WARNING: demoted checkpoint JSON validation failed — skipping write"
-        rm -f "${CWD}/${CHECKPOINT_PATH}.tmp" 2>/dev/null
+        rm -f "$_ckpt_tmp" 2>/dev/null
         # Re-read original checkpoint to avoid corrupted in-memory state
         CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
       fi
@@ -625,7 +627,8 @@ if [[ -n "$CHOME" && "$CHOME" == /* && -d "$CHOME/teams/" ]]; then
       # Also check .session marker (TLC-004) for cross-session safety
       _zombie_session="$_zombie_dir/.session"
       if [[ -f "$_zombie_session" ]]; then
-        _zombie_sid=$(cat "$_zombie_session" 2>/dev/null || true)
+        # XBUG-009 FIX: Use jq to extract session_id from JSON, not cat
+        _zombie_sid=$(jq -r '.session_id // empty' "$_zombie_session" 2>/dev/null || true)
         if [[ -n "$_zombie_sid" && -n "$HOOK_SESSION_ID" && "$_zombie_sid" != "$HOOK_SESSION_ID" ]]; then
           continue  # Different session — skip
         fi

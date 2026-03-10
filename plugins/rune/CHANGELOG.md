@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.146.1] - 2026-03-10
+
+### Fixed
+- **XBUG-002: Null byte injection in team name validation** — Strip null bytes before regex validation to prevent bypass in bash 3.2 (macOS)
+- **CDXB-001: TSV parsing with empty fields** — Use individual jq calls instead of TSV parsing to handle empty `subagent_type` field correctly in `guard-context-critical.sh`
+- **CDXB-002: Wrong state file selection** — Filter state files by `TEAM_NAME` instead of taking first match in `validate-test-evidence.sh`
+- **CDX-001: Command injection via sourcing** — Use `SCRIPT_DIR` (trusted) instead of `CWD` (untrusted) for sourcing in arc-batch/hierarchy/issues stop hooks
+- **XBUG-009: JSON parsing with cat** — Use `jq -r` for JSON extraction instead of `cat` in `arc-phase-stop-hook.sh`
+- **CDX-006: Regex metacharacter escaping** — Escape regex metacharacters in prefix for literal grep matching in `arc-batch-preflight.sh`
+- **CDX-007: Race condition with temp files** — Use `mktemp` for unique temp files instead of fixed `.tmp` suffix in `arc-phase-stop-hook.sh`, `on-session-stop.sh`, `detect-workflow-complete.sh`
+
+### Security
+- Cross-model code review (Claude + Codex) verified all fixes follow security best practices
+- All 150 hook script tests pass
+
 ## [1.146.0] - 2026-03-10
 
 ### Added

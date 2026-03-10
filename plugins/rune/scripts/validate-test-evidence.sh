@@ -87,11 +87,20 @@ CURRENT_CFG=$(cd "$CHOME" 2>/dev/null && pwd -P || echo "$CHOME")
 CURRENT_PID="$PPID"
 
 # Check team state file for session ownership
-STATE_FILE="$CWD/tmp/.rune-work-*.json"
-STATE_FILES=$(find "$CWD/tmp" -maxdepth 1 -name '.rune-work-*.json' 2>/dev/null | head -1)
-if [[ -n "$STATE_FILES" ]]; then
-  STATE_CFG=$(jq -r '.config_dir // empty' "$STATE_FILES" 2>/dev/null || echo "")
-  STATE_PID=$(jq -r '.owner_pid // empty' "$STATE_FILES" 2>/dev/null || echo "")
+# CDXB-002 FIX: Filter state files by TEAM_NAME instead of taking the first match
+STATE_FILE=""
+for sf in "$CWD/tmp/.rune-work-"*.json; do
+  [[ -f "$sf" ]] || continue
+  sf_team=$(jq -r '.team_name // empty' "$sf" 2>/dev/null || echo "")
+  if [[ "$sf_team" == "$TEAM_NAME" ]]; then
+    STATE_FILE="$sf"
+    break
+  fi
+done
+
+if [[ -n "$STATE_FILE" ]]; then
+  STATE_CFG=$(jq -r '.config_dir // empty' "$STATE_FILE" 2>/dev/null || echo "")
+  STATE_PID=$(jq -r '.owner_pid // empty' "$STATE_FILE" 2>/dev/null || echo "")
 
   if [[ -n "$STATE_CFG" ]] && [[ "$STATE_CFG" != "$CURRENT_CFG" ]]; then
     exit 0  # Different installation, skip
