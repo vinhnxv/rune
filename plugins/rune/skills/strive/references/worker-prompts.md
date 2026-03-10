@@ -637,6 +637,83 @@ if (!Glob(trustHierarchyPath).length) {
 // When false: step numbering goes 4.7 → 4.8 (no gap, no overhead)
 ```
 
+### Per-Task Step 4.7.6: STORYBOOK PROTOTYPE ACCEPTANCE CRITERIA (conditional)
+
+When a task has `has_design_context === true` AND the plan frontmatter contains `design_references_path` AND prototypes exist, inject step 4.7.6 into both rune-smith and trial-forger lifecycles between step 4.7.5 (TRUST HIERARCHY) and step 4.7.7 (UX FLOW REQUIREMENTS). When conditions are not met, this step is omitted entirely — zero overhead.
+
+```javascript
+// Injected into worker prompt when task.has_design_context === true
+// AND plan frontmatter has design_references_path AND prototypes exist
+// Placed between step 4.7.5 (TRUST HIERARCHY) and step 4.7.7 (UX FLOW REQUIREMENTS)
+const deviseRefDir = planFrontmatter?.design_references_path
+const prototypesManifest = deviseRefDir ? tryRead(`${deviseRefDir}/prototypes-manifest.json`) : null
+
+if (prototypesManifest) {
+`    4.7.6. STORYBOOK PROTOTYPE ACCEPTANCE CRITERIA (design-prototype active):
+           For EACH component you implement:
+             1. READ prototype.stories.tsx → VISUAL acceptance criteria
+                - Includes ALL data states: Default, Empty, Loading, Error
+                - Includes interaction states: Submit, Validation, Confirmation
+             2. READ prototype.tsx → expected component STRUCTURE
+             3. USE library-match.tsx → install from library-manifest.json
+             4. VERIFY: implementation should match prototype visual output
+
+           Trust hierarchy: library-match > prototype > figma-reference
+           - library-match.tsx components are from verified design system libraries (HIGH trust ~85-95%)
+           - prototype.tsx is AI-generated preview code (MEDIUM trust ~60-70%)
+           - figma-reference.tsx is raw Figma extraction (LOW trust ~50-60%)
+           When conflicts exist, prefer higher-trust source.
+
+           IMPORTANT: Prototypes are PREVIEW-ONLY — implement REAL components.
+           Do NOT copy-paste prototype code. Extract INTENT and STRUCTURE only.
+           Use library components where library-match.tsx provides a match.`
+}
+
+// Only inject this step when prototypesManifest exists
+// When missing: step numbering goes 4.7.5 → 4.7.7 or 4.8 (no gap, no overhead)
+```
+
+### Per-Task Step 4.7.7: UX FLOW REQUIREMENTS (conditional)
+
+When a task has `has_design_context === true` AND the plan frontmatter contains `design_references_path` AND `flow-map.md` exists, inject step 4.7.7 into both rune-smith and trial-forger lifecycles between step 4.7.6 (PROTOTYPE ACCEPTANCE) and step 4.8 (COMPONENT CONSTRAINTS). When conditions are not met, this step is omitted entirely — zero overhead.
+
+```javascript
+// Injected into worker prompt when task.has_design_context === true
+// AND flow-map.md exists in design_references_path
+// Placed between step 4.7.6 (PROTOTYPE ACCEPTANCE) and step 4.8 (COMPONENT CONSTRAINTS)
+const flowMap = deviseRefDir ? tryRead(`${deviseRefDir}/flow-map.md`) : null
+const uxPatterns = deviseRefDir ? tryRead(`${deviseRefDir}/ux-patterns.md`) : null
+
+if (flowMap) {
+`    4.7.7. UX FLOW REQUIREMENTS (design-prototype active):
+           READ: ${deviseRefDir}/flow-map.md → screen navigation map
+           READ: ${deviseRefDir}/ux-patterns.md → notification/status patterns (if available)
+
+           For EACH screen you implement:
+             1. IMPLEMENT navigation to/from this screen (per flow-map action map)
+             2. IMPLEMENT all data states (loading, empty, error) per prototype stories
+             3. IMPLEMENT notification feedback (toast/modal/inline per ux-patterns.md)
+             4. IMPLEMENT form validation (inline errors, field focus, submit feedback)
+             5. HANDLE destructive actions with confirmation modal before executing
+
+           UX checklist per component:
+             - [ ] Loading state visible while fetching data
+             - [ ] Empty state with helpful message when no data
+             - [ ] Error state with retry action when fetch fails
+             - [ ] Form validation shows errors on submit AND inline on blur
+             - [ ] Success actions show toast/redirect feedback
+             - [ ] Destructive actions show confirmation modal
+             - [ ] Navigation updates URL and breadcrumb/active state
+
+           IMPORTANT: UX artifacts are READ-ONLY references. Do NOT modify them.
+           If flow-map conflicts with existing navigation patterns, follow existing patterns
+           and note the discrepancy in your Seal message for design review.`
+}
+
+// Only inject this step when flowMap exists
+// When missing: step numbering goes 4.7.5/4.7.6 → 4.8 (no gap, no overhead)
+```
+
 ## Component Constraints Injection (conditional)
 
 ### Step 4.8: COMPONENT CONSTRAINTS (conditional)
