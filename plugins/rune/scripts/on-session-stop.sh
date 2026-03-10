@@ -318,7 +318,7 @@ fi
 # This scopes cleanup to teams owned by workflows in the current CWD,
 # preventing cross-session interference when multiple sessions run concurrently.
 state_team_names=()
-if [[ -d "${CWD}/tmp/" ]]; then
+if [[ -d "${CWD}/tmp" ]]; then
   shopt -s nullglob
   for sf in "${CWD}/tmp"/.rune-*.json; do
     [[ ! -f "$sf" ]] && continue
@@ -404,7 +404,7 @@ fi
 
 # ── AUTO-CLEAN PHASE 2: State files (set active → stopped) ──
 cleaned_states=()
-if [[ -d "${CWD}/tmp/" ]]; then
+if [[ -d "${CWD}/tmp" ]]; then
   shopt -s nullglob
   for f in "${CWD}/tmp"/.rune-*.json; do
     [[ ! -f "$f" ]] && continue
