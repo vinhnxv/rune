@@ -76,7 +76,9 @@ fi
 # Guard: only write once per session (idempotent on resume/clear/compact).
 # SEC: Validate session_id format before writing to env file (shell injection prevention).
 if [[ -n "$SESSION_ID" && -n "${CLAUDE_ENV_FILE:-}" ]]; then
-  if [[ "$SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+  # COMPAT: Bash 3.2 (macOS) does not support {n,m} quantifiers in [[ =~ ]].
+  # Use + quantifier and length check instead.
+  if [[ "$SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]] && [[ ${#SESSION_ID} -le 128 ]]; then
     if ! grep -q "RUNE_SESSION_ID" "$CLAUDE_ENV_FILE" 2>/dev/null; then
       printf 'export RUNE_SESSION_ID="%s"\n' "$SESSION_ID" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true
       _trace "Injected RUNE_SESSION_ID=${SESSION_ID} into CLAUDE_ENV_FILE"
