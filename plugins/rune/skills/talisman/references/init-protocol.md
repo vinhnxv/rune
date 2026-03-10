@@ -66,6 +66,19 @@ Based on detected stack, customize the template:
 - `context_monitor:` / `context_weaving:` — always include defaults
 - `integrations:` — if `.mcp.json` contains custom MCP servers (not built-in like context7)
 
+**Prototype pipeline fields (v1.147.0) — under `design_sync:`:**
+
+Include these when `design_sync.enabled: true` and React/TypeScript stack is detected:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `prototype_generation` | bool | `true` | Stage 3: synthesize prototypes from figma-ref + library-match. When false, pipeline stops at matching. |
+| `storybook_preview` | bool | `true` | Generate Storybook CSF3 stories alongside prototypes. Creates Default, Loading, Error, Empty, Disabled stories. |
+| `max_reference_components` | int | `5` | Max components to extract per Figma URL in Phase 1. Higher values increase pipeline duration. |
+| `reference_timeout_ms` | int | `15000` | Per-component figma_to_react timeout in ms. Components exceeding this are skipped. |
+| `library_timeout_ms` | int | `10000` | Per-component UntitledUI search timeout in ms for Phase 2 matching. |
+| `library_match_threshold` | float | `0.5` | Minimum confidence for library match (0.0-1.0). Below threshold → no library-match.tsx generated. |
+
 **MCP Integration Detection (Phase 2.5):**
 ```
 If .mcp.json exists:

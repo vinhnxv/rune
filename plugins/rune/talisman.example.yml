@@ -1648,6 +1648,24 @@ context_weaving:
 #     auto_scope: frontend-only              # Default scope assumption: frontend-only | full-stack (default: frontend-only)
 #                                            # frontend-only: workers create interfaces + mock data, skip backend.
 #                                            # full-stack: workers include backend implementation in scope.
+#   # --- Prototype pipeline (v1.147.0) ---
+#   prototype_generation: true               # Stage 3: synthesize prototypes from figma-ref + library-match (default: true)
+#                                            # When true, Phase 3 generates prototype.tsx files combining Figma layout
+#                                            # intent with real library component APIs. When false, pipeline stops at matching.
+#   storybook_preview: true                  # Generate Storybook CSF3 stories alongside prototypes (default: true)
+#                                            # Creates prototype.stories.tsx with Default, Loading, Error, Empty, Disabled stories.
+#                                            # Phase 3.5 adds data state and interaction stories when >= 2 components.
+#   max_reference_components: 5              # Max components to extract per Figma URL (default: 5)
+#                                            # Caps the number of components processed in Phase 1 extraction.
+#                                            # Higher values increase pipeline duration proportionally.
+#   reference_timeout_ms: 15000              # Per-component figma_to_react timeout in ms (default: 15000)
+#                                            # Components exceeding this timeout are skipped with a warning.
+#                                            # Applies to Phase 1 extraction only.
+#   library_timeout_ms: 10000                # Per-component UntitledUI search timeout in ms (default: 10000)
+#                                            # Applies to Phase 2 library matching search_components calls.
+#   library_match_threshold: 0.5             # Minimum confidence for library match (0.0-1.0, default: 0.5)
+#                                            # Matches below this threshold are discarded. Component falls back
+#                                            # to figma-ref only (no library-match.tsx generated).
 
 # ──────────────────────────────────────────────────────────────────
 # MCP Tool Integrations

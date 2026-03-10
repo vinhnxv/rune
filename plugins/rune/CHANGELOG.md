@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.147.0] - 2026-03-11
+
+### Added
+- **`/rune:design-prototype` skill** — Standalone Figma-to-Storybook prototype generator with 5-phase pipeline (extract → match → synthesize → verify → present). Two input modes: Figma URL (full pipeline) or text description (library search only). Agent team support for complex designs (>= 3 components). Gated by `design_sync.enabled` talisman config.
+- **Talisman config**: Added prototype pipeline fields under `design_sync:` section (`prototype_generation`, `storybook_preview`, `max_reference_components`, `reference_timeout_ms`, `library_timeout_ms`, `library_match_threshold`)
+- **Routing**: Added `/rune:design-prototype` to using-rune intent routing table
+
 ## [1.146.5] - 2026-03-11
 
 ### Fixed

@@ -757,6 +757,7 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | codex-review | Cross-model code review — runs Claude and Codex agents in parallel, cross-verifies findings, merges consensus issues into a unified TOME. Use for critical changes where independent model validation adds confidence |
 | context-weaving | Context overflow/rot prevention |
 | debug | Structured debugging with ACH hypothesis investigation. 4-phase protocol (Observe → Narrow → Hypothesize → Fix) with evidence tiers and consistency matrix |
+| design-prototype | Standalone Figma-to-Storybook prototype generator — 5-phase pipeline (extract → match → synthesize → verify → present). Two input modes: Figma URL or text description. Gated by `design_sync.enabled` |
 | design-sync | Figma design synchronization — 3-phase pipeline (PLAN: extraction → WORK: implementation → REVIEW: fidelity). VSM format, fidelity scoring (6 dimensions), iterative refinement. Gated by `design_sync.enabled` |
 | elicitation | Curated structured reasoning methods (Tree of Thoughts, Pre-mortem, Red Team, 5 Whys, etc.) with phase-aware auto-selection |
 | file-todos | Unified file-based todo tracking (schema v2, status history, per-source manifests, DAG ordering, 13 subcommands). Always active (mandatory). Session-scoped in `tmp/{workflow}/{id}/todos/`. |

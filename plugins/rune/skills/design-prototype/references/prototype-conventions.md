@@ -1,0 +1,204 @@
+# Prototype Code Conventions
+
+## General Rules
+
+- All generated `.tsx` files MUST include the header comment:
+  ```typescript
+  // PROTOTYPE — adapt before production use
+  ```
+- Import real library components (from `library-match.tsx`), NOT hand-rolled HTML
+- Props interface exported for downstream consumers
+- No inline styles — Tailwind only
+- Responsive: mobile-first with `sm:` / `md:` / `lg:` breakpoints
+
+## Language & Framework
+
+- **React** with **TypeScript** — explicit type annotations on all props and return types
+- **Tailwind CSS v4** for styling — semantic colors (`text-foreground`, `bg-background`), spacing scale (`gap-4`, `p-6`)
+- Functional components only (no class components)
+- Named exports (not default exports)
+
+## File Naming
+
+| Type | Convention | Example |
+|------|-----------|---------|
+| Component directory | kebab-case | `user-profile/` |
+| Component file | `prototype.tsx` | `user-profile/prototype.tsx` |
+| Story file | `prototype.stories.tsx` | `user-profile/prototype.stories.tsx` |
+| Figma reference | `figma-reference.tsx` | `user-profile/figma-reference.tsx` |
+| Library match | `library-match.tsx` | `user-profile/library-match.tsx` |
+| Mapping metadata | `mapping.json` | `user-profile/mapping.json` |
+
+## Component Structure
+
+```typescript
+// PROTOTYPE — adapt before production use
+
+import { Button } from '@untitledui/button'
+import { Card, CardHeader, CardContent } from '@untitledui/card'
+
+export interface UserProfileProps {
+  name: string
+  email: string
+  avatarUrl?: string
+  isLoading?: boolean
+  error?: string
+  onEdit?: () => void
+}
+
+export function UserProfile({
+  name,
+  email,
+  avatarUrl,
+  isLoading = false,
+  error,
+  onEdit,
+}: UserProfileProps) {
+  if (isLoading) {
+    return <div className="animate-pulse rounded-lg bg-muted h-48 w-full" />
+  }
+
+  if (error) {
+    return <div className="text-destructive p-4">{error}</div>
+  }
+
+  return (
+    <Card className="w-full max-w-sm">
+      <CardHeader className="flex items-center gap-3">
+        {avatarUrl && (
+          <img
+            src={avatarUrl}
+            alt={name}
+            className="h-12 w-12 rounded-full object-cover"
+          />
+        )}
+        <div>
+          <h3 className="text-lg font-semibold text-foreground">{name}</h3>
+          <p className="text-sm text-muted-foreground">{email}</p>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Button variant="outline" size="sm" onClick={onEdit}>
+          Edit Profile
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+```
+
+## Storybook Stories (CSF3 Format)
+
+All prototypes MUST have a companion `.stories.tsx` file using Component Story Format 3:
+
+```typescript
+import type { Meta, StoryObj } from '@storybook/react'
+import { UserProfile } from './prototype'
+
+const meta = {
+  title: 'Prototypes/UserProfile',
+  component: UserProfile,
+  tags: ['autodocs'],
+} satisfies Meta<typeof UserProfile>
+
+export default meta
+type Story = StoryObj<typeof meta>
+
+export const Default: Story = {
+  args: {
+    name: 'Jane Doe',
+    email: 'jane@example.com',
+    avatarUrl: 'https://i.pravatar.cc/150?u=jane',
+  },
+}
+
+export const Loading: Story = {
+  args: {
+    ...Default.args,
+    isLoading: true,
+  },
+}
+
+export const Error: Story = {
+  args: {
+    ...Default.args,
+    error: 'Failed to load profile',
+  },
+}
+
+export const Empty: Story = {
+  args: {
+    name: '',
+    email: '',
+  },
+}
+
+export const Disabled: Story = {
+  args: {
+    ...Default.args,
+    onEdit: undefined,
+  },
+}
+```
+
+### Required Stories
+
+Every prototype MUST include these baseline stories:
+
+| Story | Purpose | Args Pattern |
+|-------|---------|-------------|
+| `Default` | Happy path with realistic data | All required props + common optionals |
+| `Loading` | Loading/skeleton state | `isLoading: true` |
+| `Error` | Error state display | `error: 'descriptive message'` |
+| `Empty` | Empty/no-data state | Empty arrays, blank strings |
+| `Disabled` | Disabled interaction state | `disabled: true` or handlers removed |
+
+### Phase 3.5 Additional Stories (UX Flow Mapping)
+
+When UX flow mapping runs, these additional stories are generated:
+
+**Data state stories:**
+- `WithData` — populated with realistic mock data
+- `EmptyState` — zero items, empty collections
+- `LoadingState` — skeleton/spinner during fetch
+- `ErrorState` — API failure with retry option
+
+**Interaction stories:**
+- `SubmitLoading` — form submission in progress
+- `ValidationErrors` — form with validation errors shown
+- `ModalOpen` — modal/dialog in open state
+
+## Tailwind Conventions
+
+### Colors
+Use semantic color tokens, not raw values:
+- `text-foreground` / `text-muted-foreground` (not `text-gray-900`)
+- `bg-background` / `bg-muted` (not `bg-white`)
+- `border-border` (not `border-gray-200`)
+- `text-destructive` for errors
+- `text-primary` for actions
+
+### Spacing
+Use the spacing scale consistently:
+- `gap-2` / `gap-3` / `gap-4` for flex/grid gaps
+- `p-4` / `p-6` for padding
+- `space-y-2` / `space-y-4` for vertical rhythm
+
+### Responsive
+Mobile-first with breakpoint modifiers:
+```typescript
+<div className="flex flex-col gap-4 sm:flex-row sm:items-center md:gap-6 lg:max-w-4xl">
+```
+
+Breakpoint usage:
+- Default (no prefix): mobile (< 640px)
+- `sm:` — small screens (>= 640px)
+- `md:` — medium screens (>= 768px)
+- `lg:` — large screens (>= 1024px)
+
+## Import Rules
+
+1. Import from library packages detected in Phase 2 (e.g., `@untitledui/*`)
+2. Never import from `figma-reference.tsx` — it is a reference only
+3. Group imports: library components first, then local utilities
+4. Use the exact component API from `library-match.tsx` — do not invent props
