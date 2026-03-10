@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.146.4] - 2026-03-11
+
+### Fixed
+- **Double-slash in glob patterns** — Fix 13 instances across 4 hook scripts where `"${CWD}/tmp/"/.rune-*` produced `tmp//.rune-*` in trace logs. Changed quote boundary to `"${CWD}/tmp"/.rune-*`. Cosmetic fix (POSIX normalizes `//`), but eliminates confusing diagnostic output.
+
 ## [1.146.3] - 2026-03-11
 
 ### Changed
