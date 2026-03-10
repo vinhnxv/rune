@@ -40,67 +40,178 @@ if (designAware) {
 }
 ```
 
-## Design Inventory Agent (conditional, Phase 0 post-step)
+## Design Pipeline Agent (conditional, Phase 0 post-step)
 
-When `design_sync_candidate === true` AND `talisman.design_sync.enabled === true`, spawn a lightweight design-inventory-agent that calls `figma_list_components` MCP tool to pre-populate the component inventory for the plan.
+When `design_sync_candidate === true` AND `talisman.design_sync.enabled === true`, spawn a design-pipeline-agent that runs the full design-prototype 3-stage pipeline (extract, match, synthesize) to produce `design-references/` with prototypes, library matches, and UX flow mapping.
+
+Falls back to `figma_list_components`-only inventory when the design-prototype skill is not installed.
 
 ```javascript
-// Conditional design research agent — only when design_sync_candidate + talisman enabled
+// Conditional design pipeline agent — only when design_sync_candidate + talisman enabled
 const designSyncEnabled = talisman?.design_sync?.enabled === true
 
 if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
+  // Resolve output directory — explicitly passed to avoid path mismatch
+  // (design-prototype defaults to design-references/{timestamp}, but devise needs tmp/plans/{timestamp}/design-references/)
+  const outputDir = `tmp/plans/${timestamp}/design-references`
+
+  // Check if design-prototype skill is installed (Shard 1 dependency)
+  const designPrototypeInstalled = Glob("plugins/rune/skills/design-prototype/SKILL.md").length > 0
+    || Glob("${CLAUDE_PLUGIN_ROOT}/skills/design-prototype/SKILL.md").length > 0
+
   // ATE-1 COMPLIANT: Agent joins rune-plan-{timestamp} team created in Phase -1.
   TaskCreate({
-    subject: "Extract Figma design inventory",
-    description: "Call figma_list_components MCP tool, extract component inventory for all Figma URLs",
-    activeForm: "Extracting design inventory"
+    subject: "Run design prototype pipeline",
+    description: designPrototypeInstalled
+      ? "Run full 3-stage pipeline: extract → match → synthesize. Output to design-references/"
+      : "Fallback: extract component inventory via figma_list_components only",
+    activeForm: "Running design pipeline"
   })
 
-  Agent({
-    name: 'design-inventory-agent',
-    subagent_type: 'general-purpose',
-    team_name: `rune-plan-${timestamp}`,
-    prompt: `You are a design inventory specialist.
+  if (designPrototypeInstalled) {
+    // Option A: Inline delegation — extend agent prompt with full pipeline stages
+    Agent({
+      name: 'design-pipeline-agent',
+      subagent_type: 'general-purpose',
+      team_name: `rune-plan-${timestamp}`,
+      prompt: `You are a design prototype pipeline specialist.
 
-      ## Assignment
-      Figma URLs (${figmaUrls.length} total): ${JSON.stringify(figmaUrls)}
-      Primary URL: ${figmaUrls[0]}
+        ## Assignment
+        Figma URLs (${figmaUrls.length} total): ${JSON.stringify(figmaUrls)}
+        Primary URL: ${figmaUrls[0]}
+        Output directory: ${outputDir}
+        Max components: ${talisman?.design_sync?.max_reference_components ?? 5}
 
-      ## MCP Tool Availability
-      Two Figma MCP namespaces may be available. Try in this order:
-      1. **Rune tools** (preferred): figma_list_components, figma_fetch_design, figma_inspect_node
-      2. **Official Figma MCP** (fallback): mcp__claude_ai_Figma__get_metadata, mcp__claude_ai_Figma__get_design_context
+        ## Pipeline Overview
+        Run the design-prototype 3-stage pipeline inline. Each stage has independent
+        error boundaries — Stage 2 failures must NOT abort Stage 1 outputs.
 
-      **IMPORTANT — MCP namespace verification**: Before calling any MCP tool, verify it exists
-      in your available MCP server list. Tool name resolution relies on Claude Code's MCP
-      namespace isolation — the same tool may be unavailable if its server is not registered.
-      If figma_list_components is not listed in your available tools, skip to the Official MCP
-      fallback (step 2). Do not attempt to call a tool that is not present in your tool list.
+        ## MCP Tool Availability
+        Two Figma MCP namespaces may be available. Try in this order:
+        1. **Rune tools** (preferred): figma_list_components, figma_fetch_design, figma_inspect_node, figma_to_react
+        2. **Official Figma MCP** (fallback): mcp__claude_ai_Figma__get_metadata, mcp__claude_ai_Figma__get_design_context
 
-      To extract fileKey from the Figma URL for Official MCP tools:
-      - Parse: https://www.figma.com/design/{fileKey}/{name}?node-id={nodeId}
-      - fileKey is the alphanumeric segment after /design/ or /file/
-      - nodeId in URL uses hyphens ("1-3"); Official MCP needs colons ("1:3")
+        **IMPORTANT — MCP namespace verification**: Before calling any MCP tool, verify it exists
+        in your available MCP server list. If figma_list_components is not listed in your available
+        tools, skip to the Official MCP fallback. Do not attempt to call a tool that is not present
+        in your tool list.
 
-      ## Lifecycle
-      1. Claim the "Extract Figma design inventory" task via TaskList/TaskUpdate
-      2. For EACH URL in the Figma URLs list:
-         a. **Try Rune tools first**: Call figma_list_components(url="{url}")
-            - On success: extract component names, node IDs, and types from result
-            - Record mcpProvider: "rune" in output
-         b. **If Rune tools fail** (tool not found / MCP unavailable): fall back to Official MCP:
-            - Extract fileKey from the Figma URL
-            - Call mcp__claude_ai_Figma__get_metadata(fileKey="{fileKey}")
-            - Parse component names and node IDs from XML response
-            - Record mcpProvider: "official" in output
-      3. Write combined component inventory to: tmp/plans/${timestamp}/design-inventory.json
-         Format: { "components": [{ "name": "...", "node_id": "...", "type": "...", "source_url": "..." }], "figma_urls": [...], "mcpProvider": "rune|official" }
-      4. If BOTH tool namespaces fail for a URL, record:
-         { "error": "Figma MCP not available", "figma_url": "{url}" } in components array
-      5. Do not write implementation code. Inventory only.
-      6. Mark task complete via TaskUpdate`,
-    run_in_background: true
-  })
-  // Output is read during Phase 2 (Synthesize) to populate Component Inventory table
+        To extract fileKey from the Figma URL for Official MCP tools:
+        - Parse: https://www.figma.com/design/{fileKey}/{name}?node-id={nodeId}
+        - fileKey is the alphanumeric segment after /design/ or /file/
+        - nodeId in URL uses hyphens ("1-3"); Official MCP needs colons ("1:3")
+
+        ## Stage 1: Extract (REQUIRED — abort pipeline only if this fails entirely)
+        1. Claim the "Run design prototype pipeline" task via TaskList/TaskUpdate
+        2. Create output directory: Bash("mkdir -p ${outputDir}/extractions ${outputDir}/prototypes")
+        3. For EACH URL in the Figma URLs list:
+           a. Call figma_list_components(url="{url}") to discover components
+           b. Cap to maxComponents (sorted by visual hierarchy)
+           c. For each component: call figma_to_react(nodeId) to get reference JSX + Tailwind
+              - On success: write to ${outputDir}/extractions/{safeName}.tsx
+              - On failure: warn, skip this component, continue with others
+           d. If Rune tools fail: fall back to Official MCP for component listing
+        4. Write ${outputDir}/tokens-snapshot.json with design token summary
+        5. Write ${outputDir}/inventory.json with component list:
+           Format: { "components": [{ "name": "...", "node_id": "...", "type": "...", "source_url": "...", "extraction_path": "..." }], "figma_urls": [...], "mcpProvider": "rune|official" }
+
+        If ALL extractions fail for ALL URLs → write inventory.json with error entries,
+        skip Stages 2-3, proceed to Stage 1 output finalization, then mark task complete.
+
+        ## Stage 2: Match (CONDITIONAL — requires UI builder MCP, failures are non-fatal)
+        **Error boundary**: Stage 2 runs inside its own try/catch. Any failure here
+        preserves all Stage 1 outputs intact.
+
+        1. Check if a UI builder MCP is available (e.g., search_components tool)
+           - If not available: skip Stage 2 entirely, log "No UI builder MCP — skipping library match"
+        2. For each extracted component:
+           a. Search builder library: search_components("{component.name}")
+           b. Circuit breaker: 3 consecutive failures → skip remaining matches
+           c. Record match result with confidence score
+        3. Write ${outputDir}/match-report.json with all match results
+        4. Write ${outputDir}/library-manifest.json with install commands for matched components
+
+        ## Stage 3: Synthesize (CONDITIONAL — requires at least 1 extraction from Stage 1)
+        **Error boundary**: Per-component try/catch. One failure does not abort others.
+
+        1. For each extracted component:
+           a. If library match exists (from Stage 2): merge reference structure with library API
+           b. If no match: use Figma reference code with Tailwind styling as-is
+           c. Write ${outputDir}/prototypes/{componentName}/prototype.tsx
+           d. Write ${outputDir}/prototypes/{componentName}/prototype.stories.tsx (CSF3 format)
+              - Include data state stories: Default, Empty, Loading, Error
+              - Include interaction states where applicable
+        2. If >= 2 components extracted: generate UX flow mapping
+           a. Analyze inter-component relationships (navigation, data flow)
+           b. Write ${outputDir}/flow-map.md with screen-to-screen navigation map
+           c. Write ${outputDir}/ux-patterns.md with notification/status patterns
+        3. Write ${outputDir}/prototypes-manifest.json listing all generated prototypes:
+           Format: { "components": [{ "name": "...", "prototype_path": "...", "story_path": "...", "has_library_match": bool }] }
+        4. Write ${outputDir}/SUMMARY.md with per-component visual intent + recommendation
+
+        ## Finalization
+        1. Verify output directory has at minimum: inventory.json
+        2. Mark task complete via TaskUpdate
+
+        ## Error Handling
+        - Stage 1 failure (all URLs fail): write error inventory.json, skip Stages 2-3
+        - Stage 2 failure: preserve Stage 1 output, skip Stage 2, continue to Stage 3
+        - Stage 3 per-component failure: skip failed component, continue with others
+        - MCP timeout: use talisman design_sync.reference_timeout_ms (default: 15000ms)`,
+      run_in_background: true
+    })
+  } else {
+    // Fallback: design-prototype skill not installed — inventory only (matches pre-Shard-2 behavior)
+    Agent({
+      name: 'design-inventory-agent',
+      subagent_type: 'general-purpose',
+      team_name: `rune-plan-${timestamp}`,
+      prompt: `You are a design inventory specialist (fallback mode — design-prototype skill not installed).
+
+        ## Assignment
+        Figma URLs (${figmaUrls.length} total): ${JSON.stringify(figmaUrls)}
+        Primary URL: ${figmaUrls[0]}
+        Output directory: ${outputDir}
+
+        ## MCP Tool Availability
+        Two Figma MCP namespaces may be available. Try in this order:
+        1. **Rune tools** (preferred): figma_list_components, figma_fetch_design, figma_inspect_node
+        2. **Official Figma MCP** (fallback): mcp__claude_ai_Figma__get_metadata, mcp__claude_ai_Figma__get_design_context
+
+        **IMPORTANT — MCP namespace verification**: Before calling any MCP tool, verify it exists
+        in your available MCP server list. If figma_list_components is not listed in your available
+        tools, skip to the Official MCP fallback. Do not attempt to call a tool that is not present
+        in your tool list.
+
+        To extract fileKey from the Figma URL for Official MCP tools:
+        - Parse: https://www.figma.com/design/{fileKey}/{name}?node-id={nodeId}
+        - fileKey is the alphanumeric segment after /design/ or /file/
+        - nodeId in URL uses hyphens ("1-3"); Official MCP needs colons ("1:3")
+
+        ## Lifecycle
+        1. Claim the "Run design prototype pipeline" task via TaskList/TaskUpdate
+        2. Create output directory: Bash("mkdir -p ${outputDir}")
+        3. For EACH URL in the Figma URLs list:
+           a. **Try Rune tools first**: Call figma_list_components(url="{url}")
+              - On success: extract component names, node IDs, and types from result
+              - Record mcpProvider: "rune" in output
+           b. **If Rune tools fail**: fall back to Official MCP:
+              - Extract fileKey from the Figma URL
+              - Call mcp__claude_ai_Figma__get_metadata(fileKey="{fileKey}")
+              - Parse component names and node IDs from XML response
+              - Record mcpProvider: "official" in output
+        4. Write component inventory to: ${outputDir}/inventory.json
+           Format: { "components": [{ "name": "...", "node_id": "...", "type": "...", "source_url": "..." }], "figma_urls": [...], "mcpProvider": "rune|official" }
+        5. If BOTH tool namespaces fail for a URL, record:
+           { "error": "Figma MCP not available", "figma_url": "{url}" } in components array
+        6. Do not write implementation code. Inventory only.
+        7. Mark task complete via TaskUpdate`,
+      run_in_background: true
+    })
+  }
+
+  // Store output path in plan frontmatter for downstream consumers (forge, strive, synthesize)
+  // design_references_path: tmp/plans/{timestamp}/design-references/
+  // library_match_count: populated after pipeline completes (read from match-report.json)
 }
 ```
