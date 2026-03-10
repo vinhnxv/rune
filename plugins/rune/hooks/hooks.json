@@ -243,6 +243,18 @@
         ]
       },
       {
+        "matcher": "Read|Write|Edit|Bash|Glob|Grep",
+        "_rationale": "ARC-HEARTBEAT-001: Writes last-activity timestamp during active arc phases. Fast-path exit (<2ms) when no arc is active. 30-second throttle prevents I/O storm. Used by CronCreate monitor (Layer 1) and SessionStart hygiene (Layer 2) for stuck detection.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/arc-heartbeat-writer.sh",
+            "timeout": 5,
+            "statusMessage": "Recording arc heartbeat..."
+          }
+        ]
+      },
+      {
         "matcher": "mcp__plugin_rune_context7__.*|mcp__plugin_rune_figma-to-react__.*|mcp__plugin_rune_echo-search__.*|WebSearch|WebFetch",
         "_rationale": "MCP untrusted output advisory for all external/MCP tools (Context7, Figma, echo-search, web). PostToolUse — advisory only, cannot block. QUAL-004: consolidated from 4 redundant entries.",
         "hooks": [

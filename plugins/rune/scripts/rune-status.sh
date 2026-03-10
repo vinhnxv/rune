@@ -105,7 +105,7 @@ _status_sym() {
 PHASE_ORDER=(
   forge plan_review plan_refine verification semantic_verification
   design_extraction task_decomposition work storybook_verification design_verification
-  gap_analysis codex_gap_analysis gap_remediation goldmask_verification
+  ux_verification gap_analysis codex_gap_analysis gap_remediation goldmask_verification
   code_review goldmask_correlation mend verify_mend design_iteration
   test test_coverage_critique pre_ship_validation release_quality_check
   ship bot_review_wait pr_comment_resolution merge
@@ -253,6 +253,21 @@ for ckpt in "${CHECKPOINT_FILES[@]}"; do
     fi
   fi
 
+  # ── Read heartbeat file for last activity ──
+  HB_FILE="${CWD}/tmp/arc/${arc_id}/heartbeat.json"
+  HB_PHASE=""
+  HB_TOOL=""
+  HB_ACTIVITY=""
+  HB_AGO=""
+  if [[ "$HAS_JQ" == "true" && -f "$HB_FILE" && ! -L "$HB_FILE" ]]; then
+    HB_PHASE=$(jq -r '.phase // ""' "$HB_FILE" 2>/dev/null || true)
+    HB_TOOL=$(jq -r '.last_tool // ""' "$HB_FILE" 2>/dev/null || true)
+    HB_ACTIVITY=$(jq -r '.last_activity // ""' "$HB_FILE" 2>/dev/null || true)
+    if [[ -n "$HB_ACTIVITY" && "$HB_ACTIVITY" != "null" ]]; then
+      HB_AGO=$(_fmt_ago "$HB_ACTIVITY")
+    fi
+  fi
+
   # ── JSON output mode ──
   if [[ "$JSON_MODE" == "true" ]]; then
     [[ "$FIRST" == "false" ]] && printf ','
@@ -263,6 +278,13 @@ for ckpt in "${CHECKPOINT_FILES[@]}"; do
       ctx_obj="{\"used_pct\":${CTX_USED},\"remaining_pct\":${CTX_REM}}"
     else
       ctx_obj="null"
+    fi
+
+    # Build heartbeat sub-object (for JSON output)
+    if [[ -n "$HB_ACTIVITY" && "$HB_ACTIVITY" != "null" && -n "$HB_PHASE" ]]; then
+      hb_obj="{\"phase\":\"${HB_PHASE}\",\"last_tool\":\"${HB_TOOL}\",\"last_activity\":\"${HB_ACTIVITY}\"}"
+    else
+      hb_obj="null"
     fi
 
     jq -n \
@@ -281,6 +303,7 @@ for ckpt in "${CHECKPOINT_FILES[@]}"; do
       --arg conv_round "$CONV_ROUND" \
       --arg conv_max "$CONV_MAX" \
       --argjson ctx "$ctx_obj" \
+      --argjson heartbeat "$hb_obj" \
       '{
         arc_id: $id,
         plan_file: $plan,
@@ -300,7 +323,8 @@ for ckpt in "${CHECKPOINT_FILES[@]}"; do
           round: ($conv_round | tonumber),
           max_rounds: ($conv_max | tonumber)
         },
-        context: $ctx
+        context: $ctx,
+        heartbeat: $heartbeat
       }' 2>/dev/null
     continue
   fi
@@ -335,6 +359,12 @@ for ckpt in "${CHECKPOINT_FILES[@]}"; do
     if [[ -n "$ACTIVE_TEAM" ]]; then
       echo "│  Active Team:  ${ACTIVE_TEAM}"
     fi
+    echo "│"
+  fi
+
+  # Heartbeat (last activity)
+  if [[ -n "$HB_AGO" && -n "$HB_PHASE" ]]; then
+    echo "│  Last Activity: ${HB_AGO} ago (${HB_PHASE}: ${HB_TOOL})"
     echo "│"
   fi
 

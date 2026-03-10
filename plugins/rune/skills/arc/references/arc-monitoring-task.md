@@ -4,6 +4,40 @@ This document describes the dual-layer arc recovery architecture. Layer 1 uses `
 for in-session stop-hook failure recovery. Layer 2 uses `SessionStart` hook detection for
 cross-session crash recovery.
 
+## Heartbeat Integration (v1.146.0)
+
+The arc heartbeat system tracks activity during arc phases to enable stuck detection:
+
+- **Heartbeat writer**: `scripts/arc-heartbeat-writer.sh` (PostToolUse hook)
+- **Tracked tools**: Read, Write, Edit, Bash, Glob, Grep
+- **Throttle**: 30-second minimum interval between writes
+- **Location**: `tmp/arc/{arc_id}/heartbeat.json` with `last_activity` timestamp
+- **Layer 1 use**: CronCreate monitoring displays `last_activity` in stuck arc reports
+- **Layer 2 use**: SessionStart hygiene reports `last_activity` for resumable checkpoints
+
+### Heartbeat Format
+
+```json
+{
+  "arc_id": "arc-abc123",
+  "phase": "work",
+  "last_tool": "Edit",
+  "last_activity": "2026-03-10T15:30:45Z"
+}
+```
+
+### Stuck Detection Heuristics
+
+A phase is considered potentially stuck when:
+1. Arc is active (not completed/cancelled)
+2. A phase has status "in_progress"
+3. `last_activity` is older than 15 minutes
+4. No recent Claude responses (session idle)
+
+The monitoring prompt uses `last_activity` to distinguish between:
+- **Active arc**: Recent activity, Claude is working → no action needed
+- **Stuck arc**: No recent activity, phase stalled → trigger recovery
+
 ## Dual-Layer Recovery Architecture (v1.145.0)
 
 ### Layer 1 — CronCreate (In-Session, Stop-Hook Failure)
