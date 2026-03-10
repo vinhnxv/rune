@@ -325,7 +325,7 @@ shopt -s nullglob 2>/dev/null || true
 for _sf in "$TMP_DIR/collect-test/tmp"/.rune-*.json; do
   FILES+=("$_sf")
 done
-eval "$_saved" 2>/dev/null || true
+if [[ "$_saved" == *"-s nullglob"* ]]; then shopt -s nullglob 2>/dev/null || true; else shopt -u nullglob 2>/dev/null || true; fi
 
 assert_eq "Loop collects 3 files" "3" "${#FILES[@]}"
 
@@ -336,7 +336,7 @@ shopt -s nullglob 2>/dev/null || true
 for _sf in "$TMP_DIR/collect-test/tmp"/.nonexistent-*.json; do
   FILES_EMPTY+=("$_sf")
 done
-eval "$_saved" 2>/dev/null || true
+if [[ "$_saved" == *"-s nullglob"* ]]; then shopt -s nullglob 2>/dev/null || true; else shopt -u nullglob 2>/dev/null || true; fi
 
 assert_eq "Empty glob produces empty array" "0" "${#FILES_EMPTY[@]}"
 
@@ -350,7 +350,7 @@ shopt -s nullglob 2>/dev/null || true
 for _sf in "$TMP_DIR/collect test/tmp"/.rune-*.json; do
   FILES_SPACED+=("$_sf")
 done
-eval "$_saved" 2>/dev/null || true
+if [[ "$_saved" == *"-s nullglob"* ]]; then shopt -s nullglob 2>/dev/null || true; else shopt -u nullglob 2>/dev/null || true; fi
 
 assert_eq "Loop handles spaces in path" "1" "${#FILES_SPACED[@]}"
 
@@ -565,7 +565,7 @@ shopt -s nullglob 2>/dev/null || true
 for _sf in "${CWD}/tmp"/.rune-*.json; do
   STATE_FILES+=("$_sf")
 done
-eval "$_saved_nullglob" 2>/dev/null || true
+if [[ "$_saved_nullglob" == *"-s nullglob"* ]]; then shopt -s nullglob 2>/dev/null || true; else shopt -u nullglob 2>/dev/null || true; fi
 
 assert_eq "Collects state files correctly" "2" "${#STATE_FILES[@]}"
 
@@ -576,7 +576,7 @@ shopt -s nullglob 2>/dev/null || true
 for _sf in "${CWD}/tmp"/.nonexistent-*.json; do
   STATE_FILES2+=("$_sf")
 done
-eval "$_saved_nullglob" 2>/dev/null || true
+if [[ "$_saved_nullglob" == *"-s nullglob"* ]]; then shopt -s nullglob 2>/dev/null || true; else shopt -u nullglob 2>/dev/null || true; fi
 
 assert_eq "Empty glob produces empty array" "0" "${#STATE_FILES2[@]}"
 

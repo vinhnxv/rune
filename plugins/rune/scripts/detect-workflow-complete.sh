@@ -51,6 +51,8 @@ INPUT=$(head -c 1048576 2>/dev/null || true)
 CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 [[ -z "$CWD" ]] && CWD="${CLAUDE_PROJECT_DIR:-.}"
 CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || CWD="."
+# XVER-002: Absolute-path guard (consistent with on-session-stop.sh and session-team-hygiene.sh)
+[[ -z "$CWD" || "$CWD" != /* ]] && exit 0
 
 # ── Source shared libraries ──
 # REC-6 FIX: resolve-session-identity.sh lives at scripts/, NOT scripts/lib/
@@ -103,7 +105,12 @@ shopt -s nullglob 2>/dev/null || true
 for _sf in "${CWD}/tmp"/.rune-*.json; do
   STATE_FILES+=("$_sf")
 done
-eval "$_saved_nullglob" 2>/dev/null || true
+# CLD-SEC-001: Restore nullglob without eval (safe pattern, avoids eval precedent)
+if [[ "$_saved_nullglob" == *"-s nullglob"* ]]; then
+  shopt -s nullglob 2>/dev/null || true
+else
+  shopt -u nullglob 2>/dev/null || true
+fi
 
 if [[ ${#STATE_FILES[@]} -eq 0 ]]; then
   _trace "FAST EXIT: no state files"
