@@ -284,6 +284,30 @@ const hasDesignKeywords = DESIGN_KEYWORD_PATTERN.test(searchText)
 if (figmaUrl) {
   design_sync_candidate = true
   // Append Design Assets section to brainstorm context
+
+  // Component preview: call figma_list_components when design_sync enabled
+  const miscConfig = readTalismanSection("misc") || {}
+  const designSyncEnabled = miscConfig.design_sync?.enabled === true
+
+  if (designSyncEnabled) {
+    try {
+      // SSRF defense: figmaUrl already validated by safeFigmaUrls filter above (lines 266-280)
+      const components = mcp__plugin_rune_figma_to_react__figma_list_components({ url: figmaUrl })
+      const componentNames = (components || []).slice(0, 10).map(c => c.name)
+      if (componentNames.length > 0) {
+        const totalCount = (components || []).length
+        const previewList = componentNames.join(", ")
+        const suffix = totalCount > 10 ? ` (and ${totalCount - 10} more)` : ""
+        // Present component preview in brainstorm output
+        log(`Found ${totalCount} components: ${previewList}${suffix}`)
+        // Append to brainstorm context for advisor rounds
+        designPreviewBlock = `\n### Figma Component Preview\nFound ${totalCount} components: ${previewList}${suffix}\nFull design pipeline available via /rune:devise.`
+      }
+    } catch (e) {
+      // Non-blocking: preview failure does not block brainstorm
+      warn(`Figma component preview unavailable: ${e.message}. URL saved for /rune:devise.`)
+    }
+  }
 } else if (hasDesignKeywords) {
   AskUserQuestion({ question: "Design keywords detected — do you have a Figma file URL to include?" })
 }
@@ -447,6 +471,7 @@ tmp/brainstorm-{timestamp}/
 | TeamDelete failure (cleanup) | Retry-with-backoff, filesystem fallback |
 | No matching brainstorm found | Start fresh |
 | Figma MCP unavailable | Skip design inventory, proceed |
+| figma_list_components preview failure (Phase 3.5) | Warn, save URL for /rune:devise — non-blocking |
 | Echo search unavailable | Skip auto-detection, start fresh |
 
 ## RE-ANCHOR
