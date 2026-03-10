@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.146.2] - 2026-03-10
+
+### Fixed
+- **Default RUNE_SKIP_OWNERSHIP=1** — Ownership checks bypassed by default since PPID/session_id mismatch between Bash tool and hook subprocess contexts makes them unreliable. Set `RUNE_SKIP_OWNERSHIP=0` to re-enable.
+- **Always-on stop hook diagnostic logging** — `arc-phase-stop-hook.sh` writes to `${TMPDIR:-/tmp}/rune-stop-hook-diag.log` regardless of `RUNE_TRACE` setting. Captures: hook entry, input keys, session_id presence, every guard pass/fail, ERR trap with line+command, and final exit reason.
+- **Enhanced ERR trap** — `_rune_fail_forward()` now captures `BASH_COMMAND` and `PIPESTATUS` for debugging silent failures.
+
 ## [1.146.1] - 2026-03-10
 
 ### Fixed
