@@ -216,6 +216,9 @@ if [[ -z "$active_workflow" ]]; then
           # CDX-GAP-001 FIX: Compare session marker to current session
           # Skip if session marker exists but belongs to different session
           # (stamp-team-session.sh writes this via PostToolUse:TeamCreate)
+          # NOTE: RUNE_SESSION_ID is NOT available in hook context (only in Bash tool via CLAUDE_ENV_FILE).
+          # Hooks get session_id from stdin JSON — this var is empty here. Kept for forward-compat
+          # if Claude Code exposes CLAUDE_SESSION_ID as a real env var in the future.
           current_sid=$(printf '%s' "${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}" | head -c 64)
           # SEC-002: Validate session ID format
           [[ -z "$current_sid" || "$current_sid" =~ ^[a-zA-Z0-9_-]+$ ]] || current_sid=""

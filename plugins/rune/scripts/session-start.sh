@@ -71,11 +71,18 @@ fi
 # Workaround: $CLAUDE_SESSION_ID is NOT available as a shell env var (anthropics/claude-code#25642).
 # Hooks receive session_id in stdin JSON, so we bridge it to $CLAUDE_ENV_FILE
 # making it available to Bash() calls as $RUNE_SESSION_ID.
+# NOTE: Hook scripts (.sh) do NOT source CLAUDE_ENV_FILE — they get session_id
+# from stdin JSON instead. This bridge only helps Bash tool context in skills.
 # Guard: only write once per session (idempotent on resume/clear/compact).
+# SEC: Validate session_id format before writing to env file (shell injection prevention).
 if [[ -n "$SESSION_ID" && -n "${CLAUDE_ENV_FILE:-}" ]]; then
-  if ! grep -q "RUNE_SESSION_ID" "$CLAUDE_ENV_FILE" 2>/dev/null; then
-    printf 'export RUNE_SESSION_ID="%s"\n' "$SESSION_ID" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true
-    _trace "Injected RUNE_SESSION_ID=${SESSION_ID} into CLAUDE_ENV_FILE"
+  if [[ "$SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+    if ! grep -q "RUNE_SESSION_ID" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+      printf 'export RUNE_SESSION_ID="%s"\n' "$SESSION_ID" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true
+      _trace "Injected RUNE_SESSION_ID=${SESSION_ID} into CLAUDE_ENV_FILE"
+    fi
+  else
+    _trace "WARN: session_id failed format validation, skipping env injection: '${SESSION_ID:0:32}'"
   fi
 fi
 
