@@ -58,11 +58,25 @@ if [ ! -f "$SKILL_FILE" ]; then
   exit 0
 fi
 
-# ── Read hook input for event type extraction ──
+# ── Read hook input for event type + session_id extraction ──
 INPUT=$(head -c 1048576 2>/dev/null || true)
 EVENT=""
+SESSION_ID=""
 if command -v jq &>/dev/null; then
   EVENT=$(printf '%s\n' "$INPUT" | jq -r '.event // empty' 2>/dev/null || true)
+  SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+fi
+
+# ── Session ID injection into Bash tool environment ──
+# Workaround: $CLAUDE_SESSION_ID is NOT available as a shell env var (anthropics/claude-code#25642).
+# Hooks receive session_id in stdin JSON, so we bridge it to $CLAUDE_ENV_FILE
+# making it available to Bash() calls as $RUNE_SESSION_ID.
+# Guard: only write once per session (idempotent on resume/clear/compact).
+if [[ -n "$SESSION_ID" && -n "${CLAUDE_ENV_FILE:-}" ]]; then
+  if ! grep -q "RUNE_SESSION_ID" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+    printf 'export RUNE_SESSION_ID="%s"\n' "$SESSION_ID" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true
+    _trace "Injected RUNE_SESSION_ID=${SESSION_ID} into CLAUDE_ENV_FILE"
+  fi
 fi
 
 # Read skill content, strip frontmatter
@@ -178,11 +192,18 @@ else
   ESCAPED_CONTENT=$(json_escape "$CONTENT")
 fi
 
+# ── Build session context prefix (session_id for conversation context) ──
+SESSION_CTX=""
+if [[ -n "$SESSION_ID" ]]; then
+  SESSION_CTX="\\nRUNE_SESSION_ID=${SESSION_ID}"
+fi
+
 # Output as hookSpecificOutput with additionalContext
 # This injects the skill routing table into Claude's context
 # Echo summary appended if available (P2: Session-Start Echo Summary Injection)
+# Session ID appended if available (P3: Session ID Bridge Injection)
 cat <<EOF
-{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"[Rune Plugin Active] ${ESCAPED_CONTENT}${ECHO_SUMMARY}"}}
+{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"[Rune Plugin Active] ${ESCAPED_CONTENT}${ECHO_SUMMARY}${SESSION_CTX}"}}
 EOF
 
 # Statusline configuration diagnostic (startup only, non-blocking)

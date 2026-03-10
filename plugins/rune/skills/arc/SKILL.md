@@ -278,7 +278,7 @@ branch: ${branch}
 arc_flags: ${args.replace(/\s+/g, ' ').trim()}
 config_dir: ${configDir}
 owner_pid: ${ownerPid}
-session_id: ${Bash('echo "$CLAUDE_SESSION_ID"').trim() || 'unknown'}
+session_id: ${Bash('echo "${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}"').trim() || 'unknown'}
 compact_pending: false
 user_cancelled: false
 cancel_reason: null
@@ -299,7 +299,7 @@ Execute the first pending phase from the checkpoint. The Stop hook (`arc-phase-s
 // Check for context-critical shutdown signal before starting next phase (Layer 1)
 const shutdownSignalCheck = (() => {
   try {
-    const sid = Bash(`echo "$CLAUDE_SESSION_ID"`).trim()
+    const sid = Bash(`echo "\${CLAUDE_SESSION_ID:-\${RUNE_SESSION_ID:-}}"`).trim()
     const signalPath = `tmp/.rune-shutdown-signal-${sid}.json`
     const signal = JSON.parse(Read(signalPath))
     return signal?.signal === "context_warning"

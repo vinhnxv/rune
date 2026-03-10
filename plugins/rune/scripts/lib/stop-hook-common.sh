@@ -124,11 +124,11 @@ validate_session_ownership() {
   local progress_file="${2:-}"
   local orphan_mode="${3:-skip}"
 
-  # Ownership bypass: RUNE_SKIP_OWNERSHIP defaults to "1" (skip all ownership checks).
-  # Set RUNE_SKIP_OWNERSHIP=0 in settings.local.json env to re-enable ownership checks.
-  # Ownership checks are currently unreliable due to PPID/session_id mismatch between
-  # Bash tool context and hook subprocess context (see v1.144.16 notes).
-  if [[ "${RUNE_SKIP_OWNERSHIP:-1}" == "1" ]]; then
+  # Ownership bypass: RUNE_SKIP_OWNERSHIP defaults to "0" (ownership checks enabled).
+  # Set RUNE_SKIP_OWNERSHIP=1 in settings.local.json env to bypass ownership checks.
+  # Ownership checks were previously unreliable due to PPID/session_id mismatch between
+  # Bash tool context and hook subprocess context (see v1.144.16 notes), now fixed.
+  if [[ "${RUNE_SKIP_OWNERSHIP:-0}" == "1" ]]; then
     if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
       _trace "ownership: BYPASSED (RUNE_SKIP_OWNERSHIP=1)"
     fi

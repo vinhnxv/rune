@@ -189,7 +189,7 @@ Three signal checks run per poll cycle after `TaskList`:
 // Written by guard-context-critical.sh when token usage exceeds warning threshold
 const shutdownSignal = (() => {
   try {
-    const sessionId = Bash(`echo "$CLAUDE_SESSION_ID"`).trim()
+    const sessionId = Bash(`echo "\${CLAUDE_SESSION_ID:-\${RUNE_SESSION_ID:-}}"`).trim()
     const signalPath = `tmp/.rune-shutdown-signal-${sessionId}.json`
     const signal = JSON.parse(Read(signalPath))
     return signal?.signal === "context_warning"
@@ -216,7 +216,7 @@ if (allDoneSignal) {
 // Written by guard-context-critical.sh when token usage exceeds critical threshold
 const forceShutdownSignal = (() => {
   try {
-    const sessionId = Bash(`echo "$CLAUDE_SESSION_ID"`).trim()
+    const sessionId = Bash(`echo "\${CLAUDE_SESSION_ID:-\${RUNE_SESSION_ID:-}}"`).trim()
     const signalPath = `tmp/.rune-force-shutdown-${sessionId}.json`
     const signal = JSON.parse(Read(signalPath))
     return signal?.signal === "force_shutdown"

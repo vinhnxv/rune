@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.146.3] - 2026-03-11
+
+### Changed
+- **Default RUNE_SKIP_OWNERSHIP=0** — Ownership checks now enabled by default (secure-by-default posture). Set `RUNE_SKIP_OWNERSHIP=1` in settings.local.json env to bypass if needed.
+
+### Added
+- **RUNE_SESSION_ID bridge** — `session-start.sh` now extracts `session_id` from hook input JSON and injects it into `CLAUDE_ENV_FILE` as `$RUNE_SESSION_ID`. This makes session ID available in Bash tool context, eliminating `session_id: unknown` in state files. Workaround for [anthropics/claude-code#25642](https://github.com/anthropics/claude-code/issues/25642).
+- **Session ID fallback chain** — All pseudocode that resolves session ID now uses `${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}` (8 files updated: arc, goldmask, strive, team-sdk, enforce-teams). Falls back gracefully: native env var → bridge var → empty.
+
 ## [1.146.2] - 2026-03-10
 
 ### Fixed
