@@ -20,8 +20,9 @@ The arc heartbeat system tracks activity during arc phases to enable stuck detec
 ```json
 {
   "arc_id": "arc-abc123",
-  "last_activity": "2026-03-10T15:30:45Z",
-  "phase": "work"
+  "phase": "work",
+  "last_tool": "Edit",
+  "last_activity": "2026-03-10T15:30:45Z"
 }
 ```
 
@@ -30,7 +31,7 @@ The arc heartbeat system tracks activity during arc phases to enable stuck detec
 A phase is considered potentially stuck when:
 1. Arc is active (not completed/cancelled)
 2. A phase has status "in_progress"
-3. `last_activity` is > 10 minutes old
+3. `last_activity` is older than 15 minutes
 4. No recent Claude responses (session idle)
 
 The monitoring prompt uses `last_activity` to distinguish between:

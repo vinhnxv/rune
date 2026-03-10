@@ -105,7 +105,7 @@ _status_sym() {
 PHASE_ORDER=(
   forge plan_review plan_refine verification semantic_verification
   design_extraction task_decomposition work storybook_verification design_verification
-  gap_analysis codex_gap_analysis gap_remediation goldmask_verification
+  ux_verification gap_analysis codex_gap_analysis gap_remediation goldmask_verification
   code_review goldmask_correlation mend verify_mend design_iteration
   test test_coverage_critique pre_ship_validation release_quality_check
   ship bot_review_wait pr_comment_resolution merge

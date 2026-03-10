@@ -71,6 +71,11 @@ HEARTBEAT_FILE="${HEARTBEAT_DIR}/heartbeat.json"
 # ── GUARD 3: Throttle — write at most once per 30 seconds ──
 # Prevents I/O storm during rapid tool call sequences.
 # First write always succeeds (_stat_mtime returns 0 for new files → age is huge).
+#
+# Rationale: 30 seconds chosen because stuck detection uses 15-minute threshold.
+# At 30s intervals, we get ~30 samples per detection window, sufficient to
+# distinguish between "working" and "stuck" phases. Lower values increase I/O;
+# higher values reduce stuck detection accuracy.
 if [[ -f "$HEARTBEAT_FILE" ]]; then
   HB_MTIME=$(_stat_mtime "$HEARTBEAT_FILE" 2>/dev/null || echo "0")
   HB_NOW=$(date +%s)
@@ -87,6 +92,16 @@ if [[ -f "$CKPT_PATH" && ! -L "$CKPT_PATH" ]]; then
   CURRENT_PHASE=$(jq -r '
     [.phases | to_entries[] | select(.value.status == "in_progress")] | first | .key // "unknown"
   ' "$CKPT_PATH" 2>/dev/null || echo "unknown")
+fi
+
+# ── GUARD 4: Skip heartbeat for completed arcs ──
+# When no phase is in_progress and stop_reason indicates completion, skip heartbeat write.
+# This prevents misleading "unknown" phase values in rune-status output.
+if [[ -f "$CKPT_PATH" && ! -L "$CKPT_PATH" ]]; then
+  ARC_STOP_REASON=$(jq -r '.stop_reason // ""' "$CKPT_PATH" 2>/dev/null || true)
+  if [[ "$ARC_STOP_REASON" == "completed" || "$ARC_STOP_REASON" == "user_cancel" ]]; then
+    exit 0
+  fi
 fi
 
 # ── Atomic write (mktemp + mv) ──
