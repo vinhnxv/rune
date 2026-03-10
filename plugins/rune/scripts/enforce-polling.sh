@@ -124,13 +124,13 @@ if printf '%s\n' "$NORMALIZED" | grep -qE '(^|[[:space:];|&(])sleep[[:space:]]+[
   # Arc checkpoint detection
   if [[ -d "${CWD}/.claude/arc" ]]; then
     while IFS= read -r f; do
+      # Race condition guard: file may be deleted between find and jq
+      [[ -f "$f" ]] || continue
+      # Validate JSON before parsing — skip corrupted/truncated files
+      jq -e . "$f" >/dev/null 2>&1 || continue
       # SEC-4 FIX: Use jq for precise field extraction instead of grep substring match
       # FIX: Check both legacy flat schema (.phase_status/.status) AND v4 nested schema (phases.*.status)
-      has_active=$(jq -r '
-        if (.phase_status // .status // "none") == "in_progress" then "yes"
-        elif ([.phases[]?.status] | any(. == "in_progress")) then "yes"
-        else "no" end
-      ' "$f" 2>/dev/null || echo "no")
+      has_active=$(jq -r 'if (.phase_status // .status // "none") == "in_progress" then "yes" elif ([.phases[]?.status] | any(. == "in_progress")) then "yes" else "no" end' "$f" 2>/dev/null || echo "no")
       if [[ "$has_active" == "yes" ]]; then
         # ── Ownership filter: skip checkpoints from other sessions ──
         stored_cfg=$(jq -r '.config_dir // empty' "$f" 2>/dev/null || true)
