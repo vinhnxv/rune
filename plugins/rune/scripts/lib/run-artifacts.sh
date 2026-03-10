@@ -221,7 +221,7 @@ _rune_artifact_create_run() {
     --argjson start_epoch "$start_epoch_val" \
     --arg cfg "$_cfg" \
     --argjson pid "$PPID" \
-    --arg sid "${CLAUDE_SESSION_ID:-unknown}" \
+    --arg sid "${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-unknown}}" \
     '{
       agent_name: $agent,
       workflow: $wf,
