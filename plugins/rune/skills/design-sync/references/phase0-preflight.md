@@ -172,7 +172,7 @@ Write(stateFile, JSON.stringify({
   work_dir: workDir,
   config_dir: CHOME,
   owner_pid: "$PPID",
-  session_id: "$CLAUDE_SESSION_ID",
+  session_id: "$CLAUDE_SESSION_ID" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   started_at: timestamp,
   flags: flags
 }))

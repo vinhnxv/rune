@@ -96,7 +96,7 @@ const audit_id = Bash(`date +%Y%m%d-%H%M%S`).trim()
 const isIncremental = flags['--incremental'] === true
   && (talisman?.audit?.incremental?.enabled !== false)
 let incrementalLockAcquired = false  // Tracks whether THIS session owns the lock (Finding 1/2 fix)
-const sessionId = "${CLAUDE_SESSION_ID}"  // Standalone variable for use in state writes (Finding 3 fix)
+const sessionId = "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim()  // Standalone variable for use in state writes (Finding 3 fix)
 ```
 
 ## Workflow Lock (reader)
@@ -190,7 +190,7 @@ const params = {
   timeoutMs: 900_000,   // 15 min (audits cover more files than reviews)
   label: "Audit",
   configDir, ownerPid,
-  sessionId: "${CLAUDE_SESSION_ID}",
+  sessionId: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   maxAgents: flags['--max-agents'],
   workflow: "rune-audit",
   focusArea: flags['--focus'] || "full",

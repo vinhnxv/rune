@@ -11,7 +11,7 @@ Two signal checks run inside the monitoring loop, checked each poll cycle after 
 // Check for context-critical shutdown signal (Layer 1)
 const shutdownSignal = (() => {
   try {
-    const sessionId = Bash(`echo "$CLAUDE_SESSION_ID"`).trim()
+    const sessionId = Bash(`echo "\${CLAUDE_SESSION_ID:-\${RUNE_SESSION_ID:-}}"`).trim()
     const signalPath = `tmp/.rune-shutdown-signal-${sessionId}.json`
     const signal = JSON.parse(Read(signalPath))
     return signal?.signal === "context_warning"
@@ -39,7 +39,7 @@ if (allDoneSignal) {
 // Check for force_shutdown signal from guard-context-critical.sh (Layer 3)
 const forceShutdownSignal = (() => {
   try {
-    const sessionId = Bash(`echo "$CLAUDE_SESSION_ID"`).trim()
+    const sessionId = Bash(`echo "\${CLAUDE_SESSION_ID:-\${RUNE_SESSION_ID:-}}"`).trim()
     const signalPath = `tmp/.rune-force-shutdown-${sessionId}.json`
     const signal = JSON.parse(Read(signalPath))
     return signal?.signal === "force_shutdown"

@@ -65,7 +65,7 @@ Read `$ARGUMENTS` and handle special flags first:
 **--watch flag**:
 1. Create `tmp/.rune-learn-watch` marker file with session identity:
    ```json
-   {"config_dir": "${CLAUDE_CONFIG_DIR:-$HOME/.claude}", "owner_pid": "$PPID", "session_id": "${CLAUDE_SESSION_ID}"}
+   {"config_dir": "${CLAUDE_CONFIG_DIR:-$HOME/.claude}", "owner_pid": "$PPID", "session_id": "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim()}
    ```
 2. Create `tmp/.rune-signals/.learn-edits/` directory
 3. Output: "Real-time correction detection enabled for this session."

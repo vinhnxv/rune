@@ -241,7 +241,7 @@ if (stateFilePath) {
       ...state,
       status: "completed",
       completed_at: new Date().toISOString(),
-      session_id: state.session_id || "${CLAUDE_SESSION_ID}"
+      session_id: state.session_id || "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim()
     }))
   } catch (e) { /* non-blocking */ }
 }

@@ -102,7 +102,7 @@ TeamCreate({ team_name: session_id })
 Create state file for session hook discovery (STOP-001, TLC-003):
 ```javascript
 // EC-12, ward-sentinel #3: resolve CLAUDE_SESSION_ID via Bash, not literal string
-const sessionId = Bash(`echo "$CLAUDE_SESSION_ID"`).trim()
+const sessionId = Bash(`echo "\${CLAUDE_SESSION_ID:-\${RUNE_SESSION_ID:-}}"`).trim()
 const configDir = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
 const ownerPid = Bash("echo $PPID").trim()
 if (!/^[0-9]+$/.test(ownerPid)) { warn("goldmask: invalid PPID — using fallback"); }

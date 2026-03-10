@@ -174,7 +174,7 @@ state.status = "completed"
 state.completed = new Date().toISOString()
 state.config_dir = configDir    // preserve session identity
 state.owner_pid = ownerPid
-state.session_id = "${CLAUDE_SESSION_ID}"
+state.session_id = "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim()
 state.verdict = extractVerdict(verdict)
 state.completion = extractCompletion(verdict)
 Write(stateFile, JSON.stringify(state))

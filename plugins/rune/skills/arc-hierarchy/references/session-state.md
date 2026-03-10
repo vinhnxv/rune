@@ -63,7 +63,7 @@ total_children: ${children.length}
 compact_pending: false
 config_dir: ${configDir}
 owner_pid: ${ownerPid}
-session_id: ${CLAUDE_SESSION_ID}
+session_id: ${CLAUDE_SESSION_ID || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'}
 started_at: "${new Date().toISOString()}"
 ---
 

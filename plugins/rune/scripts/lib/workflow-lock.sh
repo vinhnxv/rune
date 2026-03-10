@@ -82,7 +82,7 @@ _rune_write_meta() {
   jq -n \
     --arg wf "$workflow" --arg cls "$class" --argjson pid "$PPID" \
     --arg cfg "$_cfg" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    --arg sid "${CLAUDE_SESSION_ID:-unknown}" \
+    --arg sid "${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-unknown}}" \
     '{workflow:$wf,class:$cls,pid:$pid,config_dir:$cfg,started:$ts,session_id:$sid}' \
     > "$lock_dir/meta.json.tmp" 2>/dev/null \
     && mv -f "$lock_dir/meta.json.tmp" "$lock_dir/meta.json" 2>/dev/null
@@ -123,7 +123,7 @@ rune_acquire_lock() {
     [[ -n "$stored_cfg" && "$stored_cfg" != "$_current_cfg" ]] && return 0
     # BIZL-004: Same session → re-entrant (e.g., arc delegating to strive)
     # Validate both PID and session_id when available for stronger session identity
-    local _current_sid="${CLAUDE_SESSION_ID:-unknown}"
+    local _current_sid="${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-unknown}}"
     if [[ -n "$stored_pid" && "$stored_pid" == "$PPID" ]]; then
       # PID matches — also verify session_id if both sides have one
       if [[ "$stored_sid" != "unknown" && "$_current_sid" != "unknown" && "$stored_sid" != "$_current_sid" ]]; then
@@ -197,7 +197,7 @@ rune_release_lock() {
     local stored_pid stored_sid
     stored_pid=$(jq -r '.pid // empty' "$lock_dir/meta.json" 2>/dev/null || true)
     stored_sid=$(jq -r '.session_id // empty' "$lock_dir/meta.json" 2>/dev/null || true)
-    local _current_sid="${CLAUDE_SESSION_ID:-unknown}"
+    local _current_sid="${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-unknown}}"
     # BIZL-004: Require both PID and session_id match for release (when available)
     if [[ "$stored_pid" == "$PPID" ]]; then
       if [[ "$stored_sid" == "unknown" || "$_current_sid" == "unknown" || "$stored_sid" == "$_current_sid" ]]; then
