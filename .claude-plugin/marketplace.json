@@ -14,7 +14,7 @@
     {
       "name": "rune",
       "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspect, test, and audit with Agent Teams. Includes 100 agent definitions (prompt templates — max 8 concurrent runtime agents via Agent Teams): 34 review, 5 research, 24 investigation, 26 utility, 6 work, 5 testing. 19 commands, 53 skills. UX Design Intelligence with 4 conditional UX review agents (heuristic, flow, interaction, cognitive) + ux-pattern-analyzer utility + ux-design-process skill (greenfield/brownfield methodology). Arc Phase 5.3 UX Verification integration. Curated elicitation methods for structured reasoning. Stack-aware intelligence with 12 language/framework/pattern specialist prompt templates (loaded on-demand). Figma design sync with VSM-based fidelity scoring. Inscription Sharding for parallel large-diff review. Multi-language quality guidance (Python, TypeScript, Rust, PHP, Axum). Talisman configuration mastery with stack-aware scaffolding. Session self-learning with CLI correction and review recurrence detection. Standalone browser E2E testing with human gate handling and interactive failure recovery. UntitledUI official MCP integration with builder-protocol metadata. Resolve file-based TODOs with verify-before-fix pipeline. Team Management SDK for centralized agent team orchestration.",
-"version": "1.146.0",
+"version": "1.146.1",
       "author": {
         "name": "vinhnxv",
         "email": "vinh.ngxv@gmail.com",
