@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.146.5] - 2026-03-11
+
+### Fixed
+- **Bare TeamDelete in 4 Codex arc phases** — Add retry-with-backoff (4 attempts) + filesystem fallback to Codex phase cleanup in arc phases 4.5 (task decomposition), 5.6 (codex gap analysis), 7.8 (test coverage critique), and 8.55 (release quality check). Previously these had bare `TeamDelete()` with no retry or fallback, causing team leaks when the single call failed. Now matches the standard cleanup pattern from Phase 2.8 (semantic verification).
+
 ## [1.146.4] - 2026-03-11
 
 ### Fixed

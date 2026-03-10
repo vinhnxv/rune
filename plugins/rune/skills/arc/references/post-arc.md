@@ -196,24 +196,30 @@ try {
     Bash(`sleep 20`)
   }
 
-  // ── Step 4: TeamDelete — single attempt ──
-  // If this fails, filesystem fallback handles it. No retry loop.
+  // ── Step 4: TeamDelete — retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s) ──
   let sweepCleared = false
-  try { TeamDelete(); sweepCleared = true } catch (e) { /* expected if no active team */ }
-
-  // ── Step 5: Filesystem fallback — rm -rf all checkpoint-recorded teams ──
-  // Runs regardless of TeamDelete result to ensure dirs are cleaned.
-  // on-session-stop.sh also does this, but doing it here is faster.
-  if (allTeamNames.length > 0) {
-    const rmCommands = allTeamNames.map(tn =>
-      `rm -rf "$CHOME/teams/${tn}/" "$CHOME/tasks/${tn}/" 2>/dev/null`
-    ).join('; ')
-    Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && ${rmCommands}`)
+  const SWEEP_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+  for (let attempt = 0; attempt < SWEEP_CLEANUP_DELAYS.length; attempt++) {
+    if (attempt > 0) Bash(`sleep ${SWEEP_CLEANUP_DELAYS[attempt] / 1000}`)
+    try { TeamDelete(); sweepCleared = true; break } catch (e) {
+      if (attempt === SWEEP_CLEANUP_DELAYS.length - 1) warn(`ARC-9: TeamDelete failed after ${SWEEP_CLEANUP_DELAYS.length} attempts`)
+    }
   }
 
-  // ── Step 6: Final TeamDelete after filesystem cleanup ──
+  // ── Step 5: Filesystem fallback — only if TeamDelete never succeeded (QUAL-012) ──
   if (!sweepCleared) {
-    try { TeamDelete() } catch (e) { /* done */ }
+    // Process-level kill — terminate lingering teammates before filesystem cleanup
+    Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+    Bash(`sleep 3`)
+    Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+    // Filesystem cleanup for all checkpoint-recorded teams
+    if (allTeamNames.length > 0) {
+      const rmCommands = allTeamNames.map(tn =>
+        `rm -rf "$CHOME/teams/${tn}/" "$CHOME/tasks/${tn}/" 2>/dev/null`
+      ).join('; ')
+      Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && ${rmCommands}`)
+    }
+    try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
   }
 
   // NOTE: Strategy D (prefix-based sweep) is deliberately REMOVED from ARC-9.

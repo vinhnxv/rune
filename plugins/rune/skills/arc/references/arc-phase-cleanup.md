@@ -97,21 +97,25 @@ function postPhaseCleanup(checkpoint, phaseName) {
         if (members.length > 0) Bash(`sleep 20`)  // Grace period — 20s covers slow tool calls
       } catch (e) { /* team config unreadable — proceed to filesystem cleanup */ }
 
-      // SDK state clear + filesystem rm-rf (TeamDelete clears SDK leadership, not the named team)
-      try { TeamDelete() } catch (e) {
-        // TeamDelete failed — teammates likely still running.
-        // Process-level kill before filesystem cleanup to prevent zombie processes.
-        const ownerPid = Bash(`echo $PPID`).trim()
-        if (ownerPid && /^\d+$/.test(ownerPid)) {
-          Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-          Bash(`sleep 3`)
-          Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+      // SDK state clear + filesystem rm-rf — retry-with-backoff pattern (4 attempts: 0s, 5s, 10s, 15s)
+      let phaseCleanupSucceeded = false
+      const PHASE_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+      for (let attempt = 0; attempt < PHASE_CLEANUP_DELAYS.length; attempt++) {
+        if (attempt > 0) Bash(`sleep ${PHASE_CLEANUP_DELAYS[attempt] / 1000}`)
+        try { TeamDelete(); phaseCleanupSucceeded = true; break } catch (e) {
+          if (attempt === PHASE_CLEANUP_DELAYS.length - 1) warn(`postPhaseCleanup: TeamDelete failed after ${PHASE_CLEANUP_DELAYS.length} attempts for ${teamName}`)
         }
-        // Retry TeamDelete after process kill
-        try { TeamDelete() } catch (e2) { /* proceed to filesystem cleanup */ }
       }
-      // SEC: teamName validated above with /^[a-zA-Z0-9_-]+$/ — shell injection not possible
-      Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
+      // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+      if (!phaseCleanupSucceeded) {
+        // Process-level kill before filesystem cleanup to prevent zombie processes
+        Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+        Bash(`sleep 3`)
+        Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+        // SEC: teamName validated above with /^[a-zA-Z0-9_-]+$/ — shell injection not possible
+        Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
+        try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
+      }
     }
 
     // Step 2: Prefix-based scan for this phase's expected prefixes
