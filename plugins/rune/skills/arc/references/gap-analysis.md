@@ -1098,7 +1098,23 @@ if (!exists(`tmp/arc/${id}/codex-gap-analysis.md`)) {
 // Cleanup team (single-member optimization: 5s grace instead of standard 20s)
 SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-ga", content: "Phase complete" })
 Bash("sleep 5")
-TeamDelete()  // with retry-with-backoff pattern per CLAUDE.md cleanup standard
+// Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 5s, 10s, 15s)
+let gaCleanupSucceeded = false
+const GA_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+for (let attempt = 0; attempt < GA_CLEANUP_DELAYS.length; attempt++) {
+  if (attempt > 0) Bash(`sleep ${GA_CLEANUP_DELAYS[attempt] / 1000}`)
+  try { TeamDelete(); gaCleanupSucceeded = true; break } catch (e) {
+    if (attempt === GA_CLEANUP_DELAYS.length - 1) warn(`cleanup: TeamDelete failed after ${GA_CLEANUP_DELAYS.length} attempts`)
+  }
+}
+// Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+if (!gaCleanupSucceeded) {
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+  Bash("sleep 3")
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
+  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
+}
 
 // Read only hash from the report (NOT content) — zero Codex tokens in Tarnished context
 const artifactHash = Bash(`sha256sum "tmp/arc/${id}/codex-gap-analysis.md" | cut -d' ' -f1`).trim()
