@@ -84,6 +84,10 @@ Phase 1.6: MCP Integration Resolution (resolve active tools for forge phase)
     |
 Phase 1.7: Codex Section Validation (coverage gap check, v1.51.0+)
     |
+Phase 1.8: Design Reference Context (conditional — design_sync gate)
+    |
+Phase 1.9: Prototype Enrichment (conditional — after forge agents return)
+    |
 Phase 2: Forge Gaze Selection (topic-to-agent matching, risk-boosted + force-include)
     |
 Phase 3: Confirm Scope (AskUserQuestion)
@@ -169,6 +173,160 @@ After Lore Layer risk scoring, validate enrichment coverage cross-model. Identif
 
 See [codex-section-validation.md](references/codex-section-validation.md) for the full protocol — 4-condition gate, nonce-bounded prompt, force-include list parsing, and SEC-003 compliance.
 
+## Phase 1.8: Design Reference Context (conditional)
+
+Inject design reference context from `/rune:design-prototype` output into forge agent spawn prompts. Enables forge agents to recommend library components and flag design conflicts during enrichment.
+
+**Gate**: `designSyncEnabled && designRefPath` — both must be truthy. `designSyncEnabled` comes from `readTalismanSection("misc")?.design_sync?.enabled`. `designRefPath` comes from plan frontmatter `design_references_path`.
+
+```javascript
+const miscConfig = readTalismanSection("misc") || {}
+const designSyncEnabled = miscConfig.design_sync?.enabled === true
+const designRefPath = planFrontmatter?.design_references_path
+
+if (designSyncEnabled && designRefPath) {
+  const summaryFiles = Glob(`${designRefPath}/SUMMARY.md`)
+  if (summaryFiles.length > 0) {
+    const summary = Read(`${designRefPath}/SUMMARY.md`)
+    const libraryManifest = (() => {
+      try { return JSON.parse(Read(`${designRefPath}/library-manifest.json`)) }
+      catch { return null }
+    })()
+
+    // Build design context block for forge agent prompts (Phase 4)
+    designContextForForge = `
+## Design Reference Context
+### Library Matches (HIGH trust ~85-95%)
+${libraryManifest?.packages?.length > 0
+  ? libraryManifest.packages.map(p => `- ${p.name}: ${p.matched_components?.join(", ") || "general"}`).join("\n")
+  : "No library matches — reference code only."}
+### Component Summary
+${summary}
+When enriching: recommend library components where applicable, flag design conflicts with existing codebase patterns.`
+  }
+}
+// designContextForForge is injected into each forge agent's spawn prompt in Phase 4
+```
+
+### Skip Conditions Summary — Phase 1.8 Design Reference Context
+
+| Condition | Effect |
+|-----------|--------|
+| `design_sync.enabled === false` | Skip Phase 1.8 entirely |
+| No `design_references_path` in plan frontmatter | Skip Phase 1.8 |
+| `design-references/` directory missing | Skip Phase 1.8 |
+| `SUMMARY.md` empty or missing | Skip Phase 1.8 |
+
+## Phase 1.9: Prototype Enrichment (conditional)
+
+After forge agents return (Phase 4), scan enrichment outputs for `PROTOTYPE_UPDATE` annotations and update prototype files with new variants/props discovered during enrichment. Enriched prototypes are written to a separate directory to preserve devise output as immutable.
+
+**Gate**: `prototypes-manifest.json` exists in `designRefPath`.
+
+```javascript
+const manifestPath = `${designRefPath}/prototypes-manifest.json`
+const manifest = (() => {
+  try { return JSON.parse(Read(manifestPath)) }
+  catch { return null }
+})()
+
+if (manifest?.components?.length > 0) {
+  // 1. Scan forge enrichment outputs for PROTOTYPE_UPDATE annotations
+  const enrichmentFiles = Glob(`tmp/forge/${forgeTimestamp}/enrichments/*.md`)
+  const allUpdates = parsePrototypeUpdates(enrichmentFiles)
+
+  if (allUpdates.length > 0) {
+    // 2. Create enriched output directory (preserve originals)
+    const enrichedDir = `${designRefPath}/forge-enriched`
+    Bash(`mkdir -p "${enrichedDir}"`)
+
+    // 3. Process each update
+    for (const update of allUpdates) {
+      // Validate prototype path exists and is safe (reject path traversal)
+      const protoEntry = manifest.components.find(c => c.name === update.component)
+      if (!protoEntry || update.component.includes("..")) continue
+
+      try {
+        // Copy original prototype to enriched dir, apply update
+        const srcPath = `${designRefPath}/${protoEntry.prototype_path}`
+        const destPath = `${enrichedDir}/${protoEntry.prototype_path}`
+        Bash(`mkdir -p "$(dirname "${destPath}")" && cp "${srcPath}" "${destPath}" 2>/dev/null || true`)
+
+        // Write per-component enrichment log
+        Write(`${enrichedDir}/${update.component}-enrichment-log.md`,
+          `# ${update.component} — Forge Enrichment\n\n${update.description}\n\nSource: ${update.sourceFile}\n`)
+      } catch (e) {
+        // Per-component try/catch — one failure does not block others
+        log(`Phase 1.9: Failed to enrich ${update.component}: ${e.message}`)
+      }
+    }
+
+    // 4. Write enriched manifest (not overwrite original)
+    const enrichedManifest = { ...manifest, enriched: true, enrichment_count: allUpdates.length }
+    Write(`${designRefPath}/prototypes-manifest-enriched.json`, JSON.stringify(enrichedManifest, null, 2))
+  }
+  // If no PROTOTYPE_UPDATE annotations found: Phase 1.9 is no-op (not error)
+
+  // 5. Storybook review checkpoint (skipped in arc context)
+  if (allUpdates.length > 0 && !planPath.startsWith("tmp/arc/")) {
+    AskUserQuestion({
+      questions: [{
+        question: `Forge enriched ${allUpdates.length} prototypes with new requirements.`,
+        header: "Updated Design Review",
+        options: [
+          { label: "Open Storybook to review enriched prototypes",
+            description: "See updated components with forge-discovered requirements" },
+          { label: "Skip — proceed with enriched prototypes",
+            description: "Enriched prototypes will be available for workers" }
+        ],
+        multiSelect: false
+      }]
+    })
+  }
+}
+```
+
+### parsePrototypeUpdates() — PROTOTYPE_UPDATE parser
+
+Scans agent output files for `<prototype-update>` XML annotations emitted by forge agents:
+
+```javascript
+function parsePrototypeUpdates(enrichmentFiles) {
+  const updates = []
+  const PROTO_UPDATE_RE = /<prototype-update\s+component="([^"]+)">([\s\S]*?)<\/prototype-update>/g
+
+  for (const file of enrichmentFiles) {
+    const content = Read(file)
+    let match
+    while ((match = PROTO_UPDATE_RE.exec(content)) !== null) {
+      const component = match[1].trim()
+      const description = match[2].trim()
+      // Validate component name (reject path traversal)
+      if (component && !component.includes("..") && !component.includes("/")) {
+        updates.push({ component, description, sourceFile: file })
+      }
+    }
+  }
+  return updates
+}
+```
+
+Forge agents receive this instruction in their spawn prompt (Phase 4):
+```
+When you discover new component requirements during enrichment, emit:
+<prototype-update component="ComponentName">Description of new variant, prop, or requirement</prototype-update>
+```
+
+### Skip Conditions Summary — Phase 1.9 Prototype Enrichment
+
+| Condition | Effect |
+|-----------|--------|
+| Phase 1.8 skipped (no design context) | Skip Phase 1.9 entirely |
+| No `prototypes-manifest.json` in design-references | Skip Phase 1.9 |
+| `prototypes-manifest.json` malformed | Skip Phase 1.9, warn |
+| No `PROTOTYPE_UPDATE` annotations in enrichment outputs | No-op (not error) |
+| Arc context (`tmp/arc/` prefix) | Skip AskUserQuestion checkpoint |
+
 ## Phase 2: Forge Gaze Selection
 
 Apply the Forge Gaze topic-matching algorithm with force-include from Phase 1.7 and risk-weighted scoring from Goldmask Lore Layer. Boosts CRITICAL files by +0.15 and HIGH files by +0.08.
@@ -231,6 +389,11 @@ See [forge-cleanup.md](references/forge-cleanup.md) for the full protocol — me
 | Lore-analyst timeout (30s) | Proceed without risk data (non-blocking) |
 | risk-map.json parse error | Proceed without risk boost or context injection |
 | Forge Gaze risk boost NaN | Use original score (guard: `Math.min(..., 1.0)`) |
+| design-references/ missing or SUMMARY.md empty (Phase 1.8) | Skip Phase 1.8 silently — no design context injected |
+| library-manifest.json malformed (Phase 1.8) | Proceed without library matches — reference code only |
+| prototypes-manifest.json malformed (Phase 1.9) | Skip Phase 1.9, warn user |
+| PROTOTYPE_UPDATE parse failure (Phase 1.9) | Per-component try/catch — skip failed component, continue |
+| Prototype path traversal detected (Phase 1.9) | Reject update, log warning |
 | No agents matched any section | Warn user, suggest `--exhaustive` for lower threshold |
 | Agent timeout (>5 min) | Release task, warn user, proceed with available enrichments |
 | Team lifecycle failure | Pre-create guard + rm fallback (see team-sdk/references/engines.md) |
