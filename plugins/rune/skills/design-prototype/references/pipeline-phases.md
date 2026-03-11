@@ -1,5 +1,76 @@
 # Design Prototype Pipeline — Phase Reference
 
+## Phase 0: Validate Input + 3-Layer Detection
+
+Runs the 3-layer detection pipeline to build a `DesignContext` that drives code generation
+in Phases 2-3. Combined timeout: `detection_timeout_ms` (default: 5000ms).
+
+```javascript
+// Phase 0: 3-Layer Detection Pipeline
+// ARCH-001: L1 + L3 run in parallel (local file reads, ~2-3 tool calls)
+// ARCH-004: Combined timeout budget for all 3 layers
+// ARCH-005: Text mode (--describe) skips Layer 2 entirely
+
+const mode = flags.describe ? "describe" : "url"
+const detectionTimeout = talisman?.design_prototype?.detection_timeout_ms ?? 5000
+const startTime = Date.now()
+
+// Phase 0a: Parallel local detection
+const [frontendStack, initialBuilder] = await Promise.all([
+  discoverFrontendStack(repoRoot),                          // L1: ~2 tool calls
+  discoverUIBuilder(sessionCacheDir, repoRoot, null, null)  // L3: ~1 tool call
+])
+
+// Phase 0b: Figma framework detection (URL mode only)
+let figmaFramework = null
+let figmaApiResponse = null
+let builderMCP = initialBuilder
+
+if (mode === "url") {
+  // Fetch Figma API data
+  figmaApiResponse = figma_list_components(figmaUrls[0])
+  const nodeId = extractNodeId(figmaUrls[0])
+
+  // L2: Detect framework from Figma metadata (0 extra tool calls)
+  if ((Date.now() - startTime) < detectionTimeout) {
+    figmaFramework = detectFigmaFramework(figmaApiResponse, nodeId)
+
+    // Re-run L3 with Figma framework for better builder matching
+    if (figmaFramework?.score >= 0.40) {
+      builderMCP = discoverUIBuilder(
+        sessionCacheDir, repoRoot,
+        frontendStack.detectedLibrary ?? null,
+        figmaFramework
+      )
+    }
+  }
+}
+// ARCH-005: In text mode, figmaFramework stays null — L2 never runs
+
+// Compose unified context
+let designContext
+if ((Date.now() - startTime) >= detectionTimeout) {
+  designContext = { synthesis_strategy: "tailwind", rationale: "Detection timeout exceeded" }
+} else {
+  designContext = composeDesignContext(frontendStack, figmaFramework, builderMCP, mode)
+}
+
+// BACK-008: Cache key includes figma_node_id for per-URL caching
+// Prevents stale cache when analyzing multiple Figma URLs in same session
+const cacheKey = mode === "url"
+  ? `${sessionId}:${extractNodeId(figmaUrls[0])}`
+  : sessionId
+
+// Persist context for Phases 2-3
+Write(`${outputDir}/design-context.yaml`, designContext)
+```
+
+**Inputs**: `$ARGUMENTS`, `talisman.yml`, `package.json`, `.mcp.json`, Figma URL(s)
+**Outputs**: `design-context.yaml`, `designContext` object in memory
+**Tool calls**: ~4-6 total (L1: 1-2, L2: 0, L3: 1-2, Figma fetch: 1, context write: 1)
+**Timeout**: `detection_timeout_ms` (default: 5000ms) — falls back to `{ strategy: "tailwind" }`
+**Mode guard**: `--describe` skips Layer 2 (no Figma API response in text mode)
+
 ## Phase 1: Extract (Figma Inventory + Reference Generation)
 
 ```javascript
@@ -34,8 +105,10 @@ Write(`${outputDir}/reports/02-reference-extraction.md`, extractionReport)
 ## Phase 2: Match (Library Component Matching)
 
 ```javascript
-// Gate: builder MCP available (UntitledUI or similar)
-if (!builderMCP) { skip("No builder MCP available") }
+// Gate: builder MCP available AND strategy requires matching
+if (!designContext.builder || designContext.synthesis_strategy === "tailwind") {
+  skip("No builder MCP or tailwind-only strategy")
+}
 
 let consecutiveFailures = 0
 for (const comp of successfulExtractions) {
@@ -71,30 +144,78 @@ Write(`${outputDir}/library-manifest.json`, usedPackages)
 
 ```javascript
 // Always runs when React stack detected
-// When no library matches from Phase 2, falls back to raw figma-ref output
+// Uses designContext.synthesis_strategy to select code generation approach:
+//   "library"  → use library adapter for correct props/imports/icons (see library-adapters.md)
+//   "hybrid"   → Tailwind CSS with library naming conventions
+//   "tailwind" → raw figma-ref output (no library translation)
+
+// Step 3.1: Select adapter based on DesignContext (see library-adapters.md §selectAdapter)
+const adapter = selectAdapter(designContext)
+// adapter is one of: UNTITLEDUI_ADAPTER, SHADCN_ADAPTER, TAILWIND_ADAPTER
+// If strategy="library" but no adapter exists → logs warning, falls back to TAILWIND_ADAPTER (DEPTH-003)
+
 for (const comp of componentsWithBothRefs) {
   const figmaRef = Read(`${comp}/figma-reference.tsx`)
   const libraryMatch = comp.hasLibraryMatch ? Read(`${comp}/library-match.tsx`) : null
 
-  // Extract LAYOUT INTENT from figma-ref (flex, grid, hierarchy)
-  // Extract REAL API from library-match (imports, props, variants)
-  // Synthesize: library component API + Figma layout intent
+  // Step 3.2: Extract Semantic IR from figma-ref (see semantic-ir.md §extractSemanticIR)
+  const irComponents = extractSemanticIR(figmaRef)
+  // Returns SemanticComponent[] — each with type, intent, size, state, icons, children
 
-  const prototype = synthesize(figmaRef, libraryMatch)
+  // Step 3.3: Generate code using adapter dispatch table (DEPTH-001)
+  // Adapter handles all 15 ComponentTypes from the IR:
+  //   button, input, select, badge, card, breadcrumb, pagination, avatar-group,
+  //   dialog, tabs, tooltip, toggle, alert, table, dropdown-menu
+  // Unhandled types fall through to Tailwind with warning comment
+  const codeFragments = irComponents.map(irComp => {
+    const typeMapping = adapter.types[irComp.type]
+
+    if (!typeMapping) {
+      // IR type not in adapter — emit raw Tailwind fallback with TODO comment
+      return generateTailwindFallback(irComp, figmaRef)
+    }
+
+    return generateComponentCode(irComp, typeMapping, adapter, {
+      // Import resolution: adapter.metadata.importStyle determines path format
+      //   "relative" (UntitledUI): import { Button } from '@untitledui/button'
+      //   "barrel"   (shadcn):     import { Button } from '@/components/ui/button'
+      importStyle: adapter.metadata.importStyle,
+
+      // Icon resolution: resolveIconName() fallback chain (semantic-ir.md §resolveIconName)
+      //   iconMap lookup → Figma name sanitize → generic fallback
+      iconPackage: adapter.metadata.iconPackage,
+
+      // Variant mapping: irComp.intent → typeMapping.variants[intent]
+      //   e.g., intent="destructive" → variant="error" (UntitledUI) or "destructive" (shadcn)
+      // Size mapping: irComp.size → typeMapping.sizes[size]
+      //   e.g., size="md" → size="md" (UntitledUI) or "default" (shadcn)
+      // State mapping: irComp.state → typeMapping.stateProps[state]
+      //   e.g., state="disabled" → disabled={true}
+    })
+  })
+
+  // Step 3.4: Compose prototype from fragments + Figma layout intent
+  const layoutIntent = extractLayoutIntent(figmaRef)  // flex direction, gaps, padding from Figma
+  const imports = deduplicateImports(codeFragments)    // Merge all import statements
+  const prototype = composePrototype(imports, codeFragments, layoutIntent)
+
   Write(`${comp}/prototype.tsx`, `// PROTOTYPE — adapt before production use\n${prototype}`)
 
-  // CSF3 Storybook story
+  // Step 3.5: CSF3 Storybook story
   const story = generateCSF3Story(comp.name, prototype)
   Write(`${comp}/prototype.stories.tsx`, story)
 }
+
 Write(`${outputDir}/reports/04-prototype-synthesis.md`, synthReport)
 Write(`${outputDir}/prototypes-manifest.json`, prototypeMetadata)
 ```
 
-**Inputs**: Phase 1 `figma-reference.tsx` + Phase 2 `library-match.tsx`
+**Inputs**: Phase 1 `figma-reference.tsx` + Phase 2 `library-match.tsx` + `design-context.yaml`
 **Outputs**: `prototype.tsx` + `prototype.stories.tsx` per component, report 04, `prototypes-manifest.json`
 **Gate**: React stack detected
-**Fallback**: When Phase 2 produces no library matches, synthesizes from figma-ref only (raw figma-ref output)
+**Adapter selection**: `selectAdapter(designContext)` → dispatches to library-specific adapter (see [library-adapters.md](../../design-system-discovery/references/library-adapters.md))
+**IR extraction**: `extractSemanticIR(figmaRef)` → produces `SemanticComponent[]` (see [semantic-ir.md](../../design-system-discovery/references/semantic-ir.md))
+**Fallback**: When Phase 2 produces no library matches OR adapter type mapping is missing, falls through to Tailwind with warning comment
 
 ## Phase 3.5: UX Flow Mapping (Conditional)
 

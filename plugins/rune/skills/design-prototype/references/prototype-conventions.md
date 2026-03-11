@@ -235,5 +235,77 @@ Breakpoint usage:
 
 1. Import from library packages detected in Phase 2 (e.g., `@untitledui/*`)
 2. Never import from `figma-reference.tsx` — it is a reference only
-3. Group imports: library components first, then local utilities
+3. Group imports: library components first, then icons, then local utilities
 4. Use the exact component API from `library-match.tsx` — do not invent props
+5. Import style is determined by the adapter (see §Library-Specific Import Patterns below)
+
+## Library-Specific Import Patterns
+
+Import paths and component composition vary by adapter. The `selectAdapter()` function
+(see [library-adapters.md](../../design-system-discovery/references/library-adapters.md))
+determines which pattern to use based on `designContext.synthesis_strategy`.
+
+### UntitledUI (`importStyle: "relative"`)
+
+```typescript
+// Components: relative-path package imports
+import { Button } from '@untitledui/button'
+import { Card, CardHeader, CardContent } from '@untitledui/card'
+import { Input } from '@untitledui/input'
+
+// Icons: named exports from @untitledui/icons
+import { ArrowLeft, ChevronDown, Search } from '@untitledui/icons'
+```
+
+**Composability**: flat (props-based). Components use prop variants, not subcomponent nesting.
+- Variants via `color` prop: `<Button color="primary">` / `<Button color="error">`
+- Sizes via `size` prop: `<Input size="md">` / `<Input size="lg">`
+- States via boolean props: `disabled={true}`, `loading={true}`
+
+### shadcn/ui (`importStyle: "barrel"`)
+
+```typescript
+// Components: barrel imports from @/components/ui/
+import { Button } from '@/components/ui/button'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+
+// Icons: named exports from lucide-react
+import { ArrowLeft, ChevronDown, Search } from 'lucide-react'
+```
+
+**Composability**: compound (subcomponents). Components use nested composition.
+- Variants via `variant` prop: `<Button variant="default">` / `<Button variant="destructive">`
+- Sizes via `size` prop: `<Button size="default">` / `<Button size="lg">`
+- States via boolean props or data attributes: `disabled`, `data-state="open"`
+
+### Tailwind Fallback (`importStyle: "none"`)
+
+```typescript
+// No library imports — raw HTML elements with Tailwind classes
+// Icons: inline SVG extracted from Figma reference
+```
+
+**Composability**: inline (className-based). No external component library.
+- All styling via Tailwind utility classes
+- Use semantic color tokens (`text-foreground`, `bg-background`) per §Tailwind Conventions
+
+## Adapter-Aware Synthesis Rules
+
+When `synthesis_strategy` is `"library"`:
+1. **Extract Semantic IR** from `figma-reference.tsx` using `extractSemanticIR()` — produces `SemanticComponent[]` with type, intent, size, state, icons
+2. **Map IR to adapter** — look up `adapter.types[irComp.type]` for the type mapping
+3. **Resolve variants** — `irComp.intent` maps to `typeMapping.variants[intent]` (e.g., `"destructive"` → `"error"` for UntitledUI, `"destructive"` for shadcn)
+4. **Resolve icons** — use `resolveIconName()` fallback chain: adapter icon map → Figma name sanitize → generic fallback
+5. **Resolve state** — `irComp.state` maps to `typeMapping.stateProps[state]` (e.g., `"disabled"` → `disabled={true}`)
+6. **Preserve layout intent** — flex direction, gaps, and padding from `figma-reference.tsx` are preserved in the prototype wrapper
+
+When `synthesis_strategy` is `"hybrid"`:
+1. Use Tailwind CSS for all styling (no library component imports)
+2. Apply library naming conventions for className composition (e.g., shadcn-style semantic tokens)
+3. Icons remain inline SVG from Figma reference
+
+When `synthesis_strategy` is `"tailwind"`:
+1. Use raw `figma-reference.tsx` output with Tailwind styling as-is
+2. No library translation — preserve Figma's generated className structure
+3. Apply §Tailwind Conventions for semantic color tokens and spacing

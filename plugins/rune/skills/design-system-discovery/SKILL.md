@@ -4,6 +4,8 @@ description: |
   Design system auto-detection — scans repository for installed component libraries,
   token systems, and variant frameworks to build a structured design-system-profile.yaml.
   Provides the discoverDesignSystem() algorithm used by devise, strive, and arc workflows.
+  Provides the discoverFrontendStack() algorithm for Layer 1 frontend stack detection with
+  version extraction, used by design-prototype Phase 0.
   Trigger keywords: shadcn, shadcn/ui, untitled ui, radix ui, design system, design tokens,
   tailwind, css variables, cva, class-variance-authority, styled-components, tailwind v4,
   style-dictionary, token system, component library, design compliance, frontend stack,
@@ -151,16 +153,50 @@ evidence_files:
 
 See [edge-cases.md](references/edge-cases.md) for detection criteria and handling rules for each case.
 
-## discoverUIBuilder(sessionCacheDir, repoRoot)
+## discoverUIBuilder(sessionCacheDir, repoRoot, detectedLibrary, figmaFramework)
 
-**Input**: `sessionCacheDir` — caller-provided session-scoped temp directory; `repoRoot` — repository root path
+**Input**: `sessionCacheDir` — session-scoped temp directory; `repoRoot` — repository root path; `detectedLibrary` — (optional) library from `discoverDesignSystem()`, null for independent operation; `figmaFramework` — (optional) framework from `detectFigmaFramework()`, null when Figma data unavailable
 **Output**: `builder-profile.yaml` (written to `{sessionCacheDir}/`), builder config object returned to caller or null
 
-Discovers which UI builder MCP is available for the detected design system. Called after `discoverDesignSystem()` during devise Phase 0.5 and strive Phase 1.5.
+Discovers which UI builder MCP is available. Operates independently of `discoverDesignSystem()` — when called without `detectedLibrary`, skips library-dependent steps (2-4) and runs heuristic-only MCP detection. When called with `detectedLibrary`, runs the full 5-step priority cascade.
 
-5-step priority cascade: session cache → talisman binding (0.95) → project skill frontmatter (0.90) → plugin skill frontmatter (0.90) → known MCP registry + heuristic (0.50). First match wins.
+Called after `discoverDesignSystem()` during devise Phase 0.5 and strive Phase 1.5. Called independently during design-prototype Phase 0 (Layer 3).
+
+5-step priority cascade: session cache → talisman binding (0.95) → project skill frontmatter (0.90) → plugin skill frontmatter (0.90) → known MCP registry + heuristic (0.50). First match wins. Steps 2-4 require `detectedLibrary`; Step 5 runs unconditionally.
 
 See [ui-builder-discovery.md](references/ui-builder-discovery.md) for the full algorithm, `parseBuilderFrontmatter()`, known MCP registry, heuristic detection, and `builder-profile.yaml` output schema.
+
+## discoverFrontendStack(repoRoot)
+
+**Input**: `repoRoot` — repository root path
+**Output**: frontend stack profile object with framework, version, build tool, CSS framework, and confidence
+
+Extends the existing `detectTypeScriptStack()` with version extraction for the design-prototype pipeline (Layer 1 of 3-layer detection). Extracts major version from `package.json` semver strings, detects build tool (vite/next/webpack), and identifies CSS framework with version (Tailwind v3 vs v4).
+
+Fallback: `{ framework: null, cssFramework: "tailwind", cssVersion: 4, confidence: 0.0 }` — ensures the pipeline always has a valid CSS target.
+
+See [tiered-scanning.md](references/tiered-scanning.md) for the full algorithm, `extractMajor()` helper, output schema, and relationship to `detectTypeScriptStack()`.
+
+## discoverFigmaFramework(figmaApiResponse, nodeId)
+
+**Input**: `figmaApiResponse` — full Figma API response object; `nodeId` — target node ID from Figma URL
+**Output**: detection result with framework identifier, numeric score (0.0-1.0), match details, and alternatives — or null-safe fallback
+
+Analyzes Figma API component metadata (component names, variant props, icon names, typography styles, effect styles, remote flags) to identify which UI library a design references. Layer 2 of the 3-layer detection pipeline. Called during `design-prototype` Phase 0 after Figma data is fetched. Not called in text-only (`--describe`) mode.
+
+Uses weighted signal matching (component 0.35, variant 0.25, icon 0.15, typography 0.10, effect 0.05, remote 0.10) against the framework signature registry. Returns `framework: null` when score < 0.40 or margin between top two candidates < 0.15.
+
+See [figma-framework-detection.md](references/figma-framework-detection.md) for the full algorithm, signal weights, error handling, and output schema.
+See [figma-framework-signatures.md](references/figma-framework-signatures.md) for the framework signature registry (untitled_ui, shadcn_ui, material_ui, ant_design).
+
+## composeDesignContext(frontendStack, figmaFramework, builderMCP, mode)
+
+**Input**: `frontendStack` — Layer 1 output; `figmaFramework` — Layer 2 output (null in text-only mode); `builderMCP` — Layer 3 output (null when no builder); `mode` — `"url"` or `"describe"`
+**Output**: unified `DesignContext` object with `synthesis_strategy` (`"library"` | `"hybrid"` | `"tailwind"`)
+
+Merges all 3 detection layers into a single context consumed by `design-prototype` Phase 1+. Includes conflict resolution (e.g., Vue project + shadcn Figma → tailwind), mode guard for text-only paths, and timeout budget (5000ms default).
+
+See [design-context.md](references/design-context.md) for the full composition algorithm, decision matrix, conflict resolution rules, parallelization strategy, and output schema.
 
 ## Integration Points
 
