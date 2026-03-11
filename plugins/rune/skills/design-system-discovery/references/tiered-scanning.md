@@ -80,3 +80,189 @@ Signals from Tier 2:
 - `tw\`...\`` or `twMerge(` calls → `tailwind_v3_config` or `tailwind_v4_theme` token signal
 - Figma token imports or `figma.variables` references → `style_dictionary` token signal
 - Storybook story files (`*.stories.tsx`) count >= 5 → `storybook_only` edge case signal
+
+## discoverFrontendStack(repoRoot)
+
+Extends the existing `detectTypeScriptStack()` with version extraction, build tool detection,
+and CSS framework version detection. Called during design-prototype Phase 0 to build Layer 1
+of the 3-layer detection pipeline.
+
+**Input**: `repoRoot` — repository root path
+**Output**: frontend stack profile object (see schema below)
+
+Uses `discover*` naming to match existing codebase convention (`discoverDesignSystem()`,
+`discoverUIBuilder()`). Unlike `detectTypeScriptStack()` which returns a generic stack
+structure, this function returns a design-pipeline-specific frontend profile.
+
+### Algorithm
+
+```
+// Pseudocode — NOT implementation code
+function discoverFrontendStack(repoRoot):
+  pkg = Read(repoRoot + "/package.json")
+  IF pkg is null OR pkg is empty:
+    RETURN {
+      framework: null, framework_version: null,
+      build_tool: null,
+      css_framework: "tailwind", css_version: 4,
+      confidence: 0.0,
+      evidence: []
+    }
+
+  deps = merge(pkg.dependencies ?? {}, pkg.devDependencies ?? {})
+  evidence = ["package.json"]
+
+  // --- Framework detection with version ---
+  framework = null
+  framework_version = null
+
+  IF deps.has("next"):
+    framework = "nextjs"
+    framework_version = extractMajor(deps["next"])
+  ELIF deps.has("react"):
+    framework = "react"
+    framework_version = extractMajor(deps["react"])
+  ELIF deps.has("vue"):
+    framework = "vuejs"
+    framework_version = extractMajor(deps["vue"])
+  ELIF deps.has("nuxt"):
+    framework = "nuxt"
+    framework_version = extractMajor(deps["nuxt"])
+  ELIF deps.has("svelte"):
+    framework = "svelte"
+    framework_version = extractMajor(deps["svelte"])
+
+  // --- Build tool detection ---
+  build_tool = null
+  IF deps.has("vite") OR deps.has("@vitejs/plugin-react"):
+    build_tool = "vite"
+    evidence.push("vite")
+  ELIF Glob(repoRoot + "/next.config.*").length > 0:
+    build_tool = "next"
+    evidence.push("next.config.*")
+  ELIF deps.has("webpack"):
+    build_tool = "webpack"
+
+  // --- CSS framework detection with version ---
+  css_framework = null
+  css_version = null
+
+  IF deps.has("tailwindcss"):
+    css_framework = "tailwind"
+    css_version = extractMajor(deps["tailwindcss"])
+    // Cross-reference with Tier 0/1 signals for higher confidence
+    IF Glob(repoRoot + "/tailwind.config.*").length > 0:
+      evidence.push("tailwind.config.*")
+      IF css_version is null:
+        css_version = 3  // Config file presence implies v3 (v4 uses CSS-based config)
+    IF fileContains(repoRoot + "/src/index.css", '@import "tailwindcss"'):
+      evidence.push("src/index.css")
+      css_version = 4  // @import "tailwindcss" is v4 marker (overrides version string)
+    IF fileContains(repoRoot + "/app/globals.css", '@import "tailwindcss"'):
+      evidence.push("app/globals.css")
+      css_version = 4
+  ELIF deps.has("styled-components"):
+    css_framework = "styled-components"
+  ELIF deps.has("@emotion/styled"):
+    css_framework = "emotion"
+
+  // --- Confidence scoring ---
+  // Follows existing stacks convention: 0.40 (extension-only) to 0.95 (multiple evidence)
+  evidence_count = evidence.length
+  IF evidence_count >= 3 AND framework is not null:
+    confidence = 0.95
+  ELIF evidence_count >= 2 AND framework is not null:
+    confidence = 0.85
+  ELIF evidence_count >= 1 AND framework is not null:
+    confidence = 0.70
+  ELIF evidence_count >= 1:
+    confidence = 0.50  // package.json found but no framework
+  ELSE:
+    confidence = 0.0
+
+  RETURN {
+    framework: framework,              // "react" | "nextjs" | "vuejs" | "nuxt" | "svelte" | null
+    framework_version: framework_version,  // Major version number (integer) or null
+    build_tool: build_tool,            // "vite" | "next" | "webpack" | null
+    css_framework: css_framework,      // "tailwind" | "styled-components" | "emotion" | null
+    css_version: css_version,          // Major version number (integer) or null
+    confidence: confidence,            // 0.0–1.0 numeric (matches existing convention)
+    evidence: evidence                 // List of files that contributed signals
+  }
+```
+
+### extractMajor(versionString)
+
+Extracts the major version number from a semver version string as found in `package.json`.
+
+```
+// Pseudocode — NOT implementation code
+function extractMajor(versionString):
+  // Handle common version range prefixes: ^, ~, >=, >, =, ||, spaces
+  // Examples: "^14.2.0" → 14, "~3.4.1" → 3, ">=18.0.0" → 18, "4.0.0-beta.1" → 4
+  IF versionString is null OR versionString is empty:
+    RETURN null
+
+  // Strip leading range operators and whitespace
+  cleaned = versionString.replace(/^[\^~>=\s|]+/, "")
+
+  // Extract first sequence of digits
+  match = cleaned.match(/^(\d+)/)
+  IF match is null:
+    RETURN null
+
+  RETURN parseInt(match[1])
+```
+
+### Default Fallback
+
+When `discoverFrontendStack()` cannot detect any framework or CSS framework, the
+design-prototype pipeline uses this default:
+
+```yaml
+# Fallback when no frontend stack detected
+framework: null
+framework_version: null
+build_tool: null
+css_framework: "tailwind"
+css_version: 4
+confidence: 0.0
+evidence: []
+```
+
+This ensures the pipeline always has a valid CSS framework target. Tailwind v4 is the
+default because it is the output format of `figma-to-react`.
+
+### Output Schema
+
+```yaml
+# Layer 1 output — flat fields (no wrapper key)
+# Wrapper key "stack:" belongs in DesignContext only (see design-context.md)
+framework: "react"                # react | nextjs | vuejs | nuxt | svelte | null
+framework_version: 18             # Major version number (integer) or null
+build_tool: "vite"                # vite | next | webpack | null
+css_framework: "tailwind"         # tailwind | styled-components | emotion | null
+css_version: 4                    # Major version (integer) — Tailwind v3 vs v4 matters
+confidence: 0.95                  # 0.0–1.0 numeric score
+evidence:                         # Files that contributed signals
+  - package.json
+  - vite.config.ts
+  - tailwind.config.ts
+```
+
+### Relationship to detectTypeScriptStack()
+
+`detectTypeScriptStack()` (in `stacks/references/detection.md`) is the general-purpose
+TypeScript stack detector. It returns `{ language, frameworks[], databases[], libraries[],
+tooling[] }` — a broad inventory.
+
+`discoverFrontendStack()` is a focused frontend-stack profiler for the design pipeline.
+It adds:
+- **Version extraction** — major version from `package.json` semver strings
+- **Build tool detection** — vite/next/webpack
+- **CSS framework versioning** — Tailwind v3 vs v4 (affects class syntax and config format)
+- **Design-pipeline-specific confidence** — 0.0–1.0 numeric score
+
+Both functions read `package.json` but serve different consumers. When both run in the
+same session, `discoverFrontendStack()` reuses Tier 0 signals already gathered by
+`discoverDesignSystem()` if available.

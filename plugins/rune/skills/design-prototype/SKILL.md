@@ -78,10 +78,12 @@ Standalone prototype generator: extracts Figma designs, matches against UI libra
 ## Pipeline Overview
 
 ```
-Phase 0: Validate Input + Mode Selection
+Phase 0: Validate Input + 3-Layer Detection
     → Parse ARGUMENTS, detect Figma URL vs text description
     → Check design_sync.enabled gate
-    → Run discoverUIBuilder(), detect React stack
+    → Phase 0a (parallel): L1 discoverFrontendStack() + L3 discoverUIBuilder()
+    → Phase 0b (sequential, URL mode): L2 discoverFigmaFramework()
+    → Compose DesignContext → Write design-context.yaml
     → Create output directory
     |
 Phase 1: Extract (URL mode only)
@@ -117,11 +119,15 @@ Phase 5: Present
     → AskUserQuestion with next-step options
 ```
 
-## Phase 0: Validate Input + Mode Selection
+## Phase 0: Validate Input + 3-Layer Detection
 
-Parse `$ARGUMENTS` to determine input mode:
-- **URL mode**: One or more Figma URLs detected → full pipeline (Phases 1-5)
-- **Text mode**: `--describe` flag present → skip Phase 1, use description for library search (Phases 2-5)
+Parse `$ARGUMENTS` to determine input mode, then run the 3-layer detection pipeline to
+build a `DesignContext` that drives Phases 2-3. Detection has a combined timeout budget
+of `detection_timeout_ms` (default: 5000ms) — see ARCH-004.
+
+**Input modes**:
+- **URL mode**: One or more Figma URLs detected → all 3 layers → full pipeline (Phases 1-5)
+- **Text mode**: `--describe` flag present → Layer 1 + Layer 3 only (ARCH-005) → Phases 2-5
 - **No input**: → `AskUserQuestion("Provide a Figma URL or use --describe 'text'")`
 
 ```
@@ -137,17 +143,62 @@ if NOT talisman?.design_sync?.enabled:
   AskUserQuestion("design_sync.enabled is false. Enable it in talisman.yml to use this skill.")
   STOP
 
-builderProfile = discoverUIBuilder()  // from design-system-discovery
-stackInfo = detectReactStack()        // package.json scan
+mode = flags.describe ? "describe" : "url"
+
+// --- 3-Layer Detection Pipeline ---
+// ARCH-001: L1 + L3 run in parallel (local file reads only, ~2-3 tool calls)
+// ARCH-004: Combined timeout budget for all 3 layers
+detection_timeout_ms = talisman?.design_prototype?.detection_timeout_ms ?? 5000
+startTime = now()
+
+// Phase 0a: Parallel — L1 (frontend stack) + L3 (builder MCP) + Figma fetch
+[frontendStack, builderMCP] = parallel(
+  discoverFrontendStack(repoRoot),                              // Layer 1: ~2 tool calls
+  discoverUIBuilder(sessionCacheDir, repoRoot, null, null)      // Layer 3: ~1 tool call
+)
+
+// Phase 0b: Sequential — L2 (Figma framework, URL mode only)
+figmaFramework = null
+if mode === "url":
+  // Fetch Figma API data (can overlap with L1+L3 in parallel)
+  figmaApiResponse = figma_list_components(figmaUrls[0])
+  nodeId = extractNodeId(figmaUrls[0])
+
+  if (now() - startTime) < detection_timeout_ms:
+    figmaFramework = discoverFigmaFramework(figmaApiResponse, nodeId)  // Layer 2: 0 tool calls
+
+    // Re-run L3 with Figma framework for better builder matching
+    if figmaFramework is not null AND figmaFramework.score >= 0.40:
+      builderMCP = discoverUIBuilder(sessionCacheDir, repoRoot,
+                                      frontendStack.detectedLibrary, figmaFramework)
+// ARCH-005: Text mode skips Layer 2 entirely — figmaFramework stays null
+
+// Compose unified context (see design-context.md)
+if (now() - startTime) >= detection_timeout_ms:
+  designContext = { synthesis_strategy: "tailwind", rationale: "Detection timeout exceeded" }
+else:
+  designContext = composeDesignContext(frontendStack, figmaFramework, builderMCP, mode)
+
+// BACK-008: Cache key includes figma_node_id for per-URL caching
+cacheKey = mode === "url" ? (sessionId + ":" + nodeId) : sessionId
 
 timestamp = formatTimestamp()
 outputDir = "design-references/{timestamp}"
 Bash("mkdir -p {outputDir}")
+Write("{outputDir}/design-context.yaml", designContext)  // Persist for Phase 2/3
 
 maxComponents = flags.components ?? talisman?.design_sync?.max_reference_components ?? 5
 ```
 
-See [pipeline-phases.md](references/pipeline-phases.md) for detailed input parsing logic.
+**Tool call budget (BACK-009)**: Phase 0 costs ~4-6 tool calls total:
+- L1: 1-2 (Read package.json + Glob configs)
+- L2: 0 (uses already-fetched Figma API data)
+- L3: 1-2 (Read .mcp.json + Glob skill frontmatter)
+- Figma fetch: 1 (figma_list_components)
+- Context write: 1 (Write design-context.yaml)
+
+See [pipeline-phases.md](references/pipeline-phases.md) for detailed Phase 0 pseudocode and detection orchestration.
+See [design-context.md](../design-system-discovery/references/design-context.md) for the `composeDesignContext()` algorithm and decision matrix.
 
 ## Phase 1: Extract
 
@@ -179,11 +230,12 @@ See [pipeline-phases.md](references/pipeline-phases.md) for extraction error han
 
 ## Phase 2: Match
 
-Conditional on `builderProfile !== null` (a UI builder MCP is available). Searches the builder library for real component matches.
+Conditional on `designContext.builder !== null` (a UI builder MCP is available) AND
+`designContext.synthesis_strategy !== "tailwind"` (detection found a matchable framework).
 
 ```
-if builderProfile === null:
-  // No builder — skip matching, Phase 3 uses raw figma-to-react output
+if designContext.builder === null OR designContext.synthesis_strategy === "tailwind":
+  // No builder or pure tailwind strategy — skip matching, Phase 3 uses raw output
   SKIP to Phase 3
 
 matchResults = []
@@ -214,25 +266,37 @@ See [pipeline-phases.md](references/pipeline-phases.md) for circuit breaker deta
 ## Phase 3: Synthesize
 
 Combines Figma reference code with library matches to produce prototype components.
+Uses `designContext.synthesis_strategy` to determine code generation approach:
+- `"library"` → use library adapter for correct props, imports, icons via Semantic IR
+- `"hybrid"` → Tailwind CSS with library naming conventions
+- `"tailwind"` → raw Tailwind CSS from figma-to-react output
 
-For each component:
-1. If library match exists → merge reference structure with real library component API
-2. If no match → use Figma reference code with Tailwind styling as-is
-3. Generate `prototype.tsx` with proper imports and prop types
-4. If `--no-storybook` is NOT set → generate `prototype.stories.tsx` (CSF3 format)
+**Adapter-based code generation pipeline** (DEPTH-001):
+
+1. **Select adapter**: `selectAdapter(designContext)` → returns `UNTITLEDUI_ADAPTER`, `SHADCN_ADAPTER`, or `TAILWIND_ADAPTER` based on `synthesis_strategy` and detected library. Falls back to Tailwind if no adapter matches (DEPTH-003).
+2. **Extract Semantic IR**: `extractSemanticIR(figmaRef)` → produces `SemanticComponent[]` with type, intent, size, state, icons. Covers all 15 component types.
+3. **Dispatch per IR type**: `generateComponentCode(irComp, adapter)` → maps each `SemanticComponent` through the adapter's type mapping table for correct props, variants, sizes, icons, and state props.
+4. **Compose prototype**: Merge code fragments with Figma layout intent (flex, grid, spacing) into a single `prototype.tsx`.
+5. **Generate story**: CSF3 Storybook story with baseline variants (Default, Loading, Error, Empty, Disabled).
 
 ```
+adapter = selectAdapter(designContext)
+
 for component in components:
-  match = matchResults.find(m => m.component === component.name)
-  prototypeCode = synthesizePrototype(component, match, stackInfo)
-  Write("{outputDir}/prototypes/{component.name}/prototype.tsx", prototypeCode)
+  figmaRef = Read("{outputDir}/prototypes/{component.name}/figma-reference.tsx")
+  irComponents = extractSemanticIR(figmaRef)
+  codeFragments = irComponents.map(ir => generateComponentCode(ir, adapter))
+  prototype = composePrototype(codeFragments, extractLayoutIntent(figmaRef))
+  Write("{outputDir}/prototypes/{component.name}/prototype.tsx", prototype)
 
   if NOT flags.noStorybook:
-    storyCode = generateStory(component, prototypeCode, stackInfo)
+    storyCode = generateStory(component, prototype, stackInfo)
     Write("{outputDir}/prototypes/{component.name}/prototype.stories.tsx", storyCode)
 ```
 
-See [prototype-conventions.md](references/prototype-conventions.md) for synthesis rules and story format.
+See [prototype-conventions.md](references/prototype-conventions.md) for synthesis rules, library-specific import patterns, and adapter-aware conventions.
+See [library-adapters.md](../design-system-discovery/references/library-adapters.md) for adapter registry and `selectAdapter()`.
+See [semantic-ir.md](../design-system-discovery/references/semantic-ir.md) for `SemanticComponent` interface and `extractSemanticIR()`.
 
 ## Phase 3.5: UX Flow Mapping
 
@@ -253,6 +317,7 @@ Conditional: runs when >= 1 prototype was generated. Performs structural self-re
 - Story coverage (each variant has a story)
 - Tailwind class validity
 - Accessibility basics (alt text, aria labels, semantic HTML)
+- (4.1-4.2) Visual verification substeps: conditional screenshot comparison via agent-browser when `storybook.enabled` and Storybook is running. See [pipeline-phases.md](references/pipeline-phases.md) for details.
 
 ```
 prototypes = Glob("{outputDir}/prototypes/*/prototype.tsx")
@@ -389,7 +454,8 @@ When >= 3 components AND `--no-team` is NOT set, the pipeline uses Agent Teams f
 ```
 if components.length >= 3 AND NOT flags.noTeam:
   teamName = "rune-prototype-{timestamp}"
-  TeamCreate({ name: teamName })
+  try:
+    TeamCreate({ name: teamName })
 
   // Create extraction tasks
   for component in components:
@@ -403,7 +469,7 @@ if components.length >= 3 AND NOT flags.noTeam:
   workerCount = min(components.length, 5)
   for i in range(workerCount):
     Agent(team_name=teamName, name="proto-worker-{i+1}", ...)
-```
+  finally:
 
 ### Team Cleanup
 
@@ -411,9 +477,13 @@ Standard 5-component pattern:
 
 ```
 // 1. Dynamic member discovery
-CHOME = Bash('echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"')
-teamConfig = Read("{CHOME}/teams/{teamName}/config.json")
-allMembers = teamConfig.members.map(m => m.name).filter(n => /^[a-zA-Z0-9_-]+$/.test(n))
+try {
+  CHOME = Bash('echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"')
+  teamConfig = Read("{CHOME}/teams/{teamName}/config.json")
+  allMembers = teamConfig.members.map(m => m.name).filter(n => /^[a-zA-Z0-9_-]+$/.test(n))
+} catch {
+  allMembers = ["proto-worker-1", "proto-worker-2", "proto-worker-3", "proto-worker-4", "proto-worker-5"]
+}
 
 // 2. Shutdown request to all members
 for member in allMembers:
@@ -430,7 +500,9 @@ for attempt in [0, 5, 10, 15]:
 
 // 5. Filesystem fallback (only if TeamDelete never succeeded)
 if NOT teamDeleteSucceeded:
-  Bash('for pid in $(pgrep -P $PPID 2>/dev/null); do ... kill -TERM/-KILL ... done')
+  Bash('for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done')
+  Bash("sleep 3")
+  Bash('for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done')
   Bash('CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/{teamName}/" "$CHOME/tasks/{teamName}/" 2>/dev/null')
 ```
 
@@ -469,6 +541,11 @@ design_sync:
   reference_timeout_ms: 15000            # Per-component figma_to_react timeout in ms (Phase 1 extraction)
   library_timeout_ms: 10000             # Per-component UntitledUI search timeout in ms
   library_match_threshold: 0.5          # Min score to accept a library match
+
+# talisman.yml — under design_prototype section (Phase 0 detection)
+design_prototype:
+  detection_timeout_ms: 5000             # Max time for 3-layer detection pipeline (ARCH-004)
+  cache_enabled: true                    # Enable detection result caching (BACK-008)
 ```
 
 ## References
