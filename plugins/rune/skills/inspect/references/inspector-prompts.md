@@ -40,6 +40,89 @@ const perspectives = {
 }
 ```
 
+## Design Fidelity Dimension (Dimension 10) — grace-warden Extension
+
+Design fidelity is a **conditional dimension** that extends `grace-warden` scope when plan has `figma_url` AND design references exist.
+
+### Gate
+
+```javascript
+// Phase 0.5: Evaluate design-fidelity gate
+const settings = readTalismanSection("settings")
+const designSync = settings?.design_sync ?? {}
+const designDimensionEnabled = designSync.inspect_design_dimension !== false  // default true
+
+// Discover design references (priority order: VSM > design-prototype > devise)
+const designInventory = Glob("tmp/plans/*/design-references/inventory.json")[0]
+  || Glob("tmp/design-prototype/*/inventory.json")[0]
+  || Glob("tmp/arc/*/vsm/*.json")[0]
+
+const designFidelityActive = (
+  designDimensionEnabled
+  && designSync.enabled === true
+  && !!planFrontmatter?.figma_url
+  && !!designInventory
+)
+```
+
+### grace-warden Prompt Extension
+
+When `designFidelityActive === true`, append the following block to the grace-warden prompt AFTER the standard requirements section:
+
+```
+## Design Fidelity (Dimension 10) — DES- Prefix
+
+You are ALSO responsible for dimension 10: Design Fidelity.
+
+Design reference: {{design_inventory_path}}
+
+For each component listed in the design inventory, classify its implementation status:
+- COMPLETE: component implemented with all design variants/states
+- PARTIAL: component exists but missing variants or states from design spec
+- MISSING: component specified in design but not implemented at all
+- DEVIATED: component implemented significantly differently from spec
+
+Report each classification as a DES- finding:
+
+  DES-001 | P2 | [DEVIATED] LoginForm: uses bg-blue-500 but design specifies bg-primary
+  DES-002 | P3 | [PARTIAL] Button: missing "loading" variant — design shows 4 states
+  DES-003 | P1 | [MISSING] AvatarGroup: in design spec but no implementation found
+
+Gap category mapping:
+- COMPLETE → no gap
+- PARTIAL → INCOMPLETE gap category
+- MISSING → MISSING gap category
+- DEVIATED → INCORRECT gap category
+
+Check: token compliance, layout fidelity, responsive coverage, accessibility, variant completeness.
+```
+
+### Inscription Context Field
+
+When `designFidelityActive === true`, add `design_context` to `inscription.json` before spawning agents:
+
+```javascript
+inscription.design_context = {
+  enabled: true,
+  inventory_path: designInventory,
+  figma_url: planFrontmatter.figma_url
+}
+```
+
+### VERDICT.md Integration
+
+When design-fidelity findings (DES-) are present, the Verdict Binder appends a "Design Compliance" section to the requirement matrix:
+
+```markdown
+## Design Compliance
+
+| Component | Status | Inspector Finding |
+|-----------|--------|-------------------|
+| LoginForm | DEVIATED | DES-001 |
+| Button    | PARTIAL  | DES-002 |
+| AvatarGroup | MISSING | DES-003 |
+```
+
 ## Phase 3: Summon Inspector Ashes
 
 For each inspector in `inspectorAssignments`, summon using the Agent tool with Agent Teams:
@@ -131,11 +214,12 @@ if (flag("--focus")) {
     "design": "sight-oracle",
     "observability": "vigil-keeper",
     "tests": "vigil-keeper",
-    "maintainability": "vigil-keeper"
+    "maintainability": "vigil-keeper",
+    "design-fidelity": "grace-warden"      // Dimension 10: conditional on design_sync.enabled + design refs
   }
   if (!(focusDimension in inspectorMap)) {
     // SEC-006 FIX: Use fixed error message — do not echo unvalidated user input
-    error("Unknown --focus dimension. Valid: correctness, completeness, security, failure-modes, performance, design, observability, tests, maintainability")
+    error("Unknown --focus dimension. Valid: correctness, completeness, security, failure-modes, performance, design, observability, tests, maintainability, design-fidelity")
   }
 
   // Keep only the focused inspector
