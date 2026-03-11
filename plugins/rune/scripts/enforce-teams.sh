@@ -98,9 +98,9 @@ if [[ -f "${SCRIPT_DIR_LIB}/lib/known-rune-agents.sh" ]]; then
 fi
 
 # Check for active Rune workflows
-# NOTE: File-based state detection has inherent TOCTOU window (SEC-3). A workflow
-# could start between this check and the Task executing. Claude Code processes tool
-# calls sequentially within a session, making the race window effectively zero.
+# TOCTOU MITIGATION (XVER-001 FIX): Use directory-based mutex for atomic state detection.
+# mkdir is atomic on POSIX systems — if another workflow starts during this check,
+# the mutex acquisition will fail and we'll see the new state file.
 #
 # STALENESS GUARD (v1.61.0): Skip files older than STALE_THRESHOLD_MIN (mtime-based).
 # Stale checkpoints from crashed/interrupted sessions should not block new work.
@@ -115,6 +115,48 @@ STALE_THRESHOLD_MIN=120
 active_workflow=""
 detected_team_name=""   # team name inferred from non-state-file signals
 detected_source=""      # which signal triggered detection (state-file|inscription|signal-dir|agent-name)
+
+# XVER-001 FIX: Acquire mutex for atomic workflow detection
+# This prevents race condition where workflow starts between check and Agent execution
+# Only use mutex when tmp/ directory exists (otherwise no workflow can be active)
+MUTEX_DIR="${CWD}/tmp/.rune-ate1-mutex"
+MUTEX_HELD=false
+_rune_release_ate1_mutex() {
+  if [[ "$MUTEX_HELD" == "true" ]]; then
+    rmdir "$MUTEX_DIR" 2>/dev/null || true
+    MUTEX_HELD=false
+  fi
+}
+
+# Only acquire mutex if tmp/ exists (no tmp = no possible workflow)
+if [[ -d "${CWD}/tmp" ]]; then
+  trap '_rune_release_ate1_mutex' EXIT
+  # Try to acquire mutex (mkdir is atomic)
+  if mkdir "$MUTEX_DIR" 2>/dev/null; then
+    MUTEX_HELD=true
+  else
+    # Mutex held by another process — check if stale (SIGKILL crash recovery)
+    # A hook should never take >60s; stale mutex = crashed process left it behind
+    if find "$MUTEX_DIR" -maxdepth 0 -mmin +1 -print -quit 2>/dev/null | grep -q .; then
+      rmdir "$MUTEX_DIR" 2>/dev/null || rm -rf "$MUTEX_DIR" 2>/dev/null
+      if mkdir "$MUTEX_DIR" 2>/dev/null; then
+        MUTEX_HELD=true
+      fi
+    fi
+    # If still not acquired, brief wait and retry once
+    if [[ "$MUTEX_HELD" != "true" ]]; then
+      sleep 0.1 2>/dev/null || true
+      if mkdir "$MUTEX_DIR" 2>/dev/null; then
+        MUTEX_HELD=true
+      else
+        # Another workflow is actively transitioning — treat as active workflow detected
+        # This is the safe (fail-closed) behavior
+        active_workflow=1
+        detected_source="mutex-contention"
+      fi
+    fi
+  fi
+fi
 
 # ── Session identity for cross-session ownership filtering ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -139,14 +181,20 @@ fi
 if [[ -d "${CWD}/.claude/arc" ]]; then
   while IFS= read -r f; do
     if jq -e '(.phase_status // .phase // .status // "none" | . == "in_progress") or ([.phases[]?.status] | any(. == "in_progress"))' "$f" &>/dev/null; then
-      # ── Ownership filter: skip checkpoints from other sessions ──
+      # ── Ownership filter: skip checkpoints from other sessions (XVER-004 FIX: 3-layer) ──
       stored_cfg=$(jq -r '.config_dir // empty' "$f" 2>/dev/null || true)
+      stored_sid=$(jq -r '.session_id // empty' "$f" 2>/dev/null || true)
       stored_pid=$(jq -r '.owner_pid // empty' "$f" 2>/dev/null || true)
-      # VEIL-007 FIX: Guard against empty RUNE_CURRENT_CFG — when identity script is missing,
-      # "$stored_cfg" != "" is always true for any non-empty stored_cfg → skip ALL files.
+      # Layer 1: config dir mismatch → different installation
       if [[ -n "$stored_cfg" && -n "$RUNE_CURRENT_CFG" && "$stored_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
-      if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
-        rune_pid_alive "$stored_pid" && continue  # alive = different session
+      # Layer 2: session_id primary — definitive match/mismatch
+      if [[ -n "$stored_sid" && -n "$RUNE_CURRENT_SID" ]]; then
+        [[ "$stored_sid" == "$RUNE_CURRENT_SID" ]] || continue  # different session
+      else
+        # Layer 3: PID fallback when session_id unavailable
+        if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
+          rune_pid_alive "$stored_pid" && continue  # alive = different session
+        fi
       fi
       active_workflow=1
       detected_source="state-file"
@@ -173,13 +221,20 @@ if [[ -z "$active_workflow" ]]; then
     # Skip files older than STALE_THRESHOLD_MIN minutes
     # PERF: per-file `find -maxdepth 0 -mmin` is O(n) but safe; batch find risks glob/ownership edge cases
     if [[ -f "$f" ]] && find "$f" -maxdepth 0 -mmin -${STALE_THRESHOLD_MIN} -print -quit 2>/dev/null | grep -q . && jq -e '.status == "active"' "$f" &>/dev/null; then
-      # ── Ownership filter: skip state files from other sessions ──
+      # ── Ownership filter: skip state files from other sessions (XVER-004 FIX: 3-layer) ──
       stored_cfg=$(jq -r '.config_dir // empty' "$f" 2>/dev/null || true)
+      stored_sid=$(jq -r '.session_id // empty' "$f" 2>/dev/null || true)
       stored_pid=$(jq -r '.owner_pid // empty' "$f" 2>/dev/null || true)
-      # VEIL-007 FIX: Guard against empty RUNE_CURRENT_CFG (see arc checkpoint block above)
+      # Layer 1: config dir mismatch → different installation
       if [[ -n "$stored_cfg" && -n "$RUNE_CURRENT_CFG" && "$stored_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
-      if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
-        rune_pid_alive "$stored_pid" && continue  # alive = different session
+      # Layer 2: session_id primary — definitive match/mismatch
+      if [[ -n "$stored_sid" && -n "$RUNE_CURRENT_SID" ]]; then
+        [[ "$stored_sid" == "$RUNE_CURRENT_SID" ]] || continue  # different session
+      else
+        # Layer 3: PID fallback when session_id unavailable
+        if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
+          rune_pid_alive "$stored_pid" && continue  # alive = different session
+        fi
       fi
       active_workflow=1
       detected_source="state-file"
@@ -213,22 +268,12 @@ if [[ -z "$active_workflow" ]]; then
         session_file="${CHOME}/teams/${local_team}/.session"
         if [[ -f "$session_file" ]]; then
           stored_sid=$(jq -r '.session_id // empty' "$session_file" 2>/dev/null || true)
-          # CDX-GAP-001 FIX: Compare session marker to current session
-          # Skip if session marker exists but belongs to different session
-          # (stamp-team-session.sh writes this via PostToolUse:TeamCreate)
-          # NOTE: RUNE_SESSION_ID is NOT available in hook context (only in Bash tool via CLAUDE_ENV_FILE).
-          # Hooks get session_id from stdin JSON — this var is empty here. Kept for forward-compat
-          # if Claude Code exposes CLAUDE_SESSION_ID as a real env var in the future.
-          current_sid=$(printf '%s' "${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}" | head -c 64)
-          # SEC-002: Validate session ID format
-          [[ -z "$current_sid" || "$current_sid" =~ ^[a-zA-Z0-9_-]+$ ]] || current_sid=""
-          if [[ -n "$stored_sid" && -n "$current_sid" && "$stored_sid" != "$current_sid" ]]; then
-            continue  # Different session — skip this inscription
-          fi
-          # VEIL-001 FIX: When both SIDs are empty, session identity is unknown —
-          # fall back to PPID-based ownership check instead of treating as "ours"
-          if [[ -z "$stored_sid" && -z "$current_sid" ]]; then
-            # Cannot verify session ownership — check if team config has owner_pid
+          # XVER-004 FIX: Use pre-resolved RUNE_CURRENT_SID (consistent with Signal 1 3-layer pattern)
+          # Layer 2: session_id primary — definitive match/mismatch
+          if [[ -n "$stored_sid" && -n "$RUNE_CURRENT_SID" ]]; then
+            [[ "$stored_sid" == "$RUNE_CURRENT_SID" ]] || continue  # different session
+          else
+            # Layer 3: PID fallback when session_id unavailable on either side
             local_team_cfg="${CHOME}/teams/${local_team}/config.json"
             if [[ -f "$local_team_cfg" ]]; then
               team_owner_pid=$(jq -r '.members[0].pid // empty' "$local_team_cfg" 2>/dev/null || true)
@@ -263,14 +308,12 @@ if [[ -z "$active_workflow" ]]; then
         sig_session_file="${CHOME}/teams/${local_team}/.session"
         if [[ -f "$sig_session_file" ]]; then
           sig_stored_sid=$(jq -r '.session_id // empty' "$sig_session_file" 2>/dev/null || true)
-          sig_current_sid=$(printf '%s' "${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}" | head -c 64)
-          # SEC-002: Validate session ID format
-          [[ -z "$sig_current_sid" || "$sig_current_sid" =~ ^[a-zA-Z0-9_-]+$ ]] || sig_current_sid=""
-          if [[ -n "$sig_stored_sid" && -n "$sig_current_sid" && "$sig_stored_sid" != "$sig_current_sid" ]]; then
-            continue  # Different session — skip this signal dir
-          fi
-          # VEIL-001 FIX: When both SIDs are empty, fall back to PPID-based ownership
-          if [[ -z "$sig_stored_sid" && -z "$sig_current_sid" ]]; then
+          # XVER-004 FIX: Use pre-resolved RUNE_CURRENT_SID (consistent with Signal 1 3-layer pattern)
+          # Layer 2: session_id primary — definitive match/mismatch
+          if [[ -n "$sig_stored_sid" && -n "$RUNE_CURRENT_SID" ]]; then
+            [[ "$sig_stored_sid" == "$RUNE_CURRENT_SID" ]] || continue  # different session
+          else
+            # Layer 3: PID fallback when session_id unavailable on either side
             sig_team_cfg="${CHOME}/teams/${local_team}/config.json"
             if [[ -f "$sig_team_cfg" ]]; then
               sig_team_owner_pid=$(jq -r '.members[0].pid // empty' "$sig_team_cfg" 2>/dev/null || true)

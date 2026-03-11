@@ -17,6 +17,12 @@
 set -euo pipefail
 umask 077
 
+# ── Script directory for library sourcing ──
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+
+# shellcheck source=lib/platform.sh
+source "${SCRIPT_DIR}/lib/platform.sh"
+
 # --- Fail-forward guard (OPERATIONAL hook) ---
 # Crash before validation → allow operation (don't stall workflows).
 # BACK-002: Always warn on stderr so crashes are observable in production.
@@ -125,6 +131,33 @@ if [[ -z "$CHOME" ]] || [[ "$CHOME" != /* ]]; then
   exit 0  # CHOME is invalid (not absolute), skip scan
 fi
 
+# XVER-001 FIX: Canonicalize CHOME and reject symlinked intermediate roots
+# This prevents symlink-based path traversal attacks where an attacker could
+# create ~/.claude/teams -> /some/sensitive/path and cause rm -rf to follow it.
+CHOME_CANONICAL="$(_resolve_path "$CHOME")"
+if [[ -z "$CHOME_CANONICAL" ]] || [[ "$CHOME_CANONICAL" != /* ]]; then
+  exit 0  # Canonical resolution failed, skip scan
+fi
+
+# Reject if teams or tasks directories are symlinks (intermediate root protection)
+for _root_dir in "teams" "tasks"; do
+  _target_path="${CHOME}/${_root_dir}"
+  if [[ -L "$_target_path" ]]; then
+    # Symlink detected at intermediate root — abort for safety
+    printf 'WARN: TLC-001: Symlink detected at %s — rejecting for security\n' "$_target_path" >&2
+    exit 0
+  fi
+  # If directory exists, verify its canonical path is under CHOME_CANONICAL
+  if [[ -d "$_target_path" ]]; then
+    _target_canonical="$(_resolve_path "$_target_path")"
+    if [[ "$_target_canonical" != "$CHOME_CANONICAL"/${_root_dir}* ]]; then
+      printf 'WARN: TLC-001: Path traversal detected at %s — rejecting for security\n' "$_target_path" >&2
+      exit 0
+    fi
+  fi
+done
+unset _root_dir _target_path _target_canonical
+
 # Find stale rune-*/arc-* team dirs older than 30 min (ORPHAN_STALE_THRESHOLD)
 # BACK-004 NOTE: -mmin +30 checks directory mtime (updated on any file write inside),
 # not creation time. An active team with FS activity stays fresh. A team idle >30 min
@@ -188,8 +221,37 @@ for team in "${stale_teams[@]}"; do
     [[ "$_nullglob_was_set" -eq 1 ]] && shopt -u nullglob
     unset _nullglob_was_set
     if [[ "$_has_active_state" == "false" ]]; then
-      rm -rf "$CHOME/teams/${team}/" "$CHOME/tasks/${team}/" 2>/dev/null
-      cleaned_teams+=("$team")
+      # XVER-003 FIX: TOCTOU verification before rm -rf
+      # Re-check that the directory is still stale (mtime > 30 min) immediately before deletion
+      # This closes the race window between the scan loop and the cleanup loop
+      _team_dir="$CHOME/teams/${team}"
+      _tasks_dir="$CHOME/tasks/${team}"
+      _should_remove=true
+
+      # Re-verify team dir is still stale if it exists
+      if [[ -d "$_team_dir" ]] && [[ ! -L "$_team_dir" ]]; then
+        # Re-check mtime using platform helper (30 min = 1800 seconds)
+        _dir_mtime=$(_stat_mtime "$_team_dir")
+        _now_epoch=$(date +%s 2>/dev/null || echo "0")
+        if [[ -n "$_dir_mtime" ]] && [[ "$_now_epoch" != "0" ]]; then
+          _age_secs=$(( _now_epoch - _dir_mtime ))
+          # Reject removal if directory became fresh (< 30 min old)
+          if [[ $_age_secs -lt 1800 ]]; then
+            _should_remove=false
+          fi
+        fi
+        # Re-verify canonical path is under CHOME_CANONICAL/teams
+        _dir_canonical="$(_resolve_path "$_team_dir")"
+        if [[ "$_dir_canonical" != "$CHOME_CANONICAL"/teams/* ]]; then
+          _should_remove=false
+        fi
+      fi
+
+      if [[ "$_should_remove" == "true" ]]; then
+        rm -rf "$_team_dir/" "$_tasks_dir/" 2>/dev/null
+        cleaned_teams+=("$team")
+      fi
+      unset _team_dir _tasks_dir _should_remove _dir_mtime _now_epoch _age_secs _dir_canonical
     fi
   fi
 done

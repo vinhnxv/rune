@@ -158,20 +158,11 @@ validate_session_ownership() {
     _trace "ownership: stored_sid='${stored_session_id}' hook_sid='${hook_session_id}' stored_pid='${stored_pid}' PPID='${PPID}'"
   fi
 
-  # DIAGNOSTIC: Always-on logging for ownership check (temporary — remove after fix)
-  # Uses caller's _diag if available, otherwise uses direct file write
-  if declare -f _diag &>/dev/null; then
-    _diag "ownership: stored_cfg=${stored_config_dir} RUNE_CURRENT_CFG=${RUNE_CURRENT_CFG}"
-    _diag "ownership: stored_sid=${stored_session_id} hook_sid=${hook_session_id} stored_pid=${stored_pid} hook_PPID=${PPID}"
-  fi
-
   # Layer 1: Config-dir isolation (different Claude Code installations)
   if [[ -n "$stored_config_dir" && "$stored_config_dir" != "$RUNE_CURRENT_CFG" ]]; then
     if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
       _trace "ownership: REJECTED — config_dir mismatch"
     fi
-    # DIAGNOSTIC
-    declare -f _diag &>/dev/null && _diag "ownership: EXIT — Layer1 config_dir mismatch"
     exit 0
   fi
 
@@ -192,7 +183,6 @@ validate_session_ownership() {
     if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
       _trace "ownership: claim-on-first-touch — writing hook_sid='${hook_session_id}' to state file"
     fi
-    declare -f _diag &>/dev/null && _diag "ownership: claim-on-first-touch hook_sid=${hook_session_id}"
     # Write session_id into state file YAML frontmatter (sed: replace session_id line)
     local _tmp_state
     _tmp_state=$(mktemp "${state_file}.XXXXXX" 2>/dev/null) || true
@@ -218,7 +208,6 @@ validate_session_ownership() {
 
   if [[ "$_session_match" == "yes" ]]; then
     # Same session — proceed (skip PID check entirely)
-    declare -f _diag &>/dev/null && _diag "ownership: PASS — session_id match"
     return 0
   elif [[ "$_session_match" == "no" ]]; then
     # Different session — check if owner is still alive for orphan handling
@@ -227,7 +216,6 @@ validate_session_ownership() {
         if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
           _trace "ownership: REJECTED — different session_id, owner alive (pid=${stored_pid})"
         fi
-        declare -f _diag &>/dev/null && _diag "ownership: EXIT — Layer2 different session, owner alive"
         exit 0
       fi
     fi
@@ -244,9 +232,7 @@ validate_session_ownership() {
       if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
         _trace "ownership: PID fallback — stored=${stored_pid} hook_PPID=${PPID} owner_alive=${_pid_alive}"
       fi
-      declare -f _diag &>/dev/null && _diag "ownership: PID fallback — stored=${stored_pid} hook_PPID=${PPID} alive=${_pid_alive}"
       if [[ "$_pid_alive" == "true" ]]; then
-        declare -f _diag &>/dev/null && _diag "ownership: EXIT — PID fallback rejected (owner alive)"
         exit 0
       fi
       # Owner died — fall through to orphan handling

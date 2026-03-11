@@ -50,6 +50,15 @@ if [[ -z "$CHOME" ]] || [[ "$CHOME" != /* ]]; then
   exit 0
 fi
 
+# XVER-001: Canonicalize CHOME to prevent symlink traversal
+CHOME_CANON=$(cd "$CHOME" 2>/dev/null && pwd -P) || exit 0
+TEAMS_CANON="$CHOME_CANON/teams"
+TASKS_CANON="$CHOME_CANON/tasks"
+
+# XVER-001: Reject symlinked intermediate roots
+[[ -L "$TEAMS_CANON" ]] && exit 0
+[[ -L "$TASKS_CANON" ]] && exit 0
+
 # ── Session identity for cross-session ownership filtering ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # QUAL-010: Guard against missing helper before sourcing
@@ -171,16 +180,31 @@ if [[ $orphan_count -gt 0 ]] && [[ -d "$CHOME/teams/" ]]; then
     fi
 
     # PID is provably dead → safe to auto-clean
-    if [[ ! -L "$CHOME/teams/${oname}" ]]; then
-      if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" == "1" ]]; then
-        orphans_cleaned=$((orphans_cleaned + 1))
-        [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: DRY RUN: would auto-clean orphan: ${oname} (dead PID ${owner_pid})" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
-        continue
-      fi
-      rm -rf "$CHOME/teams/${oname}/" "$CHOME/tasks/${oname}/" 2>/dev/null
-      orphans_cleaned=$((orphans_cleaned + 1))
-      [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: auto-cleaned orphan: ${oname} (dead PID ${owner_pid})" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+    # XVER-001: Verify delete targets resolve under canonical CHOME before rm -rf
+    team_target="$CHOME/teams/${oname}"
+    task_target="$CHOME/tasks/${oname}"
+
+    # Skip if target is a symlink (defense-in-depth)
+    [[ -L "$team_target" ]] && continue
+
+    # Verify resolved paths are under canonical roots
+    if [[ -d "$team_target" ]]; then
+      team_resolved=$(cd "$team_target" 2>/dev/null && pwd -P) || continue
+      [[ "$team_resolved" == "$TEAMS_CANON/"* ]] || continue
     fi
+    if [[ -d "$task_target" ]]; then
+      task_resolved=$(cd "$task_target" 2>/dev/null && pwd -P) || continue
+      [[ "$task_resolved" == "$TASKS_CANON/"* ]] || continue
+    fi
+
+    if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" == "1" ]]; then
+      orphans_cleaned=$((orphans_cleaned + 1))
+      [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: DRY RUN: would auto-clean orphan: ${oname} (dead PID ${owner_pid})" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+      continue
+    fi
+    rm -rf "$team_target/" "$task_target/" 2>/dev/null
+    orphans_cleaned=$((orphans_cleaned + 1))
+    [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: auto-cleaned orphan: ${oname} (dead PID ${owner_pid})" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
   done
 fi
 

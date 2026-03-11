@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.151.2] - 2026-03-12
+
+### Fixed
+- **XVER-001**: Symlink-based path traversal in cleanup hooks — canonicalize `CHOME` with `pwd -P`, reject symlinked intermediate roots (`$CHOME/teams`, `$CHOME/tasks`), verify delete targets resolve under canonical `CHOME` before `rm -rf` (cross-verified by Claude + Codex)
+- **CLD-003**: Race condition in process kill — add `_proc_name()` cross-platform helper (Linux `/proc/$pid/comm`, macOS `ps -p`), verify process name matches expected (node|claude|claude-*) before SIGTERM/SIGKILL to prevent killing unrelated processes due to PID recycling
+- **XVER-003**: TOCTOU in team directory cleanup — add pre-deletion verification that targets resolve under canonical roots before `rm -rf`
+
+### Security
+- **Path traversal defense-in-depth**: Cleanup hooks now verify both intermediate roots (`teams/`, `tasks/`) and final targets are not symlinks and resolve under expected canonical paths
+
+### Files Modified
+- `scripts/session-team-hygiene.sh`
+- `scripts/enforce-team-lifecycle.sh`
+- `scripts/on-session-stop.sh`
+- `scripts/arc-phase-stop-hook.sh`
+
+## [1.151.1] - 2026-03-11
+
+### Fixed
+- **XVER-001**: Atomic workflow detection via mkdir-based mutex in `enforce-teams.sh` — prevents race condition where workflow starts between state check and Agent execution (SEC-3 TOCTOU mitigation)
+- **XVER-004**: 3-layer session identity for cross-session isolation — `config_dir` (installation) + `session_id` (primary) + `owner_pid` (fallback). Session ID now definitive for ownership checks, fixing false positives where hook `$PPID` differs from skill `$PPID`
+- **QUAL-003**: Removed leftover DIAGNOSTIC code from `arc-phase-stop-hook.sh` and `stop-hook-common.sh` — `_diag()` function and all calls removed (marked "temporary" in v1.144.16, never cleaned up)
+
+### Changed
+- **resolve-session-identity.sh**: Exports `RUNE_CURRENT_SID` (primary session identifier) alongside `RUNE_CURRENT_CFG`
+- **enforce-teams.sh**: Ownership filter uses 3-layer hierarchy (session_id definitive, PID fallback)
+- **enforce-teams.sh**: Mutex directory `.rune-ate1-mutex` for atomic workflow detection with retry-on-contention
+
 ## [1.151.0] - 2026-03-11
 
 ### Added
