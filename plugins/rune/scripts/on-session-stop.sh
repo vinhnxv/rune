@@ -42,6 +42,18 @@ _rune_fail_forward() {
 }
 trap '_rune_fail_forward' ERR
 
+# --- Helper: Cross-platform process name retrieval (CLD-003 FIX) ---
+# Returns the command name for a given PID, or empty string if PID doesn't exist.
+# Uses /proc filesystem on Linux, falls back to ps on macOS.
+_proc_name() {
+  local pid="$1"
+  if [[ -r "/proc/$pid/comm" ]]; then
+    cat "/proc/$pid/comm" 2>/dev/null
+  else
+    ps -p "$pid" -o comm= 2>/dev/null
+  fi
+}
+
 # ── GUARD 1: jq dependency (fail-open) ──
 if ! command -v jq &>/dev/null; then
   exit 0
@@ -237,8 +249,9 @@ fi
 # Command name filter (node|claude|claude-*) further narrows targets to teammate processes.
 # Intentional trade-off: command name could theoretically match non-teammate child processes,
 # but PPID + command name together keep false-positive risk acceptably low.
+# CLD-003 FIX: Use _proc_name() for cross-platform PID validation before each kill.
 _kill_stale_teammates() {
-  local child_pids child_pid child_comm killed=0
+  local child_pids child_pid killed=0
 
   # BACK-008: Validate that PPID is actually a Claude Code process before targeting its children.
   # Hook execution model may vary — $PPID is the hook runner, which should be node or claude.
@@ -247,7 +260,7 @@ _kill_stale_teammates() {
   # The primary safety net against PID recycling is the child re-verification at Phase 2
   # (lines below, after sleep 1): each survivor PID is re-checked by command name before SIGKILL.
   local ppid_cmd
-  ppid_cmd=$(ps -p "$PPID" -o comm= 2>/dev/null || true)
+  ppid_cmd=$(_proc_name "$PPID")
   if [[ ! "$ppid_cmd" =~ ^(node|claude)$ ]]; then
     # Not a Claude Code process — skip kill to avoid collateral damage
     echo "0"
@@ -257,42 +270,38 @@ _kill_stale_teammates() {
   child_pids=$(pgrep -P "$PPID" 2>/dev/null || true)
   [[ -z "$child_pids" ]] && { echo "$killed"; return 0; }
 
-  # Phase 1: SIGTERM eligible children
+  # Phase 1: SIGTERM eligible children (CLD-003 FIX: verify process name before kill)
   local sigterm_pids=()
   while IFS= read -r child_pid; do
     [[ -z "$child_pid" ]] && continue
     [[ ! "$child_pid" =~ ^[0-9]+$ ]] && continue
-    child_comm=$(ps -p "$child_pid" -o comm= 2>/dev/null || true)
-    case "$child_comm" in
-      node|claude|claude-*) ;;
-      *) continue ;;
-    esac
-    kill -TERM "$child_pid" 2>/dev/null || true
-    sigterm_pids+=("$child_pid")
+    # CLD-003 FIX: Use _proc_name() for cross-platform validation
+    local child_comm
+    child_comm=$(_proc_name "$child_pid")
+    if [[ "$child_comm" =~ ^(node|claude|claude-.*)$ ]]; then
+      kill -TERM "$child_pid" 2>/dev/null || true
+      sigterm_pids+=("$child_pid")
+    fi
   done <<< "$child_pids"
 
   [[ ${#sigterm_pids[@]} -eq 0 ]] && { echo "0"; return 0; }
 
   # Phase 2: Wait 1s, then SIGKILL survivors
   # SEC-005: Reduced from 2s to 1s (40% → 20% of 5s hook timeout budget).
-  # SEC-P1-001 FIX: Re-verify process identity before SIGKILL to prevent
+  # CLD-003 FIX: Re-verify process identity before SIGKILL to prevent
   # killing unrelated processes due to PID recycling.
   sleep 1
   for child_pid in "${sigterm_pids[@]}"; do
     if kill -0 "$child_pid" 2>/dev/null; then
-      # Re-check command name — PID could have been recycled during sleep
+      # CLD-003 FIX: Re-check process name using _proc_name() — PID could have been recycled during sleep
       local survivor_comm
-      survivor_comm=$(ps -p "$child_pid" -o comm= 2>/dev/null || true)
-      case "$survivor_comm" in
-        node|claude|claude-*)
-          if kill -KILL "$child_pid" 2>/dev/null; then
-            killed=$((killed + 1))
-          fi
-          ;;
-        *)
-          # PID recycled to a non-Claude process — do NOT kill
-          ;;
-      esac
+      survivor_comm=$(_proc_name "$child_pid")
+      if [[ "$survivor_comm" =~ ^(node|claude|claude-.*)$ ]]; then
+        if kill -KILL "$child_pid" 2>/dev/null; then
+          killed=$((killed + 1))
+        fi
+      fi
+      # PID recycled to a non-Claude process — do NOT kill
     fi
   done
 
@@ -346,6 +355,8 @@ fi
 #   - Teams WITH a matching state file in CWD → always clean (belongs to this project)
 #   - Teams WITHOUT a state file → only clean if older than 30 min (orphan fallback)
 # This protects active teams from other sessions while still catching true orphans.
+# XVER-001/XVER-003 FIX: Canonical path verification before deletion to prevent
+# symlink-based path traversal and TOCTOU race conditions.
 cleaned_teams=()
 if [[ -d "$CHOME/teams/" ]]; then
   NOW=$(date +%s)
@@ -391,10 +402,24 @@ if [[ -d "$CHOME/teams/" ]]; then
           cleaned_teams+=("$dirname")
           continue
         fi
-        # SEC-002: Atomic symlink-safe delete (eliminates TOCTOU window)
-        # Note: || true prevents ERR trap on successful deletion (find returns non-zero when dir is removed mid-traversal)
-        find "$CHOME/teams/${dirname}" -maxdepth 0 -not -type l -exec rm -rf {} + 2>/dev/null || true
-        find "$CHOME/tasks/${dirname}" -maxdepth 0 -not -type l -exec rm -rf {} + 2>/dev/null || true
+        # XVER-001/XVER-003 FIX: Canonical path verification before deletion
+        # Resolve the directory to its real path and verify it's still under $CHOME
+        local team_canon tasks_canon
+        team_canon=$(cd "$dir" 2>/dev/null && pwd -P) || continue
+        # Verify canonical path is still under CHOME/teams/ and matches expected dirname
+        if [[ "$team_canon" != "$CHOME/teams/$dirname" ]]; then
+          # Path traversal detected — symlink redirected outside expected location
+          continue
+        fi
+        # Atomic delete using canonical path
+        rm -rf "$team_canon" 2>/dev/null || true
+        # Clean corresponding tasks dir with same verification
+        if [[ -d "$CHOME/tasks/$dirname" && ! -L "$CHOME/tasks/$dirname" ]]; then
+          tasks_canon=$(cd "$CHOME/tasks/$dirname" 2>/dev/null && pwd -P) || true
+          if [[ -n "$tasks_canon" && "$tasks_canon" == "$CHOME/tasks/$dirname" ]]; then
+            rm -rf "$tasks_canon" 2>/dev/null || true
+          fi
+        fi
         cleaned_teams+=("$dirname")
       fi
     fi
@@ -528,8 +553,12 @@ for f in "${CWD}/tmp"/.rune-shutdown-signal-*.json; do
   if [[ -n "$SS_PID" && "$SS_PID" =~ ^[0-9]+$ && "$SS_PID" != "$PPID" ]]; then
     rune_pid_alive "$SS_PID" && continue
   fi
-  # SEC-002: Atomic symlink-safe delete (eliminates TOCTOU window)
-  find "$f" -maxdepth 0 -not -type l -exec rm -f {} + 2>/dev/null
+  # XVER-003 FIX: Canonical path verification before deletion
+  local signal_canon
+  signal_canon=$(cd "$(dirname "$f")" 2>/dev/null && pwd -P)/$(basename "$f") || continue
+  if [[ "$signal_canon" == "$CWD/tmp/$(basename "$f")" && -f "$signal_canon" && ! -L "$signal_canon" ]]; then
+    rm -f "$signal_canon" 2>/dev/null
+  fi
 done
 shopt -u nullglob
 
@@ -546,14 +575,19 @@ for f in "${CWD}/tmp"/.rune-force-shutdown-*.json; do
   if [[ -n "$FS_PID" && "$FS_PID" =~ ^[0-9]+$ && "$FS_PID" != "$PPID" ]]; then
     rune_pid_alive "$FS_PID" && continue
   fi
-  # SEC-002: Atomic symlink-safe delete (eliminates TOCTOU window)
-  find "$f" -maxdepth 0 -not -type l -exec rm -f {} + 2>/dev/null
+  # XVER-003 FIX: Canonical path verification before deletion
+  local force_canon
+  force_canon=$(cd "$(dirname "$f")" 2>/dev/null && pwd -P)/$(basename "$f") || continue
+  if [[ "$force_canon" == "$CWD/tmp/$(basename "$f")" && -f "$force_canon" && ! -L "$force_canon" ]]; then
+    rm -f "$force_canon" 2>/dev/null
+  fi
 done
 shopt -u nullglob
 
 # ── Signal directory cleanup (F10) ──
 # Clean up tmp/.rune-signals/rune-work-*/ directories where the associated
 # state file has a dead owner_pid. Only clean dirs belonging to dead sessions.
+# XVER-003 FIX: Canonical path verification before deletion.
 cleaned_signal_dirs=0
 if [[ -d "${CWD}/tmp/.rune-signals/" ]]; then
   shopt -s nullglob
@@ -589,8 +623,13 @@ if [[ -d "${CWD}/tmp/.rune-signals/" ]]; then
     done
     # Clean if: state file found with dead/matching owner, or no state file (true orphan)
     if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" != "1" ]]; then
-      # SEC-002: Atomic symlink-safe delete (eliminates TOCTOU window)
-      find "$sdir" -maxdepth 0 -not -type l -exec rm -rf {} + 2>/dev/null
+      # XVER-003 FIX: Canonical path verification before deletion
+      local sdir_canon
+      sdir_canon=$(cd "$sdir" 2>/dev/null && pwd -P) || continue
+      # Verify canonical path is under expected location
+      if [[ "$sdir_canon" == "${CWD}/tmp/.rune-signals/$sdirname" ]]; then
+        rm -rf "$sdir_canon" 2>/dev/null || true
+      fi
     fi
     cleaned_signal_dirs=$((cleaned_signal_dirs + 1))
   done

@@ -570,7 +570,35 @@ fi
 # was interrupted before postPhaseCleanup), the primary scan below will find no team.
 # FALLBACK: scan $CHOME/teams/ for dirs matching arc-*-{id} to catch such orphans.
 CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-if [[ -n "$CHOME" && "$CHOME" == /* && -d "$CHOME/teams/" ]]; then
+
+# XVER-001: Symlink-based path traversal prevention
+# Canonicalize CHOME to prevent symlink traversal attacks.
+# Reject symlinked intermediate roots before any rm -rf operations.
+if [[ -z "$CHOME" || "$CHOME" != /* ]]; then
+  _trace "EXIT: CHOME is not absolute — skipping zombie cleanup"
+  exit 0
+fi
+
+# Canonicalize CHOME via pwd -P (resolves symlinks in path)
+CHOME_CANON=$(cd "$CHOME" 2>/dev/null && pwd -P) || {
+  _trace "EXIT: CHOME canonicalization failed — skipping zombie cleanup"
+  exit 0
+}
+
+TEAMS_CANON="$CHOME_CANON/teams"
+TASKS_CANON="$CHOME_CANON/tasks"
+
+# Reject symlinked intermediate roots (defense in depth)
+if [[ -L "$TEAMS_CANON" ]]; then
+  _trace "EXIT: \$CHOME/teams is a symlink — rejecting for security (XVER-001)"
+  exit 0
+fi
+if [[ -L "$TASKS_CANON" ]]; then
+  _trace "EXIT: \$CHOME/tasks is a symlink — rejecting for security (XVER-001)"
+  exit 0
+fi
+
+if [[ -d "$TEAMS_CANON/" ]]; then
   # Walk PHASE_ORDER backwards from NEXT_PHASE to find the most recently completed
   # phase that also recorded a team_name. Backward walk ensures we stop at the phase
   # immediately before NEXT_PHASE (the most likely zombie), not the earliest one.
@@ -596,9 +624,16 @@ if [[ -n "$CHOME" && "$CHOME" == /* && -d "$CHOME/teams/" ]]; then
   if [[ -n "$PRIOR_PHASE" ]]; then
     PRIOR_TEAM=$(echo "$CKPT_CONTENT" | jq -r ".phases.${PRIOR_PHASE}.team_name // empty" 2>/dev/null || true)
     if [[ -n "$PRIOR_TEAM" && "$PRIOR_TEAM" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-      if [[ -d "$CHOME/teams/${PRIOR_TEAM}" && ! -L "$CHOME/teams/${PRIOR_TEAM}" ]]; then
-        rm -rf "$CHOME/teams/${PRIOR_TEAM}/" "$CHOME/tasks/${PRIOR_TEAM}/" 2>/dev/null
-        _trace "Zombie cleanup: removed prior phase ${PRIOR_PHASE} team: ${PRIOR_TEAM}"
+      # XVER-001: Use canonical paths and verify target is not a symlink
+      _prior_team_path="$TEAMS_CANON/${PRIOR_TEAM}"
+      _prior_tasks_path="$TASKS_CANON/${PRIOR_TEAM}"
+      if [[ -d "$_prior_team_path" && ! -L "$_prior_team_path" ]]; then
+        # XVER-001: Verify resolved path is under canonical root
+        _resolved_team=$(cd "$_prior_team_path" 2>/dev/null && pwd -P) || continue
+        if [[ "$_resolved_team" == "$TEAMS_CANON/"* ]]; then
+          rm -rf "$_prior_team_path/" "$_prior_tasks_path/" 2>/dev/null
+          _trace "Zombie cleanup: removed prior phase ${PRIOR_PHASE} team: ${PRIOR_TEAM}"
+        fi
       fi
     fi
   fi
@@ -616,10 +651,16 @@ if [[ -n "$CHOME" && "$CHOME" == /* && -d "$CHOME/teams/" ]]; then
     # Scan arc-*, rune-*, and goldmask-* prefixed teams with the arc ID suffix.
     # Extended from arc-* only: sub-commands (strive, appraise, mend, forge, inspect)
     # create rune-* prefixed teams that can become zombies when postPhaseCleanup is skipped.
-    for _zombie_dir in "$CHOME/teams/"{arc,rune,goldmask}-*"${_ARC_ID}"*; do
+    # XVER-001: Use canonical teams path for glob
+    for _zombie_dir in "$TEAMS_CANON/"{arc,rune,goldmask}-*"${_ARC_ID}"*; do
       [[ -d "$_zombie_dir" && ! -L "$_zombie_dir" ]] || continue
       _zombie_team="${_zombie_dir##*/}"
       [[ "$_zombie_team" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
+      # XVER-001: Verify resolved path is under canonical root
+      _resolved_zombie=$(cd "$_zombie_dir" 2>/dev/null && pwd -P) || continue
+      if [[ "$_resolved_zombie" != "$TEAMS_CANON/"* ]]; then
+        continue  # Path traversal detected — skip
+      fi
       # SEC-002: Check if team is owned by a live session before removing
       _zombie_config="$_zombie_dir/config.json"
       if [[ -f "$_zombie_config" ]]; then
@@ -637,7 +678,8 @@ if [[ -n "$CHOME" && "$CHOME" == /* && -d "$CHOME/teams/" ]]; then
           continue  # Different session — skip
         fi
       fi
-      rm -rf "$CHOME/teams/${_zombie_team}/" "$CHOME/tasks/${_zombie_team}/" 2>/dev/null
+      # XVER-001: Use canonical paths for rm -rf
+      rm -rf "$TEAMS_CANON/${_zombie_team}/" "$TASKS_CANON/${_zombie_team}/" 2>/dev/null
       _trace "Zombie fallback cleanup: removed orphaned team dir: ${_zombie_team}"
     done
     # Restore nullglob state (SEC-003: conditional instead of eval)
