@@ -747,7 +747,7 @@ You are continuing a hierarchical plan execution. Process the next child plan.
    e. Execute the first pending phase
 
    Your response MUST NOT end after step 4. Step 4 loads instructions.
-   Step 5 is where you EXECUTE them. The arc pipeline has 28 phases —
+   Step 5 is where you EXECUTE them. The arc pipeline has 29 phases —
    you must start the first phase before your response ends.
 
    DO NOT implement the plan code directly. DO NOT skip to coding.

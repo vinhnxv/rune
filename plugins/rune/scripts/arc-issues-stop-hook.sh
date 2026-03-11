@@ -727,7 +727,7 @@ ${GH_STATUS_STEPS}1. Verify git state is clean: git status
    e. Execute the first pending phase
 
    Your response MUST NOT end after step 5. Step 5 loads instructions.
-   Step 6 is where you EXECUTE them. The arc pipeline has 28 phases —
+   Step 6 is where you EXECUTE them. The arc pipeline has 29 phases —
    you must start the first phase before your response ends.
 
    DO NOT implement the plan code directly. DO NOT skip to coding.

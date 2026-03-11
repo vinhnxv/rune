@@ -217,7 +217,7 @@ Tool outputs consume up to 83.9% of context. Offload large outputs to files.
 
 ### The Problem
 
-Claude's auto-compaction fires during long sessions (especially `/rune:arc` with 28 phases), truncating earlier context. This can cause the Tarnished to lose awareness of active teams, task state, workflow phase, and arc checkpoint — leading to orphaned teams, duplicated work, or pipeline restarts.
+Claude's auto-compaction fires during long sessions (especially `/rune:arc` with 29 phases), truncating earlier context. This can cause the Tarnished to lose awareness of active teams, task state, workflow phase, and arc checkpoint — leading to orphaned teams, duplicated work, or pipeline restarts.
 
 ### How It Works
 
