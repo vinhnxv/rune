@@ -5,7 +5,7 @@
 ### Added
 - **appraise**: Design fidelity Wave 4 (Phase 1.6) — spawns `design-implementation-reviewer` when `design_sync.enabled` + frontend files + design references exist. DES- prefix findings in TOME. Conditional: zero overhead when gate not met.
 - **inspect**: Design Fidelity as dimension 10 — extends `grace-warden` inspector scope with COMPLETE/PARTIAL/MISSING/DEVIATED component compliance classification against design specs. DES- finding prefix. Gated by `design_sync.enabled` + `inspect_design_dimension` + plan `figma_url` + design refs.
-- **talisman**: `design_sync.appraise_fidelity_review` and `design_sync.inspect_design_dimension` review gates (default: true when `design_sync.enabled`). Zero overhead for projects without design artifacts.
+- **talisman**: `design_review.enabled` gate for appraise Phase 1.6 and `design_sync.inspect_design_dimension` for inspect Dimension 10 (default: false; requires `design_sync.enabled` for artifacts). Zero overhead for projects without design artifacts.
 
 ### Fixed
 - **validate-test-evidence.sh**: Replace `{LOCK_FD}` fd-redirect syntax (Bash 4.1+) with literal `200` for macOS Bash 3.2 compatibility (cross-platform shell rule).

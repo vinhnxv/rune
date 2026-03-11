@@ -64,12 +64,16 @@ Conditional design fidelity agent spawning. Gated by `talisman.design_review.ena
 
 ```javascript
 // Design Fidelity Reviewer Gate — follows the same pattern as Phase 1.5 UX gate
+// Requires BOTH design_review.enabled AND design_sync.enabled.
+// design_review controls the appraise gate; design_sync provides the design artifacts.
+// Without design_sync, the reviewer would spawn with broken context (no inventory).
 const designReviewEnabled = talisman?.design_review?.enabled === true
+const designSyncEnabled = talisman?.design_sync?.enabled === true
 const hasFrontendFiles = changed_files.some(f =>
   [".tsx", ".jsx", ".vue", ".svelte", ".css", ".scss"].some(ext => f.endsWith(ext))
 )
 
-if (designReviewEnabled && hasFrontendFiles) {
+if (designReviewEnabled && designSyncEnabled && hasFrontendFiles) {
   ash_selections.add("design-implementation-reviewer")
 
   // Write design_context to inscription.json at Phase 2 (Forge Team)
