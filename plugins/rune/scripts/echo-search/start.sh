@@ -13,26 +13,19 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # --- Package check ---
-# Use shared plugin venv (created by session-start.sh).
-# Fallback: create venv from shared requirements.txt if not ready.
-RUNE_VENV="${PLUGIN_ROOT}/.venv"
+# Use shared venv helper — venv lives in ${CLAUDE_CONFIG_DIR}/rune-venv/
+# shellcheck source=../lib/rune-venv.sh
+REQUIREMENTS="${PLUGIN_ROOT}/scripts/requirements.txt"
 PYTHON="python3"
-if [[ -x "${RUNE_VENV}/bin/python3" ]]; then
-    PYTHON="${RUNE_VENV}/bin/python3"
+if [[ -f "$REQUIREMENTS" ]]; then
+    source "${PLUGIN_ROOT}/scripts/lib/rune-venv.sh" 2>/dev/null || true
+    if type rune_resolve_venv &>/dev/null; then
+        PYTHON=$(rune_resolve_venv "$REQUIREMENTS")
+    fi
 fi
 if ! "$PYTHON" -c "import mcp" 2>/dev/null; then
-    REQUIREMENTS="${PLUGIN_ROOT}/requirements.txt"
-    if [[ -f "$REQUIREMENTS" ]]; then
-        echo "Installing shared plugin dependencies..." >&2
-        if [[ ! -d "$RUNE_VENV" ]]; then
-            python3 -m venv "$RUNE_VENV" >&2
-        fi
-        "${RUNE_VENV}/bin/pip" install -r "$REQUIREMENTS" >&2
-        PYTHON="${RUNE_VENV}/bin/python3"
-    else
-        echo "Error: Missing dependencies and no requirements.txt found" >&2
-        exit 1
-    fi
+    echo "Error: MCP package not available. Check venv setup." >&2
+    exit 1
 fi
 
 # SEC-006: Canonicalize PROJECT_DIR and validate absoluteness

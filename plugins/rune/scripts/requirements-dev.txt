@@ -1,0 +1,4 @@
+# Dev/test dependencies — NOT installed in runtime venv
+# Install manually: pip install -r requirements-dev.txt
+-r requirements.txt
+pytest-asyncio>=0.23.0

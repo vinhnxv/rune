@@ -94,46 +94,21 @@ if [[ ! -f "$DEFAULTS_FILE" ]] || [[ -L "$DEFAULTS_FILE" ]]; then
 fi
 
 # ── Pre-check python3+PyYAML availability (once) ──
-# Use shared plugin venv (created by session-start.sh), fallback to system python3.
-# NOTE: SessionStart hooks may fire in parallel, so session-start.sh's venv setup
-# may not have completed yet. This script must be self-sufficient for venv creation.
+# Uses shared venv helper (lib/rune-venv.sh) — venv lives in CLAUDE_CONFIG_DIR.
+# Self-sufficient: creates venv if session-start.sh hasn't run yet (parallel hooks).
+# shellcheck source=lib/rune-venv.sh
 RUNE_PYTHON="python3"
-RUNE_VENV="${PLUGIN_ROOT}/scripts/.venv"
 RUNE_REQUIREMENTS="${PLUGIN_ROOT}/scripts/requirements.txt"
-if [[ -x "${RUNE_VENV}/bin/python3" ]]; then
-  RUNE_PYTHON="${RUNE_VENV}/bin/python3"
+if [[ -f "$RUNE_REQUIREMENTS" ]] && command -v python3 &>/dev/null; then
+  source "${PLUGIN_ROOT}/scripts/lib/rune-venv.sh" 2>/dev/null || true
+  if type rune_resolve_venv &>/dev/null; then
+    RUNE_PYTHON=$(rune_resolve_venv "$RUNE_REQUIREMENTS")
+  fi
 fi
 
 HAS_PYYAML=false
 if "$RUNE_PYTHON" -c "import yaml" 2>/dev/null; then
   HAS_PYYAML=true
-fi
-
-# ── Fallback 1: venv exists but PyYAML missing — quick install ──
-if [[ "$HAS_PYYAML" != "true" ]] && [[ -x "${RUNE_VENV}/bin/pip" ]]; then
-  "${RUNE_VENV}/bin/pip" install -q PyYAML 2>/dev/null || true
-  RUNE_PYTHON="${RUNE_VENV}/bin/python3"
-  if "$RUNE_PYTHON" -c "import yaml" 2>/dev/null; then
-    HAS_PYYAML=true
-    _trace "OK: auto-installed PyYAML into ${RUNE_VENV}"
-  fi
-fi
-
-# ── Fallback 2: venv doesn't exist yet (session-start.sh hasn't run) — create it ──
-if [[ "$HAS_PYYAML" != "true" ]] && [[ ! -d "$RUNE_VENV" ]] && command -v python3 >/dev/null 2>&1; then
-  python3 -m venv "$RUNE_VENV" 2>/dev/null || true
-  if [[ -x "${RUNE_VENV}/bin/pip" ]]; then
-    if [[ -f "$RUNE_REQUIREMENTS" ]]; then
-      "${RUNE_VENV}/bin/pip" install -q -r "$RUNE_REQUIREMENTS" 2>/dev/null || true
-    else
-      "${RUNE_VENV}/bin/pip" install -q PyYAML 2>/dev/null || true
-    fi
-    RUNE_PYTHON="${RUNE_VENV}/bin/python3"
-    if "$RUNE_PYTHON" -c "import yaml" 2>/dev/null; then
-      HAS_PYYAML=true
-      _trace "OK: created venv and installed PyYAML at ${RUNE_VENV}"
-    fi
-  fi
 fi
 
 # ── Guard: warn if no YAML parser available (VEIL-007) ──

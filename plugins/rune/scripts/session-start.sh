@@ -30,24 +30,17 @@ _trace() {
 
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 
-# ── Shared venv setup (once per install) ──
-# All plugin scripts (echo-search, figma-to-react, talisman-resolve) share this venv.
-RUNE_VENV="${PLUGIN_ROOT}/scripts/.venv"
+# ── Shared venv setup (hash-guarded, lives in CLAUDE_CONFIG_DIR) ──
+# shellcheck source=lib/rune-venv.sh
 RUNE_REQUIREMENTS="${PLUGIN_ROOT}/scripts/requirements.txt"
 if [[ -f "$RUNE_REQUIREMENTS" ]] && command -v python3 &>/dev/null; then
-  if ! [[ -x "${RUNE_VENV}/bin/python3" ]] || ! "${RUNE_VENV}/bin/python3" -c "import yaml, mcp" 2>/dev/null; then
-    _trace "Installing shared plugin dependencies..."
-    if [[ ! -d "$RUNE_VENV" ]]; then
-      python3 -m venv "$RUNE_VENV" 2>/dev/null || true
-    fi
-    if [[ -x "${RUNE_VENV}/bin/pip" ]]; then
-      "${RUNE_VENV}/bin/pip" install -q -r "$RUNE_REQUIREMENTS" 2>/dev/null || true
-    fi
-    # Verify install succeeded — log result for trace diagnostics
-    if [[ -x "${RUNE_VENV}/bin/python3" ]] && "${RUNE_VENV}/bin/python3" -c "import yaml" 2>/dev/null; then
-      _trace "[ensure-venv] OK: venv ready at ${RUNE_VENV}"
+  source "${PLUGIN_ROOT}/scripts/lib/rune-venv.sh" 2>/dev/null || true
+  if type rune_resolve_venv &>/dev/null; then
+    RUNE_PYTHON=$(rune_resolve_venv "$RUNE_REQUIREMENTS")
+    if [[ -x "$RUNE_PYTHON" ]] && "$RUNE_PYTHON" -c "import yaml" 2>/dev/null; then
+      _trace "[ensure-venv] OK: venv ready at ${RUNE_PYTHON%/bin/python3}"
     else
-      _trace "[ensure-venv] WARN: pip install completed but PyYAML not importable"
+      _trace "[ensure-venv] WARN: venv setup incomplete"
     fi
   fi
 fi

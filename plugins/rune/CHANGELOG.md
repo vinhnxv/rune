@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.150.0] - 2026-03-11
+
+### Changed
+- **venv relocation** — moved Python venv from `CLAUDE_PLUGIN_ROOT/scripts/.venv/` to `${CLAUDE_CONFIG_DIR}/rune-venv/` (persistent across plugin updates, not copied into plugin cache)
+- **venv hash guard** — SHA-256 of `requirements.txt` stored in venv dir; pip install skipped when dependencies unchanged (15ms vs 3-5s)
+- **dependency trim** — `mcp[cli]` → `mcp` (removes pygments/rich, saves ~19MB); `pytest-asyncio` moved to `requirements-dev.txt`
+- **shared venv helper** — new `scripts/lib/rune-venv.sh` with `rune_resolve_venv()` replaces duplicated venv logic in 4 scripts (47 lines removed)
+
+### Fixed
+- **venv path inconsistency** — `echo-search/start.sh` and `figma-to-react/start.sh` referenced `${PLUGIN_ROOT}/.venv` instead of `${PLUGIN_ROOT}/scripts/.venv` (now moot — both use shared helper)
+
+### Performance
+- Plugin cache reduced by ~890MB (cached versions no longer contain .venv/ dirs)
+- Runtime venv: 90MB → 71MB via dependency trimming
+- Session start warm path: 15ms (hash match) vs 3-5s (pip check)
+
 ## [1.149.2] - 2026-03-11
 
 ### Fixed
