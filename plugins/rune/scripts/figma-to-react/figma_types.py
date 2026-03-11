@@ -113,6 +113,7 @@ class LayoutAlign(str, Enum):
     MAX = "MAX"
     SPACE_BETWEEN = "SPACE_BETWEEN"
     BASELINE = "BASELINE"
+    AUTO = "AUTO"
 
 
 class LayoutSizingMode(str, Enum):

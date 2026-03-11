@@ -34,6 +34,7 @@ Phases added in v1.100+ that require explicit allowed/denied tool contracts:
 | Phase | Allowed Tools | Denied Tools | Timeout |
 |-------|--------------|-------------|---------|
 | design_extraction (3) | Read, Write, Bash, Glob, Grep + Figma MCP | TeamCreate, TeamDelete | 5 min |
+| design_prototype (3.2) | Read, Write, Bash, Glob, Grep, Agent, TeamCreate, TeamDelete, SendMessage, TaskCreate, TaskUpdate, TaskList + Figma MCP + UI Builder MCP | N/A | 10 min |
 | design_verification (5.2) | Read, Glob, Grep | Write, Edit, Bash | 5 min |
 | semantic_verification (2.8) | Read, Write, Bash, Agent, TeamCreate, TeamDelete, SendMessage, TaskCreate, TaskUpdate, TaskList | N/A | 12 min |
 | task_decomposition (4.5) | Read, Write, Bash, Agent, TeamCreate, TeamDelete, SendMessage, TaskCreate, TaskUpdate, TaskList | N/A | 10 min |

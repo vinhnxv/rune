@@ -134,7 +134,7 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 ## Quick Start
 
 ```bash
-# End-to-end pipeline (28 phases): freshness check → forge → plan review → plan refinement → verification → semantic verification → design extraction → task decomposition → work → storybook verification → design verification → ux verification → gap analysis → codex gap analysis → gap remediation → goldmask verification → code review → goldmask correlation → mend → verify mend → design iteration → test → test coverage critique → pre-ship validation → release quality check → ship → bot review wait → PR comment resolution → merge
+# End-to-end pipeline (29 phases): freshness check → forge → plan review → plan refinement → verification → semantic verification → design extraction → design prototype → task decomposition → work → storybook verification → design verification → ux verification → gap analysis → codex gap analysis → gap remediation → goldmask verification → code review → goldmask correlation → mend → verify mend → design iteration → test → test coverage critique → pre-ship validation → release quality check → ship → bot review wait → PR comment resolution → merge
 /rune:arc plans/my-plan.md
 /rune:arc plans/my-plan.md --no-forge             # Skip research enrichment
 /rune:arc plans/my-plan.md --approve              # Require human approval per task
@@ -258,7 +258,7 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 
 ## Arc Mode (End-to-End Pipeline)
 
-When you run `/rune:arc`, Rune chains 28 phases into one automated pipeline:
+When you run `/rune:arc`, Rune chains 29 phases into one automated pipeline:
 
 1. **FORGE** — Research agents enrich the plan with best practices, codebase patterns, and past echoes
 2. **PLAN REVIEW** — 3 parallel reviewers evaluate the plan (circuit breaker halts on BLOCK)
@@ -334,7 +334,7 @@ arc:
 When you run `/rune:arc-batch`, Rune executes `/rune:arc` across multiple plan files sequentially:
 
 1. **Pre-flight** — Validate all plan files exist, no duplicates or symlinks
-2. **For each plan** — Full 28-phase arc pipeline (forge through merge)
+2. **For each plan** — Full 29-phase arc pipeline (forge through merge)
 3. **Inter-run cleanup** — Checkout main, pull latest, clean state
 4. **Retry on failure** — Up to 3 `--resume` attempts per plan, then skip
 5. **Progress tracking** — `batch-progress.json` enables `--resume` for interrupted batches
@@ -347,7 +347,7 @@ When you run `/rune:arc-issues`, Rune processes a GitHub Issues backlog end-to-e
 
 1. **Fetch issues** — by label (`--label "rune:ready"`), file queue, or inline numbers
 2. **Generate plans** — each issue body becomes a plan file in `tmp/gh-plans/`
-3. **Run arc** — full 28-phase arc pipeline per issue (forge through merge)
+3. **Run arc** — full 29-phase arc pipeline per issue (forge through merge)
 4. **Post results** — success comment + `rune:done` label on issue after arc completes
 5. **Close issues** — PR body includes `Fixes #N` for auto-close on merge
 6. **Human escalation** — failed issues get `rune:failed` label + error comment; quality-gate failures get `rune:needs-review`
@@ -748,7 +748,7 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 |-------|---------|
 | agent-browser | Browser automation knowledge injection for E2E testing (non-invocable) |
 | brainstorm | Collaborative idea exploration — 3 modes: Solo (conversation), Roundtable Advisors (3 agent personas), Deep (advisors + elicitation sages). Persistent output in `docs/brainstorms/`. `disable-model-invocation: true` |
-| arc | End-to-end orchestration pipeline (pre-flight freshness gate + 28 phases: forge → plan review → plan refinement → verification → semantic verification → design extraction → task decomposition → work → storybook verification → design verification → ux verification → gap analysis → codex gap analysis → gap remediation → goldmask verification → code review → goldmask correlation → mend → verify mend → design iteration → test → test coverage critique → pre-ship validation → release quality check → ship → bot review wait → PR comment resolution → merge) |
+| arc | End-to-end orchestration pipeline (pre-flight freshness gate + 29 phases: forge → plan review → plan refinement → verification → semantic verification → design extraction → design prototype → task decomposition → work → storybook verification → design verification → ux verification → gap analysis → codex gap analysis → gap remediation → goldmask verification → code review → goldmask correlation → mend → verify mend → design iteration → test → test coverage critique → pre-ship validation → release quality check → ship → bot review wait → PR comment resolution → merge) |
 | arc-batch | Sequential batch arc execution with crash recovery and progress tracking |
 | arc-hierarchy | Hierarchical plan execution — parent/child plan decomposition with dependency DAGs and requires/provides contracts |
 | arc-issues | GitHub Issues-driven batch arc execution — fetch issues by label, generate plans, run arc, post results |
@@ -900,7 +900,7 @@ High-confidence learnings from Rune Echoes can be promoted to human-readable sol
 
 **TOME** — The unified review summary after deduplication and prioritization.
 
-**Arc Pipeline** — End-to-end orchestration across 28 phases with checkpoint-based resume, per-phase tool restrictions, convergence gate (regression detection + retry loop), time budgets, diff-scoped testing (unit/integration/E2E), 3 inline Codex quality gates (task decomposition, test coverage critique, release quality check), cascade circuit breaker, auto PR creation (ship), and auto merge with pre-merge checklist. Phase 5.5 uses Inspector Ashes (10-dimension scoring), Phase 5.8 auto-remediates FIXABLE gaps.
+**Arc Pipeline** — End-to-end orchestration across 29 phases with checkpoint-based resume, per-phase tool restrictions, convergence gate (regression detection + retry loop), time budgets, diff-scoped testing (unit/integration/E2E), 3 inline Codex quality gates (task decomposition, test coverage critique, release quality check), cascade circuit breaker, auto PR creation (ship), and auto merge with pre-merge checklist. Phase 5.5 uses Inspector Ashes (10-dimension scoring), Phase 5.8 auto-remediates FIXABLE gaps.
 
 **Mend** — Parallel finding resolution from TOME with restricted fixers, centralized ward check, and post-ward doc-consistency scan that fixes drift between source-of-truth files and their downstream targets.
 

@@ -4,20 +4,20 @@ description: |
   Use when running the full plan-to-merged-PR pipeline, when resuming an
   interrupted arc with --resume, or when any named phase fails (forge,
   plan-review, plan-refinement, verification, semantic-verification,
-  design-extraction, design-verification, design-iteration, work,
+  design-extraction, design-prototype, design-verification, design-iteration, work,
   gap-analysis, codex-gap-analysis, gap-remediation, goldmask-verification,
   code-review, goldmask-correlation, mend, verify-mend, test,
   pre-ship-validation, bot-review-wait, pr-comment-resolution, ship, merge).
   Use when checkpoint resume is needed after a crash or session end.
-  28-phase pipeline with convergence loops, Goldmask risk analysis,
+  29-phase pipeline with convergence loops, Goldmask risk analysis,
   pre-ship validation, bot review integration, cross-model verification,
-  and conditional design sync (Figma VSM extraction, fidelity verification, iteration).
+  and conditional design sync (Figma VSM extraction, prototype generation, fidelity verification, iteration).
   Keywords: arc, pipeline, --resume, checkpoint, convergence, forge, mend,
-  bot review, PR comments, ship, merge, design sync, Figma, VSM, 28 phases.
+  bot review, PR comments, ship, merge, design sync, Figma, VSM, 29 phases.
 
   <example>
   user: "/rune:arc plans/feat-user-auth-plan.md"
-  assistant: "The Tarnished begins the arc — 28 phases of forge, review, design sync, goldmask, test, mend, convergence, pre-ship validation, bot review, ship, and merge..."
+  assistant: "The Tarnished begins the arc — 29 phases of forge, review, design sync, goldmask, test, mend, convergence, pre-ship validation, bot review, ship, and merge..."
   </example>
 
   <example>
@@ -52,9 +52,9 @@ allowed-tools:
 
 # /rune:arc — End-to-End Orchestration Pipeline
 
-Chains twenty-eight phases into a single automated pipeline. Each phase runs as its own Claude Code turn with fresh context — the `arc-phase-stop-hook.sh` drives phase iteration via the Stop hook pattern. Artifact-based handoff connects phases. Checkpoint state enables resume after failure.
+Chains twenty-nine phases into a single automated pipeline. Each phase runs as its own Claude Code turn with fresh context — the `arc-phase-stop-hook.sh` drives phase iteration via the Stop hook pattern. Artifact-based handoff connects phases. Checkpoint state enables resume after failure.
 
-**Context budget advisory**: Full arc run: 28 phases x ~3.5min avg = ~95 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. The `PreCompact` hook saves checkpoint state automatically.
+**Context budget advisory**: Full arc run: 29 phases x ~3.5min avg = ~95 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. The `PreCompact` hook saves checkpoint state automatically.
 
 **Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `codex-cli`, `team-sdk`, `testing`, `agent-browser`, `polling-guard`, `zsh-compat`, `design-sync`
 
@@ -89,6 +89,7 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | 2.7 | `verification` | Inline | 30 sec | — |
 | 2.8 | `semantic_verification` | Team | 12 min | Codex (conditional) |
 | 3 | `design_extraction` | Team | 10 min | Conditional: `design_sync.enabled` |
+| 3.2 | `design_prototype` | Team | 10 min | Conditional: `design_sync.enabled` + VSM files |
 | 4.5 | `task_decomposition` | Team | 10 min | Codex (conditional) |
 | 5 | `work` | Team | 35 min | `/rune:strive` |
 | 3.3 | `storybook_verification` | Team | 15 min | Conditional: `storybook.enabled` |
@@ -293,7 +294,7 @@ Write('.claude/arc-phase-loop.local.md', stateContent)
 
 Execute the first pending phase from the checkpoint. The Stop hook (`arc-phase-stop-hook.sh`) handles all subsequent phases automatically.
 
-**CRITICAL — Single-Phase-Per-Turn Rule**: You MUST execute exactly ONE phase per turn, then STOP responding. Do NOT batch-process multiple phases in a single turn. Do NOT skip conditional phases (semantic_verification, design_extraction, task_decomposition) based on assumptions — each phase has its own gate logic in its reference file that MUST be executed. The Stop hook advances to the next phase automatically. Violating this rule causes phases to be skipped without proper gate evaluation.
+**CRITICAL — Single-Phase-Per-Turn Rule**: You MUST execute exactly ONE phase per turn, then STOP responding. Do NOT batch-process multiple phases in a single turn. Do NOT skip conditional phases (semantic_verification, design_extraction, design_prototype, task_decomposition) based on assumptions — each phase has its own gate logic in its reference file that MUST be executed. The Stop hook advances to the next phase automatically. Violating this rule causes phases to be skipped without proper gate evaluation.
 
 ```javascript
 // Check for context-critical shutdown signal before starting next phase (Layer 1)

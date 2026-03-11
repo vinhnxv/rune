@@ -34,12 +34,12 @@ settings:
   # Utility Crew — Lightweight digest extraction for arc team lead context optimization (v1.141.0)
   # Shell-based extraction (zero LLM tokens). Resolves decree-arbiter P1 (Explore cannot Write).
   utility_crew:
-    enabled: true                    # Master toggle (default: true)
+    enabled: true # Master toggle (default: true)
     tome_digest:
-      enabled: true                  # TOME digest before mend phase
+      enabled: true # TOME digest before mend phase
       max_timeout_ms: 15000
     artifact_condenser:
-      enabled: true                  # Cross-phase artifact digests
+      enabled: true # Cross-phase artifact digests
       max_timeout_ms: 15000
       modes:
         gap_analysis: true
@@ -47,7 +47,7 @@ settings:
         enriched_plan: true
         work_summary: true
     phase_summary_script:
-      enabled: true                  # Shell-based phase group summaries (no LLM cost)
+      enabled: true # Shell-based phase group summaries (no LLM cost)
   dedup_hierarchy:
     - SEC # Ward Sentinel (always highest)
     - BACK # Forge Warden

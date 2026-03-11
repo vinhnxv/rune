@@ -570,7 +570,7 @@ const ARC_TEAM_PREFIXES = [
   "arc-forge-", "arc-plan-review-", "arc-plan-inspect-", "arc-verify-", "arc-gap-fix-", "arc-inspect-", "arc-test-",  // arc-owned teams
   "arc-sage-",  // ephemeral elicitation sage team (mend Phase 7 — conditional on P1 findings)
   "arc-storybook-",  // Storybook verification team (conditional — storybook.enabled)
-  "arc-design-", "arc-design-verify-", "arc-design-iter-",  // design sync teams (conditional — design_sync.enabled)
+  "arc-design-", "arc-prototype-", "arc-design-verify-", "arc-design-iter-",  // design sync teams (conditional — design_sync.enabled)
   "arc-ux-",  // UX verification team (conditional — ux.enabled + frontend files)
   "arc-codex-sv-", "arc-codex-td-", "arc-codex-ga-", "arc-codex-tc-", "arc-codex-rq-",  // Codex phase handler teams (delegated to codex-phase-handler teammate)
   "rune-forge-", "rune-work-", "rune-review-", "rune-mend-", "rune-mend-deep-", "rune-audit-",  // sub-command teams

@@ -177,36 +177,87 @@ Write(`${outputDir}/reports/05-verification-summary.md`, verificationReport)
 **Steps**: 4.0 always runs; 4.1 conditional on Storybook MCP; 4.2 conditional on agent-browser; 4.3 merges all
 **Dimensions**: Completeness, Element Coverage, State Coverage, API Coverage
 
+## Phase 4.5: Storybook Integration (Bootstrap + Launch)
+
+Bootstraps an ephemeral Storybook at `tmp/storybook/` via the shared bootstrap script,
+copies prototypes, launches the dev server, and opens the full-page composition.
+
+```javascript
+if (!flags.noStorybook && Glob(`${outputDir}/prototypes/*/prototype.tsx`).length > 0) {
+  // 1. Bootstrap: scaffold + install deps + copy prototypes
+  const bootstrapScript = `${CLAUDE_PLUGIN_ROOT}/scripts/storybook/bootstrap.sh`
+  const result = Bash(`cd "${CWD}" && bash "${bootstrapScript}" --src-dir "${outputDir}/prototypes"`)
+  const bootstrapResult = JSON.parse(result)
+
+  // 2. Kill stale Storybook, launch fresh
+  Bash(`lsof -ti:6006 | xargs kill -9 2>/dev/null || true`)
+  Bash(`cd "${bootstrapResult.storybook_dir}" && npm run storybook &`)
+  Bash(`sleep 10`)
+
+  // 3. Open full-page composition in browser
+  const fullPage = bootstrapResult.full_page_component
+  const storyId = fullPage
+    ? `prototypes-${fullPage.toLowerCase()}--primary`
+    : `prototypes-${components[0].safeName.toLowerCase()}--primary`
+  Bash(`open "http://localhost:6006/?path=/story/${storyId}"`)
+
+  summary.storybook_dir = bootstrapResult.storybook_dir
+  summary.storybook_launched = true
+  summary.storybook_url = `http://localhost:6006/?path=/story/${storyId}`
+  summary.full_page_component = fullPage
+}
+```
+
+**Inputs**: Phase 3 prototypes
+**Outputs**: `tmp/storybook/` bootstrapped, Storybook launched, browser opened
+**Gate**: `--no-storybook` NOT set AND prototypes generated
+**Shared with**: Arc Phase 3.3 (Storybook Verification) uses same `tmp/storybook/` via `bootstrap.sh --story-files`
+
 ## Phase 5: Present (Summary + User Interaction)
 
 ```javascript
 // Aggregate all reports
 const reports = Glob(`${outputDir}/reports/*.md`)
-const summary = aggregateReports(reports)
-Write(`${outputDir}/PIPELINE-SUMMARY.md`, summary)
+const pipelineSummary = aggregateReports(reports)
+Write(`${outputDir}/PIPELINE-SUMMARY.md`, pipelineSummary)
 
-// Per-component status
-const componentStatus = prototypeComponents.map(comp => ({
+// Per-component status — full-page component listed FIRST
+const fullPage = findFullPageComponent(prototypeComponents)
+const sortedComponents = fullPage
+  ? [fullPage, ...prototypeComponents.filter(c => c.name !== fullPage.name)]
+  : prototypeComponents
+
+const componentStatus = sortedComponents.map(comp => ({
   name: comp.name,
+  isFullPage: comp.name === fullPage?.name,
   phases: { extracted: true, matched: !!comp.libraryMatch, synthesized: !!comp.prototype },
   confidence: comp.overallConfidence,
   issues: comp.openIssues
 }))
 Write(`${outputDir}/SUMMARY.md`, renderStatusTable(componentStatus))
 
-// User interaction
+// User interaction — Storybook status reflected in options
 AskUserQuestion({
-  question: "Pipeline complete. What would you like to do?",
-  options: [
-    "Open Storybook to preview prototypes",
-    "Show detailed report",
-    "Auto-fix verification issues",
-    "Done — I'll take it from here"
-  ]
+  question: summary.storybook_launched
+    ? `Pipeline complete. Full screen preview opened: ${summary.full_page_component || "Primary"}`
+    : "Pipeline complete. What would you like to do?",
+  options: summary.storybook_launched
+    ? [
+        "Show detailed report",
+        "Auto-fix verification issues",
+        "Regenerate with different options",
+        "Done — I'll take it from here"
+      ]
+    : [
+        "Open Storybook to preview prototypes",
+        "Show detailed report",
+        "Auto-fix verification issues",
+        "Done — I'll take it from here"
+      ]
 })
 ```
 
-**Inputs**: All reports from Phases 1-4
+**Inputs**: All reports from Phases 1-4.5
 **Outputs**: `PIPELINE-SUMMARY.md`, `SUMMARY.md`, user prompt
 **Always runs**: This phase has no gates
 

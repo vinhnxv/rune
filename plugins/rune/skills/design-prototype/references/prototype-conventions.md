@@ -153,6 +153,41 @@ Every prototype MUST include these baseline stories:
 | `Empty` | Empty/no-data state | Empty arrays, blank strings |
 | `Disabled` | Disabled interaction state | `disabled: true` or handlers removed |
 
+### Full-Page Composition Story
+
+When >= 3 components are extracted from a Figma screen, a **full-page composition** component MUST be generated that imports and composes all sub-components into a single screen layout. This component:
+
+- Uses `layout: "fullscreen"` in its story metadata
+- Imports all sibling prototype components via relative paths (`../ComponentName/prototype`)
+- Preserves the exact layout hierarchy from the Figma design (flex direction, gaps, padding)
+- Is the **default story opened in the browser** (Phase 4.5 auto-detects it)
+- Has `Primary` as the default story showing the full screen with all sub-components
+
+```typescript
+// Full-page composition pattern
+import type { Meta, StoryObj } from '@storybook/react'
+import FullPageComponent from './prototype'
+
+const meta = {
+  title: 'Prototypes/FullPageComponent',
+  component: FullPageComponent,
+  parameters: {
+    layout: 'fullscreen',  // REQUIRED for full-page compositions
+    backgrounds: { default: 'page', values: [{ name: 'page', value: '#f3f5f9' }] },
+  },
+  tags: ['autodocs'],
+} satisfies Meta<typeof FullPageComponent>
+
+export default meta
+type Story = StoryObj<typeof meta>
+
+// Primary = full screen with all defaults from Figma
+export const Primary: Story = {}
+
+// Additional variants with different prop combinations
+export const SimplifiedLayout: Story = { args: { showRightColumn: false, ... } }
+```
+
 ### Phase 3.5 Additional Stories (UX Flow Mapping)
 
 When UX flow mapping runs, these additional stories are generated:
