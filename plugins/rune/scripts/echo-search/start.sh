@@ -35,4 +35,9 @@ PROJECT_DIR=$(cd "$PROJECT_DIR" 2>/dev/null && pwd -P) || { echo "ERROR: invalid
 export ECHO_DIR="$PROJECT_DIR/.claude/echoes"
 export DB_PATH="$PROJECT_DIR/.claude/echoes/.search-index.db"
 
+# Global echo store — cross-project knowledge + doc packs
+CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+export GLOBAL_ECHO_DIR="$CHOME/echoes/global"
+export GLOBAL_DB_PATH="$CHOME/echoes/global/.global-index.db"
+
 exec "$PYTHON" "$SCRIPT_DIR/server.py"

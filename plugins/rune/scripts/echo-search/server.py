@@ -111,6 +111,46 @@ if DB_PATH:
         )
         sys.exit(1)
 
+# Global echo store — cross-project knowledge + doc packs (lazy, optional)
+GLOBAL_ECHO_DIR = os.environ.get("GLOBAL_ECHO_DIR", "")
+GLOBAL_DB_PATH = os.environ.get("GLOBAL_DB_PATH", "")
+
+# Validate global env vars through the same security checks as project vars
+for _env_name, _env_val in [("GLOBAL_ECHO_DIR", GLOBAL_ECHO_DIR),
+                             ("GLOBAL_DB_PATH", GLOBAL_DB_PATH)]:
+    if _env_val:
+        _resolved = os.path.realpath(_env_val)
+        if any(_resolved.startswith(p) for p in _FORBIDDEN_PREFIXES):
+            print(
+                "Error: %s points to system directory: %s"
+                % (_env_name, _resolved),
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+if GLOBAL_ECHO_DIR:
+    _global_echo_resolved = os.path.realpath(GLOBAL_ECHO_DIR)
+    _home = os.path.expanduser("~")
+    _tmpdir = os.path.realpath(os.environ.get("TMPDIR", "/tmp"))
+    if not any(_global_echo_resolved.startswith(p)
+               for p in (_home, _tmpdir)):
+        print(
+            "Error: GLOBAL_ECHO_DIR must be under home or temp directory: %s"
+            % _global_echo_resolved,
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+if GLOBAL_DB_PATH:
+    _gdb_resolved = os.path.realpath(GLOBAL_DB_PATH)
+    if not (_gdb_resolved.endswith(".db") or _gdb_resolved.endswith(".sqlite")):
+        print(
+            "Error: GLOBAL_DB_PATH must end with .db or .sqlite: %s"
+            % _gdb_resolved,
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
 STOPWORDS = frozenset([
     "a", "an", "and", "are", "as", "at", "be", "but", "by", "for",
     "from", "had", "has", "have", "he", "her", "his", "i", "in",
@@ -732,7 +772,39 @@ def get_db(db_path):
     return conn
 
 
-SCHEMA_VERSION = 3
+# ---------------------------------------------------------------------------
+# Global DB connection management (lazy — zero cost when scope=project)
+# ---------------------------------------------------------------------------
+
+_global_conn: Optional[sqlite3.Connection] = None
+
+
+def _ensure_global_dir() -> None:
+    """Create global echo directory structure if it doesn't exist."""
+    if not GLOBAL_ECHO_DIR:
+        return
+    os.makedirs(os.path.join(GLOBAL_ECHO_DIR, "doc-packs"), exist_ok=True)
+    os.makedirs(os.path.join(GLOBAL_ECHO_DIR, "manifests"), exist_ok=True)
+
+
+def get_global_conn() -> Optional[sqlite3.Connection]:
+    """Open global DB connection lazily. Returns None if global echoes disabled.
+
+    The connection is cached at module level and reuses the same WAL mode,
+    PRAGMA settings, and schema as the project DB.  Callers should NOT
+    close the returned connection — it is shared across the server lifetime.
+    """
+    global _global_conn
+    if not GLOBAL_ECHO_DIR or not GLOBAL_DB_PATH:
+        return None
+    if _global_conn is None:
+        _ensure_global_dir()
+        _global_conn = get_db(GLOBAL_DB_PATH)
+        ensure_schema(_global_conn)
+    return _global_conn
+
+
+SCHEMA_VERSION = 4
 assert isinstance(SCHEMA_VERSION, int) and 0 <= SCHEMA_VERSION <= 1000
 
 
@@ -786,6 +858,18 @@ def _migrate_v3(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_echo_entries_archived ON echo_entries(archived)")
 
 
+def _migrate_v4(conn: sqlite3.Connection) -> None:
+    """Apply V4 schema: domain column for global echo domain tagging."""
+    try:
+        conn.execute(
+            "ALTER TABLE echo_entries ADD COLUMN domain TEXT DEFAULT 'general'")
+    except sqlite3.OperationalError:
+        pass  # Column already exists (idempotent)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_echo_entries_domain"
+        " ON echo_entries(domain)")
+
+
 def ensure_schema(conn: sqlite3.Connection) -> None:
     """Ensure database schema is at the current version via PRAGMA user_version."""
     conn.execute("PRAGMA foreign_keys = ON")
@@ -800,6 +884,8 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
                 _migrate_v2(conn)
             if version < 3:
                 _migrate_v3(conn)
+            if version < 4:
+                _migrate_v4(conn)
             conn.commit()
         except (sqlite3.Error, OSError):
             conn.rollback()
