@@ -18,7 +18,7 @@ try {
     // Phase 0: Brainstorm (advisors + sages — normally shutdown mid-pipeline, listed here as safety net)
     "user-advocate", "tech-realist", "devils-advocate",
     "elicitation-sage-1", "elicitation-sage-2", "elicitation-sage-3",
-    "design-inventory-agent",
+    "design-inventory-agent", "design-pipeline-agent",
     // Phase 0.3: UX Research (conditional — ux.enabled)
     "ux-pattern-analyzer",
     // Phase 0.8: Utility Crew (normally shutdown mid-pipeline, listed here as safety net)

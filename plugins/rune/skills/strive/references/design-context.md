@@ -1,20 +1,20 @@
 # Design Context Discovery (Phase 1 — Conditional)
 
-After task extraction, discover design artifacts using a 4-strategy cascade. Triple-gated: `design_sync.enabled` + frontend task signals + design artifact presence. Zero overhead when any gate is closed.
+After task extraction, discover design artifacts using a 5-strategy cascade. Triple-gated: `design_sync.enabled` + frontend task signals + design artifact presence. Zero overhead when any gate is closed.
 
 ```javascript
-// Design context discovery — 4-strategy cascade
+// Design context discovery — 5-strategy cascade
 // Triple-gated: design_sync.enabled + frontend signals + artifacts
 function discoverDesignContext(talisman, frontmatter, tasks) {
   // Gate 1: design_sync.enabled
-  const designEnabled = talisman?.design_sync?.enabled === true
+  const designEnabled = readTalismanSection("misc")?.design_sync?.enabled === true
   if (!designEnabled) return { strategy: 'none' }
 
   // Gate 2: Any frontend tasks? (isFrontend set by classifyFrontendTask in parse-plan.md)
   const hasFrontendTasks = tasks.some(t => t.isFrontend)
   if (!hasFrontendTasks) return { strategy: 'none' }
 
-  // Gate 3: Design artifacts — try 4 strategies in priority order
+  // Gate 3: Design artifacts — try 5 strategies in priority order
 
   // Strategy 1: Design packages (from arc design_extraction phase)
   const designPackages = Glob('tmp/arc/*/design/design-package.json')
@@ -51,6 +51,44 @@ function discoverDesignContext(talisman, frontmatter, tasks) {
     }
   }
 
+  // Strategy 5: design-prototype output (from /rune:design-prototype via devise Phase 0)
+  // Gate: plan frontmatter has design_references_path AND directory exists with artifacts
+  // Position: AFTER design-sync (Strategy 3) because design-sync produces VSM/DCD which
+  // are higher fidelity than design-prototype output. BEFORE figma-url-only (Strategy 4)
+  // because design-prototype artifacts are richer than a bare URL.
+  let designRefPath = frontmatter.design_references_path
+  // SEC-002: Validate designRefPath against path traversal
+  if (designRefPath && (designRefPath.includes('..') || designRefPath.startsWith('/') || !/^(tmp|plans)\//.test(designRefPath))) {
+    warn('Invalid design_references_path — skipping design-prototype strategy')
+    designRefPath = null
+  }
+  if (designRefPath) {
+    const refDirContents = Glob(`${designRefPath}/*`)
+    if (refDirContents.length > 0) {
+      const prototypesManifest = tryRead(`${designRefPath}/prototypes-manifest.json`)
+      const libraryManifest = tryRead(`${designRefPath}/library-manifest.json`)
+      const flowMap = tryRead(`${designRefPath}/flow-map.md`)
+      const summary = tryRead(`${designRefPath}/SUMMARY.md`)
+
+      return {
+        strategy: 'design-prototype',
+        designReferencesPath: designRefPath,
+        prototypesManifest: prototypesManifest ? JSON.parse(prototypesManifest) : null,
+        libraryManifest: libraryManifest ? JSON.parse(libraryManifest) : null,
+        hasFlowMap: !!flowMap,
+        hasSummary: !!summary,
+        figmaUrl: frontmatter.figma_url,
+        // Trust hierarchy for design-prototype (applies when ONLY design-prototype
+        // artifacts exist, not when VSM/DCD from design-sync also present):
+        //   library-match > prototype > figma-reference
+        // This is non-overlapping with design-sync's hierarchy (VSM > library > figma_to_react)
+        // because Strategy 5 only fires when Strategies 1-3 found no VSM/DCD artifacts.
+        trustHierarchy: 'library-match > prototype > figma-reference',
+        vsmFiles: [], dcdFiles: []  // No VSM/DCD in design-prototype output
+      }
+    }
+  }
+
   // Strategy 4: Figma URL only (from plan frontmatter — no extracted artifacts yet)
   if (frontmatter.figma_url) {
     return {
@@ -81,7 +119,19 @@ When `hasDesignContext` is true, conditionally load design skills for worker con
 if (hasDesignContext) {
   loadedSkills.push('frontend-design-patterns')  // Design tokens, accessibility, responsive patterns
   loadedSkills.push('figma-to-react')             // Component mapping, variant extraction
-  loadedSkills.push('design-sync')                // VSM/DCD knowledge
+
+  // design-sync skill only needed when VSM/DCD artifacts are present (Strategies 1-3)
+  // When strategy is 'design-prototype' (Strategy 5), workers use prototype artifacts
+  // instead of VSM/DCD — loading design-sync would add ~2k tokens of irrelevant context
+  if (designContext.strategy !== 'design-prototype') {
+    loadedSkills.push('design-sync')              // VSM/DCD knowledge
+  }
+
+  // design-prototype skill loaded when Strategy 5 is active — workers need prototype
+  // interpretation guidance (trust hierarchy, library-match usage, preview-only rules)
+  if (designContext.strategy === 'design-prototype') {
+    loadedSkills.push('design-prototype')          // Prototype interpretation, library matching
+  }
 }
 ```
 
