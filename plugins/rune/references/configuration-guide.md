@@ -196,9 +196,10 @@ See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integratio
 | `arc.timeouts.test` | number | `900000` | Phase 7.7: Test (15 min) |
 | `arc.timeouts.ship` | number | `300000` | Phase 9: Ship (5 min) |
 | `arc.timeouts.merge` | number | `600000` | Phase 9.5: Merge (10 min) |
-| `arc.timeouts.design_extraction` | number | `300000` | Phase D1: Design extraction (5 min) |
-| `arc.timeouts.design_iteration` | number | `600000` | Phase D2: Design iteration (10 min) |
-| `arc.timeouts.design_verification` | number | `300000` | Phase D3: Design fidelity (5 min) |
+| `arc.timeouts.design_extraction` | number | `300000` | Phase 3: Design extraction (5 min) |
+| `arc.timeouts.design_prototype` | number | `600000` | Phase 3.2: Design prototype generation (10 min) |
+| `arc.timeouts.design_verification` | number | `300000` | Phase 5.2: Design fidelity (5 min) |
+| `arc.timeouts.design_iteration` | number | `600000` | Phase 7.6: Design iteration (10 min) |
 
 ### `solution_arena` — Devise Arena Phase
 
