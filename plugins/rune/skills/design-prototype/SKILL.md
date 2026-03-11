@@ -2,8 +2,9 @@
 name: design-prototype
 description: |
   Generate prototype React components + Storybook stories from Figma URLs.
-  5-phase pipeline: figma_to_react → UntitledUI matching → prototype synthesis → verify → present.
-  Input: Figma URL(s). Output: design-references/ directory with prototypes + stories.
+  6-phase pipeline: figma_to_react → UntitledUI matching → prototype synthesis → verify → storybook integration → present.
+  Input: Figma URL(s). Output: prototypes auto-copied to Storybook with full-screen preview opened in browser.
+  Generates both individual components AND a full-page composition for complete screen preview.
   Use when you want to preview design implementation before coding.
   Trigger keywords: prototype, figma prototype, storybook from figma, design preview,
   generate components from figma, preview design.
@@ -105,6 +106,11 @@ Phase 3.5: UX Flow Mapping (conditional — >= 2 components)
 Phase 4: Verify (conditional — >= 1 prototype generated)
     → Structural self-review of generated prototypes
     → Check import consistency, prop types, story coverage
+    |
+Phase 4.5: Storybook Integration (auto-copy + launch)
+    → Copy prototypes to storybook/src/prototypes/
+    → Install deps, launch Storybook dev server
+    → Detect full-page composition, open in browser
     |
 Phase 5: Present
     → Aggregate reports into summary
@@ -261,6 +267,50 @@ for proto in prototypes:
 Write("{outputDir}/verify-report.md", formatVerifyReport(issues))
 ```
 
+## Phase 4.5: Storybook Integration (Bootstrap + Launch)
+
+Bootstraps an ephemeral Storybook environment at `tmp/storybook/`, copies prototypes into it, and launches the dev server. The `tmp/storybook/` directory is session-scoped — cleaned by `/rune:rest`.
+
+**Gate**: `--no-storybook` is NOT set AND prototypes were generated.
+
+```javascript
+if (!flags.noStorybook && Glob(`${outputDir}/prototypes/*/prototype.tsx`).length > 0) {
+  // 1. Bootstrap: scaffold + install deps + copy prototypes (single script)
+  const bootstrapScript = `${CLAUDE_PLUGIN_ROOT}/scripts/storybook/bootstrap.sh`
+  const result = Bash(`cd "${CWD}" && bash "${bootstrapScript}" "${outputDir}/prototypes"`)
+  const bootstrapResult = JSON.parse(result)  // { storybook_dir, full_page_component, ready }
+
+  // 2. Kill any existing Storybook on port 6006, launch fresh
+  Bash(`lsof -ti:6006 | xargs kill -9 2>/dev/null || true`)
+  Bash(`cd "${bootstrapResult.storybook_dir}" && npm run storybook &`)
+  Bash(`sleep 10`)
+
+  // 3. Open full-page composition in browser (or first component if no full page)
+  const fullPage = bootstrapResult.full_page_component
+  const storyId = fullPage
+    ? `prototypes-${fullPage.toLowerCase()}--primary`
+    : `prototypes-${components[0].safeName.toLowerCase()}--primary`
+  Bash(`open "http://localhost:6006/?path=/story/${storyId}"`)
+
+  summary.storybook_dir = bootstrapResult.storybook_dir
+  summary.storybook_launched = true
+  summary.storybook_url = `http://localhost:6006/?path=/story/${storyId}`
+  summary.full_page_component = fullPage
+}
+```
+
+### Bootstrap Script (`scripts/storybook/bootstrap.sh`)
+
+Handles the full lifecycle:
+1. **Scaffold** (once): Creates `tmp/storybook/` with package.json, .storybook/main.ts, preview.ts, vite.config.ts, index.css
+2. **Install** (once): `npm install --legacy-peer-deps` if node_modules missing
+3. **Copy**: Copies prototype directories into `tmp/storybook/src/prototypes/`
+4. **Detect**: Finds full-page composition component (imports >= 2 sibling prototypes)
+
+Returns JSON: `{ storybook_dir, full_page_component, ready }`
+
+**Skip conditions**: `--no-storybook` flag, no prototypes generated.
+
 ## Phase 5: Present
 
 Aggregate all reports and present to user with actionable next steps.
@@ -272,16 +322,26 @@ summary = {
   prototypes_generated: Glob("{outputDir}/prototypes/*/prototype.tsx").length,
   stories_generated: Glob("{outputDir}/prototypes/*/*.stories.tsx").length,
   issues_found: issues.length,
-  output_dir: outputDir
+  output_dir: outputDir,
+  storybook_launched: summary.storybook_launched || false,
+  storybook_url: summary.storybook_url || null,
+  full_page_component: findFullPageComponent(prototypeFiles) || null
 }
 
 Write("{outputDir}/summary.json", summary)
 
+// Present full-page component prominently
+if (summary.full_page_component) {
+  present(`Full screen preview: ${summary.full_page_component}`)
+  present(`Open: ${summary.storybook_url}`)
+}
+
 AskUserQuestion(formatSummary(summary) + "\n\nNext steps:\n" +
-  "1. Copy prototypes to your component directory\n" +
+  (summary.storybook_launched
+    ? "1. ✅ Storybook running — full screen preview opened in browser\n"
+    : "1. Run Storybook to preview: cd plugins/rune/scripts/figma-to-react/storybook && npm run storybook\n") +
   "2. Run /rune:design-sync <url> for full implementation pipeline\n" +
-  "3. Run Storybook to preview stories: npx storybook dev\n" +
-  "4. Regenerate with different options\n\n" +
+  "3. Regenerate with different options\n\n" +
   "Choose an option or provide feedback:")
 ```
 
@@ -302,6 +362,24 @@ tmp/design-prototype/{timestamp}/
 ├── flow-map.md                     # UX flow mapping (>= 2 components)
 ├── verify-report.md                # Verification results
 └── summary.json                    # Aggregate summary
+
+tmp/storybook/                          # Ephemeral Storybook runtime (cleaned by /rune:rest)
+├── .storybook/main.ts              # Scans src/**/*.stories.@(ts|tsx)
+├── .storybook/preview.ts           # layout: "fullscreen" default
+├── package.json                    # Storybook 10 + React 18 + Tailwind v4
+├── vite.config.ts                  # @tailwindcss/vite plugin
+├── src/
+│   ├── index.css                   # @import "tailwindcss"
+│   └── prototypes/                 # Copied from tmp/design-prototype/{timestamp}/prototypes/
+│       ├── {ComponentA}/
+│       │   ├── prototype.tsx
+│       │   └── prototype.stories.tsx
+│       ├── {ComponentB}/
+│       │   ├── prototype.tsx
+│       │   └── prototype.stories.tsx
+│       └── {FullPageComponent}/    # Full-screen composition (imports others)
+│           ├── prototype.tsx       # ← PRIMARY: composes all sub-components
+│           └── prototype.stories.tsx  # ← layout: "fullscreen", opened by default
 ```
 
 ## Agent Team Architecture

@@ -93,7 +93,27 @@ Heuristic-based quality checks:
 
 ## Integration Points
 
+- **Arc Phase 3.2**: Design prototype phase — generates React prototypes from Figma + UI builder, bootstraps `tmp/storybook/`
 - **Arc Phase 3.3**: Storybook verification phase (after work, before design verification)
+- **Design Prototype Phase 4.5**: Standalone `/rune:design-prototype` — auto-bootstraps `tmp/storybook/`, copies prototypes, launches preview
+- **Shared runtime**: `tmp/storybook/` — ephemeral Storybook environment used by design-prototype, arc Phase 3.2, and arc Phase 3.3. Bootstrapped via `scripts/storybook/bootstrap.sh`
 - **Talisman config**: `storybook.enabled`, `storybook.port`, `storybook.max_rounds`
 - **Agents**: `storybook-reviewer` (read-only) + `storybook-fixer` (write-capable)
 - **agent-browser**: Used for screenshot capture and DOM snapshot analysis
+
+### Bootstrap Script (`scripts/storybook/bootstrap.sh`)
+
+Shared entry point for all Storybook operations. Idempotent — only scaffolds once.
+
+```bash
+# Design prototype: copy prototype directories
+bootstrap.sh --src-dir tmp/design-prototype/{ts}/prototypes
+
+# Arc storybook verification: copy individual story files
+bootstrap.sh --story-files src/Button.stories.tsx src/Card.stories.tsx
+
+# Scaffold only (no files)
+bootstrap.sh
+```
+
+Returns JSON: `{ storybook_dir, full_page_component, server_running, ready }`

@@ -197,6 +197,7 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
     verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     semantic_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     design_extraction: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
+    design_prototype: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     task_decomposition: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     work:         { status: "pending", artifact: null, artifact_hash: null, team_name: null,
                     // Schema v16 (v1.106.0): suspended tasks from context preservation protocol.

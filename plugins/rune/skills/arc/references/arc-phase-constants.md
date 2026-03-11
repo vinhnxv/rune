@@ -9,7 +9,7 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 ## Phase Order
 
 ```javascript
-const PHASE_ORDER = ['forge', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'task_decomposition', 'work', 'storybook_verification', 'design_verification', 'ux_verification', 'gap_analysis', 'codex_gap_analysis', 'gap_remediation', 'goldmask_verification', 'code_review', 'goldmask_correlation', 'mend', 'verify_mend', 'design_iteration', 'test', 'test_coverage_critique', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
+const PHASE_ORDER = ['forge', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'design_prototype', 'task_decomposition', 'work', 'storybook_verification', 'design_verification', 'ux_verification', 'gap_analysis', 'codex_gap_analysis', 'gap_remediation', 'goldmask_verification', 'code_review', 'goldmask_correlation', 'mend', 'verify_mend', 'design_iteration', 'test', 'test_coverage_critique', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
 
 // Heavy phases that MUST be delegated to sub-skills — never implemented inline.
 // These phases consume significant tokens and require fresh teammate context windows.
@@ -61,6 +61,7 @@ const PHASE_TIMEOUTS = {
   verification:  talismanTimeouts.verification ?? 30_000,    // 30 sec (orchestrator-only, no team)
   semantic_verification: talismanTimeouts.semantic_verification ?? 720_000,  // 12 min (delegated to codex-phase-handler teammate)
   design_extraction: talismanTimeouts.design_extraction ?? 600_000,  // 10 min (conditional — gated by design_sync.enabled + Figma URL)
+  design_prototype: talismanTimeouts.design_prototype ?? 600_000,  // 10 min (conditional — gated by design_sync.enabled + VSM files from design_extraction)
   task_decomposition: talismanTimeouts.task_decomposition ?? 600_000,  // 10 min (delegated to codex-phase-handler teammate)
   work:          talismanTimeouts.work ?? 2_100_000,    // 35 min (inner 30m + 5m setup)
   storybook_verification: talismanTimeouts.storybook_verification ?? 900_000,  // 15 min (conditional — gated by storybook.enabled in talisman misc)
@@ -109,7 +110,7 @@ function calculateDynamicTimeout(tier) {
   const basePhaseBudget = PHASE_TIMEOUTS.forge + PHASE_TIMEOUTS.plan_review +
     PHASE_TIMEOUTS.plan_refine + PHASE_TIMEOUTS.verification +
     PHASE_TIMEOUTS.semantic_verification + PHASE_TIMEOUTS.design_extraction +
-    PHASE_TIMEOUTS.task_decomposition + PHASE_TIMEOUTS.work +
+    PHASE_TIMEOUTS.design_prototype + PHASE_TIMEOUTS.task_decomposition + PHASE_TIMEOUTS.work +
     PHASE_TIMEOUTS.storybook_verification + PHASE_TIMEOUTS.design_verification +
     PHASE_TIMEOUTS.ux_verification +
     PHASE_TIMEOUTS.gap_analysis +

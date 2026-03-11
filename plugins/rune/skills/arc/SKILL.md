@@ -4,14 +4,14 @@ description: |
   Use when running the full plan-to-merged-PR pipeline, when resuming an
   interrupted arc with --resume, or when any named phase fails (forge,
   plan-review, plan-refinement, verification, semantic-verification,
-  design-extraction, design-verification, design-iteration, work,
+  design-extraction, design-prototype, design-verification, design-iteration, work,
   gap-analysis, codex-gap-analysis, gap-remediation, goldmask-verification,
   code-review, goldmask-correlation, mend, verify-mend, test,
   pre-ship-validation, bot-review-wait, pr-comment-resolution, ship, merge).
   Use when checkpoint resume is needed after a crash or session end.
-  28-phase pipeline with convergence loops, Goldmask risk analysis,
+  29-phase pipeline with convergence loops, Goldmask risk analysis,
   pre-ship validation, bot review integration, cross-model verification,
-  and conditional design sync (Figma VSM extraction, fidelity verification, iteration).
+  and conditional design sync (Figma VSM extraction, prototype generation, fidelity verification, iteration).
   Keywords: arc, pipeline, --resume, checkpoint, convergence, forge, mend,
   bot review, PR comments, ship, merge, design sync, Figma, VSM, 28 phases.
 
@@ -89,6 +89,7 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | 2.7 | `verification` | Inline | 30 sec | — |
 | 2.8 | `semantic_verification` | Team | 12 min | Codex (conditional) |
 | 3 | `design_extraction` | Team | 10 min | Conditional: `design_sync.enabled` |
+| 3.2 | `design_prototype` | Team | 10 min | Conditional: `design_sync.enabled` + VSM files |
 | 4.5 | `task_decomposition` | Team | 10 min | Codex (conditional) |
 | 5 | `work` | Team | 35 min | `/rune:strive` |
 | 3.3 | `storybook_verification` | Team | 15 min | Conditional: `storybook.enabled` |

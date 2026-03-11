@@ -34,7 +34,7 @@ if (!sbEnabled) {
   return  // STOP — Stop hook advances to next phase
 }
 
-// 1. Detect Storybook in project
+// 1. Detect Storybook — check BOTH project-level and tmp/storybook/ (Rune ephemeral)
 const hasPackageJson = (() => {
   try { Read("package.json"); return true } catch { return false }
 })()
@@ -48,8 +48,13 @@ const hasStorybookConfig = (() => {
   }
 })()
 
-if (!hasStorybookDep && !hasStorybookConfig) {
-  log("Storybook verification skipped — Storybook not detected in project.")
+// Also check for Rune's ephemeral Storybook at tmp/storybook/
+const hasRuneStorybook = (() => {
+  try { Read("tmp/storybook/package.json"); return true } catch { return false }
+})()
+
+if (!hasStorybookDep && !hasStorybookConfig && !hasRuneStorybook) {
+  log("Storybook verification skipped — Storybook not detected in project or tmp/storybook/.")
   checkpoint.phases.storybook_verification.status = "skipped"
   checkpoint.phases.storybook_verification.skip_reason = "storybook_not_installed"
   checkpoint.phases.storybook_verification.verdict = "SKIPPED"
@@ -57,6 +62,10 @@ if (!hasStorybookDep && !hasStorybookConfig) {
   Write(checkpointPath, checkpoint)
   return
 }
+
+// Determine which Storybook to use — prefer tmp/storybook/ when available
+const useRuneStorybook = hasRuneStorybook
+const storybookRoot = useRuneStorybook ? "tmp/storybook" : "."
 
 // 2. Check work phase ran (need components to verify)
 const workPhase = checkpoint.phases?.work
@@ -114,8 +123,19 @@ const sbPort = (() => {
 
 const sbRunning = Bash(`curl -sf http://localhost:${sbPort} > /dev/null 2>&1 && echo "up" || echo "down"`).trim()
 if (sbRunning === "down") {
-  if (sbConfig.auto_start === true) {
-    Bash(`npx storybook dev --port ${sbPort} --ci --no-open &`, { timeout: 15000 })
+  if (sbConfig.auto_start === true || useRuneStorybook) {
+    if (useRuneStorybook) {
+      // Use Rune's bootstrap script to ensure tmp/storybook/ is ready
+      // Copy work phase component stories into tmp/storybook/src/components/
+      const storyFiles = changedFiles.filter(f => f.endsWith('.stories.tsx'))
+      if (storyFiles.length > 0) {
+        const bootstrapScript = `${CLAUDE_PLUGIN_ROOT}/scripts/storybook/bootstrap.sh`
+        Bash(`cd "${CWD}" && bash "${bootstrapScript}" --story-files ${storyFiles.join(' ')}`)
+      }
+      Bash(`cd "${CWD}/tmp/storybook" && npm run storybook -- --port ${sbPort} --ci --no-open &`, { timeout: 15000 })
+    } else {
+      Bash(`npx storybook dev --port ${sbPort} --ci --no-open &`, { timeout: 15000 })
+    }
     Bash("sleep 10")  // Wait for server startup
     const recheck = Bash(`curl -sf http://localhost:${sbPort} > /dev/null 2>&1 && echo "up" || echo "down"`).trim()
     if (recheck === "down") {

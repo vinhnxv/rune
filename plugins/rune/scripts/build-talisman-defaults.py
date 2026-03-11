@@ -190,6 +190,13 @@ def _inject_toplevel_feature_defaults(data):
         "max_questions_per_worker": 3, "timeout_seconds": 120,
     })
     data.setdefault("arc_hierarchy", {"cleanup_child_branches": True})
+    data.setdefault("storybook", {
+        "enabled": False,
+        "port": 6006,
+        "auto_start": True,
+        "dir": "tmp/storybook",
+        "max_rounds": 3,
+    })
 
 
 def _inject_goldmask_defaults(data):
