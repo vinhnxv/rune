@@ -163,6 +163,120 @@ Remembrance docs use structured YAML frontmatter with `echo_ref` cross-referenci
 
 See [remembrance-commands.md](references/remembrance-commands.md) for full schema, command protocols, examples, and migration steps. See [remembrance-schema.md](references/remembrance-schema.md) for the complete YAML spec.
 
+## Doc Packs — Curated Knowledge Bundles
+
+Doc packs are pre-curated MEMORY.md files bundled with the Rune plugin. They contain opinionated patterns, common gotchas, and integration recipes for popular frameworks — knowledge that complements Context7's API reference docs.
+
+### Directory Layout
+
+```
+~/.claude/echoes/global/              # CHOME pattern: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+├── doc-packs/
+│   ├── shadcn-ui/MEMORY.md           # Installed pack
+│   └── fastapi/MEMORY.md
+├── manifests/
+│   ├── shadcn-ui.json                # Install metadata + staleness
+│   └── fastapi.json
+└── MEMORY.md                         # User-elevated global echoes
+```
+
+### Stack Name Validation (SEC-P3-001)
+
+All `<stack>` arguments MUST be validated before use in paths:
+- Pattern: `^[a-zA-Z][a-zA-Z0-9_-]{1,63}$` (leading alpha required — blocks `--help` injection)
+- After path construction: verify `realpath` stays within `$CHOME/echoes/global/`
+- Reject with error message if validation fails
+
+### `doc-packs install <stack>`
+
+Install a bundled doc pack to the global echo store.
+
+**Flow**:
+1. Validate `<stack>` name against `^[a-zA-Z][a-zA-Z0-9_-]{1,63}$`
+2. Read `${CLAUDE_PLUGIN_ROOT}/data/doc-packs/registry.json` — verify `<stack>` exists
+3. Check if already installed: `$CHOME/echoes/global/doc-packs/<stack>/MEMORY.md`
+   - If exists: overwrite (idempotent re-install)
+4. Create directories: `mkdir -p "$CHOME/echoes/global/doc-packs/<stack>" "$CHOME/echoes/global/manifests"`
+5. Copy pack: `cp "${CLAUDE_PLUGIN_ROOT}/data/doc-packs/<stack>/MEMORY.md" "$CHOME/echoes/global/doc-packs/<stack>/"`
+6. Write manifest to `$CHOME/echoes/global/manifests/<stack>.json`:
+   ```json
+   {
+     "name": "<stack>",
+     "version": "<from registry>",
+     "installed_at": "<ISO-8601 now>",
+     "last_updated": "<from registry>",
+     "source_version": "<from registry>",
+     "domains": ["<from registry>"]
+   }
+   ```
+7. Write dirty signal: `touch "$CHOME/echoes/global/.global-echo-dirty"`
+8. Confirm: "Installed doc pack `<stack>` (v1.0.0) to global echoes. Run `echo_search(query, scope='global')` to search."
+
+### `doc-packs list`
+
+List available and installed doc packs.
+
+**Flow**:
+1. Read `${CLAUDE_PLUGIN_ROOT}/data/doc-packs/registry.json`
+2. For each pack, check if manifest exists at `$CHOME/echoes/global/manifests/<name>.json`
+3. Display table:
+   ```
+   Available doc packs:
+     shadcn-ui     ✓ installed (v1.0.0, 2026-03-11)
+     tailwind-v4   ✓ installed (v1.0.0, 2026-03-11)
+     nextjs        ○ not installed
+     fastapi       ○ not installed
+     sqlalchemy    ○ not installed
+     untitledui    ○ not installed
+   ```
+
+### `doc-packs update <stack>`
+
+Update an installed pack to the latest bundled version.
+
+**Flow**:
+1. Validate `<stack>` name
+2. Read installed manifest from `$CHOME/echoes/global/manifests/<stack>.json`
+   - If not installed: error "Pack `<stack>` is not installed. Run `doc-packs install <stack>` first."
+3. Read bundled registry version
+4. Compare `manifest.source_version` with `registry.packs[stack].version`
+   - Use string comparison (semver format, no `sort -V` — EC-3.7 macOS compat)
+   - If same: "Already up to date (v1.0.0)"
+   - If different: copy updated MEMORY.md, update manifest `source_version` + `last_updated`, write dirty signal
+
+### `doc-packs status`
+
+Show staleness status for installed packs.
+
+**Flow**:
+1. List all manifests in `$CHOME/echoes/global/manifests/`
+2. For each manifest, calculate days since `installed_at`
+3. Display with staleness indicator (threshold: 90 days from talisman `echoes.global.staleness_days`):
+   ```
+   Doc pack status:
+     shadcn-ui     v1.0.0  installed 5 days ago      ✓ fresh
+     tailwind-v4   v1.0.0  installed 93 days ago      ⚠ stale (> 90 days)
+   ```
+
+### `audit` — Global Echo Provenance
+
+List all global echoes with their source and provenance.
+
+**Flow**:
+1. Read all manifests from `$CHOME/echoes/global/manifests/` for doc pack info
+2. Parse `$CHOME/echoes/global/MEMORY.md` for elevated echoes (source prefix `elevated:`)
+3. Count entries per pack/source
+4. Display grouped report:
+   ```
+   Global echo audit:
+     Doc packs:
+       shadcn-ui     3 entries  frontend     installed 2026-03-11
+       fastapi       3 entries  backend      installed 2026-03-11
+
+     Elevated echoes:
+       "Rate Limiting Best Practice"   backend    from rune-plugin (2026-03-11)
+   ```
+
 ## Commands
 
-See `/rune:echoes` command for user-facing echo management (show, prune, reset, remember, remembrance, promote, migrate).
+See `/rune:echoes` command for user-facing echo management (show, prune, reset, remember, remembrance, promote, migrate, doc-packs, audit).
