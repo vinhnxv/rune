@@ -1,58 +1,84 @@
 # UntitledUI Doc Pack
 
-## Etched — UntitledUI: Component Conventions (2026-03-01)
+## Etched — UntitledUI: Component Conventions (2026-03-11)
 
 **Source**: `doc-pack:untitledui@1.0.0`
 **Category**: pattern
 
-### Naming and Import Patterns
-- Components use `Aria*` prefix for React Aria integration: `AriaButton`, `AriaDialog`
-- Import from package: `import { AriaButton } from '@untitledui/react'`
-- Compound component pattern: `<AriaSelect><AriaSelectTrigger /><AriaSelectContent /></AriaSelect>`
-- File naming: kebab-case (`aria-button.tsx`), component naming: PascalCase (`AriaButton`)
+### Naming and Imports
 
-### Variant and Size Props
-- Standard sizes: `xs`, `sm`, `md`, `lg`, `xl`, `2xl`
-- Standard variants: `primary`, `secondary`, `tertiary`, `link`, `destructive`
-- Use `size` and `variant` props consistently across all components
-- Custom variants: extend via `className` merge — do NOT create wrapper components
+- Components use `Aria*` prefix (React Aria foundation): `AriaButton`, `AriaDialog`
+- Import from package root: `import { AriaButton } from "@untitledui/react"`
+- Compound components: `AriaTable.Header`, `AriaTable.Row`, `AriaTable.Cell`
+- Icons: `import { HomeIcon } from "@untitledui/icons"` — separate package
 
-## Etched — UntitledUI: Design Token System (2026-03-01)
+### Component API Patterns
 
-**Source**: `doc-pack:untitledui@1.0.0`
-**Category**: pattern
+- All components accept `size` prop: `"xs" | "sm" | "md" | "lg" | "xl" | "2xl"`
+- All components accept `variant` prop for visual style
+- Slots pattern for composition: `<AriaButton startIcon={<HomeIcon />}>`
+- `asChild` prop for custom element rendering (like Radix primitives)
 
-### Token Architecture
-- Semantic color tokens: `--color-fg-primary`, `--color-bg-secondary`, `--color-border-primary`
-- Spacing scale: 4px base — `--spacing-1` (4px), `--spacing-2` (8px), `--spacing-4` (16px)
-- Typography: `--font-size-sm` (14px), `--font-size-md` (16px), `--font-weight-semibold` (600)
-- Radius: `--radius-sm` (6px), `--radius-md` (8px), `--radius-lg` (12px)
+### Style System
 
-### Tailwind v4 Integration
-- Tokens defined in `@theme` block — auto-generates Tailwind utilities
-- `bg-bg-secondary` maps to `var(--color-bg-secondary)` — semantic naming
-- Dark mode: tokens swap values automatically via `.dark` class
-- Use semantic tokens (`text-fg-primary`) — never raw colors (`text-gray-900`)
+- Built on Tailwind CSS v4.1 with semantic color tokens
+- Class merging: use `cn()` utility — components accept `className` prop
+- Colors are semantic: `primary`, `secondary`, `error`, `warning`, `success`
+- No inline styles — all customization via Tailwind classes or CSS variables
 
-## Etched — UntitledUI: Figma-to-Code Mapping (2026-03-01)
+## Etched — UntitledUI: Design Token System (2026-03-11)
 
 **Source**: `doc-pack:untitledui@1.0.0`
 **Category**: pattern
 
-### Component Matching
-- Figma component names map 1:1 to React components: `Button` → `AriaButton`
-- Figma variants map to props: `Size=lg, Hierarchy=Secondary` → `<AriaButton size="lg" variant="secondary">`
-- Icons: use Figma icon names directly with UntitledUI icon set
-- Auto-layout in Figma = `flex` in code — gap values match spacing tokens
+### Token Categories
 
-### Implementation Rules
-- REUSE existing UntitledUI components before creating custom ones
-- EXTEND via `className` prop for minor adjustments
-- CREATE new components only when no UntitledUI equivalent exists
-- Always check MCP tools first: `search_components("button")` before building custom
+- **Color**: `--color-primary-*`, `--color-gray-*`, `--color-error-*` (50-950 scale)
+- **Spacing**: `--spacing-*` follows 4px grid: `xs=4px`, `sm=8px`, `md=12px`, `lg=16px`
+- **Typography**: `--font-size-*`, `--font-weight-*`, `--line-height-*`
+- **Shadows**: `--shadow-xs` through `--shadow-3xl` for elevation levels
+- **Radius**: `--radius-*` from `none` to `full`
 
-### Accessibility
-- React Aria provides built-in keyboard navigation and ARIA attributes
-- Do NOT add redundant `aria-*` attributes — React Aria handles them
-- Focus management: `<FocusScope>` for modal/dialog focus trapping
-- Screen reader: `<VisuallyHidden>` for accessible labels without visual text
+### Using Tokens in Code
+
+- Tokens map to Tailwind utilities: `text-primary-600`, `p-spacing-md`, `shadow-lg`
+- Override at theme level in CSS: `@theme { --color-primary-600: oklch(0.55 0.2 250); }`
+- Dark mode tokens: defined as separate set, auto-applied via `.dark` class
+- Typography scale: `display-2xl` through `text-xs` with matching line-height
+
+### Figma-to-Code Mapping
+
+- Figma auto-layout maps to `flex` with `gap-*` utilities
+- Figma fill maps to `w-full` or `flex-1`
+- Figma fixed dimensions map to `w-[Npx]` `h-[Npx]` (use sparingly)
+- Figma component variants map to React props: `variant`, `size`, `state`
+
+## Etched — UntitledUI: Variant and Size Patterns (2026-03-11)
+
+**Source**: `doc-pack:untitledui@1.0.0`
+**Category**: pattern
+
+### Button Variants
+
+| Variant | Use Case |
+|---------|----------|
+| `primary` | Primary actions (submit, save, confirm) |
+| `secondary` | Secondary actions alongside primary |
+| `tertiary` | Low-emphasis actions (cancel, back) |
+| `link` | Inline text-style actions |
+| `destructive` | Dangerous actions (delete, remove) |
+
+### Size Scale
+
+- `xs`: Compact UI, table actions, inline controls
+- `sm`: Secondary buttons, form controls, tight layouts
+- `md`: Default — most buttons and inputs
+- `lg`: Hero sections, prominent CTAs
+- `xl`/`2xl`: Marketing pages, onboarding flows
+
+### State Handling
+
+- Components handle `hover`, `focus`, `active`, `disabled` states internally
+- `isLoading` prop: shows spinner, disables interaction, preserves width
+- `isDisabled` prop: applies disabled styling and `aria-disabled`
+- Focus visible: keyboard focus ring uses `--color-primary-*` tokens

@@ -1,70 +1,90 @@
 # FastAPI Doc Pack
 
-## Etched — FastAPI: Dependency Injection Patterns (2026-03-01)
+## Etched — FastAPI: Dependency Injection Patterns (2026-03-11)
 
 **Source**: `doc-pack:fastapi@1.0.0`
 **Category**: pattern
 
-### Dependency Injection
-- `Depends()` is FastAPI's DI system — use for DB sessions, auth, config
-- Dependencies can depend on other dependencies — forms a DAG
-- `yield` dependencies for cleanup (e.g., DB session commit/rollback)
-- Class-based dependencies: `class Pagination: def __init__(self, skip: int = 0, limit: int = 100)`
+### Core DI Pattern
 
-### Common Dependency Patterns
+- Use `Depends()` for dependency injection — FastAPI resolves the dependency tree automatically
+- Dependencies can be functions, classes, or generators (for cleanup via `yield`)
+- Sub-dependencies are resolved recursively — use for layered auth/db/config
+- Dependencies with `yield` run cleanup after response is sent (like context managers)
+
+### Common Dependencies
+
 ```python
-# DB session with cleanup
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with async_session() as session:
         yield session
 
-# Auth dependency chain
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> User: ...
-async def get_admin_user(user: User = Depends(get_current_user)) -> User: ...
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+    return await verify_token(token)
+
+@app.get("/items")
+async def list_items(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    ...
 ```
 
 ### Gotchas
-- `Depends()` without parentheses (`Depends(get_db)`) — NOT `Depends(get_db())`
-- Dependencies are called per-request by default — use `functools.lru_cache` for singletons
-- Background tasks get their own dependency instances — do NOT share DB sessions
-- `yield` dependencies MUST catch exceptions for proper cleanup
 
-## Etched — FastAPI: Pydantic v2 Integration (2026-03-01)
+- `Depends()` in default parameter position — not as a type annotation
+- Class-based dependencies: `__init__` params become query/path params
+- Generator dependencies (`yield`) MUST have exactly one `yield`
+- Use `Annotated[Type, Depends(dep)]` (Pydantic v2 style) for cleaner signatures
+
+## Etched — FastAPI: Pydantic v2 Integration (2026-03-11)
 
 **Source**: `doc-pack:fastapi@1.0.0`
 **Category**: pattern
 
-### Pydantic v2 Patterns
-- `model_validator(mode="before")` replaces `@validator(pre=True)`
-- `field_validator` replaces `@validator` — different decorator syntax
+### Model Patterns
+
+- Use `model_validator(mode="before")` instead of deprecated `@validator`
+- Use `field_validator` instead of `@validator` for individual fields
 - `model_config = ConfigDict(from_attributes=True)` replaces `class Config: orm_mode = True`
-- Use `Annotated[int, Field(gt=0)]` for reusable validated types
+- Computed fields: `@computed_field` decorator instead of custom `@property` + schema
 
 ### Request/Response Models
-- Separate `Create`, `Update`, `Response` schemas — never use ORM model directly
-- `model_dump(exclude_unset=True)` for PATCH operations — distinguish None from missing
-- `response_model_exclude_none=True` on route decorator for clean JSON output
-- Use `TypeAdapter` for validating non-model types (lists, dicts)
 
-## Etched — FastAPI: Async Patterns and Security (2026-03-01)
+- Separate input (`Create`), output (`Read`), and update (`Update`) models
+- Use `model_dump(exclude_unset=True)` for PATCH operations — only update provided fields
+- `Field(json_schema_extra={"example": ...})` replaces `schema_extra` in Field
+- Use `Annotated[str, Field(min_length=1, max_length=100)]` for validated types
+
+### Migration from Pydantic v1
+
+- `from pydantic import BaseModel` — same import, new internals
+- `.dict()` becomes `.model_dump()`, `.json()` becomes `.model_dump_json()`
+- `parse_obj()` becomes `model_validate()`, `parse_raw()` becomes `model_validate_json()`
+- `update_forward_refs()` becomes `model_rebuild()` (usually automatic now)
+
+## Etched — FastAPI: Async Patterns and Background Tasks (2026-03-11)
 
 **Source**: `doc-pack:fastapi@1.0.0`
 **Category**: pattern
 
 ### Async Best Practices
-- Use `async def` for I/O-bound routes (DB, HTTP calls, file I/O)
-- Use `def` (sync) for CPU-bound routes — FastAPI runs them in a thread pool
-- Never mix `sync` DB calls in `async` routes — use async driver (asyncpg, aiosqlite)
-- `BackgroundTasks` for fire-and-forget: `background_tasks.add_task(send_email, user.email)`
 
-### Security Middleware
-- `OAuth2PasswordBearer(tokenUrl="/token")` for JWT auth
-- CORS: `CORSMiddleware` — always configure `allow_origins` explicitly, never `["*"]` in production
-- Rate limiting: use `slowapi` or custom middleware — FastAPI has no built-in rate limiter
-- Request validation is automatic via Pydantic — but validate business logic in dependencies
+- Use `async def` for I/O-bound endpoints (database, HTTP calls, file I/O)
+- Use plain `def` for CPU-bound endpoints — FastAPI runs them in a thread pool
+- Never mix sync I/O in `async def` — blocks the event loop
+- Use `httpx.AsyncClient` (not `requests`) for outbound HTTP in async endpoints
 
-### Error Handling
-- `HTTPException(status_code=404, detail="Not found")` for expected errors
-- Custom exception handlers: `@app.exception_handler(MyError)` for domain errors
-- Use `status.HTTP_201_CREATED` constants — not raw integers
-- Validation errors return 422 automatically — customize with `@app.exception_handler(RequestValidationError)`
+### Background Tasks
+
+- `BackgroundTasks` parameter: lightweight, in-process tasks after response
+- For heavy work: use Celery, ARQ, or similar task queue — not BackgroundTasks
+- Background tasks share the request's dependency context (db sessions, etc.)
+- Multiple background tasks execute sequentially in order added
+
+### Middleware and Security
+
+- `@app.middleware("http")` for cross-cutting concerns (logging, timing, CORS)
+- `OAuth2PasswordBearer(tokenUrl="token")` for JWT authentication
+- Use `Security()` instead of `Depends()` when scopes are needed
+- Rate limiting: use `slowapi` or custom middleware — not built into FastAPI
