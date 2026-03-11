@@ -808,9 +808,18 @@ def get_global_conn() -> Optional[sqlite3.Connection]:
     The connection is cached at module level and reuses the same WAL mode,
     PRAGMA settings, and schema as the project DB.  Callers should NOT
     close the returned connection — it is shared across the server lifetime.
+
+    Respects talisman ``echoes.global.enabled`` (default: ``True``).
+    When set to ``False``, returns ``None`` regardless of env vars.
     """
     global _global_conn
     if not GLOBAL_ECHO_DIR or not GLOBAL_DB_PATH:
+        return None
+    # Check talisman echoes.global.enabled toggle
+    talisman = _load_talisman()
+    echoes_cfg = talisman.get("echoes", {})
+    global_cfg = echoes_cfg.get("global", {}) if isinstance(echoes_cfg, dict) else {}
+    if isinstance(global_cfg, dict) and global_cfg.get("enabled") is False:
         return None
     if _global_conn is None:
         _ensure_global_dir()
