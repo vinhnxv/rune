@@ -609,11 +609,16 @@ When a task has `has_design_context === true`, inject step 4.7 into both rune-sm
 
 ### Per-Task Step 4.7.5: TRUST HIERARCHY (conditional)
 
-When a task has `has_design_context === true`, inject step 4.7.5 into both rune-smith and trial-forger lifecycles between step 4.7 (DESIGN SPEC) and step 4.8 (COMPONENT CONSTRAINTS). Same gate as Step 4.7 — zero overhead when no design context.
+When a task has `has_design_context === true`, inject step 4.7.5 into both rune-smith and trial-forger lifecycles between step 4.7 (DESIGN SPEC) and step 4.8 (COMPONENT CONSTRAINTS). Same gate as Step 4.7 — zero overhead when no design context. **Exception**: Skip for `design-prototype` strategy — step 4.7.6 provides the correct prototype-based trust hierarchy instead.
 
 ```javascript
 // Injected into worker prompt when task.has_design_context === true
-// Placed between step 4.7 (DESIGN SPEC) and step 4.8 (COMPONENT CONSTRAINTS)
+// Placed after step 4.7 (DESIGN SPEC); steps 4.7.6 and 4.7.7 may follow before step 4.8
+// DOC-003 FIX: Skip 4.7.5 for design-prototype strategy (4.7.6 has the correct hierarchy)
+if (designContext.strategy === 'design-prototype') {
+  // Strategy 5 uses prototype-based trust hierarchy (step 4.7.6), not VSM-based (step 4.7.5)
+  // Skip 4.7.5 to avoid contradictory VSM-first guidance
+} else {
 // Guard: verify reference file exists before injection — skip with warning if missing
 const trustHierarchyPath = "plugins/rune/skills/design-sync/references/worker-trust-hierarchy.md"
 if (!Glob(trustHierarchyPath).length) {
@@ -632,6 +637,7 @@ if (!Glob(trustHierarchyPath).length) {
              score >= LOW_THRESHOLD and < 0.80 (medium): import but verify against VSM tokens
              score < LOW_THRESHOLD (low): do NOT import, build from scratch using VSM`
 }  // end trust hierarchy file existence guard
+}  // end design-prototype strategy guard
 
 // Only inject this step when task.has_design_context === true
 // When false: step numbering goes 4.7 → 4.8 (no gap, no overhead)
@@ -644,7 +650,7 @@ When a task has `has_design_context === true` AND the plan frontmatter contains 
 ```javascript
 // Injected into worker prompt when task.has_design_context === true
 // AND plan frontmatter has design_references_path AND prototypes exist
-// Placed between step 4.7.5 (TRUST HIERARCHY) and step 4.7.7 (UX FLOW REQUIREMENTS)
+// NEW in this PR: placed after step 4.7.5 (TRUST HIERARCHY), before new step 4.7.7
 const deviseRefDir = planFrontmatter?.design_references_path
 const prototypesManifest = deviseRefDir ? tryRead(`${deviseRefDir}/prototypes-manifest.json`) : null
 

@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "I want to run /rune:devise for a new feature: 'Add OAuth2 authentication with Google and GitHub providers'. Walk me through what happens in Phase -1 (Team Bootstrap) and Phase 0 (Gather Input). Explain: (1) What the teamTransition protocol does, (2) How ATE-1 enforcement is enabled, (3) What happens if brainstorm-context is NOT provided vs if it IS provided, (4) How design signal detection works for Figma URLs. Don't actually execute anything — just explain the decision tree.",
-      "expected_output": "A detailed walkthrough of: (1) Team Bootstrap — the 6-step teamTransition protocol (validate → TeamDelete with retry → filesystem fallback → TeamCreate with 'Already leading' recovery → post-create verification → state file write with config_dir, owner_pid, session_id). (2) ATE-1 enforcement — enabled by team creation BEFORE any Agent() calls, all subsequent Agent() calls must include team_name. (3) Phase 0 paths — default: delegate to brainstorm protocol with devise-specific overrides (advisors join existing team, workspace co-located, skips handoff); --brainstorm-context PATH: read existing workspace, skip brainstorm, inject context; --quick: skip brainstorm, ask for feature description via AskUserQuestion. (4) Design signal detection — FIGMA_URL_PATTERN scan, set designAware flag, conditionally spawn design-inventory-agent with figma_list_components MCP.",
+      "expected_output": "A detailed walkthrough of: (1) Team Bootstrap — the 6-step teamTransition protocol (validate → TeamDelete with retry → filesystem fallback → TeamCreate with 'Already leading' recovery → post-create verification → state file write with config_dir, owner_pid, session_id). (2) ATE-1 enforcement — enabled by team creation BEFORE any Agent() calls, all subsequent Agent() calls must include team_name. (3) Phase 0 paths — default: delegate to brainstorm protocol with devise-specific overrides (advisors join existing team, workspace co-located, skips handoff); --brainstorm-context PATH: read existing workspace, skip brainstorm, inject context; --quick: skip brainstorm, ask for feature description via AskUserQuestion. (4) Design signal detection — FIGMA_URL_PATTERN scan, set designAware flag, conditionally spawn design-pipeline-agent with figma_list_components MCP.",
       "files": [],
       "expectations": [
         "Describes the 6-step teamTransition protocol in Phase -1",
@@ -14,7 +14,7 @@
         "Explains the three Phase 0 paths: default (brainstorm), --brainstorm-context, --quick",
         "Notes that brainstorm advisors join the devise team (not a separate team)",
         "Describes FIGMA_URL_PATTERN scanning for design signal detection",
-        "Mentions design-inventory-agent spawns conditionally when Figma URLs detected"
+        "Mentions design-pipeline-agent spawns conditionally when Figma URLs detected"
       ]
     },
     {

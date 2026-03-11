@@ -182,7 +182,13 @@ Inject design reference context from `/rune:design-prototype` output into forge 
 ```javascript
 const miscConfig = readTalismanSection("misc") || {}
 const designSyncEnabled = miscConfig.design_sync?.enabled === true
-const designRefPath = planFrontmatter?.design_references_path
+let designRefPath = planFrontmatter?.design_references_path
+
+// SEC-002: Validate designRefPath against path traversal
+if (designRefPath && (designRefPath.includes('..') || designRefPath.startsWith('/') || !/^(tmp|plans)\//.test(designRefPath))) {
+  warn('Invalid design_references_path — skipping design context injection')
+  designRefPath = null
+}
 
 if (designSyncEnabled && designRefPath) {
   const summaryFiles = Glob(`${designRefPath}/SUMMARY.md`)
@@ -193,15 +199,26 @@ if (designSyncEnabled && designRefPath) {
       catch { return null }
     })()
 
+    // SEC-001: Sanitize external Figma data before embedding in agent prompts.
+    // summary, p.name, and p.matched_components originate from Figma design data
+    // and must be stripped of newlines, XML/HTML tags, and markdown headings.
+    const sanitize = (s) => String(s || "")
+      .replace(/[\r\n]+/g, " ")
+      .replace(/<[^>]*>/g, "")
+      .replace(/^#{1,6}\s+/gm, "")
+      .trim()
+
+    const sanitizedSummary = sanitize(summary)
+
     // Build design context block for forge agent prompts (Phase 4)
     designContextForForge = `
 ## Design Reference Context
 ### Library Matches (HIGH trust ~85-95%)
 ${libraryManifest?.packages?.length > 0
-  ? libraryManifest.packages.map(p => `- ${p.name}: ${p.matched_components?.join(", ") || "general"}`).join("\n")
+  ? libraryManifest.packages.map(p => `- ${sanitize(p.name)}: ${(p.matched_components || []).map(c => sanitize(c)).join(", ") || "general"}`).join("\n")
   : "No library matches — reference code only."}
 ### Component Summary
-${summary}
+${sanitizedSummary}
 When enriching: recommend library components where applicable, flag design conflicts with existing codebase patterns.`
   }
 }
@@ -246,11 +263,21 @@ if (manifest?.components?.length > 0) {
       const protoEntry = manifest.components.find(c => c.name === update.component)
       if (!protoEntry || update.component.includes("..")) continue
 
+      // SEC-003: Validate prototype_path from manifest against path traversal
+      // and shell metacharacter injection (manifest is external data)
+      if (!protoEntry.prototype_path || protoEntry.prototype_path.includes("..") || protoEntry.prototype_path.startsWith("/")) {
+        log(`Phase 1.9: Rejected unsafe prototype_path: ${protoEntry.prototype_path}`)
+        continue
+      }
+
       try {
         // Copy original prototype to enriched dir, apply update
+        // Use Read+Write instead of Bash("cp ...") to avoid shell metacharacter injection
         const srcPath = `${designRefPath}/${protoEntry.prototype_path}`
         const destPath = `${enrichedDir}/${protoEntry.prototype_path}`
-        Bash(`mkdir -p "$(dirname "${destPath}")" && cp "${srcPath}" "${destPath}" 2>/dev/null || true`)
+        Bash(`mkdir -p "$(dirname "${destPath}")"`)
+        const protoContent = Read(srcPath)
+        if (protoContent) Write(destPath, protoContent)
 
         // Write per-component enrichment log
         Write(`${enrichedDir}/${update.component}-enrichment-log.md`,
@@ -321,7 +348,7 @@ When you discover new component requirements during enrichment, emit:
 
 | Condition | Effect |
 |-----------|--------|
-| Phase 1.8 skipped (no design context) | Skip Phase 1.9 entirely |
+| No `design_references_path` in plan frontmatter (no design context) | Skip Phase 1.9 entirely |
 | No `prototypes-manifest.json` in design-references | Skip Phase 1.9 |
 | `prototypes-manifest.json` malformed | Skip Phase 1.9, warn |
 | No `PROTOTYPE_UPDATE` annotations in enrichment outputs | No-op (not error) |

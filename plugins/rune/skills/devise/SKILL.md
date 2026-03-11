@@ -134,7 +134,7 @@ Three paths based on flags:
 
 ### Design Signal Detection & Inventory Agent
 
-Scans user description for Figma URLs (`FIGMA_URL_PATTERN`), sets `designAware` flag, and conditionally spawns `design-inventory-agent` to call `figma_list_components` MCP for component pre-population. Includes `--quick` fallback for re-scanning feature description when Phase 0 is skipped.
+Scans user description for Figma URLs (`FIGMA_URL_PATTERN`), sets `designAware` flag, and conditionally spawns `design-pipeline-agent` to call `figma_list_components` MCP for component pre-population. Includes `--quick` fallback for re-scanning feature description when Phase 0 is skipped.
 
 See [design-signal-detection.md](references/design-signal-detection.md) for the full detection logic and inventory agent spawn protocol.
 
@@ -208,7 +208,7 @@ Tarnished consolidates research findings into a plan document. User selects deta
 **Outputs**: `plans/YYYY-MM-DD-{type}-{feature-name}-plan.md`
 **Error handling**: Missing research files -> proceed with available data
 **Comprehensive only**: Re-runs flow-seer on the drafted plan for a second SpecFlow pass
-**Design-aware**: When `design_sync_candidate === true`, adds `figma_urls` array and `design_sync: true` to frontmatter, and emits a "Design Implementation" section in the plan body (with component inventory from design-inventory-agent if available)
+**Design-aware**: When `design_sync_candidate === true`, adds `figma_urls` array and `design_sync: true` to frontmatter, and emits a "Design Implementation" section in the plan body (with component inventory from design-pipeline-agent if available)
 
 See [synthesize.md](references/synthesize.md) for the full protocol.
 

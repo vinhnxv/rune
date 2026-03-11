@@ -53,6 +53,9 @@ figma_url: ""          # Auto-populated when Figma URL detected in brainstorm (l
 figma_urls: []         # NEW — array of {url, role?, screen?}. role: auto|primary|variant (default: auto). screen: group label, null = auto-detect. Leave empty if none.
 design_sync: false     # Set to true when figma_url is detected (enables design context in strive workers)
 design_references_path: ""      # Auto-populated: path to design-references/ directory (e.g. "tmp/plans/{timestamp}/design-references/")
+library_match_count: 0          # Number of components matched to UI library (from match-report.json)
+ux_flow_mapped: false           # Whether flow-map.md was generated (>= 2 components)
+page_compositions: 0            # Number of page-level prototypes generated
 session_budget:
   max_concurrent_agents: 3      # Cap on simultaneous teammates (applied silently); see sizing guide
 ---

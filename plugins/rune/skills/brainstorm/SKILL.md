@@ -302,6 +302,9 @@ if (figmaUrl) {
         log(`Found ${totalCount} components: ${previewList}${suffix}`)
         // Append to brainstorm context for advisor rounds
         designPreviewBlock = `\n### Figma Component Preview\nFound ${totalCount} components: ${previewList}${suffix}\nFull design pipeline available via /rune:devise.`
+        // designPreviewBlock injection points:
+        // 1. Appended to round context for advisors in Phase 2 (featureDescription += designPreviewBlock)
+        // 2. Included in brainstorm-decisions.md output (Phase 6 capture)
       }
     } catch (e) {
       // Non-blocking: preview failure does not block brainstorm

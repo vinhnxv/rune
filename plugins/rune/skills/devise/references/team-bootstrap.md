@@ -1,6 +1,6 @@
 # Phase -1: Team Bootstrap
 
-Create the Agent Team before any agents spawn. This ensures Phase 0 agents (elicitation sages, design-inventory-agent) can join the team and comply with ATE-1 enforcement.
+Create the Agent Team before any agents spawn. This ensures Phase 0 agents (elicitation sages, design-pipeline-agent) can join the team and comply with ATE-1 enforcement.
 
 ```javascript
 // teamTransition protocol — moved from research-phase.md to run before Phase 0

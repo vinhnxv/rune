@@ -7,7 +7,7 @@ After task extraction, discover design artifacts using a 5-strategy cascade. Tri
 // Triple-gated: design_sync.enabled + frontend signals + artifacts
 function discoverDesignContext(talisman, frontmatter, tasks) {
   // Gate 1: design_sync.enabled
-  const designEnabled = talisman?.design_sync?.enabled === true
+  const designEnabled = readTalismanSection("misc")?.design_sync?.enabled === true
   if (!designEnabled) return { strategy: 'none' }
 
   // Gate 2: Any frontend tasks? (isFrontend set by classifyFrontendTask in parse-plan.md)
@@ -56,7 +56,12 @@ function discoverDesignContext(talisman, frontmatter, tasks) {
   // Position: AFTER design-sync (Strategy 3) because design-sync produces VSM/DCD which
   // are higher fidelity than design-prototype output. BEFORE figma-url-only (Strategy 4)
   // because design-prototype artifacts are richer than a bare URL.
-  const designRefPath = frontmatter.design_references_path
+  let designRefPath = frontmatter.design_references_path
+  // SEC-002: Validate designRefPath against path traversal
+  if (designRefPath && (designRefPath.includes('..') || designRefPath.startsWith('/') || !/^(tmp|plans)\//.test(designRefPath))) {
+    warn('Invalid design_references_path — skipping design-prototype strategy')
+    designRefPath = null
+  }
   if (designRefPath) {
     const refDirContents = Glob(`${designRefPath}/*`)
     if (refDirContents.length > 0) {
