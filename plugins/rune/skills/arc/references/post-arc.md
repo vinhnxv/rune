@@ -1,6 +1,6 @@
 # Post-Arc — Full Algorithm
 
-Post-pipeline lifecycle steps that run after all 27 phases complete (or after the last non-skipped phase). Covers scheduled task cleanup, echo persistence, completion report display, and final zombie teammate sweep.
+Post-pipeline lifecycle steps that run after all 28 phases complete (or after the last non-skipped phase). Covers scheduled task cleanup, echo persistence, completion report display, and final zombie teammate sweep.
 
 **Inputs**: completed checkpoint, plan path, echo config, `arcStart` timestamp
 **Outputs**: scheduled task deleted, echoes persisted, completion report displayed to user, stale teams cleaned

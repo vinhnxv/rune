@@ -347,7 +347,7 @@ When you run `/rune:arc-issues`, Rune processes a GitHub Issues backlog end-to-e
 
 1. **Fetch issues** — by label (`--label "rune:ready"`), file queue, or inline numbers
 2. **Generate plans** — each issue body becomes a plan file in `tmp/gh-plans/`
-3. **Run arc** — full 27-phase arc pipeline per issue (forge through merge)
+3. **Run arc** — full 28-phase arc pipeline per issue (forge through merge)
 4. **Post results** — success comment + `rune:done` label on issue after arc completes
 5. **Close issues** — PR body includes `Fixes #N` for auto-close on merge
 6. **Human escalation** — failed issues get `rune:failed` label + error comment; quality-gate failures get `rune:needs-review`
@@ -640,7 +640,7 @@ Each Ash embeds several review agents as specialized perspectives. For example, 
 
 ### Review Agents
 
-42 specialized agents that Ash embed as perspectives:
+46 review agent definitions (34 agents + 12 specialist prompt templates) that Ash embed as perspectives:
 
 | Agent | Focus |
 |-------|-------|
@@ -688,6 +688,8 @@ Each Ash embeds several review agents as specialized perspectives. For example, 
 | ux-flow-validator | User flow completeness — loading states, error boundaries, empty states, confirmations (UXF) |
 | ux-interaction-auditor | Micro-interaction audit — hover/focus states, keyboard a11y, touch targets, animation (UXI) |
 | ux-cognitive-walker | Cognitive walkthrough — first-time user simulation, discoverability, learnability (UXC) |
+| aesthetic-quality-reviewer | Aesthetic quality — visual coherence, typography, whitespace, design personality beyond pixel fidelity (AESTH) |
+| design-system-compliance-reviewer | Design system compliance — token usage, variant patterns, import paths, class merge, dark mode (DSGN-SYS) |
 
 ### Research Agents
 
@@ -790,6 +792,14 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | strive | Swarm work execution with self-organizing task pool (+ `--approve`, incremental commits) |
 | zsh-compat | zsh shell compatibility (read-only vars, glob NOMATCH, word splitting) |
 | learn | Session self-learning — extract CLI corrections and review recurrences from session history, write patterns to Echoes. `/rune:learn` |
+| design-system-discovery | Design system auto-detection — scans repo for component libraries, token systems, and variant frameworks. Auto-loaded by devise, strive, arc (non-invocable) |
+| resolve-todos | Resolve file-based TODOs using Agent Teams with verify-before-fix pipeline. Each TODO reviewed before fix to prevent hallucinated fixes |
+| team-sdk | Centralized team management SDK — ExecutionEngine interface, shared lifecycle protocols, preset systems for Rune workflows (non-invocable) |
+| team-status | Team health dashboard — show active team members, task progress, and communication state (non-invocable) |
+| runs | Workflow run history and diagnostics (non-invocable) |
+| utility-crew | Agent-based context pack composition and validation — context-scribe, prompt-warden, dispatch-herald. Gated by `utility_crew.enabled` (non-invocable) |
+| ux-design-process | UX design intelligence — heuristic evaluation checklists, interaction pattern libraries, flow validation. Auto-loaded for frontend files (non-invocable) |
+| storybook | Storybook component verification — CSF3 format, MCP tools, story generation, visual quality checks. Auto-loaded by arc Phase 3.3 (non-invocable) |
 
 ## Configuration
 
@@ -890,7 +900,7 @@ High-confidence learnings from Rune Echoes can be promoted to human-readable sol
 
 **TOME** — The unified review summary after deduplication and prioritization.
 
-**Arc Pipeline** — End-to-end orchestration across 28 phases with checkpoint-based resume, per-phase tool restrictions, convergence gate (regression detection + retry loop), time budgets, diff-scoped testing (unit/integration/E2E), 3 inline Codex quality gates (task decomposition, test coverage critique, release quality check), cascade circuit breaker, auto PR creation (ship), and auto merge with pre-merge checklist. Phase 5.5 uses Inspector Ashes (9-dimension scoring), Phase 5.8 auto-remediates FIXABLE gaps.
+**Arc Pipeline** — End-to-end orchestration across 28 phases with checkpoint-based resume, per-phase tool restrictions, convergence gate (regression detection + retry loop), time budgets, diff-scoped testing (unit/integration/E2E), 3 inline Codex quality gates (task decomposition, test coverage critique, release quality check), cascade circuit breaker, auto PR creation (ship), and auto merge with pre-merge checklist. Phase 5.5 uses Inspector Ashes (10-dimension scoring), Phase 5.8 auto-remediates FIXABLE gaps.
 
 **Mend** — Parallel finding resolution from TOME with restricted fixers, centralized ward check, and post-ward doc-consistency scan that fixes drift between source-of-truth files and their downstream targets.
 
@@ -908,7 +918,7 @@ plugins/rune/
 │   └── plugin.json
 ├── agents/
 │   ├── investigation/       # 24 investigation agents (Goldmask + Inspect)
-│   ├── review/              # 34 review agents (12 specialist prompt templates in specialist-prompts/)
+│   ├── review/              # 34 review agents (12 specialist prompt templates in stacks/references/)
 │   │   └── references/      # Shared review checklists
 │   ├── research/            # 5 research agents (plan pipeline)
 │   ├── testing/             # 5 testing agents (arc Phase 7.7)
@@ -929,6 +939,9 @@ plugins/rune/
 │   ├── plan-review.md          # /rune:plan-review
 │   ├── rest.md                 # /rune:rest
 │   ├── review.md               # /rune:review (alias for /rune:appraise)
+│   ├── team-delegate.md        # /rune:team-delegate
+│   ├── team-shutdown.md        # /rune:team-shutdown
+│   ├── team-spawn.md           # /rune:team-spawn
 │   └── work.md                 # /rune:work (alias for /rune:strive)
 ├── skills/
 │   ├── agent-browser/       # Browser automation knowledge (non-invocable)
@@ -1082,7 +1095,7 @@ Configuration lives in `.mcp.json`. See `skills/figma-to-react/SKILL.md` for usa
 
 Rune includes an MCP server (`context7`) for live framework and library documentation lookup via [Context7](https://context7.com). Research agents (practice-seeker, lore-scholar) use Context7 as their primary documentation source during `/rune:devise` Phase 1C external research, with WebSearch/WebFetch as fallback when MCP is unavailable.
 
-**Requirements:** Node.js (uses `npx -y @upstash/context7-mcp@^1.0.0`). Unlike echo-search and figma-to-react, context7 runs entirely via `npx @upstash/context7-mcp` and requires no local script directory.
+**Requirements:** Node.js (uses `npx -y @upstash/context7-mcp@2.1.3`). Unlike echo-search and figma-to-react, context7 runs entirely via `npx @upstash/context7-mcp` and requires no local script directory.
 
 **Tools:**
 
@@ -1133,7 +1146,7 @@ Rune uses Elden Ring-inspired theming:
 Rune includes a 4-layer defense system to prevent teammates from hanging indefinitely when the team lead's context is exhausted:
 
 1. **Layer 1 — Shutdown Signal**: `guard-context-critical.sh` writes a shutdown signal file at 35% remaining context, enabling orchestrators to initiate early teammate shutdown
-2. **Layer 2 — maxTurns**: All 77 agents have `maxTurns` in their YAML frontmatter, providing a platform-level safety net
+2. **Layer 2 — maxTurns**: All 100 agents have `maxTurns` in their YAML frontmatter, providing a platform-level safety net
 3. **Layer 3 — Process Kill**: `on-session-stop.sh` sends SIGTERM/SIGKILL to orphaned teammate processes before filesystem cleanup
 4. **Layer 4 — All-Tasks-Done Signal**: `on-teammate-idle.sh` writes a coordination signal when all team tasks are completed, enabling faster completion detection
 

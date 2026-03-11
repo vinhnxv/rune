@@ -776,6 +776,7 @@ See the [Troubleshooting guide](docs/guides/rune-troubleshooting-and-optimizatio
 
 - [Detailed component reference](plugins/rune/README.md) — all agents, skills, commands, hooks
 - [Documentation hub](docs/README.md) — start here to choose the right user guide
+- [GLM-5 setup guide](docs/glm-5-setup.md) — use GLM-5 with Rune for budget-friendly agent teams
 - [Rune user guide (English): arc + arc-batch](docs/guides/rune-arc-and-batch-guide.en.md) — operational guide with greenfield/brownfield use cases
 - [Hướng dẫn Rune (Tiếng Việt): arc + arc-batch](docs/guides/rune-arc-and-batch-guide.vi.md) — hướng dẫn vận hành kèm use case greenfield/brownfield
 - [Rune planning guide (English): devise + forge + plan-review + inspect](docs/guides/rune-planning-and-plan-quality-guide.en.md) — how to write and validate plan files correctly
