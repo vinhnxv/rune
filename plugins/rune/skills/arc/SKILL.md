@@ -294,7 +294,7 @@ Write('.claude/arc-phase-loop.local.md', stateContent)
 
 Execute the first pending phase from the checkpoint. The Stop hook (`arc-phase-stop-hook.sh`) handles all subsequent phases automatically.
 
-**CRITICAL — Single-Phase-Per-Turn Rule**: You MUST execute exactly ONE phase per turn, then STOP responding. Do NOT batch-process multiple phases in a single turn. Do NOT skip conditional phases (semantic_verification, design_extraction, task_decomposition) based on assumptions — each phase has its own gate logic in its reference file that MUST be executed. The Stop hook advances to the next phase automatically. Violating this rule causes phases to be skipped without proper gate evaluation.
+**CRITICAL — Single-Phase-Per-Turn Rule**: You MUST execute exactly ONE phase per turn, then STOP responding. Do NOT batch-process multiple phases in a single turn. Do NOT skip conditional phases (semantic_verification, design_extraction, design_prototype, task_decomposition) based on assumptions — each phase has its own gate logic in its reference file that MUST be executed. The Stop hook advances to the next phase automatically. Violating this rule causes phases to be skipped without proper gate evaluation.
 
 ```javascript
 // Check for context-critical shutdown signal before starting next phase (Layer 1)

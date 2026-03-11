@@ -392,7 +392,7 @@ Do NOT delete any files from completed phases:
 const PHASE_LABELS = {
   forge: '1 (FORGE)', plan_review: '2 (PLAN REVIEW)', plan_refine: '2.5 (PLAN REFINEMENT)',
   verification: '2.7 (VERIFICATION)', semantic_verification: '2.8 (SEMANTIC VERIFICATION)',
-  design_extraction: '3 (DESIGN EXTRACTION)', task_decomposition: '4.5 (TASK DECOMPOSITION)',
+  design_extraction: '3 (DESIGN EXTRACTION)', design_prototype: '3.2 (DESIGN PROTOTYPE)', task_decomposition: '4.5 (TASK DECOMPOSITION)',
   work: '5 (WORK)', design_verification: '5.2 (DESIGN VERIFICATION)',
   gap_analysis: '5.5 (GAP ANALYSIS)', codex_gap_analysis: '5.6 (CODEX GAP ANALYSIS)',
   gap_remediation: '5.8 (GAP REMEDIATION)', goldmask_verification: '5.7 (GOLDMASK VERIFICATION)',

@@ -134,7 +134,7 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 ## Quick Start
 
 ```bash
-# End-to-end pipeline (29 phases): freshness check → forge → plan review → plan refinement → verification → semantic verification → design extraction → task decomposition → work → storybook verification → design verification → ux verification → gap analysis → codex gap analysis → gap remediation → goldmask verification → code review → goldmask correlation → mend → verify mend → design iteration → test → test coverage critique → pre-ship validation → release quality check → ship → bot review wait → PR comment resolution → merge
+# End-to-end pipeline (29 phases): freshness check → forge → plan review → plan refinement → verification → semantic verification → design extraction → design prototype → task decomposition → work → storybook verification → design verification → ux verification → gap analysis → codex gap analysis → gap remediation → goldmask verification → code review → goldmask correlation → mend → verify mend → design iteration → test → test coverage critique → pre-ship validation → release quality check → ship → bot review wait → PR comment resolution → merge
 /rune:arc plans/my-plan.md
 /rune:arc plans/my-plan.md --no-forge             # Skip research enrichment
 /rune:arc plans/my-plan.md --approve              # Require human approval per task
@@ -748,7 +748,7 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 |-------|---------|
 | agent-browser | Browser automation knowledge injection for E2E testing (non-invocable) |
 | brainstorm | Collaborative idea exploration — 3 modes: Solo (conversation), Roundtable Advisors (3 agent personas), Deep (advisors + elicitation sages). Persistent output in `docs/brainstorms/`. `disable-model-invocation: true` |
-| arc | End-to-end orchestration pipeline (pre-flight freshness gate + 29 phases: forge → plan review → plan refinement → verification → semantic verification → design extraction → task decomposition → work → storybook verification → design verification → ux verification → gap analysis → codex gap analysis → gap remediation → goldmask verification → code review → goldmask correlation → mend → verify mend → design iteration → test → test coverage critique → pre-ship validation → release quality check → ship → bot review wait → PR comment resolution → merge) |
+| arc | End-to-end orchestration pipeline (pre-flight freshness gate + 29 phases: forge → plan review → plan refinement → verification → semantic verification → design extraction → design prototype → task decomposition → work → storybook verification → design verification → ux verification → gap analysis → codex gap analysis → gap remediation → goldmask verification → code review → goldmask correlation → mend → verify mend → design iteration → test → test coverage critique → pre-ship validation → release quality check → ship → bot review wait → PR comment resolution → merge) |
 | arc-batch | Sequential batch arc execution with crash recovery and progress tracking |
 | arc-hierarchy | Hierarchical plan execution — parent/child plan decomposition with dependency DAGs and requires/provides contracts |
 | arc-issues | GitHub Issues-driven batch arc execution — fetch issues by label, generate plans, run arc, post results |

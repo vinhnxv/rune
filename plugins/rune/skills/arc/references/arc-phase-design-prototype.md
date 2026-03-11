@@ -147,8 +147,7 @@ for (const vsmPath of vsmFiles.slice(0, maxComponents)) {
 if (components.length === 0) {
   warn("Design prototype: All figma_to_react calls failed. Skipping.")
   // Cleanup team before early return
-  SendMessage({ type: "shutdown_request", recipient: "*" })
-  sleep(5_000)
+  // No workers spawned at this point — go straight to TeamDelete
   try { TeamDelete() } catch (e) { /* best effort */ }
   updateCheckpoint({ phase: "design_prototype", status: "skipped", skip_reason: "all_extractions_failed" })
   return
@@ -305,8 +304,13 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   }
 }
 if (!cleanupTeamDeleteSucceeded) {
+  // 5a. Process-level kill — terminate lingering teammates before filesystem cleanup
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+  Bash(`sleep 3`)
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  // 5b. Filesystem cleanup
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/arc-prototype-${id}/" "$CHOME/tasks/arc-prototype-${id}/" 2>/dev/null`)
-  try { TeamDelete() } catch (e) { /* best effort */ }
+  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
 
 // === STEP G: Collect Results ===

@@ -137,8 +137,15 @@ fi
 
 # ── Phase 2: Install dependencies ──────────────────────────────────────
 if [ ! -d "${STORYBOOK_DIR}/node_modules" ]; then
+  if ! command -v npm >/dev/null 2>&1; then
+    echo '{"error": "npm not found — install Node.js to use Storybook", "ready": false}'
+    exit 0
+  fi
   echo "Installing dependencies ..."
-  (cd "${STORYBOOK_DIR}" && npm install --legacy-peer-deps --loglevel=error)
+  if ! (cd "${STORYBOOK_DIR}" && npm install --legacy-peer-deps --loglevel=error); then
+    echo '{"error": "npm install failed", "ready": false}'
+    exit 0
+  fi
   echo "Dependencies installed."
 fi
 

@@ -339,7 +339,7 @@ if (summary.full_page_component) {
 AskUserQuestion(formatSummary(summary) + "\n\nNext steps:\n" +
   (summary.storybook_launched
     ? "1. ✅ Storybook running — full screen preview opened in browser\n"
-    : "1. Run Storybook to preview: cd plugins/rune/scripts/figma-to-react/storybook && npm run storybook\n") +
+    : "1. Run Storybook to preview: cd tmp/storybook && npx storybook dev\n") +
   "2. Run /rune:design-sync <url> for full implementation pipeline\n" +
   "3. Regenerate with different options\n\n" +
   "Choose an option or provide feedback:")
