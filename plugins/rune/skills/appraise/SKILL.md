@@ -5,6 +5,8 @@ description: |
   (plus custom Ash from talisman.yml), each with their own dedicated context window.
   Handles scope selection, team creation, review orchestration, aggregation, verification, and cleanup.
   Optional `--deep` runs multi-wave deep review with up to 18 Ashes across 3 waves.
+  Phase 1.5 adds UX reviewers when `talisman.ux.enabled` + frontend files detected.
+  Phase 1.6 adds design fidelity reviewer (DES prefix) when `talisman.design_review.enabled` + frontend files detected.
 
   <example>
   user: "/rune:appraise"
@@ -83,7 +85,7 @@ const params = {
 
 **Partial mode** is useful for reviewing a subset of changes before committing.
 
-**Deep mode** runs 3 waves of review with up to 18 Ashes total. See [orchestration-phases.md](../roundtable-circle/references/orchestration-phases.md) for the wave execution pattern and [wave-scheduling.md](../roundtable-circle/references/wave-scheduling.md) for wave selection logic.
+**Deep mode** runs 3 waves of review with up to 18 Ashes total (excludes Phase 1.6 design reviewer — that activates in standard mode too). See [orchestration-phases.md](../roundtable-circle/references/orchestration-phases.md) for the wave execution pattern and [wave-scheduling.md](../roundtable-circle/references/wave-scheduling.md) for wave selection logic.
 
 **Dry-run mode** executes Phase 0 (Pre-flight) and Phase 1 (Rune Gaze) only, then displays changed files classified by type, which Ash would be summoned, file assignments per Ash, estimated team size, and chunk plan if file count exceeds `CHUNK_THRESHOLD`. No teams, tasks, state files, or agents are created. If `--deep + --partial` is used, displays a warning about sparse findings from investigation Ashes.
 
@@ -145,7 +147,7 @@ Runs BEFORE team creation. Summons `lore-analyst` as a bare Agent (no team yet �
 
 ## Phase 1: Rune Gaze (Scope Selection)
 
-Classifies changed files by extension → selects Ashes. Custom Ash discovery (agent-backed + CLI-backed) happens here. Phase 1.5 adds UX reviewers when `talisman.ux.enabled` + frontend files detected. `--dry-run` exits after this phase.
+Classifies changed files by extension → selects Ashes. Custom Ash discovery (agent-backed + CLI-backed) happens here. Phase 1.5 adds UX reviewers when `talisman.ux.enabled` + frontend files detected. Phase 1.6 adds design fidelity reviewer (`DES`-prefixed findings) when `talisman.design_review.enabled` + frontend files detected. `--dry-run` exits after this phase.
 
 See [phase-1-rune-gaze.md](references/phase-1-rune-gaze.md) for full classification table, UX gate, and dry-run exit. See [rune-gaze.md](../roundtable-circle/references/rune-gaze.md) for the base algorithm.
 
@@ -190,7 +192,7 @@ Read and execute [tome-aggregation.md](references/tome-aggregation.md) for the f
 
 **Summary of phases:**
 - **Phase 4.5 (Doubt Seer)**: Conditional. Strict opt-in (`talisman.doubt_seer.enabled = true`). Cross-examines P1/P2 findings. 5-min timeout. VERDICT: BLOCK sets `workflow_blocked` flag.
-- **Phase 5 (Runebinder)**: Aggregates all Ash findings. Deduplicates using `SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX` hierarchy. Writes `TOME.md`. Every finding MUST be wrapped in `<!-- RUNE:FINDING ... -->` markers for mend parsing.
+- **Phase 5 (Runebinder)**: Aggregates all Ash findings. Deduplicates using `SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > DES > UXH > UXF > UXI > UXC > CDX` hierarchy. Writes `TOME.md`. Every finding MUST be wrapped in `<!-- RUNE:FINDING ... -->` markers for mend parsing.
 - **Phase 5.3 (Diff-Scope Tagging)**: Orchestrator-only. Tags findings with `scope="in-diff"` or `scope="pre-existing"`.
 - **Phase 5.5 (Cross-Model Verification)**: Only if Codex Oracle was summoned. Verifies CDX findings against source. Removes HALLUCINATED + UNVERIFIED findings.
 - **Phase 6 (Truthsight)**: Layer 0 inline checks + Layer 2 verifier for P1 findings.
