@@ -2487,6 +2487,35 @@ TOOL_SCHEMAS = [
 # ---------------------------------------------------------------------------
 
 
+def _get_ready_conn(
+    db_path: str, echo_dir: str, *, reindex_on_dirty: bool = True,
+) -> sqlite3.Connection:
+    """Open a DB connection, ensure schema, and reindex if dirty or empty.
+
+    Consolidates the repeated connect-check-reindex pattern used by
+    multiple MCP handlers.  Callers are responsible for closing the
+    returned connection.
+    """
+    conn = get_db(db_path)
+    ensure_schema(conn)
+    if not reindex_on_dirty or not echo_dir:
+        return conn
+    count = conn.execute(
+        "SELECT COUNT(*) FROM echo_entries").fetchone()[0]
+    is_dirty = _check_and_clear_dirty(echo_dir)
+    if count == 0 or is_dirty:
+        conn.close()
+        try:
+            do_reindex(echo_dir, db_path)
+        except (sqlite3.Error, OSError, IOError) as exc:
+            logger.warning(
+                "reindex failed, proceeding with %s index: %s",
+                "empty" if count == 0 else "stale", exc,
+            )
+        conn = get_db(db_path)
+    return conn
+
+
 def _validate_list_arg(arguments, key, required=True):
     """Validate a list argument from MCP tool input.
 
@@ -2502,15 +2531,22 @@ def _validate_list_arg(arguments, key, required=True):
     return val, None
 
 
-def _validate_search_args(arguments: Dict) -> Tuple[Optional[Tuple], Dict]:
-    """Validate and sanitize echo_search arguments. Returns (error, cleaned)."""
-    query = arguments.get("query", "")
-    if not isinstance(query, str) or not query:
-        return ({"error": "query must be a non-empty string"}, True), {}
-    # SEC-008: Allowlist validation — layer must be one of the known echo tiers;
+_VALID_LAYERS = frozenset(_LAYER_IMPORTANCE.keys())
+_SAFE_ROLE_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+_VALID_CATEGORIES = frozenset(
+    {"general", "pattern", "anti-pattern", "decision", "debugging"})
+
+
+def _sanitize_search_filters(
+    arguments: Dict,
+) -> Tuple[Optional[str], Optional[str], Optional[List[str]], Optional[str]]:
+    """Sanitize optional filter fields for echo_search.
+
+    Returns (layer, role, context_files, category) with invalid values
+    coerced to ``None``.
+    """
+    # SEC-008: Allowlist validation — layer must be a known echo tier;
     # role must match safe identifier pattern (alphanumeric + hyphens/underscores).
-    _VALID_LAYERS = frozenset(_LAYER_IMPORTANCE.keys())
-    _SAFE_ROLE_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
     layer = arguments.get("layer")
     if layer is not None:
         if not isinstance(layer, str) or layer.lower() not in _VALID_LAYERS:
@@ -2527,13 +2563,21 @@ def _validate_search_args(arguments: Dict) -> Tuple[Optional[Tuple], Dict]:
             context_files = [
                 str(f) for f in context_files[:20]
                 if isinstance(f, str) and f] or None
-    _VALID_CATEGORIES = frozenset({"general", "pattern", "anti-pattern", "decision", "debugging"})
     category = arguments.get("category")
     if category is not None:
         if not isinstance(category, str) or category.lower() not in _VALID_CATEGORIES:
             category = None
         else:
             category = category.lower()
+    return layer, role, context_files, category
+
+
+def _validate_search_args(arguments: Dict) -> Tuple[Optional[Tuple], Dict]:
+    """Validate and sanitize echo_search arguments. Returns (error, cleaned)."""
+    query = arguments.get("query", "")
+    if not isinstance(query, str) or not query:
+        return ({"error": "query must be a non-empty string"}, True), {}
+    layer, role, context_files, category = _sanitize_search_filters(arguments)
     limit = arguments.get("limit", 10)
     if not isinstance(limit, int) or limit < 1:
         limit = 10
@@ -2572,32 +2616,38 @@ def _format_search_markdown(entries, total_count, offset, limit, has_more):
     return "\n".join(lines)
 
 
-async def _mcp_handle_search(arguments):
+def _build_search_response(
+    results: List[Dict],
+    total_candidates: int,
+    offset: int,
+    limit: int,
+    has_more: bool,
+    response_format: str,
+) -> Tuple[Dict, bool]:
+    """Build the final search response dict in JSON or markdown format."""
+    if response_format == "markdown":
+        md = _format_search_markdown(
+            results, total_candidates, offset, limit, has_more)
+        return {"text": md}, False
+    return {
+        "entries": results,
+        "total_count": total_candidates,
+        "count": len(results),
+        "offset": offset,
+        "limit": limit,
+        "has_more": has_more,
+    }, False
+
+
+async def _mcp_handle_search(arguments: Dict) -> Tuple[Dict, bool]:
     """Handle echo_search — validate, run pipeline, record access."""
-    # type: (Dict) -> Tuple[Dict, bool]
     err, args = _validate_search_args(arguments)
     if err is not None:
         return err[0], err[1]
     offset = args["offset"]
-    response_format = args["response_format"]
-    # Fetch limit + offset results so we can paginate and know total_candidates
     fetch_limit = args["limit"] + offset
-    conn = get_db(DB_PATH)
+    conn = _get_ready_conn(DB_PATH, ECHO_DIR)
     try:
-        ensure_schema(conn)
-        count = conn.execute(
-            "SELECT COUNT(*) FROM echo_entries").fetchone()[0]
-        is_dirty = _check_and_clear_dirty(ECHO_DIR)
-        if (count == 0 or is_dirty) and ECHO_DIR:
-            conn.close()
-            conn = None
-            try:
-                do_reindex(ECHO_DIR, DB_PATH)
-            except (sqlite3.Error, OSError, IOError) as exc:
-                logger.warning("reindex failed, proceeding with %s index: %s",
-                               "empty" if count == 0 else "stale", exc)
-            conn = get_db(DB_PATH)
-        # Fetch extra to detect has_more
         all_results = await pipeline_search(
             conn, args["query"], fetch_limit + 1,
             args["layer"], args["role"], args["context_files"],
@@ -2610,43 +2660,23 @@ async def _mcp_handle_search(arguments):
         except (sqlite3.Error, OSError) as exc:
             logger.debug("access log write failed: %s", exc)
     finally:
-        if conn is not None:
-            conn.close()
-    if response_format == "markdown":
-        md = _format_search_markdown(
-            results, total_candidates, offset, args["limit"], has_more)
-        return {"text": md}, False
-    return {
-        "entries": results,
-        "total_count": total_candidates,
-        "count": len(results),
-        "offset": offset,
-        "limit": args["limit"],
-        "has_more": has_more,
-    }, False
+        conn.close()
+    return _build_search_response(
+        results, total_candidates, offset, args["limit"],
+        has_more, args["response_format"])
 
 
-async def _mcp_handle_details(arguments):
+async def _mcp_handle_details(arguments: Dict) -> Tuple[Dict, bool]:
     """Handle echo_details — fetch full content for specific entry IDs."""
-    # type: (Dict) -> Tuple[Dict, bool]
     ids, err = _validate_list_arg(arguments, "ids")
     if err is not None:
         return err
     ids = ids[:50]  # SEC-1: cap to prevent DoS via large IN clause
-    conn = get_db(DB_PATH)
+    conn = _get_ready_conn(DB_PATH, ECHO_DIR)
     try:
-        ensure_schema(conn)
-        if _check_and_clear_dirty(ECHO_DIR) and ECHO_DIR:
-            conn.close()
-            conn = None
-            do_reindex(ECHO_DIR, DB_PATH)
-            conn = get_db(DB_PATH)
-        if conn is None:
-            conn = get_db(DB_PATH)
         results = get_details(conn, ids)
     finally:
-        if conn is not None:
-            conn.close()
+        conn.close()
     return {"entries": results}, False
 
 
