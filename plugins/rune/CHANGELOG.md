@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.151.0] - 2026-03-11
+
+### Added
+- **arc Phase 3.2 (design_prototype)** — new phase between `design_extraction` and `task_decomposition` that generates React prototypes from Figma designs before the work phase. Workers get usable components (70-80% complete) instead of abstract VSM specs. Gated by `design_sync.enabled` + VSM files exist.
+- **arc-phase-design-prototype.md** — full reference file defining prototype generation pipeline: VSM check → Figma MCP → discoverUIBuilder() → figma_to_react → UI builder matching with circuit breaker → prototype synthesis → Storybook bootstrap → manifest → cleanup
+- **Storybook bootstrap script** (`scripts/storybook/bootstrap.sh`) — shared idempotent scaffolding for Storybook 10 + React 18 + Tailwind v4 + Vite. Two modes: `--src-dir` (design-prototype) and `--story-files` (arc testing). Returns JSON status.
+- **Arc Prototypes output convention** — `tmp/arc/{id}/prototypes/` with per-component `figma-reference.tsx`, `library-match.tsx`, `prototype.tsx`, `prototype.stories.tsx`, `manifest.json`, `match-report.json`
+
+### Changed
+- **arc pipeline**: 28 → 29 phases (design_prototype inserted at position 3.2)
+- **arc-phase-constants.md**: Added `design_prototype` to PHASE_ORDER, PHASE_TIMEOUTS (10 min), dynamic timeout calc
+- **arc-phase-stop-hook.sh**: Added `design_prototype` to PHASE_ORDER array and `_phase_ref()` dispatch
+- **arc-preflight.md**: Added `"arc-prototype-"` to ARC_TEAM_PREFIXES for crash recovery Layer 1
+- **arc-phase-cleanup.md**: Added `"arc-prototype-"` to PHASE_PREFIX_MAP for crash recovery Layer 2
+- **arc-checkpoint-init.md**: Added `design_prototype` phase entry to checkpoint schema
+- **storybook SKILL.md**: Added arc Phase 3.2 integration point and shared runtime description
+- **output-conventions.md**: Added Arc Prototypes row and updated Storybook row
+
+### Removed
+- **scripts/figma-to-react/storybook/** — deleted old inline storybook directory (4,721 lines including package-lock.json, screenshots, comparison components). Replaced by shared `scripts/storybook/bootstrap.sh`.
+
 ## [1.150.0] - 2026-03-11
 
 ### Changed
