@@ -2349,6 +2349,50 @@ def _write_dirty_signal(echo_dir: str) -> None:
             pass
 
 
+# ---------------------------------------------------------------------------
+# Global dirty signal (enrichment D4)
+# ---------------------------------------------------------------------------
+# Global echoes use a dedicated signal path at GLOBAL_ECHO_DIR/.global-echo-dirty
+# instead of deriving via _signal_path(), because the global echo directory
+# has no project root to derive from.
+
+_GLOBAL_DIRTY_FILENAME = ".global-echo-dirty"
+
+
+def _global_dirty_path() -> str:
+    """Return the global dirty signal file path, or empty string if disabled."""
+    if not GLOBAL_ECHO_DIR:
+        return ""
+    return os.path.join(GLOBAL_ECHO_DIR, _GLOBAL_DIRTY_FILENAME)
+
+
+def _check_and_clear_global_dirty() -> bool:
+    """Return True (and delete the file) if the global dirty signal is present."""
+    path = _global_dirty_path()
+    if not path:
+        return False
+    try:
+        if os.path.isfile(path):
+            os.remove(path)
+            return True
+    except OSError:
+        pass  # Race with another consumer or permission issue — safe to ignore
+    return False
+
+
+def _write_global_dirty_signal() -> None:
+    """Write the global dirty signal file."""
+    path = _global_dirty_path()
+    if not path:
+        return
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            f.write("dirty")
+    except OSError:
+        pass
+
+
 def _check_promotions(echo_dir: str, db_path: str) -> int:
     """Promote eligible Observations to Inscribed (pre-reindex)."""
     if not echo_dir or not db_path:
@@ -2369,7 +2413,11 @@ def _check_promotions(echo_dir: str, db_path: str) -> int:
                 fpath, ids_to_promote, line_map, real_echo_dir)
 
         if total_promoted > 0:
-            _write_dirty_signal(echo_dir)
+            # Use appropriate dirty signal based on scope
+            if GLOBAL_ECHO_DIR and os.path.realpath(echo_dir) == os.path.realpath(GLOBAL_ECHO_DIR):
+                _write_global_dirty_signal()
+            else:
+                _write_dirty_signal(echo_dir)
 
     except sqlite3.OperationalError as exc:
         print(
@@ -2534,7 +2582,21 @@ TOOL_SCHEMAS = [
             "idempotentHint": True,
             "openWorldHint": False,
         },
-        "inputSchema": {"type": "object", "properties": {}, "required": []},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "scope": {
+                    "type": "string",
+                    "enum": ["project", "global", "all"],
+                    "default": "project",
+                    "description": (
+                        "Which index to rebuild: project (default), "
+                        "global, or both"
+                    ),
+                },
+            },
+            "required": [],
+        },
     },
     {
         "name": "echo_stats",
@@ -2545,7 +2607,21 @@ TOOL_SCHEMAS = [
             "idempotentHint": True,
             "openWorldHint": False,
         },
-        "inputSchema": {"type": "object", "properties": {}, "required": []},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "scope": {
+                    "type": "string",
+                    "enum": ["project", "global", "all"],
+                    "default": "project",
+                    "description": (
+                        "Which index to report on: project (default), "
+                        "global, or both"
+                    ),
+                },
+            },
+            "required": [],
+        },
     },
     {
         "name": "echo_record_access",
@@ -2859,6 +2935,20 @@ async def _run_scoped_search(
             conn.close()
 
     if scope in ("global", "all"):
+        # Check global dirty signal and reindex if needed (enrichment D4)
+        if _check_and_clear_global_dirty() and GLOBAL_ECHO_DIR and GLOBAL_DB_PATH:
+            try:
+                do_reindex(GLOBAL_ECHO_DIR, GLOBAL_DB_PATH)
+            except (sqlite3.Error, OSError, IOError) as exc:
+                logger.warning("global reindex failed: %s", exc)
+            # Reset cached connection so it picks up the fresh index
+            global _global_conn
+            if _global_conn is not None:
+                try:
+                    _global_conn.close()
+                except Exception:
+                    pass
+                _global_conn = None
         gconn = get_global_conn()
         if gconn is not None:
             global_results = await _search_single_scope(
@@ -2914,24 +3004,69 @@ async def _mcp_handle_details(arguments: Dict) -> Tuple[Dict, bool]:
     return {"entries": results}, False
 
 
-async def _mcp_handle_reindex(_arguments=None):
-    """Handle echo_reindex — rebuild FTS5 index from MEMORY.md sources."""
-    # type: (Optional[Dict]) -> Tuple[Dict, bool]
-    if not ECHO_DIR:
-        return {"error": "ECHO_DIR not set"}, True
-    return do_reindex(ECHO_DIR, DB_PATH), False
+async def _mcp_handle_reindex(arguments: Optional[Dict] = None) -> Tuple[Dict, bool]:
+    """Handle echo_reindex — rebuild FTS5 index from MEMORY.md sources.
+
+    Supports scope parameter (project|global|all, default project).
+    """
+    args = arguments or {}
+    scope = args.get("scope", "project")
+    if not isinstance(scope, str) or scope not in _VALID_SCOPES:
+        scope = "project"
+
+    results = {}  # type: Dict[str, Any]
+
+    if scope in ("project", "all"):
+        if not ECHO_DIR:
+            if scope == "project":
+                return {"error": "ECHO_DIR not set"}, True
+        else:
+            results["project"] = do_reindex(ECHO_DIR, DB_PATH)
+
+    if scope in ("global", "all"):
+        if not GLOBAL_ECHO_DIR or not GLOBAL_DB_PATH:
+            if scope == "global":
+                return {"error": "GLOBAL_ECHO_DIR not set"}, True
+        else:
+            results["global"] = do_reindex(GLOBAL_ECHO_DIR, GLOBAL_DB_PATH)
+
+    # Backward compat: if single scope, return flat result
+    if len(results) == 1:
+        return next(iter(results.values())), False
+    return results, False
 
 
-async def _mcp_handle_stats(_arguments=None):
-    """Handle echo_stats — return index summary statistics."""
-    # type: (Optional[Dict]) -> Tuple[Dict, bool]
-    conn = get_db(DB_PATH)
-    try:
-        ensure_schema(conn)
-        stats = get_stats(conn)
-    finally:
-        conn.close()
-    return stats, False
+async def _mcp_handle_stats(arguments: Optional[Dict] = None) -> Tuple[Dict, bool]:
+    """Handle echo_stats — return index summary statistics.
+
+    Supports scope parameter (project|global|all, default project).
+    """
+    args = arguments or {}
+    scope = args.get("scope", "project")
+    if not isinstance(scope, str) or scope not in _VALID_SCOPES:
+        scope = "project"
+
+    results = {}  # type: Dict[str, Any]
+
+    if scope in ("project", "all"):
+        conn = get_db(DB_PATH)
+        try:
+            ensure_schema(conn)
+            results["project"] = get_stats(conn)
+        finally:
+            conn.close()
+
+    if scope in ("global", "all"):
+        gconn = get_global_conn()
+        if gconn is not None:
+            results["global"] = get_stats(gconn)
+        elif scope == "global":
+            return {"error": "Global echoes not configured"}, True
+
+    # Backward compat: if single scope, return flat result
+    if len(results) == 1:
+        return next(iter(results.values())), False
+    return results, False
 
 
 async def _mcp_handle_record_access(arguments):
