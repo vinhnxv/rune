@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.151.2] - 2026-03-12
+
+### Fixed
+- **XVER-001**: Symlink-based path traversal in cleanup hooks — canonicalize `CHOME` with `pwd -P`, reject symlinked intermediate roots (`$CHOME/teams`, `$CHOME/tasks`), verify delete targets resolve under canonical `CHOME` before `rm -rf` (cross-verified by Claude + Codex)
+- **CLD-003**: Race condition in process kill — add `_proc_name()` cross-platform helper (Linux `/proc/$pid/comm`, macOS `ps -p`), verify process name matches expected (node|claude|claude-*) before SIGTERM/SIGKILL to prevent killing unrelated processes due to PID recycling
+- **XVER-003**: TOCTOU in team directory cleanup — add pre-deletion verification that targets resolve under canonical roots before `rm -rf`
+
+### Security
+- **Path traversal defense-in-depth**: Cleanup hooks now verify both intermediate roots (`teams/`, `tasks/`) and final targets are not symlinks and resolve under expected canonical paths
+
+### Files Modified
+- `scripts/session-team-hygiene.sh`
+- `scripts/enforce-team-lifecycle.sh`
+- `scripts/on-session-stop.sh`
+- `scripts/arc-phase-stop-hook.sh`
+
 ## [1.151.1] - 2026-03-11
 
 ### Fixed
