@@ -50,7 +50,7 @@ Design fidelity is a **conditional dimension** that extends `grace-warden` scope
 // Phase 0.5: Evaluate design-fidelity gate
 const settings = readTalismanSection("settings")
 const designSync = settings?.design_sync ?? {}
-const designDimensionEnabled = designSync.inspect_design_dimension !== false  // default true
+const designDimensionEnabled = designSync.inspect_design_dimension === true  // default false — explicit opt-in, matching design_review.enabled pattern
 
 // Discover design references (priority order: VSM > design-prototype > devise)
 const designInventory = Glob("tmp/plans/*/design-references/inventory.json")[0]
@@ -60,7 +60,7 @@ const designInventory = Glob("tmp/plans/*/design-references/inventory.json")[0]
 const designFidelityActive = (
   designDimensionEnabled
   && designSync.enabled === true
-  && !!planFrontmatter?.figma_url
+  && !!(parsedPlan?.frontmatter ?? {})?.figma_url
   && !!designInventory
 )
 ```
@@ -74,7 +74,9 @@ When `designFidelityActive === true`, append the following block to the grace-wa
 
 You are ALSO responsible for dimension 10: Design Fidelity.
 
+<design-data source="inventory">
 Design reference: {{design_inventory_path}}
+</design-data>
 
 For each component listed in the design inventory, classify its implementation status:
 - COMPLETE: component implemented with all design variants/states
@@ -105,7 +107,7 @@ When `designFidelityActive === true`, add `design_context` to `inscription.json`
 inscription.design_context = {
   enabled: true,
   inventory_path: designInventory,
-  figma_url: planFrontmatter.figma_url
+  figma_url: (parsedPlan?.frontmatter ?? {}).figma_url ?? ""
 }
 ```
 
@@ -207,9 +209,9 @@ When `--focus` is active, only 1 inspector is summoned:
 if (flag("--focus")) {
   const inspectorMap = {
     "correctness": "grace-warden",
-    "completeness": "grace-warden",        // QUAL-002 FIX: was missing from 9-dimension system
+    "completeness": "grace-warden",        // QUAL-002 FIX: was missing from original system (now 10 dimensions)
     "security": "ruin-prophet",
-    "failure-modes": "ruin-prophet",        // QUAL-002 FIX: was missing from 9-dimension system
+    "failure-modes": "ruin-prophet",        // QUAL-002 FIX: was missing from original system (now 10 dimensions)
     "performance": "sight-oracle",
     "design": "sight-oracle",
     "observability": "vigil-keeper",

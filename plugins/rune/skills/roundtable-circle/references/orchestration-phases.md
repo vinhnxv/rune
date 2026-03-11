@@ -1208,7 +1208,7 @@ function extractFindingsFromHeadings(content) {
   // Match: ### [PREFIX-NNN] Title  OR  ### PREFIX-NNN: Title
   // Extended to handle multi-segment prefixes: CDX-VERIFY-001, PARITY-R001
   const HEADING_RE = /^###\s+(?:\[([A-Z]+(?:-[A-Z]+)*-\d+)\]|([A-Z]+(?:-[A-Z]+)*-\d+):)\s+(.+)$/gm
-  const KNOWN_PREFIXES = /^(SEC|BACK|VEIL|DOUBT|DOC|QUAL|FRONT|DES|CDX|TOME|PARITY|FLAW|ARCH|PERF)/
+  const KNOWN_PREFIXES = /^(SEC|BACK|VEIL|DOUBT|DOC|QUAL|FRONT|DES|AESTH|UXH|UXF|UXI|UXC|CDX|SHA|SHB|SHC|SHD|SHE|XSH|TOME|PARITY|FLAW|ARCH|PERF)/
   let match
   while ((match = HEADING_RE.exec(content)) !== null) {
     const id = match[1] || match[2]

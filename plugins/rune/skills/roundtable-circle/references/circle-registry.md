@@ -296,6 +296,7 @@ Quick reference for wave assignments across all Ashes. See [wave-scheduling.md](
 | Glyph Scribe | 1 | false | FRONT | Yes (frontend files) |
 | Knowledge Keeper | 1 | false | DOC | Yes (docs >= 10 lines) |
 | Codex Oracle | 1 | false | CDX | Yes (codex CLI available) |
+| design-implementation-reviewer | 1 | false | DES | Yes (design_review.enabled + design_sync.enabled + frontend files) |
 | rot-seeker | 2 | true | DEBT | No (all deep) |
 | strand-tracer | 2 | true | INTG | No (all deep) |
 | decree-auditor | 2 | true | BIZL | No (all deep) |

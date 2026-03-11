@@ -998,7 +998,7 @@ stateDiagram-v2
         Phase5_2_VerdictBinder --> Phase5_3_Wait : aggregate scores
         Phase5_3_Wait --> Phase6_1_EvidenceVerify
         Phase6_1_EvidenceVerify --> Phase6_2_DisplayVerdict
-        Phase6_2_DisplayVerdict --> [*] : VERDICT.md with 9 dimension scores
+        Phase6_2_DisplayVerdict --> [*] : VERDICT.md with 10 dimension scores
     }
 
     Phase5_6_VerdictSynthesis --> Phase7_Cleanup

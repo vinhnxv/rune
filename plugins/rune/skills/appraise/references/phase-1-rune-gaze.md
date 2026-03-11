@@ -89,7 +89,7 @@ if (designReviewEnabled && designSyncEnabled && hasFrontendFiles) {
 }
 ```
 
-**Skip conditions**: `talisman.design_review.enabled` is not `true`, or no frontend files in diff.
+**Skip conditions**: `talisman.design_review.enabled` is not `true`, `talisman.design_sync.enabled` is not `true`, or no frontend files in diff.
 
 **Finding prefix**: `DES` — design fidelity findings (non-blocking by default).
 
@@ -106,7 +106,7 @@ If `--dry-run` flag is set, display the plan and stop. Do NOT proceed to Phase 2
 - Selected Ashes with file assignments per Ash
 - Estimated team size (total Ash count)
 - Chunk plan if file count exceeds CHUNK_THRESHOLD (default: 20)
-- Dedup hierarchy preview: `SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > DES > UXH > UXF > UXI > UXC > CDX`
+- Dedup hierarchy preview: `SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > DES > AESTH > UXH > UXF > UXI > UXC > CDX`
 - Warnings (e.g., `--deep + --partial` sparse findings warning)
 
 **Does NOT create:**

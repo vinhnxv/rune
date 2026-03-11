@@ -323,7 +323,7 @@ Three-layer analysis: **Impact** (what changes), **Wisdom** (why it was written 
 
 ### <a name="inspect"></a> `/rune:inspect` — Gap Audit
 
-Compares a plan against its implementation across 9 quality dimensions:
+Compares a plan against its implementation across 10 quality dimensions:
 
 ```bash
 /rune:inspect plans/my-plan.md

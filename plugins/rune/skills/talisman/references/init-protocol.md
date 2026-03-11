@@ -66,7 +66,7 @@ Based on detected stack, customize the template:
 - `context_monitor:` / `context_weaving:` — always include defaults
 - `integrations:` — if `.mcp.json` contains custom MCP servers (not built-in like context7)
 
-**Design Review gates (v1.148.0) — under `design_review:`:**
+**Design Review gates (v1.149.0) — under `design_review:`:**
 
 Include these when `design_sync.enabled: true` and React/TypeScript frontend files are detected. The `design_review` section controls Phase 1.6 conditional gate in the appraise workflow.
 

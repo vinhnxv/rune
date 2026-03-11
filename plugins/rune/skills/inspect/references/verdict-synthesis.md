@@ -235,7 +235,7 @@ The Verdict Binder produces VERDICT.md with the following sections:
 |---------|---------|
 | Verdict Summary | Overall verdict (READY/PARTIAL/NOT_READY), completion %, finding counts |
 | Requirement Matrix | Per-requirement status (MET/PARTIAL/MISSING), evidence references |
-| Dimension Scores | 9 dimension scores from 0-100 |
+| Dimension Scores | 10 dimension scores from 0-100 |
 | Gap Analysis | P1/P2/P3 gaps organized by 8 gap categories |
 | Recommendations | Actionable next steps prioritized by severity |
 
