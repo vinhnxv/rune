@@ -4,7 +4,7 @@
 
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
-[![Version](https://img.shields.io/badge/version-1.143.0-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-1.149.0-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Agents](https://img.shields.io/badge/agents-100-purple)](#agents)
 [![Skills](https://img.shields.io/badge/skills-53-orange)](#skills)
@@ -186,7 +186,7 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 | [`/rune:mend`](#mend) | Parallel resolution of review findings | 1-5 | 3–10 min |
 | [`/rune:forge`](#forge) | Deepen a plan with topic-aware research enrichment | 3-12 | 5–15 min |
 | [`/rune:goldmask`](#goldmask) | Impact analysis — what breaks if you change this? | 8 | 5–10 min |
-| [`/rune:inspect`](#inspect) | Plan-vs-implementation gap audit (9 dimensions) | 4 | 5–10 min |
+| [`/rune:inspect`](#inspect) | Plan-vs-implementation gap audit (10 dimensions) | 4 | 5–10 min |
 | [`/rune:elicit`](#elicit) | Structured reasoning (Tree of Thoughts, Pre-mortem, 5 Whys) | 0 | 2–5 min |
 
 ### Batch & Automation
