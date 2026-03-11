@@ -45,6 +45,15 @@ rune_verify_session_ownership "$STATE_FILE"
 # Normalize the target file path (resolve relative to CWD, strip ./)
 rune_normalize_path
 
+# XVER-003: Reject absolute paths not under CWD (scope bypass prevention)
+# After normalization, REL_FILE_PATH should be relative. If it's still absolute,
+# the original FILE_PATH was outside the project root — block it.
+if [[ "$REL_FILE_PATH" == /* ]]; then
+  rune_deny_write \
+    "SEC-GAP-001: Absolute path outside project root denied." \
+    "Gap fixers are restricted to files within the project directory. Target: ${FILE_PATH}"
+fi
+
 # ── Allow-list check (before deny block) ──────────────────────────────────
 # Gap fixers are allowed to write to their output directory unconditionally.
 GAP_OUTPUT_PREFIX="tmp/arc/${IDENTIFIER}/"

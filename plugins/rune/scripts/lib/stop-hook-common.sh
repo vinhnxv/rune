@@ -308,7 +308,7 @@ _find_arc_checkpoint() {
       local _ckpt_matched=false
       # Try session_id first (from hook input JSON — set by caller or extracted from INPUT)
       if [[ -n "${HOOK_SESSION_ID:-}" ]]; then
-        if grep -q "\"session_id\"[[:space:]]*:[[:space:]]*\"${_HOOK_SESSION_ID}\"" "$f" 2>/dev/null; then
+        if grep -q "\"session_id\"[[:space:]]*:[[:space:]]*\"${HOOK_SESSION_ID:-}\"" "$f" 2>/dev/null; then
           _ckpt_matched=true
         fi
       fi
@@ -453,7 +453,7 @@ _read_arc_result_signal() {
   local signal_session_id
   signal_session_id=$(jq -r '.session_id // empty' "$signal_file" 2>/dev/null || true)
   if [[ -n "${HOOK_SESSION_ID:-}" && -n "$signal_session_id" ]]; then
-    [[ "$signal_session_id" == "$_HOOK_SESSION_ID" ]] || return 1
+    [[ "$signal_session_id" == "${HOOK_SESSION_ID:-}" ]] || return 1
   else
     [[ "$signal_pid" == "$PPID" ]] || return 1
   fi

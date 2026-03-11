@@ -75,17 +75,24 @@ _rune_lock_safe() {
   [[ ! -L "$1" ]] || return 1
 }
 
-# Helper: write meta.json atomically using jq (SEC-002: safe JSON escaping)
-_rune_write_meta() {
-  local lock_dir="$1" workflow="$2" class="$3"
+# Helper: build meta.json content to stdout (SEC-002: safe JSON escaping)
+_rune_build_meta() {
+  local workflow="$1" class="$2"
   local _cfg="${RUNE_CURRENT_CFG:-$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P || echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}")}"
   jq -n \
     --arg wf "$workflow" --arg cls "$class" --argjson pid "$PPID" \
     --arg cfg "$_cfg" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg sid "${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-unknown}}" \
-    '{workflow:$wf,class:$cls,pid:$pid,config_dir:$cfg,started:$ts,session_id:$sid}' \
-    > "$lock_dir/meta.json.tmp" 2>/dev/null \
-    && mv -f "$lock_dir/meta.json.tmp" "$lock_dir/meta.json" 2>/dev/null
+    '{workflow:$wf,class:$cls,pid:$pid,config_dir:$cfg,started:$ts,session_id:$sid}'
+}
+
+# Helper: write meta.json atomically from pre-written temp file
+# CDXS-003 FIX: Uses mktemp for unpredictable temp file names (prevents symlink pre-placement)
+# XVER-001 FIX: Expects meta content already written to temp file before lock acquisition
+_rune_finalize_meta() {
+  local tmp_file="$1" lock_dir="$2"
+  # Atomic move from temp to final location
+  mv -f "$tmp_file" "$lock_dir/meta.json" 2>/dev/null
 }
 
 rune_acquire_lock() {
@@ -100,14 +107,24 @@ rune_acquire_lock() {
   else
     return 1
   fi
+  # XVER-001 FIX: Write metadata to temp file BEFORE mkdir to eliminate TOCTOU window
+  # CDXS-003 FIX: Use mktemp for unpredictable temp file name (prevents symlink pre-placement)
+  local _meta_tmp
+  _meta_tmp="$(mktemp "${LOCK_BASE}/.meta.XXXXXX" 2>/dev/null)" || return 1
+  if ! _rune_build_meta "$workflow" "$class" > "$_meta_tmp" 2>/dev/null; then
+    rm -f "$_meta_tmp" 2>/dev/null; return 1
+  fi
+
   if mkdir "$lock_dir" 2>/dev/null; then
-    _rune_write_meta "$lock_dir" "$workflow" "$class"
-    # FLAW-001: Verify meta.json was written; clean up ghost dir on failure
+    # Atomic move of pre-written metadata into the lock directory
+    _rune_finalize_meta "$_meta_tmp" "$lock_dir"
     if [[ ! -f "$lock_dir/meta.json" ]]; then
-      rm -rf "$lock_dir" 2>/dev/null; return 1
+      rm -rf "$lock_dir" "$_meta_tmp" 2>/dev/null; return 1
     fi
     return 0
   fi
+  # mkdir failed (lock exists) — clean up temp file
+  rm -f "$_meta_tmp" 2>/dev/null
 
   # Lock dir exists — check ownership
   _rune_lock_safe "$lock_dir" || return 1
@@ -136,35 +153,50 @@ rune_acquire_lock() {
 
     # BIZL-010: Null pid guard — empty stored_pid means corrupt meta.json, treat as orphan
     if [[ -z "$stored_pid" ]]; then
+      # XVER-001 / CDXS-003 FIX: Write meta to temp file before mkdir
+      local _orphan_tmp
+      _orphan_tmp="$(mktemp "${LOCK_BASE}/.meta.XXXXXX" 2>/dev/null)" || return 1
+      _rune_build_meta "$workflow" "$class" > "$_orphan_tmp" 2>/dev/null || { rm -f "$_orphan_tmp" 2>/dev/null; return 1; }
       rm -rf "$lock_dir" 2>/dev/null
       if mkdir "$lock_dir" 2>/dev/null; then
-        _rune_write_meta "$lock_dir" "$workflow" "$class"
+        _rune_finalize_meta "$_orphan_tmp" "$lock_dir"
         [[ -f "$lock_dir/meta.json" ]] && return 0
-        rm -rf "$lock_dir" 2>/dev/null; return 1
+        rm -rf "$lock_dir" "$_orphan_tmp" 2>/dev/null; return 1
       fi
+      rm -f "$_orphan_tmp" 2>/dev/null
       return 1
     fi
 
     # PID dead → orphaned lock, reclaim
     # SEC-007: TOCTOU fix — remove then immediately mkdir atomically; if mkdir fails treat as
     # contention loss (another process won the race) without issuing a secondary rm -rf.
+    # XVER-001 / CDXS-003 FIX: Write meta to temp file before mkdir
     if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
       if ! rune_pid_alive "$stored_pid"; then
+        local _dead_tmp
+        _dead_tmp="$(mktemp "${LOCK_BASE}/.meta.XXXXXX" 2>/dev/null)" || return 1
+        _rune_build_meta "$workflow" "$class" > "$_dead_tmp" 2>/dev/null || { rm -f "$_dead_tmp" 2>/dev/null; return 1; }
         rm -rf "$lock_dir" 2>/dev/null
         if mkdir "$lock_dir" 2>/dev/null; then
-          _rune_write_meta "$lock_dir" "$workflow" "$class"
+          _rune_finalize_meta "$_dead_tmp" "$lock_dir"
           [[ -f "$lock_dir/meta.json" ]] && return 0
-          rm -rf "$lock_dir" 2>/dev/null; return 1
+          rm -rf "$lock_dir" "$_dead_tmp" 2>/dev/null; return 1
         fi
         # mkdir failed → contention loss, do not retry
+        rm -f "$_dead_tmp" 2>/dev/null
         return 1
       fi
     fi
   else
     # Ghost lock dir (no meta.json) — clean up and retry with jitter
     # EDGE-007: Add retry with random jitter to reduce concurrent write race window
-    local _ghost_attempt
+    # XVER-001 / CDXS-003 FIX: Write meta to temp file before mkdir
+    local _ghost_attempt _ghost_tmp
     for _ghost_attempt in 1 2; do
+      _ghost_tmp="$(mktemp "${LOCK_BASE}/.meta.XXXXXX" 2>/dev/null)" || continue
+      if ! _rune_build_meta "$workflow" "$class" > "$_ghost_tmp" 2>/dev/null; then
+        rm -f "$_ghost_tmp" 2>/dev/null; continue
+      fi
       rm -rf "$lock_dir" 2>/dev/null
       # Jitter: sleep 0-50ms on retry to desynchronize concurrent acquirers
       if [[ "$_ghost_attempt" -gt 1 ]]; then
@@ -172,12 +204,16 @@ rune_acquire_lock() {
         perl -e 'select(undef,undef,undef,rand(0.05))' 2>/dev/null || sleep 0 2>/dev/null || true
       fi
       if mkdir "$lock_dir" 2>/dev/null; then
-        _rune_write_meta "$lock_dir" "$workflow" "$class"
-        [[ -f "$lock_dir/meta.json" ]] && return 0
-        rm -rf "$lock_dir" 2>/dev/null
+        _rune_finalize_meta "$_ghost_tmp" "$lock_dir"
+        if [[ -f "$lock_dir/meta.json" ]]; then
+          rm -f "$_ghost_tmp" 2>/dev/null
+          return 0
+        fi
+        rm -rf "$lock_dir" "$_ghost_tmp" 2>/dev/null
         # First attempt failed to write meta — retry
         continue
       fi
+      rm -f "$_ghost_tmp" 2>/dev/null
     done
   fi
 

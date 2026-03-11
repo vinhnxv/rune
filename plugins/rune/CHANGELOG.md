@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.151.3] - 2026-03-12
+
+### Fixed
+- **XVER-001**: TOCTOU race in workflow-lock.sh — metadata now written to temp file before mkdir lock acquisition
+- **XVER-002**: Cleanup operations in worktree-gc.sh now return proper error codes instead of silently swallowing failures
+- **XVER-003**: Path validation bypass in validate-gap-fixer-paths.sh — absolute paths outside CWD now rejected
+- **XVER-004**: Deterministic temp file names in run-artifacts.sh replaced with mktemp-generated unique paths
+- **CDXB-001**: Unbound variable typo `$_HOOK_SESSION_ID` in stop-hook-common.sh corrected to `${HOOK_SESSION_ID:-}`
+- **CDXS-003**: Predictable temp file names in workflow-lock.sh replaced with mktemp
+- **XBUG-005**: Missing error check after jq pipe in arc-phase-stop-hook.sh — now logs warning on parse failure
+
+### Security
+- All shell scripts now use `mktemp` for unpredictable temp file paths (symlink attack mitigation)
+- TOCTOU race conditions eliminated in workflow lock acquisition
+
 ## [1.151.2] - 2026-03-12
 
 ### Fixed
