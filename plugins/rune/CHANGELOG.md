@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.151.1] - 2026-03-11
+
+### Fixed
+- **XVER-001**: Atomic workflow detection via mkdir-based mutex in `enforce-teams.sh` — prevents race condition where workflow starts between state check and Agent execution (SEC-3 TOCTOU mitigation)
+- **XVER-004**: 3-layer session identity for cross-session isolation — `config_dir` (installation) + `session_id` (primary) + `owner_pid` (fallback). Session ID now definitive for ownership checks, fixing false positives where hook `$PPID` differs from skill `$PPID`
+- **QUAL-003**: Removed leftover DIAGNOSTIC code from `arc-phase-stop-hook.sh` and `stop-hook-common.sh` — `_diag()` function and all calls removed (marked "temporary" in v1.144.16, never cleaned up)
+
+### Changed
+- **resolve-session-identity.sh**: Exports `RUNE_CURRENT_SID` (primary session identifier) alongside `RUNE_CURRENT_CFG`
+- **enforce-teams.sh**: Ownership filter uses 3-layer hierarchy (session_id definitive, PID fallback)
+- **enforce-teams.sh**: Mutex directory `.rune-ate1-mutex` for atomic workflow detection with retry-on-contention
+
 ## [1.151.0] - 2026-03-11
 
 ### Added

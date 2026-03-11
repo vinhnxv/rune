@@ -28,14 +28,6 @@ umask 077
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] arc-phase-stop: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
-# ── DIAGNOSTIC: Always-on debug log for stop hook (remove after fix) ──
-_DIAG_LOG="${TMPDIR:-/tmp}/rune-stop-hook-diag.log"
-_diag() {
-  [[ -L "$_DIAG_LOG" ]] && return 0
-  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date +%s)" "$*" >> "$_DIAG_LOG" 2>/dev/null
-  return 0
-}
-
 # ── ERR trap: fail-forward with trace logging ──
 # BUG FIX (v1.144.12): Previously used bare `trap 'exit 0' ERR` which silently
 # swallowed ALL errors — making it impossible to debug which guard was failing.
@@ -44,7 +36,6 @@ _rune_fail_forward() {
   local _err_line="${BASH_LINENO[0]:-?}"
   local _err_cmd="${BASH_COMMAND:-unknown}"
   # DIAGNOSTIC: Always log ERR trap (this is the #1 cause of silent stop hook failures)
-  _diag "ERR_TRAP: line=${_err_line} cmd='${_err_cmd}' PIPESTATUS=(${PIPESTATUS[*]:-?})"
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
     local _ffl="${RUNE_TRACE_LOG:-}"
     if [[ -n "$_ffl" && ! -L "$_ffl" && ! -L "${_ffl%/*}" ]]; then
@@ -59,7 +50,6 @@ _rune_fail_forward() {
 trap '_rune_fail_forward' ERR
 
 _trace "ENTER arc-phase-stop-hook.sh"
-_diag "=== ENTER arc-phase-stop-hook.sh PID=$$ PPID=$PPID SKIP_OWNERSHIP=${RUNE_SKIP_OWNERSHIP:-0} ==="
 
 # ── Phase log: append-only JSONL for user-facing phase observability ──
 # Writes to tmp/arc/{id}/phase-log.jsonl — one JSON line per event.
@@ -84,48 +74,37 @@ _log_phase() {
 
 # ── GUARD 1: jq dependency (fail-open) ──
 if ! command -v jq &>/dev/null; then
-  _diag "EXIT: GUARD1 jq not found"
   _trace "EXIT: jq not found"
   exit 0
 fi
 
 # ── Source shared stop hook library ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_diag "SCRIPT_DIR=${SCRIPT_DIR}"
 # shellcheck source=lib/stop-hook-common.sh
 source "${SCRIPT_DIR}/lib/stop-hook-common.sh"
 # shellcheck source=lib/platform.sh
 source "${SCRIPT_DIR}/lib/platform.sh"
-_diag "Libraries sourced OK"
 
 # ── GUARD 2: Input size cap + GUARD 3: CWD extraction ──
 parse_input
-_diag "INPUT_KEYS=$(printf '%s\n' "$INPUT" | jq -r 'keys | join(",")' 2>/dev/null || echo 'PARSE_FAILED')"
-_diag "INPUT_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // "NOT_PRESENT"' 2>/dev/null || echo 'JQ_FAILED')"
-_diag "ENV: CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR:-NOT_SET} CLAUDE_SESSION_ID=${CLAUDE_SESSION_ID:-NOT_SET} PPID=$PPID"
 resolve_cwd
-_diag "CWD=${CWD}"
 _trace "CWD=${CWD}"
 
 # ── GUARD 4: State file existence ──
 STATE_FILE="${CWD}/.claude/arc-phase-loop.local.md"
 if [[ ! -f "$STATE_FILE" ]]; then
-  _diag "EXIT: GUARD4 no state file at ${STATE_FILE}"
   _trace "EXIT: no state file at ${STATE_FILE}"
   exit 0
 fi
-_diag "GUARD4 OK: state file exists"
 
 # ── GUARD 5: Symlink rejection ──
 reject_symlink "$STATE_FILE"
-_diag "GUARD5 OK: not symlink"
 
 # NOTE: This hook deliberately does NOT check stop_hook_active (same as arc-batch).
 # The phase loop re-injects prompts via decision=block, triggering new turns.
 
 # ── Parse YAML frontmatter from state file ──
 parse_frontmatter "$STATE_FILE"
-_diag "FRONTMATTER parsed (${#FRONTMATTER} chars)"
 
 ACTIVE=$(get_field "active")
 ITERATION=$(get_field "iteration")
@@ -139,28 +118,23 @@ ARC_FLAGS=$(get_field "arc_flags")
 
 # ── Trace parsed fields for debugging ──
 _trace "PARSED active=${ACTIVE} iteration=${ITERATION} checkpoint_path=${CHECKPOINT_PATH}"
-_diag "PARSED: active=${ACTIVE} iteration=${ITERATION} ckpt=${CHECKPOINT_PATH} plan=${PLAN_FILE}"
 
 # ── GUARD 5.5: Validate CHECKPOINT_PATH (SEC-001: path traversal prevention) ──
 if [[ -z "$CHECKPOINT_PATH" ]] || [[ "$CHECKPOINT_PATH" == *".."* ]] || [[ "$CHECKPOINT_PATH" == /* ]]; then
-  _diag "EXIT: GUARD5.5 CHECKPOINT_PATH invalid (empty/traversal/absolute): '${CHECKPOINT_PATH}'"
   _trace "EXIT: CHECKPOINT_PATH validation failed (empty/traversal/absolute): '${CHECKPOINT_PATH}'"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi
 if [[ "$CHECKPOINT_PATH" =~ [^a-zA-Z0-9._/-] ]]; then
-  _diag "EXIT: GUARD5.5 CHECKPOINT_PATH invalid chars: '${CHECKPOINT_PATH}'"
   _trace "EXIT: CHECKPOINT_PATH contains invalid chars: '${CHECKPOINT_PATH}'"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi
 if [[ -L "${CWD}/${CHECKPOINT_PATH}" ]]; then
-  _diag "EXIT: GUARD5.5 CHECKPOINT_PATH is symlink"
   _trace "EXIT: CHECKPOINT_PATH is symlink"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi
-_diag "GUARD5.5 OK"
 
 # ── EXTRACT: session_id for session-scoped operations ──
 HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
@@ -168,28 +142,22 @@ if [[ -n "$HOOK_SESSION_ID" ]] && [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,12
   _trace "Invalid session_id format — sanitizing to empty"
   HOOK_SESSION_ID=""
 fi
-_diag "HOOK_SESSION_ID=${HOOK_SESSION_ID:-EMPTY} stored_pid=$(get_field 'owner_pid') stored_sid=$(get_field 'session_id')"
 
 # ── GUARD 5.7: Session isolation (between 5.5 and 6 — intentional; phase hook
 # requires session check after CHECKPOINT_PATH validation, unlike batch/issues hooks) ──
 # "phase" mode: no progress file to update on orphan — falls through to "skip" (remove state + exit 0)
 _trace "Session check: stored_pid=$(get_field 'owner_pid') PPID=${PPID}"
-_diag "GUARD5.7 calling validate_session_ownership..."
 validate_session_ownership "$STATE_FILE" "" "phase"
-_diag "GUARD5.7 PASSED (ownership check returned 0)"
 
 # ── GUARD 6: Validate active flag ──
 if [[ "$ACTIVE" != "true" ]]; then
-  _diag "EXIT: GUARD6 active=${ACTIVE} (not 'true')"
   _trace "EXIT: active=${ACTIVE} (not 'true')"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi
-_diag "GUARD6 OK"
 
 # ── GUARD 7: Validate numeric fields ──
 if ! [[ "$ITERATION" =~ ^[0-9]+$ ]]; then
-  _diag "EXIT: GUARD7 iteration='${ITERATION}' not numeric"
   _trace "EXIT: iteration '${ITERATION}' is not numeric"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
@@ -197,16 +165,13 @@ fi
 
 # ── GUARD 8: Max iterations check (safety cap at 50 — 27 phases + convergence rounds) ──
 if [[ "$MAX_ITERATIONS" =~ ^[0-9]+$ ]] && [[ "$MAX_ITERATIONS" -gt 0 ]] && [[ "$ITERATION" -ge "$MAX_ITERATIONS" ]]; then
-  _diag "EXIT: GUARD8 max iterations (${ITERATION} >= ${MAX_ITERATIONS})"
   _trace "EXIT: max iterations reached (${ITERATION} >= ${MAX_ITERATIONS})"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi
-_diag "GUARD8 OK"
 
 # ── Read checkpoint ──
 if [[ ! -f "${CWD}/${CHECKPOINT_PATH}" ]]; then
-  _diag "EXIT: checkpoint not found at ${CWD}/${CHECKPOINT_PATH}"
   _trace "EXIT: checkpoint file not found at ${CWD}/${CHECKPOINT_PATH}"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
@@ -214,7 +179,6 @@ fi
 
 CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
 if [[ -z "$CKPT_CONTENT" ]]; then
-  _diag "EXIT: checkpoint file empty"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi
@@ -369,7 +333,6 @@ for phase in "${PHASE_ORDER[@]}"; do
 done
 
 _trace "Next pending phase: ${NEXT_PHASE:-NONE} (iteration ${ITERATION})"
-_diag "NEXT_PHASE=${NEXT_PHASE:-NONE} iteration=${ITERATION}"
 
 # ── Log recently completed/skipped phases to phase-log.jsonl ──
 # Single jq call extracts all non-pending phase data at once (PERF: avoids N*5 jq calls).
@@ -770,6 +733,5 @@ _log_phase "phase_started" "$NEXT_PHASE" "iteration=${NEW_ITERATION}" "ref_file=
 # Exit 2 = show stderr to model and continue conversation.
 # BUG FIX (v1.144.14): Previous versions used exit 0 + JSON stdout, which was
 # silently discarded by Claude Code — the root cause of "arc stops after work phase".
-_diag "SUCCESS: injecting phase=${NEXT_PHASE} prompt (${#PHASE_PROMPT} chars) via exit 2"
 printf '%s\n' "$PHASE_PROMPT" >&2
 exit 2
