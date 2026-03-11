@@ -33,7 +33,7 @@ if (mode === "url") {
 
   // L2: Detect framework from Figma metadata (0 extra tool calls)
   if ((Date.now() - startTime) < detectionTimeout) {
-    figmaFramework = detectFigmaFramework(figmaApiResponse, nodeId)
+    figmaFramework = discoverFigmaFramework(figmaApiResponse, nodeId)
 
     // Re-run L3 with Figma framework for better builder matching
     if (figmaFramework?.score >= 0.40) {
@@ -176,14 +176,14 @@ for (const comp of componentsWithBothRefs) {
     }
 
     return generateComponentCode(irComp, typeMapping, adapter, {
-      // Import resolution: adapter.metadata.importStyle determines path format
+      // Import resolution: adapter.importStyle determines path format
       //   "relative" (UntitledUI): import { Button } from '@untitledui/button'
       //   "barrel"   (shadcn):     import { Button } from '@/components/ui/button'
-      importStyle: adapter.metadata.importStyle,
+      importStyle: adapter.importStyle,
 
       // Icon resolution: resolveIconName() fallback chain (semantic-ir.md §resolveIconName)
       //   iconMap lookup → Figma name sanitize → generic fallback
-      iconPackage: adapter.metadata.iconPackage,
+      iconPackage: adapter.iconPackage,
 
       // Variant mapping: irComp.intent → typeMapping.variants[intent]
       //   e.g., intent="destructive" → variant="error" (UntitledUI) or "destructive" (shadcn)

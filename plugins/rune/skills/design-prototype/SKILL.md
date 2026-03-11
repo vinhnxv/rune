@@ -82,7 +82,7 @@ Phase 0: Validate Input + 3-Layer Detection
     → Parse ARGUMENTS, detect Figma URL vs text description
     → Check design_sync.enabled gate
     → Phase 0a (parallel): L1 discoverFrontendStack() + L3 discoverUIBuilder()
-    → Phase 0b (sequential, URL mode): L2 detectFigmaFramework()
+    → Phase 0b (sequential, URL mode): L2 discoverFigmaFramework()
     → Compose DesignContext → Write design-context.yaml
     → Create output directory
     |
@@ -165,7 +165,7 @@ if mode === "url":
   nodeId = extractNodeId(figmaUrls[0])
 
   if (now() - startTime) < detection_timeout_ms:
-    figmaFramework = detectFigmaFramework(figmaApiResponse, nodeId)  // Layer 2: 0 tool calls
+    figmaFramework = discoverFigmaFramework(figmaApiResponse, nodeId)  // Layer 2: 0 tool calls
 
     // Re-run L3 with Figma framework for better builder matching
     if figmaFramework is not null AND figmaFramework.score >= 0.40:
@@ -317,6 +317,7 @@ Conditional: runs when >= 1 prototype was generated. Performs structural self-re
 - Story coverage (each variant has a story)
 - Tailwind class validity
 - Accessibility basics (alt text, aria labels, semantic HTML)
+- (4.1-4.2) Visual verification substeps: conditional screenshot comparison via agent-browser when `storybook.enabled` and Storybook is running. See [pipeline-phases.md](references/pipeline-phases.md) for details.
 
 ```
 prototypes = Glob("{outputDir}/prototypes/*/prototype.tsx")
@@ -453,7 +454,8 @@ When >= 3 components AND `--no-team` is NOT set, the pipeline uses Agent Teams f
 ```
 if components.length >= 3 AND NOT flags.noTeam:
   teamName = "rune-prototype-{timestamp}"
-  TeamCreate({ name: teamName })
+  try:
+    TeamCreate({ name: teamName })
 
   // Create extraction tasks
   for component in components:
@@ -467,7 +469,7 @@ if components.length >= 3 AND NOT flags.noTeam:
   workerCount = min(components.length, 5)
   for i in range(workerCount):
     Agent(team_name=teamName, name="proto-worker-{i+1}", ...)
-```
+  finally:
 
 ### Team Cleanup
 
@@ -475,9 +477,13 @@ Standard 5-component pattern:
 
 ```
 // 1. Dynamic member discovery
-CHOME = Bash('echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"')
-teamConfig = Read("{CHOME}/teams/{teamName}/config.json")
-allMembers = teamConfig.members.map(m => m.name).filter(n => /^[a-zA-Z0-9_-]+$/.test(n))
+try {
+  CHOME = Bash('echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"')
+  teamConfig = Read("{CHOME}/teams/{teamName}/config.json")
+  allMembers = teamConfig.members.map(m => m.name).filter(n => /^[a-zA-Z0-9_-]+$/.test(n))
+} catch {
+  allMembers = ["proto-worker-1", "proto-worker-2", "proto-worker-3", "proto-worker-4", "proto-worker-5"]
+}
 
 // 2. Shutdown request to all members
 for member in allMembers:
@@ -494,7 +500,9 @@ for attempt in [0, 5, 10, 15]:
 
 // 5. Filesystem fallback (only if TeamDelete never succeeded)
 if NOT teamDeleteSucceeded:
-  Bash('for pid in $(pgrep -P $PPID 2>/dev/null); do ... kill -TERM/-KILL ... done')
+  Bash('for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done')
+  Bash("sleep 3")
+  Bash('for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done')
   Bash('CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/{teamName}/" "$CHOME/tasks/{teamName}/" 2>/dev/null')
 ```
 

@@ -7,7 +7,7 @@ Merges outputs from all 3 detection layers into a single `DesignContext` object 
 
 **Input**:
 - `frontendStack` — output from `discoverFrontendStack()` (Layer 1), always available
-- `figmaFramework` — output from `detectFigmaFramework()` (Layer 2), null in text-only mode
+- `figmaFramework` — output from `discoverFigmaFramework()` (Layer 2), null in text-only mode
 - `builderMCP` — output from `discoverUIBuilder()` (Layer 3), null when no builder found
 - `mode` — `"url"` (Figma URL provided) or `"describe"` (text-only, no Figma data)
 
@@ -21,7 +21,7 @@ function composeDesignContext(frontendStack, figmaFramework, builderMCP, mode):
 
   // --- ARCH-005: Mode guard for text-only (--describe) paths ---
   // In text-only mode, Layer 2 (Figma) is unavailable. Callers MUST NOT call
-  // detectFigmaFramework() — pass figmaFramework = null instead.
+  // discoverFigmaFramework() — pass figmaFramework = null instead.
   IF mode === "describe":
     figmaFramework = null  // Enforce: no Figma data in text mode
 
@@ -154,7 +154,7 @@ When layers produce contradictory signals, these rules determine the outcome:
 | Vue / Nuxt | Any | Any | `tailwind` | Non-React framework |
 | Svelte | Any | Any | `tailwind` | Non-React framework |
 | None detected | Any | Any | `tailwind` | Default React + Tailwind v4 |
-| Any (text-only) | null (skipped) | Any | `tailwind` or `library` | L2 unavailable |
+| Any (text-only) | null (skipped) | Any | `tailwind` | L2 unavailable |
 
 ## Detection Timeout Budget (ARCH-004)
 
@@ -175,12 +175,12 @@ startTime = now()
 )
 
 // Check timeout before L2
-IF (now() - startTime) > DETECTION_TIMEOUT_MS:
+IF (now() - startTime) >= DETECTION_TIMEOUT_MS:
   RETURN { synthesis_strategy: "tailwind", rationale: "Detection timeout exceeded" }
 
 // L2 runs sequentially (needs Figma API data)
 IF mode === "url" AND figmaApiResponse is not null:
-  figmaFramework = detectFigmaFramework(figmaApiResponse, nodeId)
+  figmaFramework = discoverFigmaFramework(figmaApiResponse, nodeId)
 
   // Re-run L3 with Figma framework for better matching
   IF figmaFramework.score >= 0.40:
@@ -190,7 +190,7 @@ ELSE:
   figmaFramework = null  // ARCH-005: text-only mode
 
 // Final timeout check
-IF (now() - startTime) > DETECTION_TIMEOUT_MS:
+IF (now() - startTime) >= DETECTION_TIMEOUT_MS:
   RETURN { synthesis_strategy: "tailwind", rationale: "Detection timeout exceeded" }
 
 RETURN composeDesignContext(frontendStack, figmaFramework, builderMCP, mode)
@@ -201,7 +201,7 @@ RETURN composeDesignContext(frontendStack, figmaFramework, builderMCP, mode)
 Layer 1 (`discoverFrontendStack`) and Layer 3 (`discoverUIBuilder`) both read local files
 only (`package.json`, `.mcp.json`, skill frontmatter). They can run in parallel as Phase 0a.
 
-Layer 2 (`detectFigmaFramework`) requires the Figma API response, which is fetched via
+Layer 2 (`discoverFigmaFramework`) requires the Figma API response, which is fetched via
 `figma_list_components` MCP tool. This fetch can also run in parallel with L1+L3.
 
 After all 3 complete, `composeDesignContext()` merges results sequentially (Phase 0b).
@@ -270,8 +270,8 @@ in the same session. Each layer has different cache granularity.
 ├── design-system-profile.yaml          # Layer 1: per-session (project-scoped)
 ├── builder-profile.yaml                # Layer 3: per-session (project-scoped)
 ├── figma-cache/                        # Layer 2: per-node (Figma-scoped)
-│   ├── {nodeId-1}.yaml                 # Cached detectFigmaFramework result
-│   ├── {nodeId-2}.yaml                 # Cached detectFigmaFramework result
+│   ├── {nodeId-1}.yaml                 # Cached discoverFigmaFramework result
+│   ├── {nodeId-2}.yaml                 # Cached discoverFigmaFramework result
 │   └── ...
 └── design-context-cache/               # Merged DesignContext: per-node
     ├── {nodeId-1}.yaml                 # Cached composeDesignContext result
@@ -321,7 +321,7 @@ function getOrComputeDesignContext(sessionCacheDir, repoRoot, figmaApiResponse, 
     IF file_exists(figmaCachePath):
       figmaFramework = Read(figmaCachePath)  // Per-node cache hit
     ELSE:
-      figmaFramework = detectFigmaFramework(figmaApiResponse, nodeId)
+      figmaFramework = discoverFigmaFramework(figmaApiResponse, nodeId)
       // Write per-node cache
       mkdir_p("{sessionCacheDir}/figma-cache/")
       Write(figmaCachePath, figmaFramework)
@@ -375,7 +375,7 @@ When `cache_enabled: false`, all cache reads are skipped but cache writes still 
 ## Cross-References
 
 - [tiered-scanning.md](tiered-scanning.md) — `discoverFrontendStack()` algorithm (Layer 1)
-- [figma-framework-detection.md](figma-framework-detection.md) — `detectFigmaFramework()` algorithm (Layer 2)
+- [figma-framework-detection.md](figma-framework-detection.md) — `discoverFigmaFramework()` algorithm (Layer 2)
 - [ui-builder-discovery.md](ui-builder-discovery.md) — `discoverUIBuilder()` algorithm (Layer 3)
 - [library-adapters.md](library-adapters.md) — Adapter definitions consumed by `library` strategy
 - [semantic-ir.md](semantic-ir.md) — Intermediate representation between Figma output and adapters

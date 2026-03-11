@@ -4,7 +4,7 @@
 - `sessionCacheDir` — caller-provided session-scoped temp directory (same as passed to `discoverDesignSystem`)
 - `repoRoot` — repository root path
 - `detectedLibrary` — (optional, default: null) library identifier from `discoverDesignSystem()` (e.g., `"untitled_ui"`, `"shadcn_ui"`). When null, Steps 2-4 are skipped and only heuristic detection (Step 5) runs.
-- `figmaFramework` — (optional, default: null) framework identifier from `detectFigmaFramework()` (e.g., `"untitled_ui"`). Used to prioritize builders matching the Figma design when no codebase library is detected.
+- `figmaFramework` — (optional, default: null) framework identifier from `discoverFigmaFramework()` (e.g., `"untitled_ui"`). Used to prioritize builders matching the Figma design when no codebase library is detected.
 
 **Output**: `builder-profile.yaml` (written to `{sessionCacheDir}/`), builder config object returned to caller or null
 

@@ -155,7 +155,7 @@ See [edge-cases.md](references/edge-cases.md) for detection criteria and handlin
 
 ## discoverUIBuilder(sessionCacheDir, repoRoot, detectedLibrary, figmaFramework)
 
-**Input**: `sessionCacheDir` — session-scoped temp directory; `repoRoot` — repository root path; `detectedLibrary` — (optional) library from `discoverDesignSystem()`, null for independent operation; `figmaFramework` — (optional) framework from `detectFigmaFramework()`, null when Figma data unavailable
+**Input**: `sessionCacheDir` — session-scoped temp directory; `repoRoot` — repository root path; `detectedLibrary` — (optional) library from `discoverDesignSystem()`, null for independent operation; `figmaFramework` — (optional) framework from `discoverFigmaFramework()`, null when Figma data unavailable
 **Output**: `builder-profile.yaml` (written to `{sessionCacheDir}/`), builder config object returned to caller or null
 
 Discovers which UI builder MCP is available. Operates independently of `discoverDesignSystem()` — when called without `detectedLibrary`, skips library-dependent steps (2-4) and runs heuristic-only MCP detection. When called with `detectedLibrary`, runs the full 5-step priority cascade.
@@ -173,7 +173,7 @@ See [ui-builder-discovery.md](references/ui-builder-discovery.md) for the full a
 
 Extends the existing `detectTypeScriptStack()` with version extraction for the design-prototype pipeline (Layer 1 of 3-layer detection). Extracts major version from `package.json` semver strings, detects build tool (vite/next/webpack), and identifies CSS framework with version (Tailwind v3 vs v4).
 
-Fallback: `{ framework: null, cssFramework: "tailwind", cssVersion: 4, confidence: 0.0 }` — ensures the pipeline always has a valid CSS target.
+Fallback: `{ framework: null, css_framework: "tailwind", css_version: 4, confidence: 0.0 }` — ensures the pipeline always has a valid CSS target.
 
 See [tiered-scanning.md](references/tiered-scanning.md) for the full algorithm, `extractMajor()` helper, output schema, and relationship to `detectTypeScriptStack()`.
 

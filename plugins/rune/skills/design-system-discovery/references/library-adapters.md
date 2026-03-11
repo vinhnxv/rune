@@ -46,10 +46,6 @@ function selectAdapter(designContext):
     adapter.hybridSource = designContext.figma.detected ?? null
     RETURN adapter
 
-  IF strategy === "text-only":
-    // Mode guard: --describe paths skip code generation entirely
-    RETURN null
-
   // Default: no strategy or unknown strategy → Tailwind fallback
   RETURN TAILWIND_ADAPTER
 ```
