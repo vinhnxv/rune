@@ -1,0 +1,68 @@
+{
+  "version": "1.0.0",
+  "packs": {
+    "shadcn-ui": {
+      "name": "shadcn/ui",
+      "version": "1.0.0",
+      "last_updated": "2026-03-11",
+      "description": "Component patterns, CLI usage, theming, and customization",
+      "detectors": [
+        {"file": "package.json", "pattern": "\"@shadcn/ui\""},
+        {"file": "components.json", "exists": true}
+      ],
+      "domains": ["frontend"]
+    },
+    "tailwind-v4": {
+      "name": "Tailwind CSS v4",
+      "version": "1.0.0",
+      "last_updated": "2026-03-11",
+      "description": "V4 migration patterns, CSS-first config, new utilities",
+      "detectors": [
+        {"file": "package.json", "pattern": "\"tailwindcss\":\\s*\"[~^]?4"}
+      ],
+      "domains": ["frontend"]
+    },
+    "nextjs": {
+      "name": "Next.js",
+      "version": "1.0.0",
+      "last_updated": "2026-03-11",
+      "description": "App Router patterns, Server Components, data fetching, caching",
+      "detectors": [
+        {"file": "package.json", "pattern": "\"next\""}
+      ],
+      "domains": ["frontend", "backend"]
+    },
+    "fastapi": {
+      "name": "FastAPI",
+      "version": "1.0.0",
+      "last_updated": "2026-03-11",
+      "description": "Dependency injection, Pydantic v2, async patterns, security",
+      "detectors": [
+        {"file": "requirements.txt", "pattern": "fastapi"},
+        {"file": "pyproject.toml", "pattern": "fastapi"}
+      ],
+      "domains": ["backend"]
+    },
+    "sqlalchemy": {
+      "name": "SQLAlchemy",
+      "version": "1.0.0",
+      "last_updated": "2026-03-11",
+      "description": "2.0 style queries, async sessions, relationship patterns",
+      "detectors": [
+        {"file": "requirements.txt", "pattern": "sqlalchemy"},
+        {"file": "pyproject.toml", "pattern": "sqlalchemy"}
+      ],
+      "domains": ["backend", "database"]
+    },
+    "untitledui": {
+      "name": "UntitledUI",
+      "version": "1.0.0",
+      "last_updated": "2026-03-11",
+      "description": "Component conventions, token system, variant patterns",
+      "detectors": [
+        {"file": ".mcp.json", "pattern": "untitledui"}
+      ],
+      "domains": ["frontend"]
+    }
+  }
+}
