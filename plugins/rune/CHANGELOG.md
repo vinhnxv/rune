@@ -1,11 +1,24 @@
 # Changelog
 
+## [1.149.1] - 2026-03-11
+
+### Fixed
+- **inspect**: `inspect_design_dimension` gate changed from `!== false` (opt-out) to `=== true` (opt-in), matching `design_review.enabled` pattern. Prevents silent Dimension 10 activation.
+- **inspect**: `planFrontmatter` undefined in Dimension 10 gate — replaced with `parsedPlan.frontmatter` null-safe access. Gate was always evaluating to `false`.
+- **dedup-runes**: DES prefix added to Deep and Merge hierarchies (was only in Standard).
+- **orchestration-phases**: KNOWN_PREFIXES regex extended with AESTH, UXH, UXF, UXI, UXC, SHA-SHE, XSH.
+- **circle-registry**: `design-implementation-reviewer` added to Wave Summary table.
+- **verdict-synthesis**: "9 dimension scores" → "10 dimension scores".
+- **appraise**: AESTH inserted in dedup hierarchy strings (SKILL.md + phase-1-rune-gaze.md).
+- **inspector-prompts**: `<design-data>` boundary delimiter added to grace-warden prompt extension (SEC-004 pattern).
+- **docs**: Stale "9 dimension" references updated across README, state-machine, CHANGELOG, init-protocol, and inspector comments.
+
 ## [1.149.0] - 2026-03-11
 
 ### Added
-- **appraise**: Design fidelity Wave 4 (Phase 1.6) — spawns `design-implementation-reviewer` when `design_sync.enabled` + frontend files + design references exist. DES- prefix findings in TOME. Conditional: zero overhead when gate not met.
+- **appraise**: Design fidelity Phase 1.6 gate — spawns `design-implementation-reviewer` when `design_review.enabled` + `design_sync.enabled` + frontend files + design references exist. DES- prefix findings in TOME. Conditional: zero overhead when gate not met.
 - **inspect**: Design Fidelity as dimension 10 — extends `grace-warden` inspector scope with COMPLETE/PARTIAL/MISSING/DEVIATED component compliance classification against design specs. DES- finding prefix. Gated by `design_sync.enabled` + `inspect_design_dimension` + plan `figma_url` + design refs.
-- **talisman**: `design_review.enabled` gate for appraise Phase 1.6 and `design_sync.inspect_design_dimension` for inspect Dimension 10 (default: false; requires `design_sync.enabled` for artifacts). Zero overhead for projects without design artifacts.
+- **talisman**: `design_review.enabled` gate for appraise Phase 1.6 and `design_sync.inspect_design_dimension` for inspect Dimension 10 (default: false — explicit opt-in; requires `design_sync.enabled` for artifacts). Zero overhead for projects without design artifacts.
 
 ### Fixed
 - **validate-test-evidence.sh**: Replace `{LOCK_FD}` fd-redirect syntax (Bash 4.1+) with literal `200` for macOS Bash 3.2 compatibility (cross-platform shell rule).

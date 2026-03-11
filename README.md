@@ -4,7 +4,7 @@
 
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
-[![Version](https://img.shields.io/badge/version-1.149.0-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-1.149.1-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Agents](https://img.shields.io/badge/agents-100-purple)](#agents)
 [![Skills](https://img.shields.io/badge/skills-53-orange)](#skills)
@@ -323,7 +323,7 @@ Three-layer analysis: **Impact** (what changes), **Wisdom** (why it was written 
 
 ### <a name="inspect"></a> `/rune:inspect` — Gap Audit
 
-Compares a plan against its implementation across 9 quality dimensions:
+Compares a plan against its implementation across 10 quality dimensions:
 
 ```bash
 /rune:inspect plans/my-plan.md

@@ -85,7 +85,7 @@ When `depth=deep` is active (via `--deep` flag or audit), the dedup hierarchy ex
 2. **Cross-wave dedup** — when merging TOME from all waves into final TOME.md
 
 **Standard hierarchy (Wave 1 only)**: `SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > DES > AESTH > CDX`
-**Deep hierarchy (full, all waves)**: `SEC > BACK > CORR > FAIL > DSEC > DEBT > INTG > BIZL > EDGE > VEIL > DOUBT > DSGN > RSRC > DOC > OBSV > MTNB > QUAL > FRONT > AESTH > CDX`
+**Deep hierarchy (full, all waves)**: `SEC > BACK > CORR > FAIL > DSEC > DEBT > INTG > BIZL > EDGE > VEIL > DOUBT > DSGN > RSRC > DOC > OBSV > MTNB > QUAL > FRONT > DES > AESTH > CDX`
 
 **Which hierarchy is used where:**
 - **Wave 1 Runebinder** (TOME-w1.md): Standard hierarchy
@@ -93,7 +93,7 @@ When `depth=deep` is active (via `--deep` flag or audit), the dedup hierarchy ex
 - **Wave 3 Runebinder** (TOME-w3.md, if not merged into Wave 2): Dimension sub-hierarchy
 - **Merge Runebinder** (final TOME.md): Full extended hierarchy with cross-wave dedup
 
-**Merge hierarchy (cross-wave dedup):** `SEC > CORR > FAIL > DSEC > BACK > DSGN > RSRC > VEIL > DOUBT > OBSV > MTNB > DOC > QUAL > FRONT > AESTH > CDX`
+**Merge hierarchy (cross-wave dedup):** `SEC > CORR > FAIL > DSEC > BACK > DSGN > RSRC > VEIL > DOUBT > OBSV > MTNB > DOC > QUAL > FRONT > DES > AESTH > CDX`
 
 **Per-wave sub-hierarchies:**
 - Wave 2 (deep investigation): `DEBT > INTG > BIZL > EDGE`
