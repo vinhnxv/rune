@@ -66,6 +66,30 @@ Based on detected stack, customize the template:
 - `context_monitor:` / `context_weaving:` — always include defaults
 - `integrations:` — if `.mcp.json` contains custom MCP servers (not built-in like context7)
 
+**Design Review gates (v1.148.0) — under `design_review:`:**
+
+Include these when `design_sync.enabled: true` and React/TypeScript frontend files are detected. The `design_review` section controls Phase 1.6 conditional gate in the appraise workflow.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable Phase 1.6 design fidelity gate in `/rune:appraise`. When true, spawns `design-implementation-reviewer` when frontend files are in the diff. |
+| `prefix` | string | `"DES"` | Finding prefix for design fidelity findings. Always `DES` when activated via Phase 1.6. |
+| `timeout_ms` | int | `300000` | Timeout for the design-implementation-reviewer Ash (ms). If it times out, treat as empty findings — Runebinder proceeds deterministically. |
+
+**inscription.json `design_context` field schema** (written at Phase 2 when `design_review.enabled`):
+
+```yaml
+# inscription.json — design_context schema (injected at Phase 2 Forge Team)
+# design_context:
+#   inventory_path: string    — path to design inventory JSON from Shard 2 arc phase
+#                               (e.g., tmp/reviews/{id}/design-inventory.json)
+#   figma_url: string         — Figma source URL from talisman.design_sync.figma_url
+#                               (empty string if not set)
+#   component_count: number   — count of components in inventory (0 if inventory absent)
+```
+
+**Soft warning**: If `design_review.enabled` is true but Shard 2 dependency artifacts are absent (no `design-inventory*.json` found in `outputDir`), Phase 1.6 emits a warning and proceeds — `design-implementation-reviewer` runs without component inventory context. This is low risk in sequential arc pipelines where Shard 2 always precedes the design review phase.
+
 **Prototype pipeline fields (v1.147.0) — under `design_sync:`:**
 
 Include these when `design_sync.enabled: true` and React/TypeScript stack is detected:

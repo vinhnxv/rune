@@ -1,4 +1,4 @@
-# Phase 1: Rune Gaze (Scope Selection) + Phase 1.5: UX Reviewer Selection
+# Phase 1: Rune Gaze (Scope Selection) + Phase 1.5: UX Reviewer Selection + Phase 1.6: Design Fidelity Reviewer Selection
 
 ## Phase 1: Rune Gaze
 
@@ -58,6 +58,45 @@ if (uxEnabled && hasFrontendFiles) {
 - `UXI` — interaction audit (hover/focus/touch targets)
 - `UXC` — cognitive walkthrough (first-time user simulation)
 
+## Phase 1.6: Design Fidelity Reviewer Selection
+
+Conditional design fidelity agent spawning. Gated by `talisman.design_review.enabled` AND frontend files detected in `changed_files`. Uses the `design-implementation-reviewer` specialist prompt loaded via `buildAshPrompt()`.
+
+```javascript
+// Design Fidelity Reviewer Gate — follows the same pattern as Phase 1.5 UX gate
+// Requires BOTH design_review.enabled AND design_sync.enabled.
+// design_review controls the appraise gate; design_sync provides the design artifacts.
+// Without design_sync, the reviewer would spawn with broken context (no inventory).
+const designReviewEnabled = talisman?.design_review?.enabled === true
+const designSyncEnabled = talisman?.design_sync?.enabled === true
+const hasFrontendFiles = changed_files.some(f =>
+  [".tsx", ".jsx", ".vue", ".svelte", ".css", ".scss"].some(ext => f.endsWith(ext))
+)
+
+if (designReviewEnabled && designSyncEnabled && hasFrontendFiles) {
+  ash_selections.add("design-implementation-reviewer")
+
+  // Write design_context to inscription.json at Phase 2 (Forge Team)
+  // Schema: { inventory_path: string, figma_url: string, component_count: number }
+  // inventory_path — path to design inventory artifact from Shard 2 (arc design extraction)
+  // figma_url     — Figma source URL from talisman.design_sync.figma_url (if set)
+  // component_count — number of components in inventory (0 if inventory absent)
+  //
+  // Soft warning: if Shard 2 dependency artifacts are absent (inventory_path not found):
+  if (!Glob(`${outputDir}design-inventory*.json`).length) {
+    warn("Phase 1.6: design_context inventory not found — design-implementation-reviewer will run without component inventory context.")
+  }
+}
+```
+
+**Skip conditions**: `talisman.design_review.enabled` is not `true`, or no frontend files in diff.
+
+**Finding prefix**: `DES` — design fidelity findings (non-blocking by default).
+
+**Timeout dead-end**: If `design-implementation-reviewer` task times out during Phase 4 Monitor, treat its contribution as empty findings. Runebinder proceeds with whatever other Ash outputs are present — deterministic behavior, no blocking.
+
+**Prefix switching**: `design-implementation-reviewer` emits `DES-` prefixed findings when spawned via Phase 1.6 gate. The `FIDE-` prefix in the standalone specialist template is overridden by inscription metadata field `finding_prefix: "DES"` injected at Phase 2.
+
 ### Dry-Run Exit Point
 
 If `--dry-run` flag is set, display the plan and stop. Do NOT proceed to Phase 2.
@@ -67,7 +106,7 @@ If `--dry-run` flag is set, display the plan and stop. Do NOT proceed to Phase 2
 - Selected Ashes with file assignments per Ash
 - Estimated team size (total Ash count)
 - Chunk plan if file count exceeds CHUNK_THRESHOLD (default: 20)
-- Dedup hierarchy preview: `SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX`
+- Dedup hierarchy preview: `SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > DES > UXH > UXF > UXI > UXC > CDX`
 - Warnings (e.g., `--deep + --partial` sparse findings warning)
 
 **Does NOT create:**

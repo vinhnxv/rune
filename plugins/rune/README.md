@@ -270,7 +270,7 @@ When you run `/rune:arc`, Rune chains 28 phases into one automated pipeline:
 5. **WORK** — Swarm workers implement the plan with incremental `[ward-checked]` commits
 5.2. **DESIGN VERIFICATION** — Verify implementation matches extracted design specs (v1.87.0+)
 5.3. **UX VERIFICATION** — Verify implementation meets UX heuristics and accessibility standards (v1.99.0+)
-5.5. **GAP ANALYSIS** — Inspector Ashes score 9 quality dimensions and produce VERDICT.md (arc-inspect-{id} team). Low-scoring dimensions propagated as focus areas to Phase 6 reviewers.
+5.5. **GAP ANALYSIS** — Inspector Ashes score 10 quality dimensions and produce VERDICT.md (arc-inspect-{id} team). Low-scoring dimensions propagated as focus areas to Phase 6 reviewers.
 5.6. **CODEX GAP ANALYSIS** — Codex cross-model plan-vs-implementation gap detection (v1.39.0+)
 5.8. **GAP REMEDIATION** — Auto-fix FIXABLE gaps before code review (arc-gap-fix-{id} team, configurable via `arc.gap_analysis.remediation` talisman settings)
 5.7. **GOLDMASK VERIFICATION** — Blast-radius analysis via investigation agents: 5 impact tracers + wisdom sage + lore analyst (v1.47.0+)
@@ -768,7 +768,7 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | git-worktree | Worktree isolation for /rune:strive (experimental `--worktree` flag) |
 | goldmask | Cross-layer impact analysis (Impact + Wisdom + Lore layers). Shared data discovery + risk context template reused by forge, mend, inspect, and devise for risk-aware workflows |
 | inner-flame | Universal 3-layer self-review protocol (Grounding, Completeness, Self-Adversarial) for all teammates (non-invocable) |
-| inspect | Plan-vs-implementation deep audit with 4 Inspector Ashes (9 dimensions, 8 gap categories). Goldmask Lore Layer (Phase 1.3) for risk-aware gap prioritization |
+| inspect | Plan-vs-implementation deep audit with 4 Inspector Ashes (10 dimensions, 8 gap categories). Dimension 10: Design Fidelity (conditional, DES- prefix). Goldmask Lore Layer (Phase 1.3) for risk-aware gap prioritization |
 | mend | Parallel finding resolution from TOME. Goldmask data passthrough (risk overlay + quick check) |
 | devise | Multi-agent planning: brainstorm, research, validate, synthesize, shatter, forge, review (+ `--quick`). Predictive Goldmask (2-8 agents, basic default) for pre-implementation risk assessment |
 | polling-guard | Monitoring loop fidelity — correct waitForCompletion translation |

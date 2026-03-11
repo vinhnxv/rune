@@ -141,9 +141,10 @@ Each Ash entry carries two scheduling fields used by [wave-scheduling.md](wave-s
 | laravel-reviewer | `specialist-prompts/laravel-reviewer.md` | `detected_stack.frameworks.includes('laravel')` | LARV | 20 files |
 | sqlalchemy-reviewer | `specialist-prompts/sqlalchemy-reviewer.md` | `detected_stack.frameworks.includes('sqlalchemy')` | SQLA | 20 files |
 | tdd-compliance-reviewer | `specialist-prompts/tdd-compliance-reviewer.md` | Test files in diff | TDD | 25 files |
-| design-implementation-reviewer | `specialist-prompts/design-implementation-reviewer.md` | `talisman.design_sync?.enabled AND hasFrontend AND (detected_stack.frameworks.includes('figma') \|\| vsm_files_exist)` | FIDE | 25 files |
 
 **Cap**: `max_stack_ashes` (default: 3) from `talisman.stack_awareness.max_stack_ashes`.
+
+> **design-implementation-reviewer** is NOT a stack-specialist Ash. It is activated via the **Phase 1.6 Design Fidelity gate** in `appraise/references/phase-1-rune-gaze.md`, gated by `talisman.design_review.enabled`. It uses finding prefix `DES`. This placement avoids duplicate activation that would otherwise occur if it were listed as both a stack-specialist and a Phase 1.6 reviewer.
 
 ### Shard Reviewers (Inscription Sharding, v1.98.0+)
 
