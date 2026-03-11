@@ -679,6 +679,17 @@ def _prepare_frequency_data(
     return access_counts, max_log_count
 
 
+def _is_doc_pack_entry(entry: Dict[str, Any]) -> bool:
+    """Check if an entry originates from a doc pack."""
+    source = entry.get("source", "")
+    return isinstance(source, str) and source.startswith("doc-pack:")
+
+
+# A3 enrichment: doc-pack importance discount factor to prevent doc packs
+# from outranking user-authored etched echoes.
+_DOC_PACK_IMPORTANCE_DISCOUNT = 0.7
+
+
 def _compute_entry_factors(
     entry: Dict[str, Any], bm25_norm: float,
     context_files: Optional[List[str]],
@@ -687,9 +698,13 @@ def _compute_entry_factors(
     max_log_count: float,
 ) -> Dict[str, float]:
     """Compute all 5 scoring factors for a single entry."""
+    importance = _score_importance(entry.get("layer", ""))
+    # A3: Discount importance for doc-pack entries.
+    if _is_doc_pack_entry(entry):
+        importance *= _DOC_PACK_IMPORTANCE_DISCOUNT
     return {
         "relevance": bm25_norm,
-        "importance": _score_importance(entry.get("layer", "")),
+        "importance": importance,
         "recency": _score_recency(entry, access_counts),
         "proximity": _score_proximity(entry, context_files),
         "frequency": _score_frequency(
@@ -1710,14 +1725,18 @@ async def _pipeline_decompose(
 def _pipeline_bm25_search(
     conn: sqlite3.Connection, facets: List[str],
     overfetch_limit: int, layer: Optional[str], role: Optional[str],
-    category: Optional[str] = None,
+    category: Optional[str] = None, domain: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Stage 2-3: Per-facet BM25 search and merge."""
     t0 = time.time()
     all_facet_results = []  # type: list[list[Dict[str, Any]]]
     for facet in facets:
+        kwargs = {}  # type: Dict[str, Any]
+        if domain is not None:
+            kwargs["domain"] = domain
         all_facet_results.append(
-            search_entries(conn, facet, overfetch_limit, layer, role, category))
+            search_entries(conn, facet, overfetch_limit, layer, role,
+                           category, **kwargs))
     _trace("bm25_search (%d facets)" % len(facets), t0)
 
     t0 = time.time()
@@ -1900,6 +1919,7 @@ async def pipeline_search(
     role: Optional[str] = None,
     context_files: Optional[List[str]] = None,
     category: Optional[str] = None,
+    domain: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Multi-pass retrieval: decompose -> BM25 -> score -> expand -> retry -> rerank."""
     talisman = _load_talisman()
@@ -1909,7 +1929,7 @@ async def pipeline_search(
     facets = await _pipeline_decompose(
         query, _get_echoes_config(talisman, "decomposition"))
     candidates = _pipeline_bm25_search(
-        conn, facets, overfetch_limit, layer, role, category)
+        conn, facets, overfetch_limit, layer, role, category, domain)
 
     t0 = time.time()
     scored = compute_composite_score(
@@ -1952,9 +1972,9 @@ def build_fts_query(raw_query):
 
 def _build_search_sql(
     fts_query: str, layer: Optional[str], role: Optional[str], limit: int,
-    category: Optional[str] = None,
+    category: Optional[str] = None, domain: Optional[str] = None,
 ) -> Tuple[str, List[Any]]:
-    """Build FTS5 search SQL with optional layer/role/category filters."""
+    """Build FTS5 search SQL with optional layer/role/category/domain filters."""
     sql = """SELECT e.id, e.source, e.layer, e.role, e.date,
                     substr(e.content, 1, 200) AS content_preview,
                     e.line_number, e.tags, bm25(echo_entries_fts) AS score
@@ -1971,6 +1991,9 @@ def _build_search_sql(
     if category:
         sql += " AND e.category = ?"
         params.append(category)
+    if domain:
+        sql += " AND e.domain = ?"
+        params.append(domain)
     sql += " ORDER BY bm25(echo_entries_fts) ASC LIMIT ?"
     params.append(limit)
     return sql, params
@@ -1987,13 +2010,15 @@ def _search_row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
     }
 
 
-def search_entries(conn, query, limit=10, layer=None, role=None, category=None):
+def search_entries(conn, query, limit=10, layer=None, role=None, category=None,
+                   domain=None):
     """Execute a BM25 full-text search over the echo entries table."""
-    # type: (sqlite3.Connection, str, int, Optional[str], Optional[str], Optional[str]) -> List[Dict]
+    # type: (sqlite3.Connection, str, int, Optional[str], Optional[str], Optional[str], Optional[str]) -> List[Dict]
     fts_query = build_fts_query(query)
     if not fts_query:
         return []
-    sql, params = _build_search_sql(fts_query, layer, role, limit, category)
+    sql, params = _build_search_sql(fts_query, layer, role, limit, category,
+                                    domain)
     cursor = conn.execute(sql, params)
     return [_search_row_to_dict(row) for row in cursor.fetchall()]
 
@@ -2455,6 +2480,26 @@ TOOL_SCHEMAS = [
                     "description": "Output format: json (default, structured) or markdown (human-readable)",
                     "default": "json",
                 },
+                "scope": {
+                    "type": "string",
+                    "enum": ["project", "global", "all"],
+                    "default": "project",
+                    "description": (
+                        "Search scope: project echoes only (default), "
+                        "global echoes + doc packs, or both"
+                    ),
+                },
+                "domain": {
+                    "type": "string",
+                    "enum": [
+                        "backend", "frontend", "devops", "database",
+                        "testing", "architecture", "general",
+                    ],
+                    "description": (
+                        "Filter global results by domain tag. "
+                        "Only effective with scope=global or scope=all."
+                    ),
+                },
             },
             "required": ["query"],
         },
@@ -2621,15 +2666,17 @@ _VALID_LAYERS = frozenset(_LAYER_IMPORTANCE.keys())
 _SAFE_ROLE_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 _VALID_CATEGORIES = frozenset(
     {"general", "pattern", "anti-pattern", "decision", "debugging"})
+_VALID_SCOPES = frozenset({"project", "global", "all"})
+_VALID_DOMAINS = frozenset(
+    {"backend", "frontend", "devops", "database",
+     "testing", "architecture", "general"})
 
 
-def _sanitize_search_filters(
-    arguments: Dict,
-) -> Tuple[Optional[str], Optional[str], Optional[List[str]], Optional[str]]:
+def _sanitize_search_filters(arguments: Dict) -> Dict[str, Any]:
     """Sanitize optional filter fields for echo_search.
 
-    Returns (layer, role, context_files, category) with invalid values
-    coerced to ``None``.
+    Returns a dict with layer, role, context_files, category, scope, and
+    domain — invalid values coerced to ``None`` (or default).
     """
     # SEC-008: Allowlist validation — layer must be a known echo tier;
     # role must match safe identifier pattern (alphanumeric + hyphens/underscores).
@@ -2655,7 +2702,17 @@ def _sanitize_search_filters(
             category = None
         else:
             category = category.lower()
-    return layer, role, context_files, category
+    scope = arguments.get("scope", "project")
+    if not isinstance(scope, str) or scope not in _VALID_SCOPES:
+        scope = "project"
+    domain = arguments.get("domain")
+    if domain is not None:
+        if not isinstance(domain, str) or domain.lower() not in _VALID_DOMAINS:
+            domain = None
+        else:
+            domain = domain.lower()
+    return {"layer": layer, "role": role, "context_files": context_files,
+            "category": category, "scope": scope, "domain": domain}
 
 
 def _validate_search_args(arguments: Dict) -> Tuple[Optional[Tuple], Dict]:
@@ -2663,7 +2720,7 @@ def _validate_search_args(arguments: Dict) -> Tuple[Optional[Tuple], Dict]:
     query = arguments.get("query", "")
     if not isinstance(query, str) or not query:
         return ({"error": "query must be a non-empty string"}, True), {}
-    layer, role, context_files, category = _sanitize_search_filters(arguments)
+    filters = _sanitize_search_filters(arguments)
     limit = arguments.get("limit", 10)
     if not isinstance(limit, int) or limit < 1:
         limit = 10
@@ -2675,8 +2732,7 @@ def _validate_search_args(arguments: Dict) -> Tuple[Optional[Tuple], Dict]:
     if response_format not in ("json", "markdown"):
         response_format = "json"
     return None, {"query": query, "limit": limit, "offset": offset,
-                  "layer": layer, "role": role, "context_files": context_files,
-                  "category": category, "response_format": response_format}
+                  "response_format": response_format, **filters}
 
 
 def _format_search_markdown(entries, total_count, offset, limit, has_more):
@@ -2725,6 +2781,48 @@ def _build_search_response(
     }, False
 
 
+async def _search_single_scope(
+    conn: sqlite3.Connection,
+    args: Dict[str, Any],
+    fetch_limit: int,
+    source_scope: str,
+) -> List[Dict[str, Any]]:
+    """Run pipeline_search on a single DB and tag results with source_scope."""
+    domain = args.get("domain") if source_scope == "global" else None
+    results = await pipeline_search(
+        conn, args["query"], fetch_limit,
+        args["layer"], args["role"], args["context_files"],
+        args.get("category"), domain)
+    for r in results:
+        r["source_scope"] = source_scope
+    # NOTE: Doc-pack importance discount is applied at the factor level
+    # in _compute_entry_factors() (A3), not post-hoc on composite score.
+    return results
+
+
+def _merge_scoped_results(
+    project_results: List[Dict[str, Any]],
+    global_results: List[Dict[str, Any]],
+    limit: int,
+) -> List[Dict[str, Any]]:
+    """Merge results from two scopes by composite score, dedup by ID."""
+    combined = {}  # type: Dict[str, Dict[str, Any]]
+    for entry in project_results:
+        eid = entry.get("id", "")
+        if eid:
+            combined[eid] = entry
+    for entry in global_results:
+        eid = entry.get("id", "")
+        if eid and (eid not in combined or
+                    entry.get("composite_score", 0.0) >
+                    combined[eid].get("composite_score", 0.0)):
+            combined[eid] = entry
+    return sorted(
+        combined.values(),
+        key=lambda x: x.get("composite_score", 0.0), reverse=True,
+    )[:limit]
+
+
 async def _mcp_handle_search(arguments: Dict) -> Tuple[Dict, bool]:
     """Handle echo_search — validate, run pipeline, record access."""
     err, args = _validate_search_args(arguments)
@@ -2732,24 +2830,74 @@ async def _mcp_handle_search(arguments: Dict) -> Tuple[Dict, bool]:
         return err[0], err[1]
     offset = args["offset"]
     fetch_limit = args["limit"] + offset
-    conn = _get_ready_conn(DB_PATH, ECHO_DIR)
-    try:
-        all_results = await pipeline_search(
-            conn, args["query"], fetch_limit + 1,
-            args["layer"], args["role"], args["context_files"],
-            args.get("category"))
-        total_candidates = len(all_results)
-        has_more = total_candidates > fetch_limit
-        results = all_results[offset:fetch_limit]
-        try:
-            _record_access(conn, results, args["query"])
-        except (sqlite3.Error, OSError) as exc:
-            logger.debug("access log write failed: %s", exc)
-    finally:
-        conn.close()
+    scope = args.get("scope", "project")
+
+    all_results = await _run_scoped_search(args, fetch_limit + 1, scope)
+
+    total_candidates = len(all_results)
+    has_more = total_candidates > fetch_limit
+    results = all_results[offset:fetch_limit]
+    _safe_record_access(results, args["query"], scope)
     return _build_search_response(
         results, total_candidates, offset, args["limit"],
         has_more, args["response_format"])
+
+
+async def _run_scoped_search(
+    args: Dict[str, Any], fetch_limit: int, scope: str,
+) -> List[Dict[str, Any]]:
+    """Execute search across the requested scope(s)."""
+    project_results = []  # type: List[Dict[str, Any]]
+    global_results = []  # type: List[Dict[str, Any]]
+
+    if scope in ("project", "all"):
+        conn = _get_ready_conn(DB_PATH, ECHO_DIR)
+        try:
+            project_results = await _search_single_scope(
+                conn, args, fetch_limit, "project")
+        finally:
+            conn.close()
+
+    if scope in ("global", "all"):
+        gconn = get_global_conn()
+        if gconn is not None:
+            global_results = await _search_single_scope(
+                gconn, args, fetch_limit, "global")
+
+    if scope == "all" and project_results and global_results:
+        return _merge_scoped_results(
+            project_results, global_results, fetch_limit)
+    if scope == "global":
+        return global_results
+    if scope == "all":
+        return project_results or global_results
+    return project_results
+
+
+def _safe_record_access(
+    results: List[Dict[str, Any]], query: str, scope: str,
+) -> None:
+    """Record access events, routing to the correct DB per result scope."""
+    project_entries = [r for r in results
+                       if r.get("source_scope", "project") == "project"]
+    global_entries = [r for r in results
+                      if r.get("source_scope") == "global"]
+    if project_entries and scope in ("project", "all"):
+        try:
+            conn = get_db(DB_PATH)
+            try:
+                _record_access(conn, project_entries, query)
+            finally:
+                conn.close()
+        except (sqlite3.Error, OSError) as exc:
+            logger.debug("project access log write failed: %s", exc)
+    if global_entries and scope in ("global", "all"):
+        try:
+            gconn = get_global_conn()
+            if gconn is not None:
+                _record_access(gconn, global_entries, query)
+        except (sqlite3.Error, OSError) as exc:
+            logger.debug("global access log write failed: %s", exc)
 
 
 async def _mcp_handle_details(arguments: Dict) -> Tuple[Dict, bool]:
