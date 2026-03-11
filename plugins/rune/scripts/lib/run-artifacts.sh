@@ -209,9 +209,15 @@ _rune_artifact_create_run() {
 
   # Write initial meta.json atomically
   # BACK-007: Record start_epoch for precise duration calculation (avoids date re-parse)
+  # XVER-004: Use mktemp for unpredictable temp path (symlink attack mitigation)
   local start_epoch_val
   start_epoch_val="$(date +%s 2>/dev/null || echo "0")"
-  local tmp_meta="$run_dir/meta.json.tmp"
+  local tmp_meta
+  tmp_meta="$(mktemp "$run_dir/.meta.XXXXXX" 2>/dev/null)" || {
+    echo "[rune-artifacts] ERROR: mktemp failed for meta.json" >&2
+    rm -rf "$run_dir" 2>/dev/null
+    return 1
+  }
   jq -n \
     --arg agent "$agent_name" \
     --arg wf "$workflow" \
@@ -425,7 +431,12 @@ rune_artifact_write_input() {
   fi
 
   # Write input.md atomically
-  local tmp_input="$run_dir/input.md.tmp"
+  # XVER-004: Use mktemp for unpredictable temp path (symlink attack mitigation)
+  local tmp_input
+  tmp_input="$(mktemp "$run_dir/.input.XXXXXX" 2>/dev/null)" || {
+    echo "[rune-artifacts] ERROR: mktemp failed for input.md" >&2
+    return 1
+  }
   printf '%s\n' "$prompt_content" > "$tmp_input" 2>/dev/null
 
   # SEC-002: Re-verify no symlink before mv
@@ -529,7 +540,12 @@ rune_artifact_finalize() {
   # Update meta.json atomically via jq
   local completed_at
   completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  local tmp_finalize="$meta_file.tmp"
+  # XVER-004: Use mktemp for unpredictable temp path (symlink attack mitigation)
+  local tmp_finalize
+  tmp_finalize="$(mktemp "${meta_file%/*}/.finalize.XXXXXX" 2>/dev/null)" || {
+    echo "[rune-artifacts] ERROR: mktemp failed for meta.json update" >&2
+    return 1
+  }
 
   jq \
     --arg tstat "$completion_status" \

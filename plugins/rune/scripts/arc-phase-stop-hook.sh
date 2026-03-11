@@ -292,7 +292,12 @@ _demote_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '
   else
     { demoted: [], checkpoint: . }
   end
-' 2>/dev/null || true)
+' 2>/dev/null)
+
+if [[ -z "${_demote_result:-}" ]]; then
+  _diag "WARNING: Failed to demote checkpoint: jq parse error"
+  _trace "WARNING: Failed to demote checkpoint: jq parse error"
+fi
 
 _demoted_count=0
 if [[ -n "$_demote_result" ]]; then

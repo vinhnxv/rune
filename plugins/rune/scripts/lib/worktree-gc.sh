@@ -83,9 +83,10 @@ rune_wt_is_orphaned() {
 }
 
 # ── Clean a single worktree (with uncommitted change handling) ──
-# Args: $1=worktree path, $2=CWD (for salvage), $3=mode
+# Args: $1=worktree path, $2=CWD (main repo), $3=mode
+# Returns: 0 on success, 1 on failure
 rune_clean_worktree() {
-  local wt_path="$1" cwd="${2:-}" mode="${3:-session-stop}"
+  local wt_path="$1" cwd="$2" mode="${3:-session-stop}"
   [[ -z "$wt_path" ]] && return 0
   [[ ! -d "$wt_path" ]] && return 0
 
@@ -100,7 +101,8 @@ rune_clean_worktree() {
     # Salvage uncommitted work as patch (skip in session-stop for timeout)
     if [[ "$mode" != "session-stop" && -n "$cwd" ]]; then
       local salvage_dir="${cwd}/tmp"
-      if [[ -d "$salvage_dir" ]]; then
+      # SEC-005: Symlink guard - prevent writing to attacker-controlled paths
+      if [[ -d "$salvage_dir" && ! -L "$salvage_dir" ]]; then
         git -C "$wt_path" diff HEAD > "${salvage_dir}/.rune-salvage-$(basename "$wt_path").patch" 2>/dev/null || true
       fi
     fi
@@ -108,15 +110,23 @@ rune_clean_worktree() {
   fi
 
   # Remove worktree (retry with --force on failure)
-  if ! git worktree remove "$wt_path" 2>/dev/null; then
-    git worktree remove --force "$wt_path" 2>/dev/null || true
+  # Use git -C "$cwd" for proper repository context
+  if ! git -C "$cwd" worktree remove "$wt_path" 2>/dev/null; then
+    if ! git -C "$cwd" worktree remove --force "$wt_path" 2>/dev/null; then
+      return 1  # Failure: worktree could not be removed
+    fi
   fi
+  return 0  # Success
 }
 
 # ── Clean a single branch ──
+# Args: $1=CWD (main repo), $2=branch name
+# Returns: 0 on success, 1 on failure (including current branch)
 rune_clean_branch() {
   local cwd="$1" branch="$2"
   [[ -z "$branch" ]] && return 0
+  # SEC-007: Path traversal guard - block ".." in branch names
+  [[ "$branch" == *".."* ]] && return 0
   # SEC: prevent injection — validate branch name
   [[ "$branch" =~ ^[a-zA-Z0-9._/-]+$ ]] || return 0
   # Never delete current branch
@@ -126,8 +136,11 @@ rune_clean_branch() {
 
   # Try safe delete first, force only on failure
   if ! git -C "$cwd" branch -d "$branch" 2>/dev/null; then
-    git -C "$cwd" branch -D "$branch" 2>/dev/null || true
+    if ! git -C "$cwd" branch -D "$branch" 2>/dev/null; then
+      return 1  # Failure: branch could not be deleted
+    fi
   fi
+  return 0  # Success
 }
 
 # ── Main GC function ──
@@ -170,8 +183,9 @@ rune_worktree_gc() {
     fi
     wt_timestamp=$(rune_extract_wt_timestamp "$wt_path")
     if rune_wt_is_orphaned "$cwd" "$wt_timestamp"; then
-      rune_clean_worktree "$wt_path" "$cwd" "$mode"
-      cleaned_wt=$((cleaned_wt + 1))
+      if rune_clean_worktree "$wt_path" "$cwd" "$mode"; then
+        cleaned_wt=$((cleaned_wt + 1))
+      fi
     else
       skipped=$((skipped + 1))
     fi
