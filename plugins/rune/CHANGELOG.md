@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.149.2] - 2026-03-11
+
+### Fixed
+- **docs: comprehensive doc sync** — Updated all documentation to match current v1.149.x state:
+  - **plugin.json + marketplace.json**: "19 commands" → "18 commands" (actual count)
+  - **README review agents table**: Added `aesthetic-quality-reviewer` and `design-system-compliance-reviewer` (2 missing agents). Updated header "42 specialized agents" → "46 review agent definitions (34 agents + 12 specialist prompt templates)"
+  - **README skills table**: Added 8 missing skills: `design-system-discovery`, `resolve-todos`, `team-sdk`, `team-status`, `runs`, `utility-crew`, `ux-design-process`, `storybook`
+  - **README file structure**: Added 3 missing commands: `team-delegate`, `team-shutdown`, `team-spawn`
+  - **README**: "All 77 agents" → "All 100 agents" in Teammate Lifecycle Safety
+  - **README**: `context7-mcp@^1.0.0` → `context7-mcp@2.1.3` (matches .mcp.json)
+  - **README**: "9-dimension scoring" → "10-dimension scoring" (inspect has 10 dimensions since v1.149.0)
+  - **README + specialist-prompts path**: Updated stale `specialist-prompts/` → `stacks/references/`
+  - **"27-phase" → "28-phase"**: Fixed across README, arc-batch SKILL.md, using-rune SKILL.md, context-weaving SKILL.md, phase-summary-template.md, post-arc.md (UX verification added in v1.99.0 was never reflected)
+  - **ROADMAP.md**: Updated version v1.134.3 → v1.149.1, agent counts 86 → 100, commands 16 → 18, skills 49 → 54, phases 27 → 28
+
 ## [1.149.1] - 2026-03-11
 
 ### Fixed
