@@ -13,7 +13,7 @@
 #   2. Check for active Rune workflow via state files:
 #      - .claude/arc/*/checkpoint.json with "in_progress" phase
 #      - tmp/.rune-{review,audit,work,inspect,mend,plan,forge,goldmask,
-#        brainstorm,debug,resolve-todos,design-sync}-*.json with "active" status
+#        brainstorm,debug,design-sync}-*.json with "active" status
 #   3. If active workflow found, verify Task input includes team_name
 #   4. Block if team_name missing — output deny JSON
 #
@@ -217,7 +217,7 @@ if [[ -z "$active_workflow" ]]; then
            "${CWD}"/tmp/.rune-mend-*.json "${CWD}"/tmp/.rune-plan-*.json \
            "${CWD}"/tmp/.rune-forge-*.json "${CWD}"/tmp/.rune-goldmask-*.json \
            "${CWD}"/tmp/.rune-brainstorm-*.json "${CWD}"/tmp/.rune-debug-*.json \
-           "${CWD}"/tmp/.rune-resolve-todos-*.json "${CWD}"/tmp/.rune-design-sync-*.json; do
+           "${CWD}"/tmp/.rune-design-sync-*.json; do
     # Skip files older than STALE_THRESHOLD_MIN minutes
     # PERF: per-file `find -maxdepth 0 -mmin` is O(n) but safe; batch find risks glob/ownership edge cases
     if [[ -f "$f" ]] && find "$f" -maxdepth 0 -mmin -${STALE_THRESHOLD_MIN} -print -quit 2>/dev/null | grep -q . && jq -e '.status == "active"' "$f" &>/dev/null; then

@@ -433,5 +433,4 @@ Partial results remain in `tmp/audit/{id}/`.
 - [Sharded Review Path](references/sharded-review-path.md) — Phase 3 shard orchestration pseudocode (spawn, monitor, cross-shard)
 - [Pre-Aggregate](references/pre-aggregate.md) — Phase 5.0 extraction algorithm (threshold-gated, deterministic)
 - [Codex Verification Phases](references/codex-verification-phases.md) — Phase 6.2 diff verification + Phase 6.3 architecture review
-- [File-Todos Integration](../file-todos/references/integration-guide.md) — Phase 5.4 todo generation from TOME
 - Companion: `rune-orchestration` (patterns), `context-weaving` (Glyph Budget)

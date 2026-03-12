@@ -8,7 +8,6 @@
   "config_dir": "/Users/dev/.claude",
   "owner_pid": 12345,
   "session_id": "conv-session-789",
-  "todos_base": "tmp/arc/20260305-091500/todos/",
   "freshness": { "score": 0.91, "signals": { "structural": true, "dependency": true, "api": true, "config": true, "test": true } },
   "flags": {
     "no_forge": false, "approve": false, "skip_freshness": false,

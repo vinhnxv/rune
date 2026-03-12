@@ -210,22 +210,6 @@ See [arc-checkpoint-init.md](references/arc-checkpoint-init.md) for the full ini
 
 Read and execute the arc-checkpoint-init.md algorithm.
 
-### Session-Scoped Todos (initialized by checkpoint)
-
-`todos_base` is set eagerly during checkpoint init (see [arc-checkpoint-init.md](references/arc-checkpoint-init.md)) — NOT as a separate post-init step. The directory `tmp/arc/{id}/todos/` is also created during init.
-
-```javascript
-// VERIFY todos_base was set by checkpoint init (defensive — should never be null)
-if (!checkpoint.todos_base) {
-  const todosBase = `tmp/arc/${id}/todos/`
-  Bash(`mkdir -p "${todosBase}"`)
-  updateCheckpoint({ todos_base: todosBase })
-  warn("todos_base was null after checkpoint init — recovered. This should not happen.")
-}
-```
-
-Each delegated phase (strive, appraise) detects the active arc checkpoint and redirects todos to `tmp/arc/{id}/todos/` instead of their own output directory. Detection: scan `.claude/arc/*/checkpoint.json` for the relevant phase `in_progress` + `todos_base`. No `--todos-dir` flag is passed. See [arc-delegation-checklist.md](references/arc-delegation-checklist.md) § Phase 5, 6, 7 for per-phase todo resolution contracts.
-
 ### Dispatch Herald — Inter-Phase Staleness Detection
 
 Between delegated phases that use Utility Crew context packs, the dispatch-herald agent checks for pack staleness. Only spawned when `utility_crew.enabled` AND `dispatch_herald.enabled` AND the workflow is `arc` or `arc-batch`.

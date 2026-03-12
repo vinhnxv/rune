@@ -597,8 +597,7 @@ if [[ -d "${CWD}/tmp/.rune-signals/" ]]; then
                "${CWD}/tmp/.rune-signals/"rune-audit-*/ \
                "${CWD}/tmp/.rune-signals/"arc-audit-*/ \
                "${CWD}/tmp/.rune-signals/"rune-inspect-*/ \
-               "${CWD}/tmp/.rune-signals/"rune-mend-*/ \
-               "${CWD}/tmp/.rune-signals/"rune-resolve-todos-*/; do
+               "${CWD}/tmp/.rune-signals/"rune-mend-*/; do
     [[ ! -d "$sdir" ]] && continue
     [[ -L "$sdir" ]] && continue
     sdirname="${sdir%/}"

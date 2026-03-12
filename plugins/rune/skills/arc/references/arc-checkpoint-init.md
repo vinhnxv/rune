@@ -242,9 +242,6 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
     parent: shardInfo.parentPath,      // e.g., "plans/...-implementation-plan.md"
     dependencies: shardInfo.dependencies  // e.g., [1]
   } : null,
-  // CRITICAL: Set todos_base eagerly during init — NOT as a separate post-init step.
-  // Previously null here, causing downstream phases to scatter todos across standalone dirs.
-  todos_base: `tmp/arc/${id}/todos/`,
   // Schema v22 addition (v1.144.0): cancellation tracking
   user_cancelled: false,
   cancel_reason: null,
@@ -271,11 +268,6 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
   started_at: new Date().toISOString(),
   updated_at: new Date().toISOString()
 })
-
-// Create the todos directory immediately after checkpoint write.
-// Downstream phases (strive, appraise) depend on both the checkpoint field AND
-// the directory existing when they scan for arc context.
-Bash(`mkdir -p "tmp/arc/${id}/todos/"`)
 
 // ── Scheduled Monitoring Task Creation (Schema v22) ──
 // Create a scheduled task to monitor arc health and auto-resume on unexpected stops.

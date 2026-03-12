@@ -70,18 +70,6 @@
         ]
       },
       {
-        "matcher": "Write|Edit|NotebookEdit",
-        "_rationale": "SEC-RESOLVE-001: Mandatory, fail-open hook for resolve-todos fixers. Validates path against inscription.json allowlist. Accepted risk: Bash tool not covered (constrained by prompt-level Truthbinding).",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/validate-resolve-fixer-paths.sh",
-            "timeout": 5,
-            "statusMessage": "Checking resolve-todos fixer file scope..."
-          }
-        ]
-      },
-      {
         "matcher": "Task|Agent",
         "hooks": [
           {
@@ -89,18 +77,6 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/enforce-teams.sh",
             "timeout": 5,
             "statusMessage": "Checking Agent Teams compliance..."
-          }
-        ]
-      },
-      {
-        "matcher": "Task|Agent",
-        "_rationale": "STRIVE-TODOS-001: Advisory hook that checks if per-task file-todos exist before worker spawn. Non-blocking (additionalContext only). Only activates for rune-work-* teams.",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/validate-strive-todos.sh",
-            "timeout": 5,
-            "statusMessage": "Checking file-todos..."
           }
         ]
       },

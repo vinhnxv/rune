@@ -1,12 +1,10 @@
-# Todo Protocol — Per-Worker Todo Files (v1.43.0+)
+# Todo Protocol — Per-Worker Session Logs (v1.43.0+)
 
-All worker spawn prompts MUST include the following TODO FILE PROTOCOL block. Workers create per-worker todo files that persist after work completion for cross-session resume, post-mortem review, and accountability tracking.
+All worker spawn prompts MUST include the following TODO FILE PROTOCOL block. Workers create per-worker session log files that persist after work completion for cross-session resume, post-mortem review, and accountability tracking.
 
-## Todo File Location
+## Log File Location
 
 `tmp/work/{timestamp}/worker-logs/{worker-name}.md`
-
-> **Note**: Per-worker session logs moved from `todos/` to `worker-logs/` in v1.101.0. The `todos/` directory now holds only per-task file-todos (YAML frontmatter format, managed by the orchestrator).
 
 ## Required YAML Frontmatter (4 fields only)
 
@@ -180,131 +178,6 @@ If `worker-logs/_summary.md` exists, append a collapsible Work Session section t
 
 **Error handling**: Missing summary → fall back to existing PR body generation (non-blocking).
 
-## Per-Task File-Todos (v2, mandatory)
-
-The orchestrator creates per-task todo files in `{todos_base}/work/` (session-scoped). File-todos are mandatory — there is no `--todos=false` option. The `todos_base` path is recorded in the strive state file (`tmp/.rune-work-{timestamp}.json`) for downstream consumption by arc phases (review, mend, etc.).
-
-### Orchestrator: Per-Task Todo Creation (Phase 1)
-
-> **DEPRECATED (v1.105.0)**: This section's code is now inlined directly in strive/SKILL.md Phase 1.
-> The inline version uses a simplified schema (8 fields). This reference is retained for documentation only.
-
-After creating TaskCreate entries, generate corresponding per-task todo files:
-
-```javascript
-// Session-scoped: each strive session gets its own todos directory
-const workflowOutputDir = `tmp/work/${timestamp}/`
-const todosDir = resolveTodosDir(workflowOutputDir, "work")
-//   → "tmp/work/{timestamp}/todos/work/"
-Bash(`mkdir -p "${todosDir}"`)
-
-// Get next sequential ID — use max(existing IDs) + 1 to avoid collision when gaps exist
-const existing = Glob(`${todosDir}[0-9][0-9][0-9]-*.md`)  // (N) safe
-let nextId = existing.length === 0 ? 1
-  : Math.max(...existing.map(f => parseInt(f.split('/').pop().slice(0, 3), 10) || 0)) + 1
-
-for (const task of extractedTasks) {
-  // Dedup: check for existing todo with matching source_ref
-  const isDuplicate = existing.some(f => {
-    const fm = parseFrontmatter(Read(f))
-    return fm.source_ref === planPath && fm.tags?.includes(`task-${task.id}`)
-  })
-  if (isDuplicate) continue
-
-  // Map risk tier to priority
-  const priority = task.risk_tier === 'critical' ? 'p1'
-    : task.risk_tier === 'high' ? 'p2' : 'p3'
-
-  // Slug algorithm (must match file-todos skill definition)
-  const slug = task.subject.toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40)
-
-  const issueId = String(nextId).padStart(3, '0')
-  const filename = `${issueId}-ready-${priority}-${slug}.md`
-
-  Write(`${todosDir}${filename}`, generateTodoFromTask(task, {
-    schema_version: 2,
-    status: "ready",            // work tasks are pre-triaged
-    priority,
-    issue_id: issueId,
-    source: "work",
-    source_ref: planPath,
-    tags: [`task-${task.id}`],
-    files: task.fileTargets || [],
-    wave: task.wave || null,    // from wave grouping (v2 field)
-    workflow_chain: [`strive:${timestamp}`],  // v2 field
-    created: today,
-    updated: today
-  }))
-
-  nextId++
-}
-```
-
-### Worker: Per-Task Todo Updates (Phase 2+)
-
-Workers also update their assigned todo file's Work Log:
-
-```
-PER-TASK TODO PROTOCOL:
-1. After claiming a task, check if a matching todo exists in {todosDir}
-   (resolved via resolveTodosDir(workflowOutputDir, "work") — passed in spawn prompt)
-   Grep for tags containing "task-{your-task-id}" in frontmatter
-2. If found: append Work Log entries as you progress
-3. On completion: signal orchestrator (orchestrator updates status)
-4. On block: signal orchestrator (orchestrator updates status)
-NOTE: Workers do NOT modify frontmatter status directly — sole-orchestrator pattern.
-```
-
-### Orchestrator: Per-Task Status Updates (Phase 4.1)
-
-After all workers exit, update per-task todo frontmatter:
-
-```javascript
-const todoFiles = Glob(`${todosDir}[0-9][0-9][0-9]-*.md`)
-for (const todoFile of todoFiles) {
-  const fm = parseFrontmatter(Read(todoFile))
-  // Session isolation: only update todos from THIS workflow output dir
-  if (!todoFile.startsWith(`tmp/work/${timestamp}/todos/`)) continue
-  if (fm.source !== 'work') continue
-
-  // Find corresponding TaskCreate entry
-  const taskTag = fm.tags?.find(t => t.startsWith('task-'))
-  if (!taskTag) continue
-
-  const taskId = taskTag.replace('task-', '')
-  const task = allTasks.find(t => t.id === taskId)
-  if (!task) continue
-
-  if (task.status === 'completed' && fm.status !== 'complete') {
-    Edit(todoFile, { old_string: `status: ${fm.status}`, new_string: 'status: complete' })
-    Edit(todoFile, { old_string: `updated: "${fm.updated}"`, new_string: `updated: "${today}"` })
-  } else if (task.status === 'pending' && (fm.status === 'in_progress' || fm.status === 'ready')) {
-    // Task was released (ward failure) or never claimed — mark blocked
-    Edit(todoFile, { old_string: `status: ${fm.status}`, new_string: 'status: blocked' })
-    Edit(todoFile, { old_string: `updated: "${fm.updated}"`, new_string: `updated: "${today}"` })
-  }
-}
-```
-
-### Stale Cleanup (Phase 6, Step 3.55)
-
-Scoped to current session only via directory path (session-scoped model):
-
-```javascript
-const todoFiles = Glob(`${todosDir}[0-9][0-9][0-9]-*.md`)
-for (const todoFile of todoFiles) {
-  // Path-based session isolation — todos are in session-scoped directory
-  if (!todoFile.startsWith(`tmp/work/${timestamp}/todos/`)) continue
-  const fm = parseFrontmatter(Read(todoFile))
-  if (fm.status === 'in_progress') {
-    Edit(todoFile, { old_string: 'status: in_progress', new_string: 'status: interrupted' })
-    warn(`Per-task todo ${todoFile} was in_progress at cleanup — marked interrupted`)
-  }
-}
-```
 
 ## Phase 6 Safety Net (FLAW-008)
 

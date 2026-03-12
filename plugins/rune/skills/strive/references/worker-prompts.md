@@ -887,5 +887,5 @@ When `totalWaves > 1`, workers are named per-wave to distinguish fresh instances
 Workers receive pre-assigned tasks via `TaskUpdate({ owner })` before spawning. Each worker works through its assigned task list sequentially instead of dynamically claiming from the pool.
 
 **Talisman configuration**:
-- `work.todos_per_worker`: Maximum tasks per worker per wave (default: 3)
+- `work.tasks_per_worker`: Maximum tasks per worker per wave (default: 3)
 - `work.max_workers`: Maximum workers per role (default: 3)

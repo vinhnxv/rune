@@ -146,34 +146,6 @@ ${decisions ? decisions : ""}
   }
   return ""
 })()}
-${(() => {
-  // Per-task file-todos status (no talisman read needed — deduped)
-  // Use todosOutputDir (arc-aware) from Phase 1 — not workflowOutputDir
-  const todosDir = resolveTodosDir(todosOutputDir, "work")
-  const todoFiles = Glob(`${todosDir}[0-9][0-9][0-9]-*.md`)
-    .concat(Glob(`${todosDir}[0-9][0-9][0-9][0-9]-*.md`))
-  if (todoFiles.length > 0) {
-    const counts = { pending: 0, ready: 0, in_progress: 0, complete: 0, blocked: 0, wont_fix: 0 }
-    for (const f of todoFiles) {
-      const fm = parseFrontmatter(Read(f))
-      if (counts[fm.status] !== undefined) counts[fm.status]++
-    }
-    return `
-## File-Todos
-
-| Status | Count |
-|--------|-------|
-| Complete | ${counts.complete} |
-| In Progress | ${counts.in_progress} |
-| Ready | ${counts.ready} |
-| Pending | ${counts.pending} |
-| Blocked | ${counts.blocked} |
-
-See \`${todosDir}\` for individual todo files.
-`
-  }
-  return ""
-})()}
 ${Bash(`test -f "tmp/work/${timestamp}/codex-advisory.md" && echo "yes"`).trim() === "yes" ? `
 ## Codex Advisory
 See [codex-advisory.md](tmp/work/${timestamp}/codex-advisory.md) for cross-model implementation review.` : ""}

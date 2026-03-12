@@ -153,7 +153,7 @@ if printf '%s\n' "$NORMALIZED" | grep -qE '(^|[[:space:];|&(])sleep[[:space:]]+[
              "${CWD}"/tmp/.rune-plan-*.json "${CWD}"/tmp/.rune-forge-*.json \
              "${CWD}"/tmp/.rune-inspect-*.json "${CWD}"/tmp/.rune-goldmask-*.json \
              "${CWD}"/tmp/.rune-brainstorm-*.json "${CWD}"/tmp/.rune-debug-*.json \
-             "${CWD}"/tmp/.rune-resolve-todos-*.json "${CWD}"/tmp/.rune-design-sync-*.json; do
+             "${CWD}"/tmp/.rune-design-sync-*.json; do
       if [[ ! -f "$f" ]]; then continue; fi
       # SEC-4 FIX: Use jq for precise status extraction instead of grep substring match
       file_status=$(jq -r '.status // empty' "$f" 2>/dev/null || true)

@@ -752,7 +752,6 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | evidence-verifier | Evidence-based plan claim validation — 3-layer verification (Codebase/Documentation/External), per-claim grounding scores, weighted overall plan grounding score |
 | design-analyst | Figma frame relationship classifier — 5-signal weighted composite scoring, same-screen clustering, variant detection |
 | research-verifier | External research output validation — relevance, accuracy, freshness, cross-validation, and security checks |
-| todo-verifier | TODO staleness classification — verifies TODOs as VALID or FALSE_POSITIVE during /rune:resolve-todos |
 | ux-pattern-analyzer | UX pattern usage and maturity analysis — loading, error handling, form validation, navigation patterns |
 | tome-digest | TOME finding digest extraction — P1 counts, recurring patterns, affected files for mend gating |
 | condenser-gap | Gap analysis artifact condenser — MISSING/PARTIAL/COMPLETE counts for inter-phase context reduction |
@@ -780,7 +779,6 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | design-prototype | Standalone Figma-to-Storybook prototype generator — 5-phase pipeline (extract → match → synthesize → verify → present). Two input modes: Figma URL or text description. Gated by `design_sync.enabled` |
 | design-sync | Figma design synchronization — 3-phase pipeline (PLAN: extraction → WORK: implementation → REVIEW: fidelity). VSM format, fidelity scoring (6 dimensions), iterative refinement. Gated by `design_sync.enabled` |
 | elicitation | Curated structured reasoning methods (Tree of Thoughts, Pre-mortem, Red Team, 5 Whys, etc.) with phase-aware auto-selection |
-| file-todos | Unified file-based todo tracking (schema v2, status history, per-source manifests, DAG ordering, 13 subcommands). Always active (mandatory). Session-scoped in `tmp/{workflow}/{id}/todos/`. |
 | figma-to-react | Figma-to-React MCP server — 4 tools (figma_fetch_design, figma_inspect_node, figma_list_components, figma_to_react) for converting Figma designs to React + Tailwind CSS v4 components (non-invocable) |
 | untitledui-mcp | UntitledUI official MCP integration — 6 tools for searching, browsing, and installing UntitledUI components (free + PRO). Code conventions, builder-protocol metadata, talisman config template. Auto-loaded by design-system-discovery (non-invocable) |
 | frontend-design-patterns | Frontend design implementation — design tokens, accessibility (WCAG 2.1 AA), responsive patterns, component reuse (REUSE > EXTEND > CREATE), layout alignment, variant mapping, Storybook. Auto-loaded by Stacks for frontend files (non-invocable) |
@@ -812,7 +810,6 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | zsh-compat | zsh shell compatibility (read-only vars, glob NOMATCH, word splitting) |
 | learn | Session self-learning — extract CLI corrections and review recurrences from session history, write patterns to Echoes. `/rune:learn` |
 | design-system-discovery | Design system auto-detection — scans repo for component libraries, token systems, and variant frameworks. Auto-loaded by devise, strive, arc (non-invocable) |
-| resolve-todos | Resolve file-based TODOs using Agent Teams with verify-before-fix pipeline. Each TODO reviewed before fix to prevent hallucinated fixes |
 | team-sdk | Centralized team management SDK — ExecutionEngine interface, shared lifecycle protocols, preset systems for Rune workflows (non-invocable) |
 | team-status | Team health dashboard — show active team members, task progress, and communication state (non-invocable) |
 | runs | Workflow run history and diagnostics (non-invocable) |
@@ -953,7 +950,6 @@ plugins/rune/
 │   ├── cancel-audit.md         # /rune:cancel-audit
 │   ├── elicit.md               # /rune:elicit
 │   ├── echoes.md               # /rune:echoes
-│   ├── file-todos.md           # /rune:file-todos
 │   ├── plan.md                 # /rune:plan (alias for /rune:devise)
 │   ├── plan-review.md          # /rune:plan-review
 │   ├── rest.md                 # /rune:rest

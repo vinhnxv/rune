@@ -297,7 +297,7 @@ workflow_file=$(find "${CWD}/tmp/" -maxdepth 1 -type f \
      -o -name ".rune-inspect-*.json" -o -name ".rune-plan-*.json" \
      -o -name ".rune-forge-*.json" -o -name ".rune-goldmask-*.json" \
      -o -name ".rune-brainstorm-*.json" -o -name ".rune-debug-*.json" \
-     -o -name ".rune-resolve-todos-*.json" -o -name ".rune-design-sync-*.json" \
+     -o -name ".rune-design-sync-*.json" \
      -o -name ".rune-arc-*.json" \) 2>/dev/null | while read -r f; do
     [[ -L "$f" ]] && continue
     echo "$f"

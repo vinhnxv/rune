@@ -250,7 +250,6 @@ all_shards=$(echo "$merged" | jq '{
     storybook: (.storybook // {}),
     stack_awareness: (.stack_awareness // {}),
     question_relay: (.question_relay // {}),
-    file_todos: (.file_todos // {}),
     context_monitor: (.context_monitor // {}),
     context_weaving: (.context_weaving // {}),
     codex_review: (.codex_review // {}),

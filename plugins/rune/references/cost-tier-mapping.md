@@ -71,7 +71,7 @@ Centralized reference for the `cost_tier` system that controls which Claude mode
 
 ### Utility (25)
 
-`runebinder`, `scroll-reviewer`, `knowledge-keeper`, `flow-seer`, `elicitation-sage`, `deployment-verifier`, `truthseer-validator`, `evidence-verifier`, `research-verifier`, `state-weaver`, `tome-digest`, `condenser-gap`, `condenser-verdict`, `condenser-plan`, `condenser-work`, `decree-arbiter`, `design-analyst`, `horizon-sage`, `veil-piercer-plan`, `todo-verifier`, `ux-pattern-analyzer`, `mend-fixer`, `context-scribe`, `prompt-warden`, `dispatch-herald`
+`runebinder`, `scroll-reviewer`, `knowledge-keeper`, `flow-seer`, `elicitation-sage`, `deployment-verifier`, `truthseer-validator`, `evidence-verifier`, `research-verifier`, `state-weaver`, `tome-digest`, `condenser-gap`, `condenser-verdict`, `condenser-plan`, `condenser-work`, `decree-arbiter`, `design-analyst`, `horizon-sage`, `veil-piercer-plan`, `ux-pattern-analyzer`, `mend-fixer`, `context-scribe`, `prompt-warden`, `dispatch-herald`
 
 ### Testing (5)
 

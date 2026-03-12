@@ -451,19 +451,6 @@
     "external_search": false,
     "require_evidence_chain": true
   },
-  "file_todos": {
-    "history": {
-      "enabled": true
-    },
-    "manifest": {
-      "auto_build": true,
-      "dedup_on_build": false,
-      "dedup_threshold": 0.7
-    },
-    "triage": {
-      "auto_approve_p1": false
-    }
-  },
   "goldmask": {
     "coordinator_model": "sonnet",
     "devise": {
@@ -546,8 +533,7 @@
     "max_inspectors": 4
   },
   "mend": {
-    "cross_file_batch_size": 4,
-    "todos_per_fixer": 5
+    "cross_file_batch_size": 4
   },
   "plan": {
     "freshness": {
@@ -787,7 +773,6 @@
     "max_workers": 3,
     "pr_monitoring": false,
     "skip_branch_check": false,
-    "todos_per_worker": 3,
     "unrestricted_shared_files": [],
     "ward_commands": [
       "make check",

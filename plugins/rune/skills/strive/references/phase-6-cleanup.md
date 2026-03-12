@@ -54,11 +54,7 @@ if (!cleanupTeamDeleteSucceeded) {
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/rune-work-${timestamp}/" "$CHOME/tasks/rune-work-${timestamp}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
-// 3.5: Fix stale todo file statuses (FLAW-008 — active → interrupted)
-// 3.55: Per-task file-todos cleanup:
-//       Scope to resolveTodosDir(todosOutputDir, "work") — work/ subdirectory only (arc-aware)
-//       Filter by work_session == timestamp (session isolation)
-//       Mark in_progress todos as interrupted for this session's tasks
+// 3.5: Fix stale worker log statuses (FLAW-008 — active → interrupted)
 // 3.6: Worktree garbage collection (worktree mode only)
 //      git worktree prune + remove orphaned worktrees matching rune-work-*
 // 3.7: Restore stashed changes if Phase 0.5 stashed (git stash pop)

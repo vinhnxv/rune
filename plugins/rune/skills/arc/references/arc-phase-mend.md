@@ -26,7 +26,7 @@ Invoke `/rune:mend` logic on the TOME. Parallel fixers resolve findings from the
 > Results are included in the resolution report. All non-fatal — mend continues without Codex on any error.
 > See `mend.md` Phase 5.8 for full pseudocode.
 
-> **Note**: `sha256()`, `updateCheckpoint()`, `exists()`, `warn()`, and `parseFrontmatter()` (from file-todos/references/subcommands.md Common Helpers) are dispatcher-provided utilities available in the arc orchestrator context. Phase reference files call these without import.
+> **Note**: `sha256()`, `updateCheckpoint()`, `exists()`, `warn()`, and `parseFrontmatter()` are dispatcher-provided utilities available in the arc orchestrator context. Phase reference files call these without import.
 
 > **Note**: This phase may be invoked multiple times by the convergence gate (Phase 7.5). On retry, the TOME source changes to `tome-round-{N}.md` and the timeout shrinks to MEND_RETRY_TIMEOUT. See [verify-mend.md](verify-mend.md) for the convergence protocol.
 
@@ -197,8 +197,6 @@ if (elicitEnabled && (p1Findings.length > 0 || recurringPatterns >= 5)) {
 // - Timeout propagation (--timeout ${mendTimeout})
 // - Team name prefix: arc-mend-{id}
 // - Root cause context: if elicitation-root-cause.md exists, pass to fixers
-// No --todos-dir flag — mend resolves todos_base via 3-step resolution: arc checkpoint → review state file → TOME path
-// In arc context, todos live at tmp/arc/{id}/todos/review/ (created by appraise via arc context detection)
 // Delegation pattern: /rune:mend creates its own team (e.g., rune-mend-{id}).
 // Arc reads the team name from the mend state file or teammate idle notification.
 // Invoke: /rune:mend {tomeSource} --timeout ${innerPolling}
@@ -262,67 +260,6 @@ updateCheckpoint({
   artifact: resolutionReportPath, artifact_hash: sha256(resolutionReport), phase_sequence: 7
 })
 
-// Post-Phase 7 todos verification (non-blocking)
-// 3-step resolution: arc checkpoint → review state file → TOME path derivation
-let reviewTodosBase = null
-
-// Step 1: Arc checkpoint (preferred — always available in arc context)
-// BACK-005 FIX: Filter to the current arc's checkpoint by id — not all arc checkpoints.
-// In arc-batch/arc-hierarchy, globbing all checkpoints and sorting by filename
-// could pick a different arc's checkpoint (wrong todos_base). Use the exact path.
-const currentArcCheckpoint = `.claude/arc/${id}/checkpoint.json`
-const arcCheckpoints = exists(currentArcCheckpoint)
-  ? [currentArcCheckpoint]
-  : Glob(".claude/arc/*/checkpoint.json").filter(f => f.includes(`/arc-${id.replace(/^arc-/, '')}/`)).sort().reverse()
-for (const ckpt of arcCheckpoints) {
-  try {
-    const c = JSON.parse(Read(ckpt))
-    if (c.todos_base && c.phases?.mend?.status !== "pending") {
-      reviewTodosBase = c.todos_base
-      break
-    }
-  } catch {}
-}
-
-// Step 2: Review state file (standalone appraise+mend, no arc)
-if (!reviewTodosBase) {
-  const reviewStateFiles = Glob("tmp/.rune-review-*.json").filter(f => {
-    try { return JSON.parse(Read(f)).todos_base } catch { return false }
-  }).sort().reverse()
-  reviewTodosBase = reviewStateFiles.length > 0
-    ? JSON.parse(Read(reviewStateFiles[0])).todos_base
-    : null
-}
-
-// Step 3: Derive from TOME path (last resort)
-// BACK-006 FIX: The regex /\/[^/]+\.md$/ fails silently if tomeSource doesn't end with
-// /filename.md (e.g. missing .md extension, trailing slash, or unexpected format).
-// Use explicit dirname extraction: strip last path segment after final '/', then append 'todos/'.
-// Also add a null/empty guard so a failed derivation doesn't produce a bogus path.
-if (!reviewTodosBase) {
-  const lastSlash = tomeSource.lastIndexOf('/')
-  const tomeDir = lastSlash > 0 ? tomeSource.slice(0, lastSlash + 1) : null
-  if (tomeDir && !tomeDir.includes('..') && tomeDir.startsWith('tmp/')) {
-    reviewTodosBase = `${tomeDir}todos/`
-  } else {
-    warn(`Could not derive todos_base from TOME path: ${tomeSource} — skipping todos verification`)
-  }
-}
-
-if (reviewTodosBase) {
-  const allTodos = Glob(`${reviewTodosBase}*/[0-9][0-9][0-9]-*.md`)
-  let completeCount = 0, pendingCount = 0
-  for (const f of allTodos) {
-    const fm = parseFrontmatter(Read(f))
-    if (fm.status === 'complete') completeCount++
-    else if (fm.status === 'pending') pendingCount++
-  }
-  log(`Todos verification post-mend: ${completeCount} complete, ${pendingCount} pending`)
-  // Store in checkpoint for ship phase summary
-  updateCheckpoint({
-    todos_summary: { complete: completeCount, pending: pendingCount, total: allTodos.length }
-  })
-}
 ```
 
 **Halt condition**: If more than 3 findings remain in FAILED state after mend, the pipeline halts. The user must manually fix the remaining issues and run `/rune:arc --resume` to continue.

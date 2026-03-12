@@ -65,7 +65,6 @@ for sf in \
   "$PROJECT_DIR/tmp/.rune-goldmask-"*.json \
   "$PROJECT_DIR/tmp/.rune-brainstorm-"*.json \
   "$PROJECT_DIR/tmp/.rune-debug-"*.json \
-  "$PROJECT_DIR/tmp/.rune-resolve-todos-"*.json \
   "$PROJECT_DIR/tmp/.rune-design-sync-"*.json; do
   [[ -f "$sf" ]] || continue
   HAS_RUNE_WORKFLOW=true

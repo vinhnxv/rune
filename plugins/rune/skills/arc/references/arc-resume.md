@@ -187,17 +187,8 @@ On resume, validate checkpoint integrity before proceeding:
    ```
 3u. If schema_version < 20, migrate v19 → v20:
    ```javascript
-   // Step 3u: v19 → v20 (todos_base)
+   // Step 3u: v19 → v20 (no-op — todos_base removed)
    if (checkpoint.schema_version < 20) {
-     checkpoint.todos_base = checkpoint.todos_base ?? null
-     // Backward compat: derive from id if missing
-     if (!checkpoint.todos_base && checkpoint.id) {
-       checkpoint.todos_base = `tmp/arc/${checkpoint.id}/todos/`
-     }
-     // Ensure todos directory exists on resume (may have been cleaned)
-     if (checkpoint.todos_base) {
-       Bash(`mkdir -p "${checkpoint.todos_base}"`)
-     }
      checkpoint.schema_version = 20
    }
    ```
