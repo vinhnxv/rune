@@ -28,7 +28,13 @@ if [[ -f "${SCRIPT_DIR}/../resolve-session-identity.sh" ]]; then
 fi
 # Fallback stub if rune_pid_alive was not loaded
 if ! type rune_pid_alive &>/dev/null; then
-  rune_pid_alive() { kill -0 "$1" 2>/dev/null; }
+  rune_pid_alive() {
+    kill -0 "$1" 2>/dev/null && return 0
+    # EPERM means process exists but we lack permission — treat as alive
+    # This prevents false "dead" detection for cross-user PIDs
+    kill -0 "$1" 2>&1 | grep -qi "perm" && return 0
+    return 1
+  }
 fi
 
 # SEC-001: Resolve LOCK_BASE to absolute path (anchored to git root or CWD)
@@ -157,12 +163,17 @@ rune_acquire_lock() {
       local _orphan_tmp
       _orphan_tmp="$(mktemp "${LOCK_BASE}/.meta.XXXXXX" 2>/dev/null)" || return 1
       _rune_build_meta "$workflow" "$class" > "$_orphan_tmp" 2>/dev/null || { rm -f "$_orphan_tmp" 2>/dev/null; return 1; }
-      rm -rf "$lock_dir" 2>/dev/null
+      # Atomic lock reclaim — prevents TOCTOU window where concurrent process's lock could be destroyed
+      local _orphan_stash="${lock_dir}.orphan.$$"
+      mv "$lock_dir" "$_orphan_stash" 2>/dev/null || { rm -f "$_orphan_tmp" 2>/dev/null; return 1; }
       if mkdir "$lock_dir" 2>/dev/null; then
         _rune_finalize_meta "$_orphan_tmp" "$lock_dir"
+        rm -rf "$_orphan_stash" 2>/dev/null
         [[ -f "$lock_dir/meta.json" ]] && return 0
         rm -rf "$lock_dir" "$_orphan_tmp" 2>/dev/null; return 1
       fi
+      # mkdir failed — contention loss, restore stashed lock
+      mv "$_orphan_stash" "$lock_dir" 2>/dev/null || true
       rm -f "$_orphan_tmp" 2>/dev/null
       return 1
     fi
@@ -176,13 +187,17 @@ rune_acquire_lock() {
         local _dead_tmp
         _dead_tmp="$(mktemp "${LOCK_BASE}/.meta.XXXXXX" 2>/dev/null)" || return 1
         _rune_build_meta "$workflow" "$class" > "$_dead_tmp" 2>/dev/null || { rm -f "$_dead_tmp" 2>/dev/null; return 1; }
-        rm -rf "$lock_dir" 2>/dev/null
+        # Atomic lock reclaim — prevents TOCTOU window where concurrent process's lock could be destroyed
+        local _dead_stash="${lock_dir}.orphan.$$"
+        mv "$lock_dir" "$_dead_stash" 2>/dev/null || { rm -f "$_dead_tmp" 2>/dev/null; return 1; }
         if mkdir "$lock_dir" 2>/dev/null; then
           _rune_finalize_meta "$_dead_tmp" "$lock_dir"
+          rm -rf "$_dead_stash" 2>/dev/null
           [[ -f "$lock_dir/meta.json" ]] && return 0
           rm -rf "$lock_dir" "$_dead_tmp" 2>/dev/null; return 1
         fi
-        # mkdir failed → contention loss, do not retry
+        # mkdir failed → contention loss, restore stashed lock
+        mv "$_dead_stash" "$lock_dir" 2>/dev/null || true
         rm -f "$_dead_tmp" 2>/dev/null
         return 1
       fi
@@ -197,7 +212,9 @@ rune_acquire_lock() {
       if ! _rune_build_meta "$workflow" "$class" > "$_ghost_tmp" 2>/dev/null; then
         rm -f "$_ghost_tmp" 2>/dev/null; continue
       fi
-      rm -rf "$lock_dir" 2>/dev/null
+      # Atomic lock reclaim — prevents TOCTOU window where concurrent process's lock could be destroyed
+      local _ghost_stash="${lock_dir}.orphan.$$"
+      mv "$lock_dir" "$_ghost_stash" 2>/dev/null || { rm -f "$_ghost_tmp" 2>/dev/null; continue; }
       # Jitter: sleep 0-50ms on retry to desynchronize concurrent acquirers
       if [[ "$_ghost_attempt" -gt 1 ]]; then
         # POSIX-portable sub-second sleep via perl or sleep fallback
@@ -205,6 +222,7 @@ rune_acquire_lock() {
       fi
       if mkdir "$lock_dir" 2>/dev/null; then
         _rune_finalize_meta "$_ghost_tmp" "$lock_dir"
+        rm -rf "$_ghost_stash" 2>/dev/null
         if [[ -f "$lock_dir/meta.json" ]]; then
           rm -f "$_ghost_tmp" 2>/dev/null
           return 0
@@ -213,6 +231,8 @@ rune_acquire_lock() {
         # First attempt failed to write meta — retry
         continue
       fi
+      # mkdir failed — contention loss, restore stashed lock
+      mv "$_ghost_stash" "$lock_dir" 2>/dev/null || true
       rm -f "$_ghost_tmp" 2>/dev/null
     done
   fi

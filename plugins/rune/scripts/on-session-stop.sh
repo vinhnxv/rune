@@ -89,7 +89,13 @@ if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
 else
   # Fallback: inline resolution (matches resolve-session-identity.sh logic)
   RUNE_CURRENT_CFG=$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P) || RUNE_CURRENT_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-  rune_pid_alive() { kill -0 "$1" 2>/dev/null; }
+  rune_pid_alive() {
+    kill -0 "$1" 2>/dev/null && return 0
+    # EPERM means process exists but we lack permission — treat as alive
+    # This prevents false "dead" detection for cross-user PIDs
+    kill -0 "$1" 2>&1 | grep -qi "perm" && return 0
+    return 1
+  }
 fi
 
 # ── Helper: Extract a YAML frontmatter field value (single-line, simple values only) ──
@@ -118,16 +124,27 @@ _check_loop_ownership() {
   local state_file="$1"
   [[ -f "$state_file" ]] && [[ ! -L "$state_file" ]] || return 1
   _LOOP_FM=$(sed -n '/^---$/,/^---$/p' "$state_file" 2>/dev/null | sed '1d;$d')
-  local cfg pid
+  local cfg pid sid
   cfg=$(_get_fm_field "$_LOOP_FM" "config_dir")
   pid=$(_get_fm_field "$_LOOP_FM" "owner_pid")
+  sid=$(_get_fm_field "$_LOOP_FM" "session_id")
   # Check config_dir (uses RUNE_CURRENT_CFG from resolve-session-identity.sh)
   if [[ -n "$cfg" && "$cfg" != "$RUNE_CURRENT_CFG" ]]; then
     return 1
   fi
-  # Check PID (EPERM-safe: rune_pid_alive from resolve-session-identity.sh)
-  # $PPID is the Claude Code process PID — consistent between skills (Bash('echo $PPID'))
-  # and hooks ($PPID directly). Verified via arc-batch iteration 1 (PR #230).
+  # Prefer session_id for ownership (consistent across skills and hooks)
+  if [[ -n "$sid" && "$sid" != "unknown" ]]; then
+    local current_sid="${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}"
+    if [[ -n "$current_sid" && "$sid" != "$current_sid" ]]; then
+      # Different session — check if owner PID is still alive (orphan recovery)
+      if [[ -n "$pid" && "$pid" =~ ^[0-9]+$ ]] && rune_pid_alive "$pid"; then
+        return 1  # Different live session owns this
+      fi
+      # Owner dead — allow cleanup (orphan recovery)
+      return 0
+    fi
+  fi
+  # Fallback: PID check (for state files without session_id)
   if [[ -n "$pid" && "$pid" =~ ^[0-9]+$ && "$pid" != "$PPID" ]]; then
     if rune_pid_alive "$pid"; then
       return 1
@@ -309,6 +326,36 @@ _kill_stale_teammates() {
   return 0
 }
 
+# ── PRE-CLEANUP: Mark owned active state files as "stopping" ──
+# This prevents detect-workflow-complete.sh from attempting parallel cleanup
+# on the same workflows. detect-workflow-complete.sh skips files where
+# stopped_by is non-empty (line ~221).
+if [[ -d "${CWD}/tmp" ]]; then
+  shopt -s nullglob
+  for _pre_sf in "${CWD}/tmp"/.rune-*.json; do
+    [[ -f "$_pre_sf" ]] || continue
+    [[ -L "$_pre_sf" ]] && continue
+    # Skip signal/control files
+    case "$(basename "$_pre_sf")" in
+      .rune-shutdown-signal-*|.rune-force-shutdown-*|.rune-compact-*) continue ;;
+    esac
+    # Only mark active state files we own
+    if jq -e '.status == "active"' "$_pre_sf" >/dev/null 2>&1; then
+      _pre_cfg=$(jq -r '.config_dir // empty' "$_pre_sf" 2>/dev/null || true)
+      _pre_pid=$(jq -r '.owner_pid // empty' "$_pre_sf" 2>/dev/null || true)
+      if [[ -n "$_pre_cfg" && "$_pre_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
+      if [[ -n "$_pre_pid" && "$_pre_pid" =~ ^[0-9]+$ && "$_pre_pid" != "$PPID" ]]; then
+        rune_pid_alive "$_pre_pid" && continue
+      fi
+      # Write stopping marker — atomic via mktemp+mv
+      _pre_tmp=$(mktemp "${_pre_sf}.XXXXXX" 2>/dev/null) || continue
+      jq '. + {stop_reason: "session_stop", stopped_by: "STOP-001-pending"}' "$_pre_sf" > "$_pre_tmp" 2>/dev/null \
+        && mv "$_pre_tmp" "$_pre_sf" 2>/dev/null || rm -f "$_pre_tmp" 2>/dev/null
+    fi
+  done
+  shopt -u nullglob
+fi
+
 # ── AUTO-CLEAN PHASE 0: Terminate stale teammate processes ──
 if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" == "1" ]]; then
   cleaned_processes=0
@@ -404,20 +451,21 @@ if [[ -d "$CHOME/teams/" ]]; then
         fi
         # XVER-001/XVER-003 FIX: Canonical path verification before deletion
         # Resolve the directory to its real path and verify it's still under $CHOME
-        local team_canon tasks_canon
-        team_canon=$(cd "$dir" 2>/dev/null && pwd -P) || continue
+        # No 'local' — main body, not a function (Bash 3.2 compat)
+        _team_canon="" ; _tasks_canon=""
+        _team_canon=$(cd "$dir" 2>/dev/null && pwd -P) || continue
         # Verify canonical path is still under CHOME/teams/ and matches expected dirname
-        if [[ "$team_canon" != "$CHOME/teams/$dirname" ]]; then
+        if [[ "$_team_canon" != "$CHOME/teams/$dirname" ]]; then
           # Path traversal detected — symlink redirected outside expected location
           continue
         fi
         # Atomic delete using canonical path
-        rm -rf "$team_canon" 2>/dev/null || true
+        rm -rf "$_team_canon" 2>/dev/null || true
         # Clean corresponding tasks dir with same verification
         if [[ -d "$CHOME/tasks/$dirname" && ! -L "$CHOME/tasks/$dirname" ]]; then
-          tasks_canon=$(cd "$CHOME/tasks/$dirname" 2>/dev/null && pwd -P) || true
-          if [[ -n "$tasks_canon" && "$tasks_canon" == "$CHOME/tasks/$dirname" ]]; then
-            rm -rf "$tasks_canon" 2>/dev/null || true
+          _tasks_canon=$(cd "$CHOME/tasks/$dirname" 2>/dev/null && pwd -P) || true
+          if [[ -n "$_tasks_canon" && "$_tasks_canon" == "$CHOME/tasks/$dirname" ]]; then
+            rm -rf "$_tasks_canon" 2>/dev/null || true
           fi
         fi
         cleaned_teams+=("$dirname")
@@ -521,7 +569,7 @@ done
 shopt -u nullglob
 
 # ── Bridge file cleanup (context monitor) ──
-# Ownership-scan pattern — session_id not available in Stop hook
+# Ownership-scan pattern — uses config_dir + owner_pid for bridge file ownership
 # NOTE: $RUNE_CURRENT_CFG is already available (sourced at top of script)
 shopt -s nullglob
 for f in "${TMPDIR:-/tmp}"/rune-ctx-*-warned.json "${TMPDIR:-/tmp}"/rune-ctx-*.json; do
@@ -554,10 +602,11 @@ for f in "${CWD}/tmp"/.rune-shutdown-signal-*.json; do
     rune_pid_alive "$SS_PID" && continue
   fi
   # XVER-003 FIX: Canonical path verification before deletion
-  local signal_canon
-  signal_canon=$(cd "$(dirname "$f")" 2>/dev/null && pwd -P)/$(basename "$f") || continue
-  if [[ "$signal_canon" == "$CWD/tmp/$(basename "$f")" && -f "$signal_canon" && ! -L "$signal_canon" ]]; then
-    rm -f "$signal_canon" 2>/dev/null
+  # No 'local' — main body, not a function (Bash 3.2 compat)
+  _signal_canon=""
+  _signal_canon=$(cd "$(dirname "$f")" 2>/dev/null && pwd -P)/$(basename "$f") || continue
+  if [[ "$_signal_canon" == "$CWD/tmp/$(basename "$f")" && -f "$_signal_canon" && ! -L "$_signal_canon" ]]; then
+    rm -f "$_signal_canon" 2>/dev/null
   fi
 done
 shopt -u nullglob
@@ -576,10 +625,11 @@ for f in "${CWD}/tmp"/.rune-force-shutdown-*.json; do
     rune_pid_alive "$FS_PID" && continue
   fi
   # XVER-003 FIX: Canonical path verification before deletion
-  local force_canon
-  force_canon=$(cd "$(dirname "$f")" 2>/dev/null && pwd -P)/$(basename "$f") || continue
-  if [[ "$force_canon" == "$CWD/tmp/$(basename "$f")" && -f "$force_canon" && ! -L "$force_canon" ]]; then
-    rm -f "$force_canon" 2>/dev/null
+  # No 'local' — main body, not a function (Bash 3.2 compat)
+  _force_canon=""
+  _force_canon=$(cd "$(dirname "$f")" 2>/dev/null && pwd -P)/$(basename "$f") || continue
+  if [[ "$_force_canon" == "$CWD/tmp/$(basename "$f")" && -f "$_force_canon" && ! -L "$_force_canon" ]]; then
+    rm -f "$_force_canon" 2>/dev/null
   fi
 done
 shopt -u nullglob
@@ -623,11 +673,12 @@ if [[ -d "${CWD}/tmp/.rune-signals/" ]]; then
     # Clean if: state file found with dead/matching owner, or no state file (true orphan)
     if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" != "1" ]]; then
       # XVER-003 FIX: Canonical path verification before deletion
-      local sdir_canon
-      sdir_canon=$(cd "$sdir" 2>/dev/null && pwd -P) || continue
+      # No 'local' — main body, not a function (Bash 3.2 compat)
+      _sdir_canon=""
+      _sdir_canon=$(cd "$sdir" 2>/dev/null && pwd -P) || continue
       # Verify canonical path is under expected location
-      if [[ "$sdir_canon" == "${CWD}/tmp/.rune-signals/$sdirname" ]]; then
-        rm -rf "$sdir_canon" 2>/dev/null || true
+      if [[ "$_sdir_canon" == "${CWD}/tmp/.rune-signals/$sdirname" ]]; then
+        rm -rf "$_sdir_canon" 2>/dev/null || true
       fi
     fi
     cleaned_signal_dirs=$((cleaned_signal_dirs + 1))

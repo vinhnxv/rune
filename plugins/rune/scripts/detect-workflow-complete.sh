@@ -63,7 +63,13 @@ if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
 else
   # Fallback: inline resolution
   RUNE_CURRENT_CFG=$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P) || RUNE_CURRENT_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-  rune_pid_alive() { kill -0 "$1" 2>/dev/null; }
+  rune_pid_alive() {
+    kill -0 "$1" 2>/dev/null && return 0
+    # EPERM means process exists but we lack permission — treat as alive
+    # This prevents false "dead" detection for cross-user PIDs
+    kill -0 "$1" 2>&1 | grep -qi "perm" && return 0
+    return 1
+  }
 fi
 
 # Source platform helpers for cross-platform stat

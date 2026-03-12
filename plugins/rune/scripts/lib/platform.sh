@@ -54,19 +54,32 @@ _stat_uid() {
 _parse_iso_epoch() {
   local ts="$1"
   [[ -z "$ts" || "$ts" == "null" ]] && echo "0" && return 0
-  # Strip optional fractional seconds (.NNN) before terminal Z
-  if [[ "$ts" =~ \.[0-9]+Z$ ]]; then
-    ts="${ts%%.*}Z"
+  # Strip optional fractional seconds (.NNN) before terminal Z or offset
+  if [[ "$ts" =~ \.[0-9]+(Z|[+-]) ]]; then
+    ts="${ts%%.*}${ts##*[0-9]}"
+    # Re-parse: fractional removed, but suffix (Z, +HH:MM, -HH:MM) preserved
+    # e.g. "2026-03-08T12:00:00.123+05:30" → "2026-03-08T12:00:00+05:30"
+    #      "2026-03-08T12:00:00.123Z" → "2026-03-08T12:00:00Z"
+    if [[ "$ts" =~ \.[0-9] ]]; then
+      # Fallback: brute strip fractional if regex reconstructed incorrectly
+      ts="${ts%%.*}Z"
+    fi
   fi
-  # Strip timezone offset suffix (+00:00) if present, replace with Z
-  ts="${ts%+*}"
-  ts="${ts%Z}Z"
-  # Try gdate (GNU coreutils on macOS) first
-  gdate -d "$ts" +%s 2>/dev/null && return 0
-  # Try GNU date (Linux)
-  date -d "$ts" +%s 2>/dev/null && return 0
-  # Try BSD date (macOS native)
-  date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts" +%s 2>/dev/null && return 0
+  # Preserve timezone offset (+HH:MM, -HH:MM, Z) — gdate/date -d handle natively
+  local ts_utc="$ts"
+  # BSD date -j needs offset stripped (precision loss acceptable, UTC assumed)
+  local ts_bsd
+  if [[ "$ts_utc" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}) ]]; then
+    ts_bsd="${BASH_REMATCH[1]}Z"
+  else
+    ts_bsd="${ts_utc%Z}Z"
+  fi
+  # Try gdate (GNU coreutils on macOS) first — handles timezone offsets natively
+  gdate -d "$ts_utc" +%s 2>/dev/null && return 0
+  # Try GNU date (Linux) — handles timezone offsets natively
+  date -d "$ts_utc" +%s 2>/dev/null && return 0
+  # Try BSD date (macOS native) — timezone stripped, UTC assumed
+  date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts_bsd" +%s 2>/dev/null && return 0
   echo "0"
 }
 
@@ -76,20 +89,30 @@ _parse_iso_epoch_ms() {
   local ts="$1"
   [[ -z "$ts" || "$ts" == "null" ]] && echo "0" && return 0
   # Strip fractional seconds (capture for ms if available, but not worth the complexity)
-  if [[ "$ts" =~ \.[0-9]+Z$ ]]; then
-    ts="${ts%%.*}Z"
+  if [[ "$ts" =~ \.[0-9]+(Z|[+-]) ]]; then
+    ts="${ts%%.*}${ts##*[0-9]}"
+    if [[ "$ts" =~ \.[0-9] ]]; then
+      ts="${ts%%.*}Z"
+    fi
   fi
-  ts="${ts%+*}"
-  ts="${ts%Z}Z"
-  # gdate supports %s%3N (milliseconds)
-  gdate -d "$ts" +%s%3N 2>/dev/null && return 0
-  # GNU date on Linux supports %s%3N
+  # Preserve timezone offset (+HH:MM, -HH:MM, Z) — gdate/date -d handle natively
+  local ts_utc="$ts"
+  # BSD date -j needs offset stripped (precision loss acceptable, UTC assumed)
+  local ts_bsd
+  if [[ "$ts_utc" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}) ]]; then
+    ts_bsd="${BASH_REMATCH[1]}Z"
+  else
+    ts_bsd="${ts_utc%Z}Z"
+  fi
+  # gdate supports %s%3N (milliseconds) — handles timezone offsets natively
+  gdate -d "$ts_utc" +%s%3N 2>/dev/null && return 0
+  # GNU date on Linux supports %s%3N — handles timezone offsets natively
   if date --version &>/dev/null 2>&1; then
-    date -d "$ts" +%s%3N 2>/dev/null && return 0
+    date -d "$ts_utc" +%s%3N 2>/dev/null && return 0
   fi
-  # BSD fallback: seconds * 1000 (loses sub-second precision)
+  # BSD fallback: seconds * 1000 (loses sub-second precision, timezone stripped)
   local ep
-  ep=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts" +%s 2>/dev/null || echo "0")
+  ep=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts_bsd" +%s 2>/dev/null || echo "0")
   echo $(( ep * 1000 ))
 }
 

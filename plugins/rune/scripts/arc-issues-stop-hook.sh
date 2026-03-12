@@ -21,7 +21,12 @@
 # Exit 2 with stderr: Re-inject prompt to model and continue conversation
 
 set -euo pipefail
-trap 'exit 0' ERR
+_rune_fail_forward() {
+  local rc=$?
+  printf '[rune:%s] ERR trap fired (rc=%d) — failing forward\n' "${BASH_SOURCE[0]##*/}" "$rc" >&2
+  return 0
+}
+trap '_rune_fail_forward' ERR
 trap '[[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit' EXIT
 umask 077
 

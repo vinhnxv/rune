@@ -15,7 +15,12 @@
 # Exit 2 with stderr prompt: Re-inject next arc prompt (Claude continues conversation)
 
 set -euo pipefail
-trap 'exit 0' ERR
+_rune_fail_forward() {
+  local rc=$?
+  printf '[rune:%s] ERR trap fired (rc=%d) — failing forward\n' "${BASH_SOURCE[0]##*/}" "$rc" >&2
+  return 0
+}
+trap '_rune_fail_forward' ERR
 trap '[[ -n "${SUMMARY_TMP:-}" ]] && rm -f "${SUMMARY_TMP}" 2>/dev/null; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit' EXIT
 umask 077
 
@@ -256,14 +261,10 @@ if [[ "$SUMMARY_ENABLED" != "false" ]]; then
     # 15s timeout, hook got killed, no output → session stopped instead of advancing.
     # Now uses signal file first (O(1) read at deterministic path).
     # QUAL-006: Intentional re-init for summary-only signal read (line 132 is the BACK-R1-003b pre-init)
+    # Use canonical _read_arc_result_signal() for session-safe matching (config_dir + session_id)
     PR_URL="none"
-    _SUM_SIG_FILE="${CWD}/tmp/arc-result-current.json"
-    if [[ -f "$_SUM_SIG_FILE" ]] && [[ ! -L "$_SUM_SIG_FILE" ]]; then
-      _SUM_SIG_PID=$(jq -r '.owner_pid // empty' "$_SUM_SIG_FILE" 2>/dev/null || true)
-      if [[ -n "$_SUM_SIG_PID" && "$_SUM_SIG_PID" == "$PPID" ]]; then
-        PR_URL=$(jq -r '.pr_url // "none"' "$_SUM_SIG_FILE" 2>/dev/null || echo "none")
-        [[ "$PR_URL" == "null" ]] && PR_URL="none"
-      fi
+    if _read_arc_result_signal; then
+      PR_URL="$ARC_SIGNAL_PR_URL"
     fi
     # Fallback: checkpoint scan (only if signal didn't have PR_URL)
     if [[ "$PR_URL" == "none" ]]; then
