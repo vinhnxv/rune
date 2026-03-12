@@ -175,30 +175,30 @@ def parse_memory_file(file_path: str, role: str) -> list[dict]:
             if source_match and not current_entry["source"]:
                 current_entry["source"] = source_match.group(1).strip()
                 continue  # source lines don't affect blank-line tracking
-            # Only parse category in metadata section (before first ### or content).
-            # BACK-007: **Category**: must appear before the first non-metadata content
-            # line (i.e., before any heading or body text). Category lines after content
-            # starts will be treated as regular content, not metadata.
+            # QUAL-100: Parse **Category**: and **Domain**: outside in_metadata guard
+            # so doc pack entries (and entries with varied formatting) are parsed
+            # robustly. Guard with "only if still at default" to prevent re-parsing
+            # once explicitly set — preserving BACK-007 intent (first match wins).
+            category_match = _CATEGORY_RE.match(stripped)
+            if category_match and current_entry["category"] == "general":
+                raw_category = category_match.group(1).strip().lower()
+                if raw_category in ALLOWED_CATEGORIES:
+                    current_entry["category"] = raw_category
+                else:
+                    print("WARN: unknown category '%s' at %s:%d, defaulting to 'general'" % (
+                        raw_category, file_path, i + 1), file=sys.stderr)
+                    current_entry["category"] = "general"
+                continue
+            domain_match = _DOMAIN_RE.match(stripped)
+            if domain_match and current_entry["domain"] == "general":
+                raw_domain = domain_match.group(1).strip().lower()
+                if raw_domain in ALLOWED_DOMAINS:
+                    current_entry["domain"] = raw_domain
+                else:
+                    print("WARN: unknown domain '%s' at %s:%d, defaulting to 'general'" % (
+                        raw_domain, file_path, i + 1), file=sys.stderr)
+                continue
             if in_metadata:
-                category_match = _CATEGORY_RE.match(stripped)
-                if category_match:
-                    raw_category = category_match.group(1).strip().lower()
-                    if raw_category in ALLOWED_CATEGORIES:
-                        current_entry["category"] = raw_category
-                    else:
-                        print("WARN: unknown category '%s' at %s:%d, defaulting to 'general'" % (
-                            raw_category, file_path, i + 1), file=sys.stderr)
-                        current_entry["category"] = "general"
-                    continue
-                domain_match = _DOMAIN_RE.match(stripped)
-                if domain_match:
-                    raw_domain = domain_match.group(1).strip().lower()
-                    if raw_domain in ALLOWED_DOMAINS:
-                        current_entry["domain"] = raw_domain
-                    else:
-                        print("WARN: unknown domain '%s' at %s:%d, defaulting to 'general'" % (
-                            raw_domain, file_path, i + 1), file=sys.stderr)
-                    continue
                 # First non-blank, non-source, non-category, non-domain line → end metadata
                 if stripped.strip() and not stripped.startswith("**"):
                     in_metadata = False
@@ -248,7 +248,8 @@ def discover_and_parse(echo_dir: str) -> list[dict]:
         for pack_path in _valid_subdirs(doc_packs_dir, seen_inodes=seen_inodes):
             pack_name = os.path.basename(pack_path)
             # D-P2-006: prefix doc-pack roles to avoid collision with project roles
-            role = "doc-pack/%s" % pack_name
+            # SEC-004: use -- separator (not /) to match VALID_ROLE_RE / _SAFE_ROLE_RE
+            role = "doc-pack--%s" % pack_name
             memory_file = os.path.join(pack_path, "MEMORY.md")
             if os.path.isfile(memory_file) and _check_file_size(memory_file):
                 entries = parse_memory_file(memory_file, role)

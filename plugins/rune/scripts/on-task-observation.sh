@@ -56,6 +56,10 @@ IFS=$'\t' read -r TEAM_NAME TASK_ID TASK_SUBJECT TASK_DESC AGENT_NAME < <(
 ) || true
 
 [[ -z "$TEAM_NAME" ]] && exit 0
+
+# SEC-002 FIX: Strip markdown headers from task data to prevent header injection
+TASK_SUBJECT="${TASK_SUBJECT//#/}"
+TASK_DESC="${TASK_DESC//#/}"
 [[ "$TEAM_NAME" =~ ^(rune-|arc-) ]] || exit 0
 
 # Guard: safe characters only (prevent path traversal)
@@ -124,7 +128,7 @@ ENTRY=$(cat <<'ENTRY_EOF'
 
 ## Observations — Task: __TASK_SUBJECT__ (__DATE__)
 - **layer**: observations
-- **source**: `__TEAM_NAME__/__AGENT_NAME__`
+**Source**: `__TEAM_NAME__/__AGENT_NAME__`
 - **Confidence**: LOW (auto-generated, unverified)
 - Task completed: __TASK_SUBJECT__
 - Context: __TASK_DESC__

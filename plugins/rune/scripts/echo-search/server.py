@@ -150,6 +150,18 @@ if GLOBAL_DB_PATH:
             file=sys.stderr,
         )
         sys.exit(1)
+    # SEC-003 FIX: Allowlist GLOBAL_DB_PATH parent directory — must be under
+    # user home or system temp (matching DB_PATH allowlist pattern).
+    _gdb_parent = os.path.dirname(_gdb_resolved)
+    _home = os.path.expanduser("~")
+    _tmpdir = os.path.realpath(os.environ.get("TMPDIR", "/tmp"))
+    if not any(_gdb_parent.startswith(p) for p in (_home, _tmpdir)):
+        print(
+            "Error: GLOBAL_DB_PATH must be under home or temp directory: %s"
+            % _gdb_resolved,
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 STOPWORDS = frozenset([
     "a", "an", "and", "are", "as", "at", "be", "but", "by", "for",
@@ -367,16 +379,22 @@ def _score_bm25_relevance(scores: List[float]) -> List[float]:
     return [(bm25_max - s) / spread for s in scores]
 
 
-def _score_importance(layer: str) -> float:
+def _score_importance(layer: str, is_doc_pack: bool = False) -> float:
     """Score entry importance based on its echo layer.
 
     Args:
         layer: Echo layer name (Etched, Inscribed, Traced, Notes, Observations).
+        is_doc_pack: Whether the entry originates from a doc pack. Doc-pack
+            entries receive a 0.7x discount to prevent them from outranking
+            user-authored etched echoes (A3 enrichment).
 
     Returns:
         Importance score in [0.0, 1.0]. Unknown layers get 0.3 (same as Traced).
     """
-    return _LAYER_IMPORTANCE.get(layer.lower() if layer else "", 0.3)
+    score = _LAYER_IMPORTANCE.get(layer.lower() if layer else "", 0.3)
+    if is_doc_pack:
+        score *= _DOC_PACK_IMPORTANCE_DISCOUNT
+    return score
 
 
 def _score_recency(
@@ -698,10 +716,8 @@ def _compute_entry_factors(
     max_log_count: float,
 ) -> Dict[str, float]:
     """Compute all 5 scoring factors for a single entry."""
-    importance = _score_importance(entry.get("layer", ""))
-    # A3: Discount importance for doc-pack entries.
-    if _is_doc_pack_entry(entry):
-        importance *= _DOC_PACK_IMPORTANCE_DISCOUNT
+    importance = _score_importance(
+        entry.get("layer", ""), is_doc_pack=_is_doc_pack_entry(entry))
     return {
         "relevance": bm25_norm,
         "importance": importance,
@@ -822,9 +838,14 @@ def get_global_conn() -> Optional[sqlite3.Connection]:
     if isinstance(global_cfg, dict) and global_cfg.get("enabled") is False:
         return None
     if _global_conn is None:
-        _ensure_global_dir()
-        _global_conn = get_db(GLOBAL_DB_PATH)
-        ensure_schema(_global_conn)
+        try:
+            _ensure_global_dir()
+            _global_conn = get_db(GLOBAL_DB_PATH)
+            ensure_schema(_global_conn)
+        except (sqlite3.OperationalError, sqlite3.DatabaseError, OSError) as exc:
+            logger.warning("get_global_conn failed: %s", exc)
+            _global_conn = None
+            return None
     return _global_conn
 
 
@@ -914,7 +935,10 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         except (sqlite3.Error, OSError):
             conn.rollback()
             raise
-        # SAFE: SCHEMA_VERSION is a module-level integer constant, not user input.
+        # SAFE: f-string used here because SQLite PRAGMAs do not support
+        # parameterized queries (? placeholders). The int() cast guarantees
+        # the value is a safe integer literal — SCHEMA_VERSION is a module-level
+        # constant validated by the assert above.
         # Set user_version AFTER commit — PRAGMA is not transactional in SQLite,
         # so placing it inside the transaction would persist even on rollback.
         conn.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")
@@ -1262,13 +1286,14 @@ def _insert_entries(conn: sqlite3.Connection, entries: list) -> None:
         conn.execute(
             """INSERT OR REPLACE INTO echo_entries
                (id, role, layer, date, source, content, tags,
-                line_number, file_path, category)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                line_number, file_path, category, domain)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (entry["id"], entry["role"], entry["layer"],
              entry.get("date", ""), entry.get("source", ""),
              entry["content"], entry.get("tags", ""),
              entry.get("line_number", 0), entry["file_path"],
-             entry.get("category", "general")),
+             entry.get("category", "general"),
+             entry.get("domain", "general")),
         )
     conn.execute(
         "INSERT INTO echo_entries_fts(echo_entries_fts) VALUES('rebuild')")
@@ -2578,6 +2603,15 @@ TOOL_SCHEMAS = [
                     "items": {"type": "string"},
                     "description": "List of entry IDs to fetch",
                 },
+                "scope": {
+                    "type": "string",
+                    "enum": ["project", "global", "all"],
+                    "default": "project",
+                    "description": (
+                        "Which DB to query: project (default), global, "
+                        "or both (falls back to global if not found in project)"
+                    ),
+                },
             },
             "required": ["ids"],
         },
@@ -2657,6 +2691,15 @@ TOOL_SCHEMAS = [
                     "type": "string",
                     "description": "Optional context query that led to this access",
                     "default": "",
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": ["project", "global"],
+                    "default": "project",
+                    "description": (
+                        "Which DB to record access in: project (default) "
+                        "or global"
+                    ),
                 },
             },
             "required": ["entry_ids"],
@@ -2890,18 +2933,26 @@ def _merge_scoped_results(
     global_results: List[Dict[str, Any]],
     limit: int,
 ) -> List[Dict[str, Any]]:
-    """Merge results from two scopes by composite score, dedup by ID."""
+    """Merge results from two scopes by composite score, dedup by scoped key.
+
+    BACK-403: Uses scope-prefixed keys ("project:<id>" / "global:<id>") for
+    dedup to prevent ID collisions between project and global DBs.  Entries
+    with the same raw ID but different scopes are kept as separate results.
+    """
     combined = {}  # type: Dict[str, Dict[str, Any]]
     for entry in project_results:
         eid = entry.get("id", "")
         if eid:
-            combined[eid] = entry
+            scoped_key = "project:" + eid
+            combined[scoped_key] = entry
     for entry in global_results:
         eid = entry.get("id", "")
-        if eid and (eid not in combined or
+        if eid:
+            scoped_key = "global:" + eid
+            if scoped_key not in combined or (
                     entry.get("composite_score", 0.0) >
-                    combined[eid].get("composite_score", 0.0)):
-            combined[eid] = entry
+                    combined[scoped_key].get("composite_score", 0.0)):
+                combined[scoped_key] = entry
     return sorted(
         combined.values(),
         key=lambda x: x.get("composite_score", 0.0), reverse=True,
@@ -2944,24 +2995,36 @@ async def _run_scoped_search(
             conn.close()
 
     if scope in ("global", "all"):
-        # Check global dirty signal and reindex if needed (enrichment D4)
-        if _check_and_clear_global_dirty() and GLOBAL_ECHO_DIR and GLOBAL_DB_PATH:
-            try:
-                do_reindex(GLOBAL_ECHO_DIR, GLOBAL_DB_PATH)
-            except (sqlite3.Error, OSError, IOError) as exc:
-                logger.warning("global reindex failed: %s", exc)
-            # Reset cached connection so it picks up the fresh index
-            global _global_conn
-            if _global_conn is not None:
+        # BACK-201: Guard — return error when scope=global but global DB unavailable
+        if not GLOBAL_ECHO_DIR or not GLOBAL_DB_PATH:
+            if scope == "global":
+                return [{"error": "Global echoes not configured (GLOBAL_ECHO_DIR/GLOBAL_DB_PATH not set)",
+                         "source_scope": "global"}]
+            # scope=all: silently skip global, use project only
+        else:
+            # BACK-402: Check GLOBAL_DB_PATH availability FIRST, then consume
+            # dirty signal. Previous order consumed the signal before the guard,
+            # losing it when GLOBAL_DB_PATH was unset.
+            if _check_and_clear_global_dirty():
                 try:
-                    _global_conn.close()
-                except Exception:
-                    pass
-                _global_conn = None
-        gconn = get_global_conn()
-        if gconn is not None:
-            global_results = await _search_single_scope(
-                gconn, args, fetch_limit, "global")
+                    do_reindex(GLOBAL_ECHO_DIR, GLOBAL_DB_PATH)
+                except (sqlite3.Error, OSError, IOError) as exc:
+                    logger.warning("global reindex failed: %s", exc)
+                # Reset cached connection so it picks up the fresh index
+                global _global_conn
+                if _global_conn is not None:
+                    try:
+                        _global_conn.close()
+                    except Exception:
+                        pass
+                    _global_conn = None
+            gconn = get_global_conn()
+            if gconn is not None:
+                global_results = await _search_single_scope(
+                    gconn, args, fetch_limit, "global")
+            elif scope == "global":
+                return [{"error": "Global DB connection failed",
+                         "source_scope": "global"}]
 
     if scope == "all" and project_results and global_results:
         return _merge_scoped_results(
@@ -3000,16 +3063,45 @@ def _safe_record_access(
 
 
 async def _mcp_handle_details(arguments: Dict) -> Tuple[Dict, bool]:
-    """Handle echo_details — fetch full content for specific entry IDs."""
+    """Handle echo_details — fetch full content for specific entry IDs.
+
+    QUAL-001: Supports scope parameter. When scope=all, entries not found
+    in project DB are looked up in global DB as fallback.
+    """
     ids, err = _validate_list_arg(arguments, "ids")
     if err is not None:
         return err
     ids = ids[:50]  # SEC-1: cap to prevent DoS via large IN clause
-    conn = _get_ready_conn(DB_PATH, ECHO_DIR)
-    try:
-        results = get_details(conn, ids)
-    finally:
-        conn.close()
+    scope = arguments.get("scope", "project")
+    if not isinstance(scope, str) or scope not in _VALID_SCOPES:
+        scope = "project"
+
+    results = []  # type: List[Dict[str, Any]]
+
+    if scope in ("project", "all"):
+        conn = _get_ready_conn(DB_PATH, ECHO_DIR)
+        try:
+            results = get_details(conn, ids)
+        finally:
+            conn.close()
+
+    if scope in ("global", "all"):
+        gconn = get_global_conn()
+        if gconn is not None:
+            if scope == "global":
+                results = get_details(gconn, ids)
+            elif scope == "all":
+                # Fallback: look up IDs not found in project DB
+                found_ids = {r["id"] for r in results}
+                missing_ids = [i for i in ids if i not in found_ids]
+                if missing_ids:
+                    global_results = get_details(gconn, missing_ids)
+                    for r in global_results:
+                        r["source_scope"] = "global"
+                    results.extend(global_results)
+        elif scope == "global":
+            return {"error": "Global echoes not configured"}, True
+
     return {"entries": results}, False
 
 
@@ -3037,6 +3129,10 @@ async def _mcp_handle_reindex(arguments: Optional[Dict] = None) -> Tuple[Dict, b
             if scope == "global":
                 return {"error": "GLOBAL_ECHO_DIR not set"}, True
         else:
+            # BACK-303: Validate global and project echo dirs don't overlap
+            # to prevent scope contamination during reindex.
+            if ECHO_DIR and os.path.realpath(GLOBAL_ECHO_DIR) == os.path.realpath(ECHO_DIR):
+                return {"error": "GLOBAL_ECHO_DIR must differ from ECHO_DIR"}, True
             results["global"] = do_reindex(GLOBAL_ECHO_DIR, GLOBAL_DB_PATH)
 
     # Backward compat: if single scope, return flat result
@@ -3079,7 +3175,10 @@ async def _mcp_handle_stats(arguments: Optional[Dict] = None) -> Tuple[Dict, boo
 
 
 async def _mcp_handle_record_access(arguments):
-    """Handle echo_record_access — manually record access events."""
+    """Handle echo_record_access — manually record access events.
+
+    QUAL-003: Supports scope parameter for routing to global DB.
+    """
     # type: (Dict) -> Tuple[Dict, bool]
     entry_ids, err = _validate_list_arg(arguments, "entry_ids")
     if err is not None:
@@ -3087,15 +3186,26 @@ async def _mcp_handle_record_access(arguments):
     query = arguments.get("query", "")
     if not isinstance(query, str):
         query = ""
+    scope = arguments.get("scope", "project")
+    if not isinstance(scope, str) or scope not in ("project", "global"):
+        scope = "project"
     entry_ids = [str(eid) for eid in entry_ids if eid is not None][:50]
     pseudo_results = [{"id": eid} for eid in entry_ids]
-    conn = get_db(DB_PATH)
-    try:
-        ensure_schema(conn)
-        _record_access(conn, pseudo_results, query)
-    finally:
-        conn.close()
-    return {"recorded": len(entry_ids), "entry_ids": entry_ids}, False
+
+    if scope == "global":
+        gconn = get_global_conn()
+        if gconn is None:
+            return {"error": "Global echoes not configured"}, True
+        _record_access(gconn, pseudo_results, query)
+    else:
+        conn = get_db(DB_PATH)
+        try:
+            ensure_schema(conn)
+            _record_access(conn, pseudo_results, query)
+        finally:
+            conn.close()
+    return {"recorded": len(entry_ids), "entry_ids": entry_ids,
+            "scope": scope}, False
 
 
 async def _mcp_handle_upsert_group(arguments):
