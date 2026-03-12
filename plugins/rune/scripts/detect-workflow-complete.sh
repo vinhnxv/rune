@@ -89,7 +89,8 @@ else
   # Fallback: inline _get_fm_field
   _get_fm_field() {
     local fm="$1" field="$2"
-    [[ "$field" =~ ^[a-zA-Z_]+$ ]] || return 1
+    # XSEC-002 FIX: Sync with canonical lib/frontmatter-utils.sh regex (SEC-002)
+    [[ "$field" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
     printf '%s\n' "$fm" | grep "^${field}:" | sed "s/^${field}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true
   }
 fi

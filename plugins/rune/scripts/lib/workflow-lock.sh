@@ -103,6 +103,48 @@ _rune_finalize_meta() {
   mv -f "$tmp_file" "$lock_dir/meta.json" 2>/dev/null
 }
 
+# Helper: Atomic lock reclaim — stash existing lock, mkdir new, finalize meta, cleanup stash
+# Eliminates TOCTOU window by using rename-based stash instead of rm+mkdir
+# XQAL-002 FIX: Extracted from 3 duplicate reclaim paths (orphan, dead, ghost)
+# Returns 0 on success (lock reclaimed), 1 on failure (contention loss or error)
+_rune_atomic_reclaim() {
+  local lock_dir="$1" workflow="$2" class="$3" label="${4:-reclaim}"
+  local _reclaim_tmp _reclaim_stash
+
+  # Step 1: Write metadata to temp file BEFORE lock manipulation
+  _reclaim_tmp="$(mktemp "${LOCK_BASE}/.meta.XXXXXX" 2>/dev/null)" || return 1
+  if ! _rune_build_meta "$workflow" "$class" > "$_reclaim_tmp" 2>/dev/null; then
+    rm -f "$_reclaim_tmp" 2>/dev/null; return 1
+  fi
+
+  # Step 2: Create unpredictable stash directory, then free its name for mv target
+  _reclaim_stash="$(mktemp -d "${lock_dir}.${label}.XXXXXX" 2>/dev/null)" || \
+    _reclaim_stash="$(mktemp -d "${TMPDIR:-/tmp}/rune-${label}.XXXXXX" 2>/dev/null)" || \
+    { rm -f "$_reclaim_tmp" 2>/dev/null; return 1; }
+  rmdir "$_reclaim_stash" 2>/dev/null
+
+  # Step 3: Atomic rename of existing lock to stash
+  mv "$lock_dir" "$_reclaim_stash" 2>/dev/null || { rm -f "$_reclaim_tmp" 2>/dev/null; return 1; }
+
+  # Step 4: Atomic mkdir for new lock
+  if mkdir "$lock_dir" 2>/dev/null; then
+    _rune_finalize_meta "$_reclaim_tmp" "$lock_dir"
+    rm -rf "$_reclaim_stash" 2>/dev/null
+    if [[ -f "$lock_dir/meta.json" ]]; then
+      return 0
+    fi
+    # Finalize failed — cleanup everything
+    rm -rf "$lock_dir" "$_reclaim_tmp" "$_reclaim_stash" 2>/dev/null
+    return 1
+  fi
+
+  # Step 5: mkdir failed (contention loss) — restore stashed lock
+  mv "$_reclaim_stash" "$lock_dir" 2>/dev/null || true
+  rm -rf "$_reclaim_stash" 2>/dev/null
+  rm -f "$_reclaim_tmp" 2>/dev/null
+  return 1
+}
+
 rune_acquire_lock() {
   local workflow="$1" class="${2:-writer}"
   _rune_validate_workflow_name "$workflow" || return 1
@@ -160,100 +202,31 @@ rune_acquire_lock() {
     fi
 
     # BIZL-010: Null pid guard — empty stored_pid means corrupt meta.json, treat as orphan
+    # XQAL-002 FIX: Uses shared _rune_atomic_reclaim helper (extracted from 3 duplicate paths)
     if [[ -z "$stored_pid" ]]; then
-      # XVER-001 / CDXS-003 FIX: Write meta to temp file before mkdir
-      local _orphan_tmp
-      _orphan_tmp="$(mktemp "${LOCK_BASE}/.meta.XXXXXX" 2>/dev/null)" || return 1
-      _rune_build_meta "$workflow" "$class" > "$_orphan_tmp" 2>/dev/null || { rm -f "$_orphan_tmp" 2>/dev/null; return 1; }
-      # Atomic lock reclaim — prevents TOCTOU window where concurrent process's lock could be destroyed
-      # TOME-003 FIX: Use mktemp -d to avoid PID collision in stash names
-      local _orphan_stash
-      _orphan_stash="$(mktemp -d "${lock_dir}.orphan.XXXXXX" 2>/dev/null)" || _orphan_stash="$(mktemp -d "${TMPDIR:-/tmp}/rune-orphan.XXXXXX" 2>/dev/null)" || { rm -f "$_orphan_tmp" 2>/dev/null; return 1; }
-      rmdir "$_orphan_stash" 2>/dev/null  # mktemp -d creates the dir; remove so mv can use the name
-      mv "$lock_dir" "$_orphan_stash" 2>/dev/null || { rm -f "$_orphan_tmp" 2>/dev/null; return 1; }
-      if mkdir "$lock_dir" 2>/dev/null; then
-        _rune_finalize_meta "$_orphan_tmp" "$lock_dir"
-        rm -rf "$_orphan_stash" 2>/dev/null
-        [[ -f "$lock_dir/meta.json" ]] && return 0
-        # TOME-003 FIX: Include stash in cleanup on finalize failure
-        rm -rf "$lock_dir" "$_orphan_tmp" "$_orphan_stash" 2>/dev/null; return 1
-      fi
-      # mkdir failed — contention loss, restore stashed lock
-      mv "$_orphan_stash" "$lock_dir" 2>/dev/null || true
-      # TOME-003 FIX: Clean up orphaned stash if restore failed
-      rm -rf "$_orphan_stash" 2>/dev/null
-      rm -f "$_orphan_tmp" 2>/dev/null
+      _rune_atomic_reclaim "$lock_dir" "$workflow" "$class" "orphan" && return 0
       return 1
     fi
 
     # PID dead → orphaned lock, reclaim
-    # SEC-007: TOCTOU fix — remove then immediately mkdir atomically; if mkdir fails treat as
-    # contention loss (another process won the race) without issuing a secondary rm -rf.
-    # XVER-001 / CDXS-003 FIX: Write meta to temp file before mkdir
+    # SEC-007: TOCTOU fix — atomic stash-and-reclaim; contention loss = return 1.
     if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
       if ! rune_pid_alive "$stored_pid"; then
-        local _dead_tmp
-        _dead_tmp="$(mktemp "${LOCK_BASE}/.meta.XXXXXX" 2>/dev/null)" || return 1
-        _rune_build_meta "$workflow" "$class" > "$_dead_tmp" 2>/dev/null || { rm -f "$_dead_tmp" 2>/dev/null; return 1; }
-        # Atomic lock reclaim — prevents TOCTOU window where concurrent process's lock could be destroyed
-        # TOME-003 FIX: Use mktemp -d to avoid PID collision in stash names
-        local _dead_stash
-        _dead_stash="$(mktemp -d "${lock_dir}.orphan.XXXXXX" 2>/dev/null)" || _dead_stash="$(mktemp -d "${TMPDIR:-/tmp}/rune-dead.XXXXXX" 2>/dev/null)" || { rm -f "$_dead_tmp" 2>/dev/null; return 1; }
-        rmdir "$_dead_stash" 2>/dev/null  # mktemp -d creates the dir; remove so mv can use the name
-        mv "$lock_dir" "$_dead_stash" 2>/dev/null || { rm -f "$_dead_tmp" 2>/dev/null; return 1; }
-        if mkdir "$lock_dir" 2>/dev/null; then
-          _rune_finalize_meta "$_dead_tmp" "$lock_dir"
-          rm -rf "$_dead_stash" 2>/dev/null
-          [[ -f "$lock_dir/meta.json" ]] && return 0
-          # TOME-003 FIX: Include stash in cleanup on finalize failure
-          rm -rf "$lock_dir" "$_dead_tmp" "$_dead_stash" 2>/dev/null; return 1
-        fi
-        # mkdir failed → contention loss, restore stashed lock
-        mv "$_dead_stash" "$lock_dir" 2>/dev/null || true
-        # TOME-003 FIX: Clean up orphaned stash if restore failed
-        rm -rf "$_dead_stash" 2>/dev/null
-        rm -f "$_dead_tmp" 2>/dev/null
+        _rune_atomic_reclaim "$lock_dir" "$workflow" "$class" "dead" && return 0
         return 1
       fi
     fi
   else
     # Ghost lock dir (no meta.json) — clean up and retry with jitter
     # EDGE-007: Add retry with random jitter to reduce concurrent write race window
-    # XVER-001 / CDXS-003 FIX: Write meta to temp file before mkdir
-    local _ghost_attempt _ghost_tmp
+    # XQAL-002 FIX: Uses shared _rune_atomic_reclaim helper
+    local _ghost_attempt
     for _ghost_attempt in 1 2; do
-      _ghost_tmp="$(mktemp "${LOCK_BASE}/.meta.XXXXXX" 2>/dev/null)" || continue
-      if ! _rune_build_meta "$workflow" "$class" > "$_ghost_tmp" 2>/dev/null; then
-        rm -f "$_ghost_tmp" 2>/dev/null; continue
-      fi
-      # Atomic lock reclaim — prevents TOCTOU window where concurrent process's lock could be destroyed
-      # TOME-003 FIX: Use mktemp -d to avoid PID collision in stash names
-      local _ghost_stash
-      _ghost_stash="$(mktemp -d "${lock_dir}.orphan.XXXXXX" 2>/dev/null)" || _ghost_stash="$(mktemp -d "${TMPDIR:-/tmp}/rune-ghost.XXXXXX" 2>/dev/null)" || { rm -f "$_ghost_tmp" 2>/dev/null; continue; }
-      rmdir "$_ghost_stash" 2>/dev/null  # mktemp -d creates the dir; remove so mv can use the name
-      mv "$lock_dir" "$_ghost_stash" 2>/dev/null || { rm -f "$_ghost_tmp" 2>/dev/null; continue; }
       # Jitter: sleep 0-50ms on retry to desynchronize concurrent acquirers
       if [[ "$_ghost_attempt" -gt 1 ]]; then
-        # POSIX-portable sub-second sleep via perl or sleep fallback
         perl -e 'select(undef,undef,undef,rand(0.05))' 2>/dev/null || sleep 0 2>/dev/null || true
       fi
-      if mkdir "$lock_dir" 2>/dev/null; then
-        _rune_finalize_meta "$_ghost_tmp" "$lock_dir"
-        rm -rf "$_ghost_stash" 2>/dev/null
-        if [[ -f "$lock_dir/meta.json" ]]; then
-          rm -f "$_ghost_tmp" 2>/dev/null
-          return 0
-        fi
-        # TOME-003 FIX: Include stash in cleanup on finalize failure
-        rm -rf "$lock_dir" "$_ghost_tmp" "$_ghost_stash" 2>/dev/null
-        # First attempt failed to write meta — retry
-        continue
-      fi
-      # mkdir failed — contention loss, restore stashed lock
-      mv "$_ghost_stash" "$lock_dir" 2>/dev/null || true
-      # TOME-003 FIX: Clean up orphaned stash if restore failed
-      rm -rf "$_ghost_stash" 2>/dev/null
-      rm -f "$_ghost_tmp" 2>/dev/null
+      _rune_atomic_reclaim "$lock_dir" "$workflow" "$class" "ghost" && return 0
     done
   fi
 

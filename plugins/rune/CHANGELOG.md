@@ -5,7 +5,7 @@
 ## [1.154.3] - 2026-03-13
 
 ### Fixed
-- **Utility Crew pipeline wiring**: Wire Utility Crew (context-scribe, prompt-warden, dispatch-herald) into workflow execution paths. Previously, these agents were fully designed but never invoked in pipeline overviews.
+- **Utility Crew pipeline wiring**: Wire Utility Crew (context-scribe, prompt-warden) into workflow execution paths. Previously, these agents were fully designed but never invoked in pipeline overviews.
   - `devise/SKILL.md`: Added Phase 0.8 (Utility Crew) between Phase 0 and Phase 1
   - `audit/SKILL.md`: Added Phase 2.5-2.8 (Utility Crew) between Phase 2 and Phase 3
   - `appraise/SKILL.md`: Added Utility Crew reference after orchestration parameters

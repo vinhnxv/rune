@@ -199,16 +199,20 @@ if [[ "$REM_INT" -le "$WARNING_THRESHOLD" && "$REM_INT" -gt "$CRITICAL_THRESHOLD
   SIGNAL_FILE="${CWD}/tmp/.rune-shutdown-signal-${SESSION_ID}.json"
   if [[ ! -f "$SIGNAL_FILE" ]]; then
     mkdir -p "${CWD}/tmp" 2>/dev/null
-    _tmpf=$(mktemp "${CWD}/tmp/.rune-signal-tmp.XXXXXX" 2>/dev/null) || exit 0
-    jq -n \
-      --arg signal "context_warning" \
-      --argjson remaining_pct "$REM_INT" \
-      --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-      --arg config_dir "$RUNE_CURRENT_CFG" \
-      --arg owner_pid "$PPID" \
-      --arg session_id "$SESSION_ID" \
-      '{signal: $signal, remaining_pct: $remaining_pct, timestamp: $timestamp, config_dir: $config_dir, owner_pid: $owner_pid, session_id: $session_id}' \
-      > "$_tmpf" 2>/dev/null && mv "$_tmpf" "$SIGNAL_FILE" 2>/dev/null || true
+    # CDXB-001 FIX: mktemp failure must not abort — signal file is best-effort, but the
+    # warning/deny response below MUST still be emitted. Use 'true' to skip signal write.
+    _tmpf=$(mktemp "${CWD}/tmp/.rune-signal-tmp.XXXXXX" 2>/dev/null) || _tmpf=""
+    if [[ -n "$_tmpf" ]]; then
+      jq -n \
+        --arg signal "context_warning" \
+        --argjson remaining_pct "$REM_INT" \
+        --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --arg config_dir "$RUNE_CURRENT_CFG" \
+        --arg owner_pid "$PPID" \
+        --arg session_id "$SESSION_ID" \
+        '{signal: $signal, remaining_pct: $remaining_pct, timestamp: $timestamp, config_dir: $config_dir, owner_pid: $owner_pid, session_id: $session_id}' \
+        > "$_tmpf" 2>/dev/null && mv "$_tmpf" "$SIGNAL_FILE" 2>/dev/null || true
+    fi
   fi
 
   jq -n \
@@ -271,16 +275,20 @@ USED_PCT=$(( 100 - REM_INT ))
 FORCE_SIGNAL="${CWD}/tmp/.rune-force-shutdown-${SESSION_ID}.json"
 if [[ ! -f "$FORCE_SIGNAL" ]]; then
   mkdir -p "${CWD}/tmp" 2>/dev/null
-  _tmpf=$(mktemp "${CWD}/tmp/.rune-force-tmp.XXXXXX" 2>/dev/null) || exit 0
-  jq -n \
-    --arg signal "force_shutdown" \
-    --argjson remaining_pct "$REM_INT" \
-    --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    --arg config_dir "$RUNE_CURRENT_CFG" \
-    --arg owner_pid "$PPID" \
-    --arg session_id "$SESSION_ID" \
-    '{signal: $signal, remaining_pct: $remaining_pct, timestamp: $timestamp, config_dir: $config_dir, owner_pid: $owner_pid, session_id: $session_id}' \
-    > "$_tmpf" 2>/dev/null && mv "$_tmpf" "$FORCE_SIGNAL" 2>/dev/null || true
+  # CDXB-001 FIX: mktemp failure must not abort — force_shutdown signal is best-effort,
+  # but the DENY response below MUST still be emitted to block agent spawning at critical tier.
+  _tmpf=$(mktemp "${CWD}/tmp/.rune-force-tmp.XXXXXX" 2>/dev/null) || _tmpf=""
+  if [[ -n "$_tmpf" ]]; then
+    jq -n \
+      --arg signal "force_shutdown" \
+      --argjson remaining_pct "$REM_INT" \
+      --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      --arg config_dir "$RUNE_CURRENT_CFG" \
+      --arg owner_pid "$PPID" \
+      --arg session_id "$SESSION_ID" \
+      '{signal: $signal, remaining_pct: $remaining_pct, timestamp: $timestamp, config_dir: $config_dir, owner_pid: $owner_pid, session_id: $session_id}' \
+      > "$_tmpf" 2>/dev/null && mv "$_tmpf" "$FORCE_SIGNAL" 2>/dev/null || true
+  fi
 fi
 
 jq -n \

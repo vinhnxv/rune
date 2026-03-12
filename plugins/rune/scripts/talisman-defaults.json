@@ -732,10 +732,10 @@
     "max_runtime_minutes": 20,
     "max_turns": {
       "aggregation": 60,
-      "investigation": 0,
+      "investigation": null,
       "research": 40,
       "review": 30,
-      "testing": 0,
+      "testing": null,
       "utility": 40,
       "work": 60
     },

@@ -113,7 +113,8 @@ else
   _get_fm_field() {
     local fm="$1" field="$2"
     # SEC-002: Validate field name to prevent regex injection via maintenance drift
-    [[ "$field" =~ ^[a-zA-Z_]+$ ]] || return 1
+    # XSEC-002 FIX: Sync with canonical lib/frontmatter-utils.sh regex
+    [[ "$field" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
     # || true: grep returning no match (exit 1) must not trigger ERR trap (set -euo pipefail)
     # Without this, callers outside `if` conditions (lines 94, 105) would exit 0 via ERR trap
     printf '%s\n' "$fm" | grep "^${field}:" | sed "s/^${field}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true
