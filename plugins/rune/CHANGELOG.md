@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [1.154.2] - 2026-03-13
+
+### Fixed
+- **Session isolation hardening**: Fixed fallback code paths in stop hooks (`arc-batch-stop-hook.sh`, `arc-hierarchy-stop-hook.sh`, `arc-issues-stop-hook.sh`) that checked PID instead of the full 3-layer session identity model (config_dir + session_id + owner_pid with EPERM)
+- **Race condition fixes**: `detect-workflow-complete.sh` and `enforce-polling.sh` — guarded against TOCTOU races in workflow state detection
+- **Shell compatibility**: `lib/platform.sh` `_parse_iso_epoch()` — fixed BSD/GNU date fallback chain edge cases
+- **Lock reclaim safety**: `lib/workflow-lock.sh` — hardened lock reclaim with session isolation checks
+- **Cleanup robustness**: `on-session-stop.sh` — removed `local` from main-body scope (crash fix), improved cleanup ordering and error handling
+- Files fixed: `arc-batch-stop-hook.sh`, `arc-hierarchy-stop-hook.sh`, `arc-issues-stop-hook.sh`, `detect-workflow-complete.sh`, `enforce-polling.sh`, `lib/platform.sh`, `lib/workflow-lock.sh`, `on-session-stop.sh`
+
 ## [1.154.1] - 2026-03-12
 
 ### Fixed

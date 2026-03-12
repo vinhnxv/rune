@@ -56,11 +56,15 @@ Rune generates output files in directories that are typically gitignored. To let
 {
   "includedGitignorePatterns": [
     "plans/",
+    "todos/",
     "tmp/",
     "reviews/",
     ".claude/arc/",
     ".claude/echoes/",
     ".claude/arc-batch-loop.local.md",
+    ".claude/arc-phase-loop.local.md",
+    ".claude/arc-hierarchy-loop.local.md",
+    ".claude/arc-issues-loop.local.md",
     ".claude/CLAUDE.local.md",
     ".claude/talisman.yml"
   ]
@@ -700,6 +704,8 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | trial-forger | Test generation (follows existing test patterns) |
 | design-iterator | Iterative design refinement — screenshot-analyze-improve loop for component fidelity convergence |
 | design-sync-agent | Figma design extraction worker — produces Visual Spec Maps (VSM) from Figma MCP data |
+| storybook-reviewer | Component verification via screenshots — Mode A (Design Fidelity) or Mode B (UI Quality Audit) |
+| storybook-fixer | Applies Storybook finding fixes with re-verification (SBK-001 structured fixes) |
 
 ### Utility Agents
 
@@ -911,7 +917,7 @@ plugins/rune/
 │   ├── research/            # 5 research agents (plan pipeline)
 │   ├── testing/             # 5 testing agents (arc Phase 7.7)
 │   ├── work/                # 6 swarm workers (work pipeline)
-│   └── utility/             # 26 utility agents: runebinder, decree-arbiter, truthseer-validator, flow-seer, scroll-reviewer, mend-fixer, knowledge-keeper, elicitation-sage, veil-piercer-plan, horizon-sage, deployment-verifier, evidence-verifier, research-verifier, state-weaver, ux-pattern-analyzer, tome-digest, condenser-gap, condenser-verdict, condenser-plan, condenser-work, codex-phase-handler, context-scribe, prompt-warden, dispatch-herald (+ gap-fixer as prompt-template, no .md file)
+│   └── utility/             # 26 utility agents: runebinder, decree-arbiter, truthseer-validator, flow-seer, scroll-reviewer, mend-fixer, knowledge-keeper, elicitation-sage, veil-piercer-plan, horizon-sage, deployment-verifier, evidence-verifier, research-verifier, state-weaver, ux-pattern-analyzer, todo-verifier, design-analyst, tome-digest, condenser-gap, condenser-verdict, condenser-plan, condenser-work, codex-phase-handler, context-scribe, prompt-warden, dispatch-herald (+ gap-fixer as prompt-template, no .md file)
 ├── commands/
 │   ├── cancel-arc.md           # /rune:cancel-arc
 │   ├── cancel-arc-batch.md     # /rune:cancel-arc-batch

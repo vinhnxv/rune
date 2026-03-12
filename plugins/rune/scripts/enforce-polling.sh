@@ -118,7 +118,13 @@ if printf '%s\n' "$NORMALIZED" | grep -qE '(^|[[:space:];|&(])sleep[[:space:]]+[
     printf 'WARNING: %s: resolve-session-identity.sh not found — using PID-based ownership fallback\n' \
       "${BASH_SOURCE[0]##*/}" >&2 2>/dev/null || true
     RUNE_CURRENT_CFG=""
-    rune_pid_alive() { kill -0 "$1" 2>/dev/null; }  # PID liveness check (matches other scripts)
+    rune_pid_alive() {
+      kill -0 "$1" 2>/dev/null && return 0
+      # EPERM means process exists but we lack permission — treat as alive
+      # This prevents false "dead" detection for cross-user PIDs
+      kill -0 "$1" 2>&1 | grep -qi "perm" && return 0
+      return 1
+    }
   fi
 
   # Arc checkpoint detection
