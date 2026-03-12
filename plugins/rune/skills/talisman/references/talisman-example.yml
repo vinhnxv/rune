@@ -24,57 +24,14 @@ plan:
   #   - https://docs.python.org/3/
 
 # ──────────────────────────────────────────────
-# Arc — Dual-Layer Recovery Configuration
+# Arc — Crash Recovery Configuration
 # ──────────────────────────────────────────────
-# Controls dual-layer arc crash recovery (v1.145.0):
-#   Layer 1: CronCreate (in-session) — catches stop-hook failures where
-#            the session is alive but the phase loop stalled.
-#   Layer 2: SessionStart hook (cross-session) — detects interrupted arcs
-#            from crashed sessions when opening a new Claude Code session.
+# Arc crash recovery uses SessionStart hook detection (v1.145.0):
+#   When a session crashes (OOM, terminal closure, machine reboot),
+#   session-team-hygiene.sh detects orphaned checkpoints on next
+#   session start and advises user to resume via /rune:arc --resume.
 #
-# Both layers share the same resume infrastructure: /rune:arc --resume
-#
-# Prerequisites (Layer 1 only):
-#   - Claude Code >= v2.1.71 (CronCreate/CronDelete/CronList)
-#   - CLAUDE_CODE_DISABLE_CRON is not set (env var disables Layer 1 only)
+# No configuration needed — SessionStart recovery runs automatically.
+# Use /rune:arc --resume for manual recovery at any time.
 #
 arc:
-  scheduler:
-    # Enable/disable Layer 1 (CronCreate) recovery.
-    # Layer 2 (SessionStart) always runs — it has no config dependency.
-    enabled: true
-
-    # Layer 1 (CronCreate) settings:
-    # Check interval in minutes (5, 10, 15, 30)
-    interval_minutes: 15
-
-    # Automatically renew tasks before 3-day expiry
-    auto_renew: true
-
-    # Renew when less than this many hours remain
-    renewal_threshold_hours: 12
-
-    # Clean orphaned tasks on session start
-    cleanup_orphans_on_start: true
-
-    # Layer 2 (SessionStart) settings:
-    # No additional config needed — uses resume limits below.
-    # Layer 2 always advises user (does not auto-resume).
-
-    # Shared resume limits (apply to both layers):
-    auto_resume:
-      # Enable automatic resume on unexpected stop (Layer 1)
-      # Layer 2 always advises, regardless of this setting
-      enabled: true
-
-      # Maximum total resume attempts per arc
-      max_total_resumes: 10
-
-      # Stop if this many consecutive failures
-      max_consecutive_failures: 3
-
-      # Wait between resume attempts (Layer 1 only)
-      cooldown_minutes: 5
-
-      # Notify user when auto-resume occurs
-      notify_on_resume: true

@@ -247,8 +247,6 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
   cancel_reason: null,
   cancelled_at: null,
   stop_reason: null,
-  // Schema v22 addition (v1.144.0): scheduled task linkage
-  cron_task_id: null,
   // Schema v22 addition (v1.144.0): resume analytics for crash recovery
   resume_tracking: {
     total_resume_count: 0,
@@ -256,91 +254,12 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
     last_resume_at: null,
     consecutive_failures: 0
   },
-  // Schema v22 addition (v1.144.0): scheduler state for recurring arcs
-  scheduler: {
-    created_at: null,
-    interval_minutes: null,
-    expires_at: null,
-    renewal_count: 0,
-    last_renewal_at: null
-  },
   commits: [],
   started_at: new Date().toISOString(),
   updated_at: new Date().toISOString()
 })
 
-// ── Scheduled Monitoring Task Creation (Schema v22) ──
-// Create a scheduled task to monitor arc health and auto-resume on unexpected stops.
-// Only runs when scheduler is enabled and CronCreate is available.
-const schedulerConfig = readTalismanSection("arc")?.scheduler ?? {}
-const schedulerEnabled = schedulerConfig.enabled !== false
-
-if (schedulerEnabled && typeof CronCreate !== 'undefined') {
-  const intervalMinutes = schedulerConfig.interval_minutes ?? 15
-  const cronExpr = `*/${intervalMinutes} * * * *`
-
-  // Build the monitoring prompt with all necessary context
-  const monitoringPrompt = buildArcMonitoringPrompt(checkpoint)
-
-  try {
-    const cronResult = CronCreate({
-      cron_expression: cronExpr,
-      prompt: monitoringPrompt,
-      recurring: true
-    })
-
-    // Update checkpoint with scheduler info
-    checkpoint.cron_task_id = cronResult.id
-    checkpoint.scheduler = {
-      created_at: new Date().toISOString(),
-      interval_minutes: intervalMinutes,
-      expires_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-      renewal_count: 0,
-      last_renewal_at: null
-    }
-
-    log(`[ARC-SCHEDULER] Created monitoring task ${cronResult.id} for arc ${checkpoint.id}`)
-  } catch (error) {
-    warn(`Failed to create monitoring task: ${error.message}`)
-    // Non-fatal - arc continues without monitoring
-  }
-} else {
-  log("[ARC-SCHEDULER] Scheduled tasks not available or disabled")
-}
-
 // Schema migration is handled in arc-resume.md (steps 3a through 3w).
 // Migrations v1→v22 are defined there. See arc-resume.md for the full chain.
 ```
 
-## buildArcMonitoringPrompt()
-
-Generate the monitoring prompt for the scheduled task (Layer 1). This prompt is injected
-as plain text into CronCreate and must be self-contained.
-
-**Heartbeat Staleness Detection (v1.146.0)**: The monitor checks `heartbeat.json` to detect
-stuck phases. A phase is considered stuck if `last_activity` is older than 15 minutes AND
-the checkpoint shows a phase with `in_progress` status. The 15-minute threshold is conservative
-to avoid false positives during long-running test/build operations.
-
-**Backward Compatibility**: Arcs started before v1.146.0 won't have heartbeat files. The
-monitor falls back to existing behavior (check `in_progress` status only) instead of
-triggering a false positive.
-
-```javascript
-function buildArcMonitoringPrompt(checkpoint) {
-  // SEC: Validate interpolated values before prompt construction (P1 fix)
-  if (!/^arc-[a-zA-Z0-9_-]+$/.test(checkpoint.id)) {
-    throw new Error("Invalid arc id format — refusing to build monitoring prompt")
-  }
-  const stateFile = ".claude/arc-phase-loop.local.md"
-  const ckptFile = `.claude/arc/${checkpoint.id}/checkpoint.json`
-  const heartbeatFile = `tmp/arc/${checkpoint.id}/heartbeat.json`
-
-  // Monitoring prompt with heartbeat staleness check (v1.146.0)
-  // Handles 3 heartbeat states: stale (>15 min), fresh (<15 min), missing (backward compat)
-  return `[ARC-MONITOR] Check arc ${checkpoint.id}.
-Read ${stateFile}. If missing or user_cancelled=true or stop_reason is "completed" or "user_cancel": run CronDelete for this task and stop.
-Otherwise read ${ckptFile}. If no phase has status "in_progress": run /rune:arc --resume.
-If a phase IS in_progress: read ${heartbeatFile}. If file exists and last_activity is older than 15 minutes: the phase is stuck — run /rune:arc --resume. If file missing (hook not yet installed or arc started before v1.146.0): do nothing — fall back to existing detection.
-If last_activity is recent (<15 min): arc is running normally — do nothing.`
-}

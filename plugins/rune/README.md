@@ -303,40 +303,9 @@ Note: Phase numbers match the internal arc skill pipeline (Phases 3-4 are intern
 
 Each phase summons a fresh team. Checkpoint-based resume (`--resume`) validates artifact integrity with SHA-256 hashes. Feature branches auto-created when on main.
 
-### Arc Scheduler — Automatic Crash Recovery (v1.144.0+)
+### Arc Crash Recovery
 
-When an arc's stop hook fails (timeout, error, crash), a **scheduled monitoring task** detects the unexpected stop and automatically resumes via `/rune:arc --resume`. This provides a best-effort safety net for the common case where stop hooks silently fail but the Claude Code session remains alive.
-
-**How it works:**
-1. When arc starts, a scheduled task is created via `CronCreate` (configurable interval, default: 15 minutes)
-2. The monitoring task checks if the arc is still running (active with in_progress phase)
-3. If an unexpected stop is detected, it attempts automatic resume
-4. On completion or cancellation, the monitoring task is deleted
-
-**Configuration** (talisman.yml):
-
-```yaml
-arc:
-  scheduler:
-    enabled: true                    # Enable scheduled monitoring
-    interval_minutes: 15             # Check interval (5, 10, 15, 30)
-    auto_resume:
-      enabled: true                  # Enable automatic resume
-      max_total_resumes: 10          # Max resume attempts per arc
-      max_consecutive_failures: 3    # Stop if this many consecutive failures
-      cooldown_minutes: 5            # Wait between resume attempts
-```
-
-**Prerequisites:**
-- Claude Code >= v2.1.71 (CronCreate/CronDelete/CronList tools)
-- `CLAUDE_CODE_DISABLE_CRON` environment variable must not be set
-
-**Key limitations:**
-- Cannot recover from complete session crashes (scheduled tasks are session-scoped)
-- Tasks fire between turns only — if Claude is stuck mid-response, monitoring cannot fire
-- No catch-up for missed fires — if a scheduled time passes while Claude is busy, it fires once when idle
-
-**Manual resume:** You can always run `/rune:arc --resume` manually to recover from unexpected stops.
+If an arc is interrupted (session crash, OOM, terminal closure), the `SessionStart` hook automatically detects orphaned checkpoints on the next session start and advises you to resume via `/rune:arc --resume`. Manual resume is always available.
 
 ## Batch Mode (Sequential Multi-Plan Execution)
 

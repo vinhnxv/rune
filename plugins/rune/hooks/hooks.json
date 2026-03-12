@@ -231,7 +231,7 @@
       },
       {
         "matcher": "Read|Write|Edit|Bash|Glob|Grep",
-        "_rationale": "ARC-HEARTBEAT-001: Writes last-activity timestamp during active arc phases. Fast-path exit (<2ms) when no arc is active. 30-second throttle prevents I/O storm. Used by CronCreate monitor (Layer 1) and SessionStart hygiene (Layer 2) for stuck detection.",
+        "_rationale": "ARC-HEARTBEAT-001: Writes last-activity timestamp during active arc phases. Fast-path exit (<2ms) when no arc is active. 30-second throttle prevents I/O storm. Used by SessionStart hygiene (Layer 2) for stuck detection.",
         "hooks": [
           {
             "type": "command",

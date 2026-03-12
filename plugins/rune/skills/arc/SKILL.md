@@ -39,9 +39,6 @@ allowed-tools:
   - TaskUpdate
   - TaskGet
   - TaskList
-  - CronCreate
-  - CronDelete
-  - CronList
   - TeamCreate
   - TeamDelete
   - SendMessage

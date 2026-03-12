@@ -15,8 +15,6 @@ allowed-tools:
   - Write
   - Bash
   - Glob
-  - CronList
-  - CronDelete
 ---
 
 # /rune:cancel-arc-hierarchy — Cancel Active Arc Hierarchy Loop
@@ -83,30 +81,6 @@ const cancelled = content.replace(/^active:\s*true/m, "active: false")
   .replace(/^---/, `---\ncancelled: true\ncancelled_at: "${new Date().toISOString()}"`)
 
 Write(stateFile, cancelled)
-```
-
-### 3.5. Cancel Scheduled Monitoring Task (if any)
-
-If the hierarchy was scheduled with a monitoring task, cancel it:
-
-```javascript
-// Check for scheduled task ID in state file frontmatter
-const cronTaskIdMatch = content.match(/cron_task_id:\s*(.+)/)
-const cronTaskId = cronTaskIdMatch ? cronTaskIdMatch[1].trim() : null
-
-if (cronTaskId) {
-  try {
-    const existingTasks = CronList()
-    const taskExists = existingTasks.some(t => t.id === cronTaskId)
-    if (taskExists) {
-      CronDelete({ task_id: cronTaskId })
-      log(`Cancelled scheduled monitoring task: ${cronTaskId}`)
-    }
-  } catch (e) {
-    warn(`Failed to cancel scheduled task ${cronTaskId}: ${e.message}`)
-    // Non-blocking — hierarchy cancellation proceeds regardless
-  }
-}
 ```
 
 ### 4. Report

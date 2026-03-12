@@ -208,25 +208,17 @@ On resume, validate checkpoint integrity before proceeding:
    ```
 3w. If schema_version < 22, migrate v21 → v22:
    ```javascript
-   // Step 3w: v21 → v22 (scheduler fields)
+   // Step 3w: v21 → v22 (cancellation + resume tracking fields)
    if (checkpoint.schema_version < 22) {
      checkpoint.user_cancelled = checkpoint.user_cancelled ?? false
      checkpoint.cancel_reason = checkpoint.cancel_reason ?? null
      checkpoint.cancelled_at = checkpoint.cancelled_at ?? null
      checkpoint.stop_reason = checkpoint.stop_reason ?? null
-     checkpoint.cron_task_id = checkpoint.cron_task_id ?? null
      checkpoint.resume_tracking = checkpoint.resume_tracking ?? {
        total_resume_count: 0,
        resume_history: [],
        last_resume_at: null,
        consecutive_failures: 0
-     }
-     checkpoint.scheduler = checkpoint.scheduler ?? {
-       created_at: null,
-       interval_minutes: null,
-       expires_at: null,
-       renewal_count: 0,
-       last_renewal_at: null
      }
      checkpoint.schema_version = 22
    }

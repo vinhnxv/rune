@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [1.154.0] - 2026-03-12
+
+### Removed
+- **CronCreate/CronDelete/CronList**: Removed non-functional Layer 1 arc scheduler. These tools were never successfully invoked during arc runs — `typeof CronCreate !== 'undefined'` pseudocode check doesn't translate to Claude tool availability detection.
+- **arc.scheduler talisman config**: Removed `scheduler:` section from talisman-example.yml (no longer needed)
+- **Checkpoint scheduler fields**: Removed `cron_task_id` and `scheduler` from checkpoint schema
+- **Scheduled task blocks**: Removed scheduled task creation (arc-checkpoint-init), cleanup (post-arc), cancellation (cancel-arc, cancel-arc-batch, cancel-arc-hierarchy, cancel-arc-issues)
+- **arc-monitoring-task.md Layer 1**: Rewritten to document SessionStart crash recovery only
+
+### Changed
+- **arc-heartbeat-writer.sh**: Updated comments — heartbeat now serves Layer 2 (SessionStart) only
+- **hooks.json**: Updated ARC-HEARTBEAT-001 rationale — Layer 2 only
+- **README.md**: Replaced Arc Scheduler section with brief SessionStart recovery guidance
+- **docs/glm-5-setup.md**: Removed `CLAUDE_CODE_DISABLE_CRON` env var from setup examples
+
 ## [1.153.2] - 2026-03-12
 
 ### Fixed
