@@ -250,6 +250,12 @@ After checkpoint initialization (or resume), write the phase loop state file tha
 // Write the phase loop state file for the Stop hook driver.
 // The Stop hook reads this file, finds the next pending phase in the checkpoint,
 // and re-injects the phase-specific prompt with fresh context.
+//
+// CRITICAL: session_id MUST use SKILL.md substitution ("${CLAUDE_SESSION_ID}") as primary source.
+// DO NOT use Bash('echo $CLAUDE_SESSION_ID') — it is NOT available in Bash tool context
+// (anthropics/claude-code#25642). The SKILL.md preprocessor replaces ${CLAUDE_SESSION_ID}
+// at skill load time, providing the real session ID without Bash.
+const sessionId = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
 const stateContent = `---
 active: true
 iteration: 0
@@ -260,7 +266,7 @@ branch: ${branch}
 arc_flags: ${args.replace(/\s+/g, ' ').trim()}
 config_dir: ${configDir}
 owner_pid: ${ownerPid}
-session_id: ${Bash('echo "${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}"').trim() || 'unknown'}
+session_id: ${sessionId}
 compact_pending: false
 user_cancelled: false
 cancel_reason: null
@@ -281,7 +287,7 @@ Execute the first pending phase from the checkpoint. The Stop hook (`arc-phase-s
 // Check for context-critical shutdown signal before starting next phase (Layer 1)
 const shutdownSignalCheck = (() => {
   try {
-    const sid = Bash(`echo "\${CLAUDE_SESSION_ID:-\${RUNE_SESSION_ID:-}}"`).trim()
+    const sid = "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim()
     const signalPath = `tmp/.rune-shutdown-signal-${sid}.json`
     const signal = JSON.parse(Read(signalPath))
     return signal?.signal === "context_warning"

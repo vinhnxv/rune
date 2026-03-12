@@ -41,7 +41,7 @@ On resume, validate checkpoint integrity before proceeding:
    // Claim ownership for this session
    checkpoint.owner_pid = Number(Bash('echo $PPID').trim())
    checkpoint.config_dir = CHOME
-   checkpoint.session_id = Bash('echo "${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-unknown}}"').trim()
+   checkpoint.session_id = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
    // Re-export ownership vars so the state file (written later by SKILL.md) uses the new session's values
    ownerPid = checkpoint.owner_pid
    configDir = checkpoint.config_dir

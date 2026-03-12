@@ -123,7 +123,7 @@ function createTeam(config) {
   // does not manifest for SDK-mediated workflows.
   const configDir = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
   const ownerPid = Bash(`echo $PPID`).trim()
-  const sessionId = Bash(`echo "\${CLAUDE_SESSION_ID:-\${RUNE_SESSION_ID:-}}"`).trim()
+  const sessionId = "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim()
   const stateFile = `${stateFilePrefix}-${identifier}.json`
 
   Write(stateFile, {
