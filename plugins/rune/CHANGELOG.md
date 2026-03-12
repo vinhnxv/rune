@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [1.154.1] - 2026-03-12
+
+### Fixed
+- **CRITICAL: Cross-session arc hijacking** — Stop hook from a different Claude Code session (same directory) could claim ownership of another session's arc pipeline via claim-on-first-touch when `session_id` was "unknown"
+- **Root cause**: Arc SKILL.md used Bash-only pattern `Bash('echo "${CLAUDE_SESSION_ID:-...}"')` for session_id, but `CLAUDE_SESSION_ID` is not available in Bash tool context (anthropics/claude-code#25642), resulting in `session_id: unknown` in state files
+- **Fix (Prong 1)**: Changed arc SKILL.md + 6 reference files to use `"${CLAUDE_SESSION_ID}" || Bash(...)` pattern (SKILL.md preprocessor substitution first, Bash fallback). Aligns with the pattern already used by 15+ other skills (arc-batch, arc-issues, forge, appraise, etc.)
+- **Fix (Prong 2)**: Hardened claim-on-first-touch in `stop-hook-common.sh` with process tree verification — walks up to 4 ancestor levels via `ps -o ppid=` to verify the hook is a descendant of the `owner_pid` that created the state file. Different session's hook fails the ancestry check and is rejected
+- Files fixed: `arc/SKILL.md`, `arc/references/arc-resume.md`, `arc/references/arc-phase-cleanup.md`, `strive/references/monitor-inline.md`, `team-sdk/references/engines.md`, `team-sdk/references/protocols.md`, `goldmask/references/orchestration-protocol.md`, `scripts/lib/stop-hook-common.sh`
+
 ## [1.154.0] - 2026-03-12
 
 ### Removed

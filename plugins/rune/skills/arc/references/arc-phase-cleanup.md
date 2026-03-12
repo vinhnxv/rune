@@ -133,7 +133,7 @@ function postPhaseCleanup(checkpoint, phaseName) {
         // If session_id differs from ours, skip — belongs to another session
         // (EC-1/EC-2: CRITICAL — must not delete concurrent session's teams)
         const sessionCheck = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && jq -r '.session_id // empty' "$CHOME/teams/${orphanName}/.session" 2>/dev/null`).trim()
-        const arcSessionId = Bash(`echo "\${CLAUDE_SESSION_ID:-\${RUNE_SESSION_ID:-}}"`).trim()
+        const arcSessionId = "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim()
         if (!sessionCheck || sessionCheck !== arcSessionId) {
           warn(`postPhaseCleanup: Skipping ${orphanName} — no session marker or belongs to another session`)
           continue
@@ -160,7 +160,7 @@ function postPhaseCleanup(checkpoint, phaseName) {
       Bash(`rm -rf "tmp/.rune-signals/${phaseInfo.team_name}/" 2>/dev/null`)
     }
     // Clean session-owned shutdown signal (Layer 1 defense — written by guard-context-critical.sh)
-    const sessionId = Bash(`echo "\${CLAUDE_SESSION_ID:-\${RUNE_SESSION_ID:-}}"`).trim()
+    const sessionId = "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim()
     if (sessionId && /^[a-zA-Z0-9_-]+$/.test(sessionId)) {
       Bash(`rm -f "tmp/.rune-shutdown-signal-${sessionId}.json" 2>/dev/null`)
     }

@@ -179,7 +179,35 @@ validate_session_ownership() {
   # 1. The state file is created by the skill in the SAME session
   # 2. The first Stop hook fires in the SAME session (immediately after the skill's turn)
   # 3. Config-dir isolation (Layer 1) already passed at this point
+  #
+  # GUARD: Process tree verification (v1.152.1 — cross-session claiming prevention)
+  # When session_id is "unknown", ANY session's Stop hook could fire first.
+  # Verify this hook belongs to the same Claude Code session that created the state file
+  # by walking the process tree: hook script → hook runner → Claude Code session PID.
+  # If the hook's ancestor chain does NOT include stored_pid, this is a DIFFERENT session.
   if [[ -n "$hook_session_id" && ( -z "$stored_session_id" || "$stored_session_id" == "unknown" ) ]]; then
+    # Process tree guard: verify hook is descendant of the owning session
+    if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
+      local _ancestor="$PPID" _is_descendant=false
+      # Walk up to 4 levels: hook script → hook runner → node worker → Claude Code session
+      local _walk
+      for _walk in 1 2 3 4; do
+        _ancestor=$(ps -o ppid= -p "$_ancestor" 2>/dev/null | tr -d ' ')
+        [[ -n "$_ancestor" && "$_ancestor" =~ ^[0-9]+$ ]] || break
+        [[ "$_ancestor" == "1" || "$_ancestor" == "0" ]] && break  # hit init/launchd
+        if [[ "$_ancestor" == "$stored_pid" ]]; then
+          _is_descendant=true
+          break
+        fi
+      done
+      if [[ "$_is_descendant" != "true" ]]; then
+        # Hook is NOT a descendant of stored_pid → different session → reject claim
+        if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+          _trace "ownership: claim-on-first-touch REJECTED — hook not descendant of stored_pid=${stored_pid} (last ancestor=${_ancestor})"
+        fi
+        exit 0
+      fi
+    fi
     if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
       _trace "ownership: claim-on-first-touch — writing hook_sid='${hook_session_id}' to state file"
     fi
