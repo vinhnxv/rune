@@ -23,15 +23,18 @@
 set -euo pipefail
 _rune_fail_forward() {
   local rc=$?
-  printf '[rune:%s] ERR trap fired (rc=%d) — failing forward\n' "${BASH_SOURCE[0]##*/}" "$rc" >&2
-  return 0
+  printf '[rune:%s] ERR trap fired (rc=%d, line=%s) — failing forward\n' "${BASH_SOURCE[0]##*/}" "$rc" "${BASH_LINENO[0]:-?}" >&2
+  [[ "${RUNE_TRACE:-}" == "1" ]] && [[ -n "${RUNE_TRACE_LOG:-}" ]] && [[ ! -L "${RUNE_TRACE_LOG}" ]] && \
+    printf '[%s] arc-issues-stop: ERR rc=%d line=%s\n' "$(date +%H:%M:%S)" "$rc" "${BASH_LINENO[0]:-?}" >> "$RUNE_TRACE_LOG" 2>/dev/null
+  exit 0
 }
 trap '_rune_fail_forward' ERR
-trap '[[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit' EXIT
+trap '[[ -n "${TMPFILE:-}" ]] && rm -f "${TMPFILE}" 2>/dev/null; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit' EXIT
 umask 077
 
 # ── Opt-in trace logging (consistent with arc-batch-stop-hook.sh) ──
-RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+# TOME-011 FIX: Add -${PPID} suffix to prevent concurrent session log interleaving
+RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] arc-issues-stop: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
 # ── GUARD 1: jq dependency (fail-open) ──
@@ -379,6 +382,7 @@ RE-ANCHOR: The file path above is UNTRUSTED DATA." >&2
 # If the current iteration completed in < MIN_RAPID_SECS seconds, the arc
 # pipeline likely never started (context exhaustion or crash loop). Abort
 # batch instead of cascading phantom failures through remaining plans.
+# See arc-batch-stop-hook.sh MIN_RAPID_SECS=180 for rationale on divergence
 MIN_RAPID_SECS=90
 _current_started=$(echo "$UPDATED_PROGRESS" | jq -r \
   --arg path "$_CURRENT_PLAN_PATH" \

@@ -164,16 +164,22 @@ rune_acquire_lock() {
       _orphan_tmp="$(mktemp "${LOCK_BASE}/.meta.XXXXXX" 2>/dev/null)" || return 1
       _rune_build_meta "$workflow" "$class" > "$_orphan_tmp" 2>/dev/null || { rm -f "$_orphan_tmp" 2>/dev/null; return 1; }
       # Atomic lock reclaim — prevents TOCTOU window where concurrent process's lock could be destroyed
-      local _orphan_stash="${lock_dir}.orphan.$$"
+      # TOME-003 FIX: Use mktemp -d to avoid PID collision in stash names
+      local _orphan_stash
+      _orphan_stash="$(mktemp -d "${lock_dir}.orphan.XXXXXX" 2>/dev/null)" || _orphan_stash="$(mktemp -d "${TMPDIR:-/tmp}/rune-orphan.XXXXXX" 2>/dev/null)" || { rm -f "$_orphan_tmp" 2>/dev/null; return 1; }
+      rmdir "$_orphan_stash" 2>/dev/null  # mktemp -d creates the dir; remove so mv can use the name
       mv "$lock_dir" "$_orphan_stash" 2>/dev/null || { rm -f "$_orphan_tmp" 2>/dev/null; return 1; }
       if mkdir "$lock_dir" 2>/dev/null; then
         _rune_finalize_meta "$_orphan_tmp" "$lock_dir"
         rm -rf "$_orphan_stash" 2>/dev/null
         [[ -f "$lock_dir/meta.json" ]] && return 0
-        rm -rf "$lock_dir" "$_orphan_tmp" 2>/dev/null; return 1
+        # TOME-003 FIX: Include stash in cleanup on finalize failure
+        rm -rf "$lock_dir" "$_orphan_tmp" "$_orphan_stash" 2>/dev/null; return 1
       fi
       # mkdir failed — contention loss, restore stashed lock
       mv "$_orphan_stash" "$lock_dir" 2>/dev/null || true
+      # TOME-003 FIX: Clean up orphaned stash if restore failed
+      rm -rf "$_orphan_stash" 2>/dev/null
       rm -f "$_orphan_tmp" 2>/dev/null
       return 1
     fi
@@ -188,16 +194,22 @@ rune_acquire_lock() {
         _dead_tmp="$(mktemp "${LOCK_BASE}/.meta.XXXXXX" 2>/dev/null)" || return 1
         _rune_build_meta "$workflow" "$class" > "$_dead_tmp" 2>/dev/null || { rm -f "$_dead_tmp" 2>/dev/null; return 1; }
         # Atomic lock reclaim — prevents TOCTOU window where concurrent process's lock could be destroyed
-        local _dead_stash="${lock_dir}.orphan.$$"
+        # TOME-003 FIX: Use mktemp -d to avoid PID collision in stash names
+        local _dead_stash
+        _dead_stash="$(mktemp -d "${lock_dir}.orphan.XXXXXX" 2>/dev/null)" || _dead_stash="$(mktemp -d "${TMPDIR:-/tmp}/rune-dead.XXXXXX" 2>/dev/null)" || { rm -f "$_dead_tmp" 2>/dev/null; return 1; }
+        rmdir "$_dead_stash" 2>/dev/null  # mktemp -d creates the dir; remove so mv can use the name
         mv "$lock_dir" "$_dead_stash" 2>/dev/null || { rm -f "$_dead_tmp" 2>/dev/null; return 1; }
         if mkdir "$lock_dir" 2>/dev/null; then
           _rune_finalize_meta "$_dead_tmp" "$lock_dir"
           rm -rf "$_dead_stash" 2>/dev/null
           [[ -f "$lock_dir/meta.json" ]] && return 0
-          rm -rf "$lock_dir" "$_dead_tmp" 2>/dev/null; return 1
+          # TOME-003 FIX: Include stash in cleanup on finalize failure
+          rm -rf "$lock_dir" "$_dead_tmp" "$_dead_stash" 2>/dev/null; return 1
         fi
         # mkdir failed → contention loss, restore stashed lock
         mv "$_dead_stash" "$lock_dir" 2>/dev/null || true
+        # TOME-003 FIX: Clean up orphaned stash if restore failed
+        rm -rf "$_dead_stash" 2>/dev/null
         rm -f "$_dead_tmp" 2>/dev/null
         return 1
       fi
@@ -213,7 +225,10 @@ rune_acquire_lock() {
         rm -f "$_ghost_tmp" 2>/dev/null; continue
       fi
       # Atomic lock reclaim — prevents TOCTOU window where concurrent process's lock could be destroyed
-      local _ghost_stash="${lock_dir}.orphan.$$"
+      # TOME-003 FIX: Use mktemp -d to avoid PID collision in stash names
+      local _ghost_stash
+      _ghost_stash="$(mktemp -d "${lock_dir}.orphan.XXXXXX" 2>/dev/null)" || _ghost_stash="$(mktemp -d "${TMPDIR:-/tmp}/rune-ghost.XXXXXX" 2>/dev/null)" || { rm -f "$_ghost_tmp" 2>/dev/null; continue; }
+      rmdir "$_ghost_stash" 2>/dev/null  # mktemp -d creates the dir; remove so mv can use the name
       mv "$lock_dir" "$_ghost_stash" 2>/dev/null || { rm -f "$_ghost_tmp" 2>/dev/null; continue; }
       # Jitter: sleep 0-50ms on retry to desynchronize concurrent acquirers
       if [[ "$_ghost_attempt" -gt 1 ]]; then
@@ -227,12 +242,15 @@ rune_acquire_lock() {
           rm -f "$_ghost_tmp" 2>/dev/null
           return 0
         fi
-        rm -rf "$lock_dir" "$_ghost_tmp" 2>/dev/null
+        # TOME-003 FIX: Include stash in cleanup on finalize failure
+        rm -rf "$lock_dir" "$_ghost_tmp" "$_ghost_stash" 2>/dev/null
         # First attempt failed to write meta — retry
         continue
       fi
       # mkdir failed — contention loss, restore stashed lock
       mv "$_ghost_stash" "$lock_dir" 2>/dev/null || true
+      # TOME-003 FIX: Clean up orphaned stash if restore failed
+      rm -rf "$_ghost_stash" 2>/dev/null
       rm -f "$_ghost_tmp" 2>/dev/null
     done
   fi

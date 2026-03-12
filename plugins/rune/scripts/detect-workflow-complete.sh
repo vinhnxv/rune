@@ -67,7 +67,10 @@ else
     kill -0 "$1" 2>/dev/null && return 0
     # EPERM means process exists but we lack permission — treat as alive
     # This prevents false "dead" detection for cross-user PIDs
-    kill -0 "$1" 2>&1 | grep -qi "perm" && return 0
+    # TOME-019 FIX: Use case pattern instead of grep -qi "perm" for locale safety
+    local _err
+    _err=$(kill -0 "$1" 2>&1) || true
+    case "$_err" in *ermission*|*[Pp]erm*|*EPERM*) return 0 ;; esac
     return 1
   }
 fi
@@ -254,11 +257,12 @@ for sf in "${STATE_FILES[@]}"; do
   # Re-checking PID liveness creates a TOCTOU window: if PID is recycled between checks,
   # first check sets ORPHAN=true but second check sees the recycled PID as alive and skips cleanup.
   if [[ "$SF_STATUS" =~ ^(completed|failed|cancelled)$ ]]; then
+    # TOME-024 FIX: Pre-isolation state files (no owner_pid) with terminal status
+    # are safe to clean — they can never be claimed by any session.
     if [[ -z "$SF_PID" ]]; then
-      _trace "TRACE $sf: completed state has no owner_pid attribute, skipping cleanup for unattributable state"
-      continue
-    fi
-    if [[ "$SF_PID" =~ ^[0-9]+$ && "$SF_PID" != "$PPID" && "$ORPHAN" != "true" ]]; then
+      _trace "TRACE $sf: completed state has no owner_pid attribute — treating as safe to clean (pre-isolation)"
+      # Fall through to cleanup decision below
+    elif [[ "$SF_PID" =~ ^[0-9]+$ && "$SF_PID" != "$PPID" && "$ORPHAN" != "true" ]]; then
       _trace "SKIP $sf: completed state belongs to live session PID=$SF_PID"
       continue
     fi
@@ -394,7 +398,8 @@ for sf in "${STATE_FILES[@]}"; do
   fi
 
   # Update state file — SEC-004: use mktemp to avoid predictable temp file path
-  _sf_tmp=$(mktemp "${sf}.XXXXXX" 2>/dev/null) || _sf_tmp="${sf}.tmp"
+  # TOME-008 FIX: Remove predictable fallback — skip state update on mktemp failure
+  _sf_tmp=$(mktemp "${sf}.XXXXXX" 2>/dev/null) || { _trace "mktemp failed for $sf"; continue; }
   jq --arg by "CLEANUP-HOOK" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '. + {status: "stopped", stopped_by: $by, stopped_at: $ts}' "$sf" > "$_sf_tmp" 2>/dev/null \
     && mv "$_sf_tmp" "$sf" 2>/dev/null || { rm -f "$_sf_tmp" 2>/dev/null; true; }

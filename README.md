@@ -4,7 +4,7 @@
 
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
-[![Version](https://img.shields.io/badge/version-1.153.1-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-1.154.1-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Agents](https://img.shields.io/badge/agents-100-purple)](#agents)
 [![Skills](https://img.shields.io/badge/skills-55-orange)](#skills)
@@ -484,7 +484,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 ## Skills
 
-53 skills providing background knowledge, workflow orchestration, and tool integration:
+55 skills providing background knowledge, workflow orchestration, and tool integration:
 
 | Skill | Type | Purpose |
 |-------|------|---------|
@@ -530,10 +530,12 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `figma-to-react` | Integration | Figma-to-React MCP server knowledge |
 | `status` | Reporting | Worker status reporting for swarm execution |
 | `brainstorm` | Workflow | Collaborative idea exploration (solo, roundtable, deep modes) |
+| `design-prototype` | Workflow | Standalone Figma-to-Storybook prototype generator (extract, match, synthesize, verify) |
 | `design-system-discovery` | Intelligence | Design system auto-detection (libraries, tokens, variants) |
 | `resolve-todos` | Workflow | File-based TODO resolution with verify-before-fix pipeline |
 | `runs` | Reporting | Inspect per-agent structured artifacts from workflow runs |
 | `storybook` | Intelligence | Storybook component verification knowledge (CSF3, MCP tools) |
+| `elevate` | Memory | Promote project echoes to global scope with domain tagging |
 | `team-sdk` | Orchestration | Centralized team management SDK (ExecutionEngine, lifecycle) |
 | `team-status` | Reporting | Active agent team monitoring dashboard |
 | `test-browser` | Testing | Standalone browser E2E testing (no agent teams) |
@@ -718,11 +720,11 @@ rune-plugin/
         │   ├── research/         #    5 research agents
         │   ├── testing/          #    5 testing agents
         │   └── work/             #    6 work agents
-        ├── skills/               # 53 skills
-        ├── commands/             # 18 slash commands
+        ├── skills/               # 55 skills
+        ├── commands/             # 17 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json
-        ├── scripts/              # Hook & utility scripts (156 .sh/.py files)
+        ├── scripts/              # Hook & utility scripts (171 .sh/.py files)
         ├── .mcp.json             # MCP server config (3 servers: echo-search, figma-to-react, context7)
         ├── talisman.example.yml  # Configuration reference
         ├── CLAUDE.md             # Plugin instructions

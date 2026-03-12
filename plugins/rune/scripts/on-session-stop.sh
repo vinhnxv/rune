@@ -142,6 +142,14 @@ _check_loop_ownership() {
       fi
       # Owner dead — allow cleanup (orphan recovery)
       return 0
+    elif [[ -z "$current_sid" ]]; then
+      # TOME-007 FIX: Log when session_id is unavailable instead of silently skipping
+      if [[ "${RUNE_TRACE:-}" == "1" ]]; then
+        printf '[%s] %s: WARN: session_id unavailable — falling back to PID-only ownership\n' \
+          "$(date +%H:%M:%S 2>/dev/null || true)" \
+          "${BASH_SOURCE[0]##*/}" \
+          >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" 2>/dev/null
+      fi
     fi
   fi
   # Fallback: PID check (for state files without session_id)
@@ -325,36 +333,6 @@ _kill_stale_teammates() {
   echo "$killed"
   return 0
 }
-
-# ── PRE-CLEANUP: Mark owned active state files as "stopping" ──
-# This prevents detect-workflow-complete.sh from attempting parallel cleanup
-# on the same workflows. detect-workflow-complete.sh skips files where
-# stopped_by is non-empty (line ~221).
-if [[ -d "${CWD}/tmp" ]]; then
-  shopt -s nullglob
-  for _pre_sf in "${CWD}/tmp"/.rune-*.json; do
-    [[ -f "$_pre_sf" ]] || continue
-    [[ -L "$_pre_sf" ]] && continue
-    # Skip signal/control files
-    case "$(basename "$_pre_sf")" in
-      .rune-shutdown-signal-*|.rune-force-shutdown-*|.rune-compact-*) continue ;;
-    esac
-    # Only mark active state files we own
-    if jq -e '.status == "active"' "$_pre_sf" >/dev/null 2>&1; then
-      _pre_cfg=$(jq -r '.config_dir // empty' "$_pre_sf" 2>/dev/null || true)
-      _pre_pid=$(jq -r '.owner_pid // empty' "$_pre_sf" 2>/dev/null || true)
-      if [[ -n "$_pre_cfg" && "$_pre_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
-      if [[ -n "$_pre_pid" && "$_pre_pid" =~ ^[0-9]+$ && "$_pre_pid" != "$PPID" ]]; then
-        rune_pid_alive "$_pre_pid" && continue
-      fi
-      # Write stopping marker — atomic via mktemp+mv
-      _pre_tmp=$(mktemp "${_pre_sf}.XXXXXX" 2>/dev/null) || continue
-      jq '. + {stop_reason: "session_stop", stopped_by: "STOP-001-pending"}' "$_pre_sf" > "$_pre_tmp" 2>/dev/null \
-        && mv "$_pre_tmp" "$_pre_sf" 2>/dev/null || rm -f "$_pre_tmp" 2>/dev/null
-    fi
-  done
-  shopt -u nullglob
-fi
 
 # ── AUTO-CLEAN PHASE 0: Terminate stale teammate processes ──
 if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" == "1" ]]; then
@@ -745,7 +723,9 @@ fi
 
 # Log to trace file for debugging (always, not just RUNE_TRACE)
 # SEC-008 FIX: Include PPID in log filename for forensic traceability across sessions.
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] $summary" >> "${CWD}/tmp/.rune-stop-cleanup-${PPID}.log" 2>/dev/null
+# TOME-020 FIX: Reject symlinks to prevent log path hijacking
+_log_path="${CWD}/tmp/.rune-stop-cleanup-${PPID}.log"
+[[ ! -L "$_log_path" ]] && echo "[$(date '+%Y-%m-%d %H:%M:%S')] $summary" >> "$_log_path" 2>/dev/null
 
 # Stop hook: exit 2 = show stderr to model and continue conversation
 printf '%s\n' "$summary" >&2
