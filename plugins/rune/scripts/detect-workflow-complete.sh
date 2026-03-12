@@ -184,7 +184,7 @@ done
 CLEANUP_ENABLED=true
 ESCALATION_TIMEOUT=5
 
-TALISMAN="${CWD}/talisman.yml"
+TALISMAN="${CWD}/.claude/talisman.yml"
 if [[ -f "$TALISMAN" ]]; then
   CLEANUP_ENABLED=$(grep -A5 'cleanup:' "$TALISMAN" 2>/dev/null | grep 'enabled:' | awk '{print $2}' | head -1 || echo "true")
   # NOTE: escalation_timeout_seconds must stay < 23s to fit within 30s hook timeout budget (GAP-DOC-4)
@@ -461,7 +461,7 @@ if [[ "$_artifact_now" =~ ^[0-9]+$ && "$_artifact_now" -gt 0 ]]; then
     _trace "STALE ARTIFACT: ${_art_agent} (age=${_art_age}s) — marking as crashed: $meta_file"
 
     if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" != "1" ]]; then
-      _art_tmp=$(mktemp "${meta_file}.XXXXXX" 2>/dev/null) || _art_tmp="${meta_file}.tmp"
+      _art_tmp=$(mktemp "${meta_file}.XXXXXX" 2>/dev/null) || continue
       jq --arg tstat "crashed" --arg completed "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         --argjson dur "$_art_age" \
         '.status = $tstat | .completed_at = $completed | .duration_seconds = $dur' \

@@ -270,7 +270,7 @@ fi
 
 # Ensure lock is released on exit and signals
 _release_lock() { rmdir "$LOCK_DIR" 2>/dev/null || true; }
-trap '_release_lock; exit 0' EXIT INT TERM ERR
+trap '_release_lock; exit 0' EXIT INT TERM
 
 # ── Format and write entry ──
 DATE=$(date +%Y-%m-%d)

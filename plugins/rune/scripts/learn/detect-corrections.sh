@@ -76,7 +76,7 @@ kill -0 "$MARKER_OWNER_PID" 2>/dev/null || exit 0
 # ── GUARD 4: Skip during active Rune workflows ──
 # Avoid interrupting arc/strive/batch/hierarchy/issues pipelines
 # Use zsh nullglob-compatible pattern
-setopt nullglob 2>/dev/null || true
+shopt -s nullglob 2>/dev/null || true
 for sf in "${CWD}"/tmp/.rune-*.json; do
   # Active workflow detected — don't suggest learning mid-workflow
   _trace "Active workflow detected, skipping correction suggestion"

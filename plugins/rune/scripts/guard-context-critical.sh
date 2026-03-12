@@ -199,7 +199,7 @@ if [[ "$REM_INT" -le "$WARNING_THRESHOLD" && "$REM_INT" -gt "$CRITICAL_THRESHOLD
   SIGNAL_FILE="${CWD}/tmp/.rune-shutdown-signal-${SESSION_ID}.json"
   if [[ ! -f "$SIGNAL_FILE" ]]; then
     mkdir -p "${CWD}/tmp" 2>/dev/null
-    _tmpf=$(mktemp "${CWD}/tmp/.rune-signal-tmp.XXXXXX" 2>/dev/null) || _tmpf="${SIGNAL_FILE}.tmp"
+    _tmpf=$(mktemp "${CWD}/tmp/.rune-signal-tmp.XXXXXX" 2>/dev/null) || exit 0
     jq -n \
       --arg signal "context_warning" \
       --argjson remaining_pct "$REM_INT" \
@@ -271,7 +271,7 @@ USED_PCT=$(( 100 - REM_INT ))
 FORCE_SIGNAL="${CWD}/tmp/.rune-force-shutdown-${SESSION_ID}.json"
 if [[ ! -f "$FORCE_SIGNAL" ]]; then
   mkdir -p "${CWD}/tmp" 2>/dev/null
-  _tmpf=$(mktemp "${CWD}/tmp/.rune-force-tmp.XXXXXX" 2>/dev/null) || _tmpf="${FORCE_SIGNAL}.tmp"
+  _tmpf=$(mktemp "${CWD}/tmp/.rune-force-tmp.XXXXXX" 2>/dev/null) || exit 0
   jq -n \
     --arg signal "force_shutdown" \
     --argjson remaining_pct "$REM_INT" \
