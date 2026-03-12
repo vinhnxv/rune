@@ -6,7 +6,7 @@
 # Full-path: atomic write heartbeat JSON, throttled to once per 30 seconds.
 #
 # Writes: tmp/arc/{id}/heartbeat.json
-# Read by: CronCreate monitor (Layer 1), session-team-hygiene.sh (Layer 2), rune-status.sh
+# Read by: session-team-hygiene.sh (Layer 2 crash recovery), rune-status.sh
 #
 # EXIT BEHAVIOR: Always exit 0 (non-blocking PostToolUse — fail-open).
 # TIMEOUT: 5s (fast — single file stat + optional atomic write).

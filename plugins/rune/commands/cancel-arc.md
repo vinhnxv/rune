@@ -22,8 +22,6 @@ allowed-tools:
   - TaskGet
   - TeamDelete
   - SendMessage
-  - CronList
-  - CronDelete
   - Read
   - Write
   - Bash
@@ -80,7 +78,7 @@ if (phaseExists === "yes") {
 
   if (isOwner) {
     // Set cancellation flags instead of deleting the file
-    // This allows the monitoring task to detect the cancellation
+    // This allows recovery hooks to detect the cancellation
     const updatedContent = phaseContent.replace(/user_cancelled:\s*false/, 'user_cancelled: true')
       .replace(/cancel_reason:\s*null/, 'cancel_reason: "user_request"')
       .replace(/cancelled_at:\s*null/, `cancelled_at: "${new Date().toISOString()}"`)
@@ -351,31 +349,6 @@ checkpoint.cancel_reason = "user_requested"
 checkpoint.cancelled_at = new Date().toISOString()
 checkpoint.stop_reason = "cancel-arc command invoked"
 Write(`.claude/arc/${id}/checkpoint.json`, checkpoint)
-```
-
-### 4c. Cancel Scheduled Task (if any)
-
-If the arc was scheduled via CronCreate, cancel the monitoring task:
-
-```javascript
-// Check for scheduled task linkage
-const cronTaskId = checkpoint.cron_task_id
-if (cronTaskId) {
-  try {
-    // Verify task exists before attempting deletion
-    const existingTasks = CronList()
-    const taskExists = existingTasks.some(t => t.id === cronTaskId)
-    if (taskExists) {
-      CronDelete({ task_id: cronTaskId })
-      log(`Cancelled scheduled task: ${cronTaskId}`)
-    } else {
-      warn(`Scheduled task ${cronTaskId} not found — may have already been deleted`)
-    }
-  } catch (e) {
-    warn(`Failed to cancel scheduled task ${cronTaskId}: ${e.message}`)
-    // Non-blocking — arc cancellation proceeds regardless
-  }
-}
 ```
 
 ### 5. Preserve Completed Artifacts
