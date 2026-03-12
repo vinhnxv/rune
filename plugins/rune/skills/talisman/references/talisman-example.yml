@@ -33,5 +33,5 @@ plan:
 #
 # No configuration needed — SessionStart recovery runs automatically.
 # Use /rune:arc --resume for manual recovery at any time.
-#
-arc:
+# Arc runtime settings (defaults, ship, pre_merge_checks) are resolved
+# in arc-checkpoint-init.md via 3-layer config resolution.
