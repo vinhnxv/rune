@@ -391,7 +391,7 @@
   "design_sync": {
     "backend_impact": {
       "auto_scope": "frontend-only",
-      "enabled": true
+      "enabled": false
     },
     "enabled": false,
     "fidelity_threshold": 80,
@@ -411,6 +411,7 @@
     "token_snap_distance": 20,
     "trust_hierarchy": {
       "enabled": true,
+      "high_confidence_threshold": 0.8,
       "low_confidence_threshold": 0.6
     },
     "verification_gate": {
@@ -450,6 +451,19 @@
     "enabled": true,
     "external_search": false,
     "require_evidence_chain": true
+  },
+  "file_todos": {
+    "history": {
+      "enabled": true
+    },
+    "manifest": {
+      "auto_build": true,
+      "dedup_on_build": false,
+      "dedup_threshold": 0.7
+    },
+    "triage": {
+      "auto_approve_p1": false
+    }
   },
   "goldmask": {
     "coordinator_model": "sonnet",
@@ -658,6 +672,23 @@
     ],
     "max_ashes": 9,
     "max_cli_ashes": 2,
+    "utility_crew": {
+      "context_scribe": {
+        "max_packs": 12,
+        "timeout_ms": 90000
+      },
+      "dispatch_herald": {
+        "enabled": true,
+        "staleness_check_ms": 30000
+      },
+      "enabled": true,
+      "fallback_on_failure": true,
+      "prompt_warden": {
+        "block_on_critical": true,
+        "enabled": true,
+        "warn_threshold": 2
+      }
+    },
     "verification": {
       "layer_2_custom_agents": true
     }
@@ -677,6 +708,13 @@
   },
   "state_weaver": {
     "enabled": true
+  },
+  "storybook": {
+    "auto_start": true,
+    "dir": "tmp/storybook",
+    "enabled": false,
+    "max_rounds": 3,
+    "port": 6006
   },
   "strive": {
     "frontend_component_context": {
@@ -742,11 +780,6 @@
         "timeout_ms": 300000
       }
     }
-  },
-  "test_evidence": {
-    "block_on_fail": true,
-    "enabled": true,
-    "skip_patterns": []
   },
   "version": 1,
   "work": {

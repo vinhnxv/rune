@@ -65,11 +65,13 @@ Phase 0.5: Environment Setup -> Branch check, stash dirty files, SDK canary (wor
     |
 Phase 1: Forge Team -> TeamCreate + TaskCreate pool
     1. Task Pool Creation (complexity ordering, time estimation)
-    1.5. Design Context Discovery (conditional, zero cost if no artifacts)
+    1.4. Design Context Discovery (conditional, zero cost if no artifacts)
     1.6. MCP Integration Discovery (conditional, zero cost if no integrations)
     1.7. File Ownership and Task Pool (static serialization via blockedBy)
     2. Signal Directory Setup (event-driven fast-path infrastructure)
     → TeamCreate + TaskCreate pool
+    |
+Phase 1.5: Utility Crew (Context Pack Composition) -> context-scribe + prompt-warden (conditional, gated by utility_crew.enabled)
     |
 Phase 2: Summon Workers -> Self-organizing swarm
     | (workers claim -> implement -> complete -> repeat)
