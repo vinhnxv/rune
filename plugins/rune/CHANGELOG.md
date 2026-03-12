@@ -2,8 +2,10 @@
 
 ## [Unreleased]
 
+## [1.152.0] - 2026-03-12
+
 ### Added
-- **Rune Lore — Global Echoes + Doc Packs**: Cross-project knowledge persistence via global echo store
+- **Rune Lore — Global Echoes + Doc Packs**: Cross-project knowledge persistence via global echo store (#278)
 - **Global scope for echo-search**: `scope` parameter (`project|global|all`) on `echo_search`, `echo_reindex`, `echo_stats` MCP tools
 - **Dual-DB architecture**: Lazy global DB connection at `$CHOME/echoes/global/echo_index.db` with schema V4 (domain column)
 - **Doc pack registry**: 6 bundled MEMORY.md packs (shadcn-ui, tailwind-v4, nextjs, fastapi, sqlalchemy, untitledui) with auto-detection patterns
@@ -14,6 +16,10 @@
 - **`/rune:echoes audit`**: List all global echoes grouped by source type (doc packs + elevated)
 - **Staleness detection**: Hook-based staleness check for installed doc packs (configurable threshold via `echoes.global.staleness_days`)
 - **Lore-Scholar observation hard gate**: Prevents lore-scholar from writing observation entries (research output only)
+- **Design framework detection 3-layer pipeline**: Stack-aware design system detection with tiered scanning (#277)
+
+### Fixed
+- **P2/P3 shell script findings**: Resolved findings from cross-model review (#276)
 
 ### Security
 - **SEC-P2-003**: Symlink containment via `realpath` in `_valid_subdirs()` — rejects paths escaping echo directory
