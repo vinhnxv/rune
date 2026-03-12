@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [1.153.2] - 2026-03-12
+
+### Fixed
+- **SEC-002**: Strip markdown headers from task observation data to prevent header injection in echo entries
+- **SEC-003**: Allowlist GLOBAL_DB_PATH parent directory — must be under user home or system temp
+- **SEC-004**: Use `--` separator in doc-pack roles to match VALID_ROLE_RE / _SAFE_ROLE_RE
+- **BACK-201**: Return descriptive error when `scope=global` but global DB is unavailable
+- **BACK-303**: Validate global and project echo dirs don't overlap to prevent scope contamination during reindex
+- **BACK-402**: Check GLOBAL_DB_PATH availability before consuming dirty signal (previously lost signal when path unset)
+- **BACK-403**: Use scope-prefixed keys (`project:<id>` / `global:<id>`) for cross-DB dedup to prevent ID collisions
+- **QUAL-001**: Add `scope` parameter to `echo_details` for cross-DB lookup with fallback
+- **QUAL-003**: Add `scope` parameter to `echo_record_access` for global DB routing
+- **QUAL-100**: Parse Category/Domain outside metadata guard for robust doc pack parsing
+- Narrowed `get_global_conn` exception handling from bare `Exception` to `(sqlite3.OperationalError, sqlite3.DatabaseError, OSError)`
+- Improved f-string safety comment for PRAGMA user_version
+- Added `domain` column to echo_entries INSERT statement
+
+### Changed
+- Moved `todos/` from `.gitattributes` to `.gitignore`
+
 ## [1.153.1] - 2026-03-12
 
 ### Added
