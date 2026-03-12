@@ -1,5 +1,28 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **Rune Lore — Global Echoes + Doc Packs**: Cross-project knowledge persistence via global echo store
+- **Global scope for echo-search**: `scope` parameter (`project|global|all`) on `echo_search`, `echo_reindex`, `echo_stats` MCP tools
+- **Dual-DB architecture**: Lazy global DB connection at `$CHOME/echoes/global/echo_index.db` with schema V4 (domain column)
+- **Doc pack registry**: 6 bundled MEMORY.md packs (shadcn-ui, tailwind-v4, nextjs, fastapi, sqlalchemy, untitledui) with auto-detection patterns
+- **Doc pack discovery in indexer**: `discover_and_parse()` walks `doc-packs/` subdirectory with `doc-pack/<name>` role prefix (D-P2-006)
+- **Domain extraction**: `_DOMAIN_RE` regex extracts `**Domain**:` metadata from echo entries, defaults to `general`
+- **`/rune:elevate`** skill: Promote project echoes to global scope with domain tagging, SHA-256 dedup, 50-entry guard (EC-3.3), circular elevation prevention (EC-3.6)
+- **`/rune:echoes doc-packs install|list|update|status`**: Manage bundled doc packs in global echo store
+- **`/rune:echoes audit`**: List all global echoes grouped by source type (doc packs + elevated)
+- **Staleness detection**: Hook-based staleness check for installed doc packs (configurable threshold via `echoes.global.staleness_days`)
+- **Lore-Scholar observation hard gate**: Prevents lore-scholar from writing observation entries (research output only)
+
+### Security
+- **SEC-P2-003**: Symlink containment via `realpath` in `_valid_subdirs()` — rejects paths escaping echo directory
+- **SEC-P2-005**: File size limit enforcement via `_check_file_size()` (10MB default)
+- **SEC-P3-001**: Stack name validation with `^[a-zA-Z][a-zA-Z0-9_-]{1,63}$` (blocks `--help` injection)
+- **SEC-P3-003**: Source MEMORY.md paths validated with `realpath` containment in `/rune:elevate`
+- **SEC-P3-006**: Concurrent write protection via `mkdir`-based locking in `/rune:elevate`
+- **D-P2-003**: Inode cycle detection in `_valid_subdirs()` prevents infinite symlink loops
+
 ## [1.151.3] - 2026-03-12
 
 ### Fixed

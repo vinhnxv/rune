@@ -41,6 +41,10 @@ On resume, validate checkpoint integrity before proceeding:
    // Claim ownership for this session
    checkpoint.owner_pid = Number(Bash('echo $PPID').trim())
    checkpoint.config_dir = CHOME
+   checkpoint.session_id = Bash('echo "${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-unknown}}"').trim()
+   // Re-export ownership vars so the state file (written later by SKILL.md) uses the new session's values
+   ownerPid = checkpoint.owner_pid
+   configDir = checkpoint.config_dir
    ```
 3. Schema migration (default missing schema_version: `const version = checkpoint.schema_version ?? 1`):
    if version < 2, migrate v1 → v2:

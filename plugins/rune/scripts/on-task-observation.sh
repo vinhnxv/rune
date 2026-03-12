@@ -82,6 +82,15 @@ PROJECT_DIR="$CWD"
 ECHO_DIR="$PROJECT_DIR/.claude/echoes"
 [[ -d "$ECHO_DIR" ]] || exit 0
 
+# --- Guard 4.5: Hard gate — prevent writes to global echoes directory (C5: fail-forward) ---
+CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+GLOBAL_ECHO_DIR="$CHOME/echoes/global"
+# If the target echoes dir is under the global echoes path, skip silently.
+# Global echoes (doc packs) are curated — auto-observations must not pollute them.
+case "$ECHO_DIR" in
+  "$GLOBAL_ECHO_DIR"*) exit 0 ;;
+esac
+
 # --- Guard 5: Symlink protection on echoes dir ---
 [[ -L "$ECHO_DIR" ]] && exit 0
 

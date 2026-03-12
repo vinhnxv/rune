@@ -111,6 +111,46 @@ if DB_PATH:
         )
         sys.exit(1)
 
+# Global echo store — cross-project knowledge + doc packs (lazy, optional)
+GLOBAL_ECHO_DIR = os.environ.get("GLOBAL_ECHO_DIR", "")
+GLOBAL_DB_PATH = os.environ.get("GLOBAL_DB_PATH", "")
+
+# Validate global env vars through the same security checks as project vars
+for _env_name, _env_val in [("GLOBAL_ECHO_DIR", GLOBAL_ECHO_DIR),
+                             ("GLOBAL_DB_PATH", GLOBAL_DB_PATH)]:
+    if _env_val:
+        _resolved = os.path.realpath(_env_val)
+        if any(_resolved.startswith(p) for p in _FORBIDDEN_PREFIXES):
+            print(
+                "Error: %s points to system directory: %s"
+                % (_env_name, _resolved),
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+if GLOBAL_ECHO_DIR:
+    _global_echo_resolved = os.path.realpath(GLOBAL_ECHO_DIR)
+    _home = os.path.expanduser("~")
+    _tmpdir = os.path.realpath(os.environ.get("TMPDIR", "/tmp"))
+    if not any(_global_echo_resolved.startswith(p)
+               for p in (_home, _tmpdir)):
+        print(
+            "Error: GLOBAL_ECHO_DIR must be under home or temp directory: %s"
+            % _global_echo_resolved,
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+if GLOBAL_DB_PATH:
+    _gdb_resolved = os.path.realpath(GLOBAL_DB_PATH)
+    if not (_gdb_resolved.endswith(".db") or _gdb_resolved.endswith(".sqlite")):
+        print(
+            "Error: GLOBAL_DB_PATH must end with .db or .sqlite: %s"
+            % _gdb_resolved,
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
 STOPWORDS = frozenset([
     "a", "an", "and", "are", "as", "at", "be", "but", "by", "for",
     "from", "had", "has", "have", "he", "her", "his", "i", "in",
@@ -639,6 +679,17 @@ def _prepare_frequency_data(
     return access_counts, max_log_count
 
 
+def _is_doc_pack_entry(entry: Dict[str, Any]) -> bool:
+    """Check if an entry originates from a doc pack."""
+    source = entry.get("source", "")
+    return isinstance(source, str) and source.startswith("doc-pack:")
+
+
+# A3 enrichment: doc-pack importance discount factor to prevent doc packs
+# from outranking user-authored etched echoes.
+_DOC_PACK_IMPORTANCE_DISCOUNT = 0.7
+
+
 def _compute_entry_factors(
     entry: Dict[str, Any], bm25_norm: float,
     context_files: Optional[List[str]],
@@ -647,9 +698,13 @@ def _compute_entry_factors(
     max_log_count: float,
 ) -> Dict[str, float]:
     """Compute all 5 scoring factors for a single entry."""
+    importance = _score_importance(entry.get("layer", ""))
+    # A3: Discount importance for doc-pack entries.
+    if _is_doc_pack_entry(entry):
+        importance *= _DOC_PACK_IMPORTANCE_DISCOUNT
     return {
         "relevance": bm25_norm,
-        "importance": _score_importance(entry.get("layer", "")),
+        "importance": importance,
         "recency": _score_recency(entry, access_counts),
         "proximity": _score_proximity(entry, context_files),
         "frequency": _score_frequency(
@@ -732,7 +787,48 @@ def get_db(db_path):
     return conn
 
 
-SCHEMA_VERSION = 3
+# ---------------------------------------------------------------------------
+# Global DB connection management (lazy — zero cost when scope=project)
+# ---------------------------------------------------------------------------
+
+_global_conn: Optional[sqlite3.Connection] = None
+
+
+def _ensure_global_dir() -> None:
+    """Create global echo directory structure if it doesn't exist."""
+    if not GLOBAL_ECHO_DIR:
+        return
+    os.makedirs(os.path.join(GLOBAL_ECHO_DIR, "doc-packs"), exist_ok=True)
+    os.makedirs(os.path.join(GLOBAL_ECHO_DIR, "manifests"), exist_ok=True)
+
+
+def get_global_conn() -> Optional[sqlite3.Connection]:
+    """Open global DB connection lazily. Returns None if global echoes disabled.
+
+    The connection is cached at module level and reuses the same WAL mode,
+    PRAGMA settings, and schema as the project DB.  Callers should NOT
+    close the returned connection — it is shared across the server lifetime.
+
+    Respects talisman ``echoes.global.enabled`` (default: ``True``).
+    When set to ``False``, returns ``None`` regardless of env vars.
+    """
+    global _global_conn
+    if not GLOBAL_ECHO_DIR or not GLOBAL_DB_PATH:
+        return None
+    # Check talisman echoes.global.enabled toggle
+    talisman = _load_talisman()
+    echoes_cfg = talisman.get("echoes", {})
+    global_cfg = echoes_cfg.get("global", {}) if isinstance(echoes_cfg, dict) else {}
+    if isinstance(global_cfg, dict) and global_cfg.get("enabled") is False:
+        return None
+    if _global_conn is None:
+        _ensure_global_dir()
+        _global_conn = get_db(GLOBAL_DB_PATH)
+        ensure_schema(_global_conn)
+    return _global_conn
+
+
+SCHEMA_VERSION = 4
 assert isinstance(SCHEMA_VERSION, int) and 0 <= SCHEMA_VERSION <= 1000
 
 
@@ -786,6 +882,18 @@ def _migrate_v3(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_echo_entries_archived ON echo_entries(archived)")
 
 
+def _migrate_v4(conn: sqlite3.Connection) -> None:
+    """Apply V4 schema: domain column for global echo domain tagging."""
+    try:
+        conn.execute(
+            "ALTER TABLE echo_entries ADD COLUMN domain TEXT DEFAULT 'general'")
+    except sqlite3.OperationalError:
+        pass  # Column already exists (idempotent)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_echo_entries_domain"
+        " ON echo_entries(domain)")
+
+
 def ensure_schema(conn: sqlite3.Connection) -> None:
     """Ensure database schema is at the current version via PRAGMA user_version."""
     conn.execute("PRAGMA foreign_keys = ON")
@@ -800,6 +908,8 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
                 _migrate_v2(conn)
             if version < 3:
                 _migrate_v3(conn)
+            if version < 4:
+                _migrate_v4(conn)
             conn.commit()
         except (sqlite3.Error, OSError):
             conn.rollback()
@@ -1624,14 +1734,18 @@ async def _pipeline_decompose(
 def _pipeline_bm25_search(
     conn: sqlite3.Connection, facets: List[str],
     overfetch_limit: int, layer: Optional[str], role: Optional[str],
-    category: Optional[str] = None,
+    category: Optional[str] = None, domain: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Stage 2-3: Per-facet BM25 search and merge."""
     t0 = time.time()
     all_facet_results = []  # type: list[list[Dict[str, Any]]]
     for facet in facets:
+        kwargs = {}  # type: Dict[str, Any]
+        if domain is not None:
+            kwargs["domain"] = domain
         all_facet_results.append(
-            search_entries(conn, facet, overfetch_limit, layer, role, category))
+            search_entries(conn, facet, overfetch_limit, layer, role,
+                           category, **kwargs))
     _trace("bm25_search (%d facets)" % len(facets), t0)
 
     t0 = time.time()
@@ -1814,6 +1928,7 @@ async def pipeline_search(
     role: Optional[str] = None,
     context_files: Optional[List[str]] = None,
     category: Optional[str] = None,
+    domain: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Multi-pass retrieval: decompose -> BM25 -> score -> expand -> retry -> rerank."""
     talisman = _load_talisman()
@@ -1823,7 +1938,7 @@ async def pipeline_search(
     facets = await _pipeline_decompose(
         query, _get_echoes_config(talisman, "decomposition"))
     candidates = _pipeline_bm25_search(
-        conn, facets, overfetch_limit, layer, role, category)
+        conn, facets, overfetch_limit, layer, role, category, domain)
 
     t0 = time.time()
     scored = compute_composite_score(
@@ -1866,9 +1981,9 @@ def build_fts_query(raw_query):
 
 def _build_search_sql(
     fts_query: str, layer: Optional[str], role: Optional[str], limit: int,
-    category: Optional[str] = None,
+    category: Optional[str] = None, domain: Optional[str] = None,
 ) -> Tuple[str, List[Any]]:
-    """Build FTS5 search SQL with optional layer/role/category filters."""
+    """Build FTS5 search SQL with optional layer/role/category/domain filters."""
     sql = """SELECT e.id, e.source, e.layer, e.role, e.date,
                     substr(e.content, 1, 200) AS content_preview,
                     e.line_number, e.tags, bm25(echo_entries_fts) AS score
@@ -1885,6 +2000,9 @@ def _build_search_sql(
     if category:
         sql += " AND e.category = ?"
         params.append(category)
+    if domain:
+        sql += " AND e.domain = ?"
+        params.append(domain)
     sql += " ORDER BY bm25(echo_entries_fts) ASC LIMIT ?"
     params.append(limit)
     return sql, params
@@ -1901,13 +2019,15 @@ def _search_row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
     }
 
 
-def search_entries(conn, query, limit=10, layer=None, role=None, category=None):
+def search_entries(conn, query, limit=10, layer=None, role=None, category=None,
+                   domain=None):
     """Execute a BM25 full-text search over the echo entries table."""
-    # type: (sqlite3.Connection, str, int, Optional[str], Optional[str], Optional[str]) -> List[Dict]
+    # type: (sqlite3.Connection, str, int, Optional[str], Optional[str], Optional[str], Optional[str]) -> List[Dict]
     fts_query = build_fts_query(query)
     if not fts_query:
         return []
-    sql, params = _build_search_sql(fts_query, layer, role, limit, category)
+    sql, params = _build_search_sql(fts_query, layer, role, limit, category,
+                                    domain)
     cursor = conn.execute(sql, params)
     return [_search_row_to_dict(row) for row in cursor.fetchall()]
 
@@ -2238,6 +2358,50 @@ def _write_dirty_signal(echo_dir: str) -> None:
             pass
 
 
+# ---------------------------------------------------------------------------
+# Global dirty signal (enrichment D4)
+# ---------------------------------------------------------------------------
+# Global echoes use a dedicated signal path at GLOBAL_ECHO_DIR/.global-echo-dirty
+# instead of deriving via _signal_path(), because the global echo directory
+# has no project root to derive from.
+
+_GLOBAL_DIRTY_FILENAME = ".global-echo-dirty"
+
+
+def _global_dirty_path() -> str:
+    """Return the global dirty signal file path, or empty string if disabled."""
+    if not GLOBAL_ECHO_DIR:
+        return ""
+    return os.path.join(GLOBAL_ECHO_DIR, _GLOBAL_DIRTY_FILENAME)
+
+
+def _check_and_clear_global_dirty() -> bool:
+    """Return True (and delete the file) if the global dirty signal is present."""
+    path = _global_dirty_path()
+    if not path:
+        return False
+    try:
+        if os.path.isfile(path):
+            os.remove(path)
+            return True
+    except OSError:
+        pass  # Race with another consumer or permission issue — safe to ignore
+    return False
+
+
+def _write_global_dirty_signal() -> None:
+    """Write the global dirty signal file."""
+    path = _global_dirty_path()
+    if not path:
+        return
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            f.write("dirty")
+    except OSError:
+        pass
+
+
 def _check_promotions(echo_dir: str, db_path: str) -> int:
     """Promote eligible Observations to Inscribed (pre-reindex)."""
     if not echo_dir or not db_path:
@@ -2258,7 +2422,11 @@ def _check_promotions(echo_dir: str, db_path: str) -> int:
                 fpath, ids_to_promote, line_map, real_echo_dir)
 
         if total_promoted > 0:
-            _write_dirty_signal(echo_dir)
+            # Use appropriate dirty signal based on scope
+            if GLOBAL_ECHO_DIR and os.path.realpath(echo_dir) == os.path.realpath(GLOBAL_ECHO_DIR):
+                _write_global_dirty_signal()
+            else:
+                _write_dirty_signal(echo_dir)
 
     except sqlite3.OperationalError as exc:
         print(
@@ -2369,6 +2537,26 @@ TOOL_SCHEMAS = [
                     "description": "Output format: json (default, structured) or markdown (human-readable)",
                     "default": "json",
                 },
+                "scope": {
+                    "type": "string",
+                    "enum": ["project", "global", "all"],
+                    "default": "project",
+                    "description": (
+                        "Search scope: project echoes only (default), "
+                        "global echoes + doc packs, or both"
+                    ),
+                },
+                "domain": {
+                    "type": "string",
+                    "enum": [
+                        "backend", "frontend", "devops", "database",
+                        "testing", "architecture", "general",
+                    ],
+                    "description": (
+                        "Filter global results by domain tag. "
+                        "Only effective with scope=global or scope=all."
+                    ),
+                },
             },
             "required": ["query"],
         },
@@ -2403,7 +2591,21 @@ TOOL_SCHEMAS = [
             "idempotentHint": True,
             "openWorldHint": False,
         },
-        "inputSchema": {"type": "object", "properties": {}, "required": []},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "scope": {
+                    "type": "string",
+                    "enum": ["project", "global", "all"],
+                    "default": "project",
+                    "description": (
+                        "Which index to rebuild: project (default), "
+                        "global, or both"
+                    ),
+                },
+            },
+            "required": [],
+        },
     },
     {
         "name": "echo_stats",
@@ -2414,7 +2616,21 @@ TOOL_SCHEMAS = [
             "idempotentHint": True,
             "openWorldHint": False,
         },
-        "inputSchema": {"type": "object", "properties": {}, "required": []},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "scope": {
+                    "type": "string",
+                    "enum": ["project", "global", "all"],
+                    "default": "project",
+                    "description": (
+                        "Which index to report on: project (default), "
+                        "global, or both"
+                    ),
+                },
+            },
+            "required": [],
+        },
     },
     {
         "name": "echo_record_access",
@@ -2487,6 +2703,35 @@ TOOL_SCHEMAS = [
 # ---------------------------------------------------------------------------
 
 
+def _get_ready_conn(
+    db_path: str, echo_dir: str, *, reindex_on_dirty: bool = True,
+) -> sqlite3.Connection:
+    """Open a DB connection, ensure schema, and reindex if dirty or empty.
+
+    Consolidates the repeated connect-check-reindex pattern used by
+    multiple MCP handlers.  Callers are responsible for closing the
+    returned connection.
+    """
+    conn = get_db(db_path)
+    ensure_schema(conn)
+    if not reindex_on_dirty or not echo_dir:
+        return conn
+    count = conn.execute(
+        "SELECT COUNT(*) FROM echo_entries").fetchone()[0]
+    is_dirty = _check_and_clear_dirty(echo_dir)
+    if count == 0 or is_dirty:
+        conn.close()
+        try:
+            do_reindex(echo_dir, db_path)
+        except (sqlite3.Error, OSError, IOError) as exc:
+            logger.warning(
+                "reindex failed, proceeding with %s index: %s",
+                "empty" if count == 0 else "stale", exc,
+            )
+        conn = get_db(db_path)
+    return conn
+
+
 def _validate_list_arg(arguments, key, required=True):
     """Validate a list argument from MCP tool input.
 
@@ -2502,15 +2747,24 @@ def _validate_list_arg(arguments, key, required=True):
     return val, None
 
 
-def _validate_search_args(arguments: Dict) -> Tuple[Optional[Tuple], Dict]:
-    """Validate and sanitize echo_search arguments. Returns (error, cleaned)."""
-    query = arguments.get("query", "")
-    if not isinstance(query, str) or not query:
-        return ({"error": "query must be a non-empty string"}, True), {}
-    # SEC-008: Allowlist validation — layer must be one of the known echo tiers;
+_VALID_LAYERS = frozenset(_LAYER_IMPORTANCE.keys())
+_SAFE_ROLE_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+_VALID_CATEGORIES = frozenset(
+    {"general", "pattern", "anti-pattern", "decision", "debugging"})
+_VALID_SCOPES = frozenset({"project", "global", "all"})
+_VALID_DOMAINS = frozenset(
+    {"backend", "frontend", "devops", "database",
+     "testing", "architecture", "general"})
+
+
+def _sanitize_search_filters(arguments: Dict) -> Dict[str, Any]:
+    """Sanitize optional filter fields for echo_search.
+
+    Returns a dict with layer, role, context_files, category, scope, and
+    domain — invalid values coerced to ``None`` (or default).
+    """
+    # SEC-008: Allowlist validation — layer must be a known echo tier;
     # role must match safe identifier pattern (alphanumeric + hyphens/underscores).
-    _VALID_LAYERS = frozenset(_LAYER_IMPORTANCE.keys())
-    _SAFE_ROLE_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
     layer = arguments.get("layer")
     if layer is not None:
         if not isinstance(layer, str) or layer.lower() not in _VALID_LAYERS:
@@ -2527,13 +2781,31 @@ def _validate_search_args(arguments: Dict) -> Tuple[Optional[Tuple], Dict]:
             context_files = [
                 str(f) for f in context_files[:20]
                 if isinstance(f, str) and f] or None
-    _VALID_CATEGORIES = frozenset({"general", "pattern", "anti-pattern", "decision", "debugging"})
     category = arguments.get("category")
     if category is not None:
         if not isinstance(category, str) or category.lower() not in _VALID_CATEGORIES:
             category = None
         else:
             category = category.lower()
+    scope = arguments.get("scope", "project")
+    if not isinstance(scope, str) or scope not in _VALID_SCOPES:
+        scope = "project"
+    domain = arguments.get("domain")
+    if domain is not None:
+        if not isinstance(domain, str) or domain.lower() not in _VALID_DOMAINS:
+            domain = None
+        else:
+            domain = domain.lower()
+    return {"layer": layer, "role": role, "context_files": context_files,
+            "category": category, "scope": scope, "domain": domain}
+
+
+def _validate_search_args(arguments: Dict) -> Tuple[Optional[Tuple], Dict]:
+    """Validate and sanitize echo_search arguments. Returns (error, cleaned)."""
+    query = arguments.get("query", "")
+    if not isinstance(query, str) or not query:
+        return ({"error": "query must be a non-empty string"}, True), {}
+    filters = _sanitize_search_filters(arguments)
     limit = arguments.get("limit", 10)
     if not isinstance(limit, int) or limit < 1:
         limit = 10
@@ -2545,8 +2817,7 @@ def _validate_search_args(arguments: Dict) -> Tuple[Optional[Tuple], Dict]:
     if response_format not in ("json", "markdown"):
         response_format = "json"
     return None, {"query": query, "limit": limit, "offset": offset,
-                  "layer": layer, "role": role, "context_files": context_files,
-                  "category": category, "response_format": response_format}
+                  "response_format": response_format, **filters}
 
 
 def _format_search_markdown(entries, total_count, offset, limit, has_more):
@@ -2572,102 +2843,239 @@ def _format_search_markdown(entries, total_count, offset, limit, has_more):
     return "\n".join(lines)
 
 
-async def _mcp_handle_search(arguments):
-    """Handle echo_search — validate, run pipeline, record access."""
-    # type: (Dict) -> Tuple[Dict, bool]
-    err, args = _validate_search_args(arguments)
-    if err is not None:
-        return err[0], err[1]
-    offset = args["offset"]
-    response_format = args["response_format"]
-    # Fetch limit + offset results so we can paginate and know total_candidates
-    fetch_limit = args["limit"] + offset
-    conn = get_db(DB_PATH)
-    try:
-        ensure_schema(conn)
-        count = conn.execute(
-            "SELECT COUNT(*) FROM echo_entries").fetchone()[0]
-        is_dirty = _check_and_clear_dirty(ECHO_DIR)
-        if (count == 0 or is_dirty) and ECHO_DIR:
-            conn.close()
-            conn = None
-            try:
-                do_reindex(ECHO_DIR, DB_PATH)
-            except (sqlite3.Error, OSError, IOError) as exc:
-                logger.warning("reindex failed, proceeding with %s index: %s",
-                               "empty" if count == 0 else "stale", exc)
-            conn = get_db(DB_PATH)
-        # Fetch extra to detect has_more
-        all_results = await pipeline_search(
-            conn, args["query"], fetch_limit + 1,
-            args["layer"], args["role"], args["context_files"],
-            args.get("category"))
-        total_candidates = len(all_results)
-        has_more = total_candidates > fetch_limit
-        results = all_results[offset:fetch_limit]
-        try:
-            _record_access(conn, results, args["query"])
-        except (sqlite3.Error, OSError) as exc:
-            logger.debug("access log write failed: %s", exc)
-    finally:
-        if conn is not None:
-            conn.close()
+def _build_search_response(
+    results: List[Dict],
+    total_candidates: int,
+    offset: int,
+    limit: int,
+    has_more: bool,
+    response_format: str,
+) -> Tuple[Dict, bool]:
+    """Build the final search response dict in JSON or markdown format."""
     if response_format == "markdown":
         md = _format_search_markdown(
-            results, total_candidates, offset, args["limit"], has_more)
+            results, total_candidates, offset, limit, has_more)
         return {"text": md}, False
     return {
         "entries": results,
         "total_count": total_candidates,
         "count": len(results),
         "offset": offset,
-        "limit": args["limit"],
+        "limit": limit,
         "has_more": has_more,
     }, False
 
 
-async def _mcp_handle_details(arguments):
+async def _search_single_scope(
+    conn: sqlite3.Connection,
+    args: Dict[str, Any],
+    fetch_limit: int,
+    source_scope: str,
+) -> List[Dict[str, Any]]:
+    """Run pipeline_search on a single DB and tag results with source_scope."""
+    domain = args.get("domain") if source_scope == "global" else None
+    results = await pipeline_search(
+        conn, args["query"], fetch_limit,
+        args["layer"], args["role"], args["context_files"],
+        args.get("category"), domain)
+    for r in results:
+        r["source_scope"] = source_scope
+    # NOTE: Doc-pack importance discount is applied at the factor level
+    # in _compute_entry_factors() (A3), not post-hoc on composite score.
+    return results
+
+
+def _merge_scoped_results(
+    project_results: List[Dict[str, Any]],
+    global_results: List[Dict[str, Any]],
+    limit: int,
+) -> List[Dict[str, Any]]:
+    """Merge results from two scopes by composite score, dedup by ID."""
+    combined = {}  # type: Dict[str, Dict[str, Any]]
+    for entry in project_results:
+        eid = entry.get("id", "")
+        if eid:
+            combined[eid] = entry
+    for entry in global_results:
+        eid = entry.get("id", "")
+        if eid and (eid not in combined or
+                    entry.get("composite_score", 0.0) >
+                    combined[eid].get("composite_score", 0.0)):
+            combined[eid] = entry
+    return sorted(
+        combined.values(),
+        key=lambda x: x.get("composite_score", 0.0), reverse=True,
+    )[:limit]
+
+
+async def _mcp_handle_search(arguments: Dict) -> Tuple[Dict, bool]:
+    """Handle echo_search — validate, run pipeline, record access."""
+    err, args = _validate_search_args(arguments)
+    if err is not None:
+        return err[0], err[1]
+    offset = args["offset"]
+    fetch_limit = args["limit"] + offset
+    scope = args.get("scope", "project")
+
+    all_results = await _run_scoped_search(args, fetch_limit + 1, scope)
+
+    total_candidates = len(all_results)
+    has_more = total_candidates > fetch_limit
+    results = all_results[offset:fetch_limit]
+    _safe_record_access(results, args["query"], scope)
+    return _build_search_response(
+        results, total_candidates, offset, args["limit"],
+        has_more, args["response_format"])
+
+
+async def _run_scoped_search(
+    args: Dict[str, Any], fetch_limit: int, scope: str,
+) -> List[Dict[str, Any]]:
+    """Execute search across the requested scope(s)."""
+    project_results = []  # type: List[Dict[str, Any]]
+    global_results = []  # type: List[Dict[str, Any]]
+
+    if scope in ("project", "all"):
+        conn = _get_ready_conn(DB_PATH, ECHO_DIR)
+        try:
+            project_results = await _search_single_scope(
+                conn, args, fetch_limit, "project")
+        finally:
+            conn.close()
+
+    if scope in ("global", "all"):
+        # Check global dirty signal and reindex if needed (enrichment D4)
+        if _check_and_clear_global_dirty() and GLOBAL_ECHO_DIR and GLOBAL_DB_PATH:
+            try:
+                do_reindex(GLOBAL_ECHO_DIR, GLOBAL_DB_PATH)
+            except (sqlite3.Error, OSError, IOError) as exc:
+                logger.warning("global reindex failed: %s", exc)
+            # Reset cached connection so it picks up the fresh index
+            global _global_conn
+            if _global_conn is not None:
+                try:
+                    _global_conn.close()
+                except Exception:
+                    pass
+                _global_conn = None
+        gconn = get_global_conn()
+        if gconn is not None:
+            global_results = await _search_single_scope(
+                gconn, args, fetch_limit, "global")
+
+    if scope == "all" and project_results and global_results:
+        return _merge_scoped_results(
+            project_results, global_results, fetch_limit)
+    if scope == "global":
+        return global_results
+    if scope == "all":
+        return project_results or global_results
+    return project_results
+
+
+def _safe_record_access(
+    results: List[Dict[str, Any]], query: str, scope: str,
+) -> None:
+    """Record access events, routing to the correct DB per result scope."""
+    project_entries = [r for r in results
+                       if r.get("source_scope", "project") == "project"]
+    global_entries = [r for r in results
+                      if r.get("source_scope") == "global"]
+    if project_entries and scope in ("project", "all"):
+        try:
+            conn = get_db(DB_PATH)
+            try:
+                _record_access(conn, project_entries, query)
+            finally:
+                conn.close()
+        except (sqlite3.Error, OSError) as exc:
+            logger.debug("project access log write failed: %s", exc)
+    if global_entries and scope in ("global", "all"):
+        try:
+            gconn = get_global_conn()
+            if gconn is not None:
+                _record_access(gconn, global_entries, query)
+        except (sqlite3.Error, OSError) as exc:
+            logger.debug("global access log write failed: %s", exc)
+
+
+async def _mcp_handle_details(arguments: Dict) -> Tuple[Dict, bool]:
     """Handle echo_details — fetch full content for specific entry IDs."""
-    # type: (Dict) -> Tuple[Dict, bool]
     ids, err = _validate_list_arg(arguments, "ids")
     if err is not None:
         return err
     ids = ids[:50]  # SEC-1: cap to prevent DoS via large IN clause
-    conn = get_db(DB_PATH)
+    conn = _get_ready_conn(DB_PATH, ECHO_DIR)
     try:
-        ensure_schema(conn)
-        if _check_and_clear_dirty(ECHO_DIR) and ECHO_DIR:
-            conn.close()
-            conn = None
-            do_reindex(ECHO_DIR, DB_PATH)
-            conn = get_db(DB_PATH)
-        if conn is None:
-            conn = get_db(DB_PATH)
         results = get_details(conn, ids)
     finally:
-        if conn is not None:
-            conn.close()
+        conn.close()
     return {"entries": results}, False
 
 
-async def _mcp_handle_reindex(_arguments=None):
-    """Handle echo_reindex — rebuild FTS5 index from MEMORY.md sources."""
-    # type: (Optional[Dict]) -> Tuple[Dict, bool]
-    if not ECHO_DIR:
-        return {"error": "ECHO_DIR not set"}, True
-    return do_reindex(ECHO_DIR, DB_PATH), False
+async def _mcp_handle_reindex(arguments: Optional[Dict] = None) -> Tuple[Dict, bool]:
+    """Handle echo_reindex — rebuild FTS5 index from MEMORY.md sources.
+
+    Supports scope parameter (project|global|all, default project).
+    """
+    args = arguments or {}
+    scope = args.get("scope", "project")
+    if not isinstance(scope, str) or scope not in _VALID_SCOPES:
+        scope = "project"
+
+    results = {}  # type: Dict[str, Any]
+
+    if scope in ("project", "all"):
+        if not ECHO_DIR:
+            if scope == "project":
+                return {"error": "ECHO_DIR not set"}, True
+        else:
+            results["project"] = do_reindex(ECHO_DIR, DB_PATH)
+
+    if scope in ("global", "all"):
+        if not GLOBAL_ECHO_DIR or not GLOBAL_DB_PATH:
+            if scope == "global":
+                return {"error": "GLOBAL_ECHO_DIR not set"}, True
+        else:
+            results["global"] = do_reindex(GLOBAL_ECHO_DIR, GLOBAL_DB_PATH)
+
+    # Backward compat: if single scope, return flat result
+    if len(results) == 1:
+        return next(iter(results.values())), False
+    return results, False
 
 
-async def _mcp_handle_stats(_arguments=None):
-    """Handle echo_stats — return index summary statistics."""
-    # type: (Optional[Dict]) -> Tuple[Dict, bool]
-    conn = get_db(DB_PATH)
-    try:
-        ensure_schema(conn)
-        stats = get_stats(conn)
-    finally:
-        conn.close()
-    return stats, False
+async def _mcp_handle_stats(arguments: Optional[Dict] = None) -> Tuple[Dict, bool]:
+    """Handle echo_stats — return index summary statistics.
+
+    Supports scope parameter (project|global|all, default project).
+    """
+    args = arguments or {}
+    scope = args.get("scope", "project")
+    if not isinstance(scope, str) or scope not in _VALID_SCOPES:
+        scope = "project"
+
+    results = {}  # type: Dict[str, Any]
+
+    if scope in ("project", "all"):
+        conn = get_db(DB_PATH)
+        try:
+            ensure_schema(conn)
+            results["project"] = get_stats(conn)
+        finally:
+            conn.close()
+
+    if scope in ("global", "all"):
+        gconn = get_global_conn()
+        if gconn is not None:
+            results["global"] = get_stats(gconn)
+        elif scope == "global":
+            return {"error": "Global echoes not configured"}, True
+
+    # Backward compat: if single scope, return flat result
+    if len(results) == 1:
+        return next(iter(results.values())), False
+    return results, False
 
 
 async def _mcp_handle_record_access(arguments):

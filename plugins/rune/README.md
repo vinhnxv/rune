@@ -239,6 +239,15 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 /rune:echoes prune    # Prune stale entries
 /rune:echoes promote  # Promote echoes to Remembrance docs
 /rune:echoes migrate  # Migrate echo names after upgrade
+
+# Doc packs — curated framework knowledge bundles
+/rune:echoes doc-packs list           # List available and installed packs
+/rune:echoes doc-packs install nextjs # Install a bundled pack to global echoes
+/rune:echoes doc-packs status         # Show staleness for installed packs
+/rune:echoes audit                    # List all global echoes with provenance
+
+# Promote echoes to global scope
+/rune:elevate --scope backend         # Elevate project echoes to global (domain: backend)
 ```
 
 ## User Documentation
@@ -622,6 +631,15 @@ Rune Echoes is a project-level memory system stored in `.claude/echoes/`. After 
 /rune:echoes reset    # Clear all echoes (with backup)
 ```
 
+### Global Echoes + Doc Packs
+
+Global echoes persist knowledge across projects in `$CHOME/echoes/global/`. Two sources:
+
+- **Doc packs** — curated MEMORY.md bundles for popular frameworks (shadcn/ui, Tailwind v4, Next.js, FastAPI, SQLAlchemy, UntitledUI). Install via `/rune:echoes doc-packs install <stack>`.
+- **Elevated echoes** — project echoes promoted to global scope via `/rune:elevate --scope <domain>`. Entries are copied (not moved) with domain tagging and SHA-256 dedup.
+
+Search global echoes with `echo_search(query, scope="global")` or `scope="all"` for both project + global.
+
 ## Ash
 
 | Ash | Role | When Active |
@@ -778,7 +796,8 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | resolve-all-gh-pr-comments | Batch resolve all open PR review comments with pagination and progress tracking |
 | appraise | Multi-agent code review with up to 7 built-in Ashes (+ custom from talisman.yml) |
 | roundtable-circle | Review orchestration (7-phase lifecycle) |
-| rune-echoes | Smart Memory Lifecycle (5-tier project memory) |
+| rune-echoes | Smart Memory Lifecycle (5-tier project memory, global echoes, doc packs) |
+| elevate | Promote project echoes to global scope with domain tagging and dedup |
 | rune-orchestration | Multi-agent coordination patterns |
 | skill-testing | TDD methodology for skills — pressure testing, rationalization counters, Iron Law (SKT-001). `disable-model-invocation: true` |
 | stacks | Stack-aware intelligence — 4-layer detection engine with 12 specialist reviewers (Python, TypeScript, Rust, PHP, Axum, FastAPI, Django, Laravel, SQLAlchemy, TDD, DDD, DI). Auto-loaded by Rune Gaze Phase 1A (non-invocable) |
@@ -965,6 +984,7 @@ plugins/rune/
 │   ├── context-weaving/     # Context management
 │   ├── elicitation/         # Curated structured reasoning methods
 │   │   └── references/      # methods.csv, examples.md, phase-mapping.md
+│   ├── elevate/             # /rune:elevate (promote echoes to global scope)
 │   ├── forge/               # /rune:forge (plan enrichment, --exhaustive)
 │   │   └── references/      # forge-enrichment-protocol.md
 │   ├── git-worktree/        # Worktree isolation knowledge (non-invocable)
@@ -1039,6 +1059,8 @@ plugins/rune/
 │   │   └── workflow-lock.sh         # Shared workflow locking utilities
 │   ├── echo-search/                 # Echo Search MCP server + hooks
 │   └── figma-to-react/              # Figma-to-React MCP server
+├── data/
+│   └── doc-packs/                    # Bundled doc pack MEMORY.md files + registry.json
 ├── talisman.example.yml
 ├── CLAUDE.md
 ├── LICENSE

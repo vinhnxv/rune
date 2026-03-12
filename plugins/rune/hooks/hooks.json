@@ -360,6 +360,18 @@
       },
       {
         "matcher": "startup|resume",
+        "_rationale": "Lightweight doc pack staleness check. Runs after talisman-resolve.sh (needs staleness_days from talisman config). Checks installed pack manifests in $CHOME/echoes/global/manifests/ for age > threshold. Fail-forward (OPERATIONAL). Per enrichment C4.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/doc-pack-staleness.sh",
+            "timeout": 5,
+            "statusMessage": "Checking doc pack freshness..."
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume",
         "_rationale": "Plan specified startup only, but resume is a prime orphan scenario (session crash leaves teams behind). Extended to startup|resume for better coverage. clear excluded (resets state, no orphans). compact excluded (has dedicated recovery hook).",
         "hooks": [
           {

@@ -81,15 +81,20 @@ You are researching documentation. Only cite information from official sources o
 
 Before querying external documentation, check Rune Echoes for previously discovered framework knowledge:
 
-1. **Primary (MCP available)**: Use `mcp__echo-search__echo_search` with framework-focused queries
+1. **Project echoes (MCP available)**: Use `mcp__echo-search__echo_search` with framework-focused queries
    - Query examples: framework names detected in step 1, "version", "deprecation", "migration", "API"
    - Limit: 5 results — focus on Inscribed entries (verified documentation findings)
-2. **Fallback (MCP unavailable)**: Skip — query Context7/WebSearch from scratch
+2. **Global doc packs**: Before querying Context7, check global doc packs via `echo_search(query, scope='global')`
+   - Global doc packs contain curated framework knowledge (Etched tier — permanent, verified)
+   - If results are found, use them as a baseline — they may eliminate the need for Context7 queries
+   - Doc pack entries have a 0.7 importance discount to prevent them from dominating project-specific echoes
+3. **Fallback (MCP unavailable)**: Skip — query Context7/WebSearch from scratch
 
 **How to use echo results:**
 - Past deprecation warnings avoid re-discovering already-known API removals
 - Cached version-specific constraints reduce duplicate Context7/WebSearch lookups
 - If an echo notes "framework X requires config Y since v3.0," include it directly
+- Global doc pack entries provide framework best practices without external API calls
 - Echo results supplement — never replace — official documentation verification
 
 ## URL Research (User-Provided Sources)
@@ -113,12 +118,13 @@ https://developer.mozilla.org/en-US/docs/Web/API
 
 Research tools may be unavailable depending on the environment. Use this priority order:
 
-1. **Context7 MCP** (`mcp__context7__*`) — PRIMARY. Resolve library ID then query docs. Best for framework APIs and version-specific details.
-2. **Tavily MCP** (`mcp__tavily__*`) — Structured search with relevance ranking. Use for documentation not covered by Context7.
-3. **WebSearch** (built-in) — General web search. Fallback when no search MCP is available.
-4. **WebFetch** (built-in) — Direct URL fetching. Always available for user-provided URLs and deep-reading search results.
-5. **Echo Search MCP** (`mcp__echo-search__*`) — Local project memory. Always available. **Note (DOC-004)**: Echo is always consulted first as described in the Echo Integration section above — its position at step 5 here reflects priority when external tools fail, not consultation order. You MUST check echoes before any external query regardless of this list ordering.
-6. **Local codebase** — File-based research via Read/Glob/Grep. Last resort.
+1. **Echo Search MCP — Project** (`echo_search(query)`) — ALWAYS FIRST. Check project echoes for cached framework knowledge. **Note (DOC-004)**: You MUST check echoes before any external query regardless of this list ordering.
+2. **Echo Search MCP — Global Doc Packs** (`echo_search(query, scope='global')`) — Check global doc packs for curated framework knowledge. May eliminate the need for Context7 queries entirely.
+3. **Context7 MCP** (`mcp__context7__*`) — Resolve library ID then query docs. Best for framework APIs and version-specific details.
+4. **Tavily MCP** (`mcp__tavily__*`) — Structured search with relevance ranking. Use for documentation not covered by Context7.
+5. **WebSearch** (built-in) — General web search. Fallback when no search MCP is available.
+6. **WebFetch** (built-in) — Direct URL fetching. Always available for user-provided URLs and deep-reading search results.
+7. **Local codebase** — File-based research via Read/Glob/Grep. Last resort.
 
 **At each level**: If a tool is unavailable (MCP not configured, tool call denied), skip it silently and try the next. Never stall on a missing tool.
 

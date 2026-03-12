@@ -35,21 +35,29 @@ _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && pri
 _rune_fail_forward() {
   local _err_line="${BASH_LINENO[0]:-?}"
   local _err_cmd="${BASH_COMMAND:-unknown}"
-  # DIAGNOSTIC: Always log ERR trap (this is the #1 cause of silent stop hook failures)
-  if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    local _ffl="${RUNE_TRACE_LOG:-}"
-    if [[ -n "$_ffl" && ! -L "$_ffl" && ! -L "${_ffl%/*}" ]]; then
-      printf '[%s] arc-phase-stop: ERR trap — fail-forward activated (line %s cmd=%s)\n' \
-        "$(date +%H:%M:%S 2>/dev/null || true)" \
-        "$_err_line" "$_err_cmd" \
-        >> "$_ffl" 2>/dev/null
-    fi
+  # DIAGNOSTIC: ALWAYS log ERR trap — this is the #1 cause of silent stop hook failures.
+  # Previously gated behind RUNE_TRACE=1, but ERR trap in the stop hook is critical
+  # enough to always log. Without this, arc silently stops and the user has no clue why.
+  local _ffl="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u 2>/dev/null || echo 0).log}"
+  if [[ -n "$_ffl" && ! -L "$_ffl" && ! -L "${_ffl%/*}" ]]; then
+    printf '[%s] arc-phase-stop: ERR trap — fail-forward activated (line %s cmd=%s)\n' \
+      "$(date +%H:%M:%S 2>/dev/null || true)" \
+      "$_err_line" "$_err_cmd" \
+      >> "$_ffl" 2>/dev/null
   fi
+  # Also emit to stderr so it appears in hook error output (visible in session transcript)
+  printf 'arc-phase-stop: ERR at line %s (cmd=%s) — fail-forward, allowing stop\n' \
+    "$_err_line" "$_err_cmd" >&2 2>/dev/null || true
   exit 0
 }
 trap '_rune_fail_forward' ERR
 
 _trace "ENTER arc-phase-stop-hook.sh"
+
+# ── Diagnostic helper: always-on logging for critical failures ──
+# BUG FIX: _diag was called at line 298 but never defined, causing ERR trap
+# on jq parse errors → silent arc death. Now defined as alias for _trace.
+_diag() { _trace "$@"; }
 
 # ── Phase log: append-only JSONL for user-facing phase observability ──
 # Writes to tmp/arc/{id}/phase-log.jsonl — one JSON line per event.
@@ -314,14 +322,17 @@ if [[ -n "$_demote_result" ]]; then
       done <<< "$_demoted_phases"
       # Validate JSON before writing (prevent corrupted checkpoint from killing the loop)
       # CDX-007 FIX: Use mktemp for unique temp file to avoid concurrent hook race
-      _ckpt_tmp=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null) || { _trace "WARNING: mktemp failed for checkpoint"; continue; }
-      if echo "$CKPT_CONTENT" | jq -e '.' > "$_ckpt_tmp" 2>/dev/null; then
-        mv -f "$_ckpt_tmp" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || rm -f "$_ckpt_tmp" 2>/dev/null
-      else
-        _trace "WARNING: demoted checkpoint JSON validation failed — skipping write"
-        rm -f "$_ckpt_tmp" 2>/dev/null
-        # Re-read original checkpoint to avoid corrupted in-memory state
-        CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
+      # BUG FIX: was `continue` which is invalid outside a loop → ERR trap → silent arc death
+      _ckpt_tmp=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null) || { _trace "WARNING: mktemp failed for checkpoint — skipping demotion write"; _ckpt_tmp=""; }
+      if [[ -n "$_ckpt_tmp" ]]; then
+        if echo "$CKPT_CONTENT" | jq -e '.' > "$_ckpt_tmp" 2>/dev/null; then
+          mv -f "$_ckpt_tmp" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || rm -f "$_ckpt_tmp" 2>/dev/null
+        else
+          _trace "WARNING: demoted checkpoint JSON validation failed — skipping write"
+          rm -f "$_ckpt_tmp" 2>/dev/null
+          # Re-read original checkpoint to avoid corrupted in-memory state
+          CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
+        fi
       fi
     fi
   fi

@@ -22,6 +22,13 @@ import sys
 VALID_ROLE_RE = re.compile(r'^[a-zA-Z0-9_-]+$')  # SEC-5: role name allowlist
 ALLOWED_CATEGORIES = {"pattern", "anti-pattern", "decision", "debugging", "general"}
 VALID_LAYERS = frozenset({"etched", "notes", "inscribed", "observations", "traced"})
+ALLOWED_DOMAINS = frozenset({
+    "backend", "frontend", "devops", "database",
+    "testing", "architecture", "general",
+})
+
+MAX_PACK_SIZE_MB = 10  # SEC-P2-005: reject files larger than this
+MAX_LINES = 10000  # SEC-P2-005: truncate files beyond this line count
 
 
 def generate_id(role: str, line_number: int, file_path: str) -> str:
@@ -41,6 +48,7 @@ _HEADER_RE = re.compile(
 )
 _SOURCE_RE = re.compile(r"^\*\*Source\*\*:\s*`?([^`\n]+)`?")
 _CATEGORY_RE = re.compile(r"^\*\*Category\*\*:\s*(\S+)")
+_DOMAIN_RE = re.compile(r"^\*\*Domain\*\*:\s*(.+)")
 
 
 def _flush_entry(current_entry: dict | None, content_lines: list[str], entries: list[dict], file_path: str) -> None:
@@ -62,11 +70,71 @@ def _make_entry(role: str, header_match: re.Match, line_num: int, file_path: str
         "date": header_match.group(3),
         "source": "",
         "category": "general",
+        "domain": "general",
         "content": "",
         "tags": header_match.group(2).strip(),
         "line_number": line_num,
         "file_path": file_path,
     }
+
+
+def _valid_subdirs(parent: str, *, seen_inodes: set[int] | None = None) -> list[str]:
+    """Return valid subdirectories with symlink loop and containment protection.
+
+    Applies SEC-5 role name allowlist, realpath containment check (SEC-P2-003),
+    and inode-based cycle detection (D-P2-003).
+    """
+    if seen_inodes is None:
+        seen_inodes = set()
+
+    result: list[str] = []
+    real_parent = os.path.realpath(parent)
+
+    if not os.path.isdir(real_parent):
+        return result
+
+    for name in sorted(os.listdir(real_parent)):
+        if not VALID_ROLE_RE.match(name):  # SEC-5
+            continue
+        child = os.path.join(parent, name)
+        real_child = os.path.realpath(child)
+
+        # SEC-P2-003: containment check — child must be under parent
+        if not real_child.startswith(real_parent + os.sep):
+            print("WARN: symlink escape detected: %s -> %s" % (child, real_child), file=sys.stderr)
+            continue
+
+        # D-P2-003: inode cycle detection
+        try:
+            inode = os.stat(real_child).st_ino
+        except OSError:
+            continue
+        if inode in seen_inodes:
+            print("WARN: inode cycle detected at %s (inode %d)" % (child, inode), file=sys.stderr)
+            continue
+        seen_inodes.add(inode)
+
+        if os.path.isdir(real_child):
+            result.append(child)
+
+    return result
+
+
+def _check_file_size(file_path: str) -> bool:
+    """Check file size against SEC-P2-005 limits.
+
+    Returns True if the file is within acceptable size limits.
+    """
+    try:
+        size_bytes = os.path.getsize(file_path)
+    except OSError:
+        return False
+    max_bytes = MAX_PACK_SIZE_MB * 1024 * 1024
+    if size_bytes > max_bytes:
+        print("WARN: file too large (%d bytes > %d MB limit): %s" % (
+            size_bytes, MAX_PACK_SIZE_MB, file_path), file=sys.stderr)
+        return False
+    return True
 
 
 def parse_memory_file(file_path: str, role: str) -> list[dict]:
@@ -81,6 +149,11 @@ def parse_memory_file(file_path: str, role: str) -> list[dict]:
     except UnicodeDecodeError:
         print("WARN: skipping binary/corrupted file: %s" % file_path, file=sys.stderr)
         return entries
+
+    # SEC-P2-005: truncate beyond MAX_LINES
+    if len(lines) > MAX_LINES:
+        print("WARN: truncating %s at %d lines (max %d)" % (file_path, len(lines), MAX_LINES), file=sys.stderr)
+        lines = lines[:MAX_LINES]
 
     current_entry: dict | None = None
     content_lines: list[str] = []
@@ -117,7 +190,16 @@ def parse_memory_file(file_path: str, role: str) -> list[dict]:
                             raw_category, file_path, i + 1), file=sys.stderr)
                         current_entry["category"] = "general"
                     continue
-                # First non-blank, non-source, non-category line → end metadata
+                domain_match = _DOMAIN_RE.match(stripped)
+                if domain_match:
+                    raw_domain = domain_match.group(1).strip().lower()
+                    if raw_domain in ALLOWED_DOMAINS:
+                        current_entry["domain"] = raw_domain
+                    else:
+                        print("WARN: unknown domain '%s' at %s:%d, defaulting to 'general'" % (
+                            raw_domain, file_path, i + 1), file=sys.stderr)
+                    continue
+                # First non-blank, non-source, non-category, non-domain line → end metadata
                 if stripped.strip() and not stripped.startswith("**"):
                     in_metadata = False
             content_lines.append(stripped)
@@ -135,6 +217,7 @@ def discover_and_parse(echo_dir: str) -> list[dict]:
 
     Discovers ``<echo_dir>/<role>/MEMORY.md`` for each valid role
     subdirectory (SEC-5 allowlist) and returns a flat list of all entries.
+    Also discovers doc packs at ``<echo_dir>/doc-packs/<pack-name>/MEMORY.md``.
 
     Args:
         echo_dir: Path to the ``.claude/echoes`` directory.
@@ -147,16 +230,28 @@ def discover_and_parse(echo_dir: str) -> list[dict]:
     if not os.path.isdir(echo_dir):
         return all_entries
 
-    for role_name in sorted(os.listdir(echo_dir)):
-        if not VALID_ROLE_RE.match(role_name):  # SEC-5: skip unexpected dir names
-            continue
-        role_path = os.path.join(echo_dir, role_name)
-        if not os.path.isdir(role_path):
-            continue
+    seen_inodes: set[int] = set()
 
+    # Existing: walk <echo_dir>/<role>/MEMORY.md
+    for role_path in _valid_subdirs(echo_dir, seen_inodes=seen_inodes):
+        role_name = os.path.basename(role_path)
+        if role_name == "doc-packs":
+            continue  # handled separately below
         memory_file = os.path.join(role_path, "MEMORY.md")
-        if os.path.isfile(memory_file):
+        if os.path.isfile(memory_file) and _check_file_size(memory_file):
             entries = parse_memory_file(memory_file, role_name)
             all_entries.extend(entries)
+
+    # NEW: walk <echo_dir>/doc-packs/<pack-name>/MEMORY.md
+    doc_packs_dir = os.path.join(echo_dir, "doc-packs")
+    if os.path.isdir(doc_packs_dir):
+        for pack_path in _valid_subdirs(doc_packs_dir, seen_inodes=seen_inodes):
+            pack_name = os.path.basename(pack_path)
+            # D-P2-006: prefix doc-pack roles to avoid collision with project roles
+            role = "doc-pack/%s" % pack_name
+            memory_file = os.path.join(pack_path, "MEMORY.md")
+            if os.path.isfile(memory_file) and _check_file_size(memory_file):
+                entries = parse_memory_file(memory_file, role)
+                all_entries.extend(entries)
 
     return all_entries

@@ -2,7 +2,8 @@
 name: rune:echoes
 description: |
   Manage Rune Echoes — project-level agent memory stored in .claude/echoes/.
-  View memory state, prune stale entries, or reset all echoes.
+  View memory state, prune stale entries, reset all echoes, manage doc packs,
+  or audit global echoes.
 
   <example>
   user: "/rune:echoes show"
@@ -31,13 +32,18 @@ Manage the project-level agent memory stored in `.claude/echoes/`.
 ## Usage
 
 ```
-/rune:echoes show           # Display current echo state
-/rune:echoes prune          # Prune stale entries (with confirmation)
-/rune:echoes reset          # Clear all echoes (with confirmation)
-/rune:echoes init           # Initialize echo directories for this project
-/rune:echoes promote        # Promote echoes to Remembrance docs
-/rune:echoes migrate        # Migrate echo names after upgrade
-/rune:echoes remembrance    # View Remembrance knowledge docs
+/rune:echoes show                     # Display current echo state
+/rune:echoes prune                    # Prune stale entries (with confirmation)
+/rune:echoes reset                    # Clear all echoes (with confirmation)
+/rune:echoes init                     # Initialize echo directories for this project
+/rune:echoes promote                  # Promote echoes to Remembrance docs
+/rune:echoes migrate                  # Migrate echo names after upgrade
+/rune:echoes remembrance              # View Remembrance knowledge docs
+/rune:echoes doc-packs install <stack> # Install a bundled doc pack to global echoes
+/rune:echoes doc-packs list           # List available and installed doc packs
+/rune:echoes doc-packs update <stack> # Update installed pack to latest bundled version
+/rune:echoes doc-packs status         # Show staleness for installed packs
+/rune:echoes audit                    # List all global echoes with provenance
 ```
 
 ## Execution
@@ -205,9 +211,67 @@ View and search Remembrance knowledge documents.
 3. If `<search>`: search across all Remembrance docs for keyword
 4. Display matching documents with summaries
 
+### doc-packs install — Install Bundled Doc Pack
+
+Install a curated doc pack (framework patterns, gotchas, recipes) to the global echo store.
+
+**Steps:**
+
+1. Validate `<stack>` against `^[a-zA-Z][a-zA-Z0-9_-]{1,63}$` (SEC-P3-001)
+2. Read registry: `${CLAUDE_PLUGIN_ROOT}/data/doc-packs/registry.json`
+3. Verify `<stack>` exists in registry — error if not
+4. Set `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`
+5. Create dirs: `mkdir -p "$CHOME/echoes/global/doc-packs/<stack>" "$CHOME/echoes/global/manifests"`
+6. Copy: `cp "${CLAUDE_PLUGIN_ROOT}/data/doc-packs/<stack>/MEMORY.md" "$CHOME/echoes/global/doc-packs/<stack>/"`
+7. Write manifest JSON to `$CHOME/echoes/global/manifests/<stack>.json`
+8. Write dirty signal: `touch "$CHOME/echoes/global/.global-echo-dirty"`
+9. Report: "Installed `<stack>` (v1.0.0). Search with `echo_search(query, scope='global')`"
+
+### doc-packs list — List Available Packs
+
+Show all available doc packs and their install status.
+
+**Steps:**
+
+1. Read registry from `${CLAUDE_PLUGIN_ROOT}/data/doc-packs/registry.json`
+2. For each pack, check `$CHOME/echoes/global/manifests/<name>.json`
+3. Display: `✓ installed (version, date)` or `○ not installed`
+
+### doc-packs update — Update Installed Pack
+
+Update a doc pack to the latest bundled version.
+
+**Steps:**
+
+1. Read installed manifest and bundled registry version
+2. Compare versions (string comparison — no `sort -V` for macOS compat)
+3. If newer: copy MEMORY.md, update manifest, write dirty signal
+4. If same: "Already up to date"
+
+### doc-packs status — Staleness Report
+
+Show install age and staleness for all installed packs.
+
+**Steps:**
+
+1. List manifests in `$CHOME/echoes/global/manifests/`
+2. Calculate days since `installed_at`
+3. Flag stale packs (> 90 days, configurable via `echoes.global.staleness_days`)
+
+### audit — Global Echo Provenance
+
+List all global echoes grouped by source type.
+
+**Steps:**
+
+1. Read manifests for doc pack metadata
+2. Parse `$CHOME/echoes/global/MEMORY.md` for elevated echoes
+3. Display grouped: doc packs (with entry counts, domains) + elevated echoes (with source project)
+
 ## Notes
 
 - Echo data is project-local (`.claude/echoes/` in project root)
+- Global echoes are user-level (`$CHOME/echoes/global/`)
 - Excluded from git by default (security: may contain code patterns)
 - Opt-in to version control via `.claude/talisman.yml`
 - See `rune-echoes` skill for full lifecycle documentation
