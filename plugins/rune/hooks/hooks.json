@@ -70,6 +70,17 @@
         ]
       },
       {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/validate-resolve-fixer-paths.sh",
+            "timeout": 5,
+            "statusMessage": "Checking resolve-fixer file scope..."
+          }
+        ]
+      },
+      {
         "matcher": "Task|Agent",
         "hooks": [
           {

@@ -752,6 +752,7 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | evidence-verifier | Evidence-based plan claim validation — 3-layer verification (Codebase/Documentation/External), per-claim grounding scores, weighted overall plan grounding score |
 | design-analyst | Figma frame relationship classifier — 5-signal weighted composite scoring, same-screen clustering, variant detection |
 | research-verifier | External research output validation — relevance, accuracy, freshness, cross-validation, and security checks |
+| todo-verifier | TODO staleness classification — verify-before-fix pipeline for `/rune:resolve-todos` |
 | ux-pattern-analyzer | UX pattern usage and maturity analysis — loading, error handling, form validation, navigation patterns |
 | tome-digest | TOME finding digest extraction — P1 counts, recurring patterns, affected files for mend gating |
 | condenser-gap | Gap analysis artifact condenser — MISSING/PARTIAL/COMPLETE counts for inter-phase context reduction |
@@ -814,6 +815,8 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | team-status | Team health dashboard — show active team members, task progress, and communication state (non-invocable) |
 | runs | Workflow run history and diagnostics (non-invocable) |
 | utility-crew | Agent-based context pack composition and validation — context-scribe, prompt-warden, dispatch-herald. Gated by `utility_crew.enabled` (non-invocable) |
+| file-todos | Standalone file-based todo tracking — create, triage, list, search, resolve, dedup structured todo files. Session-scoped in `tmp/`. `/rune:file-todos` |
+| resolve-todos | Standalone todo resolution using Agent Teams with verify-before-fix pipeline. `/rune:resolve-todos` |
 | ux-design-process | UX design intelligence — heuristic evaluation checklists, interaction pattern libraries, flow validation. Auto-loaded for frontend files (non-invocable) |
 | storybook | Storybook component verification — CSF3 format, MCP tools, story generation, visual quality checks. Auto-loaded by arc Phase 3.3 (non-invocable) |
 

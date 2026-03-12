@@ -4,10 +4,10 @@
 
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
-[![Version](https://img.shields.io/badge/version-1.153.0-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-1.153.1-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-99-purple)](#agents)
-[![Skills](https://img.shields.io/badge/skills-53-orange)](#skills)
+[![Agents](https://img.shields.io/badge/agents-100-purple)](#agents)
+[![Skills](https://img.shields.io/badge/skills-55-orange)](#skills)
 
 ---
 

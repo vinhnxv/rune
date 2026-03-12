@@ -85,6 +85,7 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | horizon-sage | Strategic depth assessment — Temporal Horizon, Root Cause Depth, Innovation Quotient, Stability, Maintainability |
 | deployment-verifier | Deployment artifact generation — Go/No-Go checklists, SQL verification, rollback plans, monitoring (DEPLOY-) |
 | research-verifier | Validates external research outputs for relevance, accuracy, freshness, cross-validation, and security before plan synthesis (/rune:devise Phase 1C.5) |
+| todo-verifier | TODO staleness classification — VALID/FALSE_POSITIVE verdicts with Hypothesis Protocol. Used by /rune:resolve-todos Phase 3 |
 | state-weaver | Plan state machine validation — extracts phases, builds transition graphs, validates completeness (10 STSM checks), verifies I/O contracts, generates mermaid diagrams |
 | design-analyst | Figma frame relationship classifier — 5-signal weighted composite (name 0.35, component set 0.25, structure 0.20, dimension 0.10, shared instances 0.10), single-linkage clustering. Used by arc Phase 3 (Design Extraction) |
 | evidence-verifier | Evidence-based plan claim validation — systematic per-claim verification against codebase/docs/external sources with grounding scores. Used by /rune:devise |

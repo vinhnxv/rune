@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [1.153.1] - 2026-03-12
+
+### Added
+- **Restored file-todos and resolve-todos as standalone skills**: Both skills are available via `/rune:file-todos` and `/rune:resolve-todos` for manual invocation. No longer integrated into workflow pipelines (arc, strive, appraise, mend, audit).
+- **Restored todo-verifier agent**: Required by `/rune:resolve-todos` verify-before-fix pipeline.
+- **Restored SEC-RESOLVE-001 hook**: `validate-resolve-fixer-paths.sh` for resolve-todos file scope enforcement.
+
+### Changed
+- Updated integration-guide.md with standalone-only notice (workflow integrations are historical reference)
+- Updated agent count: 99 → 100 (restored todo-verifier)
+- Updated utility agent count: 25 → 26
+- Updated skill count: 53 → 55 (restored file-todos, resolve-todos)
+
 ## [1.153.0] - 2026-03-12
 
 ### Removed
