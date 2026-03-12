@@ -46,8 +46,6 @@ if (codexAvailable && !codexDisabled && taskDecompEnabled && workflowIncluded) {
     timeout: 300, reasoning: "high"
   })
 
-  const todosBase = checkpoint.todos_base ?? `tmp/arc/${id}/todos/`
-
   // ── Delegate to codex-phase-handler teammate ──
   // Token optimization: plan content (~10k chars) stays in teammate's context, not Tarnished's
   const teamName = `arc-codex-td-${id}`

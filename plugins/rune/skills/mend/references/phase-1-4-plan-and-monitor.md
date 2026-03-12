@@ -13,7 +13,6 @@ Check for cross-file dependencies between findings:
 ### Determine Fixer Count and Waves
 
 ```javascript
-const TODOS_PER_FIXER = talisman?.mend?.todos_per_fixer ?? 5
 fixer_count = min(file_groups.length, 5)
 totalWaves = Math.ceil(file_groups.length / fixer_count)
 ```

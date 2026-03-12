@@ -56,8 +56,6 @@ Parses a plan into tasks with dependencies, summons swarm workers, and coordinat
 /rune:strive                                            # Auto-detect recent plan
 ```
 
-> **Note**: File-todos are always generated (mandatory). There is no `--todos=false` option.
-
 ## Pipeline Overview
 
 ```
@@ -71,7 +69,6 @@ Phase 1: Forge Team -> TeamCreate + TaskCreate pool
     1.6. MCP Integration Discovery (conditional, zero cost if no integrations)
     1.7. File Ownership and Task Pool (static serialization via blockedBy)
     2. Signal Directory Setup (event-driven fast-path infrastructure)
-    3. Per-Task File-Todos Creation (mandatory, session-scoped)
     → TeamCreate + TaskCreate pool
     |
 Phase 2: Summon Workers -> Self-organizing swarm
@@ -86,7 +83,7 @@ Phase 3.7: Codex Post-monitor Critique -> Architectural drift detection (optiona
     |
 Phase 4: Ward Check -> Quality gates + verification checklist
     |
-Phase 4.1: Todo Summary -> Generate _summary.md from per-worker todo files (orchestrator-only)
+Phase 4.1: Todo Summary -> Generate worker-logs/_summary.md from per-worker log files (orchestrator-only)
     |
 Phase 4.3: Doc-Consistency -> Non-blocking version/count drift detection (orchestrator-only)
     |
@@ -135,9 +132,9 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_ac
 
 ## Phase 1: Forge Team
 
-Creates the team, signal directories, per-task file-todos, applies complexity-aware task ordering, estimates task time, computes wave configuration, and writes the session state file.
+Creates the team, signal directories, applies complexity-aware task ordering, estimates task time, computes wave configuration, and writes the session state file.
 
-Key steps: teamTransition pre-create guard → signal directory + inscription.json → output directories → per-task file-todos (mandatory, arc-aware) → complexity scoring + sort → time estimation → wave computation → state file with session isolation fields.
+Key steps: teamTransition pre-create guard → signal directory + inscription.json → output directories → complexity scoring + sort → time estimation → wave computation → state file with session isolation fields.
 
 See [forge-team.md](references/forge-team.md) for the full implementation code.
 
@@ -179,9 +176,9 @@ See [todo-protocol.md](references/todo-protocol.md) for the worker todo file pro
 
 ### Wave-Based Execution
 
-See [wave-execution.md](references/wave-execution.md) for the wave loop algorithm, per-task file-todos, SEC-002 sanitization, non-goals extraction, and worktree mode spawning.
+See [wave-execution.md](references/wave-execution.md) for the wave loop algorithm, SEC-002 sanitization, non-goals extraction, and worktree mode spawning.
 
-**Summary**: Tasks split into bounded waves (`maxWorkers × todosPerWorker`). Each wave: distribute → spawn → monitor → commit broker → shutdown → next wave. Single-wave optimization skips overhead when `totalWaves === 1`.
+**Summary**: Tasks split into bounded waves (`maxWorkers × tasksPerWorker`). Each wave: distribute → spawn → monitor → commit broker → shutdown → next wave. Single-wave optimization skips overhead when `totalWaves === 1`.
 
 ## Phase 3: Monitor
 
@@ -264,7 +261,7 @@ Read and execute [quality-gates.md](references/quality-gates.md) before proceedi
 
 **Phase 4 — Ward Check**: Discover wards from Makefile/package.json/pyproject.toml, execute each with SAFE_WARD validation, run 10-point verification checklist. On ward failure, create fix task and summon worker.
 
-**Phase 4.1 — Todo Summary**: Orchestrator generates `worker-logs/_summary.md` after all workers exit. See [todo-protocol.md](references/todo-protocol.md) for full algorithm. Also updates per-task todo frontmatter status to `complete` for finished tasks and `blocked` for failed tasks. Rebuilds `todos-work-manifest.json` with final status summary. Scans `resolveTodosDir(todosOutputDir, "work")` only (not other source subdirectories). Uses arc-aware `todosOutputDir` from Phase 1.
+**Phase 4.1 — Todo Summary**: Orchestrator generates `worker-logs/_summary.md` after all workers exit. See [todo-protocol.md](references/todo-protocol.md) for full algorithm.
 
 **Phase 4.3 — Doc-Consistency**: Non-blocking version/count drift detection. See `doc-consistency.md` in `roundtable-circle/references/`.
 
@@ -285,7 +282,7 @@ if (exists(".claude/echoes/workers/")) {
 
 ## Phase 6: Cleanup & Report
 
-Standard cleanup: cache TaskList → dynamic member discovery → shutdown → grace period → artifact finalization (non-blocking) → retry-with-backoff TeamDelete → stale todo fixup (FLAW-008) → per-task file-todos cleanup (arc-aware) → worktree GC (if applicable) → stash restore → state file update → workflow lock release.
+Standard cleanup: cache TaskList → dynamic member discovery → shutdown → grace period → artifact finalization (non-blocking) → retry-with-backoff TeamDelete → stale worker log fixup (FLAW-008) → worktree GC (if applicable) → stash restore → state file update → workflow lock release.
 
 See [phase-6-cleanup.md](references/phase-6-cleanup.md) for the full cleanup pseudocode and completion report template. See [engines.md](../team-sdk/references/engines.md) § cleanup for the shared pattern.
 
@@ -293,7 +290,7 @@ See [phase-6-cleanup.md](references/phase-6-cleanup.md) for the full cleanup pse
 
 See [ship-phase.md](references/ship-phase.md) for gh CLI pre-check, ship decision flow, PR template generation, and smart next steps.
 
-**Summary**: Offer to push branch and create PR. Generates PR body from plan metadata, task list, ward results, verification warnings, and todo summary. See [todo-protocol.md](references/todo-protocol.md) for PR body Work Session format. The PR body also includes a file-todos status table sourced from `resolveTodosDir(todosOutputDir, "work")` (counts by status/priority, arc-aware).
+**Summary**: Offer to push branch and create PR. Generates PR body from plan metadata, task list, ward results, verification warnings, and todo summary. See [todo-protocol.md](references/todo-protocol.md) for PR body Work Session format.
 
 ## --approve Flag (Plan Approval Per Task)
 

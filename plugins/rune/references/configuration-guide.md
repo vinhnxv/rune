@@ -261,7 +261,6 @@ See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integratio
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `mend.cross_file_batch_size` | number | `3` | Files per cross-file batch |
-| `mend.todos_per_fixer` | number | `5` | Max file-todos per fixer wave |
 
 ### `review` — Review Settings
 
@@ -300,7 +299,6 @@ See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integratio
 | `work.branch_prefix` | string | `"rune/work"` | Branch name prefix |
 | `work.pr_monitoring` | boolean | `false` | PR monitoring section |
 | `work.co_authors` | string[] | `[]` | Co-Authored-By lines |
-| `work.todos_per_worker` | number | `3` | Todos per worker wave |
 | `work.unrestricted_shared_files` | string[] | `[]` | Files bypassing SEC-STRIVE-001 |
 | `work.worktree.enabled` | boolean | `false` | Default worktree mode |
 | `work.worktree.max_workers_per_wave` | number | `3` | Workers per worktree wave |
@@ -600,7 +598,6 @@ work:
   # pr_template: default                 # Reserved for a future release (default | minimal)
   # auto_push: false                     # Reserved for a future release (auto-push without confirmation)
   co_authors: []                         # Co-Authored-By lines in "Name <email>" format
-  todos_per_worker: 3                    # Max tasks per worker per wave (default: 3)
 
 inner_flame:
   enabled: true                   # Kill switch (default: true)
@@ -812,13 +809,11 @@ Top-level `mend:` configuration controls the parallel finding resolution pipelin
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `cross_file_batch_size` | number | `3` | Max files read per batch during orchestrator-only cross-file mend (Phase 5.5, range: 1-10). Lower values reduce per-step context cost; higher values reduce round-trips for multi-file findings. |
-| `todos_per_fixer` | number | `5` | Max file-todos per fixer wave. Controls wave-based mend execution batch size. |
 
 **Usage**:
 ```yaml
 mend:
   cross_file_batch_size: 4     # Increase for faster cross-file operations on large codebases
-  todos_per_fixer: 5           # Max file-todos per fixer wave
 ```
 
 ---

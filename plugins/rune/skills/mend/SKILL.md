@@ -82,11 +82,9 @@ Phase 5.7: DOC-CONSISTENCY -> Fix drift between source-of-truth files
     |
 Phase 5.8: CODEX FIX VERIFICATION -> Cross-model post-fix validation (v1.39.0)
     |
-Phase 5.9: TODO UPDATE -> Update file-todos for resolved findings (conditional)
-    |
 Phase 5.95: GOLDMASK QUICK CHECK (v1.71.0) -> Deterministic MUST-CHANGE verification
     |
-Phase 6: RESOLUTION REPORT -> Produce report (includes Codex verdict + todo cross-refs + Goldmask)
+Phase 6: RESOLUTION REPORT -> Produce report (includes Codex verdict + Goldmask)
     |
 Phase 7: CLEANUP -> Shutdown fixers, persist echoes, report summary
 ```
@@ -225,14 +223,6 @@ Cross-model post-fix validation (non-fatal). Diffs against `preMendSha` (capture
 
 See [resolution-report.md](references/resolution-report.md) for Codex verification section format and edge cases.
 
-## Phase 5.9: Todo Update (Conditional)
-
-After all fixes are applied and verified, update corresponding file-todos for resolved findings. Scans all source subdirectories (`{base}*/[0-9][0-9][0-9]-*.md`) for cross-source `finding_id` matching, updates frontmatter status, and appends Work Log entries.
-
-**Skip conditions**: No todo files found in any subdirectory OR no todo files match any resolved finding IDs.
-
-See [todo-update-phase.md](references/todo-update-phase.md) for the full 7-step protocol (resolve base, read manifest, claim, update frontmatter, append workflow_chain, rebuild) and resolution-to-status mapping (FIXED→complete, FALSE_POSITIVE→wont_fix, FAILED/SKIPPED→unchanged).
-
 ## Phase 5.95: Goldmask Quick Check (Deterministic)
 
 After all fixes and verifications, run a deterministic blast-radius check comparing mend output against Goldmask predictions. No agents — pure set comparison. Advisory-only (does NOT halt the pipeline).
@@ -247,9 +237,9 @@ See [goldmask-quick-check.md](../goldmask/references/goldmask-quick-check.md) fo
 
 ## Phase 6: RESOLUTION REPORT
 
-Aggregates fixer SEALs, cross-file fixes, doc-consistency fixes into `tmp/mend/{id}/resolution-report.md`. Convergence: FIXED > FALSE_POSITIVE > FAILED > SKIPPED. P1 FAILED/SKIPPED triggers escalation warning. Optional Todo column (cross-source glob) and Goldmask Integration section (risk overlay + quick check results).
+Aggregates fixer SEALs, cross-file fixes, doc-consistency fixes into `tmp/mend/{id}/resolution-report.md`. Convergence: FIXED > FALSE_POSITIVE > FAILED > SKIPPED. P1 FAILED/SKIPPED triggers escalation warning. Goldmask Integration section (risk overlay + quick check results).
 
-See [resolution-report.md](references/resolution-report.md) for the full report format, convergence logic, todo cross-refs, Goldmask section, and Codex verification.
+See [resolution-report.md](references/resolution-report.md) for the full report format, convergence logic, Goldmask section, and Codex verification.
 
 ## Phase 7: CLEANUP
 

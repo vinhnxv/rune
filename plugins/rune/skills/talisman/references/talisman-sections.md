@@ -22,10 +22,9 @@ This list reflects the documented schema used by Rune (including default-injecte
 | 13 | `schema_drift` | Migration/model consistency | `enabled`, `frameworks`, `strict`, `ignore_patterns` |
 | 14 | `elicitation` | Reasoning methods | `max_parallel_sages`, `phase_filter` |
 | 15 | `echoes` | Agent memory | `version_controlled`, `session_summary`, `fts_enabled`, `auto_observation`, `scoring`, `groups`, `reranking`, `retry` |
-| 16 | `mend` | Finding resolution | `cross_file_batch_size`, `todos_per_fixer` |
+| 16 | `mend` | Finding resolution | `cross_file_batch_size` |
 | 17 | `review` | Review settings | `diff_scope`, `convergence`, `arc_convergence_*`, `shard_*` |
 | 18 | `work` | Work/strive settings | `ward_commands`, `max_workers`, `commit_format`, `co_authors`, `branch_prefix`, `unrestricted_shared_files`, `worktree.*` |
-| 19 | `file_todos` | Todo tracking (v2) | `triage`, `manifest`, `history` |
 | 20 | `horizon` | Strategic assessment | `enabled`, `min_score`, `dimensions` |
 | 21 | `testing` | Test orchestration | `tiers.unit`, `tiers.integration`, `tiers.e2e`, `service.*`, `scenarios.*`, `extended_tier.*`, `contract.*`, `visual_regression.*`, `accessibility.*`, `history.*`, `fixtures.*`, `flaky_detection.*`, `production_readiness.*` |
 | 22 | `doubt_seer` | Claim verification | `enabled`, `min_claims`, `verdict_threshold` |

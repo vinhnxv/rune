@@ -635,15 +635,14 @@ Agent({
 
 ## Phase 5.2: Citation Verification
 
-Deterministic grep-based verification of TOME file:line citations. Runs at Tarnished level (no subagent spawned). Gates Phase 5.4 todo generation. Inspired by rlm-claude-code's Epistemic Verification pipeline.
+Deterministic grep-based verification of TOME file:line citations. Runs at Tarnished level (no subagent spawned). Inspired by rlm-claude-code's Epistemic Verification pipeline.
 
 **Design principles:**
 1. **Structural, not semantic**: Verify file exists, line is in range, pattern grep-matches — no LLM reasoning
 2. **Grep-first triage**: Near-zero cost deterministic checks eliminate obvious hallucinations
 3. **Priority sampling**: 100% P1/SEC, configurable sampling for P2, skip P3 by default
 4. **Non-destructive**: Tag findings as UNVERIFIED — never delete or modify Rune Traces
-5. **Gate todo generation**: Phase 5.4 skips UNVERIFIED findings (configurable)
-6. **Complement Truthsight**: Phase 5.2 catches structural hallucinations cheaply; Phase 6 Layer 2 does semantic verification
+5. **Complement Truthsight**: Phase 5.2 catches structural hallucinations cheaply; Phase 6 Layer 2 does semantic verification
 
 **Parameters**: Uses 3 existing orchestration parameters — `outputDir` (#4), `sessionNonce` (#19), `talisman` (#18). No new parameters needed.
 
@@ -999,245 +998,6 @@ ${verdicts.map(v => `| ${v.id} | \`${v.file}\` | ${v.line} | **${v.result}** | $
 
 For a typical review with 20 findings across 10 files, total verification time is <500ms. Well within the 30s budget.
 
-## Phase 5.4: Todo Generation from TOME
-
-Generate per-finding todo files from scope-tagged TOME. Runs AFTER Phase 5.3 (diff-scope tagging) so scope attributes are available.
-
-**Todos are mandatory** — file-todos are ALWAYS generated. There is no `--todos=false` escape hatch.
-
-> **Dedicated reference**: See [todo-generation.md](todo-generation.md) for the standalone extraction of this phase's logic, verification checklist, and recovery patterns.
-
-```javascript
-// Phase 5.4: Todo Generation from TOME findings (mandatory)
-const workflowType = workflow === "rune-review" ? "review" : "audit"
-
-// Todos are always generated — no --todos=false gate
-{
-  // 1. Read scope-tagged TOME.md
-  const tomeContent = Read(`${outputDir}TOME.md`)
-  const tomePath = `${outputDir}TOME.md`
-
-  // 2. Extract findings via RUNE:FINDING markers (6-step pipeline)
-  //    nonce validation → marker parsing → attribute extraction →
-  //    path normalization → Q/N filtering → scope classification
-
-  // GUARD (SEC-010 / BACK-005): sessionNonce MUST be defined before extraction.
-  // After compaction or session resume, in-memory variables may be lost.
-  // Re-read from inscription.json as authoritative source of truth.
-  if (!sessionNonce) {
-    try {
-      const inscription = JSON.parse(Read(`${outputDir}inscription.json`))
-      sessionNonce = inscription.session_nonce  // snake_case in inscription.json
-      // BACK-005: Validate recovered nonce format (8-char hex from crypto.randomUUID)
-      if (typeof sessionNonce !== 'string' || !/^[0-9a-f]{8}$/i.test(sessionNonce)) {
-        sessionNonce = null  // reject malformed nonce
-      }
-    } catch (e) {
-      // inscription.json missing or malformed — cannot safely validate nonces
-    }
-    if (!sessionNonce) {
-      throw new Error(
-        `Phase 5.4: sessionNonce not provided and could not be recovered from inscription.json. ` +
-        `Cannot validate findings — aborting to prevent SEC-010 bypass.`
-      )
-    }
-    warn(`Phase 5.4: sessionNonce recovered from inscription.json (was lost, likely post-compaction).`)
-  }
-
-  let allFindings = extractFindings(tomeContent, sessionNonce)
-
-  // 2a. Nonce-missing fallback (Layer 2 — graceful degradation)
-  // When extractFindings() returns 0 findings, check if TOME has markers that were
-  // rejected due to missing nonce attributes (Runebinder omission, not cross-session injection).
-  // Distinguishes nonce-MISSING from nonce-MISMATCHED to preserve SEC-010.
-  if (allFindings.length === 0) {
-    const markerCount = (tomeContent.match(/<!-- RUNE:FINDING /g) || []).length
-    if (markerCount > 0) {
-      const hasAnyNonce = /<!-- RUNE:FINDING [^>]*nonce="/.test(tomeContent)
-      if (hasAnyNonce) {
-        // Markers have nonce= but it doesn't match sessionNonce → cross-session injection
-        // DO NOT fallback — this is SEC-010 working correctly
-        warn(`Phase 5.4: ${markerCount} markers found with non-matching nonce. Rejecting (SEC-010).`)
-      } else {
-        // Markers lack nonce= entirely → Runebinder omitted it (same-session, safe to recover)
-        warn(`Phase 5.4: ${markerCount} RUNE:FINDING markers found but none have nonce=. Falling back to lenient extraction.`)
-        allFindings = extractFindingsLenient(tomeContent)
-        allFindings.forEach(f => f.nonce_fallback = true)
-      }
-    }
-  }
-
-  // 2b. Heading-based extraction fallback (Layer 3 — audit TOMEs without markers)
-  // When TOME uses markdown heading format instead of HTML comment markers,
-  // extract findings from ### headings matching known prefix patterns.
-  //
-  // BACK-003 — Hybrid TOME handling: This condition (`markerCount === 0`) assumes
-  // binary format: either ALL findings use markers OR ALL use headings. A hybrid TOME
-  // (mixed markers + heading-format findings) is NOT handled here — heading-format
-  // findings are silently dropped when `markerCount > 0`. This is a known limitation:
-  // hybrid TOMEs should not occur in practice (Runebinder emits one format consistently),
-  // but if detected, implementors SHOULD log a warning and optionally run heading
-  // extraction to supplement marker-based findings. File a follow-up if hybrid TOMEs
-  // are observed in production.
-  if (allFindings.length === 0) {
-    const markerCount = (tomeContent.match(/<!-- RUNE:FINDING /g) || []).length
-    if (markerCount === 0) {
-      const headingFindings = extractFindingsFromHeadings(tomeContent)
-      // BACK-012: Validate heading-extracted findings have required fields before accepting
-      const validHeadingFindings = headingFindings.filter(f =>
-        f && typeof f.id === 'string' && typeof f.file === 'string' && typeof f.severity === 'string'
-      )
-      if (validHeadingFindings.length > 0) {
-        if (validHeadingFindings.length < headingFindings.length) {
-          warn(`Phase 5.4: ${headingFindings.length - validHeadingFindings.length} heading findings dropped (missing required fields)`)
-        }
-        warn(`Phase 5.4: No RUNE:FINDING markers. Extracted ${validHeadingFindings.length} findings from headings.`)
-        allFindings = validHeadingFindings
-        allFindings.forEach(f => f.marker_format = 'heading')
-      }
-    }
-    // Note: if markerCount > 0 here, all markers were rejected (cross-session nonce mismatch
-    // from step 2a or some other validation failure). Heading extraction is intentionally
-    // skipped — do NOT fall through to heading mode when markers were present but invalid.
-  }
-
-  // 3. Filter out non-actionable findings
-  // Phase 5.2 integration: skip UNVERIFIED findings (hallucinated citations)
-  // SUSPECT findings are kept — fixer verifies before fixing (extra caution)
-  // BACK-017: Guard against findings with missing fields (heading/lenient extraction may omit optional fields)
-  const todoableFindings = allFindings.filter(f =>
-    f &&                                             // null guard
-    (f.interaction || '') !== 'question' &&           // Q findings are non-actionable
-    (f.interaction || '') !== 'nit' &&                // N findings are non-actionable
-    (f.status || '') !== 'FALSE_POSITIVE' &&          // Already dismissed
-    !/\[UNVERIFIED:/.test(f.title || '') &&           // Phase 5.2: hallucinated citations
-    !((f.scope || '') === 'pre-existing' && f.severity !== 'P1')  // Skip pre-existing P2/P3
-    // Pre-existing P1 findings ARE kept (critical regardless of scope)
-    // SUSPECT findings ARE kept — fixer applies extra caution per Phase 5.2
-  )
-
-  // 4. Resolve source-qualified directory (session-scoped, no --todos-dir flag needed)
-  // Uses resolveTodosDir() from integration-guide.md — inline implementation
-  // outputDir is the workflow's session output dir (set in Phase 1)
-  const todosDir = resolveTodosDir(outputDir, workflowType)
-  //   standalone appraise: "tmp/reviews/{id}/todos/review/"
-  //   standalone audit:    "tmp/audit/{id}/todos/audit/"
-  //   arc appraise:        "tmp/arc/{id}/todos/review/"
-  Bash(`mkdir -p "${todosDir}"`)
-
-  // 5. Get next sequential ID — scoped to source subdirectory (independent per source)
-  const existingFiles = Glob(`${todosDir}[0-9][0-9][0-9]-*.md`)
-  let nextId = 1
-  if (existingFiles.length > 0) {
-    const maxId = existingFiles
-      .map(f => parseInt(f.split('/').pop().match(/^(\d+)-/)?.[1] || '0', 10))
-      .reduce((a, b) => Math.max(a, b), 0)
-    nextId = maxId + 1
-  }
-
-  // 6. Idempotency check + write todo files
-  let createdCount = 0
-  for (const finding of todoableFindings) {
-    // Dedup: check if todo already exists for this finding (scoped to source subdirectory)
-    const existingTodos = Glob(`${todosDir}[0-9][0-9][0-9]-*.md`)
-    const isDuplicate = existingTodos.some(f => {
-      const fm = parseFrontmatter(Read(f))
-      return fm.finding_id === finding.id && fm.source_ref === tomePath
-    })
-    if (isDuplicate) continue
-
-    const priority = finding.severity.toLowerCase()  // P1→p1, P2→p2, P3→p3
-    const slug = finding.title.toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 40)
-    const paddedId = String(nextId).padStart(3, '0')
-    const filename = `${paddedId}-pending-${priority}-${slug}.md`
-
-    // Write from template (sole-orchestrator pattern — only orchestrator creates)
-    Write(`${todosDir}${filename}`, generateTodoFromFinding(finding, {
-      schema_version: 2,          // v2: resolution metadata + status history + workflow_chain
-      status: "pending",
-      priority,
-      issue_id: paddedId,
-      source: workflowType,
-      source_ref: tomePath,
-      finding_id: finding.id,
-      finding_severity: finding.severity,
-      tags: finding.tags || [],
-      files: finding.files || [],
-      workflow_chain: [`${workflowType === 'review' ? 'appraise' : 'audit'}:${identifier}`],
-      created: new Date().toISOString().slice(0, 10),
-      updated: new Date().toISOString().slice(0, 10)
-    }))
-    // Append creation Status History entry (—→pending)
-    appendStatusHistory(`${todosDir}${filename}`, null, 'pending', 'orchestrator', 'Created from TOME finding')
-
-    nextId++
-    createdCount++
-  }
-
-  // Build per-source manifest after all todos created
-  const todosBase = `${outputDir}todos/`
-  buildSourceManifest(todosBase, workflowType)
-
-  log(`Phase 5.4: Generated ${createdCount} todo files from ${todoableFindings.length} actionable findings (${allFindings.length - todoableFindings.length} filtered out)`)
-
-  // Record todos_base in state file for mend consumption and resume support
-  const currentState = JSON.parse(Read(`${stateFilePrefix}-${identifier}.json`))
-  Write(`${stateFilePrefix}-${identifier}.json`, {
-    ...currentState,
-    todos_base: todosBase
-  })
-}
-```
-
-**generateTodoFromFinding()** writes a markdown file using the template from `skills/file-todos/references/todo-template.md`, filling in the `source: review` (or `audit`) conditional sections with finding data from TOME.
-
-### extractFindingsLenient(tomeContent)
-
-Lenient variant of `extractFindings()` that parses `<!-- RUNE:FINDING ... -->` markers without validating the `nonce=` attribute. Used only by the nonce-missing fallback path (step 2a) when all markers lack nonce entirely. Validates all other marker attributes (id, file, line, severity).
-
-### extractFindingsFromHeadings(tomeContent)
-
-Extracts findings from markdown `### ` headings when no `<!-- RUNE:FINDING -->` markers exist (audit TOMEs). Validates against known finding prefix allowlist to prevent false extraction.
-
-```javascript
-function extractFindingsFromHeadings(content) {
-  const findings = []
-  // Match: ### [PREFIX-NNN] Title  OR  ### PREFIX-NNN: Title
-  // Extended to handle multi-segment prefixes: CDX-VERIFY-001, PARITY-R001
-  const HEADING_RE = /^###\s+(?:\[([A-Z]+(?:-[A-Z]+)*-\d+)\]|([A-Z]+(?:-[A-Z]+)*-\d+):)\s+(.+)$/gm
-  const KNOWN_PREFIXES = /^(SEC|BACK|VEIL|DOUBT|DOC|QUAL|FRONT|DES|AESTH|UXH|UXF|UXI|UXC|CDX|SHA|SHB|SHC|SHD|SHE|XSH|TOME|PARITY|FLAW|ARCH|PERF)/
-  let match
-  while ((match = HEADING_RE.exec(content)) !== null) {
-    const id = match[1] || match[2]
-    if (!KNOWN_PREFIXES.test(id)) continue  // skip non-finding headings
-    const title = match[3].trim()
-    // Look ahead ~500 chars for severity and file metadata
-    const context = content.substring(match.index, match.index + 500)
-    const severity = context.match(/\*\*Severity\*\*:\s*(P[123])/i)?.[1]
-      || context.match(/\bP([123])\b/)?.[0]
-      || 'P3'  // default if not found
-    const file = context.match(/\*\*(?:File|Source)\*\*:\s*`([^`]+)`/)?.[1] || null
-    findings.push({ id, title, severity, file, interaction: null })
-  }
-  return findings
-}
-```
-
-**Filtering summary**:
-
-| Filter | Rationale |
-|--------|-----------|
-| `interaction="question"` | Non-actionable (questions for the author) |
-| `interaction="nit"` | Non-actionable (style nits) |
-| `FALSE_POSITIVE` | Already dismissed in prior mend |
-| `[UNVERIFIED: ...]` | Phase 5.2: hallucinated citations — do not create todo |
-| Pre-existing P2/P3 | Noise reduction (pre-existing debt) |
-| Pre-existing P1 | KEPT (critical regardless of scope) |
-| `[SUSPECT: ...]` | KEPT — fixer applies extra caution per Phase 5.2 |
-
 ## Phase 6: Verify (Truthsight)
 
 Layer 0 inline checks + Layer 2 verifier. See roundtable-circle SKILL.md for the protocol.
@@ -1328,38 +1088,7 @@ if (!cleanupTeamDeleteSucceeded) {
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
 
-// ── Phase 7, Step 3.5: Todo Generation Verification (non-blocking) ──
-const workflowType = workflow === "rune-review" ? "review" : "audit"
-const expectedTodosDir = resolveTodosDir(outputDir, workflowType)
-const todoFiles = [
-  ...Glob(`${expectedTodosDir}[0-9][0-9][0-9]-*.md`),
-  ...Glob(`${expectedTodosDir}[0-9][0-9][0-9][0-9]-*.md`)
-]
-const manifestPath = `${expectedTodosDir}todos-${workflowType}-manifest.json`
-
-// Nonce recovery (MANDATORY for late Phase 5.4 execution)
-let sessionNonce = inscription?.session_nonce
-if (!sessionNonce) {
-  try {
-    const inscriptionData = JSON.parse(Read(`${outputDir}inscription.json`))
-    sessionNonce = inscriptionData.session_nonce
-  } catch {}
-}
-
-if (todoFiles.length === 0) {
-  warn(`Phase 7: No todo files found in ${expectedTodosDir}. Phase 5.4 may have been skipped.`)
-  if (exists(`${outputDir}TOME.md`) && sessionNonce) {
-    warn(`Phase 7: TOME exists + nonce recovered — attempting late todo generation recovery`)
-    // Read and execute todo-generation.md (recovery path)
-  }
-} else {
-  log(`Phase 7: ${todoFiles.length} todo files verified in ${expectedTodosDir}`)
-  if (!exists(manifestPath)) {
-    warn(`Phase 7: ${todoFiles.length} todo files exist but manifest missing — rebuilding`)
-  }
-}
-
-// 4. Update state file (includes todos_base to preserve it across the write)
+// 4. Update state file
 const currentState = JSON.parse(Read(`${stateFilePrefix}-${identifier}.json`))
 Write(`${stateFilePrefix}-${identifier}.json`, {
   team_name: `${teamPrefix}-${identifier}`,
@@ -1368,8 +1097,7 @@ Write(`${stateFilePrefix}-${identifier}.json`, {
   completed: new Date().toISOString(),
   config_dir: configDir,
   owner_pid: ownerPid,
-  session_id: sessionId,
-  todos_base: currentState.todos_base || resolveTodosBase(outputDir)
+  session_id: sessionId
 })
 
 // 5. Persist learnings to Rune Echoes
@@ -1472,4 +1200,3 @@ const params = {
 - [Dedup Runes](dedup-runes.md) — Cross-wave dedup hierarchy
 - [Team SDK engines.md](../../team-sdk/references/engines.md) — teamTransition and pre-create guard pattern
 - [Inscription Schema](inscription-schema.md) — inscription.json format
-- [File-Todos Integration](../../file-todos/references/integration-guide.md) — Phase 5.4 todo generation from TOME

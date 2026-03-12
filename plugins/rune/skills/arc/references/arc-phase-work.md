@@ -12,7 +12,7 @@ Invoke `/rune:strive` logic on the enriched plan. Swarm workers implement tasks 
 
 **Phase loop mechanism**: The arc dispatcher invokes this phase via the **Stop hook re-injection** pattern (`arc-phase-stop-hook.sh`). The Stop hook reads `.claude/arc-phase-loop.local.md`, finds "work" as the next pending phase in `PHASE_ORDER`, and re-injects a prompt that executes this reference file. Each arc phase runs in its own Claude Code turn, preventing context accumulation across phases.
 
-**Arc context detection**: Strive detects arc orchestration by scanning `.claude/arc/*/checkpoint.json` for `phases.work.status === 'in_progress'`. When found, strive redirects todo output to `tmp/arc/{id}/todos/work/` instead of its default `tmp/work/{timestamp}/todos/work/`, enabling arc to track work artifacts across phases.
+**Arc context detection**: Strive detects arc orchestration by scanning `.claude/arc/*/checkpoint.json` for `phases.work.status === 'in_progress'`.
 
 > **Note**: `sha256()`, `updateCheckpoint()`, `exists()`, and `warn()` are dispatcher-provided utilities available in the arc orchestrator context. Phase reference files call these without import.
 
@@ -53,11 +53,7 @@ workContext += `\n\n## Quality Contract\nAll code must include:\n- Type annotati
 // Actual team name will be discovered post-delegation from state file (see below).
 updateCheckpoint({ phase: "work", status: "in_progress", phase_sequence: 5, team_name: null })
 
-// No --todos-dir flag needed — strive detects arc context automatically
-// ARC CONTEXT DETECTION: Strive scans .claude/arc/*/checkpoint.json for work phase in_progress + todos_base
-// When found, strive redirects todos to "tmp/arc/{id}/todos/work/" instead of "tmp/work/{timestamp}/todos/work/"
-// checkpoint.todos_base is set by arc scaffolding (pre-Phase 5) and records this path for resume
-// Thread only --approve flag if applicable (no todosFlag needed)
+// Thread only --approve flag if applicable
 // --approve routing: routes to HUMAN USER via AskUserQuestion (not to AI leader).
 // Phase 5 only — do NOT propagate --approve to /rune:mend in Phase 7.
 
@@ -99,14 +95,6 @@ if (postWorkStateFiles.length > 0) {
   } catch (e) {
     warn(`Failed to read team_name from state file: ${e.message}`)
   }
-}
-
-// Post-work todos verification (non-blocking)
-if (checkpoint.todos_base) {
-  const workTodos = Glob(`${checkpoint.todos_base}work/[0-9][0-9][0-9]-*.md`)
-  log(`Work todos: ${workTodos.length} task files generated`)
-} else {
-  log("todos_base not yet initialized — skipping todo verification")
 }
 
 // STEP 5: Update checkpoint

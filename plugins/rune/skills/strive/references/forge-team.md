@@ -34,55 +34,6 @@ Write(`${signalDir}/inscription.json`, JSON.stringify({
 Bash(`mkdir -p "tmp/work/${timestamp}/patches" "tmp/work/${timestamp}/proposals" "tmp/work/${timestamp}/worker-logs"`)
 ```
 
-## Per-Task File-Todos (Mandatory)
-
-```javascript
-// Per-task file-todos: always created (mandatory, session-scoped)
-// See file-todos/references/integration-guide.md for resolveTodosBase() contract
-const workflowOutputDir = `tmp/work/${timestamp}/`
-
-// Arc context detection: when running inside arc, redirect todos to arc's directory
-// so all phases (work, review, mend) share a single todos_base at tmp/arc/{id}/todos/
-// Detection: check for active arc checkpoint with work phase in_progress
-let todosOutputDir = workflowOutputDir  // default: "tmp/work/{timestamp}/"
-const arcCheckpoints = Glob(".claude/arc/*/checkpoint.json")
-for (const ckpt of arcCheckpoints) {
-  try {
-    const c = JSON.parse(Read(ckpt))
-    if (c.phases?.work?.status === "in_progress" && c.todos_base) {
-      // Extract arc output dir from todos_base: "tmp/arc/{id}/todos/" → "tmp/arc/{id}/"
-      todosOutputDir = c.todos_base.replace(/todos\/?$/, '')
-      break
-    }
-  } catch {}
-}
-const todosBase = resolveTodosBase(todosOutputDir)   // arc: "tmp/arc/{id}/todos/", standalone: "tmp/work/{timestamp}/todos/"
-const todosDir = resolveTodosDir(todosOutputDir, "work")  // arc: "tmp/arc/{id}/todos/work/", standalone: "tmp/work/{timestamp}/todos/work/"
-Bash(`mkdir -p "${todosDir}"`)
-
-// --- Per-task file-todo creation (inline, mandatory) ---
-const today = new Date().toISOString().slice(0, 10)
-for (const task of extractedTasks) {
-  const priority = task.risk_tier === 'critical' ? 'p1' : task.risk_tier === 'high' ? 'p2' : 'p3'
-  const slug = task.subject.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
-  const filename = `task-${task.id}-${slug}.md`
-  Write(`${todosDir}${filename}`, [
-    '---',
-    `id: task-${task.id}-${slug}`,
-    `title: "${task.subject}"`,
-    `status: ready`,
-    `priority: ${priority}`,
-    `source: work`,
-    `task_id: "${task.id}"`,
-    `files:`, ...(task.fileTargets?.map(f => `  - ${f}`) || []),
-    `created_at: "${new Date().toISOString()}"`,
-    '---', '',
-    `## Task`, '', task.description || task.subject, '',
-    `## Checklist`, '', '- [ ] Implementation', '- [ ] Verification',
-  ].join('\n'))
-}
-```
-
 ## Complexity-Aware Task Ordering
 
 ```javascript
@@ -152,11 +103,11 @@ for (const task of extractedTasks) {
 
 ```javascript
 // Wave-based execution: bounded batches with fresh worker context
-const TODOS_PER_WORKER = talisman?.work?.todos_per_worker ?? 3
-const totalTodos = extractedTasks.length
+const TASKS_PER_WORKER = talisman?.work?.tasks_per_worker ?? 3
+const totalTasks = extractedTasks.length
 const maxWorkers = talisman?.work?.max_workers ?? 3
-const waveCapacity = maxWorkers * TODOS_PER_WORKER  // e.g. 3 workers * 3 = 9
-const totalWaves = Math.ceil(totalTodos / waveCapacity)
+const waveCapacity = maxWorkers * TASKS_PER_WORKER  // e.g. 3 workers * 3 = 9
+const totalWaves = Math.ceil(totalTasks / waveCapacity)
 
 // Compute total worker count (scaling logic in worker-prompts.md)
 const workerCount = smithCount + forgerCount
@@ -174,8 +125,7 @@ Write("tmp/.rune-work-{timestamp}.json", {
   plan: planPath,
   expected_workers: workerCount,
   total_waves: totalWaves,
-  todos_per_worker: TODOS_PER_WORKER,
-  todos_base: todosBase,  // session-scoped todos base for resume support
+  tasks_per_worker: TASKS_PER_WORKER,
   ...(worktreeMode && { worktree_mode: true, waves: [], current_wave: 0, merged_branches: [] })
 })
 ```

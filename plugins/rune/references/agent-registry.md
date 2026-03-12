@@ -85,10 +85,10 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | horizon-sage | Strategic depth assessment — Temporal Horizon, Root Cause Depth, Innovation Quotient, Stability, Maintainability |
 | deployment-verifier | Deployment artifact generation — Go/No-Go checklists, SQL verification, rollback plans, monitoring (DEPLOY-) |
 | research-verifier | Validates external research outputs for relevance, accuracy, freshness, cross-validation, and security before plan synthesis (/rune:devise Phase 1C.5) |
+| todo-verifier | TODO staleness classification — VALID/FALSE_POSITIVE verdicts with Hypothesis Protocol. Used by /rune:resolve-todos Phase 3 |
 | state-weaver | Plan state machine validation — extracts phases, builds transition graphs, validates completeness (10 STSM checks), verifies I/O contracts, generates mermaid diagrams |
 | design-analyst | Figma frame relationship classifier — 5-signal weighted composite (name 0.35, component set 0.25, structure 0.20, dimension 0.10, shared instances 0.10), single-linkage clustering. Used by arc Phase 3 (Design Extraction) |
 | evidence-verifier | Evidence-based plan claim validation — systematic per-claim verification against codebase/docs/external sources with grounding scores. Used by /rune:devise |
-| todo-verifier | TODO staleness verification — classifies TODOs as VALID or FALSE_POSITIVE via code-grounded checking. Model: haiku. Used by /rune:resolve-todos Phase 3 |
 | ux-pattern-analyzer | Codebase UX maturity assessment — inventories loading, error handling, form validation, navigation, empty state, confirmation/undo, and feedback patterns. 4-level maturity scale. Used by devise Phase 0.3 |
 | tome-digest | TOME finding extraction — counts P1/P2/P3 severity, extracts recurring prefixes, top findings. Shell-based extraction via utility-crew-extract.sh (zero LLM tokens). Used by arc Phase 7 (Mend) |
 | condenser-gap | Gap analysis digest — MISSING/PARTIAL/COMPLETE counts from gap-analysis.md. Shell-based extraction. Used by arc Phase 6 (Code Review) |

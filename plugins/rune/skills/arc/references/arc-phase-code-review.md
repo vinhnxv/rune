@@ -10,7 +10,7 @@ Invoke `/rune:appraise --deep` on the implemented changes. Multi-wave review (Wa
 **Error handling**: Does not halt — review always produces findings or a clean report. Timeout → partial results collected. Team creation failure → cleanup fallback via `rm -rf` (see [engines.md](../../team-sdk/references/engines.md)).
 **Consumers**: SKILL.md (Phase 6 stub)
 
-> **Note**: `sha256()`, `updateCheckpoint()`, `exists()`, `warn()`, and `parseFrontmatter()` (from file-todos/references/subcommands.md Common Helpers) are dispatcher-provided utilities available in the arc orchestrator context. Phase reference files call these without import.
+> **Note**: `sha256()`, `updateCheckpoint()`, `exists()`, `warn()`, and `parseFrontmatter()` are dispatcher-provided utilities available in the arc orchestrator context. Phase reference files call these without import.
 
 ## Progressive Focus (Re-Review Rounds)
 
@@ -172,10 +172,6 @@ if (exists(verdictPath)) {
 // Actual team name will be discovered post-delegation from state file (see STEP 4.5 below).
 updateCheckpoint({ phase: "code_review", status: "in_progress", phase_sequence: 6, team_name: null })
 
-// No --todos-dir flag needed — appraise detects arc context automatically
-// Roundtable-circle Phase 5.4 scans .claude/arc/*/checkpoint.json for code_review phase in_progress + todos_base
-// When found, todo generation redirects to "tmp/arc/{id}/todos/review/" instead of "tmp/reviews/{review-id}/todos/review/"
-// Arc reads todos_base from checkpoint post-delegation (see STEP 4.5 verification below)
 // Invoke: /rune:appraise --deep {scopeFileFlag} {reviewContext}
 
 // BACK-5 FIX: Pass gap analysis context and review context to /rune:appraise
@@ -251,66 +247,6 @@ updateCheckpoint({
   artifact: tomeTarget, artifact_hash: sha256(tomeContent), phase_sequence: 6
 })
 
-// STEP 5.5: Post-Phase 6 todos verification (non-blocking)
-// 3-step resolution: arc checkpoint → review state file → TOME path derivation
-// QUAL-007 FIX: Previous single-step pattern failed silently if state file was missing.
-// Now mirrors arc-phase-mend.md 3-step pattern for consistency and resilience.
-let reviewTodosBase = null
-
-// Step 1: Arc checkpoint (preferred — always available in arc context)
-// Use exact arc checkpoint path to avoid picking a different arc's checkpoint in arc-batch/hierarchy.
-const currentArcCheckpoint = `.claude/arc/${id}/checkpoint.json`
-const arcCheckpoints = exists(currentArcCheckpoint)
-  ? [currentArcCheckpoint]
-  : Glob(".claude/arc/*/checkpoint.json").filter(f => f.includes(`/arc-${id.replace(/^arc-/, '')}/`)).sort().reverse()
-for (const ckpt of arcCheckpoints) {
-  try {
-    const c = JSON.parse(Read(ckpt))
-    if (c.todos_base && c.phases?.code_review?.status !== "pending") {
-      reviewTodosBase = c.todos_base
-      break
-    }
-  } catch {}
-}
-
-// Step 2: Review state file (fallback — state file may be missing or stale)
-if (!reviewTodosBase) {
-  const reviewStatePath = postReviewStateFiles.length > 0 ? postReviewStateFiles[0] : null
-  if (reviewStatePath) {
-    try { reviewTodosBase = JSON.parse(Read(reviewStatePath)).todos_base || null } catch {}
-  }
-  if (!reviewTodosBase) {
-    warn(`Post-review todos verification: state file missing or todos_base not set — trying TOME path derivation`)
-  }
-}
-
-// Step 3: Derive from TOME path (last resort)
-// Use explicit dirname extraction to avoid regex silent failure on unexpected TOME path formats.
-if (!reviewTodosBase) {
-  const lastSlash = tomeTarget.lastIndexOf('/')
-  const tomeDir = lastSlash > 0 ? tomeTarget.slice(0, lastSlash + 1) : null
-  if (tomeDir && !tomeDir.includes('..') && tomeDir.startsWith('tmp/')) {
-    reviewTodosBase = `${tomeDir}todos/`
-  } else {
-    warn(`Could not derive todos_base from TOME path: ${tomeTarget} — skipping todos verification`)
-  }
-}
-
-if (reviewTodosBase) {
-  const reviewTodos = Glob(`${reviewTodosBase}review/[0-9][0-9][0-9]-*.md`)
-  log(`Todos verification: ${reviewTodos.length} review todos generated from TOME`)
-  // Cross-check: TOME has findings but no todos generated → Phase 5.4 may have been skipped
-  if (reviewTodos.length === 0 && tomeContent.includes('RUNE:FINDING')) {
-    warn(`Post-review: TOME has findings but no review todos generated. Phase 5.4 may have been skipped by roundtable-circle.`)
-  }
-  // Spot-check first todo frontmatter schema (v2)
-  if (reviewTodos.length > 0) {
-    const fm = parseFrontmatter(Read(reviewTodos[0]))
-    if (fm.schema_version !== 2 || !fm.source || !fm.status) {
-      warn(`Todos verification: invalid v2 frontmatter in ${reviewTodos[0]}`)
-    }
-  }
-}
 ```
 
 **Output**: `tmp/arc/{id}/tome.md`

@@ -2,6 +2,47 @@
 
 ## [Unreleased]
 
+## [1.153.1] - 2026-03-12
+
+### Added
+- **Restored file-todos and resolve-todos as standalone skills**: Both skills are available via `/rune:file-todos` and `/rune:resolve-todos` for manual invocation. No longer integrated into workflow pipelines (arc, strive, appraise, mend, audit).
+- **Restored todo-verifier agent**: Required by `/rune:resolve-todos` verify-before-fix pipeline.
+- **Restored SEC-RESOLVE-001 hook**: `validate-resolve-fixer-paths.sh` for resolve-todos file scope enforcement.
+
+### Changed
+- Updated integration-guide.md with standalone-only notice (workflow integrations are historical reference)
+- Updated agent count: 99 → 100 (restored todo-verifier)
+- Updated utility agent count: 25 → 26
+- Updated skill count: 53 → 55 (restored file-todos, resolve-todos)
+
+## [1.153.0] - 2026-03-12
+
+### Removed
+- **File-todos system**: Completely removed the broken file-todos subsystem that never achieved reliable operation (~0% success rate for review/audit todos, ~16% for work todos in arc). Removed 24 files total:
+  - `skills/file-todos/` (entire skill — SKILL.md + 8 reference files)
+  - `skills/resolve-todos/` (entire skill — SKILL.md + CREATION-LOG.md + 6 reference files)
+  - `commands/file-todos.md` (command entry point)
+  - `agents/utility/todo-verifier.md` (TODO staleness verification agent)
+  - `scripts/validate-resolve-fixer-paths.sh` (SEC-RESOLVE-001 hook)
+  - `scripts/validate-strive-todos.sh` (STRIVE-TODOS-001 hook)
+  - `skills/roundtable-circle/references/todo-generation.md` and `todo-generation-phase.md` (Phase 5.4)
+  - `skills/mend/references/todo-update-phase.md` (Phase 5.9)
+- **Phase 5.4 todo generation** from roundtable-circle orchestration (review/audit never generated todos)
+- **Phase 5.9 todo update** from mend pipeline
+- **Talisman keys**: `file_todos.*`, `mend.todos_per_fixer`, `work.todos_per_worker`
+- **Hook entries**: SEC-RESOLVE-001, STRIVE-TODOS-001 from hooks.json
+- **`todos_base` checkpoint field** from arc checkpoint schema
+- **`todo-verifier`** from known-rune-agents registry and cost-tier-mapping
+- **`resolve-todos`** team pattern from rest.md cleanup scan
+- **`.gitignore` entries**: `todos/` and `docs/todos/`
+
+### Changed
+- Renamed `work.todos_per_worker` references to `work.tasks_per_worker` in strive wave execution
+- Updated agent count: 100 → 99 (removed todo-verifier)
+- Updated utility agent count: 26 → 25
+- Updated command count: 18 → 17 (removed /rune:file-todos)
+- Updated skill count: 55 → 53 (removed file-todos, resolve-todos)
+
 ## [1.152.0] - 2026-03-12
 
 ### Added

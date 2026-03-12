@@ -125,22 +125,6 @@ const rawReviewSummary = exists(`tmp/arc/${id}/tome.md`)
   : "Review TOME not available"
 const reviewSummary = '```\n' + rawReviewSummary.replace(/```/g, "'''") + '\n```'
 
-// File-Todos summary from checkpoint (set by post-Phase 7 verification)
-let todosSummarySection = ""
-if (checkpoint.todos_summary) {
-  const ts = checkpoint.todos_summary
-  todosSummarySection = `\n### File-Todos Summary\n- Total: ${ts.total} (${ts.complete} complete, ${ts.pending} pending)\n`
-}
-// Todos Completion Audit results (if any issues detected)
-const todosAuditPath = `tmp/arc/${id}/todos-audit.md`
-if (exists(todosAuditPath)) {
-  const auditContent = Read(todosAuditPath)
-  const issueCount = (auditContent.match(/^- /gm) || []).length
-  todosSummarySection += `- Completion Audit: ${issueCount} issue(s) detected (see todos-audit.md)\n`
-} else if (checkpoint.todos_summary) {
-  todosSummarySection += `- Completion Audit: CLEAN\n`
-}
-
 // Unfixed findings from convergence (if any remain after mend cycles)
 let unfixedSection = ""
 const resolutionPath = `tmp/arc/${id}/resolution-report.md`
@@ -199,7 +183,7 @@ ${diffStat}
 - **Commits**: ${commitCount} incremental commits, each ward-checked
 - **Code Review**: ${exists(`tmp/arc/${id}/tome.md`) ? "TOME generated (deep review)" : "N/A"}
 - **Mend**: ${checkpoint.convergence?.history?.length ?? 0} convergence cycle(s)${unfixedSection}
-${todosSummarySection}
+
 ### Review Summary
 ${reviewSummary}
 

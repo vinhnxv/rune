@@ -846,7 +846,6 @@ mend:
   cross_file_batch_size: 4     # Max files per batch in cross-file mend Phase 5.5 (v1.51.0, default: 3, range: 1-10)
                                # Controls how many files are read at once during orchestrator-only cross-file fix.
                                # Lower values reduce per-step context cost; higher values reduce round-trips.
-  todos_per_fixer: 5           # Max file-todos per fixer wave (default: 5)
 
 # ──────────────────────────────────────────────
 # Review active keys — Context Pressure Defense (v1.51.0+) + Inscription Sharding (v1.98.0+)
@@ -931,7 +930,6 @@ work:
   # auto_push: false            # Reserved for a future release — auto-push without confirmation
   co_authors: []                # Additional Co-Authored-By lines in "Name <email>" format (default: [])
   # Example: ["Claude <noreply@anthropic.com>", "Alice <alice@example.com>"]
-  todos_per_worker: 3            # Max file-todos per worker wave (default: 3)
   # Files all workers can write to (bypass SEC-STRIVE-001 path validation)
   # Useful for shared config files that multiple tasks touch
   # unrestricted_shared_files: []      # e.g., ["package.json", "requirements.txt"]

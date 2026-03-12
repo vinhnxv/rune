@@ -41,7 +41,7 @@ After all tasks complete, run project-wide quality gates. See [ward-check.md](..
 
 ---
 
-## Phase 4.1: Todo Summary Generation (orchestrator-only)
+## Phase 4.1: Worker Log Summary Generation (orchestrator-only)
 
 After ward check passes and all workers have exited, the orchestrator generates `worker-logs/_summary.md` by reading all per-worker log files. This runs AFTER all workers exit to avoid TOCTOU race conditions.
 

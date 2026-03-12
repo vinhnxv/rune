@@ -43,7 +43,7 @@ argument-hint: "[PR# | branch-name] [--headed] [--max-routes N]"
 Runs browser E2E tests against changed routes without spawning an agent team.
 Designed for interactive failure handling during development — no team coordination overhead.
 
-**Load skills**: agent-browser, testing, file-todos, zsh-compat
+**Load skills**: agent-browser, testing, zsh-compat
 
 ```
 # ISOLATION CONTRACT

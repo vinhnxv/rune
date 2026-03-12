@@ -91,11 +91,5 @@
     "pr_comment_resolution": { "status": "pending", "phase_sequence": 9.2 },
     "merge": { "status": "pending", "phase_sequence": 9.5 }
   },
-  "pr_url": null,
-  "todos_base": "tmp/arc/feat-user-auth-1709856000/todos/",
-  "todos_summary": {
-    "total": 12,
-    "complete": 10,
-    "pending": 2
-  }
+  "pr_url": null
 }

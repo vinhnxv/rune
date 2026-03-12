@@ -8,7 +8,6 @@
   "config_dir": "/Users/test/.claude",
   "owner_pid": 99999,
   "session_id": "test-session-123",
-  "todos_base": "tmp/arc/20260301-143022/todos/",
   "freshness": {
     "score": 0.95,
     "signals": { "structural": true, "dependency": true, "api": true, "config": true, "test": true }

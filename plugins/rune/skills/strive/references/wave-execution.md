@@ -5,10 +5,10 @@
 Wave capacity determines how many tasks run per wave. Derived from talisman config:
 
 ```javascript
-const TODOS_PER_WORKER = talisman?.work?.todos_per_worker ?? 3
+const TASKS_PER_WORKER = talisman?.work?.tasks_per_worker ?? 3
 const maxWorkers = talisman?.work?.max_workers ?? 3
-const waveCapacity = Math.max(1, (maxWorkers ?? 3) * (TODOS_PER_WORKER ?? 3))  // e.g. 3 workers * 3 = 9; Math.max(1,...) guards against zero division on next line
-const totalWaves = Math.ceil(totalTodos / waveCapacity)
+const waveCapacity = Math.max(1, (maxWorkers ?? 3) * (TASKS_PER_WORKER ?? 3))  // e.g. 3 workers * 3 = 9; Math.max(1,...) guards against zero division on next line
+const totalWaves = Math.ceil(totalTasks / waveCapacity)
 ```
 
 The last wave may contain fewer tasks than `waveCapacity` (remainder from the division). The `slice()` call handles this naturally since it clamps to array bounds.
@@ -19,12 +19,12 @@ Instead of using a static `workerCount = maxWorkers` for every wave, the orchest
 
 **Gate**: Adaptive wave sizing is enabled by default and can be disabled via `readTalismanSection("work")?.adaptive_wave?.enabled !== false`.
 
-### `computeWaveWorkerCount(remainingTasks, maxWorkers, todosPerWorker, prevWaveMetrics, talisman)`
+### `computeWaveWorkerCount(remainingTasks, maxWorkers, tasksPerWorker, prevWaveMetrics, talisman)`
 
 <!--
   Worked example — Adaptive Wave Sizing Feedback Loop:
 
-  Setup: maxWorkers=3, todosPerWorker=3, failureThreshold=0.3, speedThreshold=0.5, minWorkers=1
+  Setup: maxWorkers=3, tasksPerWorker=3, failureThreshold=0.3, speedThreshold=0.5, minWorkers=1
 
   Wave 1 (first wave, prevWaveMetrics=null):
     - baseCount = min(3, ceil(9/3)) = min(3, 3) = 3
@@ -50,7 +50,7 @@ Instead of using a static `workerCount = maxWorkers` for every wave, the orchest
 -->
 
 ```javascript
-function computeWaveWorkerCount(remainingTasks, maxWorkers, todosPerWorker, prevWaveMetrics, talisman) {
+function computeWaveWorkerCount(remainingTasks, maxWorkers, tasksPerWorker, prevWaveMetrics, talisman) {
   const adaptiveConfig = readTalismanSection("work")?.adaptive_wave ?? {}
   if (adaptiveConfig.enabled === false) {
     return maxWorkers  // Disabled — fall back to static sizing
@@ -61,7 +61,7 @@ function computeWaveWorkerCount(remainingTasks, maxWorkers, todosPerWorker, prev
   const minWorkers = adaptiveConfig.min_workers ?? 1
 
   // Base count: only as many workers as needed for remaining tasks
-  let baseCount = Math.min(maxWorkers, Math.ceil(remainingTasks / todosPerWorker))
+  let baseCount = Math.min(maxWorkers, Math.ceil(remainingTasks / tasksPerWorker))
 
   // Feedback loop: adjust based on previous wave performance
   // Explicit null/undefined guard — prevWaveMetrics is null on the first wave
@@ -195,7 +195,7 @@ for (let wave = 0; wave < totalWaves; wave++) {
 
   // Adaptive worker count (replaces static workerCount = maxWorkers)
   const workerCount = computeWaveWorkerCount(
-    remainingTasks, maxWorkers, TODOS_PER_WORKER, prevWaveMetrics, talisman
+    remainingTasks, maxWorkers, TASKS_PER_WORKER, prevWaveMetrics, talisman
   )
 
   // Expected wave time (F12 fix: per-worker task sum, not max of all tasks)
@@ -261,10 +261,6 @@ for (let wave = 0; wave < totalWaves; wave++) {
   }
 }
 ```
-
-## Per-Task File-Todos (Mandatory, v2)
-
-The orchestrator creates per-task todo files in `{todos_base}/work/` (resolved via `resolveTodosDir(workflowOutputDir, "work")`). Always `tmp/work/{timestamp}/todos/work/` for standalone; `tmp/arc/{id}/todos/work/` when invoked from arc. File-todos are mandatory — there is no `--todos=false` option. Workers read their assigned todo for context (dependencies, priority, wave) and append Work Log entries. See `file-todos` skill for schema. Per-worker session logs relocated to `tmp/work/{timestamp}/worker-logs/` (not in todos/).
 
 ## Security
 
