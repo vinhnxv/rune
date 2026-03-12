@@ -1077,17 +1077,17 @@ Rune includes an MCP server (`echo-search`) for full-text search over Rune Echoe
 | Tool | Description |
 |------|-------------|
 | `echo_search` | Multi-pass retrieval: decomposition, BM25, composite scoring, group expansion, retry, reranking. |
-| `echo_details` | Fetch full content for specific echo entries by ID. |
+| `echo_details` | Fetch full content for specific echo entries by ID. Supports `scope` param (project/global/all). |
 | `echo_reindex` | Rebuild the FTS5 index from `.claude/echoes/*/MEMORY.md` source files. |
 | `echo_stats` | Index statistics: entry count, layer/role breakdown, last indexed timestamp. |
-| `echo_record_access` | Record access for frequency-based scoring. Powers auto-promotion. |
+| `echo_record_access` | Record access for frequency-based scoring. Powers auto-promotion. Supports `scope` param (project/global). |
 | `echo_upsert_group` | Create or update a semantic group with entry memberships. |
 
 **Retrieval Pipeline (configurable via `talisman.yml` under `echoes:`):**
 
 1. **Query Decomposition** — LLM breaks complex queries into 1-4 keyword facets (`echoes.decomposition.enabled`)
 2. **BM25 Search** — Per-facet FTS5 search with 3x over-fetch (always on)
-3. **Merge** — Best-score dedup across facets (automatic when decomposition active)
+3. **Merge** — Best-score dedup across facets using scope-prefixed keys to prevent cross-DB ID collisions (automatic when decomposition active)
 4. **Composite Scoring** — 5-factor blend: BM25, recency, importance, proximity, frequency (always on)
 5. **Group Expansion** — Sibling entries from semantic clusters (`echoes.semantic_groups.expansion_enabled`)
 6. **Retry Injection** — Previously-failed entries matching token fingerprints (`echoes.retry.enabled`)

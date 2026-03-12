@@ -93,7 +93,9 @@ class TestElevationFormat:
         entries = parse_memory_file(memory_file, role="elevated")
         # Domain should be extractable from content
         assert len(entries) >= 1
-        # Check raw content includes domain metadata
+        # Verify parsed domain field matches what was written
+        assert entries[0].get("domain") == "frontend"
+        # Also check raw content includes domain metadata
         with open(memory_file) as f:
             content = f.read()
         assert "frontend" in content
