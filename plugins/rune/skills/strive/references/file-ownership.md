@@ -96,6 +96,257 @@ work:
     stale_threshold_ms: 600000   # default: 10 minutes
 ```
 
+## File Ownership Pre-Check (Phase 1.7a)
+
+Runs AFTER `extractFileTargets()` completes for all tasks (step 1) and BEFORE user confirmation (`AskUserQuestion`). Detects file ownership conflicts at planning time and auto-serializes via `blockedBy` — catching collisions before workers are spawned.
+
+**Precondition**: `extractFileTargets()` must have populated `task.fileTargets` and `task.dirTargets` for all tasks before this phase runs.
+
+**Defense-in-depth**: This is the first layer of conflict prevention. Dynamic file lock signals (Phase 2-3) remain active as the second layer for runtime conflicts that static analysis cannot predict.
+
+### Step 1: Build Ownership Graph
+
+```javascript
+/**
+ * Build maps of file/dir paths to the tasks that target them.
+ * Pure data function — no mutations to tasks.
+ */
+function buildOwnershipGraph(tasks) {
+  const fileToTasks = {}  // Map<filePath, taskId[]>
+  const dirToTasks = {}   // Map<dirPath, taskId[]>
+
+  // Load unrestricted shared files from talisman (excluded from conflict detection)
+  const unrestrictedFiles = new Set(
+    readTalismanSection("work")?.unrestricted_shared_files || []
+  )
+
+  for (const task of tasks) {
+    const taskId = String(task.id)
+
+    for (const file of (task.fileTargets || [])) {
+      if (unrestrictedFiles.has(file)) continue  // skip shared files (package.json, etc.)
+      fileToTasks[file] = fileToTasks[file] || []
+      fileToTasks[file].push(taskId)
+    }
+
+    for (const dir of (task.dirTargets || [])) {
+      // Normalize: ensure dir ends with "/" for consistent prefix matching
+      const normalizedDir = dir.endsWith("/") ? dir : dir + "/"
+      dirToTasks[normalizedDir] = dirToTasks[normalizedDir] || []
+      dirToTasks[normalizedDir].push(taskId)
+    }
+  }
+
+  return { fileToTasks, dirToTasks }
+}
+```
+
+### Step 2: Detect and Resolve Conflicts
+
+```javascript
+/**
+ * Detect file ownership conflicts and auto-serialize via blockedBy.
+ * Uses atomic apply-after-validate: accumulates all proposed blockedBy
+ * additions, validates the combined graph for cycles, then applies atomically.
+ */
+function detectAndResolveConflicts(graph, tasks) {
+  const { fileToTasks, dirToTasks } = graph
+  const conflicts = []
+
+  // Detect direct file conflicts (2+ tasks share the same file)
+  for (const [file, taskIds] of Object.entries(fileToTasks)) {
+    if (taskIds.length > 1) {
+      conflicts.push({
+        type: "file",
+        path: file,
+        tasks: taskIds,
+        resolution: null
+      })
+    }
+  }
+
+  // Detect dir-file overlaps: task A targets src/auth/, task B targets src/auth/middleware.ts
+  for (const [dir, dirTaskIds] of Object.entries(dirToTasks)) {
+    for (const [file, fileTaskIds] of Object.entries(fileToTasks)) {
+      if (file.startsWith(dir)) {  // dir already normalized with trailing "/"
+        const overlapping = dirTaskIds.filter(id => !fileTaskIds.includes(id))
+        if (overlapping.length > 0) {
+          conflicts.push({
+            type: "dir-file-overlap",
+            dir: dir,
+            file: file,
+            tasks: [...new Set([...dirTaskIds, ...fileTaskIds])],
+            resolution: null
+          })
+        }
+      }
+    }
+  }
+
+  if (conflicts.length === 0) return { conflicts, applied: false }
+
+  // Build task lookup for riskTier comparison
+  const taskMap = {}
+  for (const task of tasks) {
+    taskMap[String(task.id)] = task
+  }
+
+  // --- Atomic apply-after-validate ---
+  // Phase A: Accumulate all proposed blockedBy additions WITHOUT applying
+  const proposedEdges = []  // Array of { from: taskId, to: taskId } (to is blockedBy from)
+
+  for (const conflict of conflicts) {
+    const taskIds = conflict.tasks
+    // Sort by riskTier descending (higher risk first), then by task.id for determinism
+    const sorted = [...taskIds].sort((a, b) => {
+      const tierA = taskMap[a]?.riskTier ?? 0
+      const tierB = taskMap[b]?.riskTier ?? 0
+      if (tierB !== tierA) return tierB - tierA  // higher tier first
+      return a.localeCompare(b)  // deterministic secondary sort
+    })
+
+    // Chain serialization: A → B → C (sequential, not fan-out)
+    for (let i = 1; i < sorted.length; i++) {
+      const first = sorted[i - 1]
+      const second = sorted[i]
+      // "second" is blocked by "first" (first must complete before second starts)
+      proposedEdges.push({ from: first, to: second })
+      conflict.resolution = "serialized"
+      conflict.order = sorted.join(" → ")
+    }
+  }
+
+  // Phase B: Validate combined graph for cycles BEFORE applying any edges
+  // Build adjacency list: blockedBy means "to" waits for "from"
+  const adjList = {}  // task -> tasks it's blocked by (existing + proposed)
+  for (const task of tasks) {
+    const tid = String(task.id)
+    adjList[tid] = new Set((task.blockedBy || []).map(id => String(id)))
+  }
+  // Add proposed edges
+  for (const edge of proposedEdges) {
+    if (!adjList[edge.to]) adjList[edge.to] = new Set()
+    adjList[edge.to].add(edge.from)
+  }
+
+  // Cycle detection via DFS
+  const visited = new Set()
+  const inStack = new Set()
+  let hasCycle = false
+
+  function dfs(node) {
+    if (inStack.has(node)) { hasCycle = true; return }
+    if (visited.has(node)) return
+    visited.add(node)
+    inStack.add(node)
+    for (const dep of (adjList[node] || [])) {
+      dfs(dep)
+      if (hasCycle) return
+    }
+    inStack.delete(node)
+  }
+
+  for (const taskId of Object.keys(adjList)) {
+    dfs(taskId)
+    if (hasCycle) break
+  }
+
+  if (hasCycle) {
+    log("WARNING: Auto-serialization would create circular dependency. Skipping conflict resolution — manual review needed.")
+    for (const conflict of conflicts) {
+      conflict.resolution = "skipped-cycle-risk"
+    }
+    return { conflicts, applied: false }
+  }
+
+  // Phase C: Apply all edges atomically (graph validated as acyclic)
+  for (const edge of proposedEdges) {
+    const targetTask = taskMap[edge.to]
+    if (targetTask) {
+      targetTask.blockedBy = targetTask.blockedBy || []
+      if (!targetTask.blockedBy.map(id => String(id)).includes(edge.from)) {
+        targetTask.blockedBy.push(edge.from)
+      }
+    }
+  }
+
+  // Warn when chain length >= 3 (performance degradation)
+  for (const conflict of conflicts) {
+    if (conflict.tasks.length >= 3) {
+      log(`WARNING: ${conflict.tasks.length} tasks share ${conflict.path || conflict.file} — consider merging tasks for parallelism.`)
+    }
+  }
+
+  return { conflicts, applied: true }
+}
+```
+
+### Step 3: Format Conflict Summary
+
+```javascript
+/**
+ * Format conflicts for display in the user confirmation dialog.
+ * Returns empty string if no conflicts detected.
+ */
+function formatConflictSummary(conflicts) {
+  if (conflicts.length === 0) return ""
+
+  const lines = [
+    `Detected ${conflicts.length} file ownership conflict(s) — auto-serialized via blockedBy:`,
+    ""
+  ]
+
+  for (const conflict of conflicts) {
+    const path = conflict.path || conflict.file || `${conflict.dir} (dir overlap)`
+    const resolution = conflict.resolution === "serialized"
+      ? `serialized: ${conflict.order}`
+      : conflict.resolution || "unresolved"
+    lines.push(`  - ${path}: tasks ${conflict.tasks.join(", ")} → ${resolution}`)
+  }
+
+  // Dynamic-lock caveat: pre-check only covers plan-declared targets
+  const planConflictCount = conflicts.filter(c => c.resolution === "serialized").length
+  if (planConflictCount > 0) {
+    lines.push("")
+    lines.push(`Note: ${planConflictCount} plan-declared conflict(s) detected. Additional runtime conflicts handled by dynamic lock signals.`)
+  }
+
+  return lines.join("\n")
+}
+```
+
+### Integration
+
+```javascript
+// Phase 1.7a: File Ownership Pre-Check
+// Called AFTER extractFileTargets() for all tasks, BEFORE AskUserQuestion confirmation
+
+const graph = buildOwnershipGraph(extractedTasks)
+const { conflicts, applied } = detectAndResolveConflicts(graph, extractedTasks)
+const conflictSummary = formatConflictSummary(conflicts)
+
+// Inject into confirmation dialog if conflicts exist
+if (conflictSummary) {
+  // Append to the task confirmation prompt shown via AskUserQuestion
+  confirmationContext += "\n\n" + conflictSummary
+}
+```
+
+### Edge Cases
+
+| Edge Case | Handling |
+|-----------|----------|
+| No file targets extracted | `buildOwnershipGraph` returns empty maps → no conflicts → pre-check skipped |
+| `unrestricted_shared_files` (package.json) | Excluded from `fileToTasks` map — no conflict generated |
+| 3+ tasks share same file | Chain serialization: A → B → C with warning to consider merging |
+| Circular dependency from auto-serialization | Atomic apply-after-validate catches cycles → skips resolution with warning |
+| Equal riskTier across tasks | Secondary sort by `task.id` (string comparison) for determinism |
+| Dir target without trailing slash | Normalized in `buildOwnershipGraph`: append "/" before prefix matching |
+| Manual blockedBy + auto-serialization creates deadlock | Cycle detection includes existing `blockedBy` edges in the graph |
+| `fileTargets` not yet populated | **Precondition**: `extractFileTargets()` must run first (documented above) |
+| > 200 file targets | Existing O(n²) cap in step 3 applies — truncate at 200 targets |
+| 5+ tasks share same file | Chain length warning: "Consider merging these tasks" |
+
 ## Quality Contract
 
 Embedded in every task description:
