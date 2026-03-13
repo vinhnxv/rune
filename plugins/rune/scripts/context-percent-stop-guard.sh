@@ -42,7 +42,7 @@ fi
 
 # --- Guard: Never block context_limit stops (would cause compaction deadlock) ---
 STOP_REASON=$(printf '%s\n' "$INPUT" | jq -r '.stop_reason // .stopReason // empty' 2>/dev/null || true)
-STOP_REASON_LOWER="${STOP_REASON,,}"
+STOP_REASON_LOWER=$(printf '%s' "$STOP_REASON" | tr '[:upper:]' '[:lower:]')
 case "$STOP_REASON_LOWER" in
   *context_limit*|*context_window*|*max_tokens*|*token_limit*) exit 0 ;;
 esac
@@ -60,9 +60,9 @@ esac
 # would break the phase loop. Check for active arc loop state files.
 CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 if [[ -n "$CWD" ]]; then
-  CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  # Arc loop state files live in ${CWD}/.claude/ (project-local), NOT $CHOME (global config)
   # Use find instead of glob to avoid zsh NOMATCH
-  ARC_LOOP_COUNT=$(find "$CHOME" -maxdepth 1 \
+  ARC_LOOP_COUNT=$(find "${CWD}/.claude" -maxdepth 1 \
     -name "arc-phase-loop.local.md" \
     -o -name "arc-batch-loop.local.md" \
     -o -name "arc-hierarchy-loop.local.md" \
