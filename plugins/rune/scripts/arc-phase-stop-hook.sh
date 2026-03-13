@@ -25,7 +25,7 @@ trap '[[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit' EXI
 umask 077
 
 # ── Opt-in trace logging ──
-RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
 # SEC-004: Restrict trace log to expected TMPDIR location to prevent env-var redirect attacks
 case "$RUNE_TRACE_LOG" in
   "${TMPDIR:-/tmp}/"*) ;;  # allowed

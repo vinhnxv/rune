@@ -182,7 +182,7 @@ _validate_session_ownership_core() {
     if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
       _trace "${_tp}: REJECTED — config_dir mismatch"
     fi
-    _ownership_reject
+    _ownership_reject; return $?
   fi
 
   # Layer 2: Session isolation (same config dir, different session)
@@ -231,14 +231,14 @@ _validate_session_ownership_core() {
         if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
           _trace "${_tp}: claim-on-first-touch REJECTED — hook not descendant of stored_pid=${stored_pid} (last ancestor=${_ancestor})"
         fi
-        _ownership_reject
+        _ownership_reject; return $?
       fi
     else
       # R1-010 FIX: No valid stored_pid — cannot verify process ancestry, reject claim
       if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
         _trace "${_tp}: claim-on-first-touch REJECTED — no valid stored_pid for ancestry verification"
       fi
-      _ownership_reject
+      _ownership_reject; return $?
     fi
     if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
       _trace "${_tp}: claim-on-first-touch — writing hook_sid='${hook_session_id}' owner_pid='${PPID}' to state file"
@@ -267,7 +267,7 @@ _validate_session_ownership_core() {
       if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
         _trace "${_tp}: claim-on-first-touch REJECTED — atomic write failed"
       fi
-      _ownership_reject
+      _ownership_reject; return $?
     fi
   fi
 
