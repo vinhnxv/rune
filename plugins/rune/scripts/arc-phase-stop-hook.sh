@@ -524,6 +524,20 @@ if [[ -n "${_PHASE_LOG_DIR:-}" && -d "$_PHASE_LOG_DIR" ]]; then
       rm -f "$_timing_epoch_file" 2>/dev/null
     fi
   fi
+
+  # BACK-006 FIX: Clean up orphaned epoch files for completed phases other than
+  # _timing_completed_phase. When multiple phases complete in one Claude turn,
+  # only the last completed phase gets timing measured — earlier phases' epoch
+  # files are never removed without this secondary pass.
+  for _orphan_pp in "${PHASE_ORDER[@]}"; do
+    [[ -n "$NEXT_PHASE" && "$_orphan_pp" == "$NEXT_PHASE" ]] && break
+    [[ "$_orphan_pp" == "${_timing_completed_phase:-}" ]] && continue
+    _orphan_epoch="${_PHASE_LOG_DIR}/phase-start-${_orphan_pp}.epoch"
+    if [[ -f "$_orphan_epoch" && ! -L "$_orphan_epoch" ]]; then
+      rm -f "$_orphan_epoch" 2>/dev/null
+      _trace "BACK-006: cleaned orphaned epoch file for completed phase ${_orphan_pp}"
+    fi
+  done
 fi
 
 # ── GUARD 9: Stuck phase loop detection ──
@@ -560,22 +574,10 @@ if [[ -n "$NEXT_PHASE" && -n "$_ARC_ID_FOR_LOG" && "$_ARC_ID_FOR_LOG" =~ ^[a-zA-
       "$NEXT_PHASE" "$_new_count" "$MAX_PHASE_DISPATCHES" "$CHECKPOINT_PATH" "$NEXT_PHASE" >&2
     exit 2
   fi
-  # Atomically update dispatch counts
-  _dispatch_tmp=$(mktemp "${_DISPATCH_COUNT_FILE}.XXXXXX" 2>/dev/null) || _dispatch_tmp=""
-  if [[ -n "$_dispatch_tmp" ]]; then
-    if echo "$_dispatch_counts" | jq --arg p "$NEXT_PHASE" --argjson c "$_new_count" '.[$p] = $c' > "$_dispatch_tmp" 2>/dev/null; then
-      mv -f "$_dispatch_tmp" "$_DISPATCH_COUNT_FILE" 2>/dev/null || rm -f "$_dispatch_tmp" 2>/dev/null
-    else
-      rm -f "$_dispatch_tmp" 2>/dev/null
-    fi
-  else
-    # BACK-001 FIX: mktemp failure must not silently disable GUARD 9.
-    # Under persistent disk pressure, mktemp fails repeatedly and the counter
-    # never increments — permanently bypassing stuck-loop detection.
-    _trace "GUARD 9 WARNING: mktemp failed — attempting direct write as fallback"
-    echo "$_dispatch_counts" | jq --arg p "$NEXT_PHASE" --argjson c "$_new_count" '.[$p] = $c' > "$_DISPATCH_COUNT_FILE" 2>/dev/null \
-      || _trace "GUARD 9 WARNING: direct write also failed — counter lost for phase ${NEXT_PHASE}"
-  fi
+  # BACK-001 FIX: Dispatch count write deferred to injection point (see below).
+  # Writing here caused compact interlude turns to consume dispatch budget, triggering
+  # premature GUARD 9 false-positive aborts. Counter is persisted only when the phase
+  # is actually dispatched (just before printf/exit 2 at end of script).
 fi
 
 if [[ -z "$NEXT_PHASE" ]]; then
@@ -1009,6 +1011,24 @@ fi
 
 # ── Log phase start ──
 _log_phase "phase_started" "$NEXT_PHASE" "iteration=${NEW_ITERATION}" "ref_file=${REF_FILE}"
+
+# ── Persist dispatch count (BACK-001 FIX: deferred from GUARD 9 to here) ──
+# Counter is written only at the actual injection point, not at GUARD 9 check time.
+# This ensures compact interlude turns (exit 2 without phase dispatch) do NOT
+# increment the counter, which would cause false GUARD 9 triggers.
+if [[ -n "${_DISPATCH_COUNT_FILE:-}" && -n "${_new_count:-}" && -n "${NEXT_PHASE:-}" ]]; then
+  _dispatch_inject_tmp=$(mktemp "${_DISPATCH_COUNT_FILE}.XXXXXX" 2>/dev/null) || _dispatch_inject_tmp=""
+  if [[ -n "$_dispatch_inject_tmp" ]]; then
+    if echo "${_dispatch_counts:-{}}" | jq --arg p "$NEXT_PHASE" --argjson c "$_new_count" '.[$p] = $c' > "$_dispatch_inject_tmp" 2>/dev/null; then
+      mv -f "$_dispatch_inject_tmp" "$_DISPATCH_COUNT_FILE" 2>/dev/null || rm -f "$_dispatch_inject_tmp" 2>/dev/null
+    else
+      rm -f "$_dispatch_inject_tmp" 2>/dev/null
+    fi
+  else
+    echo "${_dispatch_counts:-{}}" | jq --arg p "$NEXT_PHASE" --argjson c "$_new_count" '.[$p] = $c' > "$_DISPATCH_COUNT_FILE" 2>/dev/null \
+      || _trace "GUARD 9 WARNING: direct write failed at injection point — counter lost for phase ${NEXT_PHASE}"
+  fi
+fi
 
 # ── Output phase prompt to stderr and exit 2 to continue conversation ──
 # Stop hook semantics: exit 0 = allow stop (stdout/stderr discarded).
