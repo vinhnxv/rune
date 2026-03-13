@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [1.158.0] - 2026-03-14
+
+### Added
+- **Phase 5.0.5: Agent Finding Noise Filter** (`roundtable-circle/references/pre-aggregate.md`) — Suppresses low-signal P3 findings before TOME condensation. Three rules: (1) confidence_floor gate (P3 below 35 score suppressed), (2) proximity dedup (P3 within 10 lines of same-file P1/P2 suppressed), (3) ratio cap (P3 excess above 40% of total suppressed by lowest confidence first). PROVEN findings exempt from all rules. Minimum-surviving floor ensures at least 1 finding always surfaces. Suppressed findings preserved in collapsible `<details>` section — not discarded. Talisman-gated: `review.noise_filter.enabled` (default: true).
+- **Incremental Strive Resume** (`strive/SKILL.md`, `strive/references/forge-team.md`) — `/rune:strive --resume` skips completed tasks after session crash. Checkpoint written after each task completion using atomic tmp+mv pattern. Checkpoint schema includes `plan_mtime` for drift detection, `owner_pid` for cross-session isolation, and `task_artifacts` for file existence verification on resume. Session isolation enforced via config_dir + kill -0 liveness check. Stale checkpoint threshold configurable via `work.checkpoint_max_age_ms` (default: 24h).
+- **File Ownership Pre-Check** (`strive/references/file-ownership.md`) — Phase 1.7a conflict detection runs BEFORE user confirmation dialog, catching file collisions at planning time instead of after worker spawn. Conflicting tasks auto-serialized via `blockedBy`. Excluded via `unrestricted_shared_files` talisman config. Chain detection warns when serialization creates dependency chains ≥ 3 tasks.
+- **Phase Timing Telemetry** (`scripts/arc-phase-stop-hook.sh`) — Records wall-clock duration per phase to `phase-log.jsonl` as `phase_timing` events (consistent with existing JSONL format). End-of-arc summary table emitted showing phase durations and % of total. Variables use `_timing_` prefix. Symlink guards on all I/O. Cleaned by `/rune:rest` as part of `tmp/arc/` directory.
+- **Smart Compaction Trigger — Tier 2** (`scripts/arc-phase-stop-hook.sh`) — Replaces static 50% threshold with predictive weight-based estimation. `_phase_weight()` case statement (bash 3.2 macOS compatible — no `declare -A`) assigns context weights per phase (work=5, code_review=4, forge/mend/test=3, etc.). Compaction triggered when `usable_budget < estimated_need` (70% safety margin) or `remaining_pct < 35` (hard floor). Bridge unavailable → falls through to existing Tier 3 interval fallback. Tiers 0, 1, 3 unchanged.
+
 ## [1.157.0] - 2026-03-14
 
 ### Added
