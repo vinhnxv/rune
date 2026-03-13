@@ -1535,7 +1535,11 @@ if (needsRemediation && !headlessMode) {
 // on incremental gap fixes.
 const arcConfig = readTalismanSection("arc")
 const reassessmentEnabled = arcConfig?.gap_analysis?.reassessment?.enabled !== false  // Default: true
-const driftThreshold = arcConfig?.gap_analysis?.reassessment?.drift_threshold ?? 0.40
+let driftThreshold = arcConfig?.gap_analysis?.reassessment?.drift_threshold ?? 0.40
+if (driftThreshold < 0 || driftThreshold > 1) {
+  warn(`STEP D.6: drift_threshold ${driftThreshold} is outside valid range [0.0, 1.0] — using default 0.40`)
+  driftThreshold = 0.40
+}
 
 if (reassessmentEnabled) {
   const totalCriteria = gaps.length
@@ -1551,7 +1555,7 @@ if (reassessmentEnabled) {
     // Inject drift warning into the UNIFIED report (gap-analysis-unified.md)
     // that downstream phases read for decisions
     const unifiedPath = `tmp/arc/${id}/gap-analysis-unified.md`
-    const existingUnified = Read(unifiedPath)
+    const existingUnified = Read(unifiedPath) ?? ""
     Write(unifiedPath, existingUnified + driftWarning)
 
     // Store drift metadata in checkpoint for downstream phase gates

@@ -381,11 +381,20 @@ fi
 # infinite convergence loop. Stop with diagnostic rather than burning context forever.
 # STATE_FILE is defined at GUARD 4 (~line 102) — reused here.
 MAX_PHASE_DISPATCHES=4
+# FLAW-001 FIX: Ensure GUARD 9 fires even when checkpoint has no .id field.
+# Without fallback, stuck-loop detection is completely bypassed for arcs with
+# partially-formed checkpoints (missing .id), burning context indefinitely.
+_ARC_ID_FOR_LOG="${_ARC_ID_FOR_LOG:-_unknown_arc}"
 if [[ -n "$NEXT_PHASE" && -n "$_ARC_ID_FOR_LOG" && "$_ARC_ID_FOR_LOG" =~ ^[a-zA-Z0-9_-]+$ ]]; then
   _DISPATCH_COUNT_FILE="${CWD}/tmp/arc/${_ARC_ID_FOR_LOG}/phase-dispatch-counts.json"
-  # Read existing counts (create empty object if missing or invalid)
+  mkdir -p "$(dirname "$_DISPATCH_COUNT_FILE")" 2>/dev/null || true
+  # FLAW-002 FIX: Reset dispatch counts on fresh start/resume (iteration 0).
+  # Without this, counts from a crashed run persist and trigger false stuck
+  # detection on the very first dispatch after --resume.
   _dispatch_counts="{}"
-  if [[ -f "$_DISPATCH_COUNT_FILE" && ! -L "$_DISPATCH_COUNT_FILE" ]]; then
+  if [[ "$ITERATION" -eq 0 ]]; then
+    rm -f "$_DISPATCH_COUNT_FILE" 2>/dev/null
+  elif [[ -f "$_DISPATCH_COUNT_FILE" && ! -L "$_DISPATCH_COUNT_FILE" ]]; then
     _dispatch_counts=$(jq -e '.' "$_DISPATCH_COUNT_FILE" 2>/dev/null || echo "{}")
   fi
   # Get current count for this phase
@@ -409,12 +418,25 @@ if [[ -n "$NEXT_PHASE" && -n "$_ARC_ID_FOR_LOG" && "$_ARC_ID_FOR_LOG" =~ ^[a-zA-
     else
       rm -f "$_dispatch_tmp" 2>/dev/null
     fi
+  else
+    # BACK-001 FIX: mktemp failure must not silently disable GUARD 9.
+    # Under persistent disk pressure, mktemp fails repeatedly and the counter
+    # never increments — permanently bypassing stuck-loop detection.
+    _trace "GUARD 9 WARNING: mktemp failed — attempting direct write as fallback"
+    echo "$_dispatch_counts" | jq --arg p "$NEXT_PHASE" --argjson c "$_new_count" '.[$p] = $c' > "$_DISPATCH_COUNT_FILE" 2>/dev/null \
+      || _trace "GUARD 9 WARNING: direct write also failed — counter lost for phase ${NEXT_PHASE}"
   fi
 fi
 
 if [[ -z "$NEXT_PHASE" ]]; then
   _log_phase "pipeline_complete" "all" "iteration=${ITERATION}"
   # ── ALL PHASES DONE ──
+  # FLAW-002 FIX: Clean up dispatch count file on pipeline completion.
+  # Without this, counts accumulate across arc runs and trigger false stuck
+  # detection if the same arc ID is reused or the file outlives its arc.
+  if [[ -n "$_ARC_ID_FOR_LOG" && "$_ARC_ID_FOR_LOG" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    rm -f "${CWD}/tmp/arc/${_ARC_ID_FOR_LOG}/phase-dispatch-counts.json" 2>/dev/null
+  fi
   # Remove state file — arc-batch-stop-hook.sh (if active) handles batch-level completion.
   # If no batch loop, on-session-stop.sh handles session cleanup.
   rm -f "$STATE_FILE" 2>/dev/null
