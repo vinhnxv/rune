@@ -29,11 +29,16 @@ fi
 # Fallback stub if rune_pid_alive was not loaded
 if ! type rune_pid_alive &>/dev/null; then
   rune_pid_alive() {
-    local err rc
-    err=$(kill -0 "$1" 2>&1); rc=$?
+    local err rc=0
+    # CDX-BUG-002 FIX: Use `|| rc=$?` to prevent set -e from aborting before rc is captured.
+    # Original `err=$(kill -0 ...); rc=$?` fails under set -e because the failed command
+    # substitution exits nonzero, triggering shell abort before rc=$? executes.
+    err=$(kill -0 "$1" 2>&1) || rc=$?
     [[ $rc -eq 0 ]] && return 0
     # EPERM means process exists but we lack permission — treat as alive
     # Single-call pattern avoids TOCTOU (matches resolve-session-identity.sh)
+    # FLAW-006: Multi-pattern rationale — *ermission* covers English "Permission denied"/"Operation not permitted",
+    # *[Pp]erm* covers locale-abbreviated variants, *EPERM* covers raw errno string. Overlap is intentional for robustness.
     case "$err" in *ermission*|*[Pp]erm*|*EPERM*) return 0 ;; esac
     return 1
   }
@@ -112,19 +117,26 @@ _rune_atomic_reclaim() {
   local _reclaim_tmp _reclaim_stash
 
   # Step 1: Write metadata to temp file BEFORE lock manipulation
-  _reclaim_tmp="$(mktemp "${LOCK_BASE}/.meta.XXXXXX" 2>/dev/null)" || return 1
+  # FLAW-003 FIX: Fallback to TMPDIR if LOCK_BASE mktemp fails (e.g., missing dir or no write perms)
+  _reclaim_tmp="$(mktemp "${LOCK_BASE}/.meta.XXXXXX" 2>/dev/null)" || \
+    _reclaim_tmp="$(mktemp "${TMPDIR:-/tmp}/.rune-meta.XXXXXX" 2>/dev/null)" || return 1
   if ! _rune_build_meta "$workflow" "$class" > "$_reclaim_tmp" 2>/dev/null; then
     rm -f "$_reclaim_tmp" 2>/dev/null; return 1
   fi
 
-  # Step 2: Create unpredictable stash directory, then free its name for mv target
+  # Step 2: Create unpredictable stash directory (kept as container — NOT removed)
+  # CLD-BUG-001 FIX: Eliminated TOCTOU race by removing the rmdir step entirely.
+  # Old pattern: mktemp -d → rmdir (free name) → mv lock to freed name
+  #   Race window: between rmdir and mv, another process could mkdir at the freed path,
+  #   causing mv to move lock_dir INSIDE the new directory instead of renaming it.
+  # New pattern: mktemp -d (keep it) → mv lock INSIDE stash dir → stash name is never freed.
   _reclaim_stash="$(mktemp -d "${lock_dir}.${label}.XXXXXX" 2>/dev/null)" || \
     _reclaim_stash="$(mktemp -d "${TMPDIR:-/tmp}/rune-${label}.XXXXXX" 2>/dev/null)" || \
-    { rm -f "$_reclaim_tmp" 2>/dev/null; return 1; }
-  rmdir "$_reclaim_stash" 2>/dev/null
+    { [[ "${RUNE_TRACE:-0}" == "1" ]] && echo "[rune-lock] TRACE: mktemp -d failed for both ${lock_dir}.${label}.XXXXXX and \${TMPDIR}/rune-${label}.XXXXXX" >&2; \
+      rm -f "$_reclaim_tmp" 2>/dev/null; return 1; }
 
-  # Step 3: Atomic rename of existing lock to stash
-  mv "$lock_dir" "$_reclaim_stash" 2>/dev/null || { rm -f "$_reclaim_tmp" 2>/dev/null; return 1; }
+  # Step 3: Atomic rename of existing lock INTO the stash (no rmdir = no TOCTOU window)
+  mv "$lock_dir" "$_reclaim_stash/stale" 2>/dev/null || { rm -rf "$_reclaim_stash" 2>/dev/null; rm -f "$_reclaim_tmp" 2>/dev/null; return 1; }
 
   # Step 4: Atomic mkdir for new lock
   if mkdir "$lock_dir" 2>/dev/null; then
@@ -133,13 +145,15 @@ _rune_atomic_reclaim() {
     if [[ -f "$lock_dir/meta.json" ]]; then
       return 0
     fi
-    # Finalize failed — cleanup everything
-    rm -rf "$lock_dir" "$_reclaim_tmp" "$_reclaim_stash" 2>/dev/null
+    # DEEP-104 FIX: Finalize failed — restore stashed lock to preserve old metadata
+    mv "$_reclaim_stash/stale" "$lock_dir" 2>/dev/null || true
+    rm -rf "$_reclaim_stash" 2>/dev/null
+    rm -f "$_reclaim_tmp" 2>/dev/null
     return 1
   fi
 
   # Step 5: mkdir failed (contention loss) — restore stashed lock
-  mv "$_reclaim_stash" "$lock_dir" 2>/dev/null || true
+  mv "$_reclaim_stash/stale" "$lock_dir" 2>/dev/null || true
   rm -rf "$_reclaim_stash" 2>/dev/null
   rm -f "$_reclaim_tmp" 2>/dev/null
   return 1

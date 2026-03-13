@@ -165,9 +165,13 @@ for loop_file in \
     # loop files stay untouched for entire arc runs (30-90m). Must match
     # on-session-stop.sh thresholds to avoid premature cleanup.
     _loop_mtime=$(_stat_mtime "$loop_file"); _loop_mtime="${_loop_mtime:-}"
-    # BACK-002: validate mtime; if invalid, defer conservatively to avoid false cleanup
+    # BACK-002: validate mtime; if invalid, defer conservatively to avoid false cleanup.
+    # DEEP-103: Conservative DEFER is intentional — if _stat_mtime fails consistently
+    # (e.g., macOS stat variant issue via lib/platform.sh), we prefer deferring all loop
+    # files over risking premature cleanup of an active arc. Trace logging below captures
+    # the raw return value to aid platform debugging (RUNE_TRACE=1).
     if [[ -z "$_loop_mtime" || ! "$_loop_mtime" =~ ^[0-9]+$ ]]; then
-      _trace "DEFER: $(basename "$loop_file") — mtime invalid, deferring conservatively"
+      _trace "DEFER: $(basename "$loop_file") — mtime invalid (raw='${_loop_mtime:-<empty>}'), deferring conservatively. If recurring, check _stat_mtime platform compat in lib/platform.sh"
       exit 0
     fi
     age_min=$(( ($HOOK_START_TIME - _loop_mtime) / 60 ))
@@ -349,6 +353,9 @@ for sf in "${STATE_FILES[@]}"; do
 
   _trace "Stage 1: SIGTERM for team=$SF_TEAM"
   sigterm_pids=()
+  # XVER-001 FIX: Capture process start time (lstart) alongside PID for recycling detection.
+  # Using lstart (not etimes) because etimes is unavailable on macOS.
+  local sigterm_lstarts=()
   if [[ -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ ]]; then
     # Find teammate processes that are children of the owner PID
     while IFS= read -r child_pid; do
@@ -358,9 +365,13 @@ for sf in "${STATE_FILES[@]}"; do
       child_cmd=$(ps -p "$child_pid" -o comm= 2>/dev/null || true)
       case "$child_cmd" in
         node|claude|claude-*)
+          # XVER-001 FIX: Record process start timestamp before SIGTERM
+          local child_lstart
+          child_lstart=$(ps -p "$child_pid" -o lstart= 2>/dev/null | tr -s ' ' || echo "")
           kill -TERM "$child_pid" 2>/dev/null || true
           sigterm_pids+=("$child_pid")
-          _trace "SIGTERM sent to PID=$child_pid (cmd=$child_cmd)"
+          sigterm_lstarts+=("${child_lstart:-unknown}")
+          _trace "SIGTERM sent to PID=$child_pid (cmd=$child_cmd, lstart=${child_lstart:-unknown})"
           ;;
       esac
     done < <(pgrep -P "$SF_PID" 2>/dev/null | sort -u || true)  # EDGE-008 FIX: deduplicate PIDs
@@ -376,16 +387,28 @@ for sf in "${STATE_FILES[@]}"; do
     _trace "SKIP SIGKILL: team dir ${SF_TEAM} already removed during SIGTERM grace"
   else
     _trace "Stage 2: SIGKILL survivors for team=$SF_TEAM"
+    local _eidx=0
     for child_pid in "${sigterm_pids[@]}"; do
-      [[ "$child_pid" =~ ^[0-9]+$ ]] || continue
+      [[ "$child_pid" =~ ^[0-9]+$ ]] || { _eidx=$((_eidx + 1)); continue; }
       # Re-verify before SIGKILL (PID recycling guard — SEC-P1-001)
       child_cmd=$(ps -p "$child_pid" -o comm= 2>/dev/null || true)
       case "$child_cmd" in
         node|claude|claude-*)
+          # XVER-001 FIX: Verify process start time hasn't changed (PID recycling detection).
+          # A recycled PID would have a different lstart (absolute start timestamp).
+          local orig_lstart="${sigterm_lstarts[$_eidx]}"
+          local cur_lstart
+          cur_lstart=$(ps -p "$child_pid" -o lstart= 2>/dev/null | tr -s ' ' || echo "")
+          if [[ "$orig_lstart" != "unknown" && -n "$cur_lstart" && "$orig_lstart" != "$cur_lstart" ]]; then
+            _trace "SKIP SIGKILL: PID=$child_pid recycled (orig_lstart=$orig_lstart, cur_lstart=$cur_lstart)"
+            _eidx=$((_eidx + 1))
+            continue
+          fi
           kill -KILL "$child_pid" 2>/dev/null || true
           _trace "SIGKILL sent to PID=$child_pid"
           ;;
       esac
+      _eidx=$((_eidx + 1))
     done
   fi
 

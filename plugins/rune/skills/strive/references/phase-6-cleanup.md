@@ -5,11 +5,26 @@
 const allTasks = TaskList()
 
 // 1. Dynamic member discovery — reads team config to find ALL teammates
-//    (fallback: `spawnedWorkerNames` from Phase 2 — includes wave-based names like rune-smith-w0-1,
-//     plus Utility Crew agents: "context-scribe", "prompt-warden",
-//     plus Mini Test Phase agents: "unit-test-runner", "test-failure-analyst")
+const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+let allMembers = []
+try {
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/rune-work-${timestamp}/config.json`))
+  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
+  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+} catch (e) {
+  // FALLBACK: spawnedWorkerNames (rune-smith) + trial-forger + Utility Crew + Mini Test agents
+  allMembers = [...spawnedWorkerNames, "trial-forger",
+    "context-scribe", "prompt-warden",
+    "unit-test-runner", "test-failure-analyst"]
+}
 // 2. Send shutdown_request to all members
+for (const member of allMembers) {
+  SendMessage({ type: "shutdown_request", recipient: member, content: "Work complete" })
+}
 // 2.5. Grace period — sleep 20s to let teammates deregister before TeamDelete
+if (allMembers.length > 0) {
+  Bash(`sleep 20`)
+}
 // 2.7. Finalize per-worker artifacts (non-blocking — skip if runs/ absent)
 //      Scan tmp/work/{timestamp}/runs/ for agents with status "running"
 //      and mark as completed/failed based on worker output presence

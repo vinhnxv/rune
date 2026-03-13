@@ -46,7 +46,7 @@ REMINDER: Classify the learning above. Return JSON only."""
 ```
   // Resolve timeouts via resolveCodexTimeouts() from talisman.yml (see codex-detection.md)
   const { codexTimeout, codexStreamIdleMs, killAfterFlag } = resolveCodexTimeouts(talisman)
-  const stderrFile = Bash("mktemp ${TMPDIR:-/tmp}/codex-stderr-XXXXXX").stdout.trim()
+  const stderrFile = Bash("mktemp ${TMPDIR:-/tmp}/codex-stderr-XXXXXX").trim()
 
   // SEC-009: Use codex-exec.sh wrapper for stdin pipe, model validation, error classification
   result = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" \

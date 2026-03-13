@@ -56,6 +56,11 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **learn** | Session self-learning — extracts CLI correction patterns and review recurrence findings from session JSONL history, persists high-confidence patterns to Rune Echoes via 4-phase pipeline (scan → detect → report → confirm+write). `/rune:learn`. `disable-model-invocation: true` |
 | **file-todos** | Standalone file-based todo tracking — create, triage, list, search, resolve, dedup, and track structured todo files with YAML frontmatter. Session-scoped in `tmp/`. Not integrated into workflow pipelines — invoke manually via `/rune:file-todos` |
 | **resolve-todos** | Standalone todo resolution using Agent Teams with verify-before-fix pipeline. Spawns todo-verifier + mend-fixer agents. Not integrated into workflow pipelines — invoke manually via `/rune:resolve-todos` |
+| **elevate** | Promote project echoes to global scope with domain tagging and dedup |
+| **team-sdk** | Centralized team management SDK — ExecutionEngine interface, shared lifecycle protocols, preset systems for Rune workflows (non-invocable) |
+| **team-status** | Team health dashboard — show active team members, task progress, and communication state (non-invocable) |
+| **runs** | Workflow run history and diagnostics (non-invocable) |
+| **ux-design-process** | UX design intelligence — heuristic evaluation checklists, interaction pattern libraries, flow validation. Auto-loaded for frontend files (non-invocable) |
 
 ## Commands
 
@@ -309,7 +314,7 @@ All hooks require `jq` for JSON parsing. If `jq` is missing, SECURITY-CRITICAL h
 |--------|-------|---------|
 | `echo-search` | `echo_search`, `echo_details`, `echo_reindex`, `echo_stats`, `echo_record_access`, `echo_upsert_group` | Full-text search over Rune Echoes (`.claude/echoes/*/MEMORY.md`) using SQLite FTS5 with BM25 ranking. 5-factor composite scoring, access frequency tracking, file proximity, semantic grouping, query decomposition, retry tracking, Haiku reranking. Requires Python 3.7+. Launched via `scripts/echo-search/start.sh`. |
 | `figma-to-react` | `figma_fetch_design`, `figma_inspect_node`, `figma_list_components`, `figma_to_react` | Converts Figma designs to React + Tailwind CSS v4 components. Parses Figma URLs, fetches node trees via Figma API, extracts styling/layout/typography, generates JSX with Tailwind classes. Supports component extraction, pagination, and depth-limited traversal. Requires `FIGMA_ACCESS_TOKEN`. Launched via `scripts/figma-to-react/start.sh`. |
-| `context7` | `resolve-library-id`, `query-docs` | Live framework and library documentation via Context7. Resolves library names to IDs, then fetches version-specific docs, API references, and migration guides. Used by practice-seeker and lore-scholar during `/rune:devise` Phase 1C external research. Requires Node.js (npx). Launched via `npx -y @upstash/context7-mcp@2.1.2`. |
+| `context7` | `resolve-library-id`, `query-docs` | Live framework and library documentation via Context7. Resolves library names to IDs, then fetches version-specific docs, API references, and migration guides. Used by practice-seeker and lore-scholar during `/rune:devise` Phase 1C external research. Requires Node.js (npx). Launched via `npx -y @upstash/context7-mcp@2.1.3`. |
 
 **echo-search tools:**
 - `echo_search(query, limit?, layer?, role?)` — Multi-pass retrieval pipeline: query decomposition, BM25 search, composite scoring, semantic group expansion, retry injection, Haiku reranking. Each stage toggleable via `talisman.yml` echoes config. Returns content previews (200 chars).

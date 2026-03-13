@@ -268,7 +268,10 @@ if [[ "$LOCK_ACQUIRED" -eq 0 ]]; then
   exit 0
 fi
 
-# Ensure lock is released on exit and signals
+# Ensure lock is released on exit and signals.
+# NOTE: ERR is intentionally excluded from this trap. The earlier ERR trap (line 50)
+# calls exit 0 via _rune_fail_forward, which triggers EXIT and runs _release_lock.
+# Including ERR here would cause cascading trap re-entrance (ERR → exit 0 → EXIT).
 _release_lock() { rmdir "$LOCK_DIR" 2>/dev/null || true; }
 trap '_release_lock; exit 0' EXIT INT TERM
 

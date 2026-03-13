@@ -731,11 +731,12 @@
     },
     "max_runtime_minutes": 20,
     "max_turns": {
+      "_comment": "category-level maxTurns defaults; overridable per-agent via frontmatter",
       "aggregation": 60,
-      "investigation": null,
+      "investigation": 40,
       "research": 40,
       "review": 30,
-      "testing": null,
+      "testing": 40,
       "utility": 40,
       "work": 60
     },

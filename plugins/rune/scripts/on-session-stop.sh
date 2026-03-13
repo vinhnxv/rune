@@ -299,7 +299,12 @@ _kill_stale_teammates() {
   [[ -z "$child_pids" ]] && { echo "$killed"; return 0; }
 
   # Phase 1: SIGTERM eligible children (CLD-003 FIX: verify process name before kill)
+  # XVER-001 FIX: Capture process start time (lstart) as secondary identity factor.
+  # Process name alone is insufficient — a recycled PID could coincidentally be another
+  # "node" process. lstart is an absolute timestamp that changes on PID recycling.
+  # Using lstart (not etimes) because etimes is unavailable on macOS.
   local sigterm_pids=()
+  local sigterm_lstarts=()
   while IFS= read -r child_pid; do
     [[ -z "$child_pid" ]] && continue
     [[ ! "$child_pid" =~ ^[0-9]+$ ]] && continue
@@ -307,8 +312,12 @@ _kill_stale_teammates() {
     local child_comm
     child_comm=$(_proc_name "$child_pid")
     if [[ "$child_comm" =~ ^(node|claude|claude-.*)$ ]]; then
+      # XVER-001 FIX: Record process start timestamp before SIGTERM
+      local child_lstart
+      child_lstart=$(ps -p "$child_pid" -o lstart= 2>/dev/null | tr -s ' ' || echo "")
       kill -TERM "$child_pid" 2>/dev/null || true
       sigterm_pids+=("$child_pid")
+      sigterm_lstarts+=("${child_lstart:-unknown}")
     fi
   done <<< "$child_pids"
 
@@ -319,18 +328,30 @@ _kill_stale_teammates() {
   # CLD-003 FIX: Re-verify process identity before SIGKILL to prevent
   # killing unrelated processes due to PID recycling.
   sleep 1
+  local idx=0
   for child_pid in "${sigterm_pids[@]}"; do
     if kill -0 "$child_pid" 2>/dev/null; then
       # CLD-003 FIX: Re-check process name using _proc_name() — PID could have been recycled during sleep
       local survivor_comm
       survivor_comm=$(_proc_name "$child_pid")
       if [[ "$survivor_comm" =~ ^(node|claude|claude-.*)$ ]]; then
+        # XVER-001 FIX: Verify process start time hasn't changed (PID recycling detection).
+        # A recycled PID would have a different lstart (absolute start timestamp).
+        local orig_lstart="${sigterm_lstarts[$idx]}"
+        local cur_lstart
+        cur_lstart=$(ps -p "$child_pid" -o lstart= 2>/dev/null | tr -s ' ' || echo "")
+        if [[ "$orig_lstart" != "unknown" && -n "$cur_lstart" && "$orig_lstart" != "$cur_lstart" ]]; then
+          # PID was recycled — different process start time
+          idx=$((idx + 1))
+          continue
+        fi
         if kill -KILL "$child_pid" 2>/dev/null; then
           killed=$((killed + 1))
         fi
       fi
       # PID recycled to a non-Claude process — do NOT kill
     fi
+    idx=$((idx + 1))
   done
 
   echo "$killed"

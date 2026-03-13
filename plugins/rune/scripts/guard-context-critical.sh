@@ -10,6 +10,24 @@
 # BD-2 tension: This hook uses hard-block (deny) but fail-open on dependencies
 # (no jq → allow, no bridge → allow, stale bridge → allow). This is intentional:
 # blocking on missing data is worse than allowing at critical context.
+#
+# Orchestrator Fallback Paths:
+#   Signal files (context_warning, force_shutdown) are written best-effort via mktemp+mv.
+#   If mktemp fails (e.g., full disk, permission error), signal files will NOT be written.
+#   Orchestrators MUST NOT rely solely on signal files for shutdown decisions:
+#
+#   1. WARNING tier (35%): Signal file missing → orchestrators should poll the bridge
+#      file directly (rune-ctx-{SESSION_ID}.json) for remaining_percentage and
+#      implement their own threshold logic as a secondary detection path.
+#      The hook still emits CTX-WARNING via additionalContext regardless of signal file.
+#
+#   2. CRITICAL tier (25%): Signal file missing → the DENY response itself blocks
+#      agent spawning (primary protection). Orchestrators receiving DENY errors on
+#      TeamCreate/Agent calls should treat this as an implicit force_shutdown signal.
+#      The hook always emits the DENY JSON response even when mktemp fails.
+#
+#   3. General: Orchestrators can also monitor bridge file age + remaining_percentage
+#      as an independent degradation signal, independent of any signal files.
 
 set -euo pipefail
 
@@ -201,6 +219,11 @@ if [[ "$REM_INT" -le "$WARNING_THRESHOLD" && "$REM_INT" -gt "$CRITICAL_THRESHOLD
     mkdir -p "${CWD}/tmp" 2>/dev/null
     # CDXB-001 FIX: mktemp failure must not abort — signal file is best-effort, but the
     # warning/deny response below MUST still be emitted. Use 'true' to skip signal write.
+    # DEEP-101: If mktemp fails here, the context_warning signal file is NOT written.
+    # This is acceptable because: (1) the CTX-WARNING additionalContext response is
+    # always emitted regardless (line below), and (2) orchestrators should treat the
+    # bridge file's remaining_percentage as a secondary detection path.
+    # See "Orchestrator Fallback Paths" in the file header for consumer guidance.
     _tmpf=$(mktemp "${CWD}/tmp/.rune-signal-tmp.XXXXXX" 2>/dev/null) || _tmpf=""
     if [[ -n "$_tmpf" ]]; then
       jq -n \
@@ -212,6 +235,12 @@ if [[ "$REM_INT" -le "$WARNING_THRESHOLD" && "$REM_INT" -gt "$CRITICAL_THRESHOLD
         --arg session_id "$SESSION_ID" \
         '{signal: $signal, remaining_pct: $remaining_pct, timestamp: $timestamp, config_dir: $config_dir, owner_pid: $owner_pid, session_id: $session_id}' \
         > "$_tmpf" 2>/dev/null && mv "$_tmpf" "$SIGNAL_FILE" 2>/dev/null || true
+    else
+      # DEEP-101 FIX: Direct write fallback when mktemp fails (e.g., full disk).
+      # Less atomic than mktemp+mv but ensures signal file exists for orchestrators.
+      printf '{"signal":"context_warning","remaining_pct":%d,"timestamp":"%s","config_dir":"%s","owner_pid":"%s","session_id":"%s"}\n' \
+        "$REM_INT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$RUNE_CURRENT_CFG" "$PPID" "$SESSION_ID" \
+        > "$SIGNAL_FILE" 2>/dev/null || true
     fi
   fi
 
@@ -277,6 +306,12 @@ if [[ ! -f "$FORCE_SIGNAL" ]]; then
   mkdir -p "${CWD}/tmp" 2>/dev/null
   # CDXB-001 FIX: mktemp failure must not abort — force_shutdown signal is best-effort,
   # but the DENY response below MUST still be emitted to block agent spawning at critical tier.
+  # DEEP-102: If mktemp fails here, the force_shutdown signal file is NOT written.
+  # Graceful degradation: The DENY response (permissionDecision: "deny") is the PRIMARY
+  # protection — it hard-blocks TeamCreate/Agent calls regardless of signal file state.
+  # The signal file is a SECONDARY mechanism for asynchronous orchestrator shutdown.
+  # Orchestrators receiving DENY errors should treat them as implicit force_shutdown.
+  # See "Orchestrator Fallback Paths" in the file header for consumer guidance.
   _tmpf=$(mktemp "${CWD}/tmp/.rune-force-tmp.XXXXXX" 2>/dev/null) || _tmpf=""
   if [[ -n "$_tmpf" ]]; then
     jq -n \
@@ -288,6 +323,13 @@ if [[ ! -f "$FORCE_SIGNAL" ]]; then
       --arg session_id "$SESSION_ID" \
       '{signal: $signal, remaining_pct: $remaining_pct, timestamp: $timestamp, config_dir: $config_dir, owner_pid: $owner_pid, session_id: $session_id}' \
       > "$_tmpf" 2>/dev/null && mv "$_tmpf" "$FORCE_SIGNAL" 2>/dev/null || true
+  else
+    # DEEP-102 FIX: Direct write fallback when mktemp fails (e.g., full disk).
+    # The DENY response is the primary protection; this signal file is secondary
+    # for asynchronous orchestrator shutdown loop monitoring.
+    printf '{"signal":"force_shutdown","remaining_pct":%d,"timestamp":"%s","config_dir":"%s","owner_pid":"%s","session_id":"%s"}\n' \
+      "$REM_INT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$RUNE_CURRENT_CFG" "$PPID" "$SESSION_ID" \
+      > "$FORCE_SIGNAL" 2>/dev/null || true
   fi
 fi
 

@@ -172,11 +172,11 @@ Return a numbered list. Each entry: brief description + why it matters.`
   // Cleanup temp prompt file
   Bash(`rm -f "${promptPath}" 2>/dev/null`)
 
-  if (edgeCaseResult.exitCode === 0 && edgeCaseResult.stdout.trim().length > 0) {
+  if (edgeCaseResult.exitCode === 0 && edgeCaseResult.trim().length > 0) {
     // Incorporate Codex edge cases into test plan
     log(`Codex suggested edge cases for ${targetFile}`)
     // Parse numbered list items and add to test plan
-    const edgeCases = edgeCaseResult.stdout.trim().split('\n')
+    const edgeCases = edgeCaseResult.trim().split('\n')
       .filter(line => /^\d+[\.\)]\s/.test(line.trim()))
       .map(line => line.trim())
     // Append to discovered test patterns as additional edge cases

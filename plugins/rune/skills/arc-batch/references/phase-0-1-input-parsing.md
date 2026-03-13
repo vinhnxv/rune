@@ -82,7 +82,7 @@ if (validated.exitCode !== 0) {
   error("Pre-flight validation failed. Fix errors above and retry.")
   return
 }
-planPaths = validated.stdout.trim().split('\n')
+planPaths = validated.trim().split('\n')
 
 // Check auto-merge setting (unless --no-merge)
 if (!noMerge) {

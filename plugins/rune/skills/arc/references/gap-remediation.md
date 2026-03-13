@@ -66,7 +66,7 @@ if (codexNeedsRemediation) {
 ```javascript
 // Capture current HEAD SHA before any fixes are applied
 // Used in post-fix verification to isolate remediation commits
-const preSha = Bash("git rev-parse HEAD 2>/dev/null").stdout.trim()
+const preSha = Bash("git rev-parse HEAD 2>/dev/null").trim()
 if (!/^[0-9a-f]{40}$/.test(preSha)) {
   warn("Phase 5.8: Could not capture pre-fix SHA — verification may be imprecise")
 }
@@ -315,7 +315,7 @@ for (let i = 0; i < fixMaxIterations; i++) {
 }
 
 // Post-fix verification: get fresh diff to see what was actually changed
-const postSha = Bash("git rev-parse HEAD 2>/dev/null").stdout.trim()
+const postSha = Bash("git rev-parse HEAD 2>/dev/null").trim()
 // SEC-007: Validate postSha before shell interpolation
 if (!/^[0-9a-f]{40}$/.test(postSha)) {
   warn("Phase 5.8: Invalid postSha — skipping commit log")
@@ -323,10 +323,10 @@ if (!/^[0-9a-f]{40}$/.test(postSha)) {
 // SEC-005 FIX: Validate preSha with same hex regex as postSha (defense-in-depth)
 const validShas = /^[0-9a-f]{40}$/.test(preSha) && /^[0-9a-f]{40}$/.test(postSha) && preSha !== postSha
 const fixCommits = validShas
-  ? Bash(`git log --oneline "${preSha}..${postSha}" 2>/dev/null`).stdout.trim()
+  ? Bash(`git log --oneline "${preSha}..${postSha}" 2>/dev/null`).trim()
   : ""
 const fixedFiles = validShas
-  ? Bash(`git diff --name-only "${preSha}..${postSha}" 2>/dev/null`).stdout.trim().split('\n').filter(Boolean)
+  ? Bash(`git diff --name-only "${preSha}..${postSha}" 2>/dev/null`).trim().split('\n').filter(Boolean)
   : []
 
 log(`Phase 5.8: ${fixedFiles.length} files modified by gap-fixer. Commits:\n${fixCommits || "(none)"}`)

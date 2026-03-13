@@ -202,7 +202,7 @@ const params = {
 // Execute Phases 1-7 from orchestration-phases.md
 // Phase 1: Setup (state file, output dir)
 // Phase 2: Forge Team (inscription, signals, tasks)
-// Phase 2.5-2.8: Utility Crew (context-scribe → prompt-warden — conditional, gated by utility_crew.enabled)
+// Phase 2.5: Utility Crew (context-scribe → prompt-warden — conditional, gated by utility_crew.enabled)
 // Phase 3: Summon (single wave or multi-wave based on depth)
 // Phase 4: Monitor (waitForCompletion with audit timeouts)
 // Phase 4.5: Doubt Seer (conditional)
