@@ -355,7 +355,8 @@ for sf in "${STATE_FILES[@]}"; do
   sigterm_pids=()
   # XVER-001 FIX: Capture process start time (lstart) alongside PID for recycling detection.
   # Using lstart (not etimes) because etimes is unavailable on macOS.
-  local sigterm_lstarts=()
+  # NOTE: _sigterm_lstarts uses _ prefix (not local) because this is main script body.
+  _sigterm_lstarts=()
   if [[ -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ ]]; then
     # Find teammate processes that are children of the owner PID
     while IFS= read -r child_pid; do
@@ -366,12 +367,12 @@ for sf in "${STATE_FILES[@]}"; do
       case "$child_cmd" in
         node|claude|claude-*)
           # XVER-001 FIX: Record process start timestamp before SIGTERM
-          local child_lstart
-          child_lstart=$(ps -p "$child_pid" -o lstart= 2>/dev/null | tr -s ' ' || echo "")
+          # NOTE: _child_lstart uses _ prefix (not local) because this is main script body.
+          _child_lstart=$(ps -p "$child_pid" -o lstart= 2>/dev/null | tr -s ' ' || echo "")
           kill -TERM "$child_pid" 2>/dev/null || true
           sigterm_pids+=("$child_pid")
-          sigterm_lstarts+=("${child_lstart:-unknown}")
-          _trace "SIGTERM sent to PID=$child_pid (cmd=$child_cmd, lstart=${child_lstart:-unknown})"
+          _sigterm_lstarts+=("${_child_lstart:-unknown}")
+          _trace "SIGTERM sent to PID=$child_pid (cmd=$child_cmd, lstart=${_child_lstart:-unknown})"
           ;;
       esac
     done < <(pgrep -P "$SF_PID" 2>/dev/null | sort -u || true)  # EDGE-008 FIX: deduplicate PIDs
@@ -387,28 +388,27 @@ for sf in "${STATE_FILES[@]}"; do
     _trace "SKIP SIGKILL: team dir ${SF_TEAM} already removed during SIGTERM grace"
   else
     _trace "Stage 2: SIGKILL survivors for team=$SF_TEAM"
-    local _eidx=0
-    for child_pid in "${sigterm_pids[@]}"; do
-      [[ "$child_pid" =~ ^[0-9]+$ ]] || { _eidx=$((_eidx + 1)); continue; }
+    # XBUG-004 FIX: Use array index iteration to avoid double-increment bug
+    for _eidx in "${!sigterm_pids[@]}"; do
+      child_pid="${sigterm_pids[$_eidx]}"
+      [[ "$child_pid" =~ ^[0-9]+$ ]] || continue
       # Re-verify before SIGKILL (PID recycling guard — SEC-P1-001)
       child_cmd=$(ps -p "$child_pid" -o comm= 2>/dev/null || true)
       case "$child_cmd" in
         node|claude|claude-*)
           # XVER-001 FIX: Verify process start time hasn't changed (PID recycling detection).
           # A recycled PID would have a different lstart (absolute start timestamp).
-          local orig_lstart="${sigterm_lstarts[$_eidx]}"
-          local cur_lstart
-          cur_lstart=$(ps -p "$child_pid" -o lstart= 2>/dev/null | tr -s ' ' || echo "")
-          if [[ "$orig_lstart" != "unknown" && -n "$cur_lstart" && "$orig_lstart" != "$cur_lstart" ]]; then
-            _trace "SKIP SIGKILL: PID=$child_pid recycled (orig_lstart=$orig_lstart, cur_lstart=$cur_lstart)"
-            _eidx=$((_eidx + 1))
+          # NOTE: _orig_lstart and _cur_lstart use _ prefix (not local) - main script body.
+          _orig_lstart="${_sigterm_lstarts[$_eidx]}"
+          _cur_lstart=$(ps -p "$child_pid" -o lstart= 2>/dev/null | tr -s ' ' || echo "")
+          if [[ "$_orig_lstart" != "unknown" && -n "$_cur_lstart" && "$_orig_lstart" != "$_cur_lstart" ]]; then
+            _trace "SKIP SIGKILL: PID=$child_pid recycled (orig_lstart=$_orig_lstart, cur_lstart=$_cur_lstart)"
             continue
           fi
           kill -KILL "$child_pid" 2>/dev/null || true
           _trace "SIGKILL sent to PID=$child_pid"
           ;;
       esac
-      _eidx=$((_eidx + 1))
     done
   fi
 

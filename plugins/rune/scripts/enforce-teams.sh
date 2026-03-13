@@ -137,10 +137,17 @@ if [[ -d "${CWD}/tmp" ]]; then
   else
     # Mutex held by another process — check if stale (SIGKILL crash recovery)
     # A hook should never take >60s; stale mutex = crashed process left it behind
+    # XBUG-002 FIX: Use atomic mv to claim stale mutex, eliminating TOCTOU race.
+    # Race window was: find → rmdir → mkdir (another process could claim between)
+    # Now: mv atomically transfers ownership, then we clean up the renamed dir.
     if find "$MUTEX_DIR" -maxdepth 0 -mmin +1 -print -quit 2>/dev/null | grep -q .; then
-      rmdir "$MUTEX_DIR" 2>/dev/null || rm -rf "$MUTEX_DIR" 2>/dev/null
-      if mkdir "$MUTEX_DIR" 2>/dev/null; then
-        MUTEX_HELD=true
+      _stale_mutex="${MUTEX_DIR}.stale.$$"
+      if mv "$MUTEX_DIR" "$_stale_mutex" 2>/dev/null; then
+        # We now own the stale mutex (renamed). Clean it up and create fresh.
+        rm -rf "$_stale_mutex" 2>/dev/null || true
+        if mkdir "$MUTEX_DIR" 2>/dev/null; then
+          MUTEX_HELD=true
+        fi
       fi
     fi
     # If still not acquired, brief wait and retry once
