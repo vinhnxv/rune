@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.156.1] - 2026-03-14
+
+### Fixed
+- **Arc Multi-Session Safety** — strict ownership validation (`validate_session_ownership_strict()`), pre-flight conflict detection (Decision Matrix 1: F1-F6), branch validation with 4-case decision matrix, cross-session team cleanup hardening. 13 additional round-1 review findings resolved (session safety, cross-platform compatibility, arithmetic clamping, trace path caching)
+- **Command count stale in plugin.json/marketplace.json** — corrected from 19 to actual 17 commands
+
 ## [1.156.0] - 2026-03-13
 
 ### Added
