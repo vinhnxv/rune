@@ -72,10 +72,8 @@ case "$AGENT_NAME" in
   # Review agents: should produce findings in tmp/reviews/ or tmp/audit/
   *-reviewer|*-seer|*-hunter|*-oracle|*-watcher|*-sentinel|*-prophet|*-tracer)
     FOUND=0
-    # Use (N) glob qualifier for zsh compatibility (NOMATCH safety)
-    for f in \
-      "$CWD"/tmp/reviews/*"$AGENT_NAME"*(N) \
-      "$CWD"/tmp/audit/*"$AGENT_NAME"*(N); do
+    # Use find instead of glob to avoid zsh NOMATCH and bash glob expansion issues
+    while IFS= read -r f; do
       [[ -f "$f" ]] || continue
       # Min size check
       FILE_SIZE=$(wc -c < "$f" 2>/dev/null | tr -dc '0-9' || echo "0")
@@ -84,7 +82,7 @@ case "$AGENT_NAME" in
         FOUND=1
         break
       fi
-    done
+    done < <(find "$CWD/tmp/reviews" "$CWD/tmp/audit" -maxdepth 2 -name "*${AGENT_NAME}*" -type f 2>/dev/null || true)
     if (( FOUND == 0 )); then
       WARNINGS="Review agent '${AGENT_NAME}' completed without producing a findings file (>=${MIN_SIZE} bytes) in tmp/reviews/ or tmp/audit/."
     fi
@@ -93,7 +91,7 @@ case "$AGENT_NAME" in
   # Research agents: should produce output in tmp/plans/*/research/
   repo-surveyor|echo-reader|git-miner|practice-seeker|lore-scholar)
     FOUND=0
-    for f in "$CWD"/tmp/plans/*/research/*"$AGENT_NAME"*(N); do
+    while IFS= read -r f; do
       [[ -f "$f" ]] || continue
       FILE_SIZE=$(wc -c < "$f" 2>/dev/null | tr -dc '0-9' || echo "0")
       [[ -z "$FILE_SIZE" ]] && FILE_SIZE=0
@@ -101,7 +99,7 @@ case "$AGENT_NAME" in
         FOUND=1
         break
       fi
-    done
+    done < <(find "$CWD/tmp/plans" -maxdepth 3 -path "*/research/*${AGENT_NAME}*" -type f 2>/dev/null || true)
     if (( FOUND == 0 )); then
       WARNINGS="Research agent '${AGENT_NAME}' completed without producing output (>=100 bytes) in tmp/plans/*/research/."
     fi
@@ -110,9 +108,7 @@ case "$AGENT_NAME" in
   # Elicitation agents: should produce output in tmp/
   *-sage)
     FOUND=0
-    for f in \
-      "$CWD"/tmp/*"$AGENT_NAME"*(N) \
-      "$CWD"/tmp/plans/*/*"$AGENT_NAME"*(N); do
+    while IFS= read -r f; do
       [[ -f "$f" ]] || continue
       FILE_SIZE=$(wc -c < "$f" 2>/dev/null | tr -dc '0-9' || echo "0")
       [[ -z "$FILE_SIZE" ]] && FILE_SIZE=0
@@ -120,7 +116,7 @@ case "$AGENT_NAME" in
         FOUND=1
         break
       fi
-    done
+    done < <(find "$CWD/tmp" "$CWD/tmp/plans" -maxdepth 3 -name "*${AGENT_NAME}*" -type f 2>/dev/null || true)
     if (( FOUND == 0 )); then
       WARNINGS="Elicitation agent '${AGENT_NAME}' completed without producing output (>=100 bytes)."
     fi
