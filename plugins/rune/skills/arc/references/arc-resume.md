@@ -42,9 +42,33 @@ On resume, validate checkpoint integrity before proceeding:
    checkpoint.owner_pid = Number(Bash('echo $PPID').trim())
    checkpoint.config_dir = CHOME
    checkpoint.session_id = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
+   // STSM-009: Reset transient state on resume — compact_pending and stop_reason
+   // are per-session flags that must not carry over from a crashed/stopped session.
+   checkpoint.compact_pending = false
+   checkpoint.stop_reason = null
    // Re-export ownership vars so the state file (written later by SKILL.md) uses the new session's values
    ownerPid = checkpoint.owner_pid
    configDir = checkpoint.config_dir
+   ```
+2d. Branch validation (prevents resuming on wrong branch):
+   ```javascript
+   // Branch safety: verify current branch matches checkpoint's branch
+   const currentBranch = Bash('git branch --show-current 2>/dev/null').trim()
+   const checkpointBranch = checkpoint.branch ?? null
+   if (checkpointBranch && currentBranch && currentBranch !== checkpointBranch) {
+     throw new Error(
+       `Branch mismatch: checkpoint expects "${checkpointBranch}" but current branch is "${currentBranch}". ` +
+       `Run \`git checkout ${checkpointBranch}\` before resuming.`
+     )
+   }
+   // If checkpoint has no branch field (pre-v22), skip validation — legacy checkpoint
+   ```
+2e. Reset stale dispatch counts (STSM-005):
+   ```javascript
+   // STSM-005: Remove phase-dispatch-counts.json on resume to prevent stale
+   // dispatch counts from a prior session causing incorrect phase skip/retry logic.
+   const dispatchCountsPath = `tmp/arc/${checkpoint.id}/phase-dispatch-counts.json`
+   Bash(`rm -f "${dispatchCountsPath}" 2>/dev/null`)
    ```
 3. Schema migration (default missing schema_version: `const version = checkpoint.schema_version ?? 1`):
    if version < 2, migrate v1 → v2:

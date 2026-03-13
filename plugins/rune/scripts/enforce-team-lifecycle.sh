@@ -163,6 +163,8 @@ unset _root_dir _target_path _target_canonical
 # not creation time. An active team with FS activity stays fresh. A team idle >30 min
 # (e.g., waiting on long LLM call) may be flagged — increase to -mmin +60 if observed.
 # Using -mmin +30 for age check (fast, no jq needed per dir)
+# NOTE: 30-min age is INFORMATIONAL ONLY for different-session teams (hardened v1.157.0).
+# Auto-cleanup below is restricted to own-session teams with verified .session ownership.
 stale_teams=()
 if [[ -d "$CHOME/teams/" ]]; then
   while IFS= read -r dir; do
@@ -178,7 +180,8 @@ if [[ -d "$CHOME/teams/" ]]; then
           continue
         fi
       fi
-      # No .session marker OR same session OR empty HOOK_SESSION_ID → treat as stale (backwards compat)
+      # No .session marker OR same session OR empty HOOK_SESSION_ID → count as stale for reporting.
+      # Auto-cleanup eligibility is enforced separately in the cleanup loop below.
       stale_teams+=("$dirname")
     fi
   done < <(find "$CHOME/teams/" -maxdepth 1 -type d \( -name "rune-*" -o -name "arc-*" \) -mmin +30 2>/dev/null)
@@ -199,6 +202,22 @@ for team in "${stale_teams[@]}"; do
   # SEC-1 FIX: Re-check symlink immediately before rm-rf (collapses TOCTOU window from scan loop)
   # BACK-P3-012: Check for active state files referencing this team before cleanup
   if [[ "$team" =~ ^[a-zA-Z0-9_-]+$ ]] && [[ "$team" != *".."* ]] && [[ ! -L "$CHOME/teams/${team}" ]]; then
+    # Cross-session safety (hardened v1.157.0): only auto-clean own-session teams.
+    # Rule: .session file MUST exist AND session_id MUST match current session.
+    # Teams without .session may be in race window (TeamCreate → stamp-team-session.sh).
+    _team_session_file="$CHOME/teams/${team}/.session"
+    if [[ ! -f "$_team_session_file" ]] || [[ -L "$_team_session_file" ]]; then
+      continue  # No .session → never auto-clean
+    fi
+    if [[ -n "$HOOK_SESSION_ID" ]]; then
+      _team_marker_session=$(jq -r '.session_id // empty' "$_team_session_file" 2>/dev/null || true)
+      if [[ -z "$_team_marker_session" ]] || [[ "$_team_marker_session" != "$HOOK_SESSION_ID" ]]; then
+        continue  # Different session or unknown → never auto-clean
+      fi
+    else
+      continue  # Can't verify session ownership without HOOK_SESSION_ID → skip cleanup
+    fi
+    unset _team_session_file _team_marker_session
     # Skip if an active state file references this team (cross-check with project state)
     _has_active_state=false
     if [[ -n "${CWD:-}" ]]; then
@@ -257,6 +276,18 @@ for team in "${stale_teams[@]}"; do
 done
 
 # ── ADVISORY CONTEXT: Tell Claude what was found and cleaned ──
+# If stale teams exist but none were eligible for cleanup (all foreign/no .session),
+# report as informational advisory and exit.
+if [[ ${#cleaned_teams[@]} -eq 0 ]]; then
+  jq -n --argjson count "${#stale_teams[@]}" '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "allow",
+      additionalContext: ("TLC-001 PRE-FLIGHT: Detected " + ($count | tostring) + " stale team dir(s) older than 30 min from other sessions or without session markers. Not auto-cleaned for cross-session safety. Run /rune:rest --heal to clean up if these are yours.")
+    }
+  }'
+  exit 0
+fi
 # Build comma-separated list for JSON (truncate to first 5)
 cleaned_list=""
 count=0

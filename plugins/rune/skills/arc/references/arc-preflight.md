@@ -14,75 +14,190 @@ inter-phase cleanup guard, and stale team scan.
 
 ## Branch Strategy (COMMIT-1)
 
-Before Phase 5 (WORK), create a feature branch if on main. Shard-aware: reuses a shared
-feature branch across all shards of a shattered plan (v1.66.0+).
+Safety-first branch strategy. NEVER silently creates branches, discards changes, or force-checkouts.
+Always pulls latest before branching. Always asks user before operating on a non-main branch.
 
-```bash
-# ── BRANCH STRATEGY (shard-aware) ──
+**Core Principle**: The user's uncommitted work is sacred. Rune never discards it.
 
-current_branch=$(git branch --show-current)
-if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
+| Current Branch | Working Tree | Action |
+|---|---|---|
+| main/master | Clean | `git pull --ff-only` → create feature branch → proceed |
+| main/master | Dirty | WARN: offer Stash+proceed or Abort |
+| Feature branch | Clean | ASK: Use current / Switch to main / Abort |
+| Feature branch | Dirty | ASK: Stash+switch / Commit WIP+switch / Use current (risky) / Abort |
 
-  if [ -n "$SHARD_INFO" ]; then
-    # Shard mode: check if sibling shards already created a branch
-    feature_name=$(echo "$SHARD_FEATURE_NAME" | sed 's/[^a-zA-Z0-9]/-/g')
-    feature_name=${feature_name:-unnamed}
+```javascript
+// ── SAFE BRANCH STRATEGY ──
+const currentBranch = Bash("git branch --show-current 2>/dev/null").trim()
+const dirtyFiles = Bash("git status --porcelain 2>/dev/null").trim()
+const mainBranch = Bash("git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null || echo refs/remotes/origin/main").trim().replace(/.*\//, '')
+const isMainBranch = (currentBranch === "main" || currentBranch === "master" || currentBranch === mainBranch)
+const isDirty = !!dirtyFiles
+const fileCount = isDirty ? dirtyFiles.split('\n').length : 0
 
-    # Look for existing shard branch (most recent by creator date)
-    existing_branch=$(git for-each-ref --sort=-creatordate \
-      --format='%(refname:short)' \
-      "refs/heads/rune/arc-${feature_name}-shards-*" 2>/dev/null | head -1)
+// Helper: validate and create a feature branch name
+function createFeatureBranch(planFile, shardInfo) {
+  let branchName
+  if (shardInfo) {
+    // Shard mode: reuse existing shard branch or create new one
+    const featureName = (shardInfo.featureName || "unnamed").replace(/[^a-zA-Z0-9]/g, '-')
+    const existingBranch = Bash(
+      `git for-each-ref --sort=-creatordate --format='%(refname:short)' ` +
+      `"refs/heads/rune/arc-${featureName}-shards-*" 2>/dev/null | head -1`
+    ).trim()
 
-    if [ -n "$existing_branch" ]; then
-      # Reuse existing shard branch
-      git checkout "$existing_branch"
-      # Pull latest if remote exists
-      git pull --ff-only origin "$existing_branch" 2>/dev/null || true
-      branch_name="$existing_branch"
-    else
-      # Create new shard branch
-      branch_name="rune/arc-${feature_name}-shards-$(date +%Y%m%d-%H%M%S)"
+    if (existingBranch) {
+      Bash(`git checkout "${existingBranch}"`)
+      Bash(`git pull --ff-only origin "${existingBranch}" 2>/dev/null || true`)
+      return existingBranch
+    }
+    branchName = `rune/arc-${featureName}-shards-${Bash("date +%Y%m%d-%H%M%S").trim()}`
+  } else {
+    const planName = (planFile.replace(/.*\//, '').replace(/\.md$/, '') || "unnamed").replace(/[^a-zA-Z0-9]/g, '-')
+    branchName = `rune/arc-${planName}-${Bash("date +%Y%m%d-%H%M%S").trim()}`
+  }
 
-      # SEC-006: Validate branch name
-      if ! git check-ref-format --branch "$branch_name" 2>/dev/null; then
-        echo "ERROR: Invalid branch name: $branch_name"
-        exit 1
-      fi
-      # Guard against HEAD/special-ref collisions (consistent with non-shard path)
-      if echo "$branch_name" | grep -qE '(HEAD|FETCH_HEAD|ORIG_HEAD|MERGE_HEAD)'; then
-        echo "ERROR: Branch name collides with Git special ref"
-        exit 1
-      fi
+  // SEC-006: Validate branch name using git's own ref validation
+  if (Bash(`git check-ref-format --branch "${branchName}" 2>/dev/null; echo $?`).trim() !== "0") {
+    throw new Error(`Invalid branch name: ${branchName}`)
+  }
+  // Guard against HEAD/special-ref collisions
+  if (/HEAD|FETCH_HEAD|ORIG_HEAD|MERGE_HEAD/.test(branchName)) {
+    throw new Error(`Branch name collides with Git special ref: ${branchName}`)
+  }
 
-      git checkout -b "$branch_name"
-    fi
-  else
-    # Non-shard: existing behavior
-    plan_name=$(basename "$plan_file" .md | sed 's/[^a-zA-Z0-9]/-/g')
-    plan_name=${plan_name:-unnamed}
-    branch_name="rune/arc-${plan_name}-$(date +%Y%m%d-%H%M%S)"
+  Bash(`git checkout -b "${branchName}"`)
+  return branchName
+}
 
-    # SEC-006: Validate constructed branch name using git's own ref validation
-    if ! git check-ref-format --branch "$branch_name" 2>/dev/null; then
-      echo "ERROR: Invalid branch name: $branch_name"
-      exit 1
-    fi
-    if echo "$branch_name" | grep -qE '(HEAD|FETCH_HEAD|ORIG_HEAD|MERGE_HEAD)'; then
-      echo "ERROR: Branch name collides with Git special ref"
-      exit 1
-    fi
+// ── CASE 1: On main/master, clean working tree ──
+if (isMainBranch && !isDirty) {
+  // Pull latest — ensure we branch from up-to-date code
+  const pullResult = Bash(`git pull --ff-only origin ${mainBranch} 2>&1`).trim()
+  if (pullResult.includes("fatal") || pullResult.includes("error")) {
+    // Pull failed — diverged history or network issue
+    const choice = AskUserQuestion({
+      question:
+        `Failed to pull latest from origin/${mainBranch}:\n\`\`\`\n${pullResult}\n\`\`\`\n\n` +
+        "Options:\n" +
+        "1. **Proceed anyway** — branch from current local main (may be outdated)\n" +
+        "2. **Abort** — fix the issue manually first"
+    })
+    if (choice.toLowerCase().includes("abort")) {
+      throw new Error("Aborted by user — fix git pull issue and retry.")
+    }
+  } else {
+    // Inform user if new commits were pulled
+    const commitsPulled = (pullResult.match(/(\d+) files? changed/) || [])[0]
+    if (commitsPulled) {
+      log(`Pulled latest from origin/${mainBranch}: ${commitsPulled}`)
+    }
+  }
+  // Create feature branch
+  const branch = createFeatureBranch(planFile, shardInfo)
+  // branch variable is used by checkpoint init below
+}
 
-    git checkout -b "$branch_name"
-  fi
-fi
+// ── CASE 2: On main/master, dirty working tree ──
+if (isMainBranch && isDirty) {
+  const choice = AskUserQuestion({
+    question:
+      `You have ${fileCount} uncommitted change(s) on \`${mainBranch}\`.\n` +
+      "Arc needs a clean main to create a feature branch.\n\n" +
+      "Options:\n" +
+      "1. **Stash & proceed** — `git stash` your changes, pull latest, create branch\n" +
+      "   (restore later with `git stash pop`)\n" +
+      "2. **Abort** — commit or stash your changes manually first"
+  })
+  if (choice.toLowerCase().includes("stash")) {
+    Bash("git stash push -m 'rune-arc: auto-stash before branch creation'")
+    const pullResult = Bash(`git pull --ff-only origin ${mainBranch} 2>&1`).trim()
+    if (pullResult.includes("fatal") || pullResult.includes("error")) {
+      // Restore stash before aborting
+      Bash("git stash pop 2>/dev/null || true")
+      throw new Error(`Pull failed after stash: ${pullResult}. Your changes were restored.`)
+    }
+    warn("Your changes were stashed. Run `git stash pop` after arc completes to restore them.")
+    const branch = createFeatureBranch(planFile, shardInfo)
+  } else {
+    throw new Error("Aborted by user — handle uncommitted changes and retry.")
+  }
+}
+
+// ── CASE 3: On feature branch, clean working tree ──
+if (!isMainBranch && !isDirty) {
+  const choice = AskUserQuestion({
+    question:
+      `You're on branch \`${currentBranch}\`, not \`${mainBranch}\`.\n\n` +
+      "Options:\n" +
+      `1. **Use current branch** — arc will make commits directly on \`${currentBranch}\`\n` +
+      `2. **Switch to main** — checkout \`${mainBranch}\`, pull latest, create a new feature branch\n` +
+      "3. **Abort** — handle branch management yourself first"
+  })
+  if (choice.toLowerCase().includes("current branch") || choice.toLowerCase().includes("use current")) {
+    // Use current branch as-is — no new branch created
+    log(`Using existing branch: ${currentBranch}`)
+    // branch = currentBranch (set for checkpoint)
+  } else if (choice.toLowerCase().includes("switch") || choice.toLowerCase().includes("main")) {
+    Bash(`git checkout ${mainBranch}`)
+    const pullResult = Bash(`git pull --ff-only origin ${mainBranch} 2>&1`).trim()
+    if (pullResult.includes("fatal") || pullResult.includes("error")) {
+      warn(`Pull failed: ${pullResult}. Proceeding with local ${mainBranch}.`)
+    }
+    const branch = createFeatureBranch(planFile, shardInfo)
+  } else {
+    throw new Error("Aborted by user.")
+  }
+}
+
+// ── CASE 4: On feature branch, dirty working tree ──
+if (!isMainBranch && isDirty) {
+  const choice = AskUserQuestion({
+    question:
+      `You're on branch \`${currentBranch}\` with ${fileCount} uncommitted change(s).\n` +
+      "Arc will make commits on this branch — your work could get mixed in.\n\n" +
+      "**Recommended**: Handle your changes first.\n\n" +
+      "Options:\n" +
+      `1. **Stash & switch** — stash changes, checkout \`${mainBranch}\`, pull latest, create new branch\n` +
+      `2. **Commit WIP & switch** — commit as WIP on \`${currentBranch}\`, checkout \`${mainBranch}\`, pull, create new branch\n` +
+      `3. **Use current branch (risky)** — arc commits on \`${currentBranch}\` alongside your uncommitted changes\n` +
+      "4. **Abort** — handle it yourself first"
+  })
+  if (choice.toLowerCase().includes("stash")) {
+    Bash("git stash push -m 'rune-arc: auto-stash before branch switch'")
+    Bash(`git checkout ${mainBranch}`)
+    const pullResult = Bash(`git pull --ff-only origin ${mainBranch} 2>&1`).trim()
+    if (pullResult.includes("fatal") || pullResult.includes("error")) {
+      warn(`Pull failed: ${pullResult}. Proceeding with local ${mainBranch}.`)
+    }
+    warn(`Your changes on \`${currentBranch}\` were stashed. Run \`git checkout ${currentBranch} && git stash pop\` to restore them.`)
+    const branch = createFeatureBranch(planFile, shardInfo)
+  } else if (choice.toLowerCase().includes("commit wip") || choice.toLowerCase().includes("wip")) {
+    Bash(`git add -A && git commit -m "WIP: auto-committed by rune-arc before branch switch"`)
+    Bash(`git checkout ${mainBranch}`)
+    const pullResult = Bash(`git pull --ff-only origin ${mainBranch} 2>&1`).trim()
+    if (pullResult.includes("fatal") || pullResult.includes("error")) {
+      warn(`Pull failed: ${pullResult}. Proceeding with local ${mainBranch}.`)
+    }
+    warn(`Your WIP was committed on \`${currentBranch}\`. You can amend or squash it later.`)
+    const branch = createFeatureBranch(planFile, shardInfo)
+  } else if (choice.toLowerCase().includes("current branch") || choice.toLowerCase().includes("risky")) {
+    warn("Proceeding on dirty branch — your uncommitted changes may be mixed with arc's commits.")
+    // Use current branch as-is
+  } else {
+    throw new Error("Aborted by user.")
+  }
+}
 ```
 
-If already on a feature branch, use the current branch.
-
 **Edge Cases**:
-- Multiple shard branches exist for same feature: use most recent (sort by creator date)
+- `git pull --ff-only` fails (diverged history): warn user, offer proceed-anyway or abort
+- Remote unreachable (offline): pull fails gracefully, offer proceed with local main
+- Stash fails (nothing to stash, permission error): error propagates to user
+- Shard mode: if sibling shard already created a branch, checkout + pull existing branch (skip creation)
+- Multiple shard branches for same feature: use most recent (sort by creator date)
 - Branch was force-deleted between shard runs: create new branch
-- Shard run on different machine: no existing branch, creates new one
+- User selects "Commit WIP" but `git add -A` includes sensitive files: `git add -A` is standard for WIP — user accepted the risk
 
 ## Concurrent Arc Prevention
 

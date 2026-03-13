@@ -158,11 +158,15 @@ if [[ -n "$HOOK_SESSION_ID" ]] && [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,12
   HOOK_SESSION_ID=""
 fi
 
-# ── GUARD 5.7: Session isolation (between 5.5 and 6 — intentional; phase hook
-# requires session check after CHECKPOINT_PATH validation, unlike batch/issues hooks) ──
-# "phase" mode: no progress file to update on orphan — falls through to "skip" (remove state + exit 0)
-_trace "Session check: stored_pid=$(get_field 'owner_pid') PPID=${PPID}"
-validate_session_ownership "$STATE_FILE" "" "phase"
+# ── GUARD 5.7: Session isolation (strict — no orphan cleanup) ──
+# Uses validate_session_ownership_strict: returns 1 on mismatch, NEVER deletes state files.
+# Orphan handling moved to SKILL.md pre-flight (Decision Matrix 1, cases F4/F6).
+# This hook ONLY continues if session_id matches (or claim-on-first-touch succeeds).
+_trace "Session check (strict): stored_pid=$(get_field 'owner_pid') stored_sid=$(get_field 'session_id') PPID=${PPID}"
+if ! validate_session_ownership_strict "$STATE_FILE"; then
+  _trace "EXIT: session ownership strict check failed — not our arc"
+  exit 0
+fi
 
 # ── GUARD 6: Validate active flag ──
 if [[ "$ACTIVE" != "true" ]]; then

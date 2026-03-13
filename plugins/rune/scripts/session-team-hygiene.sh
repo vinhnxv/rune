@@ -81,6 +81,8 @@ HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/n
 #   ATE-1  enforce-teams.sh:          120 min (STATE FILES, PreToolUse:Agent)
 #   CDX-7  detect-workflow-complete.sh: 150 min (LOOP FILES, Stop hook)
 # Thresholds differ intentionally — they check different file types at different lifecycle points.
+# NOTE: The 30-min age is INFORMATIONAL ONLY for different-session teams. It controls what gets
+# COUNTED and REPORTED, not what gets CLEANED. Auto-cleanup is restricted to own-session teams.
 orphan_count=0
 orphan_names=()
 if [[ -d "$CHOME/teams/" ]]; then
@@ -106,64 +108,52 @@ fi
 
 [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphan team dirs found: ${orphan_count}" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
 
-# ── Auto-clean PID-dead orphans (REC-9) ──
-# After detection, actually remove team dirs whose owner PID is provably dead.
-# Cleans teams where PID is verifiably dead via:
-#   (a) .session file (primary), OR
-#   (b) corresponding state file in CWD/tmp/ (BACK-007: fallback for teams without .session)
-# Also requires: config_dir matches and PID is dead.
-# Handles both JSON and plain string .session files (horizon-sage finding).
+# ── Auto-clean OWN-SESSION PID-dead orphans (REC-9, hardened v1.157.0) ──
+# STRICT CROSS-SESSION SAFETY RULES:
+#   (a) .session file MUST exist — teams without .session are NEVER auto-cleaned
+#       (may be in race window between TeamCreate and stamp-team-session.sh)
+#   (b) session_id MUST match current session — NEVER touch other sessions' teams,
+#       even if their owner PID is dead (user may want to inspect/manually recover)
+#   (c) owner_pid MUST be dead (kill -0 check)
+#   (d) config_dir must match (installation isolation)
+# BACK-007 fallback (state file scan for teams without .session) REMOVED in v1.157.0 —
+# positive session ownership proof is now required before any destructive action.
 orphans_cleaned=0
-if [[ $orphan_count -gt 0 ]] && [[ -d "$CHOME/teams/" ]]; then
+if [[ $orphan_count -gt 0 ]] && [[ -d "$CHOME/teams/" ]] && [[ -n "$HOOK_SESSION_ID" ]]; then
   for oname in "${orphan_names[@]}"; do
     odir="$CHOME/teams/${oname}"
     [[ -d "$odir" ]] || continue
     [[ -L "$odir" ]] && continue
     session_file="$odir/.session"
 
+    # Rule (a): .session file MUST exist — no .session means NEVER auto-clean.
+    # The team may be in the race window between TeamCreate and stamp-team-session.sh.
+    if [[ ! -f "$session_file" ]] || [[ -L "$session_file" ]]; then
+      continue
+    fi
+
+    # Read .session content (max 4KB safety cap)
+    session_content=$(head -c 4096 "$session_file" 2>/dev/null || true)
+    [[ -z "$session_content" ]] && continue
+
     owner_pid=""
     owner_cfg=""
+    marker_session=""
 
-    if [[ -f "$session_file" ]] && [[ ! -L "$session_file" ]]; then
-      # Primary path: read PID from .session file
-      # Read .session content (max 4KB safety cap)
-      session_content=$(head -c 4096 "$session_file" 2>/dev/null || true)
-      [[ -z "$session_content" ]] && continue
+    # Extract fields — handle both JSON and plain string formats
+    if echo "$session_content" | jq -e '.' >/dev/null 2>&1; then
+      # JSON format: {"session_id":"...","config_dir":"...","owner_pid":"..."}
+      owner_pid=$(echo "$session_content" | jq -r '.owner_pid // empty' 2>/dev/null || true)
+      owner_cfg=$(echo "$session_content" | jq -r '.config_dir // empty' 2>/dev/null || true)
+      marker_session=$(echo "$session_content" | jq -r '.session_id // empty' 2>/dev/null || true)
+    fi
+    # Plain string format has no structured data — skip (can't verify ownership)
+    [[ -n "$owner_pid" && "$owner_pid" =~ ^[0-9]+$ ]] || continue
 
-      # Extract owner_pid — handle both JSON and plain string formats
-      if echo "$session_content" | jq -e '.' >/dev/null 2>&1; then
-        # JSON format: {"session_id":"...","config_dir":"...","owner_pid":"..."}
-        owner_pid=$(echo "$session_content" | jq -r '.owner_pid // empty' 2>/dev/null || true)
-        owner_cfg=$(echo "$session_content" | jq -r '.config_dir // empty' 2>/dev/null || true)
-      fi
-      # Plain string format has no PID info — skip (can't verify PID is dead)
-      [[ -n "$owner_pid" && "$owner_pid" =~ ^[0-9]+$ ]] || continue
-    else
-      # BACK-007: Fallback — no .session file. Scan CWD/tmp/ state files for a matching team name.
-      # Look for a state file whose team_name (or inferred from filename) matches oname and has a dead PID.
-      if [[ -d "${CWD}/tmp" ]]; then
-        # NOTE: Do NOT use `local` here — this is main script body, not a function.
-        _nullglob_was_set=1
-        shopt -q nullglob && _nullglob_was_set=0
-        shopt -s nullglob 2>/dev/null || true
-        for sf in "${CWD}/tmp"/.rune-*.json; do
-          [[ -f "$sf" ]] && [[ ! -L "$sf" ]] || continue
-          sf_pid=$(jq -r '.owner_pid // empty' "$sf" 2>/dev/null || true)
-          sf_cfg=$(jq -r '.config_dir // empty' "$sf" 2>/dev/null || true)
-          sf_team=$(jq -r '.team_name // empty' "$sf" 2>/dev/null || true)
-          sf_status=$(jq -r '.status // empty' "$sf" 2>/dev/null || true)
-          [[ "$sf_status" == "active" ]] || continue
-          [[ "$sf_team" == "$oname" ]] || continue
-          [[ -n "$sf_pid" && "$sf_pid" =~ ^[0-9]+$ ]] || continue
-          owner_pid="$sf_pid"
-          owner_cfg="$sf_cfg"
-          break
-        done
-        # Restore nullglob state (SEC-003: conditional instead of eval)
-        [[ "$_nullglob_was_set" -eq 1 ]] && shopt -u nullglob
-      fi
-      # If no matching state file found, cannot verify PID — skip
-      [[ -n "$owner_pid" ]] || continue
+    # Rule (b): session_id MUST match current session — NEVER touch other sessions' teams.
+    # Even if their PID is dead, the user may want to inspect or manually recover.
+    if [[ -z "$marker_session" ]] || [[ "$marker_session" != "$HOOK_SESSION_ID" ]]; then
+      continue
     fi
 
     # SEC-008: Exclude sentinel PIDs 0 (kernel) and 1 (init/launchd) — never valid owners
