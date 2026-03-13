@@ -229,6 +229,12 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
     // at runtime when design_sync.enabled === false.
   },
   // Schema v19 addition (v1.111.0): timing totals — per-phase durations and overall arc metrics
+  // phase_times is populated from two sources:
+  //   1. JS-level: each phase prompt calculates completionTs - startMs and writes to checkpoint
+  //   2. Shell-level: arc-phase-stop-hook.sh writes phase_timing events to phase-log.jsonl
+  //      via _log_phase (wall-clock elapsed from .epoch files). JSONL events serve as a
+  //      reliable backup when the JS-level timing is missed by the LLM.
+  // Post-arc summary can derive totals from phase-log.jsonl: grep "phase_timing" .claude/arc/{id}/phase-log.jsonl
   totals: { phase_times: {}, total_duration_ms: null, cost_at_completion: null },
   // Schema v19 addition (v1.111.0): arc-level completion timestamp (set at Post-Arc stamp)
   completed_at: null,

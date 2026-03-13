@@ -129,3 +129,89 @@ Write("tmp/.rune-work-{timestamp}.json", {
   ...(worktreeMode && { worktree_mode: true, waves: [], current_wave: 0, merged_branches: [] })
 })
 ```
+
+## Checkpoint Write (Phase 3 — after each task completion)
+
+Writes a checkpoint file after each task completion during Phase 3 monitoring. Enables `--resume` to skip completed tasks on session restart. Uses atomic tmp+mv write pattern for crash safety.
+
+```javascript
+// Checkpoint path: same timestamp directory as the work session
+const CHECKPOINT_PATH = `tmp/work/${timestamp}/strive-checkpoint.json`
+
+// In waitForCompletion monitoring loop, after detecting a task completion:
+// (Called each poll cycle when a new task transitions to "completed")
+function writeStriveCheckpoint(allTasks) {
+  const completedTasks = allTasks
+    .filter(t => t.status === "completed")
+    .map(t => String(t.id))  // Task ID type safety: always String()
+
+  const taskArtifacts = {}
+  for (const task of allTasks.filter(t => t.status === "completed")) {
+    taskArtifacts[String(task.id)] = {
+      files: task.filesModified || [],
+      completed_at: task.completedAt || new Date().toISOString(),
+      worker: task.owner || "unknown"
+    }
+  }
+
+  // Platform-portable mtime: try BSD stat first (macOS), fall back to GNU stat (Linux)
+  // SEC-006: Validate planPath before shell use
+  if (!/^[a-zA-Z0-9._\-\/]+$/.test(planPath) || planPath.includes('..')) {
+    throw new Error(`Invalid planPath: ${planPath}`)
+  }
+  const planMtime = Bash(`stat -f '%m' "${planPath}" 2>/dev/null || stat -c '%Y' "${planPath}" 2>/dev/null`).trim()
+
+  const checkpointData = JSON.stringify({
+    plan_path: planPath,
+    plan_mtime: planMtime,
+    team_name: teamName,
+    config_dir: configDir,
+    owner_pid: ownerPid,
+    session_id: SESSION_ID,  // resolved in Wave Configuration section: `const SESSION_ID = Bash("echo $CLAUDE_SESSION_ID").trim()`
+    total_tasks: allTasks.length,
+    completed_tasks: completedTasks,
+    task_artifacts: taskArtifacts,
+    updated_at: Date.now(),
+    schema_version: 1
+  }, null, 2)
+
+  // Atomic write: tmp file + mv to prevent corrupted checkpoint on crash
+  const tmpPath = `${CHECKPOINT_PATH}.tmp`
+  Write(tmpPath, checkpointData)
+  Bash(`mv "${tmpPath}" "${CHECKPOINT_PATH}"`)
+}
+
+// Integration point: call writeStriveCheckpoint from the Phase 3 monitoring loop
+// each time TaskList shows a newly completed task (compare previous vs current snapshot)
+//
+// Example integration in monitor loop:
+//   const prevCompleted = new Set(prevSnapshot.filter(t => t.status === "completed").map(t => t.id))
+//   const currCompleted = currentTasks.filter(t => t.status === "completed")
+//   const newlyCompleted = currCompleted.filter(t => !prevCompleted.has(t.id))
+//   if (newlyCompleted.length > 0) {
+//     writeStriveCheckpoint(currentTasks)
+//   }
+```
+
+### Checkpoint Schema (v1)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `plan_path` | string | Path to the plan file that was executed |
+| `plan_mtime` | string | Plan file modification time at checkpoint write (for drift detection) |
+| `team_name` | string | Team name for the work session |
+| `config_dir` | string | Resolved CLAUDE_CONFIG_DIR (session isolation) |
+| `owner_pid` | string | Claude Code PID via $PPID (session isolation) |
+| `session_id` | string | CLAUDE_SESSION_ID (diagnostic) |
+| `total_tasks` | number | Total number of tasks in the plan |
+| `completed_tasks` | string[] | IDs of completed tasks (always String) |
+| `task_artifacts` | object | Per-task artifact map: `{ [taskId]: { files, completed_at, worker } }` |
+| `updated_at` | number | Epoch ms of last checkpoint write |
+| `schema_version` | number | Always `1` — for future-proofing schema evolution |
+
+### Notes
+
+- **Atomic writes**: The tmp+mv pattern ensures the checkpoint is either fully written or not present — no partial JSON on crash.
+- **Task ID type safety**: All task IDs are cast to `String()` at both write (`completed_tasks`) and read (`--resume` detection) boundaries to prevent string-vs-number comparison failures.
+- **Session isolation**: `config_dir` + `owner_pid` fields enable `--resume` to skip checkpoints from other sessions.
+- **`onCheckpoint` callback**: The `waitForCompletion` API in `monitor-utility.md` supports an `onCheckpoint` callback. If unavailable in the implementation, use polling-based detection as shown in the integration example above (compare previous vs current task snapshots each poll cycle).

@@ -31,6 +31,18 @@ Talisman keys under `review.pre_aggregate`:
 
 **Config access pattern**: `talisman?.review?.pre_aggregate ?? {}` — follows standard `readTalisman()` convention.
 
+### Noise Filter (Phase 5.0.5)
+
+Talisman keys under `review.noise_filter`:
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | boolean | `true` | Master toggle. Set `false` to skip noise filtering entirely (opt-OUT). |
+| `confidence_floor` | number | `35` | Minimum confidence_score for P3 findings. P3 below this are suppressed (unless PROVEN). |
+| `max_p3_ratio` | number | `0.40` | Maximum ratio of P3 findings to total. Excess P3 suppressed by lowest confidence first (PROVEN exempt). |
+
+**Config access pattern**: `talisman?.review?.noise_filter ?? {}` — follows standard `readTalisman()` convention.
+
 ## Main Algorithm: preAggregate()
 
 ```javascript
@@ -99,8 +111,16 @@ function preAggregate(outputDir, talisman) {
     // 4b. Extract all RUNE:FINDING blocks via marker parsing
     const findings = extractFindingBlocks(content)
 
+    // 4b.5 (Phase 5.0.5): Apply noise filter — suppress low-signal P3 findings
+    //   Gated by talisman.review.noise_filter.enabled (default: true)
+    //   INVARIANT: PROVEN findings are NEVER suppressed by any rule
+    const noiseConfig = talisman?.review?.noise_filter ?? {}
+    const { kept, suppressed } = (noiseConfig.enabled !== false)
+      ? noiseFilterFindings(findings, noiseConfig)
+      : { kept: findings, suppressed: [] }
+
     // 4c. Apply priority-based compression per finding
-    const compressed = findings.map(f => compressFinding(f, {
+    const compressed = kept.map(f => compressFinding(f, {
       preservePriorities,
       truncateTraceLines,
       nitSummaryOnly
@@ -112,10 +132,16 @@ function preAggregate(outputDir, talisman) {
     // 4e. Extract ## Summary section (if present)
     const summary = extractSection(content, '## Summary')
 
-    // 4f. Assemble and write condensed file
+    // 4f. Build suppressed findings collapsible section (if any)
+    const suppressedSection = suppressed.length > 0
+      ? `<details>\n<summary>Suppressed findings (${suppressed.length} low-signal P3)</summary>\n\n${suppressed.map(s => s.fullBlock).join('\n\n')}\n\n</details>`
+      : null
+
+    // 4g. Assemble and write condensed file
     const condensed = [
       header,
       ...compressed,
+      suppressedSection,
       assumptions,
       summary
     ].filter(Boolean).join('\n\n')
@@ -127,6 +153,7 @@ function preAggregate(outputDir, talisman) {
       originalBytes,
       condensedBytes: condensed.length,
       findingCount: findings.length,
+      suppressedCount: suppressed.length,
       ratio: (condensed.length / originalBytes * 100).toFixed(1)
     })
   }
@@ -143,6 +170,8 @@ function preAggregate(outputDir, talisman) {
 **Key invariants**:
 - Original Ash output files are NEVER modified (condensed copies only)
 - All RUNE:FINDING marker attributes (nonce, id, file, line, severity, confidence, confidence_score) are preserved through compression
+- PROVEN findings are NEVER suppressed by the noise filter (Phase 5.0.5) — hard safety constraint
+- Suppressed findings are preserved in a collapsible `<details>` section (not discarded)
 - Dedup is NOT applied here — that is Runebinder's responsibility (see [dedup-runes.md](dedup-runes.md))
 - No LLM calls — all extraction is regex-based
 
@@ -228,6 +257,145 @@ function extractFindingBlocks(content) {
   return blocks
 }
 ```
+
+## Phase 5.0.5: Noise Filter — noiseFilterFindings()
+
+Filters low-signal P3 findings to reduce TOME noise. Runs AFTER marker extraction (Phase 5.0 step 4b) and BEFORE compression (step 4c). Three suppression rules are applied in order. A finding suppressed by any rule is moved to the suppressed set and excluded from compression.
+
+> **CRITICAL INVARIANT**: PROVEN findings (confidence === "PROVEN") are NEVER suppressed by
+> ANY rule. All three rules check the PROVEN guard FIRST. This is a hard safety constraint —
+> verified findings must always surface in the TOME regardless of severity or score.
+
+```javascript
+// Normalizes confidence_score to a 0-100 scale with type safety.
+//
+// Handles:
+//   - String values from marker parsing (always strings from regex extraction)
+//   - Decimal scale (0.0-1.0) → multiplied by 100
+//   - Percentage scale (1.0-100.0) → used as-is
+//   - Missing/NaN → returns 0 (conservative — will be caught by confidence_floor)
+//
+// BOUNDS NOTE: Values > 100 are clamped to 100. Negative values are clamped to 0.
+
+function normalizeConfidenceScore(rawScore) {
+  const score = parseFloat(rawScore)
+  if (isNaN(score)) return 0
+  // Scale detection: if score is in 0.0-1.0 range, treat as decimal scale
+  const normalized = (score >= 0 && score <= 1.0) ? score * 100 : score
+  // Clamp to valid range
+  return Math.max(0, Math.min(100, normalized))
+}
+
+// Applies three noise suppression rules to a set of extracted findings.
+//
+// Returns: { kept: Finding[], suppressed: Finding[] }
+//
+// Rules (applied in order):
+//   1. LOW-CONFIDENCE FLOOR: P3 with confidence_score below confidence_floor → suppressed
+//   2. P3-DUPLICATES-P1/P2: P3 in same file within 10 lines of a P1/P2 → suppressed
+//   3. P3 RATIO CAP: If P3 count exceeds max_p3_ratio of total, excess suppressed (lowest score first)
+//
+// After all rules: MINIMUM-SURVIVING FLOOR — if all findings would be suppressed,
+// the highest-confidence finding is rescued back to the kept set.
+//
+// CONFIG: talisman.review.noise_filter (see Configuration section above)
+
+function noiseFilterFindings(findings, config) {
+  const confidenceFloor = config.confidence_floor ?? 35
+  const maxP3Ratio = config.max_p3_ratio ?? 0.40
+  const LINE_PROXIMITY = 10
+
+  let kept = [...findings]
+  const suppressed = []
+
+  // Helper: check if a finding is PROVEN (must NEVER be suppressed)
+  const isProven = (f) => f.confidence === 'PROVEN'
+
+  // --- Rule 1: Low-confidence floor ---
+  // Suppress P3 findings below confidence_floor (PROVEN guard)
+  const afterRule1 = []
+  for (const f of kept) {
+    if (f.severity === 'P3' && !isProven(f)) {
+      const score = normalizeConfidenceScore(f.confidence_score)
+      if (score < confidenceFloor) {
+        suppressed.push(f)
+        continue
+      }
+    }
+    afterRule1.push(f)
+  }
+  kept = afterRule1
+
+  // --- Rule 2: P3 duplicating P1/P2 in same file within proximity ---
+  // If a P3 targets the same file and is within LINE_PROXIMITY lines of a P1/P2
+  // finding, it is likely redundant noise (the higher-priority finding covers it).
+  const highPriorityFindings = kept.filter(f => f.severity === 'P1' || f.severity === 'P2')
+  const afterRule2 = []
+  for (const f of kept) {
+    if (f.severity === 'P3' && !isProven(f) && f.file && f.line) {
+      const fLine = parseInt(f.line, 10)
+      const isDuplicate = highPriorityFindings.some(hp =>
+        hp.file === f.file &&
+        hp.line &&
+        Math.abs(parseInt(hp.line, 10) - fLine) <= LINE_PROXIMITY
+      )
+      if (isDuplicate) {
+        suppressed.push(f)
+        continue
+      }
+    }
+    afterRule2.push(f)
+  }
+  kept = afterRule2
+
+  // --- Rule 3: P3 ratio cap ---
+  // If P3 findings exceed max_p3_ratio of total kept findings, suppress excess
+  // (lowest confidence first). PROVEN P3 are exempt from ratio suppression.
+  const totalKept = kept.length
+  const p3Findings = kept.filter(f => f.severity === 'P3' && !isProven(f))
+  const maxP3Count = Math.floor(totalKept * maxP3Ratio)
+
+  if (p3Findings.length > maxP3Count) {
+    // Sort by confidence_score ascending (lowest first = suppressed first)
+    const sortedP3 = [...p3Findings].sort((a, b) =>
+      normalizeConfidenceScore(a.confidence_score) - normalizeConfidenceScore(b.confidence_score)
+    )
+    const excessCount = p3Findings.length - maxP3Count
+    const toSuppress = new Set(sortedP3.slice(0, excessCount))
+
+    const afterRule3 = []
+    for (const f of kept) {
+      if (toSuppress.has(f)) {
+        suppressed.push(f)
+      } else {
+        afterRule3.push(f)
+      }
+    }
+    kept = afterRule3
+  }
+
+  // --- Minimum-surviving floor ---
+  // Always surface at least 1 finding (the highest-confidence one) even if all
+  // would be suppressed. Prevents total information loss for small reviews.
+  if (kept.length === 0 && suppressed.length > 0) {
+    // Rescue the highest-confidence suppressed finding
+    suppressed.sort((a, b) =>
+      normalizeConfidenceScore(b.confidence_score) - normalizeConfidenceScore(a.confidence_score)
+    )
+    const rescued = suppressed.shift()  // Remove from suppressed, add to kept
+    kept.push(rescued)
+  }
+
+  return { kept, suppressed }
+}
+```
+
+**Key invariants**:
+- PROVEN findings bypass ALL three rules — they are never moved to the suppressed set
+- Suppression order matters: Rule 1 (floor) runs before Rule 2 (proximity), which runs before Rule 3 (ratio cap). A finding suppressed by Rule 1 is not re-evaluated by Rule 2.
+- The minimum-surviving floor ensures at least 1 finding always surfaces, preventing empty TOME sections
+- Suppressed findings are preserved in a collapsible `<details>` section in the condensed output (not discarded)
+- `normalizeConfidenceScore()` handles both 0-1 decimal scale and 0-100 percentage scale from Ash output
 
 ## Marker Attribute Parsing: parseMarkerAttributes()
 
@@ -392,24 +560,19 @@ function extractSection(content, heading) {
     'm'
   )
   const match = content.match(pattern)
-  // Return contract: { found: boolean, content: string | null }
-  //   found=false, content=null  → section heading not present in file at all
-  //                                (older Ash prompt that never emitted this section)
-  //   found=true,  content=""    → section heading is present but body is whitespace-only
-  //                                (Ash explicitly emitted the section with no content;
-  //                                 intentional — structured output, not incomplete processing)
-  //   found=true,  content="..."→ normal non-empty section
+  // Current return: string | null
+  //   null  → section heading not present in file at all (absent)
+  //           OR section heading present but body is whitespace-only (empty-but-present)
+  //           NOTE: these two cases are collapsed — callers cannot distinguish them.
+  //           Use .filter(Boolean) to exclude both from condensed output (correct for assembly).
   //
-  // NOTE: The caller uses .filter(Boolean) on the return value, so both null and ""
-  // are excluded from the condensed output — this is correct for assembly purposes.
-  // However, metrics should distinguish these two cases to audit Ash compliance drift.
-  // Callers that need the distinction should check the `found` flag rather than
-  // testing content for truthiness.
-  if (!match) return null          // Section not found (found=false)
+  // TODO(BACK-006): Change return to { found: boolean, content: string | null } to distinguish
+  //   "section absent" from "section present but empty" for Ash compliance drift auditing.
+  //   Aspirational shape: found=false → absent; found=true, content=null → empty-but-present;
+  //   found=true, content="..." → non-empty. Requires caller updates to destructure result.
+  if (!match) return null          // Section not found (absent)
   const body = match[1].trim()
-  return body || null              // Empty section returns null (collapses with "not found" for output)
-  // TODO(BACK-006): Return { found: true, content: body } to distinguish empty-but-present
-  // from absent sections in metrics. Requires caller updates to destructure result.
+  return body || null              // Empty section returns null (collapses with absent — see TODO(BACK-006))
 }
 ```
 
@@ -451,6 +614,7 @@ function writeCompressionReport(path, perAshMetrics, totals) {
   const overallRatio = (totals.combinedCondensed / totals.combinedOriginal * 100).toFixed(1)
   const savings = totals.combinedOriginal - totals.combinedCondensed
   const reductionPct = (100 - totals.combinedCondensed / totals.combinedOriginal * 100).toFixed(1)
+  const totalSuppressed = perAshMetrics.reduce((s, m) => s + (m.suppressedCount || 0), 0)
 
   const report = `# Pre-Aggregation Compression Report
 
@@ -460,12 +624,19 @@ function writeCompressionReport(path, perAshMetrics, totals) {
 **Overall ratio**: ${overallRatio}%
 **Savings**: ${savings} bytes (${reductionPct}% reduction)
 
+## Noise Filter (Phase 5.0.5)
+
+**Total suppressed**: ${totalSuppressed} findings
+${perAshMetrics.filter(m => m.suppressedCount > 0).map(m =>
+  \`- \${m.ash}: \${m.suppressedCount} P3 suppressed\`
+).join('\\n')}
+
 ## Per-Ash Breakdown
 
-| Ash | Original | Condensed | Findings | Ratio |
-|-----|----------|-----------|----------|-------|
+| Ash | Original | Condensed | Findings | Suppressed | Ratio |
+|-----|----------|-----------|----------|------------|-------|
 ${perAshMetrics.map(m =>
-  \`| \${m.ash} | \${m.originalBytes}B | \${m.condensedBytes}B | \${m.findingCount} | \${m.ratio}% |\`
+  \`| \${m.ash} | \${m.originalBytes}B | \${m.condensedBytes}B | \${m.findingCount} | \${m.suppressedCount || 0} | \${m.ratio}% |\`
 ).join('\\n')}
 `
   Write(path, report)

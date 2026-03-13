@@ -209,16 +209,21 @@ validate_session_ownership() {
       fi
     fi
     if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-      _trace "ownership: claim-on-first-touch — writing hook_sid='${hook_session_id}' to state file"
+      _trace "ownership: claim-on-first-touch — writing hook_sid='${hook_session_id}' owner_pid='${PPID}' to state file"
     fi
-    # Write session_id into state file YAML frontmatter (sed: replace session_id line)
+    # Write session_id AND owner_pid into state file YAML frontmatter
+    # BUG FIX (v1.156.0): Previously only updated session_id, leaving owner_pid stale.
+    # This caused session-team-hygiene.sh to misdetect active arcs as orphaned (dead PID).
     local _tmp_state
     _tmp_state=$(mktemp "${state_file}.XXXXXX" 2>/dev/null) || true
     if [[ -n "$_tmp_state" ]]; then
-      sed "s/^session_id:.*/session_id: ${hook_session_id}/" "$state_file" > "$_tmp_state" 2>/dev/null && \
+      sed -e "s/^session_id:.*/session_id: ${hook_session_id}/" \
+          -e "s/^owner_pid:.*/owner_pid: ${PPID}/" \
+          "$state_file" > "$_tmp_state" 2>/dev/null && \
         mv -f "$_tmp_state" "$state_file" 2>/dev/null || rm -f "$_tmp_state" 2>/dev/null
     fi
     stored_session_id="$hook_session_id"
+    stored_pid="$PPID"
   fi
 
   local _session_match=""
@@ -235,7 +240,24 @@ validate_session_ownership() {
   fi
 
   if [[ "$_session_match" == "yes" ]]; then
-    # Same session — proceed (skip PID check entirely)
+    # Same session — proceed, but update owner_pid if stale (e.g., claude --resume creates
+    # a new process with a different PID but the same session_id).
+    # BUG FIX (v1.156.0): Previously returned immediately without updating owner_pid,
+    # leaving it pointing to a dead PID. This caused session-team-hygiene.sh to
+    # misdetect active arcs as orphaned and other PID-based checks to use stale data.
+    if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
+      if ! rune_pid_alive "$stored_pid"; then
+        local _tmp_state
+        _tmp_state=$(mktemp "${state_file}.XXXXXX" 2>/dev/null) || true
+        if [[ -n "$_tmp_state" ]]; then
+          sed "s/^owner_pid:.*/owner_pid: ${PPID}/" "$state_file" > "$_tmp_state" 2>/dev/null && \
+            mv -f "$_tmp_state" "$state_file" 2>/dev/null || rm -f "$_tmp_state" 2>/dev/null
+        fi
+        if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+          _trace "ownership: session_id match — updated stale owner_pid ${stored_pid} → ${PPID}"
+        fi
+      fi
+    fi
     return 0
   elif [[ "$_session_match" == "no" ]]; then
     # Different session — check if owner is still alive for orphan handling
