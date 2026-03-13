@@ -662,6 +662,7 @@ Each Ash embeds several review agents as specialized perspectives. For example, 
 | pattern-seer | Pattern consistency |
 | void-analyzer | Incomplete implementations |
 | wraith-finder | Dead code |
+| phantom-warden | Phantom implementations (spec-to-code gaps, dead specs, unenforced rules) |
 | phantom-checker | Dynamic references (companion to wraith-finder, not Ash-embedded) |
 | type-warden | Type safety, mypy compliance |
 | trial-oracle | TDD compliance, test quality |

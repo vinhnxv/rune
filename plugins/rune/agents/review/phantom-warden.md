@@ -226,7 +226,7 @@ For each config key — verify it's both set AND read.
 | Mode 6 finding (reserved) | -15% | Limited heuristic detection only |
 
 **Confidence thresholds:**
-- >= 85%: High confidence — safe to flag as P1/P2
+- >= 85%: High confidence — safe to flag as P2 (P1 reserved for classification table criteria only)
 - 70-84%: Medium confidence — flag as P2/P3 with human review note
 - < 70%: Low confidence — flag as P3, mark UNCERTAIN
 

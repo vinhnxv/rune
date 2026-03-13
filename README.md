@@ -342,7 +342,7 @@ Compares a plan against its implementation across 10 quality dimensions:
 
 ## Agents
 
-**97 specialized agents** across 6 categories:
+**98 specialized agents** across 6 categories:
 
 ### Review Agents (47)
 
@@ -357,6 +357,7 @@ Core reviewers active in every `/rune:appraise` and `/rune:audit` run. UX and de
 | Depth Seer | Missing logic (error handling gaps, state machine incompleteness) |
 | Void Analyzer | Incomplete implementations (TODOs, stubs, placeholders) |
 | Wraith Finder | Dead code (unused exports, orphaned files, unwired DI) |
+| Phantom Warden | Phantom implementations (spec-to-code gaps, dead specs, unenforced rules) |
 | Tide Watcher | Async/concurrency (waterfall awaits, race conditions) |
 | Forge Keeper | Data integrity (migration safety, transaction boundaries) |
 | Trial Oracle | Test quality (TDD compliance, assertion quality) |
