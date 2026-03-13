@@ -176,7 +176,12 @@ Once configured, all Rune commands will automatically route through GLM-5:
 /rune:appraise    # Code review
 /rune:devise      # Planning
 /rune:strive      # Implementation
+/rune:audit       # Full codebase audit
 ```
+
+**Example: `/rune:audit` running with 14 teammates on GLM-5:**
+
+![Rune audit with 14 teammates on GLM-5](glm-5.png)
 
 ### Important Notes
 
@@ -480,7 +485,12 @@ Sau khi cấu hình, tất cả lệnh Rune sẽ tự động chạy qua GLM-5:
 /rune:appraise    # Review code
 /rune:devise      # Lập kế hoạch
 /rune:strive      # Triển khai
+/rune:audit       # Audit toàn bộ codebase
 ```
+
+**Ví dụ: `/rune:audit` chạy với 14 teammates trên GLM-5:**
+
+![Rune audit với 14 teammates trên GLM-5](glm-5.png)
 
 ### Lưu ý quan trọng
 

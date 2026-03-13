@@ -67,6 +67,7 @@ settings:
     - TLC # Custom: team-lifecycle-reviewer (project-level)
     - SPAWN # Custom: agent-spawn-reviewer (project-level)
     - CLEAN # Custom: cleanup-completeness-reviewer (project-level)
+    - DPMT # Custom: dead-prompt-detector (project-level)
     - DOC # Knowledge Keeper
     - QUAL # Pattern Weaver
     - FRONT # Glyph Scribe
@@ -149,6 +150,31 @@ ashes:
         - "P2 (High)"
         - "P3 (Medium)"
         - "Compliance Summary"
+        - "Self-Review Log"
+
+    # Detects dead prompts, stale context, orphaned references,
+    # unreachable skill triggers, and phantom agent references
+    # in SKILL.md, agent .md, CLAUDE.md, and command .md files.
+    - name: "dead-prompt-detector"
+      agent: "dead-prompt-detector"
+      source: local
+      workflows: [review, audit]
+      trigger:
+        extensions: [".md", ".json"]
+        paths:
+          [
+            "plugins/rune/skills/",
+            "plugins/rune/agents/",
+            "plugins/rune/commands/",
+            ".claude/",
+          ]
+      context_budget: 25
+      finding_prefix: "DPMT"
+      required_sections:
+        - "P1 (Critical)"
+        - "P2 (High)"
+        - "P3 (Medium)"
+        - "Summary"
         - "Self-Review Log"
 
     # Validates cleanup fallback array completeness:

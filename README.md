@@ -715,7 +715,7 @@ rune-plugin/
         ├── agents/               # 97 agent definitions
         │   ├── review/           #   34 review agents
         │   ├── investigation/    #   24 investigation agents
-        │   ├── utility/          #   26 utility agents
+        │   ├── utility/          #   23 utility agents
         │   ├── research/         #    5 research agents
         │   ├── testing/          #    5 testing agents
         │   └── work/             #    6 work agents

@@ -1,6 +1,6 @@
 # Agent Registry
 
-**Total: 100 agents** (34 review + 5 research + 6 work + 26 utility + 24 investigation + 5 testing)
+**Total: 97 agents** (34 review + 5 research + 6 work + 23 utility + 24 investigation + 5 testing)
 
 > Agent count verified by `find agents/ -name "*.md" -type f | wc -l` on 2026-03-06.
 
