@@ -25,7 +25,7 @@ Gated by `design_sync.enabled` AND `design_sync.iterate_enabled` in talisman.
 ## Algorithm
 
 ```javascript
-updateCheckpoint({ phase: "design_iteration", status: "in_progress", phase_sequence: 5.3, team_name: null })
+updateCheckpoint({ phase: "design_iteration", status: "in_progress", phase_sequence: 7.6, team_name: null })
 
 // 0. Skip gates
 const designSyncConfig = arcConfig.design_sync ?? {}
@@ -100,7 +100,7 @@ prePhaseCleanup(checkpoint)
 TeamCreate({ team_name: `arc-design-iter-${id}` })
 
 updateCheckpoint({
-  phase: "design_iteration", status: "in_progress", phase_sequence: 5.3,
+  phase: "design_iteration", status: "in_progress", phase_sequence: 7.6,
   team_name: `arc-design-iter-${id}`
 })
 
@@ -164,7 +164,7 @@ updateCheckpoint({
   phase: "design_iteration", status: "completed",
   artifact: `tmp/arc/${id}/design-iteration-report.md`,
   artifact_hash: sha256(iterReport),
-  phase_sequence: 5.3, team_name: null,
+  phase_sequence: 7.6, team_name: null,
   components_iterated: componentsToIterate.length
 })
 ```

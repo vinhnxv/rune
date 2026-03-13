@@ -1041,7 +1041,8 @@ try {
   // FALLBACK: config.json read failed — include all possible agents.
   // selectedAsh + runebinder + conditionally-spawned agents (doubt-seer, cross-shard-sentinel).
   // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
-  allMembers = [...selectedAsh, "runebinder", "doubt-seer", "cross-shard-sentinel", "context-scribe", "prompt-warden"]
+  allMembers = [...selectedAsh, "runebinder", "doubt-seer", "cross-shard-sentinel", "context-scribe", "prompt-warden",
+    "rot-seeker", "strand-tracer", "decree-auditor", "fringe-watcher", "runebinder-deep", "runebinder-merge"]
 }
 
 // 2. Shutdown all teammates

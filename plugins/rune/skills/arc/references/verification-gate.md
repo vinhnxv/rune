@@ -22,7 +22,7 @@ for (const fp of filePaths) {
   }
   if (!exists(fp)) {
     const gitExists = Bash(`git log --all --oneline -- "${fp}" 2>/dev/null | head -1`)
-    const annotation = gitExists.stdout.trim()
+    const annotation = gitExists.trim()
       ? `[STALE: was deleted -- see git history]`
       : `[PENDING: file does not exist yet -- may be created during WORK]`
     issues.push(`File reference: ${fp} -- ${annotation}`)
@@ -62,7 +62,7 @@ for (const pattern of customPatterns) {
   // SEC-FIX: Pattern interpolation uses safeRgMatch() (rg -f) to prevent $() command substitution.
   // See security-patterns.md for safeRgMatch() implementation.
   const result = safeRgMatch(pattern.regex, pattern.paths, { exclusions: pattern.exclusions, timeout: 5 })
-  if (pattern.expect_zero && result.stdout.trim().length > 0) {
+  if (pattern.expect_zero && result.trim().length > 0) {
     issues.push(`Stale reference: ${pattern.description}`)
   }
 }
@@ -130,7 +130,7 @@ if (checkpoint?.freshness?.git_sha
     for (const fp of newRefs) {
       if (Date.now() > budgetDeadline) { break }  // budget exhausted — use partial count
       const diff = Bash(`git diff --name-only "${sha}..HEAD" -- "${fp}" 2>/dev/null`)
-      if (diff.stdout.trim().length > 0) newDriftCount++
+      if (diff.trim().length > 0) newDriftCount++
     }
     if (newDriftCount > 0) {
       issues.push(`Freshness: ${newDriftCount}/${newRefs.length} forge-expanded file references modified since plan creation`)

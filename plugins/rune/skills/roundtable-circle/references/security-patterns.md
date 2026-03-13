@@ -67,7 +67,7 @@ shell interpolation of user-provided patterns entirely.
 ```javascript
 function safeRgMatch(pattern, paths, { exclusions, timeout } = {}) {
   Bash(`mkdir -p tmp`)
-  const tmpFile = Bash(`mktemp tmp/.rg-pattern-XXXXXX`).stdout.trim()
+  const tmpFile = Bash(`mktemp tmp/.rg-pattern-XXXXXX`).trim()
   try {
     Write(tmpFile, pattern)
     if (timeout && !Number.isFinite(timeout)) throw new Error('timeout must be a finite number')

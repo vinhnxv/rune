@@ -167,7 +167,7 @@ const prResult = Bash(`gh pr create --title "${safePrTitle}" --body-file "tmp/wo
 if (prResult.exitCode !== 0) {
   warn("PR creation failed. Branch was pushed successfully. Create PR manually: gh pr create")
 } else {
-  prUrl = prResult.stdout.trim()
+  prUrl = prResult.trim()
   prCreated = true
   log(`PR created: ${prUrl}`)
 }

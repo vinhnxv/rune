@@ -131,7 +131,7 @@ for (const pattern of customPatterns) {
     continue
   }
   const result = safeRgMatch(pattern.regex, pattern.paths, { exclusions: pattern.exclusions, timeout: 5 })
-  if (pattern.expect_zero && result.stdout.trim().length > 0) {
+  if (pattern.expect_zero && result.trim().length > 0) {
     checks.push(`WARN: Stale reference: ${pattern.description}`)
   }
 }

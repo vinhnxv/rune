@@ -155,7 +155,7 @@ agentBrowserAvailable = checkAgentBrowser()  // non-blocking, used later
 
 // Step 6: Session isolation
 CHOME = "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-timestamp = Bash("date +%Y%m%d-%H%M%S").stdout.trim()
+timestamp = Bash("date +%Y%m%d-%H%M%S").trim()
 workDir = "tmp/design-sync/{timestamp}"
 Bash("mkdir -p {workDir}/vsm {workDir}/components {workDir}/reviews {workDir}/iterations")
 

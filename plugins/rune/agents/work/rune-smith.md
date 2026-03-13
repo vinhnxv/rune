@@ -252,7 +252,7 @@ REMINDER: Resume your reviewer role. Report CRITICAL bugs only."""
       # Security: CODEX_MODEL_ALLOWLIST validated
       # Resolve timeouts via resolveCodexTimeouts() from talisman.yml (see codex-detection.md)
       const { codexTimeout, codexStreamIdleMs, killAfterFlag } = resolveCodexTimeouts(talisman)
-      const stderrFile = Bash("mktemp ${TMPDIR:-/tmp}/codex-stderr-XXXXXX").stdout.trim()
+      const stderrFile = Bash("mktemp ${TMPDIR:-/tmp}/codex-stderr-XXXXXX").trim()
 
       // SEC-R1-001 FIX: Use stdin pipe instead of $(cat) to avoid shell expansion on prompt content
       result = Bash(`cat "tmp/work/${id}/codex-smith-prompt.txt" | timeout ${killAfterFlag} ${codexTimeout} codex exec \

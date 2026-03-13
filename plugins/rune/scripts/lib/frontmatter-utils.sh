@@ -9,11 +9,11 @@
 # Extract a YAML frontmatter field value (single-line, simple values only)
 # Usage: value=$(_get_fm_field "$frontmatter_text" "field_name")
 # Returns empty string if field not found. Strips surrounding quotes.
-# NOTE: Does not handle multi-line values, values with embedded colons, or hyphenated field names.
-#       Field names are validated against ^[a-zA-Z_]+$ (SEC-002).
+# NOTE: Does not handle multi-line values or values with embedded colons.
+#       Field names are validated against ^[a-zA-Z0-9_-]+$ (SEC-002).
 _get_fm_field() {
   local fm="$1" field="$2"
   # SEC-002: Validate field name to prevent regex injection
-  [[ "$field" =~ ^[a-zA-Z_]+$ ]] || return 1
+  [[ "$field" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
   printf '%s\n' "$fm" | grep "^${field}:" | sed "s/^${field}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true
 }

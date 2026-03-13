@@ -78,7 +78,7 @@ const workSummary = Read(`tmp/arc/${id}/work-summary.md`)
 const committedFiles = extractCommittedFiles(workSummary)
 // Also: git diff --name-only {default_branch}...HEAD for ground truth
 const diffResult = Bash(`git diff --name-only "${defaultBranch}...HEAD"`)
-const diffFiles = diffResult.stdout.trim().split('\n').filter(f => f.length > 0)
+const diffFiles = diffResult.trim().split('\n').filter(f => f.length > 0)
 ```
 
 ## STEP A.3: Cross-Reference Criteria Against Changes
@@ -95,7 +95,7 @@ for (const criterion of criteria) {
     if (!/^[a-zA-Z0-9._\-\/]+$/.test(identifier)) continue
     if (safeDiffFiles.length === 0) break
     const grepResult = Bash(`rg -l --max-count 1 -- "${identifier}" ${safeDiffFiles.map(f => `"${f}"`).join(' ')} 2>/dev/null`)
-    if (grepResult.stdout.trim().length > 0) {
+    if (grepResult.trim().length > 0) {
       status = criterion.checked ? "ADDRESSED" : "PARTIAL"
       break
     }
@@ -216,17 +216,17 @@ if (consistencyGuardPass) {
         // Intentionally unquoted: glob expansion required. SAFE_GLOB_PATH_PATTERN validated above.
         // CDX-003 FIX: Use -- to prevent glob results starting with - being parsed as flags
         const globResult = Bash(`ls -1 -- ${check.source.file} 2>/dev/null | wc -l`)
-        sourceValue = globResult.stdout.trim()
+        sourceValue = globResult.trim()
       } else if (check.source.extractor === "line_count") {
         const lcResult = Bash(`wc -l < "${check.source.file}" 2>/dev/null`)
-        sourceValue = lcResult.stdout.trim()
+        sourceValue = lcResult.trim()
       } else if (check.source.extractor === "regex_capture") {
         if (!check.source.pattern || !SAFE_REGEX_PATTERN_CC.test(check.source.pattern)) {
           consistencyResults.push({ name: check.name, status: "SKIP", reason: "Unsafe source regex" })
           continue
         }
         const rgResult = Bash(`rg --no-messages -o "${check.source.pattern}" "${check.source.file}" | head -1`)
-        sourceValue = rgResult.stdout.trim()
+        sourceValue = rgResult.trim()
       } else {
         consistencyResults.push({ name: check.name, status: "SKIP", reason: `Unknown extractor: ${check.source.extractor}` })
         continue
@@ -263,7 +263,7 @@ if (consistencyGuardPass) {
           }
           const escapedPattern = target.pattern.replace(/["$\`\\]/g, '\\$&')
           const targetResult = Bash(`rg --no-messages -o -- "${escapedPattern}" "${target.path}" 2>/dev/null | head -1`)
-          const targetValue = targetResult.stdout.trim()
+          const targetValue = targetResult.trim()
           if (targetValue.length === 0) {
             targetStatus = "DRIFT"
           } else if (targetValue.includes(sourceValue)) {
@@ -275,7 +275,7 @@ if (consistencyGuardPass) {
           // CDX-001 FIX: Escape sourceValue to prevent shell injection
           const escapedSourceValue = sourceValue.replace(/["$`\\]/g, '\\$&')
           const grepResult = Bash(`rg --no-messages --fixed-strings -l -- "${escapedSourceValue}" "${target.path}" 2>/dev/null`)
-          targetStatus = grepResult.stdout.trim().length > 0 ? "PASS" : "DRIFT"
+          targetStatus = grepResult.trim().length > 0 ? "PASS" : "DRIFT"
         }
       } catch (targetErr) {
         targetStatus = "SKIP"
@@ -380,7 +380,7 @@ if (diffFiles.length === 0) {
       if (!/^[a-zA-Z0-9._\-\/]+$/.test(id)) continue
       if (safeDiffFiles.length === 0) break
       const grepResult = Bash(`rg -l --max-count 1 -- "${id}" ${safeDiffFiles.map(f => `"${f}"`).join(' ')} 2>/dev/null`)
-      if (grepResult.stdout.trim().length > 0) {
+      if (grepResult.trim().length > 0) {
         status = "ADDRESSED"
         break
       }
@@ -428,13 +428,13 @@ Non-blocking sub-step: runs lightweight, evaluator-equivalent quality checks on 
 let evaluatorMetricsSection = ""
 
 // Guard: verify python3 is available
-const pythonCheck = Bash(`command -v python3 2>/dev/null`).stdout.trim()
+const pythonCheck = Bash(`command -v python3 2>/dev/null`).trim()
 if (!pythonCheck) {
   evaluatorMetricsSection = `\n## EVALUATOR QUALITY METRICS\n\n**Status**: SKIP\n**Reason**: python3 not found in PATH\n`
 } else {
   // BACK-206 FIX: Exclude evaluation/ test files and remove redundant ./.* exclusion
   const pyFilesRaw = Bash(`find . -name "*.py" -not -path "./.venv/*" -not -path "./__pycache__/*" -not -path "./.tox/*" -not -path "./.pytest_cache/*" -not -path "./build/*" -not -path "./dist/*" -not -path "./.eggs/*" -not -path "./evaluation/*" -not -name "test_*.py" -not -name "*_test.py" | head -200`)
-    .stdout.trim().split('\n').filter(f => f.length > 0)
+    .trim().split('\n').filter(f => f.length > 0)
 
   // SEC: Filter file paths through SAFE_PATH_PATTERN_CC before passing to heredoc.
   // CRITICAL: This regex MUST remain strict (alphanumeric + ._-/ only). Weakening it
@@ -473,7 +473,7 @@ print(f'{with_doc}/{total}/{long_count}/{skipped}')
 for fn in long_fns[:10]: print(fn)
 " < "${pyFileListPath}"`)
     Bash(`rm -f "${pyFileListPath}"`)  // cleanup temp file
-    const parts = astResult.stdout.trim().split('\n')
+    const parts = astResult.trim().split('\n')
     const [withDoc, totalDefs, longCount, skippedFiles] = parts[0].split('/').map(Number)
     const longFunctions = parts.slice(1)
     const docPct = totalDefs > 0 ? Math.round((withDoc / totalDefs) * 100) : 0
@@ -486,20 +486,20 @@ for fn in long_fns[:10]: print(fn)
     let evalStatus = "SKIP"
     let evalDetail = "No evaluation/ directory"
     // SEC-005 FIX: Guard against symlink traversal on evaluation/ path
-    const evalIsSymlink = Bash(`test -L evaluation && echo "yes" || echo "no"`).stdout.trim()
+    const evalIsSymlink = Bash(`test -L evaluation && echo "yes" || echo "no"`).trim()
     if (evalIsSymlink === "yes") {
       evalDetail = "evaluation/ is a symlink — skipped for safety"
     }
     const evalExists = evalIsSymlink !== "yes"
-      ? Bash(`find evaluation -maxdepth 1 -name "*.py" -type f 2>/dev/null | wc -l`).stdout.trim()
+      ? Bash(`find evaluation -maxdepth 1 -name "*.py" -type f 2>/dev/null | wc -l`).trim()
       : "0"
     if (parseInt(evalExists) > 0) {
       // BACK-202 FIX: Capture exit code before piping to avoid tail masking pytest status
       // SEC-016 FIX: Use project-local tmp instead of /tmp to avoid shared-temp collisions
       const evalTmpFile = `tmp/.rune-eval-out-${Date.now()}.txt`
       const evalResult = Bash(`timeout 30s python -m pytest evaluation/ -v --tb=line 2>&1 > "${evalTmpFile}"; echo $?`)
-      const evalRc = parseInt(evalResult.stdout.trim())
-      const evalOutput = Bash(`tail -20 "${evalTmpFile}"`).stdout.trim()
+      const evalRc = parseInt(evalResult.trim())
+      const evalOutput = Bash(`tail -20 "${evalTmpFile}"`).trim()
       Bash(`rm -f "${evalTmpFile}"`)
 
       const output = evalOutput
@@ -622,9 +622,9 @@ for (const claim of claims) {
   for (const keyword of claim.keywords) {
     if (!/^[a-zA-Z0-9._\-\/]+$/.test(keyword)) continue
     const grepResult = Bash(`rg -l --max-count 1 -- "${keyword}" ${safeDiffFilesA9.map(f => `"${f}"`).join(' ')} 2>/dev/null`)
-    if (grepResult.stdout.trim().length > 0) {
+    if (grepResult.trim().length > 0) {
       matchCount++
-      evidence.push({ keyword, files: grepResult.stdout.trim().split('\n').slice(0, 3) })
+      evidence.push({ keyword, files: grepResult.trim().split('\n').slice(0, 3) })
     }
   }
 
@@ -657,7 +657,7 @@ Scan for lingering references to files deleted during the work phase. A deleted 
 
 const deletedResult = Bash(`git diff --diff-filter=D --name-only "${defaultBranch}...HEAD" 2>/dev/null`)
 const deletedFiles = [...new Set(
-  deletedResult.stdout.trim().split('\n').filter(f => f.length > 0)
+  deletedResult.trim().split('\n').filter(f => f.length > 0)
 )]
 
 if (deletedFiles.length === 0) {
@@ -674,7 +674,7 @@ if (deletedFiles.length === 0) {
     // Search across plugins/ (primary), .claude/ (talisman configs), scripts/ (hooks)
     // Uses Bash+rg to match existing gap-analysis.md tool pattern
     const grepResult = Bash(`rg -l --fixed-strings "${basename}" plugins/ .claude/ scripts/ --glob '*.md' --glob '*.yml' --glob '*.sh' 2>/dev/null`)
-    const referrers = grepResult.stdout.trim().split('\n')
+    const referrers = grepResult.trim().split('\n')
       .filter(f => f.length > 0 && f !== deleted && !f.startsWith('tmp/') && !f.includes('gap-analysis.md'))
 
     if (referrers.length > 0) {
@@ -745,7 +745,7 @@ if (unplannedFlags.length > 0) {
   for (const flag of unplannedFlags) {
     // Find where this flag is introduced (uses Bash+rg per tool pattern convention)
     const flagResult = Bash(`rg -l -- "--${flag}" plugins/ 2>/dev/null`)
-    const flagRefs = flagResult.stdout.trim().split('\n').filter(f => f.length > 0)
+    const flagRefs = flagResult.trim().split('\n').filter(f => f.length > 0)
 
     gaps.push({
       criterion: `Scope creep: '--${flag}' added in implementation but not defined in plan`,

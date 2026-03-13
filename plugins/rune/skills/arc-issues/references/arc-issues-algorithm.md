@@ -346,7 +346,7 @@ if (validated.exitCode !== 0) {
 }
 
 // Parse validated issue numbers (script outputs JSON object: { ok: bool, valid: number[] })
-const result = JSON.parse(validated.stdout.trim())
+const result = JSON.parse(validated.trim())
 if (!result.ok) {
   error('Pre-flight validation returned not-ok. Fix errors above and retry.')
   return

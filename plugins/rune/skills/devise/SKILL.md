@@ -70,6 +70,8 @@ Phase -1: Team Bootstrap (TeamCreate + state file — enables ATE-1 enforcement)
     ↓
 Phase 0: Gather Input (3 paths: --brainstorm-context → read workspace, --quick → skip, default → delegate to brainstorm protocol)
     ↓
+Phase 0.8: Utility Crew (context-scribe → prompt-warden — conditional, gated by utility_crew.enabled)
+    ↓
 Phase 1: Research (up to 8 agents, conditional — join existing team)
     ├─ Phase 1A: LOCAL RESEARCH (always — repo-surveyor, echo-reader, git-miner)
     ├─ Phase 1B: RESEARCH DECISION (talisman plan config bypass, risk + local sufficiency scoring, URL sanitization)

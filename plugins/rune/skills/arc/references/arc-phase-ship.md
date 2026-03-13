@@ -251,7 +251,7 @@ if (prResult.exitCode !== 0) {
 }
 
 // BACK-009 FIX: Validate PR URL format from gh output before storing
-const prUrl = prResult.stdout.trim()
+const prUrl = prResult.trim()
 if (!/^https:\/\//.test(prUrl)) {
   warn(`Ship phase: gh pr create returned unexpected output (not a URL): "${prUrl.slice(0, 100)}"`)
 }

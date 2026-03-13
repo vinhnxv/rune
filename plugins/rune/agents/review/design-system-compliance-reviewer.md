@@ -5,7 +5,7 @@ description: |
   the project's design system conventions: token usage, variant patterns,
   import paths, class merge utilities, and dark mode implementation.
   Activated when frontend stack + design system detected (confidence >= 0.70).
-allowed-tools:
+tools:
   - Read
   - Glob
   - Grep
@@ -23,7 +23,7 @@ class-variance-authority, twMerge, Radix, shadcn, dark mode, theme tokens.
   assistant: "I'll use design-system-compliance-reviewer to validate token usage, CVA patterns, and accessibility."
   </example>
 
-<!-- NOTE: allowed-tools is enforced by the platform when this agent is spawned
+<!-- NOTE: tools is enforced by the platform when this agent is spawned
      directly. When orchestrated via a general-purpose subagent, the platform
      enforcement may not apply — prompt instructions serve as the restriction boundary
      in that context. -->
