@@ -24,6 +24,42 @@ plan:
   #   - https://docs.python.org/3/
 
 # ──────────────────────────────────────────────
+# Developer Convenience Hooks — Feature Gates
+# ──────────────────────────────────────────────
+# Controls the 4 developer convenience hooks added in v1.157.0.
+# All enabled by default. Set enabled: false to disable any hook.
+
+# Keyword detection (UserPromptSubmit hook — KEYWORD-001)
+# Intercepts prompts for magic keywords and suggests Rune workflows.
+# keyword_detection:
+#   enabled: true                    # Master gate for keyword-detector.sh
+#   custom_keywords: {}              # Future: user-defined keyword → workflow mapping
+
+# Tool failure tracking (PostToolUseFailure hook — FAIL-001)
+# Provides escalating retry guidance after repeated tool failures.
+# tool_failure_tracking:
+#   enabled: true                    # Master gate for track-tool-failure.sh
+#   silent_threshold: 2              # Failures before first warning (default: 2)
+#   escalation_threshold: 5          # Failures before "stop retrying" (default: 5)
+#   staleness_minutes: 30            # Ignore failures older than this
+
+# Deliverable verification (SubagentStop hook — DELIV-001)
+# Advisory check that completing agents produced expected output files.
+# deliverable_verification:
+#   enabled: true                    # Master gate for verify-agent-deliverables.sh
+#   min_file_size: 200               # Minimum bytes for review/research deliverable files
+
+# Context stop guard (Stop hook — CTX-STOP-001)
+# Warns when context usage exceeds threshold at conversation stop.
+# Reads the statusline bridge file (consistent with guard-context-critical.sh).
+# Placed LAST in Stop array — exits silently when arc loop is active.
+# context_stop_guard:
+#   enabled: true                    # Master gate for context-percent-stop-guard.sh
+#   warning_threshold: 70            # % context usage for advisory warning (exit 2)
+#   high_threshold: 85               # % context usage for strong warning (exit 2)
+#   max_blocks_per_session: 2        # Prevent infinite block loops
+
+# ──────────────────────────────────────────────
 # Arc — Crash Recovery Configuration
 # ──────────────────────────────────────────────
 # Arc crash recovery uses SessionStart hook detection (v1.145.0):

@@ -590,6 +590,14 @@ arc:
     # NOTE: Total pipeline timeout is computed dynamically by calculateDynamicTimeout(tier).
     # It is NOT configurable via talisman. See SKILL.md for the formula.
 
+  # ── Rate Limit Auto-Resume (v1.157.0+) ────────
+  # When arc-phase or arc-batch stop hooks detect API rate limits in the
+  # transcript tail, they inject a wait instruction before re-injection.
+  rate_limit:
+    enabled: true                  # Enable rate limit detection and auto-wait (default: true)
+    default_wait_seconds: 60       # Wait duration when no retry-after header found (default: 60)
+    max_wait_seconds: 300          # Cap to prevent indefinite waits (default: 300)
+
 # ──────────────────────────────────────────────
 # Arc — Convergence loop settings (v1.37.0+)
 # ──────────────────────────────────────────────
@@ -1792,6 +1800,43 @@ codex_review:
     - performance                    # Hot paths, N+1 queries, memory leaks, excessive allocations
     - quality                        # Code quality, maintainability, naming, complexity
     - dead-code                      # Unused exports, unreachable code, orphaned files
+
+# ──────────────────────────────────────────────
+# Keyword Detection — UserPromptSubmit hook (KEYWORD-001)
+# Suggests Rune workflows based on natural language keywords in user prompts.
+# Advisory-only: never blocks prompts, only injects workflow suggestions.
+# ──────────────────────────────────────────────
+keyword_detection:
+  enabled: true                    # Master gate for keyword-detector.sh (default: true)
+  # custom_keywords: {}            # Future: user-defined keyword → workflow mapping
+
+# ──────────────────────────────────────────────
+# Tool Failure Tracking — PostToolUseFailure hook (FAIL-001)
+# Tracks tool failures per session with escalating retry guidance.
+# ──────────────────────────────────────────────
+tool_failure_tracking:
+  enabled: true                    # Master gate for track-tool-failure.sh (default: true)
+  silent_threshold: 2              # Failures before first warning (default: 2)
+  escalation_threshold: 5          # Failures before "stop retrying" guidance (default: 5)
+  staleness_minutes: 30            # Ignore failures older than this many minutes (default: 30)
+
+# ──────────────────────────────────────────────
+# Deliverable Verification — SubagentStop hook (DELIV-001)
+# Advisory check that expected output files exist when agents stop.
+# ──────────────────────────────────────────────
+deliverable_verification:
+  enabled: true                    # Master gate for verify-agent-deliverables.sh (default: true)
+  min_file_size: 200               # Minimum bytes for deliverable files (default: 200)
+
+# ──────────────────────────────────────────────
+# Context Stop Guard — Stop hook (CTX-STOP-001)
+# Warns when context usage exceeds configurable thresholds on conversation stop.
+# ──────────────────────────────────────────────
+context_stop_guard:
+  enabled: true                    # Master gate for context-percent-stop-guard.sh (default: true)
+  warning_threshold: 70            # % context usage for warning (default: 70)
+  high_threshold: 85               # % context usage for strong warning (default: 85)
+  max_blocks_per_session: 2        # Prevent infinite block loops (default: 2)
 
 # ──────────────────────────────────────────────
 # Debug — ACH-based parallel debugging (/rune:debug)

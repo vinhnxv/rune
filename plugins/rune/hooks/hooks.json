@@ -1,6 +1,45 @@
 {
   "description": "Rune plugin hooks for event-driven agent synchronization, quality gates, and security enforcement. Hooks fire for all events; filtering is done in-script via rune-*/arc-* prefix guards.",
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "_rationale": "KEYWORD-001: Advisory workflow suggestion based on prompt keywords. Suggests Rune workflows (review, plan, audit, debug, etc.) based on natural language. Never blocks — advisory only. Talisman-gated via keyword_detection.enabled.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/keyword-detector.sh",
+            "timeout": 3,
+            "statusMessage": "Checking prompt for Rune workflow keywords..."
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "_rationale": "FAIL-001: Escalating retry guidance for repeated tool failures. Silent for failures 1-2, advisory at 3-4, strong advisory (stop retrying) at 5+. Talisman-gated via tool_failure_tracking.enabled.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/track-tool-failure.sh",
+            "timeout": 3,
+            "statusMessage": "Tracking tool failure..."
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "_rationale": "DELIV-001: Advisory deliverable existence check on agent stop. Warns when review/research/work agents complete without producing expected output files. Non-blocking — SubagentStop hooks cannot prevent stopping.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/verify-agent-deliverables.sh",
+            "timeout": 5,
+            "statusMessage": "Verifying agent deliverables..."
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Write|Edit|Bash|NotebookEdit",
@@ -252,6 +291,17 @@
             "statusMessage": "Advising on MCP/web output trust..."
           }
         ]
+      },
+      {
+        "_rationale": "FAIL-001 RESET: Clears per-tool failure counter on successful tool use. Companion to track-tool-failure.sh. Prevents stale failure counts from triggering escalation on future unrelated failures of the same tool.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/reset-tool-failure.sh",
+            "timeout": 2,
+            "statusMessage": "Resetting tool failure counter..."
+          }
+        ]
       }
     ],
     "TaskCompleted": [
@@ -455,6 +505,17 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/learn/detect-corrections.sh",
             "timeout": 5,
             "statusMessage": "Checking for correction learning opportunities..."
+          }
+        ]
+      },
+      {
+        "_rationale": "CTX-STOP-001: Context usage warning on conversation stop. Advisory — warns at 70% and 85% used thresholds via existing statusline bridge file. LAST in Stop array (per F1: must not block arc-phase-stop-hook.sh from running first). Never blocks context_limit stops or user aborts. Talisman-gated via context_stop_guard.enabled.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/context-percent-stop-guard.sh",
+            "timeout": 5,
+            "statusMessage": "Checking context usage threshold..."
           }
         ]
       },

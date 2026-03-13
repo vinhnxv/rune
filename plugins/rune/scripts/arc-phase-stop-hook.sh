@@ -1061,6 +1061,23 @@ if [[ -n "${_DISPATCH_COUNT_FILE:-}" && -n "${_new_count:-}" && -n "${NEXT_PHASE
   fi
 fi
 
+# ── Rate limit check before phase prompt injection ──
+# NEW (v1.157.0): Detect API rate limit in transcript tail. If detected, prepend
+# a wait instruction to the phase prompt so the arc pauses before executing.
+_rl_wait=0
+if _rl_wait=$(_rune_detect_rate_limit "${HOOK_SESSION_ID:-}" "$CWD" 2>/dev/null); then
+  _trace "Rate limit detected — prepending wait ${_rl_wait}s to phase prompt"
+  PHASE_PROMPT="[RATE-LIMIT] API rate limit detected. Wait ${_rl_wait} seconds before proceeding with the next phase. Use: Bash(\"sleep ${_rl_wait}\")
+
+${PHASE_PROMPT}"
+  # Log rate limit event for observability
+  if [[ -n "${_PHASE_LOG_DIR:-}" ]]; then
+    printf '{"event":"rate_limit","phase":"%s","wait_seconds":%d,"timestamp":"%s"}\n' \
+      "$NEXT_PHASE" "$_rl_wait" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date +%Y-%m-%dT%H:%M:%SZ)" \
+      >> "${_PHASE_LOG_DIR}/phase-log.jsonl" 2>/dev/null || true
+  fi
+fi
+
 # ── Output phase prompt to stderr and exit 2 to continue conversation ──
 # Stop hook semantics: exit 0 = allow stop (stdout/stderr discarded).
 # Exit 2 = show stderr to model and continue conversation.

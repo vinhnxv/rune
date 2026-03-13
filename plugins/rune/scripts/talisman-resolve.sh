@@ -260,7 +260,11 @@ all_shards=$(echo "$merged" | jq '{
     schema_drift: (.schema_drift // {}),
     deployment_verification: (.deployment_verification // {}),
     integrations: (.integrations // {})
-  }
+  },
+  keyword_detection: (.keyword_detection // {}),
+  tool_failure_tracking: (.tool_failure_tracking // {}),
+  deliverable_verification: (.deliverable_verification // {}),
+  context_stop_guard: (.context_stop_guard // {})
 }' 2>/dev/null)
 
 if [[ -z "$all_shards" || "$all_shards" == "null" ]]; then
@@ -269,7 +273,7 @@ if [[ -z "$all_shards" || "$all_shards" == "null" ]]; then
 fi
 
 # ── Write shards atomically (mktemp in $SHARD_DIR + mv) ──
-SHARD_NAMES=("arc" "codex" "review" "work" "goldmask" "plan" "gates" "settings" "inspect" "testing" "audit" "ux" "misc")
+SHARD_NAMES=("arc" "codex" "review" "work" "goldmask" "plan" "gates" "settings" "inspect" "testing" "audit" "ux" "misc" "keyword_detection" "tool_failure_tracking" "deliverable_verification" "context_stop_guard")
 shard_count=0
 
 for shard_name in "${SHARD_NAMES[@]}"; do

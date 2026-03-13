@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [1.157.0] - 2026-03-14
+
+### Added
+- **KEYWORD-001: UserPromptSubmit keyword detection hook** (`scripts/keyword-detector.sh`) — Intercepts user prompts and suggests matching Rune workflows based on 9 keyword patterns (review, plan, audit, brainstorm, implement, debug, impact, arc, cancel). Advisory only — never blocks. Talisman-gated via `keyword_detection.enabled`. Includes Vietnamese keyword support.
+- **FAIL-001: PostToolUseFailure escalating retry guidance** (`scripts/track-tool-failure.sh`) — Tracks per-session, per-tool failure counts. Silent for failures 1-2, advisory at 3-4, strong "stop retrying" guidance at 5+. Talisman-gated with configurable thresholds. Companion: `reset-tool-failure.sh` clears counters on success.
+- **FAIL-001 success reset** (`scripts/reset-tool-failure.sh`) — Clears failure counter when a tool succeeds, preventing stale counts from triggering escalation on future unrelated failures.
+- **DELIV-001: SubagentStop deliverable verification** (`scripts/verify-agent-deliverables.sh`) — Advisory check that agents produced expected output files on stop. Checks review agents (findings in tmp/), research agents (output in tmp/plans/*/research/), and work agents (git diff non-empty). Non-blocking.
+- **CTX-STOP-001: Stop hook context percentage guard** (`scripts/context-percent-stop-guard.sh`) — Warns at 70% and 85% context usage thresholds via existing statusline bridge file. Advisory — never blocks. Max 2 warnings per session. Never fires on context_limit or user-abort stops.
+- **Rate limit auto-resume** in arc Stop hooks (`scripts/stop-hook-common.sh`) — Detects rate limit errors in transcript and injects wait guidance with auto-resume after backoff.
+- 4 new talisman config sections: `keyword_detection`, `tool_failure_tracking`, `deliverable_verification`, `context_stop_guard` — all with enabled/threshold knobs for feature gating.
+
 ## [1.156.1] - 2026-03-14
 
 ### Fixed

@@ -137,6 +137,24 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 
 ## Quick Start
 
+### Magic Keywords (Developer Convenience Hooks)
+
+Rune intercepts natural language prompts and suggests the matching workflow automatically:
+
+| Keyword Pattern | Suggested Workflow | Skill |
+|----------------|-------------------|-------|
+| `review`, `check my code`, `code review` | Multi-agent code review | `/rune:appraise` |
+| `plan`, `design this`, `how should we` | Multi-agent planning | `/rune:devise` |
+| `audit`, `security scan`, `full codebase` | Full codebase audit | `/rune:audit` |
+| `brainstorm`, `explore idea` | Structured ideation | `/rune:brainstorm` |
+| `implement`, `build it`, `execute the plan` | Swarm implementation | `/rune:strive` |
+| `debug`, `fix this bug`, `root cause` | Parallel debugging | `/rune:debug` |
+| `impact`, `blast radius`, `what breaks` | Impact analysis | `/rune:goldmask` |
+| `run arc`, `end to end` | Full pipeline | `/rune:arc` |
+| `cancelrune`, `stoprune` | Cancel active workflow | `/rune:cancel-*` |
+
+Type any of these naturally — Rune will suggest the workflow inline. Use `/rune:tarnished` for explicit routing.
+
 ```bash
 # End-to-end pipeline (29 phases): freshness check → forge → plan review → plan refinement → verification → semantic verification → design extraction → design prototype → task decomposition → work → storybook verification → design verification → ux verification → gap analysis → codex gap analysis → gap remediation → goldmask verification → code review → goldmask correlation → mend → verify mend → design iteration → test → test coverage critique → pre-ship validation → release quality check → ship → bot review wait → PR comment resolution → merge
 /rune:arc plans/my-plan.md
