@@ -30,13 +30,61 @@ if (existingState && /^active:\s*true$/m.test(existingState)) {
     if (alive === "alive") ownedByOther = true
   }
 
-  if (ownedByOther && !resumeMode) {
-    error("Another session is already executing arc-hierarchy on this repo.")
-    error("Cancel it with /rune:cancel-arc-hierarchy, or use --resume to continue your own session.")
-    return
+  if (ownedByOther) {
+    if (!resumeMode) {
+      error("Another session is already executing arc-hierarchy on this repo.")
+      error("Cancel it with /rune:cancel-arc-hierarchy, or use --resume to continue your own session.")
+      return
+    }
+
+    // ── RESUME GUARD: Validate before allowing bypass ──
+    // --resume only allows bypass when:
+    // 1. config_dir matches (same installation)
+    // 2. Owner PID is dead (orphan recovery)
+    if (existingCfg && existingCfg !== configDir) {
+      error(`Cannot resume: hierarchy belongs to different config dir`)
+      error(`  Stored:  ${existingCfg}`)
+      error(`  Current: ${configDir}`)
+      error(`Delete .claude/arc-hierarchy-loop.local.md manually to force-claim.`)
+      return
+    }
+
+    // SEC-1: Numeric PID guard before kill -0 interpolation
+    if (existingPid && /^\d+$/.test(existingPid)) {
+      const alive = Bash(`kill -0 ${existingPid} 2>/dev/null && echo "alive" || echo "dead"`).trim()
+      if (alive === 'alive') {
+        error(`Cannot resume: hierarchy is owned by live PID ${existingPid} in a different session.`)
+        error(`Cancel it with /rune:cancel-arc-hierarchy, or wait for it to finish.`)
+        return
+      }
+      warn(`Previous hierarchy owner (PID ${existingPid}) is dead. Claiming ownership for resume.`)
+    }
+
+    // ── TRANSIENT STATE RESET (G3 race mitigation) ──
+    // Quick-patch: reset compact_pending before state file rewrite
+    const patchedState = existingState.replace(/compact_pending:\s*true/, 'compact_pending: false')
+    if (patchedState !== existingState) {
+      Write(stateFile, patchedState)
+      warn('Reset stale compact_pending in state file.')
+    }
   }
-  if (!ownedByOther) {
+
+  if (!ownedByOther && !resumeMode) {
     warn("Found existing state file from this session. Overwriting (use --resume to continue from current table state).")
+  }
+
+  // ── BRANCH GUARD: Verify feature branch matches on resume ──
+  if (resumeMode && existingState) {
+    const storedBranch = existingState.match(/feature_branch:\s*(.+)/)?.[1]?.trim()
+    if (storedBranch && storedBranch !== '') {
+      const currentBranch = Bash('git branch --show-current 2>/dev/null').trim()
+      if (currentBranch !== storedBranch) {
+        error(`Cannot resume: hierarchy expects feature branch "${storedBranch}"`)
+        error(`  Current branch: ${currentBranch}`)
+        error(`  Run: git checkout ${storedBranch}`)
+        return
+      }
+    }
   }
 }
 ```
