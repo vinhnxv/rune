@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [1.156.0] - 2026-03-13
+
+### Added
+- **Arc operational resilience** — stuck detection (GUARD 9: per-phase dispatch count, 4-dispatch cap), Boundary Map section in plan templates for explicit produces/consumes contracts, Must-Haves Task Verification Protocol (Truths/Artifacts/Key Links), Reassessment Gate in gap-analysis (STEP D.6, >40% MISSING triggers warning)
+
+### Changed
+- **Rune Workflow Quality Improvements** — arc phase stop hook hardened with ownership claim (write session_id + owner_pid on first touch, update stale PID on resume), pre-aggregation Layer 1.5 expanded, strive file-ownership enforcement strengthened, forge-team reference added
+- **Session team hygiene**: Removed Layer 2 arc resumability advisory that caused automatic arc resume without user consent — users must explicitly run `/rune:arc --resume`
+
 ## [1.155.0] - 2026-03-13
 
 ### Removed
