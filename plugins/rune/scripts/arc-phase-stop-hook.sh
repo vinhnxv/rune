@@ -25,7 +25,7 @@ trap '[[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit' EXI
 umask 077
 
 # ── Opt-in trace logging ──
-RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
 # SEC-004: Restrict trace log to expected TMPDIR location to prevent env-var redirect attacks
 case "$RUNE_TRACE_LOG" in
   "${TMPDIR:-/tmp}/"*) ;;  # allowed
@@ -158,11 +158,15 @@ if [[ -n "$HOOK_SESSION_ID" ]] && [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,12
   HOOK_SESSION_ID=""
 fi
 
-# ── GUARD 5.7: Session isolation (between 5.5 and 6 — intentional; phase hook
-# requires session check after CHECKPOINT_PATH validation, unlike batch/issues hooks) ──
-# "phase" mode: no progress file to update on orphan — falls through to "skip" (remove state + exit 0)
-_trace "Session check: stored_pid=$(get_field 'owner_pid') PPID=${PPID}"
-validate_session_ownership "$STATE_FILE" "" "phase"
+# ── GUARD 5.7: Session isolation (strict — no orphan cleanup) ──
+# Uses validate_session_ownership_strict: returns 1 on mismatch, NEVER deletes state files.
+# Orphan handling moved to SKILL.md pre-flight (Decision Matrix 1, cases F4/F6).
+# This hook ONLY continues if session_id matches (or claim-on-first-touch succeeds).
+_trace "Session check (strict): stored_pid=$(get_field 'owner_pid') stored_sid=$(get_field 'session_id') PPID=${PPID}"
+if ! validate_session_ownership_strict "$STATE_FILE"; then
+  _trace "EXIT: session ownership strict check failed — not our arc"
+  exit 0
+fi
 
 # ── GUARD 6: Validate active flag ──
 if [[ "$ACTIVE" != "true" ]]; then
@@ -593,7 +597,6 @@ if [[ -z "$NEXT_PHASE" ]]; then
   # If no batch loop, on-session-stop.sh handles session cleanup.
   rm -f "$STATE_FILE" 2>/dev/null
   if [[ -f "$STATE_FILE" ]]; then
-    chmod 644 "$STATE_FILE" 2>/dev/null
     rm -f "$STATE_FILE" 2>/dev/null
     if [[ -f "$STATE_FILE" ]]; then
       : > "$STATE_FILE" 2>/dev/null
@@ -638,16 +641,16 @@ if [[ "$COMPACT_PENDING" == "true" ]]; then
   if [[ -z "$_sf_mtime" ]]; then
     _trace "Stale compact_pending check: stat failed — keeping compact_pending state"
   else
-  _sf_now=$(date +%s)
-  _sf_age=$(( _sf_now - _sf_mtime ))
-  if [[ "$_sf_age" -gt 300 ]]; then
-    _trace "Stale compact_pending (${_sf_age}s > 300s) — resetting"
-    _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { rm -f "$STATE_FILE" 2>/dev/null; exit 0; }
-    sed 's/^compact_pending: true$/compact_pending: false/' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
-      && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
-      || { rm -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null; exit 0; }
-    COMPACT_PENDING="false"
-  fi
+    _sf_now=$(date +%s)
+    _sf_age=$(( _sf_now - _sf_mtime ))
+    if [[ "$_sf_age" -gt 300 ]]; then
+      _trace "Stale compact_pending (${_sf_age}s > 300s) — resetting"
+      _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { rm -f "$STATE_FILE" 2>/dev/null; exit 0; }
+      sed 's/^compact_pending: true$/compact_pending: false/' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
+        && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
+        || { rm -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null; exit 0; }
+      COMPACT_PENDING="false"
+    fi
   fi  # end else (stat succeeded)
 fi
 
@@ -756,6 +759,8 @@ Then STOP responding immediately. Do NOT execute any commands, read any files, o
 fi
 
 # Phase B: Reset compact_pending if it was set
+# Track whether we just completed Phase B for context-critical handling
+_JUST_COMPLETED_COMPACT="false"
 if [[ "$COMPACT_PENDING" == "true" ]]; then
   if [[ ! -s "$STATE_FILE" ]]; then
     _trace "State file empty before compact Phase B — aborting"
@@ -766,10 +771,36 @@ if [[ "$COMPACT_PENDING" == "true" ]]; then
     && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
     || { rm -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null; exit 0; }
   _trace "Compact interlude Phase B: proceeding to ${NEXT_PHASE}"
+  _JUST_COMPLETED_COMPACT="true"
 fi
 
 # ── Context-critical check before phase prompt injection ──
+# BUG FIX (v1.156.1): After compact interlude Phase B, if context is still critical,
+# we're in a hopeless state — compaction didn't free enough space. Inject a notification
+# message so the user understands why the arc stopped, instead of silently exiting.
 if _check_context_critical 2>/dev/null; then
+  if [[ "$_JUST_COMPLETED_COMPACT" == "true" ]]; then
+    # Compact interlude just completed but context is still critical.
+    # Inject notification message and clean up gracefully.
+    _trace "Context critical after compact interlude — injecting exhaustion notice"
+    rm -f "$STATE_FILE" 2>/dev/null
+    printf '%s\n' "Arc Pipeline — Context Exhaustion
+
+The arc pipeline cannot continue. Context compaction was attempted but the context window is still critically low (≤25% remaining).
+
+**Arc ID:** ${ARC_ID:-unknown}
+**Current phase:** ${NEXT_PHASE}
+**Checkpoint preserved at:** ${CWD}/${CHECKPOINT_PATH}
+
+To resume this arc later, run:
+\`\`\`
+/rune:arc --resume
+\`\`\`
+
+Present a brief summary of what was accomplished and STOP responding." >&2
+    exit 2
+  fi
+  # Normal context-critical path (not after compact interlude)
   _trace "Context critical — removing state file, allowing stop"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0

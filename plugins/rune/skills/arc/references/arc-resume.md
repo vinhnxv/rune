@@ -42,9 +42,47 @@ On resume, validate checkpoint integrity before proceeding:
    checkpoint.owner_pid = Number(Bash('echo $PPID').trim())
    checkpoint.config_dir = CHOME
    checkpoint.session_id = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
+   // STSM-009: Reset transient state on resume — compact_pending and stop_reason
+   // are per-session flags that must not carry over from a crashed/stopped session.
+   checkpoint.compact_pending = false
+   checkpoint.stop_reason = null
    // Re-export ownership vars so the state file (written later by SKILL.md) uses the new session's values
    ownerPid = checkpoint.owner_pid
    configDir = checkpoint.config_dir
+   ```
+2d. Branch validation (prevents resuming on wrong branch):
+   > **Note**: Pre-v22 checkpoints do not contain a `branch` field. The field is added
+   > during v21→v22 migration (step 3w) but defaults to `null` since the original session's
+   > branch is unknown. In this case, branch validation is safely skipped — the `checkpointBranch`
+   > guard short-circuits on `null`. Full branch validation only applies to checkpoints
+   > created on schema v22+.
+
+   ```javascript
+   // Branch safety: verify current branch matches checkpoint's branch
+   const currentBranch = Bash('git branch --show-current 2>/dev/null').trim()
+   const checkpointBranch = checkpoint.branch ?? null
+   // BACK-009: Detect detached HEAD — git branch --show-current returns empty string
+   if (!currentBranch && checkpointBranch) {
+     warn(`Detached HEAD detected: checkpoint expects branch "${checkpointBranch}" but HEAD is detached. Branch validation skipped — proceed with caution.`)
+   }
+   // SEC-003: Sanitize branch names before including in error messages or shell commands
+   const sanitizeBranch = (b) => b.replace(/[^a-zA-Z0-9_.\-\/]/g, '_').slice(0, 256)
+   if (checkpointBranch && currentBranch && currentBranch !== checkpointBranch) {
+     const safeCpBranch = sanitizeBranch(checkpointBranch)
+     const safeCurBranch = sanitizeBranch(currentBranch)
+     throw new Error(
+       `Branch mismatch: checkpoint expects "${safeCpBranch}" but current branch is "${safeCurBranch}". ` +
+       `Run \`git checkout ${safeCpBranch}\` before resuming.`
+     )
+   }
+   // If checkpoint has no branch field (pre-v22), skip validation — legacy checkpoint
+   ```
+2e. Reset stale dispatch counts (STSM-005):
+   ```javascript
+   // STSM-005: Remove phase-dispatch-counts.json on resume to prevent stale
+   // dispatch counts from a prior session causing incorrect phase skip/retry logic.
+   const dispatchCountsPath = `tmp/arc/${checkpoint.id}/phase-dispatch-counts.json`
+   Bash(`rm -f "${dispatchCountsPath}" 2>/dev/null`)
    ```
 3. Schema migration (default missing schema_version: `const version = checkpoint.schema_version ?? 1`):
    if version < 2, migrate v1 → v2:
@@ -336,8 +374,8 @@ On resume, validate checkpoint integrity before proceeding:
         warn(`Suspended task #${task_id}: invalid context path "${context_path}" — skipping`)
         continue
       }
-      const resolvedPath = Bash(`realpath -m "${context_path}" 2>/dev/null || echo ""`).trim()
-      const resolvedCwd = Bash(`realpath -m "$(pwd)/tmp/work/" 2>/dev/null || echo ""`).trim()
+      const resolvedPath = Bash(`grealpath -m "${context_path}" 2>/dev/null || realpath -m "${context_path}" 2>/dev/null || readlink -f "${context_path}" 2>/dev/null || echo ""`).trim()
+      const resolvedCwd = Bash(`grealpath -m "$(pwd)/tmp/work/" 2>/dev/null || realpath -m "$(pwd)/tmp/work/" 2>/dev/null || readlink -f "$(pwd)/tmp/work/" 2>/dev/null || echo ""`).trim()
       if (!resolvedPath || !resolvedCwd || !resolvedPath.startsWith(resolvedCwd)) {
         warn(`Suspended task #${task_id}: context path escapes tmp/work/ after canonicalization — skipping`)
         continue
@@ -354,7 +392,11 @@ On resume, validate checkpoint integrity before proceeding:
       // Integrity check (FAIL-002)
       const storedSha = contextMeta.content_sha256
       const contentForHash = contextRaw.replace(/content_sha256: ".+"/, 'content_sha256: ""')
-      const actualSha = Bash(`printf '%s' "${contentForHash}" | sha256sum | cut -d' ' -f1`).trim()
+      // DSEC-002: Write to temp file to avoid shell injection via file-content interpolation
+      const tmpHashFile = `tmp/arc/${checkpoint.id}/.hash-check-${task_id}.tmp`
+      Write(tmpHashFile, contentForHash)
+      const actualSha = Bash(`sha256sum "${tmpHashFile}" | cut -d' ' -f1`).trim()
+      Bash(`rm -f "${tmpHashFile}"`)  // cleanup temp file
       if (storedSha !== actualSha) {
         warn(`Suspended task #${task_id}: context integrity check FAILED (expected ${storedSha}, got ${actualSha}) — cold restart`)
         continue
