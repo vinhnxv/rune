@@ -254,31 +254,54 @@ TASK_DIR="$CHOME/tasks/$TEAM_NAME"
 if [[ -d "$TASK_DIR" ]]; then
   # Create lock file specific to this worker (prevents cross-worker contention)
   LOCK_FILE="${TMPDIR:-/tmp}/rune-test-evidence-${TEAM_NAME}-${TEAMMATE_NAME}.lock"
-  LOCK_FD=200
 
-  # Use flock with 2-second timeout (fail-open on lock contention)
-  # This ensures atomic counting while preventing deadlocks
-  (
-    flock -w 2 $LOCK_FD 2>/dev/null || exit 0  # Fail-open on lock timeout
-
-    REMAINING=0
-    while IFS= read -r -d '' task_file; do
-      if [[ -f "$task_file" ]]; then
-        OWNER=$(jq -r '.owner // empty' "$task_file" 2>/dev/null || echo "")
-        STATUS=$(jq -r '.status // empty' "$task_file" 2>/dev/null || echo "")
-        if [[ "$OWNER" == "$TEAMMATE_NAME" ]] && [[ "$STATUS" != "completed" ]]; then
-          REMAINING=$((REMAINING + 1))
+  # Portable "remaining tasks" count with atomic locking.
+  # Two branches:
+  #   Linux  — flock(1) available, fd 200 (literal integer for bash 3.2 compat).
+  #            NOTE: {LOCK_FD} named-fd syntax is bash 4.1+ only and breaks macOS.
+  #   macOS  — flock unavailable; mkdir-based advisory lock (fail-open on contention).
+  LOCK_EXIT=0
+  _count_remaining_tasks() {
+    local _remaining=0
+    while IFS= read -r -d '' _tf; do
+      if [[ -f "$_tf" ]]; then
+        local _owner _tstat
+        _owner=$(jq -r '.owner // empty' "$_tf" 2>/dev/null || echo "")
+        _tstat=$(jq -r '.status // empty' "$_tf" 2>/dev/null || echo "")
+        if [[ "$_owner" == "$TEAMMATE_NAME" ]] && [[ "$_tstat" != "completed" ]]; then
+          _remaining=$(( _remaining + 1 ))
         fi
       fi
     done < <(find "$TASK_DIR" -maxdepth 1 -name '*.json' -type f -print0 2>/dev/null)
+    echo "$_remaining"
+  }
 
-    # Only skip if this is NOT the last task (REMAINING > 1 means current + others)
-    if [[ $REMAINING -gt 1 ]]; then
-      exit 99  # Signal to outer scope: skip validation
+  if command -v flock &>/dev/null; then
+    # flock available (Linux) — file-descriptor locking, literal fd 200 (bash 3.2 safe)
+    (
+      flock -w 2 200 2>/dev/null || exit 0  # Fail-open on lock timeout
+
+      REMAINING=$(_count_remaining_tasks)
+
+      # Only skip if this is NOT the last task (REMAINING > 1 means current + others)
+      if [[ $REMAINING -gt 1 ]]; then
+        exit 99  # Signal to outer scope: skip validation
+      fi
+      exit 0  # Proceed with validation
+    ) 200>"$LOCK_FILE"
+    LOCK_EXIT=$?
+  else
+    # flock unavailable (macOS) — mkdir-based advisory lock (fail-open on contention)
+    LOCK_DIR="${LOCK_FILE}.dir"
+    if mkdir "$LOCK_DIR" 2>/dev/null; then
+      REMAINING=$(_count_remaining_tasks)
+      if [[ $REMAINING -gt 1 ]]; then
+        LOCK_EXIT=99
+      fi
+      rm -rf "$LOCK_DIR" 2>/dev/null || true
     fi
-    exit 0  # Proceed with validation
-  ) {LOCK_FD}>"$LOCK_FILE"
-  LOCK_EXIT=$?
+    # If mkdir fails (another instance holds lock), fail-open: proceed with validation
+  fi
 
   # Clean up lock file on success (best effort, ignore errors)
   rm -f "$LOCK_FILE" 2>/dev/null || true
@@ -286,8 +309,7 @@ if [[ -d "$TASK_DIR" ]]; then
   if [[ $LOCK_EXIT -eq 99 ]]; then
     exit 0  # Worker has more tasks, check evidence at last task only
   fi
-  # exit 0 from subshell = proceed with validation
-  # exit 0 from flock timeout = fail-open, proceed with validation
+  # exit 0 = proceed with validation
 fi
 
 # ── Step 3: Check for test evidence files ──
