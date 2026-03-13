@@ -75,7 +75,7 @@ if (planSha && SAFE_SHA_PATTERN.test(planSha)) {
 
   // G2: Verify SHA exists in git history
   const shaExists = Bash(`git cat-file -t "${planSha}" 2>/dev/null`)
-  const shaReachable = shaExists.stdout.trim() === "commit"
+  const shaReachable = shaExists.trim() === "commit"
 
   // ── Signal 1: Commit Distance (weight 0.25) ──
   let commitDistance = 0
@@ -84,7 +84,7 @@ if (planSha && SAFE_SHA_PATTERN.test(planSha)) {
     const timeoutMs = Math.max(100, freshnessDeadline - Date.now())
     const countResult = Bash(`git rev-list --count "${planSha}..HEAD" 2>/dev/null`, { timeout: Math.min(5000, timeoutMs) })
     commitDistance = countResult.exitCode === 0
-      ? parseInt(countResult.stdout.trim(), 10) || 0
+      ? parseInt(countResult.trim(), 10) || 0
       : config.max_commit_distance  // E3: shallow clone fallback
   } else {
     commitDistance = config.max_commit_distance  // G2: unreachable SHA
@@ -104,7 +104,7 @@ if (planSha && SAFE_SHA_PATTERN.test(planSha)) {
     const diffResult = Bash(`git diff --name-status "${planSha}..HEAD" 2>/dev/null`)
     const changedFiles = new Set()
     const renameMap = {}
-    const diffOutput = diffResult.stdout.trim()
+    const diffOutput = diffResult.trim()
     for (const line of (diffOutput ? diffOutput.split('\n') : [])) {
       const [tstat, ...paths] = line.split('\t')
       if (tstat?.startsWith('R') && paths.length >= 2) {
@@ -141,13 +141,13 @@ if (planSha && SAFE_SHA_PATTERN.test(planSha)) {
       const timeoutMs = Math.max(100, freshnessDeadline - Date.now())
       const grepResult = Bash(`rg -l --max-count 1 --glob '!node_modules' --glob '!vendor' --glob '!tmp' --glob '!.git' "${pattern}" 2>/dev/null | head -1`, { timeout: Math.min(3000, timeoutMs) })
       if (grepResult.timedOut) { identifierLossSignal = 0.5; break }
-      if (grepResult.stdout.trim().length === 0) {
+      if (grepResult.trim().length === 0) {
         lostCount += batch.length
       } else {
         for (const id of batch) {
           if (checkBudget()) break
           const singleResult = Bash(`rg -l --max-count 1 --glob '!node_modules' --glob '!vendor' --glob '!tmp' --glob '!.git' "${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}" 2>/dev/null | head -1`, { timeout: 1000 })
-          if (singleResult.timedOut || singleResult.stdout.trim().length === 0) lostCount++
+          if (singleResult.timedOut || singleResult.trim().length === 0) lostCount++
         }
       }
     }
@@ -155,7 +155,7 @@ if (planSha && SAFE_SHA_PATTERN.test(planSha)) {
   }
 
   // ── Signal 4: Branch Divergence (weight 0.10) ──
-  const currentBranch = Bash('git branch --show-current 2>/dev/null').stdout.trim() || null
+  const currentBranch = Bash('git branch --show-current 2>/dev/null').trim() || null
   let branchSignal = 0
   if (planBranch && currentBranch && planBranch !== currentBranch) {
     branchSignal = 0.5
@@ -165,7 +165,7 @@ if (planSha && SAFE_SHA_PATTERN.test(planSha)) {
   let timeSignal = 0
   if (shaReachable) {
     const commitTime = Bash(`git show -s --format=%ct "${planSha}" 2>/dev/null`)
-    const commitEpoch = parseInt(commitTime.stdout.trim(), 10) || 0
+    const commitEpoch = parseInt(commitTime.trim(), 10) || 0
     if (!isNaN(commitEpoch) && commitEpoch > 0) {
       const daysSince = (Date.now() / 1000 - commitEpoch) / 86400
       if (daysSince > 90) timeSignal = 1.0
@@ -264,7 +264,7 @@ if (planSha && SAFE_SHA_PATTERN.test(planSha)) {
     `**Score**: ${freshnessScore.toFixed(3)}/1.0\n` +
     `**Status**: ${freshnessResult.status}\n` +
     `**Plan SHA**: ${planSha}\n` +
-    `**Current HEAD**: ${Bash('git rev-parse --short HEAD').stdout.trim()}\n` +
+    `**Current HEAD**: ${Bash('git rev-parse --short HEAD').trim()}\n` +
     `**Checked at**: ${freshnessResult.checked_at}\n\n` +
     `## Signal Breakdown\n\n` +
     `| Signal | Weight | Raw | Normalized |\n|--------|--------|-----|------------|\n` +
@@ -274,6 +274,11 @@ if (planSha && SAFE_SHA_PATTERN.test(planSha)) {
     `| Branch Divergence | 0.10 | ${planBranch || 'n/a'} → ${currentBranch || 'n/a'} | ${branchSignal.toFixed(3)} |\n` +
     `| Time Decay | 0.05 | — | ${timeSignal.toFixed(3)} |\n`
   Write(`tmp/arc/${id}/freshness-report.md`, report)
+
+  // FLAW-003 FIX: Persist freshnessResult to checkpoint for Layer 2 re-check in verification-gate.md
+  // Without this, checkpoint?.freshness is always undefined and verification gate's
+  // freshness re-check (section 8) silently fails on first term.
+  updateCheckpoint({ freshness: freshnessResult })
   } // end else — signal computation (LOGIC-1: skip guard)
 }
 ```

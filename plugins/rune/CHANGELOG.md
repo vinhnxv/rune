@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.154.4] - 2026-03-13
+
+### Fixed
+- **Arc completion stamp missing 12 phases**: Phase results table in `arc-phase-completion-stamp.md` only tracked 17/29 phases. Added missing: `design_extraction`, `design_prototype`, `task_decomposition`, `storybook_verification`, `design_verification`, `ux_verification`, `design_iteration`, `test_coverage_critique`, `pre_ship_validation`, `release_quality_check`, `bot_review_wait`, `pr_comment_resolution`. Completion records now show all 29 phases matching PHASE_ORDER.
+- **Freshness gate result never persisted to checkpoint** (FLAW-003): `freshness-gate.md` computed `freshnessResult` but never called `updateCheckpoint({ freshness: freshnessResult })`. This caused Layer 2 freshness re-check in `verification-gate.md` (section 8) to always silently fail because `checkpoint?.freshness` was always undefined.
+- **Design iteration phase_sequence collision**: `arc-phase-design-iteration.md` used `phase_sequence: 5.3` which collided with `ux_verification` (also 5.3). Corrected to `phase_sequence: 7.6` matching the phase display number.
+
 ## [1.154.3] - 2026-03-13
 
 ### Fixed

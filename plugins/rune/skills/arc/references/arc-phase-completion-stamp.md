@@ -96,32 +96,46 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
 
   // Use branch from checkpoint or fall back to current branch
   // Prefer checkpoint data over live git query (branch may have changed during arc)
-  const rawBranch = Bash("git branch --show-current 2>/dev/null").stdout.trim() || "unknown"
+  const rawBranch = Bash("git branch --show-current 2>/dev/null").trim() || "unknown"
   const branch = /^[a-zA-Z0-9._\/-]+$/.test(rawBranch) ? rawBranch : "unknown"
 
   // Count existing completion records for run ordinal
   const existingRecords = (content.match(/## Arc Completion Record/g) || []).length
 
   // Phase results table
-  // Phase table dynamically matches PHASE_ORDER (17 phases, v1.67.0+)
+  // Phase table dynamically matches PHASE_ORDER (29 phases, v1.155.0+)
+  // WARNING: Order follows PHASE_ORDER (execution order), NOT numeric phase IDs.
+  // Phase 5.8 (GAP REMEDIATION) executes before Phase 5.7 (GOLDMASK VERIFICATION).
   const phases = [
-    ['1',   'FORGE',           'forge'],
-    ['2',   'PLAN REVIEW',     'plan_review'],
-    ['2.5', 'PLAN REFINEMENT', 'plan_refine'],
-    ['2.7', 'VERIFICATION',    'verification'],
-    ['2.8', 'SEMANTIC VERIFICATION', 'semantic_verification'],
-    ['5',   'WORK',            'work'],
-    ['5.5', 'GAP ANALYSIS',    'gap_analysis'],
-    ['5.6', 'CODEX GAP ANALYSIS', 'codex_gap_analysis'],
-    ['5.8', 'GAP REMEDIATION', 'gap_remediation'],
-    ['5.7', 'GOLDMASK VERIFICATION', 'goldmask_verification'],
-    ['6',   'CODE REVIEW (deep)', 'code_review'],
-    ['6.5', 'GOLDMASK CORRELATION', 'goldmask_correlation'],
-    ['7',   'MEND',            'mend'],
-    ['7.5', 'VERIFY MEND',     'verify_mend'],
-    ['7.7', 'TEST',            'test'],
-    ['9',   'SHIP',            'ship'],
-    ['9.5', 'MERGE',           'merge'],
+    ['1',    'FORGE',                  'forge'],
+    ['2',    'PLAN REVIEW',            'plan_review'],
+    ['2.5',  'PLAN REFINEMENT',        'plan_refine'],
+    ['2.7',  'VERIFICATION',           'verification'],
+    ['2.8',  'SEMANTIC VERIFICATION',  'semantic_verification'],
+    ['3',    'DESIGN EXTRACTION',      'design_extraction'],
+    ['3.2',  'DESIGN PROTOTYPE',       'design_prototype'],
+    ['4.5',  'TASK DECOMPOSITION',     'task_decomposition'],
+    ['5',    'WORK',                   'work'],
+    ['3.3',  'STORYBOOK VERIFICATION', 'storybook_verification'],
+    ['5.2',  'DESIGN VERIFICATION',    'design_verification'],
+    ['5.3',  'UX VERIFICATION',        'ux_verification'],
+    ['5.5',  'GAP ANALYSIS',           'gap_analysis'],
+    ['5.6',  'CODEX GAP ANALYSIS',     'codex_gap_analysis'],
+    ['5.8',  'GAP REMEDIATION',        'gap_remediation'],
+    ['5.7',  'GOLDMASK VERIFICATION',  'goldmask_verification'],
+    ['6',    'CODE REVIEW (deep)',      'code_review'],
+    ['6.5',  'GOLDMASK CORRELATION',   'goldmask_correlation'],
+    ['7',    'MEND',                   'mend'],
+    ['7.5',  'VERIFY MEND',            'verify_mend'],
+    ['7.6',  'DESIGN ITERATION',       'design_iteration'],
+    ['7.7',  'TEST',                   'test'],
+    ['7.8',  'TEST COVERAGE CRITIQUE', 'test_coverage_critique'],
+    ['8',    'PRE-SHIP VALIDATION',    'pre_ship_validation'],
+    ['8.55', 'RELEASE QUALITY CHECK',  'release_quality_check'],
+    ['9',    'SHIP',                   'ship'],
+    ['9.1',  'BOT REVIEW WAIT',        'bot_review_wait'],
+    ['9.2',  'PR COMMENT RESOLUTION',  'pr_comment_resolution'],
+    ['9.5',  'MERGE',                  'merge'],
   ]
 
   let phaseTable = "| # | Phase | Status | Detail |\n|---|-------|--------|--------|\n"
