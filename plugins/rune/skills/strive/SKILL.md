@@ -147,6 +147,11 @@ if (resumeRequested) {
 
     // Live session check: skip if another live session owns this checkpoint
     if (parsed.owner_pid) {
+      // SEC-001: Validate owner_pid is purely numeric before shell use
+      if (!/^\d+$/.test(String(parsed.owner_pid))) {
+        log(`Resume: skipping checkpoint with invalid owner_pid format`)
+        continue
+      }
       const pidAlive = Bash(`kill -0 ${parsed.owner_pid} 2>/dev/null && echo "alive" || echo "dead"`).trim()
       if (pidAlive === "alive" && String(parsed.owner_pid) !== String(Bash("echo $PPID").trim())) {
         log(`Resume: skipping checkpoint owned by live session PID ${parsed.owner_pid}`)
@@ -164,6 +169,10 @@ if (resumeRequested) {
     // Fall through to normal flow
   } else {
     // Plan modification detection: compare plan file mtime
+    // SEC-006: Validate planPath before shell use
+    if (!/^[a-zA-Z0-9._\-\/]+$/.test(planPath) || planPath.includes('..')) {
+      log(`Resume: invalid planPath format — skipping modification check`)
+    } else {
     const currentMtime = Bash(`stat -f '%m' "${planPath}" 2>/dev/null || stat -c '%Y' "${planPath}" 2>/dev/null`).trim()
     if (checkpoint.plan_mtime && currentMtime !== checkpoint.plan_mtime) {
       log("Resume: WARNING — plan file modified since checkpoint. Changes may affect task definitions.")
@@ -180,6 +189,12 @@ if (resumeRequested) {
         const taskFiles = artifactInfo?.files || []
         let allFilesExist = true
         for (const file of taskFiles) {
+          // SEC-002: Validate artifact file path before shell use
+          if (!/^[a-zA-Z0-9._\-\/]+$/.test(file) || file.includes('..')) {
+            log(`Resume: skipping artifact with invalid path format: ${file}`)
+            allFilesExist = false
+            break
+          }
           const exists = Bash(`test -f "${file}" && echo "yes" || echo "no"`).trim()
           if (exists !== "yes") {
             log(`Resume: completed task ${taskIdStr} artifact missing: ${file} — re-adding to pool`)
@@ -207,7 +222,8 @@ if (resumeRequested) {
         )
       }
     }
-  }
+  }  // end SEC-006 else (valid planPath)
+  }  // end checkpointFile else
 }
 ```
 
@@ -372,7 +388,7 @@ Read and execute [quality-gates.md](references/quality-gates.md) before proceedi
 
 **Phase 4.1 — Todo Summary**: Orchestrator generates `worker-logs/_summary.md` after all workers exit. See [todo-protocol.md](references/todo-protocol.md) for full algorithm.
 
-**Phase 4.3 — Doc-Consistency**: Non-blocking version/count drift detection. See `doc-consistency.md` in `roundtable-circle/references/`.
+**Phase 4.3 — Doc-Consistency**: Non-blocking version/count drift detection. See [doc-consistency.md](../roundtable-circle/references/doc-consistency.md).
 
 **Phase 4.4 — Quick Goldmask**: Compare plan-time CRITICAL file predictions against committed files. Emits WARNINGs only. Non-blocking.
 

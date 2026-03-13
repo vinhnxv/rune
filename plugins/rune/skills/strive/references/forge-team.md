@@ -155,6 +155,10 @@ function writeStriveCheckpoint(allTasks) {
   }
 
   // Platform-portable mtime: try BSD stat first (macOS), fall back to GNU stat (Linux)
+  // SEC-006: Validate planPath before shell use
+  if (!/^[a-zA-Z0-9._\-\/]+$/.test(planPath) || planPath.includes('..')) {
+    throw new Error(`Invalid planPath: ${planPath}`)
+  }
   const planMtime = Bash(`stat -f '%m' "${planPath}" 2>/dev/null || stat -c '%Y' "${planPath}" 2>/dev/null`).trim()
 
   const checkpointData = JSON.stringify({
@@ -163,7 +167,7 @@ function writeStriveCheckpoint(allTasks) {
     team_name: teamName,
     config_dir: configDir,
     owner_pid: ownerPid,
-    session_id: SESSION_ID,
+    session_id: SESSION_ID,  // resolved in Wave Configuration section: `const SESSION_ID = Bash("echo $CLAUDE_SESSION_ID").trim()`
     total_tasks: allTasks.length,
     completed_tasks: completedTasks,
     task_artifacts: taskArtifacts,

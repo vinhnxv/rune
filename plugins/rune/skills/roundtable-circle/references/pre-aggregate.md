@@ -560,24 +560,19 @@ function extractSection(content, heading) {
     'm'
   )
   const match = content.match(pattern)
-  // Return contract: { found: boolean, content: string | null }
-  //   found=false, content=null  → section heading not present in file at all
-  //                                (older Ash prompt that never emitted this section)
-  //   found=true,  content=""    → section heading is present but body is whitespace-only
-  //                                (Ash explicitly emitted the section with no content;
-  //                                 intentional — structured output, not incomplete processing)
-  //   found=true,  content="..."→ normal non-empty section
+  // Current return: string | null
+  //   null  → section heading not present in file at all (absent)
+  //           OR section heading present but body is whitespace-only (empty-but-present)
+  //           NOTE: these two cases are collapsed — callers cannot distinguish them.
+  //           Use .filter(Boolean) to exclude both from condensed output (correct for assembly).
   //
-  // NOTE: The caller uses .filter(Boolean) on the return value, so both null and ""
-  // are excluded from the condensed output — this is correct for assembly purposes.
-  // However, metrics should distinguish these two cases to audit Ash compliance drift.
-  // Callers that need the distinction should check the `found` flag rather than
-  // testing content for truthiness.
-  if (!match) return null          // Section not found (found=false)
+  // TODO(BACK-006): Change return to { found: boolean, content: string | null } to distinguish
+  //   "section absent" from "section present but empty" for Ash compliance drift auditing.
+  //   Aspirational shape: found=false → absent; found=true, content=null → empty-but-present;
+  //   found=true, content="..." → non-empty. Requires caller updates to destructure result.
+  if (!match) return null          // Section not found (absent)
   const body = match[1].trim()
-  return body || null              // Empty section returns null (collapses with "not found" for output)
-  // TODO(BACK-006): Return { found: true, content: body } to distinguish empty-but-present
-  // from absent sections in metrics. Requires caller updates to destructure result.
+  return body || null              // Empty section returns null (collapses with absent — see TODO(BACK-006))
 }
 ```
 

@@ -26,6 +26,11 @@ umask 077
 
 # ── Opt-in trace logging ──
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+# SEC-004: Restrict trace log to expected TMPDIR location to prevent env-var redirect attacks
+case "$RUNE_TRACE_LOG" in
+  "${TMPDIR:-/tmp}/"*) ;;  # allowed
+  *) RUNE_TRACE_LOG="${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log" ;;  # reset to safe default
+esac
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] arc-phase-stop: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
 # ── ERR trap: fail-forward with trace logging ──
@@ -73,6 +78,8 @@ _log_phase() {
   _jq_args+=(--arg event "$event" --arg phase "$phase" --arg ts "$_ts")
   for _kv in "$@"; do
     local _k="${_kv%%=*}" _v="${_kv#*=}"
+    # SEC-003: Validate key format before jq string interpolation
+    [[ "$_k" =~ ^[a-z_][a-z0-9_]*$ ]] || continue
     _jq_args+=(--arg "$_k" "$_v")
     _jq_expr+=", (\"${_k}\"): \$${_k}"
   done
@@ -286,9 +293,11 @@ _phase_weight() {
     work)                                    echo 5 ;;
     code_review)                             echo 4 ;;
     forge|mend|test)                         echo 3 ;;
+    plan_review|plan_refine)                 echo 3 ;;
     design_extraction|design_verification|design_iteration|design_prototype) echo 2 ;;
     gap_analysis|gap_remediation|goldmask_verification|goldmask_correlation) echo 2 ;;
     storybook_verification|ux_verification)  echo 2 ;;
+    verify_mend|codex_gap_analysis)          echo 2 ;;
     *)                                       echo 1 ;;
   esac
 }
@@ -321,7 +330,11 @@ _smart_compact_needed() {
 
   # Freshness check (180s — same as _check_context_at_threshold)
   local _sc_mtime _sc_now _sc_age
-  _sc_mtime=$(_stat_mtime "$_sc_bridge"); _sc_mtime="${_sc_mtime:-0}"
+  _sc_mtime=$(_stat_mtime "$_sc_bridge")
+  if [[ -z "$_sc_mtime" ]]; then
+    _trace "Smart compact: bridge stat failed — skipping Tier 2, falling through to Tier 3"
+    return 1
+  fi
   _sc_now=$(date +%s)
   _sc_age=$(( _sc_now - _sc_mtime ))
   [[ "$_sc_age" -ge 0 && "$_sc_age" -lt 180 ]] || return 1
@@ -354,10 +367,12 @@ _smart_compact_needed() {
   done
 
   # Estimate context need: each weight unit ≈ 5% of context
-  local _sc_estimated_need=$(( _sc_total_weight * 5 ))
+  # BACK-005: Separate local declaration from arithmetic to prevent local() masking exit-status=1 when result is 0
+  local _sc_estimated_need _sc_usable_budget
+  _sc_estimated_need=$(( _sc_total_weight * 5 )) || _sc_estimated_need=0
   # Usable budget: 70% safety margin of remaining context
   # Integer arithmetic: multiply first, divide last to avoid truncation to 0
-  local _sc_usable_budget=$(( _sc_remaining_pct * 70 / 100 ))
+  _sc_usable_budget=$(( _sc_remaining_pct * 70 / 100 )) || _sc_usable_budget=0
 
   _trace "Smart compact: remaining=${_sc_remaining_pct}% usable=${_sc_usable_budget}% need=${_sc_estimated_need}% (weight=${_sc_total_weight})"
 
@@ -375,6 +390,11 @@ _smart_compact_needed() {
 # See: v1.144.13 fix for arc-1772993768763 (semantic_verification, design_extraction, task_decomposition).
 # PERF FIX (v1.144.14): Single jq call replaces 28×4 per-phase jq calls (~3.5s → ~30ms).
 _now=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
+# BUG FIX (v1.144.18): Added `|| true` to prevent ERR trap from firing on
+# malformed checkpoint JSON. Without this, a corrupted checkpoint (e.g., extra
+# closing brace in totals.phase_times) kills the entire phase loop silently —
+# the ERR trap exits 0, which means "allow stop", and the next phase never runs.
+# The empty-check on the next line handles the failure gracefully.
 _demote_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '
   [.phases | to_entries[] | select(.value.status == "skipped" and (.value.skip_reason == null or .value.skip_reason == ""))] as $to_demote |
   if ($to_demote | length) > 0 then
@@ -392,7 +412,7 @@ _demote_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '
   else
     { demoted: [], checkpoint: . }
   end
-' 2>/dev/null)
+' 2>/dev/null || true)
 
 if [[ -z "${_demote_result:-}" ]]; then
   _diag "WARNING: Failed to demote checkpoint: jq parse error"
@@ -454,7 +474,7 @@ if [[ -n "$_PHASE_LOG_PATH" ]]; then
     while IFS=$'\t' read -r _lp _lp_status _lp_skip _lp_start _lp_end _lp_artifact; do
       [[ -z "$_lp" ]] && continue
       # Skip if already logged
-      if [[ -f "$_PHASE_LOG_PATH" ]] && grep -q "\"phase\":\"${_lp}\"" "$_PHASE_LOG_PATH" 2>/dev/null; then
+      if [[ -f "$_PHASE_LOG_PATH" ]] && grep -qF "\"phase\":\"${_lp}\"" "$_PHASE_LOG_PATH" 2>/dev/null; then
         continue
       fi
       if [[ "$_lp_status" == "skipped" ]]; then
@@ -612,7 +632,10 @@ COMPACT_PENDING=$(get_field "compact_pending")
 
 # Stale compact_pending recovery (same pattern as arc-batch F-02)
 if [[ "$COMPACT_PENDING" == "true" ]]; then
-  _sf_mtime=$(_stat_mtime "$STATE_FILE"); _sf_mtime="${_sf_mtime:-0}"
+  _sf_mtime=$(_stat_mtime "$STATE_FILE")
+  if [[ -z "$_sf_mtime" ]]; then
+    _trace "Stale compact_pending check: stat failed — keeping compact_pending state"
+  else
   _sf_now=$(date +%s)
   _sf_age=$(( _sf_now - _sf_mtime ))
   if [[ "$_sf_age" -gt 300 ]]; then
@@ -623,6 +646,7 @@ if [[ "$COMPACT_PENDING" == "true" ]]; then
       || { rm -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null; exit 0; }
     COMPACT_PENDING="false"
   fi
+  fi  # end else (stat succeeded)
 fi
 
 # ── 4-tier adaptive compaction trigger ──

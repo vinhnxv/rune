@@ -3,7 +3,7 @@
 ## Task Pool Creation
 
 1. Extract file targets (`fileTargets`, `dirTargets`) per task from plan
-2. Classify risk tiers — see `risk-tiers.md` in `roundtable-circle/references/`
+2. Classify risk tiers — see [risk-tiers.md](../../roundtable-circle/references/risk-tiers.md)
 3. Detect overlapping file ownership via set intersection (O(n²) cap: 200 targets)
 4. Serialize conflicting tasks via `blockedBy` links
 5. Create task pool via `TaskCreate` with quality contract embedded in description
@@ -344,7 +344,7 @@ if (conflictSummary) {
 | Dir target without trailing slash | Normalized in `buildOwnershipGraph`: append "/" before prefix matching |
 | Manual blockedBy + auto-serialization creates deadlock | Cycle detection includes existing `blockedBy` edges in the graph |
 | `fileTargets` not yet populated | **Precondition**: `extractFileTargets()` must run first (documented above) |
-| > 200 file targets | Existing O(n²) cap in step 3 applies — truncate at 200 targets |
+| > 200 file targets | Existing O(n²) cap in Task Pool Creation step 3 (detection) applies — truncate at 200 targets |
 | 5+ tasks share same file | Chain length warning: "Consider merging these tasks" |
 
 ## Quality Contract
