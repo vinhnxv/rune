@@ -63,8 +63,6 @@ const params = {
 }
 ```
 
-**Utility Crew** (Phase 2.5): When `utility_crew.enabled` in talisman, context-scribe composes per-Ash context packs and prompt-warden validates them before Phase 3 spawning. See [utility-crew](../utility-crew/SKILL.md).
-
 **Standard depth** (default): Single-pass review with up to 7 Wave 1 Ashes. Identical to pre-deep behavior.
 
 **Deep depth** (`--deep`): Multi-wave review. Phase 3 loops over waves from `selectWaves()`. Each wave creates its own team, tasks, and monitor cycle. See [orchestration-phases.md](../roundtable-circle/references/orchestration-phases.md) for the full wave execution loop.

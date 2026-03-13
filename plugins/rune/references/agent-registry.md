@@ -1,6 +1,6 @@
 # Agent Registry
 
-**Total: 100 agents** (34 review + 5 research + 6 work + 26 utility + 24 investigation + 5 testing)
+**Total: 97 agents** (34 review + 5 research + 6 work + 23 utility + 24 investigation + 5 testing)
 
 > Agent count verified by `find agents/ -name "*.md" -type f | wc -l` on 2026-03-06.
 
@@ -90,15 +90,12 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | design-analyst | Figma frame relationship classifier — 5-signal weighted composite (name 0.35, component set 0.25, structure 0.20, dimension 0.10, shared instances 0.10), single-linkage clustering. Used by arc Phase 3 (Design Extraction) |
 | evidence-verifier | Evidence-based plan claim validation — systematic per-claim verification against codebase/docs/external sources with grounding scores. Used by /rune:devise |
 | ux-pattern-analyzer | Codebase UX maturity assessment — inventories loading, error handling, form validation, navigation, empty state, confirmation/undo, and feedback patterns. 4-level maturity scale. Used by devise Phase 0.3 |
-| tome-digest | TOME finding extraction — counts P1/P2/P3 severity, extracts recurring prefixes, top findings. Shell-based extraction via utility-crew-extract.sh (zero LLM tokens). Used by arc Phase 7 (Mend) |
+| tome-digest | TOME finding extraction — counts P1/P2/P3 severity, extracts recurring prefixes, top findings. Shell-based extraction via artifact-extract.sh (zero LLM tokens). Used by arc Phase 7 (Mend) |
 | condenser-gap | Gap analysis digest — MISSING/PARTIAL/COMPLETE counts from gap-analysis.md. Shell-based extraction. Used by arc Phase 6 (Code Review) |
 | condenser-verdict | Verdict digest — dimension scores, low-scoring flags from gap-analysis-verdict.md. Shell-based extraction. Used by arc Phase 6 (Code Review) |
 | condenser-plan | Enriched plan digest — section count, acceptance criteria, file targets. Shell-based extraction. Used by arc Phase 5.5 (Gap Analysis) |
 | condenser-work | Work summary digest — committed files, task counts. Shell-based extraction. Used by arc Phase 5.5 (Gap Analysis) |
 | codex-phase-handler | Delegated Codex phase execution — runs Codex CLI commands as a teammate to keep Tarnished context clean |
-| context-scribe | Context pack composer — reads templates + runtime data, writes per-teammate `.context.md` files for Utility Crew phase |
-| prompt-warden | Context pack validator — 12-point checklist, verdict.json with PROCEED/WARN/BLOCK recommendation |
-| dispatch-herald | Context pack staleness detector — file list drift, TOME drift, plan modification, convergence iteration tracking (arc/arc-batch only) |
 
 ## Investigation Agents (`agents/investigation/`)
 

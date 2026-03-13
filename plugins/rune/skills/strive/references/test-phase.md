@@ -466,10 +466,8 @@ Add `unit-test-runner` and `test-failure-analyst` to the cleanup fallback in `ph
 // In the dynamic member discovery fallback array:
 const fallbackMembers = [
   ...spawnedWorkerNames,
-  "context-scribe",
-  "prompt-warden",
-  "unit-test-runner",          // NEW: for Phase 3.6 mini test
-  "test-failure-analyst"       // NEW: for Phase 3.6 failure analysis
+  "unit-test-runner",          // for Phase 3.6 mini test
+  "test-failure-analyst"       // for Phase 3.6 failure analysis
 ]
 ```
 

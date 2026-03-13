@@ -98,28 +98,28 @@ if (!tomeSource.startsWith('tmp/arc/') || tomeSource.includes('..')) {
   throw new Error(`Invalid TOME path: ${tomeSource}`)
 }
 
-// UTILITY CREW (v1.141.0): Extract TOME metrics via shell script instead of reading full TOME.
+// ARTIFACT EXTRACTION (v1.141.0): Extract TOME metrics via shell script instead of reading full TOME.
 // Resolves decree-arbiter P1: Explore subagents cannot Write files.
 // Shell extraction: zero LLM tokens, sub-second, no ATE-1 concern.
 // readTalismanSection: "settings"
-const utilityCrewEnabled = readTalismanSection("settings")?.utility_crew?.enabled !== false
+const extractionEnabled = readTalismanSection("settings")?.artifact_extraction?.enabled !== false
 const mendRound = checkpoint?.mend_round ?? 0
 let tomeDigest = null
 
-if (utilityCrewEnabled) {
+if (extractionEnabled) {
   try {
-    Bash(`cd "${CWD}" && bash plugins/rune/scripts/utility-crew-extract.sh tome-digest "${id}" "${mendRound}"`)
+    Bash(`cd "${CWD}" && bash plugins/rune/scripts/artifact-extract.sh tome-digest "${id}" "${mendRound}"`)
     const digestPath = `tmp/arc/${id}/tome-digest${mendRound > 0 ? '-round-' + mendRound : ''}.json`
     const parsed = JSON.parse(Read(digestPath))
     if (typeof parsed.p1_count === 'number' && typeof parsed.total_findings === 'number') {
       tomeDigest = parsed
     }
   } catch (e) {
-    warn(`utility-crew tome-digest failed: ${e.message} — falling back to direct TOME reading`)
+    warn(`artifact-extract tome-digest failed: ${e.message} — falling back to direct TOME reading`)
   }
 }
 
-// FALLBACK: Direct TOME reading (original behavior) when utility crew disabled or script failed
+// FALLBACK: Direct TOME reading (original behavior) when extraction disabled or script failed
 let p1Findings, recurringPatterns
 if (tomeDigest) {
   p1Findings = { length: tomeDigest.p1_count }

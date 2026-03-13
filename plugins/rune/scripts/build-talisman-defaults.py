@@ -349,25 +349,11 @@ def _inject_remaining_section_defaults(data):
         echoes["auto_observation"] = True
     data["echoes"] = echoes
 
-    # Utility Crew defaults — lives inside settings shard
+    # Artifact Extraction defaults — lives inside settings shard
     settings = data.get("settings", {})
-    if "utility_crew" not in settings:
-        settings["utility_crew"] = {
+    if "artifact_extraction" not in settings:
+        settings["artifact_extraction"] = {
             "enabled": True,
-            "fallback_on_failure": True,
-            "context_scribe": {
-                "timeout_ms": 90000,
-                "max_packs": 12,
-            },
-            "prompt_warden": {
-                "enabled": True,
-                "block_on_critical": True,
-                "warn_threshold": 2,
-            },
-            "dispatch_herald": {
-                "enabled": True,
-                "staleness_check_ms": 30000,
-            },
         }
     data["settings"] = settings
 

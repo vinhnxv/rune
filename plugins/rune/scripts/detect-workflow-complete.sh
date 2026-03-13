@@ -21,6 +21,9 @@
 
 set -euo pipefail
 
+# RUIN-003 FIX: Capture hook start time for adaptive timeout budget tracking
+_HOOK_START_EPOCH=$(date +%s)
+
 _rune_fail_forward() {
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
     # SEC-004 FIX: Use per-session mktemp trace log to avoid predictable path symlink attacks
@@ -378,8 +381,16 @@ for sf in "${STATE_FILES[@]}"; do
     done < <(pgrep -P "$SF_PID" 2>/dev/null | sort -u || true)  # EDGE-008 FIX: deduplicate PIDs
   fi
 
-  # Wait for SIGTERM to take effect
-  sleep "$ESCALATION_TIMEOUT" 2>/dev/null || sleep 5
+  # RUIN-003 FIX: Adaptive timeout — skip or reduce sleep when hook budget is nearly exhausted.
+  # Hook timeout is 30s. Track elapsed time and only sleep if budget allows.
+  _elapsed_s=$(( $(date +%s) - ${_HOOK_START_EPOCH:-$(date +%s)} ))
+  _budget_remaining=$(( 30 - _elapsed_s - 2 ))  # 2s safety margin for SIGKILL + cleanup
+  if [[ "$_budget_remaining" -gt 0 ]]; then
+    _esc_sleep=$(( ESCALATION_TIMEOUT < _budget_remaining ? ESCALATION_TIMEOUT : _budget_remaining ))
+    sleep "$_esc_sleep" 2>/dev/null || sleep 1
+  else
+    _trace "SKIP escalation sleep: budget exhausted (elapsed=${_elapsed_s}s)"
+  fi
 
   # Stage 2: SIGKILL survivors — reuse Stage 1 PID list (SEC-003)
   # SEC-008 FIX: Validate team dir still exists before SIGKILL escalation

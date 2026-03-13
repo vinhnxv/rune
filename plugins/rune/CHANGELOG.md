@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [1.155.0] - 2026-03-13
+
+### Removed
+- **Utility Crew agent-based composition system** — context-scribe, prompt-warden, dispatch-herald agents and utility-crew skill removed. System was designed but never executed (zero artifacts produced across all workflows). Shell-based extraction utilities (artifact-extract.sh, condenser agents) are preserved and unaffected.
+  - Deleted: 3 agent definitions, 1 skill (4 files)
+  - Cleaned: Phase references in devise (0.8), strive (1.5), appraise, audit, arc
+  - Cleaned: Cleanup fallback arrays, talisman config, agent registries, cost-tier mapping
+  - Updated: plugin.json, marketplace.json, README badges (97 agents, 54 skills)
+
+### Changed
+- **Rename `utility_crew` → `artifact_extraction`** — shell-based extraction config key renamed to remove confusion with deleted agent-based system
+  - Script: `utility-crew-extract.sh` → `artifact-extract.sh`
+  - Talisman config: `utility_crew` → `artifact_extraction`
+  - Variable: `utilityCrewEnabled` → `extractionEnabled` in 4 arc phase files
+
 ## [1.154.4] - 2026-03-13
 
 ### Fixed

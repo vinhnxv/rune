@@ -238,7 +238,10 @@ rune_acquire_lock() {
     for _ghost_attempt in 1 2; do
       # Jitter: sleep 0-50ms on retry to desynchronize concurrent acquirers
       if [[ "$_ghost_attempt" -gt 1 ]]; then
-        perl -e 'select(undef,undef,undef,rand(0.05))' 2>/dev/null || sleep 0 2>/dev/null || true
+        # RUIN-002 FIX: Multi-tier jitter fallback — perl (sub-ms) → bash $RANDOM (0-49ms via sleep) → no-op
+      perl -e 'select(undef,undef,undef,rand(0.05))' 2>/dev/null || \
+        sleep "0.0$((RANDOM % 50))" 2>/dev/null || \
+        true
       fi
       _rune_atomic_reclaim "$lock_dir" "$workflow" "$class" "ghost" && return 0
     done

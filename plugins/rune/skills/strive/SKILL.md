@@ -71,8 +71,6 @@ Phase 1: Forge Team -> TeamCreate + TaskCreate pool
     2. Signal Directory Setup (event-driven fast-path infrastructure)
     → TeamCreate + TaskCreate pool
     |
-Phase 1.5: Utility Crew (Context Pack Composition) -> context-scribe + prompt-warden (conditional, gated by utility_crew.enabled)
-    |
 Phase 2: Summon Workers -> Self-organizing swarm
     | (workers claim -> implement -> complete -> repeat)
 Phase 3: Monitor -> TaskList polling, stale detection
@@ -158,21 +156,11 @@ See [file-ownership.md](references/file-ownership.md) for file target extraction
 
 **Summary**: Extract file targets per task → detect overlaps → serialize via `blockedBy` → create task pool with quality contract → write `task_ownership` to inscription.json. Flat-union allowlist enforced by `validate-strive-worker-paths.sh` hook.
 
-## Phase 1.5: Utility Crew (Context Pack Composition)
-
-> Gated by `utility_crew.enabled` in talisman settings. When disabled or on failure, falls back to inline worker prompt composition in Phase 2.
-
-Invokes the Utility Crew to compose per-worker context packs before spawning swarm workers. Uses `spawnUtilityCrew()` from the [utility-crew](../utility-crew/SKILL.md) skill.
-
-**Summary**: Read talisman gate → spawn context-scribe with worker list → wait for completion → spawn prompt-warden → read verdict → if PROCEED, workers read from `tmp/work/{timestamp}/context-packs/{worker-name}.context.md`. If Crew fails (timeout/BLOCK/error), fall back to inline prompts from `worker-prompts.md`.
-
-Add `"context-scribe"` and `"prompt-warden"` to the cleanup fallback in [phase-6-cleanup.md](references/phase-6-cleanup.md) (safe — shutdown_request is a no-op for already-exited agents).
-
 ## Phase 2: Summon Swarm Workers
 
 See [worker-prompts.md](references/worker-prompts.md) for full worker prompt templates, scaling logic, and the scaling table.
 
-**Summary**: Summon rune-smith (implementation) and trial-forger (test) workers. When Utility Crew (Phase 1.5) succeeded, workers receive a lightweight prompt pointing to their context pack file. Otherwise, workers receive pre-assigned task lists via inline prompts. Commits are handled through the Tarnished's commit broker. Do not run `git add` or `git commit` directly.
+**Summary**: Summon rune-smith (implementation) and trial-forger (test) workers. Workers receive pre-assigned task lists via inline prompts. Commits are handled through the Tarnished's commit broker. Do not run `git add` or `git commit` directly.
 
 See [todo-protocol.md](references/todo-protocol.md) for the worker todo file protocol that MUST be included in all spawn prompts.
 

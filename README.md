@@ -4,10 +4,10 @@
 
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
-[![Version](https://img.shields.io/badge/version-1.154.4-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-1.155.0-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-100-purple)](#agents)
-[![Skills](https://img.shields.io/badge/skills-55-orange)](#skills)
+[![Agents](https://img.shields.io/badge/agents-97-purple)](#agents)
+[![Skills](https://img.shields.io/badge/skills-54-orange)](#skills)
 
 ---
 
@@ -342,7 +342,7 @@ Compares a plan against its implementation across 10 quality dimensions:
 
 ## Agents
 
-**100 specialized agents** across 6 categories:
+**97 specialized agents** across 6 categories:
 
 ### Review Agents (47)
 
@@ -439,7 +439,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Storybook Reviewer | Component verification via screenshots (Mode A/B quality checks) |
 | Storybook Fixer | Applies Storybook finding fixes with re-verification |
 
-### Utility Agents (26)
+### Utility Agents (23)
 
 | Agent | Purpose |
 |-------|---------|
@@ -460,9 +460,6 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Design Analyst | Figma frame relationship classifier (5-signal weighted composite) |
 | Todo Verifier | TODO staleness verification — classifies TODOs as VALID or FALSE_POSITIVE |
 | UX Pattern Analyzer | Codebase UX maturity assessment (loading, error, form, navigation patterns) |
-| Context Scribe | Per-teammate context pack composition from templates and runtime data |
-| Prompt Warden | Context pack validator (12-point quality checklist) |
-| Dispatch Herald | Context pack staleness detection across arc phases |
 | Codex Phase Handler | Isolated Codex phase execution (codex-exec.sh wrapper) |
 | Tome Digest | TOME finding extraction (P1/P2/P3 counts, recurring patterns) — shell-based |
 | Condenser Gap | Gap analysis digest (MISSING/PARTIAL counts) — shell-based |
@@ -484,7 +481,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 ## Skills
 
-55 skills providing background knowledge, workflow orchestration, and tool integration:
+54 skills providing background knowledge, workflow orchestration, and tool integration:
 
 | Skill | Type | Purpose |
 |-------|------|---------|
@@ -540,7 +537,6 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `team-status` | Reporting | Active agent team monitoring dashboard |
 | `test-browser` | Testing | Standalone browser E2E testing (no agent teams) |
 | `untitledui-mcp` | Integration | UntitledUI MCP integration (6 tools, builder-protocol) |
-| `utility-crew` | Orchestration | Agent context composition and validation (context-scribe, prompt-warden) |
 | `ux-design-process` | Intelligence | UX design methodology (heuristic evaluation, flow validation) |
 | `talisman` | Configuration | Deep talisman.yml management (init, audit, update, guide, status) |
 
@@ -713,14 +709,14 @@ rune-plugin/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
         │   └── plugin.json       # Plugin manifest (v1.128.0)
-        ├── agents/               # 100 agent definitions
+        ├── agents/               # 97 agent definitions
         │   ├── review/           #   34 review agents
         │   ├── investigation/    #   24 investigation agents
-        │   ├── utility/          #   26 utility agents
+        │   ├── utility/          #   23 utility agents
         │   ├── research/         #    5 research agents
         │   ├── testing/          #    5 testing agents
         │   └── work/             #    6 work agents
-        ├── skills/               # 55 skills
+        ├── skills/               # 54 skills
         ├── commands/             # 17 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json

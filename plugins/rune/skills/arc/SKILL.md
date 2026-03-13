@@ -207,16 +207,6 @@ See [arc-checkpoint-init.md](references/arc-checkpoint-init.md) for the full ini
 
 Read and execute the arc-checkpoint-init.md algorithm.
 
-### Dispatch Herald — Inter-Phase Staleness Detection
-
-Between delegated phases that use Utility Crew context packs, the dispatch-herald agent checks for pack staleness. Only spawned when `utility_crew.enabled` AND `dispatch_herald.enabled` AND the workflow is `arc` or `arc-batch`.
-
-**Transition points** (herald spawns between these phases):
-- After `work` → before `code_review` (file list may have changed from worker commits)
-- After `code_review` → before `mend` (TOME content is new since pack creation)
-
-Herald logic is implemented in the First Phase Invocation section below (single source of truth).
-
 ### Inter-Phase Cleanup Guard (ARC-6)
 
 See [arc-preflight.md](references/arc-preflight.md) for `prePhaseCleanup()`.
@@ -312,57 +302,6 @@ const firstPending = PHASE_ORDER.find(p => checkpoint.phases[p]?.status === 'pen
 if (!firstPending) {
   log("All phases already complete. Nothing to execute.")
   return
-}
-
-// ── Utility Crew: dispatch-herald staleness check (inter-phase) ──
-// Spawns dispatch-herald between phases to detect stale context packs.
-// Only runs when: (1) utility_crew.enabled, (2) dispatch_herald.enabled,
-// (3) context-packs/ exists from a previous Crew invocation,
-// (4) transition is between phases that use context packs (work→review, review→mend).
-const crewConfig = readTalismanSection("settings")?.utility_crew ?? { enabled: false }
-const packsDir = `tmp/arc/${checkpoint.id}/context-packs/`
-const HERALD_TRANSITIONS = new Set(["code_review", "mend"])  // phases where packs may be stale
-if (crewConfig.enabled && crewConfig.dispatch_herald?.enabled !== false
-    && HERALD_TRANSITIONS.has(firstPending)
-    && Glob(`${packsDir}manifest.json`).length > 0) {
-  try {
-    const completedPhase = PHASE_ORDER.slice(0, PHASE_ORDER.indexOf(firstPending))
-      .reverse().find(p => checkpoint.phases[p]?.status === 'completed') ?? "unknown"
-    const currentPhaseTeam = checkpoint.phases[firstPending].team_name
-
-    // Spawn herald into the current arc team (per-phase team_name, not root-level)
-    Agent({
-      team_name: currentPhaseTeam,
-      name: "dispatch-herald",
-      subagent_type: "general-purpose",
-      model: "haiku",
-      prompt: `Check staleness: context_packs_dir=${packsDir}, manifest_path=${packsDir}manifest.json, current_phase=${firstPending}, previous_phase=${completedPhase}, tome_path=tmp/arc/${checkpoint.id}/TOME.md, plan_path=${checkpoint.plan_file ?? ""}, mend_round=${checkpoint.mend_round ?? 0}`,
-      run_in_background: true
-    })
-
-    const heraldTimeout = crewConfig.dispatch_herald?.staleness_check_ms ?? 30000
-    waitForCompletion(currentPhaseTeam, 1, {
-      timeoutMs: heraldTimeout,
-      pollIntervalMs: 30000,
-      label: "Dispatch Herald"
-    })
-
-    // Read staleness report
-    const stalenessReport = JSON.parse(Read(`${packsDir}staleness-report.json`))
-    if (stalenessReport.stale && stalenessReport.recommendation !== "fresh") {
-      // Trigger incremental refresh via context-scribe for affected packs
-      // refreshStalePacks() from utility-crew SKILL.md
-      const affectedAgents = stalenessReport.affected_packs.map(p => p.agent)
-      // Re-invoke spawnUtilityCrew with reduced agent list (see utility-crew/SKILL.md)
-    }
-
-    // Shutdown herald
-    SendMessage({ type: "shutdown_request", recipient: "dispatch-herald", content: "Staleness check complete" })
-    Bash(`sleep 8`)
-  } catch (heraldError) {
-    // Herald failure is non-blocking — proceed with existing packs
-    SendMessage({ type: "shutdown_request", recipient: "dispatch-herald", content: "Herald error — proceeding" })
-  }
 }
 
 // Schema v19: stamp phase start time before executing

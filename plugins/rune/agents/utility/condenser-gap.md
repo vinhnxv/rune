@@ -4,7 +4,7 @@ description: |
   Extracts structured digest from gap-analysis.md artifact.
   Produces a lightweight summary with MISSING/PARTIAL/COMPLETE counts.
   Used between arc phases to reduce team lead context consumption.
-  Planned fallback: invoked when shell-based extraction (utility-crew-extract.sh) fails.
+  Planned fallback: invoked when shell-based extraction (artifact-extract.sh) fails.
   Trigger keywords: gap digest, artifact condense, gap analysis summary.
 
 tools:

@@ -217,8 +217,34 @@ if command -v timeout &>/dev/null; then
     fi
   fi
 else
-  echo "WARN: timeout command not found — running without timeout wrapper" >&2
+  echo "WARN: timeout command not found — using background watchdog for timeout" >&2
 fi
+
+# ─── Background watchdog (when timeout command unavailable) ──────────────────
+# RUIN-001 FIX: Prevent indefinite hangs on macOS without GNU coreutils.
+# Spawns a background subshell that kills the codex process after TIMEOUT seconds.
+_watchdog_pid=""
+_start_watchdog() {
+  if [[ "$HAS_TIMEOUT" -eq 0 && "$TIMEOUT" -gt 0 ]]; then
+    (
+      sleep "$TIMEOUT" 2>/dev/null
+      # Signal the main process group — codex is a child of this script
+      kill -TERM $$ 2>/dev/null || true
+      sleep 3
+      kill -KILL $$ 2>/dev/null || true
+    ) &
+    _watchdog_pid=$!
+    _trace "Watchdog PID=$_watchdog_pid will enforce ${TIMEOUT}s timeout"
+  fi
+}
+_stop_watchdog() {
+  if [[ -n "$_watchdog_pid" ]]; then
+    kill "$_watchdog_pid" 2>/dev/null || true
+    wait "$_watchdog_pid" 2>/dev/null || true
+    _watchdog_pid=""
+  fi
+}
+trap '_stop_watchdog' EXIT
 
 # ─── Pre-flight: jq (for JSON mode) ──────────────────────────────────────────
 if [[ "$JSON_MODE" -eq 1 ]]; then
@@ -234,8 +260,11 @@ _trace "EXEC model=$MODEL reasoning=$REASONING timeout=$TIMEOUT json=$JSON_MODE 
 # Capture stderr to temp file for error classification
 # QUAL-001 FIX: Use accumulative cleanup pattern to avoid overwriting prior EXIT traps
 _CLEANUP_FILES=()
-_cleanup() { rm -f "${_CLEANUP_FILES[@]}" 2>/dev/null; }
+_cleanup() { _stop_watchdog; rm -f "${_CLEANUP_FILES[@]}" 2>/dev/null; }
 trap _cleanup EXIT
+
+# Start watchdog before execution (only activates when timeout cmd unavailable)
+_start_watchdog
 STDERR_FILE=$(mktemp "${TMPDIR:-/tmp}/codex-stderr-XXXXXX")
 _CLEANUP_FILES+=("$STDERR_FILE")
 

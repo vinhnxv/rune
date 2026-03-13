@@ -70,8 +70,6 @@ Phase -1: Team Bootstrap (TeamCreate + state file — enables ATE-1 enforcement)
     ↓
 Phase 0: Gather Input (3 paths: --brainstorm-context → read workspace, --quick → skip, default → delegate to brainstorm protocol)
     ↓
-Phase 0.8: Utility Crew (context-scribe → prompt-warden — conditional, gated by utility_crew.enabled)
-    ↓
 Phase 1: Research (up to 8 agents, conditional — join existing team)
     ├─ Phase 1A: LOCAL RESEARCH (always — repo-surveyor, echo-reader, git-miner)
     ├─ Phase 1B: RESEARCH DECISION (talisman plan config bypass, risk + local sufficiency scoring, URL sanitization)
@@ -165,16 +163,6 @@ See [ux-and-mcp-discovery.md](references/ux-and-mcp-discovery.md) for the full a
 Resolve active MCP integrations for the `devise` phase. Zero cost when no integrations configured.
 
 See [ux-and-mcp-discovery.md](references/ux-and-mcp-discovery.md) for the inline integration code. See `strive/references/mcp-integration.md` for the shared resolver algorithm.
-
-## Phase 0.8: Utility Crew (Context Pack Composition)
-
-> Gated by `utility_crew.enabled` in talisman settings. When disabled or on failure, falls back to inline prompt composition in Phase 1.
-
-Invokes the Utility Crew to compose per-agent context packs for research agents before spawning them. Uses `spawnUtilityCrew()` from the [utility-crew](../utility-crew/SKILL.md) skill.
-
-**Summary**: Read talisman gate → spawn context-scribe with research agent list → wait for completion → spawn prompt-warden → read verdict → if PROCEED, research agents read from `tmp/plans/{timestamp}/context-packs/{agent-name}.context.md`. If Crew fails, fall back to inline prompts from `research-phase.md`.
-
-Add `"context-scribe"` and `"prompt-warden"` to the cleanup fallback in [phase6-cleanup.md](references/phase6-cleanup.md).
 
 ## Phase 1: Research (Conditional, up to 8 agents)
 

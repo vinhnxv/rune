@@ -30,7 +30,6 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **test-browser** | Standalone browser E2E testing — 9-step inline workflow (no agent teams): scope detection, route discovery, headed/headless mode, server verification, per-route test loop, human gate handling (OAuth/payment/2FA), interactive failure recovery (Fix/Todo/Skip), summary report. Uses scope-detection.md + human-gates.md + failure-handling.md. `/rune:test-browser [PR# | branch] [--headed] [--max-routes N]` |
 | **goldmask** | Cross-layer impact analysis with Wisdom Layer (WHY), Lore Layer (risk), Collateral Damage Detection. Shared data discovery + risk context template used by forge, mend, inspect, and devise |
 | **inner-flame** | Universal 3-layer self-review protocol (Grounding, Completeness, Self-Adversarial) for all teammates (non-invocable) |
-| **utility-crew** | Agent-based context pack composition and validation — context-scribe composes per-teammate `.context.md` files, prompt-warden validates via 12-point checklist, dispatch-herald detects staleness between arc phases. Gated by `utility_crew.enabled` in talisman. Non-invocable — auto-loaded by appraise, audit, strive, devise workflows |
 | **talisman** | Deep talisman.yml configuration expertise — initialize, audit, update, and guide project configuration. Stack-aware scaffolding from canonical template. 5 subcommands: init, audit, update, guide, status |
 | **tarnished** | Intelligent master command — unified entry point for all Rune workflows. Parses natural language (VN + EN), checks prerequisites, chains multi-step workflows. User-invocable |
 | **using-rune** | Workflow discovery and intent routing — suggests the correct /rune:* command for user intent |
@@ -372,7 +371,7 @@ echo "Commands: $(find plugins/rune/commands -name '*.md' -not -path '*/referenc
 
 ## References
 
-- [Agent registry](references/agent-registry.md) — 34 review + 5 research + 6 work + 26 utility + 24 investigation + 5 testing agents (12 stack specialist reviewers are prompt templates, not registered agents)
+- [Agent registry](references/agent-registry.md) — 34 review + 5 research + 6 work + 23 utility + 24 investigation + 5 testing agents (12 stack specialist reviewers are prompt templates, not registered agents)
 - [Key concepts](references/key-concepts.md) — Tarnished, Ash, TOME, Arc, Mend, Forge Gaze, Echoes
 - [Lore glossary](references/lore-glossary.md) — Elden Ring terminology mapping
 - [Output conventions](references/output-conventions.md) — Directory structure per workflow

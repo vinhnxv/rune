@@ -4,7 +4,7 @@ description: |
   Extracts structured digest from gap-analysis-verdict.md artifact.
   Produces a lightweight summary with dimension scores and low-scoring flags.
   Used between arc phases to reduce team lead context consumption.
-  Planned fallback: invoked when shell-based extraction (utility-crew-extract.sh) fails.
+  Planned fallback: invoked when shell-based extraction (artifact-extract.sh) fails.
   Trigger keywords: verdict digest, dimension scores, quality verdict summary.
 
 tools:
