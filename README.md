@@ -6,8 +6,8 @@ Plan, implement, review, test, and audit your codebase using coordinated Agent T
 
 [![Version](https://img.shields.io/badge/version-1.155.0-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-100-purple)](#agents)
-[![Skills](https://img.shields.io/badge/skills-55-orange)](#skills)
+[![Agents](https://img.shields.io/badge/agents-97-purple)](#agents)
+[![Skills](https://img.shields.io/badge/skills-54-orange)](#skills)
 
 ---
 
@@ -342,7 +342,7 @@ Compares a plan against its implementation across 10 quality dimensions:
 
 ## Agents
 
-**100 specialized agents** across 6 categories:
+**97 specialized agents** across 6 categories:
 
 ### Review Agents (47)
 
@@ -439,7 +439,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Storybook Reviewer | Component verification via screenshots (Mode A/B quality checks) |
 | Storybook Fixer | Applies Storybook finding fixes with re-verification |
 
-### Utility Agents (26)
+### Utility Agents (23)
 
 | Agent | Purpose |
 |-------|---------|
@@ -460,9 +460,6 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Design Analyst | Figma frame relationship classifier (5-signal weighted composite) |
 | Todo Verifier | TODO staleness verification — classifies TODOs as VALID or FALSE_POSITIVE |
 | UX Pattern Analyzer | Codebase UX maturity assessment (loading, error, form, navigation patterns) |
-| Context Scribe | Per-teammate context pack composition from templates and runtime data |
-| Prompt Warden | Context pack validator (12-point quality checklist) |
-| Dispatch Herald | Context pack staleness detection across arc phases |
 | Codex Phase Handler | Isolated Codex phase execution (codex-exec.sh wrapper) |
 | Tome Digest | TOME finding extraction (P1/P2/P3 counts, recurring patterns) — shell-based |
 | Condenser Gap | Gap analysis digest (MISSING/PARTIAL counts) — shell-based |
