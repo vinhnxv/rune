@@ -30,6 +30,10 @@
     "gap_analysis": {
       "halt_threshold": 50,
       "inspectors": 2,
+      "reassessment": {
+        "enabled": true,
+        "drift_threshold": 0.40
+      },
       "remediation": {
         "enabled": true,
         "max_fixes": 20,

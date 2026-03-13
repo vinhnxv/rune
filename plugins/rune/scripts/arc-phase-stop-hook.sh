@@ -376,6 +376,42 @@ if [[ -n "$_PHASE_LOG_PATH" ]]; then
   fi
 fi
 
+# ── GUARD 9: Stuck phase loop detection ──
+# If the same phase dispatches MAX_PHASE_DISPATCHES times, the arc is stuck in an
+# infinite convergence loop. Stop with diagnostic rather than burning context forever.
+# STATE_FILE is defined at GUARD 4 (~line 102) — reused here.
+MAX_PHASE_DISPATCHES=4
+if [[ -n "$NEXT_PHASE" && -n "$_ARC_ID_FOR_LOG" && "$_ARC_ID_FOR_LOG" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+  _DISPATCH_COUNT_FILE="${CWD}/tmp/arc/${_ARC_ID_FOR_LOG}/phase-dispatch-counts.json"
+  # Read existing counts (create empty object if missing or invalid)
+  _dispatch_counts="{}"
+  if [[ -f "$_DISPATCH_COUNT_FILE" && ! -L "$_DISPATCH_COUNT_FILE" ]]; then
+    _dispatch_counts=$(jq -e '.' "$_DISPATCH_COUNT_FILE" 2>/dev/null || echo "{}")
+  fi
+  # Get current count for this phase
+  _current_count=$(echo "$_dispatch_counts" | jq -r --arg p "$NEXT_PHASE" '.[$p] // 0' 2>/dev/null || echo "0")
+  [[ "$_current_count" =~ ^[0-9]+$ ]] || _current_count=0
+  _new_count=$(( _current_count + 1 ))
+  _trace "GUARD 9: phase=${NEXT_PHASE} dispatch_count=${_new_count}/${MAX_PHASE_DISPATCHES}"
+  if [[ "$_new_count" -ge "$MAX_PHASE_DISPATCHES" ]]; then
+    _trace "GUARD 9 TRIGGERED: phase ${NEXT_PHASE} dispatched ${_new_count} times — stuck loop detected"
+    _log_phase "phase_stuck" "$NEXT_PHASE" "dispatch_count=${_new_count}" "max=${MAX_PHASE_DISPATCHES}"
+    rm -f "$STATE_FILE" 2>/dev/null
+    printf 'Arc pipeline STOPPED — stuck loop detected. Phase "%s" has been dispatched %d times (max %d). This indicates an infinite convergence loop. Check the checkpoint at %s for phase status and investigate why "%s" is not completing or being skipped.\n' \
+      "$NEXT_PHASE" "$_new_count" "$MAX_PHASE_DISPATCHES" "$CHECKPOINT_PATH" "$NEXT_PHASE" >&2
+    exit 2
+  fi
+  # Atomically update dispatch counts
+  _dispatch_tmp=$(mktemp "${_DISPATCH_COUNT_FILE}.XXXXXX" 2>/dev/null) || _dispatch_tmp=""
+  if [[ -n "$_dispatch_tmp" ]]; then
+    if echo "$_dispatch_counts" | jq --arg p "$NEXT_PHASE" --argjson c "$_new_count" '.[$p] = $c' > "$_dispatch_tmp" 2>/dev/null; then
+      mv -f "$_dispatch_tmp" "$_DISPATCH_COUNT_FILE" 2>/dev/null || rm -f "$_dispatch_tmp" 2>/dev/null
+    else
+      rm -f "$_dispatch_tmp" 2>/dev/null
+    fi
+  fi
+fi
+
 if [[ -z "$NEXT_PHASE" ]]; then
   _log_phase "pipeline_complete" "all" "iteration=${ITERATION}"
   # ── ALL PHASES DONE ──

@@ -278,11 +278,51 @@ flowchart LR
     E --> F
 ~~~
 
+## Boundary Map
+
+{Required for Standard and Comprehensive plans. Omit for Minimal.}
+{For each phase or major section in Technical Approach, specify what it
+produces and what it consumes from upstream. Forces interface thinking
+before implementation — downstream strive workers use this to verify
+upstream outputs exist before starting.}
+
+### {Phase/Section 1} → {Phase/Section 2}
+
+**Produces:**
+- `{file path}` → `{export name}` ({type}: function | interface | class | endpoint | config)
+
+**Consumes:** nothing (leaf node)
+
+### {Phase/Section 2} → {Phase/Section 3}
+
+**Produces:**
+- `{file path}` → `{export name}` ({type})
+
+**Consumes from {Phase/Section 1}:**
+- `{file path}` → `{import name}` ({verified by}: grep | import | test)
+
 ## Acceptance Criteria
 
 - [ ] Functional requirement 1
 - [ ] Functional requirement 2
 - [ ] Testing requirement
+
+### Task Verification Protocol
+
+{Required for Standard and Comprehensive plans. Omit for Minimal.}
+{Each task in the Acceptance Criteria section should include structured
+must-haves that enable mechanical verification. Ward check validates
+these during strive Phase 4.}
+
+**Must-have format per task:**
+
+- [ ] **Task description**
+  - **Truths**: Observable behaviors that must be true when done
+    - "{User can X}" or "{System does Y when Z}"
+  - **Artifacts**: Files that must exist with real implementation
+    - `{path}` — {description} (min {N} LOC, exports: {names})
+  - **Key Links**: Import/wiring between artifacts
+    - `{file A}` → `{file B}` via `import { name }`
 
 ## Non-Goals
 
@@ -657,6 +697,29 @@ flowchart LR
 |----------|-------|-------------|-----------------|
 {Rejected arena solutions with scores and DA concerns}
 
+## Boundary Map
+
+{Required for Standard and Comprehensive plans. Omit for Minimal.}
+{For each phase or major section in Technical Approach, specify what it
+produces and what it consumes from upstream. Forces interface thinking
+before implementation — downstream strive workers use this to verify
+upstream outputs exist before starting.}
+
+### {Phase/Section 1} → {Phase/Section 2}
+
+**Produces:**
+- `{file path}` → `{export name}` ({type}: function | interface | class | endpoint | config)
+
+**Consumes:** nothing (leaf node)
+
+### {Phase/Section 2} → {Phase/Section 3}
+
+**Produces:**
+- `{file path}` → `{export name}` ({type})
+
+**Consumes from {Phase/Section 1}:**
+- `{file path}` → `{import name}` ({verified by}: grep | import | test)
+
 ## Acceptance Criteria
 
 ### Functional Requirements
@@ -672,6 +735,23 @@ flowchart LR
 
 - [ ] Test coverage requirements
 - [ ] Documentation completeness
+
+### Task Verification Protocol
+
+{Required for Standard and Comprehensive plans. Omit for Minimal.}
+{Each task in the Acceptance Criteria section should include structured
+must-haves that enable mechanical verification. Ward check validates
+these during strive Phase 4.}
+
+**Must-have format per task:**
+
+- [ ] **Task description**
+  - **Truths**: Observable behaviors that must be true when done
+    - "{User can X}" or "{System does Y when Z}"
+  - **Artifacts**: Files that must exist with real implementation
+    - `{path}` — {description} (min {N} LOC, exports: {names})
+  - **Key Links**: Import/wiring between artifacts
+    - `{file A}` → `{file B}` via `import { name }`
 
 ## Non-Goals
 

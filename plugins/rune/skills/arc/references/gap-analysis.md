@@ -1528,6 +1528,52 @@ if (needsRemediation && !headlessMode) {
     `To proceed despite gaps: set arc.gap_analysis.halt_on_critical: false in talisman.yml\n` +
     `Or resume after manual fixes: /rune:arc --resume`)
 }
+
+// ── STEP D.6: Plan Drift Reassessment Gate ──
+// When a high proportion of acceptance criteria are MISSING, the original plan
+// may be fundamentally misaligned with the codebase — warn before wasting effort
+// on incremental gap fixes.
+const arcConfig = readTalismanSection("arc")
+const reassessmentEnabled = arcConfig?.gap_analysis?.reassessment?.enabled !== false  // Default: true
+const driftThreshold = arcConfig?.gap_analysis?.reassessment?.drift_threshold ?? 0.40
+
+if (reassessmentEnabled) {
+  const totalCriteria = gaps.length
+  const missingCount = gaps.filter(g => g.status === "MISSING").length
+  const driftRatio = totalCriteria > 0 ? missingCount / totalCriteria : 0
+
+  if (driftRatio > driftThreshold) {
+    const driftPct = (driftRatio * 100).toFixed(1)
+    const driftWarning = `\n\n> **⚠ PLAN DRIFT WARNING**: ${driftPct}% of acceptance criteria ` +
+      `(${missingCount}/${totalCriteria}) are MISSING (threshold: ${(driftThreshold * 100).toFixed(0)}%). ` +
+      `The original plan may need reassessment before proceeding with gap remediation.\n`
+
+    // Inject drift warning into the UNIFIED report (gap-analysis-unified.md)
+    // that downstream phases read for decisions
+    const unifiedPath = `tmp/arc/${id}/gap-analysis-unified.md`
+    const existingUnified = Read(unifiedPath)
+    Write(unifiedPath, existingUnified + driftWarning)
+
+    // Store drift metadata in checkpoint for downstream phase gates
+    updateCheckpoint({
+      phase: "gap_analysis",
+      plan_drift_detected: true,
+      plan_drift_ratio: driftRatio,
+      plan_drift_missing: missingCount,
+      plan_drift_total: totalCriteria,
+      plan_drift_threshold: driftThreshold
+    })
+
+    if (headlessMode) {
+      warn(`STEP D.6: Plan drift detected (${driftPct}% MISSING, threshold: ${(driftThreshold * 100).toFixed(0)}%) but headless mode — logging only.`)
+    } else {
+      warn(`STEP D.6: Plan drift detected — ${driftPct}% of acceptance criteria are MISSING ` +
+        `(${missingCount}/${totalCriteria}, threshold: ${(driftThreshold * 100).toFixed(0)}%).\n` +
+        `Consider revising the plan before proceeding with gap remediation.\n` +
+        `To disable: set arc.gap_analysis.reassessment.enabled: false in talisman.yml`)
+    }
+  }
+}
 ```
 
 **Output**: `tmp/arc/{id}/gap-analysis-unified.md`, `tmp/arc/{id}/gap-analysis-verdict.md`, individual inspector files.
