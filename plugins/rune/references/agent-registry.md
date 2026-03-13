@@ -1,6 +1,6 @@
 # Agent Registry
 
-**Total: 97 agents** (34 review + 5 research + 6 work + 23 utility + 24 investigation + 5 testing)
+**Total: 98 agents** (35 review + 5 research + 6 work + 23 utility + 24 investigation + 5 testing)
 
 > Agent count verified by `find agents/ -name "*.md" -type f | wc -l` on 2026-03-06.
 
@@ -22,6 +22,7 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | void-analyzer | Incomplete implementations, TODOs, stubs |
 | wraith-finder | Dead code, unwired code, DI wiring gaps, orphaned routes/handlers, AI orphan detection |
 | phantom-checker | Dynamic references, reflection analysis |
+| phantom-warden | Phantom implementation detection — spec-to-code gaps, doc-vs-implementation drift, dead specs, unenforced rules, fallback-as-default (PHNT-) |
 | type-warden | Type safety, mypy strict, Python idioms, async correctness |
 | trial-oracle | TDD compliance, test quality, coverage gaps, assertions |
 | depth-seer | Missing logic, incomplete state machines, complexity hotspots |

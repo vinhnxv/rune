@@ -68,6 +68,7 @@ settings:
     - SPAWN # Custom: agent-spawn-reviewer (project-level)
     - CLEAN # Custom: cleanup-completeness-reviewer (project-level)
     - DPMT # Custom: dead-prompt-detector (project-level)
+    - PHNT # Custom: phantom-warden (project-level)
     - DOC # Knowledge Keeper
     - QUAL # Pattern Weaver
     - FRONT # Glyph Scribe
@@ -195,6 +196,35 @@ ashes:
         - "P3 (Medium)"
         - "Coverage Matrix"
         - "QUAL-012 Status"
+        - "Self-Review Log"
+
+    # Detects phantom implementations: documented-but-not-implemented features,
+    # code without integration, dead specs, missing execution engines,
+    # unenforced rules, and fallback-as-default patterns.
+    - name: "phantom-warden"
+      agent: "phantom-warden"
+      source: local
+      workflows: [review, audit]
+      trigger:
+        extensions: [".md", ".py", ".ts", ".tsx", ".js", ".jsx", ".rs", ".go", ".sh", ".json", ".yml", ".yaml"]
+        paths:
+          [
+            "plugins/rune/skills/",
+            "plugins/rune/agents/",
+            "plugins/rune/commands/",
+            "plugins/rune/scripts/",
+            "docs/",
+            "src/",
+            "lib/",
+            ".claude/",
+          ]
+      context_budget: 30 # Higher than standard 25 — cross-references docs against code, wider scope
+      finding_prefix: "PHNT"
+      required_sections:
+        - "P1 (Critical)"
+        - "P2 (High)"
+        - "P3 (Medium)"
+        - "Cross-Reference Matrix"
         - "Self-Review Log"
 
 # ──────────────────────────────────────────────
