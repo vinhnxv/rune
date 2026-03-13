@@ -4,9 +4,9 @@
 
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
-[![Version](https://img.shields.io/badge/version-1.156.1-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-1.159.0-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-97-purple)](#agents)
+[![Agents](https://img.shields.io/badge/agents-98-purple)](#agents)
 [![Skills](https://img.shields.io/badge/skills-54-orange)](#skills)
 
 ---
@@ -342,7 +342,7 @@ Compares a plan against its implementation across 10 quality dimensions:
 
 ## Agents
 
-**97 specialized agents** across 6 categories:
+**98 specialized agents** across 6 categories:
 
 ### Review Agents (47)
 
@@ -357,6 +357,7 @@ Core reviewers active in every `/rune:appraise` and `/rune:audit` run. UX and de
 | Depth Seer | Missing logic (error handling gaps, state machine incompleteness) |
 | Void Analyzer | Incomplete implementations (TODOs, stubs, placeholders) |
 | Wraith Finder | Dead code (unused exports, orphaned files, unwired DI) |
+| Phantom Warden | Phantom implementations (spec-to-code gaps, dead specs, unenforced rules) |
 | Tide Watcher | Async/concurrency (waterfall awaits, race conditions) |
 | Forge Keeper | Data integrity (migration safety, transaction boundaries) |
 | Trial Oracle | Test quality (TDD compliance, assertion quality) |
@@ -709,8 +710,8 @@ rune-plugin/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
         │   └── plugin.json       # Plugin manifest (v1.128.0)
-        ├── agents/               # 97 agent definitions
-        │   ├── review/           #   34 review agents
+        ├── agents/               # 98 agent definitions
+        │   ├── review/           #   35 review agents
         │   ├── investigation/    #   24 investigation agents
         │   ├── utility/          #   23 utility agents
         │   ├── research/         #    5 research agents

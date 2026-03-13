@@ -662,6 +662,7 @@ Each Ash embeds several review agents as specialized perspectives. For example, 
 | pattern-seer | Pattern consistency |
 | void-analyzer | Incomplete implementations |
 | wraith-finder | Dead code |
+| phantom-warden | Phantom implementations (spec-to-code gaps, dead specs, unenforced rules) |
 | phantom-checker | Dynamic references (companion to wraith-finder, not Ash-embedded) |
 | type-warden | Type safety, mypy compliance |
 | trial-oracle | TDD compliance, test quality |
@@ -929,7 +930,7 @@ plugins/rune/
 │   └── plugin.json
 ├── agents/
 │   ├── investigation/       # 24 investigation agents (Goldmask + Inspect)
-│   ├── review/              # 34 review agents (12 specialist prompt templates in stacks/references/)
+│   ├── review/              # 35 review agents (12 specialist prompt templates in stacks/references/)
 │   │   └── references/      # Shared review checklists
 │   ├── research/            # 5 research agents (plan pipeline)
 │   ├── testing/             # 5 testing agents (arc Phase 7.7)
@@ -1159,7 +1160,7 @@ Rune uses Elden Ring-inspired theming:
 Rune includes a 4-layer defense system to prevent teammates from hanging indefinitely when the team lead's context is exhausted:
 
 1. **Layer 1 — Shutdown Signal**: `guard-context-critical.sh` writes a shutdown signal file at 35% remaining context, enabling orchestrators to initiate early teammate shutdown
-2. **Layer 2 — maxTurns**: All 97 agents have `maxTurns` in their YAML frontmatter, providing a platform-level safety net
+2. **Layer 2 — maxTurns**: All 98 agents have `maxTurns` in their YAML frontmatter, providing a platform-level safety net
 3. **Layer 3 — Process Kill**: `on-session-stop.sh` sends SIGTERM/SIGKILL to orphaned teammate processes before filesystem cleanup
 4. **Layer 4 — All-Tasks-Done Signal**: `on-teammate-idle.sh` writes a coordination signal when all team tasks are completed, enabling faster completion detection
 

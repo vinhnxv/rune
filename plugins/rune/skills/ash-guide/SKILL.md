@@ -3,7 +3,7 @@ name: ash-guide
 description: |
   Use when summoning Rune agents, when encountering "agent not found" errors, when
   selecting which review agents to use, or when checking agent capabilities and tools.
-  Quick reference for all 97 agents across 6 categories (review, research, work,
+  Quick reference for all 98 agents across 6 categories (review, research, work,
   utility, investigation, testing). Keywords: agent list, Ash, subagent type, agent not found.
 
   <example>
@@ -60,7 +60,7 @@ Tool restriction is enforced via prompt instructions (defense-in-depth).
 
 ## Review Agents
 
-36 specialized reviewers that form Ash teams:
+35 specialized reviewers that form Ash teams:
 
 | Agent | Role | Perspective |
 |-------|------|-------------|

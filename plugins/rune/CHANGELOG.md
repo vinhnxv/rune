@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.159.0] - 2026-03-14
+
+### Added
+- **Phantom Warden review agent** (`agents/review/phantom-warden.md`) — Detects phantom implementations: documented-but-not-implemented features, code that exists but isn't integrated, dead specifications, designed-but-never-executed features, missing execution engines, unenforced rules, and fallback-as-default patterns. 8 detection modes covering spec-to-code and doc-to-implementation gaps. Finding prefix: `PHNT`. Complements strand-tracer (wiring), void-analyzer (stubs), wraith-finder (dead code), and phantom-checker (dynamic refs) with traceability focus.
+- **Phantom Warden talisman registration** (`.claude/talisman.yml`) — Custom Ash entry with `PHNT` finding prefix, `context_budget: 30` (elevated for cross-reference scope), and dedup hierarchy placement between DPMT and DOC.
+
 ## [1.158.0] - 2026-03-14
 
 ### Added
