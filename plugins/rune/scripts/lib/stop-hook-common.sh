@@ -646,6 +646,67 @@ _read_arc_result_signal() {
   return 0
 }
 
+# ── _rune_detect_rate_limit(): Check for rate limit in recent context ──
+# Reads talisman arc shard for config, then checks transcript tail for rate limit patterns.
+# Returns: 0 if rate limit detected (wait seconds printed to stdout), 1 if no rate limit.
+# Fail-open: returns 1 on any read/parse error — callers proceed normally.
+#
+# Args:
+#   $1 = session_id (validated: alphanumeric/hyphens/underscores)
+#   $2 = cwd (absolute path to project root)
+# Integration: Called by arc-phase-stop-hook.sh and arc-batch-stop-hook.sh BEFORE
+# constructing the re-injection prompt. If rate limit detected, prepend wait instruction.
+_rune_detect_rate_limit() {
+  local session_id="$1"
+  local cwd="$2"
+
+  # Guard: require non-empty validated inputs
+  [[ -n "$session_id" && "$session_id" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
+  [[ -n "$cwd" && "$cwd" == /* ]] || return 1
+
+  # Talisman config defaults
+  local default_wait=60
+  local max_wait=300
+  local talisman_shard="${cwd}/tmp/.talisman-resolved/arc.json"
+  if [[ -f "$talisman_shard" && ! -L "$talisman_shard" ]]; then
+    local enabled
+    enabled=$(jq -r '.rate_limit.enabled // true' "$talisman_shard" 2>/dev/null || echo "true")
+    [[ "$enabled" == "false" ]] && return 1
+    local _dw _mw
+    _dw=$(jq -r '.rate_limit.default_wait_seconds // 60' "$talisman_shard" 2>/dev/null || echo "60")
+    _mw=$(jq -r '.rate_limit.max_wait_seconds // 300' "$talisman_shard" 2>/dev/null || echo "300")
+    [[ "$_dw" =~ ^[0-9]+$ ]] && default_wait="$_dw"
+    [[ "$_mw" =~ ^[0-9]+$ ]] && max_wait="$_mw"
+  fi
+
+  # Extract transcript_path from hook input JSON
+  local transcript_path
+  transcript_path=$(printf '%s\n' "${INPUT:-}" | jq -r '.transcript_path // empty' 2>/dev/null || true)
+  [[ -z "$transcript_path" || ! -f "$transcript_path" || -L "$transcript_path" ]] && return 1
+
+  # Read last 2KB of transcript for rate limit patterns
+  local tail_content
+  tail_content=$(tail -c 2048 "$transcript_path" 2>/dev/null || true)
+  [[ -z "$tail_content" ]] && return 1
+
+  # Pattern match: rate_limit, 429, too many requests, retry-after, overloaded_error
+  if printf '%s' "$tail_content" | grep -qiE '(rate.?limit|429|too many requests|retry.?after|overloaded_error)'; then
+    # Try to extract retry-after seconds from the content
+    local retry_after
+    retry_after=$(printf '%s' "$tail_content" | grep -oiE 'retry.?after[":= ]+([0-9]+)' | grep -oE '[0-9]+' | tail -1 2>/dev/null || true)
+
+    local wait_seconds="${retry_after:-$default_wait}"
+    [[ "$wait_seconds" =~ ^[0-9]+$ ]] || wait_seconds="$default_wait"
+    # Cap at max_wait to prevent indefinite waits
+    (( wait_seconds > max_wait )) && wait_seconds="$max_wait"
+
+    printf '%d' "$wait_seconds"
+    return 0
+  fi
+
+  return 1
+}
+
 # ── validate_paths(): Path traversal + metachar rejection for relative paths ──
 # Args: One or more relative path values to validate.
 # Returns: 0 if all paths are safe, 1 if any path is unsafe.
