@@ -31,9 +31,9 @@ rune-gaze:
 settings:
   max_ashes: 10
   max_cli_ashes: 2 # Sub-cap on CLI-backed Ashes (v1.57.0+)
-  # Utility Crew — Lightweight digest extraction for arc team lead context optimization (v1.141.0)
+  # Artifact Extraction — Lightweight digest extraction for arc team lead context optimization (v1.141.0)
   # Shell-based extraction (zero LLM tokens). Resolves decree-arbiter P1 (Explore cannot Write).
-  utility_crew:
+  artifact_extraction:
     enabled: true # Master toggle (default: true)
     tome_digest:
       enabled: true # TOME digest before mend phase

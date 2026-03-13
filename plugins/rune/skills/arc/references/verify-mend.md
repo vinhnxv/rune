@@ -48,13 +48,13 @@ updateCheckpoint({ phase: "verify_mend", status: "in_progress", phase_sequence: 
 ## STEP 1: Read Current TOME and Count Findings
 
 ```javascript
-// UTILITY CREW (v1.141.0): Extract TOME metrics via shell script for convergence checks.
+// ARTIFACT EXTRACTION (v1.141.0): Extract TOME metrics via shell script for convergence checks.
 // readTalismanSection: "settings"
-const utilityCrewEnabled = readTalismanSection("settings")?.utility_crew?.enabled !== false
-if (utilityCrewEnabled) {
+const extractionEnabled = readTalismanSection("settings")?.artifact_extraction?.enabled !== false
+if (extractionEnabled) {
   try {
-    Bash(`cd "${CWD}" && bash plugins/rune/scripts/utility-crew-extract.sh tome-digest "${id}" "${mendRound}"`)
-  } catch (e) { warn(`utility-crew tome-digest (round ${mendRound}) failed: ${e.message} — falling back`) }
+    Bash(`cd "${CWD}" && bash plugins/rune/scripts/artifact-extract.sh tome-digest "${id}" "${mendRound}"`)
+  } catch (e) { warn(`artifact-extract tome-digest (round ${mendRound}) failed: ${e.message} — falling back`) }
 }
 // Digest available at: tmp/arc/${id}/tome-digest${mendRound > 0 ? '-round-' + mendRound : ''}.json
 // Used below for quick-check metrics; full TOME still read for detailed convergence logic.

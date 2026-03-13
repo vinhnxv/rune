@@ -11,23 +11,23 @@ Hybrid analysis: deterministic orchestrator-only checks (STEP A) + 9-dimension L
 
 _(Formerly STEP 1–5. All logic unchanged — orchestrator-only, zero LLM cost.)_
 
-## STEP A.0: Utility Crew Pre-Extraction (v1.141.0)
+## STEP A.0: Artifact Pre-Extraction (v1.141.0)
 
 ```javascript
-// UTILITY CREW: Pre-extract plan and work-summary digests via shell script.
+// ARTIFACT EXTRACTION: Pre-extract plan and work-summary digests via shell script.
 // Shell extraction: zero LLM tokens, sub-second. Digests used for orchestrator's
 // quick checks only — gap analysis inspectors still read full artifacts for deep context.
 // readTalismanSection: "settings"
-const utilityCrewEnabled = readTalismanSection("settings")?.utility_crew?.enabled !== false
+const extractionEnabled = readTalismanSection("settings")?.artifact_extraction?.enabled !== false
 
-if (utilityCrewEnabled) {
+if (extractionEnabled) {
   try {
-    Bash(`cd "${CWD}" && bash plugins/rune/scripts/utility-crew-extract.sh plan "${id}"`)
-  } catch (e) { warn(`utility-crew plan digest failed: ${e.message}`) }
+    Bash(`cd "${CWD}" && bash plugins/rune/scripts/artifact-extract.sh plan "${id}"`)
+  } catch (e) { warn(`artifact-extract plan digest failed: ${e.message}`) }
 
   try {
-    Bash(`cd "${CWD}" && bash plugins/rune/scripts/utility-crew-extract.sh work-summary "${id}"`)
-  } catch (e) { warn(`utility-crew work-summary digest failed: ${e.message}`) }
+    Bash(`cd "${CWD}" && bash plugins/rune/scripts/artifact-extract.sh work-summary "${id}"`)
+  } catch (e) { warn(`artifact-extract work-summary digest failed: ${e.message}`) }
 }
 
 // Read digests for orchestrator quick-checks (tiny JSON, ~300 tokens each)

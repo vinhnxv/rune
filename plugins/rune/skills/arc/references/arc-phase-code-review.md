@@ -78,22 +78,22 @@ The orchestrator's role in Phase 6 is limited to:
 
 ```javascript
 // STEP 1: Propagate gap analysis to reviewers as additional context
-// UTILITY CREW (v1.141.0): Use shell-based digest extraction to avoid reading full artifacts.
+// ARTIFACT EXTRACTION (v1.141.0): Use shell-based digest extraction to avoid reading full artifacts.
 // Shell extraction: zero LLM tokens, sub-second, no ATE-1 concern.
 // readTalismanSection: "settings"
-const utilityCrewEnabled = readTalismanSection("settings")?.utility_crew?.enabled !== false
+const extractionEnabled = readTalismanSection("settings")?.artifact_extraction?.enabled !== false
 let reviewContext = ""
 
 if (exists(`tmp/arc/${id}/gap-analysis.md`)) {
   let gapDigest = null
 
-  if (utilityCrewEnabled) {
+  if (extractionEnabled) {
     try {
-      Bash(`cd "${CWD}" && bash plugins/rune/scripts/utility-crew-extract.sh gap-analysis "${id}"`)
+      Bash(`cd "${CWD}" && bash plugins/rune/scripts/artifact-extract.sh gap-analysis "${id}"`)
       const parsed = JSON.parse(Read(`tmp/arc/${id}/gap-analysis-digest.json`))
       if (typeof parsed.missing_count === 'number') gapDigest = parsed
     } catch (e) {
-      warn(`utility-crew gap-analysis digest failed: ${e.message} — falling back to direct read`)
+      warn(`artifact-extract gap-analysis digest failed: ${e.message} — falling back to direct read`)
     }
   }
 
@@ -119,13 +119,13 @@ const verdictPath = `tmp/arc/${id}/gap-analysis-verdict.md`
 if (exists(verdictPath)) {
   let verdictDigest = null
 
-  if (utilityCrewEnabled) {
+  if (extractionEnabled) {
     try {
-      Bash(`cd "${CWD}" && bash plugins/rune/scripts/utility-crew-extract.sh verdict "${id}"`)
+      Bash(`cd "${CWD}" && bash plugins/rune/scripts/artifact-extract.sh verdict "${id}"`)
       const parsed = JSON.parse(Read(`tmp/arc/${id}/verdict-digest.json`))
       if (Array.isArray(parsed.dimensions)) verdictDigest = parsed
     } catch (e) {
-      warn(`utility-crew verdict digest failed: ${e.message} — falling back to direct read`)
+      warn(`artifact-extract verdict digest failed: ${e.message} — falling back to direct read`)
     }
   }
 

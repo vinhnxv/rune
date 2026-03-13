@@ -349,10 +349,10 @@ def _inject_remaining_section_defaults(data):
         echoes["auto_observation"] = True
     data["echoes"] = echoes
 
-    # Utility Crew defaults — lives inside settings shard
+    # Artifact Extraction defaults — lives inside settings shard
     settings = data.get("settings", {})
-    if "utility_crew" not in settings:
-        settings["utility_crew"] = {
+    if "artifact_extraction" not in settings:
+        settings["artifact_extraction"] = {
             "enabled": True,
         }
     data["settings"] = settings

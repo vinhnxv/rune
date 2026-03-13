@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# utility-crew-extract.sh — Shell-based artifact digest extraction
+# artifact-extract.sh — Shell-based artifact digest extraction
 # Resolves decree-arbiter P1: Explore subagents cannot Write files.
 # Uses grep/awk/jq for mechanical extraction — zero LLM tokens.
 #
-# Usage: utility-crew-extract.sh <mode> <arc_id> [extra_args]
+# Usage: artifact-extract.sh <mode> <arc_id> [extra_args]
 # Modes: tome-digest, gap-analysis, verdict, plan, work-summary
 #
 # Each mode reads a specific artifact and writes a JSON digest file.
@@ -17,7 +17,7 @@ _json_escape() {
 
 # Check jq availability (required for JSON array construction)
 if ! command -v jq &>/dev/null; then
-  echo "WARN: jq not available — utility-crew-extract requires jq" >&2
+  echo "WARN: jq not available — artifact-extract requires jq" >&2
   exit 1
 fi
 
