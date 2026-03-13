@@ -19,12 +19,20 @@ Always pulls latest before branching. Always asks user before operating on a non
 
 **Core Principle**: The user's uncommitted work is sacred. Rune never discards it.
 
+> **Design Rationale (VEIL-005)**: The 4-case matrix below is deliberate — each combination of
+> (main vs feature branch) × (clean vs dirty working tree) requires distinct user prompts and
+> safety guarantees. Collapsing cases would lose important UX distinctions (e.g., dirty+feature
+> needs both stash and WIP-commit options, while dirty+main only needs stash). The shard branch
+> path adds a 5th case for multi-shard coordination. This complexity is justified by the
+> irreversibility of branch operations on user work.
+
 | Current Branch | Working Tree | Action |
 |---|---|---|
 | main/master | Clean | `git pull --ff-only` → create feature branch → proceed |
 | main/master | Dirty | WARN: offer Stash+proceed or Abort |
 | Feature branch | Clean | ASK: Use current / Switch to main / Abort |
 | Feature branch | Dirty | ASK: Stash+switch / Commit WIP+switch / Use current (risky) / Abort |
+| Feature branch (shard) | Any | Reuse existing shard branch (`rune/arc-{feature}-shards-*`) or create new one |
 
 ```javascript
 // ── SAFE BRANCH STRATEGY ──
@@ -47,6 +55,10 @@ function createFeatureBranch(planFile, shardInfo) {
     ).trim()
 
     if (existingBranch) {
+      // DSEC-006: Validate branch name from git output (defense-in-depth against malformed refs)
+      if (!/^[a-zA-Z0-9/_.-]+$/.test(existingBranch)) {
+        throw new Error(`Existing shard branch has invalid characters: ${existingBranch}`)
+      }
       Bash(`git checkout "${existingBranch}"`)
       Bash(`git pull --ff-only origin "${existingBranch}" 2>/dev/null || true`)
       return existingBranch
@@ -73,7 +85,7 @@ function createFeatureBranch(planFile, shardInfo) {
 // ── CASE 1: On main/master, clean working tree ──
 if (isMainBranch && !isDirty) {
   // Pull latest — ensure we branch from up-to-date code
-  const pullResult = Bash(`git pull --ff-only origin ${mainBranch} 2>&1`).trim()
+  const pullResult = Bash(`git pull --ff-only origin "${mainBranch}" 2>&1`).trim()
   if (pullResult.includes("fatal") || pullResult.includes("error")) {
     // Pull failed — diverged history or network issue
     const choice = AskUserQuestion({
@@ -111,7 +123,7 @@ if (isMainBranch && isDirty) {
   })
   if (choice.toLowerCase().includes("stash")) {
     Bash("git stash push -m 'rune-arc: auto-stash before branch creation'")
-    const pullResult = Bash(`git pull --ff-only origin ${mainBranch} 2>&1`).trim()
+    const pullResult = Bash(`git pull --ff-only origin "${mainBranch}" 2>&1`).trim()
     if (pullResult.includes("fatal") || pullResult.includes("error")) {
       // Restore stash before aborting
       Bash("git stash pop 2>/dev/null || true")
@@ -139,8 +151,8 @@ if (!isMainBranch && !isDirty) {
     log(`Using existing branch: ${currentBranch}`)
     // branch = currentBranch (set for checkpoint)
   } else if (choice.toLowerCase().includes("switch") || choice.toLowerCase().includes("main")) {
-    Bash(`git checkout ${mainBranch}`)
-    const pullResult = Bash(`git pull --ff-only origin ${mainBranch} 2>&1`).trim()
+    Bash(`git checkout "${mainBranch}"`)
+    const pullResult = Bash(`git pull --ff-only origin "${mainBranch}" 2>&1`).trim()
     if (pullResult.includes("fatal") || pullResult.includes("error")) {
       warn(`Pull failed: ${pullResult}. Proceeding with local ${mainBranch}.`)
     }
@@ -159,23 +171,26 @@ if (!isMainBranch && isDirty) {
       "**Recommended**: Handle your changes first.\n\n" +
       "Options:\n" +
       `1. **Stash & switch** — stash changes, checkout \`${mainBranch}\`, pull latest, create new branch\n` +
-      `2. **Commit WIP & switch** — commit as WIP on \`${currentBranch}\`, checkout \`${mainBranch}\`, pull, create new branch\n` +
+      `2. **Commit WIP & switch** — commit tracked files as WIP on \`${currentBranch}\`, checkout \`${mainBranch}\`, pull, create new branch\n` +
+      `   ⚠️ Only tracked files are committed. Untracked files remain in the working tree.\n` +
       `3. **Use current branch (risky)** — arc commits on \`${currentBranch}\` alongside your uncommitted changes\n` +
       "4. **Abort** — handle it yourself first"
   })
   if (choice.toLowerCase().includes("stash")) {
     Bash("git stash push -m 'rune-arc: auto-stash before branch switch'")
-    Bash(`git checkout ${mainBranch}`)
-    const pullResult = Bash(`git pull --ff-only origin ${mainBranch} 2>&1`).trim()
+    Bash(`git checkout "${mainBranch}"`)
+    const pullResult = Bash(`git pull --ff-only origin "${mainBranch}" 2>&1`).trim()
     if (pullResult.includes("fatal") || pullResult.includes("error")) {
       warn(`Pull failed: ${pullResult}. Proceeding with local ${mainBranch}.`)
     }
     warn(`Your changes on \`${currentBranch}\` were stashed. Run \`git checkout ${currentBranch} && git stash pop\` to restore them.`)
     const branch = createFeatureBranch(planFile, shardInfo)
   } else if (choice.toLowerCase().includes("commit wip") || choice.toLowerCase().includes("wip")) {
-    Bash(`git add -A && git commit -m "WIP: auto-committed by rune-arc before branch switch"`)
-    Bash(`git checkout ${mainBranch}`)
-    const pullResult = Bash(`git pull --ff-only origin ${mainBranch} 2>&1`).trim()
+    // SEC-002: Use git add -u (tracked files only) instead of git add -A to avoid
+    // staging untracked files that may contain sensitive data (.env, credentials, etc.)
+    Bash(`git add -u && git commit -m "WIP: auto-committed by rune-arc before branch switch"`)
+    Bash(`git checkout "${mainBranch}"`)
+    const pullResult = Bash(`git pull --ff-only origin "${mainBranch}" 2>&1`).trim()
     if (pullResult.includes("fatal") || pullResult.includes("error")) {
       warn(`Pull failed: ${pullResult}. Proceeding with local ${mainBranch}.`)
     }
@@ -197,7 +212,7 @@ if (!isMainBranch && isDirty) {
 - Shard mode: if sibling shard already created a branch, checkout + pull existing branch (skip creation)
 - Multiple shard branches for same feature: use most recent (sort by creator date)
 - Branch was force-deleted between shard runs: create new branch
-- User selects "Commit WIP" but `git add -A` includes sensitive files: `git add -A` is standard for WIP — user accepted the risk
+- User selects "Commit WIP": uses `git add -u` (tracked files only) to avoid staging untracked sensitive files (.env, credentials). Untracked files remain in the working tree.
 
 ## Concurrent Arc Prevention
 

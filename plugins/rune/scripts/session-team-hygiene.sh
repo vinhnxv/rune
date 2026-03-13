@@ -22,8 +22,10 @@ _rune_fail_forward() {
       "$(date +%H:%M:%S 2>/dev/null || true)" \
       "${BASH_SOURCE[0]##*/}" \
       "${BASH_LINENO[0]:-?}" \
-      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" 2>/dev/null
+      >> "${_RUNE_TRACE_PATH:-${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}}" 2>/dev/null
   fi
+  # BACK-002: Unconditional stderr warning for ERR trap visibility in production
+  printf 'WARN: session-team-hygiene.sh ERR trap at line %s — fail-forward activated\n' "${BASH_LINENO[0]:-?}" >&2
   exit 0
 }
 trap '_rune_fail_forward' ERR
@@ -32,6 +34,16 @@ trap '_rune_fail_forward' ERR
 if ! command -v jq &>/dev/null; then
   exit 0
 fi
+
+# DSEC-005 FIX: Cache trace log path once to prevent TOCTOU write-to-symlink races.
+# Each inline expansion of ${RUNE_TRACE_LOG:-...} re-evaluates and re-checks -L separately,
+# creating a window where the path could be replaced with a symlink between check and write.
+_RUNE_TRACE_PATH="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+# TMPDIR restriction: reject trace paths outside TMPDIR or /tmp (prevent write to arbitrary locations)
+case "$_RUNE_TRACE_PATH" in
+  "${TMPDIR:-/tmp}/"*|/tmp/*) ;;  # Allowed prefixes
+  *) _RUNE_TRACE_PATH="${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log" ;;
+esac
 
 INPUT=$(head -c 1048576 2>/dev/null || true)
 
@@ -73,6 +85,10 @@ fi
 
 # Extract session_id from hook input JSON (same pattern as enforce-team-lifecycle.sh)
 HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+# SEC-004: Validate session ID format — reject malformed values (path traversal, injection)
+if [[ -n "$HOOK_SESSION_ID" ]] && [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+  HOOK_SESSION_ID=""
+fi
 
 # Count orphaned team dirs (older than 30 min)
 # STALE THRESHOLD CROSS-REFERENCE:
@@ -106,7 +122,7 @@ if [[ -d "$CHOME/teams/" ]]; then
   done < <(find "$CHOME/teams/" -maxdepth 1 -type d \( -name "rune-*" -o -name "arc-*" -o -name "goldmask-*" \) -mmin +30 2>/dev/null)
 fi
 
-[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphan team dirs found: ${orphan_count}" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphan team dirs found: ${orphan_count}" >> "${_RUNE_TRACE_PATH}"
 
 # ── Auto-clean OWN-SESSION PID-dead orphans (REC-9, hardened v1.157.0) ──
 # STRICT CROSS-SESSION SAFETY RULES:
@@ -126,9 +142,38 @@ if [[ $orphan_count -gt 0 ]] && [[ -d "$CHOME/teams/" ]] && [[ -n "$HOOK_SESSION
     [[ -L "$odir" ]] && continue
     session_file="$odir/.session"
 
-    # Rule (a): .session file MUST exist — no .session means NEVER auto-clean.
+    # Rule (a): .session file MUST exist — no .session means skip normal cleanup.
     # The team may be in the race window between TeamCreate and stamp-team-session.sh.
+    # VEIL-006 FIX: Teams without .session that are older than 24 hours are safe to clean —
+    # the TeamCreate→stamp race window is seconds, not hours. Without this threshold,
+    # unstamped teams accumulate indefinitely as orphans.
     if [[ ! -f "$session_file" ]] || [[ -L "$session_file" ]]; then
+      # Check if team dir is older than 24 hours (1440 minutes) — safe to assume not in race window
+      odir_mtime=$(_stat_mtime "$odir"); odir_mtime="${odir_mtime:-0}"
+      odir_age_min=$(( ($(date +%s) - odir_mtime) / 60 ))
+      [[ "$odir_age_min" -lt 0 ]] && odir_age_min=0
+      if [[ $odir_age_min -gt 1440 ]]; then
+        # XVER-001: Verify resolved paths before cleanup
+        team_target="$CHOME/teams/${oname}"
+        task_target="$CHOME/tasks/${oname}"
+        [[ -L "$team_target" ]] && continue
+        if [[ -d "$team_target" ]]; then
+          team_resolved=$(cd "$team_target" 2>/dev/null && pwd -P) || continue
+          [[ "$team_resolved" == "$TEAMS_CANON/"* ]] || continue
+        fi
+        if [[ -d "$task_target" ]]; then
+          task_resolved=$(cd "$task_target" 2>/dev/null && pwd -P) || continue
+          [[ "$task_resolved" == "$TASKS_CANON/"* ]] || continue
+        fi
+        if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" == "1" ]]; then
+          orphans_cleaned=$((orphans_cleaned + 1))
+          [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: DRY RUN: would auto-clean 24h+ unstamped orphan: ${oname}" >> "${_RUNE_TRACE_PATH}"
+        else
+          rm -rf "$team_target/" "$task_target/" 2>/dev/null
+          orphans_cleaned=$((orphans_cleaned + 1))
+          [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: auto-cleaned 24h+ unstamped orphan: ${oname}" >> "${_RUNE_TRACE_PATH}"
+        fi
+      fi
       continue
     fi
 
@@ -189,16 +234,16 @@ if [[ $orphan_count -gt 0 ]] && [[ -d "$CHOME/teams/" ]] && [[ -n "$HOOK_SESSION
 
     if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" == "1" ]]; then
       orphans_cleaned=$((orphans_cleaned + 1))
-      [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: DRY RUN: would auto-clean orphan: ${oname} (dead PID ${owner_pid})" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+      [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: DRY RUN: would auto-clean orphan: ${oname} (dead PID ${owner_pid})" >> "${_RUNE_TRACE_PATH}"
       continue
     fi
     rm -rf "$team_target/" "$task_target/" 2>/dev/null
     orphans_cleaned=$((orphans_cleaned + 1))
-    [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: auto-cleaned orphan: ${oname} (dead PID ${owner_pid})" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+    [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: auto-cleaned orphan: ${oname} (dead PID ${owner_pid})" >> "${_RUNE_TRACE_PATH}"
   done
 fi
 
-[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphans auto-cleaned: ${orphans_cleaned}" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphans auto-cleaned: ${orphans_cleaned}" >> "${_RUNE_TRACE_PATH}"
 
 # ── Kill orphan teammate processes on resume ──
 # Same pattern as on-session-stop.sh Phase 0 (_kill_stale_teammates), but scoped to
@@ -239,7 +284,7 @@ if [[ -d "${CWD}/tmp" ]]; then
       esac
       if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" == "1" ]]; then
         orphan_procs_killed=$((orphan_procs_killed + 1))
-        [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: DRY RUN: would kill orphan PID=$cpid (comm=$child_comm)" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+        [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: DRY RUN: would kill orphan PID=$cpid (comm=$child_comm)" >> "${_RUNE_TRACE_PATH}"
         continue
       fi
       # BACK-008: Intentional SIGTERM-only design. We do NOT escalate to SIGKILL here because:
@@ -254,7 +299,7 @@ if [[ -d "${CWD}/tmp" ]]; then
   done
 fi
 
-[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphan processes killed: ${orphan_procs_killed}" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphan processes killed: ${orphan_procs_killed}" >> "${_RUNE_TRACE_PATH}"
 
 # Count stale state files
 stale_state_count=0
@@ -297,7 +342,7 @@ stale_state_count=$(
   echo "$count"
 )
 
-[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: stale state files found: ${stale_state_count}" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: stale state files found: ${stale_state_count}" >> "${_RUNE_TRACE_PATH}"
 
 # Count orphaned arc checkpoints (v1.110.0: Bug 2 fix)
 # Scan .claude/arc/ and tmp/arc/ for checkpoints with dead owner_pid
@@ -331,7 +376,7 @@ orphan_checkpoint_count=$(
   echo "$count"
 )
 
-[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphaned checkpoints found: ${orphan_checkpoint_count}" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphaned checkpoints found: ${orphan_checkpoint_count}" >> "${_RUNE_TRACE_PATH}"
 
 # ── Layer 2: Resumable arc detection — REMOVED (v1.156.0) ──
 # Previously detected interrupted arcs and injected an advisory message into
@@ -342,7 +387,7 @@ orphan_checkpoint_count=$(
 # Fix: Removed entirely. Users must explicitly run /rune:arc --resume to resume
 # interrupted arcs. Orphaned arc state files are still cleaned up by the Stop
 # hook's validate_session_ownership() orphan handler.
-resumable_count=0
+# Replacement: SKILL.md pre-flight conflict detection (Decision Matrix 1, F4)
 
 # ── Orphaned worktree detection ──
 # WORKTREE-GC: Remove when SDK provides native worktree lifecycle management
@@ -362,7 +407,7 @@ if [[ -f "${SCRIPT_DIR}/lib/worktree-gc.sh" ]]; then
   fi
 fi
 
-[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphaned worktrees found: ${orphaned_wt_count}" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphaned worktrees found: ${orphaned_wt_count}" >> "${_RUNE_TRACE_PATH}"
 
 # Report if anything found
 # BACK-007 FIX: Conditionally append orphan list to avoid trailing "Orphans: " with no names

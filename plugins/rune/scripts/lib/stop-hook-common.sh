@@ -47,9 +47,9 @@ parse_input() {
 # ── resolve_cwd(): Guard 3 — CWD extraction and canonicalization ──
 # Sets: CWD
 # Exits 0 if CWD is empty (after fallback), non-absolute, or unresolvable.
-# BUG FIX (v1.144.12): Added CLAUDE_PROJECT_DIR fallback. Previously exited
-# silently when .cwd was missing from Stop hook input, while detect-workflow-complete.sh
-# (which works correctly) had this fallback. Parity fix.
+# BUG FIX (v1.144.12, fixed in Claude Code ~2.1.50): Added CLAUDE_PROJECT_DIR fallback.
+# Previously exited silently when .cwd was missing from Stop hook input, while
+# detect-workflow-complete.sh (which works correctly) had this fallback. Parity fix.
 resolve_cwd() {
   CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
   if [[ -z "$CWD" ]]; then
@@ -111,19 +111,26 @@ get_field() {
   echo "$FRONTMATTER" | grep "^${field}:" | sed "s/^${field}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true
 }
 
-# ── validate_session_ownership(): Guards 5.7/10 — session isolation ──
+# ── _validate_session_ownership_core(): Shared session isolation logic ──
+# Internal core for validate_session_ownership() and validate_session_ownership_strict().
+# DO NOT call directly — use the public wrappers.
+#
 # Args:
-#   $1 = state file path (absolute) — used for cleanup on orphan detection
-#   $2 = progress file path (relative to CWD), may be empty
-#   $3 = orphan handler mode: "batch" (update plans[]) or "skip" (just remove state)
+#   $1 = mode: "normal" (exits on mismatch, cleans orphans) or "strict" (returns 1, no cleanup)
+#   $2 = state file path (absolute)
+#   $3 = progress file path (relative to CWD), may be empty (normal mode only)
+#   $4 = orphan handler mode: "batch" or "skip" (normal mode only)
 # Sources: resolve-session-identity.sh (sets RUNE_CURRENT_CFG)
-# Exits 0 if: config_dir mismatch (different installation) or
-#             PID alive and different (different session).
-# Cleans up and exits 0 if: owner PID is dead (orphan).
-validate_session_ownership() {
-  local state_file="$1"
-  local progress_file="${2:-}"
-  local orphan_mode="${3:-skip}"
+# Normal mode: exits 0 on mismatch/orphan (fail-open). Strict mode: returns 1 on mismatch.
+_validate_session_ownership_core() {
+  local mode="$1"
+  local state_file="$2"
+  local progress_file="${3:-}"
+  local orphan_mode="${4:-skip}"
+
+  # Parameterized trace prefix per mode (QUAL-002)
+  local _tp="ownership"
+  [[ "$mode" == "strict" ]] && _tp="ownership-strict"
 
   # Ownership bypass: RUNE_SKIP_OWNERSHIP defaults to "0" (ownership checks enabled).
   # Set RUNE_SKIP_OWNERSHIP=1 in settings.local.json env to bypass ownership checks.
@@ -131,7 +138,7 @@ validate_session_ownership() {
   # Bash tool context and hook subprocess context (see v1.144.16 notes), now fixed.
   if [[ "${RUNE_SKIP_OWNERSHIP:-0}" == "1" ]]; then
     if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-      _trace "ownership: BYPASSED (RUNE_SKIP_OWNERSHIP=1)"
+      _trace "${_tp}: BYPASSED (RUNE_SKIP_OWNERSHIP=1)"
     fi
     return 0
   fi
@@ -148,23 +155,34 @@ validate_session_ownership() {
   stored_session_id=$(get_field "session_id")
 
   # Extract session_id from hook input JSON (injected by Claude Code — always reliable)
+  # DSEC-001: Sanitize hook_session_id before use in sed substitution to prevent injection.
   local hook_session_id=""
   if [[ -n "${INPUT:-}" ]]; then
     hook_session_id=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
   fi
+  # Validate: alphanumeric, hyphens, underscores only, max 128 chars. Reject invalid values.
+  if [[ -n "$hook_session_id" ]] && ! [[ "$hook_session_id" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+    hook_session_id=""
+  fi
 
   # Trace: log ownership check details for debugging (uses caller's _trace if available)
   if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-    _trace "ownership: stored_cfg='${stored_config_dir}' RUNE_CURRENT_CFG='${RUNE_CURRENT_CFG}'"
-    _trace "ownership: stored_sid='${stored_session_id}' hook_sid='${hook_session_id}' stored_pid='${stored_pid}' PPID='${PPID}'"
+    _trace "${_tp}: stored_cfg='${stored_config_dir}' RUNE_CURRENT_CFG='${RUNE_CURRENT_CFG}'"
+    _trace "${_tp}: stored_sid='${stored_session_id}' hook_sid='${hook_session_id}' stored_pid='${stored_pid}' PPID='${PPID}'"
   fi
+
+  # Mode-specific rejection helper: normal mode exits 0, strict mode returns 1.
+  # shellcheck disable=SC2317
+  _ownership_reject() {
+    if [[ "$mode" == "strict" ]]; then return 1; else exit 0; fi
+  }
 
   # Layer 1: Config-dir isolation (different Claude Code installations)
   if [[ -n "$stored_config_dir" && "$stored_config_dir" != "$RUNE_CURRENT_CFG" ]]; then
     if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-      _trace "ownership: REJECTED — config_dir mismatch"
+      _trace "${_tp}: REJECTED — config_dir mismatch"
     fi
-    exit 0
+    _ownership_reject
   fi
 
   # Layer 2: Session isolation (same config dir, different session)
@@ -174,12 +192,16 @@ validate_session_ownership() {
   #
   # Priority: session_id (reliable) > owner_pid (unreliable in hooks)
   # Fallback to PID check only when session_id is unavailable in BOTH state file and hook input.
-  # "Claim on first touch": CLAUDE_SESSION_ID is not available in Bash tool context,
-  # so the skill writes session_id: unknown. On the first Stop hook execution, we claim
-  # ownership by writing the hook's session_id into the state file. This is safe because:
+  #
+  # "Claim on first touch" (VEIL-002: defensive fallback for session_id bootstrapping):
+  # CLAUDE_SESSION_ID is not available in Bash tool context, so the skill writes
+  # session_id: unknown. On the first Stop hook execution, we claim ownership by writing
+  # the hook's session_id into the state file. This is safe because:
   # 1. The state file is created by the skill in the SAME session
   # 2. The first Stop hook fires in the SAME session (immediately after the skill's turn)
   # 3. Config-dir isolation (Layer 1) already passed at this point
+  # This path is a defensive fallback — if Claude Code ever makes CLAUDE_SESSION_ID
+  # available in Bash tool context, this code becomes unreachable but harmless.
   #
   # GUARD: Process tree verification (v1.152.1 — cross-session claiming prevention)
   # When session_id is "unknown", ANY session's Stop hook could fire first.
@@ -190,7 +212,10 @@ validate_session_ownership() {
     # Process tree guard: verify hook is descendant of the owning session
     if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
       local _ancestor="$PPID" _is_descendant=false
-      # Walk up to 4 levels: hook script → hook runner → node worker → Claude Code session
+      # VEIL-001: Walk up to 4 levels of the process tree. Observed chain depth as of
+      # Claude Code 2.1.63: hook script (bash) → hook runner (node) → node worker → Claude Code
+      # session PID. 4 is sufficient for current architecture; increase if Claude Code adds
+      # intermediate processes (e.g., sandbox wrappers).
       local _walk
       for _walk in 1 2 3 4; do
         _ancestor=$(ps -o ppid= -p "$_ancestor" 2>/dev/null | tr -d ' ')
@@ -204,27 +229,46 @@ validate_session_ownership() {
       if [[ "$_is_descendant" != "true" ]]; then
         # Hook is NOT a descendant of stored_pid → different session → reject claim
         if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-          _trace "ownership: claim-on-first-touch REJECTED — hook not descendant of stored_pid=${stored_pid} (last ancestor=${_ancestor})"
+          _trace "${_tp}: claim-on-first-touch REJECTED — hook not descendant of stored_pid=${stored_pid} (last ancestor=${_ancestor})"
         fi
-        exit 0
+        _ownership_reject
       fi
+    else
+      # R1-010 FIX: No valid stored_pid — cannot verify process ancestry, reject claim
+      if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+        _trace "${_tp}: claim-on-first-touch REJECTED — no valid stored_pid for ancestry verification"
+      fi
+      _ownership_reject
     fi
     if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-      _trace "ownership: claim-on-first-touch — writing hook_sid='${hook_session_id}' owner_pid='${PPID}' to state file"
+      _trace "${_tp}: claim-on-first-touch — writing hook_sid='${hook_session_id}' owner_pid='${PPID}' to state file"
     fi
-    # Write session_id AND owner_pid into state file YAML frontmatter
+    # Write session_id AND owner_pid into state file YAML frontmatter (atomic write)
     # BUG FIX (v1.156.0): Previously only updated session_id, leaving owner_pid stale.
     # This caused session-team-hygiene.sh to misdetect active arcs as orphaned (dead PID).
-    local _tmp_state
+    # R1-001 FIX: Only update in-memory state after successful atomic write
+    local _tmp_state _claim_write_ok=false
     _tmp_state=$(mktemp "${state_file}.XXXXXX" 2>/dev/null) || true
     if [[ -n "$_tmp_state" ]]; then
-      sed -e "s/^session_id:.*/session_id: ${hook_session_id}/" \
-          -e "s/^owner_pid:.*/owner_pid: ${PPID}/" \
-          "$state_file" > "$_tmp_state" 2>/dev/null && \
-        mv -f "$_tmp_state" "$state_file" 2>/dev/null || rm -f "$_tmp_state" 2>/dev/null
+      if sed -e "s/^session_id:.*/session_id: ${hook_session_id}/" \
+             -e "s/^owner_pid:.*/owner_pid: ${PPID}/" \
+             "$state_file" > "$_tmp_state" 2>/dev/null && \
+         mv -f "$_tmp_state" "$state_file" 2>/dev/null; then
+        _claim_write_ok=true
+      else
+        rm -f "$_tmp_state" 2>/dev/null
+      fi
     fi
-    stored_session_id="$hook_session_id"
-    stored_pid="$PPID"
+    if [[ "$_claim_write_ok" == "true" ]]; then
+      stored_session_id="$hook_session_id"
+      stored_pid="$PPID"
+    else
+      # Disk write failed — reject claim to prevent in-memory/disk divergence
+      if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+        _trace "${_tp}: claim-on-first-touch REJECTED — atomic write failed"
+      fi
+      _ownership_reject
+    fi
   fi
 
   local _session_match=""
@@ -236,7 +280,7 @@ validate_session_ownership() {
       _session_match="no"
     fi
     if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-      _trace "ownership: session_id comparison — match=${_session_match}"
+      _trace "${_tp}: session_id comparison — match=${_session_match}"
     fi
   fi
 
@@ -255,69 +299,119 @@ validate_session_ownership() {
             mv -f "$_tmp_state" "$state_file" 2>/dev/null || rm -f "$_tmp_state" 2>/dev/null
         fi
         if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-          _trace "ownership: session_id match — updated stale owner_pid ${stored_pid} → ${PPID}"
+          _trace "${_tp}: session_id match — updated stale owner_pid ${stored_pid} → ${PPID}"
         fi
       fi
     fi
     return 0
   elif [[ "$_session_match" == "no" ]]; then
-    # Different session — check if owner is still alive for orphan handling
-    if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
-      if rune_pid_alive "$stored_pid"; then
+    if [[ "$mode" == "normal" ]]; then
+      # Different session — check if owner is still alive for orphan handling
+      if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
+        if rune_pid_alive "$stored_pid"; then
+          if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+            _trace "${_tp}: REJECTED — different session_id, owner alive (pid=${stored_pid})"
+          fi
+          exit 0
+        fi
+        # Owner dead — fall through to orphan handling below
+      else
+        # R1-002 FIX: No valid PID to verify owner death — cannot confirm orphan, fail-safe: reject
         if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-          _trace "ownership: REJECTED — different session_id, owner alive (pid=${stored_pid})"
+          _trace "${_tp}: REJECTED — different session_id, no valid stored_pid to verify orphan (fail-safe)"
         fi
         exit 0
       fi
+    else
+      # Strict mode: just reject, no orphan cleanup
+      if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+        _trace "${_tp}: REJECTED — different session_id (no orphan cleanup)"
+      fi
+      return 1
     fi
-    # Owner dead or no PID — orphaned workflow, handle below
   fi
 
   # Fallback: PID-based check (when session_id unavailable — legacy state files)
   if [[ -z "$_session_match" && -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
     if [[ "$stored_pid" != "$PPID" ]]; then
-      local _pid_alive=false
-      if rune_pid_alive "$stored_pid"; then
-        _pid_alive=true
+      if [[ "$mode" == "normal" ]]; then
+        local _pid_alive=false
+        if rune_pid_alive "$stored_pid"; then
+          _pid_alive=true
+        fi
+        if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+          _trace "${_tp}: PID fallback — stored=${stored_pid} hook_PPID=${PPID} owner_alive=${_pid_alive}"
+        fi
+        if [[ "$_pid_alive" == "true" ]]; then
+          exit 0
+        fi
+        # Owner died — fall through to orphan handling
+      else
+        # BACK-006: Only compute _pid_alive when trace is active (avoid unnecessary work)
+        if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+          local _pid_alive=false
+          rune_pid_alive "$stored_pid" && _pid_alive=true
+          _trace "${_tp}: PID fallback — stored=${stored_pid} hook_PPID=${PPID} owner_alive=${_pid_alive}"
+        fi
+        # Strict mode: reject on any PID mismatch (no orphan cleanup)
+        return 1
       fi
-      if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-        _trace "ownership: PID fallback — stored=${stored_pid} hook_PPID=${PPID} owner_alive=${_pid_alive}"
-      fi
-      if [[ "$_pid_alive" == "true" ]]; then
-        exit 0
-      fi
-      # Owner died — fall through to orphan handling
     else
       # PID matches — same session
       return 0
     fi
   fi
 
-  # If we reach here with _session_match="no" or PID mismatch+dead: orphan handling
-  if [[ "$_session_match" == "no" ]] || [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
-    if [[ "$orphan_mode" == "batch" && -n "$progress_file" && -f "${CWD}/${progress_file}" ]]; then
-      local orphan_progress
-      orphan_progress=$(jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
-        (.plans[] | select(.status == "in_progress")) |= (
-          .status = "failed" |
-          .failed_at = $ts |
-          .failure_reason = "orphaned: owner session died"
-        )
-      ' "${CWD}/${progress_file}" 2>/dev/null || true)
-      if [[ -n "$orphan_progress" ]]; then
-        local tmpfile
-        tmpfile=$(mktemp "${CWD}/${progress_file}.XXXXXX" 2>/dev/null) || true
-        if [[ -n "$tmpfile" ]]; then
-          printf '%s\n' "$orphan_progress" > "$tmpfile" && mv -f "$tmpfile" "${CWD}/${progress_file}" 2>/dev/null || rm -f "$tmpfile" 2>/dev/null
+  # Normal mode orphan handling: clean up dead owner's state
+  if [[ "$mode" == "normal" ]]; then
+    if [[ "$_session_match" == "no" ]] || [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
+      # DSEC-003: Validate progress_file path before constructing filesystem paths
+      if [[ "$orphan_mode" == "batch" && -n "$progress_file" ]]; then
+        if [[ "$progress_file" == *".."* ]] || [[ "$progress_file" == /* ]] || [[ "$progress_file" =~ [^a-zA-Z0-9._/-] ]]; then
+          if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+            _trace "${_tp}: orphan cleanup — progress_file path rejected (traversal/metachar)"
+          fi
+        elif [[ -f "${CWD}/${progress_file}" ]]; then
+          local orphan_progress
+          orphan_progress=$(jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+            (.plans[] | select(.status == "in_progress")) |= (
+              .status = "failed" |
+              .failed_at = $ts |
+              .failure_reason = "orphaned: owner session died"
+            )
+          ' "${CWD}/${progress_file}" 2>/dev/null || true)
+          if [[ -n "$orphan_progress" ]]; then
+            local tmpfile
+            tmpfile=$(mktemp "${CWD}/${progress_file}.XXXXXX" 2>/dev/null) || true
+            if [[ -n "$tmpfile" ]]; then
+              printf '%s\n' "$orphan_progress" > "$tmpfile" && mv -f "$tmpfile" "${CWD}/${progress_file}" 2>/dev/null || rm -f "$tmpfile" 2>/dev/null
+            fi
+          fi
         fi
       fi
+      rm -f "$state_file" 2>/dev/null
+      if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+        _trace "${_tp}: orphan cleanup — removed state file"
+      fi
+      exit 0
     fi
-    rm -f "$state_file" 2>/dev/null
-    if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-      _trace "ownership: orphan cleanup — removed state file"
-    fi
-    exit 0
   fi
+
+  # No stored PID and no session_id match — accept (legacy/minimal state files)
+  return 0
+}
+
+# ── validate_session_ownership(): Guards 5.7/10 — session isolation ──
+# Args:
+#   $1 = state file path (absolute) — used for cleanup on orphan detection
+#   $2 = progress file path (relative to CWD), may be empty
+#   $3 = orphan handler mode: "batch" (update plans[]) or "skip" (just remove state)
+# Sources: resolve-session-identity.sh (sets RUNE_CURRENT_CFG)
+# Exits 0 if: config_dir mismatch (different installation) or
+#             PID alive and different (different session).
+# Cleans up and exits 0 if: owner PID is dead (orphan).
+validate_session_ownership() {
+  _validate_session_ownership_core "normal" "$1" "${2:-}" "${3:-skip}"
 }
 
 # ── validate_session_ownership_strict(): Strict session isolation (no orphan cleanup) ──
@@ -331,146 +425,10 @@ validate_session_ownership() {
 # Returns: 0 if ownership confirmed, 1 if mismatch (caller should exit 0).
 # NEVER calls exit — always returns to caller.
 # NEVER deletes state files or modifies progress files.
+# NOTE: Legacy state files (pre-v1.144.16) may lack session_id — these fall through
+# to PID-based ownership check which returns 1 on any mismatch (no orphan recovery).
 validate_session_ownership_strict() {
-  local state_file="$1"
-
-  # Ownership bypass: RUNE_SKIP_OWNERSHIP defaults to "0" (ownership checks enabled).
-  if [[ "${RUNE_SKIP_OWNERSHIP:-0}" == "1" ]]; then
-    if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-      _trace "ownership-strict: BYPASSED (RUNE_SKIP_OWNERSHIP=1)"
-    fi
-    return 0
-  fi
-
-  # Source session identity resolver (idempotent — checks RUNE_CURRENT_CFG)
-  local script_dir
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  # shellcheck source=../resolve-session-identity.sh
-  source "${script_dir}/../resolve-session-identity.sh"
-
-  local stored_config_dir stored_pid stored_session_id
-  stored_config_dir=$(get_field "config_dir")
-  stored_pid=$(get_field "owner_pid")
-  stored_session_id=$(get_field "session_id")
-
-  # Extract session_id from hook input JSON (injected by Claude Code — always reliable)
-  local hook_session_id=""
-  if [[ -n "${INPUT:-}" ]]; then
-    hook_session_id=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
-  fi
-
-  # Trace: log ownership check details for debugging
-  if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-    _trace "ownership-strict: stored_cfg='${stored_config_dir}' RUNE_CURRENT_CFG='${RUNE_CURRENT_CFG}'"
-    _trace "ownership-strict: stored_sid='${stored_session_id}' hook_sid='${hook_session_id}' stored_pid='${stored_pid}' PPID='${PPID}'"
-  fi
-
-  # Layer 1: Config-dir isolation (different Claude Code installations)
-  if [[ -n "$stored_config_dir" && "$stored_config_dir" != "$RUNE_CURRENT_CFG" ]]; then
-    if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-      _trace "ownership-strict: REJECTED — config_dir mismatch"
-    fi
-    return 1
-  fi
-
-  # Layer 2: Session isolation (same config dir, different session)
-  # Claim-on-first-touch: session_id "unknown" → write hook's session_id into state file.
-  # Process tree guard preserved: verify hook is descendant of owning session.
-  if [[ -n "$hook_session_id" && ( -z "$stored_session_id" || "$stored_session_id" == "unknown" ) ]]; then
-    # Process tree guard: verify hook is descendant of the owning session
-    if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
-      local _ancestor="$PPID" _is_descendant=false
-      # Walk up to 4 levels: hook script → hook runner → node worker → Claude Code session
-      local _walk
-      for _walk in 1 2 3 4; do
-        _ancestor=$(ps -o ppid= -p "$_ancestor" 2>/dev/null | tr -d ' ')
-        [[ -n "$_ancestor" && "$_ancestor" =~ ^[0-9]+$ ]] || break
-        [[ "$_ancestor" == "1" || "$_ancestor" == "0" ]] && break  # hit init/launchd
-        if [[ "$_ancestor" == "$stored_pid" ]]; then
-          _is_descendant=true
-          break
-        fi
-      done
-      if [[ "$_is_descendant" != "true" ]]; then
-        # Hook is NOT a descendant of stored_pid → different session → reject claim
-        if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-          _trace "ownership-strict: claim-on-first-touch REJECTED — hook not descendant of stored_pid=${stored_pid} (last ancestor=${_ancestor})"
-        fi
-        return 1
-      fi
-    fi
-    if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-      _trace "ownership-strict: claim-on-first-touch — writing hook_sid='${hook_session_id}' owner_pid='${PPID}' to state file"
-    fi
-    # Write session_id AND owner_pid into state file YAML frontmatter (atomic write)
-    local _tmp_state
-    _tmp_state=$(mktemp "${state_file}.XXXXXX" 2>/dev/null) || true
-    if [[ -n "$_tmp_state" ]]; then
-      sed -e "s/^session_id:.*/session_id: ${hook_session_id}/" \
-          -e "s/^owner_pid:.*/owner_pid: ${PPID}/" \
-          "$state_file" > "$_tmp_state" 2>/dev/null && \
-        mv -f "$_tmp_state" "$state_file" 2>/dev/null || rm -f "$_tmp_state" 2>/dev/null
-    fi
-    stored_session_id="$hook_session_id"
-    stored_pid="$PPID"
-  fi
-
-  local _session_match=""
-  if [[ -n "$stored_session_id" && "$stored_session_id" != "unknown" && -n "$hook_session_id" ]]; then
-    # Both session IDs available — use session_id comparison (reliable)
-    if [[ "$stored_session_id" == "$hook_session_id" ]]; then
-      _session_match="yes"
-    else
-      _session_match="no"
-    fi
-    if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-      _trace "ownership-strict: session_id comparison — match=${_session_match}"
-    fi
-  fi
-
-  if [[ "$_session_match" == "yes" ]]; then
-    # Same session — update owner_pid if stale (e.g., claude --resume creates
-    # a new process with a different PID but the same session_id).
-    if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
-      if ! rune_pid_alive "$stored_pid"; then
-        local _tmp_state
-        _tmp_state=$(mktemp "${state_file}.XXXXXX" 2>/dev/null) || true
-        if [[ -n "$_tmp_state" ]]; then
-          sed "s/^owner_pid:.*/owner_pid: ${PPID}/" "$state_file" > "$_tmp_state" 2>/dev/null && \
-            mv -f "$_tmp_state" "$state_file" 2>/dev/null || rm -f "$_tmp_state" 2>/dev/null
-        fi
-        if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-          _trace "ownership-strict: session_id match — updated stale owner_pid ${stored_pid} → ${PPID}"
-        fi
-      fi
-    fi
-    return 0
-  elif [[ "$_session_match" == "no" ]]; then
-    # Different session — strict mode: just reject, no orphan cleanup
-    if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-      _trace "ownership-strict: REJECTED — different session_id (no orphan cleanup)"
-    fi
-    return 1
-  fi
-
-  # Fallback: PID-based check (when session_id unavailable — legacy state files)
-  if [[ -z "$_session_match" && -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
-    if [[ "$stored_pid" != "$PPID" ]]; then
-      if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
-        local _pid_alive=false
-        rune_pid_alive "$stored_pid" && _pid_alive=true
-        _trace "ownership-strict: PID fallback — stored=${stored_pid} hook_PPID=${PPID} owner_alive=${_pid_alive}"
-      fi
-      # Strict mode: reject on any PID mismatch (no orphan cleanup)
-      return 1
-    else
-      # PID matches — same session
-      return 0
-    fi
-  fi
-
-  # No stored PID and no session_id match — accept (legacy/minimal state files)
-  return 0
+  _validate_session_ownership_core "strict" "$1"
 }
 
 # ── _find_arc_checkpoint(): Find the most recent arc checkpoint for current session ──
@@ -554,7 +512,8 @@ _iso_to_epoch() {
   [[ "$ts" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || return 1
   local result
   result=$(_parse_iso_epoch "$ts")
-  [[ "$result" != "0" ]] && echo "$result" && return 0
+  # R1-009 FIX: Use empty-string check — "0" is valid (Unix epoch 0 = 1970-01-01T00:00:00Z)
+  [[ -n "$result" ]] && echo "$result" && return 0
   return 1
 }
 

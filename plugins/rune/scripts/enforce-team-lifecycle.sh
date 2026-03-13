@@ -23,6 +23,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=lib/platform.sh
 source "${SCRIPT_DIR}/lib/platform.sh"
 
+# --- DSEC-005: Cache trace log path before _rune_fail_forward ---
+# Avoids $(id -u) subshell fork on every ERR trap invocation.
+_RUNE_TRACE_PATH="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+case "$_RUNE_TRACE_PATH" in
+  "${TMPDIR:-/tmp}/"*|/tmp/*) ;;
+  *) _RUNE_TRACE_PATH="${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log" ;;
+esac
+
 # --- Fail-forward guard (OPERATIONAL hook) ---
 # Crash before validation → allow operation (don't stall workflows).
 # BACK-002: Always warn on stderr so crashes are observable in production.
@@ -35,7 +43,7 @@ _rune_fail_forward() {
       "$(date +%H:%M:%S 2>/dev/null || true)" \
       "${BASH_SOURCE[0]##*/}" \
       "$_crash_line" \
-      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" 2>/dev/null
+      >> "$_RUNE_TRACE_PATH" 2>/dev/null
   fi
   exit 0
 }
@@ -72,7 +80,7 @@ fi
 CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 if [[ -z "$CWD" ]]; then exit 0; fi
 CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || {
-  [[ "${RUNE_TRACE:-}" == "1" ]] && echo "TLC-001: CWD canonicalization failed for original CWD" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" 2>/dev/null
+  [[ "${RUNE_TRACE:-}" == "1" ]] && echo "TLC-001: CWD canonicalization failed for original CWD" >> "$_RUNE_TRACE_PATH" 2>/dev/null
   exit 0
 }
 if [[ -z "$CWD" || "$CWD" != /* ]]; then exit 0; fi
@@ -122,6 +130,11 @@ fi
 
 # ── EXTRACT: session_id from hook input (for session-scoped stale scan) ──
 HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+# SEC-004: Validate session_id format to prevent injection via crafted hook input
+if [[ -n "$HOOK_SESSION_ID" ]] && [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+  [[ "${RUNE_TRACE:-}" == "1" ]] && echo "TLC-001: Invalid session_id format — sanitizing to empty" >> "$_RUNE_TRACE_PATH" 2>/dev/null
+  HOOK_SESSION_ID=""
+fi
 
 # ── STALE TEAM DETECTION (Advisory — D-1, D-2) ──
 CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
@@ -163,8 +176,6 @@ unset _root_dir _target_path _target_canonical
 # not creation time. An active team with FS activity stays fresh. A team idle >30 min
 # (e.g., waiting on long LLM call) may be flagged — increase to -mmin +60 if observed.
 # Using -mmin +30 for age check (fast, no jq needed per dir)
-# NOTE: 30-min age is INFORMATIONAL ONLY for different-session teams (hardened v1.157.0).
-# Auto-cleanup below is restricted to own-session teams with verified .session ownership.
 stale_teams=()
 if [[ -d "$CHOME/teams/" ]]; then
   while IFS= read -r dir; do
@@ -174,8 +185,8 @@ if [[ -d "$CHOME/teams/" ]]; then
       # Session scoping: check .session marker before treating as stale
       if [[ -n "$HOOK_SESSION_ID" ]] && [[ -f "$dir/.session" ]] && [[ ! -L "$dir/.session" ]]; then
         # .session marker exists — read owner session_id (SEC-001 FIX: parse JSON with jq)
-        marker_session=$(jq -r '.session_id // empty' "$dir/.session" 2>/dev/null || true)
-        if [[ -n "$marker_session" ]] && [[ "$marker_session" != "$HOOK_SESSION_ID" ]]; then
+        _marker_session=$(jq -r '.session_id // empty' "$dir/.session" 2>/dev/null || true)
+        if [[ -n "$_marker_session" ]] && [[ "$_marker_session" != "$HOOK_SESSION_ID" ]]; then
           # Different session owns this team — skip it
           continue
         fi
@@ -184,7 +195,7 @@ if [[ -d "$CHOME/teams/" ]]; then
       # Auto-cleanup eligibility is enforced separately in the cleanup loop below.
       stale_teams+=("$dirname")
     fi
-  done < <(find "$CHOME/teams/" -maxdepth 1 -type d \( -name "rune-*" -o -name "arc-*" \) -mmin +30 2>/dev/null)
+  done < <(find "$CHOME/teams/" -maxdepth 1 -type d \( -name "rune-*" -o -name "arc-*" -o -name "goldmask-*" \) -mmin +30 2>/dev/null)
 fi
 
 # If no stale teams found, allow TeamCreate silently
@@ -193,6 +204,8 @@ if [[ ${#stale_teams[@]} -eq 0 ]]; then
 fi
 
 # ── AUTO-CLEANUP: Remove stale filesystem dirs (D-3) ──
+# NOTE: 30-min age is INFORMATIONAL ONLY for different-session teams (hardened v1.157.0).
+# Auto-cleanup is restricted to own-session teams with verified .session ownership.
 # BACK-005 NOTE: rm-rf removes dirs without SDK TeamDelete. This clears filesystem
 # state but not SDK leadership. Advisory message tells Claude to run TeamDelete()
 # if "Already leading" errors occur. SDK TeamDelete can't be called from a hook script.
@@ -241,6 +254,11 @@ for team in "${stale_teams[@]}"; do
     unset _nullglob_was_set
     if [[ "$_has_active_state" == "false" ]]; then
       # XVER-003 FIX: TOCTOU verification before rm -rf
+      # DSEC-004: A narrow TOCTOU race window exists between the scan (find -mmin +30)
+      # and this cleanup point. A new TeamCreate could claim the dir name in between.
+      # Defense-in-depth mitigations: (1) re-check mtime freshness below rejects dirs
+      # that became active, (2) .session ownership is verified above, (3) symlink and
+      # canonical path checks prevent traversal. Residual risk is accepted as negligible.
       # Re-check that the directory is still stale (mtime > 30 min) immediately before deletion
       # This closes the race window between the scan loop and the cleanup loop
       _team_dir="$CHOME/teams/${team}"
