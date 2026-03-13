@@ -21,8 +21,6 @@ try {
     "design-inventory-agent", "design-pipeline-agent",
     // Phase 0.3: UX Research (conditional — ux.enabled)
     "ux-pattern-analyzer",
-    // Phase 0.8: Utility Crew (normally shutdown mid-pipeline, listed here as safety net)
-    "context-scribe", "prompt-warden",
     // Phase 1A: Local Research
     "repo-surveyor", "echo-reader", "git-miner",
     // Phase 1C: External Research (conditional)

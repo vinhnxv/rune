@@ -96,9 +96,6 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | condenser-plan | Enriched plan digest — section count, acceptance criteria, file targets. Shell-based extraction. Used by arc Phase 5.5 (Gap Analysis) |
 | condenser-work | Work summary digest — committed files, task counts. Shell-based extraction. Used by arc Phase 5.5 (Gap Analysis) |
 | codex-phase-handler | Delegated Codex phase execution — runs Codex CLI commands as a teammate to keep Tarnished context clean |
-| context-scribe | Context pack composer — reads templates + runtime data, writes per-teammate `.context.md` files for Utility Crew phase |
-| prompt-warden | Context pack validator — 12-point checklist, verdict.json with PROCEED/WARN/BLOCK recommendation |
-| dispatch-herald | Context pack staleness detector — file list drift, TOME drift, plan modification, convergence iteration tracking (arc/arc-batch only) |
 
 ## Investigation Agents (`agents/investigation/`)
 

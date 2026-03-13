@@ -789,7 +789,6 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | team-sdk | Centralized team management SDK — ExecutionEngine interface, shared lifecycle protocols, preset systems for Rune workflows (non-invocable) |
 | team-status | Team health dashboard — show active team members, task progress, and communication state (non-invocable) |
 | runs | Workflow run history and diagnostics (non-invocable) |
-| utility-crew | Agent-based context pack composition and validation — context-scribe, prompt-warden, dispatch-herald. Gated by `utility_crew.enabled` (non-invocable) |
 | file-todos | Standalone file-based todo tracking — create, triage, list, search, resolve, dedup structured todo files. Session-scoped in `tmp/`. `/rune:file-todos` |
 | resolve-todos | Standalone todo resolution using Agent Teams with verify-before-fix pipeline. `/rune:resolve-todos` |
 | ux-design-process | UX design intelligence — heuristic evaluation checklists, interaction pattern libraries, flow validation. Auto-loaded for frontend files (non-invocable) |
@@ -917,7 +916,7 @@ plugins/rune/
 │   ├── research/            # 5 research agents (plan pipeline)
 │   ├── testing/             # 5 testing agents (arc Phase 7.7)
 │   ├── work/                # 6 swarm workers (work pipeline)
-│   └── utility/             # 26 utility agents: runebinder, decree-arbiter, truthseer-validator, flow-seer, scroll-reviewer, mend-fixer, knowledge-keeper, elicitation-sage, veil-piercer-plan, horizon-sage, deployment-verifier, evidence-verifier, research-verifier, state-weaver, ux-pattern-analyzer, todo-verifier, design-analyst, tome-digest, condenser-gap, condenser-verdict, condenser-plan, condenser-work, codex-phase-handler, context-scribe, prompt-warden, dispatch-herald (+ gap-fixer as prompt-template, no .md file)
+│   └── utility/             # 23 utility agents: runebinder, decree-arbiter, truthseer-validator, flow-seer, scroll-reviewer, mend-fixer, knowledge-keeper, elicitation-sage, veil-piercer-plan, horizon-sage, deployment-verifier, evidence-verifier, research-verifier, state-weaver, ux-pattern-analyzer, todo-verifier, design-analyst, tome-digest, condenser-gap, condenser-verdict, condenser-plan, condenser-work, codex-phase-handler (+ gap-fixer as prompt-template, no .md file)
 ├── commands/
 │   ├── cancel-arc.md           # /rune:cancel-arc
 │   ├── cancel-arc-batch.md     # /rune:cancel-arc-batch
@@ -1142,7 +1141,7 @@ Rune uses Elden Ring-inspired theming:
 Rune includes a 4-layer defense system to prevent teammates from hanging indefinitely when the team lead's context is exhausted:
 
 1. **Layer 1 — Shutdown Signal**: `guard-context-critical.sh` writes a shutdown signal file at 35% remaining context, enabling orchestrators to initiate early teammate shutdown
-2. **Layer 2 — maxTurns**: All 100 agents have `maxTurns` in their YAML frontmatter, providing a platform-level safety net
+2. **Layer 2 — maxTurns**: All 97 agents have `maxTurns` in their YAML frontmatter, providing a platform-level safety net
 3. **Layer 3 — Process Kill**: `on-session-stop.sh` sends SIGTERM/SIGKILL to orphaned teammate processes before filesystem cleanup
 4. **Layer 4 — All-Tasks-Done Signal**: `on-teammate-idle.sh` writes a coordination signal when all team tasks are completed, enabling faster completion detection
 

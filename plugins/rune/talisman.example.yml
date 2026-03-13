@@ -221,22 +221,9 @@ settings:
   # See review: → enforcement_asymmetry: or skills/roundtable-circle/references/agent-patterns/enforcement-asymmetry.md
 
   # ── Utility Crew settings (v1.143.0+) ──────────────
-  # Agent-based context pack composition and validation for teammate prompts.
-  # Replaces inline prompt composition with file-based Context Pack Protocol.
-  # Reduces Tarnished context consumption from O(N) to O(1) for N teammates.
+  # Shell-based extraction utilities (tome-digest, artifact condensers).
   utility_crew:
-    enabled: true                    # Master gate — set false to use inline composition
-    fallback_on_failure: true        # Fall back to inline composition on Crew failure
-    context_scribe:
-      timeout_ms: 90000             # Max time for scribe to compose all packs
-      max_packs: 12                  # Safety cap on packs per invocation
-    prompt_warden:
-      enabled: true                  # Can disable review step (not recommended)
-      block_on_critical: true        # BLOCK when critical checks fail
-      warn_threshold: 2              # Number of HIGH issues before WARN
-    dispatch_herald:
-      enabled: true                  # Only relevant for arc/arc-batch workflows
-      staleness_check_ms: 30000     # Time budget for staleness check
+    enabled: true                    # Master gate for shell-based extraction utilities
 
 # ── Deep Audit settings (v1.56.0+) ──────────────
 # Deep investigation teammates for /rune:audit --deep.

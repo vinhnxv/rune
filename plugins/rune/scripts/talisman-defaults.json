@@ -673,21 +673,7 @@
     "max_ashes": 9,
     "max_cli_ashes": 2,
     "utility_crew": {
-      "context_scribe": {
-        "max_packs": 12,
-        "timeout_ms": 90000
-      },
-      "dispatch_herald": {
-        "enabled": true,
-        "staleness_check_ms": 30000
-      },
-      "enabled": true,
-      "fallback_on_failure": true,
-      "prompt_warden": {
-        "block_on_critical": true,
-        "enabled": true,
-        "warn_threshold": 2
-      }
+      "enabled": true
     },
     "verification": {
       "layer_2_custom_agents": true

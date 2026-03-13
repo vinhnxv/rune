@@ -12,9 +12,8 @@ try {
   const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
-  // FALLBACK: spawnedWorkerNames (rune-smith) + trial-forger + Utility Crew + Mini Test agents
+  // FALLBACK: spawnedWorkerNames (rune-smith) + trial-forger + Mini Test agents
   allMembers = [...spawnedWorkerNames, "trial-forger",
-    "context-scribe", "prompt-warden",
     "unit-test-runner", "test-failure-analyst"]
 }
 // 2. Send shutdown_request to all members
