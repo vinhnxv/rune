@@ -1011,17 +1011,50 @@ def _merge_pair_into_groups(groups, id_a, id_b, sim):
 
 
 def _build_pairwise_groups(entry_map, entry_ids, threshold):
-    """Build groups via pairwise similarity comparison."""
+    """Build groups via token-indexed similarity comparison.
+
+    Uses an inverted index to avoid O(n²) full pairwise scan — only pairs
+    sharing at least one feature token are compared.
+    """
     if len(entry_ids) > 500:
         logger.warning("_build_pairwise_groups: skipping — %d entries exceeds 500 cap", len(entry_ids))
         return []
+
+    # Phase 1: Build feature sets and inverted index (token → entry IDs)
+    feature_cache = {}  # type: dict[str, set[str]]
+    inverted_index = {}  # type: dict[str, set[str]]
+    for eid in entry_ids:
+        entry = entry_map[eid]
+        features = _evidence_basenames(entry) | _tokenize_for_grouping(
+            (entry.get("content", "") or "") + " " + (entry.get("tags", "") or ""))
+        feature_cache[eid] = features
+        for token in features:
+            if token not in inverted_index:
+                inverted_index[token] = set()
+            inverted_index[token].add(eid)
+
+    # Phase 2: Collect candidate pairs (share at least one token)
+    candidate_pairs = set()  # type: set[tuple[str, str]]
+    for token_entries in inverted_index.values():
+        entries_list = sorted(token_entries)  # deterministic order
+        for i in range(len(entries_list)):
+            for j in range(i + 1, len(entries_list)):
+                candidate_pairs.add((entries_list[i], entries_list[j]))
+
+    logger.debug("_build_pairwise_groups: %d candidates from %d entries (full pairwise would be %d)",
+                 len(candidate_pairs), len(entry_ids), len(entry_ids) * (len(entry_ids) - 1) // 2)
+
+    # Phase 3: Compute similarity only for candidate pairs
     groups = []  # type: list[tuple[str, set[str], dict[str, float]]]
-    for i in range(len(entry_ids)):
-        for j in range(i + 1, len(entry_ids)):
-            id_a, id_b = entry_ids[i], entry_ids[j]
-            sim = compute_entry_similarity(entry_map[id_a], entry_map[id_b])
-            if sim >= threshold:
-                _merge_pair_into_groups(groups, id_a, id_b, sim)
+    for id_a, id_b in candidate_pairs:
+        features_a = feature_cache[id_a]
+        features_b = feature_cache[id_b]
+        if not features_a and not features_b:
+            continue
+        union = features_a | features_b
+        sim = len(features_a & features_b) / len(union) if union else 0.0
+        if sim >= threshold:
+            _merge_pair_into_groups(groups, id_a, id_b, sim)
     return [g for g in groups if len(g[1]) >= 2]
 
 
