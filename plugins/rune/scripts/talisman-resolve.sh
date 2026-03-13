@@ -259,7 +259,11 @@ all_shards=$(echo "$merged" | jq '{
     arc_hierarchy: (.arc_hierarchy // {}),
     schema_drift: (.schema_drift // {}),
     deployment_verification: (.deployment_verification // {}),
-    integrations: (.integrations // {})
+    integrations: (.integrations // {}),
+    keyword_detection: (.keyword_detection // {}),
+    tool_failure_tracking: (.tool_failure_tracking // {}),
+    deliverable_verification: (.deliverable_verification // {}),
+    context_stop_guard: (.context_stop_guard // {})
   },
   keyword_detection: (.keyword_detection // {}),
   tool_failure_tracking: (.tool_failure_tracking // {}),
