@@ -130,6 +130,10 @@ MAX_IDLE_DURATION_SECS="${RUNE_MAX_IDLE_DURATION:-300}"
 FIRST_IDLE_FILE="${CWD}/tmp/.rune-signals/${TEAM_NAME}/${TEAMMATE_NAME}.first-idle"
 if [[ ! -f "$FIRST_IDLE_FILE" ]] || [[ -L "$FIRST_IDLE_FILE" ]]; then
   # First idle event (or symlink — recreate safely) — record timestamp atomically
+  # FLAW-001 FIX: Ensure signal directory exists before writing (may not exist yet if
+  # on-task-completed.sh hasn't run). Without this, printf silently fails and the time-gate
+  # is permanently disabled for this teammate.
+  mkdir -p "${CWD}/tmp/.rune-signals/${TEAM_NAME}" 2>/dev/null || true
   if [[ -L "$FIRST_IDLE_FILE" ]]; then
     rm -f "$FIRST_IDLE_FILE" 2>/dev/null
   fi
@@ -138,8 +142,17 @@ if [[ ! -f "$FIRST_IDLE_FILE" ]] || [[ -L "$FIRST_IDLE_FILE" ]]; then
 else
   # Subsequent idle — check elapsed time since first idle
   first_idle_epoch=$(head -c 20 "$FIRST_IDLE_FILE" 2>/dev/null | tr -dc '0-9')
-  [[ -z "$first_idle_epoch" ]] && first_idle_epoch=0
   now_epoch=$(date +%s)
+  # FLAW-002 FIX: Validate first_idle_epoch is a reasonable value (within last 24h).
+  # If empty/corrupt (epoch=0), the elapsed calculation would be ~1.7 billion seconds,
+  # triggering an immediate false-positive force-stop. Reset the file instead.
+  if [[ -z "$first_idle_epoch" ]] || (( first_idle_epoch < now_epoch - 86400 )); then
+    # Corrupt or stale — reset timer to now
+    _trace "TIME-GATE: Reset stale/corrupt first-idle for ${TEAMMATE_NAME} (was: ${first_idle_epoch:-empty})"
+    printf '%s' "$now_epoch" > "${FIRST_IDLE_FILE}.tmp.$$" 2>/dev/null && \
+      mv -f "${FIRST_IDLE_FILE}.tmp.$$" "$FIRST_IDLE_FILE" 2>/dev/null || true
+    first_idle_epoch=$now_epoch
+  fi
   elapsed=$(( now_epoch - first_idle_epoch ))
   if (( elapsed > MAX_IDLE_DURATION_SECS )); then
     # Time-gated force stop
