@@ -68,28 +68,60 @@ result=$(echo '{"cwd":"'"$MOCK_CWD"'","session_id":"test-talisman-1"}' | CLAUDE_
 assert_contains "Output has Talisman Shards" "Talisman Shards" "$result"
 assert_contains "Output has SessionStart" "SessionStart" "$result"
 
-# Verify shards were created
-SHARD_DIR="$MOCK_CWD/tmp/.talisman-resolved"
+# Verify shards were created at SYSTEM-LEVEL dir (defaults-only → .rune/talisman-resolved/)
+SHARD_DIR="$MOCK_CHOME/.rune/talisman-resolved"
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
 if [[ -d "$SHARD_DIR" ]]; then
   PASS_COUNT=$(( PASS_COUNT + 1 ))
-  printf "  PASS: Shard directory created\n"
+  printf "  PASS: System shard directory created\n"
 else
   FAIL_COUNT=$(( FAIL_COUNT + 1 ))
-  printf "  FAIL: Shard directory NOT created\n"
+  printf "  FAIL: System shard directory NOT created at %s\n" "$SHARD_DIR"
 fi
 
-# Verify _meta.json exists
+# Verify _meta.json exists with cache_type: system
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
 if [[ -f "$SHARD_DIR/_meta.json" ]]; then
-  PASS_COUNT=$(( PASS_COUNT + 1 ))
-  printf "  PASS: _meta.json created\n"
+  cache_type=$(jq -r '.cache_type // "unknown"' "$SHARD_DIR/_meta.json" 2>/dev/null || echo "unknown")
+  if [[ "$cache_type" == "system" ]]; then
+    PASS_COUNT=$(( PASS_COUNT + 1 ))
+    printf "  PASS: _meta.json created with cache_type=system\n"
+  else
+    FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+    printf "  FAIL: _meta.json cache_type=%s (expected system)\n" "$cache_type"
+  fi
 else
   FAIL_COUNT=$(( FAIL_COUNT + 1 ))
   printf "  FAIL: _meta.json NOT created\n"
 fi
 
-# Verify key shards exist
+# Verify system meta has NO session isolation fields
+TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
+if [[ -f "$SHARD_DIR/_meta.json" ]]; then
+  has_pid=$(jq -r '.owner_pid // "absent"' "$SHARD_DIR/_meta.json" 2>/dev/null || echo "absent")
+  if [[ "$has_pid" == "absent" || "$has_pid" == "null" ]]; then
+    PASS_COUNT=$(( PASS_COUNT + 1 ))
+    printf "  PASS: System _meta.json has no owner_pid\n"
+  else
+    FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+    printf "  FAIL: System _meta.json has owner_pid=%s (should be absent)\n" "$has_pid"
+  fi
+else
+  FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+  printf "  FAIL: _meta.json not found for session field check\n"
+fi
+
+# Verify NO project-level shards created (defaults-only should NOT touch project tmp/)
+TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
+if [[ ! -d "$MOCK_CWD/tmp/.talisman-resolved" ]]; then
+  PASS_COUNT=$(( PASS_COUNT + 1 ))
+  printf "  PASS: No project-level shards created (defaults-only)\n"
+else
+  FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+  printf "  FAIL: Project-level shards created (should use system dir for defaults-only)\n"
+fi
+
+# Verify key shards exist in system dir
 for shard in arc codex review work settings; do
   TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
   if [[ -f "$SHARD_DIR/${shard}.json" ]]; then
@@ -100,6 +132,16 @@ for shard in arc codex review work settings; do
     printf "  FAIL: ${shard}.json shard NOT created\n"
   fi
 done
+
+# Verify defaults hash file was written
+TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
+if [[ -f "$SHARD_DIR/.defaults-hash" ]]; then
+  PASS_COUNT=$(( PASS_COUNT + 1 ))
+  printf "  PASS: .defaults-hash file created\n"
+else
+  FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+  printf "  FAIL: .defaults-hash file NOT created\n"
+fi
 
 rm -rf "$SHARD_DIR"
 
@@ -117,6 +159,8 @@ codex:
   enabled: true
 YAML
 
+# Project talisman exists → shards go to project-level dir
+SHARD_DIR="$MOCK_CWD/tmp/.talisman-resolved"
 result=$(echo '{"cwd":"'"$MOCK_CWD"'","session_id":"test-talisman-2"}' | CLAUDE_PLUGIN_ROOT="$REAL_PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" 2>/dev/null)
 assert_contains "Project merge has Talisman Shards" "Talisman Shards" "$result"
 
@@ -152,6 +196,11 @@ rm -rf "$SHARD_DIR"
 # ═══════════════════════════════════════════════════════════════
 printf "\n=== Session Isolation in Meta ===\n"
 
+# For session isolation test, use project talisman to force project-level resolution
+cat > "$MOCK_CWD/.claude/talisman.yml" <<YAML
+version: "1.0"
+YAML
+SHARD_DIR="$MOCK_CWD/tmp/.talisman-resolved"
 result=$(echo '{"cwd":"'"$MOCK_CWD"'","session_id":"test-talisman-3"}' | CLAUDE_PLUGIN_ROOT="$REAL_PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" 2>/dev/null)
 
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
@@ -228,9 +277,13 @@ assert_eq "Relative CHOME → exit 0" "0" "$result_code"
 # ═══════════════════════════════════════════════════════════════
 printf "\n=== Shard Count ===\n"
 
+# Clean system dir to force fresh resolve (may have hash from prior test)
+rm -rf "$MOCK_CHOME/.rune/talisman-resolved" 2>/dev/null || true
+
+# Defaults-only → system-level dir
 result=$(echo '{"cwd":"'"$MOCK_CWD"'","session_id":"test-talisman-count"}' | CLAUDE_PLUGIN_ROOT="$REAL_PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" 2>/dev/null)
 
-SHARD_DIR="$MOCK_CWD/tmp/.talisman-resolved"
+SHARD_DIR="$MOCK_CHOME/.rune/talisman-resolved"
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
 if [[ -d "$SHARD_DIR" ]]; then
   json_count=$(find "$SHARD_DIR" -maxdepth 1 -name '*.json' -not -name '_meta.json' -not -name '.tmp-*' | wc -l | tr -d ' ')
@@ -254,9 +307,10 @@ rm -rf "$SHARD_DIR"
 # ═══════════════════════════════════════════════════════════════
 printf "\n=== Shard JSON Validity ===\n"
 
+# Defaults-only → system dir
 echo '{"cwd":"'"$MOCK_CWD"'","session_id":"test-talisman-valid"}' | CLAUDE_PLUGIN_ROOT="$REAL_PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" >/dev/null 2>&1
 
-SHARD_DIR="$MOCK_CWD/tmp/.talisman-resolved"
+SHARD_DIR="$MOCK_CHOME/.rune/talisman-resolved"
 all_valid=true
 invalid_count=0
 for shard in "$SHARD_DIR"/*.json; do
