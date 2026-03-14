@@ -120,6 +120,50 @@ while IFS= read -r state_file; do
   fi
 done < <(find "${CWD}/tmp" -maxdepth 1 -name '.rune-*.json' -type f 2>/dev/null)
 
+# --- Time-based force-stop (cumulative idle duration) ---
+# If teammate has been idling for >MAX_IDLE_DURATION_SECS cumulative,
+# force-stop regardless of retry count. Catches teammates that idle
+# infrequently but persistently (e.g., once per 3 min, never hitting MAX_IDLE_RETRIES).
+# Configurable via RUNE_MAX_IDLE_DURATION env var (default: 300s = 5 minutes).
+MAX_IDLE_DURATION_SECS="${RUNE_MAX_IDLE_DURATION:-300}"
+
+FIRST_IDLE_FILE="${CWD}/tmp/.rune-signals/${TEAM_NAME}/${TEAMMATE_NAME}.first-idle"
+if [[ ! -f "$FIRST_IDLE_FILE" ]] || [[ -L "$FIRST_IDLE_FILE" ]]; then
+  # First idle event (or symlink — recreate safely) — record timestamp atomically
+  # FLAW-001 FIX: Ensure signal directory exists before writing (may not exist yet if
+  # on-task-completed.sh hasn't run). Without this, printf silently fails and the time-gate
+  # is permanently disabled for this teammate.
+  mkdir -p "${CWD}/tmp/.rune-signals/${TEAM_NAME}" 2>/dev/null || true
+  if [[ -L "$FIRST_IDLE_FILE" ]]; then
+    rm -f "$FIRST_IDLE_FILE" 2>/dev/null
+  fi
+  printf '%s' "$(date +%s)" > "${FIRST_IDLE_FILE}.tmp.$$" 2>/dev/null && \
+    mv -f "${FIRST_IDLE_FILE}.tmp.$$" "$FIRST_IDLE_FILE" 2>/dev/null || true
+else
+  # Subsequent idle — check elapsed time since first idle
+  first_idle_epoch=$(head -c 20 "$FIRST_IDLE_FILE" 2>/dev/null | tr -dc '0-9')
+  now_epoch=$(date +%s)
+  # FLAW-002 FIX: Validate first_idle_epoch is a reasonable value (within last 24h).
+  # If empty/corrupt (epoch=0), the elapsed calculation would be ~1.7 billion seconds,
+  # triggering an immediate false-positive force-stop. Reset the file instead.
+  if [[ -z "$first_idle_epoch" ]] || (( first_idle_epoch < now_epoch - 86400 )); then
+    # Corrupt or stale — reset timer to now
+    _trace "TIME-GATE: Reset stale/corrupt first-idle for ${TEAMMATE_NAME} (was: ${first_idle_epoch:-empty})"
+    printf '%s' "$now_epoch" > "${FIRST_IDLE_FILE}.tmp.$$" 2>/dev/null && \
+      mv -f "${FIRST_IDLE_FILE}.tmp.$$" "$FIRST_IDLE_FILE" 2>/dev/null || true
+    first_idle_epoch=$now_epoch
+  fi
+  elapsed=$(( now_epoch - first_idle_epoch ))
+  if (( elapsed > MAX_IDLE_DURATION_SECS )); then
+    # Time-gated force stop
+    _trace "TIME-GATE: ${TEAMMATE_NAME} idle for ${elapsed}s (>${MAX_IDLE_DURATION_SECS}s) — force-stopping"
+    jq -n --arg reason "Teammate idle for ${elapsed}s (>${MAX_IDLE_DURATION_SECS}s cumulative threshold)" \
+      '{"continue": false, "stopReason": $reason}' 2>/dev/null || \
+      printf '{"continue":false,"stopReason":"Teammate idle for %ds (>%ds cumulative threshold)"}\n' "$elapsed" "$MAX_IDLE_DURATION_SECS"
+    exit 0
+  fi
+fi
+
 # --- Retry-based quality gate with teammate stop (Claude Code 2.1.69+) ---
 # After MAX_IDLE_RETRIES consecutive quality gate failures, stop the teammate
 # via {"continue": false} instead of blocking indefinitely with exit 2.
@@ -488,6 +532,10 @@ fi
 fi  # end: skip output file gate for work teams
 
 _trace "PASS all gates for $TEAMMATE_NAME"
+
+# Reset time-gate on successful quality gate pass — measures cumulative FAILED idle time,
+# not total lifetime. A teammate that works productively between idles gets its timer reset.
+rm -f "${CWD}/tmp/.rune-signals/${TEAM_NAME}/${TEAMMATE_NAME}.first-idle" 2>/dev/null
 
 # --- Layer 4: All-Tasks-Done Signal ---
 # After quality gates pass, check if ALL tasks in this team are done.
