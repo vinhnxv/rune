@@ -61,14 +61,7 @@ if (allMembers.length > 0) {
   Bash(`sleep 20`)
 }
 
-// 2.5. Mark state file as completed (deactivates ATE-1 enforcement for this workflow)
-try {
-  const stateFile = `tmp/.rune-plan-${timestamp}.json`
-  const state = JSON.parse(Read(stateFile))
-  Write(stateFile, { ...state, status: "completed" })
-} catch (e) { /* non-blocking — state file may already be cleaned */ }
-
-// 3. Cleanup team — QUAL-004: retry-with-backoff
+// 2.5. Cleanup team — QUAL-004: retry-with-backoff
 // CRITICAL: Validate timestamp (/^[a-zA-Z0-9_-]+$/) before rm -rf — path traversal guard
 if (!/^[a-zA-Z0-9_-]+$/.test(timestamp)) throw new Error("Invalid plan identifier")
 if (timestamp.includes('..')) throw new Error('Path traversal detected')
@@ -95,6 +88,16 @@ if (!cleanupTeamDeleteSucceeded) {
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/rune-plan-${timestamp}/" "$CHOME/tasks/rune-plan-${timestamp}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
+
+// 3. Mark state file as completed AFTER team cleanup (deactivates ATE-1 enforcement)
+// FIX: Moved after TeamDelete — previously at step 2.5, which caused downstream safety nets
+// (CDX-7 detect-workflow-complete.sh, STOP-001 on-session-stop.sh) to skip team cleanup
+// when they saw status="completed" even though TeamDelete had failed.
+try {
+  const stateFile = `tmp/.rune-plan-${timestamp}.json`
+  const state = JSON.parse(Read(stateFile))
+  Write(stateFile, { ...state, status: "completed" })
+} catch (e) { /* non-blocking — state file may already be cleaned */ }
 
 // 3.5. Release workflow lock
 Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "devise"`)
