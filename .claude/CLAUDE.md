@@ -267,9 +267,9 @@ try {
   allMembers = ["agent-1", "agent-2", "agent-3"]
 }
 
-// 2. shutdown_request to all members
+// 2. shutdown_request to all members (try-catch: member may have already exited)
 for (const member of allMembers) {
-  SendMessage({ type: "shutdown_request", recipient: member, content: "Workflow complete" })
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Workflow complete" }) } catch (e) { /* member may have already exited */ }
 }
 
 // 3. Grace period — let teammates deregister before TeamDelete
@@ -289,7 +289,7 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
 if (!cleanupTeamDeleteSucceeded) {
   // 5a. Process-level kill — terminate lingering teammates before filesystem cleanup
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-  Bash(`sleep 3`)
+  Bash(`sleep 5`)
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   // 5b. Filesystem cleanup
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)

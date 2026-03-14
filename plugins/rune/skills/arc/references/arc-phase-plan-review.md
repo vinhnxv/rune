@@ -322,7 +322,7 @@ if (hasCodeBlocks) {
       // SDK still thinks we're leading another team — clear and retry
       try { TeamDelete() } catch (e2) { /* ignore */ }
       Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${layer2TeamName}/" "$CHOME/tasks/${layer2TeamName}/" 2>/dev/null`)
-      Bash(`sleep 3`)
+      Bash(`sleep 5`)
       TeamCreate({ team_name: layer2TeamName, description: `Plan inspect: code sample review for arc ${id}` })
     } else {
       throw e  // Unknown error — propagate
@@ -524,7 +524,7 @@ if (!cleanupTeamDeleteSucceeded) {
   const ownerPid = Bash(`echo $PPID`).trim()
   if (ownerPid && /^\d+$/.test(ownerPid)) {
     Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash(`sleep 3`)
+    Bash(`sleep 5`)
     Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   }
   // 5b. Filesystem fallback with CHOME

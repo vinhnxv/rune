@@ -487,7 +487,8 @@ try {
 
 // 2. Shutdown request to all members
 for member in allMembers:
-  SendMessage({ type: "shutdown_request", recipient: member, content: "Prototype pipeline complete" })
+  try: SendMessage({ type: "shutdown_request", recipient: member, content: "Prototype pipeline complete" })
+  catch: pass  // member may have already exited
 
 // 3. Grace period
 if allMembers.length > 0: Bash("sleep 20")
@@ -501,7 +502,7 @@ for attempt in [0, 5, 10, 15]:
 // 5. Filesystem fallback (only if TeamDelete never succeeded)
 if NOT teamDeleteSucceeded:
   Bash('for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done')
-  Bash("sleep 3")
+  Bash("sleep 5")
   Bash('for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done')
   Bash('CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/{teamName}/" "$CHOME/tasks/{teamName}/" 2>/dev/null')
 ```

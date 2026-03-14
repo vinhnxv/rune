@@ -175,7 +175,7 @@ if (elicitEnabled && (p1Findings.length > 0 || recurringPatterns >= 5)) {
     // Sage has completed (synchronous) or failed. Clear team so mend sub-command can create its own.
     // MUST run unconditionally — sage team is ephemeral and not tracked in arc checkpoint.
     try { SendMessage({ type: "shutdown_request", recipient: "elicitation-sage-mend", content: "Analysis complete" }) } catch (e) { /* sage may have already exited */ }
-    Bash("sleep 5")  // Grace period — single-agent sage (5s sufficient)
+    Bash("sleep 12")  // Grace period — single-agent sage (12s for reliable async deregistration)
     // TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
     let sageCleanupSucceeded = false
     const SAGE_CLEANUP_DELAYS = [0, 5000, 10000, 15000]

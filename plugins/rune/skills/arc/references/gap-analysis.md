@@ -1095,9 +1095,9 @@ if (!exists(`tmp/arc/${id}/codex-gap-analysis.md`)) {
   Write(`tmp/arc/${id}/codex-gap-analysis.md`, "Codex gap analysis: teammate timed out — no output.")
 }
 
-// Cleanup team (single-member optimization: 5s grace instead of standard 20s)
-SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-ga", content: "Phase complete" })
-Bash("sleep 5")
+// Cleanup team (single-member optimization: 12s grace — must exceed async deregistration time)
+try { SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-ga", content: "Phase complete" }) } catch (e) { /* member may have already exited */ }
+Bash("sleep 12")
 // Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 5s, 10s, 15s)
 let gaCleanupSucceeded = false
 const GA_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
@@ -1110,7 +1110,7 @@ for (let attempt = 0; attempt < GA_CLEANUP_DELAYS.length; attempt++) {
 // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
 if (!gaCleanupSucceeded) {
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-  Bash("sleep 3")
+  Bash("sleep 5")
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }

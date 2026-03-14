@@ -929,7 +929,7 @@ try {
 
 // 2. Shutdown all teammates
 for (const member of allMembers) {
-  SendMessage({ type: "shutdown_request", recipient: member, content: `${label} complete` })
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: `${label} complete` }) } catch (e) { /* member may have already exited */ }
 }
 
 // 3. Grace period — let teammates deregister before TeamDelete

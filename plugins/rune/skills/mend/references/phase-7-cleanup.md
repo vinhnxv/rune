@@ -26,7 +26,7 @@ try {
 
 // 2. Shutdown all discovered members
 for (const member of allMembers) {
-  SendMessage({ type: "shutdown_request", recipient: member, content: "Mend complete" })
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Mend complete" }) } catch (e) { /* member may have already exited */ }
 }
 
 // 3. Grace period — let teammates deregister
@@ -50,7 +50,7 @@ if (!cleanupTeamDeleteSucceeded) {
   const ownerPid = Bash(`echo $PPID`).trim()
   if (ownerPid && /^\d+$/.test(ownerPid)) {
     Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash(`sleep 3`)
+    Bash(`sleep 5`)
     Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   }
 }

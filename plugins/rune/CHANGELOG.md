@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.159.3] - 2026-03-14
+
+### Fixed
+- **Teammate cleanup race condition: grace period too short for single-member teams** — 8 arc phase cleanup locations used 5s grace period (optimization) which is insufficient for async deregistration under load (can take 10-15s). Increased to 12s. Affected: `arc-phase-pre-ship-validator.md`, `arc-phase-task-decomposition.md`, `gap-analysis.md`, `arc-codex-phases.md` (2 handlers), `arc-phase-test.md`, `arc-phase-mend.md`, `mend/fixer-spawning.md`.
+- **Missing try-catch on SendMessage in cleanup loops** — 12 cleanup files sent `shutdown_request` without try-catch. If a teammate had already exited, the exception could skip remaining teammates, leaving them orphaned. Added `try { SendMessage(...) } catch (e) {}` to: forge, devise, strive, mend, debug, codex-review, appraise, resolve-todos, design-sync, inspect, design-prototype, and shared roundtable-circle orchestration.
+- **SIGTERM-to-SIGKILL gap too short (3s → 5s)** — 17 cleanup locations across all skills used `sleep 3` between SIGTERM and SIGKILL. Under heavy load (blocked I/O, memory pressure), 3s is insufficient for graceful shutdown, resulting in zombie processes. Increased to 5s everywhere including the standard cleanup pattern in `.claude/CLAUDE.md` and `team-sdk/engines.md`.
+
 ## [1.159.2] - 2026-03-14
 
 ### Fixed
