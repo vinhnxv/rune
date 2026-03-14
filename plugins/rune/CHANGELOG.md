@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.162.1] - 2026-03-15
+
+### Fixed
+- **Devise cleanup ordering bug** — State file `tmp/.rune-plan-{ts}.json` was marked `"completed"` (step 2.5) BEFORE TeamDelete (step 3). When TeamDelete failed, downstream safety nets (CDX-7 `detect-workflow-complete.sh`, STOP-001 `on-session-stop.sh`) saw the completed marker and skipped team cleanup — orphaning teammates (decree-arbiter, depth-seer, evidence-verifier, knowledge-keeper, state-weaver, veil-piercer-plan, ward-sentinel). Moved state file marking to after TeamDelete + filesystem fallback, matching the correct ordering already used by forge, strive, and codex-review workflows.
+
 ## [1.162.0] - 2026-03-15
 
 ### Added
