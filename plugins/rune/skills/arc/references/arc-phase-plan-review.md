@@ -27,6 +27,8 @@ This phase creates a team and spawns agents. It MUST follow the Agent Teams patt
 
 **NEVER** use bare `Agent()` calls or named `subagent_type` values in this phase.
 
+**COMMON BUG**: If ATE-1 blocks your Agent() calls, do NOT try to work around it by writing a JSON state file (`tmp/.rune-plan-review-*.json`). A state file is metadata — it does NOT create a team. You MUST call `TeamCreate()` (the SDK tool) first. The correct recovery is: go back to the algorithm above and start from step 1.
+
 ## Reviewer Roster
 
 | Reviewer | Agent | Condition | Focus |

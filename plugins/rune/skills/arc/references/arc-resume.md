@@ -261,7 +261,19 @@ On resume, validate checkpoint integrity before proceeding:
      checkpoint.schema_version = 22
    }
    ```
-// NOTE: Step 3r runs after all schema migrations complete (steps 3a–3w). Step 3p was skipped in the original numbering.
+3x. If schema_version < 23, migrate v22 → v23:
+   ```javascript
+   // Step 3x: v22 → v23 (pre-computed phase skip_map)
+   if (checkpoint.schema_version < 23) {
+     // Empty skip_map for resumed checkpoints — phases already in-progress or
+     // completed won't be affected. No pre-skipping for resumed arcs (safe default).
+     // Skip map is only computed at fresh checkpoint init — resumed arcs continue
+     // with per-phase reference file skip logic as before.
+     checkpoint.skip_map = checkpoint.skip_map ?? {}
+     checkpoint.schema_version = 23
+   }
+   ```
+// NOTE: Step 3r runs after all schema migrations complete (steps 3a–3x). Step 3p was skipped in the original numbering.
 3r. Resume freshness re-check:
    a. Read plan file from checkpoint.plan_file
    b. Extract git_sha from plan frontmatter (use optional chaining: `extractYamlFrontmatter(planContent)?.git_sha` — returns null on parse error if plan was manually edited between sessions)

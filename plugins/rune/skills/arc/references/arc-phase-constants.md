@@ -168,4 +168,52 @@ function updateCascadeTracker(checkpoint, classified) {
 }
 ```
 
+## Skip Map Schema (v1.162.0+)
+
+Pre-computed phase skip decisions, stored in `checkpoint.skip_map`. Computed at checkpoint init
+by `computeSkipMap()` (see [arc-checkpoint-init.md](arc-checkpoint-init.md)). Consumed by
+the stop hook's single-pass auto-skip logic (see `arc-phase-stop-hook.sh`).
+
+```javascript
+// Skip map structure: { phase_name: skip_reason_string | undefined }
+// Only phases with deterministic skip conditions appear in the map.
+// Phases NOT in the map are dispatched to the LLM normally.
+// Empty map ({}) = no pre-skipping (all features enabled).
+
+// ── Canonical skip reasons ──
+const SKIP_REASONS = {
+  FORGE_DISABLED: "forge_disabled",                   // --no-forge flag or arc.defaults.no_forge
+  DESIGN_SYNC_DISABLED: "design_sync_disabled",       // misc.design_sync.enabled !== true
+  NO_FIGMA_URLS: "no_figma_urls",                     // design_sync enabled but no figma_urls in plan
+  STORYBOOK_DISABLED: "storybook_disabled",           // misc.storybook.enabled !== true
+  UX_DISABLED: "ux_disabled",                         // ux.enabled !== true
+  CODEX_UNAVAILABLE: "codex_unavailable",             // codex CLI not installed
+  CODEX_DISABLED_FOR_ARC: "codex_disabled_for_arc",   // codex.disabled or "arc" not in codex.workflows
+  CODEX_TASK_DECOMPOSITION_DISABLED: "codex_task_decomposition_disabled",
+  CODEX_SEMANTIC_VERIFICATION_DISABLED: "codex_semantic_verification_disabled",
+  CODEX_GAP_ANALYSIS_DISABLED: "codex_gap_analysis_disabled",
+  CODEX_TEST_COVERAGE_DISABLED: "codex_test_coverage_disabled",
+  CODEX_RELEASE_QUALITY_DISABLED: "codex_release_quality_disabled",  // per-phase codex sub-key disabled
+  BOT_REVIEW_DISABLED: "bot_review_disabled",         // bot_review not enabled via flag or talisman
+  TESTING_DISABLED: "testing_disabled",               // --no-test flag or arc.defaults.no_test
+}
+
+// ── Phase skip classification ──
+// Pre-computable: forge, design_extraction, design_prototype, design_verification*,
+//   design_iteration*, storybook_verification, ux_verification, task_decomposition,
+//   semantic_verification, codex_gap_analysis, test_coverage_critique,
+//   release_quality_check, bot_review_wait, pr_comment_resolution, test*
+//   (* = conditionally pre-computable — only when parent feature is disabled)
+//
+// Runtime-dependent (NOT in skip_map): plan_refine (depends on Phase 2 verdicts),
+//   deploy_verify (depends on post-work diff analysis)
+//
+// computeSkipMap() signature:
+//   function computeSkipMap(arcConfig, designSync, storybook, ux, codexEnabled, codex, planMeta) → object
+
+// ── phase_skip_log entry schema (appended to checkpoint by stop hook) ──
+// { phase: string, event: "auto_skipped", reason: string,
+//   source: "preflight_skip_map", timestamp: ISO8601 }
+```
+
 See [phase-tool-matrix.md](phase-tool-matrix.md) for per-phase tool restrictions and time budget details.

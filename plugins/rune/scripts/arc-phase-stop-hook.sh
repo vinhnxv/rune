@@ -454,6 +454,68 @@ if [[ -n "$_demote_result" ]]; then
   fi
 fi
 
+# ── Single-pass auto-skip from skip_map (v1.162.0) ──
+# Pre-computed skip decisions from checkpoint init. Processes ALL skip_map entries
+# in one jq call (O(1) forks) instead of per-phase evaluation (O(N) LLM turns).
+# Graceful degradation: if jq fails or skip_map is missing/empty, falls through
+# to the existing phase-finding loop unchanged.
+_now=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
+_skip_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '
+  (.skip_map // {}) as $sm |
+  [.phases | to_entries[] | select(.value.status == "pending" and $sm[.key] != null)] as $to_skip |
+  if ($to_skip | length) > 0 then
+    {
+      skipped: [$to_skip[] | {key: .key, reason: $sm[.key]}],
+      checkpoint: (
+        reduce $to_skip[] as $s (.;
+          .phases[$s.key].status = "skipped" |
+          .phases[$s.key].skip_reason = $sm[$s.key] |
+          .phases[$s.key].completed_at = $ts
+        ) |
+        .phase_skip_log = (.phase_skip_log // []) + [$to_skip[] | {
+          phase: .key, event: "auto_skipped", reason: $sm[.key],
+          source: "preflight_skip_map", timestamp: $ts
+        }]
+      )
+    }
+  else
+    { skipped: [], checkpoint: . }
+  end
+' 2>/dev/null)
+
+_auto_skipped=0
+if [[ -n "$_skip_result" ]]; then
+  _auto_skipped=$(echo "$_skip_result" | jq -r '.skipped | length' 2>/dev/null || echo "0")
+  if [[ "$_auto_skipped" -gt 0 ]]; then
+    CKPT_CONTENT=$(echo "$_skip_result" | jq -c '.checkpoint' 2>/dev/null)
+    # BACK-002 FIX: Guard against empty CKPT_CONTENT (jq process crash)
+    if [[ -z "$CKPT_CONTENT" ]]; then
+      _trace "WARNING: jq .checkpoint returned empty — re-reading checkpoint from disk"
+      CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
+    fi
+    # Log each auto-skipped phase
+    echo "$_skip_result" | jq -r '.skipped[] | "\(.key)\t\(.reason)"' 2>/dev/null | \
+      while IFS=$'\t' read -r _sk_phase _sk_reason; do
+        [[ -z "$_sk_phase" ]] && continue
+        _log_phase "phase_skipped" "$_sk_phase" "skip_reason=${_sk_reason}" "source=preflight_skip_map"
+      done
+    # Atomic checkpoint write
+    _ckpt_tmp=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null) || _ckpt_tmp=""
+    if [[ -n "$_ckpt_tmp" ]]; then
+      if echo "$CKPT_CONTENT" | jq -e '.' > "$_ckpt_tmp" 2>/dev/null; then
+        mv -f "$_ckpt_tmp" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || rm -f "$_ckpt_tmp" 2>/dev/null
+      else
+        _trace "WARNING: auto-skip checkpoint JSON validation failed — skipping write"
+        rm -f "$_ckpt_tmp" 2>/dev/null
+        CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
+      fi
+    fi
+    _trace "Auto-skipped ${_auto_skipped} phase(s) via preflight skip_map"
+  fi
+else
+  _trace "WARNING: skip_map jq parse returned empty — proceeding without auto-skip"
+fi
+
 # ── Find next pending phase in PHASE_ORDER ──
 NEXT_PHASE=""
 for phase in "${PHASE_ORDER[@]}"; do
@@ -464,7 +526,7 @@ for phase in "${PHASE_ORDER[@]}"; do
   fi
 done
 
-_trace "Next pending phase: ${NEXT_PHASE:-NONE} (iteration ${ITERATION})"
+_trace "Next pending phase: ${NEXT_PHASE:-NONE} (iteration ${ITERATION}, auto_skipped=${_auto_skipped})"
 
 # ── Log recently completed/skipped phases to phase-log.jsonl ──
 # Single jq call extracts all non-pending phase data at once (PERF: avoids N*5 jq calls).
@@ -994,6 +1056,14 @@ fi
 PHASE_PROMPT="ANCHOR — Arc Pipeline Phase: ${NEXT_PHASE} (iteration ${NEW_ITERATION})
 
 You are executing a single phase of the arc pipeline. Each phase runs with fresh context.
+
+## CRITICAL: Agent Teams Contract (ATE-1)
+
+If this phase spawns agents, you MUST follow this exact order:
+1. TeamCreate({ team_name: \"...\" }) — call the SDK tool FIRST
+2. TaskCreate() for each agent — create tasks BEFORE spawning
+3. Agent({ team_name: \"...\", ... }) — include team_name on EVERY call
+Writing a JSON state file is NOT a substitute for TeamCreate. The enforce-teams.sh hook will block any Agent() call without team_name during an active workflow.
 
 ## Instructions
 
