@@ -436,9 +436,9 @@ fi
 # SEC-003 FIX: Build recovery steps without bash interpolation of SUGGESTED_TEAM.
 # The team name is passed via jq --arg below (line ~384) for safe escaping.
 if [[ -n "$SUGGESTED_TEAM" ]]; then
-  RECOVERY_STEPS="Step 1: TeamCreate with the suggested team name. Step 2: Write state file with status:'active', config_dir, owner_pid, session_id. Step 3: Retry this Agent() call with the team_name parameter."
+  RECOVERY_STEPS="STOP. Do NOT write a state file — that does not create a team. Do NOT retry Agent() immediately. Follow these steps EXACTLY: Step 1: Read the phase reference file from the checkpoint to find the correct algorithm. Step 2: Call TeamCreate({ team_name: '${SUGGESTED_TEAM}' }) — this is the SDK call that registers the team. Step 3: Call TaskCreate() for each agent you plan to spawn. Step 4: THEN retry Agent() calls with team_name: '${SUGGESTED_TEAM}' on each call."
 else
-  RECOVERY_STEPS="Step 1: TeamCreate({ team_name: 'rune-WORKFLOW-TIMESTAMP' }). Step 2: Write state file: Write('tmp/.rune-WORKFLOW-ID.json', { team_name: '...', status: 'active', config_dir: configDir, owner_pid: ownerPid, session_id: sessionId }). Step 3: Retry Agent() with team_name parameter."
+  RECOVERY_STEPS="STOP. Do NOT write a state file — that does not create a team. Do NOT retry Agent() immediately. Follow these steps EXACTLY: Step 1: Read the phase reference file from the checkpoint to find the correct team name and algorithm. Step 2: Call TeamCreate({ team_name: 'the-team-name-from-reference' }) — this is the SDK call that registers the team. Step 3: Call TaskCreate() for each agent you plan to spawn. Step 4: THEN retry Agent() calls with the team_name parameter on each call."
 fi
 
 # Output deny with recovery instructions
@@ -453,7 +453,7 @@ jq -n \
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
       permissionDecisionReason: ("ATE-1: Bare Agent call blocked. Detected active Rune workflow via " + $src + ". You MUST use Agent Teams."),
-      additionalContext: ("BLOCKED by enforce-teams.sh (ATE-1). Detection source: " + $src + ". Workflow type: " + $wf + ". Agent name: " + $agent_name + ". RECOVERY: " + $recovery + " Use TeamEngine.createTeam() from team-sdk skill, or manually call TeamCreate + Write state file. See team-sdk/references/engines.md for the full createTeam() protocol.")
+      additionalContext: ("BLOCKED by enforce-teams.sh (ATE-1). Detection source: " + $src + ". Workflow type: " + $wf + ". Agent name: " + $agent_name + ". RECOVERY: " + $recovery + " CRITICAL: Writing a JSON state file is NOT the same as calling TeamCreate. You must call the TeamCreate tool first. A state file alone will not unblock Agent calls.")
     }
   }' 2>/dev/null && exit 0
 
@@ -464,7 +464,7 @@ cat << 'DENY_JSON'
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
     "permissionDecisionReason": "ATE-1: Bare Agent call blocked during active Rune workflow. Call TeamCreate first, then add team_name to Agent call.",
-    "additionalContext": "BLOCKED by enforce-teams.sh. RECOVERY: 1) TeamCreate({ team_name: 'rune-WORKFLOW-TIMESTAMP' }), 2) Write state file with status:active + session isolation fields, 3) Retry Agent() with team_name. See team-sdk/references/engines.md."
+    "additionalContext": "BLOCKED by enforce-teams.sh. RECOVERY: STOP — do NOT write a state file (it does NOT create a team). 1) Read the phase reference file for the correct algorithm, 2) Call TeamCreate({ team_name: 'rune-WORKFLOW-TIMESTAMP' }), 3) Call TaskCreate() for each agent, 4) Retry Agent() with team_name parameter."
   }
 }
 DENY_JSON

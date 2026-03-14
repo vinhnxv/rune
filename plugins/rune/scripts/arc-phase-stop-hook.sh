@@ -995,6 +995,14 @@ PHASE_PROMPT="ANCHOR — Arc Pipeline Phase: ${NEXT_PHASE} (iteration ${NEW_ITER
 
 You are executing a single phase of the arc pipeline. Each phase runs with fresh context.
 
+## CRITICAL: Agent Teams Contract (ATE-1)
+
+If this phase spawns agents, you MUST follow this exact order:
+1. TeamCreate({ team_name: \"...\" }) — call the SDK tool FIRST
+2. TaskCreate() for each agent — create tasks BEFORE spawning
+3. Agent({ team_name: \"...\", ... }) — include team_name on EVERY call
+Writing a JSON state file is NOT a substitute for TeamCreate. The enforce-teams.sh hook will block any Agent() call without team_name during an active workflow.
+
 ## Instructions
 
 1. Read the phase reference file: ${REF_FILE}${SECTION_LINE}
