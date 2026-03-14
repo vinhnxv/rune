@@ -129,7 +129,7 @@ try {
   // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
   allMembers = [
     "grace-warden", "ruin-prophet", "sight-oracle", "vigil-keeper",
-    "verdict-binder", "gap-fixer"
+    "verdict-binder", "gap-fixer", "inspect-lore-analyst"
   ]
 }
 
@@ -157,6 +157,14 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
 }
 // --- 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012) ---
 if (!cleanupTeamDeleteSucceeded) {
+  // 5a. Process-level kill — terminate lingering teammates before filesystem cleanup
+  const ownerPid = Bash(`echo $PPID`).trim()
+  if (ownerPid && /^\d+$/.test(ownerPid)) {
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+    Bash(`sleep 3`)
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  }
+  // 5b. Filesystem cleanup
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }

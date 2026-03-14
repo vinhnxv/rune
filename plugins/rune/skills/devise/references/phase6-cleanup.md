@@ -38,7 +38,14 @@ try {
     // Phase 4C: Technical Review (conditional)
     "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
     "horizon-sage", "evidence-verifier", "state-weaver", "doubt-seer", "codex-plan-reviewer",
-    "elicitation-sage-review-1", "elicitation-sage-review-2", "elicitation-sage-review-3"
+    "elicitation-sage-review-1", "elicitation-sage-review-2", "elicitation-sage-review-3",
+    // Phase 3: Forge Gaze agents (conditional — skipped with --quick or --no-forge)
+    "ward-sentinel", "ember-oracle", "rune-architect", "flaw-hunter", "pattern-seer",
+    "simplicity-warden", "mimic-detector", "void-analyzer", "wraith-finder", "phantom-checker",
+    "type-warden", "trial-oracle", "depth-seer", "blight-seer", "forge-keeper", "tide-watcher",
+    "refactor-guardian", "reference-validator", "reality-arbiter", "assumption-slayer", "entropy-prophet",
+    "elicitation-sage-forge-1", "elicitation-sage-forge-2", "elicitation-sage-forge-3",
+    "elicitation-sage-forge-4", "elicitation-sage-forge-5", "elicitation-sage-forge-6"
   ]
 }
 

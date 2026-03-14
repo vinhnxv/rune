@@ -84,7 +84,7 @@ function postPhaseCleanup(checkpoint, phaseName) {
       // Dynamic member discovery + shutdown
       try {
         const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
-        const teamConfig = Read(`${CHOME}/teams/${teamName}/config.json`)
+        const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
         const members = Array.isArray(teamConfig?.members) ? teamConfig.members : []
         for (const m of members) {
           if (m.name && /^[a-zA-Z0-9_-]+$/.test(m.name)) {

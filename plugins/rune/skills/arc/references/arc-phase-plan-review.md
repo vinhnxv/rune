@@ -489,7 +489,7 @@ Dynamic member discovery reads the team config to find ALL teammates (catches te
 let allMembers = []
 try {
   const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
-  const teamConfig = Read(`${CHOME}/teams/arc-plan-review-${id}/config.json`)
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/arc-plan-review-${id}/config.json`))
   const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
   // SEC-4 FIX: Validate member names against safe pattern before use in SendMessage
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
@@ -520,7 +520,14 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
 // QUAL-012 FIX: Gate filesystem fallback behind !cleanupTeamDeleteSucceeded (CDX-003 pattern).
 // When TeamDelete succeeds cleanly, rm-rf is unnecessary and adds blast radius risk.
 if (!cleanupTeamDeleteSucceeded) {
-  // Filesystem fallback with CHOME
+  // 5a. Process-level kill — terminate lingering teammates before filesystem cleanup
+  const ownerPid = Bash(`echo $PPID`).trim()
+  if (ownerPid && /^\d+$/.test(ownerPid)) {
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+    Bash(`sleep 3`)
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  }
+  // 5b. Filesystem fallback with CHOME
   // SEC-005: id validated at line 37 — contains only [a-zA-Z0-9_-]
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/arc-plan-review-${id}/" "$CHOME/tasks/arc-plan-review-${id}/" 2>/dev/null`)
   // Step C: Post-rm-rf TeamDelete to clear SDK leadership state.

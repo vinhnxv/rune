@@ -12,7 +12,10 @@ try {
   // FALLBACK: built-in Ashes + runebinder (safe to send shutdown to absent members)
   allMembers = ["forge-warden", "ward-sentinel", "pattern-weaver", "veil-piercer",
     "glyph-scribe", "knowledge-keeper", "codex-oracle", "runebinder",
-    "doubt-seer", "elicitation-sage-security-1", "elicitation-sage-security-2"]
+    "doubt-seer", "elicitation-sage-security-1", "elicitation-sage-security-2",
+    "ux-heuristic-reviewer", "ux-flow-validator", "ux-interaction-auditor", "ux-cognitive-walker",
+    "design-implementation-reviewer",
+    "shard-reviewer-a", "shard-reviewer-b", "shard-reviewer-c", "shard-reviewer-d", "shard-reviewer-e"]
 }
 for (const member of allMembers) {
   SendMessage({ type: "shutdown_request", recipient: member, content: "Review complete" })

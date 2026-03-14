@@ -14,7 +14,7 @@
 const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
 let allMembers = []
 try {
-  const teamConfig = Read(`${CHOME}/teams/rune-mend-${id}/config.json`)
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/rune-mend-${id}/config.json`))
   const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {

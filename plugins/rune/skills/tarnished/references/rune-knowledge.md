@@ -84,13 +84,13 @@ When ready to plan, brainstorm hands off to `/rune:devise --brainstorm-context` 
 - Use devise directly when requirements are clear and specific
 
 ### Ashes (Agents)
-Each "Ash" is a specialized AI agent with its own context window. Rune has 89 agents:
-- **40 review agents** — code quality, security, architecture, performance, design fidelity, etc.
+Each "Ash" is a specialized AI agent with its own context window. Rune has 98 agents:
+- **35 review agents** — code quality, security, architecture, performance, design fidelity, UX, etc.
 - **5 research agents** — codebase analysis, git history, best practices
 - **24 investigation agents** — impact analysis, business logic tracing, hypothesis investigation
-- **12 utility agents** — aggregation, deployment verification, reasoning
-- **4 work agents** — implementation (rune-smith, trial-forger, design-sync-agent, design-iterator)
-- **4 testing agents** — unit, integration, E2E, failure analysis
+- **23 utility agents** — aggregation, deployment verification, reasoning, condensing, design analysis
+- **6 work agents** — implementation (rune-smith, trial-forger, design-sync-agent, design-iterator, storybook-reviewer, storybook-fixer)
+- **5 testing agents** — unit, integration, E2E, failure analysis, extended test runner
 
 ### TOME (Review Output)
 The "TOME" is the unified review summary after all agents complete their analysis.
@@ -111,9 +111,11 @@ code review → mend → test → ship → merge. It's the "do everything" comma
 
 ### Rune Echoes (Project Memory)
 Agents persist learnings to `.claude/echoes/` after workflows. Future workflows
-read these to avoid repeating mistakes. Three layers:
+read these to avoid repeating mistakes. Five tiers:
 - **Etched** — permanent project knowledge
+- **Notes** — working notes (no TTL)
 - **Inscribed** — tactical patterns (90-day TTL)
+- **Observations** — auto-promoted patterns (60-day TTL)
 - **Traced** — session observations (30-day TTL)
 
 ## MCP Integration — Extending Rune with External Tools

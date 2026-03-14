@@ -152,7 +152,7 @@ try {
     allTeamNames.push(teamName)
 
     try {
-      const teamConfig = Read(`${CHOME}/teams/${teamName}/config.json`)
+      const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
       const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
       for (const m of members) {
         if (m.name) allMembers.push({ name: m.name, teamName })

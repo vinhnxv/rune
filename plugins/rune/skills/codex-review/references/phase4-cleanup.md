@@ -10,7 +10,7 @@ Bash(`rm -f tmp/.rune-signals/${teamName}/.readonly-active`)
 let allMembers = []
 try {
   const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
-  const teamConfig = Read(`${CHOME}/teams/${teamName}/config.json`)
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
   const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
