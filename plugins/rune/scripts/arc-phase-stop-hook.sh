@@ -1091,6 +1091,7 @@ If this phase spawns agents, you MUST follow this exact order:
 1. TeamCreate({ team_name: \"...\" }) — call the SDK tool FIRST
 2. TaskCreate() for each agent — create tasks BEFORE spawning
 3. Agent({ team_name: \"...\", ... }) — include team_name on EVERY call
+4. After phase completes: shutdown all teammates + TeamDelete (see phase reference cleanup section)
 Writing a JSON state file is NOT a substitute for TeamCreate. The enforce-teams.sh hook will block any Agent() call without team_name during an active workflow.
 
 ## Instructions
