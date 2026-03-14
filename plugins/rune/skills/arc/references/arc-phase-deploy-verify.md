@@ -156,7 +156,8 @@ let completed = false
 const maxIterations = Math.ceil(300000 / 30000) // 10 iterations
 for (let i = 0; i < maxIterations && !completed; i++) {
   const tasks = TaskList()
-  completed = tasks.every(t => t.status === "completed")
+  // Guard against vacuous truth: tasks.every() returns true on empty array
+  completed = tasks.length > 0 && tasks.every(t => t.status === "completed")
   if (!completed) Bash("sleep 30")
 }
 
@@ -173,9 +174,9 @@ if (!exists(`tmp/arc/${id}/deploy-checklist.md`)) {
 try { SendMessage({ type: "shutdown_request", recipient: "deployment-verifier", content: "Phase complete" }) } catch (e) { /* member may have already exited */ }
 Bash("sleep 12")
 
-// Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 5s, 10s, 15s)
+// Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 3s, 6s, 10s = 19s total)
 let deployCleanupSucceeded = false
-const DEPLOY_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+const DEPLOY_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < DEPLOY_CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${DEPLOY_CLEANUP_DELAYS[attempt] / 1000}`)
   try { TeamDelete(); deployCleanupSucceeded = true; break } catch (e) {
