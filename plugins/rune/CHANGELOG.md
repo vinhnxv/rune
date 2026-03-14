@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.163.3] - 2026-03-15
+
+### Fixed
+- **Arc zombie cleanup: clean ALL prior phase teams, not just the most recent** — `arc-phase-stop-hook.sh` zombie cleanup previously `break`ed after finding the first completed phase with a team_name. This left earlier phases' teams alive (e.g., `arc-plan-review` from Phase 2 surviving into Phase 7+ because only Phase 6's `rune-review` team was cleaned). Now iterates ALL completed phases.
+- **Arc zombie cleanup: session-scoped scan for delegated sub-command teams** — Added FALLBACK 2 in `arc-phase-stop-hook.sh` that scans `rune-{review,work,mend,forge,inspect,...}-*` teams by `.session` marker ownership. Delegated sub-commands (e.g., `/rune:appraise` creating `rune-review-691dde5`) use identifiers NOT derived from the arc ID, so FALLBACK 1's arc-ID-based glob missed them entirely.
+
 ## [1.163.2] - 2026-03-15
 
 ### Fixed
