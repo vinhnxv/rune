@@ -344,6 +344,68 @@ if (Bash(`test -L "${planFile}" && echo "symlink"`).includes("symlink")) {
 }
 ```
 
+## Talisman Shard Verification (v1.163.1+)
+
+Verifies talisman shards are available before checkpoint init. Prevents silent fallback to
+hardcoded defaults when shards are missing or stale (root cause: LLM checking `.yml` instead
+of `.json` — see CHANGELOG v1.163.1).
+
+**Inputs**: None (reads `tmp/.talisman-resolved/_meta.json`)
+**Outputs**: Verified talisman meta, diagnostic log of key config values
+**Error handling**: Missing shards → re-resolve inline via `talisman-resolve.sh`. Resolution failure → warn and proceed (fallback to `readTalisman()` at checkpoint init).
+
+```javascript
+// ── TALISMAN SHARD VERIFICATION (pre-flight) ──
+// Ensures talisman context is available before checkpoint init.
+// Prevents silent fallback to hardcoded defaults when shards are missing.
+// Root cause fix: LLM bypassed readTalismanSection() and checked arc.yml (wrong extension)
+// instead of arc.json. This verification ensures shards exist and logs key values for
+// self-verification by the LLM executor.
+
+const metaPath = "tmp/.talisman-resolved/_meta.json"
+let talismanMeta = null
+try {
+  talismanMeta = JSON.parse(Read(metaPath))
+} catch (e) {
+  // Shards missing — re-resolve inline
+  warn("Talisman shards missing — re-resolving inline")
+  Bash(`cd "${CWD}" && bash plugins/rune/scripts/talisman-resolve.sh`)
+  try { talismanMeta = JSON.parse(Read(metaPath)) } catch (e2) {
+    warn("Talisman resolution failed — using readTalisman() fallback for all config")
+  }
+}
+
+if (talismanMeta) {
+  const resolvedAt = talismanMeta.resolved_at ?? null
+  const status = talismanMeta.merge_status ?? "unknown"
+
+  // Check shard freshness (stale if older than 5 minutes)
+  if (resolvedAt) {
+    const shardAge = Date.now() - new Date(resolvedAt).getTime()
+    if (Number.isFinite(shardAge) && shardAge > 300_000) {
+      warn(`Talisman shards are ${Math.round(shardAge / 60000)}m old — re-resolving`)
+      Bash(`cd "${CWD}" && bash plugins/rune/scripts/talisman-resolve.sh`)
+      try { talismanMeta = JSON.parse(Read(metaPath)) } catch (e) {
+        warn("Talisman re-resolution failed — proceeding with stale shards")
+      }
+    }
+  }
+
+  if (status === "defaults_only") {
+    warn("Talisman: using defaults only (no .claude/talisman.yml found)")
+  }
+  log(`Talisman resolved: ${status} (resolver: ${talismanMeta.resolver_status ?? "unknown"})`)
+
+  // Diagnostic: log key arc config values for LLM self-verification
+  try {
+    const arcShard = JSON.parse(Read("tmp/.talisman-resolved/arc.json"))
+    log(`Arc config resolved: auto_merge=${arcShard?.ship?.auto_merge}, no_forge=${arcShard?.defaults?.no_forge}, auto_pr=${arcShard?.ship?.auto_pr}`)
+  } catch (e) {
+    warn("Could not read arc shard for diagnostic — will be resolved at checkpoint init")
+  }
+}
+```
+
 ## Git Instructions Check (v2.1.69+)
 
 Warn if `includeGitInstructions` is disabled — arc ship/merge phases (23-27) depend on
@@ -698,6 +760,7 @@ CDX-7 Layer 3: Scan for orphaned arc-specific teams from prior sessions. Runs af
 // rune-* prefixes: teams created by delegated sub-commands (forge, work, review, mend, audit)
 const ARC_TEAM_PREFIXES = [
   "arc-forge-", "arc-plan-review-", "arc-plan-inspect-", "arc-verify-", "arc-gap-fix-", "arc-inspect-", "arc-test-",  // arc-owned teams
+  "rune-inspect-",  // inspect skill teams (delegated sub-command)
   "arc-sage-",  // ephemeral elicitation sage team (mend Phase 7 — conditional on P1 findings)
   "arc-storybook-",  // Storybook verification team (conditional — storybook.enabled)
   "arc-design-", "arc-prototype-", "arc-design-verify-", "arc-design-iter-",  // design sync teams (conditional — design_sync.enabled)
