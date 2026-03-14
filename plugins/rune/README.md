@@ -933,7 +933,7 @@ plugins/rune/
 │   ├── review/              # 35 review agents (12 specialist prompt templates in stacks/references/)
 │   │   └── references/      # Shared review checklists
 │   ├── research/            # 5 research agents (plan pipeline)
-│   ├── testing/             # 5 testing agents (arc Phase 7.7)
+│   ├── testing/             # 6 testing agents (arc Phase 7.7)
 │   ├── work/                # 6 swarm workers (work pipeline)
 │   └── utility/             # 23 utility agents: runebinder, decree-arbiter, truthseer-validator, flow-seer, scroll-reviewer, mend-fixer, knowledge-keeper, elicitation-sage, veil-piercer-plan, horizon-sage, deployment-verifier, evidence-verifier, research-verifier, state-weaver, ux-pattern-analyzer, todo-verifier, design-analyst, tome-digest, condenser-gap, condenser-verdict, condenser-plan, condenser-work, codex-phase-handler (+ gap-fixer as prompt-template, no .md file)
 ├── commands/

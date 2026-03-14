@@ -90,7 +90,7 @@ Each "Ash" is a specialized AI agent with its own context window. Rune has 98 ag
 - **24 investigation agents** — impact analysis, business logic tracing, hypothesis investigation
 - **23 utility agents** — aggregation, deployment verification, reasoning, condensing, design analysis
 - **6 work agents** — implementation (rune-smith, trial-forger, design-sync-agent, design-iterator, storybook-reviewer, storybook-fixer)
-- **5 testing agents** — unit, integration, E2E, failure analysis, extended test runner
+- **6 testing agents** — unit, integration, E2E, failure analysis, extended test runner, contract validator
 
 ### TOME (Review Output)
 The "TOME" is the unified review summary after all agents complete their analysis.

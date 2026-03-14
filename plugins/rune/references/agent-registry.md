@@ -1,6 +1,6 @@
 # Agent Registry
 
-**Total: 98 agents** (35 review + 5 research + 6 work + 23 utility + 24 investigation + 5 testing)
+**Total: 99 agents** (35 review + 5 research + 6 work + 23 utility + 24 investigation + 6 testing)
 
 > Agent count verified by `find agents/ -name "*.md" -type f | wc -l` on 2026-03-06.
 
@@ -153,4 +153,5 @@ Used by `/rune:debug` skill:
 | integration-test-runner | Integration test execution with service dependency management (model: sonnet) |
 | e2e-browser-tester | E2E browser testing via agent-browser with file-to-route mapping (model: sonnet) |
 | extended-test-runner | Extended-tier test execution with checkpoint/resume protocol — heartbeat liveness, budget enforcement, atomic checkpoint writes for crash recovery (model: sonnet) |
+| contract-validator | API contract validation — OpenAPI/JSON Schema compliance, hook output formats, request/response consistency (model: sonnet) |
 | test-failure-analyst | Read-only failure analysis — root cause classification and fix suggestions (maxTurns: 15) |
