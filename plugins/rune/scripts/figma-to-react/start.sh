@@ -12,7 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # --- Package check ---
-# Use shared venv helper — venv lives in ${CLAUDE_CONFIG_DIR}/rune-venv/
+# Use shared venv helper — venv lives in ${CLAUDE_CONFIG_DIR}/.rune/venv/
 # shellcheck source=../lib/rune-venv.sh
 REQUIREMENTS="${PLUGIN_ROOT}/scripts/requirements.txt"
 PYTHON="python3"

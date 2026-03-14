@@ -1,5 +1,5 @@
 # Shared Rune plugin Python dependencies (runtime)
-# Venv location: ${CLAUDE_CONFIG_DIR}/rune-venv/
+# Venv location: ${CLAUDE_CONFIG_DIR}/.rune/venv/
 # Setup: lib/rune-venv.sh (shared helper)
 PyYAML>=6.0
 mcp>=1.6.0,<2.0.0
