@@ -15,6 +15,7 @@ Extracted from SKILL.md in v1.110.0 for phase-isolated context architecture.
 | DESIGN EXTRACTION | Non-blocking — design_sync disabled or no Figma URL → skip cleanly. Timeout/MCP error → skip with warning | Conditional (v1.109.0) |
 | TASK DECOMPOSITION | Non-blocking — Codex timeout/unavailable → skip, proceed | Advisory (v1.51.0) |
 | WORK | Halt if <50% tasks complete. Partial commits preserved | `/rune:arc --resume` |
+| DRIFT REVIEW | Non-blocking — skip on error (non-critical) | Advisory phase — pipeline continues |
 | DESIGN VERIFICATION | Non-blocking — no VSM files from design_extraction → skip cleanly. Reviewer failure → skip with warning | Conditional (v1.109.0) |
 | GAP ANALYSIS | Non-blocking — WARN only | Advisory context for code review |
 | CODEX GAP ANALYSIS | Non-blocking — Codex timeout/unavailable → skip, proceed | Advisory (v1.39.0) |

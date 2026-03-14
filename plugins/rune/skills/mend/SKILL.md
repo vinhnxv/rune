@@ -97,6 +97,8 @@ Finds TOME, validates freshness, extracts `<!-- RUNE:FINDING -->` markers with n
 
 **Q/N Interaction Filtering**: After extracting findings, filter Q (question) and N (nit) interaction types BEFORE file grouping. Q findings require human clarification. N findings are author's discretion. Both preserved for Phase 6 but NOT assigned to mend-fixers.
 
+**Round-Aware Severity Filtering** (v1.163.0+): Round 0 processes all findings (P1 + P2 + P3). Round 1+ filters to P1 + failed P2 only — P3 findings are deferred to the tech debt log, and already-FIXED P2 findings are skipped. After mend completes, deferred P3 findings are written to `tmp/arc/{id}/tech-debt-p3.md` for later triage. When running standalone (no arc context), `mendRound` defaults to 0 — all findings processed (backward compatible).
+
 **Inputs**: TOME path (from argument or auto-detected), session nonce
 **Outputs**: `fileGroups` map, `allFindings` list, deduplicated with priority hierarchy
 

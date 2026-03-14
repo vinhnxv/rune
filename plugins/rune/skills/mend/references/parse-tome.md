@@ -130,6 +130,52 @@ if (skippedCount > 0) {
 
 **Standalone invocation**: When `/rune:mend` runs without arc (no Phase 5.2), no findings will have `[UNVERIFIED]` or `[SUSPECT]` tags — all are treated as CONFIRMED with normal priority.
 
+### Round-Aware Severity Filtering (v1.163.0+)
+
+After extracting, filtering Q/N interactions, and filtering UNVERIFIED findings, apply round-aware severity filtering:
+
+```javascript
+// Step: Round-aware severity filtering
+// mendRound is passed from the mend orchestrator (0 = first pass, 1+ = retry)
+// Round 0: process ALL findings (P1 + P2 + P3) — unchanged, full pass
+// Round 1+: process only P1 + remaining FAILED P2 — skip P3 and already-FIXED P2
+
+const techDebtP3 = []  // P3 findings deferred to tech debt log
+
+if (mendRound > 0) {
+  // readPreviousRoundResults(round): Reads resolution report from the previous mend round.
+  // Source: tmp/arc/{id}/resolution-report.md (round 0) or tmp/arc/{id}/resolution-report-round-{N}.md (round N)
+  // Parses finding IDs from "FIXED:" and "FAILED:" sections of the resolution report.
+  // Returns: { fixed: Set<findingId>, failed: Set<findingId> }
+  const previousResults = readPreviousRoundResults(mendRound - 1)
+
+  for (const finding of actionableFindings) {
+    if (finding.severity === "P3") {
+      // P3 never retried — defer to tech debt log
+      finding.mend_priority = "SKIP"
+      finding.skip_reason = "p3_deferred"
+      techDebtP3.push(finding)
+    } else if (finding.severity === "P2" && previousResults.fixed.has(finding.id)) {
+      // P2 already fixed in prior round — skip
+      finding.mend_priority = "SKIP"
+      finding.skip_reason = "p2_already_fixed"
+    }
+    // P1: always retry. P2 not yet fixed: retry.
+  }
+
+  // Remove skipped findings from actionable list
+  actionableFindings = actionableFindings.filter(f => f.mend_priority !== "SKIP")
+
+  if (techDebtP3.length > 0) {
+    log(`Mend round ${mendRound}: deferred ${techDebtP3.length} P3 findings to tech debt log`)
+  }
+}
+
+// techDebtP3 is consumed by Phase 6 (cleanup) to write tmp/arc/{id}/tech-debt-p3.md
+```
+
+**Standalone invocation**: When `/rune:mend` runs without arc context, `mendRound` defaults to 0 — all findings processed (backward compatible).
+
 ## Deduplicate
 
 Apply Dedup Hierarchy: `SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX`

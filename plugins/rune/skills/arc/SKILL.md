@@ -89,6 +89,7 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | 3.2 | `design_prototype` | Team | 10 min | Conditional: `design_sync.enabled` + VSM files |
 | 4.5 | `task_decomposition` | Team | 10 min | Codex (conditional) |
 | 5 | `work` | Team | 35 min | `/rune:strive` |
+| 5.1 | `drift_review` | Inline | 2 min | — |
 | 3.3 | `storybook_verification` | Team | 15 min | Conditional: `storybook.enabled` |
 | 5.2 | `design_verification` | Team | 8 min | Conditional: VSM files |
 | 5.3 | `ux_verification` | Team | 5 min | Conditional: `ux.enabled` |

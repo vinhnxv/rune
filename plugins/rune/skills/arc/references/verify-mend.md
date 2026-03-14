@@ -140,6 +140,10 @@ Uses shared `evaluateConvergence()` from review-mend-convergence.md. Passes `p2C
 
 **evaluateConvergence cascade** (3 key gates): (1) minCycles gate — `round + 1 < minCycles` → forced retry, (2) P1 AND P2 threshold — `p1Count <= findingThreshold && p2Count <= p2Threshold` (default p2Threshold=0 — any P2 blocks), (3) smart scoring via `computeConvergenceScore()` when diff-scope enabled — 4-component formula: `0.4*p3Ratio + 0.3*preExistingRatio + 0.2*trendDecreasing + 0.1*base` against convergenceThreshold=0.7 (default). P2 hard gate: returns score 0.0 if `p2Count > p2Threshold`.
 
+<!-- p2Threshold: configurable via talisman review.arc_convergence_p2_threshold
+     Default: 0 (strict — all P2 must be resolved). Recommended opt-in: 2.
+     Users set arc_convergence_p2_threshold: 2 in talisman.yml to allow up to 2 remaining P2 findings. -->
+
 ```javascript
 // readTalismanSection: "review"
 const review = readTalismanSection("review")

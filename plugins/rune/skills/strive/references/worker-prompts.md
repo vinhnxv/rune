@@ -57,6 +57,37 @@ Agent({
     4. IF --approve mode: write proposal to tmp/work/{timestamp}/proposals/{task-id}.md,
        send to the Tarnished via SendMessage, wait for approval before coding.
        Max 2 rejections -> mark BLOCKED. Timeout 3 min -> auto-REJECT.
+    4.2. DRIFT DETECTION (plan-reality mismatch signaling):
+         After reading the plan task description and target files, check for mismatches:
+         - Plan references function/class/module that doesn't exist in codebase
+         - Plan assumes pattern (e.g., "use existing UserRepo") but pattern differs
+         - Plan file paths don't match actual file structure
+
+         If mismatch detected, write drift signal:
+         \`\`\`
+         Bash(\`mkdir -p "tmp/work/{timestamp}/drift-signals"\`)
+         Write(\`tmp/work/{timestamp}/drift-signals/{task-id}-drift.json\`, JSON.stringify({
+           task_id: "{task-id}",
+           worker: "{your-name}",
+           type: "missing_api" | "wrong_pattern" | "wrong_path" | "other",
+           plan_says: "what the plan expected",
+           reality: "what actually exists with file:line reference",
+           severity: "blocks_task" | "workaround_applied" | "cosmetic",
+           timestamp: new Date().toISOString(),
+           config_dir: configDir,
+           owner_pid: ownerPid,
+           session_id: sessionId
+         }))
+         \`\`\`
+
+         Severity guide:
+         - blocks_task: Cannot implement as specified, need plan amendment
+         - workaround_applied: Found alternative approach, proceeding with adaptation
+         - cosmetic: Minor naming/path difference, no functional impact
+
+         IMPORTANT: Do NOT modify the plan. Only write the signal file. The Tarnished decides.
+         After writing a drift signal, continue with implementation using your best judgment
+         (unless severity is "blocks_task", in which case skip the task and mark it blocked).
     <!-- SYNC: file-ownership-protocol — keep rune-smith and trial-forger in sync -->
     4.5. FILE OWNERSHIP (from task metadata, fallback to description):
          Read ownership from task.metadata.file_targets first. If absent, parse
@@ -233,6 +264,37 @@ Agent({
     4. IF --approve mode: write proposal to tmp/work/{timestamp}/proposals/{task-id}.md,
        send to the Tarnished via SendMessage, wait for approval before writing tests.
        Max 2 rejections -> mark BLOCKED. Timeout 3 min -> auto-REJECT.
+    4.2. DRIFT DETECTION (plan-reality mismatch signaling):
+         After reading the plan task description and target files, check for mismatches:
+         - Plan references function/class/module that doesn't exist in codebase
+         - Plan assumes pattern (e.g., "use existing UserRepo") but pattern differs
+         - Plan file paths don't match actual file structure
+
+         If mismatch detected, write drift signal:
+         \`\`\`
+         Bash(\`mkdir -p "tmp/work/{timestamp}/drift-signals"\`)
+         Write(\`tmp/work/{timestamp}/drift-signals/{task-id}-drift.json\`, JSON.stringify({
+           task_id: "{task-id}",
+           worker: "{your-name}",
+           type: "missing_api" | "wrong_pattern" | "wrong_path" | "other",
+           plan_says: "what the plan expected",
+           reality: "what actually exists with file:line reference",
+           severity: "blocks_task" | "workaround_applied" | "cosmetic",
+           timestamp: new Date().toISOString(),
+           config_dir: configDir,
+           owner_pid: ownerPid,
+           session_id: sessionId
+         }))
+         \`\`\`
+
+         Severity guide:
+         - blocks_task: Cannot implement as specified, need plan amendment
+         - workaround_applied: Found alternative approach, proceeding with adaptation
+         - cosmetic: Minor naming/path difference, no functional impact
+
+         IMPORTANT: Do NOT modify the plan. Only write the signal file. The Tarnished decides.
+         After writing a drift signal, continue with implementation using your best judgment
+         (unless severity is "blocks_task", in which case skip the task and mark it blocked).
     <!-- SYNC: file-ownership-protocol — keep rune-smith and trial-forger in sync -->
     4.5. FILE OWNERSHIP (from task metadata, fallback to description):
          Read ownership from task.metadata.file_targets first. If absent, parse

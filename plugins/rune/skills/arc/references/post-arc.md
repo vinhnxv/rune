@@ -56,6 +56,47 @@ if (exists(".claude/echoes/")) {
 }
 ```
 
+## Domain Decision Echo Persist
+
+After persisting quality metrics, extract domain decisions from worker logs for cross-session learning:
+
+```javascript
+// Discover worker logs via work phase artifact path (not workTimestamp — unavailable in post-arc)
+const workDir = checkpoint.phases.work?.artifact?.replace(/\/[^\/]+$/, '') // e.g., "tmp/work/1773088881455"
+const workerLogs = workDir ? Glob(`${workDir}/worker-logs/*.md`) : []
+const decisions = []
+for (const log of workerLogs) {
+  const content = Read(log)
+  // Extract ### Decisions sections — handles EOF without trailing newline
+  const decisionBlocks = content.match(/### Decisions\n([\s\S]*?)(?=\n## [^\n]|\s*$)/g)
+  if (decisionBlocks) {
+    decisions.push(...decisionBlocks.map(b => b.replace(/^### Decisions\n/, "").trim()).filter(Boolean))
+  }
+}
+
+if (decisions.length > 0) {
+  // Deduplicate by exact string match, keep first 5 unique (preserve chronological order)
+  const unique = [...new Set(decisions)]
+  const topDecisions = unique.slice(0, 5)
+
+  // Write to planner/ echoes (same as existing post-arc echo) so /rune:devise echo-reader surfaces them
+  const planName = checkpoint.plan_file?.split('/').pop()?.replace('.md', '') || id
+  appendEchoEntry(".claude/echoes/planner/MEMORY.md", {
+    layer: "inscribed",
+    source: `rune:arc ${id} decisions`,
+    content: `Key decisions for ${planName}:\n${topDecisions.map(d => `- ${d}`).join("\n")}`
+  })
+}
+```
+
+> **Design notes**:
+> - Uses `checkpoint.phases.work.artifact` to find work dir — `workTimestamp` is not available in post-arc context
+> - Regex `(?=\n## [^\n]|\s*$)` handles EOF without trailing newline and only stops at `## ` headings (not `###` or `####`)
+> - Writes to `.claude/echoes/planner/MEMORY.md` (same target as existing post-arc echo) — NOT `workers/` — so `/rune:devise` echo-reader surfaces decisions during planning
+> - Chronological order preserved instead of word-count sorting (longer ≠ more important)
+> - Max 5 decisions per arc (prevent echo bloat)
+> - Graceful: if no `### Decisions` sections exist → skip, zero side effect
+
 ## Completion Report
 
 ```

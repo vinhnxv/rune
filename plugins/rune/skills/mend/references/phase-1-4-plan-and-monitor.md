@@ -8,7 +8,11 @@ Check for cross-file dependencies between findings:
 
 1. If finding A (in file X) depends on finding B (in file Y): B's file group completes before A's
 2. Within a file group, order by severity (P1 -> P2 -> P3), then by line number (top-down)
-3. Triage threshold: if total findings > 20, instruct fixers to FIX all P1, SHOULD FIX P2, MAY SKIP P3
+3. Triage threshold enforcement (v1.163.0+):
+   When total findings > 20:
+     P1: FIX (mandatory — always processed)
+     P2: SHOULD FIX (processed, but may be deferred via p2Threshold)
+     P3: MAY SKIP (only processed in round 0, deferred in retries)
 
 ### Determine Fixer Count and Waves
 
