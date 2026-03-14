@@ -64,9 +64,10 @@ STALENESS_MIN=30
 if [[ -f "$TALISMAN_SHARD" ]]; then
   ENABLED=$(jq -r '.enabled // true' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
   [[ "$ENABLED" == "false" ]] && exit 0
-  SILENT_THRESHOLD=$(jq -r '.tool_failure_tracking.silent_threshold // 2' "$TALISMAN_SHARD" 2>/dev/null || echo "2")
-  ESCALATION_THRESHOLD=$(jq -r '.tool_failure_tracking.escalation_threshold // 5' "$TALISMAN_SHARD" 2>/dev/null || echo "5")
-  STALENESS_MIN=$(jq -r '.tool_failure_tracking.staleness_minutes // 30' "$TALISMAN_SHARD" 2>/dev/null || echo "30")
+  # QUAL-002 FIX: Flat key access — shard file is the dedicated tool_failure_tracking object
+  SILENT_THRESHOLD=$(jq -r '.silent_threshold // 2' "$TALISMAN_SHARD" 2>/dev/null || echo "2")
+  ESCALATION_THRESHOLD=$(jq -r '.escalation_threshold // 5' "$TALISMAN_SHARD" 2>/dev/null || echo "5")
+  STALENESS_MIN=$(jq -r '.staleness_minutes // 30' "$TALISMAN_SHARD" 2>/dev/null || echo "30")
 fi
 
 # --- SEC-4: Session ID validation (prevent path injection) ---

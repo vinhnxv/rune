@@ -94,6 +94,10 @@ if [[ -L "${CHOME}/.rune" ]]; then
   exit 0
 fi
 
+# ── Canonical shard name list (used by both fast-path check and write loop) ──
+# BACK-001 FIX: Single source of truth — prevents drift between fast-path and write loop
+SHARD_NAMES=("arc" "codex" "review" "work" "goldmask" "plan" "gates" "settings" "inspect" "testing" "audit" "ux" "misc" "keyword_detection" "tool_failure_tracking" "deliverable_verification" "context_stop_guard")
+
 # ── Guard: defaults file must exist and not be a symlink ──
 # SEC-004 FIX: Add symlink check to prevent symlink-based content injection
 if [[ ! -f "$DEFAULTS_FILE" ]] || [[ -L "$DEFAULTS_FILE" ]]; then
@@ -229,9 +233,9 @@ if [[ "$project_json" == '{}' && "$global_json" == '{}' ]]; then
   if [[ -f "$DEFAULTS_HASH_FILE" && -f "${SYSTEM_SHARD_DIR}/_meta.json" ]]; then
     stored_hash=$(cat "$DEFAULTS_HASH_FILE" 2>/dev/null || true)
     if [[ -n "$stored_hash" && "$stored_hash" == "$CURRENT_DEFAULTS_HASH" && "$CURRENT_DEFAULTS_HASH" != "no-hash" ]]; then
-      # Verify completeness: check all shards exist (reuse SHARD_NAMES defined below)
+      # Verify completeness: check all shards exist
       all_shards_exist=true
-      for sn in arc codex review work goldmask plan gates settings inspect testing audit ux misc keyword_detection tool_failure_tracking deliverable_verification context_stop_guard; do
+      for sn in "${SHARD_NAMES[@]}"; do
         if [[ ! -f "${SYSTEM_SHARD_DIR}/${sn}.json" ]]; then
           all_shards_exist=false
           break
@@ -333,7 +337,7 @@ if [[ -z "$all_shards" || "$all_shards" == "null" ]]; then
 fi
 
 # ── Write shards atomically (mktemp in $SHARD_DIR + mv) ──
-SHARD_NAMES=("arc" "codex" "review" "work" "goldmask" "plan" "gates" "settings" "inspect" "testing" "audit" "ux" "misc" "keyword_detection" "tool_failure_tracking" "deliverable_verification" "context_stop_guard")
+# SHARD_NAMES defined at line 99 (single source of truth — BACK-001 fix)
 shard_count=0
 
 for shard_name in "${SHARD_NAMES[@]}"; do

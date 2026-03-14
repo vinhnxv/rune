@@ -35,7 +35,8 @@ _trace() {
 }
 
 # --- Resolve paths ---
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# QUAL-003 FIX: Single SCRIPT_DIR definition using BASH_SOURCE + pwd -P (matches convention)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # Source platform helpers for _parse_iso_epoch
 # shellcheck source=lib/platform.sh
 source "${SCRIPT_DIR}/lib/platform.sh" 2>/dev/null || true
@@ -50,7 +51,6 @@ MANIFESTS_DIR="$CHOME/echoes/global/manifests"
 
 # --- Read staleness threshold from talisman (default: 90 days) ---
 STALENESS_DAYS=90
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=lib/talisman-shard-path.sh
 source "${SCRIPT_DIR}/lib/talisman-shard-path.sh" 2>/dev/null || true
 if type _rune_resolve_talisman_shard &>/dev/null; then
@@ -58,7 +58,7 @@ if type _rune_resolve_talisman_shard &>/dev/null; then
 else
   TALISMAN_SHARD="${CLAUDE_PROJECT_DIR:-$PWD}/tmp/.talisman-resolved/misc.json"
 fi
-if [[ -f "$TALISMAN_SHARD" ]] && command -v jq &>/dev/null; then
+if [[ -f "$TALISMAN_SHARD" && ! -L "$TALISMAN_SHARD" ]] && command -v jq &>/dev/null; then
   shard_val=$(jq -r '.echoes.global.staleness_days // empty' "$TALISMAN_SHARD" 2>/dev/null || true)
   if [[ -n "$shard_val" && "$shard_val" =~ ^[0-9]+$ ]]; then
     STALENESS_DAYS="$shard_val"

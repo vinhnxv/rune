@@ -93,9 +93,10 @@ MAX_BLOCKS=2
 if [[ -f "$TALISMAN_SHARD" && ! -L "$TALISMAN_SHARD" ]]; then
   ENABLED=$(jq -r '.enabled // true' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
   [[ "$ENABLED" == "false" ]] && exit 0
-  WARNING_THRESHOLD=$(jq -r '.context_stop_guard.warning_threshold // 70' "$TALISMAN_SHARD" 2>/dev/null || echo "70")
-  HIGH_THRESHOLD=$(jq -r '.context_stop_guard.high_threshold // 85' "$TALISMAN_SHARD" 2>/dev/null || echo "85")
-  MAX_BLOCKS=$(jq -r '.context_stop_guard.max_blocks_per_session // 2' "$TALISMAN_SHARD" 2>/dev/null || echo "2")
+  # QUAL-001 FIX: Flat key access — shard file is the dedicated context_stop_guard object
+  WARNING_THRESHOLD=$(jq -r '.warning_threshold // 70' "$TALISMAN_SHARD" 2>/dev/null || echo "70")
+  HIGH_THRESHOLD=$(jq -r '.high_threshold // 85' "$TALISMAN_SHARD" 2>/dev/null || echo "85")
+  MAX_BLOCKS=$(jq -r '.max_blocks_per_session // 2' "$TALISMAN_SHARD" 2>/dev/null || echo "2")
 fi
 
 # --- Read context % from statusline bridge file ---
