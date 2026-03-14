@@ -82,9 +82,21 @@ fi
 # Canonicalize CWD to prevent symlink-based path manipulation (SEC-002)
 CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || CWD=$(pwd -P)
 
-SHARD_DIR="${CWD}/tmp/.talisman-resolved"
 PROJECT_TALISMAN="${CWD}/.claude/talisman.yml"
 GLOBAL_TALISMAN="${CHOME}/talisman.yml"
+
+# System-level shard directory for defaults-only cache
+SYSTEM_SHARD_DIR="${CHOME}/.rune/talisman-resolved"
+
+# Symlink guard for .rune/ directory (SEC-001)
+if [[ -L "${CHOME}/.rune" ]]; then
+  _trace "WARN: ${CHOME}/.rune is a symlink — refusing to write"
+  exit 0
+fi
+
+# ── Canonical shard name list (used by both fast-path check and write loop) ──
+# BACK-001 FIX: Single source of truth — prevents drift between fast-path and write loop
+SHARD_NAMES=("arc" "codex" "review" "work" "goldmask" "plan" "gates" "settings" "inspect" "testing" "audit" "ux" "misc" "keyword_detection" "tool_failure_tracking" "deliverable_verification" "context_stop_guard")
 
 # ── Guard: defaults file must exist and not be a symlink ──
 # SEC-004 FIX: Add symlink check to prevent symlink-based content injection
@@ -202,8 +214,60 @@ if printf '%s' "$merged" | jq 'del(.work.ward_commands)' 2>/dev/null | grep -qE 
   MERGE_STATUS="defaults_only"
 fi
 
-# ── Create shard directory ──
-mkdir -p "$SHARD_DIR" 2>/dev/null || { _trace "WARN: cannot create $SHARD_DIR"; exit 0; }
+# ── Determine shard output directory based on source availability ──
+CACHE_TYPE="project"
+if [[ "$project_json" == '{}' && "$global_json" == '{}' ]]; then
+  # Defaults-only: use system-level cache with hash guard
+  SHARD_DIR="$SYSTEM_SHARD_DIR"
+  CACHE_TYPE="system"
+
+  # Hash guard: fast-path skip if defaults unchanged
+  DEFAULTS_HASH_FILE="${SYSTEM_SHARD_DIR}/.defaults-hash"
+  if type _rune_venv_hash &>/dev/null; then
+    CURRENT_DEFAULTS_HASH=$(_rune_venv_hash "$DEFAULTS_FILE")
+  else
+    # Inline fallback if rune-venv.sh not sourced
+    CURRENT_DEFAULTS_HASH=$(shasum -a 256 "$DEFAULTS_FILE" 2>/dev/null | cut -d' ' -f1 || sha256sum "$DEFAULTS_FILE" 2>/dev/null | cut -d' ' -f1 || echo "no-hash")
+  fi
+
+  if [[ -f "$DEFAULTS_HASH_FILE" && -f "${SYSTEM_SHARD_DIR}/_meta.json" ]]; then
+    stored_hash=$(cat "$DEFAULTS_HASH_FILE" 2>/dev/null || true)
+    if [[ -n "$stored_hash" && "$stored_hash" == "$CURRENT_DEFAULTS_HASH" && "$CURRENT_DEFAULTS_HASH" != "no-hash" ]]; then
+      # Verify completeness: check all shards exist
+      all_shards_exist=true
+      for sn in "${SHARD_NAMES[@]}"; do
+        if [[ ! -f "${SYSTEM_SHARD_DIR}/${sn}.json" ]]; then
+          all_shards_exist=false
+          break
+        fi
+      done
+
+      if [[ "$all_shards_exist" == "true" ]]; then
+        _trace "Fast path: defaults hash match, skipping resolve"
+        existing_meta=$(cat "${SYSTEM_SHARD_DIR}/_meta.json" 2>/dev/null || echo '{}')
+        shard_count=$(printf '%s' "$existing_meta" | jq -r '.shard_count // 17' 2>/dev/null || echo "17")
+        jq -n \
+          --arg count "$shard_count" \
+          --arg dir "$SYSTEM_SHARD_DIR" \
+          '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":("[Talisman Shards] Resolved " + $count + " config shards to " + $dir + "/ (status: defaults_only, cached). Use readTalismanSection(section) for shard-aware config access.")}}'
+        exit 0
+      fi
+    fi
+  fi
+
+  # Hash mismatch or incomplete cache — resolve to system dir
+  # SEC-001: Post-mkdir symlink recheck (TOCTOU mitigation)
+  mkdir -p "$SYSTEM_SHARD_DIR" 2>/dev/null || { _trace "WARN: cannot create $SYSTEM_SHARD_DIR"; exit 0; }
+  if [[ -L "${CHOME}/.rune" ]] || [[ -L "$SYSTEM_SHARD_DIR" ]]; then
+    _trace "WARN: symlink detected post-mkdir — refusing to write"
+    exit 0
+  fi
+else
+  # User has talisman.yml — use project-level dir
+  SHARD_DIR="${CWD}/tmp/.talisman-resolved"
+  CACHE_TYPE="project"
+  mkdir -p "$SHARD_DIR" 2>/dev/null || { _trace "WARN: cannot create $SHARD_DIR"; exit 0; }
+fi
 
 # ── Batch shard extraction (single jq call) ──
 # Produces a JSON object with all 13 shard payloads keyed by shard name
@@ -273,7 +337,7 @@ if [[ -z "$all_shards" || "$all_shards" == "null" ]]; then
 fi
 
 # ── Write shards atomically (mktemp in $SHARD_DIR + mv) ──
-SHARD_NAMES=("arc" "codex" "review" "work" "goldmask" "plan" "gates" "settings" "inspect" "testing" "audit" "ux" "misc" "keyword_detection" "tool_failure_tracking" "deliverable_verification" "context_stop_guard")
+# SHARD_NAMES defined at line 99 (single source of truth — BACK-001 fix)
 shard_count=0
 
 for shard_name in "${SHARD_NAMES[@]}"; do
@@ -324,36 +388,61 @@ if [[ ! "$CURRENT_CFG" =~ ^/ ]]; then
 fi
 OWNER_PID="${PPID:-0}"
 
-meta_json=$(jq -n \
-  --arg resolved_at "$RESOLVED_AT" \
-  --arg project_src "${PROJECT_TALISMAN}" \
-  --argjson project_exists "$([ -f "$PROJECT_TALISMAN" ] && echo true || echo false)" \
-  --arg global_src "${GLOBAL_TALISMAN}" \
-  --argjson global_exists "$([ -f "$GLOBAL_TALISMAN" ] && echo true || echo false)" \
-  --arg defaults_src "talisman-defaults.json" \
-  --argjson shard_count "$shard_count" \
-  --argjson schema_version 1 \
-  --arg resolver_status "$RESOLVER_STATUS" \
-  --arg merge_status "$MERGE_STATUS" \
-  --arg config_dir "$CURRENT_CFG" \
-  --arg owner_pid "$OWNER_PID" \
-  --arg session_id "${SESSION_ID:-unknown}" \
-  '{
-    resolved_at: $resolved_at,
-    sources: {
-      project: (if $project_exists then $project_src else null end),
-      global: (if $global_exists then $global_src else null end),
-      defaults: $defaults_src
-    },
-    merge_order: ["defaults", (if $global_exists then "global" else null end), (if $project_exists then "project" else null end)] | map(select(. != null)),
-    merge_status: $merge_status,
-    shard_count: $shard_count,
-    schema_version: $schema_version,
-    resolver_status: $resolver_status,
-    config_dir: $config_dir,
-    owner_pid: $owner_pid,
-    session_id: $session_id
-  }')
+if [[ "$CACHE_TYPE" == "system" ]]; then
+  meta_json=$(jq -n \
+    --arg resolved_at "$RESOLVED_AT" \
+    --arg defaults_src "talisman-defaults.json" \
+    --argjson shard_count "$shard_count" \
+    --argjson schema_version 2 \
+    --arg resolver_status "$RESOLVER_STATUS" \
+    --arg merge_status "$MERGE_STATUS" \
+    --arg cache_type "system" \
+    --arg defaults_hash "${CURRENT_DEFAULTS_HASH:-}" \
+    '{
+      cache_type: $cache_type,
+      resolved_at: $resolved_at,
+      sources: { project: null, global: null, defaults: $defaults_src },
+      merge_order: ["defaults"],
+      merge_status: $merge_status,
+      shard_count: $shard_count,
+      schema_version: $schema_version,
+      resolver_status: $resolver_status,
+      defaults_hash: $defaults_hash
+    }')
+else
+  meta_json=$(jq -n \
+    --arg resolved_at "$RESOLVED_AT" \
+    --arg project_src "${PROJECT_TALISMAN}" \
+    --argjson project_exists "$([ -f "$PROJECT_TALISMAN" ] && echo true || echo false)" \
+    --arg global_src "${GLOBAL_TALISMAN}" \
+    --argjson global_exists "$([ -f "$GLOBAL_TALISMAN" ] && echo true || echo false)" \
+    --arg defaults_src "talisman-defaults.json" \
+    --argjson shard_count "$shard_count" \
+    --argjson schema_version 2 \
+    --arg resolver_status "$RESOLVER_STATUS" \
+    --arg merge_status "$MERGE_STATUS" \
+    --arg config_dir "$CURRENT_CFG" \
+    --arg owner_pid "$OWNER_PID" \
+    --arg session_id "${SESSION_ID:-unknown}" \
+    --arg cache_type "project" \
+    '{
+      cache_type: $cache_type,
+      resolved_at: $resolved_at,
+      sources: {
+        project: (if $project_exists then $project_src else null end),
+        global: (if $global_exists then $global_src else null end),
+        defaults: $defaults_src
+      },
+      merge_order: ["defaults", (if $global_exists then "global" else null end), (if $project_exists then "project" else null end)] | map(select(. != null)),
+      merge_status: $merge_status,
+      shard_count: $shard_count,
+      schema_version: $schema_version,
+      resolver_status: $resolver_status,
+      config_dir: $config_dir,
+      owner_pid: $owner_pid,
+      session_id: $session_id
+    }')
+fi
 
 tmp_meta=$(mktemp "$SHARD_DIR/.tmp-_meta.XXXXXX") || { _trace "WARN: cannot write _meta.json"; exit 0; }
 if printf '%s\n' "$meta_json" > "$tmp_meta" 2>/dev/null; then
@@ -369,12 +458,21 @@ if [[ $ELAPSED -gt 3 ]]; then
   _trace "WARN: resolver took ${ELAPSED}s (>80% of 5s budget, integer precision)"
 fi
 
+# ── Write defaults hash after successful system-level resolve ──
+if [[ "$CACHE_TYPE" == "system" && -n "${CURRENT_DEFAULTS_HASH:-}" && "$CURRENT_DEFAULTS_HASH" != "no-hash" ]]; then
+  tmp_hash=$(mktemp "${SYSTEM_SHARD_DIR}/.defaults-hash.XXXXXX" 2>/dev/null) || tmp_hash="${SYSTEM_SHARD_DIR}/.defaults-hash.tmp.$$"
+  echo "$CURRENT_DEFAULTS_HASH" > "$tmp_hash" 2>/dev/null && \
+    mv -f "$tmp_hash" "${SYSTEM_SHARD_DIR}/.defaults-hash" 2>/dev/null || \
+    rm -f "$tmp_hash" 2>/dev/null
+fi
+
 _trace "OK: resolved $shard_count shards to $SHARD_DIR in ~${ELAPSED}s (status=$RESOLVER_STATUS, timing=coarse)"
 
 # ── Output hook-specific JSON (SEC-006: jq --arg instead of heredoc interpolation) ──
 jq -n \
   --arg count "$shard_count" \
+  --arg dir "$SHARD_DIR" \
   --arg status "$RESOLVER_STATUS" \
-  '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":("[Talisman Shards] Resolved " + $count + " config shards to tmp/.talisman-resolved/ (status: " + $status + "). Use readTalismanSection(section) for shard-aware config access.")}}'
+  '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":("[Talisman Shards] Resolved " + $count + " config shards to " + $dir + "/ (status: " + $status + "). Use readTalismanSection(section) for shard-aware config access.")}}'
 
 exit 0

@@ -30,10 +30,17 @@ trap '_rune_fail_forward' ERR
 # --- Guard: jq dependency (fail-open without jq) ---
 command -v jq >/dev/null 2>&1 || exit 0
 
-# --- Guard: Talisman gate ---
-TALISMAN_SHARD="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/misc.json"
+# --- Guard: Talisman gate (project → system fallback; symlink-safe via helper) ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck source=lib/talisman-shard-path.sh
+source "${SCRIPT_DIR}/lib/talisman-shard-path.sh" 2>/dev/null || true
+if type _rune_resolve_talisman_shard &>/dev/null; then
+  TALISMAN_SHARD=$(_rune_resolve_talisman_shard "keyword_detection")
+else
+  TALISMAN_SHARD="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/keyword_detection.json"
+fi
 if [[ -f "$TALISMAN_SHARD" ]]; then
-  ENABLED=$(jq -r '.keyword_detection.enabled // true' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
+  ENABLED=$(jq -r '.enabled // true' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
   [[ "$ENABLED" == "false" ]] && exit 0
 fi
 

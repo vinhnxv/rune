@@ -4,7 +4,7 @@
 # Exports:
 #   rune_resolve_venv <requirements_path> → prints path to venv python3
 #
-# Venv location: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/rune-venv/
+# Venv location: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.rune/venv/
 # Hash guard: .requirements-hash in venv dir (SHA-256 of requirements.txt)
 # Migration: removes old in-tree .venv/ on first run (best-effort)
 #
@@ -40,13 +40,24 @@ _rune_venv_migrate_old() {
   done
 }
 
+# ── Internal: remove old CHOME-level venv (one-time migration to .rune/venv/) ──
+_rune_venv_migrate_chome() {
+  local chome="$1"
+  [[ -n "$chome" ]] || return 0
+  local old_venv="${chome}/rune-venv"
+  # Only migrate if old path exists, is a real dir (not symlink), and new path doesn't
+  if [[ -d "$old_venv" && ! -L "$old_venv" ]]; then
+    rm -rf "$old_venv" 2>/dev/null || true
+  fi
+}
+
 # ── Public: resolve venv python path, create/update if needed ──
 # Usage: PYTHON=$(rune_resolve_venv "/path/to/requirements.txt")
 # Returns: absolute path to venv python3 binary (or "python3" on failure)
 rune_resolve_venv() {
   local req_file="${1:?Usage: rune_resolve_venv <requirements.txt path>}"
   local chome="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-  local venv_dir="${chome}/rune-venv"
+  local venv_dir="${chome}/.rune/venv"
   local hash_file="${venv_dir}/.requirements-hash"
   local python_bin="${venv_dir}/bin/python3"
 
@@ -71,6 +82,12 @@ rune_resolve_venv() {
 
   # Ensure config dir exists
   [[ -d "$chome" ]] || mkdir -p "$chome" 2>/dev/null || true
+  # Symlink guard for .rune/ (SEC-002)
+  if [[ -L "${chome}/.rune" ]]; then
+    echo "python3"
+    return 1
+  fi
+  (umask 077 && mkdir -p "${chome}/.rune" 2>/dev/null) || true
 
   # Create venv if missing
   if [[ ! -d "$venv_dir" ]]; then
@@ -92,6 +109,8 @@ rune_resolve_venv() {
   if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
     _rune_venv_migrate_old "$CLAUDE_PLUGIN_ROOT"
   fi
+  # Migrate old CHOME-level venv (rune-venv/ → .rune/venv/)
+  _rune_venv_migrate_chome "$chome"
 
   echo "$python_bin"
   return 0

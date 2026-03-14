@@ -17,13 +17,20 @@ trap '_fail_forward' ERR
 # --- Guard: jq dependency ---
 command -v jq >/dev/null 2>&1 || exit 0
 
-# --- Talisman gate ---
-TALISMAN_SHARD="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/misc.json"
+# --- Talisman gate (project → system fallback; symlink-safe via helper) ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck source=lib/talisman-shard-path.sh
+source "${SCRIPT_DIR}/lib/talisman-shard-path.sh" 2>/dev/null || true
+if type _rune_resolve_talisman_shard &>/dev/null; then
+  TALISMAN_SHARD=$(_rune_resolve_talisman_shard "deliverable_verification")
+else
+  TALISMAN_SHARD="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/deliverable_verification.json"
+fi
 MIN_SIZE=200
 if [[ -f "$TALISMAN_SHARD" && ! -L "$TALISMAN_SHARD" ]]; then
-  ENABLED=$(jq -r '.deliverable_verification.enabled // true' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
+  ENABLED=$(jq -r '.enabled // true' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
   [[ "$ENABLED" == "false" ]] && exit 0
-  MIN_SIZE=$(jq -r '.deliverable_verification.min_file_size // 200' "$TALISMAN_SHARD" 2>/dev/null || echo "200")
+  MIN_SIZE=$(jq -r '.min_file_size // 200' "$TALISMAN_SHARD" 2>/dev/null || echo "200")
 fi
 
 # --- Read stdin (SEC-2: 1MB cap) ---

@@ -93,6 +93,8 @@ Phase 4: Plan Review (scroll review + optional iterative refinement)
     ↓
 Phase 4.5: Technical Review (optional — decree-arbiter + knowledge-keeper + codex-plan-reviewer)
     ↓
+Phase 4D: Grounding Gate (ALWAYS — evidence-verifier + assumption-slayer, even with --quick)
+    ↓
 Phase 5: Echo Persist (save learnings to .claude/echoes/)
     ↓
 Phase 6: Cleanup & Present (shutdown teammates, TeamDelete, present plan)
@@ -275,6 +277,17 @@ Runs scroll-reviewer for document quality, then automated verification gate (det
 
 See [plan-review.md](references/plan-review.md) for the full protocol.
 
+### Phase 4D: Grounding Gate (ALWAYS runs)
+
+**Mandatory** anti-hallucination gate. Runs evidence-verifier + assumption-slayer to verify plan solutions are grounded in codebase reality. Even with `--quick`, this phase runs — a fast-but-wrong plan wastes more time than a slower-but-correct one.
+
+**Inputs**: Plan document, timestamp
+**Outputs**: `tmp/plans/{timestamp}/grounding-evidence.md`, `tmp/plans/{timestamp}/grounding-assumptions.md`
+**Error handling**: BLOCK verdict (grounding < 0.80 or invalid assumptions) -> auto-fix + 1 retry; still BLOCK -> present with warnings
+**Agents**: `grounding-evidence-verifier`, `grounding-assumption-slayer`
+
+See [plan-review.md](references/plan-review.md) Phase 4D section for the full protocol.
+
 ## Phase 5: Echo Persist
 
 Persist planning learnings to Rune Echoes:
@@ -341,6 +354,9 @@ Read and execute when user selects "Create issue".
 | TeamDelete failure (cleanup) | Retry-with-backoff (3 attempts), filesystem fallback |
 | Scroll review finds critical gaps | Address before presenting |
 | Plan review BLOCK verdict | Address blocking issues before presenting plan |
+| Grounding Gate: evidence score < 0.80 | BLOCK — auto-fix false claims, retry once |
+| Grounding Gate: invalid assumptions found | BLOCK — revise solution approach, retry once |
+| Grounding Gate: agent timeout (>5 min) | Proceed with warning "Plan not grounding-verified" |
 
 ## Guardrails
 

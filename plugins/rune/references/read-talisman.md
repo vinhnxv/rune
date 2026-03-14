@@ -63,20 +63,29 @@ Reads a single config section from pre-resolved JSON shards. Falls back to `read
 
 **Why**: `readTalisman()` loads the entire talisman.yml (~1,200 tokens). Most consumers need only 1-2 sections. `readTalismanSection()` reads a pre-resolved JSON shard (~50-100 tokens), reducing per-phase token cost by ~94%.
 
-**Prerequisite**: The `talisman-resolve.sh` SessionStart hook must have run. It produces `tmp/.talisman-resolved/{section}.json` shards from the 3-layer merge (defaults <- global <- project).
+**Prerequisite**: The `talisman-resolve.sh` SessionStart hook must have run. It produces shards in one of two locations:
+- **Project-level**: `tmp/.talisman-resolved/{section}.json` — when user has `.claude/talisman.yml` or global `${CHOME}/talisman.yml`
+- **System-level**: `${CHOME}/.rune/talisman-resolved/{section}.json` — defaults-only cache (no user talisman files)
 
 ## Implementation
 
 ```javascript
 // readTalismanSection: shard-aware config. See references/read-talisman.md
 function readTalismanSection(section) {
-  // 1. Try pre-resolved shard (fast path — ~50-100 tokens)
+  // 1. Try project-level pre-resolved shard (fast path — user has talisman.yml)
   try {
     const shard = Read(`tmp/.talisman-resolved/${section}.json`)
-    if (shard) return JSON.parse(shard)
+    if (shard && shard.trim() !== '') return JSON.parse(shard)
   } catch (_) { /* shard missing or parse error — fall through */ }
 
-  // 2. Fallback: read full talisman and extract section
+  // 2. Try system-level pre-resolved shard (defaults-only cache)
+  try {
+    const chome = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+    const sysShard = Read(`${chome}/.rune/talisman-resolved/${section}.json`)
+    if (sysShard && sysShard.trim() !== '') return JSON.parse(sysShard)
+  } catch (_) { /* system shard missing — fall through */ }
+
+  // 3. Fallback: read full talisman and extract section
   const full = readTalisman()
 
   // Composite shards: bundle multiple top-level keys

@@ -294,8 +294,17 @@ fi
 # Remove scratch files (unconditional — no state file)
 _safe_remove_tmp_dir "tmp/scratch" "scratch"
 
-# Talisman resolver cache (regenerated at next SessionStart)
+# Talisman resolver cache — project-level (regenerated at next SessionStart)
 _safe_remove_tmp_dir "tmp/.talisman-resolved" "talisman-resolved"
+
+# System-level talisman cache — only with --system flag (shared cross-project)
+if [[ "$ARGUMENTS" == *"--system"* ]]; then
+  CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  if [[ -d "${CHOME}/.rune/talisman-resolved" && ! -L "${CHOME}/.rune/talisman-resolved" && ! -L "${CHOME}/.rune" ]]; then
+    rm -rf "${CHOME}/.rune/talisman-resolved" 2>/dev/null || true
+    log("Removed system-level talisman cache: ${CHOME}/.rune/talisman-resolved/")
+  fi
+fi
 
 # Remove event-driven signal files with symlink guard (unconditional — ephemeral hook artifacts)
 # Created by Phase 2 BRIDGE orchestrators when hooks are active. Safe no-op if absent.

@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [1.160.0] - 2026-03-14
+
+### Added
+- **Unified `.rune/` system directory** — Talisman defaults-only resolution now caches to `${CHOME}/.rune/talisman-resolved/` instead of polluting project `tmp/`. New users see zero files created in project directories. SHA-256 hash guard enables <50ms fast-path on subsequent sessions.
+- **`_rune_resolve_talisman_shard()` helper** — New `lib/talisman-shard-path.sh` provides project→system fallback shard resolution for hook scripts. Path traversal guard included.
+- **`/rune:rest --system` flag** — Cleans system-level talisman cache (shared cross-project). Default `/rune:rest` preserves system shards.
+
+### Changed
+- **Venv migrated to `.rune/venv/`** — `rune-venv.sh` now creates venvs at `${CHOME}/.rune/venv/` instead of `${CHOME}/rune-venv/`. Old path auto-cleaned on first run. `umask 077` on `.rune/` creation (SEC-002).
+- **`readTalismanSection()` gains 4-tier fallback** — project shard → system shard → full talisman → empty object. Updated in `references/read-talisman.md`.
+- **`_meta.json` schema v2** — Adds `cache_type` field ("system" or "project"), `defaults_hash` for system cache. System-level meta omits `owner_pid`/`session_id`.
+
+### Fixed
+- **FLAW-001: Hook scripts reading wrong shards** — 4 hook scripts read `misc.json` but their settings live in dedicated shards (`context_stop_guard`, `tool_failure_tracking`, `keyword_detection`, `deliverable_verification`). User talisman overrides for these features were silently ignored. Now routed to correct shards.
+- **TOCTOU symlink guard** (SEC-001) — Post-mkdir symlink recheck added to `talisman-resolve.sh` and `rune-venv.sh`.
+
 ## [1.159.3] - 2026-03-14
 
 ### Fixed
