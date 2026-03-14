@@ -702,6 +702,7 @@ const ARC_TEAM_PREFIXES = [
   "arc-storybook-",  // Storybook verification team (conditional — storybook.enabled)
   "arc-design-", "arc-prototype-", "arc-design-verify-", "arc-design-iter-",  // design sync teams (conditional — design_sync.enabled)
   "arc-ux-",  // UX verification team (conditional — ux.enabled + frontend files)
+  "arc-deploy-",  // deployment verification team (conditional — deployment-relevant files in diff)
   "arc-codex-sv-", "arc-codex-td-", "arc-codex-ga-", "arc-codex-tc-", "arc-codex-rq-",  // Codex phase handler teams (delegated to codex-phase-handler teammate)
   "rune-forge-", "rune-work-", "rune-review-", "rune-mend-", "rune-mend-deep-", "rune-audit-",  // sub-command teams
   "rune-brainstorm-",  // brainstorm skill teams (Solo/Roundtable/Deep modes)

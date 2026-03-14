@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+## [1.161.0] - 2026-03-15
+
+### Added
+- **sediment-detector review agent** — Cross-reference analysis agent for plugin infrastructure health. Detects 7 sediment categories (SDMT-001 through SDMT-007): phantom agents, dead config, dead commands, orphan scripts, unrouted skills, count drift, artifact dirs. Inline git analysis for triage scoring (utility × 0.4 + uniqueness × 0.3 + integration_ease × 0.3). Gated behind `.claude-plugin/plugin.json` existence check.
+- **validate-plugin-wiring.sh** — Fast deterministic pre-commit script (<2s, no LLM) for 4 sediment checks: unwired agents, unrouted skills, missing SKILL.md, orphan scripts. Supports `# SDMT-IGNORE: reason` annotations.
+- **arc Phase 7.9 deployment verification** — Conditional deployment-verifier spawn when diff contains migrations, API route changes, or config/env changes. New reference file `arc-phase-deploy-verify.md`.
+- **12 skills added to router tables** — design-sync, elevate, file-todos, learn, resolve-all-gh-pr-comments, resolve-gh-pr-comment, resolve-todos, skill-testing, team-status, test-browser, ux-design-process, team-delegate (experimental).
+- **CLAUDE.md pre-commit checklist** — Added SDMT validation items (wiring script, agent spawn sites, skill routing, config consumers).
+
+### Changed
+- **schema-drift-detector wired into Forge Warden** — Added as conditional Perspective (activates only when diff contains schema/migration files). Prefix: BACK-.
+- **phantom-warden wired into Forge Warden** — Added as audit-only Perspective for documented-but-unimplemented features. Prefix: PHNT-.
+- **sediment-detector wired into audit pipeline** — Auto-selected by Rune Gaze when `scope === "full"` and `.claude-plugin/plugin.json` exists. Added as Pattern Weaver Perspective with SDMT- prefix.
+- **team-delegate command marked experimental** — Description updated with experimental tag.
+- **deployment_verification talisman config removed** — Section was never consumed. Will be re-added with consumer documentation after deployment-verifier wiring.
+
+### Removed
+- **4 condenser agents** — `condenser-gap`, `condenser-plan`, `condenser-verdict`, `condenser-work`. Superseded by `artifact-extract.sh` (zero failures across 92 arc runs).
+- **2 dead commands** — `team-shutdown`, `team-spawn`. Superseded by team-sdk `shutdown()` protocol and `TeamCreate` SDK.
+- **2 diagnostic scripts** — `measure-startup-tokens.sh`, `measure-startup-tokens.py`. One-time diagnostic; results captured in `references/tokens-snapshot.json`.
+
 ## [1.160.1] - 2026-03-14
 
 ### Changed

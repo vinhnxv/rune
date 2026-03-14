@@ -41,6 +41,17 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 | "Cancel the review" / "stop the audit" | `/rune:cancel-review` or `/rune:cancel-audit` | Graceful shutdown of active workflows |
 | "Cross-model review" / "codex review" / "second opinion" | `/rune:codex-review` | Cross-model code review — Claude + Codex in parallel |
 | "prototype from figma" / "preview design" / "storybook from figma" / "generate components from figma" | `/rune:design-prototype` | Standalone prototype generator |
+| "Sync design" / "figma sync" / "design workflow" | `/rune:design-sync` | Figma design synchronization (extract → implement → review) |
+| "Promote echoes" / "elevate learnings" / "global echoes" | `/rune:elevate` | Promote project echoes to global scope |
+| "Track todos" / "file todos" / "manage todos" | `/rune:file-todos` | Structured file-based TODO tracking |
+| "Learn from session" / "extract patterns" / "self-learn" | `/rune:learn` | Session self-learning — extract correction patterns |
+| "Resolve PR comments" / "fix all comments" / "batch resolve" | `/rune:resolve-all-gh-pr-comments` | Batch resolve all open PR review comments |
+| "Fix this PR comment" / "resolve comment" | `/rune:resolve-gh-pr-comment` | Resolve a single GitHub PR review comment |
+| "Resolve TODOs" / "fix TODOs" / "clean up TODOs" | `/rune:resolve-todos` | Resolve file-based TODOs with verify-before-fix pipeline |
+| "Test skill" / "eval skill" / "pressure test" | `/rune:skill-testing` | TDD methodology for skill testing and evaluation |
+| "Team status" / "check teammates" / "agent health" | `/rune:team-status` | Background team health dashboard |
+| "Browser test" / "E2E test" / "test browser" | `/rune:test-browser` | Standalone browser E2E testing |
+| "UX review" / "UX patterns" / "heuristic evaluation" | `/rune:ux-design-process` | UX design intelligence and heuristic evaluation |
 
 ### Beginner Aliases
 
@@ -87,6 +98,17 @@ For users new to Rune, these simpler commands forward to the full versions:
 | `/rune:design-prototype` | Yes (0-5) | 5-15 min | Figma URL or text description |
 | `/rune:rest` | No | <1 min | None |
 | `/rune:brainstorm` | Yes (0-3 advisors) | 1-8 min | Feature idea |
+| `/rune:design-sync` | Yes (per phase) | 10-30 min | Figma URL |
+| `/rune:elevate` | No | 1-2 min | None (scans echoes) |
+| `/rune:file-todos` | No | <1 min | Subcommand |
+| `/rune:learn` | No | 2-5 min | None (scans session) |
+| `/rune:resolve-all-gh-pr-comments` | Yes (per comment) | 5-20 min | PR number (auto-detected) |
+| `/rune:resolve-gh-pr-comment` | No | 1-3 min | PR comment URL or ID |
+| `/rune:resolve-todos` | Yes (per batch) | 5-15 min | TODO file path |
+| `/rune:skill-testing` | No | 2-10 min | Skill name |
+| `/rune:team-status` | No | <1 min | None |
+| `/rune:test-browser` | No | 3-10 min | PR# or branch |
+| `/rune:ux-design-process` | No | 2-5 min | None (auto-loaded) |
 | `/rune:plan` | (alias for `/rune:devise`) |||
 | `/rune:work` | (alias for `/rune:strive`) |||
 | `/rune:review` | (alias for `/rune:appraise`) |||

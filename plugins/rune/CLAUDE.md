@@ -80,9 +80,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | `/rune:plan` | Beginner alias for `/rune:devise` — plan a feature or task |
 | `/rune:work` | Beginner alias for `/rune:strive` — implement a plan |
 | `/rune:review` | Beginner alias for `/rune:appraise` — review code changes |
-| `/rune:team-spawn` | Spawn an Agent Team using presets or custom composition |
-| `/rune:team-shutdown` | Gracefully shutdown a team and cleanup resources |
-| `/rune:team-delegate` | Task delegation dashboard — assign, message, create tasks |
+| `/rune:team-delegate` | Task delegation dashboard — assign, message, create tasks (experimental) |
 
 ## Core Rules
 
@@ -220,6 +218,10 @@ Every change to this plugin MUST include updates to all four files:
 - [ ] plugin.json description counts match actual files
 - [ ] No bare `Skill()` calls without `rune:` prefix (run namespace validation command)
 - [ ] No bare `codex-exec.sh` without `${CLAUDE_PLUGIN_ROOT}` path
+- [ ] Run `bash scripts/validate-plugin-wiring.sh` — no SDMT-* violations
+- [ ] New agents have >=1 spawn site in skills/ (SDMT-001)
+- [ ] New user-invocable skills are in using-rune AND tarnished routing tables (SDMT-005)
+- [ ] New talisman config sections have >=1 consumer in skills/ or scripts/ (SDMT-002)
 
 ## CLI-Backed Ashes (v1.57.0+)
 

@@ -1,7 +1,7 @@
 ---
 name: rune:team-delegate
 description: |
-  Task delegation dashboard for managing team workload, assignments, and messaging.
+  [EXPERIMENTAL] Task delegation dashboard for managing team workload, assignments, and messaging.
   Works with standalone teams from /rune:team-spawn and workflow-spawned teams.
 
   <example>

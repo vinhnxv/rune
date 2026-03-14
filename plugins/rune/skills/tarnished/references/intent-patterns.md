@@ -39,6 +39,18 @@ These keywords at the START of `$ARGUMENTS` trigger immediate routing (no classi
 | `mcp setup` / `setup mcp` / `add mcp` | `/rune:talisman guide integrations` | MCP integration setup walkthrough |
 | `untitledui` / `untitled-ui` | `/rune:talisman guide integrations` | UntitledUI MCP integration guidance |
 | `codex review` / `cross-model review` / `second opinion` / `codex check` | `/rune:codex-review` | Cross-model code review with Codex |
+| `design-sync` / `figma-sync` | `/rune:design-sync` | Yes |
+| `elevate` / `promote echoes` | `/rune:elevate` | Yes |
+| `file-todos` / `todos` | `/rune:file-todos` | Yes |
+| `learn` / `self-learn` | `/rune:learn` | Yes |
+| `resolve-comments` / `fix comments` / `pr comments` | `/rune:resolve-all-gh-pr-comments` | Yes |
+| `resolve-comment` / `fix comment` | `/rune:resolve-gh-pr-comment` | Yes |
+| `resolve-todos` / `fix todos` | `/rune:resolve-todos` | Yes |
+| `skill-testing` / `test skill` / `eval skill` | `/rune:skill-testing` | Yes |
+| `team-status` / `team health` | `/rune:team-status` | Yes |
+| `test-browser` / `browser test` / `e2e` | `/rune:test-browser` | Yes |
+| `ux` / `ux-review` / `heuristic` | `/rune:ux-design-process` | Yes |
+| `team-delegate` | `/rune:team-delegate` | Yes — experimental |
 | `cancel` | (cancel mode) | Detect active workflow → route to correct cancel command |
 | `help` | (guidance mode) | Show Rune overview + suggest next action |
 | `status` | (guidance mode) | Scan artifacts + recommend next step |

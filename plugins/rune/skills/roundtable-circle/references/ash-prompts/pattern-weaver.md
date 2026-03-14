@@ -171,6 +171,19 @@ When 3+ naming findings cluster in the same module, consider escalating to archi
 
 **Blast radius:** For rename recommendations, estimate caller count across files (connects to Perspective 9: Refactoring Integrity).
 
+### 12. Feature Sediment Detection (sediment-detector) — audit-only, plugin repos
+- **Conditional**: ONLY review from this perspective when `scope === "full"` (audit mode) AND `.claude-plugin/plugin.json` exists in the repo root
+- **Gate**: Skip entirely for non-plugin repositories and non-audit reviews (zero overhead)
+- Agent definitions (`agents/**/*.md`) with zero spawn sites in `skills/` (SDMT-001)
+- Talisman config sections with zero consumers in `skills/` or `scripts/` (SDMT-002)
+- Commands (`commands/*.md`) with zero external invokers (SDMT-003)
+- Scripts (`scripts/*.sh`) not in `hooks.json` or referenced by any skill (SDMT-004)
+- User-invocable skills missing from `using-rune` or `tarnished` routing tables (SDMT-005)
+- plugin.json/README component counts vs actual file counts (SDMT-006)
+- Skill directories without `SKILL.md` (SDMT-007)
+- Prefix: SDMT-
+- For every finding, apply Sediment Triage Protocol with impact scoring (Utility × 0.4, Uniqueness × 0.3, Integration Ease × 0.3) and prescribe WIRE IN / MARK EXPERIMENTAL / DELETE verdict
+
 ## Diff Scope Awareness
 
 See [diff-scope-awareness.md](../diff-scope-awareness.md) for scope guidance when `diff_scope` data is present in inscription.json.
@@ -219,7 +232,7 @@ Write markdown to `{output_path}`:
 
 **Branch:** {branch}
 **Date:** {timestamp}
-**Perspectives:** Simplicity, Cross-Cutting Consistency, Duplication, Logic, Dead Code & Unwired Code, Complexity, TDD & Test Quality, Async & Concurrency, Refactoring Integrity, Reference & Configuration Integrity, Naming Intent Quality
+**Perspectives:** Simplicity, Cross-Cutting Consistency, Duplication, Logic, Dead Code & Unwired Code, Complexity, TDD & Test Quality, Async & Concurrency, Refactoring Integrity, Reference & Configuration Integrity, Naming Intent Quality, Feature Sediment (audit-only, plugin repos)
 
 ## P1 (Critical)
 - [ ] **[QUAL-001] Title** in `file:line`
