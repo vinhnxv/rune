@@ -925,46 +925,38 @@ if [[ -L "$TASKS_CANON" ]]; then
 fi
 
 if [[ -d "$TEAMS_CANON/" ]]; then
-  # Walk PHASE_ORDER backwards from NEXT_PHASE to find the most recently completed
-  # phase that also recorded a team_name. Backward walk ensures we stop at the phase
-  # immediately before NEXT_PHASE (the most likely zombie), not the earliest one.
-  PRIOR_PHASE=""
+  # BUG FIX (v1.163.2): Walk ALL completed phases before NEXT_PHASE, not just the
+  # most recent one. Previously used `break` after the first match, leaving zombie
+  # teams from earlier phases (e.g., arc-plan-review from Phase 2 surviving into
+  # Phase 7+ because only Phase 6's rune-review team was cleaned).
   _phases_before=()
   for _pp in "${PHASE_ORDER[@]}"; do
     [[ "$_pp" == "$NEXT_PHASE" ]] && break
     _phases_before+=("$_pp")
   done
-  # Iterate backwards through collected phases
+  # Iterate backwards through ALL completed phases and clean each zombie team
   for (( _pi=${#_phases_before[@]}-1; _pi>=0; _pi-- )); do
     _pp="${_phases_before[$_pi]}"
     _pp_status=$(echo "$CKPT_CONTENT" | jq -r ".phases.${_pp}.status // \"pending\"" 2>/dev/null || echo "pending")
     if [[ "$_pp_status" == "completed" ]]; then
       _pp_team=$(echo "$CKPT_CONTENT" | jq -r ".phases.${_pp}.team_name // empty" 2>/dev/null || true)
-      if [[ -n "$_pp_team" ]]; then
-        PRIOR_PHASE="$_pp"
-        break
+      if [[ -n "$_pp_team" && "$_pp_team" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        # XVER-001: Use canonical paths and verify target is not a symlink
+        _prior_team_path="$TEAMS_CANON/${_pp_team}"
+        _prior_tasks_path="$TASKS_CANON/${_pp_team}"
+        if [[ -d "$_prior_team_path" && ! -L "$_prior_team_path" ]]; then
+          # XVER-001: Verify resolved path is under canonical root
+          _resolved_team=$(cd "$_prior_team_path" 2>/dev/null && pwd -P) || continue
+          if [[ "$_resolved_team" == "$TEAMS_CANON/"* ]]; then
+            rm -rf "$_prior_team_path/" "$_prior_tasks_path/" 2>/dev/null
+            _trace "Zombie cleanup: removed phase ${_pp} team: ${_pp_team}"
+          fi
+        fi
       fi
     fi
   done
 
-  if [[ -n "$PRIOR_PHASE" ]]; then
-    PRIOR_TEAM=$(echo "$CKPT_CONTENT" | jq -r ".phases.${PRIOR_PHASE}.team_name // empty" 2>/dev/null || true)
-    if [[ -n "$PRIOR_TEAM" && "$PRIOR_TEAM" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-      # XVER-001: Use canonical paths and verify target is not a symlink
-      _prior_team_path="$TEAMS_CANON/${PRIOR_TEAM}"
-      _prior_tasks_path="$TASKS_CANON/${PRIOR_TEAM}"
-      if [[ -d "$_prior_team_path" && ! -L "$_prior_team_path" ]]; then
-        # XVER-001: Verify resolved path is under canonical root
-        _resolved_team=$(cd "$_prior_team_path" 2>/dev/null && pwd -P) || continue
-        if [[ "$_resolved_team" == "$TEAMS_CANON/"* ]]; then
-          rm -rf "$_prior_team_path/" "$_prior_tasks_path/" 2>/dev/null
-          _trace "Zombie cleanup: removed prior phase ${PRIOR_PHASE} team: ${PRIOR_TEAM}"
-        fi
-      fi
-    fi
-  fi
-
-  # FALLBACK: when no phase recorded a team_name (interrupted before postPhaseCleanup),
+  # FALLBACK 1: when no phase recorded a team_name (interrupted before postPhaseCleanup),
   # scan $CHOME/teams/ for dirs matching arc-*-{id} and remove any that linger.
   _ARC_ID=$(echo "$CKPT_CONTENT" | jq -r '.id // empty' 2>/dev/null || true)
   if [[ -n "$_ARC_ID" && "$_ARC_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
@@ -1010,6 +1002,41 @@ if [[ -d "$TEAMS_CANON/" ]]; then
     done
     # Restore nullglob state (SEC-003: conditional instead of eval)
     [[ "$_nullglob_was_set" -eq 1 ]] && shopt -u nullglob
+  fi
+
+  # FALLBACK 2 (v1.163.2): Session-scoped scan for delegated sub-command teams.
+  # Delegated phases (code_review → /rune:appraise, work → /rune:strive, mend → /rune:mend)
+  # create teams with identifiers NOT derived from the arc ID (e.g., rune-review-691dde5
+  # uses git hash, not arc ID). FALLBACK 1's arc-ID-based glob misses these entirely.
+  # Fix: scan all rune-* teams and match by .session marker (same session = our zombie).
+  if [[ -n "$HOOK_SESSION_ID" ]]; then
+    _nullglob_was_set2=1
+    shopt -q nullglob && _nullglob_was_set2=0
+    shopt -s nullglob 2>/dev/null || true
+    for _zombie_dir in "$TEAMS_CANON/"rune-{review,work,mend,forge,inspect,mend-deep,audit}-*; do
+      [[ -d "$_zombie_dir" && ! -L "$_zombie_dir" ]] || continue
+      _zombie_team="${_zombie_dir##*/}"
+      [[ "$_zombie_team" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
+      # XVER-001: Verify resolved path is under canonical root
+      _resolved_zombie=$(cd "$_zombie_dir" 2>/dev/null && pwd -P) || continue
+      if [[ "$_resolved_zombie" != "$TEAMS_CANON/"* ]]; then
+        continue  # Path traversal detected — skip
+      fi
+      # Session ownership check via .session marker (TLC-004) — REQUIRED
+      # Only clean teams from OUR session (prevents cross-session damage)
+      _zombie_session="$_zombie_dir/.session"
+      if [[ ! -f "$_zombie_session" ]]; then
+        continue  # No session marker — cannot verify ownership, skip
+      fi
+      _zombie_sid=$(jq -r '.session_id // empty' "$_zombie_session" 2>/dev/null || true)
+      if [[ -z "$_zombie_sid" || "$_zombie_sid" != "$HOOK_SESSION_ID" ]]; then
+        continue  # Different session or unreadable — skip
+      fi
+      # Same session — this is our zombie from a delegated sub-command
+      rm -rf "$TEAMS_CANON/${_zombie_team}/" "$TASKS_CANON/${_zombie_team}/" 2>/dev/null
+      _trace "Zombie session-scoped cleanup: removed delegated team: ${_zombie_team}"
+    done
+    [[ "$_nullglob_was_set2" -eq 1 ]] && shopt -u nullglob
   fi
 fi
 
