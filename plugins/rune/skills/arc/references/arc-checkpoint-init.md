@@ -176,6 +176,7 @@ const codexEnabled = codexAvailable
  * @param {object} designSync — talisman misc.design_sync section
  * @param {object} storybook — talisman misc.storybook section
  * @param {object} ux — talisman ux section
+ * @param {boolean} codexAvailable — Whether Codex CLI is installed and reachable
  * @param {boolean} codexEnabled — Whether Codex CLI is available AND enabled for arc
  * @param {object} codex — talisman codex section (for per-phase granular disable)
  * @param {object} planMeta — Extracted YAML frontmatter from plan file
@@ -187,7 +188,7 @@ const codexEnabled = codexAvailable
  *   ux_disabled, codex_unavailable, codex_disabled_for_arc, codex_phase_disabled,
  *   bot_review_disabled, testing_disabled
  */
-function computeSkipMap(arcConfig, designSync, storybook, ux, codexEnabled, codex, planMeta) {
+function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, codexEnabled, codex, planMeta) {
   const map = {}
 
   // ── Forge (unified via skip_map instead of inline status) ──
@@ -232,16 +233,17 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexEnabled, code
     map.release_quality_check = reason
   } else {
     // Per-phase granular disable (talisman codex sub-keys)
+    // QUAL-001 FIX: Use phase-specific skip reasons to match runtime paths in arc-codex-phases.md
     if (codex?.task_decomposition?.enabled === false)
-      map.task_decomposition = "codex_phase_disabled"
+      map.task_decomposition = "codex_task_decomposition_disabled"
     if (codex?.semantic_verification?.enabled === false)
-      map.semantic_verification = "codex_phase_disabled"
+      map.semantic_verification = "codex_semantic_verification_disabled"
     if (codex?.gap_analysis?.enabled === false)
-      map.codex_gap_analysis = "codex_phase_disabled"
+      map.codex_gap_analysis = "codex_gap_analysis_disabled"
     if (codex?.test_coverage?.enabled === false)
-      map.test_coverage_critique = "codex_phase_disabled"
+      map.test_coverage_critique = "codex_test_coverage_disabled"
     if (codex?.release_quality?.enabled === false)
-      map.release_quality_check = "codex_phase_disabled"
+      map.release_quality_check = "codex_release_quality_disabled"
   }
 
   // ── Bot review (2 phases) ──
@@ -268,7 +270,7 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexEnabled, code
   return map
 }
 
-const skipMap = computeSkipMap(arcConfig, designSync, storybook, ux, codexEnabled, codex, planMeta)
+const skipMap = computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, codexEnabled, codex, planMeta)
 ```
 
 ## Checkpoint Schema v23
@@ -317,6 +319,9 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
   // Empty map ({}) means no pre-skipping — all phases dispatched normally.
   // See computeSkipMap() above for computation logic.
   skip_map: skipMap,
+  // Schema v23 addition (v1.162.0): phase skip event log (auto_skipped + demoted_to_pending events).
+  // QUAL-002 FIX: Explicitly initialized (convention: all array fields initialized at checkpoint creation).
+  phase_skip_log: [],
   phases: {
     // v1.162.0: forge always starts as "pending" — skip_map handles the skip decision.
     // This unifies all pre-computed skips through one mechanism (was inline ternary before v23).

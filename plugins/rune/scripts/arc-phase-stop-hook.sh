@@ -488,6 +488,11 @@ if [[ -n "$_skip_result" ]]; then
   _auto_skipped=$(echo "$_skip_result" | jq -r '.skipped | length' 2>/dev/null || echo "0")
   if [[ "$_auto_skipped" -gt 0 ]]; then
     CKPT_CONTENT=$(echo "$_skip_result" | jq -c '.checkpoint' 2>/dev/null)
+    # BACK-002 FIX: Guard against empty CKPT_CONTENT (jq process crash)
+    if [[ -z "$CKPT_CONTENT" ]]; then
+      _trace "WARNING: jq .checkpoint returned empty — re-reading checkpoint from disk"
+      CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
+    fi
     # Log each auto-skipped phase
     echo "$_skip_result" | jq -r '.skipped[] | "\(.key)\t\(.reason)"' 2>/dev/null | \
       while IFS=$'\t' read -r _sk_phase _sk_reason; do

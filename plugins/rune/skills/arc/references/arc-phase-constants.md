@@ -189,7 +189,11 @@ const SKIP_REASONS = {
   UX_DISABLED: "ux_disabled",                         // ux.enabled !== true
   CODEX_UNAVAILABLE: "codex_unavailable",             // codex CLI not installed
   CODEX_DISABLED_FOR_ARC: "codex_disabled_for_arc",   // codex.disabled or "arc" not in codex.workflows
-  CODEX_PHASE_DISABLED: "codex_phase_disabled",       // per-phase codex sub-key disabled
+  CODEX_TASK_DECOMPOSITION_DISABLED: "codex_task_decomposition_disabled",
+  CODEX_SEMANTIC_VERIFICATION_DISABLED: "codex_semantic_verification_disabled",
+  CODEX_GAP_ANALYSIS_DISABLED: "codex_gap_analysis_disabled",
+  CODEX_TEST_COVERAGE_DISABLED: "codex_test_coverage_disabled",
+  CODEX_RELEASE_QUALITY_DISABLED: "codex_release_quality_disabled",  // per-phase codex sub-key disabled
   BOT_REVIEW_DISABLED: "bot_review_disabled",         // bot_review not enabled via flag or talisman
   TESTING_DISABLED: "testing_disabled",               // --no-test flag or arc.defaults.no_test
 }
