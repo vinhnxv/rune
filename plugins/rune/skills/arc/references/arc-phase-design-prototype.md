@@ -306,7 +306,7 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
 if (!cleanupTeamDeleteSucceeded) {
   // 5a. Process-level kill — terminate lingering teammates before filesystem cleanup
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-  Bash(`sleep 3`)
+  Bash(`sleep 5`)
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   // 5b. Filesystem cleanup
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/arc-prototype-${id}/" "$CHOME/tasks/arc-prototype-${id}/" 2>/dev/null`)

@@ -473,9 +473,9 @@ if (!exists(`tmp/arc/${id}/release-quality.md`)) {
   Write(`tmp/arc/${id}/release-quality.md`, "# Release Quality Check (Codex)\n\nSkipped: codex-phase-handler teammate timed out.")
 }
 
-// Cleanup team (single-member optimization: 5s grace instead of standard 20s)
-SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-rq", content: "Phase complete" })
-Bash("sleep 5")
+// Cleanup team (single-member optimization: 12s grace — must exceed async deregistration time)
+try { SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-rq", content: "Phase complete" }) } catch (e) { /* member may have already exited */ }
+Bash("sleep 12")
 // Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 5s, 10s, 15s)
 let rqCleanupSucceeded = false
 const RQ_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
@@ -488,7 +488,7 @@ for (let attempt = 0; attempt < RQ_CLEANUP_DELAYS.length; attempt++) {
 // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
 if (!rqCleanupSucceeded) {
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-  Bash("sleep 3")
+  Bash("sleep 5")
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
@@ -541,5 +541,5 @@ The Tarnished no longer reads pre-ship report content, CHANGELOG, or Codex outpu
 ### Team Lifecycle
 
 - Team `arc-codex-rq-{id}` is created AFTER the gate check passes (zero overhead on skip path)
-- Single teammate: 5s grace period before TeamDelete (single-member optimization)
+- Single teammate: 12s grace period before TeamDelete (single-member optimization)
 - Crash recovery: `arc-codex-rq-` prefix registered in `arc-preflight.md` and `arc-phase-cleanup.md`

@@ -145,9 +145,9 @@ Base findings on actual plan content, not assumptions.
     Write(`tmp/arc/${id}/task-validation.md`, "# Task Decomposition Validation (Codex)\n\nSkipped: codex-phase-handler teammate timed out.")
   }
 
-  // Cleanup team (single-member optimization: 5s grace instead of standard 20s)
-  SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-td", content: "Phase complete" })
-  Bash("sleep 5")
+  // Cleanup team (single-member optimization: 12s grace — must exceed async deregistration time)
+  try { SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-td", content: "Phase complete" }) } catch (e) { /* member may have already exited */ }
+  Bash("sleep 12")
   // Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 5s, 10s, 15s)
   let tdCleanupSucceeded = false
   const TD_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
@@ -160,7 +160,7 @@ Base findings on actual plan content, not assumptions.
   // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
   if (!tdCleanupSucceeded) {
     Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash("sleep 3")
+    Bash("sleep 5")
     Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
     Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
     try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
@@ -208,7 +208,7 @@ The Tarnished no longer reads plan content (~10k chars) or Codex output into its
 ### Team Lifecycle
 
 - Team `arc-codex-td-{id}` is created AFTER the gate check passes (zero overhead on skip path)
-- Single teammate: 5s grace period before TeamDelete (single-member optimization)
+- Single teammate: 12s grace period before TeamDelete (single-member optimization)
 - Crash recovery: `arc-codex-td-` prefix registered in `arc-preflight.md` and `arc-phase-cleanup.md`
 
 ## STEP 2: Skip Path

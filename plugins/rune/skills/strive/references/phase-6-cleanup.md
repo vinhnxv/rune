@@ -18,7 +18,7 @@ try {
 }
 // 2. Send shutdown_request to all members
 for (const member of allMembers) {
-  SendMessage({ type: "shutdown_request", recipient: member, content: "Work complete" })
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Work complete" }) } catch (e) { /* member may have already exited */ }
 }
 // 2.5. Grace period — sleep 20s to let teammates deregister before TeamDelete
 if (allMembers.length > 0) {
@@ -59,7 +59,7 @@ if (!cleanupTeamDeleteSucceeded) {
   const ownerPid = Bash(`echo $PPID`).trim()
   if (ownerPid && /^\d+$/.test(ownerPid)) {
     Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash(`sleep 3`)
+    Bash(`sleep 5`)
     Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   }
 }

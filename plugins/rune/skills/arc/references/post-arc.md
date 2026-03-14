@@ -186,7 +186,7 @@ try {
   if (!sweepCleared) {
     // Process-level kill — terminate lingering teammates before filesystem cleanup
     Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash(`sleep 3`)
+    Bash(`sleep 5`)
     Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
     // Filesystem cleanup for all checkpoint-recorded teams
     if (allTeamNames.length > 0) {
