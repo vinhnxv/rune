@@ -368,8 +368,16 @@ try {
   talismanMeta = JSON.parse(Read(metaPath))
 } catch (e) {
   // Shards missing — re-resolve inline
+  // BACK-001 FIX: Wrap Bash() in try-catch to prevent exception propagation from catch block.
+  // BACK-002 FIX: Guard CWD — undefined CWD would produce `cd "" && ...` which silently succeeds
+  // on some shells but changes to $HOME on others.
   warn("Talisman shards missing — re-resolving inline")
-  Bash(`cd "${CWD}" && bash plugins/rune/scripts/talisman-resolve.sh`)
+  try {
+    if (typeof CWD === 'undefined' || !CWD) throw new Error("CWD not set — cannot run talisman-resolve.sh")
+    Bash(`cd "${CWD}" && bash plugins/rune/scripts/talisman-resolve.sh`)
+  } catch (resolveErr) {
+    warn(`Talisman inline re-resolution failed: ${resolveErr.message}`)
+  }
   try { talismanMeta = JSON.parse(Read(metaPath)) } catch (e2) {
     warn("Talisman resolution failed — using readTalisman() fallback for all config")
   }
@@ -377,15 +385,25 @@ try {
 
 if (talismanMeta) {
   const resolvedAt = talismanMeta.resolved_at ?? null
-  const status = talismanMeta.merge_status ?? "unknown"
+  let status = talismanMeta.merge_status ?? "unknown"
 
   // Check shard freshness (stale if older than 5 minutes)
   if (resolvedAt) {
     const shardAge = Date.now() - new Date(resolvedAt).getTime()
     if (Number.isFinite(shardAge) && shardAge > 300_000) {
       warn(`Talisman shards are ${Math.round(shardAge / 60000)}m old — re-resolving`)
-      Bash(`cd "${CWD}" && bash plugins/rune/scripts/talisman-resolve.sh`)
-      try { talismanMeta = JSON.parse(Read(metaPath)) } catch (e) {
+      // BACK-002 FIX: Wrap stale-shard re-resolution in try-catch (same pattern as missing-shard path)
+      try {
+        if (typeof CWD === 'undefined' || !CWD) throw new Error("CWD not set")
+        Bash(`cd "${CWD}" && bash plugins/rune/scripts/talisman-resolve.sh`)
+      } catch (resolveErr) {
+        warn(`Talisman stale re-resolution failed: ${resolveErr.message} — proceeding with stale shards`)
+      }
+      // Re-read meta after re-resolution to get updated status
+      try {
+        talismanMeta = JSON.parse(Read(metaPath))
+        status = talismanMeta.merge_status ?? "unknown"
+      } catch (e) {
         warn("Talisman re-resolution failed — proceeding with stale shards")
       }
     }
