@@ -267,17 +267,27 @@ try {
   allMembers = ["agent-1", "agent-2", "agent-3"]
 }
 
-// 2. shutdown_request to all members (try-catch: member may have already exited)
+// Canonical source: plugins/rune/skills/team-sdk/references/engines.md shutdown()
+// Keep this pattern in sync with engines.md when either is updated.
+
+// 2. shutdown_request to all members — track delivery failures for adaptive grace
+let confirmedAlive = 0
+let confirmedDead = 0
 for (const member of allMembers) {
-  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Workflow complete" }) } catch (e) { /* member may have already exited */ }
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Workflow complete" }); confirmedAlive++ } catch (e) { confirmedDead++ /* member already exited */ }
 }
 
-// 3. Grace period — let teammates deregister before TeamDelete
-if (allMembers.length > 0) { Bash("sleep 20") }
+// 3. Adaptive grace period — scale based on confirmed-alive members
+// All dead (all threw) → 2s SDK propagation pause. Some alive → max(5, alive*5), capped at 20s.
+if (confirmedAlive > 0) {
+  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`)
+} else {
+  Bash("sleep 2")
+}
 
-// 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
+// 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s = 19s total)
 let cleanupTeamDeleteSucceeded = false
-const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
   try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {

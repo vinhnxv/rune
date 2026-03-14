@@ -451,34 +451,58 @@ function shutdown(handle) {
     allMembers = handle.spawnedAgents.map(a => a.name)
   }
 
-  // --- 2. Send shutdown_request to all discovered members ---
+  // --- 2. Send shutdown_request to all members — track delivery failures ---
+  // SendMessage throwing = teammate already exited (confirmed dead).
+  // SendMessage succeeding = teammate received request (confirmed alive).
+  // This is the ONLY reliable liveness signal — pgrep -P cannot detect
+  // in-process or tmux teammates (they are not child processes of $PPID).
+  let confirmedAlive = 0
+  let confirmedDead = 0
   for (const member of allMembers) {
-    SendMessage({
-      type: "shutdown_request",
-      recipient: member,
-      content: `${handle.workflow} workflow complete`
-    })
+    try {
+      SendMessage({
+        type: "shutdown_request",
+        recipient: member,
+        content: `${handle.workflow} workflow complete`
+      })
+      confirmedAlive++
+    } catch (e) {
+      // Member already exited — confirmed dead, continue with others
+      confirmedDead++
+    }
   }
 
-  // --- 3. Grace period — let teammates deregister before TeamDelete ---
-  // Without this, TeamDelete fires before teammates approve shutdown
-  // → "active members" error. 20s covers most cases including slow tool calls.
-  // Increased from 15s to 20s: teammates in mid-Write/Edit often need 15-18s to finish.
-  if (allMembers.length > 0) {
-    Bash(`sleep 20`)
+  // --- 3. Adaptive grace period ---
+  // Scale based on confirmed-alive members from step 2.
+  // When ALL SendMessage calls threw → all dead → minimal SDK propagation pause.
+  // When some alive → scale: max(5, alive_count * 5), capped at 20s.
+  let gracePeriodUsed = 0
+  if (confirmedAlive > 0) {
+    gracePeriodUsed = Math.min(20, Math.max(5, confirmedAlive * 5))
+    Bash(`sleep ${gracePeriodUsed}`)
+  } else {
+    // All confirmed dead — skip full grace period.
+    // Minimal pause for SDK internal state propagation (deregistration).
+    gracePeriodUsed = 2
+    Bash(`sleep 2`)
   }
 
-  // --- 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s) ---
-  // Total budget: 20s grace + 30s retry = 50s max
-  // Added 4th attempt: some teammates take >25s to deregister after complex tool calls.
+  // --- 4. TeamDelete with retry-with-backoff ---
+  // Total budget: adaptive grace (2-20s) + retry (0+3+6+10=19s) = 21-39s max
+  // Reduced from [0, 5000, 10000, 15000] (30s) to [0, 3000, 6000, 10000] (19s).
+  // Rationale: the adaptive grace period already gave teammates time to deregister.
+  // The retry loop only needs to cover SDK-level deregistration lag, not tool completion.
+  // NOTE: Do NOT add pgrep-P checks here — SDK member registry is independent of process tree.
   // SEC-9: Re-validate teamName before rm-rf (defense-in-depth)
   if (!/^[a-zA-Z0-9_-]+$/.test(handle.teamName)) {
     throw new Error(`Invalid team_name: ${handle.teamName}`)
   }
 
   let cleanupTeamDeleteSucceeded = false
-  const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+  let finalAttempt = 0  // Hoisted for diagnostic access (ASMP-006 fix)
+  const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
   for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
+    finalAttempt = attempt
     if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
     try {
       TeamDelete()
@@ -509,6 +533,30 @@ function shutdown(handle) {
     // 5b. Filesystem cleanup
     Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${handle.teamName}/" "$CHOME/tasks/${handle.teamName}/" 2>/dev/null`)
     try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
+  }
+
+  // --- 6. Cleanup diagnostic ---
+  // Dual output: warn() for immediate trace + JSON file for post-mortem.
+  // Variables hoisted from prior steps: confirmedAlive, confirmedDead,
+  // gracePeriodUsed, finalAttempt, cleanupTeamDeleteSucceeded.
+  const diagnostic = {
+    team_name: handle.teamName,
+    workflow: handle.workflow,
+    timestamp: new Date().toISOString(),
+    cleanup_succeeded: cleanupTeamDeleteSucceeded,
+    total_members: allMembers.length,
+    confirmed_alive: confirmedAlive,
+    confirmed_dead: confirmedDead,
+    grace_period_secs: gracePeriodUsed,
+    retry_attempts: finalAttempt + 1,
+    filesystem_fallback_used: !cleanupTeamDeleteSucceeded,
+    owner_pid: handle.ownerPid
+  }
+  warn(`cleanup diagnostic: ${JSON.stringify(diagnostic)}`)
+  try {
+    Write(`tmp/.rune-cleanup-${handle.teamName}.json`, JSON.stringify(diagnostic, null, 2))
+  } catch (e) {
+    // Non-critical — warn() already emitted the diagnostic
   }
 }
 ```
