@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [1.162.0] - 2026-03-15
+
+### Added
+- **Pre-computed phase skip map** — New `skip_map` field in checkpoint (schema v23) pre-computes deterministic phase skip decisions at checkpoint init time. Up to 13 phases can be auto-skipped by the stop hook in ~25ms (O(1) jq call) instead of burning ~30s per phase on LLM dispatch. Saves 4-6 minutes per arc run for typical projects. Defense-in-depth: per-phase reference files retain skip logic as fallback.
+- **`computeSkipMap()` function** — 7-parameter function in `arc-checkpoint-init.md` that evaluates talisman config, plan frontmatter, CLI flags, and Codex availability to produce a `{ phase_name: skip_reason }` map.
+- **Single-pass auto-skip in stop hook** — `arc-phase-stop-hook.sh` processes all skip_map entries in one jq call with atomic checkpoint write, before the existing phase-finding loop. Graceful degradation on jq failure.
+- **Canonical `SKIP_REASONS` enum** — Documented in `arc-phase-constants.md` with all valid skip reason strings and phase classification tables (pre-computable vs runtime-dependent).
+- **Schema v22→v23 migration** — Step 3x in `arc-resume.md` adds empty `skip_map` for resumed checkpoints (safe default — no pre-skipping for resumed arcs).
+
+### Changed
+- **Forge pre-skip unified via skip_map** — `forge` phase now always starts as `"pending"` at init (was inline ternary `arcConfig.no_forge ? "skipped" : "pending"`). Skip decision moved to `skip_map.forge = "forge_disabled"` for consistent skip logging and auditing.
+- **PHASE_ORDER count corrected** — 30 phases (was incorrectly documented as 29 — `deploy_verify` was missing from counts).
+
 ## [1.161.1] - 2026-03-15
 
 ### Fixed

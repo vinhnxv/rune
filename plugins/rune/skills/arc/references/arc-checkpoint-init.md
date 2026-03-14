@@ -1,10 +1,10 @@
 # Initialize Checkpoint (ARC-2) — Full Algorithm
 
 Checkpoint initialization: config resolution (3-layer), session identity,
-checkpoint schema v22 creation, and initial state write.
+checkpoint schema v23 creation, skip map computation, and initial state write.
 
 **Inputs**: plan path, talisman config, arc arguments, `freshnessResult` from Freshness Check
-**Outputs**: checkpoint object (schema v22), resolved arc config (`arcConfig`)
+**Outputs**: checkpoint object (schema v23), resolved arc config (`arcConfig`), pre-computed `skip_map`
 **Error handling**: Fail arc if plan file missing or config invalid
 **Consumers**: SKILL.md checkpoint-init stub, resume logic in [arc-resume.md](arc-resume.md)
 
@@ -149,9 +149,131 @@ const changedFiles = diffStats.files || []
 const arcTotalTimeout = calculateDynamicTimeout(tier)
 ```
 
-## Checkpoint Schema v22
+## Skip Map Computation (v1.162.0+)
 
-// Schema history: see CHANGELOG.md for migration notes from v12-v22.
+Pre-compute deterministic phase skip decisions from talisman config, plan frontmatter, and CLI flags.
+Phases in the skip map are auto-skipped by the stop hook without LLM dispatch — saving ~30s per skipped phase.
+
+```javascript
+// ── Gather talisman inputs for skip map ──
+// readTalismanSection: "misc", "codex", "ux"
+const miscConfig = readTalismanSection("misc") ?? {}
+const designSync = miscConfig.design_sync ?? {}
+const storybook = miscConfig.storybook ?? {}
+const ux = readTalismanSection("ux") ?? {}
+const codex = readTalismanSection("codex") ?? {}
+
+// ── Detect external tools ──
+const codexAvailable = Bash("command -v codex >/dev/null 2>&1 && echo 'yes' || echo 'no'").trim() === "yes"
+const codexEnabled = codexAvailable
+  && codex?.disabled !== true
+  && Array.isArray(codex?.workflows) && codex.workflows.includes("arc")
+
+/**
+ * computeSkipMap — Pre-compute deterministic phase skip decisions.
+ *
+ * @param {object} arcConfig — Resolved arc config from 3-layer resolution
+ * @param {object} designSync — talisman misc.design_sync section
+ * @param {object} storybook — talisman misc.storybook section
+ * @param {object} ux — talisman ux section
+ * @param {boolean} codexEnabled — Whether Codex CLI is available AND enabled for arc
+ * @param {object} codex — talisman codex section (for per-phase granular disable)
+ * @param {object} planMeta — Extracted YAML frontmatter from plan file
+ * @returns {object} Map of { phase_name: skip_reason_string } for phases to auto-skip.
+ *   Phases NOT in the map are dispatched normally. Empty map = no pre-skipping.
+ *
+ * Valid skip reasons (canonical enum — keep in sync with arc-phase-constants.md):
+ *   forge_disabled, design_sync_disabled, no_figma_urls, storybook_disabled,
+ *   ux_disabled, codex_unavailable, codex_disabled_for_arc, codex_phase_disabled,
+ *   bot_review_disabled, testing_disabled
+ */
+function computeSkipMap(arcConfig, designSync, storybook, ux, codexEnabled, codex, planMeta) {
+  const map = {}
+
+  // ── Forge (unified via skip_map instead of inline status) ──
+  if (arcConfig.no_forge) {
+    map.forge = "forge_disabled"
+  }
+
+  // ── Design phases (4 phases when design_sync disabled, 2 when enabled but no URLs) ──
+  const designEnabled = designSync.enabled === true
+  const hasFigmaUrls = Array.isArray(planMeta?.figma_urls) && planMeta.figma_urls.length > 0
+  if (!designEnabled) {
+    map.design_extraction = "design_sync_disabled"
+    map.design_prototype = "design_sync_disabled"
+    // When design_sync is disabled, no VSM files will ever be produced,
+    // so design_verification and design_iteration are also deterministically skippable.
+    map.design_verification = "design_sync_disabled"
+    map.design_iteration = "design_sync_disabled"
+  } else if (!hasFigmaUrls) {
+    map.design_extraction = "no_figma_urls"
+    map.design_prototype = "no_figma_urls"
+    // design_verification: runtime-dependent (VSM files may come from other sources)
+    // design_iteration: runtime-dependent (depends on verification result)
+  }
+
+  // ── Storybook (1 phase) ──
+  if (storybook.enabled !== true) {
+    map.storybook_verification = "storybook_disabled"
+  }
+
+  // ── UX verification (1 phase) ──
+  if (ux.enabled !== true) {
+    map.ux_verification = "ux_disabled"
+  }
+
+  // ── Codex phases (5 phases including task_decomposition) ──
+  if (!codexEnabled) {
+    const reason = !codexAvailable ? "codex_unavailable" : "codex_disabled_for_arc"
+    map.task_decomposition = reason
+    map.semantic_verification = reason
+    map.codex_gap_analysis = reason
+    map.test_coverage_critique = reason
+    map.release_quality_check = reason
+  } else {
+    // Per-phase granular disable (talisman codex sub-keys)
+    if (codex?.task_decomposition?.enabled === false)
+      map.task_decomposition = "codex_phase_disabled"
+    if (codex?.semantic_verification?.enabled === false)
+      map.semantic_verification = "codex_phase_disabled"
+    if (codex?.gap_analysis?.enabled === false)
+      map.codex_gap_analysis = "codex_phase_disabled"
+    if (codex?.test_coverage?.enabled === false)
+      map.test_coverage_critique = "codex_phase_disabled"
+    if (codex?.release_quality?.enabled === false)
+      map.release_quality_check = "codex_phase_disabled"
+  }
+
+  // ── Bot review (2 phases) ──
+  const botReviewEnabled = arcConfig.bot_review === true
+    && arcConfig.no_bot_review !== true
+  if (!botReviewEnabled) {
+    map.bot_review_wait = "bot_review_disabled"
+    map.pr_comment_resolution = "bot_review_disabled"
+  }
+
+  // ── Test phase ──
+  if (arcConfig.no_test) {
+    map.test = "testing_disabled"
+  }
+
+  // ── Validate all keys exist in PHASE_ORDER (defense-in-depth) ──
+  for (const key of Object.keys(map)) {
+    if (!PHASE_ORDER.includes(key)) {
+      warn(`computeSkipMap: key "${key}" not in PHASE_ORDER — ignoring`)
+      delete map[key]
+    }
+  }
+
+  return map
+}
+
+const skipMap = computeSkipMap(arcConfig, designSync, storybook, ux, codexEnabled, codex, planMeta)
+```
+
+## Checkpoint Schema v23
+
+// Schema history: see CHANGELOG.md for migration notes from v12-v23.
 
 ```javascript
 // ── Resolve session identity for cross-session isolation ──
@@ -174,7 +296,7 @@ const parentPlanMeta = {
 // The arc-hierarchy SKILL.md documents the injection protocol.
 
 Write(`.claude/arc/${id}/checkpoint.json`, {
-  id, schema_version: 22, plan_file: planFile,
+  id, schema_version: 23, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, accept_external_changes: arcConfig.accept_external_changes ?? true, bot_review: arcConfig.bot_review ?? false, no_bot_review: arcConfig.no_bot_review ?? false },
   arc_config: arcConfig,
@@ -190,8 +312,15 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
     file_velocity: [],
     budget: null
   },
+  // Schema v23 addition (v1.162.0): pre-computed phase skip map for pipeline optimization.
+  // Phases in skip_map are auto-skipped by the stop hook without LLM dispatch.
+  // Empty map ({}) means no pre-skipping — all phases dispatched normally.
+  // See computeSkipMap() above for computation logic.
+  skip_map: skipMap,
   phases: {
-    forge:        { status: arcConfig.no_forge ? "skipped" : "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
+    // v1.162.0: forge always starts as "pending" — skip_map handles the skip decision.
+    // This unifies all pre-computed skips through one mechanism (was inline ternary before v23).
+    forge:        { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     plan_review:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     plan_refine:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
@@ -265,7 +394,7 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
   updated_at: new Date().toISOString()
 })
 
-// Schema migration is handled in arc-resume.md (steps 3a through 3w).
-// Migrations v1→v22 are defined there. See arc-resume.md for the full chain.
+// Schema migration is handled in arc-resume.md (steps 3a through 3x).
+// Migrations v1→v23 are defined there. See arc-resume.md for the full chain.
 ```
 
