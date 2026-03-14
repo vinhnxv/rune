@@ -39,6 +39,8 @@ try {
     "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
     "horizon-sage", "evidence-verifier", "state-weaver", "doubt-seer", "codex-plan-reviewer",
     "elicitation-sage-review-1", "elicitation-sage-review-2", "elicitation-sage-review-3",
+    // Phase 4D: Grounding Gate (ALWAYS — even with --quick)
+    "grounding-evidence-verifier", "grounding-assumption-slayer",
     // Phase 3: Forge Gaze agents (conditional — skipped with --quick or --no-forge)
     "ward-sentinel", "ember-oracle", "rune-architect", "flaw-hunter", "pattern-seer",
     "simplicity-warden", "mimic-detector", "void-analyzer", "wraith-finder", "phantom-checker",
