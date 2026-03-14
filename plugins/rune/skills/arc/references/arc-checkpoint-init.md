@@ -32,7 +32,25 @@ const sessionNonce = rawNonce
 const diffStats = parseDiffStats(Bash(`git diff --stat ${defaultBranch}...HEAD`)) ?? { insertions: 0, deletions: 0, files: [] }
 const planMeta = extractYamlFrontmatter(Read(planFile))
 // readTalismanSection: "arc", "work"
-const arc = readTalismanSection("arc")
+// FIX (v1.163.1): Replace abstract readTalismanSection("arc") with explicit shard read.
+// Root cause: LLM bypassed the pseudo-function and checked arc.yml (wrong extension)
+// instead of arc.json, causing silent fallback to hardcoded defaults.
+// Explicit Read() with the correct path eliminates the indirection that enabled the bypass.
+let arc = null
+try {
+  arc = JSON.parse(Read("tmp/.talisman-resolved/arc.json"))
+} catch (e) {
+  // Fallback: try full talisman file (covers case where shards were not resolved)
+  try {
+    const fullTalisman = Read(".claude/talisman.yml")
+    // parseYaml is a dispatcher utility — parses YAML string to object
+    const full = parseYaml(fullTalisman)
+    arc = full?.arc ?? {}
+  } catch (e2) {
+    arc = {}
+    warn("No talisman config available — using hardcoded defaults for arc config")
+  }
+}
 const work = readTalismanSection("work")
 ```
 

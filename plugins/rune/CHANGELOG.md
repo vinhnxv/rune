@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.163.1] - 2026-03-15
+
+### Fixed
+- **Talisman context loading in arc pre-flight** — Added shard verification step to `arc-preflight.md` that validates `_meta.json` existence, re-resolves stale/missing shards inline, and logs key arc config values (`auto_merge`, `auto_pr`, `no_forge`) for LLM self-verification. Replaced abstract `readTalismanSection("arc")` in `arc-checkpoint-init.md` with explicit `Read("tmp/.talisman-resolved/arc.json")` + fallback chain, eliminating the pseudo-function indirection that allowed the LLM to check `.yml` instead of `.json`.
+
 ## [1.163.0] - 2026-03-15
 
 ### Added
