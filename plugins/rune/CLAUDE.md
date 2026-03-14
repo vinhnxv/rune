@@ -76,7 +76,6 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | `/rune:echoes` | Manage Rune Echoes memory (show, prune, reset, init) + Remembrance |
 | `/rune:elicit` | Interactive elicitation method selection |
 | `/rune:rest` | Remove tmp/ artifacts from completed workflows |
-| `/rune:brainstorm` | Beginner alias for `/rune:brainstorm` skill — explore ideas through dialogue |
 | `/rune:plan` | Beginner alias for `/rune:devise` — plan a feature or task |
 | `/rune:work` | Beginner alias for `/rune:strive` — implement a plan |
 | `/rune:review` | Beginner alias for `/rune:appraise` — review code changes |
@@ -385,7 +384,7 @@ echo "Commands: $(find plugins/rune/commands -name '*.md' -not -path '*/referenc
 
 ## References
 
-- [Agent registry](references/agent-registry.md) — 35 review + 5 research + 6 work + 23 utility + 24 investigation + 6 testing agents (12 stack specialist reviewers are prompt templates, not registered agents)
+- [Agent registry](references/agent-registry.md) — 36 review + 5 research + 6 work + 19 utility + 24 investigation + 6 testing agents (12 stack specialist reviewers are prompt templates, not registered agents)
 - [Key concepts](references/key-concepts.md) — Tarnished, Ash, TOME, Arc, Mend, Forge Gaze, Echoes
 - [Lore glossary](references/lore-glossary.md) — Elden Ring terminology mapping
 - [Output conventions](references/output-conventions.md) — Directory structure per workflow

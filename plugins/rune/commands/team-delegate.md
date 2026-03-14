@@ -2,7 +2,7 @@
 name: rune:team-delegate
 description: |
   [EXPERIMENTAL] Task delegation dashboard for managing team workload, assignments, and messaging.
-  Works with standalone teams from /rune:team-spawn and workflow-spawned teams.
+  Works with workflow-spawned teams (from /rune:strive, /rune:arc, etc.).
 
   <example>
   user: "/rune:team-delegate"
@@ -83,7 +83,7 @@ const activeStates = stateFiles
 
 if (activeStates.length === 0) {
   error("No active team found in current session.")
-  log("Spawn a team first with /rune:team-spawn")
+  log("No active team found. Start a workflow first (e.g., /rune:strive, /rune:arc).")
   return
 }
 

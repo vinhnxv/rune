@@ -69,9 +69,9 @@ Centralized reference for the `cost_tier` system that controls which Claude mode
 
 `api-contract-tracer`, `business-logic-tracer`, `config-dependency-tracer`, `data-layer-tracer`, `event-message-tracer`, `lore-analyst`
 
-### Utility (23)
+### Utility (19)
 
-`runebinder`, `scroll-reviewer`, `knowledge-keeper`, `flow-seer`, `elicitation-sage`, `deployment-verifier`, `truthseer-validator`, `evidence-verifier`, `research-verifier`, `todo-verifier`, `state-weaver`, `tome-digest`, `condenser-gap`, `condenser-verdict`, `condenser-plan`, `condenser-work`, `decree-arbiter`, `design-analyst`, `horizon-sage`, `veil-piercer-plan`, `ux-pattern-analyzer`, `mend-fixer`
+`runebinder`, `scroll-reviewer`, `knowledge-keeper`, `flow-seer`, `elicitation-sage`, `deployment-verifier`, `truthseer-validator`, `evidence-verifier`, `research-verifier`, `todo-verifier`, `state-weaver`, `tome-digest`, `decree-arbiter`, `design-analyst`, `horizon-sage`, `veil-piercer-plan`, `ux-pattern-analyzer`, `mend-fixer`
 
 ### Testing (5)
 

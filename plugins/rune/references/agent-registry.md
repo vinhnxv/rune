@@ -1,6 +1,6 @@
 # Agent Registry
 
-**Total: 99 agents** (35 review + 5 research + 6 work + 23 utility + 24 investigation + 6 testing)
+**Total: 96 agents** (36 review + 5 research + 6 work + 19 utility + 24 investigation + 6 testing)
 
 > Agent count verified by `find agents/ -name "*.md" -type f | wc -l` on 2026-03-06.
 
@@ -37,6 +37,7 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | reference-validator | Cross-file reference integrity, config path validation, frontmatter schema |
 | doubt-seer | Cross-agent claim verification through adversarial interrogation |
 | schema-drift-detector | Schema drift between migrations and ORM/model definitions across 8 frameworks (DRIFT-001 through DRIFT-005) |
+| sediment-detector | Feature sediment and dead infrastructure detection for Claude Code plugins — cross-references agents vs spawn sites, talisman config vs consumers, commands vs invokers (SDMT-prefix) |
 | agent-parity-reviewer | Agent-native parity — orphan features, context starvation, sandbox isolation (PARITY-001 through PARITY-005) |
 | senior-engineer-reviewer | Persona-based senior engineer review — production thinking, temporal reasoning (SENIOR-001 through SENIOR-010) |
 | cross-shard-sentinel | Cross-shard consistency analysis — reads only shard summary JSONs, detects import mismatches, auth boundary gaps, naming drift (XSH-001+). Active only when Inscription Sharding is enabled (v1.98.0+) |
@@ -92,10 +93,6 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | evidence-verifier | Evidence-based plan claim validation — systematic per-claim verification against codebase/docs/external sources with grounding scores. Used by /rune:devise |
 | ux-pattern-analyzer | Codebase UX maturity assessment — inventories loading, error handling, form validation, navigation, empty state, confirmation/undo, and feedback patterns. 4-level maturity scale. Used by devise Phase 0.3 |
 | tome-digest | TOME finding extraction — counts P1/P2/P3 severity, extracts recurring prefixes, top findings. Shell-based extraction via artifact-extract.sh (zero LLM tokens). Used by arc Phase 7 (Mend) |
-| condenser-gap | Gap analysis digest — MISSING/PARTIAL/COMPLETE counts from gap-analysis.md. Shell-based extraction. Used by arc Phase 6 (Code Review) |
-| condenser-verdict | Verdict digest — dimension scores, low-scoring flags from gap-analysis-verdict.md. Shell-based extraction. Used by arc Phase 6 (Code Review) |
-| condenser-plan | Enriched plan digest — section count, acceptance criteria, file targets. Shell-based extraction. Used by arc Phase 5.5 (Gap Analysis) |
-| condenser-work | Work summary digest — committed files, task counts. Shell-based extraction. Used by arc Phase 5.5 (Gap Analysis) |
 | codex-phase-handler | Delegated Codex phase execution — runs Codex CLI commands as a teammate to keep Tarnished context clean |
 
 ## Investigation Agents (`agents/investigation/`)
