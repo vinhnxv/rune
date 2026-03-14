@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.163.2] - 2026-03-15
+
+### Fixed
+- **Arc pre-flight missing `rune-plan-` team prefix** — Added `"rune-plan-"` to `ARC_TEAM_PREFIXES` in `arc-preflight.md` so orphaned devise teams from interrupted `/rune:devise` sessions are cleaned up before the arc pipeline starts. Previously, devise teammates (decree-arbiter, scroll-reviewer, etc.) would survive arc startup because none of arc's 3 cleanup layers knew about the `rune-plan-` prefix.
+
 ## [1.163.1] - 2026-03-15
 
 ### Fixed
