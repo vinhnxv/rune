@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.159.1] - 2026-03-14
+
+### Fixed
+- **Arc Sibling Resume Session Safety** — Propagated Decision Matrix 2 (R1-R5) resume validation to `arc-batch`, `arc-issues`, and `arc-hierarchy`. Resume now validates `config_dir` (cross-installation block) and `owner_pid` liveness (cross-session hijack prevention) before proceeding. Added `compact_pending` race mitigation on resume, progress file JSON.parse try/catch with corruption handling, progress file structure validation, and feature branch guard for `arc-hierarchy` resume. SEC-1 numeric PID guard on all `kill -0` interpolations.
+
 ## [1.159.0] - 2026-03-14
 
 ### Added

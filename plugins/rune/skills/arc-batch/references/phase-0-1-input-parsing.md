@@ -21,8 +21,89 @@ if (forceSmartSort && noSmartSort) {
 }
 
 if (resumeMode) {
+  // ── RESUME GUARD: Validate session ownership before proceeding ──
+  // Mirrors rune:arc Decision Matrix 2 (R1-R5) from arc-resume.md
+  // Pattern: batch-loop-init.md lines 24-57 (pre-creation guard)
+  const CHOME = Bash('echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"').trim()
+  const currentPid = Bash('echo $PPID').trim()
+  const stateFile = Read('.claude/arc-batch-loop.local.md') // returns null/error if not found
+
+  // R1: No state file → check if progress file exists as fallback
+  if (!stateFile) {
+    const progressExists = Read('tmp/arc-batch/batch-progress.json')
+    if (!progressExists) {
+      error('No batch state or progress file found. Cannot resume. Start a new batch instead.')
+      return
+    }
+    warn('State file missing but progress file exists. Proceeding with fresh ownership claim.')
+    // Fall through — Phase 5 will create a new state file
+  } else {
+    // Extract stored session identity
+    const storedCfg = stateFile.match(/config_dir:\s*(.+)/)?.[1]?.trim()
+    const storedPid = stateFile.match(/owner_pid:\s*(\d+)/)?.[1]
+
+    // R5: config_dir mismatch → HARD BLOCK
+    if (storedCfg && storedCfg !== CHOME) {
+      error(`Cannot resume: batch belongs to different config dir`)
+      error(`  Stored:  ${storedCfg}`)
+      error(`  Current: ${CHOME}`)
+      error(`Delete .claude/arc-batch-loop.local.md manually to force-claim, or use the original CLAUDE_CONFIG_DIR.`)
+      return
+    }
+
+    // R2/R3: Same config_dir, check PID ownership
+    // SEC-1: /^\d+$/.test(storedPid) before kill -0 interpolation (matches batch-loop-init.md:42)
+    if (storedPid && /^\d+$/.test(storedPid) && storedPid !== currentPid) {
+      const alive = Bash(`kill -0 ${storedPid} 2>/dev/null && echo "alive" || echo "dead"`).trim()
+      if (alive === 'alive') {
+        // R3: Another session is actively running this batch
+        error(`Cannot resume: batch is owned by live PID ${storedPid} (current: ${currentPid})`)
+        error(`Cancel it first with /rune:cancel-arc-batch, or wait for it to finish.`)
+        return
+      }
+      // R4: Dead PID → safe to claim (orphan recovery)
+      warn(`Previous batch owner (PID ${storedPid}) is dead. Claiming ownership for resume.`)
+    }
+
+    // ── TRANSIENT STATE RESET (G3 race mitigation) ──
+    // compact_pending and max_iterations are handled by Phase 5 state file rewrite.
+    // Dispatch counts are per-child-arc, cleaned by child rune:arc's STSM-005.
+    // RACE MITIGATION: If stop hook fires before Phase 5 rewrites the state file,
+    // it may see stale compact_pending. Quick-patch before Phase 5:
+    const patchedState = stateFile.replace(/compact_pending:\s*true/, 'compact_pending: false')
+    if (patchedState !== stateFile) {
+      Write('.claude/arc-batch-loop.local.md', patchedState)
+      warn('Reset stale compact_pending in state file.')
+    }
+  }
+
+  // ── PROGRESS FILE VALIDATION (EC-3, EC-7) ──
+  const progressPath = 'tmp/arc-batch/batch-progress.json'
+  const progressContent = Read(progressPath)
+
+  if (!progressContent) {
+    error(`Progress file not found at ${progressPath}`)
+    error('The tmp/ directory may have been deleted. Cannot resume without progress tracking.')
+    error('Start a new batch instead of resuming.')
+    return
+  }
+
+  let progress
+  try {
+    progress = JSON.parse(progressContent)
+  } catch (e) {
+    error(`Progress file is corrupt (invalid JSON): ${e.message}`)
+    error(`File: ${progressPath}`)
+    error('Delete the file and start a new batch, or fix the JSON manually.')
+    return
+  }
+
+  if (!progress.plans || !Array.isArray(progress.plans)) {
+    error('Progress file has invalid structure (missing plans array).')
+    return
+  }
+
   inputType = "resume"
-  const progress = JSON.parse(Read("tmp/arc-batch/batch-progress.json"))
   const allPlans = progress.plans
 
   // Bug 4 FIX (v1.110.0): Reset in_progress plans from crashed sessions to pending.
