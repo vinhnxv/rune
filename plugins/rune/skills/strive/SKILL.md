@@ -93,6 +93,8 @@ Phase 4.4: Quick Goldmask -> Compare predicted CRITICAL files vs committed (orch
     |
 Phase 4.5: Codex Advisory -> Optional plan-vs-implementation review (non-blocking)
     |
+Phase 4.6: Drift Signals -> Workers write drift signal files to tmp/work/{timestamp}/drift-signals/ when plan-reality mismatches are detected
+    |
 Phase 5: Echo Persist -> Save learnings
     |
 Phase 6: Cleanup -> Shutdown workers, TeamDelete

@@ -245,6 +245,7 @@ _phase_ref() {
     design_prototype)         echo "${base}/arc-phase-design-prototype.md" ;;
     task_decomposition)       echo "${base}/arc-phase-task-decomposition.md" ;;
     work)                     echo "${base}/arc-phase-work.md" ;;
+    drift_review)             echo "${base}/arc-phase-drift-review.md" ;;
     storybook_verification)   echo "${base}/arc-phase-storybook-verification.md" ;;
     design_verification)      echo "${base}/arc-phase-design-verification.md" ;;
     ux_verification)          echo "${base}/arc-phase-ux-verification.md" ;;

@@ -338,6 +338,7 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
                     // Each entry: { task_id, context_path, reason }
                     // context_path scoped to arc checkpoint id (FAIL-008): context/{id}/{task_id}.md
                     suspended_tasks: [], started_at: null, completed_at: null },
+    drift_review: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     storybook_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     design_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     ux_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },

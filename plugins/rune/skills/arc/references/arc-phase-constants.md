@@ -9,7 +9,7 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 ## Phase Order
 
 ```javascript
-const PHASE_ORDER = ['forge', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'design_prototype', 'task_decomposition', 'work', 'storybook_verification', 'design_verification', 'ux_verification', 'gap_analysis', 'codex_gap_analysis', 'gap_remediation', 'goldmask_verification', 'code_review', 'goldmask_correlation', 'mend', 'verify_mend', 'design_iteration', 'test', 'test_coverage_critique', 'deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
+const PHASE_ORDER = ['forge', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'design_prototype', 'task_decomposition', 'work', 'drift_review', 'storybook_verification', 'design_verification', 'ux_verification', 'gap_analysis', 'codex_gap_analysis', 'gap_remediation', 'goldmask_verification', 'code_review', 'goldmask_correlation', 'mend', 'verify_mend', 'design_iteration', 'test', 'test_coverage_critique', 'deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
 
 // Heavy phases that MUST be delegated to sub-skills — never implemented inline.
 // These phases consume significant tokens and require fresh teammate context windows.
@@ -64,6 +64,7 @@ const PHASE_TIMEOUTS = {
   design_prototype: talismanTimeouts.design_prototype ?? 600_000,  // 10 min (conditional — gated by design_sync.enabled + VSM files from design_extraction)
   task_decomposition: talismanTimeouts.task_decomposition ?? 600_000,  // 10 min (delegated to codex-phase-handler teammate)
   work:          talismanTimeouts.work ?? 2_100_000,    // 35 min (inner 30m + 5m setup)
+  drift_review:  talismanTimeouts.drift_review ?? 120_000,  // 2 min (inline, no team)
   storybook_verification: talismanTimeouts.storybook_verification ?? 900_000,  // 15 min (conditional — gated by storybook.enabled in talisman misc)
   design_verification: talismanTimeouts.design_verification ?? 480_000,  //  8 min (conditional — gated by VSM files from design_extraction)
   ux_verification: talismanTimeouts.ux_verification ?? 300_000,  //  5 min (conditional — gated by ux.enabled + frontend files detected)
