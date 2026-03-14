@@ -143,8 +143,11 @@ After extracting, filtering Q/N interactions, and filtering UNVERIFIED findings,
 const techDebtP3 = []  // P3 findings deferred to tech debt log
 
 if (mendRound > 0) {
+  // readPreviousRoundResults(round): Reads resolution report from the previous mend round.
+  // Source: tmp/arc/{id}/resolution-report.md (round 0) or tmp/arc/{id}/resolution-report-round-{N}.md (round N)
+  // Parses finding IDs from "FIXED:" and "FAILED:" sections of the resolution report.
+  // Returns: { fixed: Set<findingId>, failed: Set<findingId> }
   const previousResults = readPreviousRoundResults(mendRound - 1)
-  // previousResults: { fixed: Set<findingId>, failed: Set<findingId> }
 
   for (const finding of actionableFindings) {
     if (finding.severity === "P3") {

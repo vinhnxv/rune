@@ -207,6 +207,7 @@ const SKIP_REASONS = {
 //   (* = conditionally pre-computable — only when parent feature is disabled)
 //
 // Runtime-dependent (NOT in skip_map): plan_refine (depends on Phase 2 verdicts),
+//   drift_review (depends on worker drift signal files — zero overhead when none exist),
 //   deploy_verify (depends on post-work diff analysis)
 //
 // computeSkipMap() signature:
