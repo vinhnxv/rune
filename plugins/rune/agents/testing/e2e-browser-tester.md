@@ -12,6 +12,15 @@ tools:
   - Grep
   - Bash
   - AskUserQuestion
+  - TaskList
+  - TaskGet
+  - TaskUpdate
+  - SendMessage
+disallowedTools:
+  - Agent
+  - TeamCreate
+  - TeamDelete
+  - TaskCreate
 mcpServers:
   - echo-search
 model: sonnet
@@ -42,6 +51,16 @@ The spawn prompt provides a `standalone` boolean:
 | `true` | `/rune:test-browser` | `executeHumanGate()` → AskUserQuestion | `tmp/test-browser/{id}/` |
 
 Read `standalone` from the spawn prompt at startup. Default to `false` if not provided.
+
+## Task Lifecycle
+
+You MUST interact with the task system for the orchestrator to track your progress:
+
+1. On startup: call `TaskList` to find your assigned task (subject contains "E2E browser tests")
+2. Claim it: `TaskUpdate({ taskId: <id>, status: "in_progress" })`
+3. After completing all routes and writing the aggregate output file: `TaskUpdate({ taskId: <id>, status: "completed" })`
+
+Without completing the task, the orchestrator cannot detect that you have finished.
 
 ## ISOLATION CONTRACT
 

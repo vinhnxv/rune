@@ -235,14 +235,22 @@ if (integrationEnabled || e2eEnabled) {
 // ═══════════════════════════════════════════════════════
 
 prePhaseCleanup(checkpoint)  // Evict stale arc-test-{id} teams (EC-4.2)
-TeamCreate({ team_name: `arc-test-${id}` })
+const testTeamName = `arc-test-${id}`
+TeamCreate({ team_name: testTeamName })
 const phaseStart = Date.now()
 const innerBudget = has_frontend ? 2_100_000 : 600_000  // 35m with E2E, 10m without
 function remainingBudget() { return innerBudget - (Date.now() - phaseStart) }
 
+// Signal directory setup for event-driven monitoring (Phase 2 fast path)
+const signalDir = `tmp/.rune-signals/${testTeamName}`
+Bash(`mkdir -p "${signalDir}" && find "${signalDir}" -mindepth 1 -delete`)
+
+// Track total expected tasks for signal-based completion detection
+let totalExpectedTasks = 0
+
 updateCheckpoint({
   phase: "test", status: "in_progress", phase_sequence: 7.7,
-  team_name: `arc-test-${id}`,
+  team_name: testTeamName,
   tiers_run: [], pass_rate: null, coverage_pct: null, has_frontend
 })
 
@@ -251,17 +259,29 @@ updateCheckpoint({
 // ═══════════════════════════════════════════════════════
 
 if (unitEnabled && unitTests.length > 0) {
+  // Create task for unit test tier (required for TaskList-based monitoring)
+  TaskCreate({
+    subject: "Unit tests",
+    description: `Run unit tests: ${unitTests.slice(0, 10).join(', ')}${unitTests.length > 10 ? ` (+${unitTests.length - 10} more)` : ''}`
+  })
+  totalExpectedTasks++
+  Write(`${signalDir}/.expected`, String(totalExpectedTasks))
+
   // Spawn unit-test-runner teammate
   Agent({
     subagent_type: "general-purpose", model: resolveModelForAgent("unit-test-runner", talisman),  // Cost tier mapping
-    name: "unit-test-runner", team_name: `arc-test-${id}`,
+    name: "unit-test-runner", team_name: testTeamName,
     prompt: `You are unit-test-runner. Run these unit tests: ${unitTests.join(', ')}
       Output to: tmp/arc/${id}/test-results-unit.md
       Strategy: ${Read(`tmp/arc/${id}/test-strategy.md`)}
+      IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").
       [inject agent unit-test-runner.md content]`
   })
-  waitForCompletion(["unit-test-runner"], {
-    timeoutMs: Math.min(180_000, remainingBudget())
+  waitForCompletion(testTeamName, totalExpectedTasks, {
+    timeoutMs: Math.min(180_000, remainingBudget()),
+    pollIntervalMs: 30_000,
+    staleWarnMs: 300_000,
+    label: "Unit Tests"
   })
   activeTiers.push('unit')
 }
@@ -280,9 +300,16 @@ const openApiSpecExists = exists('openapi.yml') || exists('openapi.yaml') || exi
 const contractGate = contractEnabled && (contractScenarios.length > 0 || openApiSpecExists)
 
 if (contractGate) {
+  TaskCreate({
+    subject: "Contract validation",
+    description: `Validate API contracts: ${contractScenarios.length} scenarios, OpenAPI spec: ${openApiSpecExists}`
+  })
+  totalExpectedTasks++
+  Write(`${signalDir}/.expected`, String(totalExpectedTasks))
+
   Agent({
     subagent_type: "general-purpose", model: resolveModelForAgent("contract-validator", talisman),
-    name: "contract-validator", team_name: `arc-test-${id}`,
+    name: "contract-validator", team_name: testTeamName,
     prompt: `You are contract-validator. Validate API contracts against schema specifications.
       Contract scenarios: ${JSON.stringify(contractScenarios)}
       Spec files: openapi.yml / openapi.yaml / openapi.json / swagger.yml (whichever exists)
@@ -292,10 +319,14 @@ if (contractGate) {
       Non-blocking: record WARN findings only. Do NOT fail the pipeline.
       Output to: tmp/arc/${id}/test-results-contract.md
       Strategy: ${Read(`tmp/arc/${id}/test-strategy.md`)}
+      IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").
       [inject agent contract-validator.md content]`
   })
-  waitForCompletion(["contract-validator"], {
-    timeoutMs: Math.min(120_000, remainingBudget())
+  waitForCompletion(testTeamName, totalExpectedTasks, {
+    timeoutMs: Math.min(120_000, remainingBudget()),
+    pollIntervalMs: 30_000,
+    staleWarnMs: 300_000,
+    label: "Contract Validation"
   })
   // Non-blocking result — warn but continue regardless of outcome
   if (exists(`tmp/arc/${id}/test-results-contract.md`)) {
@@ -311,16 +342,27 @@ if (contractGate) {
 // ═══════════════════════════════════════════════════════
 
 if (integrationEnabled && servicesHealthy && integrationTests.length > 0) {
+  TaskCreate({
+    subject: "Integration tests",
+    description: `Run integration tests: ${integrationTests.slice(0, 10).join(', ')}${integrationTests.length > 10 ? ` (+${integrationTests.length - 10} more)` : ''}`
+  })
+  totalExpectedTasks++
+  Write(`${signalDir}/.expected`, String(totalExpectedTasks))
+
   Agent({
     subagent_type: "general-purpose", model: resolveModelForAgent("integration-test-runner", talisman),  // Cost tier mapping
-    name: "integration-test-runner", team_name: `arc-test-${id}`,
+    name: "integration-test-runner", team_name: testTeamName,
     prompt: `You are integration-test-runner. Run integration tests.
       Output to: tmp/arc/${id}/test-results-integration.md
       Strategy: ${Read(`tmp/arc/${id}/test-strategy.md`)}
+      IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").
       [inject agent integration-test-runner.md content]`
   })
-  waitForCompletion(["integration-test-runner"], {
-    timeoutMs: Math.min(240_000, remainingBudget())
+  waitForCompletion(testTeamName, totalExpectedTasks, {
+    timeoutMs: Math.min(240_000, remainingBudget()),
+    pollIntervalMs: 30_000,
+    staleWarnMs: 300_000,
+    label: "Integration Tests"
   })
   activeTiers.push('integration')
 }
@@ -347,10 +389,17 @@ if (e2eEnabled && servicesHealthy && agentBrowserAvailable && e2eRoutes.length >
     baseUrl = "http://localhost:3000"
   }
 
+  TaskCreate({
+    subject: "E2E browser tests",
+    description: `Test ${routesToTest.length} route(s): ${routesToTest.join(', ')}`
+  })
+  totalExpectedTasks++
+  Write(`${signalDir}/.expected`, String(totalExpectedTasks))
+
   // BROWSER ISOLATION: ALL browser work on dedicated teammate
   Agent({
     subagent_type: "general-purpose", model: resolveModelForAgent("e2e-browser-tester", talisman),  // Cost tier mapping
-    name: "e2e-browser-tester", team_name: `arc-test-${id}`,
+    name: "e2e-browser-tester", team_name: testTeamName,
     prompt: `You are e2e-browser-tester. Test these routes: ${routesToTest.join(', ')}
       Base URL: ${baseUrl}
       Session: --session arc-e2e-${id}
@@ -359,14 +408,18 @@ if (e2eEnabled && servicesHealthy && agentBrowserAvailable && e2eRoutes.length >
       Screenshots to: tmp/arc/${id}/screenshots/
       Remaining budget: ${remainingBudget()}ms. Skip routes if cumulative time exceeds this budget.
       Strategy: ${Read(`tmp/arc/${id}/test-strategy.md`)}
+      IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").
       [inject agent-browser skill content]
       [inject agent e2e-browser-tester.md content]`
   })
 
   // timeout config is in milliseconds (default 300_000ms = 5min per route)
   const e2eTimeout = (testingConfig.tiers?.e2e?.timeout_ms ?? 300_000) * routesToTest.length
-  waitForCompletion(["e2e-browser-tester"], {
-    timeoutMs: Math.min(e2eTimeout + 60_000, remainingBudget())
+  waitForCompletion(testTeamName, totalExpectedTasks, {
+    timeoutMs: Math.min(e2eTimeout + 60_000, remainingBudget()),
+    pollIntervalMs: 30_000,
+    staleWarnMs: 300_000,
+    label: "E2E Browser Tests"
   })
   activeTiers.push('e2e')
 
@@ -444,9 +497,16 @@ if (extendedEnabled && extendedScenarios.length > 0 && remainingBudget() > 120_0
     }
   }
 
+  TaskCreate({
+    subject: "Extended tier tests",
+    description: `Run ${extendedScenarios.length} extended scenario(s) with checkpoint support`
+  })
+  totalExpectedTasks++
+  Write(`${signalDir}/.expected`, String(totalExpectedTasks))
+
   Agent({
     subagent_type: "general-purpose", model: resolveModelForAgent("extended-test-runner", talisman),
-    name: "extended-test-runner", team_name: `arc-test-${id}`,
+    name: "extended-test-runner", team_name: testTeamName,
     prompt: `You are extended-test-runner. Run extended-tier test scenarios with checkpoint support.
       Extended scenarios: ${JSON.stringify(extendedScenarios)}
       Budget: ${Math.min(extendedBudget, remainingBudget())}ms
@@ -455,12 +515,16 @@ if (extendedEnabled && extendedScenarios.length > 0 && remainingBudget() > 120_0
       On timeout: write partial results and set status=timeout in output
       Output to: tmp/arc/${id}/test-results-extended.md
       Strategy: ${Read(`tmp/arc/${id}/test-strategy.md`)}
+      IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").
       [inject agent extended-test-runner.md content]`
   })
 
   const extendedWaitBudget = Math.min(extendedBudget + 60_000, remainingBudget())
-  const extendedCompleted = waitForCompletion(["extended-test-runner"], {
-    timeoutMs: extendedWaitBudget
+  const extendedCompleted = waitForCompletion(testTeamName, totalExpectedTasks, {
+    timeoutMs: extendedWaitBudget,
+    pollIntervalMs: 30_000,
+    staleWarnMs: 300_000,
+    label: "Extended Tests"
   })
 
   if (!extendedCompleted) {
@@ -478,19 +542,30 @@ if (extendedEnabled && extendedScenarios.length > 0 && remainingBudget() > 120_0
 const hasFailures = checkForFailures(`tmp/arc/${id}/test-results-*.md`)
 
 if (hasFailures && remainingBudget() > 180_000) {
+  TaskCreate({
+    subject: "Failure analysis",
+    description: "Analyze test failures and produce root cause analysis with fix proposals"
+  })
+  totalExpectedTasks++
+  Write(`${signalDir}/.expected`, String(totalExpectedTasks))
+
   Agent({
     subagent_type: "general-purpose", model: resolveModelForAgent("test-failure-analyst", talisman),  // Cost tier mapping (exception: elevated model)
-    name: "test-failure-analyst", team_name: `arc-test-${id}`,
+    name: "test-failure-analyst", team_name: testTeamName,
     prompt: `You are test-failure-analyst. Analyze failures in:
       - tmp/arc/${id}/test-results-unit.md
       - tmp/arc/${id}/test-results-integration.md
       - tmp/arc/${id}/test-results-e2e.md
       Truncate input: first 200 + last 50 lines per file.
       Hard deadline: 3 minutes.
+      IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").
       [inject agent test-failure-analyst.md content]`
   })
-  waitForCompletion(["test-failure-analyst"], {
-    timeoutMs: Math.min(180_000, remainingBudget())
+  waitForCompletion(testTeamName, totalExpectedTasks, {
+    timeoutMs: Math.min(180_000, remainingBudget()),
+    pollIntervalMs: 30_000,
+    staleWarnMs: 300_000,
+    label: "Failure Analysis"
   })
 }
 
@@ -658,11 +733,14 @@ for (const agentName of testAgents) {
 }
 sleep(30_000)  // Wait for shutdown acknowledgment
 
-// 2. Close browser sessions (teammates already closed)
+// 2. Clean up signal directory
+Bash(`rm -rf "${signalDir}" 2>/dev/null || true`)
+
+// 3. Close browser sessions (teammates already closed)
 // SEC-001 FIX: Use grep -F for literal matching and quote --session argument
 Bash(`agent-browser session list 2>/dev/null | grep -F "arc-e2e-${id}" && agent-browser close --session "arc-e2e-${id}" 2>/dev/null || true`)
 
-// 3. Stop Docker
+// 4. Stop Docker
 if (dockerStarted) {
   Bash(`docker compose down --timeout 10 --remove-orphans 2>/dev/null || true`)
   // Fallback: kill by container IDs (SEC-005: validate hex IDs before shell interpolation)
@@ -675,7 +753,7 @@ if (dockerStarted) {
   }
 }
 
-// 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
+// 5. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
 let cleanupTeamDeleteSucceeded = false
 const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
@@ -685,17 +763,17 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   }
 }
 if (!cleanupTeamDeleteSucceeded) {
-  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/arc-test-${id}/" "$CHOME/tasks/arc-test-${id}/" 2>/dev/null`)
+  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${testTeamName}/" "$CHOME/tasks/${testTeamName}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort */ }
 }
 
-// 5. Update checkpoint
+// 6. Update checkpoint
 updateCheckpoint({
   phase: "test", status: "completed",
   artifact: `tmp/arc/${id}/test-report.md`,
   artifact_hash: sha256(Read(`tmp/arc/${id}/test-report.md`)),
   phase_sequence: 7.7,
-  team_name: `arc-test-${id}`,
+  team_name: testTeamName,
   tiers_run: activeTiers,
   pass_rate: computePassRate(report),
   coverage_pct: computeDiffCoverage(report),
@@ -711,6 +789,7 @@ If this phase crashes before cleanup:
 |----------|----------|
 | Team config | `$CHOME/teams/arc-test-{id}/` (where `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`) |
 | Task list | `$CHOME/tasks/arc-test-{id}/` (where `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`) |
+| Signal directory | `tmp/.rune-signals/arc-test-{id}/` |
 | Browser sessions | `arc-e2e-{id}` (check `agent-browser session list`) |
 | Docker containers | `tmp/arc/{id}/docker-containers.json` |
 | Screenshots | `tmp/arc/{id}/screenshots/` |

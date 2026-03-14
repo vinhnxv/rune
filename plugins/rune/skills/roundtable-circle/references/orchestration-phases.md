@@ -173,9 +173,10 @@ Summon Ashes — single wave for standard depth, multi-wave loop for deep depth.
 // Summon ALL selected Ash in a single message (parallel execution)
 for (const ash of selectedAsh) {
   // Use Crew context pack if available, otherwise fall back to inline buildAshPrompt()
+  // customAgentAshes: from inscription.custom_agent_ashes (Phase 1 Rune Gaze discovery)
   const ashPrompt = crewResult.mode === "crew"
     ? `Read your context from: ${crewResult.packsDir}${ash}.context.md. Start by reading that file.`
-    : buildAshPrompt(ash, { scope, outputDir, fileList, dirScope, customPromptBlock })
+    : buildAshPrompt(ash, { scope, outputDir, fileList, dirScope, customPromptBlock, customAgentAshes: inscription.custom_agent_ashes ?? [] })
 
   // Per-agent artifact tracking (non-blocking — skip if library unavailable)
   // Uses rune_artifact_init_at with outputDir to keep runs/ co-located with Ash outputs
@@ -204,6 +205,7 @@ for (const ash of selectedAsh) {
 //   scope, outputDir, fileList — standard Ash context (unchanged)
 //   dirScope — threaded to inscription metadata (null = all files in scope)
 //   customPromptBlock — injected before RE-ANCHOR boundary (null = no injection)
+//   customAgentAshes — from inscription.custom_agent_ashes (populated by Phase 1 Rune Gaze)
 //
 // CRITICAL GUARD: customPromptBlock injection is conditional.
 // Without this guard, every existing appraise/audit call would fail.
@@ -221,17 +223,67 @@ for (const ash of selectedAsh) {
 //   4. Strip SEAL markers: /<seal>[^<]*<\/seal>/gi (completion detection is system-controlled)
 //   Return sanitized string. If result is empty after sanitization, return null (skip injection).
 //
-// Specialist dispatch — derives which directory to load the prompt from:
+// ═══════════════════════════════════════════════════════
+// DISPATCH: 3-tier prompt resolution
+// ═══════════════════════════════════════════════════════
+//
+// Tier 1: Custom Ash (from talisman.yml ashes.custom[])
+//   Check if ash name matches an entry in inscription.custom_agent_ashes
+//   (populated by Phase 1 Rune Gaze — see rune-gaze.md lines 220-289).
+//   If found → use the Wrapper Prompt Template from custom-ashes.md,
+//   substituting {name}, {output_dir}, {file_list}, {finding_prefix}, {context_budget}.
+//   The agent's own instructions are loaded from .claude/agents/{agent}.md (local),
+//   ~/.claude/agents/{agent}.md (global), or plugin namespace (plugin).
+//
+// Tier 2: Specialist Ash (stack-specific reviewers)
 //   Specialists live in specialist-prompts/ (prompt templates, no frontmatter)
-//   Standard Ashes live in ash-prompts/ (full agent prompt files)
 //   SECURITY: Specialist templates omit frontmatter intentionally — tool restrictions
 //   are enforced by SEC-001 PreToolUse hook (enforce-readonly.sh), not frontmatter.
 //
-// Derive specialist set from filesystem — no hardcoded list to maintain
-// const specialistFiles = Glob("plugins/rune/skills/roundtable-circle/references/specialist-prompts/*.md")
-// const SPECIALIST_ASH_NAMES = new Set(specialistFiles.map(f => f.replace(/\.md$/, '').split('/').pop()))
-// const promptDir = SPECIALIST_ASH_NAMES.has(ash) ? "specialist-prompts" : "ash-prompts"
-// const promptContent = Read(`plugins/rune/skills/roundtable-circle/references/${promptDir}/${ash}.md`)
+// Tier 3: Built-in Ash (standard Rune agents)
+//   Standard Ashes live in ash-prompts/ (full agent prompt files)
+//
+// function buildAshPrompt(ash, params):
+//
+//   // ── Tier 1: Custom Ash ──────────────────────────────────────
+//   const customEntry = (params.customAgentAshes ?? []).find(e => e.name === ash)
+//   if (customEntry) {
+//     // Load the agent's own instructions based on source
+//     let agentInstructions = ""
+//     if (customEntry.source === "local") {
+//       const agentPath = `.claude/agents/${customEntry.agent}.md`
+//       agentInstructions = exists(agentPath) ? Read(agentPath) : ""
+//     } else if (customEntry.source === "global") {
+//       const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+//       const agentPath = `${CHOME}/agents/${customEntry.agent}.md`
+//       agentInstructions = exists(agentPath) ? Read(agentPath) : ""
+//     }
+//     // Plugin source: agent instructions are resolved by the Agent tool from namespace
+//
+//     // Build prompt using Wrapper Prompt Template (from custom-ashes.md)
+//     // Template includes: ANCHOR Truthbinding, file list, output format,
+//     // finding prefix, Seal format, RE-ANCHOR reminder
+//     const wrapperTemplate = Read("plugins/rune/skills/roundtable-circle/references/custom-ashes.md")
+//     // Extract template section between "```markdown" and "```" after "## Wrapper Prompt Template"
+//     // Substitute variables:
+//     //   {name} → customEntry.name
+//     //   {output_dir} → params.outputDir
+//     //   {workflow_type} → params.scope === "diff" ? "code changes" : "full codebase"
+//     //   {file_list} → customEntry.matching_files.join("\n")
+//     //   {file_count} → customEntry.matching_files.length
+//     //   {context_budget} → customEntry.context_budget
+//     //   {finding_prefix} → customEntry.finding_prefix
+//     //
+//     // Compose: wrapper template + agent's own instructions (if loaded)
+//     return `${substitutedWrapperTemplate}\n\n# AGENT EXPERTISE\n\n${agentInstructions}`
+//   }
+//
+//   // ── Tier 2 & 3: Specialist or Built-in Ash ────────────────
+//   // Derive specialist set from filesystem — no hardcoded list to maintain
+//   const specialistFiles = Glob("plugins/rune/skills/roundtable-circle/references/specialist-prompts/*.md")
+//   const SPECIALIST_ASH_NAMES = new Set(specialistFiles.map(f => f.replace(/\.md$/, '').split('/').pop()))
+//   const promptDir = SPECIALIST_ASH_NAMES.has(ash) ? "specialist-prompts" : "ash-prompts"
+//   const promptContent = Read(`plugins/rune/skills/roundtable-circle/references/${promptDir}/${ash}.md`)
 //
 // Template (abbreviated):
 //   ... [standard Ash system prompt for ${ash}] ...
@@ -297,9 +349,10 @@ for (const wave of waves) {
       : null
     // Use Crew context pack for Wave 1 if available, otherwise fall back to inline buildAshPrompt()
     // Wave 2+ always uses inline (packs are composed for Wave 1 agents only)
+    // customAgentAshes: from inscription.custom_agent_ashes (Phase 1 Rune Gaze discovery)
     const waveAshPrompt = (crewResult.mode === "crew" && wave.waveNumber === 1)
       ? `Read your context from: ${crewResult.packsDir}${ash.name}.context.md. Start by reading that file.`
-      : buildAshPrompt(ash.name, { scope, outputDir, fileList, priorFindings, dirScope, customPromptBlock })
+      : buildAshPrompt(ash.name, { scope, outputDir, fileList, priorFindings, dirScope, customPromptBlock, customAgentAshes: inscription.custom_agent_ashes ?? [] })
     const waveTeamName = wave.waveNumber === 1 ? teamName : `${teamName}-w${wave.waveNumber}`
 
     // Per-agent artifact tracking (non-blocking — skip if library unavailable)

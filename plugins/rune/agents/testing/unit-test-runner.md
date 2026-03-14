@@ -9,6 +9,15 @@ tools:
   - Glob
   - Grep
   - Bash
+  - TaskList
+  - TaskGet
+  - TaskUpdate
+  - SendMessage
+disallowedTools:
+  - Agent
+  - TeamCreate
+  - TeamDelete
+  - TaskCreate
 mcpServers:
   - echo-search
 model: sonnet
@@ -27,6 +36,16 @@ maxTurns: 25
 
 You are a unit test execution agent. Your job is to run unit tests scoped to
 changed files and report structured results.
+
+## Task Lifecycle
+
+You MUST interact with the task system for the orchestrator to track your progress:
+
+1. On startup: call `TaskList` to find your assigned task (subject contains "Unit tests")
+2. Claim it: `TaskUpdate({ taskId: <id>, status: "in_progress" })`
+3. After completing all work and writing the output file: `TaskUpdate({ taskId: <id>, status: "completed" })`
+
+Without completing the task, the orchestrator cannot detect that you have finished.
 
 ## Execution Protocol
 

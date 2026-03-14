@@ -187,30 +187,26 @@ Agent-backed custom Ashes are **discovered in Phase 1 (Rune Gaze)** — NOT here
 The discovery step in `rune-gaze.md` validates, trigger-matches, and stores results in
 `inscription.custom_agent_ashes`. Phase 3 reads that list and spawns them.
 
-**Phase 3 spawning (reads from Phase 1 discovery):**
+**Phase 3 spawning — handled by shared orchestration (orchestration-phases.md):**
+
+Custom Ash spawning is integrated into the shared Phase 3 spawn loop via `buildAshPrompt()`.
+The function checks `inscription.custom_agent_ashes` (populated by Phase 1 Rune Gaze) and
+uses the Wrapper Prompt Template from `custom-ashes.md` for matching entries.
 
 ```
-1. Read inscription.custom_agent_ashes (populated by Phase 1 Rune Gaze)
-2. For each custom Ash in the list:
-   a. Load wrapper prompt template from roundtable-circle/references/custom-ashes.md
-   b. Substitute: {name}, {file_list}, {output_dir}, {finding_prefix}, {context_budget}
-   c. Spawn via Agent({ team_name, name: entry.name, subagent_type: entry.agent, prompt: wrapper })
-3. If inscription.custom_agent_ashes is empty or absent → no custom Ashes to spawn (skip silently)
+1. buildAshPrompt(ash, { ..., customAgentAshes: inscription.custom_agent_ashes }) is called for every Ash
+2. If ash matches a custom entry → Tier 1 dispatch:
+   a. Load agent instructions from .claude/agents/ (local), ~/.claude/agents/ (global), or plugin namespace
+   b. Load wrapper prompt template from roundtable-circle/references/custom-ashes.md
+   c. Substitute: {name}, {file_list}, {output_dir}, {finding_prefix}, {context_budget}
+   d. Compose: wrapper template + agent instructions
+3. Spawn via Agent({ team_name, name: ash, subagent_type: "general-purpose", prompt: composedPrompt })
+4. If inscription.custom_agent_ashes is empty or absent → no custom Ash names in selectedAsh → skip silently
 ```
 
-**Important:** If `inscription.custom_agent_ashes` is not populated (e.g., legacy inscription without
-Phase 1 discovery), fall back to the original discovery flow:
-
-```
-1. Read .claude/talisman.yml (project) or ~/.claude/talisman.yml (global)
-2. If ashes.custom[] exists:
-   a. Validate: unique prefixes, unique names, resolvable agents, count <= max
-   b. Filter by workflows: keep only entries with "review" in workflows[]
-   c. Match triggers against changed_files (extension + path match)
-   d. Skip entries with fewer matching files than trigger.min_files
-3. Merge validated custom Ash with built-in selections
-4. Apply defaults.disable_ashes to remove any disabled built-ins
-```
+**Note:** Custom Ashes use `subagent_type: "general-purpose"` (same as all other Ashes).
+The custom agent's expertise is injected via the prompt, not via subagent_type resolution.
+This matches the standard Ash spawn pattern in orchestration-phases.md.
 
 See `roundtable-circle/references/custom-ashes.md` for full schema and validation rules.
 
