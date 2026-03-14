@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [1.163.0] - 2026-03-15
+
+### Added
+- **Drift signal detection in strive workers** — Workers now detect plan-reality mismatches (missing APIs, wrong patterns, wrong paths) at Step 4.2 and write drift signal JSON files with session isolation fields. New inline arc phase `drift_review` reads signals after WORK, presents blockers to user, logs workarounds. Zero overhead when no signals exist.
+- **Severity-gated mend filtering** — Round-aware severity filtering in parse-tome.md. Round 0 processes all findings (P1+P2+P3). Round 1+ filters to P1 + failed P2 only. P3 findings deferred to tech debt log (`tmp/arc/{id}/tech-debt-p3.md`). Convergence threshold configurable via existing talisman key `review.arc_convergence_p2_threshold`.
+- **Domain decision echoes** — Post-arc echo persist now extracts domain decisions from worker logs (`### Decisions` sections) and writes top 5 unique decisions to planner echoes for cross-session learning via `/rune:devise` echo-reader.
+- **New arc phase reference**: `arc-phase-drift-review.md` — inline phase algorithm for drift signal processing.
+
+### Changed
+- **Triage threshold enforced** — `phase-1-4-plan-and-monitor.md` triage threshold changed from advisory text to enforced logic (P1: FIX, P2: SHOULD FIX, P3: MAY SKIP).
+- **Skip map documentation** — Added `drift_review` to runtime-dependent phase list in `arc-phase-constants.md`.
+- **readPreviousRoundResults() documented** — Added contract documentation (source path, return type) in `parse-tome.md`.
+
 ## [1.162.1] - 2026-03-15
 
 ### Fixed
