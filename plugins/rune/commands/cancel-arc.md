@@ -256,11 +256,12 @@ const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
 // Read team config to discover active teammates — with fallback if config is missing/corrupt
 let allMembers = []
 try {
-  const teamConfig = Read(`${CHOME}/teams/${phase_team}/config.json`)
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${phase_team}/config.json`))
   const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
-  warn("Could not read team config — attempting TeamDelete directly")
+  // FALLBACK: attempt TeamDelete directly — config may be missing or corrupt
+  warn("Could not read/parse team config — attempting TeamDelete directly")
   allMembers = []
 }
 

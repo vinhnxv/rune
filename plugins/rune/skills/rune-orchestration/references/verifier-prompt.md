@@ -1,6 +1,6 @@
 # Truthsight Verifier Agent Prompt
 
-> Prompt template for the Layer 2 Smart Verifier agent. Summoned as a `general-purpose` Task subagent (not a teammate) after all Ash complete and Layer 0 inline checks pass.
+> Prompt template for the Layer 2 Smart Verifier agent. Summoned as a `general-purpose` Agent subagent (not a teammate) after all Ash complete and Layer 0 inline checks pass.
 
 ## When to Summon
 
@@ -13,7 +13,7 @@
 ## Usage
 
 ```
-Task:
+Agent:
   subagent_type: "general-purpose"
   model: resolveModelForAgent("truthseer-validator", talisman)  # Cost tier mapping (references/cost-tier-mapping.md)
   description: "Truthsight Verifier for review #{id}"

@@ -923,7 +923,8 @@ try {
   // selectedAsh + runebinder + conditionally-spawned agents (doubt-seer, cross-shard-sentinel).
   // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
   allMembers = [...selectedAsh, "runebinder", "doubt-seer", "cross-shard-sentinel",
-    "rot-seeker", "strand-tracer", "decree-auditor", "fringe-watcher", "runebinder-deep", "runebinder-merge"]
+    "rot-seeker", "strand-tracer", "decree-auditor", "fringe-watcher", "runebinder-deep", "runebinder-merge",
+    "shard-reviewer-a", "shard-reviewer-b", "shard-reviewer-c", "shard-reviewer-d", "shard-reviewer-e"]
 }
 
 // 2. Shutdown all teammates

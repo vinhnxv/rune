@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [1.159.2] - 2026-03-14
+
+### Fixed
+- **Missing `JSON.parse()` in 9 team cleanup files** — `Read()` returns a string, not a parsed object. Accessing `.members` on a string yields `undefined`, causing dynamic member discovery to silently fail and send zero `shutdown_request` messages. Affected: mend (`phase-7-cleanup.md`), codex-review (`phase4-cleanup.md`), cancel-review, cancel-audit, cancel-codex-review, cancel-arc, arc `postPhaseCleanup` (`arc-phase-cleanup.md`), arc post-arc sweep (`post-arc.md`), arc plan-review (`arc-phase-plan-review.md`). All 9 now wrapped in `JSON.parse()`.
+- **Empty fallback arrays in 3 cancel commands** — `cancel-review.md`, `cancel-audit.md`, `cancel-codex-review.md` had empty `allMembers = []` in catch blocks. Added hardcoded fallback agent lists covering all possible teammates per workflow.
+- **Cleanup fallback array gaps in 4 workflows** — appraise: added 4 UX reviewers, `design-implementation-reviewer`, 5 shard reviewers. roundtable-circle: added 5 shard reviewers. devise: added 27 Forge Gaze agents + 6 elicitation sages. inspect: added `inspect-lore-analyst`.
+- **Missing process-level kill (step 5a) in 2 cleanup files** — `inspect/verdict-synthesis.md` and `arc-phase-plan-review.md` filesystem fallback blocks went directly to `rm -rf` without SIGTERM/SIGKILL sequence. Added standard pgrep/kill pattern.
+- **Deprecated `Task` tool references** — `ash-guide/SKILL.md` lines 32-34, 41, 44: `Task rune:` → `Agent rune:`. `rune-orchestration/references/verifier-prompt.md` lines 3, 16: prose and YAML key updated to `Agent`.
+- **Stale agent counts in `tarnished/references/rune-knowledge.md`** — Updated: 89→98 total agents, 40→35 review, 12→23 utility, 4→6 work, 4→5 testing. Updated echo tiers from 3 to 5 (added Notes and Observations).
+- **README.md version badge** — Updated to match current plugin version.
+
 ## [1.159.1] - 2026-03-14
 
 ### Fixed

@@ -29,19 +29,19 @@ Quick reference for all Rune plugin agents, their roles, and invocation patterns
 All Rune agents are plugin agents. Invoke with the `rune:` namespace prefix:
 
 ```
-Task rune:review:ward-sentinel("Review these files for security")
-Task rune:review:ember-oracle("Check performance bottlenecks")
-Task rune:utility:runebinder("Aggregate review findings")
+Agent rune:review:ward-sentinel("Review these files for security")
+Agent rune:review:ember-oracle("Check performance bottlenecks")
+Agent rune:utility:runebinder("Aggregate review findings")
 ```
 
 **Common mistake:** Using agent name without namespace prefix.
 
 ```
 # WRONG - agent not found
-Task ward-sentinel(...)
+Agent ward-sentinel(...)
 
 # CORRECT - full namespace
-Task rune:review:ward-sentinel(...)
+Agent rune:review:ward-sentinel(...)
 ```
 
 ### Composite Ash Invocation (review/audit workflows)

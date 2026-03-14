@@ -120,12 +120,14 @@ const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
 // Read team config to get member list — with fallback if config is missing/corrupt
 let allMembers = []
 try {
-  const teamConfig = Read(`${CHOME}/teams/${team_name}/config.json`)
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${team_name}/config.json`))
   const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
-  warn("Could not read team config — attempting TeamDelete directly")
-  allMembers = []
+  // FALLBACK: all possible codex-review agents (safe to send shutdown to absent members)
+  allMembers = ["claude-security-reviewer", "claude-bug-hunter", "claude-quality-analyzer",
+    "claude-dead-code-finder", "claude-performance-analyzer",
+    "codex-security", "codex-bugs", "codex-quality", "codex-performance"]
 }
 
 for (const member of allMembers) {
