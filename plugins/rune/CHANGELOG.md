@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [1.160.1] - 2026-03-14
+
+### Changed
+- **Adaptive cleanup grace period** — `shutdown()` in engines.md now scales grace period based on SendMessage delivery results (2s when all dead, 5-20s when some alive). Saves 10-18s in the common case.
+- **Tighter retry backoff** — `CLEANUP_DELAYS` reduced from `[0, 5000, 10000, 15000]` (30s) to `[0, 3000, 6000, 10000]` (19s). Total cleanup budget reduced from 50s to 21-39s max.
+- **CLAUDE.md cleanup pattern aligned** — Added canonical source cross-reference, adaptive grace, updated delays, Step 6 diagnostic reference.
+
+### Added
+- **Cleanup diagnostic signal** — engines.md `shutdown()` step 6 emits `warn()` trace + `tmp/.rune-cleanup-{team}.json` with confirmed_alive/dead counts, grace period, retry attempts, and fallback usage.
+- **Time-gated teammate force-stop** — `on-teammate-idle.sh` force-stops teammates idle >5 minutes cumulative (configurable via `RUNE_MAX_IDLE_DURATION` env var, default 300s). Complements existing count-based `MAX_IDLE_RETRIES=3`.
+
+### Fixed
+- **FLAW-001: mkdir guard for time-gate** — Added `mkdir -p` before first-idle file write to prevent silent time-gate disable when signal directory doesn't exist yet.
+- **FLAW-002: epoch validation** — Validates first_idle_epoch within 24h range; resets stale/corrupt values instead of triggering false-positive force-stop (epoch=0 produced ~1.7B seconds elapsed).
+
 ## [1.160.0] - 2026-03-14
 
 ### Added
