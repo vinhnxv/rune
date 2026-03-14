@@ -667,7 +667,12 @@ _rune_detect_rate_limit() {
   # Talisman config defaults
   local default_wait=60
   local max_wait=300
-  local talisman_shard="${cwd}/tmp/.talisman-resolved/arc.json"
+  # Resolve talisman shard (project → system fallback)
+  local talisman_shard=""
+  if type _rune_resolve_talisman_shard &>/dev/null; then
+    talisman_shard=$(_rune_resolve_talisman_shard "arc")
+  fi
+  [[ -z "$talisman_shard" ]] && talisman_shard="${cwd}/tmp/.talisman-resolved/arc.json"
   if [[ -f "$talisman_shard" && ! -L "$talisman_shard" ]]; then
     local enabled
     enabled=$(jq -r '.rate_limit.enabled // true' "$talisman_shard" 2>/dev/null || echo "true")

@@ -79,13 +79,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=lib/platform.sh
 source "${SCRIPT_DIR}/lib/platform.sh"
 
-# --- Talisman gate ---
-TALISMAN_SHARD="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/misc.json"
+# --- Talisman gate (project → system fallback; symlink-safe via helper) ---
+# shellcheck source=lib/talisman-shard-path.sh
+source "${SCRIPT_DIR}/lib/talisman-shard-path.sh" 2>/dev/null || true
+if type _rune_resolve_talisman_shard &>/dev/null; then
+  TALISMAN_SHARD=$(_rune_resolve_talisman_shard "context_stop_guard")
+else
+  TALISMAN_SHARD="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/context_stop_guard.json"
+fi
 WARNING_THRESHOLD=70
 HIGH_THRESHOLD=85
 MAX_BLOCKS=2
 if [[ -f "$TALISMAN_SHARD" && ! -L "$TALISMAN_SHARD" ]]; then
-  ENABLED=$(jq -r '.context_stop_guard.enabled // true' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
+  ENABLED=$(jq -r '.enabled // true' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
   [[ "$ENABLED" == "false" ]] && exit 0
   WARNING_THRESHOLD=$(jq -r '.context_stop_guard.warning_threshold // 70' "$TALISMAN_SHARD" 2>/dev/null || echo "70")
   HIGH_THRESHOLD=$(jq -r '.context_stop_guard.high_threshold // 85' "$TALISMAN_SHARD" 2>/dev/null || echo "85")
