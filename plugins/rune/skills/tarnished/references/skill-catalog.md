@@ -27,6 +27,17 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `echoes` | `/rune:echoes` | — | Subcommand | Echo management |
 | `talisman` | `/rune:talisman` | — | Subcommand (init/audit/update/guide/status) | Talisman config |
 | `codex-review` | `/rune:codex-review` | — | Git diff (auto) | `tmp/codex-reviews/*/TOME.md` |
+| `design-sync` | `/rune:design-sync` | — | Figma URL | Design specs + implementation |
+| `elevate` | `/rune:elevate` | — | None (scans echoes) | Promoted global echoes |
+| `file-todos` | `/rune:file-todos` | — | Subcommand | TODO files in `tmp/` |
+| `learn` | `/rune:learn` | — | None (scans session) | Correction patterns → echoes |
+| `resolve-all-gh-pr-comments` | `/rune:resolve-all-gh-pr-comments` | — | PR number (auto) | Resolved PR threads |
+| `resolve-gh-pr-comment` | `/rune:resolve-gh-pr-comment` | — | PR comment URL/ID | Resolved thread |
+| `resolve-todos` | `/rune:resolve-todos` | — | TODO file path | Fixed code |
+| `skill-testing` | `/rune:skill-testing` | — | Skill name | Test results |
+| `team-status` | `/rune:team-status` | — | None | Team health report |
+| `test-browser` | `/rune:test-browser` | — | PR# or branch | E2E test results |
+| `ux-design-process` | `/rune:ux-design-process` | — | None (auto-loaded) | UX evaluation |
 
 ## MCP Integration Skills (Non-Invocable)
 
@@ -87,4 +98,15 @@ MCP integration is configured via `talisman.yml` → `integrations.mcp_tools`. U
 | `elicit` | None | 2-5 min |
 | `talisman` | None | 1-3 min |
 | `codex-review` | Up to 4 | 5-15 min |
+| `design-sync` | Per phase | 10-30 min |
+| `elevate` | None | 1-2 min |
+| `file-todos` | None | < 1 min |
+| `learn` | None | 2-5 min |
+| `resolve-all-gh-pr-comments` | Per comment | 5-20 min |
+| `resolve-gh-pr-comment` | None | 1-3 min |
+| `resolve-todos` | Per batch | 5-15 min |
+| `skill-testing` | None | 2-10 min |
+| `team-status` | None | < 1 min |
+| `test-browser` | None | 3-10 min |
+| `ux-design-process` | None | 2-5 min |
 | `rest` | None | < 1 min |

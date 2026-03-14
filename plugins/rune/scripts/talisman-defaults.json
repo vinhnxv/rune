@@ -386,12 +386,6 @@
   "defaults": {
     "disable_ashes": []
   },
-  "deployment_verification": {
-    "auto_run_on_migrations": false,
-    "enabled": false,
-    "monitoring_stack": null,
-    "output_dir": "tmp/deploy/"
-  },
   "design_sync": {
     "backend_impact": {
       "auto_scope": "frontend-only",

@@ -164,6 +164,35 @@ if stack.confidence >= confidence_threshold:
   inscription.detected_stack = stack
   inscription.specialist_ashes = specialist_selections
 
+# ── Meta-audit: Plugin Sediment Detection (v1.161.0+) ──
+# When scope is "full" (audit mode) AND repo is a Claude Code plugin,
+# auto-select sediment-detector to scan for dead plugin infrastructure.
+if scope === "full" AND exists(".claude-plugin/plugin.json"):
+  ash_selections.add("sediment-detector")
+
+# ── Schema Drift Detection (v1.161.0+) ──
+# When diff contains schema or migration files, tag inscription so
+# Forge Warden activates Perspective 10 (schema-drift-detector).
+# Gate: readTalismanSection("misc").schema_drift?.enabled !== false
+schema_drift_disabled = readTalismanSection("misc").schema_drift?.enabled === false
+if NOT schema_drift_disabled:
+  schema_patterns = [
+    "db/schema.rb", "db/structure.sql", "db/migrate/",
+    "prisma/schema.prisma", "prisma/migrations/",
+    "alembic/versions/", "*/migrations/",
+    "drizzle/schema.ts", "drizzle/migrations/",
+    "src/migrations/", "migrations/",
+    "*.changelog.xml", "*.changelog.yaml",
+    "V*__*.sql"
+  ]
+  has_schema_files = false
+  for each file in changed_files:
+    if file.path matches any schema_patterns:
+      has_schema_files = true
+      break
+  if has_schema_files:
+    inscription.schema_drift_active = true  # Forge Warden reads this to activate Perspective 10
+
 # Always-on Ash (regardless of file types)
 # NOTE: pattern-weaver (always-on quality Ash) is distinct from pattern-seer
 # (cross-cutting consistency specialist, triggered by file patterns in review)

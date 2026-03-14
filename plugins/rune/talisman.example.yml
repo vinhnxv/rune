@@ -636,17 +636,6 @@ solution_arena:
   #   innovation: 0.10                 # Novel approach longevity
   # convergence_threshold: 0.05        # Top 2 solutions within this margin = "tied"
 
-# ──────────────────────────────────────────────
-# Deployment Verification — Artifact generation (v1.88.0+)
-# ──────────────────────────────────────────────
-# Generates Go/No-Go checklists, SQL verification queries, rollback
-# procedures, and monitoring plans. Standalone utility — not integrated
-# into the arc pipeline. Invoke manually after code review passes.
-# deployment_verification:
-#   enabled: false                     # Opt-in (not all projects need deployment artifacts)
-#   auto_run_on_migrations: false      # Auto-trigger when migrations detected in diff
-#   output_dir: "tmp/deploy/"          # Directory for generated artifacts
-#   monitoring_stack: null             # Override detection: "datadog" | "prometheus" | "newrelic" | "sentry" | null (auto-detect)
 
 # ──────────────────────────────────────────────
 # Schema Drift Detection — Migration/model consistency (v1.89.0+)

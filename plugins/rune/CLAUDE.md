@@ -220,6 +220,10 @@ Every change to this plugin MUST include updates to all four files:
 - [ ] plugin.json description counts match actual files
 - [ ] No bare `Skill()` calls without `rune:` prefix (run namespace validation command)
 - [ ] No bare `codex-exec.sh` without `${CLAUDE_PLUGIN_ROOT}` path
+- [ ] Run `bash scripts/validate-plugin-wiring.sh` — no SDMT-* violations
+- [ ] New agents have >=1 spawn site in skills/ (SDMT-001)
+- [ ] New user-invocable skills are in using-rune AND tarnished routing tables (SDMT-005)
+- [ ] New talisman config sections have >=1 consumer in skills/ or scripts/ (SDMT-002)
 
 ## CLI-Backed Ashes (v1.57.0+)
 

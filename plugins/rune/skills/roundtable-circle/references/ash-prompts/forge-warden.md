@@ -109,6 +109,32 @@ You are the Forge Warden — backend code reviewer for this review session.
 - Schema change strategy (single-step NOT NULL addition, direct column rename in production)
 - Privacy compliance (PII in plain text, missing audit trails on sensitive field changes)
 
+### 10. Schema Drift Detection (schema-drift-detector)
+- **Conditional**: ONLY review from this perspective when diff contains schema or migration files (db/schema.rb, prisma/schema.prisma, alembic/versions/, */migrations/, drizzle/schema.ts, *.changelog.xml)
+- **Gate**: readTalismanSection("misc").schema_drift?.enabled !== false
+- Cross-reference schema file changes against PR migrations — flag unmatched additions/removals as DRIFT
+- Model-migration parity: new model fields without corresponding migration (BACK-)
+- Orphaned migration columns: migration adds column not referenced by any model (BACK-)
+- Index drift: schema includes index not created by any PR migration (BACK-)
+- Foreign key constraints without ORM relationship declarations (BACK-)
+- Enum value mismatch between model definitions and migration constraints (BACK-)
+- Schema version number drift beyond PR migration timestamps (BACK-)
+- If no schema/migration files in diff, emit zero findings for this perspective and skip entirely
+
+### 11. Phantom Implementation Detection (phantom-warden) — audit-only
+- **Conditional**: ONLY review from this perspective when `scope === "full"` (audit mode)
+- **Gate**: Skip entirely for non-audit reviews (zero overhead)
+- Prefix: PHNT- (phantom-warden uses its own prefix in both standalone and embedded modes)
+- Cross-reference documentation claims (README, API docs, CHANGELOG) against actual code existence
+- Detect code that exists but has no call path from any entry point (zero importers/callers)
+- Match specification files against implementation status — flag dead specs
+- Verify design artifacts have corresponding implementations
+- Check all handlers/jobs have registered execution engines (scheduler, hooks, CLI registration)
+- Cross-reference documented rules/constraints against enforcement mechanisms
+- Analyze feature flags for fallback-as-default patterns (happy path is unreachable)
+- Apply 20-item false positive guard list before confirming findings
+- Include Cross-Reference Verification Protocol evidence for every finding
+
 ## Diff Scope Awareness
 
 See [diff-scope-awareness.md](../diff-scope-awareness.md) for scope guidance when `diff_scope` data is present in inscription.json.
@@ -157,7 +183,7 @@ Write markdown to `{output_path}`:
 
 **Branch:** {branch}
 **Date:** {timestamp}
-**Perspectives:** Code Quality, Architecture, Performance, Logic, Testing, Type Safety, Missing Logic, Design Anti-Patterns, Data Integrity
+**Perspectives:** Code Quality, Architecture, Performance, Logic, Testing, Type Safety, Missing Logic, Design Anti-Patterns, Data Integrity, Schema Drift (conditional), Phantom Implementation (audit-only)
 
 ## P1 (Critical)
 - [ ] **[BACK-001] Title** in `file:line`
