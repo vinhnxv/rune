@@ -114,6 +114,12 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 12. **Iron Law TEAM-001**: Every Agent() call in a Rune workflow MUST include `team_name`. Use `TeamEngine.ensureTeam()` for idempotent team creation. See team-sdk SKILL.md.
     - Cancel commands: Warn if cancelling another session's workflow
     - Pattern: `resolve-session-identity.sh` provides `RUNE_CURRENT_CFG`; `$PPID` = Claude Code PID
+13. **Iron Law TEAM-002 — Task Contract**: Every `Agent()` call with `team_name` MUST have a corresponding `TaskCreate()` BEFORE it. Agents spawned as teammates MUST have `TaskUpdate` in their tools list. Without both, `waitForCompletion` cannot detect completion — the pipeline stalls silently.
+    - **3-component contract**: (a) Orchestrator calls `TaskCreate` before `Agent()`, (b) Agent has `TaskList`+`TaskGet`+`TaskUpdate` in tools, (c) Agent prompt includes "claim your task via TaskList + TaskUpdate (status: completed)"
+    - **waitForCompletion signature**: ALWAYS `waitForCompletion(teamName, expectedCount, opts)` — NEVER `waitForCompletion(["agentNames"], opts)`. See monitor-utility.md.
+    - **Signal directory**: Set up `tmp/.rune-signals/{teamName}/` with `.expected` count before spawning agents for Phase 2 fast-path monitoring.
+    - **Validation**: Run `bash scripts/validate-task-contract.sh` to detect violations. See Pre-Commit Checklist.
+    - **Why**: This bug caused arc pipeline stalls in Phase 2 (plan review) and Phase 7.7 (test) — agents completed work but orchestrator had no way to detect it, causing indefinite polling or timeout.
 
 ## Teammate Lifecycle Safety
 
@@ -219,6 +225,7 @@ Every change to this plugin MUST include updates to all four files:
 - [ ] No bare `Skill()` calls without `rune:` prefix (run namespace validation command)
 - [ ] No bare `codex-exec.sh` without `${CLAUDE_PLUGIN_ROOT}` path
 - [ ] Run `bash scripts/validate-plugin-wiring.sh` — no SDMT-* violations
+- [ ] Run `bash scripts/validate-task-contract.sh` — no TEAM-002 violations (TaskCreate before Agent, TaskUpdate in agent tools)
 - [ ] New agents have >=1 spawn site in skills/ (SDMT-001)
 - [ ] New user-invocable skills are in using-rune AND tarnished routing tables (SDMT-005)
 - [ ] New talisman config sections have >=1 consumer in skills/ or scripts/ (SDMT-002)

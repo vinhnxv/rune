@@ -164,12 +164,27 @@ if (codexDetected && talisman?.codex?.workflows?.includes("arc")) {
   })
 }
 
+// Create tasks for all reviewers (required for TaskList-based monitoring)
+for (const reviewer of reviewers) {
+  TaskCreate({
+    subject: `${reviewer.name}: ${reviewer.focus}`,
+    description: `Review enriched plan at tmp/arc/${id}/enriched-plan.md`,
+    activeForm: `${reviewer.name} reviewing plan`
+  })
+}
+
+// Signal directory setup for event-driven monitoring (Phase 2 fast path)
+const planReviewSignalDir = `tmp/.rune-signals/arc-plan-review-${id}`
+Bash(`mkdir -p "${planReviewSignalDir}" && find "${planReviewSignalDir}" -mindepth 1 -delete`)
+Write(`${planReviewSignalDir}/.expected`, String(reviewers.length))
+
 for (const reviewer of reviewers) {
   // Evidence-verifier gets augmented prompt with ANCHOR/RE-ANCHOR and config
   let reviewerPrompt = `Review plan for: ${reviewer.focus}
       Plan: tmp/arc/${id}/enriched-plan.md
       Output: tmp/arc/${id}/reviews/${reviewer.name}-verdict.md
-      Include structured verdict marker: <!-- VERDICT:${reviewer.name}:{PASS|CONCERN|BLOCK} -->`
+      Include structured verdict marker: <!-- VERDICT:${reviewer.name}:{PASS|CONCERN|BLOCK} -->
+      IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").`
   if (reviewer.name === "state-weaver") {
     const swConfig = gates?.state_weaver ?? {}
     reviewerPrompt = `<!-- ANCHOR: You are state-weaver. Your ONLY role is plan state machine validation. -->
@@ -179,6 +194,7 @@ for (const reviewer of reviewers) {
       Trigger gate: >= 5 phase indicators required for full analysis
       I/O calibration: Plans with implicit artifact flow may trigger false positives for STSM-003/004/005
       Include structured verdict marker: <!-- VERDICT:${reviewer.name}:{PASS|CONCERN|BLOCK} -->
+      IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").
       <!-- RE-ANCHOR: Extract phases, build transition graph, validate completeness (10 checks), verify I/O contracts. Dead-end states and loops-without-exit are P1. -->`
   }
   if (reviewer.name === "evidence-verifier") {
@@ -191,6 +207,7 @@ for (const reviewer of reviewers) {
       External search: ${evConfig.external_search === true ? "ALLOWED (WebSearch/WebFetch permitted)" : "DISABLED (codebase + documentation only)"}
       Evidence types (strength order): CODEBASE > DOCUMENTATION > EXTERNAL > OBSERVED > NOVEL
       Include structured verdict marker: <!-- VERDICT:${reviewer.name}:{PASS|CONCERN|BLOCK} -->
+      IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").
       <!-- RE-ANCHOR: Evaluate grounding score. Below ${evConfig.block_threshold ?? 0.4} → BLOCK, below ${evConfig.concern_threshold ?? 0.6} → CONCERN, otherwise PASS. -->`
   }
   Agent({
@@ -498,6 +515,9 @@ try {
   allMembers = ["scroll-reviewer", "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
     "horizon-sage", "evidence-verifier", "state-weaver", "codex-plan-reviewer"]
 }
+
+// Clean up signal directory
+Bash(`rm -rf "${planReviewSignalDir}" 2>/dev/null || true`)
 
 // Shutdown all discovered members
 for (const member of allMembers) { SendMessage({ type: "shutdown_request", recipient: member, content: "Plan review complete" }) }

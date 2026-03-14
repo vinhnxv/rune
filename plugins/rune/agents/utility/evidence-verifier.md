@@ -12,6 +12,15 @@ tools:
   - Grep
   - WebSearch
   - WebFetch
+  - TaskList
+  - TaskGet
+  - TaskUpdate
+  - SendMessage
+disallowedTools:
+  - Agent
+  - TeamCreate
+  - TeamDelete
+  - TaskCreate
 maxTurns: 40
 mcpServers:
   - echo-search

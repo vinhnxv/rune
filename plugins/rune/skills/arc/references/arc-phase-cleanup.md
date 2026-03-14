@@ -1,3 +1,4 @@
+# TEAM-002-IGNORE: Cleanup phase — Agent() refs are for shutdown/cleanup, not work spawning
 # Post-Phase Cleanup — Full Algorithm
 
 Guaranteed team cleanup after every delegated arc phase completes. Complements `prePhaseCleanup()` (before) with a trailing-edge guarantee (after). Together they form a before+after bracket around every phase.

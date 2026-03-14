@@ -11,9 +11,16 @@ tools:
   - Glob
   - Grep
   - SendMessage
+  - TaskList
+  - TaskGet
+  - TaskUpdate
 disallowedTools:
   - Bash
   - Edit
+  - Agent
+  - TeamCreate
+  - TeamDelete
+  - TaskCreate
 maxTurns: 30
 mcpServers:
   - echo-search

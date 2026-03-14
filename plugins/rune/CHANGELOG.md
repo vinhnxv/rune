@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [1.161.1] - 2026-03-15
+
+### Fixed
+- **TEAM-002: Agent Teams task contract enforcement** — Arc Phase 7.7 (test) and Phase 2 (plan review Layer 1) spawned teammates without TaskCreate, causing waitForCompletion to stall indefinitely. Added TaskCreate before every Agent() spawn, fixed waitForCompletion signatures to `(teamName, expectedCount, opts)`, added signal directory setup for fast-path monitoring.
+- **11 agents missing task tools** — 4 testing agents (unit-test-runner, integration-test-runner, e2e-browser-tester, test-failure-analyst) and 7 utility agents (scroll-reviewer, decree-arbiter, knowledge-keeper, veil-piercer-plan, horizon-sage, evidence-verifier, state-weaver) lacked TaskList/TaskGet/TaskUpdate — unable to mark task completion as teammates.
+- **Custom Ash phantom feature** — `talisman.yml` `ashes.custom[]` was designed (schema + Phase 1 discovery) but never wired into shared Phase 3 spawn path. `buildAshPrompt()` now has 3-tier dispatch: custom Ash (wrapper template + agent instructions) → specialist → built-in. `inscription.custom_agent_ashes` is now read by both standard and deep depth paths.
+- **ash-summoning.md contradicted orchestration-phases.md** — Custom Ash spawn used `subagent_type: entry.agent` in ash-summoning.md but shared path uses `subagent_type: "general-purpose"`. Aligned to shared pattern.
+
+### Added
+- **Iron Law TEAM-002** — New Core Rule 13 in CLAUDE.md: 3-component contract (TaskCreate before Agent, TaskUpdate in agent tools, task completion instruction in prompt).
+- **validate-task-contract.sh** — Pre-commit script detecting TEAM-002-A (missing TaskCreate), TEAM-002-B (wrong waitForCompletion signature), TEAM-002-C (missing TaskUpdate). Supports `TEAM-002-IGNORE:` annotation.
+- **Task Lifecycle docs** — Added to 4 testing agents explaining how to claim and complete tasks via TaskList + TaskUpdate.
+
 ## [1.161.0] - 2026-03-15
 
 ### Added

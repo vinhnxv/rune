@@ -95,9 +95,9 @@ The Tarnished resolves the `agent` field based on `source`:
 
 | Source | Resolution Path | Summon Method |
 |--------|----------------|-------------|
-| `local` | `.claude/agents/{agent}.md` | `subagent_type: "{agent}"` (name only) |
-| `global` | `~/.claude/agents/{agent}.md` | `subagent_type: "{agent}"` (name only) |
-| `plugin` | Plugin registry | `subagent_type: "{agent}"` (full namespace) |
+| `local` | `.claude/agents/{agent}.md` | `subagent_type: "general-purpose"`, agent instructions loaded into prompt via `buildAshPrompt()` Tier 1 |
+| `global` | `~/.claude/agents/{agent}.md` | `subagent_type: "general-purpose"`, agent instructions loaded into prompt via `buildAshPrompt()` Tier 1 |
+| `plugin` | Plugin registry | `subagent_type: "general-purpose"`, agent instructions loaded into prompt via `buildAshPrompt()` Tier 1 |
 
 **Resolution steps:**
 
