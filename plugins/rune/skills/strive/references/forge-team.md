@@ -23,6 +23,9 @@ Write(`${signalDir}/.expected`, String(extractedTasks.length))
 Write(`${signalDir}/inscription.json`, JSON.stringify({
   workflow: "rune-work",
   timestamp: timestamp,
+  config_dir: Bash('cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P').trim(),
+  owner_pid: Bash('echo $PPID').trim(),
+  session_id: sessionId,
   output_dir: `tmp/work/${timestamp}/`,
   teammates: [
     { name: "rune-smith", output_file: "work-summary.md" },

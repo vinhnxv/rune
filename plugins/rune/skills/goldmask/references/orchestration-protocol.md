@@ -60,6 +60,8 @@ Create output directory and write `inscription.json`:
 ```json
 {
   "session_id": "{session_id}",
+  "config_dir": "{resolved_config_dir}",
+  "owner_pid": "{ppid}",
   "output_dir": "{output_dir}",
   "changed_files": ["..."],
   "mode": "full|quick|intelligence",

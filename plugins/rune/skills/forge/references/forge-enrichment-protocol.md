@@ -82,6 +82,9 @@ Generate `inscription.json` after team creation (see `roundtable-circle/referenc
 Write(`tmp/forge/${timestamp}/inscription.json`, {
   workflow: "rune-forge",
   timestamp: timestamp,
+  config_dir: Bash('cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P').trim(),
+  owner_pid: Bash('echo $PPID').trim(),
+  session_id: sessionId,
   plan: planPath,
   output_dir: `tmp/forge/${timestamp}/`,
   teammates: assignments.flatMap(([section, agents]) =>

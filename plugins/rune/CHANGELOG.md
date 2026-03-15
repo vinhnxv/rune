@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [1.167.0] - 2026-03-16
+
+### Fixed
+- **fix: context-aware post-completion advisory** — `advise-post-completion.sh` now reads actual context usage % from statusline bridge file instead of showing a fixed "context exhaustion" warning. Low usage (<50%) shows encouraging message, high usage (>70%) recommends fresh session, bridge unavailable shows generic message. Uses explicit jq null check to handle `used_pct: 0` correctly (FLAW-015).
+- **fix: stale inscription ATE-1 false positives** — `enforce-teams.sh` Signal 2 now uses 3-layer ownership check: (1) direct `config_dir`/`owner_pid`/`session_id` from inscription.json, (2) tightened 30-min age threshold (down from 120 min), (3) team `.session` fallback for legacy inscriptions. Eliminates false-positive Agent() blocks from stale inscription files left by previous sessions.
+- **fix: stale 200K reference** — `shard-allocator.md` now uses "teammate context window" instead of hardcoded "200K"
+
+### Changed
+- **inscription ownership fields** — `inscription.json` now includes `config_dir`, `owner_pid`, `session_id` (optional, backward compatible). Updated schema, protocol docs, and 5 inscription creation sites (orchestration-phases, forge-team, fixer-spawning, forge-enrichment-protocol, orchestration-protocol).
+
 ## [1.166.0] - 2026-03-15
 
 ### Changed

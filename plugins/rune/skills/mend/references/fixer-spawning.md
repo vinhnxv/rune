@@ -74,6 +74,9 @@ Create `tmp/mend/{id}/inscription.json` with per-fixer contracts:
 ```json
 {
   "session": "rune-mend-{id}",
+  "config_dir": "{resolved_config_dir}",
+  "owner_pid": "{ppid}",
+  "session_id": "{session_id}",
   "tome_path": "{tome_path}",
   "tome_nonce": "{session_nonce}",
   "fixers": [

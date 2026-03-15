@@ -91,6 +91,11 @@ if [[ -f "${SCRIPT_DIR_LIB}/lib/known-rune-agents.sh" ]]; then
   # shellcheck source=lib/known-rune-agents.sh
   source "${SCRIPT_DIR_LIB}/lib/known-rune-agents.sh"
 fi
+# Source platform helpers for cross-platform _stat_mtime (used by Signal 2 age check)
+if [[ -f "${SCRIPT_DIR_LIB}/lib/platform.sh" ]]; then
+  # shellcheck source=lib/platform.sh
+  source "${SCRIPT_DIR_LIB}/lib/platform.sh"
+fi
 
 # Check for active Rune workflows
 # TOCTOU MITIGATION (XVER-001 FIX): Use directory-based mutex for atomic state detection.
@@ -252,8 +257,12 @@ if [[ -z "$active_workflow" ]]; then
 fi
 
 # ── Signal 2: Recent output directories with inscription.json ──
+# 3-layer check: (1) direct ownership from inscription fields, (2) age-based staleness,
+# (3) team .session fallback for legacy inscriptions without ownership fields.
 # Catches workflows where model created output dir but skipped state file.
-# Performance: find -maxdepth 3 with -mmin -30 is bounded and fast (~3ms).
+# INSCR_STALE_MIN=30: tighter than Signal 1's 120 min — inscriptions are per-phase,
+# so they age out quickly. 30 min handles the 30-120 min window that Signal 1 misses.
+INSCR_STALE_MIN=30
 if [[ -z "$active_workflow" ]]; then
   shopt -s nullglob
   for inscr in "${CWD}"/tmp/reviews/*/inscription.json \
@@ -261,30 +270,74 @@ if [[ -z "$active_workflow" ]]; then
                "${CWD}"/tmp/forge/*/inscription.json \
                "${CWD}"/tmp/work/*/inscription.json \
                "${CWD}"/tmp/mend/*/inscription.json; do
-    # Recency guard: skip files older than ${STALE_THRESHOLD_MIN} min (same threshold as Signal 1 state files)
-    if [[ -f "$inscr" ]] && find "$inscr" -maxdepth 0 -mmin -${STALE_THRESHOLD_MIN} -print -quit 2>/dev/null | grep -q .; then
-      # Ownership filter: read team_name from inscription, check if team config has session marker
-      local_team=$(jq -r '.team_name // empty' "$inscr" 2>/dev/null || true)
-      if [[ -n "$local_team" ]]; then
-        CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-        session_file="${CHOME}/teams/${local_team}/.session"
-        if [[ -f "$session_file" ]]; then
-          stored_sid=$(jq -r '.session_id // empty' "$session_file" 2>/dev/null || true)
-          # XVER-004 FIX: Use pre-resolved RUNE_CURRENT_SID (consistent with Signal 1 3-layer pattern)
-          # Layer 2: session_id primary — definitive match/mismatch
-          if [[ -n "$stored_sid" && -n "$RUNE_CURRENT_SID" ]]; then
-            [[ "$stored_sid" == "$RUNE_CURRENT_SID" ]] || continue  # different session
+    # Recency guard: skip files older than INSCR_STALE_MIN (tighter than Signal 1)
+    if [[ -f "$inscr" ]] && find "$inscr" -maxdepth 0 -mmin -${INSCR_STALE_MIN} -print -quit 2>/dev/null | grep -q .; then
+
+      # ── Layer 1: Direct ownership check from inscription.json fields (v1.167.0+) ──
+      # New inscriptions include config_dir/owner_pid/session_id. Direct check avoids
+      # team dir indirection that fails after TeamDelete cleans up .session files.
+      inscr_cfg=$(jq -r '.config_dir // empty' "$inscr" 2>/dev/null || true)
+      inscr_sid=$(jq -r '.session_id // empty' "$inscr" 2>/dev/null || true)
+      inscr_pid=$(jq -r '.owner_pid // empty' "$inscr" 2>/dev/null || true)
+
+      # Layer 1a: config dir mismatch → different installation → skip
+      if [[ -n "$inscr_cfg" && -n "$RUNE_CURRENT_CFG" && "$inscr_cfg" != "$RUNE_CURRENT_CFG" ]]; then
+        continue
+      fi
+
+      # Layer 1b: session_id available in both → definitive match/mismatch
+      if [[ -n "$inscr_sid" && -n "$RUNE_CURRENT_SID" ]]; then
+        [[ "$inscr_sid" == "$RUNE_CURRENT_SID" ]] || continue  # different session → skip
+        # Same session — fall through to active_workflow=1
+      elif [[ -n "$inscr_pid" && "$inscr_pid" =~ ^[0-9]+$ ]]; then
+        # Layer 1c: PID fallback when session_id unavailable
+        if [[ "$inscr_pid" != "$PPID" ]]; then
+          if rune_pid_alive "$inscr_pid"; then
+            continue  # different live session → skip
           else
-            # Layer 3: PID fallback when session_id unavailable on either side
-            local_team_cfg="${CHOME}/teams/${local_team}/config.json"
-            if [[ -f "$local_team_cfg" ]]; then
-              team_owner_pid=$(jq -r '.members[0].pid // empty' "$local_team_cfg" 2>/dev/null || true)
-              if [[ -n "$team_owner_pid" && "$team_owner_pid" =~ ^[0-9]+$ && "$team_owner_pid" != "$PPID" ]]; then
-                rune_pid_alive "$team_owner_pid" && continue  # alive = different session
-              fi
-            fi
+            # PID dead → stale inscription from crashed session → skip
+            [[ -n "${RUNE_TRACE:-}" ]] && printf '[enforce-teams] Skipping dead-PID inscription: %s (pid=%s)\n' "$inscr" "$inscr_pid" >> "${RUNE_TRACE_LOG:-/dev/null}" 2>/dev/null
+            continue
           fi
         fi
+        # Same PID — fall through to active_workflow=1
+      fi
+      # If we reach here with ownership fields set, it's our session → proceed to detect
+
+      # ── Layer 2: Legacy fallback — team .session indirection (pre-v1.167.0 inscriptions) ──
+      # Only reached when inscription lacks ownership fields (inscr_sid and inscr_pid both empty)
+      if [[ -z "$inscr_sid" && -z "$inscr_pid" ]]; then
+        local_team=$(jq -r '.team_name // empty' "$inscr" 2>/dev/null || true)
+        if [[ -n "$local_team" ]]; then
+          CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+          session_file="${CHOME}/teams/${local_team}/.session"
+          if [[ -f "$session_file" ]]; then
+            stored_sid=$(jq -r '.session_id // empty' "$session_file" 2>/dev/null || true)
+            if [[ -n "$stored_sid" && -n "$RUNE_CURRENT_SID" ]]; then
+              [[ "$stored_sid" == "$RUNE_CURRENT_SID" ]] || continue  # different session
+            else
+              local_team_cfg="${CHOME}/teams/${local_team}/config.json"
+              if [[ -f "$local_team_cfg" ]]; then
+                team_owner_pid=$(jq -r '.members[0].pid // empty' "$local_team_cfg" 2>/dev/null || true)
+                if [[ -n "$team_owner_pid" && "$team_owner_pid" =~ ^[0-9]+$ && "$team_owner_pid" != "$PPID" ]]; then
+                  rune_pid_alive "$team_owner_pid" && continue
+                fi
+              fi
+            fi
+          else
+            # No .session file AND no ownership fields → stale inscription (team already cleaned up)
+            [[ -n "${RUNE_TRACE:-}" ]] && printf '[enforce-teams] Skipping orphan inscription (no .session, no ownership): %s\n' "$inscr" >> "${RUNE_TRACE_LOG:-/dev/null}" 2>/dev/null
+            continue
+          fi
+        else
+          # No team_name AND no ownership → cannot determine ownership → skip (fail-open for Signal 2)
+          continue
+        fi
+      fi
+
+      # Passed all ownership checks — this inscription belongs to our active session
+      local_team=$(jq -r '.team_name // empty' "$inscr" 2>/dev/null || true)
+      if [[ -n "$local_team" ]]; then
         active_workflow=1
         detected_team_name="$local_team"
         detected_source="inscription"

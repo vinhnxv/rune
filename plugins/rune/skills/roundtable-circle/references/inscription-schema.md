@@ -8,6 +8,9 @@
 {
   "workflow": "string — rune-review | rune-audit | rune-audit-deep | rune-plan | rune-work | rune-mend | rune-forge | rune-inspect",
   "timestamp": "ISO-8601 datetime",
+  "config_dir": "string (optional) — resolved CLAUDE_CONFIG_DIR path for installation isolation (v1.167.0+)",
+  "owner_pid": "string (optional) — Claude Code process PID via $PPID for session isolation (v1.167.0+)",
+  "session_id": "string (optional) — CLAUDE_SESSION_ID for definitive session matching (v1.167.0+)",
   "pr_number": "integer (optional — for reviews)",
   "branch": "string (optional)",
   "output_dir": "string — path to output directory",
