@@ -124,7 +124,7 @@ See [team-bootstrap.md](references/team-bootstrap.md) for the full protocol.
 
 Three paths based on flags:
 
-1. **`--brainstorm-context PATH`**: Read existing brainstorm workspace. Skip brainstorm entirely. Inject workspace context (advisor research, decisions, quality score) into Phase 1 research agents. Quality score from `workspace-meta.json` determines confidence level (>= 0.70: high-confidence, < 0.70: flag as "exploratory").
+1. **`--brainstorm-context PATH`**: Read existing brainstorm workspace. Skip brainstorm entirely. Inject workspace context (advisor research, decisions, quality score, scope classification, effort estimate) into Phase 1 research agents. Quality score from `workspace-meta.json` determines confidence level (>= 0.70: high-confidence, < 0.70: flag as "exploratory"). New frontmatter fields consumed: `scope_classification` (auto-selects plan detail level: STRATEGIC → Comprehensive, TACTICAL → Standard, QUICK-WIN → Minimal), `effort_estimate` (pre-populates plan effort field). Both use optional field access: `meta?.scope_classification ?? null`.
 
 2. **`--quick`**: Skip brainstorm entirely. Ask user for a feature description via AskUserQuestion. Proceed directly to Phase 1.
 
@@ -268,7 +268,12 @@ See [forge-gaze.md](../roundtable-circle/references/forge-gaze.md) for the full 
 
 ## Phase 4: Plan Review (Iterative)
 
-Runs scroll-reviewer for document quality, then automated verification gate (deterministic checks including talisman patterns, universal checks, CommonMark compliance, measurability, filler detection). Optionally summons decree-arbiter, knowledge-keeper, and codex-plan-reviewer for technical review.
+Runs scroll-reviewer for document quality (with Truth-Telling Mandate), then automated verification gate (deterministic checks including talisman patterns, universal checks, CommonMark compliance, measurability, filler detection). Optionally summons decree-arbiter, knowledge-keeper, and codex-plan-reviewer for technical review.
+
+**Truth-Telling Mandate** (appended to scroll-reviewer prompt in Phase 4): Ensures `--quick` path users get critical thinking benefit even without full brainstorm:
+- If a plan section is weak, say it's weak — explain WHY with evidence
+- Label every claim: [FACT] (cite file:line), [INFERENCE] (cite reasoning), or [OPINION] (state confidence)
+- If you lack data to judge, say "INSUFFICIENT DATA" — never hedge without evidence
 
 **Inputs**: Plan document from Phase 2/3, talisman config
 **Outputs**: `tmp/plans/{timestamp}/scroll-review.md`, `tmp/plans/{timestamp}/decree-review.md`, `tmp/plans/{timestamp}/knowledge-review.md`, `tmp/plans/{timestamp}/codex-plan-review.md`

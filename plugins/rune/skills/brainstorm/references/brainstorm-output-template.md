@@ -25,7 +25,9 @@ mode: "{solo|roundtable|deep}"
 quality_score: {0.00-1.00}
 quality_tier: "{excellent|good|developing|early}"
 workspace: "tmp/brainstorm-{timestamp}"
-advisors: ["{advisor-1}", "{advisor-2}", "{advisor-3}"]  # omit for solo
+advisors: ["{advisor-1}", "{advisor-2}", "{advisor-3}", "{advisor-4}"]  # omit for solo; advisor-4 = reality-arbiter (Team/Deep only)
+scope_classification: "{QUICK-WIN|TACTICAL|STRATEGIC|MOONSHOT|null}"  # from Reality Arbiter or Solo scope question
+effort_estimate: "{range or null}"  # from Reality Arbiter or Solo assessment
 rounds_completed: {N}
 approach_selected: "{chosen approach name}"
 devise_ready: {true|false}
@@ -56,6 +58,41 @@ to actual files and patterns found in the codebase.}
 
 {Key challenges raised, simpler alternatives proposed, YAGNI assessments.
 References to git history, prior attempts, churn data.}
+
+### Reality Arbiter
+
+> **Note**: This section is present only in Roundtable and Deep modes.
+
+{Scope classification, effort reality check, comparable analysis.
+Grounded in git history and codebase complexity metrics.}
+
+## Scope & Effort
+
+**Scope Classification**: {QUICK-WIN | TACTICAL | STRATEGIC | MOONSHOT}
+**Rationale**: {1-2 sentences explaining classification}
+**Realistic effort**: {range, e.g., "3-5 days total"}
+**Comparable work**: {commit/PR reference, or "No comparable found — elevated risk"}
+**Hidden costs**: {list: tests, docs, migration, monitoring, etc.}
+**Confidence**: {HIGH | MEDIUM | LOW}
+
+> **Note**: In Solo mode, this section is simplified from the Lead's inline assessment.
+> In Team/Deep mode, populated from the Reality Arbiter's output.
+
+## Trade-offs
+
+| Trade-off | What We Gain | What We Lose | Why Acceptable |
+|-----------|-------------|-------------|----------------|
+| {trade-off 1} | {gain} | {loss} | {rationale} |
+| {trade-off 2} | {gain} | {loss} | {rationale} |
+
+**Rejected alternatives**:
+- {alt 1}: {why rejected} — reconsider if {condition}
+
+## False Equivalence Warnings
+
+> **Note**: This section is present only when false equivalences were flagged during Phase 3.
+
+- [FALSE_EQUIVALENCE] {description and why it matters}
 
 ## Chosen Approach
 
@@ -153,11 +190,17 @@ Every brainstorm output MUST include these sections, regardless of mode:
 - [ ] Scope Boundary (In-Scope + Out-of-Scope)
 - [ ] Open Questions
 
+Mandatory in Team/Deep mode (simplified in Solo):
+- [ ] Scope & Effort (scope classification + effort reality check)
+- [ ] Trade-offs (gain/lose/rationale table)
+
 Conditional sections (include when applicable):
 - [ ] Advisor Perspectives (Roundtable/Deep only)
+- [ ] Reality Arbiter (Roundtable/Deep only)
 - [ ] Design Assets (when Figma detected)
 - [ ] Elicitation Insights (Deep only)
 - [ ] State Machine Analysis (Deep, when triggered)
+- [ ] False Equivalence Warnings (when flagged during Phase 3)
 
 ## Validation
 
@@ -172,6 +215,10 @@ If Success Criteria section has fewer than 2 items: warn user "Success Criteria 
 When `/rune:devise --brainstorm-context tmp/brainstorm-{timestamp}/` reads this document:
 - Frontmatter `quality_score` determines research confidence level
 - `approach_selected` becomes the starting point for Phase 1 research
+- `scope_classification` auto-selects plan detail level (STRATEGIC → Comprehensive, TACTICAL → Standard, QUICK-WIN → Minimal)
+- `effort_estimate` pre-populates plan effort field (optional field access: `meta?.effort_estimate ?? null`)
 - Non-Goals, Success Criteria, Scope Boundary are pre-populated into the plan
+- Scope & Effort section feeds plan body for forge enrichment downstream
+- Trade-offs section feeds plan body for forge enrichment downstream
 - Open Questions guide research agent focus areas
 - Advisor Perspectives provide starting context for research agents
