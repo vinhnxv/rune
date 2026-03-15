@@ -2,6 +2,10 @@
 
 Agent Team lifecycle engine. Implements the ExecutionEngine interface defined in [SKILL.md](../SKILL.md).
 
+> **Consumers** (v1.166.0): This file's `shutdown()` protocol is referenced by 11+ skill cleanup stubs:
+> appraise, codex-review, debug, design-sync, devise, forge, goldmask, inspect, mend, resolve-todos, strive.
+> Changes to `shutdown()` affect all listed consumers. See each skill's `phase-N-cleanup.md` for the stub.
+
 All pseudocode follows Rune's existing conventions: JavaScript-like syntax with Claude Code tool calls. This is documentation — not executable code.
 
 ## createTeam(config) -> TeamHandle

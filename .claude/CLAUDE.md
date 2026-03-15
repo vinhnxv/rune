@@ -13,6 +13,8 @@ my-plugin/
 ├── commands/                 # Slash commands as .md files (legacy — prefer skills/)
 ├── skills/                   # Agent Skills: <name>/SKILL.md
 ├── agents/                   # Subagent definitions as .md files
+├── prompts/                  # Shared prompt templates (cross-skill)
+│   └── ash/                  # Ash agent prompt templates (moved from roundtable-circle/references/)
 ├── hooks/                    # hooks.json event handlers
 ├── .mcp.json                 # MCP server configurations
 ├── .lsp.json                 # LSP server configurations

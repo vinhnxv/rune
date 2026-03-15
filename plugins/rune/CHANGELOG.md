@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [1.166.0] - 2026-03-15
+
+### Changed
+- **refactor: skill context optimization — reduce bloat, deduplicate, restructure**
+  - Extract 32 ash-prompt templates from `roundtable-circle/references/ash-prompts/` to shared `prompts/ash/` directory
+  - Update 20 consumer files across 7 skills with corrected reference paths
+  - Deduplicate cleanup protocol in 11 skill reference files (replace inline 5-component protocol with stubs referencing `engines.md`)
+  - Net reduction: ~360 lines of duplicated protocol code
+
 ## [1.165.0] - 2026-03-15
 
 ### Changed
