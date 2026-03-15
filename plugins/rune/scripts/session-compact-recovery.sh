@@ -80,6 +80,26 @@ CHECKPOINT_DATA=$(jq -c '.' "$CHECKPOINT_FILE" 2>/dev/null) || {
   exit 0
 }
 
+# ── PostCompact failure signal check ──
+# post-compact-verify.sh writes .compact-checkpoint-failed when checkpoint is invalid.
+# We check here (after JSON is confirmed valid) to surface any cross-hook validation issue.
+SIGNAL_FILE="${CWD}/tmp/.compact-checkpoint-failed"
+COMPACT_FAILED_MSG=""
+if [[ -f "$SIGNAL_FILE" ]] && [[ ! -L "$SIGNAL_FILE" ]]; then
+  _reason=$(jq -r '.reason // "unknown"' "$SIGNAL_FILE" 2>/dev/null || echo "unknown")
+  COMPACT_FAILED_MSG=" WARNING: PostCompact validation flagged an issue (reason: ${_reason}). Recovery proceeding from checkpoint — verify state manually."
+  rm -f "$SIGNAL_FILE" 2>/dev/null
+fi
+
+# ── compact_summary from PostCompact hook (if injected) ──
+COMPACT_SUMMARY_INFO=""
+_raw_compact_summary=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.compact_summary // empty' 2>/dev/null || true)
+if [[ -n "$_raw_compact_summary" ]]; then
+  # Truncate to 500 chars for concise context injection
+  _raw_compact_summary="${_raw_compact_summary:0:500}"
+  COMPACT_SUMMARY_INFO=" Compact summary: ${_raw_compact_summary}"
+fi
+
 # ── Session identity (EPERM-safe PID check + resolved config dir) ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=resolve-session-identity.sh
@@ -189,7 +209,7 @@ if [[ -z "$TEAM_NAME" ]]; then
       fi
     fi
 
-    CONTEXT_MSG="RUNE COMPACT RECOVERY (saved at ${SAVED_AT}): No active team at compaction time.${LOOP_INFO}"
+    CONTEXT_MSG="RUNE COMPACT RECOVERY (saved at ${SAVED_AT}): No active team at compaction time.${LOOP_INFO}${COMPACT_FAILED_MSG}${COMPACT_SUMMARY_INFO}"
     jq -n --arg ctx "$CONTEXT_MSG" '{
       hookSpecificOutput: {
         hookEventName: "SessionStart",
@@ -374,7 +394,7 @@ if [[ -n "$ISSUES_ITER" ]] && [[ "$ISSUES_ITER" =~ ^[0-9]+$ ]]; then
 fi
 
 # Build the context message — point to full file for detailed Read
-CONTEXT_MSG="RUNE COMPACT RECOVERY: Team '${TEAM_NAME}' state restored (saved at ${SAVED_AT}). Members: ${MEMBER_COUNT}. Tasks: ${TASK_SUMMARY}. Workflow: ${WORKFLOW_TYPE} (${WORKFLOW_STATUS}).${ARC_INFO}${PHASE_SUMMARY_INFO}${BATCH_INFO}${ISSUES_INFO} Re-read team config and task list to resume coordination."
+CONTEXT_MSG="RUNE COMPACT RECOVERY: Team '${TEAM_NAME}' state restored (saved at ${SAVED_AT}). Members: ${MEMBER_COUNT}. Tasks: ${TASK_SUMMARY}. Workflow: ${WORKFLOW_TYPE} (${WORKFLOW_STATUS}).${ARC_INFO}${PHASE_SUMMARY_INFO}${BATCH_INFO}${ISSUES_INFO}${COMPACT_FAILED_MSG}${COMPACT_SUMMARY_INFO} Re-read team config and task list to resume coordination."
 
 # ── OUTPUT: hookSpecificOutput with hookEventName ──
 # PW-008 FIX: Output JSON first, THEN delete checkpoint. If jq fails, checkpoint is preserved.
