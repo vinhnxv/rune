@@ -932,6 +932,8 @@ plugins/rune/
 │   ├── testing/             # 6 testing agents (arc Phase 7.7)
 │   ├── work/                # 6 swarm workers (work pipeline)
 │   └── utility/             # 19 utility agents: runebinder, decree-arbiter, truthseer-validator, flow-seer, scroll-reviewer, mend-fixer, knowledge-keeper, elicitation-sage, veil-piercer-plan, horizon-sage, deployment-verifier, evidence-verifier, research-verifier, state-weaver, ux-pattern-analyzer, todo-verifier, design-analyst, tome-digest, codex-phase-handler (+ gap-fixer as prompt-template, no .md file)
+├── prompts/
+│   └── ash/                    # Shared Ash agent prompt templates (32 files, cross-skill)
 ├── commands/
 │   ├── cancel-arc.md           # /rune:cancel-arc
 │   ├── cancel-arc-batch.md     # /rune:cancel-arc-batch
