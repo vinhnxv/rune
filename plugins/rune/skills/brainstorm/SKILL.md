@@ -83,7 +83,7 @@ Phase 4: Elicitation Sages (Deep mode only — structured reasoning)
     |
 Phase 4.5: State Machine Pre-Validation (RESERVED — not yet implemented)
     |
-Phase 5: Quality Gate (7-dimension checklist)
+Phase 5: Quality Gate (8-dimension checklist)
     |
 Phase 6: Capture Decisions + Cleanup + Handoff
     |
@@ -186,9 +186,20 @@ if (quickFlag) {
 
 ## Phase 1: Team Bootstrap (Team/Deep modes only)
 
-Skip for Solo mode — proceed directly to Phase 2. For Team or Deep mode: standard 6-step `teamTransition` protocol (validate SEC-001 → TeamDelete retry → filesystem fallback → TeamCreate with "Already leading" recovery → post-create verification → state file write), workspace directory creation, and 3 advisor agent spawns (user-advocate, tech-realist, devils-advocate).
+Skip for Solo mode — proceed directly to Phase 2. For Team or Deep mode: standard 6-step `teamTransition` protocol (validate SEC-001 → TeamDelete retry → filesystem fallback → TeamCreate with "Already leading" recovery → post-create verification → state file write), workspace directory creation, and 4 advisor agent spawns (user-advocate, tech-realist, devils-advocate, reality-arbiter).
 
-See [team-bootstrap.md](references/team-bootstrap.md) for the full bootstrap protocol. See [advisor-prompts.md](references/advisor-prompts.md) for advisor persona definitions.
+```javascript
+const MAX_ADVISORS = 5  // Ceiling — new roles must replace, not append
+```
+
+See [team-bootstrap.md](references/team-bootstrap.md) for the full bootstrap protocol. See [advisor-prompts.md](references/advisor-prompts.md) for advisor persona definitions (including Reality Arbiter for scope/effort assessment).
+
+**Reality Arbiter context**: Before spawning the Reality Arbiter, pre-fetch git data for comparable analysis:
+```javascript
+// Pre-fetch git history for Reality Arbiter (one-time, shared across rounds)
+const gitContext = Bash(`git log --oneline -20 --format="%h %s" 2>/dev/null`).trim()
+// Include in Reality Arbiter's round context messages
+```
 
 ## Phase 2: Understanding Rounds (all modes)
 
@@ -229,15 +240,54 @@ Rules (all modes):
 // 2. User Advocate: recommends approach best for users
 // 3. Tech Realist: recommends approach best for codebase
 // 4. Devil's Advocate: recommends simplest/YAGNI approach
-// 5. Lead synthesizes into 2-3 concrete options
+// 5. Reality Arbiter: assesses effort/scope for each (Team/Deep mode)
+// 6. Lead synthesizes into 2-3 concrete options with qualitative verdicts
+
+// Step 1: Present qualitative comparison as markdown text output
+// | Approach | Verdict | Effort | Key Strength | Key Risk |
+// |----------|---------|--------|-------------|----------|
+// | A        | RECOMMENDED | 2-3 days | ... | ... |
+// | B        | VIABLE | 5-7 days | ... | ... |
+//
+// Verdicts: RECOMMENDED / VIABLE / QUESTIONABLE / NOT_RECOMMENDED
+// Each approach gets a distinct verdict with 1-sentence rationale.
+//
+// [FALSE_EQUIVALENCE] callout when approaches appear similar but differ significantly
+// in effort, complexity, or risk. Example:
+// "[FALSE_EQUIVALENCE] A and B are NOT equivalent: A reuses existing patterns,
+// B introduces a new dependency chain. Despite similar descriptions, effort differs 2x."
+//
+// Scope: {QUICK-WIN|TACTICAL|STRATEGIC|MOONSHOT} from Reality Arbiter (or Lead in Solo)
+// Realistic effort: {range} based on comparable (or "No comparable found — elevated risk")
+
+// Step 2: Selection via AskUserQuestion
 AskUserQuestion({
   questions: [{
     question: "Which approach do you prefer?",
-    header: "Approach Selection",
+    header: "Approach",
     options: synthesizedApproaches.map(a => ({
-      label: a.name,
-      description: a.summary
+      label: `${a.name} (${a.verdict})`,
+      description: `${a.summary} | Effort: ${a.effort}`
     })),
+    multiSelect: false
+  }]
+})
+```
+
+**Solo mode**: Lead generates the qualitative comparison internally (simplified version without advisor input). Uses the same verdict system (RECOMMENDED/VIABLE/QUESTIONABLE/NOT_RECOMMENDED) and presents scope classification question to user.
+
+```javascript
+// Solo Mode Phase 3: Scope and Effort (added understanding round)
+AskUserQuestion({
+  questions: [{
+    question: "How would you classify this feature's scope?",
+    header: "Scope",
+    options: [
+      { label: "Quick-win", description: "< 1 day, high impact, minimal risk" },
+      { label: "Tactical", description: "1-3 days, moderate impact, some new patterns" },
+      { label: "Strategic", description: "3+ days, long-term value, introduces new architecture" },
+      { label: "Not sure yet", description: "Need more exploration to determine" }
+    ],
     multiSelect: false
   }]
 })
@@ -351,7 +401,7 @@ When implemented, will validate multi-phase brainstorm outputs for state machine
 
 ## Phase 5: Quality Gate
 
-Evaluate brainstorm output via a 7-dimension checklist. Each dimension is pass/fail.
+Evaluate brainstorm output via an 8-dimension checklist. Each dimension is pass/fail.
 
 | # | Dimension | Pass When |
 |---|-----------|-----------|
@@ -362,19 +412,26 @@ Evaluate brainstorm output via a 7-dimension checklist. Each dimension is pass/f
 | 5 | Advisor Convergence | All advisors align (auto-pass for Solo) |
 | 6 | Round Depth | >= 2 rounds with new insights |
 | 7 | Handoff Readiness | Enough specificity for devise |
+| 8 | Critical Thinking Depth | At least 2 of: (a) trade-offs explicitly stated with rationale, (b) effort grounded in comparable evidence, (c) scope classified as QUICK-WIN/TACTICAL/STRATEGIC/MOONSHOT |
 
 ```javascript
-// Count how many of the 7 dimensions pass
+// Count how many of the 8 dimensions pass
+// Dimension 8 (Critical Thinking Depth): composite — passes if >= 2 of 3 sub-criteria met
+const hasTradeoffs = brainstormDoc.includes("## Trade-offs") || brainstormDoc.includes("trade-off")
+const hasEffortGrounding = brainstormDoc.includes("Comparable work") || brainstormDoc.includes("comparable")
+const hasScopeClassification = /QUICK-WIN|TACTICAL|STRATEGIC|MOONSHOT/.test(brainstormDoc)
+const criticalThinkingDepth = [hasTradeoffs, hasEffortGrounding, hasScopeClassification].filter(Boolean).length >= 2
+
 const passed = [completeness, decisionCoverage, scopePrecision,
-  constraintClarity, advisorConvergence, roundDepth, handoffReadiness]
+  constraintClarity, advisorConvergence, roundDepth, handoffReadiness, criticalThinkingDepth]
   .filter(Boolean).length
 // Advisor Convergence: auto-pass for Solo mode (no advisors to disagree)
 
 // Quality tiers (based on checklist completeness):
-//   7/7: Excellent — auto-suggest devise
-//   5-6/7: Good — suggest handoff, mention which dimensions need work
-//   3-4/7: Developing — suggest another round, list failing dimensions
-//   0-2/7: Early — continue brainstorming
+//   8/8: Excellent — auto-suggest devise
+//   6-7/8: Good — suggest handoff, mention which dimensions need work
+//   4-5/8: Developing — suggest another round, list failing dimensions
+//   0-3/8: Early — continue brainstorming
 
 // Write tier and checklist results to workspace-meta.json
 ```
@@ -400,7 +457,7 @@ Standard 5-component team cleanup (see CLAUDE.md "Agent Team Cleanup"):
 
 ```javascript
 // 1. Dynamic member discovery — read team config for ALL teammates
-//    Fallback list: ["user-advocate", "tech-realist", "devils-advocate",
+//    Fallback list: ["user-advocate", "tech-realist", "devils-advocate", "reality-arbiter",
 //      "elicitation-sage-1", "elicitation-sage-2", "elicitation-sage-3", "state-weaver"]
 // 2. shutdown_request to all members
 // 3. Grace period (sleep 20)
