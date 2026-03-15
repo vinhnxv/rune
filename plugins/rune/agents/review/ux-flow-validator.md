@@ -5,7 +5,7 @@ description: |
   loading states, error boundaries, empty states, confirmation dialogs, undo
   mechanisms, and graceful degradation paths. Ensures every user-facing flow
   handles the full lifecycle: initial → loading → success → error → empty → recovery.
-
+  
   Produces UXF-prefixed findings. Non-blocking by default. Conditional activation:
   ux.enabled + frontend files detected.
 tools:
@@ -15,8 +15,29 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - ux
+  - frontend
+tags:
+  - completeness
+  - confirmation
+  - conditional
+  - degradation
+  - activation
+  - boundaries
+  - components
+  - mechanisms
+  - lifecycle
+  - validator
 ---
-
 ## Description Details
 
 Keywords: user flow, loading state, error boundary, empty state, confirmation dialog,

@@ -1,20 +1,39 @@
 ---
 name: ruin-watcher
-model: sonnet
-maxTurns: 40
 description: |
   Watches for ruin in failure modes — network failures, crash recovery, circuit breakers,
   timeout chains, and resource lifecycle. Identifies how systems collapse under stress.
+model: sonnet
 tools:
   - Read
   - Write
   - Glob
   - Grep
   - SendMessage
+maxTurns: 40
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+tags:
+  - lifecycle
+  - breakers
+  - collapse
+  - failures
+  - recovery
+  - resource
+  - circuit
+  - failure
+  - network
+  - systems
 ---
-
 ## Description Details
 
 Triggers: Summoned by orchestrator during audit/inspect workflows for failure mode analysis.

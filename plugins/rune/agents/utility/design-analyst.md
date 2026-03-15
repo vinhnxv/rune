@@ -7,12 +7,13 @@ description: |
   into same-screen clusters, related-screen candidates, and different-screen
   groups. Outputs a relationship graph JSON consumed by arc Phase 3 (Design
   Extraction) before VSM generation.
-
+  
   Covers: Name-based signal (weight 0.35), Component Set signal (0.25),
   Structural similarity (0.20), Dimension match (0.10), Shared instances (0.10).
   Fast paths: different file_key → DIFFERENT-SCREEN immediately; Component Set
   membership → VARIANT immediately; user-labeled screen frames → skip.
   Single-linkage clustering with correlation discount for correlated signal pairs.
+model: sonnet
 tools:
   - Read
   - Glob
@@ -22,10 +23,30 @@ disallowedTools:
   - Bash
   - Write
   - Edit
-model: sonnet
 maxTurns: 20
+source: builtin
+priority: 100
+primary_phase: utility
+compatible_phases:
+  - devise
+  - arc
+  - forge
+  - mend
+categories:
+  - orchestration
+  - architecture
+tags:
+  - relationships
+  - relationship
+  - correlation
+  - immediately
+  - candidates
+  - classifies
+  - clustering
+  - correlated
+  - extraction
+  - generation
 ---
-
 ## Description Details
 
 <example>

@@ -15,8 +15,29 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - architecture
+  - code-quality
+tags:
+  - implementation
+  - specifications
+  - traceability
+  - complements
+  - implemented
+  - proactively
+  - documented
+  - integrated
+  - unenforced
+  - detection
 ---
-
 ## Description Details
 
 Triggers: Post-implementation verification, plan-vs-code audits, doc-vs-code drift, feature completeness checks, after AI-generated implementations, spec traceability reviews.

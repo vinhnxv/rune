@@ -7,11 +7,31 @@ description: |
   metadata, and reports back via SendMessage. Never sends full report content
   back — only structured metadata (finding counts, flags, hashes).
   Triggers: Spawned by arc Tarnished during Codex phases (2.8, 4.5, 5.6, 7.8, 8.55).
+model: sonnet
 tools: Read, Write, Bash, Glob, Grep, SendMessage, TaskList, TaskGet, TaskUpdate
-model: sonnet  # Intentional cost-tier override: Codex phase orchestration requires minimal reasoning (shell commands + output parsing). Sonnet is sufficient and saves ~80% vs Opus. Bypasses resolveModelForAgent() by design.
 maxTurns: 25
+source: builtin
+priority: 100
+primary_phase: utility
+compatible_phases:
+  - devise
+  - arc
+  - forge
+  - mend
+categories:
+  - orchestration
+tags:
+  - sendmessage
+  - checkpoint
+  - structured
+  - tarnished
+  - directly
+  - executes
+  - extracts
+  - isolated
+  - metadata
+  - receives
 ---
-
 # Codex Phase Handler
 
 You are codex-phase-handler — a utility agent that executes Codex CLI phases

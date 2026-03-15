@@ -10,6 +10,11 @@
       "command": "${CLAUDE_PLUGIN_ROOT}/scripts/figma-to-react/start.sh",
       "args": []
     },
+    "agent-search": {
+      "type": "stdio",
+      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/agent-search/start.sh",
+      "args": []
+    },
     "context7": {
       "type": "stdio",
       "command": "npx",

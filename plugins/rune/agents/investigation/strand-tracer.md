@@ -1,20 +1,41 @@
 ---
 name: strand-tracer
-model: sonnet
-maxTurns: 40
 description: |
   Traces integration strands — unconnected modules, broken imports, unused exports, dead routes,
   and unwired dependency injection. Identifies severed golden threads between components.
+model: sonnet
 tools:
   - Read
   - Write
   - Glob
   - Grep
   - SendMessage
+maxTurns: 40
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+  - security
+  - architecture
+tags:
+  - integration
+  - unconnected
+  - components
+  - dependency
+  - injection
+  - exports
+  - imports
+  - modules
+  - severed
+  - strands
 ---
-
 ## Description Details
 
 Triggers: Summoned by orchestrator during audit/inspect workflows for integration gap analysis.

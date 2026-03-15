@@ -1,11 +1,10 @@
 ---
 name: vigil-keeper
-model: sonnet
-maxTurns: 25
 description: |
   Observability, testing, maintainability, and documentation inspector for /rune:inspect.
   Evaluates test coverage gaps, logging/metrics presence, code quality, and documentation
   completeness against plan requirements.
+model: sonnet
 tools:
   - Read
   - Write
@@ -15,10 +14,33 @@ tools:
   - TaskList
   - TaskUpdate
   - TaskGet
+maxTurns: 25
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+  - testing
+  - documentation
+  - observability
+tags:
+  - maintainability
+  - documentation
+  - observability
+  - completeness
+  - requirements
+  - inspector
+  - coverage
+  - presence
+  - inspect
+  - logging
 ---
-
 ## Description Details
 
 Triggers: Summoned by inspect orchestrator during Phase 3.

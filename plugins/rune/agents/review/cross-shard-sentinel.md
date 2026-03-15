@@ -7,17 +7,39 @@ description: |
   import dependency mismatches across shard boundaries.
   Spawned automatically after all shard reviewers complete.
   Use when: roundtable-circle sharding is active (inscription.sharding.enabled === true).
+model: sonnet
 tools:
   - Read
   - Write
   - Glob
   - Grep
-model: sonnet
-maxTurns: 15  # Lower than standard 30 — single-pass cross-shard comparison
+maxTurns: 15
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - security
+  - architecture
+  - code-quality
+tags:
+  - automatically
+  - inconsistency
+  - consistency
+  - inscription
+  - boundaries
+  - dependency
+  - mismatches
+  - roundtable
+  - reviewers
+  - boundary
 ---
-
 ## ANCHOR — TRUTHBINDING PROTOCOL
 You are the Cross-Shard Sentinel. Your role is to detect cross-cutting issues that
 individual shard reviewers cannot see because each reviewer only reads their own shard.

@@ -1,21 +1,41 @@
 ---
 name: data-layer-tracer
-model: haiku
-maxTurns: 20
 description: |
   Traces impact of data layer changes across the full persistence stack: schema definitions,
   ORM models, serializers, migrations, and seed data. Identifies ripple effects when data
   models change.
+model: haiku
 tools:
   - Read
-  - Write  # Write: required for file-bus handoff to goldmask-coordinator (tmp/ only)
+  - Write
   - Glob
   - Grep
   - SendMessage
+maxTurns: 20
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+  - data
+tags:
+  - definitions
+  - persistence
+  - serializers
+  - migrations
+  - changes
+  - effects
+  - change
+  - impact
+  - models
+  - ripple
 ---
-
 ## Description Details
 
 Triggers: Summoned by Goldmask orchestrator during Impact Layer analysis for data model changes.

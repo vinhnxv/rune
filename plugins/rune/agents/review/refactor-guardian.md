@@ -15,8 +15,28 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - testing
+tags:
+  - classification
+  - identification
+  - completeness
+  - preservation
+  - verification
+  - extractions
+  - refactoring
+  - referencing
+  - confidence
+  - escalation
 ---
-
 ## Description Details
 
 Triggers: Refactoring, file moves, renames, module extraction, directory reorganization,

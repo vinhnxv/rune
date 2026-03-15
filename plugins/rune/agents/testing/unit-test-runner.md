@@ -4,6 +4,7 @@ description: |
   Run unit tests scoped to changed files, report pass/fail/coverage.
   Verifies boundary values, null/empty inputs, and error paths — not just happy paths.
   Use proactively during arc Phase 7.7 TEST for unit tier execution.
+model: sonnet
 tools:
   - Read
   - Glob
@@ -18,12 +19,29 @@ disallowedTools:
   - TeamCreate
   - TeamDelete
   - TaskCreate
+maxTurns: 25
 mcpServers:
   - echo-search
-model: sonnet
-maxTurns: 25
+source: builtin
+priority: 100
+primary_phase: test
+compatible_phases:
+  - test
+  - arc
+categories:
+  - testing
+tags:
+  - proactively
+  - execution
+  - boundary
+  - coverage
+  - changed
+  - inputs
+  - report
+  - runner
+  - scoped
+  - values
 ---
-
 ## Description Details
 
 <example>

@@ -4,6 +4,7 @@ description: |
   Validates API contracts against schema specifications. Checks OpenAPI/JSON Schema compliance,
   hook output validation, request/response format consistency, and version compatibility.
   Use proactively during arc Phase 7.7 TEST for contract validation tier execution.
+model: sonnet
 tools:
   - Read
   - Glob
@@ -18,12 +19,30 @@ disallowedTools:
   - TeamCreate
   - TeamDelete
   - TaskCreate
+maxTurns: 40
 mcpServers:
   - echo-search
-model: sonnet
-maxTurns: 40
+source: builtin
+priority: 100
+primary_phase: test
+compatible_phases:
+  - test
+  - arc
+categories:
+  - testing
+  - data
+tags:
+  - specifications
+  - compatibility
+  - consistency
+  - proactively
+  - compliance
+  - validation
+  - contracts
+  - execution
+  - validator
+  - contract
 ---
-
 ## Description Details
 
 <example>

@@ -14,8 +14,29 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - architecture
+  - testing
+tags:
+  - architecture
+  - disconnected
+  - practically
+  - technically
+  - challenges
+  - conditions
+  - production
+  - functions
+  - integrate
+  - isolation
 ---
-
 ## Description Details
 
 Triggers: Always run — illusions hide in every review.

@@ -5,10 +5,11 @@ description: |
   to incrementally fix design fidelity issues in implemented components.
   Makes small, targeted CSS/layout changes per iteration, verifies improvement,
   and converges toward the design specification.
-
+  
   Covers: Capture component screenshots (browser automation), analyze visual diff
   against design spec, identify highest-priority fidelity gap, apply targeted fix,
   re-verify, iterate until convergence or max iterations reached.
+model: sonnet
 tools:
   - Read
   - Write
@@ -20,12 +21,31 @@ tools:
   - TaskGet
   - TaskUpdate
   - SendMessage
-model: sonnet
 maxTurns: 60
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: work
+compatible_phases:
+  - work
+  - arc
+  - mend
+categories:
+  - implementation
+  - architecture
+tags:
+  - incrementally
+  - specification
+  - convergence
+  - implemented
+  - improvement
+  - screenshots
+  - automation
+  - components
+  - iterations
+  - refinement
 ---
-
 ## Description Details
 
 <example>

@@ -15,8 +15,29 @@ tools:
 maxTurns: 40
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: utility
+compatible_phases:
+  - devise
+  - arc
+  - forge
+  - mend
+categories:
+  - orchestration
+  - security
+tags:
+  - verification
+  - trustworthy
+  - researcher
+  - validation
+  - freshness
+  - relevance
+  - synthesis
+  - accuracy
+  - external
+  - findings
 ---
-
 ## Description Details
 
 <example>

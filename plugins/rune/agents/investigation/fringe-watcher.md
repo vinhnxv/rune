@@ -1,20 +1,39 @@
 ---
 name: fringe-watcher
-model: sonnet
-maxTurns: 35
 description: |
   Watches the fringes for edge cases — missing boundary checks, unhandled null/empty inputs,
   race conditions, overflow risks, and off-by-one errors. Guards the edges where behavior breaks.
+model: sonnet
 tools:
   - Read
   - Write
   - Glob
   - Grep
   - SendMessage
+maxTurns: 35
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+tags:
+  - conditions
+  - unhandled
+  - behavior
+  - boundary
+  - overflow
+  - fringes
+  - missing
+  - watcher
+  - watches
+  - breaks
 ---
-
 ## Description Details
 
 Triggers: Summoned by orchestrator during audit/inspect workflows for edge case analysis.

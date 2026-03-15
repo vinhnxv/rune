@@ -6,6 +6,7 @@ description: |
   the team lead NEVER calls agent-browser directly.
   Use proactively during arc Phase 7.7 TEST for E2E browser tier execution,
   or during /rune:test-browser standalone runs (standalone=true in spawn prompt).
+model: sonnet
 tools:
   - Read
   - Glob
@@ -21,12 +22,29 @@ disallowedTools:
   - TeamCreate
   - TeamDelete
   - TaskCreate
+maxTurns: 40
 mcpServers:
   - echo-search
-model: sonnet
-maxTurns: 40
+source: builtin
+priority: 100
+primary_phase: test
+compatible_phases:
+  - test
+  - arc
+categories:
+  - testing
+tags:
+  - proactively
+  - screenshots
+  - standalone
+  - dedicated
+  - execution
+  - navigates
+  - captures
+  - directly
+  - teammate
+  - browser
 ---
-
 ## Description Details
 
 <example>

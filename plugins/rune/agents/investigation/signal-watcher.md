@@ -1,20 +1,41 @@
 ---
 name: signal-watcher
-model: sonnet
-maxTurns: 35
 description: |
   Watches signal propagation — logging adequacy, metrics coverage, distributed tracing,
   error classification, and incident reproducibility. Ensures systems can be observed and debugged.
+model: sonnet
 tools:
   - Read
   - Write
   - Glob
   - Grep
   - SendMessage
+maxTurns: 35
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+  - testing
+  - observability
+tags:
+  - reproducibility
+  - classification
+  - distributed
+  - propagation
+  - adequacy
+  - coverage
+  - debugged
+  - incident
+  - observed
+  - logging
 ---
-
 ## Description Details
 
 Triggers: Summoned by orchestrator during audit/inspect workflows for observability analysis.

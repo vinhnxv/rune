@@ -5,6 +5,7 @@ description: |
   Handles long-running tests with heartbeat liveness, budget enforcement,
   and atomic checkpoint writes for crash recovery.
   Use proactively during arc Phase 7.7 TEST STEP 7.5 for extended tier execution.
+model: sonnet
 tools:
   - Read
   - Write
@@ -15,17 +16,34 @@ tools:
   - TaskGet
   - TaskUpdate
   - SendMessage
-mcpServers:
-  - echo-search
 disallowedTools:
   - Agent
   - TeamCreate
   - TeamDelete
   - TaskCreate
-model: sonnet
 maxTurns: 60
+mcpServers:
+  - echo-search
+source: builtin
+priority: 100
+primary_phase: test
+compatible_phases:
+  - test
+  - arc
+categories:
+  - testing
+tags:
+  - enforcement
+  - proactively
+  - checkpoint
+  - execution
+  - heartbeat
+  - scenarios
+  - executes
+  - extended
+  - liveness
+  - protocol
 ---
-
 ## Description Details
 
 <example>

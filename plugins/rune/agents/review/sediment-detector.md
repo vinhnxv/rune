@@ -17,8 +17,27 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+tags:
+  - infrastructure
+  - repositories
+  - application
+  - definitions
+  - proactively
+  - references
+  - consumers
+  - detection
+  - commands
+  - detector
 ---
-
 ## Description Details
 
 Triggers: Plugin audits, meta-audits, infrastructure health checks, feature drift detection,

@@ -173,6 +173,18 @@
             "statusMessage": "Checking context budget..."
           }
         ]
+      },
+      {
+        "matcher": "mcp__plugin_rune_agent-search__agent_search",
+        "_rationale": "Agent search auto-reindex. Checks .agent-search-dirty signal before agent_search tool calls. Advisory only — server.py handles actual reindex.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/agent-search/reindex-if-stale.sh",
+            "timeout": 5,
+            "statusMessage": "Checking agent search index freshness..."
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -217,6 +229,18 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/echo-search/annotate-hook.sh",
             "timeout": 5,
             "statusMessage": "Checking echo annotation..."
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "_rationale": "Agent search dirty signal. Fast-path exit for non-agent-definition writes. Writes .agent-search-dirty signal when agents/*.md, registry/*.md, or .claude/agents/*.md are modified.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/agent-search/annotate-dirty.sh",
+            "timeout": 5,
+            "statusMessage": "Checking agent search annotation..."
           }
         ]
       },
@@ -281,7 +305,7 @@
         ]
       },
       {
-        "matcher": "mcp__plugin_rune_context7__.*|mcp__plugin_rune_figma-to-react__.*|mcp__plugin_rune_echo-search__.*|WebSearch|WebFetch",
+        "matcher": "mcp__plugin_rune_context7__.*|mcp__plugin_rune_figma-to-react__.*|mcp__plugin_rune_echo-search__.*|mcp__plugin_rune_agent-search__.*|WebSearch|WebFetch",
         "_rationale": "MCP untrusted output advisory for all external/MCP tools (Context7, Figma, echo-search, web). PostToolUse — advisory only, cannot block. QUAL-004: consolidated from 4 redundant entries.",
         "hooks": [
           {

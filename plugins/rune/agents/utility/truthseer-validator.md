@@ -12,8 +12,29 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: utility
+compatible_phases:
+  - devise
+  - arc
+  - forge
+  - mend
+categories:
+  - orchestration
+  - testing
+tags:
+  - aggregation
+  - importance
+  - references
+  - truthseer
+  - validator
+  - coverage
+  - reviewed
+  - density
+  - finding
+  - quality
 ---
-
 ## Description Details
 
 Triggers: Audit workflows with >100 reviewable files.

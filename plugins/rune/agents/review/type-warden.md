@@ -13,8 +13,27 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+tags:
+  - organization
+  - verification
+  - annotations
+  - correctness
+  - enforcement
+  - compliance
+  - validation
+  - detection
+  - complete
+  - handling
 ---
-
 ## Description Details
 
 Triggers: Python code review, backend review, type hint verification.

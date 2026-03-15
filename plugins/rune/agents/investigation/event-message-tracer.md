@@ -1,21 +1,42 @@
 ---
 name: event-message-tracer
-model: haiku
-maxTurns: 20
 description: |
   Traces event and message impact across the async communication stack: event schemas,
   producers, consumers, dead letter queues, and retry policies. Detects contract drift
   in event-driven architectures.
+model: haiku
 tools:
   - Read
-  - Write  # Write: required for file-bus handoff to goldmask-coordinator (tmp/ only)
+  - Write
   - Glob
   - Grep
   - SendMessage
+maxTurns: 20
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+  - architecture
+  - data
+tags:
+  - architectures
+  - communication
+  - consumers
+  - producers
+  - contract
+  - policies
+  - message
+  - schemas
+  - driven
+  - impact
 ---
-
 ## Description Details
 
 Triggers: Summoned by Goldmask orchestrator during Impact Layer analysis for event/message changes.

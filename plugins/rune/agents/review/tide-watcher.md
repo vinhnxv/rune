@@ -11,8 +11,27 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+tags:
+  - cancellation
+  - concurrency
+  - conditions
+  - structured
+  - typescript
+  - violations
+  - unbounded
+  - waterfall
+  - handling
+  - patterns
 ---
-
 ## Description Details
 
 Triggers: Async code, concurrent operations, event handlers, timers, promises, channels,

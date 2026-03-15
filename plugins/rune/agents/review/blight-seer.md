@@ -13,8 +13,29 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - architecture
+  - observability
+tags:
+  - identification
+  - architectural
+  - observability
+  - optimization
+  - abstraction
+  - consistency
+  - overchoice
+  - blindspot
+  - detection
+  - premature
 ---
-
 ## Description Details
 
 Triggers: New services, structural changes, plan review, architecture decisions.

@@ -6,7 +6,7 @@ description: |
   patterns (inline, toast, modal, boundary), form validation approaches
   (live, onBlur, onSubmit), navigation patterns (breadcrumb, tabs, stepper),
   empty states, confirmation dialogs, and undo mechanisms.
-
+  
   Used during devise Phase 0.3 UX Research to assess current UX maturity before
   planning new features. Produces a structured UX pattern inventory — not findings.
 tools:
@@ -21,8 +21,29 @@ disallowedTools:
 maxTurns: 40
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: utility
+compatible_phases:
+  - devise
+  - arc
+  - forge
+  - mend
+categories:
+  - orchestration
+  - ux
+tags:
+  - confirmation
+  - progressive
+  - approaches
+  - breadcrumb
+  - mechanisms
+  - navigation
+  - structured
+  - validation
+  - inventory
+  - analyzer
 ---
-
 ## Description Details
 
 Keywords: UX pattern, loading state, error handling, form validation, navigation,

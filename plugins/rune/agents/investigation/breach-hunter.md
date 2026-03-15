@@ -1,20 +1,40 @@
 ---
 name: breach-hunter
-model: sonnet
-maxTurns: 35
 description: |
   Hunts for security breaches — threat modeling, auth boundary gaps, data exposure vectors,
   CVE patterns, and input sanitization depth. Goes deeper than checklist-level security review.
+model: sonnet
 tools:
   - Read
   - Write
   - Glob
   - Grep
   - SendMessage
+maxTurns: 35
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+  - security
+tags:
+  - sanitization
+  - checklist
+  - boundary
+  - breaches
+  - exposure
+  - modeling
+  - patterns
+  - security
+  - vectors
+  - breach
 ---
-
 ## Description Details
 
 Triggers: Summoned by orchestrator during audit/inspect workflows for deep security analysis.

@@ -5,12 +5,32 @@ description: |
   Use proactively during /rune:resolve-todos Phase 3 to verify each TODO
   is VALID (real issue) or FALSE_POSITIVE (hallucinated or already fixed).
   Combines flaw-hunter's Hypothesis Protocol with staleness-specific checklist.
+model: haiku
 tools: Read, Grep, Glob, Write
 disallowedTools: Edit, Bash, NotebookEdit
-model: haiku  # Mechanical operations (grep + read + classify); 7-verdict taxonomy is simple enumeration, not deep reasoning. ACCEPTED RISK: Haiku may miss subtle hallucinations from higher-capability models — cost/accuracy tradeoff documented in CREATION-LOG.md.
 maxTurns: 20
+source: builtin
+priority: 100
+primary_phase: utility
+compatible_phases:
+  - devise
+  - arc
+  - forge
+  - mend
+categories:
+  - orchestration
+tags:
+  - classification
+  - hallucinated
+  - verification
+  - proactively
+  - hypothesis
+  - specialist
+  - checklist
+  - staleness
+  - combines
+  - positive
 ---
-
 # Todo Verifier Agent
 
 You are a TODO verification specialist. Your job is to determine if each TODO

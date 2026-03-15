@@ -16,8 +16,31 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - security
+  - architecture
+  - code-quality
+  - observability
+tags:
+  - observability
+  - inconsistent
+  - consistency
+  - conventions
+  - complexity
+  - convention
+  - management
+  - uniformity
+  - deviation
+  - inversion
 ---
-
 ## Description Details
 
 Triggers: New files, new services, pattern-sensitive areas, cross-module changes.

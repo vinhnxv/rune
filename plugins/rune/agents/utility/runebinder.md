@@ -3,7 +3,7 @@ name: runebinder
 description: |
   Aggregates findings from multiple Ash review outputs into a single TOME.md summary.
   Deduplicates, prioritizes, and reports gaps from crashed/stalled teammates.
-
+  
   Covers: Multi-file review aggregation, finding deduplication (5-line window),
   priority-based ordering (P1 > P2 > P3), gap reporting for incomplete deliverables,
   statistics and evidence coverage tracking.
@@ -16,8 +16,30 @@ tools:
 maxTurns: 60
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: utility
+compatible_phases:
+  - devise
+  - arc
+  - forge
+  - mend
+categories:
+  - orchestration
+  - testing
+  - code-quality
+tags:
+  - deduplication
+  - deduplicates
+  - deliverables
+  - aggregation
+  - prioritizes
+  - aggregates
+  - incomplete
+  - runebinder
+  - statistics
+  - reporting
 ---
-
 ## Description Details
 
 Triggers: After all Ash complete their reviews (Phase 5 of Roundtable Circle).

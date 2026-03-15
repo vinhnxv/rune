@@ -12,8 +12,28 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - code-quality
+tags:
+  - abbreviation
+  - complexity
+  - misleading
+  - ambiguity
+  - different
+  - inversion
+  - analysis
+  - analyzer
+  - behavior
+  - function
 ---
-
 ## Description Details
 
 Triggers: Large PRs, refactoring, AI-generated code, audit mode.

@@ -3,7 +3,7 @@ name: trial-forger
 description: |
   Test generation agent that writes tests following project patterns.
   Claims testing tasks from the shared pool, generates tests, and verifies they run.
-
+  
   Covers: Generate unit tests following project conventions, generate integration tests
   for service boundaries, discover and use existing test utilities and fixtures, verify
   tests pass before marking complete.
@@ -21,8 +21,28 @@ tools:
 maxTurns: 60
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: work
+compatible_phases:
+  - work
+  - arc
+  - mend
+categories:
+  - implementation
+  - testing
+tags:
+  - conventions
+  - integration
+  - boundaries
+  - generation
+  - following
+  - generates
+  - utilities
+  - complete
+  - discover
+  - existing
 ---
-
 ## Description Details
 
 <example>

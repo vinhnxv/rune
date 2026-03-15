@@ -1,10 +1,9 @@
 ---
 name: sight-oracle
-model: sonnet
-maxTurns: 25
 description: |
   Design, architecture, and performance inspector for /rune:inspect. Evaluates architectural
   alignment with plan, coupling analysis, and performance profile against requirements.
+model: sonnet
 tools:
   - Read
   - Write
@@ -14,10 +13,32 @@ tools:
   - TaskList
   - TaskUpdate
   - TaskGet
+maxTurns: 25
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+  - performance
+  - architecture
+tags:
+  - architectural
+  - architecture
+  - requirements
+  - performance
+  - alignment
+  - inspector
+  - analysis
+  - coupling
+  - inspect
+  - profile
 ---
-
 ## Description Details
 
 Triggers: Summoned by inspect orchestrator during Phase 3.

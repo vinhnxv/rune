@@ -6,16 +6,37 @@ description: |
   (not encoded workflows). Detects: Orphan Features, Context Starvation, Sandbox Isolation,
   Workflow Tools, and Silent Actions anti-patterns. Validates tool granularity and audit
   trail coverage for agent-first architectures.
+model: sonnet
 tools:
   - Read
   - Glob
   - Grep
+maxTurns: 30
 mcpServers:
   - echo-search
-model: sonnet
-maxTurns: 30
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - architecture
+  - testing
+tags:
+  - architectures
+  - corresponding
+  - granularity
+  - composable
+  - primitives
+  - starvation
+  - isolation
+  - workflows
+  - workspace
+  - coverage
 ---
-
 ## Description Details
 
 Triggers: Agent integration code, MCP server configs, tool definitions, UI feature additions,

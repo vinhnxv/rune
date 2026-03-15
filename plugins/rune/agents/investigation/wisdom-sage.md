@@ -1,22 +1,41 @@
 ---
 name: wisdom-sage
-model: sonnet
-maxTurns: 30
 description: |
   Git archaeology agent — understands WHY code was written by analyzing git blame,
   commit messages, and code comments. Classifies developer intent and computes caution
   scores for safe modification. Uses Bash for git commands.
+model: sonnet
 tools:
   - Bash
   - Read
-  - Write  # Write: required for file-bus handoff to goldmask-coordinator (tmp/ only)
+  - Write
   - Grep
   - Glob
   - SendMessage
+maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+tags:
+  - modification
+  - archaeology
+  - understands
+  - classifies
+  - analyzing
+  - developer
+  - commands
+  - comments
+  - computes
+  - messages
 ---
-
 ## Description Details
 
 Triggers: Summoned by Goldmask orchestrator during Wisdom Layer analysis.

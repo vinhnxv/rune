@@ -1,20 +1,39 @@
 ---
 name: business-logic-tracer
-model: haiku
-maxTurns: 20
 description: |
   Traces business logic impact across service methods, domain rules, validators, and state
   machines. Identifies ripple effects when core business rules change.
+model: haiku
 tools:
   - Read
-  - Write  # Write: required for file-bus handoff to goldmask-coordinator (tmp/ only)
+  - Write
   - Glob
   - Grep
   - SendMessage
+maxTurns: 20
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+tags:
+  - validators
+  - business
+  - machines
+  - effects
+  - methods
+  - service
+  - change
+  - domain
+  - impact
+  - ripple
 ---
-
 ## Description Details
 
 Triggers: Summoned by Goldmask orchestrator during Impact Layer analysis for service/domain changes.

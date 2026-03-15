@@ -1,21 +1,40 @@
 ---
 name: goldmask-coordinator
-model: sonnet
-maxTurns: 25
 description: |
   Three-layer synthesis agent — merges Impact Layer (5 tracers), Wisdom Layer (intent + caution),
   and Lore Layer (risk scores) outputs into a unified GOLDMASK.md report with prioritized
   findings, collateral damage assessment, and swarm detection.
+model: sonnet
 tools:
   - Read
-  - Write  # Write: required for GOLDMASK.md synthesis output (tmp/ only)
+  - Write
   - Grep
   - Glob
   - SendMessage
+maxTurns: 25
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+tags:
+  - coordinator
+  - prioritized
+  - assessment
+  - collateral
+  - detection
+  - synthesis
+  - findings
+  - goldmask
+  - caution
+  - outputs
 ---
-
 ## Description Details
 
 Triggers: Summoned by Goldmask orchestrator after all investigation agents complete.

@@ -12,8 +12,27 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+tags:
+  - concurrency
+  - collection
+  - conditions
+  - exhaustive
+  - detection
+  - analysis
+  - boundary
+  - handling
+  - overhead
+  - patterns
 ---
-
 ## Description Details
 
 Triggers: Always run — logic bugs are subtle and missed by linters.

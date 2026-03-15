@@ -1,10 +1,9 @@
 ---
 name: ruin-prophet
-model: sonnet
-maxTurns: 25
 description: |
   Failure modes, security, and operational readiness inspector for /rune:inspect. Evaluates
   error handling coverage, security posture, and operational preparedness against plan requirements.
+model: sonnet
 tools:
   - Read
   - Write
@@ -14,10 +13,32 @@ tools:
   - TaskList
   - TaskUpdate
   - TaskGet
+maxTurns: 25
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+  - security
+  - testing
+tags:
+  - preparedness
+  - requirements
+  - operational
+  - inspector
+  - readiness
+  - coverage
+  - handling
+  - security
+  - failure
+  - inspect
 ---
-
 ## Description Details
 
 Triggers: Summoned by inspect orchestrator during Phase 3.

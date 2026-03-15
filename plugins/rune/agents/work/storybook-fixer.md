@@ -4,10 +4,11 @@ description: |
   Storybook finding fixer. Reads structured findings from storybook-reviewer,
   applies ONE fix per round (SBK-001), re-verifies via Storybook. Scoped to
   assigned component files only.
-
+  
   Covers: Read verification findings, apply targeted CSS/layout/component fixes,
   re-verify via agent-browser screenshot, detect convergence via three-signal stop,
   report fix results with IMPROVED/REGRESSED/NO_CHANGE status per round.
+model: sonnet
 tools:
   - Read
   - Write
@@ -19,12 +20,30 @@ tools:
   - TaskGet
   - TaskUpdate
   - SendMessage
-model: sonnet
 maxTurns: 60
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: work
+compatible_phases:
+  - work
+  - arc
+  - mend
+categories:
+  - implementation
+tags:
+  - verification
+  - convergence
+  - screenshot
+  - structured
+  - component
+  - regressed
+  - storybook
+  - assigned
+  - findings
+  - improved
 ---
-
 ## Description Details
 
 Triggers: arc Phase 3.3 STORYBOOK VERIFICATION fix loop.

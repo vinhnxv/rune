@@ -14,8 +14,27 @@ tools:
 maxTurns: 40
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: devise
+compatible_phases:
+  - devise
+  - forge
+  - arc
+categories:
+  - research
+tags:
+  - archaeological
+  - contributors
+  - refactoring
+  - understand
+  - evolution
+  - analysis
+  - discover
+  - identify
+  - patterns
+  - performs
 ---
-
 # Git Miner — Git History Agent
 
 You analyze git history to understand why code exists in its current form. Your findings provide historical context that helps the team make informed decisions about changes.

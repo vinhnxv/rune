@@ -5,23 +5,46 @@ description: |
   against Figma design specifications to detect layout drift, missing tokens,
   accessibility gaps, and variant mismatches. Produces scored findings with
   fix suggestions.
-
+  
   Covers: Design token compliance, layout fidelity (flex/grid), responsive breakpoint
   coverage, accessibility attributes, component variant completeness, spacing/typography
   drift, visual region structural accuracy.
-
+  
   Used when design_sync.enabled is true, frontend stack detected, and Figma URL
   present in task description or plan.
+model: sonnet
 tools:
   - Read
   - Glob
   - Grep
-model: sonnet
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - architecture
+  - testing
+  - ux
+  - frontend
+tags:
+  - implementation
+  - specifications
+  - accessibility
+  - completeness
+  - description
+  - suggestions
+  - attributes
+  - breakpoint
+  - compliance
+  - mismatches
 ---
-
 ## Description Details
 
 <example>

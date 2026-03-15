@@ -11,8 +11,27 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+tags:
+  - interrogation
+  - prescriptive
+  - verification
+  - adversarial
+  - categorical
+  - analytical
+  - challenges
+  - uncertain
+  - teammate
+  - unproven
 ---
-
 ## Description Details
 
 Triggers: After Ash outputs complete, before Runebinder aggregation.
