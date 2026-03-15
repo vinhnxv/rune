@@ -28,6 +28,14 @@ if ! "$PYTHON" -c "import mcp" 2>/dev/null; then
     exit 1
 fi
 
+# --- SDK version logging (mcp 1.x→2.x boundary guard) ---
+MCP_VER=$("$PYTHON" -c "import mcp; print(getattr(mcp, '__version__', 'unknown'))" 2>/dev/null || echo "unknown")
+echo "INFO: echo-search MCP SDK version: ${MCP_VER}" >&2
+# Verify lowlevel import path still resolves (critical: mcp.server.lowlevel may move in 2.x)
+if ! "$PYTHON" -c "from mcp.server.lowlevel import Server; from mcp.server.models import InitializationOptions" 2>/dev/null; then
+    echo "WARN: echo-search: mcp.server.lowlevel import failed — server.py may need import updates for MCP SDK ${MCP_VER}" >&2
+fi
+
 # SEC-006: Canonicalize PROJECT_DIR and validate absoluteness
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 PROJECT_DIR=$(cd "$PROJECT_DIR" 2>/dev/null && pwd -P) || { echo "ERROR: invalid PROJECT_DIR" >&2; exit 1; }

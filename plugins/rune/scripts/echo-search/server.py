@@ -163,6 +163,32 @@ if GLOBAL_DB_PATH:
         )
         sys.exit(1)
 
+# Talisman gate: echoes.elicitation_enabled (default: false).
+# When false, elicitation is skipped during automated workflows.
+# Set via start.sh from talisman.yml echoes.elicitation_enabled.
+ECHO_ELICITATION_ENABLED = os.environ.get("ECHO_ELICITATION_ENABLED", "false").lower() == "true"
+
+# ---------------------------------------------------------------------------
+# Protocol-level elicitation state
+# ---------------------------------------------------------------------------
+# Option A (protocol-level elicitation): Capture write_stream at module level
+# during _run() so it is accessible to call_tool handlers.
+#
+# ARCHITECTURAL LIMITATION: While we capture write_stream here, sending a
+# proper elicitation/create JSON-RPC request from within handle_call_tool()
+# is blocked because the MCP low-level Server's read loop (running inside
+# server.run()) processes one request at a time. Sending elicitation/create
+# mid-response would require the client to respond to it before our handler
+# returns — this is not the request/response model the current call_tool
+# contract supports (handler must return a complete TextContent response).
+#
+# OPTION B (implemented below): When ECHO_ELICITATION_ENABLED=true and result
+# count exceeds the refinement threshold, we include an "elicitation_suggestion"
+# field in the search response with recommended query refinements. The caller
+# (Claude Code) can then present these suggestions interactively via its own
+# elicitation layer. This avoids the protocol-level complexity entirely.
+_write_stream = None  # Populated by _run() via global assignment — Option A infrastructure
+
 STOPWORDS = frozenset([
     "a", "an", "and", "are", "as", "at", "be", "but", "by", "for",
     "from", "had", "has", "have", "he", "her", "his", "i", "in",
@@ -2993,7 +3019,14 @@ def _merge_scoped_results(
 
 
 async def _mcp_handle_search(arguments: Dict) -> Tuple[Dict, bool]:
-    """Handle echo_search — validate, run pipeline, record access."""
+    """Handle echo_search — validate, run pipeline, record access.
+
+    Option B elicitation (when ECHO_ELICITATION_ENABLED=true): when the result
+    count exceeds 15, the response includes an "elicitation_suggestion" field
+    with recommended query refinements. This defers interactive narrowing to the
+    caller (Claude Code) instead of attempting protocol-level elicitation inside
+    the call_tool handler — see ARCHITECTURAL LIMITATION comment above _write_stream.
+    """
     err, args = _validate_search_args(arguments)
     if err is not None:
         return err[0], err[1]
@@ -3007,9 +3040,25 @@ async def _mcp_handle_search(arguments: Dict) -> Tuple[Dict, bool]:
     has_more = total_candidates > fetch_limit
     results = all_results[offset:fetch_limit]
     _safe_record_access(results, args["query"], scope)
-    return _build_search_response(
+    response, is_err = _build_search_response(
         results, total_candidates, offset, args["limit"],
         has_more, args["response_format"])
+
+    # Option B: Suggest query refinement when elicitation is enabled and results are broad.
+    # Threshold of 15 matches the default limit — if we're at the cap, there's likely more.
+    if (ECHO_ELICITATION_ENABLED and not is_err
+            and isinstance(response, dict)
+            and total_candidates >= 15
+            and args["query"]):
+        query = args["query"]
+        response["elicitation_suggestion"] = (
+            "Found %d matching echoes for '%s'. "
+            "To narrow results, try adding specific role (e.g. 'worker', 'reviewer'), "
+            "layer (e.g. 'etched', 'inscribed'), or topic keywords to your query."
+            % (total_candidates, query[:80])
+        )
+
+    return response, is_err
 
 
 async def _run_scoped_search(
@@ -3363,7 +3412,9 @@ def run_mcp_server():
     _register_mcp_handlers(server, types)
 
     async def _run():
+        global _write_stream
         async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
+            _write_stream = write_stream  # Option A infrastructure (see ARCHITECTURAL LIMITATION above)
             await server.run(
                 read_stream, write_stream,
                 InitializationOptions(

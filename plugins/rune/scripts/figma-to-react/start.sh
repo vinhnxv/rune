@@ -27,6 +27,10 @@ if ! "$PYTHON" -c "import mcp; import httpx; import pydantic" 2>/dev/null; then
     exit 1
 fi
 
+# --- SDK version logging (mcp 1.x→2.x boundary guard) ---
+MCP_VER=$("$PYTHON" -c "import mcp; print(getattr(mcp, '__version__', 'unknown'))" 2>/dev/null || echo "unknown")
+echo "INFO: figma-to-react MCP SDK version: ${MCP_VER}" >&2
+
 # --- Environment ---
 # FIGMA_TOKEN is required at runtime (not at launch) — the server
 # validates it when a tool call actually needs the Figma API.
