@@ -203,6 +203,16 @@ try {
     }
   }
 
+  // ── Step 1.5: Kill orphaned bare agents (ATE-1 exemptions) ──
+  // Bare agents (lore-analyst, research agents) spawned with run_in_background: true
+  // have no team_name, so they're invisible to team-based cleanup (Steps 2-5).
+  // Process-level kill is the only mechanism. Runs UNCONDITIONALLY — not gated
+  // behind TeamDelete failure. Safe: kills only child claude/node processes.
+  const arcOwnerPid = Bash(`echo $PPID`).trim()
+  if (arcOwnerPid && /^\d+$/.test(arcOwnerPid)) {
+    Bash(`for pid in $(pgrep -P ${arcOwnerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+  }
+
   // ── Step 2: Send ALL shutdown_requests at once (no sleep between) ──
   for (const member of allMembers) {
     SendMessage({ type: "shutdown_request", recipient: member.name, content: "Arc pipeline complete — final sweep" })

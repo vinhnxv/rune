@@ -96,6 +96,14 @@ Output format: { "files": [{ "path", "tier", "risk_score", "metrics": { "frequen
   if (!riskMap) {
     warn("Phase N: Lore analyst timed out — proceeding without risk data")
   }
+
+  // FIX: Kill orphaned bare lore-analyst process (no team = no SendMessage shutdown)
+  // Without this, the agent process lingers on the bottom bar until session ends.
+  // Uses the same process-kill pattern as engines.md step 5a.
+  const loreOwnerPid = Bash(`echo $PPID`).trim()
+  if (loreOwnerPid && /^\d+$/.test(loreOwnerPid)) {
+    Bash(`for pid in $(pgrep -P ${loreOwnerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+  }
 }
 ```
 
