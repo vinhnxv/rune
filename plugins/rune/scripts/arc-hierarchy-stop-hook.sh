@@ -669,7 +669,21 @@ sed 's/^compact_pending: true$/compact_pending: false/' "$STATE_FILE" > "$_STATE
 _trace "Compact interlude Phase B: context checkpointed, proceeding to child arc prompt"
 
 # ── GUARD 12: Context-critical check before arc prompt injection (F-13 fix) ──
-if _check_context_critical 2>/dev/null; then
+# BUG FIX (v1.165.0): Skip if bridge file is stale after compact interlude.
+# See arc-phase-stop-hook.sh for full rationale.
+_skip_context_check="false"
+if [[ -n "${HOOK_SESSION_ID:-}" ]]; then
+  _bridge_file="${TMPDIR:-/tmp}/rune-ctx-${HOOK_SESSION_ID}.json"
+  if [[ -f "$_bridge_file" && ! -L "$_bridge_file" ]]; then
+    _bridge_mtime=$(_stat_mtime "$_bridge_file" 2>/dev/null || echo "0")
+    _state_mtime=$(_stat_mtime "$STATE_FILE" 2>/dev/null || echo "0")
+    if [[ "$_bridge_mtime" -le "$_state_mtime" ]]; then
+      _skip_context_check="true"
+      _trace "GUARD 12: Skipping context check — bridge file stale after compact interlude"
+    fi
+  fi
+fi
+if [[ "$_skip_context_check" == "false" ]] && _check_context_critical 2>/dev/null; then
   _graceful_stop_hierarchy "GUARD 12: Context critical at Phase B of compact interlude (child ${CURRENT_CHILD})"
 fi
 

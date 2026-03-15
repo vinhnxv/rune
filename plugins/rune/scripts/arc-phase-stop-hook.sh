@@ -914,14 +914,31 @@ if [[ "$COMPACT_PENDING" == "true" ]]; then
 fi
 
 # ── Context-critical check before phase prompt injection ──
-# BUG FIX (v1.156.1): After compact interlude Phase B, if context is still critical,
-# we're in a hopeless state — compaction didn't free enough space. Inject a notification
-# message so the user understands why the arc stopped, instead of silently exiting.
-if _check_context_critical 2>/dev/null; then
+# BUG FIX (v1.165.0): After compact interlude Phase B, the bridge file is STALE
+# (written during Phase A turn, before auto-compaction could fire). Reading it
+# causes false "Context Exhaustion" aborts even when compaction freed context.
+# Skip the check if bridge file is stale; let guard-context-critical.sh (PreToolUse)
+# catch real exhaustion in real-time during the next phase's tool calls.
+_skip_context_check="false"
+if [[ "$_JUST_COMPLETED_COMPACT" == "true" ]]; then
+  if [[ -n "${HOOK_SESSION_ID:-}" ]]; then
+    _bridge_file="${TMPDIR:-/tmp}/rune-ctx-${HOOK_SESSION_ID}.json"
+    if [[ -f "$_bridge_file" && ! -L "$_bridge_file" ]]; then
+      _bridge_mtime=$(_stat_mtime "$_bridge_file" 2>/dev/null || echo "0")
+      _state_mtime=$(_stat_mtime "$STATE_FILE" 2>/dev/null || echo "0")
+      if [[ "$_bridge_mtime" -le "$_state_mtime" ]]; then
+        _skip_context_check="true"
+        _trace "Context check skipped — bridge file stale after compact interlude (bridge=${_bridge_mtime} <= state=${_state_mtime})"
+      fi
+    fi
+  fi
+fi
+
+if [[ "$_skip_context_check" == "false" ]] && _check_context_critical 2>/dev/null; then
   if [[ "$_JUST_COMPLETED_COMPACT" == "true" ]]; then
-    # Compact interlude just completed but context is still critical.
-    # Inject notification message and clean up gracefully.
-    _trace "Context critical after compact interlude — injecting exhaustion notice"
+    # Compact interlude just completed AND bridge file has FRESH data showing critical.
+    # This means compaction genuinely didn't free enough space — hopeless state.
+    _trace "Context critical after compact interlude (fresh bridge data) — injecting exhaustion notice"
     rm -f "$STATE_FILE" 2>/dev/null
     printf '%s\n' "Arc Pipeline — Context Exhaustion
 
