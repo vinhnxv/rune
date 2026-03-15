@@ -293,6 +293,58 @@ _phase_section_hint() {
   esac
 }
 
+# ── TESTING BATCH SUB-LOOP ──
+# Inner-inner loop: cycles through test batches within Phase 7.7.
+# Pattern: mirrors arc-batch-stop-hook.sh iteration style.
+# Safety cap: max_batch_iterations from testing-plan.json config.
+_check_test_batches() {
+  local checkpoint_path="$1"
+  local arc_id
+  arc_id=$(jq -r '.id // empty' "$checkpoint_path" 2>/dev/null)
+  [[ -z "$arc_id" ]] && return 1
+  # SEC: validate arc_id format before use in path construction
+  [[ "$arc_id" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
+
+  local plan_path="${CWD}/tmp/arc/${arc_id}/testing-plan.json"
+  [[ ! -f "$plan_path" || -L "$plan_path" ]] && return 1
+
+  # Find next pending batch (by .id, 0-based index)
+  local next_batch
+  next_batch=$(jq -r '.batches[] | select(.status == "pending") | .id' "$plan_path" 2>/dev/null | head -1)
+  [[ -z "$next_batch" ]] && return 1  # No pending batches → normal phase advance
+
+  # Safety cap check
+  local max_iterations executed
+  max_iterations=$(jq -r '.max_batch_iterations // 50' "$plan_path" 2>/dev/null)
+  executed=$(jq '[.batches[] | select(.status != "pending")] | length' "$plan_path" 2>/dev/null)
+  [[ "$executed" -ge "$max_iterations" ]] && return 1  # Safety cap hit
+
+  # Read batch details
+  local batch_type batch_files total_batches
+  batch_type=$(jq -r ".batches[$next_batch].type // \"unit\"" "$plan_path" 2>/dev/null)
+  batch_files=$(jq -r ".batches[$next_batch].files | join(\", \")" "$plan_path" 2>/dev/null)
+  total_batches=$(jq '.batches | length' "$plan_path" 2>/dev/null)
+
+  # Build batch-specific re-injection prompt
+  local _rel_plan="tmp/arc/${arc_id}/testing-plan.json"
+  cat >&2 <<BATCH_EOF
+ANCHOR — Arc Pipeline: Test Batch ${next_batch}/${total_batches} (${batch_type})
+
+Continue executing the testing phase batch loop.
+
+1. Read the checkpoint: ${CHECKPOINT_PATH}
+2. Read the testing plan: ${_rel_plan}
+3. Read the batch execution model: plugins/rune/skills/testing/references/batch-execution.md
+4. Execute batch ${next_batch} (type: ${batch_type}, files: ${batch_files})
+5. Update testing-plan.json with the result
+6. STOP responding — the Stop hook will advance to the next batch.
+
+Anti-Skip Rules: ALL test files MUST run. Fix-before-continue is MANDATORY.
+RE-ANCHOR: Execute this batch only. Do NOT skip ahead.
+BATCH_EOF
+  return 0
+}
+
 # ── Phase weight for predictive compaction (Tier 2) ──
 # Returns an integer weight reflecting how much context a phase consumes.
 # Used by _smart_compact_needed() to estimate future context pressure.
@@ -1066,6 +1118,46 @@ ACCEPT_EXTERNAL=$(echo "$CKPT_CONTENT" | jq -r '.flags.accept_external_changes /
 # Also check arc_config (3-layer resolved) as fallback
 if [[ "$ACCEPT_EXTERNAL" == "null" ]]; then
   ACCEPT_EXTERNAL=$(echo "$CKPT_CONTENT" | jq -r '.arc_config.accept_external_changes // true' 2>/dev/null || echo "true")
+fi
+
+# ── TESTING BATCH SUB-LOOP: check for pending test batches before normal phase dispatch ──
+# Inner-inner loop fires when NEXT_PHASE is "test" and testing-plan.json has pending batches.
+# Mirrors the arc-batch-stop-hook.sh outer-loop pattern at the intra-phase level.
+if [[ "$NEXT_PHASE" == "test" ]]; then
+  _cb_cp_path="${CWD}/${CHECKPOINT_PATH}"
+  if [[ -f "$_cb_cp_path" && ! -L "$_cb_cp_path" ]]; then
+    if _check_test_batches "$_cb_cp_path"; then
+      exit 2  # Re-inject batch prompt (already written to stderr by _check_test_batches)
+    fi
+    # No pending batches — check if finalization needed before advancing phase
+    _arc_id_for_fin=$(jq -r '.id // empty' "$_cb_cp_path" 2>/dev/null || true)
+    if [[ -n "$_arc_id_for_fin" && "$_arc_id_for_fin" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+      _fin_plan_path="${CWD}/tmp/arc/${_arc_id_for_fin}/testing-plan.json"
+      if [[ -f "$_fin_plan_path" && ! -L "$_fin_plan_path" ]]; then
+        _test_finalized=$(get_field "test_finalized")
+        if [[ "$_test_finalized" != "true" ]]; then
+          _rel_fin_plan="tmp/arc/${_arc_id_for_fin}/testing-plan.json"
+          cat >&2 <<FINALIZE_EOF
+ANCHOR — Arc Pipeline: Test Phase Finalization
+
+All test batches have completed. Generate the final test report.
+
+1. Read the checkpoint: ${CHECKPOINT_PATH}
+2. Read the testing plan: ${_rel_fin_plan}
+3. Aggregate batch results and generate tmp/arc/${_arc_id_for_fin}/test-report.md
+4. Update the state file: set test_finalized: true in ${STATE_FILE}
+5. Update the checkpoint: set phases.test.status to "completed"
+6. Write the checkpoint to ${CHECKPOINT_PATH}
+7. STOP responding — the Stop hook will advance to the next phase.
+
+RE-ANCHOR: Execute finalization only. Do NOT skip ahead.
+FINALIZE_EOF
+          exit 2
+        fi
+        # test_finalized=true — fall through to normal phase advance (phases.test → completed)
+      fi
+    fi
+  fi
 fi
 
 # ── Build phase prompt ──

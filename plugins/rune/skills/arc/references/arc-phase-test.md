@@ -18,12 +18,8 @@
 |------|-------|------|
 | Orchestration (STEP 0-4, 9-10) | Opus (team lead) | Always |
 | Test strategy (STEP 1.5) | Opus (team lead) | Always |
-| Unit test runner | Sonnet | STEP 5 |
-| Contract validator | Sonnet | STEP 5.5, only if contracts enabled |
-| Integration test runner | Sonnet | STEP 6 |
-| E2E browser tester | Sonnet | STEP 7 |
-| Extended test runner | Sonnet | STEP 7.5, only if extended tier enabled |
-| Failure analyst | Opus (inherit) | STEP 8, only if failures |
+| Batch test runners | Sonnet | STEP 5 — all types (unit/contract/integration/e2e/extended) |
+| Fix agent (rune-smith) | Sonnet | STEP 5 fix loop, only if batch fails |
 
 Team lead NEVER runs `agent-browser` CLI or test commands directly.
 
@@ -241,13 +237,6 @@ const phaseStart = Date.now()
 const innerBudget = has_frontend ? 2_100_000 : 600_000  // 35m with E2E, 10m without
 function remainingBudget() { return innerBudget - (Date.now() - phaseStart) }
 
-// Signal directory setup for event-driven monitoring (Phase 2 fast path)
-const signalDir = `tmp/.rune-signals/${testTeamName}`
-Bash(`mkdir -p "${signalDir}" && find "${signalDir}" -mindepth 1 -delete`)
-
-// Track total expected tasks for signal-based completion detection
-let totalExpectedTasks = 0
-
 updateCheckpoint({
   phase: "test", status: "in_progress", phase_sequence: 7.7,
   team_name: testTeamName,
@@ -255,400 +244,173 @@ updateCheckpoint({
 })
 
 // ═══════════════════════════════════════════════════════
-// STEP 5: TIER 1 — UNIT TESTS
+// STEP 5: GENERATE TESTING PLAN + EXECUTE BATCHES
 // ═══════════════════════════════════════════════════════
 
-if (unitEnabled && unitTests.length > 0) {
-  // Create task for unit test tier (required for TaskList-based monitoring)
-  TaskCreate({
-    subject: "Unit tests",
-    description: `Run unit tests: ${unitTests.slice(0, 10).join(', ')}${unitTests.length > 10 ? ` (+${unitTests.length - 10} more)` : ''}`
-  })
-  totalExpectedTasks++
-  Write(`${signalDir}/.expected`, String(totalExpectedTasks))
+// See testing/references/batch-execution.md for full algorithm
+// See testing/references/testing-plan-schema.md for JSON schema
 
-  // Testing skill context injection (TEAM-002 knowledge transfer)
-  // The testing SKILL.md content is injected below to give runners testing knowledge.
-  // Key sections: Testing Pyramid, Test Discovery, Failure Escalation
-
-  // Spawn unit-test-runner teammate
-  Agent({
-    subagent_type: "general-purpose", model: resolveModelForAgent("unit-test-runner", talisman),  // Cost tier mapping
-    name: "unit-test-runner", team_name: testTeamName,
-    prompt: `You are unit-test-runner. Run these unit tests: ${unitTests.join(', ')}
-      Output to: tmp/arc/${id}/test-results-unit.md
-      Strategy: ${Read(`tmp/arc/${id}/test-strategy.md`)}
-
-      ## Testing Knowledge (from testing SKILL.md)
-      - Testing Pyramid: Unit → Integration → E2E. Unit tests run first, fastest feedback.
-      - Failure Escalation: If tests fail, report exact assertion, file:line, and error message.
-      - Anti-Skip Rules: ALL discovered tests MUST run. Never skip tests due to timeout pressure.
-      - Coverage: Report files_executed / files_total for each tier.
-
-      IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").
-      [inject agent unit-test-runner.md content]`
-  })
-  waitForCompletion(testTeamName, totalExpectedTasks, {
-    timeoutMs: Math.min(180_000, remainingBudget()),
-    pollIntervalMs: 30_000,
-    staleWarnMs: 300_000,
-    label: "Unit Tests"
-  })
-  activeTiers.push('unit')
-}
-
-// ═══════════════════════════════════════════════════════
-// STEP 5.5: CONTRACT VALIDATION (non-blocking, after unit)
-// ═══════════════════════════════════════════════════════
-
-// Gate: testing.contract.enabled AND (contract scenarios exist OR spec file detected)
-// See testing/references/scenario-schema.md for contract scenario format
-// Non-blocking: contract failures are WARN only — never gate integration
+// Define contract and extended variables (required for plan generation)
 const contractEnabled = testingConfig.contract?.enabled !== false
 const contractScenarios = scenarios.filter(s => s.tier === 'contract')
 const openApiSpecExists = exists('openapi.yml') || exists('openapi.yaml') || exists('openapi.json')
   || exists('swagger.yml') || exists('swagger.yaml')
 const contractGate = contractEnabled && (contractScenarios.length > 0 || openApiSpecExists)
-
-if (contractGate) {
-  TaskCreate({
-    subject: "Contract validation",
-    description: `Validate API contracts: ${contractScenarios.length} scenarios, OpenAPI spec: ${openApiSpecExists}`
-  })
-  totalExpectedTasks++
-  Write(`${signalDir}/.expected`, String(totalExpectedTasks))
-
-  // Testing skill context injection (TEAM-002 knowledge transfer)
-  // The testing SKILL.md content is injected below to give runners testing knowledge.
-  // Key sections: Testing Pyramid, Test Discovery, Failure Escalation
-
-  Agent({
-    subagent_type: "general-purpose", model: resolveModelForAgent("contract-validator", talisman),
-    name: "contract-validator", team_name: testTeamName,
-    prompt: `You are contract-validator. Validate API contracts against schema specifications.
-      Contract scenarios: ${JSON.stringify(contractScenarios)}
-      Spec files: openapi.yml / openapi.yaml / openapi.json / swagger.yml (whichever exists)
-      Validate:
-        - API responses against OpenAPI/JSON Schema spec
-        - Hook outputs against hookEventName schema
-      Non-blocking: record WARN findings only. Do NOT fail the pipeline.
-      Output to: tmp/arc/${id}/test-results-contract.md
-      Strategy: ${Read(`tmp/arc/${id}/test-strategy.md`)}
-
-      ## Testing Knowledge (from testing SKILL.md)
-      - Testing Pyramid: Unit → Integration → E2E. Unit tests run first, fastest feedback.
-      - Failure Escalation: If tests fail, report exact assertion, file:line, and error message.
-      - Anti-Skip Rules: ALL discovered tests MUST run. Never skip tests due to timeout pressure.
-      - Coverage: Report files_executed / files_total for each tier.
-
-      IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").
-      [inject agent contract-validator.md content]`
-  })
-  waitForCompletion(testTeamName, totalExpectedTasks, {
-    timeoutMs: Math.min(120_000, remainingBudget()),
-    pollIntervalMs: 30_000,
-    staleWarnMs: 300_000,
-    label: "Contract Validation"
-  })
-  // Non-blocking result — warn but continue regardless of outcome
-  if (exists(`tmp/arc/${id}/test-results-contract.md`)) {
-    const contractResult = Read(`tmp/arc/${id}/test-results-contract.md`)
-    if (contractResult.includes('FAIL') || contractResult.includes('ERROR')) {
-      warn("Contract validation found issues — review test-results-contract.md. Pipeline continues.")
-    }
-  }
-}
-
-// ═══════════════════════════════════════════════════════
-// STEP 6: TIER 2 — INTEGRATION TESTS (after unit)
-// ═══════════════════════════════════════════════════════
-
-if (integrationEnabled && servicesHealthy && integrationTests.length > 0) {
-  TaskCreate({
-    subject: "Integration tests",
-    description: `Run integration tests: ${integrationTests.slice(0, 10).join(', ')}${integrationTests.length > 10 ? ` (+${integrationTests.length - 10} more)` : ''}`
-  })
-  totalExpectedTasks++
-  Write(`${signalDir}/.expected`, String(totalExpectedTasks))
-
-  // Testing skill context injection (TEAM-002 knowledge transfer)
-  // The testing SKILL.md content is injected below to give runners testing knowledge.
-  // Key sections: Testing Pyramid, Test Discovery, Failure Escalation
-
-  Agent({
-    subagent_type: "general-purpose", model: resolveModelForAgent("integration-test-runner", talisman),  // Cost tier mapping
-    name: "integration-test-runner", team_name: testTeamName,
-    prompt: `You are integration-test-runner. Run integration tests.
-      Output to: tmp/arc/${id}/test-results-integration.md
-      Strategy: ${Read(`tmp/arc/${id}/test-strategy.md`)}
-
-      ## Testing Knowledge (from testing SKILL.md)
-      - Testing Pyramid: Unit → Integration → E2E. Unit tests run first, fastest feedback.
-      - Failure Escalation: If tests fail, report exact assertion, file:line, and error message.
-      - Anti-Skip Rules: ALL discovered tests MUST run. Never skip tests due to timeout pressure.
-      - Coverage: Report files_executed / files_total for each tier.
-
-      IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").
-      [inject agent integration-test-runner.md content]`
-  })
-  waitForCompletion(testTeamName, totalExpectedTasks, {
-    timeoutMs: Math.min(240_000, remainingBudget()),
-    pollIntervalMs: 30_000,
-    staleWarnMs: 300_000,
-    label: "Integration Tests"
-  })
-  activeTiers.push('integration')
-}
-
-// ═══════════════════════════════════════════════════════
-// STEP 7: TIER 3 — E2E/BROWSER TESTS (after integration)
-// ═══════════════════════════════════════════════════════
-
-const agentBrowserAvailable = Bash("agent-browser --version 2>/dev/null && echo 'yes' || echo 'no'").trim() === "yes"
-
-if (e2eEnabled && servicesHealthy && agentBrowserAvailable && e2eRoutes.length > 0) {
-  const maxRoutes = testingConfig.tiers?.e2e?.max_routes ?? 3
-  const routesToTest = e2eRoutes.slice(0, maxRoutes)
-  let baseUrl = testingConfig.tiers?.e2e?.base_url ?? "http://localhost:3000"
-
-  // URL scope restriction (T10): hard-block non-localhost URLs (SEC-003)
-  // L-5 FIX: Log as error (not just warning) — non-localhost E2E URLs are a security concern.
-  const urlHost = new URL(baseUrl).hostname
-  if (urlHost !== 'localhost' && urlHost !== '127.0.0.1') {
-    const msg = `E2E base_url "${baseUrl}" is not localhost — forced override to localhost. Fix talisman.yml testing.tiers.e2e.base_url.`
-    warn(msg)
-    // Write to audit trail for post-arc review
-    Bash(`printf '%s\\n' "${msg.replace(/"/g, '\\"')}" >> "tmp/arc/${id}/security-warnings.log"`)
-    baseUrl = "http://localhost:3000"
-  }
-
-  TaskCreate({
-    subject: "E2E browser tests",
-    description: `Test ${routesToTest.length} route(s): ${routesToTest.join(', ')}`
-  })
-  totalExpectedTasks++
-  Write(`${signalDir}/.expected`, String(totalExpectedTasks))
-
-  // Testing skill context injection (TEAM-002 knowledge transfer)
-  // The testing SKILL.md content is injected below to give runners testing knowledge.
-  // Key sections: Testing Pyramid, Test Discovery, Failure Escalation
-
-  // BROWSER ISOLATION: ALL browser work on dedicated teammate
-  Agent({
-    subagent_type: "general-purpose", model: resolveModelForAgent("e2e-browser-tester", talisman),  // Cost tier mapping
-    name: "e2e-browser-tester", team_name: testTeamName,
-    prompt: `You are e2e-browser-tester. Test these routes: ${routesToTest.join(', ')}
-      Base URL: ${baseUrl}
-      Session: --session arc-e2e-${id}
-      Output per route to: tmp/arc/${id}/e2e-route-{N}-result.md
-      Aggregate to: tmp/arc/${id}/test-results-e2e.md
-      Screenshots to: tmp/arc/${id}/screenshots/
-      Remaining budget: ${remainingBudget()}ms. Skip routes if cumulative time exceeds this budget.
-      Strategy: ${Read(`tmp/arc/${id}/test-strategy.md`)}
-
-      ## Testing Knowledge (from testing SKILL.md)
-      - Testing Pyramid: Unit → Integration → E2E. Unit tests run first, fastest feedback.
-      - Failure Escalation: If tests fail, report exact assertion, file:line, and error message.
-      - Anti-Skip Rules: ALL discovered tests MUST run. Never skip tests due to timeout pressure.
-      - Coverage: Report files_executed / files_total for each tier.
-
-      IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").
-      [inject agent-browser skill content]
-      [inject agent e2e-browser-tester.md content]`
-  })
-
-  // timeout config is in milliseconds (default 300_000ms = 5min per route)
-  const e2eTimeout = (testingConfig.tiers?.e2e?.timeout_ms ?? 300_000) * routesToTest.length
-  waitForCompletion(testTeamName, totalExpectedTasks, {
-    timeoutMs: Math.min(e2eTimeout + 60_000, remainingBudget()),
-    pollIntervalMs: 30_000,
-    staleWarnMs: 300_000,
-    label: "E2E Browser Tests"
-  })
-  activeTiers.push('e2e')
-
-  // Visual regression sub-step (inline, team lead only)
-  // Gate: testing.visual_regression.enabled
-  // See testing/references/visual-regression.md for full protocol
-  const visualRegressionEnabled = testingConfig.visual_regression?.enabled === true
-  if (visualRegressionEnabled && agentBrowserAvailable) {
-    const baselineDir = testingConfig.visual_regression?.baseline_dir ?? ".claude/visual-baselines"
-    const similarityThreshold = testingConfig.visual_regression?.threshold ?? 0.95  // 95% similarity default (matches talisman docs)
-    const screenshotDir = `tmp/arc/${id}/screenshots`
-
-    // e2e-browser-tester already captured screenshots — compare against baselines
-    const capturedScreenshots = Glob(`${screenshotDir}/*.png`)
-    if (capturedScreenshots.length > 0) {
-      let visualFailures = []
-      for (const screenshotPath of capturedScreenshots) {
-        const screenshotName = screenshotPath.split('/').pop()
-        const baselinePath = `${baselineDir}/${screenshotName}`
-        if (exists(baselinePath)) {
-          // agent-browser compare provides pixel diff score
-          const diffResult = Bash(`agent-browser compare --baseline "${baselinePath}" --current "${screenshotPath}" --format json 2>/dev/null || echo '{"diff":0,"error":"compare-unavailable"}'`)
-          try {
-            const diffData = JSON.parse(diffResult)
-            if (diffData.error === 'compare-unavailable') {
-              warn(`Visual regression compare unavailable for ${screenshotName} — skipping`)
-            } else if (diffData.similarity < similarityThreshold) {
-              visualFailures.push({ screenshot: screenshotName, similarity: diffData.similarity, threshold: similarityThreshold })
-            }
-          } catch (e) {
-            warn(`Visual regression parse error for ${screenshotName}: ${e.message} — skipping`)
-          }
-        } else {
-          warn(`No baseline found for ${screenshotName} at ${baselinePath} — treating as new baseline candidate`)
-        }
-      }
-      if (visualFailures.length > 0) {
-        warn(`Visual regression: ${visualFailures.length} screenshot(s) below similarity threshold ${similarityThreshold}. Review tmp/arc/${id}/screenshots/`)
-        // Append visual regression section to E2E results (non-blocking)
-        const vrSection = `\n## Visual Regression\n${visualFailures.map(f => `- ${f.screenshot}: similarity=${f.similarity.toFixed(4)} (threshold=${f.threshold})`).join('\n')}\n`
-        if (exists(`tmp/arc/${id}/test-results-e2e.md`)) {
-          Write(`tmp/arc/${id}/test-results-e2e.md`, Read(`tmp/arc/${id}/test-results-e2e.md`) + vrSection)
-        }
-      } else {
-        warn(`Visual regression: all ${capturedScreenshots.length} screenshot(s) within threshold`)
-      }
-    }
-  }
-} else if (e2eEnabled && !agentBrowserAvailable) {
-  warn("agent-browser not installed — skipping E2E tier. Install: npm i -g @vercel/agent-browser")
-}
-
-// ═══════════════════════════════════════════════════════
-// STEP 7.5: EXTENDED TIER (after E2E, before failure analysis)
-// ═══════════════════════════════════════════════════════
-
-// Gate: testing.extended_tier.enabled AND extended scenarios exist
-// See testing/references/checkpoint-protocol.md for checkpoint/resume protocol
 const extendedEnabled = testingConfig.extended_tier?.enabled === true
 const extendedScenarios = scenarios.filter(s => s.tier === 'extended')
 
-if (extendedEnabled && extendedScenarios.length > 0 && remainingBudget() > 120_000) {
-  const extendedBudget = testingConfig.extended_tier?.timeout_ms ?? 3_600_000  // 1 hour default
-  const checkpointIntervalMs = testingConfig.extended_tier?.checkpoint_interval_ms ?? 300_000  // 5 min
+// STEP 5.1: Generate testing plan (or resume from checkpoint)
+// resumeOrCreate() re-runs "running"/"fixing" batches as "pending" — idempotent resume
+// Batch ordering: unit → contract → integration → e2e → extended
+const testingPlan = resumeOrCreate(id, testingConfig, {
+  diffFiles, unitTests, integrationTests, e2eRoutes,
+  contractScenarios, extendedScenarios,
+  activeTiers: {
+    unit: unitEnabled,
+    integration: integrationEnabled && servicesHealthy,
+    e2e: e2eEnabled && servicesHealthy,
+    contract: contractGate,
+    extended: extendedEnabled && remainingBudget() > 120_000
+  }
+})
+Write(`tmp/arc/${id}/testing-plan.md`, renderTestingPlanMarkdown(testingPlan))
 
-  // Resume support: read existing checkpoint if present
-  const extendedCheckpointPath = `tmp/arc/${id}/extended-checkpoint.json`
-  let extendedResumeState = null
-  if (exists(extendedCheckpointPath)) {
-    try {
-      extendedResumeState = JSON.parse(Read(extendedCheckpointPath))
-      warn(`Extended tier: resuming from checkpoint (${extendedResumeState.completed_scenarios ?? 0} scenarios completed)`)
-    } catch (e) {
-      warn(`Extended tier: checkpoint parse failed (${e.message}) — starting fresh`)
-    }
+// STEP 5.2: Execute batches sequentially (foreground agents — blocking calls, zero idle risk)
+const batchConfig = testingPlan.config
+let batchesExecuted = 0
+
+for (const batch of testingPlan.batches) {
+  // Skip already-terminal batches (idempotent resume)
+  if (batch.status === "passed" || batch.status === "failed" || batch.status === "skipped") continue
+
+  // Safety cap — prevent infinite re-injection
+  if (batchesExecuted >= (batchConfig.max_batch_iterations ?? MAX_BATCH_ITERATIONS)) {
+    batch.status = "skipped"
+    batch.skip_reason = "max_iterations_reached"
+    writeCheckpoint(id, testingPlan)
+    break
   }
 
+  // Budget check — skip remaining batches if budget exhausted
+  if (remainingBudget() < HARD_BATCH_TIMEOUT_MS) {
+    batch.status = "skipped"
+    batch.skip_reason = "budget_exhausted"
+    writeCheckpoint(id, testingPlan)
+    continue
+  }
+
+  // Mark running + atomic checkpoint
+  batch.status = "running"
+  batch.started_at = new Date().toISOString()
+  writeCheckpoint(id, testingPlan)
+
+  // TEAM-002: TaskCreate BEFORE Agent() — required by Iron Law
   TaskCreate({
-    subject: "Extended tier tests",
-    description: `Run ${extendedScenarios.length} extended scenario(s) with checkpoint support`
+    subject: `Batch ${batch.id}: ${batch.type} tests (${batch.files.length} files)`,
+    description: `Run ${batch.type} tests: ${batch.files.join(', ')}`
   })
-  totalExpectedTasks++
-  Write(`${signalDir}/.expected`, String(totalExpectedTasks))
 
-  // Testing skill context injection (TEAM-002 knowledge transfer)
-  // The testing SKILL.md content is injected below to give runners testing knowledge.
-  // Key sections: Testing Pyramid, Test Discovery, Failure Escalation
-
+  // Foreground agent (run_in_background: false — blocking call, zero idle risk)
   Agent({
-    subagent_type: "general-purpose", model: resolveModelForAgent("extended-test-runner", talisman),
-    name: "extended-test-runner", team_name: testTeamName,
-    prompt: `You are extended-test-runner. Run extended-tier test scenarios with checkpoint support.
-      Extended scenarios: ${JSON.stringify(extendedScenarios)}
-      Budget: ${Math.min(extendedBudget, remainingBudget())}ms
-      Checkpoint interval: ${checkpointIntervalMs}ms — write progress to tmp/arc/${id}/extended-checkpoint.json
-      Resume state: ${extendedResumeState ? JSON.stringify(extendedResumeState) : 'none (fresh run)'}
-      On timeout: write partial results and set status=timeout in output
-      Output to: tmp/arc/${id}/test-results-extended.md
+    team_name: testTeamName,
+    name: `batch-runner-${batch.id}`,
+    subagent_type: resolveRunnerAgentType(batch.type),  // see batch-execution.md agent type table
+    model: resolveModelForAgent(`${batch.type}-test-runner`, talisman),
+    run_in_background: false,  // CRITICAL: blocking — agent completes before loop continues
+    prompt: `Run these ${batch.type} tests: ${batch.files.join(', ')}
+      Output to: tmp/arc/${id}/test-results-batch-${batch.id}.md
       Strategy: ${Read(`tmp/arc/${id}/test-strategy.md`)}
-
-      ## Testing Knowledge (from testing SKILL.md)
-      - Testing Pyramid: Unit → Integration → E2E. Unit tests run first, fastest feedback.
-      - Failure Escalation: If tests fail, report exact assertion, file:line, and error message.
-      - Anti-Skip Rules: ALL discovered tests MUST run. Never skip tests due to timeout pressure.
-      - Coverage: Report files_executed / files_total for each tier.
-
-      IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").
-      [inject agent extended-test-runner.md content]`
+      IMPORTANT: Report PASS or FAIL with details for each test file.
+      When done, claim your task via TaskList + TaskUpdate (status: "completed").`
   })
 
-  const extendedWaitBudget = Math.min(extendedBudget + 60_000, remainingBudget())
-  const extendedCompleted = waitForCompletion(testTeamName, totalExpectedTasks, {
-    timeoutMs: extendedWaitBudget,
-    pollIntervalMs: 30_000,
-    staleWarnMs: 300_000,
-    label: "Extended Tests"
-  })
+  // Read result and classify pass/fail
+  const resultPath = `tmp/arc/${id}/test-results-batch-${batch.id}.md`
+  const batchResult = exists(resultPath) ? Read(resultPath) : ""
+  let passed = !batchResult.includes("FAIL") && !batchResult.includes("ERROR")
 
-  if (!extendedCompleted) {
-    warn(`Extended tier timed out after ${extendedWaitBudget}ms — partial results may be available in test-results-extended.md`)
-    updateCheckpoint({ extended_tier_status: "timeout" })
-  } else {
-    activeTiers.push('extended')
+  // Fix loop — up to max_fix_retries on failure
+  for (let retry = 0; !passed && retry < batchConfig.max_fix_retries; retry++) {
+    batch.status = "fixing"
+    batch.fix_attempts = retry + 1
+    writeCheckpoint(id, testingPlan)
+    warn(`Batch ${batch.id} fix attempt ${retry + 1}/${batchConfig.max_fix_retries}`)
+
+    // Lead reads failure details from resultPath and applies Edit() fixes, then reruns
+    TaskCreate({
+      subject: `Batch ${batch.id} retry ${retry + 1}: ${batch.type} tests`,
+      description: `Retry ${batch.type} tests after fix`
+    })
+    Agent({
+      team_name: testTeamName,
+      name: `batch-runner-${batch.id}-retry-${retry}`,
+      subagent_type: resolveRunnerAgentType(batch.type),
+      model: resolveModelForAgent(`${batch.type}-test-runner`, talisman),
+      run_in_background: false,
+      prompt: `Rerun these ${batch.type} tests after fix: ${batch.files.join(', ')}
+        Output to: ${resultPath}
+        When done, claim your task via TaskList + TaskUpdate (status: "completed").`
+    })
+
+    const retryResult = exists(resultPath) ? Read(resultPath) : ""
+    passed = !retryResult.includes("FAIL") && !retryResult.includes("ERROR")
+  }
+
+  // Finalize batch status
+  batch.status = passed ? "passed" : "failed"
+  batch.completed_at = new Date().toISOString()
+  batch.result_path = resultPath
+  testingPlan.summary.completed += 1
+  if (!passed) testingPlan.summary.failed += 1
+  if (passed) activeTiers.push(batch.type)  // may contain duplicates — deduped at STEP 10
+  writeCheckpoint(id, testingPlan)
+  batchesExecuted++
+
+  // Inter-batch delay (configurable, default 5s — avoids resource contention)
+  if (batchConfig.inter_batch_delay_ms > 0) {
+    Bash(`sleep ${Math.ceil(batchConfig.inter_batch_delay_ms / 1000)}`)
   }
 }
 
-// ═══════════════════════════════════════════════════════
-// STEP 8: FAILURE ANALYSIS (conditional — Opus, 3-min deadline)
-// ═══════════════════════════════════════════════════════
+// Update testing plan markdown after all batches complete
+Write(`tmp/arc/${id}/testing-plan.md`, renderTestingPlanMarkdown(testingPlan))
 
-const hasFailures = checkForFailures(`tmp/arc/${id}/test-results-*.md`)
-
-if (hasFailures && remainingBudget() > 180_000) {
-  TaskCreate({
-    subject: "Failure analysis",
-    description: "Analyze test failures and produce root cause analysis with fix proposals"
-  })
-  totalExpectedTasks++
-  Write(`${signalDir}/.expected`, String(totalExpectedTasks))
-
-  // Testing skill context injection (TEAM-002 knowledge transfer)
-  // The testing SKILL.md content is injected below to give runners testing knowledge.
-  // Key sections: Testing Pyramid, Test Discovery, Failure Escalation
-
-  Agent({
-    subagent_type: "general-purpose", model: resolveModelForAgent("test-failure-analyst", talisman),  // Cost tier mapping (exception: elevated model)
-    name: "test-failure-analyst", team_name: testTeamName,
-    prompt: `You are test-failure-analyst. Analyze failures in:
-      - tmp/arc/${id}/test-results-unit.md
-      - tmp/arc/${id}/test-results-integration.md
-      - tmp/arc/${id}/test-results-e2e.md
-      Truncate input: first 200 + last 50 lines per file.
-      Hard deadline: 3 minutes.
-
-      ## Testing Knowledge (from testing SKILL.md)
-      - Testing Pyramid: Unit → Integration → E2E. Unit tests run first, fastest feedback.
-      - Failure Escalation: If tests fail, report exact assertion, file:line, and error message.
-      - Anti-Skip Rules: ALL discovered tests MUST run. Never skip tests due to timeout pressure.
-      - Coverage: Report files_executed / files_total for each tier.
-
-      IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").
-      [inject agent test-failure-analyst.md content]`
-  })
-  waitForCompletion(testTeamName, totalExpectedTasks, {
-    timeoutMs: Math.min(180_000, remainingBudget()),
-    pollIntervalMs: 30_000,
-    staleWarnMs: 300_000,
-    label: "Failure Analysis"
-  })
-}
+// Update checkpoint for stop hook sub-loop continuation
+updateCheckpoint({
+  phase: "test", status: "in_progress",
+  testing_plan_batches_total: testingPlan.summary.total_batches,
+  testing_plan_batches_completed: testingPlan.summary.completed,
+  testing_plan_has_pending: testingPlan.batches.some(b => b.status === "pending")
+})
 
 // ═══════════════════════════════════════════════════════
 // STEP 9: GENERATE TEST REPORT
 // ═══════════════════════════════════════════════════════
 
 // Reserve last 60s for STEPS 9-10
-// Aggregate per-tier files (authoritative — NOT checkpoint files)
-// See testing/references/test-report-template.md for format
+// Read completed batch results from testing-plan.json (authoritative checkpoint)
+// See testing/references/test-report-template.md for report format
+const completedPlan = exists(`tmp/arc/${id}/testing-plan.json`)
+  ? JSON.parse(Read(`tmp/arc/${id}/testing-plan.json`))
+  : { batches: [], summary: { total_batches: 0, completed: 0, failed: 0, skipped: 0 } }
+
+// Collect per-tier results from individual batch result files
+const tierResults = {}
+for (const batch of completedPlan.batches) {
+  if (!tierResults[batch.type]) tierResults[batch.type] = []
+  if (batch.result_path && exists(batch.result_path)) {
+    tierResults[batch.type].push(Read(batch.result_path))
+  }
+}
+
 const report = aggregateTestReport({
-  id, tiersRun: activeTiers,
-  unitResults: exists(`tmp/arc/${id}/test-results-unit.md`) ? Read(`tmp/arc/${id}/test-results-unit.md`) : null,
-  integrationResults: exists(`tmp/arc/${id}/test-results-integration.md`) ? Read(`tmp/arc/${id}/test-results-integration.md`) : null,
-  e2eResults: exists(`tmp/arc/${id}/test-results-e2e.md`) ? Read(`tmp/arc/${id}/test-results-e2e.md`) : null,
+  id, tiersRun: [...new Set(activeTiers)],  // deduplicate (multiple batches per type)
+  unitResults: tierResults.unit?.join('\n\n---\n\n') ?? null,
+  integrationResults: tierResults.integration?.join('\n\n---\n\n') ?? null,
+  e2eResults: tierResults.e2e?.join('\n\n---\n\n') ?? null,
   strategy: Read(`tmp/arc/${id}/test-strategy.md`),
-  uncoveredImplementations, scopeLabel
+  uncoveredImplementations, scopeLabel,
+  batchSummary: completedPlan.summary  // passed/failed/skipped counts per plan
 })
 
 Write(`tmp/arc/${id}/test-report.md`, report + "\n<!-- SEAL: test-report-complete -->")
@@ -789,32 +551,15 @@ if (historyEnabled) {
 // STEP 10: CLEANUP (correct ordering — prevents deadlocks)
 // ═══════════════════════════════════════════════════════
 
-// 1. Shutdown teammates FIRST (adaptive grace)
-const testAgents = [
-  "unit-test-runner", "integration-test-runner", "e2e-browser-tester",
-  "test-failure-analyst", "extended-test-runner", "contract-validator"
-]
-// Adaptive grace: count alive vs dead, scale sleep accordingly
-let confirmedAlive = 0
-let confirmedDead = 0
-for (const agentName of testAgents) {
-  try { SendMessage({ type: "shutdown_request", recipient: agentName, content: "Test phase complete" }); confirmedAlive++ } catch (e) { confirmedDead++ }
-}
-// All dead → 2s SDK propagation pause. Some alive → max(5, alive*5), capped at 20s.
-if (confirmedAlive > 0) {
-  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`)
-} else {
-  Bash("sleep 2")
-}
+// 1. All batch runners are foreground (blocking) — completed before reaching cleanup.
+// No shutdown_request needed. Brief SDK propagation pause only.
+Bash("sleep 2")
 
-// 2. Clean up signal directory
-Bash(`rm -rf "${signalDir}" 2>/dev/null || true`)
-
-// 3. Close browser sessions (teammates already closed)
+// 2. Close browser sessions (teammates already completed — foreground)
 // SEC-001 FIX: Use grep -F for literal matching and quote --session argument
 Bash(`agent-browser session list 2>/dev/null | grep -F "arc-e2e-${id}" && agent-browser close --session "arc-e2e-${id}" 2>/dev/null || true`)
 
-// 4. Stop Docker
+// 3. Stop Docker
 if (dockerStarted) {
   Bash(`docker compose down --timeout 10 --remove-orphans 2>/dev/null || true`)
   // Fallback: kill by container IDs (SEC-005: validate hex IDs before shell interpolation)
@@ -827,7 +572,7 @@ if (dockerStarted) {
   }
 }
 
-// 5. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
+// 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
 let cleanupTeamDeleteSucceeded = false
 const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
@@ -841,14 +586,14 @@ if (!cleanupTeamDeleteSucceeded) {
   try { TeamDelete() } catch (e) { /* best effort */ }
 }
 
-// 6. Update checkpoint
+// 5. Update checkpoint
 updateCheckpoint({
   phase: "test", status: "completed",
   artifact: `tmp/arc/${id}/test-report.md`,
   artifact_hash: sha256(Read(`tmp/arc/${id}/test-report.md`)),
   phase_sequence: 7.7,
   team_name: testTeamName,
-  tiers_run: activeTiers,
+  tiers_run: [...new Set(activeTiers)],  // deduplicate (multiple batches per type)
   pass_rate: computePassRate(report),
   coverage_pct: computeDiffCoverage(report),
   has_frontend, scope_label: scopeLabel
@@ -863,14 +608,12 @@ If this phase crashes before cleanup:
 |----------|----------|
 | Team config | `$CHOME/teams/arc-test-{id}/` (where `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`) |
 | Task list | `$CHOME/tasks/arc-test-{id}/` (where `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`) |
-| Signal directory | `tmp/.rune-signals/arc-test-{id}/` |
+| Testing plan / checkpoint | `tmp/arc/{id}/testing-plan.json` (plan + state combined) |
 | Browser sessions | `arc-e2e-{id}` (check `agent-browser session list`) |
 | Docker containers | `tmp/arc/{id}/docker-containers.json` |
 | Screenshots | `tmp/arc/{id}/screenshots/` |
-| Extended tier checkpoint | `tmp/arc/{id}/extended-checkpoint.json` |
 | Test history | `.claude/test-history/test-history.jsonl` |
-| Contract validation results | `tmp/arc/{id}/test-results-contract.md` |
-| Extended tier results | `tmp/arc/{id}/test-results-extended.md` |
+| Batch results | `tmp/arc/{id}/test-results-batch-{N}.md` (one per batch) |
 
 Recovery: `prePhaseCleanup()` handles team/task cleanup before phase, `postPhaseCleanup()` handles cleanup after. See [arc-phase-cleanup.md](arc-phase-cleanup.md). Docker containers auto-stop on Docker daemon restart. Browser sessions time out after 5 minutes of inactivity.
 
