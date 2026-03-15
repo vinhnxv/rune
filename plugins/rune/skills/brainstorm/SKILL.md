@@ -24,7 +24,6 @@ description: |
   assistant: "Deep analysis mode — summoning advisors and elicitation sages..."
   </example>
 user-invocable: true
-disable-model-invocation: true
 argument-hint: "[--quick] [--deep] [feature idea or problem to explore]"
 allowed-tools:
   - Agent

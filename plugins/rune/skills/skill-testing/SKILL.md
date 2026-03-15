@@ -9,7 +9,6 @@ description: |
   Keywords: pressure test, rationalization, skill compliance, TDD for docs, red-green-refactor
   skills, agent bypass, rule evasion, skill audit, bulletproofing, writing skills.
 user-invocable: true
-disable-model-invocation: true
 allowed-tools: Read, Glob, Grep
 ---
 

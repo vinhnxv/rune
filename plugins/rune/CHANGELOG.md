@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.163.5] - 2026-03-15
+
+### Fixed
+- **Remove `disable-model-invocation: true` from 10 user-invocable skills** — This flag blocked the Skill tool entirely, making `/rune:arc-batch`, `/rune:brainstorm`, `/rune:elevate`, `/rune:skill-testing`, `/rune:arc-hierarchy`, `/rune:arc-issues`, `/rune:runs`, `/rune:team-status`, `/rune:learn`, and `/rune:status` un-invocable even by the user. The Skill tool enforces `disable-model-invocation` as a hard block on all programmatic invocations, including user-triggered slash commands routed through it.
+
 ## [1.163.4] - 2026-03-15
 
 ### Fixed

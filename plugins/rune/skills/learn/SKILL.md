@@ -24,7 +24,6 @@ description: |
   assistant: "Dry run: 5 patterns found. No entries written."
   </example>
 user-invocable: true
-disable-model-invocation: true
 argument-hint: "[--since DAYS] [--detector cli|review|arc|hook|all] [--dry-run]"
 allowed-tools:
   - Read

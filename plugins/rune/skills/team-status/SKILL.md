@@ -17,7 +17,6 @@ description: |
   </example>
 
 user-invocable: true
-disable-model-invocation: true
 allowed-tools: Read, Glob, Grep, Bash, TaskList, TaskGet
 argument-hint: "[team-name]"
 ---

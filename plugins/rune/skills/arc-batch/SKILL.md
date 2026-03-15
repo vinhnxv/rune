@@ -22,7 +22,6 @@ description: |
   assistant: "Reading plan queue from batch-queue.txt..."
   </example>
 user-invocable: true
-disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 argument-hint: "[plans/*.md | queue-file.txt] [--resume] [--dry-run] [--no-merge] [--no-shard-sort] [--no-smart-sort] [--smart-sort]"
 ---

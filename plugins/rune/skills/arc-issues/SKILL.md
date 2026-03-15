@@ -32,7 +32,6 @@ description: |
   </example>
 
 user-invocable: true
-disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 argument-hint: "[--label LABEL | issues-queue.txt | #N ...] [--resume] [--dry-run] [--all] [--force]"
 ---

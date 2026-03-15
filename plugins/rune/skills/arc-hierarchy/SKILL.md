@@ -22,7 +22,6 @@ description: |
   assistant: "Resuming hierarchy execution. Found 2/5 children completed. Next executable: 03-permissions..."
   </example>
 user-invocable: true
-disable-model-invocation: true
 allowed-tools:
   - Read
   - Write

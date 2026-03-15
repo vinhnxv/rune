@@ -19,7 +19,6 @@ description: |
   assistant: "Elevated 3 entries to global scope (domain: frontend)"
   </example>
 user-invocable: true
-disable-model-invocation: true
 argument-hint: "--scope <domain>"
 allowed-tools:
   - Read
