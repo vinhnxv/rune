@@ -119,7 +119,7 @@ def _signal_path(project_dir: str) -> str:
     """Derive the dirty-signal file path from PROJECT_DIR.
 
     The PostToolUse hook writes the signal to
-    ``<project>/tmp/.rune-signals/.agent-dirty``.
+    ``<project>/tmp/.rune-signals/.agent-search-dirty``.
 
     Args:
         project_dir: Project root directory.
@@ -131,7 +131,7 @@ def _signal_path(project_dir: str) -> str:
         return ""
     # SEC-007: Re-canonicalize to prevent path traversal
     real_dir = os.path.realpath(project_dir)
-    return os.path.join(real_dir, "tmp", ".rune-signals", ".agent-dirty")
+    return os.path.join(real_dir, "tmp", ".rune-signals", ".agent-search-dirty")
 
 
 def _search_signal_path(project_dir: str) -> str:
@@ -772,6 +772,11 @@ def do_register(
         tags_str = ",".join(tags)
         priority = SOURCE_PRIORITIES.get(source, 50)
 
+        # Fix BACK-002: Delete old FTS entry before re-registration to prevent ghost entries
+        old_row = conn.execute("SELECT rowid FROM agent_entries WHERE name = ?", (name,)).fetchone()
+        if old_row:
+            conn.execute("DELETE FROM agent_entries_fts WHERE rowid = ?", (old_row[0],))
+
         conn.execute(
             """INSERT OR REPLACE INTO agent_entries
                (id, name, description, category, primary_phase,
@@ -785,7 +790,7 @@ def do_register(
 
         # Update FTS
         conn.execute(
-            """INSERT OR REPLACE INTO agent_entries_fts
+            """INSERT INTO agent_entries_fts
                (rowid, name, description, tags, body)
                VALUES (
                    (SELECT rowid FROM agent_entries WHERE id = ?),

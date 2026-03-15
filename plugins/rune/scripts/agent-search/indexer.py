@@ -132,7 +132,13 @@ def _parse_frontmatter(lines: List[str]) -> Tuple[Dict[str, Any], int]:
         # List item continuation
         if stripped.startswith("  - ") or stripped.startswith("  -\t"):
             if current_key and current_list is not None:
-                current_list.append(stripped.strip().lstrip("- ").strip())
+                item = stripped.strip()
+                # Fix: remove only the first "- " prefix, not all leading dashes
+                if item.startswith("- "):
+                    item = item[2:]
+                elif item.startswith("-"):
+                    item = item[1:]
+                current_list.append(item.strip())
                 continue
 
         # Multiline string continuation (indented under |)
@@ -189,6 +195,12 @@ def _parse_frontmatter(lines: List[str]) -> Tuple[Dict[str, Any], int]:
         metadata[current_key] = current_list
     elif current_key and current_multiline is not None:
         metadata[current_key] = "\n".join(current_multiline).strip()
+
+    # Fix BACK-003: Detect unclosed frontmatter (no closing ---)
+    if body_start == len(lines) and len(metadata) > 0:
+        import sys
+        print("WARN: unclosed frontmatter (no closing ---) in file — treating as invalid", file=sys.stderr)
+        return {}, 0
 
     return metadata, body_start
 
