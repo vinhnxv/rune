@@ -72,7 +72,7 @@ When `cli:` is present, the entry is a **CLI-backed Ash** that invokes an extern
 | `detection_steps` | N/A | Optional |
 | `model_pattern` | N/A | Optional (default: MODEL_NAME_PATTERN) |
 
-CLI-backed Ashes use `detectExternalModel()` (see [codex-detection.md](codex-detection.md)) instead of agent resolution. Their prompt is generated from the [external-model-template.md](ash-prompts/external-model-template.md) template.
+CLI-backed Ashes use `detectExternalModel()` (see [codex-detection.md](codex-detection.md)) instead of agent resolution. Their prompt is generated from the [external-model-template.md](../../../prompts/ash/external-model-template.md) template.
 
 ### `settings` Fields
 

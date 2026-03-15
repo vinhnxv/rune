@@ -1,55 +1,24 @@
 # Phase 7: Cleanup & Echo Persist
 
+## Teammate Fallback Array
+
 ```javascript
-// 1. Dynamic teammate discovery from team config
-const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
-let allMembers = []
-try {
-  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
-  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
-  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
-} catch (e) {
-  // FALLBACK: built-in Ashes + runebinder (safe to send shutdown to absent members)
-  allMembers = ["forge-warden", "ward-sentinel", "pattern-weaver", "veil-piercer",
-    "glyph-scribe", "knowledge-keeper", "codex-oracle", "runebinder",
-    "doubt-seer", "elicitation-sage-security-1", "elicitation-sage-security-2",
-    "ux-heuristic-reviewer", "ux-flow-validator", "ux-interaction-auditor", "ux-cognitive-walker",
-    "design-implementation-reviewer",
-    "shard-reviewer-a", "shard-reviewer-b", "shard-reviewer-c", "shard-reviewer-d", "shard-reviewer-e"]
-}
-for (const member of allMembers) {
-  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Review complete" }) } catch (e) { /* member may have already exited */ }
-}
+// FALLBACK: built-in Ashes + runebinder (safe to send shutdown to absent members)
+allMembers = ["forge-warden", "ward-sentinel", "pattern-weaver", "veil-piercer",
+  "glyph-scribe", "knowledge-keeper", "codex-oracle", "runebinder",
+  "doubt-seer", "elicitation-sage-security-1", "elicitation-sage-security-2",
+  "ux-heuristic-reviewer", "ux-flow-validator", "ux-interaction-auditor", "ux-cognitive-walker",
+  "design-implementation-reviewer",
+  "shard-reviewer-a", "shard-reviewer-b", "shard-reviewer-c", "shard-reviewer-d", "shard-reviewer-e"]
+```
 
-// 2. Grace period — let teammates deregister before TeamDelete
-if (allMembers.length > 0) {
-  Bash(`sleep 20`)
-}
+## Protocol
 
-// 3. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
-let cleanupTeamDeleteSucceeded = false
-const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
-for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
-  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
-  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
-    if (attempt === CLEANUP_DELAYS.length - 1) warn(`appraise cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
-  }
-}
-// Process-level kill — terminate orphaned teammate processes (step 5a)
-if (!cleanupTeamDeleteSucceeded) {
-  const ownerPid = Bash(`echo $PPID`).trim()
-  if (ownerPid && /^\d+$/.test(ownerPid)) {
-    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash(`sleep 5`)
-    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
-  }
-}
-// Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
-if (!cleanupTeamDeleteSucceeded) {
-  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
-  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
-}
+Follow standard shutdown from [engines.md](../../team-sdk/references/engines.md#shutdown).
 
+## Post-Cleanup
+
+```javascript
 // 3.5. Release workflow lock
 Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "appraise"`)
 

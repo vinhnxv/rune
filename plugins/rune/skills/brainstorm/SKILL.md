@@ -470,18 +470,21 @@ Write `workspace-meta.json` with session metadata (mode, feature, advisors, timi
 
 ### Cleanup (Team/Deep modes)
 
-Standard 5-component team cleanup (see CLAUDE.md "Agent Team Cleanup"):
+## Teammate Fallback Array
 
 ```javascript
-// 1. Dynamic member discovery — read team config for ALL teammates
-//    Fallback list: ["user-advocate", "tech-realist", "devils-advocate", "reality-arbiter",
-//      "elicitation-sage-1", "elicitation-sage-2", "elicitation-sage-3", "state-weaver"]
-// 2. shutdown_request to all members
-// 3. Grace period (sleep 20)
-// 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
-// 5. Process-level kill (SIGTERM→3s→SIGKILL) + filesystem fallback (gated on !cleanupTeamDeleteSucceeded)
+allMembers = ["user-advocate", "tech-realist", "devils-advocate", "reality-arbiter",
+  "elicitation-sage-1", "elicitation-sage-2", "elicitation-sage-3", "state-weaver"]
+```
 
-// Post-cleanup: update state file status to "completed"
+## Protocol
+
+Follow standard shutdown from [engines.md](../../team-sdk/references/engines.md#shutdown).
+
+## Post-Cleanup
+
+```javascript
+// Update state file status to "completed"
 // Release workflow lock:
 Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "brainstorm"`)
 ```

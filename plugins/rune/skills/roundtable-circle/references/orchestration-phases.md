@@ -241,7 +241,7 @@ for (const ash of selectedAsh) {
 //   are enforced by SEC-001 PreToolUse hook (enforce-readonly.sh), not frontmatter.
 //
 // Tier 3: Built-in Ash (standard Rune agents)
-//   Standard Ashes live in ash-prompts/ (full agent prompt files)
+//   Standard Ashes live in prompts/ash/ (full agent prompt files)
 //
 // function buildAshPrompt(ash, params):
 //

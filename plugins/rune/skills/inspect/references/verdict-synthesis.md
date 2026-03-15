@@ -116,57 +116,25 @@ log("═════════════════════════
 
 ### Step 7.1-7.2 — Shutdown and TeamDelete
 
+**Fallback array** (when team config unreadable):
+
 ```javascript
-// --- 1. Dynamic member discovery (team-sdk standard pattern) ---
-const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
-let allMembers = []
-try {
-  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
-  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
-  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
-} catch (e) {
-  // FALLBACK: config.json read failed — use exhaustive list of all possible inspect agents.
-  // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
-  allMembers = [
-    "grace-warden", "ruin-prophet", "sight-oracle", "vigil-keeper",
-    "verdict-binder", "gap-fixer", "inspect-lore-analyst"
-  ]
-}
+// FALLBACK: config.json read failed — use exhaustive list of all possible inspect agents.
+// Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
+allMembers = [
+  "grace-warden", "ruin-prophet", "sight-oracle", "vigil-keeper",
+  "verdict-binder", "gap-fixer", "inspect-lore-analyst"
+]
+```
 
-// --- 2. Send shutdown_request to all discovered members ---
-for (const member of allMembers) {
-  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Inspection complete." }) } catch (e) { /* member may have already exited */ }
-}
+Follow standard shutdown from [engines.md](../../team-sdk/references/engines.md#shutdown).
 
-// --- 3. Grace period — let teammates deregister before TeamDelete ---
-if (allMembers.length > 0) {
-  Bash("sleep 20")
-}
+**Post-step:**
 
-// --- 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s) ---
+```javascript
+// ID validation
 if (!/^[a-zA-Z0-9_-]+$/.test(teamName)) {
   throw new Error(`Invalid team_name: ${teamName}`)
-}
-const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
-let cleanupTeamDeleteSucceeded = false
-for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
-  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
-  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
-    if (attempt === CLEANUP_DELAYS.length - 1) warn(`inspect cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
-  }
-}
-// --- 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012) ---
-if (!cleanupTeamDeleteSucceeded) {
-  // 5a. Process-level kill — terminate lingering teammates before filesystem cleanup
-  const ownerPid = Bash(`echo $PPID`).trim()
-  if (ownerPid && /^\d+$/.test(ownerPid)) {
-    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash(`sleep 5`)
-    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
-  }
-  // 5b. Filesystem cleanup
-  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
-  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
 
 // --- 6. Release workflow lock ---

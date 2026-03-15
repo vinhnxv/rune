@@ -6,72 +6,35 @@ Shuts down all forge teammates, cleans up team resources, updates state file, pr
 **Outputs**: Updated state file (status: "completed"), completion report
 **Preconditions**: Phase 5 (merge enrichments) complete
 
+## Teammate Fallback Array
+
 ```javascript
-// Resolve config directory once (CLAUDE_CONFIG_DIR aware)
-const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+// FALLBACK: config.json read failed — use exhaustive list of all possible forge agents.
+// Includes: topic agents (from forge-gaze selection) + elicitation sages (up to 6).
+// Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
+allMembers = [
+  // Topic agents (forge-gaze assigns from the full review agent pool)
+  "rune-architect", "pattern-seer", "ward-sentinel", "flaw-hunter",
+  "ember-oracle", "simplicity-warden", "depth-seer", "tide-watcher",
+  "blight-seer", "wraith-finder", "void-analyzer", "mimic-detector",
+  "forge-keeper", "type-warden", "trial-oracle", "assumption-slayer",
+  "reality-arbiter", "entropy-prophet", "senior-engineer-reviewer",
+  "phantom-checker", "refactor-guardian", "reference-validator",
+  // Elicitation sages (up to MAX_FORGE_SAGES=6, indexed by section)
+  "elicitation-sage-0", "elicitation-sage-1", "elicitation-sage-2",
+  "elicitation-sage-3", "elicitation-sage-4", "elicitation-sage-5"
+]
+```
 
-// 1. Dynamic member discovery — reads team config to find ALL teammates
-let allMembers = []
-try {
-  const teamConfig = JSON.parse(Read(`${CHOME}/teams/rune-forge-${timestamp}/config.json`))
-  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
-  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
-} catch (e) {
-  // FALLBACK: config.json read failed — use exhaustive list of all possible forge agents.
-  // Includes: topic agents (from forge-gaze selection) + elicitation sages (up to 6).
-  // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
-  allMembers = [
-    // Topic agents (forge-gaze assigns from the full review agent pool)
-    "rune-architect", "pattern-seer", "ward-sentinel", "flaw-hunter",
-    "ember-oracle", "simplicity-warden", "depth-seer", "tide-watcher",
-    "blight-seer", "wraith-finder", "void-analyzer", "mimic-detector",
-    "forge-keeper", "type-warden", "trial-oracle", "assumption-slayer",
-    "reality-arbiter", "entropy-prophet", "senior-engineer-reviewer",
-    "phantom-checker", "refactor-guardian", "reference-validator",
-    // Elicitation sages (up to MAX_FORGE_SAGES=6, indexed by section)
-    "elicitation-sage-0", "elicitation-sage-1", "elicitation-sage-2",
-    "elicitation-sage-3", "elicitation-sage-4", "elicitation-sage-5"
-  ]
-}
+## Protocol
 
-// Shutdown all discovered members
-for (const member of allMembers) {
-  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Forge workflow complete" }) } catch (e) { /* member may have already exited */ }
-}
+Follow standard shutdown from [engines.md](../../team-sdk/references/engines.md#shutdown).
 
-// Grace period — let teammates process shutdown_request and deregister.
-// Without this sleep, TeamDelete fires immediately → "active members" error → filesystem fallback.
-if (allMembers.length > 0) {
-  Bash(`sleep 20`)
-}
+## Post-Cleanup
 
+```javascript
 // Validate identifier before rm -rf
 if (!/^[a-zA-Z0-9_-]+$/.test(timestamp)) throw new Error("Invalid forge identifier")
-
-// Cleanup team with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
-// Total budget: 20s grace + 30s retry = 50s max
-const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
-let cleanupTeamDeleteSucceeded = false
-for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
-  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
-  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
-    if (attempt === CLEANUP_DELAYS.length - 1) warn(`forge cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
-  }
-}
-// Process-level kill — terminate orphaned teammate processes (step 5a)
-if (!cleanupTeamDeleteSucceeded) {
-  const ownerPid = Bash(`echo $PPID`).trim()
-  if (ownerPid && /^\d+$/.test(ownerPid)) {
-    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash(`sleep 5`)
-    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
-  }
-}
-// Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
-if (!cleanupTeamDeleteSucceeded) {
-  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/rune-forge-${timestamp}/" "$CHOME/tasks/rune-forge-${timestamp}/" 2>/dev/null`)
-  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
-}
 
 // Release workflow lock
 Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "forge"`)

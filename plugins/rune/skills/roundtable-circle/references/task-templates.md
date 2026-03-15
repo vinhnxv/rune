@@ -121,7 +121,7 @@ Agent({
   team_name: "rune-{workflow}-{id}",
   name: "{ash-name}",
   subagent_type: "general-purpose",
-  prompt: [from references/ash-prompts/{role}.md],
+  prompt: [from ../../../prompts/ash/{role}.md],
   run_in_background: true
 })
 ```
@@ -136,7 +136,7 @@ Agent({
 Agent({
   subagent_type: "general-purpose",
   description: "{role} review",
-  prompt: [from references/ash-prompts/{role}.md],
+  prompt: [from ../../../prompts/ash/{role}.md],
   run_in_background: true
 })
 ```
@@ -159,4 +159,4 @@ All Ash are independent — no `blockedBy` relationships between them. The Runeb
 ## References
 
 - [Circle Registry](circle-registry.md) — Agent-to-Ash mapping
-- [Ash Prompts](ash-prompts/) — Individual prompts to inject
+- [Ash Prompts](../../../prompts/ash/) — Individual prompts to inject

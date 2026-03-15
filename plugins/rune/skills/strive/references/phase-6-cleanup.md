@@ -1,32 +1,23 @@
 # Phase 6: Cleanup & Report
 
-```javascript
-// 0. Cache task list BEFORE team cleanup (TaskList() requires active team)
-const allTasks = TaskList()
+## Teammate Fallback Array
 
-// 1. Dynamic member discovery — reads team config to find ALL teammates
-const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
-let allMembers = []
-try {
-  const teamConfig = JSON.parse(Read(`${CHOME}/teams/rune-work-${timestamp}/config.json`))
-  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
-  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
-} catch (e) {
-  // FALLBACK: spawnedWorkerNames (rune-smith) + trial-forger + Mini Test agents
-  allMembers = [...spawnedWorkerNames, "trial-forger",
-    "unit-test-runner", "test-failure-analyst"]
-}
-// 2. Send shutdown_request to all members
-for (const member of allMembers) {
-  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Work complete" }) } catch (e) { /* member may have already exited */ }
-}
-// 2.5. Grace period — sleep 20s to let teammates deregister before TeamDelete
-if (allMembers.length > 0) {
-  Bash(`sleep 20`)
-}
+```javascript
+// FALLBACK: spawnedWorkerNames (rune-smith) + trial-forger + Mini Test agents
+allMembers = [...spawnedWorkerNames, "trial-forger",
+  "unit-test-runner", "test-failure-analyst"]
+```
+
+## Protocol
+
+Follow standard shutdown from [engines.md](../../team-sdk/references/engines.md#shutdown).
+
+**Pre-shutdown note:** Cache `const allTasks = TaskList()` BEFORE team cleanup (TaskList() requires active team).
+
+**Mid-protocol (step 2.7):** After grace period, finalize per-worker artifacts before TeamDelete:
+
+```javascript
 // 2.7. Finalize per-worker artifacts (non-blocking — skip if runs/ absent)
-//      Scan tmp/work/{timestamp}/runs/ for agents with status "running"
-//      and mark as completed/failed based on worker output presence
 try {
   const workRunsDir = `tmp/work/${timestamp}/runs/`
   const runMetas = Glob(`${workRunsDir}*/meta.json`)
@@ -36,7 +27,6 @@ try {
       if (meta.status === "running") {
         const agentRunDir = metaPath.replace(/\/meta\.json$/, '')
         const agentName = agentRunDir.split('/').pop()
-        // Check if worker completed any tasks
         const workerTasks = allTasks.filter(t => t.owner === agentName && t.status === "completed")
         const agentStatus = workerTasks.length > 0 ? "completed" : "failed"
         Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/run-artifacts.sh 2>/dev/null && type rune_artifact_finalize &>/dev/null && rune_artifact_finalize "${agentRunDir}" "${agentStatus}"`)
@@ -44,30 +34,11 @@ try {
     } catch (e) { /* per-agent finalization failure is non-blocking */ }
   }
 } catch (e) { /* artifact finalization is non-blocking */ }
-// 3. Cleanup team with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
-//    Total budget: 20s grace + 30s retry = 50s max
-let cleanupTeamDeleteSucceeded = false
-const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
-for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
-  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
-  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
-    if (attempt === CLEANUP_DELAYS.length - 1) warn(`strive cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
-  }
-}
-// Process-level kill — terminate orphaned teammate processes (step 5a)
-if (!cleanupTeamDeleteSucceeded) {
-  const ownerPid = Bash(`echo $PPID`).trim()
-  if (ownerPid && /^\d+$/.test(ownerPid)) {
-    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash(`sleep 5`)
-    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
-  }
-}
-// Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
-if (!cleanupTeamDeleteSucceeded) {
-  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/rune-work-${timestamp}/" "$CHOME/tasks/rune-work-${timestamp}/" 2>/dev/null`)
-  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
-}
+```
+
+## Post-Cleanup
+
+```javascript
 // 3.5: Fix stale worker log statuses (FLAW-008 — active → interrupted)
 // 3.6: Worktree garbage collection (worktree mode only)
 //      git worktree prune + remove orphaned worktrees matching rune-work-*
