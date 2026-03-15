@@ -206,7 +206,7 @@ assert_eq "Completed arc exits 0" "0" "$(get_exit_code)"
 
 STDOUT_7=$(get_stdout)
 assert_contains "Advisory output has hookSpecificOutput" "hookSpecificOutput" "$STDOUT_7"
-assert_contains "Advisory mentions arc pipeline" "arc pipeline" "$STDOUT_7"
+assert_contains "Advisory mentions arc completion" "Arc completed" "$STDOUT_7"
 assert_contains "Advisory mentions PreToolUse hookEventName" "PreToolUse" "$STDOUT_7"
 
 # ═══════════════════════════════════════════════════════════════
