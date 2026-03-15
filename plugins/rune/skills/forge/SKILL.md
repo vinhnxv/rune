@@ -381,6 +381,19 @@ These can be overridden via `talisman.yml` `forge:` section.
 
 See [phase-3-4-scope-and-summon.md](references/phase-3-4-scope-and-summon.md) for full pseudocode. See [forge-enrichment-protocol.md](references/forge-enrichment-protocol.md) for inscription format, task creation, and agent prompts. See [engines.md](../team-sdk/references/engines.md) for teamTransition protocol.
 
+### Grounded Enrichment Protocol
+
+All forge enrichment agents MUST follow this protocol:
+
+1. **Read every file** referenced in the section being enriched (do not assume they exist)
+2. **Verify function signatures** match plan claims against actual code
+3. **Surface hidden issues**: Report TODOs, FIXMEs, bugs discovered in referenced files
+4. **Check test coverage**: Do referenced files have corresponding tests?
+5. **Annotate with "### Current State"**: Include actual file paths, known issues, dependency chain, test coverage status, and risk level
+6. **Challenge plan claims**: Flag if plan assumes nonexistent functions, contradicts CLAUDE.md rules, or touches high-fanout files without mentioning downstream impact
+
+**Block**: Enriching without reading actual files. Proposing patterns that conflict with existing code without flagging the conflict.
+
 ## Phase 5: Merge Enrichments
 
 ### Backup Original

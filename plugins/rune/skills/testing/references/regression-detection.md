@@ -173,6 +173,17 @@ detection provides the more actionable classification.
 | Corrupt history entry | Handled by `readRecentHistory()` try-catch — see [history-protocol.md](history-protocol.md) |
 | Skipped test in current run | Only `status === "failed"` tests are evaluated — skipped tests ignored |
 
+## Batch-Level Regression Signals (Future)
+
+> **YAGNI Note**: Batch-level regression detection (duration regression, failure signature
+> matching, fix rate trends) is deferred until sufficient history data exists to validate
+> threshold ranges. The batch-level fields in history entries (`total_batches`, `passed_batches`,
+> `fixes_applied`, `avg_batch_duration_ms`) are already persisted — detection algorithms
+> can be added once real data distributions are observed.
+>
+> See [history-protocol.md](history-protocol.md) for the batch-level fields that enable
+> future regression analysis.
+
 ## Error Handling
 
 ```

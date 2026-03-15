@@ -71,6 +71,8 @@ You are the Tarnished — moderator of the brainstorm roundtable.
 ```
 Phase 0: Assess & Mode Select (--quick -> Solo, --deep -> Deep, default -> ask)
     |
+Phase 0.5: Impact-Aware Context Gathering (conditional — skip for greenfield)
+    |
 Phase 1: Team Bootstrap (Team/Deep modes — TeamCreate, advisor spawning)
     |
 Phase 2: Understanding Rounds (2-4 rounds — advisors question, user responds)
@@ -183,6 +185,21 @@ if (quickFlag) {
   })
 }
 ```
+
+### Phase 0.5: Impact-Aware Context Gathering (conditional)
+
+Before brainstorming new approaches, assess what already exists in the codebase.
+
+**Skip condition**: Purely greenfield features with no existing code matches.
+
+1. **Identify affected code**: Search codebase for files matching feature keywords using Grep/Glob
+2. **Search echoes**: Find related past work via `echo_search` MCP tool
+3. **Trace dependency chain**: For each affected file, find importers (downstream) and imports (upstream)
+4. **Scan for existing issues**: TODOs, FIXMEs, wrong patterns in affected files
+5. **Present impact context**: Show user what exists before brainstorming starts
+6. **Inject into advisor context** (Team/Deep mode): Advisors receive dependency chain + discovered issues
+
+This ensures brainstorming is grounded in reality — exploring solutions for the actual codebase state, not an imagined blank slate.
 
 ## Phase 1: Team Bootstrap (Team/Deep modes only)
 
@@ -474,7 +491,7 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_re
 ```javascript
 AskUserQuestion({
   questions: [{
-    question: `Brainstorm complete (quality: ${passed}/7 — ${tier}).
+    question: `Brainstorm complete (quality: ${passed}/8 — ${tier}).
 Your brainstorm is saved at docs/brainstorms/${outputFilename}.
 What would you like to do next?`,
     header: "Next Steps",

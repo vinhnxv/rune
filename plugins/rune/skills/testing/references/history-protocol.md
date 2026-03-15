@@ -41,8 +41,16 @@ Each run appends one JSON line to `test-history.jsonl`:
 | `tier_breakdown[tier].pass` | number | YES | Passed count for tier |
 | `tier_breakdown[tier].fail` | number | YES | Failed count for tier |
 | `tier_breakdown[tier].duration_ms` | number | YES | Tier execution time |
+| `tier_breakdown[tier].batch_count` | number | NO | Number of batches for this tier |
 | `flaky_scores` | object | NO | Per-test flakiness scores (see [flaky-detection.md](flaky-detection.md)) |
 | `pr_number` | number | NO | Associated PR number (`null` if none) |
+| `total_batches` | number | NO | Total batch count across all tiers |
+| `passed_batches` | number | NO | Batches that passed (first attempt or after fix) |
+| `failed_batches` | number | NO | Batches that remained failed after all retries |
+| `skipped_batches` | number | NO | Batches skipped (budget exhaustion or other) |
+| `fixes_applied` | number | NO | Total fix attempts across all batches |
+| `batches_fixed_by_retry` | number | NO | Batches that failed initially but passed after fix loop |
+| `avg_batch_duration_ms` | number | NO | Average batch execution time (for timing regression) |
 
 ## Persistence Algorithm (STEP 9.5)
 
@@ -94,9 +102,52 @@ Extracts fields from the test report output. Maps:
 - `reportData.summary.pass_rate` → `entry.pass_rate`
 - `reportData.summary.coverage_pct` → `entry.coverage_pct`
 - `reportData.active_tiers` → `entry.tiers_run`
-- Per-tier results → `entry.tier_breakdown`
+- Per-tier results → `entry.tier_breakdown` (now includes `batch_count` per tier)
 - Computed flaky scores → `entry.flaky_scores`
 - `Bash("gh pr view --json number -q .number")` → `entry.pr_number`
+
+#### Batch-Level Fields (v1.165.0+)
+
+When a `testing-plan.json` checkpoint exists, batch-level metrics are extracted:
+
+```javascript
+function enrichWithBatchData(entry, testingPlan, evidenceRecords) {
+  if (!testingPlan) return entry
+
+  const batches = testingPlan.batches ?? []
+  entry.total_batches = batches.length
+  entry.passed_batches = batches.filter(b => b.status === "passed").length
+  entry.failed_batches = batches.filter(b => b.status === "failed").length
+  entry.skipped_batches = batches.filter(b => b.status === "skipped").length
+
+  // Fix loop stats
+  const batchesWithFixes = batches.filter(b => (b.fix_attempts ?? 0) > 0)
+  entry.fixes_applied = batchesWithFixes.reduce((s, b) => s + (b.fix_attempts ?? 0), 0)
+  entry.batches_fixed_by_retry = batchesWithFixes.filter(b => b.status === "passed").length
+
+  // Timing
+  const durations = batches
+    .filter(b => b.started_at && b.completed_at)
+    .map(b => new Date(b.completed_at).getTime() - new Date(b.started_at).getTime())
+    .filter(d => d > 0 && Number.isFinite(d))
+  entry.avg_batch_duration_ms = durations.length > 0
+    ? Math.round(durations.reduce((s, d) => s + d, 0) / durations.length)
+    : null
+
+  // Per-tier batch counts
+  const tierBatchCounts = {}
+  for (const batch of batches) {
+    tierBatchCounts[batch.type] = (tierBatchCounts[batch.type] ?? 0) + 1
+  }
+  for (const [tier, count] of Object.entries(tierBatchCounts)) {
+    if (entry.tier_breakdown?.[tier]) {
+      entry.tier_breakdown[tier].batch_count = count
+    }
+  }
+
+  return entry
+}
+```
 
 ## Talisman Configuration
 
@@ -153,9 +204,10 @@ function readRecentHistory(historyDir, count):
 ## Integration Points
 
 - **STEP 9.5**: Called after test report generation (STEP 9). Persists the current run to `test-history.jsonl`.
+- **Evidence protocol**: Batch evidence records and failure signatures feed into history entries. See [evidence-protocol.md](evidence-protocol.md).
 - **Regression detection**: Reads history via `readRecentHistory()`. See [regression-detection.md](regression-detection.md).
 - **Flaky test detection**: Reads history via `readRecentHistory()`. See [flaky-detection.md](flaky-detection.md).
-- **Test report template**: History-derived sections (regressions, flaky tests) appear in the report. See [test-report-template.md](test-report-template.md).
+- **Test report template**: History-derived sections (regressions, flaky tests, batch evidence) appear in the report. See [test-report-template.md](test-report-template.md).
 - **Trend prediction**: `readRecentHistory()` is called at STEP 1.5 (test strategy) for trend-informed scope decisions.
 
 ## Edge Cases

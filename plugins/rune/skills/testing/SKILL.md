@@ -108,6 +108,37 @@ Test runner detects failure
     → If analyst times out: attach raw test output instead
 ```
 
+## Batch Execution Model (v1.165.0+)
+
+Phase 7.7 uses sequential batched execution instead of parallel background agents.
+Each batch = 1 foreground agent (blocking call, zero idle risk).
+
+**Execution order**: unit batches → contract → integration → e2e → extended
+**Batch sizing**: TARGET_BATCH_DURATION_MS / avg_test_duration (clamped to 1-20)
+**Fix loop**: On failure, lead analyzes + fixes + reruns (max 2 retries)
+**Checkpoint**: testing-plan.json is both plan AND checkpoint (atomic writes)
+**Fresh context**: Stop hook re-injects per batch for unlimited context budget
+
+See [batch-execution.md](references/batch-execution.md) for the full algorithm.
+See [testing-plan-schema.md](references/testing-plan-schema.md) for the JSON schema.
+
+## Anti-Skip Enforcement Rules
+
+These rules are MANDATORY — not suggestions. Violation halts the pipeline.
+
+1. NEVER skip tests because they "take too long"
+2. NEVER mark testing as "done" with unfixed failures (unless max retries exceeded)
+3. ALL diff-scoped test files MUST be executed
+4. Fix-before-continue is MANDATORY — failed batch enters fix loop before proceeding
+5. Testing plan MUST exist before any execution begins
+6. Budget exhaustion is the ONLY valid skip reason — log explicitly as `skipped_budget_exhausted`
+
+### Completeness Check
+After all batches complete, verify:
+- No batches with status "pending" remain (all executed or explicitly skipped)
+- Skipped batches have skip_reason logged
+- Warning emitted if any batch failed after max retries
+
 ## Test Scenario Schema
 
 See [scenario-schema.md](references/scenario-schema.md) for the YAML test scenario format.

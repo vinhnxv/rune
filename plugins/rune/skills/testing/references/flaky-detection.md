@@ -92,7 +92,7 @@ still fail frequently in runs of 3+ consecutive executions.
 function computePassK(testName, recentRuns, k):
   // Extract ordered results for this test (oldest to newest)
   results = []
-  for run in recentRuns.reverse():  // oldest first
+  for run in [...recentRuns].reverse():  // oldest first (copy to avoid mutating shared array)
     match = run.per_test.find(t => t.name === testName)
     if match:
       results.push(match.status === "passed" ? 1 : 0)
@@ -182,6 +182,14 @@ if flakyTests.length > 0:
   WARN: "${flakyTests.length} flaky test(s) detected"
   reportData.flaky_analysis = flakyTests
 ```
+
+## Integration with Batch Evidence (v1.165.0+)
+
+When batch evidence records are available (see [evidence-protocol.md](evidence-protocol.md)),
+flaky detection benefits from richer failure data — the evidence record's `failures[]` array
+provides `error_type` and `assertion_message` which can distinguish between different failure
+modes for the same test name. This data is available for future enrichment of flaky scoring
+when sufficient cross-run history accumulates.
 
 ## Integration with Test Report Template
 

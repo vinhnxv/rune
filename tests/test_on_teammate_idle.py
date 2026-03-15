@@ -26,14 +26,17 @@ def run_idle_hook(
     *,
     team_name: str = "rune-review-test123",
     teammate_name: str = "ward-sentinel",
+    session_id: str = "",
     env_override: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run on-teammate-idle.sh with a TeammateIdle event."""
-    input_json = {
+    input_json: dict = {
         "team_name": team_name,
         "teammate_name": teammate_name,
         "cwd": str(project),
     }
+    if session_id:
+        input_json["session_id"] = session_id
     env = os.environ.copy()
     env["CLAUDE_CONFIG_DIR"] = str(config.resolve())
     if env_override:
@@ -177,16 +180,16 @@ class TestTeammateIdleOutputValidation:
 
     @requires_jq
     def test_allows_when_output_exists_and_sufficient(self, project_env):
-        """Output file with enough content → exit 0 (allow idle)."""
+        """Output file with enough content and findings → exit 0 (allow idle)."""
         project, config = project_env
         setup_inscription(project)
         setup_team_dir(config)
         output_dir = project / "tmp" / "reviews" / "test123"
         output_dir.mkdir(parents=True, exist_ok=True)
-        # Write content with 20+ lines (hook requires minimum depth)
+        # Write content with 20+ lines and proper P2 finding markers
         lines = ["# Review Findings", ""]
         for i in range(20):
-            lines.append(f"- Finding {i+1}: Details about this finding")
+            lines.append(f"P2: Finding {i+1} — details about this issue")
         lines.append("")
         lines.append("SEAL: ward-sentinel")
         content = "\n".join(lines)
@@ -223,10 +226,10 @@ class TestTeammateIdleSealEnforcement:
         setup_team_dir(config)
         output_dir = project / "tmp" / "reviews" / "test123"
         output_dir.mkdir(parents=True, exist_ok=True)
-        # Write content with 20+ lines (hook requires minimum depth)
+        # Write content with 20+ lines and P2 findings (required by finding density check)
         lines = ["# Review", ""]
         for i in range(20):
-            lines.append(f"- Detail {i+1}: More details here")
+            lines.append(f"P2: Detail {i+1} — issue details here")
         lines.append("")
         lines.append("SEAL: ward-sentinel")
         content = "\n".join(lines)
@@ -242,10 +245,10 @@ class TestTeammateIdleSealEnforcement:
         setup_team_dir(config)
         output_dir = project / "tmp" / "reviews" / "test123"
         output_dir.mkdir(parents=True, exist_ok=True)
-        # Write content with 20+ lines (hook requires minimum depth)
+        # Write content with 20+ lines and P2 findings (required by finding density check)
         lines = ["# Review", ""]
         for i in range(20):
-            lines.append(f"- Detail {i+1}: More details here")
+            lines.append(f"P2: Detail {i+1} — issue details here")
         lines.append("")
         lines.append("<seal>ward-sentinel</seal>")
         content = "\n".join(lines)
@@ -350,3 +353,458 @@ class TestTeammateIdleSecurity:
         project, config = project_env
         result = run_idle_hook(project, config, teammate_name="ward;rm -rf /")
         assert result.returncode == 0
+
+
+# ---------------------------------------------------------------------------
+# Layer 0: Orphan Detection
+# ---------------------------------------------------------------------------
+
+
+class TestTeammateIdleOrphanDetection:
+    @requires_jq
+    def test_force_stops_when_team_dir_gone(self, project_env):
+        """Team directory removed (TeamDelete ran) → {"continue": false}."""
+        project, config = project_env
+        # Do NOT create team dir — simulates post-TeamDelete state
+        result = run_idle_hook(project, config)
+        assert result.returncode == 0
+        output = json.loads(result.stdout)
+        assert output["continue"] is False
+        assert "orphaned" in output["stopReason"].lower() or "no longer exists" in output["stopReason"].lower()
+
+    @requires_jq
+    def test_force_stops_when_workflow_completed(self, project_env):
+        """Workflow state is 'completed' → {"continue": false}."""
+        project, config = project_env
+        setup_team_dir(config)
+        # Write a completed workflow state file
+        state = {
+            "team_name": "rune-review-test123",
+            "status": "completed",
+        }
+        (project / "tmp" / ".rune-review-test123.json").write_text(json.dumps(state))
+        result = run_idle_hook(project, config)
+        assert result.returncode == 0
+        output = json.loads(result.stdout)
+        assert output["continue"] is False
+        assert "completed" in output["stopReason"]
+
+    @requires_jq
+    def test_force_stops_when_workflow_failed(self, project_env):
+        """Workflow state is 'failed' → {"continue": false}."""
+        project, config = project_env
+        setup_team_dir(config)
+        state = {
+            "team_name": "rune-review-test123",
+            "status": "failed",
+        }
+        (project / "tmp" / ".rune-review-test123.json").write_text(json.dumps(state))
+        result = run_idle_hook(project, config)
+        assert result.returncode == 0
+        output = json.loads(result.stdout)
+        assert output["continue"] is False
+
+    @requires_jq
+    def test_allows_when_workflow_in_progress(self, project_env):
+        """Workflow state is 'in_progress' → does NOT force-stop."""
+        project, config = project_env
+        setup_team_dir(config)
+        state = {
+            "team_name": "rune-review-test123",
+            "status": "in_progress",
+        }
+        (project / "tmp" / ".rune-review-test123.json").write_text(json.dumps(state))
+        # No inscription → will exit 0 (no quality gate), but NOT via force-stop
+        result = run_idle_hook(project, config)
+        assert result.returncode == 0
+        # Should NOT have {"continue": false} in output
+        if result.stdout.strip():
+            try:
+                output = json.loads(result.stdout)
+                assert output.get("continue") is not False
+            except json.JSONDecodeError:
+                pass  # No JSON output = allowed idle normally
+
+
+# ---------------------------------------------------------------------------
+# Layer 0.5: Session Ownership (GAP-1 fix)
+# ---------------------------------------------------------------------------
+
+
+class TestTeammateIdleSessionOwnership:
+    @requires_jq
+    @pytest.mark.session_isolation
+    def test_skips_when_session_mismatch(self, project_env):
+        """Different session_id → exit 0 (skip, don't apply quality gates)."""
+        project, config = project_env
+        team_dir = setup_team_dir(config)
+        # Stamp team with session-A
+        (team_dir / ".session").write_text("session-A")
+        # Hook fires from session-B
+        setup_inscription(project)
+        # Create output dir but NO output file — if session check works,
+        # the quality gate (which would block) is never reached
+        (project / "tmp" / "reviews" / "test123").mkdir(parents=True, exist_ok=True)
+        result = run_idle_hook(project, config, session_id="session-B")
+        # Should skip (exit 0) — NOT block (exit 2) despite missing output
+        assert result.returncode == 0
+
+    @requires_jq
+    @pytest.mark.session_isolation
+    def test_proceeds_when_session_matches(self, project_env):
+        """Same session_id → apply quality gates normally."""
+        project, config = project_env
+        team_dir = setup_team_dir(config)
+        (team_dir / ".session").write_text("session-A")
+        setup_inscription(project)
+        (project / "tmp" / "reviews" / "test123").mkdir(parents=True, exist_ok=True)
+        # Same session, missing output file → should block
+        result = run_idle_hook(project, config, session_id="session-A")
+        assert result.returncode == 2
+
+    @requires_jq
+    @pytest.mark.session_isolation
+    def test_proceeds_when_no_session_file(self, project_env):
+        """No .session file in team dir → apply gates (backward compat)."""
+        project, config = project_env
+        setup_team_dir(config)
+        # No .session file written — pre-TLC-004 team
+        setup_inscription(project)
+        (project / "tmp" / "reviews" / "test123").mkdir(parents=True, exist_ok=True)
+        result = run_idle_hook(project, config, session_id="session-A")
+        # Should proceed to quality gate → block on missing output
+        assert result.returncode == 2
+
+    @requires_jq
+    @pytest.mark.session_isolation
+    def test_proceeds_when_no_session_in_input(self, project_env):
+        """No session_id in hook input → skip check (backward compat)."""
+        project, config = project_env
+        team_dir = setup_team_dir(config)
+        (team_dir / ".session").write_text("session-A")
+        setup_inscription(project)
+        (project / "tmp" / "reviews" / "test123").mkdir(parents=True, exist_ok=True)
+        # No session_id in input — should proceed to quality gate
+        result = run_idle_hook(project, config)  # no session_id
+        assert result.returncode == 2
+
+
+# ---------------------------------------------------------------------------
+# Retry Gate & Time Gate
+# ---------------------------------------------------------------------------
+
+
+class TestTeammateIdleRetryGate:
+    @requires_jq
+    def test_blocks_first_two_failures_then_force_stops(self, project_env):
+        """After 3 consecutive quality gate failures → {"continue": false}."""
+        project, config = project_env
+        setup_inscription(project)
+        setup_team_dir(config)
+        (project / "tmp" / "reviews" / "test123").mkdir(parents=True, exist_ok=True)
+        # Don't create output file → each call triggers quality gate failure
+
+        # Failure 1: exit 2 (block + feedback)
+        r1 = run_idle_hook(project, config)
+        assert r1.returncode == 2
+
+        # Failure 2: exit 2 (block + feedback)
+        r2 = run_idle_hook(project, config)
+        assert r2.returncode == 2
+
+        # Failure 3: exit 0 with {"continue": false} (force-stop)
+        r3 = run_idle_hook(project, config)
+        assert r3.returncode == 0
+        output = json.loads(r3.stdout)
+        assert output["continue"] is False
+        assert "quality gate" in output["stopReason"].lower() or "3" in output["stopReason"]
+
+    @requires_jq
+    def test_retry_counter_resets_on_success(self, project_env):
+        """GAP-2 fix: retry counter resets when quality gate passes."""
+        project, config = project_env
+        setup_inscription(project)
+        setup_team_dir(config)
+        output_dir = project / "tmp" / "reviews" / "test123"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Fail twice (counter = 2)
+        r1 = run_idle_hook(project, config)
+        assert r1.returncode == 2
+        r2 = run_idle_hook(project, config)
+        assert r2.returncode == 2
+
+        # Now write valid output so the gate passes → resets counter
+        lines = ["# Review", ""]
+        for i in range(25):
+            lines.append(f"P2: Finding {i+1} — issue details here")
+        lines.append("")
+        lines.append("SEAL: ward-sentinel")
+        (output_dir / "ward-sentinel.md").write_text("\n".join(lines))
+
+        r3 = run_idle_hook(project, config)
+        assert r3.returncode == 0
+        # Verify stdout is NOT {"continue": false}
+        if r3.stdout.strip():
+            try:
+                output = json.loads(r3.stdout)
+                assert output.get("continue") is not False
+            except json.JSONDecodeError:
+                pass
+
+        # Remove output file again → should start fresh counter
+        (output_dir / "ward-sentinel.md").unlink()
+
+        # Next 2 failures should block (exit 2), not force-stop
+        r4 = run_idle_hook(project, config)
+        assert r4.returncode == 2
+        r5 = run_idle_hook(project, config)
+        assert r5.returncode == 2
+
+    @requires_jq
+    def test_time_gate_corrupt_first_idle_resets(self, project_env):
+        """Corrupt first-idle file → resets timer instead of false-positive stop."""
+        project, config = project_env
+        setup_team_dir(config)
+        signal_dir = project / "tmp" / ".rune-signals" / "rune-review-test123"
+        signal_dir.mkdir(parents=True, exist_ok=True)
+
+        # Write corrupt first-idle file (empty)
+        (signal_dir / "ward-sentinel.first-idle").write_text("")
+
+        # No inscription → no quality gate → exit 0 (but should not crash)
+        result = run_idle_hook(project, config)
+        assert result.returncode == 0
+
+    @requires_jq
+    def test_time_gate_stale_first_idle_resets(self, project_env):
+        """First-idle timestamp from >24h ago → resets instead of instant stop."""
+        project, config = project_env
+        setup_team_dir(config)
+        signal_dir = project / "tmp" / ".rune-signals" / "rune-review-test123"
+        signal_dir.mkdir(parents=True, exist_ok=True)
+
+        # Write epoch from 2 days ago
+        import time
+        stale_epoch = str(int(time.time()) - 172800)
+        (signal_dir / "ward-sentinel.first-idle").write_text(stale_epoch)
+
+        # No inscription → exit 0 (time gate should reset, not trigger)
+        result = run_idle_hook(project, config)
+        assert result.returncode == 0
+
+
+# ---------------------------------------------------------------------------
+# Worker Evidence Check
+# ---------------------------------------------------------------------------
+
+
+class TestTeammateIdleWorkerEvidence:
+    @requires_jq
+    def test_worker_allows_idle_when_no_assigned_tasks(self, project_env):
+        """Worker with no assigned tasks → allow idle."""
+        project, config = project_env
+        team_name = "rune-work-abc123"
+        setup_team_dir(config, team_name=team_name)
+        # Create task dir but no tasks assigned to this worker
+        task_dir = config / "tasks" / team_name
+        task_dir.mkdir(parents=True, exist_ok=True)
+        result = run_idle_hook(project, config, team_name=team_name)
+        assert result.returncode == 0
+
+    @requires_jq
+    def test_worker_blocks_when_tasks_missing_done_signal(self, project_env):
+        """Worker with assigned tasks but no .done signals → exit 2."""
+        project, config = project_env
+        team_name = "rune-work-abc123"
+        setup_team_dir(config, team_name=team_name)
+
+        # Create a task assigned to our teammate
+        task_dir = config / "tasks" / team_name
+        task_dir.mkdir(parents=True, exist_ok=True)
+        task = {"id": "task-001", "owner": "ward-sentinel", "status": "in_progress"}
+        (task_dir / "task-001.json").write_text(json.dumps(task))
+
+        # Create signal dir but NO .done file
+        signal_dir = project / "tmp" / ".rune-signals" / team_name
+        signal_dir.mkdir(parents=True, exist_ok=True)
+
+        result = run_idle_hook(project, config, team_name=team_name)
+        assert result.returncode == 2
+        assert "task-001" in result.stderr or "completion signal" in result.stderr.lower()
+
+    @requires_jq
+    def test_worker_allows_when_all_tasks_have_done_signals(self, project_env):
+        """Worker with all assigned tasks having .done signals → allow idle."""
+        project, config = project_env
+        team_name = "rune-work-abc123"
+        setup_team_dir(config, team_name=team_name)
+
+        # Create assigned task
+        task_dir = config / "tasks" / team_name
+        task_dir.mkdir(parents=True, exist_ok=True)
+        task = {"id": "task-001", "owner": "ward-sentinel", "status": "in_progress"}
+        (task_dir / "task-001.json").write_text(json.dumps(task))
+
+        # Create .done signal
+        signal_dir = project / "tmp" / ".rune-signals" / team_name
+        signal_dir.mkdir(parents=True, exist_ok=True)
+        (signal_dir / "task-001.done").write_text('{"task_id":"task-001"}')
+
+        result = run_idle_hook(project, config, team_name=team_name)
+        assert result.returncode == 0
+
+    @requires_jq
+    def test_worker_skips_completed_tasks(self, project_env):
+        """Tasks already marked completed are not checked for .done signals."""
+        project, config = project_env
+        team_name = "rune-work-abc123"
+        setup_team_dir(config, team_name=team_name)
+
+        task_dir = config / "tasks" / team_name
+        task_dir.mkdir(parents=True, exist_ok=True)
+        # Task already completed — should not require .done signal
+        task = {"id": "task-001", "owner": "ward-sentinel", "status": "completed"}
+        (task_dir / "task-001.json").write_text(json.dumps(task))
+
+        signal_dir = project / "tmp" / ".rune-signals" / team_name
+        signal_dir.mkdir(parents=True, exist_ok=True)
+
+        result = run_idle_hook(project, config, team_name=team_name)
+        assert result.returncode == 0
+
+
+# ---------------------------------------------------------------------------
+# Content Depth Validation
+# ---------------------------------------------------------------------------
+
+
+class TestTeammateIdleContentDepth:
+    def _setup_review_with_output(
+        self, project: Path, config: Path, content: str
+    ) -> subprocess.CompletedProcess[str]:
+        """Helper: set up review inscription and write output content."""
+        setup_inscription(project)
+        setup_team_dir(config)
+        output_dir = project / "tmp" / "reviews" / "test123"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "ward-sentinel.md").write_text(content)
+        return run_idle_hook(project, config)
+
+    @requires_jq
+    def test_blocks_shallow_output_for_review(self, project_env):
+        """Review output with too few lines → exit 2."""
+        project, config = project_env
+        # Only 5 lines — well below the 50-line threshold
+        content = "# Review\nSEAL: ward-sentinel\nP1: Issue\nDetails.\nEnd."
+        result = self._setup_review_with_output(project, config, content)
+        assert result.returncode == 2
+        assert "shallow" in result.stderr.lower() or "too small" in result.stderr.lower()
+
+    @requires_jq
+    def test_blocks_no_findings_and_no_declaration(self, project_env):
+        """Output with no findings AND no 'no issues found' declaration → exit 2."""
+        project, config = project_env
+        # 60 lines of generic text, SEAL present, but no findings or declaration
+        lines = ["# Review Findings", ""]
+        for i in range(55):
+            lines.append(f"Line {i+1}: Some generic analysis text here.")
+        lines.append("")
+        lines.append("SEAL: ward-sentinel")
+        content = "\n".join(lines)
+        result = self._setup_review_with_output(project, config, content)
+        assert result.returncode == 2
+        assert "no findings" in result.stderr.lower() or "explicitly state" in result.stderr.lower()
+
+    @requires_jq
+    def test_allows_output_with_no_issues_declaration(self, project_env):
+        """Output with explicit 'no issues found' declaration → exit 0."""
+        project, config = project_env
+        lines = ["# Review Findings", ""]
+        for i in range(55):
+            lines.append(f"Line {i+1}: Analysis of the code structure.")
+        lines.append("")
+        lines.append("No issues found in the reviewed files.")
+        lines.append("")
+        lines.append("SEAL: ward-sentinel")
+        content = "\n".join(lines)
+        result = self._setup_review_with_output(project, config, content)
+        assert result.returncode == 0
+
+    @requires_jq
+    def test_allows_output_with_findings(self, project_env):
+        """Output with P1/P2 findings → exit 0."""
+        project, config = project_env
+        lines = ["# Review Findings", ""]
+        for i in range(30):
+            lines.append(f"P2: Finding {i+1} — details about issue")
+        lines.append("")
+        lines.append("SEAL: ward-sentinel")
+        content = "\n".join(lines)
+        result = self._setup_review_with_output(project, config, content)
+        assert result.returncode == 0
+
+
+# ---------------------------------------------------------------------------
+# Layer 4: All-Tasks-Done Signal
+# ---------------------------------------------------------------------------
+
+
+class TestTeammateIdleAllTasksDoneSignal:
+    @staticmethod
+    def _make_valid_review_output(project: Path, team_name: str = "rune-review-test123"):
+        """Set up inscription + valid output so quality gates pass, reaching Layer 4."""
+        setup_inscription(project, team_name=team_name)
+        output_dir = project / "tmp" / "reviews" / "test123"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        lines = ["# Review Findings", ""]
+        for i in range(25):
+            lines.append(f"P2: Finding {i+1} — issue details")
+        lines.append("")
+        lines.append("SEAL: ward-sentinel")
+        (output_dir / "ward-sentinel.md").write_text("\n".join(lines))
+
+    @requires_jq
+    def test_writes_all_tasks_done_signal(self, project_env):
+        """When all tasks completed → writes all-tasks-done signal file."""
+        project, config = project_env
+        team_name = "rune-review-test123"
+        setup_team_dir(config, team_name=team_name)
+
+        # Create task dir with one completed task
+        task_dir = config / "tasks" / team_name
+        task_dir.mkdir(parents=True, exist_ok=True)
+        task = {"id": "task-001", "status": "completed"}
+        (task_dir / "task-001.json").write_text(json.dumps(task))
+
+        # Provide valid inscription + output so quality gates pass → Layer 4 reached
+        self._make_valid_review_output(project, team_name)
+
+        result = run_idle_hook(project, config, team_name=team_name)
+        assert result.returncode == 0
+
+        signal_file = project / "tmp" / ".rune-signals" / team_name / "all-tasks-done"
+        assert signal_file.exists(), "all-tasks-done signal should be written"
+        signal_data = json.loads(signal_file.read_text())
+        assert "timestamp" in signal_data
+
+    @requires_jq
+    def test_no_signal_when_tasks_pending(self, project_env):
+        """When tasks still in_progress → no all-tasks-done signal."""
+        project, config = project_env
+        team_name = "rune-review-test123"
+        setup_team_dir(config, team_name=team_name)
+
+        task_dir = config / "tasks" / team_name
+        task_dir.mkdir(parents=True, exist_ok=True)
+        task = {"id": "task-001", "status": "in_progress"}
+        (task_dir / "task-001.json").write_text(json.dumps(task))
+
+        # Valid output so script reaches Layer 4
+        self._make_valid_review_output(project, team_name)
+
+        result = run_idle_hook(project, config, team_name=team_name)
+        assert result.returncode == 0
+
+        signal_file = project / "tmp" / ".rune-signals" / team_name / "all-tasks-done"
+        assert not signal_file.exists(), "all-tasks-done should NOT be written when tasks pending"

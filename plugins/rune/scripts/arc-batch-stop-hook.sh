@@ -29,6 +29,11 @@ umask 077
 # ── Opt-in trace logging (C10: consistent with on-task-completed.sh) ──
 # TOME-011 FIX: Add -${PPID} suffix to prevent concurrent session log interleaving
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+# SEC-004: Restrict trace log to expected TMPDIR location to prevent env-var redirect attacks
+case "$RUNE_TRACE_LOG" in
+  "${TMPDIR:-/tmp}/"*) ;;  # allowed
+  *) RUNE_TRACE_LOG="${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log" ;;  # reset to safe default
+esac
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] arc-batch-stop: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
 # ── GUARD 1: jq dependency (fail-open) ──
@@ -778,7 +783,28 @@ _trace "Compact interlude Phase B: context checkpointed, proceeding to arc promp
 # This catches the blind spot where GUARD 10 can't fire (no in_progress plan
 # during compact interlude). _check_context_critical() is fail-open (returns 1
 # if bridge unavailable/stale), so this is a best-effort defense.
-if _check_context_critical 2>/dev/null; then
+#
+# BUG FIX (v1.165.0): The bridge file is STALE after compact interlude.
+# It was written during Phase A (before auto-compaction could fire).
+# Reading it here causes false "Context Exhaustion" aborts even when
+# compaction succeeded and freed context. Instead, skip this check
+# and let guard-context-critical.sh (PreToolUse hook) catch real
+# exhaustion in real-time during the next iteration's tool calls.
+# Only check if bridge file was updated AFTER Phase A (fresh data).
+_skip_context_check="false"
+if [[ -n "${HOOK_SESSION_ID:-}" ]]; then
+  _bridge_file="${TMPDIR:-/tmp}/rune-ctx-${HOOK_SESSION_ID}.json"
+  if [[ -f "$_bridge_file" && ! -L "$_bridge_file" ]]; then
+    _bridge_mtime=$(_stat_mtime "$_bridge_file" 2>/dev/null || echo "0")
+    _state_mtime=$(_stat_mtime "$STATE_FILE" 2>/dev/null || echo "0")
+    # Bridge file older than state file → stale (written before compact interlude)
+    if [[ "$_bridge_mtime" -le "$_state_mtime" ]]; then
+      _skip_context_check="true"
+      _trace "GUARD 11: Skipping context check — bridge file stale (bridge=${_bridge_mtime} <= state=${_state_mtime})"
+    fi
+  fi
+fi
+if [[ "$_skip_context_check" == "false" ]] && _check_context_critical 2>/dev/null; then
   _graceful_stop_batch "GUARD 11: Context critical at Phase B of compact interlude (iteration ${ITERATION}/${TOTAL_PLANS})"
 fi
 
