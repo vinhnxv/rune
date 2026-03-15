@@ -166,6 +166,24 @@ Resolve active MCP integrations for the `devise` phase. Zero cost when no integr
 
 See [ux-and-mcp-discovery.md](references/ux-and-mcp-discovery.md) for the inline integration code. See `strive/references/mcp-integration.md` for the shared resolver algorithm.
 
+### Phase 0.8: Dependency-Aware Issue Discovery (conditional)
+
+Before researching solutions, scan affected code areas for existing bugs, gaps, and risks.
+
+**Skip condition**: `--quick` mode or no affected files detected in Phase 0.
+
+**Issue inventory categories**:
+- **Bugs**: Signature violations, undefined references, stale patterns, contract violations
+- **Gaps**: Missing tests, orphaned references, missing error handling, undocumented behavior
+- **Risks**: High-fanout files, shared state, implicit contracts, fragile tests
+
+**Dependency chain tracing**: For each discovered issue, trace upstream (where does the wrong value come from?) and downstream (what's impacted?). Classify fix_location as "upstream" or "local".
+
+**Feed into downstream phases**:
+- Phase 1 research agents receive: "also look for these known issues"
+- Phase 2 synthesis includes: "## Existing Issues" section (Must Fix / Should Fix / Acknowledged)
+- Phase 2.3 Goldmask receives issue inventory for cross-reference
+
 ## Phase 1: Research (Conditional, up to 8 agents)
 
 Spawns local research agents (repo-surveyor, echo-reader, git-miner), evaluates risk/sufficiency scores to decide on external research (practice-seeker, lore-scholar, codex-researcher), optionally verifies external research outputs for trustworthiness (research-verifier, Phase 1C.5), then runs spec validation (flow-seer). Includes research consolidation validation checkpoint. Phase 1B reads `talisman.plan` config for `external_research` bypass modes (`always`/`auto`/`never`) and `research_urls` with SSRF-defensive URL sanitization. External research agents use Context7 MCP for framework documentation alongside WebSearch. Phase 1C.5 scores findings across 5 dimensions (relevance, accuracy, freshness, cross-validation, security) and maps verdicts (TRUSTED/CAUTION/UNTRUSTED/FLAGGED) — skipped with `--quick`, `--no-verify-research`, or when no external research ran.

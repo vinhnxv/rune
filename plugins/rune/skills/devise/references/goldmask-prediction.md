@@ -404,3 +404,14 @@ Total: 2.5-4.5 min | Hard ceiling: 5 min
 | 2.3c | Malformed GOLDMASK-PREDICTION.md | Skip plan injection, warn user | ERROR |
 | 2.3 | Unrecognized `depth` value | Treat as "basic", log warning | WARN |
 | 2.3 | Team spawn failure | Fallback to basic mode | ERROR |
+
+### Phase 0.8 Feedback Loop (v1.165.0)
+
+After Predictive Goldmask (Phase 2.3) completes, compare findings with Phase 0.8 issue inventory:
+
+1. **Cross-reference**: Match Goldmask risk findings against Phase 0.8 discovered issues
+2. **New risks**: Issues found by Goldmask but missed by Phase 0.8 → append to plan's "Existing Issues" section
+3. **Validated risks**: Issues found by both → increase priority (confirmed by two independent analyses)
+4. **Plan update**: If new risks are critical, update the plan's task list before proceeding to Phase 3
+
+This creates a feedback loop: pre-plan audit → plan → post-plan verification → plan update.

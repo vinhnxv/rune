@@ -1143,6 +1143,18 @@ const prTitle = `${planType}: ${planTitle}`    // <- planType undefined
 Bash(`git push -u origin "${currentBranch}"`)  // <- no error handling
 ```
 
+### Existing Issues Convention
+
+Plans MUST include an "## Existing Issues" section BEFORE new feature sections when Phase 0.8 discovered issues. Format:
+
+| Priority | Issue | Location | Impact | Root Cause Chain |
+|----------|-------|----------|--------|------------------|
+| Must Fix | [description] | [file:line] | [what breaks] | [A → B → C chain] |
+| Should Fix | [description] | [file:line] | [risk level] | [dependency path] |
+| Acknowledged | [description] | [file:line] | [deferred reason] | — |
+
+Per-task annotations: prerequisite fixes, risk areas, test gaps.
+
 5. Write to `plans/YYYY-MM-DD-{type}-{feature-name}-plan.md`
 
 6. **Comprehensive only -- Second SpecFlow pass**: If detail level is Comprehensive, re-run flow-seer on the drafted plan (not just the raw spec from Phase 1D). Write to `tmp/plans/{timestamp}/research/specflow-post-draft.md`. Tarnished appends findings to the plan before scroll-reviewer runs.
