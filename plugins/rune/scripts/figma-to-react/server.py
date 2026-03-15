@@ -118,6 +118,9 @@ _FRAME_LIKE_TYPES: frozenset[str] = frozenset(
 _ELICIT_FRAME_THRESHOLD = 3
 _ELICIT_FRAME_MAX = 50
 
+# Maximum recursion depth for IR tree traversal (guards against adversarial Figma data)
+_MAX_TREE_DEPTH = 10
+
 
 def _sanitize_frame_name(name: str) -> str:
     """Strip non-printable characters and cap at 128 chars."""
@@ -131,7 +134,10 @@ def _make_frame_field_key(name: str, idx: int) -> str:
     return f"f{idx}_{safe[:40]}"
 
 
-def _collect_top_level_frames(tree: dict[str, Any]) -> list[dict[str, Any]]:
+def _collect_top_level_frames(
+    tree: dict[str, Any],
+    _depth: int = 0,
+) -> list[dict[str, Any]]:
     """Collect top-level FRAME-like nodes from a parsed IR tree dict.
 
     Handles three root shapes:
@@ -139,11 +145,17 @@ def _collect_top_level_frames(tree: dict[str, Any]) -> list[dict[str, Any]]:
       - CANVAS → FRAME children
       - FRAME directly (single-frame fetch with node-id URL)
     """
+    if _depth > _MAX_TREE_DEPTH:
+        logger.warning(
+            "_collect_top_level_frames: max depth %d exceeded, stopping recursion",
+            _MAX_TREE_DEPTH,
+        )
+        return []
     node_type = tree.get("type", "")
     if node_type == "DOCUMENT":
         frames: list[dict[str, Any]] = []
         for canvas in tree.get("children", []):
-            frames.extend(_collect_top_level_frames(canvas))
+            frames.extend(_collect_top_level_frames(canvas, _depth + 1))
         return frames
     if node_type == "CANVAS":
         return [
@@ -159,17 +171,24 @@ def _collect_top_level_frames(tree: dict[str, Any]) -> list[dict[str, Any]]:
 def _filter_tree_frames(
     tree: dict[str, Any],
     selected_ids: set[str],
+    _depth: int = 0,
 ) -> dict[str, Any]:
     """Return a shallow copy of tree with only selected frame node_ids retained.
 
     Filters at the CANVAS children level only (one level below DOCUMENT).
     Unrecognized root shapes are returned unchanged.
     """
+    if _depth > _MAX_TREE_DEPTH:
+        logger.warning(
+            "_filter_tree_frames: max depth %d exceeded, returning node unfiltered",
+            _MAX_TREE_DEPTH,
+        )
+        return tree
     node_type = tree.get("type", "")
     if node_type == "DOCUMENT":
         new_tree = dict(tree)
         new_tree["children"] = [
-            _filter_tree_frames(child, selected_ids)
+            _filter_tree_frames(child, selected_ids, _depth + 1)
             for child in tree.get("children", [])
         ]
         return new_tree
@@ -282,9 +301,14 @@ async def figma_fetch_design(
                     selected_ids: set[str] = {
                         sanitized[i][0]
                         for i, key in enumerate(field_keys)
-                        if getattr(elicit_result.data, key, True)
+                        if getattr(elicit_result.data, key, False)
                     }
-                    if selected_ids and len(selected_ids) < len(frames):
+                    if not selected_ids:
+                        raise ToolError(
+                            "No frames were selected. Please select at least one frame "
+                            "or decline the selection to return all frames."
+                        )
+                    if len(selected_ids) < len(frames):
                         content_data["tree"] = _filter_tree_frames(tree, selected_ids)
                         new_content = json.dumps(content_data, indent=2)
                         result = core.paginate_output(
@@ -297,7 +321,7 @@ async def figma_fetch_design(
                 # "decline" → return all frames without filtering
     except ToolError:
         raise
-    except (AttributeError, NotImplementedError):
+    except NotImplementedError:
         # Older Claude Code / clients without elicitation support — return all frames
         pass
     except (json.JSONDecodeError, ValueError, TypeError) as exc:
@@ -375,7 +399,7 @@ async def figma_list_components(
     component_count = len(components)
     category_filter: str | None = None
 
-    if component_count > 20:
+    if component_count > 20 and hasattr(ctx, "elicit"):
         # Sanitize component names before embedding in message (strip non-printable, cap)
         _MAX_NAMES = 50
         _MAX_NAME_LEN = 128
@@ -395,16 +419,13 @@ async def figma_list_components(
         )
 
         try:
-            from mcp.server.elicitation import AcceptedElicitation, DeclinedElicitation, CancelledElicitation
             elicit_result = await ctx.elicit(elicit_msg, ComponentCategoryFilter)
-            if isinstance(elicit_result, AcceptedElicitation):
+            if elicit_result.action == "accept" and elicit_result.data is not None:
                 kw = elicit_result.data.category_filter.strip()
                 if kw:
                     category_filter = kw
-            elif isinstance(elicit_result, (DeclinedElicitation, CancelledElicitation)):
-                # User declined or cancelled — return all components
-                pass
-        except (NotImplementedError, AttributeError):
+            # "decline" or "cancel" → return all components
+        except NotImplementedError:
             # Elicitation not supported by this Claude Code version — return all components
             logger.debug("figma_list_components: elicitation not supported, returning all %d components", component_count)
         except Exception:

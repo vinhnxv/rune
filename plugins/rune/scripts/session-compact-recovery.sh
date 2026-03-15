@@ -83,12 +83,16 @@ CHECKPOINT_DATA=$(jq -c '.' "$CHECKPOINT_FILE" 2>/dev/null) || {
 # ── PostCompact failure signal check ──
 # post-compact-verify.sh writes .compact-checkpoint-failed when checkpoint is invalid.
 # We check here (after JSON is confirmed valid) to surface any cross-hook validation issue.
+# BACK-004 FIX: Read the signal file content but do NOT delete it yet.
+# Deletion is deferred until after ownership verification (lines below).
+# If ownership mismatches, we exit without consuming the signal so the legitimate
+# session can read it on its own SessionStart:compact trigger.
 SIGNAL_FILE="${CWD}/tmp/.compact-checkpoint-failed"
 COMPACT_FAILED_MSG=""
 if [[ -f "$SIGNAL_FILE" ]] && [[ ! -L "$SIGNAL_FILE" ]]; then
   _reason=$(jq -r '.reason // "unknown"' "$SIGNAL_FILE" 2>/dev/null || echo "unknown")
   COMPACT_FAILED_MSG=" WARNING: PostCompact validation flagged an issue (reason: ${_reason}). Recovery proceeding from checkpoint — verify state manually."
-  rm -f "$SIGNAL_FILE" 2>/dev/null
+  # Signal file deleted AFTER ownership verification (see below).
 fi
 
 # ── compact_summary from PostCompact hook (if injected) ──
@@ -119,13 +123,25 @@ if [[ -n "$CHKPT_CFG" ]]; then
     exit 0
   fi
 fi
-if [[ -n "$CHKPT_PID" && "$CHKPT_PID" =~ ^[0-9]+$ && "$CHKPT_PID" != "${PPID:-0}" ]]; then
+if [[ -z "${PPID:-}" ]]; then
+  # BACK-106 FIX: PPID unset in hook runner environment — skip PID-based ownership check.
+  # ${PPID:-0} would always be "0", causing every checkpoint to enter the block below
+  # (real PIDs are never 0), potentially consuming another session's orphaned checkpoint.
+  _trace "PPID unset in hook context — skipping PID-based ownership check"
+elif [[ -n "$CHKPT_PID" && "$CHKPT_PID" =~ ^[0-9]+$ && "$CHKPT_PID" != "$PPID" ]]; then
   if rune_pid_alive "$CHKPT_PID"; then
     # Checkpoint belongs to another live session — do not consume it
-    _trace "Ownership mismatch: checkpoint owner_pid=${CHKPT_PID} is alive, our PPID=${PPID:-0}"
+    _trace "Ownership mismatch: checkpoint owner_pid=${CHKPT_PID} is alive, our PPID=${PPID}"
     exit 0
   fi
   # Dead PID = orphaned checkpoint from crashed session → allow recovery
+fi
+
+# BACK-004 FIX: Ownership verified — now safe to consume the failure signal if present.
+# Deleting it here (after ownership check) ensures the signal is only consumed by the
+# session that actually owns this checkpoint.
+if [[ -n "$COMPACT_FAILED_MSG" ]]; then
+  rm -f "$SIGNAL_FILE" 2>/dev/null
 fi
 
 # ── EXTRACT: team name from checkpoint ──

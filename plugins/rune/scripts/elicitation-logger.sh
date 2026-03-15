@@ -9,17 +9,23 @@
 # Max log size: 5MB (512 * 1024 * 10 bytes) — skips append when exceeded
 
 set -euo pipefail
+umask 077  # SEC-002: ensure log file created 0600 (not world-readable)
+
+# Trace helper — consistent with post-compact-verify.sh / session-compact-recovery.sh pattern
+_trace() {
+  if [[ "${RUNE_TRACE:-}" == "1" ]]; then
+    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+    [[ ! -L "$_log" ]] && echo "[elicitation-logger] $*" >> "$_log" 2>/dev/null
+  fi
+  return 0
+}
 
 # Fail-forward: crash allows operation (OPERATIONAL hook, not SECURITY)
 _rune_fail_forward() {
   local _crash_line="${BASH_LINENO[0]:-unknown}"
-  if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
-      "$(date +%H:%M:%S 2>/dev/null || true)" \
-      "${BASH_SOURCE[0]##*/}" \
-      "$_crash_line" \
-      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-${UID:-$(id -u)}.log}" 2>/dev/null
-  fi
+  printf 'WARN: elicitation-logger.sh: ERR trap — fail-forward activated (line %s)\n' \
+    "$_crash_line" >&2 2>/dev/null || true
+  _trace "ERR trap — fail-forward activated (line $_crash_line)"
   exit 0
 }
 trap '_rune_fail_forward' ERR
@@ -35,7 +41,12 @@ LOG_FILE="${_tmp}/rune-elicitation-log-$(id -u).jsonl"
 MAX_LOG_BYTES=5242880
 
 # Read hook input from stdin (1MB cap)
-INPUT=$(head -c 1048576 2>/dev/null || true)
+# QUAL-002: guard with timeout for cross-platform compatibility (macOS may lack timeout)
+if command -v timeout &>/dev/null; then
+  INPUT=$(timeout 2 head -c 1048576 || true)
+else
+  INPUT=$(head -c 1048576 2>/dev/null || true)
+fi
 [[ -z "$INPUT" ]] && exit 0
 
 # Extract elicitation source (matcher value) from input if available
@@ -47,6 +58,8 @@ fi
 SOURCE=$(printf '%s' "$SOURCE" | tr -dc '[:alnum:]_.-' | head -c 100)
 
 # Check file size before appending — skip if over cap to prevent unbounded growth
+# Note: TOCTOU race between size check and append is accepted (BACK-006).
+# The log is advisory-only; a small bounded overshoot in concurrent sessions is acceptable.
 if [[ -f "$LOG_FILE" ]]; then
   FILE_SIZE=$(wc -c < "$LOG_FILE" 2>/dev/null || echo "0")
   FILE_SIZE="${FILE_SIZE// /}"  # trim whitespace (wc -c may pad)

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # scripts/elicitation-result-validator.sh
 # SEC-ELICIT-001: Validate ElicitationResult user responses for path traversal and injection.
 #
@@ -80,8 +80,10 @@ while IFS= read -r value; do
   fi
 
   # Check 2: Null bytes — can bypass string length checks and truncate paths
-  if printf '%s' "$value" | grep -qP '\x00' 2>/dev/null || \
-     printf '%s' "$value" | LC_ALL=C grep -q $'\x00' 2>/dev/null; then
+  # Note: bash strips null bytes from variables at read time (NUL terminates C strings),
+  # so this is a best-effort defense. grep -P (Perl regex) is not available on macOS BSD grep
+  # and silently fails, so we use only the portable LC_ALL=C pattern.
+  if printf '%s' "$value" | LC_ALL=C grep -q $'\x00' 2>/dev/null; then
     echo "SEC-ELICIT-001: Blocked elicitation response containing null byte. Value rejected for security." >&2
     exit 2
   fi
@@ -89,8 +91,8 @@ while IFS= read -r value; do
   # Check 3: Command injection metacharacters
   # Patterns: semicolon sequences (;), AND (&&), OR (||), pipe (|), backtick (`),
   # command substitution ($(, ${), newline-as-separator injection (\n in string)
-  if printf '%s' "$value" | grep -qE '(;|&&|\|\||`|\$\(|\$\{)'; then
-    echo "SEC-ELICIT-001: Blocked elicitation response containing shell metacharacter. Value rejected for security. Avoid characters like: ; && || \` \$( \${" >&2
+  if printf '%s' "$value" | grep -qE '(;|&&|\|\||\||`|\$\(|\$\{)'; then
+    echo "SEC-ELICIT-001: Blocked elicitation response containing shell metacharacter. Value rejected for security. Avoid characters like: ; && || | \` \$( \${" >&2
     exit 2
   fi
 
