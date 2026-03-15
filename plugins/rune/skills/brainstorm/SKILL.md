@@ -491,7 +491,7 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_re
 ```javascript
 AskUserQuestion({
   questions: [{
-    question: `Brainstorm complete (quality: ${passed}/7 — ${tier}).
+    question: `Brainstorm complete (quality: ${passed}/8 — ${tier}).
 Your brainstorm is saved at docs/brainstorms/${outputFilename}.
 What would you like to do next?`,
     header: "Next Steps",

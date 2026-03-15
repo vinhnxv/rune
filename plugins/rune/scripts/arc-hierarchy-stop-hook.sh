@@ -35,6 +35,11 @@ umask 077
 # ── Opt-in trace logging (consistent with arc-batch-stop-hook.sh) ──
 # TOME-011 FIX: Add -${PPID} suffix to prevent concurrent session log interleaving
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+# SEC-004: Restrict trace log to expected TMPDIR location to prevent env-var redirect attacks
+case "$RUNE_TRACE_LOG" in
+  "${TMPDIR:-/tmp}/"*) ;;  # allowed
+  *) RUNE_TRACE_LOG="${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log" ;;  # reset to safe default
+esac
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] arc-hierarchy-stop: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
 # ── GUARD 1: jq dependency (fail-open) ──

@@ -156,7 +156,8 @@ const unitEnabled = testingConfig.tiers?.unit?.enabled !== false
 const integrationEnabled = testingConfig.tiers?.integration?.enabled !== false
 const e2eEnabled = testingConfig.tiers?.e2e?.enabled !== false && has_frontend
 const testTiersActive = unitEnabled || integrationEnabled || e2eEnabled
-const activeTiers = []  // populated as each tier completes
+const activeTiers = []    // populated when a tier passes (for pass_rate scope)
+const executedTiers = []  // DEEP-007: populated for ALL executed tiers (for tiers_run)
 
 if (!testTiersActive) {
   Write(`tmp/arc/${id}/test-report.md`, "Phase 7.7 skipped: No testable changes detected.\n<!-- SEAL: test-report-complete -->")
@@ -287,6 +288,8 @@ for (const batch of testingPlan.batches) {
   if (batchesExecuted >= (batchConfig.max_batch_iterations ?? MAX_BATCH_ITERATIONS)) {
     batch.status = "skipped"
     batch.skip_reason = "max_iterations_reached"
+    batch.completed_at = new Date().toISOString()  // DEEP-011: terminal state needs completed_at
+    testingPlan.summary.skipped += 1  // DEEP-003: increment skipped counter
     writeCheckpoint(id, testingPlan)
     break
   }
@@ -295,6 +298,8 @@ for (const batch of testingPlan.batches) {
   if (remainingBudget() < HARD_BATCH_TIMEOUT_MS) {
     batch.status = "skipped"
     batch.skip_reason = "budget_exhausted"
+    batch.completed_at = new Date().toISOString()  // DEEP-011: terminal state needs completed_at
+    testingPlan.summary.skipped += 1  // DEEP-003: increment skipped counter
     writeCheckpoint(id, testingPlan)
     continue
   }
@@ -311,6 +316,8 @@ for (const batch of testingPlan.batches) {
   })
 
   // Foreground agent (run_in_background: false — blocking call, zero idle risk)
+  // PAT-003 FIX: Unified result path convention — includes batch type for readability
+  const resultPath = `tmp/arc/${id}/test-results-${batch.type}-batch-${batch.id}.md`
   Agent({
     team_name: testTeamName,
     name: `batch-runner-${batch.id}`,
@@ -318,29 +325,46 @@ for (const batch of testingPlan.batches) {
     model: resolveModelForAgent(`${batch.type}-test-runner`, talisman),
     run_in_background: false,  // CRITICAL: blocking — agent completes before loop continues
     prompt: `Run these ${batch.type} tests: ${batch.files.join(', ')}
-      Output to: tmp/arc/${id}/test-results-batch-${batch.id}.md
+      Output to: ${resultPath}
       Strategy: ${Read(`tmp/arc/${id}/test-strategy.md`)}
-      IMPORTANT: Report PASS or FAIL with details for each test file.
+      IMPORTANT: Include <!-- STATUS: PASS --> if all tests pass, or FAIL with details.
       When done, claim your task via TaskList + TaskUpdate (status: "completed").`
   })
 
   // Read result and classify pass/fail
-  const resultPath = `tmp/arc/${id}/test-results-batch-${batch.id}.md`
   const batchResult = exists(resultPath) ? Read(resultPath) : ""
+  // PAT-001 FIX: Use structured marker (consistent with batch-execution.md)
   // BACK-002 FIX: Empty/missing result = agent crash = FAIL (not false-positive PASS)
-  let passed = batchResult.length > 0 && !batchResult.includes("FAIL") && !batchResult.includes("ERROR")
+  let passed = batchResult.length > 0 && batchResult.includes("<!-- STATUS: PASS -->")
 
-  // Fix loop — up to max_fix_retries on failure
+  // Fix loop — up to max_fix_retries on failure (DEEP-006 FIX: spawn fixer before rerun)
   for (let retry = 0; !passed && retry < batchConfig.max_fix_retries; retry++) {
     batch.status = "fixing"
     batch.fix_attempts = retry + 1
     writeCheckpoint(id, testingPlan)
     warn(`Batch ${batch.id} fix attempt ${retry + 1}/${batchConfig.max_fix_retries}`)
 
-    // Lead reads failure details from resultPath and applies Edit() fixes, then reruns
+    // DEEP-006 FIX: Spawn rune-smith fixer to apply code fixes BEFORE re-running tests
     TaskCreate({
-      subject: `Batch ${batch.id} retry ${retry + 1}: ${batch.type} tests`,
-      description: `Retry ${batch.type} tests after fix`
+      subject: `Fix batch ${batch.id} attempt ${retry + 1}: ${batch.type}`,
+      description: `Read failure details from ${resultPath} and apply code fixes`
+    })
+    Agent({
+      team_name: testTeamName,
+      name: `batch-fixer-${batch.id}-fix-${retry}`,
+      subagent_type: "rune:work:rune-smith",
+      model: resolveModelForAgent("rune-smith", talisman),
+      run_in_background: false,
+      prompt: `Read the test failure details from ${resultPath} and fix the failing code.
+        Files under test: ${batch.files.join(', ')}
+        Apply targeted Edit() fixes to resolve the failures.
+        When done, claim your task via TaskList + TaskUpdate (status: "completed").`
+    })
+
+    // Re-run tests after fix
+    TaskCreate({
+      subject: `Batch ${batch.id} rerun ${retry + 1}: ${batch.type} tests`,
+      description: `Rerun ${batch.type} tests after fix attempt ${retry + 1}`
     })
     Agent({
       team_name: testTeamName,
@@ -350,12 +374,13 @@ for (const batch of testingPlan.batches) {
       run_in_background: false,
       prompt: `Rerun these ${batch.type} tests after fix: ${batch.files.join(', ')}
         Output to: ${resultPath}
+        Include <!-- STATUS: PASS --> if all tests pass.
         When done, claim your task via TaskList + TaskUpdate (status: "completed").`
     })
 
     const retryResult = exists(resultPath) ? Read(resultPath) : ""
-    // BACK-006 FIX: Same false-pass guard as BACK-002
-    passed = retryResult.length > 0 && !retryResult.includes("FAIL") && !retryResult.includes("ERROR")
+    // PAT-001 FIX: Same structured marker check as initial run
+    passed = retryResult.length > 0 && retryResult.includes("<!-- STATUS: PASS -->")
   }
 
   // Finalize batch status
@@ -364,9 +389,15 @@ for (const batch of testingPlan.batches) {
   batch.result_path = resultPath
   testingPlan.summary.completed += 1
   if (!passed) testingPlan.summary.failed += 1
+  // DEEP-007 FIX: Track executed tiers unconditionally (activeTiers = passed tiers only for pass_rate)
+  executedTiers.push(batch.type)
   if (passed) activeTiers.push(batch.type)  // may contain duplicates — deduped at STEP 10
   writeCheckpoint(id, testingPlan)
   batchesExecuted++
+
+  // DEEP-001 FIX: Write per-batch evidence after status finalization
+  // See testing/references/evidence-protocol.md for writeBatchEvidence() contract
+  writeBatchEvidence(id, batch, batchResult, batch.fix_attempts > 0 ? { attempts: batch.fix_attempts } : null)
 
   // Inter-batch delay (configurable, default 5s — avoids resource contention)
   if (batchConfig.inter_batch_delay_ms > 0) {
@@ -406,7 +437,7 @@ for (const batch of completedPlan.batches) {
 }
 
 const report = aggregateTestReport({
-  id, tiersRun: [...new Set(activeTiers)],  // deduplicate (multiple batches per type)
+  id, tiersRun: [...new Set(executedTiers)],  // DEEP-007: use executedTiers (all tiers, not just passed)
   unitResults: tierResults.unit?.join('\n\n---\n\n') ?? null,
   integrationResults: tierResults.integration?.join('\n\n---\n\n') ?? null,
   e2eResults: tierResults.e2e?.join('\n\n---\n\n') ?? null,
@@ -519,16 +550,19 @@ if (historyEnabled) {
   const maxEntries = testingConfig.history?.max_entries ?? 50
   const passRateDropThreshold = testingConfig.history?.pass_rate_drop_threshold ?? 0.05  // 5% drop
 
-  // Compute tier breakdown for history entry
+  // DEEP-004 FIX: Compute tier breakdown from per-batch results (not non-existent per-tier files)
   const tierBreakdown = {}
-  for (const tier of activeTiers) {
-    const resultsFile = `tmp/arc/${id}/test-results-${tier}.md`
-    if (exists(resultsFile)) {
-      tierBreakdown[tier] = {
-        pass: countPatternInFile(resultsFile, /PASS|✓|passed/gi),
-        fail: countPatternInFile(resultsFile, /FAIL|✗|failed/gi),
-        duration_ms: computeTierDuration(tier, phaseStart)  // dispatcher utility
-      }
+  for (const batch of completedPlan.batches) {
+    if (!tierBreakdown[batch.type]) {
+      tierBreakdown[batch.type] = { pass: 0, fail: 0, duration_ms: 0 }
+    }
+    if (batch.result_path && exists(batch.result_path)) {
+      tierBreakdown[batch.type].pass += countPatternInFile(batch.result_path, /PASS|✓|passed/gi)
+      tierBreakdown[batch.type].fail += countPatternInFile(batch.result_path, /FAIL|✗|failed/gi)
+    }
+    // Compute duration from batch timestamps
+    if (batch.started_at && batch.completed_at) {
+      tierBreakdown[batch.type].duration_ms += new Date(batch.completed_at) - new Date(batch.started_at)
     }
   }
 
@@ -627,7 +661,7 @@ updateCheckpoint({
   artifact_hash: sha256(Read(`tmp/arc/${id}/test-report.md`)),
   phase_sequence: 7.7,
   team_name: testTeamName,
-  tiers_run: [...new Set(activeTiers)],  // deduplicate (multiple batches per type)
+  tiers_run: [...new Set(executedTiers)],  // DEEP-007: all executed tiers, not just passed
   pass_rate: computePassRate(report),
   coverage_pct: computeDiffCoverage(report),
   has_frontend, scope_label: scopeLabel

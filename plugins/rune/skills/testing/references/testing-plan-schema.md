@@ -12,11 +12,11 @@ See [batch-execution.md](batch-execution.md) for the functions that read and wri
   "version": 1,
   "arc_id": "arc-1772309747014",
   "created_at": "2026-03-15T12:00:00Z",
-  "max_batch_iterations": 50,
   "config": {
     "max_fix_retries": 2,
     "inter_batch_delay_ms": 5000,
-    "hard_batch_timeout_ms": 240000
+    "hard_batch_timeout_ms": 240000,
+    "max_batch_iterations": 50
   },
   "summary": {
     "total_batches": 5,
@@ -51,8 +51,7 @@ See [batch-execution.md](batch-execution.md) for the functions that read and wri
 | `version` | integer | yes | Schema version for compatibility checks. Current: `1`. |
 | `arc_id` | string | yes | Arc session ID — must match the current arc run. |
 | `created_at` | ISO 8601 | yes | When the plan was first generated. Never mutated after creation. |
-| `max_batch_iterations` | integer | yes | Safety cap on the executor loop. Copied from `MAX_BATCH_ITERATIONS` constant at plan creation time. |
-| `config` | object | yes | Execution parameters resolved from talisman at plan creation time. |
+| `config` | object | yes | Execution parameters resolved from talisman at plan creation time. Includes `max_batch_iterations`. |
 | `summary` | object | yes | Aggregate counts updated after each batch completes. |
 | `batches` | array | yes | Ordered list of batches. Execution order is the array order. |
 
@@ -63,6 +62,7 @@ See [batch-execution.md](batch-execution.md) for the functions that read and wri
 | `max_fix_retries` | integer | yes | Maximum fix loops allowed per failed batch. Default: `2`. |
 | `inter_batch_delay_ms` | integer | yes | Pause between batches in milliseconds. Default: `5000`. |
 | `hard_batch_timeout_ms` | integer | yes | Hard timeout per batch in milliseconds. Default: `240000` (4 min). |
+| `max_batch_iterations` | integer | yes | Safety cap on executor loop iterations. Default: `50`. |
 
 ## Field Reference — `summary`
 
@@ -87,7 +87,7 @@ See [batch-execution.md](batch-execution.md) for the functions that read and wri
 | `fix_attempts` | integer | yes | Number of fix loops executed. `0` if the batch passed on first run. |
 | `started_at` | ISO 8601 \| null | yes | When the batch transitioned to `"running"`. `null` if not yet started. |
 | `completed_at` | ISO 8601 \| null | yes | When the batch reached a terminal state. `null` until terminal. |
-| `result_path` | string \| null | yes | Path to the runner's result file (e.g., `tmp/arc/{id}/test-results-unit-0.md`). `null` until the runner writes it. |
+| `result_path` | string \| null | yes | Path to the runner's result file (e.g., `tmp/arc/{id}/test-results-unit-batch-0.md`). `null` until the runner writes it. |
 | `skip_reason` | string \| null | yes | Human-readable reason for skipping. `null` unless `status === "skipped"`. |
 | `estimated_duration_ms` | integer | yes | Pre-computed estimate: `files.length × avg_duration`. Used for rendering only. |
 
@@ -143,11 +143,11 @@ See [batch-execution.md](batch-execution.md) for the functions that read and wri
   "version": 1,
   "arc_id": "arc-1772309747014",
   "created_at": "2026-03-15T12:00:00Z",
-  "max_batch_iterations": 50,
   "config": {
     "max_fix_retries": 2,
     "inter_batch_delay_ms": 5000,
-    "hard_batch_timeout_ms": 240000
+    "hard_batch_timeout_ms": 240000,
+    "max_batch_iterations": 50
   },
   "summary": {
     "total_batches": 4,

@@ -36,6 +36,11 @@ fi
 # NOTE(QUAL-007): _trace() is intentionally duplicated in on-task-completed.sh — each script
 # must be self-contained for hook execution. Sharing via source would add a dependency.
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+# SEC-004: Restrict trace log to expected TMPDIR location to prevent env-var redirect attacks
+case "$RUNE_TRACE_LOG" in
+  "${TMPDIR:-/tmp}/"*) ;;  # allowed
+  *) RUNE_TRACE_LOG="${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log" ;;  # reset to safe default
+esac
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] on-teammate-idle: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
 # Pre-flight: jq is required for parsing inscription and hook input.

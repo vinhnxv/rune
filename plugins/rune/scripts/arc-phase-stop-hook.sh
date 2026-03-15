@@ -324,8 +324,9 @@ _check_test_batches() {
   # Read batch details
   local batch_type batch_files total_batches
   # BACK-004 FIX: Use select(.id == N) instead of array index — ids may not be sequential
-  batch_type=$(jq -r ".batches[] | select(.id == $next_batch) | .type // \"unit\"" "$plan_path" 2>/dev/null)
-  batch_files=$(jq -r ".batches[] | select(.id == $next_batch) | .files | join(\", \")" "$plan_path" 2>/dev/null)
+  # FLAW-001 FIX: Use --argjson to safely pass numeric batch ID (prevents jq injection)
+  batch_type=$(jq -r --argjson bid "$next_batch" '.batches[] | select(.id == $bid) | .type // "unit"' "$plan_path" 2>/dev/null)
+  batch_files=$(jq -r --argjson bid "$next_batch" '.batches[] | select(.id == $bid) | .files | join(", ")' "$plan_path" 2>/dev/null)
   total_batches=$(jq '.batches | length' "$plan_path" 2>/dev/null)
 
   # Build batch-specific re-injection prompt

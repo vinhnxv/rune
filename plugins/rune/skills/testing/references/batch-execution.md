@@ -174,7 +174,7 @@ function executeBatchingPlan(id, plan, remainingBudget) {
 
     // 4. TEAM-002: TaskCreate BEFORE Agent() — required for waitForCompletion
     const taskId = TaskCreate({
-      title:       `Test batch ${batch.id}: ${batch.type} (${batch.files.length} files)`,
+      subject:       `Test batch ${batch.id}: ${batch.type} (${batch.files.length} files)`,
       description: batch.prompt_context,
       status:      "pending",
     })
@@ -222,7 +222,7 @@ function executeBatchingPlan(id, plan, remainingBudget) {
       writeCheckpoint(id, plan)
 
       const fixTaskId = TaskCreate({
-        title:       `Fix batch ${batch.id} attempt ${fixAttempts}`,
+        subject:       `Fix batch ${batch.id} attempt ${fixAttempts}`,
         description: buildFixPromptContext(batch, result),
         status:      "pending",
       })
@@ -236,7 +236,7 @@ function executeBatchingPlan(id, plan, remainingBudget) {
 
       // Re-run the batch after the fix (reuse same tier-specific runner)
       const rerunTaskId = TaskCreate({
-        title:       `Rerun batch ${batch.id} after fix ${fixAttempts}`,
+        subject:       `Rerun batch ${batch.id} after fix ${fixAttempts}`,
         description: `Re-execute ${batch.type} tests: ${batch.files.join(', ')}`,
         status:      "pending",
       })
