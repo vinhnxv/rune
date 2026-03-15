@@ -19,16 +19,20 @@ allowed-tools:
 
 Removes the arc-issues loop state file (`.claude/arc-issues-loop.local.md`), stopping the Stop hook from re-injecting the next arc prompt. The currently-running arc will finish normally, but no further issues will be started.
 
+## Pre-flight Check (deterministic)
+
+State file check result: **!`test -f .claude/arc-issues-loop.local.md && echo "EXISTS" || echo "NOT_FOUND"`**
+
+If the result above says `NOT_FOUND`: Report "No active arc-issues loop found." and **stop here — do not proceed to any further steps**.
+
+If the result says `EXISTS`: Continue to Step 1.
+
+State file content:
+!`cat .claude/arc-issues-loop.local.md 2>/dev/null || echo "(empty)"`
+
 ## Steps
 
-### 1. Check for Active Loop
-
-```javascript
-const stateFile = '.claude/arc-issues-loop.local.md'
-const exists = Bash(`test -f "${stateFile}" && echo "yes" || echo "no"`).trim()
-```
-
-If `"no"`: Report "No active arc-issues loop found." and exit.
+### 1. Parse State and Check Ownership
 
 ### 2. Read Current State and Check Ownership
 

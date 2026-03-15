@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.163.4] - 2026-03-15
+
+### Fixed
+- **Cancel commands use preprocessor checks to prevent hallucinated existence results** — `cancel-arc-batch`, `cancel-arc-issues`, and `cancel-arc-hierarchy` commands now use `` !`test -f ...` `` preprocessor substitution to deterministically check state file existence before the model sees the instructions. Previously, the model could skip the `Bash()` check step and falsely report "No active loop found" when a state file actually existed. The preprocessor runs at skill-load time, making the check impossible to skip.
+
 ## [1.163.3] - 2026-03-15
 
 ### Fixed

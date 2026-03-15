@@ -21,16 +21,20 @@ allowed-tools:
 
 Stops the `arc-hierarchy` orchestration loop by marking the state file as cancelled. The currently-executing child arc (if any) will finish normally, but no further children will be started.
 
+## Pre-flight Check (deterministic)
+
+State file check result: **!`test -f .claude/arc-hierarchy-loop.local.md && echo "EXISTS" || echo "NOT_FOUND"`**
+
+If the result above says `NOT_FOUND`: Report "No active arc-hierarchy loop found." and **stop here — do not proceed to any further steps**.
+
+If the result says `EXISTS`: Continue to Step 1.
+
+State file content:
+!`cat .claude/arc-hierarchy-loop.local.md 2>/dev/null || echo "(empty)"`
+
 ## Steps
 
-### 1. Check for Active State File
-
-```javascript
-const stateFile = ".claude/arc-hierarchy-loop.local.md"
-const exists = Bash(`test -f "${stateFile}" && echo "yes" || echo "no"`).trim()
-```
-
-If `"no"`: Report "No active arc-hierarchy loop found." and exit.
+### 1. Parse State and Verify Session Ownership
 
 ### 2. Read State and Verify Session Ownership
 

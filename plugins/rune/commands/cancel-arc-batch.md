@@ -20,16 +20,20 @@ allowed-tools:
 
 Removes the batch loop state file (`.claude/arc-batch-loop.local.md`), stopping the Stop hook from re-injecting the next arc prompt. The currently-running arc will finish normally, but no further plans will be started.
 
+## Pre-flight Check (deterministic)
+
+State file check result: **!`test -f .claude/arc-batch-loop.local.md && echo "EXISTS" || echo "NOT_FOUND"`**
+
+If the result above says `NOT_FOUND`: Report "No active arc batch loop found." and **stop here — do not proceed to any further steps**.
+
+If the result says `EXISTS`: Continue to Step 1.
+
+State file content:
+!`cat .claude/arc-batch-loop.local.md 2>/dev/null || echo "(empty)"`
+
 ## Steps
 
-### 1. Check for Active Batch Loop
-
-```javascript
-const stateFile = ".claude/arc-batch-loop.local.md"
-const exists = Bash(`test -f "${stateFile}" && echo "yes" || echo "no"`).trim()
-```
-
-If `"no"`: Report "No active arc batch loop found." and exit.
+### 1. Parse State and Check Ownership
 
 ### 2. Read Current State and Check Ownership
 
