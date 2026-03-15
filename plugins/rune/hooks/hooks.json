@@ -131,6 +131,18 @@
         ]
       },
       {
+        "matcher": "Task|Agent",
+        "_rationale": "AGENT-SEARCH-001: Advisory warning when LLM spawns Rune teammates without calling agent_search() MCP first. Non-blocking — additionalContext only. Suppressed when MCP server unavailable. Enables registry-based agent discovery for user/extended agents.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/enforce-agent-search.sh",
+            "timeout": 5,
+            "statusMessage": "Checking agent search compliance..."
+          }
+        ]
+      },
+      {
         "matcher": "TeamCreate",
         "hooks": [
           {
