@@ -91,11 +91,6 @@ if [[ -f "${SCRIPT_DIR_LIB}/lib/known-rune-agents.sh" ]]; then
   # shellcheck source=lib/known-rune-agents.sh
   source "${SCRIPT_DIR_LIB}/lib/known-rune-agents.sh"
 fi
-# Source platform helpers for cross-platform _stat_mtime (used by Signal 2 age check)
-if [[ -f "${SCRIPT_DIR_LIB}/lib/platform.sh" ]]; then
-  # shellcheck source=lib/platform.sh
-  source "${SCRIPT_DIR_LIB}/lib/platform.sh"
-fi
 
 # Check for active Rune workflows
 # TOCTOU MITIGATION (XVER-001 FIX): Use directory-based mutex for atomic state detection.
@@ -112,6 +107,10 @@ fi
 # 120 min here — longer than TLC-001 (30 min) to support long-running arc phases.
 # These operate on different file types so direct conflict is minimal.
 STALE_THRESHOLD_MIN=120
+# Signal 2 inscription staleness: tighter than Signal 1's 120 min.
+# Inscriptions are per-phase — they age out quickly. 30 min handles the 30-120 min
+# window where Signal 1's threshold misses stale inscriptions from crashed sessions.
+INSCR_STALE_MIN=30
 active_workflow=""
 detected_team_name=""   # team name inferred from non-state-file signals
 detected_source=""      # which signal triggered detection (state-file|inscription|signal-dir|agent-name)
@@ -260,9 +259,7 @@ fi
 # 3-layer check: (1) direct ownership from inscription fields, (2) age-based staleness,
 # (3) team .session fallback for legacy inscriptions without ownership fields.
 # Catches workflows where model created output dir but skipped state file.
-# INSCR_STALE_MIN=30: tighter than Signal 1's 120 min — inscriptions are per-phase,
-# so they age out quickly. 30 min handles the 30-120 min window that Signal 1 misses.
-INSCR_STALE_MIN=30
+# INSCR_STALE_MIN (defined at file-level constants): see cross-reference at STALE_THRESHOLD_MIN.
 if [[ -z "$active_workflow" ]]; then
   shopt -s nullglob
   for inscr in "${CWD}"/tmp/reviews/*/inscription.json \
