@@ -11,6 +11,7 @@
   - **Gap remediation task support**: When tasks are missing, gap_remediation (Phase 5.8) now spawns workers to implement missing plan tasks (not just FIXABLE findings).
   - **Pre-ship validator BLOCK gate**: New `task_completion` gate in pre-ship validator (Phase 8.5) BLOCKS ship when task completion is below floor. Previously, pre-ship validator NEVER halted the pipeline.
   - **Default changes**: `halt_on_critical` changed from `false` to `true`. `halt_threshold` raised from 50 to 70.
+- **fix(strive): task coverage assertion prevents silent task deferral** — Strive Phase 0 now verifies ALL plan tasks (`### Task X.Y:` headings) are covered by extracted work items. Missing tasks are auto-created from plan content with dependencies preserved. Default floor: 100% (configurable via `work.task_coverage_floor`). Previously, LLM orchestrator could silently drop 13 of 18 tasks by self-selecting only "easy" ones.
 
 ## [1.168.1] - 2026-03-16
 

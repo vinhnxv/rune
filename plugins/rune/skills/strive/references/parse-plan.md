@@ -219,6 +219,131 @@ if (isChildPlan) {
 }
 ```
 
+## Task Coverage Assertion (v1.169.0 — CRITICAL)
+
+After extracting tasks, verify that ALL plan tasks are covered. This gate prevents the "silent deferral" problem where the LLM orchestrator self-selects only "easy" tasks and drops the rest without telling anyone.
+
+**Why this exists**: PR #310 shipped with 40% plan completion because the LLM extracted only 5 of 18 plan tasks, deferring 13 as "too risky" or "depends on later phases". No mechanism detected the gap. This assertion ensures every plan task becomes a work item.
+
+```javascript
+// STEP A: Extract plan task headings (### Task X.Y:) — ground truth from plan
+const planContent = Read(planPath)
+const planTaskPattern = /^###\s+Task\s+(\d+\.\d+):?\s*(.+)/gm
+const planTaskHeadings = []
+let ptMatch
+while ((ptMatch = planTaskPattern.exec(planContent)) !== null) {
+  planTaskHeadings.push({ id: ptMatch[1], title: ptMatch[2].trim() })
+}
+
+// STEP B: Compare against extracted work tasks
+const extractedTaskCount = extractedTasks.length
+const planTaskCount = planTaskHeadings.length
+
+if (planTaskCount > 0 && extractedTaskCount < planTaskCount) {
+  const missingCount = planTaskCount - extractedTaskCount
+  const coverageRatio = extractedTaskCount / planTaskCount
+
+  // Find which plan tasks are NOT represented in extracted tasks
+  const extractedSubjects = extractedTasks.map(t =>
+    (t.subject + " " + (t.description || "")).toLowerCase()
+  ).join(" ")
+
+  const missingPlanTasks = planTaskHeadings.filter(pt => {
+    // Check if plan task ID or title keywords appear in any extracted task
+    const idFound = extractedSubjects.includes(pt.id)
+    const titleWords = pt.title.toLowerCase().split(/\s+/).filter(w => w.length > 4)
+    const titleFound = titleWords.some(w => extractedSubjects.includes(w))
+    return !idFound && !titleFound
+  })
+
+  // readTalismanSection: "work"
+  const workConfig = readTalismanSection("work")
+  const taskCoverageFloor = Math.max(50, Math.min(100,
+    workConfig?.task_coverage_floor ?? 100))  // Default: 100%
+
+  const coveragePct = Math.round(coverageRatio * 100)
+
+  if (coveragePct < taskCoverageFloor) {
+    // HARD STOP — cannot proceed with missing tasks
+    const missingList = missingPlanTasks.slice(0, 15).map(t =>
+      `  - Task ${t.id}: ${t.title}`
+    ).join('\n')
+
+    error(
+      `TASK COVERAGE ASSERTION FAILED: Plan has ${planTaskCount} tasks but ` +
+      `strive only extracted ${extractedTaskCount} (${coveragePct}%).\n\n` +
+      `Missing tasks:\n${missingList}\n\n` +
+      `All plan tasks MUST become work items. Options:\n` +
+      `1. Re-extract: ensure every ### Task heading produces a work item\n` +
+      `2. Split large tasks: break oversized tasks into sub-tasks\n` +
+      `3. Serialize dependencies: use blockedBy instead of skipping\n` +
+      `4. Lower floor: set work.task_coverage_floor in talisman (range: 50-100, default: 100)\n\n` +
+      `This check prevents shipping incomplete implementations (PR #310 incident).`
+    )
+  } else if (missingPlanTasks.length > 0) {
+    // Below 100% but above floor — warn but proceed
+    warn(
+      `Task coverage: ${extractedTaskCount}/${planTaskCount} plan tasks extracted (${coveragePct}%). ` +
+      `${missingPlanTasks.length} plan task(s) not found in work items: ` +
+      missingPlanTasks.map(t => `Task ${t.id}`).join(', ')
+    )
+  }
+}
+
+// STEP C: Auto-create missing tasks (when plan tasks have ### Task headings)
+// For any plan task NOT represented in extractedTasks, create a work item automatically.
+// This ensures no plan task is silently dropped.
+if (planTaskCount > 0) {
+  const extractedSubjects = extractedTasks.map(t =>
+    (t.subject + " " + (t.description || "")).toLowerCase()
+  ).join(" ")
+
+  for (const pt of planTaskHeadings) {
+    const idFound = extractedSubjects.includes(pt.id)
+    const titleWords = pt.title.toLowerCase().split(/\s+/).filter(w => w.length > 4)
+    const titleFound = titleWords.some(w => extractedSubjects.includes(w))
+
+    if (!idFound && !titleFound) {
+      // Extract task section from plan for context
+      const taskSectionPattern = new RegExp(
+        `### Task ${pt.id.replace('.', '\\.')}[:\\s][\\s\\S]*?(?=###|##[^#]|$)`
+      )
+      const sectionMatch = planContent.match(taskSectionPattern)
+      const taskDescription = sectionMatch
+        ? sectionMatch[0].slice(0, 2000)
+        : pt.title
+
+      // Extract effort from task section
+      const effortMatch = (sectionMatch?.[0] || "").match(/\*\*Effort\*\*:\s*(\w+)/i)
+      const effort = effortMatch ? effortMatch[1] : "M"
+
+      // Extract dependencies from task section
+      const depMatch = (sectionMatch?.[0] || "").match(/\*\*Depend\w*\*\*:\s*(.+)/i)
+      const blockedBy = depMatch
+        ? (depMatch[1].match(/Task\s+(\d+\.\d+)/g) || []).map(d => d.replace('Task ', ''))
+        : []
+
+      extractedTasks.push({
+        subject: `Task ${pt.id}: ${pt.title}`,
+        description: taskDescription,
+        type: "impl",
+        blockedBy: blockedBy,
+        effort: effort,
+        autoCreated: true  // Flag for logging
+      })
+
+      log(`Auto-created work item for plan Task ${pt.id}: ${pt.title}`)
+    }
+  }
+}
+```
+
+**Key design decisions**:
+- **Default floor: 100%** — every plan task MUST become a work item. No silent deferrals.
+- **Auto-create missing tasks**: Rather than just failing, strive auto-creates work items from plan `### Task` sections. This converts the error into a recovery.
+- **Dependencies preserved**: `blockedBy` is extracted from `**Dependency**:` lines in plan task sections. Workers serialize naturally instead of skipping.
+- **Configurable floor**: `work.task_coverage_floor` in talisman (50-100). Lower values are escape hatches for intentionally phased plans.
+
 ## Identify Ambiguities
 
 After extracting tasks, scan for potential issues before asking the user to confirm:
