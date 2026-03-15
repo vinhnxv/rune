@@ -92,7 +92,7 @@ Agent({
     Deduplicate using hierarchy from settings.dedup_hierarchy (default: SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX).
     Include custom Ash outputs and Codex Oracle (CDX prefix) in dedup — use their finding_prefix from config.
     Write unified summary to tmp/reviews/{identifier}/TOME.md.
-    Use the TOME format from roundtable-circle/references/ash-prompts/runebinder.md.
+    Use the TOME format from ../../../prompts/ash/runebinder.md.
     Every finding MUST be wrapped in <!-- RUNE:FINDING nonce="{session_nonce}" ... --> markers.
     The session_nonce is from inscription.json. Without these markers, /rune:mend cannot parse findings.
     See roundtable-circle/references/dedup-runes.md for dedup algorithm.`

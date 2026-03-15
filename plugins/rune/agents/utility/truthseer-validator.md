@@ -72,7 +72,7 @@ The validator writes `{output_dir}/validator-summary.md` containing:
 - Scope Gaps (files not assigned to any Ash)
 - Risk Classification per Ash
 
-See `roundtable-circle/references/ash-prompts/truthseer-validator.md` for the full prompt template.
+See `prompts/ash/truthseer-validator.md` for the full prompt template.
 
 ## RE-ANCHOR — TRUTHBINDING REMINDER
 

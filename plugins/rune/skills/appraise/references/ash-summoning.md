@@ -45,12 +45,12 @@ Summon ALL selected Ash in a **single message** (parallel execution):
      Current mitigation: enforce-readonly.sh hook blocks Write/Edit/Bash for review/audit Ashes. -->
 
 ```javascript
-// Built-in Ash: load prompt from ash-prompts/{role}.md
+// Built-in Ash: load prompt from ../../../prompts/ash/{role}.md
 Agent({
   team_name: "rune-review-{identifier}",
   name: "{ash-name}",
   subagent_type: "general-purpose",
-  prompt: /* Load from roundtable-circle/references/ash-prompts/{role}.md
+  prompt: /* Load from ../../../prompts/ash/{role}.md
              Substitute: {changed_files}, {output_path}, {task_id}, {branch}, {timestamp}
              // SEC-006 (P2): Sanitize file paths before interpolation — validate against SAFE_PATH_PATTERN
              // (/^[a-zA-Z0-9._\-\/]+$/) and reject paths with special characters.

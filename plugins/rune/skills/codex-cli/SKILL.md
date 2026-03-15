@@ -297,7 +297,7 @@ the global `codex.reasoning` for that specific feature only.
 | File | What It Provides |
 |------|-----------------|
 | [codex-detection.md](../roundtable-circle/references/codex-detection.md) | Canonical 9-step detection algorithm |
-| [codex-oracle.md](../roundtable-circle/references/ash-prompts/codex-oracle.md) | Full Ash prompt template with hallucination guard |
+| [codex-oracle.md](../../prompts/ash/codex-oracle.md) | Full Ash prompt template with hallucination guard |
 | [circle-registry.md](../roundtable-circle/references/circle-registry.md) | Codex Oracle's place in Ash registry |
 | [talisman.example.yml](../../talisman.example.yml) (codex section) | All configurable options with comments |
 

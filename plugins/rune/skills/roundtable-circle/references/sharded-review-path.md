@@ -10,7 +10,7 @@
 When `inscription.sharding?.enabled === true`, Phase 3 spawns shard reviewers in parallel
 then a single Cross-Shard Sentinel after all shards complete.
 See [shard-allocator.md](shard-allocator.md) for allocator algorithm and
-[shard-reviewer.md](ash-prompts/shard-reviewer.md) for reviewer prompt template.
+[shard-reviewer.md](../../../prompts/ash/shard-reviewer.md) for reviewer prompt template.
 
 ```javascript
 if (inscription.sharding?.enabled) {

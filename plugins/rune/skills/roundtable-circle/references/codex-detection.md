@@ -74,7 +74,7 @@ timeout {kill_after_flag} {codex_timeout} codex exec \
 - `--config stream_idle_timeout_ms` — Timeout if no output received
 - `--prompt-file` — Path to the prompt file (generated from template)
 
-**Prompt template**: `roundtable-circle/references/ash-prompts/codex-oracle.md`
+**Prompt template**: `prompts/ash/codex-oracle.md`
 - NOT `external-model-template.md` (that's for OTHER CLI-backed Ashes)
 - Codex Oracle has its own dedicated prompt with Codex-specific instructions
 
