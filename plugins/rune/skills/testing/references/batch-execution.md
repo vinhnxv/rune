@@ -117,11 +117,11 @@ function generateTestingPlan(id, talisman, context) {
     version:            1,
     arc_id:             id,
     created_at:         new Date().toISOString(),
-    max_batch_iterations: MAX_BATCH_ITERATIONS,
     config: {
       max_fix_retries:        talisman?.testing?.batch?.max_fix_retries ?? 2,
       inter_batch_delay_ms:   talisman?.testing?.batch?.inter_batch_delay_ms ?? 5_000,
       hard_batch_timeout_ms:  HARD_BATCH_TIMEOUT_MS,
+      max_batch_iterations:   MAX_BATCH_ITERATIONS,
     },
     summary: {
       total_batches: batches.length,
@@ -147,11 +147,12 @@ Core execution loop. Each batch runs in a foreground Agent with its own TaskCrea
 ```javascript
 function executeBatchingPlan(id, plan, remainingBudget) {
   let iterationCount = 0
+  const maxIterations = plan.config.max_batch_iterations ?? MAX_BATCH_ITERATIONS
 
   for (const batch of plan.batches) {
     // 0. Safety cap — prevent infinite re-injection
-    if (iterationCount >= MAX_BATCH_ITERATIONS) {
-      warn(`Batch executor reached MAX_BATCH_ITERATIONS (${MAX_BATCH_ITERATIONS}). Stopping.`)
+    if (iterationCount >= maxIterations) {
+      warn(`Batch executor reached max_batch_iterations (${maxIterations}). Stopping.`)
       break
     }
     iterationCount++
@@ -180,6 +181,7 @@ function executeBatchingPlan(id, plan, remainingBudget) {
 
     // 5. Spawn foreground agent — run_in_background: false
     //    team_name is REQUIRED (Iron Law TEAM-001)
+    const batchStartTime = Date.now()
     const result = Agent({
       subagent_type:     resolveRunnerAgentType(batch.type),
       team_name:         `arc-test-${id}`,
@@ -187,13 +189,28 @@ function executeBatchingPlan(id, plan, remainingBudget) {
       prompt:            buildRunnerPrompt(batch, taskId, plan.config),
     })
 
+    // 5a. Enforce hard batch timeout — if agent took too long, mark failed
+    const batchElapsed = Date.now() - batchStartTime
+    if (batchElapsed > plan.config.hard_batch_timeout_ms) {
+      warn(`Batch ${batch.id} exceeded hard timeout (${batchElapsed}ms > ${plan.config.hard_batch_timeout_ms}ms)`)
+      batch.status = "failed"
+      batch.completed_at = new Date().toISOString()
+      batch.skip_reason = "hard_timeout_exceeded"
+      plan.summary.completed += 1
+      plan.summary.failed += 1
+      writeCheckpoint(id, plan)
+      continue
+    }
+
+    // 5b. Resolve result path — runner writes to convention-based path
+    batch.result_path = `tmp/arc/${id}/test-results-${batch.type}-batch-${batch.id}.md`
+
     // 6. Read result and classify pass/fail
-    // Inline classification: result must exist AND contain no FAIL/ERROR markers.
+    // Structured classification: result must exist AND contain STATUS: PASS marker.
     // Empty/missing result = agent crash = treated as FAIL (not false-positive PASS).
     const resultContent = exists(batch.result_path) ? Read(batch.result_path) : ""
     let passed = resultContent.length > 0
-      && !resultContent.includes("FAIL")
-      && !resultContent.includes("ERROR")
+      && resultContent.includes("<!-- STATUS: PASS -->")
 
     // 7. Fix loop — up to max_fix_retries on failure
     let fixAttempts = 0
@@ -217,22 +234,21 @@ function executeBatchingPlan(id, plan, remainingBudget) {
         prompt:            buildFixPrompt(batch, result, fixTaskId, fixAttempts),
       })
 
-      // Re-run the batch after the fix (reuse same runner pattern)
+      // Re-run the batch after the fix (reuse same tier-specific runner)
       const rerunTaskId = TaskCreate({
         title:       `Rerun batch ${batch.id} after fix ${fixAttempts}`,
         description: `Re-execute ${batch.type} tests: ${batch.files.join(', ')}`,
         status:      "pending",
       })
       Agent({
-        subagent_type:     "general-purpose",
+        subagent_type:     resolveRunnerAgentType(batch.type),
         team_name:         `arc-test-${id}`,
         run_in_background: false,
         prompt:            buildRunnerPrompt(batch, rerunTaskId, plan.config),
       })
       const rerunContent = exists(batch.result_path) ? Read(batch.result_path) : ""
       passed = rerunContent.length > 0
-        && !rerunContent.includes("FAIL")
-        && !rerunContent.includes("ERROR")
+        && rerunContent.includes("<!-- STATUS: PASS -->")
       if (passed) break
     }
 

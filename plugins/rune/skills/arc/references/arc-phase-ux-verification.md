@@ -3,7 +3,7 @@
 Reviews frontend implementation for UX quality: heuristic compliance, user flow completeness, interaction patterns, and cognitive load. Gated by `ux.enabled` in talisman + frontend files detected in diff. **Non-blocking** by default — UX findings never halt the pipeline unless `ux.blocking: true`.
 
 **Team**: `arc-ux-{id}` (up to 4 UX review agents)
-**Tools**: Read, Write, Task, TaskCreate, TaskUpdate, TaskList, TeamCreate, SendMessage
+**Tools**: Read, Write, Agent, TaskCreate, TaskUpdate, TaskList, TeamCreate, SendMessage
 **Timeout**: 5 min (PHASE_TIMEOUTS.ux_verification = 300_000)
 **Inputs**: id, changed frontend files from diff, talisman `ux:` config
 **Outputs**: `tmp/arc/{id}/ux-verification-report.md`, `tmp/arc/{id}/ux-findings.json`

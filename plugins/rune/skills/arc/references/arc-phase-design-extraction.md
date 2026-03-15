@@ -8,7 +8,7 @@ with parallel teammates, Design Analyst classification, and user confirmation fo
 frame relationships.
 
 **Team**: `arc-design-{id}` (design-sync-agent workers + design-analyst)
-**Tools**: Read, Write, Bash, Task, TaskCreate, TaskUpdate, TaskList, TeamCreate, SendMessage
+**Tools**: Read, Write, Bash, Agent, TaskCreate, TaskUpdate, TaskList, TeamCreate, SendMessage
 **Timeout**: Dynamic — `60_000 + (url_count * 120_000)` ms (PHASE_TIMEOUTS.design_extraction)
 **Inputs**: id, plan frontmatter (`figma_urls[]` or `figma_url`), `arcConfig.design_sync` (resolved via `resolveArcConfig()`)
 **Outputs**: `tmp/arc/{id}/vsm/` directory with VSM files per component

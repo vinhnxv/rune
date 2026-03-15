@@ -154,7 +154,7 @@ function enrichWithBatchData(entry, testingPlan, evidenceRecords) {
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `testing.history.directory` | string | `.claude/test-history` | History storage path |
-| `testing.history.max_entries` | number | `100` | Rolling window size (number of JSONL entries retained) |
+| `testing.history.max_entries` | number | `50` | Rolling window size (number of JSONL entries retained) |
 | `testing.history.pass_rate_drop_threshold` | float | `0.05` | Maximum tolerated global pass-rate drop between consecutive runs before flagging a regression (STEP 9.5 gate). Values are 0.0–1.0 (e.g., `0.05` = 5% drop). Used by the arc-phase-test.md persistence algorithm. |
 | `testing.history.regression_threshold` | integer | `7` | Minimum number of recent passing runs (out of last 10) required for a per-test historical series to be considered healthy. Used by regression-detection.md per-test series check. |
 

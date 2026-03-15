@@ -4,7 +4,7 @@ Reviews implementation fidelity against Visual Spec Maps (VSM) produced by Phase
 Gated by `design_sync.enabled` in talisman. **Non-blocking** — design phases never halt the pipeline.
 
 **Team**: `arc-design-verify-{id}` (design-implementation-reviewer agent)
-**Tools**: Read, Write, Task, TaskCreate, TaskUpdate, TaskList, TeamCreate, SendMessage
+**Tools**: Read, Write, Agent, TaskCreate, TaskUpdate, TaskList, TeamCreate, SendMessage
 **Timeout**: 8 min (PHASE_TIMEOUTS.design_verification = 480_000)
 **Inputs**: id, VSM files from Phase 3 (`tmp/arc/{id}/vsm/`), implemented component files
 **Outputs**: `tmp/arc/{id}/design-verification-report.md`, `tmp/arc/{id}/design-findings.json`

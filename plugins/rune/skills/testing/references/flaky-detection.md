@@ -92,7 +92,7 @@ still fail frequently in runs of 3+ consecutive executions.
 function computePassK(testName, recentRuns, k):
   // Extract ordered results for this test (oldest to newest)
   results = []
-  for run in recentRuns.reverse():  // oldest first
+  for run in [...recentRuns].reverse():  // oldest first (copy to avoid mutating shared array)
     match = run.per_test.find(t => t.name === testName)
     if match:
       results.push(match.status === "passed" ? 1 : 0)

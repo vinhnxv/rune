@@ -106,15 +106,8 @@ Base findings on actual test report content, not assumptions.
 9. Mark task complete`
 })
 
-// Monitor teammate completion (single agent, simple wait)
-// waitForCompletion: pollIntervalMs=30000, timeoutMs=900000
-let completed = false
-const maxIterations = Math.ceil(900000 / 30000) // 30 iterations
-for (let i = 0; i < maxIterations && !completed; i++) {
-  const tasks = TaskList()
-  completed = tasks.every(t => t.status === "completed")
-  if (!completed) Bash("sleep 30")
-}
+// Monitor teammate completion
+waitForCompletion(`arc-codex-tc-${id}`, 1, { timeoutMs: 900_000, pollIntervalMs: 30_000, staleWarnMs: 300_000, label: "Arc: Test Coverage Critique" })
 
 // Fallback: if teammate timed out, check file directly
 if (!exists(`tmp/arc/${id}/test-critique.md`)) {
@@ -190,3 +183,12 @@ The Tarnished no longer reads test report content or Codex output into its conte
 - Team `arc-codex-tc-{id}` is created AFTER the gate check passes (zero overhead on skip path)
 - Single teammate: 12s grace period before TeamDelete (single-member optimization)
 - Crash recovery: `arc-codex-tc-` prefix registered in `arc-preflight.md` and `arc-phase-cleanup.md`
+
+## Crash Recovery
+
+| Resource | Location |
+|----------|----------|
+| Test critique report | `tmp/arc/{id}/test-critique.md` |
+| Codex prompt file | `tmp/arc/{id}/.codex-prompt-test-critique.tmp` |
+| Team config | `$CHOME/teams/arc-codex-tc-{id}/` |
+| Task list | `$CHOME/tasks/arc-codex-tc-{id}/` |

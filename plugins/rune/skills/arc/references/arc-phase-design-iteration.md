@@ -5,7 +5,7 @@ Gated by `design_sync.enabled` AND `design_sync.iterate_enabled` in talisman.
 **Non-blocking** — design phases never halt the pipeline.
 
 **Team**: `arc-design-iter-{id}` (design-iterator workers with agent-browser)
-**Tools**: Read, Write, Bash, Task, TaskCreate, TaskUpdate, TaskList, TeamCreate, SendMessage
+**Tools**: Read, Write, Bash, Agent, TaskCreate, TaskUpdate, TaskList, TeamCreate, SendMessage
 **Timeout**: 15 min (PHASE_TIMEOUTS.design_iteration = 900_000)
 **Inputs**: id, design findings from Phase 5.2 (`tmp/arc/{id}/design-findings.json`), implemented components
 **Outputs**: `tmp/arc/{id}/design-iteration-report.md`, improved implementation commits

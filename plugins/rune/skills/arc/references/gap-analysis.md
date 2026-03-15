@@ -3,7 +3,7 @@
 Hybrid analysis: deterministic orchestrator-only checks (STEP A) + 9-dimension LLM analysis via Inspector Ashes (STEP B) + merged unified report (STEP C) + configurable halt decision (STEP D).
 
 **Team**: `arc-inspect-{id}` (STEP B only — follows ATE-1 pattern)
-**Tools**: Read, Glob, Grep, Bash (git diff, grep), Task, TaskCreate, TaskUpdate, TaskList, TeamCreate, TeamDelete, SendMessage
+**Tools**: Read, Glob, Grep, Bash (git diff, grep), Agent, TaskCreate, TaskUpdate, TaskList, TeamCreate, TeamDelete, SendMessage
 **Timeout**: 720_000ms (12 min: inner 8m + 2m setup + 2m aggregate)
 **Talisman key**: `arc.gap_analysis`
 

@@ -7,7 +7,7 @@ and UI builder MCP libraries. Runs AFTER Phase 3 (DESIGN EXTRACTION) and BEFORE 
 Gated by `design_sync.enabled` in talisman. **Non-blocking** — design phases never halt the pipeline.
 
 **Team**: `arc-prototype-{id}` (design-sync-agent workers)
-**Tools**: Read, Write, Bash, Glob, Grep, Task, TaskCreate, TaskUpdate, TaskList, TeamCreate, SendMessage
+**Tools**: Read, Write, Bash, Glob, Grep, Agent, TaskCreate, TaskUpdate, TaskList, TeamCreate, SendMessage
 **Timeout**: 10 min (PHASE_TIMEOUTS.design_prototype = 600_000)
 **Inputs**: id, VSM files from Phase 3 (`tmp/arc/{id}/vsm/`), plan frontmatter (`figma_urls[]`), `arcConfig.design_sync`
 **Outputs**: `tmp/arc/{id}/prototypes/` directory with prototype.tsx + stories per component, `tmp/storybook/` bootstrapped

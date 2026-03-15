@@ -362,7 +362,7 @@ _phase_weight() {
     design_extraction|design_verification|design_iteration|design_prototype) echo 2 ;;
     gap_analysis|gap_remediation|goldmask_verification|goldmask_correlation) echo 2 ;;
     storybook_verification|ux_verification)  echo 2 ;;
-    verify_mend|codex_gap_analysis)          echo 2 ;;
+    verify_mend|codex_gap_analysis|test_coverage_critique) echo 2 ;;
     *)                                       echo 1 ;;
   esac
 }
