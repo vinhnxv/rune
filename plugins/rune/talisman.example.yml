@@ -928,6 +928,7 @@ work:
   #   merge_strategy: "sequential"      # Only "sequential" supported
   #   auto_cleanup: true                # Remove worktrees after merge
   #   conflict_resolution: "escalate"   # "escalate" (ask user) | "abort"
+  #   sparse_paths: []                   # empty = disabled; specify paths for cone-mode checkout
 
   # ── Hierarchical Plan Support (v1.79.0+) ──────────────
   # Controls behavior when running /rune:arc-hierarchy (parent + child plans).
