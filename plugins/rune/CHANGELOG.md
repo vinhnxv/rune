@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.164.0] - 2026-03-15
+
+### Changed
+- **refactor(echo-search): extract helpers from 3 oversized functions** — Improved maintainability of echo-search MCP server by extracting helper functions from oversized implementations (#306)
+
+### Added
+- **feat(brainstorm): add critical thinking & truth-telling enhancements** — Enhanced brainstorm workflow with critical thinking and truth-telling capabilities for more rigorous idea exploration (#305)
+
 ## [1.163.5] - 2026-03-15
 
 ### Fixed

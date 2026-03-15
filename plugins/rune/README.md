@@ -755,7 +755,7 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | Skill | Purpose |
 |-------|---------|
 | agent-browser | Browser automation knowledge injection for E2E testing (non-invocable) |
-| brainstorm | Collaborative idea exploration — 3 modes: Solo (conversation), Roundtable Advisors (3 agent personas), Deep (advisors + elicitation sages). Persistent output in `docs/brainstorms/`. `disable-model-invocation: true` |
+| brainstorm | Collaborative idea exploration — 3 modes: Solo (conversation), Roundtable Advisors (3 agent personas), Deep (advisors + elicitation sages). Persistent output in `docs/brainstorms/` |
 | arc | End-to-end orchestration pipeline (pre-flight freshness gate + 29 phases: forge → plan review → plan refinement → verification → semantic verification → design extraction → design prototype → task decomposition → work → storybook verification → design verification → ux verification → gap analysis → codex gap analysis → gap remediation → goldmask verification → code review → goldmask correlation → mend → verify mend → design iteration → test → test coverage critique → pre-ship validation → release quality check → ship → bot review wait → PR comment resolution → merge) |
 | arc-batch | Sequential batch arc execution with crash recovery and progress tracking |
 | arc-hierarchy | Hierarchical plan execution — parent/child plan decomposition with dependency DAGs and requires/provides contracts |
@@ -788,9 +788,9 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | rune-echoes | Smart Memory Lifecycle (5-tier project memory, global echoes, doc packs) |
 | elevate | Promote project echoes to global scope with domain tagging and dedup |
 | rune-orchestration | Multi-agent coordination patterns |
-| skill-testing | TDD methodology for skills — pressure testing, rationalization counters, Iron Law (SKT-001). `disable-model-invocation: true` |
+| skill-testing | TDD methodology for skills — pressure testing, rationalization counters, Iron Law (SKT-001) |
 | stacks | Stack-aware intelligence — 4-layer detection engine with 12 specialist reviewers (Python, TypeScript, Rust, PHP, Axum, FastAPI, Django, Laravel, SQLAlchemy, TDD, DDD, DI). Auto-loaded by Rune Gaze Phase 1A (non-invocable) |
-| status | Check status of background-dispatched workers — shows task completion %, pending questions, stale worker detection. Use after `/rune:strive --background`. `disable-model-invocation: true` |
+| status | Check status of background-dispatched workers — shows task completion %, pending questions, stale worker detection. Use after `/rune:strive --background` |
 | systematic-debugging | 4-phase debugging methodology (Observe → Narrow → Hypothesize → Fix) for workers hitting repeated failures. Iron Law: no fixes without root cause investigation (DBG-001) |
 | talisman | Deep talisman.yml configuration expertise — init, audit, update, guide, status. Stack-aware scaffolding from canonical template |
 | tarnished | Intelligent master command — unified entry point for all Rune workflows. Parses natural language (VN + EN), checks prerequisites, chains multi-step workflows |
