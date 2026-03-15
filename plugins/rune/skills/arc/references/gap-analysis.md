@@ -1476,20 +1476,142 @@ Write(`tmp/arc/${id}/gap-analysis-unified.md`, unifiedReport)
 
 ## STEP D: Halt Decision
 
-Configurable threshold gate. By default non-blocking (mirrors STEP A's advisory policy), but can be configured to halt the pipeline when the implementation quality is critically low.
+**Dual-gate halt**: task completion gate (deterministic, always active) + quality score gate (configurable).
+
+The task completion gate was added in v1.169.0 after PR #310 shipped with only 40% plan completion — gap analysis detected 60% coverage but recommended PROCEED because the quality score gate was non-blocking by default. The task completion gate is a **hard, non-bypassable floor** that prevents shipping fundamentally incomplete implementations.
 
 ```javascript
+// STEP D.0: Task Completion Gate (ALWAYS ACTIVE — not configurable)
+// Deterministic check: extract plan tasks, verify each has implementation evidence.
+// This gate exists because quality-score-based halting can be rationalized away,
+// but "5 of 18 tasks have zero code" is an objective, non-negotiable signal.
+
+const planContent = Read(enrichedPlanPath)
+const strippedPlan = planContent.replace(/```[\s\S]*?```/g, '')
+
+// D.0.1: Extract tasks from plan (### Task X.Y: heading pattern)
+const taskPattern = /^###\s+Task\s+(\d+\.\d+):?\s*(.+)/gm
+const planTasks = []
+let taskMatch
+while ((taskMatch = taskPattern.exec(strippedPlan)) !== null) {
+  planTasks.push({ id: taskMatch[1], title: taskMatch[2].trim() })
+}
+
+// D.0.2: For each task, extract **Files**: line and check against committed files
+const taskCompletionResults = []
+for (const task of planTasks) {
+  // Find the task section content (until next ### or ##)
+  const taskSectionPattern = new RegExp(
+    `### Task ${task.id.replace('.', '\\.')}[:\\s].*?(?=###|##[^#]|$)`, 's'
+  )
+  const sectionMatch = strippedPlan.match(taskSectionPattern)
+  const sectionText = sectionMatch ? sectionMatch[0] : ''
+
+  // Extract file patterns from **Files**: line
+  const filesMatch = sectionText.match(/\*\*Files?\*\*:\s*(.+)/i)
+  const taskFiles = filesMatch
+    ? filesMatch[1].match(/`([^`]+)`/g)?.map(f => f.replace(/`/g, '')) || []
+    : []
+
+  // Extract action keywords (delete, create, migrate, move, update)
+  const hasDeleteAction = /\b(delete|remove|eliminate|drop)\b/i.test(sectionText)
+  const hasCreateAction = /\b(create|new file|add file|build)\b/i.test(sectionText)
+  const hasMigrateAction = /\b(migrate|move|rename)\b/i.test(sectionText)
+
+  // Check evidence in committed files
+  let evidence = "NONE"
+  if (taskFiles.length > 0) {
+    const fileHits = taskFiles.filter(tf => {
+      // Glob pattern (e.g., "agents/**/*.md") — check if any diff file matches
+      if (tf.includes('*')) {
+        const globPrefix = tf.split('*')[0]
+        return safeDiffFiles.some(df => df.startsWith(globPrefix))
+      }
+      // Exact path — check if in diff
+      return safeDiffFiles.includes(tf)
+    })
+    if (fileHits.length > 0) {
+      evidence = "ADDRESSED"
+    } else if (hasDeleteAction) {
+      // For deletion tasks: verify target files no longer exist
+      const deletionTargets = taskFiles.filter(tf => !tf.includes('*'))
+      const stillExist = deletionTargets.filter(tf => {
+        try { return Bash(`test -e "${tf}" && echo "yes" || echo "no"`).trim() === "yes" }
+        catch { return false }
+      })
+      evidence = stillExist.length > 0 ? "MISSING" : "ADDRESSED"
+    }
+  } else {
+    // No **Files**: line — try keyword grep against diff files
+    const keywords = task.title.match(/`([^`]+)`/g)?.map(k => k.replace(/`/g, '')) || []
+    if (keywords.length > 0 && safeDiffFiles.length > 0) {
+      for (const kw of keywords.slice(0, 5)) {
+        if (!/^[a-zA-Z0-9._\-\/]+$/.test(kw)) continue
+        const grepResult = Bash(`rg -l --max-count 1 -- "${kw}" ${safeDiffFiles.map(f => `"${f}"`).join(' ')} 2>/dev/null`)
+        if (grepResult.trim().length > 0) { evidence = "ADDRESSED"; break }
+      }
+    }
+  }
+
+  taskCompletionResults.push({
+    id: task.id,
+    title: task.title,
+    evidence,
+    hasDelete: hasDeleteAction,
+    hasMigrate: hasMigrateAction,
+    fileCount: taskFiles.length
+  })
+}
+
+// D.0.3: Calculate task completion percentage
+const totalTasks = taskCompletionResults.length
+const completedTasks = taskCompletionResults.filter(t => t.evidence === "ADDRESSED").length
+const missingTasks = taskCompletionResults.filter(t => t.evidence === "MISSING" || t.evidence === "NONE")
+const taskCompletionPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 100
+
+// D.0.4: Hard completion floor — ALWAYS enforced, cannot be disabled
+// This is the fix for the "40% shipped" incident (PR #310, 2026-03-16).
+// Unlike halt_threshold (quality gate, configurable), this is a completion gate (non-negotiable).
+// Default: 100% — ALL plan tasks must be implemented. Skip/defer is exceptional.
+// When tasks ARE deferred, gap analysis writes explicit deferral records back to
+// the plan file (STEP D.7) — no silent deferrals allowed.
+// Lower values (70-99) are escape hatches configured via talisman for plans with
+// intentionally phased rollouts. Even then, deferred tasks are written back.
+const TASK_COMPLETION_FLOOR = Math.max(50, Math.min(100,
+  talisman?.arc?.gap_analysis?.task_completion_floor ?? 100))  // Default: 100%, range: [50, 100]
+
+const taskCompletionFailed = totalTasks > 0 && taskCompletionPct < TASK_COMPLETION_FLOOR
+
+// Inject task completion report into unified report
+const taskReportSection = `\n## TASK COMPLETION\n\n` +
+  `**Tasks**: ${completedTasks}/${totalTasks} addressed (${taskCompletionPct}%)\n` +
+  `**Floor**: ${TASK_COMPLETION_FLOOR}%\n` +
+  `**Gate**: ${taskCompletionFailed ? 'HALT' : 'PASS'}\n\n` +
+  `| Task | Title | Evidence |\n|------|-------|----------|\n` +
+  taskCompletionResults.map(t =>
+    `| ${t.id} | ${t.title.slice(0, 60)} | ${t.evidence}${t.hasDelete ? ' (deletion)' : ''}${t.hasMigrate ? ' (migration)' : ''} |`
+  ).join('\n') + '\n\n' +
+  (missingTasks.length > 0
+    ? `**Missing tasks**:\n${missingTasks.map(t => `- Task ${t.id}: ${t.title}`).join('\n')}\n`
+    : '')
+
+// Append to unified report
+const existingUnifiedContent = Read(`tmp/arc/${id}/gap-analysis-unified.md`) ?? ""
+Write(`tmp/arc/${id}/gap-analysis-unified.md`, existingUnifiedContent + taskReportSection)
+
 // STEP D.1: Read config
 // RUIN-001 FIX: Runtime clamping prevents misconfiguration-based bypass (halt_threshold: -1 or 999)
-const haltThreshold = Math.max(0, Math.min(100, talisman?.arc?.gap_analysis?.halt_threshold ?? 50))  // Default: 50/100
-const haltEnabled   = talisman?.arc?.gap_analysis?.halt_on_critical ?? false  // Default: non-blocking
+const haltThreshold = Math.max(0, Math.min(100, talisman?.arc?.gap_analysis?.halt_threshold ?? 70))  // Default: 70/100 (raised from 50 in v1.169.0)
+const haltEnabled   = talisman?.arc?.gap_analysis?.halt_on_critical ?? true  // Default: ENABLED (changed from false in v1.169.0)
 
 // STEP D.2: Map VERDICT to halt decision
 // CRITICAL_ISSUES = any P1 finding → always halt if halt_enabled
+// TASK_COMPLETION = below floor → always halt (non-bypassable)
 const hasCriticalIssues = verdictP1Count > 0
 const scoreBelowThreshold = normalizedScore !== null && normalizedScore < haltThreshold
 
 const needsRemediation =
+  taskCompletionFailed ||  // Task completion gate — ALWAYS enforced
   (haltEnabled && hasCriticalIssues) ||
   (haltEnabled && scoreBelowThreshold)
 
@@ -1503,6 +1625,9 @@ if (needsRemediation && headlessMode) {
 }
 
 // STEP D.4: Write needs_remediation flag to checkpoint
+// When tasks are missing, ALWAYS flag for remediation — gap_remediation will
+// spawn workers to implement missing tasks, then re-verify.
+const needsTaskRemediation = totalTasks > 0 && missingTasks.length > 0
 updateCheckpoint({
   phase: "gap_analysis",
   status: needsRemediation && !headlessMode ? "failed" : "completed",
@@ -1511,21 +1636,40 @@ updateCheckpoint({
   phase_sequence: 5.5,
   team_name: inspectTeamName ?? null,
   // Extra fields for gap-remediation phase gate
-  needs_remediation: needsRemediation && !headlessMode,
+  needs_remediation: (needsRemediation && !headlessMode) || needsTaskRemediation,
+  needs_task_remediation: needsTaskRemediation,
   unified_score: normalizedScore,
   fixable_count: fixableCount,
-  manual_count: manualCount
+  manual_count: manualCount,
+  // Task completion data for gap-remediation convergence loop
+  task_completion_pct: taskCompletionPct,
+  task_completion_floor: TASK_COMPLETION_FLOOR,
+  missing_tasks: missingTasks.map(t => ({ id: t.id, title: t.title })),
+  total_tasks: totalTasks,
+  completed_tasks: completedTasks
 })
 
 // STEP D.5: Halt if needed (and not headless)
 if (needsRemediation && !headlessMode) {
-  const haltReason = hasCriticalIssues
-    ? `CRITICAL_ISSUES: ${verdictP1Count} P1 findings found`
-    : `Score ${normalizedScore}/100 is below halt_threshold ${haltThreshold}`
+  const haltReasons = []
+  if (taskCompletionFailed) {
+    haltReasons.push(`TASK_COMPLETION: ${completedTasks}/${totalTasks} tasks addressed (${taskCompletionPct}%) — below floor of ${TASK_COMPLETION_FLOOR}%`)
+    // List the missing tasks for actionable feedback
+    for (const t of missingTasks.slice(0, 10)) {
+      haltReasons.push(`  - Task ${t.id}: ${t.title}`)
+    }
+    if (missingTasks.length > 10) haltReasons.push(`  ... and ${missingTasks.length - 10} more`)
+  }
+  if (hasCriticalIssues) haltReasons.push(`CRITICAL_ISSUES: ${verdictP1Count} P1 findings found`)
+  if (scoreBelowThreshold) haltReasons.push(`QUALITY_SCORE: ${normalizedScore}/100 is below halt_threshold ${haltThreshold}`)
 
-  error(`Phase 5.5 GAP ANALYSIS halted: ${haltReason}.\n` +
+  const haltMessage = haltReasons.join('\n')
+
+  error(`Phase 5.5 GAP ANALYSIS halted:\n${haltMessage}\n\n` +
     `Unified report: tmp/arc/${id}/gap-analysis-unified.md\n` +
-    `To proceed despite gaps: set arc.gap_analysis.halt_on_critical: false in talisman.yml\n` +
+    (taskCompletionFailed
+      ? `Task completion floor is ${TASK_COMPLETION_FLOOR}%. Adjust via arc.gap_analysis.task_completion_floor in talisman.yml (range: 50-100).\n`
+      : `To proceed despite gaps: set arc.gap_analysis.halt_on_critical: false in talisman.yml\n`) +
     `Or resume after manual fixes: /rune:arc --resume`)
 }
 
@@ -1578,8 +1722,65 @@ if (reassessmentEnabled) {
     }
   }
 }
+// ── STEP D.7: Write Implementation Status Back to Plan File (v1.169.0) ──
+// Plan files are living documents. After gap analysis, write task completion
+// status back to the plan so deferred tasks are explicitly recorded.
+// This prevents the "silent deferral" problem where tasks disappear without trace.
+
+if (planPath && totalTasks > 0) {
+  const timestamp = new Date().toISOString().split('T')[0]  // YYYY-MM-DD
+  const arcRunId = id
+
+  // Build implementation status section
+  let statusSection = `\n---\n\n## Implementation Status (arc: ${arcRunId}, ${timestamp})\n\n`
+  statusSection += `**Completion**: ${completedTasks}/${totalTasks} tasks (${taskCompletionPct}%)\n`
+  statusSection += `**Arc run**: ${arcRunId}\n\n`
+  statusSection += `| Task | Status | Notes |\n|------|--------|-------|\n`
+
+  for (const task of taskCompletionResults) {
+    const status = task.evidence === "ADDRESSED" ? "DONE" :
+                   task.evidence === "MISSING" ? "MISSING" : "NOT STARTED"
+    const notes = task.hasDelete ? "deletion task" :
+                  task.hasMigrate ? "migration task" : ""
+    statusSection += `| ${task.id} | ${status} | ${notes} |\n`
+  }
+
+  // Deferred tasks MUST have explicit reason — no silent deferrals
+  if (missingTasks.length > 0) {
+    statusSection += `\n### Deferred Tasks — REQUIRES JUSTIFICATION\n\n`
+    statusSection += `> **WARNING**: The following tasks were NOT implemented. Each deferral MUST have\n`
+    statusSection += `> an explicit reason. Tasks without justification will be flagged as incomplete\n`
+    statusSection += `> in future arc runs.\n\n`
+    for (const t of missingTasks) {
+      statusSection += `- **Task ${t.id}**: ${t.title}\n`
+      statusSection += `  - **Status**: DEFERRED\n`
+      statusSection += `  - **Reason**: _[REQUIRED — fill before ship or task blocks pipeline]_\n`
+      statusSection += `  - **Follow-up arc**: Required — this task will be re-extracted by gap analysis\n`
+      statusSection += `  - **Risk if skipped**: _[REQUIRED — what breaks if this is never done]_\n`
+    }
+    statusSection += `\n> To proceed with deferred tasks: set \`arc.gap_analysis.task_completion_floor\`\n`
+    statusSection += `> to a value below ${taskCompletionPct} in talisman.yml. Default is 100%.\n`
+  }
+
+  // Append to plan file (don't overwrite — append below the original content)
+  try {
+    const existingPlan = Read(planPath)
+    // Only append if not already present (idempotent — check for arc run ID)
+    if (!existingPlan.includes(`arc: ${arcRunId}`)) {
+      Write(planPath, existingPlan + statusSection)
+      log(`STEP D.7: Wrote implementation status to plan file: ${planPath}`)
+    }
+  } catch (e) {
+    warn(`STEP D.7: Could not write implementation status to plan: ${e.message}`)
+  }
+}
 ```
 
-**Output**: `tmp/arc/{id}/gap-analysis-unified.md`, `tmp/arc/{id}/gap-analysis-verdict.md`, individual inspector files.
+**Output**: `tmp/arc/{id}/gap-analysis-unified.md`, `tmp/arc/{id}/gap-analysis-verdict.md`, individual inspector files. **Plan file updated** with implementation status section (v1.169.0+).
 
-**Failure policy**: Non-blocking by default (WARN). Configurable halt via `arc.gap_analysis.halt_on_critical: true` + `arc.gap_analysis.halt_threshold: 50`. CRITICAL_ISSUES (P1 findings) always trigger halt when `halt_on_critical` is true. Headless/CI mode auto-proceeds regardless of threshold. Phase 5.8 (GAP REMEDIATION) reads `needs_remediation` from checkpoint to decide whether to run.
+**Failure policy** (v1.169.0 — hardened after PR #310 incident):
+- **Task completion gate** (STEP D.0): ALWAYS active. Default floor: 100%. Tasks below floor trigger halt + gap_remediation. Non-bypassable (only adjustable via `task_completion_floor`, range 50-100).
+- **Quality score gate** (STEP D.1-D.2): `halt_on_critical: true` by default (changed from `false`). `halt_threshold: 70` (raised from 50).
+- **Plan writeback** (STEP D.7): Deferred tasks written back to plan file with status. No silent deferrals.
+- **Gap remediation signal**: `needs_task_remediation: true` in checkpoint when tasks are missing — triggers gap_remediation phase to implement missing tasks, followed by re-verification (convergence loop).
+- Headless/CI mode auto-proceeds but still writes plan status back.

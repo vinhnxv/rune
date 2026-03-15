@@ -57,6 +57,20 @@ if (deterministicNeedsRemediation) {
 if (codexNeedsRemediation) {
   fixerInputs.push(`tmp/arc/${id}/codex-gap-analysis.md`)
 }
+
+// ── Task Remediation (v1.169.0) ──
+// When needs_task_remediation is true, gap-remediation also implements
+// missing plan tasks — not just FIXABLE findings from inspector verdicts.
+const needsTaskRemediation = checkpoint.phases?.gap_analysis?.needs_task_remediation === true
+const missingPlanTasks = checkpoint.phases?.gap_analysis?.missing_tasks ?? []
+const taskCompletionPct = checkpoint.phases?.gap_analysis?.task_completion_pct ?? 100
+const taskCompletionFloor = checkpoint.phases?.gap_analysis?.task_completion_floor ?? 100
+
+if (needsTaskRemediation && missingPlanTasks.length > 0) {
+  log(`Phase 5.8: Task remediation triggered — ${missingPlanTasks.length} missing tasks ` +
+      `(${taskCompletionPct}% < floor ${taskCompletionFloor}%)`)
+  // Missing tasks will be handled in STEP 3.5 (below) alongside FIXABLE findings
+}
 ```
 
 ---
@@ -132,12 +146,43 @@ const cappedFindings = allFindings.slice(0, maxFixes)
 
 log(`Phase 5.8: ${allFindings.length} FIXABLE findings, capping at ${cappedFindings.length}`)
 
-if (cappedFindings.length === 0) {
+// ── STEP 3.5: Merge Task Remediation Items (v1.169.0) ──
+// When missing plan tasks exist, convert them to remediation work items
+// alongside FIXABLE findings. Task items get higher priority.
+const taskRemediationItems = []
+if (needsTaskRemediation && missingPlanTasks.length > 0) {
+  // Read the enriched plan for task context
+  const enrichedPlan = (() => {
+    try { return Read(`tmp/arc/${id}/enriched-plan.md`) } catch { return "" }
+  })()
+
+  for (const task of missingPlanTasks) {
+    // Extract the task section from the plan for context
+    const taskSectionPattern = new RegExp(
+      `### Task ${task.id.replace('.', '\\.')}[:\\s].*?(?=###|##[^#]|$)`, 's'
+    )
+    const sectionMatch = enrichedPlan.match(taskSectionPattern)
+    const taskContext = sectionMatch ? sectionMatch[0].slice(0, 2000) : task.title
+
+    taskRemediationItems.push({
+      id: `TASK-${task.id}`,
+      description: `Implement plan task ${task.id}: ${task.title}`,
+      type: "task",
+      context: taskContext
+    })
+  }
+  log(`Phase 5.8: ${taskRemediationItems.length} missing plan tasks added to remediation queue`)
+}
+
+// Combined gate: FIXABLE findings + missing tasks
+const hasWork = cappedFindings.length > 0 || taskRemediationItems.length > 0
+
+if (!hasWork) {
   Write(`tmp/arc/${id}/gap-remediation-report.md`,
     `# Gap Remediation — No Fixable Gaps\n\n` +
     `**Date**: ${new Date().toISOString()}\n` +
     `**VERDICT**: ${verdictContent.slice(0, 200)}\n\n` +
-    `No FIXABLE findings with file references found in VERDICT. ` +
+    `No FIXABLE findings or missing tasks found. ` +
     `Manual review may be required for flagged gaps.\n`)
 
   updateCheckpoint({

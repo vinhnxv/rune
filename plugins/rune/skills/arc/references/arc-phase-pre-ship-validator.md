@@ -137,6 +137,37 @@ function preShipValidator(checkpoint, planPath) {
     report.gates.push({ gate: "acceptance_criteria", status: "WARN", reason: "plan file unreadable" })
   }
 
+  // ── 2a.5: Task Completion Gate (v1.169.0 — BLOCKING) ──
+  // Reads task completion data from gap_analysis checkpoint.
+  // This is a HARD BLOCK — unlike acceptance criteria (advisory), task completion
+  // below floor prevents ship. Added after PR #310 shipped with 40% completion.
+  const gapPhase = checkpoint.phases?.gap_analysis
+  if (gapPhase && gapPhase.task_completion_pct !== undefined) {
+    const taskPct = gapPhase.task_completion_pct
+    const taskFloor = gapPhase.task_completion_floor ?? 100
+    const taskTotal = gapPhase.total_tasks ?? 0
+    const taskDone = gapPhase.completed_tasks ?? 0
+    const missingTasks = gapPhase.missing_tasks ?? []
+
+    if (taskTotal > 0 && taskPct < taskFloor) {
+      report.gates.push({
+        gate: "task_completion",
+        status: "BLOCK",
+        detail: `${taskDone}/${taskTotal} tasks addressed (${taskPct}%) — below floor of ${taskFloor}%`
+      })
+      report.diagnostics.push(
+        `Task completion: ${taskDone}/${taskTotal} (${taskPct}%) — BLOCKS ship (floor: ${taskFloor}%)`,
+        ...missingTasks.slice(0, 5).map(t => `  Missing: Task ${t.id} — ${t.title}`)
+      )
+    } else {
+      report.gates.push({
+        gate: "task_completion",
+        status: "PASS",
+        detail: `${taskDone}/${taskTotal} tasks addressed (${taskPct}%)`
+      })
+    }
+  }
+
   // ── 2b: Test Phase Status ──
   const testPhase = checkpoint.phases?.test
   if (testPhase) {
@@ -204,6 +235,8 @@ function preShipValidator(checkpoint, planPath) {
   const hasFail  = report.gates.some(g => g.status === "FAIL" && g.gate === "artifact")
   const hasWarn  = report.gates.some(g => g.status === "WARN" || (g.status === "FAIL" && g.gate !== "artifact"))
 
+  // v1.169.0: task_completion BLOCK now halts the pipeline (not just advisory).
+  // This is the second line of defense after gap_analysis STEP D.0.
   report.verdict = hasBlock || hasFail ? "BLOCK" : hasWarn ? "WARN" : "PASS"
 
   // ── Write report ──
@@ -252,7 +285,11 @@ ${diagSection}
 | Any Gate 2 WARN or non-artifact FAIL | WARN | Append diagnostics to PR body as "Pre-Ship Warnings" |
 | All gates PASS or SKIPPED | PASS | No extra PR body content |
 
-**Non-halting contract**: The validator NEVER halts the pipeline. Even BLOCK verdict proceeds to ship — the intent is visibility (PR body injection), not enforcement. This matches the threat model: a stale artifact is serious enough to flag prominently, but not serious enough to prevent delivery.
+**Halting contract** (v1.169.0 — changed from non-halting):
+- **BLOCK from `task_completion` gate**: HALTS the pipeline. Task completion below floor is a hard stop — ship phase will NOT proceed. This prevents shipping fundamentally incomplete implementations (PR #310 incident).
+- **BLOCK from `artifact` gate**: HALTS the pipeline. Artifact integrity (hash mismatch) is a security stop.
+- **WARN/FAIL from other gates**: Non-halting. Quality signals are injected into PR body for visibility.
+- Previously (pre-v1.169.0), the validator never halted. This was changed after PR #310 shipped with 40% plan completion because no gate in the pipeline could block ship.
 
 ## Ship Phase Integration
 
