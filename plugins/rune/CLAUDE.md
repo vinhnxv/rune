@@ -76,7 +76,6 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | `/rune:echoes` | Manage Rune Echoes memory (show, prune, reset, init) + Remembrance |
 | `/rune:elicit` | Interactive elicitation method selection |
 | `/rune:rest` | Remove tmp/ artifacts from completed workflows |
-| `/rune:brainstorm` | Beginner alias for `/rune:brainstorm` skill — explore ideas through dialogue |
 | `/rune:plan` | Beginner alias for `/rune:devise` — plan a feature or task |
 | `/rune:work` | Beginner alias for `/rune:strive` — implement a plan |
 | `/rune:review` | Beginner alias for `/rune:appraise` — review code changes |
@@ -283,7 +282,10 @@ Rune uses Claude Code hooks for event-driven agent synchronization, quality gate
 | `PostToolUse:Write\|Edit` | `scripts/talisman-invalidate.sh` | Re-runs talisman resolver when `talisman.yml` is written. Fast-path grep exit (~0.3ms) for non-talisman writes. |
 | `SessionStart:startup\|resume` | `scripts/session-team-hygiene.sh` | TLC-003: Scans for orphaned team dirs, stale state files, and **resumable arc checkpoints** (Layer 2 crash recovery) at session start and resume. Detects interrupted arcs from crashed sessions and advises user to resume via `/rune:arc --resume`. Filters by session ownership. |
 | `PreCompact:manual\|auto` | `scripts/pre-compact-checkpoint.sh` | Saves team state (config.json, tasks, workflow phase, arc checkpoint) to `tmp/.rune-compact-checkpoint.json` before compaction. Non-blocking (exit 0). |
+| `PostCompact:manual\|auto` | `scripts/post-compact-verify.sh` | POST-COMPACT-001: Verifies compaction checkpoint was written correctly after compaction completes. Companion to `pre-compact-checkpoint.sh` — confirms the checkpoint file exists and is valid JSON. OPERATIONAL — fail-forward. |
 | `SessionStart:compact` | `scripts/session-compact-recovery.sh` | Re-injects team checkpoint as `additionalContext` after compaction. Correlation guard verifies team still exists. One-time injection (deletes checkpoint after use). |
+| `Elicitation:echo-search\|figma-to-react` | `scripts/elicitation-logger.sh` | ELIX-LOG-001: Append-only audit log for elicitation requests from echo-search and figma-to-react prompts. Logs to `${TMPDIR}/rune-elicitation-log-$(id -u).jsonl` with a 5MB size cap. OPERATIONAL — fail-forward, never blocks. |
+| `ElicitationResult:echo-search\|figma-to-react` | `scripts/elicitation-result-validator.sh` | SEC-ELICIT-001: SECURITY-class validator for ElicitationResult responses. Validates user responses for path traversal (`..`) and command injection metacharacters. Fail-closed — exits 2 to block bad responses. |
 | `Stop` | `scripts/arc-phase-stop-hook.sh` | ARC-PHASE-LOOP: Drives the arc phase loop via Stop hook pattern. Reads `.claude/arc-phase-loop.local.md` state file, finds next pending phase in PHASE_ORDER, re-injects phase-specific prompt with fresh context. Each phase gets its own Claude Code turn. Includes session isolation guard. Runs FIRST (inner loop, before batch/hierarchy/issues). |
 | `Stop` | `scripts/arc-batch-stop-hook.sh` | ARC-BATCH-STOP: Drives the arc-batch loop via Stop hook pattern. Reads `.claude/arc-batch-loop.local.md` state file, marks current plan completed, constructs next arc prompt, re-injects via blocking JSON. Includes session isolation guard. Runs BEFORE on-session-stop.sh. |
 | `Stop` | `scripts/arc-hierarchy-stop-hook.sh` | ARC-HIERARCHY-LOOP: Drives the arc-hierarchy loop via Stop hook pattern. Reads `.claude/arc-hierarchy-loop.local.md` state file, verifies child provides() contracts, constructs next child arc prompt, re-injects via blocking JSON. Includes session isolation guard. Runs BEFORE on-session-stop.sh. |
@@ -310,7 +312,7 @@ Based on rlm-claude-code ADR-002 "Fail-Forward Behavior". Hooks should guide, no
 
 | Category | Behavior | Scripts |
 |----------|----------|---------|
-| SECURITY | Fail-closed (no ERR trap). Crash → blocks operation. | `enforce-readonly.sh`, `enforce-teams.sh` |
+| SECURITY | Fail-closed (fail-closed ERR trap exits 2). Crash → blocks operation. | `enforce-readonly.sh`, `enforce-teams.sh` |
 | OPERATIONAL | Fail-forward (`_rune_fail_forward` ERR trap). Crash → allows operation. | All other 35 scripts (including `keyword-detector.sh`, `track-tool-failure.sh`, `reset-tool-failure.sh`, `verify-agent-deliverables.sh`, `context-percent-stop-guard.sh`) |
 
 **VEIL-002 Advisory**: Fail-forward OPERATIONAL hooks can create silent failure cascades (zombie teams, stalled phase loops). All OPERATIONAL hooks emit stderr warnings on ERR trap activation. Set `RUNE_TRACE=1` to capture crash location in `$RUNE_TRACE_LOG`. Monitor for repeated ERR trap warnings — they indicate hook instability.
@@ -385,7 +387,7 @@ echo "Commands: $(find plugins/rune/commands -name '*.md' -not -path '*/referenc
 
 ## References
 
-- [Agent registry](references/agent-registry.md) — 35 review + 5 research + 6 work + 23 utility + 24 investigation + 6 testing agents (12 stack specialist reviewers are prompt templates, not registered agents)
+- [Agent registry](references/agent-registry.md) — 36 review + 5 research + 6 work + 19 utility + 24 investigation + 6 testing agents (12 stack specialist reviewers are prompt templates, not registered agents)
 - [Key concepts](references/key-concepts.md) — Tarnished, Ash, TOME, Arc, Mend, Forge Gaze, Echoes
 - [Lore glossary](references/lore-glossary.md) — Elden Ring terminology mapping
 - [Output conventions](references/output-conventions.md) — Directory structure per workflow

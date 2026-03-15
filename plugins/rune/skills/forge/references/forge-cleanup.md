@@ -27,6 +27,7 @@ try {
     "blight-seer", "wraith-finder", "void-analyzer", "mimic-detector",
     "forge-keeper", "type-warden", "trial-oracle", "assumption-slayer",
     "reality-arbiter", "entropy-prophet", "senior-engineer-reviewer",
+    "phantom-checker", "refactor-guardian", "reference-validator",
     // Elicitation sages (up to MAX_FORGE_SAGES=6, indexed by section)
     "elicitation-sage-0", "elicitation-sage-1", "elicitation-sage-2",
     "elicitation-sage-3", "elicitation-sage-4", "elicitation-sage-5"

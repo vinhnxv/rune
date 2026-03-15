@@ -80,7 +80,10 @@ if ECHO_DIR:
     _cwd = os.path.realpath(os.getcwd())
     _tmpdir = os.path.realpath(os.environ.get("TMPDIR", "/tmp"))
     _allowed_echo_prefixes = (_home, _cwd, _tmpdir)
-    if not any(_echo_resolved.startswith(p) for p in _allowed_echo_prefixes):
+    # SEC-003 FIX: Add os.sep to prevent prefix-collision bypass (e.g. /home/alice-evil
+    # would pass startswith("/home/alice") without the separator check).
+    if not any(_echo_resolved.startswith(p + os.sep) or _echo_resolved == p
+               for p in _allowed_echo_prefixes):
         print(
             "Error: ECHO_DIR must be under home, project, or temp directory: %s"
             % _echo_resolved,
@@ -103,7 +106,9 @@ if DB_PATH:
     _cwd = os.path.realpath(os.getcwd())
     _tmpdir = os.path.realpath(os.environ.get("TMPDIR", "/tmp"))
     _allowed_prefixes = (_home, _cwd, _tmpdir)
-    if not any(_db_parent.startswith(p) for p in _allowed_prefixes):
+    # SEC-003 FIX: Add os.sep guard against prefix-collision bypass.
+    if not any(_db_parent.startswith(p + os.sep) or _db_parent == p
+               for p in _allowed_prefixes):
         print(
             "Error: DB_PATH must be under home, project, or temp directory: %s"
             % _db_resolved,
@@ -132,7 +137,8 @@ if GLOBAL_ECHO_DIR:
     _global_echo_resolved = os.path.realpath(GLOBAL_ECHO_DIR)
     _home = os.path.expanduser("~")
     _tmpdir = os.path.realpath(os.environ.get("TMPDIR", "/tmp"))
-    if not any(_global_echo_resolved.startswith(p)
+    # SEC-003 FIX: Add os.sep guard against prefix-collision bypass.
+    if not any(_global_echo_resolved.startswith(p + os.sep) or _global_echo_resolved == p
                for p in (_home, _tmpdir)):
         print(
             "Error: GLOBAL_ECHO_DIR must be under home or temp directory: %s"
@@ -155,13 +161,34 @@ if GLOBAL_DB_PATH:
     _gdb_parent = os.path.dirname(_gdb_resolved)
     _home = os.path.expanduser("~")
     _tmpdir = os.path.realpath(os.environ.get("TMPDIR", "/tmp"))
-    if not any(_gdb_parent.startswith(p) for p in (_home, _tmpdir)):
+    # SEC-003 FIX: Add os.sep guard against prefix-collision bypass.
+    if not any(_gdb_parent.startswith(p + os.sep) or _gdb_parent == p
+               for p in (_home, _tmpdir)):
         print(
             "Error: GLOBAL_DB_PATH must be under home or temp directory: %s"
             % _gdb_resolved,
             file=sys.stderr,
         )
         sys.exit(1)
+
+# Talisman gate: echoes.elicitation_enabled (default: false).
+# When false, elicitation is skipped during automated workflows.
+# Set via start.sh from talisman.yml echoes.elicitation_enabled.
+ECHO_ELICITATION_ENABLED = os.environ.get("ECHO_ELICITATION_ENABLED", "false").lower() == "true"
+
+# ---------------------------------------------------------------------------
+# Elicitation strategy note
+# ---------------------------------------------------------------------------
+# OPTION B (implemented): When ECHO_ELICITATION_ENABLED=true and result
+# count exceeds the refinement threshold, we include an "elicitation_suggestion"
+# field in the search response with recommended query refinements. The caller
+# (Claude Code) can then present these suggestions interactively via its own
+# elicitation layer. This avoids protocol-level complexity entirely.
+#
+# (Option A — protocol-level elicitation via write_stream — is not implemented
+# because the MCP low-level Server's request/response model does not support
+# sending elicitation/create mid-response. Option A infrastructure has been
+# removed per BACK-107.)
 
 STOPWORDS = frozenset([
     "a", "an", "and", "are", "as", "at", "be", "but", "by", "for",
@@ -2993,7 +3020,14 @@ def _merge_scoped_results(
 
 
 async def _mcp_handle_search(arguments: Dict) -> Tuple[Dict, bool]:
-    """Handle echo_search — validate, run pipeline, record access."""
+    """Handle echo_search — validate, run pipeline, record access.
+
+    Option B elicitation (when ECHO_ELICITATION_ENABLED=true): when the result
+    count exceeds 15, the response includes an "elicitation_suggestion" field
+    with recommended query refinements. This defers interactive narrowing to the
+    caller (Claude Code) instead of attempting protocol-level elicitation inside
+    the call_tool handler (see Elicitation strategy note at module top).
+    """
     err, args = _validate_search_args(arguments)
     if err is not None:
         return err[0], err[1]
@@ -3007,9 +3041,25 @@ async def _mcp_handle_search(arguments: Dict) -> Tuple[Dict, bool]:
     has_more = total_candidates > fetch_limit
     results = all_results[offset:fetch_limit]
     _safe_record_access(results, args["query"], scope)
-    return _build_search_response(
+    response, is_err = _build_search_response(
         results, total_candidates, offset, args["limit"],
         has_more, args["response_format"])
+
+    # Option B: Suggest query refinement when elicitation is enabled and results are broad.
+    # Threshold of 15 matches the default limit — if we're at the cap, there's likely more.
+    if (ECHO_ELICITATION_ENABLED and not is_err
+            and isinstance(response, dict)
+            and total_candidates >= 15
+            and args["query"]):
+        query = args["query"]
+        response["elicitation_suggestion"] = (
+            "Found %d matching echoes for '%s'. "
+            "To narrow results, try adding specific role (e.g. 'worker', 'reviewer'), "
+            "layer (e.g. 'etched', 'inscribed'), or topic keywords to your query."
+            % (total_candidates, query[:80])
+        )
+
+    return response, is_err
 
 
 async def _run_scoped_search(

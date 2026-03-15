@@ -749,10 +749,6 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 | todo-verifier | TODO staleness classification — verify-before-fix pipeline for `/rune:resolve-todos` |
 | ux-pattern-analyzer | UX pattern usage and maturity analysis — loading, error handling, form validation, navigation patterns |
 | tome-digest | TOME finding digest extraction — P1 counts, recurring patterns, affected files for mend gating |
-| condenser-gap | Gap analysis artifact condenser — MISSING/PARTIAL/COMPLETE counts for inter-phase context reduction |
-| condenser-verdict | Gap verdict artifact condenser — dimension scores and low-scoring flags for inter-phase context reduction |
-| condenser-plan | Enriched plan artifact condenser — section count, acceptance criteria, file targets for inter-phase context reduction |
-| condenser-work | Work summary artifact condenser — committed file list and task counts for inter-phase context reduction |
 
 ## Skills
 
@@ -930,12 +926,12 @@ plugins/rune/
 │   └── plugin.json
 ├── agents/
 │   ├── investigation/       # 24 investigation agents (Goldmask + Inspect)
-│   ├── review/              # 35 review agents (12 specialist prompt templates in stacks/references/)
+│   ├── review/              # 36 review agents (12 specialist prompt templates in stacks/references/)
 │   │   └── references/      # Shared review checklists
 │   ├── research/            # 5 research agents (plan pipeline)
 │   ├── testing/             # 6 testing agents (arc Phase 7.7)
 │   ├── work/                # 6 swarm workers (work pipeline)
-│   └── utility/             # 23 utility agents: runebinder, decree-arbiter, truthseer-validator, flow-seer, scroll-reviewer, mend-fixer, knowledge-keeper, elicitation-sage, veil-piercer-plan, horizon-sage, deployment-verifier, evidence-verifier, research-verifier, state-weaver, ux-pattern-analyzer, todo-verifier, design-analyst, tome-digest, condenser-gap, condenser-verdict, condenser-plan, condenser-work, codex-phase-handler (+ gap-fixer as prompt-template, no .md file)
+│   └── utility/             # 19 utility agents: runebinder, decree-arbiter, truthseer-validator, flow-seer, scroll-reviewer, mend-fixer, knowledge-keeper, elicitation-sage, veil-piercer-plan, horizon-sage, deployment-verifier, evidence-verifier, research-verifier, state-weaver, ux-pattern-analyzer, todo-verifier, design-analyst, tome-digest, codex-phase-handler (+ gap-fixer as prompt-template, no .md file)
 ├── commands/
 │   ├── cancel-arc.md           # /rune:cancel-arc
 │   ├── cancel-arc-batch.md     # /rune:cancel-arc-batch
@@ -951,8 +947,6 @@ plugins/rune/
 │   ├── rest.md                 # /rune:rest
 │   ├── review.md               # /rune:review (alias for /rune:appraise)
 │   ├── team-delegate.md        # /rune:team-delegate
-│   ├── team-shutdown.md        # /rune:team-shutdown
-│   ├── team-spawn.md           # /rune:team-spawn
 │   └── work.md                 # /rune:work (alias for /rune:strive)
 ├── skills/
 │   ├── agent-browser/       # Browser automation knowledge (non-invocable)

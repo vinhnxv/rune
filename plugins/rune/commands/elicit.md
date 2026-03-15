@@ -49,7 +49,7 @@ Interactive elicitation session using Rune's curated method registry. Select and
 /rune:elicit                    # Interactive: context-aware method selection
 /rune:elicit --method 11        # Direct: apply Tree of Thoughts to current context
 /rune:elicit --phase plan:0     # Show methods for a specific phase
-/rune:elicit --list             # Show full 22-method registry
+/rune:elicit --list             # Show full 24-method registry
 ```
 
 ## Flags

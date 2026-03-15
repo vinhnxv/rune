@@ -369,6 +369,20 @@
         ]
       }
     ],
+    "PostCompact": [
+      {
+        "_rationale": "POST-COMPACT-001: Verify compaction checkpoint was written correctly after compaction completes. Companion to pre-compact-checkpoint.sh — confirms the checkpoint file exists and is valid JSON before the session resumes. OPERATIONAL — fail-forward.",
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/post-compact-verify.sh",
+            "timeout": 5,
+            "statusMessage": "Verifying compaction checkpoint..."
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "matcher": "startup|resume|clear|compact",
@@ -526,6 +540,34 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/on-session-stop.sh",
             "timeout": 5,
             "statusMessage": "Checking for active Rune workflows..."
+          }
+        ]
+      }
+    ],
+    "Elicitation": [
+      {
+        "_rationale": "ELIX-LOG-001: Append-only audit log for elicitation requests from echo-search and figma-to-react prompts. Logs to ${TMPDIR}/rune-elicitation-log-$(id -u).jsonl with a 5MB size cap. OPERATIONAL — fail-forward, never blocks.",
+        "matcher": "echo-search|figma-to-react",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/elicitation-logger.sh",
+            "timeout": 5,
+            "statusMessage": "Logging elicitation request..."
+          }
+        ]
+      }
+    ],
+    "ElicitationResult": [
+      {
+        "_rationale": "SEC-ELICIT-001: SECURITY-class validator for ElicitationResult responses. Validates user responses from echo-search and figma-to-react elicitation prompts for path traversal ('..') and command injection metacharacters. Fail-closed — no _rune_fail_forward ERR trap. Exit 2 blocks bad responses.",
+        "matcher": "echo-search|figma-to-react",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/elicitation-result-validator.sh",
+            "timeout": 5,
+            "statusMessage": "Validating elicitation response security..."
           }
         ]
       }

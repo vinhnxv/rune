@@ -58,7 +58,7 @@ Remove ephemeral `tmp/` output directories from completed Rune workflows. Preser
 | `tmp/.rune-inspect-*.json` (active) | Active inspect workflow state |
 | `tmp/.rune-forge-*.json` (active) | Active forge workflow state |
 | `tmp/.rune-batch-*.json` (active) | Active batch workflow state |
-| `tmp/.rune-team-*.json` (active) | Active team-spawn workflow state |
+| `tmp/.rune-team-*.json` (active) | Active team workflow state |
 | `~/.claude/teams/{name}/` (active, < 30 min) | Teams referenced by active state files (`--heal` preserves these) |
 
 ## Steps
@@ -476,7 +476,7 @@ for (const type of ["work", "review", "mend", "audit", "forge", "inspect", "batc
 // CHOME pattern: resolve CLAUDE_CONFIG_DIR for multi-account support
 const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
 const RUNE_TEAM_PATTERN = /^(rune-work|rune-review|rune-mend|rune-audit|rune-plan|rune-forge|rune-inspect|rune-goldmask|rune-brainstorm|rune-debug|rune-design-sync|rune-resolve-todos|rune-custom|arc-forge|arc-plan-review|arc-review|arc-audit|arc-work|arc-mend|arc-verify)-/
-// Note: User-provided --name values from /rune:team-spawn cannot be predicted by this pattern.
+// Note: Custom team names cannot be predicted by this pattern.
 // Orphan detection for custom-named teams relies on the state file scan (type "team" in Step 1).
 const teamDirsRaw = Bash(`find "${CHOME}/teams" -mindepth 1 -maxdepth 1 -type d 2>/dev/null`)  // CC-3: find not ls; -mindepth 1 excludes base dir
 const teamDirs = teamDirsRaw.split('\n').filter(Boolean)

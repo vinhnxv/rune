@@ -493,18 +493,20 @@ for member in allMembers:
 // 3. Grace period
 if allMembers.length > 0: Bash("sleep 20")
 
-// 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
-for attempt in [0, 5, 10, 15]:
-  if attempt > 0: Bash("sleep {attempt}")
-  try: TeamDelete(); break
+// 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 4s, 8s, 12s)
+let teamDeleteSucceeded = false
+const CLEANUP_DELAYS = [0, 4000, 8000, 12000]
+for attempt in range(CLEANUP_DELAYS.length):
+  if attempt > 0: Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
+  try: TeamDelete(); teamDeleteSucceeded = true; break
   catch: if last attempt: warn("TeamDelete failed after 4 attempts")
 
-// 5. Filesystem fallback (only if TeamDelete never succeeded)
+// 5. Filesystem fallback (only if TeamDelete never succeeded — QUAL-012)
 if NOT teamDeleteSucceeded:
   Bash('for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done')
   Bash("sleep 5")
   Bash('for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done')
-  Bash('CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/{teamName}/" "$CHOME/tasks/{teamName}/" 2>/dev/null')
+  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
 ```
 
 ## Worker Trust Hierarchy

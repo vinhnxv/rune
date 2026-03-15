@@ -120,6 +120,7 @@ work:
     merge_strategy: "sequential"      # Only "sequential" supported
     auto_cleanup: true                # Remove worktrees after merge
     conflict_resolution: "escalate"   # "escalate" (ask user) | "abort"
+    sparse_paths: []                  # empty = disabled; specify paths for cone-mode checkout
 ```
 
 | Key | Type | Default | Description |
@@ -129,6 +130,7 @@ work:
 | `work.worktree.merge_strategy` | string | `"sequential"` | Merge strategy (only sequential) |
 | `work.worktree.auto_cleanup` | boolean | `true` | Auto-remove worktrees after merge |
 | `work.worktree.conflict_resolution` | string | `"escalate"` | Conflict handling mode |
+| `work.worktree.sparse_paths` | string[] | `[]` | Paths for cone-mode sparse checkout; empty = full checkout |
 
 **Relationship to existing keys**:
 - `work.max_workers` caps total workers across the session

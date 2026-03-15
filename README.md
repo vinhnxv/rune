@@ -212,8 +212,6 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 | `/rune:cancel-arc-hierarchy` | Stop an active arc-hierarchy loop |
 | `/rune:cancel-arc-issues` | Stop an active arc-issues loop |
 | `/rune:cancel-codex-review` | Stop an active codex review |
-| `/rune:team-spawn` | Spawn an Agent Team using presets |
-| `/rune:team-shutdown` | Gracefully shutdown a team |
 | `/rune:team-delegate` | Task delegation dashboard |
 | `/rune:plan-review` | Review plan code samples for correctness |
 
@@ -710,7 +708,7 @@ rune-plugin/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
         │   └── plugin.json       # Plugin manifest (v1.128.0)
-        ├── agents/               # 98 agent definitions
+        ├── agents/               # 96 agent definitions
         │   ├── review/           #   35 review agents
         │   ├── investigation/    #   24 investigation agents
         │   ├── utility/          #   23 utility agents
@@ -718,7 +716,7 @@ rune-plugin/
         │   ├── testing/          #    5 testing agents
         │   └── work/             #    6 work agents
         ├── skills/               # 54 skills
-        ├── commands/             # 17 slash commands
+        ├── commands/             # 15 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json
         ├── scripts/              # Hook & utility scripts (171 .sh/.py files)

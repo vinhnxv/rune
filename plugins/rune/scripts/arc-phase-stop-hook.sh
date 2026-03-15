@@ -130,6 +130,11 @@ BRANCH=$(get_field "branch")
 ARC_FLAGS=$(get_field "arc_flags")
 # Validate ARC_FLAGS before prompt embedding (SEC-001: only allow known flag characters)
 [[ "$ARC_FLAGS" =~ ^[a-zA-Z0-9\ _.=-]{0,256}$ ]] || ARC_FLAGS=""
+# Validate PLAN_FILE: reject path traversal and invalid characters (BACK-101)
+# CHECKPOINT_PATH has rigorous validation below (lines 138-152); PLAN_FILE gets the same treatment here.
+if [[ -z "$PLAN_FILE" ]] || [[ "$PLAN_FILE" == *".."* ]] || [[ "$PLAN_FILE" =~ [^a-zA-Z0-9._/-] ]]; then
+  PLAN_FILE="unknown"
+fi
 
 # ── Trace parsed fields for debugging ──
 _trace "PARSED active=${ACTIVE} iteration=${ITERATION} checkpoint_path=${CHECKPOINT_PATH}"
@@ -216,7 +221,7 @@ fi
 # Must match arc-phase-constants.md PHASE_ORDER exactly (shell-side copy).
 PHASE_ORDER=(
   forge plan_review plan_refine verification semantic_verification
-  design_extraction design_prototype task_decomposition work storybook_verification design_verification
+  design_extraction design_prototype task_decomposition work drift_review storybook_verification design_verification
   ux_verification gap_analysis codex_gap_analysis gap_remediation goldmask_verification
   code_review goldmask_correlation mend verify_mend design_iteration
   test test_coverage_critique pre_ship_validation release_quality_check
@@ -636,6 +641,22 @@ if [[ -n "$NEXT_PHASE" && -n "$_ARC_ID_FOR_LOG" && "$_ARC_ID_FOR_LOG" =~ ^[a-zA-
   if [[ "$_new_count" -ge "$MAX_PHASE_DISPATCHES" ]]; then
     _trace "GUARD 9 TRIGGERED: phase ${NEXT_PHASE} dispatched ${_new_count} times — stuck loop detected"
     _log_phase "phase_stuck" "$NEXT_PHASE" "dispatch_count=${_new_count}" "max=${MAX_PHASE_DISPATCHES}"
+    # BACK-005 FIX: Write updated count BEFORE deleting STATE_FILE.
+    # The deferred-write pattern (BACK-001) only covers the normal injection path; GUARD 9
+    # exits early and never reaches that path. Without writing here, _current_count stays at
+    # MAX-1 on the next invocation if STATE_FILE deletion silently fails — causing infinite
+    # GUARD 9 re-trigger. Writing first ensures the counter advances past MAX even if the
+    # state file survives, breaking the loop.
+    if [[ -n "${_DISPATCH_COUNT_FILE:-}" && -n "${NEXT_PHASE:-}" ]]; then
+      _guard9_tmp=$(mktemp "${_DISPATCH_COUNT_FILE}.XXXXXX" 2>/dev/null) || _guard9_tmp=""
+      if [[ -n "$_guard9_tmp" ]]; then
+        if echo "${_dispatch_counts:-{}}" | jq --arg p "$NEXT_PHASE" --argjson c "$_new_count" '.[$p] = $c' > "$_guard9_tmp" 2>/dev/null; then
+          mv -f "$_guard9_tmp" "$_DISPATCH_COUNT_FILE" 2>/dev/null || rm -f "$_guard9_tmp" 2>/dev/null
+        else
+          rm -f "$_guard9_tmp" 2>/dev/null
+        fi
+      fi
+    fi
     rm -f "$STATE_FILE" 2>/dev/null
     printf 'Arc pipeline STOPPED — stuck loop detected. Phase "%s" has been dispatched %d times (max %d). This indicates an infinite convergence loop. Check the checkpoint at %s for phase status and investigate why "%s" is not completing or being skipped.\n' \
       "$NEXT_PHASE" "$_new_count" "$MAX_PHASE_DISPATCHES" "$CHECKPOINT_PATH" "$NEXT_PHASE" >&2
@@ -1058,9 +1079,11 @@ if [[ -z "$REF_FILE" ]] || [[ "$REF_FILE" =~ [^a-zA-Z0-9._/-] ]]; then
   exit 0
 fi
 
-# Validate PLAN_FILE and CHECKPOINT_PATH for prompt
-[[ "$PLAN_FILE" =~ ^[a-zA-Z0-9._/-]+$ ]] || PLAN_FILE="unknown"
-[[ "$BRANCH" =~ ^[a-zA-Z0-9._/-]+$ ]] || BRANCH="unknown"
+# Validate PLAN_FILE and BRANCH for prompt (SEC-005: exclude .. traversal sequences)
+# PLAN_FILE was already sanitized at extraction (BACK-101 fix above); this is defense-in-depth.
+# BRANCH uses a tighter check — no path separators needed, reject .. explicitly.
+[[ "$PLAN_FILE" =~ ^[a-zA-Z0-9._/-]+$ ]] && [[ "$PLAN_FILE" != *".."* ]] || PLAN_FILE="unknown"
+[[ "$BRANCH" =~ ^[a-zA-Z0-9._/-]+$ ]] && [[ "$BRANCH" != *".."* ]] || BRANCH="unknown"
 
 # Build section hint line if applicable
 SECTION_LINE=""
@@ -1091,6 +1114,7 @@ If this phase spawns agents, you MUST follow this exact order:
 1. TeamCreate({ team_name: \"...\" }) — call the SDK tool FIRST
 2. TaskCreate() for each agent — create tasks BEFORE spawning
 3. Agent({ team_name: \"...\", ... }) — include team_name on EVERY call
+4. After phase completes: shutdown all teammates + TeamDelete (see phase reference cleanup section)
 Writing a JSON state file is NOT a substitute for TeamCreate. The enforce-teams.sh hook will block any Agent() call without team_name during an active workflow.
 
 ## Instructions

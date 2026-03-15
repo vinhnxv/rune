@@ -73,11 +73,6 @@ if [[ "$TOOL_NAME" != "Task" && "$TOOL_NAME" != "Agent" ]]; then
   exit 0
 fi
 
-# Claude Code 2.1.69+: agent_type/agent_id identify the calling agent (diagnostic/trace).
-# Not used for control flow — team_name prefix matching remains the primary mechanism.
-AGENT_TYPE=$(printf '%s\n' "$INPUT" | jq -r '.agent_type // empty' 2>/dev/null || true)
-AGENT_ID=$(printf '%s\n' "$INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
-
 # QUAL-5: Canonicalize CWD to resolve symlinks (matches on-task-completed.sh pattern)
 CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 if [[ -z "$CWD" ]]; then
@@ -266,7 +261,7 @@ if [[ -z "$active_workflow" ]]; then
                "${CWD}"/tmp/forge/*/inscription.json \
                "${CWD}"/tmp/work/*/inscription.json \
                "${CWD}"/tmp/mend/*/inscription.json; do
-    # Recency guard: skip files older than 30 min
+    # Recency guard: skip files older than ${STALE_THRESHOLD_MIN} min (same threshold as Signal 1 state files)
     if [[ -f "$inscr" ]] && find "$inscr" -maxdepth 0 -mmin -${STALE_THRESHOLD_MIN} -print -quit 2>/dev/null | grep -q .; then
       # Ownership filter: read team_name from inscription, check if team config has session marker
       local_team=$(jq -r '.team_name // empty' "$inscr" 2>/dev/null || true)
@@ -426,7 +421,7 @@ elif [[ -n "${AGENT_NAME:-}" ]]; then
       WORKFLOW_TYPE="mend" ;;
     repo-surveyor|echo-reader|git-miner|practice-seeker|lore-scholar|flow-seer|scroll-reviewer|decree-arbiter|research-verifier)
       WORKFLOW_TYPE="plan" ;;
-    tome-digest|condenser-gap|condenser-plan|condenser-verdict|condenser-work)
+    tome-digest)
       WORKFLOW_TYPE="utility" ;;
     *)
       WORKFLOW_TYPE="unknown" ;;
