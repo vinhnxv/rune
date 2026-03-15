@@ -250,7 +250,7 @@ Claim tasks from the pool. Mark each completed when prototype.tsx is written.`
   })
 }
 
-waitForCompletion(spawnedWorkers, { timeoutMs: 480_000 })
+waitForCompletion(`arc-prototype-${id}`, spawnedWorkers.length, { timeoutMs: 480_000, pollIntervalMs: 30_000, staleWarnMs: 300_000, label: "Arc: Design Prototype" })
 
 // === STEP D: Bootstrap Storybook with prototypes ===
 const prototypeFiles = Glob(`tmp/arc/${id}/prototypes/*/prototype.tsx`)

@@ -100,7 +100,7 @@ for (const { name, agent } of agents) {
 }
 
 // 6. Monitor — waitForCompletion with 5-min timeout
-waitForCompletion(agents.map(a => a.name), { timeoutMs: 240_000 })
+waitForCompletion(`arc-ux-${id}`, agents.length, { timeoutMs: 240_000, pollIntervalMs: 30_000, staleWarnMs: 300_000, label: "Arc: UX Verification" })
 
 // 7. Cleanup — standard 5-component pattern
 for (const { name } of agents) {

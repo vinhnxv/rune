@@ -80,7 +80,7 @@ Agent({
 })
 
 // 6. Monitor
-waitForCompletion(["design-reviewer-1"], { timeoutMs: 360_000 })
+waitForCompletion(`arc-design-verify-${id}`, 1, { timeoutMs: 360_000, pollIntervalMs: 30_000, staleWarnMs: 300_000, label: "Arc: Design Verification" })
 
 // 7. Cleanup
 SendMessage({ type: "shutdown_request", recipient: "design-reviewer-1" })

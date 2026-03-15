@@ -130,8 +130,8 @@ for (let i = 0; i < Math.min(maxWorkers, componentsToIterate.length); i++) {
 }
 
 // 8. Monitor
-waitForCompletion([...Array(maxWorkers).keys()].map(i => `design-iter-${i + 1}`), {
-  timeoutMs: 720_000  // 12 min inner budget
+waitForCompletion(`arc-design-iter-${id}`, maxWorkers, {
+  timeoutMs: 720_000, pollIntervalMs: 30_000, staleWarnMs: 300_000, label: "Arc: Design Iteration"
 })
 
 // 9. Close browser sessions

@@ -129,8 +129,8 @@ if (urlCount === 1) {
     })
   }
 
-  waitForCompletion([...Array(maxWorkers).keys()].map(i => `design-syncer-${i + 1}`), {
-    timeoutMs: 480_000
+  waitForCompletion(`arc-design-${id}`, maxWorkers, {
+    timeoutMs: 480_000, pollIntervalMs: 30_000, staleWarnMs: 300_000, label: "Arc: Design Extraction (sync)"
   })
 
   for (let i = 0; i < maxWorkers; i++) {
@@ -253,7 +253,7 @@ for (let i = 0; i < maxWorkers; i++) {
 
 // Dynamic timeout: 2 min per URL, minimum 8 min inner budget
 const innerTimeoutMs = Math.max(480_000, urlCount * 120_000)
-waitForCompletion(spawnedWorkers, { timeoutMs: innerTimeoutMs })
+waitForCompletion(`arc-design-${id}`, spawnedWorkers.length, { timeoutMs: innerTimeoutMs, pollIntervalMs: 30_000, staleWarnMs: 300_000, label: "Arc: Design Extraction (workers)" })
 
 // Shutdown extraction workers
 for (const workerName of spawnedWorkers) {
@@ -293,7 +293,7 @@ if (irFiles.length >= 2) {
       [inject agent design-analyst.md content]`
   })
 
-  waitForCompletion(["design-analyst-1"], { timeoutMs: 120_000 })
+  waitForCompletion(`arc-design-${id}`, 1, { timeoutMs: 120_000, pollIntervalMs: 30_000, staleWarnMs: 300_000, label: "Arc: Design Extraction (analyst)" })
   SendMessage({ type: "shutdown_request", recipient: "design-analyst-1" })
   sleep(5_000)
 
@@ -419,7 +419,7 @@ for (let i = 0; i < Math.min(maxWorkers, vsmTaskIds.length); i++) {
   })
 }
 
-waitForCompletion(vsmWorkers, { timeoutMs: Math.max(300_000, vsmTaskIds.length * 60_000) })
+waitForCompletion(`arc-design-${id}`, vsmWorkers.length, { timeoutMs: Math.max(300_000, vsmTaskIds.length * 60_000), pollIntervalMs: 30_000, staleWarnMs: 300_000, label: "Arc: Design Extraction (VSM)" })
 
 // === STEP 13: Component Cap Enforcement ===
 // Global cap: trim VSM files to max_total_components
