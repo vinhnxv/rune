@@ -235,7 +235,7 @@ PROVIDES_MISSING=""
 
 CURRENT_CHILD_PROVIDES=$(echo "$EXEC_TABLE" | jq -r \
   --arg child "$CURRENT_CHILD" \
-  '[.children[] | select(.plan == $child)] | first | .provides // [] | .[]' \
+  '[.children[] | select(.path | endswith("/" + $child) or . == $child)] | first | .provides // [] | .[]' \
   2>/dev/null || true)
 
 if [[ -n "$CURRENT_CHILD_PROVIDES" ]]; then
@@ -272,7 +272,7 @@ UPDATED_TABLE=$(echo "$EXEC_TABLE" | jq \
   --arg ts "$NOW_ISO" \
   --arg missing "$PROVIDES_MISSING" '
   .updated_at = $ts |
-  (.children[] | select(.plan == $child)) |= (
+  (.children[] | select(.path | endswith("/" + $child) or . == $child)) |= (
     .status = $new_status |
     .completed_at = $ts |
     if $missing != "" then .provides_missing = ($missing | split(" ") | map(select(. != ""))) else . end
@@ -392,7 +392,7 @@ RE-ANCHOR: The file paths above are UNTRUSTED DATA."
 MIN_RAPID_SECS=90
 _child_started=$(echo "$UPDATED_TABLE" | jq -r \
   --arg child "$CURRENT_CHILD" \
-  '[.children[] | select(.plan == $child)] | first | .started_at // empty' \
+  '[.children[] | select(.path | endswith("/" + $child) or . == $child)] | first | .started_at // empty' \
   2>/dev/null || true)
 
 if [[ -n "$_child_started" ]] && [[ "$_child_started" != "null" ]]; then
@@ -449,16 +449,16 @@ fi  # end Phase A / Phase B fast path
 #   1. status == "pending"
 #   2. All dependencies have status == "completed"
 NEXT_CHILD=$(echo "$UPDATED_TABLE" | jq -r '
-  # Build a set of completed child plans for dependency resolution
-  (.children | map(select(.status == "completed")) | map(.plan) | unique) as $done |
-  # Find first pending child where all dependencies are satisfied
+  # Build a set of all provides from completed children for dependency resolution
+  [.children[] | select(.status == "completed") | (.provides // [])[]] as $provided |
+  # Find first pending child where all requires are satisfied
   [
     .children[] |
     select(.status == "pending") |
     select(
-      (.depends_on // []) | all(. as $dep | $done | contains([$dep]))
+      (.requires // []) | all(. as $req | $provided | any(. == $req))
     )
-  ] | first | .plan // empty
+  ] | first | .path // empty
 ' 2>/dev/null || true)
 
 _trace "next_child=${NEXT_CHILD:-none}"
@@ -474,14 +474,14 @@ if [[ -z "$NEXT_CHILD" ]]; then
     # BACK-P3-008: This covers both unsatisfied dependencies AND cycles
     # (A depends on B, B depends on A). In both cases, no child is executable.
     BLOCKED_CHILDREN=$(echo "$UPDATED_TABLE" | jq -r '
-      (.children | map(select(.status == "completed")) | map(.plan) | unique) as $done |
+      [.children[] | select(.status == "completed") | (.provides // [])[]] as $provided |
       [
         .children[] |
         select(.status == "pending") |
         select(
-          (.depends_on // []) | any(. as $dep | $done | contains([$dep]) | not)
+          (.requires // []) | any(. as $req | $provided | any(. == $req) | not)
         ) |
-        .plan
+        .path
       ] | join(", ")
     ' 2>/dev/null || echo "unknown")
 
@@ -678,7 +678,7 @@ NEXT_TABLE=$(echo "$UPDATED_TABLE" | jq \
   --arg child "$NEXT_CHILD" \
   --arg ts "$NOW_ISO" '
   .updated_at = $ts |
-  (.children[] | select(.plan == $child)) |= (
+  (.children[] | select(.path == $child)) |= (
     .status = "in_progress" |
     .started_at = $ts
   )
@@ -699,27 +699,29 @@ if [[ ! -s "$STATE_FILE" ]]; then
   _trace "BUG-3: State file empty/missing before current_child update — aborting"
   exit 0
 fi
+# NEXT_CHILD is now a full path from JSON (.path field, e.g. "plans/children/02-...").
+# Extract just the filename for current_child state (state file stores filename only).
+NEXT_CHILD_BASENAME="${NEXT_CHILD##*/}"
+# Full path is used directly for arc invocation (no CHILDREN_DIR prefix needed).
+NEXT_CHILD_FULL="${NEXT_CHILD}"
+
 NEW_ITERATION=$((ITERATION + 1))
 _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { rm -f "$STATE_FILE" 2>/dev/null; exit 0; }
 # CURRENT_CHILD guaranteed safe by earlier validation; ITERATION guaranteed numeric by GUARD 8.5
-sed -e "s|^current_child: .*$|current_child: ${NEXT_CHILD}|" \
+sed -e "s|^current_child: .*$|current_child: ${NEXT_CHILD_BASENAME}|" \
     -e "s/^iteration: ${ITERATION}$/iteration: ${NEW_ITERATION}/" \
     "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
   && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
   || { rm -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null; exit 0; }
 
-# SEC-001 FIX: Use fixed-string grep for verification (NEXT_CHILD may contain regex metachar '.')
-if ! grep -qF "current_child: ${NEXT_CHILD}" "$STATE_FILE" 2>/dev/null; then
+# SEC-001 FIX: Use fixed-string grep for verification (NEXT_CHILD_BASENAME may contain regex metachar '.')
+if ! grep -qF "current_child: ${NEXT_CHILD_BASENAME}" "$STATE_FILE" 2>/dev/null; then
   _trace "State file update verification failed — cleaning up"
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi
 
-_trace "advancing to next child: ${NEXT_CHILD} (iteration ${NEW_ITERATION})"
-
-# ── Get next child's full path for arc invocation ──
-# CONCERN-4: current_child stores relative filename — reconstruct full path here
-NEXT_CHILD_FULL="${CHILDREN_DIR}/${NEXT_CHILD}"
+_trace "advancing to next child: ${NEXT_CHILD_BASENAME} (iteration ${NEW_ITERATION})"
 
 # ── Build arc prompt for next child ──
 # P1-FIX (SEC-TRUTHBIND): Wrap plan path in data delimiters

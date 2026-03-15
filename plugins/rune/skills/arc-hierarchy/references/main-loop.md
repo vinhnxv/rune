@@ -97,13 +97,17 @@ while (true) {
   // Phase 7c.2: Write JSON sidecar for stop hook execution table parsing (BACK-009 FIX)
   // The stop hook uses jq for topological sort — it needs JSON, not the Markdown table.
   // This sidecar is the machine-readable version; the Markdown table in the plan is human-readable.
+  // CRITICAL: Field names MUST match stop hook jq queries:
+  //   .path (full relative path, NOT just filename — stop hook uses endswith() matching)
+  //   .requires (NOT depends_on — stop hook checks .requires for dependency resolution)
+  //   .provides (provides artifact names for completed_provides aggregation)
   const jsonTable = {
     updated_at: new Date().toISOString(),
     children: parseExecutionTable(Read(planPath)).map(e => ({
       seq: e.seq,
-      plan: e.path.split("/").pop(),
+      path: e.path,
       status: e.status,
-      depends_on: e.dependencies,
+      requires: e.dependencies,
       started_at: e.started,
       completed_at: e.completed,
       provides: (contractMatrix.find(c => c.child === extractChildId(e.path))?.provides || [])
