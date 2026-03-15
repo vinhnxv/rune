@@ -1147,6 +1147,31 @@ def assign_semantic_groups(
     return _write_groups(conn, final_groups)
 
 
+def _validate_and_filter_entries(
+    conn: sqlite3.Connection,
+    entry_ids: list[str],
+    similarities: list[float],
+) -> tuple:
+    """Validate entry_ids exist in DB and filter to existing ones.
+
+    Returns (filtered_pairs, skipped_ids) where filtered_pairs is
+    list of (entry_id, similarity) tuples for existing entries.
+    """
+    existing = frozenset(
+        r[0] for r in conn.execute(
+            "SELECT id FROM echo_entries WHERE id IN (%s)"
+            % _in_clause(len(entry_ids)),
+            entry_ids,
+        ).fetchall()
+    )
+    skipped = [eid for eid in entry_ids if eid not in existing]
+    filtered = [
+        (eid, sim) for eid, sim in zip(entry_ids, similarities)
+        if eid in existing
+    ]
+    return filtered, skipped
+
+
 def upsert_semantic_group(
     conn: sqlite3.Connection, group_id: str,
     entry_ids: list[str], similarities: list[float] | None = None,
@@ -1154,7 +1179,7 @@ def upsert_semantic_group(
     """Insert or replace semantic group memberships (INSERT OR REPLACE).
 
     Validates that all entry_ids exist in echo_entries before inserting.
-    Returns count of memberships created. Raises ValueError for missing entries.
+    Returns count of memberships created. Raises ValueError for length mismatch.
     """
     if not entry_ids:
         return 0
@@ -1166,20 +1191,7 @@ def upsert_semantic_group(
             f"entry_ids ({len(entry_ids)}) and similarities ({len(similarities)}) "
             f"must have the same length"
         )
-    # FK validation: filter to existing entry_ids (partial success — skip missing)
-    existing = frozenset(
-        r[0] for r in conn.execute(
-            "SELECT id FROM echo_entries WHERE id IN (%s)"
-            % _in_clause(len(entry_ids)),
-            entry_ids,
-        ).fetchall()
-    )
-    skipped = [eid for eid in entry_ids if eid not in existing]
-    # Filter entry_ids and similarities to only existing entries
-    filtered = [
-        (eid, sim) for eid, sim in zip(entry_ids, similarities)
-        if eid in existing
-    ]
+    filtered, skipped = _validate_and_filter_entries(conn, entry_ids, similarities)
     if not filtered:
         return 0
     count = 0
@@ -1846,6 +1858,71 @@ def _pipeline_bm25_search(
     return candidates
 
 
+def _build_entry_group_map(
+    group_rows: list,
+) -> tuple:
+    """Build entry_id → group_ids mapping from semantic_groups query rows.
+
+    Returns (entry_groups dict, all_group_ids set).
+    """
+    entry_groups = {}  # type: Dict[str, set]
+    all_group_ids = set()  # type: set
+    for row in group_rows:
+        eid, gid = row[0], row[1]
+        entry_groups.setdefault(eid, set()).add(gid)
+        all_group_ids.add(gid)
+    return entry_groups, all_group_ids
+
+
+def _build_group_member_map(
+    conn: sqlite3.Connection,
+    gid_list: list,
+    category_filter: Optional[str] = None,
+) -> Optional[Dict[str, List[Dict[str, Any]]]]:
+    """Fetch group members from DB and build group_id → member list mapping.
+
+    Returns None on schema error (pre-V2 compat). Excludes archived entries.
+    """
+    base_sql = """SELECT sg.group_id, e.id, e.tags, e.layer, e.role
+                  FROM semantic_groups sg
+                  JOIN echo_entries e ON e.id = sg.entry_id
+                  WHERE sg.group_id IN (%s) AND e.archived = 0""" % _in_clause(len(gid_list))
+    params = list(gid_list)  # type: List[Any]
+    if category_filter:
+        base_sql += " AND e.category = ?"
+        params.append(category_filter)
+    try:
+        member_rows = conn.execute(base_sql, params).fetchall()
+    except sqlite3.OperationalError:
+        return None
+    group_members = {}  # type: Dict[str, List[Dict[str, Any]]]
+    for row in member_rows:
+        member = {"id": row[1], "tags": row[2], "layer": row[3], "role": row[4]}
+        group_members.setdefault(row[0], []).append(member)
+    return group_members
+
+
+def _collect_related_for_entry(
+    entry_id: str,
+    entry_groups: Dict[str, set],
+    group_members: Dict[str, List[Dict[str, Any]]],
+    result_id_set: frozenset,
+) -> list:
+    """Collect related entries for a single entry via group co-membership.
+
+    Returns up to 10 related entry dicts, excluding the entry itself
+    and other result entries.
+    """
+    groups = entry_groups.get(entry_id, set())
+    related = {}  # type: Dict[str, Dict[str, Any]]
+    for gid in groups:
+        for member in group_members.get(gid, []):
+            mid = member["id"]
+            if mid != entry_id and mid not in result_id_set and mid not in related:
+                related[mid] = member
+    return list(related.values())[:10]
+
+
 def _populate_related_entries(
     results: List[Dict[str, Any]],
     conn: sqlite3.Connection,
@@ -1863,7 +1940,6 @@ def _populate_related_entries(
     if not entry_ids:
         return
     result_id_set = frozenset(entry_ids)
-    # Batch: get all group memberships for result entry IDs
     try:
         group_rows = conn.execute(
             "SELECT entry_id, group_id FROM semantic_groups "
@@ -1876,50 +1952,16 @@ def _populate_related_entries(
         for r in results:
             r["related_entries"] = []
         return
-    # Map entry_id -> set of group_ids
-    entry_groups = {}  # type: Dict[str, set]
-    all_group_ids = set()  # type: set
-    for row in group_rows:
-        eid = row[0]
-        gid = row[1]
-        entry_groups.setdefault(eid, set()).add(gid)
-        all_group_ids.add(gid)
-    # Fetch all members of those groups (excluding archived)
-    gid_list = list(all_group_ids)
-    base_sql = """SELECT sg.group_id, e.id, e.tags, e.layer, e.role
-                  FROM semantic_groups sg
-                  JOIN echo_entries e ON e.id = sg.entry_id
-                  WHERE sg.group_id IN (%s) AND e.archived = 0""" % _in_clause(len(gid_list))
-    params = list(gid_list)  # type: List[Any]
-    if category_filter:
-        base_sql += " AND e.category = ?"
-        params.append(category_filter)
-    try:
-        member_rows = conn.execute(base_sql, params).fetchall()
-    except sqlite3.OperationalError:
+    entry_groups, all_group_ids = _build_entry_group_map(group_rows)
+    group_members = _build_group_member_map(conn, list(all_group_ids), category_filter)
+    if group_members is None:
         for r in results:
             r["related_entries"] = []
         return
-    # Map group_id -> list of member dicts
-    group_members = {}  # type: Dict[str, List[Dict[str, Any]]]
-    for row in member_rows:
-        gid = row[0]
-        member = {
-            "id": row[1], "tags": row[2],
-            "layer": row[3], "role": row[4],
-        }
-        group_members.setdefault(gid, []).append(member)
-    # Populate related_entries for each result
     for r in results:
-        eid = r.get("id", "")
-        groups = entry_groups.get(eid, set())
-        related = {}  # type: Dict[str, Dict[str, Any]]
-        for gid in groups:
-            for member in group_members.get(gid, []):
-                mid = member["id"]
-                if mid != eid and mid not in result_id_set and mid not in related:
-                    related[mid] = member
-        r["related_entries"] = list(related.values())[:10]
+        r["related_entries"] = _collect_related_for_entry(
+            r.get("id", ""), entry_groups, group_members, result_id_set
+        )
 
 
 def _pipeline_group_expansion(
@@ -2159,6 +2201,24 @@ def get_details(conn, ids):
     return results
 
 
+def _query_by_group(conn: sqlite3.Connection, column: str) -> dict:
+    """Query echo_entries grouped by a column, returning {value: count}."""
+    result = {}  # type: Dict[str, int]
+    for row in conn.execute(
+        "SELECT %s, COUNT(*) as cnt FROM echo_entries GROUP BY %s" % (column, column)
+    ):
+        result[row[column] or "general"] = row["cnt"]
+    return result
+
+
+def _query_optional_count(conn: sqlite3.Connection, sql: str) -> int:
+    """Execute a COUNT query, returning 0 on OperationalError (schema compat)."""
+    try:
+        return conn.execute(sql).fetchone()[0]
+    except sqlite3.OperationalError:
+        return 0
+
+
 def get_stats(conn):
     """Return summary statistics about the echo search index.
 
@@ -2167,40 +2227,21 @@ def get_stats(conn):
     """
     # type: (sqlite3.Connection) -> Dict
     total = conn.execute("SELECT COUNT(*) FROM echo_entries").fetchone()[0]
+    by_layer = _query_by_group(conn, "layer")
+    by_role = _query_by_group(conn, "role")
 
-    by_layer = {}  # type: Dict[str, int]
-    for row in conn.execute(
-        "SELECT layer, COUNT(*) as cnt FROM echo_entries GROUP BY layer"
-    ):
-        by_layer[row["layer"]] = row["cnt"]
-
-    by_role = {}  # type: Dict[str, int]
-    for row in conn.execute(
-        "SELECT role, COUNT(*) as cnt FROM echo_entries GROUP BY role"
-    ):
-        by_role[row["role"]] = row["cnt"]
-
-    by_category = {}  # type: Dict[str, int]
     try:
-        for row in conn.execute(
-            "SELECT category, COUNT(*) as cnt FROM echo_entries GROUP BY category"
-        ):
-            by_category[row["category"] or "general"] = row["cnt"]
+        by_category = _query_by_group(conn, "category")
     except sqlite3.OperationalError:
-        pass  # Pre-V3 schema without category column
+        by_category = {}  # Pre-V3 schema without category column
 
-    archived_count = 0
-    try:
-        archived_count = conn.execute(
-            "SELECT COUNT(*) FROM echo_entries WHERE archived = 1"
-        ).fetchone()[0]
-    except sqlite3.OperationalError:
-        pass  # Pre-V3 schema without archived column
+    archived_count = _query_optional_count(
+        conn, "SELECT COUNT(*) FROM echo_entries WHERE archived = 1"
+    )
 
     last_row = conn.execute(
         "SELECT value FROM echo_meta WHERE key='last_indexed'"
     ).fetchone()
-    last_indexed = last_row[0] if last_row else ""
 
     return {
         "total_entries": total,
@@ -2208,7 +2249,7 @@ def get_stats(conn):
         "by_role": by_role,
         "by_category": by_category,
         "archived_count": archived_count,
-        "last_indexed": last_indexed,
+        "last_indexed": last_row[0] if last_row else "",
     }
 
 
