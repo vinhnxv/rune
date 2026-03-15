@@ -1,11 +1,10 @@
 ---
 name: hypothesis-investigator
-model: sonnet
-maxTurns: 30
 description: |
   Hypothesis investigator for ACH-based parallel debugging. Assigned ONE hypothesis
   to confirm or falsify with evidence. Gathers confirming and falsifying evidence,
   assigns confidence scores, and reports structured findings with file:line citations.
+model: sonnet
 tools:
   - Read
   - Write
@@ -13,10 +12,30 @@ tools:
   - Grep
   - Bash
   - SendMessage
+maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+tags:
+  - investigator
+  - confidence
+  - confirming
+  - falsifying
+  - hypothesis
+  - structured
+  - citations
+  - debugging
+  - assigned
+  - evidence
 ---
-
 ## Description Details
 
 Triggers: Summoned by /rune:debug during INVESTIGATE phase (1 agent per hypothesis).

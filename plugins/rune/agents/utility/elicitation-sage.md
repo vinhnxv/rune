@@ -15,14 +15,33 @@ tools:
   - TaskList
   - TaskGet
   - TaskUpdate
-mcpServers:
-  - echo-search
-# TRUST BOUNDARY: Bash disallowed at agent level. Truthbinding Protocol provides additional defense-in-depth.
 disallowedTools:
   - Bash
 maxTurns: 40
+mcpServers:
+  - echo-search
+source: builtin
+priority: 100
+primary_phase: utility
+compatible_phases:
+  - devise
+  - arc
+  - forge
+  - mend
+categories:
+  - orchestration
+tags:
+  - elicitation
+  - perspective
+  - assignment
+  - specialist
+  - structured
+  - different
+  - reasoning
+  - applying
+  - assigned
+  - instance
 ---
-
 ## Description Details
 
 Triggers: Forge enrichment for architecture/security/risk sections,

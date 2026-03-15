@@ -11,8 +11,28 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - code-quality
+tags:
+  - unregistered
+  - unreachable
+  - typescript
+  - commented
+  - detection
+  - framework
+  - generated
+  - agnostic
+  - handlers
+  - orphaned
 ---
-
 ## Description Details
 
 Triggers: Refactoring, large PRs, after AI code generation, new services/routes/handlers.

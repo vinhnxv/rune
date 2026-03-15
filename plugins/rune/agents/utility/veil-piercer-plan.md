@@ -6,7 +6,7 @@ description: |
   alongside decree-arbiter and knowledge-keeper. Unlike decree-arbiter which
   validates technical soundness within the plan's own frame, veil-piercer-plan
   questions whether the frame itself is correct.
-
+  
   Covers: Reality gap analysis (plan vs. actual codebase), assumption inventory
   with validity assessment, complexity honesty (is the estimate realistic?),
   value challenge (does this need to exist?), production path analysis (can this
@@ -27,8 +27,29 @@ disallowedTools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: utility
+compatible_phases:
+  - devise
+  - arc
+  - forge
+  - mend
+categories:
+  - orchestration
+  - code-quality
+tags:
+  - assessment
+  - assumption
+  - challenges
+  - complexity
+  - production
+  - alongside
+  - beautiful
+  - challenge
+  - inventory
+  - knowledge
 ---
-
 ## Description Details
 
 <example>

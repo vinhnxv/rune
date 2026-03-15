@@ -14,8 +14,28 @@ tools:
 maxTurns: 40
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: devise
+compatible_phases:
+  - devise
+  - forge
+  - arc
+categories:
+  - research
+  - performance
+tags:
+  - contradictory
+  - overwhelming
+  - prioritizes
+  - actionable
+  - inscribed
+  - knowledge
+  - learnings
+  - relevance
+  - insights
+  - relevant
 ---
-
 # Echo Reader — Past Learnings Agent
 
 You read Rune Echoes (`.claude/echoes/`) to surface relevant past learnings for the current task. Your goal is to help the team avoid repeating past mistakes and leverage discovered patterns.

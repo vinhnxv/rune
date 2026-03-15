@@ -1,21 +1,41 @@
 ---
 name: config-dependency-tracer
-model: haiku
-maxTurns: 20
 description: |
   Traces configuration and dependency impact across environment variables, config files,
   deployment manifests, CI/CD pipelines, and feature flags. Detects deployment-time
   breakage from config drift.
+model: haiku
 tools:
   - Read
-  - Write  # Write: required for file-bus handoff to goldmask-coordinator (tmp/ only)
+  - Write
   - Glob
   - Grep
   - SendMessage
+maxTurns: 20
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+  - architecture
+tags:
+  - configuration
+  - environment
+  - dependency
+  - deployment
+  - manifests
+  - pipelines
+  - variables
+  - breakage
+  - feature
+  - config
 ---
-
 ## Description Details
 
 Triggers: Summoned by Goldmask orchestrator during Impact Layer analysis for config/infra changes.

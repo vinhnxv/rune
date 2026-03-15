@@ -11,8 +11,28 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - data
+tags:
+  - transformation
+  - reversibility
+  - correctness
+  - referential
+  - transaction
+  - boundaries
+  - gatekeeper
+  - migrations
+  - framework
+  - integrity
 ---
-
 ## Description Details
 
 Triggers: Migration files, schema changes, database model changes, transaction code,

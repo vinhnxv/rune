@@ -1,20 +1,40 @@
 ---
 name: decay-tracer
-model: sonnet
-maxTurns: 35
 description: |
   Traces progressive decay — naming quality erosion, comment staleness, complexity creep,
   convention drift, and tech debt trajectories. Identifies the slow rot that degrades maintainability over time.
+model: sonnet
 tools:
   - Read
   - Write
   - Glob
   - Grep
   - SendMessage
+maxTurns: 35
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+  - code-quality
+tags:
+  - maintainability
+  - trajectories
+  - progressive
+  - complexity
+  - convention
+  - staleness
+  - degrades
+  - comment
+  - erosion
+  - quality
 ---
-
 ## Description Details
 
 Triggers: Summoned by orchestrator during audit/inspect workflows for maintainability analysis.

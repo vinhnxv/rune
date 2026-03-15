@@ -13,8 +13,28 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - code-quality
+tags:
+  - identification
+  - duplication
+  - duplicated
+  - validation
+  - detection
+  - duplicate
+  - principle
+  - violation
+  - codebase
+  - detector
 ---
-
 ## Description Details
 
 Triggers: PRs with 5+ files, technical debt audits.

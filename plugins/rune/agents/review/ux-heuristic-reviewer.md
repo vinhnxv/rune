@@ -6,7 +6,7 @@ description: |
   Baymard usability guidelines. Evaluates visibility of system status, user
   control, consistency, error prevention, recognition over recall, flexibility,
   aesthetic design, error recovery, and help/documentation presence in code.
-
+  
   Produces UXH-prefixed findings. Non-blocking by default. Conditional activation:
   ux.enabled + frontend files detected.
 tools:
@@ -16,8 +16,31 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - architecture
+  - ux
+  - frontend
+  - documentation
+tags:
+  - comprehensive
+  - documentation
+  - conditional
+  - consistency
+  - flexibility
+  - recognition
+  - activation
+  - evaluation
+  - guidelines
+  - heuristics
 ---
-
 ## Description Details
 
 Keywords: heuristic evaluation, Nielsen Norman, usability, visibility, feedback,

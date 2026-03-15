@@ -4,11 +4,12 @@ description: |
   Storybook component verification agent (read-only). Captures screenshots,
   runs Mode A (Design Fidelity) or Mode B (UI Quality Audit), produces
   structured findings. Does NOT modify source files.
-
+  
   Covers: Capture component screenshots (browser automation), analyze visual diff
   against design spec or heuristic checklist, verify state coverage (loading, error,
   empty, disabled), check responsive behavior at standard breakpoints, produce
   scored findings for storybook-fixer.
+model: sonnet
 tools:
   - Read
   - Glob
@@ -18,12 +19,32 @@ tools:
   - TaskGet
   - TaskUpdate
   - SendMessage
-model: sonnet
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: work
+compatible_phases:
+  - work
+  - arc
+  - mend
+categories:
+  - implementation
+  - architecture
+  - testing
+tags:
+  - verification
+  - breakpoints
+  - screenshots
+  - automation
+  - responsive
+  - structured
+  - checklist
+  - component
+  - heuristic
+  - storybook
 ---
-
 ## Description Details
 
 Triggers: arc Phase 3.3 STORYBOOK VERIFICATION.

@@ -6,19 +6,39 @@ description: |
   hierarchy, monotonous spacing. Scores visual coherence, typography quality, whitespace
   balance, and design personality. Use after design-implementation-reviewer when high
   design quality is required.
-
+  
   Produces a separate aesthetic score (0-100) alongside fidelity score — NOT averaged in.
   Complements design-implementation-reviewer (correctness) with aesthetic judgment (quality).
+model: sonnet
 tools:
   - Read
   - Glob
   - Grep
-model: sonnet
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - architecture
+tags:
+  - implementation
+  - complements
+  - correctness
+  - implemented
+  - personality
+  - predictable
+  - components
+  - monotonous
+  - typography
+  - whitespace
 ---
-
 ## Description Details
 
 Keywords: aesthetic, design quality, visual coherence, anti-slop, typography, whitespace,

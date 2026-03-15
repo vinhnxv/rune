@@ -5,7 +5,7 @@ description: |
   keyboard accessibility, touch targets (44px minimum), animation performance
   (prefers-reduced-motion), scroll behavior, and input feedback patterns.
   Ensures interactive elements feel responsive and accessible.
-
+  
   Produces UXI-prefixed findings. Non-blocking by default. Conditional activation:
   ux.enabled + frontend files detected.
 tools:
@@ -15,8 +15,30 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - performance
+  - ux
+  - frontend
+tags:
+  - accessibility
+  - interactions
+  - conditional
+  - interaction
+  - interactive
+  - performance
+  - accessible
+  - activation
+  - components
+  - responsive
 ---
-
 ## Description Details
 
 Keywords: micro-interaction, hover state, focus state, touch target, keyboard

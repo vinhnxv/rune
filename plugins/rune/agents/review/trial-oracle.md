@@ -13,8 +13,29 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - testing
+  - code-quality
+tags:
+  - verification
+  - enforcement
+  - assessment
+  - compliance
+  - convention
+  - thresholds
+  - validation
+  - assertion
+  - detection
+  - structure
 ---
-
 ## Description Details
 
 Triggers: Always run — test quality directly impacts reliability.

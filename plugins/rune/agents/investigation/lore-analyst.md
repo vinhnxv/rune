@@ -1,22 +1,42 @@
 ---
 name: lore-analyst
-model: haiku
-maxTurns: 25
 description: |
   Quantitative git history analysis agent — computes per-file risk scores, churn metrics,
   co-change clustering, and ownership concentration. Produces risk-map.json for the
   Goldmask coordinator. Uses Bash for git log, ls-files, and rev-list commands.
+model: haiku
 tools:
   - Bash
   - Read
-  - Write  # Write: required for risk-map.json consumed by Wisdom Sage + Coordinator (tmp/ only)
+  - Write
   - Grep
   - Glob
   - SendMessage
+maxTurns: 25
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+  - observability
+tags:
+  - concentration
+  - quantitative
+  - coordinator
+  - clustering
+  - ownership
+  - analysis
+  - commands
+  - computes
+  - goldmask
+  - produces
 ---
-
 ## Description Details
 
 Triggers: Summoned by Goldmask orchestrator during Lore Layer analysis.

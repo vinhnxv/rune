@@ -1,10 +1,9 @@
 ---
 name: rot-seeker
-model: sonnet
-maxTurns: 40
 description: |
   Seeks tech debt rot — TODOs, deprecated patterns, complexity hotspots, unmaintained code,
   and dependency debt. Identifies decay that accumulates over time and erodes codebase health.
+model: sonnet
 tools:
   - Read
   - Write
@@ -12,10 +11,32 @@ tools:
   - Grep
   - Bash
   - SendMessage
+maxTurns: 40
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+  - architecture
+  - code-quality
+tags:
+  - unmaintained
+  - accumulates
+  - complexity
+  - dependency
+  - deprecated
+  - codebase
+  - hotspots
+  - patterns
+  - erodes
+  - health
 ---
-
 ## Description Details
 
 Triggers: Summoned by orchestrator during audit/inspect workflows for tech debt analysis.

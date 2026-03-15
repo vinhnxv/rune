@@ -12,8 +12,28 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - security
+tags:
+  - authentication
+  - authorization
+  - vulnerability
+  - sanitization
+  - credential
+  - validation
+  - detection
+  - analysis
+  - security
+  - sentinel
 ---
-
 ## Description Details
 
 Triggers: Always run on every review — security issues can hide in any file type.

@@ -7,16 +7,37 @@ description: |
   Use proactively after code review passes and before deployment.
   Trigger keywords: deployment verification, go/no-go, rollback plan, deploy checklist,
   production readiness, monitoring plan, pre-deploy audit, post-deploy verification.
+model: sonnet
 tools:
   - Read
   - Glob
   - Grep
-model: sonnet
 maxTurns: 40
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: utility
+compatible_phases:
+  - devise
+  - arc
+  - forge
+  - mend
+categories:
+  - orchestration
+  - observability
+tags:
+  - verification
+  - definitions
+  - proactively
+  - checklists
+  - deployment
+  - monitoring
+  - procedures
+  - production
+  - artifacts
+  - checklist
 ---
-
 ## Description Details
 
 <example>

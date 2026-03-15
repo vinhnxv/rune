@@ -4,12 +4,13 @@ description: |
   Figma design extraction and Visual Spec Map (VSM) creation agent. Fetches
   design data via Figma MCP tools, decomposes designs into structured specs
   (tokens, layout, variants), and produces VSM files for implementation workers.
-
+  
   Covers: Parse Figma URLs, invoke figma_fetch_design / figma_inspect_node /
   figma_list_components MCP tools, extract design tokens, build region trees,
   map variants to props, extract micro-design details (states, transitions,
   keyboard interactions), generate component-registry.json (machine-readable
   component catalog), create VSM output files, cross-verify extraction accuracy.
+model: sonnet
 tools:
   - Read
   - Write
@@ -21,13 +22,32 @@ tools:
   - TaskGet
   - TaskUpdate
   - SendMessage
-model: sonnet
 maxTurns: 60
 mcpServers:
   - echo-search
   - figma-to-react
+source: builtin
+priority: 100
+primary_phase: work
+compatible_phases:
+  - work
+  - arc
+  - mend
+categories:
+  - implementation
+  - architecture
+tags:
+  - implementation
+  - interactions
+  - transitions
+  - components
+  - decomposes
+  - extraction
+  - structured
+  - component
+  - accuracy
+  - creation
 ---
-
 ## Description Details
 
 <example>

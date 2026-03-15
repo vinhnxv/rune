@@ -14,8 +14,28 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - architecture
+tags:
+  - implementations
+  - understanding
+  - architecture
+  - foundational
+  - requirements
+  - assumptions
+  - technically
+  - assumption
+  - challenges
+  - impressive
 ---
-
 ## Description Details
 
 Triggers: Always run — wrong assumptions are invisible to domain-specific reviewers.

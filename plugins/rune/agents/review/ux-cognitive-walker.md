@@ -6,20 +6,42 @@ description: |
   the action?), learnability (can users understand what to do?), error recovery
   (can users recover from mistakes?), and progressive disclosure (is complexity
   revealed gradually?).
-
+  
   Produces UXC-prefixed findings. Off by default — enabled via talisman
   cognitive_walkthrough: true or --deep flag. Model: opus (expensive, deep
   reasoning required). Conditional activation: ux.enabled + frontend files detected.
+model: opus
 tools:
   - Read
   - Glob
   - Grep
-model: opus
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - code-quality
+  - ux
+  - frontend
+tags:
+  - discoverability
+  - learnability
+  - conditional
+  - implemented
+  - progressive
+  - walkthrough
+  - activation
+  - complexity
+  - disclosure
+  - navigating
 ---
-
 ## Description Details
 
 Keywords: cognitive walkthrough, first-time user, discoverability, learnability,

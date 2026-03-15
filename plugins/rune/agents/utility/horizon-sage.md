@@ -6,7 +6,7 @@ description: |
   /rune:devise Phase 3 (Forge enrichment) and Phase 4C (plan review) alongside decree-arbiter
   and knowledge-keeper. Intent-aware: adapts thresholds based on strategic_intent
   (long-term vs quick-win).
-
+  
   Covers: Temporal horizon assessment (quick-fix vs strategic), root cause depth analysis
   (symptoms vs root causes), innovation quotient evaluation (cargo-culted vs evidence-based),
   stability and resilience scoring (brittle vs antifragile), maintainability trajectory
@@ -27,8 +27,28 @@ disallowedTools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: utility
+compatible_phases:
+  - devise
+  - arc
+  - forge
+  - mend
+categories:
+  - orchestration
+tags:
+  - maintainability
+  - antifragile
+  - assessment
+  - enrichment
+  - evaluation
+  - innovation
+  - prediction
+  - resilience
+  - thresholds
+  - trajectory
 ---
-
 ## Description Details
 
 <example>

@@ -6,16 +6,36 @@ description: |
   that don't correspond to migrations included in the PR. Supports 8 migration
   frameworks: Rails (ActiveRecord), Django, Alembic (SQLAlchemy), Prisma, TypeORM,
   Knex, Drizzle, Flyway/Liquibase. Surgical scope: one class of bug only.
+model: sonnet
 tools:
   - Read
   - Glob
   - Grep
-model: sonnet
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - data
+tags:
+  - contamination
+  - activerecord
+  - definitions
+  - accidental
+  - correspond
+  - frameworks
+  - migrations
+  - sqlalchemy
+  - detection
+  - liquibase
 ---
-
 ## Description Details
 
 Triggers: Schema file changes, migration files, db/schema.rb, prisma/schema.prisma,

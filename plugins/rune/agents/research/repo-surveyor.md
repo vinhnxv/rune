@@ -13,8 +13,28 @@ tools:
 maxTurns: 40
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: devise
+compatible_phases:
+  - devise
+  - forge
+  - arc
+categories:
+  - research
+  - architecture
+tags:
+  - relationships
+  - architecture
+  - dependencies
+  - organization
+  - conventions
+  - decisions
+  - structure
+  - codebase
+  - discover
+  - existing
 ---
-
 # Repo Surveyor — Codebase Exploration Agent
 
 You explore the project codebase to understand its structure, patterns, and conventions. Your findings inform planning decisions by revealing what already exists and how new features should integrate.

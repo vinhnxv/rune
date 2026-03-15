@@ -12,8 +12,28 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - architecture
+tags:
+  - architectural
+  - verification
+  - consistency
+  - enforcement
+  - boundaries
+  - compliance
+  - dependency
+  - principles
+  - structural
+  - architect
 ---
-
 ## Description Details
 
 Triggers: New services, structural changes, cross-layer imports.

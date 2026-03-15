@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [1.168.0] - 2026-03-16
+
+### Added
+- **feat: Agent Registry & Discovery System** — Phase 1-2 implementation of intelligent agent selection infrastructure
+  - **agent-search MCP server** (`scripts/agent-search/server.py`) — SQLite FTS5 full-text search over all agent definitions with hybrid scoring (BM25 0.4 + tag match 0.3 + phase match 0.2 + category match 0.1). 5 tools: `agent_search`, `agent_detail`, `agent_register`, `agent_stats`, `agent_reindex`. Phase-aware, category-aware, source-aware filtering. Supports 1000+ agents with zero context overhead increase.
+  - **Agent metadata schema** — Extended YAML frontmatter on all 96 agent `.md` files with `categories`, `primary_phase`, `compatible_phases`, `tags`, `source`, and `priority` fields. Enables deterministic pre-filtering for agent selection.
+  - **build-agent-registry.sh** — Single-pass awk-based index builder that extracts metadata from all agent definitions into `tmp/.agent-registry.json`. Zero external dependencies beyond awk/jq.
+  - **enforce-agent-search.sh** — AGENT-SEARCH-001 advisory hook. Detects when LLM spawns Rune teammates without calling `agent_search()` MCP first. Non-blocking (`additionalContext` only). Suppressed when MCP server unavailable. OPERATIONAL classification (fail-forward).
+  - **Auto-reindex hooks** — `annotate-dirty.sh` (PostToolUse) marks index dirty on agent file edits; `reindex-if-stale.sh` (PreToolUse) triggers reindex before stale searches. Reuses echo-search dirty-signal pattern.
+  - **Search-called signal** — `agent_search()` writes `tmp/.rune-signals/.agent-search-called` for enforcement hook detection.
+
 ## [1.167.0] - 2026-03-16
 
 ### Fixed

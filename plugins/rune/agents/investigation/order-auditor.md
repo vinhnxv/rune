@@ -1,20 +1,41 @@
 ---
 name: order-auditor
-model: sonnet
-maxTurns: 35
 description: |
   Audits design order — responsibility separation, dependency direction, coupling metrics,
   abstraction fitness, and layer boundaries. Ensures the architecture holds its intended shape.
+model: sonnet
 tools:
   - Read
   - Write
   - Glob
   - Grep
   - SendMessage
+maxTurns: 35
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+  - architecture
+  - observability
+tags:
+  - responsibility
+  - architecture
+  - abstraction
+  - boundaries
+  - dependency
+  - separation
+  - direction
+  - coupling
+  - intended
+  - auditor
 ---
-
 ## Description Details
 
 Triggers: Summoned by orchestrator during audit/inspect workflows for design structure analysis.

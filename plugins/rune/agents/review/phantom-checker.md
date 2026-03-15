@@ -13,8 +13,28 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - code-quality
+tags:
+  - registration
+  - verification
+  - decorators
+  - middleware
+  - referenced
+  - reflection
+  - detection
+  - extension
+  - framework
+  - reference
 ---
-
 ## Description Details
 
 Triggers: Before flagging code as orphaned, when code might be dynamically referenced.

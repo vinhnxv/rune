@@ -1,20 +1,40 @@
 ---
 name: truth-seeker
-model: sonnet
-maxTurns: 40
 description: |
   Seeks correctness truth — logic vs requirements, behavior validation, test quality,
   and state machine correctness. Verifies that code does what it claims to do.
+model: sonnet
 tools:
   - Read
   - Write
   - Glob
   - Grep
   - SendMessage
+maxTurns: 40
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+  - testing
+tags:
+  - requirements
+  - correctness
+  - validation
+  - behavior
+  - machine
+  - quality
+  - claims
+  - seeker
+  - logic
+  - seeks
 ---
-
 ## Description Details
 
 Triggers: Summoned by orchestrator during audit/inspect workflows for correctness analysis.

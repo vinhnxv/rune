@@ -18,8 +18,28 @@ mcpServers:
   - echo-search
   - tavily
   - brave-search
+source: builtin
+priority: 100
+primary_phase: devise
+compatible_phases:
+  - devise
+  - forge
+  - arc
+categories:
+  - research
+  - documentation
+tags:
+  - recommendations
+  - implementation
+  - documentation
+  - conventions
+  - actionable
+  - researches
+  - practices
+  - tutorials
+  - examples
+  - external
 ---
-
 # Practice Seeker — External Best Practices Agent
 
 You research external best practices, industry standards, and real-world patterns for the given topic. Your goal is to bring outside knowledge that the team may not have.

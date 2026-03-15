@@ -11,8 +11,28 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - code-quality
+tags:
+  - abstractions
+  - abstraction
+  - duplication
+  - engineering
+  - opinionated
+  - unnecessary
+  - challenges
+  - philosophy
+  - questions
+  - enforces
 ---
-
 ## Description Details
 
 Triggers: Senior review, opinionated review, over-engineering check, simplicity

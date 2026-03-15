@@ -263,6 +263,7 @@ Rune uses Claude Code hooks for event-driven agent synchronization, quality gate
 | `PreToolUse:Write\|Edit\|NotebookEdit` | `scripts/validate-resolve-fixer-paths.sh` | SEC-RESOLVE-001: Blocks resolve-fixer Ashes from writing files outside their assigned file group. Only active during resolve-todos workflows. |
 | `PreToolUse:Write\|Edit\|NotebookEdit` | `scripts/validate-strive-worker-paths.sh` | SEC-STRIVE-001: Blocks strive worker Ashes from writing files outside their assigned file scope (via inscription.json task_ownership lookup). Only active during strive workflows. |
 | `PreToolUse:Task\|Agent` | `scripts/enforce-teams.sh` | ATE-1: Blocks bare `Agent` calls (without `team_name`) during active Rune workflows. **4-signal detection**: (1) state files, (2) inscription.json in output dirs, (3) signal directories, (4) known agent name patterns. **Scope isolation**: Non-Rune agents (names not in `lib/known-rune-agents.sh`) pass through unblocked — enables plugin coexistence. Unnamed bare Agent calls remain blocked. Filters by session ownership. Handles both `Task` (pre-2.1.63) and `Agent` (2.1.63+) tool names. |
+| `PreToolUse:Task\|Agent` | `scripts/enforce-agent-search.sh` | AGENT-SEARCH-001: Advisory warning when LLM spawns Rune teammates without calling `agent_search()` MCP first. Non-blocking — `additionalContext` only. Suppressed when MCP server unavailable. Checks `tmp/.rune-signals/.agent-search-called` signal file. |
 | `PreToolUse:TeamCreate` | `scripts/enforce-team-lifecycle.sh` | TLC-001: Validates team name (hard block on invalid), detects stale teams (30-min threshold), auto-cleans filesystem orphans, injects advisory context. |
 | `PreToolUse:Write\|Edit\|NotebookEdit\|Task\|Agent\|TeamCreate` | `scripts/advise-post-completion.sh` | POST-COMP-001: Advisory warning when heavy tools are used after arc pipeline completion. Debounced once per session. Fail-open. Never blocks. |
 | `PreToolUse:TeamCreate\|Task\|Agent` | `scripts/guard-context-critical.sh` | CTX-GUARD-001: 3-tier adaptive token degradation — Caution (40% remaining): advisory only; Warning (35%): degradation suggestions injected + `context_warning` signal; Critical (25%): hard DENY on TeamCreate/Agent + `force_shutdown` signal for emergency worker shutdown. **Scope isolation**: At critical tier, non-Rune agents and non-`rune-` prefixed teams pass through — only Rune operations are blocked. Reads statusline bridge file. Explore/Plan exempt (Agent/Task only). Fail-open on missing data. |
@@ -313,7 +314,7 @@ Based on rlm-claude-code ADR-002 "Fail-Forward Behavior". Hooks should guide, no
 | Category | Behavior | Scripts |
 |----------|----------|---------|
 | SECURITY | Fail-closed (fail-closed ERR trap exits 2). Crash → blocks operation. | `enforce-readonly.sh`, `enforce-teams.sh` |
-| OPERATIONAL | Fail-forward (`_rune_fail_forward` ERR trap). Crash → allows operation. | All other 35 scripts (including `keyword-detector.sh`, `track-tool-failure.sh`, `reset-tool-failure.sh`, `verify-agent-deliverables.sh`, `context-percent-stop-guard.sh`) |
+| OPERATIONAL | Fail-forward (`_rune_fail_forward` ERR trap). Crash → allows operation. | All other 36 scripts (including `keyword-detector.sh`, `track-tool-failure.sh`, `reset-tool-failure.sh`, `verify-agent-deliverables.sh`, `context-percent-stop-guard.sh`, `enforce-agent-search.sh`) |
 
 **VEIL-002 Advisory**: Fail-forward OPERATIONAL hooks can create silent failure cascades (zombie teams, stalled phase loops). All OPERATIONAL hooks emit stderr warnings on ERR trap activation. Set `RUNE_TRACE=1` to capture crash location in `$RUNE_TRACE_LOG`. Monitor for repeated ERR trap warnings — they indicate hook instability.
 
@@ -329,7 +330,19 @@ All hooks require `jq` for JSON parsing. If `jq` is missing, SECURITY-CRITICAL h
 |--------|-------|---------|
 | `echo-search` | `echo_search`, `echo_details`, `echo_reindex`, `echo_stats`, `echo_record_access`, `echo_upsert_group` | Full-text search over Rune Echoes (`.claude/echoes/*/MEMORY.md`) using SQLite FTS5 with BM25 ranking. 5-factor composite scoring, access frequency tracking, file proximity, semantic grouping, query decomposition, retry tracking, Haiku reranking. Requires Python 3.7+. Launched via `scripts/echo-search/start.sh`. |
 | `figma-to-react` | `figma_fetch_design`, `figma_inspect_node`, `figma_list_components`, `figma_to_react` | Converts Figma designs to React + Tailwind CSS v4 components. Parses Figma URLs, fetches node trees via Figma API, extracts styling/layout/typography, generates JSX with Tailwind classes. Supports component extraction, pagination, and depth-limited traversal. Requires `FIGMA_ACCESS_TOKEN`. Launched via `scripts/figma-to-react/start.sh`. |
+| `agent-search` | `agent_search`, `agent_detail`, `agent_register`, `agent_stats`, `agent_reindex` | Agent registry search over all agent definitions (agents/*.md, registry/*.md, .claude/agents/*.md, talisman user_agents). SQLite FTS5 with hybrid scoring (BM25 + tag + phase + category). Phase-aware, category-aware agent discovery for workflow orchestrators. Requires Python 3.7+. Launched via `scripts/agent-search/start.sh`. |
 | `context7` | `resolve-library-id`, `query-docs` | Live framework and library documentation via Context7. Resolves library names to IDs, then fetches version-specific docs, API references, and migration guides. Used by practice-seeker and lore-scholar during `/rune:devise` Phase 1C external research. Requires Node.js (npx). Launched via `npx -y @upstash/context7-mcp@2.1.3`. |
+
+**agent-search tools:**
+- `agent_search(query, phase?, category?, source?, exclude?, limit?)` — Hybrid BM25 + multi-factor scoring for agent discovery. Filters by phase (review, audit, goldmask, etc.), category (security, performance, etc.), and source (builtin, user, project). Returns ranked summaries with scores.
+- `agent_detail(name)` — Fetch full agent frontmatter + body by name. Returns content ready for injection into Agent() tool prompt parameter.
+- `agent_register(name, description, categories, primary_phase, compatible_phases, tags, body, source?)` — Register user/project agent definitions. Validates schema, enforces name uniqueness, blocks builtin conflicts.
+- `agent_stats()` — Summary statistics of the agent index (counts by source, category, phase).
+- `agent_reindex()` — Force rebuild the FTS5 index from all agent sources.
+
+**Dirty-signal auto-reindex (agent-search):** The `annotate-dirty.sh` PostToolUse hook writes `tmp/.rune-signals/.agent-search-dirty` when agent definition files are modified. On next `agent_search` call, the server detects the signal and auto-reindexes. The `reindex-if-stale.sh` PreToolUse hook checks index staleness (>5 min) before agent_search calls.
+
+**Search-called signal:** `agent_search()` writes `tmp/.rune-signals/.agent-search-called` on every call. The `enforce-agent-search.sh` PreToolUse hook checks for this signal when Agent/Task is called for Rune teams — injects advisory if missing.
 
 **echo-search tools:**
 - `echo_search(query, limit?, layer?, role?)` — Multi-pass retrieval pipeline: query decomposition, BM25 search, composite scoring, semantic group expansion, retry injection, Haiku reranking. Each stage toggleable via `talisman.yml` echoes config. Returns content previews (200 chars).

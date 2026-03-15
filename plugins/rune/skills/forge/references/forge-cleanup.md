@@ -36,6 +36,15 @@ Follow standard shutdown from [engines.md](../../team-sdk/references/engines.md#
 // Validate identifier before rm -rf
 if (!/^[a-zA-Z0-9_-]+$/.test(timestamp)) throw new Error("Invalid forge identifier")
 
+// FIX: Kill orphaned bare agent processes (lore-analyst, research agents)
+// Bare agents spawned with run_in_background: true have no team, so
+// SendMessage(shutdown_request) cannot reach them. Process-level kill
+// is the only cleanup mechanism. Same pattern as engines.md step 5a.
+const cleanupOwnerPid = Bash(`echo $PPID`).trim()
+if (cleanupOwnerPid && /^\d+$/.test(cleanupOwnerPid)) {
+  Bash(`for pid in $(pgrep -P ${cleanupOwnerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+}
+
 // Release workflow lock
 Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "forge"`)
 

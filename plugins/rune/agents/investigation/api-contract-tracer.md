@@ -1,21 +1,40 @@
 ---
 name: api-contract-tracer
-model: haiku
-maxTurns: 20
 description: |
   Traces API contract changes across the full request/response lifecycle: route definitions,
   controller handlers, request validators, response serializers, API docs, and client SDK
   references. Detects breaking changes in public interfaces.
+model: haiku
 tools:
   - Read
-  - Write  # Write: required for file-bus handoff to goldmask-coordinator (tmp/ only)
+  - Write
   - Glob
   - Grep
   - SendMessage
+maxTurns: 20
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+tags:
+  - definitions
+  - serializers
+  - controller
+  - interfaces
+  - references
+  - validators
+  - lifecycle
+  - breaking
+  - contract
+  - handlers
 ---
-
 ## Description Details
 
 Triggers: Summoned by Goldmask orchestrator during Impact Layer analysis for API changes.

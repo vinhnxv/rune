@@ -11,8 +11,28 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - data
+tags:
+  - verification
+  - frontmatter
+  - references
+  - typescript
+  - validation
+  - correctly
+  - framework
+  - reference
+  - validator
+  - agnostic
 ---
-
 ## Description Details
 
 Triggers: New files, renamed modules, config changes, version bumps, plugin manifest updates,

@@ -4,6 +4,7 @@ description: |
   Run integration tests for API, database, and business logic validation.
   Verifies API contracts, auth boundaries, data validation, and error response consistency.
   Use proactively during arc Phase 7.7 TEST for integration tier execution.
+model: sonnet
 tools:
   - Read
   - Glob
@@ -18,12 +19,31 @@ disallowedTools:
   - TeamCreate
   - TeamDelete
   - TaskCreate
+maxTurns: 30
 mcpServers:
   - echo-search
-model: sonnet
-maxTurns: 30
+source: builtin
+priority: 100
+primary_phase: test
+compatible_phases:
+  - test
+  - arc
+categories:
+  - testing
+  - security
+  - data
+tags:
+  - consistency
+  - integration
+  - proactively
+  - boundaries
+  - validation
+  - contracts
+  - execution
+  - business
+  - database
+  - response
 ---
-
 ## Description Details
 
 <example>

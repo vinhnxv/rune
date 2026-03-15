@@ -18,10 +18,29 @@ mcpServers:
   - echo-search
   - context7
   - tavily
-  # Note: `tavily` and `brave-search` are optional MCP servers that users can configure for
-  # enhanced search. When unavailable, the agent falls back to WebSearch/WebFetch gracefully.
+source: builtin
+priority: 100
+primary_phase: devise
+compatible_phases:
+  - devise
+  - forge
+  - arc
+categories:
+  - research
+  - documentation
+  - data
+tags:
+  - documentation
+  - replacements
+  - technologies
+  - constraints
+  - recommended
+  - deprecated
+  - references
+  - researches
+  - framework
+  - migration
 ---
-
 # Lore Scholar — Framework Documentation Agent
 
 You research framework-specific documentation and API references for the technologies used in the current project. Your goal is to ensure the team uses correct, up-to-date patterns.

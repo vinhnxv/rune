@@ -3,7 +3,7 @@ name: rune-smith
 description: |
   Code implementation agent that follows TDD patterns and project conventions.
   Claims tasks from the shared pool, implements code, runs tests, and reports completion.
-
+  
   Covers: Implement features following existing codebase patterns, write code with TDD
   cycle (test first, then implement), run project quality gates (linting, type checking),
   commit changes with conventional format.
@@ -22,8 +22,28 @@ maxTurns: 60
 mcpServers:
   - echo-search
   - figma-to-react
+source: builtin
+priority: 100
+primary_phase: work
+compatible_phases:
+  - work
+  - arc
+  - mend
+categories:
+  - implementation
+  - testing
+tags:
+  - implementation
+  - conventional
+  - conventions
+  - completion
+  - implements
+  - following
+  - implement
+  - checking
+  - codebase
+  - existing
 ---
-
 ## Description Details
 
 <example>

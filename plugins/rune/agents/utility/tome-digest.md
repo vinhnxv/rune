@@ -8,16 +8,34 @@ description: |
   elicitation sage and by Phase 7.5 (Verify Mend) for convergence.
   Trigger keywords: tome digest, tome summary, finding counts,
   P1 extraction, mend pre-processing.
-
+model: haiku
 tools:
   - Read
   - Glob
   - Grep
-
-model: haiku
 maxTurns: 10
+source: builtin
+priority: 100
+primary_phase: utility
+compatible_phases:
+  - devise
+  - arc
+  - forge
+  - mend
+categories:
+  - orchestration
+tags:
+  - convergence
+  - elicitation
+  - lightweight
+  - extraction
+  - processing
+  - structured
+  - recurring
+  - affected
+  - extracts
+  - findings
 ---
-
 ## Description Details
 
 <example>

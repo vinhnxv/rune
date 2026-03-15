@@ -24,8 +24,28 @@ disallowedTools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: utility
+compatible_phases:
+  - devise
+  - arc
+  - forge
+  - mend
+categories:
+  - orchestration
+tags:
+  - completeness
+  - transition
+  - validation
+  - alongside
+  - contracts
+  - generates
+  - knowledge
+  - diagrams
+  - extracts
+  - arbiter
 ---
-
 ## Description Details
 
 <example>

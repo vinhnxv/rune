@@ -12,8 +12,27 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+tags:
+  - implementations
+  - identification
+  - implementation
+  - placeholder
+  - incomplete
+  - detection
+  - functions
+  - analyzer
+  - flagging
+  - function
 ---
-
 ## Description Details
 
 Triggers: New features, domain changes, AI-generated code.

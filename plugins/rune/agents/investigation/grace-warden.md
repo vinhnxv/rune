@@ -1,11 +1,10 @@
 ---
 name: grace-warden
-model: sonnet
-maxTurns: 25
 description: |
   Correctness and completeness inspector for /rune:inspect. Evaluates each plan requirement
   against the codebase to determine COMPLETE/PARTIAL/MISSING/DEVIATED status. Provides
   evidence-based completion percentages and correctness findings.
+model: sonnet
 tools:
   - Read
   - Write
@@ -15,10 +14,30 @@ tools:
   - TaskList
   - TaskUpdate
   - TaskGet
+maxTurns: 25
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+tags:
+  - completeness
+  - correctness
+  - percentages
+  - requirement
+  - completion
+  - determine
+  - inspector
+  - codebase
+  - complete
+  - deviated
 ---
-
 ## Description Details
 
 Triggers: Summoned by inspect orchestrator during Phase 3.

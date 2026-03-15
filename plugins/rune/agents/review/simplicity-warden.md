@@ -12,8 +12,28 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - code-quality
+tags:
+  - identification
+  - configuration
+  - abstractions
+  - abstraction
+  - engineering
+  - indirection
+  - speculative
+  - unnecessary
+  - complexity
+  - generality
 ---
-
 ## Description Details
 
 Triggers: After implementation, large PRs, new abstractions.

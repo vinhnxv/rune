@@ -5,14 +5,35 @@ description: |
   the project's design system conventions: token usage, variant patterns,
   import paths, class merge utilities, and dark mode implementation.
   Activated when frontend stack + design system detected (confidence >= 0.70).
+model: sonnet
 tools:
   - Read
   - Glob
   - Grep
-model: sonnet
 maxTurns: 30
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - architecture
+  - frontend
+tags:
+  - implementation
+  - conventions
+  - compliance
+  - confidence
+  - activated
+  - utilities
+  - detected
+  - frontend
+  - patterns
+  - reviewer
 ---
-
 ## Description Details
 
 Keywords: design system, tokens, CVA, cn(), tailwind, component patterns,

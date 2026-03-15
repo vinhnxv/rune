@@ -5,6 +5,7 @@ description: |
   and error logs to produce fix proposals. Read-only analyst — does not modify code.
   Spawned by team lead ONLY when test failures are detected.
   Use proactively during arc Phase 7.7 TEST for failure analysis.
+model: inherit
 tools:
   - Read
   - Glob
@@ -18,12 +19,29 @@ disallowedTools:
   - TeamCreate
   - TeamDelete
   - TaskCreate
+maxTurns: 15
 mcpServers:
   - echo-search
-model: inherit
-maxTurns: 15
+source: builtin
+priority: 100
+primary_phase: test
+compatible_phases:
+  - test
+  - arc
+categories:
+  - testing
+tags:
+  - proactively
+  - structured
+  - proposals
+  - analysis
+  - detected
+  - failures
+  - analyst
+  - failure
+  - produce
+  - spawned
 ---
-
 ## Description Details
 
 <example>

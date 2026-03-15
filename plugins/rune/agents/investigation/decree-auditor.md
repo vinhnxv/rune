@@ -1,20 +1,39 @@
 ---
 name: decree-auditor
-model: sonnet
-maxTurns: 35
 description: |
   Audits business logic decrees — domain rules, state machine gaps, validation inconsistencies,
   and invariant violations. Verifies the Golden Order of business logic holds true.
+model: sonnet
 tools:
   - Read
   - Write
   - Glob
   - Grep
   - SendMessage
+maxTurns: 35
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: goldmask
+compatible_phases:
+  - goldmask
+  - inspect
+  - arc
+categories:
+  - impact-analysis
+tags:
+  - inconsistencies
+  - validation
+  - violations
+  - invariant
+  - business
+  - auditor
+  - decrees
+  - machine
+  - audits
+  - decree
 ---
-
 ## Description Details
 
 Triggers: Summoned by orchestrator during audit/inspect workflows for business logic analysis.

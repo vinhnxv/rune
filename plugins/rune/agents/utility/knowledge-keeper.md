@@ -6,7 +6,7 @@ description: |
   documentation impact assessment (version bumps, CHANGELOG, registry updates).
   Used during /rune:devise Phase 4C (technical review) and /rune:arc Phase 2 (plan review)
   alongside decree-arbiter and scroll-reviewer.
-
+  
   Covers: Identify files needing documentation updates from plan changes, validate API
   change documentation coverage, check for migration and upgrade guide inclusion, verify
   README update planning, assess inline comment coverage for complex logic.
@@ -26,8 +26,31 @@ disallowedTools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: utility
+compatible_phases:
+  - devise
+  - arc
+  - forge
+  - mend
+categories:
+  - orchestration
+  - testing
+  - documentation
+  - data
+tags:
+  - documentation
+  - assessment
+  - addresses
+  - alongside
+  - changelog
+  - inclusion
+  - knowledge
+  - migration
+  - technical
+  - comments
 ---
-
 ## Description Details
 
 <example>

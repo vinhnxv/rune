@@ -12,8 +12,30 @@ tools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: review
+compatible_phases:
+  - review
+  - audit
+  - arc
+categories:
+  - code-review
+  - performance
+  - code-quality
+  - data
+tags:
+  - identification
+  - optimization
+  - algorithmic
+  - performance
+  - scalability
+  - allocation
+  - bottleneck
+  - complexity
+  - concurrent
+  - detection
 ---
-
 ## Description Details
 
 Triggers: Backend code changes, database queries, API endpoints.

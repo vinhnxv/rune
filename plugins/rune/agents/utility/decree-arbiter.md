@@ -6,7 +6,7 @@ description: |
   internal consistency, and design anti-pattern risk. Used during /rune:devise Phase 4C
   (technical review) and /rune:arc Phase 2 (plan review) alongside scroll-reviewer
   and knowledge-keeper.
-
+  
   Covers: Architecture fit assessment against codebase patterns, feasibility analysis
   (are proposed changes realistic?), security and performance risk identification in plan,
   dependency analysis (what breaks if this plan is implemented?), codebase pattern alignment
@@ -27,8 +27,31 @@ disallowedTools:
 maxTurns: 30
 mcpServers:
   - echo-search
+source: builtin
+priority: 100
+primary_phase: utility
+compatible_phases:
+  - devise
+  - arc
+  - forge
+  - mend
+categories:
+  - orchestration
+  - security
+  - performance
+  - architecture
+tags:
+  - identification
+  - architecture
+  - verification
+  - consistency
+  - feasibility
+  - implemented
+  - performance
+  - assessment
+  - dependency
+  - references
 ---
-
 ## Description Details
 
 <example>
