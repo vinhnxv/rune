@@ -14,6 +14,9 @@ The optional `context_injections` field tracks which echo memories were retrieve
 {
   "workflow": "rune-review",
   "timestamp": "2026-02-11T10:30:00Z",
+  "config_dir": "/Users/example/.claude",
+  "owner_pid": "12345",
+  "session_id": "abc-def-123-456",
   "output_dir": "tmp/reviews/142/",
   "teammates": [
     {

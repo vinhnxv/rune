@@ -118,6 +118,9 @@ Create team, inscription, signal directory, and tasks.
 Write(`${outputDir}inscription.json`, {
   workflow,
   timestamp,
+  config_dir: Bash('cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P').trim(),
+  owner_pid: Bash('echo $PPID').trim(),
+  session_id: sessionId,
   scope,
   depth,
   output_dir: outputDir,

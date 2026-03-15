@@ -122,8 +122,26 @@ jq -n --arg cfg "$RUNE_CURRENT_CFG" --arg pid "$PPID" --arg ts "$(date -u +%Y-%m
   '{config_dir: $cfg, owner_pid: $pid, created_at: $ts}' > "$TEMP_FLAG" 2>/dev/null || exit 0
 mv "$TEMP_FLAG" "$FLAG_FILE" 2>/dev/null || { rm -f "$TEMP_FLAG" 2>/dev/null; exit 0; }
 
-# --- Advisory output (NEVER deny) ---
-jq -n --arg msg "An arc pipeline completed in this session. Starting new work here risks context exhaustion. Consider: /rune:rest to free artifacts, then start a fresh session." \
+# --- Read context usage from statusline bridge (same pattern as guard-context-critical.sh) ---
+BRIDGE_FILE="${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}.json"
+USED_PCT="?"
+if [[ -f "$BRIDGE_FILE" && ! -L "$BRIDGE_FILE" ]]; then
+  # FLAW-015: jq '//' treats 0 as falsy. Use explicit null check to handle used_pct=0 correctly.
+  USED_PCT=$(jq -r 'if .used_pct == null then "?" else (.used_pct | tostring) end' "$BRIDGE_FILE" 2>/dev/null || echo "?")
+fi
+
+# --- Context-aware advisory message (NEVER deny) ---
+if [[ "$USED_PCT" =~ ^[0-9]+$ ]] && (( USED_PCT < 50 )); then
+  MSG="Arc completed. Context at ${USED_PCT}% — room to continue working."
+elif [[ "$USED_PCT" =~ ^[0-9]+$ ]] && (( USED_PCT < 70 )); then
+  MSG="Arc completed. Context at ${USED_PCT}%. Consider /rune:rest to free artifacts."
+elif [[ "$USED_PCT" =~ ^[0-9]+$ ]]; then
+  MSG="Arc completed. Context at ${USED_PCT}% used. Recommend /rune:rest + fresh session."
+else
+  MSG="Arc completed. Run /rune:rest to free artifacts if starting new work."
+fi
+
+jq -n --arg msg "$MSG" \
   '{hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $msg}}' 2>/dev/null || true
 
 exit 0

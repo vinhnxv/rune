@@ -260,7 +260,7 @@ review on re-review (mend typically touches 5-15 files, below SHARD_THRESHOLD).
 
 | Files per shard | Estimate | Tokens |
 |----------------|----------|--------|
-| 12 files | prompt 3K + files ~86K + findings 5K + summary 2K + self-review 6K | ~102K (51% of 200K) |
+| 12 files | prompt 3K + files ~86K + findings 5K + summary 2K + self-review 6K | ~102K (~51% of teammate context window) |
 | Haiku docs shard | Similar token count, lower cost | ~100K |
 
 For files > 400 lines, `LARGE_FILE_WEIGHT = 2` applies — count them as 2 slots in
