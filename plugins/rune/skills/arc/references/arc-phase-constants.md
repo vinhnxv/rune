@@ -108,6 +108,26 @@ const CYCLE_BUDGET = {
   convergence:   240_000,    //  4 min (Phase 7.5 evaluation)
 }
 
+// Batch testing configuration defaults (v1.165.0+)
+// readTalismanSection: "testing"
+const testing = readTalismanSection("testing")
+const BATCH_CONFIG = {
+  target_batch_duration_ms: testing?.batch?.target_batch_duration_ms ?? 180_000,
+  min_batch_size: testing?.batch?.min_batch_size ?? 1,
+  max_batch_size: testing?.batch?.max_batch_size ?? 20,
+  hard_batch_timeout_ms: testing?.batch?.hard_batch_timeout_ms ?? 240_000,
+  max_fix_retries: testing?.batch?.max_fix_retries ?? 2,
+  inter_batch_delay_ms: testing?.batch?.inter_batch_delay_ms ?? 5_000,
+  max_batch_iterations: testing?.batch?.max_batch_iterations ?? 50,
+  avg_duration: {
+    unit: testing?.batch?.avg_duration?.unit ?? 10_000,
+    integration: testing?.batch?.avg_duration?.integration ?? 30_000,
+    e2e: testing?.batch?.avg_duration?.e2e ?? 60_000,
+    contract: testing?.batch?.avg_duration?.contract ?? 15_000,
+    extended: testing?.batch?.avg_duration?.extended ?? 120_000
+  }
+}
+
 function calculateDynamicTimeout(tier) {
   const basePhaseBudget = PHASE_TIMEOUTS.forge + PHASE_TIMEOUTS.plan_review +
     PHASE_TIMEOUTS.plan_refine + PHASE_TIMEOUTS.verification +
