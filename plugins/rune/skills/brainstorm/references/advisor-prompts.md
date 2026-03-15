@@ -1,6 +1,6 @@
 # Brainstorm Advisor Prompts
 
-Detailed persona definitions and prompt templates for the three Roundtable Advisors spawned during Team and Deep modes.
+Detailed persona definitions and prompt templates for the four Roundtable Advisors spawned during Team and Deep modes.
 
 ## Advisor Overview
 

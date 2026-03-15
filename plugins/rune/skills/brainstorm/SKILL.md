@@ -83,7 +83,7 @@ Phase 4: Elicitation Sages (Deep mode only — structured reasoning)
     |
 Phase 4.5: State Machine Pre-Validation (RESERVED — not yet implemented)
     |
-Phase 5: Quality Gate (7-dimension checklist)
+Phase 5: Quality Gate (8-dimension checklist)
     |
 Phase 6: Capture Decisions + Cleanup + Handoff
     |
