@@ -102,6 +102,22 @@ if [[ ! -d "$TEAM_CONFIG_DIR" ]]; then
   exit 0
 fi
 
+# --- Layer 0.5: Session Ownership Check (GAP-1 fix) ---
+# Verify this teammate belongs to the current session before applying quality gates.
+# stamp-team-session.sh (TLC-004) writes .session file with session_id at TeamCreate time.
+# If hook's session_id differs from team's session_id, skip — another session owns this team.
+HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+if [[ -n "$HOOK_SESSION_ID" ]]; then
+  TEAM_SESSION_FILE="$TEAM_CONFIG_DIR/.session"
+  if [[ -f "$TEAM_SESSION_FILE" && ! -L "$TEAM_SESSION_FILE" ]]; then
+    TEAM_SESSION_ID=$(head -c 256 "$TEAM_SESSION_FILE" 2>/dev/null | tr -d '[:space:]')
+    if [[ -n "$TEAM_SESSION_ID" && "$TEAM_SESSION_ID" != "$HOOK_SESSION_ID" ]]; then
+      _trace "SKIP session mismatch: hook=$HOOK_SESSION_ID team=$TEAM_SESSION_ID — another session owns this team"
+      exit 0
+    fi
+  fi
+fi
+
 # Check workflow state files — if workflow completed, stop lingering teammates
 # Use find instead of glob to avoid zsh NOMATCH when no state files exist
 while IFS= read -r state_file; do
@@ -378,8 +394,7 @@ fi
 # Three checks: (1) Minimum line count, (2) Finding density, (3) File grounding.
 # Runs after SEAL check, before required_sections.
 if [[ "$TEAM_NAME" =~ ^(rune|arc)-(review|audit)- ]]; then
-  # Read output content for analysis
-  OUTPUT_CONTENT=$(cat "$FULL_OUTPUT_PATH" 2>/dev/null || true)
+  # GAP-3 fix: removed dead OUTPUT_CONTENT variable (was set but never referenced)
   OUTPUT_LINES=$(wc -l < "$FULL_OUTPUT_PATH" 2>/dev/null | tr -dc '0-9')
   [[ -z "$OUTPUT_LINES" ]] && OUTPUT_LINES=0
 
@@ -417,7 +432,10 @@ if [[ "$TEAM_NAME" =~ ^(rune|arc)-(review|audit)- ]]; then
   # Count P1/P2/P3 finding markers in output
   # Patterns: "P1:", "P2:", "P3:", "Priority 1:", "Priority 2:", "Priority 3:"
   # Also check for domain-specific findings: vulnerability, issue, problem, finding
-  FINDING_COUNT=$(grep -cE '(P[123]:|Priority [123]:|Finding #|VULN-|SEC-|BUG-|CRITICAL|HIGH|MEDIUM|LOW):?' "$FULL_OUTPUT_PATH" 2>/dev/null || echo "0")
+  # BUG FIX: grep -c outputs "0" AND returns non-zero when no matches.
+  # Using `|| echo "0"` appends a second "0" (captured as "0\n0"), breaking arithmetic.
+  # Fix: separate assignment from fallback so grep's stdout is captured without duplication.
+  FINDING_COUNT=$(grep -cE '(P[123]:|Priority [123]:|Finding #|VULN-|SEC-|BUG-|CRITICAL|HIGH|MEDIUM|LOW):?' "$FULL_OUTPUT_PATH" 2>/dev/null) || true
   [[ -z "$FINDING_COUNT" || "$FINDING_COUNT" == "null" ]] && FINDING_COUNT=0
 
   # If no findings found, require explicit "no issues found" declaration
@@ -533,9 +551,12 @@ fi  # end: skip output file gate for work teams
 
 _trace "PASS all gates for $TEAMMATE_NAME"
 
-# Reset time-gate on successful quality gate pass — measures cumulative FAILED idle time,
-# not total lifetime. A teammate that works productively between idles gets its timer reset.
+# Reset time-gate and retry counter on successful quality gate pass — measures cumulative
+# FAILED idle time and failures, not total lifetime. A teammate that works productively
+# between idles gets both timers reset. Without retry reset, transient failures accumulate
+# across the teammate's lifetime and eventually trigger premature force-stop (GAP-2 fix).
 rm -f "${CWD}/tmp/.rune-signals/${TEAM_NAME}/${TEAMMATE_NAME}.first-idle" 2>/dev/null
+rm -f "${CWD}/tmp/.rune-signals/${TEAM_NAME}/${TEAMMATE_NAME}.idle-retries" 2>/dev/null
 
 # --- Layer 4: All-Tasks-Done Signal ---
 # After quality gates pass, check if ALL tasks in this team are done.

@@ -453,10 +453,16 @@ class TestTeammateIdle:
     def test_allows_idle_with_seal_present(self, inscription_dir: Path) -> None:
         """Review workflows should allow idle when SEAL marker is present."""
         output_file = inscription_dir / "tmp" / "reviews" / "test" / "test-ash.md"
-        content = (
-            "# Review Output\n\nSome findings here.\n" * 5
-            + "\nSEAL: {\n  findings: 3,\n  confidence: 0.9\n}\n"
-        )
+        # Include P2 findings so finding density check passes (grep -cE fix exposed this)
+        lines = ["# Review Output", ""]
+        for i in range(20):
+            lines.append(f"P2: Finding {i+1} — issue details")
+        lines.append("")
+        lines.append("SEAL: {")
+        lines.append("  findings: 3,")
+        lines.append("  confidence: 0.9")
+        lines.append("}")
+        content = "\n".join(lines)
         output_file.write_text(content)
 
         result = run_hook(TEAMMATE_IDLE, {
