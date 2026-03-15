@@ -293,22 +293,12 @@ for (const batch of plan.batches) {
 writeFailureJournal(id, allEvidence)
 ```
 
-## Failure Signature Generation
+## Failure Identification
 
-For cross-run deduplication and regression detection, each failure gets a stable signature:
-
-```javascript
-function generateFailureSignature(failure) {
-  // Combine test name + error type + first line of assertion for a stable hash
-  const raw = `${failure.test_name}::${failure.error_type}::${failure.assertion_message.split('\n')[0]}`
-  return sha256(raw).slice(0, 12)  // 12-char hex prefix
-}
-```
-
-Signatures enable:
-- **Regression detection**: Compare current signatures against historical "never-failed" set
-- **Flaky detection**: Track signature pass/fail across runs
-- **Deduplication**: Same failure across batches/runs gets same signature
+Each failure is identified by the tuple `(test_name, error_type, assertion_first_line)`.
+This tuple is stored in plain text in the evidence record and can be compared directly
+across runs for deduplication, regression detection, and flaky analysis — no hashing needed
+at the current scale (<100 failures per run).
 
 ## Talisman Configuration
 

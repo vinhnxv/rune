@@ -146,8 +146,7 @@ For audit phase consumption:
 - `production_readiness`: `{mock_patterns_found, missing_env_vars[], health_checks[]}` — only if production_readiness ran
 - `history_signals`: `{regression_detected, flaky_count, trend}` — only if history enabled
 - `batch_evidence`: `{total_batches, passed, failed, skipped, fixes_applied, batches_fixed, avg_duration_ms}` — only if batched execution ran
-- `regression_analysis`: `{regressions[], trend}` — batch-level regression signals (duration, new signatures, fix rate)
-- `failure_signatures`: `string[]` — unique failure signature hashes from evidence records
+- `regression_analysis`: `{regressions[], trend}` — batch-level regression signals (deferred — fields persisted for future use)
 - `scenario_coverage`: `{total_declared, exercised, pass_count, fail_count, not_run[]}` — only if scenarios enabled
 
 ## Contract Validation Results

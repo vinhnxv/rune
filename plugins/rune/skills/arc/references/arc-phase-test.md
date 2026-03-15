@@ -574,15 +574,9 @@ if (historyEnabled) {
     }
   }
 
-  // Batch-level regression signals (see testing/references/regression-detection.md)
-  if (trimmedHistory.length >= 3) {
-    const recentEntries = trimmedHistory.slice(-5, -1)  // Last 5 entries excluding current
-    const batchRegression = detectBatchRegressions(historyEntry, recentEntries)
-    if (batchRegression.regressions.length > 0) {
-      warn(`Batch regression: ${batchRegression.regressions.length} signal(s), trend: ${batchRegression.trend}`)
-      updateCheckpoint({ batch_regression_signals: batchRegression.regressions, batch_trend: batchRegression.trend })
-    }
-  }
+  // NOTE: Batch-level regression signals (duration, fix rate, failure signatures) are
+  // deferred until sufficient history data validates threshold ranges. The batch-level
+  // fields persisted above enable future detection. See regression-detection.md.
 
   warn(`Test history persisted to ${historyFile} (${trimmedHistory.length}/${maxEntries} entries)`)
 }

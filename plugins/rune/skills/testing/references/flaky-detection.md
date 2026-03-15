@@ -186,35 +186,10 @@ if flakyTests.length > 0:
 ## Integration with Batch Evidence (v1.165.0+)
 
 When batch evidence records are available (see [evidence-protocol.md](evidence-protocol.md)),
-flaky detection can also use **failure signatures** for cross-run matching. This is more
-robust than test-name matching alone (handles test renames, parameterized tests):
-
-```
-function enrichFlakyWithSignatures(flakyTests, recentEntries):
-  // Build per-signature pass/fail history from failure_signatures in history entries
-  signatureHistory = {}
-  for entry in recentEntries:
-    allSignatures = entry.failure_signatures ?? []
-    for sig in allSignatures:
-      if !signatureHistory[sig]:
-        signatureHistory[sig] = { occurrences: 0, total_runs: 0 }
-      signatureHistory[sig].occurrences++
-    signatureHistory[sig]?.total_runs = recentEntries.length  // normalize
-
-  // Enrich flaky test entries with signature-based fail_rate
-  for test in flakyTests:
-    // Attempt to match test to a known failure signature
-    matchingSig = findSignatureForTest(test.name, signatureHistory)
-    if matchingSig:
-      test.signature = matchingSig.signature
-      test.signature_fail_rate = matchingSig.occurrences / recentEntries.length
-
-  return flakyTests
-```
-
-**Note**: Signature-based enrichment is additive — the core flakiness score still
-uses per-test name matching from `per_test` arrays. Signatures provide a secondary
-signal that persists across test renames and parameterized test variants.
+flaky detection benefits from richer failure data — the evidence record's `failures[]` array
+provides `error_type` and `assertion_message` which can distinguish between different failure
+modes for the same test name. This data is available for future enrichment of flaky scoring
+when sufficient cross-run history accumulates.
 
 ## Integration with Test Report Template
 

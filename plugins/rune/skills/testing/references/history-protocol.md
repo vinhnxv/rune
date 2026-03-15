@@ -50,9 +50,7 @@ Each run appends one JSON line to `test-history.jsonl`:
 | `skipped_batches` | number | NO | Batches skipped (budget exhaustion or other) |
 | `fixes_applied` | number | NO | Total fix attempts across all batches |
 | `batches_fixed_by_retry` | number | NO | Batches that failed initially but passed after fix loop |
-| `total_retries` | number | NO | Sum of all retry attempts across all batches |
 | `avg_batch_duration_ms` | number | NO | Average batch execution time (for timing regression) |
-| `failure_signatures` | string[] | NO | Unique failure signature hashes for cross-run dedup (see [evidence-protocol.md](evidence-protocol.md)) |
 
 ## Persistence Algorithm (STEP 9.5)
 
@@ -126,7 +124,6 @@ function enrichWithBatchData(entry, testingPlan, evidenceRecords) {
   const batchesWithFixes = batches.filter(b => (b.fix_attempts ?? 0) > 0)
   entry.fixes_applied = batchesWithFixes.reduce((s, b) => s + (b.fix_attempts ?? 0), 0)
   entry.batches_fixed_by_retry = batchesWithFixes.filter(b => b.status === "passed").length
-  entry.total_retries = entry.fixes_applied
 
   // Timing
   const durations = batches
@@ -146,17 +143,6 @@ function enrichWithBatchData(entry, testingPlan, evidenceRecords) {
     if (entry.tier_breakdown?.[tier]) {
       entry.tier_breakdown[tier].batch_count = count
     }
-  }
-
-  // Failure signatures from evidence records (for cross-run dedup)
-  if (evidenceRecords && evidenceRecords.length > 0) {
-    const signatures = new Set()
-    for (const evidence of evidenceRecords) {
-      for (const failure of (evidence.failures ?? [])) {
-        signatures.add(generateFailureSignature(failure))
-      }
-    }
-    entry.failure_signatures = [...signatures]
   }
 
   return entry
