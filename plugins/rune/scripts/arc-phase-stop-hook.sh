@@ -315,14 +315,17 @@ _check_test_batches() {
 
   # Safety cap check
   local max_iterations executed
-  max_iterations=$(jq -r '.max_batch_iterations // 50' "$plan_path" 2>/dev/null)
-  executed=$(jq '[.batches[] | select(.status != "pending")] | length' "$plan_path" 2>/dev/null)
+  # QUAL-007 FIX: Add fallback for missing jq fields
+  max_iterations=$(jq -r '.max_batch_iterations // 50' "$plan_path" 2>/dev/null || echo 50)
+  # BACK-003 FIX: Count only executed batches (passed|failed|fixing), not skipped
+  executed=$(jq '[.batches[] | select(.status == "passed" or .status == "failed" or .status == "fixing")] | length' "$plan_path" 2>/dev/null)
   [[ "$executed" -ge "$max_iterations" ]] && return 1  # Safety cap hit
 
   # Read batch details
   local batch_type batch_files total_batches
-  batch_type=$(jq -r ".batches[$next_batch].type // \"unit\"" "$plan_path" 2>/dev/null)
-  batch_files=$(jq -r ".batches[$next_batch].files | join(\", \")" "$plan_path" 2>/dev/null)
+  # BACK-004 FIX: Use select(.id == N) instead of array index — ids may not be sequential
+  batch_type=$(jq -r ".batches[] | select(.id == $next_batch) | .type // \"unit\"" "$plan_path" 2>/dev/null)
+  batch_files=$(jq -r ".batches[] | select(.id == $next_batch) | .files | join(\", \")" "$plan_path" 2>/dev/null)
   total_batches=$(jq '.batches | length' "$plan_path" 2>/dev/null)
 
   # Build batch-specific re-injection prompt

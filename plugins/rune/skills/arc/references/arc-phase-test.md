@@ -327,7 +327,8 @@ for (const batch of testingPlan.batches) {
   // Read result and classify pass/fail
   const resultPath = `tmp/arc/${id}/test-results-batch-${batch.id}.md`
   const batchResult = exists(resultPath) ? Read(resultPath) : ""
-  let passed = !batchResult.includes("FAIL") && !batchResult.includes("ERROR")
+  // BACK-002 FIX: Empty/missing result = agent crash = FAIL (not false-positive PASS)
+  let passed = batchResult.length > 0 && !batchResult.includes("FAIL") && !batchResult.includes("ERROR")
 
   // Fix loop — up to max_fix_retries on failure
   for (let retry = 0; !passed && retry < batchConfig.max_fix_retries; retry++) {
@@ -353,7 +354,8 @@ for (const batch of testingPlan.batches) {
     })
 
     const retryResult = exists(resultPath) ? Read(resultPath) : ""
-    passed = !retryResult.includes("FAIL") && !retryResult.includes("ERROR")
+    // BACK-006 FIX: Same false-pass guard as BACK-002
+    passed = retryResult.length > 0 && !retryResult.includes("FAIL") && !retryResult.includes("ERROR")
   }
 
   // Finalize batch status

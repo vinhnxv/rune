@@ -133,7 +133,7 @@ function generateTestingPlan(id, talisman, context) {
   }
 
   // 5. Write plan to disk (plan.json IS the checkpoint)
-  writePlan(id, plan)
+  writeCheckpoint(id, plan)
   Write(`tmp/arc/${id}/testing-plan.md`, renderTestingPlanMarkdown(plan))
 
   return plan
@@ -188,7 +188,12 @@ function executeBatchingPlan(id, plan, remainingBudget) {
     })
 
     // 6. Read result and classify pass/fail
-    const passed = classifyBatchResult(result, batch)
+    // Inline classification: result must exist AND contain no FAIL/ERROR markers.
+    // Empty/missing result = agent crash = treated as FAIL (not false-positive PASS).
+    const resultContent = exists(batch.result_path) ? Read(batch.result_path) : ""
+    let passed = resultContent.length > 0
+      && !resultContent.includes("FAIL")
+      && !resultContent.includes("ERROR")
 
     // 7. Fix loop — up to max_fix_retries on failure
     let fixAttempts = 0
@@ -212,9 +217,23 @@ function executeBatchingPlan(id, plan, remainingBudget) {
         prompt:            buildFixPrompt(batch, result, fixTaskId, fixAttempts),
       })
 
-      // Re-run the batch after the fix
-      const rerunResult = rerunBatch(id, batch, plan)
-      if (classifyBatchResult(rerunResult, batch)) break
+      // Re-run the batch after the fix (reuse same runner pattern)
+      const rerunTaskId = TaskCreate({
+        title:       `Rerun batch ${batch.id} after fix ${fixAttempts}`,
+        description: `Re-execute ${batch.type} tests: ${batch.files.join(', ')}`,
+        status:      "pending",
+      })
+      Agent({
+        subagent_type:     "general-purpose",
+        team_name:         `arc-test-${id}`,
+        run_in_background: false,
+        prompt:            buildRunnerPrompt(batch, rerunTaskId, plan.config),
+      })
+      const rerunContent = exists(batch.result_path) ? Read(batch.result_path) : ""
+      passed = rerunContent.length > 0
+        && !rerunContent.includes("FAIL")
+        && !rerunContent.includes("ERROR")
+      if (passed) break
     }
 
     // 8. Update final status
