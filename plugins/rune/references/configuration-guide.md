@@ -23,6 +23,8 @@ All talisman config keys grouped by section with types, defaults, and descriptio
 | `version` | number | `1` | Schema version (only `1` valid) |
 | `cost_tier` | string | `"balanced"` | Agent model selection: `opus`, `balanced`, `efficient`, `minimal` |
 
+> **`/effort` shorthand**: The `/effort` command is a quick alias for adjusting `cost_tier` interactively without editing talisman.yml directly. It maps effort levels to cost tiers: `/effort high` → `opus`, `/effort medium` → `balanced`, `/effort low` → `efficient`, `/effort minimal` → `minimal`. See [cost-tier-mapping.md](cost-tier-mapping.md) for the full category-to-model resolution logic.
+
 ### `rune-gaze` — File Classification
 
 | Key | Type | Default | Description |

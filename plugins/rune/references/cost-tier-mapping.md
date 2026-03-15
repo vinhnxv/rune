@@ -123,6 +123,43 @@ const CATEGORY_TIER_MAP = {
 }
 ```
 
+## Full Model IDs
+
+`resolveModelForAgent()` returns short aliases (`"opus"`, `"sonnet"`, `"haiku"`). When the actual Claude API model ID is needed (e.g., spawning an Agent with `model:` set to the canonical ID), use `resolveFullModelId()`.
+
+> **Staleness note**: Update this table when new Claude model versions are released.
+
+| Alias | Full Model ID |
+|-------|--------------|
+| `opus` | `claude-opus-4-6` |
+| `sonnet` | `claude-sonnet-4-6` |
+| `haiku` | `claude-haiku-4-5` |
+
+```javascript
+const FULL_MODEL_IDS = {
+  opus: "claude-opus-4-6",
+  sonnet: "claude-sonnet-4-6",
+  haiku: "claude-haiku-4-5"
+}
+
+/**
+ * Companion to resolveModelForAgent(). Translates a short alias to the full Claude API model ID.
+ * Use when the exact model ID string is required (e.g., Agent tool `model:` parameter).
+ *
+ * @param {string} alias - Short alias: "opus" | "sonnet" | "haiku"
+ * @returns {string} Full model ID, or the input alias unchanged if not recognized.
+ */
+function resolveFullModelId(alias) {
+  return FULL_MODEL_IDS[alias] ?? alias
+}
+```
+
+**Usage pattern:**
+```javascript
+const alias = resolveModelForAgent(agentName, talisman)   // → "sonnet"
+const modelId = resolveFullModelId(alias)                  // → "claude-sonnet-4-6"
+```
+
 ## Notes
 
 - **Custom Ashes** defined by users are NOT affected by `cost_tier` — they may use non-Claude models
