@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.165.0] - 2026-03-15
+
+### Changed
+- **refactor(testing): replace background agents with batched foreground execution** — Replaced background agent spawning in testing phase with batched foreground execution for improved reliability and deterministic completion detection (#307)
+
 ## [1.164.0] - 2026-03-15
 
 ### Changed
