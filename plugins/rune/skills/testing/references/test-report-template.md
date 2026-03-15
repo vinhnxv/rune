@@ -5,6 +5,8 @@
 ```
 tmp/arc/{id}/
 ├── test-strategy.md                    # Pre-execution analysis (STEP 1.5)
+├── testing-plan.json                   # Batch plan + checkpoint (batch-execution.md)
+├── testing-plan.md                     # Human-readable batch plan rendering
 ├── test-report.md                      # Final aggregated report (STEP 9)
 ├── test-results-unit.md                # Unit tier raw output
 ├── test-results-integration.md         # Integration tier raw output
@@ -14,6 +16,11 @@ tmp/arc/{id}/
 ├── extended-checkpoint.json            # Extended tier checkpoint for crash recovery
 ├── e2e-checkpoint-route-{N}.json       # Per-route checkpoint (crash recovery)
 ├── e2e-route-{N}-result.md             # Per-route detailed trace
+├── evidence/                           # Per-batch evidence records (evidence-protocol.md)
+│   ├── batch-1-evidence.json
+│   ├── batch-2-evidence.json
+│   └── ...
+├── failure-journal.md                  # Cumulative failure analysis (evidence-protocol.md)
 ├── screenshots/
 │   └── route-{N}-step-{S}.png
 ├── docker-containers.json              # For crash recovery cleanup
@@ -56,6 +63,18 @@ tmp/arc/{id}/
 ## Uncovered Implementations
 - {file_path} — no test file found
 
+## Batch Execution Summary
+| # | Type | Files | Duration | Status | Retries | Fixes |
+|---|------|-------|----------|--------|---------|-------|
+| 1 | unit | 18 | 45s | PASS | 0 | — |
+| 2 | unit | 12 | 38s | PASS | 0 | — |
+| 3 | integration | 6 | 2m 10s | PASS (after fix) | 1 | src/api/auth.ts |
+| 4 | e2e | 3 | 3m 20s | FAIL | 2 | — |
+
+**Batches**: {passed}/{total} passed · {failed} failed · {skipped} skipped
+**Fix loop**: {fixes_applied} fix(es) applied · {batches_fixed} batch(es) recovered
+**Avg batch duration**: {avg_ms}ms
+
 ## Flaky Tests
 - {test_name} — passed on retry (flaky: true, tier: {tier})
 
@@ -67,9 +86,27 @@ tmp/arc/{id}/
 | AC-001: {description} | test_name_1, test_name_2 | COVERED |
 | AC-002: {description} | — | NOT COVERED |
 
+## Regression Analysis
+**Trend**: {improving|stable|mixed|declining}
+
+| Signal | Severity | Detail |
+|--------|----------|--------|
+| Pass rate drop | WARNING | 95% → 88% (7% drop, threshold 5%) |
+| New failure signature | INFO | `a3f2b1c4d5e6` never seen in last 5 runs |
+| Duration regression | WARNING | Avg batch 45s → 72s (1.6x above historical) |
+| Fix rate increase | WARNING | 4 fixes (2.0x above avg 2.0) |
+
+When no regressions: "No regressions detected. Trend: stable."
+
 ## [Failure Analysis - if failures detected]
 
 ## [Screenshots - if E2E ran]
+
+## Evidence Files
+- Testing plan: `tmp/arc/{id}/testing-plan.json`
+- Failure journal: `tmp/arc/{id}/failure-journal.md`
+- Batch evidence: `tmp/arc/{id}/evidence/batch-{N}-evidence.json`
+- Test history: `.claude/test-history/test-history.jsonl`
 
 <!-- SEAL: test-report-complete -->
 ```
@@ -108,6 +145,9 @@ For audit phase consumption:
 - `accessibility_results`: `{critical_count, serious_count, moderate_count, pages_checked[]}` — only if accessibility ran
 - `production_readiness`: `{mock_patterns_found, missing_env_vars[], health_checks[]}` — only if production_readiness ran
 - `history_signals`: `{regression_detected, flaky_count, trend}` — only if history enabled
+- `batch_evidence`: `{total_batches, passed, failed, skipped, fixes_applied, batches_fixed, avg_duration_ms}` — only if batched execution ran
+- `regression_analysis`: `{regressions[], trend}` — batch-level regression signals (duration, new signatures, fix rate)
+- `failure_signatures`: `string[]` — unique failure signature hashes from evidence records
 - `scenario_coverage`: `{total_declared, exercised, pass_count, fail_count, not_run[]}` — only if scenarios enabled
 
 ## Contract Validation Results

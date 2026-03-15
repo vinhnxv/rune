@@ -418,6 +418,31 @@ const report = aggregateTestReport({
 Write(`tmp/arc/${id}/test-report.md`, report + "\n<!-- SEAL: test-report-complete -->")
 
 // ═══════════════════════════════════════════════════════
+// STEP 9.05: EVIDENCE WRITES (inline, no agent spawn)
+// ═══════════════════════════════════════════════════════
+
+// Collect batch evidence records written during execution loop (see testing/references/evidence-protocol.md)
+// Evidence files are written by writeBatchEvidence() during the batch execution loop (STEP 5).
+// Here we collect them and write the cumulative failure journal.
+const evidenceRecords = []
+for (const batch of completedPlan.batches) {
+  const evidencePath = `tmp/arc/${id}/evidence/batch-${batch.id}-evidence.json`
+  if (exists(evidencePath)) {
+    try {
+      evidenceRecords.push(JSON.parse(Read(evidencePath)))
+    } catch (e) {
+      warn(`Failed to read evidence for batch ${batch.id}: ${e.message}`)
+    }
+  }
+}
+
+// Write cumulative failure journal (see testing/references/evidence-protocol.md)
+if (evidenceRecords.length > 0) {
+  writeFailureJournal(id, evidenceRecords)
+  warn(`Evidence: ${evidenceRecords.length} batch record(s), failure journal written`)
+}
+
+// ═══════════════════════════════════════════════════════
 // STEP 9.1: PRODUCTION READINESS CHECK (inline, no agent spawn)
 // ═══════════════════════════════════════════════════════
 
@@ -510,7 +535,7 @@ if (historyEnabled) {
   // Compute flaky scores from history (see testing/references/flaky-detection.md)
   const flakyScores = computeFlakyScores(historyDir, activeTiers)
 
-  const historyEntry = {
+  let historyEntry = {
     id, timestamp: new Date().toISOString(),
     scope_label: scopeLabel,
     pass_rate: computePassRate(report),
@@ -520,6 +545,9 @@ if (historyEnabled) {
     flaky_scores: flakyScores,
     pr_number: prFromGh || null
   }
+
+  // Enrich with batch-level data (see testing/references/history-protocol.md enrichWithBatchData)
+  historyEntry = enrichWithBatchData(historyEntry, completedPlan, evidenceRecords)
 
   // Append to rolling history (JSON lines format)
   const historyFile = `${historyDir}/test-history.jsonl`
@@ -543,6 +571,16 @@ if (historyEnabled) {
     if (passRateDrop > passRateDropThreshold) {
       warn(`Test regression detected: pass rate dropped ${(passRateDrop * 100).toFixed(1)}% (${(previousPassRate * 100).toFixed(1)}% → ${(currentPassRate * 100).toFixed(1)}%). Threshold: ${(passRateDropThreshold * 100).toFixed(1)}%`)
       updateCheckpoint({ test_regression_detected: true, regression_pass_rate_drop: passRateDrop })
+    }
+  }
+
+  // Batch-level regression signals (see testing/references/regression-detection.md)
+  if (trimmedHistory.length >= 3) {
+    const recentEntries = trimmedHistory.slice(-5, -1)  // Last 5 entries excluding current
+    const batchRegression = detectBatchRegressions(historyEntry, recentEntries)
+    if (batchRegression.regressions.length > 0) {
+      warn(`Batch regression: ${batchRegression.regressions.length} signal(s), trend: ${batchRegression.trend}`)
+      updateCheckpoint({ batch_regression_signals: batchRegression.regressions, batch_trend: batchRegression.trend })
     }
   }
 

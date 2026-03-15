@@ -173,6 +173,132 @@ detection provides the more actionable classification.
 | Corrupt history entry | Handled by `readRecentHistory()` try-catch — see [history-protocol.md](history-protocol.md) |
 | Skipped test in current run | Only `status === "failed"` tests are evaluated — skipped tests ignored |
 
+## Batch-Level Regression Signals (v1.165.0+)
+
+In addition to per-test regression, the following batch-level signals are computed
+when history entries include batch data (see [history-protocol.md](history-protocol.md)):
+
+### Duration Regression
+
+Detects batch execution time inflation (slow tests, resource contention):
+
+```
+function detectDurationRegression(currentEntry, recentEntries):
+  if recentEntries.length < 3:
+    return null  // Need baseline
+
+  // Compare current avg batch duration against historical average
+  currentAvg = currentEntry.avg_batch_duration_ms
+  if !currentAvg:
+    return null
+
+  historicalAvgs = recentEntries
+    .map(e => e.avg_batch_duration_ms)
+    .filter(d => d != null && d > 0)
+
+  if historicalAvgs.length < 2:
+    return null
+
+  historicalMean = historicalAvgs.reduce((s, d) => s + d, 0) / historicalAvgs.length
+
+  ratio = currentAvg / historicalMean
+  if ratio > 1.5:
+    return {
+      type: "duration_regression",
+      severity: ratio > 2.0 ? "critical" : "warning",
+      current_avg_ms: currentAvg,
+      historical_avg_ms: Math.round(historicalMean),
+      ratio: Math.round(ratio * 100) / 100,
+      message: "Avg batch duration ${ratio}x above historical average"
+    }
+  return null
+```
+
+### New Failure Signatures
+
+Detects tests that passed in ALL recent runs but fail now (high-confidence regressions):
+
+```
+function detectNewFailureSignatures(currentSignatures, recentEntries):
+  if !currentSignatures || currentSignatures.length === 0:
+    return []
+
+  // Collect all historical failure signatures
+  historicalSignatures = new Set()
+  for entry in recentEntries:
+    for sig in (entry.failure_signatures ?? []):
+      historicalSignatures.add(sig)
+
+  // New = present in current but never seen in history
+  newSignatures = currentSignatures.filter(s => !historicalSignatures.has(s))
+
+  return newSignatures.map(sig => ({
+    type: "new_failure_signature",
+    signature: sig,
+    message: "Failure signature ${sig} never seen in last ${recentEntries.length} runs"
+  }))
+```
+
+### Fix Rate Trend
+
+Detects declining code quality (more fixes needed than usual):
+
+```
+function detectFixRateTrend(currentEntry, recentEntries):
+  if recentEntries.length < 3:
+    return null
+
+  currentFixes = currentEntry.fixes_applied ?? 0
+  historicalFixes = recentEntries
+    .map(e => e.fixes_applied ?? 0)
+    .filter(f => f != null)
+
+  if historicalFixes.length < 2:
+    return null
+
+  historicalMean = historicalFixes.reduce((s, f) => s + f, 0) / historicalFixes.length
+
+  // Flag if current fix count is 2x+ the historical average (minimum 2 fixes)
+  if currentFixes >= 2 && historicalMean > 0 && currentFixes / historicalMean >= 2.0:
+    return {
+      type: "fix_rate_increase",
+      severity: "warning",
+      current_fixes: currentFixes,
+      historical_avg: Math.round(historicalMean * 10) / 10,
+      message: "Fix rate ${currentFixes} is ${(currentFixes / historicalMean).toFixed(1)}x above average"
+    }
+  return null
+```
+
+### Combined Output
+
+```
+function detectBatchRegressions(currentEntry, recentEntries):
+  regressions = []
+
+  duration = detectDurationRegression(currentEntry, recentEntries)
+  if duration:
+    regressions.push(duration)
+
+  newSigs = detectNewFailureSignatures(currentEntry.failure_signatures, recentEntries)
+  regressions.push(...newSigs)
+
+  fixRate = detectFixRateTrend(currentEntry, recentEntries)
+  if fixRate:
+    regressions.push(fixRate)
+
+  // Compute overall trend
+  trend = "stable"
+  if regressions.some(r => r.severity === "critical"):
+    trend = "declining"
+  elif regressions.length >= 2:
+    trend = "mixed"
+  elif regressions.length === 0 && (currentEntry.pass_rate ?? 0) >= 0.95:
+    trend = "improving"
+
+  return { regressions, trend }
+```
+
 ## Error Handling
 
 ```
