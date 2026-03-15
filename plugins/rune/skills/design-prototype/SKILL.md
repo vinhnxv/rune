@@ -473,41 +473,19 @@ if components.length >= 3 AND NOT flags.noTeam:
 
 ### Team Cleanup
 
-Standard 5-component pattern:
+## Teammate Fallback Array
 
+```javascript
+allMembers = ["proto-worker-1", "proto-worker-2", "proto-worker-3", "proto-worker-4", "proto-worker-5"]
 ```
-// 1. Dynamic member discovery
-try {
-  CHOME = Bash('echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"')
-  teamConfig = Read("{CHOME}/teams/{teamName}/config.json")
-  allMembers = teamConfig.members.map(m => m.name).filter(n => /^[a-zA-Z0-9_-]+$/.test(n))
-} catch {
-  allMembers = ["proto-worker-1", "proto-worker-2", "proto-worker-3", "proto-worker-4", "proto-worker-5"]
-}
 
-// 2. Shutdown request to all members
-for member in allMembers:
-  try: SendMessage({ type: "shutdown_request", recipient: member, content: "Prototype pipeline complete" })
-  catch: pass  // member may have already exited
+## Protocol
 
-// 3. Grace period
-if allMembers.length > 0: Bash("sleep 20")
+Follow standard shutdown from [engines.md](../../team-sdk/references/engines.md#shutdown).
 
-// 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 4s, 8s, 12s)
-let teamDeleteSucceeded = false
-const CLEANUP_DELAYS = [0, 4000, 8000, 12000]
-for attempt in range(CLEANUP_DELAYS.length):
-  if attempt > 0: Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
-  try: TeamDelete(); teamDeleteSucceeded = true; break
-  catch: if last attempt: warn("TeamDelete failed after 4 attempts")
+## Post-Cleanup
 
-// 5. Filesystem fallback (only if TeamDelete never succeeded — QUAL-012)
-if NOT teamDeleteSucceeded:
-  Bash('for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done')
-  Bash("sleep 5")
-  Bash('for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done')
-  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
-```
+No skill-specific post-cleanup steps.
 
 ## Worker Trust Hierarchy
 
