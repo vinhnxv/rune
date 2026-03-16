@@ -87,39 +87,36 @@ impl Tmux {
     pub fn create_session(config_dir: &Path, session_id: &str, claude_path: &str) -> Result<()> {
         validate_session_id(session_id)?;
 
-        // Validate config dir: no shell metacharacters
         let config_str = config_dir.to_string_lossy();
-        if config_str.contains('\'') || config_str.contains('\\') || config_str.contains("..") {
-            return Err(eyre!("Config dir contains unsafe characters: {config_str}"));
-        }
 
-        // Use the resolved absolute path to claude (not just "claude").
-        // tmux's bash may have a different PATH that resolves to brew/npm claude.
-        let shell_cmd = format!(
-            "export CLAUDE_CONFIG_DIR='{}' && exec '{}' --dangerously-skip-permissions",
-            config_str, claude_path
-        );
-
+        // Step 1: Create empty tmux session (default shell)
         let status = Command::new("tmux")
             .args([
-                "new-session",
-                "-d",
-                "-s",
-                session_id,
-                "-x",
-                "200",
-                "-y",
-                "50",
-                "bash",
-                "-c",
-                &shell_cmd,
+                "new-session", "-d", "-s", session_id, "-x", "200", "-y", "50",
             ])
             .status()
-            .map_err(|e| eyre!("failed to spawn tmux: {e}"))?;
+            .map_err(|e| eyre!("failed to create tmux session: {e}"))?;
 
         if !status.success() {
             return Err(eyre!("tmux new-session failed: {status}"));
         }
+
+        // Step 2: Send claude command via send-keys into the shell
+        // This starts Claude Code INSIDE the shell — if it exits, the shell remains.
+        // Using send-keys ensures the shell's PATH and env are available.
+        let claude_cmd = format!(
+            "CLAUDE_CONFIG_DIR='{}' '{}' --dangerously-skip-permissions",
+            config_str, claude_path
+        );
+        let status = Command::new("tmux")
+            .args(["send-keys", "-t", session_id, &claude_cmd, "Enter"])
+            .status()
+            .map_err(|e| eyre!("tmux send-keys claude failed: {e}"))?;
+
+        if !status.success() {
+            return Err(eyre!("tmux send-keys claude failed: {status}"));
+        }
+
         Ok(())
     }
 
