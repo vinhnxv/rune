@@ -351,6 +351,7 @@ When a plan contains YAML acceptance criteria (`AC-*` blocks), strive activates 
 **Activation gate**: `hasCriteria` — plan has at least one `AC-*` block in code fences. Plans without criteria degrade to current behavior (backward compatibility).
 
 **Reference**: See [discipline-work-loop.md](references/discipline-work-loop.md) for the full 8-phase protocol.
+**Convergence detail**: See [work-loop-convergence.md](references/work-loop-convergence.md) for the Phase 5 convergence protocol — entry conditions, iteration logic, exit conditions, gap task creation, and report format.
 **Task format**: See [task-file-format.md](references/task-file-format.md) for the task file YAML schema.
 
 **Phases**: Decompose → Review Tasks → Assign → Execute → Monitor → Review Work → Converge → Quality

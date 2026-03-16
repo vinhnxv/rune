@@ -143,7 +143,7 @@ Iterative re-work loop for non-PASS criteria. Each iteration:
 - **Stagnation detection**: If same criteria fail across 2+ iterations → escalate to human
 - **Exit conditions**: All PASS, max iterations reached, or human intervention
 
-**Detailed convergence protocol**: Deferred to `work-loop-convergence.md` (Shard 6 T6.3).
+**Detailed convergence protocol**: See [work-loop-convergence.md](work-loop-convergence.md) for the full protocol — entry conditions, iteration logic, exit conditions (success + 3 failure modes), gap task creation, and convergence report format.
 
 **Output**: `tmp/work/{timestamp}/convergence/iteration-{N}.json` per iteration + final `metrics.json`
 
