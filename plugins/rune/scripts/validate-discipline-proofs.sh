@@ -1,0 +1,172 @@
+#!/bin/bash
+# scripts/validate-discipline-proofs.sh
+# TaskCompleted hook: validates discipline proof evidence before allowing task completion.
+# Exit 2 to BLOCK task completion if proofs fail AND block_on_fail is true.
+# Exit 0 to allow (non-blocking, WARN mode, or discipline disabled).
+#
+# Runs BEFORE validate-test-evidence.sh (position 0 in TaskCompleted hooks).
+# Scoped to rune-work-* and arc-work-* teams only.
+#
+# NOTE: 30s hook timeout may be insufficient for complex proof sets containing
+# test_passes proofs (which have 60s individual timeouts). Fail-forward ERR trap
+# ensures timeout silently allows — this is intentional for rollout safety.
+
+set -euo pipefail
+umask 077
+
+# --- Fail-forward guard (OPERATIONAL hook — see ADR-002) ---
+# Crash before validation -> allow operation (don't stall workflows).
+_rune_fail_forward() {
+  if [[ "${RUNE_TRACE:-}" == "1" ]]; then
+    printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
+      "$(date +%H:%M:%S 2>/dev/null || true)" \
+      "${BASH_SOURCE[0]##*/}" \
+      "${BASH_LINENO[0]:-?}" \
+      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" 2>/dev/null
+  fi
+  exit 0
+}
+trap '_rune_fail_forward' ERR
+
+# Read hook input (1MB cap — sufficient for TaskCompleted JSON payloads)
+INPUT=$(head -c 1048576 2>/dev/null || true)
+
+# Pre-flight: jq required
+if ! command -v jq &>/dev/null; then
+  exit 0  # Non-blocking if jq missing
+fi
+
+# Validate JSON
+if ! printf '%s\n' "$INPUT" | jq empty 2>/dev/null; then
+  exit 0
+fi
+
+# Extract fields
+IFS=$'\t' read -r TEAM_NAME TASK_ID TEAMMATE_NAME <<< \
+  "$(printf '%s\n' "$INPUT" | jq -r '[.team_name // "", .task_id // "", .teammate_name // ""] | @tsv' 2>/dev/null)" || true
+
+# Guard: only process Rune teams with valid fields
+if [[ -z "$TEAM_NAME" || -z "$TASK_ID" ]]; then
+  exit 0
+fi
+
+# Scope: only worker teams (rune-work-* and arc-work-*)
+if [[ "$TEAM_NAME" != rune-work-* && "$TEAM_NAME" != arc-work-* ]]; then
+  exit 0
+fi
+
+# Guard: validate ALL identifiers (SEC-001)
+if [[ ! "$TEAM_NAME" =~ ^[a-zA-Z0-9_-]+$ ]] || [[ ! "$TASK_ID" =~ ^[a-zA-Z0-9_-]+$ ]] || [[ ! "$TEAMMATE_NAME" =~ ^[a-zA-Z0-9_:-]+$ ]]; then
+  exit 0
+fi
+
+CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+if [[ -z "$CWD" ]]; then
+  exit 0
+fi
+CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || exit 0
+
+# --- Session isolation (config_dir + owner_pid check) ---
+CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+
+# Check talisman config for discipline settings
+DISCIPLINE_ENABLED=true
+BLOCK_ON_FAIL=false
+for TALISMAN_PATH in "${CWD}/.claude/talisman.yml" "${CHOME}/talisman.yml"; do
+  if [[ -f "$TALISMAN_PATH" ]]; then
+    if command -v yq &>/dev/null; then
+      DISCIPLINE_ENABLED=$(yq -r 'if .discipline.enabled == false then "false" else "true" end' "$TALISMAN_PATH" 2>/dev/null) || DISCIPLINE_ENABLED="true"
+      BLOCK_ON_FAIL=$(yq -r 'if .discipline.block_on_fail == true then "true" else "false" end' "$TALISMAN_PATH" 2>/dev/null) || BLOCK_ON_FAIL="false"
+      # VEIL-004: If yq returned empty (v3/v4 mismatch), default to safe values
+      [[ -z "$DISCIPLINE_ENABLED" ]] && DISCIPLINE_ENABLED="true"
+      [[ -z "$BLOCK_ON_FAIL" ]] && BLOCK_ON_FAIL="false"
+    else
+      echo "Discipline: yq not found — cannot read talisman config, defaulting to WARN mode" >&2
+    fi
+    break
+  fi
+done
+
+# If discipline is disabled globally, skip
+if [[ "$DISCIPLINE_ENABLED" == "false" ]]; then
+  exit 0
+fi
+
+# --- Evidence discovery ---
+# Scan tmp/work/*/evidence/${TASK_ID}/ for evidence files.
+# Use most recent timestamp directory first.
+EVIDENCE_DIR=""
+EVIDENCE_SUMMARY=""
+
+# Find evidence directories matching this task, sorted most recent first
+while IFS= read -r candidate; do
+  if [[ -d "$candidate" ]]; then
+    EVIDENCE_DIR="$candidate"
+    if [[ -f "${candidate}/summary.json" ]]; then
+      EVIDENCE_SUMMARY="${candidate}/summary.json"
+    fi
+    break
+  fi
+done < <(find "${CWD}/tmp/work" -maxdepth 3 -type d -name "$TASK_ID" -path "*/evidence/*" 2>/dev/null | sort -r)
+
+# No evidence directory exists -> WARN only (worker may not have criteria)
+if [[ -z "$EVIDENCE_DIR" ]]; then
+  if [[ "$BLOCK_ON_FAIL" == "true" ]]; then
+    echo "Discipline: No evidence directory found for task ${TASK_ID}. Workers must provide proof evidence before completing tasks." >&2
+    exit 2
+  else
+    echo "Discipline: No evidence directory found for task ${TASK_ID} (WARN mode — not blocking)." >&2
+    exit 0
+  fi
+fi
+
+# Evidence directory exists but no summary.json -> WARN (incomplete evidence)
+if [[ -z "$EVIDENCE_SUMMARY" ]]; then
+  if [[ "$BLOCK_ON_FAIL" == "true" ]]; then
+    echo "Discipline: Evidence directory exists for task ${TASK_ID} but summary.json is missing. Complete evidence collection before task completion." >&2
+    exit 2
+  else
+    echo "Discipline: Evidence directory exists for task ${TASK_ID} but summary.json is missing (WARN mode — not blocking)." >&2
+    exit 0
+  fi
+fi
+
+# --- Criteria-based proof execution ---
+# Look for criteria.json in evidence directory
+CRITERIA_FILE="${EVIDENCE_DIR}/criteria.json"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+EXECUTOR="${SCRIPT_DIR}/execute-discipline-proofs.sh"
+
+if [[ -f "$CRITERIA_FILE" ]]; then
+  # execute-discipline-proofs.sh not found -> WARN (Shard 3 dependency missing)
+  if [[ ! -x "$EXECUTOR" ]]; then
+    echo "Discipline: execute-discipline-proofs.sh not found or not executable — cannot validate proofs (WARN)." >&2
+    exit 0
+  fi
+
+  # Run proof executor
+  PROOF_OUTPUT=""
+  PROOF_OUTPUT=$("$EXECUTOR" "$CRITERIA_FILE" "$CWD" 2>/dev/null) || true
+
+  # Parse output for FAIL results
+  if [[ -n "$PROOF_OUTPUT" ]]; then
+    FAIL_COUNT=$(printf '%s\n' "$PROOF_OUTPUT" | jq '[.[] | select(.result == "FAIL")] | length' 2>/dev/null) || FAIL_COUNT=0
+    TOTAL_COUNT=$(printf '%s\n' "$PROOF_OUTPUT" | jq 'length' 2>/dev/null) || TOTAL_COUNT=0
+
+    if [[ "$FAIL_COUNT" -gt 0 ]]; then
+      # Extract failed criterion IDs for feedback
+      FAILED_IDS=$(printf '%s\n' "$PROOF_OUTPUT" | jq -r '[.[] | select(.result == "FAIL") | .criterion_id] | join(", ")' 2>/dev/null) || FAILED_IDS="unknown"
+
+      if [[ "$BLOCK_ON_FAIL" == "true" ]]; then
+        echo "Discipline: ${FAIL_COUNT}/${TOTAL_COUNT} proofs FAILED for task ${TASK_ID}. Failed criteria: ${FAILED_IDS}. Fix failing proofs before completing this task." >&2
+        exit 2  # BLOCK — task completion denied
+      else
+        echo "Discipline: ${FAIL_COUNT}/${TOTAL_COUNT} proofs FAILED for task ${TASK_ID}. Failed criteria: ${FAILED_IDS} (WARN mode — not blocking)." >&2
+        exit 0  # WARN only
+      fi
+    fi
+  fi
+fi
+
+# All proofs passed or no criteria to check
+exit 0
