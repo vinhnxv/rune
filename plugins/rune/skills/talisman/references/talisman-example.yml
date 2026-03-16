@@ -71,3 +71,19 @@ plan:
 # Use /rune:arc --resume for manual recovery at any time.
 # Arc runtime settings (defaults, ship, pre_merge_checks) are resolved
 # in arc-checkpoint-init.md via 3-layer config resolution.
+
+# ──────────────────────────────────────────────
+# Discipline — Proof validation configuration
+# ──────────────────────────────────────────────
+# Controls the discipline proof validation hook (validate-discipline-proofs.sh).
+# When enabled, TaskCompleted hook validates evidence exists and proofs pass
+# before allowing workers to mark tasks complete.
+#
+# Default: WARN mode (block_on_fail: false) — warnings only during rollout.
+# Set block_on_fail: true for BLOCK mode after validation confidence is established.
+discipline:
+  enabled: true              # Enable discipline proof validation
+  block_on_fail: false       # WARN mode (default for rollout). Set true for BLOCK mode.
+  proof_timeout: 60          # Timeout in seconds for individual proof execution
+  max_convergence_iterations: 3  # Max proof retry attempts before escalation
+  echo_back_required: true   # Require workers to echo-back acceptance criteria

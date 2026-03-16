@@ -35,6 +35,7 @@ This list reflects the documented schema used by Rune (including default-injecte
 | 27 | `integrations` | MCP tool integrations | `mcp_tools.{namespace}.server_name`, `server_version`, `tools[]`, `phases{}`, `trigger{}`, `skill_binding`, `rules[]`, `metadata{}` |
 | 28 | `design_sync` | Figma design synchronization | `enabled`, `figma_provider`, `max_figma_urls`, `max_extraction_workers`, `max_implementation_workers`, `max_iteration_workers`, `max_iterations`, `iterate_enabled`, `trust_hierarchy.*`, `verification_gate.*`, `backend_impact.*`, `codegen_profile` |
 | 29 | `inner_flame` | Self-review protocol | `enabled`, `block_on_fail`, `elegance_check` |
+| 30 | `discipline` | Proof validation | `enabled`, `block_on_fail`, `proof_timeout`, `max_convergence_iterations`, `echo_back_required` |
 
 ## Critical Sections (Must-Have)
 
