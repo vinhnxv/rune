@@ -324,6 +324,44 @@ these during strive Phase 4.}
   - **Key Links**: Import/wiring between artifacts
     - `{file A}` → `{file B}` via `import { name }`
 
+### Acceptance Criteria YAML Block (Required for Standard and Comprehensive)
+
+Every `### Task` section MUST include an `acceptance_criteria:` YAML block below the must-have format.
+This enables mechanical verification by the ward check and parse-plan extraction pipeline.
+
+**Format:**
+
+```yaml
+acceptance_criteria:
+  - id: AC-1
+    text: "{Observable behavior or assertion}"
+    proof: pattern_matches
+    args: ["regex_pattern", "file_glob"]
+  - id: AC-2
+    text: "{Test suite passes for component}"
+    proof: test_passes
+    args: ["path/to/test/file.test.ts"]
+  - id: AC-3
+    text: "{Required output file exists}"
+    proof: file_exists
+    args: ["path/to/output/file.ts"]
+```
+
+**Proof types:**
+
+| Proof type | What it checks | `args` format |
+|------------|----------------|---------------|
+| `pattern_matches` | Regex pattern found in file(s) | `["regex", "glob"]` |
+| `test_passes` | Test file runs without failures | `["test/path"]` |
+| `file_exists` | File is present at path | `["file/path"]` |
+| `semantic_match` | Judge model evaluates against rubric (LOW reliability) | `["rubric_text"]` |
+
+> **Note**: This table shows common proof types. See [proof-schema.md](../../discipline/references/proof-schema.md) for the full list of 8 types including `no_pattern_exists`, `builds_clean`, `git_diff_contains`, and `line_count_delta`.
+
+**Context budget**: Keep each criterion's `text` field ≤ 200 tokens (roughly 1–2 sentences). Verbose descriptions belong in the task body, not inside the YAML criteria block. Staying within the 200-token budget per criterion ensures the plan remains parseable during strive task decomposition.
+
+**Backward compatibility**: The `- [ ]` checkbox format above is still required alongside the YAML block. The two formats are complementary — checkboxes for human readability, YAML for automated verification.
+
 ## Non-Goals
 
 {Explicitly out-of-scope items from brainstorm. Populate from `non_goals` frontmatter field.}
