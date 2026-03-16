@@ -59,12 +59,19 @@ impl Tmux {
         format!("rune-{}", hex_encode(bytes))
     }
 
-    /// Create a detached tmux session running `claude --dangerously-skip-permissions`.
+    /// Create a detached tmux session and launch Claude Code inside it.
     ///
-    /// The session inherits the current working directory so Claude Code
-    /// starts in the repo root. `CLAUDE_CONFIG_DIR` is injected via env.
+    /// Uses a 3-step approach:
+    /// 1. Create empty tmux session (default shell)
+    /// 2. Set CLAUDE_CONFIG_DIR inside the session via `tmux set-environment`
+    /// 3. Send the `claude` command via `send-keys`
+    ///
+    /// This ensures the env var is available to Claude Code — `.env()` on the
+    /// tmux client Command does NOT propagate into the session's shell.
     pub fn create_session(config_dir: &Path, session_id: &str) -> Result<()> {
         validate_session_id(session_id)?;
+
+        // Step 1: Create empty detached session (starts default shell)
         let status = Command::new("tmux")
             .args([
                 "new-session",
@@ -76,14 +83,52 @@ impl Tmux {
                 "-y",
                 "50",
             ])
-            .env("CLAUDE_CONFIG_DIR", config_dir)
-            .args(["claude", "--dangerously-skip-permissions"])
             .status()
             .map_err(|e| eyre!("failed to spawn tmux: {e}"))?;
 
         if !status.success() {
             return Err(eyre!("tmux new-session failed: {status}"));
         }
+
+        // Step 2: Inject CLAUDE_CONFIG_DIR into the session environment
+        let config_str = config_dir.to_string_lossy();
+        let status = Command::new("tmux")
+            .args([
+                "set-environment",
+                "-t",
+                session_id,
+                "CLAUDE_CONFIG_DIR",
+                &config_str,
+            ])
+            .status()
+            .map_err(|e| eyre!("tmux set-environment failed: {e}"))?;
+
+        if !status.success() {
+            return Err(eyre!("tmux set-environment failed: {status}"));
+        }
+
+        // Step 3: Send claude command (it will pick up CLAUDE_CONFIG_DIR from session env)
+        let status = Command::new("tmux")
+            .args([
+                "send-keys",
+                "-t",
+                session_id,
+                "-l",
+                &format!("CLAUDE_CONFIG_DIR={} claude --dangerously-skip-permissions", config_str),
+            ])
+            .status()
+            .map_err(|e| eyre!("tmux send-keys claude failed: {e}"))?;
+
+        if !status.success() {
+            return Err(eyre!("tmux send-keys claude failed: {status}"));
+        }
+
+        // Send Enter to execute the command
+        Command::new("tmux")
+            .args(["send-keys", "-t", session_id, "Enter"])
+            .status()
+            .map_err(|e| eyre!("tmux send-keys Enter failed: {e}"))?;
+
         Ok(())
     }
 
