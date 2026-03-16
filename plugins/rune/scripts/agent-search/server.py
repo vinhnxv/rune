@@ -161,6 +161,32 @@ def _load_talisman_user_agents(project_dir: str) -> list:
     return agents
 
 
+def _load_extra_agent_dirs(project_dir: str) -> list:
+    """Load extra_agent_dirs from talisman resolved shards.
+
+    Reads ``tmp/.talisman-resolved/settings.json`` for the
+    ``extra_agent_dirs`` key — a list of directory paths to scan
+    for additional agent definitions.
+
+    Returns a list of directory path strings.
+    """
+    if not project_dir:
+        return []
+
+    for shard_name in ("settings.json", "misc.json"):
+        shard_path = os.path.join(project_dir, "tmp", ".talisman-resolved", shard_name)
+        try:
+            with open(shard_path) as f:
+                data = json.load(f)
+            dirs = data.get("extra_agent_dirs", [])
+            if isinstance(dirs, list) and dirs:
+                return [d for d in dirs if isinstance(d, str) and d]
+        except (OSError, ValueError):
+            continue
+
+    return []
+
+
 # ---------------------------------------------------------------------------
 # Dirty signal helpers (consumed from annotate-dirty.sh)
 # ---------------------------------------------------------------------------
@@ -972,7 +998,8 @@ def do_reindex(
     logger.info("Reindexing agent registry from %s", plugin_root)
     start_ms = int(time.time() * 1000)
     talisman_agents = _load_talisman_user_agents(project_dir)
-    entries = discover_and_parse(plugin_root, project_dir, talisman_agents)
+    extra_dirs = _load_extra_agent_dirs(project_dir)
+    entries = discover_and_parse(plugin_root, project_dir, talisman_agents, extra_dirs)
 
     conn = get_db(db_path)
     try:
@@ -1016,7 +1043,8 @@ def _do_reindex_internal(conn: sqlite3.Connection) -> int:
     from indexer import discover_and_parse
 
     talisman_agents = _load_talisman_user_agents(PROJECT_DIR)
-    entries = discover_and_parse(PLUGIN_ROOT, PROJECT_DIR, talisman_agents)
+    extra_dirs = _load_extra_agent_dirs(PROJECT_DIR)
+    entries = discover_and_parse(PLUGIN_ROOT, PROJECT_DIR, talisman_agents, extra_dirs)
     count = rebuild_index(conn, entries)
     conn.execute(
         "INSERT OR REPLACE INTO agent_meta (key, value) VALUES (?, ?)",

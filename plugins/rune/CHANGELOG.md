@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.172.0] - 2026-03-16
+
+### Added
+- **feat(agent-search): extra agent sources — `.claude/rune-agents/` and `extra_agent_dirs`** — Agent search now scans 6 sources (up from 4). New `rune-project` source (priority 70) scans `.claude/rune-agents/` for search-only agents that are NOT auto-loaded by Claude Code — ideal for cataloging agents from other plugins without polluting the auto-discovery namespace. New `external` source (priority 60) scans arbitrary directories configured via `extra_agent_dirs` in talisman.yml. Both support nested folders with automatic category inference from directory names (e.g., `review/python.md` → `category: review`). SEC containment check ensures paths stay within project or `$HOME`.
+
 ## [1.171.0] - 2026-03-16
 
 ### Fixed
