@@ -22,5 +22,5 @@ is_known_rune_agent() {
   local name="$1"
   [[ -n "$name" ]] || return 1
   [[ "$name" == *$'\n'* ]] && return 1
-  printf '%s\n' "$name" | grep -qE "^(${KNOWN_RUNE_AGENTS})(-[0-9]+|-deep|-exhaustive|-plan|-inspect|-w[0-9]+)*$"
+  printf '%s\n' "$name" | grep -qE "^(${KNOWN_RUNE_AGENTS})(-[0-9]+|-deep|-exhaustive|-plan|-inspect|-review|-w[0-9]+)*$"
 }

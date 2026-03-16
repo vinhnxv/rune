@@ -199,15 +199,6 @@ def _write_search_signal(project_dir: str) -> None:
 # SQL helpers
 # ---------------------------------------------------------------------------
 
-def _in_clause(count: int) -> str:  # noqa: F811 — used by do_detail SQL
-    """Build a parameterized IN-clause placeholder string.
-
-    Returns a string like ``?,?,?`` for *count* parameters.
-    SAFE: Only literal ``?`` characters — never user data.
-    """
-    return ",".join(["?"] * count)
-
-
 # ---------------------------------------------------------------------------
 # Database helpers
 # ---------------------------------------------------------------------------
@@ -626,9 +617,16 @@ def do_search(
         ensure_schema(conn)
 
         # Check for dirty signal and reindex if needed
+        # FLAW-002 FIX: Use BEGIN IMMEDIATE to serialize concurrent reindex
+        # attempts and prevent readers from seeing empty tables mid-rebuild
         if _check_and_clear_dirty(PROJECT_DIR):
             logger.info("Dirty signal detected — triggering auto-reindex")
-            _do_reindex_internal(conn)
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                _do_reindex_internal(conn)
+            except Exception:
+                conn.rollback()
+                raise
 
         # Build FTS5 query — sanitize for safety
         fts_query = _sanitize_fts_query(query)
@@ -744,6 +742,11 @@ def do_detail(db_path: str, name: str) -> Dict[str, Any]:
             val = result.get(field, "")
             if isinstance(val, str):
                 result[field] = [v.strip() for v in val.split(",") if v.strip()]
+        # SEC-005: Normalize file_path to relative path to avoid leaking
+        # absolute filesystem paths to the client
+        if "file_path" in result and result["file_path"] and PLUGIN_ROOT:
+            result["file_path"] = result["file_path"].replace(
+                PLUGIN_ROOT + "/", "")
         return result
     finally:
         conn.close()
@@ -979,8 +982,13 @@ def _do_reindex_internal(conn: sqlite3.Connection) -> int:
 # FTS query sanitization
 # ---------------------------------------------------------------------------
 
-# FTS5 special characters that need escaping
-_FTS_SPECIAL = re.compile(r'[":*^~()]')
+# FTS5 special characters and operators that need escaping
+# SEC-001: Include column filter (:), grouping ({}), boost/exclude (+-)
+# and backslash to prevent query injection
+_FTS_SPECIAL = re.compile(r'[":*^~(){}+\-:\\]')
+
+# FTS5 boolean keywords that must be filtered from user queries
+_FTS_BOOLEAN_KEYWORDS = frozenset({"AND", "OR", "NOT", "NEAR"})
 
 
 def _sanitize_fts_query(query: str) -> str:
@@ -999,7 +1007,9 @@ def _sanitize_fts_query(query: str) -> str:
 
     # Remove FTS5 special characters
     cleaned = _FTS_SPECIAL.sub(" ", query)
-    terms = [t.strip() for t in cleaned.split() if len(t.strip()) > 1]
+    # SEC-001: Filter FTS5 boolean keywords to prevent semantic manipulation
+    terms = [t.strip() for t in cleaned.split()
+             if len(t.strip()) > 1 and t.strip().upper() not in _FTS_BOOLEAN_KEYWORDS]
 
     if not terms:
         return ""
@@ -1022,7 +1032,8 @@ def _fallback_fts_query(query: str) -> str:
         Simplified FTS5 query string.
     """
     cleaned = _FTS_SPECIAL.sub(" ", query)
-    terms = [t.strip() for t in cleaned.split() if len(t.strip()) > 1]
+    terms = [t.strip() for t in cleaned.split()
+             if len(t.strip()) > 1 and t.strip().upper() not in _FTS_BOOLEAN_KEYWORDS]
     if not terms:
         return ""
     # Single longest term as prefix
@@ -1044,6 +1055,10 @@ async def _mcp_handle_search(arguments: Dict) -> Tuple[Dict, bool]:
     query = arguments.get("query", "")
     if not isinstance(query, str) or not query.strip():
         return {"error": "query parameter is required"}, True
+
+    # SEC-004: Enforce query length limit before FTS processing
+    if len(query) > 1000:
+        return {"error": "query exceeds 1000 character limit"}, True
 
     phase = arguments.get("phase")
     if phase is not None and not isinstance(phase, str):
@@ -1286,7 +1301,7 @@ TOOL_SCHEMAS = [
                 },
                 "description": {
                     "type": "string",
-                    "description": "Agent description (min 10 chars)",
+                    "description": "Agent description (min 20 chars for user agents)",
                 },
                 "categories": {
                     "type": "array",
@@ -1418,10 +1433,10 @@ def _register_mcp_handlers(server: Any, types: Any) -> None:
                 isError=True if is_error else None,
             )]
         except (ValueError, TypeError, KeyError, sqlite3.Error, OSError) as e:
+            # SEC-003: Log details server-side, return generic message to client
             logger.error("Tool '%s' failed: %s", name, e, exc_info=True)
-            err_msg = str(e)[:200] if str(e) else "Internal server error"
             return [types.TextContent(
-                type="text", text=json.dumps({"error": err_msg}),
+                type="text", text=json.dumps({"error": "Internal server error"}),
                 isError=True,
             )]
 

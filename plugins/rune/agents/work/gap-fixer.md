@@ -41,6 +41,8 @@ tags:
   - inspect
   - atomic
   - correctness
+mcpServers:
+  - echo-search
 ---
 ## Description Details
 

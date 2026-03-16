@@ -40,6 +40,8 @@ tags:
   - review
   - architecture
   - performance
+mcpServers:
+  - echo-search
 ---
 ## Description Details
 

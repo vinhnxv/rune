@@ -35,6 +35,8 @@ tags:
   - profile
   - plan-vs-implementation
   - completeness
+mcpServers:
+  - echo-search
 ---
 ## Description Details
 

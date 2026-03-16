@@ -35,6 +35,8 @@ tags:
   - inspect
   - plan-vs-implementation
   - completeness
+mcpServers:
+  - echo-search
 ---
 ## Description Details
 

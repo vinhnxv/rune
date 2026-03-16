@@ -40,6 +40,8 @@ tags:
   - gaps
   - deduplication
   - alignment
+mcpServers:
+  - echo-search
 ---
 ## Description Details
 

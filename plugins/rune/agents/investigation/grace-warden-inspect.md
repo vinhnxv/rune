@@ -35,6 +35,8 @@ tags:
   - deviated
   - inspect
   - plan-vs-implementation
+mcpServers:
+  - echo-search
 ---
 ## Description Details
 

@@ -84,13 +84,15 @@ When ready to plan, brainstorm hands off to `/rune:devise --brainstorm-context` 
 - Use devise directly when requirements are clear and specific
 
 ### Ashes (Agents)
-Each "Ash" is a specialized AI agent with its own context window. Rune has 98 agents:
-- **35 review agents** — code quality, security, architecture, performance, design fidelity, UX, etc.
+Each "Ash" is a specialized AI agent with its own context window. Rune has 109 agents (66 core + 43 extended):
+- **35+ review agents** — code quality, security, architecture, performance, design fidelity, UX, etc.
 - **5 research agents** — codebase analysis, git history, best practices
 - **24 investigation agents** — impact analysis, business logic tracing, hypothesis investigation
-- **23 utility agents** — aggregation, deployment verification, reasoning, condensing, design analysis
-- **6 work agents** — implementation (rune-smith, trial-forger, design-sync-agent, design-iterator, storybook-reviewer, storybook-fixer)
+- **23+ utility agents** — aggregation, deployment verification, reasoning, condensing, design analysis
+- **6+ work agents** — implementation (rune-smith, trial-forger, design-sync-agent, design-iterator, storybook-reviewer, storybook-fixer)
 - **6 testing agents** — unit, integration, E2E, failure analysis, extended test runner, contract validator
+
+Core agents live in `agents/` (always loaded). Extended agents live in `registry/` (discovered via MCP agent_search).
 
 ### TOME (Review Output)
 The "TOME" is the unified review summary after all agents complete their analysis.

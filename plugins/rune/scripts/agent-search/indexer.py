@@ -180,6 +180,10 @@ def _parse_frontmatter(lines: List[str]) -> Tuple[Dict[str, Any], int]:
                 current_key = None
                 current_list = None
                 current_multiline = None
+                # FLAW-014 FIX: Strip surrounding quotes from YAML scalar values
+                if (value.startswith('"') and value.endswith('"')) or \
+                   (value.startswith("'") and value.endswith("'")):
+                    value = value[1:-1]
                 # Parse booleans and numbers
                 if value.lower() in ("true", "yes"):
                     metadata[key] = True
@@ -199,7 +203,6 @@ def _parse_frontmatter(lines: List[str]) -> Tuple[Dict[str, Any], int]:
 
     # Fix BACK-003: Detect unclosed frontmatter (no closing ---)
     if body_start == len(lines) and len(metadata) > 0:
-        import sys
         print("WARN: unclosed frontmatter (no closing ---) in file — treating as invalid", file=sys.stderr)
         return {}, 0
 

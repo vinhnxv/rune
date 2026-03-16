@@ -34,6 +34,8 @@ tags:
   - inspect
   - logging
   - plan-vs-implementation
+mcpServers:
+  - echo-search
 ---
 ## Description Details
 
