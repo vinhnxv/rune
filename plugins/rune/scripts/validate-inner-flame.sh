@@ -109,9 +109,27 @@ elif [[ "$TEAM_NAME" == arc-audit-* ]]; then
   [[ -z "$AUDIT_ID" ]] && exit 0
   OUTPUT_DIR="${CWD}/tmp/audit/${AUDIT_ID}"
 elif [[ "$TEAM_NAME" == rune-work-* || "$TEAM_NAME" == arc-work-* ]]; then
-  # Workers don't write to output files in the same way — skip for now
-  # Inner Flame for workers is enforced via Seal message content
-  exit 0
+  # Workers write evidence to tmp/work/{timestamp}/evidence/{task-id}/summary.json
+  EVIDENCE_FILE=$(find "${CWD}/tmp/work" -maxdepth 3 -path "*/evidence/${TASK_ID}/summary.json" -print -quit 2>/dev/null || true)
+  if [[ -n "$EVIDENCE_FILE" && -f "$EVIDENCE_FILE" ]]; then
+    # Validate summary.json has result field (basic schema check)
+    if jq -e '.result' "$EVIDENCE_FILE" &>/dev/null; then
+      exit 0  # Evidence found and valid — allow
+    fi
+    # Evidence file exists but missing result field — warn
+    echo "Inner Flame: Worker evidence at ${EVIDENCE_FILE} missing 'result' field (incomplete evidence)." >&2
+    if [[ "$BLOCK_ON_FAIL" == "true" ]]; then
+      exit 2  # BLOCK — evidence incomplete
+    fi
+    exit 0  # WARN only
+  fi
+  # No evidence found for worker task
+  if [[ "$BLOCK_ON_FAIL" == "true" ]]; then
+    echo "Inner Flame: No evidence summary found for worker task ${TASK_ID}. Write evidence to tmp/work/*/evidence/${TASK_ID}/summary.json before completing." >&2
+    exit 2  # BLOCK — no evidence
+  fi
+  echo "Inner Flame: No evidence summary found for worker task ${TASK_ID} (soft enforcement — not blocking)." >&2
+  exit 0  # WARN only — soft enforcement
 elif [[ "$TEAM_NAME" == rune-mend-* || "$TEAM_NAME" == arc-mend-* ]]; then
   # Mend fixers — check is via Seal message
   exit 0
