@@ -1497,12 +1497,16 @@ while ((taskMatch = taskPattern.exec(strippedPlan)) !== null) {
   planTasks.push({ id: taskMatch[1], title: taskMatch[2].trim() })
 }
 
+// D.0.1.5: Re-derive safeDiffFiles for this code block scope
+// (safeDiffFiles is declared in STEP A.3's code block — not carried across blocks)
+const safeDiffFiles = diffFiles.filter(f => /^[a-zA-Z0-9._\-\/]+$/.test(f) && !f.includes('..'))
+
 // D.0.2: For each task, extract **Files**: line and check against committed files
 const taskCompletionResults = []
 for (const task of planTasks) {
   // Find the task section content (until next ### or ##)
   const taskSectionPattern = new RegExp(
-    `### Task ${task.id.replace('.', '\\.')}[:\\s].*?(?=###|##[^#]|$)`, 's'
+    `### Task ${task.id.replace(/\./g, '\\.')}[:\\s].*?(?=###|##[^#]|$)`, 's'
   )
   const sectionMatch = strippedPlan.match(taskSectionPattern)
   const sectionText = sectionMatch ? sectionMatch[0] : ''
@@ -1513,6 +1517,12 @@ for (const task of planTasks) {
     ? filesMatch[1].match(/`([^`]+)`/g)?.map(f => f.replace(/`/g, '')) || []
     : []
 
+  // SEC-STEP-D: Sanitize taskFiles — plan content is untrusted (Truthbinding)
+  // FLAW-005 FIX: filter out shell metacharacters before any Bash() interpolation
+  const safeTaskFiles = taskFiles.filter(tf =>
+    /^[a-zA-Z0-9._\-\/\*]+$/.test(tf) && !tf.includes('..')
+  )
+
   // Extract action keywords (delete, create, migrate, move, update)
   const hasDeleteAction = /\b(delete|remove|eliminate|drop)\b/i.test(sectionText)
   const hasCreateAction = /\b(create|new file|add file|build)\b/i.test(sectionText)
@@ -1520,12 +1530,17 @@ for (const task of planTasks) {
 
   // Check evidence in committed files
   let evidence = "NONE"
-  if (taskFiles.length > 0) {
-    const fileHits = taskFiles.filter(tf => {
+  if (safeTaskFiles.length > 0) {
+    const fileHits = safeTaskFiles.filter(tf => {
       // Glob pattern (e.g., "agents/**/*.md") — check if any diff file matches
       if (tf.includes('*')) {
         const globPrefix = tf.split('*')[0]
-        return safeDiffFiles.some(df => df.startsWith(globPrefix))
+        // FLAW-004 FIX: Also check extension when pattern has one (e.g., *.md)
+        const extMatch = tf.match(/\*\.(\w+)$/)
+        const expectedExt = extMatch ? `.${extMatch[1]}` : null
+        return safeDiffFiles.some(df =>
+          df.startsWith(globPrefix) && (!expectedExt || df.endsWith(expectedExt))
+        )
       }
       // Exact path — check if in diff
       return safeDiffFiles.includes(tf)
@@ -1534,7 +1549,8 @@ for (const task of planTasks) {
       evidence = "ADDRESSED"
     } else if (hasDeleteAction) {
       // For deletion tasks: verify target files no longer exist
-      const deletionTargets = taskFiles.filter(tf => !tf.includes('*'))
+      // FLAW-005 FIX: safeTaskFiles already sanitized — safe for Bash()
+      const deletionTargets = safeTaskFiles.filter(tf => !tf.includes('*'))
       const stillExist = deletionTargets.filter(tf => {
         try { return Bash(`test -e "${tf}" && echo "yes" || echo "no"`).trim() === "yes" }
         catch { return false }

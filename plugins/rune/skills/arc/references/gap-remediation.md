@@ -177,6 +177,24 @@ if (needsTaskRemediation && missingPlanTasks.length > 0) {
 // Combined gate: FIXABLE findings + missing tasks
 const hasWork = cappedFindings.length > 0 || taskRemediationItems.length > 0
 
+// DEEP-003 FIX: Convert task remediation items into the same format as FIXABLE findings
+// so they are visible to STEP 6 (grouping) and STEP 7 (fixer prompt injection).
+// Task items use a synthetic file path based on their first **Files**: reference.
+for (const taskItem of taskRemediationItems) {
+  // Extract first file reference from task context for grouping
+  const fileMatch = taskItem.context.match(/`([a-zA-Z0-9._\-\/]+\.\w+)`/)
+  const taskFile = fileMatch ? fileMatch[1] : `plan-task-${taskItem.id}`
+
+  cappedFindings.push({
+    id: taskItem.id,
+    description: taskItem.description,
+    file: taskFile,
+    line: 0,
+    context: taskItem.context.slice(0, 500),
+    isTaskRemediation: true  // Flag for fixer prompt to handle differently
+  })
+}
+
 if (!hasWork) {
   Write(`tmp/arc/${id}/gap-remediation-report.md`,
     `# Gap Remediation — No Fixable Gaps\n\n` +

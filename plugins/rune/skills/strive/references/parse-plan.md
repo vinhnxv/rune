@@ -243,17 +243,24 @@ if (planTaskCount > 0 && extractedTaskCount < planTaskCount) {
   const missingCount = planTaskCount - extractedTaskCount
   const coverageRatio = extractedTaskCount / planTaskCount
 
-  // Find which plan tasks are NOT represented in extracted tasks
-  const extractedSubjects = extractedTasks.map(t =>
-    (t.subject + " " + (t.description || "")).toLowerCase()
-  ).join(" ")
-
+  // FLAW-001 FIX: Match per-task instead of join(" ") + includes() to avoid
+  // cross-task substring false positives. Each plan task must match against
+  // individual extracted tasks, not the concatenated blob.
   const missingPlanTasks = planTaskHeadings.filter(pt => {
-    // Check if plan task ID or title keywords appear in any extracted task
-    const idFound = extractedSubjects.includes(pt.id)
-    const titleWords = pt.title.toLowerCase().split(/\s+/).filter(w => w.length > 4)
-    const titleFound = titleWords.some(w => extractedSubjects.includes(w))
-    return !idFound && !titleFound
+    // Check each extracted task individually
+    return !extractedTasks.some(et => {
+      const etText = (et.subject + " " + (et.description || "")).toLowerCase()
+      // Match 1: Plan task ID appears as word boundary in extracted task
+      const idRegex = new RegExp(`\\b${pt.id.replace(/\./g, '\\.')}\\b`)
+      const idFound = idRegex.test(etText)
+      // Match 2: Majority of title words (length > 2, excluding stopwords) found in same task
+      const stopwords = new Set(['the', 'and', 'for', 'with', 'from', 'into', 'that', 'this'])
+      const titleWords = pt.title.toLowerCase().split(/\s+/)
+        .filter(w => w.length > 2 && !stopwords.has(w))
+      const matchCount = titleWords.filter(w => etText.includes(w)).length
+      const titleFound = titleWords.length > 0 && matchCount >= Math.ceil(titleWords.length * 0.5)
+      return idFound || titleFound
+    })
   })
 
   // readTalismanSection: "work"
@@ -293,17 +300,26 @@ if (planTaskCount > 0 && extractedTaskCount < planTaskCount) {
 // STEP C: Auto-create missing tasks (when plan tasks have ### Task headings)
 // For any plan task NOT represented in extractedTasks, create a work item automatically.
 // This ensures no plan task is silently dropped.
+// FLAW-003 FIX: Track auto-created plan IDs to avoid duplicates from stale extractedTasks
+const autoCreatedPlanIds = new Set()
 if (planTaskCount > 0) {
-  const extractedSubjects = extractedTasks.map(t =>
-    (t.subject + " " + (t.description || "")).toLowerCase()
-  ).join(" ")
-
   for (const pt of planTaskHeadings) {
-    const idFound = extractedSubjects.includes(pt.id)
-    const titleWords = pt.title.toLowerCase().split(/\s+/).filter(w => w.length > 4)
-    const titleFound = titleWords.some(w => extractedSubjects.includes(w))
+    if (autoCreatedPlanIds.has(pt.id)) continue
 
-    if (!idFound && !titleFound) {
+    // FLAW-001 FIX: Per-task matching (same logic as STEP B)
+    const stopwords = new Set(['the', 'and', 'for', 'with', 'from', 'into', 'that', 'this'])
+    const alreadyExtracted = extractedTasks.some(et => {
+      const etText = (et.subject + " " + (et.description || "")).toLowerCase()
+      const idRegex = new RegExp(`\\b${pt.id.replace(/\./g, '\\.')}\\b`)
+      const idFound = idRegex.test(etText)
+      const titleWords = pt.title.toLowerCase().split(/\s+/)
+        .filter(w => w.length > 2 && !stopwords.has(w))
+      const matchCount = titleWords.filter(w => etText.includes(w)).length
+      const titleFound = titleWords.length > 0 && matchCount >= Math.ceil(titleWords.length * 0.5)
+      return idFound || titleFound
+    })
+
+    if (!alreadyExtracted) {
       // Extract task section from plan for context
       const taskSectionPattern = new RegExp(
         `### Task ${pt.id.replace('.', '\\.')}[:\\s][\\s\\S]*?(?=###|##[^#]|$)`
@@ -323,16 +339,20 @@ if (planTaskCount > 0) {
         ? (depMatch[1].match(/Task\s+(\d+\.\d+)/g) || []).map(d => d.replace('Task ', ''))
         : []
 
+      // FLAW-007 FIX: Classify type based on title keywords
+      const taskType = /\btest/i.test(pt.title) ? "test" : "impl"
+
       extractedTasks.push({
         subject: `Task ${pt.id}: ${pt.title}`,
         description: taskDescription,
-        type: "impl",
+        type: taskType,
         blockedBy: blockedBy,
         effort: effort,
         autoCreated: true  // Flag for logging
       })
 
-      log(`Auto-created work item for plan Task ${pt.id}: ${pt.title}`)
+      autoCreatedPlanIds.add(pt.id)
+      log(`Auto-created work item for plan Task ${pt.id}: ${pt.title} (type: ${taskType})`)
     }
   }
 }

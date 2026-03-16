@@ -293,7 +293,7 @@ ${diagSection}
 
 ## Ship Phase Integration
 
-CONCERN-8: SHIP phase treats pre_ship_validation `"failed"` status as "proceed with warning". The integration point in arc SKILL.md:
+The integration point in arc SKILL.md:
 
 ```javascript
 // Phase 8.5: Pre-Ship Completion Validator
@@ -306,14 +306,21 @@ updateCheckpoint({
   artifact: `tmp/arc/${checkpoint.id}/pre-ship-report.md`
 })
 
-// Gate 1 BLOCK: Append diagnostics to PR body as "Known Issues" section
+// BLOCK verdict: HALT the pipeline (v1.169.0 — previously "proceed with warning")
+// DEEP-001 FIX: BLOCK must actually prevent ship, not just warn.
+// This was the exact bug that shipped PR #310 at 40% completion.
 if (preShipResult.verdict === "BLOCK") {
-  warn("Pre-Ship Validator: BLOCK — artifact integrity issues detected:")
-  for (const diag of preShipResult.diagnostics) {
-    warn(`  - ${diag}`)
-  }
-  // Ship phase reads checkpoint.phases.pre_ship_validation.status === "failed"
-  // and appends preShipResult.diagnostics as "Known Issues" in PR body
+  const blockGates = preShipResult.gates.filter(g => g.status === "BLOCK")
+  const blockReasons = blockGates.map(g => `${g.gate}: ${g.detail || g.reason}`).join("; ")
+
+  error(
+    `Pre-Ship Validator: BLOCK — pipeline halted.\n` +
+    `Blocked by: ${blockReasons}\n` +
+    `Report: tmp/arc/${checkpoint.id}/pre-ship-report.md\n\n` +
+    preShipResult.diagnostics.map(d => `  - ${d}`).join('\n') + '\n\n' +
+    `Fix the blocking issues and run /rune:arc --resume to continue.`
+  )
+  // error() halts execution — ship phase does NOT proceed
 }
 
 // Gate 2 WARN: Append diagnostics to PR body as "Pre-Ship Warnings" section
