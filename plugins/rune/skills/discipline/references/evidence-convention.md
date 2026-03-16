@@ -58,9 +58,11 @@ Every task that requires acceptance-criterion verification MUST produce a
       "criterion_id": "AC-1.1.1",
       "result": "PASS|FAIL|INCONCLUSIVE",
       "evidence_path": "path/to/artifact",
+      "failure_code": "F3",
       "timestamp": "ISO8601"
     }
   ],
+  "failure_codes": ["F3", "F8"],
   "overall": "PASS|FAIL|PARTIAL",
   "timestamp": "ISO8601"
 }
@@ -76,7 +78,9 @@ Every task that requires acceptance-criterion verification MUST produce a
 | `criteria_results[].criterion_id` | string | yes | ID from the plan (e.g., `AC-1.3.2`) |
 | `criteria_results[].result` | enum | yes | `PASS`, `FAIL`, or `INCONCLUSIVE` (semantic_match only, confidence < 70%) |
 | `criteria_results[].evidence_path` | string | yes | Relative path to the artifact that proves the criterion |
+| `criteria_results[].failure_code` | string | no | F-code from failure classification (e.g., `F3`, `F8`). Present only when `result` is `FAIL`. See `failure-codes.md` for the full registry (F1-F17). |
 | `criteria_results[].timestamp` | string | yes | ISO-8601 time the criterion was checked |
+| `failure_codes` | array | no | Unique, deduplicated list of all failure codes from `criteria_results` entries with `result: FAIL`. Written by `validate-discipline-proofs.sh` during the TaskCompleted hook. Empty array `[]` when all criteria pass. |
 | `overall` | enum | yes | `PASS` (all pass), `FAIL` (any hard fail), `PARTIAL` (mixed), `INCONCLUSIVE` (any criterion inconclusive — requires human escalation) |
 | `timestamp` | string | yes | ISO-8601 time the summary was written |
 
