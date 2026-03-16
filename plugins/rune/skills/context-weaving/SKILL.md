@@ -62,6 +62,10 @@ Agents can write unlimited detail to files. The overflow comes from what they _r
 
 See [pre-summon-checklist.md](references/pre-summon-checklist.md) for the full checklist with templates.
 
+### IPC Token Cost Awareness
+
+The Glyph Budget is one half of context overflow prevention — it controls what *returns* to the orchestrator. The other half is **IPC token cost accounting**, which controls what goes *into* agent spawn prompts. Bloated spawn prompts displace reasoning capacity: every token of inlined content (file bodies, plan text, criteria YAML) is a token the agent cannot use for analysis. Apply the Reference Don't Inline principle — pass file paths, not file contents — to keep spawn prompts under 500 tokens. See [spec-continuity.md § 8.7](../discipline/references/spec-continuity.md) for the five IPC principles.
+
 ### Glyph Budget Protocol
 
 **Inject this text into EVERY agent prompt** when summoning in a multi-agent workflow:

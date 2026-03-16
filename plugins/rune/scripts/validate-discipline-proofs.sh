@@ -66,6 +66,13 @@ if [[ -z "$CWD" ]]; then
 fi
 CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || exit 0
 
+# --- Source platform helpers for portable timestamp comparison ---
+SCRIPT_DIR_EARLY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "${SCRIPT_DIR_EARLY}/lib/platform.sh" ]]; then
+  # shellcheck source=lib/platform.sh
+  source "${SCRIPT_DIR_EARLY}/lib/platform.sh"
+fi
+
 # --- Resolve config dir for talisman config lookup ---
 CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
@@ -109,6 +116,44 @@ while IFS= read -r candidate; do
     break
   fi
 done < <(find "${CWD}/tmp/work" -maxdepth 3 -type d -not -type l -name "$TASK_ID" -path "*/evidence/*" 2>/dev/null | sort -r)
+
+# --- Evidence-First Invariant: temporal ordering validation ---
+# Evidence MUST be written BEFORE the state transition (task completion).
+# This follows the WAL (Write-Ahead Log) pattern: evidence before completion.
+# Detects two failure modes:
+#   F12 EVIDENCE_FABRICATED: evidence timestamp newer than completion request
+#   F3  PROOF_FAILURE: missing evidence at completion time
+if [[ -n "$EVIDENCE_DIR" && -n "$EVIDENCE_SUMMARY" ]] && command -v _stat_mtime &>/dev/null; then
+  # Get the evidence summary mtime (epoch seconds)
+  EVIDENCE_MTIME=$(_stat_mtime "$EVIDENCE_SUMMARY")
+  # Current time as the completion request timestamp
+  COMPLETION_TIME=$(date +%s 2>/dev/null || true)
+
+  if [[ -n "$EVIDENCE_MTIME" && -n "$COMPLETION_TIME" ]]; then
+    # Phantom completion detection: evidence created AFTER completion request
+    # A 5-second grace window accounts for filesystem timestamp granularity
+    TEMPORAL_GRACE=5
+    if [[ "$EVIDENCE_MTIME" -gt $((COMPLETION_TIME + TEMPORAL_GRACE)) ]]; then
+      if [[ "$BLOCK_ON_FAIL" == "true" ]]; then
+        echo "Discipline: F12 EVIDENCE_FABRICATED — evidence for task ${TASK_ID} has timestamp newer than completion request (evidence_mtime=${EVIDENCE_MTIME}, completion_time=${COMPLETION_TIME}). Evidence must be written BEFORE task completion (WAL invariant)." >&2
+        exit 2
+      else
+        echo "Discipline: F12 EVIDENCE_FABRICATED — evidence for task ${TASK_ID} has suspicious temporal ordering (WARN mode — not blocking)." >&2
+      fi
+    fi
+
+    # Check for empty evidence (summary exists but no criteria results)
+    CRITERIA_COUNT=$(jq '.criteria_results | length' "$EVIDENCE_SUMMARY" 2>/dev/null) || CRITERIA_COUNT=""
+    if [[ "$CRITERIA_COUNT" == "0" || -z "$CRITERIA_COUNT" ]]; then
+      if [[ "$BLOCK_ON_FAIL" == "true" ]]; then
+        echo "Discipline: F3 PROOF_FAILURE — evidence summary for task ${TASK_ID} exists but contains no criteria results. Missing evidence at completion time." >&2
+        exit 2
+      else
+        echo "Discipline: F3 PROOF_FAILURE — evidence summary for task ${TASK_ID} has no criteria results (WARN mode — not blocking)." >&2
+      fi
+    fi
+  fi
+fi
 
 # No evidence directory exists -> WARN only (worker may not have criteria)
 if [[ -z "$EVIDENCE_DIR" ]]; then

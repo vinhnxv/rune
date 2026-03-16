@@ -158,6 +158,56 @@ some remain, or `FAILED` when divergence cannot be resolved.
 
 ---
 
+## Evidence-First Invariant
+
+The discipline system enforces a **temporal ordering rule** inspired by the Write-Ahead Log
+(WAL) pattern in databases: evidence MUST be written BEFORE the state transition (task
+completion), never after.
+
+### Rule
+
+> Workers MUST collect and persist evidence BEFORE calling `TaskUpdate(status: "completed")`.
+> Evidence that appears AFTER the completion request is classified as **phantom evidence**
+> and triggers failure code **F12 EVIDENCE_FABRICATED**.
+
+### Why This Matters
+
+Without temporal ordering, a worker can:
+1. Mark a task complete without doing the work
+2. Retroactively fabricate evidence to satisfy the proof validator
+3. Pass all checks despite never actually implementing the criteria
+
+The Evidence-First Invariant closes this gap by comparing the `mtime` of `summary.json`
+against the completion request timestamp. If evidence is newer than completion, it was
+written after the fact — a phantom completion.
+
+### Detection
+
+| Failure Mode | Code | Detection |
+|---|---|---|
+| Evidence written after completion | F12 | `evidence_mtime > completion_time + grace_window` |
+| No evidence at completion time | F3 | `summary.json` exists but `criteria_results` is empty |
+| No evidence directory at all | — | Existing check (WARN or BLOCK per `block_on_fail`) |
+
+The temporal comparison uses `_stat_mtime()` from `lib/platform.sh` for portable
+macOS/Linux timestamp resolution. A 5-second grace window accommodates filesystem
+timestamp granularity.
+
+### Worker Compliance
+
+Workers following the discipline protocol naturally satisfy this invariant because the
+standard workflow is:
+
+1. Implement the acceptance criterion
+2. Collect evidence (write to `evidence/{task-id}/summary.json`)
+3. Run self-review (Inner Flame)
+4. Mark task complete (`TaskUpdate`)
+
+Step 2 always precedes Step 4. The invariant only catches workers that skip Step 2
+or reorder the sequence.
+
+---
+
 ## Alignment with Existing Patterns
 
 | Context | Existing Pattern | Discipline Extension |

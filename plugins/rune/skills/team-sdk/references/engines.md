@@ -217,6 +217,8 @@ function ensureTeam(config) {
 
 Spawns a single teammate. ATE-1 compliant: always includes `team_name` and uses `subagent_type: "general-purpose"`. Accepts either a TeamHandle or a config object (auto-bootstrap).
 
+**IPC token cost rule**: Keep spawn prompt size ≤ 500 tokens. Pass file paths and task IDs — never inline file contents, plan text, or criteria YAML into the `prompt` field. Agents read what they need from disk (Reference Don't Inline principle). See [spec-continuity.md § 8.7](../../discipline/references/spec-continuity.md) for all five IPC principles.
+
 ```javascript
 function spawnAgent(handleOrConfig, spec) {
   // Auto-bootstrap: accept either a TeamHandle or a config object.

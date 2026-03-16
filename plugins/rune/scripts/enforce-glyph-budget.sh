@@ -94,4 +94,68 @@ if [[ "$WORD_COUNT" -gt "$BUDGET" ]]; then
     '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}' 2>/dev/null || true
 fi
 
+# --- Step 6: Stateful trend tracking (silent backpressure detection) ---
+# Track response length trend across the session to detect declining output quality.
+# State file is PPID-scoped for session isolation. Uses atomic write (tmp+mv).
+# Limit to 20 data points to bound state file size.
+TREND_FILE="${TMPDIR:-/tmp}/rune-glyph-trend-${PPID}.json"
+TREND_ADVISORY=""
+
+if [[ -f "$TREND_FILE" ]]; then
+  # Read existing trend data
+  TREND_DATA=$(cat "$TREND_FILE" 2>/dev/null || echo '{"lengths":[]}')
+  LENGTHS=$(printf '%s\n' "$TREND_DATA" | jq -r '.lengths // []' 2>/dev/null || echo '[]')
+  COUNT=$(printf '%s\n' "$LENGTHS" | jq 'length' 2>/dev/null || echo '0')
+
+  # Compute session average from existing data points
+  if [[ "$COUNT" -gt 0 ]]; then
+    SESSION_AVG=$(printf '%s\n' "$LENGTHS" | jq 'add / length | floor' 2>/dev/null || echo '0')
+
+    # Warn when current response length falls below 50% of session average
+    if [[ "$SESSION_AVG" -gt 0 ]]; then
+      HALF_AVG=$(( SESSION_AVG / 2 ))
+      if [[ "$WORD_COUNT" -lt "$HALF_AVG" ]]; then
+        TREND_ADVISORY="BACKPRESSURE-WARNING: Response length declining — ${WORD_COUNT} words is below 50% of session average (${SESSION_AVG} words). This may indicate context pressure causing truncated or superficial output. "
+      fi
+    fi
+  fi
+
+  # Append current data point (cap at 20)
+  UPDATED=$(printf '%s\n' "$TREND_DATA" | jq --argjson wc "$WORD_COUNT" \
+    '.lengths = (.lengths + [$wc]) | .lengths = .lengths[-20:]' 2>/dev/null || echo "$TREND_DATA")
+else
+  # First invocation — initialize baseline
+  UPDATED=$(jq -n --argjson wc "$WORD_COUNT" '{"lengths": [$wc]}')
+fi
+
+# Atomic write: tmp file + mv (prevents partial reads)
+TREND_TMP="${TREND_FILE}.tmp.$$"
+printf '%s\n' "$UPDATED" > "$TREND_TMP" 2>/dev/null && mv -f "$TREND_TMP" "$TREND_FILE" 2>/dev/null || true
+
+# --- Step 7: Evidence quality heuristic ---
+# Flag evidence fields shorter than 20 characters as potentially superficial.
+# Checks for common evidence patterns in structured teammate output.
+EVIDENCE_ADVISORY=""
+EVIDENCE_FIELDS=$(printf '%s\n' "$CONTENT" | grep -iE '^\s*(evidence|proof|verification|result)\s*:' 2>/dev/null || true)
+if [[ -n "$EVIDENCE_FIELDS" ]]; then
+  while IFS= read -r line; do
+    # Extract the value after the colon
+    VALUE="${line#*:}"
+    VALUE="${VALUE#"${VALUE%%[![:space:]]*}"}"  # trim leading whitespace
+    VALUE_LEN=${#VALUE}
+    if [[ "$VALUE_LEN" -gt 0 && "$VALUE_LEN" -lt 20 ]]; then
+      EVIDENCE_ADVISORY="EVIDENCE-QUALITY-WARNING: Evidence field appears superficial (${VALUE_LEN} chars, minimum recommended: 20). Short evidence like 'checked' or 'done' does not constitute verifiable proof. "
+      break
+    fi
+  done <<< "$EVIDENCE_FIELDS"
+fi
+
+# --- Step 8: Emit combined advisory if any warnings triggered ---
+COMBINED_ADVISORY="${TREND_ADVISORY}${EVIDENCE_ADVISORY}"
+if [[ -n "$COMBINED_ADVISORY" ]]; then
+  jq -n \
+    --arg ctx "$COMBINED_ADVISORY" \
+    '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}' 2>/dev/null || true
+fi
+
 exit 0
