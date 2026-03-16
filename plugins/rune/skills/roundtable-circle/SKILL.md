@@ -353,7 +353,7 @@ See [orchestration-phases.md](references/orchestration-phases.md) Phase 5.2 for 
 
 **MANDATORY — DO NOT SKIP.** Generate per-finding todo files from TOME. This phase MUST execute after Phase 5.2 and before Phase 6. Extracts `RUNE:FINDING` markers, filters non-actionable (Q/N), writes per-finding todo files with YAML frontmatter, and verifies output before proceeding.
 
-See [todo-generation-phase.md](references/todo-generation-phase.md) for the full pseudocode (arc-aware todosDir resolution, marker extraction, todo file writing, and verification checklist). See [todo-generation.md](references/todo-generation.md) for the 3-layer extraction reference.
+The full pseudocode for arc-aware todosDir resolution, marker extraction, todo file writing, and verification is documented in [orchestration-phases.md](references/orchestration-phases.md) (Phase 5.2 citation verification section).
 
 ## Phase 6: Verify (Truthsight)
 

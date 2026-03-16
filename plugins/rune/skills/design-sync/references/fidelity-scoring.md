@@ -211,7 +211,7 @@ Both scores are reported together in the design review output:
 **Aesthetic Score: {aesthetic}/100** — {aesthetic_verdict}
 ```
 
-The aesthetic-quality-reviewer agent produces the aesthetic score. See the [anti-slop-guardrails.md](anti-slop-guardrails.md) reference for the slop detection patterns used during scoring.
+The aesthetic-quality-reviewer agent produces the aesthetic score. See the [anti-slop-guardrails.md](../../frontend-design-patterns/references/anti-slop-guardrails.md) reference for the slop detection patterns used during scoring.
 
 ### Opt-In
 
@@ -221,4 +221,4 @@ Aesthetic review is gated by `design_sync.aesthetic_review.enabled` in talisman.
 
 - [phase3-fidelity-review.md](phase3-fidelity-review.md) — Review pipeline using scores
 - [vsm-spec.md](vsm-spec.md) — Source of truth for comparison
-- [anti-slop-guardrails.md](anti-slop-guardrails.md) — Slop detection patterns for aesthetic scoring
+- [anti-slop-guardrails.md](../../frontend-design-patterns/references/anti-slop-guardrails.md) — Slop detection patterns for aesthetic scoring
