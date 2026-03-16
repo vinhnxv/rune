@@ -7,6 +7,7 @@ description: |
   in SKILL.md, agent .md, CLAUDE.md, and command .md files.
   Use proactively after refactoring skills/agents, renaming tools, or removing
   plugin components. Complements wraith-finder (dead code) with dead prompt analysis.
+category: review
 tools:
   - Read
   - Glob

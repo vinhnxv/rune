@@ -228,6 +228,21 @@ ashes:
         - "Self-Review Log"
 
 # ──────────────────────────────────────────────
+# User Agents — Inline agent definitions for agent-search MCP (v1.171.0+)
+# These agents are indexed as source "user" (priority 50) and discoverable
+# via agent_search(). Unlike ashes.custom (review workflow config), these
+# define standalone agents with name, description, category, and body.
+# ──────────────────────────────────────────────
+user_agents: []
+# Example:
+#   - name: compliance-checker
+#     description: "Checks code for regulatory compliance (HIPAA, SOC2)"
+#     category: review
+#     tags: [compliance, security, regulation]
+#     body: |
+#       You are a compliance review specialist...
+
+# ──────────────────────────────────────────────
 # Defaults — Disable built-in Ash
 # ──────────────────────────────────────────────
 defaults:

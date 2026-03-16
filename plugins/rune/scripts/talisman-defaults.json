@@ -177,6 +177,7 @@
       }
     ]
   },
+  "user_agents": [],
   "audit": {
     "always_deep": false,
     "deep": {

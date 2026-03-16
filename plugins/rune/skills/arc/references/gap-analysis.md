@@ -763,6 +763,157 @@ if (unplannedFlags.length > 0) {
 }
 ```
 
+## STEP A.12: Spec Compliance Matrix (Discipline-Aware)
+
+Cross-reference ALL acceptance criteria from the plan against implementation evidence AND test coverage.
+Produces a per-criterion status matrix with 4 states. Feeds into the gap analysis report and the STEP D
+halt decision via RED criteria counts.
+
+**CDX-SV-002**: Initial rollout uses WARN mode — RED criteria create remediation tasks rather than BLOCK.
+Configure `arc.gap_analysis.spec_compliance_mode` in talisman to switch to BLOCK when ready.
+
+```javascript
+// STEP A.12: Spec Compliance Matrix
+// Read ALL acceptance criteria from plan (reuses criteria from STEP A.1)
+// Cross-reference against: (1) code evidence in diff, (2) test evidence in diff
+
+// readTalismanSection: "arc"
+const arcConfig = readTalismanSection("arc")
+const specComplianceMode = arcConfig?.gap_analysis?.spec_compliance_mode ?? "warn"  // "warn" | "block"
+
+// Parse test files from diff (files matching common test patterns)
+const testFilePattern = /\b(test|spec|__tests__|__mocks__|e2e|integration)\b/i
+const testFiles = safeDiffFiles.filter(f => testFilePattern.test(f) || /\.(test|spec)\.\w+$/.test(f))
+const implFiles = safeDiffFiles.filter(f => !testFilePattern.test(f))
+
+const specMatrix = []
+
+for (const criterion of criteria) {
+  const identifiers = extractIdentifiers(criterion.text)
+
+  // Check implementation evidence (non-test files)
+  let hasImplEvidence = false
+  let implEvidenceFiles = []
+  for (const identifier of identifiers) {
+    if (!/^[a-zA-Z0-9._\-\/]+$/.test(identifier)) continue
+    if (implFiles.length === 0) break
+    const grepResult = Bash(`rg -l --max-count 1 -- "${identifier}" ${implFiles.map(f => `"${f}"`).join(' ')} 2>/dev/null`)
+    if (grepResult.trim().length > 0) {
+      hasImplEvidence = true
+      implEvidenceFiles = grepResult.trim().split('\n').slice(0, 3)
+      break
+    }
+  }
+
+  // Check test evidence (test files only)
+  let hasTestEvidence = false
+  let testEvidenceFiles = []
+  for (const identifier of identifiers) {
+    if (!/^[a-zA-Z0-9._\-\/]+$/.test(identifier)) continue
+    if (testFiles.length === 0) break
+    const grepResult = Bash(`rg -l --max-count 1 -- "${identifier}" ${testFiles.map(f => `"${f}"`).join(' ')} 2>/dev/null`)
+    if (grepResult.trim().length > 0) {
+      hasTestEvidence = true
+      testEvidenceFiles = grepResult.trim().split('\n').slice(0, 3)
+      break
+    }
+  }
+
+  // Check for drift: criterion marked as checked in plan but no code evidence
+  const isDrifted = criterion.checked && !hasImplEvidence
+
+  // Classify into 4-state matrix
+  let specStatus
+  if (isDrifted) {
+    specStatus = "DRIFTED"
+  } else if (hasImplEvidence && hasTestEvidence) {
+    specStatus = "IMPLEMENTED_TESTED"
+  } else if (hasImplEvidence && !hasTestEvidence) {
+    specStatus = "IMPLEMENTED_UNTESTED"
+  } else {
+    specStatus = "NOT_IMPLEMENTED"
+  }
+
+  specMatrix.push({
+    criterion: criterion.text,
+    section: criterion.section,
+    specStatus,
+    hasImplEvidence,
+    hasTestEvidence,
+    isDrifted,
+    implFiles: implEvidenceFiles,
+    testFiles: testEvidenceFiles
+  })
+}
+
+// Aggregate counts
+const specCounts = {
+  implemented_tested: specMatrix.filter(s => s.specStatus === "IMPLEMENTED_TESTED").length,
+  implemented_untested: specMatrix.filter(s => s.specStatus === "IMPLEMENTED_UNTESTED").length,
+  not_implemented: specMatrix.filter(s => s.specStatus === "NOT_IMPLEMENTED").length,
+  drifted: specMatrix.filter(s => s.specStatus === "DRIFTED").length
+}
+
+// RED criteria = NOT_IMPLEMENTED + DRIFTED (these need remediation)
+const redCriteriaCount = specCounts.not_implemented + specCounts.drifted
+const redCriteria = specMatrix.filter(s =>
+  s.specStatus === "NOT_IMPLEMENTED" || s.specStatus === "DRIFTED"
+)
+
+// Build report section
+const specComplianceSection = `\n## SPEC COMPLIANCE MATRIX\n\n` +
+  `**Mode**: ${specComplianceMode.toUpperCase()}\n` +
+  `**Checked at**: ${new Date().toISOString()}\n\n` +
+  `| Status | Count | Description |\n|--------|-------|-------------|\n` +
+  `| IMPLEMENTED+TESTED | ${specCounts.implemented_tested} | Code evidence AND test evidence found |\n` +
+  `| IMPLEMENTED+UNTESTED | ${specCounts.implemented_untested} | Code evidence found but NO test coverage |\n` +
+  `| NOT_IMPLEMENTED | ${specCounts.not_implemented} | No code evidence found |\n` +
+  `| DRIFTED | ${specCounts.drifted} | Marked complete in plan but no code evidence |\n\n` +
+  (redCriteria.length > 0
+    ? `### RED Criteria (${specComplianceMode === "block" ? "BLOCKING" : "WARN — remediation tasks created"})\n\n` +
+      redCriteria.map(r =>
+        `- **${r.specStatus}**: ${r.criterion.slice(0, 120)}${r.criterion.length > 120 ? '...' : ''} ` +
+        `(section: ${r.section})`
+      ).join('\n') + '\n\n'
+    : `All criteria have implementation evidence.\n\n`) +
+  `### Per-Criterion Detail\n\n` +
+  `| Criterion | Status | Impl Evidence | Test Evidence |\n` +
+  `|-----------|--------|---------------|---------------|\n` +
+  specMatrix.map(s => {
+    const implRef = s.implFiles.length > 0 ? s.implFiles[0] : '—'
+    const testRef = s.testFiles.length > 0 ? s.testFiles[0] : '—'
+    return `| ${s.criterion.slice(0, 60)}${s.criterion.length > 60 ? '...' : ''} | ${s.specStatus} | ${implRef} | ${testRef} |`
+  }).join('\n') + '\n'
+
+// CDX-SV-002: In WARN mode, RED criteria create remediation task entries (not BLOCK)
+// In BLOCK mode, RED criteria contribute to halt decision in STEP D
+if (redCriteriaCount > 0) {
+  if (specComplianceMode === "warn") {
+    warn(`Spec compliance: ${redCriteriaCount} RED criteria (WARN mode — remediation tasks will be created)`)
+    // Append RED criteria as PARTIAL gaps for downstream remediation
+    for (const red of redCriteria) {
+      gaps.push({
+        criterion: `Spec: ${red.criterion}`,
+        status: "PARTIAL",
+        section: red.section,
+        evidence: red.specStatus === "DRIFTED"
+          ? "Marked complete in plan but no implementation evidence"
+          : "No implementation evidence found",
+        source: "STEP_A12_SPEC_COMPLIANCE"
+      })
+    }
+  } else {
+    warn(`Spec compliance: ${redCriteriaCount} RED criteria (BLOCK mode — halt will trigger)`)
+  }
+}
+
+log(`STEP A.12: Spec compliance matrix — ` +
+  `${specCounts.implemented_tested} tested, ` +
+  `${specCounts.implemented_untested} untested, ` +
+  `${specCounts.not_implemented} not implemented, ` +
+  `${specCounts.drifted} drifted`)
+```
+
 ## STEP A.5: Write Deterministic Gap Analysis Report
 
 ```javascript
@@ -799,6 +950,7 @@ const report = `# Implementation Gap Analysis\n\n` +
   `## Task Completion\n\n` +
   `- Completed: ${taskStats.completed}/${taskStats.total} tasks\n` +
   `- Failed: ${taskStats.failed} tasks\n` +
+  specComplianceSection +
   docConsistencySection +
   planSectionCoverageSection +
   evaluatorMetricsSection +
@@ -1506,6 +1658,85 @@ Write(`tmp/arc/${id}/gap-analysis-unified.md`, unifiedReport)
 
 ---
 
+## STEP D-DISCIPLINE: Spec Compliance Matrix (v1.171.0+)
+
+When the plan contains YAML acceptance criteria (`AC-*` blocks), gap analysis produces a **Spec Compliance Matrix** — a per-criterion status report that cross-references every plan criterion against implementation evidence.
+
+**Activation gate**: `hasCriteria` — at least one `AC-*` block found in plan. Zero overhead when not present.
+
+```javascript
+// Extract ALL acceptance criteria from plan
+const criteriaBlocks = planContent.match(/```yaml\n(AC-[\s\S]*?)```/g) || []
+const allCriteria = []
+for (const block of criteriaBlocks) {
+  const entries = block.match(/^(AC-[\d.]+):/gm) || []
+  allCriteria.push(...entries.map(e => e.replace(':', '')))
+}
+
+if (allCriteria.length > 0) {
+  // Build Spec Compliance Matrix
+  const matrix = []
+  for (const criterion of allCriteria) {
+    // Check evidence artifacts
+    const evidenceDirs = Glob(`tmp/work/*/evidence/*/`)
+    let hasEvidence = false
+    let hasPassed = false
+    for (const dir of evidenceDirs) {
+      const summaryPath = `${dir}summary.json`
+      if (exists(summaryPath)) {
+        const summary = JSON.parse(Read(summaryPath))
+        const result = summary?.results?.find(r => r.criterion === criterion)
+        if (result) {
+          hasEvidence = true
+          if (result.result === "PASS") hasPassed = true
+        }
+      }
+    }
+
+    // Check if criterion's file targets exist in diff
+    const status = hasPassed ? "IMPLEMENTED+TESTED"
+      : hasEvidence ? "IMPLEMENTED+UNTESTED"
+      : "NOT_IMPLEMENTED"
+
+    matrix.push({ criterion, status })
+  }
+
+  // Write matrix to gap analysis report
+  const matrixContent = matrix.map(m =>
+    `| ${m.criterion} | ${m.status} |`
+  ).join('\n')
+
+  // Count statuses
+  const greenCount = matrix.filter(m => m.status === "IMPLEMENTED+TESTED").length
+  const yellowCount = matrix.filter(m => m.status === "IMPLEMENTED+UNTESTED").length
+  const redCount = matrix.filter(m => m.status === "NOT_IMPLEMENTED").length
+
+  // RED criteria: create remediation tasks (WARN mode for initial rollout)
+  // NOTE CDX-SV-002: Use WARN mode — RED creates remediation tasks, not BLOCK
+  if (redCount > 0) {
+    warn(`Spec Compliance Matrix: ${redCount} NOT_IMPLEMENTED criteria — creating remediation tasks`)
+    // Remediation tasks are picked up by gap_remediation phase (Phase 5.8)
+  }
+
+  // Store in checkpoint for pre-ship validator
+  updateCheckpoint({
+    spec_compliance_matrix: {
+      total: allCriteria.length,
+      green: greenCount,
+      yellow: yellowCount,
+      red: redCount,
+      scr: greenCount / allCriteria.length
+    }
+  })
+}
+```
+
+**Per-criterion status values**:
+- **IMPLEMENTED+TESTED** (GREEN): Evidence exists and verification passed
+- **IMPLEMENTED+UNTESTED** (YELLOW): Evidence exists but not machine-verified
+- **NOT_IMPLEMENTED** (RED): No evidence found for this criterion
+- **DRIFTED** (ORANGE): Evidence exists but doesn't match criterion (mismatch detected)
+
 ## STEP D: Halt Decision
 
 **Dual-gate halt**: task completion gate (deterministic, always active) + quality score gate (configurable).
@@ -1658,8 +1889,12 @@ const haltEnabled   = talisman?.arc?.gap_analysis?.halt_on_critical ?? true  // 
 const hasCriticalIssues = verdictP1Count > 0
 const scoreBelowThreshold = normalizedScore !== null && normalizedScore < haltThreshold
 
+// STEP A.12 integration: RED criteria in BLOCK mode trigger halt
+const specComplianceHalt = specComplianceMode === "block" && redCriteriaCount > 0
+
 const needsRemediation =
   taskCompletionFailed ||  // Task completion gate — ALWAYS enforced
+  specComplianceHalt ||    // Spec compliance gate — only in BLOCK mode (CDX-SV-002)
   (haltEnabled && hasCriticalIssues) ||
   (haltEnabled && scoreBelowThreshold)
 
@@ -1689,6 +1924,10 @@ updateCheckpoint({
   unified_score: normalizedScore,
   fixable_count: fixableCount,
   manual_count: manualCount,
+  // Spec compliance data (STEP A.12)
+  spec_compliance_mode: specComplianceMode,
+  spec_compliance_red_count: redCriteriaCount,
+  spec_compliance_counts: specCounts,
   // Task completion data for gap-remediation convergence loop
   task_completion_pct: taskCompletionPct,
   task_completion_floor: TASK_COMPLETION_FLOOR,
@@ -1708,6 +1947,7 @@ if (needsRemediation && !headlessMode) {
     }
     if (missingTasks.length > 10) haltReasons.push(`  ... and ${missingTasks.length - 10} more`)
   }
+  if (specComplianceHalt) haltReasons.push(`SPEC_COMPLIANCE: ${redCriteriaCount} RED criteria in BLOCK mode (${specCounts.not_implemented} not implemented, ${specCounts.drifted} drifted)`)
   if (hasCriticalIssues) haltReasons.push(`CRITICAL_ISSUES: ${verdictP1Count} P1 findings found`)
   if (scoreBelowThreshold) haltReasons.push(`QUALITY_SCORE: ${normalizedScore}/100 is below halt_threshold ${haltThreshold}`)
 

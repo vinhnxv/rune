@@ -367,6 +367,18 @@ stop_reason: null
 Write('.claude/arc-phase-loop.local.md', stateContent)
 ```
 
+## Discipline Integration
+
+The arc pipeline integrates with the Discipline Work Loop at two points:
+
+1. **Work Phase (Phase 5)**: When the plan has YAML acceptance criteria, `/rune:strive` activates the Discipline Work Loop (8-phase convergence cycle). Workers collect evidence per criterion. See `strive/references/discipline-work-loop.md`.
+
+2. **Pre-Ship Validation (Phase 8.5)**: Computes discipline metrics (SCR, proof coverage) from evidence artifacts. SCR below threshold triggers WARN (advisory for initial rollout). See `discipline/references/metrics-schema.md`.
+
+3. **Echo Persist (Post-Arc)**: Discipline failure patterns (silent skips, fabrication, escalation depth) are persisted to Rune Echoes with `discipline` metadata tag for cross-session learning.
+
+**Talisman config**: `discipline.enabled` (default: true), `discipline.block_on_fail` (default: false — WARN mode for rollout).
+
 ## First Phase Invocation
 
 Execute the first pending phase from the checkpoint. The Stop hook (`arc-phase-stop-hook.sh`) handles all subsequent phases automatically.

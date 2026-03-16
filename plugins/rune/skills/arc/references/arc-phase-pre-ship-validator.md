@@ -223,6 +223,54 @@ function preShipValidator(checkpoint, planPath) {
   }
 
   // ════════════════════════════════════════════
+  // GATE 3: Discipline Metrics (advisory, v1.171.0+)
+  // ════════════════════════════════════════════
+  //
+  // Computes Spec Compliance Rate (SCR) and proof coverage from evidence
+  // artifacts. Advisory for initial rollout — WARN only, never BLOCK.
+  // Gated by talisman discipline.enabled (default: true).
+
+  // readTalismanSection: "discipline" (via talisman-resolve.sh shards)
+  const disciplineConfig = readTalismanSection("discipline") ?? {}
+  if (disciplineConfig.enabled !== false) {
+    try {
+      // Look for metrics artifact from work phase convergence
+      const metricsPath = Glob("tmp/work/*/convergence/metrics.json").sort().pop()
+      if (metricsPath) {
+        const metrics = JSON.parse(Read(metricsPath))
+        const scr = metrics?.metrics?.scr?.value ?? metrics?.SCR ?? null
+        const proofCov = metrics?.metrics?.proof_coverage?.value ?? metrics?.proof_coverage ?? null
+
+        if (scr !== null) {
+          const scrThreshold = disciplineConfig.scr_threshold ?? 0.95
+          const scrStatus = scr >= scrThreshold ? "PASS" : "WARN"
+          report.gates.push({
+            gate: "discipline_scr",
+            status: scrStatus,
+            detail: `Spec Compliance Rate: ${Math.round(scr * 100)}% (threshold: ${Math.round(scrThreshold * 100)}%)`
+          })
+          if (scrStatus === "WARN") {
+            report.diagnostics.push(`Discipline SCR: ${Math.round(scr * 100)}% below threshold ${Math.round(scrThreshold * 100)}%`)
+          }
+        }
+
+        if (proofCov !== null) {
+          const covStatus = proofCov >= 0.8 ? "PASS" : "WARN"
+          report.gates.push({
+            gate: "discipline_proof_coverage",
+            status: covStatus,
+            detail: `Machine proof coverage: ${Math.round(proofCov * 100)}%`
+          })
+        }
+      }
+      // No metrics artifact = discipline work loop didn't run (plan without criteria) → skip gate
+    } catch (e) {
+      // Metrics parse error → skip discipline gate (non-blocking)
+      warn(`Discipline metrics gate: ${e.message}`)
+    }
+  }
+
+  // ════════════════════════════════════════════
   // VERDICT: Aggregate gates
   // ════════════════════════════════════════════
   //

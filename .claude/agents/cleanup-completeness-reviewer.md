@@ -8,6 +8,7 @@ description: |
   cleanup if dynamic member discovery (config.json read) fails.
   Also validates QUAL-012 compliance (filesystem fallback gating) and
   TeamCreate/TeamDelete symmetry.
+category: review
 tools:
   - Read
   - Glob

@@ -116,6 +116,52 @@ _SOURCE_PRIORITY_BONUS = {
 }
 
 # ---------------------------------------------------------------------------
+# Talisman user_agents loader
+# ---------------------------------------------------------------------------
+
+
+def _load_talisman_user_agents(project_dir: str) -> list:
+    """Load user_agents from talisman resolved shards.
+
+    Reads ``tmp/.talisman-resolved/settings.json`` for ``ashes.custom``
+    entries that have inline agent definitions (description + body), and
+    ``user_agents`` key if present in misc shard.
+
+    Returns a list of agent definition dicts compatible with
+    ``indexer.discover_and_parse(talisman_user_agents=...)``.
+    """
+    if not project_dir:
+        return []
+
+    agents: list = []
+
+    # Path 1: settings.json → user_agents (dedicated key, preferred)
+    settings_path = os.path.join(project_dir, "tmp", ".talisman-resolved", "settings.json")
+    try:
+        with open(settings_path) as f:
+            settings = json.load(f)
+        user_agents = settings.get("user_agents", [])
+        if isinstance(user_agents, list):
+            agents.extend(user_agents)
+    except (OSError, ValueError):
+        pass  # File missing or invalid JSON — non-fatal
+
+    # Path 2: misc.json → user_agents (fallback location)
+    if not agents:
+        misc_path = os.path.join(project_dir, "tmp", ".talisman-resolved", "misc.json")
+        try:
+            with open(misc_path) as f:
+                misc = json.load(f)
+            user_agents = misc.get("user_agents", [])
+            if isinstance(user_agents, list):
+                agents.extend(user_agents)
+        except (OSError, ValueError):
+            pass
+
+    return agents
+
+
+# ---------------------------------------------------------------------------
 # Dirty signal helpers (consumed from annotate-dirty.sh)
 # ---------------------------------------------------------------------------
 
@@ -925,7 +971,8 @@ def do_reindex(
 
     logger.info("Reindexing agent registry from %s", plugin_root)
     start_ms = int(time.time() * 1000)
-    entries = discover_and_parse(plugin_root, project_dir)
+    talisman_agents = _load_talisman_user_agents(project_dir)
+    entries = discover_and_parse(plugin_root, project_dir, talisman_agents)
 
     conn = get_db(db_path)
     try:
@@ -968,7 +1015,8 @@ def _do_reindex_internal(conn: sqlite3.Connection) -> int:
     """
     from indexer import discover_and_parse
 
-    entries = discover_and_parse(PLUGIN_ROOT, PROJECT_DIR)
+    talisman_agents = _load_talisman_user_agents(PROJECT_DIR)
+    entries = discover_and_parse(PLUGIN_ROOT, PROJECT_DIR, talisman_agents)
     count = rebuild_index(conn, entries)
     conn.execute(
         "INSERT OR REPLACE INTO agent_meta (key, value) VALUES (?, ?)",

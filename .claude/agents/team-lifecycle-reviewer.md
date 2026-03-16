@@ -7,6 +7,7 @@ description: |
   filesystem fallback gated by !cleanupTeamDeleteSucceeded (QUAL-012), use
   CHOME pattern instead of hardcoded ~/.claude/, and filter member names
   with SEC-4 regex validation.
+category: review
 tools:
   - Read
   - Glob
