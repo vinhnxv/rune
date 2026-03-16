@@ -86,6 +86,28 @@ if (!goldmaskEnabled || !goldmaskDeviseEnabled || !isGitRepo || isQuick) {
   Bash(`mkdir -p "${outputDir}"`)
 ```
 
+## MCP-First Tracer Discovery (v1.171.0+)
+
+Before spawning tracers, query agent-search MCP for phase-appropriate investigation agents:
+
+```javascript
+  // MCP-First investigation agent discovery for Predictive Goldmask
+  let goldmaskTracers = []
+  try {
+    const candidates = agent_search({
+      query: "impact analysis risk scoring git history investigation tracing",
+      phase: "goldmask",
+      category: "investigation",
+      limit: 10
+    })
+    Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+    goldmaskTracers = candidates?.results || []
+  } catch (e) {
+    // MCP unavailable — proceed with hardcoded defaults
+  }
+  // Fallback: if MCP returned nothing, use hardcoded tracer names below
+```
+
 ## Basic Mode (2 agents)
 
 ```javascript

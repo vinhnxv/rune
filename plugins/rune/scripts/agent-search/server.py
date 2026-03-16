@@ -1441,13 +1441,51 @@ def _register_mcp_handlers(server: Any, types: Any) -> None:
             )]
 
 
+def _startup_index_if_empty(db_path: str) -> None:
+    """Build the FTS5 index on server startup if the database is empty.
+
+    This prevents the chicken-and-egg problem where dirty-signal auto-reindex
+    only triggers on the next search call, but no one searches because the
+    index is empty — leaving workflows without agent discovery indefinitely.
+
+    Runs synchronously before the MCP event loop starts. Typically completes
+    in <100ms for ~110 agents.
+    """
+    if not db_path or not PLUGIN_ROOT or not PROJECT_DIR:
+        return
+
+    try:
+        conn = get_db(db_path)
+        try:
+            ensure_schema(conn)
+            row = conn.execute(
+                "SELECT COUNT(*) as cnt FROM agent_entries"
+            ).fetchone()
+            count = row["cnt"] if row else 0
+            if count == 0:
+                logger.info("Empty index detected at startup — building initial index")
+                indexed = _do_reindex_internal(conn)
+                logger.info("Startup index complete: %d agents indexed", indexed)
+            else:
+                logger.info("Startup check: index has %d agents — skipping rebuild", count)
+        finally:
+            conn.close()
+    except Exception as exc:
+        # Fail-forward: startup indexing failure must not prevent server launch
+        logger.warning("Startup indexing failed (non-fatal): %s", exc)
+
+
 def run_mcp_server() -> None:
     """Launch the Agent Search MCP stdio server.
 
     Validates environment, imports MCP dependencies, registers handlers,
-    and runs the async loop.
+    and runs the async loop. Performs startup indexing if the database is empty.
     """
     _validate_mcp_env()
+
+    # Build index on startup if empty (prevents chicken-and-egg discovery bug)
+    _startup_index_if_empty(DB_PATH)
+
     import asyncio
     import mcp.server.stdio
     import mcp.types as types

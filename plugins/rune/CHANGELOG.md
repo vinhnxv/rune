@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [1.171.0] - 2026-03-16
+
+### Fixed
+- **fix(agent-search): startup indexing bug** — MCP server started with empty FTS5 index because auto-reindex only triggered on search calls (chicken-and-egg). Added `_startup_index_if_empty()` that checks agent count on server launch and builds initial index if needed (~55ms for 113 agents). Fail-forward: indexing errors don't prevent server startup.
+
+### Added
+- **feat(workflows): MCP-first agent discovery for all standalone skills** — Wired `agent_search()` into 10 skill reference files: devise (research-phase, plan-review, goldmask-prediction, solution-arena), strive (worker-prompts, test-phase), mend (fixer-spawning), debug (SKILL.md), codex-review (phase1-setup). Each skill now queries agent-search MCP before spawning, enabling user-defined agents to participate in workflows. Falls back to hardcoded defaults when MCP unavailable.
+- **feat(arc): MCP-first agent discovery for all arc design/UX/inspect phases** — Wired `agent_search()` into 7 arc phase reference files: design-extraction, design-prototype, design-iteration, storybook-verification, ux-verification, plan-review (inspector discovery), gap-analysis (inspector discovery). Fixed asymmetrical documentation in plan-review and gap-analysis where agent_search pattern was documented but not implemented.
+- **chore: gitignore agent-search SQLite DB files** — Added `.claude/.agent-search-index.db`, `-shm`, `-wal` to `.gitignore`.
+
 ## [1.170.0] - 2026-03-16
 
 ### Added

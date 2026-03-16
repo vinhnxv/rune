@@ -49,11 +49,46 @@ Key steps for this skill:
 
 ## Agent Selection
 
+### MCP-First Reviewer Discovery (v1.171.0+)
+
+Before selecting reviewers by focus area, query agent-search MCP for review agents.
+Enables user-defined reviewers (e.g., "compliance-reviewer" for regulated codebases)
+to participate in cross-model review alongside built-in agents.
+
+```javascript
+// MCP-first reviewer discovery for codex-review
+let additionalClaudeReviewers = []
+try {
+  const candidates = agent_search({
+    query: "code review security bugs quality performance dead code analysis",
+    phase: "appraise",
+    category: "review",
+    limit: 10
+  })
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+
+  if (candidates?.results?.length > 0) {
+    const builtinNames = new Set([
+      "security-reviewer", "bug-hunter", "quality-analyzer",
+      "dead-code-finder", "performance-analyzer"
+    ])
+    for (const c of candidates.results) {
+      if (!builtinNames.has(c.name) && (c.source === "user" || c.source === "project")) {
+        additionalClaudeReviewers.push({ name: c.name, focus: "all" })
+      }
+    }
+  }
+} catch (e) {
+  // MCP unavailable — proceed with hardcoded defaults
+}
+// additionalClaudeReviewers are appended to the Claude wing agent list below
+```
+
 **Claude agents by focus:**
 
 | Focus | Claude Agents Selected |
 |-------|----------------------|
-| `all` | security-reviewer, bug-hunter, quality-analyzer, dead-code-finder, performance-analyzer |
+| `all` | security-reviewer, bug-hunter, quality-analyzer, dead-code-finder, performance-analyzer (+ MCP-discovered) |
 | `security` | security-reviewer |
 | `bugs` | bug-hunter |
 | `performance` | performance-analyzer |

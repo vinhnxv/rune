@@ -1207,6 +1207,27 @@ const identifiers = parsedPlan.identifiers
 // 2 inspectors by default (vs 4 in standalone /rune:inspect) for arc efficiency
 const configuredInspectors = talisman?.arc?.gap_analysis?.inspectors ?? ["grace-warden", "ruin-prophet"]
 const allowedInspectors = ["grace-warden", "ruin-prophet", "sight-oracle", "vigil-keeper"]
+
+// MCP-First Inspector Discovery (v1.171.0+)
+// Discover user-defined inspectors to supplement configured list
+try {
+  const candidates = agent_search({
+    query: "inspect gap analysis correctness completeness implementation verification",
+    phase: "inspect",
+    category: "investigation",
+    limit: 8
+  })
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+  if (candidates?.results?.length > 0) {
+    for (const c of candidates.results) {
+      if ((c.source === "user" || c.source === "project") && !allowedInspectors.includes(c.name)) {
+        allowedInspectors.push(c.name)
+        configuredInspectors.push(c.name)
+      }
+    }
+  }
+} catch (e) { /* MCP unavailable — use hardcoded inspector list */ }
+
 const inspectorList = configuredInspectors.filter(i => allowedInspectors.includes(i))
 const inspectorAssignments = classifyRequirements(requirements, inspectorList)
 

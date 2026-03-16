@@ -346,6 +346,15 @@
         "_sec_005_note": "SEC-005 accepted risk: The prompt hook uses ANCHOR/RE-ANCHOR structural framing around the untrusted <task-data> block. Advisory output sections (Step 1 legitimacy check, Step 2 completeness scoring) use prose instructions rather than ANCHOR boundaries — this is intentional for readability. The haiku model's limited capability and the structural-only evaluation scope (no tool calls, no writes) bound exploitability. ANCHOR/RE-ANCHOR framing at the top and bottom of the prompt is the primary injection defense.",
         "hooks": [
           {
+            "_rationale": "DISCIPLINE-001: Validates discipline proof evidence before allowing task completion. Scoped to rune-work-*/arc-work-* teams. Reads evidence from tmp/work/*/evidence/{task-id}/. Calls execute-discipline-proofs.sh if criteria.json exists. Default: WARN mode (block_on_fail: false).",
+            "_note": "Command hook — _security_note and _sec_005_note above apply only to the haiku prompt hook at the end of this array, not to this or other command hooks.",
+            "_timeout_note": "30s timeout adds to 105s worst-case TaskCompleted chain budget (30+15+15+15+15+15). Fast-path exit for non-worker teams (<1ms). Fail-forward on timeout.",
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/validate-discipline-proofs.sh",
+            "timeout": 30,
+            "statusMessage": "Validating discipline proofs..."
+          },
+          {
             "_rationale": "VERIFICATION-HARDENING Task 1: Blocks task completion for worker teams (rune-work-*, arc-work-*) when tests exist but no test evidence files found. Checks signal files, worker logs, and ward results. Last-task-only optimization to avoid redundant checks.",
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/validate-test-evidence.sh",

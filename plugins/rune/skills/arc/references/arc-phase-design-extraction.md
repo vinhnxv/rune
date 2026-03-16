@@ -118,6 +118,20 @@ if (urlCount === 1) {
     })
   }
 
+  // MCP-First Design Agent Discovery (v1.171.0+)
+  let designAgentType = "design-sync-agent"
+  try {
+    const candidates = agent_search({
+      query: "figma design extraction VSM visual spec map component",
+      phase: "arc",
+      category: "work",
+      limit: 5
+    })
+    Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+    const userAgent = candidates?.results?.find(c => c.source === "user" || c.source === "project")
+    if (userAgent) designAgentType = userAgent.name
+  } catch (e) { /* MCP unavailable — use default */ }
+
   for (let i = 0; i < Math.min(maxWorkers, components.length); i++) {
     Agent({
       subagent_type: "general-purpose", model: "sonnet",

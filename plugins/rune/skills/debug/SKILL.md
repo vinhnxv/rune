@@ -204,9 +204,39 @@ TaskCreate({
 })
 ```
 
-### Step 1.3 — Summon Investigators
+### Step 1.3 — MCP-First Investigator Discovery (v1.171.0+)
 
-For each hypothesis, spawn a `hypothesis-investigator` agent:
+Before spawning investigators, query agent-search MCP for investigation agents:
+
+```
+// MCP-first investigator discovery — enables user-defined investigators
+// (e.g., "perf-profiler" for performance-specific debugging)
+let investigatorType = "hypothesis-investigator"  // default
+try {
+  const candidates = agent_search({
+    query: "hypothesis investigation debugging root cause analysis evidence",
+    phase: "goldmask",
+    category: "investigation",
+    limit: 5
+  })
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+
+  if (candidates?.results?.length > 0) {
+    // User-defined investigator can supplement default for specific debug contexts
+    const userInvestigator = candidates.results.find(c =>
+      (c.source === "user" || c.source === "project") &&
+      c.name !== "hypothesis-investigator"
+    )
+    if (userInvestigator) investigatorType = userInvestigator.name
+  }
+} catch (e) {
+  // MCP unavailable — use default hypothesis-investigator
+}
+```
+
+### Summon Investigators
+
+For each hypothesis, spawn a `${investigatorType}` agent:
 
 ```
 Agent({
