@@ -24,6 +24,8 @@ disallowedTools:
 maxTurns: 60
 mcpServers:
   - echo-search
+skills:
+  - testing
 source: builtin
 priority: 100
 primary_phase: test

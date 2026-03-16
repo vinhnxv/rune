@@ -2,7 +2,7 @@
 # Venv location: ${CLAUDE_CONFIG_DIR}/.rune/venv/
 # Setup: lib/rune-venv.sh (shared helper)
 PyYAML>=6.0
-mcp>=2.10.0
+mcp>=1.0.0
 httpx>=0.27.0
 pydantic>=2.0
 defusedxml>=0.7.1

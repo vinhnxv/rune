@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [1.169.0] - 2026-03-16
+
+### Fixed
+- **fix(arc): task completion gate prevents shipping incomplete implementations** — Gap analysis (Phase 5.5) now extracts individual plan tasks (`### Task X.Y:` headings), cross-references against committed files, and enforces a hard completion floor (default: 100%). Previously, gap analysis only checked acceptance criteria keywords via grep — which could pass even when 60% of tasks were unimplemented (PR #310 incident: shipped 40% completion).
+  - **STEP D.0 (Task Completion Gate)**: Deterministic, always active, non-bypassable. Parses plan tasks, extracts `**Files**:` patterns, detects deletion/migration tasks, calculates completion %. Configurable floor via `arc.gap_analysis.task_completion_floor` (default: 100%, range: 50-100).
+  - **STEP D.7 (Plan Writeback)**: Writes implementation status back to plan file after gap analysis. Deferred tasks MUST have explicit justification — no silent deferrals. Plan becomes living document with arc run history.
+  - **Gap remediation task support**: When tasks are missing, gap_remediation (Phase 5.8) now spawns workers to implement missing plan tasks (not just FIXABLE findings).
+  - **Pre-ship validator BLOCK gate**: New `task_completion` gate in pre-ship validator (Phase 8.5) BLOCKS ship when task completion is below floor. Previously, pre-ship validator NEVER halted the pipeline.
+  - **Default changes**: `halt_on_critical` changed from `false` to `true`. `halt_threshold` raised from 50 to 70.
+- **fix(strive): task coverage assertion prevents silent task deferral** — Strive Phase 0 now verifies ALL plan tasks (`### Task X.Y:` headings) are covered by extracted work items. Missing tasks are auto-created from plan content with dependencies preserved. Default floor: 100% (configurable via `work.task_coverage_floor`). Previously, LLM orchestrator could silently drop 13 of 18 tasks by self-selecting only "easy" ones.
+
+## [1.168.1] - 2026-03-16
+
+### Fixed
+- **fix: MCP SDK version requirement** — `requirements.txt` required `mcp>=2.10.0` which doesn't exist on PyPI (max 1.26.0). Changed to `mcp>=1.0.0`. This blocked both `agent-search` and `echo-search` MCP servers from starting on fresh venv installs.
+- **fix: start.sh version detection** — `agent-search/start.sh` and `echo-search/start.sh` now use `importlib.metadata.version('mcp')` for reliable SDK version logging instead of `getattr(mcp, '__version__', 'unknown')` which always returned `'unknown'`.
+- **fix: testing skill not injected into test runner agents** — All 6 testing agents (`unit-test-runner`, `integration-test-runner`, `e2e-browser-tester`, `contract-validator`, `extended-test-runner`, `test-failure-analyst`) now include `skills: [testing]` in frontmatter. Additionally, `e2e-browser-tester` gets `agent-browser` skill. Previously, test runners had no access to the testing skill's orchestration knowledge.
+- **fix: broken link in fidelity-scoring.md** — `anti-slop-guardrails.md` link pointed to same directory instead of `../../frontend-design-patterns/references/anti-slop-guardrails.md` where the file actually lives.
+- **fix: broken links in roundtable-circle SKILL.md** — Removed dangling references to `references/todo-generation-phase.md` and `references/todo-generation.md` (files never created). Redirected to `references/orchestration-phases.md` which contains the relevant content.
+
 ## [1.168.0] - 2026-03-16
 
 ### Added
