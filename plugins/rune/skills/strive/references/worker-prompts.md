@@ -176,6 +176,8 @@ Agent({
           Write evidence artifacts to tmp/work/{timestamp}/evidence/{task-id}/ BEFORE
           calling TaskUpdate(completed). This is mandatory — evidence MUST be written
           before task completion is recorded.
+          NOTE: Evidence path follows evidence-convention.md (Shard 1). The validate-discipline-proofs.sh
+          hook (Shard 4) will enforce this path at TaskCompleted time.
 
           Evidence to collect:
           - Summary of changes made (files modified, approach taken)

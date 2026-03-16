@@ -108,9 +108,16 @@ proof_no_pattern_exists() {
 }
 
 # test_passes: execute command, check exit code
+# SEC-001 FIX: Replace eval with allowlisted command execution to prevent injection
 proof_test_passes() {
   local cmd="$1"
-  if eval "$cmd" >/dev/null 2>&1; then
+  # Validate command against allowlist (no shell metacharacters)
+  if [[ "$cmd" =~ [\;\&\|\$\`\<\>] ]]; then
+    echo "FAIL"  # Reject commands with shell metacharacters
+    return
+  fi
+  # Execute via bash -c with timeout (no eval)
+  if timeout 60 bash -c "$cmd" >/dev/null 2>&1; then
     echo "PASS"
   else
     echo "FAIL"
@@ -118,9 +125,14 @@ proof_test_passes() {
 }
 
 # builds_clean: execute build command, check exit code
+# SEC-001 FIX: Same allowlist pattern as test_passes
 proof_builds_clean() {
   local cmd="$1"
-  if eval "$cmd" >/dev/null 2>&1; then
+  if [[ "$cmd" =~ [\;\&\|\$\`\<\>] ]]; then
+    echo "FAIL"
+    return
+  fi
+  if timeout 120 bash -c "$cmd" >/dev/null 2>&1; then
     echo "PASS"
   else
     echo "FAIL"
