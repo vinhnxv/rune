@@ -85,8 +85,20 @@ fn try_match_checkpoint(
 
     // Match criteria:
     // 1. plan_file matches the plan we launched
+    // Normalize both to relative "plans/..." form for comparison.
+    // Checkpoint stores relative path, scanner returns absolute path.
     let plan_str = plan_path.display().to_string();
-    if checkpoint.plan_file != plan_str {
+    let plan_relative = if let Some(idx) = plan_str.find("plans/") {
+        &plan_str[idx..]
+    } else {
+        &plan_str
+    };
+    let checkpoint_relative = if let Some(idx) = checkpoint.plan_file.find("plans/") {
+        &checkpoint.plan_file[idx..]
+    } else {
+        &checkpoint.plan_file
+    };
+    if checkpoint_relative != plan_relative {
         return None;
     }
 

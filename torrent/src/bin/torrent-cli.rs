@@ -19,7 +19,7 @@ fn main() {
     }
 
     match args[1].as_str() {
-        "new-session" => cmd_new_session(&args[2..]),
+        "new-session" => { cmd_new_session(&args[2..]); },
         "send-keys" => cmd_send_keys(&args[2..]),
         "capture-pane" | "capture" => cmd_capture_pane(&args[2..]),
         "list" | "ls" => cmd_list(),
