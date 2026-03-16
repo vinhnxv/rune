@@ -2,6 +2,17 @@
 
 This reference covers the 4 Inspector Ash prompt templates and protocols for `/rune:inspect`: grace-warden, ruin-prophet, sight-oracle, and vigil-keeper.
 
+## Agent Definitions
+
+Each inspector has 3 mode variants as separate agent files in `agents/investigation/`:
+
+| Base Agent | Inspect Mode | Plan Review Mode |
+|------------|-------------|-----------------|
+| `grace-warden` | `grace-warden-inspect` | `grace-warden-plan-review` |
+| `ruin-prophet` | `ruin-prophet-inspect` | `ruin-prophet-plan-review` |
+| `sight-oracle` | `sight-oracle-inspect` | `sight-oracle-plan-review` |
+| `vigil-keeper` | `vigil-keeper-inspect` | `vigil-keeper-plan-review` |
+
 ## Inspector Ash Overview
 
 | Inspector | Dimensions | Purpose |
