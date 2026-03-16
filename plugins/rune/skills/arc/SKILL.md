@@ -426,6 +426,19 @@ checkpoint.totals.phase_times[firstPending] = Number.isFinite(phaseStartMs) ? co
 
 **Timing instrumentation**: Each phase MUST stamp `started_at` before execution and `completed_at` + `totals.phase_times[phaseName]` (duration in ms) after. The Stop hook re-injects this same pattern for all subsequent phases via the phase prompt template. The `totals.phase_times` map accumulates durations across the full pipeline.
 
+## Spec Continuity (Plan Path Propagation)
+
+The `plan_file` path written to the phase loop state file and checkpoint is propagated to downstream phases that need the original plan specification as their source-of-truth. Each phase reference file reads `plan_file` from the checkpoint before spawning agents.
+
+| Phase | Checkpoint Key | Purpose |
+|-------|---------------|---------|
+| `plan_review` (Phase 2) | `plan_file_path` → review agents | Reviewers read plan to evaluate scope and detect drift |
+| `gap_analysis` (Phase 5.5) | `plan_file_path` → gap agents | Gap agents compare plan acceptance criteria vs. committed code |
+| `test` (Phase 7.7) | `plan_file_path` → test agents | Test agents derive coverage targets from plan requirements |
+| `pre_ship_validation` (Phase 8.5) | `plan_file_path` → validation gate | Pre-ship gate reads plan to verify all stated criteria are met before PR |
+
+**Rule**: Phases that consume `plan_file_path` MUST read it from `checkpoint.plan_file` (not from the state file or flags). Workers receive it as `planFilePath` in their context prompt so they can cross-reference the original spec, even when the pipeline spans multiple sessions via `--resume`.
+
 ## Post-Arc (Final Phase)
 
 These steps run after Phase 9.5 MERGE (the last phase). The Stop hook injects a completion prompt when all phases are done.

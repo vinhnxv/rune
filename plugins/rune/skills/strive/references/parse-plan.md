@@ -235,6 +235,61 @@ while ((ptMatch = planTaskPattern.exec(planContent)) !== null) {
   planTaskHeadings.push({ id: ptMatch[1], title: ptMatch[2].trim() })
 }
 
+// STEP A.1: Extract acceptance_criteria YAML blocks per task (graceful fallback)
+// For each task heading found in STEP A, scan its section for an acceptance_criteria:
+// block. Extracted criteria are stored in taskCriteriaMap and later appended to the
+// TaskCreate description, enabling the ward check to validate mechanically.
+//
+// Graceful fallback: tasks without acceptance_criteria block are skipped silently —
+// backward compatible with plans that predate the YAML criteria format.
+// Without criteria in the plan, the criteria count is 0 and no metadata is added.
+const taskCriteriaMap = {}
+let totalCriteriaExtracted = 0
+
+for (const pt of planTaskHeadings) {
+  // Find this task's section boundary (ends at next ### or ## or EOF)
+  const taskSectionPattern = new RegExp(
+    `### Task ${pt.id.replace('.', '\\.')}[:\\s][\\s\\S]*?(?=\\n###|\\n##[^#]|$)`
+  )
+  const sectionMatch = planContent.match(taskSectionPattern)
+  const sectionContent = sectionMatch ? sectionMatch[0] : ''
+
+  // Look for acceptance_criteria: YAML block within this task's section
+  const criteriaBlockMatch = sectionContent.match(
+    /acceptance_criteria:\s*\n((?:[ \t]+-[ \t]+[\s\S]*?)(?=\n[#]|\n[^\s-]|$))/
+  )
+
+  if (criteriaBlockMatch) {
+    // Parse individual criteria entries (each starts with "- id:")
+    const rawBlock = criteriaBlockMatch[1]
+    const idSplits = rawBlock.split(/(?=[ \t]+-[ \t]+id:)/).filter(s => s.trim())
+    const criteria = idSplits.map(entry => {
+      const idMatch = entry.match(/id:\s*(\S+)/)
+      const textMatch = entry.match(/text:\s*"?([^"\n]+)"?/)
+      const proofMatch = entry.match(/proof:\s*(\S+)/)
+      return {
+        id: idMatch ? idMatch[1] : null,
+        text: textMatch ? textMatch[1].trim() : '',
+        proof: proofMatch ? proofMatch[1] : 'pattern_matches'
+      }
+    }).filter(c => c.text)
+
+    if (criteria.length > 0) {
+      taskCriteriaMap[pt.id] = criteria
+      totalCriteriaExtracted += criteria.length
+    }
+  }
+  // no acceptance_criteria block → no entry in taskCriteriaMap → fallback: skip criteria
+}
+
+// Log criteria count extracted from plan (visible in worker logs)
+const tasksWithCriteria = Object.keys(taskCriteriaMap).length
+const tasksWithoutCriteria = planTaskHeadings.length - tasksWithCriteria
+log(
+  `Criteria extraction complete: ${totalCriteriaExtracted} total criteria extracted ` +
+  `across ${tasksWithCriteria} tasks (${tasksWithoutCriteria} tasks without criteria — backward compatible)`
+)
+
 // STEP B: Compare against extracted work tasks
 const extractedTaskCount = extractedTasks.length
 const planTaskCount = planTaskHeadings.length
@@ -342,13 +397,22 @@ if (planTaskCount > 0) {
       // FLAW-007 FIX: Classify type based on title keywords
       const taskType = /\btest/i.test(pt.title) ? "test" : "impl"
 
+      // Append acceptance_criteria to task description when present (TaskCreate criteria inclusion)
+      // Backward compatible: no criteria → description unchanged
+      const taskCriteria = taskCriteriaMap[pt.id]
+      const criteriaSection = taskCriteria
+        ? '\n\n**Acceptance Criteria** (from plan):\n' +
+          taskCriteria.map(c => `- [${c.proof}] ${c.text}`).join('\n')
+        : ''  // no criteria in plan — without criteria, description is left unchanged
+
       extractedTasks.push({
         subject: `Task ${pt.id}: ${pt.title}`,
-        description: taskDescription,
+        description: taskDescription + criteriaSection,  // criteria appended to task description
         type: taskType,
         blockedBy: blockedBy,
         effort: effort,
-        autoCreated: true  // Flag for logging
+        autoCreated: true,  // Flag for logging
+        ...(taskCriteria ? { criteria: taskCriteria } : {})  // metadata when criteria present
       })
 
       autoCreatedPlanIds.add(pt.id)

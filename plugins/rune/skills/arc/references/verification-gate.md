@@ -67,8 +67,30 @@ for (const pattern of customPatterns) {
   }
 }
 
-// 6. Check pseudocode sections have contract headers (Plan Section Convention)
+// 5.5. Criteria validation: check ### Task sections have acceptance_criteria blocks (criteria coverage)
 const planContent = Read(enrichedPlanPath)
+const taskSectionMatches = planContent.match(/^### Task\b[\s\S]*?(?=^### |^## |$)/gm) || []
+let tasksWithCriteria = 0
+for (const taskSection of taskSectionMatches) {
+  const hasCriteriaBlock = /acceptance_criteria|criteria.*validation|criteria.*check/i.test(taskSection)
+  if (hasCriteriaBlock) {
+    tasksWithCriteria++
+    // Warn (non-blocking) when criteria use only semantic_match -- missing machine-verifiable proof types
+    // proof.*type|missing.*proof|semantic_match.*warn
+    const hasMissingProof = /semantic_match/i.test(taskSection) &&
+      !/pattern_matches|test_passes|file_exists/i.test(taskSection)
+    if (hasMissingProof) {
+      issues.push(`Criteria quality: task "${taskSection.split('\n')[0].trim()}" uses only semantic_match -- add pattern_matches/test_passes/file_exists for machine-verifiable proof (missing proof type)`)
+    }
+  }
+}
+const totalTaskCount = taskSectionMatches.length
+if (totalTaskCount > 0 && tasksWithCriteria < totalTaskCount) {
+  // criteria.*coverage|tasks_with_criteria
+  issues.push(`Criteria coverage: ${tasksWithCriteria}/${totalTaskCount} tasks_with_criteria have acceptance_criteria blocks`)
+}
+
+// 6. Check pseudocode sections have contract headers (Plan Section Convention)
 const sections = planContent.split(/^## /m).slice(1)
 for (const section of sections) {
   const heading = section.split('\n')[0].trim()

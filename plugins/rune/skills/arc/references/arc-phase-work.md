@@ -42,6 +42,14 @@ if (exists(`tmp/arc/${id}/verification-report.md`)) {
 // Quality contract for all workers
 workContext += `\n\n## Quality Contract\nAll code must include:\n- Type annotations on all function signatures\n- Docstrings on all public functions, classes, and modules\n- Error handling with specific exception types (no bare except)\n- Test coverage target: >=80% for new code`
 
+// plan_file_path is available from the checkpoint for workers that need spec context.
+// Pass it to workers so they can verify their implementation matches the original plan.
+// Read from checkpoint.plan_file — do NOT use the state file or CLI flags as the source.
+const planFilePath = checkpoint.plan_file
+if (planFilePath) {
+  workContext += `\n\n## Plan Specification\nOriginal plan: ${planFilePath}\nWorkers should reference this plan to confirm each implemented task satisfies the stated requirements and acceptance criteria.`
+}
+
 // STEP 3: Delegate to /rune:strive
 // /rune:strive manages its own team lifecycle (TeamCreate, TaskCreate, worker spawning,
 // monitoring, commit brokering, ward check, cleanup, TeamDelete).
