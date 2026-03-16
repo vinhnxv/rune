@@ -470,29 +470,60 @@ impl App {
         // Step 2: Record wall-clock time BEFORE launch (for discovery matching)
         self.launched_wall_clock = Some(Utc::now());
 
+        // Debug log file
+        use std::io::Write as IoWrite;
+        let mut log = std::fs::OpenOptions::new()
+            .create(true).append(true)
+            .open("/tmp/torrent-debug.log")
+            .ok();
+        macro_rules! dlog {
+            ($($arg:tt)*) => {
+                if let Some(ref mut f) = log {
+                    let _ = writeln!(f, "[{}] {}", chrono::Utc::now().format("%H:%M:%S"), format!($($arg)*));
+                }
+            }
+        }
+
         // Step 3: Create fresh tmux session
         let session_id = Tmux::generate_session_id();
+        dlog!("create_session: id={} config={} claude={}", session_id, config.path.display(), self.claude_path);
         if let Err(e) = Tmux::create_session(&config.path, &session_id, &self.claude_path) {
+            dlog!("create_session FAILED: {}", e);
             self.status_message = Some(format!("tmux session failed: {e} — skipping plan"));
-            return Ok(()); // Skip this plan, next tick will try next in queue
+            return Ok(());
         }
+        dlog!("create_session OK");
         self.tmux_session_id = Some(session_id.clone());
 
-        // Step 4: Wait for Claude Code to fully initialize (10s)
-        // Claude Code needs ~8-10s to start up in a tmux session.
-        // Too short causes send-keys to fail (message sent before CLI is ready).
-        std::thread::sleep(Duration::from_secs(10));
+        // Step 4: Wait for Claude Code to fully initialize (12s)
+        dlog!("sleeping 12s for claude init...");
+        std::thread::sleep(Duration::from_secs(12));
 
-        // Step 5: Send /arc command with retry
-        self.status_message = Some(format!("Sending /arc to session {}...", &session_id));
+        // Step 5: Send /arc command
+        dlog!("send_arc_command: session={} plan={}", session_id, plan.path.display());
         if let Err(e) = Tmux::send_arc_command(&session_id, &plan.path) {
-            self.status_message = Some(format!("send-keys failed ({}), retrying in 5s: {e}", &session_id));
+            dlog!("send_arc FAILED (1st): {}", e);
+            self.status_message = Some(format!("send-keys failed, retrying: {e}"));
             std::thread::sleep(Duration::from_secs(5));
             if let Err(e2) = Tmux::send_arc_command(&session_id, &plan.path) {
-                self.status_message = Some(format!("send-keys FAILED: {e2}. Attach manually: tmux attach -t {}", &session_id));
+                dlog!("send_arc FAILED (2nd): {}", e2);
+                self.status_message = Some(format!("FAILED: {e2}. tmux attach -t {}", &session_id));
+            } else {
+                dlog!("send_arc OK (2nd attempt)");
             }
         } else {
+            dlog!("send_arc OK");
             self.status_message = Some(format!("/arc sent to {}", &session_id));
+        }
+
+        // Step 5.5: Verify via capture-pane
+        std::thread::sleep(Duration::from_secs(2));
+        if let Ok(output) = Command::new("tmux")
+            .args(["capture-pane", "-t", &session_id, "-p"])
+            .output()
+        {
+            let pane = String::from_utf8_lossy(&output.stdout);
+            dlog!("capture-pane (last 5 lines):\n{}", pane.lines().rev().take(5).collect::<Vec<_>>().join("\n"));
         }
 
         let total = self.selected_plans.len();
