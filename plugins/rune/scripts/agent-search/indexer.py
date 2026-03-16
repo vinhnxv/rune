@@ -29,8 +29,9 @@ import re
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-# SEC-5: Agent name allowlist — lowercase + hyphens + digits + underscores
-VALID_NAME_RE = re.compile(r'^[a-zA-Z0-9_-]+$')
+# SEC-5: Agent name allowlist — lowercase letter start, lowercase + hyphens + digits
+# Plan requirement: /^[a-z][a-z0-9-]+$/ — no uppercase, no underscores
+VALID_NAME_RE = re.compile(r'^[a-z][a-z0-9-]+$')
 
 # YAML frontmatter boundary
 _FRONTMATTER_RE = re.compile(r'^---\s*$')
@@ -291,6 +292,9 @@ def _extract_tags(metadata: Dict[str, Any], body: str) -> List[str]:
         # Extract notable keywords (capitalized terms, technical terms)
         words = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', desc)
         tags.extend(w.lower() for w in words[:10])
+        # Also capture ALL-CAPS acronyms (SQL, FTS5, OWASP, JWT, API, etc.)
+        acronyms = re.findall(r'\b[A-Z0-9]{2,}(?:-[A-Z0-9]+)*\b', desc)
+        tags.extend(a.lower() for a in acronyms[:5])
 
     # MCP servers as tags
     mcp = metadata.get("mcpServers", [])

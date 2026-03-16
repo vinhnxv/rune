@@ -37,6 +37,11 @@ import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(name)s %(levelname)s %(message)s",
+    stream=sys.stderr,
+)
 logger = logging.getLogger("agent-search")
 
 # ---------------------------------------------------------------------------
@@ -327,15 +332,47 @@ def rebuild_index(
     # Rebuild FTS content
     conn.execute("DELETE FROM agent_entries_fts")
 
+    # DES-001 FIX: Sort entries by priority ASCENDING so that higher-priority
+    # agents are inserted LAST and win INSERT OR REPLACE conflicts.
+    # Without this, builtin (p100) inserted first gets overwritten by user (p50).
+    sorted_entries = sorted(entries, key=lambda e: e.get("priority", 50))
+
     count = 0
-    for entry in entries:
+    skipped = 0
+    for entry in sorted_entries:
         name = entry.get("name", "")
         if not name:
             continue
 
+        priority = entry.get("priority", 50)
+        source = entry.get("source", "builtin")
         phases_str = ",".join(entry.get("compatible_phases", []))
         tags_str = ",".join(entry.get("tags", []))
         tools_str = ",".join(str(t) for t in entry.get("tools", []))
+
+        # Priority-aware conflict check: skip if existing entry has higher priority
+        existing = conn.execute(
+            "SELECT priority, source FROM agent_entries WHERE name = ?",
+            (name,),
+        ).fetchone()
+        if existing and existing["priority"] > priority:
+            logger.debug(
+                "Skipping '%s' (source=%s, p%d) — higher-priority entry exists (source=%s, p%d)",
+                name, source, priority, existing["source"], existing["priority"],
+            )
+            skipped += 1
+            continue
+
+        # Delete old FTS entry before replacement to prevent ghost entries
+        if existing:
+            old_row = conn.execute(
+                "SELECT rowid FROM agent_entries WHERE name = ?", (name,)
+            ).fetchone()
+            if old_row:
+                conn.execute(
+                    "DELETE FROM agent_entries_fts WHERE rowid = ?",
+                    (old_row["rowid"],),
+                )
 
         try:
             conn.execute(
@@ -352,8 +389,8 @@ def rebuild_index(
                     entry.get("primary_phase", ""),
                     phases_str,
                     tags_str,
-                    entry.get("source", "builtin"),
-                    entry.get("priority", 50),
+                    source,
+                    priority,
                     tools_str,
                     entry.get("model", ""),
                     entry.get("max_turns", 0),
@@ -380,10 +417,12 @@ def rebuild_index(
             )
             count += 1
         except sqlite3.IntegrityError as exc:
-            # Duplicate name from different sources — higher priority wins
-            logger.debug("Skipping duplicate agent '%s': %s", name, exc)
+            logger.warning("Skipping duplicate agent '%s': %s", name, exc)
+            skipped += 1
 
     conn.commit()
+    if skipped:
+        logger.info("rebuild_index: %d indexed, %d skipped (priority conflicts)", count, skipped)
     return count
 
 
@@ -746,20 +785,21 @@ def do_register(
         source=source,
     )
     if errors:
+        logger.warning("Registration validation failed for '%s': %s", name, errors)
         return {"error": "Validation failed", "details": errors}
 
     conn = get_db(db_path)
     try:
         ensure_schema(conn)
 
-        # Check for builtin conflict
+        # Check for builtin/extended conflict — protect higher-priority sources
         existing = conn.execute(
-            "SELECT source FROM agent_entries WHERE name = ?",
+            "SELECT source, priority FROM agent_entries WHERE name = ?",
             (name,),
         ).fetchone()
-        if existing and existing["source"] == "builtin":
+        if existing and existing["source"] in ("builtin", "extended"):
             return {
-                "error": "Cannot overwrite builtin agent: %s" % name,
+                "error": "Cannot overwrite %s agent: %s" % (existing["source"], name),
                 "hint": "Use a different name or register as a project agent",
             }
 
@@ -800,6 +840,7 @@ def do_register(
         )
         conn.commit()
 
+        logger.info("Registered agent '%s' (source=%s, id=%s)", name, source, entry_id)
         return {
             "registered": True,
             "name": name,
@@ -879,6 +920,7 @@ def do_reindex(
     """
     from indexer import discover_and_parse
 
+    logger.info("Reindexing agent registry from %s", plugin_root)
     start_ms = int(time.time() * 1000)
     entries = discover_and_parse(plugin_root, project_dir)
 
@@ -900,6 +942,10 @@ def do_reindex(
         src = e.get("source", "unknown")
         sources[src] = sources.get(src, 0) + 1
 
+    logger.info(
+        "Reindex complete: %d entries indexed (%d parsed) in %dms — %s",
+        count, len(entries), elapsed_ms, sources,
+    )
     return {
         "entries_indexed": count,
         "time_ms": elapsed_ms,
@@ -1372,6 +1418,7 @@ def _register_mcp_handlers(server: Any, types: Any) -> None:
                 isError=True if is_error else None,
             )]
         except (ValueError, TypeError, KeyError, sqlite3.Error, OSError) as e:
+            logger.error("Tool '%s' failed: %s", name, e, exc_info=True)
             err_msg = str(e)[:200] if str(e) else "Internal server error"
             return [types.TextContent(
                 type="text", text=json.dumps({"error": err_msg}),
