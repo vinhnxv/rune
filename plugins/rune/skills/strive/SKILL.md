@@ -356,7 +356,7 @@ When the discipline proof hook exits 2 (BLOCK), the worker receives feedback via
 
 3. **ATTEMPT 3 — Reassign**: If decomposed tasks still fail, reassign to a different worker (fresh context window). The new worker receives the full failure history and prior evidence attempts.
 
-4. **ATTEMPT 4 — Human escalation**: If all automated attempts fail, invoke `AskUserQuestion` with the failure details including: task description, all prior attempt results, failing criteria IDs, and evidence paths. Includes `silence_timeout` (configurable via `discipline.max_convergence_iterations`, default 5 min) — if no human response within the timeout, mark task as FAILED and continue with remaining tasks.
+4. **ATTEMPT 4 — Human escalation**: If all automated attempts fail, invoke `AskUserQuestion` with the failure details including: task description, all prior attempt results, failing criteria IDs, and evidence paths. Includes `silence_timeout` (default 5 min, separate from `max_convergence_iterations`) — if no human response within the timeout, mark task as FAILED and continue with remaining tasks.
 
 **Configuration**:
 - `discipline.max_convergence_iterations`: Controls automated attempts (default: 3). Total attempts = `max_convergence_iterations` + 1 (human).

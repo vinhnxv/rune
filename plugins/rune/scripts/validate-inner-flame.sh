@@ -110,7 +110,8 @@ elif [[ "$TEAM_NAME" == arc-audit-* ]]; then
   OUTPUT_DIR="${CWD}/tmp/audit/${AUDIT_ID}"
 elif [[ "$TEAM_NAME" == rune-work-* || "$TEAM_NAME" == arc-work-* ]]; then
   # Workers write evidence to tmp/work/{timestamp}/evidence/{task-id}/summary.json
-  EVIDENCE_FILE=$(find "${CWD}/tmp/work" -maxdepth 3 -path "*/evidence/${TASK_ID}/summary.json" -print -quit 2>/dev/null || true)
+  # NOTE: Similar evidence discovery in validate-discipline-proofs.sh — keep in sync
+  EVIDENCE_FILE=$(find "${CWD}/tmp/work" -maxdepth 4 -path "*/evidence/${TASK_ID}/summary.json" -print -quit 2>/dev/null || true)
   if [[ -n "$EVIDENCE_FILE" && -f "$EVIDENCE_FILE" ]]; then
     # Validate summary.json has result field (basic schema check)
     if jq -e '.result' "$EVIDENCE_FILE" &>/dev/null; then

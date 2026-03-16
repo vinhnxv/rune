@@ -347,6 +347,8 @@
         "hooks": [
           {
             "_rationale": "DISCIPLINE-001: Validates discipline proof evidence before allowing task completion. Scoped to rune-work-*/arc-work-* teams. Reads evidence from tmp/work/*/evidence/{task-id}/. Calls execute-discipline-proofs.sh if criteria.json exists. Default: WARN mode (block_on_fail: false).",
+            "_note": "Command hook — _security_note and _sec_005_note above apply only to the haiku prompt hook at the end of this array, not to this or other command hooks.",
+            "_timeout_note": "30s timeout adds to 105s worst-case TaskCompleted chain budget (30+15+15+15+15+15). Fast-path exit for non-worker teams (<1ms). Fail-forward on timeout.",
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/validate-discipline-proofs.sh",
             "timeout": 30,

@@ -82,8 +82,8 @@ plan:
 # Default: WARN mode (block_on_fail: false) — warnings only during rollout.
 # Set block_on_fail: true for BLOCK mode after validation confidence is established.
 discipline:
-  enabled: true              # Enable discipline proof validation
-  block_on_fail: false       # WARN mode (default for rollout). Set true for BLOCK mode.
-  proof_timeout: 60          # Timeout in seconds for individual proof execution
-  max_convergence_iterations: 3  # Max proof retry attempts before escalation
-  echo_back_required: true   # Require workers to echo-back acceptance criteria
+  # enabled: true              # Enable discipline proof validation
+  # block_on_fail: false       # WARN mode (default for rollout). Set true for BLOCK mode.
+  # proof_timeout: 60          # Timeout in seconds for individual proof execution
+  # max_convergence_iterations: 3  # Max proof retry attempts before escalation
+  # echo_back_required: true   # Require workers to echo-back acceptance criteria

@@ -15,7 +15,7 @@ set -euo pipefail
 umask 077
 
 # --- Fail-forward guard (OPERATIONAL hook — see ADR-002) ---
-# Crash before validation -> allow operation (don't stall workflows).
+# Crash before validation → allow operation (don't stall workflows).
 _rune_fail_forward() {
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
     printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
@@ -66,11 +66,12 @@ if [[ -z "$CWD" ]]; then
 fi
 CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || exit 0
 
-# --- Session isolation (config_dir + owner_pid check) ---
+# --- Resolve config dir for talisman config lookup ---
 CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 # Check talisman config for discipline settings
 DISCIPLINE_ENABLED=true
+# NOTE: Default block_on_fail=false (WARN mode for rollout). Inner Flame defaults to true. Intentional.
 BLOCK_ON_FAIL=false
 for TALISMAN_PATH in "${CWD}/.claude/talisman.yml" "${CHOME}/talisman.yml"; do
   if [[ -f "$TALISMAN_PATH" ]]; then
@@ -107,7 +108,7 @@ while IFS= read -r candidate; do
     fi
     break
   fi
-done < <(find "${CWD}/tmp/work" -maxdepth 3 -type d -name "$TASK_ID" -path "*/evidence/*" 2>/dev/null | sort -r)
+done < <(find "${CWD}/tmp/work" -maxdepth 3 -type d -not -type l -name "$TASK_ID" -path "*/evidence/*" 2>/dev/null | sort -r)
 
 # No evidence directory exists -> WARN only (worker may not have criteria)
 if [[ -z "$EVIDENCE_DIR" ]]; then
@@ -144,12 +145,22 @@ if [[ -f "$CRITERIA_FILE" ]]; then
     exit 0
   fi
 
-  # Run proof executor
+  # Run proof executor — capture exit code separately to distinguish executor failure from pass
   PROOF_OUTPUT=""
-  PROOF_OUTPUT=$("$EXECUTOR" "$CRITERIA_FILE" "$CWD" 2>/dev/null) || true
+  PROOF_EXIT=0
+  PROOF_OUTPUT=$("$EXECUTOR" "$CRITERIA_FILE" "$CWD" 2>/dev/null) || PROOF_EXIT=$?
+  if [[ "$PROOF_EXIT" -ne 0 && -z "$PROOF_OUTPUT" ]]; then
+    echo "Discipline: execute-discipline-proofs.sh failed (exit ${PROOF_EXIT}) with no output — executor failure, not proof pass (WARN)." >&2
+    exit 0
+  fi
 
   # Parse output for FAIL results
   if [[ -n "$PROOF_OUTPUT" ]]; then
+    # Validate output is a JSON array before processing
+    if ! printf '%s\n' "$PROOF_OUTPUT" | jq -e 'type == "array"' >/dev/null 2>&1; then
+      echo "Discipline: Proof executor output is not a JSON array — skipping validation (WARN)." >&2
+      exit 0
+    fi
     FAIL_COUNT=$(printf '%s\n' "$PROOF_OUTPUT" | jq '[.[] | select(.result == "FAIL")] | length' 2>/dev/null) || FAIL_COUNT=0
     TOTAL_COUNT=$(printf '%s\n' "$PROOF_OUTPUT" | jq 'length' 2>/dev/null) || TOTAL_COUNT=0
 

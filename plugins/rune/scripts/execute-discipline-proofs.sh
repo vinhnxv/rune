@@ -48,6 +48,12 @@ fi
 # Change to working directory
 cd "$CWD" || { printf '{"error":"cannot cd to: %s"}\n' "$CWD" >&2; exit 1; }
 
+# SEC-004: Containment check — verify .claude/ exists in CWD
+if [[ ! -d ".claude" ]]; then
+  printf '{"error":"containment check failed: .claude/ not found in CWD"}\n' >&2
+  exit 1
+fi
+
 # Pre-flight: jq required
 if ! command -v jq &>/dev/null; then
   printf '{"error":"jq is required but not found"}\n' >&2
@@ -76,6 +82,10 @@ proof_file_exists() {
 proof_pattern_matches() {
   local pattern="$1"
   local file="$2"
+  if [[ ${#pattern} -gt 200 ]]; then
+    echo "FAIL"
+    return
+  fi
   if [[ -z "$file" ]]; then
     echo "FAIL"
     return
@@ -91,6 +101,10 @@ proof_pattern_matches() {
 proof_no_pattern_exists() {
   local pattern="$1"
   local file="$2"
+  if [[ ${#pattern} -gt 200 ]]; then
+    echo "FAIL"
+    return
+  fi
   if [[ -z "$file" ]]; then
     # No file specified — search CWD recursively
     if grep -rqE "$pattern" . 2>/dev/null; then
@@ -112,7 +126,7 @@ proof_no_pattern_exists() {
 proof_test_passes() {
   local cmd="$1"
   # Validate command against allowlist (no shell metacharacters)
-  if [[ "$cmd" =~ [\;\&\|\$\`\<\>] ]]; then
+  if [[ "$cmd" =~ [$'\n'\;\&\|\$\`\<\>\(\)\{\}\!\~] ]]; then
     echo "FAIL"  # Reject commands with shell metacharacters
     return
   fi
@@ -128,7 +142,7 @@ proof_test_passes() {
 # SEC-001 FIX: Same allowlist pattern as test_passes
 proof_builds_clean() {
   local cmd="$1"
-  if [[ "$cmd" =~ [\;\&\|\$\`\<\>] ]]; then
+  if [[ "$cmd" =~ [$'\n'\;\&\|\$\`\<\>\(\)\{\}\!\~] ]]; then
     echo "FAIL"
     return
   fi
