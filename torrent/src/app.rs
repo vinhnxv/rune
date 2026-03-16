@@ -467,14 +467,27 @@ impl App {
 
         // Step 3: Create fresh tmux session
         let session_id = Tmux::generate_session_id();
-        Tmux::create_session(&config.path, &session_id)?;
+        if let Err(e) = Tmux::create_session(&config.path, &session_id) {
+            self.status_message = Some(format!("tmux session failed: {e} — skipping plan"));
+            return Ok(()); // Skip this plan, next tick will try next in queue
+        }
         self.tmux_session_id = Some(session_id.clone());
 
-        // Step 4: Wait for Claude Code init (3s)
-        std::thread::sleep(Duration::from_secs(3));
+        // Step 4: Wait for Claude Code to fully initialize (10s)
+        // Claude Code needs ~8-10s to start up in a tmux session.
+        // Too short causes send-keys to fail (message sent before CLI is ready).
+        std::thread::sleep(Duration::from_secs(10));
 
-        // Step 5: Send /arc command
-        Tmux::send_arc_command(&session_id, &plan.path)?;
+        // Step 5: Send /arc command with retry
+        // If first attempt fails (Claude still loading), wait and retry once.
+        if let Err(e) = Tmux::send_arc_command(&session_id, &plan.path) {
+            self.status_message = Some(format!("send-keys failed, retrying in 5s: {e}"));
+            std::thread::sleep(Duration::from_secs(5));
+            if let Err(e2) = Tmux::send_arc_command(&session_id, &plan.path) {
+                self.status_message = Some(format!("send-keys failed after retry: {e2}"));
+                // Don't abort — session is created, user can attach and send manually
+            }
+        }
 
         let total = self.selected_plans.len();
         self.current_run = Some(RunState {
