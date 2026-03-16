@@ -40,6 +40,26 @@ fn validate_plan_path(path: &Path) -> Result<()> {
 pub struct Tmux;
 
 impl Tmux {
+    /// Resolve the absolute path to the `claude` binary.
+    /// Uses `which claude` from the current shell — this finds the correct binary
+    /// even when tmux's bash would resolve to a different one (brew/npm vs ~/.local/bin).
+    pub fn resolve_claude_path() -> Result<String> {
+        let output = Command::new("which")
+            .arg("claude")
+            .output()
+            .map_err(|e| eyre!("failed to run 'which claude': {e}"))?;
+
+        if !output.status.success() {
+            return Err(eyre!("claude not found in PATH. Install: https://docs.anthropic.com/en/docs/claude-code"));
+        }
+
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if path.is_empty() {
+            return Err(eyre!("'which claude' returned empty path"));
+        }
+        Ok(path)
+    }
+
     /// Check that tmux is installed and reachable.
     pub fn verify_available() -> Result<()> {
         let output = Command::new("tmux")
@@ -64,20 +84,20 @@ impl Tmux {
     /// Passes the full command as the tmux session command via `bash -c`.
     /// This is the most reliable way to ensure env vars are available to Claude Code —
     /// neither `.env()` on Command nor `tmux set-environment` propagate to the session shell.
-    pub fn create_session(config_dir: &Path, session_id: &str) -> Result<()> {
+    pub fn create_session(config_dir: &Path, session_id: &str, claude_path: &str) -> Result<()> {
         validate_session_id(session_id)?;
 
-        // Validate config dir: must be absolute, no shell metacharacters
+        // Validate config dir: no shell metacharacters
         let config_str = config_dir.to_string_lossy();
         if config_str.contains('\'') || config_str.contains('\\') || config_str.contains("..") {
             return Err(eyre!("Config dir contains unsafe characters: {config_str}"));
         }
 
-        // Single command: tmux runs bash -c "export CLAUDE_CONFIG_DIR=... && exec claude ..."
-        // `exec` replaces bash with claude for a cleaner process tree.
+        // Use the resolved absolute path to claude (not just "claude").
+        // tmux's bash may have a different PATH that resolves to brew/npm claude.
         let shell_cmd = format!(
-            "export CLAUDE_CONFIG_DIR='{}' && exec claude --dangerously-skip-permissions",
-            config_str
+            "export CLAUDE_CONFIG_DIR='{}' && exec '{}' --dangerously-skip-permissions",
+            config_str, claude_path
         );
 
         let status = Command::new("tmux")

@@ -40,6 +40,9 @@ pub struct App {
     // Status message for display in UI
     pub status_message: Option<String>,
 
+    // Resolved absolute path to claude binary (avoids PATH issues in tmux)
+    pub claude_path: String,
+
     // Whether we should quit
     pub should_quit: bool,
 }
@@ -159,6 +162,8 @@ impl App {
             last_checkpoint_poll: None,
             launched_wall_clock: None,
             status_message: None,
+            claude_path: crate::tmux::Tmux::resolve_claude_path()
+                .unwrap_or_else(|_| "claude".to_string()),
             should_quit: false,
         })
     }
@@ -467,7 +472,7 @@ impl App {
 
         // Step 3: Create fresh tmux session
         let session_id = Tmux::generate_session_id();
-        if let Err(e) = Tmux::create_session(&config.path, &session_id) {
+        if let Err(e) = Tmux::create_session(&config.path, &session_id, &self.claude_path) {
             self.status_message = Some(format!("tmux session failed: {e} — skipping plan"));
             return Ok(()); // Skip this plan, next tick will try next in queue
         }
