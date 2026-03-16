@@ -138,8 +138,44 @@ If user requested or plan is Comprehensive detail level, create tasks and summon
 then wait using `waitForCompletion`:
 
 ```javascript
+// MCP-First Plan Reviewer Discovery (v1.171.0+)
+// Query agent-search MCP for plan review agents. Enables user-defined reviewers
+// (e.g., "compliance-reviewer" for regulated projects) to join technical review.
+let planReviewers = [
+  { name: "decree-arbiter", output: "decree-review.md", subject: "Technical soundness review" },
+  { name: "knowledge-keeper", output: "knowledge-review.md", subject: "Documentation coverage review" },
+  { name: "veil-piercer-plan", output: "veil-piercer-review.md", subject: "Reality grounding review" }
+]
+
+try {
+  const candidates = agent_search({
+    query: "plan review technical soundness documentation architecture validation",
+    phase: "devise",
+    category: "utility",
+    limit: 8
+  })
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+
+  if (candidates?.results?.length > 0) {
+    const knownNames = new Set(planReviewers.map(r => r.name))
+    for (const c of candidates.results) {
+      if (!knownNames.has(c.name) && (c.source === "user" || c.source === "project")) {
+        // User-defined plan reviewer discovered via MCP
+        planReviewers.push({
+          name: c.name,
+          output: `${c.name}-review.md`,
+          subject: `${c.description?.slice(0, 60) || c.name} review`
+        })
+        knownNames.add(c.name)
+      }
+    }
+  }
+} catch (e) {
+  // MCP unavailable — proceed with hardcoded defaults (fail-forward)
+}
+
 // Create tasks for each reviewer (enables TaskList-based monitoring)
-let reviewerCount = 3  // decree-arbiter, knowledge-keeper, veil-piercer-plan (+ optional doubt-seer, horizon-sage, elicitation-sages)
+let reviewerCount = planReviewers.length  // base reviewers (+ optional doubt-seer, horizon-sage, elicitation-sages)
 TaskCreate({
   subject: "Technical soundness review (decree-arbiter)",
   description: `Review ${planPath} for architecture fit, feasibility, security/performance risks`,

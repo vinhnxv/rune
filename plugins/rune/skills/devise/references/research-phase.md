@@ -50,16 +50,57 @@ const artifactAvailable = Bash(`source plugins/rune/scripts/lib/run-artifacts.sh
 // 1. Create research output directory
 mkdir -p tmp/plans/{timestamp}/research/
 
+// 1.5. MCP-First Research Agent Discovery (v1.171.0+)
+// Query agent-search MCP for phase-appropriate research agents.
+// Enables user-defined research agents (e.g., "compliance-researcher" for regulated projects)
+// to participate alongside the 3 built-in local researchers.
+let localResearchers = [
+  { name: "repo-surveyor", role: "research", output_file: "research/repo-analysis.md" },
+  { name: "echo-reader", role: "research", output_file: "research/past-echoes.md" },
+  { name: "git-miner", role: "research", output_file: "research/git-history.md" }
+]
+let externalResearchers = [
+  { name: "practice-seeker", role: "research", output_file: "research/best-practices.md" },
+  { name: "lore-scholar", role: "research", output_file: "research/framework-docs.md" }
+]
+
+try {
+  const candidates = agent_search({
+    query: "research codebase patterns git history documentation best practices",
+    phase: "devise",
+    category: "research",
+    limit: 10
+  })
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+
+  if (candidates?.results?.length > 0) {
+    // Merge MCP results with defaults — MCP can add NEW agents but won't remove defaults
+    const knownNames = new Set([...localResearchers, ...externalResearchers].map(r => r.name))
+    for (const c of candidates.results) {
+      if (!knownNames.has(c.name)) {
+        // User-defined or extended research agent discovered
+        const bucket = c.source === "user" || c.source === "project" ? externalResearchers : localResearchers
+        bucket.push({
+          name: c.name,
+          role: "research",
+          output_file: `research/${c.name}-output.md`
+        })
+        knownNames.add(c.name)
+      }
+    }
+  }
+} catch (e) {
+  // MCP unavailable — proceed with hardcoded defaults (fail-forward)
+}
+
 // 2. Generate inscription.json (see roundtable-circle/references/inscription-schema.md)
 Write(`tmp/plans/${timestamp}/inscription.json`, {
   workflow: "rune-plan",
   timestamp: timestamp,
   output_dir: `tmp/plans/${timestamp}/`,
   teammates: [
-    { name: "repo-surveyor", role: "research", output_file: "research/repo-analysis.md" },
-    { name: "echo-reader", role: "research", output_file: "research/past-echoes.md" },
-    { name: "git-miner", role: "research", output_file: "research/git-history.md" }
-    // + conditional entries for practice-seeker, lore-scholar, flow-seer
+    ...localResearchers
+    // + conditional entries for external researchers, flow-seer
   ],
   verification: { enabled: false }
 })

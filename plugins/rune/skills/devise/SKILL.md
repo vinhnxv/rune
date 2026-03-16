@@ -188,6 +188,10 @@ Before researching solutions, scan affected code areas for existing bugs, gaps, 
 
 Spawns local research agents (repo-surveyor, echo-reader, git-miner), evaluates risk/sufficiency scores to decide on external research (practice-seeker, lore-scholar, codex-researcher), optionally verifies external research outputs for trustworthiness (research-verifier, Phase 1C.5), then runs spec validation (flow-seer). Includes research consolidation validation checkpoint. Phase 1B reads `talisman.plan` config for `external_research` bypass modes (`always`/`auto`/`never`) and `research_urls` with SSRF-defensive URL sanitization. External research agents use Context7 MCP for framework documentation alongside WebSearch. Phase 1C.5 scores findings across 5 dimensions (relevance, accuracy, freshness, cross-validation, security) and maps verdicts (TRUSTED/CAUTION/UNTRUSTED/FLAGGED) — skipped with `--quick`, `--no-verify-research`, or when no external research ran.
 
+### MCP-First Research Agent Discovery (v1.171.0+)
+
+Research agents are discovered via agent-search MCP before spawning, enabling user-defined research agents (e.g., "compliance-researcher" for regulated projects) to participate alongside built-in researchers. Falls back to hardcoded agent list when MCP is unavailable.
+
 **Inputs**: `feature` (sanitized string, from Phase 0), `timestamp` (validated identifier), talisman config (plan section for research control)
 **Outputs**: Research agent outputs in `tmp/plans/{timestamp}/research/`, `inscription.json`
 **Error handling**: TeamDelete fallback on cleanup, identifier validation before rm-rf, agent timeout (5 min) proceeds with partial findings

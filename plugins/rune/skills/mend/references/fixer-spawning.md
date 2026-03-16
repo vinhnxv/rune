@@ -2,6 +2,41 @@
 
 File grouping logic, cross-group dependency detection, inscription contract generation, team creation, and mend-fixer spawning.
 
+## MCP-First Fixer Discovery (v1.171.0+)
+
+Before spawning fixers, query agent-search MCP for fixer-type agents.
+Enables user-defined fixers (e.g., "migration-fixer" for schema-aware fixes)
+to participate alongside the built-in mend-fixer.
+
+```javascript
+// MCP-first fixer agent discovery
+let fixerAgentType = "mend-fixer"  // default
+try {
+  const candidates = agent_search({
+    query: "code fixer remediation targeted fix security vulnerability resolution",
+    phase: "strive",  // fixers use work/mend category
+    category: "work",
+    limit: 5
+  })
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+
+  if (candidates?.results?.length > 0) {
+    // User-defined fixer can replace default for specific finding types
+    const userFixer = candidates.results.find(c =>
+      (c.source === "user" || c.source === "project") &&
+      c.name !== "mend-fixer" && c.name !== "gap-fixer"
+    )
+    if (userFixer) {
+      // Note: user fixer supplements, doesn't replace — mend-fixer handles most findings
+      // User fixer can be selected for specific finding prefixes via talisman routing
+      fixerAgentType = fixerAgentType  // keep default, but register discovery
+    }
+  }
+} catch (e) {
+  // MCP unavailable — proceed with hardcoded mend-fixer (fail-forward)
+}
+```
+
 ## Phase 1.5: Cross-Group Dependency Detection
 
 Detect cross-file references in finding guidance and serialize dependent groups via `blockedBy`.

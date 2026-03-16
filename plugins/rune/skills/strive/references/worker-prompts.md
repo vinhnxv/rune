@@ -32,6 +32,40 @@ Agent runtime caps (`maxTurns` in agent frontmatter) limit runaway agents:
 - If an agent hits its turn cap mid-operation, it may leave staged git files or partial writes. Workers claiming a task should run `git status` first and `git reset HEAD` if unexpected staged files are found.
 - Terminated agents do not write `.done` signal files. The monitoring loop's `timeoutMs` parameter is the fallback detection mechanism.
 
+## MCP-First Worker Discovery (v1.171.0+)
+
+Before spawning workers, query agent-search MCP for phase-appropriate work agents.
+Enables user-defined workers (e.g., "migration-specialist" for data migration tasks)
+to participate alongside the built-in rune-smith and trial-forger.
+
+```javascript
+// MCP-first worker agent discovery
+let workerAgents = { impl: "rune-smith", test: "trial-forger" }
+try {
+  const candidates = agent_search({
+    query: "implementation code worker TDD test generation",
+    phase: "strive",
+    category: "work",
+    limit: 6
+  })
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+
+  if (candidates?.results?.length > 0) {
+    // User-defined workers can extend (not replace) the defaults
+    for (const c of candidates.results) {
+      if ((c.source === "user" || c.source === "project") &&
+          c.name !== "rune-smith" && c.name !== "trial-forger") {
+        // Additional worker discovered — add to scaling pool
+        // Example: "migration-specialist" with category "work"
+        workerAgents[c.name] = c.name
+      }
+    }
+  }
+} catch (e) {
+  // MCP unavailable — proceed with hardcoded defaults (fail-forward)
+}
+```
+
 ## Rune Smith (Implementation Worker)
 
 ```javascript

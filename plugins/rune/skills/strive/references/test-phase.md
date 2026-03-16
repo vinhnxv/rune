@@ -229,9 +229,33 @@ Output: Write results to tmp/work/${timestamp}/test-results-unit.md`,
 })
 ```
 
+### MCP-First Test Runner Discovery (v1.171.0+)
+
+```javascript
+// Discover test runner agents via MCP — enables user-defined test runners
+// (e.g., "playwright-runner" for E2E, "contract-test-runner" for API tests)
+let testRunnerName = "unit-test-runner"  // default
+try {
+  const candidates = agent_search({
+    query: "unit test runner execution coverage verification",
+    phase: "strive",
+    category: "testing",
+    limit: 5
+  })
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+  // Use first match if it's a user/project agent, otherwise keep default
+  if (candidates?.results?.length > 0) {
+    const userRunner = candidates.results.find(c => c.source === "user" || c.source === "project")
+    if (userRunner) testRunnerName = userRunner.name
+  }
+} catch (e) {
+  // MCP unavailable — use default unit-test-runner
+}
+```
+
 ### Spawn Unit Test Runner
 
-Spawn the existing `unit-test-runner` agent on the existing strive team. The runner inherits the team context and writes results to the work directory.
+Spawn the `${testRunnerName}` agent on the existing strive team. The runner inherits the team context and writes results to the work directory.
 
 ```javascript
 // Build test command based on framework

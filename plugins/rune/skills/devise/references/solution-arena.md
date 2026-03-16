@@ -96,6 +96,36 @@ function sanitize(content) {
 
 const sanitizedSolutions = sanitize(solutionsContent)
 
+// MCP-First Arena Agent Discovery (v1.171.0+)
+// Discover additional challenger/evaluator agents for the Arena phase.
+// User-defined agents (e.g., "domain-expert-challenger") can participate.
+let arenaChallengers = [
+  { name: "devils-advocate", subject: "Arena: Devil's Advocate challenge" },
+  { name: "innovation-scout", subject: "Arena: Innovation Scout evaluation" }
+]
+try {
+  const candidates = agent_search({
+    query: "adversarial challenge evaluation architecture trade-off analysis",
+    phase: "devise",
+    limit: 5
+  })
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+  if (candidates?.results?.length > 0) {
+    const knownNames = new Set(arenaChallengers.map(a => a.name))
+    for (const c of candidates.results) {
+      if (!knownNames.has(c.name) && (c.source === "user" || c.source === "project")) {
+        arenaChallengers.push({
+          name: c.name,
+          subject: `Arena: ${c.name} evaluation`
+        })
+        knownNames.add(c.name)
+      }
+    }
+  }
+} catch (e) {
+  // MCP unavailable — proceed with hardcoded defaults
+}
+
 TaskCreate({ subject: "Arena: Devil's Advocate challenge" })
 Agent({
   team_name: "rune-plan-{timestamp}",
