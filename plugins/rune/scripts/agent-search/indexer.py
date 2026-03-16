@@ -1,10 +1,12 @@
 """
 Agent definition parser for the Agent Search MCP server.
 
-Parses YAML frontmatter from agent .md files across 4 source directories:
-  - agents/          (builtin, priority 100)
-  - registry/        (extended, priority 80)
-  - .claude/agents/  (project, priority 75)
+Parses YAML frontmatter from agent .md files across 6 source directories:
+  - agents/              (builtin, priority 100)
+  - registry/            (extended, priority 80)
+  - .claude/agents/      (project, priority 75)
+  - .claude/rune-agents/ (rune-project, priority 70) — search-only, not auto-loaded
+  - extra_agent_dirs     (external, priority 60)
   - talisman user_agents (user, priority 50)
 
 Expected format:
@@ -54,6 +56,8 @@ SOURCE_PRIORITIES = {
     "builtin": 100,
     "extended": 80,
     "project": 75,
+    "rune-project": 70,
+    "external": 60,
     "user": 50,
 }
 
@@ -439,19 +443,23 @@ def discover_and_parse(
     plugin_root: str,
     project_dir: str,
     talisman_user_agents: Optional[List[Dict[str, Any]]] = None,
+    extra_agent_dirs: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
-    """Walk all 4 source directories and parse agent definitions.
+    """Walk all 6 source directories and parse agent definitions.
 
     Sources (in priority order):
-      1. agents/          (builtin, p100) — plugin's built-in agents
-      2. registry/        (extended, p80) — extended agent registry
-      3. .claude/agents/  (project, p75) — project-specific agents
-      4. talisman user_agents (user, p50) — user-defined via talisman.yml
+      1. agents/              (builtin, p100) — plugin's built-in agents
+      2. registry/            (extended, p80) — extended agent registry
+      3. .claude/agents/      (project, p75) — project-specific agents (auto-loaded by Claude Code)
+      4. .claude/rune-agents/ (rune-project, p70) — search-only agents (NOT auto-loaded)
+      5. extra_agent_dirs     (external, p60) — additional dirs from talisman
+      6. talisman user_agents (user, p50) — user-defined via talisman.yml
 
     Args:
         plugin_root: Path to the plugin root directory.
         project_dir: Path to the project root directory.
         talisman_user_agents: Optional list of user agent defs from talisman.yml.
+        extra_agent_dirs: Optional list of extra directory paths to scan.
 
     Returns:
         Combined list of agent entry dicts across all sources.
@@ -479,7 +487,35 @@ def discover_and_parse(
         if entry:
             all_entries.append(entry)
 
-    # Source 4: talisman user agents (inline definitions)
+    # Source 4: rune-project agents (.claude/rune-agents/) — search-only
+    rune_agents_dir = os.path.join(project_dir, ".claude", "rune-agents")
+    for fpath in _valid_agent_files(rune_agents_dir):
+        entry = parse_agent_file(fpath, "rune-project")
+        if entry:
+            all_entries.append(entry)
+
+    # Source 5: extra agent directories (from talisman extra_agent_dirs)
+    if extra_agent_dirs and isinstance(extra_agent_dirs, list):
+        for extra_dir in extra_agent_dirs:
+            if not isinstance(extra_dir, str) or not extra_dir:
+                continue
+            # Resolve relative paths against project_dir
+            if not os.path.isabs(extra_dir):
+                extra_dir = os.path.join(project_dir, extra_dir)
+            # SEC: containment — skip if path escapes project or home
+            real_dir = os.path.realpath(extra_dir)
+            real_project = os.path.realpath(project_dir)
+            real_home = os.path.expanduser("~")
+            if not (real_dir.startswith(real_project) or real_dir.startswith(real_home)):
+                print("WARN: extra_agent_dir '%s' outside project/home — skipped" % extra_dir,
+                      file=sys.stderr)
+                continue
+            for fpath in _valid_agent_files(real_dir):
+                entry = parse_agent_file(fpath, "external")
+                if entry:
+                    all_entries.append(entry)
+
+    # Source 6: talisman user agents (inline definitions)
     if talisman_user_agents and isinstance(talisman_user_agents, list):
         for i, agent_def in enumerate(talisman_user_agents):
             if not isinstance(agent_def, dict):

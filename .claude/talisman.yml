@@ -206,7 +206,21 @@ ashes:
       source: local
       workflows: [review, audit]
       trigger:
-        extensions: [".md", ".py", ".ts", ".tsx", ".js", ".jsx", ".rs", ".go", ".sh", ".json", ".yml", ".yaml"]
+        extensions:
+          [
+            ".md",
+            ".py",
+            ".ts",
+            ".tsx",
+            ".js",
+            ".jsx",
+            ".rs",
+            ".go",
+            ".sh",
+            ".json",
+            ".yml",
+            ".yaml",
+          ]
         paths:
           [
             "plugins/rune/skills/",
@@ -241,6 +255,19 @@ user_agents: []
 #     tags: [compliance, security, regulation]
 #     body: |
 #       You are a compliance review specialist...
+
+# ──────────────────────────────────────────────
+# Extra Agent Dirs — Additional directories to scan for agent definitions
+# These agents are indexed as source "external" (priority 60) and discoverable
+# via agent_search(), but NOT auto-loaded by Claude Code (search-only catalog).
+# Paths can be absolute or relative to project root. Must be under project or $HOME.
+# ──────────────────────────────────────────────
+# extra_agent_dirs:
+#  - tmp/test-agents
+# Example:
+#   - ~/my-agents
+#   - /path/to/shared-agents
+#   - plugins/other-plugin/agents
 
 # ──────────────────────────────────────────────
 # Defaults — Disable built-in Ash
