@@ -164,15 +164,35 @@ if [[ -f "$CRITERIA_FILE" ]]; then
     FAIL_COUNT=$(printf '%s\n' "$PROOF_OUTPUT" | jq '[.[] | select(.result == "FAIL")] | length' 2>/dev/null) || FAIL_COUNT=0
     TOTAL_COUNT=$(printf '%s\n' "$PROOF_OUTPUT" | jq 'length' 2>/dev/null) || TOTAL_COUNT=0
 
+    # Extract failure_codes from FAIL results and aggregate into evidence summary
+    FAILURE_CODES_JSON=$(printf '%s\n' "$PROOF_OUTPUT" | jq -c '[.[] | select(.result == "FAIL") | select(.failure_code != null and .failure_code != "") | .failure_code] | unique' 2>/dev/null) || FAILURE_CODES_JSON="[]"
+
+    # Update evidence summary with failure_codes array if summary.json exists
+    if [[ -n "$EVIDENCE_SUMMARY" && -f "$EVIDENCE_SUMMARY" ]]; then
+      TMP_SUMMARY="${EVIDENCE_SUMMARY}.tmp"
+      jq --argjson failure_codes "$FAILURE_CODES_JSON" '. + {failure_codes: $failure_codes}' "$EVIDENCE_SUMMARY" > "$TMP_SUMMARY" 2>/dev/null && mv "$TMP_SUMMARY" "$EVIDENCE_SUMMARY" || rm -f "$TMP_SUMMARY"
+    fi
+
     if [[ "$FAIL_COUNT" -gt 0 ]]; then
       # Extract failed criterion IDs for feedback
       FAILED_IDS=$(printf '%s\n' "$PROOF_OUTPUT" | jq -r '[.[] | select(.result == "FAIL") | .criterion_id] | join(", ")' 2>/dev/null) || FAILED_IDS="unknown"
 
+      # Extract unique failure codes for feedback
+      FAILURE_CODE_LIST=$(printf '%s\n' "$PROOF_OUTPUT" | jq -r '[.[] | select(.result == "FAIL") | select(.failure_code != null and .failure_code != "") | .failure_code] | unique | join(", ")' 2>/dev/null) || FAILURE_CODE_LIST=""
+
       if [[ "$BLOCK_ON_FAIL" == "true" ]]; then
-        echo "Discipline: ${FAIL_COUNT}/${TOTAL_COUNT} proofs FAILED for task ${TASK_ID}. Failed criteria: ${FAILED_IDS}. Fix failing proofs before completing this task." >&2
+        if [[ -n "$FAILURE_CODE_LIST" ]]; then
+          echo "Discipline: ${FAIL_COUNT}/${TOTAL_COUNT} proofs FAILED for task ${TASK_ID}. Failed criteria: ${FAILED_IDS}. Failure codes: ${FAILURE_CODE_LIST}. Fix failing proofs before completing this task." >&2
+        else
+          echo "Discipline: ${FAIL_COUNT}/${TOTAL_COUNT} proofs FAILED for task ${TASK_ID}. Failed criteria: ${FAILED_IDS}. Fix failing proofs before completing this task." >&2
+        fi
         exit 2  # BLOCK — task completion denied
       else
-        echo "Discipline: ${FAIL_COUNT}/${TOTAL_COUNT} proofs FAILED for task ${TASK_ID}. Failed criteria: ${FAILED_IDS} (WARN mode — not blocking)." >&2
+        if [[ -n "$FAILURE_CODE_LIST" ]]; then
+          echo "Discipline: ${FAIL_COUNT}/${TOTAL_COUNT} proofs FAILED for task ${TASK_ID}. Failed criteria: ${FAILED_IDS}. Failure codes: ${FAILURE_CODE_LIST} (WARN mode — not blocking)." >&2
+        else
+          echo "Discipline: ${FAIL_COUNT}/${TOTAL_COUNT} proofs FAILED for task ${TASK_ID}. Failed criteria: ${FAILED_IDS} (WARN mode — not blocking)." >&2
+        fi
         exit 0  # WARN only
       fi
     fi

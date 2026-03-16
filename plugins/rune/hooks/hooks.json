@@ -187,6 +187,18 @@
         ]
       },
       {
+        "matcher": "Read",
+        "_rationale": "DISCIPLINE-CTX-001: Context isolation for worker Ashes. Blocks Read of tmp/work/*/tasks/*.md during active work workflows. Prevents workers from reading other workers' task files (Separation Principle). Talisman-gated via discipline.context_isolation (default: true). OPERATIONAL — fail-forward.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/validate-context-isolation.sh",
+            "timeout": 5,
+            "statusMessage": "Checking context isolation..."
+          }
+        ]
+      },
+      {
         "matcher": "mcp__plugin_rune_agent-search__agent_search",
         "_rationale": "Agent search auto-reindex. Checks .agent-search-dirty signal before agent_search tool calls. Advisory only — server.py handles actual reindex.",
         "hooks": [

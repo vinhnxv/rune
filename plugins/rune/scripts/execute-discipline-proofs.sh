@@ -14,6 +14,7 @@
 #   no_pattern_exists  — inverse grep -qE (fails if pattern found)
 #   test_passes        — execute command, check exit code
 #   builds_clean       — execute build command, check exit code
+#   semantic_match     — judge model (haiku) with rubric, confidence-gated
 
 set -euo pipefail
 umask 077
@@ -125,8 +126,13 @@ proof_no_pattern_exists() {
 # SEC-001 FIX: Replace eval with allowlisted command execution to prevent injection
 proof_test_passes() {
   local cmd="$1"
-  # Validate command against allowlist (no shell metacharacters)
-  if [[ "$cmd" =~ [$'\n'\;\&\|\$\`\<\>\(\)\{\}\!\~] ]]; then
+  # FLAW-003 FIX: Reject empty commands (bash -c "" exits 0 = false PASS)
+  if [[ -z "$cmd" ]]; then
+    echo "FAIL"
+    return
+  fi
+  # SEC-001 FIX: Expanded blocklist — reject shell metacharacters including quotes
+  if [[ "$cmd" =~ [$'\n'\;\&\|\$\`\<\>\(\)\{\}\!\~\'\"\\] ]]; then
     echo "FAIL"  # Reject commands with shell metacharacters
     return
   fi
@@ -142,7 +148,13 @@ proof_test_passes() {
 # SEC-001 FIX: Same allowlist pattern as test_passes
 proof_builds_clean() {
   local cmd="$1"
-  if [[ "$cmd" =~ [$'\n'\;\&\|\$\`\<\>\(\)\{\}\!\~] ]]; then
+  # FLAW-003 FIX: Reject empty commands
+  if [[ -z "$cmd" ]]; then
+    echo "FAIL"
+    return
+  fi
+  # SEC-001 FIX: Expanded blocklist
+  if [[ "$cmd" =~ [$'\n'\;\&\|\$\`\<\>\(\)\{\}\!\~\'\"\\] ]]; then
     echo "FAIL"
     return
   fi
@@ -151,6 +163,161 @@ proof_builds_clean() {
   else
     echo "FAIL"
   fi
+}
+
+# semantic_match: judge model with rubric (probabilistic, threshold-gated)
+# Separation Principle: judge receives ONLY criterion + code + rubric.
+# NO implementer context (worker name, self-assessment, task history).
+proof_semantic_match() {
+  local target_file="$1"
+  local rubric="$2"
+  local confidence_threshold="${3:-70}"
+
+  # Pre-flight: claude CLI required
+  if ! command -v claude &>/dev/null; then
+    echo "FAIL|F4|claude CLI not available"
+    return
+  fi
+
+  # Read target file (limit to 500 lines to control prompt size)
+  if [[ ! -f "$target_file" ]]; then
+    echo "FAIL|F4|target file not found: $target_file"
+    return
+  fi
+  local code_snippet
+  code_snippet="$(head -500 "$target_file" 2>/dev/null)" || true
+  if [[ -z "$code_snippet" ]]; then
+    echo "FAIL|F4|target file is empty: $target_file"
+    return
+  fi
+
+  # Build structured prompt — NO implementer context (Separation Principle)
+  local prompt
+  prompt="$(cat <<'PROMPT_TEMPLATE'
+You are a code quality judge. Evaluate the code below against the rubric criteria.
+You must respond with ONLY a JSON object — no markdown, no explanation outside the JSON.
+
+RUBRIC:
+PROMPT_TEMPLATE
+)"
+  prompt="${prompt}
+${rubric}
+
+CODE:
+\`\`\`
+${code_snippet}
+\`\`\`
+
+Respond with EXACTLY this JSON format (no other text):
+{\"result\": \"PASS\" or \"FAIL\", \"confidence\": 0-100, \"reasoning\": \"brief explanation\"}"
+
+  # Invoke judge model with timeout (30s)
+  local judge_output
+  judge_output="$(timeout 30 claude --model haiku -p "$prompt" 2>/dev/null)" || true
+
+  # Handle timeout or empty response
+  if [[ -z "$judge_output" ]]; then
+    echo "FAIL|F4|judge model returned empty response or timed out"
+    return
+  fi
+
+  # Extract JSON from response (judge may wrap in markdown code block)
+  local json_response
+  json_response="$(echo "$judge_output" | sed -n '/{/,/}/p' | head -20)"
+  if [[ -z "$json_response" ]]; then
+    echo "FAIL|F4|judge model output not parseable as JSON|${judge_output:0:200}"
+    return
+  fi
+
+  # Parse fields from JSON response
+  local judge_result judge_confidence judge_reasoning
+  judge_result="$(echo "$json_response" | jq -r '.result // "UNKNOWN"' 2>/dev/null)" || true
+  judge_confidence="$(echo "$json_response" | jq -r '.confidence // "0"' 2>/dev/null)" || true
+  judge_reasoning="$(echo "$json_response" | jq -r '.reasoning // "no reasoning provided"' 2>/dev/null)" || true
+
+  # Validate result is PASS or FAIL
+  if [[ "$judge_result" != "PASS" && "$judge_result" != "FAIL" ]]; then
+    echo "FAIL|F4|judge returned invalid result: $judge_result|${json_response:0:200}"
+    return
+  fi
+
+  # Validate confidence is numeric
+  if ! [[ "$judge_confidence" =~ ^[0-9]+$ ]]; then
+    echo "FAIL|F4|judge returned non-numeric confidence: $judge_confidence|${json_response:0:200}"
+    return
+  fi
+
+  # Apply confidence threshold: >= threshold → use result, < threshold → INCONCLUSIVE (F4)
+  if [[ "$judge_confidence" -ge "$confidence_threshold" ]]; then
+    echo "${judge_result}||confidence=${judge_confidence}%, reasoning=${judge_reasoning}|${json_response:0:500}"
+  else
+    echo "INCONCLUSIVE|F4|confidence ${judge_confidence}% below threshold ${confidence_threshold}%, reasoning=${judge_reasoning}|${json_response:0:500}"
+  fi
+}
+
+# --- Failure code classification (F1-F17) ---
+# Maps proof failure patterns to structured failure codes.
+# See skills/discipline/references/failure-codes.md for full registry.
+classify_failure() {
+  local proof_type="$1"
+  local result="$2"
+  local evidence="$3"
+  local pattern="$4"
+  local file="$5"
+  local command_="$6"
+
+  # Only classify FAILs
+  if [[ "$result" != "FAIL" ]]; then
+    echo ""
+    return
+  fi
+
+  # F8: Unknown proof type
+  if [[ "$evidence" == "Unknown proof type:"* ]]; then
+    echo "F8"
+    return
+  fi
+
+  # F8: Shell metacharacter rejection (security block)
+  case "$proof_type" in
+    test_passes|builds_clean)
+      if [[ -n "$command_" && "$command_" =~ [$'\n'\;\&\|\$\`\<\>\(\)\{\}\!\~] ]]; then
+        echo "F8"
+        return
+      fi
+      ;;
+  esac
+
+  # F1: Decomposition failure — missing/unknown proof type field
+  if [[ "$proof_type" == "unknown" ]]; then
+    echo "F1"
+    return
+  fi
+
+  # F3: Proof failure — all remaining FAIL cases
+  case "$proof_type" in
+    file_exists)
+      echo "F3"
+      ;;
+    pattern_matches)
+      if [[ ${#pattern} -gt 200 ]]; then
+        echo "F3"
+      elif [[ -z "$file" ]]; then
+        echo "F3"
+      else
+        echo "F3"
+      fi
+      ;;
+    no_pattern_exists)
+      echo "F3"
+      ;;
+    test_passes|builds_clean)
+      echo "F3"
+      ;;
+    *)
+      echo "F3"
+      ;;
+  esac
 }
 
 # --- Execute proofs ---
@@ -166,9 +333,16 @@ while IFS= read -r criterion; do
   pattern="$(echo "$criterion"     | jq -r '.pattern // ""')"
   command_="$(echo "$criterion"    | jq -r '.command // ""')"
   file="$(echo "$criterion"        | jq -r '.file // ""')"
+  rubric="$(echo "$criterion"      | jq -r '.rubric // ""')"
+  confidence_threshold="$(echo "$criterion" | jq -r '.confidence_threshold // "70"')"
+  # FLAW-002 FIX: Validate confidence_threshold is numeric — non-numeric causes bash -ge error → ERR trap abort
+  if ! [[ "$confidence_threshold" =~ ^[0-9]+$ ]]; then
+    confidence_threshold=70
+  fi
 
   result="FAIL"
   evidence=""
+  fc=""
 
   case "$proof_type" in
     file_exists)
@@ -216,24 +390,54 @@ while IFS= read -r criterion; do
       fi
       ;;
 
+    semantic_match)
+      # FLAW-001 FIX: Remove `local` — these are in a while loop at top-level, not inside a function.
+      # `local` outside a function causes bash error → ERR trap → silent abort of all remaining criteria.
+      sm_output="$(proof_semantic_match "$target" "$rubric" "$confidence_threshold")"
+      result="$(echo "$sm_output" | cut -d'|' -f1)"
+      fc="$(echo "$sm_output" | cut -d'|' -f2)"
+      sm_detail="$(echo "$sm_output" | cut -d'|' -f3)"
+      judge_model_response="$(echo "$sm_output" | cut -d'|' -f4)"
+      if [[ -n "$judge_model_response" ]]; then
+        evidence="semantic_match: ${sm_detail}; judge_model_response=${judge_model_response}"
+      else
+        evidence="semantic_match: ${sm_detail}"
+      fi
+      ;;
+
     *)
       result="FAIL"
       evidence="Unknown proof type: $proof_type"
       ;;
   esac
 
+  # Classify failure code for non-semantic_match proof types
+  if [[ -z "$fc" && "$result" == "FAIL" ]]; then
+    fc="$(classify_failure "$proof_type" "$result" "$evidence" "$pattern" "$file" "$command_")"
+  fi
+
   # Separator
   if [[ $i -gt 0 ]]; then
     echo ","
   fi
 
-  # Output JSON per criterion
-  jq -n \
-    --arg criterion_id "$criterion_id" \
-    --arg result "$result" \
-    --arg evidence "$evidence" \
-    --arg timestamp "$TIMESTAMP" \
-    '{criterion_id: $criterion_id, result: $result, evidence: $evidence, timestamp: $timestamp}'
+  # Output JSON per criterion (include failure_code when present)
+  if [[ -n "$fc" ]]; then
+    jq -n \
+      --arg criterion_id "$criterion_id" \
+      --arg result "$result" \
+      --arg evidence "$evidence" \
+      --arg failure_code "$fc" \
+      --arg timestamp "$TIMESTAMP" \
+      '{criterion_id: $criterion_id, result: $result, evidence: $evidence, failure_code: $failure_code, timestamp: $timestamp}'
+  else
+    jq -n \
+      --arg criterion_id "$criterion_id" \
+      --arg result "$result" \
+      --arg evidence "$evidence" \
+      --arg timestamp "$TIMESTAMP" \
+      '{criterion_id: $criterion_id, result: $result, evidence: $evidence, timestamp: $timestamp}'
+  fi
 
   i=$((i + 1))
 done < <(jq -c '.[]' "$CRITERIA_FILE")

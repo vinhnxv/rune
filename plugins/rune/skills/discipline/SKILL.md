@@ -168,4 +168,7 @@ Full schema: [proof-schema.md](references/proof-schema.md)
 - [anti-rationalization.md](references/anti-rationalization.md) — Rationalization patterns and counters
 - [evidence-convention.md](references/evidence-convention.md) — Evidence collection and storage conventions
 - [spec-continuity.md](references/spec-continuity.md) — Spec continuity through all pipeline phases
+- [failure-codes.md](references/failure-codes.md) — F1-F17 failure code registry with detection signals and recovery paths
+- [metrics-schema.md](references/metrics-schema.md) — SCR, first-pass rate, and other discipline metrics
+- [accountability-protocol.md](references/accountability-protocol.md) — Layer 5 accountability echo format, trend detection, privacy constraints
 - `docs/discipline-engineering.md` — Foundational document (v2.3.0)
