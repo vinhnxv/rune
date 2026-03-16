@@ -254,44 +254,35 @@ fn render_checkpoint_panel(frame: &mut Frame, app: &App, area: Rect) {
 
 /// Render the heartbeat panel showing liveness signal.
 fn render_heartbeat_panel(frame: &mut Frame, app: &App, area: Rect) {
-    let content = if let Some(run) = &app.current_run {
+    let lines: Vec<Line> = if let Some(run) = &app.current_run {
         if let Some(status) = &run.last_status {
             let (indicator, color) = if status.is_stale {
                 ("● stale", Color::Red)
             } else if status.last_activity.is_empty() {
                 ("● unknown", Color::DarkGray)
             } else {
-                // Approximate liveness from the is_stale flag
-                // (real elapsed calculation happens in the monitor module)
                 ("● live", Color::Green)
             };
 
-            let indicator_span = Span::styled(indicator, Style::default().fg(color));
-            let text = format!(
-                "  Last Activity:  {}  ",
-                status.last_activity
-            );
-            // Build line with colored indicator
-            let line = Line::from(vec![
-                Span::raw(text),
-                indicator_span,
-                Span::raw(format!("\n  Last Tool:      {}\n  Phase:          {}",
-                    status.last_tool,
-                    status.current_phase,
-                )),
-            ]);
-            line
+            vec![
+                Line::from(vec![
+                    Span::raw(format!("  Last Activity:  {}  ", status.last_activity)),
+                    Span::styled(indicator, Style::default().fg(color)),
+                ]),
+                Line::from(format!("  Last Tool:      {}", status.last_tool)),
+                Line::from(format!("  Phase:          {}", status.current_phase)),
+            ]
         } else {
-            Line::from("  Waiting for heartbeat...")
+            vec![Line::from("  Waiting for heartbeat...")]
         }
     } else {
-        Line::from("  No active heartbeat")
+        vec![Line::from("  No active heartbeat")]
     };
 
     let block = Block::bordered()
         .title(" Heartbeat ")
         .border_style(Style::default().fg(Color::Magenta));
-    let paragraph = Paragraph::new(content).block(block);
+    let paragraph = Paragraph::new(Text::from(lines)).block(block);
     frame.render_widget(paragraph, area);
 }
 

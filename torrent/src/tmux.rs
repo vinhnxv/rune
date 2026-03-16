@@ -130,8 +130,15 @@ impl Tmux {
     /// paste-mode edge cases.
     pub fn send_arc_command(session_id: &str, plan_path: &Path) -> Result<()> {
         validate_session_id(session_id)?;
-        validate_plan_path(plan_path)?;
-        let arc_cmd = format!("/arc {}", plan_path.display());
+        // Use filename only for the /arc command — Claude Code runs in the repo root
+        // and expects relative paths like "plans/foo.md", not absolute paths.
+        let display_path = plan_path.display().to_string();
+        let arc_path = if let Some(idx) = display_path.find("plans/") {
+            &display_path[idx..]
+        } else {
+            &display_path
+        };
+        let arc_cmd = format!("/arc {}", arc_path);
 
         // Send the literal command text
         let status = Command::new("tmux")
