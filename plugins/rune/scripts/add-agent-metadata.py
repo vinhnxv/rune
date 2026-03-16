@@ -261,6 +261,7 @@ def build_updated_frontmatter(
     ordered_keys = [
         "name",
         "description",
+        "category",
         "model",
         "tools",
         "disallowedTools",

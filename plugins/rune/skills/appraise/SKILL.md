@@ -42,6 +42,25 @@ Orchestrate a multi-agent code review using the Roundtable Circle architecture. 
 
 **Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `codex-cli`, `team-sdk`, `polling-guard`, `zsh-compat`
 
+## Spec-Aware Review (Discipline Integration)
+
+When a `plan_file_path` is available (passed via arc Phase 6, or set in the inscription context), reviewers receive plan acceptance criteria in their inscription context. This enables spec-aware review — checking "does code match spec" in addition to "is code good".
+
+**Plan context injection** (3 items added to reviewer inscription):
+1. **Plan file path** + extracted acceptance criteria (AC-N entries)
+2. **Plan type** (feat/fix/refactor from frontmatter) — affects what to look for
+3. **Reviewer SOW**: Which criteria this reviewer is responsible for checking
+
+**Review findings can reference plan criteria IDs** (AC-N) when applicable:
+```
+BACK-003 (P2): AC-2.3 (rate limiting) not fully implemented — missing 429 response code
+```
+
+**Without plan**: Standard code quality review ("Code is clean, LGTM")
+**With plan**: Spec-aware review ("AC-3 timeout handling not implemented in src/api.ts")
+
+**Activation**: Automatic when `plan_file_path` is in the orchestration params or inscription context. No flag needed — the presence of plan context activates spec-aware behavior.
+
 ## Orchestration Parameters
 
 Appraise sets these parameters before delegating to the shared [orchestration-phases.md](../roundtable-circle/references/orchestration-phases.md):

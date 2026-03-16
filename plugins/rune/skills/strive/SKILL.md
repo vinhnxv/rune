@@ -344,6 +344,21 @@ See [question-relay.md](references/question-relay.md) for full protocol details 
 
 **Talisman gate**: Check `question_relay.enabled` (default: `true`) before activating. If disabled, workers proceed on best-effort without question surfacing.
 
+### Discipline Work Loop (8-Phase Convergence Cycle)
+
+When a plan contains YAML acceptance criteria (`AC-*` blocks), strive activates the Discipline Work Loop — an 8-phase convergence cycle that replaces linear task execution with iterative verification.
+
+**Activation gate**: `hasCriteria` — plan has at least one `AC-*` block in code fences. Plans without criteria degrade to current behavior (backward compatibility).
+
+**Reference**: See [discipline-work-loop.md](references/discipline-work-loop.md) for the full 8-phase protocol.
+**Task format**: See [task-file-format.md](references/task-file-format.md) for the task file YAML schema.
+
+**Phases**: Decompose → Review Tasks → Assign → Execute → Monitor → Review Work → Converge → Quality
+
+**Convergence**: Configurable via `talisman.discipline.max_convergence_iterations` (default: 3). Stagnation detection escalates to human after 2+ iterations with same failing criteria.
+
+**Backward compatibility**: Plans without YAML criteria skip Phase 1.5 (cross-reference), Phase 4.5 (completion matrix), and Phase 5 (convergence loop). SOW contracts use file-based scope instead of criteria-based scope.
+
 ### Discipline Escalation Chain (Phase 3 — Planned)
 
 > **Status**: Planned — not yet implemented. This section documents the intended escalation behavior when the `validate-discipline-proofs.sh` TaskCompleted hook blocks task completion. Only activates when `discipline.enabled: true` AND `discipline.block_on_fail: true` in talisman.

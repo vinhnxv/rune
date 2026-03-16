@@ -301,6 +301,7 @@ all_shards=$(echo "$merged" | jq '{
     defaults: (.defaults // {}),
     "rune-gaze": (."rune-gaze" // {}),
     ashes: (.ashes // {}),
+    user_agents: (.user_agents // []),
     echoes: (.echoes // {})
   },
   inspect: (.inspect // {}),

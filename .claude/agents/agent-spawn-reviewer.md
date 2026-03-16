@@ -8,6 +8,7 @@ description: |
   Task/Agent naming in same files, and incomplete Agent call parameters.
   Does NOT flag Task* management tools (TaskCreate, TaskUpdate, etc.) — those
   are correct usage.
+category: review
 tools:
   - Read
   - Glob

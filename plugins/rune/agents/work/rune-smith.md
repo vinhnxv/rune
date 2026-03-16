@@ -18,6 +18,8 @@ tools:
   - TaskGet
   - TaskUpdate
   - SendMessage
+skills:
+  - discipline
 maxTurns: 60
 mcpServers:
   - echo-search

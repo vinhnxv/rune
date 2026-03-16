@@ -81,6 +81,18 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | `/rune:review` | Beginner alias for `/rune:appraise` — review code changes |
 | `/rune:team-delegate` | Task delegation dashboard — assign, message, create tasks (experimental) |
 
+## Discipline Engineering
+
+Rune implements structural discipline enforcement across all pipelines. See `docs/discipline-engineering.md` for the foundational document and `skills/discipline/` for the skill + references.
+
+**Key rules**:
+- Plans SHOULD have YAML acceptance criteria (`AC-*` blocks) for spec-aware execution
+- Workers SHOULD collect evidence before marking tasks complete via `TaskUpdate`
+- The Discipline Work Loop (8-phase convergence cycle) activates automatically when plans have YAML criteria
+- Plans without criteria degrade gracefully to existing linear execution (backward compatibility preserved)
+
+**Configuration**: `talisman.yml` → `discipline:` section controls `enabled`, `block_on_fail`, `scr_threshold`, `max_convergence_iterations`.
+
 ## Core Rules
 
 1. All multi-agent workflows use Agent Teams (`TeamCreate` + `TaskCreate`) + Glyph Budget + `inscription.json`.
