@@ -37,6 +37,9 @@ pub struct App {
     pub last_checkpoint_poll: Option<Instant>,
     pub launched_wall_clock: Option<chrono::DateTime<Utc>>,
 
+    // Status message for display in UI
+    pub status_message: Option<String>,
+
     // Whether we should quit
     pub should_quit: bool,
 }
@@ -155,6 +158,7 @@ impl App {
             last_heartbeat_poll: None,
             last_checkpoint_poll: None,
             launched_wall_clock: None,
+            status_message: None,
             should_quit: false,
         })
     }
@@ -441,12 +445,22 @@ impl App {
         })?;
 
         // Step 1: git checkout main + pull (blocking, before tmux)
-        let _ = Command::new("git")
+        let checkout = Command::new("git")
             .args(["checkout", "main"])
             .status();
-        let _ = Command::new("git")
+        if checkout.map_or(true, |s| !s.success()) {
+            self.status_message = Some("git checkout main failed — clean up working tree".into());
+            // Re-queue the plan for retry after user fixes
+            self.queue.push_front(plan_idx);
+            return Ok(());
+        }
+        let pull = Command::new("git")
             .args(["pull", "--ff-only"])
             .status();
+        if pull.map_or(true, |s| !s.success()) {
+            self.status_message = Some("git pull --ff-only failed — try git pull --rebase manually".into());
+            // Continue anyway — local main may be slightly behind but usable
+        }
 
         // Step 2: Record wall-clock time BEFORE launch (for discovery matching)
         self.launched_wall_clock = Some(Utc::now());

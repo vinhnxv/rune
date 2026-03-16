@@ -4,6 +4,38 @@ use std::process::Command;
 use color_eyre::eyre::{eyre, Result};
 use rand::Rng;
 
+/// Validate session_id contains only safe characters for tmux -t flag.
+/// Prevents tmux target syntax injection (session:window.pane).
+fn validate_session_id(session_id: &str) -> Result<()> {
+    if session_id.is_empty() || session_id.len() > 64 {
+        return Err(eyre!("Invalid session_id length: {}", session_id.len()));
+    }
+    if !session_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err(eyre!(
+            "Invalid session_id characters: {session_id} (only alphanumeric, hyphen, underscore allowed)"
+        ));
+    }
+    Ok(())
+}
+
+/// Validate plan path contains no shell metacharacters or traversal.
+fn validate_plan_path(path: &Path) -> Result<()> {
+    let s = path.to_string_lossy();
+    if s.contains("..") || s.starts_with('/') || s.starts_with('-') {
+        return Err(eyre!("Invalid plan path: {s}"));
+    }
+    if !s
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || "._-/".contains(c))
+    {
+        return Err(eyre!("Plan path contains unsafe characters: {s}"));
+    }
+    Ok(())
+}
+
 /// Wrapper around tmux CLI for managing Claude Code sessions.
 pub struct Tmux;
 
@@ -32,6 +64,7 @@ impl Tmux {
     /// The session inherits the current working directory so Claude Code
     /// starts in the repo root. `CLAUDE_CONFIG_DIR` is injected via env.
     pub fn create_session(config_dir: &Path, session_id: &str) -> Result<()> {
+        validate_session_id(session_id)?;
         let status = Command::new("tmux")
             .args([
                 "new-session",
@@ -60,6 +93,8 @@ impl Tmux {
     /// in the plan path. Enter is sent as a separate command to avoid
     /// paste-mode edge cases.
     pub fn send_arc_command(session_id: &str, plan_path: &Path) -> Result<()> {
+        validate_session_id(session_id)?;
+        validate_plan_path(plan_path)?;
         let arc_cmd = format!("/arc {}", plan_path.display());
 
         // Send the literal command text
@@ -88,6 +123,7 @@ impl Tmux {
     /// Kill a tmux session by name. Best-effort — ignores errors if the
     /// session already exited.
     pub fn kill_session(session_id: &str) -> Result<()> {
+        validate_session_id(session_id)?;
         let status = Command::new("tmux")
             .args(["kill-session", "-t", session_id])
             .status()
