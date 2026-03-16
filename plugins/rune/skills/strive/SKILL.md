@@ -442,6 +442,24 @@ if (exists(".claude/echoes/workers/")) {
     source: `rune:strive ${timestamp}`,
   })
 }
+
+// Discipline accountability echo — persist run metrics for trend detection
+if (disciplineEnabled && exists(`tmp/work/${timestamp}/convergence/metrics.json`)) {
+  const metrics = JSON.parse(Read(`tmp/work/${timestamp}/convergence/metrics.json`))
+  ensureDir(".claude/echoes/discipline/")
+  appendEchoEntry(".claude/echoes/discipline/MEMORY.md", {
+    layer: "inscribed",
+    source: `rune:strive ${timestamp}`,
+    role: "discipline",
+    domain: "verification",
+    tags: ["discipline", "accountability", "metrics"],
+    scr: metrics.metrics?.scr?.value,
+    first_pass_rate: metrics.metrics?.first_pass_rate?.value,
+    convergence_iterations: metrics.metrics?.convergence_iterations?.value,
+    failure_codes: metrics.convergence?.failure_code_histogram ?? {},
+  })
+}
+// See discipline/references/accountability-protocol.md for full echo format and trend detection
 ```
 
 ## Phase 6: Cleanup & Report
