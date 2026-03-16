@@ -54,6 +54,20 @@ Agent({
     2. Claim (if not pre-assigned): TaskUpdate({ taskId, owner: "{your-name}", status: "in_progress" })
        If pre-assigned: TaskUpdate({ taskId, status: "in_progress" })
     3. Read task description and referenced plan
+    4.1. ECHO-BACK (COMPREHENSION Layer):
+         Before writing any code, echo back your understanding of each acceptance criterion.
+
+         Format: For each criterion, state: "I will: [criterion-id]: [paraphrase in your own words]"
+
+         If any criteria are unclear, you MUST ask via SendMessage — you cannot guess.
+
+         Anti-rationalization: "This is too simple to echo" -> You still must echo. This is not
+         negotiable. See anti-rationalization.md.
+
+         Risk Tier Gating (Grace -> Ember scale):
+         - Tier 0 (trivial): Echo recommended but not enforced
+         - Tier 1+ (standard): Echo required — skip = task rejection
+         - Tier 2+ (critical): Echo required + WAIT for ACK from Tarnished before proceeding
     4. IF --approve mode: write proposal to tmp/work/{timestamp}/proposals/{task-id}.md,
        send to the Tarnished via SendMessage, wait for approval before coding.
        Max 2 rejections -> mark BLOCKED. Timeout 3 min -> auto-REJECT.
@@ -158,6 +172,33 @@ Agent({
            - Wrong file location: Do new files follow the directory conventions of their siblings?
            - Existing test regression: Run tests related to modified files BEFORE writing new code.
          - If ANY issue found -> fix it NOW, before ward check
+    6.75. EVIDENCE COLLECTION (DOC-001 contract):
+          Write evidence artifacts to tmp/work/{timestamp}/evidence/{task-id}/ BEFORE
+          calling TaskUpdate(completed). This is mandatory — evidence MUST be written
+          before task completion is recorded.
+
+          Evidence to collect:
+          - Summary of changes made (files modified, approach taken)
+          - Ward check results (exit code + last 20 lines of output)
+          - Test results (command + pass/fail counts)
+          - Inner Flame self-review outcome
+
+          Write evidence file:
+          Write("tmp/work/{timestamp}/evidence/{task-id}/evidence.json", JSON.stringify({
+            task_id: "{task-id}",
+            worker: "{your-name}",
+            files_modified: [...],
+            ward_exit_code: N,
+            ward_output_tail: "...",
+            test_results: "...",
+            confidence: N,
+            inner_flame: "pass|fail|partial"
+          }))
+
+          Low confidence gate: IF confidence < 60 AND risk_tier >= 2:
+            SendMessage to Tarnished: "Low confidence ({N}) on Tier {T} task #{id}. Blocking
+            completion pending review. Evidence: tmp/work/{timestamp}/evidence/{task-id}/"
+            Do NOT call TaskUpdate(completed) until Tarnished responds.
     7. Run quality gates (discovered from Makefile/package.json/pyproject.toml)
     8. IF ward passes:
        a. Mark new files for diff tracking: git add -N <new-files>
@@ -166,7 +207,12 @@ Agent({
           { task_id, subject, files: [...], patch_path }
        d. Do not run git add or git commit -- the Tarnished handles all commits
        e. TaskUpdate({ taskId, status: "completed" })
-       f. SendMessage to the Tarnished: "Seal: task #{id} done. Files: {list}"
+       f. SendMessage to the Tarnished with structured Seal:
+          "Seal: task #{id} done. Files: {list}. Tests: {pass}/{total}. Confidence: {N}.
+          criteria_met: [list of criterion-ids echoed in step 4.1 that were satisfied]
+          evidence_files: [paths written to tmp/work/{timestamp}/evidence/{task-id}/]
+          ward_result: pass | fail | skipped
+          Inner-flame: {pass|fail|partial}. Revised: {count}."
     8.5. RELEASE FILE LOCK (after ward pass):
          Delete tmp/.rune-signals/{team}/{your-name}-files.json
          Failure is non-blocking — orphaned signals cleaned by orchestrator stale lock scan.
@@ -261,6 +307,20 @@ Agent({
     2. Claim (if not pre-assigned): TaskUpdate({ taskId, owner: "{your-name}", status: "in_progress" })
        If pre-assigned: TaskUpdate({ taskId, status: "in_progress" })
     3. Read task description and the code to be tested
+    4.1. ECHO-BACK (COMPREHENSION Layer):
+         Before writing any tests, echo back your understanding of each acceptance criterion.
+
+         Format: For each criterion, state: "I will: [criterion-id]: [paraphrase in your own words]"
+
+         If any criteria are unclear, you MUST ask via SendMessage — you cannot guess.
+
+         Anti-rationalization: "This is too simple to echo" -> You still must echo. This is not
+         negotiable. See anti-rationalization.md.
+
+         Risk Tier Gating (Grace -> Ember scale):
+         - Tier 0 (trivial): Echo recommended but not enforced
+         - Tier 1+ (standard): Echo required — skip = task rejection
+         - Tier 2+ (critical): Echo required + WAIT for ACK from Tarnished before proceeding
     4. IF --approve mode: write proposal to tmp/work/{timestamp}/proposals/{task-id}.md,
        send to the Tarnished via SendMessage, wait for approval before writing tests.
        Max 2 rejections -> mark BLOCKED. Timeout 3 min -> auto-REJECT.
@@ -358,6 +418,31 @@ Agent({
            - Reinventing fixtures: Do similar test fixtures/helpers already exist? Reuse them.
            - Wrong test location: Does the test file live next to the source or in tests/? Follow existing convention.
            - Run existing tests on modified files FIRST to catch regressions before adding new tests.
+    6.75. EVIDENCE COLLECTION (DOC-001 contract):
+          Write evidence artifacts to tmp/work/{timestamp}/evidence/{task-id}/ BEFORE
+          calling TaskUpdate(completed). This is mandatory — evidence MUST be written
+          before task completion is recorded.
+
+          Evidence to collect:
+          - Test files written and patterns followed
+          - Test run results (command + pass/fail/coverage counts)
+          - Inner Flame self-review outcome
+
+          Write evidence file:
+          Write("tmp/work/{timestamp}/evidence/{task-id}/evidence.json", JSON.stringify({
+            task_id: "{task-id}",
+            worker: "{your-name}",
+            test_files: [...],
+            test_results: "...",
+            coverage: "...",
+            confidence: N,
+            inner_flame: "pass|fail|partial"
+          }))
+
+          Low confidence gate: IF confidence < 60 AND risk_tier >= 2:
+            SendMessage to Tarnished: "Low confidence ({N}) on Tier {T} task #{id}. Blocking
+            completion pending review. Evidence: tmp/work/{timestamp}/evidence/{task-id}/"
+            Do NOT call TaskUpdate(completed) until Tarnished responds.
     7. Run tests to verify they pass
     8. IF tests pass:
        a. Mark new files for diff tracking: git add -N <new-files>
@@ -366,7 +451,12 @@ Agent({
           { task_id, subject, files: [...], patch_path }
        d. Do not run git add or git commit -- the Tarnished handles all commits
        e. TaskUpdate({ taskId, status: "completed" })
-       f. SendMessage to the Tarnished: "Seal: tests for #{id}. Pass: {count}/{total}"
+       f. SendMessage to the Tarnished with structured Seal:
+          "Seal: tests for #{id}. Pass: {count}/{total}. Coverage: {metric}. Confidence: {N}.
+          criteria_met: [list of criterion-ids echoed in step 4.1 that were satisfied]
+          evidence_files: [paths written to tmp/work/{timestamp}/evidence/{task-id}/]
+          ward_result: pass | fail | skipped
+          Inner-flame: {pass|fail|partial}. Revised: {count}."
     8.5. RELEASE FILE LOCK (after test pass):
          Delete tmp/.rune-signals/{team}/{your-name}-files.json
          Failure is non-blocking — orphaned signals cleaned by orchestrator stale lock scan.

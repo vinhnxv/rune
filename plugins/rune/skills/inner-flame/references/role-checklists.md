@@ -19,6 +19,9 @@ In addition to the universal 3-layer protocol:
 - [ ] **Fresh evidence cited**: Ward check command + exit code + last 20 lines of output
 - [ ] **Test evidence**: Test commands run + pass/fail counts (not just "tests pass")
 - [ ] **Type checker evidence**: Output shown if applicable to language
+- [ ] **Evidence artifact written**: tmp/work/{timestamp}/evidence/{task-id}/evidence.json exists
+      (DOC-001: evidence MUST be written BEFORE TaskUpdate — verify the file was actually created)
+- [ ] **Proof artifact**: criteria_met list in Seal matches criteria echoed in step 4.1
 
 ### Elegance Check (when `inner_flame.elegance_check: true` AND non-trivial change)
 - [ ] Simplest solution: no unnecessary abstraction, no speculative generality
