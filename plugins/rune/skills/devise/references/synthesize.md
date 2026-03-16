@@ -354,6 +354,9 @@ acceptance_criteria:
 | `pattern_matches` | Regex pattern found in file(s) | `["regex", "glob"]` |
 | `test_passes` | Test file runs without failures | `["test/path"]` |
 | `file_exists` | File is present at path | `["file/path"]` |
+| `semantic_match` | Judge model evaluates against rubric (LOW reliability) | `["rubric_text"]` |
+
+> **Note**: This table shows common proof types. See [proof-schema.md](../../discipline/references/proof-schema.md) for the full list of 8 types including `no_pattern_exists`, `builds_clean`, `git_diff_contains`, and `line_count_delta`.
 
 **Context budget**: Keep each criterion's `text` field ≤ 200 tokens (roughly 1–2 sentences). Verbose descriptions belong in the task body, not inside the YAML criteria block. Staying within the 200-token budget per criterion ensures the plan remains parseable during strive task decomposition.
 

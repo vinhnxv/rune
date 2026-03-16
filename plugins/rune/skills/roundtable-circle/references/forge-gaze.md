@@ -663,13 +663,13 @@ The forge agent generating criteria should use its perspective to inform criteri
 
 Each generated criterion should reference an appropriate proof type from the proof schema. Proof types determine how the criterion can be verified during gap analysis and pre-ship validation.
 
-See [proof-schema.md](../../discipline/references/proof-schema.md) for the full list of available proof types (`unit_test`, `integration_test`, `e2e_test`, `static_analysis`, `manual_review`, `benchmark`, `contract_test`).
+See [proof-schema.md](../../discipline/references/proof-schema.md) for the full list of available proof types: `file_exists`, `pattern_matches`, `no_pattern_exists`, `test_passes`, `builds_clean`, `git_diff_contains`, `line_count_delta`, `semantic_match`.
 
 Annotate each criterion with its proof type in a comment when the type is non-obvious:
 
 ```markdown
-- [ ] All SQL queries use parameterized statements <!-- proof: static_analysis + integration_test -->
-- [ ] Endpoint returns 429 after 100 req/min per IP <!-- proof: integration_test -->
+- [ ] All SQL queries use parameterized statements <!-- proof: pattern_matches -->
+- [ ] Endpoint returns 429 after 100 req/min per IP <!-- proof: test_passes -->
 ```
 
 ### Budget Note

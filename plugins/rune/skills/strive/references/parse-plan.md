@@ -267,10 +267,13 @@ for (const pt of planTaskHeadings) {
       const idMatch = entry.match(/id:\s*(\S+)/)
       const textMatch = entry.match(/text:\s*"?([^"\n]+)"?/)
       const proofMatch = entry.match(/proof:\s*(\S+)/)
+      // PS-003 FIX: Extract args field — verification target (regex, file path, test command)
+      const argsMatch = entry.match(/args:\s*(\{[^}]+\}|\[[^\]]+\]|"[^"]+"|'[^']+'|\S+)/)
       return {
         id: idMatch ? idMatch[1] : null,
         text: textMatch ? textMatch[1].trim() : '',
-        proof: proofMatch ? proofMatch[1] : 'pattern_matches'
+        proof: proofMatch ? proofMatch[1] : 'pattern_matches',
+        args: argsMatch ? argsMatch[1] : null
       }
     }).filter(c => c.text)
 
