@@ -8,8 +8,9 @@ before persisting to the index.
 import re
 from typing import Any, List, Optional
 
-# SEC-5: Agent name allowlist — lowercase + hyphens + digits + underscores
-VALID_NAME_RE = re.compile(r'^[a-zA-Z0-9_-]+$')
+# SEC-5: Agent name allowlist — lowercase letter start, lowercase + hyphens + digits
+# Plan requirement: /^[a-z][a-z0-9-]+$/ — no uppercase, no underscores
+VALID_NAME_RE = re.compile(r'^[a-z][a-z0-9-]+$')
 
 # Constraints
 MAX_NAME_LENGTH = 128
@@ -61,13 +62,17 @@ def validate_agent_schema(
         errors.append("name exceeds %d character limit" % MAX_NAME_LENGTH)
     elif not VALID_NAME_RE.match(name):
         errors.append(
-            "name contains invalid characters — "
-            "only alphanumeric, hyphens, and underscores allowed"
+            "name must start with a lowercase letter and contain "
+            "only lowercase letters, digits, and hyphens"
         )
 
     # --- Description validation ---
     if not description or not isinstance(description, str):
         errors.append("description is required and must be a non-empty string")
+    elif len(description) < 20 and source == "user":
+        errors.append(
+            "description must be at least 20 characters for user agents"
+        )
     elif len(description) > MAX_DESCRIPTION_LENGTH:
         errors.append(
             "description exceeds %d character limit" % MAX_DESCRIPTION_LENGTH
@@ -96,6 +101,7 @@ def validate_agent_schema(
         elif len(tags) > MAX_TAGS_COUNT:
             errors.append("tags exceed %d item limit" % MAX_TAGS_COUNT)
         else:
+            _valid_tag_re = re.compile(r'^[a-z0-9:._\-/]+$')
             for i, tag in enumerate(tags):
                 if not isinstance(tag, str):
                     errors.append("tags[%d] must be a string" % i)
@@ -103,6 +109,12 @@ def validate_agent_schema(
                     errors.append(
                         "tags[%d] exceeds %d character limit"
                         % (i, MAX_TAG_LENGTH)
+                    )
+                elif not _valid_tag_re.match(tag):
+                    errors.append(
+                        "tags[%d] contains invalid characters — "
+                        "only lowercase letters, digits, colons, dots, "
+                        "hyphens, underscores, and slashes allowed" % i
                     )
 
     # --- Body validation ---

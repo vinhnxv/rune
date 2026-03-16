@@ -99,6 +99,46 @@ Cross-model comparison of plan intent vs code semantics before inspector team cr
 
 See [codex-drift-detection.md](references/codex-drift-detection.md) for the full protocol — detection infrastructure, prompt generation, and drift report injection into Phase 3 inspector prompts.
 
+### MCP-First Inspector Discovery (v1.170.0+)
+
+Inspector agents can be discovered via MCP search, enabling user-defined inspectors:
+
+```pseudocode
+# Phase 2: Inspector Selection
+inspectors = []
+
+if mcp_available:
+  # Discover phase-appropriate inspectors
+  candidates = agent_search({
+    query: "inspect plan requirements completeness correctness",
+    phase: "inspect",
+    limit: 8
+  })
+  inspectors = candidates.filter(c => c.categories.includes("inspection") or c.categories.includes("investigation"))
+
+  # Write signal
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+
+if not inspectors or len(inspectors) < 4:
+  # Fallback: use hardcoded inspector list
+  inspectors = [
+    { name: "grace-warden-inspect", mode: "inspect" },
+    { name: "ruin-prophet-inspect", mode: "inspect" },
+    { name: "sight-oracle-inspect", mode: "inspect" },
+    { name: "vigil-keeper-inspect", mode: "inspect" }
+  ]
+
+# For plan-review mode, swap "-inspect" variants with "-plan-review":
+if mode == "plan-review":
+  inspectors = inspectors.map(i => {
+    name: i.name.replace("-inspect", "-plan-review"),
+    mode: "plan-review"
+  })
+```
+
+This allows users to register custom inspectors (e.g., "compliance-inspector" for regulatory projects)
+that participate alongside the 4 built-in inspectors.
+
 ## Phase 2: Forge Team
 
 Writes state file (with session isolation: `config_dir`, `owner_pid`, `session_id`), creates output directory + inscription.json, acquires workflow lock (reader), runs pre-create guard (teamTransition), TeamCreate + signal directory, creates tasks per inspector + aggregator.
@@ -113,7 +153,7 @@ Read and execute [inspector-prompts.md](references/inspector-prompts.md) for the
 - Summon all inspectors in a **single message** (parallel, `run_in_background: true`)
 - All inspectors get full `scopeFiles` — they filter by relevance internally
 - `model: resolveModelForAgent(inspector, talisman)` for each inspector (cost tier mapping)
-- Template path: `prompts/ash/{inspector}-inspect.md` (or `{inspector}-plan-review.md` for `--mode plan`)
+- Template path: `agents/investigation/{inspector}-inspect.md` (or `{inspector}-plan-review.md` for `--mode plan`)
 
 ### Step 3.1 — Risk Context Injection (Goldmask Enhancement)
 

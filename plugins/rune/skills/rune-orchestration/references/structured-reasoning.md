@@ -228,4 +228,4 @@ Use `isRevision: true` when reconsidering a decision. Use `branchFromThought` wh
 - Conflict resolution: `../SKILL.md` → "Conflict Resolution Rules"
 - Truthbinding Protocol: `inscription-protocol.md` → "Truthbinding Protocol"
 - Prompt engineering: `prompt-weaving.md` → 7-section template
-- Ash prompts: `../../../prompts/ash/` → Self-Review Checkpoint
+- Ash agents: `../../../agents/` → Self-Review Checkpoint

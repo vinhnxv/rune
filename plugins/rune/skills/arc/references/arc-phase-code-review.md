@@ -61,6 +61,17 @@ TOME output path varies by convergence round to prevent overwriting:
 - Round 0: `tmp/arc/{id}/tome.md` (current behavior)
 - Round N (N>0): `tmp/arc/{id}/tome-round-{N}.md` (preserves round 0 TOME for reference)
 
+### MCP-First Agent Discovery (v1.170.0+)
+
+Arc phases that spawn review/investigation agents benefit from MCP-first discovery.
+The calling phase should:
+1. Clear the previous phase's signal: `Bash("rm -f tmp/.rune-signals/.agent-search-called")`
+2. Call `agent_search()` with phase-appropriate query before spawning agents
+3. Use the dual-path spawning pattern from ash-summoning.md for registry/user agents
+
+When delegating to `/rune:appraise` or the roundtable-circle, MCP discovery is handled
+automatically by Rune Gaze Phase 1. No additional work needed in the arc phase itself.
+
 ## CRITICAL — Delegation Contract
 
 This phase is **delegated** to `/rune:appraise` via sub-command invocation (Agent tool). The arc orchestrator MUST NOT call `TeamCreate` for this phase. The `/rune:appraise` sub-command manages its own team lifecycle in a separate process. Attempting to create a team inline in the orchestrator would fail with "Already leading team X" if SDK leadership state leaked from Phase 2 (PLAN REVIEW).

@@ -92,7 +92,7 @@ for each file in changed_files:
 #
 # NOTE: Stack specialist prompts live in specialist-prompts/ (not agents/review/).
 # buildAshPrompt() derives the prompt directory from the filesystem — if a name
-# matches a file in specialist-prompts/, it loads from there; otherwise prompts/ash/.
+# matches a file in specialist-prompts/, it loads from there; otherwise agents/.
 # No hardcoded specialist list exists here — detection drives selection.
 
 stack = detectStack(repoRoot)
@@ -193,6 +193,94 @@ if NOT schema_drift_disabled:
   if has_schema_files:
     inscription.schema_drift_active = true  # Forge Warden reads this to activate Perspective 10
 
+# ── MCP-First Agent Discovery (v1.170.0+) ──
+# Enriches the hardcoded Ash selection above with agents from the registry
+# (registry/*.md) and user-defined agents (talisman.yml user_agents[]).
+# CORE agents (agents/*.md) are already selected via the hardcoded logic above.
+# This section adds EXTENDED/USER agents that the hardcoded logic can't see.
+#
+# If agent-search MCP is unavailable, this section is skipped entirely —
+# the hardcoded selection above provides full backward compatibility.
+
+mcp_available = false
+try:
+  stats = mcp__plugin_rune_agent-search__agent_stats()
+  mcp_available = stats is not None
+except:
+  mcp_available = false
+
+if mcp_available:
+  # Determine current phase context
+  current_phase = "review"  # "review" for appraise, "audit" for audit — set by calling skill
+
+  # Step 1: Search for phase-appropriate agents from registry/user sources
+  # This finds EXTENDED (registry/) and USER (talisman) agents that complement
+  # the CORE agents already selected above.
+  mcp_candidates = mcp__plugin_rune_agent-search__agent_search({
+    query: buildSearchQuery(code_files, stack),  # e.g., "python security quality review"
+    phase: current_phase,
+    source: None,  # search ALL sources — dedup handles overlap with CORE
+    limit: 10
+  })
+
+  # Step 2: Stack-specific supplemental search
+  if stack and stack.primary_language:
+    stack_candidates = mcp__plugin_rune_agent-search__agent_search({
+      query: f"{stack.primary_language} {' '.join(stack.frameworks)} specialist",
+      phase: current_phase,
+      category: "framework",
+      limit: 3
+    })
+    mcp_candidates = mergeAndDeduplicate(mcp_candidates, stack_candidates)
+
+  # Step 3: UX agent supplemental search (conditional)
+  if talisman.ux?.enabled and hasFrontendFiles:
+    ux_candidates = mcp__plugin_rune_agent-search__agent_search({
+      query: "UX usability accessibility heuristic",
+      phase: current_phase,
+      category: "ux",
+      limit: 3
+    })
+    mcp_candidates = mergeAndDeduplicate(mcp_candidates, ux_candidates)
+
+  # Step 4: Filter out agents already selected by hardcoded logic
+  for candidate in mcp_candidates:
+    if candidate.name not in ash_selections:
+      ash_selections.add(candidate.name)
+      # Store full detail for Phase 3 spawning (registry/user agents need body injection)
+      if candidate.source != "builtin":
+        registry_agent_details[candidate.name] = mcp__plugin_rune_agent-search__agent_detail(candidate.name)
+
+  # Step 5: Write signal file for enforce-agent-search.sh hook
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+
+  # Store MCP discovery results in inscription
+  inscription.mcp_discovery = {
+    enabled: true,
+    candidates_found: len(mcp_candidates),
+    registry_agents: registry_agent_details
+  }
+
+# Helper: build search query from file context
+def buildSearchQuery(code_files, stack):
+  keywords = []
+  if stack and stack.primary_language:
+    keywords.append(stack.primary_language)
+  if any(f.ext in BACKEND_EXTENSIONS for f in code_files):
+    keywords.append("backend")
+  if any(f.ext in FRONTEND_EXTENSIONS for f in code_files):
+    keywords.append("frontend")
+  keywords.extend(["code", "review", "security", "quality"])
+  return " ".join(keywords)
+
+def mergeAndDeduplicate(existing, new_results):
+  """Merge new results into existing, dedup by name, keep higher score."""
+  seen = {r.name: r for r in existing}
+  for r in new_results:
+    if r.name not in seen or r.score > seen[r.name].score:
+      seen[r.name] = r
+  return list(seen.values())
+
 # Always-on Ash (regardless of file types)
 # NOTE: pattern-weaver (always-on quality Ash) is distinct from pattern-seer
 # (cross-cutting consistency specialist, triggered by file patterns in review)
@@ -275,12 +363,20 @@ if talisman.ashes?.custom:
     else:
       # Skip silently (same as conditional built-in Ash)
 
-  # 6. Enforce max_ashes cap (built-in + CLI + agent-backed custom)
+  # 6. Enforce max_ashes cap (built-in + CLI + MCP-discovered + agent-backed custom)
+  # MCP-discovered agents are trimmed BEFORE custom_agent_ashes when exceeding cap
+  # Priority: always-on > stack specialists > custom agent-backed > MCP-discovered
   total_ashes = len(ash_selections)
   max_ashes = talisman.settings?.max_ashes ?? 9
   if total_ashes > max_ashes:
-    log("Too many Ashes ({total_ashes}). Max: {max_ashes}. Trimming custom entries.")
-    # Trim custom_agent_ashes from the end until within cap
+    log("Too many Ashes ({total_ashes}). Max: {max_ashes}. Trimming entries.")
+    # First trim MCP-discovered registry/user agents (lowest priority)
+    mcp_agent_names = list(registry_agent_details.keys()) if registry_agent_details else []
+    while len(ash_selections) > max_ashes and mcp_agent_names:
+      removed = mcp_agent_names.pop()
+      ash_selections.remove(removed)
+      registry_agent_details.pop(removed, None)
+    # Then trim custom_agent_ashes if still over cap
     while len(ash_selections) > max_ashes and custom_agent_ashes:
       removed = custom_agent_ashes.pop()
       ash_selections.remove(removed.name)
@@ -369,6 +465,8 @@ Gemfile.lock, pnpm-lock.yaml, go.sum, composer.lock
 ```
 
 ## Ash Selection Matrix
+
+<!-- NOTE: This hardcoded selection is the BASELINE. MCP-First Discovery (below) adds registry/user agents. -->
 
 | Changed Files | Forge Warden | Ward Sentinel | Pattern Weaver | Veil Piercer | Glyph Scribe | Knowledge Keeper | Codex Oracle |
 |--------------|:------------:|:-------------:|:--------------:|:------------:|:------------:|:-----------:|:------------:|

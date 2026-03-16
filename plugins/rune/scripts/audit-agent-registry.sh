@@ -1,7 +1,7 @@
 #!/bin/bash
 # scripts/audit-agent-registry.sh
-# Validates that lib/known-rune-agents.sh stays in sync with agents/**/*.md
-# and specialist-prompts/*.md.
+# Validates that lib/known-rune-agents.sh stays in sync with agents/**/*.md,
+# registry/**/*.md, and specialist-prompts/*.md.
 #
 # Usage: bash plugins/rune/scripts/audit-agent-registry.sh
 # Exit: 0 if in sync, 1 if drift detected.
@@ -20,10 +20,18 @@ fi
 # Extract agent names from the registry (pipe-separated pattern → one per line)
 REGISTRY_NAMES=$(grep '^KNOWN_RUNE_AGENTS=' "$LIB_FILE" | sed 's/^KNOWN_RUNE_AGENTS="//' | sed 's/"$//' | tr '|' '\n' | sort)
 
-# Extract agent names from agents/**/*.md (excluding references/)
+# Extract agent names from agents/**/*.md and registry/**/*.md (excluding references/)
 AGENT_NAMES=$(find "$PLUGIN_DIR/agents" -name '*.md' -not -path '*/references/*' -print0 2>/dev/null \
   | xargs -0 -I{} basename {} .md \
   | sort -u)
+
+# REF-001 FIX: Also scan registry/ directory for extended agents
+REGISTRY_AGENT_NAMES=""
+if [[ -d "$PLUGIN_DIR/registry" ]]; then
+  REGISTRY_AGENT_NAMES=$(find "$PLUGIN_DIR/registry" -name '*.md' -not -path '*/references/*' -not -name 'README*' -print0 2>/dev/null \
+    | xargs -0 -I{} basename {} .md \
+    | sort -u)
+fi
 
 # Extract specialist names from specialist-prompts/*.md (multiple possible locations)
 SPECIALIST_NAMES=""
@@ -38,24 +46,27 @@ for sp_dir in "$PLUGIN_DIR/specialist-prompts" \
   fi
 done
 
-# Extract ash-prompt names from roundtable-circle references
-ASH_PROMPT_NAMES=""
-ASH_DIR="$PLUGIN_DIR/prompts/ash"
+# Extract additional agent names from agents/ (dedup with AGENT_NAMES)
+EXTRA_AGENT_NAMES=""
+ASH_DIR="$PLUGIN_DIR/agents"
 if [[ -d "$ASH_DIR" ]]; then
-  ASH_PROMPT_NAMES=$(find "$ASH_DIR" -name '*.md' -not -name 'README*' -not -name '*template*' -print0 2>/dev/null \
+  EXTRA_AGENT_NAMES=$(find "$ASH_DIR" -name '*.md' -not -name 'README*' -not -name '*template*' -print0 2>/dev/null \
     | xargs -0 -I{} basename {} .md \
     | sort -u)
 fi
 
 # Known dynamically-spawned agents (no .md file — created programmatically)
 DYNAMIC_AGENTS="codex-arena-judge
+codex-oracle
 codex-plan-reviewer
 codex-researcher
 design-inventory-agent
+glyph-scribe
+pattern-weaver
 test-runner"
 
-# Combine expected names
-EXPECTED_NAMES=$(printf '%s\n%s\n%s\n%s' "$AGENT_NAMES" "$SPECIALIST_NAMES" "$ASH_PROMPT_NAMES" "$DYNAMIC_AGENTS" | grep -v '^$' | sort -u)
+# Combine expected names (agents/ + registry/ + specialist + dynamic)
+EXPECTED_NAMES=$(printf '%s\n%s\n%s\n%s\n%s' "$AGENT_NAMES" "$REGISTRY_AGENT_NAMES" "$SPECIALIST_NAMES" "$EXTRA_AGENT_NAMES" "$DYNAMIC_AGENTS" | grep -v '^$' | sort -u)
 
 # Source the shared lib for is_known_rune_agent() suffix matching
 source "$LIB_FILE"

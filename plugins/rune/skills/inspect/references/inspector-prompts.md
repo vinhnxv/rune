@@ -2,6 +2,17 @@
 
 This reference covers the 4 Inspector Ash prompt templates and protocols for `/rune:inspect`: grace-warden, ruin-prophet, sight-oracle, and vigil-keeper.
 
+## Agent Definitions
+
+Each inspector has 3 mode variants as separate agent files in `agents/investigation/`:
+
+| Base Agent | Inspect Mode | Plan Review Mode |
+|------------|-------------|-----------------|
+| `grace-warden` | `grace-warden-inspect` | `grace-warden-plan-review` |
+| `ruin-prophet` | `ruin-prophet-inspect` | `ruin-prophet-plan-review` |
+| `sight-oracle` | `sight-oracle-inspect` | `sight-oracle-plan-review` |
+| `vigil-keeper` | `vigil-keeper-inspect` | `vigil-keeper-plan-review` |
+
 ## Inspector Ash Overview
 
 | Inspector | Dimensions | Purpose |
@@ -10,6 +21,9 @@ This reference covers the 4 Inspector Ash prompt templates and protocols for `/r
 | `ruin-prophet` | Security, Failure Modes | Failure modes, security posture, operational readiness |
 | `sight-oracle` | Performance, Design | Architecture alignment, coupling analysis, performance profile |
 | `vigil-keeper` | Observability, Tests, Maintainability | Test coverage, observability, maintainability, documentation |
+
+**MCP Discovery**: Inspectors can also be discovered via `agent_search(phase="inspect")`.
+User-defined inspectors from talisman.yml or registry/ participate alongside built-in inspectors.
 
 ### Priority Order
 
@@ -131,7 +145,7 @@ For each inspector in `inspectorAssignments`, summon using the Agent tool with A
 
 ```javascript
 // Build prompts from ash-prompt templates
-// See: prompts/ash/{inspector}-inspect.md
+// See: agents/investigation/{inspector}-inspect.md
 
 for (const { inspector, taskId, reqIds } of tasks) {
   const reqList = reqIds.map(id => {
@@ -143,12 +157,12 @@ for (const { inspector, taskId, reqIds } of tasks) {
 
   // Load prompt template — mode-aware selection
   const templateSuffix = inspectMode === "plan" ? "plan-review" : "inspect"
-  let templatePath = `prompts/ash/${inspector}-${templateSuffix}.md`
+  let templatePath = `agents/investigation/${inspector}-${templateSuffix}.md`
 
   // CONCERN 3: fileExists guard before loadTemplate
   if (!exists(templatePath)) {
     warn(`Template not found: ${templatePath} — falling back to default inspect template`)
-    templatePath = `prompts/ash/${inspector}-inspect.md`
+    templatePath = `agents/investigation/${inspector}-inspect.md`
     if (!exists(templatePath)) {
       error(`Default template also missing: ${templatePath}`)
     }

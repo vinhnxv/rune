@@ -1166,6 +1166,17 @@ updateCheckpoint({
 
 ## STEP B: 9-Dimension LLM Analysis (Inspector Ashes)
 
+### MCP-First Agent Discovery (v1.170.0+)
+
+Arc phases that spawn review/investigation agents benefit from MCP-first discovery.
+The calling phase should:
+1. Clear the previous phase's signal: `Bash("rm -f tmp/.rune-signals/.agent-search-called")`
+2. Call `agent_search()` with phase-appropriate query before spawning agents
+3. Use the dual-path spawning pattern from ash-summoning.md for registry/user agents
+
+When delegating to `/rune:appraise` or the roundtable-circle, MCP discovery is handled
+automatically by Rune Gaze Phase 1. No additional work needed in the arc phase itself.
+
 Spawns Inspector Ashes from `/rune:inspect` using its ash-prompt templates to perform a 9-dimension gap analysis on the committed implementation against the plan. Runs AFTER STEP A (deterministic) completes.
 
 **Team**: `arc-inspect-{id}` — follows ATE-1 pattern
@@ -1256,7 +1267,7 @@ if (!/^[a-zA-Z0-9_-]+$/.test(inspectTeamName)) {
   }
 
   // STEP B.7: Spawn inspectors using ash-prompt templates
-  // Reference: prompts/ash/{inspector}-inspect.md
+  // Reference: agents/investigation/{inspector}-inspect.md
   for (const { inspector, taskId, reqIds, reqList } of inspectorTasks) {
     const outputPath = `tmp/arc/${id}/${inspector}-gap.md`
     const fileList = scopeFiles.join("\n")

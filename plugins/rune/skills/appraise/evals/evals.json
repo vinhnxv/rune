@@ -57,10 +57,10 @@
     {
       "id": 4,
       "prompt": "How does Phase 3 (Summon Ash) work in /rune:appraise? What is the prompt generation contract? How are built-in vs custom Ashes handled? What security measures protect against prompt injection via file paths?",
-      "expected_output": "Phase 3 Summon Ash: Prompt generation contract: (1) Load Ash prompt from roundtable-circle/references/ash-prompts/{role}.md for built-in, (2) Use wrapper template from custom-ashes.md for custom Ashes, (3) Inject inscription contract (file list read from tmp/reviews/{identifier}/changed-files.txt), (4) Include talisman config overrides. Parallel execution: summon ALL selected Ash in a single message. Built-in Ashes: prompt loaded from predefined role.md files. Custom Ashes: agent-backed resolve agent file, CLI-backed invoke external binary with prompt template. Security: SEC-006 — file list written to changed-files.txt, NOT embedded raw paths in prompts to prevent injection. CLI-backed Ashes have 4-step Hallucination Guard. Nonce-bounded content injection for diffs.",
+      "expected_output": "Phase 3 Summon Ash: Prompt generation contract: (1) Load Ash prompt from agents/{category}/{role}.md for built-in (or via agent_search MCP for registry/user agents), (2) Use wrapper template from custom-ashes.md for custom Ashes, (3) Inject inscription contract (file list read from tmp/reviews/{identifier}/changed-files.txt), (4) Include talisman config overrides. Parallel execution: summon ALL selected Ash in a single message. Built-in Ashes: prompt loaded from agent definition files. Custom Ashes: agent-backed resolve agent file, CLI-backed invoke external binary with prompt template. Security: SEC-006 — file list written to changed-files.txt, NOT embedded raw paths in prompts to prevent injection. CLI-backed Ashes have 4-step Hallucination Guard. Nonce-bounded content injection for diffs.",
       "files": [],
       "expectations": [
-        "Describes prompt loading from roundtable-circle/references/ash-prompts/{role}.md",
+        "Describes prompt loading from agents/{category}/{role}.md or via MCP agent_search",
         "Notes custom Ashes use wrapper template",
         "Explains parallel execution: all Ashes summoned in single message",
         "Describes inscription contract injection",

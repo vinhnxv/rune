@@ -12,6 +12,22 @@ Three to six parallel reviewers evaluate the enriched plan. Any BLOCK verdict ha
 
 > **Note**: `sha256()`, `updateCheckpoint()`, `exists()`, and `warn()` are dispatcher-provided utilities available in the arc orchestrator context. Phase reference files call these without import.
 
+### MCP-First Agent Discovery (v1.170.0+)
+
+Arc phases that spawn review/investigation agents benefit from MCP-first discovery.
+The calling phase should:
+1. Clear the previous phase's signal: `Bash("rm -f tmp/.rune-signals/.agent-search-called")`
+2. Call `agent_search()` with phase-appropriate query before spawning agents
+3. Use the dual-path spawning pattern from ash-summoning.md for registry/user agents
+
+When delegating to `/rune:appraise` or the roundtable-circle, MCP discovery is handled
+automatically by Rune Gaze Phase 1. No additional work needed in the arc phase itself.
+
+Plan-review inspector agents are now standalone files in `agents/investigation/`:
+- `grace-warden-plan-review`, `ruin-prophet-plan-review`, `sight-oracle-plan-review`, `vigil-keeper-plan-review`
+
+These can be spawned via `subagent_type` or discovered via `agent_search(phase="inspect", query="plan review")`.
+
 ## ATE-1 Compliance
 
 This phase creates a team and spawns agents. It MUST follow the Agent Teams pattern:
@@ -378,7 +394,7 @@ if (hasCodeBlocks) {
 
   // Spawn 4 inspect agents (plan-review mode templates)
   for (const inspector of inspectors) {
-    const templatePath = `prompts/ash/${inspector}-plan-review.md`
+    const templatePath = `agents/investigation/${inspector}-plan-review.md`
     // CONCERN 3: fileExists guard
     if (!exists(templatePath)) {
       warn(`Plan-review template missing for ${inspector}: ${templatePath} — skipping`)

@@ -29,8 +29,9 @@ import re
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-# SEC-5: Agent name allowlist — lowercase + hyphens + digits + underscores
-VALID_NAME_RE = re.compile(r'^[a-zA-Z0-9_-]+$')
+# SEC-5: Agent name allowlist — lowercase letter start, lowercase + hyphens + digits
+# Plan requirement: /^[a-z][a-z0-9-]+$/ — no uppercase, no underscores
+VALID_NAME_RE = re.compile(r'^[a-z][a-z0-9-]+$')
 
 # YAML frontmatter boundary
 _FRONTMATTER_RE = re.compile(r'^---\s*$')
@@ -179,6 +180,10 @@ def _parse_frontmatter(lines: List[str]) -> Tuple[Dict[str, Any], int]:
                 current_key = None
                 current_list = None
                 current_multiline = None
+                # FLAW-014 FIX: Strip surrounding quotes from YAML scalar values
+                if (value.startswith('"') and value.endswith('"')) or \
+                   (value.startswith("'") and value.endswith("'")):
+                    value = value[1:-1]
                 # Parse booleans and numbers
                 if value.lower() in ("true", "yes"):
                     metadata[key] = True
@@ -198,7 +203,6 @@ def _parse_frontmatter(lines: List[str]) -> Tuple[Dict[str, Any], int]:
 
     # Fix BACK-003: Detect unclosed frontmatter (no closing ---)
     if body_start == len(lines) and len(metadata) > 0:
-        import sys
         print("WARN: unclosed frontmatter (no closing ---) in file — treating as invalid", file=sys.stderr)
         return {}, 0
 
@@ -291,6 +295,9 @@ def _extract_tags(metadata: Dict[str, Any], body: str) -> List[str]:
         # Extract notable keywords (capitalized terms, technical terms)
         words = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', desc)
         tags.extend(w.lower() for w in words[:10])
+        # Also capture ALL-CAPS acronyms (SQL, FTS5, OWASP, JWT, API, etc.)
+        acronyms = re.findall(r'\b[A-Z0-9]{2,}(?:-[A-Z0-9]+)*\b', desc)
+        tags.extend(a.lower() for a in acronyms[:5])
 
     # MCP servers as tags
     mcp = metadata.get("mcpServers", [])

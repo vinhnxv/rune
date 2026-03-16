@@ -349,6 +349,32 @@ The penalty scales linearly with the fraction of excluded topics found, up to `E
 
 > **VEIL-002: EXCLUSION_PENALTY_WEIGHT rationale** — The default 0.5 was chosen as a midpoint that demotes but does not eliminate agents with partial exclusion matches. At 0.5, an agent matching 100% of its excluded topics loses 0.5 from its score (typically enough to drop below the 0.30 threshold), while matching only 1 of 3 excluded topics loses ~0.17 (allowing the agent to remain if its keyword score is strong). This balances false negatives (agent excluded despite genuine expertise) against false positives (agent selected for an irrelevant section). The value is configurable via `talisman.forge.exclusion_penalty_weight` for projects that need stricter or more lenient exclusion behavior.
 
+### MCP-First Topic Discovery (v1.170.0+)
+
+When agent-search MCP is available, Forge Gaze can discover topic-specialized agents
+beyond the hardcoded mapping:
+
+```pseudocode
+# After hardcoded topic→agent matching:
+if mcp_available:
+  for section in plan_sections:
+    topic_candidates = agent_search({
+      query: section.topic + " " + section.keywords,
+      phase: "forge",
+      limit: 3
+    })
+    for candidate in topic_candidates:
+      if candidate.name not in forge_selections:
+        forge_selections.add(candidate.name)
+
+  # Write signal
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+```
+
+This enriches the existing static mapping with registry/user agents that specialize in
+the plan's specific topics (e.g., a user-defined "django-forge-advisor" for Django plans).
+Fallback: if MCP unavailable, the existing hardcoded mapping works unchanged.
+
 ### Selection
 
 ```

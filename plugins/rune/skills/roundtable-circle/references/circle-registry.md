@@ -166,7 +166,7 @@ Each Ash entry carries two scheduling fields used by [wave-scheduling.md](wave-s
 **Model policy:** `auto` = sonnet for security/code shards, haiku for docs-only shards.
 **Context budget:** SHARD_SIZE files per reviewer (default 12, configurable via talisman).
 **Finding format:** Uses standard RUNE:FINDING markers with `shard="{shard_id}"` attribute.
-**Prompt template:** [shard-reviewer.md](../../../prompts/ash/shard-reviewer.md)
+**Prompt template:** [shard-reviewer.md](../../../agents/review/shard-reviewer.md)
 **Allocator:** [shard-allocator.md](shard-allocator.md)
 
 > **SHA- prefix note:** `SHA-001` finding IDs will not collide with `SHA-256` algorithm
@@ -223,7 +223,7 @@ Focus mode increases context budget per Ash since fewer are competing for resour
 > **External CLI** — CLI-backed Ashes invoke external model CLIs (e.g., `gemini`, `llama`) via Bash,
 > similar to Codex Oracle. Defined in `ashes.custom[]` with `cli:` field. Auto-detected via
 > `detectExternalModel()`, conditionally summoned. Uses the parameterized
-> [external-model-template.md](../../../prompts/ash/external-model-template.md) prompt.
+> [external-model-template.md](../../roundtable-circle/references/external-model-template.md) prompt.
 
 | Aspect | Description |
 |--------|-------------|
@@ -232,7 +232,7 @@ Focus mode increases context budget per Ash since fewer are competing for resour
 | **Context budget** | From `ashes.custom[].context_budget` (configurable per entry) |
 | **Finding prefix** | From `ashes.custom[].finding_prefix` (2-5 uppercase chars) |
 | **Dedup position** | Below CDX in default hierarchy; built-in prefixes always precede |
-| **Prompt template** | `prompts/ash/external-model-template.md` (parameterized) |
+| **Prompt template** | `skills/roundtable-circle/references/external-model-template.md` (parameterized) |
 
 **Example entry (from talisman.yml):**
 ```yaml

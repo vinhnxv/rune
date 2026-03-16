@@ -163,7 +163,7 @@ Read and execute [ash-summoning.md](references/ash-summoning.md) for the full pr
 
 **Key rules:**
 - Summon ALL selected Ash in a **single message** (parallel execution)
-- Built-in Ash: load prompt from `../../prompts/ash/{role}.md`
+- Built-in Ash: load prompt from `../../agents/{category}/{role}.md`
 - Custom Ash: use wrapper template from `roundtable-circle/references/custom-ashes.md`
 - Write file list to `tmp/reviews/{identifier}/changed-files.txt` — do NOT embed raw paths in prompts (SEC-006)
 

@@ -97,7 +97,7 @@ if [ "$CODEX_EXIT" -ne 0 ]; then classifyCodexError "$CODEX_EXIT" "$(cat "${STDE
 
 > **Note:** This is a simplified example. For the full hardened prompt with security anchors,
 > Truthbinding protocol, and injection mitigations, see
-> [codex-oracle.md](../../../prompts/ash/codex-oracle.md) Review Mode section.
+> [codex-oracle.md](../../codex-cli/references/codex-oracle-prompt.md) Review Mode section.
 
 For `/rune:appraise`, pass diff content instead of file lists:
 
@@ -240,4 +240,4 @@ After receiving Codex output, verify EVERY finding:
    - Description doesn't match reality → UNVERIFIED → exclude
 
 Only findings that pass ALL three checks are included as CONFIRMED.
-See [codex-oracle.md](../../../prompts/ash/codex-oracle.md) for the full guard protocol.
+See [codex-oracle.md](../../codex-cli/references/codex-oracle-prompt.md) for the full guard protocol.

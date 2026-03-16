@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+## [1.170.0] - 2026-03-16
+
+### Added
+- **feat: Agent Registry Phase 3-5 — prompts/ash migration, registry directory, workflow integration**
+  - **prompts/ash/ migration (Task 1.2)** — Eliminated the entire `prompts/ash/` directory (32 files):
+    - Group A: Merged 15 team-workflow protocols into corresponding `agents/` bodies as conditional "Team Workflow Protocol" sections. Runtime `{variable}` placeholders replaced with `<!-- RUNTIME: ... -->` comments.
+    - Group B: Created 8 new mode-variant agent files (`grace-warden-inspect`, `grace-warden-plan-review`, etc.) as standalone agents in `agents/investigation/`.
+    - Group C: Created 5 new agents (`gap-fixer`, `forge-warden`, `shard-reviewer`, `veil-piercer`, `verdict-binder`). Moved 4 skill-scoped templates to `skills/*/references/`.
+    - Updated 20+ skill reference files to eliminate all `prompts/ash/` paths.
+  - **registry/ directory (Task 2.5)** — Created `registry/` with 8 subdirectories. Moved 43 EXTENDED+NICHE tier agents from `agents/` to `registry/` (MCP-only, zero context overhead). Result: 66 CORE agents in `agents/` (~3,630 tokens), 43 EXTENDED in `registry/` (0 tokens). ~45% context reduction.
+  - **Workflow integration (Tasks 3.1-3.6)** — Added MCP-first `agent_search()` discovery to all workflow skills:
+    - Rune Gaze: 5-step MCP-first pipeline (phase search, stack supplemental, UX supplemental, dedup, signal)
+    - Ash summoning: Dual-path spawning for CORE (subagent_type) vs EXTENDED/USER (general-purpose + body injection)
+    - Arc phases: MCP-first notes for code-review, plan-review, gap-analysis
+    - Forge Gaze: MCP-first topic discovery for enrichment
+    - Inspect: MCP-first inspector discovery with fallback to 4 hardcoded inspectors
+    - Goldmask: MCP-first tracer discovery with fallback
+  - **User agent support (Task 4.1)** — Added `ashes.user_agents[]` example to `talisman.example.yml`
+  - **Infrastructure** — Updated `build-agent-registry.sh`, `known-rune-agents.sh`, agent counts in CLAUDE.md/README.md/plugin.json
+
+### Changed
+- Agent count: 98 → 109 (66 CORE + 43 EXTENDED). Net new: 13 agents from Groups B/C.
+- Context overhead: ~5,324 tokens → ~3,630 tokens (~32% reduction)
+- All workflow skills now support MCP-first agent discovery with backward-compatible fallback
+
 ## [1.169.0] - 2026-03-16
 
 ### Fixed

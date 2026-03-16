@@ -2,10 +2,11 @@
 # scripts/lib/known-rune-agents.sh
 # Shared registry of known Rune agent names (grep pattern + helper function).
 #
-# SOURCE OF TRUTH: plugins/rune/agents/**/*.md (all *.md excluding references/)
+# SOURCE OF TRUTH: plugins/rune/agents/**/*.md (core, all *.md excluding references/)
+#                  + plugins/rune/registry/**/*.md (extended+niche agents)
 #                  + specialist-prompts/*.md (stack-specific reviewers)
 # SOURCED BY: enforce-teams.sh, guard-context-critical.sh
-# UPDATE: When adding a new agent to agents/, also add it here.
+# UPDATE: When adding a new agent to agents/ or registry/, also add it here.
 #         Run scripts/audit-agent-registry.sh to verify sync.
 
 # Read-only reference (grep pattern for O(1) agent name matching)
@@ -21,5 +22,5 @@ is_known_rune_agent() {
   local name="$1"
   [[ -n "$name" ]] || return 1
   [[ "$name" == *$'\n'* ]] && return 1
-  printf '%s\n' "$name" | grep -qE "^(${KNOWN_RUNE_AGENTS})(-[0-9]+|-deep|-exhaustive|-plan|-inspect|-w[0-9]+)*$"
+  printf '%s\n' "$name" | grep -qE "^(${KNOWN_RUNE_AGENTS})(-[0-9]+|-deep|-exhaustive|-plan|-inspect|-review|-w[0-9]+)*$"
 }

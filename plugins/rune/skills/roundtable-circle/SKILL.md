@@ -232,7 +232,7 @@ Agent({
   team_name: "rune-review-{pr}",
   name: "{ash-slug}",     // uses ash.slug — no wave suffix (preserves hook compatibility)
   subagent_type: "general-purpose",
-  prompt: [from ../../prompts/ash/{role}.md],
+  prompt: [from ../../agents/{category}/{role}.md],
   run_in_background: true
 })
 ```
@@ -265,7 +265,7 @@ See [wave-scheduling.md](references/wave-scheduling.md) for `selectWaves()`, `me
 
 ### Seal Format
 
-Each Ash writes a structured Seal (`SEAL: { findings, evidence_verified, confidence, self_reviewed, self_review_actions }`) at the end of their output file, then sends a max-50-word summary to the Tarnished. Full spec: [Inscription Protocol](../rune-orchestration/references/inscription-protocol.md). See [ash-prompts/](../../prompts/ash/) for individual prompts.
+Each Ash writes a structured Seal (`SEAL: { findings, evidence_verified, confidence, self_reviewed, self_review_actions }`) at the end of their output file, then sends a max-50-word summary to the Tarnished. Full spec: [Inscription Protocol](../rune-orchestration/references/inscription-protocol.md). See [agents/](../../agents/) for individual agent definitions.
 
 ## Phase 4: Monitor
 
@@ -425,7 +425,7 @@ Partial results remain in `tmp/audit/{id}/`.
 - [Task Templates](references/task-templates.md) — TaskCreate templates for each Ash role
 - [Output Format](references/output-format.md) — Raw finding format, validated format, TOME format, JSON output
 - [Validator Rules](references/validator-rules.md) — Confidence scoring, risk classification, dedup, gap reporting
-- [Ash Prompts](../../prompts/ash/) — Individual Ash prompts
+- [Agents](../../agents/) — Individual agent definitions
 - [Inscription Schema](references/inscription-schema.md) — inscription.json format
 - [Dedup Runes](references/dedup-runes.md) — Deduplication hierarchy (with cross-wave dedup)
 - [Standing Orders](references/standing-orders.md) — 6 anti-patterns for multi-agent orchestration (SO-1 through SO-6)
