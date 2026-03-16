@@ -484,14 +484,15 @@ impl App {
         std::thread::sleep(Duration::from_secs(10));
 
         // Step 5: Send /arc command with retry
-        // If first attempt fails (Claude still loading), wait and retry once.
+        self.status_message = Some(format!("Sending /arc to session {}...", &session_id));
         if let Err(e) = Tmux::send_arc_command(&session_id, &plan.path) {
-            self.status_message = Some(format!("send-keys failed, retrying in 5s: {e}"));
+            self.status_message = Some(format!("send-keys failed ({}), retrying in 5s: {e}", &session_id));
             std::thread::sleep(Duration::from_secs(5));
             if let Err(e2) = Tmux::send_arc_command(&session_id, &plan.path) {
-                self.status_message = Some(format!("send-keys failed after retry: {e2}"));
-                // Don't abort — session is created, user can attach and send manually
+                self.status_message = Some(format!("send-keys FAILED: {e2}. Attach manually: tmux attach -t {}", &session_id));
             }
+        } else {
+            self.status_message = Some(format!("/arc sent to {}", &session_id));
         }
 
         let total = self.selected_plans.len();

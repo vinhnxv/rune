@@ -123,15 +123,13 @@ impl Tmux {
         Ok(())
     }
 
-    /// Send `/arc <plan_path>` followed by Enter to the target session.
+    /// Send `/arc <plan_path>` + Enter to the target tmux session.
     ///
-    /// Uses `-l` (literal) so tmux doesn't interpret special characters
-    /// in the plan path. Enter is sent as a separate command to avoid
-    /// paste-mode edge cases.
+    /// Uses standard tmux `send-keys -t $id "text" Enter` syntax —
+    /// text and Enter in the same command (not `-l` with separate Enter).
     pub fn send_arc_command(session_id: &str, plan_path: &Path) -> Result<()> {
         validate_session_id(session_id)?;
-        // Use filename only for the /arc command — Claude Code runs in the repo root
-        // and expects relative paths like "plans/foo.md", not absolute paths.
+        // Extract relative path for the /arc command.
         let display_path = plan_path.display().to_string();
         let arc_path = if let Some(idx) = display_path.find("plans/") {
             &display_path[idx..]
@@ -140,24 +138,14 @@ impl Tmux {
         };
         let arc_cmd = format!("/arc {}", arc_path);
 
-        // Send the literal command text
+        // Single send-keys call: "text" + Enter (same as: tmux send-keys -t $id "text" Enter)
         let status = Command::new("tmux")
-            .args(["send-keys", "-t", session_id, "-l", &arc_cmd])
+            .args(["send-keys", "-t", session_id, &arc_cmd, "Enter"])
             .status()
             .map_err(|e| eyre!("tmux send-keys failed: {e}"))?;
 
         if !status.success() {
-            return Err(eyre!("tmux send-keys (literal) failed: {status}"));
-        }
-
-        // Send Enter separately
-        let status = Command::new("tmux")
-            .args(["send-keys", "-t", session_id, "Enter"])
-            .status()
-            .map_err(|e| eyre!("tmux send-keys Enter failed: {e}"))?;
-
-        if !status.success() {
-            return Err(eyre!("tmux send-keys Enter failed: {status}"));
+            return Err(eyre!("tmux send-keys failed: {status}"));
         }
 
         Ok(())
