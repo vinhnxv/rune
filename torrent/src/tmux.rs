@@ -1,11 +1,15 @@
 use std::path::Path;
 use std::process::Command;
+use std::thread;
+use std::time::Duration;
 
 use color_eyre::eyre::{eyre, Result};
 use rand::Rng;
 
+/// Delay between send-keys steps (Ink autocomplete workaround).
+const SEND_DELAY_MS: u64 = 300;
+
 /// Validate session_id contains only safe characters for tmux -t flag.
-/// Prevents tmux target syntax injection (session:window.pane).
 fn validate_session_id(session_id: &str) -> Result<()> {
     if session_id.is_empty() || session_id.len() > 64 {
         return Err(eyre!("Invalid session_id length: {}", session_id.len()));
@@ -15,34 +19,18 @@ fn validate_session_id(session_id: &str) -> Result<()> {
         .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
     {
         return Err(eyre!(
-            "Invalid session_id characters: {session_id} (only alphanumeric, hyphen, underscore allowed)"
+            "Invalid session_id characters: {session_id}"
         ));
     }
     Ok(())
 }
 
-/// Validate plan path contains no shell metacharacters or traversal.
-fn validate_plan_path(path: &Path) -> Result<()> {
-    let s = path.to_string_lossy();
-    if s.contains("..") || s.starts_with('/') || s.starts_with('-') {
-        return Err(eyre!("Invalid plan path: {s}"));
-    }
-    if !s
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || "._-/".contains(c))
-    {
-        return Err(eyre!("Plan path contains unsafe characters: {s}"));
-    }
-    Ok(())
-}
-
 /// Wrapper around tmux CLI for managing Claude Code sessions.
+/// Based on varre's TmuxWrapper pattern with Escape+delay+Enter workaround.
 pub struct Tmux;
 
 impl Tmux {
     /// Resolve the absolute path to the `claude` binary.
-    /// Uses `which claude` from the current shell — this finds the correct binary
-    /// even when tmux's bash would resolve to a different one (brew/npm vs ~/.local/bin).
     pub fn resolve_claude_path() -> Result<String> {
         let output = Command::new("which")
             .arg("claude")
@@ -50,7 +38,7 @@ impl Tmux {
             .map_err(|e| eyre!("failed to run 'which claude': {e}"))?;
 
         if !output.status.success() {
-            return Err(eyre!("claude not found in PATH. Install: https://docs.anthropic.com/en/docs/claude-code"));
+            return Err(eyre!("claude not found in PATH"));
         }
 
         let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -60,12 +48,12 @@ impl Tmux {
         Ok(path)
     }
 
-    /// Check that tmux is installed and reachable.
+    /// Check that tmux is available.
     pub fn verify_available() -> Result<()> {
         let output = Command::new("tmux")
             .arg("-V")
             .output()
-            .map_err(|e| eyre!("tmux not found: {e}"))?;
+            .map_err(|e| eyre!("tmux not found — brew install tmux: {e}"))?;
 
         if !output.status.success() {
             return Err(eyre!("tmux -V failed: {}", output.status));
@@ -76,62 +64,141 @@ impl Tmux {
     /// Generate a random session name: `rune-{6-char-hex}`.
     pub fn generate_session_id() -> String {
         let bytes: [u8; 3] = rand::thread_rng().gen();
-        format!("rune-{}", hex_encode(bytes))
+        format!("rune-{:02x}{:02x}{:02x}", bytes[0], bytes[1], bytes[2])
     }
 
-    /// Create a detached tmux session running Claude Code with CLAUDE_CONFIG_DIR.
-    ///
-    /// Passes the full command as the tmux session command via `bash -c`.
-    /// This is the most reliable way to ensure env vars are available to Claude Code —
-    /// neither `.env()` on Command nor `tmux set-environment` propagate to the session shell.
-    pub fn create_session(config_dir: &Path, session_id: &str, claude_path: &str) -> Result<()> {
+    /// Check if a tmux session exists.
+    pub fn has_session(session_id: &str) -> bool {
+        Command::new("tmux")
+            .args(["has-session", "-t", session_id])
+            .output()
+            .map_or(false, |o| o.status.success())
+    }
+
+    /// Create a detached tmux session (empty shell).
+    pub fn create_session(session_id: &str) -> Result<()> {
         validate_session_id(session_id)?;
 
-        let config_str = config_dir.to_string_lossy();
+        if Self::has_session(session_id) {
+            return Err(eyre!("session '{}' already exists", session_id));
+        }
 
-        // Step 1: Create empty tmux session (default shell)
-        let status = Command::new("tmux")
+        let output = Command::new("tmux")
             .args([
                 "new-session", "-d", "-s", session_id, "-x", "200", "-y", "50",
             ])
-            .status()
-            .map_err(|e| eyre!("failed to create tmux session: {e}"))?;
+            .output()
+            .map_err(|e| eyre!("tmux new-session failed: {e}"))?;
 
-        if !status.success() {
-            return Err(eyre!("tmux new-session failed: {status}"));
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(eyre!("tmux new-session failed: {}", stderr.trim()));
         }
+        Ok(())
+    }
 
-        // Step 2: Send claude command via send-keys into the shell
-        // Only set CLAUDE_CONFIG_DIR for non-default config dirs.
-        // ~/.claude is the default — Claude Code finds it automatically.
-        // Setting it explicitly for default can cause issues.
-        let is_default = config_dir.file_name().map(|n| n == ".claude").unwrap_or(false);
-        let claude_cmd = if is_default {
-            format!("'{}' --dangerously-skip-permissions", claude_path)
+    /// Start Claude Code inside a tmux session.
+    ///
+    /// Sends the claude binary command via send-keys (not as session command).
+    /// Only sets CLAUDE_CONFIG_DIR for non-default config dirs.
+    pub fn start_claude(
+        session_id: &str,
+        config_dir: &Path,
+        claude_path: &str,
+    ) -> Result<()> {
+        validate_session_id(session_id)?;
+
+        let is_default = config_dir
+            .file_name()
+            .map(|n| n == ".claude")
+            .unwrap_or(false);
+
+        let cmd = if is_default {
+            format!("{} --dangerously-skip-permissions", claude_path)
         } else {
+            let config_str = config_dir.to_string_lossy();
             format!(
-                "CLAUDE_CONFIG_DIR='{}' '{}' --dangerously-skip-permissions",
+                "CLAUDE_CONFIG_DIR={} {} --dangerously-skip-permissions",
                 config_str, claude_path
             )
         };
-        let status = Command::new("tmux")
-            .args(["send-keys", "-t", session_id, &claude_cmd, "Enter"])
-            .status()
-            .map_err(|e| eyre!("tmux send-keys claude failed: {e}"))?;
 
-        if !status.success() {
-            return Err(eyre!("tmux send-keys claude failed: {status}"));
+        // Send command text literally (-l), then Enter separately.
+        // This is a shell command, not Claude Code input — simple send works.
+        let output = Command::new("tmux")
+            .args(["send-keys", "-t", session_id, "-l", &cmd])
+            .output()
+            .map_err(|e| eyre!("send-keys failed: {e}"))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(eyre!("send-keys failed: {}", stderr.trim()));
+        }
+
+        // Enter to execute the shell command
+        Command::new("tmux")
+            .args(["send-keys", "-t", session_id, "Enter"])
+            .output()
+            .map_err(|e| eyre!("send Enter failed: {e}"))?;
+
+        Ok(())
+    }
+
+    /// Send keys to Claude Code using the Escape+delay+Enter workaround.
+    ///
+    /// Claude Code uses Ink (React terminal framework) which intercepts Enter
+    /// for autocomplete. The workaround from varre:
+    /// 1. Send text literally with -l
+    /// 2. Wait 300ms for autocomplete to render
+    /// 3. Send Escape to dismiss autocomplete
+    /// 4. Wait 100ms for Ink to process
+    /// 5. Send Enter to submit the prompt
+    pub fn send_keys(session_id: &str, text: &str) -> Result<()> {
+        validate_session_id(session_id)?;
+
+        if !Self::has_session(session_id) {
+            return Err(eyre!("session '{}' not found", session_id));
+        }
+
+        // Step 1: Send text literally (no Enter, -l prevents key name interpretation)
+        let output = Command::new("tmux")
+            .args(["send-keys", "-t", session_id, "-l", text])
+            .output()
+            .map_err(|e| eyre!("send-keys text failed: {e}"))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(eyre!("send-keys text failed: {}", stderr.trim()));
+        }
+
+        // Step 2: Wait for autocomplete to render
+        thread::sleep(Duration::from_millis(SEND_DELAY_MS));
+
+        // Step 3: Send Escape to dismiss autocomplete
+        Command::new("tmux")
+            .args(["send-keys", "-t", session_id, "Escape"])
+            .output()
+            .map_err(|e| eyre!("send Escape failed: {e}"))?;
+
+        // Step 4: Brief wait for Ink to process
+        thread::sleep(Duration::from_millis(100));
+
+        // Step 5: Send Enter to submit
+        let output = Command::new("tmux")
+            .args(["send-keys", "-t", session_id, "Enter"])
+            .output()
+            .map_err(|e| eyre!("send Enter failed: {e}"))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(eyre!("send Enter failed: {}", stderr.trim()));
         }
 
         Ok(())
     }
 
-    /// Send `/arc <plan_path>` + Enter to the target tmux session.
-    ///
-    /// Uses standard tmux `send-keys -t $id "text" Enter` syntax —
-    /// text and Enter in the same command (not `-l` with separate Enter).
+    /// Send /arc command to Claude Code session.
     pub fn send_arc_command(session_id: &str, plan_path: &Path) -> Result<()> {
-        validate_session_id(session_id)?;
         // Extract relative path for the /arc command.
         let display_path = plan_path.display().to_string();
         let arc_path = if let Some(idx) = display_path.find("plans/") {
@@ -141,45 +208,31 @@ impl Tmux {
         };
         let arc_cmd = format!("/arc {}", arc_path);
 
-        // Single send-keys call: "text" + Enter (same as: tmux send-keys -t $id "text" Enter)
-        let status = Command::new("tmux")
-            .args(["send-keys", "-t", session_id, &arc_cmd, "Enter"])
-            .status()
-            .map_err(|e| eyre!("tmux send-keys failed: {e}"))?;
-
-        if !status.success() {
-            return Err(eyre!("tmux send-keys failed: {status}"));
-        }
-
-        Ok(())
+        // Use the Ink-aware send_keys (Escape+delay+Enter workaround)
+        Self::send_keys(session_id, &arc_cmd)
     }
 
-    /// Kill a tmux session by name. Best-effort — ignores errors if the
-    /// session already exited.
+    /// Capture pane output from a tmux session.
+    pub fn capture_pane(session_id: &str, lines: i32) -> Result<String> {
+        let start = format!("-{}", lines);
+        let output = Command::new("tmux")
+            .args(["capture-pane", "-t", session_id, "-p", "-S", &start])
+            .output()
+            .map_err(|e| eyre!("capture-pane failed: {e}"))?;
+
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    }
+
+    /// Kill a tmux session. Best-effort.
     pub fn kill_session(session_id: &str) -> Result<()> {
         validate_session_id(session_id)?;
-        let status = Command::new("tmux")
+        let _ = Command::new("tmux")
             .args(["kill-session", "-t", session_id])
-            .status()
-            .map_err(|e| eyre!("tmux kill-session failed: {e}"))?;
-
-        if !status.success() {
-            return Err(eyre!("tmux kill-session failed: {status}"));
-        }
+            .output();
         Ok(())
     }
 
-    /// Check if a tmux session with the given name exists.
-    pub fn has_session(session_id: &str) -> bool {
-        Command::new("tmux")
-            .args(["has-session", "-t", session_id])
-            .status()
-            .map_or(false, |s| s.success())
-    }
-
-    /// Attach to a tmux session (foreground — blocks until detach).
-    ///
-    /// This suspends the TUI. The user returns via `Ctrl-B D`.
+    /// Attach to a tmux session (foreground — blocks until Ctrl-B D detach).
     pub fn attach(session_id: &str) -> Result<()> {
         let status = Command::new("tmux")
             .args(["attach-session", "-t", session_id])
@@ -193,28 +246,15 @@ impl Tmux {
     }
 }
 
-/// Encode 3 bytes as a 6-character lowercase hex string.
-fn hex_encode(bytes: [u8; 3]) -> String {
-    format!("{:02x}{:02x}{:02x}", bytes[0], bytes[1], bytes[2])
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_hex_encode() {
-        assert_eq!(hex_encode([0xa1, 0xb2, 0xc3]), "a1b2c3");
-        assert_eq!(hex_encode([0x00, 0x00, 0x00]), "000000");
-        assert_eq!(hex_encode([0xff, 0xff, 0xff]), "ffffff");
-    }
-
-    #[test]
     fn test_generate_session_id_format() {
         let id = Tmux::generate_session_id();
         assert!(id.starts_with("rune-"));
-        assert_eq!(id.len(), 11); // "rune-" (5) + 6 hex chars
-        // All chars after prefix are valid hex
+        assert_eq!(id.len(), 11);
         assert!(id[5..].chars().all(|c| c.is_ascii_hexdigit()));
     }
 }
