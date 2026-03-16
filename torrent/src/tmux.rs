@@ -102,12 +102,18 @@ impl Tmux {
         }
 
         // Step 2: Send claude command via send-keys into the shell
-        // This starts Claude Code INSIDE the shell — if it exits, the shell remains.
-        // Using send-keys ensures the shell's PATH and env are available.
-        let claude_cmd = format!(
-            "CLAUDE_CONFIG_DIR='{}' '{}' --dangerously-skip-permissions",
-            config_str, claude_path
-        );
+        // Only set CLAUDE_CONFIG_DIR for non-default config dirs.
+        // ~/.claude is the default — Claude Code finds it automatically.
+        // Setting it explicitly for default can cause issues.
+        let is_default = config_dir.file_name().map(|n| n == ".claude").unwrap_or(false);
+        let claude_cmd = if is_default {
+            format!("'{}' --dangerously-skip-permissions", claude_path)
+        } else {
+            format!(
+                "CLAUDE_CONFIG_DIR='{}' '{}' --dangerously-skip-permissions",
+                config_str, claude_path
+            )
+        };
         let status = Command::new("tmux")
             .args(["send-keys", "-t", session_id, &claude_cmd, "Enter"])
             .status()
