@@ -384,6 +384,58 @@ function convergenceLoop(timestamp, talisman):
 
 ---
 
+## Stochastic Awareness — Retry Classification
+
+Not all failures are equal. The convergence loop distinguishes between **stochastic**
+(transient) failures and **systemic** failures using the stochastic budget from
+[metrics-schema.md](../../discipline/references/metrics-schema.md).
+
+### Retry Classification Rules
+
+| Retry | Classification | Action |
+|-------|---------------|--------|
+| First retry | **Expected (stochastic)** — transient failures are baseline noise | Retry silently. No escalation. No log noise. The first retry is within the stochastic budget and does not count toward escalation thresholds. |
+| Second retry | **Signal (systemic)** — repeated failure exceeds baseline | Escalate. Log the criterion as a systemic failure. Adjust escalation depth tracking. The second consecutive failure on the same criterion is a signal that the issue is structural, not transient. |
+
+### Why First Retry Is Silent
+
+In multi-agent pipelines, transient failures are unavoidable:
+- Tool calls time out under load
+- Filesystem operations race with concurrent workers
+- External services (MCP, git) return intermittent errors
+
+A `stochastic_rate` of 0.05 (5%) means that for every 20 criteria, ~1 transient failure
+is statistically expected. Escalating on the first failure would create false alarms and
+waste convergence iterations on noise.
+
+### Escalation Threshold Adjustment
+
+The stochastic budget adjusts escalation thresholds:
+
+```
+stochastic_budget = stochastic_rate × total_criteria
+effective_escalation_threshold = base_threshold + stochastic_budget
+```
+
+When computing whether convergence is stagnating (F17), subtract stochastic failures
+(first-retry-pass criteria) from the failure count. Only **repeated failures** (second
+retry and beyond) count toward stagnation detection.
+
+### Integration with Convergence Loop
+
+In the iteration logic (Step 3: Classify and Route), apply stochastic classification:
+
+1. **First failure on a criterion**: Mark as `stochastic_candidate`. Retry silently in the
+   next iteration without generating stderr warnings or escalation signals.
+2. **Second consecutive failure on the same criterion**: Reclassify as `systemic`. Generate
+   a correction task with repeated escalation context. Include both failure attempts in the
+   gap task body so the next worker sees the full failure history.
+3. **Budget tracking**: After each iteration, compute `actual_stochastic = count(criteria
+   that failed once then passed)`. If `actual_stochastic > stochastic_budget`, emit a
+   warning — the transient failure rate itself is abnormally high (infrastructure issue).
+
+---
+
 ## See Also
 
 - [discipline-work-loop.md](discipline-work-loop.md) — 8-phase overview (this document details Phase 5)

@@ -305,6 +305,134 @@ This invariant transforms the pipeline from a sequence of independent phases int
 
 ---
 
+## 8.7 Token-Cost IPC Accounting
+
+Inter-process communication (IPC) between agents has a measurable token cost. Every token spent on communication is a token NOT spent on reasoning. These five IPC principles ensure orchestration prompts remain lean and agents retain maximum reasoning capacity.
+
+### Principle 1: Reference Don't Inline
+
+Pass file paths and identifiers instead of inlining full content into spawn prompts.
+
+**Anti-pattern (WRONG):**
+```
+Agent({
+  prompt: `Review this code:
+    ${fullFileContent}          // 2000 tokens of inlined source
+    ${fullPlanContent}          // 1500 tokens of inlined plan
+    Against these criteria:
+    ${allCriteriaYAML}          // 800 tokens of inlined criteria
+  `
+})
+```
+
+**Correct pattern (instead, reference by path):**
+```
+Agent({
+  prompt: `Review the code at src/auth.ts against the plan at plans/auth-feature.md.
+    Read the file and extract acceptance criteria before reviewing.`
+})
+```
+
+**Why**: Inlined content displaces reasoning capacity. A 4000-token spawn prompt leaves 4000 fewer tokens for the agent's actual analysis. Agents can Read files on demand — they do not need content pre-loaded into their prompt.
+
+### Principle 2: Consumer Pays Token Cost
+
+The agent that needs information reads it — the orchestrator does not pre-fetch and relay.
+
+**Anti-pattern (WRONG):**
+```
+// Orchestrator reads file, then passes content to agent
+const content = Read("src/auth.ts")
+Agent({ prompt: `Here is the file content: ${content}. Review it.` })
+```
+
+**Correct pattern (instead, let consumer read):**
+```
+// Agent reads what it needs
+Agent({ prompt: `Read and review src/auth.ts for security issues.` })
+```
+
+**Why**: Pre-fetching wastes the orchestrator's context window. The consumer agent has its own context window — let it bear the cost of reading what it needs.
+
+### Principle 3: Write-Once Communication
+
+Agents write output to files exactly once. Subsequent consumers read from files — never relay through the orchestrator.
+
+**Anti-pattern (WRONG):**
+```
+// Agent A returns findings inline → orchestrator relays to Agent B
+const findings = agentA.result  // 3000 tokens into orchestrator context
+Agent({ prompt: `Fix these findings: ${findings}` })  // 3000 tokens again
+```
+
+**Correct pattern (instead, use file handoff):**
+```
+// Agent A writes to file → Agent B reads from file
+// Agent A's prompt includes: "Write findings to tmp/review/findings.md"
+// Agent B's prompt includes: "Read findings from tmp/review/findings.md"
+```
+
+**Why**: Relaying through the orchestrator doubles the token cost (once to receive, once to send). File-based handoff costs zero orchestrator tokens.
+
+### Principle 4: Aggregation as Dedicated Role
+
+When multiple agent outputs must be combined, delegate to a dedicated aggregator agent — do not aggregate in the orchestrator's context.
+
+**Anti-pattern (WRONG):**
+```
+// Orchestrator reads all 7 agent outputs and synthesizes
+for (const file of outputFiles) {
+  const content = Read(file)  // 7 × 2000 = 14000 tokens consumed
+  // ... merge logic in orchestrator context
+}
+```
+
+**Correct pattern (instead, delegate aggregation):**
+```
+Agent({
+  name: "runebinder",
+  prompt: `Aggregate findings from tmp/review/*.md into tmp/review/TOME.md`
+})
+// Orchestrator reads only TOME.md (~1000 tokens)
+```
+
+**Why**: The orchestrator's context is the most expensive resource in the pipeline. Aggregation in a dedicated agent isolates the token cost to a separate context window.
+
+### Principle 5: Minimal State Carry-Forward
+
+Between pipeline phases, carry only identifiers, paths, and verdicts — not full content.
+
+**Anti-pattern (WRONG):**
+```
+// Phase transition carries full artifacts
+nextPhase({
+  findings: fullTOMEContent,      // 5000 tokens
+  metrics: fullMetricsJSON,       // 2000 tokens
+  plan: fullPlanContent            // 3000 tokens
+})
+```
+
+**Correct pattern (instead, carry references):**
+```
+nextPhase({
+  tomePath: "tmp/review/TOME.md",
+  metricsPath: "tmp/work/metrics.json",
+  planPath: "plans/auth-feature.md",
+  verdict: "PASS",
+  scr: 0.97
+})
+```
+
+**Why**: Full content accumulates across phases. By phase 5 of an arc pipeline, carried content can exceed 20000 tokens — all static, displacing active reasoning.
+
+### Spawn Prompt Size Guideline
+
+Orchestrator spawn prompts should target **≤ 500 tokens**. A spawn prompt contains: role instructions, task reference (path), output conventions, and quality gates. It should NOT contain: file contents, plan contents, criteria lists, or findings from prior phases.
+
+Spawn prompts exceeding 500 tokens are a signal that content is being inlined instead of referenced. Apply Principle 1 (Reference Don't Inline) to reduce prompt size.
+
+---
+
 ## Summary
 
 | Concept | Rule |
@@ -316,3 +444,4 @@ This invariant transforms the pipeline from a sequence of independent phases int
 | Spec Continuity Invariant | Every phase MUST read plan, MUST reference criteria in output |
 | Testing protocol | Derive test plan from spec criteria, not from changed files |
 | RED gate | Any RED criterion blocks progression to review phase |
+| Token-Cost IPC | Reference Don't Inline, Consumer Pays, Write-Once, Aggregation as Role, Minimal Carry-Forward |

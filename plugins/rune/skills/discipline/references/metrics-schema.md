@@ -137,6 +137,34 @@ consolidating criteria, using faster proof types, or parallelizing proof executi
 
 ---
 
+### Context Pressure
+
+The ratio of consumed context budget to total context budget at any point during the pipeline.
+Context pressure measures how close the orchestrator or agent is to context exhaustion —
+a leading indicator of silent backpressure where response quality degrades without explicit error.
+
+```
+context_pressure = consumed_context_tokens / total_context_budget
+```
+
+| Field | Value |
+|-------|-------|
+| Range | 0.0 – 1.0 |
+| Advisory | ≥ 0.65 (warn — consider compacting or reducing scope) |
+| Critical | ≥ 0.75 (agent output quality likely degrading) |
+| Signal | High context pressure correlates with declining response length and superficial evidence |
+
+Context pressure is an **advisory metric** — it does not gate pipeline progression. Instead,
+it informs the orchestrator that agent output quality may be degrading silently. When
+context pressure exceeds the advisory threshold, the orchestrator should consider:
+reducing active agent count, compacting the session, or switching to file-based output.
+
+The `enforce-glyph-budget.sh` hook tracks response length trends per session and warns
+when a teammate's response length falls below 50% of the session average — a runtime
+proxy for context pressure without requiring direct token count access.
+
+---
+
 ### Convergence Iterations
 
 The total number of convergence rounds executed across the entire run. Each round
@@ -202,6 +230,48 @@ the plan's criteria list.
 
 ---
 
+### Stochastic Budget
+
+The expected failure rate for a run, accounting for transient (non-systemic) failures such
+as network timeouts, tool flakiness, and filesystem race conditions. Failures within the
+stochastic budget are **expected noise** — not signals of implementation problems.
+
+```
+stochastic_budget = stochastic_rate × total_criteria
+actual_failures = count(criteria where first_attempt = FAIL AND second_attempt = PASS)
+```
+
+| Field | Value |
+|-------|-------|
+| Range | 0 – total_criteria |
+| Target | actual_failures ≤ stochastic_budget |
+| Signal | Over budget = systemic issue, not transient noise |
+
+#### Classification
+
+| Classification | Condition | Meaning |
+|----------------|-----------|---------|
+| `WITHIN_BUDGET` | actual_failures ≤ stochastic_budget | Failures are expected noise — no escalation needed |
+| `OVER_BUDGET` | actual_failures > stochastic_budget | Failure rate exceeds baseline — systemic issue likely |
+
+The `stochastic_rate` is configurable via talisman (default: `0.05` = 5% expected failure rate).
+For a run with 20 criteria, `stochastic_budget = 0.05 × 20 = 1` — one transient failure is
+expected and should not trigger escalation.
+
+#### Stochastic vs Systemic Failures
+
+A failure is classified as **stochastic** (transient) when:
+- First attempt fails, second attempt passes (the retry fixed it)
+- The failure code is in the transient set (e.g., timeout, flaky tool)
+
+A failure is classified as **systemic** when:
+- The same criterion fails across 2+ consecutive attempts
+- The failure rate exceeds the stochastic budget
+
+This distinction prevents over-reaction to normal variance while still catching real problems.
+
+---
+
 ## Metrics Artifact JSON Schema
 
 The metrics artifact is persisted at `tmp/work/{timestamp}/convergence/metrics.json`
@@ -263,6 +333,13 @@ after the final convergence round completes.
       "numerator": 0,
       "denominator": 0,
       "fabricated_criteria": []
+    },
+    "stochastic_budget": {
+      "stochastic_rate": 0.05,
+      "budget": 0,
+      "actual_failures": 0,
+      "classification": "WITHIN_BUDGET",
+      "transient_criteria": []
     }
   },
   "verdicts": {
@@ -323,6 +400,7 @@ discipline:
   scr_threshold: 0.95          # Minimum SCR to pass pre-ship gate
   max_iterations: 3            # Maximum convergence iterations before escalation
   block_on_fail: false         # true = hard block on FAIL; false = WARN only
+  stochastic_rate: 0.05           # Expected failure rate for stochastic budget (5%)
   metrics:
     first_pass_target: 0.70    # Advisory target for first-pass rate
     overhead_target: 0.30      # Advisory target for verification overhead
