@@ -213,6 +213,7 @@ impl Tmux {
     }
 
     /// Capture pane output from a tmux session.
+    #[allow(dead_code)] // utility — used by torrent-cli, will be used by TUI monitor
     pub fn capture_pane(session_id: &str, lines: i32) -> Result<String> {
         let start = format!("-{}", lines);
         let output = Command::new("tmux")

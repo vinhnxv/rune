@@ -2,8 +2,9 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 /// Arc checkpoint — identity and phase progress.
-/// Read from: $CLAUDE_CONFIG_DIR/arc/arc-{id}/checkpoint.json
+/// Read from: .claude/arc/arc-{id}/checkpoint.json
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)] // serde fields read from JSON, not all accessed in Rust
 pub struct Checkpoint {
     pub id: String,
     pub plan_file: String,
@@ -25,6 +26,7 @@ pub struct Checkpoint {
 
 /// Status of a single arc phase (forge, work, ship, merge, etc.).
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)] // serde fields
 pub struct PhaseStatus {
     #[serde(default)]
     pub status: String,
@@ -39,6 +41,7 @@ pub struct PhaseStatus {
 /// Arc heartbeat — liveness signal updated every ~30s.
 /// Read from: tmp/arc/arc-{id}/heartbeat.json
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)] // serde fields
 pub struct Heartbeat {
     #[serde(default)]
     pub arc_id: String,

@@ -25,7 +25,6 @@ pub struct ArcStatus {
     pub last_activity: Option<DateTime<Utc>>,
     pub phase_summary: PhaseSummary,
     pub pr_url: Option<String>,
-    pub commits: Vec<String>,
     pub is_stale: bool,
     pub completion: Option<ArcCompletion>,
 }
@@ -166,7 +165,6 @@ pub fn poll_arc_status(handle: &ArcHandle) -> Option<ArcStatus> {
         last_activity,
         phase_summary,
         pr_url: checkpoint.pr_url,
-        commits: checkpoint.commits,
         is_stale,
         completion,
     })
@@ -270,7 +268,7 @@ mod tests {
             session_id: String::new(),
             phases,
             pr_url: Some("https://github.com/test/pull/1".into()),
-            commits: vec!["abc123".into()],
+            commits: vec![],
             started_at: "2026-03-16T20:00:00Z".into(),
         };
 

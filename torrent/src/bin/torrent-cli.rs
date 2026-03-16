@@ -208,7 +208,7 @@ fn cmd_run(args: &[String]) {
     let wait_secs: u64 = get_arg(args, "--wait").and_then(|s| s.parse().ok()).unwrap_or(15);
 
     // Step 1: Create session
-    let mut new_args = vec!["--config-dir".into(), config_dir];
+    let new_args: Vec<String> = vec!["--config-dir".into(), config_dir];
     let session_id = cmd_new_session(&new_args);
 
     // Step 2: Wait for Claude

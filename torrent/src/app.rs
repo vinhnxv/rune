@@ -104,13 +104,12 @@ pub struct PhaseSummary {
 /// Result of a completed arc run.
 pub struct CompletedRun {
     pub plan: PlanFile,
-    pub arc_id: String,
     pub result: ArcCompletion,
-    pub pr_url: Option<String>,
     pub duration: Duration,
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // all variants needed for completeness
 pub enum ArcCompletion {
     Merged { pr_url: Option<String> },
     Shipped { pr_url: Option<String> },
@@ -240,13 +239,6 @@ impl App {
         }
     }
 
-    /// Get the execution order number (1-indexed) for a plan index, or None if not selected.
-    pub fn plan_order(&self, plan_index: usize) -> Option<usize> {
-        self.selected_plans
-            .iter()
-            .position(|&i| i == plan_index)
-            .map(|pos| pos + 1)
-    }
 
     /// Transition to Running view — populate the execution queue.
     pub fn start_run(&mut self) {
@@ -357,11 +349,9 @@ impl App {
             let _ = Tmux::kill_session(&run.tmux_session);
             self.completed_runs.push(CompletedRun {
                 plan: run.plan,
-                arc_id: run.arc.map(|a| a.arc_id).unwrap_or_default(),
                 result: ArcCompletion::Cancelled {
                     reason: Some("skipped by user".into()),
                 },
-                pr_url: None,
                 duration: run.launched_at.elapsed(),
             });
             self.tmux_session_id = None;
@@ -376,11 +366,9 @@ impl App {
         if let Some(run) = self.current_run.take() {
             self.completed_runs.push(CompletedRun {
                 plan: run.plan,
-                arc_id: run.arc.map(|a| a.arc_id).unwrap_or_default(),
                 result: ArcCompletion::Failed {
                     reason: "killed by user".into(),
                 },
-                pr_url: None,
                 duration: run.launched_at.elapsed(),
             });
         }
@@ -624,11 +612,10 @@ impl App {
                     (ArcCompletion::Merged { pr_url: None }, None)
                 };
 
+                let _ = pr_url; // consumed by ArcCompletion variant
                 self.completed_runs.push(CompletedRun {
                     plan: run.plan,
-                    arc_id: run.arc.map(|a| a.arc_id).unwrap_or_default(),
                     result,
-                    pr_url,
                     duration: run.launched_at.elapsed(),
                 });
             }
