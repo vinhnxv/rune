@@ -324,6 +324,14 @@ impl App {
 
     /// Dispatch an action (from keybinding handler).
     pub fn handle_action(&mut self, action: Action) -> Result<()> {
+        // Debug: log every action
+        {
+            use std::io::Write as W3;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/torrent-debug.log") {
+                let _ = writeln!(f, "[action] {:?} selected_plans={} config_dirs={} view={:?}",
+                    action, self.selected_plans.len(), self.config_dirs.len(), self.view);
+            }
+        }
         match action {
             Action::Quit => self.should_quit = true,
             Action::SwitchPanel => self.switch_panel(),
