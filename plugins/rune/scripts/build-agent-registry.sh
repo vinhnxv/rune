@@ -2,10 +2,10 @@
 # ════════════════════════════════════════════════════════════════════════════════
 # build-agent-registry.sh — Fast agent registry index generator
 # ════════════════════════════════════════════════════════════════════════════════
-# Scans plugins/rune/agents/**/*.md for YAML frontmatter and extracts metadata
-# into a JSON array at tmp/.agent-registry.json.
+# Scans plugins/rune/agents/**/*.md and registry/**/*.md for YAML frontmatter
+# and extracts metadata into a JSON array at tmp/.agent-registry.json.
 #
-# Target: <100ms for ~96 agent files (single awk pass, no per-file subprocesses)
+# Target: <100ms for ~109 agent files (single awk pass, no per-file subprocesses)
 #
 # Usage:
 #     bash plugins/rune/scripts/build-agent-registry.sh
@@ -17,6 +17,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 AGENTS_DIR="$PLUGIN_ROOT/agents"
+REGISTRY_DIR="$PLUGIN_ROOT/registry"
 OUTPUT_DIR="${PLUGIN_ROOT}/../../tmp"
 OUTPUT_FILE="$OUTPUT_DIR/.agent-registry.json"
 
@@ -24,11 +25,19 @@ OUTPUT_FILE="$OUTPUT_DIR/.agent-registry.json"
 mkdir -p "$OUTPUT_DIR"
 
 # Single awk pass: concatenate all files with a separator, process in one invocation.
-# We use find to get file list, then awk processes each file's frontmatter.
-find "$AGENTS_DIR" -name '*.md' -type f \
-  -not -path '*/references/*' \
-  -not -name 'README.md' \
-  -print0 | sort -z | xargs -0 awk \
+# We use find to get file list from both agents/ and registry/, then awk processes
+# each file's frontmatter.
+{ find "$AGENTS_DIR" -name '*.md' -type f \
+    -not -path '*/references/*' \
+    -not -name 'README.md' \
+    -print0; \
+  if [ -d "$REGISTRY_DIR" ]; then \
+    find "$REGISTRY_DIR" -name '*.md' -type f \
+      -not -path '*/references/*' \
+      -not -name 'README.md' \
+      -print0; \
+  fi; \
+} | sort -z | xargs -0 awk \
   -v plugin_root="$PLUGIN_ROOT" \
   -v max_desc=100 \
 '

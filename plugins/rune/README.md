@@ -649,7 +649,7 @@ Each Ash embeds several review agents as specialized perspectives. For example, 
 
 ### Review Agents
 
-46 review agent definitions (34 agents + 12 specialist prompt templates) that Ash embed as perspectives:
+46 review agent definitions (34 agents in agents/ + registry/ combined, plus 12 specialist prompt templates) that Ash embed as perspectives. Total agents across all categories: 109 (66 CORE in agents/ + 43 EXTENDED in registry/).
 
 | Agent | Focus |
 |-------|-------|

@@ -173,6 +173,25 @@ ashes:
     #     always: true                     # Always summon (skip file matching)
     #   context_budget: 20
 
+  # ──────────────────────────────────────────────
+  # User Agents — Define custom agents inline (v1.169.0+)
+  # ──────────────────────────────────────────────
+  # User agents are defined directly in talisman.yml without needing a
+  # separate .md file. They are indexed by agent-search MCP with
+  # source: "user" and priority: 50.
+  #
+  # user_agents:
+  #   - name: django-reviewer
+  #     description: |
+  #       Django-specific code review. Checks ORM patterns,
+  #       middleware ordering, settings security, template injection.
+  #     categories: [review, framework]
+  #     primary_phase: review
+  #     compatible_phases: [review, audit]
+  #     tags: [django, python, orm, middleware, security]
+  #     body: |
+  #       You are a Django specialist reviewer...
+
 # ──────────────────────────────────────────────
 # Settings — Global behavior adjustments
 # ──────────────────────────────────────────────

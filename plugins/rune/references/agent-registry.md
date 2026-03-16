@@ -1,8 +1,10 @@
 # Agent Registry
 
-**Total: 96 agents** (36 review + 5 research + 6 work + 19 utility + 24 investigation + 6 testing)
+**Total: 109 agents** (66 CORE in agents/ + 43 EXTENDED in registry/)
 
-> Agent count verified by `find agents/ -name "*.md" -type f | wc -l` on 2026-03-06.
+> Agent count verified by `find agents/ registry/ -name "*.md" -type f | wc -l` on 2026-03-16.
+> CORE agents (agents/): 36 review + 5 research + 6 work + 19 utility + 24 investigation + 6 testing = 66
+> EXTENDED agents (registry/): 43 agents across review, investigation, testing, utility, and work categories
 
 > **Stack specialist reviewers** (python-reviewer, typescript-reviewer, rust-reviewer, php-reviewer, axum-reviewer, fastapi-reviewer, django-reviewer, laravel-reviewer, sqlalchemy-reviewer, tdd-compliance-reviewer, ddd-reviewer, di-reviewer) are NOT registered agents. They are prompt templates at `skills/roundtable-circle/references/specialist-prompts/`, loaded on-demand by `buildAshPrompt()` via stack detection.
 
