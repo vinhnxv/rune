@@ -1256,7 +1256,7 @@ if (!/^[a-zA-Z0-9_-]+$/.test(inspectTeamName)) {
   }
 
   // STEP B.7: Spawn inspectors using ash-prompt templates
-  // Reference: prompts/ash/{inspector}-inspect.md
+  // Reference: agents/investigation/{inspector}-inspect.md
   for (const { inspector, taskId, reqIds, reqList } of inspectorTasks) {
     const outputPath = `tmp/arc/${id}/${inspector}-gap.md`
     const fileList = scopeFiles.join("\n")

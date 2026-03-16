@@ -131,7 +131,7 @@ For each inspector in `inspectorAssignments`, summon using the Agent tool with A
 
 ```javascript
 // Build prompts from ash-prompt templates
-// See: prompts/ash/{inspector}-inspect.md
+// See: agents/investigation/{inspector}-inspect.md
 
 for (const { inspector, taskId, reqIds } of tasks) {
   const reqList = reqIds.map(id => {
@@ -143,12 +143,12 @@ for (const { inspector, taskId, reqIds } of tasks) {
 
   // Load prompt template — mode-aware selection
   const templateSuffix = inspectMode === "plan" ? "plan-review" : "inspect"
-  let templatePath = `prompts/ash/${inspector}-${templateSuffix}.md`
+  let templatePath = `agents/investigation/${inspector}-${templateSuffix}.md`
 
   // CONCERN 3: fileExists guard before loadTemplate
   if (!exists(templatePath)) {
     warn(`Template not found: ${templatePath} — falling back to default inspect template`)
-    templatePath = `prompts/ash/${inspector}-inspect.md`
+    templatePath = `agents/investigation/${inspector}-inspect.md`
     if (!exists(templatePath)) {
       error(`Default template also missing: ${templatePath}`)
     }

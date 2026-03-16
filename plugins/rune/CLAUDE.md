@@ -247,7 +247,7 @@ External models can participate in the Roundtable Circle as CLI-backed Ashes. Un
 
 **Dedup:** External model prefixes are positioned below CDX in the default hierarchy. Built-in prefixes always precede external model prefixes.
 
-**References:** [custom-ashes.md](skills/roundtable-circle/references/custom-ashes.md), [codex-detection.md](skills/roundtable-circle/references/codex-detection.md), [external-model-template.md](prompts/ash/external-model-template.md)
+**References:** [custom-ashes.md](skills/roundtable-circle/references/custom-ashes.md), [codex-detection.md](skills/roundtable-circle/references/codex-detection.md), [external-model-template.md](skills/roundtable-circle/references/external-model-template.md)
 
 ## Hook Infrastructure
 

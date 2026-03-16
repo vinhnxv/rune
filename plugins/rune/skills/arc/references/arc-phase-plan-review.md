@@ -378,7 +378,7 @@ if (hasCodeBlocks) {
 
   // Spawn 4 inspect agents (plan-review mode templates)
   for (const inspector of inspectors) {
-    const templatePath = `prompts/ash/${inspector}-plan-review.md`
+    const templatePath = `agents/investigation/${inspector}-plan-review.md`
     // CONCERN 3: fileExists guard
     if (!exists(templatePath)) {
       warn(`Plan-review template missing for ${inspector}: ${templatePath} — skipping`)

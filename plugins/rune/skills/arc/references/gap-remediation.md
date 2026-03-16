@@ -315,7 +315,7 @@ Spawns one `gap-fixer` agent per file group (or a single agent that handles all 
 
 ```javascript
 // Load gap-fixer prompt template
-// Template reference: prompts/ash/gap-fixer.md
+// Template reference: agents/work/gap-fixer.md
 // (Created by Worker 1 in Tasks 1-2 of this plan)
 const gapList = cappedFindings.map(g =>
   `- [ ] **[${g.id}]** ${g.description} — \`${g.file}:${g.line}\``

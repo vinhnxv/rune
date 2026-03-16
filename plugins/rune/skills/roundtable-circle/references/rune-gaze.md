@@ -92,7 +92,7 @@ for each file in changed_files:
 #
 # NOTE: Stack specialist prompts live in specialist-prompts/ (not agents/review/).
 # buildAshPrompt() derives the prompt directory from the filesystem — if a name
-# matches a file in specialist-prompts/, it loads from there; otherwise prompts/ash/.
+# matches a file in specialist-prompts/, it loads from there; otherwise agents/.
 # No hardcoded specialist list exists here — detection drives selection.
 
 stack = detectStack(repoRoot)

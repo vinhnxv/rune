@@ -113,7 +113,7 @@ Read and execute [inspector-prompts.md](references/inspector-prompts.md) for the
 - Summon all inspectors in a **single message** (parallel, `run_in_background: true`)
 - All inspectors get full `scopeFiles` — they filter by relevance internally
 - `model: resolveModelForAgent(inspector, talisman)` for each inspector (cost tier mapping)
-- Template path: `prompts/ash/{inspector}-inspect.md` (or `{inspector}-plan-review.md` for `--mode plan`)
+- Template path: `agents/investigation/{inspector}-inspect.md` (or `{inspector}-plan-review.md` for `--mode plan`)
 
 ### Step 3.1 — Risk Context Injection (Goldmask Enhancement)
 

@@ -40,7 +40,7 @@ done
 
 # Extract ash-prompt names from roundtable-circle references
 ASH_PROMPT_NAMES=""
-ASH_DIR="$PLUGIN_DIR/prompts/ash"
+ASH_DIR="$PLUGIN_DIR/agents"
 if [[ -d "$ASH_DIR" ]]; then
   ASH_PROMPT_NAMES=$(find "$ASH_DIR" -name '*.md' -not -name 'README*' -not -name '*template*' -print0 2>/dev/null \
     | xargs -0 -I{} basename {} .md \

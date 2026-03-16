@@ -80,7 +80,7 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | flow-seer | Spec flow analysis and gap detection |
 | scroll-reviewer | Document quality review |
 | mend-fixer | Parallel code fixer for /rune:mend findings (restricted tools) |
-| gap-fixer | Gap remediation fixer for Phase 5.8 — prompt-template-based (no dedicated .md file, uses `prompts/ash/gap-fixer.md`) |
+| gap-fixer | Gap remediation fixer for Phase 5.8 — dedicated agent definition in `agents/work/gap-fixer.md` |
 | knowledge-keeper | Documentation coverage reviewer for plans |
 | elicitation-sage | Structured reasoning using curated methods (summoned per eligible section, max 6 per forge session) |
 | veil-piercer-plan | Plan truth-telling (6-dimension analysis, PASS/CONCERN/BLOCK verdicts) |
