@@ -397,6 +397,14 @@ impl App {
             return Ok(());
         }
 
+        // Debug: log every tick to verify this function runs
+        {
+            use std::io::Write as W2;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/torrent-debug.log") {
+                let _ = writeln!(f, "[tick] view=Running queue_len={} current_run={}", self.queue.len(), self.current_run.is_some());
+            }
+        }
+
         let now = Instant::now();
 
         if self.current_run.is_none() {
