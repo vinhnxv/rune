@@ -221,6 +221,20 @@ for (const comp of components) {
   })
 }
 
+// MCP-First Prototype Agent Discovery (v1.171.0+)
+let protoAgentType = "design-sync-agent"  // default synthesis agent
+try {
+  const candidates = agent_search({
+    query: "prototype synthesis react figma component generation",
+    phase: "arc",
+    category: "work",
+    limit: 5
+  })
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+  const userAgent = candidates?.results?.find(c => c.source === "user" || c.source === "project")
+  if (userAgent) protoAgentType = userAgent.name
+} catch (e) { /* MCP unavailable — use default */ }
+
 // Spawn synthesis workers
 const workerCount = Math.min(maxWorkers, components.length)
 const spawnedWorkers = []

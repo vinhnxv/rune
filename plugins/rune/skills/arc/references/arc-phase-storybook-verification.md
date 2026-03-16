@@ -232,7 +232,23 @@ for (const component of changedComponents) {
   })
 }
 
-// 9. Spawn workers
+// 9. MCP-First Storybook Reviewer Discovery (v1.171.0+)
+let storybookAgentType = "storybook-reviewer"
+try {
+  const candidates = agent_search({
+    query: "storybook component verification visual quality review screenshot",
+    phase: "arc",
+    category: "work",
+    limit: 5
+  })
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+  const userAgent = candidates?.results?.find(c =>
+    (c.source === "user" || c.source === "project") && c.name !== "storybook-reviewer"
+  )
+  if (userAgent) storybookAgentType = userAgent.name
+} catch (e) { /* MCP unavailable — use default */ }
+
+// Spawn workers
 // VEIL-001 FIX: Read agent instructions and inject into prompt
 // (agent .md files are NOT auto-injected into general-purpose subagent context)
 const agentInstructions = (() => {

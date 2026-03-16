@@ -113,7 +113,21 @@ for (const component of componentsToIterate) {
   })
 }
 
-// 7. Spawn design-iterator workers with agent-browser
+// 7. MCP-First Design Iterator Discovery (v1.171.0+)
+let iteratorAgentType = "design-iterator"
+try {
+  const candidates = agent_search({
+    query: "design iteration refinement screenshot fidelity improvement",
+    phase: "arc",
+    category: "work",
+    limit: 5
+  })
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+  const userAgent = candidates?.results?.find(c => c.source === "user" || c.source === "project")
+  if (userAgent) iteratorAgentType = userAgent.name
+} catch (e) { /* MCP unavailable — use default */ }
+
+// Spawn design-iterator workers with agent-browser
 for (let i = 0; i < Math.min(maxWorkers, componentsToIterate.length); i++) {
   Agent({
     subagent_type: "general-purpose", model: "sonnet",

@@ -364,8 +364,29 @@ if (hasCodeBlocks) {
     }
   }
 
-  // Create inspect tasks (4 inspectors)
-  const inspectors = ["grace-warden", "ruin-prophet", "sight-oracle", "vigil-keeper"]
+  // MCP-First Inspector Discovery (v1.171.0+)
+  // Discover plan-review inspectors via agent_search — enables user-defined inspectors
+  let inspectors = ["grace-warden", "ruin-prophet", "sight-oracle", "vigil-keeper"]
+  try {
+    const candidates = agent_search({
+      query: "plan review inspect correctness completeness security code samples",
+      phase: "inspect",
+      category: "investigation",
+      limit: 8
+    })
+    Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+    if (candidates?.results?.length > 0) {
+      const knownNames = new Set(inspectors)
+      for (const c of candidates.results) {
+        if (!knownNames.has(c.name) && (c.source === "user" || c.source === "project")) {
+          inspectors.push(c.name)
+          knownNames.add(c.name)
+        }
+      }
+    }
+  } catch (e) { /* MCP unavailable — use hardcoded inspectors */ }
+
+  // Create inspect tasks
   for (const inspector of inspectors) {
     TaskCreate({
       subject: `${inspector}: Plan code sample review`,

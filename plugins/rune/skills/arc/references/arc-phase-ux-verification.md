@@ -68,6 +68,30 @@ if (cognitiveEnabled) {
   agents.push({ name: "ux-cognitive-1", agent: "ux-cognitive-walker", prefix: "UXC" })
 }
 
+// MCP-First UX Agent Discovery (v1.171.0+)
+// Discover user-defined UX review agents to supplement built-in roster
+try {
+  const candidates = agent_search({
+    query: "UX usability accessibility heuristic interaction review frontend",
+    phase: "appraise",
+    category: "review",
+    limit: 8
+  })
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+
+  if (candidates?.results?.length > 0) {
+    const builtinNames = new Set(["ux-heuristic-reviewer", "ux-flow-validator", "ux-interaction-auditor", "ux-cognitive-walker"])
+    let userIdx = 1
+    for (const c of candidates.results) {
+      if (!builtinNames.has(c.name) && (c.source === "user" || c.source === "project")) {
+        const prefix = `UX${String.fromCharCode(65 + agents.length)}`  // UXE, UXF, ...
+        agents.push({ name: `ux-user-${userIdx}`, agent: c.name, prefix })
+        userIdx++
+      }
+    }
+  }
+} catch (e) { /* MCP unavailable — proceed with built-in roster */ }
+
 // 3. Create UX verification team
 prePhaseCleanup(checkpoint)
 TeamCreate({ team_name: `arc-ux-${id}` })
