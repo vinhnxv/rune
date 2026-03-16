@@ -171,6 +171,7 @@ Per-phase SOW table — each phase owns a distinct slice of the plan criteria:
 
 | Phase | Agent Type | SOW Source | Completion Signal |
 |-------|-----------|-----------|-------------------|
+| Enrichment | Forge agent | Plan sections → atomic task files with YAML criteria | Task files with extracted criteria |
 | Work | Worker | Task file acceptance criteria | Evidence per criterion |
 | Gap Analysis | Inspector | All plan criteria | Compliance matrix |
 | Review | Reviewer | Assigned files + plan criteria for those files | Findings with plan criterion references |

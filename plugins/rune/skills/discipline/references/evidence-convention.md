@@ -56,7 +56,7 @@ Every task that requires acceptance-criterion verification MUST produce a
   "criteria_results": [
     {
       "criterion_id": "AC-1.1.1",
-      "result": "PASS|FAIL",
+      "result": "PASS|FAIL|INCONCLUSIVE",
       "evidence_path": "path/to/artifact",
       "timestamp": "ISO8601"
     }
@@ -74,10 +74,10 @@ Every task that requires acceptance-criterion verification MUST produce a
 | `worker` | string | yes | Agent/teammate name that produced this evidence |
 | `criteria_results` | array | yes | One entry per acceptance criterion |
 | `criteria_results[].criterion_id` | string | yes | ID from the plan (e.g., `AC-1.3.2`) |
-| `criteria_results[].result` | enum | yes | `PASS` or `FAIL` — no other values |
+| `criteria_results[].result` | enum | yes | `PASS`, `FAIL`, or `INCONCLUSIVE` (semantic_match only, confidence < 70%) |
 | `criteria_results[].evidence_path` | string | yes | Relative path to the artifact that proves the criterion |
 | `criteria_results[].timestamp` | string | yes | ISO-8601 time the criterion was checked |
-| `overall` | enum | yes | `PASS` (all criteria pass), `FAIL` (any hard fail), `PARTIAL` (some passed) |
+| `overall` | enum | yes | `PASS` (all pass), `FAIL` (any hard fail), `PARTIAL` (mixed), `INCONCLUSIVE` (any criterion inconclusive — requires human escalation) |
 | `timestamp` | string | yes | ISO-8601 time the summary was written |
 
 ### Validity Rules
@@ -87,6 +87,7 @@ Every task that requires acceptance-criterion verification MUST produce a
 3. `overall = PARTIAL` means at least one passed and at least one failed.
 4. `overall = FAIL` means all criteria failed (or the file could not be evaluated).
 5. `evidence_path` MUST point to a file that exists on disk at verification time.
+6. If any criterion is `INCONCLUSIVE`, `overall` MUST be `INCONCLUSIVE` and human escalation is required before the task can be marked COMPLETE.
 
 ---
 

@@ -98,11 +98,12 @@ Executes a build command and verifies it exits cleanly. **Reliability: HIGH** �
 
 ```yaml
 type: git_diff_contains
+target: "HEAD~1..HEAD"   # diff scope: staged, HEAD~N..HEAD, or base_branch..HEAD
 pattern: "expected diff pattern"
 expected: true
 ```
 
-Parses the git diff output to verify a change was made. **Reliability: MEDIUM** — diff parsing is reliable but depends on the current working state of the repository.
+Parses the git diff output to verify a change was made. The `target` field specifies the diff scope (default: `HEAD~1..HEAD`). **Reliability: MEDIUM** — diff parsing is reliable but depends on the specified scope and working state.
 
 ---
 
@@ -111,10 +112,12 @@ Parses the git diff output to verify a change was made. **Reliability: MEDIUM** 
 ```yaml
 type: line_count_delta
 target: path/to/file.ext
+baseline: "git"   # baseline source: "git" (last commit), "explicit" (value below), or "zero" (new file)
+baseline_value: 0  # only used when baseline: "explicit"
 expected: ">0"    # or a specific count, e.g., "42"
 ```
 
-Compares line count before and after using `wc`. **Reliability: MEDIUM** — accurate but can produce false positives when lines are reformatted without semantic change.
+Compares line count against a baseline using `wc`. The `baseline` field specifies how the pre-execution count is obtained: `git` (from last commit via `git show HEAD:{target} | wc -l`), `explicit` (from `baseline_value`), or `zero` (new file, baseline is 0). **Reliability: MEDIUM** — accurate but can produce false positives when lines are reformatted without semantic change.
 
 ---
 
@@ -156,9 +159,11 @@ CAN THE CRITERION BE CHECKED BY EXAMINING FILES?
 │   ├── YES: Is the command output binary (pass/fail)?
 │   │   ├── YES → test_passes or builds_clean
 │   │   └── NO: Does the output need specific content?
-│   │       └── YES → command_output_matches
-│   └── NO: Does it require comparing versions?
-│       └── YES → git_diff_contains
+│   │       └── YES → pattern_matches (write command output to temp file, then match)
+│   └── NO: Does it require comparing file sizes or line counts?
+│       ├── YES → line_count_delta
+│       └── NO: Does it require comparing versions/diffs?
+│           └── YES → git_diff_contains
 │
 └── NO: Does it require judgment about quality or intent?
     ├── YES: Can a rubric be defined with ≤3 clear criteria?
@@ -192,7 +197,9 @@ Required fields: `criterion_id, result, evidence, timestamp`
 }
 ```
 
-Artifacts are persisted to: `evidence/{task_id}/{criterion_id}.json`
+Artifacts are persisted to: `tmp/work/{timestamp}/evidence/{task-id}/{criterion_id}.json`
+
+> **Path convention**: The full path includes the `tmp/work/{timestamp}/` prefix per evidence-convention.md. The evidence directory also contains a `summary.json` aggregating all per-criterion results.
 
 Result values: `PASS` | `FAIL` | `INCONCLUSIVE`
 
