@@ -450,21 +450,20 @@ impl App {
         })?;
 
         // Step 1: git checkout main + pull (blocking, before tmux)
+        // Use .output() to CAPTURE stdout/stderr — .status() leaks into TUI display
         let checkout = Command::new("git")
             .args(["checkout", "main"])
-            .status();
-        if checkout.map_or(true, |s| !s.success()) {
+            .output();
+        if checkout.as_ref().map_or(true, |o| !o.status.success()) {
             self.status_message = Some("git checkout main failed — clean up working tree".into());
-            // Re-queue the plan for retry after user fixes
             self.queue.push_front(plan_idx);
             return Ok(());
         }
         let pull = Command::new("git")
             .args(["pull", "--ff-only"])
-            .status();
-        if pull.map_or(true, |s| !s.success()) {
-            self.status_message = Some("git pull --ff-only failed — try git pull --rebase manually".into());
-            // Continue anyway — local main may be slightly behind but usable
+            .output();
+        if pull.as_ref().map_or(true, |o| !o.status.success()) {
+            self.status_message = Some("git pull failed — try manually".into());
         }
 
         // Step 2: Record wall-clock time BEFORE launch (for discovery matching)
