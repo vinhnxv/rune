@@ -2,6 +2,18 @@
 
 This reference covers Phase 3 of `/rune:appraise`: Ash selection, prompt generation, inscription contract, talisman custom Ashes, and CLI-backed Ashes.
 
+### Agent Discovery Protocol (v1.170.0+)
+
+When `inscription.mcp_discovery.enabled` is true:
+- **CORE agents** (from `agents/`): Spawned via `subagent_type: "general-purpose"` with prompt loaded from agent file (existing behavior)
+- **EXTENDED/USER agents** (from `registry/` or talisman): Spawned via `subagent_type: "general-purpose"` with full body injected via `prompt:` parameter
+- Both paths use the same team, task pool, and inscription contract
+
+**Discovery Rules:**
+- DO NOT spawn agents by name from memory — use `inscription.mcp_discovery` for registry agents
+- DO NOT skip `agent_search()` in Rune Gaze — extended/user agents will be missed
+- ALWAYS use the agents listed in `inscription.ash_selections` as your agent list
+
 ## Phase 3: Summon Ash
 
 Summon ALL selected Ash in a **single message** (parallel execution):
@@ -79,6 +91,25 @@ Agent({
              Substitute: {name}, {file_list}, {output_dir}, {finding_prefix}, {context_budget} */,
   run_in_background: true
 })
+
+// ── MCP-Discovered Agent Spawning (v1.170.0+) ──
+// Registry/user agents discovered by MCP-First Agent Discovery in Rune Gaze
+// are stored in inscription.mcp_discovery.registry_agents.
+// These agents are NOT in agents/ (SDK doesn't load them) — they need
+// body injection via the prompt: parameter.
+
+if (inscription.mcp_discovery?.enabled) {
+  for (const [agentName, detail] of Object.entries(inscription.mcp_discovery.registry_agents || {})) {
+    // Registry/user agents: use general-purpose + inject full body
+    Agent({
+      team_name: teamName,
+      name: agentName,
+      subagent_type: "general-purpose",
+      prompt: detail.body + "\n\n## TASK CONTEXT\n" + runtimeContext,
+      run_in_background: true
+    })
+  }
+}
 ```
 
 ## Elicitation Sage — Security Context (v1.31)

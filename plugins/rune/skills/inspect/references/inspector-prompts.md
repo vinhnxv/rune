@@ -22,6 +22,9 @@ Each inspector has 3 mode variants as separate agent files in `agents/investigat
 | `sight-oracle` | Performance, Design | Architecture alignment, coupling analysis, performance profile |
 | `vigil-keeper` | Observability, Tests, Maintainability | Test coverage, observability, maintainability, documentation |
 
+**MCP Discovery**: Inspectors can also be discovered via `agent_search(phase="inspect")`.
+User-defined inspectors from talisman.yml or registry/ participate alongside built-in inspectors.
+
 ### Priority Order
 
 When `--max-agents` limits inspector count:

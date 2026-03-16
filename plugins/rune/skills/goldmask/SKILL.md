@@ -83,6 +83,32 @@ Three-layer investigation that answers: **WHAT** must change (Impact), **WHY** i
 | **Quick check** | `/rune:goldmask --quick <files>` | 0 (deterministic) | Warnings only — compares predicted vs actual |
 | **Intelligence** | `/rune:goldmask --lore <diff-spec>` | 1 (Lore only) | risk-map.json for file sorting |
 
+### MCP-First Tracer Discovery (v1.170.0+)
+
+Investigation agents (tracers) can be discovered via MCP search:
+
+```pseudocode
+# Phase 1: Tracer Selection
+tracers = []
+
+if mcp_available:
+  candidates = agent_search({
+    query: "impact analysis tracing investigation risk",
+    phase: "goldmask",
+    category: "investigation",
+    limit: 10
+  })
+  tracers = candidates
+  Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
+
+if not tracers:
+  # Fallback: hardcoded tracer list (current behavior)
+  tracers = DEFAULT_GOLDMASK_TRACERS
+```
+
+This enables user-defined investigation agents (e.g., "compliance-tracer" for audit trails)
+to participate in Goldmask analysis alongside the 8 built-in tracers.
+
 ## Phase Sequencing
 
 ```
