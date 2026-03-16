@@ -2,6 +2,8 @@
 
 **Multi-agent engineering orchestration for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).**
 
+> Built on [Discipline Engineering](docs/discipline-engineering.md) — a proof-based architecture that treats specification compliance, not just code quality, as the primary metric.
+
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
 [![Version](https://img.shields.io/badge/version-1.168.0-blue)](.claude-plugin/marketplace.json)
@@ -19,6 +21,8 @@ Claude Code is powerful on its own — but a single agent has a single context w
 - **Specialization over generalization** — One agent trying to catch security issues, performance bugs, and naming inconsistencies simultaneously does none of them well. Rune dispatches Ward Sentinel for security, Ember Oracle for performance, and Pattern Seer for consistency — each focused on what it does best.
 - **Parallelism** — Sequential work on 6 implementation tasks takes 6x as long. Swarm workers claim and complete tasks independently, bounded only by file-level conflicts.
 - **Separation of concerns** — Planning, implementing, reviewing, and testing in one context creates confirmation bias (the same agent reviews code it just wrote). Rune enforces phase boundaries: different agents plan, build, and critique.
+
+These problems are symptoms of a deeper issue: **AI agents optimize for completion signals, not specification compliance.** Rune's architecture is designed around the [Discipline Engineering](docs/discipline-engineering.md) framework — five layers of decomposition, comprehension verification, proof-based completion, and anti-rationalization gates that ensure agents deliver what was specified, not just what compiles.
 
 The trade-off is token cost — multi-agent workflows consume more tokens than a single session. Rune is designed for cases where quality, thoroughness, and coverage matter more than minimizing API usage.
 
@@ -743,6 +747,7 @@ Every Rune workflow is an explicit state machine with named phases, conditional 
 | **Rune Echoes** | 5-tier persistent agent memory (`.claude/echoes/`) |
 | **Inscription** | Contract file (`inscription.json`) for agent coordination |
 | **Seal** | Deterministic completion marker emitted by Ashes |
+| **Discipline Engineering** | The architectural backbone — 5-layer proof-based system ensuring spec compliance over task completion. See [full document](docs/discipline-engineering.md) |
 
 ---
 

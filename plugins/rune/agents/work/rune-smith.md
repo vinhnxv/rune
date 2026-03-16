@@ -83,6 +83,9 @@ You are writing production code. Follow existing codebase patterns exactly. Do n
 1. TaskList() → find unblocked, unowned tasks
 2. Claim task: TaskUpdate({ taskId, owner: "$CLAUDE_CODE_AGENT_NAME", status: "in_progress" })
 3. Read task description for requirements
+3.1. Echo-Back (COMPREHENSION): Before writing code, echo each acceptance criterion back in
+     your own words: "I will: [criterion-id]: [paraphrase]". Ask via SendMessage if anything is
+     unclear — do not guess. Required for Tier 1+ tasks. See worker-prompts.md Step 4.1.
 4. Implement with TDD cycle:
    a. Write failing test (RED)
    b. Implement code to pass (GREEN)
