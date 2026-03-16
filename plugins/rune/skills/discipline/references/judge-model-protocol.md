@@ -101,7 +101,7 @@ Lower thresholds produce too many false positives (the judge says PASS but isn't
 
 ---
 
-## Rubric Format
+## Rubric Format and Examples
 
 Rubrics must have **maximum 3 clear, measurable criteria**. If you need more than 3, the acceptance criterion should be decomposed into multiple criteria, each with its own proof.
 

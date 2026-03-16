@@ -6,6 +6,8 @@ execution failure to a structured category with detection heuristics and recover
 Used by `execute-discipline-proofs.sh` (classification) and `validate-discipline-proofs.sh`
 (aggregation into evidence summary).
 
+Each code has four fields: code, category, detection_signal, and recovery_path.
+
 ---
 
 ## Code Registry

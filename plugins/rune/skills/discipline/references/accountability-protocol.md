@@ -4,6 +4,9 @@ Layer 5 of Discipline Engineering: systematic tracking of verification patterns 
 pipeline runs. Persists aggregate metrics to Rune Echoes so the system learns its weak
 points and improves decomposition, agent assignment, and proof selection over time.
 
+This protocol defines: what to track (5 signal categories), when to persist (post-strive, post-arc),
+where to store (.claude/echoes/discipline/), and how to query (echo_search MCP with role filter).
+
 Referenced from [discipline SKILL.md](../SKILL.md) Layer 5.
 
 ---
