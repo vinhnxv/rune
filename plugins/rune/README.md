@@ -2,6 +2,8 @@
 
 Multi-agent engineering orchestration for [Claude Code](https://claude.ai/claude-code). Plan, work, review, and audit using Agent Teams.
 
+> Architecture: [Discipline Engineering](../../docs/discipline-engineering.md) — proof-based orchestration ensuring specification compliance across all workflows.
+
 Each Ash teammate gets its own dedicated context window, eliminating single-context bottlenecks.
 
 ## Claude Code Install
