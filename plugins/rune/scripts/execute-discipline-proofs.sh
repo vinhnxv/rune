@@ -126,8 +126,13 @@ proof_no_pattern_exists() {
 # SEC-001 FIX: Replace eval with allowlisted command execution to prevent injection
 proof_test_passes() {
   local cmd="$1"
-  # Validate command against allowlist (no shell metacharacters)
-  if [[ "$cmd" =~ [$'\n'\;\&\|\$\`\<\>\(\)\{\}\!\~] ]]; then
+  # FLAW-003 FIX: Reject empty commands (bash -c "" exits 0 = false PASS)
+  if [[ -z "$cmd" ]]; then
+    echo "FAIL"
+    return
+  fi
+  # SEC-001 FIX: Expanded blocklist — reject shell metacharacters including quotes
+  if [[ "$cmd" =~ [$'\n'\;\&\|\$\`\<\>\(\)\{\}\!\~\'\"\\] ]]; then
     echo "FAIL"  # Reject commands with shell metacharacters
     return
   fi
@@ -143,7 +148,13 @@ proof_test_passes() {
 # SEC-001 FIX: Same allowlist pattern as test_passes
 proof_builds_clean() {
   local cmd="$1"
-  if [[ "$cmd" =~ [$'\n'\;\&\|\$\`\<\>\(\)\{\}\!\~] ]]; then
+  # FLAW-003 FIX: Reject empty commands
+  if [[ -z "$cmd" ]]; then
+    echo "FAIL"
+    return
+  fi
+  # SEC-001 FIX: Expanded blocklist
+  if [[ "$cmd" =~ [$'\n'\;\&\|\$\`\<\>\(\)\{\}\!\~\'\"\\] ]]; then
     echo "FAIL"
     return
   fi
@@ -324,6 +335,10 @@ while IFS= read -r criterion; do
   file="$(echo "$criterion"        | jq -r '.file // ""')"
   rubric="$(echo "$criterion"      | jq -r '.rubric // ""')"
   confidence_threshold="$(echo "$criterion" | jq -r '.confidence_threshold // "70"')"
+  # FLAW-002 FIX: Validate confidence_threshold is numeric — non-numeric causes bash -ge error → ERR trap abort
+  if ! [[ "$confidence_threshold" =~ ^[0-9]+$ ]]; then
+    confidence_threshold=70
+  fi
 
   result="FAIL"
   evidence=""
@@ -376,13 +391,12 @@ while IFS= read -r criterion; do
       ;;
 
     semantic_match)
-      local sm_output
+      # FLAW-001 FIX: Remove `local` — these are in a while loop at top-level, not inside a function.
+      # `local` outside a function causes bash error → ERR trap → silent abort of all remaining criteria.
       sm_output="$(proof_semantic_match "$target" "$rubric" "$confidence_threshold")"
       result="$(echo "$sm_output" | cut -d'|' -f1)"
       fc="$(echo "$sm_output" | cut -d'|' -f2)"
-      local sm_detail
       sm_detail="$(echo "$sm_output" | cut -d'|' -f3)"
-      local judge_model_response
       judge_model_response="$(echo "$sm_output" | cut -d'|' -f4)"
       if [[ -n "$judge_model_response" ]]; then
         evidence="semantic_match: ${sm_detail}; judge_model_response=${judge_model_response}"
