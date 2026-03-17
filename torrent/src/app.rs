@@ -14,6 +14,10 @@ use crate::tmux::Tmux;
 
 /// Top-level application state.
 pub struct App {
+    // Active arcs detected at startup
+    pub active_arcs: Vec<crate::scanner::ActiveArc>,
+    pub active_arc_cursor: usize,
+
     // Selection view
     pub config_dirs: Vec<ConfigDir>,
     pub selected_config: usize,
@@ -54,7 +58,11 @@ pub struct App {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppView {
+    /// Active arcs detected at startup — resume or dismiss.
+    ActiveArcs,
+    /// Normal selection view — pick config + plans.
     Selection,
+    /// Running view — monitoring current arc execution.
     Running,
 }
 
@@ -63,9 +71,6 @@ pub enum Panel {
     ConfigList,
     PlanList,
 }
-
-/// Maximum attempts per plan (1 initial + 2 retries).
-const MAX_PLAN_ATTEMPTS: u32 = 3;
 
 /// State of the currently executing arc run.
 #[allow(dead_code)] // tmux_pane_pid kept for diagnostics
@@ -78,8 +83,6 @@ pub struct RunState {
     pub arc: Option<ArcHandle>,
     pub last_status: Option<ArcStatus>,
     pub merge_detected_at: Option<Instant>,
-    /// Current attempt number (1-indexed). Max MAX_PLAN_ATTEMPTS.
-    pub attempt: u32,
     pub tmux_pane_pid: Option<u32>,  // Shell PID inside tmux pane
     pub claude_pid: Option<u32>,     // Claude Code process PID (= owner_pid in checkpoint)
     pub loop_state: Option<monitor::ArcLoopState>, // From arc-phase-loop.local.md
@@ -126,7 +129,6 @@ pub struct CompletedRun {
     pub plan: PlanFile,
     pub result: ArcCompletion,
     pub duration: Duration,
-    pub attempts: u32, // how many attempts were made (1 = first try, 3 = max retries exhausted)
 }
 
 #[derive(Debug, Clone)]
@@ -141,6 +143,10 @@ pub enum ArcCompletion {
 /// Actions dispatched from keybinding handler.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
+    // Active arcs view
+    AttachActiveArc,
+    MonitorActiveArc,
+    DismissActiveArcs,
     // Selection view
     Quit,
     RunSelected,
@@ -164,13 +170,23 @@ impl App {
         let cwd = std::env::current_dir()?;
         let plans = crate::scanner::scan_plans(&cwd)?;
 
+        // Startup scan: detect active arc sessions
+        let active_arcs = crate::scanner::scan_active_arcs(&config_dirs, &cwd);
+        let initial_view = if active_arcs.is_empty() {
+            AppView::Selection
+        } else {
+            AppView::ActiveArcs
+        };
+
         Ok(Self {
+            active_arcs,
+            active_arc_cursor: 0,
             config_dirs,
             selected_config: 0,
             plans,
             selected_plans: Vec::new(),
             active_panel: Panel::ConfigList,
-            view: AppView::Selection,
+            view: initial_view,
             queue: VecDeque::new(),
             current_run: None,
             completed_runs: Vec::new(),
@@ -200,6 +216,12 @@ impl App {
 
     /// Move cursor up in the active panel.
     pub fn move_up(&mut self) {
+        if self.view == AppView::ActiveArcs {
+            if self.active_arc_cursor > 0 {
+                self.active_arc_cursor -= 1;
+            }
+            return;
+        }
         match self.active_panel {
             Panel::ConfigList => {
                 if self.config_cursor > 0 {
@@ -216,6 +238,12 @@ impl App {
 
     /// Move cursor down in the active panel.
     pub fn move_down(&mut self) {
+        if self.view == AppView::ActiveArcs {
+            if self.active_arc_cursor + 1 < self.active_arcs.len() {
+                self.active_arc_cursor += 1;
+            }
+            return;
+        }
         match self.active_panel {
             Panel::ConfigList => {
                 if self.config_cursor + 1 < self.config_dirs.len() {
@@ -341,6 +369,14 @@ impl App {
     pub fn handle_action(&mut self, action: Action) -> Result<()> {
         match action {
             Action::Quit => self.should_quit = true,
+            // Active arcs view
+            Action::AttachActiveArc => self.attach_active_arc(),
+            Action::MonitorActiveArc => self.monitor_active_arc(),
+            Action::DismissActiveArcs => {
+                self.active_arcs.clear();
+                self.view = AppView::Selection;
+            }
+            // Selection view
             Action::SwitchPanel => self.switch_panel(),
             Action::MoveUp => self.move_up(),
             Action::MoveDown => self.move_down(),
@@ -366,6 +402,82 @@ impl App {
         Ok(())
     }
 
+    /// Attach to the selected active arc's tmux session.
+    fn attach_active_arc(&self) {
+        if let Some(arc) = self.active_arcs.get(self.active_arc_cursor) {
+            if let Some(ref session) = arc.tmux_session {
+                let _ = Tmux::attach(session);
+            }
+        }
+    }
+
+    /// Transition to Running view to monitor the selected active arc.
+    fn monitor_active_arc(&mut self) {
+        let arc = match self.active_arcs.get(self.active_arc_cursor) {
+            Some(a) => a.clone(),
+            None => return,
+        };
+
+        // Set up the config dir selection to match the active arc
+        if !arc.config_dir.path.as_os_str().is_empty() {
+            if let Some(idx) = self.config_dirs.iter().position(|c| c.path == arc.config_dir.path) {
+                self.selected_config = idx;
+            }
+        }
+
+        // Parse claude_pid from owner_pid
+        let claude_pid = arc.loop_state.owner_pid.parse::<u32>().ok();
+
+        // Resolve checkpoint path via config_dir (not cwd)
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let checkpoint_path = monitor::resolve_checkpoint_path(
+            &arc.loop_state.checkpoint_path, &arc.config_dir.path, &cwd,
+        );
+
+        // Try to read checkpoint for arc_id
+        let arc_id = std::fs::read_to_string(&checkpoint_path)
+            .ok()
+            .and_then(|c| serde_json::from_str::<crate::checkpoint::Checkpoint>(&c).ok())
+            .map(|cp| cp.id)
+            .unwrap_or_else(|| "unknown".into());
+
+        let heartbeat_path = cwd.join("tmp").join("arc").join(&arc_id).join("heartbeat.json");
+
+        // Build a fake PlanFile for the run
+        let plan_name = arc.loop_state.plan_file.clone();
+        let plan = PlanFile {
+            path: PathBuf::from(&plan_name),
+            name: plan_name.clone(),
+            title: plan_name,
+        };
+
+        self.tmux_session_id = arc.tmux_session.clone();
+        let loop_state = arc.loop_state;
+        self.current_run = Some(RunState {
+            plan,
+            plan_index: 1,
+            total_plans: 1,
+            tmux_session: arc.tmux_session.clone().unwrap_or_default(),
+            launched_at: Instant::now(),
+            arc: Some(ArcHandle {
+                arc_id,
+                checkpoint_path,
+                heartbeat_path,
+                plan_file: loop_state.plan_file.clone(),
+                config_dir: loop_state.config_dir.clone(),
+                owner_pid: loop_state.owner_pid.clone(),
+                session_id: loop_state.session_id.clone(),
+            }),
+            last_status: None,
+            merge_detected_at: None,
+            tmux_pane_pid: None,
+            claude_pid,
+            loop_state: Some(loop_state),
+        });
+
+        self.view = AppView::Running;
+    }
+
     /// Skip the current plan — kill tmux, move to next.
     fn skip_current_plan(&mut self) {
         if let Some(run) = self.current_run.take() {
@@ -376,7 +488,6 @@ impl App {
                     reason: Some("skipped by user".into()),
                 },
                 duration: run.launched_at.elapsed(),
-                attempts: run.attempt,
             });
             self.tmux_session_id = None;
         }
@@ -394,7 +505,6 @@ impl App {
                     reason: "killed by user".into(),
                 },
                 duration: run.launched_at.elapsed(),
-                attempts: run.attempt,
             });
         }
         self.tmux_session_id = None;
@@ -447,10 +557,12 @@ impl App {
             }
 
             // Loop state liveness check (every 60s)
+            // If arc-phase-loop.local.md is gone, the arc has completed or been stopped
             let should_check_loop = self
                 .last_loop_state_poll
                 .map(|t| now.duration_since(t) >= Duration::from_secs(60))
                 .unwrap_or(true);
+
             if should_check_loop {
                 self.check_loop_state_liveness();
                 self.last_loop_state_poll = Some(now);
@@ -461,6 +573,39 @@ impl App {
         }
 
         Ok(())
+    }
+
+    /// Check if arc-phase-loop.local.md still exists.
+    /// If it's gone, the arc has completed or been stopped — trigger completion.
+    fn check_loop_state_liveness(&mut self) {
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let loop_file = cwd.join(".claude").join("arc-phase-loop.local.md");
+
+        if !loop_file.exists() {
+            self.status_message = Some(
+                "arc-phase-loop.local.md removed — arc completed or stopped".into(),
+            );
+            if let Some(run) = &mut self.current_run {
+                if run.merge_detected_at.is_none() {
+                    run.merge_detected_at = Some(Instant::now());
+                }
+            }
+            return;
+        }
+
+        // File exists — read_arc_loop_state returns None if active: false
+        if monitor::read_arc_loop_state(&cwd).is_none() {
+            if !state.active {
+                self.status_message = Some(
+                    "arc-phase-loop.local.md active: false — arc cancelled".into(),
+                );
+                if let Some(run) = &mut self.current_run {
+                    if run.merge_detected_at.is_none() {
+                        run.merge_detected_at = Some(Instant::now());
+                    }
+                }
+            }
+        }
     }
 
     /// Launch the next plan: git checkout main, create tmux session, send /arc.
@@ -541,7 +686,6 @@ impl App {
             arc: None,
             last_status: None,
             merge_detected_at: None,
-            attempt: 1,
             tmux_pane_pid,
             claude_pid,
             loop_state: None,
@@ -555,8 +699,9 @@ impl App {
         Ok(())
     }
 
-    /// Poll for arc discovery by reading arc-phase-loop.local.md from config_dir.
-    /// The loop state file is the single source of truth — no glob scanning.
+    /// Poll for arc discovery using 2-layer strategy:
+    /// 1. Parse arc-phase-loop.local.md (instant, created first by Rune arc)
+    /// 2. Fallback: glob scan <config_dir>/arc/arc-*/checkpoint.json
     fn poll_discovery(&mut self) {
         let launched_after = match self.launched_wall_clock {
             Some(t) => t,
@@ -578,19 +723,21 @@ impl App {
             (run.plan.path.clone(), run.claude_pid, run.loop_state.is_some())
         };
 
-        // Read loop state if not yet populated — from project dir (cwd), NOT config dir
-        let cwd = std::env::current_dir().unwrap_or_default();
+        // Read loop state if not yet populated
         if !has_loop_state {
-            let loop_state = monitor::read_arc_loop_state(&cwd);
-            if loop_state.is_some() {
-                self.status_message = Some("Arc loop state detected, discovering checkpoint...".into());
-            }
-            if let Some(run) = &mut self.current_run {
-                run.loop_state = loop_state;
+            if let Some(config_dir) = expected_config_dir {
+                let loop_state = monitor::read_arc_loop_state(Path::new(config_dir));
+                if loop_state.is_some() {
+                    self.status_message = Some("Arc loop state detected, discovering checkpoint...".into());
+                }
+                if let Some(run) = &mut self.current_run {
+                    run.loop_state = loop_state;
+                }
             }
         }
 
-        // Run discovery from <cwd>/.claude/arc-phase-loop.local.md
+        // Run discovery (2-layer: loop state → glob scan)
+        let cwd = std::env::current_dir().unwrap_or_default();
         if let Some(handle) = monitor::discover_arc(
             &cwd,
             &plan_path,
@@ -730,41 +877,7 @@ impl App {
                     plan: run.plan,
                     result,
                     duration: run.launched_at.elapsed(),
-                    attempts: run.attempt,
                 });
-            }
-        }
-    }
-
-    /// Check if arc-phase-loop.local.md still exists in the project dir.
-    /// If it's gone, the arc has completed or been stopped — trigger completion.
-    fn check_loop_state_liveness(&mut self) {
-        let cwd = std::env::current_dir().unwrap_or_default();
-        let loop_file = cwd.join(".claude").join("arc-phase-loop.local.md");
-
-        if !loop_file.exists() {
-            // Loop state file gone — arc completed or stopped
-            self.status_message = Some(
-                "arc-phase-loop.local.md removed — arc completed or stopped".into(),
-            );
-            if let Some(run) = &mut self.current_run {
-                if run.merge_detected_at.is_none() {
-                    run.merge_detected_at = Some(Instant::now());
-                }
-            }
-            return;
-        }
-
-        // File exists — check if active: false (user cancelled)
-        if monitor::read_arc_loop_state(&cwd).is_none() {
-            // read_arc_loop_state returns None if active: false
-            self.status_message = Some(
-                "arc-phase-loop.local.md active: false — arc cancelled".into(),
-            );
-            if let Some(run) = &mut self.current_run {
-                if run.merge_detected_at.is_none() {
-                    run.merge_detected_at = Some(Instant::now());
-                }
             }
         }
     }

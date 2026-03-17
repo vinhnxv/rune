@@ -35,9 +35,120 @@ pub fn draw(frame: &mut Frame, app: &App) {
     }
 
     match app.view {
+        AppView::ActiveArcs => render_active_arcs(frame, app, area),
         AppView::Selection => render_selection(frame, app, area),
         AppView::Running => render_running(frame, app, area),
     }
+}
+
+// ── Active Arcs View ───────────────────────────────────────
+
+fn render_active_arcs(frame: &mut Frame, app: &App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Length(3),
+            Constraint::Min(5),
+            Constraint::Length(1),
+        ])
+        .split(area);
+
+    // Header
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(" torrent ", Style::default().fg(sol::BASE03).bg(sol::ORANGE).add_modifier(Modifier::BOLD)),
+            Span::styled(format!(" — {} active arc(s) detected", app.active_arcs.len()), Style::default().fg(sol::YELLOW).add_modifier(Modifier::BOLD)),
+        ])),
+        chunks[0],
+    );
+
+    // Info box
+    frame.render_widget(
+        Paragraph::new(Text::from(vec![
+            Line::from(Span::styled(
+                "  Active Rune Arc sessions found. You can monitor or attach to them.",
+                Style::default().fg(sol::BASE0),
+            )),
+        ])).block(
+            Block::default().borders(Borders::ALL)
+                .border_style(Style::default().fg(sol::ORANGE))
+                .title(Span::styled(" Info ", Style::default().fg(sol::BASE1)))
+        ),
+        chunks[1],
+    );
+
+    // Active arcs list with details
+    let items: Vec<ListItem> = app.active_arcs.iter().enumerate().map(|(i, arc)| {
+        let is_cursor = i == app.active_arc_cursor;
+        let style = if is_cursor {
+            Style::default().fg(sol::YELLOW).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(sol::BASE0)
+        };
+
+        // Status indicators
+        let pid_icon = if arc.pid_alive { "●" } else { "○" };
+        let pid_color = if arc.pid_alive { sol::GREEN } else { sol::RED };
+        let tmux_label = arc.tmux_session.as_deref().unwrap_or("no tmux");
+        let tmux_color = if arc.tmux_session.is_some() { sol::CYAN } else { sol::BASE01 };
+
+        // Phase progress
+        let phase_info = match (&arc.current_phase, arc.phase_progress) {
+            (Some(phase), Some((done, total))) => format!("{} ({}/{})", phase, done, total),
+            (Some(phase), None) => phase.clone(),
+            (None, Some((done, total))) => format!("{}/{} phases", done, total),
+            (None, None) => "unknown".into(),
+        };
+
+        // Plan name (extract from path)
+        let plan_name = if let Some(idx) = arc.loop_state.plan_file.rfind('/') {
+            &arc.loop_state.plan_file[idx + 1..]
+        } else {
+            &arc.loop_state.plan_file
+        };
+
+        let cursor_marker = if is_cursor { "▶" } else { " " };
+
+        // Build multi-span line
+        let line = Line::from(vec![
+            Span::styled(format!(" {} ", cursor_marker), Style::default().fg(sol::YELLOW)),
+            Span::styled(pid_icon, Style::default().fg(pid_color).add_modifier(Modifier::BOLD)),
+            Span::styled(format!(" {:<35}", plan_name), style),
+            Span::styled(format!(" {:<20}", phase_info), Style::default().fg(sol::CYAN)),
+            Span::styled(format!(" {}", tmux_label), Style::default().fg(tmux_color)),
+        ]);
+
+        // Second line with details
+        let detail = Line::from(vec![
+            Span::styled("     ", Style::default()),
+            Span::styled(format!("config: {} ", arc.config_dir.label), Style::default().fg(sol::BASE01)),
+            Span::styled(format!(" PID: {} ", arc.loop_state.owner_pid), Style::default().fg(sol::BASE01)),
+            if let Some(ref pr) = arc.pr_url {
+                Span::styled(format!(" PR: {}", pr), Style::default().fg(sol::BLUE))
+            } else {
+                Span::styled("", Style::default())
+            },
+        ]);
+
+        ListItem::new(Text::from(vec![line, detail]))
+    }).collect();
+
+    frame.render_widget(
+        List::new(items).block(
+            Block::default().borders(Borders::ALL)
+                .border_style(Style::default().fg(sol::YELLOW))
+                .title(Span::styled(" Active Sessions ", Style::default().fg(sol::BASE1)))
+        ),
+        chunks[2],
+    );
+
+    // Status bar
+    frame.render_widget(
+        Paragraph::new(" [m/Enter] monitor  [a] attach tmux  [n/Esc] new run  [q] quit")
+            .style(Style::default().fg(sol::BASE01)),
+        chunks[3],
+    );
 }
 
 // ── Selection View ──────────────────────────────────────────
