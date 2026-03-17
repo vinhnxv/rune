@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [1.176.0] - 2026-03-17
+
+### Added
+- Talisman semantic validation script (`validate-talisman-consistency.sh`) with 6 cross-field checks: TC-001 (max_ashes capacity), TC-002 (source: local resolution), TC-003 (source: plugin resolution), TC-004 (context_budget total), TC-005 (dimension agent cap), TC-006 (dedup hierarchy orphans)
+- Talisman audit Phase 2.7: Semantic Consistency Validation — runs `validate-talisman-consistency.sh` during `/rune:talisman audit`
+
+### Fixed
+- Fix `max_ashes: 10` → `13` to accommodate 7 built-in + 5 custom agents + 1 buffer
+- Fix `phantom-warden` source: `local` → `plugin` (agent file lives in `registry/review/`, not `.claude/agents/`)
+- Reduce custom agent `context_budget` from 25 → 15 each (total 130% → 80%)
+- Add `max_dimension_agents` buffer: 7 → 8
+
 ## [1.175.3] - 2026-03-17
 
 ### Changed

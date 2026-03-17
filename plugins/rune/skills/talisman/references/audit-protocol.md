@@ -35,6 +35,31 @@ For each integrations.mcp_tools.{namespace}:
      WARNING: "No triggers configured — integration will never activate"
 ```
 
+### Phase 2.7: Semantic Consistency Validation
+
+Cross-field consistency checks that detect logical contradictions between config values.
+Run `validate-talisman-consistency.sh` and present findings inline with Phase 3 report.
+
+```
+result = Bash("bash ${CLAUDE_PLUGIN_ROOT}/scripts/validate-talisman-consistency.sh \
+  .claude/talisman.yml . ${CLAUDE_PLUGIN_ROOT}")
+parsed = JSON.parse(result)
+
+Checks (6 rules):
+  TC-001: max_ashes >= 7 (built-in) + len(ashes.custom[])
+          CRITICAL if under — custom agents silently trimmed
+  TC-002: ashes.custom[].source: local → .claude/agents/{agent}.md must exist
+          CRITICAL if missing — agent never spawns (silent failure)
+  TC-003: ashes.custom[].source: plugin → agent file in registry/ or agents/
+          HIGH if missing — agent reference broken
+  TC-004: sum(ashes.custom[].context_budget) <= 100%
+          HIGH if over — each agent receives less than requested
+  TC-005: audit.deep.max_dimension_agents >= len(audit.deep.dimensions)
+          HIGH if under, INFO if exact match (no buffer)
+  TC-006: dedup_hierarchy entries match known built-in + custom prefixes
+          INFO for orphaned entries (retired agents)
+```
+
 ## Phase 3: Gap Report
 
 Present findings in priority order:
