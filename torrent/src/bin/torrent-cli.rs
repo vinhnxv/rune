@@ -155,7 +155,7 @@ fn cmd_send_keys(args: &[String]) {
 // ── capture-pane ────────────────────────────────────────────
 
 fn cmd_capture_pane(args: &[String]) {
-    let session = get_arg(args, "--session").unwrap_or_else(|| auto_detect_session());
+    let session = get_arg(args, "--session").unwrap_or_else(auto_detect_session);
     let lines = get_arg(args, "--lines").unwrap_or_else(|| "30".into());
 
     let o = Command::new("tmux")
@@ -191,7 +191,7 @@ fn cmd_list() {
 // ── kill ────────────────────────────────────────────────────
 
 fn cmd_kill(args: &[String]) {
-    let session = get_arg(args, "--session").unwrap_or_else(|| auto_detect_session());
+    let session = get_arg(args, "--session").unwrap_or_else(auto_detect_session);
     let _ = Command::new("tmux")
         .args(["kill-session", "-t", &session])
         .output();
