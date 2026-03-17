@@ -40,6 +40,7 @@ pub struct App {
     pub last_discovery_poll: Option<Instant>,
     pub last_heartbeat_poll: Option<Instant>,
     pub last_checkpoint_poll: Option<Instant>,
+    pub last_loop_state_poll: Option<Instant>,
     pub launched_wall_clock: Option<chrono::DateTime<Utc>>,
 
     // Status message for display in UI
@@ -195,6 +196,7 @@ impl App {
             last_discovery_poll: None,
             last_heartbeat_poll: None,
             last_checkpoint_poll: None,
+            last_loop_state_poll: None,
             launched_wall_clock: None,
             status_message: None,
             claude_path: crate::tmux::Tmux::resolve_claude_path()
@@ -426,13 +428,11 @@ impl App {
         // Parse claude_pid from owner_pid
         let claude_pid = arc.loop_state.owner_pid.parse::<u32>().ok();
 
-        // Resolve checkpoint path
+        // Resolve checkpoint path via config_dir (not cwd)
         let cwd = std::env::current_dir().unwrap_or_default();
-        let checkpoint_path = if arc.loop_state.checkpoint_path.starts_with('/') {
-            PathBuf::from(&arc.loop_state.checkpoint_path)
-        } else {
-            cwd.join(&arc.loop_state.checkpoint_path)
-        };
+        let checkpoint_path = monitor::resolve_checkpoint_path(
+            &arc.loop_state.checkpoint_path, &arc.config_dir.path, &cwd,
+        );
 
         // Try to read checkpoint for arc_id
         let arc_id = std::fs::read_to_string(&checkpoint_path)
@@ -556,11 +556,68 @@ impl App {
                 self.last_heartbeat_poll = Some(now);
             }
 
+            // Loop state liveness check (every 60s)
+            // If arc-phase-loop.local.md is gone, the arc has completed or been stopped
+            let should_check_loop = self
+                .last_loop_state_poll
+                .map(|t| now.duration_since(t) >= Duration::from_secs(60))
+                .unwrap_or(true);
+
+            if should_check_loop {
+                self.check_loop_state_liveness();
+                self.last_loop_state_poll = Some(now);
+            }
+
             // Check grace period completion
             self.check_grace_period(now);
         }
 
         Ok(())
+    }
+
+    /// Check if arc-phase-loop.local.md still exists.
+    /// If it's gone, the arc has completed or been stopped — trigger completion.
+    fn check_loop_state_liveness(&mut self) {
+        let config_dir_str = self
+            .config_dirs
+            .get(self.selected_config)
+            .map(|c| c.path.to_string_lossy().to_string());
+
+        let config_dir = match config_dir_str {
+            Some(ref s) => Path::new(s),
+            None => return,
+        };
+
+        let loop_file = config_dir.join("arc-phase-loop.local.md");
+
+        if !loop_file.exists() {
+            // Loop state file gone — arc completed or stopped
+            self.status_message = Some(
+                "arc-phase-loop.local.md removed — arc completed or stopped".into(),
+            );
+
+            // If we haven't already detected completion via checkpoint, start grace period
+            if let Some(run) = &mut self.current_run {
+                if run.merge_detected_at.is_none() {
+                    run.merge_detected_at = Some(Instant::now());
+                }
+            }
+            return;
+        }
+
+        // File exists — check if active: false (user cancelled)
+        if let Some(state) = monitor::read_arc_loop_state(config_dir) {
+            if !state.active {
+                self.status_message = Some(
+                    "arc-phase-loop.local.md active: false — arc cancelled".into(),
+                );
+                if let Some(run) = &mut self.current_run {
+                    if run.merge_detected_at.is_none() {
+                        run.merge_detected_at = Some(Instant::now());
+                    }
+                }
+            }
+        }
     }
 
     /// Launch the next plan: git checkout main, create tmux session, send /arc.

@@ -144,72 +144,30 @@ pub enum ArcCompletion {
     Failed,
 }
 
-/// Discover a newly-launched arc using a 2-layer strategy:
+/// Discover a running arc by reading `arc-phase-loop.local.md` from config_dir.
 ///
-/// **Layer 1 (primary): Parse `arc-phase-loop.local.md`**
-/// This file is created FIRST by Rune arc and contains the checkpoint_path,
-/// owner_pid, and session_id. Instant discovery without glob scanning.
+/// This file is the single source of truth for an active Rune arc.
+/// It is created before the checkpoint and contains `checkpoint_path`,
+/// `owner_pid`, `session_id`, and all metadata needed for discovery.
 ///
-/// **Layer 2 (fallback): Glob scan `<config_dir>/arc/arc-*/checkpoint.json`**
-/// Uses the config_dir (not cwd) to find checkpoint files. Matches on:
-/// plan_file + config_dir + owner_pid + started_at > launched_after.
-///
-/// Returns `None` if no matching arc is found (caller should retry).
+/// No glob scanning — the loop state file directly points to the checkpoint.
 pub fn discover_arc(
     cwd: &Path,
     plan_path: &Path,
-    launched_after: DateTime<Utc>,
+    _launched_after: DateTime<Utc>,
     expected_config_dir: Option<&str>,
     expected_claude_pid: Option<u32>,
 ) -> Option<ArcHandle> {
-    // Layer 1: Try arc-phase-loop.local.md first (instant, no glob needed)
-    if let Some(config_dir) = expected_config_dir {
-        let config_path = Path::new(config_dir);
-        if let Some(handle) = discover_from_loop_state(
-            cwd,
-            config_path,
-            plan_path,
-            expected_claude_pid,
-        ) {
-            return Some(handle);
-        }
-    }
+    let config_dir = expected_config_dir?;
+    let config_path = Path::new(config_dir);
 
-    // Layer 2: Fallback — glob scan <config_dir>/arc/arc-*/checkpoint.json
-    // Use config_dir if available, otherwise fall back to <cwd>/.claude/
-    let arc_base = if let Some(config_dir) = expected_config_dir {
-        PathBuf::from(config_dir).join("arc")
-    } else {
-        cwd.join(".claude").join("arc")
-    };
-
-    let pattern = format!("{}/arc-*/checkpoint.json", arc_base.display());
-    let entries = match glob::glob(&pattern) {
-        Ok(e) => e,
-        Err(_) => return None,
-    };
-
-    for entry in entries.flatten() {
-        let handle = try_match_checkpoint(
-            &entry,
-            cwd,
-            plan_path,
-            launched_after,
-            expected_config_dir,
-            expected_claude_pid,
-        );
-        if handle.is_some() {
-            return handle;
-        }
-    }
-
-    None
+    discover_from_loop_state(cwd, config_path, plan_path, expected_claude_pid)
 }
 
 /// Discover arc from `arc-phase-loop.local.md` state file.
 ///
-/// This is the primary discovery method — the loop state file is created
-/// before the checkpoint and contains direct pointers to all arc state.
+/// Reads the loop state, validates plan_file match, resolves checkpoint_path
+/// relative to config_dir (not cwd), and returns an ArcHandle.
 fn discover_from_loop_state(
     cwd: &Path,
     config_dir: &Path,
@@ -235,12 +193,8 @@ fn discover_from_loop_state(
         }
     }
 
-    // Resolve checkpoint_path (may be relative to cwd)
-    let checkpoint_path = if state.checkpoint_path.starts_with('/') {
-        PathBuf::from(&state.checkpoint_path)
-    } else {
-        cwd.join(&state.checkpoint_path)
-    };
+    // Resolve checkpoint_path relative to config_dir
+    let checkpoint_path = resolve_checkpoint_path(&state.checkpoint_path, config_dir, cwd);
 
     // Verify checkpoint file exists
     if !checkpoint_path.exists() {
@@ -263,6 +217,38 @@ fn discover_from_loop_state(
     })
 }
 
+/// Resolve a checkpoint_path from arc-phase-loop.local.md to an absolute path.
+///
+/// The checkpoint_path in the loop state file can be:
+/// - Absolute: `/Users/foo/.claude/arc/arc-123/checkpoint.json` → use as-is
+/// - Relative with `.claude/` prefix: `.claude/arc/arc-123/checkpoint.json`
+///   → strip `.claude/` and prepend config_dir (since config_dir IS the .claude dir)
+/// - Other relative: `arc/arc-123/checkpoint.json` → try config_dir, then cwd
+pub fn resolve_checkpoint_path(checkpoint_path: &str, config_dir: &Path, cwd: &Path) -> PathBuf {
+    // Absolute path — use directly
+    if checkpoint_path.starts_with('/') {
+        return PathBuf::from(checkpoint_path);
+    }
+
+    // Relative path starting with .claude/ — map to config_dir
+    // e.g. ".claude/arc/arc-123/checkpoint.json" → "<config_dir>/arc/arc-123/checkpoint.json"
+    if let Some(rest) = checkpoint_path.strip_prefix(".claude/") {
+        let resolved = config_dir.join(rest);
+        if resolved.exists() {
+            return resolved;
+        }
+    }
+
+    // Try config_dir directly (e.g. "arc/arc-123/checkpoint.json")
+    let from_config = config_dir.join(checkpoint_path);
+    if from_config.exists() {
+        return from_config;
+    }
+
+    // Last resort: relative to cwd
+    cwd.join(checkpoint_path)
+}
+
 /// Extract the "plans/..." relative portion from a path string.
 fn extract_plans_relative(path: &str) -> &str {
     if let Some(idx) = path.find("plans/") {
@@ -274,6 +260,9 @@ fn extract_plans_relative(path: &str) -> &str {
 
 /// Try to parse and match a single checkpoint file against our criteria.
 /// Strict 4-field matching: plan_file + config_dir + owner_pid + started_at.
+/// Note: glob-based discovery was removed in favor of arc-phase-loop.local.md.
+/// This function is retained for tests that validate checkpoint matching logic.
+#[cfg(test)]
 fn try_match_checkpoint(
     checkpoint_path: &Path,
     cwd: &Path,
@@ -875,5 +864,49 @@ session_id: xxx
         assert!(handle.is_none(), "should reject mismatched plan");
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ── resolve_checkpoint_path Tests ──────────────────────
+
+    #[test]
+    fn test_resolve_checkpoint_path_absolute() {
+        let result = resolve_checkpoint_path(
+            "/absolute/path/checkpoint.json",
+            Path::new("/config"),
+            Path::new("/cwd"),
+        );
+        assert_eq!(result, PathBuf::from("/absolute/path/checkpoint.json"));
+    }
+
+    #[test]
+    fn test_resolve_checkpoint_path_dotclaude_prefix() {
+        // Create temp dirs to test .exists() check
+        let dir = std::env::temp_dir().join("torrent-test-resolve-path");
+        let config_dir = dir.join("config");
+        let arc_dir = config_dir.join("arc").join("arc-123");
+        std::fs::create_dir_all(&arc_dir).unwrap();
+        std::fs::write(arc_dir.join("checkpoint.json"), "{}").unwrap();
+
+        let result = resolve_checkpoint_path(
+            ".claude/arc/arc-123/checkpoint.json",
+            &config_dir,
+            &dir,
+        );
+        // Should strip .claude/ and use config_dir
+        assert_eq!(result, config_dir.join("arc/arc-123/checkpoint.json"));
+        assert!(result.exists());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_resolve_checkpoint_path_fallback_to_cwd() {
+        // When nothing matches, falls back to cwd
+        let result = resolve_checkpoint_path(
+            "some/relative/path.json",
+            Path::new("/nonexistent/config"),
+            Path::new("/cwd"),
+        );
+        assert_eq!(result, PathBuf::from("/cwd/some/relative/path.json"));
     }
 }

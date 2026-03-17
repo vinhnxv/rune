@@ -142,12 +142,10 @@ pub fn scan_active_arcs(config_dirs: &[ConfigDir], cwd: &Path) -> Vec<ActiveArc>
             // for the Claude Code PID that matches owner_pid
             let tmux_session = find_tmux_for_pid(&tmux_sessions, &loop_state.owner_pid);
 
-            // Read checkpoint for phase info
-            let checkpoint_path = if loop_state.checkpoint_path.starts_with('/') {
-                PathBuf::from(&loop_state.checkpoint_path)
-            } else {
-                cwd.join(&loop_state.checkpoint_path)
-            };
+            // Read checkpoint for phase info (resolve path via config_dir)
+            let checkpoint_path = monitor::resolve_checkpoint_path(
+                &loop_state.checkpoint_path, &config.path, cwd,
+            );
 
             let (current_phase, pr_url, phase_progress) =
                 read_checkpoint_summary(&checkpoint_path);
