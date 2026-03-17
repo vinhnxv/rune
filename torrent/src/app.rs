@@ -915,6 +915,15 @@ impl App {
             eyre!("no config dir selected")
         })?;
 
+        // Step 0: Clean stale arc state from previous run.
+        // arc-phase-loop.local.md belongs to CWD (not per-arc) — if the previous
+        // arc's cleanup didn't remove it, poll_discovery would match the wrong arc.
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let stale_loop = cwd.join(".claude").join("arc-phase-loop.local.md");
+        if stale_loop.exists() {
+            let _ = std::fs::remove_file(&stale_loop);
+        }
+
         // Step 1: git checkout main + pull (blocking, before tmux)
         // Use .output() to CAPTURE stdout/stderr — .status() leaks into TUI display
         let checkout = Command::new("git")
@@ -932,7 +941,12 @@ impl App {
             .args(["pull", "--ff-only"])
             .output();
         if pull.as_ref().map_or(true, |o| !o.status.success()) {
-            self.status_message = Some("git pull failed — try manually".into());
+            self.status_message = Some("git pull failed — retrying...".into());
+            self.queue.push_front(QueueEntry {
+                plan_idx,
+                config_idx: self.selected_config,
+            });
+            return Ok(());
         }
 
         // Step 2: Record wall-clock time BEFORE launch (for discovery matching)
@@ -1018,9 +1032,10 @@ impl App {
         };
 
         // Extract needed values before borrowing self.current_run mutably
-        let config_dir_str = self
-            .config_dirs
-            .get(self.selected_config)
+        // Use run's config_idx (not selected_config) to avoid drift from queue-edit
+        let run_config_idx = self.current_run.as_ref().map(|r| r.config_idx);
+        let config_dir_str = run_config_idx
+            .and_then(|idx| self.config_dirs.get(idx))
             .map(|c| c.path.to_string_lossy().to_string());
         let expected_config_dir = config_dir_str.as_deref();
 
@@ -1154,12 +1169,13 @@ impl App {
     }
 
     /// Grace period after merge detection before starting next plan.
-    /// Configurable via GRACE_PERIOD_SECS env var (default: 240s = 4 min).
+    /// Configurable via GRACE_PERIOD_SECS env var (default: 300s = 5 min).
+    /// Allows time for: arc stop hook cleanup, team deletion, git state reset.
     fn grace_period_secs() -> u64 {
         std::env::var("GRACE_PERIOD_SECS")
             .ok()
             .and_then(|s| s.parse().ok())
-            .unwrap_or(240)
+            .unwrap_or(300)
     }
 
     /// Check if grace period has elapsed after merge detection.
@@ -1197,6 +1213,12 @@ impl App {
                     result,
                     duration: run.launched_at.elapsed(),
                 });
+
+                // Clamp queue cursor after item count changed
+                let total = self.queue_total_items();
+                if total > 0 && self.queue_cursor >= total {
+                    self.queue_cursor = total - 1;
+                }
             }
         }
     }
