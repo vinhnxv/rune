@@ -104,6 +104,7 @@ pub struct RunState {
     pub plan: PlanFile,
     pub plan_index: usize,   // 1-indexed position in selected_plans
     pub total_plans: usize,
+    pub config_idx: usize,   // config dir this plan was launched with
     pub tmux_session: String,
     pub launched_at: Instant,
     pub arc: Option<ArcHandle>,
@@ -686,6 +687,7 @@ impl App {
             plan,
             plan_index: 1,
             total_plans: 1,
+            config_idx: self.selected_config,
             tmux_session: arc.tmux_session.clone().unwrap_or_default(),
             launched_at: Instant::now(),
             arc: Some(ArcHandle {
@@ -975,6 +977,7 @@ impl App {
             plan,
             plan_index: self.completed_runs.len() + 1,
             total_plans: total,
+            config_idx: self.selected_config,
             tmux_session: session_id,
             launched_at: Instant::now(),
             arc: None,

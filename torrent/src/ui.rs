@@ -352,8 +352,9 @@ fn render_running(frame: &mut Frame, app: &App, area: Rect) {
         ])
         .split(area);
 
-    // Header
-    let cfg = app.config_dirs.get(app.selected_config).map(|c| c.label.as_str()).unwrap_or("?");
+    // Header — use current run's config, not the selection cursor
+    let run_config_idx = app.current_run.as_ref().map(|r| r.config_idx).unwrap_or(app.selected_config);
+    let cfg = app.config_dirs.get(run_config_idx).map(|c| c.label.as_str()).unwrap_or("?");
     let plan_info = app.current_run.as_ref()
         .map(|r| format!("Plan {}/{}", r.plan_index, r.total_plans))
         .unwrap_or_else(|| format!("Done — {}", app.completed_runs.len()));
@@ -638,9 +639,6 @@ fn render_heartbeat(frame: &mut Frame, app: &App, area: Rect) {
 fn render_queue(frame: &mut Frame, app: &App, area: Rect) {
     let mut items: Vec<ListItem> = Vec::new();
     let mut row: usize = 0;
-    let cfg_label = app.config_dirs.get(app.selected_config)
-        .map(|c| c.label.as_str())
-        .unwrap_or("?");
 
     // Completed runs
     for run in &app.completed_runs {
@@ -661,16 +659,17 @@ fn render_queue(frame: &mut Frame, app: &App, area: Rect) {
         row += 1;
     }
 
-    // Currently running
+    // Currently running — uses its own config_idx, not selected_config
     if let Some(run) = &app.current_run {
         let is_cursor = row == app.queue_cursor;
         let phase = run.last_status.as_ref().map(|s| s.current_phase.as_str()).unwrap_or("discovering...");
+        let run_cfg = app.config_dirs.get(run.config_idx).map(|c| c.label.as_str()).unwrap_or("?");
         let cursor_mark = if is_cursor { "›" } else { " " };
         items.push(ListItem::new(Line::from(vec![
             Span::styled(format!(" {cursor_mark}▶ "), Style::default().fg(sol::YELLOW)),
             Span::styled(&run.plan.name, Style::default().fg(sol::YELLOW).add_modifier(Modifier::BOLD)),
             Span::styled(format!("  {phase}"), Style::default().fg(sol::BASE0)),
-            Span::styled(format!("  [{cfg_label}]"), Style::default().fg(sol::BASE01)),
+            Span::styled(format!("  [{run_cfg}]"), Style::default().fg(sol::BASE01)),
         ])));
         row += 1;
     }
