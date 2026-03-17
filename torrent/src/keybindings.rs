@@ -10,8 +10,28 @@ pub fn handle_key(app: &App, key: KeyEvent) -> Action {
     }
 
     match app.view {
+        AppView::ActiveArcs => handle_active_arcs_key(app, key),
         AppView::Selection => handle_selection_key(app, key),
         AppView::Running => handle_running_key(key),
+    }
+}
+
+fn handle_active_arcs_key(app: &App, key: KeyEvent) -> Action {
+    match key.code {
+        KeyCode::Char('q') => Action::Quit,
+        KeyCode::Char('a') => Action::AttachActiveArc,
+        KeyCode::Char('m') | KeyCode::Enter => Action::MonitorActiveArc,
+        KeyCode::Char('n') | KeyCode::Esc => Action::DismissActiveArcs,
+        KeyCode::Up => Action::MoveUp,
+        KeyCode::Down => Action::MoveDown,
+        _ => {
+            // If no active arcs have tmux sessions, allow dismiss on any key
+            if app.active_arcs.is_empty() {
+                Action::DismissActiveArcs
+            } else {
+                Action::None
+            }
+        }
     }
 }
 

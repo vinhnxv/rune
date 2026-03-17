@@ -2,6 +2,9 @@ use color_eyre::{eyre::eyre, Result};
 use glob::glob;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use crate::monitor;
 
 /// A discovered Claude config directory (e.g. ~/.claude or ~/.claude-work).
 #[derive(Debug, Clone)]
@@ -97,4 +100,195 @@ fn read_first_heading(path: &Path) -> Option<String> {
         }
     }
     None
+}
+
+// ── Active Arc Detection ────────────────────────────────────
+
+/// An active arc session discovered at startup.
+#[derive(Debug, Clone)]
+pub struct ActiveArc {
+    /// Config dir where this arc is running.
+    pub config_dir: ConfigDir,
+    /// Loop state from arc-phase-loop.local.md.
+    pub loop_state: monitor::ArcLoopState,
+    /// Whether the owner_pid process is still alive.
+    pub pid_alive: bool,
+    /// Tmux session ID if found (matching rune-* prefix).
+    pub tmux_session: Option<String>,
+    /// Current phase from checkpoint (if readable).
+    pub current_phase: Option<String>,
+    /// PR URL from checkpoint (if available).
+    pub pr_url: Option<String>,
+    /// Phase progress (completed/total).
+    pub phase_progress: Option<(u32, u32)>,
+}
+
+/// Scan all config dirs for active arc sessions.
+///
+/// For each config dir:
+/// 1. Read arc-phase-loop.local.md
+/// 2. Check if owner_pid is alive
+/// 3. Scan tmux sessions for matching rune-* session
+/// 4. Read checkpoint for phase progress
+pub fn scan_active_arcs(config_dirs: &[ConfigDir], cwd: &Path) -> Vec<ActiveArc> {
+    let tmux_sessions = list_rune_tmux_sessions();
+    let mut active = Vec::new();
+
+    for config in config_dirs {
+        if let Some(loop_state) = monitor::read_arc_loop_state(&config.path) {
+            let pid_alive = is_pid_alive_check(&loop_state.owner_pid);
+
+            // Find matching tmux session by checking all rune-* sessions
+            // for the Claude Code PID that matches owner_pid
+            let tmux_session = find_tmux_for_pid(&tmux_sessions, &loop_state.owner_pid);
+
+            // Read checkpoint for phase info
+            let checkpoint_path = if loop_state.checkpoint_path.starts_with('/') {
+                PathBuf::from(&loop_state.checkpoint_path)
+            } else {
+                cwd.join(&loop_state.checkpoint_path)
+            };
+
+            let (current_phase, pr_url, phase_progress) =
+                read_checkpoint_summary(&checkpoint_path);
+
+            active.push(ActiveArc {
+                config_dir: config.clone(),
+                loop_state,
+                pid_alive,
+                tmux_session,
+                current_phase,
+                pr_url,
+                phase_progress,
+            });
+        }
+    }
+
+    // Also scan for orphan tmux sessions (rune-* sessions without a loop state)
+    for session in &tmux_sessions {
+        let already_matched = active.iter().any(|a| {
+            a.tmux_session.as_deref() == Some(session.as_str())
+        });
+        if !already_matched {
+            // Check if this tmux session has Claude Code running
+            if let Some(pane_pid) = get_tmux_pane_pid(session) {
+                if crate::tmux::Tmux::get_claude_pid(pane_pid).is_some() {
+                    active.push(ActiveArc {
+                        config_dir: ConfigDir {
+                            path: PathBuf::new(),
+                            label: "(unknown config)".into(),
+                        },
+                        loop_state: monitor::ArcLoopState {
+                            active: true,
+                            checkpoint_path: String::new(),
+                            plan_file: "(orphan tmux session)".into(),
+                            config_dir: String::new(),
+                            owner_pid: String::new(),
+                            session_id: String::new(),
+                            branch: String::new(),
+                            iteration: 0,
+                            max_iterations: 0,
+                        },
+                        pid_alive: true,
+                        tmux_session: Some(session.clone()),
+                        current_phase: None,
+                        pr_url: None,
+                        phase_progress: None,
+                    });
+                }
+            }
+        }
+    }
+
+    active
+}
+
+/// List all tmux sessions with prefix "rune-".
+fn list_rune_tmux_sessions() -> Vec<String> {
+    let output = Command::new("tmux")
+        .args(["list-sessions", "-F", "#{session_name}"])
+        .output();
+
+    match output {
+        Ok(o) if o.status.success() => {
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .filter(|s| s.starts_with("rune-"))
+                .map(|s| s.to_string())
+                .collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Check if a PID is alive using kill -0.
+fn is_pid_alive_check(pid_str: &str) -> bool {
+    let pid: u32 = match pid_str.parse() {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+    Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .output()
+        .is_ok_and(|o| o.status.success())
+}
+
+/// Find a tmux session whose Claude Code PID matches the given owner_pid.
+fn find_tmux_for_pid(sessions: &[String], owner_pid: &str) -> Option<String> {
+    let target_pid: u32 = owner_pid.parse().ok()?;
+    for session in sessions {
+        if let Some(pane_pid) = get_tmux_pane_pid(session) {
+            if let Some(claude_pid) = crate::tmux::Tmux::get_claude_pid(pane_pid) {
+                if claude_pid == target_pid {
+                    return Some(session.clone());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Get the pane PID for a tmux session.
+fn get_tmux_pane_pid(session_id: &str) -> Option<u32> {
+    let output = Command::new("tmux")
+        .args(["display-message", "-t", session_id, "-p", "#{pane_pid}"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .parse()
+        .ok()
+}
+
+/// Read checkpoint.json and extract phase summary info.
+fn read_checkpoint_summary(path: &Path) -> (Option<String>, Option<String>, Option<(u32, u32)>) {
+    let contents = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return (None, None, None),
+    };
+
+    let checkpoint: crate::checkpoint::Checkpoint = match serde_json::from_str(&contents) {
+        Ok(c) => c,
+        Err(_) => return (None, None, None),
+    };
+
+    let mut completed = 0u32;
+    let mut total = 0u32;
+    let mut current_phase = None;
+
+    for (name, phase) in &checkpoint.phases {
+        total += 1;
+        match phase.status.as_str() {
+            "completed" | "skipped" => completed += 1,
+            "in_progress" => current_phase = Some(name.clone()),
+            _ => {}
+        }
+    }
+
+    let progress = if total > 0 { Some((completed, total)) } else { None };
+
+    (current_phase, checkpoint.pr_url.clone(), progress)
 }

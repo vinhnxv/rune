@@ -14,6 +14,10 @@ use crate::tmux::Tmux;
 
 /// Top-level application state.
 pub struct App {
+    // Active arcs detected at startup
+    pub active_arcs: Vec<crate::scanner::ActiveArc>,
+    pub active_arc_cursor: usize,
+
     // Selection view
     pub config_dirs: Vec<ConfigDir>,
     pub selected_config: usize,
@@ -53,7 +57,11 @@ pub struct App {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppView {
+    /// Active arcs detected at startup — resume or dismiss.
+    ActiveArcs,
+    /// Normal selection view — pick config + plans.
     Selection,
+    /// Running view — monitoring current arc execution.
     Running,
 }
 
@@ -134,6 +142,10 @@ pub enum ArcCompletion {
 /// Actions dispatched from keybinding handler.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
+    // Active arcs view
+    AttachActiveArc,
+    MonitorActiveArc,
+    DismissActiveArcs,
     // Selection view
     Quit,
     RunSelected,
@@ -157,13 +169,23 @@ impl App {
         let cwd = std::env::current_dir()?;
         let plans = crate::scanner::scan_plans(&cwd)?;
 
+        // Startup scan: detect active arc sessions
+        let active_arcs = crate::scanner::scan_active_arcs(&config_dirs, &cwd);
+        let initial_view = if active_arcs.is_empty() {
+            AppView::Selection
+        } else {
+            AppView::ActiveArcs
+        };
+
         Ok(Self {
+            active_arcs,
+            active_arc_cursor: 0,
             config_dirs,
             selected_config: 0,
             plans,
             selected_plans: Vec::new(),
             active_panel: Panel::ConfigList,
-            view: AppView::Selection,
+            view: initial_view,
             queue: VecDeque::new(),
             current_run: None,
             completed_runs: Vec::new(),
@@ -192,6 +214,12 @@ impl App {
 
     /// Move cursor up in the active panel.
     pub fn move_up(&mut self) {
+        if self.view == AppView::ActiveArcs {
+            if self.active_arc_cursor > 0 {
+                self.active_arc_cursor -= 1;
+            }
+            return;
+        }
         match self.active_panel {
             Panel::ConfigList => {
                 if self.config_cursor > 0 {
@@ -208,6 +236,12 @@ impl App {
 
     /// Move cursor down in the active panel.
     pub fn move_down(&mut self) {
+        if self.view == AppView::ActiveArcs {
+            if self.active_arc_cursor + 1 < self.active_arcs.len() {
+                self.active_arc_cursor += 1;
+            }
+            return;
+        }
         match self.active_panel {
             Panel::ConfigList => {
                 if self.config_cursor + 1 < self.config_dirs.len() {
@@ -333,6 +367,14 @@ impl App {
     pub fn handle_action(&mut self, action: Action) -> Result<()> {
         match action {
             Action::Quit => self.should_quit = true,
+            // Active arcs view
+            Action::AttachActiveArc => self.attach_active_arc(),
+            Action::MonitorActiveArc => self.monitor_active_arc(),
+            Action::DismissActiveArcs => {
+                self.active_arcs.clear();
+                self.view = AppView::Selection;
+            }
+            // Selection view
             Action::SwitchPanel => self.switch_panel(),
             Action::MoveUp => self.move_up(),
             Action::MoveDown => self.move_down(),
@@ -356,6 +398,84 @@ impl App {
             Action::None => {}
         }
         Ok(())
+    }
+
+    /// Attach to the selected active arc's tmux session.
+    fn attach_active_arc(&self) {
+        if let Some(arc) = self.active_arcs.get(self.active_arc_cursor) {
+            if let Some(ref session) = arc.tmux_session {
+                let _ = Tmux::attach(session);
+            }
+        }
+    }
+
+    /// Transition to Running view to monitor the selected active arc.
+    fn monitor_active_arc(&mut self) {
+        let arc = match self.active_arcs.get(self.active_arc_cursor) {
+            Some(a) => a.clone(),
+            None => return,
+        };
+
+        // Set up the config dir selection to match the active arc
+        if !arc.config_dir.path.as_os_str().is_empty() {
+            if let Some(idx) = self.config_dirs.iter().position(|c| c.path == arc.config_dir.path) {
+                self.selected_config = idx;
+            }
+        }
+
+        // Parse claude_pid from owner_pid
+        let claude_pid = arc.loop_state.owner_pid.parse::<u32>().ok();
+
+        // Resolve checkpoint path
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let checkpoint_path = if arc.loop_state.checkpoint_path.starts_with('/') {
+            PathBuf::from(&arc.loop_state.checkpoint_path)
+        } else {
+            cwd.join(&arc.loop_state.checkpoint_path)
+        };
+
+        // Try to read checkpoint for arc_id
+        let arc_id = std::fs::read_to_string(&checkpoint_path)
+            .ok()
+            .and_then(|c| serde_json::from_str::<crate::checkpoint::Checkpoint>(&c).ok())
+            .map(|cp| cp.id)
+            .unwrap_or_else(|| "unknown".into());
+
+        let heartbeat_path = cwd.join("tmp").join("arc").join(&arc_id).join("heartbeat.json");
+
+        // Build a fake PlanFile for the run
+        let plan_name = arc.loop_state.plan_file.clone();
+        let plan = PlanFile {
+            path: PathBuf::from(&plan_name),
+            name: plan_name.clone(),
+            title: plan_name,
+        };
+
+        self.tmux_session_id = arc.tmux_session.clone();
+        let loop_state = arc.loop_state;
+        self.current_run = Some(RunState {
+            plan,
+            plan_index: 1,
+            total_plans: 1,
+            tmux_session: arc.tmux_session.clone().unwrap_or_default(),
+            launched_at: Instant::now(),
+            arc: Some(ArcHandle {
+                arc_id,
+                checkpoint_path,
+                heartbeat_path,
+                plan_file: loop_state.plan_file.clone(),
+                config_dir: loop_state.config_dir.clone(),
+                owner_pid: loop_state.owner_pid.clone(),
+                session_id: loop_state.session_id.clone(),
+            }),
+            last_status: None,
+            merge_detected_at: None,
+            tmux_pane_pid: None,
+            claude_pid,
+            loop_state: Some(loop_state),
+        });
+
+        self.view = AppView::Running;
     }
 
     /// Skip the current plan — kill tmux, move to next.

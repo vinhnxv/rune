@@ -25,6 +25,7 @@ pub struct ArcHandle {
 /// It contains the checkpoint_path, owner_pid, and session_id — allowing
 /// instant discovery without glob-scanning arc directories.
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // fields stored for UI display and future use
 pub struct ArcLoopState {
     pub active: bool,
     pub checkpoint_path: String,
