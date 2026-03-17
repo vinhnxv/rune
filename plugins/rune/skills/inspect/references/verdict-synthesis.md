@@ -121,8 +121,12 @@ log("═════════════════════════
 ```javascript
 // FALLBACK: config.json read failed — use exhaustive list of all possible inspect agents.
 // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
+// CLEAN-001 FIX: Use suffixed names matching actual Agent() spawn names (-inspect and -plan-review variants).
 allMembers = [
-  "grace-warden", "ruin-prophet", "sight-oracle", "vigil-keeper",
+  "grace-warden-inspect", "ruin-prophet-inspect",
+  "sight-oracle-inspect", "vigil-keeper-inspect",
+  "grace-warden-plan-review", "ruin-prophet-plan-review",
+  "sight-oracle-plan-review", "vigil-keeper-plan-review",
   "verdict-binder", "gap-fixer", "inspect-lore-analyst"
 ]
 ```

@@ -31,9 +31,9 @@
 
 set -euo pipefail
 
-# --- Fail-open wrapper ---
-_fail_open() { exit 0; }
-trap '_fail_open' ERR
+# --- Fail-forward (OPERATIONAL hook) ---
+_rune_fail_forward() { exit 0; }
+trap '_rune_fail_forward' ERR
 
 # --- Guard: jq dependency ---
 command -v jq >/dev/null 2>&1 || exit 0

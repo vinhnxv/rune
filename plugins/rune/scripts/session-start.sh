@@ -72,9 +72,17 @@ if [[ -n "$SESSION_ID" && -n "${CLAUDE_ENV_FILE:-}" ]]; then
   # COMPAT: Bash 3.2 (macOS) does not support {n,m} quantifiers in [[ =~ ]].
   # Use + quantifier and length check instead.
   if [[ "$SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]] && [[ ${#SESSION_ID} -le 128 ]]; then
-    if ! grep -q "RUNE_SESSION_ID" "$CLAUDE_ENV_FILE" 2>/dev/null; then
-      printf 'export RUNE_SESSION_ID="%s"\n' "$SESSION_ID" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true
-      _trace "Injected RUNE_SESSION_ID=${SESSION_ID} into CLAUDE_ENV_FILE"
+    # SEC-004: Canonicalize CLAUDE_ENV_FILE and validate it resides under the expected config dir.
+    # Prevents path traversal attacks where a malicious CLAUDE_ENV_FILE writes to arbitrary locations.
+    _real_env_file="$(cd "$(dirname "$CLAUDE_ENV_FILE")" 2>/dev/null && pwd -P)/$(basename "$CLAUDE_ENV_FILE")" 2>/dev/null || true
+    _expected_prefix="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+    if [[ -n "$_real_env_file" ]] && [[ "$_real_env_file" == "$_expected_prefix"/* ]]; then
+      if ! grep -q "RUNE_SESSION_ID" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+        printf 'export RUNE_SESSION_ID="%s"\n' "$SESSION_ID" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true
+        _trace "Injected RUNE_SESSION_ID=${SESSION_ID} into CLAUDE_ENV_FILE"
+      fi
+    else
+      _trace "WARN: CLAUDE_ENV_FILE path validation failed, skipping env injection: '${CLAUDE_ENV_FILE}'"
     fi
   else
     _trace "WARN: session_id failed format validation, skipping env injection: '${SESSION_ID:0:32}'"

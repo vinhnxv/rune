@@ -1,6 +1,6 @@
 # Phase 7: CLEANUP
 
-1. **Dynamic member discovery** — read team config for ALL teammates (fallback: `spawnedFixerNames` from Phase 3 — includes wave-based names like `mend-fixer-w1-1`)
+1. **Dynamic member discovery** — read team config for ALL teammates (fallback: static worst-case array covering base, deep, and wave-based fixer names)
 2. **Shutdown all members** — `SendMessage(shutdown_request)` to each
 3. **Grace period** — `sleep 20` for teammate deregistration
 4. **ID validation** — defense-in-depth `..` check + regex guard (SEC-003)
@@ -12,10 +12,16 @@
 ## Teammate Fallback Array
 
 ```javascript
-// FALLBACK: config.json read failed — use spawnedFixerNames from Phase 3.
-// This includes wave-based names (mend-fixer-w1-1, mend-fixer-w2-3, etc.),
-// not just base inscription names (mend-fixer-1, mend-fixer-2).
-allMembers = [...spawnedFixerNames]
+// FALLBACK: config.json read failed — static worst-case array.
+// Dynamic spawnedFixerNames may be empty after context compaction (CLEAN-002).
+const MAX_FIXERS = 8  // matches maxConcurrentFixers cap
+allMembers = [
+  ...Array.from({length: MAX_FIXERS}, (_, i) => `mend-fixer-${i + 1}`),
+  ...Array.from({length: MAX_FIXERS}, (_, i) => `mend-fixer-deep-${i + 1}`),
+  // Wave-based names (v1.163.0+)
+  ...Array.from({length: 3}, (_, w) => Array.from({length: MAX_FIXERS}, (_, i) => `mend-fixer-w${w + 1}-${i + 1}`)).flat(),
+  "ward-sentinel"
+]
 ```
 
 ## Protocol

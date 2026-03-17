@@ -93,6 +93,32 @@ for (const pattern of customPatterns) {
 //    a. Plan references files that exist: grep file paths, verify with ls
 //    b. No broken internal links: check ## heading references resolve
 //    c. Acceptance criteria present: grep for "- [ ]" items
+//    c2. YAML acceptance criteria quality (discipline-aware):
+//        Scan for ```yaml blocks containing AC-N.N: patterns in task sections.
+//        For each AC block found:
+//          - Validate structure: must have `text:` and `proof:` fields
+//          - Validate proof type: must be one of the 14 registered types
+//            (8 code: file_exists, pattern_matches, no_pattern_exists, test_passes,
+//             builds_clean, git_diff_contains, line_count_delta, semantic_match
+//             6 design: token_scan, axe_passes, story_exists, storybook_renders,
+//             screenshot_diff, responsive_check)
+//            Proof types sourced from proof-schema.md — update both if adding new types
+//          - Validate args: proof types that require args (pattern_matches needs
+//            file+pattern, file_exists needs file) should have an `args:` field
+//          - Flag subjective criteria: text contains vague words (good, clean, proper,
+//            robust, seamless) AND proof is semantic_match
+//            → WARN: "Consider adding measurable criteria with machine proofs"
+//        If no YAML AC blocks found in any task section:
+//          → INFO: "Plan lacks YAML acceptance criteria. Discipline work loop will use
+//            graceful degradation (linear execution). Consider adding criteria for
+//            spec-aware execution."
+//          (This is informational, not a failure — backward compat preserved.)
+//        Severity mapping:
+//          Missing `proof:` field           = HIGH (criteria not verifiable)
+//          Invalid proof type               = HIGH (executor will reject)
+//          Missing `args:` for typed proof  = WARN (may fail at execution)
+//          Subjective + semantic_match only = WARN (consider measurable alternative)
+//          No AC blocks at all              = INFO (graceful degradation)
 //    d. No TODO/FIXME markers left in plan prose (outside code blocks)
 //    e. No time estimates: reject patterns like ~N hours, N-N days, ETA, estimated time,
 //       level of effort, takes about, approximately N minutes/hours/days/weeks

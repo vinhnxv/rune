@@ -6,6 +6,13 @@ use std::time::Duration;
 use color_eyre::eyre::{eyre, Result};
 use rand::Rng;
 
+/// Shell-escape a string by wrapping in single quotes.
+/// Internal single quotes are replaced with `'\''` (end-quote, escaped-quote, start-quote).
+/// SEC-002 FIX: prevents command injection when values are sent to a shell via tmux send-keys.
+fn shell_escape(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
 /// Delay between send-keys steps (Ink autocomplete workaround).
 const SEND_DELAY_MS: u64 = 300;
 
@@ -113,13 +120,14 @@ impl Tmux {
             .map(|n| n == ".claude")
             .unwrap_or(false);
 
+        // SEC-002 FIX: shell-escape both paths to prevent injection via tmux send-keys
         let cmd = if is_default {
-            format!("{} --dangerously-skip-permissions", claude_path)
+            format!("{} --dangerously-skip-permissions", shell_escape(claude_path))
         } else {
             let config_str = config_dir.to_string_lossy();
             format!(
                 "CLAUDE_CONFIG_DIR={} {} --dangerously-skip-permissions",
-                config_str, claude_path
+                shell_escape(&config_str), shell_escape(claude_path)
             )
         };
 
@@ -283,6 +291,28 @@ impl Tmux {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_shell_escape_simple() {
+        assert_eq!(shell_escape("hello"), "'hello'");
+    }
+
+    #[test]
+    fn test_shell_escape_with_spaces() {
+        assert_eq!(shell_escape("/path/with spaces/dir"), "'/path/with spaces/dir'");
+    }
+
+    #[test]
+    fn test_shell_escape_with_metacharacters() {
+        assert_eq!(shell_escape("foo;rm -rf /"), "'foo;rm -rf /'");
+        assert_eq!(shell_escape("$(evil)"), "'$(evil)'");
+        assert_eq!(shell_escape("a`cmd`b"), "'a`cmd`b'");
+    }
+
+    #[test]
+    fn test_shell_escape_with_single_quotes() {
+        assert_eq!(shell_escape("it's"), "'it'\\''s'");
+    }
 
     #[test]
     fn test_generate_session_id_format() {
