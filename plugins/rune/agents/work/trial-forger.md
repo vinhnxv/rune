@@ -23,6 +23,7 @@ skills:
 maxTurns: 60
 mcpServers:
   - echo-search
+  - figma-to-react
 source: builtin
 priority: 100
 primary_phase: work
@@ -221,6 +222,19 @@ Return a numbered list. Each entry: brief description + why it matters.`
 
 **Talisman config**: `codex.trial_forger.enabled` (default: `true`), `codex.trial_forger.timeout` (default: `300`), `codex.trial_forger.reasoning` (default: `"xhigh"`).
 
+## Design Test Awareness
+
+When a task has design context (DCD documents, VSM files, or DES- acceptance criteria), generate design-specific tests alongside standard tests:
+
+1. **Story coverage**: Verify Storybook stories exist for all component variants defined in the VSM. Check `*.stories.tsx` files match VSM component entries
+2. **Accessibility tests**: Generate tests that run `axe-core` checks on rendered components. Verify WCAG 2.1 AA compliance for interactive elements
+3. **Token compliance tests**: Write tests that grep implemented components for hardcoded hex colors (`#[0-9a-fA-F]{3,8}`) and verify design tokens are used instead
+4. **DES- criteria echo-back**: Echo design criteria using the DES- prefix: "I will: DES-{component}-{dimension}: {paraphrase}"
+
+Design test evidence is written to `tmp/work/{timestamp}/evidence/{task-id}/design-evidence.json`. Design test failures are non-blocking by default.
+
+See worker-prompts.md Step 6.76 for the full design evidence collection protocol.
+
 ## Echo Integration (Past Test Patterns)
 
 Before writing tests, query Rune Echoes for past test-related learnings:
@@ -345,6 +359,31 @@ This is not a suggestion — it is your commitment to the team.
 ## RE-ANCHOR — TRUTHBINDING REMINDER
 
 Match existing test patterns. Do not introduce new test utilities or frameworks. If no test patterns exist, use the simplest possible approach for the detected framework.
+
+## Design Test Awareness (Conditional)
+
+When a task has design context (`has_design_context: true` in metadata, or DES- criteria present),
+generate design-specific tests alongside functional tests:
+
+1. **Story coverage tests**: Verify Storybook stories exist for all components referenced in the
+   Visual Spec Map (VSM). Check that each component variant has a corresponding named export
+   in `*.stories.tsx`. Use `figma-to-react` MCP tools to inspect design specs when available.
+
+2. **Accessibility tests**: Generate axe-core accessibility test cases for components with
+   DES- acceptance criteria. Verify WCAG AA compliance (contrast, ARIA labels, focus management).
+   Pattern: `import { axe } from 'jest-axe'` or equivalent for the project's test framework.
+
+3. **Design token tests**: Verify components use design tokens (CSS variables, theme values)
+   instead of hardcoded hex colors. Pattern: scan rendered output for raw `#RRGGBB` values.
+
+4. **DES- criteria echo-back**: For each DES-* criterion in the task, echo back in your own words
+   before writing tests: `"I will test: DES-{component}-{dimension}: {paraphrase}"`.
+   This follows the same Echo-Back protocol as Step 3.1 but for design criteria.
+
+5. **Evidence format**: Write design test evidence to
+   `tmp/work/{timestamp}/evidence/{task-id}/design-test-evidence.json` with results per DES- criterion.
+
+When no design context exists, skip this section entirely (zero overhead).
 
 ## Question Relay Protocol
 

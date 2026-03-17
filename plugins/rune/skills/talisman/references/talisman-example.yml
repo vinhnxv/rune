@@ -87,3 +87,39 @@ discipline:
   # proof_timeout: 60          # Timeout in seconds for individual proof execution
   # max_convergence_iterations: 3  # Max proof retry attempts before escalation
   # echo_back_required: true   # Require workers to echo-back acceptance criteria
+
+# ──────────────────────────────────────────────
+# Design Sync — Figma design synchronization
+# ──────────────────────────────────────────────
+# Controls the design sync pipeline (extraction → implementation → fidelity review).
+# When enabled, arc runs design phases (3, 3.5, 5.2, 7.6).
+# Requires FIGMA_ACCESS_TOKEN for Figma API access.
+#
+# design_sync:
+#   enabled: false                     # Master gate for all design phases (opt-in)
+#   iterate_enabled: true              # Enable design iteration phase (7.6)
+#   fidelity_threshold: 80             # Score threshold for fidelity PASS (0-100)
+#   max_iterations: 3                  # Max screenshot→fix iterations per component
+#   max_iteration_workers: 2           # Parallel design iteration workers
+#   base_url: "http://localhost:3000"  # Storybook/dev server URL (localhost only — SEC-003)
+#
+#   # Design discipline — nested under design_sync to avoid naming collision
+#   # with top-level discipline: (code proofs) and design_review: (reviewer agents).
+#   # Auto-enabled when design_sync.enabled is true.
+#   discipline:
+#     enabled: true                    # Auto-true when design_sync.enabled; set false to disable
+#     block_on_fail: false             # Advisory by default — design failures don't block pipeline
+#     proof_types:                     # Which design proofs to run per DES- criterion
+#       token_scan: true               # Always available (bash grep — no tool dependency)
+#       story_exists: true             # Always available (bash find — no tool dependency)
+#       axe_passes: auto               # Auto-detect: requires storybook + @storybook/test-runner
+#       storybook_renders: auto        # Auto-detect: requires storybook running at base_url
+#       screenshot_diff: auto          # Auto-detect: requires agent-browser CLI
+#       responsive_check: auto         # Auto-detect: requires agent-browser CLI
+#     fidelity_threshold: 0.8          # Secondary convergence gate (backward compat score threshold)
+#     max_iterations: 3                # Max design convergence iterations before F15 (budget exceeded)
+#
+# Proof type auto-detect behavior:
+#   "true"  — Always run this proof type (fail if tool unavailable)
+#   "auto"  — Run if tool detected at runtime; skip with INCONCLUSIVE if unavailable (F4 graceful degradation)
+#   "false" — Never run this proof type

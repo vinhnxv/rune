@@ -230,8 +230,9 @@ function preShipValidator(checkpoint, planPath) {
   // artifacts. Advisory for initial rollout — WARN only, never BLOCK.
   // Gated by talisman discipline.enabled (default: true).
 
-  // readTalismanSection: "discipline" (via talisman-resolve.sh shards)
-  const disciplineConfig = readTalismanSection("discipline") ?? {}
+  // readTalismanSection: "settings" → .discipline (no dedicated discipline shard)
+  // Consistent with verify-mend.md STEP 2.5 which uses the same access path.
+  const disciplineConfig = readTalismanSection("settings")?.discipline ?? {}
   if (disciplineConfig.enabled !== false) {
     try {
       // Look for metrics artifact from work phase convergence

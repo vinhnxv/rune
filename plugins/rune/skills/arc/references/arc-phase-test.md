@@ -352,11 +352,12 @@ for (const batch of testingPlan.batches) {
   let passed = batchResult.length > 0 && batchResult.includes("<!-- STATUS: PASS -->")
 
   // DISCIPLINE INTEGRATION — F-code classification in fix loop (AC-8.4.3):
-  // Classify each failure with discipline failure codes before deciding recovery strategy:
+  // Classify each failure with discipline failure codes before deciding recovery strategy
+  // (see discipline/references/failure-codes.md for full F1-F17 registry):
   //   F3  (PROOF_FAILURE): Implementation is wrong — fix code
-  //   F9  (INFRASTRUCTURE_FAILURE): Test/infra broken — fix test
+  //   F8  (INFRASTRUCTURE_FAILURE): Test/infra broken — fix test
   //   F17 (CONVERGENCE_STAGNATION): Same assertion fails 2+ attempts — escalate immediately
-  // Classification enables smarter recovery: F3 → fix code, F9 → fix test, F17 → stop retrying.
+  // Classification enables smarter recovery: F3 → fix code, F8 → fix test, F17 → stop retrying.
   // F-code classification feeds into discipline metrics for pattern tracking across runs.
   let lastFailureSignature = null
 

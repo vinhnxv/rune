@@ -8,7 +8,7 @@ Source: `docs/discipline-engineering.md` Sections 7.1–7.3, 9.3.
 
 ## Proof Types
 
-Eight proof types are defined. Each maps to a specific tool and carries a Reliability rating.
+Fourteen proof types are defined across three categories: 7 code machine proofs, 1 judge model proof, and 6 design-specific proofs. Each maps to a specific tool and carries a Reliability rating.
 
 ### Machine Proofs (deterministic, binary)
 
@@ -27,6 +27,21 @@ Eight proof types are defined. Each maps to a specific tool and carries a Reliab
 | Proof Type | Tool Mapping | Reliability |
 |------------|-------------|-------------|
 | `semantic_match` | judge model with rubric | LOW-MEDIUM (confidence threshold 70%) |
+
+### Design Proofs (design-specific verification)
+
+Design proofs verify implementation fidelity against design specifications (VSM/DCD). They use a mix of bash-native checks, design tooling (Storybook, axe-core), and browser automation (agent-browser). Tool-dependent proofs gracefully degrade to INCONCLUSIVE (F4) when required tooling is unavailable.
+
+| Proof Type | Tool Mapping | Reliability | Verification Layer |
+|------------|-------------|-------------|-------------------|
+| `token_scan` | regex scan for hardcoded values | HIGH | Machine-verifiable |
+| `axe_passes` | axe-core accessibility scan | HIGH | Machine-verifiable |
+| `story_exists` | file existence check | HIGH | Machine-verifiable |
+| `storybook_renders` | storybook build --smoke-test | HIGH | Machine-verifiable |
+| `screenshot_diff` | visual diff via agent-browser | MEDIUM | Semantic-verifiable |
+| `responsive_check` | DOM inspection at breakpoints | MEDIUM | Semantic-verifiable |
+
+See [design-proof-types.md](design-proof-types.md) for detailed documentation of each design proof type, including mechanisms, inputs, outputs, reliability ratings, example usage, and the design proof selection decision tree.
 
 ---
 
@@ -148,29 +163,35 @@ Delegates to a judge model instance with no context from the implementation sess
 Use this tree to select the correct proof type for any acceptance criterion.
 
 ```
-CAN THE CRITERION BE CHECKED BY EXAMINING FILES?
+IS THIS A DESIGN CRITERION (DES- prefix, from DCD/VSM)?
 │
-├── YES: Does a file/pattern need to exist?
-│   ├── YES → file_exists or pattern_matches
-│   └── NO: Does a file/pattern need to NOT exist?
-│       └── YES → no_pattern_exists
+├── YES → See Design Proof Selection Tree in design-proof-types.md
+│         (routes to: token_scan, axe_passes, story_exists,
+│          storybook_renders, screenshot_diff, responsive_check)
 │
-├── MAYBE: Does it require running a command?
-│   ├── YES: Is the command output binary (pass/fail)?
-│   │   ├── YES → test_passes or builds_clean
-│   │   └── NO: Does the output need specific content?
-│   │       └── YES → pattern_matches (write command output to temp file, then match)
-│   └── NO: Does it require comparing file sizes or line counts?
-│       ├── YES → line_count_delta
-│       └── NO: Does it require comparing versions/diffs?
-│           └── YES → git_diff_contains
-│
-└── NO: Does it require judgment about quality or intent?
-    ├── YES: Can a rubric be defined with ≤3 clear criteria?
-    │   ├── YES → semantic_match (judge model with rubric)
-    │   └── NO → DECOMPOSE FURTHER. Criterion is too vague.
+└── NO: CAN THE CRITERION BE CHECKED BY EXAMINING FILES?
     │
-    └── NO → CRITERION IS UNVERIFIABLE. Rewrite it.
+    ├── YES: Does a file/pattern need to exist?
+    │   ├── YES → file_exists or pattern_matches
+    │   └── NO: Does a file/pattern need to NOT exist?
+    │       └── YES → no_pattern_exists
+    │
+    ├── MAYBE: Does it require running a command?
+    │   ├── YES: Is the command output binary (pass/fail)?
+    │   │   ├── YES → test_passes or builds_clean
+    │   │   └── NO: Does the output need specific content?
+    │   │       └── YES → pattern_matches (write command output to temp file, then match)
+    │   └── NO: Does it require comparing file sizes or line counts?
+    │       ├── YES → line_count_delta
+    │       └── NO: Does it require comparing versions/diffs?
+    │           └── YES → git_diff_contains
+    │
+    └── NO: Does it require judgment about quality or intent?
+        ├── YES: Can a rubric be defined with ≤3 clear criteria?
+        │   ├── YES → semantic_match (judge model with rubric)
+        │   └── NO → DECOMPOSE FURTHER. Criterion is too vague.
+        │
+        └── NO → CRITERION IS UNVERIFIABLE. Rewrite it.
 ```
 
 **The unverifiable criterion rule**: If a criterion cannot be verified by any method in this taxonomy, the criterion is poorly written. It must be rewritten, not exempted from verification.
@@ -203,7 +224,16 @@ Artifacts are persisted to: `tmp/work/{timestamp}/evidence/{task-id}/{criterion_
 
 Result values: `PASS` | `FAIL` | `INCONCLUSIVE`
 
-`INCONCLUSIVE` is only valid for `semantic_match` when confidence < 70%. It always triggers human escalation — it is never treated as a pass.
+`INCONCLUSIVE` is valid for:
+- `semantic_match` when confidence < 70%
+- Design proofs (`axe_passes`, `storybook_renders`, `screenshot_diff`, `responsive_check`) when required tooling is unavailable
+
+INCONCLUSIVE always triggers human escalation — it is never treated as a pass. For design proofs, INCONCLUSIVE does not count against the Design Spec-compliance Rate (DSR).
+
+**Note on REGRESSION and STAGNANT**: These statuses appear only in design convergence iteration
+tracking (see [design-convergence.md](design-convergence.md)). They are terminal states that
+trigger exit conditions (F10 and F17 respectively) — they are NOT excluded from convergence
+like INCONCLUSIVE, but instead halt the convergence loop.
 
 ---
 
@@ -225,6 +255,22 @@ Result values: `PASS` | `FAIL` | `INCONCLUSIVE`
 │  │ git_diff_contains → diff parse│                      │
 │  │ no_pattern_exists → !regex    │                      │
 │  │ line_count_delta → wc compare │                      │
+│  └──────────────┬─────────────────┘                      │
+│                 │                                        │
+│  ┌──────────────▼─────────────────┐                      │
+│  │ Design Proof Engine            │                      │
+│  │ (delegates to design-proofs/)  │                      │
+│  │                                │                      │
+│  │ token_scan → regex (hardcoded) │                      │
+│  │ story_exists → file check     │                      │
+│  │ axe_passes → axe-core scan    │                      │
+│  │ storybook_renders → build     │                      │
+│  │ screenshot_diff → visual diff │                      │
+│  │ responsive_check → DOM inspect│                      │
+│  │                                │                      │
+│  │ Tool unavailable:              │                      │
+│  │   → INCONCLUSIVE (F4)         │                      │
+│  │   → Does NOT block pipeline   │                      │
 │  └──────────────┬─────────────────┘                      │
 │                 │                                        │
 │  ┌──────────────▼─────────────────┐                      │
@@ -324,3 +370,4 @@ DONE — 2026-03-16T12:34:56Z
 - `docs/discipline-engineering.md` — foundational document
 - `references/anti-rationalization.md` — rationalization patterns and counters
 - `references/evidence-convention.md` — evidence collection and storage conventions
+- [design-proof-types.md](design-proof-types.md) — design-specific proof types, decision tree, and DCD acceptance criteria format

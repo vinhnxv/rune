@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [1.175.0] - 2026-03-17
+
+### Added
+- **feat(discipline): design discipline shard 9 — design-aware proof system** — Complete design discipline integration across 6 tasks:
+  - **T9.1**: Design acceptance criteria format (DCD/VSM YAML `acceptance_criteria` field, DES-{component}-{dimension} prefix convention, auto-generation from VSM dimensions)
+  - **T9.2**: Design proof executor (`execute-discipline-proofs.sh` handles 6 design proof types: `token_scan`, `story_exists`, `axe_passes`, `storybook_renders`, `screenshot_diff`, `responsive_check` with F4 graceful degradation for unavailable tools)
+  - **T9.3**: Storybook verification phase (Phase 3.3) enhanced with discipline proof integration, DES- criteria matrix output, and ward checks
+  - **T9.4**: Design evidence collection for workers (Step 6.76 in rune-smith and trial-forger templates, conditional DES- echo-back, design-evidence.json output)
+  - **T9.5**: Design fidelity convergence (criteria-based primary gate + score threshold secondary gate, F10 regression detection, F17 stagnation detection, design-criteria-matrix-{iteration}.json artifacts, design-convergence-report.json)
+  - **T9.6**: Talisman design discipline config (`design_sync.discipline` nested section with proof_types auto-detect), DSR metric alongside SCR in metrics-schema.md, design_compliance section in proof manifest with per-component breakdown
+
 ## [1.174.0] - 2026-03-17
 
 ### Added

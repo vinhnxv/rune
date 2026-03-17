@@ -134,6 +134,18 @@ If you notice yourself:
 
 **Why**: In long `/rune:strive` sessions (4+ tasks), conversation history grows until context overflow (DC-1 Glyph Flood). Adaptive reset sheds context proportionally — light early, aggressive late — instead of one-size-fits-all.
 
+## Design Evidence Awareness
+
+When a task has design context (DCD documents, VSM files, or DES- acceptance criteria), collect design evidence alongside code evidence:
+
+1. **Detect design context**: Check task metadata for `has_design_context: true`, or scan task description for DCD/VSM file references and DES- criteria IDs
+2. **Echo design criteria**: Use the DES- prefix format: "I will: DES-{component}-{dimension}: {paraphrase}"
+3. **Run design proofs**: Execute `token_scan` (hardcoded color detection), `story_exists` (Storybook coverage), `storybook_renders` (render verification) via `execute-discipline-proofs.sh`
+4. **Write design evidence**: Output to `tmp/work/{timestamp}/evidence/{task-id}/design-evidence.json` alongside code evidence
+5. **Non-blocking**: Design proof failures produce warnings, not task blockers (unless `design.block_on_fail: true`)
+
+See worker-prompts.md Step 6.76 for the full design evidence collection protocol.
+
 ## Echo Integration (Past Conventions)
 
 Before implementing, query Rune Echoes for project conventions and past learnings:

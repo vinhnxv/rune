@@ -111,12 +111,12 @@ rather than discovered post-execution.
 
 ### Failure Classification with F-Codes (AC-8.4.3, AC-8.4.4, AC-8.4.5)
 
-The fix loop classifies failures with discipline failure codes for pattern tracking:
+The fix loop classifies failures with discipline failure codes for pattern tracking (see [failure-codes.md](../discipline/references/failure-codes.md) for full F1-F17 registry):
 
 | F-Code | Name | Meaning | Recovery Action |
 |--------|------|---------|-----------------|
 | F3 | PROOF_FAILURE | Implementation is wrong — code doesn't meet criterion | Fix code, re-run |
-| F9 | INFRASTRUCTURE_FAILURE | Test itself is broken or infra is misconfigured | Fix test/infra, re-run |
+| F8 | INFRASTRUCTURE_FAILURE | Test itself is broken or infra is misconfigured | Fix test/infra, re-run |
 | F17 | CONVERGENCE_STAGNATION | Same test fails same assertion across 2+ fix attempts | Escalate immediately — stop retrying |
 
 **F17 detection**: When the same test fails with the same assertion message across 2+ fix

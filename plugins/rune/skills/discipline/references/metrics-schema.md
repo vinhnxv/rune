@@ -31,6 +31,41 @@ missing entirely.
 
 ---
 
+### DSR — Design Spec-compliance Rate
+
+The ratio of design criteria (DES-prefixed) that are verified as PASS to the total number of
+actionable design criteria. INCONCLUSIVE criteria (tool unavailable, F4 graceful degradation)
+are excluded from the denominator — they represent tool unavailability, not implementation failure.
+
+```
+DSR = count(DES- criteria where status = PASS) / count(DES- criteria where status != INCONCLUSIVE)
+```
+
+| Field | Value |
+|-------|-------|
+| Range | 0.0 – 1.0 (null when design_sync.enabled is false) |
+| Target | 1.0 (all actionable design criteria pass) |
+| Gate | DSR < 1.0 with block_on_fail → BLOCK at pre-ship validation |
+| Signal | Low DSR indicates design-implementation divergence |
+
+DSR is the **primary design quality signal**, paralleling SCR for code quality. It answers:
+"What fraction of the design specification was implemented with verifiable evidence?"
+
+**Relationship to SCR**: SCR measures code criteria compliance; DSR measures design criteria
+compliance. Both appear in `verdicts.details`. The overall verdict uses
+`Math.min(scr_gate, dsr_gate)` — both must pass for overall PASS. When `design_sync.enabled`
+is false, DSR is `null` (not computed) and the `design_compliance` section is omitted from the
+proof manifest entirely.
+
+**Per-component breakdown**: DSR is also computed per-component in the design criteria matrix
+(`tmp/arc/{id}/design-criteria-matrix-{iteration}.json`). The aggregate DSR in the metrics
+artifact is the run-level summary.
+
+See [design-convergence.md](design-convergence.md) for the full criteria-based convergence
+protocol that uses DSR as its primary metric.
+
+---
+
 ### First-Pass Rate
 
 The fraction of tasks that pass ALL acceptance criteria on the first worker attempt
@@ -97,7 +132,7 @@ attention — repeated machine correction is unlikely to converge.
 
 ### Proof Coverage
 
-The fraction of acceptance criteria that have a defined proof type (any of the 8 proof
+The fraction of acceptance criteria that have a defined proof type (any of the 14 proof
 types from proof-schema.md), regardless of whether the proof passed or failed.
 
 ```
@@ -291,6 +326,15 @@ after the final convergence round completes.
       "denominator": 0,
       "threshold": 0.95,
       "gate_result": "PASS|FAIL"
+    },
+    "dsr": {
+      "value": null,
+      "numerator": 0,
+      "denominator": 0,
+      "threshold": 1.0,
+      "gate_result": "PASS|FAIL|null",
+      "design_sync_enabled": false,
+      "components": []
     },
     "first_pass_rate": {
       "value": 0.0,

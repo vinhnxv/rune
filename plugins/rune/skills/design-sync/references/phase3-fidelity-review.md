@@ -79,6 +79,30 @@ See [fidelity-scoring.md](fidelity-scoring.md) for the weighted scoring algorith
 | P2 (High) | Fidelity gap | Missing responsive breakpoint, incomplete variant |
 | P3 (Medium) | Polish issue | Spacing 2px off-scale, wrong shadow level |
 
+### Step 5.5: DES-Prefixed Criterion Evidence
+
+Each finding is tagged with a DES-prefixed criterion ID for design convergence tracking.
+Format: `DES-{ComponentName}-{dimension}` (e.g., `DES-Button-tokens`, `DES-Card-a11y`).
+
+For each dimension scored in Step 2, emit a DES- criterion with evidence:
+
+```json
+{
+  "id": "DES-Button-tokens",
+  "component": "Button",
+  "dimension": "tokens",
+  "status": "PASS",
+  "score": 95,
+  "proof_type": "token_scan",
+  "evidence": "47/49 visual properties use design tokens. 2 remaining: box-shadow uses raw value (P3).",
+  "failure_code": null
+}
+```
+
+DES- criteria feed into the design convergence loop (see
+[design-convergence.md](../../../discipline/references/design-convergence.md)) for
+per-criterion iteration. The fidelity score remains as a secondary convergence gate.
+
 ### Step 6: Review Output
 
 Write to `{workDir}/reviews/{component-name}.md`:
@@ -88,9 +112,10 @@ Write to `{workDir}/reviews/{component-name}.md`:
 
 **Score: {overall}/100** (Token: {t}, Layout: {l}, Responsive: {r}, A11Y: {a}, Variants: {v}, States: {s})
 **Verdict: {PASS|NEEDS_WORK|FAIL}** (threshold: {config.fidelity_threshold ?? 80})
+**DES Criteria: {pass}/{total} PASS** (DSR: {dsr})
 
 ### Findings
-[P1/P2/P3 findings with DSGN-NNN prefixes]
+[P1/P2/P3 findings with DES-{Component}-{dimension} prefixes]
 
 ### VSM Compliance Matrix
 | VSM Section | Compliance | Notes |
