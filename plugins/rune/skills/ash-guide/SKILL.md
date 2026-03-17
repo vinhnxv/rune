@@ -58,6 +58,8 @@ Agent({ subagent_type: "general-purpose", prompt: /* from ../../agents/{category
 The agent file `allowed-tools` are not enforced at runtime for composite Ashes.
 Tool restriction is enforced via prompt instructions (defense-in-depth).
 
+> **Note:** Agents listed below with `rune:review:*`, `rune:testing:*`, or `rune:utility:*` types may live in `registry/` rather than `agents/`. Registry agents cannot be spawned directly via `Agent({ subagent_type: "rune:review:blight-seer" })` — the plugin-namespaced type won't resolve. Instead, use `subagent_type: "general-purpose"` and inject the agent body via the `agent_detail(name)` MCP call or `Read("registry/{category}/{name}.md")`. Agents in `agents/` (e.g., `ward-sentinel`, `ember-oracle`, `flaw-hunter`) ARE directly spawnable via their listed type names.
+
 ## Review Agents
 
 35 specialized reviewers that form Ash teams:

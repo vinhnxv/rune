@@ -240,7 +240,7 @@ For each hypothesis, spawn a `${investigatorType}` agent:
 
 ```
 Agent({
-  agent: "hypothesis-investigator",
+  subagent_type: "general-purpose",
   team_name: teamName,
   name: "investigator-{N}",
   model: resolveModelForAgent("hypothesis-investigator", talisman),  // Cost tier mapping (references/cost-tier-mapping.md)

@@ -128,6 +128,7 @@ async function reviewSingleChunk(chunk, identifier, flags, securityPins, arcRema
   // securityPins are contextFiles: read-only references, not budgeted files.
   Agent({
     team_name: teamName,
+    name: `chunk-reviewer-${chunk.chunkIndex}`,
     subagent_type: 'general-purpose',
     prompt: buildRoundtablePrompt({
       files:        chunk.files.map(f => f.file ?? f),

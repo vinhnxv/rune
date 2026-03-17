@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.175.3] - 2026-03-17
+
+### Changed
+- Inline diff-scope-awareness instructions into 10 investigation agents + ward-sentinel (remove cross-file reference dependency)
+- Update README agent counts: 109→106 agents, utility 23→19 (removed 4 retired condenser agents)
+- Minor fixes across codex-cli, context-weaving, debug, devise, forge, resolve-todos, roundtable-circle, and testing skill references
+
 ## [1.175.2] - 2026-03-17
 
 ### Added

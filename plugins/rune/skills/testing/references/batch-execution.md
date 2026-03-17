@@ -270,13 +270,25 @@ function executeBatchingPlan(id, plan, remainingBudget) {
 
 ### Runner Agent Type Resolution
 
-| Batch type | Agent type |
-|-----------|-----------|
-| `unit` | `rune:testing:unit-test-runner` |
-| `contract` | `rune:testing:contract-validator` |
-| `integration` | `rune:testing:integration-test-runner` |
-| `e2e` | `rune:testing:e2e-browser-tester` |
-| `extended` | `rune:testing:extended-test-runner` |
+All test runners use `general-purpose` as the subagent type. Testing-specific behavior
+(frameworks, assertions, reporting) is injected via prompt from `registry/testing/` agent
+definition files — not via custom subagent types.
+
+```javascript
+// Testing agent frameworks are injected via prompt from registry/testing/*.md files.
+// All runners use general-purpose — there are no registered rune:testing:* agent types.
+function resolveRunnerAgentType(batchType) {
+  return "general-purpose"
+}
+```
+
+| Batch type | Agent type | Prompt source |
+|-----------|-----------|---------------|
+| `unit` | `general-purpose` | `registry/testing/unit-test-runner.md` |
+| `contract` | `general-purpose` | `registry/testing/contract-validator.md` |
+| `integration` | `general-purpose` | `registry/testing/integration-test-runner.md` |
+| `e2e` | `general-purpose` | `registry/testing/e2e-browser-tester.md` |
+| `extended` | `general-purpose` | `registry/testing/extended-test-runner.md` |
 
 ## Checkpoint System
 
