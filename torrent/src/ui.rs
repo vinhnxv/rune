@@ -270,20 +270,23 @@ fn render_config_panel(frame: &mut Frame, app: &App, area: Rect) {
 fn render_plan_panel(frame: &mut Frame, app: &App, area: Rect) {
     let items: Vec<ListItem> = app.plans.iter().enumerate().map(|(i, plan)| {
         let in_flight = app.queue_editing && app.is_plan_in_flight(i);
-        let order = app.selected_plans.iter().position(|&idx| idx == i);
+        let selected_entry = app.selected_plans.iter()
+            .enumerate()
+            .find(|(_, e)| e.plan_idx == i);
+        let order = selected_entry.map(|(pos, _)| pos);
+        let entry_config = selected_entry.map(|(_, e)| e.config_idx);
 
         let marker = if in_flight {
-            // Show status of in-flight plans
             if app.current_run.as_ref().map(|r| {
                 let fa = r.plan.name.rsplit('/').next().unwrap_or(&r.plan.name);
                 let fb = plan.name.rsplit('/').next().unwrap_or(&plan.name);
                 fa == fb
             }).unwrap_or(false) {
-                " ▶ ".to_string()  // currently running
+                " ▶ ".to_string()
             } else if app.queue.iter().any(|e| e.plan_idx == i) {
-                " ◆ ".to_string()  // queued
+                " ◆ ".to_string()
             } else {
-                " ✓ ".to_string()  // completed
+                " ✓ ".to_string()
             }
         } else {
             match order { Some(n) => format!("[{}]", n + 1), None => "[ ]".into() }
@@ -291,7 +294,6 @@ fn render_plan_panel(frame: &mut Frame, app: &App, area: Rect) {
 
         let is_cursor = i == app.plan_cursor && app.active_panel == Panel::PlanList;
         let style = if in_flight {
-            // Dimmed — not selectable
             Style::default().fg(sol::BASE01)
         } else if is_cursor {
             Style::default().fg(sol::YELLOW).add_modifier(Modifier::BOLD)
@@ -307,10 +309,22 @@ fn render_plan_panel(frame: &mut Frame, app: &App, area: Rect) {
         } else {
             Style::default().fg(sol::BASE01)
         };
-        ListItem::new(Line::from(vec![
+
+        // Show config dir label for selected plans
+        let mut spans = vec![
             Span::styled(format!(" {marker} "), mstyle),
             Span::styled(&plan.title, style),
-        ]))
+        ];
+        if let Some(cfg_idx) = entry_config {
+            let cfg = app.config_dirs.get(cfg_idx)
+                .map(|c| c.label.as_str())
+                .unwrap_or("?");
+            spans.push(Span::styled(
+                format!("  [{cfg}]"),
+                Style::default().fg(sol::BASE01),
+            ));
+        }
+        ListItem::new(Line::from(spans))
     }).collect();
 
     let border = if app.active_panel == Panel::PlanList { sol::CYAN } else { sol::BASE01 };

@@ -30,7 +30,7 @@ pub struct App {
     pub config_dirs: Vec<ConfigDir>,
     pub selected_config: usize,
     pub plans: Vec<PlanFile>,
-    pub selected_plans: Vec<usize>, // ordered indices — execution order
+    pub selected_plans: Vec<QueueEntry>, // ordered plan+config pairs
     pub active_panel: Panel,
 
     // Execution view
@@ -454,12 +454,15 @@ impl App {
         if self.queue_editing && self.is_plan_in_flight(idx) {
             return;
         }
-        if let Some(pos) = self.selected_plans.iter().position(|&i| i == idx) {
-            // Already selected — remove it (reorders remaining)
+        if let Some(pos) = self.selected_plans.iter().position(|e| e.plan_idx == idx) {
+            // Already selected — remove it
             self.selected_plans.remove(pos);
         } else {
-            // Not selected — add to end (becomes last in execution order)
-            self.selected_plans.push(idx);
+            // Not selected — add with current config dir
+            self.selected_plans.push(QueueEntry {
+                plan_idx: idx,
+                config_idx: self.selected_config,
+            });
         }
     }
 
@@ -467,12 +470,16 @@ impl App {
     /// In queue-edit mode, only select plans not already in-flight.
     pub fn toggle_all(&mut self) {
         if self.selected_plans.is_empty() {
+            let config_idx = self.selected_config;
             if self.queue_editing {
                 self.selected_plans = (0..self.plans.len())
                     .filter(|&i| !self.is_plan_in_flight(i))
+                    .map(|plan_idx| QueueEntry { plan_idx, config_idx })
                     .collect();
             } else {
-                self.selected_plans = (0..self.plans.len()).collect();
+                self.selected_plans = (0..self.plans.len())
+                    .map(|plan_idx| QueueEntry { plan_idx, config_idx })
+                    .collect();
             }
         } else {
             self.selected_plans.clear();
@@ -483,20 +490,15 @@ impl App {
     /// Transition to Running view — populate the execution queue.
     pub fn start_run(&mut self) {
         self.view = AppView::Running;
-        self.queue = self.selected_plans.iter()
-            .map(|&plan_idx| QueueEntry {
-                plan_idx,
-                config_idx: self.selected_config,
-            })
-            .collect();
+        self.queue = self.selected_plans.drain(..).collect();
     }
 
     /// Print a summary to stdout after terminal is restored.
     pub fn print_quit_summary(&self) {
-        let total = self.selected_plans.len();
         let completed = self.completed_runs.len();
+        let total = self.queue_total_items();
 
-        if total == 0 {
+        if total == 0 && completed == 0 {
             return;
         }
 
@@ -606,15 +608,11 @@ impl App {
                 self.view = AppView::Selection;
             }
             Action::AppendToQueue => {
-                // Append selected plans with currently selected config dir
-                for &plan_idx in &self.selected_plans {
-                    self.queue.push_back(QueueEntry {
-                        plan_idx,
-                        config_idx: self.selected_config,
-                    });
-                }
+                // Append selected plan+config pairs to queue
                 let count = self.selected_plans.len();
-                self.selected_plans.clear();
+                for entry in self.selected_plans.drain(..) {
+                    self.queue.push_back(entry);
+                }
                 self.queue_editing = false;
                 self.all_done_at = None; // reset auto-quit since queue grew
                 self.view = AppView::Running;
@@ -972,7 +970,7 @@ impl App {
             self.status_message = Some(format!("/arc sent to {}", &session_id));
         }
 
-        let total = self.selected_plans.len();
+        let total = self.completed_runs.len() + 1 + self.queue.len();
         self.current_run = Some(RunState {
             plan,
             plan_index: self.completed_runs.len() + 1,
