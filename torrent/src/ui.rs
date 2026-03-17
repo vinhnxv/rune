@@ -355,9 +355,17 @@ fn render_running(frame: &mut Frame, app: &App, area: Rect) {
     // Header — use current run's config, not the selection cursor
     let run_config_idx = app.current_run.as_ref().map(|r| r.config_idx).unwrap_or(app.selected_config);
     let cfg = app.config_dirs.get(run_config_idx).map(|c| c.label.as_str()).unwrap_or("?");
-    let plan_info = app.current_run.as_ref()
-        .map(|r| format!("Plan {}/{}", r.plan_index, r.total_plans))
-        .unwrap_or_else(|| format!("Done — {}", app.completed_runs.len()));
+    // Compute plan position dynamically so the header stays in sync
+    // when plans are added/removed from the queue at runtime.
+    let plan_info = if app.current_run.is_some() {
+        let position = app.completed_runs.len() + 1;
+        let total = app.completed_runs.len()
+            + 1
+            + app.queue.len();
+        format!("Plan {position}/{total}")
+    } else {
+        format!("Done — {}", app.completed_runs.len())
+    };
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled(" torrent ", Style::default().fg(sol::BASE03).bg(sol::BLUE).add_modifier(Modifier::BOLD)),
@@ -640,22 +648,41 @@ fn render_queue(frame: &mut Frame, app: &App, area: Rect) {
     let mut items: Vec<ListItem> = Vec::new();
     let mut row: usize = 0;
 
-    // Completed runs
+    // Completed runs — show arc_id, PR, and checkpoint-based duration
     for run in &app.completed_runs {
         let is_cursor = row == app.queue_cursor;
-        let (icon, desc, color) = match &run.result {
-            ArcCompletion::Merged { pr_url } => ("✓", pr_url.as_deref().unwrap_or("merged").to_string(), sol::GREEN),
-            ArcCompletion::Shipped { pr_url } => ("✓", pr_url.as_deref().unwrap_or("shipped").to_string(), sol::CYAN),
-            ArcCompletion::Cancelled { .. } => ("✗", "cancelled".into(), sol::ORANGE),
-            ArcCompletion::Failed { .. } => ("✗", "failed".into(), sol::RED),
+        let (icon, status_text, pr_text, color) = match &run.result {
+            ArcCompletion::Merged { pr_url } => {
+                let pr = format_pr_short(pr_url.as_deref());
+                ("✓", "merged", pr, sol::GREEN)
+            }
+            ArcCompletion::Shipped { pr_url } => {
+                let pr = format_pr_short(pr_url.as_deref());
+                ("✓", "shipped", pr, sol::CYAN)
+            }
+            ArcCompletion::Cancelled { .. } => ("✗", "cancelled", String::new(), sol::ORANGE),
+            ArcCompletion::Failed { .. } => ("✗", "failed", String::new(), sol::RED),
         };
-        let dur = format!("{}m", run.duration.as_secs() / 60);
+        let dur = format_duration(Some(run.duration.as_secs() as i64));
+        let arc_tag = run.arc_id.as_deref().unwrap_or("");
         let cursor_mark = if is_cursor { "›" } else { " " };
-        items.push(ListItem::new(Line::from(vec![
+
+        let mut spans = vec![
             Span::styled(format!(" {cursor_mark}{icon} "), Style::default().fg(color)),
             Span::styled(&run.plan.name, Style::default().fg(sol::BASE0)),
-            Span::styled(format!("  {desc}  {dur}"), Style::default().fg(color)),
-        ])));
+        ];
+        if !pr_text.is_empty() {
+            spans.push(Span::styled(format!("  {pr_text}"), Style::default().fg(color)));
+        } else {
+            spans.push(Span::styled(format!("  {status_text}"), Style::default().fg(color)));
+        }
+        spans.push(Span::styled(format!("  {dur}"), Style::default().fg(sol::BASE01)));
+        if !arc_tag.is_empty() {
+            // Show shortened arc_id (last 10 chars) for traceability
+            let short_arc = if arc_tag.len() > 14 { &arc_tag[arc_tag.len() - 10..] } else { arc_tag };
+            spans.push(Span::styled(format!("  arc:{short_arc}"), Style::default().fg(sol::BASE01)));
+        }
+        items.push(ListItem::new(Line::from(spans)));
         row += 1;
     }
 
@@ -752,5 +779,20 @@ fn format_duration(secs: Option<i64>) -> String {
         Some(s) if s < 60 => format!("{s}s"),
         Some(s) if s < 3600 => format!("{}m{}s", s / 60, s % 60),
         Some(s) => format!("{}h{}m", s / 3600, (s % 3600) / 60),
+    }
+}
+
+/// Extract short PR reference from a full GitHub URL.
+/// "https://github.com/user/repo/pull/331" → "PR #331"
+fn format_pr_short(url: Option<&str>) -> String {
+    match url {
+        Some(u) => {
+            if let Some(num) = u.rsplit('/').next() {
+                format!("PR #{num}")
+            } else {
+                u.to_string()
+            }
+        }
+        None => String::new(),
     }
 }
