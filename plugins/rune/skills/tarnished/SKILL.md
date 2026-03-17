@@ -27,7 +27,9 @@ description: |
   figure it out, do everything, help me, which command, rune help,
   how does rune work, explain, teach, recommend, best practice,
   brainstorm, explore idea, khám phá, thảo luận, mcp, mcp integration,
-  untitledui, setup mcp, tích hợp mcp, cài đặt mcp.
+  untitledui, setup mcp, tích hợp mcp, cài đặt mcp, add agent,
+  custom reviewer, which agents, force agent, always use agent,
+  custom ash, agent list, thêm agent, danh sách agent.
 
   <example>
   user: "/rune:tarnished plan add dark mode"
@@ -281,6 +283,51 @@ load [rune-knowledge.md](references/rune-knowledge.md) and provide educational g
 → Read references/rune-knowledge.md "MCP Integration" section
 → For setup: route to `/rune:talisman guide integrations`
 → For UntitledUI-specific: explain setup + route to talisman guide
+
+### Agent Configuration Guidance
+```
+/rune:tarnished add agent
+/rune:tarnished custom reviewer
+/rune:tarnished which agents
+/rune:tarnished force agent
+/rune:tarnished always use agent
+```
+→ For "add agent" / "custom reviewer" / "custom ash":
+  Guide user to add `ashes.custom[]` entry in `.claude/talisman.yml`:
+  ```yaml
+  ashes:
+    custom:
+      - name: "my-reviewer"
+        agent: "my-reviewer"
+        source: local        # local (.claude/agents/) or global (~/.claude/agents/)
+        workflows: [review]
+        trigger:
+          extensions: [".py", ".ts"]
+        context_budget: 20
+        finding_prefix: "MYR"
+  ```
+  Then suggest: "Create the agent at `.claude/agents/my-reviewer.md`"
+  Or route to: `/rune:talisman guide`
+
+→ For "which agents" / "agent list" / "list agents":
+  Route to: `Skill("rune:ash-guide")`
+
+→ For "force agent" / "always use agent" / "always run agent":
+  Explain `trigger.always` in `ashes.custom[].trigger`:
+  ```yaml
+  ashes:
+    custom:
+      - name: "compliance-reviewer"
+        agent: "compliance-reviewer"
+        source: local
+        workflows: [review, audit]
+        trigger:
+          always: true  # Always summoned, regardless of file types
+        context_budget: 20
+        finding_prefix: "COMP"
+  ```
+  Note: `trigger.always` agents receive all changed files up to `context_budget`.
+  They are still subject to `max_ashes` hard limit but are last to be trimmed.
 
 ### Troubleshooting
 ```

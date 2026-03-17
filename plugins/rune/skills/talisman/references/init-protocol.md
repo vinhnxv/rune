@@ -25,6 +25,58 @@ Also detect:
   - db/migrate/ → Rails migrations
 ```
 
+## Phase 2.3: Agent Recommendations (v1.178.0+)
+
+After stack detection, query agent-search MCP for stack-relevant agents and scaffold `stack_awareness.priority`:
+
+```
+stack = detectStack()  # from Phase 2
+
+# Query agent-search MCP for stack-relevant agents (skip if MCP unavailable)
+recommendations = []
+if agent-search MCP available:
+  for lang in stack.languages:
+    results = mcp__plugin_rune_agent-search__agent_search({
+      query: "{lang} review specialist",
+      phase: "appraise",
+      language: lang,    # New language filter from Task 2
+      limit: 3
+    })
+    if results:
+      recommendations.append({ language: lang, agents: results })
+
+# Present recommendations to user
+if recommendations:
+  Show: "Detected stack: {stack.primary_language} + {stack.frameworks}.
+         Found relevant agents: {agent names}.
+         Add to talisman.yml? [Yes/No]"
+
+  if user confirms:
+    # Build explicit YAML — do NOT use generate_custom_ash_config()
+    for rec in recommendations:
+      for agent in rec.agents:
+        Append to ashes.custom section:
+          """
+          ashes:
+            custom:
+              - name: "{agent.name}"
+                agent: "{agent.name}"
+                source: {agent.source}
+                workflows: [review, audit]
+                finding_prefix: "{derive_prefix(agent.name)}"
+          """
+
+# Scaffold stack_awareness.priority based on detected stack
+Append to generated talisman:
+  """
+  stack_awareness:
+    priority:
+      languages: [{stack.languages joined}]     # From manifest detection
+      frameworks: [{stack.frameworks joined}]    # From dependency detection
+      boost_factor: 1.5                          # Default multiplier
+  """
+```
+
 ## Phase 3: Read Example Template
 
 ```

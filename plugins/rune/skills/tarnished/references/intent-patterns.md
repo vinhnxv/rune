@@ -127,6 +127,9 @@ User seeks knowledge about Rune or recommendations.
 | "troubleshoot" / "bị lỗi" / "failed" | Read rune-knowledge.md pitfalls → diagnose |
 | "how to add mcp" / "mcp integration" / "setup untitledui" | Read rune-knowledge.md MCP section → guide setup |
 | "tích hợp mcp" / "cách thêm mcp" / "untitledui là gì" | Read rune-knowledge.md MCP section → guide setup |
+| "add agent" / "custom reviewer" / "custom ash" / "thêm agent" | Guide: add `ashes.custom[]` in talisman.yml → `/rune:talisman guide` |
+| "which agents" / "agent list" / "list agents" / "danh sách agent" | → `/rune:ash-guide` |
+| "force agent" / "always use agent" / "always run agent" / "luôn dùng agent" | Guide: use `trigger.always: true` in talisman.yml `ashes.custom[].trigger` |
 
 ### Category: meta (legacy alias for guidance)
 

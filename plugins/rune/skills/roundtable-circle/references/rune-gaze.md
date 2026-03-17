@@ -243,6 +243,29 @@ if mcp_available:
     })
     mcp_candidates = mergeAndDeduplicate(mcp_candidates, ux_candidates)
 
+  # Step 3.5: Stack-awareness priority boost (v1.178.0+)
+  # Apply score boost to MCP candidates matching user-configured priority languages/frameworks.
+  # Read from readTalismanSection("misc")?.stack_awareness?.priority
+  stack_priority = readTalismanSection("misc")?.stack_awareness?.priority
+  if stack_priority:
+    priority_languages = [lang.lower() for lang in (stack_priority.languages ?? [])]
+    priority_frameworks = [fw.lower() for fw in (stack_priority.frameworks ?? [])]
+    boost_factor = stack_priority.boost_factor ?? 1.5  # Score multiplier for matching agents
+
+    for candidate in mcp_candidates:
+      # Check if candidate's languages or tags overlap with priority config
+      candidate_languages = [lang.lower() for lang in (candidate.languages ?? [])]
+      candidate_tags = [tag.lower() for tag in (candidate.tags ?? [])]
+
+      lang_match = any(lang in priority_languages for lang in candidate_languages)
+      fw_match = any(fw in priority_frameworks for fw in candidate_tags)
+
+      if lang_match or fw_match:
+        candidate.score = candidate.score * boost_factor
+
+    # Re-sort by boosted score (highest first)
+    mcp_candidates.sort(key=lambda c: c.score, reverse=True)
+
   # Step 4: Filter out agents already selected by hardcoded logic
   for candidate in mcp_candidates:
     if candidate.name not in ash_selections:
@@ -342,14 +365,18 @@ if talisman.ashes?.custom:
         continue
 
     # 5. Trigger matching against changed_files (or all_files for audit)
-    matching_files = []
-    for each file in changed_files:
-      ext_match = file.extension in entry.trigger.extensions OR entry.trigger.extensions == ["*"]
-      path_match = entry.trigger.paths is empty OR file starts with any entry.trigger.paths entry
-      if ext_match AND path_match:
-        matching_files.add(file)
+    if entry.trigger.always:
+      # Always-on: bypass file matching, use all changed files up to context_budget
+      matching_files = changed_files[:entry.context_budget]
+    else:
+      matching_files = []
+      for each file in changed_files:
+        ext_match = file.extension in entry.trigger.extensions OR entry.trigger.extensions == ["*"]
+        path_match = entry.trigger.paths is empty OR file starts with any entry.trigger.paths entry
+        if ext_match AND path_match:
+          matching_files.add(file)
 
-    if len(matching_files) >= (entry.trigger.min_files ?? 1):
+    if entry.trigger.always OR len(matching_files) >= (entry.trigger.min_files ?? 1):
       ash_selections.add(entry.name)
       custom_agent_ashes.add({
         name: entry.name,
@@ -358,31 +385,53 @@ if talisman.ashes?.custom:
         finding_prefix: entry.finding_prefix,
         context_budget: entry.context_budget,
         matching_files: matching_files[:entry.context_budget],
-        required_sections: entry.required_sections
+        required_sections: entry.required_sections,
+        trigger_always: entry.trigger.always ?? false  # For trim priority ordering
       })
     else:
       # Skip silently (same as conditional built-in Ash)
 
   # 6. Enforce max_ashes cap (built-in + CLI + MCP-discovered + agent-backed custom)
-  # MCP-discovered agents are trimmed BEFORE custom_agent_ashes when exceeding cap
-  # Priority: always-on > stack specialists > custom agent-backed > MCP-discovered
+  # Trim priority (lowest priority trimmed first):
+  #   1. MCP-discovered registry/user agents
+  #   2. Trigger-matched custom agents (trigger.always == false)
+  #   3. trigger.always custom agents (last to trim — user explicitly wants these)
   total_ashes = len(ash_selections)
   max_ashes = talisman.settings?.max_ashes ?? 9
+  trimmed_agents = []  # Track all trimmed agents for inscription
+
   if total_ashes > max_ashes:
     log("Too many Ashes ({total_ashes}). Max: {max_ashes}. Trimming entries.")
-    # First trim MCP-discovered registry/user agents (lowest priority)
+
+    # Tier 1: Trim MCP-discovered registry/user agents first (lowest priority)
     mcp_agent_names = list(registry_agent_details.keys()) if registry_agent_details else []
     while len(ash_selections) > max_ashes and mcp_agent_names:
       removed = mcp_agent_names.pop()
       ash_selections.remove(removed)
       registry_agent_details.pop(removed, None)
-    # Then trim custom_agent_ashes if still over cap
+      trimmed_agents.add({ name: removed, reason: "MCP-discovered (lowest priority)", tier: 1 })
+      warn("Trimmed MCP-discovered Ash '{removed}' — over max_ashes limit ({max_ashes})")
+
+    # Tier 2+3: Trim custom_agent_ashes if still over cap
+    # Sort: trigger-matched (always=false) first, then trigger.always last
+    custom_agent_ashes.sort(key=lambda a: 1 if a.trigger_always else 0)
     while len(ash_selections) > max_ashes and custom_agent_ashes:
-      removed = custom_agent_ashes.pop()
+      removed = custom_agent_ashes.pop(0)  # Pop from front (lowest priority first)
       ash_selections.remove(removed.name)
+      if removed.trigger_always:
+        trimmed_agents.add({ name: removed.name, reason: "trigger.always (last resort — hard limit reached)", tier: 3 })
+        warn("Trimmed trigger.always Ash '{removed.name}' — max_ashes hard limit ({max_ashes}) exceeded. Consider increasing settings.max_ashes in talisman.yml")
+      else:
+        trimmed_agents.add({ name: removed.name, reason: "trigger-matched custom (mid priority)", tier: 2 })
+        warn("Trimmed custom Ash '{removed.name}' — over max_ashes limit ({max_ashes})")
+
+    # Summary warning with actionable suggestion
+    if len(trimmed_agents) > 0:
+      warn("{len(trimmed_agents)} Ash(es) trimmed to meet max_ashes={max_ashes}. To keep all agents, set settings.max_ashes: {total_ashes} in talisman.yml")
 
   # 7. Store custom ash context for Phase 3 summoning
   inscription.custom_agent_ashes = custom_agent_ashes
+  inscription.trimmed_agents = trimmed_agents  # Record which agents were dropped and why
 ```
 
 **`DOC_LINE_THRESHOLD`**: Default 10. Configurable via `talisman.yml` → `rune-gaze.doc_line_threshold`.
