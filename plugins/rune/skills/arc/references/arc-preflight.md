@@ -41,11 +41,16 @@ Always pulls latest before branching. Always asks user before operating on a non
 // Worktrees have an isolated branch already — skip branch creation entirely.
 const gitCommonDir = Bash("git rev-parse --git-common-dir 2>/dev/null").trim()
 const gitDir = Bash("git rev-parse --git-dir 2>/dev/null").trim()
-const isWorktree = gitCommonDir !== gitDir && !gitDir.endsWith('/.git') && gitCommonDir.endsWith('/.git')
+// Worktree detection: git guarantees git-common-dir === git-dir only in the main working tree.
+// The .endsWith guards protect against partial git command failure (e.g., old git without --git-common-dir).
+const isWorktree = !!(gitCommonDir && gitDir) && gitCommonDir !== gitDir
 
 if (isWorktree) {
   const worktreeRoot = Bash("git rev-parse --show-toplevel 2>/dev/null").trim()
+  // Detached HEAD fallback: git branch --show-current returns empty in detached state
   const worktreeBranch = Bash("git branch --show-current 2>/dev/null").trim()
+    || Bash("git rev-parse --short HEAD 2>/dev/null").trim()
+    || "DETACHED"
   log(`WORKTREE DETECTED: Running inside git worktree at ${worktreeRoot}`)
   log(`Worktree branch: ${worktreeBranch} — using as-is (isolated branch)`)
   warn(

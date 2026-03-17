@@ -305,12 +305,13 @@ const ownerPid = Bash(`echo $PPID`).trim()
 // for cross-session resume awareness. --resume from main repo can detect worktree checkpoints.
 const gitCommonDir = Bash("git rev-parse --git-common-dir 2>/dev/null").trim()
 const gitDir = Bash("git rev-parse --git-dir 2>/dev/null").trim()
-const isWorktree = gitCommonDir !== gitDir && !gitDir.endsWith('/.git') && gitCommonDir.endsWith('/.git')
+const isWorktree = !!(gitCommonDir && gitDir) && gitCommonDir !== gitDir
 const worktreeMeta = isWorktree ? {
   is_worktree: true,
   worktree_root: Bash("git rev-parse --show-toplevel 2>/dev/null").trim(),
   main_repo_root: gitCommonDir.replace(/\/\.git$/, ''),
-  worktree_branch: Bash("git branch --show-current 2>/dev/null").trim()
+  // Detached HEAD fallback: null signals detached state (not empty string which is ambiguous)
+  worktree_branch: Bash("git branch --show-current 2>/dev/null").trim() || null
 } : { is_worktree: false }
 
 // ── Resolve parent_plan context (v1.79.0+: hierarchical execution) ──

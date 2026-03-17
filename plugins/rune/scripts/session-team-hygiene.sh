@@ -354,9 +354,16 @@ orphan_checkpoint_count=$(
   # Build scan dirs: project root + any worktree .claude/arc/ directories
   scan_dirs=("${CWD}/.claude/arc" "${CWD}/tmp/arc")
   # Add worktree checkpoint dirs (worktrees are at .claude/worktrees/*/)
+  # SEC-S8-002 FIX: Reject symlinks on worktree dirs (parity with team dir scanning at line 108)
   shopt -s nullglob 2>/dev/null || true
   for wt_dir in "${CWD}/.claude/worktrees"/*/.claude/arc; do
-    [[ -d "$wt_dir" ]] && scan_dirs+=("$wt_dir")
+    [[ -d "$wt_dir" ]] || continue
+    [[ -L "$wt_dir" ]] && continue  # symlink rejection
+    # SEC-S8-001: path traversal guard on worktree dir name
+    [[ "$wt_dir" == *".."* ]] && continue
+    local wt_base="${wt_dir%/.claude/arc}"
+    [[ -L "$wt_base" ]] && continue  # reject symlinked worktree root
+    scan_dirs+=("$wt_dir")
   done
   for ckpt_dir in "${scan_dirs[@]}"; do
     [[ -d "$ckpt_dir" ]] || continue

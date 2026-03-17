@@ -516,7 +516,10 @@ try {
         `**Verdict**: ${manifest.verdict}`,
         `**Timestamp**: ${manifest.timestamp}`,
       ].join('\n')
-      Bash(`gh pr comment ${prNumber} --body "$(cat <<'MANIFEST_EOF'\n${manifestComment}\nMANIFEST_EOF\n)"`)
+      // SEC-S8-004 FIX: Use --body-file instead of heredoc to prevent content injection
+      const tmpManifestFile = Bash("mktemp").trim()
+      Write(tmpManifestFile, manifestComment)
+      Bash(`gh pr comment ${prNumber} --body-file "${tmpManifestFile}" && rm -f "${tmpManifestFile}"`)
     }
   }
 } catch (e) {

@@ -671,7 +671,7 @@ The forge agent generating criteria should use its perspective to inform criteri
 
 Each generated criterion should reference an appropriate proof type from the proof schema. Proof types determine how the criterion can be verified during gap analysis and pre-ship validation.
 
-See [proof-schema.md](../../discipline/references/proof-schema.md) for the full list of available proof types: `file_exists`, `pattern_matches`, `no_pattern_exists`, `test_passes`, `builds_clean`, `git_diff_contains`, `line_count_delta`, `semantic_match`.
+See [proof-schema.md](../../discipline/references/proof-schema.md) for the full list. Common proof types (used by gap-fixer, mend-fixer, and parse-plan extraction): `pattern_matches`, `test_passes`, `file_exists`, `command_succeeds`. Extended types (require specialized tooling): `no_pattern_exists`, `builds_clean`, `git_diff_contains`, `line_count_delta`, `semantic_match`. Prefer common types for machine-verifiable criteria — workers may not support extended types.
 
 Annotate each criterion with its proof type in a comment when the type is non-obvious:
 
