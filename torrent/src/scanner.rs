@@ -39,7 +39,9 @@ pub fn scan_config_dirs() -> Result<Vec<ConfigDir>> {
     }
 
     // Check ~/.claude-*/
-    let pattern = format!("{}/.claude-*/", home.display());
+    // SAFETY: home.display() may panic on non-UTF8 paths. We validate UTF-8 first.
+    let home_str = home.to_string_lossy();
+    let pattern = format!("{}/.claude-*/", home_str);
     for entry in glob(&pattern).map_err(|e| eyre!("invalid glob pattern: {e}"))? {
         match entry {
             Ok(path) if is_valid_config_dir(&path) => {

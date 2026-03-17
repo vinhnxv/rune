@@ -154,13 +154,20 @@ impl Tmux {
 
     /// Send keys to Claude Code using the Escape+delay+Enter workaround.
     ///
-    /// Claude Code uses Ink (React terminal framework) which intercepts Enter
-    /// for autocomplete. The workaround from varre:
-    /// 1. Send text literally with -l
-    /// 2. Wait 300ms for autocomplete to render
-    /// 3. Send Escape to dismiss autocomplete
-    /// 4. Wait 100ms for Ink to process
+    /// # Why This Workaround Is Needed
+    ///
+    /// Claude Code uses [Ink](https://github.com/vadimdemedes/ink) (a React-based terminal UI
+    /// framework). Ink intercepts the Enter key for autocomplete suggestions. When we send text
+    /// followed by Enter, Ink shows autocomplete options instead of submitting the prompt.
+    ///
+    /// The workaround (discovered through experimentation, similar to varre's approach):
+    /// 1. Send text literally with `-l` flag (prevents tmux from interpreting special keys)
+    /// 2. Wait 300ms for Ink's autocomplete to render
+    /// 3. Send Escape to dismiss the autocomplete popup
+    /// 4. Wait 100ms for Ink to process the dismissal
     /// 5. Send Enter to submit the prompt
+    ///
+    /// This pattern ensures the prompt is submitted rather than triggering autocomplete.
     pub fn send_keys(session_id: &str, text: &str) -> Result<()> {
         validate_session_id(session_id)?;
 

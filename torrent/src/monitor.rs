@@ -28,6 +28,8 @@ pub struct ArcStatus {
     pub pr_url: Option<String>,
     pub is_stale: bool,
     pub completion: Option<ArcCompletion>,
+    /// Schema version warning — None if compatible, Some(msg) if outside tested range.
+    pub schema_warning: Option<String>,
 }
 
 /// Summary of phase progress derived from checkpoint.json.
@@ -157,6 +159,7 @@ pub fn poll_arc_status(handle: &ArcHandle) -> Option<ArcStatus> {
     let checkpoint = read_checkpoint(&handle.checkpoint_path)?;
     let heartbeat = read_heartbeat(&handle.heartbeat_path);
 
+    let schema_warning = checkpoint.schema_compat().warning();
     let phase_summary = compute_phase_summary(&checkpoint);
     let completion = check_completion(&checkpoint);
 
@@ -192,6 +195,7 @@ pub fn poll_arc_status(handle: &ArcHandle) -> Option<ArcStatus> {
         pr_url: checkpoint.pr_url,
         is_stale,
         completion,
+        schema_warning,
     })
 }
 
@@ -287,6 +291,7 @@ mod tests {
         );
         let checkpoint = Checkpoint {
             id: "arc-123".into(),
+            schema_version: Some(24),
             plan_file: "plan.md".into(),
             config_dir: String::new(),
             owner_pid: String::new(),
@@ -317,6 +322,7 @@ mod tests {
         );
         let checkpoint = Checkpoint {
             id: "arc-456".into(),
+            schema_version: Some(24),
             plan_file: "plan.md".into(),
             config_dir: String::new(),
             owner_pid: String::new(),
@@ -365,6 +371,7 @@ mod tests {
 
         let checkpoint = Checkpoint {
             id: "arc-789".into(),
+            schema_version: Some(24),
             plan_file: "plan.md".into(),
             config_dir: String::new(),
             owner_pid: String::new(),

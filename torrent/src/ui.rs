@@ -5,6 +5,7 @@ use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
 use ratatui::Frame;
 
 use crate::app::{App, AppView, ArcCompletion, Panel};
+use crate::resource::ProcessHealth;
 
 // Solarized Dark palette
 mod sol {
@@ -149,7 +150,7 @@ fn render_running(frame: &mut Frame, app: &App, area: Rect) {
         .constraints([
             Constraint::Length(1),
             Constraint::Length(8),
-            Constraint::Length(5),
+            Constraint::Length(7),  // expanded for resource info
             Constraint::Min(3),
             Constraint::Length(1),
         ])
@@ -247,10 +248,12 @@ fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {
 fn render_heartbeat(frame: &mut Frame, app: &App, area: Rect) {
     let lines = if let Some(run) = &app.current_run {
         if let Some(st) = &run.last_status {
+            // Determine liveness status based on last_activity timestamp + process health
             let (icon, color) = if st.is_stale { ("● stale", sol::RED) }
                 else if st.last_activity.is_empty() { ("● unknown", sol::BASE01) }
                 else { ("● live", sol::GREEN) };
-            vec![
+
+            let mut l = vec![
                 Line::from(vec![
                     Span::styled("  Activity: ", Style::default().fg(sol::BASE01)),
                     Span::styled(&st.last_activity, Style::default().fg(sol::BASE0)),
@@ -259,7 +262,37 @@ fn render_heartbeat(frame: &mut Frame, app: &App, area: Rect) {
                 ]),
                 make_kv("  Tool:     ", &st.last_tool, sol::BASE0),
                 make_kv("  Phase:    ", &st.current_phase, sol::BASE0),
-            ]
+            ];
+
+            // Resource monitoring line
+            if let Some(ref res) = st.resource {
+                let cpu_color = if res.cpu_percent > 80.0 { sol::RED }
+                    else if res.cpu_percent > 30.0 { sol::YELLOW }
+                    else { sol::GREEN };
+                let mem_mb = res.memory_mb();
+                let mem_color = if mem_mb > 4096.0 { sol::RED }
+                    else if mem_mb > 2048.0 { sol::YELLOW }
+                    else { sol::GREEN };
+                let health_color = match st.process_health {
+                    ProcessHealth::Active => sol::GREEN,
+                    ProcessHealth::LowCpu => sol::ORANGE,
+                    ProcessHealth::NotFound => sol::RED,
+                };
+
+                l.push(Line::from(vec![
+                    Span::styled("  CPU: ", Style::default().fg(sol::BASE01)),
+                    Span::styled(format!("{:.1}%", res.cpu_percent), Style::default().fg(cpu_color).add_modifier(Modifier::BOLD)),
+                    Span::styled("  MEM: ", Style::default().fg(sol::BASE01)),
+                    Span::styled(format!("{:.0}MB", mem_mb), Style::default().fg(mem_color).add_modifier(Modifier::BOLD)),
+                    Span::styled(format!("  ({} children)", res.child_count), Style::default().fg(sol::BASE0)),
+                    Span::styled("  ", Style::default()),
+                    Span::styled(format!("● {}", st.process_health.label()), Style::default().fg(health_color)),
+                ]));
+            } else {
+                l.push(make_kv("  Resources: ", "no PID tracked", sol::BASE01));
+            }
+
+            l
         } else {
             vec![Line::from(Span::styled("  Waiting for heartbeat...", Style::default().fg(sol::BASE01)))]
         }
@@ -271,7 +304,7 @@ fn render_heartbeat(frame: &mut Frame, app: &App, area: Rect) {
         Paragraph::new(Text::from(lines)).block(
             Block::default().borders(Borders::ALL)
                 .border_style(Style::default().fg(sol::ORANGE))
-                .title(Span::styled(" Heartbeat ", Style::default().fg(sol::BASE1)))
+                .title(Span::styled(" Heartbeat & Resources ", Style::default().fg(sol::BASE1)))
         ),
         area,
     );

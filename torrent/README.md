@@ -95,4 +95,123 @@ torrent (TUI)
 3. **Launch** — create tmux session, send `/arc <plan>` command
 4. **Discover** — poll for matching checkpoint.json (up to 3 min)
 5. **Monitor** — watch heartbeat.json for liveness, checkpoint.json for phase progress
-6. **Complete** — detect merge completion, wait 4 min grace, kill tmux, start next plan
+6. **Complete** — detect merge completion, wait grace period, kill tmux, start next plan
+
+---
+
+## CLI Tool: torrent-cli
+
+In addition to the TUI, torrent includes a CLI tool for direct tmux session management:
+
+```bash
+# Build the CLI
+cargo build --release --bin torrent-cli
+
+# Create a new tmux session with Claude Code
+./target/release/torrent-cli new-session --config-dir ~/.claude-work
+
+# Send keys with the Ink autocomplete workaround
+./target/release/torrent-cli send-keys --session rune-abc123 --text "/arc plans/my-plan.md"
+
+# Capture pane output for debugging
+./target/release/torrent-cli capture-pane --session rune-abc123 --lines 30
+
+# List all torrent/rune sessions
+./target/release/torrent-cli list
+
+# Kill a session
+./target/release/torrent-cli kill --session rune-abc123
+
+# Full flow: create session, wait for Claude, send /arc
+./target/release/torrent-cli run --config-dir ~/.claude --plan plans/my-plan.md --wait 15
+```
+
+---
+
+## Configuration
+
+### Grace Period
+
+The grace period after merge detection before starting the next plan defaults to 240 seconds (4 minutes). Override via environment variable:
+
+```bash
+# Shorter grace period (2 minutes)
+GRACE_PERIOD_SECS=120 ./torrent/target/release/torrent
+
+# Longer grace period (10 minutes)
+GRACE_PERIOD_SECS=600 ./torrent/target/release/torrent
+```
+
+---
+
+## Troubleshooting
+
+### "git checkout main failed — clean up working tree"
+
+**Cause:** Uncommitted changes or unmerged files in the working tree.
+
+**Solution:**
+```bash
+# Check status
+git status
+
+# Stash or discard changes
+git stash
+# or
+git checkout -- .
+
+# Remove untracked files if needed
+git clean -fd
+```
+
+### "tmux failed: session already exists"
+
+**Cause:** A previous torrent session wasn't cleaned up.
+
+**Solution:**
+```bash
+# List sessions
+tmux list-sessions
+
+# Kill the orphan session
+tmux kill-session -t rune-XXXXXX
+
+# Or use torrent-cli
+./target/release/torrent-cli kill --session rune-XXXXXX
+```
+
+### "Claude Code is ready" but /arc didn't execute
+
+**Cause:** The Ink autocomplete workaround may need adjustment on your system.
+
+**Solution:**
+1. Attach to the tmux session: `tmux attach -t rune-XXXXXX`
+2. Check if Claude Code is showing an error
+3. Manually type `/arc plans/your-plan.md` and press Enter
+4. The Escape+delay+Enter workaround may need tuning for slower systems
+
+### Checkpoint discovery takes too long (>3 min)
+
+**Cause:** Multiple arcs running concurrently, or the plan file path doesn't match.
+
+**Solution:**
+1. Check `.claude/arc/` for existing arc directories
+2. Verify the plan file name matches exactly (case-sensitive)
+3. Ensure `CLAUDE_CONFIG_DIR` is set correctly for non-default accounts
+
+### Heartbeat shows "stale" (red indicator)
+
+**Cause:** No activity for >5 minutes. The arc may be stuck or waiting for user input.
+
+**Solution:**
+1. Attach to the session: `tmux attach -t rune-XXXXXX`
+2. Check for permission prompts or other blocking dialogs
+3. Use `[k]` to kill and restart if necessary
+
+---
+
+## Security Notes
+
+- **`--dangerously-skip-permissions`:** Torrent launches Claude Code with this flag to enable non-interactive execution. This bypasses all permission prompts. Only use torrent in trusted environments.
+- **Session ID validation:** All tmux session names are validated to contain only alphanumeric characters, hyphens, and underscores to prevent command injection.
+- **Shell escaping:** All paths sent to tmux are shell-escaped to prevent command injection via special characters.

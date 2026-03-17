@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
@@ -8,6 +8,7 @@ use color_eyre::eyre::eyre;
 use color_eyre::Result;
 
 use crate::monitor;
+use crate::resource::{self, ProcessHealth, ResourceSnapshot};
 use crate::scanner::{ConfigDir, PlanFile};
 use crate::tmux::Tmux;
 
@@ -42,6 +43,9 @@ pub struct App {
 
     // Resolved absolute path to claude binary (avoids PATH issues in tmux)
     pub claude_path: String,
+
+    // Resource monitoring (sysinfo)
+    pub sys: sysinfo::System,
 
     // Whether we should quit
     pub should_quit: bool,
@@ -87,6 +91,7 @@ pub struct ArcHandle {
 
 /// Polled status of a running arc.
 #[derive(Clone)]
+#[allow(dead_code)] // schema_warning stored for UI display
 pub struct ArcStatus {
     pub arc_id: String,
     pub current_phase: String,
@@ -95,6 +100,10 @@ pub struct ArcStatus {
     pub phase_summary: PhaseSummary,
     pub pr_url: Option<String>,
     pub is_stale: bool,
+    pub schema_warning: Option<String>,
+    // Resource monitoring
+    pub resource: Option<ResourceSnapshot>,
+    pub process_health: ProcessHealth,
 }
 
 #[derive(Clone)]
@@ -167,6 +176,7 @@ impl App {
             status_message: None,
             claude_path: crate::tmux::Tmux::resolve_claude_path()
                 .unwrap_or_else(|_| "claude".to_string()),
+            sys: resource::create_process_system(),
             should_quit: false,
         })
     }
@@ -494,12 +504,8 @@ impl App {
         });
 
         // Step 6: Send /arc command (uses Escape+delay+Enter workaround for Ink)
-        if let Err(e) = Tmux::send_arc_command(&session_id, &plan.path) {
-            self.status_message = Some(format!("send /arc failed, retrying: {e}"));
-            std::thread::sleep(Duration::from_secs(5));
-            if let Err(e2) = Tmux::send_arc_command(&session_id, &plan.path) {
-                self.status_message = Some(format!("FAILED: {e2}. tmux attach -t {}", &session_id));
-            }
+        if Self::send_arc_with_retry(&session_id, &plan.path, 2).is_none() {
+            self.status_message = Some(format!("FAILED: send /arc failed. tmux attach -t {}", &session_id));
         } else {
             self.status_message = Some(format!("/arc sent to {}", &session_id));
         }
@@ -570,8 +576,11 @@ impl App {
         }
     }
 
-    /// Poll arc status (heartbeat + checkpoint) and update display state.
+    /// Poll arc status (heartbeat + checkpoint + resources) and update display state.
     fn poll_status(&mut self) {
+        // Refresh sysinfo for resource polling (lightweight, no sleep needed after init)
+        resource::refresh_process_system(&mut self.sys);
+
         let run = match &mut self.current_run {
             Some(r) => r,
             None => return,
@@ -593,11 +602,30 @@ impl App {
             session_id: arc.session_id.clone(),
         };
 
+        // Poll resource usage for Claude Code process
+        let (res_snapshot, proc_health) = if let Some(pid) = run.claude_pid {
+            let snap = resource::snapshot(&self.sys, pid);
+            let health = resource::check_health(&self.sys, pid);
+            (snap, health)
+        } else {
+            (None, ProcessHealth::NotFound)
+        };
+
         if let Some(status) = monitor::poll_arc_status(&monitor_handle) {
+            // Surface schema version warning once (first poll only)
+            if run.last_status.is_none() {
+                if let Some(ref warning) = status.schema_warning {
+                    self.status_message = Some(format!("⚠ {}", warning));
+                }
+            }
+
             // Check for completion — start grace period
             if status.completion.is_some() && run.merge_detected_at.is_none() {
                 run.merge_detected_at = Some(Instant::now());
             }
+
+            // Combined stale detection: heartbeat staleness OR low-cpu process health
+            let is_stale = status.is_stale || proc_health == ProcessHealth::LowCpu;
 
             // Convert monitor::ArcStatus to app::ArcStatus
             run.last_status = Some(ArcStatus {
@@ -615,14 +643,26 @@ impl App {
                     current_phase_name: status.phase_summary.current_phase_name,
                 },
                 pr_url: status.pr_url,
-                is_stale: status.is_stale,
+                is_stale,
+                schema_warning: status.schema_warning,
+                resource: res_snapshot,
+                process_health: proc_health,
             });
         }
     }
 
+    /// Grace period after merge detection before starting next plan.
+    /// Configurable via GRACE_PERIOD_SECS env var (default: 240s = 4 min).
+    fn grace_period_secs() -> u64 {
+        std::env::var("GRACE_PERIOD_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(240)
+    }
+
     /// Check if grace period has elapsed after merge detection.
     fn check_grace_period(&mut self, now: Instant) {
-        let grace_duration = Duration::from_secs(240); // 4 minutes
+        let grace_duration = Duration::from_secs(Self::grace_period_secs());
 
         let should_complete = self
             .current_run
@@ -657,5 +697,27 @@ impl App {
                 });
             }
         }
+    }
+
+    /// Send /arc command with retry logic. Returns Some(()) on success, None on failure.
+    /// Uses exponential backoff between retries (5s, then 10s).
+    fn send_arc_with_retry(session_id: &str, plan_path: &Path, max_attempts: u8) -> Option<()> {
+        let mut delay_secs = 5;
+
+        for attempt in 1..=max_attempts {
+            match Tmux::send_arc_command(session_id, plan_path) {
+                Ok(()) => return Some(()),
+                Err(e) if attempt < max_attempts => {
+                    eprintln!("send /arc attempt {} failed: {}, retrying in {}s", attempt, e, delay_secs);
+                    std::thread::sleep(Duration::from_secs(delay_secs));
+                    delay_secs *= 2; // exponential backoff: 5s -> 10s
+                }
+                Err(e) => {
+                    eprintln!("send /arc failed after {} attempts: {}", max_attempts, e);
+                    return None;
+                }
+            }
+        }
+        None
     }
 }

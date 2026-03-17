@@ -2,6 +2,7 @@ mod app;
 mod checkpoint;
 mod keybindings;
 mod monitor;
+mod resource;
 mod scanner;
 mod tmux;
 mod ui;
