@@ -51,7 +51,9 @@ parse_input() {
 # Previously exited silently when .cwd was missing from Stop hook input, while
 # detect-workflow-complete.sh (which works correctly) had this fallback. Parity fix.
 resolve_cwd() {
-  CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+  local _raw_cwd
+  _raw_cwd=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+  CWD="$_raw_cwd"
   if [[ -z "$CWD" ]]; then
     CWD="${CLAUDE_PROJECT_DIR:-}"
   fi
@@ -65,7 +67,7 @@ resolve_cwd() {
   # WORKTREE-FIX: If CWD came from CLAUDE_PROJECT_DIR (not .cwd), and we can
   # detect a worktree, prefer the worktree path. This handles Stop hooks
   # where .cwd may be absent in older Claude Code versions.
-  if [[ -z "$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)" ]]; then
+  if [[ -z "$_raw_cwd" ]]; then
     local actual_cwd
     actual_cwd="$(pwd -P)"
     if [[ -f "$actual_cwd/.git" && -f "$actual_cwd/.claude/.rune-worktree-source" && ! -L "$actual_cwd/.claude/.rune-worktree-source" ]]; then
@@ -680,7 +682,7 @@ _rune_detect_rate_limit() {
   # Resolve talisman shard (project → system fallback)
   local talisman_shard=""
   if type _rune_resolve_talisman_shard &>/dev/null; then
-    talisman_shard=$(_rune_resolve_talisman_shard "arc")
+    talisman_shard=$(_rune_resolve_talisman_shard "arc" "${cwd:-}")
   fi
   [[ -z "$talisman_shard" ]] && talisman_shard="${cwd}/tmp/.talisman-resolved/arc.json"
   if [[ -f "$talisman_shard" && ! -L "$talisman_shard" ]]; then

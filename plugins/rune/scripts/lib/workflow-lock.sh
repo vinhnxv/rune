@@ -64,15 +64,19 @@ if [[ -z "$_RUNE_LOCK_ROOT" ]] || [[ ! "$_RUNE_LOCK_ROOT" =~ $_RUNE_LOCK_PATTERN
   _RUNE_LOCK_ROOT="$(pwd)"
 fi
 
-# WORKTREE-FIX: If we fell back to $(pwd) and a worktree source marker exists,
-# use the main repo root for lock sharing across worktrees.
-# This only fires in worktree sessions where setup-worktree.sh wrote the marker.
-_RUNE_WT_MARKER="${_RUNE_LOCK_ROOT}/.claude/.rune-worktree-source"
-if [[ -f "$_RUNE_WT_MARKER" && ! -L "$_RUNE_WT_MARKER" ]]; then
-  _RUNE_MAIN_ROOT=$(head -1 "$_RUNE_WT_MARKER" 2>/dev/null | tr -d '\n')
-  # SEC: Validate main root — must be absolute path, no traversal, must exist
-  if [[ -n "$_RUNE_MAIN_ROOT" && "$_RUNE_MAIN_ROOT" =~ $_RUNE_LOCK_PATTERN && -d "$_RUNE_MAIN_ROOT" && ! "$_RUNE_MAIN_ROOT" == *".."* ]]; then
-    _RUNE_LOCK_ROOT="$_RUNE_MAIN_ROOT"
+# WORKTREE-FIX: Only redirect when _RUNE_LOCK_ROOT is actually a worktree
+# (.git is a file, not a directory, in git worktrees). This structural check
+# prevents accidental redirect if a .rune-worktree-source marker exists in
+# a non-worktree repo (e.g., surviving a deleted worktree).
+if [[ -f "$_RUNE_LOCK_ROOT/.git" ]]; then
+  _RUNE_WT_MARKER="${_RUNE_LOCK_ROOT}/.claude/.rune-worktree-source"
+  if [[ -f "$_RUNE_WT_MARKER" && ! -L "$_RUNE_WT_MARKER" ]]; then
+    _RUNE_MAIN_ROOT=$(head -1 "$_RUNE_WT_MARKER" 2>/dev/null | tr -d '\n')
+    # SEC: Character-set validation (absolute path, safe chars) + explicit traversal guard.
+    # NOTE: the regex alone does NOT block ".." — the "! *".."*" glob check is load-bearing.
+    if [[ -n "$_RUNE_MAIN_ROOT" && "$_RUNE_MAIN_ROOT" =~ $_RUNE_LOCK_PATTERN && ! "$_RUNE_MAIN_ROOT" == *".."* && -d "$_RUNE_MAIN_ROOT" ]]; then
+      _RUNE_LOCK_ROOT="$_RUNE_MAIN_ROOT"
+    fi
   fi
 fi
 

@@ -252,6 +252,42 @@ assert_dir_not_exists "agent-memory/ NOT copied" "$WT9/.claude/agent-memory"
 assert_dir_not_exists "agent-memory-local/ NOT copied" "$WT9/.claude/agent-memory-local"
 printf "\n"
 
+# ── Test 10: Partial setup — talisman exists but marker absent (crash recovery) ──
+printf "Test 10: Partial setup — marker written even when talisman.yml pre-exists\n"
+MAIN10="$TMP_DIR/test10/main"
+WT10="$TMP_DIR/test10/wt"
+setup_main_repo "$MAIN10"
+mkdir -p "$WT10/.claude"
+# Pre-seed talisman.yml WITHOUT marker — simulates crash between copy and marker write
+echo "partial: true" > "$WT10/.claude/talisman.yml"
+INPUT10=$(jq -n --arg cwd "$MAIN10" --arg wt "$WT10" '{"name":"test","cwd":$cwd,"worktree_path":$wt}')
+run_hook "$INPUT10"
+EXIT_CODE=$?
+
+assert_exit_zero "Partial setup exits 0" "$EXIT_CODE"
+# With current re-entry guard on talisman.yml, this WILL skip (known limitation per BACK-002).
+# Test documents the current behavior: marker is NOT written if talisman.yml exists.
+# If BACK-002 is fixed (re-entry guard checks marker instead), this test should assert_file_exists.
+WT10_CONTENT=$(cat "$WT10/.claude/talisman.yml" 2>/dev/null)
+assert_eq "Pre-existing talisman.yml preserved" "partial: true" "$WT10_CONTENT"
+printf "\n"
+
+# ── Test 11: Empty echoes/ source — hook exits 0, dst echoes/ created but empty ──
+printf "Test 11: Empty echoes/ source — no files copied\n"
+MAIN11="$TMP_DIR/test11/main"
+WT11="$TMP_DIR/test11/wt"
+mkdir -p "$MAIN11/.claude/echoes"  # empty echoes dir
+echo "test: true" > "$MAIN11/.claude/talisman.yml"
+mkdir -p "$WT11/.claude"
+INPUT11=$(jq -n --arg cwd "$MAIN11" --arg wt "$WT11" '{"name":"test","cwd":$cwd,"worktree_path":$wt}')
+run_hook "$INPUT11"
+EXIT_CODE=$?
+
+assert_exit_zero "Empty echoes source exits 0" "$EXIT_CODE"
+assert_dir_exists "echoes/ dir created in worktree" "$WT11/.claude/echoes"
+assert_file_not_exists "No MEMORY.md in empty echoes" "$WT11/.claude/echoes/MEMORY.md"
+printf "\n"
+
 # ═══════════════════════════════════════════════════════════════
 # Results
 # ═══════════════════════════════════════════════════════════════

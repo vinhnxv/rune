@@ -46,7 +46,7 @@ PROJECT_DIR=$(cd "$PROJECT_DIR" 2>/dev/null && pwd -P) || { echo "ERROR: invalid
 # (upstream bug #27343). Detect worktree via .git file and use worktree echoes.
 _WT_CWD="$(pwd -P)"
 if [[ -f "$_WT_CWD/.git" && -d "$_WT_CWD/.claude/echoes" ]]; then
-  echo "INFO: Worktree echoes detected at $_WT_CWD — using worktree paths" >&2
+  [[ "${RUNE_TRACE:-}" == "1" ]] && echo "INFO: Worktree echoes detected at $_WT_CWD — using worktree paths" >&2
   PROJECT_DIR="$_WT_CWD"
 fi
 

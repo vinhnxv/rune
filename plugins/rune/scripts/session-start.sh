@@ -114,13 +114,17 @@ fi
 [[ -n "$CWD" ]] && CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || CWD=""
 
 # ── Worktree detection advisory ──
-# .git is a FILE (not directory) when running inside a git worktree
+# .git is a FILE (not directory) in both git worktrees and submodules.
+# Distinguish by content: worktrees contain "gitdir: .../worktrees/..." path.
 _WT_ADVISORY=""
 if [[ -n "$CWD" && -f "$CWD/.git" ]]; then
-  if [[ -f "$CWD/.claude/talisman.yml" ]]; then
-    _WT_ADVISORY="\\n[Rune Worktree Mode] Running in git worktree. Config synced from main repo."
-  else
-    _WT_ADVISORY="\\n[Rune Worktree Mode] WARNING: .claude/talisman.yml missing — using defaults. Run from main repo or add WorktreeCreate hook."
+  _git_content=$(head -1 "$CWD/.git" 2>/dev/null)
+  if [[ "$_git_content" == "gitdir: "* && "$_git_content" == *"/worktrees/"* ]]; then
+    if [[ -f "$CWD/.claude/talisman.yml" ]]; then
+      _WT_ADVISORY="\\n[Rune Worktree Mode] Running in git worktree. Config synced from main repo."
+    else
+      _WT_ADVISORY="\\n[Rune Worktree Mode] WARNING: .claude/talisman.yml missing — using defaults. Run from main repo or add WorktreeCreate hook."
+    fi
   fi
 fi
 

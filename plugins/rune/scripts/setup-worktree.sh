@@ -13,13 +13,9 @@
 set -euo pipefail
 umask 077
 
-# --- Fail-forward guard (OPERATIONAL hook) ---
+# ── Fail-forward guard (OPERATIONAL hook) ──
 # Crash before validation → allow operation (don't stall worktree creation).
 _rune_fail_forward() {
-  printf 'WARNING: %s: ERR trap — fail-forward activated (line %s). Worktree setup skipped.\n' \
-    "${BASH_SOURCE[0]##*/}" \
-    "${BASH_LINENO[0]:-?}" \
-    >&2 2>/dev/null || true
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
     local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
     [[ ! -L "$_log" ]] && printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
@@ -62,11 +58,28 @@ WT_NAME=$(printf '%s\n' "$INPUT" | jq -r '.name // empty' 2>/dev/null || true)
 CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 WT_PATH=$(printf '%s\n' "$INPUT" | jq -r '.worktree_path // empty' 2>/dev/null || true)
 
+# SEC-001: Validate WT_NAME charset (branch-like identifiers only)
+if [[ -n "$WT_NAME" && ! "$WT_NAME" =~ ^[a-zA-Z0-9_/.-]+$ ]]; then
+  _trace "DENY: WT_NAME contains invalid characters"
+  exit 0
+fi
+# SEC-001b: Reject traversal and absolute paths in WT_NAME
+if [[ "$WT_NAME" == *".."* || "$WT_NAME" == /* ]]; then
+  _trace "DENY: path traversal or absolute path in WT_NAME"
+  exit 0
+fi
+
 _trace "Parsed input — name=$WT_NAME cwd=$CWD worktree_path=$WT_PATH"
 
 # ── Validate CWD (main repo root) ──
 if [[ -z "$CWD" ]]; then
   _trace "SKIP: no cwd in hook input"
+  exit 0
+fi
+
+# SEC-002: Reject CWD if it is a symlink before canonicalizing
+if [[ -L "$CWD" ]]; then
+  _trace "DENY: CWD is a symlink: $CWD"
   exit 0
 fi
 
@@ -142,15 +155,18 @@ for file in talisman.yml settings.json; do
 done
 
 # ── Copy essential directories ──
-# Use cp -R (POSIX) — not cp -r (GNU-specific behavior differences)
+# Use cp -R (not cp -r): -R copies symlinks as symlinks (POSIX), -r may dereference them.
 # EXCLUDE: worktrees/ (prevent recursion), settings.local.json (handled by Claude Code),
 #          agent-memory/ and agent-memory-local/ (per-agent persistent memory)
 for dir in echoes arc; do
   if [[ -d "$SRC_CLAUDE/$dir" && ! -L "$SRC_CLAUDE/$dir" ]]; then
     # Create parent and copy recursively
     mkdir -p "$DST_CLAUDE/$dir"
-    cp -R "$SRC_CLAUDE/$dir/." "$DST_CLAUDE/$dir/" 2>/dev/null || true
-    _trace "Copied $dir/"
+    if ! cp -R "$SRC_CLAUDE/$dir/." "$DST_CLAUDE/$dir/" 2>/dev/null; then
+      _trace "WARN: cp -R failed for $dir/ — partial copy may exist"
+    else
+      _trace "Copied $dir/"
+    fi
   fi
 done
 
@@ -167,9 +183,14 @@ if [[ -L "$MARKER" ]]; then
   rm -f "$MARKER" 2>/dev/null || true
 fi
 
-# Write canonicalized main repo path
-printf '%s\n' "$CWD" > "$MARKER"
-_trace "Wrote marker: $MARKER → $CWD"
+# Write canonicalized main repo path (atomic via tmp+mv)
+_marker_tmp="${MARKER}.tmp.$$"
+if printf '%s\n' "$CWD" > "$_marker_tmp" && mv -f "$_marker_tmp" "$MARKER"; then
+  _trace "Wrote marker: $MARKER → $CWD"
+else
+  rm -f "$_marker_tmp" 2>/dev/null || true
+  _trace "WARN: failed to write marker atomically"
+fi
 
 _trace "Worktree setup complete"
 exit 0

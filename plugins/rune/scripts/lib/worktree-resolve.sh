@@ -23,10 +23,10 @@
 #   DB_PATH="${RUNE_MAIN_REPO_ROOT}/.claude/.agent-search-index.db"
 
 # Source guard — safe to source multiple times
-[[ -n "${_RUNE_WT_RESOLVE_LOADED:-}" ]] && return 0
-_RUNE_WT_RESOLVE_LOADED=1
+[[ -n "${__RUNE_LIB_WORKTREE_RESOLVE_LOADED:-}" ]] && return 0
+__RUNE_LIB_WORKTREE_RESOLVE_LOADED=1
 
-# Exported variables (set by rune_resolve_project_dir)
+# Global variables (set by rune_resolve_project_dir)
 RUNE_PROJECT_DIR=""
 RUNE_MAIN_REPO_ROOT=""
 RUNE_IN_WORKTREE=0
@@ -81,9 +81,10 @@ rune_resolve_project_dir() {
     if [[ -f "$marker" && ! -L "$marker" ]]; then
       local main_root
       main_root=$(head -1 "$marker" 2>/dev/null | tr -d '\n')
-      # SEC-005: Validate — must be absolute, no traversal, must exist
+      # SEC-005: Character-set validation (absolute path, safe chars) + explicit traversal guard.
+      # NOTE: the regex alone does NOT block ".." — the "! *".."*" glob check is load-bearing.
       local _pattern='^/[a-zA-Z0-9_./ -]+$'
-      if [[ -n "$main_root" && "$main_root" =~ $_pattern && -d "$main_root" && ! "$main_root" == *".."* ]]; then
+      if [[ -n "$main_root" && "$main_root" =~ $_pattern && ! "$main_root" == *".."* && -d "$main_root" ]]; then
         RUNE_MAIN_REPO_ROOT="$main_root"
       fi
     fi
@@ -119,6 +120,10 @@ rune_ensure_project_dir() {
 rune_resolve_claude_resource() {
   local resource="${1:?Usage: rune_resolve_claude_resource <relative-path>}"
   rune_ensure_project_dir
+
+  # BACK-001: Guard against empty RUNE_PROJECT_DIR (all resolution paths failed).
+  # Without this, paths resolve to "/.claude/<resource>" (filesystem root).
+  [[ -z "${RUNE_PROJECT_DIR:-}" ]] && { echo ""; return 1; }
 
   # SEC-005: Reject path traversal and absolute paths
   case "$resource" in *..* | /*) echo ""; return 1 ;; esac
