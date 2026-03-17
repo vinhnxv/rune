@@ -235,6 +235,38 @@ Agent({
             SendMessage to Tarnished: "Low confidence ({N}) on Tier {T} task #{id}. Blocking
             completion pending review. Evidence: tmp/work/{timestamp}/evidence/{task-id}/"
             Do NOT call TaskUpdate(completed) until Tarnished responds.
+
+    6.76. DESIGN EVIDENCE COLLECTION (conditional — design context only):
+          IF task has design context (has_design_context: true in metadata, OR DCD/VSM files
+          referenced in task description, OR DES- criteria present in acceptance_criteria):
+
+          a. Echo design criteria: For each DES-* criterion in the task, echo back:
+             "I will: DES-{component}-{dimension}: {paraphrase}"
+             This follows the same Echo-Back protocol as Step 4.1 but for design criteria.
+
+          b. Run design proofs via execute-discipline-proofs.sh:
+             - token_scan: Verify no hardcoded hex colors in implemented components
+             - story_exists: Verify Storybook stories exist for all VSM components
+             - storybook_renders: Verify components render without errors (if Storybook available)
+             Additional proofs (axe_passes, screenshot_diff, responsive_check) run only when
+             their tool dependencies are available — graceful degradation to INCONCLUSIVE (F4).
+
+          c. Write design evidence to the SAME evidence directory:
+             Write("tmp/work/{timestamp}/evidence/{task-id}/design-evidence.json", JSON.stringify({
+               task_id: "{task-id}",
+               worker: "{your-name}",
+               has_design_context: true,
+               design_criteria: [{ id: "DES-...", paraphrase: "...", result: "PASS|FAIL|INCONCLUSIVE" }],
+               design_proofs: [{ type: "token_scan|story_exists|...", result: "PASS|FAIL|INCONCLUSIVE", evidence: "..." }],
+               dsr: N,  // Design Spec-compliance Rate (passed / total, excluding INCONCLUSIVE)
+               timestamp: new Date().toISOString()
+             }))
+
+          d. Design failures are NON-BLOCKING by default (design.block_on_fail: false).
+             If any design proof FAILs, log a warning but proceed with code evidence.
+             Code proofs (Step 6.75) always run first; design proofs supplement, never replace.
+
+          IF task does NOT have design context: skip this step entirely (zero overhead).
     7. Run quality gates (discovered from Makefile/package.json/pyproject.toml)
     8. IF ward passes:
        a. Mark new files for diff tracking: git add -N <new-files>
@@ -479,6 +511,33 @@ Agent({
             SendMessage to Tarnished: "Low confidence ({N}) on Tier {T} task #{id}. Blocking
             completion pending review. Evidence: tmp/work/{timestamp}/evidence/{task-id}/"
             Do NOT call TaskUpdate(completed) until Tarnished responds.
+
+    6.76. DESIGN EVIDENCE COLLECTION (conditional — design context only):
+          IF task has design context (has_design_context: true in metadata, OR DCD/VSM files
+          referenced in task description, OR DES- criteria present in acceptance_criteria):
+
+          a. Echo design criteria using DES- prefix (same Echo-Back protocol as Step 4.1):
+             "I will: DES-{component}-{dimension}: {paraphrase}"
+
+          b. Run design-specific test proofs:
+             - story_exists: Verify Storybook stories cover all VSM component variants
+             - storybook_renders: Verify stories render without console errors
+             - axe_passes: Run accessibility checks on rendered stories (if axe-core available)
+
+          c. Write design evidence to the same evidence directory:
+             Write("tmp/work/{timestamp}/evidence/{task-id}/design-evidence.json", JSON.stringify({
+               task_id: "{task-id}",
+               worker: "{your-name}",
+               has_design_context: true,
+               design_criteria: [{ id: "DES-...", paraphrase: "...", result: "PASS|FAIL|INCONCLUSIVE" }],
+               design_proofs: [{ type: "story_exists|storybook_renders|axe_passes", result: "...", evidence: "..." }],
+               dsr: N,  // Design Spec-compliance Rate
+               timestamp: new Date().toISOString()
+             }))
+
+          d. Design failures are NON-BLOCKING by default. Design proofs supplement test evidence.
+
+          IF task does NOT have design context: skip entirely (zero overhead).
     7. Run tests to verify they pass
     8. IF tests pass:
        a. Mark new files for diff tracking: git add -N <new-files>

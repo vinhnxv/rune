@@ -173,6 +173,16 @@ See [phase2-implementation-steps.md](references/phase2-implementation-steps.md) 
 See [phase2-design-implementation.md](references/phase2-design-implementation.md) for implementation guidance.
 See [framework-codegen-profiles.md](../frontend-design-patterns/references/framework-codegen-profiles.md) for codegen transformation rules per framework.
 
+### Evidence Collection for Design Workers
+
+When discipline is enabled, design workers collect proof evidence alongside implementation. Workers detect design context (VSM files, DCD documents) and run design-specific proofs:
+
+- **token_scan**: Verify no hardcoded hex colors in implemented components
+- **story_exists**: Verify Storybook stories exist for all VSM components
+- **axe_passes**: Run accessibility scan on rendered components (if available)
+
+Evidence is written to `tmp/work/{timestamp}/evidence/{task-id}/` in standard JSON format. Workers echo design criteria using DES- prefix: "I will: DES-{id}: {paraphrase}". This evidence feeds into the discipline proof manifest for SCR calculation.
+
 ## Phase 2.5: Design Iteration (Optional)
 
 If agent-browser is available and design_sync.iterate_enabled is true:
