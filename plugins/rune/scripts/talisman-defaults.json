@@ -419,6 +419,7 @@
       "warn_threshold": 20
     },
     "discipline": {
+      "enabled": true,
       "block_on_fail": false,
       "proof_types": {
         "token_scan": true,

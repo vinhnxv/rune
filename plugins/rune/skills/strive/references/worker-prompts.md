@@ -245,6 +245,11 @@ Agent({
              This follows the same Echo-Back protocol as Step 4.1 but for design criteria.
 
           b. Run design proofs via execute-discipline-proofs.sh:
+             NOTE: rune-smith runs implementation-focused proofs (token_scan, story_exists,
+             storybook_renders) — verifying the code output meets design spec. The trial-forger
+             worker (below) runs test-focused proofs (story_exists, storybook_renders, axe_passes)
+             — verifying test coverage of design requirements. The different proof lists are
+             intentional per each worker's role.
              - token_scan: Verify no hardcoded hex colors in implemented components
              - story_exists: Verify Storybook stories exist for all VSM components
              - storybook_renders: Verify components render without errors (if Storybook available)
@@ -520,6 +525,10 @@ Agent({
              "I will: DES-{component}-{dimension}: {paraphrase}"
 
           b. Run design-specific test proofs:
+             NOTE: trial-forger runs test-focused proofs (story_exists, storybook_renders,
+             axe_passes) — verifying test coverage of design requirements. The rune-smith
+             worker (above) runs implementation-focused proofs (token_scan, story_exists,
+             storybook_renders). The different proof lists are intentional per each worker's role.
              - story_exists: Verify Storybook stories cover all VSM component variants
              - storybook_renders: Verify stories render without console errors
              - axe_passes: Run accessibility checks on rendered stories (if axe-core available)

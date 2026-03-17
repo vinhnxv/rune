@@ -532,16 +532,14 @@ try {
   if (prUrl && manifest) {
     const prNumber = prUrl.match(/\/pull\/(\d+)/)?.[1]
     if (prNumber) {
-      const dsrLine = manifest.dsr !== null && manifest.dsr !== undefined
-        ? `\n**DSR**: ${(manifest.dsr * 100).toFixed(1)}%`
-        : ''
+      const hasDsr = manifest.dsr !== null && manifest.dsr !== undefined
       const manifestComment = [
         '## Discipline Proof Manifest',
         '',
         `**Plan**: \`${manifest.plan_file}\``,
         `**Arc ID**: ${manifest.arc_id}`,
         `**SCR**: ${manifest.scr !== null ? (manifest.scr * 100).toFixed(1) + '%' : 'N/A'}`,
-        dsrLine ? `**DSR**: ${(manifest.dsr * 100).toFixed(1)}%` : null,
+        hasDsr ? `**DSR**: ${(manifest.dsr * 100).toFixed(1)}%` : null,
         `**Criteria**: ${manifest.criteria_count} total`,
         `**Convergence**: ${manifest.convergence_rounds} round(s)`,
         `**Verdict**: ${manifest.verdict}`,
