@@ -578,25 +578,13 @@ impl App {
     /// Check if arc-phase-loop.local.md still exists.
     /// If it's gone, the arc has completed or been stopped — trigger completion.
     fn check_loop_state_liveness(&mut self) {
-        let config_dir_str = self
-            .config_dirs
-            .get(self.selected_config)
-            .map(|c| c.path.to_string_lossy().to_string());
-
-        let config_dir = match config_dir_str {
-            Some(ref s) => Path::new(s),
-            None => return,
-        };
-
-        let loop_file = config_dir.join("arc-phase-loop.local.md");
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let loop_file = cwd.join(".claude").join("arc-phase-loop.local.md");
 
         if !loop_file.exists() {
-            // Loop state file gone — arc completed or stopped
             self.status_message = Some(
                 "arc-phase-loop.local.md removed — arc completed or stopped".into(),
             );
-
-            // If we haven't already detected completion via checkpoint, start grace period
             if let Some(run) = &mut self.current_run {
                 if run.merge_detected_at.is_none() {
                     run.merge_detected_at = Some(Instant::now());
@@ -605,8 +593,8 @@ impl App {
             return;
         }
 
-        // File exists — check if active: false (user cancelled)
-        if let Some(state) = monitor::read_arc_loop_state(config_dir) {
+        // File exists — read_arc_loop_state returns None if active: false
+        if monitor::read_arc_loop_state(&cwd).is_none() {
             if !state.active {
                 self.status_message = Some(
                     "arc-phase-loop.local.md active: false — arc cancelled".into(),

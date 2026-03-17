@@ -38,12 +38,13 @@ pub struct ArcLoopState {
     pub max_iterations: u32,
 }
 
-/// Parse `arc-phase-loop.local.md` from a config directory.
+/// Parse `arc-phase-loop.local.md` from the project directory.
 ///
-/// The file uses YAML frontmatter between `---` delimiters.
+/// File location: `<project_dir>/.claude/arc-phase-loop.local.md`
+/// Uses YAML frontmatter between `---` delimiters.
 /// Returns `None` if the file doesn't exist, is not active, or can't be parsed.
-pub fn read_arc_loop_state(config_dir: &Path) -> Option<ArcLoopState> {
-    let loop_file = config_dir.join("arc-phase-loop.local.md");
+pub fn read_arc_loop_state(project_dir: &Path) -> Option<ArcLoopState> {
+    let loop_file = project_dir.join(".claude").join("arc-phase-loop.local.md");
     let contents = fs::read_to_string(&loop_file).ok()?;
 
     // Extract YAML frontmatter between --- delimiters
@@ -144,37 +145,22 @@ pub enum ArcCompletion {
     Failed,
 }
 
-/// Discover a running arc by reading `arc-phase-loop.local.md` from config_dir.
+/// Discover a running arc by reading `<cwd>/.claude/arc-phase-loop.local.md`.
 ///
-/// This file is the single source of truth for an active Rune arc.
-/// It is created before the checkpoint and contains `checkpoint_path`,
-/// `owner_pid`, `session_id`, and all metadata needed for discovery.
+/// All arc state files live in the PROJECT directory:
+///   - `<cwd>/.claude/arc-phase-loop.local.md`
+///   - `<cwd>/.claude/arc/arc-*/checkpoint.json`
+///   - `<cwd>/tmp/arc/arc-*/heartbeat.json`
 ///
-/// No glob scanning — the loop state file directly points to the checkpoint.
+/// config_dir is only for starting Claude Code, not for file paths.
 pub fn discover_arc(
     cwd: &Path,
     plan_path: &Path,
     _launched_after: DateTime<Utc>,
-    expected_config_dir: Option<&str>,
+    _expected_config_dir: Option<&str>,
     expected_claude_pid: Option<u32>,
 ) -> Option<ArcHandle> {
-    let config_dir = expected_config_dir?;
-    let config_path = Path::new(config_dir);
-
-    discover_from_loop_state(cwd, config_path, plan_path, expected_claude_pid)
-}
-
-/// Discover arc from `arc-phase-loop.local.md` state file.
-///
-/// Reads the loop state, validates plan_file match, resolves checkpoint_path
-/// relative to config_dir (not cwd), and returns an ArcHandle.
-fn discover_from_loop_state(
-    cwd: &Path,
-    config_dir: &Path,
-    plan_path: &Path,
-    expected_claude_pid: Option<u32>,
-) -> Option<ArcHandle> {
-    let state = read_arc_loop_state(config_dir)?;
+    let state = read_arc_loop_state(cwd)?;
 
     // Validate plan_file matches (normalize both to "plans/..." form)
     let plan_str = plan_path.display().to_string();
@@ -193,8 +179,12 @@ fn discover_from_loop_state(
         }
     }
 
-    // Resolve checkpoint_path relative to config_dir
-    let checkpoint_path = resolve_checkpoint_path(&state.checkpoint_path, config_dir, cwd);
+    // Resolve checkpoint_path relative to cwd (all arc files are project-relative)
+    let checkpoint_path = if state.checkpoint_path.starts_with('/') {
+        PathBuf::from(&state.checkpoint_path)
+    } else {
+        cwd.join(&state.checkpoint_path)
+    };
 
     // Verify checkpoint file exists
     if !checkpoint_path.exists() {
@@ -220,35 +210,6 @@ fn discover_from_loop_state(
 /// Resolve a checkpoint_path from arc-phase-loop.local.md to an absolute path.
 ///
 /// The checkpoint_path in the loop state file can be:
-/// - Absolute: `/Users/foo/.claude/arc/arc-123/checkpoint.json` → use as-is
-/// - Relative with `.claude/` prefix: `.claude/arc/arc-123/checkpoint.json`
-///   → strip `.claude/` and prepend config_dir (since config_dir IS the .claude dir)
-/// - Other relative: `arc/arc-123/checkpoint.json` → try config_dir, then cwd
-pub fn resolve_checkpoint_path(checkpoint_path: &str, config_dir: &Path, cwd: &Path) -> PathBuf {
-    // Absolute path — use directly
-    if checkpoint_path.starts_with('/') {
-        return PathBuf::from(checkpoint_path);
-    }
-
-    // Relative path starting with .claude/ — map to config_dir
-    // e.g. ".claude/arc/arc-123/checkpoint.json" → "<config_dir>/arc/arc-123/checkpoint.json"
-    if let Some(rest) = checkpoint_path.strip_prefix(".claude/") {
-        let resolved = config_dir.join(rest);
-        if resolved.exists() {
-            return resolved;
-        }
-    }
-
-    // Try config_dir directly (e.g. "arc/arc-123/checkpoint.json")
-    let from_config = config_dir.join(checkpoint_path);
-    if from_config.exists() {
-        return from_config;
-    }
-
-    // Last resort: relative to cwd
-    cwd.join(checkpoint_path)
-}
-
 /// Extract the "plans/..." relative portion from a path string.
 fn extract_plans_relative(path: &str) -> &str {
     if let Some(idx) = path.find("plans/") {
