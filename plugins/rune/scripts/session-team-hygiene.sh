@@ -361,7 +361,7 @@ orphan_checkpoint_count=$(
     [[ -L "$wt_dir" ]] && continue  # symlink rejection
     # SEC-S8-001: path traversal guard on worktree dir name
     [[ "$wt_dir" == *".."* ]] && continue
-    local wt_base="${wt_dir%/.claude/arc}"
+    wt_base="${wt_dir%/.claude/arc}"  # no `local` — we're in a subshell, not a function
     [[ -L "$wt_base" ]] && continue  # reject symlinked worktree root
     scan_dirs+=("$wt_dir")
   done

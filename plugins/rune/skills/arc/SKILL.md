@@ -517,7 +517,7 @@ try {
         `**Timestamp**: ${manifest.timestamp}`,
       ].join('\n')
       // SEC-S8-004 FIX: Use --body-file instead of heredoc to prevent content injection
-      const tmpManifestFile = Bash("mktemp").trim()
+      const tmpManifestFile = Bash('mktemp "${TMPDIR:-/tmp}/rune-manifest-XXXXXX"').trim()
       Write(tmpManifestFile, manifestComment)
       Bash(`gh pr comment ${prNumber} --body-file "${tmpManifestFile}" && rm -f "${tmpManifestFile}"`)
     }
