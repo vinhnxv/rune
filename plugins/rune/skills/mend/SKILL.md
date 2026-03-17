@@ -237,6 +237,26 @@ See [goldmask-quick-check.md](../goldmask/references/goldmask-quick-check.md) fo
 
 **Variables set for Phase 6**: `quickCheckResults` (or `undefined` if skipped)
 
+## Phase 5.96: EVIDENCE COLLECTION (Discipline Integration)
+
+After mend-fixers complete and ward check passes, collect evidence that fixes resolve the underlying criteria. This connects mend fixes to the discipline proof trail.
+
+```javascript
+// Evidence collection for mend fixes (Discipline Integration)
+// Mend-fixers write evidence to tmp/work/{timestamp}/evidence/{task-id}/
+// using execute-discipline-proofs.sh and proof-schema.md proof types.
+// If proof fails after fix, fixer reports F3 (PROOF_FAILURE) — not a silent skip.
+// Evidence directory: follows the evidence-convention.md standard path.
+//
+// This phase verifies evidence was collected by scanning fixer SEALs:
+const fixerSeals = allFixerSeals || []
+const fixersWithEvidence = fixerSeals.filter(s => s.includes('evidence:') || s.includes('proof'))
+const fixersWithoutEvidence = fixerSeals.length - fixersWithEvidence.length
+if (fixersWithoutEvidence > 0 && totalCriteriaInPlan > 0) {
+  warn(`DISCIPLINE: ${fixersWithoutEvidence}/${fixerSeals.length} mend-fixers did not report evidence collection`)
+}
+```
+
 ## Phase 6: RESOLUTION REPORT
 
 Aggregates fixer SEALs, cross-file fixes, doc-consistency fixes into `tmp/mend/{id}/resolution-report.md`. Convergence: FIXED > FALSE_POSITIVE > FAILED > SKIPPED. P1 FAILED/SKIPPED triggers escalation warning. Goldmask Integration section (risk overlay + quick check results).

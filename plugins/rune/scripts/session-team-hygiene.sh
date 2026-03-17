@@ -346,10 +346,26 @@ stale_state_count=$(
 
 # Count orphaned arc checkpoints (v1.110.0: Bug 2 fix)
 # Scan .claude/arc/ and tmp/arc/ for checkpoints with dead owner_pid
+# v1.174.0: Also scan worktree checkpoint directories (.claude/worktrees/*/. claude/arc/)
+# so orphaned worktree arc checkpoints are visible from the main repo session.
 orphan_checkpoint_count=0
 orphan_checkpoint_count=$(
   count=0
-  for ckpt_dir in "${CWD}/.claude/arc" "${CWD}/tmp/arc"; do
+  # Build scan dirs: project root + any worktree .claude/arc/ directories
+  scan_dirs=("${CWD}/.claude/arc" "${CWD}/tmp/arc")
+  # Add worktree checkpoint dirs (worktrees are at .claude/worktrees/*/)
+  # SEC-S8-002 FIX: Reject symlinks on worktree dirs (parity with team dir scanning at line 108)
+  shopt -s nullglob 2>/dev/null || true
+  for wt_dir in "${CWD}/.claude/worktrees"/*/.claude/arc; do
+    [[ -d "$wt_dir" ]] || continue
+    [[ -L "$wt_dir" ]] && continue  # symlink rejection
+    # SEC-S8-001: path traversal guard on worktree dir name
+    [[ "$wt_dir" == *".."* ]] && continue
+    wt_base="${wt_dir%/.claude/arc}"  # no `local` — we're in a subshell, not a function
+    [[ -L "$wt_base" ]] && continue  # reject symlinked worktree root
+    scan_dirs+=("$wt_dir")
+  done
+  for ckpt_dir in "${scan_dirs[@]}"; do
     [[ -d "$ckpt_dir" ]] || continue
     shopt -s nullglob 2>/dev/null || true
     for f in "$ckpt_dir"/*/checkpoint.json; do

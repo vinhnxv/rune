@@ -89,6 +89,14 @@ Each agent declares which plan section topics it can enrich, what subsection it 
 | tdd-compliance-reviewer | testing, tdd, coverage, test-first, assertion, pytest | — | [python, typescript, rust, php] | TDD Compliance | Test-first development, coverage thresholds, and assertion quality |
 | design-implementation-reviewer | design-system, design-tokens, ui-layout, responsive-design, visual-fidelity, component-variants, figma, accessibility-design, component-states, design-spec | — | [react, vue, svelte, nextjs, typescript] | Design Implementation | Design fidelity, token usage, responsive compliance, and accessibility |
 
+### Acceptance Criteria Preservation Rules (Discipline Integration)
+
+**PRESERVE existing acceptance_criteria blocks when enriching**: Forge agents MUST NOT remove, overwrite, or weaken existing `acceptance_criteria:` YAML blocks in plan task sections. When enriching a task section that already has criteria, ADD enrichment content around the criteria — never inside or in place of the YAML block.
+
+**ADD criteria for new content**: When forge agents generate NEW task content (new subsections, new implementation details, new edge cases), they SHOULD add corresponding `acceptance_criteria:` entries with machine-verifiable proof types (`pattern_matches`, `test_passes`, `file_exists`, `command_succeeds`). DO NOT add criteria with `semantic` proof type only — maintain machine-verifiable proofs wherever possible.
+
+**DO NOT remove or modify existing criteria** even if they appear redundant after enrichment. Criteria integrity is validated post-enrichment by Phase 5.5 (Criteria Guard). Violations are detected and may trigger a revert to the pre-enrichment backup.
+
 ### Weight Overrides
 
 Agents with uniform topic weights (all topics equally important) need no entry here — the scoring algorithm treats list-format topics as weight 1.0 each. Only agents with graduated expertise declare weight overrides using dict format. Topics MUST be listed in descending weight order (highest first) since the top-3 by weight drive the `title_bonus` calculation.
@@ -663,7 +671,7 @@ The forge agent generating criteria should use its perspective to inform criteri
 
 Each generated criterion should reference an appropriate proof type from the proof schema. Proof types determine how the criterion can be verified during gap analysis and pre-ship validation.
 
-See [proof-schema.md](../../discipline/references/proof-schema.md) for the full list of available proof types: `file_exists`, `pattern_matches`, `no_pattern_exists`, `test_passes`, `builds_clean`, `git_diff_contains`, `line_count_delta`, `semantic_match`.
+See [proof-schema.md](../../discipline/references/proof-schema.md) for the full list. Common proof types (used by gap-fixer, mend-fixer, and parse-plan extraction): `pattern_matches`, `test_passes`, `file_exists`, `command_succeeds`. Extended types (require specialized tooling): `no_pattern_exists`, `builds_clean`, `git_diff_contains`, `line_count_delta`, `semantic_match`. Prefer common types for machine-verifiable criteria — workers may not support extended types.
 
 Annotate each criterion with its proof type in a comment when the type is non-obvious:
 

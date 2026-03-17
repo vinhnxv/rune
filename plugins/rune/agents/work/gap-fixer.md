@@ -148,6 +148,35 @@ Apply the minimal targeted change that resolves the gap. Do NOT refactor surroun
 - Match existing documentation style in the file
 - Example commit: `fix(context): [VIGIL-003] add docstring to parseFixableGaps helper`
 
+## Evidence Collection (Discipline Integration)
+
+After applying each fix, collect evidence that the fix resolves the underlying criterion.
+This step connects gap remediation to the Discipline proof trail — without it, fixes are
+assumed correct without verification (violating the Separation Principle).
+
+```
+For each FIXED gap:
+1. Identify the acceptance criterion that was violated (from gap description or VERDICT.md)
+2. Run execute-discipline-proofs.sh on the relevant criterion (if available)
+3. Write evidence to the standard directory: tmp/work/{timestamp}/evidence/{task-id}/
+4. Classify the outcome using F-codes (see table below)
+5. Include evidence file path in remediation report
+```
+
+**F-code classification** (use when reporting evidence outcomes):
+| Code | Name | When | Action |
+|------|------|------|--------|
+| F3 | PROOF_FAILURE | Evidence doesn't verify — fix didn't resolve criterion | Report failure, do not silently skip |
+| F9 | INFRASTRUCTURE_FAILURE | Timeout, network error, tool error during proof | Report as infra issue, retry once |
+| F10 | CRITERIA_REGRESSION | Criterion was passing before fix, now fails | Priority fix — regression introduced |
+| F17 | CONVERGENCE_STAGNATION | Same proof fails after 2+ fix attempts | Escalate — stop retrying |
+
+**Proof type selection**: Reference `plugins/rune/skills/discipline/references/proof-schema.md`.
+Common types: `pattern_matches`, `test_passes`, `file_exists`, `command_succeeds`.
+
+If the proof executor is unavailable or the criterion has no machine-verifiable proof,
+note this in the remediation report as "evidence: manual verification required".
+
 ## COMMIT FORMAT
 
 Each fix gets its own atomic commit:

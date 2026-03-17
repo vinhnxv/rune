@@ -293,12 +293,26 @@ const skipMap = computeSkipMap(arcConfig, designSync, storybook, ux, codexAvaila
 
 ## Checkpoint Schema v23
 
-// Schema history: see CHANGELOG.md for migration notes from v12-v23.
+// Schema history: see CHANGELOG.md for migration notes from v12-v24.
 
 ```javascript
 // ── Resolve session identity for cross-session isolation ──
 const configDir = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
 const ownerPid = Bash(`echo $PPID`).trim()
+
+// ── Resolve worktree context (v1.174.0) ──
+// When arc runs inside a git worktree, record the worktree root and main repo root
+// for cross-session resume awareness. --resume from main repo can detect worktree checkpoints.
+const gitCommonDir = Bash("git rev-parse --git-common-dir 2>/dev/null").trim()
+const gitDir = Bash("git rev-parse --git-dir 2>/dev/null").trim()
+const isWorktree = !!(gitCommonDir && gitDir) && gitCommonDir !== gitDir
+const worktreeMeta = isWorktree ? {
+  is_worktree: true,
+  worktree_root: Bash("git rev-parse --show-toplevel 2>/dev/null").trim(),
+  main_repo_root: gitCommonDir.replace(/\/\.git$/, ''),
+  // Detached HEAD fallback: null signals detached state (not empty string which is ambiguous)
+  worktree_branch: Bash("git branch --show-current 2>/dev/null").trim() || null
+} : { is_worktree: false }
 
 // ── Resolve parent_plan context (v1.79.0+: hierarchical execution) ──
 // When arc is invoked as a child under arc-hierarchy, this context is passed via the
@@ -316,7 +330,7 @@ const parentPlanMeta = {
 // The arc-hierarchy SKILL.md documents the injection protocol.
 
 Write(`.claude/arc/${id}/checkpoint.json`, {
-  id, schema_version: 23, plan_file: planFile,
+  id, schema_version: 24, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, accept_external_changes: arcConfig.accept_external_changes ?? true, bot_review: arcConfig.bot_review ?? false, no_bot_review: arcConfig.no_bot_review ?? false },
   arc_config: arcConfig,
@@ -401,6 +415,10 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
     parent: shardInfo.parentPath,      // e.g., "plans/...-implementation-plan.md"
     dependencies: shardInfo.dependencies  // e.g., [1]
   } : null,
+  // Schema v24 addition (v1.174.0): worktree context metadata
+  // Records whether arc is running inside a git worktree and provides the main repo root
+  // for cross-session resume awareness. --resume from main repo can scan worktree checkpoints.
+  worktree: worktreeMeta,
   // Schema v22 addition (v1.144.0): cancellation tracking
   user_cancelled: false,
   cancel_reason: null,

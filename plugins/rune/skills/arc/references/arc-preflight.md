@@ -35,11 +35,41 @@ Always pulls latest before branching. Always asks user before operating on a non
 | Feature branch (shard) | Any | Reuse existing shard branch (`rune/arc-{feature}-shards-*`) or create new one |
 
 ```javascript
+// ── WORKTREE DETECTION (v1.174.0) ──
+// Detect if arc is running inside a git worktree (e.g., .claude/worktrees/{name}/).
+// When git-common-dir differs from git-dir parent, we're in a worktree.
+// Worktrees have an isolated branch already — skip branch creation entirely.
+const gitCommonDir = Bash("git rev-parse --git-common-dir 2>/dev/null").trim()
+const gitDir = Bash("git rev-parse --git-dir 2>/dev/null").trim()
+// Worktree detection: git guarantees git-common-dir === git-dir only in the main working tree.
+// The .endsWith guards protect against partial git command failure (e.g., old git without --git-common-dir).
+const isWorktree = !!(gitCommonDir && gitDir) && gitCommonDir !== gitDir
+
+if (isWorktree) {
+  const worktreeRoot = Bash("git rev-parse --show-toplevel 2>/dev/null").trim()
+  // Detached HEAD fallback: git branch --show-current returns empty in detached state
+  const worktreeBranch = Bash("git branch --show-current 2>/dev/null").trim()
+    || Bash("git rev-parse --short HEAD 2>/dev/null").trim()
+    || "DETACHED"
+  log(`WORKTREE DETECTED: Running inside git worktree at ${worktreeRoot}`)
+  log(`Worktree branch: ${worktreeBranch} — using as-is (isolated branch)`)
+  warn(
+    "Arc is running inside a git worktree. Notes:\n" +
+    "  - Checkpoint is worktree-scoped — --resume must be run from this worktree\n" +
+    "  - Branch strategy skipped — worktree already on isolated branch\n" +
+    "  - Plugin changes in worktree do NOT affect the cached plugin loaded by Claude Code\n" +
+    "  - To use worktree changes, exit worktree and /reload-plugins after merge"
+  )
+  // Skip branch strategy entirely — worktree already provides isolation
+  // branch = worktreeBranch (set for checkpoint)
+}
+
 // ── SAFE BRANCH STRATEGY ──
+// (skipped entirely when isWorktree is true — worktree branch is used as-is)
 const currentBranch = Bash("git branch --show-current 2>/dev/null").trim()
 const dirtyFiles = Bash("git status --porcelain 2>/dev/null").trim()
 const mainBranch = Bash("git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null || echo refs/remotes/origin/main").trim().replace(/.*\//, '')
-const isMainBranch = (currentBranch === "main" || currentBranch === "master" || currentBranch === mainBranch)
+const isMainBranch = !isWorktree && (currentBranch === "main" || currentBranch === "master" || currentBranch === mainBranch)
 const isDirty = !!dirtyFiles
 const fileCount = isDirty ? dirtyFiles.split('\n').length : 0
 
@@ -82,8 +112,15 @@ function createFeatureBranch(planFile, shardInfo) {
   return branchName
 }
 
+// ── CASE 0: In worktree — skip all branch logic ──
+if (isWorktree) {
+  log(`Using worktree branch: ${currentBranch}`)
+  // branch = currentBranch (set for checkpoint)
+  // Fall through to checkpoint init — no branch creation needed
+}
+
 // ── CASE 1: On main/master, clean working tree ──
-if (isMainBranch && !isDirty) {
+if (!isWorktree && isMainBranch && !isDirty) {
   // Pull latest — ensure we branch from up-to-date code
   const pullResult = Bash(`git pull --ff-only origin "${mainBranch}" 2>&1`).trim()
   if (pullResult.includes("fatal") || pullResult.includes("error")) {
@@ -111,7 +148,7 @@ if (isMainBranch && !isDirty) {
 }
 
 // ── CASE 2: On main/master, dirty working tree ──
-if (isMainBranch && isDirty) {
+if (!isWorktree && isMainBranch && isDirty) {
   const choice = AskUserQuestion({
     question:
       `You have ${fileCount} uncommitted change(s) on \`${mainBranch}\`.\n` +
@@ -137,7 +174,7 @@ if (isMainBranch && isDirty) {
 }
 
 // ── CASE 3: On feature branch, clean working tree ──
-if (!isMainBranch && !isDirty) {
+if (!isWorktree && !isMainBranch && !isDirty) {
   const choice = AskUserQuestion({
     question:
       `You're on branch \`${currentBranch}\`, not \`${mainBranch}\`.\n\n` +
@@ -163,7 +200,7 @@ if (!isMainBranch && !isDirty) {
 }
 
 // ── CASE 4: On feature branch, dirty working tree ──
-if (!isMainBranch && isDirty) {
+if (!isWorktree && !isMainBranch && isDirty) {
   const choice = AskUserQuestion({
     question:
       `You're on branch \`${currentBranch}\` with ${fileCount} uncommitted change(s).\n` +

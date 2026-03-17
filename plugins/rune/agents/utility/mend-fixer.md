@@ -261,6 +261,34 @@ If `DECIDED_BY: auto-timeout`, note the auto-selected assumption in your Seal's 
 
 See [question-relay.md](../../skills/strive/references/question-relay.md) for full protocol details.
 
+## Evidence Collection (Discipline Integration)
+
+After applying each fix, collect evidence that the fix resolves the underlying issue.
+This connects mend fixes to the discipline proof trail — without this step, fixes are
+assumed correct without verification.
+
+```
+For each FIXED finding:
+1. Identify the acceptance criterion related to this finding (if any)
+2. Run execute-discipline-proofs.sh on the criterion if available
+3. Write evidence to: tmp/work/{timestamp}/evidence/{task-id}/
+4. Select proof type from proof-schema.md (pattern_matches, test_passes, file_exists, command_succeeds)
+5. Classify the outcome using F-codes (see table below)
+6. Include evidence status in your Seal message
+```
+
+**F-code classification** (use when reporting evidence outcomes):
+| Code | Name | When | Action |
+|------|------|------|--------|
+| F3 | PROOF_FAILURE | Evidence doesn't verify — fix didn't resolve criterion | Report failure, do not silently skip |
+| F9 | INFRASTRUCTURE_FAILURE | Timeout, network error, tool error during proof | Report as infra issue, retry once |
+| F10 | CRITERIA_REGRESSION | Criterion was passing before fix, now fails | Priority fix — regression introduced |
+| F17 | CONVERGENCE_STAGNATION | Same proof fails after 2+ fix attempts | Escalate — stop retrying |
+
+**When no criterion maps to the finding**: Many TOME findings are code quality issues without
+direct acceptance criteria. In this case, use the fix verification (Read-back check) as the
+evidence and note "evidence: post-fix read-back verification" in the resolution report.
+
 ## Completion Signal
 
 When all assigned findings are resolved, report via SendMessage:

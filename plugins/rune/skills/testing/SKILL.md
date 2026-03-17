@@ -93,6 +93,40 @@ See [file-route-mapping.md](references/file-route-mapping.md) for framework patt
 
 See [test-report-template.md](references/test-report-template.md) for the output spec.
 
+## Discipline Integration (v1.173.0)
+
+### Echo-Back Requirement (AC-8.4.1, AC-8.4.2)
+
+Test runner agents MUST echo-back their test strategy before execution:
+```
+I will verify:
+  AC-1 (user authentication) → unit test: test_login_flow
+  AC-2 (rate limiting) → integration test: test_rate_limiter
+  AC-5 (audit logging) → no test available (WARN: criteria not covered)
+```
+
+This echo-back is logged to the test strategy document and lets the orchestrator detect
+criteria misalignment BEFORE tests run. If a criterion has no test, it's flagged early
+rather than discovered post-execution.
+
+### Failure Classification with F-Codes (AC-8.4.3, AC-8.4.4, AC-8.4.5)
+
+The fix loop classifies failures with discipline failure codes for pattern tracking:
+
+| F-Code | Name | Meaning | Recovery Action |
+|--------|------|---------|-----------------|
+| F3 | PROOF_FAILURE | Implementation is wrong — code doesn't meet criterion | Fix code, re-run |
+| F9 | INFRASTRUCTURE_FAILURE | Test itself is broken or infra is misconfigured | Fix test/infra, re-run |
+| F17 | CONVERGENCE_STAGNATION | Same test fails same assertion across 2+ fix attempts | Escalate immediately — stop retrying |
+
+**F17 detection**: When the same test fails with the same assertion message across 2+ fix
+attempts, the fix loop breaks immediately instead of retrying. This prevents wasting cycles
+on unfixable issues.
+
+**F-code → discipline metrics**: Classification feeds into discipline metrics (Shard 5 T5.1)
+for failure pattern tracking across pipeline runs. Patterns like "F3 on auth tests" recurring
+across arcs indicate systemic implementation gaps.
+
 ## Failure Escalation Protocol
 
 ```
