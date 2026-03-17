@@ -11,6 +11,13 @@ use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
+/// Shell-escape a string by wrapping in single quotes.
+/// Internal single quotes are replaced with `'\''` (end-quote, escaped-quote, start-quote).
+/// SEC-002 FIX: prevents command injection when values are sent to a shell via tmux send-keys.
+fn shell_escape(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
@@ -88,11 +95,12 @@ fn cmd_new_session(args: &[String]) -> String {
         std::process::exit(1);
     }
 
-    // Start claude
+    // Start claude (SEC-002: shell-escape both paths to prevent injection via tmux send-keys)
     let cmd = if is_default {
-        format!("{} --dangerously-skip-permissions", claude)
+        format!("{} --dangerously-skip-permissions", shell_escape(&claude))
     } else {
-        format!("CLAUDE_CONFIG_DIR={} {} --dangerously-skip-permissions", config_path, claude)
+        format!("CLAUDE_CONFIG_DIR={} {} --dangerously-skip-permissions",
+            shell_escape(&config_path), shell_escape(&claude))
     };
 
     Command::new("tmux")
