@@ -163,12 +163,12 @@ For each FIXED gap:
 5. Include evidence file path in remediation report
 ```
 
-**F-code classification** (use when reporting evidence outcomes):
+**F-code classification** (use when reporting evidence outcomes — see [failure-codes.md](../../skills/discipline/references/failure-codes.md) for full F1-F17 registry):
 | Code | Name | When | Action |
 |------|------|------|--------|
 | F3 | PROOF_FAILURE | Evidence doesn't verify — fix didn't resolve criterion | Report failure, do not silently skip |
-| F9 | INFRASTRUCTURE_FAILURE | Timeout, network error, tool error during proof | Report as infra issue, retry once |
-| F10 | CRITERIA_REGRESSION | Criterion was passing before fix, now fails | Priority fix — regression introduced |
+| F8 | INFRASTRUCTURE_FAILURE | Timeout, network error, tool error during proof | Report as infra issue, retry once |
+| F10 | REGRESSION | Criterion was passing before fix, now fails | Priority fix — regression introduced |
 | F17 | CONVERGENCE_STAGNATION | Same proof fails after 2+ fix attempts | Escalate — stop retrying |
 
 **Proof type selection**: Reference `plugins/rune/skills/discipline/references/proof-schema.md`.

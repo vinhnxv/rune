@@ -34,7 +34,7 @@ with single-pass results.
 | `discipline.block_on_fail` | `false` | Whether convergence failure blocks task completion (WARN vs BLOCK) |
 | `discipline.enabled` | `true` | Master switch for the discipline work loop |
 
-All values read via `readTalismanSection("discipline")`.
+All values read via `readTalismanSection("settings")?.discipline` (no dedicated discipline shard — config lives under the `settings` namespace).
 
 ---
 
