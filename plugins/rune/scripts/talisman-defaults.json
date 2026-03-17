@@ -417,6 +417,19 @@
       "block_threshold": 40,
       "enabled": true,
       "warn_threshold": 20
+    },
+    "discipline": {
+      "block_on_fail": false,
+      "proof_types": {
+        "token_scan": true,
+        "story_exists": true,
+        "axe_passes": "auto",
+        "storybook_renders": "auto",
+        "screenshot_diff": "auto",
+        "responsive_check": "auto"
+      },
+      "fidelity_threshold": 0.8,
+      "max_iterations": 3
     }
   },
   "devise": {
