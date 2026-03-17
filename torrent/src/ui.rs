@@ -216,13 +216,14 @@ fn render_selection(frame: &mut Frame, app: &App, area: Rect) {
 
     // Status bar
     let status = if app.queue_editing {
+        let cfg = app.config_dirs.get(app.selected_config).map(|c| c.label.as_str()).unwrap_or("?");
         if !app.selected_plans.is_empty() {
             format!(
-                " {} plan(s) selected · [r/Enter] add to queue  [Esc] cancel",
-                app.selected_plans.len()
+                " {} plan(s) · {} · [r/Enter] add to queue  [Tab] switch  [Esc] cancel",
+                app.selected_plans.len(), cfg
             )
         } else {
-            " [Space] toggle plan · [a] select all · [Esc] cancel".into()
+            format!(" {} · [Tab] switch panel · [Space] toggle · [a] all · [Esc] cancel", cfg)
         }
     } else if let Some(ref msg) = app.status_message {
         msg.clone()

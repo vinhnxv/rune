@@ -72,16 +72,27 @@ fn handle_running_key(key: KeyEvent) -> Action {
 }
 
 /// Queue-edit mode: Selection view while arc is running.
-/// Different keybindings: Enter/r = append, Esc/q = cancel.
+/// Tab to switch panels, Enter = select config (Config panel) or append (Plan panel).
 fn handle_queue_edit_key(app: &App, key: KeyEvent) -> Action {
+    use crate::app::Panel;
     match key.code {
         KeyCode::Esc | KeyCode::Char('q') => Action::CancelQueueEdit,
-        KeyCode::Char('r') | KeyCode::Enter if !app.selected_plans.is_empty() => {
-            Action::AppendToQueue
+        KeyCode::Char('r') if !app.selected_plans.is_empty() => Action::AppendToQueue,
+        KeyCode::Enter => {
+            match app.active_panel {
+                Panel::ConfigList => Action::SelectConfig,
+                Panel::PlanList if !app.selected_plans.is_empty() => Action::AppendToQueue,
+                _ => Action::None,
+            }
         }
         KeyCode::Char('a') => Action::ToggleAll,
         KeyCode::Tab => Action::SwitchPanel,
-        KeyCode::Char(' ') => Action::TogglePlan,
+        KeyCode::Char(' ') => {
+            match app.active_panel {
+                Panel::PlanList => Action::TogglePlan,
+                Panel::ConfigList => Action::SelectConfig,
+            }
+        }
         KeyCode::Up => Action::MoveUp,
         KeyCode::Down => Action::MoveDown,
         _ => Action::None,
