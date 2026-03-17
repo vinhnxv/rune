@@ -494,8 +494,9 @@ discipline:
 ```
 
 The metrics form three layers. Decomposition quality feeds into execution quality,
-which feeds into verification quality. SCR is the terminal metric — it aggregates
-the quality of all preceding layers into a single compliance number.
+which feeds into verification quality. SCR is the terminal code compliance metric,
+and DSR (when design_sync is enabled) is the terminal design compliance metric.
+Together they aggregate the quality of all preceding layers into compliance numbers.
 
 ---
 

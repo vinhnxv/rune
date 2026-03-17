@@ -1668,7 +1668,7 @@ context_weaving:
 #   library_match_threshold: 0.5             # Minimum confidence for library match (0.0-1.0, default: 0.5)
 #                                            # Matches below this threshold are discarded. Component falls back
 #                                            # to figma-ref only (no library-match.tsx generated).
-#   # --- Design Discipline (v1.175.1) ---
+#   # --- Design Discipline (v1.175.2) ---
 #   discipline:                              # Design discipline proof validation
 #     enabled: true                          # Enable design proof validation (default: true when design_sync enabled)
 #     block_on_fail: false                   # Advisory mode (default). Design proofs never halt pipeline.
