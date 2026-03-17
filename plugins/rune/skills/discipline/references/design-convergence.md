@@ -30,9 +30,10 @@ When entry conditions are NOT met, the design iteration phase (7.6) is skipped e
 | Config Key | Default | Description |
 |---|---|---|
 | `design_sync.max_iterations` | `3` | Maximum design convergence iterations |
-| `design_sync.fidelity_threshold` | `80` | SECONDARY gate — score threshold (0-100) |
+| `design_sync.fidelity_threshold` | `80` | SECONDARY gate — score threshold (0-100 scale, used by Phase 5.2) |
+| `design_sync.discipline.fidelity_threshold` | `0.8` | Per-criterion fidelity threshold (0-1 scale, used by design convergence) |
 | `design_sync.iterate_enabled` | `true` | Enable design iteration phase |
-| `discipline.design.block_on_fail` | `false` | Whether design convergence failure blocks pipeline |
+| `design_sync.discipline.block_on_fail` | `false` | Whether design convergence failure blocks pipeline |
 
 ---
 
@@ -173,7 +174,11 @@ for iteration in 1..maxIterations+1:
       writeDesignCriteriaMatrix(id, iteration, matrix, "stagnation", "F17")
       return { exit: "stagnation", failure_code: "F17", dsr }
 
-  // --- Regression exit (F10) ---
+  // --- Regression detection (F10) ---
+  // NOTE: This reference spec exits on regression for strictness. The arc Phase 7.6
+  // implementation (arc-phase-design-iteration.md) logs regressions as warnings but
+  // continues the loop — this is intentional to allow other non-regressed criteria
+  // to converge. Implementations MAY choose either behavior based on strictness needs.
   if iteration >= 2:
     regressions = findDesignRegressions(id, iteration)
     if regressions.length > 0:

@@ -132,7 +132,7 @@ attention — repeated machine correction is unlikely to converge.
 
 ### Proof Coverage
 
-The fraction of acceptance criteria that have a defined proof type (any of the 8 proof
+The fraction of acceptance criteria that have a defined proof type (any of the 14 proof
 types from proof-schema.md), regardless of whether the proof passed or failed.
 
 ```

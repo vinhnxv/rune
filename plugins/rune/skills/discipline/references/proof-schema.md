@@ -230,6 +230,11 @@ Result values: `PASS` | `FAIL` | `INCONCLUSIVE`
 
 INCONCLUSIVE always triggers human escalation — it is never treated as a pass. For design proofs, INCONCLUSIVE does not count against the Design Spec-compliance Rate (DSR).
 
+**Note on REGRESSION and STAGNANT**: These statuses appear only in design convergence iteration
+tracking (see [design-convergence.md](design-convergence.md)). They are terminal states that
+trigger exit conditions (F10 and F17 respectively) — they are NOT excluded from convergence
+like INCONCLUSIVE, but instead halt the convergence loop.
+
 ---
 
 ## Proof Execution Model
