@@ -123,43 +123,48 @@ pub struct ActiveArc {
     pub phase_progress: Option<(u32, u32)>,
 }
 
-/// Scan all config dirs for active arc sessions.
+/// Scan for active arc sessions in the project directory.
 ///
-/// For each config dir:
-/// 1. Read arc-phase-loop.local.md
-/// 2. Check if owner_pid is alive
-/// 3. Scan tmux sessions for matching rune-* session
-/// 4. Read checkpoint for phase progress
+/// Reads <cwd>/.claude/arc-phase-loop.local.md (single source of truth),
+/// then matches config_dir from loop state to find the correct ConfigDir entry.
 pub fn scan_active_arcs(config_dirs: &[ConfigDir], cwd: &Path) -> Vec<ActiveArc> {
     let tmux_sessions = list_rune_tmux_sessions();
     let mut active = Vec::new();
 
-    for config in config_dirs {
-        if let Some(loop_state) = monitor::read_arc_loop_state(&config.path) {
-            let pid_alive = is_pid_alive_check(&loop_state.owner_pid);
+    // Read loop state from project dir (not config dirs)
+    if let Some(loop_state) = monitor::read_arc_loop_state(cwd) {
+        let pid_alive = is_pid_alive_check(&loop_state.owner_pid);
+        let tmux_session = find_tmux_for_pid(&tmux_sessions, &loop_state.owner_pid);
 
-            // Find matching tmux session by checking all rune-* sessions
-            // for the Claude Code PID that matches owner_pid
-            let tmux_session = find_tmux_for_pid(&tmux_sessions, &loop_state.owner_pid);
-
-            // Read checkpoint for phase info (resolve path via config_dir)
-            let checkpoint_path = monitor::resolve_checkpoint_path(
-                &loop_state.checkpoint_path, &config.path, cwd,
-            );
-
-            let (current_phase, pr_url, phase_progress) =
-                read_checkpoint_summary(&checkpoint_path);
-
-            active.push(ActiveArc {
-                config_dir: config.clone(),
-                loop_state,
-                pid_alive,
-                tmux_session,
-                current_phase,
-                pr_url,
-                phase_progress,
+        // Match config_dir from loop state to our known config dirs
+        let config_dir = config_dirs
+            .iter()
+            .find(|c| c.path.to_string_lossy() == loop_state.config_dir)
+            .cloned()
+            .unwrap_or_else(|| ConfigDir {
+                path: PathBuf::from(&loop_state.config_dir),
+                label: loop_state.config_dir.clone(),
             });
-        }
+
+        // Read checkpoint for phase info (relative to cwd)
+        let checkpoint_path = if loop_state.checkpoint_path.starts_with('/') {
+            PathBuf::from(&loop_state.checkpoint_path)
+        } else {
+            cwd.join(&loop_state.checkpoint_path)
+        };
+
+        let (current_phase, pr_url, phase_progress) =
+            read_checkpoint_summary(&checkpoint_path);
+
+        active.push(ActiveArc {
+            config_dir,
+            loop_state,
+            pid_alive,
+            tmux_session,
+            current_phase,
+            pr_url,
+            phase_progress,
+        });
     }
 
     // Also scan for orphan tmux sessions (rune-* sessions without a loop state)

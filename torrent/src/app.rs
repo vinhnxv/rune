@@ -428,11 +428,13 @@ impl App {
         // Parse claude_pid from owner_pid
         let claude_pid = arc.loop_state.owner_pid.parse::<u32>().ok();
 
-        // Resolve checkpoint path via config_dir (not cwd)
+        // Resolve checkpoint path relative to cwd (project dir)
         let cwd = std::env::current_dir().unwrap_or_default();
-        let checkpoint_path = monitor::resolve_checkpoint_path(
-            &arc.loop_state.checkpoint_path, &arc.config_dir.path, &cwd,
-        );
+        let checkpoint_path = if arc.loop_state.checkpoint_path.starts_with('/') {
+            PathBuf::from(&arc.loop_state.checkpoint_path)
+        } else {
+            cwd.join(&arc.loop_state.checkpoint_path)
+        };
 
         // Try to read checkpoint for arc_id
         let arc_id = std::fs::read_to_string(&checkpoint_path)
@@ -595,14 +597,12 @@ impl App {
 
         // File exists — read_arc_loop_state returns None if active: false
         if monitor::read_arc_loop_state(&cwd).is_none() {
-            if !state.active {
-                self.status_message = Some(
-                    "arc-phase-loop.local.md active: false — arc cancelled".into(),
-                );
-                if let Some(run) = &mut self.current_run {
-                    if run.merge_detected_at.is_none() {
-                        run.merge_detected_at = Some(Instant::now());
-                    }
+            self.status_message = Some(
+                "arc-phase-loop.local.md active: false — arc cancelled".into(),
+            );
+            if let Some(run) = &mut self.current_run {
+                if run.merge_detected_at.is_none() {
+                    run.merge_detected_at = Some(Instant::now());
                 }
             }
         }
