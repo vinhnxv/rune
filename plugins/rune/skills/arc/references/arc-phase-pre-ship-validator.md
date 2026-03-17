@@ -306,6 +306,11 @@ function preShipValidator(checkpoint, planPath) {
   try {
     const scm = checkpoint.spec_compliance_matrix ?? {}
     const convergence = checkpoint.convergence ?? {}
+    // Resolve evidence directory from work phase checkpoint (avoid glob in manifest)
+    const workPhase = checkpoint.phases?.work
+    const workTimestamp = workPhase?.artifact?.match(/tmp\/arc\/([^/]+)\//)?.[1] || checkpoint.id
+    const evidenceDir = `tmp/work/${workTimestamp}/evidence/`
+
     const manifest = {
       plan_file: checkpoint.plan_file,
       arc_id: checkpoint.id,
@@ -314,7 +319,7 @@ function preShipValidator(checkpoint, planPath) {
       scr: scm.scr ?? null,
       convergence_rounds: convergence.round ?? 0,
       per_criterion_status: scm,  // GREEN/YELLOW/RED breakdown
-      evidence_directory: `tmp/work/*/evidence/`,
+      evidence_directory: evidenceDir,
       verdict: report.verdict
     }
     Write(`tmp/arc/${checkpoint.id}/proof-manifest.json`, JSON.stringify(manifest, null, 2))

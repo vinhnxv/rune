@@ -127,6 +127,11 @@ on unfixable issues.
 for failure pattern tracking across pipeline runs. Patterns like "F3 on auth tests" recurring
 across arcs indicate systemic implementation gaps.
 
+> **Implementation status**: F-code classification is emitted via `warn()` during fix loops
+> and recorded in convergence history (checkpoint). Structured metrics persistence to a
+> cross-run metrics store is planned as part of the discipline metrics pipeline (Shard 5 T5.1)
+> but not yet implemented — current tracking is per-run via checkpoint data and echo entries.
+
 ## Failure Escalation Protocol
 
 ```
@@ -138,7 +143,11 @@ Test runner detects failure
     → If failures detected:
       → Spawn test-failure-analyst (Opus, 3-min deadline)
       → Analyst reads: failure traces + source code + error logs
+      → Analyst receives plan context via test strategy document (which includes
+        planFilePath from checkpoint — enabling spec-aware root cause analysis)
       → Analyst produces: root cause + fix proposal + confidence
+      → With plan context, analyst can identify "test fails because criterion
+        AC-X was never implemented" — not just "test fails on line Y"
     → If analyst times out: attach raw test output instead
 ```
 

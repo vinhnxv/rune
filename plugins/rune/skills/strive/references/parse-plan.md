@@ -444,8 +444,12 @@ if (totalCriteriaExtracted > 0) {
       const isMapped = extractedTasks.some(et => {
         const desc = (et.description || '').toLowerCase()
         // Match by criterion ID (e.g., AC-8.1.1) or by criterion text keywords
+        // Match by criterion ID (e.g., AC-8.1.1) — high precision
+        // Match by criterion text prefix (first 60 chars) — broader fallback
+        // 60-char window chosen to exceed typical criterion preambles while
+        // staying short enough to avoid cross-criterion false positives
         return (criterionId && desc.includes(criterionId.toLowerCase())) ||
-               (criterionText && desc.includes(criterionText.toLowerCase().slice(0, 40)))
+               (criterionText && desc.includes(criterionText.toLowerCase().slice(0, 60)))
       })
 
       if (!isMapped) {

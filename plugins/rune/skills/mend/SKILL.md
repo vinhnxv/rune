@@ -248,12 +248,20 @@ After mend-fixers complete and ward check passes, collect evidence that fixes re
 // If proof fails after fix, fixer reports F3 (PROOF_FAILURE) — not a silent skip.
 // Evidence directory: follows the evidence-convention.md standard path.
 //
-// This phase verifies evidence was collected by scanning fixer SEALs:
+// This phase verifies evidence was collected by scanning fixer SEALs AND filesystem:
 const fixerSeals = allFixerSeals || []
 const fixersWithEvidence = fixerSeals.filter(s => s.includes('evidence:') || s.includes('proof'))
 const fixersWithoutEvidence = fixerSeals.length - fixersWithEvidence.length
 if (fixersWithoutEvidence > 0 && totalCriteriaInPlan > 0) {
   warn(`DISCIPLINE: ${fixersWithoutEvidence}/${fixerSeals.length} mend-fixers did not report evidence collection`)
+}
+
+// Filesystem verification: check evidence directories actually exist (not just Seal text)
+// Guards against fixers that mention "evidence" in Seal without writing actual files
+const evidenceDirs = Glob(`tmp/work/*/evidence/*/`)
+const fixersClaimingEvidence = fixersWithEvidence.length
+if (fixersClaimingEvidence > 0 && evidenceDirs.length === 0) {
+  warn(`DISCIPLINE: ${fixersClaimingEvidence} fixers claimed evidence in Seal but no evidence directories found in tmp/work/*/evidence/ — evidence may be fabricated`)
 }
 ```
 

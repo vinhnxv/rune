@@ -341,6 +341,9 @@ for (const batch of testingPlan.batches) {
     prompt: `Run these ${batch.type} tests: ${batch.files.join(', ')}
       Output to: ${resultPath}
       Strategy: ${Read(`tmp/arc/${id}/test-strategy.md`)}
+      DISCIPLINE: Before running tests, echo-back your test strategy at the top of your output:
+        "I will verify: AC-X via [test type]: [test name], AC-Y via [test type]: [test name], AC-Z has no test (WARN)"
+        Map each acceptance criterion from the strategy to the specific test that verifies it.
       IMPORTANT: Include <!-- STATUS: PASS --> if all tests pass, or FAIL with details.
       When done, claim your task via TaskList + TaskUpdate (status: "completed").`
   })
@@ -361,14 +364,30 @@ for (const batch of testingPlan.batches) {
   // F-code classification feeds into discipline metrics for pattern tracking across runs.
   let lastFailureSignature = null
 
+  // F3/F8 classification helper: distinguish implementation failures from infra failures.
+  // Heuristic: failures in test setup/teardown/import/connection → F8 (infra), failures in
+  // assertion body → F3 (implementation). Used for logging — both currently retry with fixer.
+  function classifyFailure(failureText) {
+    const infraPatterns = /\b(ImportError|ModuleNotFoundError|ConnectionRefused|ECONNREFUSED|ENOENT|timeout|setUp|tearDown|fixture|docker|port\s+\d+|cannot\s+connect)\b/i
+    return infraPatterns.test(failureText) ? 'F8' : 'F3'
+  }
+
   // Fix loop — up to max_fix_retries on failure (DEEP-006 FIX: spawn fixer before rerun)
   for (let retry = 0; !passed && retry < batchConfig.max_fix_retries; retry++) {
     // F17 (CONVERGENCE_STAGNATION) detection: same test fails same assertion across 2+ fix attempts
-    const currentFailureSignature = batchResult.match(/FAIL:?\s*(.{0,100})/)?.[1] || ''
+    // Normalize signature: strip line numbers, file paths, and timestamps to reduce false negatives
+    const rawSignature = batchResult.match(/FAIL:?\s*(.{0,200})/)?.[1] || ''
+    const currentFailureSignature = rawSignature
+      .replace(/:\d+/g, ':N')           // normalize line numbers
+      .replace(/\/[\w./-]+\.\w+/g, '')  // strip file paths
+      .replace(/\d{4}-\d{2}-\d{2}/g, '') // strip dates
+      .trim()
     if (lastFailureSignature && currentFailureSignature === lastFailureSignature) {
       warn(`F17 CONVERGENCE_STAGNATION: batch ${batch.id} — same assertion failed 2+ attempts. Escalating immediately.`)
       break  // Stop retrying — escalate to failure analyst or human
     }
+    const fCode = classifyFailure(rawSignature)
+    warn(`Batch ${batch.id} failure classified as ${fCode} (${fCode === 'F8' ? 'infra/test broken' : 'implementation wrong'})`)
     lastFailureSignature = currentFailureSignature
     batch.status = "fixing"
     batch.fix_attempts = retry + 1

@@ -192,15 +192,17 @@ let criteriaRegression = false
 const scm = checkpoint.spec_compliance_matrix
 if (scm && scm.total > 0) {
   // Re-check criteria status by scanning evidence directory for freshness
-  const evidenceDirs = Glob(`tmp/work/*/evidence/*/`)
   const criteriaPassCount = scm.green ?? 0
   const criteriaTotalCount = scm.total
 
   // Check for criteria regression: previously-PASS criterion moved to FAIL after mend
   // Compare current SCR against checkpoint's stored SCR from gap_analysis
+  // NOTE: SCR uses the checkpoint's green count, not a fresh evidence re-scan.
+  // Re-running proofs here would be expensive (~30s per criterion). The checkpoint
+  // SCR is sufficient because mend fixes review findings, not acceptance criteria
+  // directly — criteria status rarely changes during mend.
   const previousScr = scm.scr ?? 0
-  const currentGreenAfterMend = criteriaPassCount  // Re-read from evidence if available
-  const currentScr = criteriaTotalCount > 0 ? currentGreenAfterMend / criteriaTotalCount : 1.0
+  const currentScr = criteriaTotalCount > 0 ? criteriaPassCount / criteriaTotalCount : 1.0
 
   if (currentScr < previousScr) {
     criteriaRegression = true
@@ -209,6 +211,9 @@ if (scm && scm.total > 0) {
 
   // Criteria converge when SCR >= threshold (default 0.8) or no regression
   // readTalismanSection: "settings"
+  // NOTE: Default 0.8 here is intentionally lower than strive's 0.95 (work-loop-convergence.md)
+  // because arc operates at pipeline level where some criteria may be addressed in later phases.
+  // Both read from discipline.scr_threshold if set in talisman — only the defaults diverge.
   const disciplineConfig = readTalismanSection("settings")?.discipline ?? {}
   const scrThreshold = disciplineConfig.scr_threshold ?? 0.8
   if (currentScr < scrThreshold && !criteriaRegression) {
@@ -221,10 +226,15 @@ if (scm && scm.total > 0) {
 checkpoint.convergence.history[checkpoint.convergence.history.length - 1].criteria_converged = criteriaConverged
 checkpoint.convergence.history[checkpoint.convergence.history.length - 1].criteria_regression = criteriaRegression
 
-// Override verdict: if findings converged but criteria regressed, force retry
+// Override verdict: if findings converged but criteria did NOT converge, force retry
+// Dual convergence gate: BOTH findings AND criteria must converge to proceed.
+// Two failure modes: (a) criteria regressed (SCR went DOWN), (b) criteria below threshold (SCR stays low).
 if (verdict === 'converged' && criteriaRegression) {
   warn('DISCIPLINE: Findings converged but criteria regressed — forcing retry (dual convergence gate)')
-  verdict = 'retry'  // override — both dimensions must converge
+  verdict = 'retry'  // override — regression is highest priority
+} else if (verdict === 'converged' && !criteriaConverged) {
+  warn('DISCIPLINE: Findings converged but SCR below threshold — forcing retry (dual convergence gate)')
+  verdict = 'retry'  // override — criteria must also converge
 }
 ```
 
