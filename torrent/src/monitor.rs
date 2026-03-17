@@ -469,8 +469,7 @@ fn compute_phase_navigation(checkpoint: &Checkpoint) -> Option<PhaseNavigation> 
 
     // Find next: first pending phase AFTER current in PHASE_ORDER
     let next = current_idx.and_then(|ci| {
-        for i in (ci + 1)..PHASE_ORDER.len() {
-            let phase_name = PHASE_ORDER[i];
+        for &phase_name in PHASE_ORDER.iter().skip(ci + 1) {
             if let Some(phase) = checkpoint.phases.get(phase_name) {
                 if phase.status == "pending" || phase.status.is_empty() {
                     return Some(phase_name.to_string());

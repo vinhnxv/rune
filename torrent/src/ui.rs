@@ -143,7 +143,7 @@ fn render_active_arcs(frame: &mut Frame, app: &App, area: Rect) {
             if !si.cwd.is_empty() {
                 // Shorten CWD: ~/Desktop/repos/rune-plugin → rune-plugin
                 let short_cwd = si.cwd.rsplit('/').next().unwrap_or(&si.cwd);
-                info_spans.push(Span::styled(format!("{short_cwd}"), Style::default().fg(sol::BASE0)));
+                info_spans.push(Span::styled(short_cwd.to_string(), Style::default().fg(sol::BASE0)));
             }
             info_spans.push(Span::styled(
                 format!("  {} MCP, {} mates", si.mcp_count, si.teammate_count),

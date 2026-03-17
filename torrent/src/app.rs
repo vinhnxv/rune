@@ -295,7 +295,7 @@ impl App {
                 let config_dir = run.arc.as_ref()
                     .map(|a| a.config_dir.as_str())
                     .unwrap_or("");
-                run.session_info = crate::scanner::enrich_session_info_pub(
+                run.session_info = crate::scanner::enrich_session_info(
                     &pid.to_string(),
                     config_dir,
                     &self.sys,
@@ -331,10 +331,11 @@ impl App {
                 }
             }
             // If it has a PID, verify it's still alive
-            if !arc.loop_state.owner_pid.is_empty() && arc.pid_alive {
-                if !Self::is_pid_alive(&arc.loop_state.owner_pid) {
-                    return false;
-                }
+            if !arc.loop_state.owner_pid.is_empty()
+                && arc.pid_alive
+                && !Self::is_pid_alive(&arc.loop_state.owner_pid)
+            {
+                return false;
             }
             // Orphan entries (no tmux AND no PID) are always stale
             if arc.tmux_session.is_none() && arc.loop_state.owner_pid.is_empty() {
@@ -597,14 +598,12 @@ impl App {
             Action::KillSession => self.kill_current_session(),
             Action::PickPlans => {
                 // Enter queue-edit mode: show Selection to pick more plans
+                // NOTE: Do NOT re-scan plans here — existing queue entries reference
+                // plan indices from the current self.plans list. Re-scanning would
+                // shift indices and break queue/in-flight matching.
                 self.queue_editing = true;
-                self.selected_plans.clear(); // fresh selection for appending
+                self.selected_plans.clear();
                 self.active_panel = Panel::PlanList;
-                // Re-scan plans in case new ones appeared
-                let cwd = std::env::current_dir().unwrap_or_default();
-                if let Ok(plans) = crate::scanner::scan_plans(&cwd) {
-                    self.plans = plans;
-                }
                 self.plan_cursor = 0;
                 self.view = AppView::Selection;
             }
@@ -752,6 +751,11 @@ impl App {
                 duration: run.launched_at.elapsed(),
             });
             self.tmux_session_id = None;
+            // Clamp cursor after item count changed
+            let total = self.queue_total_items();
+            if total > 0 && self.queue_cursor >= total {
+                self.queue_cursor = total - 1;
+            }
         }
     }
 
@@ -771,6 +775,7 @@ impl App {
         }
         self.tmux_session_id = None;
         self.queue.clear();
+        self.queue_cursor = 0;
     }
 
     /// Main execution tick — called every ~1s from the event loop.
@@ -987,7 +992,7 @@ impl App {
             claude_pid,
             loop_state: None,
             session_info: claude_pid.and_then(|pid| {
-                crate::scanner::enrich_session_info_pub(
+                crate::scanner::enrich_session_info(
                     &pid.to_string(),
                     &config.path.to_string_lossy(),
                     &self.sys,

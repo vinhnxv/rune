@@ -339,18 +339,9 @@ fn find_tmux_for_pid(
     None
 }
 
-/// Public wrapper for enrich_session_info (used by app.rs).
-pub fn enrich_session_info_pub(
-    owner_pid_str: &str,
-    config_dir: &str,
-    sys: &sysinfo::System,
-) -> Option<SessionInfo> {
-    enrich_session_info(owner_pid_str, config_dir, sys)
-}
-
 /// Enrich session info from sysinfo + filesystem.
 /// Gathers: started_at, cwd, mcp_count, teammate_count.
-fn enrich_session_info(
+pub fn enrich_session_info(
     owner_pid_str: &str,
     config_dir: &str,
     sys: &sysinfo::System,
@@ -367,7 +358,7 @@ fn enrich_session_info(
     let mut mcp_count = 0u32;
     let mut teammate_count = 0u32;
 
-    let descendants = crate::resource::collect_descendants_pub(sys, pid);
+    let descendants = crate::resource::collect_descendants(sys, pid);
     for desc_pid in &descendants {
         if let Some(proc_) = sys.process(Pid::from_u32(*desc_pid)) {
             let cmd = proc_.cmd().iter().map(|s| s.to_string_lossy()).collect::<Vec<_>>().join(" ");
