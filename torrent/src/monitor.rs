@@ -425,6 +425,11 @@ fn check_completion(checkpoint: &Checkpoint) -> Option<ArcCompletion> {
 }
 
 /// Compute previous/current/next phase navigation with timing.
+///
+/// Returns meaningful navigation even between phase transitions:
+/// - If a phase is in_progress → standard prev/current/next
+/// - If no in_progress but phases completed → shows last completed as prev, next pending as next
+/// - If all pending → shows first pending as next
 fn compute_phase_navigation(checkpoint: &Checkpoint) -> Option<PhaseNavigation> {
     // Find current phase index in canonical order
     let current_name = checkpoint.phases.iter()
@@ -449,40 +454,63 @@ fn compute_phase_navigation(checkpoint: &Checkpoint) -> Option<PhaseNavigation> 
         })
     });
 
-    // Find previous: last completed phase BEFORE current in PHASE_ORDER
-    let prev = current_idx.and_then(|ci| {
-        // Walk backwards from current index to find last completed
-        for i in (0..ci).rev() {
-            let phase_name = PHASE_ORDER[i];
-            if let Some(phase) = checkpoint.phases.get(phase_name) {
-                if phase.status == "completed" {
-                    let duration_secs = compute_phase_duration(phase);
-                    return Some(PhaseInfo {
-                        name: phase_name.to_string(),
-                        duration_secs,
-                    });
+    if let Some(ci) = current_idx {
+        // Standard case: a phase is in_progress
+        let prev = {
+            let mut found = None;
+            for i in (0..ci).rev() {
+                let phase_name = PHASE_ORDER[i];
+                if let Some(phase) = checkpoint.phases.get(phase_name) {
+                    if phase.status == "completed" {
+                        let duration_secs = compute_phase_duration(phase);
+                        found = Some(PhaseInfo {
+                            name: phase_name.to_string(),
+                            duration_secs,
+                        });
+                        break;
+                    }
                 }
             }
-        }
-        None
-    });
+            found
+        };
 
-    // Find next: first pending phase AFTER current in PHASE_ORDER
-    let next = current_idx.and_then(|ci| {
-        for &phase_name in PHASE_ORDER.iter().skip(ci + 1) {
-            if let Some(phase) = checkpoint.phases.get(phase_name) {
-                if phase.status == "pending" || phase.status.is_empty() {
-                    return Some(phase_name.to_string());
-                }
-            }
-        }
-        None
-    });
+        let next = PHASE_ORDER.iter().skip(ci + 1)
+            .find(|&&p| {
+                checkpoint.phases.get(p).map_or(false, |ph| ph.status == "pending" || ph.status.is_empty())
+            })
+            .map(|&p| p.to_string());
 
-    if current.is_some() || prev.is_some() || next.is_some() {
         Some(PhaseNavigation { prev, current, next })
     } else {
-        None
+        // No in_progress phase — transitioning between phases or not yet started
+        let last_completed_idx = PHASE_ORDER.iter().rposition(|&p| {
+            checkpoint.phases.get(p).map_or(false, |ph| ph.status == "completed")
+        });
+
+        let prev = last_completed_idx.and_then(|idx| {
+            let phase_name = PHASE_ORDER[idx];
+            let phase = checkpoint.phases.get(phase_name)?;
+            let duration_secs = compute_phase_duration(phase);
+            Some(PhaseInfo {
+                name: phase_name.to_string(),
+                duration_secs,
+            })
+        });
+
+        // Find first pending phase after last completed (or from start if none completed)
+        let search_start = last_completed_idx.map_or(0, |i| i + 1);
+        let next = PHASE_ORDER.iter().skip(search_start)
+            .find(|&&p| {
+                checkpoint.phases.get(p).map_or(false, |ph| ph.status == "pending" || ph.status.is_empty())
+            })
+            .map(|&p| p.to_string());
+
+        // Only return if we have something meaningful to show
+        if prev.is_some() || next.is_some() {
+            Some(PhaseNavigation { prev, current: None, next })
+        } else {
+            None
+        }
     }
 }
 
@@ -499,18 +527,50 @@ fn compute_phase_duration(phase: &crate::checkpoint::PhaseStatus) -> Option<i64>
 fn compute_phase_summary(checkpoint: &Checkpoint) -> PhaseSummary {
     let mut completed = 0u32;
     let mut skipped = 0u32;
-    let mut current_phase_name = String::from("initializing");
+    let mut in_progress_name: Option<String> = None;
 
     for (name, phase) in &checkpoint.phases {
         match phase.status.as_str() {
             "completed" => completed += 1,
             "skipped" => skipped += 1,
-            "in_progress" => current_phase_name = name.clone(),
+            "in_progress" => in_progress_name = Some(name.clone()),
             _ => {}
         }
     }
 
     let total = checkpoint.phases.len() as u32;
+
+    // Determine current phase name with smart fallback:
+    // 1. If a phase is in_progress → use it
+    // 2. If phases completed but none in_progress → transitioning to next pending
+    // 3. If no phases completed → waiting for first phase
+    let current_phase_name = if let Some(name) = in_progress_name {
+        name
+    } else if completed > 0 {
+        // Find last completed phase in canonical order, then next pending
+        let last_completed_idx = PHASE_ORDER.iter().rposition(|&p| {
+            checkpoint.phases.get(p).map_or(false, |ph| ph.status == "completed")
+        });
+        if let Some(idx) = last_completed_idx {
+            // Look for the next pending phase after last completed
+            PHASE_ORDER.iter().skip(idx + 1)
+                .find(|&&p| {
+                    checkpoint.phases.get(p).map_or(false, |ph| ph.status == "pending" || ph.status.is_empty())
+                })
+                .map(|&p| format!("→ {}", p))
+                .unwrap_or_else(|| format!("{} ✓", PHASE_ORDER[idx]))
+        } else {
+            "pending".to_string()
+        }
+    } else {
+        // No completed phases — find first pending in canonical order
+        PHASE_ORDER.iter()
+            .find(|&&p| {
+                checkpoint.phases.get(p).map_or(false, |ph| ph.status == "pending" || ph.status.is_empty())
+            })
+            .map(|&p| format!("→ {}", p))
+            .unwrap_or_else(|| "pending".to_string())
+    };
 
     PhaseSummary {
         completed,

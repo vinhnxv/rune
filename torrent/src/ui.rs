@@ -423,7 +423,7 @@ fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {
                         ),
                     ]));
                 }
-                // Current phase (in progress, with elapsed)
+                // Current phase (in progress, with elapsed) or transitioning indicator
                 if let Some(ref curr) = nav.current {
                     l.push(Line::from(vec![
                         Span::styled("  ▶ Now: ", Style::default().fg(sol::YELLOW)),
@@ -432,6 +432,12 @@ fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {
                             format!("  {}", format_duration(curr.duration_secs)),
                             Style::default().fg(sol::ORANGE),
                         ),
+                    ]));
+                } else {
+                    // Between phases — show transitioning indicator
+                    l.push(Line::from(vec![
+                        Span::styled("  ◇ ", Style::default().fg(sol::CYAN)),
+                        Span::styled("transitioning…", Style::default().fg(sol::CYAN).add_modifier(Modifier::DIM)),
                     ]));
                 }
                 // Next phase (pending)
@@ -442,7 +448,7 @@ fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {
                     ]));
                 }
             } else {
-                // Fallback: old-style single line
+                // Fallback: single line (e.g. no checkpoint phases yet)
                 l.push(Line::from(vec![
                     Span::styled("  Phase: ", Style::default().fg(sol::BASE01)),
                     Span::styled(&s.current_phase_name, Style::default().fg(sol::YELLOW).add_modifier(Modifier::BOLD)),
