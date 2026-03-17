@@ -273,7 +273,7 @@ See [resolution-report.md](references/resolution-report.md) for the full report 
 
 ## Phase 7: CLEANUP
 
-Standard 8-step cleanup: dynamic member discovery (fallback: `spawnedFixerNames` with wave-based names) → shutdown_request → grace period → SEC-003 ID validation → TeamDelete retry-with-backoff (4 attempts) → process kill + filesystem fallback → state file update (`"completed"` or `"partial"`) → workflow lock release → echo persist.
+Standard 8-step cleanup: dynamic member discovery (fallback: static worst-case array — CLEAN-002) → shutdown_request → grace period → SEC-003 ID validation → TeamDelete retry-with-backoff (4 attempts) → process kill + filesystem fallback → state file update (`"completed"` or `"partial"`) → workflow lock release → echo persist.
 
 See [phase-7-cleanup.md](references/phase-7-cleanup.md) for full pseudocode. See [engines.md](../team-sdk/references/engines.md) § cleanup for the shared pattern.
 

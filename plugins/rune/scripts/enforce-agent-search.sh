@@ -116,14 +116,10 @@ fi
 # Signal MISSING + workflow active + Rune team → inject advisory
 AGENT_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.subagent_type // .tool_input.name // "unknown"' 2>/dev/null || true)
 
-# Emit advisory via additionalContext (non-blocking)
-cat <<JSONEOF
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PreToolUse",
-    "additionalContext": "AGENT-SEARCH-001: You are spawning teammate '${AGENT_NAME}' for team '${TEAM_NAME}' without calling agent_search() first. Extended agents (registry/) and user-defined agents (talisman.yml user_agents) will be missed. Consider calling agent_search(query, phase) via the agent-search MCP server to discover the best agents for this task, then spawn from the results. If the MCP server is unavailable, this warning can be ignored."
-  }
-}
-JSONEOF
+# Emit advisory via additionalContext (non-blocking) — SEC-003: use jq --arg for safe JSON construction
+jq -n \
+  --arg agent_name "$AGENT_NAME" \
+  --arg team_name "$TEAM_NAME" \
+  '{hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: ("AGENT-SEARCH-001: You are spawning teammate \u0027" + $agent_name + "\u0027 for team \u0027" + $team_name + "\u0027 without calling agent_search() first. Extended agents (registry/) and user-defined agents (talisman.yml user_agents) will be missed. Consider calling agent_search(query, phase) via the agent-search MCP server to discover the best agents for this task, then spawn from the results. If the MCP server is unavailable, this warning can be ignored.")}}'
 
 exit 0

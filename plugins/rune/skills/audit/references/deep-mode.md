@@ -44,10 +44,11 @@ if (goldmaskEnabled && loreEnabled && isGitRepo && !flags['--no-lore']) {
         log(`Lore Layer: Tier 1 — analyzing ${loreFiles.length}/${all_files.length} Ash-relevant files (use --deep-lore for full scan)`)
       }
 
-      // Summon Lore Analyst as inline Agent (no team yet — ATE-1 EXEMPTION applies)
+      // SPAWN-001 FIX: Lore Analyst must be part of the audit team for proper lifecycle management
       Agent({
         name: "lore-analyst",
         subagent_type: "general-purpose",
+        team_name: `rune-audit-${audit_id}`,
         prompt: `You are lore-analyst — git history risk scoring specialist.
           Read agents/investigation/lore-analyst.md for your full protocol.
           Analyze git history for risk scoring of these files:

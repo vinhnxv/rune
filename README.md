@@ -6,10 +6,10 @@
 
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
-[![Version](https://img.shields.io/badge/version-1.174.0-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-1.175.1-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-95-purple)](#agents)
-[![Skills](https://img.shields.io/badge/skills-54-orange)](#skills)
+[![Agents](https://img.shields.io/badge/agents-109-purple)](#agents)
+[![Skills](https://img.shields.io/badge/skills-55-orange)](#skills)
 
 ---
 
@@ -344,7 +344,7 @@ Compares a plan against its implementation across 10 quality dimensions:
 
 ## Agents
 
-**98 specialized agents** across 6 categories:
+**109 specialized agents** across 6 categories:
 
 ### Review Agents (47)
 
@@ -484,7 +484,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 ## Skills
 
-54 skills providing background knowledge, workflow orchestration, and tool integration:
+55 skills providing background knowledge, workflow orchestration, and tool integration:
 
 | Skill | Type | Purpose |
 |-------|------|---------|
@@ -712,14 +712,15 @@ rune-plugin/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
         │   └── plugin.json       # Plugin manifest (v1.128.0)
-        ├── agents/               # 96 agent definitions
-        │   ├── review/           #   35 review agents
-        │   ├── investigation/    #   24 investigation agents
-        │   ├── utility/          #   23 utility agents
+        ├── agents/               # 109 agent definitions (66 agents/ + 43 registry/)
+        │   ├── review/           #   12 review agents
+        │   ├── investigation/    #   30 investigation agents
+        │   ├── utility/          #   16 utility agents
         │   ├── research/         #    5 research agents
         │   ├── testing/          #    5 testing agents
-        │   └── work/             #    6 work agents
-        ├── skills/               # 54 skills
+        │   ├── work/             #    3 work agents
+        │   └── registry/         #   43 extended agents
+        ├── skills/               # 55 skills
         ├── commands/             # 15 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json

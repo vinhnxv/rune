@@ -416,7 +416,10 @@ def _valid_agent_files(directory: str) -> List[str]:
 
     for root, dirs, files in os.walk(real_parent):
         # SEC-P2-003: containment check
-        if not os.path.realpath(root).startswith(real_parent):
+        # SEC-001 FIX: Add os.sep to prevent prefix-collision bypass (e.g. /project-evil
+        # would pass startswith("/project") without the separator check).
+        real_root = os.path.realpath(root)
+        if not (real_root.startswith(real_parent + os.sep) or real_root == real_parent):
             continue
 
         # Skip hidden dirs and reference dirs
@@ -433,7 +436,9 @@ def _valid_agent_files(directory: str) -> List[str]:
                 continue
             fpath = os.path.join(root, fname)
             # SEC-P2-003: containment check
-            if os.path.realpath(fpath).startswith(real_parent):
+            # SEC-001 FIX: Add os.sep guard against prefix-collision bypass.
+            real_fpath = os.path.realpath(fpath)
+            if real_fpath.startswith(real_parent + os.sep) or real_fpath == real_parent:
                 results.append(fpath)
 
     return results
@@ -506,7 +511,9 @@ def discover_and_parse(
             real_dir = os.path.realpath(extra_dir)
             real_project = os.path.realpath(project_dir)
             real_home = os.path.expanduser("~")
-            if not (real_dir.startswith(real_project) or real_dir.startswith(real_home)):
+            # SEC-001 FIX: Add os.sep guard against prefix-collision bypass.
+            if not (real_dir.startswith(real_project + os.sep) or real_dir == real_project
+                    or real_dir.startswith(real_home + os.sep) or real_dir == real_home):
                 print("WARN: extra_agent_dir '%s' outside project/home — skipped" % extra_dir,
                       file=sys.stderr)
                 continue

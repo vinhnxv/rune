@@ -426,7 +426,7 @@ interface DisputedFinding {
 
 ## Existing Pattern Reuse
 
-- Line bucket logic from `roundtable-circle/references/dedup.md`
+- Line bucket logic from `roundtable-circle/references/dedup-runes.md`
 - `<!-- RUNE:FINDING -->` markers for TOME compatibility (enables `/rune:mend`)
 - `sanitizeUntrustedText()` from `rune-orchestration` skill
 - Config fallback: `talisman.codex_review.cross_model_bonus ?? 15`
