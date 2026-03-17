@@ -142,14 +142,7 @@ If no contradictions found, output: "No scope/timeline contradictions detected."
     })
 
     // Monitor teammate completion
-    // waitForCompletion: pollIntervalMs=30000, timeoutMs=720000 (12 min — includes team overhead)
-    let completed = false
-    const maxIterations = Math.ceil(720000 / 30000) // 24 iterations
-    for (let i = 0; i < maxIterations && !completed; i++) {
-      const tasks = TaskList()
-      completed = tasks.every(t => t.status === "completed")
-      if (!completed) Bash("sleep 30")
-    }
+    waitForCompletion(teamName, 1, { timeoutMs: 720_000, pollIntervalMs: 30_000, staleWarnMs: 300_000, label: "Arc: Semantic Verification (Codex)" })
 
     // If teammate timed out or crashed, ensure output file exists for downstream consumers
     if (!exists(`tmp/arc/${id}/codex-semantic-verification.md`)) {
@@ -375,14 +368,7 @@ If no issues found, output: "No integrity gaps detected."
     })
 
     // Monitor teammate completion
-    // waitForCompletion: pollIntervalMs=30000, timeoutMs=960000 (16 min — includes team overhead)
-    let completed = false
-    const maxIterations = Math.ceil(960000 / 30000) // 32 iterations
-    for (let i = 0; i < maxIterations && !completed; i++) {
-      const tasks = TaskList()
-      completed = tasks.every(t => t.status === "completed")
-      if (!completed) Bash("sleep 30")
-    }
+    waitForCompletion(teamName, 1, { timeoutMs: 960_000, pollIntervalMs: 30_000, staleWarnMs: 300_000, label: "Arc: Codex Gap Analysis" })
 
     // If teammate timed out or crashed, ensure output file exists for downstream consumers
     if (!exists(`tmp/arc/${id}/codex-gap-analysis.md`)) {

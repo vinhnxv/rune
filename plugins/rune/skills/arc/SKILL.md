@@ -104,6 +104,7 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | 7.4 | `design_iteration` | Team | 15 min | Conditional: design fidelity |
 | 7.7 | `test` | Team | 25-50 min | Testing agents |
 | 7.8 | `test_coverage_critique` | Team | 15 min | Codex (conditional) |
+| 7.9 | `deploy_verify` | Team | 5 min | Conditional: deployment verification |
 | 8.5 | `pre_ship_validation` | Inline | 6 min | — |
 | 8.55 | `release_quality_check` | Team | 10 min | Codex (conditional) |
 | 9 | `ship` | Inline | 5 min | — |
@@ -147,6 +148,7 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | `--no-accept-external` | Prompt user when unrelated changes are detected on branch | Off |
 | `--bot-review` | Enable bot review wait + PR comment resolution (Phase 9.1/9.2) | Off |
 | `--no-bot-review` | Force-disable bot review (overrides both `--bot-review` and talisman) | Off |
+| `--status` | Show current arc phase, progress, and elapsed time (delegates to rune-status.sh) | Off |
 
 > **Note**: Worktree mode for `/rune:strive` (Phase 5) is activated via `work.worktree.enabled: true` in talisman.yml, not via a `--worktree` flag on arc.
 
@@ -220,6 +222,18 @@ Read(references/arc-phase-cleanup.md)
 ### Stale Arc Team Scan
 
 See [arc-preflight.md](references/arc-preflight.md) for the stale team scan algorithm.
+
+## Status (`--status`)
+
+Early return — display current arc phase, progress, and elapsed time without entering the pipeline.
+
+```javascript
+if (args.includes("--status")) {
+  const output = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/rune-status.sh"`)
+  // Display current phase, elapsed time, completed/total phases
+  return output
+}
+```
 
 ## Resume (`--resume`)
 
