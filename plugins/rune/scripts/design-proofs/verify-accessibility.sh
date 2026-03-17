@@ -20,16 +20,17 @@ RULES="$(printf '%s' "$INPUT" | jq -r '.rules // "wcag2aa"')"
 TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
 
 # --- Output helper ---
+# QUAL-304: Include dimension field per design-proof-types.md schema
 emit_result() {
-  local result="$1" evidence="$2" fc="${3:-}"
+  local result="$1" evidence="$2" fc="${3:-}" dimension="${4:-accessibility}"
   if [[ -n "$fc" ]]; then
     jq -n --arg cid "$CRITERION_ID" --arg r "$result" --arg e "$evidence" \
-      --arg fc "$fc" --arg ts "$TIMESTAMP" \
-      '{criterion_id:$cid,result:$r,evidence:$e,failure_code:$fc,timestamp:$ts}'
+      --arg fc "$fc" --arg ts "$TIMESTAMP" --arg dim "$dimension" \
+      '{criterion_id:$cid,result:$r,evidence:$e,failure_code:$fc,dimension:$dim,timestamp:$ts}'
   else
     jq -n --arg cid "$CRITERION_ID" --arg r "$result" --arg e "$evidence" \
-      --arg ts "$TIMESTAMP" \
-      '{criterion_id:$cid,result:$r,evidence:$e,timestamp:$ts}'
+      --arg ts "$TIMESTAMP" --arg dim "$dimension" \
+      '{criterion_id:$cid,result:$r,evidence:$e,dimension:$dim,timestamp:$ts}'
   fi
 }
 
@@ -77,7 +78,9 @@ AXE_OUTPUT=""
 AXE_EXIT=0
 
 # Try running axe via npx with timeout
-AXE_OUTPUT="$(timeout 60 npx @axe-core/cli --tags "$RULES" --exit "http://localhost:6006/iframe.html?id=${COMPONENT_NAME,,}--default" 2>&1)" || AXE_EXIT=$?
+# QUAL-302/SEC-002: Use tr for lowercase (Bash 3.2 compatible, replaces ${var,,})
+COMPONENT_NAME_LOWER="$(printf '%s' "$COMPONENT_NAME" | tr '[:upper:]' '[:lower:]')"
+AXE_OUTPUT="$(timeout 60 npx @axe-core/cli --tags "$RULES" --exit "http://localhost:6006/iframe.html?id=${COMPONENT_NAME_LOWER}--default" 2>&1)" || AXE_EXIT=$?
 
 if [[ $AXE_EXIT -eq 124 ]]; then
   emit_result "INCONCLUSIVE" "axe-core scan timed out (60s)" "F4"

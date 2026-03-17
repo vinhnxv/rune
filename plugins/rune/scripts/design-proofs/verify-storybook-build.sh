@@ -20,16 +20,17 @@ COMMAND="$(printf '%s' "$INPUT" | jq -r '.command // "npx storybook build --smok
 TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
 
 # --- Output helper ---
+# QUAL-304: Include dimension field per design-proof-types.md schema
 emit_result() {
-  local result="$1" evidence="$2" fc="${3:-}"
+  local result="$1" evidence="$2" fc="${3:-}" dimension="${4:-rendering}"
   if [[ -n "$fc" ]]; then
     jq -n --arg cid "$CRITERION_ID" --arg r "$result" --arg e "$evidence" \
-      --arg fc "$fc" --arg ts "$TIMESTAMP" \
-      '{criterion_id:$cid,result:$r,evidence:$e,failure_code:$fc,timestamp:$ts}'
+      --arg fc "$fc" --arg ts "$TIMESTAMP" --arg dim "$dimension" \
+      '{criterion_id:$cid,result:$r,evidence:$e,failure_code:$fc,dimension:$dim,timestamp:$ts}'
   else
     jq -n --arg cid "$CRITERION_ID" --arg r "$result" --arg e "$evidence" \
-      --arg ts "$TIMESTAMP" \
-      '{criterion_id:$cid,result:$r,evidence:$e,timestamp:$ts}'
+      --arg ts "$TIMESTAMP" --arg dim "$dimension" \
+      '{criterion_id:$cid,result:$r,evidence:$e,dimension:$dim,timestamp:$ts}'
   fi
 }
 
@@ -57,8 +58,25 @@ if [[ "$HAS_STORYBOOK" == "false" ]]; then
   exit 0
 fi
 
-# --- SEC: Command validation (same blocklist as main executor) ---
-if [[ "$COMMAND" =~ [$'\n'\;\&\|\$\`\<\>\(\)\{\}\!\~\'\"\\] ]]; then
+# --- SEC: Command validation (allowlist approach — SEC-001 fix) ---
+# Split command into tokens and validate the prefix against known-safe commands.
+# Only allow commands starting with known Storybook-related prefixes.
+ALLOWED_PREFIXES=("npx storybook" "npx sb" "yarn storybook" "pnpm storybook" "npm run storybook" "npm run build-storybook")
+CMD_ALLOWED=false
+for prefix in "${ALLOWED_PREFIXES[@]}"; do
+  if [[ "$COMMAND" == "$prefix"* ]]; then
+    CMD_ALLOWED=true
+    break
+  fi
+done
+
+if [[ "$CMD_ALLOWED" == "false" ]]; then
+  emit_result "FAIL" "Command not in allowlist: ${COMMAND:0:100}. Allowed prefixes: npx storybook, npx sb, yarn storybook, pnpm storybook, npm run storybook, npm run build-storybook" "F8"
+  exit 0
+fi
+
+# Also reject shell metacharacters as defense-in-depth
+if [[ "$COMMAND" =~ [$'\n'$'\t'$'\r'\;\&\|\$\`\<\>\(\)\{\}\!\~\'\"\\] ]]; then
   emit_result "FAIL" "Command contains blocked shell metacharacters: ${COMMAND:0:100}" "F8"
   exit 0
 fi
@@ -68,7 +86,9 @@ COMPONENT_NAME="$(basename "$TARGET")"
 BUILD_OUTPUT=""
 BUILD_EXIT=0
 
-BUILD_OUTPUT="$(timeout 120 bash -c "$COMMAND" 2>&1)" || BUILD_EXIT=$?
+# SEC-001: Execute via word-split array instead of bash -c to prevent injection
+read -ra CMD_ARGS <<< "$COMMAND"
+BUILD_OUTPUT="$(timeout 120 "${CMD_ARGS[@]}" 2>&1)" || BUILD_EXIT=$?
 
 if [[ $BUILD_EXIT -eq 124 ]]; then
   emit_result "INCONCLUSIVE" "Storybook build timed out (120s)" "F4"

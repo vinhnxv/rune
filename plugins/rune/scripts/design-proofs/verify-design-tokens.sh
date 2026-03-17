@@ -19,16 +19,17 @@ TARGET="$(printf '%s' "$INPUT" | jq -r '.target // ""')"
 TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
 
 # --- Output helper ---
+# QUAL-304: Include dimension field per design-proof-types.md schema
 emit_result() {
-  local result="$1" evidence="$2" fc="${3:-}"
+  local result="$1" evidence="$2" fc="${3:-}" dimension="${4:-color}"
   if [[ -n "$fc" ]]; then
     jq -n --arg cid "$CRITERION_ID" --arg r "$result" --arg e "$evidence" \
-      --arg fc "$fc" --arg ts "$TIMESTAMP" \
-      '{criterion_id:$cid,result:$r,evidence:$e,failure_code:$fc,timestamp:$ts}'
+      --arg fc "$fc" --arg ts "$TIMESTAMP" --arg dim "$dimension" \
+      '{criterion_id:$cid,result:$r,evidence:$e,failure_code:$fc,dimension:$dim,timestamp:$ts}'
   else
     jq -n --arg cid "$CRITERION_ID" --arg r "$result" --arg e "$evidence" \
-      --arg ts "$TIMESTAMP" \
-      '{criterion_id:$cid,result:$r,evidence:$e,timestamp:$ts}'
+      --arg ts "$TIMESTAMP" --arg dim "$dimension" \
+      '{criterion_id:$cid,result:$r,evidence:$e,dimension:$dim,timestamp:$ts}'
   fi
 }
 
