@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.175.1] - 2026-03-17
+
+### Fixed
+- **fix(discipline): align F-codes with canonical registry** — F9→F8 (INFRASTRUCTURE_FAILURE) in gap-fixer, mend-fixer, testing SKILL, and arc-phase-test to match canonical failure-codes.md (F9 is RESERVED). Added cross-references to failure-codes.md in all 4 files.
+- **fix(discipline): standardize talisman discipline config path** — All discipline config reads now use `readTalismanSection("settings")?.discipline` (no dedicated discipline shard). Fixed pre-ship-validator, storybook-verification, and work-loop-convergence.
+- **fix(discipline): resolve 11 inspect findings from Shard 8 verdict** — SIGHT-001: `criteriaConverged` now participates in verdict override (dual convergence gate). VIGIL-001: echo-back instruction injected into batch runner prompt. RUIN-001: F3/F8 classification heuristic added. GRACE-001: evidence directory uses resolved path. RUIN-002: F17 signature normalized. RUIN-004: filesystem evidence check in mend Phase 5.96. GRACE-002: criterion matching window 40→60 chars. Plus documentation fixes for RUIN-003, SIGHT-002, SIGHT-003, VIGIL-003.
+
 ## [1.175.0] - 2026-03-17
 
 ### Added
@@ -16,7 +23,7 @@
 ## [1.174.0] - 2026-03-17
 
 ### Added
-- **feat(discipline): arc pipeline discipline wiring (shard 8 of 9)** — Wire discipline enforcement into 8 additional arc phases. Forge criteria guard (Phase 1) validates acceptance criteria quality post-enrichment. Task decomposition criteria coverage assertion (Phase 4.5) verifies no criteria silently dropped. Remediation evidence collection (Phases 5.8, 7) in gap-fixer and mend-fixer agents with proof-schema.md reference. Spec-aware test discipline (Phase 7.7) with echo-back for test strategy, F-code classification (F3/F9/F17) in fix loops, and plan context for failure analyst. Spec-aware test coverage critique (Phase 7.8) evaluates both code coverage and spec coverage. Proof manifest generation at pre-ship validation (Phase 8.5) persisted as PR comment at merge. Dual convergence gate in verify-mend (Phase 7.3) checks both findings AND criteria dimensions with regression detection (F10).
+- **feat(discipline): arc pipeline discipline wiring (shard 8 of 9)** — Wire discipline enforcement into 8 additional arc phases. Forge criteria guard (Phase 1) validates acceptance criteria quality post-enrichment. Task decomposition criteria coverage assertion (Phase 4.5) verifies no criteria silently dropped. Remediation evidence collection (Phases 5.8, 7) in gap-fixer and mend-fixer agents with proof-schema.md reference. Spec-aware test discipline (Phase 7.7) with echo-back for test strategy, F-code classification (F3/F8/F17) in fix loops, and plan context for failure analyst. Spec-aware test coverage critique (Phase 7.8) evaluates both code coverage and spec coverage. Proof manifest generation at pre-ship validation (Phase 8.5) persisted as PR comment at merge. Dual convergence gate in verify-mend (Phase 7.3) checks both findings AND criteria dimensions with regression detection (F10).
 
 ## [1.173.0] - 2026-03-17
 
