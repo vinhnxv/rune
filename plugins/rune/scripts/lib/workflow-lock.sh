@@ -44,8 +44,14 @@ if ! type rune_pid_alive &>/dev/null; then
   }
 fi
 
-# SEC-001: Resolve LOCK_BASE to absolute path (anchored to git root or CWD)
+# SEC-001: Resolve LOCK_BASE to absolute path (anchored to MAIN repo root, not worktree)
 # SEC-006: git may be absent or output may contain unexpected whitespace — validate output
+# WORKTREE-FIX: $SCRIPT_DIR is the plugin's scripts/lib/ dir (in plugin cache),
+# NOT inside the project repo. So `git -C "$SCRIPT_DIR"` always FAILS for both
+# --show-toplevel and --git-common-dir. The existing code falls back to $(pwd).
+# In a worktree, $(pwd) = worktree root → locks are isolated (broken).
+# Fix: After $(pwd) fallback, check for .rune-worktree-source marker to resolve
+# the main repo root for shared lock visibility.
 if ! command -v git &>/dev/null; then
   echo "[rune-lock] ERROR: git not found — workflow locking requires git" >&2
   return 1 2>/dev/null || exit 1
@@ -57,6 +63,23 @@ _RUNE_LOCK_PATTERN='^/[a-zA-Z0-9_./ -]+$'
 if [[ -z "$_RUNE_LOCK_ROOT" ]] || [[ ! "$_RUNE_LOCK_ROOT" =~ $_RUNE_LOCK_PATTERN ]]; then
   _RUNE_LOCK_ROOT="$(pwd)"
 fi
+
+# WORKTREE-FIX: Only redirect when _RUNE_LOCK_ROOT is actually a worktree
+# (.git is a file, not a directory, in git worktrees). This structural check
+# prevents accidental redirect if a .rune-worktree-source marker exists in
+# a non-worktree repo (e.g., surviving a deleted worktree).
+if [[ -f "$_RUNE_LOCK_ROOT/.git" ]]; then
+  _RUNE_WT_MARKER="${_RUNE_LOCK_ROOT}/.claude/.rune-worktree-source"
+  if [[ -f "$_RUNE_WT_MARKER" && ! -L "$_RUNE_WT_MARKER" ]]; then
+    _RUNE_MAIN_ROOT=$(head -1 "$_RUNE_WT_MARKER" 2>/dev/null | tr -d '\n')
+    # SEC: Character-set validation (absolute path, safe chars) + explicit traversal guard.
+    # NOTE: the regex alone does NOT block ".." — the "! *".."*" glob check is load-bearing.
+    if [[ -n "$_RUNE_MAIN_ROOT" && "$_RUNE_MAIN_ROOT" =~ $_RUNE_LOCK_PATTERN && ! "$_RUNE_MAIN_ROOT" == *".."* && -d "$_RUNE_MAIN_ROOT" ]]; then
+      _RUNE_LOCK_ROOT="$_RUNE_MAIN_ROOT"
+    fi
+  fi
+fi
+
 LOCK_BASE="${_RUNE_LOCK_ROOT}/tmp/.rune-locks"
 
 # SEC-003: jq dependency guard — fail-open stubs if jq missing
