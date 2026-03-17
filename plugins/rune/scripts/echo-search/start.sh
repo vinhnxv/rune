@@ -40,6 +40,16 @@ fi
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 PROJECT_DIR=$(cd "$PROJECT_DIR" 2>/dev/null && pwd -P) || { echo "ERROR: invalid PROJECT_DIR" >&2; exit 1; }
 [[ "$PROJECT_DIR" == /* ]] || { echo "ERROR: PROJECT_DIR not absolute: $PROJECT_DIR" >&2; exit 1; }
+
+# WORKTREE-FIX: Prefer worktree CWD for echoes if available
+# When running in a worktree, CLAUDE_PROJECT_DIR points to the original repo
+# (upstream bug #27343). Detect worktree via .git file and use worktree echoes.
+_WT_CWD="$(pwd -P)"
+if [[ -f "$_WT_CWD/.git" && -d "$_WT_CWD/.claude/echoes" ]]; then
+  echo "INFO: Worktree echoes detected at $_WT_CWD — using worktree paths" >&2
+  PROJECT_DIR="$_WT_CWD"
+fi
+
 export ECHO_DIR="$PROJECT_DIR/.claude/echoes"
 export DB_PATH="$PROJECT_DIR/.claude/echoes/.search-index.db"
 

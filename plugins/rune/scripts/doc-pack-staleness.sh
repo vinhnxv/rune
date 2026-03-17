@@ -56,7 +56,8 @@ source "${SCRIPT_DIR}/lib/talisman-shard-path.sh" 2>/dev/null || true
 if type _rune_resolve_talisman_shard &>/dev/null; then
   TALISMAN_SHARD=$(_rune_resolve_talisman_shard "misc")
 else
-  TALISMAN_SHARD="${CLAUDE_PROJECT_DIR:-$PWD}/tmp/.talisman-resolved/misc.json"
+  # WORKTREE-FIX: Prefer CWD (worktree) over CLAUDE_PROJECT_DIR (may point to main repo per #27343)
+  TALISMAN_SHARD="${CWD:-${CLAUDE_PROJECT_DIR:-$PWD}}/tmp/.talisman-resolved/misc.json"
 fi
 if [[ -f "$TALISMAN_SHARD" && ! -L "$TALISMAN_SHARD" ]] && command -v jq &>/dev/null; then
   shard_val=$(jq -r '.echoes.global.staleness_days // empty' "$TALISMAN_SHARD" 2>/dev/null || true)

@@ -24,7 +24,8 @@ source "${SCRIPT_DIR}/lib/talisman-shard-path.sh" 2>/dev/null || true
 if type _rune_resolve_talisman_shard &>/dev/null; then
   TALISMAN_SHARD=$(_rune_resolve_talisman_shard "deliverable_verification")
 else
-  TALISMAN_SHARD="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/deliverable_verification.json"
+  # WORKTREE-FIX: Prefer CWD (worktree) over CLAUDE_PROJECT_DIR (may point to main repo per #27343)
+  TALISMAN_SHARD="${CWD:-${CLAUDE_PROJECT_DIR:-.}}/tmp/.talisman-resolved/deliverable_verification.json"
 fi
 MIN_SIZE=200
 if [[ -f "$TALISMAN_SHARD" && ! -L "$TALISMAN_SHARD" ]]; then

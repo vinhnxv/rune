@@ -13,7 +13,9 @@ _RUNE_SHARD_PATH_LOADED=1
 
 _rune_resolve_talisman_shard() {
   local shard_name="${1:?Usage: _rune_resolve_talisman_shard <shard_name>}"
-  local project_dir="${CLAUDE_PROJECT_DIR:-.}"
+  # WORKTREE-FIX: Accept optional CWD parameter for worktree-safe resolution
+  # Callers in worktree sessions pass CWD as $2 to read shards from the worktree's tmp/
+  local project_dir="${2:-${CLAUDE_PROJECT_DIR:-.}}"
   local chome="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
   # SEC-006: Reject path traversal and shell metacharacters in shard_name

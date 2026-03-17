@@ -37,7 +37,8 @@ source "${SCRIPT_DIR}/lib/talisman-shard-path.sh" 2>/dev/null || true
 if type _rune_resolve_talisman_shard &>/dev/null; then
   TALISMAN_SHARD=$(_rune_resolve_talisman_shard "keyword_detection")
 else
-  TALISMAN_SHARD="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/keyword_detection.json"
+  # WORKTREE-FIX: Prefer CWD (worktree) over CLAUDE_PROJECT_DIR (may point to main repo per #27343)
+  TALISMAN_SHARD="${CWD:-${CLAUDE_PROJECT_DIR:-.}}/tmp/.talisman-resolved/keyword_detection.json"
 fi
 if [[ -f "$TALISMAN_SHARD" ]]; then
   ENABLED=$(jq -r '.enabled // true' "$TALISMAN_SHARD" 2>/dev/null || echo "true")

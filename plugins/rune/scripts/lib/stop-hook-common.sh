@@ -62,6 +62,16 @@ resolve_cwd() {
   if [[ -z "$CWD" || "$CWD" != /* ]]; then
     exit 0
   fi
+  # WORKTREE-FIX: If CWD came from CLAUDE_PROJECT_DIR (not .cwd), and we can
+  # detect a worktree, prefer the worktree path. This handles Stop hooks
+  # where .cwd may be absent in older Claude Code versions.
+  if [[ -z "$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)" ]]; then
+    local actual_cwd
+    actual_cwd="$(pwd -P)"
+    if [[ -f "$actual_cwd/.git" && -f "$actual_cwd/.claude/.rune-worktree-source" && ! -L "$actual_cwd/.claude/.rune-worktree-source" ]]; then
+      CWD="$actual_cwd"
+    fi
+  fi
 }
 
 # ── check_state_file(): Guard 4 — state file existence ──

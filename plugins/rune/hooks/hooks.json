@@ -615,6 +615,19 @@
         ]
       }
     ],
+    "WorktreeCreate": [
+      {
+        "_rationale": "WT-001: Copy .claude/ contents to worktree for Rune compatibility. Workaround for anthropics/claude-code#28041. Fail-forward — worktree still usable without Rune config.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/setup-worktree.sh",
+            "timeout": 10,
+            "statusMessage": "Setting up Rune config in worktree..."
+          }
+        ]
+      }
+    ],
     "ElicitationResult": [
       {
         "_rationale": "SEC-ELICIT-001: SECURITY-class validator for ElicitationResult responses. Validates user responses from echo-search and figma-to-react elicitation prompts for path traversal ('..') and command injection metacharacters. Fail-closed — no _rune_fail_forward ERR trap. Exit 2 blocks bad responses.",
