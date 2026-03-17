@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.175.2] - 2026-03-17
+
+### Added
+- discipline: DSR (Design Spec-compliance Rate) 6-dimension breakdown in metrics-schema.md JSON schema — token_compliance, accessibility, variant_coverage, story_coverage, responsive, fidelity
+- discipline: DSR added to Metric Relationships diagram as sibling to SCR, validity rule for design_sync_enabled constraint, See Also links to design-proof-types.md and design-convergence.md
+- discipline: design_sync.discipline talisman configuration section in plugin-root talisman.example.yml — dsr_threshold, proof_types, advisory mode defaults
+- devise: Acceptance criteria quality validation (check c2) in plan-review.md Phase 4B.5 — validates YAML AC blocks against 14 registered proof types with severity mapping (HIGH/WARN/INFO)
+
 ## [1.175.1] - 2026-03-17
 
 ### Fixed

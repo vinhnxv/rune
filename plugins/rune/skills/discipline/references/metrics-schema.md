@@ -334,7 +334,15 @@ after the final convergence round completes.
       "threshold": 1.0,
       "gate_result": "PASS|FAIL|null",
       "design_sync_enabled": false,
-      "components": []
+      "components": [],
+      "dimensions": {
+        "token_compliance": 0.0,
+        "accessibility": 0.0,
+        "variant_coverage": 0.0,
+        "story_coverage": 0.0,
+        "responsive": 0.0,
+        "fidelity": 0.0
+      }
     },
     "first_pass_rate": {
       "value": 0.0,
@@ -431,6 +439,7 @@ Each entry in `verdicts.details`:
 4. `verdicts.overall = WARN` if non-gated metrics exceed advisory thresholds but no gates fail.
 5. `metrics.scr.threshold` MUST match the talisman `discipline.scr_threshold` value (default: 0.95).
 6. All `*_criteria` arrays (skipped, unverifiable, fabricated) MUST contain criterion IDs that exist in either the plan or task files.
+7. `metrics.dsr.design_sync_enabled` MUST be `false` when plan frontmatter lacks `design_sync: true`. When `design_sync_enabled` is `false`, `metrics.dsr.value` MUST be `null`.
 
 ---
 
@@ -448,6 +457,12 @@ discipline:
   metrics:
     first_pass_target: 0.70    # Advisory target for first-pass rate
     overhead_target: 0.30      # Advisory target for verification overhead
+
+# Design discipline thresholds (nested under design_sync:)
+# design_sync:
+#   discipline:
+#     dsr_threshold: 1.0       # Target DSR for design criteria (0.0-1.0)
+#     block_on_fail: false     # Advisory by default — design failures don't block pipeline
 ```
 
 ---
@@ -473,7 +488,8 @@ discipline:
                     ┌────────▼─────────┐
                     │ proof_coverage   │──── spec quality
                     │ verification_oh  │──── pipeline efficiency
-                    │ SCR              │──── final compliance
+                    │ SCR              │──── final code compliance
+                    │ DSR              │──── final design compliance (conditional)
                     └──────────────────┘
 ```
 
@@ -489,3 +505,5 @@ the quality of all preceding layers into a single compliance number.
 - [evidence-convention.md](evidence-convention.md) — Directory layout and evidence storage
 - [spec-continuity.md](spec-continuity.md) — Spec continuity through all pipeline phases
 - [anti-rationalization.md](anti-rationalization.md) — Rationalization patterns (relevant to fabrication and silent skip)
+- [design-proof-types.md](design-proof-types.md) — Design proof types (6 types: token_scan, axe_passes, story_exists, storybook_renders, screenshot_diff, responsive_check)
+- [design-convergence.md](design-convergence.md) — Per-criterion design convergence protocol using DSR as primary metric
