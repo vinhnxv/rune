@@ -1718,6 +1718,14 @@ if (allCriteria.length > 0) {
     // Remediation tasks are picked up by gap_remediation phase (Phase 5.8)
   }
 
+  // DISCIPLINE INTEGRATION: Evidence collection for gap remediation (Phase 5.8)
+  // Gap-fixers must collect evidence after applying fixes, following the evidence convention:
+  //   tmp/work/{timestamp}/evidence/{task-id}/{criterion-id}.json
+  // The evidence is used by the TaskCompleted hook (validate-discipline-proofs.sh) and
+  // by verify-mend's dual convergence gate (criteria dimension alongside findings).
+  // If proof fails after remediation fix, fixer reports F3 (PROOF_FAILURE) per failure codes.
+  // See discipline/references/evidence-convention.md and proof-schema.md.
+
   // Store in checkpoint for pre-ship validator
   updateCheckpoint({
     spec_compliance_matrix: {

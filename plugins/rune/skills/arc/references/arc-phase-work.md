@@ -42,6 +42,11 @@ if (exists(`tmp/arc/${id}/verification-report.md`)) {
 // Quality contract for all workers
 workContext += `\n\n## Quality Contract\nAll code must include:\n- Type annotations on all function signatures\n- Docstrings on all public functions, classes, and modules\n- Error handling with specific exception types (no bare except)\n- Test coverage target: >=80% for new code`
 
+// Discipline criteria coverage context: remind workers that acceptance criteria
+// were extracted and included in TaskCreate descriptions during plan parsing.
+// Workers should reference criteria when collecting evidence via the Discipline Work Loop.
+workContext += `\n\n## Discipline Integration\nAcceptance criteria from the plan have been extracted and included in your task descriptions. When the Discipline Work Loop is active, collect evidence per criterion before marking tasks complete. Reference proof-schema.md for proof type selection. Criteria coverage was validated during task decomposition — all plan criteria are mapped to work items.`
+
 // plan_file_path is available from the checkpoint for workers that need spec context.
 // Pass it to workers so they can verify their implementation matches the original plan.
 // Read from checkpoint.plan_file — do NOT use the state file or CLI flags as the source.

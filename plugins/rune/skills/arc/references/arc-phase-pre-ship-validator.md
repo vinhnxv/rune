@@ -287,6 +287,41 @@ function preShipValidator(checkpoint, planPath) {
   // This is the second line of defense after gap_analysis STEP D.0.
   report.verdict = hasBlock || hasFail ? "BLOCK" : hasWarn ? "WARN" : "PASS"
 
+  // ════════════════════════════════════════════
+  // PROOF MANIFEST GENERATION (Discipline Integration, v1.173.0)
+  // ════════════════════════════════════════════
+  //
+  // Generate a proof manifest summarizing per-criterion status with evidence references.
+  // This reuses SCR computation from GATE 3 (discipline metrics) and adds evidence paths.
+  // The manifest is persisted at ship/merge (Phase 9/9.5) as a PR comment.
+  //
+  // Manifest captures:
+  // 1. Plan file path and criteria count
+  // 2. Per-criterion status (PASS/FAIL/UNTESTED) with evidence file references
+  // 3. Spec Compliance Rate (SCR)
+  // 4. Failure codes encountered and recovery actions taken
+  // 5. Convergence iteration count
+  // 6. Timestamp and pipeline run ID
+  try {
+    const scm = checkpoint.spec_compliance_matrix ?? {}
+    const convergence = checkpoint.convergence ?? {}
+    const manifest = {
+      plan_file: checkpoint.plan_file,
+      arc_id: checkpoint.id,
+      timestamp: new Date().toISOString(),
+      criteria_count: scm.total ?? 0,
+      scr: scm.scr ?? null,
+      convergence_rounds: convergence.round ?? 0,
+      per_criterion_status: scm,  // GREEN/YELLOW/RED breakdown
+      evidence_directory: `tmp/work/*/evidence/`,
+      verdict: report.verdict
+    }
+    Write(`tmp/arc/${checkpoint.id}/proof-manifest.json`, JSON.stringify(manifest, null, 2))
+    report.proof_manifest_path = `tmp/arc/${checkpoint.id}/proof-manifest.json`
+  } catch (e) {
+    warn(`Proof manifest generation failed: ${e.message} — non-blocking`)
+  }
+
   // ── Write report ──
   const reportContent = formatPreShipReport(report)
   Write(`tmp/arc/${checkpoint.id}/pre-ship-report.md`, reportContent)

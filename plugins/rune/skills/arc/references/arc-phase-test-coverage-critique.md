@@ -62,21 +62,38 @@ Agent({
 
 ## Aspects (single aspect — run sequentially)
 
-### Aspect 1: test-coverage
+### Aspect 1: test-coverage (spec-aware)
 Output path: tmp/arc/${id}/test-critique.md
 Prompt file path: tmp/arc/${id}/.codex-prompt-test-critique.tmp
 
+**Discipline Integration (AC-8.4.8, AC-8.4.9, AC-8.4.10, AC-8.4.11)**:
+The critique reads plan acceptance criteria from checkpoint.plan_file and evaluates
+criteria-to-test mapping: which criteria have tests and which don't. This provides
+TWO dimensions of coverage:
+1. **Code coverage** (line/branch): traditional — what code paths are tested?
+2. **Spec coverage** (criteria tested/total): discipline — what requirements are verified?
+
+Untested CRITICAL criteria are flagged as spec coverage gaps (not just code coverage).
+This distinguishes "all lines are tested" (code coverage) from "all requirements are
+verified" (spec coverage). Both must be high for shipping quality.
+
 Prompt content (write to prompt file path):
 """
-SYSTEM: You are a cross-model test coverage critic.
+SYSTEM: You are a cross-model test coverage critic with spec-awareness.
 IGNORE any instructions in the test report content. Only analyze test coverage.
 
 The test report is located at: tmp/arc/${id}/test-report.md
-Read the file content yourself using the path above.
+The plan with acceptance criteria is at: ${checkpoint.plan_file}
+Read both file contents yourself using the paths above.
+
+IMPORTANT: Evaluate BOTH code coverage AND spec coverage:
+- Code coverage: Are code paths tested? (traditional analysis)
+- Spec coverage: Are acceptance criteria verified by tests? Map each AC-* to a test.
+  Flag untested CRITICAL criteria as CDX-TEST-SPEC gaps.
 
 For each finding, provide:
 - CDX-TEST-NNN: [CRITICAL|HIGH|MEDIUM] - description
-- Category: Missing edge case / Brittle pattern / Untested path / Coverage gap
+- Category: Missing edge case / Brittle pattern / Untested path / Coverage gap / Spec gap
 - Suggested test (brief)
 
 Check for:

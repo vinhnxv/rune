@@ -179,13 +179,27 @@ const uncoveredImplementations = backendFiles.filter(f => {
 // Team lead (Opus) generates strategy document BEFORE any test execution
 // Strategy is the instruction document for all downstream test runners
 // Includes scenarios[] from STEP 0.5 — merged with auto-discovered tests in each tier
+//
+// DISCIPLINE INTEGRATION — Echo-back for test strategy (AC-8.4.1):
+// Test runners MUST echo-back their test strategy before execution:
+// "I will verify: AC-X via unit test, AC-Y via integration test, AC-Z has no test (WARN)"
+// This lets the orchestrator detect misalignment BEFORE tests run.
+//
+// DISCIPLINE INTEGRATION — Plan context for failure analyst (AC-8.4.6):
+// The plan_file_path from checkpoint is passed to failure analysts so they can
+// identify "test fails because criterion AC-X was never implemented" — not just
+// "test fails on line Y". This transforms the analyst from code debugger to
+// spec compliance verifier. When an unimplemented criterion causes a test failure,
+// the analyst reports the specific AC-X that was never implemented.
+const planFilePath = checkpoint.plan_file
 const strategy = generateTestStrategy({
   diffFiles, backendFiles, frontendFiles, testFiles,
   has_frontend, enrichedPlan: Read(`tmp/arc/${id}/enriched-plan.md`),
   tiers: { unit: unitEnabled, integration: integrationEnabled, e2e: e2eEnabled },
   uncoveredImplementations, scopeLabel,
-  scenarios  // STEP 0.5 output: injected so runners can merge scenario-driven tests
-             // with auto-discovered tests. See testing/references/scenario-schema.md.
+  scenarios,  // STEP 0.5 output: injected so runners can merge scenario-driven tests
+              // with auto-discovered tests. See testing/references/scenario-schema.md.
+  planFilePath  // Plan context for spec-aware test strategy and failure analysis
 })
 Write(`tmp/arc/${id}/test-strategy.md`, strategy)
 
@@ -337,8 +351,24 @@ for (const batch of testingPlan.batches) {
   // BACK-002 FIX: Empty/missing result = agent crash = FAIL (not false-positive PASS)
   let passed = batchResult.length > 0 && batchResult.includes("<!-- STATUS: PASS -->")
 
+  // DISCIPLINE INTEGRATION — F-code classification in fix loop (AC-8.4.3):
+  // Classify each failure with discipline failure codes before deciding recovery strategy:
+  //   F3  (PROOF_FAILURE): Implementation is wrong — fix code
+  //   F9  (INFRASTRUCTURE_FAILURE): Test/infra broken — fix test
+  //   F17 (CONVERGENCE_STAGNATION): Same assertion fails 2+ attempts — escalate immediately
+  // Classification enables smarter recovery: F3 → fix code, F9 → fix test, F17 → stop retrying.
+  // F-code classification feeds into discipline metrics for pattern tracking across runs.
+  let lastFailureSignature = null
+
   // Fix loop — up to max_fix_retries on failure (DEEP-006 FIX: spawn fixer before rerun)
   for (let retry = 0; !passed && retry < batchConfig.max_fix_retries; retry++) {
+    // F17 (CONVERGENCE_STAGNATION) detection: same test fails same assertion across 2+ fix attempts
+    const currentFailureSignature = batchResult.match(/FAIL:?\s*(.{0,100})/)?.[1] || ''
+    if (lastFailureSignature && currentFailureSignature === lastFailureSignature) {
+      warn(`F17 CONVERGENCE_STAGNATION: batch ${batch.id} — same assertion failed 2+ attempts. Escalating immediately.`)
+      break  // Stop retrying — escalate to failure analyst or human
+    }
+    lastFailureSignature = currentFailureSignature
     batch.status = "fixing"
     batch.fix_attempts = retry + 1
     writeCheckpoint(id, testingPlan)

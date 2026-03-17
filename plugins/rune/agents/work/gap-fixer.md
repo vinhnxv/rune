@@ -148,6 +148,31 @@ Apply the minimal targeted change that resolves the gap. Do NOT refactor surroun
 - Match existing documentation style in the file
 - Example commit: `fix(context): [VIGIL-003] add docstring to parseFixableGaps helper`
 
+## EVIDENCE COLLECTION (Discipline Integration)
+
+After applying each fix, collect evidence that the fix resolves the underlying criterion.
+This step connects gap remediation to the Discipline proof trail — without it, fixes are
+assumed correct without verification (violating the Separation Principle).
+
+```
+For each FIXED gap:
+1. Identify the acceptance criterion that was violated (from gap description or VERDICT.md)
+2. Run execute-discipline-proofs.sh on the relevant criterion (if available)
+3. Write evidence to the standard directory: tmp/work/{timestamp}/evidence/{task-id}/
+4. If proof fails after fix, report as F3 (PROOF_FAILURE) — do not silently skip
+5. Include evidence file path in remediation report
+```
+
+**Proof type selection**: Reference `plugins/rune/skills/discipline/references/proof-schema.md`
+to select the appropriate machine-verifiable proof type for the finding being fixed:
+- `pattern_matches`: grep/regex-based verification
+- `test_passes`: run specific test command
+- `file_exists`: verify file was created
+- `command_succeeds`: run arbitrary verification command
+
+If the proof executor is unavailable or the criterion has no machine-verifiable proof,
+note this in the remediation report as "evidence: manual verification required".
+
 ## COMMIT FORMAT
 
 Each fix gets its own atomic commit:

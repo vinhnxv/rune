@@ -490,6 +490,40 @@ See [post-arc.md](references/post-arc.md) for echo persist and completion report
 
 **Discipline accountability echo**: When `discipline.enabled: true` and convergence metrics exist in the arc checkpoint, write a pipeline-level discipline echo to `.claude/echoes/discipline/MEMORY.md` with aggregate SCR, first-pass rate, failure code distribution, and trend detection vs historical averages. See [discipline/references/accountability-protocol.md](../discipline/references/accountability-protocol.md) for the full echo format and trend detection algorithm.
 
+### Proof Manifest Persistence (Discipline Integration, v1.173.0)
+
+After ship/merge, persist the proof manifest beyond `tmp/` lifecycle. The manifest is generated
+at Phase 8.5 (pre-ship validation) and contains per-criterion PASS/FAIL/UNTESTED status,
+SCR, failure codes, convergence iterations, and evidence file references.
+
+```javascript
+// Persist proof manifest as PR comment (survives in GitHub, searchable, linked to code)
+const manifestPath = `tmp/arc/${id}/proof-manifest.json`
+try {
+  const manifest = JSON.parse(Read(manifestPath))
+  const prUrl = checkpoint.pr_url
+  if (prUrl && manifest) {
+    const prNumber = prUrl.match(/\/pull\/(\d+)/)?.[1]
+    if (prNumber) {
+      const manifestComment = [
+        '## Discipline Proof Manifest',
+        '',
+        `**Plan**: \`${manifest.plan_file}\``,
+        `**Arc ID**: ${manifest.arc_id}`,
+        `**SCR**: ${manifest.scr !== null ? (manifest.scr * 100).toFixed(1) + '%' : 'N/A'}`,
+        `**Criteria**: ${manifest.criteria_count} total`,
+        `**Convergence**: ${manifest.convergence_rounds} round(s)`,
+        `**Verdict**: ${manifest.verdict}`,
+        `**Timestamp**: ${manifest.timestamp}`,
+      ].join('\n')
+      Bash(`gh pr comment ${prNumber} --body "$(cat <<'MANIFEST_EOF'\n${manifestComment}\nMANIFEST_EOF\n)"`)
+    }
+  }
+} catch (e) {
+  warn(`Proof manifest persistence failed: ${e.message} — non-blocking`)
+}
+```
+
 ### Lock Release
 
 ```javascript

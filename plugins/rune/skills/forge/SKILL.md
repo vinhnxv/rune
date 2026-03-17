@@ -411,6 +411,44 @@ log(`Backup saved: ${backupPath}`)
 
 See [forge-enrichment-protocol.md](references/forge-enrichment-protocol.md) for the full merge algorithm: reading enrichment outputs, Edit-based insertion strategy, and section-end marker detection.
 
+## Phase 5.5: Post-Enrichment Criteria Validation (Discipline Guard)
+
+After merging enrichments, validate that acceptance criteria quality was preserved.
+Forge agents ADD content — the risk is that enriched content may lack acceptance criteria,
+or existing criteria may be modified without maintaining machine-verifiable proof types.
+
+```javascript
+// Post-enrichment criteria validation: verify every task section retains acceptance_criteria
+const enrichedContent = Read(planPath)
+const taskSections = enrichedContent.match(/^###\s+Task\s+/gm) || []
+const criteriaBlocks = enrichedContent.match(/acceptance_criteria:|AC-\d+/g) || []
+
+if (taskSections.length > 0 && criteriaBlocks.length === 0) {
+  warn("DISCIPLINE: Enrichment removed all acceptance_criteria blocks — reverting to backup")
+  Bash(`cp "${backupPath}" "${planPath}"`)
+} else {
+  // Check that every task section still has an acceptance_criteria YAML block
+  const sections = enrichedContent.split(/^###\s+Task\s+/m).slice(1)
+  const missingCriteria = []
+  for (let i = 0; i < sections.length; i++) {
+    if (!sections[i].match(/acceptance_criteria:|```yaml[\s\S]*?AC-/)) {
+      missingCriteria.push(`Task section ${i + 1}`)
+    }
+  }
+  if (missingCriteria.length > 0) {
+    warn(`DISCIPLINE: ${missingCriteria.length} task sections missing acceptance_criteria after enrichment: ${missingCriteria.join(', ')}`)
+  }
+
+  // Warn if proof types weakened: machine-verifiable → semantic only
+  const originalContent = Read(backupPath)
+  const originalProofs = (originalContent.match(/proof:\s*(pattern_matches|test_passes|file_exists|command_succeeds)/g) || []).length
+  const enrichedProofs = (enrichedContent.match(/proof:\s*(pattern_matches|test_passes|file_exists|command_succeeds)/g) || []).length
+  if (originalProofs > 0 && enrichedProofs < originalProofs) {
+    warn(`DISCIPLINE: Machine-verifiable proof types reduced from ${originalProofs} to ${enrichedProofs} after enrichment — check if criteria were weakened to semantic-only`)
+  }
+}
+```
+
 ## Phase 6: Cleanup & Present
 
 Shuts down all forge teammates, cleans up team resources with retry-with-backoff and filesystem fallback, updates state file, releases workflow lock, presents completion report, and offers post-enhancement options (skipped in arc context).

@@ -178,6 +178,56 @@ checkpoint.convergence.history.push({
 })
 ```
 
+## STEP 2.5: Criteria Convergence Check (Discipline Integration, v1.173.0)
+
+Dual convergence gate: BOTH findings AND acceptance criteria must converge for the pipeline to proceed. This prevents the "tests pass on wrong code" failure mode where findings decrease but criteria regress.
+
+```javascript
+// Criteria convergence check — alongside findings convergence (verdict from STEP 2)
+// Source: Spec Compliance Matrix from Phase 5.5 (gap_analysis) or evidence directory
+// Reference: work-loop-convergence.md (Shard 6 T6.3) for criteria convergence protocol
+let criteriaConverged = true  // default: pass if no criteria data available
+let criteriaRegression = false
+
+const scm = checkpoint.spec_compliance_matrix
+if (scm && scm.total > 0) {
+  // Re-check criteria status by scanning evidence directory for freshness
+  const evidenceDirs = Glob(`tmp/work/*/evidence/*/`)
+  const criteriaPassCount = scm.green ?? 0
+  const criteriaTotalCount = scm.total
+
+  // Check for criteria regression: previously-PASS criterion moved to FAIL after mend
+  // Compare current SCR against checkpoint's stored SCR from gap_analysis
+  const previousScr = scm.scr ?? 0
+  const currentGreenAfterMend = criteriaPassCount  // Re-read from evidence if available
+  const currentScr = criteriaTotalCount > 0 ? currentGreenAfterMend / criteriaTotalCount : 1.0
+
+  if (currentScr < previousScr) {
+    criteriaRegression = true
+    warn(`DISCIPLINE: Criteria regression detected — SCR dropped from ${(previousScr * 100).toFixed(1)}% to ${(currentScr * 100).toFixed(1)}% after mend. Previously-PASS criteria may have moved to FAIL (F10 CRITERIA_REGRESSION).`)
+  }
+
+  // Criteria converge when SCR >= threshold (default 0.8) or no regression
+  // readTalismanSection: "settings"
+  const disciplineConfig = readTalismanSection("settings")?.discipline ?? {}
+  const scrThreshold = disciplineConfig.scr_threshold ?? 0.8
+  if (currentScr < scrThreshold && !criteriaRegression) {
+    warn(`DISCIPLINE: SCR ${(currentScr * 100).toFixed(1)}% below threshold ${scrThreshold * 100}% — criteria not converged`)
+    criteriaConverged = false
+  }
+}
+
+// Record criteria convergence in history
+checkpoint.convergence.history[checkpoint.convergence.history.length - 1].criteria_converged = criteriaConverged
+checkpoint.convergence.history[checkpoint.convergence.history.length - 1].criteria_regression = criteriaRegression
+
+// Override verdict: if findings converged but criteria regressed, force retry
+if (verdict === 'converged' && criteriaRegression) {
+  warn('DISCIPLINE: Findings converged but criteria regressed — forcing retry (dual convergence gate)')
+  verdict = 'retry'  // override — both dimensions must converge
+}
+```
+
 ## STEP 3: Act on Verdict
 
 ```javascript

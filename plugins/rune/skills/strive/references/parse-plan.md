@@ -425,6 +425,51 @@ if (planTaskCount > 0) {
 }
 ```
 
+## Criteria Coverage Assertion (v1.173.0 — Discipline Integration)
+
+After task coverage assertion, verify that ALL acceptance criteria from the plan are represented in at least one TaskCreate description. This prevents criteria from being silently dropped during task decomposition.
+
+**Why this exists**: Task Coverage Assertion (above) catches missing tasks, but a task can be extracted while its acceptance criteria are dropped from the TaskCreate description. Without criteria in the task, the Discipline Work Loop's evidence collection has nothing to verify against. This assertion closes the criterion-level gap.
+
+```javascript
+// STEP D: Criteria Coverage Assertion — verify every plan criterion maps to a TaskCreate
+if (totalCriteriaExtracted > 0) {
+  let unmappedCriteria = []
+
+  for (const [taskId, criteria] of Object.entries(taskCriteriaMap)) {
+    for (const criterion of criteria) {
+      // Check if this criterion's ID appears in any extracted task description
+      const criterionId = criterion.id || ''
+      const criterionText = criterion.text || ''
+      const isMapped = extractedTasks.some(et => {
+        const desc = (et.description || '').toLowerCase()
+        // Match by criterion ID (e.g., AC-8.1.1) or by criterion text keywords
+        return (criterionId && desc.includes(criterionId.toLowerCase())) ||
+               (criterionText && desc.includes(criterionText.toLowerCase().slice(0, 40)))
+      })
+
+      if (!isMapped) {
+        unmappedCriteria.push({ taskId, criterionId, text: criterionText.slice(0, 80) })
+      }
+    }
+  }
+
+  if (unmappedCriteria.length > 0) {
+    const orphanList = unmappedCriteria.slice(0, 10).map(c =>
+      `  - ${c.criterionId || 'unnamed'} (Task ${c.taskId}): ${c.text}`
+    ).join('\n')
+    warn(
+      `CRITERIA COVERAGE: ${unmappedCriteria.length} criteria exist in plan but ` +
+      `not found in any TaskCreate description (orphan criteria):\n${orphanList}\n\n` +
+      `These criteria may not be verified by the Discipline Work Loop. ` +
+      `Ensure TaskCreate descriptions include acceptance criteria from the plan.`
+    )
+  } else {
+    log(`Criteria coverage: all ${totalCriteriaExtracted} plan criteria mapped to work items`)
+  }
+}
+```
+
 **Key design decisions**:
 - **Default floor: 100%** — every plan task MUST become a work item. No silent deferrals.
 - **Auto-create missing tasks**: Rather than just failing, strive auto-creates work items from plan `### Task` sections. This converts the error into a recovery.
