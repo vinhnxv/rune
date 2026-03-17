@@ -12,6 +12,14 @@ use crate::resource::{self, ProcessHealth, ResourceSnapshot};
 use crate::scanner::{ConfigDir, PlanFile};
 use crate::tmux::Tmux;
 
+/// Compare two plan names by filename (ignoring path prefix).
+/// Handles: "plans/foo.md" vs "foo.md" vs "/abs/plans/foo.md".
+fn plans_match(a: &str, b: &str) -> bool {
+    let fa = a.rsplit('/').next().unwrap_or(a);
+    let fb = b.rsplit('/').next().unwrap_or(b);
+    fa == fb
+}
+
 /// Top-level application state.
 pub struct App {
     // Active arcs detected at startup
@@ -22,12 +30,12 @@ pub struct App {
     pub config_dirs: Vec<ConfigDir>,
     pub selected_config: usize,
     pub plans: Vec<PlanFile>,
-    pub selected_plans: Vec<usize>, // ordered indices — execution order
+    pub selected_plans: Vec<QueueEntry>, // ordered plan+config pairs
     pub active_panel: Panel,
 
     // Execution view
     pub view: AppView,
-    pub queue: VecDeque<usize>,
+    pub queue: VecDeque<QueueEntry>,
     pub current_run: Option<RunState>,
     pub completed_runs: Vec<CompletedRun>,
     pub tmux_session_id: Option<String>,
@@ -35,12 +43,14 @@ pub struct App {
     // UI state
     pub config_cursor: usize,
     pub plan_cursor: usize,
+    pub queue_cursor: usize, // cursor position in queue (Running view)
 
     // Polling timers (non-blocking, checked on each tick)
     pub last_discovery_poll: Option<Instant>,
     pub last_heartbeat_poll: Option<Instant>,
     pub last_checkpoint_poll: Option<Instant>,
     pub last_loop_state_poll: Option<Instant>,
+    pub last_active_arcs_prune: Option<Instant>,
     pub launched_wall_clock: Option<chrono::DateTime<Utc>>,
 
     // Status message for display in UI
@@ -51,6 +61,15 @@ pub struct App {
 
     // Resource monitoring (sysinfo)
     pub sys: sysinfo::System,
+
+    // Current git branch of CWD
+    pub git_branch: String,
+
+    // Timestamp when all plans completed (for auto-quit countdown)
+    pub all_done_at: Option<Instant>,
+
+    // Queue editing mode — Selection view appends to queue instead of starting fresh
+    pub queue_editing: bool,
 
     // Whether we should quit
     pub should_quit: bool,
@@ -72,12 +91,20 @@ pub enum Panel {
     PlanList,
 }
 
+/// A queued plan with its associated config dir.
+#[derive(Debug, Clone)]
+pub struct QueueEntry {
+    pub plan_idx: usize,
+    pub config_idx: usize,
+}
+
 /// State of the currently executing arc run.
 #[allow(dead_code)] // tmux_pane_pid kept for diagnostics
 pub struct RunState {
     pub plan: PlanFile,
     pub plan_index: usize,   // 1-indexed position in selected_plans
     pub total_plans: usize,
+    pub config_idx: usize,   // config dir this plan was launched with
     pub tmux_session: String,
     pub launched_at: Instant,
     pub arc: Option<ArcHandle>,
@@ -86,6 +113,7 @@ pub struct RunState {
     pub tmux_pane_pid: Option<u32>,  // Shell PID inside tmux pane
     pub claude_pid: Option<u32>,     // Claude Code process PID (= owner_pid in checkpoint)
     pub loop_state: Option<monitor::ArcLoopState>, // From arc-phase-loop.local.md
+    pub session_info: Option<crate::scanner::SessionInfo>, // Enriched session info
 }
 
 /// Handle to a discovered arc checkpoint + heartbeat pair.
@@ -108,6 +136,7 @@ pub struct ArcStatus {
     pub last_tool: String,
     pub last_activity: String,
     pub phase_summary: PhaseSummary,
+    pub phase_nav: Option<monitor::PhaseNavigation>,
     pub pr_url: Option<String>,
     pub is_stale: bool,
     pub schema_warning: Option<String>,
@@ -160,6 +189,11 @@ pub enum Action {
     AttachTmux,
     SkipPlan,
     KillSession,
+    PickPlans,       // Enter queue-edit mode (Running → Selection)
+    RemoveFromQueue, // Delete queue item at cursor
+    // Queue-edit mode (Selection while queue_editing=true)
+    AppendToQueue,   // Confirm — append selected plans to queue
+    CancelQueueEdit, // Cancel — return to Running without changes
     // No-op
     None,
 }
@@ -170,8 +204,11 @@ impl App {
         let cwd = std::env::current_dir()?;
         let plans = crate::scanner::scan_plans(&cwd)?;
 
+        // Initialize sysinfo BEFORE scanning arcs (needed for session enrichment)
+        let sys = resource::create_process_system();
+
         // Startup scan: detect active arc sessions
-        let active_arcs = crate::scanner::scan_active_arcs(&config_dirs, &cwd);
+        let active_arcs = crate::scanner::scan_active_arcs(&config_dirs, &cwd, &sys);
         let initial_view = if active_arcs.is_empty() {
             AppView::Selection
         } else {
@@ -193,17 +230,138 @@ impl App {
             tmux_session_id: None,
             config_cursor: 0,
             plan_cursor: 0,
+            queue_cursor: 0,
             last_discovery_poll: None,
             last_heartbeat_poll: None,
             last_checkpoint_poll: None,
             last_loop_state_poll: None,
+            last_active_arcs_prune: None,
             launched_wall_clock: None,
             status_message: None,
             claude_path: crate::tmux::Tmux::resolve_claude_path()
                 .unwrap_or_else(|_| "claude".to_string()),
             sys: resource::create_process_system(),
+            git_branch: Self::read_git_branch(),
+            all_done_at: None,
+            queue_editing: false,
             should_quit: false,
         })
+    }
+
+    /// Read the current git branch name from CWD.
+    pub fn read_git_branch() -> String {
+        Command::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .output()
+            .ok()
+            .and_then(|o| {
+                if o.status.success() {
+                    String::from_utf8(o.stdout).ok().map(|s| s.trim().to_string())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| "—".into())
+    }
+
+    /// Check if a plan index is already queued or currently running.
+    /// Used in queue-edit mode to prevent duplicate selection.
+    pub fn is_plan_in_flight(&self, plan_idx: usize) -> bool {
+        let plan = match self.plans.get(plan_idx) {
+            Some(p) => p,
+            None => return false,
+        };
+        // Currently running? (match by file name — paths may differ: relative vs absolute)
+        if let Some(ref run) = self.current_run {
+            if plans_match(&run.plan.name, &plan.name) {
+                return true;
+            }
+        }
+        // In queue?
+        if self.queue.iter().any(|e| e.plan_idx == plan_idx) {
+            return true;
+        }
+        // Already completed?
+        if self.completed_runs.iter().any(|r| plans_match(&r.plan.name, &plan.name)) {
+            return true;
+        }
+        false
+    }
+
+    /// Refresh session info (mcp count, teammate count, etc).
+    pub fn refresh_session_info(&mut self) {
+        if let Some(run) = &mut self.current_run {
+            if let Some(pid) = run.claude_pid {
+                let config_dir = run.arc.as_ref()
+                    .map(|a| a.config_dir.as_str())
+                    .unwrap_or("");
+                run.session_info = crate::scanner::enrich_session_info(
+                    &pid.to_string(),
+                    config_dir,
+                    &self.sys,
+                );
+            }
+        }
+    }
+
+    /// Refresh git branch (called periodically during execution).
+    pub fn refresh_git_branch(&mut self) {
+        self.git_branch = Self::read_git_branch();
+    }
+
+    /// Prune stale entries from the active arcs list.
+    /// Removes entries whose tmux session no longer exists or whose PID is dead.
+    /// Throttled to every 10s to avoid excessive process checks.
+    pub fn prune_stale_active_arcs(&mut self) {
+        let now = Instant::now();
+        let should_prune = self
+            .last_active_arcs_prune
+            .map(|t| now.duration_since(t) >= Duration::from_secs(10))
+            .unwrap_or(true);
+        if !should_prune {
+            return;
+        }
+        self.last_active_arcs_prune = Some(now);
+
+        self.active_arcs.retain(|arc| {
+            // If it has a tmux session, verify it still exists
+            if let Some(ref session) = arc.tmux_session {
+                if !Tmux::session_exists(session) {
+                    return false;
+                }
+            }
+            // If it has a PID, verify it's still alive
+            if !arc.loop_state.owner_pid.is_empty()
+                && arc.pid_alive
+                && !Self::is_pid_alive(&arc.loop_state.owner_pid)
+            {
+                return false;
+            }
+            // Orphan entries (no tmux AND no PID) are always stale
+            if arc.tmux_session.is_none() && arc.loop_state.owner_pid.is_empty() {
+                return false;
+            }
+            true
+        });
+
+        // If all arcs pruned, auto-transition to Selection view
+        if self.active_arcs.is_empty() {
+            self.view = AppView::Selection;
+        } else if self.active_arc_cursor >= self.active_arcs.len() {
+            self.active_arc_cursor = self.active_arcs.len() - 1;
+        }
+    }
+
+    /// Check if a PID is alive (wrapper around kill -0).
+    fn is_pid_alive(pid_str: &str) -> bool {
+        let pid: u32 = match pid_str.parse() {
+            Ok(p) => p,
+            Err(_) => return false,
+        };
+        Command::new("kill")
+            .args(["-0", &pid.to_string()])
+            .output()
+            .is_ok_and(|o| o.status.success())
     }
 
     /// Switch active panel between config list and plan list.
@@ -216,46 +374,67 @@ impl App {
 
     /// Move cursor up in the active panel.
     pub fn move_up(&mut self) {
-        if self.view == AppView::ActiveArcs {
-            if self.active_arc_cursor > 0 {
-                self.active_arc_cursor -= 1;
-            }
-            return;
-        }
-        match self.active_panel {
-            Panel::ConfigList => {
-                if self.config_cursor > 0 {
-                    self.config_cursor -= 1;
+        match self.view {
+            AppView::ActiveArcs => {
+                if self.active_arc_cursor > 0 {
+                    self.active_arc_cursor -= 1;
                 }
             }
-            Panel::PlanList => {
-                if self.plan_cursor > 0 {
-                    self.plan_cursor -= 1;
+            AppView::Running => {
+                if self.queue_cursor > 0 {
+                    self.queue_cursor -= 1;
                 }
             }
+            AppView::Selection => match self.active_panel {
+                Panel::ConfigList => {
+                    if self.config_cursor > 0 {
+                        self.config_cursor -= 1;
+                    }
+                }
+                Panel::PlanList => {
+                    if self.plan_cursor > 0 {
+                        self.plan_cursor -= 1;
+                    }
+                }
+            },
         }
     }
 
     /// Move cursor down in the active panel.
     pub fn move_down(&mut self) {
-        if self.view == AppView::ActiveArcs {
-            if self.active_arc_cursor + 1 < self.active_arcs.len() {
-                self.active_arc_cursor += 1;
-            }
-            return;
-        }
-        match self.active_panel {
-            Panel::ConfigList => {
-                if self.config_cursor + 1 < self.config_dirs.len() {
-                    self.config_cursor += 1;
+        match self.view {
+            AppView::ActiveArcs => {
+                if self.active_arc_cursor + 1 < self.active_arcs.len() {
+                    self.active_arc_cursor += 1;
                 }
             }
-            Panel::PlanList => {
-                if self.plan_cursor + 1 < self.plans.len() {
-                    self.plan_cursor += 1;
+            AppView::Running => {
+                // Queue cursor range: completed_runs + current_run + pending queue
+                let total = self.queue_total_items();
+                if self.queue_cursor + 1 < total {
+                    self.queue_cursor += 1;
                 }
             }
+            AppView::Selection => match self.active_panel {
+                Panel::ConfigList => {
+                    if self.config_cursor + 1 < self.config_dirs.len() {
+                        self.config_cursor += 1;
+                    }
+                }
+                Panel::PlanList => {
+                    if self.plan_cursor + 1 < self.plans.len() {
+                        self.plan_cursor += 1;
+                    }
+                }
+            },
         }
+    }
+
+    /// Total number of items displayed in the Queue panel.
+    fn queue_total_items(&self) -> usize {
+        self.completed_runs.len()
+            + if self.current_run.is_some() { 1 } else { 0 }
+            + self.queue.len()
     }
 
     /// Select the config dir at the current cursor position.
@@ -267,24 +446,43 @@ impl App {
 
     /// Toggle a plan at the current cursor — ordered multi-select.
     /// Selection order determines execution order.
+    /// In queue-edit mode, skip plans already in-flight.
     pub fn toggle_plan(&mut self) {
         if self.plans.is_empty() {
             return;
         }
         let idx = self.plan_cursor;
-        if let Some(pos) = self.selected_plans.iter().position(|&i| i == idx) {
-            // Already selected — remove it (reorders remaining)
+        // Block toggling plans already in-flight during queue-edit
+        if self.queue_editing && self.is_plan_in_flight(idx) {
+            return;
+        }
+        if let Some(pos) = self.selected_plans.iter().position(|e| e.plan_idx == idx) {
+            // Already selected — remove it
             self.selected_plans.remove(pos);
         } else {
-            // Not selected — add to end (becomes last in execution order)
-            self.selected_plans.push(idx);
+            // Not selected — add with current config dir
+            self.selected_plans.push(QueueEntry {
+                plan_idx: idx,
+                config_idx: self.selected_config,
+            });
         }
     }
 
     /// Toggle all plans. If any are selected, deselect all. Otherwise select all in file order.
+    /// In queue-edit mode, only select plans not already in-flight.
     pub fn toggle_all(&mut self) {
         if self.selected_plans.is_empty() {
-            self.selected_plans = (0..self.plans.len()).collect();
+            let config_idx = self.selected_config;
+            if self.queue_editing {
+                self.selected_plans = (0..self.plans.len())
+                    .filter(|&i| !self.is_plan_in_flight(i))
+                    .map(|plan_idx| QueueEntry { plan_idx, config_idx })
+                    .collect();
+            } else {
+                self.selected_plans = (0..self.plans.len())
+                    .map(|plan_idx| QueueEntry { plan_idx, config_idx })
+                    .collect();
+            }
         } else {
             self.selected_plans.clear();
         }
@@ -294,15 +492,15 @@ impl App {
     /// Transition to Running view — populate the execution queue.
     pub fn start_run(&mut self) {
         self.view = AppView::Running;
-        self.queue = self.selected_plans.iter().copied().collect();
+        self.queue = self.selected_plans.drain(..).collect();
     }
 
     /// Print a summary to stdout after terminal is restored.
     pub fn print_quit_summary(&self) {
-        let total = self.selected_plans.len();
         let completed = self.completed_runs.len();
+        let total = self.queue_total_items();
 
-        if total == 0 {
+        if total == 0 && completed == 0 {
             return;
         }
 
@@ -352,8 +550,8 @@ impl App {
         }
 
         // Show pending plans in queue
-        for &idx in &self.queue {
-            if let Some(plan) = self.plans.get(idx) {
+        for entry in &self.queue {
+            if let Some(plan) = self.plans.get(entry.plan_idx) {
                 println!("  ○ {:<30} pending", plan.name);
             }
         }
@@ -395,8 +593,36 @@ impl App {
                     let _ = Tmux::attach(&sid);
                 }
             }
+            Action::RemoveFromQueue => self.remove_queue_item(),
             Action::SkipPlan => self.skip_current_plan(),
             Action::KillSession => self.kill_current_session(),
+            Action::PickPlans => {
+                // Enter queue-edit mode: show Selection to pick more plans
+                // NOTE: Do NOT re-scan plans here — existing queue entries reference
+                // plan indices from the current self.plans list. Re-scanning would
+                // shift indices and break queue/in-flight matching.
+                self.queue_editing = true;
+                self.selected_plans.clear();
+                self.active_panel = Panel::PlanList;
+                self.plan_cursor = 0;
+                self.view = AppView::Selection;
+            }
+            Action::AppendToQueue => {
+                // Append selected plan+config pairs to queue
+                let count = self.selected_plans.len();
+                for entry in self.selected_plans.drain(..) {
+                    self.queue.push_back(entry);
+                }
+                self.queue_editing = false;
+                self.all_done_at = None; // reset auto-quit since queue grew
+                self.view = AppView::Running;
+                self.status_message = Some(format!("{count} plan(s) added to queue"));
+            }
+            Action::CancelQueueEdit => {
+                self.selected_plans.clear();
+                self.queue_editing = false;
+                self.view = AppView::Running;
+            }
             Action::None => {}
         }
         Ok(())
@@ -454,11 +680,13 @@ impl App {
         };
 
         self.tmux_session_id = arc.tmux_session.clone();
+        let session_info = arc.session_info;
         let loop_state = arc.loop_state;
         self.current_run = Some(RunState {
             plan,
             plan_index: 1,
             total_plans: 1,
+            config_idx: self.selected_config,
             tmux_session: arc.tmux_session.clone().unwrap_or_default(),
             launched_at: Instant::now(),
             arc: Some(ArcHandle {
@@ -475,9 +703,40 @@ impl App {
             tmux_pane_pid: None,
             claude_pid,
             loop_state: Some(loop_state),
+            session_info,
         });
 
         self.view = AppView::Running;
+    }
+
+    /// Remove a queue item at the current cursor position.
+    /// Only pending items (not completed or current) can be removed.
+    fn remove_queue_item(&mut self) {
+        let completed_count = self.completed_runs.len();
+        let current_count = if self.current_run.is_some() { 1 } else { 0 };
+        let non_removable = completed_count + current_count;
+
+        if self.queue_cursor < non_removable {
+            // Cursor is on a completed run or current — not removable
+            self.status_message = Some("Cannot remove completed or running items".into());
+            return;
+        }
+
+        let queue_idx = self.queue_cursor - non_removable;
+        if queue_idx < self.queue.len() {
+            let removed = self.queue.remove(queue_idx);
+            let name = removed
+                .and_then(|e| self.plans.get(e.plan_idx))
+                .map(|p| p.name.clone())
+                .unwrap_or_else(|| "?".into());
+            self.status_message = Some(format!("Removed: {name}"));
+
+            // Adjust cursor if it's past the end
+            let total = self.queue_total_items();
+            if total > 0 && self.queue_cursor >= total {
+                self.queue_cursor = total - 1;
+            }
+        }
     }
 
     /// Skip the current plan — kill tmux, move to next.
@@ -492,6 +751,11 @@ impl App {
                 duration: run.launched_at.elapsed(),
             });
             self.tmux_session_id = None;
+            // Clamp cursor after item count changed
+            let total = self.queue_total_items();
+            if total > 0 && self.queue_cursor >= total {
+                self.queue_cursor = total - 1;
+            }
         }
     }
 
@@ -511,6 +775,7 @@ impl App {
         }
         self.tmux_session_id = None;
         self.queue.clear();
+        self.queue_cursor = 0;
     }
 
     /// Main execution tick — called every ~1s from the event loop.
@@ -526,8 +791,30 @@ impl App {
 
         if self.current_run.is_none() {
             // No arc running — start next plan from queue
-            if let Some(plan_idx) = self.queue.pop_front() {
-                self.launch_next_plan(plan_idx)?;
+            if let Some(entry) = self.queue.pop_front() {
+                self.all_done_at = None;
+                self.selected_config = entry.config_idx;
+                self.launch_next_plan(entry.plan_idx)?;
+            } else if !self.completed_runs.is_empty() {
+                // All plans done — auto-quit after delay
+                let auto_quit_secs = Self::auto_quit_secs();
+                if auto_quit_secs > 0 {
+                    if let Some(done_at) = self.all_done_at {
+                        let remaining = auto_quit_secs.saturating_sub(
+                            now.duration_since(done_at).as_secs()
+                        );
+                        if remaining == 0 {
+                            self.should_quit = true;
+                        } else {
+                            self.status_message = Some(format!(
+                                " All done! Auto-quit in {}s  [q] quit now",
+                                remaining
+                            ));
+                        }
+                    } else {
+                        self.all_done_at = Some(now);
+                    }
+                }
             }
             return Ok(());
         }
@@ -567,6 +854,8 @@ impl App {
 
             if should_check_loop {
                 self.check_loop_state_liveness();
+                self.refresh_git_branch();
+                self.refresh_session_info();
                 self.last_loop_state_poll = Some(now);
             }
 
@@ -577,7 +866,7 @@ impl App {
         Ok(())
     }
 
-    /// Check if arc-phase-loop.local.md still exists.
+    /// Check if arc-phase-loop.local.md still exists and refresh loop state.
     /// If it's gone, the arc has completed or been stopped — trigger completion.
     fn check_loop_state_liveness(&mut self) {
         let cwd = std::env::current_dir().unwrap_or_default();
@@ -595,14 +884,23 @@ impl App {
             return;
         }
 
-        // File exists — read_arc_loop_state returns None if active: false
-        if monitor::read_arc_loop_state(&cwd).is_none() {
-            self.status_message = Some(
-                "arc-phase-loop.local.md active: false — arc cancelled".into(),
-            );
-            if let Some(run) = &mut self.current_run {
-                if run.merge_detected_at.is_none() {
-                    run.merge_detected_at = Some(Instant::now());
+        // File exists — read and refresh loop state
+        match monitor::read_arc_loop_state(&cwd) {
+            Some(state) => {
+                // Refresh loop state on current run (iteration may have changed)
+                if let Some(run) = &mut self.current_run {
+                    run.loop_state = Some(state);
+                }
+            }
+            None => {
+                // active: false — arc cancelled
+                self.status_message = Some(
+                    "arc-phase-loop.local.md active: false — arc cancelled".into(),
+                );
+                if let Some(run) = &mut self.current_run {
+                    if run.merge_detected_at.is_none() {
+                        run.merge_detected_at = Some(Instant::now());
+                    }
                 }
             }
         }
@@ -617,6 +915,15 @@ impl App {
             eyre!("no config dir selected")
         })?;
 
+        // Step 0: Clean stale arc state from previous run.
+        // arc-phase-loop.local.md belongs to CWD (not per-arc) — if the previous
+        // arc's cleanup didn't remove it, poll_discovery would match the wrong arc.
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let stale_loop = cwd.join(".claude").join("arc-phase-loop.local.md");
+        if stale_loop.exists() {
+            let _ = std::fs::remove_file(&stale_loop);
+        }
+
         // Step 1: git checkout main + pull (blocking, before tmux)
         // Use .output() to CAPTURE stdout/stderr — .status() leaks into TUI display
         let checkout = Command::new("git")
@@ -624,14 +931,22 @@ impl App {
             .output();
         if checkout.as_ref().map_or(true, |o| !o.status.success()) {
             self.status_message = Some("git checkout main failed — clean up working tree".into());
-            self.queue.push_front(plan_idx);
+            self.queue.push_front(QueueEntry {
+                plan_idx,
+                config_idx: self.selected_config,
+            });
             return Ok(());
         }
         let pull = Command::new("git")
             .args(["pull", "--ff-only"])
             .output();
         if pull.as_ref().map_or(true, |o| !o.status.success()) {
-            self.status_message = Some("git pull failed — try manually".into());
+            self.status_message = Some("git pull failed — retrying...".into());
+            self.queue.push_front(QueueEntry {
+                plan_idx,
+                config_idx: self.selected_config,
+            });
+            return Ok(());
         }
 
         // Step 2: Record wall-clock time BEFORE launch (for discovery matching)
@@ -676,11 +991,12 @@ impl App {
             self.status_message = Some(format!("/arc sent to {}", &session_id));
         }
 
-        let total = self.selected_plans.len();
+        let total = self.completed_runs.len() + 1 + self.queue.len();
         self.current_run = Some(RunState {
             plan,
             plan_index: self.completed_runs.len() + 1,
             total_plans: total,
+            config_idx: self.selected_config,
             tmux_session: session_id,
             launched_at: Instant::now(),
             arc: None,
@@ -689,6 +1005,13 @@ impl App {
             tmux_pane_pid,
             claude_pid,
             loop_state: None,
+            session_info: claude_pid.and_then(|pid| {
+                crate::scanner::enrich_session_info(
+                    &pid.to_string(),
+                    &config.path.to_string_lossy(),
+                    &self.sys,
+                )
+            }),
         });
 
         // Reset poll timers
@@ -709,9 +1032,10 @@ impl App {
         };
 
         // Extract needed values before borrowing self.current_run mutably
-        let config_dir_str = self
-            .config_dirs
-            .get(self.selected_config)
+        // Use run's config_idx (not selected_config) to avoid drift from queue-edit
+        let run_config_idx = self.current_run.as_ref().map(|r| r.config_idx);
+        let config_dir_str = run_config_idx
+            .and_then(|idx| self.config_dirs.get(idx))
             .map(|c| c.path.to_string_lossy().to_string());
         let expected_config_dir = config_dir_str.as_deref();
 
@@ -825,6 +1149,7 @@ impl App {
                     skipped: status.phase_summary.skipped,
                     current_phase_name: status.phase_summary.current_phase_name,
                 },
+                phase_nav: status.phase_nav,
                 pr_url: status.pr_url,
                 is_stale,
                 schema_warning: status.schema_warning,
@@ -834,13 +1159,23 @@ impl App {
         }
     }
 
+    /// Auto-quit delay after all plans are completed.
+    /// Configurable via AUTO_QUIT_SECS env var. Default: 30s. Set to 0 to disable.
+    fn auto_quit_secs() -> u64 {
+        std::env::var("AUTO_QUIT_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(30)
+    }
+
     /// Grace period after merge detection before starting next plan.
-    /// Configurable via GRACE_PERIOD_SECS env var (default: 240s = 4 min).
+    /// Configurable via GRACE_PERIOD_SECS env var (default: 300s = 5 min).
+    /// Allows time for: arc stop hook cleanup, team deletion, git state reset.
     fn grace_period_secs() -> u64 {
         std::env::var("GRACE_PERIOD_SECS")
             .ok()
             .and_then(|s| s.parse().ok())
-            .unwrap_or(240)
+            .unwrap_or(300)
     }
 
     /// Check if grace period has elapsed after merge detection.
@@ -878,6 +1213,12 @@ impl App {
                     result,
                     duration: run.launched_at.elapsed(),
                 });
+
+                // Clamp queue cursor after item count changed
+                let total = self.queue_total_items();
+                if total > 0 && self.queue_cursor >= total {
+                    self.queue_cursor = total - 1;
+                }
             }
         }
     }

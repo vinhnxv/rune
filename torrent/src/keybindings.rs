@@ -11,6 +11,7 @@ pub fn handle_key(app: &App, key: KeyEvent) -> Action {
 
     match app.view {
         AppView::ActiveArcs => handle_active_arcs_key(app, key),
+        AppView::Selection if app.queue_editing => handle_queue_edit_key(app, key),
         AppView::Selection => handle_selection_key(app, key),
         AppView::Running => handle_running_key(key),
     }
@@ -62,6 +63,36 @@ fn handle_running_key(key: KeyEvent) -> Action {
         KeyCode::Char('a') => Action::AttachTmux,
         KeyCode::Char('s') => Action::SkipPlan,
         KeyCode::Char('k') => Action::KillSession,
+        KeyCode::Char('p') => Action::PickPlans,
+        KeyCode::Char('d') => Action::RemoveFromQueue,
+        KeyCode::Up => Action::MoveUp,
+        KeyCode::Down => Action::MoveDown,
+        _ => Action::None,
+    }
+}
+
+/// Queue-edit mode: Selection view while arc is running.
+/// Tab to switch panels, Enter = select config (Config panel) or append (Plan panel).
+fn handle_queue_edit_key(app: &App, key: KeyEvent) -> Action {
+    use crate::app::Panel;
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('q') => Action::CancelQueueEdit,
+        KeyCode::Char('r') if !app.selected_plans.is_empty() => Action::AppendToQueue,
+        KeyCode::Enter => {
+            match app.active_panel {
+                Panel::ConfigList => Action::SelectConfig,
+                Panel::PlanList if !app.selected_plans.is_empty() => Action::AppendToQueue,
+                _ => Action::None,
+            }
+        }
+        KeyCode::Char('a') => Action::ToggleAll,
+        KeyCode::Tab => Action::SwitchPanel,
+        KeyCode::Char(' ') => {
+            match app.active_panel {
+                Panel::PlanList => Action::TogglePlan,
+                Panel::ConfigList => Action::SelectConfig,
+            }
+        }
         KeyCode::Up => Action::MoveUp,
         KeyCode::Down => Action::MoveDown,
         _ => Action::None,

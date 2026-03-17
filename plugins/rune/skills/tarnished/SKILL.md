@@ -109,7 +109,8 @@ Fast-path keywords: `plan`, `work`, `review`, `brainstorm`, `explore`, `devise`,
 `forge`, `mend`, `inspect`, `goldmask`, `elicit`, `rest`, `echoes`, `clean`,
 `ship`, `fix`, `debug`, `cancel`, `mcp`, `untitledui`, `design-sync`, `elevate`,
 `file-todos`, `learn`, `resolve-comments`, `resolve-comment`, `resolve-todos`,
-`skill-testing`, `team-status`, `test-browser`, `ux`, `team-delegate`.
+`skill-testing`, `team-status`, `test-browser`, `ux`, `team-delegate`,
+`post-findings`.
 
 **Path C — Natural language** (no keyword match):
 ```

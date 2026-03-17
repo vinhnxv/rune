@@ -259,7 +259,8 @@ impl Tmux {
 
     /// Find the Claude Code process PID (child of pane shell).
     /// The pane_pid is the shell; Claude Code is its child process.
-    /// Uses `pgrep -P <pane_pid>` to find child processes.
+    /// Uses `pgrep -P <pane_pid>` to find child processes, then verifies
+    /// the process is actually Claude Code (node/claude) via `ps -o comm=`.
     pub fn get_claude_pid(pane_pid: u32) -> Option<u32> {
         let output = Command::new("pgrep")
             .args(["-P", &pane_pid.to_string()])
@@ -269,7 +270,37 @@ impl Tmux {
             return None;
         }
         let stdout = String::from_utf8_lossy(&output.stdout);
-        stdout.lines().next()?.trim().parse::<u32>().ok()
+        // Check each child — find one that's a Claude Code process (node or claude*)
+        for line in stdout.lines() {
+            if let Ok(pid) = line.trim().parse::<u32>() {
+                if Self::is_claude_process(pid) {
+                    return Some(pid);
+                }
+            }
+        }
+        None
+    }
+
+    /// Check if a PID is a Claude Code process by examining its command name.
+    fn is_claude_process(pid: u32) -> bool {
+        let output = Command::new("ps")
+            .args(["-p", &pid.to_string(), "-o", "comm="])
+            .output();
+        match output {
+            Ok(o) if o.status.success() => {
+                let comm = String::from_utf8_lossy(&o.stdout).trim().to_lowercase();
+                comm.contains("node") || comm.contains("claude")
+            }
+            _ => false,
+        }
+    }
+
+    /// Check if a tmux session still exists.
+    pub fn session_exists(session_id: &str) -> bool {
+        Command::new("tmux")
+            .args(["has-session", "-t", session_id])
+            .output()
+            .is_ok_and(|o| o.status.success())
     }
 
     /// Kill a tmux session. Best-effort.

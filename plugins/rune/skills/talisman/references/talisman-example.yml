@@ -60,6 +60,24 @@ plan:
 #   max_blocks_per_session: 2        # Prevent infinite block loops
 
 # ──────────────────────────────────────────────
+# PR Comment Output — Post findings to GitHub PR
+# ──────────────────────────────────────────────
+# Controls the /rune:post-findings skill behavior.
+# When enabled, review/audit findings can be posted as GitHub PR comments.
+# Requires gh CLI authenticated with repo write access.
+#
+# pr_comment:
+#   enabled: false                     # Master gate for PR comment posting (opt-in)
+#   severity_filter: ["P1", "P2"]      # Only post findings at these severity levels
+#   confidence_threshold: 50           # Minimum confidence score (0-100) to include finding
+#   max_findings: 30                   # Maximum findings to include in comment
+#   format: "summary"                  # Output format: "summary" | "detailed" | "minimal"
+#   include_traces: true               # Include Rune Traces (file:line evidence)
+#   include_fix_suggestions: true      # Include fix suggestions from findings
+#   collapse_threshold: 5              # Collapse findings list into <details> after this count
+#   footer: true                       # Include Rune version footer in comment
+
+# ──────────────────────────────────────────────
 # Arc — Crash Recovery Configuration
 # ──────────────────────────────────────────────
 # Arc crash recovery uses SessionStart hook detection (v1.145.0):

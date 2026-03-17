@@ -60,6 +60,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **team-status** | Team health dashboard — show active team members, task progress, and communication state (non-invocable) |
 | **runs** | Workflow run history and diagnostics (non-invocable) |
 | **ux-design-process** | UX design intelligence — heuristic evaluation checklists, interaction pattern libraries, flow validation. Auto-loaded for frontend files (non-invocable) |
+| **post-findings** | Post Rune review/audit findings to GitHub PR as formatted comment. Parses TOME, formats markdown, posts via `gh`. Configurable via `pr_comment` talisman section. `/rune:post-findings` |
 
 ## Commands
 

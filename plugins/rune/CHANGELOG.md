@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [1.178.0] - 2026-03-18
+
+### Added
+- feat: PR Comment Output — post review/audit findings to GitHub PR comments via `/rune:post-findings`
+- New skill: `/rune:post-findings` — parses TOME, formats markdown, posts to PR via `gh` CLI
+- New scripts: `tome-parser.sh`, `pr-comment-formatter.sh`, `pr-comment-poster.sh`
+- New talisman section: `pr_comment` — configurable severity filter, confidence threshold, format, collapse behavior
+- Arc Phase 8.5 integration: auto-post findings after review phases when `pr_comment.enabled: true`
+
 ## [1.177.0] - 2026-03-17
 
 ### Added
