@@ -217,8 +217,8 @@ fn extract_plans_relative(path: &str) -> &str {
     }
 }
 
-/// Try to parse and match a single checkpoint file against our criteria.
-/// Strict 4-field matching: plan_file + config_dir + owner_pid + started_at.
+/// Legacy checkpoint matching — only used in tests.
+#[cfg(test)]
 fn try_match_checkpoint(
     checkpoint_path: &Path,
     cwd: &Path,
