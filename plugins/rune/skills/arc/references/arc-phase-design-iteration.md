@@ -85,11 +85,32 @@ if (urlHost !== 'localhost' && urlHost !== '127.0.0.1') {
   baseUrl = "http://localhost:3000"
 }
 
-// 4. Group findings by component
+// 4. Load design criteria matrix from Phase 5.2 (primary convergence gate)
+// Per-criterion PASS/FAIL is the PRIMARY gate; score threshold is SECONDARY.
+// See design-convergence.md for the full criteria-based convergence protocol.
+const criteriaMatrixPath = `tmp/arc/${id}/design-criteria-matrix-0.json`
+let criteriaMatrix = null
+if (exists(criteriaMatrixPath)) {
+  criteriaMatrix = JSON.parse(Read(criteriaMatrixPath))
+}
+
+// 4.1. Primary gate: check DES- criteria status (criteria-based convergence)
+if (criteriaMatrix) {
+  const actionable = criteriaMatrix.criteria.filter(c => c.status !== "INCONCLUSIVE")
+  const nonPass = actionable.filter(c => c.status !== "PASS")
+  if (nonPass.length === 0) {
+    log(`Design iteration skipped — all DES- criteria PASS (DSR: ${criteriaMatrix.summary.dsr}). Primary gate satisfied.`)
+    updateCheckpoint({ phase: "design_iteration", status: "skipped", skip_reason: "all_criteria_pass" })
+    return
+  }
+  log(`Design iteration: ${nonPass.length} DES- criteria non-PASS. Entering convergence loop.`)
+}
+
+// 4.2. Secondary gate: group findings by component using score threshold (backward compat)
 const findingsByComponent = groupBy(findings.filter(f => f.score < fidelityThreshold), 'component')
 const componentsToIterate = Object.keys(findingsByComponent)
 
-if (componentsToIterate.length === 0) {
+if (componentsToIterate.length === 0 && !criteriaMatrix) {
   log(`Design iteration skipped — all components meet fidelity threshold (${fidelityThreshold}).`)
   updateCheckpoint({ phase: "design_iteration", status: "skipped" })
   return
@@ -171,6 +192,70 @@ if (!cleanupTeamDeleteSucceeded) {
   try { TeamDelete() } catch (e) { /* best effort */ }
 }
 
+// 11. Per-criterion convergence assessment (design-convergence.md protocol)
+// Re-evaluate DES- criteria after iteration fixes to detect regression (F10) and stagnation (F17).
+if (criteriaMatrix) {
+  // Re-run design proofs to update criteria status post-fix
+  const updatedCriteria = criteriaMatrix.criteria.map(c => {
+    // Each criterion re-evaluated by the design-iterator workers during their fix loop.
+    // Read updated status from iteration output if available.
+    const updatedFinding = findings.find(f => `DES-${f.component}-${f.dimension}` === c.id)
+    const updatedScore = updatedFinding?.updated_score ?? updatedFinding?.score ?? 0
+    const newStatus = updatedScore >= fidelityThreshold ? "PASS" : c.status === "INCONCLUSIVE" ? "INCONCLUSIVE" : "FAIL"
+    return {
+      ...c,
+      previous_status: c.status,
+      status: newStatus,
+      evidence: updatedFinding?.updated_evidence ?? c.evidence
+    }
+  })
+
+  // Regression detection (F10): criterion was PASS in baseline, now FAIL
+  const regressions = updatedCriteria.filter(c => c.previous_status === "PASS" && c.status === "FAIL")
+  if (regressions.length > 0) {
+    warn(`Design regression (F10): ${regressions.map(r => r.id).join(', ')} regressed from PASS to FAIL`)
+  }
+
+  // Stagnation detection (F17): same criteria still failing after iteration
+  const prevNonPass = criteriaMatrix.criteria.filter(c => c.status === "FAIL").map(c => c.id).sort()
+  const currNonPass = updatedCriteria.filter(c => c.status === "FAIL").map(c => c.id).sort()
+  const stagnation = JSON.stringify(prevNonPass) === JSON.stringify(currNonPass) && prevNonPass.length > 0
+  if (stagnation) {
+    warn(`Design stagnation (F17): same criteria failing after iteration: ${currNonPass.join(', ')}`)
+  }
+
+  const actionable = updatedCriteria.filter(c => c.status !== "INCONCLUSIVE")
+  const passCount = actionable.filter(c => c.status === "PASS").length
+  const dsr = actionable.length > 0 ? passCount / actionable.length : 1.0
+
+  // Write post-iteration criteria matrix
+  const postMatrix = {
+    iteration: 1,
+    timestamp: new Date().toISOString(),
+    criteria: updatedCriteria,
+    summary: { total: updatedCriteria.length, pass: passCount, fail: currNonPass.length, inconclusive: updatedCriteria.filter(c => c.status === "INCONCLUSIVE").length, dsr },
+    regressions: regressions.map(r => r.id),
+    stagnation_detected: stagnation
+  }
+  Write(`tmp/arc/${id}/design-criteria-matrix-1.json`, JSON.stringify(postMatrix, null, 2))
+
+  // Write convergence report
+  Write(`tmp/arc/${id}/design-convergence-report.json`, JSON.stringify({
+    design_convergence: {
+      iterations_used: 1,
+      max_iterations: maxIterations,
+      exit_reason: currNonPass.length === 0 ? "success" : stagnation ? "stagnation" : "budget_exceeded",
+      exit_failure_code: currNonPass.length === 0 ? null : stagnation ? "F17" : "F15",
+      final_dsr: dsr,
+      first_pass_dsr: criteriaMatrix.summary.dsr,
+      regressions_total: regressions.length,
+      stagnation_rounds: stagnation ? 1 : 0,
+      primary_gate: "criteria",
+      secondary_gate_score: fidelityThreshold
+    }
+  }, null, 2))
+}
+
 const iterReport = exists(`tmp/arc/${id}/design-iteration-report.md`)
   ? Read(`tmp/arc/${id}/design-iteration-report.md`) : "No iteration report generated."
 
@@ -179,7 +264,8 @@ updateCheckpoint({
   artifact: `tmp/arc/${id}/design-iteration-report.md`,
   artifact_hash: sha256(iterReport),
   phase_sequence: 7.6, team_name: null,
-  components_iterated: componentsToIterate.length
+  components_iterated: componentsToIterate.length,
+  dsr: criteriaMatrix ? JSON.parse(Read(`tmp/arc/${id}/design-convergence-report.json`)).design_convergence.final_dsr : null
 })
 ```
 

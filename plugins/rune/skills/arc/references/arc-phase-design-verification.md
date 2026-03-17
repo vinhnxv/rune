@@ -105,6 +105,33 @@ const findingsExist = exists(`tmp/arc/${id}/design-findings.json`)
 const findings = findingsExist ? JSON.parse(Read(`tmp/arc/${id}/design-findings.json`)) : []
 const fidelityScore = findings.reduce((sum, f) => sum + (f.score ?? 0), 0) / Math.max(findings.length, 1)
 
+// 8.5. Build DES-prefixed per-criterion evidence matrix (design-convergence.md input)
+// Each finding is classified with a DES- criterion ID for convergence tracking.
+const designCriteriaMatrix = {
+  iteration: 0,  // baseline (pre-convergence)
+  timestamp: new Date().toISOString(),
+  criteria: findings.map(f => ({
+    id: `DES-${f.component}-${f.dimension}`,
+    component: f.component,
+    dimension: f.dimension,
+    status: (f.score ?? 0) >= (designSyncConfig.fidelity_threshold ?? 80) ? "PASS" : "FAIL",
+    proof_type: f.proof_type ?? "fidelity_review",
+    evidence: f.evidence ?? f.summary ?? "",
+    failure_code: (f.score ?? 0) >= (designSyncConfig.fidelity_threshold ?? 80) ? null : "F3",
+    previous_status: null
+  })),
+  summary: {
+    total: findings.length,
+    pass: findings.filter(f => (f.score ?? 0) >= (designSyncConfig.fidelity_threshold ?? 80)).length,
+    fail: findings.filter(f => (f.score ?? 0) < (designSyncConfig.fidelity_threshold ?? 80)).length,
+    inconclusive: 0,
+    dsr: findings.length > 0
+      ? findings.filter(f => (f.score ?? 0) >= (designSyncConfig.fidelity_threshold ?? 80)).length / findings.length
+      : 1.0
+  }
+}
+Write(`tmp/arc/${id}/design-criteria-matrix-0.json`, JSON.stringify(designCriteriaMatrix, null, 2))
+
 updateCheckpoint({
   phase: "design_verification", status: "completed",
   artifact: `tmp/arc/${id}/design-verification-report.md`,
@@ -112,7 +139,10 @@ updateCheckpoint({
     ? sha256(Read(`tmp/arc/${id}/design-verification-report.md`)) : null,
   phase_sequence: 5.2, team_name: null,
   fidelity_score: fidelityScore,
-  findings_count: findings.length
+  findings_count: findings.length,
+  des_criteria_count: designCriteriaMatrix.criteria.length,
+  des_pass_count: designCriteriaMatrix.summary.pass,
+  dsr: designCriteriaMatrix.summary.dsr
 })
 ```
 
