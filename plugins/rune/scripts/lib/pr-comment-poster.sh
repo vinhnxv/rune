@@ -25,6 +25,12 @@
 set -euo pipefail
 export GH_PROMPT_DISABLED=1
 
+# Pre-flight: gh CLI must be installed
+if ! command -v gh &>/dev/null; then
+  echo "ERROR: gh CLI not found. Install via: brew install gh" >&2
+  exit 1
+fi
+
 # --- Input Validation ---
 
 if [[ $# -lt 2 ]]; then
@@ -55,6 +61,11 @@ if [[ "$body_file" == *".."* ]]; then
 fi
 if [[ "$body_file" != tmp/* ]] && [[ "$body_file" != /tmp/* ]] && [[ "$body_file" != "${TMPDIR:-/tmp}"/* ]]; then
   echo "ERROR: body_file must be under tmp/ directory" >&2
+  exit 1
+fi
+# SEC-FORGE-007: Symlink guard — prevent symlink traversal
+if [[ -L "$body_file" ]]; then
+  echo "ERROR: Symlinks not allowed for body_file" >&2
   exit 1
 fi
 
@@ -93,7 +104,8 @@ fi
 MARKER="<!-- rune-review-findings -->"
 if [[ "$force_flag" != "--force" ]]; then
   existing=$(gh api "repos/${owner}/${repo}/issues/${pr_number}/comments" \
-    --jq "[.[] | select(.body | contains(\"${MARKER}\"))] | length" 2>/dev/null || echo "0")
+    --arg marker "$MARKER" \
+    --jq '[.[] | select(.body | contains($marker))] | length' 2>/dev/null || echo "0")
   if [[ "$existing" -gt 0 ]]; then
     echo "INFO: Rune findings already posted to PR #${pr_number}. Use --force to post again." >&2
     exit 0

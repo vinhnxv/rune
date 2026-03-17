@@ -32,6 +32,11 @@ fi
 
 tome_path="$1"
 
+if [[ "$tome_path" == *".."* ]]; then
+  echo "ERROR: Path traversal detected in tome_path" >&2
+  exit 1
+fi
+
 if [[ ! -f "$tome_path" ]]; then
   echo "ERROR: TOME file not found: $tome_path" >&2
   exit 1
@@ -92,6 +97,17 @@ current_format=""
 _flush_finding() {
   # Only flush if we have a valid id
   if [[ -z "$current_id" ]]; then
+    current_marker=""
+    current_body=""
+    current_id=""
+    current_file=""
+    current_line=""
+    current_severity=""
+    current_confidence=""
+    current_confidence_score=""
+    current_title=""
+    current_ash=""
+    current_format=""
     in_finding=0
     return
   fi
@@ -105,7 +121,9 @@ _flush_finding() {
   # Extract title from body (first non-empty line, strip markdown formatting)
   if [[ -z "$current_title" ]]; then
     # Use || true to protect grep from failing under set -e when no match
-    current_title=$(printf '%s' "$current_body" | grep -E -m 1 '\S' | sed -E 's/^[#* -]+//' | sed -E 's/\*\*//g' | sed -E 's/^\[[ xX]*\][[:space:]]*//' | sed -E "s/^\[${current_id}\][: ]*//" | head -c 500 || true)
+    local safe_id
+    safe_id=$(printf '%s' "$current_id" | sed -E 's/[][()+*?.\\^${}|]/\\&/g')
+    current_title=$(printf '%s' "$current_body" | grep -E -m 1 '\S' | sed -E 's/^[#* -]+//' | sed -E 's/\*\*//g' | sed -E 's/^\[[ xX]*\][[:space:]]*//' | sed -E "s/^\[${safe_id}\][: ]*//" | head -c 500 || true)
   fi
 
   # Extract ash name from body ("Ash:" or "**Ash**:" line)
@@ -176,6 +194,10 @@ _parse_format_b() {
   tokens=$(printf '%s' "$marker" | sed -E 's/.*RUNE:FINDING[[:space:]]+//' | sed -E 's/[[:space:]]*-->.*//')
   current_id=$(printf '%s' "$tokens" | awk '{print $1}')
   current_severity=$(printf '%s' "$tokens" | awk '{print $2}')
+  if [[ -z "$current_severity" ]]; then
+    echo "WARNING: Format B marker missing severity for id=$current_id — defaulting to P3" >&2
+    current_severity="P3"
+  fi
 }
 
 # Regex patterns for bash [[ =~ ]] matching

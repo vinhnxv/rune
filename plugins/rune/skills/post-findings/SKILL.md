@@ -116,8 +116,7 @@ if (!/^[1-9]\d*$/.test(prNumber)) {
 ```javascript
 // Read pr_comment config for filtering preferences
 // readTalismanSection reads pre-resolved JSON shards from tmp/.talisman-resolved/
-const prCommentConfig = readTalismanSection("review") || {}
-const config = prCommentConfig.pr_comment || {}
+const config = readTalismanSection("pr_comment") || {}
 
 // Apply defaults
 const severityFilter = config.severity_filter || ["P1", "P2"]
@@ -141,7 +140,13 @@ const configJson = JSON.stringify({
   include_fix_suggestions: includeFixSuggestions
 })
 
-const findingsJson = Bash(`bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/tome-parser.sh" "${tomePath}" '${configJson}'`)
+// SEC-001: Validate tomePath against strict allowlist (no shell metacharacters)
+if (!/^[a-zA-Z0-9._\-\/]+\.md$/.test(tomePath)) {
+  error(`Invalid TOME path (contains disallowed characters): ${tomePath}`)
+  return
+}
+// SEC-004: Pass configJson via env var to avoid single-quote injection
+const findingsJson = Bash(`RUNE_PR_CONFIG='${configJson.replace(/'/g, "'\\''")}' bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/tome-parser.sh" "${tomePath}" "$RUNE_PR_CONFIG"`)
 
 // Validate parser output
 let findings
@@ -168,7 +173,9 @@ const findingsFile = `tmp/.rune-pr-comment-findings-${Date.now()}.json`
 Write(findingsFile, findingsJson)
 
 const commentFile = `tmp/.rune-pr-comment-body-${Date.now()}.md`
-Bash(`bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/pr-comment-formatter.sh" "${findingsFile}" "${collapseThreshold}" "${showFooter}" > "${commentFile}"`)
+// QUAL-003: Formatter reads findings from stdin, config from $1
+const formatterConfig = JSON.stringify({ collapse_threshold: collapseThreshold, footer: showFooter })
+Bash(`bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/pr-comment-formatter.sh" '${formatterConfig.replace(/'/g, "'\\''")}' < "${findingsFile}" > "${commentFile}"`)
 
 // Validate output
 if (!exists(commentFile) || Bash(`wc -c < "${commentFile}"`).trim() === "0") {
