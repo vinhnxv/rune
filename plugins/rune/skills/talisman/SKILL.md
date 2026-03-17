@@ -95,7 +95,7 @@ See [init-protocol.md](references/init-protocol.md) for the full Phase 2-5 pseud
 
 ### Phases 2-4: Deep Comparison, Integration Validation, Gap Report
 
-Classifies each section as MISSING/OUTDATED/PARTIAL/DIVERGENT/OK. Validates MCP integration entries (6 checks: server existence, tool categories, phase keys, skill bindings, rule files, trigger configuration). Presents gaps in priority order (CRITICAL → RECOMMENDED → OPTIONAL → DIVERGENT) with suggested actions.
+Classifies each section as MISSING/OUTDATED/PARTIAL/DIVERGENT/OK. Validates MCP integration entries (6 checks: server existence, tool categories, phase keys, skill bindings, rule files, trigger configuration). Runs semantic consistency validation (Phase 2.7: 6 cross-field checks via `validate-talisman-consistency.sh` — max_ashes capacity, source resolution, context budget totals, dimension agent caps, dedup hierarchy orphans). Presents gaps in priority order (CRITICAL → RECOMMENDED → OPTIONAL → DIVERGENT) with suggested actions.
 
 See [audit-protocol.md](references/audit-protocol.md) for the full comparison and gap report pseudocode.
 

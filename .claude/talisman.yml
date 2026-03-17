@@ -29,7 +29,7 @@ rune-gaze:
 # Settings — Global behavior adjustments
 # ──────────────────────────────────────────────
 settings:
-  max_ashes: 10
+  max_ashes: 13  # 7 built-in + 5 custom + 1 buffer
   max_cli_ashes: 2 # Sub-cap on CLI-backed Ashes (v1.57.0+)
   # Artifact Extraction — Lightweight digest extraction for arc team lead context optimization (v1.141.0)
   # Shell-based extraction (zero LLM tokens). Resolves decree-arbiter P1 (Explore cannot Write).
@@ -97,7 +97,7 @@ audit:
       - ember-seer
       - signal-watcher
       - decay-tracer
-    max_dimension_agents: 7
+    max_dimension_agents: 8  # 7 current + 1 buffer for future additions
   always_deep: false
 
 # ──────────────────────────────────────────────
@@ -120,7 +120,7 @@ ashes:
             "plugins/rune/commands/",
             "plugins/rune/scripts/",
           ]
-      context_budget: 25
+      context_budget: 15
       finding_prefix: "TLC"
       required_sections:
         - "P1 (Critical)"
@@ -144,7 +144,7 @@ ashes:
             "plugins/rune/scripts/",
             "plugins/rune/hooks/",
           ]
-      context_budget: 25
+      context_budget: 15
       finding_prefix: "SPAWN"
       required_sections:
         - "P1 (Critical)"
@@ -169,7 +169,7 @@ ashes:
             "plugins/rune/commands/",
             ".claude/",
           ]
-      context_budget: 25
+      context_budget: 15
       finding_prefix: "DPMT"
       required_sections:
         - "P1 (Critical)"
@@ -188,7 +188,7 @@ ashes:
       trigger:
         extensions: [".md"]
         paths: ["plugins/rune/skills/"]
-      context_budget: 25
+      context_budget: 15
       finding_prefix: "CLEAN"
       required_sections:
         - "P1 (Critical)"
@@ -201,9 +201,10 @@ ashes:
     # Detects phantom implementations: documented-but-not-implemented features,
     # code without integration, dead specs, missing execution engines,
     # unenforced rules, and fallback-as-default patterns.
+    # NOTE: agent file lives in registry/review/, not .claude/agents/
     - name: "phantom-warden"
       agent: "phantom-warden"
-      source: local
+      source: plugin
       workflows: [review, audit]
       trigger:
         extensions:
@@ -232,7 +233,7 @@ ashes:
             "lib/",
             ".claude/",
           ]
-      context_budget: 30 # Higher than standard 25 — cross-references docs against code, wider scope
+      context_budget: 20 # Higher than standard 15 — cross-references docs against code, wider scope
       finding_prefix: "PHNT"
       required_sections:
         - "P1 (Critical)"
