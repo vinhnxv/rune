@@ -36,6 +36,7 @@ pub struct App {
     pub last_discovery_poll: Option<Instant>,
     pub last_heartbeat_poll: Option<Instant>,
     pub last_checkpoint_poll: Option<Instant>,
+    pub last_loop_state_poll: Option<Instant>,
     pub launched_wall_clock: Option<chrono::DateTime<Utc>>,
 
     // Status message for display in UI
@@ -63,6 +64,9 @@ pub enum Panel {
     PlanList,
 }
 
+/// Maximum attempts per plan (1 initial + 2 retries).
+const MAX_PLAN_ATTEMPTS: u32 = 3;
+
 /// State of the currently executing arc run.
 #[allow(dead_code)] // tmux_pane_pid kept for diagnostics
 pub struct RunState {
@@ -74,6 +78,8 @@ pub struct RunState {
     pub arc: Option<ArcHandle>,
     pub last_status: Option<ArcStatus>,
     pub merge_detected_at: Option<Instant>,
+    /// Current attempt number (1-indexed). Max MAX_PLAN_ATTEMPTS.
+    pub attempt: u32,
     pub tmux_pane_pid: Option<u32>,  // Shell PID inside tmux pane
     pub claude_pid: Option<u32>,     // Claude Code process PID (= owner_pid in checkpoint)
     pub loop_state: Option<monitor::ArcLoopState>, // From arc-phase-loop.local.md
@@ -120,6 +126,7 @@ pub struct CompletedRun {
     pub plan: PlanFile,
     pub result: ArcCompletion,
     pub duration: Duration,
+    pub attempts: u32, // how many attempts were made (1 = first try, 3 = max retries exhausted)
 }
 
 #[derive(Debug, Clone)]
@@ -173,6 +180,7 @@ impl App {
             last_discovery_poll: None,
             last_heartbeat_poll: None,
             last_checkpoint_poll: None,
+            last_loop_state_poll: None,
             launched_wall_clock: None,
             status_message: None,
             claude_path: crate::tmux::Tmux::resolve_claude_path()
@@ -368,6 +376,7 @@ impl App {
                     reason: Some("skipped by user".into()),
                 },
                 duration: run.launched_at.elapsed(),
+                attempts: run.attempt,
             });
             self.tmux_session_id = None;
         }
@@ -385,6 +394,7 @@ impl App {
                     reason: "killed by user".into(),
                 },
                 duration: run.launched_at.elapsed(),
+                attempts: run.attempt,
             });
         }
         self.tmux_session_id = None;
@@ -434,6 +444,16 @@ impl App {
             if should_poll_hb {
                 self.poll_status();
                 self.last_heartbeat_poll = Some(now);
+            }
+
+            // Loop state liveness check (every 60s)
+            let should_check_loop = self
+                .last_loop_state_poll
+                .map(|t| now.duration_since(t) >= Duration::from_secs(60))
+                .unwrap_or(true);
+            if should_check_loop {
+                self.check_loop_state_liveness();
+                self.last_loop_state_poll = Some(now);
             }
 
             // Check grace period completion
@@ -521,6 +541,7 @@ impl App {
             arc: None,
             last_status: None,
             merge_detected_at: None,
+            attempt: 1,
             tmux_pane_pid,
             claude_pid,
             loop_state: None,
@@ -534,9 +555,8 @@ impl App {
         Ok(())
     }
 
-    /// Poll for arc discovery using 2-layer strategy:
-    /// 1. Parse arc-phase-loop.local.md (instant, created first by Rune arc)
-    /// 2. Fallback: glob scan <config_dir>/arc/arc-*/checkpoint.json
+    /// Poll for arc discovery by reading arc-phase-loop.local.md from config_dir.
+    /// The loop state file is the single source of truth — no glob scanning.
     fn poll_discovery(&mut self) {
         let launched_after = match self.launched_wall_clock {
             Some(t) => t,
@@ -558,21 +578,19 @@ impl App {
             (run.plan.path.clone(), run.claude_pid, run.loop_state.is_some())
         };
 
-        // Read loop state if not yet populated
+        // Read loop state if not yet populated — from project dir (cwd), NOT config dir
+        let cwd = std::env::current_dir().unwrap_or_default();
         if !has_loop_state {
-            if let Some(config_dir) = expected_config_dir {
-                let loop_state = monitor::read_arc_loop_state(Path::new(config_dir));
-                if loop_state.is_some() {
-                    self.status_message = Some("Arc loop state detected, discovering checkpoint...".into());
-                }
-                if let Some(run) = &mut self.current_run {
-                    run.loop_state = loop_state;
-                }
+            let loop_state = monitor::read_arc_loop_state(&cwd);
+            if loop_state.is_some() {
+                self.status_message = Some("Arc loop state detected, discovering checkpoint...".into());
+            }
+            if let Some(run) = &mut self.current_run {
+                run.loop_state = loop_state;
             }
         }
 
-        // Run discovery (2-layer: loop state → glob scan)
-        let cwd = std::env::current_dir().unwrap_or_default();
+        // Run discovery from <cwd>/.claude/arc-phase-loop.local.md
         if let Some(handle) = monitor::discover_arc(
             &cwd,
             &plan_path,
@@ -712,7 +730,41 @@ impl App {
                     plan: run.plan,
                     result,
                     duration: run.launched_at.elapsed(),
+                    attempts: run.attempt,
                 });
+            }
+        }
+    }
+
+    /// Check if arc-phase-loop.local.md still exists in the project dir.
+    /// If it's gone, the arc has completed or been stopped — trigger completion.
+    fn check_loop_state_liveness(&mut self) {
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let loop_file = cwd.join(".claude").join("arc-phase-loop.local.md");
+
+        if !loop_file.exists() {
+            // Loop state file gone — arc completed or stopped
+            self.status_message = Some(
+                "arc-phase-loop.local.md removed — arc completed or stopped".into(),
+            );
+            if let Some(run) = &mut self.current_run {
+                if run.merge_detected_at.is_none() {
+                    run.merge_detected_at = Some(Instant::now());
+                }
+            }
+            return;
+        }
+
+        // File exists — check if active: false (user cancelled)
+        if monitor::read_arc_loop_state(&cwd).is_none() {
+            // read_arc_loop_state returns None if active: false
+            self.status_message = Some(
+                "arc-phase-loop.local.md active: false — arc cancelled".into(),
+            );
+            if let Some(run) = &mut self.current_run {
+                if run.merge_detected_at.is_none() {
+                    run.merge_detected_at = Some(Instant::now());
+                }
             }
         }
     }
