@@ -45,7 +45,8 @@ COMPONENT_NAME="$(basename "$TARGET")"
 while IFS= read -r -d '' sf; do
   STORY_FILE="$sf"
   break
-done < <(find "$(dirname "$TARGET")" -maxdepth 2 -type f \( -name "${COMPONENT_NAME}.stories.tsx" -o -name "${COMPONENT_NAME}.stories.jsx" -o -name "${COMPONENT_NAME}.stories.ts" -o -name "${COMPONENT_NAME}.stories.js" \) -print0 2>/dev/null)
+# QUAL-310 FIX: Use -maxdepth 5 to match deeply nested story files (e.g., __stories__/ subdirs)
+done < <(find "$(dirname "$TARGET")" -maxdepth 5 -type f \( -name "${COMPONENT_NAME}.stories.tsx" -o -name "${COMPONENT_NAME}.stories.jsx" -o -name "${COMPONENT_NAME}.stories.ts" -o -name "${COMPONENT_NAME}.stories.js" \) -print0 2>/dev/null)
 
 if [[ -z "$STORY_FILE" ]]; then
   emit_result "FAIL" "No story file found for component: $COMPONENT_NAME (searched $(dirname "$TARGET"))" "F3"
@@ -57,8 +58,14 @@ MISSING_VARIANTS=()
 FOUND_VARIANTS=()
 while IFS= read -r variant; do
   [[ -z "$variant" ]] && continue
+  # SEC-003 FIX: Sanitize variant name — strip regex metacharacters to prevent injection
+  sanitized_variant="$(printf '%s' "$variant" | sed 's/[^a-zA-Z0-9_-]//g')"
+  if [[ -z "$sanitized_variant" ]]; then
+    MISSING_VARIANTS+=("$variant")
+    continue
+  fi
   # Case-insensitive search for exported variant (export const Primary, export const Disabled, etc.)
-  if grep -qiE "export\s+(const|function)\s+${variant}" "$STORY_FILE" 2>/dev/null; then
+  if grep -qiE "export\s+(const|function)\s+${sanitized_variant}" "$STORY_FILE" 2>/dev/null; then
     FOUND_VARIANTS+=("$variant")
   else
     MISSING_VARIANTS+=("$variant")
