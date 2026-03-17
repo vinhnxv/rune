@@ -120,6 +120,7 @@ pub struct ArcStatus {
     pub last_tool: String,
     pub last_activity: Option<DateTime<Utc>>,
     pub phase_summary: PhaseSummary,
+    pub phase_nav: Option<PhaseNavigation>,
     pub pr_url: Option<String>,
     pub is_stale: bool,
     pub completion: Option<ArcCompletion>,
@@ -135,6 +136,61 @@ pub struct PhaseSummary {
     pub skipped: u32,
     pub current_phase_name: String,
 }
+
+/// Previous / current / next phase with timing info.
+#[derive(Debug, Clone)]
+pub struct PhaseNavigation {
+    /// Previous completed phase name + duration.
+    pub prev: Option<PhaseInfo>,
+    /// Current in-progress phase name + elapsed time since started.
+    pub current: Option<PhaseInfo>,
+    /// Next pending phase name.
+    pub next: Option<String>,
+}
+
+/// Info about a single phase: name + duration or elapsed.
+#[derive(Debug, Clone)]
+pub struct PhaseInfo {
+    pub name: String,
+    /// For completed: duration in seconds. For in_progress: elapsed since started_at.
+    pub duration_secs: Option<i64>,
+}
+
+/// Canonical arc phase execution order.
+/// Source: plugins/rune/skills/arc/references/arc-phase-constants.md
+const PHASE_ORDER: &[&str] = &[
+    "forge",
+    "plan_review",
+    "plan_refine",
+    "verification",
+    "semantic_verification",
+    "design_extraction",
+    "design_prototype",
+    "task_decomposition",
+    "work",
+    "drift_review",
+    "storybook_verification",
+    "design_verification",
+    "ux_verification",
+    "gap_analysis",
+    "codex_gap_analysis",
+    "gap_remediation",
+    "goldmask_verification",
+    "code_review",
+    "goldmask_correlation",
+    "mend",
+    "verify_mend",
+    "design_iteration",
+    "test",
+    "test_coverage_critique",
+    "deploy_verify",
+    "pre_ship_validation",
+    "release_quality_check",
+    "ship",
+    "bot_review_wait",
+    "pr_comment_resolution",
+    "merge",
+];
 
 /// Terminal states for an arc run.
 #[derive(Debug, Clone)]
@@ -291,6 +347,7 @@ pub fn poll_arc_status(handle: &ArcHandle) -> Option<ArcStatus> {
 
     let schema_warning = checkpoint.schema_compat().warning();
     let phase_summary = compute_phase_summary(&checkpoint);
+    let phase_nav = compute_phase_navigation(&checkpoint);
     let completion = check_completion(&checkpoint);
 
     let (current_phase, last_tool, last_activity, is_stale) = match &heartbeat {
@@ -322,6 +379,7 @@ pub fn poll_arc_status(handle: &ArcHandle) -> Option<ArcStatus> {
         last_tool,
         last_activity,
         phase_summary,
+        phase_nav,
         pr_url: checkpoint.pr_url,
         is_stale,
         completion,
@@ -364,6 +422,78 @@ fn check_completion(checkpoint: &Checkpoint) -> Option<ArcCompletion> {
     }
 
     None
+}
+
+/// Compute previous/current/next phase navigation with timing.
+fn compute_phase_navigation(checkpoint: &Checkpoint) -> Option<PhaseNavigation> {
+    // Find current phase index in canonical order
+    let current_name = checkpoint.phases.iter()
+        .find(|(_, p)| p.status == "in_progress")
+        .map(|(name, _)| name.clone());
+
+    let current_idx = current_name.as_ref().and_then(|name| {
+        PHASE_ORDER.iter().position(|&p| p == name)
+    });
+
+    // Build current phase info with elapsed time
+    let current = current_name.as_ref().and_then(|name| {
+        let phase = checkpoint.phases.get(name)?;
+        let duration_secs = phase.started_at.as_ref().and_then(|started| {
+            DateTime::parse_from_rfc3339(started).ok().map(|dt| {
+                Utc::now().signed_duration_since(dt.with_timezone(&Utc)).num_seconds()
+            })
+        });
+        Some(PhaseInfo {
+            name: name.clone(),
+            duration_secs,
+        })
+    });
+
+    // Find previous: last completed phase BEFORE current in PHASE_ORDER
+    let prev = current_idx.and_then(|ci| {
+        // Walk backwards from current index to find last completed
+        for i in (0..ci).rev() {
+            let phase_name = PHASE_ORDER[i];
+            if let Some(phase) = checkpoint.phases.get(phase_name) {
+                if phase.status == "completed" {
+                    let duration_secs = compute_phase_duration(phase);
+                    return Some(PhaseInfo {
+                        name: phase_name.to_string(),
+                        duration_secs,
+                    });
+                }
+            }
+        }
+        None
+    });
+
+    // Find next: first pending phase AFTER current in PHASE_ORDER
+    let next = current_idx.and_then(|ci| {
+        for i in (ci + 1)..PHASE_ORDER.len() {
+            let phase_name = PHASE_ORDER[i];
+            if let Some(phase) = checkpoint.phases.get(phase_name) {
+                if phase.status == "pending" || phase.status.is_empty() {
+                    return Some(phase_name.to_string());
+                }
+            }
+        }
+        None
+    });
+
+    if current.is_some() || prev.is_some() || next.is_some() {
+        Some(PhaseNavigation { prev, current, next })
+    } else {
+        None
+    }
+}
+
+/// Compute duration of a completed phase from started_at and completed_at.
+fn compute_phase_duration(phase: &crate::checkpoint::PhaseStatus) -> Option<i64> {
+    let started = phase.started_at.as_ref()?;
+    let completed = phase.completed_at.as_ref()?;
+    let start = DateTime::parse_from_rfc3339(started).ok()?;
+    let end = DateTime::parse_from_rfc3339(completed).ok()?;
+    Some(end.signed_duration_since(start).num_seconds())
 }
 
 /// Compute a summary of phase progress from checkpoint data.

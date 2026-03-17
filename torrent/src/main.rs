@@ -44,8 +44,10 @@ fn main() -> Result<()> {
         }
 
         // Tick execution logic (discovery, polling, grace period, next plan)
-        if app.view == AppView::Running {
-            app.tick_execution()?;
+        match app.view {
+            AppView::Running => app.tick_execution()?,
+            AppView::ActiveArcs => app.prune_stale_active_arcs(),
+            _ => {}
         }
     }
 

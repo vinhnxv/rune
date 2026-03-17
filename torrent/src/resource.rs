@@ -137,6 +137,12 @@ pub fn check_health(sys: &System, pid: u32) -> ProcessHealth {
 }
 
 /// Collect all descendant PIDs of a given root PID (breadth-first).
+/// Public wrapper for use by scanner module.
+pub fn collect_descendants_pub(sys: &System, root_pid: u32) -> Vec<u32> {
+    collect_descendants(sys, root_pid)
+}
+
+/// Collect all descendant PIDs of a given root PID (breadth-first).
 fn collect_descendants(sys: &System, root_pid: u32) -> Vec<u32> {
     let mut result = Vec::new();
     let mut queue = vec![root_pid];

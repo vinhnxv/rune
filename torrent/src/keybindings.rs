@@ -11,6 +11,7 @@ pub fn handle_key(app: &App, key: KeyEvent) -> Action {
 
     match app.view {
         AppView::ActiveArcs => handle_active_arcs_key(app, key),
+        AppView::Selection if app.queue_editing => handle_queue_edit_key(app, key),
         AppView::Selection => handle_selection_key(app, key),
         AppView::Running => handle_running_key(key),
     }
@@ -62,6 +63,24 @@ fn handle_running_key(key: KeyEvent) -> Action {
         KeyCode::Char('a') => Action::AttachTmux,
         KeyCode::Char('s') => Action::SkipPlan,
         KeyCode::Char('k') => Action::KillSession,
+        KeyCode::Char('p') => Action::PickPlans,
+        KeyCode::Up => Action::MoveUp,
+        KeyCode::Down => Action::MoveDown,
+        _ => Action::None,
+    }
+}
+
+/// Queue-edit mode: Selection view while arc is running.
+/// Different keybindings: Enter/r = append, Esc/q = cancel.
+fn handle_queue_edit_key(app: &App, key: KeyEvent) -> Action {
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('q') => Action::CancelQueueEdit,
+        KeyCode::Char('r') | KeyCode::Enter if !app.selected_plans.is_empty() => {
+            Action::AppendToQueue
+        }
+        KeyCode::Char('a') => Action::ToggleAll,
+        KeyCode::Tab => Action::SwitchPanel,
+        KeyCode::Char(' ') => Action::TogglePlan,
         KeyCode::Up => Action::MoveUp,
         KeyCode::Down => Action::MoveDown,
         _ => Action::None,
