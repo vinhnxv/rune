@@ -561,4 +561,5 @@ After ARC-9 sweep, **finish your response immediately**. Do NOT process further 
 - [Codex Phases](references/arc-codex-phases.md) — Phases 2.8, 4.5, 5.6, 7.8, 8.55
 - [Task Decomposition](references/arc-phase-task-decomposition.md) — Phase 4.5
 - [Design Extraction](references/arc-phase-design-extraction.md) — Phase 3 (conditional)
+- [Storybook Verification](references/arc-phase-storybook-verification.md) — Phase 3.3 (conditional: `storybook.enabled`)
 - [Design Verification](references/arc-phase-design-verification.md) — Phase 5.2 (conditional)

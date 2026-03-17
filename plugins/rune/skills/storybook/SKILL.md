@@ -117,3 +117,16 @@ bootstrap.sh
 ```
 
 Returns JSON: `{ storybook_dir, full_page_component, server_running, ready }`
+
+## Discipline Integration
+
+When discipline engineering is enabled (`discipline.enabled` in talisman), Phase 3.3 (Storybook Verification) runs design-specific proofs via `execute-discipline-proofs.sh` for each verified component:
+
+| Proof Type | What It Checks | Graceful Degradation |
+|------------|---------------|---------------------|
+| `storybook_renders` | Storybook build smoke test passes | INCONCLUSIVE (F4) if Storybook not installed |
+| `axe_passes` | axe-core accessibility scan (WCAG AA) | INCONCLUSIVE (F4) if axe-core unavailable |
+| `story_exists` | Story file + variant exports exist | FAIL (F3) if missing |
+| `token_scan` | No hardcoded hex colors in component | FAIL (F3) if violations found |
+
+Evidence artifacts are written to `tmp/arc/{id}/storybook-verification/storybook-verification.json` with per-check results. Gate behavior is non-blocking by default (WARN on failures). Configure `discipline.design.block_on_fail: true` in talisman to block the pipeline on design proof failures.

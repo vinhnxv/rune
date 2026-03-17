@@ -368,6 +368,89 @@ if (!cleanupTeamDeleteSucceeded) {
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
 
+// 12.5. Discipline Integration — Design Proof Evidence Collection
+// When discipline is enabled, run design-specific proofs and write evidence artifacts.
+// This integrates the 6 design proof types from execute-discipline-proofs.sh into
+// the storybook verification phase for per-component evidence collection.
+const disciplineConfig = readTalismanSection("arc")?.discipline ?? {}
+const disciplineEnabled = disciplineConfig.enabled !== false  // default: true
+
+if (disciplineEnabled && changedComponents.length > 0) {
+  // Build discipline criteria from verified components
+  const designCriteria = []
+
+  for (const component of changedComponents) {
+    // Smoke test: storybook build renders without errors
+    designCriteria.push({
+      criterion_id: `DES-SBK-${component.name}-smoke`,
+      type: "storybook_renders",
+      target: component.path,
+      command: `npx storybook build --smoke-test`
+    })
+
+    // Accessibility scan: axe-core WCAG AA on rendered component
+    designCriteria.push({
+      criterion_id: `DES-SBK-${component.name}-a11y`,
+      type: "axe_passes",
+      target: component.path,
+      rules: "wcag2aa"
+    })
+
+    // Story coverage: verify story file exists for component
+    designCriteria.push({
+      criterion_id: `DES-SBK-${component.name}-story`,
+      type: "story_exists",
+      target: component.path,
+      variants: []  // populated from VSM if available
+    })
+
+    // Token scan: no hardcoded hex colors in component
+    designCriteria.push({
+      criterion_id: `DES-SBK-${component.name}-tokens`,
+      type: "token_scan",
+      target: component.path
+    })
+  }
+
+  // Write criteria file and execute proofs
+  const criteriaPath = `tmp/arc/${id}/storybook-verification/design-criteria.json`
+  Write(criteriaPath, JSON.stringify(designCriteria, null, 2))
+
+  const proofScript = `${CLAUDE_PLUGIN_ROOT}/scripts/execute-discipline-proofs.sh`
+  const proofOutput = Bash(`bash "${proofScript}" "${criteriaPath}" "${CWD}" 2>/dev/null || true`)
+
+  // Write per-check evidence artifact: storybook-verification.json
+  const evidencePath = `tmp/arc/${id}/storybook-verification/storybook-verification.json`
+  Write(evidencePath, JSON.stringify({
+    phase: "storybook_verification",
+    arc_id: id,
+    timestamp: new Date().toISOString(),
+    mode: mode,
+    components_verified: changedComponents.length,
+    discipline_results: proofOutput ? JSON.parse(proofOutput) : [],
+    design_gate: {
+      block_on_fail: disciplineConfig.design?.block_on_fail ?? false,
+      behavior: (disciplineConfig.design?.block_on_fail ?? false) ? "BLOCK" : "WARN"
+    }
+  }, null, 2))
+
+  // Non-blocking gate: WARN on failures, configurable via talisman.design.block_on_fail
+  const designBlockOnFail = disciplineConfig.design?.block_on_fail ?? false
+  if (proofOutput) {
+    const proofResults = JSON.parse(proofOutput)
+    const proofFailures = proofResults.filter(r => r.result === "FAIL")
+    if (proofFailures.length > 0 && designBlockOnFail) {
+      warn(`Design discipline: ${proofFailures.length} proof failure(s) — blocking pipeline per design.block_on_fail`)
+      checkpoint.phases.storybook_verification.discipline_gate = "BLOCKED"
+    } else if (proofFailures.length > 0) {
+      warn(`Design discipline: ${proofFailures.length} proof failure(s) — WARN only (design.block_on_fail: false)`)
+      checkpoint.phases.storybook_verification.discipline_gate = "WARN"
+    } else {
+      checkpoint.phases.storybook_verification.discipline_gate = "PASS"
+    }
+  }
+}
+
 // 13. Update checkpoint
 checkpoint.phases.storybook_verification.status = "completed"
 checkpoint.phases.storybook_verification.completed_at = new Date().toISOString()
