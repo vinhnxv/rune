@@ -64,6 +64,7 @@ fn handle_running_key(key: KeyEvent) -> Action {
         KeyCode::Char('s') => Action::SkipPlan,
         KeyCode::Char('k') => Action::KillSession,
         KeyCode::Char('p') => Action::PickPlans,
+        KeyCode::Char('d') => Action::RemoveFromQueue,
         KeyCode::Up => Action::MoveUp,
         KeyCode::Down => Action::MoveDown,
         _ => Action::None,

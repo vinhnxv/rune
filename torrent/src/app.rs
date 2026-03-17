@@ -35,7 +35,7 @@ pub struct App {
 
     // Execution view
     pub view: AppView,
-    pub queue: VecDeque<usize>,
+    pub queue: VecDeque<QueueEntry>,
     pub current_run: Option<RunState>,
     pub completed_runs: Vec<CompletedRun>,
     pub tmux_session_id: Option<String>,
@@ -43,6 +43,7 @@ pub struct App {
     // UI state
     pub config_cursor: usize,
     pub plan_cursor: usize,
+    pub queue_cursor: usize, // cursor position in queue (Running view)
 
     // Polling timers (non-blocking, checked on each tick)
     pub last_discovery_poll: Option<Instant>,
@@ -88,6 +89,13 @@ pub enum AppView {
 pub enum Panel {
     ConfigList,
     PlanList,
+}
+
+/// A queued plan with its associated config dir.
+#[derive(Debug, Clone)]
+pub struct QueueEntry {
+    pub plan_idx: usize,
+    pub config_idx: usize,
 }
 
 /// State of the currently executing arc run.
@@ -181,6 +189,7 @@ pub enum Action {
     SkipPlan,
     KillSession,
     PickPlans,       // Enter queue-edit mode (Running → Selection)
+    RemoveFromQueue, // Delete queue item at cursor
     // Queue-edit mode (Selection while queue_editing=true)
     AppendToQueue,   // Confirm — append selected plans to queue
     CancelQueueEdit, // Cancel — return to Running without changes
@@ -220,6 +229,7 @@ impl App {
             tmux_session_id: None,
             config_cursor: 0,
             plan_cursor: 0,
+            queue_cursor: 0,
             last_discovery_poll: None,
             last_heartbeat_poll: None,
             last_checkpoint_poll: None,
@@ -267,7 +277,7 @@ impl App {
             }
         }
         // In queue?
-        if self.queue.contains(&plan_idx) {
+        if self.queue.iter().any(|e| e.plan_idx == plan_idx) {
             return true;
         }
         // Already completed?
@@ -362,46 +372,67 @@ impl App {
 
     /// Move cursor up in the active panel.
     pub fn move_up(&mut self) {
-        if self.view == AppView::ActiveArcs {
-            if self.active_arc_cursor > 0 {
-                self.active_arc_cursor -= 1;
-            }
-            return;
-        }
-        match self.active_panel {
-            Panel::ConfigList => {
-                if self.config_cursor > 0 {
-                    self.config_cursor -= 1;
+        match self.view {
+            AppView::ActiveArcs => {
+                if self.active_arc_cursor > 0 {
+                    self.active_arc_cursor -= 1;
                 }
             }
-            Panel::PlanList => {
-                if self.plan_cursor > 0 {
-                    self.plan_cursor -= 1;
+            AppView::Running => {
+                if self.queue_cursor > 0 {
+                    self.queue_cursor -= 1;
                 }
             }
+            AppView::Selection => match self.active_panel {
+                Panel::ConfigList => {
+                    if self.config_cursor > 0 {
+                        self.config_cursor -= 1;
+                    }
+                }
+                Panel::PlanList => {
+                    if self.plan_cursor > 0 {
+                        self.plan_cursor -= 1;
+                    }
+                }
+            },
         }
     }
 
     /// Move cursor down in the active panel.
     pub fn move_down(&mut self) {
-        if self.view == AppView::ActiveArcs {
-            if self.active_arc_cursor + 1 < self.active_arcs.len() {
-                self.active_arc_cursor += 1;
-            }
-            return;
-        }
-        match self.active_panel {
-            Panel::ConfigList => {
-                if self.config_cursor + 1 < self.config_dirs.len() {
-                    self.config_cursor += 1;
+        match self.view {
+            AppView::ActiveArcs => {
+                if self.active_arc_cursor + 1 < self.active_arcs.len() {
+                    self.active_arc_cursor += 1;
                 }
             }
-            Panel::PlanList => {
-                if self.plan_cursor + 1 < self.plans.len() {
-                    self.plan_cursor += 1;
+            AppView::Running => {
+                // Queue cursor range: completed_runs + current_run + pending queue
+                let total = self.queue_total_items();
+                if self.queue_cursor + 1 < total {
+                    self.queue_cursor += 1;
                 }
             }
+            AppView::Selection => match self.active_panel {
+                Panel::ConfigList => {
+                    if self.config_cursor + 1 < self.config_dirs.len() {
+                        self.config_cursor += 1;
+                    }
+                }
+                Panel::PlanList => {
+                    if self.plan_cursor + 1 < self.plans.len() {
+                        self.plan_cursor += 1;
+                    }
+                }
+            },
         }
+    }
+
+    /// Total number of items displayed in the Queue panel.
+    fn queue_total_items(&self) -> usize {
+        self.completed_runs.len()
+            + if self.current_run.is_some() { 1 } else { 0 }
+            + self.queue.len()
     }
 
     /// Select the config dir at the current cursor position.
@@ -452,7 +483,12 @@ impl App {
     /// Transition to Running view — populate the execution queue.
     pub fn start_run(&mut self) {
         self.view = AppView::Running;
-        self.queue = self.selected_plans.iter().copied().collect();
+        self.queue = self.selected_plans.iter()
+            .map(|&plan_idx| QueueEntry {
+                plan_idx,
+                config_idx: self.selected_config,
+            })
+            .collect();
     }
 
     /// Print a summary to stdout after terminal is restored.
@@ -510,8 +546,8 @@ impl App {
         }
 
         // Show pending plans in queue
-        for &idx in &self.queue {
-            if let Some(plan) = self.plans.get(idx) {
+        for entry in &self.queue {
+            if let Some(plan) = self.plans.get(entry.plan_idx) {
                 println!("  ○ {:<30} pending", plan.name);
             }
         }
@@ -553,6 +589,7 @@ impl App {
                     let _ = Tmux::attach(&sid);
                 }
             }
+            Action::RemoveFromQueue => self.remove_queue_item(),
             Action::SkipPlan => self.skip_current_plan(),
             Action::KillSession => self.kill_current_session(),
             Action::PickPlans => {
@@ -569,9 +606,12 @@ impl App {
                 self.view = AppView::Selection;
             }
             Action::AppendToQueue => {
-                // Append selected plans to the execution queue
-                for &idx in &self.selected_plans {
-                    self.queue.push_back(idx);
+                // Append selected plans with currently selected config dir
+                for &plan_idx in &self.selected_plans {
+                    self.queue.push_back(QueueEntry {
+                        plan_idx,
+                        config_idx: self.selected_config,
+                    });
                 }
                 let count = self.selected_plans.len();
                 self.selected_plans.clear();
@@ -670,6 +710,36 @@ impl App {
         self.view = AppView::Running;
     }
 
+    /// Remove a queue item at the current cursor position.
+    /// Only pending items (not completed or current) can be removed.
+    fn remove_queue_item(&mut self) {
+        let completed_count = self.completed_runs.len();
+        let current_count = if self.current_run.is_some() { 1 } else { 0 };
+        let non_removable = completed_count + current_count;
+
+        if self.queue_cursor < non_removable {
+            // Cursor is on a completed run or current — not removable
+            self.status_message = Some("Cannot remove completed or running items".into());
+            return;
+        }
+
+        let queue_idx = self.queue_cursor - non_removable;
+        if queue_idx < self.queue.len() {
+            let removed = self.queue.remove(queue_idx);
+            let name = removed
+                .and_then(|e| self.plans.get(e.plan_idx))
+                .map(|p| p.name.clone())
+                .unwrap_or_else(|| "?".into());
+            self.status_message = Some(format!("Removed: {name}"));
+
+            // Adjust cursor if it's past the end
+            let total = self.queue_total_items();
+            if total > 0 && self.queue_cursor >= total {
+                self.queue_cursor = total - 1;
+            }
+        }
+    }
+
     /// Skip the current plan — kill tmux, move to next.
     fn skip_current_plan(&mut self) {
         if let Some(run) = self.current_run.take() {
@@ -716,9 +786,10 @@ impl App {
 
         if self.current_run.is_none() {
             // No arc running — start next plan from queue
-            if let Some(plan_idx) = self.queue.pop_front() {
+            if let Some(entry) = self.queue.pop_front() {
                 self.all_done_at = None;
-                self.launch_next_plan(plan_idx)?;
+                self.selected_config = entry.config_idx;
+                self.launch_next_plan(entry.plan_idx)?;
             } else if !self.completed_runs.is_empty() {
                 // All plans done — auto-quit after delay
                 let auto_quit_secs = Self::auto_quit_secs();
@@ -846,7 +917,10 @@ impl App {
             .output();
         if checkout.as_ref().map_or(true, |o| !o.status.success()) {
             self.status_message = Some("git checkout main failed — clean up working tree".into());
-            self.queue.push_front(plan_idx);
+            self.queue.push_front(QueueEntry {
+                plan_idx,
+                config_idx: self.selected_config,
+            });
             return Ok(());
         }
         let pull = Command::new("git")

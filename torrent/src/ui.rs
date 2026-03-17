@@ -279,7 +279,7 @@ fn render_plan_panel(frame: &mut Frame, app: &App, area: Rect) {
                 fa == fb
             }).unwrap_or(false) {
                 " ▶ ".to_string()  // currently running
-            } else if app.queue.contains(&i) {
+            } else if app.queue.iter().any(|e| e.plan_idx == i) {
                 " ◆ ".to_string()  // queued
             } else {
                 " ✓ ".to_string()  // completed
@@ -360,6 +360,8 @@ fn render_running(frame: &mut Frame, app: &App, area: Rect) {
     let all_done = app.current_run.is_none() && app.queue.is_empty() && !app.completed_runs.is_empty();
     let default_status = if all_done {
         " All done! [p] add plans  [q] quit"
+    } else if !app.queue.is_empty() {
+        " [a] attach  [s] skip  [k] kill  [p] add  [d] remove  [q] quit"
     } else {
         " [a] attach  [s] skip  [k] kill  [p] add plans  [q] quit"
     };
@@ -620,12 +622,14 @@ fn render_heartbeat(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_queue(frame: &mut Frame, app: &App, area: Rect) {
     let mut items: Vec<ListItem> = Vec::new();
+    let mut row: usize = 0;
     let cfg_label = app.config_dirs.get(app.selected_config)
         .map(|c| c.label.as_str())
         .unwrap_or("?");
 
     // Completed runs
     for run in &app.completed_runs {
+        let is_cursor = row == app.queue_cursor;
         let (icon, desc, color) = match &run.result {
             ArcCompletion::Merged { pr_url } => ("✓", pr_url.as_deref().unwrap_or("merged").to_string(), sol::GREEN),
             ArcCompletion::Shipped { pr_url } => ("✓", pr_url.as_deref().unwrap_or("shipped").to_string(), sol::CYAN),
@@ -633,35 +637,58 @@ fn render_queue(frame: &mut Frame, app: &App, area: Rect) {
             ArcCompletion::Failed { .. } => ("✗", "failed".into(), sol::RED),
         };
         let dur = format!("{}m", run.duration.as_secs() / 60);
+        let cursor_mark = if is_cursor { "›" } else { " " };
         items.push(ListItem::new(Line::from(vec![
-            Span::styled(format!("  {icon} "), Style::default().fg(color)),
+            Span::styled(format!(" {cursor_mark}{icon} "), Style::default().fg(color)),
             Span::styled(&run.plan.name, Style::default().fg(sol::BASE0)),
             Span::styled(format!("  {desc}  {dur}"), Style::default().fg(color)),
         ])));
+        row += 1;
     }
 
     // Currently running
     if let Some(run) = &app.current_run {
+        let is_cursor = row == app.queue_cursor;
         let phase = run.last_status.as_ref().map(|s| s.current_phase.as_str()).unwrap_or("discovering...");
+        let cursor_mark = if is_cursor { "›" } else { " " };
         items.push(ListItem::new(Line::from(vec![
-            Span::styled("  ▶ ", Style::default().fg(sol::YELLOW)),
+            Span::styled(format!(" {cursor_mark}▶ "), Style::default().fg(sol::YELLOW)),
             Span::styled(&run.plan.name, Style::default().fg(sol::YELLOW).add_modifier(Modifier::BOLD)),
             Span::styled(format!("  {phase}"), Style::default().fg(sol::BASE0)),
             Span::styled(format!("  [{cfg_label}]"), Style::default().fg(sol::BASE01)),
         ])));
+        row += 1;
     }
 
-    // Pending in queue
-    for &idx in &app.queue {
-        if let Some(plan) = app.plans.get(idx) {
+    // Pending in queue (deletable) — each entry has its own config dir
+    for entry in &app.queue {
+        if let Some(plan) = app.plans.get(entry.plan_idx) {
+            let is_cursor = row == app.queue_cursor;
+            let entry_cfg = app.config_dirs.get(entry.config_idx)
+                .map(|c| c.label.as_str())
+                .unwrap_or("?");
+            let (name_style, marker_style) = if is_cursor {
+                (
+                    Style::default().fg(sol::YELLOW).add_modifier(Modifier::BOLD),
+                    Style::default().fg(sol::YELLOW),
+                )
+            } else {
+                (
+                    Style::default().fg(sol::BASE01),
+                    Style::default().fg(sol::BASE01),
+                )
+            };
+            let cursor_mark = if is_cursor { "›" } else { " " };
             items.push(ListItem::new(Line::from(vec![
-                Span::styled("  ○ ", Style::default().fg(sol::BASE01)),
-                Span::styled(&plan.name, Style::default().fg(sol::BASE01)),
-                Span::styled(format!("  [{cfg_label}]"), Style::default().fg(sol::BASE01)),
+                Span::styled(format!(" {cursor_mark}○ "), marker_style),
+                Span::styled(&plan.name, name_style),
+                Span::styled(format!("  [{entry_cfg}]"), Style::default().fg(sol::BASE01)),
             ])));
+            row += 1;
         }
     }
 
+    let _ = row; // suppress unused warning
     frame.render_widget(
         List::new(items).block(
             Block::default().borders(Borders::ALL)
