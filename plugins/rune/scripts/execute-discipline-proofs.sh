@@ -15,6 +15,12 @@
 #   test_passes        — execute command, check exit code
 #   builds_clean       — execute build command, check exit code
 #   semantic_match     — judge model (haiku) with rubric, confidence-gated
+#   token_scan         — scan for hardcoded hex colors (design-proofs/verify-design-tokens.sh)
+#   axe_passes         — axe-core accessibility scan (design-proofs/verify-accessibility.sh)
+#   story_exists       — Storybook story file + variant coverage (design-proofs/verify-story-coverage.sh)
+#   storybook_renders  — Storybook build smoke test (design-proofs/verify-storybook-build.sh)
+#   screenshot_diff    — visual diff vs reference screenshot (design-proofs/verify-screenshot-fidelity.sh)
+#   responsive_check   — DOM inspection at viewport breakpoints (design-proofs/verify-responsive.sh)
 
 set -euo pipefail
 umask 077
@@ -314,6 +320,10 @@ classify_failure() {
     test_passes|builds_clean)
       echo "F3"
       ;;
+    # Design proof types — failure codes set by helper scripts
+    token_scan|axe_passes|story_exists|storybook_renders|screenshot_diff|responsive_check)
+      echo "F3"
+      ;;
     *)
       echo "F3"
       ;;
@@ -402,6 +412,98 @@ while IFS= read -r criterion; do
         evidence="semantic_match: ${sm_detail}; judge_model_response=${judge_model_response}"
       else
         evidence="semantic_match: ${sm_detail}"
+      fi
+      ;;
+
+    # --- Design proof types (delegate to helper scripts) ---
+    token_scan)
+      helper_input="$(jq -n --arg cid "$criterion_id" --arg tgt "$target" \
+        '{criterion_id:$cid,target:$tgt}')"
+      helper_output="$("${SCRIPT_DIR}/design-proofs/verify-design-tokens.sh" "$helper_input" 2>/dev/null)" || true
+      if [[ -n "$helper_output" ]]; then
+        result="$(printf '%s' "$helper_output" | jq -r '.result // "FAIL"')"
+        evidence="$(printf '%s' "$helper_output" | jq -r '.evidence // "unknown"')"
+        fc="$(printf '%s' "$helper_output" | jq -r '.failure_code // empty')"
+      else
+        result="FAIL"
+        evidence="token_scan helper returned no output for $target"
+      fi
+      ;;
+
+    axe_passes)
+      rules="$(echo "$criterion" | jq -r '.rules // "wcag2aa"')"
+      helper_input="$(jq -n --arg cid "$criterion_id" --arg tgt "$target" --arg r "$rules" \
+        '{criterion_id:$cid,target:$tgt,rules:$r}')"
+      helper_output="$("${SCRIPT_DIR}/design-proofs/verify-accessibility.sh" "$helper_input" 2>/dev/null)" || true
+      if [[ -n "$helper_output" ]]; then
+        result="$(printf '%s' "$helper_output" | jq -r '.result // "FAIL"')"
+        evidence="$(printf '%s' "$helper_output" | jq -r '.evidence // "unknown"')"
+        fc="$(printf '%s' "$helper_output" | jq -r '.failure_code // empty')"
+      else
+        result="FAIL"
+        evidence="axe_passes helper returned no output for $target"
+      fi
+      ;;
+
+    story_exists)
+      variants="$(echo "$criterion" | jq -c '.variants // []')"
+      helper_input="$(jq -n --arg cid "$criterion_id" --arg tgt "$target" --argjson v "$variants" \
+        '{criterion_id:$cid,target:$tgt,variants:$v}')"
+      helper_output="$("${SCRIPT_DIR}/design-proofs/verify-story-coverage.sh" "$helper_input" 2>/dev/null)" || true
+      if [[ -n "$helper_output" ]]; then
+        result="$(printf '%s' "$helper_output" | jq -r '.result // "FAIL"')"
+        evidence="$(printf '%s' "$helper_output" | jq -r '.evidence // "unknown"')"
+        fc="$(printf '%s' "$helper_output" | jq -r '.failure_code // empty')"
+      else
+        result="FAIL"
+        evidence="story_exists helper returned no output for $target"
+      fi
+      ;;
+
+    storybook_renders)
+      sb_command="$(echo "$criterion" | jq -r '.command // "npx storybook build --smoke-test"')"
+      helper_input="$(jq -n --arg cid "$criterion_id" --arg tgt "$target" --arg cmd "$sb_command" \
+        '{criterion_id:$cid,target:$tgt,command:$cmd}')"
+      helper_output="$("${SCRIPT_DIR}/design-proofs/verify-storybook-build.sh" "$helper_input" 2>/dev/null)" || true
+      if [[ -n "$helper_output" ]]; then
+        result="$(printf '%s' "$helper_output" | jq -r '.result // "FAIL"')"
+        evidence="$(printf '%s' "$helper_output" | jq -r '.evidence // "unknown"')"
+        fc="$(printf '%s' "$helper_output" | jq -r '.failure_code // empty')"
+      else
+        result="FAIL"
+        evidence="storybook_renders helper returned no output for $target"
+      fi
+      ;;
+
+    screenshot_diff)
+      reference="$(echo "$criterion" | jq -r '.reference // ""')"
+      threshold="$(echo "$criterion" | jq -r '.threshold // "5"')"
+      helper_input="$(jq -n --arg cid "$criterion_id" --arg tgt "$target" --arg ref "$reference" --arg thr "$threshold" \
+        '{criterion_id:$cid,target:$tgt,reference:$ref,threshold:($thr|tonumber)}')"
+      helper_output="$("${SCRIPT_DIR}/design-proofs/verify-screenshot-fidelity.sh" "$helper_input" 2>/dev/null)" || true
+      if [[ -n "$helper_output" ]]; then
+        result="$(printf '%s' "$helper_output" | jq -r '.result // "FAIL"')"
+        evidence="$(printf '%s' "$helper_output" | jq -r '.evidence // "unknown"')"
+        fc="$(printf '%s' "$helper_output" | jq -r '.failure_code // empty')"
+      else
+        result="FAIL"
+        evidence="screenshot_diff helper returned no output for $target"
+      fi
+      ;;
+
+    responsive_check)
+      breakpoints="$(echo "$criterion" | jq -r '.breakpoints // "375,768,1024,1440"')"
+      checks="$(echo "$criterion" | jq -r '.checks // "no_overflow,no_truncation,layout_adapts"')"
+      helper_input="$(jq -n --arg cid "$criterion_id" --arg tgt "$target" --arg bp "$breakpoints" --arg ch "$checks" \
+        '{criterion_id:$cid,target:$tgt,breakpoints:$bp,checks:$ch}')"
+      helper_output="$("${SCRIPT_DIR}/design-proofs/verify-responsive.sh" "$helper_input" 2>/dev/null)" || true
+      if [[ -n "$helper_output" ]]; then
+        result="$(printf '%s' "$helper_output" | jq -r '.result // "FAIL"')"
+        evidence="$(printf '%s' "$helper_output" | jq -r '.evidence // "unknown"')"
+        fc="$(printf '%s' "$helper_output" | jq -r '.failure_code // empty')"
+      else
+        result="FAIL"
+        evidence="responsive_check helper returned no output for $target"
       fi
       ;;
 
