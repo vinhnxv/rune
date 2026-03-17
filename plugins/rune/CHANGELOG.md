@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.174.0] - 2026-03-17
+
+### Added
+- **feat(discipline): arc pipeline discipline wiring (shard 8 of 9)** — Wire discipline enforcement into 8 additional arc phases. Forge criteria guard (Phase 1) validates acceptance criteria quality post-enrichment. Task decomposition criteria coverage assertion (Phase 4.5) verifies no criteria silently dropped. Remediation evidence collection (Phases 5.8, 7) in gap-fixer and mend-fixer agents with proof-schema.md reference. Spec-aware test discipline (Phase 7.7) with echo-back for test strategy, F-code classification (F3/F9/F17) in fix loops, and plan context for failure analyst. Spec-aware test coverage critique (Phase 7.8) evaluates both code coverage and spec coverage. Proof manifest generation at pre-ship validation (Phase 8.5) persisted as PR comment at merge. Dual convergence gate in verify-mend (Phase 7.3) checks both findings AND criteria dimensions with regression detection (F10).
+
 ## [1.173.0] - 2026-03-17
 
 ### Added
