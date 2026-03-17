@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [1.177.0] - 2026-03-17
+
+### Added
+- arc: `generateTestStrategy()` inline pseudocode in `arc-phase-test.md` — 6-section template matching `test-strategy-template.md`
+- arc: Phase 7.9 `deploy_verify` row in SKILL.md phase table
+- arc: Wire `visual-regression.md` reference in `arc-phase-test.md` E2E section
+- arc: `--status` flag for mid-pipeline progress checking (delegates to `rune-status.sh`)
+
+### Fixed
+- arc: Replace 2 inline polling loops in `arc-codex-phases.md` with proper `waitForCompletion()` calls (POLL-001 fix)
+
 ## [1.176.0] - 2026-03-17
 
 ### Added
