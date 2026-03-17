@@ -85,6 +85,17 @@ pub fn refresh_process_system(sys: &mut System) {
     );
 }
 
+/// Check if a process with the given PID is alive (exists and is signalable).
+///
+/// Uses `kill -0` which checks existence without sending a signal.
+/// Shared utility — used by lock.rs, app.rs, and scanner.rs.
+pub fn is_pid_alive(pid: u32) -> bool {
+    std::process::Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .output()
+        .is_ok_and(|o| o.status.success())
+}
+
 /// Take a resource snapshot for a Claude Code process and all its children.
 ///
 /// Aggregates CPU and memory across the entire process tree rooted at `pid`.
@@ -137,14 +148,30 @@ pub fn check_health(sys: &System, pid: u32) -> ProcessHealth {
 }
 
 /// Collect all descendant PIDs of a given root PID (breadth-first).
+///
+/// Builds a parent→children index in O(n) first, then BFS over the index.
+/// Previously was O(n*d) where n=all processes and d=tree depth.
 pub fn collect_descendants(sys: &System, root_pid: u32) -> Vec<u32> {
+    use std::collections::HashMap;
+
+    // Build parent→children index in a single pass over all processes
+    let mut children_map: HashMap<u32, Vec<u32>> = HashMap::new();
+    for (pid, proc_) in sys.processes() {
+        if let Some(parent) = proc_.parent() {
+            children_map
+                .entry(parent.as_u32())
+                .or_default()
+                .push(pid.as_u32());
+        }
+    }
+
+    // BFS using the index — O(d) lookups instead of O(n*d) scans
     let mut result = Vec::new();
     let mut queue = vec![root_pid];
 
     while let Some(parent) = queue.pop() {
-        for (pid, proc_) in sys.processes() {
-            if proc_.parent().map(|p| p.as_u32()) == Some(parent) {
-                let child_pid = pid.as_u32();
+        if let Some(kids) = children_map.get(&parent) {
+            for &child_pid in kids {
                 if child_pid != root_pid && !result.contains(&child_pid) {
                     result.push(child_pid);
                     queue.push(child_pid);

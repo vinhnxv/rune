@@ -275,7 +275,7 @@ def _write_search_signal(project_dir: str) -> None:
 # Database helpers
 # ---------------------------------------------------------------------------
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def get_db(db_path: str) -> sqlite3.Connection:
@@ -319,6 +319,8 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
 
     if current < 1:
         _migrate_v1(conn)
+    if current < 2:
+        _migrate_v2(conn)
 
     conn.execute(
         "INSERT OR REPLACE INTO agent_meta (key, value) VALUES (?, ?)",
@@ -373,6 +375,45 @@ def _migrate_v1(conn: sqlite3.Connection) -> None:
         )""")
 
 
+def _migrate_v2(conn: sqlite3.Connection) -> None:
+    """Apply V2 schema: add languages column and rebuild FTS5 with languages.
+
+    SEC-WARD-002 FIX: Uses BEGIN EXCLUSIVE to serialize concurrent startup.
+    BACK-P1-001 NOTE: After migration, existing agents have languages=''.
+    A full reindex (agent_reindex) is needed to populate languages from
+    frontmatter. The dirty signal auto-reindex handles this on next search.
+    """
+    # SEC-WARD-002: Serialize DDL with exclusive transaction
+    conn.execute("BEGIN EXCLUSIVE")
+    try:
+        # Add languages column to agent_entries (idempotent)
+        try:
+            conn.execute(
+                "ALTER TABLE agent_entries ADD COLUMN languages TEXT DEFAULT ''"
+            )
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
+        # Drop and recreate FTS5 table with languages column
+        conn.execute("DROP TABLE IF EXISTS agent_entries_fts")
+        conn.execute("""CREATE VIRTUAL TABLE agent_entries_fts USING fts5(
+            name, description, tags, languages, body,
+            content=agent_entries,
+            tokenize='porter unicode61'
+        )""")
+
+        # Repopulate FTS from existing data
+        conn.execute("""INSERT INTO agent_entries_fts
+            (rowid, name, description, tags, languages, body)
+            SELECT rowid, name, description, tags, languages, body
+            FROM agent_entries""")
+
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+
+
 def rebuild_index(
     conn: sqlite3.Connection,
     entries: List[Dict[str, Any]],
@@ -412,6 +453,7 @@ def rebuild_index(
         phases_str = ",".join(entry.get("compatible_phases", []))
         tags_str = ",".join(entry.get("tags", []))
         tools_str = ",".join(str(t) for t in entry.get("tools", []))
+        languages_str = ",".join(entry.get("languages", []))
 
         # Priority-aware conflict check: skip if existing entry has higher priority
         existing = conn.execute(
@@ -441,9 +483,9 @@ def rebuild_index(
             conn.execute(
                 """INSERT OR REPLACE INTO agent_entries
                    (id, name, description, category, primary_phase,
-                    compatible_phases, tags, source, priority,
+                    compatible_phases, tags, languages, source, priority,
                     tools, model, max_turns, body, file_path, indexed_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     entry.get("id", ""),
                     name,
@@ -452,6 +494,7 @@ def rebuild_index(
                     entry.get("primary_phase", ""),
                     phases_str,
                     tags_str,
+                    languages_str,
                     source,
                     priority,
                     tools_str,
@@ -465,16 +508,17 @@ def rebuild_index(
             # Manual FTS sync (content= table requires manual insert)
             conn.execute(
                 """INSERT INTO agent_entries_fts
-                   (rowid, name, description, tags, body)
+                   (rowid, name, description, tags, languages, body)
                    VALUES (
                        (SELECT rowid FROM agent_entries WHERE id = ?),
-                       ?, ?, ?, ?
+                       ?, ?, ?, ?, ?
                    )""",
                 (
                     entry.get("id", ""),
                     name,
                     entry.get("description", ""),
                     tags_str,
+                    languages_str,
                     entry.get("body", ""),
                 ),
             )
@@ -664,6 +708,7 @@ def do_search(
     phase: Optional[str] = None,
     category: Optional[str] = None,
     source: Optional[str] = None,
+    language: Optional[str] = None,
     exclude: Optional[List[str]] = None,
     limit: int = 5,
 ) -> Dict[str, Any]:
@@ -675,6 +720,7 @@ def do_search(
         phase: Optional phase filter.
         category: Optional category filter.
         source: Optional source filter (builtin, extended, project, user).
+        language: Optional language filter (e.g., 'python', 'ruby').
         exclude: Optional list of agent names to exclude.
         limit: Maximum results to return (default 5, max 20).
 
@@ -723,6 +769,14 @@ def do_search(
         if source:
             sql += " AND e.source = ?"
             params.append(source)
+        if language:
+            # Comma-delimited matching: wrap stored value in commas to avoid
+            # substring false positives (e.g., 'go' matching 'golang').
+            # Parameterized query prevents SQL injection.
+            # SEC-WARD-001 FIX: Escape LIKE wildcards (% and _) in user input
+            safe_lang = language.lower().replace("%", "\\%").replace("_", "\\_")
+            sql += " AND (',' || e.languages || ',' LIKE ? ESCAPE '\\')"
+            params.append("%," + safe_lang + ",%")
 
         sql += " ORDER BY bm25(agent_entries_fts) LIMIT ?"
         params.append(fetch_limit)
@@ -767,6 +821,10 @@ def do_search(
             tags_str = r.get("tags", "")
             if isinstance(tags_str, str):
                 r["tags"] = [t.strip() for t in tags_str.split(",") if t.strip()]
+            # Parse languages back to list
+            langs_str = r.get("languages", "")
+            if isinstance(langs_str, str):
+                r["languages"] = [l.strip() for l in langs_str.split(",") if l.strip()]
 
     finally:
         conn.close()
@@ -781,6 +839,7 @@ def do_search(
             "phase": phase,
             "category": category,
             "source": source,
+            "language": language,
             "exclude": exclude or [],
         },
         "time_ms": elapsed_ms,
@@ -810,7 +869,7 @@ def do_detail(db_path: str, name: str) -> Dict[str, Any]:
 
         result = dict(row)
         # Parse lists
-        for field in ("compatible_phases", "tags", "tools"):
+        for field in ("compatible_phases", "tags", "tools", "languages"):
             val = result.get(field, "")
             if isinstance(val, str):
                 result[field] = [v.strip() for v in val.split(",") if v.strip()]
@@ -834,6 +893,7 @@ def do_register(
     tags: List[str],
     body: str,
     source: str = "user",
+    languages: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Register a user/project agent definition.
 
@@ -885,6 +945,11 @@ def do_register(
         category = categories[0] if categories else "unknown"
         phases_str = ",".join(compatible_phases)
         tags_str = ",".join(tags)
+        # BACK-P2-001 FIX: Support languages in registration
+        languages_str = ",".join(
+            lang.strip().lower()[:50] for lang in (languages or [])
+            if isinstance(lang, str) and lang.strip()
+        )
         priority = SOURCE_PRIORITIES.get(source, 50)
 
         # Fix BACK-002: Delete old FTS entry before re-registration to prevent ghost entries
@@ -895,23 +960,23 @@ def do_register(
         conn.execute(
             """INSERT OR REPLACE INTO agent_entries
                (id, name, description, category, primary_phase,
-                compatible_phases, tags, source, priority,
+                compatible_phases, tags, languages, source, priority,
                 tools, model, max_turns, body, file_path, indexed_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (entry_id, name, description, category, primary_phase,
-             phases_str, tags_str, source, priority,
+             phases_str, tags_str, languages_str, source, priority,
              "", "", 0, body, "registered:%s" % name, now),
         )
 
         # Update FTS
         conn.execute(
             """INSERT INTO agent_entries_fts
-               (rowid, name, description, tags, body)
+               (rowid, name, description, tags, languages, body)
                VALUES (
                    (SELECT rowid FROM agent_entries WHERE id = ?),
-                   ?, ?, ?, ?
+                   ?, ?, ?, ?, ?
                )""",
-            (entry_id, name, description, tags_str, body),
+            (entry_id, name, description, tags_str, languages_str, body),
         )
         conn.commit()
 
@@ -1148,6 +1213,10 @@ async def _mcp_handle_search(arguments: Dict) -> Tuple[Dict, bool]:
     if source is not None and not isinstance(source, str):
         source = None
 
+    language = arguments.get("language")
+    if language is not None and not isinstance(language, str):
+        language = None
+
     exclude = arguments.get("exclude")
     if exclude is not None:
         if isinstance(exclude, list):
@@ -1168,8 +1237,8 @@ async def _mcp_handle_search(arguments: Dict) -> Tuple[Dict, bool]:
     result = do_search(
         DB_PATH, query,
         phase=phase, category=category,
-        source=source, exclude=exclude,
-        limit=limit,
+        source=source, language=language,
+        exclude=exclude, limit=limit,
     )
     return result, False
 
@@ -1318,6 +1387,13 @@ TOOL_SCHEMAS = [
                     "type": "string",
                     "description": "Filter by agent source",
                     "enum": ["builtin", "extended", "project", "user"],
+                },
+                "language": {
+                    "type": "string",
+                    "description": (
+                        "Filter by programming language "
+                        "(e.g., 'python', 'ruby', 'typescript')"
+                    ),
                 },
                 "exclude": {
                     "type": "array",

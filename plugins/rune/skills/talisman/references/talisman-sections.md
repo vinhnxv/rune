@@ -36,6 +36,7 @@ This list reflects the documented schema used by Rune (including default-injecte
 | 28 | `design_sync` | Figma design synchronization | `enabled`, `figma_provider`, `max_figma_urls`, `max_extraction_workers`, `max_implementation_workers`, `max_iteration_workers`, `max_iterations`, `iterate_enabled`, `trust_hierarchy.*`, `verification_gate.*`, `backend_impact.*`, `codegen_profile` |
 | 29 | `inner_flame` | Self-review protocol | `enabled`, `block_on_fail`, `elegance_check` |
 | 30 | `discipline` | Proof validation | `enabled`, `block_on_fail`, `proof_timeout`, `max_convergence_iterations`, `echo_back_required` |
+| 31 | `stack_awareness` | Stack detection & specialist selection | `enabled`, `confidence_threshold`, `max_stack_ashes`, `design_compliance`, `override.*`, `custom_rules[]`, `priority.*` |
 
 ## Critical Sections (Must-Have)
 
@@ -60,6 +61,18 @@ These sections affect core workflow correctness:
 ### `arc.timeouts`
 **Impact**: Per-phase timeout controls for arc pipeline.
 **Must have**: All 24 phase timeout entries for predictable behavior.
+
+### `stack_awareness.priority` (v1.178.0+)
+**Impact**: Boosts MCP-discovered agent scores for specified languages/frameworks during agent discovery.
+**Key fields**:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `priority.languages` | list | `[]` | Language names to boost (e.g., `[python, typescript]`). Matched against agent `languages` field (case-insensitive) |
+| `priority.frameworks` | list | `[]` | Framework names to boost (e.g., `[fastapi, django]`). Matched against agent tags (case-insensitive) |
+| `priority.boost_factor` | float | `1.5` | Score multiplier for matching agents. Higher = more likely to survive trim. Range: 1.0-3.0 recommended |
+
+**Consumer**: `rune-gaze.md` Phase 1C (MCP-First Agent Discovery), Step 3.5.
 
 ## Stack-Specific Configuration
 

@@ -37,6 +37,9 @@ target/
 **/*.rs.bk
 *.pdb
 
+# Torrent instance lock
+.torrent.lock
+
 # Eval workspace outputs (ephemeral, machine-specific)
 *-workspace/
 

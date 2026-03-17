@@ -378,6 +378,14 @@ def parse_agent_file(
     body = "\n".join(stripped_lines[body_start:]).strip()
     tags = _extract_tags(metadata, body)
 
+    # Extract languages from frontmatter, normalize to lowercase
+    languages_raw = metadata.get("languages", [])
+    if isinstance(languages_raw, str):
+        languages_raw = [languages_raw]
+    # SEC-WARD-003 FIX: Truncate per-value to 50 chars, cap list at 20 items
+    languages = [lang.strip().lower()[:50] for lang in languages_raw
+                 if isinstance(lang, str) and lang.strip()][:20]
+
     return {
         "id": generate_id(name, source, file_path),
         "name": name,
@@ -388,6 +396,7 @@ def parse_agent_file(
         "tags": tags,
         "source": source,
         "priority": SOURCE_PRIORITIES.get(source, 50),
+        "languages": languages,
         "tools": metadata.get("tools", []),
         "model": metadata.get("model", ""),
         "max_turns": metadata.get("maxTurns", 0),
@@ -530,6 +539,13 @@ def discover_and_parse(
             name = agent_def.get("name", "user-agent-%d" % i)
             if not isinstance(name, str) or not VALID_NAME_RE.match(name):
                 continue
+            # Extract languages, normalize to lowercase
+            user_langs_raw = agent_def.get("languages", [])
+            if isinstance(user_langs_raw, str):
+                user_langs_raw = [user_langs_raw]
+            user_langs = [l.strip().lower() for l in user_langs_raw
+                          if isinstance(l, str) and l.strip()]
+
             entry = {
                 "id": generate_id(name, "user", "talisman:%d" % i),
                 "name": name,
@@ -538,6 +554,7 @@ def discover_and_parse(
                 "primary_phase": "",
                 "compatible_phases": agent_def.get("phases", []),
                 "tags": agent_def.get("tags", []),
+                "languages": user_langs,
                 "source": "user",
                 "priority": SOURCE_PRIORITIES["user"],
                 "tools": agent_def.get("tools", []),

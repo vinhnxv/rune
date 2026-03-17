@@ -1560,6 +1560,10 @@ context_weaving:
 #       domains: [backend]
 #       workflows: [review, work]
 #       stacks: [python]
+#   priority:                              # Boost MCP-discovered agents for specific stacks (v1.178.0+)
+#     languages: [python]                  # Languages to prioritize in agent discovery (case-insensitive)
+#     frameworks: [fastapi, sqlalchemy]    # Frameworks to prioritize in agent discovery (case-insensitive)
+#     boost_factor: 1.5                    # Score multiplier for matching agents (default: 1.5, range: 1.0-3.0)
 
 # ── Figma Design Sync (v1.97.0+) ──
 # Controls the /rune:design-sync pipeline and arc design phases.

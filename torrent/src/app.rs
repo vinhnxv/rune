@@ -102,8 +102,6 @@ pub struct QueueEntry {
 #[allow(dead_code)] // tmux_pane_pid kept for diagnostics
 pub struct RunState {
     pub plan: PlanFile,
-    pub plan_index: usize,   // 1-indexed position in selected_plans
-    pub total_plans: usize,
     pub config_idx: usize,   // config dir this plan was launched with
     pub tmux_session: String,
     pub launched_at: Instant,
@@ -114,6 +112,36 @@ pub struct RunState {
     pub claude_pid: Option<u32>,     // Claude Code process PID (= owner_pid in checkpoint)
     pub loop_state: Option<monitor::ArcLoopState>, // From arc-phase-loop.local.md
     pub session_info: Option<crate::scanner::SessionInfo>, // Enriched session info
+}
+
+impl RunState {
+    /// Best-effort arc_id from either the arc handle or last polled status.
+    fn arc_id(&self) -> Option<String> {
+        self.arc
+            .as_ref()
+            .map(|a| a.arc_id.clone())
+            .or_else(|| self.last_status.as_ref().map(|s| s.arc_id.clone()))
+    }
+
+    /// Arc duration from the checkpoint's started_at (real arc time),
+    /// falling back to torrent's launched_at (includes wait/init overhead).
+    fn arc_duration(&self) -> Duration {
+        if let Some(handle) = &self.arc {
+            if let Ok(contents) = std::fs::read_to_string(&handle.checkpoint_path) {
+                if let Ok(cp) = serde_json::from_str::<serde_json::Value>(&contents) {
+                    if let Some(started) = cp.get("started_at").and_then(|v| v.as_str()) {
+                        if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(started) {
+                            let elapsed = Utc::now().signed_duration_since(dt.with_timezone(&Utc));
+                            if let Ok(std_dur) = elapsed.to_std() {
+                                return std_dur;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        self.launched_at.elapsed()
+    }
 }
 
 /// Handle to a discovered arc checkpoint + heartbeat pair.
@@ -139,6 +167,7 @@ pub struct ArcStatus {
     pub phase_nav: Option<monitor::PhaseNavigation>,
     pub pr_url: Option<String>,
     pub is_stale: bool,
+    pub completion: Option<monitor::ArcCompletion>,
     pub schema_warning: Option<String>,
     // Resource monitoring
     pub resource: Option<ResourceSnapshot>,
@@ -158,6 +187,7 @@ pub struct CompletedRun {
     pub plan: PlanFile,
     pub result: ArcCompletion,
     pub duration: Duration,
+    pub arc_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -204,11 +234,14 @@ impl App {
         let cwd = std::env::current_dir()?;
         let plans = crate::scanner::scan_plans(&cwd)?;
 
-        // Initialize sysinfo BEFORE scanning arcs (needed for session enrichment)
-        let sys = resource::create_process_system();
+        // Initialize sysinfo ONCE — reused for both startup scan and ongoing polling.
+        // Previously created twice (400ms wasted on double System::new_all + sleep).
+        let mut sys = resource::create_process_system();
 
         // Startup scan: detect active arc sessions
         let active_arcs = crate::scanner::scan_active_arcs(&config_dirs, &cwd, &sys);
+        // Refresh after scan so the stored sys has up-to-date data for first poll
+        resource::refresh_process_system(&mut sys);
         let initial_view = if active_arcs.is_empty() {
             AppView::Selection
         } else {
@@ -240,7 +273,7 @@ impl App {
             status_message: None,
             claude_path: crate::tmux::Tmux::resolve_claude_path()
                 .unwrap_or_else(|_| "claude".to_string()),
-            sys: resource::create_process_system(),
+            sys,
             git_branch: Self::read_git_branch(),
             all_done_at: None,
             queue_editing: false,
@@ -352,16 +385,9 @@ impl App {
         }
     }
 
-    /// Check if a PID is alive (wrapper around kill -0).
+    /// Check if a PID is alive (delegates to shared resource::is_pid_alive).
     fn is_pid_alive(pid_str: &str) -> bool {
-        let pid: u32 = match pid_str.parse() {
-            Ok(p) => p,
-            Err(_) => return false,
-        };
-        Command::new("kill")
-            .args(["-0", &pid.to_string()])
-            .output()
-            .is_ok_and(|o| o.status.success())
+        pid_str.parse::<u32>().map_or(false, resource::is_pid_alive)
     }
 
     /// Switch active panel between config list and plan list.
@@ -684,8 +710,6 @@ impl App {
         let loop_state = arc.loop_state;
         self.current_run = Some(RunState {
             plan,
-            plan_index: 1,
-            total_plans: 1,
             config_idx: self.selected_config,
             tmux_session: arc.tmux_session.clone().unwrap_or_default(),
             launched_at: Instant::now(),
@@ -743,12 +767,15 @@ impl App {
     fn skip_current_plan(&mut self) {
         if let Some(run) = self.current_run.take() {
             let _ = Tmux::kill_session(&run.tmux_session);
+            let arc_id = run.arc_id();
+            let duration = run.arc_duration();
             self.completed_runs.push(CompletedRun {
                 plan: run.plan,
                 result: ArcCompletion::Cancelled {
                     reason: Some("skipped by user".into()),
                 },
-                duration: run.launched_at.elapsed(),
+                duration,
+                arc_id,
             });
             self.tmux_session_id = None;
             // Clamp cursor after item count changed
@@ -765,12 +792,15 @@ impl App {
             let _ = Tmux::kill_session(session_id);
         }
         if let Some(run) = self.current_run.take() {
+            let arc_id = run.arc_id();
+            let duration = run.arc_duration();
             self.completed_runs.push(CompletedRun {
                 plan: run.plan,
                 result: ArcCompletion::Failed {
                     reason: "killed by user".into(),
                 },
-                duration: run.launched_at.elapsed(),
+                duration,
+                arc_id,
             });
         }
         self.tmux_session_id = None;
@@ -991,11 +1021,8 @@ impl App {
             self.status_message = Some(format!("/arc sent to {}", &session_id));
         }
 
-        let total = self.completed_runs.len() + 1 + self.queue.len();
         self.current_run = Some(RunState {
             plan,
-            plan_index: self.completed_runs.len() + 1,
-            total_plans: total,
             config_idx: self.selected_config,
             tmux_session: session_id,
             launched_at: Instant::now(),
@@ -1047,21 +1074,21 @@ impl App {
             (run.plan.path.clone(), run.claude_pid, run.loop_state.is_some())
         };
 
+        // Run discovery (2-layer: loop state → glob scan)
+        // Note: loop state file lives under CWD (.claude/arc-phase-loop.local.md),
+        // NOT under config_dir. Use cwd for both loop state and discovery.
+        let cwd = std::env::current_dir().unwrap_or_default();
+
         // Read loop state if not yet populated
         if !has_loop_state {
-            if let Some(config_dir) = expected_config_dir {
-                let loop_state = monitor::read_arc_loop_state(Path::new(config_dir));
-                if loop_state.is_some() {
-                    self.status_message = Some("Arc loop state detected, discovering checkpoint...".into());
-                }
-                if let Some(run) = &mut self.current_run {
-                    run.loop_state = loop_state;
-                }
+            let loop_state = monitor::read_arc_loop_state(&cwd);
+            if loop_state.is_some() {
+                self.status_message = Some("Arc loop state detected, discovering checkpoint...".into());
+            }
+            if let Some(run) = &mut self.current_run {
+                run.loop_state = loop_state;
             }
         }
-
-        // Run discovery (2-layer: loop state → glob scan)
-        let cwd = std::env::current_dir().unwrap_or_default();
         if let Some(handle) = monitor::discover_arc(
             &cwd,
             &plan_path,
@@ -1152,6 +1179,7 @@ impl App {
                 phase_nav: status.phase_nav,
                 pr_url: status.pr_url,
                 is_stale,
+                completion: status.completion,
                 schema_warning: status.schema_warning,
                 resource: res_snapshot,
                 process_health: proc_health,
@@ -1195,23 +1223,32 @@ impl App {
                 let _ = Tmux::kill_session(&run.tmux_session);
                 self.tmux_session_id = None;
 
-                // Determine completion type from last status
-                let (result, pr_url) = if let Some(status) = &run.last_status {
-                    (
-                        ArcCompletion::Merged {
-                            pr_url: status.pr_url.clone(),
+                // Determine completion type from last polled status.
+                // Map monitor::ArcCompletion → app::ArcCompletion to preserve
+                // the actual result (Shipped, Failed, Cancelled) instead of
+                // always defaulting to Merged.
+                let result = if let Some(status) = &run.last_status {
+                    let pr = status.pr_url.clone();
+                    match &status.completion {
+                        Some(monitor::ArcCompletion::Shipped) => ArcCompletion::Shipped { pr_url: pr },
+                        Some(monitor::ArcCompletion::Failed) => ArcCompletion::Failed {
+                            reason: "arc reported failure".into(),
                         },
-                        status.pr_url.clone(),
-                    )
+                        Some(monitor::ArcCompletion::Cancelled) => ArcCompletion::Cancelled {
+                            reason: Some("arc cancelled".into()),
+                        },
+                        _ => ArcCompletion::Merged { pr_url: pr },
+                    }
                 } else {
-                    (ArcCompletion::Merged { pr_url: None }, None)
+                    ArcCompletion::Merged { pr_url: None }
                 };
-
-                let _ = pr_url; // consumed by ArcCompletion variant
+                let arc_id = run.arc_id();
+                let duration = run.arc_duration();
                 self.completed_runs.push(CompletedRun {
                     plan: run.plan,
                     result,
-                    duration: run.launched_at.elapsed(),
+                    duration,
+                    arc_id,
                 });
 
                 // Clamp queue cursor after item count changed

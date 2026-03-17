@@ -42,7 +42,7 @@ Define custom Ash in `.claude/talisman.yml` (project) or `~/.claude/talisman.yml
 | `detection_steps` | list | No | Optional detection steps: `version_check`, `auth_check`, `jq_check`, `ignore_file_check` |
 | `model_pattern` | regex | No | Regex to validate model name. Default: `/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/` (MODEL_NAME_PATTERN) |
 | `workflows` | list | Yes | Which commands use this: `[review]`, `[audit]`, `[forge]`, or combinations |
-| `trigger.extensions` | list | Yes* | File extensions that activate this Ash. Use `["*"]` for all files. *Required for review/audit workflows |
+| `trigger.extensions` | list | Yes* | File extensions that activate this Ash. Use `["*"]` for all files. *Required for review/audit workflows unless `trigger.always` is true |
 | `trigger.paths` | list | No | Directory prefixes to match. If set, file must match BOTH extension AND path |
 | `trigger.topics` | list | No* | Topic keywords for Forge Gaze matching. *Required if `forge` is in `workflows` |
 | `trigger.languages` | list | No | Primary languages that activate this Ash (e.g., `["python", "typescript"]`). Matches against `detected_stack.primary_language`. (v1.86.0+) |
@@ -252,16 +252,20 @@ Run these checks at Phase 0 before summoning any agents:
 
 ```
 for each custom Ash:
-  matching_files = []
+  if trigger.always:
+    # Always-on: bypass file matching, use all changed files up to context_budget
+    matching_files = changed_files[:context_budget]
+  else:
+    matching_files = []
 
-  for each file in changed_files (review) or all_files (audit):
-    ext_match = file.extension in trigger.extensions OR trigger.extensions == ["*"]
-    path_match = trigger.paths is empty OR file starts with any trigger.paths entry
+    for each file in changed_files (review) or all_files (audit):
+      ext_match = file.extension in trigger.extensions OR trigger.extensions == ["*"]
+      path_match = trigger.paths is empty OR file starts with any trigger.paths entry
 
-    if ext_match AND path_match:
-      matching_files.add(file)
+      if ext_match AND path_match:
+        matching_files.add(file)
 
-  if len(matching_files) >= trigger.min_files (default 1):
+  if trigger.always OR len(matching_files) >= trigger.min_files (default 1):
     summon this Ash with matching_files[:context_budget]
   else:
     skip silently (same behavior as conditional built-in Ash)

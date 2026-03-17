@@ -79,9 +79,9 @@ Parse `$ARGUMENTS` to determine subcommand:
 
 ### Phases 2-5: Stack Detection, Template Read, Generate, Write
 
-Detects project stack from manifest files (10 languages + CI/Docker/ORM signals), reads canonical `talisman.example.yml`, generates stack-customized talisman with core + optional sections, detects MCP integrations from `.mcp.json`, writes to `.claude/talisman.yml`, and shows summary with next steps.
+Detects project stack from manifest files (10 languages + CI/Docker/ORM signals), queries agent-search MCP for stack-relevant agents (Phase 2.3), reads canonical `talisman.example.yml`, generates stack-customized talisman with core + optional sections, detects MCP integrations from `.mcp.json`, scaffolds `stack_awareness.priority` from detected stack, writes to `.claude/talisman.yml`, and shows summary with next steps.
 
-See [init-protocol.md](references/init-protocol.md) for the full Phase 2-5 pseudocode (stack signals, customization table, MCP detection).
+See [init-protocol.md](references/init-protocol.md) for the full Phase 2-5 pseudocode (stack signals, agent recommendations, customization table, MCP detection).
 
 ## AUDIT — Compare Against Template
 

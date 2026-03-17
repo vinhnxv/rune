@@ -1,6 +1,7 @@
 mod app;
 mod checkpoint;
 mod keybindings;
+mod lock;
 mod monitor;
 mod resource;
 mod scanner;
@@ -21,6 +22,30 @@ fn main() -> Result<()> {
 
     // Verify tmux is available before starting the TUI
     Tmux::verify_available()?;
+
+    // Acquire CWD instance lock — prevents 2 torrents from conflicting
+    // on git working tree and arc-phase-loop.local.md in the same directory.
+    let cwd = std::env::current_dir()?;
+    let _lock_guard = match lock::acquire(&cwd) {
+        lock::LockResult::Acquired(guard) => guard,
+        lock::LockResult::StaleRecovered(guard) => {
+            eprintln!(
+                "warning: cleaned up stale lock from dead torrent process"
+            );
+            guard
+        }
+        lock::LockResult::AlreadyRunning { pid, lock_path } => {
+            eprintln!(
+                "error: another torrent instance is already running in this directory (PID {})",
+                pid
+            );
+            eprintln!("  lock: {}", lock_path.display());
+            eprintln!();
+            eprintln!("  Kill it first:  kill {}  (or kill -9 {})", pid, pid);
+            eprintln!("  Or remove lock: rm {}", lock_path.display());
+            std::process::exit(1);
+        }
+    };
 
     // Initialize terminal (raw mode + alternate screen)
     let mut terminal = ratatui::init();
@@ -56,6 +81,8 @@ fn main() -> Result<()> {
 
     // Print summary to stdout
     app.print_quit_summary();
+
+    // _lock_guard drops here — releases .torrent.lock
 
     Ok(())
 }
