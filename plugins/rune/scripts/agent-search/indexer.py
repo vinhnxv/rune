@@ -382,8 +382,9 @@ def parse_agent_file(
     languages_raw = metadata.get("languages", [])
     if isinstance(languages_raw, str):
         languages_raw = [languages_raw]
-    languages = [lang.strip().lower() for lang in languages_raw
-                 if isinstance(lang, str) and lang.strip()]
+    # SEC-WARD-003 FIX: Truncate per-value to 50 chars, cap list at 20 items
+    languages = [lang.strip().lower()[:50] for lang in languages_raw
+                 if isinstance(lang, str) and lang.strip()][:20]
 
     return {
         "id": generate_id(name, source, file_path),

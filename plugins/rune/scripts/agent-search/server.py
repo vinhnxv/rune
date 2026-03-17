@@ -376,28 +376,42 @@ def _migrate_v1(conn: sqlite3.Connection) -> None:
 
 
 def _migrate_v2(conn: sqlite3.Connection) -> None:
-    """Apply V2 schema: add languages column and rebuild FTS5 with languages."""
-    # Add languages column to agent_entries (idempotent via IF NOT EXISTS check)
+    """Apply V2 schema: add languages column and rebuild FTS5 with languages.
+
+    SEC-WARD-002 FIX: Uses BEGIN EXCLUSIVE to serialize concurrent startup.
+    BACK-P1-001 NOTE: After migration, existing agents have languages=''.
+    A full reindex (agent_reindex) is needed to populate languages from
+    frontmatter. The dirty signal auto-reindex handles this on next search.
+    """
+    # SEC-WARD-002: Serialize DDL with exclusive transaction
+    conn.execute("BEGIN EXCLUSIVE")
     try:
-        conn.execute(
-            "ALTER TABLE agent_entries ADD COLUMN languages TEXT DEFAULT ''"
-        )
-    except sqlite3.OperationalError:
-        pass  # Column already exists
+        # Add languages column to agent_entries (idempotent)
+        try:
+            conn.execute(
+                "ALTER TABLE agent_entries ADD COLUMN languages TEXT DEFAULT ''"
+            )
+        except sqlite3.OperationalError:
+            pass  # Column already exists
 
-    # Drop and recreate FTS5 table with languages column
-    conn.execute("DROP TABLE IF EXISTS agent_entries_fts")
-    conn.execute("""CREATE VIRTUAL TABLE agent_entries_fts USING fts5(
-        name, description, tags, languages, body,
-        content=agent_entries,
-        tokenize='porter unicode61'
-    )""")
+        # Drop and recreate FTS5 table with languages column
+        conn.execute("DROP TABLE IF EXISTS agent_entries_fts")
+        conn.execute("""CREATE VIRTUAL TABLE agent_entries_fts USING fts5(
+            name, description, tags, languages, body,
+            content=agent_entries,
+            tokenize='porter unicode61'
+        )""")
 
-    # Repopulate FTS from existing data
-    conn.execute("""INSERT INTO agent_entries_fts
-        (rowid, name, description, tags, languages, body)
-        SELECT rowid, name, description, tags, languages, body
-        FROM agent_entries""")
+        # Repopulate FTS from existing data
+        conn.execute("""INSERT INTO agent_entries_fts
+            (rowid, name, description, tags, languages, body)
+            SELECT rowid, name, description, tags, languages, body
+            FROM agent_entries""")
+
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
 
 
 def rebuild_index(
@@ -759,8 +773,10 @@ def do_search(
             # Comma-delimited matching: wrap stored value in commas to avoid
             # substring false positives (e.g., 'go' matching 'golang').
             # Parameterized query prevents SQL injection.
-            sql += " AND (',' || e.languages || ',' LIKE ?)"
-            params.append("%," + language.lower() + ",%")
+            # SEC-WARD-001 FIX: Escape LIKE wildcards (% and _) in user input
+            safe_lang = language.lower().replace("%", "\\%").replace("_", "\\_")
+            sql += " AND (',' || e.languages || ',' LIKE ? ESCAPE '\\')"
+            params.append("%," + safe_lang + ",%")
 
         sql += " ORDER BY bm25(agent_entries_fts) LIMIT ?"
         params.append(fetch_limit)
@@ -877,6 +893,7 @@ def do_register(
     tags: List[str],
     body: str,
     source: str = "user",
+    languages: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Register a user/project agent definition.
 
@@ -928,6 +945,11 @@ def do_register(
         category = categories[0] if categories else "unknown"
         phases_str = ",".join(compatible_phases)
         tags_str = ",".join(tags)
+        # BACK-P2-001 FIX: Support languages in registration
+        languages_str = ",".join(
+            lang.strip().lower()[:50] for lang in (languages or [])
+            if isinstance(lang, str) and lang.strip()
+        )
         priority = SOURCE_PRIORITIES.get(source, 50)
 
         # Fix BACK-002: Delete old FTS entry before re-registration to prevent ghost entries
@@ -942,7 +964,7 @@ def do_register(
                 tools, model, max_turns, body, file_path, indexed_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (entry_id, name, description, category, primary_phase,
-             phases_str, tags_str, "", source, priority,
+             phases_str, tags_str, languages_str, source, priority,
              "", "", 0, body, "registered:%s" % name, now),
         )
 
@@ -954,7 +976,7 @@ def do_register(
                    (SELECT rowid FROM agent_entries WHERE id = ?),
                    ?, ?, ?, ?, ?
                )""",
-            (entry_id, name, description, tags_str, "", body),
+            (entry_id, name, description, tags_str, languages_str, body),
         )
         conn.commit()
 
