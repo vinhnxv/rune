@@ -76,6 +76,7 @@ pub struct RunState {
     pub merge_detected_at: Option<Instant>,
     pub tmux_pane_pid: Option<u32>,  // Shell PID inside tmux pane
     pub claude_pid: Option<u32>,     // Claude Code process PID (= owner_pid in checkpoint)
+    pub loop_state: Option<monitor::ArcLoopState>, // From arc-phase-loop.local.md
 }
 
 /// Handle to a discovered arc checkpoint + heartbeat pair.
@@ -522,6 +523,7 @@ impl App {
             merge_detected_at: None,
             tmux_pane_pid,
             claude_pid,
+            loop_state: None,
         });
 
         // Reset poll timers
@@ -532,36 +534,52 @@ impl App {
         Ok(())
     }
 
-    /// Poll for arc discovery — scan .claude/arc/ for matching checkpoint.
-    /// Passes expected config_dir and claude_pid for strict 4-field matching.
+    /// Poll for arc discovery using 2-layer strategy:
+    /// 1. Parse arc-phase-loop.local.md (instant, created first by Rune arc)
+    /// 2. Fallback: glob scan <config_dir>/arc/arc-*/checkpoint.json
     fn poll_discovery(&mut self) {
         let launched_after = match self.launched_wall_clock {
             Some(t) => t,
             None => return,
         };
 
-        let run = match &self.current_run {
-            Some(r) => r,
-            None => return,
-        };
-
-        // Build expected identity for strict matching
+        // Extract needed values before borrowing self.current_run mutably
         let config_dir_str = self
             .config_dirs
             .get(self.selected_config)
             .map(|c| c.path.to_string_lossy().to_string());
         let expected_config_dir = config_dir_str.as_deref();
-        let expected_claude_pid = run.claude_pid;
 
+        let (plan_path, expected_claude_pid, has_loop_state) = {
+            let run = match &self.current_run {
+                Some(r) => r,
+                None => return,
+            };
+            (run.plan.path.clone(), run.claude_pid, run.loop_state.is_some())
+        };
+
+        // Read loop state if not yet populated
+        if !has_loop_state {
+            if let Some(config_dir) = expected_config_dir {
+                let loop_state = monitor::read_arc_loop_state(Path::new(config_dir));
+                if loop_state.is_some() {
+                    self.status_message = Some("Arc loop state detected, discovering checkpoint...".into());
+                }
+                if let Some(run) = &mut self.current_run {
+                    run.loop_state = loop_state;
+                }
+            }
+        }
+
+        // Run discovery (2-layer: loop state → glob scan)
         let cwd = std::env::current_dir().unwrap_or_default();
         if let Some(handle) = monitor::discover_arc(
             &cwd,
-            &run.plan.path,
+            &plan_path,
             launched_after,
             expected_config_dir,
             expected_claude_pid,
         ) {
-            // Convert monitor::ArcHandle to app::ArcHandle
             if let Some(run) = &mut self.current_run {
                 run.arc = Some(ArcHandle {
                     arc_id: handle.arc_id,

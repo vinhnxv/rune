@@ -17,6 +17,99 @@ pub struct ArcHandle {
     pub session_id: String,
 }
 
+// ── Arc Phase Loop State ───────────────────────────────────────
+
+/// Parsed state from `.claude/arc-phase-loop.local.md` (YAML frontmatter).
+///
+/// This file is the primary source of truth for an active arc run.
+/// It contains the checkpoint_path, owner_pid, and session_id — allowing
+/// instant discovery without glob-scanning arc directories.
+#[derive(Debug, Clone)]
+pub struct ArcLoopState {
+    pub active: bool,
+    pub checkpoint_path: String,
+    pub plan_file: String,
+    pub config_dir: String,
+    pub owner_pid: String,
+    pub session_id: String,
+    pub branch: String,
+    pub iteration: u32,
+    pub max_iterations: u32,
+}
+
+/// Parse `arc-phase-loop.local.md` from a config directory.
+///
+/// The file uses YAML frontmatter between `---` delimiters.
+/// Returns `None` if the file doesn't exist, is not active, or can't be parsed.
+pub fn read_arc_loop_state(config_dir: &Path) -> Option<ArcLoopState> {
+    let loop_file = config_dir.join("arc-phase-loop.local.md");
+    let contents = fs::read_to_string(&loop_file).ok()?;
+
+    // Extract YAML frontmatter between --- delimiters
+    let yaml = extract_frontmatter(&contents)?;
+
+    let active = parse_yaml_bool(&yaml, "active")?;
+    if !active {
+        return None;
+    }
+
+    Some(ArcLoopState {
+        active,
+        checkpoint_path: parse_yaml_str(&yaml, "checkpoint_path")?,
+        plan_file: parse_yaml_str(&yaml, "plan_file")?,
+        config_dir: parse_yaml_str(&yaml, "config_dir")?,
+        owner_pid: parse_yaml_str(&yaml, "owner_pid")?,
+        session_id: parse_yaml_str(&yaml, "session_id")?,
+        branch: parse_yaml_str(&yaml, "branch").unwrap_or_default(),
+        iteration: parse_yaml_str(&yaml, "iteration")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0),
+        max_iterations: parse_yaml_str(&yaml, "max_iterations")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(50),
+    })
+}
+
+/// Extract YAML frontmatter content between `---` markers.
+fn extract_frontmatter(content: &str) -> Option<String> {
+    let trimmed = content.trim();
+    if !trimmed.starts_with("---") {
+        return None;
+    }
+    let after_first = &trimmed[3..];
+    let end = after_first.find("---")?;
+    Some(after_first[..end].to_string())
+}
+
+/// Parse a simple `key: value` from YAML content.
+fn parse_yaml_str(yaml: &str, key: &str) -> Option<String> {
+    for line in yaml.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix(key) {
+            if let Some(value) = rest.strip_prefix(':') {
+                let val = value.trim();
+                // Strip surrounding quotes if present
+                let val = val.trim_matches('"').trim_matches('\'');
+                if val.is_empty() || val == "null" {
+                    return None;
+                }
+                return Some(val.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Parse a boolean `key: true/false` from YAML content.
+fn parse_yaml_bool(yaml: &str, key: &str) -> Option<bool> {
+    let val = parse_yaml_str(yaml, key)?;
+    match val.as_str() {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    }
+}
+
 /// Polled status of a running arc.
 #[derive(Debug, Clone)]
 pub struct ArcStatus {
@@ -50,11 +143,17 @@ pub enum ArcCompletion {
     Failed,
 }
 
-/// Discover a newly-launched arc by scanning `.claude/arc/arc-*/checkpoint.json`
-/// relative to the current working directory.
+/// Discover a newly-launched arc using a 2-layer strategy:
 ///
-/// Matches on: plan_file + config_dir + owner_pid + started_at > launched_after.
-/// Returns `None` if no matching checkpoint is found (caller should retry).
+/// **Layer 1 (primary): Parse `arc-phase-loop.local.md`**
+/// This file is created FIRST by Rune arc and contains the checkpoint_path,
+/// owner_pid, and session_id. Instant discovery without glob scanning.
+///
+/// **Layer 2 (fallback): Glob scan `<config_dir>/arc/arc-*/checkpoint.json`**
+/// Uses the config_dir (not cwd) to find checkpoint files. Matches on:
+/// plan_file + config_dir + owner_pid + started_at > launched_after.
+///
+/// Returns `None` if no matching arc is found (caller should retry).
 pub fn discover_arc(
     cwd: &Path,
     plan_path: &Path,
@@ -62,10 +161,32 @@ pub fn discover_arc(
     expected_config_dir: Option<&str>,
     expected_claude_pid: Option<u32>,
 ) -> Option<ArcHandle> {
-    let arc_dir = cwd.join(".claude").join("arc");
-    let pattern = format!("{}/arc-*/checkpoint.json", arc_dir.display());
+    // Layer 1: Try arc-phase-loop.local.md first (instant, no glob needed)
+    if let Some(config_dir) = expected_config_dir {
+        let config_path = Path::new(config_dir);
+        if let Some(handle) = discover_from_loop_state(
+            cwd,
+            config_path,
+            plan_path,
+            expected_claude_pid,
+        ) {
+            return Some(handle);
+        }
+    }
 
-    let entries = glob::glob(&pattern).ok()?;
+    // Layer 2: Fallback — glob scan <config_dir>/arc/arc-*/checkpoint.json
+    // Use config_dir if available, otherwise fall back to <cwd>/.claude/
+    let arc_base = if let Some(config_dir) = expected_config_dir {
+        PathBuf::from(config_dir).join("arc")
+    } else {
+        cwd.join(".claude").join("arc")
+    };
+
+    let pattern = format!("{}/arc-*/checkpoint.json", arc_base.display());
+    let entries = match glob::glob(&pattern) {
+        Ok(e) => e,
+        Err(_) => return None,
+    };
 
     for entry in entries.flatten() {
         let handle = try_match_checkpoint(
@@ -84,6 +205,72 @@ pub fn discover_arc(
     None
 }
 
+/// Discover arc from `arc-phase-loop.local.md` state file.
+///
+/// This is the primary discovery method — the loop state file is created
+/// before the checkpoint and contains direct pointers to all arc state.
+fn discover_from_loop_state(
+    cwd: &Path,
+    config_dir: &Path,
+    plan_path: &Path,
+    expected_claude_pid: Option<u32>,
+) -> Option<ArcHandle> {
+    let state = read_arc_loop_state(config_dir)?;
+
+    // Validate plan_file matches (normalize both to "plans/..." form)
+    let plan_str = plan_path.display().to_string();
+    let plan_relative = extract_plans_relative(&plan_str);
+    let state_relative = extract_plans_relative(&state.plan_file);
+    if plan_relative != state_relative {
+        return None;
+    }
+
+    // Validate owner_pid if we have expected PID
+    if let Some(expected_pid) = expected_claude_pid {
+        if let Ok(state_pid) = state.owner_pid.parse::<u32>() {
+            if state_pid != expected_pid {
+                return None;
+            }
+        }
+    }
+
+    // Resolve checkpoint_path (may be relative to cwd)
+    let checkpoint_path = if state.checkpoint_path.starts_with('/') {
+        PathBuf::from(&state.checkpoint_path)
+    } else {
+        cwd.join(&state.checkpoint_path)
+    };
+
+    // Verify checkpoint file exists
+    if !checkpoint_path.exists() {
+        return None;
+    }
+
+    // Read checkpoint to get arc_id
+    let checkpoint = read_checkpoint(&checkpoint_path)?;
+    let arc_id = checkpoint.id.clone();
+    let heartbeat_path = cwd.join("tmp").join("arc").join(&arc_id).join("heartbeat.json");
+
+    Some(ArcHandle {
+        arc_id,
+        checkpoint_path,
+        heartbeat_path,
+        plan_file: state.plan_file,
+        config_dir: state.config_dir,
+        owner_pid: state.owner_pid,
+        session_id: state.session_id,
+    })
+}
+
+/// Extract the "plans/..." relative portion from a path string.
+fn extract_plans_relative(path: &str) -> &str {
+    if let Some(idx) = path.find("plans/") {
+        &path[idx..]
+    } else {
+        path
+    }
+}
+
 /// Try to parse and match a single checkpoint file against our criteria.
 /// Strict 4-field matching: plan_file + config_dir + owner_pid + started_at.
 fn try_match_checkpoint(
@@ -99,16 +286,8 @@ fn try_match_checkpoint(
 
     // 1. plan_file matches (normalize to relative "plans/..." form)
     let plan_str = plan_path.display().to_string();
-    let plan_relative = if let Some(idx) = plan_str.find("plans/") {
-        &plan_str[idx..]
-    } else {
-        &plan_str
-    };
-    let checkpoint_relative = if let Some(idx) = checkpoint.plan_file.find("plans/") {
-        &checkpoint.plan_file[idx..]
-    } else {
-        &checkpoint.plan_file
-    };
+    let plan_relative = extract_plans_relative(&plan_str);
+    let checkpoint_relative = extract_plans_relative(&checkpoint.plan_file);
     if checkpoint_relative != plan_relative {
         return None;
     }
@@ -487,6 +666,212 @@ mod tests {
             None,
         );
         assert!(result.is_none(), "should reject mismatched config_dir");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ── Arc Loop State Tests ─────────────────────────────────
+
+    #[test]
+    fn test_extract_frontmatter() {
+        let content = "---\nactive: true\nplan: test\n---\nBody content";
+        let fm = extract_frontmatter(content).unwrap();
+        assert!(fm.contains("active: true"));
+        assert!(fm.contains("plan: test"));
+    }
+
+    #[test]
+    fn test_extract_frontmatter_no_markers() {
+        assert!(extract_frontmatter("no frontmatter here").is_none());
+    }
+
+    #[test]
+    fn test_parse_yaml_str() {
+        let yaml = "active: true\nplan_file: plans/test.md\nowner_pid: 12345";
+        assert_eq!(parse_yaml_str(yaml, "plan_file"), Some("plans/test.md".into()));
+        assert_eq!(parse_yaml_str(yaml, "owner_pid"), Some("12345".into()));
+        assert_eq!(parse_yaml_str(yaml, "nonexistent"), None);
+    }
+
+    #[test]
+    fn test_parse_yaml_str_null() {
+        let yaml = "cancel_reason: null\nempty_val: ";
+        assert_eq!(parse_yaml_str(yaml, "cancel_reason"), None);
+        assert_eq!(parse_yaml_str(yaml, "empty_val"), None);
+    }
+
+    #[test]
+    fn test_parse_yaml_bool() {
+        let yaml = "active: true\ncancelled: false";
+        assert_eq!(parse_yaml_bool(yaml, "active"), Some(true));
+        assert_eq!(parse_yaml_bool(yaml, "cancelled"), Some(false));
+        assert_eq!(parse_yaml_bool(yaml, "missing"), None);
+    }
+
+    #[test]
+    fn test_read_arc_loop_state_full() {
+        let dir = std::env::temp_dir().join("torrent-test-loop-state");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let content = "\
+---
+active: true
+iteration: 2
+max_iterations: 50
+checkpoint_path: .claude/arc/arc-123/checkpoint.json
+plan_file: plans/2026-03-16-feat-test-plan.md
+branch: feat/test
+arc_flags: plans/2026-03-16-feat-test-plan.md
+config_dir: /Users/test/.claude-true
+owner_pid: 78210
+session_id: 2d3f5b8c-075a-4bb2-8128-1604852a2ebb
+compact_pending: false
+user_cancelled: false
+cancel_reason: null
+cancelled_at: null
+stop_reason: null
+---
+";
+        std::fs::write(dir.join("arc-phase-loop.local.md"), content).unwrap();
+
+        let state = read_arc_loop_state(&dir).unwrap();
+        assert!(state.active);
+        assert_eq!(state.iteration, 2);
+        assert_eq!(state.max_iterations, 50);
+        assert_eq!(state.checkpoint_path, ".claude/arc/arc-123/checkpoint.json");
+        assert_eq!(state.plan_file, "plans/2026-03-16-feat-test-plan.md");
+        assert_eq!(state.branch, "feat/test");
+        assert_eq!(state.config_dir, "/Users/test/.claude-true");
+        assert_eq!(state.owner_pid, "78210");
+        assert_eq!(state.session_id, "2d3f5b8c-075a-4bb2-8128-1604852a2ebb");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_read_arc_loop_state_inactive() {
+        let dir = std::env::temp_dir().join("torrent-test-loop-inactive");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let content = "\
+---
+active: false
+checkpoint_path: .claude/arc/arc-old/checkpoint.json
+plan_file: plans/old.md
+config_dir: /Users/test/.claude
+owner_pid: 111
+session_id: aaa-bbb
+---
+";
+        std::fs::write(dir.join("arc-phase-loop.local.md"), content).unwrap();
+
+        // Should return None because active: false
+        assert!(read_arc_loop_state(&dir).is_none());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_read_arc_loop_state_missing_file() {
+        let dir = std::env::temp_dir().join("torrent-test-loop-missing");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        assert!(read_arc_loop_state(&dir).is_none());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_extract_plans_relative() {
+        assert_eq!(
+            extract_plans_relative("plans/2026-03-16-feat-test-plan.md"),
+            "plans/2026-03-16-feat-test-plan.md"
+        );
+        assert_eq!(
+            extract_plans_relative("/Users/test/repos/myapp/plans/test.md"),
+            "plans/test.md"
+        );
+        assert_eq!(
+            extract_plans_relative("no-plans-prefix.md"),
+            "no-plans-prefix.md"
+        );
+    }
+
+    #[test]
+    fn test_discover_from_loop_state_with_checkpoint() {
+        let dir = std::env::temp_dir().join("torrent-test-loop-discover");
+        let config_dir = dir.join("config");
+        let arc_dir = dir.join(".claude").join("arc").join("arc-test-loop");
+        std::fs::create_dir_all(&config_dir).unwrap();
+        std::fs::create_dir_all(&arc_dir).unwrap();
+
+        // Create loop state pointing to checkpoint
+        let loop_content = format!("\
+---
+active: true
+iteration: 0
+max_iterations: 50
+checkpoint_path: .claude/arc/arc-test-loop/checkpoint.json
+plan_file: plans/test-plan.md
+branch: feat/test
+config_dir: {}
+owner_pid: 99999
+session_id: abc-def-123
+---
+", config_dir.display());
+        std::fs::write(config_dir.join("arc-phase-loop.local.md"), &loop_content).unwrap();
+
+        // Create checkpoint file
+        let checkpoint_json = serde_json::json!({
+            "id": "arc-test-loop",
+            "schema_version": 24,
+            "plan_file": "plans/test-plan.md",
+            "config_dir": config_dir.to_string_lossy(),
+            "owner_pid": "99999",
+            "session_id": "abc-def-123",
+            "phases": {},
+            "started_at": "2026-03-17T12:00:00Z",
+            "commits": []
+        });
+        std::fs::write(arc_dir.join("checkpoint.json"), checkpoint_json.to_string()).unwrap();
+
+        // Discover via loop state
+        let plan_path = PathBuf::from("plans/test-plan.md");
+        let handle = discover_from_loop_state(
+            &dir,
+            &config_dir,
+            &plan_path,
+            Some(99999),
+        );
+        assert!(handle.is_some(), "should discover via loop state");
+        let h = handle.unwrap();
+        assert_eq!(h.arc_id, "arc-test-loop");
+        assert_eq!(h.session_id, "abc-def-123");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_discover_from_loop_state_wrong_plan() {
+        let dir = std::env::temp_dir().join("torrent-test-loop-wrong-plan");
+        let config_dir = dir.join("config");
+        std::fs::create_dir_all(&config_dir).unwrap();
+
+        let loop_content = "\
+---
+active: true
+checkpoint_path: .claude/arc/arc-x/checkpoint.json
+plan_file: plans/other-plan.md
+config_dir: /test
+owner_pid: 111
+session_id: xxx
+---
+";
+        std::fs::write(config_dir.join("arc-phase-loop.local.md"), loop_content).unwrap();
+
+        let plan_path = PathBuf::from("plans/my-plan.md");
+        let handle = discover_from_loop_state(&dir, &config_dir, &plan_path, None);
+        assert!(handle.is_none(), "should reject mismatched plan");
 
         let _ = std::fs::remove_dir_all(&dir);
     }
