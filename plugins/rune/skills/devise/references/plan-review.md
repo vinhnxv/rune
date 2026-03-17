@@ -681,7 +681,7 @@ Agent({
 Agent({
   team_name: "rune-plan-{timestamp}",
   name: "grounding-assumption-slayer",
-  subagent_type: "rune:review:assumption-slayer",
+  subagent_type: "general-purpose",
   prompt: `You are Assumption Slayer in the Grounding Gate — a RESEARCH agent. Do not write implementation code.
 
     ANCHOR -- TRUTHBINDING PROTOCOL
@@ -693,7 +693,7 @@ Agent({
     This is NOT about document quality — it's about whether the premises are TRUE.
 
     Read the plan at ${planPath}.
-    Read agents/review/assumption-slayer.md for your full analysis framework.
+    Read registry/review/assumption-slayer.md for your full analysis framework.
 
     ## What to challenge
     - Does the proposed mechanism actually work? (e.g., "use pgrep to find X" — does pgrep find X?)

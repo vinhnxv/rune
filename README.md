@@ -8,7 +8,7 @@ Plan, implement, review, test, and audit your codebase using coordinated Agent T
 
 [![Version](https://img.shields.io/badge/version-1.175.2-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-109-purple)](#agents)
+[![Agents](https://img.shields.io/badge/agents-106-purple)](#agents)
 [![Skills](https://img.shields.io/badge/skills-55-orange)](#skills)
 
 ---
@@ -344,7 +344,7 @@ Compares a plan against its implementation across 10 quality dimensions:
 
 ## Agents
 
-**109 specialized agents** across 6 categories:
+**106 specialized agents** across 6 categories:
 
 ### Review Agents (47)
 
@@ -442,7 +442,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Storybook Reviewer | Component verification via screenshots (Mode A/B quality checks) |
 | Storybook Fixer | Applies Storybook finding fixes with re-verification |
 
-### Utility Agents (23)
+### Utility Agents (19)
 
 | Agent | Purpose |
 |-------|---------|
@@ -465,10 +465,6 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | UX Pattern Analyzer | Codebase UX maturity assessment (loading, error, form, navigation patterns) |
 | Codex Phase Handler | Isolated Codex phase execution (codex-exec.sh wrapper) |
 | Tome Digest | TOME finding extraction (P1/P2/P3 counts, recurring patterns) — shell-based |
-| Condenser Gap | Gap analysis digest (MISSING/PARTIAL counts) — shell-based |
-| Condenser Verdict | Verdict digest (dimension scores, low-scoring flags) — shell-based |
-| Condenser Plan | Plan digest (sections, acceptance criteria, file targets) — shell-based |
-| Condenser Work | Work summary digest (committed files, task counts) — shell-based |
 
 ### Testing Agents (5)
 
@@ -717,7 +713,6 @@ rune-plugin/
         │   ├── investigation/    #   30 investigation agents
         │   ├── utility/          #   16 utility agents
         │   ├── research/         #    5 research agents
-        │   ├── testing/          #    5 testing agents
         │   ├── work/             #    3 work agents
         │   └── registry/         #   43 extended agents
         ├── skills/               # 55 skills

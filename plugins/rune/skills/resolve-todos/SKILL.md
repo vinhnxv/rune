@@ -247,9 +247,9 @@ for (const wave of verifierWaves) {
     const fileSlug = file.replace(/\//g, '__')
     Agent({
       name: `verifier-${verifierIdx}`,
-      subagent_type: "rune:utility:todo-verifier",
+      subagent_type: "general-purpose",
       team_name: teamName,
-      // model + tools set by todo-verifier.md agent frontmatter (haiku, read-only tools)
+      // model and tools: general-purpose defaults; todo-verifier framework injected via prompt
       prompt: `You are todo-verifier. Verify each TODO in ${file}.
 
       Verdict taxonomy: VALID | FALSE_POSITIVE | ALREADY_FIXED | NEEDS_CLARIFICATION | PARTIAL | DUPLICATE | DEFERRED

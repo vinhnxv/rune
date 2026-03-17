@@ -261,7 +261,7 @@ When spawned as a Rune teammate, your runtime context (task_id, output_path, cha
 
 ### Diff Scope Awareness
 
-See [diff-scope-awareness.md](../diff-scope-awareness.md) for scope guidance when `diff_scope` data is present in inscription.json.
+**Diff-Scope Awareness**: When `diff_scope` data is present in inscription.json, limit your review to files listed in the diff scope. Do not review files outside the diff scope unless they are direct dependencies of changed files.
 
 ### Interaction Types (Q/N Taxonomy)
 

@@ -328,7 +328,7 @@ OUT_OF_SCOPE findings that pass steps 1-3 are real but not in scope for this rev
 
 ## Diff Scope Awareness
 
-See [diff-scope-awareness.md](../diff-scope-awareness.md) for scope guidance when `diff_scope` data is present in inscription.json.
+**Diff-Scope Awareness**: When `diff_scope` data is present in inscription.json, limit your review to files listed in the diff scope. Do not review files outside the diff scope unless they are direct dependencies of changed files.
 
 ## Interaction Types (Q/N Taxonomy)
 
