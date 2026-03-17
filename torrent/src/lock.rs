@@ -71,11 +71,7 @@ fn write_lock(path: &Path, pid: u32) {
 }
 
 fn is_pid_alive(pid: u32) -> bool {
-    // kill -0 checks if process exists without sending a signal
-    std::process::Command::new("kill")
-        .args(["-0", &pid.to_string()])
-        .output()
-        .is_ok_and(|o| o.status.success())
+    crate::resource::is_pid_alive(pid)
 }
 
 #[cfg(test)]

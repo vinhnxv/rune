@@ -18,6 +18,15 @@ fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
+/// Validate session ID: alphanumeric + hyphens only, max 64 chars.
+/// Mirrors tmux.rs validate_session_id() — prevents tmux target injection.
+fn validate_session_id(id: &str) {
+    if id.is_empty() || id.len() > 64 || !id.chars().all(|c| c.is_alphanumeric() || c == '-') {
+        eprintln!("error: invalid session ID '{}' — must be alphanumeric+hyphens, max 64 chars", id);
+        std::process::exit(1);
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
@@ -122,6 +131,7 @@ fn cmd_send_keys(args: &[String]) {
         // Auto-detect: find first torrent-* session
         auto_detect_session()
     });
+    validate_session_id(&session);
     let text = get_arg(args, "--text").unwrap_or_else(|| {
         eprintln!("--text required"); std::process::exit(1);
     });
@@ -164,6 +174,7 @@ fn cmd_send_keys(args: &[String]) {
 
 fn cmd_capture_pane(args: &[String]) {
     let session = get_arg(args, "--session").unwrap_or_else(auto_detect_session);
+    validate_session_id(&session);
     let lines = get_arg(args, "--lines").unwrap_or_else(|| "30".into());
 
     let o = Command::new("tmux")
@@ -200,6 +211,7 @@ fn cmd_list() {
 
 fn cmd_kill(args: &[String]) {
     let session = get_arg(args, "--session").unwrap_or_else(auto_detect_session);
+    validate_session_id(&session);
     let _ = Command::new("tmux")
         .args(["kill-session", "-t", &session])
         .output();

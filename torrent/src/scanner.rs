@@ -277,16 +277,9 @@ fn list_all_tmux_panes() -> Vec<TmuxPaneEntry> {
     }
 }
 
-/// Check if a PID is alive using kill -0.
+/// Check if a PID is alive (delegates to shared resource::is_pid_alive).
 fn is_pid_alive_check(pid_str: &str) -> bool {
-    let pid: u32 = match pid_str.parse() {
-        Ok(p) => p,
-        Err(_) => return false,
-    };
-    Command::new("kill")
-        .args(["-0", &pid.to_string()])
-        .output()
-        .is_ok_and(|o| o.status.success())
+    pid_str.parse::<u32>().map_or(false, crate::resource::is_pid_alive)
 }
 
 /// Find a tmux session that owns the given owner_pid.
