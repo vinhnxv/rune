@@ -148,7 +148,7 @@ fn render_running(frame: &mut Frame, app: &App, area: Rect) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(1),
-            Constraint::Length(7),
+            Constraint::Length(8),
             Constraint::Length(5),
             Constraint::Min(3),
             Constraint::Length(1),
@@ -194,6 +194,27 @@ fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {
                 ]),
                 make_kv("  Plan:  ", &run.plan.name, sol::BASE0),
             ];
+            // Identity info — TMUX session, CCPID, CCID
+            if let Some(ref arc) = run.arc {
+                let ccpid_label = run.claude_pid
+                    .map(|p| p.to_string())
+                    .unwrap_or_else(|| {
+                        if arc.owner_pid.is_empty() { "—".into() } else { arc.owner_pid.clone() }
+                    });
+                let ccid_label = if arc.session_id.is_empty() {
+                    "—".to_string()
+                } else {
+                    arc.session_id.chars().take(8).collect::<String>()
+                };
+                l.push(Line::from(vec![
+                    Span::styled("  TMUX:  ", Style::default().fg(sol::BASE01)),
+                    Span::styled(run.tmux_session.clone(), Style::default().fg(sol::GREEN)),
+                    Span::styled("  CCPID: ", Style::default().fg(sol::BASE01)),
+                    Span::styled(ccpid_label, Style::default().fg(sol::CYAN)),
+                    Span::styled("  CCID: ", Style::default().fg(sol::BASE01)),
+                    Span::styled(ccid_label, Style::default().fg(sol::BLUE)),
+                ]));
+            }
             if let Some(ref pr) = st.pr_url {
                 l.push(make_kv("  PR:    ", pr, sol::BLUE));
             }

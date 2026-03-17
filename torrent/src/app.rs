@@ -60,6 +60,7 @@ pub enum Panel {
 }
 
 /// State of the currently executing arc run.
+#[allow(dead_code)] // tmux_pane_pid kept for diagnostics
 pub struct RunState {
     pub plan: PlanFile,
     pub plan_index: usize,   // 1-indexed position in selected_plans
@@ -69,6 +70,8 @@ pub struct RunState {
     pub arc: Option<ArcHandle>,
     pub last_status: Option<ArcStatus>,
     pub merge_detected_at: Option<Instant>,
+    pub tmux_pane_pid: Option<u32>,  // Shell PID inside tmux pane
+    pub claude_pid: Option<u32>,     // Claude Code process PID (= owner_pid in checkpoint)
 }
 
 /// Handle to a discovered arc checkpoint + heartbeat pair.
@@ -79,6 +82,7 @@ pub struct ArcHandle {
     pub plan_file: String,
     pub config_dir: String,
     pub owner_pid: String,
+    pub session_id: String,  // Claude Code session UUID from checkpoint
 }
 
 /// Polled status of a running arc.
@@ -475,6 +479,20 @@ impl App {
         self.status_message = Some(format!("Waiting for Claude Code in {}...", &session_id));
         std::thread::sleep(Duration::from_secs(12));
 
+        // Step 5.5: Capture tmux pane PID (shell inside tmux)
+        let tmux_pane_pid = Tmux::get_pane_pid(&session_id).ok();
+
+        // Step 5.6: Find Claude Code process (child of pane shell)
+        let claude_pid = tmux_pane_pid.and_then(|ppid| {
+            for _ in 0..3 {
+                if let Some(pid) = Tmux::get_claude_pid(ppid) {
+                    return Some(pid);
+                }
+                std::thread::sleep(Duration::from_secs(2));
+            }
+            None
+        });
+
         // Step 6: Send /arc command (uses Escape+delay+Enter workaround for Ink)
         if let Err(e) = Tmux::send_arc_command(&session_id, &plan.path) {
             self.status_message = Some(format!("send /arc failed, retrying: {e}"));
@@ -496,6 +514,8 @@ impl App {
             arc: None,
             last_status: None,
             merge_detected_at: None,
+            tmux_pane_pid,
+            claude_pid,
         });
 
         // Reset poll timers
@@ -507,6 +527,7 @@ impl App {
     }
 
     /// Poll for arc discovery — scan .claude/arc/ for matching checkpoint.
+    /// Passes expected config_dir and claude_pid for strict 4-field matching.
     fn poll_discovery(&mut self) {
         let launched_after = match self.launched_wall_clock {
             Some(t) => t,
@@ -518,8 +539,22 @@ impl App {
             None => return,
         };
 
+        // Build expected identity for strict matching
+        let config_dir_str = self
+            .config_dirs
+            .get(self.selected_config)
+            .map(|c| c.path.to_string_lossy().to_string());
+        let expected_config_dir = config_dir_str.as_deref();
+        let expected_claude_pid = run.claude_pid;
+
         let cwd = std::env::current_dir().unwrap_or_default();
-        if let Some(handle) = monitor::discover_arc(&cwd, &run.plan.path, launched_after) {
+        if let Some(handle) = monitor::discover_arc(
+            &cwd,
+            &run.plan.path,
+            launched_after,
+            expected_config_dir,
+            expected_claude_pid,
+        ) {
             // Convert monitor::ArcHandle to app::ArcHandle
             if let Some(run) = &mut self.current_run {
                 run.arc = Some(ArcHandle {
@@ -529,6 +564,7 @@ impl App {
                     plan_file: handle.plan_file,
                     config_dir: handle.config_dir,
                     owner_pid: handle.owner_pid,
+                    session_id: handle.session_id,
                 });
             }
         }
@@ -554,6 +590,7 @@ impl App {
             plan_file: arc.plan_file.clone(),
             config_dir: arc.config_dir.clone(),
             owner_pid: arc.owner_pid.clone(),
+            session_id: arc.session_id.clone(),
         };
 
         if let Some(status) = monitor::poll_arc_status(&monitor_handle) {

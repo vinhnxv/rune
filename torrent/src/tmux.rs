@@ -224,6 +224,39 @@ impl Tmux {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
 
+    /// Get the PID of the process running in the tmux pane.
+    /// Uses `tmux display-message -t {session} -p '#{pane_pid}'`.
+    pub fn get_pane_pid(session_id: &str) -> Result<u32> {
+        validate_session_id(session_id)?;
+        let output = Command::new("tmux")
+            .args(["display-message", "-t", session_id, "-p", "#{pane_pid}"])
+            .output()
+            .map_err(|e| eyre!("tmux display-message failed: {e}"))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(eyre!("tmux display-message failed: {}", stderr.trim()));
+        }
+        let pid_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        pid_str
+            .parse::<u32>()
+            .map_err(|_| eyre!("invalid pane_pid: {pid_str}"))
+    }
+
+    /// Find the Claude Code process PID (child of pane shell).
+    /// The pane_pid is the shell; Claude Code is its child process.
+    /// Uses `pgrep -P <pane_pid>` to find child processes.
+    pub fn get_claude_pid(pane_pid: u32) -> Option<u32> {
+        let output = Command::new("pgrep")
+            .args(["-P", &pane_pid.to_string()])
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        stdout.lines().next()?.trim().parse::<u32>().ok()
+    }
+
     /// Kill a tmux session. Best-effort.
     pub fn kill_session(session_id: &str) -> Result<()> {
         validate_session_id(session_id)?;

@@ -14,6 +14,7 @@ pub struct ArcHandle {
     pub plan_file: String,
     pub config_dir: String,
     pub owner_pid: String,
+    pub session_id: String,
 }
 
 /// Polled status of a running arc.
@@ -50,12 +51,14 @@ pub enum ArcCompletion {
 /// Discover a newly-launched arc by scanning `.claude/arc/arc-*/checkpoint.json`
 /// relative to the current working directory.
 ///
-/// Matches on: plan_file + config_dir + started_at > launched_after.
+/// Matches on: plan_file + config_dir + owner_pid + started_at > launched_after.
 /// Returns `None` if no matching checkpoint is found (caller should retry).
 pub fn discover_arc(
     cwd: &Path,
     plan_path: &Path,
     launched_after: DateTime<Utc>,
+    expected_config_dir: Option<&str>,
+    expected_claude_pid: Option<u32>,
 ) -> Option<ArcHandle> {
     let arc_dir = cwd.join(".claude").join("arc");
     let pattern = format!("{}/arc-*/checkpoint.json", arc_dir.display());
@@ -63,7 +66,14 @@ pub fn discover_arc(
     let entries = glob::glob(&pattern).ok()?;
 
     for entry in entries.flatten() {
-        let handle = try_match_checkpoint(&entry, cwd, plan_path, launched_after);
+        let handle = try_match_checkpoint(
+            &entry,
+            cwd,
+            plan_path,
+            launched_after,
+            expected_config_dir,
+            expected_claude_pid,
+        );
         if handle.is_some() {
             return handle;
         }
@@ -73,19 +83,19 @@ pub fn discover_arc(
 }
 
 /// Try to parse and match a single checkpoint file against our criteria.
+/// Strict 4-field matching: plan_file + config_dir + owner_pid + started_at.
 fn try_match_checkpoint(
     checkpoint_path: &Path,
     cwd: &Path,
     plan_path: &Path,
     launched_after: DateTime<Utc>,
+    expected_config_dir: Option<&str>,
+    expected_claude_pid: Option<u32>,
 ) -> Option<ArcHandle> {
     let contents = fs::read_to_string(checkpoint_path).ok()?;
     let checkpoint: Checkpoint = serde_json::from_str(&contents).ok()?;
 
-    // Match criteria:
-    // 1. plan_file matches the plan we launched
-    // Normalize both to relative "plans/..." form for comparison.
-    // Checkpoint stores relative path, scanner returns absolute path.
+    // 1. plan_file matches (normalize to relative "plans/..." form)
     let plan_str = plan_path.display().to_string();
     let plan_relative = if let Some(idx) = plan_str.find("plans/") {
         &plan_str[idx..]
@@ -101,11 +111,25 @@ fn try_match_checkpoint(
         return None;
     }
 
-    // 2. config_dir matches (cross-session safety)
-    // Skip this check if config_dir is empty (older checkpoint format)
-    // Note: this is a soft match — not strictly required for v1
+    // 2. config_dir matches (strict when both sides have a value)
+    if let Some(expected) = expected_config_dir {
+        if !checkpoint.config_dir.is_empty() && checkpoint.config_dir != expected {
+            return None;
+        }
+    }
 
-    // 3. started_at is AFTER our launch time
+    // 3. owner_pid matches our Claude Code PID (strict when available)
+    if let Some(expected_pid) = expected_claude_pid {
+        if !checkpoint.owner_pid.is_empty() {
+            if let Ok(cp) = checkpoint.owner_pid.parse::<u32>() {
+                if cp != expected_pid {
+                    return None;
+                }
+            }
+        }
+    }
+
+    // 4. started_at is AFTER our launch time
     let started_at = DateTime::parse_from_rfc3339(&checkpoint.started_at).ok()?;
     if started_at.with_timezone(&Utc) <= launched_after {
         return None;
@@ -121,6 +145,7 @@ fn try_match_checkpoint(
         plan_file: checkpoint.plan_file,
         config_dir: checkpoint.config_dir,
         owner_pid: checkpoint.owner_pid,
+        session_id: checkpoint.session_id,
     })
 }
 
@@ -355,5 +380,107 @@ mod tests {
         assert_eq!(summary.total, 5);
         assert_eq!(summary.skipped, 0);
         assert_eq!(summary.current_phase_name, "code_review");
+    }
+
+    #[test]
+    fn test_try_match_rejects_wrong_owner_pid() {
+        // Create a temp checkpoint file with owner_pid = "12345"
+        let dir = std::env::temp_dir().join("torrent-test-pid-match");
+        let arc_dir = dir.join(".claude").join("arc").join("arc-test");
+        std::fs::create_dir_all(&arc_dir).unwrap();
+
+        let checkpoint_json = serde_json::json!({
+            "id": "arc-test",
+            "plan_file": "plans/test-plan.md",
+            "config_dir": "/home/user/.claude",
+            "owner_pid": "12345",
+            "session_id": "abc-def-123",
+            "phases": {},
+            "started_at": "2026-03-17T12:00:00Z",
+            "commits": []
+        });
+        let cp_path = arc_dir.join("checkpoint.json");
+        std::fs::write(&cp_path, checkpoint_json.to_string()).unwrap();
+
+        let plan_path = PathBuf::from("plans/test-plan.md");
+        let before = DateTime::parse_from_rfc3339("2026-03-17T11:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        // Should reject: wrong PID (expected 99999, checkpoint has 12345)
+        let result = try_match_checkpoint(
+            &cp_path,
+            &dir,
+            &plan_path,
+            before,
+            Some("/home/user/.claude"),
+            Some(99999),
+        );
+        assert!(result.is_none(), "should reject mismatched owner_pid");
+
+        // Should accept: correct PID
+        let result = try_match_checkpoint(
+            &cp_path,
+            &dir,
+            &plan_path,
+            before,
+            Some("/home/user/.claude"),
+            Some(12345),
+        );
+        assert!(result.is_some(), "should accept matching owner_pid");
+        let handle = result.unwrap();
+        assert_eq!(handle.session_id, "abc-def-123");
+
+        // Should accept: no expected PID (graceful degradation)
+        let result = try_match_checkpoint(
+            &cp_path,
+            &dir,
+            &plan_path,
+            before,
+            Some("/home/user/.claude"),
+            None,
+        );
+        assert!(result.is_some(), "should accept when no expected PID");
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_try_match_rejects_wrong_config_dir() {
+        let dir = std::env::temp_dir().join("torrent-test-config-match");
+        let arc_dir = dir.join(".claude").join("arc").join("arc-cfg");
+        std::fs::create_dir_all(&arc_dir).unwrap();
+
+        let checkpoint_json = serde_json::json!({
+            "id": "arc-cfg",
+            "plan_file": "plans/test.md",
+            "config_dir": "/home/user/.claude-work",
+            "owner_pid": "",
+            "session_id": "",
+            "phases": {},
+            "started_at": "2026-03-17T12:00:00Z",
+            "commits": []
+        });
+        let cp_path = arc_dir.join("checkpoint.json");
+        std::fs::write(&cp_path, checkpoint_json.to_string()).unwrap();
+
+        let plan_path = PathBuf::from("plans/test.md");
+        let before = DateTime::parse_from_rfc3339("2026-03-17T11:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        // Should reject: wrong config_dir
+        let result = try_match_checkpoint(
+            &cp_path,
+            &dir,
+            &plan_path,
+            before,
+            Some("/home/user/.claude-personal"),
+            None,
+        );
+        assert!(result.is_none(), "should reject mismatched config_dir");
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
