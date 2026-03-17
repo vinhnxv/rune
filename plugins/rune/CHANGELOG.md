@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [1.173.0] - 2026-03-17
+
+### Added
+- **feat(torrent): Rust TUI arc orchestrator** — Standalone Rust TUI tool for managing `rune:arc` execution across tmux sessions. Scans config dirs for plans, provides ordered multi-select plan picker, manages tmux session lifecycle (create/kill/recreate), discovers arc checkpoints, monitors heartbeats, and executes plans sequentially. Modules: main, app, ui, scanner, tmux, monitor, checkpoint, keybindings.
+- **feat(torrent): session identity verification and PID tracking** — Strict 4-field checkpoint matching (`config_dir` + `owner_pid` + `plan_file` + `started_at`) prevents picking up stale checkpoints. Captures Claude Code PID via `tmux pane_pid` → `pgrep -P` chain. Displays TMUX session ID, CCPID, and CCID in TUI.
+- **feat(torrent): Makefile and clippy fixes** — Build, release, test, check, clean, install targets. Fixed clippy warnings: redundant closures, useless `format!`, `for_kv_map`, unnecessary `map_or`.
+- **feat(discipline): deep-verification (shard 6 of 9)** — Failure code classification (F1-F17) with detection heuristics, judge-model semantic proof verification via `claude --model haiku`, work-loop convergence protocol (entry/exit conditions, stagnation F17, regression F10, budget F15), context isolation hook (`validate-context-isolation.sh` DISCIPLINE-CTX-001), and accountability echoes protocol for discipline echo tracking.
+- **feat(discipline): field-hardening (shard 7 of 9)** — Promotes four field-observed patterns to runtime-enforced: evidence-first invariant enforcement (phantom completion detection), stochastic budget in metrics/convergence (WITHIN_BUDGET/OVER_BUDGET), token-cost IPC accounting principles in spec-continuity (5 principles with anti-pattern examples), silent backpressure detection in glyph budget hook (response length trend tracking).
+
 ## [1.172.0] - 2026-03-16
 
 ### Added
