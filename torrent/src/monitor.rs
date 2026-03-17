@@ -220,7 +220,7 @@ fn check_completion(checkpoint: &Checkpoint) -> Option<ArcCompletion> {
     }
 
     // Check for cancelled/failed — any phase with "cancelled" or "failed" status
-    for (_name, phase) in &checkpoint.phases {
+    for phase in checkpoint.phases.values() {
         if phase.status == "cancelled" {
             return Some(ArcCompletion::Cancelled);
         }

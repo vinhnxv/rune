@@ -284,7 +284,7 @@ impl App {
                 }
                 ArcCompletion::Cancelled { reason } => {
                     let r = reason.as_deref().unwrap_or("cancelled");
-                    format!("{}", r)
+                    r.to_string()
                 }
                 ArcCompletion::Failed { reason } => {
                     format!("failed: {}", reason)
