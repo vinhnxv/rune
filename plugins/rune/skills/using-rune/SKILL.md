@@ -52,6 +52,7 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 | "Team status" / "check teammates" / "agent health" | `/rune:team-status` | Background team health dashboard |
 | "Browser test" / "E2E test" / "test browser" | `/rune:test-browser` | Standalone browser E2E testing |
 | "UX review" / "UX patterns" / "heuristic evaluation" | `/rune:ux-design-process` | UX design intelligence and heuristic evaluation |
+| "Post findings to PR" / "share review on PR" / "post to GitHub" / "comment on PR with findings" | `/rune:post-findings` | Post Rune review findings to GitHub PR as formatted comment |
 
 ### Beginner Aliases
 
@@ -109,6 +110,7 @@ For users new to Rune, these simpler commands forward to the full versions:
 | `/rune:team-status` | No | <1 min | None |
 | `/rune:test-browser` | No | 3-10 min | PR# or branch |
 | `/rune:ux-design-process` | No | 2-5 min | None (auto-loaded) |
+| `/rune:post-findings` | No | 1-3 min | TOME file path + PR number |
 | `/rune:plan` | (alias for `/rune:devise`) |||
 | `/rune:work` | (alias for `/rune:strive`) |||
 | `/rune:review` | (alias for `/rune:appraise`) |||

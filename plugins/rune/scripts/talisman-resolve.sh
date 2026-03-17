@@ -4,7 +4,7 @@
 # Reduces per-phase token cost from ~1,200 to ~50-100 tokens (94% reduction).
 #
 # Merge order: defaults <- global <- project (project wins)
-# Output: tmp/.talisman-resolved/{arc,codex,review,...,_meta}.json (14 files)
+# Output: tmp/.talisman-resolved/{arc,codex,review,...,pr_comment,_meta}.json (15 files)
 #
 # Hook events: SessionStart (startup|resume)
 # Timeout budget: <2 seconds (5s hard limit)
@@ -96,7 +96,7 @@ fi
 
 # ── Canonical shard name list (used by both fast-path check and write loop) ──
 # BACK-001 FIX: Single source of truth — prevents drift between fast-path and write loop
-SHARD_NAMES=("arc" "codex" "review" "work" "goldmask" "plan" "gates" "settings" "inspect" "testing" "audit" "ux" "misc" "keyword_detection" "tool_failure_tracking" "deliverable_verification" "context_stop_guard")
+SHARD_NAMES=("arc" "codex" "review" "work" "goldmask" "plan" "gates" "settings" "inspect" "testing" "audit" "ux" "misc" "keyword_detection" "tool_failure_tracking" "deliverable_verification" "context_stop_guard" "pr_comment")
 
 # ── Guard: defaults file must exist and not be a symlink ──
 # SEC-004 FIX: Add symlink check to prevent symlink-based content injection
@@ -330,7 +330,8 @@ all_shards=$(echo "$merged" | jq '{
   keyword_detection: (.keyword_detection // {}),
   tool_failure_tracking: (.tool_failure_tracking // {}),
   deliverable_verification: (.deliverable_verification // {}),
-  context_stop_guard: (.context_stop_guard // {})
+  context_stop_guard: (.context_stop_guard // {}),
+  pr_comment: (.pr_comment // {})
 }' 2>/dev/null)
 
 if [[ -z "$all_shards" || "$all_shards" == "null" ]]; then
