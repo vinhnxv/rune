@@ -191,6 +191,131 @@ const uncoveredImplementations = backendFiles.filter(f => {
 // "test fails on line Y". This transforms the analyst from code debugger to
 // spec compliance verifier. When an unimplemented criterion causes a test failure,
 // the analyst reports the specific AC-X that was never implemented.
+
+// --- generateTestStrategy() definition ---
+// Synthesizes a markdown strategy document from scope, plan, and scenario inputs.
+// See testing/references/test-strategy-template.md for the 6-section output format.
+function generateTestStrategy({
+  diffFiles, backendFiles, frontendFiles, testFiles,
+  has_frontend, enrichedPlan, tiers,
+  uncoveredImplementations, scopeLabel,
+  scenarios, planFilePath
+}) {
+  let md = ""
+
+  // Section 1: Scope Summary
+  // Extract 1-3 key change bullets from the enriched plan (first 3 non-empty lines after "## Summary" or first heading)
+  const keyChanges = extractKeyChanges(enrichedPlan, 3)  // dispatcher utility — returns string[]
+  md += `## Scope Summary\n`
+  md += `- **Scope**: ${scopeLabel}\n`
+  md += `- **Changed files**: ${diffFiles.length} total (${backendFiles.length} backend, ${frontendFiles.length} frontend, ${testFiles.length} tests)\n`
+  md += `- **Has frontend**: ${has_frontend}\n`
+  md += `- **Key changes**:\n`
+  for (const change of keyChanges) {
+    md += `  - ${change}\n`
+  }
+  if (planFilePath) {
+    md += `- **Plan reference**: ${planFilePath}\n`
+  }
+  md += `\n`
+
+  // Section 2: Tier Configuration
+  md += `## Active Tiers\n`
+  md += `| Tier | Enabled | Rationale |\n`
+  md += `|------|---------|----------|\n`
+  md += `| unit | ${tiers.unit} | ${tiers.unit ? "Backend/frontend changes detected" : "No testable implementation files"} |\n`
+  md += `| integration | ${tiers.integration} | ${tiers.integration ? "Service interaction changes detected" : "No integration-level changes or services unhealthy"} |\n`
+  md += `| e2e | ${tiers.e2e} | ${tiers.e2e ? "Frontend changes require browser verification" : "No frontend files or E2E disabled"} |\n`
+  md += `| contract | ${tiers.contract ?? false} | ${tiers.contract ? "API contract scenarios or OpenAPI spec present" : "No contract scenarios or spec"} |\n`
+  md += `| extended | ${tiers.extended ?? false} | ${tiers.extended ? "Extended tier enabled and budget remaining" : "Extended tier disabled or budget exhausted"} |\n`
+  md += `\n`
+
+  // Section 3: Test Files Per Tier
+  // Classify each existing test file into a tier based on path conventions
+  // (e.g., "integration/" → integration, "e2e/" → e2e, default → unit)
+  const tierMap = { unit: [], integration: [], e2e: [], contract: [], extended: [] }
+  for (const tf of testFiles) {
+    if (/\be2e\b|\/e2e\/|\.e2e\./.test(tf)) tierMap.e2e.push(tf)
+    else if (/\bintegration\b|\/integration\//.test(tf)) tierMap.integration.push(tf)
+    else if (/\bcontract\b|\/contract\//.test(tf)) tierMap.contract.push(tf)
+    else tierMap.unit.push(tf)
+  }
+  // Inject scenario-driven test targets into their respective tiers
+  for (const scenario of scenarios) {
+    const target = `[scenario: ${scenario.name}] ${(scenario.target_files || []).join(", ")}`
+    if (tierMap[scenario.tier]) tierMap[scenario.tier].push(target)
+  }
+  md += `## Test File Assignment\n`
+  for (const [tier, files] of Object.entries(tierMap)) {
+    md += `### ${tier.charAt(0).toUpperCase() + tier.slice(1)}\n`
+    if (files.length === 0) {
+      md += `- (none)\n`
+    } else {
+      for (const f of files) md += `- ${f}\n`
+    }
+  }
+  md += `\n`
+
+  // Section 4: Uncovered Implementation Files
+  md += `## Uncovered Files\n`
+  md += `| File | Suggested test path | Priority |\n`
+  md += `|------|-------------------|----------|\n`
+  if (uncoveredImplementations.length === 0) {
+    md += `| (all files covered) | — | — |\n`
+  } else {
+    for (const file of uncoveredImplementations) {
+      const suggestedTest = generateTestPaths(file)[0] || "tests/test_" + file.split("/").pop()
+      // Priority: high if file is in a core/auth/api path, medium otherwise
+      const priority = /\b(core|auth|api|security|payment)\b/i.test(file) ? "high" : "medium"
+      md += `| ${file} | ${suggestedTest} | ${priority} |\n`
+    }
+  }
+  md += `\n`
+
+  // Section 5: Scenario Integration
+  md += `## Scenarios\n`
+  md += `| ID | Description | Tier | Target files |\n`
+  md += `|----|-------------|------|-------------|\n`
+  if (scenarios.length === 0) {
+    md += `| (none) | — | — | — |\n`
+  } else {
+    for (let i = 0; i < scenarios.length; i++) {
+      const s = scenarios[i]
+      const targets = (s.target_files || []).join(", ") || "(auto-discover)"
+      md += `| S${i + 1} | ${s.name} | ${s.tier} | ${targets} |\n`
+    }
+  }
+  md += `\n`
+
+  // Section 6: Risk Areas
+  // Heuristic: files with many dependents (imports), recent churn, or in core paths are high risk
+  const riskFiles = diffFiles
+    .filter(f => !f.includes("test") && !f.includes("spec"))
+    .map(f => {
+      let risk = "low"
+      let reason = "Standard change"
+      if (/\b(core|auth|api|security|payment|session|middleware)\b/i.test(f)) {
+        risk = "high"; reason = "Core path — many dependents likely"
+      } else if (uncoveredImplementations.includes(f)) {
+        risk = "medium"; reason = "No test coverage for this file"
+      }
+      return { file: f, risk, reason }
+    })
+    .filter(r => r.risk !== "low")  // Only report medium+ risk
+  md += `## Risk Areas\n`
+  md += `| File | Risk | Reason |\n`
+  md += `|------|------|--------|\n`
+  if (riskFiles.length === 0) {
+    md += `| (no elevated risk areas) | — | — |\n`
+  } else {
+    for (const r of riskFiles) {
+      md += `| ${r.file} | ${r.risk} | ${r.reason} |\n`
+    }
+  }
+
+  return md
+}
+
 const planFilePath = checkpoint.plan_file
 const strategy = generateTestStrategy({
   diffFiles, backendFiles, frontendFiles, testFiles,
@@ -212,6 +337,8 @@ const SAFE_PATH_PATTERN = /^[a-zA-Z0-9._\-\/]+$/
 const unitTests = discoverUnitTests(diffFiles).filter(p => SAFE_PATH_PATTERN.test(p))
 const integrationTests = discoverIntegrationTests(diffFiles).filter(p => SAFE_PATH_PATTERN.test(p))
 const e2eRoutes = has_frontend ? discoverE2ERoutes(frontendFiles).filter(r => SAFE_PATH_PATTERN.test(r)) : []
+// For E2E sub-tiers (visual regression, accessibility, design token compliance),
+// see testing/references/visual-regression.md
 
 // ═══════════════════════════════════════════════════════
 // STEP 3: SERVICE STARTUP (conditional)
