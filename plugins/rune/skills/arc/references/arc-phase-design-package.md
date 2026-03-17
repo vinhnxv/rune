@@ -65,6 +65,13 @@ tokens:
   shadows:
     - name: "card-elevated"
       value: "0 2px 8px rgba(0,0,0,0.1)"
+acceptance_criteria:          # Optional — populated when design_sync.discipline.enabled
+  - id: "DES-{component}-{dimension}"
+    text: "Human-readable criterion description"
+    proof: token_scan          # One of: token_scan, axe_passes, story_exists, storybook_renders, screenshot_diff, responsive_check
+    args:
+      target: "path/to/component"
+    dimension: color           # One of: color, spacing, typography, accessibility, variant_coverage, responsive, fidelity
 fidelity_dimensions:
   layout: null       # Scored 0-1 by Phase 5.2
   spacing: null
@@ -140,6 +147,23 @@ Architecture guidance for workers — maps design concepts to code patterns.
 - Styling approach: [detected — e.g., CSS Modules, Tailwind, styled-components]
 - Token integration: [detected — e.g., CSS custom properties, theme provider]
 ```
+
+## Acceptance Criteria (`acceptance_criteria`)
+
+The optional `acceptance_criteria` field in DCD frontmatter enables per-criterion design verification with evidence trails. Generated automatically from VSM data when `design_sync.discipline.enabled` is `true` in talisman config.
+
+Each criterion has: `id` (DES-prefixed), `text` (human-readable), `proof` (design proof type), `args` (proof-specific arguments), and `dimension` (fidelity dimension being verified).
+
+Criteria are consumed by:
+- **Workers** (Phase 5): Run design proofs alongside code proofs during implementation
+- **Phase 5.2** (Design Verification): Produce DES-prefixed findings with per-criterion evidence
+- **Phase 7.4** (Design Iteration): Use per-criterion PASS/FAIL for convergence instead of score-only threshold
+
+The field is optional for backward compatibility — existing DCDs without criteria continue to work with score-only fidelity checking.
+
+See [design-proof-types.md](../../discipline/references/design-proof-types.md) for the full acceptance criteria format, proof type definitions, and the design proof selection decision tree.
+
+---
 
 ## Master Index (`_index.md`)
 
