@@ -72,7 +72,7 @@ Restart Claude Code after installation.
 <summary>Local development</summary>
 
 ```bash
-claude --plugin-dir /path/to/rune-plugin
+claude --plugin-dir /path/to/rune
 ```
 </details>
 
@@ -695,7 +695,7 @@ See [docs/guides/mcp-integration-spec.en.md](docs/guides/mcp-integration-spec.en
 ## Architecture
 
 ```
-rune-plugin/
+rune/
 ├── .claude-plugin/
 │   └── marketplace.json          # Marketplace registry
 └── plugins/

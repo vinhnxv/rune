@@ -27,7 +27,7 @@ The test harness redirects all Claude Code state (teams, tasks, memory) to an
 isolated directory so tests never touch your personal `~/.claude/` folder.
 
 ```bash
-mkdir -p ~/.claude-rune-plugin-test
+mkdir -p ~/.claude-rune-test
 ```
 
 This only needs to be done once.  The harness validates its existence at startup

@@ -274,7 +274,7 @@ List all global echoes with their source and provenance.
        fastapi       3 entries  backend      installed 2026-03-11
 
      Elevated echoes:
-       "Rate Limiting Best Practice"   backend    from rune-plugin (2026-03-11)
+       "Rate Limiting Best Practice"   backend    from rune (2026-03-11)
    ```
 
 ## Commands

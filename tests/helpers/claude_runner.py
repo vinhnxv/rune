@@ -63,24 +63,24 @@ class ClaudeRunner:
     isolated_config_dir: Path | None = None
 
     # Fixed isolated config location in user home (never touches ~/.claude/)
-    CONFIG_DIR_NAME = ".claude-rune-plugin-test"
+    CONFIG_DIR_NAME = ".claude-rune-test"
     # State dirs to create fresh in isolated config
     _STATE_DIRS = ("teams", "tasks", "projects", "agent-memory")
 
     @classmethod
     def default_config_dir(cls) -> Path:
-        """Return the fixed isolated config path: ~/.claude-rune-plugin-test/"""
+        """Return the fixed isolated config path: ~/.claude-rune-test/"""
         return Path.home() / cls.CONFIG_DIR_NAME
 
     def setup_isolated_config(self) -> Path:
-        """Validate that the isolated config dir ~/.claude-rune-plugin-test/ exists.
+        """Validate that the isolated config dir ~/.claude-rune-test/ exists.
 
         The directory must be set up manually before running E2E tests.
         This method only validates its existence and ensures required state
         subdirectories are present — it never deletes or recreates the directory.
 
         Raises:
-            FileNotFoundError: If ~/.claude-rune-plugin-test/ does not exist.
+            FileNotFoundError: If ~/.claude-rune-test/ does not exist.
         """
         config_dir = self.default_config_dir()
         if not config_dir.exists():

@@ -151,7 +151,7 @@ Tier 2: Acceptance Criteria Verification (substantive, automated where possible)
   - Does the implementation satisfy the plan's intent (not its letter)?
 ```
 
-This matches the local codebase pattern found in `/Users/vinhnx/Desktop/repos/rune-plugin/docs/solutions/architecture/plan-quality-best-practices.md`, which recommends plans structured as: Intent -> Contracts -> Test Cases -> Constraints -> Anti-patterns.
+This matches the local codebase pattern found in `/Users/vinhnx/Desktop/repos/rune/docs/solutions/architecture/plan-quality-best-practices.md`, which recommends plans structured as: Intent -> Contracts -> Test Cases -> Constraints -> Anti-patterns.
 
 ---
 
@@ -396,8 +396,8 @@ Repeat for each task. After all tasks:
 - [DevOps.com: Compliance in the Age of AI](https://devops.com/compliance-in-the-age-of-ai-why-strong-ci-cd-foundations-matter/) -- CI/CD as compliance foundation
 
 ### Local Codebase Context
-- `/Users/vinhnx/Desktop/repos/rune-plugin/docs/solutions/architecture/plan-quality-best-practices.md` -- Comprehensive plan quality research including AgentCoder, CODESIM, and PGPO patterns
-- `/Users/vinhnx/Desktop/repos/rune-plugin/.rune/echoes/planner/MEMORY.md` -- "Design-vs-Implementation Gap Detection" pattern: when design and implementation diverge, check whether the design was ever implemented
+- `/Users/vinhnx/Desktop/repos/rune/docs/solutions/architecture/plan-quality-best-practices.md` -- Comprehensive plan quality research including AgentCoder, CODESIM, and PGPO patterns
+- `/Users/vinhnx/Desktop/repos/rune/.rune/echoes/planner/MEMORY.md` -- "Design-vs-Implementation Gap Detection" pattern: when design and implementation diverge, check whether the design was ever implemented
 
 ---
 

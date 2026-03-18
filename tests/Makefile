@@ -4,14 +4,14 @@
 # Layer 2: E2E integration (triggers real claude CLI, costs API credits)
 # Layer 3: Quality evaluation (analysis of generated code)
 #
-# Config isolation: E2E runs use CLAUDE_CONFIG_DIR=~/.claude-rune-plugin-test
+# Config isolation: E2E runs use CLAUDE_CONFIG_DIR=~/.claude-rune-test
 # to redirect all Claude Code state (teams, tasks, memory). Never touches ~/.claude/.
 # The harness sets this automatically. For manual testing:
-#   CLAUDE_CONFIG_DIR=~/.claude-rune-plugin-test claude --dangerously-skip-permissions
+#   CLAUDE_CONFIG_DIR=~/.claude-rune-test claude --dangerously-skip-permissions
 
 .PHONY: help test unit lint typecheck check clean clean-config clean-memory e2e e2e-quick evaluate report setup kill-test-procs
 
-CLAUDE_TEST_DIR := $(HOME)/.claude-rune-plugin-test
+CLAUDE_TEST_DIR := $(HOME)/.claude-rune-test
 
 PYTHON     ?= python
 PYTEST     ?= $(PYTHON) -m pytest

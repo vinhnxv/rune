@@ -174,7 +174,7 @@ fn render_active_arcs(frame: &mut Frame, app: &mut App, area: Rect) {
         let mut info_spans = vec![Span::styled("     ", Style::default())];
         if let Some(ref si) = arc.session_info {
             if !si.cwd.is_empty() {
-                // Shorten CWD: ~/Desktop/repos/rune-plugin → rune-plugin
+                // Shorten CWD: ~/Desktop/repos/rune → rune
                 let short_cwd = si.cwd.rsplit('/').next().unwrap_or(&si.cwd);
                 info_spans.push(Span::styled(short_cwd.to_string(), Style::default().fg(sol::BASE0)));
             }

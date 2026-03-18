@@ -122,16 +122,16 @@ def sample_tome(fixtures_dir: Path) -> str:
 
 @pytest.fixture
 def isolated_claude_config() -> Iterator[Path]:
-    """Validate ~/.claude-rune-plugin-test/ exists for isolated E2E testing.
+    """Validate ~/.claude-rune-test/ exists for isolated E2E testing.
 
     This fixture expects the isolated config directory to be set up manually
     before running E2E tests. It never reads from or touches ~/.claude/.
 
     Manual setup:
-        mkdir -p ~/.claude-rune-plugin-test
+        mkdir -p ~/.claude-rune-test
         # Copy any needed settings into it manually
 
-    The harness uses CLAUDE_CONFIG_DIR=~/.claude-rune-plugin-test to redirect
+    The harness uses CLAUDE_CONFIG_DIR=~/.claude-rune-test to redirect
     all Claude Code state (teams, tasks, memory) to this directory.
     """
     from helpers.claude_runner import ClaudeRunner

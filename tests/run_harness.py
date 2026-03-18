@@ -113,7 +113,7 @@ def setup_workspace(challenge_plan: Path, *, isolate: bool = True) -> tuple[Path
     _write_pyproject(workspace)
     _init_git_repo(workspace)
 
-    # Set up isolated Claude config at ~/.claude-rune-plugin-test/
+    # Set up isolated Claude config at ~/.claude-rune-test/
     config_dir: Path | None = None
     if isolate:
         runner = ClaudeRunner(plugin_dir=Path("."), working_dir=workspace)
