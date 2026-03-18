@@ -102,6 +102,77 @@ for (const task of extractedTasks) {
 }
 ```
 
+## Task File Creation (Discipline Bridge)
+
+```javascript
+// After extractedTasks is populated (parse-plan.md output) with metadata
+// and BEFORE worker spawning begins — write physical task files.
+// Schema: task-file-format.md (canonical source)
+// Directory: tasks/ (NOT task-briefs/) per spec alignment
+
+// Create tasks directory
+Bash(`mkdir -p "tmp/work/${timestamp}/tasks"`)
+
+for (const task of extractedTasks) {
+  const taskId = String(task.id)  // FLAW-008: normalize to String at every boundary
+  const taskCriteria = taskCriteriaMap[taskId] || taskCriteriaMap[task.id] || []
+  const fileTargets = task.fileTargets || []
+
+  const taskFileContent = [
+    '---',
+    `task_id: "${taskId}"`,
+    `plan_file: "${planPath}"`,
+    `plan_section: "### Task ${taskId}"`,
+    `status: PENDING`,
+    `assigned_to: null`,
+    `iteration: 0`,
+    `risk_tier: ${task.riskTier ?? 1}`,
+    `proof_count: ${taskCriteria.length}`,
+    `created_at: "${new Date().toISOString()}"`,
+    `updated_at: "${new Date().toISOString()}"`,
+    `completed_at: null`,
+    '---',
+    '',
+    '## Source',
+    '',
+    task.description,  // Full task description (plan section verbatim)
+    '',
+    '## Acceptance Criteria',
+    '',
+    ...taskCriteria.map(c => [
+      `- id: ${c.id}`,
+      `  text: "${c.text}"`,
+      `  proof: ${c.proof}`,
+      `  args: ${JSON.stringify(c.args)}`,
+      ''
+    ].join('\n')),
+    '## File Targets',
+    '',
+    ...fileTargets.map(f => `- ${f}`),
+    '',
+    '## Context',
+    '',
+    shardContext || 'No additional context.',
+    '',
+    '## Worker Report',
+    '',
+    '_To be filled by assigned worker._',
+  ].join('\n')
+
+  Write(`tmp/work/${timestamp}/tasks/task-${taskId}.md`, taskFileContent)
+}
+
+log(`Created ${extractedTasks.length} task files in tmp/work/${timestamp}/tasks/`)
+```
+
+**Key design decisions**:
+- Uses `tasks/` directory to match `task-file-format.md` schema (line 13) and all 3 spec files
+- Task ID normalized to `String()` at entry point (`FLAW-008`) — both for the map lookup and filename
+- Dual-key lookup (`taskCriteriaMap[taskId] || taskCriteriaMap[task.id]`) handles maps keyed by either type
+- Task file uses FULL task description (not truncated to 2000 chars) — the file IS the context
+- `task-file-format.md` schema is the canonical source — this code follows it exactly
+- Task files are the SUPERSET — `TaskCreate()` descriptions can reference task file path instead of embedding full content
+
 ## Adaptive maxTurns Scaling
 
 ```javascript
