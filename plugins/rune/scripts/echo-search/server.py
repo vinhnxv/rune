@@ -485,6 +485,7 @@ def _score_recency(
 # Matches backtick-fenced tokens that look like file paths (contain / and end
 # with a common extension). Limited to 10 evidence paths per entry.
 _EVIDENCE_PATH_RE = re.compile(r'`([^`]+\.[a-z]{1,6})`')
+_TOKEN_RE = re.compile(r"[a-zA-Z0-9_]+")
 
 
 def _extract_evidence_paths(entry: Dict[str, Any]) -> List[str]:
@@ -1043,6 +1044,8 @@ def _build_pairwise_groups(entry_map, entry_ids, threshold):
     Uses an inverted index to avoid O(n²) full pairwise scan — only pairs
     sharing at least one feature token are compared.
     """
+    if len(entry_ids) < 2:
+        return []
     if len(entry_ids) > 500:
         logger.warning("_build_pairwise_groups: skipping — %d entries exceeds 500 cap", len(entry_ids))
         return []
@@ -1354,19 +1357,19 @@ def _insert_entries(conn: sqlite3.Connection, entries: list) -> None:
     conn.execute("DELETE FROM echo_entries")
     conn.execute(
         "INSERT INTO echo_entries_fts(echo_entries_fts) VALUES('delete-all')")
-    for entry in entries:
-        conn.execute(
-            """INSERT OR REPLACE INTO echo_entries
-               (id, role, layer, date, source, content, tags,
-                line_number, file_path, category, domain)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (entry["id"], entry["role"], entry["layer"],
-             entry.get("date", ""), entry.get("source", ""),
-             entry["content"], entry.get("tags", ""),
-             entry.get("line_number", 0), entry["file_path"],
-             entry.get("category", "general"),
-             entry.get("domain", "general")),
-        )
+    conn.executemany(
+        """INSERT OR REPLACE INTO echo_entries
+           (id, role, layer, date, source, content, tags,
+            line_number, file_path, category, domain)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        [(entry["id"], entry["role"], entry["layer"],
+          entry.get("date", ""), entry.get("source", ""),
+          entry["content"], entry.get("tags", ""),
+          entry.get("line_number", 0), entry["file_path"],
+          entry.get("category", "general"),
+          entry.get("domain", "general"))
+         for entry in entries],
+    )
     conn.execute(
         "INSERT INTO echo_entries_fts(echo_entries_fts) VALUES('rebuild')")
 
@@ -2097,7 +2100,7 @@ def build_fts_query(raw_query):
     """
     # type: (str) -> str
     raw_query = raw_query[:500]  # SEC-7: cap input length
-    tokens = re.findall(r"[a-zA-Z0-9_]+", raw_query.lower())
+    tokens = _TOKEN_RE.findall(raw_query.lower())
     filtered = [t for t in tokens if t not in STOPWORDS and len(t) >= 2]
     if not filtered:
         filtered = [t for t in tokens if len(t) >= 2]
@@ -2203,6 +2206,9 @@ def get_details(conn, ids):
 
 def _query_by_group(conn: sqlite3.Connection, column: str) -> dict:
     """Query echo_entries grouped by a column, returning {value: count}."""
+    ALLOWED_COLUMNS = {"layer", "role", "category"}
+    if column not in ALLOWED_COLUMNS:
+        raise ValueError(f"Invalid group-by column: {column}")
     result = {}  # type: Dict[str, int]
     for row in conn.execute(
         "SELECT %s, COUNT(*) as cnt FROM echo_entries GROUP BY %s" % (column, column)
@@ -3139,8 +3145,8 @@ async def _run_scoped_search(
                 if _global_conn is not None:
                     try:
                         _global_conn.close()
-                    except Exception:
-                        pass
+                    except (sqlite3.Error, OSError) as exc:
+                        logger.debug("global conn close failed: %s", exc)
                     _global_conn = None
             gconn = get_global_conn()
             if gconn is not None:

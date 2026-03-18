@@ -54,7 +54,7 @@ def build_defaults():
         print("ERROR: talisman.example.yml is empty or not a mapping", file=sys.stderr)
         sys.exit(1)
 
-    if isinstance(data, dict) and len(data) == 0:
+    if len(data) == 0:
         print(f"WARN: {EXAMPLE_FILE} has no configured keys — all defaults will be injected", file=sys.stderr)
 
     # Add schema version for shard resolver compatibility
@@ -133,7 +133,7 @@ def _inject_toplevel_defaults(data: dict[str, Any]) -> None:
     _inject_toplevel_feature_defaults(data)
 
 
-def _inject_toplevel_feature_defaults(data):
+def _inject_toplevel_feature_defaults(data: dict[str, Any]) -> None:
     """Inject feature-flag top-level keys (design_sync, deploy, schema, etc.)."""
     # Source of truth: design-sync/SKILL.md "## Talisman Configuration" section. Keep in sync.
     data.setdefault("design_sync", {
@@ -199,7 +199,7 @@ def _inject_toplevel_feature_defaults(data):
     })
 
 
-def _inject_goldmask_defaults(data):
+def _inject_goldmask_defaults(data: dict[str, Any]) -> None:
     """Inject goldmask defaults — large nested structure with layers config."""
     if "goldmask" not in data:
         defaults = _build_goldmask_defaults()
@@ -248,7 +248,7 @@ def _build_goldmask_defaults():
     }
 
 
-def _inject_review_defaults(data):
+def _inject_review_defaults(data: dict[str, Any]) -> None:
     """Inject review sub-key defaults for commented-out config."""
     review = data.get("review", {})
     review.setdefault("auto_mend", False)
@@ -276,7 +276,7 @@ def _inject_review_defaults(data):
     data["review"] = review
 
 
-def _inject_review_arc_convergence_defaults(review):
+def _inject_review_arc_convergence_defaults(review: dict[str, Any]) -> None:
     """Inject arc convergence defaults under the review namespace."""
     if "arc_convergence_tier_override" not in review:
         review["arc_convergence_tier_override"] = None
@@ -292,7 +292,7 @@ def _inject_review_arc_convergence_defaults(review):
         review["arc_convergence_improvement_ratio"] = 0.5
 
 
-def _inject_work_defaults(data):
+def _inject_work_defaults(data: dict[str, Any]) -> None:
     """Inject work sub-key defaults for commented-out config."""
     work = data.get("work", {})
     if "worktree" not in work:
@@ -324,7 +324,7 @@ def _inject_work_defaults(data):
     data["work"] = work
 
 
-def _inject_remaining_section_defaults(data):
+def _inject_remaining_section_defaults(data: dict[str, Any]) -> None:
     """Inject arc, audit, and echoes sub-key defaults."""
     arc = data.get("arc", {})
     if "no_test" not in arc.get("defaults", {}):

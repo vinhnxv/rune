@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-03-18
+
+### Fixed
+
+- **agent-search SEC-005**: Add defensive post-sanitization check for FTS search terms
+- **build-talisman-defaults**: Add type annotations to injection functions
+- **echo-search decomposer**: Optimize TTL cache eviction with front-scan instead of full iteration
+- **echo-search server**: Use `executemany` for batch index rebuilds, compile token regex, add column allowlist for group-by queries, narrow exception handling for global conn cleanup
+- **enforce-glyph-budget**: Add `nullglob` protection for state file glob iteration
+- **sensitive-patterns**: Fix bash 3.2 compatibility for associative array declaration
+- **on-teammate-idle**: Parse team session file as JSON instead of raw text
+
+### Removed
+
+- **`.claude/talisman.yml`**: Remove redundant project-root talisman (already exists under `plugins/rune/`)
+
 ## [2.0.1] - 2026-03-18
 
 ### Fixed

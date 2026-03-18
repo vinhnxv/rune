@@ -1155,6 +1155,10 @@ def _sanitize_fts_query(query: str) -> str:
     if not terms:
         return ""
 
+    # SEC-005: Defensive check — verify sanitizer output contains only safe characters
+    if not all(t.replace("_", "").replace("-", "").isalnum() for t in terms):
+        raise ValueError("Unsanitized FTS term detected after sanitization")
+
     # Use OR-joined prefix matching for broad retrieval
     # FTS5 prefix: "term*" matches any token starting with "term"
     fts_terms = ['"%s"*' % t for t in terms[:10]]  # Cap at 10 terms

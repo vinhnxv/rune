@@ -118,9 +118,12 @@ class _TTLCache:
             facets: List of keyword facet strings.
         """
         # BACK-P3-005: Evict expired entries before LRU eviction
+        # Front-scan: OrderedDict preserves insertion order, so oldest are first
         now = time.monotonic()
-        expired = [k for k, (_, ts) in self._store.items() if now - ts > self.ttl]
-        for k in expired:
+        while self._store:
+            k, (_, ts) = next(iter(self._store.items()))
+            if now - ts <= self.ttl:
+                break
             del self._store[k]
 
         if key in self._store:

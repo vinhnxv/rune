@@ -7,7 +7,8 @@
 #   source "${SCRIPT_DIR}/lib/sensitive-patterns.sh"
 #
 # Exports:
-#   SENSITIVE_PATTERNS  — associative array of label → regex
+#   SENSITIVE_PATTERNS  — associative array of label → regex (bash 4+ only)
+#   _SPAT_LIST          — indexed array of "label:regex" pairs (all bash versions)
 #   rune_strip_sensitive [max_chars]  — Filter stdin, write clean text to stdout
 #
 # All functions read from stdin, write to stdout.
@@ -21,9 +22,7 @@
 # SEC-PAT-001: Patterns are designed for grep -E / sed -E compatibility.
 #
 # Escape note: These are POSIX ERE patterns for use with `grep -E` or `sed -E`.
-declare -A SENSITIVE_PATTERNS 2>/dev/null || true
-
-# Only populate if array declaration succeeded (bash 4+)
+# Populated from _SPAT_LIST below if bash 4+ (associative arrays supported).
 # For bash 3 (macOS default), we use positional logic in rune_strip_sensitive
 _SPAT_LIST=(
   # 1. OpenAI API keys: sk-[A-Za-z0-9]{20,}

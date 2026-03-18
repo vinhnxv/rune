@@ -115,7 +115,7 @@ HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/n
 if [[ -n "$HOOK_SESSION_ID" ]]; then
   TEAM_SESSION_FILE="$TEAM_CONFIG_DIR/.session"
   if [[ -f "$TEAM_SESSION_FILE" && ! -L "$TEAM_SESSION_FILE" ]]; then
-    TEAM_SESSION_ID=$(head -c 256 "$TEAM_SESSION_FILE" 2>/dev/null | tr -d '[:space:]')
+    TEAM_SESSION_ID=$(jq -r '.session_id // empty' "$TEAM_SESSION_FILE" 2>/dev/null)
     if [[ -n "$TEAM_SESSION_ID" && "$TEAM_SESSION_ID" != "$HOOK_SESSION_ID" ]]; then
       _trace "SKIP session mismatch: hook=$HOOK_SESSION_ID team=$TEAM_SESSION_ID — another session owns this team"
       exit 0

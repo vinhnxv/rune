@@ -53,6 +53,7 @@ PROJECT_DIR="$CWD"
 HAS_RUNE_WORKFLOW=false
 
 # Explicit state file pattern check (Concern C3: [[ -f "$sf" ]] || continue)
+shopt -s nullglob
 for sf in \
   "$PROJECT_DIR/tmp/.rune-review-"*.json \
   "$PROJECT_DIR/tmp/.rune-work-"*.json \
@@ -71,6 +72,7 @@ for sf in \
   break
 done
 
+shopt -u nullglob
 [[ "$HAS_RUNE_WORKFLOW" == "true" ]] || exit 0
 
 # --- Guard 2: Extract message content ---
