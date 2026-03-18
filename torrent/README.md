@@ -62,11 +62,14 @@ cargo build --release
 
 Binary at `torrent/target/release/torrent`.
 
-### Using Make
+### Using Make (from repo root)
 
 ```bash
-# Build
-make release
+# Build release binary
+make build
+
+# Build debug binary (fast compile)
+make dev
 
 # Install to /usr/local/bin (may need sudo)
 make install
@@ -79,6 +82,9 @@ make dist
 
 # Uninstall
 make uninstall
+
+# See all targets
+make help
 ```
 
 ## Usage
