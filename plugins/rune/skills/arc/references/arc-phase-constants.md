@@ -9,7 +9,7 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 ## Phase Order
 
 ```javascript
-const PHASE_ORDER = ['forge', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'design_prototype', 'task_decomposition', 'work', 'drift_review', 'storybook_verification', 'design_verification', 'ux_verification', 'gap_analysis', 'codex_gap_analysis', 'gap_remediation', 'goldmask_verification', 'code_review', 'goldmask_correlation', 'mend', 'verify_mend', 'design_iteration', 'test', 'test_coverage_critique', 'deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
+const PHASE_ORDER = ['forge', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'design_prototype', 'task_decomposition', 'work', 'drift_review', 'storybook_verification', 'design_verification', 'ux_verification', 'gap_analysis', 'codex_gap_analysis', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification', 'code_review', 'goldmask_correlation', 'mend', 'verify_mend', 'design_iteration', 'test', 'test_coverage_critique', 'deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
 
 // Heavy phases that MUST be delegated to sub-skills — never implemented inline.
 // These phases consume significant tokens and require fresh teammate context windows.
@@ -17,7 +17,7 @@ const PHASE_ORDER = ['forge', 'plan_review', 'plan_refine', 'verification', 'sem
 // NOTE: This list covers phases that delegate to /rune:strive, /rune:appraise, /rune:mend.
 // Phases like goldmask_verification and gap_remediation also spawn teams but are managed
 // by their own reference files, not sub-skill commands — they are NOT included here.
-const HEAVY_PHASES = ['work', 'code_review', 'mend']
+const HEAVY_PHASES = ['work', 'code_review', 'mend', 'inspect']
 
 // IMPORTANT: checkArcTimeout() runs BETWEEN phases, not during. A phase that exceeds
 // its budget will only be detected after it finishes/times out internally.
@@ -71,6 +71,9 @@ const PHASE_TIMEOUTS = {
   gap_analysis:  talismanTimeouts.gap_analysis ?? 720_000,   // 12 min (inner 8m + 2m setup + 2m aggregate)
   codex_gap_analysis: talismanTimeouts.codex_gap_analysis ?? 960_000,  // 16 min (delegated to codex-phase-handler teammate)
   gap_remediation: talismanTimeouts.gap_remediation ?? 900_000,  // 15 min (inner 10m + 5m setup)
+  inspect:       talismanTimeouts.inspect ?? 900_000,       // 15 min (4 Inspector Ashes + verdict-binder)
+  inspect_fix:   talismanTimeouts.inspect_fix ?? 900_000,   // 15 min (gap-fixer agents for FIXABLE findings)
+  verify_inspect: talismanTimeouts.verify_inspect ?? 240_000, // 4 min (convergence evaluation, no team)
   code_review:   talismanTimeouts.code_review ?? 900_000,    // 15 min (inner 10m + 5m setup)
   mend:          talismanTimeouts.mend ?? 1_380_000,    // 23 min (inner 15m + 5m setup + 3m ward/cross-file)
   verify_mend:   talismanTimeouts.verify_mend ?? 240_000,    //  4 min (orchestrator-only, no team)
@@ -137,6 +140,7 @@ function calculateDynamicTimeout(tier) {
     PHASE_TIMEOUTS.ux_verification +
     PHASE_TIMEOUTS.gap_analysis +
     PHASE_TIMEOUTS.codex_gap_analysis + PHASE_TIMEOUTS.gap_remediation +
+    PHASE_TIMEOUTS.inspect + PHASE_TIMEOUTS.inspect_fix + PHASE_TIMEOUTS.verify_inspect +
     PHASE_TIMEOUTS.goldmask_verification + PHASE_TIMEOUTS.goldmask_correlation +
     PHASE_TIMEOUTS.design_iteration +
     PHASE_TIMEOUTS.test + PHASE_TIMEOUTS.test_coverage_critique +
@@ -217,6 +221,7 @@ const SKIP_REASONS = {
   CODEX_RELEASE_QUALITY_DISABLED: "codex_release_quality_disabled",  // per-phase codex sub-key disabled
   BOT_REVIEW_DISABLED: "bot_review_disabled",         // bot_review not enabled via flag or talisman
   TESTING_DISABLED: "testing_disabled",               // --no-test flag or arc.defaults.no_test
+  INSPECT_DISABLED: "inspect_disabled",               // arc.inspect.enabled === false
 }
 
 // ── Phase skip classification ──

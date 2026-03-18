@@ -44,6 +44,8 @@ const PHASE_PREFIX_MAP = {
   test_coverage_critique: ["arc-codex-tc-"],                    // delegated to codex-phase-handler teammate
   release_quality_check:  ["arc-codex-rq-"],                    // delegated to codex-phase-handler teammate
   gap_remediation:        ["arc-gap-fix-"],
+  inspect:                ["arc-inspect-full-"],
+  inspect_fix:            ["arc-inspect-fix-"],
   goldmask_verification:  ["goldmask-"],
   code_review:            ["rune-review-"],
   mend:                   ["rune-mend-", "arc-sage-"],          // mend sub-command + ephemeral elicitation sage
