@@ -41,8 +41,8 @@ function discoverDesignContext(talisman, frontmatter, tasks) {
   }
 
   // Strategy 3: design-sync output (from /rune:design-sync)
-  const dsVsm = Glob('.claude/design-sync/vsm/*.json')
-  const dsDcd = Glob('.claude/design-sync/dcd/*.md')
+  const dsVsm = Glob('.rune/design-sync/vsm/*.json')
+  const dsDcd = Glob('.rune/design-sync/dcd/*.md')
   if (dsVsm.length > 0 || dsDcd.length > 0) {
     return {
       strategy: 'design-sync',

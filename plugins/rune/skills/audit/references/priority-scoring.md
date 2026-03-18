@@ -168,6 +168,7 @@ audit:
       role: 0.05
     always_audit:
       - "CLAUDE.md"
+      - ".rune/**/*.md"
       - ".claude/**/*.md"
       - "**/auth/**"
     extra_skip_patterns:

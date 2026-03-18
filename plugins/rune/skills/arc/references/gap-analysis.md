@@ -671,9 +671,9 @@ if (deletedFiles.length === 0) {
     // CDX-002 FIX: Sanitize basename before shell use
     if (!/^[a-zA-Z0-9._\-]+$/.test(basename)) continue
 
-    // Search across plugins/ (primary), .claude/ (talisman configs), scripts/ (hooks)
+    // Search across plugins/ (primary), .rune/ (talisman configs), .claude/ (legacy), scripts/ (hooks)
     // Uses Bash+rg to match existing gap-analysis.md tool pattern
-    const grepResult = Bash(`rg -l --fixed-strings "${basename}" plugins/ .claude/ scripts/ --glob '*.md' --glob '*.yml' --glob '*.sh' 2>/dev/null`)
+    const grepResult = Bash(`rg -l --fixed-strings "${basename}" plugins/ .rune/ .claude/ scripts/ --glob '*.md' --glob '*.yml' --glob '*.sh' 2>/dev/null`)
     const referrers = grepResult.trim().split('\n')
       .filter(f => f.length > 0 && f !== deleted && !f.startsWith('tmp/') && !f.includes('gap-analysis.md'))
 

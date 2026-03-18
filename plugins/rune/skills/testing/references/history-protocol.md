@@ -6,12 +6,12 @@
 
 ## Storage Location
 
-Default directory: `.claude/test-history/` (gitignored by default).
+Default directory: `.rune/test-history/` (gitignored by default).
 
 Override via talisman: `testing.history.directory`.
 
 ```
-.claude/test-history/
+.rune/test-history/
 └── test-history.jsonl   # Rolling window of history entries (JSONL format)
 ```
 
@@ -56,7 +56,7 @@ Each run appends one JSON line to `test-history.jsonl`:
 
 ```
 function persistTestHistory(reportData, talismanConfig):
-  historyDir = talismanConfig.testing?.history?.directory ?? ".claude/test-history"
+  historyDir = talismanConfig.testing?.history?.directory ?? ".rune/test-history"
   maxEntries = talismanConfig.testing?.history?.max_entries ?? 50
   passRateDropThreshold = talismanConfig.testing?.history?.pass_rate_drop_threshold ?? 0.05
   regressionThreshold = talismanConfig.testing?.history?.regression_threshold ?? 7
@@ -153,7 +153,7 @@ function enrichWithBatchData(entry, testingPlan, evidenceRecords) {
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `testing.history.directory` | string | `.claude/test-history` | History storage path |
+| `testing.history.directory` | string | `.rune/test-history` | History storage path |
 | `testing.history.max_entries` | number | `50` | Rolling window size (number of JSONL entries retained) |
 | `testing.history.pass_rate_drop_threshold` | float | `0.05` | Maximum tolerated global pass-rate drop between consecutive runs before flagging a regression (STEP 9.5 gate). Values are 0.0–1.0 (e.g., `0.05` = 5% drop). Used by the arc-phase-test.md persistence algorithm. |
 | `testing.history.regression_threshold` | integer | `7` | Minimum number of recent passing runs (out of last 10) required for a per-test historical series to be considered healthy. Used by regression-detection.md per-test series check. |
@@ -219,4 +219,4 @@ function readRecentHistory(historyDir, count):
 | Concurrent arc runs | JSONL append is non-atomic; entries may interleave on the same millisecond — acceptable because rolling-window trim is idempotent |
 | Corrupt JSONL line | Skipped silently; remaining valid lines are processed |
 | Disk full | `Write()` fails; existing `.jsonl` content is preserved (no partial overwrite) |
-| `.claude/test-history/` deleted | Next run recreates directory; cold start handling activates |
+| `.rune/test-history/` deleted | Next run recreates directory; cold start handling activates |

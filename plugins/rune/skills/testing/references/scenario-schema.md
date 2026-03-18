@@ -1,6 +1,6 @@
 # YAML Test Scenario Schema
 
-Defines the structured format for pre-defined test scenarios in `.claude/test-scenarios/`.
+Defines the structured format for pre-defined test scenarios in `.rune/test-scenarios/`.
 Scenarios are discovered by STEP 0.5 and merged with auto-discovered tests during strategy generation.
 
 ## Schema Definition
@@ -294,7 +294,7 @@ STEP 0.5 discovers and validates scenarios before test execution:
 
 ```
 discoverScenarios(diffFiles, talismanConfig):
-  scenarioDir = talismanConfig.testing?.scenarios?.directory ?? ".claude/test-scenarios"
+  scenarioDir = talismanConfig.testing?.scenarios?.directory ?? ".rune/test-scenarios"
   if !exists(scenarioDir): return { scenarios: [], source: "none" }
 
   // 1. Glob all YAML files

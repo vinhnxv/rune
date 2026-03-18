@@ -65,7 +65,8 @@ rune-gaze:
   # Files that should always be reviewed regardless of extension
   always_review:
     - "CLAUDE.md"
-    - ".claude/**/*.md"
+    - ".rune/**/*.md"
+    - ".claude/**/*.md"       # Legacy fallback — safe to remove after full migration
 
 # ──────────────────────────────────────────────
 # Custom Ashes — Extend the built-in 7
@@ -287,7 +288,8 @@ audit:
   #     role: 0.05                         # File role heuristic
   #   always_audit:                        # Glob patterns always included in every batch
   #     - "CLAUDE.md"
-  #     - ".claude/**/*.md"
+  #     - ".rune/**/*.md"
+  #     - ".claude/**/*.md"     # Legacy fallback
   #     - "**/auth/**"
   #   extra_skip_patterns:                 # Additional exclusions beyond .gitignore
   #     - "**/generated/**"
@@ -324,7 +326,7 @@ audit:
   # ── Custom Prompt Override (v1.91.0+) ─────────
   # Load a Markdown file as an additional system-level instruction injected into
   # every Ash prompt during this audit. Useful for project-specific audit focus.
-  # default_prompt_file: ".claude/prompts/audit-focus.md"  # Path to prompt file (relative to repo root)
+  # default_prompt_file: ".rune/prompts/audit-focus.md"  # Path to prompt file (relative to repo root)
 
 # ──────────────────────────────────────────────
 # Defaults — Disable built-in Ash
@@ -1056,7 +1058,7 @@ testing:
   # Opt-in: scenarios must be declared as YAML files in scenarios.directory.
   scenarios:
     enabled: true                   # Enable scenario discovery and execution (default: true)
-    directory: ".claude/test-scenarios"  # Directory containing scenario YAML files
+    directory: ".rune/test-scenarios"  # Directory containing scenario YAML files
     max_per_run: 50                 # Max scenarios executed per arc run (default: 50)
   # ── Extended Tier ───────────────────────────
   # Long-running scenario suite beyond normal test budget (v1.200.0+)
@@ -1076,7 +1078,7 @@ testing:
   # Opt-in: requires baseline screenshots to be generated first.
   # visual_regression:
   #   enabled: false                  # Enable visual regression testing (default: false)
-  #   baseline_dir: "tests/baselines" # Directory storing baseline screenshots. Default if unset: ".claude/visual-baselines"
+  #   baseline_dir: "tests/baselines" # Directory storing baseline screenshots. Default if unset: ".rune/visual-baselines"
   #   threshold: 0.95                 # Pixel similarity threshold (0.0-1.0, default: 0.95)
   #   update_baselines: false         # When true, overwrite baselines instead of comparing
   #   responsive:
@@ -1095,7 +1097,7 @@ testing:
   # Persistent test trend tracking across arc runs (v1.200.0+)
   history:
     enabled: true                   # Enable history recording (default: true)
-    directory: ".claude/test-history"  # Directory for persistent history files
+    directory: ".rune/test-history"  # Directory for persistent history files
     max_entries: 50                 # Max history entries retained per test (default: 50; matches arc-phase-test.md implementation)
     pass_rate_drop_threshold: 0.05  # Global pass-rate drop threshold (0.0-1.0, default: 0.05 = 5%)
     regression_threshold: 7         # Minimum passing runs in last 10 to classify as regression (default: 7)

@@ -104,6 +104,36 @@ _rune_migrate_legacy() {
     fi
   fi
 
+  # Test history
+  if [[ -d "${legacy}/test-history" ]] && [[ ! -L "${legacy}/test-history" ]] && [[ ! -d "${target}/test-history" ]]; then
+    mkdir -p "${target}"
+    mv "${legacy}/test-history" "${target}/test-history" 2>/dev/null && migrated=1
+  fi
+
+  # Test scenarios
+  if [[ -d "${legacy}/test-scenarios" ]] && [[ ! -L "${legacy}/test-scenarios" ]] && [[ ! -d "${target}/test-scenarios" ]]; then
+    mkdir -p "${target}"
+    mv "${legacy}/test-scenarios" "${target}/test-scenarios" 2>/dev/null && migrated=1
+  fi
+
+  # Visual baselines
+  if [[ -d "${legacy}/visual-baselines" ]] && [[ ! -L "${legacy}/visual-baselines" ]] && [[ ! -d "${target}/visual-baselines" ]]; then
+    mkdir -p "${target}"
+    mv "${legacy}/visual-baselines" "${target}/visual-baselines" 2>/dev/null && migrated=1
+  fi
+
+  # Design sync state
+  if [[ -d "${legacy}/design-sync" ]] && [[ ! -L "${legacy}/design-sync" ]] && [[ ! -d "${target}/design-sync" ]]; then
+    mkdir -p "${target}"
+    mv "${legacy}/design-sync" "${target}/design-sync" 2>/dev/null && migrated=1
+  fi
+
+  # Design system profile
+  if [[ -f "${legacy}/design-system-profile.yaml" ]] && [[ ! -L "${legacy}/design-system-profile.yaml" ]] && [[ ! -f "${target}/design-system-profile.yaml" ]]; then
+    mkdir -p "${target}"
+    mv "${legacy}/design-system-profile.yaml" "${target}/design-system-profile.yaml" 2>/dev/null && migrated=1
+  fi
+
   # Loop state files (if session crashed and left them behind)
   for loop_file in arc-phase-loop.local.md arc-batch-loop.local.md arc-hierarchy-loop.local.md arc-issues-loop.local.md arc-hierarchy-exec-table.json; do
     if [[ -f "${legacy}/${loop_file}" ]] && [[ ! -L "${legacy}/${loop_file}" ]] && [[ ! -f "${target}/${loop_file}" ]]; then

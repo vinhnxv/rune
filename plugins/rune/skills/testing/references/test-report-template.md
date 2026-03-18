@@ -26,7 +26,7 @@ tmp/arc/{id}/
 ├── docker-containers.json              # For crash recovery cleanup
 │
 # Persistent test history (stored at PROJECT ROOT, not under tmp/arc/):
-.claude/test-history/
+.rune/test-history/
 └── test-history.jsonl                  # Rolling window (JSONL single-file)
 ```
 
@@ -106,7 +106,7 @@ When no regressions: "No regressions detected. Trend: stable."
 - Testing plan: `tmp/arc/{id}/testing-plan.json`
 - Failure journal: `tmp/arc/{id}/failure-journal.md`
 - Batch evidence: `tmp/arc/{id}/evidence/batch-{N}-evidence.json`
-- Test history: `.claude/test-history/test-history.jsonl`
+- Test history: `.rune/test-history/test-history.jsonl`
 
 <!-- SEAL: test-report-complete -->
 ```
@@ -215,7 +215,7 @@ Only present when `testing.production_readiness.enabled` is true in talisman.yml
 
 ## Test History
 
-Only present when `testing.history.enabled` is true in talisman.yml. Data sourced from `.claude/test-history/`.
+Only present when `testing.history.enabled` is true in talisman.yml. Data sourced from `.rune/test-history/`.
 
 ```markdown
 ## Test History

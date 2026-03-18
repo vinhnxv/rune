@@ -108,7 +108,7 @@ Before content is loaded, the file path is validated:
 | File is binary | Null byte stripping + whitespace guard → abort |
 | File is 0 bytes | Whitespace guard fires → abort |
 | Both `--prompt` and `--prompt-file` | `--prompt-file` wins (file takes precedence) |
-| `--prompt-file` path is `~/.claude/my-prompt.md` | Allowed — within `~/.claude/` |
+| `--prompt-file` path is `~/.claude/my-prompt.md` | Allowed — within `~/.claude/` (global config) |
 | Absolute path escaping both project root and `~/.claude/` | Abort with path rejection message |
 | Very large file (>100KB) | No hard limit — sanitize and use; downstream Ash context budget is the real constraint |
 | Prompt tries to add `<seal>` tag | RUNE nonce marker stripping removes `<!-- RUNE:SEAL:xxx -->` patterns; plain `<seal>`/`</seal>` tags are replaced with escaped equivalents (`&lt;seal&gt;`) to prevent completion detection bypass |
@@ -123,7 +123,7 @@ Configure a project-wide default prompt file in `.rune/talisman.yml`:
 
 ```yaml
 audit:
-  default_prompt_file: ".claude/prompts/audit-focus.md"
+  default_prompt_file: ".rune/prompts/audit-focus.md"
 ```
 
 The flag `--prompt-file` overrides this talisman default. When both `--prompt` and `--prompt-file` are provided, `--prompt-file` takes precedence.

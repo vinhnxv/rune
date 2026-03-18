@@ -187,7 +187,7 @@ After all batches complete, verify:
 See [scenario-schema.md](references/scenario-schema.md) for the YAML test scenario format.
 
 Summary:
-- Scenarios live in `.claude/test-scenarios/*.yml`
+- Scenarios live in `.rune/test-scenarios/*.yml`
 - Required fields: `name`, `tier` (unit/integration/e2e/extended/contract)
 - Discovered in STEP 0.5, merged into strategy in STEP 1.5
 - Capped at `testing.scenarios.max_per_run` (default 50)
@@ -254,7 +254,7 @@ Summary:
 See [history-protocol.md](references/history-protocol.md) for test history persistence format.
 
 Summary:
-- Written to `.claude/test-history/test-history.jsonl` (JSONL rolling window)
+- Written to `.rune/test-history/test-history.jsonl` (JSONL rolling window)
 - Includes: pass/fail counts, durations, tier breakdown, flaky scores, PR number
 - Rolling window: `testing.history.max_entries` (default 50)
 - Gate: `testing.history.enabled` (default true)

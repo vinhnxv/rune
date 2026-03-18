@@ -633,6 +633,7 @@
   "rune-gaze": {
     "always_review": [
       "CLAUDE.md",
+      ".rune/**/*.md",
       ".claude/**/*.md"
     ],
     "backend_extensions": [
@@ -745,7 +746,7 @@
   "testing": {
     "enabled": true,
     "history": {
-      "directory": ".claude/test-history",
+      "directory": ".rune/test-history",
       "enabled": true,
       "flaky_threshold": 0.1,
       "max_entries": 50,
@@ -753,7 +754,7 @@
       "regression_threshold": 7
     },
     "scenarios": {
-      "directory": ".claude/test-scenarios",
+      "directory": ".rune/test-scenarios",
       "enabled": true,
       "max_per_run": 50
     },

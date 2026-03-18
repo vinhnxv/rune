@@ -829,7 +829,7 @@ rune-gaze:
   backend_extensions: [.py, .go]
   frontend_extensions: [.tsx, .ts]
   skip_patterns: ["**/migrations/**"]
-  always_review: ["CLAUDE.md", ".claude/**/*.md"]
+  always_review: ["CLAUDE.md", ".rune/**/*.md", ".claude/**/*.md"]
 
 ashes:
   custom:                              # Extend built-in Ashes with your own

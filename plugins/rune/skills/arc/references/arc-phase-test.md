@@ -77,7 +77,7 @@ const scenariosEnabled = testingConfig.scenarios?.enabled !== false
 let scenarios = []
 
 if (scenariosEnabled) {
-  const scenarioFiles = Glob(".claude/test-scenarios/*.yml")
+  const scenarioFiles = Glob(".rune/test-scenarios/*.yml")
   const maxPerRun = testingConfig.scenarios?.max_per_run ?? 50
 
   for (const scenarioFile of scenarioFiles) {
@@ -733,7 +733,7 @@ if (productionReadinessEnabled) {
 const historyEnabled = testingConfig.history?.enabled !== false
 
 if (historyEnabled) {
-  const historyDir = `.claude/test-history`
+  const historyDir = `.rune/test-history`
   Bash(`mkdir -p "${historyDir}"`)
 
   const maxEntries = testingConfig.history?.max_entries ?? 50
@@ -869,7 +869,7 @@ If this phase crashes before cleanup:
 | Browser sessions | `arc-e2e-{id}` (check `agent-browser session list`) |
 | Docker containers | `tmp/arc/{id}/docker-containers.json` |
 | Screenshots | `tmp/arc/{id}/screenshots/` |
-| Test history | `.claude/test-history/test-history.jsonl` |
+| Test history | `.rune/test-history/test-history.jsonl` |
 | Batch results | `tmp/arc/{id}/test-results-batch-{N}.md` (one per batch) |
 
 Recovery: `prePhaseCleanup()` handles team/task cleanup before phase, `postPhaseCleanup()` handles cleanup after. See [arc-phase-cleanup.md](arc-phase-cleanup.md). Docker containers auto-stop on Docker daemon restart. Browser sessions time out after 5 minutes of inactivity.

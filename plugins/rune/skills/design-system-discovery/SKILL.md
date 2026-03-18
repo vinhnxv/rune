@@ -22,7 +22,7 @@ Called by devise Phase 0.5 (pre-brainstorm), strive worker injection (Phase 1.5)
 ## Output
 
 Writes `tmp/plans/{timestamp}/design-system-profile.yaml` (session-scoped, ephemeral).
-Never writes to `.claude/` — that path is reserved for persistent echoes only.
+Never writes to `.claude/` — that path is reserved for Claude Code platform files only.
 
 ## discoverDesignSystem(repoRoot, sessionCacheDir)
 

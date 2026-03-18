@@ -106,7 +106,7 @@
 
   "custom_prompt": {
     "active": "boolean — whether prompt injection is enabled (default: false)",
-    "prompt_file": "string — path to Markdown prompt file relative to repo root (e.g., '.claude/audit-prompt.md'). Only consumed by rune-audit and rune-audit-deep."
+    "prompt_file": "string — path to Markdown prompt file relative to repo root (e.g., '.rune/prompts/audit-focus.md'). Only consumed by rune-audit and rune-audit-deep."
   },
 
   "diff_scope": {
