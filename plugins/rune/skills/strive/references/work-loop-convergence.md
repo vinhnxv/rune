@@ -30,8 +30,8 @@ with single-pass results.
 | Config Key | Default | Description |
 |---|---|---|
 | `discipline.max_convergence_iterations` | `3` | Maximum number of convergence iterations before forced exit |
-| `discipline.scr_threshold` | `0.95` | SCR target — convergence succeeds when SCR >= threshold |
-| `discipline.block_on_fail` | `false` | Whether convergence failure blocks task completion (WARN vs BLOCK) |
+| `discipline.scr_threshold` | `100` | SCR target — convergence succeeds when SCR >= threshold |
+| `discipline.block_on_fail` | `true` | Whether convergence failure blocks task completion (WARN vs BLOCK) |
 | `discipline.enabled` | `true` | Master switch for the discipline work loop |
 
 All values read via `readTalismanSection("discipline")` (dedicated discipline shard — FLAW-001 fix).
