@@ -273,7 +273,7 @@ Even with overflow prevention and compression, a session can creep toward contex
 
 ### Setup
 
-Enable in `.claude/talisman.yml`:
+Enable in `.rune/talisman.yml`:
 
 ```yaml
 context_monitor:

@@ -24,7 +24,7 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_re
 
 // 3.6. Update state file to "completed" (preserve config_dir, owner_pid, session_id)
 
-// 4. Persist P1/P2 patterns to .claude/echoes/reviewer/MEMORY.md (if exists)
+// 4. Persist P1/P2 patterns to .rune/echoes/reviewer/MEMORY.md (if exists)
 
 // 5. Read and present TOME.md to user
 

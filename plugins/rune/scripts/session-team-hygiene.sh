@@ -82,6 +82,7 @@ source "${SCRIPT_DIR}/resolve-session-identity.sh"
 if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
   source "${SCRIPT_DIR}/lib/platform.sh"
 fi
+source "${SCRIPT_DIR}/lib/rune-state.sh"
 
 # Extract session_id from hook input JSON (same pattern as enforce-team-lifecycle.sh)
 HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
@@ -345,23 +346,23 @@ stale_state_count=$(
 [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: stale state files found: ${stale_state_count}" >> "${_RUNE_TRACE_PATH}"
 
 # Count orphaned arc checkpoints (v1.110.0: Bug 2 fix)
-# Scan .claude/arc/ and tmp/arc/ for checkpoints with dead owner_pid
-# v1.174.0: Also scan worktree checkpoint directories (.claude/worktrees/*/. claude/arc/)
+# Scan ${RUNE_STATE}/arc/ and tmp/arc/ for checkpoints with dead owner_pid
+# v1.174.0: Also scan worktree checkpoint directories (${RUNE_STATE}/worktrees/*/. claude/arc/)
 # so orphaned worktree arc checkpoints are visible from the main repo session.
 orphan_checkpoint_count=0
 orphan_checkpoint_count=$(
   count=0
-  # Build scan dirs: project root + any worktree .claude/arc/ directories
-  scan_dirs=("${CWD}/.claude/arc" "${CWD}/tmp/arc")
-  # Add worktree checkpoint dirs (worktrees are at .claude/worktrees/*/)
+  # Build scan dirs: project root + any worktree ${RUNE_STATE}/arc/ directories
+  scan_dirs=("${CWD}/${RUNE_STATE}/arc" "${CWD}/tmp/arc")
+  # Add worktree checkpoint dirs (worktrees are at ${RUNE_STATE}/worktrees/*/)
   # SEC-S8-002 FIX: Reject symlinks on worktree dirs (parity with team dir scanning at line 108)
   shopt -s nullglob 2>/dev/null || true
-  for wt_dir in "${CWD}/.claude/worktrees"/*/.claude/arc; do
+  for wt_dir in "${CWD}/${RUNE_STATE}/worktrees"/*/${RUNE_STATE}/arc; do
     [[ -d "$wt_dir" ]] || continue
     [[ -L "$wt_dir" ]] && continue  # symlink rejection
     # SEC-S8-001: path traversal guard on worktree dir name
     [[ "$wt_dir" == *".."* ]] && continue
-    wt_base="${wt_dir%/.claude/arc}"  # no `local` — we're in a subshell, not a function
+    wt_base="${wt_dir%/${RUNE_STATE}/arc}"  # no `local` — we're in a subshell, not a function
     [[ -L "$wt_base" ]] && continue  # reject symlinked worktree root
     scan_dirs+=("$wt_dir")
   done

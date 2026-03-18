@@ -136,7 +136,7 @@ max      = 1.0
 
 ```
 INPUT: TOME files from tmp/reviews/*/TOME.md, tmp/audit/*/TOME.md, tmp/arc/*/TOME.md
-       .claude/echoes/reviewer/MEMORY.md (for cross-reference)
+       .rune/echoes/reviewer/MEMORY.md (for cross-reference)
 OUTPUT: { "recurrences": [...] }
 
 1. Glob TOME files (find -P, no symlinks, nullglob)
@@ -198,10 +198,10 @@ These run as inline Bash/grep scans within the skill — no separate detector sc
 
 ### Arc Failure Detector
 
-Targets: `.claude/arc/*/checkpoint.json`
+Targets: `.rune/arc/*/checkpoint.json`
 
 ```bash
-find -P "${PROJECT_DIR}/.claude/arc" -name "checkpoint.json" -not -type l 2>/dev/null | \
+find -P "${PROJECT_DIR}/.rune/arc" -name "checkpoint.json" -not -type l 2>/dev/null | \
   while IFS= read -r f; do
     jq -r --arg f "$f" '
       .phases | to_entries[] |

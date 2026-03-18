@@ -1,6 +1,6 @@
 # Remembrance Schema — Human-Facing Knowledge Documents
 
-Remembrance is the human-readable knowledge channel that lives alongside Rune Echoes. While Echoes are agent-internal memory (`.claude/echoes/`), Remembrance documents are version-controlled solutions in `docs/solutions/` designed for human consumption.
+Remembrance is the human-readable knowledge channel that lives alongside Rune Echoes. While Echoes are agent-internal memory (`.rune/echoes/`), Remembrance documents are version-controlled solutions in `docs/solutions/` designed for human consumption.
 
 ## Directory Structure
 
@@ -40,7 +40,7 @@ date: 2026-02-12
 symptom: "User list endpoint takes 5+ seconds"
 root_cause: "N+1 query pattern in user.posts association"
 solution_summary: "Added includes(:posts) to User.list scope"
-echo_ref: ".claude/echoes/reviewer/MEMORY.md#etched-004@sha256:a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"  # cross-ref with SHA-256 content hash (64 hex chars)
+echo_ref: ".rune/echoes/reviewer/MEMORY.md#etched-004@sha256:a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"  # cross-ref with SHA-256 content hash (64 hex chars)
 confidence: high  # high | medium
 verified_by: human  # human | agent — REQUIRED for security category
 requires_human_approval: false  # true for security category promotions
@@ -76,7 +76,7 @@ requires_human_approval: false  # true for security category promotions
 The `echo_ref` field cross-references version-controlled Remembrance to non-version-controlled echoes using a content hash for integrity:
 
 ```
-echo_ref: ".claude/echoes/reviewer/MEMORY.md#etched-004@sha256:a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+echo_ref: ".rune/echoes/reviewer/MEMORY.md#etched-004@sha256:a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
 ```
 
 Format: `{echo_path}#{entry_id}@sha256:{hash}`

@@ -75,10 +75,10 @@ class TestBasicBehavior:
 
 class TestSignalCreation:
     def test_creates_signal_on_memory_md_write(self, project_dir):
-        """Writing to .claude/echoes/<role>/MEMORY.md creates a dirty signal."""
+        """Writing to .rune/echoes/<role>/MEMORY.md creates a dirty signal."""
         stdin = json.dumps({
             "tool_input": {
-                "file_path": "/home/user/project/.claude/echoes/reviewer/MEMORY.md"
+                "file_path": "/home/user/project/.rune/echoes/reviewer/MEMORY.md"
             }
         })
         result = run_hook(stdin, env_override={"CLAUDE_PROJECT_DIR": project_dir})
@@ -96,17 +96,17 @@ class TestSignalCreation:
 
         stdin = json.dumps({
             "tool_input": {
-                "file_path": "/path/.claude/echoes/orchestrator/MEMORY.md"
+                "file_path": "/path/.rune/echoes/orchestrator/MEMORY.md"
             }
         })
         run_hook(stdin, env_override={"CLAUDE_PROJECT_DIR": project_dir})
         assert os.path.isdir(signals_dir)
 
     def test_signal_for_nested_role_path(self, project_dir):
-        """Any role subdirectory under .claude/echoes/ triggers the signal."""
+        """Any role subdirectory under .rune/echoes/ triggers the signal."""
         stdin = json.dumps({
             "tool_input": {
-                "file_path": "/deep/nested/.claude/echoes/my-custom-role/MEMORY.md"
+                "file_path": "/deep/nested/.rune/echoes/my-custom-role/MEMORY.md"
             }
         })
         run_hook(stdin, env_override={"CLAUDE_PROJECT_DIR": project_dir})
@@ -129,17 +129,17 @@ class TestNoSignal:
         assert not os.path.exists(signal_path(project_dir))
 
     def test_no_signal_for_echoes_but_not_memory_md(self, project_dir):
-        """Writing to .claude/echoes/ but not MEMORY.md doesn't trigger."""
+        """Writing to .rune/echoes/ but not MEMORY.md doesn't trigger."""
         stdin = json.dumps({
             "tool_input": {
-                "file_path": "/project/.claude/echoes/reviewer/notes.txt"
+                "file_path": "/project/.rune/echoes/reviewer/notes.txt"
             }
         })
         run_hook(stdin, env_override={"CLAUDE_PROJECT_DIR": project_dir})
         assert not os.path.exists(signal_path(project_dir))
 
     def test_no_signal_for_memory_md_outside_echoes(self, project_dir):
-        """MEMORY.md not under .claude/echoes/ doesn't trigger."""
+        """MEMORY.md not under .rune/echoes/ doesn't trigger."""
         stdin = json.dumps({
             "tool_input": {
                 "file_path": "/project/docs/MEMORY.md"
@@ -162,25 +162,25 @@ class TestNoSignal:
         """Path containing 'echoes' but not the full pattern doesn't trigger."""
         stdin = json.dumps({
             "tool_input": {
-                "file_path": "/project/.claude/echoes_backup/MEMORY.md"
+                "file_path": "/project/.rune/echoes_backup/MEMORY.md"
             }
         })
         run_hook(stdin, env_override={"CLAUDE_PROJECT_DIR": project_dir})
         assert not os.path.exists(signal_path(project_dir))
 
     def test_signal_for_memory_md_at_echoes_root(self, project_dir):
-        """MEMORY.md directly in .claude/echoes/ (no role subdir) DOES match
-        the glob *".claude/echoes/"*"MEMORY.md" because * matches zero or more
+        """MEMORY.md directly in .rune/echoes/ (no role subdir) DOES match
+        the glob *".rune/echoes/"*"MEMORY.md" because * matches zero or more
         chars between echoes/ and MEMORY.md."""
         stdin = json.dumps({
             "tool_input": {
-                "file_path": "/project/.claude/echoes/MEMORY.md"
+                "file_path": "/project/.rune/echoes/MEMORY.md"
             }
         })
         run_hook(stdin, env_override={"CLAUDE_PROJECT_DIR": project_dir})
-        # The glob pattern *".claude/echoes/"*"MEMORY.md" uses * between
+        # The glob pattern *".rune/echoes/"*"MEMORY.md" uses * between
         # echoes/ and MEMORY.md — which matches zero or more chars.
-        # So .claude/echoes/MEMORY.md DOES match (zero chars between / and M).
+        # So .rune/echoes/MEMORY.md DOES match (zero chars between / and M).
         assert os.path.isfile(signal_path(project_dir))
 
 
@@ -199,7 +199,7 @@ class TestStdinCap:
         """
         inner = json.dumps({
             "tool_input": {
-                "file_path": "/project/.claude/echoes/reviewer/MEMORY.md",
+                "file_path": "/project/.rune/echoes/reviewer/MEMORY.md",
                 "content": "x" * 100_000,  # ~100KB → truncated to 64KB
             }
         })
@@ -217,7 +217,7 @@ class TestStdinCap:
         No signal is created because file_path was beyond the 64KB cap.
         """
         padding = '"padding": "' + ("A" * 70_000) + '"'
-        crafted = '{"tool_input": {' + padding + ', "file_path": "/project/.claude/echoes/r/MEMORY.md"}}'
+        crafted = '{"tool_input": {' + padding + ', "file_path": "/project/.rune/echoes/r/MEMORY.md"}}'
         result = run_hook(crafted, env_override={"CLAUDE_PROJECT_DIR": project_dir})
         # Truncated JSON → jq parse error → ERR trap → fail-forward exits 0
         assert result.returncode == 0
@@ -234,7 +234,7 @@ class TestEnvironment:
         """Signal file goes under CLAUDE_PROJECT_DIR when set."""
         stdin = json.dumps({
             "tool_input": {
-                "file_path": "/p/.claude/echoes/r/MEMORY.md"
+                "file_path": "/p/.rune/echoes/r/MEMORY.md"
             }
         })
         run_hook(stdin, env_override={"CLAUDE_PROJECT_DIR": project_dir})
@@ -245,7 +245,7 @@ class TestEnvironment:
         """Without CLAUDE_PROJECT_DIR, falls back to $(pwd)."""
         stdin = json.dumps({
             "tool_input": {
-                "file_path": "/p/.claude/echoes/r/MEMORY.md"
+                "file_path": "/p/.rune/echoes/r/MEMORY.md"
             }
         })
         # Unset CLAUDE_PROJECT_DIR and run from tmp_path
@@ -274,7 +274,7 @@ class TestIdempotency:
         """Running the hook twice overwrites the signal file (not appending)."""
         stdin = json.dumps({
             "tool_input": {
-                "file_path": "/p/.claude/echoes/r/MEMORY.md"
+                "file_path": "/p/.rune/echoes/r/MEMORY.md"
             }
         })
         run_hook(stdin, env_override={"CLAUDE_PROJECT_DIR": project_dir})
@@ -288,7 +288,7 @@ class TestIdempotency:
         """umask 077 means signal file is only readable by owner."""
         stdin = json.dumps({
             "tool_input": {
-                "file_path": "/p/.claude/echoes/r/MEMORY.md"
+                "file_path": "/p/.rune/echoes/r/MEMORY.md"
             }
         })
         run_hook(stdin, env_override={"CLAUDE_PROJECT_DIR": project_dir})

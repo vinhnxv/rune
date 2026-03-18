@@ -108,7 +108,7 @@ The hook fires on EVERY Write/Edit call. To minimize overhead:
 | 0 | `jq` available | < 1ms |
 | 1 | stdin contains "checkpoint.json" (grep) | < 5ms |
 | 2 | `tool_input.file_path` extractable | < 5ms |
-| 3 | Path matches `*/.claude/arc/*/checkpoint.json` or `*/tmp/arc/*/checkpoint.json` | < 1ms |
+| 3 | Path matches `*/.rune/arc/*/checkpoint.json` or `*/tmp/arc/*/checkpoint.json` | < 1ms |
 | 4 | File exists and is not symlink | < 1ms |
 | 5 | Ship or merge phase is "completed" | < 10ms (jq) |
 

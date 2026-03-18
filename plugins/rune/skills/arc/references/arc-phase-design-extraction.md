@@ -628,7 +628,7 @@ Errors are always written to the `errors[]` field of the checkpoint update, even
 | VSM files | `tmp/arc/{id}/vsm/*.json` |
 | Team config | `$CHOME/teams/arc-design-{id}/` |
 | Task list | `$CHOME/tasks/arc-design-{id}/` |
-| Checkpoint state | `.claude/arc/{id}/checkpoint.json` (phase: "design_extraction") |
+| Checkpoint state | `.rune/arc/{id}/checkpoint.json` (phase: "design_extraction") |
 
 Recovery: On `--resume`, if design_extraction is `in_progress`, clean up stale team and re-run from the beginning. Extraction is idempotent — IR tree and VSM files are overwritten cleanly.
 

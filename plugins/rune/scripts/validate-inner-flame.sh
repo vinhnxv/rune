@@ -60,6 +60,9 @@ if [[ -z "$CWD" ]]; then
 fi
 CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || exit 0
 
+_VIF_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${_VIF_SCRIPT_DIR}/lib/rune-state.sh"
+
 # Check talisman config for inner_flame settings (QUAL-001/SEC-002)
 # CHOME: CLAUDE_CONFIG_DIR pattern for multi-account support (user-level talisman)
 CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
@@ -68,7 +71,7 @@ CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 # with inner_flame section, blocking is ON unless explicitly set to false.
 BLOCK_ON_FAIL=false
 INNER_FLAME_ENABLED=true
-for TALISMAN_PATH in "${CWD}/.claude/talisman.yml" "${CHOME}/talisman.yml"; do
+for TALISMAN_PATH in "${CWD}/${RUNE_STATE}/talisman.yml" "${CHOME}/talisman.yml"; do
   if [[ -f "$TALISMAN_PATH" ]]; then
     if command -v yq &>/dev/null; then
       # NOTE: Checks YAML boolean false only. String "false" is not treated as disabled (standard YAML convention).

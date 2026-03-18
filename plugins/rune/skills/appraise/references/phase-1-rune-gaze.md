@@ -18,7 +18,7 @@ for each file in changed_files:
   - Agent-backed custom: talisman ashes.custom[] trigger matching (see rune-gaze.md)
 ```
 
-Check for project overrides in `.claude/talisman.yml`.
+Check for project overrides in `.rune/talisman.yml`.
 
 **Custom Ash discovery** happens HERE in Phase 1 (not Phase 3). The Rune Gaze algorithm reads `talisman.yml` → `ashes.custom[]`, validates agent names, matches triggers against `changed_files`, and adds matching custom Ashes to `selectedAsh`. This ensures custom Ashes have tasks created for them in Phase 2 and are spawned in Phase 3. See [rune-gaze.md](../../roundtable-circle/references/rune-gaze.md) for the full agent-backed custom Ash discovery algorithm.
 

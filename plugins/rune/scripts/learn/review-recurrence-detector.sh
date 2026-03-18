@@ -15,7 +15,7 @@
 # Algorithm:
 #   1. Glob TOME files under tmp/reviews/, tmp/audit/, tmp/arc/
 #   2. Extract finding prefixes (SEC-001, QUAL-003, etc.) + descriptions
-#   3. Cross-reference against .claude/echoes/reviewer/MEMORY.md
+#   3. Cross-reference against .rune/echoes/reviewer/MEMORY.md
 #   4. Flag findings in 2+ TOMEs with NO echo entry
 #
 # EXIT: 0 always (fail-forward). On error, outputs {"recurrences":[]} with "error" field.

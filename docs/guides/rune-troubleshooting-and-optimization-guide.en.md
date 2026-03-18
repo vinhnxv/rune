@@ -126,7 +126,7 @@ plan:
 **Symptom**: Arc appears stuck at a specific phase for longer than the configured timeout.
 
 **Diagnosis**:
-1. Check `.claude/arc/{id}/checkpoint.json` for current phase
+1. Check `.rune/arc/{id}/checkpoint.json` for current phase
 2. Check `TaskList` for stuck or idle tasks
 3. Check per-phase timeout in talisman — it may need increasing
 
@@ -175,7 +175,7 @@ Traces append to `/tmp/rune-hook-trace.log`. Useful for debugging hook behavior,
 
 ```bash
 # View current arc state
-cat .claude/arc/*/checkpoint.json | python3 -m json.tool
+cat .rune/arc/*/checkpoint.json | python3 -m json.tool
 ```
 
 The checkpoint shows:
@@ -401,7 +401,7 @@ Each Rune session tracks its workflows via state files with `config_dir`, `owner
 /rune:rest
 ```
 
-This removes `tmp/` artifacts from completed workflows while preserving Rune Echoes (`.claude/echoes/`) and active workflow state.
+This removes `tmp/` artifacts from completed workflows while preserving Rune Echoes (`.rune/echoes/`) and active workflow state.
 
 ### 5.4 Teammate non-persistence
 

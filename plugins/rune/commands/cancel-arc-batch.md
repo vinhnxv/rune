@@ -33,7 +33,7 @@ Skill("rune:cancel-arc", "--variant=batch")
 ```
 
 Invoke `/rune:cancel-arc --variant=batch` to cancel only the arc-batch loop state file
-(`.claude/arc-batch-loop.local.md`). Session isolation is enforced — only cancels loops
+(`.rune/arc-batch-loop.local.md`). Session isolation is enforced — only cancels loops
 owned by this session.
 
 The currently-running arc will finish normally, but no further plans will be started.

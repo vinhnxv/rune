@@ -1,8 +1,8 @@
 # Remembrance Channel + Promotion Rules
 
-Remembrance is a parallel knowledge axis alongside Echoes. While Echoes are agent-internal memory (`.claude/echoes/`), Remembrance documents are version-controlled solutions in `docs/solutions/` designed for human consumption.
+Remembrance is a parallel knowledge axis alongside Echoes. While Echoes are agent-internal memory (`.rune/echoes/`), Remembrance documents are version-controlled solutions in `docs/solutions/` designed for human consumption.
 
-**Inputs**: ETCHED echo entries from `.claude/echoes/`
+**Inputs**: ETCHED echo entries from `.rune/echoes/`
 **Outputs**: Promoted documents in `docs/solutions/{category}/{slug}.md`
 **Preconditions**: Echo entry meets all promotion criteria (problem-solution pair, confidence, actionability)
 
@@ -10,7 +10,7 @@ Remembrance is a parallel knowledge axis alongside Echoes. While Echoes are agen
 
 | Axis | Audience | Storage | Versioned | Based On |
 |------|----------|---------|-----------|----------|
-| **Echoes** | Agents | `.claude/echoes/` | Optional | Confidence-based lifecycle |
+| **Echoes** | Agents | `.rune/echoes/` | Optional | Confidence-based lifecycle |
 | **Remembrance** | Humans | `docs/solutions/` | Always | Actionability-based promotion |
 
 ## Directory Structure

@@ -36,6 +36,7 @@ trap 'exit 0' ERR
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/pretooluse-write-guard.sh
 source "${SCRIPT_DIR}/lib/pretooluse-write-guard.sh"
+source "${SCRIPT_DIR}/lib/rune-state.sh"
 
 # Common fast-path gates (sets INPUT, TOOL_NAME, FILE_PATH, TRANSCRIPT_PATH, CWD, CHOME)
 rune_write_guard_preflight "validate-strive-worker-paths.sh"
@@ -72,7 +73,7 @@ ALLOWED_DIRS=$(jq -r '.task_ownership | to_entries[].value.dirs[]? // empty' "$I
 
 # Read talisman unrestricted_shared_files (if any)
 TALISMAN_SHARED=""
-for tpath in "${CWD}/.claude/talisman.yml" "${CHOME}/talisman.yml"; do
+for tpath in "${CWD}/${RUNE_STATE}/talisman.yml" "${CHOME}/talisman.yml"; do
   if [[ -f "$tpath" ]]; then
     # Extract work.unrestricted_shared_files array values (simple YAML parsing via grep)
     # Look for lines under unrestricted_shared_files: that start with "- "

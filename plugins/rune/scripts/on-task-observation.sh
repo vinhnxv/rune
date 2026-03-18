@@ -2,13 +2,13 @@
 # scripts/on-task-observation.sh
 # Auto-observation recording for Rune workflow tasks.
 # Fires on TaskCompleted — appends lightweight observation entries to the
-# appropriate role MEMORY.md in .claude/echoes/.
+# appropriate role MEMORY.md in ${RUNE_STATE}/echoes/.
 #
 # Design goals:
 # - Non-blocking: exit 0 on all error paths
 # - Dedup: ${TEAM_NAME}_${TASK_ID} as dedup key (portable, C2)
 # - Role detection from team name pattern
-# - Append-only to .claude/echoes/{role}/MEMORY.md (Observations tier)
+# - Append-only to ${RUNE_STATE}/echoes/{role}/MEMORY.md (Observations tier)
 # - Signals echo-search dirty for auto-reindex
 
 set -euo pipefail
@@ -34,6 +34,9 @@ RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-${UID:-$(id -u
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] on-task-observation: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
 # Guard: jq required for safe JSON parsing
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/lib/rune-state.sh"
+
 if ! command -v jq &>/dev/null; then
   echo "WARN: jq not found — observation recording skipped." >&2  # PAT-008 FIX
   exit 0
@@ -82,8 +85,8 @@ CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || exit 0
 
 PROJECT_DIR="$CWD"
 
-# --- Guard 4: Check .claude/echoes/ directory exists ---
-ECHO_DIR="$PROJECT_DIR/.claude/echoes"
+# --- Guard 4: Check ${RUNE_STATE}/echoes/ directory exists ---
+ECHO_DIR="$PROJECT_DIR/${RUNE_STATE}/echoes"
 [[ -d "$ECHO_DIR" ]] || exit 0
 
 # --- Guard 4.5: Hard gate — prevent writes to global echoes directory (C5: fail-forward) ---

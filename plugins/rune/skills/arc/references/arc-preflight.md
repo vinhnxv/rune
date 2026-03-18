@@ -36,7 +36,7 @@ Always pulls latest before branching. Always asks user before operating on a non
 
 ```javascript
 // ── WORKTREE DETECTION (v1.174.0) ──
-// Detect if arc is running inside a git worktree (e.g., .claude/worktrees/{name}/).
+// Detect if arc is running inside a git worktree (e.g., .rune/worktrees/{name}/).
 // When git-common-dir differs from git-dir parent, we're in a worktree.
 // Worktrees have an isolated branch already — skip branch creation entirely.
 const gitCommonDir = Bash("git rev-parse --git-common-dir 2>/dev/null").trim()
@@ -268,8 +268,8 @@ CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 if command -v jq >/dev/null 2>&1; then
   # SEC-5 FIX: Place -maxdepth before -name for POSIX portability (BSD find on macOS)
-  # FIX: Search CWD-scoped .claude/arc/ (where checkpoints live), not $CHOME/arc/ (wrong directory)
-  active=$(find "${CWD}/.claude/arc" -maxdepth 2 -name checkpoint.json 2>/dev/null | while read f; do
+  # FIX: Search CWD-scoped .rune/arc/ (where checkpoints live), not $CHOME/arc/ (wrong directory)
+  active=$(find "${CWD}/.rune/arc" -maxdepth 2 -name checkpoint.json 2>/dev/null | while read f; do
     # Skip checkpoints older than 7 days (abandoned)
     started_at=$(jq -r '.started_at // empty' "$f" 2>/dev/null)
     if [ -n "$started_at" ]; then
@@ -293,7 +293,7 @@ if command -v jq >/dev/null 2>&1; then
 else
   # NOTE: grep fallback is imprecise — matches "in_progress" anywhere in file, not field-specific.
   # Acceptable as degraded-mode check when jq is unavailable. The jq path above is the robust check.
-  active=$(find "${CWD}/.claude/arc" -maxdepth 2 -name checkpoint.json 2>/dev/null | while read f; do
+  active=$(find "${CWD}/.rune/arc" -maxdepth 2 -name checkpoint.json 2>/dev/null | while read f; do
     if grep -q '"status"[[:space:]]*:[[:space:]]*"in_progress"' "$f" 2>/dev/null; then basename "$(dirname "$f")"; fi
   done)
 fi
@@ -447,7 +447,7 @@ if (talismanMeta) {
   }
 
   if (status === "defaults_only") {
-    warn("Talisman: using defaults only (no .claude/talisman.yml found)")
+    warn("Talisman: using defaults only (no .rune/talisman.yml found)")
   }
   log(`Talisman resolved: ${status} (resolver: ${talismanMeta.resolver_status ?? "unknown"})`)
 

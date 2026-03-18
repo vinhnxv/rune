@@ -5,7 +5,7 @@ pipeline runs. Persists aggregate metrics to Rune Echoes so the system learns it
 points and improves decomposition, agent assignment, and proof selection over time.
 
 This protocol defines: what to track (5 signal categories), when to persist (post-strive, post-arc),
-where to store (.claude/echoes/discipline/), and how to query (echo_search MCP with role filter).
+where to store (.rune/echoes/discipline/), and how to query (echo_search MCP with role filter).
 
 Referenced from [discipline SKILL.md](../SKILL.md) Layer 5.
 
@@ -115,7 +115,7 @@ pipeline-level discipline echo that aggregates metrics across all phases.
 Discipline echoes are stored in the standard Rune Echoes directory under a dedicated role:
 
 ```
-.claude/echoes/
+.rune/echoes/
 └── discipline/
     └── MEMORY.md    # Discipline accountability entries (150-line limit)
 ```

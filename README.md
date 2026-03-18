@@ -90,14 +90,14 @@ Rune requires [Agent Teams](https://code.claude.com/docs/en/agent-teams). Enable
     "todos/",
     "tmp/",
     "reviews/",
-    ".claude/arc/",
-    ".claude/echoes/",
-    ".claude/arc-batch-loop.local.md",
-    ".claude/arc-phase-loop.local.md",
-    ".claude/arc-hierarchy-loop.local.md",
-    ".claude/arc-issues-loop.local.md",
+    ".rune/arc/",
+    ".rune/echoes/",
+    ".rune/arc-batch-loop.local.md",
+    ".rune/arc-phase-loop.local.md",
+    ".rune/arc-hierarchy-loop.local.md",
+    ".rune/arc-issues-loop.local.md",
     ".claude/CLAUDE.local.md",
-    ".claude/talisman.yml"
+    ".rune/talisman.yml"
   ]
 }
 ```
@@ -109,7 +109,7 @@ Rune requires [Agent Teams](https://code.claude.com/docs/en/agent-teams). Enable
 Generate a `talisman.yml` tailored to your project's tech stack:
 
 ```bash
-/rune:talisman init      # Auto-detect stack and generate .claude/talisman.yml
+/rune:talisman init      # Auto-detect stack and generate .rune/talisman.yml
 /rune:talisman audit     # Check existing config for missing/outdated sections
 /rune:talisman status    # Overview of current configuration health
 ```
@@ -265,7 +265,7 @@ Forge → Plan Review → Refinement → Verification → Semantic Verification
 
 Features: checkpoint-based resume, adaptive review-mend convergence loop (3 tiers: LIGHT/STANDARD/THOROUGH), diff-scoped review, co-author propagation.
 
-**How arc phases work:** Arc uses Claude Code's [Stop hook](https://docs.anthropic.com/en/docs/claude-code/hooks) to drive the phase loop — when one phase finishes, the stop hook reads state from `.claude/arc-phase-loop.local.md`, determines the next phase, and re-injects a prompt. Each phase is literally a new Claude Code turn with its own fresh context window. This solves the context degradation problem (phase 18 gets the same quality as phase 1) but means the stop hook chain is a critical path — a bug in any hook silently breaks the pipeline. See [`docs/state-machine.md`](docs/state-machine.md) for the full phase graph.
+**How arc phases work:** Arc uses Claude Code's [Stop hook](https://docs.anthropic.com/en/docs/claude-code/hooks) to drive the phase loop — when one phase finishes, the stop hook reads state from `.rune/arc-phase-loop.local.md`, determines the next phase, and re-injects a prompt. Each phase is literally a new Claude Code turn with its own fresh context window. This solves the context degradation problem (phase 18 gets the same quality as phase 1) but means the stop hook chain is a critical path — a bug in any hook silently breaks the pipeline. See [`docs/state-machine.md`](docs/state-machine.md) for the full phase graph.
 
 ### <a name="strive"></a> `/rune:strive` — Swarm Execution
 
@@ -547,10 +547,10 @@ Rune is configured via `talisman.yml` (dozens of top-level sections, 100+ keys):
 
 ```bash
 # Project-level (highest priority)
-.claude/talisman.yml
+.rune/talisman.yml
 
 # User-global
-~/.claude/talisman.yml
+~/.rune/talisman.yml
 ```
 
 **Quickest way to configure:** Run `/rune:talisman init` to auto-detect your stack and generate a tailored config.
@@ -635,7 +635,7 @@ Enabling Codex **increases runtime** for every workflow that uses it — each Co
 Codex integration is controlled via `talisman.yml`:
 
 ```yaml
-# .claude/talisman.yml
+# .rune/talisman.yml
 codex:
   enabled: true                          # Set to false to disable entirely
   workflows: [devise, arc, appraise]     # Which workflows use Codex
@@ -672,7 +672,7 @@ The **UI Builder Protocol** integrates any component library MCP (UntitledUI, sh
 **shadcn/ui and custom libraries**: create a builder skill with `builder-protocol` frontmatter.
 
 ```yaml
-# .claude/talisman.yml — minimal builder integration
+# .rune/talisman.yml — minimal builder integration
 integrations:
   mcp_tools:
     untitledui:
@@ -740,7 +740,7 @@ Every Rune workflow is an explicit state machine with named phases, conditional 
 | **TOME** | Aggregated findings document from a review |
 | **Talisman** | Configuration file (`talisman.yml`) |
 | **Forge Gaze** | Topic-aware agent matching for plan enrichment |
-| **Rune Echoes** | 5-tier persistent agent memory (`.claude/echoes/`) |
+| **Rune Echoes** | 5-tier persistent agent memory (`.rune/echoes/`) |
 | **Inscription** | Contract file (`inscription.json`) for agent coordination |
 | **Seal** | Deterministic completion marker emitted by Ashes |
 | **Discipline Engineering** | The architectural backbone — 5-layer proof-based system ensuring spec compliance over task completion. See [full document](docs/discipline-engineering.md) |

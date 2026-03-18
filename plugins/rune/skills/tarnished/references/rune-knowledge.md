@@ -112,7 +112,7 @@ The Arc is Rune's end-to-end pipeline: forge → plan review → work → gap an
 code review → mend → test → ship → merge. It's the "do everything" command.
 
 ### Rune Echoes (Project Memory)
-Agents persist learnings to `.claude/echoes/` after workflows. Future workflows
+Agents persist learnings to `.rune/echoes/` after workflows. Future workflows
 read these to avoid repeating mistakes. Five tiers:
 - **Etched** — permanent project knowledge
 - **Notes** — working notes (no TTL)
@@ -160,7 +160,7 @@ claude mcp add --transport http my-tool https://api.example.com
 
 **Step 2**: Configure in talisman (for workflow-aware integration)
 ```yaml
-# .claude/talisman.yml
+# .rune/talisman.yml
 integrations:
   mcp_tools:
     my-tool:

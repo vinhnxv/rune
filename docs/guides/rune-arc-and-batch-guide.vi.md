@@ -43,7 +43,7 @@ Tài liệu liên quan:
 
 ### Tùy chọn
 - `codex` CLI cho các pha cross-model.
-- `.claude/talisman.yml` để chỉnh timeout, bot review, merge behavior, test policy.
+- `.rune/talisman.yml` để chỉnh timeout, bot review, merge behavior, test policy.
 
 ---
 
@@ -105,7 +105,7 @@ Arc chạy pipeline theo phase, gồm:
 > **Lưu ý (v1.120.2+):** Arc pipeline hiện có 26 phase (tăng từ 23), thêm Design Extraction, Design Verification, và Design Iteration cho Figma design sync.
 
 ### 4.5 Theo dõi state ở đâu
-- Checkpoint: `.claude/arc/{arc-id}/checkpoint.json`
+- Checkpoint: `.rune/arc/{arc-id}/checkpoint.json`
 - Artifact/report: `tmp/arc/{arc-id}/`
 
 ### 4.6 Cơ chế resume
@@ -165,7 +165,7 @@ Lưu ý quan trọng:
 | `off` | Không sắp xếp thông minh | `arc.batch.smart_ordering.mode: "off"` |
 
 ### 5.5 File state của batch
-- Loop state: `.claude/arc-batch-loop.local.md`
+- Loop state: `.rune/arc-batch-loop.local.md`
 - Progress ledger: `tmp/arc-batch/batch-progress.json`
 - Summary từng lượt (nếu bật): `tmp/arc-batch/summaries/iteration-{N}.md`
 

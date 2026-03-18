@@ -59,14 +59,14 @@ Rune tạo các file output (plans, reviews, artifacts tạm) trong các thư m�
     "todos/",
     "tmp/",
     "reviews/",
-    ".claude/arc/",
-    ".claude/echoes/",
-    ".claude/arc-batch-loop.local.md",
-    ".claude/arc-hierarchy-loop.local.md",
-    ".claude/arc-issues-loop.local.md",
-    ".claude/arc-phase-loop.local.md",
+    ".rune/arc/",
+    ".rune/echoes/",
+    ".rune/arc-batch-loop.local.md",
+    ".rune/arc-hierarchy-loop.local.md",
+    ".rune/arc-issues-loop.local.md",
+    ".rune/arc-phase-loop.local.md",
     ".claude/CLAUDE.local.md",
-    ".claude/talisman.yml"
+    ".rune/talisman.yml"
   ]
 }
 ```
@@ -85,7 +85,7 @@ Tạo file `talisman.yml` phù hợp với tech stack dự án:
 /rune:talisman init
 ```
 
-Lệnh này tự detect stack (Python, TypeScript, Rust, PHP, Go, v.v.) và tạo `.claude/talisman.yml` với ward commands, phân loại file, và cài đặt agent phù hợp. Bạn có thể bỏ qua bước này — Rune hoạt động tốt với cấu hình mặc định.
+Lệnh này tự detect stack (Python, TypeScript, Rust, PHP, Go, v.v.) và tạo `.rune/talisman.yml` với ward commands, phân loại file, và cài đặt agent phù hợp. Bạn có thể bỏ qua bước này — Rune hoạt động tốt với cấu hình mặc định.
 
 Xem [Hướng dẫn Talisman chi tiết](rune-talisman-deep-dive-guide.vi.md) cho tất cả tuỳ chọn.
 

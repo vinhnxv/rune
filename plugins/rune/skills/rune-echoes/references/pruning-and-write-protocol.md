@@ -35,16 +35,16 @@ When a role's `knowledge.md` exceeds 300 lines:
 
 Multiple Ash may discover learnings simultaneously. To prevent write conflicts:
 
-1. **During workflow**: Each Ash writes to `.claude/echoes/{role}/{agent-name}-findings.md` (unique file per agent)
-2. **Post-workflow**: The Tarnished consolidates all `{agent-name}-findings.md` into `.claude/echoes/{role}/MEMORY.md`
-3. **Cross-role learnings**: Only lead writes to `.claude/echoes/team/MEMORY.md`
+1. **During workflow**: Each Ash writes to `.rune/echoes/{role}/{agent-name}-findings.md` (unique file per agent)
+2. **Post-workflow**: The Tarnished consolidates all `{agent-name}-findings.md` into `.rune/echoes/{role}/MEMORY.md`
+3. **Cross-role learnings**: Only lead writes to `.rune/echoes/team/MEMORY.md`
 4. **Consolidation protocol**: Read existing MEMORY.md → append new entries → check 150-line limit → prune if needed → write
 
 ### Write Protocol Steps
 
 ```
-1. Read .claude/echoes/{role}/MEMORY.md (or create if missing)
-2. Read all .claude/echoes/{role}/*-findings.md files
+1. Read .rune/echoes/{role}/MEMORY.md (or create if missing)
+2. Read all .rune/echoes/{role}/*-findings.md files
 3. For each finding:
    a. Check if it duplicates an existing entry (same evidence + pattern)
    b. If duplicate: update verified date and confidence (higher wins)

@@ -291,6 +291,6 @@ Orchestrator-only phase with no team -- minimal crash surface.
 | Resource | Location |
 |----------|----------|
 | PR body file | `tmp/arc/{id}/pr-body.md` |
-| Checkpoint state | `.claude/arc/{id}/checkpoint.json` (phase: "ship") |
+| Checkpoint state | `.rune/arc/{id}/checkpoint.json` (phase: "ship") |
 
 Recovery: On `--resume`, if ship phase is `in_progress`, re-run from the beginning. Push is idempotent. PR creation checks for existing PR first.

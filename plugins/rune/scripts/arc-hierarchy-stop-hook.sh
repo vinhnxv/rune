@@ -12,7 +12,7 @@
 #   - partial status for failed provides verification
 #   - Single PR at the end (children skip ship phase via parent_plan.skip_ship_pr)
 #
-# State file: .claude/arc-hierarchy-loop.local.md (YAML frontmatter)
+# State file: .rune/arc-hierarchy-loop.local.md (YAML frontmatter)
 # Session isolation fields: config_dir, owner_pid, session_id
 #
 # Hook event: Stop
@@ -44,13 +44,14 @@ arc_guard_jq_required
 source "${SCRIPT_DIR}/lib/stop-hook-common.sh"
 # shellcheck source=lib/platform.sh
 source "${SCRIPT_DIR}/lib/platform.sh"
+source "${SCRIPT_DIR}/lib/rune-state.sh"
 
 # ── GUARD 2: Input size cap + GUARD 3: CWD extraction ──
 parse_input
 resolve_cwd
 
 # ── GUARD 4: State file existence ──
-STATE_FILE="${CWD}/.claude/arc-hierarchy-loop.local.md"
+STATE_FILE="${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"
 check_state_file "$STATE_FILE"
 
 # ── GUARD 5: Symlink rejection (SEC-MEND-001 defense pattern) ──
@@ -147,7 +148,7 @@ validate_session_ownership "$STATE_FILE" "" "skip"
 # ── Read execution table (BACK-009 FIX: use JSON sidecar, not Markdown plan) ──
 # SKILL.md Phase 7c.2 writes a JSON sidecar that mirrors the Markdown execution table.
 # The stop hook reads this JSON file for jq-based topological sort and status updates.
-EXEC_TABLE_JSON="${CWD}/.claude/arc-hierarchy-exec-table.json"
+EXEC_TABLE_JSON="${CWD}/${RUNE_STATE}/arc-hierarchy-exec-table.json"
 EXEC_TABLE_FULL="${CWD}/${EXECUTION_TABLE_PATH}"
 
 # Prefer JSON sidecar; fall back to plan file path for existence check only
@@ -379,7 +380,7 @@ Missing:${PROVIDES_MISSING}
 Options:
 1. Re-run this child: /rune:arc <plan-path>${CHILDREN_DIR}/${CURRENT_CHILD}</plan-path>
 2. Skip and continue: Edit <file-path>${EXECUTION_TABLE_PATH}</file-path> to mark this child as 'skipped', then trigger next /rune:arc manually
-3. Cancel: Delete .claude/arc-hierarchy-loop.local.md to stop the hierarchy loop
+3. Cancel: Delete .rune/arc-hierarchy-loop.local.md to stop the hierarchy loop
 
 The execution table is at: <file-path>${EXECUTION_TABLE_PATH}</file-path>
 
@@ -664,7 +665,7 @@ You are continuing a hierarchical plan execution. Process the next child plan.
    a. Parse the plan path from \$ARGUMENTS
    b. Read and execute arc-preflight.md (branch strategy, plan validation)
    c. Read and execute arc-checkpoint-init.md (create checkpoint)
-   d. Write the phase loop state file (.claude/arc-phase-loop.local.md)
+   d. Write the phase loop state file (.rune/arc-phase-loop.local.md)
    e. Execute the first pending phase
 
    Your response MUST NOT end after step 4. Step 4 loads instructions.

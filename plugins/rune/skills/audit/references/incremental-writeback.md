@@ -19,8 +19,8 @@ if (reviewableFileCount > 100) {
 ```javascript
 if (isIncremental && incrementalLockAcquired) {
   // Read current state
-  const state = Read(".claude/audit-state/state.json")
-  const checkpoint = Read(".claude/audit-state/checkpoint.json")
+  const state = Read(".rune/audit-state/state.json")
+  const checkpoint = Read(".rune/audit-state/checkpoint.json")
 
   // Parse TOME for findings per file
   const tome = Read(`${outputDir}/TOME.md`)
@@ -33,7 +33,7 @@ if (isIncremental && incrementalLockAcquired) {
   const filesFailed = checkpoint.batch.filter(f => !tomeFilePaths.has(f))
 
   // Update state.json for each audited file
-  const fileManifestData = Read(".claude/audit-state/manifest.json")
+  const fileManifestData = Read(".rune/audit-state/manifest.json")
   for (const filePath of checkpoint.batch) {
     const wasCompleted = tomeFilePaths.has(filePath)
     const findings = findingsPerFile[filePath] || { P1: 0, P2: 0, P3: 0, total: 0 }
@@ -83,11 +83,11 @@ if (isIncremental && incrementalLockAcquired) {
   state.updated_at = new Date().toISOString()
 
   // Atomic write state
-  Write(".claude/audit-state/state.json", state)
+  Write(".rune/audit-state/state.json", state)
 
   // Write session history
   const coverageBefore = checkpoint.coverage_before || 0
-  Write(`.claude/audit-state/history/audit-${audit_id}.json`, {
+  Write(`.rune/audit-state/history/audit-${audit_id}.json`, {
     audit_id, timestamp: new Date().toISOString(),
     mode: "incremental", depth,
     batch_size: checkpoint.batch.length,
@@ -106,15 +106,15 @@ if (isIncremental && incrementalLockAcquired) {
   })
 
   // Complete checkpoint
-  Write(".claude/audit-state/checkpoint.json", {
+  Write(".rune/audit-state/checkpoint.json", {
     ...checkpoint, status: "completed",
     completed: checkpoint.batch, current_file: null
   })
 
   // Release advisory lock (ownership-checked per incremental-state-schema.md protocol)
-  const lockMeta = Read(".claude/audit-state/.lock/meta.json")
+  const lockMeta = Read(".rune/audit-state/.lock/meta.json")
   if (lockMeta?.pid == ownerPid) {
-    Bash(`rm -rf .claude/audit-state/.lock`)
+    Bash(`rm -rf .rune/audit-state/.lock`)
   } // else: not our lock — skip (Finding 2 fix)
 
   // Generate coverage report
@@ -123,7 +123,7 @@ if (isIncremental && incrementalLockAcquired) {
   log(`Coverage: ${state.stats.coverage_pct}% (${state.stats.total_audited}/${state.stats.total_auditable})`)
 
   // Persist echo
-  // Write coverage summary to .claude/echoes/auditor/MEMORY.md
+  // Write coverage summary to .rune/echoes/auditor/MEMORY.md
 }
 
 // 2. Auto-mend or interactive prompt (same as appraise)

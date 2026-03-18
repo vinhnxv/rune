@@ -1,0 +1,438 @@
+{
+  "id": "arc-1773644984648",
+  "schema_version": 23,
+  "plan_file": "plans/2026-03-16-feat-discipline-engineering-shard-3-worker-discipline-plan.md",
+  "config_dir": "/Users/vinhnx/.claude-true-dev",
+  "owner_pid": "77128",
+  "session_id": "676d6682-c8fe-4f7e-ae16-111048ebc51f",
+  "flags": {
+    "approve": false,
+    "no_forge": false,
+    "skip_freshness": true,
+    "confirm": false,
+    "no_test": false,
+    "accept_external_changes": true,
+    "bot_review": false,
+    "no_bot_review": false
+  },
+  "arc_config": {
+    "no_forge": false,
+    "approve": false,
+    "skip_freshness": true,
+    "confirm": false,
+    "no_test": false,
+    "accept_external_changes": true,
+    "ship": {
+      "auto_pr": true,
+      "auto_merge": true,
+      "merge_strategy": "squash",
+      "wait_ci": false,
+      "draft": false,
+      "labels": [],
+      "pr_monitoring": false,
+      "rebase_before_merge": true,
+      "co_authors": []
+    },
+    "pre_merge_checks": {
+      "migration_conflict": true,
+      "schema_conflict": true,
+      "lock_file_conflict": true,
+      "uncommitted_changes": true,
+      "migration_paths": []
+    }
+  },
+  "pr_url": "https://github.com/vinhnxv/rune-plugin/pull/315",
+  "freshness": null,
+  "session_nonce": "bd26cf88ee96",
+  "phase_sequence": 1,
+  "parent_plan": {
+    "path": null,
+    "children_dir": null,
+    "child_seq": null,
+    "feature_branch": null,
+    "skip_branch": false,
+    "skip_ship_pr": false
+  },
+  "stagnation": {
+    "error_patterns": [],
+    "file_velocity": [],
+    "budget": null
+  },
+  "skip_map": {
+    "design_extraction": "design_sync_disabled",
+    "design_prototype": "design_sync_disabled",
+    "design_verification": "design_sync_disabled",
+    "design_iteration": "design_sync_disabled",
+    "storybook_verification": "storybook_disabled",
+    "ux_verification": "ux_disabled",
+    "bot_review_wait": "bot_review_disabled",
+    "pr_comment_resolution": "bot_review_disabled"
+  },
+  "phase_skip_log": [
+    {
+      "phase": "design_extraction",
+      "event": "auto_skipped",
+      "reason": "design_sync_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-16T07:12:06Z"
+    },
+    {
+      "phase": "design_prototype",
+      "event": "auto_skipped",
+      "reason": "design_sync_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-16T07:12:06Z"
+    },
+    {
+      "phase": "storybook_verification",
+      "event": "auto_skipped",
+      "reason": "storybook_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-16T07:12:06Z"
+    },
+    {
+      "phase": "design_verification",
+      "event": "auto_skipped",
+      "reason": "design_sync_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-16T07:12:06Z"
+    },
+    {
+      "phase": "ux_verification",
+      "event": "auto_skipped",
+      "reason": "ux_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-16T07:12:06Z"
+    },
+    {
+      "phase": "design_iteration",
+      "event": "auto_skipped",
+      "reason": "design_sync_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-16T07:12:06Z"
+    },
+    {
+      "phase": "bot_review_wait",
+      "event": "auto_skipped",
+      "reason": "bot_review_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-16T07:12:06Z"
+    },
+    {
+      "phase": "pr_comment_resolution",
+      "event": "auto_skipped",
+      "reason": "bot_review_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-16T07:12:06Z"
+    }
+  ],
+  "phases": {
+    "forge": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773644984648/enriched-plan.md",
+      "artifact_hash": "ce738a4a8fb48c82dbbd4680b53680889f82705df0c5d4e020bf267f82b34009",
+      "team_name": null,
+      "started_at": "2026-03-16T14:10:00Z",
+      "completed_at": "2026-03-16T14:11:00Z"
+    },
+    "plan_review": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773644984648/plan-review.md",
+      "artifact_hash": "72d0d134d805612877ec42b2076b76b319a66ff6bdb32d1df587d87f7e65a9d9",
+      "team_name": "arc-plan-review-arc-1773644984648",
+      "started_at": "2026-03-16T14:12:00Z",
+      "completed_at": "2026-03-16T14:17:00Z"
+    },
+    "plan_refine": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773644984648/concern-context.md",
+      "artifact_hash": "e720e7d7ff9da99992e4b9e34021452b2b16e9a43e32cf2380cb36e9da1f5446",
+      "team_name": null,
+      "started_at": "2026-03-16T14:18:00Z",
+      "completed_at": "2026-03-16T14:19:00Z"
+    },
+    "verification": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773644984648/verification-report.md",
+      "artifact_hash": "afd5591479334833892cab0244407a62336fc90b1acea00151f35b0dbaacb68a",
+      "team_name": null,
+      "started_at": "2026-03-16T14:20:00Z",
+      "completed_at": "2026-03-16T14:20:10Z"
+    },
+    "semantic_verification": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773644984648/codex-semantic-verification.md",
+      "artifact_hash": "059a90d121e4bc0d131b03b8270e19ad525e19d25d6034ffddb259aa3a6ab28c",
+      "team_name": "arc-codex-sv-arc-1773644984648",
+      "started_at": "2026-03-16T14:21:00Z",
+      "completed_at": "2026-03-16T14:23:00Z"
+    },
+    "design_extraction": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-16T07:12:06Z",
+      "skip_reason": "design_sync_disabled"
+    },
+    "design_prototype": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-16T07:12:06Z",
+      "skip_reason": "design_sync_disabled"
+    },
+    "task_decomposition": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773644984648/task-validation.md",
+      "artifact_hash": "1e0a827045dcb5fb6aa4734efe73b1dcd49d5d0d892e43d4f298fcb2396b5242",
+      "team_name": "arc-codex-td-arc-1773644984648",
+      "started_at": "2026-03-16T14:24:00Z",
+      "completed_at": "2026-03-16T14:26:00Z"
+    },
+    "work": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773644984648/work-summary.md",
+      "artifact_hash": "50f5ab4912df265b3616419397ef3eddb9a1773e5030521e86b97156b015b842",
+      "team_name": "rune-work-20260316-142852",
+      "suspended_tasks": [],
+      "started_at": "2026-03-16T14:27:00Z",
+      "completed_at": "2026-03-16T14:35:00Z"
+    },
+    "drift_review": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-16T14:36:00Z",
+      "completed_at": "2026-03-16T14:36:01Z",
+      "skip_reason": "no_drift_signals"
+    },
+    "storybook_verification": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-16T07:12:06Z",
+      "skip_reason": "storybook_disabled"
+    },
+    "design_verification": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-16T07:12:06Z",
+      "skip_reason": "design_sync_disabled"
+    },
+    "ux_verification": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-16T07:12:06Z",
+      "skip_reason": "ux_disabled"
+    },
+    "gap_analysis": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773644984648/gap-analysis.md",
+      "artifact_hash": "f2ad802bcce477e95c1e8c1c70681278e4acef5b2121e42e0eee345c6b7ada13",
+      "team_name": null,
+      "started_at": "2026-03-16T14:37:00Z",
+      "completed_at": "2026-03-16T14:38:00Z"
+    },
+    "codex_gap_analysis": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773644984648/codex-gap-analysis.md",
+      "artifact_hash": "f576d90aaa377d0911a2c3f55545f8eaa52c52d4bec57e3b128389d0f366fe92",
+      "team_name": "arc-codex-ga-arc-1773644984648",
+      "started_at": "2026-03-16T14:39:00Z",
+      "completed_at": "2026-03-16T14:41:00Z"
+    },
+    "gap_remediation": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "fixed_count": 0,
+      "deferred_count": 0,
+      "started_at": "2026-03-16T14:42:00Z",
+      "completed_at": "2026-03-16T14:42:01Z",
+      "skip_reason": "no_gaps_detected"
+    },
+    "goldmask_verification": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-16T14:43:00Z",
+      "completed_at": "2026-03-16T14:43:01Z",
+      "skip_reason": "additive_changes_minimal_blast_radius"
+    },
+    "code_review": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773644984648/tome.md",
+      "artifact_hash": "6b758bb5b69ee333f69ca7ff3d29ba5723bab5ed55d353fd940eceb346ae78d5",
+      "team_name": "rune-review-s3",
+      "started_at": "2026-03-16T14:44:00Z",
+      "completed_at": "2026-03-16T14:52:00Z"
+    },
+    "goldmask_correlation": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-16T14:53:00Z",
+      "completed_at": "2026-03-16T14:53:01Z",
+      "skip_reason": "goldmask_verification_skipped"
+    },
+    "mend": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773644984648/resolution-report.md",
+      "artifact_hash": "58562d92a1dcb7bd21aa4aba4d36c13d7319b41cc868104b5872726b3a72002f",
+      "team_name": null,
+      "started_at": "2026-03-16T14:54:00Z",
+      "completed_at": "2026-03-16T14:56:00Z"
+    },
+    "verify_mend": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773644984648/resolution-report.md",
+      "artifact_hash": "58562d92a1dcb7bd21aa4aba4d36c13d7319b41cc868104b5872726b3a72002f",
+      "team_name": null,
+      "started_at": "2026-03-16T14:57:00Z",
+      "completed_at": "2026-03-16T14:57:10Z"
+    },
+    "design_iteration": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-16T07:12:06Z",
+      "skip_reason": "design_sync_disabled"
+    },
+    "test": {
+      "status": "skipped",
+      "artifact": "tmp/arc/arc-1773644984648/test-report.md",
+      "artifact_hash": null,
+      "team_name": null,
+      "tiers_run": [],
+      "pass_rate": null,
+      "coverage_pct": null,
+      "has_frontend": false,
+      "started_at": "2026-03-16T14:58:00Z",
+      "completed_at": "2026-03-16T14:58:01Z",
+      "skip_reason": "no_test_harness"
+    },
+    "test_coverage_critique": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-16T14:59:00Z",
+      "completed_at": "2026-03-16T14:59:01Z",
+      "skip_reason": "test_phase_skipped"
+    },
+    "deploy_verify": {
+      "status": "pending",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    "pre_ship_validation": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773644984648/pre-ship-report.md",
+      "artifact_hash": "21b57148b8215c2321f1b5adf8200f2a729789b07b18201d941efee885df0f94",
+      "team_name": null,
+      "started_at": "2026-03-16T15:00:00Z",
+      "completed_at": "2026-03-16T15:00:10Z"
+    },
+    "release_quality_check": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-16T15:01:00Z",
+      "completed_at": "2026-03-16T15:01:01Z",
+      "skip_reason": "codex_exec_unavailable"
+    },
+    "ship": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773644984648/pr-body.md",
+      "artifact_hash": "d807d68739be6821694f056904186a734614ab81ccb4b881b6dcd241fa074f70",
+      "team_name": null,
+      "started_at": "2026-03-16T15:02:00Z",
+      "completed_at": "2026-03-16T15:03:00Z"
+    },
+    "bot_review_wait": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-16T07:12:06Z",
+      "skip_reason": "bot_review_disabled"
+    },
+    "pr_comment_resolution": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-16T07:12:06Z",
+      "skip_reason": "bot_review_disabled"
+    },
+    "merge": {
+      "status": "completed",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-16T15:04:00Z",
+      "completed_at": "2026-03-16T15:05:00Z"
+    }
+  },
+  "totals": {
+    "phase_times": { "forge": 60000, "plan_review": 300000, "plan_refine": 60000, "verification": 10000, "semantic_verification": 120000, "task_decomposition": 120000, "work": 480000, "drift_review": 1000, "gap_analysis": 60000, "codex_gap_analysis": 120000, "gap_remediation": 1000, "goldmask_verification": 1000, "code_review": 480000, "goldmask_correlation": 1000, "mend": 120000, "verify_mend": 10000, "test": 1000, "test_coverage_critique": 1000, "pre_ship_validation": 10000, "release_quality_check": 1000, "ship": 60000, "merge": 60000 },
+    "total_duration_ms": null,
+    "cost_at_completion": null
+  },
+  "completed_at": null,
+  "convergence": {
+    "round": 0,
+    "max_rounds": 3,
+    "tier": {
+      "name": "LIGHT",
+      "maxCycles": 3
+    },
+    "history": [],
+    "original_changed_files": []
+  },
+  "shard": {
+    "num": 3,
+    "total": 5,
+    "name": "worker-discipline",
+    "feature": "discipline-engineering",
+    "parent": "plans/2026-03-16-feat-discipline-engineering-plan.md",
+    "dependencies": []
+  },
+  "user_cancelled": false,
+  "cancel_reason": null,
+  "cancelled_at": null,
+  "stop_reason": null,
+  "resume_tracking": {
+    "total_resume_count": 0,
+    "resume_history": [],
+    "last_resume_at": null,
+    "consecutive_failures": 0
+  },
+  "commits": [],
+  "started_at": "2026-03-16T14:10:00Z",
+  "updated_at": "2026-03-16T14:10:00Z"
+}

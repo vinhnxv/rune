@@ -38,7 +38,7 @@ Related guides:
 
 ### Optional
 - `codex` CLI for cross-model verification after implementation.
-- `.claude/talisman.yml` for tuning worker count, ward commands, and commit format.
+- `.rune/talisman.yml` for tuning worker count, ward commands, and commit format.
 
 ---
 
@@ -69,7 +69,7 @@ Rune parses the plan into tasks, spawns self-organizing workers, and implements 
 6. **Commit broker** — orchestrator applies patches and commits (prevents index.lock contention).
 7. **Ward check** — runs auto-discovered quality gates + verification checklist.
 8. **Doc-consistency** — detects version/count drift (non-blocking).
-9. **Persist echoes** — saves implementation patterns to `.claude/echoes/workers/`.
+9. **Persist echoes** — saves implementation patterns to `.rune/echoes/workers/`.
 10. **Cleanup** — shutdown workers, TeamDelete, restore stashed changes.
 11. **Ship (optional)** — push + PR creation with generated template.
 
@@ -297,7 +297,7 @@ Human approval per task. Good for critical paths or when onboarding to a new cod
 ## 7. Configuration
 
 ```yaml
-# .claude/talisman.yml
+# .rune/talisman.yml
 work:
   max_workers: 3                    # Max parallel workers (default: auto-scaled)
   ward_commands:                    # Override quality gate commands

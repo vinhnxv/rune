@@ -436,8 +436,8 @@ Read and execute [quality-gates.md](references/quality-gates.md) before proceedi
 ## Phase 5: Echo Persist
 
 ```javascript
-if (exists(".claude/echoes/workers/")) {
-  appendEchoEntry(".claude/echoes/workers/MEMORY.md", {
+if (exists(".rune/echoes/workers/")) {
+  appendEchoEntry(".rune/echoes/workers/MEMORY.md", {
     layer: "inscribed",
     source: `rune:strive ${timestamp}`,
   })
@@ -446,8 +446,8 @@ if (exists(".claude/echoes/workers/")) {
 // Discipline accountability echo — persist run metrics for trend detection
 if (disciplineEnabled && exists(`tmp/work/${timestamp}/convergence/metrics.json`)) {
   const metrics = JSON.parse(Read(`tmp/work/${timestamp}/convergence/metrics.json`))
-  ensureDir(".claude/echoes/discipline/")
-  appendEchoEntry(".claude/echoes/discipline/MEMORY.md", {
+  ensureDir(".rune/echoes/discipline/")
+  appendEchoEntry(".rune/echoes/discipline/MEMORY.md", {
     layer: "inscribed",
     source: `rune:strive ${timestamp}`,
     role: "discipline",

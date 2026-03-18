@@ -39,7 +39,7 @@ INPUT=$(head -c 1048576 2>/dev/null || true)
 CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 [[ -n "$CWD" && "$CWD" == /* ]] || exit 0
 
-STATE_FILE="${CWD}/.claude/arc-phase-loop.local.md"
+STATE_FILE="${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"
 [[ -f "$STATE_FILE" && ! -L "$STATE_FILE" ]] || exit 0
 
 # ── GUARD 2: Teammate fast-exit (heartbeat only for lead/orchestrator) ──
@@ -50,12 +50,13 @@ TRANSCRIPT_PATH=$(printf '%s\n' "$INPUT" | jq -r '.transcript_path // empty' 2>/
 # ── Source shared libraries ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]] && source "${SCRIPT_DIR}/lib/platform.sh"
+source "${SCRIPT_DIR}/lib/rune-state.sh"
 
 # ── Extract tool name ──
 TOOL_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)
 
 # ── Extract arc ID from state file ──
-# State file is YAML frontmatter with `checkpoint_path: .claude/arc/{id}/checkpoint.json`
+# State file is YAML frontmatter with `checkpoint_path: ${RUNE_STATE}/arc/{id}/checkpoint.json`
 # Fields: active, iteration, max_iterations, checkpoint_path, plan_file, branch,
 #   arc_flags, config_dir, owner_pid, session_id, compact_pending,
 #   user_cancelled, cancel_reason, cancelled_at, stop_reason
@@ -90,7 +91,7 @@ fi
 # The state file has NO current_phase field. Must read from checkpoint.
 # This jq call only runs once per 30 seconds (throttle above), so overhead is acceptable.
 CURRENT_PHASE="unknown"
-CKPT_PATH="${CWD}/.claude/arc/${ARC_ID}/checkpoint.json"
+CKPT_PATH="${CWD}/${RUNE_STATE}/arc/${ARC_ID}/checkpoint.json"
 if [[ -f "$CKPT_PATH" && ! -L "$CKPT_PATH" ]]; then
   CURRENT_PHASE=$(jq -r '
     [.phases | to_entries[] | select(.value.status == "in_progress")] | first | .key // "unknown"

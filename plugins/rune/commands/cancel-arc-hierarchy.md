@@ -34,7 +34,7 @@ Skill("rune:cancel-arc", "--variant=hierarchy")
 
 Invoke `/rune:cancel-arc --variant=hierarchy` to cancel only the arc-hierarchy loop.
 
-The state file (`.claude/arc-hierarchy-loop.local.md`) is **marked** as cancelled (not deleted),
+The state file (`.rune/arc-hierarchy-loop.local.md`) is **marked** as cancelled (not deleted),
 so the EXEC_TABLE_JSON is preserved for resume via `/rune:arc-hierarchy {parentPlan} --resume`.
 
 Session isolation is enforced — only cancels loops owned by this session.

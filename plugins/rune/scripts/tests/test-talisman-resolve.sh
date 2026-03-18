@@ -150,7 +150,7 @@ rm -rf "$SHARD_DIR"
 # ═══════════════════════════════════════════════════════════════
 printf "\n=== Project Talisman Merge ===\n"
 
-cat > "$MOCK_CWD/.claude/talisman.yml" <<YAML
+cat > "$MOCK_CWD/.rune/talisman.yml" <<YAML
 version: "1.0"
 cost_tier: "efficient"
 review:
@@ -188,7 +188,7 @@ else
   printf "  FAIL: review.json shard missing\n"
 fi
 
-rm -f "$MOCK_CWD/.claude/talisman.yml"
+rm -f "$MOCK_CWD/.rune/talisman.yml"
 rm -rf "$SHARD_DIR"
 
 # ═══════════════════════════════════════════════════════════════
@@ -197,7 +197,7 @@ rm -rf "$SHARD_DIR"
 printf "\n=== Session Isolation in Meta ===\n"
 
 # For session isolation test, use project talisman to force project-level resolution
-cat > "$MOCK_CWD/.claude/talisman.yml" <<YAML
+cat > "$MOCK_CWD/.rune/talisman.yml" <<YAML
 version: "1.0"
 YAML
 SHARD_DIR="$MOCK_CWD/tmp/.talisman-resolved"

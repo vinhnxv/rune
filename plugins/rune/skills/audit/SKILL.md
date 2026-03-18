@@ -134,7 +134,7 @@ See [incremental-phases.md](references/incremental-phases.md) for the full Phase
 After scanning files, check for custom Ash config:
 
 ```
-1. Read .claude/talisman.yml (project) or ~/.claude/talisman.yml (global)
+1. Read .rune/talisman.yml (project) or ~/.rune/talisman.yml (global)
 2. If ashes.custom[] exists:
    a. Validate: unique prefixes, unique names, resolvable agents, count <= max
    b. Filter by workflows: keep only entries with "audit" in workflows[]
@@ -244,7 +244,7 @@ See [incremental-writeback.md](references/incremental-writeback.md) for the full
 **Upgrading from non-incremental to incremental audit:**
 
 1. No migration needed — `--incremental` is opt-in and does not affect default behavior
-2. First `--incremental` run creates `.claude/audit-state/` and runs a fresh scan
+2. First `--incremental` run creates `.rune/audit-state/` and runs a fresh scan
 3. All files start as `never_audited` and are prioritized by the scoring algorithm
 4. State accumulates across sessions — coverage improves with each run
 5. Use `--reset` to clear state and start fresh at any time
@@ -254,7 +254,7 @@ See [incremental-writeback.md](references/incremental-writeback.md) for the full
 1. `--reset` clears all state files but preserves history
 2. If `state.json` is corrupted, it auto-rebuilds from `history/` snapshots
 3. If `manifest.json` is corrupted, next run regenerates it from the filesystem
-4. Manual recovery: delete `.claude/audit-state/` entirely and start fresh
+4. Manual recovery: delete `.rune/audit-state/` entirely and start fresh
 
 ## References
 

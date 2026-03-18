@@ -1,6 +1,6 @@
 #!/bin/bash
 # scripts/learn/echo-writer.sh
-# Writes detected patterns as echo entries to .claude/echoes/{role}/MEMORY.md
+# Writes detected patterns as echo entries to ${RUNE_STATE}/echoes/{role}/MEMORY.md
 #
 # USAGE:
 #   echo-writer.sh --role ROLE --layer LAYER --source SOURCE < entry.json
@@ -65,6 +65,7 @@ if [[ -f "${LIB_DIR}/sensitive-patterns.sh" ]]; then
   source "${LIB_DIR}/sensitive-patterns.sh"
 fi
 source "${LIB_DIR}/platform.sh"
+source "${LIB_DIR}/rune-state.sh"
 
 # ── Default parameters ──
 ROLE=""
@@ -142,11 +143,11 @@ if declare -f rune_strip_sensitive &>/dev/null; then
 fi
 
 # ── Resolve project directory ──
-# Look for .claude/echoes/ in current directory and parent dirs
+# Look for ${RUNE_STATE}/echoes/ in current directory and parent dirs
 PROJECT_DIR=""
 _check_dir="$(pwd -P)"
 for _depth in 1 2 3 4 5; do
-  if [[ -d "${_check_dir}/.claude/echoes" ]]; then
+  if [[ -d "${_check_dir}/${RUNE_STATE}/echoes" ]]; then
     PROJECT_DIR="$_check_dir"
     break
   fi
@@ -156,12 +157,12 @@ for _depth in 1 2 3 4 5; do
 done
 
 if [[ -z "$PROJECT_DIR" ]]; then
-  echo "WARN: .claude/echoes/ directory not found from $(pwd)" >&2
+  echo "WARN: ${RUNE_STATE}/echoes/ directory not found from $(pwd)" >&2
   exit 0
 fi
 
 # ── Verify echo role directory exists ──
-ECHO_DIR="${PROJECT_DIR}/.claude/echoes/${ROLE}"
+ECHO_DIR="${PROJECT_DIR}/${RUNE_STATE}/echoes/${ROLE}"
 if [[ ! -d "$ECHO_DIR" ]]; then
   echo "WARN: echo role directory does not exist: ${ECHO_DIR}" >&2
   exit 0

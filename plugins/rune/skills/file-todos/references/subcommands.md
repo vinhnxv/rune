@@ -683,7 +683,7 @@ The `.todo-index.json` v1 cache is replaced by per-source manifests in v2. Each 
 The `archive` subcommand is **obsolete** in the session-scoped model. Previously, `archive` moved completed todos from `todos/review/003-*.md` to `todos/archive/review-003-*.md` for long-term storage. Since all todos are now session-scoped in `tmp/` and cleaned by `/rune:rest`, archiving serves no purpose.
 
 **Replacement**: Completed session data is preserved in:
-- Rune Echoes (`.claude/echoes/`) — key learnings persisted via `/rune:echoes`
+- Rune Echoes (`.rune/echoes/`) — key learnings persisted via `/rune:echoes`
 - TOME.md / completion reports — in `tmp/` until `/rune:rest` cleanup
 - Git commit history — permanent record of fixes applied
 

@@ -46,7 +46,7 @@ Add an `integrations.mcp_tools` section to your `talisman.yml`. This gives Rune'
 2. **Trigger conditions** --- tools only activate when the task context matches (file extensions, paths, keywords)
 3. **Rules injection** --- coding rules files are injected into agent prompts when the integration is active
 
-**talisman.yml (project-level `.claude/talisman.yml`):**
+**talisman.yml (project-level `.rune/talisman.yml`):**
 
 ```yaml
 integrations:
@@ -187,7 +187,7 @@ Add your MCP server to `.mcp.json` (project root or `~/.claude/.mcp.json` for gl
 
 ### Step 2: Add Integration Config
 
-Add `integrations.mcp_tools` to `.claude/talisman.yml`:
+Add `integrations.mcp_tools` to `.rune/talisman.yml`:
 
 ```yaml
 integrations:
@@ -441,7 +441,7 @@ Add to `.mcp.json` (project root):
 
 ### 2. Add Talisman Integration
 
-Add to `.claude/talisman.yml`:
+Add to `.rune/talisman.yml`:
 
 ```yaml
 integrations:
@@ -563,7 +563,7 @@ A: Not currently. Integrations are resolved from talisman config at workflow sta
 A: Triggers are evaluated once at workflow start against the initial context (changed files, task description). They are not re-evaluated per sub-phase. Phase routing controls sub-phase activation; triggers control initial activation.
 
 **Q: Where do I put talisman.yml?**
-A: Project-level config goes in `.claude/talisman.yml`. Global (user-level) config goes in `~/.claude/talisman.yml`. Project config takes precedence. The `integrations` section merges: project-level entries override global entries with the same namespace key.
+A: Project-level config goes in `.rune/talisman.yml`. Global (user-level) config goes in `~/.rune/talisman.yml`. Project config takes precedence. The `integrations` section merges: project-level entries override global entries with the same namespace key.
 
 **Q: What is the token cost of an integration?**
 A: An active integration adds approximately 100-300 tokens to each agent prompt (tool list, categories, usage guidance). Rules files add their full content. Companion skills add their SKILL.md content. Use specific triggers to avoid activating integrations on irrelevant tasks.

@@ -209,6 +209,6 @@ updateCheckpoint({
 | UX findings JSON | `tmp/arc/{id}/ux-findings.json` |
 | Per-agent outputs | `tmp/arc/{id}/ux-{agent-name}.md` |
 | Team config | `$CHOME/teams/arc-ux-{id}/` |
-| Checkpoint state | `.claude/arc/{id}/checkpoint.json` (phase: "ux_verification") |
+| Checkpoint state | `.rune/arc/{id}/checkpoint.json` (phase: "ux_verification") |
 
 Recovery: On `--resume`, if ux_verification is `in_progress`, clean up stale team and re-run from the beginning. Verification is idempotent — report and findings files are overwritten cleanly.

@@ -71,7 +71,7 @@ trap 'rm -rf "$TMPWORK"' EXIT
 
 FAKE_CWD="$TMPWORK/project"
 mkdir -p "$FAKE_CWD/tmp"
-mkdir -p "$FAKE_CWD/.claude/arc"
+mkdir -p "$FAKE_CWD/.rune/arc"
 
 FAKE_CONFIG_DIR="$TMPWORK/claude-config"
 mkdir -p "$FAKE_CONFIG_DIR/teams"
@@ -301,7 +301,7 @@ rm -f "$FAKE_CWD/tmp/.rune-review-done9.json"
 # ═══════════════════════════════════════════════════════════════
 printf "\n=== Phase 3: Arc Checkpoint Cleanup ===\n"
 
-ARC_DIR_10="$FAKE_CWD/.claude/arc/arc-test-stop10"
+ARC_DIR_10="$FAKE_CWD/.rune/arc/arc-test-stop10"
 mkdir -p "$ARC_DIR_10"
 jq -n --arg cfg "$FAKE_CONFIG_DIR" --arg pid "$DEAD_PID" \
   '{config_dir: $cfg, owner_pid: $pid, phases: {forge: {status: "completed"}, review: {status: "in_progress"}, ship: {status: "pending"}}}' \
@@ -340,7 +340,7 @@ fi
 # ═══════════════════════════════════════════════════════════════
 printf "\n=== Phase 3: Recent Arc Checkpoint Preserved ===\n"
 
-ARC_DIR_11="$FAKE_CWD/.claude/arc/arc-test-recent11"
+ARC_DIR_11="$FAKE_CWD/.rune/arc/arc-test-recent11"
 mkdir -p "$ARC_DIR_11"
 jq -n --arg cfg "$FAKE_CONFIG_DIR" --arg pid "$DEAD_PID" \
   '{config_dir: $cfg, owner_pid: $pid, phases: {forge: {status: "in_progress"}}}' \
@@ -461,7 +461,7 @@ printf "\n=== Phase Loop Deferral ===\n"
 # But since active=true and file is recent, the hook will defer (exit 0).
 # We need a PID that is NOT dead for deferral -- we need the hook to think this
 # is the current session's file. Use no owner_pid so the check passes.
-cat > "$FAKE_CWD/.claude/arc-phase-loop.local.md" <<EOF
+cat > "$FAKE_CWD/.rune/arc-phase-loop.local.md" <<EOF
 ---
 active: true
 config_dir: $FAKE_CONFIG_DIR
@@ -475,14 +475,14 @@ STDOUT_16=$(get_stdout)
 # Should exit early -- no cleanup report
 assert_not_contains "Phase loop defer produces no cleanup" "STOP-001" "$STDOUT_16"
 
-rm -f "$FAKE_CWD/.claude/arc-phase-loop.local.md"
+rm -f "$FAKE_CWD/.rune/arc-phase-loop.local.md"
 
 # ═══════════════════════════════════════════════════════════════
 # 17. GUARD 5d: Stale Phase Loop Cleaned Up
 # ═══════════════════════════════════════════════════════════════
 printf "\n=== Stale Phase Loop Cleanup ===\n"
 
-cat > "$FAKE_CWD/.claude/arc-phase-loop.local.md" <<EOF
+cat > "$FAKE_CWD/.rune/arc-phase-loop.local.md" <<EOF
 ---
 active: true
 config_dir: $FAKE_CONFIG_DIR
@@ -491,13 +491,13 @@ owner_pid: $DEAD_PID
 Stale phase loop
 EOF
 # Backdate to be stale (> 90 min)
-touch -t 202601010000 "$FAKE_CWD/.claude/arc-phase-loop.local.md" 2>/dev/null || true
+touch -t 202601010000 "$FAKE_CWD/.rune/arc-phase-loop.local.md" 2>/dev/null || true
 
 run_hook "{\"cwd\": \"$FAKE_CWD\"}"
 assert_eq "Stale phase loop cleanup exits 0" "0" "$(get_exit_code)"
 
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
-if [[ ! -f "$FAKE_CWD/.claude/arc-phase-loop.local.md" ]]; then
+if [[ ! -f "$FAKE_CWD/.rune/arc-phase-loop.local.md" ]]; then
   PASS_COUNT=$(( PASS_COUNT + 1 ))
   printf "  PASS: Stale phase loop file removed\n"
 else
@@ -511,7 +511,7 @@ fi
 printf "\n=== Batch Loop Deferral ===\n"
 
 # Omit owner_pid so ownership check passes, active=true + recent -> defer
-cat > "$FAKE_CWD/.claude/arc-batch-loop.local.md" <<EOF
+cat > "$FAKE_CWD/.rune/arc-batch-loop.local.md" <<EOF
 ---
 active: true
 config_dir: $FAKE_CONFIG_DIR
@@ -524,14 +524,14 @@ assert_eq "Active batch loop defers (exits 0)" "0" "$(get_exit_code)"
 STDOUT_18=$(get_stdout)
 assert_not_contains "Batch loop defer produces no cleanup" "STOP-001" "$STDOUT_18"
 
-rm -f "$FAKE_CWD/.claude/arc-batch-loop.local.md"
+rm -f "$FAKE_CWD/.rune/arc-batch-loop.local.md"
 
 # ═══════════════════════════════════════════════════════════════
 # 19. Inactive Loop File Cleaned Up
 # ═══════════════════════════════════════════════════════════════
 printf "\n=== Inactive Loop File Cleanup ===\n"
 
-cat > "$FAKE_CWD/.claude/arc-batch-loop.local.md" <<EOF
+cat > "$FAKE_CWD/.rune/arc-batch-loop.local.md" <<EOF
 ---
 active: false
 config_dir: $FAKE_CONFIG_DIR
@@ -543,7 +543,7 @@ EOF
 run_hook "{\"cwd\": \"$FAKE_CWD\"}"
 
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
-if [[ ! -f "$FAKE_CWD/.claude/arc-batch-loop.local.md" ]]; then
+if [[ ! -f "$FAKE_CWD/.rune/arc-batch-loop.local.md" ]]; then
   PASS_COUNT=$(( PASS_COUNT + 1 ))
   printf "  PASS: Inactive batch loop file removed\n"
 else
@@ -603,7 +603,7 @@ printf "\n=== Exit Codes ===\n"
 rm -rf "$FAKE_CONFIG_DIR/teams/rune-"* "$FAKE_CONFIG_DIR/teams/arc-"* "$FAKE_CONFIG_DIR/teams/goldmask-"* 2>/dev/null || true
 rm -rf "$FAKE_CONFIG_DIR/tasks/rune-"* "$FAKE_CONFIG_DIR/tasks/arc-"* 2>/dev/null || true
 rm -f "$FAKE_CWD"/tmp/.rune-*.json 2>/dev/null || true
-rm -rf "$FAKE_CWD/.claude/arc/"* 2>/dev/null || true
+rm -rf "$FAKE_CWD/.rune/arc/"* 2>/dev/null || true
 
 # No cleanup needed -- exits 0
 run_hook "{\"cwd\": \"$FAKE_CWD\"}"

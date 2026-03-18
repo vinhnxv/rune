@@ -1,0 +1,477 @@
+{
+  "id": "arc-1773669960791",
+  "schema_version": 23,
+  "plan_file": "plans/2026-03-16-feat-torrent-tmux-arc-orchestrator-plan.md",
+  "config_dir": "/Users/vinhnx/.claude",
+  "owner_pid": "56113",
+  "session_id": "c731ff18-b6ce-476f-8633-30b725e689db",
+  "flags": {
+    "approve": false,
+    "no_forge": false,
+    "skip_freshness": false,
+    "confirm": false,
+    "no_test": false,
+    "accept_external_changes": true,
+    "bot_review": false,
+    "no_bot_review": false
+  },
+  "arc_config": {
+    "no_forge": false,
+    "approve": false,
+    "skip_freshness": false,
+    "confirm": false,
+    "no_test": false,
+    "accept_external_changes": true,
+    "ship": {
+      "auto_pr": false,
+      "auto_merge": false,
+      "merge_strategy": "squash",
+      "wait_ci": false,
+      "draft": false,
+      "labels": [],
+      "pr_monitoring": false,
+      "rebase_before_merge": true,
+      "co_authors": []
+    },
+    "pre_merge_checks": {
+      "migration_conflict": true,
+      "schema_conflict": true,
+      "lock_file_conflict": true,
+      "uncommitted_changes": true,
+      "migration_paths": []
+    }
+  },
+  "pr_url": null,
+  "freshness": null,
+  "session_nonce": "85f50f8968c6",
+  "phase_sequence": 8,
+  "parent_plan": {
+    "path": null,
+    "children_dir": null,
+    "child_seq": null,
+    "feature_branch": null,
+    "skip_branch": false,
+    "skip_ship_pr": false
+  },
+  "stagnation": {
+    "error_patterns": [],
+    "file_velocity": [],
+    "budget": null
+  },
+  "skip_map": {
+    "design_extraction": "design_sync_disabled",
+    "design_prototype": "design_sync_disabled",
+    "design_verification": "design_sync_disabled",
+    "design_iteration": "design_sync_disabled",
+    "storybook_verification": "storybook_disabled",
+    "ux_verification": "ux_disabled",
+    "bot_review_wait": "bot_review_disabled",
+    "pr_comment_resolution": "bot_review_disabled"
+  },
+  "phase_skip_log": [
+    {
+      "phase": "design_extraction",
+      "event": "auto_skipped",
+      "reason": "design_sync_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-16T14:10:41Z"
+    },
+    {
+      "phase": "design_prototype",
+      "event": "auto_skipped",
+      "reason": "design_sync_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-16T14:10:41Z"
+    },
+    {
+      "phase": "storybook_verification",
+      "event": "auto_skipped",
+      "reason": "storybook_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-16T14:10:41Z"
+    },
+    {
+      "phase": "design_verification",
+      "event": "auto_skipped",
+      "reason": "design_sync_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-16T14:10:41Z"
+    },
+    {
+      "phase": "ux_verification",
+      "event": "auto_skipped",
+      "reason": "ux_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-16T14:10:41Z"
+    },
+    {
+      "phase": "design_iteration",
+      "event": "auto_skipped",
+      "reason": "design_sync_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-16T14:10:41Z"
+    },
+    {
+      "phase": "bot_review_wait",
+      "event": "auto_skipped",
+      "reason": "bot_review_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-16T14:10:41Z"
+    },
+    {
+      "phase": "pr_comment_resolution",
+      "event": "auto_skipped",
+      "reason": "bot_review_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-16T14:10:41Z"
+    },
+    {
+      "phase": "drift_review",
+      "event": "demoted_to_pending",
+      "reason": "missing_skip_reason",
+      "timestamp": "2026-03-16T14:45:56Z"
+    }
+  ],
+  "phases": {
+    "forge": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773669960791/enriched-plan.md",
+      "artifact_hash": "aa435a7fa339971d",
+      "team_name": null,
+      "started_at": "2026-03-16T14:07:17.000Z",
+      "completed_at": "2026-03-16T14:10:29.000Z"
+    },
+    "plan_review": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773669960791/plan-review.md",
+      "artifact_hash": "b2bf07ee9dfde6a7",
+      "team_name": "arc-plan-review-arc-1773669960791",
+      "started_at": "2026-03-16T14:11:09.000Z",
+      "completed_at": "2026-03-16T14:19:52.000Z"
+    },
+    "plan_refine": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773669960791/concern-context.md",
+      "artifact_hash": "6a29a5ba5eebe0fb",
+      "team_name": null,
+      "started_at": "2026-03-16T14:20:27.000Z",
+      "completed_at": "2026-03-16T14:21:07.000Z"
+    },
+    "verification": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773669960791/verification-report.md",
+      "artifact_hash": "02b05d348aed2a5c",
+      "team_name": null,
+      "started_at": "2026-03-16T14:21:35.000Z",
+      "completed_at": "2026-03-16T14:22:07.000Z"
+    },
+    "semantic_verification": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773669960791/codex-semantic-verification.md",
+      "artifact_hash": "01fbef6172e800a3",
+      "team_name": null,
+      "started_at": "2026-03-16T14:22:52.000Z",
+      "completed_at": "2026-03-16T14:28:46.000Z"
+    },
+    "design_extraction": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-16T14:10:41Z",
+      "skip_reason": "design_sync_disabled"
+    },
+    "design_prototype": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-16T14:10:41Z",
+      "skip_reason": "design_sync_disabled"
+    },
+    "task_decomposition": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773669960791/task-validation.md",
+      "artifact_hash": "71ea2a7b9b332485",
+      "team_name": null,
+      "started_at": "2026-03-16T14:29:11.000Z",
+      "completed_at": "2026-03-16T14:33:22.000Z"
+    },
+    "work": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773669960791/work-summary.md",
+      "artifact_hash": "cb1dc07ce66a788c",
+      "team_name": "rune-work-arc-1773669960791",
+      "suspended_tasks": [],
+      "started_at": "2026-03-16T14:33:53.000Z",
+      "completed_at": "2026-03-16T14:45:20.000Z"
+    },
+    "drift_review": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-16T14:46:23.000Z",
+      "completed_at": "2026-03-16T14:46:23.000Z",
+      "skip_reason": "no_drift_signals"
+    },
+    "storybook_verification": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-16T14:10:41Z",
+      "skip_reason": "storybook_disabled"
+    },
+    "design_verification": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-16T14:10:41Z",
+      "skip_reason": "design_sync_disabled"
+    },
+    "ux_verification": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-16T14:10:41Z",
+      "skip_reason": "ux_disabled"
+    },
+    "gap_analysis": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773669960791/gap-analysis.md",
+      "artifact_hash": "9dde9525eb4b0f4d",
+      "team_name": null,
+      "started_at": "2026-03-16T14:46:54.000Z",
+      "completed_at": "2026-03-16T14:48:02.000Z"
+    },
+    "codex_gap_analysis": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773669960791/codex-gap-analysis.md",
+      "artifact_hash": "47208c11005721eb",
+      "team_name": null,
+      "started_at": "2026-03-16T14:48:53.000Z",
+      "completed_at": "2026-03-16T14:54:08.000Z"
+    },
+    "gap_remediation": {
+      "status": "skipped",
+      "artifact": "tmp/arc/arc-1773669960791/gap-remediation-report.md",
+      "artifact_hash": "810d9e3c2b76f283",
+      "team_name": null,
+      "fixed_count": null,
+      "deferred_count": null,
+      "started_at": "2026-03-16T14:54:36.000Z",
+      "completed_at": "2026-03-16T14:54:36.000Z",
+      "skip_reason": "no_remediation_needed"
+    },
+    "goldmask_verification": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773669960791/goldmask-verification.md",
+      "artifact_hash": "68e7fd35f3429f3f",
+      "team_name": null,
+      "started_at": "2026-03-16T14:55:06.000Z",
+      "completed_at": "2026-03-16T14:55:43.000Z"
+    },
+    "code_review": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773669960791/tome.md",
+      "artifact_hash": "cd94f568fd9fb302",
+      "team_name": "rune-review-7fef896f-c731ff",
+      "started_at": "2026-03-16T14:56:07.000Z",
+      "completed_at": "2026-03-16T15:04:45.000Z"
+    },
+    "goldmask_correlation": {
+      "status": "skipped",
+      "artifact": "tmp/arc/arc-1773669960791/goldmask-correlation.md",
+      "artifact_hash": "b0c6464977f5ccbd",
+      "team_name": null,
+      "started_at": "2026-03-16T15:05:29.000Z",
+      "completed_at": "2026-03-16T15:05:29.000Z",
+      "skip_reason": "no_goldmask_findings_json"
+    },
+    "mend": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773669960791/resolution-report.md",
+      "artifact_hash": "bb57a91d99d5772f",
+      "team_name": null,
+      "started_at": "2026-03-16T15:05:56.000Z",
+      "completed_at": "2026-03-16T15:09:36.000Z"
+    },
+    "verify_mend": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773669960791/resolution-report.md",
+      "artifact_hash": "bb57a91d99d5772f",
+      "team_name": null,
+      "started_at": "2026-03-16T15:10:21.000Z",
+      "completed_at": "2026-03-16T15:10:21.000Z"
+    },
+    "design_iteration": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-16T14:10:41Z",
+      "skip_reason": "design_sync_disabled"
+    },
+    "test": {
+      "status": "completed",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "tiers_run": [
+        "unit"
+      ],
+      "pass_rate": 100.0,
+      "coverage_pct": null,
+      "has_frontend": false,
+      "started_at": "2026-03-16T15:10:39.000Z",
+      "completed_at": "2026-03-16T15:10:57.000Z"
+    },
+    "test_coverage_critique": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-16T15:11:32.000Z",
+      "completed_at": "2026-03-16T15:11:32.000Z",
+      "skip_reason": "codex_timeout_pattern"
+    },
+    "pre_ship_validation": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773669960791/pre-ship-validation.md",
+      "artifact_hash": "3ce059710c0c6424",
+      "team_name": null,
+      "started_at": "2026-03-16T15:11:54.000Z",
+      "completed_at": "2026-03-16T15:12:19.000Z"
+    },
+    "release_quality_check": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-16T15:12:35.000Z",
+      "completed_at": "2026-03-16T15:12:35.000Z",
+      "skip_reason": "codex_timeout_pattern"
+    },
+    "ship": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-16T15:13:01.000Z",
+      "completed_at": "2026-03-16T15:13:01.000Z",
+      "skip_reason": "auto_pr_disabled"
+    },
+    "bot_review_wait": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-16T14:10:41Z",
+      "skip_reason": "bot_review_disabled"
+    },
+    "pr_comment_resolution": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-16T14:10:41Z",
+      "skip_reason": "bot_review_disabled"
+    },
+    "merge": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-16T15:13:29.000Z",
+      "completed_at": "2026-03-16T15:13:29.000Z",
+      "skip_reason": "no_pr_to_merge"
+    }
+  },
+  "totals": {
+    "phase_times": {
+      "forge": 192000,
+      "plan_review": 523000,
+      "plan_refine": 40000,
+      "verification": 32000,
+      "semantic_verification": 354000,
+      "task_decomposition": 251000,
+      "work": 687000,
+      "drift_review": 0,
+      "gap_analysis": 68000,
+      "codex_gap_analysis": 315000,
+      "gap_remediation": 0,
+      "goldmask_verification": 37000,
+      "code_review": 518000,
+      "goldmask_correlation": 0,
+      "mend": 220000,
+      "verify_mend": 0,
+      "test": 18000,
+      "test_coverage_critique": 0,
+      "pre_ship_validation": 25000,
+      "release_quality_check": 0,
+      "ship": 0,
+      "merge": 0
+    },
+    "total_duration_ms": null,
+    "cost_at_completion": null
+  },
+  "completed_at": null,
+  "convergence": {
+    "round": 0,
+    "max_rounds": 3,
+    "tier": {
+      "name": "STANDARD",
+      "maxCycles": 3
+    },
+    "history": [
+      {
+        "round": 0,
+        "findings_before": 19,
+        "findings_after": 16,
+        "p1_remaining": 1,
+        "p2_remaining": 15,
+        "verdict": "proceed",
+        "reason": "fixes_applied_deferred_by_design",
+        "timestamp": "2026-03-16T15:10:21.000Z"
+      }
+    ],
+    "original_changed_files": []
+  },
+  "shard": null,
+  "user_cancelled": false,
+  "cancel_reason": null,
+  "cancelled_at": null,
+  "stop_reason": null,
+  "resume_tracking": {
+    "total_resume_count": 0,
+    "resume_history": [],
+    "last_resume_at": null,
+    "consecutive_failures": 0
+  },
+  "commits": [
+    "7fef896f",
+    "6052f977"
+  ],
+  "started_at": "2026-03-16T21:06:00.791Z",
+  "updated_at": "2026-03-16T15:13:29.000Z",
+  "codex_cascade": {
+    "total_attempted": 3,
+    "total_succeeded": 2,
+    "total_failed": 1,
+    "consecutive_failures": 1,
+    "cascade_warning": false,
+    "cascade_skipped": 0,
+    "last_failure_phase": null
+  }
+}

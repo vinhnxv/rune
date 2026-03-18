@@ -96,7 +96,7 @@ That higher cost is the tradeoff for broader coverage and stronger quality contr
 
 ### 16) When should I run `/rune:rest`?
 When you want to clean `tmp/` artifacts from completed workflows.
-It preserves active workflow state and keeps `.claude/echoes/`.
+It preserves active workflow state and keeps `.rune/echoes/`.
 
 ## Outputs and Fixes
 

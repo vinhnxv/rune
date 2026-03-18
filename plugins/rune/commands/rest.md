@@ -2,7 +2,7 @@
 name: rune:rest
 description: |
   Remove tmp/ output directories from completed Rune workflows (reviews, audits, plans, work, mend, inspect, arc).
-  Preserves Rune Echoes (.claude/echoes/) and active workflow state files.
+  Preserves Rune Echoes (.rune/echoes/) and active workflow state files.
   Renamed from /rune:cleanup in v1.5.0 — "rest" as in a resting place for completed artifacts.
 
   <example>
@@ -49,8 +49,8 @@ Remove ephemeral `tmp/` output directories from completed Rune workflows. Preser
 
 | Path | Reason |
 |------|--------|
-| `.claude/echoes/` | Persistent project memory (Rune Echoes) |
-| `.claude/arc/{id}/checkpoint.json` | Arc resume state (needed for --resume) |
+| `.rune/echoes/` | Persistent project memory (Rune Echoes) |
+| `.rune/arc/{id}/checkpoint.json` | Arc resume state (needed for --resume) |
 | `tmp/.rune-review-*.json` (active) | Active workflow state |
 | `tmp/.rune-audit-*.json` (active) | Active workflow state |
 | `tmp/.rune-mend-*.json` (active) | Mend concurrency detection |
@@ -73,8 +73,8 @@ const stateFiles = Glob("tmp/.rune-{review,audit,mend,work,inspect,forge,batch,t
 
 ```bash
 # Check for active arc sessions via checkpoint.json
-# Arc uses .claude/arc/*/checkpoint.json instead of tmp/.rune-arc-*.json state files
-for f in .claude/arc/*/checkpoint.json(N); do
+# Arc uses .rune/arc/*/checkpoint.json instead of tmp/.rune-arc-*.json state files
+for f in .rune/arc/*/checkpoint.json(N); do
   [ -f "$f" ] || continue
   if grep -q '"status"[[:space:]]*:[[:space:]]*"in_progress"' "$f" 2>/dev/null; then
     arc_id=$(basename "$(dirname "$f")")
@@ -112,7 +112,7 @@ Cleanup Summary:
 
 Active workflows (PRESERVED):
   - tmp/.rune-review-142.json (active)
-  - .claude/arc/abc123/checkpoint.json (arc resume state)
+  - .rune/arc/abc123/checkpoint.json (arc resume state)
 
 Proceed? [Y/n]
 ```
@@ -224,9 +224,9 @@ else
 fi
 
 # Remove arc artifacts — conditional on no active arc sessions
-# Arc uses .claude/arc/*/checkpoint.json (not tmp/.rune-arc-*.json state files)
+# Arc uses .rune/arc/*/checkpoint.json (not tmp/.rune-arc-*.json state files)
 active_arc=""
-for f in .claude/arc/*/checkpoint.json(N); do
+for f in .rune/arc/*/checkpoint.json(N); do
   [ -f "$f" ] || continue
   if grep -q '"status"[[:space:]]*:[[:space:]]*"in_progress"' "$f" 2>/dev/null; then
     active_arc="$f"
@@ -262,12 +262,12 @@ fi
 rm -f tmp/arc-result-current.json 2>/dev/null
 
 # Remove arc-phase loop artifacts (only if no active arc-phase loop)
-# State file is .claude/arc-phase-loop.local.md (not tmp/)
-arc_phase_state=".claude/arc-phase-loop.local.md"
+# State file is .rune/arc-phase-loop.local.md (not tmp/)
+arc_phase_state=".rune/arc-phase-loop.local.md"
 if [ -f "$arc_phase_state" ] && ! [[ -L "$arc_phase_state" ]]; then
   active_phase=$(grep "^active:" "$arc_phase_state" 2>/dev/null | head -1 | sed 's/^active:[[:space:]]*//' || echo "")
   if [[ "$active_phase" == "true" ]]; then
-    echo "SKIP: .claude/arc-phase-loop.local.md — active arc-phase loop detected"
+    echo "SKIP: .rune/arc-phase-loop.local.md — active arc-phase loop detected"
   else
     rm -f "$arc_phase_state"
   fi
@@ -276,8 +276,8 @@ else
 fi
 
 # Remove arc-issues artifacts (only if no active arc-issues loop)
-# State file is .claude/arc-issues-loop.local.md (not tmp/)
-arc_issues_state=".claude/arc-issues-loop.local.md"
+# State file is .rune/arc-issues-loop.local.md (not tmp/)
+arc_issues_state=".rune/arc-issues-loop.local.md"
 if [ -f "$arc_issues_state" ] && ! [[ -L "$arc_issues_state" ]]; then
   active_issues=$(grep "^active:" "$arc_issues_state" 2>/dev/null | head -1 | sed 's/^active:[[:space:]]*//' || echo "")
   if [[ "$active_issues" == "true" ]]; then
@@ -370,7 +370,7 @@ for (const sf of completedStateFiles) {
 }
 ```
 
-**Note:** `tmp/plans/` and `tmp/scratch/` are removed unconditionally (no active-state check). `tmp/work/` is conditionally removed — it checks for active work teams first (work proposals in `tmp/work/{timestamp}/proposals/` are needed during `--approve` mode). `tmp/mend/` directories follow the same active-state check as reviews and audits. `tmp/arc/` directories are checked via `.claude/arc/*/checkpoint.json` — if any phase has `in_progress` status, the associated `tmp/arc/{id}/` directory is preserved. Arc checkpoint state at `.claude/arc/` is not cleaned — it lives outside `tmp/` and is needed for `--resume`.
+**Note:** `tmp/plans/` and `tmp/scratch/` are removed unconditionally (no active-state check). `tmp/work/` is conditionally removed — it checks for active work teams first (work proposals in `tmp/work/{timestamp}/proposals/` are needed during `--approve` mode). `tmp/mend/` directories follow the same active-state check as reviews and audits. `tmp/arc/` directories are checked via `.rune/arc/*/checkpoint.json` — if any phase has `in_progress` status, the associated `tmp/arc/{id}/` directory is preserved. Arc checkpoint state at `.rune/arc/` is not cleaned — it lives outside `tmp/` and is needed for `--resume`.
 
 ### 6. Cleanup Zombie tmux Sessions
 
@@ -412,7 +412,7 @@ Cleanup complete.
   Removed: 7 directories, ~3.4 MB freed
   Preserved: 1 active workflow (review #142)
 
-Rune Echoes (.claude/echoes/) untouched.
+Rune Echoes (.rune/echoes/) untouched.
 ```
 
 ## Flags
@@ -435,7 +435,7 @@ Rune Echoes (.claude/echoes/) untouched.
   tmp/.rune-audit-20260211-103000.json  (cancelled)
 
 Would preserve:
-  .claude/echoes/  (persistent memory)
+  .rune/echoes/  (persistent memory)
 ```
 
 ### --heal Mode
@@ -501,11 +501,11 @@ for (const dir of teamDirs) {
 }
 
 // STEP 2.5: Scan for orphaned arc checkpoint directories (v1.110.0)
-// Checkpoints in .claude/arc/ and tmp/arc/ with dead owner_pid are orphaned.
+// Checkpoints in .rune/arc/ and tmp/arc/ with dead owner_pid are orphaned.
 // Same ownership logic as session-team-hygiene.sh (Bug 2 fix).
 const orphanedCheckpoints = []
 const CHOME_RESOLVED = Bash(`cd "${CHOME}" 2>/dev/null && pwd -P`).trim()
-for (const baseDir of [".claude/arc", "tmp/arc"]) {
+for (const baseDir of [".rune/arc", "tmp/arc"]) {
   const checkpointFiles = Glob(`${baseDir}/*/checkpoint.json`)
   for (const ckptFile of checkpointFiles) {
     try {
@@ -602,7 +602,7 @@ for (const dir of signalDirs) {
 for (const dir of orphanedCheckpoints) {
   // SEC-009: validate resolved path stays inside expected base dirs
   const resolved = Bash(`cd "${dir}" 2>/dev/null && pwd -P || echo ""`).trim()
-  if (!resolved || (!resolved.includes("/.claude/arc/") && !resolved.includes("/tmp/arc/"))) {
+  if (!resolved || (!resolved.includes("/.rune/arc/") && !resolved.includes("/tmp/arc/"))) {
     warn(`SKIP: ${dir} resolves outside expected dir (${resolved})`)
     continue
   }
@@ -643,7 +643,7 @@ log(`  Orphaned checkpoints removed: ${orphanedCheckpoints.length}`)
 ## Notes
 
 - This command is safe to run at any time — active workflows are detected and preserved
-- Rune Echoes are not touched by cleanup (they live in `.claude/echoes/`, not `tmp/`)
+- Rune Echoes are not touched by cleanup (they live in `.rune/echoes/`, not `tmp/`)
 - Completed/cancelled state files are removed along with their output directories
 - If `tmp/` directory doesn't exist, reports "Nothing to clean"
 - Stale git worktrees from mend bisection are cleaned up (`git worktree prune`)

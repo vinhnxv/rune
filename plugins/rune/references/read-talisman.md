@@ -7,7 +7,13 @@ Reads talisman configuration with project-first, global-second fallback.
 ```javascript
 // readTalisman: SDK Read() with project→global fallback. See references/read-talisman.md
 function readTalisman() {
-  // 1. Try project-level talisman
+  // 1. Try project-level talisman (primary)
+  try {
+    const content = Read(".rune/talisman.yml")
+    if (content) return parseYaml(content)
+  } catch (_) { /* not found — fall through */ }
+
+  // 1b. Legacy fallback: .claude/talisman.yml
   try {
     const content = Read(".claude/talisman.yml")
     if (content) return parseYaml(content)
@@ -15,7 +21,7 @@ function readTalisman() {
 
   // 2. Try global talisman (CHOME pattern)
   //    SDK Read() auto-resolves CLAUDE_CONFIG_DIR and ~.
-  //    NEVER use Bash("cat ~/.claude/talisman.yml") — tilde does not expand in ZSH eval.
+  //    NEVER use Bash("cat ~/.rune/talisman.yml") — tilde does not expand in ZSH eval.
   try {
     const globalPath = `${CLAUDE_CONFIG_DIR ?? HOME + "/.claude"}/talisman.yml`
     const content = Read(globalPath)
@@ -29,9 +35,10 @@ function readTalisman() {
 
 ## Fallback Order
 
-1. **Project**: `.claude/talisman.yml` (relative — SDK resolves to project root)
-2. **Global**: `$CHOME/talisman.yml` where `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`
-3. **Empty**: `{}` on any error (file missing, parse failure, permission denied)
+1. **Project**: `.rune/talisman.yml` (relative — SDK resolves to project root)
+2. **Legacy fallback**: `.claude/talisman.yml` (for backward compatibility during migration)
+3. **Global**: `$CHOME/talisman.yml` where `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`
+4. **Empty**: `{}` on any error (file missing, parse failure, permission denied)
 
 ## CHOME Resolution (Bash contexts only)
 
@@ -42,17 +49,17 @@ CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 # Correct:
 test -f "$CHOME/talisman.yml"
 # NEVER:
-test -f ~/.claude/talisman.yml    # ~ does not expand in ZSH eval
-cat ~/.claude/talisman.yml        # same problem
+test -f ~/.rune/talisman.yml    # ~ does not expand in ZSH eval
+cat ~/.rune/talisman.yml        # same problem
 ```
 
 ## Anti-Patterns
 
 | Pattern | Problem | Fix |
 |---------|---------|-----|
-| `Bash("cat ~/.claude/talisman.yml")` | `~` not expanded in ZSH eval | Use `Read(".claude/talisman.yml")` |
-| `Bash("test -f ~/.claude/talisman.yml")` | Same tilde expansion bug | Use `Read()` with try/catch |
-| `Bash("cat $HOME/.claude/talisman.yml")` | Works but unnecessary shell roundtrip | Use `Read()` — it's faster and safer |
+| `Bash("cat ~/.rune/talisman.yml")` | `~` not expanded in ZSH eval | Use `Read(".rune/talisman.yml")` |
+| `Bash("test -f ~/.rune/talisman.yml")` | Same tilde expansion bug | Use `Read()` with try/catch |
+| `Bash("cat $HOME/.rune/talisman.yml")` | Works but unnecessary shell roundtrip | Use `Read()` — it's faster and safer |
 | Hardcoded `~/.claude/` in any Bash context | ZSH incompatible | Use `CHOME` pattern or SDK `Read()` |
 
 ---
@@ -64,7 +71,7 @@ Reads a single config section from pre-resolved JSON shards. Falls back to `read
 **Why**: `readTalisman()` loads the entire talisman.yml (~1,200 tokens). Most consumers need only 1-2 sections. `readTalismanSection()` reads a pre-resolved JSON shard (~50-100 tokens), reducing per-phase token cost by ~94%.
 
 **Prerequisite**: The `talisman-resolve.sh` SessionStart hook must have run. It produces shards in one of two locations:
-- **Project-level**: `tmp/.talisman-resolved/{section}.json` — when user has `.claude/talisman.yml` or global `${CHOME}/talisman.yml`
+- **Project-level**: `tmp/.talisman-resolved/{section}.json` — when user has `.rune/talisman.yml` or global `${CHOME}/talisman.yml`
 - **System-level**: `${CHOME}/.rune/talisman-resolved/{section}.json` — defaults-only cache (no user talisman files)
 
 ## Implementation

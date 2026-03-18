@@ -42,7 +42,7 @@ Run `validate-talisman-consistency.sh` and present findings inline with Phase 3 
 
 ```
 result = Bash("bash ${CLAUDE_PLUGIN_ROOT}/scripts/validate-talisman-consistency.sh \
-  .claude/talisman.yml . ${CLAUDE_PLUGIN_ROOT}")
+  .rune/talisman.yml . ${CLAUDE_PLUGIN_ROOT}")
 parsed = JSON.parse(result)
 
 Checks (6 rules):

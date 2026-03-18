@@ -10,9 +10,9 @@ Invoke `/rune:strive` logic on the enriched plan. Swarm workers implement tasks 
 **Error handling**: Halt if <50% tasks complete. Partial work is committed via incremental commits (E5).
 **Consumers**: SKILL.md (Phase 5 stub)
 
-**Phase loop mechanism**: The arc dispatcher invokes this phase via the **Stop hook re-injection** pattern (`arc-phase-stop-hook.sh`). The Stop hook reads `.claude/arc-phase-loop.local.md`, finds "work" as the next pending phase in `PHASE_ORDER`, and re-injects a prompt that executes this reference file. Each arc phase runs in its own Claude Code turn, preventing context accumulation across phases.
+**Phase loop mechanism**: The arc dispatcher invokes this phase via the **Stop hook re-injection** pattern (`arc-phase-stop-hook.sh`). The Stop hook reads `.rune/arc-phase-loop.local.md`, finds "work" as the next pending phase in `PHASE_ORDER`, and re-injects a prompt that executes this reference file. Each arc phase runs in its own Claude Code turn, preventing context accumulation across phases.
 
-**Arc context detection**: Strive detects arc orchestration by scanning `.claude/arc/*/checkpoint.json` for `phases.work.status === 'in_progress'`.
+**Arc context detection**: Strive detects arc orchestration by scanning `.rune/arc/*/checkpoint.json` for `phases.work.status === 'in_progress'`.
 
 > **Note**: `sha256()`, `updateCheckpoint()`, `exists()`, and `warn()` are dispatcher-provided utilities available in the arc orchestrator context. Phase reference files call these without import.
 

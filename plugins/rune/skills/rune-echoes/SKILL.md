@@ -4,13 +4,13 @@ description: |
   Use when agents need to read or write project memory, when persisting learnings from
   reviews or audits, when managing echo lifecycle (prune, reset), when a user wants to
   remember something explicitly, or when a pattern keeps recurring across sessions.
-  Stores knowledge in .claude/echoes/ with 5-tier lifecycle
+  Stores knowledge in .rune/echoes/ with 5-tier lifecycle
   (Etched/Notes/Inscribed/Observations/Traced) and multi-factor pruning.
 
   <example>
   Context: After a review, Ash persist patterns to echoes
   user: "Review found repeated N+1 query pattern"
-  assistant: "Pattern persisted to .claude/echoes/reviewer/MEMORY.md as Inscribed entry"
+  assistant: "Pattern persisted to .rune/echoes/reviewer/MEMORY.md as Inscribed entry"
   </example>
 user-invocable: false
 disable-model-invocation: false
@@ -25,7 +25,7 @@ allowed-tools:
 
 # Rune Echoes — Smart Memory Lifecycle
 
-Project-level agent memory that compounds knowledge across sessions. Each workflow writes learnings to `.claude/echoes/`, and future workflows read them to avoid repeating mistakes.
+Project-level agent memory that compounds knowledge across sessions. Each workflow writes learnings to `.rune/echoes/`, and future workflows read them to avoid repeating mistakes.
 
 > "The Tarnished collects runes to grow stronger. Each engineering session should do the same."
 
@@ -34,7 +34,7 @@ Project-level agent memory that compounds knowledge across sessions. Each workfl
 ### Memory Directory Structure
 
 ```
-.claude/echoes/
+.rune/echoes/
 ├── planner/
 │   ├── MEMORY.md              # Active memory (150 line limit)
 │   ├── knowledge.md           # Compressed learnings (on-demand load)
@@ -67,11 +67,11 @@ Project-level agent memory that compounds knowledge across sessions. Each workfl
 
 **Etched** entries are permanent project knowledge (architecture decisions, tech stack, key conventions). Only the user can add or remove them.
 
-**Notes** entries are user-explicit memories created via `/rune:echoes remember <text>`. They represent things the user wants agents to remember across sessions. Weight=0.9 (highest after Etched). Never auto-pruned — only the user can remove them. Stored in `.claude/echoes/notes/MEMORY.md` with `role="notes"`.
+**Notes** entries are user-explicit memories created via `/rune:echoes remember <text>`. They represent things the user wants agents to remember across sessions. Weight=0.9 (highest after Etched). Never auto-pruned — only the user can remove them. Stored in `.rune/echoes/notes/MEMORY.md` with `role="notes"`.
 
 **Inscribed** entries are tactical patterns discovered during reviews, audits, and work (e.g., "this codebase has N+1 query tendency in service layers"). They persist across sessions and get pruned when stale.
 
-**Observations** entries are agent-observed patterns written via the echo-writer protocol. Weight=0.5. Auto-pruned when `days_since_last_access > 60` (EDGE-025). Auto-promoted to Inscribed after 3 access_count references in echo_access_log. Promotion rewrites the H2 header in the source MEMORY.md from `## Observations` to `## Inscribed` using atomic file rewrite (C3 concern: `os.replace()`). Stored in `.claude/echoes/observations/MEMORY.md` with `role="observations"`.
+**Observations** entries are agent-observed patterns written via the echo-writer protocol. Weight=0.5. Auto-pruned when `days_since_last_access > 60` (EDGE-025). Auto-promoted to Inscribed after 3 access_count references in echo_access_log. Promotion rewrites the H2 header in the source MEMORY.md from `## Observations` to `## Inscribed` using atomic file rewrite (C3 concern: `os.replace()`). Stored in `.rune/echoes/observations/MEMORY.md` with `role="observations"`.
 
 **Traced** entries are session-specific observations (e.g., "PR #42 had 3 unused imports"). They compress or archive quickly.
 
@@ -108,7 +108,7 @@ See [pruning-and-write-protocol.md](references/pruning-and-write-protocol.md) fo
 
 ## Security
 
-Sensitive data filter rejects API keys, passwords, tokens, connection strings before persisting. `.gitignore` excludes `.claude/echoes/` by default — opt-in via `echoes.version_controlled: true`.
+Sensitive data filter rejects API keys, passwords, tokens, connection strings before persisting. `.gitignore` excludes `.rune/echoes/` by default — opt-in via `echoes.version_controlled: true`.
 
 ## Integration Points
 
@@ -122,7 +122,7 @@ The `TaskCompleted` hook automatically appends lightweight observation entries t
 
 **Trigger**: Every `TaskCompleted` event for teams with prefix `rune-` or `arc-`.
 
-**Guards**: Only fires when `.claude/echoes/` exists, the role `MEMORY.md` is present, and the task subject is not a meta task (shutdown/cleanup/aggregate/monitor).
+**Guards**: Only fires when `.rune/echoes/` exists, the role `MEMORY.md` is present, and the task subject is not a meta task (shutdown/cleanup/aggregate/monitor).
 
 **Role routing**: Inferred from team name (review/appraise/audit → `reviewer`, plan/devise → `planner`, work/strive/arc → `workers`, default → `orchestrator`).
 
@@ -134,7 +134,7 @@ See [auto-observation.md](references/auto-observation.md) for the full protocol,
 
 ## Codex Echo Validation (Optional)
 
-Before persisting a learning to `.claude/echoes/`, optionally ask Codex whether the insight is generalizable or context-specific. This prevents polluting echoes with one-off observations that don't transfer to future sessions. Gated by `talisman.codex.echo_validation.enabled`. Uses nonce-bounded prompt, codex-exec.sh wrapper, and non-JSON output guard.
+Before persisting a learning to `.rune/echoes/`, optionally ask Codex whether the insight is generalizable or context-specific. This prevents polluting echoes with one-off observations that don't transfer to future sessions. Gated by `talisman.codex.echo_validation.enabled`. Uses nonce-bounded prompt, codex-exec.sh wrapper, and non-JSON output guard.
 
 See [codex-echo-validation.md](references/codex-echo-validation.md) for the full protocol.
 
@@ -153,7 +153,7 @@ This enables future schema migrations without breaking existing echoes.
 
 ## Remembrance Channel — Human-Facing Knowledge
 
-Remembrance is a parallel knowledge axis alongside Echoes. While Echoes are agent-internal memory (`.claude/echoes/`), Remembrance documents are version-controlled solutions in `docs/solutions/` designed for human consumption. Promotion requires: problem-solution pair, high confidence or 2+ session references, human actionability. Security-category promotions require explicit human verification.
+Remembrance is a parallel knowledge axis alongside Echoes. While Echoes are agent-internal memory (`.rune/echoes/`), Remembrance documents are version-controlled solutions in `docs/solutions/` designed for human consumption. Promotion requires: problem-solution pair, high confidence or 2+ session references, human actionability. Security-category promotions require explicit human verification.
 
 See [remembrance-promotion.md](references/remembrance-promotion.md) for the full promotion rules, directory structure, and decision tree.
 
@@ -170,7 +170,7 @@ Doc packs are pre-curated MEMORY.md files bundled with the Rune plugin. They con
 ### Directory Layout
 
 ```
-~/.claude/echoes/global/              # CHOME pattern: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+~/.rune/echoes/global/              # CHOME pattern: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}
 ├── doc-packs/
 │   ├── shadcn-ui/MEMORY.md           # Installed pack
 │   └── fastapi/MEMORY.md

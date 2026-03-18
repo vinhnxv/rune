@@ -16,7 +16,7 @@ const stateContent = `---
 active: true
 iteration: 0
 max_iterations: 50
-checkpoint_path: .claude/arc/${id}/checkpoint.json
+checkpoint_path: .rune/arc/${id}/checkpoint.json
 plan_file: ${planFile}
 branch: ${branch}
 arc_flags: ${args.replace(/\s+/g, ' ').trim()}
@@ -30,5 +30,5 @@ cancelled_at: null
 stop_reason: null
 ---
 `
-Write('.claude/arc-phase-loop.local.md', stateContent)
+Write('.rune/arc-phase-loop.local.md', stateContent)
 ```

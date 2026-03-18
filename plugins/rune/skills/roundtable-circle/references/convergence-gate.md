@@ -508,7 +508,7 @@ Trend: IMPROVING (findings +4, failed chunks 1 → 0)
 
 ## Talisman Config Keys
 
-All keys live under `review:` in `.claude/talisman.yml` (QUAL-001 FIX: standardized from `rune-gaze:`):
+All keys live under `review:` in `.rune/talisman.yml` (QUAL-001 FIX: standardized from `rune-gaze:`):
 
 ```yaml
 review:

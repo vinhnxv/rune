@@ -22,6 +22,7 @@ umask 077
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/resolve-session-identity.sh"
 source "${SCRIPT_DIR}/lib/platform.sh"
+source "${SCRIPT_DIR}/lib/rune-state.sh"
 
 # Trace logging (match all Rune hooks)
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
@@ -65,7 +66,7 @@ CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 # SEC-MON-001: Canonicalize CWD before use in file paths
 [[ -n "$CWD" ]] && CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || CWD=""
 if [[ -n "$CWD" && "$CWD" == /* ]]; then
-  TALISMAN="${CWD}/.claude/talisman.yml"
+  TALISMAN="${CWD}/${RUNE_STATE}/talisman.yml"
   if [[ -f "$TALISMAN" ]] && command -v yq &>/dev/null; then
     # Fast-path: skip yq if context_monitor section doesn't exist
     if grep -q 'context_monitor:' "$TALISMAN" 2>/dev/null; then

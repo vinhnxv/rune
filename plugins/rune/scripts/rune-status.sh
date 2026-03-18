@@ -6,7 +6,7 @@
 #   --json       Output structured JSON instead of human-readable box output
 #   --arc-id ID  Target a specific arc checkpoint by ID
 #
-# Reads: .claude/arc/*/checkpoint.json (session-owned only)
+# Reads: ${RUNE_STATE}/arc/*/checkpoint.json (session-owned only)
 # Shows: phase summary, per-phase timing (v19+), team roster, context metrics,
 #        convergence status (mend/verify_mend)
 #
@@ -32,6 +32,7 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/resolve-session-identity.sh"
 source "${SCRIPT_DIR}/lib/platform.sh"
+source "${SCRIPT_DIR}/lib/rune-state.sh"
 
 # ── CWD (script is run from project root) ──
 CWD="$(pwd -P)"
@@ -113,7 +114,7 @@ PHASE_ORDER=(
 
 # ── Find session-owned checkpoint files ──
 CHECKPOINT_FILES=()
-ARC_DIR="${CWD}/.claude/arc"
+ARC_DIR="${CWD}/${RUNE_STATE}/arc"
 
 if [[ -d "$ARC_DIR" ]]; then
   shopt -s nullglob

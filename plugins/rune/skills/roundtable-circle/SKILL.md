@@ -376,7 +376,7 @@ Layer 2 summon: 3+ Ashes (review) or 5+ Ashes (audit). Full spec: [Truthsight Pi
 3. **Grace period** — `sleep 20` for teammate deregistration
 3.5. **Todo generation verification** (non-blocking) — verify Phase 5.4 todo files exist; attempt late recovery if TOME exists but todos are missing
 4. **TeamDelete with retry-with-backoff** (4 attempts: 0s, 3s, 6s, 10s) + process kill + filesystem fallback if all fail
-5. **Persist learnings** to Rune Echoes (`.claude/echoes/`)
+5. **Persist learnings** to Rune Echoes (`.rune/echoes/`)
 6. **Present TOME.md** to user
 
 See [orchestration-phases.md](references/orchestration-phases.md) Phase 7 and [engines.md](../team-sdk/references/engines.md) § shutdown + cleanup for full cleanup pseudocode.

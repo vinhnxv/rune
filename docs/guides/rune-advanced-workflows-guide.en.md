@@ -182,7 +182,7 @@ If a session crashes mid-processing, issues may retain the `rune:in-progress` la
 
 ### 4.1 What are echoes
 
-Rune Echoes is a persistent memory system stored in `.claude/echoes/`. After reviews, audits, and implementations, agents persist patterns and learnings. Future sessions read these echoes to improve quality over time.
+Rune Echoes is a persistent memory system stored in `.rune/echoes/`. After reviews, audits, and implementations, agents persist patterns and learnings. Future sessions read these echoes to improve quality over time.
 
 ### 4.2 Five-tier lifecycle
 
@@ -228,7 +228,7 @@ Creates a Notes-tier entry that is permanent and never auto-pruned. Use this for
 ### 4.6 Memory structure
 
 ```
-.claude/echoes/
+.rune/echoes/
 ├── planner/MEMORY.md      # Planning patterns
 ├── workers/MEMORY.md      # Implementation patterns
 ├── reviewer/MEMORY.md     # Review findings
@@ -253,7 +253,7 @@ Promoted entries become versioned docs in `docs/solutions/`. Categories: `build-
 ### 4.8 Configuration
 
 ```yaml
-# .claude/talisman.yml
+# .rune/talisman.yml
 echoes:
   version_controlled: false    # Set true to track echoes in git
   decomposition:
@@ -428,7 +428,7 @@ Each investigator gathers both **confirming** and **falsifying** evidence with f
 | `gh` CLI errors | Not installed or not authenticated | Install `gh` and run `gh auth login` |
 | Echoes not improving results | Memory not initialized | `/rune:echoes init` first |
 | MEMORY.md too large | Exceeds 150-line cap | `/rune:echoes prune` to archive stale entries |
-| Batch stopped after one issue | Stop hook state file removed | Check `.claude/arc-issues-loop.local.md` |
+| Batch stopped after one issue | Stop hook state file removed | Check `.rune/arc-issues-loop.local.md` |
 | `/rune:learn` finds no patterns | Short session or no corrections | Run after productive sessions with multiple iterations |
 | Browser test fails to start | `agent-browser` CLI not installed | Install agent-browser: `npm install -g @anthropic-ai/agent-browser` |
 | Debug agents return low confidence | Bug is not in the codebase | Check if bug is environment-specific or in dependencies |

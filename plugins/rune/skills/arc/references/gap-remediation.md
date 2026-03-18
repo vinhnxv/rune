@@ -462,14 +462,14 @@ const deferredFindingIds = cappedFindings
 // and persist combined set to echoes. Covers both overflow (cap-exceeded) and
 // within-cap (attempted but unfixable) deferred findings.
 allDeferredIds.push(...deferredFindingIds)
-if (allDeferredIds.length > 0 && exists(".claude/echoes/workers/")) {
+if (allDeferredIds.length > 0 && exists(".rune/echoes/workers/")) {
   const combinedEcho = `## Arc Gap Remediation — All Deferred Findings (${new Date().toISOString()})\n\n` +
     `Plan: ${checkpoint.plan_file}\n` +
     `Overflow deferred (cap-exceeded): ${overflowIds.join(", ") || "none"}\n` +
     `Within-cap deferred (unfixable): ${deferredFindingIds.join(", ") || "none"}\n`
-  const existingWorkerEchoes = exists(".claude/echoes/workers/MEMORY.md")
-    ? Read(".claude/echoes/workers/MEMORY.md") : ""
-  Write(".claude/echoes/workers/MEMORY.md", existingWorkerEchoes + "\n" + combinedEcho)
+  const existingWorkerEchoes = exists(".rune/echoes/workers/MEMORY.md")
+    ? Read(".rune/echoes/workers/MEMORY.md") : ""
+  Write(".rune/echoes/workers/MEMORY.md", existingWorkerEchoes + "\n" + combinedEcho)
 }
 
 // Write remediation report

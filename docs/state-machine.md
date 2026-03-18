@@ -314,7 +314,7 @@ stateDiagram-v2
     Phase4_Review --> Phase5_EchoPersist : reviewed plan
 
     state "Phase 5: Echo Persist" as Phase5_EchoPersist
-    Phase5_EchoPersist --> Phase6_Cleanup : saved to .claude/echoes/
+    Phase5_EchoPersist --> Phase6_Cleanup : saved to .rune/echoes/
 
     state "Phase 6: Cleanup & Present" as Phase6_Cleanup
     Phase6_Cleanup --> [*] : plan delivered

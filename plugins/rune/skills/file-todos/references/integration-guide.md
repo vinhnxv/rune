@@ -21,7 +21,7 @@ All todos live inside each workflow's `tmp/{workflow}/{id}/` directory. There is
 - **No cross-session pollution** — todos from one arc run never interfere with another
 - **No talisman override needed** — the workflow output dir encodes all context
 
-**Migration note (CC-4)**: If you previously used `talisman.file_todos.dir`, remove that key — todos are now session-scoped and no project-root override is supported. If you used the `archive` subcommand, completed session data is now available in Rune Echoes (`.claude/echoes/`) and git history.
+**Migration note (CC-4)**: If you previously used `talisman.file_todos.dir`, remove that key — todos are now session-scoped and no project-root override is supported. If you used the `archive` subcommand, completed session data is now available in Rune Echoes (`.rune/echoes/`) and git history.
 
 ## Directory Resolution
 

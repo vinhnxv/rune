@@ -49,6 +49,7 @@ if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
   # shellcheck source=lib/platform.sh
   source "${SCRIPT_DIR}/lib/platform.sh"
 fi
+source "${SCRIPT_DIR}/lib/rune-state.sh"
 
 # ── PW-005 FIX: Cross-platform mtime sort helper (DRY — used for team and workflow discovery) ──
 # Reads paths from stdin, emits them sorted by mtime descending
@@ -204,11 +205,11 @@ if [[ -z "$active_team" ]]; then
   # ── Arc-batch state capture (teamless — C6 accepted limitation) ──
   # Arc-batch teams are ephemeral, but batch state file persists.
   # Capture batch iteration context even when no team is active.
-  BATCH_STATE_FILE="${CWD}/.claude/arc-batch-loop.local.md"
+  BATCH_STATE_FILE="${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"
   _capture_arc_batch_state
 
   # ── Arc-issues state capture (teamless — parallel to arc-batch) ──
-  ISSUES_STATE_FILE="${CWD}/.claude/arc-issues-loop.local.md"
+  ISSUES_STATE_FILE="${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"
   _capture_arc_issues_state
 
   # If we captured batch or issues state, write a minimal checkpoint with it
@@ -307,12 +308,12 @@ if [[ -n "$workflow_file" ]] && [[ -f "$workflow_file" ]]; then
 fi
 
 # 4. Arc checkpoint if it exists
-# BUG FIX (v1.107.0): Arc checkpoints live at .claude/arc/${id}/checkpoint.json,
+# BUG FIX (v1.107.0): Arc checkpoints live at ${RUNE_STATE}/arc/${id}/checkpoint.json,
 # NOT tmp/.arc-checkpoint.json (which never existed). Find newest checkpoint
 # belonging to current session (owner_pid matches $PPID).
 arc_checkpoint="{}"
 arc_file=""
-_ckpt_dir="${CWD}/.claude/arc"
+_ckpt_dir="${CWD}/${RUNE_STATE}/arc"
 if [[ -d "$_ckpt_dir" ]]; then
   _newest_mtime=0
   # BACK-006 FIX: Protect glob with nullglob to prevent literal-path iteration on no match
@@ -364,11 +365,11 @@ fi
 _trace "Arc phase summaries: ${arc_phase_summaries}"
 
 # 5. Arc-batch state if active (v1.72.0) — QUAL-005 FIX: shared extractor
-BATCH_STATE_FILE="${CWD}/.claude/arc-batch-loop.local.md"
+BATCH_STATE_FILE="${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"
 _capture_arc_batch_state
 
 # 6. Arc-issues state if active (parallel to arc-batch)
-ISSUES_STATE_FILE="${CWD}/.claude/arc-issues-loop.local.md"
+ISSUES_STATE_FILE="${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"
 _capture_arc_issues_state
 
 # ── WRITE CHECKPOINT (atomic) ──

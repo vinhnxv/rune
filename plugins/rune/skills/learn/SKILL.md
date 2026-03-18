@@ -4,7 +4,7 @@ description: |
   Use /rune:learn to extract and persist CLI correction patterns and review
   recurrence findings from session history into Rune Echoes memory. Runs detectors
   over recent session JSONL files and TOME findings, then writes high-confidence
-  patterns to .claude/echoes/ for future workflow improvement.
+  patterns to .rune/echoes/ for future workflow improvement.
 
   Trigger keywords: learn, session learning, persist patterns, corrections, recurrences,
   self-learning, extract patterns from sessions, cli corrections.
@@ -152,7 +152,7 @@ These run as inline grep-based scans — no separate detector script:
 **Arc failures:**
 ```bash
 # Grep checkpoint.json files for failed phases
-find -P "${PROJECT_DIR}/.claude/arc" -name "checkpoint.json" -not -type l 2>/dev/null | \
+find -P "${PROJECT_DIR}/.rune/arc" -name "checkpoint.json" -not -type l 2>/dev/null | \
   xargs grep -l '"status":"failed"' 2>/dev/null | head -10
 ```
 Extract phase name and failure reason from the checkpoint JSON.
@@ -195,7 +195,7 @@ If `--dry-run`, skip this phase and exit with the report.
 
 Otherwise, use `AskUserQuestion`:
 ```
-Write 4 patterns to .claude/echoes/workers/MEMORY.md? [y/N]
+Write 4 patterns to .rune/echoes/workers/MEMORY.md? [y/N]
 ```
 
 On "y": for each pattern, invoke echo-writer.sh with role and layer resolved from the mapping tables below (role varies by pattern type, layer varies by confidence):
@@ -222,7 +222,7 @@ Map confidence to layer:
 | >= 0.6 | notes |
 | < 0.6 | observations |
 
-On success, report: "N patterns written to .claude/echoes/."
+On success, report: "N patterns written to .rune/echoes/."
 
 ## Entry Format
 

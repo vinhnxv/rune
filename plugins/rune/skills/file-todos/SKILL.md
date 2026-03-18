@@ -203,7 +203,7 @@ Note: `wont_fix` is both a status value AND a resolution outcome. The `resolutio
 File-todos are always active in all Rune workflows. Todos are mandatory — every workflow produces and consumes file-todos as the foundation for task management and teammate assignment.
 
 ```yaml
-# .claude/talisman.yml
+# .rune/talisman.yml
 file_todos:
   triage:
     auto_approve_p1: false   # auto-approve P1 findings (skip triage)

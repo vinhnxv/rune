@@ -114,7 +114,7 @@ while (true) {
         .map(a => `${a.name}`)
     }))
   }
-  Write(".claude/arc-hierarchy-exec-table.json", JSON.stringify(jsonTable, null, 2))
+  Write(".rune/arc-hierarchy-exec-table.json", JSON.stringify(jsonTable, null, 2))
 ```
 
 ## Phase 7d: Invoke Arc for Child Plan

@@ -171,7 +171,7 @@ When reading local files (fallback path when WebSearch/WebFetch are unavailable 
 
 If WebSearch is unavailable or returns no results:
 1. Search the local codebase for `docs/solutions/` and `CLAUDE.md` patterns
-2. Check `.claude/echoes/` for relevant best practice entries
+2. Check `.rune/echoes/` for relevant best practice entries
 3. Report: "External research unavailable — findings based on local knowledge only"
 
 Never produce empty output. Always report what was attempted.

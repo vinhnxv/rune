@@ -17,7 +17,7 @@ date: 2026-02-12
 symptom: "User list endpoint takes 5+ seconds"
 root_cause: "N+1 query pattern in user.posts association"
 solution_summary: "Added includes(:posts) to User.list scope"
-echo_ref: ".claude/echoes/reviewer/MEMORY.md#etched-004@sha256:a1b2c3..."  # cross-ref with content hash
+echo_ref: ".rune/echoes/reviewer/MEMORY.md#etched-004@sha256:a1b2c3..."  # cross-ref with content hash
 confidence: high              # high | medium
 verified_by: human            # human | agent — REQUIRED for security category
 requires_human_approval: false
@@ -37,14 +37,14 @@ The `/rune:echoes` command includes Notes and Remembrance subcommands:
 /rune:echoes migrate                           # Migrate echoes with old naming
 ```
 
-**remember** — Create a Notes entry from user-provided text. Writes to `.claude/echoes/notes/MEMORY.md` (creates directory and file on demand). Notes are user-explicit memories that agents should always respect. They are never auto-pruned.
+**remember** — Create a Notes entry from user-provided text. Writes to `.rune/echoes/notes/MEMORY.md` (creates directory and file on demand). Notes are user-explicit memories that agents should always respect. They are never auto-pruned.
 
 **Protocol:**
-1. Read `.claude/echoes/notes/MEMORY.md` (or create with `<!-- echo-schema: v1 -->` header if missing)
+1. Read `.rune/echoes/notes/MEMORY.md` (or create with `<!-- echo-schema: v1 -->` header if missing)
 2. Generate H2 entry: `## Notes — <title> (YYYY-MM-DD)` where title is extracted or summarized from user text
 3. Add `**Source**: user:remember` metadata line
 4. Append user-provided content as the entry body
-5. Write back to `.claude/echoes/notes/MEMORY.md`
+5. Write back to `.rune/echoes/notes/MEMORY.md`
 6. Confirm to user what was remembered
 
 **Examples:**
@@ -58,7 +58,7 @@ The `/rune:echoes` command includes Notes and Remembrance subcommands:
 
 **promote** — Promote an ETCHED echo to a Remembrance document. Validates promotion rules, computes content hash for `echo_ref`, checks for duplicates, and writes to `docs/solutions/{category}/`. For security category, prompts for human verification via `AskUserQuestion`.
 
-**migrate** — Scans `.claude/echoes/` and updates old agent/concept names to current terminology (RENAME-2). Useful after version upgrades that rename agents or concepts.
+**migrate** — Scans `.rune/echoes/` and updates old agent/concept names to current terminology (RENAME-2). Useful after version upgrades that rename agents or concepts.
 
 ## Echo Migration (RENAME-2)
 
@@ -69,7 +69,7 @@ When agent or concept names change across versions, existing echoes may referenc
 ```
 
 **Steps:**
-1. Scan all `.claude/echoes/**/*.md` files
+1. Scan all `.rune/echoes/**/*.md` files
 2. Build a rename map from old names to new names
 3. Apply renames to entry metadata (source, evidence references)
 4. Report changes made

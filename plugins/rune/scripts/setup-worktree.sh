@@ -38,6 +38,9 @@ _trace() {
 }
 
 # ── Guard: jq dependency ──
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/lib/rune-state.sh"
+
 if ! command -v jq &>/dev/null; then
   _trace "SKIP: jq not available"
   exit 0
@@ -93,9 +96,9 @@ if [[ "$CWD" != /* ]]; then
 fi
 
 # ── Derive worktree_path if not provided ──
-# Claude Code creates worktrees at .claude/worktrees/<name>/
+# Claude Code creates worktrees at ${RUNE_STATE}/worktrees/<name>/
 if [[ -z "$WT_PATH" && -n "$WT_NAME" ]]; then
-  WT_PATH="${CWD}/.claude/worktrees/${WT_NAME}"
+  WT_PATH="${CWD}/${RUNE_STATE}/worktrees/${WT_NAME}"
 fi
 
 if [[ -z "$WT_PATH" ]]; then

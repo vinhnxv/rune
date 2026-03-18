@@ -29,6 +29,7 @@ _trace() {
 }
 
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+source "${PLUGIN_ROOT}/scripts/lib/rune-state.sh"
 
 # ── Shared venv setup (hash-guarded, lives in CLAUDE_CONFIG_DIR) ──
 # shellcheck source=lib/rune-venv.sh
@@ -113,6 +114,11 @@ fi
 # SEC-006: Canonicalize CWD before use in path construction
 [[ -n "$CWD" ]] && CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || CWD=""
 
+# ── Migrate legacy .claude/ state to .rune/ (one-time, idempotent) ──
+if [[ -n "$CWD" ]]; then
+  _rune_migrate_legacy "$CWD"
+fi
+
 # ── Worktree detection advisory ──
 # .git is a FILE (not directory) in both git worktrees and submodules.
 # Distinguish by content: worktrees contain "gitdir: .../worktrees/..." path.
@@ -120,10 +126,10 @@ _WT_ADVISORY=""
 if [[ -n "$CWD" && -f "$CWD/.git" ]]; then
   _git_content=$(head -1 "$CWD/.git" 2>/dev/null)
   if [[ "$_git_content" == "gitdir: "* && "$_git_content" == *"/worktrees/"* ]]; then
-    if [[ -f "$CWD/.claude/talisman.yml" ]]; then
+    if [[ -f "$CWD/${RUNE_STATE}/talisman.yml" ]] || [[ -f "$CWD/.claude/talisman.yml" ]]; then
       _WT_ADVISORY="\\n[Rune Worktree Mode] Running in git worktree. Config synced from main repo."
     else
-      _WT_ADVISORY="\\n[Rune Worktree Mode] WARNING: .claude/talisman.yml missing — using defaults. Run from main repo or add WorktreeCreate hook."
+      _WT_ADVISORY="\\n[Rune Worktree Mode] WARNING: .rune/talisman.yml missing — using defaults. Run from main repo or add WorktreeCreate hook."
     fi
   fi
 fi
@@ -134,13 +140,13 @@ inject_echo_summary() {
   [[ -n "$CWD" ]] || return 0
 
   # Gate: talisman config check (grep-based, no yq dependency)
-  local talisman="${CWD}/.claude/talisman.yml"
+  local talisman="${CWD}/${RUNE_STATE}/talisman.yml"
   if [[ -f "$talisman" && ! -L "$talisman" ]]; then
     local sess_sum=$(grep -A1 'session_summary:' "$talisman" 2>/dev/null | grep -o 'false' || true)
     [[ "$sess_sum" == "false" ]] && return 0
   fi
 
-  local echo_dir="${CWD}/.claude/echoes"
+  local echo_dir="${CWD}/${RUNE_STATE}/echoes"
   [[ -d "$echo_dir" && ! -L "$echo_dir" ]] || return 0
 
   local summary=""
@@ -237,7 +243,7 @@ if [[ "$EVENT" == "startup" ]]; then
   # Read context_monitor.enabled from talisman (graceful degradation — no yq required)
   CTX_ENABLED="true"
   if [[ -n "$CWD" ]]; then
-    TALISMAN_FILE="${CWD}/.claude/talisman.yml"
+    TALISMAN_FILE="${CWD}/${RUNE_STATE}/talisman.yml"
     if [[ -f "$TALISMAN_FILE" && ! -L "$TALISMAN_FILE" ]]; then
       _val=$(grep -A1 'context_monitor:' "$TALISMAN_FILE" 2>/dev/null | grep 'enabled:' | grep -o 'false' || true)
       [[ "$_val" == "false" ]] && CTX_ENABLED="false"

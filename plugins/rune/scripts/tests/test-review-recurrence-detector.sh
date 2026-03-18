@@ -78,8 +78,8 @@ setup_tome() {
 setup_echo() {
   local role="$1"
   local content="$2"
-  mkdir -p "${TMPDIR_TEST}/.claude/echoes/${role}"
-  printf '%s\n' "$content" > "${TMPDIR_TEST}/.claude/echoes/${role}/MEMORY.md"
+  mkdir -p "${TMPDIR_TEST}/.rune/echoes/${role}"
+  printf '%s\n' "$content" > "${TMPDIR_TEST}/.rune/echoes/${role}/MEMORY.md"
 }
 
 # ═══════════════════════════════════════════════════════════════

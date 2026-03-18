@@ -71,6 +71,7 @@ SCRIPT_DIR_EARLY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "${SCRIPT_DIR_EARLY}/lib/platform.sh" ]]; then
   # shellcheck source=lib/platform.sh
   source "${SCRIPT_DIR_EARLY}/lib/platform.sh"
+  source "${SCRIPT_DIR_EARLY}/lib/rune-state.sh"
 fi
 
 # --- Resolve config dir for talisman config lookup ---
@@ -80,7 +81,7 @@ CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 DISCIPLINE_ENABLED=true
 # Default block_on_fail=true (BLOCK mode). Opt out: discipline.block_on_fail: false in talisman.
 BLOCK_ON_FAIL=true
-for TALISMAN_PATH in "${CWD}/.claude/talisman.yml" "${CHOME}/talisman.yml"; do
+for TALISMAN_PATH in "${CWD}/${RUNE_STATE}/talisman.yml" "${CHOME}/talisman.yml"; do
   if [[ -f "$TALISMAN_PATH" ]]; then
     if command -v yq &>/dev/null; then
       DISCIPLINE_ENABLED=$(yq -r 'if .discipline.enabled == false then "false" else "true" end' "$TALISMAN_PATH" 2>/dev/null) || DISCIPLINE_ENABLED="true"

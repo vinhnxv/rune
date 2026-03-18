@@ -8,6 +8,9 @@
 
 set -euo pipefail
 
+_CC_INSPECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${_CC_INSPECT_DIR}/lib/rune-state.sh"
+
 # --- Argument parsing ---
 SECTION="all"
 JSON_MODE=false
@@ -358,8 +361,8 @@ if should_show "runtime"; then
     fi
 
     # Arc checkpoint
-    if [[ -d ".claude/arc" ]]; then
-      checkpoint_count=$(find .claude/arc -name 'checkpoint.json' 2>/dev/null | wc -l | tr -d ' ')
+    if [[ -d "${RUNE_STATE}/arc" ]]; then
+      checkpoint_count=$(find ${RUNE_STATE}/arc -name 'checkpoint.json' 2>/dev/null | wc -l | tr -d ' ')
       echo "  Arc checkpoints    : ${checkpoint_count}"
     fi
 
@@ -393,9 +396,9 @@ if should_show "runtime"; then
 
   # Talisman config
   echo "  Talisman Config:"
-  if [[ -f ".claude/talisman.yml" ]]; then
-    size=$(du -h .claude/talisman.yml 2>/dev/null | cut -f1)
-    echo "    Project: .claude/talisman.yml (${size})"
+  if [[ -f "${RUNE_STATE}/talisman.yml" ]]; then
+    size=$(du -h ${RUNE_STATE}/talisman.yml 2>/dev/null | cut -f1)
+    echo "    Project: ${RUNE_STATE}/talisman.yml (${size})"
   else
     echo "    Project: (not found)"
   fi
@@ -412,11 +415,11 @@ fi
 #  Section 6: Echoes (Persistent Memory)
 # ═══════════════════════════════════════════════
 if should_show "echoes"; then
-  echo "▸ Rune Echoes (.claude/echoes/)"
+  echo "▸ Rune Echoes (${RUNE_STATE}/echoes/)"
   echo "─────────────────────────────────────────────────────"
-  if [[ -d ".claude/echoes" ]]; then
+  if [[ -d "${RUNE_STATE}/echoes" ]]; then
     total_entries=0
-    for role_dir in .claude/echoes/*/; do
+    for role_dir in ${RUNE_STATE}/echoes/*/; do
       if [[ -d "$role_dir" ]]; then
         role=$(basename "$role_dir")
         if [[ -f "${role_dir}MEMORY.md" ]]; then

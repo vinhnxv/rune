@@ -33,7 +33,7 @@ Skill("rune:cancel-arc", "--variant=issues")
 ```
 
 Invoke `/rune:cancel-arc --variant=issues` to cancel only the arc-issues loop state file
-(`.claude/arc-issues-loop.local.md`). Session isolation is enforced — only cancels loops
+(`.rune/arc-issues-loop.local.md`). Session isolation is enforced — only cancels loops
 owned by this session.
 
 The currently-running arc will finish normally, but no further issues will be started.

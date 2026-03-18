@@ -5,7 +5,7 @@
 ## State Directory
 
 ```
-.claude/audit-state/
+.rune/audit-state/
 ├── manifest.json         # Codebase inventory (file metadata)
 ├── state.json            # Per-file audit records
 ├── workflows.json        # Cross-file workflow tracking (Tier 2)
@@ -19,7 +19,7 @@
     └── archive/          # Compressed old snapshots
 ```
 
-**Default**: `.claude/audit-state/` is gitignored. Set `talisman.audit.incremental.version_controlled: true` to track in git.
+**Default**: `.rune/audit-state/` is gitignored. Set `talisman.audit.incremental.version_controlled: true` to track in git.
 
 ## manifest.json Schema
 
@@ -166,17 +166,17 @@ All state file writes follow the 3-step atomic protocol:
 
 ```bash
 # 1. Write to temp file
-write_json(data, ".claude/audit-state/state.json.tmp")
+write_json(data, ".rune/audit-state/state.json.tmp")
 # 2. fsync temp file (flush to disk)
 sync  # or fsync on the temp file
 # 3. Rename temp to target (atomic on POSIX)
-mv ".claude/audit-state/state.json.tmp" ".claude/audit-state/state.json"
+mv ".rune/audit-state/state.json.tmp" ".rune/audit-state/state.json"
 ```
 
 **Pre-flight cleanup**: On startup, delete any leftover `.tmp` files:
 
 ```bash
-for tmpFile in .claude/audit-state/*.tmp; do
+for tmpFile in .rune/audit-state/*.tmp; do
   [ -f "$tmpFile" ] && rm -f "$tmpFile"
 done
 ```
@@ -188,8 +188,8 @@ Never recover from `.tmp` files — always treat them as potentially corrupt.
 Uses `mkdir` as an atomic lock primitive (POSIX-atomic create-or-fail):
 
 ```
-Lock directory: .claude/audit-state/.lock/
-Lock metadata:  .claude/audit-state/.lock/meta.json
+Lock directory: .rune/audit-state/.lock/
+Lock metadata:  .rune/audit-state/.lock/meta.json
 
 acquireLock():
   1. mkdir .lock/ (atomic — fails if exists)

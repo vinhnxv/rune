@@ -171,7 +171,7 @@ printf "\n=== Arc-batch State Without Team ===\n"
 # causing a grep failure that propagates through pipefail in the source script.
 # This is a known bash edge case — command substitution with failed pipeline under
 # set -eo pipefail. We add summary_enabled: true to avoid this.
-cat > "$MOCK_CWD/.claude/arc-batch-loop.local.md" <<BATCH
+cat > "$MOCK_CWD/.rune/arc-batch-loop.local.md" <<BATCH
 ---
 active: true
 iteration: 3
@@ -201,7 +201,7 @@ else
   printf "  FAIL: No checkpoint file created for batch state\n"
 fi
 
-rm -f "$MOCK_CWD/.claude/arc-batch-loop.local.md"
+rm -f "$MOCK_CWD/.rune/arc-batch-loop.local.md"
 rm -f "$MOCK_CWD/tmp/.rune-compact-checkpoint.json"
 
 # ═══════════════════════════════════════════════════════════════

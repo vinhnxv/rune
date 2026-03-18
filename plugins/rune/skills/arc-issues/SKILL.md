@@ -40,7 +40,7 @@ argument-hint: "[--label LABEL | issues-queue.txt | #N ...] [--resume] [--dry-ru
 
 Processes GitHub Issues as a work queue. For each issue: fetches content → generates plan in `tmp/gh-plans/` → runs `/rune:arc` → posts summary comment → closes issue via `Fixes #N` in PR body.
 
-**Core loop**: Stop hook pattern (same as arc-batch). Each arc runs as a native Claude Code turn. Between arcs, the Stop hook reads `.claude/arc-issues-loop.local.md`, marks current issue completed, posts GitHub comment, updates labels, and re-injects the next arc prompt.
+**Core loop**: Stop hook pattern (same as arc-batch). Each arc runs as a native Claude Code turn. Between arcs, the Stop hook reads `.rune/arc-issues-loop.local.md`, marks current issue completed, posts GitHub comment, updates labels, and re-injects the next arc prompt.
 
 ## Usage
 
@@ -119,12 +119,12 @@ Phase 6: Write state file + invoke first arc (Stop hook handles rest)
 
 ## Orchestration
 
-Phase 6 writes `.claude/arc-issues-loop.local.md` (state file) and invokes the first arc natively. The Stop hook (`scripts/arc-issues-stop-hook.sh`) handles all subsequent issues via self-invoking loop.
+Phase 6 writes `.rune/arc-issues-loop.local.md` (state file) and invokes the first arc natively. The Stop hook (`scripts/arc-issues-stop-hook.sh`) handles all subsequent issues via self-invoking loop.
 
 **How the loop works:**
 1. Phase 6 invokes `/rune:arc` for the first issue's plan (native turn)
 2. When arc completes, Claude's response ends → Stop event fires
-3. `arc-issues-stop-hook.sh` reads `.claude/arc-issues-loop.local.md`
+3. `arc-issues-stop-hook.sh` reads `.rune/arc-issues-loop.local.md`
 4. Posts GitHub comment + updates labels for the completed issue
 5. Marks current issue completed/failed in `batch-progress.json`
 6. Finds next pending issue

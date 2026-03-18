@@ -138,7 +138,7 @@ else if (flags.resume) {
   // Mirrors rune:arc Decision Matrix 2 (R1-R5) from arc-resume.md
   const CHOME = Bash('echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"').trim()
   const currentPid = Bash('echo $PPID').trim()
-  const stateFile = Read('.claude/arc-issues-loop.local.md')
+  const stateFile = Read('.rune/arc-issues-loop.local.md')
 
   // R1: No state file → check progress file fallback
   if (!stateFile) {
@@ -158,7 +158,7 @@ else if (flags.resume) {
       error(`Cannot resume: issues batch belongs to different config dir`)
       error(`  Stored:  ${storedCfg}`)
       error(`  Current: ${CHOME}`)
-      error(`Delete .claude/arc-issues-loop.local.md manually to force-claim, or use the original CLAUDE_CONFIG_DIR.`)
+      error(`Delete .rune/arc-issues-loop.local.md manually to force-claim, or use the original CLAUDE_CONFIG_DIR.`)
       return
     }
 
@@ -183,7 +183,7 @@ else if (flags.resume) {
     // stop hook race if it fires between ownership claim and Phase 6.
     const patchedState = stateFile.replace(/compact_pending:\s*true/, 'compact_pending: false')
     if (patchedState !== stateFile) {
-      Write('.claude/arc-issues-loop.local.md', patchedState)
+      Write('.rune/arc-issues-loop.local.md', patchedState)
       warn('Reset stale compact_pending in state file.')
     }
   }
@@ -696,7 +696,7 @@ const configDir = Bash(`cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && 
 const ownerPid = Bash(`echo $PPID`).trim()
 
 // Pre-creation guard: check for active batch from another session
-const existingState = Read('.claude/arc-issues-loop.local.md')
+const existingState = Read('.rune/arc-issues-loop.local.md')
 if (existingState && existingState.includes('active: true')) {
   const existingPid = existingState.match(/owner_pid:\s*(\d+)/)?.[1]
   const existingCfg = existingState.match(/config_dir:\s*(.+)/)?.[1]?.trim()
@@ -727,7 +727,7 @@ const autoMerge = flags.noMerge ? false : (batchConfig.auto_merge ?? true)
 const summaryEnabled = batchConfig?.summaries?.enabled !== false  // default: true
 
 // Write state file for Stop hook
-Write('.claude/arc-issues-loop.local.md', `---
+Write('.rune/arc-issues-loop.local.md', `---
 active: true
 iteration: 1
 total_plans: ${issuesForArc.length}
@@ -775,7 +775,7 @@ Skill('rune:arc', `${firstIssue.planPath} --skip-freshness --accept-external${me
 // - Only the arc skill should orchestrate execution.
 
 // After the first arc completes, Claude's response ends.
-// The Stop hook fires, reads .claude/arc-issues-loop.local.md,
+// The Stop hook fires, reads .rune/arc-issues-loop.local.md,
 // posts GitHub comment for completed issue, updates labels,
 // marks it done in batch-progress.json, finds next issue,
 // and re-injects the arc prompt. This repeats until all done.

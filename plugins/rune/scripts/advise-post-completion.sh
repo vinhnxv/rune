@@ -50,6 +50,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=resolve-session-identity.sh
 source "${SCRIPT_DIR}/resolve-session-identity.sh"
+source "${SCRIPT_DIR}/lib/rune-state.sh"
 
 # --- Debounce: once per session ---
 # SEC-P3-005: Use TMPDIR (non-predictable on macOS) + UID-scoped path
@@ -83,7 +84,7 @@ shopt -u nullglob
 FOUND_COMPLETED=false
 
 shopt -s nullglob
-for f in "${CWD}/.claude/arc/"*/checkpoint.json; do
+for f in "${CWD}/${RUNE_STATE}/arc/"*/checkpoint.json; do
   [[ -f "$f" ]] || continue
   [[ -L "$f" ]] && continue  # Symlink guard
 

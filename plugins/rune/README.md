@@ -61,14 +61,14 @@ Rune generates output files in directories that are typically gitignored. To let
     "todos/",
     "tmp/",
     "reviews/",
-    ".claude/arc/",
-    ".claude/echoes/",
-    ".claude/arc-batch-loop.local.md",
-    ".claude/arc-phase-loop.local.md",
-    ".claude/arc-hierarchy-loop.local.md",
-    ".claude/arc-issues-loop.local.md",
+    ".rune/arc/",
+    ".rune/echoes/",
+    ".rune/arc-batch-loop.local.md",
+    ".rune/arc-phase-loop.local.md",
+    ".rune/arc-hierarchy-loop.local.md",
+    ".rune/arc-issues-loop.local.md",
     ".claude/CLAUDE.local.md",
-    ".claude/talisman.yml"
+    ".rune/talisman.yml"
   ]
 }
 ```
@@ -418,7 +418,7 @@ When a required artifact is missing, the resolution strategy is configured via `
 ### Configure
 
 ```yaml
-# .claude/talisman.yml
+# .rune/talisman.yml
 work:
   hierarchy:
     enabled: true                    # Enable hierarchical plan support
@@ -575,7 +575,7 @@ Codex findings go through a verification layer before entering the TOME:
 ### Configuration
 
 ```yaml
-# .claude/talisman.yml
+# .rune/talisman.yml
 codex:
   disabled: false                   # Set true to disable Codex Oracle entirely
   model: "gpt-5.3-codex"           # Codex model (gpt-5-codex, gpt-5.3-codex, gpt-5.3-codex-spark)
@@ -597,7 +597,7 @@ When Codex Oracle is disabled (via `codex.disabled: true`) or the CLI is not ins
 
 ## Rune Echoes (Memory)
 
-Rune Echoes is a project-level memory system stored in `.claude/echoes/`. After each review or audit, agents persist patterns and learnings. Future sessions read these echoes to avoid repeating mistakes.
+Rune Echoes is a project-level memory system stored in `.rune/echoes/`. After each review or audit, agents persist patterns and learnings. Future sessions read these echoes to avoid repeating mistakes.
 
 ### 5-Tier Lifecycle
 
@@ -818,7 +818,7 @@ Summoned during `/rune:strive` as self-organizing swarm workers:
 The fastest way to configure Rune for your project:
 
 ```bash
-/rune:talisman init     # Auto-detect stack, generate .claude/talisman.yml
+/rune:talisman init     # Auto-detect stack, generate .rune/talisman.yml
 /rune:talisman audit    # Check existing config for missing sections
 /rune:talisman guide    # Learn about configuration options
 ```
@@ -830,7 +830,7 @@ See the [Talisman Deep Dive guide (EN)](../../docs/guides/rune-talisman-deep-div
 Override file classification defaults in your project:
 
 ```yaml
-# .claude/talisman.yml
+# .rune/talisman.yml
 rune-gaze:
   backend_extensions: [.py, .go]
   frontend_extensions: [.tsx, .ts]
@@ -1069,7 +1069,7 @@ Rune includes an MCP server (`echo-search`) for full-text search over Rune Echoe
 |------|-------------|
 | `echo_search` | Multi-pass retrieval: decomposition, BM25, composite scoring, group expansion, retry, reranking. |
 | `echo_details` | Fetch full content for specific echo entries by ID. Supports `scope` param (project/global/all). |
-| `echo_reindex` | Rebuild the FTS5 index from `.claude/echoes/*/MEMORY.md` source files. |
+| `echo_reindex` | Rebuild the FTS5 index from `.rune/echoes/*/MEMORY.md` source files. |
 | `echo_stats` | Index statistics: entry count, layer/role breakdown, last indexed timestamp. |
 | `echo_record_access` | Record access for frequency-based scoring. Powers auto-promotion. Supports `scope` param (project/global). |
 | `echo_upsert_group` | Create or update a semantic group with entry memberships. |
@@ -1190,7 +1190,7 @@ Configure via `talisman.yml` → `teammate_lifecycle` section.
 
 - Agent prompts include Truthbinding anchors to resist prompt injection
 - Review output in `tmp/` is ephemeral and not committed
-- `.gitignore` excludes `.claude/echoes/` by default (opt-in to version control)
+- `.gitignore` excludes `.rune/echoes/` by default (opt-in to version control)
 - Sensitive data filter rejects API keys, passwords, tokens from echo entries
 - All findings require verified evidence from source code
 - **Hook-based enforcement**: 19 event-driven hook scripts provide deterministic guardrails (9 enforcement + 4 quality/lifecycle + 2 compaction resilience + 4 session stop):

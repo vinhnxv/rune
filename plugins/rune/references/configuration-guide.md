@@ -4,7 +4,7 @@
 
 When Rune reads `talisman.yml`, it resolves configuration from three sources in priority order (highest to lowest):
 
-1. **`.claude/talisman.yml`** — project-local configuration (highest priority)
+1. **`.rune/talisman.yml`** — project-local configuration (highest priority)
 2. **`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/talisman.yml`** — global user configuration
 3. **Built-in defaults** — hardcoded values used when neither file exists
 
@@ -488,7 +488,7 @@ See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integratio
 
 ---
 
-Projects can override defaults via `.claude/talisman.yml` (project) or `~/.claude/talisman.yml` (global):
+Projects can override defaults via `.rune/talisman.yml` (project) or `~/.rune/talisman.yml` (global):
 
 ```yaml
 rune-gaze:
@@ -881,7 +881,7 @@ const deprecated = {
 }
 for (const [key, message] of Object.entries(deprecated)) {
   if (getNestedKey(talisman, key) !== undefined) {
-    warn(`Deprecated talisman key "${key}": ${message}. Remove from .claude/talisman.yml.`)
+    warn(`Deprecated talisman key "${key}": ${message}. Remove from .rune/talisman.yml.`)
   }
 }
 ```

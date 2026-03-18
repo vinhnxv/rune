@@ -116,7 +116,7 @@ for (const [section, agents] of assignments) {
         Do not write implementation code. Research and enrichment only.
         Include evidence from actual source files (Rune Traces).
         Use Context7 MCP for framework docs, WebSearch for current practices.
-        Check .claude/echoes/ for relevant past learnings.
+        Check .rune/echoes/ for relevant past learnings.
         Follow the Enrichment Output Format (Best Practices, Performance,
         Implementation Details, Edge Cases & Risks, References).`
     })
@@ -204,7 +204,7 @@ for (const agentName of uniqueAgents(assignments)) {
       1. TaskList() → find unblocked, unowned tasks matching your name
       2. Claim: TaskUpdate({ taskId, owner: "${agentName}", status: "in_progress" })
       3. Read the plan section from ${planPath}
-      4. Check .claude/echoes/ for relevant past learnings (if directory exists)
+      4. Check .rune/echoes/ for relevant past learnings (if directory exists)
       5. Research codebase patterns via Glob/Grep/Read. For external research,
          use Context7 MCP (resolve-library-id → query-docs) for framework docs,
          and WebSearch for current best practices (2026+).

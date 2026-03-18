@@ -229,7 +229,7 @@ if (deployChecklist && !deployChecklist.includes('timed out')) {
 | Resource | Location |
 |----------|----------|
 | Deploy checklist | `tmp/arc/{id}/deploy-checklist.md` |
-| Checkpoint state | `.claude/arc/{id}/checkpoint.json` (phase: "deploy_verify") |
+| Checkpoint state | `.rune/arc/{id}/checkpoint.json` (phase: "deploy_verify") |
 | Team directory | `$CHOME/teams/arc-deploy-{id}/` |
 
 Recovery: On `--resume`, if deploy_verify is `in_progress`, clean up stale team and re-run from Step 0. The phase is idempotent — re-running overwrites the checklist file.

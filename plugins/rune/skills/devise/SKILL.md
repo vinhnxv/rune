@@ -95,7 +95,7 @@ Phase 4.5: Technical Review (optional — decree-arbiter + knowledge-keeper + co
     ↓
 Phase 4D: Grounding Gate (ALWAYS — evidence-verifier + assumption-slayer, even with --quick)
     ↓
-Phase 5: Echo Persist (save learnings to .claude/echoes/)
+Phase 5: Echo Persist (save learnings to .rune/echoes/)
     ↓
 Phase 6: Cleanup & Present (shutdown teammates, TeamDelete, present plan)
     ↓
@@ -320,8 +320,8 @@ See [plan-review.md](references/plan-review.md) Phase 4D section for the full pr
 Persist planning learnings to Rune Echoes:
 
 ```javascript
-if (exists(".claude/echoes/planner/")) {
-  appendEchoEntry(".claude/echoes/planner/MEMORY.md", {
+if (exists(".rune/echoes/planner/")) {
+  appendEchoEntry(".rune/echoes/planner/MEMORY.md", {
     layer: "inscribed",
     source: `rune:devise ${timestamp}`,
     // ... key learnings from this planning session

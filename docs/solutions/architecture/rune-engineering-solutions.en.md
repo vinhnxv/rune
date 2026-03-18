@@ -254,7 +254,7 @@ Each phase summons a fresh team with **per-phase tool restrictions** and **per-p
 
 **Problem**: A 26-phase pipeline running for 30-90 minutes will inevitably encounter interruptions — crashes, token limits, session timeouts.
 
-**Solution**: Persistent checkpointing at `.claude/arc/{id}/checkpoint.json`:
+**Solution**: Persistent checkpointing at `.rune/arc/{id}/checkpoint.json`:
 - Saves after each phase completion with **SHA-256 hashes** for artifact integrity
 - Schema versioning with auto-migration (v2 → v6 across 4 migration steps)
 - `PHASE_ORDER` array defines canonical execution order (non-sequential numbering for backward compatibility)
@@ -266,7 +266,7 @@ Each phase summons a fresh team with **per-phase tool restrictions** and **per-p
 **Problem**: Batch operations (`arc-batch`, `arc-hierarchy`, `arc-issues`) need to execute multiple arc runs sequentially, but each arc run is a full session. Traditional subprocesses add complexity.
 
 **Solution**: Leveraging Claude Code's `Stop` hook event to create persistent execution loops:
-1. State file (`.claude/arc-batch-loop.local.md`) tracks progress: current plan index, completed plans, failed plans
+1. State file (`.rune/arc-batch-loop.local.md`) tracks progress: current plan index, completed plans, failed plans
 2. When an arc run completes, the `Stop` hook fires, reads state, advances the index, and **re-injects the next arc prompt** via blocking JSON output
 3. This creates a loop without subprocess management
 4. Session isolation guard ensures each loop belongs to its owner session
@@ -417,7 +417,7 @@ Additionally, a **Context Critical Guard** (`guard-context-critical.sh`) blocks 
 
 **Problem**: Agents rediscover the same patterns, make the same mistakes, and re-learn the same project conventions across sessions.
 
-**Solution**: Persistent agent memory in `.claude/echoes/{role}/MEMORY.md` with a 5-tier lifecycle:
+**Solution**: Persistent agent memory in `.rune/echoes/{role}/MEMORY.md` with a 5-tier lifecycle:
 
 | Tier | Durability | Pruning | Created by |
 |------|-----------|---------|------------|

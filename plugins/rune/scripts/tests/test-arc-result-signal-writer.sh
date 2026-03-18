@@ -51,7 +51,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 MOCK_CWD="$TMP_DIR/project"
 mkdir -p "$MOCK_CWD/tmp"
 mkdir -p "$MOCK_CWD/.git"   # Required by SEC-001
-mkdir -p "$MOCK_CWD/.claude/arc/test-arc-1"
+mkdir -p "$MOCK_CWD/.rune/arc/test-arc-1"
 
 # ═══════════════════════════════════════════════════════════════
 # 1. Fast-path exit for non-checkpoint writes
@@ -80,7 +80,7 @@ fi
 # ═══════════════════════════════════════════════════════════════
 printf "\n=== Incomplete Checkpoint ===\n"
 
-CKPT_FILE="$MOCK_CWD/.claude/arc/test-arc-1/checkpoint.json"
+CKPT_FILE="$MOCK_CWD/.rune/arc/test-arc-1/checkpoint.json"
 cat > "$CKPT_FILE" <<JSON
 {
   "id": "test-arc-1",

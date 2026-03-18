@@ -298,7 +298,7 @@ proceed with extra verification instructions for the fixer.
 
 ### Layer 3: Reliability Tracking (Deferred to v2.0)
 
-**Cost:** Write to `.claude/echoes/`
+**Cost:** Write to `.rune/echoes/`
 **When:** After each review session (future)
 
 Track per-agent hallucination rates over time. Agents with high hallucination rates get additional verification in future runs.

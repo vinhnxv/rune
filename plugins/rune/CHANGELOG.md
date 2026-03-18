@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [1.181.0] - 2026-03-18
+
+### Changed
+
+- **State directory migration**: All Rune workflow state moved from `.claude/` to `.rune/`
+  - Arc checkpoints: `.claude/arc/` → `.rune/arc/`
+  - Echoes: `.claude/echoes/` → `.rune/echoes/`
+  - Talisman config: `.claude/talisman.yml` → `.rune/talisman.yml`
+  - Audit state: `.claude/audit-state/` → `.rune/audit-state/`
+  - Loop state files, worktrees, search indexes: all under `.rune/`
+  - **Auto-migration**: Existing `.claude/` state is automatically moved on first session start via `_rune_migrate_legacy()` in `lib/rune-state.sh`
+  - **Motivation**: Claude Code v2.1.78 marks `.claude/` as protected; `.rune/` eliminates permission prompts
+  - **Talisman fallback**: `.rune/talisman.yml` is primary; `.claude/talisman.yml` is read as fallback with deprecation warning
+
+### Added
+
+- New library: `lib/rune-state.sh` — shared shell library for Rune state directory resolution (`RUNE_STATE`, `RUNE_STATE_ABS`, `_rune_ensure_dir()`, `_rune_migrate_legacy()`)
+- New reference: `lib/rune-state-skill.md` — skill-level constant reference for `.rune/` paths
+
 ## [1.180.0] - 2026-03-18
 
 ### Added

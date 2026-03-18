@@ -6,7 +6,7 @@ Extracted from SKILL.md Phase 5 in v1.110.0 for context reduction.
 
 **Consumers**: SKILL.md Phase 5 (Start Batch Loop)
 **Inputs**: `planPaths` (array), `progressFile` (string), `autoMerge` (boolean), `summaryEnabled` (boolean), `arcPassthroughFlags` (array of validated flag strings)
-**Outputs**: `.claude/arc-batch-loop.local.md` (state file), first arc invocation
+**Outputs**: `.rune/arc-batch-loop.local.md` (state file), first arc invocation
 
 ## Algorithm
 
@@ -30,7 +30,7 @@ const configDir = Bash(`cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && 
 const ownerPid = Bash(`echo $PPID`).trim()
 
 // ── Pre-creation guard: check for existing batch from another session ──
-const existingState = Read(".claude/arc-batch-loop.local.md") // returns null/error if not found
+const existingState = Read(".rune/arc-batch-loop.local.md") // returns null/error if not found
 if (existingState && existingState.includes("active: true")) {
   const existingPid = existingState.match(/owner_pid:\s*(\d+)/)?.[1]
   const existingCfg = existingState.match(/config_dir:\s*(.+)/)?.[1]?.trim()
@@ -58,7 +58,7 @@ if (existingState && existingState.includes("active: true")) {
 
 // ── Write state file for Stop hook ──
 // Format matches ralph-wiggum's .local.md convention (YAML frontmatter)
-Write(".claude/arc-batch-loop.local.md", `---
+Write(".rune/arc-batch-loop.local.md", `---
 active: true
 iteration: 1
 max_iterations: 0
@@ -146,7 +146,7 @@ Skill("rune:arc", arcArgs)
 
 1. Phase 5 invokes `/rune:arc` for the first plan (native turn)
 2. When arc completes, Claude's response ends → Stop event fires
-3. `arc-batch-stop-hook.sh` reads `.claude/arc-batch-loop.local.md`
+3. `arc-batch-stop-hook.sh` reads `.rune/arc-batch-loop.local.md`
 4. Marks current plan as completed in `batch-progress.json`
 5. Finds next pending plan
 6. Re-injects arc prompt via `{"decision":"block","reason":"<prompt>"}`

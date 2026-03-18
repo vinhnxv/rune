@@ -749,7 +749,7 @@ class TestEchoAccumulation:
         """
         signal_dir = tmp_path / "tmp" / ".rune-signals"
         (tmp_path / "tmp").mkdir()
-        echo_path = ".claude/echoes/orchestrator/MEMORY.md"
+        echo_path = ".rune/echoes/orchestrator/MEMORY.md"
 
         tool_input = json.dumps({
             "tool_name": "Write",

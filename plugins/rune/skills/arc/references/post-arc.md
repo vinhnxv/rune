@@ -14,7 +14,7 @@ Post-pipeline lifecycle steps that run after all 29 phases complete (or after th
 
 ```javascript
 // ── Update State File with Completion ──
-const stateFile = ".claude/arc-phase-loop.local.md"
+const stateFile = ".rune/arc-phase-loop.local.md"
 const stateExists = Bash(`test -f "${stateFile}" && echo "yes" || echo "no"`).trim()
 if (stateExists === "yes") {
   const stateContent = Read(stateFile)
@@ -30,7 +30,7 @@ if (stateExists === "yes") {
 After the plan stamp, persist arc quality metrics to echoes for cross-session learning:
 
 ```javascript
-if (exists(".claude/echoes/")) {
+if (exists(".rune/echoes/")) {
   // CDX-009 FIX: totalDuration is in milliseconds (Date.now() - arcStart), so divide by 60_000 for minutes.
   const totalDuration = Date.now() - arcStart  // milliseconds
   const metrics = {
@@ -44,7 +44,7 @@ if (exists(".claude/echoes/")) {
     gap_missing: missingCount,
   }
 
-  appendEchoEntry(".claude/echoes/planner/MEMORY.md", {
+  appendEchoEntry(".rune/echoes/planner/MEMORY.md", {
     layer: "inscribed",
     source: `rune:arc ${id}`,
     content: `Arc completed: ${metrics.phases_completed}/${PHASE_ORDER.length} phases, ` +
@@ -81,7 +81,7 @@ if (decisions.length > 0) {
 
   // Write to planner/ echoes (same as existing post-arc echo) so /rune:devise echo-reader surfaces them
   const planName = checkpoint.plan_file?.split('/').pop()?.replace('.md', '') || id
-  appendEchoEntry(".claude/echoes/planner/MEMORY.md", {
+  appendEchoEntry(".rune/echoes/planner/MEMORY.md", {
     layer: "inscribed",
     source: `rune:arc ${id} decisions`,
     content: `Key decisions for ${planName}:\n${topDecisions.map(d => `- ${d}`).join("\n")}`
@@ -92,7 +92,7 @@ if (decisions.length > 0) {
 > **Design notes**:
 > - Uses `checkpoint.phases.work.artifact` to find work dir — `workTimestamp` is not available in post-arc context
 > - Regex `(?=\n## [^\n]|\s*$)` handles EOF without trailing newline and only stops at `## ` headings (not `###` or `####`)
-> - Writes to `.claude/echoes/planner/MEMORY.md` (same target as existing post-arc echo) — NOT `workers/` — so `/rune:devise` echo-reader surfaces decisions during planning
+> - Writes to `.rune/echoes/planner/MEMORY.md` (same target as existing post-arc echo) — NOT `workers/` — so `/rune:devise` echo-reader surfaces decisions during planning
 > - Chronological order preserved instead of word-count sorting (longer ≠ more important)
 > - Max 5 decisions per arc (prevent echo bloat)
 > - Graceful: if no `### Decisions` sections exist → skip, zero side effect
@@ -103,7 +103,7 @@ if (decisions.length > 0) {
 The Tarnished has claimed the Elden Throne.
 
 Plan: {plan_file}
-Checkpoint: .claude/arc/{id}/checkpoint.json
+Checkpoint: .rune/arc/{id}/checkpoint.json
 Branch: {branch_name}
 
 Phases:
@@ -141,7 +141,7 @@ Files changed: {file_count}
 Time: {total_duration}
 
 Artifacts: tmp/arc/{id}/
-Checkpoint: .claude/arc/{id}/checkpoint.json
+Checkpoint: .rune/arc/{id}/checkpoint.json
 
 Next steps:
 1. Review TOME findings: tmp/arc/{id}/tome.md

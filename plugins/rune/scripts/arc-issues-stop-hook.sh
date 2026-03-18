@@ -13,7 +13,7 @@
 #   - Fixes #N injection into arc prompt for auto-close PR linking
 #   - Session isolation (config_dir + owner_pid)
 #
-# State file: .claude/arc-issues-loop.local.md (YAML frontmatter)
+# State file: .rune/arc-issues-loop.local.md (YAML frontmatter)
 # Progress file: tmp/gh-issues/batch-progress.json (plans[] schema_version 2)
 # Hook event: Stop
 # Timeout: 15s
@@ -44,13 +44,14 @@ arc_guard_jq_required
 source "${SCRIPT_DIR}/lib/stop-hook-common.sh"
 # shellcheck source=lib/platform.sh
 source "${SCRIPT_DIR}/lib/platform.sh"
+source "${SCRIPT_DIR}/lib/rune-state.sh"
 
 # ── GUARD 2: Input size cap + GUARD 3: CWD extraction ──
 parse_input
 resolve_cwd
 
 # ── GUARD 4: State file existence ──
-STATE_FILE="${CWD}/.claude/arc-issues-loop.local.md"
+STATE_FILE="${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"
 check_state_file "$STATE_FILE"
 
 # ── GUARD 5: Symlink rejection ──
@@ -641,7 +642,7 @@ ${GH_STATUS_STEPS}1. Verify git state is clean: git status
    a. Parse the plan path from \$ARGUMENTS (or read tmp/.rune-arc-batch-next-plan.txt)
    b. Read and execute arc-preflight.md (branch strategy, plan validation)
    c. Read and execute arc-checkpoint-init.md (create checkpoint)
-   d. Write the phase loop state file (.claude/arc-phase-loop.local.md)
+   d. Write the phase loop state file (.rune/arc-phase-loop.local.md)
    e. Execute the first pending phase
 
    Your response MUST NOT end after step 5. Step 5 loads instructions.

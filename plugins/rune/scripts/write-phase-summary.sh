@@ -2,7 +2,7 @@
 # write-phase-summary.sh — Deterministic phase group summary generator
 # NOTE: Not yet wired into arc phases — planned for future integration
 # Usage: write-phase-summary.sh <group_name> <arc_id> <phase_range>
-# Reads: .claude/arc/{id}/checkpoint.json, tmp/arc/{id}/*-digest.json
+# Reads: .rune/arc/{id}/checkpoint.json, tmp/arc/{id}/*-digest.json
 # Writes: tmp/arc/{id}/phase-summary-{group}.md
 # Token cost: ZERO (pure shell, no LLM)
 set -euo pipefail
@@ -23,7 +23,10 @@ if [[ ! "$GROUP_NAME" =~ ^(forge|verify|work|review|ship)$ ]]; then
   exit 1
 fi
 
-CHECKPOINT=".claude/arc/${ARC_ID}/checkpoint.json"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/lib/rune-state.sh"
+
+CHECKPOINT="${RUNE_STATE}/arc/${ARC_ID}/checkpoint.json"
 ARC_DIR="tmp/arc/${ARC_ID}"
 OUTPUT="${ARC_DIR}/phase-summary-${GROUP_NAME}.md"
 

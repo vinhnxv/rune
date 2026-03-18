@@ -383,7 +383,7 @@ Aggregator reads:     tmp/{workflow}/{id}/*.md → writes TOME.md
 Each pipeline phase writes its results to a checkpoint file. The next phase reads it to understand prior state.
 
 ```
-Phase 2 writes:       .claude/arc/{id}/checkpoint.json  (plan_quality_score: 85)
+Phase 2 writes:       .rune/arc/{id}/checkpoint.json  (plan_quality_score: 85)
 Phase 3 reads:        checkpoint.json → decides whether to proceed or loop
 Phase 3 writes:       checkpoint.json  (updated with phase 3 results)
 ```

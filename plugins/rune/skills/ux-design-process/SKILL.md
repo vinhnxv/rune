@@ -26,7 +26,7 @@ interaction pattern validation, flow analysis, and aesthetic quality assessment.
 UX design intelligence is gated by talisman configuration:
 
 ```yaml
-# .claude/talisman.yml
+# .rune/talisman.yml
 ux:
   enabled: false            # Default: false (opt-in for initial release)
   cognitive_walkthrough: false  # Default: false (expensive -- uses Opus model)

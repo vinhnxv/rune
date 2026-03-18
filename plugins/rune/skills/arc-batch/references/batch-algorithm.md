@@ -20,7 +20,7 @@ scripts/arc-batch-stop-hook.sh (Stop hook — loop driver)
   ├── Guard: jq available?
   ├── Guard: stdin cap (1MB)
   ├── Guard: CWD extraction from hook input
-  ├── Guard: .claude/arc-batch-loop.local.md exists?
+  ├── Guard: .rune/arc-batch-loop.local.md exists?
   ├── Guard: symlink check
   ├── Guard: session isolation (config_dir + owner_pid)
   ├── Guard: active flag = true?
@@ -121,7 +121,7 @@ The V1 architecture used `scripts/arc-batch.sh` to spawn `claude -p` subprocesse
 
 ## State File Format
 
-The Stop hook reads and writes `.claude/arc-batch-loop.local.md`:
+The Stop hook reads and writes `.rune/arc-batch-loop.local.md`:
 
 ```yaml
 ---

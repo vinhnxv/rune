@@ -71,7 +71,7 @@ trap 'rm -rf "$TMPWORK"' EXIT
 
 FAKE_CWD="$TMPWORK/project"
 mkdir -p "$FAKE_CWD/tmp"
-mkdir -p "$FAKE_CWD/.claude/arc"
+mkdir -p "$FAKE_CWD/.rune/arc"
 
 # Unique session ID per test run to avoid flag file conflicts
 TEST_SESSION_ID="test-session-$(date +%s)-$$"
@@ -173,7 +173,7 @@ rm -f "$FAKE_CWD/tmp/.rune-active-test.json"
 printf "\n=== No Completed Arc ===\n"
 
 # Clean any previous test state
-rm -rf "$FAKE_CWD/.claude/arc/"*
+rm -rf "$FAKE_CWD/.rune/arc/"*
 
 SID_6="test-no-arc-$(date +%s)"
 mkdir -p "$TMPWORK/tmp-flags"
@@ -190,7 +190,7 @@ printf "\n=== Completed Arc → Advisory ===\n"
 
 # Create a completed arc checkpoint (all phases completed)
 # Omit owner_pid to avoid PID mismatch (subshell PPID differs from $$)
-ARC_DIR="$FAKE_CWD/.claude/arc/arc-test-completed"
+ARC_DIR="$FAKE_CWD/.rune/arc/arc-test-completed"
 mkdir -p "$ARC_DIR"
 jq -n --arg cfg "$TMPWORK/claude-config" \
   '{config_dir: $cfg, phases: {forge: {status: "completed"}, review: {status: "completed"}, ship: {status: "completed"}}}' \
@@ -241,7 +241,7 @@ assert_not_contains "Advisory never denies" "\"deny\"" "$STDOUT_9"
 printf "\n=== Active Arc Phase → No Advisory ===\n"
 
 # Create an arc with an in_progress phase
-ARC_DIR_10="$FAKE_CWD/.claude/arc/arc-test-active"
+ARC_DIR_10="$FAKE_CWD/.rune/arc/arc-test-active"
 mkdir -p "$ARC_DIR_10"
 jq -n --arg cfg "$TMPWORK/claude-config" \
   '{config_dir: $cfg, phases: {forge: {status: "completed"}, review: {status: "in_progress"}}}' \

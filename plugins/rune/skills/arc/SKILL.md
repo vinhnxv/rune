@@ -374,7 +374,7 @@ Written automatically by `arc-result-signal-writer.sh` PostToolUse hook. No manu
 
 See [post-arc.md](references/post-arc.md) for echo persist and completion report template.
 
-**Discipline accountability echo**: When `discipline.enabled: true` and convergence metrics exist in the arc checkpoint, write a pipeline-level discipline echo to `.claude/echoes/discipline/MEMORY.md` with aggregate SCR, first-pass rate, failure code distribution, and trend detection vs historical averages. See [discipline/references/accountability-protocol.md](../discipline/references/accountability-protocol.md) for the full echo format and trend detection algorithm.
+**Discipline accountability echo**: When `discipline.enabled: true` and convergence metrics exist in the arc checkpoint, write a pipeline-level discipline echo to `.rune/echoes/discipline/MEMORY.md` with aggregate SCR, first-pass rate, failure code distribution, and trend detection vs historical averages. See [discipline/references/accountability-protocol.md](../discipline/references/accountability-protocol.md) for the full echo format and trend detection algorithm.
 
 ### Proof Manifest Persistence (Discipline Integration, v1.173.0)
 

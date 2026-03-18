@@ -161,8 +161,8 @@ printf "\n=== Sleep+Echo With Active Workflow (Arc) ===\n"
 # Use a dead PID (99999999) so ownership filter treats it as "our" orphaned state
 # Omit config_dir so the config_dir filter is skipped (both empty = no mismatch)
 ARCCWD="$TMPWORK/arc-project"
-mkdir -p "$ARCCWD/.claude/arc/test-phase"
-cat > "$ARCCWD/.claude/arc/test-phase/checkpoint.json" <<EOF
+mkdir -p "$ARCCWD/.rune/arc/test-phase"
+cat > "$ARCCWD/.rune/arc/test-phase/checkpoint.json" <<EOF
 {"phase_status": "in_progress", "owner_pid": "99999999"}
 EOF
 
@@ -296,8 +296,8 @@ printf "\n=== V4 Nested Checkpoint Schema ===\n"
 
 # Create CWD with v4 nested schema
 V4CWD="$TMPWORK/v4-project"
-mkdir -p "$V4CWD/.claude/arc/test-v4"
-cat > "$V4CWD/.claude/arc/test-v4/checkpoint.json" <<EOF
+mkdir -p "$V4CWD/.rune/arc/test-v4"
+cat > "$V4CWD/.rune/arc/test-v4/checkpoint.json" <<EOF
 {"phases": {"forge": {"status": "in_progress"}}, "owner_pid": "99999999"}
 EOF
 

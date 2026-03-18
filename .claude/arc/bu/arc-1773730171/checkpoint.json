@@ -1,0 +1,476 @@
+{
+  "id": "arc-1773730171",
+  "schema_version": 24,
+  "plan_file": "plans/2026-03-17-feat-discipline-engineering-shard-9-gaps-plan.md",
+  "config_dir": "/Users/vinhnx/.claude",
+  "owner_pid": "55400",
+  "session_id": "09b378f6-c5c3-48b0-9e24-d64ef7382f42",
+  "flags": {
+    "approve": false,
+    "no_forge": false,
+    "skip_freshness": false,
+    "confirm": false,
+    "no_test": false,
+    "accept_external_changes": true,
+    "bot_review": false,
+    "no_bot_review": false
+  },
+  "arc_config": {
+    "no_forge": false,
+    "approve": false,
+    "skip_freshness": false,
+    "confirm": false,
+    "no_test": false,
+    "accept_external_changes": true,
+    "ship": {
+      "auto_pr": true,
+      "auto_merge": true,
+      "merge_strategy": "squash",
+      "wait_ci": false,
+      "draft": false,
+      "labels": [],
+      "pr_monitoring": false,
+      "rebase_before_merge": true,
+      "co_authors": []
+    },
+    "pre_merge_checks": {
+      "migration_conflict": true,
+      "schema_conflict": true,
+      "lock_file_conflict": true,
+      "uncommitted_changes": true,
+      "migration_paths": []
+    }
+  },
+  "pr_url": "https://github.com/vinhnxv/rune-plugin/pull/326",
+  "freshness": null,
+  "session_nonce": "3514155782ea",
+  "phase_sequence": 22,
+  "parent_plan": {
+    "path": null,
+    "children_dir": null,
+    "child_seq": null,
+    "feature_branch": null,
+    "skip_branch": false,
+    "skip_ship_pr": false
+  },
+  "stagnation": {
+    "error_patterns": [],
+    "file_velocity": [],
+    "budget": null
+  },
+  "skip_map": {
+    "design_extraction": "design_sync_disabled",
+    "design_prototype": "design_sync_disabled",
+    "design_verification": "design_sync_disabled",
+    "design_iteration": "design_sync_disabled",
+    "storybook_verification": "storybook_disabled",
+    "ux_verification": "ux_disabled",
+    "bot_review_wait": "bot_review_disabled",
+    "pr_comment_resolution": "bot_review_disabled"
+  },
+  "phase_skip_log": [
+    {
+      "phase": "design_extraction",
+      "event": "auto_skipped",
+      "reason": "design_sync_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-17T06:54:27Z"
+    },
+    {
+      "phase": "design_prototype",
+      "event": "auto_skipped",
+      "reason": "design_sync_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-17T06:54:27Z"
+    },
+    {
+      "phase": "storybook_verification",
+      "event": "auto_skipped",
+      "reason": "storybook_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-17T06:54:27Z"
+    },
+    {
+      "phase": "design_verification",
+      "event": "auto_skipped",
+      "reason": "design_sync_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-17T06:54:27Z"
+    },
+    {
+      "phase": "ux_verification",
+      "event": "auto_skipped",
+      "reason": "ux_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-17T06:54:27Z"
+    },
+    {
+      "phase": "design_iteration",
+      "event": "auto_skipped",
+      "reason": "design_sync_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-17T06:54:27Z"
+    },
+    {
+      "phase": "bot_review_wait",
+      "event": "auto_skipped",
+      "reason": "bot_review_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-17T06:54:27Z"
+    },
+    {
+      "phase": "pr_comment_resolution",
+      "event": "auto_skipped",
+      "reason": "bot_review_disabled",
+      "source": "preflight_skip_map",
+      "timestamp": "2026-03-17T06:54:27Z"
+    },
+    {
+      "phase": "plan_refine",
+      "event": "demoted_to_pending",
+      "reason": "missing_skip_reason",
+      "timestamp": "2026-03-17T07:00:16Z"
+    },
+    {
+      "phase": "plan_refine",
+      "event": "demoted_to_pending",
+      "reason": "missing_skip_reason",
+      "timestamp": "2026-03-17T07:00:45Z"
+    }
+  ],
+  "phases": {
+    "forge": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/enriched-plan.md",
+      "artifact_hash": "c1a315233e4dd3c5",
+      "team_name": null,
+      "started_at": "2026-03-17T00:01:00.000Z",
+      "completed_at": "2026-03-17T00:02:00.000Z"
+    },
+    "plan_review": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/plan-review.md",
+      "artifact_hash": "def229a9a15450b9",
+      "team_name": "arc-plan-review-arc-1773730171",
+      "started_at": "2026-03-17T06:54:52.000Z",
+      "completed_at": "2026-03-17T06:59:39.000Z"
+    },
+    "plan_refine": {
+      "status": "completed",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-17T07:01:00.000Z",
+      "completed_at": "2026-03-17T07:01:01.000Z"
+    },
+    "verification": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/verification-report.md",
+      "artifact_hash": "a1b2c3d4e5f6g7h8",
+      "team_name": null,
+      "started_at": "2026-03-17T07:02:00.000Z",
+      "completed_at": "2026-03-17T07:02:30.000Z"
+    },
+    "semantic_verification": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/codex-semantic-verification.md",
+      "artifact_hash": "2b21ba57d11bcc12",
+      "team_name": "arc-codex-sv-arc-1773730171",
+      "started_at": "2026-03-17T07:02:35.000Z",
+      "completed_at": "2026-03-17T07:15:30.000Z"
+    },
+    "design_extraction": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-17T06:54:27Z",
+      "skip_reason": "design_sync_disabled"
+    },
+    "design_prototype": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-17T06:54:27Z",
+      "skip_reason": "design_sync_disabled"
+    },
+    "task_decomposition": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/task-validation.md",
+      "artifact_hash": "15092c1e9f395af3",
+      "team_name": "arc-codex-td-arc-1773730171",
+      "started_at": "2026-03-17T07:16:00.000Z",
+      "completed_at": "2026-03-17T07:20:30.000Z"
+    },
+    "work": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/work-summary.md",
+      "artifact_hash": "work42128e51",
+      "team_name": null,
+      "suspended_tasks": [],
+      "started_at": "2026-03-17T07:22:00.000Z",
+      "completed_at": "2026-03-17T07:25:00.000Z"
+    },
+    "drift_review": {
+      "status": "completed",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-17T07:26:00.000Z",
+      "completed_at": "2026-03-17T07:26:01.000Z"
+    },
+    "storybook_verification": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-17T06:54:27Z",
+      "skip_reason": "storybook_disabled"
+    },
+    "design_verification": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-17T06:54:27Z",
+      "skip_reason": "design_sync_disabled"
+    },
+    "ux_verification": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-17T06:54:27Z",
+      "skip_reason": "ux_disabled"
+    },
+    "gap_analysis": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/gap-analysis.md",
+      "artifact_hash": "gap14of14pass",
+      "team_name": null,
+      "started_at": "2026-03-17T07:27:00.000Z",
+      "completed_at": "2026-03-17T07:28:00.000Z"
+    },
+    "codex_gap_analysis": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/codex-gap-analysis.md",
+      "artifact_hash": "codexga52lines",
+      "team_name": "arc-codex-ga-arc-1773730171",
+      "started_at": "2026-03-17T07:29:00.000Z",
+      "completed_at": "2026-03-17T07:34:00.000Z"
+    },
+    "gap_remediation": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/gap-remediation-report.md",
+      "artifact_hash": "gapremskipped",
+      "team_name": null,
+      "fixed_count": 0,
+      "deferred_count": 0,
+      "started_at": "2026-03-17T07:35:00.000Z",
+      "completed_at": "2026-03-17T07:35:01.000Z"
+    },
+    "goldmask_verification": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/goldmask-verification.md",
+      "artifact_hash": "gmvlowrisk",
+      "team_name": null,
+      "started_at": "2026-03-17T07:36:00.000Z",
+      "completed_at": "2026-03-17T07:37:00.000Z"
+    },
+    "code_review": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/tome.md",
+      "artifact_hash": "tome2p1-1p2-4p3",
+      "team_name": "rune-review-42314e28-09b378f6",
+      "started_at": "2026-03-17T07:38:00.000Z",
+      "completed_at": "2026-03-17T07:42:00.000Z"
+    },
+    "goldmask_correlation": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/goldmask-correlation.md",
+      "artifact_hash": "gmcorr0amplify",
+      "team_name": null,
+      "started_at": "2026-03-17T07:43:00.000Z",
+      "completed_at": "2026-03-17T07:43:10.000Z"
+    },
+    "mend": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/resolution-report.md",
+      "artifact_hash": "mend5fixed2defer",
+      "team_name": null,
+      "started_at": "2026-03-17T07:44:00.000Z",
+      "completed_at": "2026-03-17T07:46:00.000Z"
+    },
+    "verify_mend": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/resolution-report.md",
+      "artifact_hash": "converged-r0",
+      "team_name": null,
+      "started_at": "2026-03-17T07:47:00.000Z",
+      "completed_at": "2026-03-17T07:47:30.000Z"
+    },
+    "design_iteration": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-17T06:54:27Z",
+      "skip_reason": "design_sync_disabled"
+    },
+    "test": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/test-report.md",
+      "artifact_hash": "testpassward",
+      "team_name": null,
+      "tiers_run": [
+        "ward"
+      ],
+      "pass_rate": 1.0,
+      "coverage_pct": null,
+      "has_frontend": false,
+      "started_at": "2026-03-17T07:48:00.000Z",
+      "completed_at": "2026-03-17T07:49:00.000Z"
+    },
+    "test_coverage_critique": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/test-critique.md",
+      "artifact_hash": "tcdocsonly",
+      "team_name": null,
+      "started_at": "2026-03-17T07:50:00.000Z",
+      "completed_at": "2026-03-17T07:50:05.000Z"
+    },
+    "pre_ship_validation": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/pre-ship-report.md",
+      "artifact_hash": "preshippass",
+      "team_name": null,
+      "started_at": "2026-03-17T07:51:00.000Z",
+      "completed_at": "2026-03-17T07:51:15.000Z"
+    },
+    "release_quality_check": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773730171/release-quality-check.md",
+      "artifact_hash": "rqcpass",
+      "team_name": null,
+      "started_at": "2026-03-17T07:52:00.000Z",
+      "completed_at": "2026-03-17T07:52:05.000Z"
+    },
+    "ship": {
+      "status": "completed",
+      "artifact": "https://github.com/vinhnxv/rune-plugin/pull/326",
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-17T07:53:00.000Z",
+      "completed_at": "2026-03-17T07:54:00.000Z"
+    },
+    "bot_review_wait": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-17T06:54:27Z",
+      "skip_reason": "bot_review_disabled"
+    },
+    "pr_comment_resolution": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": null,
+      "completed_at": "2026-03-17T06:54:27Z",
+      "skip_reason": "bot_review_disabled"
+    },
+    "merge": {
+      "status": "completed",
+      "artifact": "https://github.com/vinhnxv/rune-plugin/pull/326",
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-17T07:55:00.000Z",
+      "completed_at": "2026-03-17T07:56:00.000Z"
+    }
+  },
+  "totals": {
+    "phase_times": {
+      "forge": 60000,
+      "plan_review": 287000,
+      "plan_refine": 0,
+      "verification": 30000,
+      "semantic_verification": 775000,
+      "task_decomposition": 270000,
+      "work": 180000,
+      "drift_review": 1000,
+      "gap_analysis": 60000,
+      "codex_gap_analysis": 300000,
+      "gap_remediation": 1000,
+      "goldmask_verification": 60000,
+      "code_review": 240000,
+      "goldmask_correlation": 10000,
+      "mend": 120000,
+      "verify_mend": 30000,
+      "test": 60000,
+      "test_coverage_critique": 5000,
+      "pre_ship_validation": 15000,
+      "release_quality_check": 5000,
+      "ship": 60000,
+      "merge": 60000
+    },
+    "total_duration_ms": null,
+    "cost_at_completion": null
+  },
+  "completed_at": "2026-03-17T07:56:00.000Z",
+  "convergence": {
+    "round": 0,
+    "max_rounds": 3,
+    "tier": {
+      "maxCycles": 3
+    },
+    "history": [
+      {
+        "round": 0,
+        "findings_before": 7,
+        "findings_after": 2,
+        "p1_remaining": 0,
+        "p2_remaining": 1,
+        "verdict": "converged",
+        "reason": "all_p1_fixed_0_failed",
+        "timestamp": "2026-03-17T07:47:30.000Z"
+      }
+    ],
+    "original_changed_files": []
+  },
+  "shard": {
+    "num": 9.1,
+    "total": 9,
+    "name": "design-discipline-gaps",
+    "feature": "discipline-engineering",
+    "parent": "plans/2026-03-16-feat-discipline-engineering-plan.md",
+    "dependencies": []
+  },
+  "worktree": {
+    "is_worktree": false
+  },
+  "user_cancelled": false,
+  "cancel_reason": null,
+  "cancelled_at": null,
+  "stop_reason": null,
+  "resume_tracking": {
+    "total_resume_count": 0,
+    "resume_history": [],
+    "last_resume_at": null,
+    "consecutive_failures": 0
+  },
+  "commits": [
+    "42128e51",
+    "d57f596b"
+  ],
+  "started_at": "2026-03-17T00:00:00.000Z",
+  "updated_at": "2026-03-17T00:00:00.000Z"
+}

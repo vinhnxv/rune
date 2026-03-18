@@ -83,6 +83,7 @@ if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
   # shellcheck source=lib/platform.sh
   source "${SCRIPT_DIR}/lib/platform.sh"
 fi
+source "${SCRIPT_DIR}/lib/rune-state.sh"
 
 # Source frontmatter utils for loop file ownership checks
 if [[ -f "${SCRIPT_DIR}/lib/frontmatter-utils.sh" ]]; then
@@ -135,10 +136,10 @@ fi
 # If OUR session's arc loop is active, this hook must NOT interfere — the loop hooks handle transitions.
 # Other sessions' loop files are skipped so their cleanup hooks can run independently.
 for loop_file in \
-  "${CWD}/.claude/arc-phase-loop.local.md" \
-  "${CWD}/.claude/arc-batch-loop.local.md" \
-  "${CWD}/.claude/arc-hierarchy-loop.local.md" \
-  "${CWD}/.claude/arc-issues-loop.local.md"; do
+  "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md" \
+  "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md" \
+  "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md" \
+  "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"; do
   if [[ -f "$loop_file" ]] && [[ ! -L "$loop_file" ]]; then
     # Session ownership check: only defer for OUR loop files
     _loop_fm=$(sed -n '/^---$/,/^---$/p' "$loop_file" 2>/dev/null | sed '1d;$d')
@@ -192,7 +193,7 @@ done
 CLEANUP_ENABLED=true
 ESCALATION_TIMEOUT=5
 
-TALISMAN="${CWD}/.claude/talisman.yml"
+TALISMAN="${CWD}/${RUNE_STATE}/talisman.yml"
 if [[ -f "$TALISMAN" ]]; then
   CLEANUP_ENABLED=$(grep -A5 'cleanup:' "$TALISMAN" 2>/dev/null | grep 'enabled:' | awk '{print $2}' | head -1 || echo "true")
   # NOTE: escalation_timeout_seconds must stay < 23s to fit within 30s hook timeout budget (GAP-DOC-4)

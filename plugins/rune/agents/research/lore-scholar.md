@@ -176,7 +176,7 @@ Write findings to the designated output file. Return only a 1-sentence summary t
 
 If all external tools (Context7, Tavily, WebSearch) are unavailable:
 1. Search the local codebase for framework config files and `CLAUDE.md` patterns
-2. Check `.claude/echoes/` for relevant framework knowledge entries
+2. Check `.rune/echoes/` for relevant framework knowledge entries
 3. Report: "External documentation unavailable — findings based on local knowledge only"
 
 Never produce empty output. Always report what was attempted and what failed.

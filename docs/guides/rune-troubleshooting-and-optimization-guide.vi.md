@@ -112,7 +112,7 @@ Khởi động lại Claude Code sau khi lưu.
 **Triệu chứng**: Arc dường như bị kẹt ở một phase quá lâu so với timeout cấu hình.
 
 **Chẩn đoán**:
-1. Kiểm tra `.claude/arc/{id}/checkpoint.json` cho phase hiện tại
+1. Kiểm tra `.rune/arc/{id}/checkpoint.json` cho phase hiện tại
 2. Kiểm tra `TaskList` cho task bị kẹt hoặc idle
 3. Kiểm tra timeout per-phase trong talisman — có thể cần tăng
 
@@ -160,7 +160,7 @@ Traces ghi vào `/tmp/rune-hook-trace.log`.
 ### 2.2 Kiểm tra arc checkpoint
 
 ```bash
-cat .claude/arc/*/checkpoint.json | python3 -m json.tool
+cat .rune/arc/*/checkpoint.json | python3 -m json.tool
 ```
 
 ### 2.3 Kiểm tra signal files
@@ -354,7 +354,7 @@ Mỗi session Rune theo dõi workflow qua state files với `config_dir`, `owner
 /rune:rest
 ```
 
-Xoá artifact `tmp/` nhưng giữ Rune Echoes (`.claude/echoes/`).
+Xoá artifact `tmp/` nhưng giữ Rune Echoes (`.rune/echoes/`).
 
 ### 5.4 Teammate không persistent
 

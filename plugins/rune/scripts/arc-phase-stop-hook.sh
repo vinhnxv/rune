@@ -14,7 +14,7 @@
 # Architecture: Same ralph-wiggum pattern as arc-batch-stop-hook.sh,
 # but iterates over PHASE_ORDER instead of plans[].
 #
-# State file: .claude/arc-phase-loop.local.md (YAML frontmatter)
+# State file: ${RUNE_STATE}/arc-phase-loop.local.md (YAML frontmatter)
 # Hook event: Stop
 # Timeout: 15s
 # Exit 0: No active phase loop — allow stop (batch hook may fire). stdout/stderr discarded.
@@ -76,6 +76,7 @@ _log_phase() {
 source "${SCRIPT_DIR}/lib/stop-hook-common.sh"
 # shellcheck source=lib/platform.sh
 source "${SCRIPT_DIR}/lib/platform.sh"
+source "${SCRIPT_DIR}/lib/rune-state.sh"
 
 # ── GUARD 2: Input size cap + GUARD 3: CWD extraction ──
 parse_input
@@ -83,7 +84,7 @@ resolve_cwd
 _trace "CWD=${CWD}"
 
 # ── GUARD 4: State file existence ──
-STATE_FILE="${CWD}/.claude/arc-phase-loop.local.md"
+STATE_FILE="${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"
 if [[ ! -f "$STATE_FILE" ]]; then
   _trace "EXIT: no state file at ${STATE_FILE}"
   exit 0
@@ -732,9 +733,9 @@ if [[ -z "$NEXT_PHASE" ]]; then
   # If so, exit silently — the outer loop's Stop hook will fire next
   # and handle the plan-to-plan transition. Injecting a summary prompt
   # here would burn context that the outer loop needs for its transition.
-  _BATCH_STATE="${CWD}/.claude/arc-batch-loop.local.md"
-  _HIERARCHY_STATE="${CWD}/.claude/arc-hierarchy-loop.local.md"
-  _ISSUES_STATE="${CWD}/.claude/arc-issues-loop.local.md"
+  _BATCH_STATE="${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"
+  _HIERARCHY_STATE="${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"
+  _ISSUES_STATE="${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"
   if [[ -f "$_BATCH_STATE" && ! -L "$_BATCH_STATE" ]] \
      || [[ -f "$_HIERARCHY_STATE" && ! -L "$_HIERARCHY_STATE" ]] \
      || [[ -f "$_ISSUES_STATE" && ! -L "$_ISSUES_STATE" ]]; then

@@ -10,7 +10,7 @@ The `on-task-observation.sh` script runs on every `TaskCompleted` event. Guards 
 |-------|-----------|--------|
 | Rune workflow only | `team_name` starts with `rune-` or `arc-` | Skip non-Rune teams |
 | Skip meta tasks | Subject contains shutdown/cleanup/aggregate/monitor | Skip silently |
-| Echoes dir exists | `.claude/echoes/` is present | Skip if echoes not initialized |
+| Echoes dir exists | `.rune/echoes/` is present | Skip if echoes not initialized |
 | Role MEMORY.md exists | `{role}/MEMORY.md` exists | Skip if role not initialized |
 | Dedup check | `.obs-{TEAM_NAME}_{TASK_ID}` signal file | Skip if already recorded |
 
@@ -44,10 +44,10 @@ Role is inferred from the team name pattern:
 
 | Pattern | Role | MEMORY.md |
 |---------|------|-----------|
-| `*review*`, `*appraise*`, `*audit*` | `reviewer` | `.claude/echoes/reviewer/MEMORY.md` |
-| `*plan*`, `*devise*` | `planner` | `.claude/echoes/planner/MEMORY.md` |
-| `*work*`, `*strive*`, `*arc*` | `workers` | `.claude/echoes/workers/MEMORY.md` |
-| (default) | `orchestrator` | `.claude/echoes/orchestrator/MEMORY.md` |
+| `*review*`, `*appraise*`, `*audit*` | `reviewer` | `.rune/echoes/reviewer/MEMORY.md` |
+| `*plan*`, `*devise*` | `planner` | `.rune/echoes/planner/MEMORY.md` |
+| `*work*`, `*strive*`, `*arc*` | `workers` | `.rune/echoes/workers/MEMORY.md` |
+| (default) | `orchestrator` | `.rune/echoes/orchestrator/MEMORY.md` |
 
 ## Dirty Signal
 
@@ -59,7 +59,7 @@ Auto-observations land in the **Observations** tier (weight=0.5). They are NOT I
 
 ## Configuration
 
-Auto-observation runs unconditionally when the `TaskCompleted` hook fires and the role `MEMORY.md` exists. There is no talisman toggle — echoes must be initialized (`.claude/echoes/` present) for any recording to occur.
+Auto-observation runs unconditionally when the `TaskCompleted` hook fires and the role `MEMORY.md` exists. There is no talisman toggle — echoes must be initialized (`.rune/echoes/` present) for any recording to occur.
 
 To disable: remove the `on-task-observation.sh` hook entry from `hooks/hooks.json`.
 

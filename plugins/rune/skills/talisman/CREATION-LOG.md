@@ -10,7 +10,7 @@
 Deep talisman.yml configuration expertise — initialize, audit, update, and guide
 talisman configuration for any project. The missing skill that bridges the gap
 between `talisman.example.yml` (950+ lines of possibilities) and a project's
-actual `.claude/talisman.yml`.
+actual `.rune/talisman.yml`.
 
 ## Design Decisions
 

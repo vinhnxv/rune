@@ -262,7 +262,7 @@ printf 'Some findings, no self-review\n' > "${HARD_CWD}/tmp/reviews/jkl012/forge
 
 # Only test talisman enforcement if yq is available
 if command -v yq &>/dev/null; then
-  printf 'inner_flame:\n  enabled: true\n  block_on_fail: true\n' > "${HARD_CWD}/.claude/talisman.yml"
+  printf 'inner_flame:\n  enabled: true\n  block_on_fail: true\n' > "${HARD_CWD}/.rune/talisman.yml"
   result=$(run_validate '{"team_name": "rune-review-jkl012", "task_id": "task-1", "teammate_name": "forge-warden", "cwd": "'"$HARD_CWD"'"}')
   exit_code="${result%%	*}"
   stderr_output="${result#*	}"
@@ -285,7 +285,7 @@ mkdir -p "${DISABLED_CWD}/.claude"
 
 # 10a. Inner Flame disabled in talisman — should exit 0 even without content
 if command -v yq &>/dev/null; then
-  printf 'inner_flame:\n  enabled: false\n  block_on_fail: true\n' > "${DISABLED_CWD}/.claude/talisman.yml"
+  printf 'inner_flame:\n  enabled: false\n  block_on_fail: true\n' > "${DISABLED_CWD}/.rune/talisman.yml"
   printf 'No Inner Flame here\n' > "${DISABLED_CWD}/tmp/reviews/mno345/forge-warden.md"
   result=$(run_validate '{"team_name": "rune-review-mno345", "task_id": "task-1", "teammate_name": "forge-warden", "cwd": "'"$DISABLED_CWD"'"}')
   exit_code="${result%%	*}"

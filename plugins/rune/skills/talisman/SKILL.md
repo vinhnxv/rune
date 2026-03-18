@@ -43,7 +43,7 @@ argument-hint: "[init|audit|update|guide|status]"
 
 # /rune:talisman — Configuration Mastery
 
-Deep expertise for `.claude/talisman.yml` — the project-level configuration
+Deep expertise for `.rune/talisman.yml` — the project-level configuration
 that controls all Rune agent behavior.
 
 **References**:
@@ -69,7 +69,7 @@ Parse `$ARGUMENTS` to determine subcommand:
 ### Phase 1: Pre-flight Check
 
 ```
-1. Check if .claude/talisman.yml already exists
+1. Check if .rune/talisman.yml already exists
    → If exists: warn and offer AUDIT instead
    → If not: proceed
 
@@ -79,7 +79,7 @@ Parse `$ARGUMENTS` to determine subcommand:
 
 ### Phases 2-5: Stack Detection, Template Read, Generate, Write
 
-Detects project stack from manifest files (10 languages + CI/Docker/ORM signals), queries agent-search MCP for stack-relevant agents (Phase 2.3), reads canonical `talisman.example.yml`, generates stack-customized talisman with core + optional sections, detects MCP integrations from `.mcp.json`, scaffolds `stack_awareness.priority` from detected stack, writes to `.claude/talisman.yml`, and shows summary with next steps.
+Detects project stack from manifest files (10 languages + CI/Docker/ORM signals), queries agent-search MCP for stack-relevant agents (Phase 2.3), reads canonical `talisman.example.yml`, generates stack-customized talisman with core + optional sections, detects MCP integrations from `.mcp.json`, scaffolds `stack_awareness.priority` from detected stack, writes to `.rune/talisman.yml`, and shows summary with next steps.
 
 See [init-protocol.md](references/init-protocol.md) for the full Phase 2-5 pseudocode (stack signals, agent recommendations, customization table, MCP detection).
 
@@ -88,7 +88,7 @@ See [init-protocol.md](references/init-protocol.md) for the full Phase 2-5 pseud
 ### Phase 1: Read Both Files
 
 ```
-1. Read project talisman: .claude/talisman.yml
+1. Read project talisman: .rune/talisman.yml
    → If missing: suggest INIT instead
 2. Read example template: ${CLAUDE_PLUGIN_ROOT}/talisman.example.yml
 ```
@@ -122,7 +122,7 @@ AskUserQuestion: "Apply these changes?"
 ### Phase 3: Apply Changes
 
 ```
-Use Edit tool to modify .claude/talisman.yml:
+Use Edit tool to modify .rune/talisman.yml:
   - Add missing sections at appropriate positions
   - Update deprecated keys
   - Preserve existing project-specific values
@@ -180,7 +180,7 @@ See [integrations-guide.md](references/integrations-guide.md) for the full integ
 ### Phase 1: Locate Talisman
 
 ```
-1. Check .claude/talisman.yml (project)
+1. Check .rune/talisman.yml (project)
 2. Check ${CHOME}/talisman.yml (global) where CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 3. Report which level is active
 ```
@@ -238,13 +238,15 @@ Quick health indicators:
 Always use SDK Read() — NEVER Bash for talisman access:
 
 ```javascript
-// Project level
-Read(".claude/talisman.yml")
+// Primary: .rune/talisman.yml
+try { return parseYaml(Read(".rune/talisman.yml")) } catch {}
+// Legacy fallback: .claude/talisman.yml
+try { return parseYaml(Read(".claude/talisman.yml")) } catch {}
 
 // Global level (fallback)
 Read("${CLAUDE_CONFIG_DIR:-$HOME/.claude}/talisman.yml")
 
-// NEVER: Bash("cat ~/.claude/talisman.yml") — ZSH tilde bug
+// NEVER: Bash("cat ~/.rune/talisman.yml") — ZSH tilde bug
 ```
 
 ## Persona

@@ -111,6 +111,7 @@ if printf '%s\n' "$NORMALIZED" | grep -qE '(^|[[:space:];|&(])sleep[[:space:]]+[
   if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
     # shellcheck source=resolve-session-identity.sh
     source "${SCRIPT_DIR}/resolve-session-identity.sh"
+    source "${SCRIPT_DIR}/lib/rune-state.sh"
   else
     # VEIL-001 FIX: PID-based fallback instead of disabling ownership entirely.
     # Without this, _rune_skip_ownership=1 treated ALL active workflows as "ours",
@@ -128,7 +129,7 @@ if printf '%s\n' "$NORMALIZED" | grep -qE '(^|[[:space:];|&(])sleep[[:space:]]+[
   fi
 
   # Arc checkpoint detection
-  if [[ -d "${CWD}/.claude/arc" ]]; then
+  if [[ -d "${CWD}/${RUNE_STATE}/arc" ]]; then
     while IFS= read -r f; do
       # Race condition guard: file may be deleted between find and jq
       [[ -f "$f" ]] || continue
@@ -148,7 +149,7 @@ if printf '%s\n' "$NORMALIZED" | grep -qE '(^|[[:space:];|&(])sleep[[:space:]]+[
         active_workflow="arc"
         break
       fi
-    done < <(find "${CWD}/.claude/arc" -name checkpoint.json -maxdepth 2 -type f 2>/dev/null)
+    done < <(find "${CWD}/${RUNE_STATE}/arc" -name checkpoint.json -maxdepth 2 -type f 2>/dev/null)
   fi
 
   # State file detection — all workflow types

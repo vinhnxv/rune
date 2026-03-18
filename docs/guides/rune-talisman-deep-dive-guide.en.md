@@ -45,14 +45,14 @@ Talisman follows a **3-layer priority chain** (highest wins):
 
 | Priority | Location | Scope |
 |----------|----------|-------|
-| 1 (highest) | `.claude/talisman.yml` | Project-level |
-| 2 | `~/.claude/talisman.yml` | User-global |
+| 1 (highest) | `.rune/talisman.yml` | Project-level |
+| 2 | `~/.rune/talisman.yml` | User-global |
 | 3 | Plugin defaults | Built-in (7 Ashes) |
 
 For arc flags, there is an additional layer: **CLI flags always override talisman values**.
 
 ```
-CLI flags  >  .claude/talisman.yml  >  ~/.claude/talisman.yml  >  hardcoded defaults
+CLI flags  >  .rune/talisman.yml  >  ~/.rune/talisman.yml  >  hardcoded defaults
 ```
 
 **Tip**: Use project-level talisman for team-shared settings. Use global talisman for personal preferences (e.g., disabling forge enrichment on side projects).

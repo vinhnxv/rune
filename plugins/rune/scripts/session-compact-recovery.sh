@@ -108,6 +108,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=resolve-session-identity.sh
 source "${SCRIPT_DIR}/resolve-session-identity.sh"
+source "${SCRIPT_DIR}/lib/rune-state.sh"
 
 # ── GUARD 7: Ownership verification (session isolation) ──
 # If checkpoint includes config_dir/owner_pid, verify this session owns it.
@@ -156,8 +157,8 @@ HAS_BATCH_STATE="false"
 _batch_checkpoint=$(echo "$CHECKPOINT_DATA" | jq -r 'if .arc_batch_state and .arc_batch_state != {} and (.arc_batch_state | has("iteration")) then "true" else "false" end' 2>/dev/null || echo "false")
 if [[ "$_batch_checkpoint" == "true" ]]; then
   # Cross-check with actual loop state file
-  if [[ -f "${CWD}/.claude/arc-batch-loop.local.md" ]] && [[ ! -L "${CWD}/.claude/arc-batch-loop.local.md" ]]; then
-    _batch_fm=$(sed -n '/^---$/,/^---$/p' "${CWD}/.claude/arc-batch-loop.local.md" 2>/dev/null | sed '1d;$d')
+  if [[ -f "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md" ]] && [[ ! -L "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md" ]]; then
+    _batch_fm=$(sed -n '/^---$/,/^---$/p' "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md" 2>/dev/null | sed '1d;$d')
     _batch_active_val=$(echo "$_batch_fm" | grep '^active:' | sed 's/^active:[[:space:]]*//' | head -1 || true)
     if [[ "$_batch_active_val" == "true" ]]; then
       HAS_BATCH_STATE="true"
@@ -173,8 +174,8 @@ fi
 HAS_ISSUES_STATE="false"
 _issues_checkpoint=$(echo "$CHECKPOINT_DATA" | jq -r 'if .arc_issues_state and .arc_issues_state != {} and (.arc_issues_state | has("iteration")) then "true" else "false" end' 2>/dev/null || echo "false")
 if [[ "$_issues_checkpoint" == "true" ]]; then
-  if [[ -f "${CWD}/.claude/arc-issues-loop.local.md" ]] && [[ ! -L "${CWD}/.claude/arc-issues-loop.local.md" ]]; then
-    _issues_fm=$(sed -n '/^---$/,/^---$/p' "${CWD}/.claude/arc-issues-loop.local.md" 2>/dev/null | sed '1d;$d')
+  if [[ -f "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md" ]] && [[ ! -L "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md" ]]; then
+    _issues_fm=$(sed -n '/^---$/,/^---$/p' "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md" 2>/dev/null | sed '1d;$d')
     _issues_active_val=$(echo "$_issues_fm" | grep '^active:' | sed 's/^active:[[:space:]]*//' | head -1 || true)
     if [[ "$_issues_active_val" == "true" ]]; then
       HAS_ISSUES_STATE="true"
@@ -210,7 +211,7 @@ if [[ -z "$TEAM_NAME" ]]; then
             _trace "Rejected invalid batch summary path: ${BATCH_SUMMARY}"
           fi
         fi
-        LOOP_INFO="${LOOP_INFO} Re-read .claude/arc-batch-loop.local.md to resume batch."
+        LOOP_INFO="${LOOP_INFO} Re-read ${RUNE_STATE}/arc-batch-loop.local.md to resume batch."
       fi
     fi
 
@@ -221,7 +222,7 @@ if [[ -z "$TEAM_NAME" ]]; then
       if [[ -n "$ISSUES_ITER" ]] && [[ "$ISSUES_ITER" =~ ^[0-9]+$ ]]; then
         if [[ ! "$ISSUES_TOTAL" =~ ^[0-9]+$ ]]; then ISSUES_TOTAL="unknown"; fi
         LOOP_INFO="${LOOP_INFO} Arc-issues iteration ${ISSUES_ITER}/${ISSUES_TOTAL}."
-        LOOP_INFO="${LOOP_INFO} Re-read .claude/arc-issues-loop.local.md to resume issues batch."
+        LOOP_INFO="${LOOP_INFO} Re-read ${RUNE_STATE}/arc-issues-loop.local.md to resume issues batch."
       fi
     fi
 
@@ -365,8 +366,8 @@ BATCH_SUMMARY=$(echo "$CHECKPOINT_DATA" | jq -r '.arc_batch_state.latest_summary
 if [[ -n "$BATCH_ITER" ]] && [[ "$BATCH_ITER" =~ ^[0-9]+$ ]]; then
   # Cross-check: only inject if loop state file is still active
   _batch_still_active="false"
-  if [[ -f "${CWD}/.claude/arc-batch-loop.local.md" ]] && [[ ! -L "${CWD}/.claude/arc-batch-loop.local.md" ]]; then
-    _bfm=$(sed -n '/^---$/,/^---$/p' "${CWD}/.claude/arc-batch-loop.local.md" 2>/dev/null | sed '1d;$d')
+  if [[ -f "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md" ]] && [[ ! -L "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md" ]]; then
+    _bfm=$(sed -n '/^---$/,/^---$/p' "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md" 2>/dev/null | sed '1d;$d')
     _bav=$(echo "$_bfm" | grep '^active:' | sed 's/^active:[[:space:]]*//' | head -1 || true)
     [[ "$_bav" == "true" ]] && _batch_still_active="true"
   fi
@@ -395,15 +396,15 @@ ISSUES_TOTAL=$(echo "$CHECKPOINT_DATA" | jq -r '.arc_issues_state.total_plans //
 if [[ -n "$ISSUES_ITER" ]] && [[ "$ISSUES_ITER" =~ ^[0-9]+$ ]]; then
   # Cross-check: only inject if loop state file is still active
   _issues_still_active="false"
-  if [[ -f "${CWD}/.claude/arc-issues-loop.local.md" ]] && [[ ! -L "${CWD}/.claude/arc-issues-loop.local.md" ]]; then
-    _ifm=$(sed -n '/^---$/,/^---$/p' "${CWD}/.claude/arc-issues-loop.local.md" 2>/dev/null | sed '1d;$d')
+  if [[ -f "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md" ]] && [[ ! -L "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md" ]]; then
+    _ifm=$(sed -n '/^---$/,/^---$/p' "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md" 2>/dev/null | sed '1d;$d')
     _iav=$(echo "$_ifm" | grep '^active:' | sed 's/^active:[[:space:]]*//' | head -1 || true)
     [[ "$_iav" == "true" ]] && _issues_still_active="true"
   fi
 
   if [[ "$_issues_still_active" == "true" ]]; then
     if [[ ! "$ISSUES_TOTAL" =~ ^[0-9]+$ ]]; then ISSUES_TOTAL="unknown"; fi
-    ISSUES_INFO=" Arc-issues iteration ${ISSUES_ITER}/${ISSUES_TOTAL}. Re-read .claude/arc-issues-loop.local.md to resume."
+    ISSUES_INFO=" Arc-issues iteration ${ISSUES_ITER}/${ISSUES_TOTAL}. Re-read ${RUNE_STATE}/arc-issues-loop.local.md to resume."
   else
     _trace "Compact recovery: issues checkpoint in save but loop file not active — skipping issues info"
   fi

@@ -287,7 +287,7 @@ log(summary)
 
 ## Talisman Configuration
 
-All behavior is configurable via `arc.ship.bot_review` in `.claude/talisman.yml`:
+All behavior is configurable via `arc.ship.bot_review` in `.rune/talisman.yml`:
 
 | Key | Default | Description |
 |-----|---------|-------------|

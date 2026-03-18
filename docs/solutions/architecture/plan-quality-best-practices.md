@@ -329,4 +329,4 @@ These conformance suites are more rigorous than ad-hoc unit tests because they a
 
 ### Local Codebase Context
 
-- `.claude/echoes/planner/MEMORY.md` -- Documents design-vs-implementation gap detection pattern relevant to plan quality
+- `.rune/echoes/planner/MEMORY.md` -- Documents design-vs-implementation gap detection pattern relevant to plan quality

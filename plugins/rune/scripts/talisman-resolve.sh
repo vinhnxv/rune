@@ -55,6 +55,7 @@ _trace() {
 
 # ── Paths ──
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+source "${PLUGIN_ROOT}/scripts/lib/rune-state.sh"
 DEFAULTS_FILE="${PLUGIN_ROOT}/scripts/talisman-defaults.json"
 CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
@@ -82,7 +83,12 @@ fi
 # Canonicalize CWD to prevent symlink-based path manipulation (SEC-002)
 CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || CWD=$(pwd -P)
 
-PROJECT_TALISMAN="${CWD}/.claude/talisman.yml"
+# Primary: .rune/talisman.yml — Fallback: .claude/talisman.yml (legacy, with deprecation warning)
+PROJECT_TALISMAN="${CWD}/${RUNE_STATE}/talisman.yml"
+if [[ ! -f "$PROJECT_TALISMAN" && -f "${CWD}/.claude/talisman.yml" ]]; then
+  PROJECT_TALISMAN="${CWD}/.claude/talisman.yml"
+  _trace "WARN: using legacy .claude/talisman.yml — migrate to .rune/talisman.yml"
+fi
 GLOBAL_TALISMAN="${CHOME}/talisman.yml"
 
 # System-level shard directory for defaults-only cache

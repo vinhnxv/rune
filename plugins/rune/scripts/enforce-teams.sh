@@ -11,7 +11,7 @@
 # Detection strategy:
 #   1. Check if tool_name is "Task" or "Agent" (only tools this hook targets)
 #   2. Check for active Rune workflow via state files:
-#      - .claude/arc/*/checkpoint.json with "in_progress" phase
+#      - ${RUNE_STATE}/arc/*/checkpoint.json with "in_progress" phase
 #      - tmp/.rune-{review,audit,work,inspect,mend,plan,forge,goldmask,
 #        brainstorm,debug,design-sync}-*.json with "active" status
 #   3. If active workflow found, verify Task input includes team_name
@@ -172,6 +172,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # leaving RUNE_CURRENT_CFG unset and silently allowing bare Agent/Task calls.
 if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
   source "${SCRIPT_DIR}/resolve-session-identity.sh"
+  source "${SCRIPT_DIR}/lib/rune-state.sh"
 else
   # FLAW-007 FIX: Fail-closed when identity script is missing.
   # Previous behavior: rune_pid_alive() { return 1; } treated ALL PIDs as dead,
@@ -184,7 +185,7 @@ else
 fi
 
 # Check arc checkpoints (skip stale files older than STALE_THRESHOLD_MIN)
-if [[ -d "${CWD}/.claude/arc" ]]; then
+if [[ -d "${CWD}/${RUNE_STATE}/arc" ]]; then
   while IFS= read -r f; do
     if jq -e '(.phase_status // .phase // .status // "none" | . == "in_progress") or ([.phases[]?.status] | any(. == "in_progress"))' "$f" &>/dev/null; then
       # ── Ownership filter: skip checkpoints from other sessions (XVER-004 FIX: 3-layer) ──
@@ -211,7 +212,7 @@ if [[ -d "${CWD}/.claude/arc" ]]; then
       fi
       break
     fi
-  done < <(find "${CWD}/.claude/arc" -name checkpoint.json -maxdepth 2 -type f -mmin -${STALE_THRESHOLD_MIN} 2>/dev/null)
+  done < <(find "${CWD}/${RUNE_STATE}/arc" -name checkpoint.json -maxdepth 2 -type f -mmin -${STALE_THRESHOLD_MIN} 2>/dev/null)
 fi
 
 # Check review/audit/work state files (skip stale files)

@@ -169,7 +169,7 @@ If .mcp.json exists:
 ## Phase 5: Write and Confirm
 
 ```
-1. Write to .claude/talisman.yml
+1. Write to .rune/talisman.yml
 2. Show summary of what was generated:
    - Detected stack
    - Sections included

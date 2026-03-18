@@ -69,14 +69,14 @@ trap 'rm -rf "$TMPWORK"' EXIT
 
 FAKE_CWD="$TMPWORK/project"
 mkdir -p "$FAKE_CWD/tmp/.rune-signals"
-mkdir -p "$FAKE_CWD/.claude/echoes/reviewer"
-mkdir -p "$FAKE_CWD/.claude/echoes/planner"
-mkdir -p "$FAKE_CWD/.claude/echoes/workers"
-mkdir -p "$FAKE_CWD/.claude/echoes/orchestrator"
+mkdir -p "$FAKE_CWD/.rune/echoes/reviewer"
+mkdir -p "$FAKE_CWD/.rune/echoes/planner"
+mkdir -p "$FAKE_CWD/.rune/echoes/workers"
+mkdir -p "$FAKE_CWD/.rune/echoes/orchestrator"
 
 # Create initial MEMORY.md files
 for role in reviewer planner workers orchestrator; do
-  printf "# %s Memory\n" "$role" > "$FAKE_CWD/.claude/echoes/$role/MEMORY.md"
+  printf "# %s Memory\n" "$role" > "$FAKE_CWD/.rune/echoes/$role/MEMORY.md"
 done
 
 # Helper: run the hook with given JSON input
@@ -177,7 +177,7 @@ printf "\n=== No Echoes Directory ===\n"
 
 NO_ECHO_CWD="$TMPWORK/no-echo-project"
 mkdir -p "$NO_ECHO_CWD/tmp/.rune-signals"
-# No .claude/echoes/ dir
+# No .rune/echoes/ dir
 run_hook "{\"team_name\": \"rune-review-test\", \"task_id\": \"task-1\", \"task_subject\": \"Test\", \"cwd\": \"$NO_ECHO_CWD\"}"
 assert_eq "No echoes dir exits 0" "0" "$(get_exit_code)"
 
@@ -190,7 +190,7 @@ printf "\n=== Role Detection ===\n"
 run_hook "{\"team_name\": \"rune-review-test6a\", \"task_id\": \"task-6a\", \"task_subject\": \"Review auth\", \"teammate_name\": \"forge-warden\", \"cwd\": \"$FAKE_CWD\"}"
 assert_eq "Review team exits 0" "0" "$(get_exit_code)"
 
-REVIEWER_MEM=$(cat "$FAKE_CWD/.claude/echoes/reviewer/MEMORY.md")
+REVIEWER_MEM=$(cat "$FAKE_CWD/.rune/echoes/reviewer/MEMORY.md")
 assert_contains "Review task written to reviewer MEMORY.md" "Review auth" "$REVIEWER_MEM"
 assert_contains "Reviewer source includes team name" "rune-review-test6a" "$REVIEWER_MEM"
 
@@ -198,21 +198,21 @@ assert_contains "Reviewer source includes team name" "rune-review-test6a" "$REVI
 run_hook "{\"team_name\": \"rune-plan-test6b\", \"task_id\": \"task-6b\", \"task_subject\": \"Plan feature X\", \"teammate_name\": \"planner-1\", \"cwd\": \"$FAKE_CWD\"}"
 assert_eq "Plan team exits 0" "0" "$(get_exit_code)"
 
-PLANNER_MEM=$(cat "$FAKE_CWD/.claude/echoes/planner/MEMORY.md")
+PLANNER_MEM=$(cat "$FAKE_CWD/.rune/echoes/planner/MEMORY.md")
 assert_contains "Plan task written to planner MEMORY.md" "Plan feature X" "$PLANNER_MEM"
 
 # 6c. Work team → workers role
 run_hook "{\"team_name\": \"rune-work-test6c\", \"task_id\": \"task-6c\", \"task_subject\": \"Implement API\", \"teammate_name\": \"smith-1\", \"cwd\": \"$FAKE_CWD\"}"
 assert_eq "Work team exits 0" "0" "$(get_exit_code)"
 
-WORKERS_MEM=$(cat "$FAKE_CWD/.claude/echoes/workers/MEMORY.md")
+WORKERS_MEM=$(cat "$FAKE_CWD/.rune/echoes/workers/MEMORY.md")
 assert_contains "Work task written to workers MEMORY.md" "Implement API" "$WORKERS_MEM"
 
 # 6d. Arc team → workers role (arc matches *arc*)
 run_hook "{\"team_name\": \"arc-2026-test6d\", \"task_id\": \"task-6d\", \"task_subject\": \"Arc phase\", \"teammate_name\": \"worker\", \"cwd\": \"$FAKE_CWD\"}"
 assert_eq "Arc team exits 0" "0" "$(get_exit_code)"
 
-WORKERS_MEM2=$(cat "$FAKE_CWD/.claude/echoes/workers/MEMORY.md")
+WORKERS_MEM2=$(cat "$FAKE_CWD/.rune/echoes/workers/MEMORY.md")
 assert_contains "Arc task written to workers MEMORY.md" "Arc phase" "$WORKERS_MEM2"
 
 # ═══════════════════════════════════════════════════════════════
@@ -221,13 +221,13 @@ assert_contains "Arc task written to workers MEMORY.md" "Arc phase" "$WORKERS_ME
 printf "\n=== Dedup ===\n"
 
 # Count reviewer entries before
-BEFORE_COUNT=$(grep -c "Observations" "$FAKE_CWD/.claude/echoes/reviewer/MEMORY.md" || echo "0")
+BEFORE_COUNT=$(grep -c "Observations" "$FAKE_CWD/.rune/echoes/reviewer/MEMORY.md" || echo "0")
 
 # Re-run with same team+task as 6a
 run_hook "{\"team_name\": \"rune-review-test6a\", \"task_id\": \"task-6a\", \"task_subject\": \"Review auth\", \"teammate_name\": \"forge-warden\", \"cwd\": \"$FAKE_CWD\"}"
 assert_eq "Dedup re-run exits 0" "0" "$(get_exit_code)"
 
-AFTER_COUNT=$(grep -c "Observations" "$FAKE_CWD/.claude/echoes/reviewer/MEMORY.md" || echo "0")
+AFTER_COUNT=$(grep -c "Observations" "$FAKE_CWD/.rune/echoes/reviewer/MEMORY.md" || echo "0")
 assert_eq "Dedup prevents duplicate write" "$BEFORE_COUNT" "$AFTER_COUNT"
 
 # ═══════════════════════════════════════════════════════════════
@@ -235,7 +235,7 @@ assert_eq "Dedup prevents duplicate write" "$BEFORE_COUNT" "$AFTER_COUNT"
 # ═══════════════════════════════════════════════════════════════
 printf "\n=== Observation Entry Format ===\n"
 
-REVIEWER_MEM=$(cat "$FAKE_CWD/.claude/echoes/reviewer/MEMORY.md")
+REVIEWER_MEM=$(cat "$FAKE_CWD/.rune/echoes/reviewer/MEMORY.md")
 assert_contains "Entry has observations layer tag" "observations" "$REVIEWER_MEM"
 assert_contains "Entry has Confidence: LOW" "Confidence" "$REVIEWER_MEM"
 assert_contains "Entry has source with team/agent" "forge-warden" "$REVIEWER_MEM"
@@ -264,12 +264,12 @@ mkdir -p "$SYMLINK_CWD/tmp/.rune-signals"
 mkdir -p "$TMPWORK/real-echoes"
 ln -s "$TMPWORK/real-echoes" "$SYMLINK_CWD/.claude"
 mkdir -p "$SYMLINK_CWD/.claude"  2>/dev/null || true
-# Create .claude/echoes as a symlink
+# Create .rune/echoes as a symlink
 mkdir -p "$TMPWORK/real-echoes-dir"
 SYMLINK_CWD2="$TMPWORK/symlink-project2"
 mkdir -p "$SYMLINK_CWD2/tmp/.rune-signals"
 mkdir -p "$SYMLINK_CWD2/.claude"
-ln -s "$TMPWORK/real-echoes-dir" "$SYMLINK_CWD2/.claude/echoes"
+ln -s "$TMPWORK/real-echoes-dir" "$SYMLINK_CWD2/.rune/echoes"
 
 run_hook "{\"team_name\": \"rune-review-sym\", \"task_id\": \"task-sym\", \"task_subject\": \"Symlink test\", \"cwd\": \"$SYMLINK_CWD2\"}"
 assert_eq "Symlink echoes dir exits 0 (skipped)" "0" "$(get_exit_code)"
@@ -281,7 +281,7 @@ printf "\n=== No MEMORY.md for Role ===\n"
 
 NO_MEM_CWD="$TMPWORK/no-mem-project"
 mkdir -p "$NO_MEM_CWD/tmp/.rune-signals"
-mkdir -p "$NO_MEM_CWD/.claude/echoes/reviewer"
+mkdir -p "$NO_MEM_CWD/.rune/echoes/reviewer"
 # No MEMORY.md file in reviewer dir
 
 run_hook "{\"team_name\": \"rune-review-nomem\", \"task_id\": \"task-nomem\", \"task_subject\": \"Test\", \"cwd\": \"$NO_MEM_CWD\"}"

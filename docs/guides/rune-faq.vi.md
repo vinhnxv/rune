@@ -96,7 +96,7 @@ Vì Rune chạy multi-agent, mỗi agent có context window riêng.
 
 ### 16) Lúc nào nên dùng `/rune:rest`?
 Khi muốn dọn artifacts trong `tmp/` từ workflow đã hoàn thành.
-Lệnh này giữ trạng thái active workflow và giữ `.claude/echoes/`.
+Lệnh này giữ trạng thái active workflow và giữ `.rune/echoes/`.
 
 ## Output và sửa lỗi
 

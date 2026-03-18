@@ -452,7 +452,7 @@ Orchestrator-only phase with no team — minimal crash surface.
 | Resource | Location |
 |----------|----------|
 | Pre-ship report | `tmp/arc/{id}/pre-ship-report.md` |
-| Checkpoint state | `.claude/arc/{id}/checkpoint.json` (phase: "pre_ship_validation") |
+| Checkpoint state | `.rune/arc/{id}/checkpoint.json` (phase: "pre_ship_validation") |
 
 Recovery: On `--resume`, if pre_ship_validation is `in_progress`, re-run from the beginning. The validator is idempotent — re-running overwrites the report file cleanly.
 

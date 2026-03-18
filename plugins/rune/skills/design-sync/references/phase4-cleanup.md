@@ -25,7 +25,7 @@ Follow standard shutdown from [engines.md](../../team-sdk/references/engines.md#
 Write("{workDir}/report.md", completionReport)
 
 // Step 2: Persist echoes (run before team shutdown)
-// Write design patterns learned to .claude/echoes/
+// Write design patterns learned to .rune/echoes/
 
 // Step 5: Update state
 updateState({ status: "completed", phase: "cleanup", fidelity_score: overallScore })

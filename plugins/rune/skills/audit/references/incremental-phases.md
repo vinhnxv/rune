@@ -19,7 +19,7 @@ if (flags['--status']) {
   // Report-only mode — no audit, no teams, no state changes
   // Read state files + generate coverage report
   // See coverage-report.md for template
-  const state = Read(".claude/audit-state/state.json")
+  const state = Read(".rune/audit-state/state.json")
   if (!state) {
     log("No incremental audit state found. Run /rune:audit --incremental first.")
     return
@@ -35,10 +35,10 @@ if (flags['--status']) {
 ```javascript
 if (flags['--reset']) {
   // Remove all state files, preserve history/archive
-  Bash(`rm -f .claude/audit-state/state.json .claude/audit-state/manifest.json \
-    .claude/audit-state/workflows.json .claude/audit-state/apis.json \
-    .claude/audit-state/checkpoint.json .claude/audit-state/coverage-report.md`)
-  Bash(`rm -rf .claude/audit-state/.lock`)
+  Bash(`rm -f .rune/audit-state/state.json .rune/audit-state/manifest.json \
+    .rune/audit-state/workflows.json .rune/audit-state/apis.json \
+    .rune/audit-state/checkpoint.json .rune/audit-state/coverage-report.md`)
+  Bash(`rm -rf .rune/audit-state/.lock`)
   log("Incremental audit state reset. Starting fresh.")
 }
 ```
@@ -47,14 +47,14 @@ if (flags['--reset']) {
 
 ```javascript
 // Create state directory if needed
-Bash(`mkdir -p .claude/audit-state/history/archive`)
+Bash(`mkdir -p .rune/audit-state/history/archive`)
 
 // Clean up leftover temp files from previous crashes
-Bash(`for f in .claude/audit-state/*.tmp; do [ -f "$f" ] && rm -f "$f"; done`)
+Bash(`for f in .rune/audit-state/*.tmp; do [ -f "$f" ] && rm -f "$f"; done`)
 
 // Acquire advisory lock (mkdir-based TOCTOU-hardened)
 // See references/incremental-state-schema.md "Locking Protocol"
-const lockDir = ".claude/audit-state/.lock"
+const lockDir = ".rune/audit-state/.lock"
 const lockAcquired = Bash(`mkdir "${lockDir}" 2>/dev/null && echo "ACQUIRED" || echo "EXISTS"`)
 if (lockAcquired === "EXISTS") {
   // Check if lock is stale (dead PID, different config_dir)
@@ -103,7 +103,7 @@ Write(`${lockDir}/meta.json`, {
 
 ```javascript
 if (flags['--resume']) {
-  const checkpoint = Read(".claude/audit-state/checkpoint.json")
+  const checkpoint = Read(".rune/audit-state/checkpoint.json")
   if (checkpoint?.status === "active") {
     // Validate session ownership
     // Validate PID is a positive integer before shell interpolation (SEC-001)
@@ -134,7 +134,7 @@ See [codebase-mapper.md](codebase-mapper.md) for the full protocol.
 
 ```javascript
 // Load previous manifest for warm-run optimization
-const prevManifest = Read(".claude/audit-state/manifest.json")
+const prevManifest = Read(".rune/audit-state/manifest.json")
 const isGitRepo = Bash(`git rev-parse --is-inside-work-tree 2>/dev/null || echo "false"`).trim()
 
 let manifest
@@ -185,13 +185,13 @@ for (const pattern of skipPatterns) {
 }
 
 // Atomic write manifest
-Write(".claude/audit-state/manifest.json", manifest)
+Write(".rune/audit-state/manifest.json", manifest)
 ```
 
 ## Phase 0.3: Manifest Diff & State Reconciliation
 
 ```javascript
-const state = Read(".claude/audit-state/state.json") || initFreshState()
+const state = Read(".rune/audit-state/state.json") || initFreshState()
 
 // Compute diff between current and previous manifest
 if (prevManifest) {
@@ -315,7 +315,7 @@ const batch = selectBatch(candidates, {
 log(`Incremental batch: ${batch.length} files selected from ${candidates.length} candidates`)
 
 // Write checkpoint for crash resume
-Write(".claude/audit-state/checkpoint.json", {
+Write(".rune/audit-state/checkpoint.json", {
   audit_id, started_at: new Date().toISOString(),
   batch: batch.map(f => f.path), completed: [], current_file: null,
   team_name: `rune-audit-${audit_id}`, status: "active",

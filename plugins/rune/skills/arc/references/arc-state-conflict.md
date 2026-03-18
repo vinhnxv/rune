@@ -15,7 +15,7 @@ Before creating a new state file, check if one already exists from a previous or
 
 ```javascript
 // ── Pre-flight: State file conflict detection (runs BEFORE state file creation) ──
-const stateFile = ".claude/arc-phase-loop.local.md"
+const stateFile = ".rune/arc-phase-loop.local.md"
 const stateExists = Bash(`test -f "${stateFile}" && echo "yes" || echo "no"`).trim() === "yes"
 
 if (stateExists) {

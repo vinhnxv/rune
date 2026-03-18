@@ -50,7 +50,7 @@ Các hướng dẫn liên quan:
 
 ### Tùy chọn
 - `codex` CLI cho cross-model verification (Codex Oracle tham gia review).
-- `.claude/talisman.yml` để tinh chỉnh timeout, Ash, và custom reviewer.
+- `.rune/talisman.yml` để tinh chỉnh timeout, Ash, và custom reviewer.
 
 ---
 
@@ -186,7 +186,7 @@ Cho codebase lớn, audit có trạng thái theo dõi những gì đã review qu
 /rune:audit --incremental --reset        # Xóa trạng thái, bắt đầu lại
 ```
 
-Trạng thái incremental lưu tại `.claude/audit-state/` và tồn tại qua các session.
+Trạng thái incremental lưu tại `.rune/audit-state/` và tồn tại qua các session.
 
 ### 4.6 Khác biệt so với appraise
 

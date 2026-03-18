@@ -260,8 +260,8 @@
       "assertions": [
         {
           "name": "state-file-created",
-          "description": "Creates .claude/arc-batch-loop.local.md state file",
-          "check": "Write tool used on .claude/arc-batch-loop.local.md"
+          "description": "Creates .rune/arc-batch-loop.local.md state file",
+          "check": "Write tool used on .rune/arc-batch-loop.local.md"
         },
         {
           "name": "config-dir-field",

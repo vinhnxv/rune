@@ -6,7 +6,7 @@ description: |
   progress across multiple sequential arc runs, or when using a queue file
   (one plan path per line) instead of a glob. Use when crash recovery is
   needed for interrupted batch runs. Covers: Stop hook pattern, progress
-  tracking via .claude/arc-batch-loop.local.md, --dry-run preview, --no-merge.
+  tracking via .rune/arc-batch-loop.local.md, --dry-run preview, --no-merge.
   Keywords: arc-batch, batch, queue file, overnight, --resume, crash recovery,
   progress tracking, sequential plans.
 
@@ -30,7 +30,7 @@ argument-hint: "[plans/*.md | queue-file.txt] [--resume] [--dry-run] [--no-merge
 
 Executes `/rune:arc` across multiple plan files sequentially. Each arc run completes the full 29-phase pipeline (forge through merge) before the next plan starts.
 
-**Core loop**: Stop hook pattern (ralph-wiggum). Each arc runs as a native Claude Code turn. Between arcs, the Stop hook intercepts session end, reads batch state from `.claude/arc-batch-loop.local.md`, determines the next plan, cleans git state, and re-injects the arc prompt.
+**Core loop**: Stop hook pattern (ralph-wiggum). Each arc runs as a native Claude Code turn. Between arcs, the Stop hook intercepts session end, reads batch state from `.rune/arc-batch-loop.local.md`, determines the next plan, cleans git state, and re-injects the arc prompt.
 
 ## Usage
 

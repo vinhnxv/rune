@@ -19,8 +19,8 @@
 # Usage (MCP startup scripts):
 #   source "$(dirname "$0")/../lib/worktree-resolve.sh"
 #   rune_resolve_project_dir "" >/dev/null
-#   ECHO_DIR="${RUNE_PROJECT_DIR}/.claude/echoes"
-#   DB_PATH="${RUNE_MAIN_REPO_ROOT}/.claude/.agent-search-index.db"
+#   ECHO_DIR="${RUNE_PROJECT_DIR}/.rune/echoes"
+#   DB_PATH="${RUNE_MAIN_REPO_ROOT}/.rune/.agent-search-index.db"
 
 # Source guard — safe to source multiple times
 [[ -n "${__RUNE_LIB_WORKTREE_RESOLVE_LOADED:-}" ]] && return 0

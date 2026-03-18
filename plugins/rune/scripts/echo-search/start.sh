@@ -11,6 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "${PLUGIN_ROOT}/scripts/lib/rune-state.sh"
 
 # --- Package check ---
 # Use shared venv helper — venv lives in ${CLAUDE_CONFIG_DIR}/.rune/venv/
@@ -45,13 +46,13 @@ PROJECT_DIR=$(cd "$PROJECT_DIR" 2>/dev/null && pwd -P) || { echo "ERROR: invalid
 # When running in a worktree, CLAUDE_PROJECT_DIR points to the original repo
 # (upstream bug #27343). Detect worktree via .git file and use worktree echoes.
 _WT_CWD="$(pwd -P)"
-if [[ -f "$_WT_CWD/.git" && -d "$_WT_CWD/.claude/echoes" ]]; then
+if [[ -f "$_WT_CWD/.git" && -d "$_WT_CWD/${RUNE_STATE}/echoes" ]]; then
   [[ "${RUNE_TRACE:-}" == "1" ]] && echo "INFO: Worktree echoes detected at $_WT_CWD — using worktree paths" >&2
   PROJECT_DIR="$_WT_CWD"
 fi
 
-export ECHO_DIR="$PROJECT_DIR/.claude/echoes"
-export DB_PATH="$PROJECT_DIR/.claude/echoes/.search-index.db"
+export ECHO_DIR="$PROJECT_DIR/${RUNE_STATE}/echoes"
+export DB_PATH="$PROJECT_DIR/${RUNE_STATE}/echoes/.search-index.db"
 
 # Global echo store — cross-project knowledge + doc packs
 CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"

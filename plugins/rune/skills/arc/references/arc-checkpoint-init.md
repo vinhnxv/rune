@@ -42,7 +42,7 @@ try {
 } catch (e) {
   // Fallback: try full talisman file (covers case where shards were not resolved)
   try {
-    const fullTalisman = Read(".claude/talisman.yml")
+    const fullTalisman = Read(".rune/talisman.yml")
     // parseYaml is a dispatcher utility — parses YAML string to object
     const full = parseYaml(fullTalisman)
     arc = full?.arc ?? {}
@@ -336,7 +336,7 @@ const parentPlanMeta = {
 // Detection: check for --hierarchy-child flag or HIERARCHY_CONTEXT env override in args.
 // The arc-hierarchy SKILL.md documents the injection protocol.
 
-Write(`.claude/arc/${id}/checkpoint.json`, {
+Write(`.rune/arc/${id}/checkpoint.json`, {
   id, schema_version: 24, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, accept_external_changes: arcConfig.accept_external_changes ?? true, bot_review: arcConfig.bot_review ?? false, no_bot_review: arcConfig.no_bot_review ?? false },
@@ -411,7 +411,7 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
   //   2. Shell-level: arc-phase-stop-hook.sh writes phase_timing events to phase-log.jsonl
   //      via _log_phase (wall-clock elapsed from .epoch files). JSONL events serve as a
   //      reliable backup when the JS-level timing is missed by the LLM.
-  // Post-arc summary can derive totals from phase-log.jsonl: grep "phase_timing" .claude/arc/{id}/phase-log.jsonl
+  // Post-arc summary can derive totals from phase-log.jsonl: grep "phase_timing" .rune/arc/{id}/phase-log.jsonl
   totals: { phase_times: {}, total_duration_ms: null, cost_at_completion: null },
   // Schema v19 addition (v1.111.0): arc-level completion timestamp (set at Post-Arc stamp)
   completed_at: null,

@@ -55,14 +55,14 @@ Rune generates output files (plans, reviews, temporary artifacts) in directories
     "todos/",
     "tmp/",
     "reviews/",
-    ".claude/arc/",
-    ".claude/echoes/",
-    ".claude/arc-batch-loop.local.md",
-    ".claude/arc-hierarchy-loop.local.md",
-    ".claude/arc-issues-loop.local.md",
-    ".claude/arc-phase-loop.local.md",
+    ".rune/arc/",
+    ".rune/echoes/",
+    ".rune/arc-batch-loop.local.md",
+    ".rune/arc-hierarchy-loop.local.md",
+    ".rune/arc-issues-loop.local.md",
+    ".rune/arc-phase-loop.local.md",
     ".claude/CLAUDE.local.md",
-    ".claude/talisman.yml"
+    ".rune/talisman.yml"
   ]
 }
 ```
@@ -81,7 +81,7 @@ Generate a `talisman.yml` configuration file tailored to your project's tech sta
 /rune:talisman init
 ```
 
-This auto-detects your stack (Python, TypeScript, Rust, PHP, Go, etc.) and generates `.claude/talisman.yml` with appropriate ward commands, file classification, and agent settings. You can skip this step — Rune works with sensible defaults.
+This auto-detects your stack (Python, TypeScript, Rust, PHP, Go, etc.) and generates `.rune/talisman.yml` with appropriate ward commands, file classification, and agent settings. You can skip this step — Rune works with sensible defaults.
 
 See the [Talisman Deep Dive](rune-talisman-deep-dive-guide.en.md) for all configuration options.
 

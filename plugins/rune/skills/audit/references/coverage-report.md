@@ -4,7 +4,7 @@
 
 ## Report Location
 
-`coverage-report.md` is generated to `.claude/audit-state/coverage-report.md` and displayed when using `--status` flag.
+`coverage-report.md` is generated to `.rune/audit-state/coverage-report.md` and displayed when using `--status` flag.
 
 ## Report Template
 
@@ -119,7 +119,7 @@ Uses rolling average of last 5 sessions' batch sizes for the estimate.
 After report generation, write an inscribed echo entry:
 
 ```
-Target: .claude/echoes/auditor/MEMORY.md
+Target: .rune/echoes/auditor/MEMORY.md
 Layer: inscribed
 
 Content:
@@ -136,9 +136,9 @@ Content:
 
 When `/rune:audit --incremental --status` is invoked:
 
-1. Read `.claude/audit-state/state.json`
-2. Read `.claude/audit-state/workflows.json` (if exists)
-3. Read `.claude/audit-state/apis.json` (if exists)
+1. Read `.rune/audit-state/state.json`
+2. Read `.rune/audit-state/workflows.json` (if exists)
+3. Read `.rune/audit-state/apis.json` (if exists)
 4. Read last 10 history entries
 5. Generate and display coverage report
 6. **No audit is performed** — report-only mode

@@ -33,6 +33,9 @@
 #
 # Bash 3.2 compatible (macOS): no associative arrays, no ${var,,} lowercase.
 
+# Source rune-state if not already loaded (stop-hook-common.sh may have loaded it)
+[[ -n "${RUNE_STATE:-}" ]] || source "$(dirname "${BASH_SOURCE[0]}")/rune-state.sh"
+
 # ─────────────────────────────────────────────────────────────
 # Block A: _rune_fail_forward + ERR trap
 # ─────────────────────────────────────────────────────────────
@@ -157,7 +160,7 @@ arc_guard_jq_required() {
 arc_guard_inner_loop_active() {
   local cwd="$1"
   local guard_label="${2:-GUARD 6.5}"
-  local _phase_state="${cwd}/.claude/arc-phase-loop.local.md"
+  local _phase_state="${cwd}/${RUNE_STATE}/arc-phase-loop.local.md"
 
   if [[ -f "$_phase_state" && ! -L "$_phase_state" ]]; then
     local _phase_retries=0

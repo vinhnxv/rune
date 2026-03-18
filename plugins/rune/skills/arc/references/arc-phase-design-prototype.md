@@ -417,7 +417,7 @@ instance is reused by:
 | Match report | `tmp/arc/{id}/prototypes/match-report.json` |
 | Manifest | `tmp/arc/{id}/prototypes/manifest.json` |
 | Team config | `$CHOME/teams/arc-prototype-{id}/` |
-| Checkpoint state | `.claude/arc/{id}/checkpoint.json` (phase: "design_prototype") |
+| Checkpoint state | `.rune/arc/{id}/checkpoint.json` (phase: "design_prototype") |
 
 Recovery: On `--resume`, if design_prototype is `in_progress`, clean up stale team and re-run
 from the beginning. Prototype generation is idempotent — files are overwritten cleanly.

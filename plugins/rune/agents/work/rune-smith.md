@@ -170,7 +170,7 @@ Before marking a task complete, discover and run project quality gates:
 2. Check package.json: scripts 'test', 'lint', 'typecheck'
 3. Check pyproject.toml: ruff, mypy, pytest configs
 4. Fallback: skip wards with warning
-5. Override: check .claude/talisman.yml for ward_commands
+5. Override: check .rune/talisman.yml for ward_commands
 ```
 
 Run discovered gates. If any fail, fix the issues before marking complete.

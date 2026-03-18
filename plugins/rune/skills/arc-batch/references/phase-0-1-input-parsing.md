@@ -26,7 +26,7 @@ if (resumeMode) {
   // Pattern: batch-loop-init.md lines 24-57 (pre-creation guard)
   const CHOME = Bash('echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"').trim()
   const currentPid = Bash('echo $PPID').trim()
-  const stateFile = Read('.claude/arc-batch-loop.local.md') // returns null/error if not found
+  const stateFile = Read('.rune/arc-batch-loop.local.md') // returns null/error if not found
 
   // R1: No state file → check if progress file exists as fallback
   if (!stateFile) {
@@ -47,7 +47,7 @@ if (resumeMode) {
       error(`Cannot resume: batch belongs to different config dir`)
       error(`  Stored:  ${storedCfg}`)
       error(`  Current: ${CHOME}`)
-      error(`Delete .claude/arc-batch-loop.local.md manually to force-claim, or use the original CLAUDE_CONFIG_DIR.`)
+      error(`Delete .rune/arc-batch-loop.local.md manually to force-claim, or use the original CLAUDE_CONFIG_DIR.`)
       return
     }
 
@@ -72,7 +72,7 @@ if (resumeMode) {
     // it may see stale compact_pending. Quick-patch before Phase 5:
     const patchedState = stateFile.replace(/compact_pending:\s*true/, 'compact_pending: false')
     if (patchedState !== stateFile) {
-      Write('.claude/arc-batch-loop.local.md', patchedState)
+      Write('.rune/arc-batch-loop.local.md', patchedState)
       warn('Reset stale compact_pending in state file.')
     }
   }

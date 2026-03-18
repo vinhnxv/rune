@@ -167,8 +167,8 @@ Write(stateFile, JSON.stringify(state))
 const p1Count = extractP1Count(verdict)
 if (p1Count > 0) {
   // PW-001 FIX: Use appendEchoEntry() for structured echo persistence
-  if (exists(".claude/echoes/orchestrator/")) {
-    appendEchoEntry(".claude/echoes/orchestrator/MEMORY.md", {
+  if (exists(".rune/echoes/orchestrator/")) {
+    appendEchoEntry(".rune/echoes/orchestrator/MEMORY.md", {
       layer: "traced", source: `rune:inspect ${identifier}`, confidence: 0.3,
       session_id: identifier,
       content: `## Inspection: ${planPath || "inline"}\nDate: ${new Date().toISOString()}\n`

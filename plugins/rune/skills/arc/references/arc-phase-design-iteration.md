@@ -286,6 +286,6 @@ updateCheckpoint({
 | Iteration report | `tmp/arc/{id}/design-iteration-report.md` |
 | Browser sessions | `arc-design-{id}` (check `agent-browser session list`) |
 | Team config | `$CHOME/teams/arc-design-iter-{id}/` |
-| Checkpoint state | `.claude/arc/{id}/checkpoint.json` (phase: "design_iteration") |
+| Checkpoint state | `.rune/arc/{id}/checkpoint.json` (phase: "design_iteration") |
 
 Recovery: On `--resume`, if design_iteration is `in_progress`, close any stale browser sessions (`agent-browser close --session "arc-design-{id}"`), clean up stale team, and re-run from the beginning. The screenshot→fix loop is idempotent — components are re-evaluated from their current state.

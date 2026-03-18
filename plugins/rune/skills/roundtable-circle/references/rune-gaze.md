@@ -531,7 +531,7 @@ Gemfile.lock, pnpm-lock.yaml, go.sum, composer.lock
 | Infra + docs | Selected | **Always** | **Always** | **Always** | - | Selected | **CLI-gated** |
 | All types | Selected | **Always** | **Always** | **Always** | Selected | Selected | **CLI-gated** |
 
-**Note:** The "Only `.claude/` files" row assumes `.claude/**/*.md`. Non-md files in `.claude/` (e.g., `.claude/talisman.yml`) follow standard classification rules and may also select Forge Warden via CONFIG_EXTENSIONS.
+**Note:** The "Only `.claude/` files" row assumes `.claude/**/*.md`. Non-md files in `.claude/` (e.g., `.rune/talisman.yml`) follow standard classification rules and may also select Forge Warden via CONFIG_EXTENSIONS.
 
 **CLI-gated:** Codex Oracle is selected when `codex` CLI is available (`command -v codex` returns 0) AND `talisman.codex.disabled` is not true. It reviews all file types from a cross-model perspective.
 
@@ -541,10 +541,10 @@ Gemfile.lock, pnpm-lock.yaml, go.sum, composer.lock
 
 ## Configurable Overrides
 
-Projects can override the default extension groups via `.claude/talisman.yml`:
+Projects can override the default extension groups via `.rune/talisman.yml`:
 
 ```yaml
-# .claude/talisman.yml (optional)
+# .rune/talisman.yml (optional)
 rune-gaze:
   backend_extensions:
     - .py

@@ -3,7 +3,7 @@ name: elevate
 description: |
   Promote a project echo to global scope with domain tagging.
   Use when a learning is valuable across multiple projects.
-  Copies selected entries from project .claude/echoes/ to global echoes
+  Copies selected entries from project .rune/echoes/ to global echoes
   with domain classification and source provenance.
 
   Trigger keywords: elevate, promote to global, cross-project, share echo,
@@ -37,7 +37,7 @@ Promote project-level echoes to the global echo store with domain tagging. Eleva
 
 ## Prerequisites
 
-- Project echoes must exist (`.claude/echoes/` with MEMORY.md files)
+- Project echoes must exist (`.rune/echoes/` with MEMORY.md files)
 - `--scope <domain>` argument is **required** (no default — prevents accidental bleed)
 
 ## Allowed Domains
@@ -66,14 +66,14 @@ Validate domain against allowed list
 CHOME = "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 GLOBAL_MEMORY = "$CHOME/echoes/global/MEMORY.md"
 GLOBAL_DIR = "$CHOME/echoes/global"
-PROJECT_ECHOES = ".claude/echoes"
+PROJECT_ECHOES = ".rune/echoes"
 ```
 
 Never hardcode `~/.claude/`.
 
 ### Step 3: Scan Project Echoes
 
-Read all MEMORY.md files in `.claude/echoes/*/MEMORY.md` via Glob.
+Read all MEMORY.md files in `.rune/echoes/*/MEMORY.md` via Glob.
 
 For each file, parse entries using the header pattern:
 ```
@@ -158,7 +158,7 @@ For each entry passing dedup, append to `$CHOME/echoes/global/MEMORY.md`:
 ## Security
 
 - **SEC-P3-001**: Domain argument validated against allowlist
-- **SEC-P3-003**: Source MEMORY.md paths validated with `realpath` containment — must be under `.claude/echoes/`
+- **SEC-P3-003**: Source MEMORY.md paths validated with `realpath` containment — must be under `.rune/echoes/`
 - **SEC-P3-006**: Concurrent write protection via `mkdir`-based locking
 - **EC-3.6**: Entries with `source: elevated:*` or `source: doc-pack:*` are skipped (no circular elevation)
 - **EC-3.3**: Max 50 elevated entries in global MEMORY.md (doc packs are separate files, exempt)

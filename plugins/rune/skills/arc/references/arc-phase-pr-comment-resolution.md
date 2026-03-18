@@ -472,7 +472,7 @@ Orchestrator-only phase with no team — minimal crash surface.
 | Per-round fetch data | `tmp/arc/{id}/pr-comments/review-threads-rN.json` |
 | Per-round batch results | `tmp/arc/{id}/pr-comments/batch-rN-B-results.json` |
 | Resolution report | `tmp/arc/{id}/pr-comment-resolution-report.md` |
-| Checkpoint state | `.claude/arc/{id}/checkpoint.json` (phase: "pr_comment_resolution") |
+| Checkpoint state | `.rune/arc/{id}/checkpoint.json` (phase: "pr_comment_resolution") |
 
 Recovery: On `--resume`, if pr_comment_resolution phase is `in_progress`, check
 `current_round` in checkpoint. If a commit was pushed (`last_commit` exists), verify

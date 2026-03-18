@@ -36,7 +36,7 @@ Related guide:
 
 ### Optional
 - `codex` CLI for cross-model verification phases.
-- `.claude/talisman.yml` for tuning (timeouts, bot review, merge behavior, testing policy).
+- `.rune/talisman.yml` for tuning (timeouts, bot review, merge behavior, testing policy).
 
 ---
 
@@ -98,7 +98,7 @@ Arc runs a phased pipeline including:
 > **Note (v1.120.2+):** The arc pipeline now has 26 phases (up from the original 23), with the addition of Design Extraction, Design Verification, and Design Iteration phases for Figma design sync support.
 
 ### 4.5 Where to inspect state
-- Checkpoint: `.claude/arc/{arc-id}/checkpoint.json`
+- Checkpoint: `.rune/arc/{arc-id}/checkpoint.json`
 - Artifacts/reports: `tmp/arc/{arc-id}/`
 
 ### 4.6 Resume behavior
@@ -160,7 +160,7 @@ Important behavior:
 Resume guard runs before talisman checks to prevent reordering partial batches.
 
 ### 5.5 Batch state files
-- Loop state: `.claude/arc-batch-loop.local.md`
+- Loop state: `.rune/arc-batch-loop.local.md`
 - Progress ledger: `tmp/arc-batch/batch-progress.json`
 - Iteration summaries (if enabled): `tmp/arc-batch/summaries/iteration-{N}.md`
 

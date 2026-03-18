@@ -152,7 +152,7 @@ if (!qualityPassed) {
 ## Talisman Configuration
 
 ```yaml
-# .claude/talisman.yml
+# .rune/talisman.yml
 gates:
   quality_commands:
     - "npm run lint"

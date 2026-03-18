@@ -397,7 +397,7 @@ Repeat for each task. After all tasks:
 
 ### Local Codebase Context
 - `/Users/vinhnx/Desktop/repos/rune-plugin/docs/solutions/architecture/plan-quality-best-practices.md` -- Comprehensive plan quality research including AgentCoder, CODESIM, and PGPO patterns
-- `/Users/vinhnx/Desktop/repos/rune-plugin/.claude/echoes/planner/MEMORY.md` -- "Design-vs-Implementation Gap Detection" pattern: when design and implementation diverge, check whether the design was ever implemented
+- `/Users/vinhnx/Desktop/repos/rune-plugin/.rune/echoes/planner/MEMORY.md` -- "Design-vs-Implementation Gap Detection" pattern: when design and implementation diverge, check whether the design was ever implemented
 
 ---
 

@@ -227,7 +227,7 @@ Continue from: ${contextMeta.last_action}
 
 ## Talisman Configuration
 
-Configure context preservation under `context_preservation:` in `.claude/talisman.yml`:
+Configure context preservation under `context_preservation:` in `.rune/talisman.yml`:
 
 ```yaml
 context_preservation:

@@ -119,7 +119,7 @@ Before content is loaded, the file path is validated:
 
 ## Talisman Configuration
 
-Configure a project-wide default prompt file in `.claude/talisman.yml`:
+Configure a project-wide default prompt file in `.rune/talisman.yml`:
 
 ```yaml
 audit:

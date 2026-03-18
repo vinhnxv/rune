@@ -147,6 +147,9 @@ discover_test_commands() {
   echo "${commands[@]}"
 }
 
+_VTE_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${_VTE_SCRIPT_DIR}/lib/rune-state.sh"
+
 TEST_COMMANDS=$(discover_test_commands "$CWD")
 
 # ── Step 2: If no test framework discovered, skip ──
@@ -163,7 +166,7 @@ BLOCK_ON_FAIL=true  # Default: hard-block (backward compatible)
 SKIP_PATTERNS=()    # Default: no patterns
 TEST_EVIDENCE_ENABLED=true
 
-for TALISMAN_PATH in "${CWD}/.claude/talisman.yml" "${CHOME}/talisman.yml"; do
+for TALISMAN_PATH in "${CWD}/${RUNE_STATE}/talisman.yml" "${CHOME}/talisman.yml"; do
   if [[ -f "$TALISMAN_PATH" ]]; then
     if command -v yq &>/dev/null; then
       # Read enabled flag

@@ -25,7 +25,7 @@ Research scope for: {feature}
 
 If the user redirects ("skip git history" or "also research X"), adjust agent selection before spawning.
 
-**Inputs**: `feature` (sanitized string, from Phase 0), `timestamp` (validated identifier, from session), talisman config (from `.claude/talisman.yml`)
+**Inputs**: `feature` (sanitized string, from Phase 0), `timestamp` (validated identifier, from session), talisman config (from `.rune/talisman.yml`)
 **Outputs**: Research agent outputs in `tmp/plans/{timestamp}/research/`, `inscription.json`
 **Error handling**: TeamDelete fallback on cleanup, identifier validation before rm -rf
 
@@ -154,7 +154,7 @@ Agent({
 })
 
 const echoReaderPrompt = `You are Echo Reader -- a RESEARCH agent. Do not write implementation code.
-    Read .claude/echoes/ for relevant past learnings.
+    Read .rune/echoes/ for relevant past learnings.
     Write findings to tmp/plans/{timestamp}/research/past-echoes.md.
     Claim the "Read past echoes" task via TaskList/TaskUpdate.
     See agents/research/echo-reader.md for full instructions.

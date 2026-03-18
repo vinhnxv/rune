@@ -72,10 +72,10 @@ If `--status` is detected, run `rune-status.sh` and display its output. Do not p
 const args = "$ARGUMENTS"
 if (args.includes('--list-active')) {
   const STATE_FILES = [
-    ".claude/arc-phase-loop.local.md",
-    ".claude/arc-batch-loop.local.md",
-    ".claude/arc-hierarchy-loop.local.md",
-    ".claude/arc-issues-loop.local.md",
+    ".rune/arc-phase-loop.local.md",
+    ".rune/arc-batch-loop.local.md",
+    ".rune/arc-hierarchy-loop.local.md",
+    ".rune/arc-issues-loop.local.md",
   ]
   const currentCfg = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cd "$CHOME" 2>/dev/null && pwd -P`).trim()
   const currentPid = Bash(`echo $PPID`).trim()
@@ -102,7 +102,7 @@ if (args.includes('--list-active')) {
   }
 
   // Also report active arc checkpoints
-  const checkpoints = Bash(`ls .claude/arc/*/checkpoint.json 2>/dev/null || true`).trim()
+  const checkpoints = Bash(`ls .rune/arc/*/checkpoint.json 2>/dev/null || true`).trim()
   if (checkpoints) {
     for (const cp of checkpoints.split("\n").filter(Boolean)) {
       found.push(`  ${cp}  [arc checkpoint]`)
@@ -148,7 +148,7 @@ When `--variant` is set, only the matching loop type is cancelled. The arc pipel
 
 ```javascript
 function _cancelHierarchyOnly() {
-  const stateFile = ".claude/arc-hierarchy-loop.local.md"
+  const stateFile = ".rune/arc-hierarchy-loop.local.md"
   const exists = Bash(`test -f "${stateFile}" && echo "yes" || echo "no"`).trim()
   if (exists !== "yes") {
     log("No active arc-hierarchy loop found.")
@@ -194,7 +194,7 @@ function _cancelHierarchyOnly() {
 
 ```javascript
 function _cancelIssuesOnly() {
-  const stateFile = ".claude/arc-issues-loop.local.md"
+  const stateFile = ".rune/arc-issues-loop.local.md"
   const exists = Bash(`test -f "${stateFile}" && echo "yes" || echo "no"`).trim()
   if (exists !== "yes") {
     log("No active arc-issues loop found.")
@@ -224,7 +224,7 @@ function _cancelIssuesOnly() {
     return
   }
 
-  Bash("rm -f .claude/arc-issues-loop.local.md")
+  Bash("rm -f .rune/arc-issues-loop.local.md")
   log(`Arc issues loop cancelled at iteration ${iteration}/${totalPlans}.`)
   log("The current arc run will finish normally. No further issues will be started.")
   log("To see batch progress: Read tmp/gh-issues/batch-progress.json")
@@ -238,7 +238,7 @@ function _cancelIssuesOnly() {
 
 ```javascript
 // Check for active arc-phase loop state file (innermost loop — check first)
-const phaseStateFile = ".claude/arc-phase-loop.local.md"
+const phaseStateFile = ".rune/arc-phase-loop.local.md"
 const phaseExists = Bash(`test -f "${phaseStateFile}" && echo "yes" || echo "no"`).trim()
 
 if (phaseExists === "yes") {
@@ -276,7 +276,7 @@ if (phaseExists === "yes") {
 
 ```javascript
 // Check for active arc-batch loop state file
-const batchStateFile = ".claude/arc-batch-loop.local.md"
+const batchStateFile = ".rune/arc-batch-loop.local.md"
 const batchExists = Bash(`test -f "${batchStateFile}" && echo "yes" || echo "no"`).trim()
 
 if (batchExists === "yes") {
@@ -304,7 +304,7 @@ if (batchExists === "yes") {
 
   if (isOwner) {
     // Remove state file to stop the batch loop
-    Bash('rm -f .claude/arc-batch-loop.local.md')
+    Bash('rm -f .rune/arc-batch-loop.local.md')
     log(`Arc-batch loop also cancelled (was at iteration ${iteration}/${total})`)
   } else {
     warn(`Arc-batch loop belongs to another session (PID: ${ownerPid}). Skipping batch cancellation.`)
@@ -317,7 +317,7 @@ if (batchExists === "yes") {
 
 ```javascript
 // Check for active arc-hierarchy loop state file
-const hierarchyStateFile = ".claude/arc-hierarchy-loop.local.md"
+const hierarchyStateFile = ".rune/arc-hierarchy-loop.local.md"
 const hierarchyExists = Bash(`test -f "${hierarchyStateFile}" && echo "yes" || echo "no"`).trim()
 
 if (hierarchyExists === "yes") {
@@ -354,7 +354,7 @@ if (hierarchyExists === "yes") {
 
 ```javascript
 // Check for active arc-issues loop state file
-const issuesStateFile = ".claude/arc-issues-loop.local.md"
+const issuesStateFile = ".rune/arc-issues-loop.local.md"
 const issuesExists = Bash(`test -f "${issuesStateFile}" && echo "yes" || echo "no"`).trim()
 
 if (issuesExists === "yes") {
@@ -380,7 +380,7 @@ if (issuesExists === "yes") {
 
   if (isOwner) {
     // Remove state file to stop the issues loop (same as batch — Stop hook checks for file presence)
-    Bash("rm -f .claude/arc-issues-loop.local.md")
+    Bash("rm -f .rune/arc-issues-loop.local.md")
     log(`Arc-issues loop also cancelled (was at iteration ${issuesIteration}/${issuesTotal})`)
   } else {
     warn(`Arc-issues loop belongs to another session (PID: ${ownerPid}). Skipping.`)
@@ -393,7 +393,7 @@ if (issuesExists === "yes") {
 
 ```bash
 # Find active arc checkpoint files
-ls .claude/arc/*/checkpoint.json 2>/dev/null
+ls .rune/arc/*/checkpoint.json 2>/dev/null
 ```
 
 If no active arc found: "No active arc pipeline to cancel."
@@ -401,7 +401,7 @@ If no active arc found: "No active arc pipeline to cancel."
 ### 2. Read Checkpoint
 
 ```javascript
-checkpoint = Read(".claude/arc/{id}/checkpoint.json")
+checkpoint = Read(".rune/arc/{id}/checkpoint.json")
 
 // Validate arc id from checkpoint before using in path construction
 if (!/^arc-[a-zA-Z0-9_-]+$/.test(id)) throw new Error("Invalid arc id")
@@ -606,13 +606,13 @@ checkpoint.user_cancelled = true
 checkpoint.cancel_reason = "user_requested"
 checkpoint.cancelled_at = new Date().toISOString()
 checkpoint.stop_reason = "cancel-arc command invoked"
-Write(`.claude/arc/${id}/checkpoint.json`, checkpoint)
+Write(`.rune/arc/${id}/checkpoint.json`, checkpoint)
 ```
 
 ### 5. Preserve Completed Artifacts
 
 Do NOT delete any files from completed phases:
-- `.claude/arc/{id}/` directory is preserved
+- `.rune/arc/{id}/` directory is preserved
 - `tmp/` output from completed phases is preserved
 - Only the in-progress phase's team resources are cleaned up
 
@@ -644,7 +644,7 @@ for (const phaseName of PHASE_ORDER) {
     report += `- Phase ${PHASE_LABELS[phaseName]}: ${p.status}\n`
   }
 }
-report += `\nArtifacts remain in: .claude/arc/${id}/\nTo resume: /rune:arc --resume`
+report += `\nArtifacts remain in: .rune/arc/${id}/\nTo resume: /rune:arc --resume`
 ```
 
 ## Notes

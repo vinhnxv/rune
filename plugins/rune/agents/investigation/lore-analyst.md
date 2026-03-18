@@ -121,7 +121,7 @@ Parse into per-file records: commit hash, author, date, lines added, lines delet
 | **Churn** | Total lines added + deleted | 0.25 |
 | **Recency** | Days since last modification (inverse — recent = higher) | 0.15 |
 | **Ownership** | top_contributor_commits / total_commits. High = concentrated = risky. Single-commit files default to 0.5 (see lore-protocol.md) | 0.15 |
-| **Echo** | Number of Rune echo references to this file (from `.claude/echoes/`) | 0.10 |
+| **Echo** | Number of Rune echo references to this file (from `.rune/echoes/`) | 0.10 |
 
 ### Step 3 — Percentile Normalization
 

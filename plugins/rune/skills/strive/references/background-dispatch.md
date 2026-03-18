@@ -200,7 +200,7 @@ the dispatch runs.
 
 ## Talisman Configuration
 
-Configure background dispatch under `dispatch:` in `.claude/talisman.yml`:
+Configure background dispatch under `dispatch:` in `.rune/talisman.yml`:
 
 ```yaml
 dispatch:

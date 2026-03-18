@@ -243,7 +243,7 @@ Mỗi phase kích hoạt team mới với **giới hạn tool** và **ngân sác
 
 **Vấn đề**: Pipeline 26 phase chạy 30-90 phút chắc chắn gặp gián đoạn.
 
-**Giải pháp**: Checkpoint bền vững tại `.claude/arc/{id}/checkpoint.json`:
+**Giải pháp**: Checkpoint bền vững tại `.rune/arc/{id}/checkpoint.json`:
 - Lưu sau mỗi phase với **SHA-256 hash** xác minh tính toàn vẹn artifact
 - Versioning schema tự migrate (v2 → v6)
 - `PHASE_ORDER` array định nghĩa thứ tự chạy (đánh số không tuần tự cho tương thích ngược)
@@ -388,7 +388,7 @@ Output: `GOLDMASK.md`, `findings.json`, `risk-map.json`.
 
 **Vấn đề**: Agent phát hiện lại cùng pattern, mắc cùng lỗi, học lại convention dự án qua các session.
 
-**Giải pháp**: Bộ nhớ bền vững trong `.claude/echoes/{role}/MEMORY.md` với 5 tầng:
+**Giải pháp**: Bộ nhớ bền vững trong `.rune/echoes/{role}/MEMORY.md` với 5 tầng:
 
 | Tầng | Độ bền | Pruning | Tạo bởi |
 |------|--------|---------|---------|

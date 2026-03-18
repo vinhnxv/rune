@@ -278,7 +278,7 @@ Orchestrator-only phase with no team — minimal crash surface.
 | Resource | Location |
 |----------|----------|
 | Wait report | `tmp/arc/{id}/bot-review-wait-report.md` |
-| Checkpoint state | `.claude/arc/{id}/checkpoint.json` (phase: "bot_review_wait") |
+| Checkpoint state | `.rune/arc/{id}/checkpoint.json` (phase: "bot_review_wait") |
 
 Recovery: On `--resume`, if bot_review_wait phase is `in_progress`, re-run from
 the beginning. Polling is idempotent. Initial wait restarts from zero.

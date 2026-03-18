@@ -88,8 +88,8 @@ codex:
 **Config resolution (precedence):**
 
 ```
-1. Project talisman: .claude/talisman.yml
-2. Global talisman: ~/.claude/talisman.yml
+1. Project talisman: .rune/talisman.yml
+2. Global talisman: ~/.rune/talisman.yml
 3. Built-in defaults (shown above)
 ```
 

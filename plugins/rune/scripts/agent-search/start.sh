@@ -11,6 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "${PLUGIN_ROOT}/scripts/lib/rune-state.sh"
 
 # --- Package check ---
 # Use shared venv helper — venv lives in ${CLAUDE_CONFIG_DIR}/.rune/venv/
@@ -44,6 +45,6 @@ PROJECT_DIR=$(cd "$PROJECT_DIR" 2>/dev/null && pwd -P) || { echo "ERROR: invalid
 # Export env vars for server.py
 export PLUGIN_ROOT
 export PROJECT_DIR
-export DB_PATH="$PROJECT_DIR/.claude/.agent-search-index.db"
+export DB_PATH="$PROJECT_DIR/${RUNE_STATE}/.agent-search-index.db"
 
 exec "$PYTHON" "$SCRIPT_DIR/server.py"

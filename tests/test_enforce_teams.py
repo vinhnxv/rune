@@ -102,7 +102,7 @@ def _write_arc_checkpoint(
     config_dir: Path | None = None,
     owner_pid: int | None = None,
 ) -> Path:
-    """Write a .claude/arc/{arc_id}/checkpoint.json file.
+    """Write a .rune/arc/{arc_id}/checkpoint.json file.
 
     config_dir is stored as its resolved (symlink-free) path because
     resolve-session-identity.sh uses ``pwd -P`` to canonicalize the path.
@@ -477,7 +477,7 @@ class TestEnforceTeamsWorkflowDetection:
 
     @requires_jq
     def test_no_arc_dir_skips_arc_check(self, hook_runner, project_env) -> None:
-        """Missing .claude/arc/ directory means no arc workflows to check."""
+        """Missing .rune/arc/ directory means no arc workflows to check."""
         project, config = project_env
         import shutil
         arc_dir = project / ".claude" / "arc"
@@ -1095,7 +1095,7 @@ class TestEnforceTeamsEdgeCases:
     ) -> None:
         """Arc checkpoint deeper than maxdepth 2 is not found by find."""
         project, config = project_env
-        # Place checkpoint 3 levels deep: .claude/arc/a/b/checkpoint.json
+        # Place checkpoint 3 levels deep: .rune/arc/a/b/checkpoint.json
         deep_dir = project / ".claude" / "arc" / "a" / "b"
         deep_dir.mkdir(parents=True, exist_ok=True)
         checkpoint = deep_dir / "checkpoint.json"

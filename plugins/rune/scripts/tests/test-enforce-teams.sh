@@ -198,8 +198,8 @@ printf "\n=== Arc Checkpoint Detection ===\n"
 
 # Create CWD with active arc checkpoint
 ARCCWD="$TMPWORK/arc-project"
-mkdir -p "$ARCCWD/.claude/arc/test-phase"
-cat > "$ARCCWD/.claude/arc/test-phase/checkpoint.json" <<EOF
+mkdir -p "$ARCCWD/.rune/arc/test-phase"
+cat > "$ARCCWD/.rune/arc/test-phase/checkpoint.json" <<EOF
 {"phase_status": "in_progress", "owner_pid": "99999999"}
 EOF
 
@@ -210,8 +210,8 @@ assert_contains "Arc checkpoint triggers deny" "ATE-1" "$output"
 
 # 6b. V4 nested schema (phases.*.status)
 V4CWD="$TMPWORK/v4-project"
-mkdir -p "$V4CWD/.claude/arc/test-v4"
-cat > "$V4CWD/.claude/arc/test-v4/checkpoint.json" <<EOF
+mkdir -p "$V4CWD/.rune/arc/test-v4"
+cat > "$V4CWD/.rune/arc/test-v4/checkpoint.json" <<EOF
 {"phases": {"forge": {"status": "in_progress"}}, "owner_pid": "99999999"}
 EOF
 result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$V4CWD\", \"tool_input\": {\"subagent_type\": \"general-purpose\", \"prompt\": \"Do work\"}}")

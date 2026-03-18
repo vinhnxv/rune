@@ -40,7 +40,7 @@ The protocol has two complementary parts:
 
 | Part | Location | What it does |
 |------|----------|-------------|
-| `integrations.mcp_tools` (talisman) | `.claude/talisman.yml` | Tool routing, phase gating, trigger conditions |
+| `integrations.mcp_tools` (talisman) | `.rune/talisman.yml` | Tool routing, phase gating, trigger conditions |
 | `builder-protocol` frontmatter (skill) | `skills/{name}/SKILL.md` | Capability mapping, conventions file, workflow instructions |
 
 The `skill_binding` field in talisman links these two parts together. Together they form a **Builder Profile** — resolved at runtime by `discoverUIBuilder()`.
@@ -116,7 +116,7 @@ Install a component's full source code.
 
 ### Link the Skill in Talisman
 
-Add to `.claude/talisman.yml`:
+Add to `.rune/talisman.yml`:
 
 ```yaml
 integrations:
@@ -405,7 +405,7 @@ claude mcp add --transport http untitledui https://www.untitledui.com/react/api/
 > **Access tiers**: When `UNTITLEDUI_ACCESS_TOKEN` is set, agents have PRO access (all components,
 > page templates, shared assets). Without it, agents use free tier or fall back to Tailwind + conventions.
 
-**Talisman config (`.claude/talisman.yml`):**
+**Talisman config (`.rune/talisman.yml`):**
 ```yaml
 integrations:
   mcp_tools:

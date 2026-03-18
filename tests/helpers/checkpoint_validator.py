@@ -227,7 +227,7 @@ def load_checkpoint(workspace: Path, extra_search_dirs: list[Path] | None = None
     """Find and load the most recent checkpoint from a workspace.
 
     Searches multiple locations for checkpoint.json:
-    1. {workspace}/.claude/arc/*/checkpoint.json (project-local)
+    1. {workspace}/.rune/arc/*/checkpoint.json (project-local)
     2. {workspace}/tmp/arc/*/checkpoint.json (tmp artifacts)
     3. Any extra_search_dirs (e.g., isolated config dir)
 

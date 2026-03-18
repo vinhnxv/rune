@@ -249,7 +249,7 @@ if (coherenceResult.errors.length > 0) {
 
 ### Phase 5: Session Identity + State File
 
-Resolves CHOME, PID, and session ID. Checks for conflicting sessions (abort if another session owns the state file, unless `--resume`). Writes `.claude/arc-hierarchy-loop.local.md` with all session isolation fields.
+Resolves CHOME, PID, and session ID. Checks for conflicting sessions (abort if another session owns the state file, unless `--resume`). Writes `.rune/arc-hierarchy-loop.local.md` with all session isolation fields.
 
 See [session-state.md](references/session-state.md) for the full protocol.
 
@@ -300,7 +300,7 @@ if (completedCount === totalChildren) {
 }
 
 // Clean up state file and JSON sidecar
-Bash(`rm -f "${stateFile}" ".claude/arc-hierarchy-exec-table.json"`)
+Bash(`rm -f "${stateFile}" ".rune/arc-hierarchy-exec-table.json"`)
 
 // Release workflow lock
 Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "arc-hierarchy"`)
@@ -310,7 +310,7 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_re
 
 ## State File Format
 
-`.claude/arc-hierarchy-loop.local.md` — YAML frontmatter:
+`.rune/arc-hierarchy-loop.local.md` — YAML frontmatter:
 
 ```yaml
 ---
@@ -333,7 +333,7 @@ Arc hierarchy loop state. Do not edit manually.
 Use /rune:cancel-arc-hierarchy to stop execution.
 ```
 
-**JSON Sidecar**: `.claude/arc-hierarchy-exec-table.json` — machine-readable execution table for the stop hook (jq-based parsing). Updated by the orchestrator at Phase 7c before each child arc. The Markdown table in the parent plan remains the human-readable source of truth.
+**JSON Sidecar**: `.rune/arc-hierarchy-exec-table.json` — machine-readable execution table for the stop hook (jq-based parsing). Updated by the orchestrator at Phase 7c before each child arc. The Markdown table in the parent plan remains the human-readable source of truth.
 
 **Session isolation fields** (CLAUDE.md §11 — CRITICAL):
 - `config_dir` — resolved CLAUDE_CONFIG_DIR. Isolates different Claude Code installations.

@@ -108,8 +108,8 @@ Optional:
 | Plan | `plans/YYYY-MM-DD-...-plan.md` |
 | Review report (TOME) | `tmp/reviews/{id}/TOME.md` |
 | Audit report (TOME) | `tmp/audit/{id}/TOME.md` |
-| Arc checkpoint | `.claude/arc/{id}/checkpoint.json` |
-| Echoes memory | `.claude/echoes/` |
+| Arc checkpoint | `.rune/arc/{id}/checkpoint.json` |
+| Echoes memory | `.rune/echoes/` |
 
 ---
 

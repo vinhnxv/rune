@@ -6,7 +6,7 @@ progress tracking, plan injection, issue-specific features (Fixes #N),
 and security checks.
 
 Modeled after test_arc_batch_stop_hook.py with issues-specific adaptations:
-  - State file: .claude/arc-issues-loop.local.md (not arc-batch-loop)
+  - State file: .rune/arc-issues-loop.local.md (not arc-batch-loop)
   - Progress file: tmp/gh-issues/batch-progress.json
   - Plans include `number` field (GitHub issue number)
   - Arc prompt includes `Fixes #N` for auto-close PR linking
@@ -42,7 +42,7 @@ def write_state_file(
     owner_pid: str | None = None,
     compact_pending: bool = False,
 ) -> Path:
-    """Create a .claude/arc-issues-loop.local.md state file."""
+    """Create a .rune/arc-issues-loop.local.md state file."""
     state_file = project / ".claude" / "arc-issues-loop.local.md"
     state_file.parent.mkdir(parents=True, exist_ok=True)
     pid = owner_pid or str(os.getpid())
@@ -100,7 +100,7 @@ def write_checkpoint_file(
     ship_status: str = "completed",
     pr_url: str | None = "https://github.com/test/repo/pull/99",
 ) -> Path:
-    """Create a mock arc checkpoint under .claude/arc/ for _find_arc_checkpoint()."""
+    """Create a mock arc checkpoint under .rune/arc/ for _find_arc_checkpoint()."""
     pid = owner_pid or str(os.getpid())
     arc_id = f"arc-test-{pid}"
     ckpt_dir = project / ".claude" / "arc" / arc_id
@@ -181,7 +181,7 @@ def run_issues_hook(
 class TestArcIssuesGuardClauses:
     @requires_jq
     def test_exit_0_no_state_file(self, project_env):
-        """No .claude/arc-issues-loop.local.md -> exit 0."""
+        """No .rune/arc-issues-loop.local.md -> exit 0."""
         project, config = project_env
         result = run_issues_hook(project, config)
         assert result.returncode == 0

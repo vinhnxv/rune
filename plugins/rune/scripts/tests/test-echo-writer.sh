@@ -78,13 +78,13 @@ This is a seed entry so the dedup function has existing titles to check against.
 SEED
 }
 
-# ── Setup: fake project with .claude/echoes structure ──
+# ── Setup: fake project with .rune/echoes structure ──
 TMPROOT=$(mktemp -d)
 trap 'rm -rf "$TMPROOT"' EXIT
 
 FAKE_PROJECT="${TMPROOT}/project"
-mkdir -p "$FAKE_PROJECT/.claude/echoes/orchestrator"
-mkdir -p "$FAKE_PROJECT/.claude/echoes/reviewer"
+mkdir -p "$FAKE_PROJECT/.rune/echoes/orchestrator"
+mkdir -p "$FAKE_PROJECT/.rune/echoes/reviewer"
 mkdir -p "$FAKE_PROJECT/tmp"
 
 # ===================================================================
@@ -112,7 +112,7 @@ assert_contains "Invalid role error message" "invalid role name" "$stderr_output
 # ===================================================================
 printf "\n=== Successful write ===\n"
 
-MEMORY_FILE="${FAKE_PROJECT}/.claude/echoes/orchestrator/MEMORY.md"
+MEMORY_FILE="${FAKE_PROJECT}/.rune/echoes/orchestrator/MEMORY.md"
 seed_memory "$MEMORY_FILE"
 
 input='{"title":"CLI Pattern: git push typo","content":"Always use git push not git psuh","confidence":"HIGH","tags":["cli","git"]}'
@@ -131,7 +131,7 @@ assert_contains "Content body written" "Always use git push not git psuh" "$cont
 # ===================================================================
 printf "\n=== Default confidence ===\n"
 
-REVIEWER_MEM="${FAKE_PROJECT}/.claude/echoes/reviewer/MEMORY.md"
+REVIEWER_MEM="${FAKE_PROJECT}/.rune/echoes/reviewer/MEMORY.md"
 seed_memory "$REVIEWER_MEM"
 
 input='{"title":"Default Conf Test Entry","content":"Some content here"}'
@@ -166,10 +166,10 @@ assert_eq "Invalid JSON exits 0 (fail-forward)" "0" "$rc"
 printf "\n=== Symlink MEMORY.md rejected ===\n"
 
 SYMLINK_ROLE="symlink-test"
-mkdir -p "${FAKE_PROJECT}/.claude/echoes/${SYMLINK_ROLE}"
-ln -sf /tmp/some-target "${FAKE_PROJECT}/.claude/echoes/${SYMLINK_ROLE}/MEMORY.md" 2>/dev/null || true
+mkdir -p "${FAKE_PROJECT}/.rune/echoes/${SYMLINK_ROLE}"
+ln -sf /tmp/some-target "${FAKE_PROJECT}/.rune/echoes/${SYMLINK_ROLE}/MEMORY.md" 2>/dev/null || true
 
-if [[ -L "${FAKE_PROJECT}/.claude/echoes/${SYMLINK_ROLE}/MEMORY.md" ]]; then
+if [[ -L "${FAKE_PROJECT}/.rune/echoes/${SYMLINK_ROLE}/MEMORY.md" ]]; then
   rc=0
   stderr_output=$(echo '{"title":"Symlink Test","content":"body"}' | (cd "$FAKE_PROJECT" && bash "$WRITER" --role "$SYMLINK_ROLE" --layer notes --source "test" 2>&1 >/dev/null)) || rc=$?
   assert_eq "Symlink MEMORY.md exits 0" "0" "$rc"
@@ -187,8 +187,8 @@ fi
 printf "\n=== Dedup identical titles ===\n"
 
 DEDUP_ROLE="dedup-test"
-mkdir -p "${FAKE_PROJECT}/.claude/echoes/${DEDUP_ROLE}"
-DEDUP_MEM="${FAKE_PROJECT}/.claude/echoes/${DEDUP_ROLE}/MEMORY.md"
+mkdir -p "${FAKE_PROJECT}/.rune/echoes/${DEDUP_ROLE}"
+DEDUP_MEM="${FAKE_PROJECT}/.rune/echoes/${DEDUP_ROLE}/MEMORY.md"
 seed_memory "$DEDUP_MEM"
 
 # Write first entry
@@ -225,8 +225,8 @@ assert_contains "Non-existent role warns" "does not exist" "$stderr_output"
 printf "\n=== Confidence normalization ===\n"
 
 CONF_ROLE="conf-test"
-mkdir -p "${FAKE_PROJECT}/.claude/echoes/${CONF_ROLE}"
-CONF_MEM="${FAKE_PROJECT}/.claude/echoes/${CONF_ROLE}/MEMORY.md"
+mkdir -p "${FAKE_PROJECT}/.rune/echoes/${CONF_ROLE}"
+CONF_MEM="${FAKE_PROJECT}/.rune/echoes/${CONF_ROLE}/MEMORY.md"
 seed_memory "$CONF_MEM"
 
 echo '{"title":"Conf Normal Test Entry","content":"body text","confidence":"low"}' | \
@@ -242,8 +242,8 @@ assert_contains "Lowercase confidence normalized to uppercase" "LOW" "$content"
 printf "\n=== Invalid confidence defaults to MEDIUM ===\n"
 
 INVCONF_ROLE="invconf-test"
-mkdir -p "${FAKE_PROJECT}/.claude/echoes/${INVCONF_ROLE}"
-INVCONF_MEM="${FAKE_PROJECT}/.claude/echoes/${INVCONF_ROLE}/MEMORY.md"
+mkdir -p "${FAKE_PROJECT}/.rune/echoes/${INVCONF_ROLE}"
+INVCONF_MEM="${FAKE_PROJECT}/.rune/echoes/${INVCONF_ROLE}/MEMORY.md"
 seed_memory "$INVCONF_MEM"
 
 echo '{"title":"Invalid Conf Entry","content":"body text","confidence":"INVALID_VALUE"}' | \
@@ -258,8 +258,8 @@ assert_contains "Invalid confidence defaults to MEDIUM" "MEDIUM" "$content"
 printf "\n=== Dirty signal ===\n"
 
 DIRTY_ROLE="dirty-test"
-mkdir -p "${FAKE_PROJECT}/.claude/echoes/${DIRTY_ROLE}"
-DIRTY_MEM="${FAKE_PROJECT}/.claude/echoes/${DIRTY_ROLE}/MEMORY.md"
+mkdir -p "${FAKE_PROJECT}/.rune/echoes/${DIRTY_ROLE}"
+DIRTY_MEM="${FAKE_PROJECT}/.rune/echoes/${DIRTY_ROLE}/MEMORY.md"
 seed_memory "$DIRTY_MEM"
 
 echo '{"title":"Dirty Signal Test Entry","content":"trigger dirty signal"}' | \
@@ -280,8 +280,8 @@ fi
 printf "\n=== Lock cleanup ===\n"
 
 LOCK_ROLE="lock-test"
-mkdir -p "${FAKE_PROJECT}/.claude/echoes/${LOCK_ROLE}"
-LOCK_MEM="${FAKE_PROJECT}/.claude/echoes/${LOCK_ROLE}/MEMORY.md"
+mkdir -p "${FAKE_PROJECT}/.rune/echoes/${LOCK_ROLE}"
+LOCK_MEM="${FAKE_PROJECT}/.rune/echoes/${LOCK_ROLE}/MEMORY.md"
 seed_memory "$LOCK_MEM"
 
 echo '{"title":"Lock Cleanup Test Entry","content":"body"}' | \
@@ -303,16 +303,16 @@ fi
 printf "\n=== Schema header on new MEMORY.md ===\n"
 
 SCHEMA_ROLE="schema-test"
-mkdir -p "${FAKE_PROJECT}/.claude/echoes/${SCHEMA_ROLE}"
+mkdir -p "${FAKE_PROJECT}/.rune/echoes/${SCHEMA_ROLE}"
 # Create MEMORY.md with just the schema header (no ## entries)
 # This will trigger the empty-titles path, but test the file creation
-rm -f "${FAKE_PROJECT}/.claude/echoes/${SCHEMA_ROLE}/MEMORY.md"
+rm -f "${FAKE_PROJECT}/.rune/echoes/${SCHEMA_ROLE}/MEMORY.md"
 
 # Run writer -- will fail-forward due to empty titles, but MEMORY.md should be created
 echo '{"title":"Schema Test","content":"body"}' | \
   (cd "$FAKE_PROJECT" && bash "$WRITER" --role "$SCHEMA_ROLE" --layer notes --source "test" 2>/dev/null) || true
 
-SCHEMA_MEM="${FAKE_PROJECT}/.claude/echoes/${SCHEMA_ROLE}/MEMORY.md"
+SCHEMA_MEM="${FAKE_PROJECT}/.rune/echoes/${SCHEMA_ROLE}/MEMORY.md"
 if [[ -f "$SCHEMA_MEM" ]]; then
   first_line=$(head -1 "$SCHEMA_MEM")
   assert_contains "MEMORY.md has schema header" "echo-schema: v1" "$first_line"
@@ -327,7 +327,7 @@ fi
 # ===================================================================
 printf "\n=== Date field ===\n"
 
-content=$(cat "${FAKE_PROJECT}/.claude/echoes/orchestrator/MEMORY.md")
+content=$(cat "${FAKE_PROJECT}/.rune/echoes/orchestrator/MEMORY.md")
 TODAY=$(date +%Y-%m-%d)
 assert_contains "Date field has today's date" "$TODAY" "$content"
 
@@ -336,7 +336,7 @@ assert_contains "Date field has today's date" "$TODAY" "$content"
 # ===================================================================
 printf "\n=== Entry heading format ===\n"
 
-content=$(cat "${FAKE_PROJECT}/.claude/echoes/orchestrator/MEMORY.md")
+content=$(cat "${FAKE_PROJECT}/.rune/echoes/orchestrator/MEMORY.md")
 assert_contains "Entry has ## heading" "## CLI Pattern" "$content"
 
 # ===================================================================
@@ -345,8 +345,8 @@ assert_contains "Entry has ## heading" "## CLI Pattern" "$content"
 printf "\n=== Valid role names ===\n"
 
 for role_name in "test-role" "test_role" "TestRole123"; do
-  mkdir -p "${FAKE_PROJECT}/.claude/echoes/${role_name}"
-  seed_memory "${FAKE_PROJECT}/.claude/echoes/${role_name}/MEMORY.md"
+  mkdir -p "${FAKE_PROJECT}/.rune/echoes/${role_name}"
+  seed_memory "${FAKE_PROJECT}/.rune/echoes/${role_name}/MEMORY.md"
   rc=0
   echo '{"title":"Role Name Test","content":"body"}' | \
     (cd "$FAKE_PROJECT" && bash "$WRITER" --role "$role_name" --layer notes --source "test" 2>/dev/null) || rc=$?
@@ -359,8 +359,8 @@ done
 printf "\n=== 150-line warning ===\n"
 
 WARN_ROLE="warn-test"
-mkdir -p "${FAKE_PROJECT}/.claude/echoes/${WARN_ROLE}"
-WARN_MEM="${FAKE_PROJECT}/.claude/echoes/${WARN_ROLE}/MEMORY.md"
+mkdir -p "${FAKE_PROJECT}/.rune/echoes/${WARN_ROLE}"
+WARN_MEM="${FAKE_PROJECT}/.rune/echoes/${WARN_ROLE}/MEMORY.md"
 # Create a file with >150 lines
 python3 -c "
 print('<!-- echo-schema: v1 -->')

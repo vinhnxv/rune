@@ -190,7 +190,7 @@ Nếu phiên crash giữa chừng, issues có thể giữ label `rune:in-progres
 
 ### 4.1 Echoes là gì
 
-Rune Echoes là hệ thống agent memory bền vững lưu trong `.claude/echoes/`. Sau các lần review, audit, và implementation, agent lưu lại pattern và bài học. Các phiên sau đọc echoes này để cải thiện chất lượng theo thời gian.
+Rune Echoes là hệ thống agent memory bền vững lưu trong `.rune/echoes/`. Sau các lần review, audit, và implementation, agent lưu lại pattern và bài học. Các phiên sau đọc echoes này để cải thiện chất lượng theo thời gian.
 
 ### 4.2 Vòng đời năm tầng
 
@@ -236,7 +236,7 @@ Tạo entry tầng Notes vĩnh viễn và không bao giờ tự xóa. Dùng cho 
 ### 4.6 Cấu trúc Memory
 
 ```
-.claude/echoes/
+.rune/echoes/
 ├── planner/MEMORY.md      # Pattern planning
 ├── workers/MEMORY.md      # Pattern implementation
 ├── reviewer/MEMORY.md     # Phát hiện review
@@ -261,7 +261,7 @@ Entry được thăng trở thành tài liệu có phiên bản trong `docs/solu
 ### 4.8 Cấu hình
 
 ```yaml
-# .claude/talisman.yml
+# .rune/talisman.yml
 echoes:
   version_controlled: false    # Đặt true để track echoes trong git
   decomposition:
@@ -436,7 +436,7 @@ Mỗi investigator thu thập cả bằng chứng **xác nhận** và **phủ nh
 | Lỗi `gh` CLI | Chưa cài hoặc chưa xác thực | Cài `gh` và chạy `gh auth login` |
 | Echoes không cải thiện kết quả | Bộ nhớ chưa khởi tạo | `/rune:echoes init` trước |
 | MEMORY.md quá lớn | Vượt giới hạn 150 dòng | `/rune:echoes prune` để lưu trữ entry cũ |
-| Batch dừng sau một issue | File state Stop hook bị xóa | Kiểm tra `.claude/arc-issues-loop.local.md` |
+| Batch dừng sau một issue | File state Stop hook bị xóa | Kiểm tra `.rune/arc-issues-loop.local.md` |
 | `/rune:learn` không tìm thấy pattern | Session ngắn hoặc không có correction | Chạy sau session hiệu quả với nhiều iteration |
 | Browser test không khởi động | `agent-browser` CLI chưa cài | Cài agent-browser: `npm install -g @anthropic-ai/agent-browser` |
 | Debug agent trả về tin cậy thấp | Bug không nằm trong codebase | Kiểm tra xem bug có phải environment-specific hoặc trong dependency |

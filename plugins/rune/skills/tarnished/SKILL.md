@@ -293,7 +293,7 @@ load [rune-knowledge.md](references/rune-knowledge.md) and provide educational g
 /rune:tarnished always use agent
 ```
 → For "add agent" / "custom reviewer" / "custom ash":
-  Guide user to add `ashes.custom[]` entry in `.claude/talisman.yml`:
+  Guide user to add `ashes.custom[]` entry in `.rune/talisman.yml`:
   ```yaml
   ashes:
     custom:

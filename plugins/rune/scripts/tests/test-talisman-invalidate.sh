@@ -106,7 +106,7 @@ printf "\n=== talisman.yml file_path triggers resolver ===\n"
 # Script should exit 0 on resolver not found
 rc=0
 CLAUDE_PLUGIN_ROOT="${TMPROOT}/no-plugin" \
-  bash -c 'echo "{\"tool_input\":{\"file_path\":\"/home/user/.claude/talisman.yml\"}}" | bash "'"$INVALIDATOR"'"' >/dev/null 2>&1 || rc=$?
+  bash -c 'echo "{\"tool_input\":{\"file_path\":\"/home/user/.rune/talisman.yml\"}}" | bash "'"$INVALIDATOR"'"' >/dev/null 2>&1 || rc=$?
 assert_eq "talisman.yml with missing resolver exits 0" "0" "$rc"
 
 # ===================================================================
@@ -135,7 +135,7 @@ printf "\n=== Nested path with talisman.yml ===\n"
 
 rc=0
 CLAUDE_PLUGIN_ROOT="${TMPROOT}/no-plugin" \
-  bash -c 'echo "{\"tool_input\":{\"file_path\":\"/deep/nested/path/to/.claude/talisman.yml\"}}" | bash "'"$INVALIDATOR"'"' >/dev/null 2>&1 || rc=$?
+  bash -c 'echo "{\"tool_input\":{\"file_path\":\"/deep/nested/path/to/.rune/talisman.yml\"}}" | bash "'"$INVALIDATOR"'"' >/dev/null 2>&1 || rc=$?
 assert_eq "Nested talisman.yml path exits 0" "0" "$rc"
 
 # ===================================================================
@@ -158,7 +158,7 @@ chmod +x "${FAKE_PLUGIN}/scripts/talisman-resolve.sh"
 
 rc=0
 CLAUDE_PLUGIN_ROOT="$FAKE_PLUGIN" \
-  bash -c 'echo "{\"tool_input\":{\"file_path\":\"/tmp/project/.claude/talisman.yml\"}}" | bash "'"$INVALIDATOR"'"' >/dev/null 2>&1 || rc=$?
+  bash -c 'echo "{\"tool_input\":{\"file_path\":\"/tmp/project/.rune/talisman.yml\"}}" | bash "'"$INVALIDATOR"'"' >/dev/null 2>&1 || rc=$?
 
 assert_eq "Resolver called exits 0" "0" "$rc"
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))

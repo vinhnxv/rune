@@ -45,7 +45,7 @@ Phases added in v1.100+ that require explicit allowed/denied tool contracts:
 | bot_review_wait (9.1) | Bash (gh), Read, Write | Edit, TeamCreate | 15 min |
 | pr_comment_resolution (9.2) | Bash (gh, git, jq), Read, Write, Edit, Glob, Grep | TeamCreate | 20 min |
 
-Worker and fixer agent prompts include: "Do not modify files in `.claude/arc/`". Only the arc orchestrator writes to checkpoint.json.
+Worker and fixer agent prompts include: "Do not modify files in `.rune/arc/`". Only the arc orchestrator writes to checkpoint.json.
 
 ## Time Budget per Phase
 

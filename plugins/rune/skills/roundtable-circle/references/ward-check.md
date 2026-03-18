@@ -12,7 +12,7 @@ Discover project-specific quality gates from build configuration files:
 3. pyproject.toml -> [tool.ruff], [tool.mypy], [tool.pytest]
 4. Cargo.toml    -> cargo test, cargo clippy
 5. go.mod        -> go test, go vet
-6. .claude/talisman.yml -> ward_commands override
+6. .rune/talisman.yml -> ward_commands override
 7. Fallback: skip wards, warn user
 ```
 

@@ -106,6 +106,7 @@ fi
 if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
   source "${SCRIPT_DIR}/lib/platform.sh"
 fi
+source "${SCRIPT_DIR}/lib/rune-state.sh"
 
 if [[ -f "${SCRIPT_DIR}/lib/frontmatter-utils.sh" ]]; then
   source "${SCRIPT_DIR}/lib/frontmatter-utils.sh"
@@ -178,21 +179,21 @@ _check_loop_ownership() {
 # would still defer. Now both scripts use the same 150 min threshold.
 _PHASE_STALE_MIN=150
 [[ -z "${NOW:-}" ]] && NOW=$(date +%s)
-if _check_loop_ownership "${CWD}/.claude/arc-phase-loop.local.md"; then
+if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"; then
   _phase_active=$(_get_fm_field "$_LOOP_FM" "active")
   if [[ "$_phase_active" == "true" ]]; then
-    _phase_mtime=$(_stat_mtime "${CWD}/.claude/arc-phase-loop.local.md"); _phase_mtime="${_phase_mtime:-0}"
+    _phase_mtime=$(_stat_mtime "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"); _phase_mtime="${_phase_mtime:-0}"
     # BACK-8 FIX: Guard against mtime=0 (stat failure → file deleted between check and stat).
     # mtime=0 produces age ~936,000 min, exceeding all staleness thresholds.
     if [[ "$_phase_mtime" -le 0 ]]; then exit 0; fi
     _phase_age_min=$(( (NOW - _phase_mtime) / 60 ))
     if [[ $_phase_age_min -gt $_PHASE_STALE_MIN ]]; then
-      rm -f "${CWD}/.claude/arc-phase-loop.local.md" 2>/dev/null
+      rm -f "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md" 2>/dev/null
     else
       exit 0
     fi
   else
-    rm -f "${CWD}/.claude/arc-phase-loop.local.md" 2>/dev/null
+    rm -f "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md" 2>/dev/null
   fi
 fi
 
@@ -207,23 +208,23 @@ fi
 # GUARD 5: 150 min = arc runtime (30-90 min) × up to 2 arcs in flight
 _BATCH_STALE_MIN=150
 [[ -z "${NOW:-}" ]] && NOW=$(date +%s)
-if _check_loop_ownership "${CWD}/.claude/arc-batch-loop.local.md"; then
+if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"; then
   _batch_active=$(_get_fm_field "$_LOOP_FM" "active")
   if [[ "$_batch_active" == "true" ]]; then
     # Check staleness — if file is older than threshold, loop hook likely crashed
-    _batch_mtime=$(_stat_mtime "${CWD}/.claude/arc-batch-loop.local.md"); _batch_mtime="${_batch_mtime:-0}"
+    _batch_mtime=$(_stat_mtime "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"); _batch_mtime="${_batch_mtime:-0}"
     if [[ "$_batch_mtime" -le 0 ]]; then exit 0; fi
     _batch_age_min=$(( (NOW - _batch_mtime) / 60 ))
     if [[ $_batch_age_min -gt $_BATCH_STALE_MIN ]]; then
       # Stale loop file — force cleanup instead of deferring
-      rm -f "${CWD}/.claude/arc-batch-loop.local.md" 2>/dev/null
+      rm -f "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md" 2>/dev/null
     else
       # Fresh active batch — defer to arc-batch-stop-hook.sh
       exit 0
     fi
   else
     # Not active (completed/cancelled) — clean up orphaned file
-    rm -f "${CWD}/.claude/arc-batch-loop.local.md" 2>/dev/null
+    rm -f "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md" 2>/dev/null
   fi
 fi
 
@@ -231,20 +232,20 @@ fi
 # v1.125.1 FIX: Increased threshold from 10 min to 150 min (same as batch — hierarchy
 # runs multiple child arcs sequentially, each taking 30-90 min).
 _HIERARCHY_STALE_MIN=150
-if _check_loop_ownership "${CWD}/.claude/arc-hierarchy-loop.local.md"; then
+if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"; then
   _hier_status=$(_get_fm_field "$_LOOP_FM" "status")
   if [[ "$_hier_status" == "active" ]]; then
-    _hier_mtime=$(_stat_mtime "${CWD}/.claude/arc-hierarchy-loop.local.md"); _hier_mtime="${_hier_mtime:-0}"
+    _hier_mtime=$(_stat_mtime "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"); _hier_mtime="${_hier_mtime:-0}"
     if [[ "$_hier_mtime" -le 0 ]]; then exit 0; fi
     _hier_age_min=$(( (NOW - _hier_mtime) / 60 ))
     if [[ $_hier_age_min -gt $_HIERARCHY_STALE_MIN ]]; then
-      rm -f "${CWD}/.claude/arc-hierarchy-loop.local.md" 2>/dev/null
+      rm -f "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md" 2>/dev/null
     else
       exit 0
     fi
   else
     # Not active (completed/cancelled) — clean up orphaned file
-    rm -f "${CWD}/.claude/arc-hierarchy-loop.local.md" 2>/dev/null
+    rm -f "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md" 2>/dev/null
   fi
 fi
 
@@ -252,20 +253,20 @@ fi
 # v1.125.1 FIX: Increased threshold from 10 min to 150 min (same as batch — issues
 # runs multiple arcs sequentially, each taking 30-90 min).
 _ISSUES_STALE_MIN=150
-if _check_loop_ownership "${CWD}/.claude/arc-issues-loop.local.md"; then
+if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"; then
   _issues_active=$(_get_fm_field "$_LOOP_FM" "active")
   if [[ "$_issues_active" == "true" ]]; then
-    _issues_mtime=$(_stat_mtime "${CWD}/.claude/arc-issues-loop.local.md"); _issues_mtime="${_issues_mtime:-0}"
+    _issues_mtime=$(_stat_mtime "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"); _issues_mtime="${_issues_mtime:-0}"
     if [[ "$_issues_mtime" -le 0 ]]; then exit 0; fi
     _issues_age_min=$(( (NOW - _issues_mtime) / 60 ))
     if [[ $_issues_age_min -gt $_ISSUES_STALE_MIN ]]; then
-      rm -f "${CWD}/.claude/arc-issues-loop.local.md" 2>/dev/null
+      rm -f "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md" 2>/dev/null
     else
       exit 0
     fi
   else
     # Not active (completed/cancelled) — clean up orphaned file
-    rm -f "${CWD}/.claude/arc-issues-loop.local.md" 2>/dev/null
+    rm -f "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md" 2>/dev/null
   fi
 fi
 
@@ -518,10 +519,10 @@ fi
 # 5 min is shorter than the 30 min team threshold because arc checkpoints are CWD-scoped
 # (less cross-session risk) and in_progress phases from crashed sessions should be cancelled quickly.
 cleaned_arcs=()
-if [[ -d "${CWD}/.claude/arc/" ]]; then
+if [[ -d "${CWD}/${RUNE_STATE}/arc/" ]]; then
   [[ -z "${NOW:-}" ]] && NOW=$(date +%s)
   shopt -s nullglob
-  for f in "${CWD}/.claude/arc/"*/checkpoint.json; do
+  for f in "${CWD}/${RUNE_STATE}/arc/"*/checkpoint.json; do
     [[ ! -f "$f" ]] && continue
     [[ -L "$f" ]] && continue
     # Age guard: skip checkpoints modified within the last 5 minutes

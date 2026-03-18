@@ -16,7 +16,10 @@
 
 set -euo pipefail
 
-TALISMAN_PATH="${1:-.claude/talisman.yml}"
+_VTC_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${_VTC_SCRIPT_DIR}/lib/rune-state.sh"
+
+TALISMAN_PATH="${1:-${RUNE_STATE}/talisman.yml}"
 PROJECT_DIR="${2:-.}"
 PLUGIN_ROOT="${3:-plugins/rune}"
 

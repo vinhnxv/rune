@@ -1,6 +1,8 @@
 #!/bin/bash
 # scripts/lib/stop-hook-common.sh
 # Shared guard library for Stop hook loop drivers (arc-batch, arc-hierarchy, arc-issues).
+# Source rune-state if not already loaded
+[[ -n "${RUNE_STATE:-}" ]] || source "$(dirname "${BASH_SOURCE[0]}")/rune-state.sh"
 #
 # USAGE: Source this file AFTER set -euo pipefail and trap declarations.
 #   source "${SCRIPT_DIR}/lib/stop-hook-common.sh"
@@ -32,6 +34,8 @@
 # DEPENDENCIES: jq (Guard 1 check must be in caller before sourcing)
 
 source "$(dirname "${BASH_SOURCE[0]}")/platform.sh"
+# Source rune-state if not already loaded
+[[ -n "${RUNE_STATE:-}" ]] || source "$(dirname "${BASH_SOURCE[0]}")/rune-state.sh"
 
 # ── GUARD 1: jq dependency ──
 # NOTE: Callers must check for jq BEFORE sourcing this library, because `source` itself
@@ -444,11 +448,12 @@ validate_session_ownership_strict() {
 }
 
 # ── _find_arc_checkpoint(): Find the most recent arc checkpoint for current session ──
-# Searches BOTH ${CWD}/.claude/arc/*/checkpoint.json AND ${CWD}/tmp/arc/*/checkpoint.json
-# for the newest checkpoint belonging to the current session (owner_pid matches $PPID).
+# Searches ${CWD}/.rune/arc/*/checkpoint.json, ${CWD}/.claude/arc/*/checkpoint.json (legacy),
+# AND ${CWD}/tmp/arc/*/checkpoint.json for the newest checkpoint belonging to the current
+# session (owner_pid matches $PPID).
 #
 # BUG FIX (v1.108.2): After session compaction, the arc pipeline may resume and
-# write its checkpoint to tmp/arc/ instead of .claude/arc/. Searching only .claude/arc/
+# write its checkpoint to tmp/arc/ instead of .rune/arc/. Searching only .rune/arc/
 # would find a stale pre-compaction checkpoint (e.g., ship=pending) while the actual
 # completed checkpoint lives at tmp/arc/ (ship=completed, PR merged). This caused
 # arc-batch to misdetect successful arcs as "failed" and break the batch chain.
@@ -459,10 +464,9 @@ validate_session_ownership_strict() {
 _find_arc_checkpoint() {
   local newest="" newest_mtime=0
 
-  # Search both canonical (.claude/arc/) and tmp (tmp/arc/) checkpoint locations.
-  # After compaction, arc may resume into tmp/arc/ — both must be checked.
+  # Search .rune/arc/ (primary), .claude/arc/ (legacy fallback), and tmp/arc/ (post-compaction).
   local ckpt_dir
-  for ckpt_dir in "${CWD}/.claude/arc" "${CWD}/tmp/arc"; do
+  for ckpt_dir in "${CWD}/${RUNE_STATE}/arc" "${CWD}/.claude/arc" "${CWD}/tmp/arc"; do
     [[ -d "$ckpt_dir" ]] || continue
 
     # PERF FIX (v1.108.1): Use grep for fast PID matching instead of jq per file.

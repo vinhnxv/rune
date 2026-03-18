@@ -96,7 +96,7 @@ Single-commit files: `ownership_risk` defaults to 0.5 (insufficient data).
 ### 3.5 Echo Correlation (weight: 0.10)
 
 ```
-If .claude/echoes/ exists:
+If .rune/echoes/ exists:
   Scan for P1/P2 findings referencing this file
   echo_correlation[file] = normalized count of past findings
 Else:

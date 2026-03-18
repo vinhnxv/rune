@@ -1,7 +1,6 @@
-# Rune Echoes — project-level memory (secrets risk)
+# Rune state directory (echoes, arc, talisman, agent-search)
 # Users opt-in to version control by removing this line
-.claude/echoes/
-.claude/arc/
+.rune/
 
 # OS files
 .DS_Store
@@ -46,12 +45,5 @@ target/
 # Test outputs
 tests/reports/
 plugins/rune/ROADMAP.md
-.claude/arc-batch-loop.local.md
-.claude/arc-hierarchy-loop.local.md
-.claude/arc-phase-loop.local.md
 .claude/CLAUDE.local.md
 todos/
-.claude/arc-hierarchy-exec-table.json
-.claude/.agent-search-index.db
-.claude/.agent-search-index.db-shm
-.claude/.agent-search-index.db-wal

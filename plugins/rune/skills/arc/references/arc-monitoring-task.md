@@ -35,7 +35,7 @@ A phase is considered potentially stuck when:
 ## SessionStart Hook Recovery (v1.145.0)
 
 When the session crashes (OOM, SIGKILL, terminal closure, machine reboot), the checkpoint
-file persists on disk at `.claude/arc/{id}/checkpoint.json`. On the next session start,
+file persists on disk at `.rune/arc/{id}/checkpoint.json`. On the next session start,
 `session-team-hygiene.sh` detects orphaned checkpoints (dead `owner_pid`, not
 cancelled/completed) and advises the user to resume via `/rune:arc --resume`.
 

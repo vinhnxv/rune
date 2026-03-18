@@ -74,9 +74,9 @@ assert_eq "No state files → exit 0" "0" "$result_code"
 printf "\n=== Defer to Arc Loop Hooks ===\n"
 
 # Create a fresh arc-phase-loop file
-echo "---" > "$MOCK_CWD/.claude/arc-phase-loop.local.md"
-echo "active: true" >> "$MOCK_CWD/.claude/arc-phase-loop.local.md"
-echo "---" >> "$MOCK_CWD/.claude/arc-phase-loop.local.md"
+echo "---" > "$MOCK_CWD/.rune/arc-phase-loop.local.md"
+echo "active: true" >> "$MOCK_CWD/.rune/arc-phase-loop.local.md"
+echo "---" >> "$MOCK_CWD/.rune/arc-phase-loop.local.md"
 
 # Also create a state file so we don't fast-exit
 cat > "$MOCK_CWD/tmp/.rune-arc-test.json" <<JSON
@@ -87,7 +87,7 @@ result_code=0
 CLAUDE_PROJECT_DIR="$MOCK_CWD" CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" </dev/null >/dev/null 2>&1 || result_code=$?
 assert_eq "Active arc loop → defers (exit 0)" "0" "$result_code"
 
-rm -f "$MOCK_CWD/.claude/arc-phase-loop.local.md"
+rm -f "$MOCK_CWD/.rune/arc-phase-loop.local.md"
 rm -f "$MOCK_CWD/tmp/.rune-arc-test.json"
 
 # ═══════════════════════════════════════════════════════════════

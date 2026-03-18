@@ -162,6 +162,6 @@ updateCheckpoint({
 | Design verification report | `tmp/arc/{id}/design-verification-report.md` |
 | Design findings | `tmp/arc/{id}/design-findings.json` |
 | Team config | `$CHOME/teams/arc-design-verify-{id}/` |
-| Checkpoint state | `.claude/arc/{id}/checkpoint.json` (phase: "design_verification") |
+| Checkpoint state | `.rune/arc/{id}/checkpoint.json` (phase: "design_verification") |
 
 Recovery: On `--resume`, if design_verification is `in_progress`, clean up stale team and re-run from the beginning. Verification is idempotent — report and findings files are overwritten cleanly.

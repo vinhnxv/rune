@@ -1,0 +1,500 @@
+{
+  "id": "arc-1773415775198652",
+  "schema_version": 22,
+  "plan_file": "plans/2026-03-13-fix-arc-multi-session-safety-plan.md",
+  "config_dir": "/Users/vinhnx/.claude-true-yp",
+  "owner_pid": "74093",
+  "session_id": "17a0a3e3-9daf-4cce-8cc2-1d6ce1098897",
+  "flags": {
+    "approve": false,
+    "no_forge": false,
+    "skip_freshness": false,
+    "confirm": false,
+    "no_test": false,
+    "accept_external_changes": true,
+    "bot_review": false,
+    "no_bot_review": false
+  },
+  "arc_config": {
+    "no_forge": false,
+    "approve": false,
+    "skip_freshness": false,
+    "confirm": false,
+    "no_test": false,
+    "accept_external_changes": true,
+    "ship": {
+      "auto_pr": true,
+      "auto_merge": true,
+      "merge_strategy": "squash",
+      "wait_ci": false,
+      "draft": false,
+      "labels": [],
+      "pr_monitoring": false,
+      "rebase_before_merge": true,
+      "co_authors": []
+    },
+    "pre_merge_checks": {
+      "migration_conflict": true,
+      "schema_conflict": true,
+      "lock_file_conflict": true,
+      "uncommitted_changes": true,
+      "migration_paths": []
+    }
+  },
+  "pr_url": "https://github.com/vinhnxv/rune-plugin/pull/288",
+  "freshness": null,
+  "session_nonce": "a1b2c3d4e5f6",
+  "phase_sequence": 0,
+  "parent_plan": {
+    "path": null,
+    "children_dir": null,
+    "child_seq": null,
+    "feature_branch": null,
+    "skip_branch": false,
+    "skip_ship_pr": false
+  },
+  "stagnation": {
+    "error_patterns": [],
+    "file_velocity": [],
+    "budget": null
+  },
+  "phases": {
+    "forge": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/enriched-plan.md",
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-13T22:29:17.000Z",
+      "completed_at": "2026-03-13T15:36:08.000Z"
+    },
+    "plan_review": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/plan-review.md",
+      "artifact_hash": null,
+      "team_name": "arc-plan-review-arc-1773415775198652",
+      "started_at": "2026-03-13T15:36:30.000Z",
+      "completed_at": "2026-03-13T15:43:36.000Z"
+    },
+    "plan_refine": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/concern-context.md",
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-13T15:43:50.000Z",
+      "completed_at": "2026-03-13T15:44:30.000Z"
+    },
+    "verification": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/verification-report.md",
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-13T15:44:45.000Z",
+      "completed_at": "2026-03-13T15:45:05.000Z"
+    },
+    "semantic_verification": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/codex-semantic-verification.md",
+      "artifact_hash": "b570ada75495d6ea4520ef95920addedb96db276ed6dc21e096a924b47c67cfb",
+      "team_name": "arc-codex-sv-arc-1773415775198652",
+      "started_at": "2026-03-13T15:45:20.000Z",
+      "completed_at": "2026-03-13T15:49:00.000Z"
+    },
+    "design_extraction": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-13T15:49:15.000Z",
+      "completed_at": "2026-03-13T15:49:16.000Z",
+      "skip_reason": "design_sync_disabled"
+    },
+    "design_prototype": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-13T15:49:16.000Z",
+      "completed_at": "2026-03-13T15:49:17.000Z",
+      "skip_reason": "design_sync_disabled"
+    },
+    "task_decomposition": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/task-validation.md",
+      "artifact_hash": "0a953dd1aed6305f17c649f73b688c9bd2ae10cc30119386d98ebee6b4ee1c6c",
+      "team_name": "arc-codex-td-arc-1773415775198652",
+      "started_at": "2026-03-13T15:53:45.000Z",
+      "completed_at": "2026-03-13T15:57:15.000Z"
+    },
+    "work": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/work-summary.md",
+      "artifact_hash": "e21005e10aa080f408a8faf06febae3e0af1305654698d594324a6373f070747",
+      "team_name": "arc-work-arc-1773415775198652",
+      "suspended_tasks": [],
+      "started_at": "2026-03-13T15:57:30.000Z",
+      "completed_at": "2026-03-13T16:20:07.000Z"
+    },
+    "storybook_verification": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-13T16:21:30.000Z",
+      "completed_at": "2026-03-13T16:21:31.000Z",
+      "skip_reason": "disabled",
+      "verdict": "SKIPPED"
+    },
+    "design_verification": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-13T16:22:00.000Z",
+      "completed_at": "2026-03-13T16:22:01.000Z",
+      "skip_reason": "design_sync_disabled"
+    },
+    "ux_verification": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-13T16:22:30.000Z",
+      "completed_at": "2026-03-13T16:22:31.000Z",
+      "skip_reason": "no_frontend_relevance"
+    },
+    "gap_analysis": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/gap-analysis.md",
+      "artifact_hash": "b59691eceab2102067c2498d401ea9c9ebce16860b48424aaf2d9b9f13d667f2",
+      "team_name": null,
+      "started_at": "2026-03-13T16:23:00.000Z",
+      "completed_at": "2026-03-13T16:25:30.000Z"
+    },
+    "codex_gap_analysis": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/codex-gap-analysis.md",
+      "artifact_hash": "786e29feb0110423f1938aaf5e1a4ac075b7bf21fc24a7061a725e3c5c3ffa2f",
+      "team_name": "arc-codex-ga-arc-1773415775198652",
+      "codex_finding_count": 13,
+      "codex_threshold": 5,
+      "codex_needs_remediation": true,
+      "started_at": "2026-03-13T16:26:00.000Z",
+      "completed_at": "2026-03-13T16:36:00.000Z"
+    },
+    "gap_remediation": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/gap-remediation-report.md",
+      "artifact_hash": "2f0e2bb05128020b7a89c63e44b9b9a84d153eb8a2290c4d445ccec0e655cf39",
+      "team_name": null,
+      "fixed_count": 0,
+      "deferred_count": 0,
+      "started_at": "2026-03-13T16:37:00.000Z",
+      "completed_at": "2026-03-13T16:37:45.000Z"
+    },
+    "goldmask_verification": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/goldmask-verification.md",
+      "artifact_hash": "eba28870f5696c55203db5b4261971e37b1ba92174668538a329398d92535cfb",
+      "team_name": "goldmask-arc-1773415775198652",
+      "total_findings": 22,
+      "critical_count": 7,
+      "cross_layer_confirmed": 7,
+      "swarm_clusters": 2,
+      "started_at": "2026-03-13T16:38:00.000Z",
+      "completed_at": "2026-03-14T00:12:00.000Z"
+    },
+    "code_review": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/tome-round-2.md",
+      "artifact_hash": "225993d0ecbfcfb476b40fb8c6f9e95d6f0a61cff17212de9a17dec70e82426e",
+      "team_name": "rune-review-0b4d96b-r2",
+      "finding_count": 11,
+      "p1_count": 1,
+      "p2_count": 3,
+      "p3_count": 7,
+      "depth": "deep",
+      "waves": 1,
+      "ashes_summoned": 3,
+      "ashes_delivered": 3,
+      "started_at": "2026-03-14T01:56:00.000Z",
+      "completed_at": "2026-03-14T02:03:00.000Z"
+    },
+    "goldmask_correlation": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/goldmask-correlation.md",
+      "artifact_hash": "bfde65b24776213a9b5c4840f14f88cf753bbb1a7f1b36bbd7e1bc57bc5a95ee",
+      "team_name": null,
+      "correlation_count": 8,
+      "human_review_count": 0,
+      "started_at": "2026-03-14T02:04:00.000Z",
+      "completed_at": "2026-03-14T02:04:30.000Z"
+    },
+    "mend": {
+      "status": "completed",
+      "artifact": "tmp/mend/mend-r2-0b4d96b/resolution-report.md",
+      "artifact_hash": null,
+      "team_name": null,
+      "fixed_count": 3,
+      "skipped_count": 8,
+      "failed_count": 0,
+      "started_at": "2026-03-14T02:05:00.000Z",
+      "completed_at": "2026-03-14T02:08:00.000Z"
+    },
+    "verify_mend": {
+      "status": "completed",
+      "artifact": "tmp/mend/mend-r2-0b4d96b/resolution-report.md",
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-14T02:09:00.000Z",
+      "completed_at": "2026-03-14T02:10:00.000Z"
+    },
+    "design_iteration": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "started_at": "2026-03-14T02:11:00.000Z",
+      "completed_at": "2026-03-14T02:11:01.000Z",
+      "skip_reason": "design_verification_skipped"
+    },
+    "test": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/test-report.md",
+      "artifact_hash": null,
+      "team_name": null,
+      "tiers_run": ["shell"],
+      "pass_rate": 0.983,
+      "coverage_pct": null,
+      "has_frontend": false,
+      "scope_label": "branch diff (7 files)",
+      "started_at": "2026-03-14T02:12:00.000Z",
+      "completed_at": "2026-03-14T02:13:00.000Z"
+    },
+    "test_coverage_critique": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/test-critique.md",
+      "artifact_hash": "f2e2d882b9a6c1b43b30310487a379b1b78ce905e0d32e97b59e1e454e8850d3",
+      "team_name": "arc-codex-tc-arc-1773415775198652",
+      "finding_count": 4,
+      "critical_count": 0,
+      "test_critique_needs_attention": false,
+      "started_at": "2026-03-14T02:14:00.000Z",
+      "completed_at": "2026-03-14T02:16:00.000Z"
+    },
+    "pre_ship_validation": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/pre-ship-report.md",
+      "artifact_hash": "5d4b18bd18d982e371dfb01a489753952e8a515a617f4af2c11dc5ef8fa67142",
+      "team_name": null,
+      "verdict": "WARN",
+      "warn_reasons": ["1 MISSING acceptance criterion (G2: Workflow Lock Ordering)", "2 PARTIAL criteria (G1, G3)"],
+      "gate1_pass": true,
+      "gate2_pass": true,
+      "started_at": "2026-03-14T02:17:00.000Z",
+      "completed_at": "2026-03-14T02:18:00.000Z"
+    },
+    "release_quality_check": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/release-quality.md",
+      "artifact_hash": "bc92441400cd31796f7e4212ec388487d8b8a48c9cf5c4d95549c15c6513dfbf",
+      "team_name": "arc-codex-rq-arc-1773415775198652",
+      "finding_count": 4,
+      "critical_count": 1,
+      "started_at": "2026-03-14T02:19:00.000Z",
+      "completed_at": "2026-03-14T02:25:00.000Z"
+    },
+    "ship": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/pr-body.md",
+      "artifact_hash": "c29187986405d41a5953d41d4e76218a3473d988e9b39c58806820f2dd5f5f38",
+      "team_name": null,
+      "pr_url": "https://github.com/vinhnxv/rune-plugin/pull/288",
+      "started_at": "2026-03-14T02:26:00.000Z",
+      "completed_at": "2026-03-14T02:27:00.000Z"
+    },
+    "bot_review_wait": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "skip_reason": "bot_review_disabled_by_default",
+      "started_at": "2026-03-14T02:28:00.000Z",
+      "completed_at": "2026-03-14T02:28:01.000Z"
+    },
+    "pr_comment_resolution": {
+      "status": "skipped",
+      "artifact": null,
+      "artifact_hash": null,
+      "team_name": null,
+      "skip_reason": "bot_review_disabled_by_default",
+      "started_at": "2026-03-14T02:29:00.000Z",
+      "completed_at": "2026-03-14T02:29:01.000Z"
+    },
+    "merge": {
+      "status": "completed",
+      "artifact": "tmp/arc/arc-1773415775198652/merge-report.md",
+      "artifact_hash": "247f98bb24bd98a489c0dcb81ece892ec0a43a0cafe79856cbda5c0d4218f126",
+      "team_name": null,
+      "merge_strategy": "squash",
+      "started_at": "2026-03-14T02:30:00.000Z",
+      "completed_at": "2026-03-14T02:31:00.000Z"
+    }
+  },
+  "totals": {
+    "phase_times": {
+      "forge": 411000,
+      "plan_review": 426000,
+      "plan_refine": 40000,
+      "verification": 20000,
+      "semantic_verification": 220000,
+      "design_extraction": 1000,
+      "design_prototype": 1000,
+      "task_decomposition": 210000,
+      "work": 1357000,
+      "storybook_verification": 1000,
+      "design_verification": 1000,
+      "ux_verification": 1000,
+      "gap_analysis": 150000,
+      "codex_gap_analysis": 600000,
+      "gap_remediation": 45000,
+      "goldmask_verification": 5640000,
+      "code_review": 420000,
+      "goldmask_correlation": 30000,
+      "mend": 2100000,
+      "verify_mend": 60000,
+      "design_iteration": 1000,
+      "test": 60000,
+      "test_coverage_critique": 120000,
+      "pre_ship_validation": 60000,
+      "release_quality_check": 360000,
+      "ship": 60000,
+      "bot_review_wait": 1000,
+      "pr_comment_resolution": 1000,
+      "merge": 60000
+    },
+    "total_duration_ms": 36133000,
+    "cost_at_completion": null
+  },
+  "completed_at": "2026-03-14T02:31:30.000Z",
+  "convergence": {
+    "round": 2,
+    "max_rounds": 3,
+    "tier": {
+      "name": "STANDARD",
+      "maxCycles": 3,
+      "minCycles": 2,
+      "reason": "Default (493 lines, 7 files)"
+    },
+    "history": [
+      {
+        "round": 0,
+        "findings_before": 34,
+        "findings_after": 34,
+        "p1_remaining": 0,
+        "p2_remaining": 14,
+        "mend_fixed": 30,
+        "mend_failed": 0,
+        "scope_stats": {
+          "p1Count": 0,
+          "p2Count": 14,
+          "p3Count": 20,
+          "preExistingCount": 0,
+          "inDiffCount": 34,
+          "totalFindings": 34
+        },
+        "convergence_score": {
+          "total": 0.0,
+          "components": { "p3": 0, "preExisting": 0, "trend": 0, "base": 0 },
+          "reason": "P2 count (14) exceeds threshold (0)"
+        },
+        "verdict": "retry",
+        "timestamp": "2026-03-14T01:25:00.000Z"
+      },
+      {
+        "round": 1,
+        "findings_before": 14,
+        "findings_after": 13,
+        "p1_remaining": 0,
+        "p2_remaining": 4,
+        "mend_fixed": 13,
+        "mend_failed": 0,
+        "scope_stats": {
+          "p1Count": 0,
+          "p2Count": 4,
+          "p3Count": 9,
+          "preExistingCount": 0,
+          "inDiffCount": 13,
+          "totalFindings": 13
+        },
+        "convergence_score": {
+          "total": 0.0,
+          "components": { "p3": 0, "preExisting": 0, "trend": 0.2, "base": 0.1 },
+          "reason": "P2 count (4) exceeds threshold (0)"
+        },
+        "verdict": "retry",
+        "timestamp": "2026-03-14T01:52:00.000Z"
+      },
+      {
+        "round": 2,
+        "findings_before": 13,
+        "findings_after": 11,
+        "p1_remaining": 1,
+        "p2_remaining": 3,
+        "mend_fixed": 3,
+        "mend_failed": 0,
+        "scope_stats": {
+          "p1Count": 1,
+          "p2Count": 3,
+          "p3Count": 7,
+          "preExistingCount": 0,
+          "inDiffCount": 11,
+          "totalFindings": 11
+        },
+        "convergence_score": {
+          "total": 0.0,
+          "components": { "p3": 0, "preExisting": 0, "trend": 0, "base": 0 },
+          "reason": "p1_active"
+        },
+        "verdict": "halted",
+        "timestamp": "2026-03-14T02:10:00.000Z"
+      }
+    ],
+    "original_changed_files": [
+      "plugins/rune/scripts/arc-phase-stop-hook.sh",
+      "plugins/rune/scripts/enforce-team-lifecycle.sh",
+      "plugins/rune/scripts/lib/stop-hook-common.sh",
+      "plugins/rune/scripts/session-team-hygiene.sh",
+      "plugins/rune/skills/arc/SKILL.md",
+      "plugins/rune/skills/arc/references/arc-preflight.md",
+      "plugins/rune/skills/arc/references/arc-resume.md"
+    ]
+  },
+  "shard": null,
+  "user_cancelled": false,
+  "cancel_reason": null,
+  "cancelled_at": null,
+  "stop_reason": null,
+  "resume_tracking": {
+    "total_resume_count": 0,
+    "resume_history": [],
+    "last_resume_at": null,
+    "consecutive_failures": 0
+  },
+  "commits": ["6a49694", "0b4d96b", "4ee0bf3"],
+  "started_at": "2026-03-13T22:29:17.000Z",
+  "updated_at": "2026-03-14T02:16:00.000Z",
+  "phase_skip_log": [
+    {
+      "phase": "design_extraction",
+      "event": "skipped",
+      "reason": "design_sync_disabled",
+      "timestamp": "2026-03-13T15:49:16Z"
+    },
+    {
+      "phase": "design_prototype",
+      "event": "skipped",
+      "reason": "design_sync_disabled",
+      "timestamp": "2026-03-13T15:49:17Z"
+    }
+  ]
+}

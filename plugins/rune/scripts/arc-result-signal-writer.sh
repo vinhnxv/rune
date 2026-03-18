@@ -4,7 +4,7 @@
 #
 # Fires on EVERY Write/Edit tool call. Fast-path exits in < 5ms for non-checkpoint
 # writes (grep check). Only triggers full logic when:
-#   1. Written file is an arc checkpoint (*/checkpoint.json under .claude/arc/ or tmp/arc/)
+#   1. Written file is an arc checkpoint (*/checkpoint.json under .rune/arc/, .claude/arc/ (legacy), or tmp/arc/)
 #   2. Checkpoint shows ship or merge phase completed
 #
 # Writes: tmp/arc-result-current.json (deterministic path, session-scoped)
@@ -35,9 +35,9 @@ FILE_PATH=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/d
 [[ -n "$FILE_PATH" ]] || exit 0
 
 # ── GUARD 3: Is this an arc checkpoint file? ──
-# Match: .claude/arc/*/checkpoint.json OR tmp/arc/*/checkpoint.json
+# Match: .rune/arc/*/checkpoint.json OR .claude/arc/*/checkpoint.json (legacy) OR tmp/arc/*/checkpoint.json
 case "$FILE_PATH" in
-  */.claude/arc/*/checkpoint.json) ;;
+  */.rune/arc/*/checkpoint.json|*/.claude/arc/*/checkpoint.json) ;;
   */tmp/arc/*/checkpoint.json) ;;
   *) exit 0 ;;
 esac

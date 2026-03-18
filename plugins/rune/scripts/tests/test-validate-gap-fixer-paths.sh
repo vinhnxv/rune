@@ -231,12 +231,12 @@ assert_eq ".claude/settings.json exits 0 (deny via JSON)" "0" "$exit_code"
 assert_contains ".claude deny contains SEC-GAP-001" "SEC-GAP-001" "$output"
 assert_contains ".claude deny mentions .claude/" ".claude/" "$output"
 
-# 6b. .claude/talisman.yml
-json=$(build_hook_input "Edit" "${CLAUDE_CWD}/.claude/talisman.yml" "$CLAUDE_CWD")
+# 6b. .rune/talisman.yml
+json=$(build_hook_input "Edit" "${CLAUDE_CWD}/.rune/talisman.yml" "$CLAUDE_CWD")
 result=$(run_validate "$json")
 exit_code="${result%%	*}"
 output="${result#*	}"
-assert_contains ".claude/talisman.yml denied" "SEC-GAP-001" "$output"
+assert_contains ".rune/talisman.yml denied" "SEC-GAP-001" "$output"
 
 # ═══════════════════════════════════════════════════════════════
 # 7. Blocked: .github/ CI/CD

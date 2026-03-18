@@ -42,7 +42,7 @@ Related guides:
 
 ### Optional
 - `codex` CLI for cross-model verification (Codex Oracle joins as additional reviewer).
-- `.claude/talisman.yml` for tuning timeouts, Ash selection, and custom reviewers.
+- `.rune/talisman.yml` for tuning timeouts, Ash selection, and custom reviewers.
 
 ---
 
@@ -183,7 +183,7 @@ For large codebases, stateful audit tracks what has been reviewed across session
 /rune:audit --incremental --reset        # Clear state, start fresh
 ```
 
-Incremental state is stored in `.claude/audit-state/` and survives across sessions.
+Incremental state is stored in `.rune/audit-state/` and survives across sessions.
 
 ### 4.6 Differences from appraise
 

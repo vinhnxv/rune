@@ -3,7 +3,7 @@
 Example `talisman.yml` sections for the worker question relay, context preservation,
 and background dispatch features added in v1.106.0.
 
-Drop these sections into your `.claude/talisman.yml` as needed.
+Drop these sections into your `.rune/talisman.yml` as needed.
 
 ## Question Relay
 
@@ -63,7 +63,7 @@ context_preservation:
 ## Complete Example (all three sections)
 
 ```yaml
-# .claude/talisman.yml
+# .rune/talisman.yml
 
 version: 1
 

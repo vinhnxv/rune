@@ -403,7 +403,7 @@ Orchestrator-only phase with no team -- minimal crash surface.
 | Resource | Location |
 |----------|----------|
 | Merge report | `tmp/arc/{id}/merge-report.md` |
-| Checkpoint state | `.claude/arc/{id}/checkpoint.json` (phase: "merge") |
+| Checkpoint state | `.rune/arc/{id}/checkpoint.json` (phase: "merge") |
 | Possible in-progress rebase | `.git/rebase-merge/` or `.git/rebase-apply/` |
 
 Recovery: On `--resume`, if merge phase is `in_progress`:

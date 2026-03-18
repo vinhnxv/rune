@@ -25,7 +25,7 @@ Custom Ashes participate in the full Roundtable Circle lifecycle: they receive T
 
 ## Schema Reference
 
-Define custom Ash in `.claude/talisman.yml` (project) or `~/.claude/talisman.yml` (global).
+Define custom Ash in `.rune/talisman.yml` (project) or `~/.rune/talisman.yml` (global).
 
 ### `ashes.custom[]` Fields
 
@@ -286,7 +286,7 @@ for each custom Ash:
 ### Local Project Reviewer (Review + Audit + Forge)
 
 ```yaml
-# .claude/talisman.yml
+# .rune/talisman.yml
 ashes:
   custom:
     - name: "api-contract-reviewer"
@@ -361,7 +361,7 @@ Ash to summon: 4 (3 built-in + 1 custom)
   - Pattern Weaver: 23 files (cap: 30)
   - Forge Warden:   15 files (cap: 30)
 
-  Custom (from .claude/talisman.yml):
+  Custom (from .rune/talisman.yml):
   - api-contract-reviewer [API]:  8 files (cap: 15, source: local)
 
 Dedup hierarchy: SEC > BACK > VEIL > DOUBT > API > DOC > QUAL > FRONT

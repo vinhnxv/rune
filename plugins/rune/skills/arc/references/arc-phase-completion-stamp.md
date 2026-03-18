@@ -6,7 +6,7 @@ Appends a persistent completion record to the plan file after arc finishes. Upda
 **Tools**: Read, Write, Bash (git queries)
 **Timeout**: 30 seconds (fast — single file read+write)
 
-**Inputs**: checkpoint (object, from .claude/arc/{id}/checkpoint.json), branch name (from checkpoint or git)
+**Inputs**: checkpoint (object, from .rune/arc/{id}/checkpoint.json), branch name (from checkpoint or git)
 **Outputs**: Updated plan file with Status field + appended Completion Record
 **Preconditions**: Arc pipeline has finished (all phases completed, skipped, or failed). Plan file exists on disk.
 **Error handling**: Plan file not found → warn + skip. Write fails → warn + skip (read-only file or permission error). No completed phases → skip stamp.
@@ -183,7 +183,7 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
     `**Arc ID**: ${checkpoint.id}\n` +
     `**Branch**: ${branch}\n` +
     (prUrl ? `**PR**: ${prUrl}\n` : '') +
-    `**Checkpoint**: .claude/arc/${checkpoint.id}/checkpoint.json\n\n` +
+    `**Checkpoint**: .rune/arc/${checkpoint.id}/checkpoint.json\n\n` +
     `### Phase Results\n\n` +
     phaseTable + `\n` +
     convergenceSection + `\n` +

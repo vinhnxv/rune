@@ -52,14 +52,14 @@ Talisman tuân theo **chuỗi ưu tiên 3 lớp** (cao nhất thắng):
 
 | Ưu tiên | Vị trí | Phạm vi |
 |---------|--------|---------|
-| 1 (cao nhất) | `.claude/talisman.yml` | Cấp dự án |
-| 2 | `~/.claude/talisman.yml` | Cấp user toàn cục |
+| 1 (cao nhất) | `.rune/talisman.yml` | Cấp dự án |
+| 2 | `~/.rune/talisman.yml` | Cấp user toàn cục |
 | 3 | Plugin defaults | Mặc định (7 Ashes) |
 
 Đối với arc flags, có thêm một lớp: **CLI flags luôn ghi đè talisman**.
 
 ```
-CLI flags  >  .claude/talisman.yml  >  ~/.claude/talisman.yml  >  hardcoded defaults
+CLI flags  >  .rune/talisman.yml  >  ~/.rune/talisman.yml  >  hardcoded defaults
 ```
 
 **Mẹo**: Dùng talisman cấp dự án cho cài đặt team. Dùng talisman toàn cục cho sở thích cá nhân.

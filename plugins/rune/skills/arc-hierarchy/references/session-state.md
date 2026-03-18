@@ -3,7 +3,7 @@
 Resolves session identity (CHOME, PID, session ID) and writes the arc-hierarchy state file with ownership isolation. Checks for conflicting sessions before proceeding.
 
 **Inputs**: `planPath`, `childrenDir`, `noMerge` flag, `--resume` mode flag, `arcPassthroughFlags` (array of validated flag strings)
-**Outputs**: `.claude/arc-hierarchy-loop.local.md` state file with YAML frontmatter
+**Outputs**: `.rune/arc-hierarchy-loop.local.md` state file with YAML frontmatter
 **Preconditions**: Phases 0-4 passed (arguments parsed, plan validated, coherence checked)
 
 ## Session Identity Resolution
@@ -14,7 +14,7 @@ Resolves session identity (CHOME, PID, session ID) and writes the arc-hierarchy 
 const configDir = Bash(`CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cd "$CHOME" 2>/dev/null && pwd -P`).trim()
 const ownerPid = Bash(`echo $PPID`).trim()
 
-const stateFile = ".claude/arc-hierarchy-loop.local.md"
+const stateFile = ".rune/arc-hierarchy-loop.local.md"
 
 // Check for existing session
 const existingState = Read(stateFile)  // null if not found — SDK Read() is safe
@@ -45,7 +45,7 @@ if (existingState && /^active:\s*true$/m.test(existingState)) {
       error(`Cannot resume: hierarchy belongs to different config dir`)
       error(`  Stored:  ${existingCfg}`)
       error(`  Current: ${configDir}`)
-      error(`Delete .claude/arc-hierarchy-loop.local.md manually to force-claim.`)
+      error(`Delete .rune/arc-hierarchy-loop.local.md manually to force-claim.`)
       return
     }
 

@@ -1,7 +1,7 @@
 ---
 name: rune:echoes
 description: |
-  Manage Rune Echoes — project-level agent memory stored in .claude/echoes/.
+  Manage Rune Echoes — project-level agent memory stored in .rune/echoes/.
   View memory state, prune stale entries, reset all echoes, manage doc packs,
   or audit global echoes.
 
@@ -27,7 +27,7 @@ allowed-tools:
 
 # /rune:echoes — Manage Rune Echoes
 
-Manage the project-level agent memory stored in `.claude/echoes/`.
+Manage the project-level agent memory stored in `.rune/echoes/`.
 
 ## Usage
 
@@ -55,11 +55,11 @@ The skill contains echo lifecycle logic, scoring algorithms, and subcommand disp
 
 ### show — Display Echo State
 
-Scan `.claude/echoes/` and display statistics per role.
+Scan `.rune/echoes/` and display statistics per role.
 
 ```
 # Find all MEMORY.md files
-Glob(".claude/echoes/**/MEMORY.md")
+Glob(".rune/echoes/**/MEMORY.md")
 ```
 
 **Output format:**
@@ -128,10 +128,10 @@ Remove all echo data for this project.
 1. Warn: "This will delete ALL echoes for this project. This cannot be undone."
 2. Require explicit confirmation: user must type "reset" or confirm
 3. On confirmation:
-   - Backup entire `.claude/echoes/` to `.claude/echoes-backup-{date}/`
+   - Backup entire `.rune/echoes/` to `.rune/echoes-backup-{date}/`
    - Delete all MEMORY.md, knowledge.md, and findings files
    - Preserve directory structure (empty directories remain)
-   - Report: "All echoes cleared. Backup at .claude/echoes-backup-{date}/"
+   - Report: "All echoes cleared. Backup at .rune/echoes-backup-{date}/"
 
 ### init — Initialize Echo Directories
 
@@ -141,11 +141,11 @@ Create the echo directory structure for a new project.
 
 1. Create directories:
    ```bash
-   mkdir -p .claude/echoes/planner
-   mkdir -p .claude/echoes/workers
-   mkdir -p .claude/echoes/reviewer/archive
-   mkdir -p .claude/echoes/auditor/archive
-   mkdir -p .claude/echoes/team
+   mkdir -p .rune/echoes/planner
+   mkdir -p .rune/echoes/workers
+   mkdir -p .rune/echoes/reviewer/archive
+   mkdir -p .rune/echoes/auditor/archive
+   mkdir -p .rune/echoes/team
    ```
 
 2. Create initial MEMORY.md files with schema header:
@@ -156,20 +156,20 @@ Create the echo directory structure for a new project.
    *No echoes yet. Run workflows to start building memory.*
    ```
 
-3. Check `.gitignore` for `.claude/echoes/` exclusion:
+3. Check `.gitignore` for `.rune/echoes/` exclusion:
    - If project has `.gitignore` and it doesn't exclude echoes: warn user
-   - Suggest adding `.claude/echoes/` to `.gitignore`
+   - Suggest adding `.rune/echoes/` to `.gitignore`
 
 4. Report:
    ```
    Rune Echoes initialized.
 
    Directories created:
-   - .claude/echoes/planner/
-   - .claude/echoes/workers/
-   - .claude/echoes/reviewer/
-   - .claude/echoes/auditor/
-   - .claude/echoes/team/
+   - .rune/echoes/planner/
+   - .rune/echoes/workers/
+   - .rune/echoes/reviewer/
+   - .rune/echoes/auditor/
+   - .rune/echoes/team/
 
    Run /rune:appraise or /rune:audit to start building memory.
    ```
@@ -194,7 +194,7 @@ Migrate echo role names and schema versions after a Rune upgrade.
 
 **Steps:**
 
-1. Scan `.claude/echoes/` for directories and MEMORY.md files
+1. Scan `.rune/echoes/` for directories and MEMORY.md files
 2. Check schema version in `<!-- echo-schema: vN -->` headers
 3. Rename directories if role names changed (e.g., legacy names to current convention)
 4. Update schema headers to current version
@@ -270,8 +270,8 @@ List all global echoes grouped by source type.
 
 ## Notes
 
-- Echo data is project-local (`.claude/echoes/` in project root)
+- Echo data is project-local (`.rune/echoes/` in project root)
 - Global echoes are user-level (`$CHOME/echoes/global/`)
 - Excluded from git by default (security: may contain code patterns)
-- Opt-in to version control via `.claude/talisman.yml`
+- Opt-in to version control via `.rune/talisman.yml`
 - See `rune-echoes` skill for full lifecycle documentation

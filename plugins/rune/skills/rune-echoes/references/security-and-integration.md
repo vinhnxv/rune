@@ -19,12 +19,12 @@ If a finding triggers the filter, persist the learning but strip the sensitive e
 
 ### Default Exclusion
 
-`.gitignore` excludes `.claude/echoes/` by default. Users opt-in to version control:
+`.gitignore` excludes `.rune/echoes/` by default. Users opt-in to version control:
 
 ```yaml
-# .claude/talisman.yml
+# .rune/talisman.yml
 echoes:
-  version_controlled: true  # Remove .claude/echoes/ from .gitignore
+  version_controlled: true  # Remove .rune/echoes/ from .gitignore
 ```
 
 ## Integration Points
@@ -36,24 +36,24 @@ In Phase 7 (Cleanup), before presenting TOME.md:
 ```
 1. Read TOME.md for high-confidence patterns (P1/P2 findings)
 2. Convert recurring patterns to Inscribed entries
-3. Write to .claude/echoes/reviewer/MEMORY.md via consolidation protocol
+3. Write to .rune/echoes/reviewer/MEMORY.md via consolidation protocol
 ```
 
 ### After Audit (`/rune:audit`)
 
-Same as review, writing to `.claude/echoes/auditor/MEMORY.md`.
+Same as review, writing to `.rune/echoes/auditor/MEMORY.md`.
 
 ### During Plan (`/rune:devise`, v1.0)
 
 ```
-1. echo-reader agent reads .claude/echoes/planner/MEMORY.md + .claude/echoes/team/MEMORY.md
+1. echo-reader agent reads .rune/echoes/planner/MEMORY.md + .rune/echoes/team/MEMORY.md
 2. Surfaces relevant past learnings for current feature
-3. After plan: persist architectural discoveries to .claude/echoes/planner/
+3. After plan: persist architectural discoveries to .rune/echoes/planner/
 ```
 
 ### During Work (`/rune:strive`, v1.0)
 
 ```
-1. Read .claude/echoes/workers/MEMORY.md for implementation patterns
-2. After work: persist TDD patterns, gotchas to .claude/echoes/workers/
+1. Read .rune/echoes/workers/MEMORY.md for implementation patterns
+2. After work: persist TDD patterns, gotchas to .rune/echoes/workers/
 ```

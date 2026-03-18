@@ -34,7 +34,7 @@ def write_state_file(
     owner_pid: str | None = None,
     compact_pending: bool = False,
 ) -> Path:
-    """Create a .claude/arc-batch-loop.local.md state file."""
+    """Create a .rune/arc-batch-loop.local.md state file."""
     state_file = project / ".claude" / "arc-batch-loop.local.md"
     state_file.parent.mkdir(parents=True, exist_ok=True)
     # Default to os.getpid() because bash's $PPID = Python test process PID.
@@ -91,7 +91,7 @@ def write_checkpoint_file(
     ship_status: str = "completed",
     pr_url: str | None = "https://github.com/test/repo/pull/99",
 ) -> Path:
-    """Create a mock arc checkpoint under .claude/arc/ for _find_arc_checkpoint().
+    """Create a mock arc checkpoint under .rune/arc/ for _find_arc_checkpoint().
 
     The stop hook uses _find_arc_checkpoint() to locate the newest checkpoint
     matching the current session's PPID. Without a checkpoint, ARC_STATUS
@@ -182,7 +182,7 @@ def run_batch_hook(
 class TestArcBatchGuardClauses:
     @requires_jq
     def test_exit_0_no_state_file(self, project_env):
-        """No .claude/arc-batch-loop.local.md → exit 0."""
+        """No .rune/arc-batch-loop.local.md → exit 0."""
         project, config = project_env
         result = run_batch_hook(project, config)
         assert result.returncode == 0

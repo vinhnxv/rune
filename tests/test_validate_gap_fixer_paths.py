@@ -340,7 +340,7 @@ class TestGapFixerBlockedPaths:
     @requires_jq
     def test_blocks_dot_claude_subdir(self, hook_runner, project_env) -> None:
         """Writing to any file under .claude/ must be denied."""
-        self._run_blocked(hook_runner, project_env, ".claude/arc/checkpoint.json")
+        self._run_blocked(hook_runner, project_env, ".rune/arc/checkpoint.json")
 
     @requires_jq
     def test_blocks_dot_github_workflows(self, hook_runner, project_env) -> None:
