@@ -7,7 +7,6 @@
 ### Added
 - New skill: `cc-inspect` — Claude Code runtime environment inspector with 6 diagnostic sections (session, env, system, plugin, runtime, echoes)
 - New script: `cc-inspect.sh` — comprehensive CLI diagnostic for session identity, env vars, toolchain versions, plugin system, Rune runtime state, and echoes
-- New script: `plugin-env-inspect.sh` — lightweight plugin environment variable inspector
 
 ## [1.178.0] - 2026-03-18
 
