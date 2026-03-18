@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [2.0.4] - 2026-03-18
+
+### Fixed
+
+- **arc-heartbeat-writer.sh**: Move shared library sourcing (platform.sh, rune-state.sh) before RUNE_STATE usage to prevent undefined variable errors
+- **context-percent-stop-guard.sh**: Move shared library sourcing before RUNE_STATE usage (same fix)
+- **torrent/install.sh**: Fix release tag resolution to use prefixed `torrent-vX.Y.Z` tags instead of `releases/latest` which could match wrong release stream
+
 ## [2.0.3] - 2026-03-18
 
 ### Fixed
