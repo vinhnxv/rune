@@ -814,7 +814,7 @@ CDX-7 Layer 3: Scan for orphaned arc-specific teams from prior sessions. Runs af
 // arc-* prefixes: teams created directly by arc (plan review, plan inspect, sage, design, gap, test, verify)
 // rune-* prefixes: teams created by delegated sub-commands (forge, work, review, mend, audit)
 const ARC_TEAM_PREFIXES = [
-  "arc-forge-", "arc-plan-review-", "arc-plan-inspect-", "arc-verify-", "arc-gap-fix-", "arc-inspect-", "arc-test-",  // arc-owned teams
+  "arc-forge-", "arc-plan-review-", "arc-plan-inspect-", "arc-verify-", "arc-gap-fix-", "arc-inspect-", "arc-inspect-full-", "arc-inspect-fix-", "arc-test-",  // arc-owned teams
   "rune-inspect-",  // inspect skill teams (delegated sub-command)
   "arc-sage-",  // ephemeral elicitation sage team (mend Phase 7 — conditional on P1 findings)
   "arc-storybook-",  // Storybook verification team (conditional — storybook.enabled)
