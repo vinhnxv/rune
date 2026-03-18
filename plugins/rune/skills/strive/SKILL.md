@@ -488,6 +488,54 @@ Standard cleanup: cache TaskList → dynamic member discovery → shutdown → g
 
 See [phase-6-cleanup.md](references/phase-6-cleanup.md) for the full cleanup pseudocode and completion report template. See [engines.md](../team-sdk/references/engines.md) § cleanup for the shared pattern.
 
+**Phase 6 — Per-Task Status Table** (discipline-enabled plans only):
+
+```javascript
+// Read all task files to build per-task status breakdown
+const taskFiles = Glob(`tmp/work/${timestamp}/tasks/task-*.md`)
+const perTaskStatus = []
+
+for (const tf of taskFiles) {
+  const content = Read(tf)
+  const fm = parseYAMLFrontmatter(content)
+  const taskId = String(fm.task_id)  // FLAW-008: normalize to String
+  if (taskId.startsWith('gap-')) continue  // Skip gap tasks in primary summary
+
+  const evidencePath = `tmp/work/${timestamp}/evidence/${taskId}/summary.json`
+  let evidence = null
+  try { evidence = JSON.parse(Read(evidencePath)) } catch {}
+
+  const criteriaTotal = fm.proof_count ?? 0
+  const criteriaPass = evidence?.criteria_results?.filter(r => r.result === 'PASS').length ?? 0
+
+  perTaskStatus.push({
+    task_id: taskId,
+    status: fm.status,
+    worker: fm.assigned_to,
+    criteria: `${criteriaPass}/${criteriaTotal}`,
+    has_report: content.includes('### Echo-Back') && !content.includes('_To be filled'),
+  })
+}
+
+// Include per-task table in completion report
+const perTaskTable = [
+  '| Task | Status | Worker | Criteria | Report |',
+  '|------|--------|--------|----------|--------|',
+  ...perTaskStatus.map(t =>
+    `| ${t.task_id} | ${t.status} | ${t.worker ?? 'unassigned'} | ${t.criteria} | ${t.has_report ? '✓' : '✗'} |`
+  ),
+].join('\n')
+
+// Append convergence metrics if available
+let convergenceSection = ''
+if (exists(`tmp/work/${timestamp}/convergence/metrics.json`)) {
+  const metrics = JSON.parse(Read(`tmp/work/${timestamp}/convergence/metrics.json`))
+  const scr = metrics.metrics?.scr?.value ?? 'N/A'
+  const iterations = metrics.metrics?.convergence_iterations?.value ?? 0
+  convergenceSection = `\nSCR: ${scr}% | Convergence iterations: ${iterations}`
+}
+```
+
 ## Phase 6.5: Ship (Optional)
 
 See [ship-phase.md](references/ship-phase.md) for gh CLI pre-check, ship decision flow, PR template generation, and smart next steps.
