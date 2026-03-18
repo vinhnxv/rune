@@ -277,26 +277,22 @@ pub fn scan_active_arcs(
 ) -> Vec<ActiveArc> {
     let tmux_panes = list_all_tmux_panes();
     let mut active = Vec::new();
+    let cwd_canonical = cwd.canonicalize().unwrap_or_else(|_| cwd.to_path_buf());
 
     // Read loop state from project dir (not config dirs)
     if let Some(loop_state) = monitor::read_arc_loop_state(cwd) {
         let pid_alive = is_pid_alive_check(&loop_state.owner_pid);
 
-        // Skip dead sessions — stale state file from a crashed/exited session
-        if !pid_alive && !loop_state.owner_pid.is_empty() {
-            // Don't show stale sessions; Rune's session-team-hygiene.sh
-            // will clean up the state file on next SessionStart.
-        } else {
+        if pid_alive || loop_state.owner_pid.is_empty() {
+            // Happy path: original session is still running
             let tmux_session = find_tmux_for_pid(&tmux_panes, &loop_state.owner_pid, sys);
 
-            // Enrich with sysinfo (started, cwd, mcp, teammates)
             let session_info = enrich_session_info(
                 &loop_state.owner_pid,
                 &loop_state.config_dir,
                 sys,
             );
 
-            // Match config_dir from loop state to our known config dirs
             let config_dir = config_dirs
                 .iter()
                 .find(|c| c.path.to_string_lossy() == loop_state.config_dir)
@@ -306,7 +302,6 @@ pub fn scan_active_arcs(
                     label: loop_state.config_dir.clone(),
                 });
 
-            // Read checkpoint for phase info (relative to cwd)
             let checkpoint_path = if loop_state.checkpoint_path.starts_with('/') {
                 PathBuf::from(&loop_state.checkpoint_path)
             } else {
@@ -326,14 +321,29 @@ pub fn scan_active_arcs(
                 phase_progress,
                 session_info,
             });
+        } else {
+            // Owner PID is dead — but a rune-* tmux session may have resumed
+            // with a new Claude process. Try to adopt the state file instead
+            // of discarding it as stale.
+            let adopted = try_adopt_loop_state(
+                &loop_state,
+                &tmux_panes,
+                config_dirs,
+                cwd,
+                &cwd_canonical,
+                sys,
+            );
+            if let Some(arc) = adopted {
+                active.push(arc);
+            }
+            // If no tmux session adopted it, skip — truly stale.
+            // Rune's session-team-hygiene.sh will clean up on next SessionStart.
         }
     }
 
     // Also scan for orphan tmux sessions (rune-* sessions without a loop state).
     // Only include sessions whose Claude process CWD matches OUR cwd —
     // this prevents torrent in directory A from seeing torrent B's sessions.
-    let cwd_canonical = cwd.canonicalize().unwrap_or_else(|_| cwd.to_path_buf());
-
     let rune_sessions: Vec<&TmuxPaneEntry> = tmux_panes
         .iter()
         .filter(|p| p.session_name.starts_with("rune-"))
@@ -393,6 +403,88 @@ pub fn scan_active_arcs(
     }
 
     active
+}
+
+/// When the loop state's owner_pid is dead, try to find a rune-* tmux session
+/// in the same CWD that can adopt the state file. This handles the common
+/// "session resumed" scenario where Claude restarts with a new PID in the
+/// same tmux session.
+fn try_adopt_loop_state(
+    loop_state: &monitor::ArcLoopState,
+    tmux_panes: &[TmuxPaneEntry],
+    config_dirs: &[ConfigDir],
+    cwd: &Path,
+    cwd_canonical: &Path,
+    sys: &sysinfo::System,
+) -> Option<ActiveArc> {
+    let rune_panes: Vec<&TmuxPaneEntry> = tmux_panes
+        .iter()
+        .filter(|p| p.session_name.starts_with("rune-"))
+        .collect();
+
+    for pane in &rune_panes {
+        let claude_pid = crate::tmux::Tmux::get_claude_pid(pane.pane_pid)?;
+        let pid_str = claude_pid.to_string();
+
+        let session_info = enrich_session_info(&pid_str, &loop_state.config_dir, sys);
+
+        // Verify the tmux session is running in the same directory
+        if let Some(ref info) = session_info {
+            if !info.cwd.is_empty() {
+                let session_cwd = Path::new(&info.cwd)
+                    .canonicalize()
+                    .unwrap_or_else(|_| PathBuf::from(&info.cwd));
+                if session_cwd != *cwd_canonical {
+                    continue; // Different directory — not our session
+                }
+            }
+        }
+
+        // Found a matching tmux session — adopt the loop state with the new PID
+        let config_dir = config_dirs
+            .iter()
+            .find(|c| c.path.to_string_lossy() == loop_state.config_dir)
+            .cloned()
+            .unwrap_or_else(|| ConfigDir {
+                path: PathBuf::from(&loop_state.config_dir),
+                label: loop_state.config_dir.clone(),
+            });
+
+        let checkpoint_path = if loop_state.checkpoint_path.starts_with('/') {
+            PathBuf::from(&loop_state.checkpoint_path)
+        } else {
+            cwd.join(&loop_state.checkpoint_path)
+        };
+
+        let (current_phase, pr_url, phase_progress) =
+            read_checkpoint_summary(&checkpoint_path);
+
+        // Build an adopted loop state with the new PID but original checkpoint info
+        let adopted_state = monitor::ArcLoopState {
+            active: loop_state.active,
+            checkpoint_path: loop_state.checkpoint_path.clone(),
+            plan_file: loop_state.plan_file.clone(),
+            config_dir: loop_state.config_dir.clone(),
+            owner_pid: pid_str,
+            session_id: loop_state.session_id.clone(),
+            branch: loop_state.branch.clone(),
+            iteration: loop_state.iteration,
+            max_iterations: loop_state.max_iterations,
+        };
+
+        return Some(ActiveArc {
+            config_dir,
+            loop_state: adopted_state,
+            pid_alive: true,
+            tmux_session: Some(pane.session_name.clone()),
+            current_phase,
+            pr_url,
+            phase_progress,
+            session_info,
+        });
+    }
+
+    None // No tmux session found to adopt — truly stale
 }
 
 /// List ALL tmux panes across all sessions/windows (like melina).
