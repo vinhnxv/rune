@@ -393,7 +393,7 @@ if (planTaskCount > 0) {
     if (!alreadyExtracted) {
       // Extract task section from plan for context
       const taskSectionPattern = new RegExp(
-        `### Task ${pt.id.replace(/\\./g, '\\\\.')}[:\\s][\\s\\S]*?(?=### (?:Task \\\\d|[A-Za-z])|##[^#]|$)`
+        `### Task ${pt.id.replace(/\\./g, '\\\\.')}[:\\s][\\s\\S]*?(?=\\n### (?:Task \\\\d|[A-Za-z])|\\n##[^#]|$)`
       )
       const sectionMatch = planContent.match(taskSectionPattern)
       const TASK_DESC_LIMIT = 4000
