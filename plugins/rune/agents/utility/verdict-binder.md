@@ -94,34 +94,65 @@ Combine requirement statuses from all inspectors into a unified matrix.
 If multiple inspectors assessed the same requirement, use the MORE SPECIFIC assessment
 (i.e., the one with more evidence).
 
-### Step 1.5 -- Resolve Inspector Disagreements
+### Step 1.5 -- Resolve Inspector Disagreements (Classification Disputes)
 
-When 2+ inspectors assess the same requirement, their statuses or classifications may conflict.
-This step resolves disagreements BEFORE computing completion scores.
+When 2+ inspectors assess the same requirement, their **classification** assessments may
+disagree (e.g., one says INTENTIONAL, another says DRIFT). Resolve using a 3-rule hierarchy.
 
-**Detection**: A disagreement exists when two inspectors report different statuses (e.g., COMPLETE vs DEVIATED) or different classifications (e.g., DEVIATED_INTENTIONAL vs DEVIATED_DRIFT) for the same requirement ID. Scope: classification disputes only — dimension score differences are NOT disagreements.
+**Scope**: Classification disputes ONLY. Status disputes (COMPLETE vs PARTIAL) are handled
+by Step 1's "more specific assessment" rule. This step resolves disagreements in the
+classification dimension (INTENTIONAL, DRIFT, EXCLUDED, FALSE_POSITIVE, UNCLASSIFIED).
+Dimension score differences are NOT disagreements.
 
-**Resolution hierarchy** (apply rules in order, stop at first match):
+**Detection**: Group all classification assessments by requirement ID. A disagreement exists
+when 2+ inspectors assigned different classifications to the same requirement.
 
-**Rule 1 — More Evidence Wins (MORE_EVIDENCE)**:
-- Count evidence items (file:line citations) per inspector's assessment
-- If one inspector has > 2x the evidence count of the other, use that assessment
-- Rationale: more evidence indicates deeper investigation
+```
+function resolveDisagreement(assessments):
+  // assessments = [{ inspector, requirement_id, classification, evidence_count, adjusted_score }]
+  // Only called when 2+ inspectors classified the same requirement differently
 
-**Rule 2 — Grace-Warden Specialist Authority (SPECIALIST_AUTHORITY)**:
-- If grace-warden is one of the disagreeing inspectors AND grace-warden's assessment has evidence_count >= 2, use grace-warden's assessment
-- The evidence_count >= 2 guard prevents grace-warden from winning with a single weak citation
-- Rationale: grace-warden is the correctness/completeness specialist — its domain expertise applies to status and classification disputes
+  if assessments.length <= 1:
+    return assessments[0]  // No disagreement
 
-**Rule 3 — Conservative (CONSERVATIVE)**:
-- Use the assessment with the lowest adjusted_score
-- Rationale: safety first — prefer the more pessimistic assessment when evidence is ambiguous
+  // Rule 1: More evidence wins (evidence_count > 2x threshold)
+  sorted = assessments.sort_by(a => -a.evidence_count)
+  if sorted[0].evidence_count > sorted[1].evidence_count * 2:
+    return {
+      winner: sorted[0],
+      rule_applied: "MORE_EVIDENCE",
+      alternatives_considered: sorted.slice(1),
+      confidence: min(95, 60 + sorted[0].evidence_count * 5)
+    }
 
-**Output**: For each resolved disagreement, record:
-- Requirement ID
-- Inspector assessments (who said what)
-- Resolution rule applied
-- Winning assessment
+  // Rule 2: Grace-warden specialist authority (only when evidence_count >= 2)
+  graceAssessment = assessments.find(a => a.inspector === "grace-warden")
+  if graceAssessment AND graceAssessment.evidence_count >= 2:
+    return {
+      winner: graceAssessment,
+      rule_applied: "SPECIALIST_AUTHORITY",
+      alternatives_considered: assessments.filter(a => a !== graceAssessment),
+      confidence: min(90, 50 + graceAssessment.evidence_count * 10)
+    }
+
+  // Rule 3: Conservative — use the lowest adjusted score (safety first)
+  lowest = assessments.sort_by(a => a.adjusted_score)[0]
+  return {
+    winner: lowest,
+    rule_applied: "CONSERVATIVE",
+    alternatives_considered: assessments.filter(a => a !== lowest),
+    confidence: 60
+  }
+```
+
+**Audit trail**: Each resolution records `{ winner, rule_applied, alternatives_considered, confidence }`.
+Confidence reflects resolution certainty: MORE_EVIDENCE (65-95), SPECIALIST_AUTHORITY (70-90),
+CONSERVATIVE (fixed 60 — least certain, chosen as safe default).
+
+**Integration**: After merging requirement matrices (Step 1), group all classification
+assessments by requirement ID. For each requirement with 2+ differing classifications,
+call `resolveDisagreement()`. Use the winning classification and adjusted_score for
+Step 2 (dual scoring). Record all resolutions for the Disagreement Resolution output section.
 
 ### Step 2 -- Compute Overall Completion (Dual Scoring)
 
@@ -245,11 +276,18 @@ List all requirements that are NOT COMPLETE, showing classification impact on sc
 
 ## Disagreement Resolution
 
-<!-- Only include this section if disagreements were detected and resolved -->
+<!-- Only include this section if classification disagreements were detected and resolved -->
+<!-- Omit entirely when no disagreements exist — do NOT include an empty table -->
 
-| Requirement | Inspector A | Assessment A | Inspector B | Assessment B | Resolution | Winner |
-|-------------|------------|-------------|------------|-------------|------------|--------|
-| (REQ-id) | (inspector) | (status/classification) | (inspector) | (status/classification) | (MORE_EVIDENCE/SPECIALIST_AUTHORITY/CONSERVATIVE) | (winning inspector) |
+| Requirement | Inspector A | Classification A | Inspector B | Classification B | Rule Applied | Winner | Confidence |
+|-------------|------------|-----------------|------------|-----------------|-------------|--------|------------|
+| (REQ-id) | (inspector) | (classification) | (inspector) | (classification) | (MORE_EVIDENCE/SPECIALIST_AUTHORITY/CONSERVATIVE) | (winning inspector) | (N)% |
+
+For each resolved disagreement, the audit trail records:
+- **winner**: The inspector whose classification was selected
+- **rule_applied**: Which hierarchy rule resolved the dispute
+- **alternatives_considered**: Other inspector assessments that were overridden
+- **confidence**: Resolution certainty (60-95%) based on evidence strength
 
 **Disagreements resolved:** (count)
 **Resolution distribution:** (N) MORE_EVIDENCE, (N) SPECIALIST_AUTHORITY, (N) CONSERVATIVE
@@ -313,6 +351,7 @@ List all requirements that are NOT COMPLETE, showing classification impact on sc
 - Inspectors completed: (completed)/(summoned)
 - Requirements assessed: (assessed)/(total)
 - Classification distribution: (N) INTENTIONAL, (N) DRIFT, (N) EXCLUDED, (N) FALSE_POSITIVE, (N) UNCLASSIFIED
+- Disagreements resolved: (N) (MORE_EVIDENCE: (N), SPECIALIST_AUTHORITY: (N), CONSERVATIVE: (N))
 - Completion delta: raw (N)% → adjusted (N)% (+(diff)%)
 ```
 
@@ -339,6 +378,7 @@ After writing VERDICT.md, perform ONE verification pass:
 3. Verify dimension scores match inspector outputs (no recalculation)
 4. Verify finding counts in Statistics match actual findings
 5. Verify verdict matches the determination logic
+6. If Disagreement Resolution section exists, verify resolution count matches Statistics
 
 This is ONE pass. Do not iterate further.
 
