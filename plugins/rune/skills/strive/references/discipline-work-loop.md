@@ -125,6 +125,50 @@ Build a completion matrix per task after workers finish:
 
 **Output**: `tmp/work/{timestamp}/work-review/completion-matrix.md`
 
+### Executable pseudocode
+
+```javascript
+// Phase 4.5: Generate Completion Matrix
+function generateCompletionMatrix(timestamp, tasks, planCriteria) {
+  const matrix = []
+  for (const task of tasks) {
+    const evidencePath = `tmp/work/${timestamp}/evidence/${task.id}/summary.json`
+    let evidence
+    try { evidence = JSON.parse(Read(evidencePath)) } catch { evidence = null }
+
+    const taskCriteria = planCriteria.filter(c => c.taskId === task.id)
+    for (const criterion of taskCriteria) {
+      const result = evidence?.criteria_results?.find(r => r.id === criterion.id)
+      matrix.push({
+        task_id: task.id,
+        criterion_id: criterion.id,
+        text: criterion.text,
+        status: result?.result ?? 'MISSING',
+        evidence: result?.evidence ?? null
+      })
+    }
+  }
+
+  const passCount = matrix.filter(m => m.status === 'PASS').length
+  const totalCount = matrix.length
+  const scr = totalCount > 0 ? (passCount / totalCount * 100).toFixed(1) : '0.0'
+
+  // Write completion matrix
+  const header = `# Completion Matrix\n\nSCR: ${scr}% (${passCount}/${totalCount})\n\n`
+  const table = `| Task | Criterion | Status | Evidence |\n|------|-----------|--------|----------|\n` +
+    matrix.map(m => `| ${m.task_id} | ${m.criterion_id} | ${m.status} | ${m.evidence ? 'Yes' : 'No'} |`).join('\n')
+  Write(`tmp/work/${timestamp}/work-review/completion-matrix.md`, header + table)
+
+  // Write metrics JSON for Phase 5 consumption
+  Write(`tmp/work/${timestamp}/convergence/metrics.json`, JSON.stringify({
+    metrics: { scr: { value: parseFloat(scr) }, first_pass_rate: { value: parseFloat(scr) } },
+    matrix, passCount, totalCount
+  }, null, 2))
+
+  return { matrix, scr: parseFloat(scr), passCount, totalCount }
+}
+```
+
 ---
 
 ## Phase 5: Convergence
@@ -146,6 +190,54 @@ Iterative re-work loop for non-PASS criteria. Each iteration:
 **Detailed convergence protocol**: See [work-loop-convergence.md](work-loop-convergence.md) for the full protocol — entry conditions, iteration logic, exit conditions (success + 3 failure modes), gap task creation, and convergence report format.
 
 **Output**: `tmp/work/{timestamp}/convergence/iteration-{N}.json` per iteration + final `metrics.json`
+
+### Executable pseudocode
+
+```javascript
+// Phase 5: Convergence Loop
+function convergenceLoop(timestamp, matrixResult, tasks, planCriteria, maxIterations) {
+  const scrThreshold = readTalismanSection("settings")?.discipline?.scr_threshold ?? 100
+  let iteration = 0
+  let prevFailingIds = new Set()
+
+  while (matrixResult.scr < scrThreshold && iteration < maxIterations) {
+    const gapCriteria = matrixResult.matrix.filter(m =>
+      m.status === 'FAIL' || m.status === 'MISSING' || m.status === 'INCOMPLETE'
+    )
+    if (gapCriteria.length === 0) break
+
+    // Stagnation detection
+    const currentFailingIds = new Set(gapCriteria.map(g => g.criterion_id))
+    if (iteration >= 1 && setsEqual(currentFailingIds, prevFailingIds)) {
+      warn(`Convergence stagnated at iteration ${iteration + 1} — same criteria failing`)
+      break
+    }
+    prevFailingIds = currentFailingIds
+
+    // Create gap tasks
+    for (const gap of gapCriteria) {
+      TaskCreate({
+        subject: `[GAP] Fix ${gap.criterion_id}: ${gap.text}`,
+        description: `Criterion ${gap.criterion_id} has status ${gap.status}. Fix the implementation to satisfy: ${gap.text}`
+      })
+    }
+
+    // Re-execute workers, monitor, collect evidence (reuse wave execution)
+    // ... (Phase 3 monitoring reused)
+
+    // Re-generate completion matrix
+    matrixResult = generateCompletionMatrix(timestamp, tasks, planCriteria)
+    iteration++
+
+    Write(`tmp/work/${timestamp}/convergence/iteration-${iteration}.json`, JSON.stringify({
+      iteration, scr: matrixResult.scr, gapCount: gapCriteria.length,
+      timestamp: new Date().toISOString()
+    }))
+  }
+
+  return { finalScr: matrixResult.scr, iterations: iteration, converged: matrixResult.scr >= scrThreshold }
+}
+```
 
 ---
 
