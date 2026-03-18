@@ -214,7 +214,7 @@ Executes the 5-component cleanup protocol to tear down the team:
    Fallback: use `handle.spawnedAgents` list from spawn phase
 2. **Shutdown all members** — `SendMessage(shutdown_request)` to each
 3. **Grace period** — `sleep 20` for teammate deregistration
-4. **TeamDelete with retry-with-backoff** (4 attempts: 0s, 5s, 10s, 15s)
+4. **TeamDelete with retry-with-backoff** (4 attempts: 0s, 3s, 6s, 10s)
 5. **Process-level kill** (SIGTERM→3s→SIGKILL with comm= re-verification) + **Filesystem fallback** — only if TeamDelete never succeeded (QUAL-012)
    `rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/"`
 

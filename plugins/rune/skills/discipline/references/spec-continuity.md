@@ -339,17 +339,17 @@ Agent({
 
 The agent that needs information reads it — the orchestrator does not pre-fetch and relay.
 
-**Anti-pattern (WRONG):**
+**Anti-pattern (WRONG — missing team_name, for illustration only):**
 ```
 // Orchestrator reads file, then passes content to agent
 const content = Read("src/auth.ts")
-Agent({ prompt: `Here is the file content: ${content}. Review it.` })
+Agent({ prompt: `Here is the file content: ${content}. Review it.` })  // ANTI-PATTERN: Missing team_name
 ```
 
 **Correct pattern (instead, let consumer read):**
 ```
 // Agent reads what it needs
-Agent({ prompt: `Read and review src/auth.ts for security issues.` })
+Agent({ team_name: teamName, name: "reviewer", prompt: `Read and review src/auth.ts for security issues.` })
 ```
 
 **Why**: Pre-fetching wastes the orchestrator's context window. The consumer agent has its own context window — let it bear the cost of reading what it needs.
@@ -358,11 +358,11 @@ Agent({ prompt: `Read and review src/auth.ts for security issues.` })
 
 Agents write output to files exactly once. Subsequent consumers read from files — never relay through the orchestrator.
 
-**Anti-pattern (WRONG):**
+**Anti-pattern (WRONG — missing team_name, for illustration only):**
 ```
 // Agent A returns findings inline → orchestrator relays to Agent B
 const findings = agentA.result  // 3000 tokens into orchestrator context
-Agent({ prompt: `Fix these findings: ${findings}` })  // 3000 tokens again
+Agent({ prompt: `Fix these findings: ${findings}` })  // ANTI-PATTERN: Missing team_name, 3000 tokens again
 ```
 
 **Correct pattern (instead, use file handoff):**
@@ -390,6 +390,7 @@ for (const file of outputFiles) {
 **Correct pattern (instead, delegate aggregation):**
 ```
 Agent({
+  team_name: teamName,
   name: "runebinder",
   prompt: `Aggregate findings from tmp/review/*.md into tmp/review/TOME.md`
 })

@@ -96,7 +96,7 @@ function postPhaseCleanup(checkpoint, phaseName) {
         if (members.length > 0) Bash(`sleep 20`)  // Grace period — 20s covers slow tool calls
       } catch (e) { /* team config unreadable — proceed to filesystem cleanup */ }
 
-      // SDK state clear + filesystem rm-rf — retry-with-backoff pattern (4 attempts: 0s, 5s, 10s, 15s)
+      // SDK state clear + filesystem rm-rf — retry-with-backoff pattern (4 attempts: 0s, 3s, 6s, 10s)
       let phaseCleanupSucceeded = false
       const PHASE_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
       for (let attempt = 0; attempt < PHASE_CLEANUP_DELAYS.length; attempt++) {

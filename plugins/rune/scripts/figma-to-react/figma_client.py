@@ -600,6 +600,12 @@ class FigmaClient:
             The Figma nodes JSON response.
         """
         await self._ensure_client()  # Resolve backend before building cache key.
+        # BACK-003 FIX: Validate Figma node ID format (DIGIT:DIGIT pattern)
+        import re as _re
+        _NODE_ID_PATTERN = _re.compile(r"^\d+:\d+$")
+        for nid in node_ids:
+            if not _NODE_ID_PATTERN.match(nid):
+                raise ValueError(f"Invalid Figma node ID format: {nid!r} (expected 'N:N')")
         ids_str = ",".join(node_ids)
         cache_key = f"nodes:{self._backend}:{file_key}:{branch_key}:{ids_str}"
         cached = self._cache.get(cache_key)

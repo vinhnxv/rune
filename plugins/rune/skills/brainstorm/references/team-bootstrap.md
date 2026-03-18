@@ -12,9 +12,9 @@ if (!/^\d{13}$/.test(timestamp)) throw new Error("Invalid timestamp")
 // teamTransition protocol (standard 6-step pattern):
 const teamName = `rune-brainstorm-${timestamp}`
 // STEP 1: Timestamp already validated above (SEC-001)
-// STEP 2: TeamDelete retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
+// STEP 2: TeamDelete retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s)
 let teamDeleteSucceeded = false
-for (const delay of [0, 5000, 10000, 15000]) {
+for (const delay of [0, 3000, 6000, 10000]) {
   if (delay > 0) Bash(`sleep ${delay / 1000}`)
   try { TeamDelete(); teamDeleteSucceeded = true; break } catch (e) { /* retry */ }
 }

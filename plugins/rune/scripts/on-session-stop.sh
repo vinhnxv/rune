@@ -526,7 +526,13 @@ if [[ -d "${CWD}/.claude/arc/" ]]; then
     [[ -L "$f" ]] && continue
     # Age guard: skip checkpoints modified within the last 5 minutes
     f_mtime=$(_stat_mtime "$f"); f_mtime="${f_mtime:-0}"
-    f_age_min=$(( (NOW - f_mtime) / 60 ))
+    # EDGE-003 FIX: Guard against zero/invalid mtime (same pattern as FLAW-003 at line 439)
+    if [[ "$f_mtime" -gt 0 ]]; then
+      f_age_min=$(( (NOW - f_mtime) / 60 ))
+      [[ $f_age_min -lt 0 ]] && f_age_min=0
+    else
+      f_age_min=0  # stat failed — treat as fresh (safe default)
+    fi
     if [[ $f_age_min -le 5 ]]; then
       continue
     fi

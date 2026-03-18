@@ -354,7 +354,7 @@ for (const member of allMembers) {
 if (allMembers.length > 0) { Bash("sleep 20") }
 
 let cleanupTeamDeleteSucceeded = false
-const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
   try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {

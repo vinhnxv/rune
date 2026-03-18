@@ -329,6 +329,8 @@ async def _run_decompose_subprocess(query: str) -> Optional[List[str]]:
         return None
     except (OSError, FileNotFoundError) as exc:
         logger.warning("Decompose subprocess error: %s", exc)
+        if proc is not None:
+            await _kill_subprocess(proc)
         return None
 
 

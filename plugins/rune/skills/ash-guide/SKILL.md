@@ -52,7 +52,7 @@ multiple agent perspectives into a single teammate. This is intentional — comp
 don't map 1:1 to individual agent files.
 
 ```
-Agent({ subagent_type: "general-purpose", prompt: /* from ../../agents/{category}/{role}.md */ })
+Agent({ subagent_type: "general-purpose", team_name: teamName, name: "ash-name", prompt: /* from ../../agents/{category}/{role}.md */ })
 ```
 
 The agent file `allowed-tools` are not enforced at runtime for composite Ashes.

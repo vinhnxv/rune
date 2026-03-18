@@ -56,7 +56,7 @@
         "The code filters member names with SEC-4 regex /^[a-zA-Z0-9_-]+$/ before SendMessage",
         "The code sends shutdown_request (not 'shutdown' or 'kill') to all discovered members",
         "The code has a 20-second grace period after sending shutdown requests",
-        "The code implements TeamDelete with retry-with-backoff using 4 attempts (0s, 5s, 10s, 15s delays)",
+        "The code implements TeamDelete with retry-with-backoff using 4 attempts (0s, 3s, 6s, 10s delays)",
         "The code gates filesystem fallback behind !cleanupTeamDeleteSucceeded (QUAL-012)",
         "The filesystem fallback includes process-level kill (SIGTERM then SIGKILL) before rm-rf",
         "The code uses CHOME pattern: ${CLAUDE_CONFIG_DIR:-$HOME/.claude} for rm-rf paths",

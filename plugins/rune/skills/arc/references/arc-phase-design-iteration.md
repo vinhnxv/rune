@@ -178,9 +178,9 @@ for (let i = 0; i < maxWorkers; i++) {
 }
 sleep(20_000)
 
-// TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
+// TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s)
 let cleanupTeamDeleteSucceeded = false
-const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
   try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {

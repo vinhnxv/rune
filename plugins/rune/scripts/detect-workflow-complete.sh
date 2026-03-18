@@ -174,8 +174,8 @@ for loop_file in \
     # files over risking premature cleanup of an active arc. Trace logging below captures
     # the raw return value to aid platform debugging (RUNE_TRACE=1).
     if [[ -z "$_loop_mtime" || ! "$_loop_mtime" =~ ^[0-9]+$ ]]; then
-      _trace "DEFER: $(basename "$loop_file") — mtime invalid (raw='${_loop_mtime:-<empty>}'), deferring conservatively. If recurring, check _stat_mtime platform compat in lib/platform.sh"
-      exit 0
+      _trace "DEFER: $(basename "$loop_file") — mtime invalid (raw='${_loop_mtime:-<empty>}'), skipping. If recurring, check _stat_mtime platform compat in lib/platform.sh"
+      continue
     fi
     age_min=$(( ($HOOK_START_TIME - _loop_mtime) / 60 ))
     # EDGE-002 FIX: Guard against clock skew producing negative age
@@ -487,6 +487,8 @@ if [[ "$_artifact_now" =~ ^[0-9]+$ && "$_artifact_now" -gt 0 ]]; then
     fi
 
     _art_age=$(( _artifact_now - _art_start_epoch ))
+    # EDGE-001 FIX: Guard against clock skew producing negative age
+    [[ $_art_age -lt 0 ]] && _art_age=0
     if [[ $_art_age -lt $STALE_ARTIFACT_THRESHOLD_SECS ]]; then
       continue
     fi

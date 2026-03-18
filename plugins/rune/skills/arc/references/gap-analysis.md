@@ -1250,9 +1250,9 @@ if (!exists(`tmp/arc/${id}/codex-gap-analysis.md`)) {
 // Cleanup team (single-member optimization: 12s grace — must exceed async deregistration time)
 try { SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-ga", content: "Phase complete" }) } catch (e) { /* member may have already exited */ }
 Bash("sleep 12")
-// Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 5s, 10s, 15s)
+// Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 3s, 6s, 10s)
 let gaCleanupSucceeded = false
-const GA_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+const GA_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < GA_CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${GA_CLEANUP_DELAYS[attempt] / 1000}`)
   try { TeamDelete(); gaCleanupSucceeded = true; break } catch (e) {
@@ -1538,9 +1538,9 @@ if (!/^[a-zA-Z0-9_-]+$/.test(inspectTeamName)) {
   try { SendMessage({ type: "shutdown_request", recipient: "verdict-binder" }) } catch (e) { /* already exited */ }
   Bash("sleep 20")  // Grace period — let teammates deregister
 
-  // TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
+  // TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s)
   let cleanupTeamDeleteSucceeded = false
-  const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+  const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
   for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
     if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
     try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {

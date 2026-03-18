@@ -152,9 +152,9 @@ If no contradictions found, output: "No scope/timeline contradictions detected."
     // Cleanup team (single-member optimization: 12s grace — must exceed async deregistration time)
     try { SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-sv", content: "Phase complete" }) } catch (e) { /* member may have already exited */ }
     Bash("sleep 12")
-    // Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 5s, 10s, 15s)
+    // Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 3s, 6s, 10s)
     let svCleanupSucceeded = false
-    const SV_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+    const SV_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
     for (let attempt = 0; attempt < SV_CLEANUP_DELAYS.length; attempt++) {
       if (attempt > 0) Bash(`sleep ${SV_CLEANUP_DELAYS[attempt] / 1000}`)
       try { TeamDelete(); svCleanupSucceeded = true; break } catch (e) {
@@ -378,9 +378,9 @@ If no issues found, output: "No integrity gaps detected."
     // Cleanup team (single-member optimization: 12s grace — must exceed async deregistration time)
     try { SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-ga", content: "Phase complete" }) } catch (e) { /* member may have already exited */ }
     Bash("sleep 12")
-    // Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 5s, 10s, 15s)
+    // Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 3s, 6s, 10s)
     let gaCleanupSucceeded = false
-    const GA_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+    const GA_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
     for (let attempt = 0; attempt < GA_CLEANUP_DELAYS.length; attempt++) {
       if (attempt > 0) Bash(`sleep ${GA_CLEANUP_DELAYS[attempt] / 1000}`)
       try { TeamDelete(); gaCleanupSucceeded = true; break } catch (e) {

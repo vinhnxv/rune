@@ -443,3 +443,49 @@ arc_guard_rapid_iteration() {
   fi
   return 0
 }
+
+# ─────────────────────────────────────────────────────────────
+# Block J: Context-critical check with stale bridge detection
+# ─────────────────────────────────────────────────────────────
+
+# ── arc_guard_context_critical_with_stale_bridge ──
+# GUARD 11 wrapper: checks if the bridge file is stale (written before compact
+# interlude Phase A) and skips the context-critical check if so. Without this,
+# post-compaction turns see pre-compaction context levels and falsely abort.
+#
+# BUG FIX (v1.165.0): Extracted from arc-batch and arc-hierarchy stop hooks
+# into shared library (v1.179.0) after arc-issues was found missing this guard.
+#
+# Arguments:
+#   $1 — STATE_FILE path (for mtime comparison)
+#   $2 — graceful stop callback function name
+#   $3 — label for trace/log messages
+#
+# Returns: 0 always (graceful stop callback handles abort via exit 2)
+arc_guard_context_critical_with_stale_bridge() {
+  local state_file="$1"
+  local _graceful_cb="$2"
+  local _label="${3:-GUARD 11}"
+
+  local _skip_context_check="false"
+  if [[ -n "${HOOK_SESSION_ID:-}" ]]; then
+    local _bridge_file="${TMPDIR:-/tmp}/rune-ctx-${HOOK_SESSION_ID}.json"
+    if [[ -f "$_bridge_file" && ! -L "$_bridge_file" ]]; then
+      local _bridge_mtime
+      _bridge_mtime=$(_stat_mtime "$_bridge_file" 2>/dev/null || echo "0")
+      local _state_mtime
+      _state_mtime=$(_stat_mtime "$state_file" 2>/dev/null || echo "0")
+      # Bridge file older than state file → stale (written before compact interlude)
+      if [[ "$_bridge_mtime" -le "$_state_mtime" ]]; then
+        _skip_context_check="true"
+        if declare -f _trace &>/dev/null; then
+          _trace "${_label}: Skipping context check — bridge file stale (bridge=${_bridge_mtime} <= state=${_state_mtime})"
+        fi
+      fi
+    fi
+  fi
+  if [[ "$_skip_context_check" == "false" ]] && _check_context_critical 2>/dev/null; then
+    "$_graceful_cb" "${_label}: Context critical at Phase B of compact interlude"
+  fi
+  return 0
+}

@@ -216,7 +216,7 @@ function _cancelIssuesOnly() {
   if (storedCfg && storedCfg !== currentCfg) {
     foreignSession = true
   } else if (ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
-    const alive = Bash(`kill -0 ${ownerPid} 2>/dev/null && echo "alive" || echo "dead"`).trim()
+    const alive = Bash(`kill -0 "${ownerPid}" 2>/dev/null && echo "alive" || echo "dead"`).trim()
     if (alive === "alive") foreignSession = true
   }
   if (foreignSession) {

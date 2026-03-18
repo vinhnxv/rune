@@ -85,12 +85,12 @@
     {
       "id": 6,
       "prompt": "Walk me through Phase 6 Cleanup for devise. What are the 5 components of the standard cleanup pattern? What is the fallback array and why does it need to be complete? How does SEC-4 validation work? What is QUAL-012?",
-      "expected_output": "Phase 6 Cleanup breakdown: 5 components: (1) Dynamic member discovery — read team config for all teammates; (2) shutdown_request to all members via SendMessage; (3) Grace period — let teammates deregister (20s); (4) TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s); (5) Filesystem fallback — only if TeamDelete never succeeded. Fallback array: hardcoded list of ALL possible teammates for the workflow, covers conditional phases, safe to send shutdown_request to absent members. SEC-4 validation: filter member names with /^[a-zA-Z0-9_-]+$/ before use in SendMessage (prevents injection). QUAL-012: gate filesystem fallback behind !cleanupTeamDeleteSucceeded — avoid unnecessary rm -rf when TeamDelete already succeeded. Also includes workflow lock release.",
+      "expected_output": "Phase 6 Cleanup breakdown: 5 components: (1) Dynamic member discovery — read team config for all teammates; (2) shutdown_request to all members via SendMessage; (3) Grace period — let teammates deregister (20s); (4) TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s); (5) Filesystem fallback — only if TeamDelete never succeeded. Fallback array: hardcoded list of ALL possible teammates for the workflow, covers conditional phases, safe to send shutdown_request to absent members. SEC-4 validation: filter member names with /^[a-zA-Z0-9_-]+$/ before use in SendMessage (prevents injection). QUAL-012: gate filesystem fallback behind !cleanupTeamDeleteSucceeded — avoid unnecessary rm -rf when TeamDelete already succeeded. Also includes workflow lock release.",
       "files": [],
       "expectations": [
         "Lists 5 cleanup components in order: discovery, shutdown_request, grace period, TeamDelete retry, filesystem fallback",
         "Notes grace period is 20 seconds",
-        "Lists TeamDelete retry delays: 0s, 5s, 10s, 15s (4 attempts)",
+        "Lists TeamDelete retry delays: 0s, 3s, 6s, 10s (4 attempts)",
         "Explains fallback array covers all conditional phases",
         "Describes SEC-4 validation: /^[a-zA-Z0-9_-]+$/ regex for member names",
         "Explains QUAL-012: gate filesystem fallback behind !cleanupTeamDeleteSucceeded",

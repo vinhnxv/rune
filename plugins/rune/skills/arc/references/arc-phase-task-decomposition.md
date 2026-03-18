@@ -148,9 +148,9 @@ Base findings on actual plan content, not assumptions.
   // Cleanup team (single-member optimization: 12s grace — must exceed async deregistration time)
   try { SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-td", content: "Phase complete" }) } catch (e) { /* member may have already exited */ }
   Bash("sleep 12")
-  // Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 5s, 10s, 15s)
+  // Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 3s, 6s, 10s)
   let tdCleanupSucceeded = false
-  const TD_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+  const TD_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
   for (let attempt = 0; attempt < TD_CLEANUP_DELAYS.length; attempt++) {
     if (attempt > 0) Bash(`sleep ${TD_CLEANUP_DELAYS[attempt] / 1000}`)
     try { TeamDelete(); tdCleanupSucceeded = true; break } catch (e) {

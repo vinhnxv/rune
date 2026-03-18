@@ -127,7 +127,7 @@ allMembers = [
   "sight-oracle-inspect", "vigil-keeper-inspect",
   "grace-warden-plan-review", "ruin-prophet-plan-review",
   "sight-oracle-plan-review", "vigil-keeper-plan-review",
-  "verdict-binder", "gap-fixer", "inspect-lore-analyst"
+  "verdict-binder", "gap-fixer", "lore-analyst"
 ]
 ```
 

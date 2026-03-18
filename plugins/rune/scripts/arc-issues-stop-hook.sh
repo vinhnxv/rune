@@ -67,6 +67,7 @@ TOTAL_PLANS=$(get_field "total_plans")
 NO_MERGE=$(get_field "no_merge")
 PROGRESS_FILE=$(get_field "progress_file")
 COMPACT_PENDING=$(get_field "compact_pending")
+ARC_PASSTHROUGH_FLAGS_RAW=$(get_field "arc_passthrough_flags")
 
 # ── GUARD 5.5: Validate PROGRESS_FILE path (SEC-001: path traversal prevention) ──
 if [[ -z "$PROGRESS_FILE" ]] || [[ "$PROGRESS_FILE" == *".."* ]] || [[ "$PROGRESS_FILE" == /* ]]; then
@@ -482,9 +483,9 @@ Then STOP responding immediately. Do NOT execute any commands, read any files, o
 fi
 
 # ── GUARD 11: Context-critical check before arc prompt injection (F-13 fix) ──
-if _check_context_critical 2>/dev/null; then
-  _graceful_stop_issues_batch "GUARD 11: Context critical at Phase B of compact interlude (iteration ${ITERATION}/${TOTAL_PLANS})"
-fi
+# Uses shared stale bridge detection (v1.179.0) — prevents false "Context Exhaustion"
+# aborts when bridge file contains pre-compaction context levels.
+arc_guard_context_critical_with_stale_bridge "$STATE_FILE" _graceful_stop_issues_batch "GUARD 11 (iteration ${ITERATION}/${TOTAL_PLANS})"
 
 # ── Increment iteration in state file (atomic: read → replace → mktemp + mv) ──
 NEW_ITERATION=$((ITERATION + 1))
@@ -526,6 +527,20 @@ fi
 MERGE_FLAG=""
 if [[ "$NO_MERGE" == "true" ]]; then
   MERGE_FLAG=" --no-merge"
+fi
+
+# ── Build passthrough flags (SEC-1: allowlist validation) ──
+# Matches arc-hierarchy's narrower allowlist (issues are auto-generated plans)
+ALLOWED_FLAGS_RE='^(--(no-forge|no-test))$'
+PASSTHROUGH_FLAGS=""
+if [[ -n "${ARC_PASSTHROUGH_FLAGS_RAW:-}" ]]; then
+  for _flag in $ARC_PASSTHROUGH_FLAGS_RAW; do
+    if [[ "$_flag" =~ $ALLOWED_FLAGS_RE ]]; then
+      PASSTHROUGH_FLAGS="${PASSTHROUGH_FLAGS} ${_flag}"
+    else
+      _trace "SEC-1: rejected passthrough flag: ${_flag}"
+    fi
+  done
 fi
 
 # ── Build issue reference for Fixes #N (belt-and-suspenders: Approach B) ──
@@ -608,7 +623,7 @@ ${GH_STATUS_STEPS}1. Verify git state is clean: git status
      tname=\$(basename \"\$dir\"); rm -rf \"\$CHOME/teams/\$tname\" \"\$CHOME/tasks/\$tname\" 2>/dev/null
    done
 5. Load the arc pipeline by calling the Skill tool:
-   Skill(\"rune:arc\", \"${NEXT_PLAN} --skip-freshness --accept-external${MERGE_FLAG}\")${FIXES_INSTRUCTION}
+   Skill(\"rune:arc\", \"${NEXT_PLAN} --skip-freshness --accept-external${MERGE_FLAG}${PASSTHROUGH_FLAGS}\")${FIXES_INSTRUCTION}
 
    Pass BOTH arguments: skill name AND plan path + flags.
 

@@ -22,12 +22,12 @@
     {
       "id": 2,
       "prompt": "Explain the Team Bootstrap phase for brainstorm. What is the teamTransition protocol? What are the 6 steps? How does session isolation work with the state file?",
-      "expected_output": "Team Bootstrap (Phase 1, Team/Deep modes only): The teamTransition protocol is a standard 6-step pattern. Step 1: Validate timestamp (SEC-001, exactly 13 digits). Step 2: TeamDelete retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s). Step 3: Filesystem fallback gated on !teamDeleteSucceeded (rm team/task dirs via CHOME pattern). Step 4: TeamCreate with 'Already leading' catch-and-recover. Step 5: Post-create verification (read config.json). Step 6: Write state file tmp/.rune-brainstorm-{timestamp}.json with session isolation fields: config_dir, owner_pid, session_id, feature, mode. Workspace created with subdirs: rounds/, advisors/, research/, elicitation/, design/. Signal directory created for fast completion detection.",
+      "expected_output": "Team Bootstrap (Phase 1, Team/Deep modes only): The teamTransition protocol is a standard 6-step pattern. Step 1: Validate timestamp (SEC-001, exactly 13 digits). Step 2: TeamDelete retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s). Step 3: Filesystem fallback gated on !teamDeleteSucceeded (rm team/task dirs via CHOME pattern). Step 4: TeamCreate with 'Already leading' catch-and-recover. Step 5: Post-create verification (read config.json). Step 6: Write state file tmp/.rune-brainstorm-{timestamp}.json with session isolation fields: config_dir, owner_pid, session_id, feature, mode. Workspace created with subdirs: rounds/, advisors/, research/, elicitation/, design/. Signal directory created for fast completion detection.",
       "files": [],
       "expectations": [
         "Lists all 6 steps of teamTransition protocol",
         "Notes timestamp validation: exactly 13 digits (SEC-001)",
-        "Notes TeamDelete retry delays: 0s, 5s, 10s, 15s",
+        "Notes TeamDelete retry delays: 0s, 3s, 6s, 10s",
         "Explains filesystem fallback gated on !teamDeleteSucceeded",
         "Describes 'Already leading' catch-and-recover",
         "Lists state file fields: config_dir, owner_pid, session_id",
@@ -98,7 +98,7 @@
     {
       "id": 7,
       "prompt": "Walk me through Phase 6 Cleanup and Handoff. What are the 5 cleanup components? What is the fallback array for brainstorm? What handoff options are presented?",
-      "expected_output": "Phase 6 Cleanup and Handoff: Output written to TWO locations: tmp/brainstorm-{timestamp}/brainstorm-decisions.md (workspace) and docs/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md (persistent). Cleanup (Team/Deep modes) follows the standard 5-component pattern: (1) Dynamic member discovery from team config; (2) shutdown_request to all members; (3) Grace period (20s); (4) TeamDelete retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s); (5) Filesystem fallback gated on !cleanupTeamDeleteSucceeded. Fallback array: user-advocate, tech-realist, devils-advocate, elicitation-sage-1, elicitation-sage-2, elicitation-sage-3, state-weaver. SEC-4 validated. Workflow lock released. Handoff: 4 options via AskUserQuestion — Plan with /rune:devise (Recommended), Refine brainstorm, Ask more questions, Save and stop.",
+      "expected_output": "Phase 6 Cleanup and Handoff: Output written to TWO locations: tmp/brainstorm-{timestamp}/brainstorm-decisions.md (workspace) and docs/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md (persistent). Cleanup (Team/Deep modes) follows the standard 5-component pattern: (1) Dynamic member discovery from team config; (2) shutdown_request to all members; (3) Grace period (20s); (4) TeamDelete retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s); (5) Filesystem fallback gated on !cleanupTeamDeleteSucceeded. Fallback array: user-advocate, tech-realist, devils-advocate, elicitation-sage-1, elicitation-sage-2, elicitation-sage-3, state-weaver. SEC-4 validated. Workflow lock released. Handoff: 4 options via AskUserQuestion — Plan with /rune:devise (Recommended), Refine brainstorm, Ask more questions, Save and stop.",
       "files": [],
       "expectations": [
         "Notes output written to TWO locations: workspace and docs/brainstorms/",

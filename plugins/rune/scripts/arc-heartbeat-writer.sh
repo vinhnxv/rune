@@ -78,8 +78,11 @@ HEARTBEAT_FILE="${HEARTBEAT_DIR}/heartbeat.json"
 # higher values reduce stuck detection accuracy.
 if [[ -f "$HEARTBEAT_FILE" ]]; then
   HB_MTIME=$(_stat_mtime "$HEARTBEAT_FILE" 2>/dev/null || echo "0")
+  HB_MTIME="${HB_MTIME:-0}"
+  [[ -z "$HB_MTIME" || ! "$HB_MTIME" =~ ^[0-9]+$ ]] && HB_MTIME=0
   HB_NOW=$(date +%s)
   HB_AGE=$(( HB_NOW - HB_MTIME ))
+  [[ $HB_AGE -lt 0 ]] && HB_AGE=0
   [[ $HB_AGE -lt 30 ]] && exit 0
 fi
 
