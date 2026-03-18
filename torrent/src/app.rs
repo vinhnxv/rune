@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
@@ -84,6 +84,9 @@ pub struct App {
 
     // Claude Code version string (detected at startup)
     pub claude_version: String,
+
+    // Phase timeout configuration (session-scoped, loaded from env once)
+    pub phase_timeout_config: PhaseTimeoutConfig,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,6 +126,10 @@ pub struct RunState {
     pub claude_pid: Option<u32>,     // Claude Code process PID (= owner_pid in checkpoint)
     pub loop_state: Option<monitor::ArcLoopState>, // From arc-phase-loop.local.md
     pub session_info: Option<crate::scanner::SessionInfo>, // Enriched session info
+    // Phase timeout tracking (multi-tick state machine, like merge_detected_at)
+    pub current_phase_started: Option<Instant>,  // Reset on phase change
+    pub current_phase_name: Option<String>,       // Last known phase for change detection
+    pub timeout_triggered_at: Option<Instant>,    // When SIGTERM was sent (grace period start)
 }
 
 impl RunState {
@@ -191,6 +198,73 @@ pub struct PhaseSummary {
     pub total: u32,
     pub skipped: u32,
     pub current_phase_name: String,
+}
+
+/// Map a phase name to a timeout category.
+/// Categories group phases with similar expected durations.
+fn phase_category(name: &str) -> &str {
+    match name {
+        "forge" => "forge",
+        "work" | "task_decomposition" | "design_extraction" | "design_prototype"
+        | "design_iteration" => "work",
+        "test" | "test_coverage_critique" => "test",
+        "ship" | "merge" | "pre_ship_validation" | "release_quality_check"
+        | "deploy_verify" | "bot_review_wait" | "pr_comment_resolution" => "ship",
+        _ => "review",
+    }
+}
+
+/// Per-phase timeout configuration loaded from TORRENT_TIMEOUT_* env vars.
+/// Falls back to `default_timeout` for phases whose category has no override.
+///
+/// Env vars: TORRENT_TIMEOUT_FORGE, TORRENT_TIMEOUT_WORK, TORRENT_TIMEOUT_TEST,
+/// TORRENT_TIMEOUT_REVIEW, TORRENT_TIMEOUT_SHIP (values in minutes).
+/// TORRENT_TIMEOUT_DEFAULT overrides the global default (60 min).
+pub struct PhaseTimeoutConfig {
+    timeouts: HashMap<String, Duration>,
+    default_timeout: Duration,
+}
+
+impl PhaseTimeoutConfig {
+    /// Parse timeout config from environment variables.
+    /// Each TORRENT_TIMEOUT_<CATEGORY> is an integer in minutes.
+    pub fn from_env() -> Self {
+        let default_mins: u64 = std::env::var("TORRENT_TIMEOUT_DEFAULT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(60);
+
+        let mut timeouts = HashMap::new();
+        for category in &["forge", "work", "test", "review", "ship"] {
+            let env_key = format!("TORRENT_TIMEOUT_{}", category.to_uppercase());
+            if let Some(mins) = std::env::var(&env_key).ok().and_then(|s| s.parse::<u64>().ok()) {
+                timeouts.insert(category.to_string(), Duration::from_secs(mins * 60));
+            }
+        }
+
+        Self {
+            timeouts,
+            default_timeout: Duration::from_secs(default_mins * 60),
+        }
+    }
+
+    /// Get the timeout duration for a given phase name.
+    /// Looks up the phase's category, then checks for a configured override.
+    pub fn timeout_for(&self, phase: &str) -> Duration {
+        let cat = phase_category(phase);
+        self.timeouts
+            .get(cat)
+            .copied()
+            .unwrap_or(self.default_timeout)
+    }
+
+    /// Returns true if all timeouts are at their defaults (no env overrides).
+    /// Used to skip timeout checking entirely when unconfigured.
+    #[allow(dead_code)] // used by UI layer and tests
+    pub fn is_default(&self) -> bool {
+        self.timeouts.is_empty()
+            && self.default_timeout == Duration::from_secs(60 * 60)
+    }
 }
 
 /// Result of a completed arc run.
@@ -304,6 +378,7 @@ impl App {
             queue_editing: false,
             should_quit: false,
             claude_version: Self::detect_claude_version(),
+            phase_timeout_config: PhaseTimeoutConfig::from_env(),
         })
     }
 
@@ -819,6 +894,9 @@ impl App {
             claude_pid,
             loop_state: Some(loop_state),
             session_info,
+            current_phase_started: None,
+            current_phase_name: None,
+            timeout_triggered_at: None,
         });
 
         self.view = AppView::Running;
@@ -980,8 +1058,11 @@ impl App {
                 self.last_loop_state_poll = Some(now);
             }
 
-            // Check grace period completion
+            // Check grace period completion BEFORE timeout (completion race guard)
             self.check_grace_period(now);
+
+            // Check phase timeout AFTER completion — prevents killing a just-completed phase
+            self.check_phase_timeout();
         }
 
         Ok(())
@@ -1137,6 +1218,9 @@ impl App {
                     &self.sys,
                 )
             }),
+            current_phase_started: None,
+            current_phase_name: None,
+            timeout_triggered_at: None,
         });
 
         // Reset poll timers
@@ -1259,6 +1343,21 @@ impl App {
             // Combined stale detection: heartbeat staleness OR low-cpu process health
             let is_stale = status.is_stale || proc_health == ProcessHealth::LowCpu;
 
+            // Phase change detection — reset timeout timer on new phase
+            {
+                let new_phase = &status.current_phase;
+                let phase_changed = run
+                    .current_phase_name
+                    .as_ref()
+                    .map(|old| old != new_phase)
+                    .unwrap_or(true);
+                if phase_changed && !new_phase.is_empty() {
+                    run.current_phase_name = Some(new_phase.clone());
+                    run.current_phase_started = Some(Instant::now());
+                    run.timeout_triggered_at = None; // clear any pending kill
+                }
+            }
+
             // Convert monitor::ArcStatus to app::ArcStatus
             run.last_status = Some(ArcStatus {
                 arc_id: status.arc_id,
@@ -1292,6 +1391,101 @@ impl App {
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(30)
+    }
+
+    /// Check if the current phase has exceeded its timeout.
+    /// Uses a multi-tick state machine (like merge_detected_at):
+    /// 1. Phase exceeds timeout → send SIGTERM via libc::kill, set timeout_triggered_at
+    /// 2. 15s grace after SIGTERM → hard kill via Tmux::kill_session
+    ///
+    /// IMPORTANT: Completion check (merge_detected_at) is done BEFORE this,
+    /// so a phase that just completed won't be killed.
+    fn check_phase_timeout(&mut self) {
+        let run = match &mut self.current_run {
+            Some(r) => r,
+            None => return,
+        };
+
+        // Skip if completion already detected (race guard)
+        if run.merge_detected_at.is_some() {
+            return;
+        }
+
+        // Check SIGTERM grace period first (15s after SIGTERM → hard kill)
+        if let Some(triggered_at) = run.timeout_triggered_at {
+            if triggered_at.elapsed() >= Duration::from_secs(15) {
+                // Grace period expired — hard kill the session
+                let session = run.tmux_session.clone();
+                let plan_name = run.plan.name.clone();
+                self.status_message = Some(format!(
+                    "Phase timeout: hard kill after 15s grace — {}",
+                    plan_name
+                ));
+                let _ = Tmux::kill_session(&session);
+                // Complete the run as failed
+                if let Some(run) = self.current_run.take() {
+                    let arc_id = run.arc_id();
+                    let duration = run.arc_duration();
+                    let phase = run
+                        .current_phase_name
+                        .as_deref()
+                        .unwrap_or("unknown")
+                        .to_string();
+                    self.completed_runs.push(CompletedRun {
+                        plan: run.plan,
+                        result: ArcCompletion::Failed {
+                            reason: format!("phase timeout: {} exceeded limit", phase),
+                        },
+                        duration,
+                        arc_id,
+                    });
+                    self.tmux_session_id = None;
+                    let total = self.queue_total_items();
+                    if total > 0 && self.queue_cursor >= total {
+                        self.queue_cursor = total - 1;
+                    }
+                }
+            }
+            return; // Waiting for grace period — don't re-check timeout
+        }
+
+        // Check if current phase has exceeded its timeout
+        let (phase_name, started) = match (&run.current_phase_name, run.current_phase_started) {
+            (Some(name), Some(started)) => (name.clone(), started),
+            _ => return, // No phase tracked yet
+        };
+
+        let timeout = self.phase_timeout_config.timeout_for(&phase_name);
+        if started.elapsed() < timeout {
+            return; // Not timed out yet
+        }
+
+        // Timeout exceeded — send SIGTERM to Claude Code process
+        let pid_to_kill = run.claude_pid;
+        run.timeout_triggered_at = Some(Instant::now());
+
+        if let Some(pid) = pid_to_kill {
+            // SAFETY: libc::kill sends a signal to a process. We use SIGTERM (graceful).
+            unsafe {
+                libc::kill(pid as libc::pid_t, libc::SIGTERM);
+            }
+            self.status_message = Some(format!(
+                "Phase timeout: SIGTERM sent to PID {} (phase: {}, limit: {}m)",
+                pid,
+                phase_name,
+                timeout.as_secs() / 60,
+            ));
+        } else {
+            // No PID available — fall back to tmux kill directly
+            self.status_message = Some(format!(
+                "Phase timeout: no PID, killing tmux (phase: {}, limit: {}m)",
+                phase_name,
+                timeout.as_secs() / 60,
+            ));
+            if let Some(ref run) = self.current_run {
+                let _ = Tmux::kill_session(&run.tmux_session);
+            }
+        }
     }
 
     /// Grace period after merge detection before starting next plan.
