@@ -1,10 +1,11 @@
 #!/bin/bash
-# setup-worktree.sh — WorktreeCreate hook: copy .claude/ contents to worktree
+# setup-worktree.sh — WorktreeCreate hook: copy .claude/ + .rune/ contents to worktree
 # Workaround for anthropics/claude-code#28041 (worktrees don't include .claude/ subdirs).
 #
 # Receives JSON on stdin: { "name": "...", "cwd": "...", "worktree_path": "..." }
-# Copies essential Rune config from main repo .claude/ to worktree .claude/.
-# Writes .rune-worktree-source marker for downstream scripts.
+# Copies Claude Code platform files (.claude/settings.json) and Rune state
+# (.rune/talisman.yml, .rune/echoes/, .rune/arc/) to worktree.
+# Writes .rune/.rune-worktree-source marker for downstream scripts.
 #
 # Hook event: WorktreeCreate
 # Timeout budget: <5 seconds (10s hard limit)
@@ -128,50 +129,64 @@ if [[ -L "$WT_PATH/.claude" ]]; then
   exit 0
 fi
 
-# ── Verify source .claude/ directory exists ──
+# ── Verify source directories exist ──
 SRC_CLAUDE="${CWD}/.claude"
-if [[ ! -d "$SRC_CLAUDE" ]]; then
-  _trace "SKIP: source .claude/ not found at $SRC_CLAUDE"
+SRC_RUNE="${CWD}/.rune"
+
+if [[ ! -d "$SRC_CLAUDE" && ! -d "$SRC_RUNE" ]]; then
+  _trace "SKIP: neither .claude/ nor .rune/ found at $CWD"
   exit 0
 fi
 
 # ── Re-entry detection ──
-# If worktree already has talisman.yml, setup was already done (idempotent).
+# If worktree already has .rune/talisman.yml, setup was already done (idempotent).
 DST_CLAUDE="${WT_PATH}/.claude"
-if [[ -f "$DST_CLAUDE/talisman.yml" ]]; then
-  _trace "SKIP: re-entry — talisman.yml already exists in worktree"
+DST_RUNE="${WT_PATH}/.rune"
+if [[ -f "$DST_RUNE/talisman.yml" ]]; then
+  _trace "SKIP: re-entry — .rune/talisman.yml already exists in worktree"
   exit 0
 fi
 
 _trace "Setting up Rune config in worktree: $WT_PATH"
 
-# ── Create target .claude/ directory ──
+# ── Create target directories ──
 mkdir -p "$DST_CLAUDE"
+mkdir -p "$DST_RUNE"
 
-# ── Copy essential files ──
-# Individual files (skip if absent)
-for file in talisman.yml settings.json; do
-  if [[ -f "$SRC_CLAUDE/$file" && ! -L "$SRC_CLAUDE/$file" ]]; then
-    cp -f "$SRC_CLAUDE/$file" "$DST_CLAUDE/$file" 2>/dev/null || true
-    _trace "Copied $file"
-  fi
-done
-
-# ── Copy essential directories ──
-# Use cp -R (not cp -r): -R copies symlinks as symlinks (POSIX), -r may dereference them.
-# EXCLUDE: worktrees/ (prevent recursion), settings.local.json (handled by Claude Code),
-#          agent-memory/ and agent-memory-local/ (per-agent persistent memory)
-for dir in echoes arc; do
-  if [[ -d "$SRC_CLAUDE/$dir" && ! -L "$SRC_CLAUDE/$dir" ]]; then
-    # Create parent and copy recursively
-    mkdir -p "$DST_CLAUDE/$dir"
-    if ! cp -R "$SRC_CLAUDE/$dir/." "$DST_CLAUDE/$dir/" 2>/dev/null; then
-      _trace "WARN: cp -R failed for $dir/ — partial copy may exist"
-    else
-      _trace "Copied $dir/"
+# ── Copy Claude Code platform files (.claude/) ──
+if [[ -d "$SRC_CLAUDE" ]]; then
+  for file in settings.json; do
+    if [[ -f "$SRC_CLAUDE/$file" && ! -L "$SRC_CLAUDE/$file" ]]; then
+      cp -f "$SRC_CLAUDE/$file" "$DST_CLAUDE/$file" 2>/dev/null || true
+      _trace "Copied .claude/$file"
     fi
-  fi
-done
+  done
+fi
+
+# ── Copy Rune state files (.rune/) ──
+if [[ -d "$SRC_RUNE" ]]; then
+  # Individual files
+  for file in talisman.yml; do
+    if [[ -f "$SRC_RUNE/$file" && ! -L "$SRC_RUNE/$file" ]]; then
+      cp -f "$SRC_RUNE/$file" "$DST_RUNE/$file" 2>/dev/null || true
+      _trace "Copied .rune/$file"
+    fi
+  done
+
+  # Directories (echoes, arc)
+  # Use cp -R (not cp -r): -R copies symlinks as symlinks (POSIX), -r may dereference them.
+  # EXCLUDE: worktrees/ (prevent recursion), audit-state/ (session-specific)
+  for dir in echoes arc; do
+    if [[ -d "$SRC_RUNE/$dir" && ! -L "$SRC_RUNE/$dir" ]]; then
+      mkdir -p "$DST_RUNE/$dir"
+      if ! cp -R "$SRC_RUNE/$dir/." "$DST_RUNE/$dir/" 2>/dev/null; then
+        _trace "WARN: cp -R failed for .rune/$dir/ — partial copy may exist"
+      else
+        _trace "Copied .rune/$dir/"
+      fi
+    fi
+  done
+fi
 
 # ── Create tmp/ directory in worktree ──
 mkdir -p "$WT_PATH/tmp" 2>/dev/null || true
@@ -179,7 +194,7 @@ mkdir -p "$WT_PATH/tmp" 2>/dev/null || true
 # ── Write worktree source marker ──
 # Downstream scripts (workflow-lock.sh, stop-hook-common.sh) read this
 # to resolve the main repo root for shared resources.
-MARKER="$DST_CLAUDE/.rune-worktree-source"
+MARKER="$DST_RUNE/.rune-worktree-source"
 
 # SEC-004: Marker must not be a symlink
 if [[ -L "$MARKER" ]]; then

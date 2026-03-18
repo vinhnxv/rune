@@ -501,8 +501,8 @@ def discover_and_parse(
         if entry:
             all_entries.append(entry)
 
-    # Source 4: rune-project agents (.claude/rune-agents/) — search-only
-    rune_agents_dir = os.path.join(project_dir, ".claude", "rune-agents")
+    # Source 4: rune-project agents (.rune/rune-agents/) — search-only
+    rune_agents_dir = os.path.join(project_dir, ".rune", "rune-agents")
     for fpath in _valid_agent_files(rune_agents_dir):
         entry = parse_agent_file(fpath, "rune-project")
         if entry:

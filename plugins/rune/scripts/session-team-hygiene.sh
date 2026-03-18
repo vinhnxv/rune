@@ -353,7 +353,7 @@ orphan_checkpoint_count=0
 orphan_checkpoint_count=$(
   count=0
   # Build scan dirs: project root + any worktree ${RUNE_STATE}/arc/ directories
-  scan_dirs=("${CWD}/${RUNE_STATE}/arc" "${CWD}/tmp/arc")
+  scan_dirs=("${CWD}/${RUNE_STATE}/arc" "${CWD}/.claude/arc" "${CWD}/tmp/arc")
   # Add worktree checkpoint dirs (worktrees are at ${RUNE_STATE}/worktrees/*/)
   # SEC-S8-002 FIX: Reject symlinks on worktree dirs (parity with team dir scanning at line 108)
   shopt -s nullglob 2>/dev/null || true

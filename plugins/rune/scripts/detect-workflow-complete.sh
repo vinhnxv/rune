@@ -132,7 +132,7 @@ if [[ ${#STATE_FILES[@]} -eq 0 ]]; then
 fi
 
 # ── GUARD 2: Defer to arc loop hooks — NOW session-scoped ──
-# REC-1 FIX: Loop files live at ${CWD}/.claude/, NOT ${CHOME}/
+# REC-1 FIX: Loop files live at ${CWD}/${RUNE_STATE}/ (.rune/), NOT ${CHOME}/
 # If OUR session's arc loop is active, this hook must NOT interfere — the loop hooks handle transitions.
 # Other sessions' loop files are skipped so their cleanup hooks can run independently.
 for loop_file in \

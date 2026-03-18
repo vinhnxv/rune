@@ -69,7 +69,7 @@ fi
 # prevents accidental redirect if a .rune-worktree-source marker exists in
 # a non-worktree repo (e.g., surviving a deleted worktree).
 if [[ -f "$_RUNE_LOCK_ROOT/.git" ]]; then
-  _RUNE_WT_MARKER="${_RUNE_LOCK_ROOT}/.claude/.rune-worktree-source"
+  _RUNE_WT_MARKER="${_RUNE_LOCK_ROOT}/.rune/.rune-worktree-source"
   if [[ -f "$_RUNE_WT_MARKER" && ! -L "$_RUNE_WT_MARKER" ]]; then
     _RUNE_MAIN_ROOT=$(head -1 "$_RUNE_WT_MARKER" 2>/dev/null | tr -d '\n')
     # SEC: Character-set validation (absolute path, safe chars) + explicit traversal guard.

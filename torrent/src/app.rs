@@ -1022,6 +1022,11 @@ impl App {
         if stale_loop.exists() {
             let _ = std::fs::remove_file(&stale_loop);
         }
+        // Also clean up pre-migration legacy state file
+        let legacy_loop = cwd.join(".claude").join("arc-phase-loop.local.md");
+        if legacy_loop.exists() {
+            let _ = std::fs::remove_file(&legacy_loop);
+        }
 
         // Step 1: git checkout main + pull (blocking, before tmux)
         // Use .output() to CAPTURE stdout/stderr — .status() leaks into TUI display

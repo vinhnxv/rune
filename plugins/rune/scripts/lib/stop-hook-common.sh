@@ -72,7 +72,7 @@ resolve_cwd() {
   if [[ -z "$_raw_cwd" ]]; then
     local actual_cwd
     actual_cwd="$(pwd -P)"
-    if [[ -f "$actual_cwd/.git" && -f "$actual_cwd/.claude/.rune-worktree-source" && ! -L "$actual_cwd/.claude/.rune-worktree-source" ]]; then
+    if [[ -f "$actual_cwd/.git" && -f "$actual_cwd/.rune/.rune-worktree-source" && ! -L "$actual_cwd/.rune/.rune-worktree-source" ]]; then
       CWD="$actual_cwd"
     fi
   fi
