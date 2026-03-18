@@ -87,13 +87,19 @@ pub fn refresh_process_system(sys: &mut System) {
 
 /// Check if a process with the given PID is alive (exists and is signalable).
 ///
-/// Uses `kill -0` which checks existence without sending a signal.
+/// Uses libc::kill(pid, 0) syscall directly — zero subprocess overhead.
+/// Returns true if process exists (even if owned by another user — EPERM).
 /// Shared utility — used by lock.rs, app.rs, and scanner.rs.
 pub fn is_pid_alive(pid: u32) -> bool {
-    std::process::Command::new("kill")
-        .args(["-0", &pid.to_string()])
-        .output()
-        .is_ok_and(|o| o.status.success())
+    // SAFETY: kill(pid, 0) with signal 0 only checks existence, sends no signal.
+    // Returns 0 on success, -1 on error. EPERM means process exists but is
+    // owned by another user — still "alive" for our purposes.
+    let ret = unsafe { libc::kill(pid as i32, 0) };
+    if ret == 0 {
+        return true;
+    }
+    // EPERM = process exists but we lack permission to signal it
+    std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
 }
 
 /// Take a resource snapshot for a Claude Code process and all its children.
@@ -152,7 +158,7 @@ pub fn check_health(sys: &System, pid: u32) -> ProcessHealth {
 /// Builds a parent→children index in O(n) first, then BFS over the index.
 /// Previously was O(n*d) where n=all processes and d=tree depth.
 pub fn collect_descendants(sys: &System, root_pid: u32) -> Vec<u32> {
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
 
     // Build parent→children index in a single pass over all processes
     let mut children_map: HashMap<u32, Vec<u32>> = HashMap::new();
@@ -165,14 +171,15 @@ pub fn collect_descendants(sys: &System, root_pid: u32) -> Vec<u32> {
         }
     }
 
-    // BFS using the index — O(d) lookups instead of O(n*d) scans
+    // BFS using the index — O(d) lookups with HashSet for O(1) dedup
     let mut result = Vec::new();
+    let mut visited = HashSet::new();
     let mut queue = vec![root_pid];
 
     while let Some(parent) = queue.pop() {
         if let Some(kids) = children_map.get(&parent) {
             for &child_pid in kids {
-                if child_pid != root_pid && !result.contains(&child_pid) {
+                if child_pid != root_pid && visited.insert(child_pid) {
                     result.push(child_pid);
                     queue.push(child_pid);
                 }

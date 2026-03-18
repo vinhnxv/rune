@@ -94,15 +94,96 @@ Combine requirement statuses from all inspectors into a unified matrix.
 If multiple inspectors assessed the same requirement, use the MORE SPECIFIC assessment
 (i.e., the one with more evidence).
 
-### Step 2 -- Compute Overall Completion
+### Step 1.5 -- Resolve Inspector Disagreements (Classification Disputes)
+
+When 2+ inspectors assess the same requirement, their **classification** assessments may
+disagree (e.g., one says INTENTIONAL, another says DRIFT). Resolve using a 3-rule hierarchy.
+
+**Scope**: Classification disputes ONLY. Status disputes (COMPLETE vs PARTIAL) are handled
+by Step 1's "more specific assessment" rule. This step resolves disagreements in the
+classification dimension (INTENTIONAL, DRIFT, EXCLUDED, FALSE_POSITIVE, UNCLASSIFIED).
+Dimension score differences are NOT disagreements.
+
+**Detection**: Group all classification assessments by requirement ID. A disagreement exists
+when 2+ inspectors assigned different classifications to the same requirement.
+
+```
+function resolveDisagreement(assessments):
+  // assessments = [{ inspector, requirement_id, classification, evidence_count, adjusted_score }]
+  // Only called when 2+ inspectors classified the same requirement differently
+
+  if assessments.length <= 1:
+    return assessments[0]  // No disagreement
+
+  // Rule 1: More evidence wins (evidence_count > 2x threshold)
+  sorted = assessments.sort_by(a => -a.evidence_count)
+  if sorted[0].evidence_count > sorted[1].evidence_count * 2:
+    return {
+      winner: sorted[0],
+      rule_applied: "MORE_EVIDENCE",
+      alternatives_considered: sorted.slice(1),
+      confidence: min(95, 60 + sorted[0].evidence_count * 5)
+    }
+
+  // Rule 2: Grace-warden specialist authority (only when evidence_count >= 2)
+  graceAssessment = assessments.find(a => a.inspector === "grace-warden")
+  if graceAssessment AND graceAssessment.evidence_count >= 2:
+    return {
+      winner: graceAssessment,
+      rule_applied: "SPECIALIST_AUTHORITY",
+      alternatives_considered: assessments.filter(a => a !== graceAssessment),
+      confidence: min(90, 50 + graceAssessment.evidence_count * 10)
+    }
+
+  // Rule 3: Conservative — use the lowest adjusted score (safety first)
+  lowest = assessments.sort_by(a => a.adjusted_score)[0]
+  return {
+    winner: lowest,
+    rule_applied: "CONSERVATIVE",
+    alternatives_considered: assessments.filter(a => a !== lowest),
+    confidence: 60
+  }
+```
+
+**Audit trail**: Each resolution records `{ winner, rule_applied, alternatives_considered, confidence }`.
+Confidence reflects resolution certainty: MORE_EVIDENCE (65-95), SPECIALIST_AUTHORITY (70-90),
+CONSERVATIVE (fixed 60 — least certain, chosen as safe default).
+
+**Integration**: After merging requirement matrices (Step 1), group all classification
+assessments by requirement ID. For each requirement with 2+ differing classifications,
+call `resolveDisagreement()`. Use the winning classification and adjusted_score for
+Step 2 (dual scoring). Record all resolutions for the Disagreement Resolution output section.
+
+### Step 2 -- Compute Overall Completion (Dual Scoring)
+
+Compute BOTH raw and adjusted completion percentages:
 
 ```
 weights = { P1: 3, P2: 2, P3: 1 }
+STATUS_TO_PCT = { COMPLETE: 100, PARTIAL: 50, DEVIATED: 50, MISSING: 0 }
+
+rawWeighted = 0
+adjustedWeighted = 0
+totalWeight = 0
+
 for each requirement:
-  weightedCompletion += requirement.completion * weights[requirement.priority]
-  totalWeight += weights[requirement.priority]
-overallCompletion = weightedCompletion / totalWeight
+  weight = weights[requirement.priority]
+  rawScore = STATUS_TO_PCT[requirement.status]
+  adjustedScore = requirement.adjusted_score ?? rawScore  // from classification
+
+  rawWeighted += rawScore * weight
+  adjustedWeighted += adjustedScore * weight
+  totalWeight += weight
+
+// NaN guard (FRINGE-003 / RUIN-001): totalWeight=0 when no requirements → fallback to 0
+rawCompletion = Number.isFinite(rawWeighted / totalWeight) ? rawWeighted / totalWeight : 0
+adjustedCompletion = Number.isFinite(adjustedWeighted / totalWeight) ? adjustedWeighted / totalWeight : 0
 ```
+
+- **Raw score**: Uses STATUS_TO_PCT mapping directly (DEVIATED = 50%)
+- **Adjusted score**: Uses classification-based adjusted_score when present
+  (e.g., DEVIATED_INTENTIONAL → adjusted_score = 100%)
+- If no classifications exist, raw and adjusted will be identical
 
 ### Step 3 -- Merge Dimension Scores
 
@@ -141,11 +222,12 @@ p1Gaps = allFindings.filter(f => f.priority === "P1")
 p2Gaps = allFindings.filter(f => f.priority === "P2")
 p1Critical = p1Gaps.filter(f => f.category in ["security", "correctness"])
 
-if (p1Critical.length > 0 || overallCompletion < gap_threshold):
+// FLAW-003 FIX: Use adjustedCompletion explicitly (not ambiguous overallCompletion)
+if (p1Critical.length > 0 || adjustedCompletion < gap_threshold):
   verdict = "CRITICAL_ISSUES"
-elif (overallCompletion < 50):
+elif (adjustedCompletion < 50):
   verdict = "INCOMPLETE"
-elif (overallCompletion < completion_threshold || p2Gaps.length > 0):
+elif (adjustedCompletion < completion_threshold || p2Gaps.length > 0):
   verdict = "GAPS_FOUND"
 else:
   verdict = "READY"
@@ -166,16 +248,51 @@ Write exactly this structure:
 |--------|-------|
 | Plan | (plan_path) |
 | Requirements | (total) |
-| Overall Completion | (N)% |
+| Overall Completion (Raw) | (N)% |
+| Overall Completion (Adjusted) | (N)% |
+| P1 Findings (Raw) | (count) |
+| P1 Findings (Adjusted) | (count) (excluding INTENTIONAL/EXCLUDED/FP) |
+| Classifications Applied | (summary, e.g., 1 INTENTIONAL, 1 DRIFT) |
 | Verdict | **(READY/GAPS_FOUND/INCOMPLETE/CRITICAL_ISSUES)** |
 | Inspectors | (count)/(summoned) completed |
 | Date | (timestamp) |
 
 ## Requirement Matrix
 
-| # | Requirement | Status | Completion | Inspector | Evidence |
-|---|------------|--------|------------|-----------|----------|
-| REQ-001 | (text) | (status) | (N)% | (inspector) | (file:line) |
+| # | Requirement | Status | Classification | Completion | Inspector | Evidence |
+|---|------------|--------|---------------|------------|-----------|----------|
+| REQ-001 | (text) | (status) | (sub-type or —) | (N)% | (inspector) | (file:line) |
+
+## Deviation Analysis
+
+List all requirements that are NOT COMPLETE, showing classification impact on scoring:
+
+| AC | Status | Classification | Evidence | Raw % | Adjusted % |
+|----|--------|---------------|----------|-------|------------|
+| (AC-id) | (DEVIATED/PARTIAL/MISSING) | (INTENTIONAL/DRIFT/EXCLUDED/FP/UNCLASSIFIED) | (file:line or comment) | (N)% | (N)% |
+
+- Only include requirements where status is NOT COMPLETE
+- Classification comes from grace-warden-inspect classification data
+- If no classification exists for a requirement, use UNCLASSIFIED
+- Raw % = STATUS_TO_PCT[status], Adjusted % = adjusted_score (or raw if unclassified)
+
+## Disagreement Resolution
+
+<!-- Only include this section if classification disagreements were detected and resolved -->
+<!-- Omit entirely when no disagreements exist — do NOT include an empty table -->
+
+| Requirement | Inspector A | Classification A | Inspector B | Classification B | Rule Applied | Winner | Confidence |
+|-------------|------------|-----------------|------------|-----------------|-------------|--------|------------|
+| (REQ-id) | (inspector) | (classification) | (inspector) | (classification) | (MORE_EVIDENCE/SPECIALIST_AUTHORITY/CONSERVATIVE) | (winning inspector) | (N)% |
+
+For each resolved disagreement, the audit trail records:
+- **winner**: The inspector whose classification was selected
+- **rule_applied**: Which hierarchy rule resolved the dispute
+- **alternatives_considered**: Other inspector assessments that were overridden
+- **confidence**: Resolution certainty (60-95%) based on evidence strength
+
+**Disagreements resolved:** (count)
+**Resolution distribution:** (N) MORE_EVIDENCE, (N) SPECIALIST_AUTHORITY, (N) CONSERVATIVE
 
 ## Dimension Scores
 
@@ -235,6 +352,9 @@ Write exactly this structure:
 - P1: (count), P2: (count), P3: (count)
 - Inspectors completed: (completed)/(summoned)
 - Requirements assessed: (assessed)/(total)
+- Classification distribution: (N) INTENTIONAL, (N) DRIFT, (N) EXCLUDED, (N) FALSE_POSITIVE, (N) UNCLASSIFIED
+- Disagreements resolved: (N) (MORE_EVIDENCE: (N), SPECIALIST_AUTHORITY: (N), CONSERVATIVE: (N))
+- Completion delta: raw (N)% → adjusted (N)% (+(diff)%)
 ```
 
 ## RULES
@@ -260,6 +380,7 @@ After writing VERDICT.md, perform ONE verification pass:
 3. Verify dimension scores match inspector outputs (no recalculation)
 4. Verify finding counts in Statistics match actual findings
 5. Verify verdict matches the determination logic
+6. If Disagreement Resolution section exists, verify resolution count matches Statistics
 
 This is ONE pass. Do not iterate further.
 

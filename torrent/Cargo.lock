@@ -934,6 +934,7 @@ dependencies = [
  "crossterm",
  "dirs",
  "glob",
+ "libc",
  "rand",
  "ratatui",
  "serde",

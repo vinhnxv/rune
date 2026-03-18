@@ -44,37 +44,64 @@ updateCheckpoint({ phase: 'inspect_fix', status: 'in_progress', phase_sequence: 
 // Gap categories from verdict-binder: correctness, coverage, test, observability,
 // security, operational, performance, maintainability
 const gapMarkers = verdictContent.match(/<!-- GAP:[^>]*fixable="true"[^>]*-->/g) || []
-const fixableGaps = gapMarkers.map(marker => {
+const allParsedGaps = gapMarkers.map(marker => {
   const idMatch = marker.match(/id="([^"]+)"/)
   const fileMatch = marker.match(/file="([^"]+)"/)
   const categoryMatch = marker.match(/category="([^"]+)"/)
   const descMatch = marker.match(/desc="([^"]+)"/)
+  const classificationMatch = marker.match(/classification="([^"]+)"/)
   return {
     gap_id: idMatch?.[1] ?? 'unknown',
     file: fileMatch?.[1] ?? null,
     category: categoryMatch?.[1] ?? 'unknown',
     description: descMatch?.[1] ?? '',
+    classification: classificationMatch?.[1] ?? null,
   }
 }).filter(g => g.file)  // Only fixable if we know the target file
+
+// AC-6.1.1: Skip findings classified as false positives or intentional deviations (FRINGE-007)
+const FP_CLASSIFICATIONS = [
+  'FP_INSPECTOR_ERROR',
+  'FP_AMBIGUOUS_AC',
+  'DEVIATED_INTENTIONAL',
+  'DEVIATED_SUPERSEDED',
+  'MISSING_EXCLUDED',
+]
+const reclassifiedGaps = allParsedGaps.filter(g =>
+  g.classification && (
+    g.classification.startsWith('FP_') ||
+    FP_CLASSIFICATIONS.includes(g.classification)
+  )
+)
+const fixableGaps = allParsedGaps.filter(g =>
+  !g.classification || (
+    !g.classification.startsWith('FP_') &&
+    !FP_CLASSIFICATIONS.includes(g.classification)
+  )
+)
+// AC-6.1.2: Track reclassified count separately from fixed and deferred
+const reclassifiedCount = reclassifiedGaps.length
 
 // readTalismanSection: "inspect"
 const inspectConfig = readTalismanSection("inspect") ?? {}
 const maxFixes = inspectConfig.max_fixes ?? 20
 
 if (fixableGaps.length === 0) {
-  warn('Phase 5.95: No FIXABLE gaps found in VERDICT.md — all gaps are deferred')
+  // FLAW-005 FIX: Subtract reclassified from deferred (they're not deferred, they're resolved)
+  const earlyDeferredCount = Math.max(0, gapMarkers.length - reclassifiedCount)
+  warn(`Phase 5.95: No FIXABLE gaps — ${reclassifiedCount} reclassified, ${earlyDeferredCount} deferred`)
   updateCheckpoint({
     phase: 'inspect_fix', status: 'completed', phase_sequence: 5.95, team_name: null,
     artifact: `tmp/arc/${id}/inspect-verdict.md`,
     artifact_hash: sha256(verdictContent),
-    fixed_count: 0, deferred_count: gapMarkers.length,
+    fixed_count: 0, deferred_count: earlyDeferredCount, reclassified_count: reclassifiedCount,
   })
   return
 }
 
 // Cap fixable gaps
 const capsFixable = fixableGaps.slice(0, maxFixes)
-const deferredCount = fixableGaps.length - capsFixable.length + (gapMarkers.length - fixableGaps.length)
+const deferredCount = fixableGaps.length - capsFixable.length + (gapMarkers.length - fixableGaps.length - reclassifiedCount)
 ```
 
 ## STEP 2: Group by File and Spawn Fixers
@@ -119,16 +146,26 @@ waitForCompletion(teamName, fixerNames.length, { timeoutMs: 600_000, pollInterva
 const fixCommits = Bash(`git log --oneline --since="30 minutes ago" --grep="fix(inspect):" | wc -l`).trim()
 const fixedCount = parseInt(fixCommits, 10) || 0
 
-// Write remediation report
+// AC-6.1.3: Write remediation report with reclassified section
 const reportContent = [
   `# Inspect Fix Report — Round ${checkpoint.inspect_convergence?.round ?? 0}`,
   '',
   `**Total FIXABLE gaps**: ${capsFixable.length}`,
   `**Fixed**: ${fixedCount}`,
   `**Deferred**: ${deferredCount}`,
+  `**Reclassified (False Positive)**: ${reclassifiedCount}`,
   '',
   '## Gaps Addressed',
   ...capsFixable.map(g => `- [${g.gap_id}] ${g.category}: ${g.description} → ${g.file}`),
+  '',
+  // AC-6.1.3: False Positive section in resolution report
+  ...(reclassifiedCount > 0 ? [
+    '## Reclassified (False Positive)',
+    '',
+    'The following findings were skipped — classified as false positives or intentional deviations:',
+    '',
+    ...reclassifiedGaps.map(g => `- [${g.gap_id}] ${g.category}: ${g.description} → \`${g.classification}\``),
+  ] : []),
 ].join('\n')
 
 const reportPath = `tmp/arc/${id}/inspect-fix-report.md`
@@ -140,6 +177,7 @@ updateCheckpoint({
   artifact_hash: sha256(reportContent),
   fixed_count: fixedCount,
   deferred_count: deferredCount,
+  reclassified_count: reclassifiedCount,
 })
 ```
 
