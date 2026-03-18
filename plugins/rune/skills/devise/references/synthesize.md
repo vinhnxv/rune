@@ -324,9 +324,12 @@ these during strive Phase 4.}
   - **Key Links**: Import/wiring between artifacts
     - `{file A}` → `{file B}` via `import { name }`
 
-### Acceptance Criteria YAML Block (Required for Standard and Comprehensive)
+### Acceptance Criteria YAML Block (Required for ALL Detail Levels)
 
-Every `### Task` section MUST include an `acceptance_criteria:` YAML block below the must-have format.
+Every `### Task N.M:` section MUST include an `acceptance_criteria:` YAML block with at least one criterion per task.
+Use proof types: `file_exists`, `pattern_matches`, `test_passes`, `no_pattern_exists`, `builds_clean`.
+Plans without criteria for every task are INCOMPLETE — do not present to user.
+
 This enables mechanical verification by the ward check and parse-plan extraction pipeline.
 
 **Format:**
@@ -361,6 +364,26 @@ acceptance_criteria:
 **Context budget**: Keep each criterion's `text` field ≤ 200 tokens (roughly 1–2 sentences). Verbose descriptions belong in the task body, not inside the YAML criteria block. Staying within the 200-token budget per criterion ensures the plan remains parseable during strive task decomposition.
 
 **Backward compatibility**: The `- [ ]` checkbox format above is still required alongside the YAML block. The two formats are complementary — checkboxes for human readability, YAML for automated verification.
+
+### Criteria Completeness Validation (v1.180.0+)
+
+After drafting the plan, validate criteria coverage before presenting to user:
+
+```javascript
+// Count ### Task sections vs acceptance_criteria: blocks
+const taskSections = (planContent.match(/^###\s+Task\s+\d+\.\d+:/gm) || [])
+const criteriaBlocks = (planContent.match(/^acceptance_criteria:\s*$/gm) || [])
+
+if (taskSections.length !== criteriaBlocks.length) {
+  const missing = taskSections.length - criteriaBlocks.length
+  warn(`Plan incomplete: ${missing} task(s) missing acceptance_criteria block. Adding default criteria.`)
+  // For each task section without a criteria block, add a minimal acceptance_criteria:
+  // with at least one file_exists or pattern_matches proof derived from the task's **Files**: line.
+  // Re-scan after adding to confirm parity before presenting plan to user.
+}
+```
+
+**Rule**: Never present a plan to the user if any `### Task` section lacks an `acceptance_criteria:` YAML block. This prevents downstream failures in the Discipline Work Loop and gap analysis phase.
 
 ## Non-Goals
 

@@ -70,13 +70,56 @@ updateCheckpoint({ phase: "work", status: "in_progress", phase_sequence: 5, team
 // --approve routing: routes to HUMAN USER via AskUserQuestion (not to AI leader).
 // Phase 5 only — do NOT propagate --approve to /rune:mend in Phase 7.
 
-// STEP 4: After work completes, produce work summary
+// STEP 4: After work completes, produce enriched work summary (v1.180.0+)
 // CDX-003 FIX: Assign workSummary to a variable so sha256() in STEP 5 can reference it.
 // Previously, Write() used an inline object but sha256() referenced an undefined `workSummary`.
-const workSummary = JSON.stringify({
-  tasks_completed: completedCount, tasks_failed: failedCount,
-  files_committed: committedFiles, uncommitted_changes: uncommittedList, commits: commitSHAs
-})
+
+// Build per-task breakdown from TaskList results
+const taskResults = TaskList()
+const perTaskRows = taskResults.map(t => {
+  const taskFiles = t.metadata?.files_modified || []
+  const criteriaPass = t.metadata?.criteria_passed ?? 0
+  const criteriaTotal = t.metadata?.criteria_total ?? 0
+  const commitSha = t.metadata?.commit_sha || "—"
+  return `| ${t.id} | ${t.subject} | ${t.status} | ${taskFiles.join(", ") || "—"} | ${criteriaPass}/${criteriaTotal} | ${commitSha} |`
+}).join('\n')
+
+const workSummaryContent = `# Work Summary
+
+## Aggregate
+
+| Metric | Value |
+|--------|-------|
+| Tasks Completed | ${completedCount} |
+| Tasks Failed | ${failedCount} |
+| Files Committed | ${committedFiles.length} |
+| Uncommitted Changes | ${uncommittedList.length} |
+| Commits | ${commitSHAs.length} |
+
+## Per-Task Status
+
+| Task ID | Subject | Status | Files Modified | Criteria Pass/Total | Commit SHA |
+|---------|---------|--------|---------------|---------------------|------------|
+${perTaskRows}
+
+## Criteria Coverage
+
+| Metric | Value |
+|--------|-------|
+| Total Criteria | ${taskResults.reduce((sum, t) => sum + (t.metadata?.criteria_total ?? 0), 0)} |
+| Criteria Passed | ${taskResults.reduce((sum, t) => sum + (t.metadata?.criteria_passed ?? 0), 0)} |
+| Coverage | ${taskResults.length > 0 ? ((taskResults.reduce((sum, t) => sum + (t.metadata?.criteria_passed ?? 0), 0) / Math.max(1, taskResults.reduce((sum, t) => sum + (t.metadata?.criteria_total ?? 0), 0))) * 100).toFixed(1) : 0}% |
+
+## Committed Files
+
+${committedFiles.map(f => `- \`${f}\``).join('\n')}
+
+## Commits
+
+${commitSHAs.map(sha => `- ${sha}`).join('\n')}
+`
+
+const workSummary = workSummaryContent
 Write(`tmp/arc/${id}/work-summary.md`, workSummary)
 
 // POST-DELEGATION: Read actual team name from state file
