@@ -650,10 +650,51 @@ impl App {
             Action::SkipPlan => self.skip_current_plan(),
             Action::KillSession => self.kill_current_session(),
             Action::PickPlans => {
-                // Enter queue-edit mode: show Selection to pick more plans
-                // NOTE: Do NOT re-scan plans here — existing queue entries reference
-                // plan indices from the current self.plans list. Re-scanning would
-                // shift indices and break queue/in-flight matching.
+                // Enter queue-edit mode: show Selection to pick more plans.
+                // Re-scan plans to discover newly created files, then remap
+                // existing queue entries from old indices to new indices by
+                // matching on plan filename (stable identifier).
+                let cwd = std::env::current_dir().unwrap_or_default();
+                if let Ok(new_plans) = crate::scanner::scan_plans(&cwd) {
+                    // Remap queue entries: old plan_idx → name → new plan_idx
+                    let mut remapped_queue = VecDeque::new();
+                    let old_queue_len = self.queue.len();
+                    for entry in &self.queue {
+                        if let Some(old_plan) = self.plans.get(entry.plan_idx) {
+                            if let Some(new_idx) = new_plans.iter().position(|p| plans_match(&p.name, &old_plan.name)) {
+                                remapped_queue.push_back(QueueEntry {
+                                    plan_idx: new_idx,
+                                    config_idx: entry.config_idx,
+                                });
+                            }
+                            // Plan file deleted from disk → drop from queue
+                        }
+                    }
+                    let dropped = old_queue_len - remapped_queue.len();
+                    self.queue = remapped_queue;
+
+                    // Remap current_run plan (for is_plan_in_flight matching)
+                    if let Some(ref mut run) = self.current_run {
+                        if let Some(new_idx) = new_plans.iter().position(|p| plans_match(&p.name, &run.plan.name)) {
+                            run.plan = new_plans[new_idx].clone();
+                        }
+                    }
+
+                    let discovered = new_plans.len().saturating_sub(self.plans.len());
+                    self.plans = new_plans;
+
+                    // Status: inform user about changes
+                    if discovered > 0 || dropped > 0 {
+                        let mut parts = Vec::new();
+                        if discovered > 0 {
+                            parts.push(format!("{discovered} new plan(s) found"));
+                        }
+                        if dropped > 0 {
+                            parts.push(format!("{dropped} queued plan(s) removed (file deleted)"));
+                        }
+                        self.status_message = Some(parts.join(", "));
+                    }
+                }
                 self.queue_editing = true;
                 self.selected_plans.clear();
                 self.active_panel = Panel::PlanList;

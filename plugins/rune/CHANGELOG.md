@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.180.0] - 2026-03-18
+
+### Added
+- **Plan: `.rune/` state directory migration** — comprehensive plan to move all Rune workflow state from `.claude/` (protected in Claude Code v2.1.78) to `.rune/` at project root. Includes `lib/rune-state.sh` shell library, auto-migration, talisman dual-path fallback. Plan: `plans/2026-03-18-refactor-rune-state-dir-migration-plan.md`
+- **Torrent: plan rescan on `p` key** — pressing `p` (PickPlans) now rescans `plans/` to discover newly created files. Existing queue entries are safely remapped via filename matching
+- **Torrent: dead PID session filter** — `scan_active_arcs` now skips sessions with dead owner PIDs instead of displaying stale entries
+- **Permission rules for `.claude/` writes** — added `Write(.claude/**)` and `Edit(.claude/**)` to `settings.local.json` to work around v2.1.78 protected directory prompts (interim fix until `.rune/` migration)
+
 ## [1.179.0] - 2026-03-18
 
 ### Added

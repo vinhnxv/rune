@@ -246,45 +246,52 @@ pub fn scan_active_arcs(
     // Read loop state from project dir (not config dirs)
     if let Some(loop_state) = monitor::read_arc_loop_state(cwd) {
         let pid_alive = is_pid_alive_check(&loop_state.owner_pid);
-        let tmux_session = find_tmux_for_pid(&tmux_panes, &loop_state.owner_pid, sys);
 
-        // Enrich with sysinfo (started, cwd, mcp, teammates)
-        let session_info = enrich_session_info(
-            &loop_state.owner_pid,
-            &loop_state.config_dir,
-            sys,
-        );
-
-        // Match config_dir from loop state to our known config dirs
-        let config_dir = config_dirs
-            .iter()
-            .find(|c| c.path.to_string_lossy() == loop_state.config_dir)
-            .cloned()
-            .unwrap_or_else(|| ConfigDir {
-                path: PathBuf::from(&loop_state.config_dir),
-                label: loop_state.config_dir.clone(),
-            });
-
-        // Read checkpoint for phase info (relative to cwd)
-        let checkpoint_path = if loop_state.checkpoint_path.starts_with('/') {
-            PathBuf::from(&loop_state.checkpoint_path)
+        // Skip dead sessions — stale state file from a crashed/exited session
+        if !pid_alive && !loop_state.owner_pid.is_empty() {
+            // Don't show stale sessions; Rune's session-team-hygiene.sh
+            // will clean up the state file on next SessionStart.
         } else {
-            cwd.join(&loop_state.checkpoint_path)
-        };
+            let tmux_session = find_tmux_for_pid(&tmux_panes, &loop_state.owner_pid, sys);
 
-        let (current_phase, pr_url, phase_progress) =
-            read_checkpoint_summary(&checkpoint_path);
+            // Enrich with sysinfo (started, cwd, mcp, teammates)
+            let session_info = enrich_session_info(
+                &loop_state.owner_pid,
+                &loop_state.config_dir,
+                sys,
+            );
 
-        active.push(ActiveArc {
-            config_dir,
-            loop_state,
-            pid_alive,
-            tmux_session,
-            current_phase,
-            pr_url,
-            phase_progress,
-            session_info,
-        });
+            // Match config_dir from loop state to our known config dirs
+            let config_dir = config_dirs
+                .iter()
+                .find(|c| c.path.to_string_lossy() == loop_state.config_dir)
+                .cloned()
+                .unwrap_or_else(|| ConfigDir {
+                    path: PathBuf::from(&loop_state.config_dir),
+                    label: loop_state.config_dir.clone(),
+                });
+
+            // Read checkpoint for phase info (relative to cwd)
+            let checkpoint_path = if loop_state.checkpoint_path.starts_with('/') {
+                PathBuf::from(&loop_state.checkpoint_path)
+            } else {
+                cwd.join(&loop_state.checkpoint_path)
+            };
+
+            let (current_phase, pr_url, phase_progress) =
+                read_checkpoint_summary(&checkpoint_path);
+
+            active.push(ActiveArc {
+                config_dir,
+                loop_state,
+                pid_alive,
+                tmux_session,
+                current_phase,
+                pr_url,
+                phase_progress,
+                session_info,
+            });
+        }
     }
 
     // Also scan for orphan tmux sessions (rune-* sessions without a loop state)
