@@ -32,9 +32,6 @@ curl -fsSL https://raw.githubusercontent.com/vinhnxv/rune/main/torrent/install.s
 
 # Or install system-wide (may require sudo)
 curl -fsSL https://raw.githubusercontent.com/vinhnxv/rune/main/torrent/install.sh | bash -s -- --system
-
-# Install specific version
-curl -fsSL https://raw.githubusercontent.com/vinhnxv/rune/main/torrent/install.sh | bash -s -- --version v2.0.3
 ```
 
 **Platform support:**

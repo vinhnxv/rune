@@ -11,7 +11,6 @@
 # Options:
 #   --prefix DIR     Install prefix (default: ~/.local for user install, /usr/local for system)
 #   --system         Install to /usr/local/bin (may require sudo)
-#   --version TAG    Install specific version (default: latest)
 #   --no-tmux-check  Skip tmux installation check
 #   --help           Show this help
 # ════════════════════════════════════════════════════════════════════════════════
@@ -27,7 +26,6 @@ GITHUB_RELEASES="https://github.com"
 # Default values
 PREFIX=""
 SYSTEM_INSTALL=false
-VERSION="latest"
 NO_TMUX_CHECK=false
 
 # Colors (only if terminal supports them)
@@ -78,7 +76,7 @@ get_os() {
 }
 
 show_help() {
-  sed -n '2,13p' "$0" | sed 's/^# \?//'
+  sed -n '2,12p' "$0" | sed 's/^# \?//'
   exit 0
 }
 
@@ -92,10 +90,6 @@ while [[ $# -gt 0 ]]; do
     --system)
       SYSTEM_INSTALL=true
       shift
-      ;;
-    --version)
-      VERSION="$2"
-      shift 2
       ;;
     --no-tmux-check)
       NO_TMUX_CHECK=true
@@ -144,14 +138,10 @@ fi
 # ── Determine Version ───────────────────────────────────────────────────────────
 info "Fetching release information..."
 
-if [[ "$VERSION" == "latest" ]]; then
-  RELEASE_URL="$GITHUB_API/repos/$REPO_OWNER/$REPO_NAME/releases/latest"
-  TAG=$(curl -fsSL "$RELEASE_URL" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
-  if [[ -z "$TAG" ]]; then
-    die "Failed to fetch latest release tag"
-  fi
-else
-  TAG="$VERSION"
+RELEASE_URL="$GITHUB_API/repos/$REPO_OWNER/$REPO_NAME/releases/latest"
+TAG=$(curl -fsSL "$RELEASE_URL" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+if [[ -z "$TAG" ]]; then
+  die "Failed to fetch latest release tag"
 fi
 
 info "Installing torrent $TAG"
