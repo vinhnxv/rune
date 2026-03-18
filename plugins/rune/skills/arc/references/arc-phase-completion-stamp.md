@@ -19,7 +19,8 @@ Appends a persistent completion record to the plan file after arc finishes. Upda
 
 ```javascript
 // STEP 1: Validate plan path (defense-in-depth — arc init already validates)
-const planPath = checkpoint.plan_file
+let planPath = checkpoint.plan_file
+const checkpointPath = `.rune/arc/${checkpoint.id}/checkpoint.json`
 if (!planPath || !/^[a-zA-Z0-9._\/-]+$/.test(planPath) || planPath.includes('..')) {
   warn(`Invalid plan path in checkpoint: ${planPath}`)
   return
