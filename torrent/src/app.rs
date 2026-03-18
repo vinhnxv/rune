@@ -251,10 +251,12 @@ impl App {
             AppView::ActiveArcs
         };
 
-        // Warn if .rune/ state directory doesn't exist in CWD
+        // Warn if .rune/ state directory doesn't exist in CWD.
+        // Note: talisman.yml is still read from .claude/talisman.yml as fallback,
+        // but arc checkpoints and echoes require .rune/ to exist.
         let rune_dir_missing = !cwd.join(".rune").is_dir();
         let initial_status = if rune_dir_missing {
-            Some(".rune/ not found — arc checkpoints and echoes won't be detected. Run a Rune workflow to initialize.".into())
+            Some(".rune/ not found — arc checkpoints and echoes won't be detected. talisman.yml still works via .claude/ fallback. Run a Rune workflow to initialize .rune/.".into())
         } else {
             None
         };
