@@ -104,7 +104,7 @@
     {
       "id": 7,
       "prompt": "Explain Phase 7 (Cleanup & Echo Persist) for /rune:appraise. What are the 5 components of the standard cleanup pattern? What is the CHOME pattern? What gets persisted to Echoes?",
-      "expected_output": "Phase 7 Cleanup: 5 components: (1) Dynamic member discovery — read team config for all teammates; (2) shutdown_request to all members via SendMessage; (3) Grace period — 20 seconds for deregistration; (4) TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s); (5) Filesystem fallback — only if TeamDelete never succeeded (QUAL-012). CHOME pattern: CHOME='${CLAUDE_CONFIG_DIR:-$HOME/.claude}' — never hardcode ~/.claude/ in Bash cleanup. Echo persist: P1/P2 patterns with recurrence potential are persisted to .claude/echoes/{role}/MEMORY.md. Workflow lock released. State file updated to completed. Auto-mend invocation if --auto-mend and P1/P2 findings exist.",
+      "expected_output": "Phase 7 Cleanup: 5 components: (1) Dynamic member discovery — read team config for all teammates; (2) shutdown_request to all members via SendMessage; (3) Grace period — 20 seconds for deregistration; (4) TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s); (5) Filesystem fallback — only if TeamDelete never succeeded (QUAL-012). CHOME pattern: CHOME='${CLAUDE_CONFIG_DIR:-$HOME/.claude}' — never hardcode ~/.claude/ in Bash cleanup. Echo persist: P1/P2 patterns with recurrence potential are persisted to .rune/echoes/{role}/MEMORY.md. Workflow lock released. State file updated to completed. Auto-mend invocation if --auto-mend and P1/P2 findings exist.",
       "files": [],
       "expectations": [
         "Lists 5 cleanup components in order",

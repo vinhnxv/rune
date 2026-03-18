@@ -1,8 +1,8 @@
 # Rune Plugin Configuration
-# Copy to .claude/talisman.yml (project-level) or ~/.claude/talisman.yml (global)
+# Copy to .rune/talisman.yml (project-level) or ~/.claude/talisman.yml (global)
 #
 # Resolution order:
-#   1. .claude/talisman.yml   (project, highest priority)
+#   1. .rune/talisman.yml    (project, highest priority)
 #   2. ~/.claude/talisman.yml (user global)
 #   3. Plugin defaults           (7 built-in Ashes)
 
@@ -681,7 +681,7 @@ elicitation:
 # Echoes — Memory persistence
 # ──────────────────────────────────────────────
 echoes:
-  version_controlled: false    # Set true to track .claude/echoes/ in git
+  version_controlled: false    # Set true to track .rune/echoes/ in git
   # fts_enabled: true                  # Enable FTS5/MCP echo search. Set false to disable MCP server.
   # auto_observation: true             # Auto-record Observations-tier echoes after task completion
 
