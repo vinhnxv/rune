@@ -87,11 +87,25 @@ Agent({
        If no tasks assigned yet, find unblocked, unowned implementation tasks and claim them.
     2. Claim (if not pre-assigned): TaskUpdate({ taskId, owner: "{your-name}", status: "in_progress" })
        If pre-assigned: TaskUpdate({ taskId, status: "in_progress" })
-    3. Read task description and referenced plan
+    3. **Read task file** (FIRST — before any implementation):
+       Read the task file at tmp/work/{timestamp}/tasks/task-{taskId}.md
+       (path also available via task metadata field "task_file").
+       Parse YAML frontmatter for: risk_tier, proof_count, plan_file, plan_section.
+       Read ## Source for full task description (verbatim from plan).
+       Read ## Acceptance Criteria for the verification contract.
+       Read ## File Targets for write scope.
+       Read ## Context for shard/sibling context.
+    3.5. **Update task file status**:
+       Edit the task file YAML frontmatter:
+         status: IN_PROGRESS
+         assigned_to: "{your-name}"
+         updated_at: "{new Date().toISOString()}"
     4.1. ECHO-BACK (COMPREHENSION Layer):
          Before writing any code, echo back your understanding of each acceptance criterion.
 
          Format: For each criterion, state: "I will: [criterion-id]: [paraphrase in your own words]"
+
+         Write echo-back to task file: Edit ## Worker Report → ### Echo-Back section.
 
          If any criteria are unclear, you MUST ask via SendMessage — you cannot guess.
 
@@ -272,6 +286,16 @@ Agent({
              Code proofs (Step 6.75) always run first; design proofs supplement, never replace.
 
           IF task does NOT have design context: skip this step entirely (zero overhead).
+    6.9. WRITE WORKER REPORT to task file (mandatory before ward check):
+         Edit the task file (tmp/work/{timestamp}/tasks/task-{taskId}.md) to append:
+         ### Implementation Notes — narrative of what was implemented and decisions made
+         ### Evidence — table with per-criterion results (id, proof type, PASS/FAIL)
+         ### Code Changes — table of files modified with action (created/modified) and line counts
+         ### Self-Review — Inner Flame output (Grounding, Completeness, Self-Adversarial)
+         Then update task file YAML frontmatter:
+           status: COMPLETED
+           updated_at: "{new Date().toISOString()}"
+           completed_at: "{new Date().toISOString()}"
     7. Run quality gates (discovered from Makefile/package.json/pyproject.toml)
     8. IF ward passes:
        a. Mark new files for diff tracking: git add -N <new-files>
@@ -282,6 +306,7 @@ Agent({
        e. TaskUpdate({ taskId, status: "completed" })
        f. SendMessage to the Tarnished with structured Seal:
           "Seal: task #{id} done. Files: {list}. Tests: {pass}/{total}. Confidence: {N}.
+          task_file: tmp/work/{timestamp}/tasks/task-{taskId}.md
           criteria_met: [list of criterion-ids echoed in step 4.1 that were satisfied]
           evidence_files: [paths written to tmp/work/{timestamp}/evidence/{task-id}/]
           ward_result: pass | fail | skipped

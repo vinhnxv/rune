@@ -85,19 +85,31 @@ You are writing production code. Follow existing codebase patterns exactly. Do n
 ```
 1. TaskList() → find unblocked, unowned tasks
 2. Claim task: TaskUpdate({ taskId, owner: "$CLAUDE_CODE_AGENT_NAME", status: "in_progress" })
-3. Read task description for requirements
-3.1. Echo-Back (COMPREHENSION): Before writing code, echo each acceptance criterion back in
-     your own words: "I will: [criterion-id]: [paraphrase]". Ask via SendMessage if anything is
-     unclear — do not guess. Required for Tier 1+ tasks. See worker-prompts.md Step 4.1.
-4. Implement with TDD cycle:
+3. **Read task file**: Read(`tmp/work/{timestamp}/tasks/task-{id}.md`)
+   - Parse YAML frontmatter for metadata (risk_tier, proof_count)
+   - Read ## Source for full task description
+   - Read ## Acceptance Criteria for verification contract
+   - Read ## File Targets for scope
+3.5. **Update task file status**:
+   Edit task file frontmatter: status: IN_PROGRESS, assigned_to: "$CLAUDE_CODE_AGENT_NAME", updated_at: now
+4. Echo-Back (COMPREHENSION): Before writing code, echo each acceptance criterion back in
+   your own words: "I will: [criterion-id]: [paraphrase]". Write to task file ## Worker Report → ### Echo-Back.
+   Ask via SendMessage if anything is unclear — do not guess. Required for Tier 1+ tasks.
+5. Implement with TDD cycle:
    a. Write failing test (RED)
    b. Implement code to pass (GREEN)
    c. Refactor if needed (REFACTOR)
-5. Run Ward checks (quality gates)
-6. Generate patch for commit broker
-7. Mark complete: TaskUpdate({ taskId, status: "completed" })
-8. SendMessage to the Tarnished: "Seal: task #{id} done. Files: {list}"
-9. TaskList() → claim next unblocked task or exit
+6. Run Ward checks (quality gates)
+7. Collect evidence per criterion
+8. **Write Worker Report** to task file:
+   - ### Implementation Notes
+   - ### Evidence (table with per-criterion results)
+   - ### Code Changes (files modified with line counts)
+   - ### Self-Review (Inner Flame output)
+9. **Update task file status**: status: COMPLETED, updated_at: now, completed_at: now
+10. Mark complete: TaskUpdate({ taskId, status: "completed" })
+11. SendMessage to the Tarnished: "Seal: task #{id} done. Task file: tmp/work/{timestamp}/tasks/task-{id}.md"
+12. TaskList() → claim next unblocked task or exit
 ```
 
 ## Context Checkpoint (Post-Task)
