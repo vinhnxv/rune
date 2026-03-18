@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-03-18
+
+### Fixed
+
+- **Migration hardening**: Add `mkdir`-based atomic lock to prevent concurrent migration race (SEC-003)
+- **Migration error logging**: Replace silent `mv 2>/dev/null` with `_migrate_item()` helper that logs failures (BACK-001)
+- **SQLite WAL symlink check**: Add `[[ ! -L ]]` guard on `-shm` and `-wal` companion files (SEC-006)
+- **SQLite rollback logging**: Log rollback failures instead of silently swallowing (BACK-002)
+- **Trace log symlink guard**: Add symlink check in `validate-inner-flame.sh` and `validate-discipline-proofs.sh` (SEC-007)
+- **Discipline proof containment**: Check both `.claude/` and `.rune/` in `execute-discipline-proofs.sh` (QUAL-001)
+- **validate-gap-fixer-paths.sh**: Add missing `source rune-state.sh` (BACK-005)
+- **stop-hook-common.sh**: Add `.claude/` fallback for worktree marker detection (QUAL-005)
+- **rune-status.sh**: Add legacy `.claude/arc/` fallback for checkpoint scanning (QUAL-004)
+- **Torrent TUI**: Add `.claude/` fallback in `read_arc_loop_state()` for pre-migration arcs (FLAW-003)
+
+### Added
+
+- `RUNE_LEGACY_SUPPORT_UNTIL="3.0.0"` deprecation constant in `rune-state.sh` (ARCH-002)
+- Improved `_rune_ensure_dir()` with failure logging and explicit `return 1`
+
 ## [2.0.0] - 2026-03-18
 
 ### Changed
