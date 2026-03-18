@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-03-19
+
+### Added
+
+- **setup-worktree.sh**: Copy `CLAUDE.local.md` to worktree `.claude/` directory for project-local instructions
+- **setup-worktree.sh**: Submodule detection advisory — warns when source repo is a git submodule (#29256)
+- **setup-worktree.sh**: Bare repository detection advisory — warns about upstream hang (#27436)
+- **setup-worktree.sh**: Disk space pre-flight check with 2x safety margin before worktree copy
+- **setup-worktree.sh**: Model degradation context reinforcement via `WORKTREE_CONTEXT.md`
+- **cleanup-worktree.sh**: New WorktreeRemove hook — salvages uncommitted changes as patch files before removal
+- **agent-search**: Hardened MCP database path resolution for worktree environments
+- **git-worktree SKILL.md**: Added Known Limitations (Upstream) section documenting 6 issues with workarounds
+
+### Fixed
+
+- **worktree-resolve.sh**: Fix submodule false positive — use `[[ -d .git ]]` instead of `[[ -e .git ]]`
+
 ## [2.0.4] - 2026-03-18
 
 ### Fixed
