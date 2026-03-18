@@ -23,44 +23,81 @@ pub struct PlanFile {
     pub date: Option<String>,
 }
 
-/// Scan $HOME for Claude config directories.
+/// Scan $HOME for Claude config directories, plus any extra custom paths.
 ///
-/// Matches:
+/// Auto-discovered:
 /// - ~/.claude/ (default)
 /// - ~/.claude-*/ (custom accounts)
+/// - $CLAUDE_CONFIG_DIR (if set and valid)
+///
+/// Extra paths from `--config-dir` / `-c` CLI arguments are also included.
 ///
 /// Filters: must be a directory containing settings.json or projects/ subdirectory.
-pub fn scan_config_dirs() -> Result<Vec<ConfigDir>> {
+/// Deduplicates by canonical path.
+pub fn scan_config_dirs(extra_dirs: &[PathBuf]) -> Result<Vec<ConfigDir>> {
     let home = dirs::home_dir().ok_or_else(|| eyre!("cannot resolve home directory"))?;
     let mut configs = Vec::new();
+    let mut seen = std::collections::HashSet::new();
 
-    // Check ~/.claude/
+    // Helper: add a config dir if valid and not already seen.
+    let mut try_add = |path: PathBuf, label: String| {
+        let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
+        if is_valid_config_dir(&path) && seen.insert(canonical) {
+            configs.push(ConfigDir { path, label });
+        }
+    };
+
+    // 1. Check ~/.claude/ (default)
     let default_dir = home.join(".claude");
-    if is_valid_config_dir(&default_dir) {
-        configs.push(ConfigDir {
-            path: default_dir,
-            label: ".claude (default)".into(),
-        });
-    }
+    try_add(default_dir, ".claude (default)".into());
 
-    // Check ~/.claude-*/
-    // SAFETY: home.display() may panic on non-UTF8 paths. We validate UTF-8 first.
+    // 2. Check ~/.claude-*/ (custom accounts)
     let home_str = home.to_string_lossy();
     let pattern = format!("{}/.claude-*/", home_str);
     for entry in glob(&pattern).map_err(|e| eyre!("invalid glob pattern: {e}"))? {
-        match entry {
-            Ok(path) if is_valid_config_dir(&path) => {
-                let label = path
-                    .file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| path.display().to_string());
-                configs.push(ConfigDir { path, label });
-            }
-            _ => {}
+        if let Ok(path) = entry {
+            let label = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| path.display().to_string());
+            try_add(path, label);
         }
     }
 
+    // 3. Check $CLAUDE_CONFIG_DIR env var
+    if let Ok(env_dir) = std::env::var("CLAUDE_CONFIG_DIR") {
+        if !env_dir.is_empty() {
+            let path = resolve_path(&env_dir, &home);
+            let label = format!("{} (env)", path.file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| env_dir.clone()));
+            try_add(path, label);
+        }
+    }
+
+    // 4. Extra dirs from --config-dir / -c CLI arguments
+    for extra in extra_dirs {
+        let path = if extra.is_absolute() {
+            extra.clone()
+        } else {
+            resolve_path(&extra.to_string_lossy(), &home)
+        };
+        let label = format!("{} (custom)", path.file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.display().to_string()));
+        try_add(path, label);
+    }
+
     Ok(configs)
+}
+
+/// Resolve a path string, expanding `~` to the home directory.
+fn resolve_path(raw: &str, home: &Path) -> PathBuf {
+    if raw.starts_with('~') {
+        PathBuf::from(raw.replacen('~', &home.to_string_lossy(), 1))
+    } else {
+        PathBuf::from(raw)
+    }
 }
 
 /// A valid config dir must contain settings.json or a projects/ subdirectory.
@@ -294,7 +331,11 @@ pub fn scan_active_arcs(
         }
     }
 
-    // Also scan for orphan tmux sessions (rune-* sessions without a loop state)
+    // Also scan for orphan tmux sessions (rune-* sessions without a loop state).
+    // Only include sessions whose Claude process CWD matches OUR cwd —
+    // this prevents torrent in directory A from seeing torrent B's sessions.
+    let cwd_canonical = cwd.canonicalize().unwrap_or_else(|_| cwd.to_path_buf());
+
     let rune_sessions: Vec<&TmuxPaneEntry> = tmux_panes
         .iter()
         .filter(|p| p.session_name.starts_with("rune-"))
@@ -312,6 +353,20 @@ pub fn scan_active_arcs(
                     "",
                     sys,
                 );
+
+                // Filter by CWD: only show orphan sessions running in the same directory.
+                // If we can determine the session's CWD and it doesn't match ours, skip it.
+                if let Some(ref info) = session_info {
+                    if !info.cwd.is_empty() {
+                        let session_cwd = Path::new(&info.cwd)
+                            .canonicalize()
+                            .unwrap_or_else(|_| PathBuf::from(&info.cwd));
+                        if session_cwd != cwd_canonical {
+                            continue; // Different directory — belongs to another torrent instance
+                        }
+                    }
+                }
+
                 active.push(ActiveArc {
                     config_dir: ConfigDir {
                         path: PathBuf::new(),
@@ -772,5 +827,75 @@ mod tests {
         assert!(phase.is_none());
         assert!(pr_url.is_none());
         assert!(progress.is_none());
+    }
+
+    // ── resolve_path ───────────────────────────────────────────
+
+    #[test]
+    fn test_resolve_path_absolute() {
+        let home = Path::new("/Users/test");
+        let result = resolve_path("/opt/claude-ci", home);
+        assert_eq!(result, PathBuf::from("/opt/claude-ci"));
+    }
+
+    #[test]
+    fn test_resolve_path_tilde() {
+        let home = Path::new("/Users/test");
+        let result = resolve_path("~/.claude-work", home);
+        assert_eq!(result, PathBuf::from("/Users/test/.claude-work"));
+    }
+
+    #[test]
+    fn test_resolve_path_relative() {
+        let home = Path::new("/Users/test");
+        let result = resolve_path("configs/claude", home);
+        assert_eq!(result, PathBuf::from("configs/claude"));
+    }
+
+    // ── scan_config_dirs with extra dirs ────────────────────────
+
+    #[test]
+    fn test_scan_config_dirs_with_extra_valid() {
+        let dir = std::env::temp_dir().join("torrent-test-extra-config-valid");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("settings.json"), "{}").unwrap();
+
+        let configs = scan_config_dirs(&[dir.clone()]).unwrap();
+        let found = configs.iter().any(|c| c.path == dir && c.label.contains("(custom)"));
+        assert!(found, "extra config dir should appear with (custom) label");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_scan_config_dirs_with_extra_invalid() {
+        let dir = std::env::temp_dir().join("torrent-test-extra-config-invalid-xyz");
+        // Don't create it — it's invalid
+
+        let configs = scan_config_dirs(&[dir.clone()]).unwrap();
+        let found = configs.iter().any(|c| c.path == dir);
+        assert!(!found, "invalid extra dir should be silently skipped");
+    }
+
+    #[test]
+    fn test_scan_config_dirs_deduplicates() {
+        let dir = std::env::temp_dir().join("torrent-test-extra-dedup");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("settings.json"), "{}").unwrap();
+
+        // Pass the same dir twice
+        let configs = scan_config_dirs(&[dir.clone(), dir.clone()]).unwrap();
+        let count = configs.iter().filter(|c| c.path == dir).count();
+        assert_eq!(count, 1, "duplicate extra dirs should be deduplicated");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_scan_config_dirs_empty_extras() {
+        // No extra dirs — should still work (backward compatible)
+        let configs = scan_config_dirs(&[]).unwrap();
+        // Just verify it doesn't crash; actual dirs depend on the host
+        assert!(configs.len() >= 0);
     }
 }

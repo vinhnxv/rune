@@ -1,11 +1,15 @@
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
+use ratatui::widgets::{
+    Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+};
 use ratatui::Frame;
 
 use crate::app::{App, AppView, ArcCompletion, Panel};
 use crate::resource::ProcessHealth;
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // Solarized Dark palette
 mod sol {
@@ -22,7 +26,7 @@ mod sol {
     pub const GREEN: Color = Color::Rgb(133, 153, 0);
 }
 
-pub fn draw(frame: &mut Frame, app: &App) {
+pub fn draw(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
     if area.width < 60 || area.height < 15 {
         let msg = Paragraph::new(format!(
@@ -41,9 +45,38 @@ pub fn draw(frame: &mut Frame, app: &App) {
     }
 }
 
+/// Render a List with stateful scrolling and an optional vertical scrollbar.
+/// The scrollbar only appears when items exceed the visible area.
+fn render_scrollable_list(
+    frame: &mut Frame,
+    items: Vec<ListItem>,
+    block: Block,
+    area: Rect,
+    selected: usize,
+    list_state: &mut ratatui::widgets::ListState,
+) {
+    let total = items.len();
+    list_state.select(Some(selected));
+    let list = List::new(items).block(block);
+    frame.render_stateful_widget(list, area, list_state);
+
+    // Show scrollbar only when content overflows the visible area.
+    // Subtract 2 for top/bottom borders.
+    let visible_height = area.height.saturating_sub(2) as usize;
+    if total > visible_height {
+        let mut scrollbar_state = ScrollbarState::new(total).position(selected);
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"))
+            .track_symbol(Some("│"))
+            .thumb_style(Style::default().fg(sol::CYAN));
+        frame.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
+    }
+}
+
 // ── Active Arcs View ───────────────────────────────────────
 
-fn render_active_arcs(frame: &mut Frame, app: &App, area: Rect) {
+fn render_active_arcs(frame: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -57,7 +90,7 @@ fn render_active_arcs(frame: &mut Frame, app: &App, area: Rect) {
     // Header
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled(" torrent ", Style::default().fg(sol::BASE03).bg(sol::ORANGE).add_modifier(Modifier::BOLD)),
+            Span::styled(format!(" torrent v{VERSION} "), Style::default().fg(sol::BASE03).bg(sol::ORANGE).add_modifier(Modifier::BOLD)),
             Span::styled(format!(" — {} active arc(s) detected", app.active_arcs.len()), Style::default().fg(sol::YELLOW).add_modifier(Modifier::BOLD)),
             Span::styled("  ⎇ ", Style::default().fg(sol::BASE01)),
             Span::styled(&app.git_branch, Style::default().fg(sol::GREEN)),
@@ -158,13 +191,15 @@ fn render_active_arcs(frame: &mut Frame, app: &App, area: Rect) {
         ListItem::new(Text::from(vec![line, detail, info_line]))
     }).collect();
 
-    frame.render_widget(
-        List::new(items).block(
-            Block::default().borders(Borders::ALL)
-                .border_style(Style::default().fg(sol::YELLOW))
-                .title(Span::styled(" Active Sessions ", Style::default().fg(sol::BASE1)))
-        ),
+    render_scrollable_list(
+        frame,
+        items,
+        Block::default().borders(Borders::ALL)
+            .border_style(Style::default().fg(sol::YELLOW))
+            .title(Span::styled(" Active Sessions ", Style::default().fg(sol::BASE1))),
         chunks[2],
+        app.active_arc_cursor,
+        &mut app.active_arcs_list_state,
     );
 
     // Status bar
@@ -177,7 +212,7 @@ fn render_active_arcs(frame: &mut Frame, app: &App, area: Rect) {
 
 // ── Selection View ──────────────────────────────────────────
 
-fn render_selection(frame: &mut Frame, app: &App, area: Rect) {
+fn render_selection(frame: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -190,7 +225,7 @@ fn render_selection(frame: &mut Frame, app: &App, area: Rect) {
     // Header — different in queue-edit mode
     let header = if app.queue_editing {
         Line::from(vec![
-            Span::styled(" torrent ", Style::default().fg(sol::BASE03).bg(sol::ORANGE).add_modifier(Modifier::BOLD)),
+            Span::styled(format!(" torrent v{VERSION} "), Style::default().fg(sol::BASE03).bg(sol::ORANGE).add_modifier(Modifier::BOLD)),
             Span::styled(" — Add Plans to Queue", Style::default().fg(sol::ORANGE)),
             Span::styled(format!("  ({} in queue)", app.queue.len()), Style::default().fg(sol::CYAN)),
             Span::styled("  ⎇ ", Style::default().fg(sol::BASE01)),
@@ -198,7 +233,7 @@ fn render_selection(frame: &mut Frame, app: &App, area: Rect) {
         ])
     } else {
         Line::from(vec![
-            Span::styled(" torrent ", Style::default().fg(sol::BASE03).bg(sol::BLUE).add_modifier(Modifier::BOLD)),
+            Span::styled(format!(" torrent v{VERSION} "), Style::default().fg(sol::BASE03).bg(sol::BLUE).add_modifier(Modifier::BOLD)),
             Span::styled(" — Arc Orchestrator", Style::default().fg(sol::BASE0)),
             Span::styled("  ⎇ ", Style::default().fg(sol::BASE01)),
             Span::styled(&app.git_branch, Style::default().fg(sol::GREEN)),
@@ -239,7 +274,7 @@ fn render_selection(frame: &mut Frame, app: &App, area: Rect) {
     );
 }
 
-fn render_config_panel(frame: &mut Frame, app: &App, area: Rect) {
+fn render_config_panel(frame: &mut Frame, app: &mut App, area: Rect) {
     let items: Vec<ListItem> = app.config_dirs.iter().enumerate().map(|(i, cfg)| {
         let marker = if i == app.selected_config { "▶" } else { " " };
         let is_cursor = i == app.config_cursor && app.active_panel == Panel::ConfigList;
@@ -264,17 +299,19 @@ fn render_config_panel(frame: &mut Frame, app: &App, area: Rect) {
             Style::default().fg(sol::BASE01),
         ),
     ]);
-    frame.render_widget(
-        List::new(items).block(
-            Block::default().borders(Borders::ALL)
-                .border_style(Style::default().fg(border))
-                .title(title)
-        ),
+    render_scrollable_list(
+        frame,
+        items,
+        Block::default().borders(Borders::ALL)
+            .border_style(Style::default().fg(border))
+            .title(title),
         area,
+        app.config_cursor,
+        &mut app.config_list_state,
     );
 }
 
-fn render_plan_panel(frame: &mut Frame, app: &App, area: Rect) {
+fn render_plan_panel(frame: &mut Frame, app: &mut App, area: Rect) {
     let items: Vec<ListItem> = app.plans.iter().enumerate().map(|(i, plan)| {
         let in_flight = app.queue_editing && app.is_plan_in_flight(i);
         let selected_entry = app.selected_plans.iter()
@@ -351,19 +388,21 @@ fn render_plan_panel(frame: &mut Frame, app: &App, area: Rect) {
     }).collect();
 
     let border = if app.active_panel == Panel::PlanList { sol::CYAN } else { sol::BASE01 };
-    frame.render_widget(
-        List::new(items).block(
-            Block::default().borders(Borders::ALL)
-                .border_style(Style::default().fg(border))
-                .title(Span::styled(" Plans ", Style::default().fg(sol::BASE1)))
-        ),
+    render_scrollable_list(
+        frame,
+        items,
+        Block::default().borders(Borders::ALL)
+            .border_style(Style::default().fg(border))
+            .title(Span::styled(" Plans ", Style::default().fg(sol::BASE1))),
         area,
+        app.plan_cursor,
+        &mut app.plan_list_state,
     );
 }
 
 // ── Running View ────────────────────────────────────────────
 
-fn render_running(frame: &mut Frame, app: &App, area: Rect) {
+fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -391,7 +430,7 @@ fn render_running(frame: &mut Frame, app: &App, area: Rect) {
     };
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled(" torrent ", Style::default().fg(sol::BASE03).bg(sol::BLUE).add_modifier(Modifier::BOLD)),
+            Span::styled(format!(" torrent v{VERSION} "), Style::default().fg(sol::BASE03).bg(sol::BLUE).add_modifier(Modifier::BOLD)),
             Span::styled(format!(" ⟫ {cfg} ⟫ {plan_info}"), Style::default().fg(sol::BASE0)),
             Span::styled("  ⎇ ", Style::default().fg(sol::BASE01)),
             Span::styled(&app.git_branch, Style::default().fg(sol::GREEN)),
@@ -673,7 +712,7 @@ fn render_heartbeat(frame: &mut Frame, app: &App, area: Rect) {
     );
 }
 
-fn render_queue(frame: &mut Frame, app: &App, area: Rect) {
+fn render_queue(frame: &mut Frame, app: &mut App, area: Rect) {
     let mut items: Vec<ListItem> = Vec::new();
     let mut row: usize = 0;
 
@@ -759,13 +798,15 @@ fn render_queue(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     let _ = row; // suppress unused warning
-    frame.render_widget(
-        List::new(items).block(
-            Block::default().borders(Borders::ALL)
-                .border_style(Style::default().fg(sol::CYAN))
-                .title(Span::styled(" Queue ", Style::default().fg(sol::BASE1)))
-        ),
+    render_scrollable_list(
+        frame,
+        items,
+        Block::default().borders(Borders::ALL)
+            .border_style(Style::default().fg(sol::CYAN))
+            .title(Span::styled(" Queue ", Style::default().fg(sol::BASE1))),
         area,
+        app.queue_cursor,
+        &mut app.queue_list_state,
     );
 }
 

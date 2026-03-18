@@ -7,6 +7,8 @@ use chrono::Utc;
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
 
+use ratatui::widgets::ListState;
+
 use crate::monitor;
 use crate::resource::{self, ProcessHealth, ResourceSnapshot};
 use crate::scanner::{ConfigDir, PlanFile};
@@ -44,6 +46,12 @@ pub struct App {
     pub config_cursor: usize,
     pub plan_cursor: usize,
     pub queue_cursor: usize, // cursor position in queue (Running view)
+
+    // Stateful list states for scrollable rendering (ratatui ListState)
+    pub active_arcs_list_state: ListState,
+    pub config_list_state: ListState,
+    pub plan_list_state: ListState,
+    pub queue_list_state: ListState,
 
     // Polling timers (non-blocking, checked on each tick)
     pub last_discovery_poll: Option<Instant>,
@@ -232,8 +240,8 @@ pub enum Action {
 }
 
 impl App {
-    pub fn new() -> Result<Self> {
-        let config_dirs = crate::scanner::scan_config_dirs()?;
+    pub fn new(extra_config_dirs: Vec<std::path::PathBuf>) -> Result<Self> {
+        let config_dirs = crate::scanner::scan_config_dirs(&extra_config_dirs)?;
         let cwd = std::env::current_dir()?;
         let plans = crate::scanner::scan_plans(&cwd)?;
 
@@ -277,6 +285,10 @@ impl App {
             config_cursor: 0,
             plan_cursor: 0,
             queue_cursor: 0,
+            active_arcs_list_state: ListState::default(),
+            config_list_state: ListState::default(),
+            plan_list_state: ListState::default(),
+            queue_list_state: ListState::default(),
             last_discovery_poll: None,
             last_heartbeat_poll: None,
             last_checkpoint_poll: None,
@@ -1066,9 +1078,11 @@ impl App {
         // Step 2: Record wall-clock time BEFORE launch (for discovery matching)
         self.launched_wall_clock = Some(Utc::now());
 
-        // Step 3: Create tmux session (empty shell)
+        // Step 3: Create tmux session (empty shell) in the current working directory.
+        // The -c flag ensures Claude Code inherits the correct CWD for session isolation.
         let session_id = Tmux::generate_session_id();
-        if let Err(e) = Tmux::create_session(&session_id) {
+        let cwd = std::env::current_dir().unwrap_or_default();
+        if let Err(e) = Tmux::create_session(&session_id, &cwd) {
             self.status_message = Some(format!("tmux failed: {e}"));
             return Ok(());
         }

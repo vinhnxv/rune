@@ -82,17 +82,25 @@ impl Tmux {
             .is_ok_and(|o| o.status.success())
     }
 
-    /// Create a detached tmux session (empty shell).
-    pub fn create_session(session_id: &str) -> Result<()> {
+    /// Create a detached tmux session (empty shell) in the given working directory.
+    ///
+    /// The `-c` flag sets the tmux session's starting directory, ensuring that
+    /// Claude Code launched inside will inherit the correct CWD. This is critical
+    /// for CWD-based session isolation — two torrent instances in different
+    /// directories must not interfere with each other.
+    pub fn create_session(session_id: &str, working_dir: &Path) -> Result<()> {
         validate_session_id(session_id)?;
 
         if Self::has_session(session_id) {
             return Err(eyre!("session '{}' already exists", session_id));
         }
 
+        let dir_str = working_dir.to_string_lossy();
         let output = Command::new("tmux")
             .args([
-                "new-session", "-d", "-s", session_id, "-x", "200", "-y", "50",
+                "new-session", "-d", "-s", session_id,
+                "-x", "200", "-y", "50",
+                "-c", &dir_str,
             ])
             .output()
             .map_err(|e| eyre!("tmux new-session failed: {e}"))?;

@@ -8,6 +8,7 @@ mod scanner;
 mod tmux;
 mod ui;
 
+use std::path::PathBuf;
 use std::time::Duration;
 
 use color_eyre::Result;
@@ -16,7 +17,123 @@ use crossterm::event::{self, Event};
 use crate::app::{App, AppView};
 use crate::tmux::Tmux;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Parse CLI arguments for extra config directories.
+///
+/// Supports:
+///   --config-dir <path>   (long form)
+///   -c <path>             (short form)
+///   --version / -V        (show version)
+///   --help / -h           (show help)
+///
+/// Multiple values allowed.
+fn parse_args() -> Vec<PathBuf> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut extra_dirs = Vec::new();
+    let mut i = 0;
+
+    while i < args.len() {
+        match args[i].as_str() {
+            "--version" | "-V" => {
+                println!("torrent {VERSION}");
+                std::process::exit(0);
+            }
+            "--help" | "-h" => {
+                print_help();
+                std::process::exit(0);
+            }
+            "--config-dir" | "-c" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("error: {} requires a path argument", args[i - 1]);
+                    std::process::exit(1);
+                }
+                extra_dirs.push(PathBuf::from(&args[i]));
+            }
+            other => {
+                eprintln!("error: unknown argument '{}'. Use --help for usage.", other);
+                std::process::exit(1);
+            }
+        }
+        i += 1;
+    }
+
+    extra_dirs
+}
+
+fn print_help() {
+    println!("torrent {VERSION} — Arc Orchestrator TUI for Claude Code");
+    println!();
+    println!("USAGE:");
+    println!("  torrent [OPTIONS]");
+    println!();
+    println!("OPTIONS:");
+    println!("  -c, --config-dir <PATH>  Add a custom Claude config directory");
+    println!("                           (can be specified multiple times)");
+    println!("  -V, --version            Show version");
+    println!("  -h, --help               Show this help message");
+    println!();
+    println!("CONFIG DIR DISCOVERY:");
+    println!("  torrent discovers Claude Code config directories from multiple sources,");
+    println!("  in order of priority:");
+    println!();
+    println!("  1. ~/.claude/              default config (auto-discovered)");
+    println!("  2. ~/.claude-*/            custom accounts (auto-discovered)");
+    println!("  3. $CLAUDE_CONFIG_DIR      env var (auto-included if set)");
+    println!("  4. --config-dir <PATH>     CLI argument (can repeat)");
+    println!();
+    println!("  Duplicates are deduplicated by canonical path. Invalid dirs (missing");
+    println!("  settings.json and projects/) are silently skipped.");
+    println!();
+    println!("KEYBINDINGS:");
+    println!();
+    println!("  Active Arcs View (shown when running arcs are detected):");
+    println!("    m / Enter    Monitor selected arc (resume polling)");
+    println!("    a            Attach to tmux session");
+    println!("    n / Esc      Dismiss and start new run");
+    println!("    Up/Down      Navigate arcs");
+    println!("    q            Quit");
+    println!();
+    println!("  Selection View (pick config + plans):");
+    println!("    Tab          Switch between Config and Plans panels");
+    println!("    Enter        Select config dir (Config panel)");
+    println!("    Space        Toggle plan selection (Plans panel)");
+    println!("    a            Toggle all plans");
+    println!("    r            Run selected plans");
+    println!("    Up/Down      Navigate list");
+    println!("    q            Quit");
+    println!();
+    println!("  Running View (monitoring active arc execution):");
+    println!("    a            Attach to tmux session (Ctrl-B D to detach)");
+    println!("    s            Skip current plan (kill + advance queue)");
+    println!("    k            Kill tmux session");
+    println!("    p            Pick more plans to append to queue");
+    println!("    d            Remove selected item from queue");
+    println!("    Up/Down      Navigate queue");
+    println!("    q            Quit");
+    println!();
+    println!("  Queue Edit Mode (adding plans while arc is running):");
+    println!("    Tab          Switch panels");
+    println!("    Space        Toggle plan / select config");
+    println!("    r / Enter    Append selected plans to queue");
+    println!("    Esc          Cancel and return to Running view");
+    println!();
+    println!("EXAMPLES:");
+    println!("  torrent                              # auto-discover configs");
+    println!("  torrent -c /opt/claude-ci             # add CI config dir");
+    println!("  torrent -c ~/.claude-work -c ~/.claude-personal");
+    println!("  CLAUDE_CONFIG_DIR=~/.claude-work torrent");
+    println!();
+    println!("SEE ALSO:");
+    println!("  torrent-cli  — non-TUI CLI for tmux session management");
+    println!("               (new-session, send-keys, capture-pane, list, kill, run)");
+}
+
 fn main() -> Result<()> {
+    // Parse CLI args before anything else (may exit on --help or error)
+    let extra_config_dirs = parse_args();
+
     // Install panic/error hooks BEFORE ratatui::init() so panics restore terminal
     color_eyre::install()?;
 
@@ -51,14 +168,14 @@ fn main() -> Result<()> {
     let mut terminal = ratatui::init();
 
     // Create application state (scans config dirs + plan files)
-    let mut app = App::new()?;
+    let mut app = App::new(extra_config_dirs)?;
 
     // Main event loop — 1s tick rate
     let tick_rate = Duration::from_secs(1);
 
     while !app.should_quit {
         // Draw current state
-        terminal.draw(|frame| ui::draw(frame, &app))?;
+        terminal.draw(|frame| ui::draw(frame, &mut app))?;
 
         // Poll for input events with tick timeout
         if event::poll(tick_rate)? {
