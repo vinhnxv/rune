@@ -196,7 +196,8 @@ Iterative re-work loop for non-PASS criteria. Each iteration:
 ```javascript
 // Phase 5: Convergence Loop
 function convergenceLoop(timestamp, matrixResult, tasks, planCriteria, maxIterations) {
-  const scrThreshold = readTalismanSection("settings")?.discipline?.scr_threshold ?? 100
+  // readTalismanSection: "discipline"
+  const scrThreshold = readTalismanSection("discipline")?.scr_threshold ?? 100
   let iteration = 0
   let prevFailingIds = new Set()
 

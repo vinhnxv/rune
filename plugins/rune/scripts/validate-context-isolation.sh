@@ -131,9 +131,9 @@ fi
 
 # Check talisman config: discipline.context_isolation (default: true)
 CONTEXT_ISOLATION="true"
-TALISMAN_SHARD="${CWD}/tmp/.talisman-resolved/misc.json"
+TALISMAN_SHARD="${CWD}/tmp/.talisman-resolved/discipline.json"
 if [[ -f "$TALISMAN_SHARD" ]]; then
-  ci_val=$(jq -r '.discipline.context_isolation // "true"' "$TALISMAN_SHARD" 2>/dev/null || true)
+  ci_val=$(jq -r '.context_isolation // "true"' "$TALISMAN_SHARD" 2>/dev/null || true)
   if [[ "$ci_val" == "false" ]]; then
     CONTEXT_ISOLATION="false"
   fi

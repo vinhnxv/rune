@@ -214,7 +214,8 @@ if (scm && scm.total > 0) {
   // NOTE: Default 0.8 here is intentionally lower than strive's 0.95 (work-loop-convergence.md)
   // because arc operates at pipeline level where some criteria may be addressed in later phases.
   // Both read from discipline.scr_threshold if set in talisman — only the defaults diverge.
-  const disciplineConfig = readTalismanSection("settings")?.discipline ?? {}
+  // readTalismanSection: "discipline"
+  const disciplineConfig = readTalismanSection("discipline") ?? {}
   const scrThreshold = disciplineConfig.scr_threshold ?? 0.8
   if (currentScr < scrThreshold && !criteriaRegression) {
     warn(`DISCIPLINE: SCR ${(currentScr * 100).toFixed(1)}% below threshold ${scrThreshold * 100}% — criteria not converged`)

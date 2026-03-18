@@ -372,8 +372,8 @@ if (!cleanupTeamDeleteSucceeded) {
 // When discipline is enabled, run design-specific proofs and write evidence artifacts.
 // This integrates the 6 design proof types from execute-discipline-proofs.sh into
 // the storybook verification phase for per-component evidence collection.
-// readTalismanSection: "settings" → .discipline (standardized across all consumers)
-const disciplineConfig = readTalismanSection("settings")?.discipline ?? {}
+// readTalismanSection: "discipline"
+const disciplineConfig = readTalismanSection("discipline") ?? {}
 const disciplineEnabled = disciplineConfig.enabled !== false  // default: true
 
 if (disciplineEnabled && changedComponents.length > 0) {

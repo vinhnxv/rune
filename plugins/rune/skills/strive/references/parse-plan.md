@@ -480,8 +480,9 @@ if (totalCriteriaExtracted > 0) {
     ).join('\n')
 
     // RC#5 FIX: Conditional block — discipline-enabled projects can hard-block on orphan criteria
-    const disciplineEnabled = readTalismanSection("settings")?.discipline?.enabled === true
-    const orphanThreshold = readTalismanSection("settings")?.discipline?.orphan_block_threshold ?? 3
+    // readTalismanSection: "discipline"
+    const disciplineEnabled = readTalismanSection("discipline")?.enabled === true
+    const orphanThreshold = readTalismanSection("discipline")?.orphan_block_threshold ?? 3
     if (disciplineEnabled && unmappedCriteria.length >= orphanThreshold) {
       throw new Error(
         `CRITERIA COVERAGE BLOCK: ${unmappedCriteria.length} acceptance criteria orphaned ` +
