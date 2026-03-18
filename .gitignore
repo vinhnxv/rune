@@ -2,7 +2,7 @@
 # Users opt-in to version control by removing this line
 .rune/
 
-# Legacy Rune state (pre-1.181.0, kept during migration period)
+# Legacy Rune state (pre-2.0.0, kept during migration period)
 .claude/arc/
 .claude/echoes/
 .claude/audit-state/

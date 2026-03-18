@@ -519,3 +519,258 @@ fn read_checkpoint_summary(path: &Path) -> (Option<String>, Option<String>, Opti
 
     (current_phase, checkpoint.pr_url.clone(), progress)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    // ── is_valid_config_dir ─────────────────────────────────
+
+    #[test]
+    fn test_valid_config_dir_with_settings() {
+        let dir = std::env::temp_dir().join("torrent-test-config-valid-settings");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("settings.json"), "{}").unwrap();
+
+        assert!(is_valid_config_dir(&dir));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_valid_config_dir_with_projects() {
+        let dir = std::env::temp_dir().join("torrent-test-config-valid-projects");
+        fs::create_dir_all(dir.join("projects")).unwrap();
+
+        assert!(is_valid_config_dir(&dir));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_invalid_config_dir_empty() {
+        let dir = std::env::temp_dir().join("torrent-test-config-invalid-empty");
+        fs::create_dir_all(&dir).unwrap();
+
+        assert!(!is_valid_config_dir(&dir));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_invalid_config_dir_nonexistent() {
+        let dir = std::env::temp_dir().join("torrent-test-config-nonexistent-xyz");
+        assert!(!is_valid_config_dir(&dir));
+    }
+
+    // ── extract_date_from_filename ──────────────────────────
+
+    #[test]
+    fn test_date_extraction_standard() {
+        assert_eq!(
+            extract_date_from_filename("2026-03-18-feat-auth-plan.md"),
+            Some("2026-03-18".into())
+        );
+    }
+
+    #[test]
+    fn test_date_extraction_short_name() {
+        assert_eq!(
+            extract_date_from_filename("2026-03-18.md"),
+            Some("2026-03-18".into())
+        );
+    }
+
+    #[test]
+    fn test_date_extraction_no_date() {
+        assert_eq!(extract_date_from_filename("feat-auth-plan.md"), None);
+    }
+
+    #[test]
+    fn test_date_extraction_too_short() {
+        assert_eq!(extract_date_from_filename("2026.md"), None);
+    }
+
+    #[test]
+    fn test_date_extraction_invalid_separators() {
+        assert_eq!(extract_date_from_filename("2026_03_18-plan.md"), None);
+    }
+
+    // ── extract_plan_metadata ───────────────────────────────
+
+    #[test]
+    fn test_metadata_heading_over_frontmatter_title() {
+        let dir = std::env::temp_dir().join("torrent-test-meta-heading");
+        fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.md");
+        fs::write(&plan, "---\ntitle: FM Title\ndate: 2026-03-18\n---\n# Real Heading\n").unwrap();
+
+        let (title, date) = extract_plan_metadata(&plan);
+        assert_eq!(title, Some("Real Heading".into()));
+        assert_eq!(date, Some("2026-03-18".into()));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_metadata_frontmatter_only() {
+        let dir = std::env::temp_dir().join("torrent-test-meta-fm-only");
+        fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.md");
+        fs::write(&plan, "---\ntitle: FM Title\n---\nNo heading here.\n").unwrap();
+
+        let (title, _) = extract_plan_metadata(&plan);
+        assert_eq!(title, Some("FM Title".into()));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_metadata_no_frontmatter() {
+        let dir = std::env::temp_dir().join("torrent-test-meta-no-fm");
+        fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.md");
+        fs::write(&plan, "# Just a Heading\nSome content.\n").unwrap();
+
+        let (title, date) = extract_plan_metadata(&plan);
+        assert_eq!(title, Some("Just a Heading".into()));
+        assert_eq!(date, None);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_metadata_heading_in_code_block_ignored() {
+        let dir = std::env::temp_dir().join("torrent-test-meta-codeblock");
+        fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.md");
+        fs::write(
+            &plan,
+            "---\ntitle: FM Title\n---\n```\n# Fake Heading\n```\n# Real Heading\n",
+        )
+        .unwrap();
+
+        let (title, _) = extract_plan_metadata(&plan);
+        assert_eq!(title, Some("Real Heading".into()));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_metadata_quoted_title() {
+        let dir = std::env::temp_dir().join("torrent-test-meta-quoted");
+        fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.md");
+        fs::write(&plan, "---\ntitle: \"Quoted Title\"\n---\nNo heading.\n").unwrap();
+
+        let (title, _) = extract_plan_metadata(&plan);
+        assert_eq!(title, Some("Quoted Title".into()));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_metadata_nonexistent_file() {
+        let (title, date) = extract_plan_metadata(Path::new("/nonexistent/plan.md"));
+        assert_eq!(title, None);
+        assert_eq!(date, None);
+    }
+
+    // ── scan_plans ──────────────────────────────────────────
+
+    #[test]
+    fn test_scan_plans_finds_md_files() {
+        let dir = std::env::temp_dir().join("torrent-test-scan-plans");
+        let plans_dir = dir.join("plans");
+        fs::create_dir_all(&plans_dir).unwrap();
+
+        fs::write(plans_dir.join("2026-03-18-feat-auth-plan.md"), "# Auth Plan\n").unwrap();
+        fs::write(plans_dir.join("2026-03-17-fix-bug-plan.md"), "# Bug Fix\n").unwrap();
+        fs::write(plans_dir.join("not-a-plan.txt"), "ignored").unwrap();
+
+        let plans = scan_plans(&dir).unwrap();
+        assert_eq!(plans.len(), 2);
+        // Sorted by name
+        assert_eq!(plans[0].name, "2026-03-17-fix-bug-plan.md");
+        assert_eq!(plans[1].name, "2026-03-18-feat-auth-plan.md");
+        assert_eq!(plans[0].date, Some("2026-03-17".into()));
+        assert_eq!(plans[1].title, "Auth Plan");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_scan_plans_empty_dir() {
+        let dir = std::env::temp_dir().join("torrent-test-scan-empty");
+        fs::create_dir_all(dir.join("plans")).unwrap();
+
+        let plans = scan_plans(&dir).unwrap();
+        assert!(plans.is_empty());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ── read_checkpoint_summary ─────────────────────────────
+
+    #[test]
+    fn test_checkpoint_summary_with_phases() {
+        let dir = std::env::temp_dir().join("torrent-test-cp-summary");
+        let arc_dir = dir.join(".rune").join("arc").join("arc-sum");
+        fs::create_dir_all(&arc_dir).unwrap();
+
+        let json = serde_json::json!({
+            "id": "arc-sum",
+            "plan_file": "plans/test.md",
+            "phases": {
+                "forge": {"status": "completed"},
+                "work": {"status": "in_progress"},
+                "ship": {"status": "pending"},
+                "gap_analysis": {"status": "skipped"}
+            },
+            "pr_url": "https://github.com/test/pull/42",
+            "started_at": "2026-03-18T00:00:00Z"
+        });
+        let cp_path = arc_dir.join("checkpoint.json");
+        fs::write(&cp_path, json.to_string()).unwrap();
+
+        let (phase, pr_url, progress) = read_checkpoint_summary(&cp_path);
+        assert_eq!(phase, Some("work".into()));
+        assert_eq!(pr_url, Some("https://github.com/test/pull/42".into()));
+        // completed(1) + skipped(1) = 2 out of 4 total
+        assert_eq!(progress, Some((2, 4)));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_checkpoint_summary_no_phases() {
+        let dir = std::env::temp_dir().join("torrent-test-cp-nophase");
+        fs::create_dir_all(&dir).unwrap();
+
+        let json = serde_json::json!({
+            "id": "arc-empty",
+            "plan_file": "plans/test.md",
+            "phases": {},
+            "started_at": "2026-03-18T00:00:00Z"
+        });
+        let cp_path = dir.join("checkpoint.json");
+        fs::write(&cp_path, json.to_string()).unwrap();
+
+        let (phase, pr_url, progress) = read_checkpoint_summary(&cp_path);
+        assert!(phase.is_none());
+        assert!(pr_url.is_none());
+        assert!(progress.is_none());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_checkpoint_summary_missing_file() {
+        let (phase, pr_url, progress) =
+            read_checkpoint_summary(Path::new("/nonexistent/checkpoint.json"));
+        assert!(phase.is_none());
+        assert!(pr_url.is_none());
+        assert!(progress.is_none());
+    }
+}

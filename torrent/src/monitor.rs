@@ -1019,4 +1019,353 @@ session_id: xxx
 
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    // ── .rune/ path tests ───────────────────────────────────
+
+    #[test]
+    fn test_rune_dir_path_construction() {
+        // Verify .rune/ is used (not .claude/) for arc-phase-loop.local.md
+        let dir = std::env::temp_dir().join("torrent-test-rune-path");
+        let rune_dir = dir.join(".rune");
+        std::fs::create_dir_all(&rune_dir).unwrap();
+
+        let expected_path = rune_dir.join("arc-phase-loop.local.md");
+        // Verify read_arc_loop_state looks in .rune/ — not .claude/
+        // Write to .claude/ (wrong) → should NOT be found
+        let claude_dir = dir.join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        std::fs::write(
+            claude_dir.join("arc-phase-loop.local.md"),
+            "---\nactive: true\ncheckpoint_path: old\nplan_file: p\nconfig_dir: c\nowner_pid: 1\nsession_id: s\n---\n",
+        ).unwrap();
+
+        // Nothing in .rune/ → should return None
+        assert!(read_arc_loop_state(&dir).is_none());
+
+        // Write to .rune/ (correct) → should be found
+        std::fs::write(
+            &expected_path,
+            "---\nactive: true\ncheckpoint_path: .rune/arc/arc-1/checkpoint.json\nplan_file: plans/x.md\nconfig_dir: /test\nowner_pid: 42\nsession_id: sid\n---\n",
+        ).unwrap();
+        let state = read_arc_loop_state(&dir);
+        assert!(state.is_some());
+        assert_eq!(state.unwrap().checkpoint_path, ".rune/arc/arc-1/checkpoint.json");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_checkpoint_path_relative_uses_rune() {
+        // Verify checkpoint_path from loop state resolves under .rune/
+        let dir = std::env::temp_dir().join("torrent-test-cp-rune-resolve");
+        let rune_dir = dir.join(".rune");
+        let arc_dir = rune_dir.join("arc").join("arc-rune");
+        std::fs::create_dir_all(&arc_dir).unwrap();
+
+        let loop_content = "\
+---
+active: true
+checkpoint_path: .rune/arc/arc-rune/checkpoint.json
+plan_file: plans/rune-test.md
+config_dir: /test
+owner_pid: 100
+session_id: s1
+---
+";
+        std::fs::write(rune_dir.join("arc-phase-loop.local.md"), loop_content).unwrap();
+
+        let checkpoint_json = serde_json::json!({
+            "id": "arc-rune",
+            "plan_file": "plans/rune-test.md",
+            "config_dir": "/test",
+            "owner_pid": "100",
+            "session_id": "s1",
+            "phases": {},
+            "started_at": "2026-03-18T00:00:00Z"
+        });
+        std::fs::write(arc_dir.join("checkpoint.json"), checkpoint_json.to_string()).unwrap();
+
+        let plan_path = PathBuf::from("plans/rune-test.md");
+        let before = DateTime::parse_from_rfc3339("2026-03-17T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let handle = discover_arc(&dir, &plan_path, before, None, Some(100));
+        assert!(handle.is_some());
+        let h = handle.unwrap();
+
+        // Verify resolved path is under .rune/, not .claude/
+        let cp_str = h.checkpoint_path.to_string_lossy();
+        assert!(cp_str.contains(".rune/arc/"), "checkpoint should resolve under .rune/, got: {}", cp_str);
+        assert!(!cp_str.contains(".claude/"), "checkpoint should NOT resolve under .claude/");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ── Heartbeat deserialization ────────────────────────────
+
+    #[test]
+    fn test_heartbeat_deserialize() {
+        let json = r#"{
+            "arc_id": "arc-hb",
+            "phase": "work",
+            "last_tool": "Edit",
+            "last_activity": "2026-03-18T12:00:00Z"
+        }"#;
+        let hb: Heartbeat = serde_json::from_str(json).unwrap();
+        assert_eq!(hb.arc_id, "arc-hb");
+        assert_eq!(hb.phase, "work");
+        assert_eq!(hb.last_tool, "Edit");
+    }
+
+    #[test]
+    fn test_heartbeat_deserialize_empty_defaults() {
+        let json = r#"{}"#;
+        let hb: Heartbeat = serde_json::from_str(json).unwrap();
+        assert_eq!(hb.arc_id, "");
+        assert_eq!(hb.phase, "");
+    }
+
+    // ── Completion edge cases ───────────────────────────────
+
+    #[test]
+    fn test_check_completion_shipped_without_merge() {
+        let mut phases = std::collections::HashMap::new();
+        phases.insert("ship".into(), crate::checkpoint::PhaseStatus {
+            status: "completed".into(),
+            started_at: None,
+            completed_at: None,
+            team_name: None,
+        });
+        phases.insert("merge".into(), crate::checkpoint::PhaseStatus {
+            status: "pending".into(),
+            started_at: None,
+            completed_at: None,
+            team_name: None,
+        });
+
+        let checkpoint = Checkpoint {
+            id: "arc-ship".into(),
+            schema_version: Some(24),
+            plan_file: "plan.md".into(),
+            config_dir: String::new(),
+            owner_pid: String::new(),
+            session_id: String::new(),
+            phases,
+            pr_url: None,
+            commits: vec![],
+            started_at: "2026-03-18T00:00:00Z".into(),
+        };
+
+        match check_completion(&checkpoint) {
+            Some(ArcCompletion::Shipped) => {}
+            other => panic!("expected Shipped, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_check_completion_cancelled() {
+        let mut phases = std::collections::HashMap::new();
+        phases.insert("work".into(), crate::checkpoint::PhaseStatus {
+            status: "cancelled".into(),
+            started_at: None,
+            completed_at: None,
+            team_name: None,
+        });
+
+        let checkpoint = Checkpoint {
+            id: "arc-cancel".into(),
+            schema_version: Some(24),
+            plan_file: "plan.md".into(),
+            config_dir: String::new(),
+            owner_pid: String::new(),
+            session_id: String::new(),
+            phases,
+            pr_url: None,
+            commits: vec![],
+            started_at: "2026-03-18T00:00:00Z".into(),
+        };
+
+        match check_completion(&checkpoint) {
+            Some(ArcCompletion::Cancelled) => {}
+            other => panic!("expected Cancelled, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_check_completion_failed() {
+        let mut phases = std::collections::HashMap::new();
+        phases.insert("test".into(), crate::checkpoint::PhaseStatus {
+            status: "failed".into(),
+            started_at: None,
+            completed_at: None,
+            team_name: None,
+        });
+
+        let checkpoint = Checkpoint {
+            id: "arc-fail".into(),
+            schema_version: Some(24),
+            plan_file: "plan.md".into(),
+            config_dir: String::new(),
+            owner_pid: String::new(),
+            session_id: String::new(),
+            phases,
+            pr_url: None,
+            commits: vec![],
+            started_at: "2026-03-18T00:00:00Z".into(),
+        };
+
+        match check_completion(&checkpoint) {
+            Some(ArcCompletion::Failed) => {}
+            other => panic!("expected Failed, got {other:?}"),
+        }
+    }
+
+    // ── Phase navigation ────────────────────────────────────
+
+    #[test]
+    fn test_phase_navigation_in_progress() {
+        let mut phases = std::collections::HashMap::new();
+        phases.insert("forge".into(), crate::checkpoint::PhaseStatus {
+            status: "completed".into(),
+            started_at: Some("2026-03-18T00:00:00Z".into()),
+            completed_at: Some("2026-03-18T00:05:00Z".into()),
+            team_name: None,
+        });
+        phases.insert("work".into(), crate::checkpoint::PhaseStatus {
+            status: "in_progress".into(),
+            started_at: Some("2026-03-18T00:06:00Z".into()),
+            completed_at: None,
+            team_name: None,
+        });
+        phases.insert("ship".into(), crate::checkpoint::PhaseStatus {
+            status: "pending".into(),
+            started_at: None,
+            completed_at: None,
+            team_name: None,
+        });
+
+        let checkpoint = Checkpoint {
+            id: "arc-nav".into(),
+            schema_version: Some(24),
+            plan_file: "plan.md".into(),
+            config_dir: String::new(),
+            owner_pid: String::new(),
+            session_id: String::new(),
+            phases,
+            pr_url: None,
+            commits: vec![],
+            started_at: "2026-03-18T00:00:00Z".into(),
+        };
+
+        let nav = compute_phase_navigation(&checkpoint).unwrap();
+        assert_eq!(nav.prev.as_ref().unwrap().name, "forge");
+        assert_eq!(nav.prev.as_ref().unwrap().duration_secs, Some(300)); // 5 min
+        assert_eq!(nav.current.as_ref().unwrap().name, "work");
+        assert_eq!(nav.next, Some("ship".into()));
+    }
+
+    #[test]
+    fn test_phase_navigation_all_pending() {
+        let mut phases = std::collections::HashMap::new();
+        phases.insert("forge".into(), crate::checkpoint::PhaseStatus {
+            status: "pending".into(),
+            started_at: None,
+            completed_at: None,
+            team_name: None,
+        });
+
+        let checkpoint = Checkpoint {
+            id: "arc-pend".into(),
+            schema_version: Some(24),
+            plan_file: "plan.md".into(),
+            config_dir: String::new(),
+            owner_pid: String::new(),
+            session_id: String::new(),
+            phases,
+            pr_url: None,
+            commits: vec![],
+            started_at: "2026-03-18T00:00:00Z".into(),
+        };
+
+        let nav = compute_phase_navigation(&checkpoint);
+        assert!(nav.is_some());
+        let nav = nav.unwrap();
+        assert!(nav.prev.is_none());
+        assert!(nav.current.is_none());
+        assert_eq!(nav.next, Some("forge".into()));
+    }
+
+    // ── YAML edge cases ─────────────────────────────────────
+
+    #[test]
+    fn test_parse_yaml_str_with_quotes() {
+        let yaml = "checkpoint_path: \".rune/arc/arc-1/checkpoint.json\"";
+        assert_eq!(
+            parse_yaml_str(yaml, "checkpoint_path"),
+            Some(".rune/arc/arc-1/checkpoint.json".into())
+        );
+    }
+
+    #[test]
+    fn test_parse_yaml_str_single_quotes() {
+        let yaml = "session_id: 'abc-def-123'";
+        assert_eq!(parse_yaml_str(yaml, "session_id"), Some("abc-def-123".into()));
+    }
+
+    #[test]
+    fn test_parse_yaml_str_key_prefix_collision() {
+        // "plan_file" should not match "plan"
+        let yaml = "plan_file: plans/test.md";
+        assert_eq!(parse_yaml_str(yaml, "plan_file"), Some("plans/test.md".into()));
+        // "plan" alone should NOT match "plan_file:"
+        // because strip_prefix("plan") on "plan_file: ..." gives "_file: ..."
+        // and strip_prefix(':') on "_file: ..." returns None
+        assert_eq!(parse_yaml_str(yaml, "plan"), None);
+    }
+
+    #[test]
+    fn test_discover_arc_rejects_wrong_pid() {
+        let dir = std::env::temp_dir().join("torrent-test-discover-wrong-pid");
+        let rune_dir = dir.join(".rune");
+        let arc_dir = rune_dir.join("arc").join("arc-pid");
+        std::fs::create_dir_all(&arc_dir).unwrap();
+
+        let loop_content = "\
+---
+active: true
+checkpoint_path: .rune/arc/arc-pid/checkpoint.json
+plan_file: plans/pid-test.md
+config_dir: /test
+owner_pid: 111
+session_id: s
+---
+";
+        std::fs::write(rune_dir.join("arc-phase-loop.local.md"), loop_content).unwrap();
+
+        let checkpoint_json = serde_json::json!({
+            "id": "arc-pid",
+            "plan_file": "plans/pid-test.md",
+            "config_dir": "/test",
+            "owner_pid": "111",
+            "session_id": "s",
+            "phases": {},
+            "started_at": "2026-03-18T00:00:00Z"
+        });
+        std::fs::write(arc_dir.join("checkpoint.json"), checkpoint_json.to_string()).unwrap();
+
+        let plan_path = PathBuf::from("plans/pid-test.md");
+        let before = DateTime::parse_from_rfc3339("2026-03-17T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        // Wrong PID → rejected
+        let handle = discover_arc(&dir, &plan_path, before, None, Some(999));
+        assert!(handle.is_none(), "should reject mismatched PID");
+
+        // Correct PID → accepted
+        let handle = discover_arc(&dir, &plan_path, before, None, Some(111));
+        assert!(handle.is_some(), "should accept matching PID");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

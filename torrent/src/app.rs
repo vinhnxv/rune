@@ -251,6 +251,14 @@ impl App {
             AppView::ActiveArcs
         };
 
+        // Warn if .rune/ state directory doesn't exist in CWD
+        let rune_dir_missing = !cwd.join(".rune").is_dir();
+        let initial_status = if rune_dir_missing {
+            Some(".rune/ not found — arc checkpoints and echoes won't be detected. Run a Rune workflow to initialize.".into())
+        } else {
+            None
+        };
+
         Ok(Self {
             active_arcs,
             active_arc_cursor: 0,
@@ -273,7 +281,7 @@ impl App {
             last_loop_state_poll: None,
             last_active_arcs_prune: None,
             launched_wall_clock: None,
-            status_message: None,
+            status_message: initial_status,
             claude_path: crate::tmux::Tmux::resolve_claude_path()
                 .unwrap_or_else(|_| "claude".to_string()),
             sys,
@@ -1354,5 +1362,35 @@ impl App {
             }
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_plans_match_same_filename() {
+        assert!(plans_match("plans/test.md", "plans/test.md"));
+    }
+
+    #[test]
+    fn test_plans_match_different_prefix() {
+        assert!(plans_match("plans/test.md", "/abs/path/plans/test.md"));
+    }
+
+    #[test]
+    fn test_plans_match_bare_filename() {
+        assert!(plans_match("test.md", "plans/test.md"));
+    }
+
+    #[test]
+    fn test_plans_match_different_files() {
+        assert!(!plans_match("plans/auth.md", "plans/bug.md"));
+    }
+
+    #[test]
+    fn test_plans_match_empty_strings() {
+        assert!(plans_match("", ""));
     }
 }
