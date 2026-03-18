@@ -367,3 +367,17 @@ The `validate-discipline-proofs.sh` hook reads `summary.json` and executes
 
 Task file status transitions feed into discipline metrics aggregation.
 Status changes update `updated_at` and trigger metric recording.
+
+### Implementation (forge-team.md)
+
+Task file creation is implemented in [forge-team.md](forge-team.md) during strive Phase 1
+(Decompose). The `forge-team.md` orchestrator extracts tasks from the enriched plan,
+generates one task file per plan task section, and writes them to
+`tmp/work/{timestamp}/tasks/task-{id}.md`.
+
+Key implementation details:
+- Task IDs are normalized to `String()` at every boundary (FLAW-008)
+- Status values use `COMPLETED` (not `DONE`) per discipline convention
+- YAML frontmatter is parsed via inline regex (no external YAML parser dependency)
+- Workers read their assigned task file before implementation (MUST rule)
+- Workers write Worker Report sections back to the task file after completion (MUST rule)
