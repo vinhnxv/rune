@@ -42,9 +42,19 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 PROJECT_DIR=$(cd "$PROJECT_DIR" 2>/dev/null && pwd -P) || { echo "ERROR: invalid PROJECT_DIR" >&2; exit 1; }
 [[ "$PROJECT_DIR" == /* ]] || { echo "ERROR: PROJECT_DIR not absolute: $PROJECT_DIR" >&2; exit 1; }
 
+# Worktree awareness: DB should live at main repo root, not worktree CWD
+# In worktrees, PROJECT_DIR points to the worktree copy but the agent-search
+# index is shared state that must live at the original repo root.
+source "${SCRIPT_DIR}/../lib/worktree-resolve.sh" 2>/dev/null || true
+if type rune_resolve_project_dir >/dev/null 2>&1; then
+  rune_resolve_project_dir "$PROJECT_DIR" >/dev/null
+  export DB_PATH="${RUNE_MAIN_REPO_ROOT}/${RUNE_STATE}/.agent-search-index.db"
+else
+  export DB_PATH="$PROJECT_DIR/${RUNE_STATE}/.agent-search-index.db"
+fi
+
 # Export env vars for server.py
 export PLUGIN_ROOT
 export PROJECT_DIR
-export DB_PATH="$PROJECT_DIR/${RUNE_STATE}/.agent-search-index.db"
 
 exec "$PYTHON" "$SCRIPT_DIR/server.py"

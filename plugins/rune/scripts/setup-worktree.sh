@@ -96,6 +96,21 @@ if [[ "$CWD" != /* ]]; then
   exit 0
 fi
 
+# ── Bare repository detection advisory ──
+# Bare repos cause hangs during worktree creation (upstream #27436).
+# Our hook fires AFTER creation, so this is a post-creation advisory only.
+_is_bare_repo() {
+  local repo_dir="$1"
+  local result
+  result=$(git -C "$repo_dir" rev-parse --is-bare-repository 2>/dev/null) || return 1
+  [[ "$result" == "true" ]]
+}
+
+if _is_bare_repo "$CWD"; then
+  echo "WARN: Source repository appears to be bare. Worktree operations may hang (upstream #27436)" >&2
+  _trace "ADVISORY: bare repository detected at $CWD — worktree may not function correctly"
+fi
+
 # ── Derive worktree_path if not provided ──
 # Claude Code creates worktrees at ${RUNE_STATE}/worktrees/<name>/
 if [[ -z "$WT_PATH" && -n "$WT_NAME" ]]; then
@@ -142,6 +157,20 @@ if [[ ! -d "$SRC_CLAUDE" && ! -d "$SRC_RUNE" ]]; then
   exit 0
 fi
 
+# ── Submodule detection advisory ──
+# If CWD/.git is a file (not a directory), this repo is a git submodule.
+# Worktree /resume has known limitations in submodules (#29256).
+# Advisory only — does not block worktree creation.
+_gitdir_line=""
+if [[ -f "$CWD/.git" && ! -L "$CWD/.git" ]]; then
+  _gitdir_line=$(head -1 "$CWD/.git" 2>/dev/null || true)
+  # SEC-006: Strip control characters before trace logging
+  _gitdir_line=$(printf '%s' "$_gitdir_line" | tr -cd '[:print:]' | head -c 256)
+  if [[ "$_gitdir_line" == *"/.git/modules/"* ]]; then
+    _trace "ADVISORY: CWD appears to be a git submodule (gitdir=$_gitdir_line). Worktree /resume may not work correctly (#29256)"
+  fi
+fi
+
 # ── Re-entry detection ──
 # If worktree already has the marker file, setup was already done (idempotent).
 # Use the marker (always written) instead of talisman.yml (may not exist in all projects).
@@ -152,6 +181,42 @@ if [[ -f "$DST_RUNE/.rune-worktree-source" ]]; then
   exit 0
 fi
 
+# ── Disk space pre-flight check ──
+_check_disk_space() {
+  local repo_dir="$1" target_dir="$2"
+
+  # Estimate repo size in KB. Includes .git directory in the measurement — this is
+  # intentional: the 2x safety margin absorbs the overcount. Excluding .git would
+  # require GNU-only `du --exclude` which breaks on macOS.
+  # For repos with disproportionate .git history, the advisory may over-warn.
+  local repo_size_kb
+  repo_size_kb=$(du -sk "$repo_dir" 2>/dev/null | cut -f1) || return 0
+  [[ "$repo_size_kb" =~ ^[0-9]+$ ]] || return 0
+  if [[ "$repo_size_kb" -le 0 ]]; then
+    return 0
+  fi
+
+  # Get available space in KB on the target filesystem
+  local avail_kb
+  avail_kb=$(df -Pk "$(dirname "$target_dir")" 2>/dev/null | tail -1 | awk '{print $4}') || return 0
+  [[ "$avail_kb" =~ ^[0-9]+$ ]] || return 0
+  if [[ "$avail_kb" -le 0 ]]; then
+    return 0
+  fi
+
+  # Warn if available < 2x repo size
+  local needed_kb=$((repo_size_kb * 2))
+  if [[ "$avail_kb" -lt "$needed_kb" ]]; then
+    local avail_mb=$((avail_kb / 1024))
+    local needed_mb=$((needed_kb / 1024))
+    echo "WARN: Low disk space for worktree. Available: ${avail_mb}MB, recommended: ${needed_mb}MB (2x repo size)" >&2
+    _trace "WARN: disk space low — available=${avail_kb}KB needed=${needed_kb}KB"
+  fi
+  return 0
+}
+
+_check_disk_space "$CWD" "$WT_PATH"
+
 _trace "Setting up Rune config in worktree: $WT_PATH"
 
 # ── Create target directories ──
@@ -160,13 +225,22 @@ mkdir -p "$DST_RUNE"
 
 # ── Copy Claude Code platform files (.claude/) ──
 if [[ -d "$SRC_CLAUDE" ]]; then
-  for file in settings.json; do
+  for file in settings.json CLAUDE.local.md; do
     if [[ -f "$SRC_CLAUDE/$file" && ! -L "$SRC_CLAUDE/$file" ]]; then
       cp -f "$SRC_CLAUDE/$file" "$DST_CLAUDE/$file" 2>/dev/null || true
       _trace "Copied .claude/$file"
     fi
   done
 fi
+
+# ── Model degradation context reinforcement ──
+# Write a short context reminder into the worktree .claude/ directory.
+# Low confidence mitigation (~10% effectiveness) but zero cost.
+cat > "$DST_CLAUDE/WORKTREE_CONTEXT.md" 2>/dev/null <<'WCTX' || true
+# Worktree Session Context
+This is a full Claude Code session running in a git worktree. All project rules, hooks, and conventions from the main repository apply identically. Do not skip quality gates or treat this as a reduced-capability environment.
+WCTX
+_trace "Wrote WORKTREE_CONTEXT.md"
 
 # ── Copy Rune state files (.rune/) ──
 if [[ -d "$SRC_RUNE" ]]; then
@@ -187,6 +261,8 @@ if [[ -d "$SRC_RUNE" ]]; then
       if ! cp -R "$SRC_RUNE/$dir/." "$DST_RUNE/$dir/" 2>/dev/null; then
         _trace "WARN: cp -R failed for .rune/$dir/ — partial copy may exist"
       else
+        # SEC-007: Remove symlinks within copied tree to prevent following into external paths
+        find "$DST_RUNE/$dir" -type l -delete 2>/dev/null || true
         _trace "Copied .rune/$dir/"
       fi
     fi

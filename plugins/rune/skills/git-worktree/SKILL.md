@@ -176,6 +176,17 @@ All three use the shared `scripts/lib/worktree-gc.sh` library with:
 - Path traversal + symlink guards
 - Salvage patches for uncommitted work (rest mode only)
 
+## Known Limitations (Upstream)
+
+| Issue | Impact | Workaround | Status |
+|-------|--------|------------|--------|
+| [#28041](https://github.com/anthropics/claude-code/issues/28041) | Worktrees don't include `.claude/` subdirs | `setup-worktree.sh` hook copies files | Active — hook mitigates |
+| [#27436](https://github.com/anthropics/claude-code/issues/27436) | Bare repos hang during worktree creation | `setup-worktree.sh` emits post-creation advisory | Active — advisory only |
+| [#29256](https://github.com/anthropics/claude-code/issues/29256) | `/resume` may not work in submodule worktrees | `setup-worktree.sh` emits submodule advisory | Active — advisory only |
+| Model degradation | Worktree agents may lose project context | `WORKTREE_CONTEXT.md` reinforcement (~10% effective) | Mitigated |
+| Disk space | Large repos can exhaust disk on worktree create | `setup-worktree.sh` pre-flight 2x safety check | Mitigated |
+| Submodule false positive | `worktree-resolve.sh` misdetects submodule `.git` files | Fixed — parses `.git` file gitdir path to distinguish `/.git/worktrees/` from `/.git/modules/` | Resolved |
+
 ## References
 
 - [worktree-merge.md](../strive/references/worktree-merge.md) — Merge broker algorithm, conflict handling, cleanup

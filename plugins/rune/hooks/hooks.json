@@ -628,6 +628,19 @@
         ]
       }
     ],
+    "WorktreeRemove": [
+      {
+        "_rationale": "WT-002: Salvage uncommitted changes from worktree before removal. Fail-forward — worktree removal proceeds even if salvage fails.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-worktree.sh",
+            "timeout": 10,
+            "statusMessage": "Salvaging uncommitted worktree changes..."
+          }
+        ]
+      }
+    ],
     "ElicitationResult": [
       {
         "_rationale": "SEC-ELICIT-001: SECURITY-class validator for ElicitationResult responses. Validates user responses from echo-search and figma-to-react elicitation prompts for path traversal ('..') and command injection metacharacters. Fail-closed — no _rune_fail_forward ERR trap. Exit 2 blocks bad responses.",

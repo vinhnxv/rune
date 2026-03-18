@@ -7,6 +7,7 @@
 #   RUNE_PROJECT_DIR    = worktree CWD (local state, shards, tmp/)
 #   RUNE_MAIN_REPO_ROOT = original repo root (shared indexes, fallback .claude/)
 #   RUNE_IN_WORKTREE    = 0 or 1
+#   RUNE_IN_SUBMODULE   = 0 or 1 (distinguishes submodules from worktrees)
 #
 # In non-worktree sessions, all three resolve to the same directory.
 #
@@ -30,6 +31,7 @@ __RUNE_LIB_WORKTREE_RESOLVE_LOADED=1
 RUNE_PROJECT_DIR=""
 RUNE_MAIN_REPO_ROOT=""
 RUNE_IN_WORKTREE=0
+RUNE_IN_SUBMODULE=0
 
 # rune_resolve_project_dir [cwd_from_hook]
 #
@@ -44,7 +46,7 @@ RUNE_IN_WORKTREE=0
 #   3. Same as RUNE_PROJECT_DIR (non-worktree case)
 #
 # Returns: RUNE_PROJECT_DIR on stdout. Sets RUNE_PROJECT_DIR, RUNE_MAIN_REPO_ROOT,
-#          RUNE_IN_WORKTREE as global variables.
+#          RUNE_IN_WORKTREE, RUNE_IN_SUBMODULE as global variables.
 rune_resolve_project_dir() {
   local hook_cwd="${1:-}"
   local resolved=""
@@ -69,12 +71,41 @@ rune_resolve_project_dir() {
   RUNE_PROJECT_DIR="$resolved"
   RUNE_MAIN_REPO_ROOT="$resolved"
   RUNE_IN_WORKTREE=0
+  RUNE_IN_SUBMODULE=0
 
   # Worktree detection: .git is a FILE (not directory) in git worktrees.
   # A regular repo has .git/ as a directory; worktrees have .git as a file
   # containing "gitdir: /path/to/main/.git/worktrees/<name>".
   if [[ -f "$resolved/.git" ]]; then
-    RUNE_IN_WORKTREE=1
+    # Parse .git file to distinguish worktrees from submodules.
+    # Worktrees: "gitdir: /path/.git/worktrees/<name>"
+    # Submodules: "gitdir: /path/.git/modules/<name>"
+    local gitdir_content
+    gitdir_content=$(head -n 1 "${resolved}/.git" 2>/dev/null || true)
+    if [[ "$gitdir_content" == "gitdir: "* ]]; then
+      # SEC-005: gitdir_path is used ONLY for pattern matching (worktrees vs modules).
+      # Do NOT use in filesystem operations without canonicalization + sanitization.
+      local gitdir_path="${gitdir_content#gitdir: }"
+      if [[ "$gitdir_path" == *"/.git/worktrees/"* ]]; then
+        RUNE_IN_WORKTREE=1
+        RUNE_IN_SUBMODULE=0
+      elif [[ "$gitdir_path" == *"/.git/modules/"* || "$gitdir_path" == *".git/modules/"* ]]; then
+        RUNE_IN_SUBMODULE=1
+        RUNE_IN_WORKTREE=0
+      else
+        # BACK-008: Unknown .git file format — conservative: treat as worktree.
+        # Rationale: worktree detection enables dual-directory resolution (safe).
+        # Misclassifying a worktree as non-worktree would skip marker lookup and
+        # resolve RUNE_MAIN_REPO_ROOT incorrectly, breaking shared resource access.
+        RUNE_IN_WORKTREE=1
+        RUNE_IN_SUBMODULE=0
+      fi
+    else
+      # BACK-008: No "gitdir: " prefix — conservative: treat as worktree.
+      # Same rationale: false-positive worktree is safer than false-negative.
+      RUNE_IN_WORKTREE=1
+      RUNE_IN_SUBMODULE=0
+    fi
 
     # Primary: read marker for main repo root (written by setup-worktree.sh)
     # Check .rune/ first (current), fall back to .claude/ (pre-migration worktrees)
@@ -87,12 +118,14 @@ rune_resolve_project_dir() {
     fi
     if [[ -f "$marker" && ! -L "$marker" ]]; then
       local main_root
-      main_root=$(head -1 "$marker" 2>/dev/null | tr -d '\n')
+      main_root=$(head -n 1 "$marker" 2>/dev/null | tr -d '\n')
       # SEC-005: Character-set validation (absolute path, safe chars) + explicit traversal guard.
       # NOTE: the regex alone does NOT block ".." — the "! *".."*" glob check is load-bearing.
       local _pattern='^/[a-zA-Z0-9_./ -]+$'
       if [[ -n "$main_root" && "$main_root" =~ $_pattern && ! "$main_root" == *".."* && -d "$main_root" ]]; then
-        RUNE_MAIN_REPO_ROOT="$main_root"
+        # SEC-004: Canonicalize to resolve intermediate symlinks in path components.
+        main_root=$(cd "$main_root" 2>/dev/null && pwd -P) || main_root=""
+        [[ -n "$main_root" ]] && RUNE_MAIN_REPO_ROOT="$main_root"
       fi
     fi
 
