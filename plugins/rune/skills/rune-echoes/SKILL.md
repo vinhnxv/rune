@@ -170,7 +170,7 @@ Doc packs are pre-curated MEMORY.md files bundled with the Rune plugin. They con
 ### Directory Layout
 
 ```
-~/.rune/echoes/global/              # CHOME pattern: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+~/.claude/echoes/global/             # CHOME pattern: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}
 ├── doc-packs/
 │   ├── shadcn-ui/MEMORY.md           # Installed pack
 │   └── fastapi/MEMORY.md

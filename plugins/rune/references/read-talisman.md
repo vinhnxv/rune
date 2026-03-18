@@ -21,7 +21,7 @@ function readTalisman() {
 
   // 2. Try global talisman (CHOME pattern)
   //    SDK Read() auto-resolves CLAUDE_CONFIG_DIR and ~.
-  //    NEVER use Bash("cat ~/.rune/talisman.yml") — tilde does not expand in ZSH eval.
+  //    NEVER use Bash("cat ~/.claude/talisman.yml") — tilde does not expand in ZSH eval.
   try {
     const globalPath = `${CLAUDE_CONFIG_DIR ?? HOME + "/.claude"}/talisman.yml`
     const content = Read(globalPath)
@@ -49,17 +49,17 @@ CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 # Correct:
 test -f "$CHOME/talisman.yml"
 # NEVER:
-test -f ~/.rune/talisman.yml    # ~ does not expand in ZSH eval
-cat ~/.rune/talisman.yml        # same problem
+test -f ~/.claude/talisman.yml    # ~ does not expand in ZSH eval
+cat ~/.claude/talisman.yml        # same problem
 ```
 
 ## Anti-Patterns
 
 | Pattern | Problem | Fix |
 |---------|---------|-----|
-| `Bash("cat ~/.rune/talisman.yml")` | `~` not expanded in ZSH eval | Use `Read(".rune/talisman.yml")` |
-| `Bash("test -f ~/.rune/talisman.yml")` | Same tilde expansion bug | Use `Read()` with try/catch |
-| `Bash("cat $HOME/.rune/talisman.yml")` | Works but unnecessary shell roundtrip | Use `Read()` — it's faster and safer |
+| `Bash("cat ~/.claude/talisman.yml")` | `~` not expanded in ZSH eval | Use `Read()` with CHOME pattern |
+| `Bash("test -f ~/.claude/talisman.yml")` | Same tilde expansion bug | Use `Read()` with try/catch |
+| `Bash("cat $HOME/.claude/talisman.yml")` | Works but unnecessary shell roundtrip | Use `Read()` — it's faster and safer |
 | Hardcoded `~/.claude/` in any Bash context | ZSH incompatible | Use `CHOME` pattern or SDK `Read()` |
 
 ---

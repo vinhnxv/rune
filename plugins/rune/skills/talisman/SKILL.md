@@ -246,7 +246,7 @@ try { return parseYaml(Read(".claude/talisman.yml")) } catch {}
 // Global level (fallback)
 Read("${CLAUDE_CONFIG_DIR:-$HOME/.claude}/talisman.yml")
 
-// NEVER: Bash("cat ~/.rune/talisman.yml") — ZSH tilde bug
+// NEVER: Bash("cat ~/.claude/talisman.yml") — ZSH tilde bug
 ```
 
 ## Persona

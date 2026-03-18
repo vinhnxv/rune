@@ -183,6 +183,17 @@ class TestNoSignal:
         # So .rune/echoes/MEMORY.md DOES match (zero chars between / and M).
         assert os.path.isfile(signal_path(project_dir))
 
+    def test_signal_for_legacy_claude_echoes_path(self, project_dir):
+        """Legacy .claude/echoes/ path still triggers dirty signal (backwards compat)."""
+        stdin = json.dumps({
+            "tool_input": {
+                "file_path": "/home/user/project/.claude/echoes/reviewer/MEMORY.md"
+            }
+        })
+        result = run_hook(stdin, env_override={"CLAUDE_PROJECT_DIR": project_dir})
+        assert result.returncode == 0
+        assert os.path.isfile(signal_path(project_dir))
+
 
 # ---------------------------------------------------------------------------
 # SEC-006: stdin cap

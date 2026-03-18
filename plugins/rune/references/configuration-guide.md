@@ -488,14 +488,14 @@ See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integratio
 
 ---
 
-Projects can override defaults via `.rune/talisman.yml` (project) or `~/.rune/talisman.yml` (global):
+Projects can override defaults via `.rune/talisman.yml` (project) or `~/.claude/talisman.yml` (global, via CLAUDE_CONFIG_DIR):
 
 ```yaml
 rune-gaze:
   backend_extensions: [.py, .go]
   frontend_extensions: [.tsx, .ts]
   skip_patterns: ["**/migrations/**"]
-  always_review: ["CLAUDE.md", ".claude/**/*.md"]
+  always_review: ["CLAUDE.md", ".rune/**/*.md", ".claude/**/*.md"]
 
 # Custom Ashes — extend the built-in 7
 ashes:

@@ -25,7 +25,7 @@ Custom Ashes participate in the full Roundtable Circle lifecycle: they receive T
 
 ## Schema Reference
 
-Define custom Ash in `.rune/talisman.yml` (project) or `~/.rune/talisman.yml` (global).
+Define custom Ash in `.rune/talisman.yml` (project) or `~/.claude/talisman.yml` (global, via CLAUDE_CONFIG_DIR).
 
 ### `ashes.custom[]` Fields
 

@@ -89,7 +89,7 @@ codex:
 
 ```
 1. Project talisman: .rune/talisman.yml
-2. Global talisman: ~/.rune/talisman.yml
+2. Global talisman: ~/.claude/talisman.yml (via CLAUDE_CONFIG_DIR)
 3. Built-in defaults (shown above)
 ```
 
