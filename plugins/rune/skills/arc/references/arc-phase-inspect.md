@@ -128,10 +128,21 @@ try {
   return
 }
 
-// Extract metrics from VERDICT.md
-const completionMatch = verdictContent.match(/Overall Completion:\s*(\d+(?:\.\d+)?)%/)
-const completionPct = completionMatch ? parseFloat(completionMatch[1]) : null
-const p1Markers = (verdictContent.match(/severity="P1"/gi) || []).length
+// Extract metrics from VERDICT.md — dual scoring (adjusted preferred, raw fallback, legacy compat)
+const adjustedMatch = verdictContent.match(/Overall Completion \(Adjusted\)\s*\|\s*(\d+(?:\.\d+)?)%/)
+const rawMatch = verdictContent.match(/Overall Completion \(Raw\)\s*\|\s*(\d+(?:\.\d+)?)%/)
+const legacyMatch = verdictContent.match(/Overall Completion:\s*(\d+(?:\.\d+)?)%/)
+  ?? verdictContent.match(/Overall Completion\s*\|\s*(\d+(?:\.\d+)?)%/)
+const completionPct = adjustedMatch ? parseFloat(adjustedMatch[1])
+  : rawMatch ? parseFloat(rawMatch[1])
+  : legacyMatch ? parseFloat(legacyMatch[1]) : null
+
+// P1 count — adjusted preferred (excludes INTENTIONAL/EXCLUDED/FP), legacy fallback
+const adjP1Match = verdictContent.match(/P1 Findings \(Adjusted\)\s*\|\s*(\d+)/)
+const rawP1Match = verdictContent.match(/P1 Findings \(Raw\)\s*\|\s*(\d+)/)
+const p1Markers = adjP1Match ? parseInt(adjP1Match[1], 10)
+  : rawP1Match ? parseInt(rawP1Match[1], 10)
+  : (verdictContent.match(/severity="P1"/gi) || []).length
 const verdictMatch = verdictContent.match(/Final Verdict:\s*(READY|GAPS_FOUND|INCOMPLETE|CRITICAL_ISSUES)/)
 const inspectVerdict = verdictMatch ? verdictMatch[1] : 'GAPS_FOUND'
 

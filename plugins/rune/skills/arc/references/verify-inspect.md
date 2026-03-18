@@ -43,10 +43,30 @@ try {
   return
 }
 
-// Extract current metrics
-const completionMatch = verdictContent.match(/Overall Completion:\s*(\d+(?:\.\d+)?)%/)
-const completionPct = completionMatch ? parseFloat(completionMatch[1]) : 0
-const p1Markers = (verdictContent.match(/severity="P1"/gi) || []).length
+// Extract current metrics — dual scoring (adjusted preferred, raw fallback, legacy compat)
+const adjustedMatch = verdictContent.match(/Overall Completion \(Adjusted\):\s*\|\s*(\d+(?:\.\d+)?)%/)
+  ?? verdictContent.match(/Overall Completion \(Adjusted\)\s*\|\s*(\d+(?:\.\d+)?)%/)
+const rawMatch = verdictContent.match(/Overall Completion \(Raw\):\s*\|\s*(\d+(?:\.\d+)?)%/)
+  ?? verdictContent.match(/Overall Completion \(Raw\)\s*\|\s*(\d+(?:\.\d+)?)%/)
+const legacyMatch = verdictContent.match(/Overall Completion:\s*(\d+(?:\.\d+)?)%/)
+  ?? verdictContent.match(/Overall Completion\s*\|\s*(\d+(?:\.\d+)?)%/)
+
+const rawPct = rawMatch ? parseFloat(rawMatch[1]) : (legacyMatch ? parseFloat(legacyMatch[1]) : 0)
+const adjustedPct = adjustedMatch ? parseFloat(adjustedMatch[1]) : rawPct
+const completionPct = Number.isFinite(adjustedPct) ? adjustedPct : 0  // NaN guard (FRINGE-003)
+
+// Log both for transparency
+log(`Verify-inspect: raw=${rawMatch?.[1] ?? legacyMatch?.[1] ?? '?'}%, adjusted=${adjustedMatch?.[1] ?? '?'}%`)
+
+// P1 count — adjusted preferred (excludes INTENTIONAL/EXCLUDED/FP), raw fallback, legacy compat
+const adjP1Match = verdictContent.match(/P1 Findings \(Adjusted\)\s*\|\s*(\d+)/)
+const rawP1Match = verdictContent.match(/P1 Findings \(Raw\)\s*\|\s*(\d+)/)
+const p1Markers = adjP1Match
+  ? parseInt(adjP1Match[1], 10)
+  : rawP1Match
+    ? parseInt(rawP1Match[1], 10)
+    : (verdictContent.match(/severity="P1"/gi) || []).length  // legacy fallback
+
 const fixedCount = checkpoint.phases.inspect_fix?.fixed_count ?? 0
 const deferredCount = checkpoint.phases.inspect_fix?.deferred_count ?? 0
 
@@ -81,11 +101,12 @@ function evaluateInspectConvergence(completionPct, p1Count, fixedCount, inspectR
 
 const verdict = evaluateInspectConvergence(completionPct, p1Markers, fixedCount, inspectRound, maxRounds, threshold)
 
-// Record convergence history
+// Record convergence history (dual scoring)
 checkpoint.inspect_convergence.history.push({
   round: inspectRound,
-  completion_pct: completionPct,
-  p1_count: p1Markers,
+  completion_pct: completionPct,         // adjusted (used for convergence)
+  completion_pct_raw: Number.isFinite(rawPct) ? rawPct : null,
+  p1_count: p1Markers,                   // adjusted (used for convergence)
   fixed_count: fixedCount,
   deferred_count: deferredCount,
   verdict,
