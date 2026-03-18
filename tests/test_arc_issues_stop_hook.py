@@ -43,7 +43,7 @@ def write_state_file(
     compact_pending: bool = False,
 ) -> Path:
     """Create a .rune/arc-issues-loop.local.md state file."""
-    state_file = project / ".claude" / "arc-issues-loop.local.md"
+    state_file = project / ".rune" / "arc-issues-loop.local.md"
     state_file.parent.mkdir(parents=True, exist_ok=True)
     pid = owner_pid or str(os.getpid())
     resolved_config = str(config.resolve())
@@ -103,7 +103,7 @@ def write_checkpoint_file(
     """Create a mock arc checkpoint under .rune/arc/ for _find_arc_checkpoint()."""
     pid = owner_pid or str(os.getpid())
     arc_id = f"arc-test-{pid}"
-    ckpt_dir = project / ".claude" / "arc" / arc_id
+    ckpt_dir = project / ".rune" / "arc" / arc_id
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     checkpoint = {
         "id": arc_id,
@@ -208,13 +208,13 @@ class TestArcIssuesGuardClauses:
         result = run_issues_hook(project, config)
         assert result.returncode == 0
         assert result.stdout.strip() == ""
-        assert not (project / ".claude" / "arc-issues-loop.local.md").exists()
+        assert not (project / ".rune" / "arc-issues-loop.local.md").exists()
 
     @requires_jq
     def test_exit_0_invalid_numeric_fields(self, project_env):
         """Non-numeric iteration -> state file removed."""
         project, config = project_env
-        state_file = project / ".claude" / "arc-issues-loop.local.md"
+        state_file = project / ".rune" / "arc-issues-loop.local.md"
         state_file.parent.mkdir(parents=True, exist_ok=True)
         resolved_config = str(config.resolve())
         state_file.write_text(textwrap.dedent(f"""\
@@ -242,13 +242,13 @@ class TestArcIssuesGuardClauses:
         write_state_file(project, config, iteration=3, max_iterations=3)
         result = run_issues_hook(project, config)
         assert result.returncode == 0
-        assert not (project / ".claude" / "arc-issues-loop.local.md").exists()
+        assert not (project / ".rune" / "arc-issues-loop.local.md").exists()
 
     @requires_jq
     def test_exit_0_empty_frontmatter(self, project_env):
         """Corrupted state file with empty frontmatter -> cleaned up."""
         project, config = project_env
-        state_file = project / ".claude" / "arc-issues-loop.local.md"
+        state_file = project / ".rune" / "arc-issues-loop.local.md"
         state_file.parent.mkdir(parents=True, exist_ok=True)
         state_file.write_text("no frontmatter here\n")
         result = run_issues_hook(project, config)
@@ -261,7 +261,7 @@ class TestArcIssuesGuardClauses:
         project, config = project_env
         target = project / "tmp" / "fake-state.md"
         target.write_text("---\nactive: true\n---\n")
-        link = project / ".claude" / "arc-issues-loop.local.md"
+        link = project / ".rune" / "arc-issues-loop.local.md"
         link.parent.mkdir(parents=True, exist_ok=True)
         link.symlink_to(target)
         result = run_issues_hook(project, config)
@@ -288,7 +288,7 @@ class TestArcIssuesSessionIsolation:
         assert result.returncode == 0
         assert result.stdout.strip() == ""
         # State file should NOT be removed (belongs to another session)
-        assert (project / ".claude" / "arc-issues-loop.local.md").exists()
+        assert (project / ".rune" / "arc-issues-loop.local.md").exists()
 
     @requires_jq
     @pytest.mark.session_isolation
@@ -345,7 +345,7 @@ class TestArcIssuesProgressTracking:
         ])
         result = run_issues_hook(project, config)
         assert result.returncode == 0
-        assert not (project / ".claude" / "arc-issues-loop.local.md").exists()
+        assert not (project / ".rune" / "arc-issues-loop.local.md").exists()
         # Should output summary prompt
         output = json.loads(result.stdout)
         assert output["decision"] == "block"
@@ -364,7 +364,7 @@ class TestArcIssuesProgressTracking:
             {"path": "plans/c.md", "number": 12, "status": "pending", "error": None, "completed_at": None},
         ])
         run_issues_hook(project, config)
-        state = (project / ".claude" / "arc-issues-loop.local.md").read_text()
+        state = (project / ".rune" / "arc-issues-loop.local.md").read_text()
         assert "iteration: 3" in state
 
 
@@ -463,7 +463,7 @@ class TestArcIssuesSecurity:
     def test_rejects_path_traversal_in_progress_file(self, project_env):
         """Path traversal in progress_file -> cleanup and exit."""
         project, config = project_env
-        state_file = project / ".claude" / "arc-issues-loop.local.md"
+        state_file = project / ".rune" / "arc-issues-loop.local.md"
         state_file.parent.mkdir(parents=True, exist_ok=True)
         state_file.write_text(textwrap.dedent(f"""\
         ---
@@ -489,7 +489,7 @@ class TestArcIssuesSecurity:
     def test_rejects_shell_metachar_in_progress_file(self, project_env):
         """Shell metacharacters in progress_file -> cleanup and exit."""
         project, config = project_env
-        state_file = project / ".claude" / "arc-issues-loop.local.md"
+        state_file = project / ".rune" / "arc-issues-loop.local.md"
         state_file.parent.mkdir(parents=True, exist_ok=True)
         state_file.write_text(textwrap.dedent(f"""\
         ---
@@ -522,7 +522,7 @@ class TestArcIssuesSecurity:
         ])
         result = run_issues_hook(project, config)
         assert result.returncode == 0
-        assert not (project / ".claude" / "arc-issues-loop.local.md").exists()
+        assert not (project / ".rune" / "arc-issues-loop.local.md").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -538,7 +538,7 @@ class TestArcIssuesEdgeCases:
         write_state_file(project, config, owner_pid=str(os.getpid()))
         result = run_issues_hook(project, config)
         assert result.returncode == 0
-        assert not (project / ".claude" / "arc-issues-loop.local.md").exists()
+        assert not (project / ".rune" / "arc-issues-loop.local.md").exists()
 
     @requires_jq
     def test_edge_empty_progress_file(self, project_env):
@@ -549,7 +549,7 @@ class TestArcIssuesEdgeCases:
         (progress_dir / "batch-progress.json").write_text("")
         result = run_issues_hook(project, config)
         assert result.returncode == 0
-        assert not (project / ".claude" / "arc-issues-loop.local.md").exists()
+        assert not (project / ".rune" / "arc-issues-loop.local.md").exists()
 
     @requires_jq
     def test_edge_corrupted_progress_json(self, project_env):
@@ -560,7 +560,7 @@ class TestArcIssuesEdgeCases:
         (progress_dir / "batch-progress.json").write_text("{invalid json}")
         result = run_issues_hook(project, config)
         assert result.returncode == 0
-        assert not (project / ".claude" / "arc-issues-loop.local.md").exists()
+        assert not (project / ".rune" / "arc-issues-loop.local.md").exists()
 
     @requires_jq
     def test_edge_plan_without_issue_number(self, project_env):

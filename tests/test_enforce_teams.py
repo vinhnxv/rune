@@ -107,7 +107,7 @@ def _write_arc_checkpoint(
     config_dir is stored as its resolved (symlink-free) path because
     resolve-session-identity.sh uses ``pwd -P`` to canonicalize the path.
     """
-    arc_dir = project / ".claude" / "arc" / arc_id
+    arc_dir = project / ".rune" / "arc" / arc_id
     arc_dir.mkdir(parents=True, exist_ok=True)
     checkpoint: dict = {"phase": phase, "arc_id": arc_id}
     if config_dir is not None:
@@ -480,7 +480,7 @@ class TestEnforceTeamsWorkflowDetection:
         """Missing .rune/arc/ directory means no arc workflows to check."""
         project, config = project_env
         import shutil
-        arc_dir = project / ".claude" / "arc"
+        arc_dir = project / ".rune" / "arc"
         if arc_dir.exists():
             shutil.rmtree(arc_dir)
         result = hook_runner(ENFORCE_TEAMS, _make_task_input(project))
@@ -1096,7 +1096,7 @@ class TestEnforceTeamsEdgeCases:
         """Arc checkpoint deeper than maxdepth 2 is not found by find."""
         project, config = project_env
         # Place checkpoint 3 levels deep: .rune/arc/a/b/checkpoint.json
-        deep_dir = project / ".claude" / "arc" / "a" / "b"
+        deep_dir = project / ".rune" / "arc" / "a" / "b"
         deep_dir.mkdir(parents=True, exist_ok=True)
         checkpoint = deep_dir / "checkpoint.json"
         checkpoint.write_text(

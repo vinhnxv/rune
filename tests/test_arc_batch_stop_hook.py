@@ -35,7 +35,7 @@ def write_state_file(
     compact_pending: bool = False,
 ) -> Path:
     """Create a .rune/arc-batch-loop.local.md state file."""
-    state_file = project / ".claude" / "arc-batch-loop.local.md"
+    state_file = project / ".rune" / "arc-batch-loop.local.md"
     state_file.parent.mkdir(parents=True, exist_ok=True)
     # Default to os.getpid() because bash's $PPID = Python test process PID.
     # resolve() needed: macOS /var/folders → /private/var/folders symlink.
@@ -99,7 +99,7 @@ def write_checkpoint_file(
     """
     pid = owner_pid or str(os.getpid())
     arc_id = f"arc-test-{pid}"
-    ckpt_dir = project / ".claude" / "arc" / arc_id
+    ckpt_dir = project / ".rune" / "arc" / arc_id
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     checkpoint = {
         "id": arc_id,
@@ -209,13 +209,13 @@ class TestArcBatchGuardClauses:
         result = run_batch_hook(project, config)
         assert result.returncode == 0
         assert result.stdout.strip() == ""
-        assert not (project / ".claude" / "arc-batch-loop.local.md").exists()
+        assert not (project / ".rune" / "arc-batch-loop.local.md").exists()
 
     @requires_jq
     def test_exit_0_invalid_numeric_fields(self, project_env):
         """Non-numeric iteration → state file removed."""
         project, config = project_env
-        state_file = project / ".claude" / "arc-batch-loop.local.md"
+        state_file = project / ".rune" / "arc-batch-loop.local.md"
         state_file.parent.mkdir(parents=True, exist_ok=True)
         resolved_config = str(config.resolve())
         state_file.write_text(textwrap.dedent(f"""\
@@ -244,13 +244,13 @@ class TestArcBatchGuardClauses:
         write_state_file(project, config, iteration=3, max_iterations=3)
         result = run_batch_hook(project, config)
         assert result.returncode == 0
-        assert not (project / ".claude" / "arc-batch-loop.local.md").exists()
+        assert not (project / ".rune" / "arc-batch-loop.local.md").exists()
 
     @requires_jq
     def test_exit_0_empty_frontmatter(self, project_env):
         """Corrupted state file with empty frontmatter → cleaned up."""
         project, config = project_env
-        state_file = project / ".claude" / "arc-batch-loop.local.md"
+        state_file = project / ".rune" / "arc-batch-loop.local.md"
         state_file.parent.mkdir(parents=True, exist_ok=True)
         state_file.write_text("no frontmatter here\n")
         result = run_batch_hook(project, config)
@@ -263,7 +263,7 @@ class TestArcBatchGuardClauses:
         project, config = project_env
         target = project / "tmp" / "fake-state.md"
         target.write_text("---\nactive: true\n---\n")
-        link = project / ".claude" / "arc-batch-loop.local.md"
+        link = project / ".rune" / "arc-batch-loop.local.md"
         link.parent.mkdir(parents=True, exist_ok=True)
         link.symlink_to(target)
         result = run_batch_hook(project, config)
@@ -290,7 +290,7 @@ class TestArcBatchSessionIsolation:
         assert result.returncode == 0
         assert result.stdout.strip() == ""
         # State file should NOT be removed (belongs to another session)
-        assert (project / ".claude" / "arc-batch-loop.local.md").exists()
+        assert (project / ".rune" / "arc-batch-loop.local.md").exists()
 
     @requires_jq
     @pytest.mark.session_isolation
@@ -350,7 +350,7 @@ class TestArcBatchProgressTracking:
         ])
         result = run_batch_hook(project, config)
         assert result.returncode == 0
-        assert not (project / ".claude" / "arc-batch-loop.local.md").exists()
+        assert not (project / ".rune" / "arc-batch-loop.local.md").exists()
         # Should output summary prompt
         output = json.loads(result.stdout)
         assert output["decision"] == "block"
@@ -374,7 +374,7 @@ class TestArcBatchProgressTracking:
             {"path": "plans/c.md", "status": "pending", "error": None, "completed_at": None},
         ])
         run_batch_hook(project, config)
-        state = (project / ".claude" / "arc-batch-loop.local.md").read_text()
+        state = (project / ".rune" / "arc-batch-loop.local.md").read_text()
         assert "iteration: 3" in state
 
 
@@ -446,7 +446,7 @@ class TestArcBatchSecurity:
     def test_rejects_path_traversal_in_progress_file(self, project_env):
         """Path traversal in progress_file → cleanup and exit."""
         project, config = project_env
-        state_file = project / ".claude" / "arc-batch-loop.local.md"
+        state_file = project / ".rune" / "arc-batch-loop.local.md"
         state_file.parent.mkdir(parents=True, exist_ok=True)
         state_file.write_text(textwrap.dedent(f"""\
         ---
@@ -474,7 +474,7 @@ class TestArcBatchSecurity:
     def test_rejects_shell_metachar_in_progress_file(self, project_env):
         """Shell metacharacters in progress_file → cleanup and exit."""
         project, config = project_env
-        state_file = project / ".claude" / "arc-batch-loop.local.md"
+        state_file = project / ".rune" / "arc-batch-loop.local.md"
         state_file.parent.mkdir(parents=True, exist_ok=True)
         state_file.write_text(textwrap.dedent(f"""\
         ---
@@ -509,7 +509,7 @@ class TestArcBatchSecurity:
         ])
         result = run_batch_hook(project, config)
         assert result.returncode == 0
-        assert not (project / ".claude" / "arc-batch-loop.local.md").exists()
+        assert not (project / ".rune" / "arc-batch-loop.local.md").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -526,7 +526,7 @@ class TestArcBatchEdgeCases:
         # Don't create progress file
         result = run_batch_hook(project, config)
         assert result.returncode == 0
-        assert not (project / ".claude" / "arc-batch-loop.local.md").exists()
+        assert not (project / ".rune" / "arc-batch-loop.local.md").exists()
 
     @requires_jq
     def test_edge_empty_progress_file(self, project_env):
@@ -537,7 +537,7 @@ class TestArcBatchEdgeCases:
         (progress_dir / "batch-progress.json").write_text("")
         result = run_batch_hook(project, config)
         assert result.returncode == 0
-        assert not (project / ".claude" / "arc-batch-loop.local.md").exists()
+        assert not (project / ".rune" / "arc-batch-loop.local.md").exists()
 
     @requires_jq
     def test_edge_corrupted_progress_json(self, project_env):
@@ -548,7 +548,7 @@ class TestArcBatchEdgeCases:
         (progress_dir / "batch-progress.json").write_text("{invalid json}")
         result = run_batch_hook(project, config)
         assert result.returncode == 0
-        assert not (project / ".claude" / "arc-batch-loop.local.md").exists()
+        assert not (project / ".rune" / "arc-batch-loop.local.md").exists()
 
 
 # ---------------------------------------------------------------------------
