@@ -315,8 +315,18 @@ Poll TaskList with timeout guard to track progress. See [monitor-utility.md](../
 > `Bash("sleep 60 && echo poll check")` — This skips TaskList entirely. You MUST call `TaskList` every cycle.
 
 ```javascript
+// CDX-GAP-002 FIX: Discipline-aware timeout scaling.
+// When criteria-driven convergence is active, scale timeout by max iterations.
+const disciplineConfig = readTalismanSection("discipline") ?? {}
+const hasCriteria = extractedTasks.some(t => t.criteria && t.criteria.length > 0)
+const maxConvergenceIterations = disciplineConfig.max_convergence_iterations ?? 3
+const baseTimeoutMs = 1_800_000  // 30 minutes base
+const disciplineTimeoutMs = hasCriteria
+  ? Math.min(maxConvergenceIterations * baseTimeoutMs, 5_400_000)  // Cap at 90 min
+  : baseTimeoutMs
+
 const result = waitForCompletion(teamName, taskCount, {
-  timeoutMs: 1_800_000,      // 30 minutes
+  timeoutMs: disciplineTimeoutMs,  // 30 min (no criteria) or scaled (with criteria)
   staleWarnMs: 300_000,      // 5 minutes — warn about stalled worker
   autoReleaseMs: 600_000,    // 10 minutes — release task for reclaim
   pollIntervalMs: 30_000,
