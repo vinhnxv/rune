@@ -44,8 +44,13 @@ pub struct ArcLoopState {
 /// Uses YAML frontmatter between `---` delimiters.
 /// Returns `None` if the file doesn't exist, is not active, or can't be parsed.
 pub fn read_arc_loop_state(project_dir: &Path) -> Option<ArcLoopState> {
+    // Primary: .rune/ (v2.0.0+)
     let loop_file = project_dir.join(".rune").join("arc-phase-loop.local.md");
-    let contents = fs::read_to_string(&loop_file).ok()?;
+    // Legacy fallback: .claude/ (remove in v3.0.0 — RUNE_LEGACY_SUPPORT_UNTIL)
+    let legacy_file = project_dir.join(".claude").join("arc-phase-loop.local.md");
+    let contents = fs::read_to_string(&loop_file)
+        .or_else(|_| fs::read_to_string(&legacy_file))
+        .ok()?;
 
     // Extract YAML frontmatter between --- delimiters
     let yaml = extract_frontmatter(&contents)?;

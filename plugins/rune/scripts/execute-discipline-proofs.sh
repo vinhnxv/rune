@@ -55,9 +55,10 @@ fi
 # Change to working directory
 cd "$CWD" || { printf '{"error":"cannot cd to: %s"}\n' "$CWD" >&2; exit 1; }
 
-# SEC-004: Containment check — verify .claude/ exists in CWD
-if [[ ! -d ".claude" ]]; then
-  printf '{"error":"containment check failed: .claude/ not found in CWD"}\n' >&2
+# SEC-004: Containment check — verify project marker exists in CWD
+# Check both .claude/ (Claude Code platform dir) and .rune/ (Rune state dir)
+if [[ ! -d ".claude" && ! -d "${RUNE_STATE:-.rune}" ]]; then
+  printf '{"error":"containment check failed: neither .claude/ nor .rune/ found in CWD"}\n' >&2
   exit 1
 fi
 

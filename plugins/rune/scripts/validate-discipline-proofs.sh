@@ -18,11 +18,13 @@ umask 077
 # Crash before validation → allow operation (don't stall workflows).
 _rune_fail_forward() {
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
+    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+    # SEC-007: reject symlink to prevent log redirection attacks
+    [[ ! -L "$_log" ]] && printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
       "$(date +%H:%M:%S 2>/dev/null || true)" \
       "${BASH_SOURCE[0]##*/}" \
       "${BASH_LINENO[0]:-?}" \
-      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" 2>/dev/null
+      >> "$_log" 2>/dev/null
   fi
   exit 0
 }

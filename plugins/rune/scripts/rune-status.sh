@@ -115,10 +115,13 @@ PHASE_ORDER=(
 # ── Find session-owned checkpoint files ──
 CHECKPOINT_FILES=()
 ARC_DIR="${CWD}/${RUNE_STATE}/arc"
+# Legacy fallback (RUNE_LEGACY_SUPPORT_UNTIL=3.0.0)
+ARC_DIR_LEGACY="${CWD}/.claude/arc"
 
-if [[ -d "$ARC_DIR" ]]; then
+if [[ -d "$ARC_DIR" ]] || [[ -d "$ARC_DIR_LEGACY" ]]; then
   shopt -s nullglob
-  for ckpt in "${ARC_DIR}"/*/checkpoint.json; do
+  # Scan both .rune/arc/ and legacy .claude/arc/ for checkpoints
+  for ckpt in "${ARC_DIR}"/*/checkpoint.json "${ARC_DIR_LEGACY}"/*/checkpoint.json; do
     [[ -f "$ckpt" ]] || continue
     [[ -L "$ckpt" ]] && continue
 
