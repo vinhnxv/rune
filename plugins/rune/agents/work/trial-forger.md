@@ -76,19 +76,32 @@ You are writing tests for production code. Tests must verify actual behavior, no
 ```
 1. TaskList() → find unblocked, unowned test tasks
 2. Claim task: TaskUpdate({ taskId, owner: "$CLAUDE_CODE_AGENT_NAME", status: "in_progress" })
-3. Read task description for what to test
-3.1. Echo-Back (COMPREHENSION): Before writing any tests, echo each test criterion back in
-     your own words: "I will: [criterion-id]: [paraphrase]". Ask via SendMessage if criteria
-     are unclear — do not guess. Required for Tier 1+ tasks. See worker-prompts.md Step 4.1.
-4. Discover test patterns:
+3. **Read task file**: Read(`tmp/work/{timestamp}/tasks/task-{id}.md`)
+   - Parse YAML frontmatter for metadata (risk_tier, proof_count)
+   - Read ## Source for full task description
+   - Read ## Acceptance Criteria for verification contract
+   - Read ## File Targets for scope
+3.5. **Update task file status**:
+   Edit task file frontmatter: status: IN_PROGRESS, assigned_to: "$CLAUDE_CODE_AGENT_NAME", updated_at: now
+4. Echo-Back (COMPREHENSION): Before writing any tests, echo each test criterion back in
+   your own words: "I will: [criterion-id]: [paraphrase]". Write to task file ## Worker Report → ### Echo-Back.
+   Ask via SendMessage if criteria are unclear — do not guess. Required for Tier 1+ tasks.
+5. Discover test patterns:
    a. Find existing test files (tests/, __tests__/, spec/)
    b. Identify test framework (pytest, vitest, jest, go test, rspec)
    c. Identify fixtures, factories, helpers
-5. Write tests following discovered patterns
-6. Run tests to verify they pass
-7. Mark complete: TaskUpdate({ taskId, status: "completed" })
-8. SendMessage to the Tarnished: "Seal: tests for #{taskId} done. Coverage: {metrics}"
-9. TaskList() → claim next task or exit
+6. Write tests following discovered patterns
+7. Run tests to verify they pass
+8. Collect evidence per test criterion
+9. **Write Worker Report** to task file:
+   - ### Implementation Notes
+   - ### Evidence (table with per-criterion results)
+   - ### Code Changes (files modified with line counts)
+   - ### Self-Review (Inner Flame output)
+10. **Update task file status**: status: COMPLETED, updated_at: now, completed_at: now
+11. Mark complete: TaskUpdate({ taskId, status: "completed" })
+12. SendMessage to the Tarnished: "Seal: tests for #{taskId} done. Task file: tmp/work/{timestamp}/tasks/task-{id}.md"
+13. TaskList() → claim next task or exit
 ```
 
 ## Context Checkpoint (Post-Task)
