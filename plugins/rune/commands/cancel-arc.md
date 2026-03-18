@@ -550,8 +550,8 @@ if (allMembers.length > 0) {
 if (phase_team && !/^[a-zA-Z0-9_-]+$/.test(phase_team)) throw new Error("Invalid phase_team")
 if (phase_team && phase_team.includes('..')) throw new Error('Path traversal detected in phase_team')
 if (phase_team) {
-  // TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
-  const RETRY_DELAYS = [0, 5000, 10000, 15000]
+  // TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s = 19s total)
+  const RETRY_DELAYS = [0, 3000, 6000, 10000]
   let cleanupTeamDeleteSucceeded = false
   for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
     if (attempt > 0) {
