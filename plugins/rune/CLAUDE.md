@@ -89,6 +89,8 @@ Rune implements structural discipline enforcement across all pipelines. See `doc
 **Key rules**:
 - Plans MUST have YAML acceptance criteria (`AC-*` blocks) for spec-aware execution
 - Workers MUST collect evidence before marking tasks complete via `TaskUpdate`
+- Workers MUST read their task file (`tmp/work/{timestamp}/tasks/task-{id}.md`) before implementation
+- Workers MUST write Worker Report (Echo-Back, Implementation Notes, Evidence, Self-Review) to task file
 - The Discipline Work Loop (8-phase convergence cycle) activates automatically when plans have YAML criteria
 - Plans without criteria degrade gracefully to existing linear execution (backward compatibility preserved)
 - Default: BLOCK mode (`block_on_fail: true`). Opt out: `discipline.block_on_fail: false` in talisman
