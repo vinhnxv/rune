@@ -94,15 +94,35 @@ Combine requirement statuses from all inspectors into a unified matrix.
 If multiple inspectors assessed the same requirement, use the MORE SPECIFIC assessment
 (i.e., the one with more evidence).
 
-### Step 2 -- Compute Overall Completion
+### Step 2 -- Compute Overall Completion (Dual Scoring)
+
+Compute BOTH raw and adjusted completion percentages:
 
 ```
 weights = { P1: 3, P2: 2, P3: 1 }
+STATUS_TO_PCT = { COMPLETE: 100, PARTIAL: 50, DEVIATED: 50, MISSING: 0 }
+
+rawWeighted = 0
+adjustedWeighted = 0
+totalWeight = 0
+
 for each requirement:
-  weightedCompletion += requirement.completion * weights[requirement.priority]
-  totalWeight += weights[requirement.priority]
-overallCompletion = weightedCompletion / totalWeight
+  weight = weights[requirement.priority]
+  rawScore = STATUS_TO_PCT[requirement.status]
+  adjustedScore = requirement.adjusted_score ?? rawScore  // from classification
+
+  rawWeighted += rawScore * weight
+  adjustedWeighted += adjustedScore * weight
+  totalWeight += weight
+
+rawCompletion = rawWeighted / totalWeight
+adjustedCompletion = adjustedWeighted / totalWeight
 ```
+
+- **Raw score**: Uses STATUS_TO_PCT mapping directly (DEVIATED = 50%)
+- **Adjusted score**: Uses classification-based adjusted_score when present
+  (e.g., DEVIATED_INTENTIONAL → adjusted_score = 100%)
+- If no classifications exist, raw and adjusted will be identical
 
 ### Step 3 -- Merge Dimension Scores
 
@@ -166,7 +186,11 @@ Write exactly this structure:
 |--------|-------|
 | Plan | (plan_path) |
 | Requirements | (total) |
-| Overall Completion | (N)% |
+| Overall Completion (Raw) | (N)% |
+| Overall Completion (Adjusted) | (N)% |
+| P1 Findings (Raw) | (count) |
+| P1 Findings (Adjusted) | (count) (excluding INTENTIONAL/EXCLUDED/FP) |
+| Classifications Applied | (summary, e.g., 1 INTENTIONAL, 1 DRIFT) |
 | Verdict | **(READY/GAPS_FOUND/INCOMPLETE/CRITICAL_ISSUES)** |
 | Inspectors | (count)/(summoned) completed |
 | Date | (timestamp) |
@@ -176,6 +200,19 @@ Write exactly this structure:
 | # | Requirement | Status | Completion | Inspector | Evidence |
 |---|------------|--------|------------|-----------|----------|
 | REQ-001 | (text) | (status) | (N)% | (inspector) | (file:line) |
+
+## Deviation Analysis
+
+List all requirements that are NOT COMPLETE, showing classification impact on scoring:
+
+| AC | Status | Classification | Evidence | Raw % | Adjusted % |
+|----|--------|---------------|----------|-------|------------|
+| (AC-id) | (DEVIATED/PARTIAL/MISSING) | (INTENTIONAL/DRIFT/EXCLUDED/FP/UNCLASSIFIED) | (file:line or comment) | (N)% | (N)% |
+
+- Only include requirements where status is NOT COMPLETE
+- Classification comes from grace-warden-inspect classification data
+- If no classification exists for a requirement, use UNCLASSIFIED
+- Raw % = STATUS_TO_PCT[status], Adjusted % = adjusted_score (or raw if unclassified)
 
 ## Dimension Scores
 
@@ -235,6 +272,8 @@ Write exactly this structure:
 - P1: (count), P2: (count), P3: (count)
 - Inspectors completed: (completed)/(summoned)
 - Requirements assessed: (assessed)/(total)
+- Classification distribution: (N) INTENTIONAL, (N) DRIFT, (N) EXCLUDED, (N) FALSE_POSITIVE, (N) UNCLASSIFIED
+- Completion delta: raw (N)% → adjusted (N)% (+(diff)%)
 ```
 
 ## RULES
