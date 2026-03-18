@@ -21,7 +21,7 @@ setup_project_dir() {
   export TEST_CWD=$(mktemp -d -t rune-test-XXXXXX)
   mkdir -p "$TEST_CWD/tmp"
   mkdir -p "$TEST_CWD/.claude"
-  mkdir -p "$TEST_CWD/.claude/arc"
+  mkdir -p "$TEST_CWD/.rune/arc"
 }
 
 # Create a temporary CLAUDE_CONFIG_DIR
