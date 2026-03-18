@@ -18,11 +18,14 @@ fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
-/// Validate session ID: alphanumeric + hyphens only, max 64 chars.
+/// Validate session ID: ASCII alphanumeric + hyphens + underscores, max 64 chars.
 /// Mirrors tmux.rs validate_session_id() — prevents tmux target injection.
 fn validate_session_id(id: &str) {
-    if id.is_empty() || id.len() > 64 || !id.chars().all(|c| c.is_alphanumeric() || c == '-') {
-        eprintln!("error: invalid session ID '{}' — must be alphanumeric+hyphens, max 64 chars", id);
+    if id.is_empty()
+        || id.len() > 64
+        || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        eprintln!("error: invalid session ID '{}' — must be ASCII alphanumeric + hyphens/underscores, max 64 chars", id);
         std::process::exit(1);
     }
 }

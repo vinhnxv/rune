@@ -350,6 +350,8 @@ def _build_override_segments(
     """Build styled text segments from per-character override indices."""
     segments: List[StyledTextSegment] = []
     effective_overrides = overrides[:len(characters)]
+    if not effective_overrides:
+        return segments
     current_idx: int = effective_overrides[0]
     start: int = 0
 

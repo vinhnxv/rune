@@ -499,12 +499,14 @@ pub fn enrich_session_info(
     let descendants = crate::resource::collect_descendants(sys, pid);
     for desc_pid in &descendants {
         if let Some(proc_) = sys.process(Pid::from_u32(*desc_pid)) {
-            let cmd = proc_.cmd().iter().map(|s| s.to_string_lossy()).collect::<Vec<_>>().join(" ");
-            if cmd.contains("server.py")
-                || cmd.contains("/mcp/")
-                || cmd.contains("mcp-server")
-                || cmd.contains("mcp_server")
-            {
+            let is_mcp = proc_.cmd().iter().any(|s| {
+                let arg = s.to_string_lossy();
+                arg.contains("server.py")
+                    || arg.contains("/mcp/")
+                    || arg.contains("mcp-server")
+                    || arg.contains("mcp_server")
+            });
+            if is_mcp {
                 mcp_count += 1;
             }
         }

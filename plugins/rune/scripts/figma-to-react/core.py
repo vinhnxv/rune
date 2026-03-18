@@ -912,8 +912,10 @@ async def to_react(
         raise FigmaAPIError("Failed to parse design — no supported nodes found.")
     mark_cross_file_refs(ir_root)
 
-    image_refs, image_urls = await _resolve_image_urls(client, file_key, ir_root)
-    svg_urls = await _resolve_svg_fallback_urls(client, file_key, ir_root)
+    (image_refs, image_urls), svg_urls = await asyncio.gather(
+        _resolve_image_urls(client, file_key, ir_root),
+        _resolve_svg_fallback_urls(client, file_key, ir_root),
+    )
 
     name = component_name if component_name else None
     main_code = generate_component(
