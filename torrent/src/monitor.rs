@@ -481,7 +481,7 @@ fn compute_phase_navigation(checkpoint: &Checkpoint) -> Option<PhaseNavigation> 
 
         let next = PHASE_ORDER.iter().skip(ci + 1)
             .find(|&&p| {
-                checkpoint.phases.get(p).map_or(false, |ph| ph.status == "pending" || ph.status.is_empty())
+                checkpoint.phases.get(p).is_some_and(|ph| ph.status == "pending" || ph.status.is_empty())
             })
             .map(|&p| p.to_string());
 
@@ -489,7 +489,7 @@ fn compute_phase_navigation(checkpoint: &Checkpoint) -> Option<PhaseNavigation> 
     } else {
         // No in_progress phase — transitioning between phases or not yet started
         let last_completed_idx = PHASE_ORDER.iter().rposition(|&p| {
-            checkpoint.phases.get(p).map_or(false, |ph| ph.status == "completed")
+            checkpoint.phases.get(p).is_some_and(|ph| ph.status == "completed")
         });
 
         let prev = last_completed_idx.and_then(|idx| {
@@ -506,7 +506,7 @@ fn compute_phase_navigation(checkpoint: &Checkpoint) -> Option<PhaseNavigation> 
         let search_start = last_completed_idx.map_or(0, |i| i + 1);
         let next = PHASE_ORDER.iter().skip(search_start)
             .find(|&&p| {
-                checkpoint.phases.get(p).map_or(false, |ph| ph.status == "pending" || ph.status.is_empty())
+                checkpoint.phases.get(p).is_some_and(|ph| ph.status == "pending" || ph.status.is_empty())
             })
             .map(|&p| p.to_string());
 
@@ -554,13 +554,13 @@ fn compute_phase_summary(checkpoint: &Checkpoint) -> PhaseSummary {
     } else if completed > 0 {
         // Find last completed phase in canonical order, then next pending
         let last_completed_idx = PHASE_ORDER.iter().rposition(|&p| {
-            checkpoint.phases.get(p).map_or(false, |ph| ph.status == "completed")
+            checkpoint.phases.get(p).is_some_and(|ph| ph.status == "completed")
         });
         if let Some(idx) = last_completed_idx {
             // Look for the next pending phase after last completed
             PHASE_ORDER.iter().skip(idx + 1)
                 .find(|&&p| {
-                    checkpoint.phases.get(p).map_or(false, |ph| ph.status == "pending" || ph.status.is_empty())
+                    checkpoint.phases.get(p).is_some_and(|ph| ph.status == "pending" || ph.status.is_empty())
                 })
                 .map(|&p| format!("→ {}", p))
                 .unwrap_or_else(|| format!("{} ✓", PHASE_ORDER[idx]))
@@ -571,7 +571,7 @@ fn compute_phase_summary(checkpoint: &Checkpoint) -> PhaseSummary {
         // No completed phases — find first pending in canonical order
         PHASE_ORDER.iter()
             .find(|&&p| {
-                checkpoint.phases.get(p).map_or(false, |ph| ph.status == "pending" || ph.status.is_empty())
+                checkpoint.phases.get(p).is_some_and(|ph| ph.status == "pending" || ph.status.is_empty())
             })
             .map(|&p| format!("→ {}", p))
             .unwrap_or_else(|| "pending".to_string())
@@ -1031,21 +1031,23 @@ session_id: xxx
     fn test_rune_dir_path_construction() {
         // Verify .rune/ is used (not .claude/) for arc-phase-loop.local.md
         let dir = std::env::temp_dir().join("torrent-test-rune-path");
+        // Clean up stale state from prior test runs
+        let _ = std::fs::remove_dir_all(&dir);
         let rune_dir = dir.join(".rune");
         std::fs::create_dir_all(&rune_dir).unwrap();
 
         let expected_path = rune_dir.join("arc-phase-loop.local.md");
-        // Verify read_arc_loop_state looks in .rune/ — not .claude/
-        // Write to .claude/ (wrong) → should NOT be found
+        // Nothing in .rune/ or .claude/ → should return None
+        assert!(read_arc_loop_state(&dir).is_none());
+
+        // Legacy fallback: write to .claude/ → should still be found (legacy support)
         let claude_dir = dir.join(".claude");
         std::fs::create_dir_all(&claude_dir).unwrap();
         std::fs::write(
             claude_dir.join("arc-phase-loop.local.md"),
             "---\nactive: true\ncheckpoint_path: old\nplan_file: p\nconfig_dir: c\nowner_pid: 1\nsession_id: s\n---\n",
         ).unwrap();
-
-        // Nothing in .rune/ → should return None
-        assert!(read_arc_loop_state(&dir).is_none());
+        assert!(read_arc_loop_state(&dir).is_some(), "legacy .claude/ fallback should work");
 
         // Write to .rune/ (correct) → should be found
         std::fs::write(

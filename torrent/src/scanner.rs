@@ -54,14 +54,12 @@ pub fn scan_config_dirs(extra_dirs: &[PathBuf]) -> Result<Vec<ConfigDir>> {
     // 2. Check ~/.claude-*/ (custom accounts)
     let home_str = home.to_string_lossy();
     let pattern = format!("{}/.claude-*/", home_str);
-    for entry in glob(&pattern).map_err(|e| eyre!("invalid glob pattern: {e}"))? {
-        if let Ok(path) = entry {
-            let label = path
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_else(|| path.display().to_string());
-            try_add(path, label);
-        }
+    for path in (glob(&pattern).map_err(|e| eyre!("invalid glob pattern: {e}"))?).flatten() {
+        let label = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.display().to_string());
+        try_add(path, label);
     }
 
     // 3. Check $CLAUDE_CONFIG_DIR env var
@@ -426,7 +424,7 @@ fn list_all_tmux_panes() -> Vec<TmuxPaneEntry> {
 
 /// Check if a PID is alive (delegates to shared resource::is_pid_alive).
 fn is_pid_alive_check(pid_str: &str) -> bool {
-    pid_str.parse::<u32>().map_or(false, crate::resource::is_pid_alive)
+    pid_str.parse::<u32>().is_ok_and(crate::resource::is_pid_alive)
 }
 
 /// Find a tmux session that owns the given owner_pid.

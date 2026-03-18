@@ -436,7 +436,7 @@ impl App {
 
     /// Check if a PID is alive (delegates to shared resource::is_pid_alive).
     fn is_pid_alive(pid_str: &str) -> bool {
-        pid_str.parse::<u32>().map_or(false, resource::is_pid_alive)
+        pid_str.parse::<u32>().is_ok_and(resource::is_pid_alive)
     }
 
     /// Switch active panel between config list and plan list.
