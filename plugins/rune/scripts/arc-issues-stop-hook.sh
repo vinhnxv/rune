@@ -23,6 +23,10 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/arc-stop-hook-common.sh
+if [[ ! -f "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh" ]]; then
+  echo "FATAL: arc-stop-hook-common.sh not found at ${SCRIPT_DIR}/lib/" >&2
+  exit 0  # fail-forward: allow stop rather than crash with undefined functions
+fi
 source "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh"
 arc_setup_err_trap  # standard variant — installs _rune_fail_forward + ERR trap
 trap '[[ -n "${TMPFILE:-}" ]] && rm -f "${TMPFILE}" 2>/dev/null; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit' EXIT

@@ -14,6 +14,7 @@ description: |
 user-invocable: true
 allowed-tools:
   - Read
+  - Write
   - Bash
   - Glob
 ---

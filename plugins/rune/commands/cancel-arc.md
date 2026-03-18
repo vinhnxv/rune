@@ -253,7 +253,7 @@ if (phaseExists === "yes") {
   let isOwner = true
   if (storedCfg && storedCfg !== currentCfg) isOwner = false
   if (isOwner && ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
-    const alive = Bash(`kill -0 ${ownerPid} 2>/dev/null && echo "alive" || echo "dead"`).trim()
+    const alive = Bash(`kill -0 "${ownerPid}" 2>/dev/null && echo "alive" || echo "dead"`).trim()
     if (alive === "alive") isOwner = false
   }
 
@@ -298,7 +298,7 @@ if (batchExists === "yes") {
   let isOwner = true
   if (storedCfg && storedCfg !== currentCfg) isOwner = false
   if (isOwner && ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
-    const alive = Bash(`kill -0 ${ownerPid} 2>/dev/null && echo "alive" || echo "dead"`).trim()
+    const alive = Bash(`kill -0 "${ownerPid}" 2>/dev/null && echo "alive" || echo "dead"`).trim()
     if (alive === "alive") isOwner = false
   }
 
@@ -374,7 +374,7 @@ if (issuesExists === "yes") {
   let isOwner = true
   if (storedCfg && storedCfg !== currentCfg) isOwner = false
   if (isOwner && ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
-    const alive = Bash(`kill -0 ${ownerPid} 2>/dev/null && echo "alive" || echo "dead"`).trim()
+    const alive = Bash(`kill -0 "${ownerPid}" 2>/dev/null && echo "alive" || echo "dead"`).trim()
     if (alive === "alive") isOwner = false
   }
 

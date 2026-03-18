@@ -3,9 +3,13 @@
 # ARC-SPECIFIC shared library for arc stop hook loop drivers.
 # Extension to stop-hook-common.sh — source AFTER it.
 #
-# USAGE:
-#   source "${SCRIPT_DIR}/lib/stop-hook-common.sh"
-#   source "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh"
+# USAGE (recommended order):
+#   source "${SCRIPT_DIR}/lib/stop-hook-common.sh"    # parse_input, get_field, etc.
+#   source "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh" # arc-specific extensions
+#
+# NOTE: arc-phase-stop-hook.sh sources in reverse order (arc-stop-hook-common.sh
+# first for ERR trap + jq guard, then stop-hook-common.sh later). This works
+# because the early functions have no cross-library dependencies.
 #
 # This library extracts the 9 blocks duplicated across arc-batch, arc-hierarchy,
 # arc-issues (outer loops) and arc-phase (inner loop):
@@ -121,7 +125,8 @@ arc_init_trace_log() {
 
 # ── arc_guard_jq_required ──
 # Exit 0 (fail-open) if jq is not available.
-# Must be called BEFORE sourcing stop-hook-common.sh.
+# Call AFTER sourcing arc-stop-hook-common.sh but BEFORE sourcing stop-hook-common.sh.
+# stop-hook-common.sh uses jq, so this guard must precede it.
 # This function exists to provide a named entry point; callers may also inline
 # the check before sourcing (which is what the hooks currently do for the
 # pre-source case). After sourcing, this function can guard subsequent jq use.
@@ -217,7 +222,9 @@ arc_compact_interlude_phase_a() {
   fi
 
   if ! mv -f "$_state_tmp" "$state_file" 2>/dev/null; then
-    rm -f "$_state_tmp" "$state_file" 2>/dev/null
+    # Preserve state file on transient mv failure — deleting it would permanently
+    # terminate the batch/hierarchy/issues loop (v1.179.0 fix, BACK-004)
+    rm -f "$_state_tmp" 2>/dev/null
     exit 0
   fi
 

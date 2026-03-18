@@ -23,6 +23,10 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/arc-stop-hook-common.sh
+if [[ ! -f "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh" ]]; then
+  echo "FATAL: arc-stop-hook-common.sh not found at ${SCRIPT_DIR}/lib/" >&2
+  exit 0  # fail-forward: allow stop rather than crash with undefined functions
+fi
 source "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh"
 # Block A (verbose): _rune_fail_forward with always-on trace log + stderr output
 # Used by arc-phase (inner loop) where silent failures are especially dangerous.
@@ -543,6 +547,7 @@ if [[ -n "$_skip_result" ]]; then
         _trace "WARNING: auto-skip checkpoint JSON validation failed — skipping write"
         rm -f "$_ckpt_tmp" 2>/dev/null
         CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
+        _trace "WARNING: auto-skip checkpoint write failed — phases will be re-evaluated by LLM (self-healing, may use extra turns)"
       fi
     fi
     _trace "Auto-skipped ${_auto_skipped} phase(s) via preflight skip_map"

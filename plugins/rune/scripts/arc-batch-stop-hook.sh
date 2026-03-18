@@ -22,6 +22,10 @@ set -euo pipefail
 # inline here at top-level scope, which is required for ERR trap to work correctly.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/arc-stop-hook-common.sh
+if [[ ! -f "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh" ]]; then
+  echo "FATAL: arc-stop-hook-common.sh not found at ${SCRIPT_DIR}/lib/" >&2
+  exit 0  # fail-forward: allow stop rather than crash with undefined functions
+fi
 source "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh"
 arc_setup_err_trap  # standard variant (no verbose arg)
 
