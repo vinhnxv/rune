@@ -2,6 +2,20 @@
 # Users opt-in to version control by removing this line
 .rune/
 
+# Legacy Rune state (pre-1.181.0, kept during migration period)
+.claude/arc/
+.claude/echoes/
+.claude/audit-state/
+.claude/worktrees/
+.claude/.agent-search-index.db
+.claude/.agent-search-index.db-shm
+.claude/.agent-search-index.db-wal
+.claude/arc-phase-loop.local.md
+.claude/arc-batch-loop.local.md
+.claude/arc-hierarchy-loop.local.md
+.claude/arc-issues-loop.local.md
+.claude/arc-hierarchy-exec-table.json
+
 # OS files
 .DS_Store
 Thumbs.db
