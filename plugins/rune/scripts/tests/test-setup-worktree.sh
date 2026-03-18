@@ -110,6 +110,7 @@ assert_exit_zero() {
 setup_main_repo() {
   local base="$1"
   mkdir -p "$base/.rune/echoes" "$base/.rune/arc" "$base/.rune/worktrees/other"
+  mkdir -p "$base/.claude"
   echo "test: true" > "$base/.rune/talisman.yml"
   echo '{}' > "$base/.claude/settings.json"
   echo "echo-entry" > "$base/.rune/echoes/MEMORY.md"
@@ -258,6 +259,7 @@ MAIN10="$TMP_DIR/test10/main"
 WT10="$TMP_DIR/test10/wt"
 setup_main_repo "$MAIN10"
 mkdir -p "$WT10/.claude"
+mkdir -p "$WT10/.rune"
 # Pre-seed talisman.yml WITHOUT marker — simulates crash between copy and marker write
 echo "partial: true" > "$WT10/.rune/talisman.yml"
 INPUT10=$(jq -n --arg cwd "$MAIN10" --arg wt "$WT10" '{"name":"test","cwd":$cwd,"worktree_path":$wt}')

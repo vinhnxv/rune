@@ -70,6 +70,11 @@ fi
 # a non-worktree repo (e.g., surviving a deleted worktree).
 if [[ -f "$_RUNE_LOCK_ROOT/.git" ]]; then
   _RUNE_WT_MARKER="${_RUNE_LOCK_ROOT}/.rune/.rune-worktree-source"
+  # Fallback to legacy marker location (pre-migration worktrees)
+  if [[ ! -f "$_RUNE_WT_MARKER" || -L "$_RUNE_WT_MARKER" ]]; then
+    local _legacy="${_RUNE_LOCK_ROOT}/.claude/.rune-worktree-source"
+    [[ -f "$_legacy" && ! -L "$_legacy" ]] && _RUNE_WT_MARKER="$_legacy"
+  fi
   if [[ -f "$_RUNE_WT_MARKER" && ! -L "$_RUNE_WT_MARKER" ]]; then
     _RUNE_MAIN_ROOT=$(head -1 "$_RUNE_WT_MARKER" 2>/dev/null | tr -d '\n')
     # SEC: Character-set validation (absolute path, safe chars) + explicit traversal guard.

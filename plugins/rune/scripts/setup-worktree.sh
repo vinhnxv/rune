@@ -123,9 +123,13 @@ if [[ -L "$WT_PATH" ]]; then
   _trace "DENY: worktree_path is a symlink: $WT_PATH"
   exit 0
 fi
-# Check .claude subdir (if it exists)
+# Check .claude and .rune subdirs (if they exist)
 if [[ -L "$WT_PATH/.claude" ]]; then
   _trace "DENY: worktree .claude/ is a symlink"
+  exit 0
+fi
+if [[ -L "$WT_PATH/.rune" ]]; then
+  _trace "DENY: worktree .rune/ is a symlink"
   exit 0
 fi
 
@@ -139,11 +143,12 @@ if [[ ! -d "$SRC_CLAUDE" && ! -d "$SRC_RUNE" ]]; then
 fi
 
 # ── Re-entry detection ──
-# If worktree already has .rune/talisman.yml, setup was already done (idempotent).
+# If worktree already has the marker file, setup was already done (idempotent).
+# Use the marker (always written) instead of talisman.yml (may not exist in all projects).
 DST_CLAUDE="${WT_PATH}/.claude"
 DST_RUNE="${WT_PATH}/.rune"
-if [[ -f "$DST_RUNE/talisman.yml" ]]; then
-  _trace "SKIP: re-entry — .rune/talisman.yml already exists in worktree"
+if [[ -f "$DST_RUNE/.rune-worktree-source" ]]; then
+  _trace "SKIP: re-entry — .rune-worktree-source marker already exists in worktree"
   exit 0
 fi
 

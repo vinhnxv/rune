@@ -51,6 +51,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 MOCK_CWD="$TMP_DIR/project"
 mkdir -p "$MOCK_CWD/tmp"
 mkdir -p "$MOCK_CWD/.claude"
+mkdir -p "$MOCK_CWD/.rune"
 
 MOCK_CHOME="$TMP_DIR/claude-config"
 mkdir -p "$MOCK_CHOME"

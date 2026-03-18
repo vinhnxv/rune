@@ -77,7 +77,14 @@ rune_resolve_project_dir() {
     RUNE_IN_WORKTREE=1
 
     # Primary: read marker for main repo root (written by setup-worktree.sh)
+    # Check .rune/ first (current), fall back to .claude/ (pre-migration worktrees)
     local marker="$resolved/.rune/.rune-worktree-source"
+    if [[ ! -f "$marker" || -L "$marker" ]]; then
+      local legacy_marker="$resolved/.claude/.rune-worktree-source"
+      if [[ -f "$legacy_marker" && ! -L "$legacy_marker" ]]; then
+        marker="$legacy_marker"
+      fi
+    fi
     if [[ -f "$marker" && ! -L "$marker" ]]; then
       local main_root
       main_root=$(head -1 "$marker" 2>/dev/null | tr -d '\n')

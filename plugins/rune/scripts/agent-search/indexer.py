@@ -5,7 +5,7 @@ Parses YAML frontmatter from agent .md files across 6 source directories:
   - agents/              (builtin, priority 100)
   - registry/            (extended, priority 80)
   - .claude/agents/      (project, priority 75)
-  - .claude/rune-agents/ (rune-project, priority 70) — search-only, not auto-loaded
+  - .rune/rune-agents/   (rune-project, priority 70) — search-only, not auto-loaded
   - extra_agent_dirs     (external, priority 60)
   - talisman user_agents (user, priority 50)
 
@@ -465,7 +465,7 @@ def discover_and_parse(
       1. agents/              (builtin, p100) — plugin's built-in agents
       2. registry/            (extended, p80) — extended agent registry
       3. .claude/agents/      (project, p75) — project-specific agents (auto-loaded by Claude Code)
-      4. .claude/rune-agents/ (rune-project, p70) — search-only agents (NOT auto-loaded)
+      4. .rune/rune-agents/   (rune-project, p70) — search-only agents (NOT auto-loaded)
       5. extra_agent_dirs     (external, p60) — additional dirs from talisman
       6. talisman user_agents (user, p50) — user-defined via talisman.yml
 

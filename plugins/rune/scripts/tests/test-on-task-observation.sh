@@ -269,6 +269,7 @@ mkdir -p "$TMPWORK/real-echoes-dir"
 SYMLINK_CWD2="$TMPWORK/symlink-project2"
 mkdir -p "$SYMLINK_CWD2/tmp/.rune-signals"
 mkdir -p "$SYMLINK_CWD2/.claude"
+mkdir -p "$SYMLINK_CWD2/.rune"
 ln -s "$TMPWORK/real-echoes-dir" "$SYMLINK_CWD2/.rune/echoes"
 
 run_hook "{\"team_name\": \"rune-review-sym\", \"task_id\": \"task-sym\", \"task_subject\": \"Symlink test\", \"cwd\": \"$SYMLINK_CWD2\"}"

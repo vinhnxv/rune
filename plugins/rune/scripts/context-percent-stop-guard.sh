@@ -60,9 +60,9 @@ esac
 # would break the phase loop. Check for active arc loop state files.
 CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 if [[ -n "$CWD" ]]; then
-  # Arc loop state files live in ${CWD}/.claude/ (project-local), NOT $CHOME (global config)
-  # Use find instead of glob to avoid zsh NOMATCH
-  ARC_LOOP_COUNT=$(find "${CWD}/.claude" -maxdepth 1 \
+  # Arc loop state files live in ${CWD}/.rune/ (project-local), NOT $CHOME (global config)
+  # Use find instead of glob to avoid zsh NOMATCH. Check both .rune/ and .claude/ (legacy).
+  ARC_LOOP_COUNT=$(find "${CWD}/.rune" "${CWD}/.claude" -maxdepth 1 \
     -name "arc-phase-loop.local.md" \
     -o -name "arc-batch-loop.local.md" \
     -o -name "arc-hierarchy-loop.local.md" \
