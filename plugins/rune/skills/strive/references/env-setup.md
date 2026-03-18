@@ -6,7 +6,7 @@ Verifies the git environment is safe for work before forging the team. Checks br
 **Outputs**: `didStash` (boolean — consumed by Phase 6 cleanup), feature branch (if created)
 **Preconditions**: Phase 0 (Parse Plan) complete
 
-**Skip condition**: When invoked via `/rune:arc`, skip Phase 0.5 entirely — arc handles branch creation in its Pre-flight phase (COMMIT-1). Detection: check for active arc checkpoint at `.claude/arc/*/checkpoint.json` with any phase status `"in_progress"`.
+**Skip condition**: When invoked via `/rune:arc`, skip Phase 0.5 entirely — arc handles branch creation in its Pre-flight phase (COMMIT-1). Detection: check for active arc checkpoint at `.rune/arc/*/checkpoint.json` with any phase status `"in_progress"`.
 
 **Talisman override**: `work.skip_branch_check: true` disables this phase for experienced users who manage branches manually.
 

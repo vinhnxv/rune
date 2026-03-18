@@ -242,7 +242,7 @@ On context compaction or session resume during any Rune workflow:
 1. Read active team config: `~/.claude/teams/{team-name}/config.json`
 2. Read task list via `TaskList()` to discover team state
 3. Read inscription contract: `tmp/{workflow}/{id}/inscription.json`
-4. For arc workflows: read `.claude/arc/{id}/checkpoint.json`
+4. For arc workflows: read `.rune/arc/{id}/checkpoint.json`
 5. Resume from the last incomplete task — do not re-read completed agent outputs
 6. If team config is missing: the workflow was interrupted before team creation — restart
 

@@ -4,18 +4,29 @@
 #
 # Provides:
 #   RUNE_STATE       — relative path to Rune state dir (default: ".rune")
-#   RUNE_STATE_ABS   — absolute path: "${CWD}/${RUNE_STATE}"
+#   RUNE_STATE_ABS   — absolute path to .rune/ at MAIN REPO root
 #   _rune_ensure_dir — creates .rune/ if it doesn't exist
 #   _rune_migrate_legacy — one-time migration from .claude/ to .rune/
 
 # Constant — hardcoded, not env-overridable (project-relative, no multi-account concern)
 RUNE_STATE=".rune"
 
-# Resolve absolute path using CWD (set by Claude Code hooks via toolInput.cwd or $CLAUDE_PROJECT_DIR)
-if [[ -n "${CWD:-}" ]]; then
-  RUNE_STATE_ABS="${CWD}/${RUNE_STATE}"
-elif [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+# Resolve absolute path to .rune/ at the MAIN REPO root.
+# Priority: CLAUDE_PROJECT_DIR > CWD > pwd
+#
+# WHY CLAUDE_PROJECT_DIR first:
+#   In worktree context, CWD may point to the worktree directory (e.g.,
+#   /repo/.worktrees/rune-work-123/), but .rune/ state (echoes, talisman,
+#   arc checkpoints) is SHARED and must live at the main repo root.
+#   CLAUDE_PROJECT_DIR always points to the original repo per Claude Code #27343.
+#
+# See lib/worktree-resolve.sh for the dual-directory model:
+#   RUNE_PROJECT_DIR    = worktree CWD (local: tmp/, shards)
+#   RUNE_MAIN_REPO_ROOT = main repo (shared: .rune/)
+if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
   RUNE_STATE_ABS="${CLAUDE_PROJECT_DIR}/${RUNE_STATE}"
+elif [[ -n "${CWD:-}" ]]; then
+  RUNE_STATE_ABS="${CWD}/${RUNE_STATE}"
 else
   RUNE_STATE_ABS="$(pwd)/${RUNE_STATE}"
 fi

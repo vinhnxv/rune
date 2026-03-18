@@ -104,7 +104,7 @@ Before scanning for sediment, query Rune Echoes for previously identified infras
 **What**: `talisman.example.yml` sections with zero consumers in `skills/` or `scripts/`.
 
 **Detection**:
-1. `Read("talisman.example.yml")` or `Read(".claude/talisman.yml")` — extract top-level section names
+1. `Read("talisman.example.yml")` or `Read(".rune/talisman.yml")` — extract top-level section names
 2. For each section, `Grep(section_name, path: "skills/", glob: "**/*.md")` and `Grep(section_name, path: "scripts/", glob: "**/*.sh")`
 3. If zero references → SDMT-002
 

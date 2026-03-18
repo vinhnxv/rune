@@ -266,7 +266,7 @@ workflow_chain:
 ```javascript
 // Scan for active arc checkpoint with the relevant phase in_progress
 let todosOutputDir = workflowOutputDir  // default: own output dir
-const arcCheckpoints = Glob(".claude/arc/*/checkpoint.json")
+const arcCheckpoints = Glob(".rune/arc/*/checkpoint.json")
 for (const ckpt of arcCheckpoints) {
   try {
     const c = JSON.parse(Read(ckpt))

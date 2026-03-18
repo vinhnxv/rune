@@ -2,7 +2,7 @@
 MEMORY.md parser for the Echo Search MCP server.
 
 Parses structured echo entries from role-specific MEMORY.md files
-within the .claude/echoes/ directory.
+within the .rune/echoes/ directory.
 
 Expected format:
     ## Inscribed - Title here (YYYY-MM-DD)
@@ -220,7 +220,7 @@ def discover_and_parse(echo_dir: str) -> list[dict]:
     Also discovers doc packs at ``<echo_dir>/doc-packs/<pack-name>/MEMORY.md``.
 
     Args:
-        echo_dir: Path to the ``.claude/echoes`` directory.
+        echo_dir: Path to the ``.rune/echoes`` directory.
 
     Returns:
         Combined list of entry dicts across all roles.

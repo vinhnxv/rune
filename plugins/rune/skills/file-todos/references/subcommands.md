@@ -64,7 +64,7 @@ function resolveSessionContext(args: string): string {
     let todosBase = state.todos_base
     if (!todosBase && state.id) {
       // Arc checkpoint stores todos_base at top level; arc state file may not
-      const ckptPath = `.claude/arc/${state.id}/checkpoint.json`
+      const ckptPath = `.rune/arc/${state.id}/checkpoint.json`
       try {
         const ckpt = JSON.parse(Read(ckptPath))
         todosBase = ckpt.todos_base

@@ -1334,18 +1334,18 @@ class TestSignalPath:
     """Unit tests for _signal_path derivation."""
 
     def test_standard_echo_dir(self):
-        path = _signal_path("/project/.claude/echoes")
+        path = _signal_path("/project/.rune/echoes")
         assert path == os.path.join("/project", "tmp", ".rune-signals", ".echo-dirty")
 
     def test_trailing_slash_stripped(self):
-        path = _signal_path("/project/.claude/echoes/")
+        path = _signal_path("/project/.rune/echoes/")
         assert path == os.path.join("/project", "tmp", ".rune-signals", ".echo-dirty")
 
     def test_empty_echo_dir_returns_empty(self):
         assert _signal_path("") == ""
 
     def test_non_standard_dir_uses_fallback(self):
-        """When ECHO_DIR doesn't end with .claude/echoes, walk up two dirs."""
+        """When ECHO_DIR doesn't end with .rune/echoes, walk up two dirs."""
         path = _signal_path("/custom/path/echoes")
         # Fallback: dirname(dirname("/custom/path/echoes")) = "/custom"
         assert path == os.path.join("/custom", "tmp", ".rune-signals", ".echo-dirty")

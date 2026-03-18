@@ -33,8 +33,8 @@ Teammates spawned via Agent Teams do **not** persist across session boundaries. 
 |----------|-----------|----------|
 | Files written to `tmp/` | Yes | Filesystem |
 | Git commits | Yes | `.git/` |
-| Arc checkpoint | Yes | `.claude/arc/{id}/checkpoint.json` |
-| Rune Echoes | Yes | `.claude/echoes/` |
+| Arc checkpoint | Yes | `.rune/arc/{id}/checkpoint.json` |
+| Rune Echoes | Yes | `.rune/echoes/` |
 | Task list state | Yes | `~/.claude/tasks/{team}/` |
 | Per-worker todo files | Yes | `tmp/work/{team}/todos/{worker}.md` |
 | Worker todo summary | Yes | `tmp/work/{team}/todos/_summary.md` |

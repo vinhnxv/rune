@@ -3,7 +3,7 @@ Echo Search MCP Server
 
 A Model Context Protocol (MCP) stdio server that provides full-text search
 over the Rune plugin's echo system (persistent learnings stored in
-.claude/echoes/<role>/MEMORY.md files).
+.rune/echoes/<role>/MEMORY.md files).
 
 Provides 6 tools:
   - echo_search:        BM25 full-text search with composite re-ranking
@@ -14,7 +14,7 @@ Provides 6 tools:
   - echo_upsert_group:  Create or update semantic groups
 
 Environment variables:
-  ECHO_DIR  - Path to the echoes directory (e.g., .claude/echoes)
+  ECHO_DIR  - Path to the echoes directory (e.g., .rune/echoes)
   DB_PATH   - Path to the SQLite database file
   ECHO_WEIGHT_RELEVANCE   - BM25 relevance weight (default 0.30)
   ECHO_WEIGHT_IMPORTANCE  - Layer importance weight (default 0.30)
@@ -224,19 +224,19 @@ def _in_clause(count):
 # MEMORY.md is edited.  Before each search we check for this file and
 # trigger a reindex so new echoes appear immediately in results.
 
-_SIGNAL_SUFFIX = os.path.join(".claude", "echoes")
+_SIGNAL_SUFFIX = os.path.join(".rune", "echoes")
 
 
 def _signal_path(echo_dir):
     # type: (str) -> str
     """Derive the dirty-signal file path from ECHO_DIR.
 
-    ECHO_DIR is ``<project>/.claude/echoes``.  The hook writes the signal to
+    ECHO_DIR is ``<project>/.rune/echoes``.  The hook writes the signal to
     ``<project>/tmp/.rune-signals/.echo-dirty``.
     """
     if not echo_dir:
         return ""
-    # Strip /.claude/echoes (or .claude/echoes) suffix to get project root
+    # Strip /.rune/echoes (or .rune/echoes) suffix to get project root
     normalized = echo_dir.rstrip(os.sep)
     if normalized.endswith(_SIGNAL_SUFFIX):
         project_root = normalized[: -len(_SIGNAL_SUFFIX)].rstrip(os.sep)

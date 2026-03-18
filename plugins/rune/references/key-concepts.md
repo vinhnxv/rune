@@ -85,7 +85,7 @@ Human-readable knowledge documents in `docs/solutions/` promoted from high-confi
 
 ## Rune Echoes
 
-Project-level agent memory in `.claude/echoes/` with 3-layer lifecycle:
+Project-level agent memory in `.rune/echoes/` with 3-layer lifecycle:
 1. **Etched**: Permanent project knowledge (architecture, conventions) — never auto-pruned
 2. **Inscribed**: Tactical patterns from reviews/audits — pruned after 90 days unreferenced
 3. **Traced**: Session observations — pruned after 30 days
@@ -114,7 +114,7 @@ Line-level diff intelligence for review and mend workflows. Generates expanded l
 
 ## Arc Pipeline
 
-End-to-end orchestration across 17 phases: forge (research enrichment), plan review (3-reviewer circuit breaker), plan refinement (concern extraction, orchestrator-only), verification gate (deterministic checks, zero-LLM), semantic verification (Codex cross-model analysis, v1.39.0+), work (swarm implementation), gap analysis (plan-to-code compliance, deterministic, orchestrator-only), codex gap analysis (Codex cross-model gap detection, v1.39.0+), code review (Roundtable Circle), mend (parallel finding resolution), verify mend (convergence gate with smart scoring, scope-aware signals, and adaptive retry cycles based on tier), test (diff-scoped unit/integration/E2E execution, v1.43.0+), goldmask verification (blast-radius analysis via investigation agents, v1.47.0+), goldmask correlation (synthesis of investigation findings, v1.47.0+), audit (final gate), ship (auto PR creation via `gh pr create`, v1.40.0+), and merge (rebase + squash-merge with pre-merge checklist, v1.40.0+). Each delegated phase summons a fresh team. Checkpoint-based resume (`.claude/arc/{id}/checkpoint.json`) with artifact integrity validation (SHA-256 hashes). Per-phase tool restrictions and time budgets enforce least privilege. Config resolution follows 3-layer priority: hardcoded defaults → talisman.yml → CLI flags.
+End-to-end orchestration across 17 phases: forge (research enrichment), plan review (3-reviewer circuit breaker), plan refinement (concern extraction, orchestrator-only), verification gate (deterministic checks, zero-LLM), semantic verification (Codex cross-model analysis, v1.39.0+), work (swarm implementation), gap analysis (plan-to-code compliance, deterministic, orchestrator-only), codex gap analysis (Codex cross-model gap detection, v1.39.0+), code review (Roundtable Circle), mend (parallel finding resolution), verify mend (convergence gate with smart scoring, scope-aware signals, and adaptive retry cycles based on tier), test (diff-scoped unit/integration/E2E execution, v1.43.0+), goldmask verification (blast-radius analysis via investigation agents, v1.47.0+), goldmask correlation (synthesis of investigation findings, v1.47.0+), audit (final gate), ship (auto PR creation via `gh pr create`, v1.40.0+), and merge (rebase + squash-merge with pre-merge checklist, v1.40.0+). Each delegated phase summons a fresh team. Checkpoint-based resume (`.rune/arc/{id}/checkpoint.json`) with artifact integrity validation (SHA-256 hashes). Per-phase tool restrictions and time budgets enforce least privilege. Config resolution follows 3-layer priority: hardcoded defaults → talisman.yml → CLI flags.
 
 ## Mend
 
