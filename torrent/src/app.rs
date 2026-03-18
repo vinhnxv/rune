@@ -969,7 +969,7 @@ impl App {
     /// If it's gone, the arc has completed or been stopped — trigger completion.
     fn check_loop_state_liveness(&mut self) {
         let cwd = std::env::current_dir().unwrap_or_default();
-        let loop_file = cwd.join(".claude").join("arc-phase-loop.local.md");
+        let loop_file = cwd.join(".rune").join("arc-phase-loop.local.md");
 
         if !loop_file.exists() {
             self.status_message = Some(
@@ -1018,7 +1018,7 @@ impl App {
         // arc-phase-loop.local.md belongs to CWD (not per-arc) — if the previous
         // arc's cleanup didn't remove it, poll_discovery would match the wrong arc.
         let cwd = std::env::current_dir().unwrap_or_default();
-        let stale_loop = cwd.join(".claude").join("arc-phase-loop.local.md");
+        let stale_loop = cwd.join(".rune").join("arc-phase-loop.local.md");
         if stale_loop.exists() {
             let _ = std::fs::remove_file(&stale_loop);
         }
@@ -1144,7 +1144,7 @@ impl App {
         };
 
         // Run discovery (2-layer: loop state → glob scan)
-        // Note: loop state file lives under CWD (.claude/arc-phase-loop.local.md),
+        // Note: loop state file lives under CWD (.rune/arc-phase-loop.local.md),
         // NOT under config_dir. Use cwd for both loop state and discovery.
         let cwd = std::env::current_dir().unwrap_or_default();
 

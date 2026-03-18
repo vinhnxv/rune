@@ -46,7 +46,7 @@ impl SchemaCompat {
 }
 
 /// Arc checkpoint — identity and phase progress.
-/// Read from: .claude/arc/arc-{id}/checkpoint.json
+/// Read from: .rune/arc/arc-{id}/checkpoint.json
 #[derive(Debug, Clone, Deserialize)]
 #[allow(dead_code)] // serde fields read from JSON, not all accessed in Rust
 pub struct Checkpoint {

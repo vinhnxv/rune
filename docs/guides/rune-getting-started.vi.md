@@ -59,14 +59,8 @@ Rune tạo các file output (plans, reviews, artifacts tạm) trong các thư m�
     "todos/",
     "tmp/",
     "reviews/",
-    ".rune/arc/",
-    ".rune/echoes/",
-    ".rune/arc-batch-loop.local.md",
-    ".rune/arc-hierarchy-loop.local.md",
-    ".rune/arc-issues-loop.local.md",
-    ".rune/arc-phase-loop.local.md",
-    ".claude/CLAUDE.local.md",
-    ".rune/talisman.yml"
+    ".rune/",
+    ".claude/CLAUDE.local.md"
   ]
 }
 ```

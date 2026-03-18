@@ -195,7 +195,7 @@ tmux kill-session -t rune-XXXXXX
 **Cause:** Multiple arcs running concurrently, or the plan file path doesn't match.
 
 **Solution:**
-1. Check `.claude/arc/` for existing arc directories
+1. Check `.rune/arc/` for existing arc directories
 2. Verify the plan file name matches exactly (case-sensitive)
 3. Ensure `CLAUDE_CONFIG_DIR` is set correctly for non-default accounts
 

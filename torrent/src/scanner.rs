@@ -232,7 +232,7 @@ pub struct ActiveArc {
 
 /// Scan for active arc sessions in the project directory.
 ///
-/// Reads <cwd>/.claude/arc-phase-loop.local.md (single source of truth),
+/// Reads <cwd>/.rune/arc-phase-loop.local.md (single source of truth),
 /// then matches config_dir from loop state to find the correct ConfigDir entry.
 /// Uses sysinfo for session enrichment (started, cwd, mcp, teammates).
 pub fn scan_active_arcs(
