@@ -1603,4 +1603,158 @@ mod tests {
     fn test_plans_match_empty_strings() {
         assert!(plans_match("", ""));
     }
+
+    // --- PhaseTimeoutConfig tests ---
+
+    #[test]
+    fn test_phase_category_mapping() {
+        assert_eq!(phase_category("forge"), "forge");
+        assert_eq!(phase_category("work"), "work");
+        assert_eq!(phase_category("task_decomposition"), "work");
+        assert_eq!(phase_category("design_extraction"), "work");
+        assert_eq!(phase_category("design_prototype"), "work");
+        assert_eq!(phase_category("design_iteration"), "work");
+        assert_eq!(phase_category("test"), "test");
+        assert_eq!(phase_category("test_coverage_critique"), "test");
+        assert_eq!(phase_category("ship"), "ship");
+        assert_eq!(phase_category("merge"), "ship");
+        assert_eq!(phase_category("pre_ship_validation"), "ship");
+        assert_eq!(phase_category("release_quality_check"), "ship");
+        assert_eq!(phase_category("deploy_verify"), "ship");
+        assert_eq!(phase_category("bot_review_wait"), "ship");
+        assert_eq!(phase_category("pr_comment_resolution"), "ship");
+    }
+
+    #[test]
+    fn test_phase_category_defaults_to_review() {
+        // Unknown phases fall back to "review" category
+        assert_eq!(phase_category("code_review"), "review");
+        assert_eq!(phase_category("gap_analysis"), "review");
+        assert_eq!(phase_category("unknown_phase_xyz"), "review");
+        assert_eq!(phase_category(""), "review");
+    }
+
+    #[test]
+    fn test_phase_timeout_config_defaults() {
+        // No env vars set — all lookups should return the default 60 minutes
+        let config = PhaseTimeoutConfig {
+            timeouts: HashMap::new(),
+            default_timeout: Duration::from_secs(60 * 60),
+        };
+        assert_eq!(config.timeout_for("forge"), Duration::from_secs(3600));
+        assert_eq!(config.timeout_for("work"), Duration::from_secs(3600));
+        assert_eq!(config.timeout_for("test"), Duration::from_secs(3600));
+        assert_eq!(config.timeout_for("code_review"), Duration::from_secs(3600));
+        assert_eq!(config.timeout_for("ship"), Duration::from_secs(3600));
+        assert_eq!(config.timeout_for("unknown"), Duration::from_secs(3600));
+    }
+
+    #[test]
+    fn test_phase_timeout_config_with_overrides() {
+        let mut timeouts = HashMap::new();
+        timeouts.insert("work".to_string(), Duration::from_secs(120 * 60)); // 120 min
+        timeouts.insert("ship".to_string(), Duration::from_secs(15 * 60));  // 15 min
+
+        let config = PhaseTimeoutConfig {
+            timeouts,
+            default_timeout: Duration::from_secs(60 * 60),
+        };
+
+        // "work" category phases get the 120m override
+        assert_eq!(config.timeout_for("work"), Duration::from_secs(7200));
+        assert_eq!(config.timeout_for("task_decomposition"), Duration::from_secs(7200));
+
+        // "ship" category phases get the 15m override
+        assert_eq!(config.timeout_for("ship"), Duration::from_secs(900));
+        assert_eq!(config.timeout_for("merge"), Duration::from_secs(900));
+        assert_eq!(config.timeout_for("pre_ship_validation"), Duration::from_secs(900));
+
+        // Unconfigured categories fall back to default
+        assert_eq!(config.timeout_for("forge"), Duration::from_secs(3600));
+        assert_eq!(config.timeout_for("test"), Duration::from_secs(3600));
+        assert_eq!(config.timeout_for("code_review"), Duration::from_secs(3600));
+    }
+
+    #[test]
+    fn test_phase_timeout_config_custom_default() {
+        let config = PhaseTimeoutConfig {
+            timeouts: HashMap::new(),
+            default_timeout: Duration::from_secs(45 * 60), // 45 min default
+        };
+
+        // All phases use the custom default
+        assert_eq!(config.timeout_for("forge"), Duration::from_secs(2700));
+        assert_eq!(config.timeout_for("unknown"), Duration::from_secs(2700));
+    }
+
+    #[test]
+    fn test_phase_timeout_config_is_default() {
+        let default_config = PhaseTimeoutConfig {
+            timeouts: HashMap::new(),
+            default_timeout: Duration::from_secs(60 * 60),
+        };
+        assert!(default_config.is_default());
+
+        // Custom default timeout
+        let custom_default = PhaseTimeoutConfig {
+            timeouts: HashMap::new(),
+            default_timeout: Duration::from_secs(45 * 60),
+        };
+        assert!(!custom_default.is_default());
+
+        // With overrides
+        let mut timeouts = HashMap::new();
+        timeouts.insert("work".to_string(), Duration::from_secs(90 * 60));
+        let with_override = PhaseTimeoutConfig {
+            timeouts,
+            default_timeout: Duration::from_secs(60 * 60),
+        };
+        assert!(!with_override.is_default());
+    }
+
+    #[test]
+    fn test_phase_timeout_config_from_env() {
+        // Use unique env var names to avoid thread-safety issues with parallel tests.
+        // We test from_env() by setting one var, calling from_env, then cleaning up.
+        // Note: this test reads TORRENT_TIMEOUT_* which won't conflict with other tests.
+        unsafe {
+            std::env::set_var("TORRENT_TIMEOUT_WORK", "120");
+            std::env::set_var("TORRENT_TIMEOUT_DEFAULT", "45");
+        }
+
+        let config = PhaseTimeoutConfig::from_env();
+
+        // Work category should be 120 minutes
+        assert_eq!(config.timeout_for("work"), Duration::from_secs(120 * 60));
+        // Default should be 45 minutes
+        assert_eq!(config.default_timeout, Duration::from_secs(45 * 60));
+        // Unconfigured category uses the custom default
+        assert_eq!(config.timeout_for("forge"), Duration::from_secs(45 * 60));
+
+        // Cleanup
+        unsafe {
+            std::env::remove_var("TORRENT_TIMEOUT_WORK");
+            std::env::remove_var("TORRENT_TIMEOUT_DEFAULT");
+        }
+    }
+
+    #[test]
+    fn test_phase_timeout_config_from_env_invalid() {
+        // Invalid env var values should be ignored (fallback to default)
+        unsafe {
+            std::env::set_var("TORRENT_TIMEOUT_TEST", "not_a_number");
+            std::env::remove_var("TORRENT_TIMEOUT_DEFAULT"); // ensure clean state
+        }
+
+        let config = PhaseTimeoutConfig::from_env();
+
+        // Invalid value ignored — test category uses default (60 min)
+        assert_eq!(config.timeout_for("test"), Duration::from_secs(60 * 60));
+        assert_eq!(config.default_timeout, Duration::from_secs(60 * 60));
+
+        // Cleanup
+        unsafe {
+            std::env::remove_var("TORRENT_TIMEOUT_TEST");
+        }
+    }
 }
