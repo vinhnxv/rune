@@ -102,6 +102,30 @@ for (const task of extractedTasks) {
 }
 ```
 
+## Adaptive maxTurns Scaling
+
+```javascript
+// Adaptive maxTurns based on task complexity (v1.180.0+)
+// Used when spawning workers to give complex tasks more room to complete.
+// Replaces static maxTurns: 60 with a data-driven value.
+function calculateAdaptiveMaxTurns(task) {
+  const base = 60  // Default maxTurns for rune-smith
+  const fileCount = task.fileTargets?.length ?? 0
+  const criteriaCount = task.acceptanceCriteria?.length ?? 0
+
+  // Scale: +5 turns per file beyond 3, +3 turns per criterion beyond 2
+  const fileBonus = Math.max(0, fileCount - 3) * 5
+  const criteriaBonus = Math.max(0, criteriaCount - 2) * 3
+
+  // Cap at 120 turns (2x default) to prevent runaway agents
+  return Math.min(base + fileBonus + criteriaBonus, 120)
+}
+```
+
+> **Note**: When spawning workers via `Agent()`, use `calculateAdaptiveMaxTurns(task)` for the
+> `maxTurns` parameter instead of the static default. This ensures complex tasks (many files or
+> acceptance criteria) get sufficient turns while simple tasks stay bounded at the base of 60.
+
 ## Wave Configuration and State File
 
 ```javascript

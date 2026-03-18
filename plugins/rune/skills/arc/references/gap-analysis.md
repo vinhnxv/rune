@@ -983,7 +983,7 @@ updateCheckpoint({
 
 **Output**: `tmp/arc/{id}/gap-analysis.md`
 
-**Failure policy**: Non-blocking (WARN). Gap analysis is advisory -- missing criteria are flagged but do not halt the pipeline. The report is available as context for Phase 5.6 (CODEX GAP ANALYSIS) and Phase 6 (CODE REVIEW).
+**Failure policy**: Configurable halt (v1.180.0+). Gap analysis forces remediation when plan completion falls below threshold. The dual-gate halt in STEP D uses a task completion gate (always active, default floor 100%) and a quality score gate (configurable via `arc.gap_analysis.halt_threshold`, default 70). When completion is below threshold, `checkpoint.phases.gap_analysis.needs_remediation` and `needs_task_remediation` are set, triggering Phase 5.7 Gap Remediation. The report is also available as context for Phase 5.6 (CODEX GAP ANALYSIS) and Phase 6 (CODE REVIEW). To disable quality-score halting: set `arc.gap_analysis.halt_on_critical: false` in talisman.yml.
 
 ---
 
@@ -1777,7 +1777,7 @@ const taskCompletionResults = []
 for (const task of planTasks) {
   // Find the task section content (until next ### or ##)
   const taskSectionPattern = new RegExp(
-    `### Task ${task.id.replace(/\./g, '\\.')}[:\\s].*?(?=###|##[^#]|$)`, 's'
+    `### Task ${task.id.replace(/\./g, '\\.')}[:\\s].*?(?=### (?:Task \\d|[A-Za-z])|##[^#]|$)`, 's'
   )
   const sectionMatch = strippedPlan.match(taskSectionPattern)
   const sectionText = sectionMatch ? sectionMatch[0] : ''

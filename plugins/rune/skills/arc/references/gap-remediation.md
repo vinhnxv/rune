@@ -159,10 +159,15 @@ if (needsTaskRemediation && missingPlanTasks.length > 0) {
   for (const task of missingPlanTasks) {
     // Extract the task section from the plan for context
     const taskSectionPattern = new RegExp(
-      `### Task ${task.id.replace('.', '\\.')}[:\\s].*?(?=###|##[^#]|$)`, 's'
+      `### Task ${task.id.replace(/\./g, '\\.')}[:\\s].*?(?=### (?:Task \\d|[A-Za-z])|##[^#]|$)`, 's'
     )
     const sectionMatch = enrichedPlan.match(taskSectionPattern)
-    const taskContext = sectionMatch ? sectionMatch[0].slice(0, 2000) : task.title
+    const TASK_DESC_LIMIT = 4000
+    const taskContext = sectionMatch
+      ? (sectionMatch[0].length > TASK_DESC_LIMIT
+          ? sectionMatch[0].slice(0, TASK_DESC_LIMIT) + '\n\n<!-- TRUNCATED: Full task in plan file -->'
+          : sectionMatch[0])
+      : task.title
 
     taskRemediationItems.push({
       id: `TASK-${task.id}`,

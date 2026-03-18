@@ -78,18 +78,18 @@ CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 # Check talisman config for discipline settings
 DISCIPLINE_ENABLED=true
-# NOTE: Default block_on_fail=false (WARN mode for rollout). Inner Flame defaults to true. Intentional.
-BLOCK_ON_FAIL=false
+# Default block_on_fail=true (BLOCK mode). Opt out: discipline.block_on_fail: false in talisman.
+BLOCK_ON_FAIL=true
 for TALISMAN_PATH in "${CWD}/.claude/talisman.yml" "${CHOME}/talisman.yml"; do
   if [[ -f "$TALISMAN_PATH" ]]; then
     if command -v yq &>/dev/null; then
       DISCIPLINE_ENABLED=$(yq -r 'if .discipline.enabled == false then "false" else "true" end' "$TALISMAN_PATH" 2>/dev/null) || DISCIPLINE_ENABLED="true"
-      BLOCK_ON_FAIL=$(yq -r 'if .discipline.block_on_fail == true then "true" else "false" end' "$TALISMAN_PATH" 2>/dev/null) || BLOCK_ON_FAIL="false"
+      BLOCK_ON_FAIL=$(yq -r 'if .discipline.block_on_fail == false then "false" else "true" end' "$TALISMAN_PATH" 2>/dev/null) || BLOCK_ON_FAIL="true"
       # VEIL-004: If yq returned empty (v3/v4 mismatch), default to safe values
       [[ -z "$DISCIPLINE_ENABLED" ]] && DISCIPLINE_ENABLED="true"
-      [[ -z "$BLOCK_ON_FAIL" ]] && BLOCK_ON_FAIL="false"
+      [[ -z "$BLOCK_ON_FAIL" ]] && BLOCK_ON_FAIL="true"
     else
-      echo "Discipline: yq not found — cannot read talisman config, defaulting to WARN mode" >&2
+      echo "Discipline: yq not found — cannot read talisman config, defaulting to BLOCK mode (block_on_fail=true)" >&2
     fi
     break
   fi

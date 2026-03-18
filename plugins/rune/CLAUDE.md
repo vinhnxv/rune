@@ -87,10 +87,11 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 Rune implements structural discipline enforcement across all pipelines. See `docs/discipline-engineering.md` for the foundational document and `skills/discipline/` for the skill + references.
 
 **Key rules**:
-- Plans SHOULD have YAML acceptance criteria (`AC-*` blocks) for spec-aware execution
-- Workers SHOULD collect evidence before marking tasks complete via `TaskUpdate`
+- Plans MUST have YAML acceptance criteria (`AC-*` blocks) for spec-aware execution
+- Workers MUST collect evidence before marking tasks complete via `TaskUpdate`
 - The Discipline Work Loop (8-phase convergence cycle) activates automatically when plans have YAML criteria
 - Plans without criteria degrade gracefully to existing linear execution (backward compatibility preserved)
+- Default: BLOCK mode (`block_on_fail: true`). Opt out: `discipline.block_on_fail: false` in talisman
 
 **Configuration**: `talisman.yml` → `discipline:` section controls `enabled`, `block_on_fail`, `scr_threshold`, `max_convergence_iterations`.
 
@@ -287,7 +288,7 @@ Rune uses Claude Code hooks for event-driven agent synchronization, quality gate
 | `PostToolUse:Write\|Edit` | `scripts/arc-result-signal-writer.sh` | ARC-SIGNAL-001: Deterministic arc completion signal writer. Fast-path exit (<5ms) for non-checkpoint writes via grep. Only triggers when written file is an arc checkpoint with ship/merge completed. Writes `tmp/arc-result-current.json` atomically. Decouples stop hooks from checkpoint internals. |
 | `PostToolUse:Write\|Edit` | `scripts/learn/correction-signal-writer.sh` | LEARN-001: Lightweight signal writer for file-revert detection. Fast-path exit (<1ms) when watch marker absent. Only activates when `tmp/.rune-learn-watch` exists. Tracks per-file edit counts, writes signal when same file edited 2+ times. Session isolation via marker ownership. |
 | `PostToolUse:Read\|Write\|Edit\|Bash\|Glob\|Grep` | `scripts/arc-heartbeat-writer.sh` | ARC-HEARTBEAT-001: Writes last-activity timestamp during active arc phases. Fast-path exit (<2ms) when no arc is active. 30-second throttle prevents I/O storm. Used by SessionStart hygiene (Layer 2) for stuck detection. |
-| `TaskCompleted` | `scripts/validate-discipline-proofs.sh` | DISCIPLINE-001: Validates discipline proof evidence before allowing task completion. Scoped to rune-work-*/arc-work-* teams. Reads evidence from `tmp/work/*/evidence/{task-id}/`. Calls `execute-discipline-proofs.sh` if criteria.json exists. Default: WARN mode (block_on_fail: false). Configurable via talisman `discipline.enabled` and `discipline.block_on_fail`. 30s timeout. |
+| `TaskCompleted` | `scripts/validate-discipline-proofs.sh` | DISCIPLINE-001: Validates discipline proof evidence before allowing task completion. Scoped to rune-work-*/arc-work-* teams. Reads evidence from `tmp/work/*/evidence/{task-id}/`. Calls `execute-discipline-proofs.sh` if criteria.json exists. Default: BLOCK mode (block_on_fail: true). Opt out: discipline.block_on_fail: false in talisman. Configurable via talisman `discipline.enabled` and `discipline.block_on_fail`. 30s timeout. |
 | `TaskCompleted` | `scripts/on-task-completed.sh` + haiku quality gate | Writes signal files to `tmp/.rune-signals/{team}/` when Ashes complete tasks. Enables 5-second filesystem-based completion detection. Also runs a haiku-model quality gate that validates task completion legitimacy (blocks premature/generic completions). |
 | `TaskCompleted` | `scripts/validate-inner-flame.sh` | Inner Flame self-review enforcement. Validates teammate output includes Grounding/Completeness/Self-Adversarial checks. Configurable via talisman (`inner_flame.elegance_check: true` enables optional Layer 3B elegance checks for Worker/Fixer roles on non-trivial changes). |
 | `TaskCompleted` | `scripts/on-task-observation.sh` | Auto-records Observations-tier echoes after Rune workflow tasks complete. Appends lightweight observation entries to `.claude/echoes/{role}/MEMORY.md` using team name for role detection and `${TEAM_NAME}_${TASK_ID}` dedup key. Signals echo-search dirty for auto-reindex. Non-blocking. |

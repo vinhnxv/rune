@@ -264,6 +264,13 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
       map.release_quality_check = "codex_release_quality_disabled"
   }
 
+  // ── Inspect phases (3 phases) ──
+  if (arc?.inspect?.enabled === false) {
+    map.inspect = "inspect_disabled"
+    map.inspect_fix = "inspect_disabled"
+    map.verify_inspect = "inspect_disabled"
+  }
+
   // ── Bot review (2 phases) ──
   const botReviewEnabled = arcConfig.bot_review === true
     && arcConfig.no_bot_review !== true
@@ -377,6 +384,9 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
     gap_analysis: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     codex_gap_analysis: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     gap_remediation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, fixed_count: null, deferred_count: null, started_at: null, completed_at: null },
+    inspect: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, completion_pct: null, p1_count: null, verdict: null },
+    inspect_fix: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, fixed_count: null, deferred_count: null },
+    verify_inspect: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     goldmask_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     code_review:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     goldmask_correlation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
@@ -406,6 +416,9 @@ Write(`.claude/arc/${id}/checkpoint.json`, {
   // Schema v19 addition (v1.111.0): arc-level completion timestamp (set at Post-Arc stamp)
   completed_at: null,
   convergence: { round: 0, max_rounds: tier.maxCycles, tier: tier, history: [], original_changed_files: changedFiles },
+  // Schema v25 addition: inspect convergence — separate from review-mend convergence.
+  // Controls the inspect → inspect_fix → verify_inspect loop (Phases 5.9, 5.95, 5.99).
+  inspect_convergence: { round: 0, max_rounds: 2, threshold: 95, history: [] },
   // NEW (v1.66.0): Shard metadata from pre-flight shard detection (null for non-shard arcs)
   shard: shardInfo ? {
     num: shardInfo.shardNum,           // e.g., 2

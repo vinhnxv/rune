@@ -199,14 +199,15 @@ fi
 PHASE_ORDER=(
   forge plan_review plan_refine verification semantic_verification
   design_extraction design_prototype task_decomposition work drift_review storybook_verification design_verification
-  ux_verification gap_analysis codex_gap_analysis gap_remediation goldmask_verification
+  ux_verification gap_analysis codex_gap_analysis gap_remediation
+  inspect inspect_fix verify_inspect goldmask_verification
   code_review goldmask_correlation mend verify_mend design_iteration
-  test test_coverage_critique pre_ship_validation release_quality_check
+  test test_coverage_critique deploy_verify pre_ship_validation release_quality_check
   ship bot_review_wait pr_comment_resolution merge
 )
 
 # Heavy phases that ALWAYS trigger compact interlude (tier 1)
-HEAVY_PHASES="work code_review mend"
+HEAVY_PHASES="work code_review mend inspect"
 
 # Compact interval fallback (tier 3): when bridge file is unavailable,
 # compact every COMPACT_INTERVAL completed phases as a safety net.
@@ -234,6 +235,9 @@ _phase_ref() {
     gap_analysis)             echo "${base}/gap-analysis.md" ;;
     codex_gap_analysis)       echo "${base}/arc-codex-phases.md" ;;
     gap_remediation)          echo "${base}/gap-remediation.md" ;;
+    inspect)                  echo "${base}/arc-phase-inspect.md" ;;
+    inspect_fix)              echo "${base}/arc-phase-inspect-fix.md" ;;
+    verify_inspect)           echo "${base}/verify-inspect.md" ;;
     goldmask_verification)    echo "${base}/arc-phase-goldmask-verification.md" ;;
     code_review)              echo "${base}/arc-phase-code-review.md" ;;
     goldmask_correlation)     echo "${base}/arc-phase-goldmask-correlation.md" ;;
@@ -242,6 +246,7 @@ _phase_ref() {
     design_iteration)         echo "${base}/arc-phase-design-iteration.md" ;;
     test)                     echo "${base}/arc-phase-test.md" ;;
     test_coverage_critique)   echo "${base}/arc-phase-test-coverage-critique.md" ;;
+    deploy_verify)            echo "${base}/arc-phase-deploy-verify.md" ;;
     pre_ship_validation)      echo "${base}/arc-phase-pre-ship-validator.md" ;;
     release_quality_check)    echo "${base}/arc-phase-pre-ship-validator.md" ;;
     ship)                     echo "${base}/arc-phase-ship.md" ;;
