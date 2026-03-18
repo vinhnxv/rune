@@ -378,7 +378,7 @@ if (hasCriteria) {
 }
 ```
 
-See [discipline-work-loop.md](references/discipline-work-loop.md) Phase 4.5 for `generateCompletionMatrix()` and `parseYAMLFrontmatter()` implementation.
+See [discipline-work-loop.md](references/discipline-work-loop.md) Phase 4.5 for `generateCompletionMatrix()` and `parseYAMLFrontmatter()` implementation. See [work-loop-convergence.md](references/work-loop-convergence.md) for the full `convergenceLoop()` executable pseudocode — entry guards (FLAW-002, FLAW-003), stagnation detection (FLAW-006), gap task creation from original plan source (FLAW-004), and wave-based gap worker execution (FLAW-007).
 
 ### Discipline Escalation Chain (Phase 3 — Planned)
 

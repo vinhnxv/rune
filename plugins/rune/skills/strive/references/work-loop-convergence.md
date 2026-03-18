@@ -103,7 +103,7 @@ For each non-PASS, non-ABANDONED criterion, create a gap task:
 }
 ```
 
-Gap tasks are written to `tmp/work/{timestamp}/tasks/gap-{iteration}-{criterion_id}.md`
+Gap task files are written to `tmp/work/{timestamp}/tasks/gap-{iteration}-{criterion_id}.md`
 following the [task-file-format.md](task-file-format.md) schema.
 
 **Key rule**: Gap tasks include the PREVIOUS failure evidence so workers can learn from
@@ -326,60 +326,204 @@ implementation quality issues; many F8s suggest infrastructure problems).
 
 ---
 
-## Pseudocode
+## Executable Pseudocode
 
-```
-function convergenceLoop(timestamp, talisman):
-  maxIterations = talisman.discipline.max_convergence_iterations ?? 3
-  scrThreshold = talisman.discipline.scr_threshold ?? 0.95
+```javascript
+// Phase 5: Convergence Loop
+// Run AFTER Phase 4.5 (Completion Matrix), when SCR < threshold
+function convergenceLoop(timestamp, matrixResult, planCriteriaMap) {
+  // FLAW-001 FIX: Read from dedicated discipline shard (not full talisman parse)
+  const disciplineConfig = readTalismanSection("discipline")
+  const maxIterations = disciplineConfig?.max_convergence_iterations ?? 3
+  const scrThreshold = disciplineConfig?.scr_threshold ?? 100
+  const iterationTimeoutMs = disciplineConfig?.iteration_timeout_ms ?? 1_200_000  // 20 min per iteration
 
-  for iteration in 1..maxIterations+1:
-    matrix = readCompletionMatrix(timestamp)
-    nonPass = matrix.filter(c => c.status != "PASS" && c.status != "ABANDONED")
+  // FLAW-002 FIX: Guard — no criteria = no convergence
+  if (!planCriteriaMap || Object.keys(planCriteriaMap).length === 0) {
+    log('Convergence: No acceptance criteria in plan — skipping convergence loop')
+    return { exit: 'skipped', reason: 'no_acceptance_criteria' }
+  }
 
-    // --- Success exit ---
-    if nonPass.length == 0:
-      writeIterationReport(iteration, matrix, "success", null)
-      return { exit: "success", scr: 1.0 }
+  // FLAW-003 FIX: Guard — maxIterations <= 0 = disabled
+  if (maxIterations <= 0) {
+    log('Convergence: max_convergence_iterations=0 — convergence disabled')
+    return { exit: 'disabled', reason: 'max_iterations_zero' }
+  }
 
-    // --- Budget exit (checked at start of iteration beyond max) ---
-    if iteration > maxIterations:
-      scr = computeSCR(matrix)
-      writeIterationReport(iteration, matrix, "budget_exceeded", "F15")
-      return { exit: "budget_exceeded", failure_code: "F15", scr }
+  let iteration = 0
+  let currentMatrix = matrixResult
+  let previousMatrix = null  // For stagnation detection
 
-    // --- Stagnation exit ---
-    if iteration >= 2:
-      prevNonPass = readPreviousNonPass(timestamp, iteration - 1)
-      if setEquals(nonPass.ids, prevNonPass.ids):
-        scr = computeSCR(matrix)
-        writeIterationReport(iteration, matrix, "stagnation", "F17")
-        return { exit: "stagnation", failure_code: "F17", scr }
+  while (currentMatrix.scr < scrThreshold && iteration < maxIterations) {
+    // FLAW-014: Include INCONCLUSIVE in gap criteria filter
+    const gapCriteria = currentMatrix.matrix.filter(m =>
+      m.proof_result === 'FAIL' || m.proof_result === 'MISSING' || m.proof_result === 'INCONCLUSIVE'
+    )
+    if (gapCriteria.length === 0) break
 
-    // --- Regression exit ---
-    if iteration >= 2:
-      regressions = findRegressions(timestamp, iteration)
-      if regressions.length > 0:
-        scr = computeSCR(matrix)
-        writeIterationReport(iteration, matrix, "regression", "F10")
-        return { exit: "regression", failure_code: "F10", scr, regressions }
+    // FLAW-006 FIX: Stagnation detection — compare BOTH IDs AND statuses
+    if (iteration >= 1 && previousMatrix) {
+      const prevGaps = previousMatrix.matrix
+        .filter(m => m.proof_result !== 'PASS')
+        .map(m => `${m.criterion_id}:${m.proof_result}`)
+        .sort()
+      const currGaps = gapCriteria
+        .map(m => `${m.criterion_id}:${m.proof_result}`)
+        .sort()
+      if (JSON.stringify(prevGaps) === JSON.stringify(currGaps)) {
+        warn(`Convergence: F17 STAGNATION — same criteria with same statuses after iteration ${iteration}`)
+        break
+      }
+      // Also check: if non-PASS count did not decrease, halt
+      if (gapCriteria.length >= previousMatrix.matrix.filter(m => m.proof_result !== 'PASS').length) {
+        warn(`Convergence: No improvement — ${gapCriteria.length} gaps (same or more than previous)`)
+        break
+      }
+    }
 
-    // --- Create gap tasks ---
-    gapTasks = []
-    for criterion in nonPass:
-      if criterion.status == "ABANDONED": continue
-      taskType = classifyGapType(criterion.status)
-      gapTask = createGapTask(iteration, criterion, taskType)
-      gapTasks.push(gapTask)
+    log(`Convergence iteration ${iteration + 1}/${maxIterations}: ` +
+        `${gapCriteria.length} criteria need re-work (SCR=${currentMatrix.scr.toFixed(1)}%)`)
 
-    // --- Execute gap tasks ---
-    assignGapTasks(gapTasks, timestamp)
-    executePhase3(gapTasks, timestamp)
-    executePhase4_5(timestamp)  // re-review
+    // Group gap criteria by task
+    const gapsByTask = {}
+    for (const gap of gapCriteria) {
+      const taskId = String(gap.task_id)  // FLAW-008: normalize to String
+      if (!gapsByTask[taskId]) gapsByTask[taskId] = []
+      gapsByTask[taskId].push(gap)
+    }
 
-    // --- Write iteration report ---
-    updatedMatrix = readCompletionMatrix(timestamp)
-    writeIterationReport(iteration, updatedMatrix, null, null)
+    // Create gap tasks (one per task with failing criteria)
+    for (const [taskId, gaps] of Object.entries(gapsByTask)) {
+      const gapTaskId = `gap-${iteration + 1}-${taskId}`
+
+      // FLAW-004 FIX: Extract Source from ORIGINAL PLAN, not from worker-modified task file
+      // Task file frontmatter has plan_file and plan_section — use those to get ground truth
+      let originalSource = 'See original plan file.'
+      try {
+        const originalTaskFile = Read(`tmp/work/${timestamp}/tasks/task-${taskId}.md`)
+        const taskFrontmatter = parseYAMLFrontmatter(originalTaskFile)
+        const planContent = Read(taskFrontmatter.plan_file)
+        const planSectionMatch = planContent.match(
+          new RegExp(`${taskFrontmatter.plan_section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]*?(?=\\n### Task|\\n## |$)`)
+        )
+        if (planSectionMatch) originalSource = planSectionMatch[0]
+      } catch { /* original task file may not exist for synthetic tasks */ }
+
+      // Write gap task file to tasks/ directory
+      Write(`tmp/work/${timestamp}/tasks/task-${gapTaskId}.md`, [
+        '---',
+        `task_id: "${gapTaskId}"`,
+        `plan_file: "${planCriteriaMap[taskId]?.[0]?.plan_file ?? ''}"`,
+        `plan_section: "### Task ${taskId}"`,
+        `status: PENDING`,
+        `assigned_to: null`,
+        `iteration: ${iteration + 1}`,
+        `risk_tier: 2`,
+        `proof_count: ${gaps.length}`,
+        `created_at: "${new Date().toISOString()}"`,
+        `updated_at: "${new Date().toISOString()}"`,
+        `completed_at: null`,
+        '---',
+        '',
+        '## Source',
+        '',
+        `**GAP RE-WORK** (iteration ${iteration + 1}): The following criteria from Task ${taskId} were NOT satisfied:`,
+        '',
+        ...gaps.map(g => `- **${g.criterion_id}** [${g.proof_result}]: ${g.text}`),
+        '',
+        '## Original Task Context (from plan — not worker-modified)',
+        '',
+        originalSource,
+        '',
+        '## Acceptance Criteria',
+        '',
+        ...gaps.map(g => {
+          const original = (planCriteriaMap[taskId] || []).find(c => c.id === g.criterion_id)
+          return original ? `- id: ${original.id}\n  text: "${original.text}"\n  proof: ${original.proof}\n  args: ${JSON.stringify(original.args)}\n` : ''
+        }),
+        '## Worker Report',
+        '',
+        '_To be filled by assigned worker._',
+      ].join('\n'))
+
+      // Create SDK task for gap
+      TaskCreate({
+        subject: `[GAP-${iteration + 1}] Task ${taskId}: ${gaps.length} criteria to fix`,
+        description: `**Task File**: tmp/work/${timestamp}/tasks/task-${gapTaskId}.md\nRead the task file FIRST.`,
+      })
+    }
+
+    // FLAW-007 FIX: Gap Task Execution — reuse wave-execution.md pattern
+    // See wave-execution.md for the canonical pattern:
+    // 1. Compute wave capacity: maxWorkers=2 (gap tasks are smaller, limit concurrency)
+    // 2. Spawn gap workers: Agent({ name: `rune-smith-gap-{iteration}-{idx}`, team_name, ... })
+    // 3. Monitor via TaskList polling (30s intervals, iterationTimeoutMs cap)
+    // 4. After completion: commit broker applies patches
+    // 5. Shutdown gap workers before next iteration
+    const gapTaskCount = Object.keys(gapsByTask).length
+    const gapWorkerCount = Math.min(2, gapTaskCount)  // Max 2 concurrent gap workers
+    for (let w = 0; w < gapWorkerCount; w++) {
+      Agent({
+        name: `rune-smith-gap-${iteration + 1}-${w + 1}`,
+        team_name: teamName,
+        subagent_type: 'rune:work:rune-smith',
+        prompt: `You are a gap-fixer worker. Read your assigned task file and fix the FAILED criteria.`,
+      })
+    }
+    // Monitor gap workers (reuse existing waitForCompletion pattern)
+    waitForCompletion(teamName, gapWorkerCount, { timeoutMs: iterationTimeoutMs, pollIntervalMs: 30_000 })
+    // Shutdown gap workers
+    for (let w = 0; w < gapWorkerCount; w++) {
+      try { SendMessage({ type: 'shutdown_request', recipient: `rune-smith-gap-${iteration + 1}-${w + 1}` }) } catch {}
+    }
+
+    // Write iteration report
+    Bash(`mkdir -p "tmp/work/${timestamp}/convergence"`)
+    Write(`tmp/work/${timestamp}/convergence/iteration-${iteration + 1}.json`, JSON.stringify({
+      iteration: iteration + 1,
+      timestamp: new Date().toISOString(),
+      entry_state: currentMatrix.breakdown,
+      gap_tasks_created: Object.keys(gapsByTask).length,
+      scr: currentMatrix.scr,
+      exit_reason: null,
+      stagnation_detected: false,
+    }, null, 2))
+
+    // Save previous matrix for stagnation detection, then re-generate
+    previousMatrix = currentMatrix
+    currentMatrix = generateCompletionMatrix(timestamp, planCriteriaMap)
+    iteration++
+  }
+
+  // Final convergence report
+  const exitReason = currentMatrix.scr >= scrThreshold ? 'success'
+    : iteration >= maxIterations ? 'budget_exceeded' : 'stagnation'
+  const exitCode = exitReason === 'success' ? null
+    : exitReason === 'budget_exceeded' ? 'F15' : 'F17'
+
+  if (currentMatrix.scr < scrThreshold) {
+    warn(`Convergence halted at iteration ${iteration}/${maxIterations}. ` +
+         `SCR=${currentMatrix.scr.toFixed(1)}% (threshold: ${scrThreshold}%).`)
+  } else {
+    log(`Convergence achieved: SCR=${currentMatrix.scr.toFixed(1)}% after ${iteration} iterations.`)
+  }
+
+  // Update convergence section in metrics.json
+  const metricsPath = `tmp/work/${timestamp}/convergence/metrics.json`
+  let metrics = {}
+  try { metrics = JSON.parse(Read(metricsPath)) } catch {}
+  metrics.convergence = {
+    iterations_used: iteration,
+    max_iterations: maxIterations,
+    exit_reason: exitReason,
+    exit_failure_code: exitCode,
+    final_scr: currentMatrix.scr,
+    first_pass_rate: matrixResult.scr,  // SCR from before convergence
+  }
+  Write(metricsPath, JSON.stringify(metrics, null, 2))
+
+  return { exit: exitReason, failure_code: exitCode, scr: currentMatrix.scr, iterations: iteration }
+}
 ```
 
 ---
