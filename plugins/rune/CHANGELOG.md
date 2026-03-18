@@ -119,6 +119,19 @@
 - **EDGE-003**: Add zero mtime guard for checkpoint age in on-session-stop.sh (matching FLAW-003 pattern)
 - **EDGE-004**: Change `exit 0` to `continue` for invalid mtime in detect-workflow-complete.sh loop
 - **EDGE-005**: Add dotfile allowlist (.gitignore, .dockerignore, .eslintrc, .prettierrc, .editorconfig) in validate-gap-fixer-paths.sh
+- arc: Enriched completion stamp with full execution metadata (session identity, per-phase timing, quality metrics, changed files summary, plan relocation search)
+- arc: Session ID, Owner PID, Rune Session ID, and Rune Version fields in completion record
+- arc: Per-phase Duration column in Phase Results table (human-readable format)
+- arc: Quality Metrics section with TOME P1/P2/P3 counts, test pass rate, resume count, target branch
+- arc: Changed Files section with collapsible `<details>` diff stats (capped at 30 files)
+- arc: Plan file relocation search (STEP 1.5) — finds moved plans in archived/, deleted/, skip/, defer/, shattering/
+- arc: Missing phases added to completion stamp table: inspect, inspect_fix, verify_inspect, deploy_verify, drift_review
+- arc: `Number.isFinite()` guard and `Math.max(0, ...)` floor for duration formatting
+- arc: `defaultBranch` validation before shell interpolation (command injection prevention)
+- arc: TOCTOU protection with try-catch around STEP 4 Read after relocation search
+- arc: Checkpoint persistence after plan relocation (AC-7 cross-session support)
+- arc: Use `checkpoint.session_id` instead of `Bash('echo $CLAUDE_SESSION_ID')` — env var not available in Bash context (#25642)
+- arc: TOME P1/P2/P3 regex anchored to finding ID prefix to avoid false matches in headers/code blocks
 
 ## [1.178.0] - 2026-03-18
 

@@ -29,8 +29,57 @@ if (planPath.startsWith('/')) {
   return
 }
 if (!exists(planPath)) {
-  warn("Plan file not found — skipping completion stamp")
-  return
+  // STEP 1.5: Plan file relocation search
+  // If plan not found at checkpoint path, search known subdirectories by basename.
+  // Users frequently move plans to archived/, deleted/, skip/, defer/, shattering/.
+  const basename = planPath.split('/').pop()
+  if (!basename || !/^[a-zA-Z0-9._-]+\.md$/.test(basename)) {
+    warn("Plan file not found and basename invalid — skipping completion stamp")
+    return
+  }
+
+  // Search known plan subdirectories (ordered by likelihood)
+  const PLAN_SEARCH_DIRS = [
+    "plans/archived",
+    "plans/skip",
+    "plans/defer",
+    "plans/deleted",
+    "plans/shattering",
+    "plans"
+  ]
+
+  let relocatedPath = null
+  const normPlanPath = planPath.replace(/^\.\//, '')
+  for (const dir of PLAN_SEARCH_DIRS) {
+    const candidate = `${dir}/${basename}`
+    if (candidate !== normPlanPath && exists(candidate)) {
+      relocatedPath = candidate
+      break
+    }
+  }
+
+  // Glob fallback for deeper nesting (e.g., plans/archived/children/)
+  if (!relocatedPath) {
+    const globResults = Glob(`plans/**/${basename}`)
+    if (globResults.length === 1) {
+      relocatedPath = globResults[0]
+    } else if (globResults.length > 1) {
+      warn(`Plan file found at ${globResults.length} locations — ambiguous relocation, skipping stamp: ${globResults.join(', ')}`)
+      return
+    }
+  }
+
+  if (relocatedPath) {
+    warn(`Plan file relocated: ${planPath} → ${relocatedPath}`)
+    planPath = relocatedPath
+    // Update checkpoint so subsequent consumers (echo persist, etc.) use correct path
+    checkpoint.plan_file = relocatedPath
+    // Persist checkpoint to disk (AC-7 requires this for --resume cross-session)
+    try { Write(checkpointPath, JSON.stringify(checkpoint, null, 2)) } catch (e) { /* non-blocking */ }
+  } else {
+    warn("Plan file not found at original path or known subdirectories — skipping completion stamp")
+    return
+  }
 }
 
 // STEP 2: Guard — skip if no phases completed
@@ -50,8 +99,14 @@ const anyFailed = Object.values(checkpoint.phases)
   .some(p => p.status === "failed" || p.status === "timeout")
 const newStatus = allCompleted ? "Completed" : anyFailed ? "Failed" : "Partial"
 
-// STEP 4: Read plan content
-let content = Read(planPath)
+// STEP 4: Read plan content (try-catch guards TOCTOU with relocation search)
+let content
+try {
+  content = Read(planPath)
+} catch (e) {
+  warn(`Plan file unreadable after relocation search — skipping stamp: ${e.message}`)
+  return
+}
 
 // STEP 5: Update Status field (if present in first 50 lines)
 // Limit search to first 50 lines to avoid false matches in previously appended records
@@ -99,6 +154,25 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
   const rawBranch = Bash("git branch --show-current 2>/dev/null").trim() || "unknown"
   const branch = /^[a-zA-Z0-9._\/-]+$/.test(rawBranch) ? rawBranch : "unknown"
 
+  // Session identity — read from checkpoint (populated at arc init via SKILL.md preprocessor)
+  // CLAUDE_SESSION_ID is NOT available in Bash() context (anthropics/claude-code#25642)
+  const sessionId = checkpoint.session_id || "unknown"
+  const ownerPid = checkpoint.owner_pid || "unknown"
+  // RUNE_SESSION_ID IS available in Bash context (real env var, not preprocessor)
+  const runeSessionId = Bash('echo "${RUNE_SESSION_ID:-unknown}"').trim()
+
+  // Plugin version (non-blocking — "unknown" on failure)
+  let pluginVersion = "unknown"
+  try {
+    const pluginJson = JSON.parse(Read("plugins/rune/.claude-plugin/plugin.json"))
+    pluginVersion = pluginJson.version ?? "unknown"
+  } catch (e) { /* plugin.json unreadable */ }
+
+  // Default branch for quality metrics and diff stats (compute once, reuse)
+  // Validate before shell interpolation — prevents command injection if origin/HEAD is malformed
+  const rawDefaultBranch = Bash("git rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's|origin/||'").trim() || "main"
+  const defaultBranch = /^[a-zA-Z0-9._\/-]+$/.test(rawDefaultBranch) ? rawDefaultBranch : "main"
+
   // Count existing completion records for run ordinal
   const existingRecords = (content.match(/## Arc Completion Record/g) || []).length
 
@@ -116,12 +190,16 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
     ['3.2',  'DESIGN PROTOTYPE',       'design_prototype'],
     ['4.5',  'TASK DECOMPOSITION',     'task_decomposition'],
     ['5',    'WORK',                   'work'],
+    ['5.1',  'DRIFT REVIEW',           'drift_review'],
     ['3.3',  'STORYBOOK VERIFICATION', 'storybook_verification'],
     ['5.2',  'DESIGN VERIFICATION',    'design_verification'],
     ['5.3',  'UX VERIFICATION',        'ux_verification'],
     ['5.5',  'GAP ANALYSIS',           'gap_analysis'],
     ['5.6',  'CODEX GAP ANALYSIS',     'codex_gap_analysis'],
     ['5.8',  'GAP REMEDIATION',        'gap_remediation'],
+    ['5.9',  'INSPECT',                'inspect'],
+    ['5.95', 'INSPECT FIX',            'inspect_fix'],
+    ['5.99', 'VERIFY INSPECT',         'verify_inspect'],
     ['5.7',  'GOLDMASK VERIFICATION',  'goldmask_verification'],
     ['6',    'CODE REVIEW (deep)',      'code_review'],
     ['6.5',  'GOLDMASK CORRELATION',   'goldmask_correlation'],
@@ -130,6 +208,7 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
     ['7.6',  'DESIGN ITERATION',       'design_iteration'],
     ['7.7',  'TEST',                   'test'],
     ['7.8',  'TEST COVERAGE CRITIQUE', 'test_coverage_critique'],
+    ['7.9',  'DEPLOY VERIFY',          'deploy_verify'],
     ['8',    'PRE-SHIP VALIDATION',    'pre_ship_validation'],
     ['8.55', 'RELEASE QUALITY CHECK',  'release_quality_check'],
     ['9',    'SHIP',                   'ship'],
@@ -138,12 +217,23 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
     ['9.5',  'MERGE',                  'merge'],
   ]
 
-  let phaseTable = "| # | Phase | Status | Detail |\n|---|-------|--------|--------|\n"
+  let phaseTable = "| # | Phase | Status | Duration | Detail |\n|---|-------|--------|----------|--------|\n"
   for (const [num, name, key] of phases) {
     const phase = checkpoint.phases[key]
     const tstat = phase?.status || "pending"  // tstat not status — zsh read-only var (CLAUDE.md rule 8)
     const detail = phase?.artifact ? phase.artifact.split('/').pop() : "—"
-    phaseTable += `| ${num} | ${name} | ${tstat} | ${detail} |\n`
+    // Per-phase duration from totals.phase_times (ms → human-readable)
+    // Guard against non-numeric values (schema drift) and negative durations (clock skew)
+    const rawDuration = checkpoint.totals?.phase_times?.[key]
+    const durationMs = (rawDuration != null && Number.isFinite(Number(rawDuration)))
+      ? Math.max(0, Number(rawDuration))
+      : null
+    const durationStr = durationMs != null
+      ? (durationMs >= 60000
+        ? `${Math.round(durationMs / 60000)}m ${Math.round((durationMs % 60000) / 1000)}s`
+        : `${Math.round(durationMs / 1000)}s`)
+      : "—"
+    phaseTable += `| ${num} | ${name} | ${tstat} | ${durationStr} | ${detail} |\n`
   }
 
   // Convergence history
@@ -170,6 +260,67 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
     convergenceSection = `### Convergence\n\n- 1 mend pass (no retries needed)\n`
   }
 
+  // Quality Metrics (v1.178.0+)
+  let qualitySection = "### Quality Metrics\n\n"
+
+  // TOME findings (P1/P2/P3 counts from code review)
+  const tomeArtifact = checkpoint.phases.code_review?.artifact
+  if (tomeArtifact && !/^\.\./.test(tomeArtifact) && !tomeArtifact.startsWith('/') && exists(tomeArtifact)) {
+    const tomeContent = Read(tomeArtifact)
+    // Anchor regex to finding ID prefix to avoid false matches in headers/code blocks
+    const findingLines = tomeContent.split('\n').filter(l => /^\|\s*[A-Z]+-\d+\s*\|/.test(l))
+    const p1 = findingLines.filter(l => /\|\s*P1\s*\|/.test(l)).length
+    const p2 = findingLines.filter(l => /\|\s*P2\s*\|/.test(l)).length
+    const p3 = findingLines.filter(l => /\|\s*P3\s*\|/.test(l)).length
+    qualitySection += `- **Review findings**: ${p1} P1 (critical), ${p2} P2 (important), ${p3} P3 (minor)\n`
+  } else {
+    qualitySection += `- **Review findings**: N/A\n`
+  }
+
+  // Gap analysis coverage
+  const gapPhase = checkpoint.phases.gap_analysis
+  if (gapPhase?.status === "completed") {
+    qualitySection += `- **Gap coverage**: ${gapPhase.artifact ? "see " + gapPhase.artifact.split('/').pop() : "completed"}\n`
+  }
+
+  // Test pass rate
+  const testPhase = checkpoint.phases.test
+  if (testPhase?.pass_rate != null) {
+    qualitySection += `- **Test pass rate**: ${testPhase.pass_rate}% (tiers: ${(testPhase.tiers_run || []).join(", ") || "N/A"})\n`
+  }
+
+  // Resume count (stability indicator)
+  const resumeCount = checkpoint.resume_tracking?.total_resume_count ?? 0
+  if (resumeCount > 0) {
+    qualitySection += `- **Resumes**: ${resumeCount} (arc was interrupted and resumed)\n`
+  }
+
+  // Target branch
+  qualitySection += `- **Target branch**: ${defaultBranch}\n`
+
+  // Changed Files Summary (v1.178.0+)
+  let diffSummary = ""
+  try {
+    const diffStat = Bash(`git diff --stat ${defaultBranch}...HEAD 2>/dev/null`).trim()
+    if (diffStat) {
+      const diffLines = diffStat.split('\n')
+      const summaryLine = diffLines[diffLines.length - 1].trim()
+      const fileLines = diffLines.slice(0, -1).map(l => l.trim()).filter(Boolean)
+      const cappedFiles = fileLines.slice(0, 30)
+      const truncated = fileLines.length > 30
+
+      diffSummary = `### Changes\n\n`
+      diffSummary += `${summaryLine}\n\n`
+      if (cappedFiles.length > 0) {
+        diffSummary += `<details>\n<summary>Changed files (${fileLines.length})</summary>\n\n`
+        diffSummary += "```\n"
+        diffSummary += cappedFiles.join('\n') + '\n'
+        if (truncated) diffSummary += `... and ${fileLines.length - 30} more files\n`
+        diffSummary += "```\n\n</details>\n"
+      }
+    }
+  } catch (e) { /* git unavailable or not on a branch */ }
+
   // Summary
   const commitCount = (checkpoint.commits || []).length
   const runOrdinal = existingRecords + 1
@@ -179,18 +330,25 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
 
   return `## Arc Completion Record — Run ${runOrdinal}\n\n` +
     `**Completed at**: ${completedAt}\n` +
+    `**Started at**: ${checkpoint.started_at || "unknown"}\n` +
     `**Duration**: ${duration} min\n` +
     `**Arc ID**: ${checkpoint.id}\n` +
     `**Branch**: ${branch}\n` +
     (prUrl ? `**PR**: ${prUrl}\n` : '') +
-    `**Checkpoint**: .rune/arc/${checkpoint.id}/checkpoint.json\n\n` +
+    `**Checkpoint**: .rune/arc/${checkpoint.id}/checkpoint.json\n` +
+    `**Session ID**: ${sessionId}\n` +
+    `**Owner PID**: ${ownerPid}\n` +
+    `**Rune Session ID**: ${runeSessionId}\n` +
+    `**Rune Version**: ${pluginVersion}\n\n` +
     `### Phase Results\n\n` +
     phaseTable + `\n` +
     convergenceSection + `\n` +
+    qualitySection + `\n` +
     `### Summary\n\n` +
     `- **Commits**: ${commitCount} on branch \`${branch}\`\n` +
     (prUrl ? `- **PR**: ${prUrl}\n` : '') +
-    `- **Overall status**: ${newStatus}\n`
+    `- **Overall status**: ${newStatus}\n` +
+    (diffSummary ? `\n` + diffSummary : '')
 }
 ```
 
@@ -208,3 +366,15 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
 | Concurrent arc runs on same plan | Last-write-wins — earlier records may be lost. Arc pre-flight prevents concurrent sessions. |
 | Multiple Status fields in first 50 lines | Updates FIRST match only (via `findIndex()`). Low-risk — plans rarely have duplicate Status fields. |
 | Completion record heading in plan body (e.g. code example) | Ordinal may increment incorrectly. Low risk — unusual case. Consider anchoring regex: `/^## Arc Completion Record/gm` (line-start anchor). |
+| Plan moved to `plans/archived/` during arc | STEP 1.5 relocation search finds by basename, writes stamp there, persists updated checkpoint path |
+| Plan moved to nested subdir (e.g., `plans/archived/children/`) | Glob fallback `plans/**/{basename}` finds it |
+| Plan basename matches multiple relocated files | Skip stamp with warning — ambiguous relocation is safer than guessing |
+| Plan renamed (different basename) | Not found by relocation search — skip stamp. Checkpoint retains original path. |
+| `checkpoint.totals.phase_times[key]` is non-numeric | Duration shows `"—"` (guarded by `Number.isFinite()`) |
+| Negative phase duration (clock skew) | Duration shows `"0s"` (guarded by `Math.max(0, ...)`) |
+| `origin/HEAD` not configured or contains shell metacharacters | `defaultBranch` validated against safe pattern, falls back to `"main"` |
+| TOME file contains code examples with severity markers | P1/P2/P3 regex anchored to finding ID prefix `[A-Z]+-\d+` to avoid false matches |
+| Binary file changes in git diff | `Bin X → Y bytes` format shown in file list; summary line remains correct |
+| `CLAUDE_SESSION_ID` env var not set | Read from `checkpoint.session_id` instead (populated at arc init via preprocessor) |
+| Plugin version unreadable | Shows `"unknown"` — non-blocking |
+| `--resume` after plan moved between sessions | Relocation search runs at stamp time — handles cross-session moves. Checkpoint persisted. |
