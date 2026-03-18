@@ -158,7 +158,7 @@ if [[ -n "$EVIDENCE_DIR" && -n "$EVIDENCE_SUMMARY" ]] && command -v _stat_mtime 
   fi
 fi
 
-# No evidence directory exists -> WARN only (worker may not have criteria)
+# No evidence directory exists -> BLOCK (default) or WARN (if block_on_fail=false)
 if [[ -z "$EVIDENCE_DIR" ]]; then
   if [[ "$BLOCK_ON_FAIL" == "true" ]]; then
     echo "Discipline: No evidence directory found for task ${TASK_ID}. Workers must provide proof evidence before completing tasks." >&2
@@ -169,7 +169,7 @@ if [[ -z "$EVIDENCE_DIR" ]]; then
   fi
 fi
 
-# Evidence directory exists but no summary.json -> WARN (incomplete evidence)
+# Evidence directory exists but no summary.json -> BLOCK (default) or WARN (if block_on_fail=false)
 if [[ -z "$EVIDENCE_SUMMARY" ]]; then
   if [[ "$BLOCK_ON_FAIL" == "true" ]]; then
     echo "Discipline: Evidence directory exists for task ${TASK_ID} but summary.json is missing. Complete evidence collection before task completion." >&2
