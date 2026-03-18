@@ -19,6 +19,8 @@ pub struct PlanFile {
     pub path: PathBuf,
     pub name: String,
     pub title: String,
+    /// Date extracted from frontmatter `date:` or filename pattern (YYYY-MM-DD).
+    pub date: Option<String>,
 }
 
 /// Scan $HOME for Claude config directories.
@@ -79,8 +81,10 @@ pub fn scan_plans(cwd: &Path) -> Result<Vec<PlanFile>> {
                     .file_name()
                     .map(|n| n.to_string_lossy().into_owned())
                     .unwrap_or_default();
-                let title = read_first_heading(&path).unwrap_or_else(|| name.clone());
-                plans.push(PlanFile { path, name, title });
+                let (title, fm_date) = extract_plan_metadata(&path);
+                let title = title.unwrap_or_else(|| name.clone());
+                let date = fm_date.or_else(|| extract_date_from_filename(&name));
+                plans.push(PlanFile { path, name, title, date });
             }
             _ => {}
         }
@@ -90,13 +94,94 @@ pub fn scan_plans(cwd: &Path) -> Result<Vec<PlanFile>> {
     Ok(plans)
 }
 
-/// Extract the first markdown heading (# ...) from a file.
-fn read_first_heading(path: &Path) -> Option<String> {
-    let content = fs::read_to_string(path).ok()?;
+/// Extract plan title and date from a markdown file with YAML frontmatter.
+///
+/// Priority for title:
+/// 1. First markdown `# heading` OUTSIDE frontmatter and fenced code blocks
+/// 2. `title:` field from YAML frontmatter
+/// 3. None (caller falls back to filename)
+///
+/// Returns (title, date) where date comes from frontmatter `date:` field.
+fn extract_plan_metadata(path: &Path) -> (Option<String>, Option<String>) {
+    let content = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return (None, None),
+    };
+
+    let mut fm_title: Option<String> = None;
+    let mut fm_date: Option<String> = None;
+    let mut in_frontmatter = false;
+    let mut frontmatter_done = false;
+    let mut in_code_block = false;
+    let mut first_line = true;
+
     for line in content.lines() {
         let trimmed = line.trim();
-        if let Some(heading) = trimmed.strip_prefix("# ") {
-            return Some(heading.trim().to_string());
+
+        // Detect YAML frontmatter (must start on line 1)
+        if first_line && trimmed == "---" {
+            in_frontmatter = true;
+            first_line = false;
+            continue;
+        }
+        first_line = false;
+
+        // End of frontmatter
+        if in_frontmatter && trimmed == "---" {
+            in_frontmatter = false;
+            frontmatter_done = true;
+            continue;
+        }
+
+        // Extract title/date from frontmatter
+        if in_frontmatter {
+            if let Some(val) = trimmed.strip_prefix("title:") {
+                fm_title = Some(val.trim().trim_matches('"').trim_matches('\'').to_string());
+            } else if let Some(val) = trimmed.strip_prefix("date:") {
+                fm_date = Some(val.trim().trim_matches('"').trim_matches('\'').to_string());
+            }
+            continue;
+        }
+
+        // Skip content before frontmatter closes (shouldn't happen but guard)
+        if !frontmatter_done && !in_frontmatter {
+            // No frontmatter in this file — proceed normally
+            frontmatter_done = true;
+        }
+
+        // Track fenced code blocks (``` or ~~~)
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+            in_code_block = !in_code_block;
+            continue;
+        }
+
+        // Only look for headings outside code blocks
+        if !in_code_block {
+            if let Some(heading) = trimmed.strip_prefix("# ") {
+                let heading = heading.trim().to_string();
+                if !heading.is_empty() {
+                    return (Some(heading), fm_date);
+                }
+            }
+        }
+    }
+
+    // No markdown heading found — fall back to frontmatter title
+    (fm_title, fm_date)
+}
+
+/// Extract date (YYYY-MM-DD) from a plan filename like `2026-03-18-feat-xxx-plan.md`.
+fn extract_date_from_filename(name: &str) -> Option<String> {
+    if name.len() >= 10 {
+        let prefix = &name[..10];
+        // Validate pattern: DDDD-DD-DD
+        let bytes = prefix.as_bytes();
+        if bytes[4] == b'-' && bytes[7] == b'-'
+            && bytes[..4].iter().all(|b| b.is_ascii_digit())
+            && bytes[5..7].iter().all(|b| b.is_ascii_digit())
+            && bytes[8..10].iter().all(|b| b.is_ascii_digit())
+        {
+            return Some(prefix.to_string());
         }
     }
     None

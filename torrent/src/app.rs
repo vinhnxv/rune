@@ -73,6 +73,9 @@ pub struct App {
 
     // Whether we should quit
     pub should_quit: bool,
+
+    // Claude Code version string (detected at startup)
+    pub claude_version: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -278,6 +281,7 @@ impl App {
             all_done_at: None,
             queue_editing: false,
             should_quit: false,
+            claude_version: Self::detect_claude_version(),
         })
     }
 
@@ -295,6 +299,29 @@ impl App {
                 }
             })
             .unwrap_or_else(|| "—".into())
+    }
+
+    /// Detect Claude Code version from `claude --version`.
+    fn detect_claude_version() -> String {
+        Command::new("claude")
+            .args(["--version"])
+            .output()
+            .ok()
+            .and_then(|o| {
+                if o.status.success() {
+                    String::from_utf8(o.stdout).ok().map(|s| {
+                        let s = s.trim().to_string();
+                        // Output may be "claude-code X.Y.Z" or just "X.Y.Z"
+                        s.strip_prefix("claude-code ")
+                            .or_else(|| s.strip_prefix("claude "))
+                            .unwrap_or(&s)
+                            .to_string()
+                    })
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| "?".into())
     }
 
     /// Check if a plan index is already queued or currently running.
@@ -703,6 +730,7 @@ impl App {
             path: PathBuf::from(&plan_name),
             name: plan_name.clone(),
             title: plan_name,
+            date: None,
         };
 
         self.tmux_session_id = arc.tmux_session.clone();

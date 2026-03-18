@@ -206,10 +206,10 @@ fn render_selection(frame: &mut Frame, app: &App, area: Rect) {
     };
     frame.render_widget(Paragraph::new(header), chunks[0]);
 
-    // Body: config + plans
+    // Body: config (compact) + plans (wider)
     let body = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(35), Constraint::Percentage(65)])
+        .constraints([Constraint::Length(30), Constraint::Min(40)])
         .split(chunks[1]);
     render_config_panel(frame, app, body[0]);
     render_plan_panel(frame, app, body[1]);
@@ -257,11 +257,18 @@ fn render_config_panel(frame: &mut Frame, app: &App, area: Rect) {
     }).collect();
 
     let border = if app.active_panel == Panel::ConfigList { sol::CYAN } else { sol::BASE01 };
+    let title = Line::from(vec![
+        Span::styled(" Config ", Style::default().fg(sol::BASE1)),
+        Span::styled(
+            format!("v{} ", app.claude_version),
+            Style::default().fg(sol::BASE01),
+        ),
+    ]);
     frame.render_widget(
         List::new(items).block(
             Block::default().borders(Borders::ALL)
                 .border_style(Style::default().fg(border))
-                .title(Span::styled(" Config ", Style::default().fg(sol::BASE1)))
+                .title(title)
         ),
         area,
     );
@@ -310,17 +317,33 @@ fn render_plan_panel(frame: &mut Frame, app: &App, area: Rect) {
             Style::default().fg(sol::BASE01)
         };
 
-        // Show config dir label for selected plans
+        // Show date, title, filename, and config label
         let mut spans = vec![
             Span::styled(format!(" {marker} "), mstyle),
-            Span::styled(&plan.title, style),
         ];
+        // Date prefix (dimmed)
+        if let Some(ref date) = plan.date {
+            spans.push(Span::styled(
+                format!("{date}  "),
+                Style::default().fg(sol::BASE01),
+            ));
+        }
+        // Title
+        spans.push(Span::styled(&plan.title, style));
+        // Config label for selected plans (before filename)
         if let Some(cfg_idx) = entry_config {
             let cfg = app.config_dirs.get(cfg_idx)
                 .map(|c| c.label.as_str())
                 .unwrap_or("?");
             spans.push(Span::styled(
                 format!("  [{cfg}]"),
+                Style::default().fg(sol::BASE01),
+            ));
+        }
+        // Filename (dimmed, only if title differs from filename)
+        if plan.title != plan.name {
+            spans.push(Span::styled(
+                format!("  ({})", plan.name),
                 Style::default().fg(sol::BASE01),
             ));
         }
