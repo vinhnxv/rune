@@ -249,7 +249,7 @@ let totalCriteriaExtracted = 0
 for (const pt of planTaskHeadings) {
   // Find this task's section boundary (ends at next ### or ## or EOF)
   const taskSectionPattern = new RegExp(
-    `### Task ${pt.id.replace('.', '\\.')}[:\\s][\\s\\S]*?(?=\\n###|\\n##[^#]|$)`
+    `### Task ${pt.id.replace(/\\./g, '\\\\.')}[:\\s][\\s\\S]*?(?=\\n### (?:Task \\\\d|[A-Za-z])|\\n##[^#]|$)`
   )
   const sectionMatch = planContent.match(taskSectionPattern)
   const sectionContent = sectionMatch ? sectionMatch[0] : ''
@@ -265,13 +265,26 @@ for (const pt of planTaskHeadings) {
     const idSplits = rawBlock.split(/(?=[ \t]+-[ \t]+id:)/).filter(s => s.trim())
     const criteria = idSplits.map(entry => {
       const idMatch = entry.match(/id:\s*(\S+)/)
-      const textMatch = entry.match(/text:\s*"?([^"\n]+)"?/)
+      // RC#3 FIX: Handle multi-line YAML values (double-quoted, single-quoted, unquoted)
+      const extractCriterionText = (e) => {
+        // Double-quoted (may span lines): text: "some long\ntext here"
+        const dq = e.match(/text:\s*"((?:[^"\\]|\\.)*)"/s)
+        if (dq) return dq[1].replace(/\\n/g, ' ').trim()
+        // Single-quoted: text: 'some text'
+        const sq = e.match(/text:\s*'([^']*)'/)
+        if (sq) return sq[1].trim()
+        // Unquoted (single line): text: some text here
+        const uq = e.match(/text:\s*([^\n]+)/)
+        if (uq) return uq[1].trim()
+        return ''
+      }
+      const textMatch = extractCriterionText(entry)
       const proofMatch = entry.match(/proof:\s*(\S+)/)
       // PS-003 FIX: Extract args field — verification target (regex, file path, test command)
       const argsMatch = entry.match(/args:\s*(\{[^}]+\}|\[[^\]]+\]|"[^"]+"|'[^']+'|\S+)/)
       return {
         id: idMatch ? idMatch[1] : null,
-        text: textMatch ? textMatch[1].trim() : '',
+        text: textMatch || '',
         proof: proofMatch ? proofMatch[1] : 'pattern_matches',
         args: argsMatch ? argsMatch[1] : null
       }
@@ -380,11 +393,14 @@ if (planTaskCount > 0) {
     if (!alreadyExtracted) {
       // Extract task section from plan for context
       const taskSectionPattern = new RegExp(
-        `### Task ${pt.id.replace('.', '\\.')}[:\\s][\\s\\S]*?(?=###|##[^#]|$)`
+        `### Task ${pt.id.replace(/\\./g, '\\\\.')}[:\\s][\\s\\S]*?(?=### (?:Task \\\\d|[A-Za-z])|##[^#]|$)`
       )
       const sectionMatch = planContent.match(taskSectionPattern)
+      const TASK_DESC_LIMIT = 4000
       const taskDescription = sectionMatch
-        ? sectionMatch[0].slice(0, 2000)
+        ? (sectionMatch[0].length > TASK_DESC_LIMIT
+            ? sectionMatch[0].slice(0, TASK_DESC_LIMIT) + '\n\n<!-- TRUNCATED: Full task in plan file -->'
+            : sectionMatch[0])
         : pt.title
 
       // Extract effort from task section
@@ -462,12 +478,26 @@ if (totalCriteriaExtracted > 0) {
     const orphanList = unmappedCriteria.slice(0, 10).map(c =>
       `  - ${c.criterionId || 'unnamed'} (Task ${c.taskId}): ${c.text}`
     ).join('\n')
-    warn(
-      `CRITERIA COVERAGE: ${unmappedCriteria.length} criteria exist in plan but ` +
-      `not found in any TaskCreate description (orphan criteria):\n${orphanList}\n\n` +
-      `These criteria may not be verified by the Discipline Work Loop. ` +
-      `Ensure TaskCreate descriptions include acceptance criteria from the plan.`
-    )
+
+    // RC#5 FIX: Conditional block — discipline-enabled projects can hard-block on orphan criteria
+    const disciplineEnabled = readTalismanSection("settings")?.discipline?.enabled === true
+    const orphanThreshold = readTalismanSection("settings")?.discipline?.orphan_block_threshold ?? 3
+    if (disciplineEnabled && unmappedCriteria.length >= orphanThreshold) {
+      throw new Error(
+        `CRITERIA COVERAGE BLOCK: ${unmappedCriteria.length} acceptance criteria orphaned ` +
+        `(threshold: ${orphanThreshold}). Discipline enforcement requires all criteria mapped ` +
+        `to TaskCreate descriptions.\n\nOrphaned criteria:\n${orphanList}\n\n` +
+        `Fix: ensure TaskCreate descriptions include all acceptance criteria from the plan. ` +
+        `Override: set discipline.orphan_block_threshold higher in talisman.yml.`
+      )
+    } else {
+      warn(
+        `CRITERIA COVERAGE: ${unmappedCriteria.length} criteria exist in plan but ` +
+        `not found in any TaskCreate description (orphan criteria):\n${orphanList}\n\n` +
+        `These criteria may not be verified by the Discipline Work Loop. ` +
+        `Ensure TaskCreate descriptions include acceptance criteria from the plan.`
+      )
+    }
   } else {
     log(`Criteria coverage: all ${totalCriteriaExtracted} plan criteria mapped to work items`)
   }

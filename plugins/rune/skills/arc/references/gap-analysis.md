@@ -1777,7 +1777,7 @@ const taskCompletionResults = []
 for (const task of planTasks) {
   // Find the task section content (until next ### or ##)
   const taskSectionPattern = new RegExp(
-    `### Task ${task.id.replace(/\./g, '\\.')}[:\\s].*?(?=###|##[^#]|$)`, 's'
+    `### Task ${task.id.replace(/\./g, '\\.')}[:\\s].*?(?=### (?:Task \\d|[A-Za-z])|##[^#]|$)`, 's'
   )
   const sectionMatch = strippedPlan.match(taskSectionPattern)
   const sectionText = sectionMatch ? sectionMatch[0] : ''
