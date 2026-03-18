@@ -258,6 +258,15 @@ impl PhaseTimeoutConfig {
             .unwrap_or(self.default_timeout)
     }
 
+    /// Apply CLI overrides on top of env-based config.
+    /// Each override is (phase_category, minutes).
+    pub fn apply_overrides(&mut self, overrides: &[(String, u64)]) {
+        for (phase, mins) in overrides {
+            self.timeouts
+                .insert(phase.clone(), Duration::from_secs(mins * 60));
+        }
+    }
+
     /// Returns true if all timeouts are at their defaults (no env overrides).
     /// Used to skip timeout checking entirely when unconfigured.
     #[allow(dead_code)] // used by UI layer and tests

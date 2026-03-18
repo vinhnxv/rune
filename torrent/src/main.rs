@@ -19,18 +19,27 @@ use crate::tmux::Tmux;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Parse CLI arguments for extra config directories.
+/// Parsed CLI arguments.
+struct CliArgs {
+    extra_config_dirs: Vec<PathBuf>,
+    timeout_overrides: Vec<(String, u64)>, // (PHASE, minutes)
+}
+
+/// Parse CLI arguments for extra config directories and timeout overrides.
 ///
 /// Supports:
-///   --config-dir <path>   (long form)
-///   -c <path>             (short form)
-///   --version / -V        (show version)
-///   --help / -h           (show help)
+///   --config-dir <path>         (long form)
+///   -c <path>                   (short form)
+///   --phase-timeout PHASE:MIN   (per-phase timeout override)
+///   -t PHASE:MIN                (short form)
+///   --version / -V              (show version)
+///   --help / -h                 (show help)
 ///
 /// Multiple values allowed.
-fn parse_args() -> Vec<PathBuf> {
+fn parse_args() -> CliArgs {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut extra_dirs = Vec::new();
+    let mut timeout_overrides = Vec::new();
     let mut i = 0;
 
     while i < args.len() {
@@ -51,6 +60,23 @@ fn parse_args() -> Vec<PathBuf> {
                 }
                 extra_dirs.push(PathBuf::from(&args[i]));
             }
+            "--phase-timeout" | "-t" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("error: {} requires a PHASE:MINUTES argument", args[i - 1]);
+                    std::process::exit(1);
+                }
+                match parse_timeout_arg(&args[i]) {
+                    Some(pair) => timeout_overrides.push(pair),
+                    None => {
+                        eprintln!(
+                            "error: invalid timeout format '{}'. Expected PHASE:MINUTES (e.g. forge:120)",
+                            args[i]
+                        );
+                        std::process::exit(1);
+                    }
+                }
+            }
             other => {
                 eprintln!("error: unknown argument '{}'. Use --help for usage.", other);
                 std::process::exit(1);
@@ -59,7 +85,20 @@ fn parse_args() -> Vec<PathBuf> {
         i += 1;
     }
 
-    extra_dirs
+    CliArgs {
+        extra_config_dirs: extra_dirs,
+        timeout_overrides,
+    }
+}
+
+/// Parse a "PHASE:MINUTES" string into (phase, minutes).
+fn parse_timeout_arg(s: &str) -> Option<(String, u64)> {
+    let (phase, mins_str) = s.split_once(':')?;
+    if phase.is_empty() {
+        return None;
+    }
+    let mins: u64 = mins_str.parse().ok()?;
+    Some((phase.to_lowercase(), mins))
 }
 
 fn print_help() {
@@ -69,10 +108,13 @@ fn print_help() {
     println!("  torrent [OPTIONS]");
     println!();
     println!("OPTIONS:");
-    println!("  -c, --config-dir <PATH>  Add a custom Claude config directory");
-    println!("                           (can be specified multiple times)");
-    println!("  -V, --version            Show version");
-    println!("  -h, --help               Show this help message");
+    println!("  -c, --config-dir <PATH>       Add a custom Claude config directory");
+    println!("                                (can be specified multiple times)");
+    println!("  -t, --phase-timeout PHASE:MIN Set per-phase timeout in minutes");
+    println!("                                (overrides TORRENT_TIMEOUT_* env vars)");
+    println!("                                Phases: forge, work, test, review, ship");
+    println!("  -V, --version                 Show version");
+    println!("  -h, --help                    Show this help message");
     println!();
     println!("CONFIG DIR DISCOVERY:");
     println!("  torrent discovers Claude Code config directories from multiple sources,");
@@ -123,7 +165,9 @@ fn print_help() {
     println!("  torrent                              # auto-discover configs");
     println!("  torrent -c /opt/claude-ci             # add CI config dir");
     println!("  torrent -c ~/.claude-work -c ~/.claude-personal");
+    println!("  torrent -t forge:120 -t work:90       # 120m forge, 90m work timeout");
     println!("  CLAUDE_CONFIG_DIR=~/.claude-work torrent");
+    println!("  TORRENT_TIMEOUT_FORGE=120 torrent      # env var timeout override");
     println!();
     println!("SEE ALSO:");
     println!("  torrent-cli  — non-TUI CLI for tmux session management");
@@ -132,7 +176,7 @@ fn print_help() {
 
 fn main() -> Result<()> {
     // Parse CLI args before anything else (may exit on --help or error)
-    let extra_config_dirs = parse_args();
+    let cli = parse_args();
 
     // Install panic/error hooks BEFORE ratatui::init() so panics restore terminal
     color_eyre::install()?;
@@ -168,7 +212,13 @@ fn main() -> Result<()> {
     let mut terminal = ratatui::init();
 
     // Create application state (scans config dirs + plan files)
-    let mut app = App::new(extra_config_dirs)?;
+    let mut app = App::new(cli.extra_config_dirs)?;
+
+    // Apply CLI timeout overrides (on top of env vars)
+    if !cli.timeout_overrides.is_empty() {
+        app.phase_timeout_config
+            .apply_overrides(&cli.timeout_overrides);
+    }
 
     // Main event loop — 1s tick rate
     let tick_rate = Duration::from_secs(1);
