@@ -94,6 +94,35 @@ Combine requirement statuses from all inspectors into a unified matrix.
 If multiple inspectors assessed the same requirement, use the MORE SPECIFIC assessment
 (i.e., the one with more evidence).
 
+### Step 1.5 -- Resolve Inspector Disagreements
+
+When 2+ inspectors assess the same requirement, their statuses or classifications may conflict.
+This step resolves disagreements BEFORE computing completion scores.
+
+**Detection**: A disagreement exists when two inspectors report different statuses (e.g., COMPLETE vs DEVIATED) or different classifications (e.g., DEVIATED_INTENTIONAL vs DEVIATED_DRIFT) for the same requirement ID. Scope: classification disputes only — dimension score differences are NOT disagreements.
+
+**Resolution hierarchy** (apply rules in order, stop at first match):
+
+**Rule 1 — More Evidence Wins (MORE_EVIDENCE)**:
+- Count evidence items (file:line citations) per inspector's assessment
+- If one inspector has > 2x the evidence count of the other, use that assessment
+- Rationale: more evidence indicates deeper investigation
+
+**Rule 2 — Grace-Warden Specialist Authority (SPECIALIST_AUTHORITY)**:
+- If grace-warden is one of the disagreeing inspectors AND grace-warden's assessment has evidence_count >= 2, use grace-warden's assessment
+- The evidence_count >= 2 guard prevents grace-warden from winning with a single weak citation
+- Rationale: grace-warden is the correctness/completeness specialist — its domain expertise applies to status and classification disputes
+
+**Rule 3 — Conservative (CONSERVATIVE)**:
+- Use the assessment with the lowest adjusted_score
+- Rationale: safety first — prefer the more pessimistic assessment when evidence is ambiguous
+
+**Output**: For each resolved disagreement, record:
+- Requirement ID
+- Inspector assessments (who said what)
+- Resolution rule applied
+- Winning assessment
+
 ### Step 2 -- Compute Overall Completion (Dual Scoring)
 
 Compute BOTH raw and adjusted completion percentages:
@@ -213,6 +242,17 @@ List all requirements that are NOT COMPLETE, showing classification impact on sc
 - Classification comes from grace-warden-inspect classification data
 - If no classification exists for a requirement, use UNCLASSIFIED
 - Raw % = STATUS_TO_PCT[status], Adjusted % = adjusted_score (or raw if unclassified)
+
+## Disagreement Resolution
+
+<!-- Only include this section if disagreements were detected and resolved -->
+
+| Requirement | Inspector A | Assessment A | Inspector B | Assessment B | Resolution | Winner |
+|-------------|------------|-------------|------------|-------------|------------|--------|
+| (REQ-id) | (inspector) | (status/classification) | (inspector) | (status/classification) | (MORE_EVIDENCE/SPECIALIST_AUTHORITY/CONSERVATIVE) | (winning inspector) |
+
+**Disagreements resolved:** (count)
+**Resolution distribution:** (N) MORE_EVIDENCE, (N) SPECIALIST_AUTHORITY, (N) CONSERVATIVE
 
 ## Dimension Scores
 
