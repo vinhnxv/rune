@@ -1,4 +1,4 @@
-.PHONY: build release test check clean install uninstall install-local dist
+.PHONY: build release test check clean install install-local uninstall uninstall-local dist help
 
 PREFIX ?= /usr/local
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -62,13 +62,61 @@ install-local: release
 		echo "  source ~/.zshrc"; \
 	fi
 
+# Uninstall from all known locations
 uninstall:
-	@if [ -w "$(PREFIX)/bin" ]; then \
-		rm -f "$(PREFIX)/bin/torrent"; \
-		echo "✓ Removed $(PREFIX)/bin/torrent"; \
+	@echo "Uninstalling torrent..."
+	@# Remove from system prefix
+	@if [ -f "$(PREFIX)/bin/torrent" ]; then \
+		if [ -w "$(PREFIX)/bin" ]; then \
+			rm -f "$(PREFIX)/bin/torrent"; \
+			echo "✓ Removed $(PREFIX)/bin/torrent"; \
+		else \
+			sudo rm -f "$(PREFIX)/bin/torrent"; \
+			echo "✓ Removed $(PREFIX)/bin/torrent"; \
+		fi; \
 	else \
-		sudo rm -f "$(PREFIX)/bin/torrent"; \
-		echo "✓ Removed $(PREFIX)/bin/torrent"; \
+		echo "  $(PREFIX)/bin/torrent not found (skipping)"; \
 	fi
-	@rm -f ~/.local/bin/torrent 2>/dev/null || true
+	@# Remove from user local
+	@if [ -f "$$HOME/.local/bin/torrent" ]; then \
+		rm -f "$$HOME/.local/bin/torrent"; \
+		echo "✓ Removed ~/.local/bin/torrent"; \
+	else \
+		echo "  ~/.local/bin/torrent not found (skipping)"; \
+	fi
 	@echo "✓ Uninstall complete"
+
+# Uninstall from user local bin only
+uninstall-local:
+	@echo "Uninstalling torrent from ~/.local/bin..."
+	@if [ -f "$$HOME/.local/bin/torrent" ]; then \
+		rm -f "$$HOME/.local/bin/torrent"; \
+		echo "✓ Removed ~/.local/bin/torrent"; \
+	else \
+		echo "  ~/.local/bin/torrent not found (already removed)"; \
+	fi
+	@echo "✓ Uninstall complete"
+
+# Show available targets
+help:
+	@echo "Torrent TUI - Available make targets:"
+	@echo ""
+	@echo "  Building:"
+	@echo "    make build          - Build debug binary"
+	@echo "    make release        - Build optimized release binary"
+	@echo "    make check          - Run cargo check + clippy"
+	@echo "    make test           - Run tests"
+	@echo "    make clean          - Remove build artifacts"
+	@echo ""
+	@echo "  Installation:"
+	@echo "    make install        - Install to $(PREFIX)/bin (may need sudo)"
+	@echo "    make install-local  - Install to ~/.local/bin (no sudo)"
+	@echo "    make uninstall      - Remove from all locations"
+	@echo "    make uninstall-local - Remove from ~/.local/bin only"
+	@echo ""
+	@echo "  Distribution:"
+	@echo "    make dist           - Create release tarball"
+	@echo ""
+	@echo "  Options:"
+	@echo "    PREFIX=/custom/path - Override install prefix"
+	@echo ""

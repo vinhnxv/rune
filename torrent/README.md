@@ -37,6 +37,14 @@ curl -fsSL https://raw.githubusercontent.com/vinhnxv/rune/main/torrent/install.s
 curl -fsSL https://raw.githubusercontent.com/vinhnxv/rune/main/torrent/install.sh | bash -s -- --version v2.0.3
 ```
 
+**Platform support:**
+| Platform | Pre-built binary | Fallback |
+|----------|------------------|----------|
+| macOS (Apple Silicon) | ✅ `torrent-arm64-apple-darwin.tar.gz` | — |
+| macOS (Intel) | ✅ `torrent-x86_64-apple-darwin.tar.gz` | — |
+| Linux (x86_64) | ❌ | Build from source (requires Rust) |
+| Linux (ARM64) | ❌ | Build from source (requires Rust) |
+
 After installation, ensure `~/.local/bin` is in your PATH:
 ```bash
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
