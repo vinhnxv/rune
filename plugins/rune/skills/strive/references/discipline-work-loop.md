@@ -46,7 +46,7 @@ See [task-file-format.md](task-file-format.md) for the canonical task file schem
 
 ---
 
-## Phase 1.5: Review Tasks (Cross-Reference Protocol)
+## Phase 1.5: Review Tasks (Cross-Reference Protocol) — IMPLEMENTED
 
 5-step cross-reference between plan criteria and task file criteria:
 
@@ -200,74 +200,166 @@ Standard strive Phase 3 monitoring with discipline extensions:
 
 ---
 
-## Phase 4.5: Review Work (Completion Matrix)
+## Phase 4.5: Review Work (Completion Matrix) — IMPLEMENTED
 
-Build a completion matrix per task after workers finish:
+Build a completion matrix per task after workers finish. Reads task files to detect worker crashes (IN_PROGRESS with no evidence) and evidence summaries to classify each criterion.
 
-| Task | Criterion | Status | Evidence |
-|------|-----------|--------|----------|
-| T1 | AC-1.1 | PASS | pattern-match-001.json |
-| T1 | AC-1.2 | FAIL | Missing evidence |
-| T2 | AC-2.1 | PASS | file-exists-001.json |
-| T2 | AC-2.2 | ABANDONED | Worker reported infeasible |
-| T2 | AC-2.3 | INCOMPLETE | Partial evidence only |
+| Task | Criterion | Status | Evidence | Worker |
+|------|-----------|--------|----------|--------|
+| T1 | AC-1.1 | PASS | pattern-match-001.json | rune-smith-1 |
+| T1 | AC-1.2 | FAIL | Missing evidence | rune-smith-1 |
+| T2 | AC-2.1 | PASS | file-exists-001.json | rune-smith-2 |
+| T2 | AC-2.2 | INCONCLUSIVE | Partial match | rune-smith-2 |
+| T2 | AC-2.3 | MISSING | worker_crash | rune-smith-2 |
 
 **Status values**:
 - **PASS**: Criterion verified with machine-readable evidence
 - **FAIL**: Evidence collected but verification failed
-- **INCOMPLETE**: Partial evidence — needs additional work
-- **ABANDONED**: Worker explicitly reported criterion as infeasible
-- **MISSING**: No evidence collected (silent skip)
+- **INCONCLUSIVE**: Evidence collected but result ambiguous (FLAW-014)
+- **MISSING**: No evidence collected (silent skip or worker crash)
 
 **Output**: `tmp/work/{timestamp}/work-review/completion-matrix.md`
+
+### Utility: parseYAMLFrontmatter
+
+Inline regex parser for task file YAML frontmatter. No external YAML dependency.
+
+```javascript
+// Parse YAML frontmatter from task file content (inline regex — no YAML lib needed)
+function parseYAMLFrontmatter(content) {
+  const match = content.match(/^---\n([\s\S]*?)\n---/)
+  if (!match) return {}
+  const frontmatter = {}
+  for (const line of match[1].split('\n')) {
+    const kv = line.match(/^(\w[\w_]*)\s*:\s*(.*)$/)
+    if (kv) {
+      let val = kv[2].trim()
+      // Strip surrounding quotes
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1)
+      }
+      // Coerce known types
+      if (val === 'null') val = null
+      else if (val === 'true') val = true
+      else if (val === 'false') val = false
+      else if (/^\d+$/.test(val)) val = parseInt(val, 10)
+      frontmatter[kv[1]] = val
+    }
+  }
+  return frontmatter
+}
+```
 
 ### Executable pseudocode
 
 ```javascript
-// Phase 4.5: Generate Completion Matrix
-function generateCompletionMatrix(timestamp, tasks, planCriteria) {
+// Phase 4.5: Completion Matrix Generation
+// Run AFTER all workers complete (Phase 4 monitoring ends), BEFORE convergence decision
+function generateCompletionMatrix(timestamp, planCriteriaMap) {
+  const taskFiles = Glob(`tmp/work/${timestamp}/tasks/task-*.md`)
   const matrix = []
-  for (const task of tasks) {
-    const evidencePath = `tmp/work/${timestamp}/evidence/${task.id}/summary.json`
-    let evidence
-    try { evidence = JSON.parse(Read(evidencePath)) } catch { evidence = null }
 
-    const taskCriteria = planCriteria.filter(c => c.taskId === task.id)
-    for (const criterion of taskCriteria) {
-      const result = evidence?.criteria_results?.find(r => r.id === criterion.id)
+  for (const taskFile of taskFiles) {
+    const content = Read(taskFile)
+    const frontmatter = parseYAMLFrontmatter(content)
+    const taskId = String(frontmatter.task_id)  // FLAW-008: normalize to String
+
+    // FLAW-005 FIX: Worker crash detection — IN_PROGRESS with no evidence = MISSING
+    if (frontmatter.status === 'IN_PROGRESS') {
+      const evidenceExists = Glob(`tmp/work/${timestamp}/evidence/${taskId}/summary.json`).length > 0
+      if (!evidenceExists) {
+        // Worker crashed — map ALL criteria to MISSING with reason
+        const criteria = planCriteriaMap[taskId] || planCriteriaMap[parseInt(taskId)] || []
+        for (const criterion of criteria) {
+          matrix.push({
+            task_id: taskId, criterion_id: criterion.id, text: criterion.text,
+            task_status: 'IN_PROGRESS',
+            proof_result: 'MISSING', reason: 'worker_crash',
+            has_worker_report: false, evidence_path: null, worker: frontmatter.assigned_to,
+          })
+        }
+        continue  // Skip to next task file
+      }
+    }
+
+    // Read evidence if available
+    let evidence = null
+    try {
+      evidence = JSON.parse(Read(`tmp/work/${timestamp}/evidence/${taskId}/summary.json`))
+    } catch { /* no evidence collected */ }
+
+    // Read task file Worker Report for additional signals
+    const hasWorkerReport = content.includes('### Echo-Back') &&
+                            !content.includes('_To be filled by assigned worker._')
+
+    const criteria = planCriteriaMap[taskId] || planCriteriaMap[parseInt(taskId)] || []
+    for (const criterion of criteria) {
+      const evidenceResult = evidence?.criteria_results?.find(r => r.id === criterion.id)
       matrix.push({
-        task_id: task.id,
+        task_id: taskId,
         criterion_id: criterion.id,
         text: criterion.text,
-        status: result?.result ?? 'MISSING',
-        evidence: result?.evidence ?? null
+        task_status: frontmatter.status,            // PENDING/IN_PROGRESS/COMPLETED/VERIFIED/FAILED
+        proof_result: evidenceResult?.result ?? 'MISSING',  // PASS/FAIL/INCONCLUSIVE/MISSING
+        has_worker_report: hasWorkerReport,
+        evidence_path: evidenceResult?.evidence_path ?? null,
+        worker: frontmatter.assigned_to,
       })
     }
   }
 
-  const passCount = matrix.filter(m => m.status === 'PASS').length
+  // Compute Spec Compliance Rate (SCR)
+  const passCount = matrix.filter(m => m.proof_result === 'PASS').length
   const totalCount = matrix.length
-  const scr = totalCount > 0 ? (passCount / totalCount * 100).toFixed(1) : '0.0'
+  const scr = totalCount > 0 ? (passCount / totalCount * 100) : 0
+
+  // Compute per-status breakdown (FLAW-014: include INCONCLUSIVE)
+  const breakdown = {
+    PASS: matrix.filter(m => m.proof_result === 'PASS').length,
+    FAIL: matrix.filter(m => m.proof_result === 'FAIL').length,
+    INCONCLUSIVE: matrix.filter(m => m.proof_result === 'INCONCLUSIVE').length,
+    MISSING: matrix.filter(m => m.proof_result === 'MISSING').length,
+  }
 
   // Write completion matrix
-  const header = `# Completion Matrix\n\nSCR: ${scr}% (${passCount}/${totalCount})\n\n`
-  const table = `| Task | Criterion | Status | Evidence |\n|------|-----------|--------|----------|\n` +
-    matrix.map(m => `| ${m.task_id} | ${m.criterion_id} | ${m.status} | ${m.evidence ? 'Yes' : 'No'} |`).join('\n')
-  Write(`tmp/work/${timestamp}/work-review/completion-matrix.md`, header + table)
+  Bash(`mkdir -p "tmp/work/${timestamp}/work-review"`)
+  Bash(`mkdir -p "tmp/work/${timestamp}/convergence"`)
+  const header = [
+    '# Completion Matrix',
+    '',
+    `**SCR**: ${scr.toFixed(1)}% (${passCount}/${totalCount} criteria PASS)`,
+    '',
+    `| Status | Count |`,
+    `|--------|-------|`,
+    ...Object.entries(breakdown).map(([k, v]) => `| ${k} | ${v} |`),
+    '',
+    '## Per-Criterion Results',
+    '',
+    '| Task | Criterion | Status | Worker Report | Evidence | Worker |',
+    '|------|-----------|--------|---------------|----------|--------|',
+  ].join('\n')
+  const rows = matrix.map(m =>
+    `| ${m.task_id} | ${m.criterion_id} | ${m.proof_result}${m.reason ? ` (${m.reason})` : ''} | ${m.has_worker_report ? 'Yes' : 'No'} | ${m.evidence_path ? 'Yes' : 'No'} | ${m.worker ?? '—'} |`
+  ).join('\n')
+  Write(`tmp/work/${timestamp}/work-review/completion-matrix.md`, header + '\n' + rows)
 
   // Write metrics JSON for Phase 5 consumption
   Write(`tmp/work/${timestamp}/convergence/metrics.json`, JSON.stringify({
-    metrics: { scr: { value: parseFloat(scr) }, first_pass_rate: { value: parseFloat(scr) } },
-    matrix, passCount, totalCount
+    metrics: {
+      scr: { value: scr },
+      first_pass_rate: { value: scr },
+    },
+    breakdown, matrix, passCount, totalCount,
+    timestamp: new Date().toISOString(),
   }, null, 2))
 
-  return { matrix, scr: parseFloat(scr), passCount, totalCount }
+  return { matrix, scr, breakdown, passCount, totalCount }
 }
 ```
 
 ---
 
-## Phase 5: Convergence
+## Phase 5: Convergence — IMPLEMENTED
 
 Iterative re-work loop for non-PASS criteria. Each iteration:
 

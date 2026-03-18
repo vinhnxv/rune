@@ -360,6 +360,26 @@ When a plan contains YAML acceptance criteria (`AC-*` blocks), strive activates 
 
 **Backward compatibility**: Plans without YAML criteria skip Phase 1.5 (cross-reference), Phase 4.5 (completion matrix), and Phase 5 (convergence loop). SOW contracts use file-based scope instead of criteria-based scope.
 
+**Discipline Phase 4.5 — Completion Matrix** (after monitoring completes, before quality gates):
+
+```javascript
+// Wire: after Phase 3 monitoring loop exits, before Phase 4 ward check
+if (hasCriteria) {
+  const matrixResult = generateCompletionMatrix(timestamp, planCriteriaMap)
+  log(`Completion Matrix: SCR=${matrixResult.scr.toFixed(1)}% ` +
+      `(${matrixResult.passCount}/${matrixResult.totalCount} criteria PASS)`)
+
+  // Phase 5: Convergence (if SCR < threshold)
+  // readTalismanSection: "discipline"
+  const scrThreshold = readTalismanSection("discipline")?.scr_threshold ?? 100
+  if (matrixResult.scr < scrThreshold) {
+    convergenceLoop(timestamp, matrixResult, planCriteriaMap)
+  }
+}
+```
+
+See [discipline-work-loop.md](references/discipline-work-loop.md) Phase 4.5 for `generateCompletionMatrix()` and `parseYAMLFrontmatter()` implementation.
+
 ### Discipline Escalation Chain (Phase 3 — Planned)
 
 > **Status**: Planned — not yet implemented. This section documents the intended escalation behavior when the `validate-discipline-proofs.sh` TaskCompleted hook blocks task completion. Only activates when `discipline.enabled: true` AND `discipline.block_on_fail: true` in talisman.
