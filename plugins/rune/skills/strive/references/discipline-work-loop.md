@@ -60,9 +60,105 @@ See [task-file-format.md](task-file-format.md) for the canonical task file schem
 4. **Remediate**: For MISSING → add to appropriate task. For FABRICATED → remove from task. For DRIFTED → align with plan text.
 5. **Verify**: Re-run cross-reference to confirm 100% MAPPED after remediation.
 
-**Output**: `tmp/work/{timestamp}/task-review/coverage-matrix.md`
+**Output**: `tmp/work/{timestamp}/task-review/coverage-matrix.md` and `tmp/work/{timestamp}/cross-reference.md`
 
 **Gate**: MISSING count must be 0 after remediation. FABRICATED count must be 0.
+
+### Executable pseudocode
+
+```javascript
+// Phase 1.5: Cross-Reference Verification
+// Run AFTER task file creation (Phase 1), BEFORE worker spawning (Phase 2)
+
+function crossReferenceVerification(timestamp, planPath, taskCriteriaMap) {
+  const taskFiles = Glob(`tmp/work/${timestamp}/tasks/task-*.md`)
+  const results = { mapped: 0, missing: 0, drifted: 0, fabricated: 0, details: [] }
+
+  // Collect all criterion IDs from plan for fabrication detection
+  const allPlanCriterionIds = new Set()
+  for (const [taskId, criteria] of Object.entries(taskCriteriaMap)) {
+    for (const c of criteria) allPlanCriterionIds.add(c.id)
+  }
+
+  // For each plan criterion, check if it exists in a task file
+  for (const [taskId, criteria] of Object.entries(taskCriteriaMap)) {
+    const normalizedId = String(taskId)  // FLAW-008: normalize to String
+    const taskFilePath = `tmp/work/${timestamp}/tasks/task-${normalizedId}.md`
+    let taskContent
+    try { taskContent = Read(taskFilePath) } catch {
+      results.missing += criteria.length
+      criteria.forEach(c => results.details.push({ id: c.id, status: 'MISSING', reason: 'Task file not found' }))
+      continue
+    }
+
+    for (const criterion of criteria) {
+      if (taskContent.includes(criterion.id)) {
+        // Check for text drift (first 60 chars of criterion text)
+        const planText = criterion.text.slice(0, 60)
+        if (taskContent.includes(planText)) {
+          results.mapped++
+          results.details.push({ id: criterion.id, status: 'MAPPED' })
+        } else {
+          results.drifted++
+          results.details.push({ id: criterion.id, status: 'DRIFTED', reason: 'Text mismatch' })
+        }
+      } else {
+        results.missing++
+        results.details.push({ id: criterion.id, status: 'MISSING', reason: 'Criterion ID not in task file' })
+      }
+    }
+  }
+
+  // Check for fabricated criteria (in task files but NOT in plan)
+  const acPattern = /AC-[\d.]+/g
+  for (const taskFile of taskFiles) {
+    const content = Read(taskFile)
+    const matches = content.match(acPattern) || []
+    for (const acId of matches) {
+      if (!allPlanCriterionIds.has(acId)) {
+        results.fabricated++
+        results.details.push({ id: acId, status: 'FABRICATED', reason: `Found in ${taskFile} but not in plan` })
+      }
+    }
+  }
+
+  // Write cross-reference report
+  Bash(`mkdir -p "tmp/work/${timestamp}/task-review"`)
+  const report = [
+    '# Cross-Reference Verification Report',
+    '',
+    `Plan: ${planPath}`,
+    `Timestamp: ${new Date().toISOString()}`,
+    '',
+    `## Summary`,
+    '',
+    `| Status | Count |`,
+    `|--------|-------|`,
+    `| MAPPED | ${results.mapped} |`,
+    `| MISSING | ${results.missing} |`,
+    `| DRIFTED | ${results.drifted} |`,
+    `| FABRICATED | ${results.fabricated} |`,
+    '',
+    `## Details`,
+    '',
+    `| Criterion | Status | Reason |`,
+    `|-----------|--------|--------|`,
+    ...results.details.map(d => `| ${d.id} | ${d.status} | ${d.reason || '—'} |`),
+  ].join('\n')
+
+  Write(`tmp/work/${timestamp}/cross-reference.md`, report)
+  Write(`tmp/work/${timestamp}/task-review/coverage-matrix.md`, report)
+
+  // BLOCK if any MISSING criteria (when discipline enabled)
+  // readTalismanSection: "discipline"
+  const disciplineConfig = readTalismanSection("discipline")
+  if (disciplineConfig?.enabled !== false && results.missing > 0) {
+    error(`CROSS-REFERENCE BLOCK: ${results.missing} plan criteria missing from task files`)
+  }
+
+  return results
+}
+```
 
 ---
 
