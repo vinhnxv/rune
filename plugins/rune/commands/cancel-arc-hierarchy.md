@@ -1,9 +1,11 @@
 ---
 name: rune:cancel-arc-hierarchy
 description: |
-  Cancel an active arc-hierarchy execution loop. Reads the session state file,
-  verifies ownership, and marks the loop as cancelled so the next child arc
-  invocation does not proceed.
+  Alias for /rune:cancel-arc --variant=hierarchy. Cancel an active arc-hierarchy
+  execution loop. Marks the state file as cancelled so the next child arc invocation
+  does not proceed. The currently-executing child arc (if any) will finish normally.
+
+  Delegates to /rune:cancel-arc with --variant=hierarchy for all logic.
 
   <example>
   user: "/rune:cancel-arc-hierarchy"
@@ -17,94 +19,26 @@ allowed-tools:
   - Glob
 ---
 
-# /rune:cancel-arc-hierarchy — Cancel Active Arc Hierarchy Loop
+# /rune:cancel-arc-hierarchy — Cancel Active Arc Hierarchy Loop (Alias)
 
-Stops the `arc-hierarchy` orchestration loop by marking the state file as cancelled. The currently-executing child arc (if any) will finish normally, but no further children will be started.
+This command is a thin alias. All cancellation logic lives in `/rune:cancel-arc`.
 
-## Pre-flight Check (deterministic)
+**Delegates to**: `/rune:cancel-arc --variant=hierarchy`
 
-State file check result: **!`test -f .claude/arc-hierarchy-loop.local.md && echo "EXISTS" || echo "NOT_FOUND"`**
-
-If the result above says `NOT_FOUND`: Report "No active arc-hierarchy loop found." and **stop here — do not proceed to any further steps**.
-
-If the result says `EXISTS`: Continue to Step 1.
-
-State file content:
-!`cat .claude/arc-hierarchy-loop.local.md 2>/dev/null || echo "(empty)"`
-
-## Steps
-
-### 1. Parse State and Verify Session Ownership
-
-### 2. Read State and Verify Session Ownership
+## Action
 
 ```javascript
-const content = Read(stateFile)
-
-// Parse YAML frontmatter fields
-const parentPlanMatch = content.match(/parent_plan:\s*(.+)/)
-const configDirMatch = content.match(/config_dir:\s*(.+)/)
-const ownerPidMatch = content.match(/owner_pid:\s*(\d+)/)
-
-// SEC-009 FIX: Validate parentPlan path to prevent display injection
-const parentPlanRaw = parentPlanMatch ? parentPlanMatch[1].trim() : "unknown"
-const parentPlan = /^[a-zA-Z0-9._\/-]+$/.test(parentPlanRaw) ? parentPlanRaw : "unknown"
-const storedConfigDir = configDirMatch ? configDirMatch[1].trim() : null
-const ownerPid = ownerPidMatch ? ownerPidMatch[1].trim() : null
-
-// Resolve current session identity
-const currentConfigDir = Bash(`CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cd "$CHOME" 2>/dev/null && pwd -P`).trim()
-const currentPid = Bash(`echo $PPID`).trim()
-
-// Session ownership check
-let foreignSession = false
-if (storedConfigDir && storedConfigDir !== currentConfigDir) {
-  foreignSession = true
-} else if (ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
-  // SEC-002 FIX: Quote ownerPid to prevent shell injection (already regex-validated above)
-  const alive = Bash(`kill -0 "${ownerPid}" 2>/dev/null && echo "alive" || echo "dead"`).trim()
-  if (alive === "alive") {
-    foreignSession = true
-  }
-}
-
-if (foreignSession) {
-  warn("WARNING: This arc-hierarchy loop was started by another session.")
-  warn(`  Owner PID: ${ownerPid || "unknown"}, Config dir: ${storedConfigDir || "unknown"}`)
-  warn("  Proceeding with cancellation at your explicit request.")
-}
+// Redirect to the unified cancel-arc command with hierarchy variant
+Skill("rune:cancel-arc", "--variant=hierarchy")
 ```
 
-### 3. Mark State as Cancelled
+Invoke `/rune:cancel-arc --variant=hierarchy` to cancel only the arc-hierarchy loop.
 
-Write `active: false` and `cancelled: true` into the state file so the orchestration loop detects cancellation on next iteration check.
+The state file (`.claude/arc-hierarchy-loop.local.md`) is **marked** as cancelled (not deleted),
+so the EXEC_TABLE_JSON is preserved for resume via `/rune:arc-hierarchy {parentPlan} --resume`.
 
-```javascript
-// Replace the active: true line in the YAML frontmatter
-const cancelled = content.replace(/^active:\s*true/m, "active: false")
-  .replace(/^---/, `---\ncancelled: true\ncancelled_at: "${new Date().toISOString()}"`)
+Session isolation is enforced — only cancels loops owned by this session.
 
-Write(stateFile, cancelled)
-```
+The current child arc run (if any) will finish normally. No further child plans will be executed.
 
-### 4. Report
-
-```
-Arc hierarchy loop cancelled.
-
-Parent plan: {parentPlan}
-
-The current child arc run (if any) will finish normally.
-No further child plans will be executed.
-
-To see what was completed: Read the execution table in {parentPlan}
-To resume later: /rune:arc-hierarchy {parentPlan} --resume
-```
-
-### 5. Offer to Cancel Current Child Arc (Optional)
-
-If the user also wants to stop the currently-running child arc:
-
-```
-To also cancel the currently-running child arc: /rune:cancel-arc
-```
+To also cancel the currently-running child arc: `/rune:cancel-arc`

@@ -21,41 +21,21 @@
 # Exit 2 with stderr prompt: Re-inject next phase prompt and continue conversation.
 
 set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/arc-stop-hook-common.sh
+source "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh"
+# Block A (verbose): _rune_fail_forward with always-on trace log + stderr output
+# Used by arc-phase (inner loop) where silent failures are especially dangerous.
+arc_setup_err_trap verbose
 trap '[[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit' EXIT
 umask 077
 
-# ── Opt-in trace logging ──
-RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
-# SEC-004: Restrict trace log to expected TMPDIR location to prevent env-var redirect attacks
-case "$RUNE_TRACE_LOG" in
-  "${TMPDIR:-/tmp}/"*) ;;  # allowed
-  *) RUNE_TRACE_LOG="${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log" ;;  # reset to safe default
-esac
+# Block B: trace log init (SEC-004 TMPDIR validation + TOME-011 -${PPID} suffix)
+arc_init_trace_log
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] arc-phase-stop: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
-# ── ERR trap: fail-forward with trace logging ──
-# BUG FIX (v1.144.12): Previously used bare `trap 'exit 0' ERR` which silently
-# swallowed ALL errors — making it impossible to debug which guard was failing.
-# Now logs crash location before exiting, matching detect-workflow-complete.sh pattern.
-_rune_fail_forward() {
-  local _err_line="${BASH_LINENO[0]:-?}"
-  local _err_cmd="${BASH_COMMAND:-unknown}"
-  # DIAGNOSTIC: ALWAYS log ERR trap — this is the #1 cause of silent stop hook failures.
-  # Previously gated behind RUNE_TRACE=1, but ERR trap in the stop hook is critical
-  # enough to always log. Without this, arc silently stops and the user has no clue why.
-  local _ffl="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u 2>/dev/null || echo 0).log}"
-  if [[ -n "$_ffl" && ! -L "$_ffl" && ! -L "${_ffl%/*}" ]]; then
-    printf '[%s] arc-phase-stop: ERR trap — fail-forward activated (line %s cmd=%s)\n' \
-      "$(date +%H:%M:%S 2>/dev/null || true)" \
-      "$_err_line" "$_err_cmd" \
-      >> "$_ffl" 2>/dev/null
-  fi
-  # Also emit to stderr so it appears in hook error output (visible in session transcript)
-  printf 'arc-phase-stop: ERR at line %s (cmd=%s) — fail-forward, allowing stop\n' \
-    "$_err_line" "$_err_cmd" >&2 2>/dev/null || true
-  exit 0
-}
-trap '_rune_fail_forward' ERR
+# Block C: jq dependency guard (fail-open) — sourced library needed first
+arc_guard_jq_required
 
 _trace "ENTER arc-phase-stop-hook.sh"
 
@@ -87,14 +67,7 @@ _log_phase() {
   jq -nc "${_jq_args[@]}" "$_jq_expr" >> "$_PHASE_LOG_PATH" 2>/dev/null || true
 }
 
-# ── GUARD 1: jq dependency (fail-open) ──
-if ! command -v jq &>/dev/null; then
-  _trace "EXIT: jq not found"
-  exit 0
-fi
-
 # ── Source shared stop hook library ──
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/stop-hook-common.sh
 source "${SCRIPT_DIR}/lib/stop-hook-common.sh"
 # shellcheck source=lib/platform.sh

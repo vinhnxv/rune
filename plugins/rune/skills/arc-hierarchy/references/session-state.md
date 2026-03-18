@@ -2,7 +2,7 @@
 
 Resolves session identity (CHOME, PID, session ID) and writes the arc-hierarchy state file with ownership isolation. Checks for conflicting sessions before proceeding.
 
-**Inputs**: `planPath`, `childrenDir`, `noMerge` flag, `--resume` mode flag
+**Inputs**: `planPath`, `childrenDir`, `noMerge` flag, `--resume` mode flag, `arcPassthroughFlags` (array of validated flag strings)
 **Outputs**: `.claude/arc-hierarchy-loop.local.md` state file with YAML frontmatter
 **Preconditions**: Phases 0-4 passed (arguments parsed, plan validated, coherence checked)
 
@@ -105,6 +105,7 @@ current_child: ""
 feature_branch: ""
 execution_table_path: ""
 no_merge: ${noMerge}
+arc_passthrough_flags: ${arcPassthroughFlags.join(' ')}
 iteration: 0
 max_iterations: ${maxIterations || 0}
 total_children: ${children.length}
@@ -118,4 +119,8 @@ started_at: "${new Date().toISOString()}"
 Arc hierarchy loop state. Do not edit manually.
 Use /rune:cancel-arc-hierarchy to stop execution.
 `)
+// NOTE: arc_passthrough_flags is read by the Stop hook via get_field().
+// Empty string when no passthrough flags were specified (backward compat).
+// Each flag is validated against ARC_HIERARCHY_ALLOWED_FLAGS before storage.
+// --no-pr is always hardcoded in the stop hook (never stored in state file).
 ```

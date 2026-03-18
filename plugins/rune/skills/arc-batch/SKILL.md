@@ -23,7 +23,7 @@ description: |
   </example>
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
-argument-hint: "[plans/*.md | queue-file.txt] [--resume] [--dry-run] [--no-merge] [--no-shard-sort] [--no-smart-sort] [--smart-sort]"
+argument-hint: "[plans/*.md | queue-file.txt] [--resume] [--dry-run] [--no-merge] [--no-shard-sort] [--no-smart-sort] [--smart-sort] [--no-forge] [--no-test] [--draft] [--bot-review] [--no-bot-review] [--no-pr]"
 ---
 
 # /rune:arc-batch — Sequential Batch Arc Execution
@@ -40,6 +40,9 @@ Executes `/rune:arc` across multiple plan files sequentially. Each arc run compl
 /rune:arc-batch plans/*.md --dry-run          # Preview queue without running
 /rune:arc-batch plans/*.md --no-merge         # Skip auto-merge (individual PRs remain open)
 /rune:arc-batch --resume                      # Resume interrupted batch from progress file
+/rune:arc-batch plans/*.md --no-forge         # Skip forge phase on each arc run
+/rune:arc-batch plans/*.md --no-test          # Skip test phase on each arc run
+/rune:arc-batch plans/*.md --draft --no-pr    # Forward multiple flags to each arc run
 ```
 
 > **Single-Plan Batches**: Running with a single plan file works correctly — it runs as a normal arc with minimal batch infrastructure overhead. The Stop hook fires after completion, finds no more pending plans, and cleans up. For simple single-plan cases, consider using `/rune:arc` directly to skip batch tracking.
@@ -54,6 +57,12 @@ Executes `/rune:arc` across multiple plan files sequentially. Each arc run compl
 | `--no-shard-sort` | Process plans in raw order (disable shard auto-sorting) | Off |
 | `--no-smart-sort` | Disable smart plan ordering (preserve glob/queue order) | Off |
 | `--smart-sort` | Force smart ordering even on queue file input | Off |
+| `--no-forge` | Pass `--no-forge` to each arc run (skip forge phase) | Off |
+| `--no-test` | Pass `--no-test` to each arc run (skip test phase) | Off |
+| `--draft` | Pass `--draft` to each arc run (open PRs as draft) | Off |
+| `--bot-review` | Pass `--bot-review` to each arc run | Off |
+| `--no-bot-review` | Pass `--no-bot-review` to each arc run | Off |
+| `--no-pr` | Pass `--no-pr` to each arc run (skip PR creation) | Off |
 
 > **Note**: `--smart-sort` is a positive override flag — unlike the `--no-*` disable family. Use it to force smart ordering on input types that would otherwise preserve order (e.g., queue files). When both `--smart-sort` and `--no-smart-sort` are present, `--no-smart-sort` takes precedence (fail-safe).
 
@@ -126,7 +135,17 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_ac
 
 ### Phase 0: Parse Arguments
 
-Parse `$ARGUMENTS` into `planPaths`, `inputType`, and flag booleans. Handles 3 input types: glob, queue file (`.txt`), and `--resume` (reads `batch-progress.json`, resets stale `in_progress` plans). Queue files preserve user order by default — plans are processed in the exact order listed. Includes shard group detection (v1.66.0+).
+Parse `$ARGUMENTS` into `planPaths`, `inputType`, flag booleans, and passthrough flags. Handles 3 input types: glob, queue file (`.txt`), and `--resume` (reads `batch-progress.json`, resets stale `in_progress` plans). Queue files preserve user order by default — plans are processed in the exact order listed. Includes shard group detection (v1.66.0+).
+
+Extract passthrough flags for forwarding to each child arc invocation:
+
+```javascript
+// Extract passthrough flags from $ARGUMENTS
+const ARC_BATCH_ALLOWED_FLAGS = ['--no-forge', '--no-test', '--draft', '--bot-review', '--no-bot-review', '--no-pr']
+const arcPassthroughFlags = ARC_BATCH_ALLOWED_FLAGS.filter(f => args.includes(f))
+// arcPassthroughFlags is an array of validated flags (e.g., ['--no-forge', '--draft'])
+// Stored as a space-joined string in the state file: "--no-forge --draft"
+```
 
 See [phase-0-1-input-parsing.md](references/phase-0-1-input-parsing.md) for full pseudocode.
 
@@ -152,6 +171,9 @@ if (dryRun) {
   }
   log(`\nTotal: ${planPaths.length} plans`)
   log(`Estimated time: ${planPaths.length * 45}-${planPaths.length * 240} minutes`)
+  if (arcPassthroughFlags.length > 0) {
+    log(`Forwarded flags: ${arcPassthroughFlags.join(' ')}`)
+  }
   return
 }
 ```
@@ -183,7 +205,7 @@ AskUserQuestion({
 
 ### Phase 5: Start Batch Loop (Stop Hook Pattern)
 
-Write state file, resolve session identity, check for existing batch, mark first plan as in_progress, and invoke `/rune:arc`. The Stop hook handles all subsequent plans and the final summary.
+Write state file (including `arc_passthrough_flags`), resolve session identity, check for existing batch, mark first plan as in_progress, and invoke `/rune:arc`. The Stop hook handles all subsequent plans and the final summary.
 
 See [batch-loop-init.md](references/batch-loop-init.md) for the full algorithm.
 

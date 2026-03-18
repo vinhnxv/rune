@@ -4,7 +4,11 @@ description: |
   Cancel an active arc pipeline and gracefully shutdown all phase teammates.
   Completed phase artifacts are preserved. Only the currently-active phase is cancelled.
 
+  Also cancels arc-batch, arc-hierarchy, and arc-issues loop state files owned by this session.
+
   Use --status to inspect arc pipeline health without cancelling (runs rune-status.sh).
+  Use --list-active to list all active arc-related state files without cancelling anything.
+  Use --variant=batch|hierarchy|issues to cancel only a specific loop type (thin alias support).
 
   <example>
   user: "/rune:cancel-arc"
@@ -14,6 +18,11 @@ description: |
   <example>
   user: "/rune:cancel-arc --status"
   assistant: "Displays arc pipeline status report without cancelling."
+  </example>
+
+  <example>
+  user: "/rune:cancel-arc --list-active"
+  assistant: "Lists all active arc-related state files owned by this session."
   </example>
 user-invocable: true
 allowed-tools:
@@ -32,11 +41,17 @@ allowed-tools:
 
 Cancel an active arc pipeline and gracefully shutdown all phase teammates. Completed phase artifacts are preserved.
 
+Also cancels arc-batch, arc-hierarchy, and arc-issues loop state files owned by this session.
+
 ## Flags
 
 | Flag | Description |
 |------|-------------|
 | `--status` | Display arc pipeline diagnostic status without cancelling. Runs `rune-status.sh` and returns. |
+| `--list-active` | List all active arc-related state files without cancelling anything. Early return. |
+| `--variant=batch` | Cancel only the arc-batch loop (thin alias — same as `/rune:cancel-arc-batch`). |
+| `--variant=hierarchy` | Cancel only the arc-hierarchy loop (thin alias — same as `/rune:cancel-arc-hierarchy`). |
+| `--variant=issues` | Cancel only the arc-issues loop (thin alias — same as `/rune:cancel-arc-issues`). |
 
 ## Step -1. Handle --status Flag (Early Return)
 
@@ -51,9 +66,175 @@ if (args.includes('--status')) {
 
 If `--status` is detected, run `rune-status.sh` and display its output. Do not proceed with cancellation.
 
+## Step -0.5. Handle --list-active Flag (Early Return)
+
+```javascript
+const args = "$ARGUMENTS"
+if (args.includes('--list-active')) {
+  const STATE_FILES = [
+    ".claude/arc-phase-loop.local.md",
+    ".claude/arc-batch-loop.local.md",
+    ".claude/arc-hierarchy-loop.local.md",
+    ".claude/arc-issues-loop.local.md",
+  ]
+  const currentCfg = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cd "$CHOME" 2>/dev/null && pwd -P`).trim()
+  const currentPid = Bash(`echo $PPID`).trim()
+
+  let found = []
+  for (const sf of STATE_FILES) {
+    const exists = Bash(`test -f "${sf}" && echo "yes" || echo "no"`).trim()
+    if (exists !== "yes") continue
+
+    const content = Read(sf)
+    const ownerPidMatch = content.match(/owner_pid:\s*(\d+)/)
+    const configDirMatch = content.match(/config_dir:\s*(.+)/)
+    const ownerPid = ownerPidMatch ? ownerPidMatch[1].trim() : null
+    const storedCfg = configDirMatch ? configDirMatch[1].trim() : null
+
+    let ownership = "this session"
+    if (storedCfg && storedCfg !== currentCfg) {
+      ownership = `other session (config: ${storedCfg})`
+    } else if (ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
+      const alive = Bash(`kill -0 "${ownerPid}" 2>/dev/null && echo "alive" || echo "dead"`).trim()
+      ownership = alive === "alive" ? `other live session (PID: ${ownerPid})` : `dead session (PID: ${ownerPid})`
+    }
+    found.push(`  ${sf}  [${ownership}]`)
+  }
+
+  // Also report active arc checkpoints
+  const checkpoints = Bash(`ls .claude/arc/*/checkpoint.json 2>/dev/null || true`).trim()
+  if (checkpoints) {
+    for (const cp of checkpoints.split("\n").filter(Boolean)) {
+      found.push(`  ${cp}  [arc checkpoint]`)
+    }
+  }
+
+  if (found.length === 0) {
+    return "No active arc-related state files found."
+  }
+  return `Active arc-related state files:\n${found.join("\n")}`
+}
+```
+
+If `--list-active` is detected, list active state files with ownership info and return — no cancellation.
+
+## Step -0.3. Handle --variant Flag (Thin Alias Support, Early Return)
+
+```javascript
+const args = "$ARGUMENTS"
+const variantMatch = args.match(/--variant=(\w+)/)
+const variant = variantMatch ? variantMatch[1].toLowerCase() : null
+
+if (variant === "batch") {
+  // Delegate: cancel only the arc-batch loop (Steps below for batch only)
+  // Fall through to Step 0 batch section after skipping phase and hierarchy/issues sections.
+  // Set a flag so only the batch cancellation block runs.
+}
+if (variant === "hierarchy") {
+  // Cancel only the arc-hierarchy loop — mark as cancelled, don't delete
+  _cancelHierarchyOnly()
+  return
+}
+if (variant === "issues") {
+  // Cancel only the arc-issues loop — delete state file
+  _cancelIssuesOnly()
+  return
+}
+```
+
+When `--variant` is set, only the matching loop type is cancelled. The arc pipeline itself is not touched.
+
+**`_cancelHierarchyOnly()` logic:**
+
+```javascript
+function _cancelHierarchyOnly() {
+  const stateFile = ".claude/arc-hierarchy-loop.local.md"
+  const exists = Bash(`test -f "${stateFile}" && echo "yes" || echo "no"`).trim()
+  if (exists !== "yes") {
+    log("No active arc-hierarchy loop found.")
+    return
+  }
+  const content = Read(stateFile)
+  const ownerPidMatch = content.match(/owner_pid:\s*(\d+)/)
+  const configDirMatch = content.match(/config_dir:\s*(.+)/)
+  const ownerPid = ownerPidMatch ? ownerPidMatch[1].trim() : null
+  const storedCfg = configDirMatch ? configDirMatch[1].trim() : null
+  const currentCfg = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cd "$CHOME" 2>/dev/null && pwd -P`).trim()
+  const currentPid = Bash(`echo $PPID`).trim()
+
+  let foreignSession = false
+  if (storedCfg && storedCfg !== currentCfg) {
+    foreignSession = true
+  } else if (ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
+    const alive = Bash(`kill -0 "${ownerPid}" 2>/dev/null && echo "alive" || echo "dead"`).trim()
+    if (alive === "alive") foreignSession = true
+  }
+  if (foreignSession) {
+    warn(`Arc-hierarchy loop belongs to another session (PID: ${ownerPid}). Skipping.`)
+    return
+  }
+
+  // Preserve EXEC_TABLE_JSON — mark cancelled, don't delete
+  const cancelled = content
+    .replace(/^active:\s*true/m, "active: false")
+    .replace(/^---/, `---\ncancelled: true\ncancelled_at: "${new Date().toISOString()}"`)
+  Write(stateFile, cancelled)
+
+  const parentPlanMatch = content.match(/parent_plan:\s*(.+)/)
+  const parentPlanRaw = parentPlanMatch ? parentPlanMatch[1].trim() : "unknown"
+  const parentPlan = /^[a-zA-Z0-9._\/-]+$/.test(parentPlanRaw) ? parentPlanRaw : "unknown"
+  log(`Arc hierarchy loop cancelled. Parent plan: ${parentPlan}`)
+  log("The current child arc run (if any) will finish normally. No further child plans will be executed.")
+  log(`To see what was completed: Read the execution table in ${parentPlan}`)
+  log("To also cancel the currently-running child arc: /rune:cancel-arc")
+}
+```
+
+**`_cancelIssuesOnly()` logic:**
+
+```javascript
+function _cancelIssuesOnly() {
+  const stateFile = ".claude/arc-issues-loop.local.md"
+  const exists = Bash(`test -f "${stateFile}" && echo "yes" || echo "no"`).trim()
+  if (exists !== "yes") {
+    log("No active arc-issues loop found.")
+    return
+  }
+  const content = Read(stateFile)
+  const iterMatch = content.match(/iteration:\s*(\d+)/)
+  const totalMatch = content.match(/total_plans:\s*(\d+)/)
+  const iteration = iterMatch ? iterMatch[1] : "?"
+  const totalPlans = totalMatch ? totalMatch[1] : "?"
+  const ownerPidMatch = content.match(/owner_pid:\s*(\d+)/)
+  const configDirMatch = content.match(/config_dir:\s*(.+)/)
+  const ownerPid = ownerPidMatch ? ownerPidMatch[1].trim() : null
+  const storedCfg = configDirMatch ? configDirMatch[1].trim() : null
+  const currentCfg = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cd "$CHOME" 2>/dev/null && pwd -P`).trim()
+  const currentPid = Bash(`echo $PPID`).trim()
+
+  let foreignSession = false
+  if (storedCfg && storedCfg !== currentCfg) {
+    foreignSession = true
+  } else if (ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
+    const alive = Bash(`kill -0 ${ownerPid} 2>/dev/null && echo "alive" || echo "dead"`).trim()
+    if (alive === "alive") foreignSession = true
+  }
+  if (foreignSession) {
+    warn(`Arc-issues loop belongs to another session (PID: ${ownerPid}). Skipping.`)
+    return
+  }
+
+  Bash("rm -f .claude/arc-issues-loop.local.md")
+  log(`Arc issues loop cancelled at iteration ${iteration}/${totalPlans}.`)
+  log("The current arc run will finish normally. No further issues will be started.")
+  log("To see batch progress: Read tmp/gh-issues/batch-progress.json")
+  log("To also cancel the current arc run: /rune:cancel-arc")
+}
+```
+
 ## Steps
 
-### 0. Cancel Arc Phase Loop and Arc-Batch Loop (if active and owned by this session)
+### 0. Cancel Arc Loop State Files (Phase → Batch → Hierarchy → Issues, innermost first)
 
 ```javascript
 // Check for active arc-phase loop state file (innermost loop — check first)
@@ -128,6 +309,82 @@ if (batchExists === "yes") {
   } else {
     warn(`Arc-batch loop belongs to another session (PID: ${ownerPid}). Skipping batch cancellation.`)
     warn("Use /rune:cancel-arc-batch from the owning session to cancel it.")
+  }
+}
+```
+
+#### Cancel Arc-Hierarchy Loop (if active and owned by this session)
+
+```javascript
+// Check for active arc-hierarchy loop state file
+const hierarchyStateFile = ".claude/arc-hierarchy-loop.local.md"
+const hierarchyExists = Bash(`test -f "${hierarchyStateFile}" && echo "yes" || echo "no"`).trim()
+
+if (hierarchyExists === "yes") {
+  const hierarchyContent = Read(hierarchyStateFile)
+  const ownerPidMatch = hierarchyContent.match(/owner_pid:\s*(\d+)/)
+  const configDirMatch = hierarchyContent.match(/config_dir:\s*(.+)/)
+  const ownerPid = ownerPidMatch ? ownerPidMatch[1].trim() : null
+  const storedCfg = configDirMatch ? configDirMatch[1].trim() : null
+  const currentCfg = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cd "$CHOME" 2>/dev/null && pwd -P`).trim()
+  const currentPid = Bash(`echo $PPID`).trim()
+
+  let isOwner = true
+  if (storedCfg && storedCfg !== currentCfg) isOwner = false
+  if (isOwner && ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
+    const alive = Bash(`kill -0 "${ownerPid}" 2>/dev/null && echo "alive" || echo "dead"`).trim()
+    if (alive === "alive") isOwner = false
+  }
+
+  if (isOwner) {
+    // Mark cancelled — do NOT delete (EXEC_TABLE_JSON must be preserved for resume)
+    const cancelledContent = hierarchyContent
+      .replace(/^active:\s*true/m, "active: false")
+      .replace(/^---/, `---\ncancelled: true\ncancelled_at: "${new Date().toISOString()}"`)
+    Write(hierarchyStateFile, cancelledContent)
+    log("Arc-hierarchy loop also cancelled (marked active: false; state file preserved for resume)")
+  } else {
+    warn(`Arc-hierarchy loop belongs to another session (PID: ${ownerPid}). Skipping.`)
+    warn("Use /rune:cancel-arc-hierarchy from the owning session to cancel it.")
+  }
+}
+```
+
+#### Cancel Arc-Issues Loop (if active and owned by this session)
+
+```javascript
+// Check for active arc-issues loop state file
+const issuesStateFile = ".claude/arc-issues-loop.local.md"
+const issuesExists = Bash(`test -f "${issuesStateFile}" && echo "yes" || echo "no"`).trim()
+
+if (issuesExists === "yes") {
+  const issuesContent = Read(issuesStateFile)
+  const iterMatch = issuesContent.match(/iteration:\s*(\d+)/)
+  const totalMatch = issuesContent.match(/total_plans:\s*(\d+)/)
+  const issuesIteration = iterMatch ? iterMatch[1] : "?"
+  const issuesTotal = totalMatch ? totalMatch[1] : "?"
+
+  const ownerPidMatch = issuesContent.match(/owner_pid:\s*(\d+)/)
+  const configDirMatch = issuesContent.match(/config_dir:\s*(.+)/)
+  const ownerPid = ownerPidMatch ? ownerPidMatch[1].trim() : null
+  const storedCfg = configDirMatch ? configDirMatch[1].trim() : null
+  const currentCfg = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cd "$CHOME" 2>/dev/null && pwd -P`).trim()
+  const currentPid = Bash(`echo $PPID`).trim()
+
+  let isOwner = true
+  if (storedCfg && storedCfg !== currentCfg) isOwner = false
+  if (isOwner && ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
+    const alive = Bash(`kill -0 ${ownerPid} 2>/dev/null && echo "alive" || echo "dead"`).trim()
+    if (alive === "alive") isOwner = false
+  }
+
+  if (isOwner) {
+    // Remove state file to stop the issues loop (same as batch — Stop hook checks for file presence)
+    Bash("rm -f .claude/arc-issues-loop.local.md")
+    log(`Arc-issues loop also cancelled (was at iteration ${issuesIteration}/${issuesTotal})`)
+  } else {
+    warn(`Arc-issues loop belongs to another session (PID: ${ownerPid}). Skipping.`)
+    warn("Use /rune:cancel-arc-issues from the owning session to cancel it.")
   }
 }
 ```
