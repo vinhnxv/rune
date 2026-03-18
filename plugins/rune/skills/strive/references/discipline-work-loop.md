@@ -207,6 +207,7 @@ function convergenceLoop(timestamp, matrixResult, tasks, planCriteria, maxIterat
     if (gapCriteria.length === 0) break
 
     // Stagnation detection
+    const setsEqual = (a, b) => a.size === b.size && [...a].every(x => b.has(x))
     const currentFailingIds = new Set(gapCriteria.map(g => g.criterion_id))
     if (iteration >= 1 && setsEqual(currentFailingIds, prevFailingIds)) {
       warn(`Convergence stagnated at iteration ${iteration + 1} — same criteria failing`)

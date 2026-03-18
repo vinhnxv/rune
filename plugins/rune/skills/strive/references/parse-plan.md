@@ -249,7 +249,7 @@ let totalCriteriaExtracted = 0
 for (const pt of planTaskHeadings) {
   // Find this task's section boundary (ends at next ### or ## or EOF)
   const taskSectionPattern = new RegExp(
-    `### Task ${pt.id.replace(/\\./g, '\\\\.')}[:\\s][\\s\\S]*?(?=\\n### (?:Task \\\\d|[A-Za-z])|\\n##[^#]|$)`
+    `### Task ${pt.id.replace(/\./g, '\\.')}[:\\s][\\s\\S]*?(?=\\n### (?:Task \\d|[A-Za-z])|\\n##[^#]|$)`
   )
   const sectionMatch = planContent.match(taskSectionPattern)
   const sectionContent = sectionMatch ? sectionMatch[0] : ''
@@ -393,7 +393,7 @@ if (planTaskCount > 0) {
     if (!alreadyExtracted) {
       // Extract task section from plan for context
       const taskSectionPattern = new RegExp(
-        `### Task ${pt.id.replace(/\\./g, '\\\\.')}[:\\s][\\s\\S]*?(?=\\n### (?:Task \\\\d|[A-Za-z])|\\n##[^#]|$)`
+        `### Task ${pt.id.replace(/\./g, '\\.')}[:\\s][\\s\\S]*?(?=\\n### (?:Task \\d|[A-Za-z])|\\n##[^#]|$)`
       )
       const sectionMatch = planContent.match(taskSectionPattern)
       const TASK_DESC_LIMIT = 4000

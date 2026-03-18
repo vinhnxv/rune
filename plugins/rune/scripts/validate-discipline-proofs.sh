@@ -89,7 +89,7 @@ for TALISMAN_PATH in "${CWD}/.claude/talisman.yml" "${CHOME}/talisman.yml"; do
       [[ -z "$DISCIPLINE_ENABLED" ]] && DISCIPLINE_ENABLED="true"
       [[ -z "$BLOCK_ON_FAIL" ]] && BLOCK_ON_FAIL="true"
     else
-      echo "Discipline: yq not found — cannot read talisman config, defaulting to WARN mode" >&2
+      echo "Discipline: yq not found — cannot read talisman config, defaulting to BLOCK mode (block_on_fail=true)" >&2
     fi
     break
   fi
