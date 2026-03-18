@@ -1,8 +1,6 @@
 #!/bin/bash
 # scripts/lib/stop-hook-common.sh
 # Shared guard library for Stop hook loop drivers (arc-batch, arc-hierarchy, arc-issues).
-# Source rune-state if not already loaded
-[[ -n "${RUNE_STATE:-}" ]] || source "$(dirname "${BASH_SOURCE[0]}")/rune-state.sh"
 #
 # USAGE: Source this file AFTER set -euo pipefail and trap declarations.
 #   source "${SCRIPT_DIR}/lib/stop-hook-common.sh"
