@@ -173,6 +173,38 @@ log(`Created ${extractedTasks.length} task files in tmp/work/${timestamp}/tasks/
 - `task-file-format.md` schema is the canonical source — this code follows it exactly
 - Task files are the SUPERSET — `TaskCreate()` descriptions can reference task file path instead of embedding full content
 
+## TaskCreate with Task File Reference
+
+```javascript
+// Updated TaskCreate: reference task file instead of embedding full description.
+// Task file is the single source of truth — TaskCreate becomes pointer + summary.
+// This eliminates the 2000-char truncation problem in the SDK task description.
+
+for (const task of extractedTasks) {
+  const taskId = String(task.id)  // FLAW-008: normalize to String at every boundary
+  const taskCriteria = taskCriteriaMap[taskId] || taskCriteriaMap[task.id] || []
+
+  TaskCreate({
+    subject: `Task ${taskId}: ${task.subject}`,
+    description: [
+      `**Task File**: tmp/work/${timestamp}/tasks/task-${taskId}.md`,
+      `**Read the task file FIRST** — it contains your full spec, acceptance criteria, and file targets.`,
+      '',
+      `**Summary**: ${task.subject}`,
+      `**Risk Tier**: ${task.riskTier ?? 1}`,
+      `**Proof Count**: ${taskCriteria.length} criteria`,
+      `**File Targets**: ${(task.fileTargets || []).join(', ')}`,
+    ].join('\n'),
+    metadata: {
+      task_file: `tmp/work/${timestamp}/tasks/task-${taskId}.md`,
+      estimated_minutes: task.metadata?.estimated_minutes ?? 10
+    }
+  })
+}
+```
+
+**Rationale**: Task file is the single source of truth. TaskCreate description becomes a pointer + summary, not the full content. This eliminates the 2000-char truncation problem. The `task_file` metadata field enables downstream tools (workers, hooks) to locate the full spec programmatically.
+
 ## Adaptive maxTurns Scaling
 
 ```javascript
