@@ -44,10 +44,9 @@ try {
 }
 
 // Extract current metrics — dual scoring (adjusted preferred, raw fallback, legacy compat)
-const adjustedMatch = verdictContent.match(/Overall Completion \(Adjusted\):\s*\|\s*(\d+(?:\.\d+)?)%/)
-  ?? verdictContent.match(/Overall Completion \(Adjusted\)\s*\|\s*(\d+(?:\.\d+)?)%/)
-const rawMatch = verdictContent.match(/Overall Completion \(Raw\):\s*\|\s*(\d+(?:\.\d+)?)%/)
-  ?? verdictContent.match(/Overall Completion \(Raw\)\s*\|\s*(\d+(?:\.\d+)?)%/)
+// FLAW-001 FIX: Use colon-free patterns matching VERDICT.md pipe-delimited format
+const adjustedMatch = verdictContent.match(/Overall Completion \(Adjusted\)\s*\|\s*(\d+(?:\.\d+)?)%/)
+const rawMatch = verdictContent.match(/Overall Completion \(Raw\)\s*\|\s*(\d+(?:\.\d+)?)%/)
 const legacyMatch = verdictContent.match(/Overall Completion:\s*(\d+(?:\.\d+)?)%/)
   ?? verdictContent.match(/Overall Completion\s*\|\s*(\d+(?:\.\d+)?)%/)
 

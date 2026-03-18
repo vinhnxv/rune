@@ -222,11 +222,12 @@ p1Gaps = allFindings.filter(f => f.priority === "P1")
 p2Gaps = allFindings.filter(f => f.priority === "P2")
 p1Critical = p1Gaps.filter(f => f.category in ["security", "correctness"])
 
-if (p1Critical.length > 0 || overallCompletion < gap_threshold):
+// FLAW-003 FIX: Use adjustedCompletion explicitly (not ambiguous overallCompletion)
+if (p1Critical.length > 0 || adjustedCompletion < gap_threshold):
   verdict = "CRITICAL_ISSUES"
-elif (overallCompletion < 50):
+elif (adjustedCompletion < 50):
   verdict = "INCOMPLETE"
-elif (overallCompletion < completion_threshold || p2Gaps.length > 0):
+elif (adjustedCompletion < completion_threshold || p2Gaps.length > 0):
   verdict = "GAPS_FOUND"
 else:
   verdict = "READY"
@@ -258,9 +259,9 @@ Write exactly this structure:
 
 ## Requirement Matrix
 
-| # | Requirement | Status | Completion | Inspector | Evidence |
-|---|------------|--------|------------|-----------|----------|
-| REQ-001 | (text) | (status) | (N)% | (inspector) | (file:line) |
+| # | Requirement | Status | Classification | Completion | Inspector | Evidence |
+|---|------------|--------|---------------|------------|-----------|----------|
+| REQ-001 | (text) | (status) | (sub-type or —) | (N)% | (inspector) | (file:line) |
 
 ## Deviation Analysis
 

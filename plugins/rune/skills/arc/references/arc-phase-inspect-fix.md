@@ -87,12 +87,14 @@ const inspectConfig = readTalismanSection("inspect") ?? {}
 const maxFixes = inspectConfig.max_fixes ?? 20
 
 if (fixableGaps.length === 0) {
-  warn('Phase 5.95: No FIXABLE gaps found in VERDICT.md — all gaps are deferred')
+  // FLAW-005 FIX: Subtract reclassified from deferred (they're not deferred, they're resolved)
+  const earlyDeferredCount = Math.max(0, gapMarkers.length - reclassifiedCount)
+  warn(`Phase 5.95: No FIXABLE gaps — ${reclassifiedCount} reclassified, ${earlyDeferredCount} deferred`)
   updateCheckpoint({
     phase: 'inspect_fix', status: 'completed', phase_sequence: 5.95, team_name: null,
     artifact: `tmp/arc/${id}/inspect-verdict.md`,
     artifact_hash: sha256(verdictContent),
-    fixed_count: 0, deferred_count: gapMarkers.length,
+    fixed_count: 0, deferred_count: earlyDeferredCount, reclassified_count: reclassifiedCount,
   })
   return
 }
