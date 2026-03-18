@@ -6,7 +6,7 @@
 
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
-[![Version](https://img.shields.io/badge/version-2.0.2-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-2.0.3-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Agents](https://img.shields.io/badge/agents-106-purple)](#agents)
 [![Skills](https://img.shields.io/badge/skills-55-orange)](#skills)
@@ -62,7 +62,7 @@ The trade-off is token cost — multi-agent workflows consume more tokens than a
 ## Install
 
 ```bash
-/plugin marketplace add https://github.com/vinhnxv/rune-plugin
+/plugin marketplace add https://github.com/vinhnxv/rune
 /plugin install rune
 ```
 
@@ -757,6 +757,28 @@ See the [Troubleshooting guide](docs/guides/rune-troubleshooting-and-optimizatio
 
 ---
 
+## Torrent — Tmux Arc Orchestrator
+
+[Torrent](torrent/README.md) is a standalone Rust TUI tool that manages `rune:arc` execution across multiple Claude Code sessions using tmux:
+
+- **Multi-config support** — use different `CLAUDE_CONFIG_DIR` accounts
+- **tmux isolation** — each arc gets its own Claude Code instance with clean context
+- **Crash resilience** — tmux sessions survive if torrent exits
+
+### Install
+
+```bash
+# Install to ~/.local/bin (recommended)
+curl -fsSL https://raw.githubusercontent.com/vinhnxv/rune/main/torrent/install.sh | bash
+
+# Or install system-wide
+curl -fsSL https://raw.githubusercontent.com/vinhnxv/rune/main/torrent/install.sh | bash -s -- --system
+```
+
+See [torrent/README.md](torrent/README.md) for full documentation.
+
+---
+
 ## Requirements
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with plugin support
@@ -767,6 +789,7 @@ See the [Troubleshooting guide](docs/guides/rune-troubleshooting-and-optimizatio
 ## Links
 
 - [Detailed component reference](plugins/rune/README.md) — all agents, skills, commands, hooks
+- [Torrent TUI](torrent/README.md) — tmux-based arc orchestrator for multi-session execution
 - [Documentation hub](docs/README.md) — start here to choose the right user guide
 - [GLM-5 setup guide](docs/glm-5-setup.md) — use GLM-5 with Rune for budget-friendly agent teams
 - [Rune user guide (English): arc + arc-batch](docs/guides/rune-arc-and-batch-guide.en.md) — operational guide with greenfield/brownfield use cases

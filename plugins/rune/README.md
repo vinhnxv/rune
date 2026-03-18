@@ -9,7 +9,7 @@ Each Ash teammate gets its own dedicated context window, eliminating single-cont
 ## Claude Code Install
 
 ```bash
-/plugin marketplace add https://github.com/vinhnxv/rune-plugin
+/plugin marketplace add https://github.com/vinhnxv/rune
 /plugin install rune
 ```
 
@@ -1211,11 +1211,40 @@ Configure via `talisman.yml` → `teammate_lifecycle` section.
 | ARC-ISSUES-LOOP | Stop | Drives arc-issues loop via Stop hook pattern — reads state file, posts GitHub comment, updates labels, re-injects next arc prompt |
 | STOP-001 | Stop | Detects active workflows on session end, blocks exit with cleanup instructions |
 
+## Torrent — Tmux Arc Orchestrator
+
+Torrent is a standalone Rust TUI tool that manages `rune:arc` execution across multiple Claude Code sessions using tmux. It complements `/rune:arc-batch` by providing:
+
+- **Multi-config support** — use different `CLAUDE_CONFIG_DIR` accounts
+- **tmux isolation** — each arc gets its own Claude Code instance with clean context
+- **Independent monitoring** — observe arc progress via checkpoint/heartbeat files
+- **Crash resilience** — tmux sessions survive if torrent exits
+
+### Installation
+
+```bash
+# Install to ~/.local/bin (recommended)
+curl -fsSL https://raw.githubusercontent.com/vinhnxv/rune/main/torrent/install.sh | bash
+
+# Or install system-wide (may require sudo)
+curl -fsSL https://raw.githubusercontent.com/vinhnxv/rune/main/torrent/install.sh | bash -s -- --system
+```
+
+### Usage
+
+```bash
+# Run from project root (where plans/ directory lives)
+torrent
+```
+
+See [torrent/README.md](../../torrent/README.md) for full documentation.
+
 ## Requirements
 
 - Claude Code with Agent Teams support
 - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` environment variable enabled
 - **Optional**: `codex` CLI for cross-model verification (`npm install -g @openai/codex`)
+- **Optional**: tmux for Torrent TUI (`brew install tmux` on macOS)
 
 ## License
 

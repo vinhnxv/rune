@@ -19,7 +19,7 @@ Rune is a multi-agent orchestration plugin for [Claude Code](https://claude.ai/c
 ## Installation
 
 ```bash
-/plugin marketplace add https://github.com/vinhnxv/rune-plugin
+/plugin marketplace add https://github.com/vinhnxv/rune
 /plugin install rune
 ```
 

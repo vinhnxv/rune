@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [2.0.3] - 2026-03-18
+
+### Fixed
+
+- **echo-search start.sh**: Fix PLUGIN_ROOT path calculation (was one level up instead of two)
+- **figma-to-react start.sh**: Fix same PLUGIN_ROOT path calculation bug
+- Both MCP servers now correctly resolve `${PLUGIN_ROOT}/scripts/lib/rune-state.sh`
+
 ## [2.0.2] - 2026-03-18
 
 ### Fixed

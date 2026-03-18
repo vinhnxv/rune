@@ -10,7 +10,7 @@ set -euo pipefail
 # fail silently because ECHO_DIR/DB_PATH would be unset.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "${PLUGIN_ROOT}/scripts/lib/rune-state.sh"
 
 # --- Package check ---

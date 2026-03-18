@@ -23,7 +23,7 @@ Rune là plugin điều phối multi-agent cho [Claude Code](https://claude.ai/c
 ## Cài đặt
 
 ```bash
-/plugin marketplace add https://github.com/vinhnxv/rune-plugin
+/plugin marketplace add https://github.com/vinhnxv/rune
 /plugin install rune
 ```
 

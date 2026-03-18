@@ -19,11 +19,33 @@ Use torrent when you need config-dir rotation or tmux-based process isolation.
 
 ## Prerequisites
 
-- **Rust** — install via [rustup](https://rustup.rs/)
 - **tmux** — `brew install tmux` (macOS) or `apt install tmux` (Linux)
 - **Claude Code** — must be on `$PATH`
 
-## Build
+## Installation
+
+### Quick Install (curl)
+
+```bash
+# Install to ~/.local/bin (recommended)
+curl -fsSL https://raw.githubusercontent.com/vinhnxv/rune/main/torrent/install.sh | bash
+
+# Or install system-wide (may require sudo)
+curl -fsSL https://raw.githubusercontent.com/vinhnxv/rune/main/torrent/install.sh | bash -s -- --system
+
+# Install specific version
+curl -fsSL https://raw.githubusercontent.com/vinhnxv/rune/main/torrent/install.sh | bash -s -- --version v2.0.3
+```
+
+After installation, ensure `~/.local/bin` is in your PATH:
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+### Build from Source
+
+Requires [Rust](https://rustup.rs/):
 
 ```bash
 cd torrent/
@@ -31,6 +53,25 @@ cargo build --release
 ```
 
 Binary at `torrent/target/release/torrent`.
+
+### Using Make
+
+```bash
+# Build
+make release
+
+# Install to /usr/local/bin (may need sudo)
+make install
+
+# Install to ~/.local/bin (no sudo)
+make install-local
+
+# Create release tarballs
+make dist
+
+# Uninstall
+make uninstall
+```
 
 ## Usage
 

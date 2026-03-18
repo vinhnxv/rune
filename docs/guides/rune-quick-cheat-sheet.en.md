@@ -11,7 +11,7 @@ Related guides:
 ## Start in 60 Seconds
 
 ```bash
-/plugin marketplace add https://github.com/vinhnxv/rune-plugin
+/plugin marketplace add https://github.com/vinhnxv/rune
 /plugin install rune
 ```
 

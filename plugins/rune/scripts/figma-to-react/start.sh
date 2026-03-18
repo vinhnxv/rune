@@ -9,7 +9,7 @@ set -euo pipefail
 # Do NOT replace this with a direct python3 call in .mcp.json.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # --- Package check ---
 # Use shared venv helper — venv lives in ${CLAUDE_CONFIG_DIR}/.rune/venv/
