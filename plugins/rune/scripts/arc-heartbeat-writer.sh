@@ -35,6 +35,11 @@ command -v jq &>/dev/null || exit 0
 # ── GUARD 1: Fast-path — is there an active arc? ──
 # stat() on state file is the cheapest possible check (<0.5ms).
 # Pattern from arc-result-signal-writer.sh.
+# ── Source shared libraries (BEFORE using RUNE_STATE) ──
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[[ -f "${SCRIPT_DIR}/lib/platform.sh" ]] && source "${SCRIPT_DIR}/lib/platform.sh"
+source "${SCRIPT_DIR}/lib/rune-state.sh"
+
 INPUT=$(head -c 1048576 2>/dev/null || true)
 CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 [[ -n "$CWD" && "$CWD" == /* ]] || exit 0
@@ -46,11 +51,6 @@ STATE_FILE="${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"
 # Pattern from rune-context-monitor.sh line 48.
 TRANSCRIPT_PATH=$(printf '%s\n' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
 [[ -n "$TRANSCRIPT_PATH" && "$TRANSCRIPT_PATH" == */subagents/* ]] && exit 0
-
-# ── Source shared libraries ──
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-[[ -f "${SCRIPT_DIR}/lib/platform.sh" ]] && source "${SCRIPT_DIR}/lib/platform.sh"
-source "${SCRIPT_DIR}/lib/rune-state.sh"
 
 # ── Extract tool name ──
 TOOL_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)

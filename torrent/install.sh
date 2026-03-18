@@ -138,13 +138,15 @@ fi
 # ── Determine Version ───────────────────────────────────────────────────────────
 info "Fetching release information..."
 
-RELEASE_URL="$GITHUB_API/repos/$REPO_OWNER/$REPO_NAME/releases/latest"
-TAG=$(curl -fsSL "$RELEASE_URL" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+# Torrent uses prefixed tags (torrent-vX.Y.Z) to distinguish from rune-plugin releases
+RELEASES_URL="$GITHUB_API/repos/$REPO_OWNER/$REPO_NAME/releases"
+TAG=$(curl -fsSL "$RELEASES_URL" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/' | grep '^torrent-v' | head -1)
 if [[ -z "$TAG" ]]; then
-  die "Failed to fetch latest release tag"
+  die "Failed to fetch latest torrent release tag. Ensure a release tagged 'torrent-vX.Y.Z' exists."
 fi
 
-info "Installing torrent $TAG"
+VERSION="${TAG#torrent-}"
+info "Installing torrent $VERSION"
 
 # ── Determine Download URL ──────────────────────────────────────────────────────
 ARCH=$(get_arch)

@@ -58,6 +58,12 @@ esac
 # arc-phase-stop-hook.sh, arc-batch-stop-hook.sh, arc-hierarchy-stop-hook.sh,
 # and arc-issues-stop-hook.sh all handle arc loop continuation. Interfering
 # would break the phase loop. Check for active arc loop state files.
+# --- Source platform helpers for cross-platform stat (BEFORE using RUNE_STATE) ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck source=lib/platform.sh
+source "${SCRIPT_DIR}/lib/platform.sh"
+source "${SCRIPT_DIR}/lib/rune-state.sh"
+
 CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 if [[ -n "$CWD" ]]; then
   # Arc loop state files live in ${CWD}/${RUNE_STATE}/ (project-local), NOT $CHOME (global config)
@@ -72,12 +78,6 @@ if [[ -n "$CWD" ]]; then
     exit 0  # Arc loop active — let arc hooks handle continuation
   fi
 fi
-
-# --- Source platform helpers for cross-platform stat ---
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-# shellcheck source=lib/platform.sh
-source "${SCRIPT_DIR}/lib/platform.sh"
-source "${SCRIPT_DIR}/lib/rune-state.sh"
 
 # --- Talisman gate (project → system fallback; symlink-safe via helper) ---
 # shellcheck source=lib/talisman-shard-path.sh
