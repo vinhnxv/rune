@@ -73,6 +73,9 @@ elif [[ "$REL_FILE_PATH" == */.* && "$REL_FILE_PATH" != .claude/* && "$REL_FILE_
 elif [[ "$REL_FILE_PATH" == .claude/* ]]; then
   DENY_REASON="SEC-GAP-001: Gap fixers must not modify .claude/ configuration files."
   DENY=1
+elif [[ "$REL_FILE_PATH" == .rune/* ]]; then
+  DENY_REASON="SEC-GAP-001: Gap fixers must not modify .rune/ state files."
+  DENY=1
 elif [[ "$REL_FILE_PATH" == .github/* ]]; then
   DENY_REASON="SEC-GAP-001: Gap fixers must not modify .github/ CI/CD configuration."
   DENY=1

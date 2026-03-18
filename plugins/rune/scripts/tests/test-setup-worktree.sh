@@ -267,11 +267,10 @@ run_hook "$INPUT10"
 EXIT_CODE=$?
 
 assert_exit_zero "Partial setup exits 0" "$EXIT_CODE"
-# With current re-entry guard on talisman.yml, this WILL skip (known limitation per BACK-002).
-# Test documents the current behavior: marker is NOT written if talisman.yml exists.
-# If BACK-002 is fixed (re-entry guard checks marker instead), this test should assert_file_exists.
+# BACK-002 RESOLVED: Re-entry guard now checks marker (not talisman.yml).
+# Without marker, hook re-copies everything — talisman.yml gets overwritten with main repo content.
 WT10_CONTENT=$(cat "$WT10/.rune/talisman.yml" 2>/dev/null)
-assert_eq "Pre-existing talisman.yml preserved" "partial: true" "$WT10_CONTENT"
+assert_eq "Talisman.yml overwritten from main repo" "test: true" "$WT10_CONTENT"
 printf "\n"
 
 # ── Test 11: Empty echoes/ source — hook exits 0, dst echoes/ created but empty ──

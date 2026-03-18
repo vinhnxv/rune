@@ -186,7 +186,7 @@ for tome_path in tome_files:
             findings[fid]['descriptions'].append(desc)
 
 # ── Step 3: Read reviewer echo entries ──
-echo_file = os.path.join(project_dir, '.claude', 'echoes', 'reviewer', 'MEMORY.md')
+echo_file = os.path.join(project_dir, '.rune', 'echoes', 'reviewer', 'MEMORY.md')
 echo_content = ''
 if os.path.isfile(echo_file) and not os.path.islink(echo_file):
     try:
