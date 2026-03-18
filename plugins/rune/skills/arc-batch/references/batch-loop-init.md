@@ -5,7 +5,7 @@ and invoke `/rune:arc` for the first plan. The Stop hook handles all subsequent 
 Extracted from SKILL.md Phase 5 in v1.110.0 for context reduction.
 
 **Consumers**: SKILL.md Phase 5 (Start Batch Loop)
-**Inputs**: `planPaths` (array), `progressFile` (string), `autoMerge` (boolean), `summaryEnabled` (boolean)
+**Inputs**: `planPaths` (array), `progressFile` (string), `autoMerge` (boolean), `summaryEnabled` (boolean), `arcPassthroughFlags` (array of validated flag strings)
 **Outputs**: `.claude/arc-batch-loop.local.md` (state file), first arc invocation
 
 ## Algorithm
@@ -64,6 +64,7 @@ iteration: 1
 max_iterations: 0
 total_plans: ${planPaths.length}
 no_merge: ${!autoMerge}
+arc_passthrough_flags: ${arcPassthroughFlags.join(' ')}
 plugin_dir: ${pluginDir}
 config_dir: ${configDir}
 owner_pid: ${ownerPid}
@@ -79,6 +80,9 @@ started_at: "${new Date().toISOString()}"
 Arc batch loop state. Do not edit manually.
 Use /rune:cancel-arc-batch to stop the batch loop.
 `)
+// NOTE: arc_passthrough_flags is read by the Stop hook via get_field().
+// Empty string when no passthrough flags were specified (backward compat).
+// Each flag is validated against ARC_BATCH_ALLOWED_FLAGS before storage.
 // NOTE: summary_enabled and summary_dir are read by the Stop hook via get_field().
 // summary_enabled defaults to true when missing (backward compat with old state files).
 // summary_dir is always "tmp/arc-batch/summaries" (flat path per C2 — no PID subdirectory).
@@ -100,7 +104,8 @@ if (planEntry) {
 
 // ── Write plan path to fallback file (FIX-001: ensures arc receives plan path) ──
 const mergeFlag = !autoMerge ? " --no-merge" : ""
-const arcArgs = `${firstPlan} --skip-freshness --accept-external${mergeFlag}`
+const passthroughStr = arcPassthroughFlags.length > 0 ? ` ${arcPassthroughFlags.join(' ')}` : ""
+const arcArgs = `${firstPlan} --skip-freshness --accept-external${mergeFlag}${passthroughStr}`
 Write("tmp/.rune-arc-batch-next-plan.txt", arcArgs)
 
 // ── Invoke arc for first plan ──
@@ -115,7 +120,7 @@ Write("tmp/.rune-arc-batch-next-plan.txt", arcArgs)
 //   Second argument: the plan path + flags string (arcArgs above)
 // If you call Skill("rune:arc") WITHOUT the second argument, the arc will fail.
 Skill("rune:arc", arcArgs)
-// Equivalent to: Skill("rune:arc", "${firstPlan} --skip-freshness --accept-external${mergeFlag}")
+// Equivalent to: Skill("rune:arc", "${firstPlan} --skip-freshness --accept-external${mergeFlag}${passthroughStr}")
 
 // ⚠️ MANDATORY CONTINUATION — DO NOT STOP AFTER SKILL LOADS:
 // The Skill tool returns "Successfully loaded skill" — this means the arc pipeline

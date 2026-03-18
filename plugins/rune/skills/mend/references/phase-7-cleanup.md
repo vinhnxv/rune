@@ -4,7 +4,7 @@
 2. **Shutdown all members** — `SendMessage(shutdown_request)` to each
 3. **Grace period** — `sleep 20` for teammate deregistration
 4. **ID validation** — defense-in-depth `..` check + regex guard (SEC-003)
-5. **TeamDelete with retry-with-backoff** (4 attempts: 0s, 5s, 10s, 15s) + process kill + filesystem fallback
+5. **TeamDelete with retry-with-backoff** (4 attempts: 0s, 3s, 6s, 10s) + process kill + filesystem fallback
 6. **Update state file** — status → `"completed"` or `"partial"`
 7. **Release workflow lock** — `rune_release_lock "mend"`
 8. **Persist learnings** to Rune Echoes (TRACED layer)

@@ -354,6 +354,15 @@ if (integrationEnabled || e2eEnabled) {
   // If health check fails → skip integration/E2E, unit still runs
   if (!servicesHealthy) {
     warn("Services not healthy — skipping integration/E2E tiers")
+    // Structured warning for downstream phase correlation and test report
+    const healthWarning = {
+      type: "service_health_warning",
+      skipped_tiers: ["integration", "e2e"],
+      reason: "services_unhealthy",
+      health_result: startResult,
+      timestamp: new Date().toISOString()
+    }
+    Write(`tmp/arc/${id}/service-health-warning.json`, JSON.stringify(healthWarning, null, 2))
   }
   // T4: Verify screenshot dir is not a symlink BEFORE creating (SEC-004: prevent TOCTOU race)
   const screenshotDir = `tmp/arc/${id}/screenshots`
@@ -416,6 +425,9 @@ const testingPlan = resumeOrCreate(id, testingConfig, {
   }
 })
 Write(`tmp/arc/${id}/testing-plan.md`, renderTestingPlanMarkdown(testingPlan))
+
+// For E2E sub-tier execution protocols (visual regression, accessibility, design token compliance),
+// see testing/references/visual-regression.md which chains to accessibility-check.md and design-token-check.md
 
 // STEP 5.2: Execute batches sequentially (foreground agents — blocking calls, zero idle risk)
 const batchConfig = testingPlan.config
@@ -817,9 +829,9 @@ if (dockerStarted) {
   }
 }
 
-// 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
+// 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s)
 let cleanupTeamDeleteSucceeded = false
-const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
   try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {

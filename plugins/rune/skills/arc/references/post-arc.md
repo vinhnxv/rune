@@ -223,9 +223,9 @@ try {
     Bash(`sleep 20`)
   }
 
-  // ── Step 4: TeamDelete — retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s) ──
+  // ── Step 4: TeamDelete — retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s) ──
   let sweepCleared = false
-  const SWEEP_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+  const SWEEP_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
   for (let attempt = 0; attempt < SWEEP_CLEANUP_DELAYS.length; attempt++) {
     if (attempt > 0) Bash(`sleep ${SWEEP_CLEANUP_DELAYS[attempt] / 1000}`)
     try { TeamDelete(); sweepCleared = true; break } catch (e) {

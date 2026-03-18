@@ -462,15 +462,63 @@ if [[ -n "$detected_team_name" ]]; then
   WORKFLOW_TYPE=$(printf '%s\n' "$detected_team_name" | sed -n 's/^rune-\([a-z]*\)-.*/\1/p')
 elif [[ -n "${AGENT_NAME:-}" ]]; then
   # Infer workflow from agent name -> category mapping
-  case "$AGENT_NAME" in
-    ward-sentinel|forge-warden|pattern-weaver|veil-piercer|glyph-scribe|knowledge-keeper|wraith-finder|void-analyzer|flaw-hunter|blight-seer|simplicity-warden|runebinder)
+  # Strip numbered/named suffixes for matching: ward-sentinel-1 -> ward-sentinel
+  _match_name=$(printf '%s\n' "$AGENT_NAME" | sed -E 's/(-[0-9]+|-deep|-exhaustive|-plan|-inspect|-review|-w[0-9]+)*$//')
+  case "$_match_name" in
+    # Review/Audit Ashes (built-in + specialist + UX + design)
+    ward-sentinel|forge-warden|pattern-weaver|pattern-seer|veil-piercer|glyph-scribe|\
+    knowledge-keeper|wraith-finder|void-analyzer|flaw-hunter|blight-seer|\
+    simplicity-warden|runebinder|doubt-seer|ember-oracle|rune-architect|forge-keeper|\
+    design-implementation-reviewer|design-system-compliance-reviewer|\
+    ux-heuristic-reviewer|ux-interaction-auditor|ux-cognitive-walker|ux-flow-validator|\
+    aesthetic-quality-reviewer|shard-reviewer|senior-engineer-reviewer|\
+    naming-intent-analyzer|phantom-checker|phantom-warden|mimic-detector|\
+    type-warden|refactor-guardian|cross-shard-sentinel|\
+    agent-parity-reviewer|reference-validator|truthseer-validator|\
+    python-reviewer|typescript-reviewer|rust-reviewer|php-reviewer|\
+    axum-reviewer|fastapi-reviewer|django-reviewer|laravel-reviewer|\
+    sqlalchemy-reviewer|ddd-reviewer|di-reviewer|tdd-compliance-reviewer)
       WORKFLOW_TYPE="review-or-audit" ;;
-    rune-smith*|gap-fixer*|design-sync-agent|design-iterator|storybook-*)
+    # Investigation Ashes (deep review/audit + goldmask tracers)
+    breach-hunter|fringe-watcher|rot-seeker|strand-tracer|decree-auditor|\
+    order-auditor|truth-seeker|ember-seer|ruin-watcher|signal-watcher|\
+    api-contract-tracer|business-logic-tracer|config-dependency-tracer|\
+    data-layer-tracer|event-message-tracer|schema-drift-detector|\
+    sediment-detector|decay-tracer|tide-watcher|\
+    reality-arbiter|assumption-slayer|entropy-prophet|depth-seer)
+      WORKFLOW_TYPE="review-or-audit" ;;
+    # Work Ashes
+    rune-smith|gap-fixer|design-sync-agent|design-iterator|storybook-fixer|\
+    storybook-reviewer|deployment-verifier|todo-verifier)
       WORKFLOW_TYPE="work" ;;
-    mend-fixer*)
+    # Mend Ashes
+    mend-fixer)
       WORKFLOW_TYPE="mend" ;;
-    repo-surveyor|echo-reader|git-miner|practice-seeker|lore-scholar|flow-seer|scroll-reviewer|decree-arbiter|research-verifier)
+    # Plan/Devise Ashes
+    repo-surveyor|echo-reader|git-miner|practice-seeker|lore-scholar|\
+    flow-seer|scroll-reviewer|decree-arbiter|research-verifier|\
+    evidence-verifier|veil-piercer-plan|horizon-sage|elicitation-sage|\
+    ux-pattern-analyzer|state-weaver|codex-researcher|codex-plan-reviewer|\
+    design-analyst|design-inventory-agent)
       WORKFLOW_TYPE="plan" ;;
+    # Inspect Ashes
+    grace-warden|sight-oracle|ruin-prophet|vigil-keeper|verdict-binder)
+      WORKFLOW_TYPE="inspect" ;;
+    # Goldmask Ashes
+    goldmask-coordinator|lore-analyst|wisdom-sage)
+      WORKFLOW_TYPE="goldmask" ;;
+    # Test Ashes
+    test-runner|unit-test-runner|integration-test-runner|extended-test-runner|\
+    e2e-browser-tester|trial-forger|trial-oracle|test-failure-analyst|\
+    contract-validator)
+      WORKFLOW_TYPE="test" ;;
+    # Codex Ashes
+    codex-oracle|codex-phase-handler|codex-arena-judge)
+      WORKFLOW_TYPE="codex" ;;
+    # Debug Ashes
+    hypothesis-investigator)
+      WORKFLOW_TYPE="debug" ;;
+    # Aggregation
     tome-digest)
       WORKFLOW_TYPE="utility" ;;
     *)
@@ -479,10 +527,35 @@ elif [[ -n "${AGENT_NAME:-}" ]]; then
 fi
 
 # SEC-003 FIX: Build recovery steps without bash interpolation of SUGGESTED_TEAM.
-# The team name is passed via jq --arg below (line ~384) for safe escaping.
+# The team name is passed via jq --arg below for safe escaping.
+#
+# ATE-1-RECOVERY FIX: Three-tier recovery messages:
+#   (A) SUGGESTED_TEAM known → manual team steps with specific team name
+#   (B) Signal 4 (agent-name, no active workflow) → suggest the correct /rune:* skill
+#   (C) Fallback → generic manual team steps
 if [[ -n "$SUGGESTED_TEAM" ]]; then
+  # (A) Active workflow with known team name — guide manual team creation
   RECOVERY_STEPS="STOP. Do NOT write a state file — that does not create a team. Do NOT retry Agent() immediately. Follow these steps EXACTLY: Step 1: Read the phase reference file from the checkpoint to find the correct algorithm. Step 2: Call TeamCreate({ team_name: '${SUGGESTED_TEAM}' }) — this is the SDK call that registers the team. Step 3: Call TaskCreate() for each agent you plan to spawn. Step 4: THEN retry Agent() calls with team_name: '${SUGGESTED_TEAM}' on each call."
+elif [[ "$detected_source" == "agent-name" ]]; then
+  # (B) Signal 4: No active workflow, just a bare Agent() with a Rune agent name.
+  # The LLM is trying to manually orchestrate instead of using the proper skill.
+  # Map WORKFLOW_TYPE to the correct /rune:* skill suggestion.
+  _suggested_skill=""
+  case "$WORKFLOW_TYPE" in
+    review-or-audit) _suggested_skill="/rune:appraise (for code review) or /rune:audit (for full codebase audit)" ;;
+    work)            _suggested_skill="/rune:strive <plan-file>" ;;
+    mend)            _suggested_skill="/rune:mend <TOME-file>" ;;
+    plan)            _suggested_skill="/rune:devise" ;;
+    inspect)         _suggested_skill="/rune:inspect <plan-file>" ;;
+    goldmask)        _suggested_skill="/rune:goldmask" ;;
+    debug)           _suggested_skill="/rune:debug" ;;
+    test)            _suggested_skill="/rune:arc (test phase runs within arc pipeline)" ;;
+    codex)           _suggested_skill="/rune:codex-review" ;;
+    *)               _suggested_skill="/rune:appraise, /rune:audit, or the appropriate /rune:* workflow skill" ;;
+  esac
+  RECOVERY_STEPS="STOP. Do NOT spawn Rune agents directly with bare Agent() calls. You MUST use the proper Rune workflow skill instead: ${_suggested_skill}. The skill handles TeamCreate, TaskCreate, and Agent orchestration automatically. Do NOT attempt to create teams manually — invoke the Skill() tool with the correct /rune:* command."
 else
+  # (C) Fallback: active workflow detected but no team name known
   RECOVERY_STEPS="STOP. Do NOT write a state file — that does not create a team. Do NOT retry Agent() immediately. Follow these steps EXACTLY: Step 1: Read the phase reference file from the checkpoint to find the correct team name and algorithm. Step 2: Call TeamCreate({ team_name: 'the-team-name-from-reference' }) — this is the SDK call that registers the team. Step 3: Call TaskCreate() for each agent you plan to spawn. Step 4: THEN retry Agent() calls with the team_name parameter on each call."
 fi
 

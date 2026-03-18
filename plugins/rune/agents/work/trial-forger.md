@@ -20,6 +20,7 @@ tools:
   - SendMessage
 skills:
   - discipline
+  - testing
 maxTurns: 60
 mcpServers:
   - echo-search

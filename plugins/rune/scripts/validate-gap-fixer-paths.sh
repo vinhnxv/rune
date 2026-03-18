@@ -64,8 +64,11 @@ fi
 # ── Blocked path patterns ──────────────────────────────────────────────────
 # Gap fixers must not touch infrastructure config, CI pipelines, or secret files.
 # Path traversal check: reject paths that navigate outside CWD.
-if [[ "$REL_FILE_PATH" == *../* ]] || [[ "$REL_FILE_PATH" == *.. ]] || [[ "$REL_FILE_PATH" == */.* && "$REL_FILE_PATH" != .claude/* ]]; then
-  DENY_REASON="SEC-GAP-001: Path traversal or hidden file access denied."
+if [[ "$REL_FILE_PATH" == *../* ]] || [[ "$REL_FILE_PATH" == *.. ]]; then
+  DENY_REASON="SEC-GAP-001: Path traversal denied."
+  DENY=1
+elif [[ "$REL_FILE_PATH" == */.* && "$REL_FILE_PATH" != .claude/* && "$REL_FILE_PATH" != */.gitignore && "$REL_FILE_PATH" != */.dockerignore && "$REL_FILE_PATH" != */.eslintrc* && "$REL_FILE_PATH" != */.prettierrc* && "$REL_FILE_PATH" != */.editorconfig ]]; then
+  DENY_REASON="SEC-GAP-001: Hidden file access denied (use explicit allowlist for safe dotfiles)."
   DENY=1
 elif [[ "$REL_FILE_PATH" == .claude/* ]]; then
   DENY_REASON="SEC-GAP-001: Gap fixers must not modify .claude/ configuration files."

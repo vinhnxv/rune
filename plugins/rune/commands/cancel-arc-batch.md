@@ -1,8 +1,11 @@
 ---
 name: rune:cancel-arc-batch
 description: |
-  Cancel an active arc batch loop. Removes the state file so the Stop hook
-  allows the session to end after the current arc completes.
+  Alias for /rune:cancel-arc --variant=batch. Cancel an active arc batch loop.
+  Removes the state file so the Stop hook allows the session to end after the
+  current arc completes.
+
+  Delegates to /rune:cancel-arc with --variant=batch for all logic.
 
   <example>
   user: "/rune:cancel-arc-batch"
@@ -16,104 +19,23 @@ allowed-tools:
   - Glob
 ---
 
-# /rune:cancel-arc-batch — Cancel Active Arc Batch Loop
+# /rune:cancel-arc-batch — Cancel Active Arc Batch Loop (Alias)
 
-Removes the batch loop state file (`.claude/arc-batch-loop.local.md`), stopping the Stop hook from re-injecting the next arc prompt. The currently-running arc will finish normally, but no further plans will be started.
+This command is a thin alias. All cancellation logic lives in `/rune:cancel-arc`.
 
-## Pre-flight Check (deterministic)
+**Delegates to**: `/rune:cancel-arc --variant=batch`
 
-State file check result: **!`test -f .claude/arc-batch-loop.local.md && echo "EXISTS" || echo "NOT_FOUND"`**
-
-If the result above says `NOT_FOUND`: Report "No active arc batch loop found." and **stop here — do not proceed to any further steps**.
-
-If the result says `EXISTS`: Continue to Step 1.
-
-State file content:
-!`cat .claude/arc-batch-loop.local.md 2>/dev/null || echo "(empty)"`
-
-## Steps
-
-### 1. Parse State and Check Ownership
-
-### 2. Read Current State and Check Ownership
+## Action
 
 ```javascript
-const content = Read(stateFile)
-// Parse YAML frontmatter for iteration, total_plans, and ownership
-const iterationMatch = content.match(/iteration:\s*(\d+)/)
-const totalMatch = content.match(/total_plans:\s*(\d+)/)
-const iteration = iterationMatch ? iterationMatch[1] : "?"
-const totalPlans = totalMatch ? totalMatch[1] : "?"
-
-// Check if this batch belongs to another session
-const ownerPidMatch = content.match(/owner_pid:\s*(\d+)/)
-const configDirMatch = content.match(/config_dir:\s*(.+)/)
-const ownerPid = ownerPidMatch ? ownerPidMatch[1].trim() : null
-const storedConfigDir = configDirMatch ? configDirMatch[1].trim() : null
-const currentConfigDir = Bash(`cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
-const currentPid = Bash(`echo $PPID`).trim()
-
-let foreignSession = false
-if (storedConfigDir && storedConfigDir !== currentConfigDir) {
-  foreignSession = true
-} else if (ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
-  const alive = Bash(`kill -0 ${ownerPid} 2>/dev/null && echo "alive" || echo "dead"`).trim()
-  if (alive === "alive") {
-    foreignSession = true
-  }
-}
-
-if (foreignSession) {
-  warn("WARNING: This batch was started by another session.")
-  warn(`  Owner PID: ${ownerPid || "unknown"}, Config dir: ${storedConfigDir || "unknown"}`)
-  // Still allow cancellation — user might intentionally want to cancel from another terminal
-}
+// Redirect to the unified cancel-arc command with batch variant
+Skill("rune:cancel-arc", "--variant=batch")
 ```
 
-### 2.5. Mark In-Progress Plan as Cancelled
+Invoke `/rune:cancel-arc --variant=batch` to cancel only the arc-batch loop state file
+(`.claude/arc-batch-loop.local.md`). Session isolation is enforced — only cancels loops
+owned by this session.
 
-Without this step, the currently-running plan stays `in_progress` in the progress file forever — the Stop hook won't fire (state file removed), and `--resume` only picks up `pending` plans.
+The currently-running arc will finish normally, but no further plans will be started.
 
-```javascript
-const progressFile = "tmp/arc-batch/batch-progress.json"
-if (Bash(`test -f "${progressFile}" && echo "yes" || echo "no"`).trim() === "yes") {
-  try {
-    const progress = JSON.parse(Read(progressFile))
-    const inProgressPlan = progress.plans.find(p => p.status === "in_progress")
-    if (inProgressPlan) {
-      inProgressPlan.status = "cancelled"
-      inProgressPlan.cancelled_at = new Date().toISOString()
-      progress.updated_at = new Date().toISOString()
-      Write(progressFile, JSON.stringify(progress, null, 2))
-    }
-  } catch (e) {
-    // Progress file unreadable — proceed with state file removal anyway
-  }
-}
-```
-
-### 3. Remove State File
-
-```javascript
-Bash('rm -f .claude/arc-batch-loop.local.md')
-```
-
-### 4. Report
-
-```
-Arc batch loop cancelled at iteration {iteration}/{totalPlans}.
-
-The current arc run will finish normally.
-No further plans will be started.
-
-To see batch progress: Read tmp/arc-batch/batch-progress.json
-To resume later: /rune:arc-batch --resume
-```
-
-### 5. Delegate to Cancel-Arc (Optional)
-
-If the user also wants to cancel the currently-running arc:
-
-```
-To also cancel the current arc run: /rune:cancel-arc
-```
+To also cancel the current arc run: `/rune:cancel-arc`

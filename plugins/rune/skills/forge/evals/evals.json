@@ -118,12 +118,12 @@
     {
       "id": 9,
       "prompt": "Explain the Phase 6 cleanup protocol for forge. What are the 5 components? What is the workflow lock release pattern? What post-enhancement options are offered?",
-      "expected_output": "Phase 6 Cleanup: 5 components: (1) Dynamic member discovery — read team config for all teammates; (2) shutdown_request to all members via SendMessage; (3) Grace period (20s) for deregistration; (4) TeamDelete with retry-with-backoff (0s, 5s, 10s, 15s); (5) Filesystem fallback if TeamDelete never succeeded. Workflow lock release: Bash with source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock 'forge'. Post-enhancement options (skipped in arc): AskUserQuestion with options like 'Run /rune:strive to implement', 'Run /rune:appraise on changed files', 'View enrichment diff', 'Done'. Completion report: summary of sections enriched, agents summoned, files modified. CHOME pattern: ${CLAUDE_CONFIG_DIR:-$HOME/.claude} for multi-account support.",
+      "expected_output": "Phase 6 Cleanup: 5 components: (1) Dynamic member discovery — read team config for all teammates; (2) shutdown_request to all members via SendMessage; (3) Grace period (20s) for deregistration; (4) TeamDelete with retry-with-backoff (0s, 3s, 6s, 10s); (5) Filesystem fallback if TeamDelete never succeeded. Workflow lock release: Bash with source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock 'forge'. Post-enhancement options (skipped in arc): AskUserQuestion with options like 'Run /rune:strive to implement', 'Run /rune:appraise on changed files', 'View enrichment diff', 'Done'. Completion report: summary of sections enriched, agents summoned, files modified. CHOME pattern: ${CLAUDE_CONFIG_DIR:-$HOME/.claude} for multi-account support.",
       "files": [],
       "expectations": [
         "Lists 5 cleanup components in order",
         "Notes 20s grace period",
-        "Lists TeamDelete retry delays: 0s, 5s, 10s, 15s",
+        "Lists TeamDelete retry delays: 0s, 3s, 6s, 10s",
         "Describes workflow lock release command",
         "Lists post-enhancement options",
         "Notes arc context skips post-enhancement options",

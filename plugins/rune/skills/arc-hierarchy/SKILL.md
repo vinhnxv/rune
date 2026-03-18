@@ -35,7 +35,7 @@ allowed-tools:
   - SendMessage
   - AskUserQuestion
   - Skill
-argument-hint: "<parent-plan-path> [--resume] [--dry-run] [--no-merge]"
+argument-hint: "<parent-plan-path> [--resume] [--dry-run] [--no-merge] [--no-forge] [--no-test]"
 ---
 
 # /rune:arc-hierarchy — Hierarchical Plan Execution
@@ -53,6 +53,8 @@ Orchestrates sequential execution of child plans (produced by `/rune:devise` wit
 /rune:arc-hierarchy plans/parent.md --resume       # Resume after interruption
 /rune:arc-hierarchy plans/parent.md --dry-run      # Preview execution order only
 /rune:arc-hierarchy plans/parent.md --no-merge     # Skip auto-merge on children
+/rune:arc-hierarchy plans/parent.md --no-forge     # Skip forge phase on each child arc
+/rune:arc-hierarchy plans/parent.md --no-test      # Skip test phase on each child arc
 ```
 
 ## Flags
@@ -62,6 +64,10 @@ Orchestrates sequential execution of child plans (produced by `/rune:devise` wit
 | `--resume` | Resume from current execution table state | Off |
 | `--dry-run` | Show execution order and contracts, exit without running | Off |
 | `--no-merge` | Pass `--no-merge` to each child arc run | Off |
+| `--no-forge` | Pass `--no-forge` to each child arc run (skip forge phase) | Off |
+| `--no-test` | Pass `--no-test` to each child arc run (skip test phase) | Off |
+
+> **Note**: `--no-pr` is always passed to child arc runs — the parent hierarchy manages the single feature PR. `--draft`, `--bot-review`, and `--no-bot-review` are not forwarded to children; configure them on the final parent PR instead.
 
 ## Parent Plan Detection
 
@@ -104,6 +110,13 @@ const planPath = args.replace(/--\S+/g, '').trim()
 const resumeMode = args.includes('--resume')
 const dryRun = args.includes('--dry-run')
 const noMerge = args.includes('--no-merge')
+
+// Extract passthrough flags for forwarding to each child arc invocation
+// Narrower allowlist than arc-batch: --no-pr is always hardcoded, PR-related flags excluded
+const ARC_HIERARCHY_ALLOWED_FLAGS = ['--no-forge', '--no-test']
+const arcPassthroughFlags = ARC_HIERARCHY_ALLOWED_FLAGS.filter(f => args.includes(f))
+// arcPassthroughFlags is an array of validated flags (e.g., ['--no-forge'])
+// Stored as a space-joined string in the state file; --no-pr is always appended separately
 
 // Guard: empty path check BEFORE validation (BACK-001 fix)
 if (!planPath) {
@@ -187,6 +200,12 @@ if (dryRun) {
       const provides = entry.provides.length > 0 ? entry.provides.map(a => `${a.type}:${a.name}`).join(", ") : "—"
       log(`  ${entry.child}: requires=[${requires}] provides=[${provides}]`)
     }
+  }
+
+  if (arcPassthroughFlags.length > 0) {
+    log(`\nForwarded flags to each child arc: ${arcPassthroughFlags.join(' ')} --no-pr`)
+  } else {
+    log(`\nForwarded flags to each child arc: --no-pr (always)`)
   }
 
   return
@@ -303,6 +322,7 @@ current_child: 02-api-plan.md
 feature_branch: feat/hierarchical-auth
 execution_table_path: plans/2026-02-23-feature-auth-plan.md
 no_merge: false
+arc_passthrough_flags: --no-forge
 config_dir: /Users/user/.claude
 owner_pid: 12345
 session_id: abc-123-def-456

@@ -353,7 +353,13 @@ class StyleBuilder:
         if paint.type == PaintType.SOLID and paint.color:
             color = _color_to_css(paint.color, paint.opacity)
         elif paint.type in (PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL):
-            # BACK-002: Gradient stroke fallback — use first stop color
+            # BACK-002: Gradient stroke fallback — CSS border-image not widely supported,
+            # so we approximate with the first gradient stop color and log a warning.
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "Gradient stroke detected — CSS gradient borders not supported, "
+                "falling back to first gradient stop color"
+            )
             stops = paint.gradient_stops
             if stops and stops[0].color:
                 color = _color_to_css(stops[0].color, paint.opacity)

@@ -249,149 +249,21 @@ if (args.includes("--resume")) {
 
 ## Pre-Flight: State File Conflict Detection
 
-Before creating a new state file, check if one already exists from a previous or concurrent session. This enforces Rule 2 (ONE arc at a time) and prevents data corruption from concurrent arcs.
+Enforces ONE arc at a time — checks for existing state files from previous or concurrent sessions. Handles 6 cases (F1-F6) including hard blocks, resume prompts, and stale cleanup.
 
-| Case | State File | Plan Match | Owner Alive | Session Match | Action |
-|------|-----------|------------|-------------|--------------|--------|
-| F1 | No | — | — | — | **Proceed**: create state file, start arc |
-| F2 | Yes | Same | Yes | Same | **BLOCKED**: already running in this session |
-| F3 | Yes | Same | Yes | Different | **BLOCKED**: running in another session |
-| F4 | Yes | Same | No | — | **Prompt**: resume or fresh start? |
-| F5 | Yes | Different | Yes | — | **BLOCKED**: different plan is running |
-| F6 | Yes | Different | No | — | **Prompt**: clean up stale state? |
-
-> **F2, F3, F5 are hard blocks** — no "proceed anyway" option. The user MUST cancel the existing arc first via `/rune:cancel-arc`.
-
-```javascript
-// ── Pre-flight: State file conflict detection (runs BEFORE state file creation) ──
-const stateFile = ".claude/arc-phase-loop.local.md"
-const stateExists = Bash(`test -f "${stateFile}" && echo "yes" || echo "no"`).trim() === "yes"
-
-if (stateExists) {
-  const stateContent = Read(stateFile)
-  const statePlanFile = extractYamlField(stateContent, "plan_file")
-  const stateOwnerPid = extractYamlField(stateContent, "owner_pid")
-  const stateSessionId = extractYamlField(stateContent, "session_id")
-  const stateActive = extractYamlField(stateContent, "active")
-
-  // Inactive state file → clean up silently and proceed
-  if (stateActive !== "true") {
-    Bash(`rm -f "${stateFile}"`)
-    // F1 equivalent: proceed to create new state file
-  } else {
-    // Check owner PID liveness (cross-platform: works on macOS + Linux)
-    const pidAlive = stateOwnerPid
-      ? Bash(`kill -0 ${stateOwnerPid} 2>/dev/null && echo yes || echo no`).trim() === "yes"
-      : false
-    const samePlan = (statePlanFile === planFile)
-    const sameSession = (stateSessionId === "${CLAUDE_SESSION_ID}")
-
-    if (samePlan && pidAlive && sameSession) {
-      // F2: Already running in this session
-      throw new Error(
-        "Arc already running for this plan in this session. " +
-        "Run `/rune:cancel-arc` to stop it first."
-      )
-    }
-    if (samePlan && pidAlive && !sameSession) {
-      // F3: Running in another live session
-      throw new Error(
-        `Arc running for this plan in another session (PID ${stateOwnerPid}). ` +
-        "Only that session or `/rune:cancel-arc` can stop it."
-      )
-    }
-    if (samePlan && !pidAlive) {
-      // F4: Same plan, owner dead → ask user
-      const choice = AskUserQuestion({
-        question:
-          "Found interrupted arc for the same plan (owner session is dead).\n" +
-          "- **Resume**: continue from where it stopped\n" +
-          "- **Fresh**: delete stale state and start from scratch\n\n" +
-          "Choose: resume / fresh"
-      })
-      if (choice.toLowerCase().includes("resume")) {
-        // Switch to --resume flow
-        args = args.replace(planFile, "--resume")
-        Read("references/arc-resume.md")
-        // Execute resume algorithm and return — do not create new state file
-        return
-      } else {
-        // Clean up stale state file + checkpoint, then proceed
-        Bash(`rm -f "${stateFile}"`)
-      }
-    }
-    if (!samePlan && pidAlive) {
-      // F5: Different plan, still running
-      throw new Error(
-        `Another arc is running a different plan (${statePlanFile}). ` +
-        "Only one arc can run at a time. Cancel it first with `/rune:cancel-arc`."
-      )
-    }
-    if (!samePlan && !pidAlive) {
-      // F6: Different plan, owner dead → ask user
-      const choice = AskUserQuestion({
-        question:
-          `Found stale arc state for a different plan (${statePlanFile}, owner PID ${stateOwnerPid} is dead).\n` +
-          "Clean up stale state and start fresh? (yes / no)"
-      })
-      if (choice.toLowerCase().includes("yes")) {
-        Bash(`rm -f "${stateFile}"`)
-        // Proceed to create new state file
-      } else {
-        throw new Error("Aborted by user. Clean up manually or run `/rune:cancel-arc`.")
-      }
-    }
-  }
-}
-// F1: No state file exists → proceed normally to create one below
-```
+See [arc-state-conflict.md](references/arc-state-conflict.md) for the full conflict detection algorithm and case table.
 
 ## Phase Loop State File
 
-After checkpoint initialization (or resume), write the phase loop state file that drives `arc-phase-stop-hook.sh`:
+Writes the YAML state file that drives `arc-phase-stop-hook.sh`. Includes session isolation fields (`config_dir`, `owner_pid`, `session_id`), checkpoint path, and arc flags.
 
-```javascript
-// Write the phase loop state file for the Stop hook driver.
-// The Stop hook reads this file, finds the next pending phase in the checkpoint,
-// and re-injects the phase-specific prompt with fresh context.
-//
-// CRITICAL: session_id MUST use SKILL.md substitution ("${CLAUDE_SESSION_ID}") as primary source.
-// DO NOT use Bash('echo $CLAUDE_SESSION_ID') — it is NOT available in Bash tool context
-// (anthropics/claude-code#25642). The SKILL.md preprocessor replaces ${CLAUDE_SESSION_ID}
-// at skill load time, providing the real session ID without Bash.
-const sessionId = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
-const stateContent = `---
-active: true
-iteration: 0
-max_iterations: 50
-checkpoint_path: .claude/arc/${id}/checkpoint.json
-plan_file: ${planFile}
-branch: ${branch}
-arc_flags: ${args.replace(/\s+/g, ' ').trim()}
-config_dir: ${configDir}
-owner_pid: ${ownerPid}
-session_id: ${sessionId}
-compact_pending: false
-user_cancelled: false
-cancel_reason: null
-cancelled_at: null
-stop_reason: null
----
-`
-Write('.claude/arc-phase-loop.local.md', stateContent)
-```
+**CRITICAL**: `session_id` MUST use SKILL.md substitution (`"${CLAUDE_SESSION_ID}"`) — NOT `Bash('echo $CLAUDE_SESSION_ID')` which is unavailable in Bash tool context.
+
+See [arc-phase-loop-state.md](references/arc-phase-loop-state.md) for the full state file template and write logic.
 
 ## Discipline Integration
 
-The arc pipeline integrates with the Discipline Work Loop at two points:
-
-1. **Work Phase (Phase 5)**: When the plan has YAML acceptance criteria, `/rune:strive` activates the Discipline Work Loop (8-phase convergence cycle). Workers collect evidence per criterion. See `strive/references/discipline-work-loop.md`.
-
-2. **Pre-Ship Validation (Phase 8.5)**: Computes discipline metrics (SCR, proof coverage) from evidence artifacts. SCR below threshold triggers WARN (advisory for initial rollout). See `discipline/references/metrics-schema.md`.
-
-3. **Echo Persist (Post-Arc)**: Discipline failure patterns (silent skips, fabrication, escalation depth) are persisted to Rune Echoes with `discipline` metadata tag for cross-session learning.
-
-**Talisman config**: `discipline.enabled` (default: true), `discipline.block_on_fail` (default: false — WARN mode for rollout).
+Integrates at 3 points: **Phase 5** (work loop with AC criteria), **Phase 8.5** (SCR/proof metrics), **Post-Arc** (echo persist). Config: `discipline.enabled` (default: true), `discipline.block_on_fail` (default: false). See `strive/references/discipline-work-loop.md` and `discipline/references/metrics-schema.md`.
 
 ## First Phase Invocation
 
@@ -506,69 +378,9 @@ See [post-arc.md](references/post-arc.md) for echo persist and completion report
 
 ### Proof Manifest Persistence (Discipline Integration, v1.173.0)
 
-After ship/merge, persist the proof manifest beyond `tmp/` lifecycle. The manifest is generated
-at Phase 8.5 (pre-ship validation) and contains per-criterion PASS/FAIL/UNTESTED status,
-SCR, failure codes, convergence iterations, and evidence file references.
+Persists the proof manifest (SCR + DSR per criterion) as a PR comment after ship/merge. Includes code compliance and design compliance (when `design_sync.enabled`). Uses `--body-file` for injection-safe PR comments.
 
-The proof manifest includes both code compliance (SCR) and design compliance (DSR) when
-`design_sync.enabled` is true. The `design_compliance` section is omitted entirely when
-design sync is disabled — DSR is `null`, not `1.0`.
-
-```json
-{
-  "code_compliance": { "SCR": 0.92, "criteria": ["AC-1.1: PASS", "AC-1.2: FAIL"] },
-  "design_compliance": {
-    "DSR": 0.85,
-    "components": [
-      { "name": "Button", "criteria_pass": 6, "criteria_total": 7, "failing": ["DES-Button-responsive"] }
-    ],
-    "dimensions": {
-      "token_compliance": 1.0,
-      "accessibility": 0.9,
-      "variant_coverage": 0.85,
-      "story_coverage": 1.0,
-      "responsive": 0.6,
-      "fidelity": 0.8
-    }
-  }
-}
-```
-
-The overall verdict uses `Math.min(scr_gate, dsr_gate)` — both code and design compliance
-must pass for an overall PASS. Per-component DSR breakdown enables targeted remediation.
-
-```javascript
-// Persist proof manifest as PR comment (survives in GitHub, searchable, linked to code)
-const manifestPath = `tmp/arc/${id}/proof-manifest.json`
-try {
-  const manifest = JSON.parse(Read(manifestPath))
-  const prUrl = checkpoint.pr_url
-  if (prUrl && manifest) {
-    const prNumber = prUrl.match(/\/pull\/(\d+)/)?.[1]
-    if (prNumber) {
-      const hasDsr = manifest.dsr !== null && manifest.dsr !== undefined
-      const manifestComment = [
-        '## Discipline Proof Manifest',
-        '',
-        `**Plan**: \`${manifest.plan_file}\``,
-        `**Arc ID**: ${manifest.arc_id}`,
-        `**SCR**: ${manifest.scr !== null ? (manifest.scr * 100).toFixed(1) + '%' : 'N/A'}`,
-        hasDsr ? `**DSR**: ${(manifest.dsr * 100).toFixed(1)}%` : null,
-        `**Criteria**: ${manifest.criteria_count} total`,
-        `**Convergence**: ${manifest.convergence_rounds} round(s)`,
-        `**Verdict**: ${manifest.verdict}`,
-        `**Timestamp**: ${manifest.timestamp}`,
-      ].filter(Boolean).join('\n')
-      // SEC-S8-004 FIX: Use --body-file instead of heredoc to prevent content injection
-      const tmpManifestFile = Bash('mktemp "${TMPDIR:-/tmp}/rune-manifest-XXXXXX"').trim()
-      Write(tmpManifestFile, manifestComment)
-      Bash(`gh pr comment ${prNumber} --body-file "${tmpManifestFile}" && rm -f "${tmpManifestFile}"`)
-    }
-  }
-} catch (e) {
-  warn(`Proof manifest persistence failed: ${e.message} — non-blocking`)
-}
-```
+See [arc-proof-manifest.md](references/arc-proof-manifest.md) for the full manifest schema and persistence logic.
 
 ### Lock Release
 
@@ -576,13 +388,9 @@ try {
 Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_all_locks`)
 ```
 
-### Final Sweep (ARC-9)
+### Final Sweep (ARC-9) + Response Completion
 
-See [post-arc.md](references/post-arc.md). 30-second time budget. `on-session-stop.sh` handles remaining cleanup.
-
-### Response Completion (CRITICAL)
-
-After ARC-9 sweep, **finish your response immediately**. Do NOT process further TeammateIdle notifications or attempt additional cleanup. IGNORE zombie teammate messages — the Stop hook handles them.
+See [post-arc.md](references/post-arc.md). 30-second budget. After sweep, **finish your response immediately** — IGNORE zombie teammate messages (Stop hook handles cleanup).
 
 ## References
 
@@ -606,3 +414,6 @@ After ARC-9 sweep, **finish your response immediately**. Do NOT process further 
 - [Design Extraction](references/arc-phase-design-extraction.md) — Phase 3 (conditional)
 - [Storybook Verification](references/arc-phase-storybook-verification.md) — Phase 3.3 (conditional: `storybook.enabled`)
 - [Design Verification](references/arc-phase-design-verification.md) — Phase 5.2 (conditional)
+- [State Conflict Detection](references/arc-state-conflict.md) — Pre-flight F1-F6 conflict cases
+- [Phase Loop State](references/arc-phase-loop-state.md) — State file template for Stop hook driver
+- [Proof Manifest](references/arc-proof-manifest.md) — Discipline proof manifest persistence (v1.173.0)

@@ -409,8 +409,8 @@ for (const wave of waves) {
     for (const task of remaining) {
       TaskUpdate({ taskId: task.id, status: "deleted" })
     }
-    // Inter-wave TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
-    const WAVE_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+    // Inter-wave TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s)
+    const WAVE_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
     let waveCleanupOk = false
     for (let attempt = 0; attempt < WAVE_CLEANUP_DELAYS.length; attempt++) {
       if (attempt > 0) Bash(`sleep ${WAVE_CLEANUP_DELAYS[attempt] / 1000}`)
@@ -979,7 +979,7 @@ try {
   // selectedAsh + runebinder + conditionally-spawned agents (doubt-seer, cross-shard-sentinel).
   // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
   allMembers = [...selectedAsh, "runebinder", "doubt-seer", "cross-shard-sentinel",
-    "rot-seeker", "strand-tracer", "decree-auditor", "fringe-watcher", "runebinder-deep", "runebinder-merge",
+    "rot-seeker", "strand-tracer", "decree-auditor", "fringe-watcher",
     "shard-reviewer-a", "shard-reviewer-b", "shard-reviewer-c", "shard-reviewer-d", "shard-reviewer-e"]
 }
 
@@ -1012,8 +1012,8 @@ try {
   }
 } catch (e) { /* artifact finalization is non-blocking */ }
 
-// 4. TeamDelete with retry-with-backoff (0s, 5s, 10s, 15s — 30s retry budget after 20s grace)
-const CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+// 4. TeamDelete with retry-with-backoff (0s, 3s, 6s, 10s = 19s total after 20s grace)
+const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 let cleanupTeamDeleteSucceeded = false
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)

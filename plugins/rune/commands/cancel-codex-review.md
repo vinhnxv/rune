@@ -155,8 +155,8 @@ if (allMembers.length > 0) {
 // Delete team with retry-with-backoff + CHOME fallback (see team-sdk/references/engines.md)
 // Validate team_name before shell interpolation
 if (!/^[a-zA-Z0-9_-]+$/.test(team_name)) throw new Error("Invalid team_name")
-// TeamDelete with retry-with-backoff (4 attempts: 0s, 5s, 10s, 15s)
-const RETRY_DELAYS = [0, 5000, 10000, 15000]
+// TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s)
+const RETRY_DELAYS = [0, 3000, 6000, 10000]
 let cleanupTeamDeleteSucceeded = false
 for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
   if (attempt > 0) {

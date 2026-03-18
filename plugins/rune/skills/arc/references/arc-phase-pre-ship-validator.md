@@ -609,9 +609,9 @@ if (!exists(`tmp/arc/${id}/release-quality.md`)) {
 // Cleanup team (single-member optimization: 12s grace — must exceed async deregistration time)
 try { SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-rq", content: "Phase complete" }) } catch (e) { /* member may have already exited */ }
 Bash("sleep 12")
-// Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 5s, 10s, 15s)
+// Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 3s, 6s, 10s)
 let rqCleanupSucceeded = false
-const RQ_CLEANUP_DELAYS = [0, 5000, 10000, 15000]
+const RQ_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < RQ_CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${RQ_CLEANUP_DELAYS[attempt] / 1000}`)
   try { TeamDelete(); rqCleanupSucceeded = true; break } catch (e) {

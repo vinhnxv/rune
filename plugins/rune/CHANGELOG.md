@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+## [1.179.0] - 2026-03-18
+
+### Added
+- New skill: `cc-inspect` — Claude Code runtime environment inspector with 6 diagnostic sections (session, env, system, plugin, runtime, echoes)
+- New script: `cc-inspect.sh` — comprehensive CLI diagnostic for session identity, env vars, toolchain versions, plugin system, Rune runtime state, and echoes
+
+### Fixed
+- **TLC-001/002**: Standardize retry delays to canonical `[0, 3000, 6000, 10000]` (19s) across 30+ files — was `[0, 5000, 10000, 15000]` (30s) due to copy-paste drift from engines.md
+- **CLEAN-001**: Fix fallback name `inspect-lore-analyst` → `lore-analyst` in verdict-synthesis.md
+- **CLEAN-002**: Remove stale `runebinder-deep`, `runebinder-merge` from roundtable fallback array
+- **DPMT-001/002**: Remove phantom agent names (`pattern-weaver`, `glyph-scribe`, `design-inventory-agent`) from known-rune-agents.sh
+- **BACK-001**: Add subprocess cleanup in OSError handler in decomposer.py
+- **BACK-002**: Add warning log for gradient stroke fallback in style_builder.py
+- **BACK-003**: Add Figma node ID format validation in figma_client.py
+- **SPAWN-001/002/003**: Add `team_name` to Agent examples in ash-guide and spec-continuity.md
+- **DOC-001**: Update README.md version badge from 1.175.2 to 1.179.0
+- **EDGE-001**: Add clock skew guard for artifact age in detect-workflow-complete.sh
+- **EDGE-002**: Add empty string/invalid mtime guard in arc-heartbeat-writer.sh
+- **EDGE-003**: Add zero mtime guard for checkpoint age in on-session-stop.sh (matching FLAW-003 pattern)
+- **EDGE-004**: Change `exit 0` to `continue` for invalid mtime in detect-workflow-complete.sh loop
+- **EDGE-005**: Add dotfile allowlist (.gitignore, .dockerignore, .eslintrc, .prettierrc, .editorconfig) in validate-gap-fixer-paths.sh
+
 ## [1.178.0] - 2026-03-18
 
 ### Added
