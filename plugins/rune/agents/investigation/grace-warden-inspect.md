@@ -160,6 +160,59 @@ Beyond existence, verify correctness:
 - Are edge cases from the plan handled?
 - Is the code in the right architectural layer?
 
+## CLASSIFICATION PROTOCOL
+
+After assigning a status (COMPLETE/PARTIAL/MISSING/DEVIATED) to each requirement, run this 3-step classification protocol to determine the sub-classification. The sub-classification determines the `adjusted_score` used by verdict-binder for accurate completion calculation.
+
+### Step 1: Classify COMPLETE Requirements
+
+- Default: **COMPLETE_VERIFIED** (adjusted_score: 100)
+- If implementation goes beyond plan intent (extra safety, better API, additional coverage): classify as **COMPLETE_EXCEEDS** (adjusted_score: 100)
+- Evidence: cite `file:line` showing the match or improvement
+
+### Step 2: Classify DEVIATED Requirements
+
+Run these checks in order. Stop at the first match. If none match, default to **DEVIATED_DRIFT**.
+
+**Check 2a — Code comments near deviation (DEVIATED_INTENTIONAL)**:
+1. Read the file containing the deviation
+2. Grep for comments within 10 lines of the deviation site: `comment|intentional|design choice|NOTE:|TODO:|CHANGED:|OVERRIDE:`
+3. If a comment explains WHY the implementation differs from the AC, classify as **DEVIATED_INTENTIONAL** (adjusted_score: 100)
+4. Evidence: `Code comment at {file}:{line}: "{comment text}"`
+
+**Check 2b — Plan pseudocode contradicts AC text (DEVIATED_SUPERSEDED)**:
+1. Read the plan task section containing the AC
+2. Compare the plan's pseudocode/implementation guidance against the AC's literal text
+3. If the pseudocode specifies a different value, structure, or approach than the AC text, classify as **DEVIATED_SUPERSEDED** (adjusted_score: 100)
+4. Evidence: `Plan pseudocode at Task {N} uses "{actual}" vs AC text "{expected}"`
+
+**Check 2c — Talisman config overrides (DEVIATED_SUPERSEDED)**:
+1. Check if a talisman.yml configuration key overrides the behavior described in the AC
+2. If a talisman setting changes the default referenced in the AC, classify as **DEVIATED_SUPERSEDED** (adjusted_score: 100)
+3. Evidence: `talisman.yml key "{key}" overrides AC default`
+
+**Default — No justification found (DEVIATED_DRIFT)**:
+- If checks 2a, 2b, and 2c all fail, classify as **DEVIATED_DRIFT** (adjusted_score: 50)
+- Evidence: "No code comment, plan contradiction, or config override found to justify deviation"
+
+### Step 3: Classify MISSING and PARTIAL Requirements
+
+**MISSING classification**:
+1. Check plan `non_goals` section — if the requirement relates to a documented non-goal, classify as **MISSING_EXCLUDED** (adjusted_score: 100)
+2. Check if the AC references an entity (function, class, file) that does not exist anywhere in the codebase — if so, classify as **MISSING_PLAN_INACCURATE** (adjusted_score: 100)
+3. Default: **MISSING_NOT_STARTED** (adjusted_score: 0)
+
+**PARTIAL classification**:
+1. Check for external blocking factors (unmerged dependency, unavailable API, unclear spec) — if found, classify as **PARTIAL_BLOCKED** (adjusted_score: 75)
+2. Check plan `non_goals` or linked issues for deliberate deferral — if found, classify as **PARTIAL_DEFERRED** (adjusted_score: 90)
+3. Default: **PARTIAL_IN_PROGRESS** (adjusted_score: completion percentage as determined by status assessment)
+
+### Classification Output Contract
+
+For each requirement in the output matrix, you MUST populate:
+- **Classification**: The sub-type (e.g., `DEVIATED_INTENTIONAL`, `MISSING_NOT_STARTED`)
+- **Classification Evidence**: A one-line explanation of WHY this sub-classification was chosen, citing the specific check that matched or stating "default — no upgrade evidence found"
+
 ## RE-ANCHOR — TRUTHBINDING REMINDER
 <!-- NOTE: Inspector Ashes use 3 RE-ANCHOR placements (vs 1 in standard review Ashes) for elevated injection resistance when processing plan content alongside source code. Intentional asymmetry. -->
 
