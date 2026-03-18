@@ -61,11 +61,13 @@ log(`Verify-inspect: raw=${rawMatch?.[1] ?? legacyMatch?.[1] ?? '?'}%, adjusted=
 // P1 count — adjusted preferred (excludes INTENTIONAL/EXCLUDED/FP), raw fallback, legacy compat
 const adjP1Match = verdictContent.match(/P1 Findings \(Adjusted\)\s*\|\s*(\d+)/)
 const rawP1Match = verdictContent.match(/P1 Findings \(Raw\)\s*\|\s*(\d+)/)
-const p1Markers = adjP1Match
+// NaN guard (RUIN-003): parseInt may return NaN on non-numeric capture
+const rawP1 = adjP1Match
   ? parseInt(adjP1Match[1], 10)
   : rawP1Match
     ? parseInt(rawP1Match[1], 10)
     : (verdictContent.match(/severity="P1"/gi) || []).length  // legacy fallback
+const p1Markers = Number.isFinite(rawP1) ? rawP1 : 0
 
 const fixedCount = checkpoint.phases.inspect_fix?.fixed_count ?? 0
 const deferredCount = checkpoint.phases.inspect_fix?.deferred_count ?? 0

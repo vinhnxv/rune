@@ -133,16 +133,20 @@ const adjustedMatch = verdictContent.match(/Overall Completion \(Adjusted\)\s*\|
 const rawMatch = verdictContent.match(/Overall Completion \(Raw\)\s*\|\s*(\d+(?:\.\d+)?)%/)
 const legacyMatch = verdictContent.match(/Overall Completion:\s*(\d+(?:\.\d+)?)%/)
   ?? verdictContent.match(/Overall Completion\s*\|\s*(\d+(?:\.\d+)?)%/)
-const completionPct = adjustedMatch ? parseFloat(adjustedMatch[1])
+// NaN guard (RUIN-002): parseFloat may return NaN on malformed VERDICT
+const rawPct = adjustedMatch ? parseFloat(adjustedMatch[1])
   : rawMatch ? parseFloat(rawMatch[1])
   : legacyMatch ? parseFloat(legacyMatch[1]) : null
+const completionPct = Number.isFinite(rawPct) ? rawPct : null
 
 // P1 count — adjusted preferred (excludes INTENTIONAL/EXCLUDED/FP), legacy fallback
 const adjP1Match = verdictContent.match(/P1 Findings \(Adjusted\)\s*\|\s*(\d+)/)
 const rawP1Match = verdictContent.match(/P1 Findings \(Raw\)\s*\|\s*(\d+)/)
-const p1Markers = adjP1Match ? parseInt(adjP1Match[1], 10)
+// NaN guard (RUIN-003): parseInt may return NaN on non-numeric capture
+const rawP1 = adjP1Match ? parseInt(adjP1Match[1], 10)
   : rawP1Match ? parseInt(rawP1Match[1], 10)
   : (verdictContent.match(/severity="P1"/gi) || []).length
+const p1Markers = Number.isFinite(rawP1) ? rawP1 : 0
 const verdictMatch = verdictContent.match(/Final Verdict:\s*(READY|GAPS_FOUND|INCOMPLETE|CRITICAL_ISSUES)/)
 const inspectVerdict = verdictMatch ? verdictMatch[1] : 'GAPS_FOUND'
 

@@ -175,8 +175,9 @@ for each requirement:
   adjustedWeighted += adjustedScore * weight
   totalWeight += weight
 
-rawCompletion = rawWeighted / totalWeight
-adjustedCompletion = adjustedWeighted / totalWeight
+// NaN guard (FRINGE-003 / RUIN-001): totalWeight=0 when no requirements → fallback to 0
+rawCompletion = Number.isFinite(rawWeighted / totalWeight) ? rawWeighted / totalWeight : 0
+adjustedCompletion = Number.isFinite(adjustedWeighted / totalWeight) ? adjustedWeighted / totalWeight : 0
 ```
 
 - **Raw score**: Uses STATUS_TO_PCT mapping directly (DEVIATED = 50%)
