@@ -185,7 +185,7 @@ All three use the shared `scripts/lib/worktree-gc.sh` library with:
 | [#29256](https://github.com/anthropics/claude-code/issues/29256) | `/resume` may not work in submodule worktrees | `setup-worktree.sh` emits submodule advisory | Active — advisory only |
 | Model degradation | Worktree agents may lose project context | `WORKTREE_CONTEXT.md` reinforcement (~10% effective) | Mitigated |
 | Disk space | Large repos can exhaust disk on worktree create | `setup-worktree.sh` pre-flight 2x safety check | Mitigated |
-| Submodule false positive | `worktree-resolve.sh` misdetects submodule `.git` files | Fixed — checks `[[ -d .git ]]` not `[[ -e .git ]]` | Resolved |
+| Submodule false positive | `worktree-resolve.sh` misdetects submodule `.git` files | Fixed — parses `.git` file gitdir path to distinguish `/.git/worktrees/` from `/.git/modules/` | Resolved |
 
 ## References
 

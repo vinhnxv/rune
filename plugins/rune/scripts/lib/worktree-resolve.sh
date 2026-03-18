@@ -81,8 +81,10 @@ rune_resolve_project_dir() {
     # Worktrees: "gitdir: /path/.git/worktrees/<name>"
     # Submodules: "gitdir: /path/.git/modules/<name>"
     local gitdir_content
-    gitdir_content=$(head -1 "${resolved}/.git" 2>/dev/null || true)
+    gitdir_content=$(head -n 1 "${resolved}/.git" 2>/dev/null || true)
     if [[ "$gitdir_content" == "gitdir: "* ]]; then
+      # SEC-005: gitdir_path is used ONLY for pattern matching (worktrees vs modules).
+      # Do NOT use in filesystem operations without canonicalization + sanitization.
       local gitdir_path="${gitdir_content#gitdir: }"
       if [[ "$gitdir_path" == *"/.git/worktrees/"* ]]; then
         RUNE_IN_WORKTREE=1
@@ -91,12 +93,16 @@ rune_resolve_project_dir() {
         RUNE_IN_SUBMODULE=1
         RUNE_IN_WORKTREE=0
       else
-        # Unknown .git file format — conservative: treat as worktree
+        # BACK-008: Unknown .git file format — conservative: treat as worktree.
+        # Rationale: worktree detection enables dual-directory resolution (safe).
+        # Misclassifying a worktree as non-worktree would skip marker lookup and
+        # resolve RUNE_MAIN_REPO_ROOT incorrectly, breaking shared resource access.
         RUNE_IN_WORKTREE=1
         RUNE_IN_SUBMODULE=0
       fi
     else
-      # No gitdir line — conservative: treat as worktree
+      # BACK-008: No "gitdir: " prefix — conservative: treat as worktree.
+      # Same rationale: false-positive worktree is safer than false-negative.
       RUNE_IN_WORKTREE=1
       RUNE_IN_SUBMODULE=0
     fi
@@ -112,12 +118,14 @@ rune_resolve_project_dir() {
     fi
     if [[ -f "$marker" && ! -L "$marker" ]]; then
       local main_root
-      main_root=$(head -1 "$marker" 2>/dev/null | tr -d '\n')
+      main_root=$(head -n 1 "$marker" 2>/dev/null | tr -d '\n')
       # SEC-005: Character-set validation (absolute path, safe chars) + explicit traversal guard.
       # NOTE: the regex alone does NOT block ".." — the "! *".."*" glob check is load-bearing.
       local _pattern='^/[a-zA-Z0-9_./ -]+$'
       if [[ -n "$main_root" && "$main_root" =~ $_pattern && ! "$main_root" == *".."* && -d "$main_root" ]]; then
-        RUNE_MAIN_REPO_ROOT="$main_root"
+        # SEC-004: Canonicalize to resolve intermediate symlinks in path components.
+        main_root=$(cd "$main_root" 2>/dev/null && pwd -P) || main_root=""
+        [[ -n "$main_root" ]] && RUNE_MAIN_REPO_ROOT="$main_root"
       fi
     fi
 

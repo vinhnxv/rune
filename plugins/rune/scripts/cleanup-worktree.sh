@@ -10,12 +10,13 @@
 # Fail-forward: exits 0 on all errors — worktree removal proceeds even if salvage fails.
 
 set -euo pipefail
+umask 077
 
 # ── Fail-forward guard (OPERATIONAL hook) ──
 # Crash before validation → allow operation (don't block worktree removal).
 _rune_fail_forward() {
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
     [[ ! -L "$_log" ]] && printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
       "$(date +%H:%M:%S 2>/dev/null || true)" \
       "${BASH_SOURCE[0]##*/}" \
@@ -26,14 +27,35 @@ _rune_fail_forward() {
 }
 trap '_rune_fail_forward' ERR
 
+# ── Opt-in trace logging ──
+_trace() {
+  if [[ "${RUNE_TRACE:-}" == "1" ]]; then
+    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+    [[ ! -L "$_log" ]] && echo "[cleanup-worktree] $*" >> "$_log" 2>/dev/null
+  fi
+  return 0
+}
+
 # ── Source shared libs (optional — fail-forward on missing) ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/rune-state.sh" 2>/dev/null || true
 
-# ── Parse hook input ──
-INPUT=$(cat)
+# ── Guard: jq dependency ──
+if ! command -v jq >/dev/null 2>&1; then
+  _trace "SKIP: jq not available"
+  exit 0
+fi
+
+# ── Read hook input JSON from stdin (SEC-003: 1MB cap) ──
+INPUT=$(head -c 1048576 2>/dev/null || true)
 WORKTREE_PATH=$(printf '%s\n' "$INPUT" | jq -r '.worktree_path // empty')
 [[ -z "$WORKTREE_PATH" ]] && exit 0
+
+# ── SEC-002: Validate WORKTREE_PATH ──
+[[ "$WORKTREE_PATH" != /* ]] && { _trace "DENY: WORKTREE_PATH not absolute"; exit 0; }
+[[ "$WORKTREE_PATH" == *".."* ]] && { _trace "DENY: WORKTREE_PATH contains traversal"; exit 0; }
+[[ "$WORKTREE_PATH" == *$'\0'* ]] && { _trace "DENY: WORKTREE_PATH contains null byte"; exit 0; }
+[[ -L "$WORKTREE_PATH" ]] && { _trace "DENY: WORKTREE_PATH is symlink"; exit 0; }
 
 # ── CRITICAL: Check filesystem existence BEFORE git ops ──
 # Timing race — worktree may be partially removed by the time this hook fires.
@@ -49,7 +71,8 @@ fi
 
 # ── Resolve salvage directory ──
 source "${SCRIPT_DIR}/lib/worktree-resolve.sh" 2>/dev/null || true
-SALVAGE_BASE="${RUNE_PROJECT_DIR:-$(pwd)}"
+rune_resolve_project_dir "" >/dev/null 2>&1 || true
+SALVAGE_BASE="${RUNE_MAIN_REPO_ROOT:-${RUNE_PROJECT_DIR:-$(pwd)}}"
 SALVAGE_DIR="${SALVAGE_BASE}/tmp/.rune-salvaged-patches"
 mkdir -p "$SALVAGE_DIR"
 

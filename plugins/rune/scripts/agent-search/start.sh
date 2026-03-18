@@ -46,7 +46,7 @@ PROJECT_DIR=$(cd "$PROJECT_DIR" 2>/dev/null && pwd -P) || { echo "ERROR: invalid
 # In worktrees, PROJECT_DIR points to the worktree copy but the agent-search
 # index is shared state that must live at the original repo root.
 source "${SCRIPT_DIR}/../lib/worktree-resolve.sh" 2>/dev/null || true
-if type rune_resolve_project_dir &>/dev/null; then
+if type rune_resolve_project_dir >/dev/null 2>&1; then
   rune_resolve_project_dir "$PROJECT_DIR" >/dev/null
   export DB_PATH="${RUNE_MAIN_REPO_ROOT}/${RUNE_STATE}/.agent-search-index.db"
 else

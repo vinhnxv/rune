@@ -161,8 +161,11 @@ fi
 # If CWD/.git is a file (not a directory), this repo is a git submodule.
 # Worktree /resume has known limitations in submodules (#29256).
 # Advisory only — does not block worktree creation.
+_gitdir_line=""
 if [[ -f "$CWD/.git" && ! -L "$CWD/.git" ]]; then
   _gitdir_line=$(head -1 "$CWD/.git" 2>/dev/null || true)
+  # SEC-006: Strip control characters before trace logging
+  _gitdir_line=$(printf '%s' "$_gitdir_line" | tr -cd '[:print:]' | head -c 256)
   if [[ "$_gitdir_line" == *"/.git/modules/"* ]]; then
     _trace "ADVISORY: CWD appears to be a git submodule (gitdir=$_gitdir_line). Worktree /resume may not work correctly (#29256)"
   fi
@@ -182,18 +185,22 @@ fi
 _check_disk_space() {
   local repo_dir="$1" target_dir="$2"
 
-  # Estimate repo size in KB (includes .git — acceptable with 2x safety margin)
-  # NOTE: Do NOT use du --exclude — that's GNU-only, breaks on macOS
+  # Estimate repo size in KB. Includes .git directory in the measurement — this is
+  # intentional: the 2x safety margin absorbs the overcount. Excluding .git would
+  # require GNU-only `du --exclude` which breaks on macOS.
+  # For repos with disproportionate .git history, the advisory may over-warn.
   local repo_size_kb
   repo_size_kb=$(du -sk "$repo_dir" 2>/dev/null | cut -f1) || return 0
-  if [[ -z "$repo_size_kb" || "$repo_size_kb" -le 0 ]] 2>/dev/null; then
+  [[ "$repo_size_kb" =~ ^[0-9]+$ ]] || return 0
+  if [[ "$repo_size_kb" -le 0 ]]; then
     return 0
   fi
 
   # Get available space in KB on the target filesystem
   local avail_kb
   avail_kb=$(df -Pk "$(dirname "$target_dir")" 2>/dev/null | tail -1 | awk '{print $4}') || return 0
-  if [[ -z "$avail_kb" || "$avail_kb" -le 0 ]] 2>/dev/null; then
+  [[ "$avail_kb" =~ ^[0-9]+$ ]] || return 0
+  if [[ "$avail_kb" -le 0 ]]; then
     return 0
   fi
 
@@ -254,6 +261,8 @@ if [[ -d "$SRC_RUNE" ]]; then
       if ! cp -R "$SRC_RUNE/$dir/." "$DST_RUNE/$dir/" 2>/dev/null; then
         _trace "WARN: cp -R failed for .rune/$dir/ — partial copy may exist"
       else
+        # SEC-007: Remove symlinks within copied tree to prevent following into external paths
+        find "$DST_RUNE/$dir" -type l -delete 2>/dev/null || true
         _trace "Copied .rune/$dir/"
       fi
     fi

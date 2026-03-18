@@ -13,11 +13,11 @@
 - **setup-worktree.sh**: Model degradation context reinforcement via `WORKTREE_CONTEXT.md`
 - **cleanup-worktree.sh**: New WorktreeRemove hook — salvages uncommitted changes as patch files before removal
 - **agent-search**: Hardened MCP database path resolution for worktree environments
-- **git-worktree SKILL.md**: Added Known Limitations (Upstream) section documenting 6 issues with workarounds
+- **git-worktree SKILL.md**: Added Known Limitations (Upstream) section documenting 6 known limitations
 
 ### Fixed
 
-- **worktree-resolve.sh**: Fix submodule false positive — use `[[ -d .git ]]` instead of `[[ -e .git ]]`
+- **worktree-resolve.sh**: Fix submodule false positive — parse `.git` file gitdir path to distinguish `/.git/worktrees/` from `/.git/modules/`
 
 ## [2.0.4] - 2026-03-18
 
