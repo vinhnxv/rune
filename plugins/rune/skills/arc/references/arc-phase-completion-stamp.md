@@ -20,7 +20,7 @@ Appends a persistent completion record to the plan file after arc finishes. Upda
 ```javascript
 // STEP 1: Validate plan path (defense-in-depth — arc init already validates)
 let planPath = checkpoint.plan_file
-const checkpointPath = `.rune/arc/${checkpoint.id}/checkpoint.json`
+const checkpointPath = `.claude/arc/${checkpoint.id}/checkpoint.json`
 if (!planPath || !/^[a-zA-Z0-9._\/-]+$/.test(planPath) || planPath.includes('..')) {
   warn(`Invalid plan path in checkpoint: ${planPath}`)
   return
@@ -84,6 +84,11 @@ if (!exists(planPath)) {
 }
 
 // STEP 2: Guard — skip if no phases completed
+// Null guard: checkpoint.phases may be undefined on corrupted/partial checkpoints
+if (!checkpoint.phases || typeof checkpoint.phases !== 'object') {
+  warn("checkpoint.phases is missing or invalid — skipping completion stamp")
+  return
+}
 const hasAnyCompleted = Object.values(checkpoint.phases)
   .some(p => p.status === "completed")
 if (!hasAnyCompleted) {
@@ -178,7 +183,7 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
   const existingRecords = (content.match(/## Arc Completion Record/g) || []).length
 
   // Phase results table
-  // Phase table dynamically matches PHASE_ORDER (29 phases, v1.155.0+)
+  // Phase table dynamically matches PHASE_ORDER (34 phases, v1.179.0+)
   // WARNING: Order follows PHASE_ORDER (execution order), NOT numeric phase IDs.
   // Phase 5.8 (GAP REMEDIATION) executes before Phase 5.7 (GOLDMASK VERIFICATION).
   const phases = [
