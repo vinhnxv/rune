@@ -140,12 +140,13 @@ function readTalismanSection(section) {
 }
 ```
 
-## Section Names (12 total)
+## Section Names (13 total)
 
 | Section | Top-level keys | Common consumers |
 |---------|---------------|------------------|
 | `arc` | arc.defaults, arc.ship, arc.pre_merge_checks, arc.timeouts, arc.sharding, arc.batch, arc.gap_analysis, arc.consistency | arc-checkpoint-init, arc-preflight, arc-phase-constants, gap-analysis |
 | `codex` | codex.* | arc-codex-phases, goldmask, codex-review, solution-arena |
+| `discipline` | discipline.* | validate-discipline-proofs, validate-context-isolation, work-loop-convergence, discipline-work-loop, pre-ship-validator |
 | `review` | review.* | review-scope, parse-tome, appraise |
 | `work` | work.* | strive, ship-phase, rune-smith, trial-forger |
 | `goldmask` | goldmask.* | goldmask/SKILL.md |

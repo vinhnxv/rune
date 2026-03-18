@@ -387,6 +387,14 @@
   "defaults": {
     "disable_ashes": []
   },
+  "discipline": {
+    "enabled": true,
+    "block_on_fail": true,
+    "scr_threshold": 100,
+    "max_convergence_iterations": 3,
+    "context_isolation": true,
+    "iteration_timeout_ms": 1200000
+  },
   "design_sync": {
     "backend_impact": {
       "auto_scope": "frontend-only",
@@ -432,6 +440,14 @@
       "fidelity_threshold": 0.8,
       "max_iterations": 3
     }
+  },
+  "discipline": {
+    "enabled": true,
+    "block_on_fail": true,
+    "scr_threshold": 100,
+    "max_convergence_iterations": 3,
+    "context_isolation": true,
+    "iteration_timeout_ms": 1200000
   },
   "devise": {
     "design_system_discovery": {

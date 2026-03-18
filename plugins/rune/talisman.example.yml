@@ -245,6 +245,20 @@ settings:
   artifact_extraction:
     enabled: true                    # Master gate for shell-based extraction utilities
 
+# ──────────────────────────────────────────────
+# Discipline — Proof-based task completion enforcement
+# ──────────────────────────────────────────────
+# Controls the Discipline Engineering pipeline: acceptance criteria validation,
+# convergence loops, and context isolation for workers.
+# See docs/discipline-engineering.md for the foundational document.
+discipline:
+  enabled: true                    # Master switch for discipline enforcement
+  block_on_fail: true              # Block task completion on proof failure (default: true)
+  scr_threshold: 100               # Spec Compliance Rate target (default: 100%)
+  max_convergence_iterations: 3    # Max convergence loop iterations (default: 3)
+  context_isolation: true          # Block workers from reading other workers' tasks
+  iteration_timeout_ms: 1200000    # Per-iteration timeout (default: 20 min)
+
 # ── Deep Audit settings (v1.56.0+) ──────────────
 # Deep investigation teammates for /rune:audit --deep.
 # Runs a second Roundtable Circle pass with 4 investigation Ashes
