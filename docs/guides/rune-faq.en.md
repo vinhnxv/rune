@@ -25,7 +25,7 @@ Related guides:
 - Use `audit` for broader or deeper codebase scanning.
 
 ### 5) When should I use `/rune:arc`?
-Use it when you want full end-to-end automation (plan -> work -> review -> mend -> test -> ship/merge).
+Use Arc (end-to-end pipeline) when you want full automation (plan -> work -> review -> Mend (auto-fix findings) -> test -> ship/merge).
 If you need faster and cheaper iterations, run `/rune:plan -> /rune:work -> /rune:review`.
 
 ## Workflow Operations
@@ -52,7 +52,7 @@ Use the matching cancel command:
 - `/rune:cancel-audit`
 
 ### 9) What is `/rune:tarnished`?
-It is the unified entrypoint that routes natural language to the right workflow.
+The Tarnished (orchestrator) is the unified entrypoint that routes natural language to the right workflow.
 
 Examples:
 
@@ -77,7 +77,7 @@ Typical fixes:
 1. Regenerate the plan with `/rune:devise`.
 2. Intentionally bypass with `--skip-freshness` if you accept the risk.
 
-### 13) Custom Ash is not running. What should I check first?
+### 13) Custom Ash (review agent) is not running. What should I check first?
 1. `trigger.extensions` matches changed files.
 2. `trigger.paths` matches changed paths.
 3. `workflows` includes the current workflow.
@@ -96,11 +96,11 @@ That higher cost is the tradeoff for broader coverage and stronger quality contr
 
 ### 16) When should I run `/rune:rest`?
 When you want to clean `tmp/` artifacts from completed workflows.
-It preserves active workflow state and keeps `.rune/echoes/`.
+It preserves active workflow state and keeps Echoes (persistent memory) at `.rune/echoes/`.
 
 ## Outputs and Fixes
 
-### 17) Where is TOME generated?
+### 17) Where is TOME (review report) generated?
 - Review: `tmp/reviews/{id}/TOME.md`
 - Audit: `tmp/audit/{id}/TOME.md`
 

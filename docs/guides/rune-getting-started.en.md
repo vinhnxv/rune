@@ -176,13 +176,13 @@ After implementation, review your code changes with multiple specialized AI revi
    - Dead code and incomplete implementations
 3. Findings are deduplicated, prioritized, and compiled into a report
 
-**Output:** A review report (TOME) at `tmp/reviews/{id}/TOME.md`
+**Output:** A review report — TOME (review report) — at `tmp/reviews/{id}/TOME.md`
 
 **Duration:** 3-10 minutes (standard) | 5-15 minutes (deep)
 
 ### After Review: Fix Findings
 
-If the review found issues, fix them automatically:
+If the review found issues, use Mend (auto-fix findings) to fix them:
 
 ```bash
 /rune:mend tmp/reviews/{id}/TOME.md
@@ -230,7 +230,7 @@ Here's a complete example session:
 
 | Flag | Available on | Effect |
 |------|-------------|--------|
-| `--quick` | `/rune:plan` | Faster planning (skip brainstorm and forge) |
+| `--quick` | `/rune:plan` | Faster planning (skip brainstorm and Forge (plan enrichment)) |
 | `--deep` | `/rune:review` | More thorough review (multiple waves) |
 | `--approve` | `/rune:work` | Require your approval before each task |
 | `--dry-run` | `/rune:review` | Preview what would be reviewed without running |
@@ -242,7 +242,7 @@ Here's a complete example session:
 
 ## `/rune:tarnished` — The Unified Entry Point
 
-Don't remember which command to use? `/rune:tarnished` is the intelligent master command that routes your request to the correct Rune workflow. It understands both English and Vietnamese.
+Don't remember which command to use? `/rune:tarnished` — the Tarnished (orchestrator) — is the intelligent master command that routes your request to the correct Rune workflow. It understands both English and Vietnamese.
 
 ```bash
 # Just say what you want — tarnished figures out the right command
@@ -287,7 +287,7 @@ Once you're comfortable with the basic workflow, explore these advanced commands
 
 | When you need... | Use |
 |-----------------|-----|
-| End-to-end pipeline (plan → work → review → ship) | `/rune:arc plans/...` |
+| End-to-end pipeline — Arc (end-to-end pipeline) | `/rune:arc plans/...` |
 | Full codebase audit (not just your changes) | `/rune:audit` |
 | Enrich a plan with more detail | `/rune:forge plans/...` |
 | Impact analysis of your changes | `/rune:goldmask` |
@@ -305,7 +305,7 @@ Once you're comfortable with the basic workflow, explore these advanced commands
 - [Code review and audit guide](rune-code-review-and-audit-guide.en.md) — Deep reviews
 - [Work execution guide](rune-work-execution-guide.en.md) — Swarm workers
 - [Advanced workflows guide](rune-advanced-workflows-guide.en.md) — Hierarchical plans, GitHub Issues, self-learning
-- [Custom agents and extensions guide](rune-custom-agents-and-extensions-guide.en.md) — Custom reviewers and CLI-backed Ashes
+- [Custom agents and extensions guide](rune-custom-agents-and-extensions-guide.en.md) — Custom reviewers and CLI-backed Ashes (review agents)
 - [Talisman deep dive guide](rune-talisman-deep-dive-guide.en.md) — Full configuration reference
 - [Troubleshooting and optimization guide](rune-troubleshooting-and-optimization-guide.en.md) — Debugging, cost optimization
 
@@ -338,7 +338,7 @@ Use `/rune:debug` — it spawns multiple hypothesis-investigator agents in paral
 Yes. `/rune:codex-review` runs Claude and OpenAI Codex in parallel, cross-verifies findings, and merges consensus issues into a unified TOME.
 
 **Q: How does Rune learn from past sessions?**
-Use `/rune:learn` to extract CLI correction patterns and review recurrence findings from your session history. These are persisted to Rune Echoes for future sessions.
+Use `/rune:learn` to extract CLI correction patterns and review recurrence findings from your session history. These are persisted to Rune Echoes (persistent memory) for future sessions.
 
 **Q: What is the talisman shard resolver?**
 Starting from v1.114.0, Rune pre-processes `talisman.yml` into per-namespace JSON shards at session start, giving a 94% token reduction. This happens automatically — no configuration needed.
