@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-03-19
+
+### Added
+
+- **Phase timeout detection and auto-kill** — multi-tick state machine detects stuck arc phases and gracefully kills them via `SIGTERM` + 15s grace period before hard `tmux kill-session`
+- **PhaseTimeoutConfig** — session-scoped configuration parsed from `TORRENT_TIMEOUT_*` env vars with per-category overrides (forge, work, test, review, ship), defaults to 60 minutes
+- **Timeout UI indicators** — color-coded remaining time display (green <50%, yellow 50-80%, red >80%) next to phase elapsed time, plus red warning banner when timeout kill is active
+- **CLI `--phase-timeout` / `-t` flag** — per-phase timeout overrides from the command line with case-insensitive matching and 1-minute minimum clamp
+- **`phase_category()` mapping** — groups 15+ phase names into 5 categories for grouped timeout configuration
+
+### Fixed
+
+- **SEC-002**: Check `libc::kill` return value — `ESRCH` skips grace period, `EPERM` warns
+- **BACK-010**: Case-insensitive matching in `apply_overrides()` via `.to_lowercase()`
+- **BACK-012**: Clamp timeout overrides to minimum 1 minute
+
 ## [0.4.1] - 2026-03-19
 
 ### Fixed
