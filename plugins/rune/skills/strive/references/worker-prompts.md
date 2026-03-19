@@ -23,8 +23,8 @@ Agent runtime caps (`maxTurns` in agent frontmatter) limit runaway agents:
 
 | Agent | maxTurns | Rationale |
 |-------|----------|-----------|
-| rune-smith | 75 | Complex multi-file implementations typically need 30-50 tool calls. 75 provides 50% headroom. |
-| trial-forger | 50 | Test generation is more constrained — read source, write tests, verify. |
+| rune-smith | 60 | Complex multi-file implementations typically need 30-50 tool calls. 60 matches agent frontmatter and forge-team.md adaptive base. |
+| trial-forger | 60 | Test generation is more constrained but benefits from equal headroom. Matches agent frontmatter. |
 
 **Note**: `maxTurns` in agent frontmatter caps the agent definition. When spawning workers via `Agent()` with `subagent_type: "general-purpose"`, the `max_turns` parameter on the Agent call is the effective enforcement mechanism. Both should be set for defense-in-depth.
 
@@ -323,6 +323,8 @@ Agent({
          - [ ] Ward check passed (or SKIP with documented reason)
          - [ ] Evidence artifacts written to tmp/work/{timestamp}/evidence/{task-id}/
          - [ ] Worker Report sections complete (Critical Review Findings, Implementation Notes, Evidence, Code Changes)
+         - [ ] I verified plan references exist in codebase (file paths, function names, APIs — grep before assuming)
+         - [ ] I would trust this work if someone else submitted it (the "would I merge this?" test)
 
          Mark each item [x] as you verify it. If any item fails:
            → Fix the issue before proceeding. Do NOT mark complete with known checklist failures.
@@ -644,6 +646,8 @@ Agent({
          - [ ] All tests pass (or SKIP with documented reason)
          - [ ] Evidence artifacts written to tmp/work/{timestamp}/evidence/{task-id}/
          - [ ] Worker Report sections complete (Critical Review Findings, Implementation Notes, Evidence, Code Changes)
+         - [ ] I verified plan references exist in codebase (test targets, exports, fixtures — grep before assuming)
+         - [ ] I would trust these tests if someone else submitted them (the "would I merge this?" test)
 
          Mark each item [x] as you verify it. If any item fails:
            → Fix the issue before proceeding. Do NOT mark complete with known checklist failures.

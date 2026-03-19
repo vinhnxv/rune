@@ -187,6 +187,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXECUTOR="${SCRIPT_DIR}/execute-discipline-proofs.sh"
 
 if [[ -f "$CRITERIA_FILE" ]]; then
+  # --- RUIN-001 FIX: Fast-path validation (runs within 30s timeout budget) ---
+  # Validate summary.json has criteria_results with non-zero count BEFORE running full proof executor.
+  # This ensures the 30s hook timeout cannot silently bypass evidence validation.
+  if [[ -n "$EVIDENCE_SUMMARY" && -f "$EVIDENCE_SUMMARY" ]]; then
+    FAST_PATH_COUNT=$(jq '.criteria_results | length' "$EVIDENCE_SUMMARY" 2>/dev/null) || FAST_PATH_COUNT=""
+    CRITERIA_TOTAL=$(jq 'length' "$CRITERIA_FILE" 2>/dev/null) || CRITERIA_TOTAL=""
+    if [[ -n "$FAST_PATH_COUNT" && -n "$CRITERIA_TOTAL" && "$FAST_PATH_COUNT" -lt "$CRITERIA_TOTAL" ]]; then
+      if [[ "$BLOCK_ON_FAIL" == "true" ]]; then
+        echo "Discipline: Fast-path check — summary.json has ${FAST_PATH_COUNT}/${CRITERIA_TOTAL} criteria results. Not all criteria have evidence. Complete evidence collection before marking task complete." >&2
+        exit 2
+      else
+        echo "Discipline: Fast-path check — summary.json has ${FAST_PATH_COUNT}/${CRITERIA_TOTAL} criteria results (WARN mode — not blocking)." >&2
+      fi
+    fi
+  fi
+
   # execute-discipline-proofs.sh not found -> WARN (Shard 3 dependency missing)
   if [[ ! -x "$EXECUTOR" ]]; then
     echo "Discipline: execute-discipline-proofs.sh not found or not executable — cannot validate proofs (WARN)." >&2
@@ -283,6 +299,16 @@ else
   # Check for ### Evidence section
   if ! grep -q "### Evidence" "$TASK_FILE" 2>/dev/null; then
     TASK_FILE_ISSUES="${TASK_FILE_ISSUES} [MISSING: ### Evidence section]"
+  fi
+
+  # Check for ### Critical Review Findings section (FIND-003 fix)
+  if ! grep -q "### Critical Review Findings" "$TASK_FILE" 2>/dev/null; then
+    TASK_FILE_ISSUES="${TASK_FILE_ISSUES} [MISSING: ### Critical Review Findings section]"
+  fi
+
+  # Check for ### Implementation Notes section (FIND-003 fix)
+  if ! grep -q "### Implementation Notes" "$TASK_FILE" 2>/dev/null; then
+    TASK_FILE_ISSUES="${TASK_FILE_ISSUES} [MISSING: ### Implementation Notes section]"
   fi
 
   if [[ -n "$TASK_FILE_ISSUES" ]]; then
