@@ -14,6 +14,14 @@ use crate::resource::{self, ProcessHealth, ResourceSnapshot};
 use crate::scanner::{ConfigDir, PlanFile};
 use crate::tmux::Tmux;
 
+/// Read an env var as u64, falling back to a default value.
+fn env_or_u64(key: &str, default: u64) -> u64 {
+    std::env::var(key)
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(default)
+}
+
 /// Compare two plan names by filename (ignoring path prefix).
 /// Handles: "plans/foo.md" vs "foo.md" vs "/abs/plans/foo.md".
 fn plans_match(a: &str, b: &str) -> bool {
@@ -770,7 +778,7 @@ impl App {
                     if run.merge_detected_at.is_some() && run.grace_skip_at.is_none() {
                         // Set fixed skip deadline: 5 seconds from now (RUIN-007 fix).
                         // Stored as absolute Instant — not recomputed each tick.
-                        run.grace_skip_at = Some(Instant::now() + Duration::from_secs(5));
+                        run.grace_skip_at = Instant::now().checked_add(Duration::from_secs(5));
                         self.status_message = Some(" Grace skip in 5s…".into());
                     }
                 }
@@ -1565,14 +1573,6 @@ impl App {
         }
     }
 
-    /// Read an env var as u64, falling back to a default value.
-    fn env_or_u64(key: &str, default: u64) -> u64 {
-        std::env::var(key)
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(default)
-    }
-
     /// Compute adaptive grace duration from runtime metrics (F4).
     /// Formula: base + (child_count * 2) + (cpu_percent * 0.5), clamped to [min, max].
     /// Configurable via TORRENT_GRACE_BASE, TORRENT_GRACE_MIN, TORRENT_GRACE_MAX env vars.
@@ -1592,9 +1592,9 @@ impl App {
             return Duration::from_secs(legacy_secs.unwrap());
         }
 
-        let base = Self::env_or_u64("TORRENT_GRACE_BASE", 30);
-        let min = Self::env_or_u64("TORRENT_GRACE_MIN", 10);
-        let max = Self::env_or_u64("TORRENT_GRACE_MAX", 120);
+        let base = env_or_u64("TORRENT_GRACE_BASE", 30);
+        let min = env_or_u64("TORRENT_GRACE_MIN", 10);
+        let max = env_or_u64("TORRENT_GRACE_MAX", 120);
 
         let child_count = self.current_run
             .as_ref()
