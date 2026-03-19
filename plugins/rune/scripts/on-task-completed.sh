@@ -245,7 +245,7 @@ if [[ -n "${TEAM_NAME:-}" && -n "${TASK_ID:-}" ]]; then
       --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
       '{type: "task_failed", task: $task, owner: $owner, reason: $reason, timestamp: $ts}' \
       > "${_fa_alert_dir}/failed-${TASK_ID}.json.tmp.$$" 2>/dev/null && \
-      mv -f "${_fa_alert_dir}/failed-${TASK_ID}.json.tmp.$$" \
+      mv -n "${_fa_alert_dir}/failed-${TASK_ID}.json.tmp.$$" \
             "${_fa_alert_dir}/failed-${TASK_ID}.json" 2>/dev/null || true
     _trace "ALERT: failure signal for task $TASK_ID (status: $_fa_task_status)"
   fi
