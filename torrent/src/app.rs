@@ -1529,7 +1529,16 @@ impl App {
             Some(v) => v,
             None => return,
         };
-        let diag = self.diagnostic_engine.check_bootstrap(&session_id, pane_pid);
+        // Compute elapsed time since launch for checkpoint timeout detection (D6)
+        let elapsed = self.current_run.as_ref()
+            .map(|r| r.launched_at.elapsed())
+            .unwrap_or_default();
+        let checkpoint_timeout = Duration::from_secs(
+            env_or_u64("TORRENT_CHECKPOINT_TIMEOUT", 600)
+        );
+        let diag = self.diagnostic_engine.check_bootstrap(
+            &session_id, pane_pid, elapsed, checkpoint_timeout,
+        );
         if diag.state != DiagnosticState::Healthy {
             self.last_diagnostic = Some(diag.clone());
             let plan_idx = self.current_run.as_ref()

@@ -8,7 +8,7 @@
 //! Pattern matching uses `to_lowercase().contains()` against `&[&str]` slices,
 //! matching the existing codebase convention (see `monitor.rs` PROMPT_INDICATORS).
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::resume::RetryStrategy;
 use crate::tmux::Tmux;
