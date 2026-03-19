@@ -522,7 +522,7 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/arc-phase-stop-hook.sh",
-            "timeout": 15,
+            "timeout": 30,
             "statusMessage": "Checking arc phase loop..."
           }
         ]

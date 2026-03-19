@@ -188,6 +188,38 @@ for loop_file in \
   fi
 done
 
+# ── GUARD 2.5: Active arc checkpoint freshness check (AC-6) ──
+# If any arc checkpoint was written in the last 60 seconds, defer cleanup —
+# a phase transition is likely in progress. This covers the gap between
+# phase completion and next phase re-injection by arc-phase-stop-hook.sh.
+if [[ -d "${CWD}/${RUNE_STATE}/arc" ]]; then
+  for _ckpt_dir in "${CWD}/${RUNE_STATE}/arc"/*/; do
+    [[ -d "$_ckpt_dir" ]] || continue
+    _ckpt_file="${_ckpt_dir}checkpoint.json"
+    [[ -f "$_ckpt_file" && ! -L "$_ckpt_file" ]] || continue
+    # RUIN-003 FIX: Session-scope checkpoint freshness check — only defer for OUR checkpoints
+    _ckpt_cfg=$(jq -r '.config_dir // empty' "$_ckpt_file" 2>/dev/null || true)
+    if [[ -n "$_ckpt_cfg" && "$_ckpt_cfg" != "$RUNE_CURRENT_CFG" ]]; then
+      continue  # Different installation — not our checkpoint
+    fi
+    _ckpt_pid=$(jq -r '.owner_pid // empty' "$_ckpt_file" 2>/dev/null || true)
+    if [[ -n "$_ckpt_pid" && "$_ckpt_pid" =~ ^[0-9]+$ && "$_ckpt_pid" != "$PPID" ]]; then
+      if rune_pid_alive "$_ckpt_pid"; then
+        continue  # Belongs to another live session
+      fi
+    fi
+    _ckpt_mtime=$(_stat_mtime "$_ckpt_file")
+    if [[ -n "$_ckpt_mtime" && "$_ckpt_mtime" =~ ^[0-9]+$ ]]; then
+      _ckpt_age=$(( HOOK_START_TIME - _ckpt_mtime ))
+      [[ $_ckpt_age -lt 0 ]] && _ckpt_age=0  # clock skew guard
+      if [[ $_ckpt_age -lt 60 ]]; then
+        _trace "DEFER: arc checkpoint fresh (${_ckpt_age}s) — phase transition likely"
+        exit 0
+      fi
+    fi
+  done
+fi
+
 # ── GUARD 3: Read talisman cleanup config ──
 # REC-4 FIX: Use grep/awk instead of python3+PyYAML (simple scalar extraction)
 CLEANUP_ENABLED=true

@@ -145,8 +145,15 @@ done < <(find "${CWD}/tmp" -maxdepth 1 -name '.rune-*.json' -type f 2>/dev/null)
 # If teammate has been idling for >MAX_IDLE_DURATION_SECS cumulative,
 # force-stop regardless of retry count. Catches teammates that idle
 # infrequently but persistently (e.g., once per 3 min, never hitting MAX_IDLE_RETRIES).
-# Configurable via RUNE_MAX_IDLE_DURATION env var (default: 300s = 5 minutes).
-MAX_IDLE_DURATION_SECS="${RUNE_MAX_IDLE_DURATION:-300}"
+# Team-specific idle tolerance defaults (AC-7)
+# Test agents need more idle tolerance — waiting between batch executions
+# can exceed the default 300s threshold during legitimate batch transitions.
+_DEFAULT_IDLE_SECS=300
+case "${TEAM_NAME:-}" in
+  arc-test-*|rune-test-*) _DEFAULT_IDLE_SECS=600 ;;  # Test agents: longer batch transitions
+esac
+# Configurable via RUNE_MAX_IDLE_DURATION env var (overrides team-specific defaults).
+MAX_IDLE_DURATION_SECS="${RUNE_MAX_IDLE_DURATION:-$_DEFAULT_IDLE_SECS}"
 
 FIRST_IDLE_FILE="${CWD}/tmp/.rune-signals/${TEAM_NAME}/${TEAMMATE_NAME}.first-idle"
 if [[ ! -f "$FIRST_IDLE_FILE" ]] || [[ -L "$FIRST_IDLE_FILE" ]]; then
