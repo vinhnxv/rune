@@ -13,7 +13,7 @@ pub fn handle_key(app: &App, key: KeyEvent) -> Action {
         AppView::ActiveArcs => handle_active_arcs_key(app, key),
         AppView::Selection if app.queue_editing => handle_queue_edit_key(app, key),
         AppView::Selection => handle_selection_key(app, key),
-        AppView::Running => handle_running_key(key),
+        AppView::Running => handle_running_key(app, key),
     }
 }
 
@@ -57,10 +57,18 @@ fn handle_selection_key(app: &App, key: KeyEvent) -> Action {
     }
 }
 
-fn handle_running_key(key: KeyEvent) -> Action {
+fn handle_running_key(app: &App, key: KeyEvent) -> Action {
+    // Contextual 's' dispatch: during grace period → SkipGrace; otherwise → SkipPlan.
+    // This resolves the key conflict where 's' was previously always SkipPlan.
+    let grace_active = app.current_run
+        .as_ref()
+        .and_then(|r| r.merge_detected_at)
+        .is_some();
+
     match key.code {
         KeyCode::Char('q') => Action::Quit,
         KeyCode::Char('a') => Action::AttachTmux,
+        KeyCode::Char('s') if grace_active => Action::SkipGrace,
         KeyCode::Char('s') => Action::SkipPlan,
         KeyCode::Char('k') => Action::KillSession,
         KeyCode::Char('p') => Action::PickPlans,

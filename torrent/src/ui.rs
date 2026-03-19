@@ -404,16 +404,36 @@ fn render_plan_panel(frame: &mut Frame, app: &mut App, area: Rect) {
 // ── Running View ────────────────────────────────────────────
 
 fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),
-            Constraint::Length(13), // phases + session info + loop state
-            Constraint::Length(6),  // heartbeat + resources (no phase)
-            Constraint::Min(3),
-            Constraint::Length(1),
-        ])
-        .split(area);
+    // Check if grace period is active for conditional layout
+    let grace_active = app.current_run
+        .as_ref()
+        .and_then(|r| r.merge_detected_at.map(|_| r.grace_duration.is_some()))
+        .unwrap_or(false);
+
+    let chunks = if grace_active {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1),
+                Constraint::Length(13), // phases + session info + loop state
+                Constraint::Length(6),  // heartbeat + resources (no phase)
+                Constraint::Length(3),  // grace countdown (F4)
+                Constraint::Min(3),
+                Constraint::Length(1),
+            ])
+            .split(area)
+    } else {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1),
+                Constraint::Length(13), // phases + session info + loop state
+                Constraint::Length(6),  // heartbeat + resources (no phase)
+                Constraint::Min(3),
+                Constraint::Length(1),
+            ])
+            .split(area)
+    };
 
     // Header — use current run's config, not the selection cursor
     let run_config_idx = app.current_run.as_ref().map(|r| r.config_idx).unwrap_or(app.selected_config);
@@ -441,22 +461,101 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
 
     render_checkpoint(frame, app, chunks[1]);
     render_heartbeat(frame, app, chunks[2]);
-    render_queue(frame, app, chunks[3]);
 
-    // Status bar — context-sensitive
-    let all_done = app.current_run.is_none() && app.queue.is_empty() && !app.completed_runs.is_empty();
-    let default_status = if all_done {
-        " All done! [p] add plans  [q] quit"
-    } else if !app.queue.is_empty() {
-        " [a] attach  [s] skip  [k] kill  [p] add  [d] remove  [q] quit"
+    if grace_active {
+        render_grace_countdown(frame, app, chunks[3]);
+        render_queue(frame, app, chunks[4]);
+
+        // Status bar with grace-specific hint
+        let grace_status = if app.current_run.as_ref().map(|r| r.grace_skip_requested).unwrap_or(false) {
+            " Grace skip requested… [a] attach  [k] kill  [q] quit"
+        } else {
+            " [s] skip grace (min 5s)  [a] attach  [k] kill  [q] quit"
+        };
+        let status = app.status_message.as_deref().unwrap_or(grace_status);
+        frame.render_widget(
+            Paragraph::new(status).style(Style::default().fg(sol::BASE01)),
+            chunks[5],
+        );
     } else {
-        " [a] attach  [s] skip  [k] kill  [p] add plans  [q] quit"
+        render_queue(frame, app, chunks[3]);
+
+        // Status bar — context-sensitive
+        let all_done = app.current_run.is_none() && app.queue.is_empty() && !app.completed_runs.is_empty();
+        let default_status = if all_done {
+            " All done! [p] add plans  [q] quit"
+        } else if !app.queue.is_empty() {
+            " [a] attach  [s] skip  [k] kill  [p] add  [d] remove  [q] quit"
+        } else {
+            " [a] attach  [s] skip  [k] kill  [p] add plans  [q] quit"
+        };
+        let status = app.status_message.as_deref().unwrap_or(default_status);
+        frame.render_widget(
+            Paragraph::new(status).style(Style::default().fg(sol::BASE01)),
+            chunks[4],
+        );
+    }
+}
+
+/// Render the grace period countdown with progress bar (F4).
+fn render_grace_countdown(frame: &mut Frame, app: &App, area: Rect) {
+    let (elapsed_secs, total_secs, child_count, skip_requested) = if let Some(ref run) = app.current_run {
+        let elapsed = run.merge_detected_at
+            .map(|t| t.elapsed().as_secs())
+            .unwrap_or(0);
+        let total = run.grace_duration
+            .map(|d| d.as_secs())
+            .unwrap_or(30);
+        let children = run.last_status
+            .as_ref()
+            .and_then(|s| s.resource.as_ref())
+            .map(|r| r.child_count)
+            .unwrap_or(0);
+        (elapsed, total, children, run.grace_skip_requested)
+    } else {
+        return;
     };
-    let status = app.status_message.as_deref().unwrap_or(default_status);
-    frame.render_widget(
-        Paragraph::new(status).style(Style::default().fg(sol::BASE01)),
-        chunks[4],
-    );
+
+    let remaining = total_secs.saturating_sub(elapsed_secs);
+    let ratio = if total_secs > 0 { elapsed_secs as f64 / total_secs as f64 } else { 1.0 };
+    let ratio = ratio.clamp(0.0, 1.0);
+
+    // Color-coded: green (>50% remaining), yellow (20-50%), red (<20%)
+    let remaining_ratio = 1.0 - ratio;
+    let bar_color = if remaining_ratio > 0.5 { sol::GREEN }
+        else if remaining_ratio > 0.2 { sol::YELLOW }
+        else { sol::RED };
+
+    // Build progress bar: [████████░░░░]
+    let bar_width = (area.width as usize).saturating_sub(4).min(40);
+    let filled = (ratio * bar_width as f64) as usize;
+    let empty = bar_width.saturating_sub(filled);
+    let bar = format!("[{}{}]", "█".repeat(filled), "░".repeat(empty));
+
+    let context = if child_count > 0 {
+        format!("Waiting for {} child process{}", child_count, if child_count == 1 { "" } else { "es" })
+    } else {
+        "Grace period (cleanup)".to_string()
+    };
+
+    let skip_hint = if skip_requested { " (skip requested)" } else { "  Press 's' to skip" };
+
+    let lines = vec![
+        Line::from(vec![
+            Span::styled("  Grace: ", Style::default().fg(sol::BASE01)),
+            Span::styled(&bar, Style::default().fg(bar_color)),
+            Span::styled(format!(" {}s / {}s", remaining, total_secs), Style::default().fg(bar_color).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("         ", Style::default()),
+            Span::styled(&context, Style::default().fg(sol::BASE0)),
+            Span::styled(skip_hint, Style::default().fg(sol::BASE01)),
+        ]),
+    ];
+
+    let block = Block::default().borders(Borders::NONE);
+    let paragraph = Paragraph::new(lines).block(block);
+    frame.render_widget(paragraph, area);
 }
 
 fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {

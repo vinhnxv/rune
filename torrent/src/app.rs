@@ -132,6 +132,10 @@ pub struct RunState {
     pub timeout_triggered_at: Option<Instant>,    // When SIGTERM was sent (grace period start)
     /// Activity detector for multi-signal idle/stop detection (F3).
     pub activity_detector: ActivityDetector,
+    /// Adaptive grace duration computed once when merge is detected (F4).
+    pub grace_duration: Option<Duration>,
+    /// Whether the operator requested to skip the grace period (F4).
+    pub grace_skip_requested: bool,
 }
 
 impl RunState {
@@ -317,6 +321,7 @@ pub enum Action {
     // Running view
     AttachTmux,
     SkipPlan,
+    SkipGrace,
     KillSession,
     PickPlans,       // Enter queue-edit mode (Running → Selection)
     RemoveFromQueue, // Delete queue item at cursor
@@ -759,6 +764,14 @@ impl App {
             }
             Action::RemoveFromQueue => self.remove_queue_item(),
             Action::SkipPlan => self.skip_current_plan(),
+            Action::SkipGrace => {
+                if let Some(ref mut run) = self.current_run {
+                    if run.merge_detected_at.is_some() {
+                        run.grace_skip_requested = true;
+                        self.status_message = Some(" Grace skip requested (min 5s remaining)".into());
+                    }
+                }
+            }
             Action::KillSession => self.kill_current_session(),
             Action::PickPlans => {
                 // Enter queue-edit mode: show Selection to pick more plans.
@@ -912,6 +925,8 @@ impl App {
             current_phase_name: None,
             timeout_triggered_at: None,
             activity_detector: ActivityDetector::new(),
+            grace_duration: None,
+            grace_skip_requested: false,
         });
 
         self.view = AppView::Running;
@@ -1237,6 +1252,8 @@ impl App {
             current_phase_name: None,
             timeout_triggered_at: None,
             activity_detector: ActivityDetector::new(),
+            grace_duration: None,
+            grace_skip_requested: false,
         });
 
         // Reset poll timers
@@ -1545,25 +1562,100 @@ impl App {
         }
     }
 
-    /// Grace period after merge detection before starting next plan.
-    /// Configurable via GRACE_PERIOD_SECS env var (default: 300s = 5 min).
-    /// Allows time for: arc stop hook cleanup, team deletion, git state reset.
-    fn grace_period_secs() -> u64 {
-        std::env::var("GRACE_PERIOD_SECS")
+    /// Read an env var as u64, falling back to a default value.
+    fn env_or_u64(key: &str, default: u64) -> u64 {
+        std::env::var(key)
             .ok()
             .and_then(|s| s.parse().ok())
-            .unwrap_or(300)
+            .unwrap_or(default)
     }
 
-    /// Check if grace period has elapsed after merge detection.
+    /// Compute adaptive grace duration from runtime metrics (F4).
+    /// Formula: base + (child_count * 2) + (cpu_percent * 0.5), clamped to [min, max].
+    /// Configurable via TORRENT_GRACE_BASE, TORRENT_GRACE_MIN, TORRENT_GRACE_MAX env vars.
+    /// Falls back to GRACE_PERIOD_SECS for backward compatibility if new vars are not set.
+    fn compute_grace_duration(&self) -> Duration {
+        // Backward compatibility: if GRACE_PERIOD_SECS is set and new vars are not,
+        // use it as max_grace to ease migration.
+        let legacy_secs: Option<u64> = std::env::var("GRACE_PERIOD_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok());
+        let has_new_vars = std::env::var("TORRENT_GRACE_BASE").is_ok()
+            || std::env::var("TORRENT_GRACE_MIN").is_ok()
+            || std::env::var("TORRENT_GRACE_MAX").is_ok();
+
+        if legacy_secs.is_some() && !has_new_vars {
+            // Legacy mode: use fixed duration from GRACE_PERIOD_SECS
+            return Duration::from_secs(legacy_secs.unwrap());
+        }
+
+        let base = Self::env_or_u64("TORRENT_GRACE_BASE", 30);
+        let min = Self::env_or_u64("TORRENT_GRACE_MIN", 10);
+        let max = Self::env_or_u64("TORRENT_GRACE_MAX", 120);
+
+        let child_count = self.current_run
+            .as_ref()
+            .and_then(|r| r.last_status.as_ref())
+            .and_then(|s| s.resource.as_ref())
+            .map(|r| r.child_count as u64)
+            .unwrap_or(0);
+
+        let cpu = self.current_run
+            .as_ref()
+            .and_then(|r| r.last_status.as_ref())
+            .and_then(|s| s.resource.as_ref())
+            .map(|r| r.cpu_percent.clamp(0.0, 100.0))
+            .unwrap_or(0.0);
+
+        let secs = base
+            .saturating_add(child_count.saturating_mul(2))
+            .saturating_add((cpu * 0.5) as u64);
+        Duration::from_secs(secs.clamp(min, max))
+    }
+
+    /// Check if grace period has elapsed after merge detection (F4).
+    /// On first call: computes adaptive duration and stores it.
+    /// On skip request: reduces remaining time to minimum 5 seconds.
     fn check_grace_period(&mut self, now: Instant) {
-        let grace_duration = Duration::from_secs(Self::grace_period_secs());
+        // Compute and cache grace duration on first call after merge detection
+        let grace_duration = if let Some(ref run) = self.current_run {
+            if run.merge_detected_at.is_some() && run.grace_duration.is_none() {
+                let computed = self.compute_grace_duration();
+                if let Some(ref mut run) = self.current_run {
+                    run.grace_duration = Some(computed);
+                }
+                computed
+            } else {
+                run.grace_duration.unwrap_or_else(|| Duration::from_secs(30))
+            }
+        } else {
+            return;
+        };
+
+        // Handle skip request: reduce to minimum 5s from now
+        let effective_duration = if let Some(ref run) = self.current_run {
+            if run.grace_skip_requested {
+                if let Some(detected) = run.merge_detected_at {
+                    let elapsed = now.duration_since(detected);
+                    let min_remaining = Duration::from_secs(5);
+                    // Ensure at least 5s total, but don't extend beyond original grace
+                    let skip_duration = elapsed + min_remaining;
+                    if skip_duration < grace_duration { skip_duration } else { grace_duration }
+                } else {
+                    grace_duration
+                }
+            } else {
+                grace_duration
+            }
+        } else {
+            return;
+        };
 
         let should_complete = self
             .current_run
             .as_ref()
             .and_then(|r| r.merge_detected_at)
-            .map(|detected| now.duration_since(detected) >= grace_duration)
+            .map(|detected| now.duration_since(detected) >= effective_duration)
             .unwrap_or(false);
 
         if should_complete {

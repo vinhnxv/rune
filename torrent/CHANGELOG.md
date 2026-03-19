@@ -9,9 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Adaptive grace period (F4)** — grace duration computed from child process count and CPU activity using formula: `base + (children × 2) + (cpu% × 0.5)`, clamped to configurable min/max range
+- **Grace countdown UI** — visible progress bar with color-coded urgency (green >50%, yellow 20-50%, red <20%) and child process context
+- **Grace skip keybinding** — press `s` during grace period to skip (minimum 5s remaining enforced); contextual with existing `s` = skip plan
+- **`TORRENT_GRACE_BASE/MIN/MAX`** — environment variables for adaptive grace formula (defaults: 30/10/120 seconds)
 - **Structured run logs** — JSONL logging at `.torrent/logs/runs.jsonl` with per-plan entries (status, urgency, restarts, duration) and batch summary at exit
 - **Log rotation** — automatic rotation at 10MB with max 5 archived files
 - **`TORRENT_LOG_DIR`** — environment variable to override default log directory
+
+### Changed
+
+- **Grace period default** — reduced from fixed 300s (5 min) to adaptive 10-120s range (base 30s). `GRACE_PERIOD_SECS` is still respected as backward-compatible fallback when `TORRENT_GRACE_*` vars are not set
 
 ## [0.5.0] - 2026-03-19
 

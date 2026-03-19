@@ -105,7 +105,7 @@ cd /path/to/project
 
 Torrent launches each plan in a fresh tmux session, monitors arc progress via
 checkpoint and heartbeat JSON files, and automatically advances to the next plan
-when an arc completes (merge phase done + 5 min grace period).
+when an arc completes (merge phase done + adaptive grace period of 10-120s).
 
 The current phase displays elapsed time alongside its timeout limit with a color-coded
 indicator (green < 50%, yellow 50-80%, red > 80%). When a phase times out, a red
@@ -130,7 +130,7 @@ warning banner appears in the heartbeat panel.
 | Key | Action                                              |
 |-----|-----------------------------------------------------|
 | `a` | Attach to tmux session (Ctrl-B D to detach back)    |
-| `s` | Skip current plan, advance to next                  |
+| `s` | Skip current plan (or skip grace period if active)   |
 | `k` | Kill tmux session, stop all execution               |
 | `q` | Quit TUI (tmux session continues in background)     |
 
@@ -195,15 +195,25 @@ cargo build --release --bin torrent-cli
 
 ### Grace Period
 
-The grace period after merge detection before starting the next plan defaults to 300 seconds (5 minutes). Override via environment variable:
+After merge detection, torrent waits an adaptive grace period before starting the next plan. The duration is computed from runtime metrics:
+
+```
+grace = base + (child_count × 2) + (cpu_percent × 0.5)
+grace = clamp(grace, min, max)
+```
+
+**Defaults**: base=30s, min=10s, max=120s. A visible countdown with progress bar is shown during the grace period. Press `s` to skip (minimum 5s remaining).
+
+**Environment variables**:
 
 ```bash
-# Shorter grace period (2 minutes)
-GRACE_PERIOD_SECS=120 ./torrent/target/release/torrent
-
-# Longer grace period (10 minutes)
-GRACE_PERIOD_SECS=600 ./torrent/target/release/torrent
+# Adjust adaptive grace formula parameters
+TORRENT_GRACE_BASE=30   # Base duration in seconds (default: 30)
+TORRENT_GRACE_MIN=10    # Minimum grace period (default: 10)
+TORRENT_GRACE_MAX=120   # Maximum grace period (default: 120)
 ```
+
+**Migration from `GRACE_PERIOD_SECS`**: The old `GRACE_PERIOD_SECS` variable is still respected as a backward-compatible fallback. If set and no `TORRENT_GRACE_*` variables are configured, the fixed duration is used. To migrate, replace `GRACE_PERIOD_SECS=120` with `TORRENT_GRACE_MAX=120`.
 
 ### Phase Timeouts
 
