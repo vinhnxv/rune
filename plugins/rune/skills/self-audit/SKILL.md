@@ -415,6 +415,99 @@ if (!cleanupTeamDeleteSucceeded) {
 }
 ```
 
+## Phase 4: Echo Persist (runtime mode only)
+
+After generating the self-audit report, persist high-confidence patterns as
+Rune Echo entries in `.rune/echoes/meta-qa/MEMORY.md`.
+
+Only run when `MODE === "runtime" || MODE === "all"` and convergence findings exist.
+
+### 4a. Extract Persistable Patterns
+
+Read `${AUDIT_DIR}/convergence-findings.md` and identify CV-* findings flagged as
+ATTENTION or CRITICAL (not PASS). For each flagged finding, extract:
+- Pattern description (1-sentence summary)
+- Affected phase
+- Retry/round/score numeric data
+- Confidence (infer from evidence strength: PROVEN → 0.85, LIKELY → 0.70, UNCERTAIN → 0.55)
+- Finding IDs referenced
+
+### 4b. Build Echo Entry with metrics_snapshot
+
+For each persistable finding, construct an echo entry in this format:
+
+```markdown
+### [{YYYY-MM-DD}] Pattern: {short description}
+- **layer**: {inscribed|notes|observations}
+- **source**: rune:self-audit {arc_id}
+- **confidence**: {0.55–0.85}
+- **evidence**: `{checkpoint_path}` — {brief evidence description}
+- **recurrence_count**: {arc_count_showing_this_pattern}
+- **first_seen**: {oldest arc date or today}
+- **last_seen**: {today}
+- **finding_ids**: [{CV-RETRY-01}, ...]
+- **metrics_snapshot**:
+  - avg_retry_count: {N}
+  - avg_score_before_retry: {score or N/A}
+  - avg_score_after_retry: {score or N/A}
+  - improvement_per_retry: {pts or N/A}
+{1-2 sentence narrative explaining the pattern and its impact}
+```
+
+Layer assignment from confidence:
+| Confidence | Layer |
+|-----------|-------|
+| >= 0.80 | inscribed |
+| >= 0.65 | notes |
+| < 0.65 | observations |
+
+### 4c. Write to Meta-QA Echo Memory
+
+```javascript
+const echoPath = ".rune/echoes/meta-qa/MEMORY.md"
+
+// Read existing memory (create header if absent)
+let existing = ""
+try { existing = Read(echoPath) } catch { existing = "# Meta-QA Echoes\n" }
+
+// Dedup: skip patterns already captured (Jaccard similarity >= 0.8 on description)
+const newEntries = persistablePatterns
+  .filter(p => !isDuplicate(p.description, existing))
+  .map(buildEchoEntry)
+  .join("\n\n")
+
+if (newEntries) {
+  Write(echoPath, existing + "\n\n" + newEntries)
+  output(`Persisted ${persistablePatterns.length} patterns to ${echoPath}`)
+} else {
+  output("No new patterns to persist (all already captured in meta-qa echoes).")
+}
+```
+
+### Example Echo Entry
+
+```markdown
+### [2026-03-19] Pattern: Code review consistently needs retry
+- **layer**: inscribed
+- **source**: rune:self-audit arc-1773916367
+- **confidence**: 0.85
+- **evidence**: `.rune/arc/arc-*/checkpoint.json` — code_review retried in 4/5 recent arcs
+- **recurrence_count**: 4
+- **first_seen**: 2026-03-01
+- **last_seen**: 2026-03-19
+- **finding_ids**: [CV-RETRY-01]
+- **metrics_snapshot**:
+  - avg_retry_count: 1.4
+  - avg_score_before_retry: 62
+  - avg_score_after_retry: 78
+  - improvement_per_retry: 16
+Code review phase averages 1.4 retries across recent arcs. Average pre-retry score is
+62 (MARGINAL), improving to 78 (PASS) after retry. Consider investigating common review
+failures to reduce retry rate.
+```
+
+---
+
 ## --history Subcommand
 
 When `--history` flag is set, read all past `metrics.json` files and display a trend table.
@@ -501,3 +594,4 @@ Trend: ↑ Improving (≥5pt gain) | ~ Stable (±4pt) | ↓ Degrading (≥5pt lo
 ## References
 
 - [runtime-mode.md](references/runtime-mode.md) — Full runtime mode architecture and agent protocols
+- [metrics-schema.md](references/metrics-schema.md) — metrics.json schema and cross-run trend computation algorithm
