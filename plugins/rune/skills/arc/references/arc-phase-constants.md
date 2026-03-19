@@ -9,7 +9,7 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 ## Phase Order
 
 ```javascript
-const PHASE_ORDER = ['forge', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'design_prototype', 'task_decomposition', 'work', 'drift_review', 'storybook_verification', 'design_verification', 'ux_verification', 'gap_analysis', 'codex_gap_analysis', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification', 'code_review', 'goldmask_correlation', 'mend', 'verify_mend', 'design_iteration', 'test', 'test_coverage_critique', 'deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
+const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'design_prototype', 'task_decomposition', 'work', 'work_qa', 'drift_review', 'storybook_verification', 'design_verification', 'ux_verification', 'gap_analysis', 'gap_analysis_qa', 'codex_gap_analysis', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification', 'code_review', 'code_review_qa', 'goldmask_correlation', 'mend', 'mend_qa', 'verify_mend', 'design_iteration', 'test', 'test_qa', 'test_coverage_critique', 'deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
 
 // Heavy phases that MUST be delegated to sub-skills — never implemented inline.
 // These phases consume significant tokens and require fresh teammate context windows.
@@ -89,6 +89,12 @@ const PHASE_TIMEOUTS = {
   goldmask_correlation:  talismanTimeouts.goldmask_correlation ?? 60_000,    //  1 min (orchestrator-only, no team)
   ship:          talismanTimeouts.ship ?? 300_000,      //  5 min (orchestrator-only)
   merge:         talismanTimeouts.merge ?? 600_000,     // 10 min (orchestrator-only)
+  forge_qa:        talismanTimeouts.forge_qa ?? 300_000,        //  5 min (QA gate — 1 agent)
+  work_qa:         talismanTimeouts.work_qa ?? 300_000,         //  5 min (QA gate — 1 agent)
+  gap_analysis_qa: talismanTimeouts.gap_analysis_qa ?? 300_000, //  5 min (QA gate — 1 agent)
+  code_review_qa:  talismanTimeouts.code_review_qa ?? 300_000,  //  5 min (QA gate — 1 agent)
+  mend_qa:         talismanTimeouts.mend_qa ?? 300_000,         //  5 min (QA gate — 1 agent)
+  test_qa:         talismanTimeouts.test_qa ?? 300_000,         //  5 min (QA gate — 1 agent)
 }
 ```
 
@@ -132,18 +138,25 @@ const BATCH_CONFIG = {
 }
 
 function calculateDynamicTimeout(tier) {
-  const basePhaseBudget = PHASE_TIMEOUTS.forge + PHASE_TIMEOUTS.plan_review +
+  const basePhaseBudget = PHASE_TIMEOUTS.forge + PHASE_TIMEOUTS.forge_qa +
+    PHASE_TIMEOUTS.plan_review +
     PHASE_TIMEOUTS.plan_refine + PHASE_TIMEOUTS.verification +
     PHASE_TIMEOUTS.semantic_verification + PHASE_TIMEOUTS.design_extraction +
-    PHASE_TIMEOUTS.design_prototype + PHASE_TIMEOUTS.task_decomposition + PHASE_TIMEOUTS.work +
+    PHASE_TIMEOUTS.design_prototype + PHASE_TIMEOUTS.task_decomposition +
+    PHASE_TIMEOUTS.work + PHASE_TIMEOUTS.work_qa +
     PHASE_TIMEOUTS.storybook_verification + PHASE_TIMEOUTS.design_verification +
     PHASE_TIMEOUTS.ux_verification +
-    PHASE_TIMEOUTS.gap_analysis +
+    PHASE_TIMEOUTS.gap_analysis + PHASE_TIMEOUTS.gap_analysis_qa +
     PHASE_TIMEOUTS.codex_gap_analysis + PHASE_TIMEOUTS.gap_remediation +
     PHASE_TIMEOUTS.inspect + PHASE_TIMEOUTS.inspect_fix + PHASE_TIMEOUTS.verify_inspect +
-    PHASE_TIMEOUTS.goldmask_verification + PHASE_TIMEOUTS.goldmask_correlation +
+    PHASE_TIMEOUTS.goldmask_verification +
+    PHASE_TIMEOUTS.code_review + PHASE_TIMEOUTS.code_review_qa +
+    PHASE_TIMEOUTS.goldmask_correlation +
+    PHASE_TIMEOUTS.mend + PHASE_TIMEOUTS.mend_qa +
+    PHASE_TIMEOUTS.verify_mend +
     PHASE_TIMEOUTS.design_iteration +
-    PHASE_TIMEOUTS.test + PHASE_TIMEOUTS.test_coverage_critique +
+    PHASE_TIMEOUTS.test + PHASE_TIMEOUTS.test_qa +
+    PHASE_TIMEOUTS.test_coverage_critique +
     PHASE_TIMEOUTS.pre_ship_validation + PHASE_TIMEOUTS.release_quality_check +
     PHASE_TIMEOUTS.bot_review_wait + PHASE_TIMEOUTS.pr_comment_resolution +
     PHASE_TIMEOUTS.ship + PHASE_TIMEOUTS.merge
