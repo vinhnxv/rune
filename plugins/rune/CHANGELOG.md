@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-03-19
+
+### Added
+- **arc completion stamp**: Enriched with full execution metadata — session identity, per-phase timing, quality metrics, changed files summary, plan relocation search
+- **arc completion stamp**: Session ID, Owner PID, Rune Session ID, Rune Version fields
+- **arc completion stamp**: Per-phase Duration column in Phase Results table
+- **arc completion stamp**: Quality Metrics section (TOME P1/P2/P3, test pass rate, resume count)
+- **arc completion stamp**: Changed Files section with collapsible diff stats (capped at 30 files)
+- **arc completion stamp**: Plan file relocation search (STEP 1.5) for moved/archived plans
+- **arc completion stamp**: Missing phases added to table (inspect, inspect_fix, verify_inspect, deploy_verify, drift_review)
+
+### Fixed
+- **arc completion stamp**: Use `checkpoint.session_id` instead of `Bash('echo $CLAUDE_SESSION_ID')` — env var unavailable in Bash context
+- **arc completion stamp**: TOME P1/P2/P3 regex anchored to finding ID prefix to avoid false matches
+- **arc completion stamp**: Fix const reassignment and undefined `checkpointPath` reference
+- **arc completion stamp**: Add null guard for checkpoint fields, remove stale comment
+
 ## [2.1.0] - 2026-03-19
 
 ### Added
