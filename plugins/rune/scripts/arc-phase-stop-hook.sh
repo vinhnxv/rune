@@ -479,6 +479,7 @@ _now=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
 # closing brace in totals.phase_times) kills the entire phase loop silently —
 # the ERR trap exits 0, which means "allow stop", and the next phase never runs.
 # The empty-check on the next line handles the failure gracefully.
+_trace "TIMING: demotion check start at +$(( $(date +%s) - _HOOK_START_EPOCH ))s"
 _demote_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '
   [.phases | to_entries[] | select(.value.status == "skipped" and (.value.skip_reason == null or .value.skip_reason == ""))] as $to_demote |
   if ($to_demote | length) > 0 then
@@ -539,6 +540,7 @@ fi
 # in one jq call (O(1) forks) instead of per-phase evaluation (O(N) LLM turns).
 # Graceful degradation: if jq fails or skip_map is missing/empty, falls through
 # to the existing phase-finding loop unchanged.
+_trace "TIMING: skip_map start at +$(( $(date +%s) - _HOOK_START_EPOCH ))s"
 _now=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
 _skip_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '
   (.skip_map // {}) as $sm |
@@ -668,7 +670,8 @@ if [[ -n "${_PHASE_LOG_DIR:-}" && -d "$_PHASE_LOG_DIR" ]]; then
   for _timing_pp in "${PHASE_ORDER[@]}"; do
     # Stop at NEXT_PHASE boundary (only look at phases before the next pending one)
     [[ -n "$NEXT_PHASE" && "$_timing_pp" == "$NEXT_PHASE" ]] && break
-    _timing_pp_st=$(echo "$CKPT_CONTENT" | jq -r ".phases.${_timing_pp}.status // \"pending\"" 2>/dev/null || echo "pending")
+    # CDX-GAP-002 FIX: Use _jq_with_budget for per-phase timing loop (budget-aware)
+    _timing_pp_st=$(echo "$CKPT_CONTENT" | _jq_with_budget -r ".phases.${_timing_pp}.status // \"pending\"" 2>/dev/null || echo "pending")
     [[ "$_timing_pp_st" == "completed" ]] && _timing_completed_phase="$_timing_pp"
   done
 
@@ -1031,6 +1034,11 @@ if ! grep -q "^iteration: ${NEW_ITERATION}$" "$STATE_FILE" 2>/dev/null; then
 fi
 
 # ── Zombie team verification: clean up prior phase's team if still present ──
+# CDX-GAP-003 FIX: Skip zombie cleanup on fast path (crash recovery)
+if [[ "$_FAST_PATH" == "true" ]]; then
+  _trace "FAST PATH: skipping zombie team cleanup (crash recovery mode)"
+else
+# (original zombie cleanup block follows, indented by the else)
 # When postPhaseCleanup is skipped (e.g., context exhaustion), the prior phase's
 # team dir may linger. Clean it before starting the next phase.
 #
@@ -1232,6 +1240,8 @@ FINALIZE_EOF
     fi
   fi
 fi
+
+fi  # end _FAST_PATH else block (CDX-GAP-003)
 
 # ── Build phase prompt ──
 REF_FILE=$(_phase_ref "$NEXT_PHASE")
