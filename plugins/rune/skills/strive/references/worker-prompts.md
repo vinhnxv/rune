@@ -426,6 +426,16 @@ Agent({
     - **Recipient**: Always use recipient: "team-lead".
     - **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).
 
+    ## QA Awareness
+    Your work output will be independently verified by QA agents after this phase completes.
+    QA agents check 3 dimensions: Artifact existence, Quality depth, and Completeness coverage.
+    - Artifact checks verify your output files exist and are valid (non-empty, correct format)
+    - Quality checks verify your Worker Report has real evidence (file:line refs, not generic phrases)
+    - Completeness checks verify all plan acceptance criteria are addressed
+    Writing thorough Worker Reports with specific evidence (file paths, line numbers, test results)
+    directly improves your phase's QA score. Generic phrases like "implemented as planned" or
+    "it works" will trigger QA failures and force the entire phase to retry.
+
     RE-ANCHOR -- Match existing patterns. Minimal changes. Ask lead if unclear.`,
   run_in_background: true
 })
@@ -745,6 +755,16 @@ Agent({
     - **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
     - **Recipient**: Always use recipient: "team-lead".
     - **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).
+
+    ## QA Awareness
+    Your work output will be independently verified by QA agents after this phase completes.
+    QA agents check 3 dimensions: Artifact existence, Quality depth, and Completeness coverage.
+    - Artifact checks verify your test files exist and are valid (non-empty, correct format)
+    - Quality checks verify your Worker Report has real evidence (file:line refs, not generic phrases)
+    - Completeness checks verify all plan acceptance criteria are covered by tests
+    Writing thorough Worker Reports with specific evidence (test file paths, pass/fail counts,
+    coverage metrics) directly improves your phase's QA score. Generic phrases like
+    "tests written as planned" will trigger QA failures and force the entire phase to retry.
 
     RE-ANCHOR -- Match existing test patterns. No new test utilities.`,
   run_in_background: true

@@ -265,6 +265,24 @@ See [arc-phase-loop-state.md](references/arc-phase-loop-state.md) for the full s
 
 Integrates at 3 points: **Phase 5** (work loop with AC criteria), **Phase 8.5** (SCR/proof metrics), **Post-Arc** (echo persist). Config: `discipline.enabled` (default: true), `discipline.block_on_fail` (default: false). See `strive/references/discipline-work-loop.md` and `discipline/references/metrics-schema.md`.
 
+## QA Discipline Protocol
+
+Independent QA gates enforce quality obligations at every gated phase. The Tarnished (orchestrator) and all phase agents MUST adhere to these 6 obligations:
+
+1. **No self-evaluation**: The Tarnished MUST NOT evaluate its own phase output. QA agents are spawned as independent teammates with read-only access to phase artifacts. QA verdicts cannot be overridden programmatically.
+
+2. **Verdict file contract**: Every QA gate MUST produce a verdict JSON file at `tmp/arc/{id}/qa/{phase}-verdict.json` before the stop hook advances. Missing verdict files default to FAIL with `timed_out: true`.
+
+3. **GUARD 9 retry budget**: QA retries are capped at `MAX_QA_RETRIES` (2), which MUST remain strictly less than `MAX_PHASE_DISPATCHES - 1` (currently 3). Exceeding this invariant triggers GUARD 9 destruction of the state file. Do NOT increase `MAX_QA_RETRIES` without first raising `MAX_PHASE_DISPATCHES` in the stop hook.
+
+4. **Score transparency**: All QA scores (artifact, quality, completeness, overall) are persisted in verdict files and surfaced in the QA Dashboard (`tmp/arc/{id}/qa/dashboard.md`). No phase may suppress or alter QA scores after they are written.
+
+5. **Human escalation**: When QA fails after max retries, the pipeline MUST escalate to the human via `AskUserQuestion` — never silently skip or auto-pass a failed gate.
+
+6. **Dashboard generation**: After the last QA-gated phase completes, `generateQADashboard(arcId)` MUST be called to produce the consolidated pipeline quality summary. The dashboard is injected into the PR body (Phase 9) for reviewer visibility.
+
+See [arc-phase-qa-gate.md](references/arc-phase-qa-gate.md) for the full QA gate architecture, scoring system, and per-phase checklists.
+
 ## First Phase Invocation
 
 Execute the first pending phase from the checkpoint. The Stop hook (`arc-phase-stop-hook.sh`) handles all subsequent phases automatically.

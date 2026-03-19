@@ -298,7 +298,8 @@ all_shards=$(echo "$merged" | jq '{
     horizon: (.horizon // {}),
     evidence: (.evidence // {}),
     doubt_seer: (.doubt_seer // {}),
-    state_weaver: (.state_weaver // {})
+    state_weaver: (.state_weaver // {}),
+    qa_gates: (.qa_gates // {})
   },
   settings: {
     version: .version,
