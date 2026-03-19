@@ -90,6 +90,9 @@ make help
 # Run from the project root (where plans/ directory lives)
 cd /path/to/project
 ./torrent/target/release/torrent
+
+# With per-phase timeouts (minutes)
+./torrent/target/release/torrent -t forge:120 -t work:90
 ```
 
 ### Selection View
@@ -102,7 +105,11 @@ cd /path/to/project
 
 Torrent launches each plan in a fresh tmux session, monitors arc progress via
 checkpoint and heartbeat JSON files, and automatically advances to the next plan
-when an arc completes (merge phase done + 4 min grace period).
+when an arc completes (merge phase done + 5 min grace period).
+
+The current phase displays elapsed time alongside its timeout limit with a color-coded
+indicator (green < 50%, yellow 50-80%, red > 80%). When a phase times out, a red
+warning banner appears in the heartbeat panel.
 
 ## Keybindings
 
@@ -131,13 +138,16 @@ when an arc completes (merge phase done + 4 min grace period).
 
 ```
 torrent (TUI)
+├── main.rs         — entry point, CLI arg parsing, event loop
 ├── scanner.rs      — discovers ~/.claude* dirs and plans/*.md files
 ├── app.rs          — application state, selection logic, quit summary
 ├── ui.rs           — ratatui rendering (selection + running views)
 ├── keybindings.rs  — input handling per view
 ├── tmux.rs         — tmux session lifecycle (create, send-keys, kill)
 ├── monitor.rs      — arc discovery + heartbeat/checkpoint polling
-└── checkpoint.rs   — serde structs for checkpoint.json + heartbeat.json
+├── checkpoint.rs   — serde structs for checkpoint.json + heartbeat.json
+├── lock.rs         — CWD-based instance lock (prevents concurrent torrent)
+└── resource.rs     — process resource monitoring via sysinfo (CPU/memory)
 ```
 
 ### Data Flow
@@ -184,7 +194,7 @@ cargo build --release --bin torrent-cli
 
 ### Grace Period
 
-The grace period after merge detection before starting the next plan defaults to 240 seconds (4 minutes). Override via environment variable:
+The grace period after merge detection before starting the next plan defaults to 300 seconds (5 minutes). Override via environment variable:
 
 ```bash
 # Shorter grace period (2 minutes)
@@ -192,6 +202,32 @@ GRACE_PERIOD_SECS=120 ./torrent/target/release/torrent
 
 # Longer grace period (10 minutes)
 GRACE_PERIOD_SECS=600 ./torrent/target/release/torrent
+```
+
+### Phase Timeouts
+
+Each arc phase has a timeout (default: 60 minutes). When a phase exceeds its limit, torrent sends SIGTERM to the Claude Code process, waits 15 seconds, then hard-kills the tmux session and marks the run as failed.
+
+**Environment variables** (values in minutes):
+
+| Variable | Phase category | Default |
+|----------|---------------|---------|
+| `TORRENT_TIMEOUT_DEFAULT` | All phases (global default) | 60 |
+| `TORRENT_TIMEOUT_FORGE` | forge | 60 |
+| `TORRENT_TIMEOUT_WORK` | work, task_decomposition, design_* | 60 |
+| `TORRENT_TIMEOUT_TEST` | test, test_coverage_critique | 60 |
+| `TORRENT_TIMEOUT_REVIEW` | code_review, plan_review, etc. | 60 |
+| `TORRENT_TIMEOUT_SHIP` | ship, merge, pre_ship_validation, etc. | 60 |
+
+```bash
+# 120-minute forge timeout, 30-minute ship timeout
+TORRENT_TIMEOUT_FORGE=120 TORRENT_TIMEOUT_SHIP=30 torrent
+```
+
+**CLI flag** (`--phase-timeout` / `-t`) overrides env vars:
+
+```bash
+torrent -t forge:120 -t work:90 -t ship:30
 ```
 
 ---

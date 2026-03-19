@@ -485,16 +485,38 @@ fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {
                         ),
                     ]));
                 }
-                // Current phase (in progress, with elapsed) or transitioning indicator
+                // Current phase (in progress, with elapsed + timeout remaining)
                 if let Some(ref curr) = nav.current {
-                    l.push(Line::from(vec![
+                    let mut now_spans = vec![
                         Span::styled("  ▶ Now: ", Style::default().fg(sol::YELLOW)),
                         Span::styled(&curr.name, Style::default().fg(sol::YELLOW).add_modifier(Modifier::BOLD)),
                         Span::styled(
                             format!("  {}", format_duration(curr.duration_secs)),
                             Style::default().fg(sol::ORANGE),
                         ),
-                    ]));
+                    ];
+                    // Show timeout remaining: "45m23s / 90m0s ⏱"
+                    let timeout = app.phase_timeout_config.timeout_for(&curr.name);
+                    let timeout_secs = timeout.as_secs() as i64;
+                    if let Some(elapsed) = curr.duration_secs {
+                        let ratio = elapsed as f64 / timeout_secs as f64;
+                        let timeout_color = if ratio > 0.8 {
+                            sol::RED
+                        } else if ratio > 0.5 {
+                            sol::YELLOW
+                        } else {
+                            sol::GREEN
+                        };
+                        now_spans.push(Span::styled(
+                            format!(" / {}", format_duration(Some(timeout_secs))),
+                            Style::default().fg(timeout_color),
+                        ));
+                        now_spans.push(Span::styled(
+                            " ⏱",
+                            Style::default().fg(timeout_color),
+                        ));
+                    }
+                    l.push(Line::from(now_spans));
                 } else {
                     // Between phases — show transitioning indicator
                     l.push(Line::from(vec![
@@ -656,7 +678,17 @@ fn render_heartbeat(frame: &mut Frame, app: &App, area: Rect) {
                 else if st.last_activity.is_empty() { ("● unknown", sol::BASE01) }
                 else { ("● live", sol::GREEN) };
 
-            let mut l = vec![
+            let mut l = Vec::new();
+
+            // Timeout warning banner (when kill sequence is active)
+            if run.timeout_triggered_at.is_some() {
+                l.push(Line::from(Span::styled(
+                    "  ⚠ TIMEOUT — killing session, waiting for cleanup...",
+                    Style::default().fg(sol::RED).add_modifier(Modifier::BOLD),
+                )));
+            }
+
+            l.extend(vec![
                 Line::from(vec![
                     Span::styled("  Activity: ", Style::default().fg(sol::BASE01)),
                     Span::styled(&st.last_activity, Style::default().fg(sol::BASE0)),
@@ -664,7 +696,7 @@ fn render_heartbeat(frame: &mut Frame, app: &App, area: Rect) {
                     Span::styled(icon, Style::default().fg(color).add_modifier(Modifier::BOLD)),
                 ]),
                 make_kv("  Tool:     ", &st.last_tool, sol::BASE0),
-            ];
+            ]);
 
             // Resource monitoring line
             if let Some(ref res) = st.resource {

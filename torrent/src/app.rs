@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
@@ -84,6 +84,9 @@ pub struct App {
 
     // Claude Code version string (detected at startup)
     pub claude_version: String,
+
+    // Phase timeout configuration (session-scoped, loaded from env once)
+    pub phase_timeout_config: PhaseTimeoutConfig,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,6 +126,10 @@ pub struct RunState {
     pub claude_pid: Option<u32>,     // Claude Code process PID (= owner_pid in checkpoint)
     pub loop_state: Option<monitor::ArcLoopState>, // From arc-phase-loop.local.md
     pub session_info: Option<crate::scanner::SessionInfo>, // Enriched session info
+    // Phase timeout tracking (multi-tick state machine, like merge_detected_at)
+    pub current_phase_started: Option<Instant>,  // Reset on phase change
+    pub current_phase_name: Option<String>,       // Last known phase for change detection
+    pub timeout_triggered_at: Option<Instant>,    // When SIGTERM was sent (grace period start)
 }
 
 impl RunState {
@@ -191,6 +198,83 @@ pub struct PhaseSummary {
     pub total: u32,
     pub skipped: u32,
     pub current_phase_name: String,
+}
+
+/// Map a phase name to a timeout category.
+/// Categories group phases with similar expected durations.
+fn phase_category(name: &str) -> &str {
+    match name {
+        "forge" => "forge",
+        "work" | "task_decomposition" | "design_extraction" | "design_prototype"
+        | "design_iteration" => "work",
+        "test" | "test_coverage_critique" => "test",
+        "ship" | "merge" | "pre_ship_validation" | "release_quality_check"
+        | "deploy_verify" | "bot_review_wait" | "pr_comment_resolution" => "ship",
+        _ => "review",
+    }
+}
+
+/// Per-phase timeout configuration loaded from TORRENT_TIMEOUT_* env vars.
+/// Falls back to `default_timeout` for phases whose category has no override.
+///
+/// Env vars: TORRENT_TIMEOUT_FORGE, TORRENT_TIMEOUT_WORK, TORRENT_TIMEOUT_TEST,
+/// TORRENT_TIMEOUT_REVIEW, TORRENT_TIMEOUT_SHIP (values in minutes).
+/// TORRENT_TIMEOUT_DEFAULT overrides the global default (60 min).
+pub struct PhaseTimeoutConfig {
+    timeouts: HashMap<String, Duration>,
+    default_timeout: Duration,
+}
+
+impl PhaseTimeoutConfig {
+    /// Parse timeout config from environment variables.
+    /// Each TORRENT_TIMEOUT_<CATEGORY> is an integer in minutes.
+    pub fn from_env() -> Self {
+        let default_mins: u64 = std::env::var("TORRENT_TIMEOUT_DEFAULT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(60);
+
+        let mut timeouts = HashMap::new();
+        for category in &["forge", "work", "test", "review", "ship"] {
+            let env_key = format!("TORRENT_TIMEOUT_{}", category.to_uppercase());
+            if let Some(mins) = std::env::var(&env_key).ok().and_then(|s| s.parse::<u64>().ok()) {
+                timeouts.insert(category.to_string(), Duration::from_secs(mins * 60));
+            }
+        }
+
+        Self {
+            timeouts,
+            default_timeout: Duration::from_secs(default_mins * 60),
+        }
+    }
+
+    /// Get the timeout duration for a given phase name.
+    /// Looks up the phase's category, then checks for a configured override.
+    pub fn timeout_for(&self, phase: &str) -> Duration {
+        let cat = phase_category(phase);
+        self.timeouts
+            .get(cat)
+            .copied()
+            .unwrap_or(self.default_timeout)
+    }
+
+    /// Apply CLI overrides on top of env-based config.
+    /// Each override is (phase_category, minutes).
+    pub fn apply_overrides(&mut self, overrides: &[(String, u64)]) {
+        for (phase, mins) in overrides {
+            let clamped = (*mins).max(1);
+            self.timeouts
+                .insert(phase.to_lowercase(), Duration::from_secs(clamped * 60));
+        }
+    }
+
+    /// Returns true if all timeouts are at their defaults (no env overrides).
+    /// Used to skip timeout checking entirely when unconfigured.
+    #[allow(dead_code)] // used by UI layer and tests
+    pub fn is_default(&self) -> bool {
+        self.timeouts.is_empty()
+            && self.default_timeout == Duration::from_secs(60 * 60)
+    }
 }
 
 /// Result of a completed arc run.
@@ -304,6 +388,7 @@ impl App {
             queue_editing: false,
             should_quit: false,
             claude_version: Self::detect_claude_version(),
+            phase_timeout_config: PhaseTimeoutConfig::from_env(),
         })
     }
 
@@ -819,6 +904,9 @@ impl App {
             claude_pid,
             loop_state: Some(loop_state),
             session_info,
+            current_phase_started: None,
+            current_phase_name: None,
+            timeout_triggered_at: None,
         });
 
         self.view = AppView::Running;
@@ -980,8 +1068,11 @@ impl App {
                 self.last_loop_state_poll = Some(now);
             }
 
-            // Check grace period completion
+            // Check grace period completion BEFORE timeout (completion race guard)
             self.check_grace_period(now);
+
+            // Check phase timeout AFTER completion — prevents killing a just-completed phase
+            self.check_phase_timeout();
         }
 
         Ok(())
@@ -1137,6 +1228,9 @@ impl App {
                     &self.sys,
                 )
             }),
+            current_phase_started: None,
+            current_phase_name: None,
+            timeout_triggered_at: None,
         });
 
         // Reset poll timers
@@ -1259,6 +1353,21 @@ impl App {
             // Combined stale detection: heartbeat staleness OR low-cpu process health
             let is_stale = status.is_stale || proc_health == ProcessHealth::LowCpu;
 
+            // Phase change detection — reset timeout timer on new phase
+            {
+                let new_phase = &status.current_phase;
+                let phase_changed = run
+                    .current_phase_name
+                    .as_ref()
+                    .map(|old| old != new_phase)
+                    .unwrap_or(true);
+                if phase_changed && !new_phase.is_empty() {
+                    run.current_phase_name = Some(new_phase.clone());
+                    run.current_phase_started = Some(Instant::now());
+                    run.timeout_triggered_at = None; // clear any pending kill
+                }
+            }
+
             // Convert monitor::ArcStatus to app::ArcStatus
             run.last_status = Some(ArcStatus {
                 arc_id: status.arc_id,
@@ -1292,6 +1401,121 @@ impl App {
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(30)
+    }
+
+    /// Check if the current phase has exceeded its timeout.
+    /// Uses a multi-tick state machine (like merge_detected_at):
+    /// 1. Phase exceeds timeout → send SIGTERM via libc::kill, set timeout_triggered_at
+    /// 2. 15s grace after SIGTERM → hard kill via Tmux::kill_session
+    ///
+    /// IMPORTANT: Completion check (merge_detected_at) is done BEFORE this,
+    /// so a phase that just completed won't be killed.
+    fn check_phase_timeout(&mut self) {
+        let run = match &mut self.current_run {
+            Some(r) => r,
+            None => return,
+        };
+
+        // Skip if completion already detected (race guard)
+        if run.merge_detected_at.is_some() {
+            return;
+        }
+
+        // Check SIGTERM grace period first (15s after SIGTERM → hard kill)
+        if let Some(triggered_at) = run.timeout_triggered_at {
+            if triggered_at.elapsed() >= Duration::from_secs(15) {
+                // Grace period expired — hard kill the session
+                let session = run.tmux_session.clone();
+                let plan_name = run.plan.name.clone();
+                self.status_message = Some(format!(
+                    "Phase timeout: hard kill after 15s grace — {}",
+                    plan_name
+                ));
+                let _ = Tmux::kill_session(&session);
+                // Complete the run as failed
+                if let Some(run) = self.current_run.take() {
+                    let arc_id = run.arc_id();
+                    let duration = run.arc_duration();
+                    let phase = run
+                        .current_phase_name
+                        .as_deref()
+                        .unwrap_or("unknown")
+                        .to_string();
+                    self.completed_runs.push(CompletedRun {
+                        plan: run.plan,
+                        result: ArcCompletion::Failed {
+                            reason: format!("phase timeout: {} exceeded limit", phase),
+                        },
+                        duration,
+                        arc_id,
+                    });
+                    self.tmux_session_id = None;
+                    let total = self.queue_total_items();
+                    if total > 0 && self.queue_cursor >= total {
+                        self.queue_cursor = total - 1;
+                    }
+                }
+            }
+            return; // Waiting for grace period — don't re-check timeout
+        }
+
+        // Check if current phase has exceeded its timeout
+        let (phase_name, started) = match (&run.current_phase_name, run.current_phase_started) {
+            (Some(name), Some(started)) => (name.clone(), started),
+            _ => return, // No phase tracked yet
+        };
+
+        let timeout = self.phase_timeout_config.timeout_for(&phase_name);
+        if started.elapsed() < timeout {
+            return; // Not timed out yet
+        }
+
+        // Timeout exceeded — send SIGTERM to Claude Code process
+        let pid_to_kill = run.claude_pid;
+        run.timeout_triggered_at = Some(Instant::now());
+
+        if let Some(pid) = pid_to_kill {
+            // SAFETY: libc::kill sends a signal to a process. We use SIGTERM (graceful).
+            let ret = unsafe { libc::kill(pid as libc::pid_t, libc::SIGTERM) };
+            if ret != 0 {
+                let err = std::io::Error::last_os_error();
+                if err.raw_os_error() == Some(libc::ESRCH) {
+                    // Process already gone — skip 15s grace, go straight to tmux kill
+                    self.status_message = Some(format!(
+                        "Phase timeout: PID {} already exited, killing tmux (phase: {})",
+                        pid, phase_name,
+                    ));
+                    if let Some(run) = &self.current_run {
+                        let _ = Tmux::kill_session(&run.tmux_session);
+                    }
+                } else if err.raw_os_error() == Some(libc::EPERM) {
+                    self.status_message = Some(format!(
+                        "Phase timeout: SIGTERM to PID {} denied (EPERM) (phase: {}, limit: {}m)",
+                        pid, phase_name, timeout.as_secs() / 60,
+                    ));
+                } else {
+                    self.status_message = Some(format!(
+                        "Phase timeout: SIGTERM to PID {} failed: {} (phase: {})",
+                        pid, err, phase_name,
+                    ));
+                }
+            } else {
+                self.status_message = Some(format!(
+                    "Phase timeout: SIGTERM sent to PID {} (phase: {}, limit: {}m)",
+                    pid, phase_name, timeout.as_secs() / 60,
+                ));
+            }
+        } else {
+            // No PID available — fall back to tmux kill directly
+            self.status_message = Some(format!(
+                "Phase timeout: no PID, killing tmux (phase: {}, limit: {}m)",
+                phase_name,
+                timeout.as_secs() / 60,
+            ));
+            if let Some(ref run) = self.current_run {
+                let _ = Tmux::kill_session(&run.tmux_session);
+            }
+        }
     }
 
     /// Grace period after merge detection before starting next plan.
@@ -1408,5 +1632,159 @@ mod tests {
     #[test]
     fn test_plans_match_empty_strings() {
         assert!(plans_match("", ""));
+    }
+
+    // --- PhaseTimeoutConfig tests ---
+
+    #[test]
+    fn test_phase_category_mapping() {
+        assert_eq!(phase_category("forge"), "forge");
+        assert_eq!(phase_category("work"), "work");
+        assert_eq!(phase_category("task_decomposition"), "work");
+        assert_eq!(phase_category("design_extraction"), "work");
+        assert_eq!(phase_category("design_prototype"), "work");
+        assert_eq!(phase_category("design_iteration"), "work");
+        assert_eq!(phase_category("test"), "test");
+        assert_eq!(phase_category("test_coverage_critique"), "test");
+        assert_eq!(phase_category("ship"), "ship");
+        assert_eq!(phase_category("merge"), "ship");
+        assert_eq!(phase_category("pre_ship_validation"), "ship");
+        assert_eq!(phase_category("release_quality_check"), "ship");
+        assert_eq!(phase_category("deploy_verify"), "ship");
+        assert_eq!(phase_category("bot_review_wait"), "ship");
+        assert_eq!(phase_category("pr_comment_resolution"), "ship");
+    }
+
+    #[test]
+    fn test_phase_category_defaults_to_review() {
+        // Unknown phases fall back to "review" category
+        assert_eq!(phase_category("code_review"), "review");
+        assert_eq!(phase_category("gap_analysis"), "review");
+        assert_eq!(phase_category("unknown_phase_xyz"), "review");
+        assert_eq!(phase_category(""), "review");
+    }
+
+    #[test]
+    fn test_phase_timeout_config_defaults() {
+        // No env vars set — all lookups should return the default 60 minutes
+        let config = PhaseTimeoutConfig {
+            timeouts: HashMap::new(),
+            default_timeout: Duration::from_secs(60 * 60),
+        };
+        assert_eq!(config.timeout_for("forge"), Duration::from_secs(3600));
+        assert_eq!(config.timeout_for("work"), Duration::from_secs(3600));
+        assert_eq!(config.timeout_for("test"), Duration::from_secs(3600));
+        assert_eq!(config.timeout_for("code_review"), Duration::from_secs(3600));
+        assert_eq!(config.timeout_for("ship"), Duration::from_secs(3600));
+        assert_eq!(config.timeout_for("unknown"), Duration::from_secs(3600));
+    }
+
+    #[test]
+    fn test_phase_timeout_config_with_overrides() {
+        let mut timeouts = HashMap::new();
+        timeouts.insert("work".to_string(), Duration::from_secs(120 * 60)); // 120 min
+        timeouts.insert("ship".to_string(), Duration::from_secs(15 * 60));  // 15 min
+
+        let config = PhaseTimeoutConfig {
+            timeouts,
+            default_timeout: Duration::from_secs(60 * 60),
+        };
+
+        // "work" category phases get the 120m override
+        assert_eq!(config.timeout_for("work"), Duration::from_secs(7200));
+        assert_eq!(config.timeout_for("task_decomposition"), Duration::from_secs(7200));
+
+        // "ship" category phases get the 15m override
+        assert_eq!(config.timeout_for("ship"), Duration::from_secs(900));
+        assert_eq!(config.timeout_for("merge"), Duration::from_secs(900));
+        assert_eq!(config.timeout_for("pre_ship_validation"), Duration::from_secs(900));
+
+        // Unconfigured categories fall back to default
+        assert_eq!(config.timeout_for("forge"), Duration::from_secs(3600));
+        assert_eq!(config.timeout_for("test"), Duration::from_secs(3600));
+        assert_eq!(config.timeout_for("code_review"), Duration::from_secs(3600));
+    }
+
+    #[test]
+    fn test_phase_timeout_config_custom_default() {
+        let config = PhaseTimeoutConfig {
+            timeouts: HashMap::new(),
+            default_timeout: Duration::from_secs(45 * 60), // 45 min default
+        };
+
+        // All phases use the custom default
+        assert_eq!(config.timeout_for("forge"), Duration::from_secs(2700));
+        assert_eq!(config.timeout_for("unknown"), Duration::from_secs(2700));
+    }
+
+    #[test]
+    fn test_phase_timeout_config_is_default() {
+        let default_config = PhaseTimeoutConfig {
+            timeouts: HashMap::new(),
+            default_timeout: Duration::from_secs(60 * 60),
+        };
+        assert!(default_config.is_default());
+
+        // Custom default timeout
+        let custom_default = PhaseTimeoutConfig {
+            timeouts: HashMap::new(),
+            default_timeout: Duration::from_secs(45 * 60),
+        };
+        assert!(!custom_default.is_default());
+
+        // With overrides
+        let mut timeouts = HashMap::new();
+        timeouts.insert("work".to_string(), Duration::from_secs(90 * 60));
+        let with_override = PhaseTimeoutConfig {
+            timeouts,
+            default_timeout: Duration::from_secs(60 * 60),
+        };
+        assert!(!with_override.is_default());
+    }
+
+    #[test]
+    fn test_phase_timeout_config_from_env() {
+        // Use unique env var names to avoid thread-safety issues with parallel tests.
+        // We test from_env() by setting one var, calling from_env, then cleaning up.
+        // Note: this test reads TORRENT_TIMEOUT_* which won't conflict with other tests.
+        unsafe {
+            std::env::set_var("TORRENT_TIMEOUT_WORK", "120");
+            std::env::set_var("TORRENT_TIMEOUT_DEFAULT", "45");
+        }
+
+        let config = PhaseTimeoutConfig::from_env();
+
+        // Work category should be 120 minutes
+        assert_eq!(config.timeout_for("work"), Duration::from_secs(120 * 60));
+        // Default should be 45 minutes
+        assert_eq!(config.default_timeout, Duration::from_secs(45 * 60));
+        // Unconfigured category uses the custom default
+        assert_eq!(config.timeout_for("forge"), Duration::from_secs(45 * 60));
+
+        // Cleanup
+        unsafe {
+            std::env::remove_var("TORRENT_TIMEOUT_WORK");
+            std::env::remove_var("TORRENT_TIMEOUT_DEFAULT");
+        }
+    }
+
+    #[test]
+    fn test_phase_timeout_config_from_env_invalid() {
+        // Invalid env var values should be ignored (fallback to default)
+        unsafe {
+            std::env::set_var("TORRENT_TIMEOUT_TEST", "not_a_number");
+            std::env::remove_var("TORRENT_TIMEOUT_DEFAULT"); // ensure clean state
+        }
+
+        let config = PhaseTimeoutConfig::from_env();
+
+        // Invalid value ignored — test category uses default (60 min)
+        assert_eq!(config.timeout_for("test"), Duration::from_secs(60 * 60));
+        assert_eq!(config.default_timeout, Duration::from_secs(60 * 60));
+
+        // Cleanup
+        unsafe {
+            std::env::remove_var("TORRENT_TIMEOUT_TEST");
+        }
     }
 }
