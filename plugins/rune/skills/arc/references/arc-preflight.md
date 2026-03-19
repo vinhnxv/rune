@@ -826,7 +826,8 @@ const ARC_TEAM_PREFIXES = [
   "rune-brainstorm-",  // brainstorm skill teams (Solo/Roundtable/Deep modes)
   "rune-plan-",  // devise skill teams (orphaned from prior /rune:devise sessions)
   "rune-prototype-",  // design-prototype skill teams (conditional — design_sync.enabled)
-  "goldmask-"  // goldmask skill teams (Phase 5.7 delegation)
+  "goldmask-",  // goldmask skill teams (Phase 5.7 delegation)
+  "arc-qa-"  // QA gate teams (per-phase QA verifiers — conditional on qa_gates.enabled)
 ]
 
 // SECURITY: Validate all prefixes before use in shell commands

@@ -273,7 +273,28 @@ On resume, validate checkpoint integrity before proceeding:
      checkpoint.schema_version = 23
    }
    ```
-// NOTE: Step 3r runs after all schema migrations complete (steps 3a–3x). Step 3p was skipped in the original numbering.
+3y. If schema_version < 25, migrate v24 → v25:
+   ```javascript
+   // Step 3y: v24 → v25 (QA gate phases + qa config)
+   if (checkpoint.schema_version < 25) {
+     // QUAL-001 FIX: Order matches PHASE_ORDER canonical sequence
+     const QA_PHASES = ['forge_qa', 'work_qa', 'gap_analysis_qa', 'code_review_qa', 'mend_qa', 'test_qa']
+     for (const phase of QA_PHASES) {
+       if (!checkpoint.phases[phase]) {
+         checkpoint.phases[phase] = { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0 }
+       }
+     }
+     if (!checkpoint.qa) {
+       // SEC-001 FIX: Respect talisman config instead of hardcoding enabled: true.
+       // Migrated checkpoints (pre-QA) should default to false (conservative) unless
+       // the project's talisman explicitly enables QA gates.
+       const qaEnabled = readTalismanSection("gates")?.qa_gates?.enabled ?? false
+       checkpoint.qa = { global_retry_count: 0, max_global_retries: 6, enabled: qaEnabled }
+     }
+     checkpoint.schema_version = 25
+   }
+   ```
+// NOTE: Step 3r runs after all schema migrations complete (steps 3a–3y). Step 3p was skipped in the original numbering.
 3r. Resume freshness re-check:
    a. Read plan file from checkpoint.plan_file
    b. Extract git_sha from plan frontmatter (use optional chaining: `extractYamlFrontmatter(planContent)?.git_sha` — returns null on parse error if plan was manually edited between sessions)

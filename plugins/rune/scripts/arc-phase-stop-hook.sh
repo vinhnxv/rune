@@ -233,12 +233,18 @@ fi
 # BEFORE Phase 5.7 (goldmask_verification).
 # Must match arc-phase-constants.md PHASE_ORDER exactly (shell-side copy).
 PHASE_ORDER=(
-  forge plan_review plan_refine verification semantic_verification
-  design_extraction design_prototype task_decomposition work drift_review storybook_verification design_verification
-  ux_verification gap_analysis codex_gap_analysis gap_remediation
+  forge forge_qa
+  plan_review plan_refine verification semantic_verification
+  design_extraction design_prototype task_decomposition work work_qa
+  drift_review storybook_verification design_verification
+  ux_verification gap_analysis gap_analysis_qa
+  codex_gap_analysis gap_remediation
   inspect inspect_fix verify_inspect goldmask_verification
-  code_review goldmask_correlation mend verify_mend design_iteration
-  test test_coverage_critique deploy_verify pre_ship_validation release_quality_check
+  code_review code_review_qa
+  goldmask_correlation mend mend_qa
+  verify_mend design_iteration
+  test test_qa
+  test_coverage_critique deploy_verify pre_ship_validation release_quality_check
   ship bot_review_wait pr_comment_resolution merge
 )
 
@@ -289,6 +295,8 @@ _phase_ref() {
     bot_review_wait)          echo "${base}/arc-phase-bot-review-wait.md" ;;
     pr_comment_resolution)    echo "${base}/arc-phase-pr-comment-resolution.md" ;;
     merge)                    echo "${base}/arc-phase-merge.md" ;;
+    forge_qa|work_qa|gap_analysis_qa|code_review_qa|mend_qa|test_qa)
+                              echo "${base}/arc-phase-qa-gate.md" ;;
     *)                        echo "" ;;
   esac
 }

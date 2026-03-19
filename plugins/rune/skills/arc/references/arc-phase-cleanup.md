@@ -53,6 +53,12 @@ const PHASE_PREFIX_MAP = {
   test:                   ["arc-test-"],
   design_prototype:       ["arc-prototype-", "rune-prototype-"],  // Phase 3.2 arc prototype + /rune:design-prototype standalone (conditional — design_sync.enabled)
   deploy_verify:          ["arc-deploy-"],                        // Phase 7.9 (conditional — deployment-relevant files in diff)
+  forge_qa:               ["arc-qa-"],                             // QA gate for forge phase (conditional — qa_gates.enabled)
+  work_qa:                ["arc-qa-"],                             // QA gate for work phase
+  gap_analysis_qa:        ["arc-qa-"],                             // QA gate for gap_analysis phase
+  code_review_qa:         ["arc-qa-"],                             // QA gate for code_review phase
+  mend_qa:                ["arc-qa-"],                             // QA gate for mend phase
+  test_qa:                ["arc-qa-"],                             // QA gate for test phase
 }
 // NOTE: 21 delegated phases (9 original + 1 storybook phase + 3 design phases + 1 UX phase + 5 Codex handler phases + 1 design-prototype + 1 deploy-verify). Phases removed in v1.67.0 (audit, audit_mend) are NOT listed.
 // Multi-prefix entries: plan_review has Layer 2 inspect team (arc-plan-inspect-), mend has ephemeral sage team (arc-sage-).

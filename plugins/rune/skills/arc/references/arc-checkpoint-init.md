@@ -297,6 +297,25 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
     map.test = "testing_disabled"
   }
 
+  // ── QA gate phase skip propagation ──
+  // QUAL-001 FIX: Order matches PHASE_ORDER canonical sequence
+  const QA_GATED_PHASES = ['forge', 'work', 'gap_analysis', 'code_review', 'mend', 'test']
+  // readTalismanSection: "gates"
+  const gatesConfig = readTalismanSection("gates") ?? {}
+  const qaEnabled = gatesConfig?.qa_gates?.enabled !== false  // default: true
+  if (!qaEnabled) {
+    for (const phase of QA_GATED_PHASES) {
+      map[`${phase}_qa`] = "qa_gates_disabled"
+    }
+  } else {
+    // If parent phase is skipped, auto-skip the corresponding QA phase
+    for (const phase of QA_GATED_PHASES) {
+      if (map[phase]) {
+        map[`${phase}_qa`] = `parent_${phase}_skipped`
+      }
+    }
+  }
+
   // ── Validate all keys exist in PHASE_ORDER (defense-in-depth) ──
   for (const key of Object.keys(map)) {
     if (!PHASE_ORDER.includes(key)) {
@@ -311,7 +330,7 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
 const skipMap = computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, codexEnabled, codex, planMeta)
 ```
 
-## Checkpoint Schema v23
+## Checkpoint Schema v25
 
 // Schema history: see CHANGELOG.md for migration notes from v12-v24.
 
@@ -350,7 +369,7 @@ const parentPlanMeta = {
 // The arc-hierarchy SKILL.md documents the injection protocol.
 
 Write(`.rune/arc/${id}/checkpoint.json`, {
-  id, schema_version: 24, plan_file: planFile,
+  id, schema_version: 25, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   // RUIN-003 FIX: Remove redundant ?? guards — Layer 2 resolveArcConfig() already guarantees all values are defined
   flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, accept_external_changes: arcConfig.accept_external_changes, bot_review: arcConfig.bot_review, no_bot_review: arcConfig.no_bot_review },
@@ -379,6 +398,7 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
     // v1.162.0: forge always starts as "pending" — skip_map handles the skip decision.
     // This unifies all pre-computed skips through one mechanism (was inline ternary before v23).
     forge:        { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
+    forge_qa:     { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0 },
     plan_review:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     plan_refine:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
@@ -391,11 +411,13 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
                     // Each entry: { task_id, context_path, reason }
                     // context_path scoped to arc checkpoint id (FAIL-008): context/{id}/{task_id}.md
                     suspended_tasks: [], started_at: null, completed_at: null },
+    work_qa:      { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0 },
     drift_review: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     storybook_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     design_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     ux_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     gap_analysis: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
+    gap_analysis_qa: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0 },
     codex_gap_analysis: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     gap_remediation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, fixed_count: null, deferred_count: null, started_at: null, completed_at: null },
     inspect: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, completion_pct: null, p1_count: null, verdict: null },
@@ -403,11 +425,14 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
     verify_inspect: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     goldmask_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     code_review:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
+    code_review_qa: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0 },
     goldmask_correlation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     mend:         { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
+    mend_qa:      { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0 },
     verify_mend:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     design_iteration: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     test:         { status: "pending", artifact: null, artifact_hash: null, team_name: null, tiers_run: [], pass_rate: null, coverage_pct: null, has_frontend: false, started_at: null, completed_at: null },
+    test_qa:      { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0 },
     test_coverage_critique: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     pre_ship_validation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     release_quality_check: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
@@ -433,6 +458,13 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
   // Schema v25 addition: inspect convergence — separate from review-mend convergence.
   // Controls the inspect → inspect_fix → verify_inspect loop (Phases 5.9, 5.95, 5.99).
   inspect_convergence: { round: 0, max_rounds: 2, threshold: 95, history: [] },
+  // Schema v25 addition: QA gate configuration — controls per-phase QA verification.
+  // Each QA phase runs after its parent and produces a verdict.json with numerical scores.
+  qa: {
+    global_retry_count: 0,
+    max_global_retries: 6,
+    enabled: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.enabled !== false })()
+  },
   // NEW (v1.66.0): Shard metadata from pre-flight shard detection (null for non-shard arcs)
   shard: shardInfo ? {
     num: shardInfo.shardNum,           // e.g., 2
