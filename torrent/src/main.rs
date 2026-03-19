@@ -4,6 +4,7 @@ mod keybindings;
 mod lock;
 mod log;
 mod monitor;
+mod resume;
 mod resource;
 mod scanner;
 mod tmux;
