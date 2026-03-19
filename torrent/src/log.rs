@@ -53,8 +53,12 @@ pub struct RestartEvent {
 pub struct RunLogEntry {
     /// Timestamp when the run completed.
     pub timestamp: DateTime<Utc>,
-    /// Name of the plan file that was executed.
-    pub plan_name: String,
+    /// Short plan name (e.g., "feat-user-auth").
+    pub plan: String,
+    /// Full path to the plan file.
+    pub plan_file: String,
+    /// Config directory used for this run.
+    pub config_dir: String,
     /// Unique arc identifier, if available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arc_id: Option<String>,
@@ -62,14 +66,22 @@ pub struct RunLogEntry {
     pub status: RunStatus,
     /// Urgency tier for the outcome.
     pub urgency: UrgencyTier,
+    /// Number of phases completed.
+    pub phases_completed: u32,
+    /// Total number of phases.
+    pub phases_total: u32,
+    /// Number of phases skipped.
+    pub phases_skipped: u32,
     /// Wall-clock duration of the run in seconds.
-    pub duration_secs: u64,
+    pub wallclock_seconds: u64,
     /// PR URL if the run produced one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pr_url: Option<String>,
     /// Failure reason, if the run failed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// Final outcome description.
+    pub final_outcome: String,
     /// Restart events that occurred during the run (capped at 10).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub restarts: Vec<RestartEvent>,
@@ -281,13 +293,19 @@ mod tests {
     fn test_log_entry_serialization() {
         let entry = RunLogEntry {
             timestamp: Utc::now(),
-            plan_name: "test-plan".into(),
+            plan: "test-plan".into(),
+            plan_file: "plans/test-plan.md".into(),
+            config_dir: "~/.claude".into(),
             arc_id: Some("abc-123".into()),
             status: RunStatus::Completed,
             urgency: UrgencyTier::Green,
-            duration_secs: 120,
+            phases_completed: 12,
+            phases_total: 15,
+            phases_skipped: 3,
+            wallclock_seconds: 120,
             pr_url: Some("https://github.com/test/pr/1".into()),
             error: None,
+            final_outcome: "completed".into(),
             restarts: vec![],
         };
         let json = serde_json::to_string(&entry).unwrap();
