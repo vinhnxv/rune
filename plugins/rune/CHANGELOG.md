@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [2.1.4] - 2026-03-19
+
+### Fixed
+- **strive**: Enforce physical task delegation with file-based protocol — prevents orchestrator from implementing tasks directly (#350)
+- **hooks**: Prevent premature session termination during arc phases (#347)
+
+### Changed
+- **plugin.json**: Corrected agent count from 110 (66 core) to 111 (67 core)
+
 ## [2.1.3] - 2026-03-19
 
 ### Fixed

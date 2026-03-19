@@ -260,7 +260,7 @@ Rune implements proof-based orchestration ensuring specification compliance. Pla
 <details>
 <summary>Agent Architecture</summary>
 
-Rune includes 109 specialized agents across 6 categories (review, research, work, utility, investigation, testing). Each agent gets its own dedicated context window via Agent Teams. Custom agents can be defined via `talisman.yml`. See the [Ash Guide skill](skills/ash-guide/SKILL.md) for the full registry.
+Rune includes 111 specialized agents across 6 categories (review, research, work, utility, investigation, testing). Each agent gets its own dedicated context window via Agent Teams. Custom agents can be defined via `talisman.yml`. See the [Ash Guide skill](skills/ash-guide/SKILL.md) for the full registry.
 
 </details>
 
