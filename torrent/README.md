@@ -147,6 +147,7 @@ torrent (TUI)
 ├── monitor.rs      — arc discovery + heartbeat/checkpoint polling
 ├── checkpoint.rs   — serde structs for checkpoint.json + heartbeat.json
 ├── lock.rs         — CWD-based instance lock (prevents concurrent torrent)
+├── log.rs          — Structured JSONL run logging (append-only)
 └── resource.rs     — process resource monitoring via sysinfo (CPU/memory)
 ```
 
@@ -218,6 +219,7 @@ Each arc phase has a timeout (default: 60 minutes). When a phase exceeds its lim
 | `TORRENT_TIMEOUT_TEST` | test, test_coverage_critique | 60 |
 | `TORRENT_TIMEOUT_REVIEW` | code_review, plan_review, etc. | 60 |
 | `TORRENT_TIMEOUT_SHIP` | ship, merge, pre_ship_validation, etc. | 60 |
+| `TORRENT_LOG_DIR` | Override log directory (default: `.torrent/logs/`) | — |
 
 ```bash
 # 120-minute forge timeout, 30-minute ship timeout
@@ -303,3 +305,76 @@ tmux kill-session -t rune-XXXXXX
 - **`--dangerously-skip-permissions`:** Torrent launches Claude Code with this flag to enable non-interactive execution. This bypasses all permission prompts. Only use torrent in trusted environments.
 - **Session ID validation:** All tmux session names are validated to contain only alphanumeric characters, hyphens, and underscores to prevent command injection.
 - **Shell escaping:** All paths sent to tmux are shell-escaped to prevent command injection via special characters.
+
+---
+
+## Run Logs
+
+Torrent writes structured run logs in JSONL format (one JSON object per line) to `.torrent/logs/runs.jsonl`. Each plan execution produces a per-plan entry, and a batch summary is appended when all plans finish.
+
+### Log Location
+
+By default, logs are written to `.torrent/logs/` in the current working directory. Override with:
+
+```bash
+TORRENT_LOG_DIR=/tmp/torrent-logs torrent
+```
+
+### Log Format
+
+Each line is a self-contained JSON object. Per-plan entries include:
+
+```json
+{
+  "timestamp": "2026-03-19T10:30:00Z",
+  "event": "plan_complete",
+  "plan": "plans/add-logging.md",
+  "status": "success",
+  "urgency": "green",
+  "restarts": 0,
+  "duration_secs": 1842,
+  "config_dir": "~/.claude",
+  "session": "rune-a1b2c3"
+}
+```
+
+### Urgency Tiers
+
+| Tier | Meaning |
+|------|---------|
+| `green` | Completed normally, well within timeout |
+| `yellow` | Completed but took >50% of timeout budget |
+| `orange` | Completed with restarts or near timeout |
+| `red` | Failed, timed out, or killed |
+
+### Batch Summary
+
+When all plans in a run finish, a summary entry is appended:
+
+```json
+{
+  "timestamp": "2026-03-19T12:00:00Z",
+  "event": "batch_summary",
+  "total": 5,
+  "succeeded": 4,
+  "failed": 1,
+  "total_duration_secs": 9200
+}
+```
+
+### Parsing Logs
+
+```bash
+# Pretty-print all entries
+jq . .torrent/logs/runs.jsonl
+
+# Show only failures
+jq 'select(.status == "failed")' .torrent/logs/runs.jsonl
+
+# Show batch summaries
+jq 'select(.event == "batch_summary")' .torrent/logs/runs.jsonl
+```
+
+### Log Rotation
+
+Logs rotate automatically when `runs.jsonl` exceeds **10 MB**. Rotated files are named `runs.jsonl.1`, `runs.jsonl.2`, etc., up to a maximum of **5 archived files**. The oldest archive is deleted when the limit is reached.

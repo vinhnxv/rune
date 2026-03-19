@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Structured run logs** — JSONL logging at `.torrent/logs/runs.jsonl` with per-plan entries (status, urgency, restarts, duration) and batch summary at exit
+- **Log rotation** — automatic rotation at 10MB with max 5 archived files
+- **`TORRENT_LOG_DIR`** — environment variable to override default log directory
+
 ## [0.5.0] - 2026-03-19
 
 ### Added
