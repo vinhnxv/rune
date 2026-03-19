@@ -293,6 +293,31 @@ See [file-ownership.md](references/file-ownership.md) for file target extraction
 
 **Summary**: Extract file targets per task → detect overlaps → serialize via `blockedBy` → create task pool with quality contract → write `task_ownership` to inscription.json. Flat-union allowlist enforced by `validate-strive-worker-paths.sh` hook.
 
+### Task File Creation (MANDATORY)
+
+The orchestrator MUST physically execute the `Write()` calls from [forge-team.md](references/forge-team.md).
+This is not reference documentation — execution is required before Phase 2 begins (AC-1, AC-2, AC-3, AC-6).
+
+**Required files after Phase 1**:
+
+| File | Count | AC |
+|------|-------|----|
+| `tmp/work/{ts}/tasks/task-{id}.md` | One per task | AC-1 |
+| `tmp/work/{ts}/scopes/{worker}.md` | One per worker | AC-3 |
+| `tmp/work/{ts}/prompts/{worker}.md` | One per worker | AC-2 |
+| `tmp/work/{ts}/delegation-manifest.json` | One per run | AC-6 |
+
+**Verification step** (run after file creation, before spawning workers):
+
+```javascript
+const taskFileCount = Glob(`tmp/work/${timestamp}/tasks/*.md`).length
+if (taskFileCount !== extractedTasks.length) {
+  throw new Error(`Task file creation incomplete: expected ${extractedTasks.length}, got ${taskFileCount}`)
+}
+```
+
+If the count check fails, stop and investigate — do not proceed to Phase 2 with missing task files.
+
 ## Phase 2: Summon Swarm Workers
 
 See [worker-prompts.md](references/worker-prompts.md) for full worker prompt templates, scaling logic, and the scaling table.

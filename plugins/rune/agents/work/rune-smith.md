@@ -410,11 +410,12 @@ If you catch yourself thinking any of these, STOP — you're about to violate yo
 
 ## Question Relay Protocol
 
-When you encounter blocking ambiguity that cannot be resolved by reading code or docs, emit a
-structured question to the Tarnished via `SendMessage`. Do NOT use filesystem IPC — send the
-question directly. Do NOT block indefinitely; continue on non-blocking items while waiting.
+Four message types are available for communicating with the team lead. **Always use `recipient: "team-lead"`.**
+SEC-006 cap: maximum 3 blocking messages (QUESTION + CHALLENGE + STUCK combined) per task.
+CONCERN messages are exempt from the cap — they are non-blocking and advisory only.
 
-**Question format:**
+### QUESTION (blocking)
+Use when: Acceptance criteria are ambiguous or unclear BEFORE implementation starts.
 ```
 QUESTION: {concrete question — state the specific decision, not "what should I do?"}
 TASK: {task_id}
@@ -422,25 +423,75 @@ URGENCY: blocking | non-blocking
 OPTIONS: [A: {option A}, B: {option B}]
 CONTEXT: {1-2 sentences — what you found and why it blocks}
 ```
-
-**Emit via SendMessage:**
 ```javascript
 SendMessage({
   type: "message",
-  recipient: "{tarnished-name}",
+  recipient: "team-lead",
   content: "QUESTION: ...\nTASK: {task_id}\nURGENCY: blocking\nOPTIONS: [A: ..., B: ...]\nCONTEXT: ...",
   summary: "Worker question on task #{task_id}"
 })
 ```
+→ If urgency is `non-blocking`: continue work on other subtasks while waiting.
+→ If `blocking`: document blocked subtask and work on other tasks from your list.
+→ On answer: Lead sends `ANSWER: ... / TASK: ... / DECIDED_BY: user | auto-timeout`. If `auto-timeout`, note in Seal.
 
-**While waiting**: If urgency is `non-blocking`, continue work on other subtasks.
-If `blocking`, document the blocked subtask and work on other tasks from your list.
+### CHALLENGE (blocking)
+Use when: CRITICAL REVIEW (step 5.5 of lifecycle) reveals a hallucinated API, impossible constraint, or plan-reality mismatch.
+```
+CHALLENGE: task #{id}: {description of the critical issue found}
+Evidence: {file:line reference or codebase observation}
+Impact: {why this prevents implementation as specified}
+Suggested resolution: {amend AC | skip task | reassign | proceed with workaround}
+```
+```javascript
+SendMessage({
+  type: "message",
+  recipient: "team-lead",
+  content: "CHALLENGE: task #{id}: ...\nEvidence: ...\nImpact: ...\nSuggested resolution: ...",
+  summary: "Critical issue found in task #{task_id}"
+})
+```
+→ Write findings to task file `## Worker Report → ### Critical Review Findings`.
+→ Mark task pending: `TaskUpdate({ taskId, status: "pending", owner: "" })`.
+→ Do NOT proceed until lead resolves the challenge.
 
-**On receiving answer**: The Tarnished sends `ANSWER: ... / TASK: ... / DECIDED_BY: user | auto-timeout`.
-If `DECIDED_BY: auto-timeout`, note the auto-selected assumption in your Seal message.
+### STUCK (blocking)
+Use when: You have attempted a task 2+ times and cannot determine root cause of failure.
+```
+STUCK: task #{id}: {2-3 sentence description of what was attempted}
+Blocker: {specific unresolvable issue}
+Attempts: {count}
+Evidence: tmp/work/{timestamp}/evidence/{task-id}/ (if exists)
+Suggested action: {skip | reassign | plan amendment | human review}
+```
+```javascript
+SendMessage({
+  type: "message",
+  recipient: "team-lead",
+  content: "STUCK: task #{id}: ...\nBlocker: ...\nAttempts: {count}\nEvidence: ...\nSuggested action: ...",
+  summary: "Worker stuck on task #{task_id}"
+})
+```
+→ Release file lock (step 9.5), mark pending, claim next task. Do NOT reattempt.
 
-**Question cap**: Maximum 3 questions per task. On cap, document as TODO, make best-effort decision,
-mark as "assumed — needs review" in your Seal. Do NOT emit more questions after cap.
+### CONCERN (non-blocking — exempt from SEC-006 cap)
+Use when: You have an observation about process, scope, or quality that the lead should know, but it does NOT block your current task.
+```
+CONCERN: task #{id}: {observation or risk}
+Context: {why this matters}
+Action recommended: {optional suggestion — lead decides}
+```
+→ Continue working. Do NOT wait for a response. One CONCERN per task maximum.
+
+### Cap Summary
+| Type | Blocks work? | Counts against 3-msg cap? |
+|------|-------------|--------------------------|
+| QUESTION | Yes | Yes |
+| CHALLENGE | Yes | Yes |
+| STUCK | Yes | Yes |
+| CONCERN | No | **No** |
+
+On cap: stop sending blocking messages. Mark task pending, release lock, claim next task.
 
 See [question-relay.md](../../skills/strive/references/question-relay.md) for full protocol details.
 

@@ -153,6 +153,28 @@ if (postWorkStateFiles.length > 0) {
   }
 }
 
+// STEP 4b: Log task file observability event (AC-7)
+// After strive Phase 1 delegation returns, log counts of all physical task files created.
+// This provides a concrete audit trail that file-based delegation actually ran.
+const taskFileCount = Glob(`tmp/work/${timestamp}/tasks/task-*.md`).length
+const promptFileCount = Glob(`tmp/work/${timestamp}/prompts/*.md`).length
+const contextFileCount = Glob(`tmp/work/${timestamp}/scopes/*.md`).length
+
+appendPhaseLog(id, {
+  event: "task_files_created",
+  phase: "work",
+  task_files: taskFileCount,
+  prompt_files: promptFileCount,
+  context_files: contextFileCount,
+  delegation_manifest: `tmp/work/${timestamp}/delegation-manifest.json`,
+  timestamp: new Date().toISOString()
+})
+
+// Validation gate: zero task files means strive Phase 1 skipped file creation
+if (taskFileCount === 0) {
+  warn("CRITICAL: No task files created — strive Phase 1 may have skipped file creation. Workers are in degraded mode (inline prompt only). Check forge-team.md Write() execution.")
+}
+
 // STEP 5: Update checkpoint
 updateCheckpoint({
   phase: "work", status: completedRatio >= 0.5 ? "completed" : "failed",
@@ -195,6 +217,24 @@ Delegated to `/rune:strive` — manages its own TeamCreate/TeamDelete with guard
 Arc MUST record the actual `team_name` created by `/rune:strive` in the checkpoint. This enables `/rune:cancel-arc` to discover and shut down the work team if the user cancels mid-pipeline. The work command creates its own team with its own naming convention — arc reads the team name back after delegation.
 
 Arc runs `prePhaseCleanup(checkpoint)` before delegation (ARC-6) and `postPhaseCleanup(checkpoint, "work")` after checkpoint update. See SKILL.md Inter-Phase Cleanup Guard section and [arc-phase-cleanup.md](arc-phase-cleanup.md).
+
+## Backward Compatibility
+
+File-based task delegation is **additive** — it extends existing flows without replacing them.
+
+| Scenario | Behavior |
+|----------|----------|
+| Task files created successfully | Workers read task files + task files enable report-back. Full discipline loop active. |
+| Task files NOT created (Write() failed) | Workers fall back to inline prompt content. Pipeline continues. Warning logged. |
+| Plans without AC criteria | Task files are still created (with `proof_count: 0`). Discipline Work Loop degrades to linear execution. |
+| Workers that don't read task files | Still work — the spawn prompt contains the full task spec. Task files are supplemental, not load-bearing. |
+| `tmp/work/{ts}/prompts/` missing | Workers use inline prompt passed to `Agent()`. Prompt files are an audit trail, not a prerequisite. |
+| `tmp/work/{ts}/scopes/` missing | Workers use scope-of-work section embedded in inline prompt. Scope files are supplemental. |
+| `delegation-manifest.json` missing | Pipeline continues. Cancel-arc discovery uses team name from checkpoint. Manifest is advisory. |
+
+**Graceful degradation rule**: If `Write()` fails for any task/prompt/scope file, log a warning and continue. File creation failures are **non-blocking** — the inline prompt always contains enough context for workers to proceed.
+
+**Note**: The `scopes/` directory is used (not `context/`) to avoid namespace collision with `context-preservation.md` which uses `tmp/work/{ts}/context/{arc-checkpoint-id}/` for compaction snapshots.
 
 ## Feature Branch Strategy
 

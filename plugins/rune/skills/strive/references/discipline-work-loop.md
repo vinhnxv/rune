@@ -46,6 +46,162 @@ See [task-file-format.md](task-file-format.md) for the canonical task file schem
 
 ---
 
+## Pre-Delegation Coverage Matrix (AC-12, AC-13)
+
+Before spawning any workers, the Tarnished MUST verify that the generated task files cover 100% of the plan's acceptance criteria. This runs immediately after Phase 1 task file creation, before Phase 2 worker spawning.
+
+### Coverage Matrix — Pre-Delegation Check (AC-12)
+
+```javascript
+// Run AFTER Phase 1 task file creation, BEFORE Phase 2 worker spawning
+function buildCoverageMatrix(timestamp, planPath, extractedTasks, taskCriteriaMap) {
+  // Extract all AC IDs from the plan's YAML frontmatter
+  const planACs = extractAcceptanceCriteria(planPath)  // Returns [{id, text}]
+
+  // Collect all AC IDs mapped to any task file
+  const taskACIds = new Set(
+    extractedTasks.flatMap(t => (taskCriteriaMap[t.id] || []).map(c => c.id))
+  )
+
+  const coverageMatrix = {
+    mapped: [],      // AC in plan AND covered by at least one task
+    unmapped: [],    // AC in plan but NOT in any task — DELEGATION ERROR
+    fabricated: [],  // AC in tasks but NOT in plan — HALLUCINATION
+  }
+
+  for (const ac of planACs) {
+    if (taskACIds.has(ac.id)) {
+      coverageMatrix.mapped.push(ac.id)
+    } else {
+      coverageMatrix.unmapped.push(ac.id)
+    }
+  }
+
+  for (const taskAcId of taskACIds) {
+    if (!planACs.some(ac => ac.id === taskAcId)) {
+      coverageMatrix.fabricated.push(taskAcId)
+    }
+  }
+
+  // Write coverage matrix for traceability
+  Write(`tmp/work/${timestamp}/coverage-matrix.json`, JSON.stringify({
+    plan: planPath,
+    total_plan_acs: planACs.length,
+    mapped: coverageMatrix.mapped,
+    unmapped: coverageMatrix.unmapped,
+    fabricated: coverageMatrix.fabricated,
+    coverage_pct: planACs.length > 0
+      ? ((coverageMatrix.mapped.length / planACs.length) * 100).toFixed(1)
+      : 100,
+    timestamp: new Date().toISOString(),
+  }, null, 2))
+
+  // Report unmapped ACs — these represent delegation gaps
+  if (coverageMatrix.unmapped.length > 0) {
+    warn(`COVERAGE GAP: ${coverageMatrix.unmapped.length} plan ACs have no task file:`)
+    for (const id of coverageMatrix.unmapped) {
+      warn(`  - ${id}: not covered by any task file`)
+    }
+    // Create gap tasks to cover unmapped ACs
+    for (const unmappedId of coverageMatrix.unmapped) {
+      const planAC = planACs.find(ac => ac.id === unmappedId)
+      const gapTaskContent = buildGapTaskFileContent(unmappedId, planAC?.text ?? "")
+      Write(`tmp/work/${timestamp}/tasks/task-gap-${unmappedId}.md`, gapTaskContent)
+    }
+    log(`Created ${coverageMatrix.unmapped.length} gap tasks for unmapped ACs`)
+  }
+
+  if (coverageMatrix.fabricated.length > 0) {
+    warn(`HALLUCINATION: ${coverageMatrix.fabricated.length} task ACs not in plan: ${coverageMatrix.fabricated.join(", ")}`)
+  }
+
+  return coverageMatrix
+}
+```
+
+**Unmapped ACs = DELEGATION ERROR**: Do NOT spawn workers with unmapped criteria. Create gap tasks first.
+
+**Fabricated ACs = HALLUCINATION**: Task files reference criteria that don't exist in the plan. Remove these or align with plan text.
+
+### Post-Completion Worker Report Verification (AC-13)
+
+After all workers complete (Phase 4 monitoring ends), the Tarnished reads every task file and verifies report quality. Generic or empty reports are INSUFFICIENT — send workers back for revision.
+
+```javascript
+// Run AFTER Phase 4 monitoring completes, BEFORE Phase 4.5 completion matrix
+function verifyWorkerReports(timestamp) {
+  const taskFiles = Glob(`tmp/work/${timestamp}/tasks/task-*.md`)
+  const reportIssues = []
+
+  for (const taskFile of taskFiles) {
+    const content = Read(taskFile)
+    const frontmatter = parseYAMLFrontmatter(content)
+    const taskId = String(frontmatter.task_id ?? taskFile.match(/task-([^/]+)\.md/)?.[1] ?? "unknown")
+
+    // Check 1: Worker Report section must exist
+    if (!content.includes('## Worker Report')) {
+      reportIssues.push({ taskId, issue: 'MISSING_REPORT', severity: 'CRITICAL' })
+      continue
+    }
+
+    // Check 2: Echo-Back must be substantive (not empty or placeholder)
+    const echoBackMatch = content.match(/### Echo-Back\n([\s\S]*?)(?=\n###|\n##|$)/)
+    const echoBack = echoBackMatch?.[1]?.trim() ?? ""
+    if (echoBack.length < 50 || echoBack.includes('_To be filled')) {
+      reportIssues.push({ taskId, issue: 'EMPTY_ECHO_BACK', severity: 'HIGH',
+        detail: 'Echo-Back must paraphrase each AC in own words (>50 chars)' })
+    }
+
+    // Check 3: Evidence must have file:line references (not generic claims)
+    const evidenceMatch = content.match(/### Evidence\n([\s\S]*?)(?=\n###|\n##|$)/)
+    const evidence = evidenceMatch?.[1]?.trim() ?? ""
+    if (!evidence.match(/\w+\.\w+:\d+/) && evidence.length > 0) {
+      reportIssues.push({ taskId, issue: 'GENERIC_EVIDENCE', severity: 'HIGH',
+        detail: 'Evidence must include file:line references, not just "implemented correctly"' })
+    }
+    if (evidence.length === 0) {
+      reportIssues.push({ taskId, issue: 'MISSING_EVIDENCE', severity: 'CRITICAL' })
+    }
+
+    // Check 4: Self-Review Checklist must have checked items
+    if (!content.includes('### Self-Review Checklist') || !content.match(/- \[x\]/i)) {
+      reportIssues.push({ taskId, issue: 'INCOMPLETE_SELF_REVIEW', severity: 'HIGH',
+        detail: 'Self-Review Checklist must have at least one checked [x] item' })
+    }
+
+    // Check 5: Status must be DONE (not stuck or in-progress)
+    if (frontmatter.status === 'STUCK') {
+      reportIssues.push({ taskId, issue: 'STUCK_UNRESOLVED', severity: 'CRITICAL',
+        detail: `Worker reported STUCK: ${frontmatter.stuck_reason ?? 'no reason given'}` })
+    }
+  }
+
+  if (reportIssues.length > 0) {
+    Write(`tmp/work/${timestamp}/report-verification.json`, JSON.stringify({
+      issues: reportIssues,
+      critical: reportIssues.filter(i => i.severity === 'CRITICAL').length,
+      high: reportIssues.filter(i => i.severity === 'HIGH').length,
+      timestamp: new Date().toISOString(),
+    }, null, 2))
+
+    for (const issue of reportIssues.filter(i => i.severity === 'CRITICAL')) {
+      warn(`REPORT VERIFICATION FAILED: task ${issue.taskId} — ${issue.issue}: ${issue.detail ?? ''}`)
+    }
+  } else {
+    Write(`tmp/work/${timestamp}/report-verification.json`, JSON.stringify({
+      issues: [], critical: 0, high: 0, verdict: 'PASS',
+      timestamp: new Date().toISOString(),
+    }, null, 2))
+  }
+
+  return reportIssues
+}
+```
+
+**Critical findings block completion**: Workers with CRITICAL report issues (missing report, missing evidence, STUCK) must be sent back for revision via SendMessage before Phase 4.5 runs.
+
+---
+
 ## Phase 1.5: Review Tasks (Cross-Reference Protocol) — IMPLEMENTED
 
 5-step cross-reference between plan criteria and task file criteria:

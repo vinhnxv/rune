@@ -247,5 +247,53 @@ if [[ -f "$CRITERIA_FILE" ]]; then
   fi
 fi
 
+# --- Task file validation (AC-8, AC-9) ---
+# Check task file for required Worker Report sections.
+# If task file does NOT exist: warn but don't block (backward compatibility — AC-8).
+# If task file exists: check for required sections and [x] checklist items.
+TASK_FILE=""
+while IFS= read -r candidate; do
+  if [[ -f "$candidate" ]]; then
+    TASK_FILE="$candidate"
+    break
+  fi
+done < <(find "${CWD}/tmp/work" -maxdepth 3 -type f -not -type l -name "task-${TASK_ID}.md" -path "*/tasks/*" 2>/dev/null | sort -r)
+
+if [[ -z "$TASK_FILE" ]]; then
+  # Task file not found — warn only (backward compat for pre-discipline task files)
+  echo "Discipline: task file not found for task ${TASK_ID} (tmp/work/*/tasks/task-${TASK_ID}.md) — skipping task file checks (WARN)." >&2
+else
+  TASK_FILE_ISSUES=""
+
+  # Check for ### Echo-Back section
+  if ! grep -q "### Echo-Back" "$TASK_FILE" 2>/dev/null; then
+    TASK_FILE_ISSUES="${TASK_FILE_ISSUES} [MISSING: ### Echo-Back section]"
+  fi
+
+  # Check for ### Self-Review Checklist section
+  if ! grep -q "### Self-Review Checklist" "$TASK_FILE" 2>/dev/null; then
+    TASK_FILE_ISSUES="${TASK_FILE_ISSUES} [MISSING: ### Self-Review Checklist section]"
+  fi
+
+  # Check for at least one [x] checked item (evidence of completed checklist)
+  if ! grep -q "\[x\]" "$TASK_FILE" 2>/dev/null; then
+    TASK_FILE_ISSUES="${TASK_FILE_ISSUES} [MISSING: no [x] checked items in checklist]"
+  fi
+
+  # Check for ### Evidence section
+  if ! grep -q "### Evidence" "$TASK_FILE" 2>/dev/null; then
+    TASK_FILE_ISSUES="${TASK_FILE_ISSUES} [MISSING: ### Evidence section]"
+  fi
+
+  if [[ -n "$TASK_FILE_ISSUES" ]]; then
+    if [[ "$BLOCK_ON_FAIL" == "true" ]]; then
+      echo "Discipline: task file ${TASK_FILE} is missing required sections:${TASK_FILE_ISSUES}. Complete Worker Report before marking task complete." >&2
+      exit 2  # BLOCK — task completion denied
+    else
+      echo "Discipline: task file ${TASK_FILE} is missing required sections:${TASK_FILE_ISSUES} (WARN mode — not blocking)." >&2
+    fi
+  fi
+fi
+
 # All proofs passed or no criteria to check
 exit 0

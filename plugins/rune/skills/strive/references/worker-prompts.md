@@ -208,6 +208,22 @@ Agent({
     (Inputs/Outputs/Preconditions/Error handling), not by copying code verbatim. Plan pseudocode
     is illustrative -- verify all variables are defined, all helpers exist, and all
     Bash calls have error handling before using plan code as reference.
+    5.5. CRITICAL REVIEW (before implementation — AC-5, AC-10):
+         Critically examine the task BEFORE writing any code:
+         - Is the task description consistent with what you see in the codebase?
+         - Are the acceptance criteria achievable with the specified file targets?
+         - Does the plan reference APIs, functions, or modules that actually exist?
+         - Are there any circular dependencies or impossible constraints?
+         - Does anything look hallucinated (made-up names, impossible patterns)?
+
+         If you find a CRITICAL issue (task is wrong, ambiguous, or hallucinated):
+           → Send a CHALLENGE message to team-lead (see ## Communication with Team Lead).
+           → Do NOT proceed with implementation until the challenge is resolved.
+           → Write your findings to task file ## Worker Report → ### Critical Review Findings.
+           → Mark task status as "pending" and wait: TaskUpdate({ taskId, status: "pending", owner: "" })
+
+         If no issues found: write "Critical Review: PASS — no issues found" to
+         task file ## Worker Report → ### Critical Review Findings, then proceed.
     6. Implement with TDD cycle (test -> implement -> refactor)
     6.5. SELF-REVIEW before ward:
          - Re-read every file you changed (full file, not just your diff)
@@ -288,15 +304,29 @@ Agent({
           IF task does NOT have design context: skip this step entirely (zero overhead).
     6.9. WRITE WORKER REPORT to task file (mandatory before ward check):
          Edit the task file (tmp/work/{timestamp}/tasks/task-{taskId}.md) to append:
+         ### Critical Review Findings — result from step 5.5 (PASS or issue description)
          ### Implementation Notes — narrative of what was implemented and decisions made
          ### Evidence — table with per-criterion results (id, proof type, PASS/FAIL)
          ### Code Changes — table of files modified with action (created/modified) and line counts
-         ### Self-Review — Inner Flame output (Grounding, Completeness, Self-Adversarial)
+         ### Self-Review Checklist — Inner Flame output (Grounding, Completeness, Self-Adversarial) with [x] for each item completed
          Then update task file YAML frontmatter:
            status: COMPLETED
            updated_at: "{new Date().toISOString()}"
            completed_at: "{new Date().toISOString()}"
     7. Run quality gates (discovered from Makefile/package.json/pyproject.toml)
+    7.5. SELF-REVIEW CHECKLIST (AC-11 — before marking complete):
+         Complete the Self-Review Checklist and write results to task file
+         ## Worker Report → ### Self-Review Checklist:
+         - [ ] All acceptance criteria in step 4.1 echo-back are addressed with evidence
+         - [ ] No hallucinated identifiers (every function/class/module call was verified to exist)
+         - [ ] No dead code or unused imports introduced
+         - [ ] Ward check passed (or SKIP with documented reason)
+         - [ ] Evidence artifacts written to tmp/work/{timestamp}/evidence/{task-id}/
+         - [ ] Worker Report sections complete (Critical Review Findings, Implementation Notes, Evidence, Code Changes)
+
+         Mark each item [x] as you verify it. If any item fails:
+           → Fix the issue before proceeding. Do NOT mark complete with known checklist failures.
+           → If you CANNOT fix it: send a STUCK report (see step 9.7 or ## Communication with Team Lead).
     8. IF ward passes:
        a. Mark new files for diff tracking: git add -N <new-files>
        b. Generate patch: git diff --binary HEAD -- <specific files> > tmp/work/{timestamp}/patches/{task-id}.patch
@@ -321,6 +351,22 @@ Agent({
     9.5. RELEASE FILE LOCK (after ward failure):
          Delete tmp/.rune-signals/{team}/{your-name}-files.json
          Failure is non-blocking — orphaned signals cleaned by orchestrator stale lock scan.
+    9.7. STUCK REPORT PROTOCOL (when you cannot complete a task after 2+ attempts):
+         IF you have tried and failed a task twice AND cannot determine root cause:
+           → Release file lock (step 9.5)
+           → Send a STUCK message to team-lead (see ## Communication with Team Lead):
+             SendMessage({
+               type: "message",
+               recipient: "team-lead",
+               content: "STUCK: task #{id}: {2-3 sentence description of what was attempted}.
+               Blocker: {specific unresolvable issue}.
+               Attempts: {count}.
+               Evidence: tmp/work/{timestamp}/evidence/{task-id}/ (if exists).
+               Suggested action: {skip | reassign | plan amendment | human review}"
+             })
+           → TaskUpdate({ taskId, status: "pending", owner: "" })
+           → Do NOT reattempt. Move to next task via step 10.
+         STUCK counts against the SEC-006 3-message cap. Use after genuine repeated failure only.
     10. TaskList() -> claim next or exit
 
     Commits are handled through the Tarnished's commit broker. Do not run git add or git commit directly.
@@ -506,6 +552,22 @@ Agent({
            Write tmp/.rune-signals/{team}/{your-name}-files.json with:
            { worker: "{your-name}", task_id: "{taskId}", files: [myFiles], timestamp: Date.now() }
     5. Read FULL source files being tested (understand all exports, types, edge cases)
+    5.5. CRITICAL REVIEW (before writing tests — AC-5, AC-10):
+         Critically examine the task BEFORE writing any tests:
+         - Is the task description consistent with what you see in the codebase?
+         - Are the acceptance criteria achievable with the specified file targets?
+         - Does the plan reference APIs, functions, or modules that actually exist?
+         - Are there any circular dependencies or impossible constraints?
+         - Does anything look hallucinated (made-up names, impossible patterns)?
+
+         If you find a CRITICAL issue (task is wrong, ambiguous, or hallucinated):
+           → Send a CHALLENGE message to team-lead (see ## Communication with Team Lead).
+           → Do NOT proceed with writing tests until the challenge is resolved.
+           → Write your findings to task file ## Worker Report → ### Critical Review Findings.
+           → Mark task status as "pending" and wait: TaskUpdate({ taskId, status: "pending", owner: "" })
+
+         If no issues found: write "Critical Review: PASS — no issues found" to
+         task file ## Worker Report → ### Critical Review Findings, then proceed.
     6. Write tests following discovered patterns
     6.5. SELF-REVIEW before running:
          - Re-read each test file you wrote
@@ -573,6 +635,19 @@ Agent({
 
           IF task does NOT have design context: skip entirely (zero overhead).
     7. Run tests to verify they pass
+    7.5. SELF-REVIEW CHECKLIST (AC-11 — before marking complete):
+         Complete the Self-Review Checklist and write results to task file
+         ## Worker Report → ### Self-Review Checklist:
+         - [ ] All acceptance criteria in step 4.1 echo-back are covered by tests
+         - [ ] No hallucinated test assertions (every tested function/export was verified to exist)
+         - [ ] Tests follow existing project patterns (no new test utilities created)
+         - [ ] All tests pass (or SKIP with documented reason)
+         - [ ] Evidence artifacts written to tmp/work/{timestamp}/evidence/{task-id}/
+         - [ ] Worker Report sections complete (Critical Review Findings, Implementation Notes, Evidence, Code Changes)
+
+         Mark each item [x] as you verify it. If any item fails:
+           → Fix the issue before proceeding. Do NOT mark complete with known checklist failures.
+           → If you CANNOT fix it: send a STUCK report (see step 9.7 or ## Communication with Team Lead).
     8. IF tests pass:
        a. Mark new files for diff tracking: git add -N <new-files>
        b. Generate patch: git diff --binary HEAD -- <specific files> > tmp/work/{timestamp}/patches/{task-id}.patch
@@ -596,6 +671,22 @@ Agent({
     9.5. RELEASE FILE LOCK (after test failure):
          Delete tmp/.rune-signals/{team}/{your-name}-files.json
          Failure is non-blocking — orphaned signals cleaned by orchestrator stale lock scan.
+    9.7. STUCK REPORT PROTOCOL (when you cannot complete a task after 2+ attempts):
+         IF you have tried and failed a task twice AND cannot determine root cause:
+           → Release file lock (step 9.5)
+           → Send a STUCK message to team-lead (see ## Communication with Team Lead):
+             SendMessage({
+               type: "message",
+               recipient: "team-lead",
+               content: "STUCK: task #{id}: {2-3 sentence description of what was attempted}.
+               Blocker: {specific unresolvable issue}.
+               Attempts: {count}.
+               Evidence: tmp/work/{timestamp}/evidence/{task-id}/ (if exists).
+               Suggested action: {skip | reassign | plan amendment | human review}"
+             })
+           → TaskUpdate({ taskId, status: "pending", owner: "" })
+           → Do NOT reattempt. Move to next task via step 10.
+         STUCK counts against the SEC-006 3-message cap. Use after genuine repeated failure only.
     10. TaskList() -> claim next or exit
 
     Commits are handled through the Tarnished's commit broker. Do not run git add or git commit directly.
@@ -655,6 +746,72 @@ Agent({
   run_in_background: true
 })
 ```
+
+## Communication with Team Lead
+
+Workers communicate with the team lead via `SendMessage({ type: "message", recipient: "team-lead", content: "..." })`.
+**Always use `recipient: "team-lead"`** (not "the-tarnished").
+
+Four message types are defined. Each triggers a different response from the lead.
+
+### QUESTION (blocking — AC-10)
+Use when: Acceptance criteria are ambiguous or unclear BEFORE implementation starts.
+Cap: Counts against the SEC-006 3-message cap (max 3 per task across QUESTION + CHALLENGE + STUCK).
+```
+QUESTION: task #{id}: {specific question about ambiguity or missing context}.
+What I understand: {your current interpretation}.
+Options considered: {option A | option B}.
+Blocking: {yes — I cannot proceed without clarification}
+```
+→ Wait for lead response before proceeding. Do NOT start implementation while QUESTION is outstanding.
+
+### CHALLENGE (blocking — AC-10)
+Use when: You have found a CRITICAL issue in the task (hallucinated API, impossible constraint, plan-reality mismatch) during step 5.5 CRITICAL REVIEW.
+Cap: Counts against the SEC-006 3-message cap.
+```
+CHALLENGE: task #{id}: {description of the issue found}.
+Evidence: {file:line reference or codebase observation}.
+Impact: {why this prevents implementation as specified}.
+Suggested resolution: {amend AC | skip task | reassign | proceed with workaround}
+```
+→ Write findings to task file ## Worker Report → ### Critical Review Findings.
+→ Mark task pending: `TaskUpdate({ taskId, status: "pending", owner: "" })`.
+→ Do NOT proceed until lead resolves the challenge.
+
+### STUCK (blocking — AC-9)
+Use when: You have attempted a task 2+ times and cannot determine root cause of failure.
+Cap: Counts against the SEC-006 3-message cap.
+```
+STUCK: task #{id}: {2-3 sentence description of what was attempted}.
+Blocker: {specific unresolvable issue}.
+Attempts: {count}.
+Evidence: tmp/work/{timestamp}/evidence/{task-id}/ (if exists).
+Suggested action: {skip | reassign | plan amendment | human review}
+```
+→ Release file lock (step 9.5 / 8.5).
+→ Mark task pending: `TaskUpdate({ taskId, status: "pending", owner: "" })`.
+→ Do NOT reattempt. Claim next task.
+
+### CONCERN (non-blocking — AC-14)
+Use when: You have an observation about process, scope, or quality that the lead should know, but does NOT block your current task.
+Cap: **CONCERN does NOT count against the SEC-006 3-message cap.** (Decree-arbiter ruling from concern-context.md)
+```
+CONCERN: task #{id}: {observation or risk].
+Context: {why this matters}.
+Action recommended: {optional suggestion — lead decides}
+```
+→ Continue working. Do not wait for a response.
+→ Use sparingly — one CONCERN per task maximum.
+
+### SEC-006 Cap Summary
+| Type | Blocks work? | Counts against 3-msg cap? |
+|------|-------------|--------------------------|
+| QUESTION | Yes | Yes |
+| CHALLENGE | Yes | Yes |
+| STUCK | Yes | Yes |
+| CONCERN | No | **No** |
+
+If cap is reached (3 blocking messages sent for a task): do not send more. Mark the task as `pending`, release lock, and claim next task. The lead will reassign or amend.
 
 ## File Lock Signal Schema
 
