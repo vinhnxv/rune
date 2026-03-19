@@ -75,6 +75,18 @@
         ]
       },
       {
+        "matcher": "Bash",
+        "_rationale": "GH-ACCOUNT-001: Ensures correct GitHub account is active before gh CLI commands that require repo access (gh pr, gh issue, gh api, git push). OPERATIONAL — fail-forward, never blocks. Debounced per session (30 min TTL). Fast-path exit (<1ms) for non-gh commands.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/enforce-gh-account.sh",
+            "timeout": 5,
+            "statusMessage": "Checking GitHub account access..."
+          }
+        ]
+      },
+      {
         "matcher": "Write|Edit|NotebookEdit",
         "hooks": [
           {

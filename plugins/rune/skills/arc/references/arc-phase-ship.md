@@ -62,6 +62,17 @@ if (!ghAvailable) {
   return
 }
 
+// GH-ACCOUNT-001: Ensure the active gh account has access to this repository.
+// When multiple GitHub accounts are authenticated, the default may lack repo access.
+// This resolves the correct account before any gh operation (push, pr create).
+const ghAccountResolved = Bash(`${GH_ENV} source "\${CLAUDE_PLUGIN_ROOT}/scripts/lib/gh-account-resolver.sh" && rune_gh_ensure_correct_account`).trim()
+if (ghAccountResolved.includes("ERROR: No authenticated GitHub account")) {
+  warn("Ship phase: No authenticated GitHub account has access to this repository.")
+  warn("Run 'gh auth login' with an account that has access, then retry.")
+  updateCheckpoint({ phase: "ship", status: "failed" })
+  return
+}
+
 const currentBranch = Bash("git branch --show-current").trim()
 const defaultBranch = Bash("git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@'").trim()
   || (Bash("git rev-parse --verify origin/main 2>/dev/null").exitCode === 0 ? "main" : "master")
