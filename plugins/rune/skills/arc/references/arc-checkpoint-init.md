@@ -86,23 +86,23 @@ function resolveArcConfig(arc, work, inlineFlags) {
   const talismanPreMerge = arc?.pre_merge_checks ?? {}  // QUAL-001 FIX
 
   const config = {
-    no_forge:        talismanDefaults.no_forge ?? defaults.no_forge,
-    approve:         talismanDefaults.approve ?? defaults.approve,
-    skip_freshness:  talismanDefaults.skip_freshness ?? defaults.skip_freshness,
-    confirm:         talismanDefaults.confirm ?? defaults.confirm,
-    no_test:         talismanDefaults.no_test ?? defaults.no_test,
-    accept_external_changes: talismanDefaults.accept_external_changes ?? defaults.accept_external_changes,
+    no_forge:        talismanDefaults.no_forge !== undefined ? talismanDefaults.no_forge : defaults.no_forge,
+    approve:         talismanDefaults.approve !== undefined ? talismanDefaults.approve : defaults.approve,
+    skip_freshness:  talismanDefaults.skip_freshness !== undefined ? talismanDefaults.skip_freshness : defaults.skip_freshness,
+    confirm:         talismanDefaults.confirm !== undefined ? talismanDefaults.confirm : defaults.confirm,
+    no_test:         talismanDefaults.no_test !== undefined ? talismanDefaults.no_test : defaults.no_test,
+    accept_external_changes: talismanDefaults.accept_external_changes !== undefined ? talismanDefaults.accept_external_changes : defaults.accept_external_changes,
     ship: {
-      auto_pr:       talismanShip.auto_pr ?? defaults.ship.auto_pr,
-      auto_merge:    talismanShip.auto_merge ?? defaults.ship.auto_merge,
+      auto_pr:       talismanShip.auto_pr !== undefined ? talismanShip.auto_pr : defaults.ship.auto_pr,
+      auto_merge:    talismanShip.auto_merge !== undefined ? talismanShip.auto_merge : defaults.ship.auto_merge,
       // SEC-001 FIX: Validate merge_strategy against allowlist at config resolution time
       merge_strategy: ["squash", "rebase", "merge"].includes(talismanShip.merge_strategy)
         ? talismanShip.merge_strategy : defaults.ship.merge_strategy,
-      wait_ci:       talismanShip.wait_ci ?? defaults.ship.wait_ci,
-      draft:         talismanShip.draft ?? defaults.ship.draft,
+      wait_ci:       talismanShip.wait_ci !== undefined ? talismanShip.wait_ci : defaults.ship.wait_ci,
+      draft:         talismanShip.draft !== undefined ? talismanShip.draft : defaults.ship.draft,
       labels:        Array.isArray(talismanShip.labels) ? talismanShip.labels : defaults.ship.labels,  // SEC-DECREE-002: validate array
-      pr_monitoring: talismanShip.pr_monitoring ?? defaults.ship.pr_monitoring,
-      rebase_before_merge: talismanShip.rebase_before_merge ?? defaults.ship.rebase_before_merge,
+      pr_monitoring: talismanShip.pr_monitoring !== undefined ? talismanShip.pr_monitoring : defaults.ship.pr_monitoring,
+      rebase_before_merge: talismanShip.rebase_before_merge !== undefined ? talismanShip.rebase_before_merge : defaults.ship.rebase_before_merge,
       // BACK-012 FIX: Include co_authors in 3-layer resolution (was read from raw talisman)
       // QUAL-003 FIX: Check arc.ship.co_authors first, fall back to work.co_authors
       co_authors: Array.isArray(talismanShip.co_authors) ? talismanShip.co_authors
