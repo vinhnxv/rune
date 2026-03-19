@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-03-20
+
+### Added
+- **self-audit**: New skill — Runtime analysis of arc artifacts with `--mode static|runtime|all`, `--arc-id`, and `--history` flags. R0-R3 phase pipeline spawning 3 meta-QA agents
+- **agents**: `hallucination-detector` — detects phantom completions, QA score inflation, fabricated file:line references, copy-paste evidence, ghost delegation (HD-* finding prefix)
+- **agents**: `effectiveness-analyzer` — per-agent false-positive rates, unique finding ratios, findings/min throughput, cross-run calibration drift detection (EA-* finding prefix)
+- **agents**: `convergence-analyzer` — retry efficiency, review-mend stagnation, phase bottlenecks, quality trajectory, global retry budget analysis (CV-* finding prefix)
+- **learn**: `--detector meta-qa` flag for extracting meta-QA patterns from arc checkpoint history
+- **echoes**: `metrics_snapshot` field in echo entries written by self-audit runtime mode
+- **metrics**: Metrics store at `tmp/self-audit/{ts}/metrics.json` with schema_version for future evolution
+
 ## [2.2.0] - 2026-03-20
 
 ### Added
