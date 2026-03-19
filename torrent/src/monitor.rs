@@ -1555,4 +1555,95 @@ session_id: s
 
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    // ── ActivityState & ActivityDetector tests ──
+
+    #[test]
+    fn test_activity_state_labels() {
+        assert_eq!(ActivityState::Active.label(), "active");
+        assert_eq!(ActivityState::Slow.label(), "slow");
+        assert_eq!(ActivityState::Stale.label(), "stale");
+        assert_eq!(ActivityState::Idle.label(), "idle");
+        assert_eq!(ActivityState::Stopped.label(), "stopped");
+        assert_eq!(ActivityState::WaitingInput.label(), "waiting-input");
+    }
+
+    #[test]
+    fn test_activity_state_icons() {
+        assert_eq!(ActivityState::Active.icon(), "●");
+        assert_eq!(ActivityState::Idle.icon(), "○");
+        assert_eq!(ActivityState::Stopped.icon(), "✗");
+        assert_eq!(ActivityState::WaitingInput.icon(), "?");
+    }
+
+    #[test]
+    fn test_detect_stopped_when_process_not_found() {
+        let det = ActivityDetector::new();
+        assert_eq!(det.detect(false, Some(50.0), false, None), ActivityState::Stopped);
+    }
+
+    #[test]
+    fn test_detect_active_fresh_heartbeat_changing_pane() {
+        let det = ActivityDetector::new(); // hash_unchanged_count = 0 → "changing"
+        assert_eq!(det.detect(false, Some(10.0), true, None), ActivityState::Active);
+    }
+
+    #[test]
+    fn test_detect_idle_stale_heartbeat_frozen_pane_low_cpu() {
+        let mut det = ActivityDetector::new();
+        det.hash_unchanged_count = 3; // frozen pane
+        assert_eq!(det.detect(true, Some(0.2), true, None), ActivityState::Idle);
+    }
+
+    #[test]
+    fn test_detect_stale_when_cpu_above_threshold() {
+        let mut det = ActivityDetector::new();
+        det.hash_unchanged_count = 3;
+        // CPU >= 1% prevents Idle — should be Stale instead
+        assert_eq!(det.detect(true, Some(2.0), true, None), ActivityState::Stale);
+    }
+
+    #[test]
+    fn test_detect_waiting_input_prompt_detected() {
+        let det = ActivityDetector::new();
+        assert_eq!(
+            det.detect(false, Some(5.0), true, Some("$ ")),
+            ActivityState::WaitingInput,
+        );
+    }
+
+    #[test]
+    fn test_detect_slow_fresh_heartbeat_unchanged_pane() {
+        let mut det = ActivityDetector::new();
+        det.hash_unchanged_count = 1;
+        assert_eq!(det.detect(false, Some(5.0), true, None), ActivityState::Slow);
+    }
+
+    #[test]
+    fn test_update_hash_first_poll_establishes_baseline() {
+        let mut det = ActivityDetector::new();
+        assert!(det.update_hash(Some(12345))); // first poll → "changed"
+        assert_eq!(det.hash_unchanged_count, 0);
+        assert_eq!(det.last_pane_hash, Some(12345));
+    }
+
+    #[test]
+    fn test_update_hash_same_increments_unchanged() {
+        let mut det = ActivityDetector::new();
+        det.update_hash(Some(100));
+        assert!(!det.update_hash(Some(100))); // same → unchanged
+        assert_eq!(det.hash_unchanged_count, 1);
+        assert!(!det.update_hash(Some(100)));
+        assert_eq!(det.hash_unchanged_count, 2);
+    }
+
+    #[test]
+    fn test_update_hash_different_resets_count() {
+        let mut det = ActivityDetector::new();
+        det.update_hash(Some(100));
+        det.update_hash(Some(100)); // unchanged_count = 1
+        assert!(det.update_hash(Some(200))); // changed → resets
+        assert_eq!(det.hash_unchanged_count, 0);
+        assert_eq!(det.last_pane_hash, Some(200));
+    }
 }

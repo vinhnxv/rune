@@ -221,6 +221,7 @@ mod tests {
     fn test_process_health_labels() {
         assert_eq!(ProcessHealth::Active.label(), "active");
         assert_eq!(ProcessHealth::LowCpu.label(), "low-cpu");
+        assert_eq!(ProcessHealth::Idle.label(), "idle");
         assert_eq!(ProcessHealth::NotFound.label(), "not-found");
     }
 
