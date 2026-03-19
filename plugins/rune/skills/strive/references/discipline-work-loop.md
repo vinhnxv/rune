@@ -248,16 +248,26 @@ function crossReferenceVerification(timestamp, planPath, taskCriteriaMap) {
     }
 
     for (const criterion of criteria) {
-      if (taskContent.includes(criterion.id)) {
-        // Check for text drift (first 60 chars of criterion text)
-        const planText = criterion.text.slice(0, 60)
-        if (taskContent.includes(planText)) {
+      // SIGHT-003 FIX: Use AC identifier (AC-NNN) as primary match key.
+      // Fall back to normalized text comparison only when no explicit ID is present.
+      const hasExplicitId = /^AC-[\d.]+$/.test(criterion.id)
+
+      if (hasExplicitId && taskContent.includes(criterion.id)) {
+        // Primary: AC-NNN identifier found in task file — check text drift
+        // Use normalized comparison (lowercase, trimmed) instead of fragile 60-char prefix
+        const planTextNorm = criterion.text.trim().toLowerCase().slice(0, 120)
+        const taskTextNorm = taskContent.toLowerCase()
+        if (taskTextNorm.includes(planTextNorm.slice(0, 40))) {
           results.mapped++
           results.details.push({ id: criterion.id, status: 'MAPPED' })
         } else {
           results.drifted++
-          results.details.push({ id: criterion.id, status: 'DRIFTED', reason: 'Text mismatch' })
+          results.details.push({ id: criterion.id, status: 'DRIFTED', reason: 'AC ID present but text diverged' })
         }
+      } else if (!hasExplicitId && taskContent.includes(criterion.text.slice(0, 60))) {
+        // Fallback for criteria without AC-NNN IDs: use text prefix match (legacy behavior)
+        results.mapped++
+        results.details.push({ id: criterion.id, status: 'MAPPED' })
       } else {
         results.missing++
         results.details.push({ id: criterion.id, status: 'MISSING', reason: 'Criterion ID not in task file' })

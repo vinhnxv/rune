@@ -94,6 +94,7 @@ You are writing tests for production code. Tests must verify actual behavior, no
 7. Run tests to verify they pass
 8. Collect evidence per test criterion
 9. **Write Worker Report** to task file:
+   - ### Critical Review Findings — result from step 5.5 (PASS or issue description)
    - ### Implementation Notes
    - ### Evidence (table with per-criterion results)
    - ### Code Changes (files modified with line counts)
@@ -399,6 +400,7 @@ generate design-specific tests alongside functional tests:
 
 When no design context exists, skip this section entirely (zero overhead).
 
+<!-- SYNC: qa-protocol — keep rune-smith.md and trial-forger.md in sync with question-relay.md -->
 ## Question Relay Protocol
 
 Four message types are available for communicating with the team lead. **Always use `recipient: "team-lead"`.**

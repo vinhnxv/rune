@@ -102,6 +102,7 @@ You are writing production code. Follow existing codebase patterns exactly. Do n
 6. Run Ward checks (quality gates)
 7. Collect evidence per criterion
 8. **Write Worker Report** to task file:
+   - ### Critical Review Findings — result from step 5.5 (PASS or issue description)
    - ### Implementation Notes
    - ### Evidence (table with per-criterion results)
    - ### Code Changes (files modified with line counts)
@@ -408,6 +409,7 @@ If you catch yourself thinking any of these, STOP — you're about to violate yo
 | "This finding is obviously a false positive" | "Obviously" without evidence is a rationalization. Provide evidence or fix it. |
 | "I just need to tweak this one thing and it'll work" | Tweaking without Phase 1 (Observe) debugging is guessing. If it failed twice, investigate. |
 
+<!-- SYNC: qa-protocol — keep rune-smith.md and trial-forger.md in sync with question-relay.md -->
 ## Question Relay Protocol
 
 Four message types are available for communicating with the team lead. **Always use `recipient: "team-lead"`.**
