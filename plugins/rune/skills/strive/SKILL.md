@@ -312,11 +312,13 @@ This is not reference documentation — execution is required before Phase 2 beg
 ```javascript
 const taskFileCount = Glob(`tmp/work/${timestamp}/tasks/*.md`).length
 if (taskFileCount !== extractedTasks.length) {
-  throw new Error(`Task file creation incomplete: expected ${extractedTasks.length}, got ${taskFileCount}`)
+  warn(`Task file creation incomplete: expected ${extractedTasks.length}, got ${taskFileCount}. Proceeding with ${taskFileCount} available task files — workers have inline prompts as fallback.`)
+  // AC-8: Graceful degradation — do NOT throw. Workers can operate with partial file sets
+  // because worker-prompts.md embeds full task specs inline.
 }
 ```
 
-If the count check fails, stop and investigate — do not proceed to Phase 2 with missing task files.
+If the count check shows missing files, the warning is logged and workers proceed with available files. Workers receive full task specs via inline prompts as a fallback path (AC-8 backward compatibility).
 
 ## Phase 2: Summon Swarm Workers
 

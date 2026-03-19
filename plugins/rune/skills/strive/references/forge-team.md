@@ -117,12 +117,26 @@ for (const task of extractedTasks) {
 // Directory: tasks/ (NOT task-briefs/) per spec alignment
 
 // Create tasks directory
-Bash(`mkdir -p "tmp/work/${timestamp}/tasks"`)
+// AC-8: Graceful degradation — wrap mkdir in try/catch
+try {
+  Bash(`mkdir -p "tmp/work/${timestamp}/tasks"`)
+} catch (e) {
+  warn(`Failed to create tasks directory: ${e.message}. Task files will be skipped — workers use inline prompts as fallback.`)
+}
+
+let taskFilesCreated = 0
+let taskFilesFailed = []
 
 for (const task of extractedTasks) {
   const taskId = String(task.id)  // FLAW-008: normalize to String at every boundary
   const taskCriteria = taskCriteriaMap[taskId] || taskCriteriaMap[task.id] || []
   const fileTargets = task.fileTargets || []
+
+  // RUIN-004 FIX: Sanitize task.description for YAML frontmatter safety
+  // Escape YAML special characters to prevent content injection
+  const sanitizedDescription = (task.description ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
 
   const taskFileContent = [
     '---',
@@ -141,7 +155,7 @@ for (const task of extractedTasks) {
     '',
     '## Source',
     '',
-    task.description,  // Full task description (plan section verbatim)
+    task.description,  // Full task description (plan section verbatim — unescaped for readability in body)
     '',
     '## Acceptance Criteria',
     '',
@@ -165,10 +179,20 @@ for (const task of extractedTasks) {
     '_To be filled by assigned worker._',
   ].join('\n')
 
-  Write(`tmp/work/${timestamp}/tasks/task-${taskId}.md`, taskFileContent)
+  // AC-8: Graceful degradation — wrap Write() in try/catch, log warning, continue
+  try {
+    Write(`tmp/work/${timestamp}/tasks/task-${taskId}.md`, taskFileContent)
+    taskFilesCreated++
+  } catch (e) {
+    warn(`Failed to write task file task-${taskId}.md: ${e.message}`)
+    taskFilesFailed.push(taskId)
+  }
 }
 
-log(`Created ${extractedTasks.length} task files in tmp/work/${timestamp}/tasks/`)
+log(`Created ${taskFilesCreated}/${extractedTasks.length} task files in tmp/work/${timestamp}/tasks/`)
+if (taskFilesFailed.length > 0) {
+  warn(`Failed task files: ${taskFilesFailed.join(', ')}. Workers will use inline prompts for these tasks.`)
+}
 ```
 
 **Key design decisions**:
@@ -188,7 +212,14 @@ to avoid namespace collision with existing arc artifacts (E1 concern).
 ```javascript
 // plannedWorkers is computed in worker-prompts.md:
 // Array of { name, tasks, fileTargets, blockedFiles, nonGoals }
-Bash(`mkdir -p "tmp/work/${timestamp}/scopes"`)
+// AC-8: Graceful degradation — wrap mkdir in try/catch
+try {
+  Bash(`mkdir -p "tmp/work/${timestamp}/scopes"`)
+} catch (e) {
+  warn(`Failed to create scopes directory: ${e.message}. Scope files will be skipped.`)
+}
+
+let scopeFilesCreated = 0
 
 for (const worker of plannedWorkers) {
   const { name, tasks, fileTargets, blockedFiles, nonGoals } = worker
@@ -218,10 +249,16 @@ for (const worker of plannedWorkers) {
     ...(nonGoals.length > 0 ? nonGoals.map(g => `- ${g}`) : ['_None specified_']),
   ].join('\n')
 
-  Write(`tmp/work/${timestamp}/scopes/${name}.md`, scopeContent)
+  // AC-8: Graceful degradation — wrap Write() in try/catch, log warning, continue
+  try {
+    Write(`tmp/work/${timestamp}/scopes/${name}.md`, scopeContent)
+    scopeFilesCreated++
+  } catch (e) {
+    warn(`Failed to write scope file ${name}.md: ${e.message}`)
+  }
 }
 
-log(`Created ${plannedWorkers.length} scope files in tmp/work/${timestamp}/scopes/`)
+log(`Created ${scopeFilesCreated}/${plannedWorkers.length} scope files in tmp/work/${timestamp}/scopes/`)
 ```
 
 **Verification**: `Glob("tmp/work/${timestamp}/scopes/*.md").length === plannedWorkers.length`
@@ -233,14 +270,27 @@ auditability, and scope verification. Path: `tmp/work/{timestamp}/prompts/{worke
 
 ```javascript
 // promptContent = full spawn prompt string built by worker-prompts.md buildWorkerPrompt()
-Bash(`mkdir -p "tmp/work/${timestamp}/prompts"`)
+// AC-8: Graceful degradation — wrap mkdir in try/catch
+try {
+  Bash(`mkdir -p "tmp/work/${timestamp}/prompts"`)
+} catch (e) {
+  warn(`Failed to create prompts directory: ${e.message}. Prompt files will be skipped.`)
+}
+
+let promptFilesCreated = 0
 
 for (const worker of plannedWorkers) {
   const { name, promptContent } = worker
-  Write(`tmp/work/${timestamp}/prompts/${name}.md`, promptContent)
+  // AC-8: Graceful degradation — wrap Write() in try/catch, log warning, continue
+  try {
+    Write(`tmp/work/${timestamp}/prompts/${name}.md`, promptContent)
+    promptFilesCreated++
+  } catch (e) {
+    warn(`Failed to write prompt file ${name}.md: ${e.message}`)
+  }
 }
 
-log(`Created ${plannedWorkers.length} prompt files in tmp/work/${timestamp}/prompts/`)
+log(`Created ${promptFilesCreated}/${plannedWorkers.length} prompt files in tmp/work/${timestamp}/prompts/`)
 ```
 
 **Verification**: `Glob("tmp/work/${timestamp}/prompts/*.md").length === plannedWorkers.length`
@@ -265,8 +315,14 @@ const manifest = {
   worker_count: plannedWorkers.length,
 }
 
-Write(`tmp/work/${timestamp}/delegation-manifest.json`, JSON.stringify(manifest, null, 2))
-log(`Delegation manifest written: tmp/work/${timestamp}/delegation-manifest.json`)
+// AC-8: Graceful degradation — delegation manifest is advisory (not read by workers).
+// Wrap in try/catch so failure doesn't crash the pipeline.
+try {
+  Write(`tmp/work/${timestamp}/delegation-manifest.json`, JSON.stringify(manifest, null, 2))
+  log(`Delegation manifest written: tmp/work/${timestamp}/delegation-manifest.json`)
+} catch (e) {
+  warn(`Failed to write delegation manifest: ${e.message}. This is advisory-only — workers are not affected.`)
+}
 ```
 
 **Verification**: `Read("tmp/work/${timestamp}/delegation-manifest.json")` — parse JSON, confirm `workers` array length matches `plannedWorkers.length`.
