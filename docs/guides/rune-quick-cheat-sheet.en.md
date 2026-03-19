@@ -106,10 +106,10 @@ Optional:
 | Output type | Path |
 |-------------|------|
 | Plan | `plans/YYYY-MM-DD-...-plan.md` |
-| Review report (TOME) | `tmp/reviews/{id}/TOME.md` |
+| TOME (review report) | `tmp/reviews/{id}/TOME.md` |
 | Audit report (TOME) | `tmp/audit/{id}/TOME.md` |
-| Arc checkpoint | `.rune/arc/{id}/checkpoint.json` |
-| Echoes memory | `.rune/echoes/` |
+| Arc (end-to-end pipeline) checkpoint | `.rune/arc/{id}/checkpoint.json` |
+| Echoes (persistent memory) | `.rune/echoes/` |
 
 ---
 
@@ -117,7 +117,7 @@ Optional:
 
 1. `arc` or `arc-batch` interrupted: run `--resume`.
 2. Plan blocked as stale: regenerate with `/rune:devise` or intentionally use `--skip-freshness`.
-3. Custom Ash not running: check `trigger.extensions`, `trigger.paths`, `workflows`, `settings.max_ashes`.
+3. Custom Ash (review agent) not running: check `trigger.extensions`, `trigger.paths`, `workflows`, `settings.max_ashes`.
 4. Token usage too high: prefer `plan -> work -> review` over `arc`, reduce `--deep`, use `--quick`.
 5. Want to clean workspace artifacts: run `/rune:rest`.
 
