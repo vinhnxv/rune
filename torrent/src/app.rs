@@ -1595,6 +1595,15 @@ impl App {
 
         // Record the restart
         resume_state.record_restart(phase_index, &phase_name, "phase_timeout");
+
+        // Rapid failure detection (AC8): if 3+ restarts within 5 minutes, warn
+        if resume_state.is_rapid_failure() {
+            self.status_message = Some(format!(
+                "RAPID FAILURE: {} retries in <5 min on phase {} — possible systemic issue",
+                resume_state.total_restarts, phase_name
+            ));
+        }
+
         let _ = resume_state.save();
 
         // Set cooldown

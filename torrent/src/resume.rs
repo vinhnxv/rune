@@ -48,6 +48,10 @@ pub struct ResumeState {
     pub last_restart_reason: Option<String>,
     pub last_restart_phase: Option<String>,
     pub deferred_until: Option<DateTime<Utc>>,
+    /// Timestamp of the first restart in this session (for rapid failure detection).
+    /// If 3+ restarts occur within 5 minutes of this timestamp, it's a rapid failure.
+    #[serde(default)]
+    pub first_restart_at: Option<DateTime<Utc>>,
 }
 
 /// Tracks API-level retry counts and timestamps, separate from phase retries.
@@ -162,9 +166,28 @@ impl ResumeState {
     pub fn record_restart(&mut self, phase_index: u32, phase_name: &str, reason: &str) {
         *self.phase_retries.entry(phase_index).or_insert(0) += 1;
         self.total_restarts += 1;
-        self.last_restart_at = Some(Utc::now());
+        let now = Utc::now();
+        if self.first_restart_at.is_none() {
+            self.first_restart_at = Some(now);
+        }
+        self.last_restart_at = Some(now);
         self.last_restart_reason = Some(reason.to_string());
         self.last_restart_phase = Some(phase_name.to_string());
+    }
+
+    /// Check for rapid failure: 3+ restarts within 5 minutes of the first restart.
+    /// Returns true if all retries are burning through too fast (likely a systemic issue).
+    pub fn is_rapid_failure(&self) -> bool {
+        if self.total_restarts < 3 {
+            return false;
+        }
+        match (self.first_restart_at, self.last_restart_at) {
+            (Some(first), Some(last)) => {
+                let elapsed = last.signed_duration_since(first);
+                elapsed.num_seconds() < 300 // 5 minutes
+            }
+            _ => false,
+        }
     }
 
     /// Simple hash of the plan filename — first 8 hex chars of a basic hash.
@@ -187,6 +210,7 @@ impl ResumeState {
             last_restart_reason: None,
             last_restart_phase: None,
             deferred_until: None,
+            first_restart_at: None,
         }
     }
 }
