@@ -11,7 +11,8 @@ Before spawning agents, announce the research scope transparently (non-blocking)
 ```
 Research scope for: {feature}
   Pre-research: ux-pattern-analyzer (if ux.enabled + frontend files — Phase 0.3)
-  Agents:     repo-surveyor, echo-reader, git-miner (always)
+  Agents:     repo-surveyor, echo-reader, git-miner,
+              wiring-cartographer, activation-pathfinder (always)
   Conditional: practice-seeker, lore-scholar (after risk scoring in Phase 1B)
   Conditional: codex-researcher (if codex CLI available + "plan" in codex.workflows)
   Validation:  flow-seer (always, after research)
@@ -57,7 +58,9 @@ mkdir -p tmp/plans/{timestamp}/research/
 let localResearchers = [
   { name: "repo-surveyor", role: "research", output_file: "research/repo-analysis.md" },
   { name: "echo-reader", role: "research", output_file: "research/past-echoes.md" },
-  { name: "git-miner", role: "research", output_file: "research/git-history.md" }
+  { name: "git-miner", role: "research", output_file: "research/git-history.md" },
+  { name: "wiring-cartographer", role: "research", output_file: "research/wiring-map.md" },
+  { name: "activation-pathfinder", role: "research", output_file: "research/activation-path.md" }
 ]
 let externalResearchers = [
   { name: "practice-seeker", role: "research", output_file: "research/best-practices.md" },
@@ -109,6 +112,8 @@ Write(`tmp/plans/${timestamp}/inscription.json`, {
 TaskCreate({ subject: "Research repo patterns", description: "..." })       // #1
 TaskCreate({ subject: "Read past echoes", description: "..." })             // #2
 TaskCreate({ subject: "Analyze git history", description: "..." })          // #3
+TaskCreate({ subject: "Map integration wiring points", description: "..." })    // #4
+TaskCreate({ subject: "Trace activation & migration path", description: "..." }) // #5
 
 // 3.1. Per-agent artifact tracking (non-blocking)
 // Each agent gets: rune_artifact_init → rune_artifact_write_input (before spawn)
@@ -117,7 +122,7 @@ TaskCreate({ subject: "Analyze git history", description: "..." })          // #
 // All artifact operations use try/catch with silent fallthrough (fail-forward).
 const agentRunDirs = {}  // Map<agentName, runDir> for finalization after monitoring
 if (artifactAvailable) {
-  for (const agentName of ["repo-surveyor", "echo-reader", "git-miner"]) {
+  for (const agentName of ["repo-surveyor", "echo-reader", "git-miner", "wiring-cartographer", "activation-pathfinder"]) {
     try {
       const runDir = Bash(`source plugins/rune/scripts/lib/run-artifacts.sh && rune_artifact_init "plans" "${timestamp}" "${agentName}" "rune-plan-${timestamp}"`).trim()
       if (runDir) agentRunDirs[agentName] = runDir
@@ -208,11 +213,65 @@ Agent({
   prompt: gitMinerPrompt,
   run_in_background: true
 })
+
+const wiringCartographerPrompt = `You are Wiring Cartographer -- a RESEARCH agent. Do not write implementation code.
+    Map integration points for: ${safeFeature}.
+    Write findings to tmp/plans/{timestamp}/research/wiring-map.md.
+    Claim the "Map integration wiring points" task via TaskList/TaskUpdate.
+    See agents/research/wiring-cartographer.md for full instructions.
+
+    SELF-REVIEW (Inner Flame):
+    Before writing your output file, execute the Inner Flame Researcher checklist:
+    (Inline abbreviation of inner-flame/references/role-checklists.md — keep in sync)
+    - Verify all cited file paths exist (Glob)
+    - Re-read source files to confirm patterns you described
+    - Remove tangential findings that don't serve the research question
+    - Append Self-Review Log to your output file`
+
+if (artifactAvailable && agentRunDirs["wiring-cartographer"]) {
+  // SEC-001: Write prompt to temp file to avoid shell injection via feature content.
+  Write(`${agentRunDirs["wiring-cartographer"]}/input.md`, wiringCartographerPrompt)
+}
+
+Agent({
+  team_name: "rune-plan-{timestamp}",
+  name: "wiring-cartographer",
+  subagent_type: "general-purpose",
+  prompt: wiringCartographerPrompt,
+  run_in_background: true
+})
+
+const activationPathfinderPrompt = `You are Activation Pathfinder -- a RESEARCH agent. Do not write implementation code.
+    Trace the activation & migration path for: ${safeFeature}.
+    Write findings to tmp/plans/{timestamp}/research/activation-path.md.
+    Claim the "Trace activation & migration path" task via TaskList/TaskUpdate.
+    See agents/research/activation-pathfinder.md for full instructions.
+
+    SELF-REVIEW (Inner Flame):
+    Before writing your output file, execute the Inner Flame Researcher checklist:
+    (Inline abbreviation of inner-flame/references/role-checklists.md — keep in sync)
+    - Verify all cited file paths exist (Glob)
+    - Re-read source files to confirm patterns you described
+    - Remove tangential findings that don't serve the research question
+    - Append Self-Review Log to your output file`
+
+if (artifactAvailable && agentRunDirs["activation-pathfinder"]) {
+  // SEC-001: Write prompt to temp file to avoid shell injection via feature content.
+  Write(`${agentRunDirs["activation-pathfinder"]}/input.md`, activationPathfinderPrompt)
+}
+
+Agent({
+  team_name: "rune-plan-{timestamp}",
+  name: "activation-pathfinder",
+  subagent_type: "general-purpose",
+  prompt: activationPathfinderPrompt,
+  run_in_background: true
+})
 ```
 
 ### Communication Protocol for Research Agents
 
-All research agents (repo-surveyor, echo-reader, git-miner, practice-seeker, lore-scholar, codex-researcher, flow-seer) follow this communication protocol:
+All research agents (repo-surveyor, echo-reader, git-miner, wiring-cartographer, activation-pathfinder, practice-seeker, lore-scholar, codex-researcher, flow-seer) follow this communication protocol:
 - **Heartbeat**: Send "Starting: {research action}" via SendMessage after claiming task. Optional mid-point for tasks >5 min.
 - **Seal**: On completion, TaskUpdate(completed) then SendMessage with Research Seal format (see team-sdk/references/seal-protocol.md).
 - **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
@@ -809,6 +868,8 @@ if (artifactAvailable) {
     "repo-surveyor": `tmp/plans/${timestamp}/research/repo-analysis.md`,
     "echo-reader": `tmp/plans/${timestamp}/research/past-echoes.md`,
     "git-miner": `tmp/plans/${timestamp}/research/git-history.md`,
+    "wiring-cartographer": `tmp/plans/${timestamp}/research/wiring-map.md`,
+    "activation-pathfinder": `tmp/plans/${timestamp}/research/activation-path.md`,
     "practice-seeker": `tmp/plans/${timestamp}/research/best-practices.md`,
     "lore-scholar": `tmp/plans/${timestamp}/research/framework-docs.md`,
     "codex-researcher": `tmp/plans/${timestamp}/research/codex-analysis.md`,
