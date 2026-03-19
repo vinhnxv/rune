@@ -9,7 +9,7 @@ use color_eyre::Result;
 
 use ratatui::widgets::ListState;
 
-use crate::monitor;
+use crate::monitor::{self, ActivityDetector, ActivityState};
 use crate::resource::{self, ProcessHealth, ResourceSnapshot};
 use crate::scanner::{ConfigDir, PlanFile};
 use crate::tmux::Tmux;
@@ -130,6 +130,8 @@ pub struct RunState {
     pub current_phase_started: Option<Instant>,  // Reset on phase change
     pub current_phase_name: Option<String>,       // Last known phase for change detection
     pub timeout_triggered_at: Option<Instant>,    // When SIGTERM was sent (grace period start)
+    /// Activity detector for multi-signal idle/stop detection (F3).
+    pub activity_detector: ActivityDetector,
 }
 
 impl RunState {
@@ -190,6 +192,8 @@ pub struct ArcStatus {
     // Resource monitoring
     pub resource: Option<ResourceSnapshot>,
     pub process_health: ProcessHealth,
+    /// Activity state from multi-signal detection (None if detector not initialized).
+    pub activity_state: Option<ActivityState>,
 }
 
 #[derive(Clone)]
@@ -907,6 +911,7 @@ impl App {
             current_phase_started: None,
             current_phase_name: None,
             timeout_triggered_at: None,
+            activity_detector: ActivityDetector::new(),
         });
 
         self.view = AppView::Running;
@@ -1231,6 +1236,7 @@ impl App {
             current_phase_started: None,
             current_phase_name: None,
             timeout_triggered_at: None,
+            activity_detector: ActivityDetector::new(),
         });
 
         // Reset poll timers
@@ -1351,7 +1357,9 @@ impl App {
             }
 
             // Combined stale detection: heartbeat staleness OR low-cpu process health
-            let is_stale = status.is_stale || proc_health == ProcessHealth::LowCpu;
+            let is_stale = status.is_stale
+                || proc_health == ProcessHealth::LowCpu
+                || proc_health == ProcessHealth::Idle;
 
             // Phase change detection — reset timeout timer on new phase
             {
@@ -1367,6 +1375,24 @@ impl App {
                     run.timeout_triggered_at = None; // clear any pending kill
                 }
             }
+
+            // Activity detection: update pane hash on 30s interval, then detect state
+            let activity_state = if run.activity_detector.should_check() {
+                let pane_hash = Tmux::capture_pane_hash(&run.tmux_session, 30);
+                let last_line = Tmux::capture_last_line(&run.tmux_session);
+                run.activity_detector.update_hash(pane_hash);
+                let cpu = res_snapshot.as_ref().map(|s| s.cpu_percent);
+                let process_found = proc_health != ProcessHealth::NotFound;
+                Some(run.activity_detector.detect(
+                    status.is_stale,
+                    cpu,
+                    process_found,
+                    last_line.as_deref(),
+                ))
+            } else {
+                // Between pane checks, reuse last known activity state
+                run.last_status.as_ref().and_then(|s| s.activity_state)
+            };
 
             // Convert monitor::ArcStatus to app::ArcStatus
             run.last_status = Some(ArcStatus {
@@ -1390,6 +1416,7 @@ impl App {
                 schema_warning: status.schema_warning,
                 resource: res_snapshot,
                 process_health: proc_health,
+                activity_state,
             });
         }
     }

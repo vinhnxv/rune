@@ -236,7 +236,6 @@ impl Tmux {
     }
 
     /// Capture pane output from a tmux session.
-    #[allow(dead_code)] // utility — used by torrent-cli, will be used by TUI monitor
     pub fn capture_pane(session_id: &str, lines: i32) -> Result<String> {
         let start = format!("-{}", lines);
         let output = Command::new("tmux")
@@ -245,6 +244,30 @@ impl Tmux {
             .map_err(|e| eyre!("capture-pane failed: {e}"))?;
 
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    }
+
+    /// Capture pane output and compute a hash for change detection.
+    ///
+    /// Returns `None` if the tmux session doesn't exist or capture fails.
+    /// Uses `DefaultHasher` (SipHash) — adequate for change detection, not security.
+    pub fn capture_pane_hash(session_id: &str, lines: i32) -> Option<u64> {
+        use std::hash::{Hash, Hasher};
+        let content = Self::capture_pane(session_id, lines).ok()?;
+        if content.is_empty() {
+            return None;
+        }
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        content.hash(&mut hasher);
+        Some(hasher.finish())
+    }
+
+    /// Capture the last non-empty line from a tmux pane.
+    ///
+    /// Used for input prompt detection (shell prompt, permission prompt, etc.).
+    /// Returns `None` if the session doesn't exist or the pane is empty.
+    pub fn capture_last_line(session_id: &str) -> Option<String> {
+        let content = Self::capture_pane(session_id, 5).ok()?;
+        content.lines().rev().find(|l| !l.trim().is_empty()).map(|s| s.to_string())
     }
 
     /// Get the PID of the process running in the tmux pane.

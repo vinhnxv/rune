@@ -32,6 +32,8 @@ pub enum ProcessHealth {
     Active,
     /// Process appears stale: low CPU + long uptime, but heartbeat may still be alive.
     LowCpu,
+    /// Process is idle: low CPU + stale heartbeat + no pane activity.
+    Idle,
     /// Process is not found (exited or PID reused).
     NotFound,
 }
@@ -41,6 +43,7 @@ impl ProcessHealth {
         match self {
             ProcessHealth::Active => "active",
             ProcessHealth::LowCpu => "low-cpu",
+            ProcessHealth::Idle => "idle",
             ProcessHealth::NotFound => "not-found",
         }
     }
@@ -218,6 +221,7 @@ mod tests {
     fn test_process_health_labels() {
         assert_eq!(ProcessHealth::Active.label(), "active");
         assert_eq!(ProcessHealth::LowCpu.label(), "low-cpu");
+        assert_eq!(ProcessHealth::Idle.label(), "idle");
         assert_eq!(ProcessHealth::NotFound.label(), "not-found");
     }
 
