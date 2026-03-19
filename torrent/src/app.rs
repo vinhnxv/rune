@@ -134,8 +134,9 @@ pub struct RunState {
     pub activity_detector: ActivityDetector,
     /// Adaptive grace duration computed once when merge is detected (F4).
     pub grace_duration: Option<Duration>,
-    /// Whether the operator requested to skip the grace period (F4).
-    pub grace_skip_requested: bool,
+    /// Fixed skip deadline — set once when 's' is pressed during grace (F4).
+    /// Stored as absolute Instant to avoid the recomputation bug (RUIN-007).
+    pub grace_skip_at: Option<Instant>,
 }
 
 impl RunState {
@@ -766,9 +767,11 @@ impl App {
             Action::SkipPlan => self.skip_current_plan(),
             Action::SkipGrace => {
                 if let Some(ref mut run) = self.current_run {
-                    if run.merge_detected_at.is_some() {
-                        run.grace_skip_requested = true;
-                        self.status_message = Some(" Grace skip requested (min 5s remaining)".into());
+                    if run.merge_detected_at.is_some() && run.grace_skip_at.is_none() {
+                        // Set fixed skip deadline: 5 seconds from now (RUIN-007 fix).
+                        // Stored as absolute Instant — not recomputed each tick.
+                        run.grace_skip_at = Some(Instant::now() + Duration::from_secs(5));
+                        self.status_message = Some(" Grace skip in 5s…".into());
                     }
                 }
             }
@@ -926,7 +929,7 @@ impl App {
             timeout_triggered_at: None,
             activity_detector: ActivityDetector::new(),
             grace_duration: None,
-            grace_skip_requested: false,
+            grace_skip_at: None,
         });
 
         self.view = AppView::Running;
@@ -1253,7 +1256,7 @@ impl App {
             timeout_triggered_at: None,
             activity_detector: ActivityDetector::new(),
             grace_duration: None,
-            grace_skip_requested: false,
+            grace_skip_at: None,
         });
 
         // Reset poll timers
@@ -1632,30 +1635,19 @@ impl App {
             return;
         };
 
-        // Handle skip request: reduce to minimum 5s from now
-        let effective_duration = if let Some(ref run) = self.current_run {
-            if run.grace_skip_requested {
-                if let Some(detected) = run.merge_detected_at {
-                    let elapsed = now.duration_since(detected);
-                    let min_remaining = Duration::from_secs(5);
-                    // Ensure at least 5s total, but don't extend beyond original grace
-                    let skip_duration = elapsed + min_remaining;
-                    if skip_duration < grace_duration { skip_duration } else { grace_duration }
-                } else {
-                    grace_duration
-                }
-            } else {
-                grace_duration
-            }
-        } else {
-            return;
-        };
+        // Handle skip: check if fixed skip deadline has passed (RUIN-007 fix).
+        // grace_skip_at is an absolute Instant set once — no recomputation drift.
+        let skip_triggered = self.current_run
+            .as_ref()
+            .and_then(|r| r.grace_skip_at)
+            .map(|deadline| now >= deadline)
+            .unwrap_or(false);
 
-        let should_complete = self
+        let should_complete = skip_triggered || self
             .current_run
             .as_ref()
             .and_then(|r| r.merge_detected_at)
-            .map(|detected| now.duration_since(detected) >= effective_duration)
+            .map(|detected| now.duration_since(detected) >= grace_duration)
             .unwrap_or(false);
 
         if should_complete {

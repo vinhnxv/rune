@@ -467,7 +467,7 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
         render_queue(frame, app, chunks[4]);
 
         // Status bar with grace-specific hint
-        let grace_status = if app.current_run.as_ref().map(|r| r.grace_skip_requested).unwrap_or(false) {
+        let grace_status = if app.current_run.as_ref().map(|r| r.grace_skip_at.is_some()).unwrap_or(false) {
             " Grace skip requested… [a] attach  [k] kill  [q] quit"
         } else {
             " [s] skip grace (min 5s)  [a] attach  [k] kill  [q] quit"
@@ -511,7 +511,7 @@ fn render_grace_countdown(frame: &mut Frame, app: &App, area: Rect) {
             .and_then(|s| s.resource.as_ref())
             .map(|r| r.child_count)
             .unwrap_or(0);
-        (elapsed, total, children, run.grace_skip_requested)
+        (elapsed, total, children, run.grace_skip_at.is_some())
     } else {
         return;
     };
