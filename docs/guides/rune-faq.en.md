@@ -25,8 +25,8 @@ Related guides:
 - Use `audit` for broader or deeper codebase scanning.
 
 ### 5) When should I use `/rune:arc`?
-Use Arc (end-to-end pipeline) when you want full automation (plan -> work -> review -> Mend (auto-fix findings) -> test -> ship/merge).
-If you need faster and cheaper iterations, run `/rune:plan -> /rune:work -> /rune:review`.
+Use Arc (end-to-end pipeline) when you want full automation (plan → work → review → Mend (auto-fix findings) → test → ship/merge).
+If you need faster and cheaper iterations, run `/rune:plan → /rune:work → /rune:review`.
 
 ## Workflow Operations
 

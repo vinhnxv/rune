@@ -32,7 +32,7 @@ What actually happened.
 
 ## Logs
 
-Run with tracing enabled and paste the relevant output:
+Run with tracing enabled and paste the relevant output. Trace logs are written to `/tmp/rune-hook-trace.log`.
 
 ```bash
 RUNE_TRACE=1 claude

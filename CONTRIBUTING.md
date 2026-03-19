@@ -21,7 +21,7 @@ Thank you for your interest in contributing to the Rune plugin! This guide will 
 1. Clone the repository:
    ```bash
    git clone https://github.com/vinhnxv/rune.git
-   cd rune-plugin
+   cd rune
    ```
 
 2. Run Claude Code with the plugin:

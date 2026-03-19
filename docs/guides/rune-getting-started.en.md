@@ -11,7 +11,7 @@ Rune is a multi-agent orchestration plugin for [Claude Code](https://claude.ai/c
 ## Quick Read (2 Minutes)
 
 - If you are new to Rune, read this guide from top to bottom.
-- If setup is done, jump to `Plan -> Work -> Review`.
+- If setup is done, jump to `Plan → Work → Review`.
 - If you want copy-paste command flows, use the [Quick Cheat Sheet](rune-quick-cheat-sheet.en.md).
 - If you want short answers to common questions, check [Rune FAQ](rune-faq.en.md).
 - If terms are unclear, see [Rune Glossary](rune-glossary.en.md).
@@ -287,7 +287,7 @@ Once you're comfortable with the basic workflow, explore these advanced commands
 
 | When you need... | Use |
 |-----------------|-----|
-| End-to-end pipeline — Arc (end-to-end pipeline) | `/rune:arc plans/...` |
+| Full automation — Arc (end-to-end pipeline) | `/rune:arc plans/...` |
 | Full codebase audit (not just your changes) | `/rune:audit` |
 | Enrich a plan with more detail | `/rune:forge plans/...` |
 | Impact analysis of your changes | `/rune:goldmask` |
