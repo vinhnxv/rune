@@ -41,7 +41,42 @@ _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && pri
 # Block C: jq dependency guard (fail-open) — sourced library needed first
 arc_guard_jq_required
 
-_trace "ENTER arc-phase-stop-hook.sh"
+# ── Hook timing telemetry (AC-3, AC-5) ──
+# Captures hook start time for per-section timing and budget guard (_jq_with_budget).
+_HOOK_START_EPOCH=$(date +%s)
+_FAST_PATH=false
+
+# ── CRASH RECOVERY: Detect if previous invocation was killed by timeout ──
+# Signal file written by _rune_fail_forward (ERR trap in arc-stop-hook-common.sh)
+_crash_signal="${TMPDIR:-/tmp}/rune-stop-hook-crash-${PPID}.txt"
+if [[ -f "$_crash_signal" && ! -L "$_crash_signal" ]]; then
+  _crash_age=$(( $(date +%s) - $(_stat_mtime "$_crash_signal" 2>/dev/null || echo 0) ))
+  if [[ "$_crash_age" -lt 60 ]]; then
+    _FAST_PATH=true
+    # Fast path: skip zombie cleanup, skip timing telemetry — phase finding always runs
+  fi
+  # Clean up old crash signal (>60s = stale)
+  [[ "$_crash_age" -gt 60 ]] && rm -f "$_crash_signal" 2>/dev/null || true
+fi
+
+_trace "ENTER arc-phase-stop-hook.sh (fast_path=${_FAST_PATH})"
+
+# ── Budget-aware jq wrapper (AC-3) ──
+# Guards jq calls against timeout budget exhaustion. Uses _HOOK_START_EPOCH
+# from timing telemetry (Task 4.1). 28s budget = 30s hook timeout - 2s safety margin.
+_jq_with_budget() {
+  local _budget_used=$(( $(date +%s) - ${_HOOK_START_EPOCH:-$(date +%s)} ))
+  local _budget_remaining=$(( 28 - _budget_used ))
+  if [[ "$_budget_remaining" -lt 2 ]]; then
+    _trace "TIMEOUT BUDGET EXHAUSTED at +${_budget_used}s — skipping jq operation"
+    return 1
+  fi
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$_budget_remaining" jq "$@"
+  else
+    jq "$@"
+  fi
+}
 
 # ── Diagnostic helper: always-on logging for critical failures ──
 # BUG FIX: _diag was called at line 298 but never defined, causing ERR trap
@@ -562,17 +597,38 @@ else
   _trace "WARNING: skip_map jq parse returned empty — proceeding without auto-skip"
 fi
 
-# ── Find next pending phase in PHASE_ORDER ──
+# ── Find next pending phase in PHASE_ORDER (AC-3: single-jq optimization) ──
+# PERF FIX: Replace per-phase jq forks (O(N) process forks) with single jq call.
+# Also extracts _IMMEDIATE_PREV for Tier 0 compact interlude (Task 1.4).
 NEXT_PHASE=""
-for phase in "${PHASE_ORDER[@]}"; do
-  phase_status=$(echo "$CKPT_CONTENT" | jq -r ".phases.${phase}.status // \"pending\"" 2>/dev/null || echo "pending")
-  if [[ "$phase_status" == "pending" ]]; then
-    NEXT_PHASE="$phase"
-    break
+_IMMEDIATE_PREV=""
+_phase_order_json=$(printf '%s\n' "${PHASE_ORDER[@]}" | jq -R -s 'split("\n") | map(select(length > 0))' 2>/dev/null)
+if [[ -n "$_phase_order_json" ]]; then
+  _phase_result=$(echo "$CKPT_CONTENT" | jq -r --argjson order "$_phase_order_json" '
+    .phases as $p |
+    { next: ($order | map(select(($p[.].status // "pending") == "pending")) | first) // "",
+      prev: ([$order[] | select(($p[.].status // "pending") != "pending")] | last) // "" }
+    | "\(.next)\t\(.prev)"
+  ' 2>/dev/null || true)
+  if [[ -n "$_phase_result" ]]; then
+    NEXT_PHASE="${_phase_result%%	*}"
+    _IMMEDIATE_PREV="${_phase_result#*	}"
   fi
-done
+fi
+# Fallback: original loop if jq approach fails
+if [[ -z "${NEXT_PHASE:-}" ]]; then
+  for phase in "${PHASE_ORDER[@]}"; do
+    phase_status=$(echo "$CKPT_CONTENT" | jq -r ".phases.${phase}.status // \"pending\"" 2>/dev/null || echo "pending")
+    if [[ "$phase_status" == "pending" ]]; then
+      NEXT_PHASE="$phase"
+      break
+    fi
+    _IMMEDIATE_PREV="$phase"
+  done
+fi
+_trace "TIMING: phase_find done at +$(( $(date +%s) - _HOOK_START_EPOCH ))s"
 
-_trace "Next pending phase: ${NEXT_PHASE:-NONE} (iteration ${ITERATION}, auto_skipped=${_auto_skipped})"
+_trace "Next pending phase: ${NEXT_PHASE:-NONE} (prev=${_IMMEDIATE_PREV:-NONE}, iteration ${ITERATION}, auto_skipped=${_auto_skipped})"
 
 # ── Log recently completed/skipped phases to phase-log.jsonl ──
 # Single jq call extracts all non-pending phase data at once (PERF: avoids N*5 jq calls).
@@ -793,20 +849,14 @@ _compact_reason=""
 # died because context was full, the bridge file was stale (>180s after 40min work phase),
 # so Tier 2 check failed open, and no compact was triggered.
 if [[ "$_needs_compact" == "false" ]] && [[ "$ITERATION" -gt 0 ]]; then
-  # Find the IMMEDIATELY preceding phase (the last non-pending phase before NEXT_PHASE).
-  # Only trigger if that immediate predecessor is a heavy phase — prevents re-triggering
-  # on every subsequent phase after the heavy one.
-  _immediate_prev=""
-  for _pp in "${PHASE_ORDER[@]}"; do
-    [[ "$_pp" == "$NEXT_PHASE" ]] && break
-    _pp_st=$(echo "$CKPT_CONTENT" | jq -r ".phases.${_pp}.status // \"pending\"" 2>/dev/null || echo "pending")
-    [[ "$_pp_st" != "pending" ]] && _immediate_prev="$_pp"
-  done
-  if [[ -n "$_immediate_prev" ]]; then
+  # PERF FIX (AC-3): Reuse _IMMEDIATE_PREV from phase finding loop (Task 1.2)
+  # instead of iterating PHASE_ORDER with per-phase jq calls.
+  # _IMMEDIATE_PREV is set during the single-jq phase finding above.
+  if [[ -n "${_IMMEDIATE_PREV:-}" ]]; then
     case " $HEAVY_PHASES " in
-      *" $_immediate_prev "*)
+      *" $_IMMEDIATE_PREV "*)
         _needs_compact="true"
-        _compact_reason="post-heavy phase: ${_immediate_prev} just completed"
+        _compact_reason="post-heavy phase: ${_IMMEDIATE_PREV} just completed"
         ;;
     esac
   fi
@@ -857,7 +907,8 @@ if [[ "$_needs_compact" == "true" ]] && [[ "$COMPACT_PENDING" != "true" ]] && [[
   fi
   _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { rm -f "$STATE_FILE" 2>/dev/null; exit 0; }
   if grep -q '^compact_pending:' "$STATE_FILE" 2>/dev/null; then
-    sed 's/^compact_pending: .*$/compact_pending: true/' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null
+    # AC-8: Use awk for safer YAML field replacement (handles trailing whitespace, missing newline)
+    awk '/^compact_pending:/ { print "compact_pending: true"; next } { print }' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null
   else
     awk 'NR>1 && /^---$/ && !done { print "compact_pending: true"; done=1 } { print }' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null
   fi
@@ -942,9 +993,26 @@ Present a brief summary of what was accomplished and STOP responding." >&2
     exit 2
   fi
   # Normal context-critical path (not after compact interlude)
-  _trace "Context critical — removing state file, allowing stop"
+  # BUG FIX (AC-4): Was exit 0 (silent arc death). Now exits 2 with notification
+  # so the user knows WHY the arc stopped and HOW to resume.
+  _trace "Context critical — removing state file, injecting resume notice"
   rm -f "$STATE_FILE" 2>/dev/null
-  exit 0
+  printf '%s\n' "Arc Pipeline — Context Critical (Pre-Compaction)
+
+The arc pipeline is pausing due to low context (≤25% remaining).
+The checkpoint has been preserved.
+
+**Arc ID:** ${ARC_ID:-unknown}
+**Current phase:** ${NEXT_PHASE}
+**Checkpoint preserved at:** ${CWD}/${CHECKPOINT_PATH}
+
+To resume this arc, run:
+\`\`\`
+/rune:arc --resume
+\`\`\`
+
+Present a brief summary of what was accomplished and STOP responding." >&2
+  exit 2
 fi
 
 # ── Increment iteration ──
@@ -1296,6 +1364,16 @@ ${PHASE_PROMPT}"
       >> "${_PHASE_LOG_DIR}/phase-log.jsonl" 2>/dev/null || true
   fi
 fi
+
+# ── Hook execution summary to phase-log.jsonl (AC-5) ──
+_HOOK_END_EPOCH=$(date +%s)
+_HOOK_DURATION=$(( _HOOK_END_EPOCH - _HOOK_START_EPOCH ))
+_log_phase "hook_execution" "${NEXT_PHASE}" \
+  "duration_s=${_HOOK_DURATION}" \
+  "fast_path=${_FAST_PATH}" \
+  "compact_triggered=${_needs_compact:-false}" \
+  "iteration=${NEW_ITERATION:-${ITERATION}}"
+_trace "TIMING: total hook duration ${_HOOK_DURATION}s"
 
 # ── Output phase prompt to stderr and exit 2 to continue conversation ──
 # Stop hook semantics: exit 0 = allow stop (stdout/stderr discarded).

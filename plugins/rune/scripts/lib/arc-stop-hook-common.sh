@@ -67,15 +67,22 @@ arc_setup_err_trap() {
     _rune_fail_forward() {
       local _err_line="${BASH_LINENO[0]:-?}"
       local _err_cmd="${BASH_COMMAND:-unknown}"
+      local _crash_script="${BASH_SOURCE[1]##*/}"  # [1] = caller, [0] = this function
+      local _crash_msg="ERR trap — fail-forward at ${_crash_script}:${_err_line} (cmd=${_err_cmd})"
       local _ffl="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u 2>/dev/null || echo 0).log}"
       if [[ -n "$_ffl" && ! -L "$_ffl" && ! -L "${_ffl%/*}" ]]; then
-        printf '[%s] arc-phase-stop: ERR trap — fail-forward activated (line %s cmd=%s)\n' \
+        printf '[%s] arc-phase-stop: %s\n' \
           "$(date +%H:%M:%S 2>/dev/null || true)" \
-          "$_err_line" "$_err_cmd" \
+          "$_crash_msg" \
           >> "$_ffl" 2>/dev/null
       fi
-      printf 'arc-phase-stop: ERR at line %s (cmd=%s) — fail-forward, allowing stop\n' \
-        "$_err_line" "$_err_cmd" >&2 2>/dev/null || true
+      # Write crash diagnostic to a signal file for observability (AC-5)
+      # Signal file enables crash recovery (Task 3.3) and session-team-hygiene.sh reporting
+      local _crash_signal="${TMPDIR:-/tmp}/rune-stop-hook-crash-${PPID}.txt"
+      printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)" "$_crash_msg" \
+        >> "$_crash_signal" 2>/dev/null || true
+      printf 'arc-phase-stop: %s — fail-forward, allowing stop\n' \
+        "$_crash_msg" >&2 2>/dev/null || true
       exit 0
     }
   else
