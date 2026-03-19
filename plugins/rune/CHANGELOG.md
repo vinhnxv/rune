@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [2.1.5] - 2026-03-19
+
+### Fixed
+- **strive**: Implement graceful degradation for file infrastructure Write() calls — wrap all 4 Write() sites and 3 mkdir calls in forge-team.md with try/catch (AC-8, RUIN-001)
+- **strive**: Convert SKILL.md verification gate from `throw` to `warn` — partial file creation no longer aborts the pipeline (RUIN-002)
+- **strive**: Sanitize task.description in YAML frontmatter to prevent content injection (RUIN-004)
+
 ## [2.1.4] - 2026-03-19
 
 ### Fixed
