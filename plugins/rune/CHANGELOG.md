@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-03-20
+
+### Added
+- **agents**: `wiring-cartographer` — maps integration points where new code connects to the existing system (entry points, layer architecture, registration patterns, dependency graph)
+- **agents**: `activation-pathfinder` — traces activation and migration paths for new features (file creation order, configuration changes, migration steps)
+- **devise**: Phase 1A now spawns both new research agents alongside repo-surveyor, echo-reader, and git-miner (up to 10 research agents total)
+- **devise**: Phase 2 (Synthesize) consolidates integration research into `## Integration & Wiring Map` plan section (Standard and Comprehensive detail levels)
+- **devise**: Phase 6 cleanup fallback array includes both new agents to prevent orphan processes
+- **cost-tier**: Research category updated from 5 to 7 agents
+
 ## [2.1.8] - 2026-03-19
 
 ### Added
