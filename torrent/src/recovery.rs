@@ -297,12 +297,24 @@ impl PostArcRecovery {
 ///
 /// The plan slug is typically the plan filename without the `.md` extension,
 /// e.g. `"2026-03-19-feat-auth-plan"`.
-pub fn resolve_expected_branch(plan_slug: &str, checkpoint: Option<&Checkpoint>) -> String {
-    // Tier 1: Checkpoint may have a branch field (via serde `default`).
-    // The Checkpoint struct doesn't currently have a `branch` field, so this
-    // is future-proofing for when arc records the branch name in checkpoints.
-    // For now, we skip directly to tier 2.
-    let _ = checkpoint; // Acknowledge param — checkpoint branch field not yet available.
+pub fn resolve_expected_branch(
+    plan_slug: &str,
+    checkpoint: Option<&Checkpoint>,
+    loop_state_branch: Option<&str>,
+) -> String {
+    // Tier 1: Arc loop state branch field (most reliable — set at arc init).
+    // The loop state file (.rune/arc-phase-loop.local.md) records the branch
+    // created by arc's branch strategy. The checkpoint itself doesn't have
+    // a branch field, but the loop state does.
+    if let Some(branch) = loop_state_branch {
+        if !branch.is_empty() {
+            return branch.to_string();
+        }
+    }
+
+    // Tier 1b: Check checkpoint's config_dir for active arc loop state.
+    // This is a fallback for when loop_state_branch is not passed.
+    let _ = checkpoint; // Checkpoint doesn't have branch field yet
 
     // Tier 2: Find existing local branch matching the plan slug.
     if let Some(branch) = find_branch_matching(plan_slug) {
@@ -641,7 +653,7 @@ mod tests {
 
     #[test]
     fn test_resolve_expected_branch_with_no_checkpoint() {
-        let branch = resolve_expected_branch("2026-03-19-feat-auth-plan", None);
+        let branch = resolve_expected_branch("2026-03-19-feat-auth-plan", None, None);
         // Should either find a matching local branch or generate one.
         assert!(
             branch.contains("2026-03-19-feat-auth-plan"),

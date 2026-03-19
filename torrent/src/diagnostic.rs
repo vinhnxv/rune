@@ -327,7 +327,7 @@ const SIMPLE_PATTERNS: &[DiagnosticPattern] = &[
             "skill not found",
         ],
         state: DiagnosticState::PluginMissing,
-        action: DiagnosticAction::SkipPlan,
+        action: DiagnosticAction::StopBatch,  // D4: plugin missing is global — all plans will fail
     },
     // D19: API overloaded (529)
     DiagnosticPattern {
@@ -524,7 +524,15 @@ impl DiagnosticEngine {
         self.last_process_seen = Some(Instant::now());
 
         // Check pane text for error patterns
-        self.match_patterns(&pane_text)
+        let mut result = self.match_patterns(&pane_text);
+
+        // D2: Pre-arc auth errors escalate to StopBatch (not KillAndRetryAuth).
+        // Mid-arc auth (D20) uses KillAndRetryAuth because the token may refresh,
+        // but pre-arc auth failure means the session can't start at all.
+        if matches!(result.state, DiagnosticState::ApiAuthError) {
+            result.action = DiagnosticAction::StopBatch;
+        }
+        result
     }
 
     /// Phase B: Bootstrap diagnostic check.
@@ -537,12 +545,27 @@ impl DiagnosticEngine {
         &mut self,
         session_id: &str,
         pane_pid: u32,
+        elapsed: Duration,
+        checkpoint_timeout: Duration,
     ) -> DiagnosticResult {
         let pane_text = Tmux::capture_pane(session_id, 100).unwrap_or_default();
         let claude_pid = Tmux::get_claude_pid(pane_pid);
 
         if claude_pid.is_some() {
             self.last_process_seen = Some(Instant::now());
+        }
+
+        // D6: Checkpoint timeout — no checkpoint after configured timeout
+        if elapsed >= checkpoint_timeout {
+            return DiagnosticResult {
+                state: DiagnosticState::CheckpointTimeout,
+                action: DiagnosticAction::Retry3xThenSkip,
+                pane_snapshot: pane_text,
+                matched_pattern: Some(format!(
+                    "checkpoint_timeout_{}s",
+                    checkpoint_timeout.as_secs()
+                )),
+            };
         }
 
         // Check for bootstrap-specific errors first (plan/plugin/permission)
@@ -583,7 +606,7 @@ impl DiagnosticEngine {
             if grace_expired {
                 return DiagnosticResult {
                     state: DiagnosticState::ClaudeCrashed,
-                    action: DiagnosticAction::GracePeriod,
+                    action: DiagnosticAction::RetrySession,
                     pane_snapshot: pane_text,
                     matched_pattern: Some("process_gone_after_grace".to_string()),
                 };
