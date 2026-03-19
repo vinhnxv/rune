@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [2.1.7] - 2026-03-19
+
+### Added
+- **hooks**: `detect-stale-lead.sh` Stop hook — wakes idle team lead when all teammates have completed (STALE-LEAD-001)
+- **hooks**: 4-method completion detection cascade (sentinel → count → TaskList → liveness) with session isolation and debounce
+- **hooks**: Method D liveness check — detects crashed teammates (no processes but tasks in_progress) and wakes lead with warning
+- **hooks**: Per-teammate status signals in `on-teammate-idle.sh` (`tmp/.rune-signals/{team}/status/`)
+- **hooks**: Failure alert signals in `on-task-completed.sh` (`tmp/.rune-signals/{team}/alerts/`)
+- **config**: `stale_lead_wakeup` talisman config section (enabled, debounce_seconds)
+
 ## [2.1.6] - 2026-03-19
 
 ### Fixed

@@ -223,4 +223,32 @@ if [[ "$DONE_COUNT" -ge "$EXPECTED" ]] && [[ ! -f "${SIGNAL_DIR}/.all-done" ]]; 
   _trace "WRITING all-done sentinel: ${SIGNAL_DIR}/.all-done"
 fi
 
+# ── Failure alert signal (STALE-LEAD-001) ──
+# Detect failed tasks by reading task file status from SDK task directory.
+# TaskCompleted fires for all completions — check actual status in task file.
+if [[ -n "${TEAM_NAME:-}" && -n "${TASK_ID:-}" ]]; then
+  _fa_chome="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  _fa_task_status=""
+  _fa_task_file="${_fa_chome}/tasks/${TEAM_NAME}/${TASK_ID}.json"
+  if [[ -f "$_fa_task_file" && ! -L "$_fa_task_file" ]]; then
+    _fa_task_status=$(jq -r '.status // empty' "$_fa_task_file" 2>/dev/null) || true
+  fi
+  # Also check for crash-detected marker (fail-forward trap writes this)
+  _fa_crash_marker="${SIGNAL_DIR}/${TASK_ID}.crash-detected"
+  if [[ "$_fa_task_status" == "failed" ]] || [[ -f "$_fa_crash_marker" ]]; then
+    _fa_alert_dir="${CWD}/tmp/.rune-signals/${TEAM_NAME}/alerts"
+    mkdir -p "$_fa_alert_dir" 2>/dev/null || true
+    jq -n \
+      --arg task "$TASK_ID" \
+      --arg owner "${TEAMMATE_NAME:-unknown}" \
+      --arg reason "${_fa_task_status:-crash}" \
+      --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      '{type: "task_failed", task: $task, owner: $owner, reason: $reason, timestamp: $ts}' \
+      > "${_fa_alert_dir}/failed-${TASK_ID}.json.tmp.$$" 2>/dev/null && \
+      mv -f "${_fa_alert_dir}/failed-${TASK_ID}.json.tmp.$$" \
+            "${_fa_alert_dir}/failed-${TASK_ID}.json" 2>/dev/null || true
+    _trace "ALERT: failure signal for task $TASK_ID (status: $_fa_task_status)"
+  fi
+fi
+
 exit 0

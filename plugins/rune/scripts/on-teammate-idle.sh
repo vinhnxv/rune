@@ -605,5 +605,28 @@ if [[ -d "$TASK_DIR" ]]; then
   fi
 fi
 
+# ── Layer 5: Per-teammate status signal (STALE-LEAD-001) ──
+# Write status JSON so detect-stale-lead.sh can assess team health.
+# Fail-forward: mkdir/jq/mv failures must not affect idle gate decision.
+if [[ -n "${TEAM_NAME:-}" && -n "${TEAMMATE_NAME:-}" ]]; then
+  _sl_status_dir="${CWD}/tmp/.rune-signals/${TEAM_NAME}/status"
+  mkdir -p "$_sl_status_dir" 2>/dev/null || true
+  _sl_outcome="idle"
+  # Check if teammate produced output (heuristic: task file exists with completed status)
+  if [[ -n "${TASK_DIR:-}" && -d "${TASK_DIR:-}" ]]; then
+    _sl_done_count=$(find "$TASK_DIR" -maxdepth 1 -name "*.json" -newer "${CWD}/tmp/.rune-signals/${TEAM_NAME}/.expected" 2>/dev/null | wc -l)
+    [[ "$_sl_done_count" -gt 0 ]] && _sl_outcome="done" 2>/dev/null || true
+  fi
+  jq -n \
+    --arg name "${TEAMMATE_NAME}" \
+    --arg outcome "$_sl_outcome" \
+    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '{teammate: $name, outcome: $outcome, timestamp: $ts}' \
+    > "${_sl_status_dir}/${TEAMMATE_NAME}.json.tmp.$$" 2>/dev/null && \
+    mv -f "${_sl_status_dir}/${TEAMMATE_NAME}.json.tmp.$$" \
+          "${_sl_status_dir}/${TEAMMATE_NAME}.json" 2>/dev/null || true
+  _trace "STATUS signal written for $TEAMMATE_NAME: $_sl_outcome"
+fi
+
 # All gates passed — allow idle
 exit 0

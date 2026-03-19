@@ -1178,6 +1178,13 @@ teammate_lifecycle:
     # Note: grace_period_seconds is only used in prompt-driven (orchestrator) cleanup.
     #       Hook-based cleanup uses only escalation_timeout_seconds.
 
+  # Stale Lead Wake-up (v2.1.7+)
+  # Stop hook detection for completed teammate teams.
+  # 4-method cascade: sentinel → count → task files → liveness.
+  stale_lead_wakeup:
+    enabled: true                    # Master toggle
+    debounce_seconds: 300            # Min seconds between wakes for same team
+
 # ──────────────────────────────────────────────
 # Doubt Seer — Evidence quality challenger (v1.61.0+)
 # ──────────────────────────────────────────────

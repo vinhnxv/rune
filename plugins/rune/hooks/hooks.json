@@ -558,6 +558,17 @@
         ]
       },
       {
+        "_rationale": "STALE-LEAD-001: Wakes idle team lead when all teammates have completed work. 4-method detection cascade (sentinel → count → TaskList files → liveness check). Debounced per team per session. OPERATIONAL — fail-forward. Runs AFTER arc phase loop (which handles its own wake-up) and BEFORE workflow complete cleanup.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/detect-stale-lead.sh",
+            "timeout": 10,
+            "statusMessage": "Checking for completed teammates..."
+          }
+        ]
+      },
+      {
         "_rationale": "CDX-7 hook-driven workflow boundary cleanup (Layer 5). Scans tmp/.rune-*.json state files for completed/failed/cancelled workflows with residual team dirs, and for orphan workflows whose owner PID is dead. Executes 2-stage SIGTERM→SIGKILL process escalation then filesystem cleanup. 30s timeout budget covers full escalation cycle. Runs before on-session-stop.sh so orphan detection does not re-trigger stop-hook loop.",
         "hooks": [
           {
