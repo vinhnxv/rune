@@ -141,6 +141,7 @@ pub enum ActivityState {
 
 impl ActivityState {
     /// Short label for logging and serialization.
+    #[allow(dead_code)]
     pub fn label(&self) -> &'static str {
         match self {
             ActivityState::Active => "active",
@@ -309,6 +310,7 @@ pub struct ArcStatus {
     /// Schema version warning — None if compatible, Some(msg) if outside tested range.
     pub schema_warning: Option<String>,
     /// Activity state from multi-signal detection (None if detector not initialized).
+    #[allow(dead_code)]
     pub activity_state: Option<ActivityState>,
 }
 

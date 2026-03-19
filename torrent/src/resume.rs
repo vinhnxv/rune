@@ -114,11 +114,13 @@ impl RetryStrategy {
     }
 
     /// Whether this failure should stop the entire batch (not just this plan).
+    #[allow(dead_code)]
     pub fn should_stop_batch(&self) -> bool {
         matches!(self, RetryStrategy::BillingError)
     }
 
     /// Whether this plan should be skipped immediately (no retry).
+    #[allow(dead_code)]
     pub fn should_skip_plan(&self) -> bool {
         matches!(self, RetryStrategy::SkipImmediate)
     }
