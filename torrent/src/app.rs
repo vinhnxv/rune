@@ -305,6 +305,8 @@ pub struct CompletedRun {
     pub result: ArcCompletion,
     pub duration: Duration,
     pub arc_id: Option<String>,
+    /// Restart events collected during this run (for F2 structured logging).
+    pub resume_restarts: Option<Vec<crate::log::RestartEvent>>,
 }
 
 #[derive(Debug, Clone)]
@@ -993,6 +995,7 @@ impl App {
                 },
                 duration,
                 arc_id,
+                resume_restarts: None,
             });
             self.tmux_session_id = None;
             // Clamp cursor after item count changed
@@ -1018,6 +1021,7 @@ impl App {
                 },
                 duration,
                 arc_id,
+                resume_restarts: None,
             });
         }
         self.tmux_session_id = None;
@@ -1576,10 +1580,17 @@ impl App {
             None => return,
         };
 
-        // Determine phase index from current phase name
+        // Determine phase index from current phase name.
+        // P1-001 FIX: Use a deterministic hash of the phase name so the same phase
+        // always maps to the same index. The previous approach (phase_retries.len())
+        // gave each retry a NEW index, defeating the per-phase retry budget.
         let phase_name = run.current_phase_name.clone().unwrap_or_default();
-        // Use a simple incrementing index based on total_restarts as fallback
-        let phase_index = resume_state.phase_retries.len() as u32;
+        let phase_index = {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            phase_name.hash(&mut h);
+            (h.finish() % 1000) as u32
+        };
 
         // Check if we should skip this plan
         if resume_state.should_skip(phase_index, max_resumes) {
@@ -1640,6 +1651,11 @@ impl App {
             &old_session, &cwd, &config.path, &self.claude_path
         ) {
             Ok(new_session_id) => {
+                // P1-002 FIX: Wait for Claude Code to initialize before sending command.
+                // Claude Code uses Ink (React-based TUI) which needs ~12s to start up.
+                // Without this wait, the /arc --resume command is lost.
+                std::thread::sleep(Duration::from_secs(12));
+
                 // Send /arc --resume
                 if let Err(e) = crate::tmux::Tmux::send_arc_resume_command(&new_session_id, &plan_path) {
                     self.status_message = Some(format!("Failed to send /arc --resume: {}", e));
@@ -1689,6 +1705,7 @@ impl App {
                 },
                 duration,
                 arc_id,
+                resume_restarts: None,
             });
         }
         self.tmux_session_id = None;
@@ -1811,11 +1828,27 @@ impl App {
 
                 let arc_id = run.arc_id();
                 let duration = run.arc_duration();
+                // P1-003 FIX: Collect restart events from ResumeState for F2 logging.
+                let resume_restarts = run.resume_state.as_ref().and_then(|rs| {
+                    if rs.total_restarts == 0 { return None; }
+                    let events: Vec<crate::log::RestartEvent> = rs.phase_retries.iter()
+                        .flat_map(|(&_idx, &count)| {
+                            (0..count).map(move |i| crate::log::RestartEvent {
+                                iteration: i,
+                                timestamp: rs.last_restart_at.unwrap_or_else(Utc::now),
+                                reason: rs.last_restart_reason.clone(),
+                            })
+                        })
+                        .take(crate::log::MAX_RESTARTS)
+                        .collect();
+                    if events.is_empty() { None } else { Some(events) }
+                });
                 let completed = CompletedRun {
                     plan: run.plan,
                     result,
                     duration,
                     arc_id,
+                    resume_restarts,
                 };
 
                 // Log the completed run to structured JSONL
@@ -1849,7 +1882,9 @@ impl App {
                         _ => None,
                     },
                     final_outcome: final_outcome.to_string(),
-                    restarts: vec![],
+                    // P1-003 FIX: Populate restarts from ResumeState instead of always empty.
+                    // AC6 requires all restart events in the structured JSONL log.
+                    restarts: completed.resume_restarts.clone().unwrap_or_default(),
                 };
                 if let Err(e) = crate::log::append_run_log(&entry) {
                     eprintln!("warning: failed to write run log: {}", e);
