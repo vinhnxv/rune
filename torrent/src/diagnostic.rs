@@ -244,6 +244,9 @@ struct DiagnosticPattern {
     state: DiagnosticState,
     /// Prescribed action when matched.
     action: DiagnosticAction,
+    /// If true, this pattern is only checked during bootstrap (pre-arc) phase.
+    /// Skipped during runtime checks to avoid false positives from normal tool output.
+    bootstrap_only: bool,
 }
 
 /// A pattern requiring co-occurrence: a numeric code AND an anchor string
@@ -283,6 +286,7 @@ const SIMPLE_PATTERNS: &[DiagnosticPattern] = &[
         ],
         state: DiagnosticState::BillingFailure,
         action: DiagnosticAction::StopBatch,
+        bootstrap_only: false,
     },
     // D3 + D20: Auth errors
     DiagnosticPattern {
@@ -300,6 +304,7 @@ const SIMPLE_PATTERNS: &[DiagnosticPattern] = &[
         ],
         state: DiagnosticState::ApiAuthError,
         action: DiagnosticAction::KillAndRetryAuth, // D20: maps to RetryStrategy::TokenAuth
+        bootstrap_only: false,
     },
     // D6: Permission blocked
     DiagnosticPattern {
@@ -312,20 +317,25 @@ const SIMPLE_PATTERNS: &[DiagnosticPattern] = &[
         ],
         state: DiagnosticState::PermissionBlocked,
         action: DiagnosticAction::RetrySession,
+        bootstrap_only: false,
     },
-    // D4: Plan not found
+    // D4: Plan not found — BOOTSTRAP ONLY
+    // These patterns should never trigger during runtime because by then the plan
+    // has already been loaded. Normal tool output (Read errors, file probes) can
+    // contain "plan not found"-like text that would cause false SkipPlan actions.
     DiagnosticPattern {
         name: "plan_not_found",
         patterns: &[
             "plan not found",
             "plan file not found",
-            "no such file",
-            "file not found",
+            "plan does not exist",
         ],
         state: DiagnosticState::PlanNotFound,
         action: DiagnosticAction::SkipPlan,
+        bootstrap_only: true,
     },
-    // D5: Plugin missing
+    // D5: Plugin missing — BOOTSTRAP ONLY
+    // Same reasoning: if plugin was loaded at bootstrap, it won't disappear mid-arc.
     DiagnosticPattern {
         name: "plugin_missing",
         patterns: &[
@@ -334,7 +344,8 @@ const SIMPLE_PATTERNS: &[DiagnosticPattern] = &[
             "skill not found",
         ],
         state: DiagnosticState::PluginMissing,
-        action: DiagnosticAction::StopBatch,  // D4: plugin missing is global — all plans will fail
+        action: DiagnosticAction::StopBatch,
+        bootstrap_only: true,
     },
     // D19: API overloaded (529)
     DiagnosticPattern {
@@ -346,6 +357,7 @@ const SIMPLE_PATTERNS: &[DiagnosticPattern] = &[
         ],
         state: DiagnosticState::ApiOverloaded,
         action: DiagnosticAction::KillAndCooldown,
+        bootstrap_only: false,
     },
     // D21: Rate limited
     DiagnosticPattern {
@@ -358,6 +370,7 @@ const SIMPLE_PATTERNS: &[DiagnosticPattern] = &[
         ],
         state: DiagnosticState::RateLimited,
         action: DiagnosticAction::Retry3xThenSkip,
+        bootstrap_only: false,
     },
     // D24: Network errors
     DiagnosticPattern {
@@ -375,6 +388,7 @@ const SIMPLE_PATTERNS: &[DiagnosticPattern] = &[
         ],
         state: DiagnosticState::NetworkError,
         action: DiagnosticAction::KillAndCooldown,
+        bootstrap_only: false,
     },
     // D22: Request too large
     DiagnosticPattern {
@@ -387,6 +401,7 @@ const SIMPLE_PATTERNS: &[DiagnosticPattern] = &[
         ],
         state: DiagnosticState::RequestTooLarge,
         action: DiagnosticAction::SkipPlan,
+        bootstrap_only: false,
     },
     // D23: Service unavailable
     DiagnosticPattern {
@@ -399,6 +414,7 @@ const SIMPLE_PATTERNS: &[DiagnosticPattern] = &[
         ],
         state: DiagnosticState::ServiceUnavailable,
         action: DiagnosticAction::KillAndCooldown,
+        bootstrap_only: false,
     },
 ];
 
@@ -530,8 +546,8 @@ impl DiagnosticEngine {
 
         self.last_process_seen = Some(Instant::now());
 
-        // Check pane text for error patterns
-        let mut result = self.match_patterns(&pane_text);
+        // Check pane text for error patterns (bootstrap — include all patterns)
+        let mut result = self.match_patterns(&pane_text, false);
 
         // D2: Pre-arc auth errors escalate to StopBatch (not KillAndRetryAuth).
         // Mid-arc auth (D20) uses KillAndRetryAuth because the token may refresh,
@@ -575,9 +591,9 @@ impl DiagnosticEngine {
             };
         }
 
-        // Check for bootstrap-specific errors first (plan/plugin/permission)
-        // then fall through to general pattern matching
-        self.match_patterns(&pane_text)
+        // Check for bootstrap-specific errors (plan/plugin/permission)
+        // then fall through to general pattern matching (bootstrap — include all patterns)
+        self.match_patterns(&pane_text, false)
     }
 
     /// Phase C: Runtime diagnostic check.
@@ -628,21 +644,29 @@ impl DiagnosticEngine {
             }
         }
 
-        // Process is alive — check pane text for error patterns
-        self.match_patterns(&pane_text)
+        // Process is alive — check pane text for runtime-safe error patterns only
+        self.match_patterns(&pane_text, true)
     }
 
     /// Match pane text against the pattern registry in priority order.
     ///
+    /// When `runtime` is true, patterns marked `bootstrap_only` are skipped.
+    /// This prevents false positives from normal tool output during arc execution
+    /// (e.g., D4 "plan not found" from a Read error mid-arc).
+    ///
     /// Evaluation order:
-    /// 1. Simple patterns (billing > auth > permission > plan > plugin > overload > rate-limit > network > request > service)
+    /// 1. Simple patterns (billing > auth > permission > [plan > plugin if !runtime] > overload > rate-limit > network > request > service)
     /// 2. Anchored patterns (numeric HTTP codes requiring co-occurrence with error strings)
     /// 3. If no match → Healthy
-    fn match_patterns(&self, pane_text: &str) -> DiagnosticResult {
+    fn match_patterns(&self, pane_text: &str, runtime: bool) -> DiagnosticResult {
         let lower = pane_text.to_lowercase();
 
         // 1. Simple pattern matching — priority order from SIMPLE_PATTERNS
         for pattern in SIMPLE_PATTERNS {
+            // Skip bootstrap-only patterns during runtime checks
+            if runtime && pattern.bootstrap_only {
+                continue;
+            }
             for &needle in pattern.patterns {
                 if lower.contains(needle) {
                     return DiagnosticResult {
@@ -700,10 +724,16 @@ impl DiagnosticEngine {
 mod tests {
     use super::*;
 
-    // Helper: run match_patterns directly without process checks
+    // Helper: run match_patterns in bootstrap mode (all patterns active)
     fn match_text(text: &str) -> DiagnosticResult {
         let engine = DiagnosticEngine::new();
-        engine.match_patterns(text)
+        engine.match_patterns(text, false)
+    }
+
+    // Helper: run match_patterns in runtime mode (bootstrap_only patterns skipped)
+    fn match_text_runtime(text: &str) -> DiagnosticResult {
+        let engine = DiagnosticEngine::new();
+        engine.match_patterns(text, true)
     }
 
     // ── Billing (D17) ──
@@ -752,6 +782,48 @@ mod tests {
         let result = match_text("Error: plan not found at plans/missing.md");
         assert_eq!(result.state, DiagnosticState::PlanNotFound);
         assert_eq!(result.action, DiagnosticAction::SkipPlan);
+    }
+
+    #[test]
+    fn test_plan_does_not_exist_detected() {
+        let result = match_text("plan does not exist: plans/missing.md");
+        assert_eq!(result.state, DiagnosticState::PlanNotFound);
+    }
+
+    #[test]
+    fn test_generic_no_such_file_is_not_plan_not_found() {
+        // Generic "no such file" from tool errors (e.g. Read) must NOT trigger PlanNotFound
+        let result = match_text("Read tool error: /src/foo.ts: no such file or directory");
+        assert_ne!(result.state, DiagnosticState::PlanNotFound);
+    }
+
+    #[test]
+    fn test_generic_file_not_found_is_not_plan_not_found() {
+        let result = match_text("Error: file not found /src/missing.rs");
+        assert_ne!(result.state, DiagnosticState::PlanNotFound);
+    }
+
+    #[test]
+    fn test_plan_not_found_skipped_during_runtime() {
+        // D4 is bootstrap_only — must NOT trigger during runtime checks (mid-arc)
+        let result = match_text_runtime("Error: plan not found at plans/missing.md");
+        assert_ne!(result.state, DiagnosticState::PlanNotFound);
+        assert_eq!(result.state, DiagnosticState::Healthy);
+    }
+
+    #[test]
+    fn test_plugin_missing_skipped_during_runtime() {
+        // D5 is bootstrap_only — must NOT trigger during runtime checks (mid-arc)
+        let result = match_text_runtime("skill not found: rune:arc");
+        assert_ne!(result.state, DiagnosticState::PluginMissing);
+        assert_eq!(result.state, DiagnosticState::Healthy);
+    }
+
+    #[test]
+    fn test_api_errors_still_detected_during_runtime() {
+        // API errors (D17-D24) must still be caught during runtime
+        let result = match_text_runtime("overloaded_error: API is overloaded");
+        assert_eq!(result.state, DiagnosticState::ApiOverloaded);
     }
 
     // ── API overload (D19) ──
