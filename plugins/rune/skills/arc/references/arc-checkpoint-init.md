@@ -298,7 +298,8 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
   }
 
   // ── QA gate phase skip propagation ──
-  const QA_GATED_PHASES = ['forge', 'work', 'code_review', 'mend', 'test', 'gap_analysis']
+  // QUAL-001 FIX: Order matches PHASE_ORDER canonical sequence
+  const QA_GATED_PHASES = ['forge', 'work', 'gap_analysis', 'code_review', 'mend', 'test']
   // readTalismanSection: "gates"
   const gatesConfig = readTalismanSection("gates") ?? {}
   const qaEnabled = gatesConfig?.qa_gates?.enabled !== false  // default: true
