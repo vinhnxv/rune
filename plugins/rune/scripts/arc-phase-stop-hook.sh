@@ -656,7 +656,8 @@ if [[ "${_IMMEDIATE_PREV:-}" == *_qa ]]; then
     [[ -z "$_qa_verdict" ]] && _qa_verdict="UNKNOWN"
 
     # Read retry count from CHECKPOINT (not verdict file — verdict is per-run)
-    _qa_retries=$(echo "$CKPT_CONTENT" | jq -r ".phases.${_IMMEDIATE_PREV}.retry_count // 0" 2>/dev/null)
+    # SEC-001 FIX: Use --arg instead of shell interpolation for jq filter (defense-in-depth)
+    _qa_retries=$(echo "$CKPT_CONTENT" | jq -r --arg p "$_IMMEDIATE_PREV" '.phases[$p].retry_count // 0' 2>/dev/null)
     [[ "$_qa_retries" =~ ^[0-9]+$ ]] || _qa_retries=0
     _qa_global=$(echo "$CKPT_CONTENT" | jq -r '.qa.global_retry_count // 0' 2>/dev/null)
     [[ "$_qa_global" =~ ^[0-9]+$ ]] || _qa_global=0
@@ -693,7 +694,8 @@ if [[ "${_IMMEDIATE_PREV:-}" == *_qa ]]; then
 
   elif [[ ! -f "$_qa_verdict_file" ]]; then
     # Missing verdict file — QA agent crashed. Treat as score 0, trigger retry.
-    _qa_retries=$(echo "$CKPT_CONTENT" | jq -r ".phases.${_IMMEDIATE_PREV}.retry_count // 0" 2>/dev/null)
+    # SEC-001 FIX: Use --arg instead of shell interpolation for jq filter (defense-in-depth)
+    _qa_retries=$(echo "$CKPT_CONTENT" | jq -r --arg p "$_IMMEDIATE_PREV" '.phases[$p].retry_count // 0' 2>/dev/null)
     [[ "$_qa_retries" =~ ^[0-9]+$ ]] || _qa_retries=0
     _qa_global=$(echo "$CKPT_CONTENT" | jq -r '.qa.global_retry_count // 0' 2>/dev/null)
     [[ "$_qa_global" =~ ^[0-9]+$ ]] || _qa_global=0
