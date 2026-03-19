@@ -2,6 +2,7 @@ mod app;
 mod checkpoint;
 mod keybindings;
 mod lock;
+pub mod log;
 mod monitor;
 mod resource;
 mod scanner;
@@ -245,6 +246,11 @@ fn main() -> Result<()> {
 
     // Restore terminal (disable raw mode + leave alternate screen)
     ratatui::restore();
+
+    // Write structured batch summary to JSONL log
+    if let Err(e) = crate::log::write_batch_summary(&app.completed_runs) {
+        eprintln!("warning: failed to write batch summary log: {}", e);
+    }
 
     // Print summary to stdout
     app.print_quit_summary();

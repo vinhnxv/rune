@@ -1566,12 +1566,39 @@ impl App {
                 };
                 let arc_id = run.arc_id();
                 let duration = run.arc_duration();
-                self.completed_runs.push(CompletedRun {
+                let completed = CompletedRun {
                     plan: run.plan,
                     result,
                     duration,
                     arc_id,
-                });
+                };
+
+                // Log the completed run to structured JSONL
+                let (status, urgency) = crate::log::classify_completion(&completed.result);
+                let entry = crate::log::RunLogEntry {
+                    timestamp: Utc::now(),
+                    plan_name: completed.plan.name.clone(),
+                    arc_id: completed.arc_id.clone(),
+                    status,
+                    urgency,
+                    duration_secs: completed.duration.as_secs(),
+                    pr_url: match &completed.result {
+                        ArcCompletion::Merged { pr_url } | ArcCompletion::Shipped { pr_url } => {
+                            pr_url.clone()
+                        }
+                        _ => None,
+                    },
+                    error: match &completed.result {
+                        ArcCompletion::Failed { reason } => Some(reason.clone()),
+                        _ => None,
+                    },
+                    restarts: vec![],
+                };
+                if let Err(e) = crate::log::append_run_log(&entry) {
+                    eprintln!("warning: failed to write run log: {}", e);
+                }
+
+                self.completed_runs.push(completed);
 
                 // Clamp queue cursor after item count changed
                 let total = self.queue_total_items();

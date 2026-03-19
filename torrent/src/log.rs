@@ -10,7 +10,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// Maximum number of restart events recorded per log entry.
-const MAX_RESTARTS: usize = 10;
+pub const MAX_RESTARTS: usize = 10;
 
 /// Log rotation threshold in bytes (10 MB).
 const ROTATION_THRESHOLD: u64 = 10 * 1024 * 1024;
@@ -137,7 +137,7 @@ pub fn append_run_log(entry: &RunLogEntry) -> std::io::Result<()> {
 ///
 /// Aggregates counts and durations, determines worst urgency tier,
 /// and appends the summary as a JSON line to `batch.jsonl`.
-pub fn write_batch_summary(runs: &[super::CompletedRun]) -> std::io::Result<()> {
+pub fn write_batch_summary(runs: &[crate::app::CompletedRun]) -> std::io::Result<()> {
     if runs.is_empty() {
         return Ok(());
     }
@@ -190,8 +190,8 @@ pub fn write_batch_summary(runs: &[super::CompletedRun]) -> std::io::Result<()> 
 }
 
 /// Maps an `ArcCompletion` variant to a `(RunStatus, UrgencyTier)` pair.
-pub fn classify_completion(result: &super::ArcCompletion) -> (RunStatus, UrgencyTier) {
-    use super::ArcCompletion;
+pub fn classify_completion(result: &crate::app::ArcCompletion) -> (RunStatus, UrgencyTier) {
+    use crate::app::ArcCompletion;
     match result {
         ArcCompletion::Merged { .. } => (RunStatus::Completed, UrgencyTier::Green),
         ArcCompletion::Shipped { .. } => (RunStatus::Completed, UrgencyTier::Green),
