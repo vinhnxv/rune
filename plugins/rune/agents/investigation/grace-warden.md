@@ -94,6 +94,45 @@ For each requirement:
 - Use Glob to find files matching expected paths
 - Read candidate files to verify they implement the requirement
 
+### Step 2.5 — Wiring Map Verification (conditional)
+
+If the plan contains `## Integration & Wiring Map`, parse and verify each sub-section:
+
+**Entry Points table**:
+- For each row: Glob for `New Code Target` → must exist
+- For each row: Check if `Existing File` appears in the git diff
+- Status: COMPLETE (both exist + modified), PARTIAL (file exists, not modified), MISSING (target doesn't exist)
+
+**Existing File Modifications table**:
+- For each row: Check if `File` appears in the git diff
+- If in diff: Grep for the expected `Modification` pattern (e.g., "import", "register", "app.use")
+- Status: COMPLETE (in diff + pattern found), PARTIAL (in diff, pattern unclear), MISSING (not in diff)
+
+**Registration & Discovery list**:
+- For each non-"N/A" entry: Grep for the described pattern in the codebase
+- Status: COMPLETE (pattern found), MISSING (pattern not found)
+
+**Layer Traversal table**:
+- For "modify" rows: Check file is in git diff
+- For new file rows: Check file exists via Glob
+
+**Finding format**:
+- **Finding ID**: `WIRE-NNN` prefix (alongside existing GRACE- prefix)
+- Include in Requirement Matrix alongside REQ- entries
+- Count toward overall completion percentage
+- **Confidence**: LIKELY for table-parsed entries, PROVEN only when verified via Grep
+- **Category**: `wiring`
+
+**Status mapping**:
+- `COMPLETE`: Wiring entry verified — file modified, pattern found
+- `PARTIAL`: File exists but modification doesn't match expected change type
+- `MISSING`: Planned wiring not found — file not modified or pattern absent
+- `DEVIATED`: Different wiring approach used (may be intentional)
+
+**Skip condition**: If plan has no `## Integration & Wiring Map` section, skip Step 2.5 entirely.
+Do NOT report this as a gap — the section is optional for Minimal plans and plans
+created before this feature was added.
+
 ### Step 3 — Assess Completion Status
 
 For each requirement, assign:
@@ -117,7 +156,7 @@ Beyond completeness, check for logic errors:
 For each finding, assign:
 - **Priority**: P1 (blocks functionality) / P2 (degraded behavior) / P3 (minor gap)
 - **Confidence**: 0.0-1.0 (evidence strength)
-- **Category**: `correctness` or `coverage`
+- **Category**: `correctness`, `coverage`, or `wiring`
 
 ## Output Format
 
@@ -137,6 +176,8 @@ Write findings to the designated output file:
 | REQ-001 | {text} | COMPLETE | 100% | `{file}:{line}` |
 | REQ-002 | {text} | PARTIAL | 60% | `{file}:{line}` — missing: {what} |
 | REQ-003 | {text} | MISSING | 0% | No matching code found |
+| WIRE-001 | {wiring entry} | COMPLETE | 100% | File modified, pattern found |
+| WIRE-002 | {wiring entry} | MISSING | 0% | File not in diff |
 
 ## Dimension Scores
 

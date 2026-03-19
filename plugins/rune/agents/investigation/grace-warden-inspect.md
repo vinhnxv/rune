@@ -98,6 +98,39 @@ For each requirement, determine:
 | MISSING (0%) | No evidence found after thorough search |
 | DEVIATED (50%) | Code works but differs from plan — explain how |
 
+### Wiring Map Verification (conditional)
+
+If the plan contains `## Integration & Wiring Map`, parse and verify each sub-section.
+This step runs AFTER the standard requirement assessment and produces `WIRE-NNN` findings.
+
+**Entry Points table**:
+- For each row: Glob for `New Code Target` → must exist
+- For each row: Check if `Existing File` appears in the git diff (from `inspect-context.json`)
+- Status: COMPLETE (both exist + modified), PARTIAL (file exists, not modified), MISSING (target doesn't exist)
+
+**Existing File Modifications table**:
+- For each row: Check if `File` appears in the git diff
+- If in diff: Grep for the expected `Modification` pattern
+- Status: COMPLETE (in diff + pattern found), PARTIAL (in diff, pattern unclear), MISSING (not in diff)
+
+**Registration & Discovery list**:
+- For each non-"N/A" entry: Grep for the described pattern in the codebase
+- Status: COMPLETE (pattern found), MISSING (pattern not found)
+
+**Layer Traversal table**:
+- For "modify" rows: Check file is in git diff
+- For new file rows: Check file exists via Glob
+
+**Finding format**:
+- **Finding ID**: `WIRE-NNN` prefix
+- Include in Requirement Matrix alongside REQ- entries
+- Count toward overall completion percentage
+- **Confidence**: LIKELY for table-parsed entries, PROVEN only when verified via Grep
+- **Category**: `wiring`
+
+**Skip condition**: If plan has no `## Integration & Wiring Map` section, skip entirely.
+Do NOT report this as a gap — the section is optional.
+
 ### Sub-Classification Taxonomy
 
 Each status has sub-classifications with adjusted scores and evidence requirements.

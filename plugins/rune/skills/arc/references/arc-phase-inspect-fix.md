@@ -42,7 +42,9 @@ updateCheckpoint({ phase: 'inspect_fix', status: 'in_progress', phase_sequence: 
 ```javascript
 // Parse VERDICT.md for FIXABLE gaps
 // Gap categories from verdict-binder: correctness, coverage, test, observability,
-// security, operational, performance, maintainability
+// security, operational, performance, maintainability, wiring
+// NOTE: wiring gaps (WIRE- prefix) are NOT auto-fixable — they are excluded by the
+// fixable="true" filter below, but if any slip through, gap-fixer skips them.
 const gapMarkers = verdictContent.match(/<!-- GAP:[^>]*fixable="true"[^>]*-->/g) || []
 const allParsedGaps = gapMarkers.map(marker => {
   const idMatch = marker.match(/id="([^"]+)"/)

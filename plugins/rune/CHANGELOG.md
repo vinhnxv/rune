@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added
+- **arc**: Wiring Map Verification — arc review pipeline now verifies `## Integration & Wiring Map` plan section during inspect (Phase 5.9), gap analysis, and code review (Phase 6)
+- **agents**: `grace-warden` and `grace-warden-inspect` gain Step 2.5 Wiring Map Verification — checks Entry Points, Existing File Modifications, Registration & Discovery, and Layer Traversal tables
+- **agents**: `WIRE-NNN` finding prefix for wiring verification findings (alongside existing GRACE-, RUIN-, SIGHT-, VIGIL- prefixes)
+- **agents**: `verdict-binder` 9th gap category: `wiring` (WIRE- prefix, NOT auto-fixable)
+- **arc**: `arc-phase-inspect.md` STEP 1.5 extracts wiring map requirements into inspector context
+- **arc**: `arc-phase-code-review.md` STEP 1.7 injects wiring map as advisory context for review agents
+
+### Changed
+- **agents**: Gap categories expanded from 8 to 9 across verdict-binder, gap-fixer, inspect-scoring, verdict-synthesis, inspect SKILL.md
+- **agents**: Finding dedup priority order updated: GRACE > WIRE > RUIN > SIGHT > VIGIL
+
 ## [2.1.8] - 2026-03-19
 
 ### Added

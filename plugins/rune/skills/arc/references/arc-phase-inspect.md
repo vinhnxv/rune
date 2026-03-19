@@ -56,6 +56,30 @@ const inspectorContext = {
   focus: focusScope,
 }
 
+// STEP 1.5: Extract wiring map requirements for inspector context (v2.2.0+)
+// When the plan contains `## Integration & Wiring Map`, parse the tables and inject
+// into inspectorContext so grace-warden-inspect can verify wiring completeness.
+let wiringRequirements = null
+const wiringMatch = planContent.match(/## Integration & Wiring Map([\s\S]*?)(?=\n## [^#]|\n---|\Z)/)
+if (wiringMatch) {
+  // parseMarkdownTable: regex-based table parser — extracts rows as objects from named subsection
+  // parseRegistrationList: extracts bullet points matching `- **text**: description`
+  wiringRequirements = {
+    entry_points: parseMarkdownTable(wiringMatch[1], 'Entry Points'),
+    existing_modifications: parseMarkdownTable(wiringMatch[1], 'Existing File Modifications'),
+    layer_traversal: parseMarkdownTable(wiringMatch[1], 'Layer Traversal'),
+    registration: parseRegistrationList(wiringMatch[1]),
+  }
+  // Inject into inspector context so grace-warden can verify
+  inspectorContext.wiring_requirements = wiringRequirements
+  log(`Wiring map detected: ${wiringRequirements.entry_points.length} entry points, ` +
+    `${wiringRequirements.existing_modifications.length} file modifications, ` +
+    `${wiringRequirements.layer_traversal.length} layer traversals`)
+}
+// Gap categories: correctness, coverage, test, observability,
+//                 security, operational, performance, maintainability,
+//                 wiring  // NEW (v2.2.0) — from grace-warden WIRE- findings
+
 Bash(`mkdir -p "tmp/arc/${id}"`)
 Write(`tmp/arc/${id}/inspect-context.json`, JSON.stringify(inspectorContext))
 ```
