@@ -109,9 +109,22 @@ pub struct BatchSummary {
 /// Returns the log directory path.
 ///
 /// Checks `TORRENT_LOG_DIR` env var first, defaults to `.torrent/logs`.
+/// Rejects paths containing `..` components to prevent path traversal.
 pub fn log_dir() -> PathBuf {
     if let Ok(dir) = std::env::var("TORRENT_LOG_DIR") {
-        PathBuf::from(dir)
+        let path = PathBuf::from(&dir);
+        // Reject paths with ".." components to prevent traversal attacks
+        // (e.g., TORRENT_LOG_DIR=../../etc in CI/CD environments)
+        for component in path.components() {
+            if component == std::path::Component::ParentDir {
+                eprintln!(
+                    "warning: TORRENT_LOG_DIR contains '..', ignoring: {}",
+                    dir
+                );
+                return PathBuf::from(".torrent/logs");
+            }
+        }
+        path
     } else {
         PathBuf::from(".torrent/logs")
     }
@@ -141,7 +154,11 @@ pub fn append_run_log(entry: &RunLogEntry) -> std::io::Result<()> {
     // Single write_all call for atomicity on most filesystems
     file.write_all(format!("{}\n", json).as_bytes())?;
 
-    rotate_if_needed(&path)?;
+    // Rotation failure is non-fatal — the entry was already written successfully.
+    // Log a warning but don't propagate the error to callers.
+    if let Err(e) = rotate_if_needed(&path) {
+        eprintln!("warning: log rotation failed for {}: {}", path.display(), e);
+    }
     Ok(())
 }
 
@@ -197,7 +214,10 @@ pub fn write_batch_summary(runs: &[crate::app::CompletedRun]) -> std::io::Result
 
     file.write_all(format!("{}\n", json).as_bytes())?;
 
-    rotate_if_needed(&path)?;
+    // Rotation failure is non-fatal — the summary was already written successfully.
+    if let Err(e) = rotate_if_needed(&path) {
+        eprintln!("warning: log rotation failed for {}: {}", path.display(), e);
+    }
     Ok(())
 }
 
@@ -226,28 +246,38 @@ fn urgency_rank(tier: &UrgencyTier) -> u8 {
 ///
 /// Keeps up to 5 rotated files: `runs.jsonl.1` (newest) through
 /// `runs.jsonl.5` (oldest). Files beyond `.5` are discarded.
+/// Uses `symlink_metadata` to avoid following symlinks (SEC-002).
+/// Uses `OsString` path manipulation to handle non-UTF-8 paths (BACK-003).
 fn rotate_if_needed(path: &Path) -> std::io::Result<()> {
-    let metadata = match fs::metadata(path) {
+    let metadata = match fs::symlink_metadata(path) {
         Ok(m) => m,
         Err(_) => return Ok(()),
     };
+
+    // Refuse to rotate symlinks to prevent symlink attacks
+    if metadata.file_type().is_symlink() {
+        return Ok(());
+    }
 
     if metadata.len() < ROTATION_THRESHOLD {
         return Ok(());
     }
 
     // Shift existing rotated files: .4→.5, .3→.4, .2→.3, .1→.2
-    let path_str = path.to_string_lossy();
+    // Use OsString to preserve non-UTF-8 path components
     for i in (1..MAX_ROTATIONS).rev() {
-        let from = format!("{}.{}", path_str, i);
-        let to = format!("{}.{}", path_str, i + 1);
+        let mut from = path.as_os_str().to_os_string();
+        from.push(format!(".{}", i));
+        let mut to = path.as_os_str().to_os_string();
+        to.push(format!(".{}", i + 1));
         if Path::new(&from).exists() {
             fs::rename(&from, &to)?;
         }
     }
 
     // Move current file to .1
-    let rotated = format!("{}.1", path_str);
+    let mut rotated = path.as_os_str().to_os_string();
+    rotated.push(".1");
     fs::rename(path, &rotated)?;
 
     Ok(())

@@ -1564,6 +1564,15 @@ impl App {
                 } else {
                     ArcCompletion::Merged { pr_url: None }
                 };
+                // Extract phase data and config dir before consuming `run`
+                let (phases_completed, phases_total, phases_skipped) =
+                    run.last_status.as_ref()
+                        .map(|s| (s.phase_summary.completed, s.phase_summary.total, s.phase_summary.skipped))
+                        .unwrap_or((0, 0, 0));
+                let config_dir = self.config_dirs.get(run.config_idx)
+                    .map(|c| c.path.display().to_string())
+                    .unwrap_or_else(|| "~/.claude".to_string());
+
                 let arc_id = run.arc_id();
                 let duration = run.arc_duration();
                 let completed = CompletedRun {
@@ -1585,18 +1594,13 @@ impl App {
                     timestamp: Utc::now(),
                     plan: completed.plan.name.clone(),
                     plan_file: completed.plan.path.display().to_string(),
-                    config_dir: std::env::var("CLAUDE_CONFIG_DIR")
-                        .unwrap_or_else(|_| {
-                            dirs::home_dir()
-                                .map(|h| h.join(".claude").display().to_string())
-                                .unwrap_or_else(|| "~/.claude".to_string())
-                        }),
+                    config_dir,
                     arc_id: completed.arc_id.clone(),
                     status,
                     urgency,
-                    phases_completed: 0,
-                    phases_total: 0,
-                    phases_skipped: 0,
+                    phases_completed,
+                    phases_total,
+                    phases_skipped,
                     wallclock_seconds: completed.duration.as_secs(),
                     pr_url: match &completed.result {
                         ArcCompletion::Merged { pr_url } | ArcCompletion::Shipped { pr_url } => {

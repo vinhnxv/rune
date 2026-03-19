@@ -2,7 +2,7 @@ mod app;
 mod checkpoint;
 mod keybindings;
 mod lock;
-pub mod log;
+mod log;
 mod monitor;
 mod resource;
 mod scanner;
