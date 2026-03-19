@@ -197,6 +197,17 @@ if [[ -d "${CWD}/${RUNE_STATE}/arc" ]]; then
     [[ -d "$_ckpt_dir" ]] || continue
     _ckpt_file="${_ckpt_dir}checkpoint.json"
     [[ -f "$_ckpt_file" && ! -L "$_ckpt_file" ]] || continue
+    # RUIN-003 FIX: Session-scope checkpoint freshness check — only defer for OUR checkpoints
+    _ckpt_cfg=$(jq -r '.config_dir // empty' "$_ckpt_file" 2>/dev/null || true)
+    if [[ -n "$_ckpt_cfg" && "$_ckpt_cfg" != "$RUNE_CURRENT_CFG" ]]; then
+      continue  # Different installation — not our checkpoint
+    fi
+    _ckpt_pid=$(jq -r '.owner_pid // empty' "$_ckpt_file" 2>/dev/null || true)
+    if [[ -n "$_ckpt_pid" && "$_ckpt_pid" =~ ^[0-9]+$ && "$_ckpt_pid" != "$PPID" ]]; then
+      if rune_pid_alive "$_ckpt_pid"; then
+        continue  # Belongs to another live session
+      fi
+    fi
     _ckpt_mtime=$(_stat_mtime "$_ckpt_file")
     if [[ -n "$_ckpt_mtime" && "$_ckpt_mtime" =~ ^[0-9]+$ ]]; then
       _ckpt_age=$(( HOOK_START_TIME - _ckpt_mtime ))

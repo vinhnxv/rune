@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [2.1.3] - 2026-03-19
+
+### Fixed
+- **arc-phase-stop-hook**: Increase timeout from 15s to 30s — prevents silent arc death on large checkpoints with 20+ phases
+- **arc-phase-stop-hook**: Optimize phase finding loop from O(N) jq forks to single jq call with fallback
+- **arc-phase-stop-hook**: Fix silent `exit 0` on context-critical detection — now exits 2 with resume instructions (AC-4)
+- **arc-phase-stop-hook**: Add crash recovery fast-path with `_FAST_PATH` flag (skips zombie cleanup after ERR trap timeout)
+- **arc-phase-stop-hook**: Add `_jq_with_budget()` budget-aware jq wrapper with timeout guard
+- **arc-phase-stop-hook**: Replace fragile sed with awk for compact_pending YAML field update
+- **arc-phase-stop-hook**: Add `_HOOK_START_EPOCH` timing telemetry and hook execution summary in phase-log.jsonl
+- **arc-stop-hook-common**: Enhanced ERR trap with crash signal file (`_crash_signal`) for diagnostics and recovery
+- **arc-stop-hook-common**: Add symlink guard on crash signal WRITE path (RUIN-001)
+- **detect-workflow-complete**: Add GUARD 2.5 checkpoint freshness check to prevent cleanup during arc phase transitions (AC-6)
+- **detect-workflow-complete**: Add session-scoping to GUARD 2.5 via config_dir/owner_pid validation (RUIN-003)
+- **on-teammate-idle**: Add team-specific idle thresholds — 600s for test agents (AC-7)
+- **CLAUDE.md**: Update Stop hook timeout rationale from 15s to 30s
+
 ## [2.1.2] - 2026-03-19
 
 ### Fixed

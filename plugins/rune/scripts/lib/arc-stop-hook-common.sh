@@ -78,9 +78,12 @@ arc_setup_err_trap() {
       fi
       # Write crash diagnostic to a signal file for observability (AC-5)
       # Signal file enables crash recovery (Task 3.3) and session-team-hygiene.sh reporting
+      # RUIN-001 FIX: Symlink guard on WRITE path (matches READ-side guard at arc-phase-stop-hook.sh:52)
       local _crash_signal="${TMPDIR:-/tmp}/rune-stop-hook-crash-${PPID}.txt"
-      printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)" "$_crash_msg" \
-        >> "$_crash_signal" 2>/dev/null || true
+      if [[ ! -L "$_crash_signal" ]]; then
+        printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)" "$_crash_msg" \
+          >> "$_crash_signal" 2>/dev/null || true
+      fi
       printf 'arc-phase-stop: %s — fail-forward, allowing stop\n' \
         "$_crash_msg" >&2 2>/dev/null || true
       exit 0
