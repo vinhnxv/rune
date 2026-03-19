@@ -1035,10 +1035,10 @@ fi
 
 # ── Zombie team verification: clean up prior phase's team if still present ──
 # CDX-GAP-003 FIX: Skip zombie cleanup on fast path (crash recovery)
+# ARCH-001 FIX: BEGIN _FAST_PATH=false block (~200 lines — closes at "END _FAST_PATH=false block")
 if [[ "$_FAST_PATH" == "true" ]]; then
   _trace "FAST PATH: skipping zombie team cleanup (crash recovery mode)"
 else
-# (original zombie cleanup block follows, indented by the else)
 # When postPhaseCleanup is skipped (e.g., context exhaustion), the prior phase's
 # team dir may linger. Clean it before starting the next phase.
 #
@@ -1241,7 +1241,7 @@ FINALIZE_EOF
   fi
 fi
 
-fi  # end _FAST_PATH else block (CDX-GAP-003)
+fi  # ARCH-001 FIX: END _FAST_PATH=false block (CDX-GAP-003)
 
 # ── Build phase prompt ──
 REF_FILE=$(_phase_ref "$NEXT_PHASE")
