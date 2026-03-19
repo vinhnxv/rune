@@ -9,7 +9,7 @@ use color_eyre::Result;
 
 use ratatui::widgets::ListState;
 
-use crate::monitor;
+use crate::monitor::{self, ActivityState};
 use crate::resource::{self, ProcessHealth, ResourceSnapshot};
 use crate::scanner::{ConfigDir, PlanFile};
 use crate::tmux::Tmux;
@@ -190,6 +190,8 @@ pub struct ArcStatus {
     // Resource monitoring
     pub resource: Option<ResourceSnapshot>,
     pub process_health: ProcessHealth,
+    /// Activity state from multi-signal detection (None if detector not initialized).
+    pub activity_state: Option<ActivityState>,
 }
 
 #[derive(Clone)]
@@ -1351,7 +1353,9 @@ impl App {
             }
 
             // Combined stale detection: heartbeat staleness OR low-cpu process health
-            let is_stale = status.is_stale || proc_health == ProcessHealth::LowCpu;
+            let is_stale = status.is_stale
+                || proc_health == ProcessHealth::LowCpu
+                || proc_health == ProcessHealth::Idle;
 
             // Phase change detection — reset timeout timer on new phase
             {
@@ -1390,6 +1394,7 @@ impl App {
                 schema_warning: status.schema_warning,
                 resource: res_snapshot,
                 process_health: proc_health,
+                activity_state: status.activity_state,
             });
         }
     }

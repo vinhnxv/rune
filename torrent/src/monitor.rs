@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use chrono::{DateTime, Utc};
 
@@ -117,6 +118,182 @@ fn parse_yaml_bool(yaml: &str, key: &str) -> Option<bool> {
     }
 }
 
+/// Activity state for a Claude Code session, combining multiple detection signals.
+///
+/// Multi-signal detection: heartbeat freshness, pane output hash, CPU activity,
+/// and input prompt patterns. This is INFORMATIONAL ONLY — does not trigger
+/// any kill or restart action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActivityState {
+    /// Heartbeat fresh + pane changing + CPU active.
+    Active,
+    /// Heartbeat fresh but pane output unchanged for 1 cycle.
+    Slow,
+    /// Heartbeat stale (>5min) but pane or CPU still showing activity.
+    Stale,
+    /// Heartbeat stale + pane frozen (2+ cycles) + low CPU (<1%).
+    Idle,
+    /// Claude Code process not found (crashed or exited).
+    Stopped,
+    /// Input prompt pattern detected in pane output.
+    WaitingInput,
+}
+
+impl ActivityState {
+    /// Short label for logging and serialization.
+    pub fn label(&self) -> &'static str {
+        match self {
+            ActivityState::Active => "active",
+            ActivityState::Slow => "slow",
+            ActivityState::Stale => "stale",
+            ActivityState::Idle => "idle",
+            ActivityState::Stopped => "stopped",
+            ActivityState::WaitingInput => "waiting-input",
+        }
+    }
+
+    /// Icon for TUI display.
+    pub fn icon(&self) -> &'static str {
+        match self {
+            ActivityState::Active => "●",
+            ActivityState::Slow => "◐",
+            ActivityState::Stale => "◑",
+            ActivityState::Idle => "○",
+            ActivityState::Stopped => "✗",
+            ActivityState::WaitingInput => "?",
+        }
+    }
+}
+
+/// Tracks pane output changes over time for activity detection.
+///
+/// Stored inside the per-arc run state. Polling interval: 30 seconds.
+/// Uses hash comparison (not content diff) to minimize memory usage.
+#[derive(Debug)]
+pub struct ActivityDetector {
+    /// Hash of the last captured pane output.
+    last_pane_hash: Option<u64>,
+    /// Number of consecutive polls where pane hash was unchanged.
+    pub hash_unchanged_count: u32,
+    /// Timestamp of last hash check (for interval enforcement).
+    last_hash_check: Option<Instant>,
+    /// Check interval (30 seconds default).
+    check_interval: std::time::Duration,
+}
+
+/// Well-known input prompt patterns (checked via simple string matching).
+const PROMPT_INDICATORS: &[&str] = &["$ ", "% ", "# ", "> ", "❯ ", "› ", "? (y/n)", "? (yes/no)", "Allow", "Deny", "approve", "Enter "];
+
+impl ActivityDetector {
+    /// Create a new detector with default 30-second check interval.
+    pub fn new() -> Self {
+        Self {
+            last_pane_hash: None,
+            hash_unchanged_count: 0,
+            last_hash_check: None,
+            check_interval: std::time::Duration::from_secs(30),
+        }
+    }
+
+    /// Check if it's time for a new pane capture based on the check interval.
+    pub fn should_check(&self) -> bool {
+        self.last_hash_check
+            .map(|t| t.elapsed() >= self.check_interval)
+            .unwrap_or(true) // First check: always
+    }
+
+    /// Update pane hash state after a capture. Returns whether the hash changed.
+    pub fn update_hash(&mut self, new_hash: Option<u64>) -> bool {
+        self.last_hash_check = Some(Instant::now());
+        match (self.last_pane_hash, new_hash) {
+            (None, Some(h)) => {
+                // First capture — establish baseline, don't count as unchanged
+                self.last_pane_hash = Some(h);
+                self.hash_unchanged_count = 0;
+                true // "changed" from no baseline to baseline
+            }
+            (Some(old), Some(new)) if old == new => {
+                self.hash_unchanged_count += 1;
+                false
+            }
+            (Some(_), Some(new)) => {
+                self.last_pane_hash = Some(new);
+                self.hash_unchanged_count = 0;
+                true
+            }
+            (_, None) => {
+                // Capture failed — don't update hash, increment unchanged as conservative
+                self.hash_unchanged_count += 1;
+                false
+            }
+        }
+    }
+
+    /// Detect activity state from combined signals.
+    ///
+    /// Decision matrix (from plan):
+    /// | Heartbeat | Pane Hash | CPU | → State |
+    /// |-----------|-----------|-----|---------|
+    /// | Fresh | Changing | Any | Active |
+    /// | Fresh | Unchanged(1) | ≥1% | Slow |
+    /// | Stale | Changing | Any | Stale |
+    /// | Stale | Unchanged(2+) | ≥1% | Stale |
+    /// | Stale | Unchanged(2+) | <1% | Idle |
+    /// | N/A | N/A | NotFound | Stopped |
+    /// | Any | Prompt match | Any | WaitingInput |
+    pub fn detect(
+        &self,
+        heartbeat_stale: bool,
+        cpu_percent: Option<f32>,
+        process_found: bool,
+        last_line: Option<&str>,
+    ) -> ActivityState {
+        // Stopped: process not found
+        if !process_found {
+            return ActivityState::Stopped;
+        }
+
+        // WaitingInput: prompt pattern detected in last pane line
+        if let Some(line) = last_line {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                for pattern in PROMPT_INDICATORS {
+                    if trimmed.contains(pattern) || trimmed.ends_with(pattern.trim()) {
+                        return ActivityState::WaitingInput;
+                    }
+                }
+            }
+        }
+
+        let cpu = cpu_percent.unwrap_or(0.0);
+        let pane_changing = self.hash_unchanged_count == 0;
+        let pane_unchanged_long = self.hash_unchanged_count >= 2;
+
+        if heartbeat_stale {
+            if pane_changing {
+                ActivityState::Stale
+            } else if pane_unchanged_long && cpu < 1.0 {
+                ActivityState::Idle
+            } else {
+                // Stale heartbeat + some CPU activity or short unchanged → Stale
+                ActivityState::Stale
+            }
+        } else {
+            // Fresh heartbeat
+            if pane_changing {
+                ActivityState::Active
+            } else {
+                // Pane unchanged but heartbeat fresh
+                if cpu >= 1.0 {
+                    ActivityState::Slow
+                } else {
+                    ActivityState::Active // Fresh heartbeat + low CPU = probably just waiting for API
+                }
+            }
+        }
+    }
+}
+
 /// Polled status of a running arc.
 #[derive(Debug, Clone)]
 pub struct ArcStatus {
@@ -131,6 +308,8 @@ pub struct ArcStatus {
     pub completion: Option<ArcCompletion>,
     /// Schema version warning — None if compatible, Some(msg) if outside tested range.
     pub schema_warning: Option<String>,
+    /// Activity state from multi-signal detection (None if detector not initialized).
+    pub activity_state: Option<ActivityState>,
 }
 
 /// Summary of phase progress derived from checkpoint.json.
@@ -389,6 +568,7 @@ pub fn poll_arc_status(handle: &ArcHandle) -> Option<ArcStatus> {
         is_stale,
         completion,
         schema_warning,
+        activity_state: None, // Set by caller (app.rs) which owns the ActivityDetector
     })
 }
 

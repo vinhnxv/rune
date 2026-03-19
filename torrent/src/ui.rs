@@ -7,6 +7,7 @@ use ratatui::widgets::{
 use ratatui::Frame;
 
 use crate::app::{App, AppView, ArcCompletion, Panel};
+use crate::monitor::ActivityState;
 use crate::resource::ProcessHealth;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -710,6 +711,7 @@ fn render_heartbeat(frame: &mut Frame, app: &App, area: Rect) {
                 let health_color = match st.process_health {
                     ProcessHealth::Active => sol::GREEN,
                     ProcessHealth::LowCpu => sol::ORANGE,
+                    ProcessHealth::Idle => sol::YELLOW,
                     ProcessHealth::NotFound => sol::RED,
                 };
 
@@ -724,6 +726,25 @@ fn render_heartbeat(frame: &mut Frame, app: &App, area: Rect) {
                 ]));
             } else {
                 l.push(make_kv("  Resources: ", "no PID tracked", sol::BASE01));
+            }
+
+            // Activity state indicator (multi-signal detection)
+            if let Some(activity) = &st.activity_state {
+                let (act_color, act_text) = match activity {
+                    ActivityState::Active => (sol::GREEN, "Active"),
+                    ActivityState::Slow => (sol::YELLOW, "Slow"),
+                    ActivityState::Stale => (sol::ORANGE, "Stale"),
+                    ActivityState::Idle => (sol::RED, "Idle"),
+                    ActivityState::Stopped => (sol::RED, "Stopped"),
+                    ActivityState::WaitingInput => (Color::Rgb(211, 54, 130), "Waiting for input"),
+                };
+                l.push(Line::from(vec![
+                    Span::styled("  Activity: ", Style::default().fg(sol::BASE01)),
+                    Span::styled(
+                        format!("{} {}", activity.icon(), act_text),
+                        Style::default().fg(act_color).add_modifier(Modifier::BOLD),
+                    ),
+                ]));
             }
 
             l
