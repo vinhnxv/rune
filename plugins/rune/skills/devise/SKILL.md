@@ -216,7 +216,7 @@ See [solution-arena.md](references/solution-arena.md) for full protocol (sub-ste
 
 ## Phase 2: Synthesize
 
-Tarnished consolidates research findings into a plan document. User selects detail level (Minimal/Standard/Comprehensive). Includes plan templates, formatting best practices, and the Plan Section Convention (contracts before pseudocode).
+Tarnished consolidates research findings into a plan document. User selects detail level (Minimal/Standard/Comprehensive). Includes plan templates, formatting best practices, and the Plan Section Convention (contracts before pseudocode). Consolidates wiring-cartographer and activation-pathfinder outputs into `## Integration & Wiring Map` section (Standard and Comprehensive only; omitted for Minimal).
 
 **Inputs**: Research outputs from `tmp/plans/{timestamp}/research/` (including `wiring-map.md` and `activation-path.md` from integration research), user detail level selection, `designAware` (boolean from Phase 0), `figmaUrls` (string[] from Phase 0), `figmaUrl` (string or null — first entry, backward compat)
 **Outputs**: `plans/YYYY-MM-DD-{type}-{feature-name}-plan.md`
