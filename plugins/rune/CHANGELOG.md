@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [2.1.6] - 2026-03-19
+
+### Fixed
+- **arc**: Harden checkpoint config resolution — use `typeof === 'boolean'` for Layer 2 fields to reject non-boolean types and null propagation (RUIN-001, RUIN-002)
+- **arc**: Add `bot_review`/`no_bot_review` to Layer 1 defaults for 3-layer consistency (GRACE-001, GRACE-002)
+- **arc**: Remove redundant `??` fallback guards in checkpoint flags — Layer 2 already guarantees values (RUIN-003)
+- **arc**: Use resolved `arcConfig.inspect_enabled` instead of raw talisman read for inspect toggle (RUIN-004)
+
 ## [2.1.5] - 2026-03-19
 
 ### Fixed
