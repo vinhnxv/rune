@@ -1,0 +1,117 @@
+phase: gap_analysis
+purpose: |
+  Hybrid implementation gap analysis: deterministic orchestrator-only checks (STEP A)
+  combined with 9-dimension LLM analysis via Inspector Ashes (STEP B), merged into a
+  unified report (STEP C) with configurable halt decision (STEP D).
+defined_in: plugins/rune/skills/arc/references/gap-analysis.md
+steps:
+  - id: "GAP-STEP-01"
+    name: "Artifact pre-extraction"
+    required: false
+    order: 1
+    artifact: "tmp/arc/{id}/plan-digest.json"
+    artifact_check: "Plan and work-summary digests exist as valid JSON with expected fields"
+    description: "Pre-extract plan and work-summary digests via shell script for orchestrator quick-checks. Zero LLM tokens. Gated by artifact_extraction.enabled."
+
+  - id: "GAP-STEP-02"
+    name: "Extract acceptance criteria"
+    required: true
+    order: 2
+    artifact: null
+    artifact_check: "Criteria array is non-empty (or phase skips with valid skip report)"
+    description: "Parse enriched plan for acceptance criteria: checklist items (- [ ] / - [x]), Acceptance criteria sections, and Outputs lines. Skip phase if no criteria found."
+
+  - id: "GAP-STEP-03"
+    name: "Get committed files"
+    required: true
+    order: 3
+    artifact: null
+    artifact_check: "Committed files extracted from work-summary.md and git diff"
+    description: "Extract committed file list from work-summary.md and cross-reference with git diff --name-only for ground truth."
+
+  - id: "GAP-STEP-04"
+    name: "Cross-reference criteria against changes"
+    required: true
+    order: 4
+    artifact: null
+    artifact_check: "Each criterion has status: ADDRESSED, PARTIAL, or MISSING"
+    description: "For each criterion, extract identifiers and grep across committed files. ADDRESSED if code evidence found and checked, PARTIAL if evidence but unchecked, MISSING if no evidence."
+
+  - id: "GAP-STEP-05"
+    name: "Check task completion rate"
+    required: true
+    order: 5
+    artifact: null
+    artifact_check: "Task stats extracted from work-summary.md (total, completed, failed)"
+    description: "Extract task completion statistics from the work summary for downstream reporting."
+
+  - id: "GAP-STEP-06"
+    name: "Doc-consistency cross-checks"
+    required: false
+    order: 6
+    artifact: null
+    artifact_check: "Doc-consistency section reports PASS/DRIFT/SKIP per check"
+    description: "Validate key values (version, agent count, etc.) are consistent across documentation and config files. Uses configurable checks from talisman. Gated by work phase success and >=50% task completion."
+
+  - id: "GAP-STEP-07"
+    name: "Plan section coverage"
+    required: true
+    order: 7
+    artifact: null
+    artifact_check: "Plan section coverage table with ADDRESSED/MISSING status per H2 heading"
+    description: "Cross-reference plan H2 headings against committed code changes. Extract identifiers (backtick-quoted, CamelCase, file paths) and grep in diff files."
+
+  - id: "GAP-STEP-08"
+    name: "Evaluator quality metrics"
+    required: false
+    order: 8
+    artifact: null
+    artifact_check: "Evaluator metrics section with docstring coverage, function length audit, and evaluation test results"
+    description: "Run lightweight evaluator-equivalent quality checks: AST-based docstring coverage, function length audit (>40 lines), pytest evaluation tests. Requires python3."
+
+  - id: "GAP-STEP-09"
+    name: "Claim extraction and semantic drift detection"
+    required: true
+    order: 9
+    artifact: null
+    artifact_check: "Claims extracted with type classification (FUNCTIONAL/CONSTRAINT/INVARIANT/INTEGRATION) and drift status"
+    description: "Parse plan for verifiable claims from Acceptance Criteria, Success Criteria, and Constraints sections. Cross-reference against committed files using multi-keyword grep. Zero LLM cost."
+
+  - id: "GAP-STEP-10"
+    name: "Stale reference detection"
+    required: true
+    order: 10
+    artifact: null
+    artifact_check: "Stale references identified (deleted files still referenced in committed code)"
+    description: "Detect references to deleted or renamed files in the committed changes. Cross-reference import statements and file path references."
+
+  - id: "GAP-STEP-11"
+    name: "Scope creep detection"
+    required: true
+    order: 11
+    artifact: null
+    artifact_check: "Scope creep flagged for files modified but not mentioned in plan"
+    description: "Flag files that were modified during work but are not mentioned in the plan. Helps detect unintended scope expansion."
+
+  - id: "GAP-STEP-12"
+    name: "Spec compliance matrix"
+    required: true
+    order: 12
+    artifact: null
+    artifact_check: "Compliance matrix maps each criterion to status with evidence"
+    description: "Build the unified spec compliance matrix combining deterministic checks (STEP A) with LLM inspector findings (STEP B). Maps each acceptance criterion to its implementation status."
+
+  - id: "GAP-STEP-13"
+    name: "Write gap analysis report"
+    required: true
+    order: 13
+    artifact: "tmp/arc/{id}/gap-analysis.md"
+    artifact_check: "Report exists with summary table (ADDRESSED/PARTIAL/MISSING counts), all sub-sections, and compliance matrix"
+    description: "Assemble final gap analysis report combining all deterministic checks, LLM inspector findings, doc-consistency, plan section coverage, evaluator metrics, claims, and compliance matrix."
+
+success_criteria:
+  - "tmp/arc/{id}/gap-analysis.md exists with summary counts for ADDRESSED, PARTIAL, and MISSING"
+  - "Checkpoint phase=gap_analysis has status=completed with valid artifact_hash"
+  - "All acceptance criteria from the plan have a status in the compliance matrix"
+  - "Doc-consistency checks ran (when guard conditions met)"
+  - "Plan section coverage computed against committed files"

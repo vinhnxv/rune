@@ -878,3 +878,43 @@ Recovery: `prePhaseCleanup()` handles team/task cleanup before phase, `postPhase
 
 <!-- Phase 7.8 (TEST COVERAGE CRITIQUE) has been extracted to arc-phase-test-coverage-critique.md
      to reduce file size and eliminate LLM disambiguation overhead. See that file for the full algorithm. -->
+
+## Execution Log Integration
+
+Phase-specific execution logging for QA gate verification. The Tarnished writes one entry per manifest step.
+
+```javascript
+// At phase start — initialize execution log
+Bash(`mkdir -p "tmp/arc/${id}/execution-logs"`)
+const executionLog = {
+  phase: "test",
+  manifest: "qa-manifests/test.yaml",
+  started_at: new Date().toISOString(),
+  steps: [],
+  skipped_steps: []
+}
+
+// After each step — record completion
+executionLog.steps.push({
+  id: "TST-STEP-{NN}",
+  status: "completed",  // or "skipped"
+  started_at: stepStartTs,
+  completed_at: new Date().toISOString(),
+  artifact_produced: artifactPath || null,
+  notes: ""
+})
+
+// For skipped steps (conditional steps that didn't execute)
+executionLog.skipped_steps.push({
+  id: "TST-STEP-{NN}",
+  reason: "condition not met: {description}"
+})
+
+// At phase end (BEFORE updateCheckpoint)
+executionLog.completed_at = new Date().toISOString()
+executionLog.completed_steps = executionLog.steps.length
+executionLog.total_steps = 14  // from manifest
+executionLog.skipped_count = executionLog.skipped_steps.length
+executionLog.completion_pct = Math.round((executionLog.completed_steps / executionLog.total_steps) * 100)
+Write(`tmp/arc/${id}/execution-logs/test-execution.json`, JSON.stringify(executionLog, null, 2))
+```

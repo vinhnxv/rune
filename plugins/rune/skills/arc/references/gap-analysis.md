@@ -2080,3 +2080,43 @@ if (planPath && totalTasks > 0) {
 - **Plan writeback** (STEP D.7): Deferred tasks written back to plan file with status. No silent deferrals.
 - **Gap remediation signal**: `needs_task_remediation: true` in checkpoint when tasks are missing — triggers gap_remediation phase to implement missing tasks, followed by re-verification (convergence loop).
 - Headless/CI mode auto-proceeds but still writes plan status back.
+
+## Execution Log Integration
+
+Phase-specific execution logging for QA gate verification. The Tarnished writes one entry per manifest step.
+
+```javascript
+// At phase start — initialize execution log
+Bash(`mkdir -p "tmp/arc/${id}/execution-logs"`)
+const executionLog = {
+  phase: "gap_analysis",
+  manifest: "qa-manifests/gap-analysis.yaml",
+  started_at: new Date().toISOString(),
+  steps: [],
+  skipped_steps: []
+}
+
+// After each step — record completion
+executionLog.steps.push({
+  id: "GAP-STEP-{NN}",
+  status: "completed",  // or "skipped"
+  started_at: stepStartTs,
+  completed_at: new Date().toISOString(),
+  artifact_produced: artifactPath || null,
+  notes: ""
+})
+
+// For skipped steps (conditional steps that didn't execute)
+executionLog.skipped_steps.push({
+  id: "GAP-STEP-{NN}",
+  reason: "condition not met: {description}"
+})
+
+// At phase end (BEFORE updateCheckpoint)
+executionLog.completed_at = new Date().toISOString()
+executionLog.completed_steps = executionLog.steps.length
+executionLog.total_steps = 13  // from manifest
+executionLog.skipped_count = executionLog.skipped_steps.length
+executionLog.completion_pct = Math.round((executionLog.completed_steps / executionLog.total_steps) * 100)
+Write(`tmp/arc/${id}/execution-logs/gap_analysis-execution.json`, JSON.stringify(executionLog, null, 2))
+```

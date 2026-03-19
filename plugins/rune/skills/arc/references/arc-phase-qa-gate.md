@@ -1,12 +1,13 @@
 # Arc Phase QA Gate — Independent Phase Verification Protocol
 
+<!-- FILE OWNERSHIP: Shard 1 defines checklists. Shard 2 extends with orchestration. -->
+
 Each significant arc phase, after completion, passes through an independent QA gate before the
 stop hook advances to the next phase. QA agents are completely separate from the Tarnished —
 they read artifacts only, cannot modify code, and their verdict cannot be overridden
 programmatically. This eliminates the conflict-of-interest of the Tarnished evaluating its own work.
 
-**Scope (initial implementation)**: WORK phase only. Additional phases (forge, code_review, mend,
-test) can be added incrementally once the work phase gate is validated in production.
+**Scope**: All 6 gated phases — work, forge, code_review, mend, test, gap_analysis.
 
 **Reference**: Plan AC-15, AC-16, AC-17.
 
@@ -69,11 +70,18 @@ Dimension score = average of all check items in that dimension.
 
 ### Dimension Weights per Phase
 
-| Phase | Artifact Weight | Quality Weight | Completeness Weight |
-|-------|----------------|----------------|---------------------|
-| work | 30% | 40% | 30% |
+| Phase | Artifact Weight | Quality Weight | Completeness Weight | Rationale |
+|-------|----------------|----------------|---------------------|-----------|
+| work | 30% | 40% | 30% | Quality highest — worker reports must be substantive, not generic |
+| forge | 20% | 50% | 30% | Quality dominant — enrichment depth matters more than file existence |
+| code_review | 30% | 30% | 40% | Completeness highest — all changed files must be reviewed |
+| mend | 30% | 30% | 40% | Completeness highest — all findings must be addressed |
+| test | 40% | 30% | 30% | Artifacts highest — test report + SEAL marker existence is critical |
+| gap_analysis | 30% | 30% | 40% | Completeness highest — all acceptance criteria must appear in matrix |
 
-`overall_score = (artifact_score × 0.30) + (quality_score × 0.40) + (completeness_score × 0.30)`
+`overall_score = (artifact_score × W_art) + (quality_score × W_qual) + (completeness_score × W_cmp)`
+
+Where `W_art`, `W_qual`, `W_cmp` are looked up from the table above per phase.
 
 ---
 
@@ -109,6 +117,213 @@ produced substantive, evidence-backed reports.
 | WRK-CMP-01 | All plan ACs appear in at least one task file | `coverage-matrix.json` `.unmapped` is empty |
 | WRK-CMP-02 | All task files have `status: DONE` (not `PENDING`, `IN_PROGRESS`, or `STUCK`) | YAML frontmatter parse per file |
 | WRK-CMP-03 | `git diff HEAD~N..HEAD` shows actual code changes (not empty commit) | `Bash("git diff --stat HEAD~1 HEAD")` |
+| WRK-CMP-04 | Task completion ratio ≥ 50% (checkpoint guard condition) | `completed_tasks / total_tasks >= 0.5` from work-summary.md |
+
+### Additional Work Checks (Shard 1 extension)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| WRK-ART-06 | `coverage-matrix.json` exists in work directory AND has valid JSON with `mapped` and `unmapped` arrays | `Glob` + `JSON.parse` |
+| WRK-QUA-06 | Phase log contains `task_files_created` event with non-zero file counts (observability) | `Read` execution log + search for `task_files_created` |
+
+---
+
+## Phase: forge — QA Checklist
+
+The forge phase QA gate verifies that plan enrichment produced a deeper, more detailed plan
+without destroying the original structure.
+
+<!-- Weight rationale: Quality at 50% because enrichment DEPTH is the primary value —
+     a forge that produces superficial additions is worse than no forge at all. -->
+
+### Artifact Checks (weight: 20%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| FRG-ART-01 | `tmp/arc/{id}/enriched-plan.md` exists AND has >100 lines | `Glob` + `Read` line count |
+| FRG-ART-02 | Checkpoint has `phase=forge`, `status=completed`, and valid `artifact_hash` | `Read` checkpoint JSON + field validation |
+
+### Quality Checks (weight: 50%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| FRG-QUA-01 | Enriched plan contains Forge Gaze enrichment sections (not just a copy of original) | `Read` + search for `Forge Enrichment` or `forge_gaze` markers |
+| FRG-QUA-02 | Enriched sections include code samples, technical detail, or specific file references | `Read` + regex for backtick code blocks or `file:line` patterns |
+| FRG-QUA-03 | Original plan structure preserved — all H2 headings from original appear in enriched version | Compare H2 headings between original and enriched plan |
+
+### Completeness Checks (weight: 30%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| FRG-CMP-01 | All sections from original plan appear in enriched plan (no dropped content) | `Grep` for each original H2 heading in enriched plan |
+
+---
+
+## Phase: code_review — QA Checklist
+
+The code review QA gate verifies that the TOME was produced with structured findings and
+relocated to the arc artifacts directory.
+
+<!-- Weight rationale: Completeness at 40% because an incomplete review (missed files)
+     is more dangerous than a slightly lower-quality review of all files. -->
+
+### Artifact Checks (weight: 30%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| REV-ART-01 | `tmp/arc/{id}/tome.md` (or `tome-round-{N}.md` for convergence retries) exists | `Glob("tmp/arc/{id}/tome*.md")` |
+| REV-ART-02 | Checkpoint has `phase=code_review`, `status=completed`, and valid `artifact_hash` | `Read` checkpoint JSON + field validation |
+| REV-ART-03 | TOME relocated from review output dir (`tmp/reviews/*/TOME.md`) to arc artifacts dir | `Glob` confirms file in `tmp/arc/{id}/` not just `tmp/reviews/` |
+
+### Quality Checks (weight: 30%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| REV-QUA-01 | TOME has structured findings (not empty or placeholder content) | `Read` + line count > 20 AND contains `## Findings` or finding prefix markers |
+| REV-QUA-02 | Findings have valid Ash prefixes (SEC-, BACK-, QUAL-, FRONT-, DOC-, PERF-, etc.) | `Read` + regex for `^(SEC\|BACK\|QUAL\|FRONT\|DOC\|PERF\|CDX)-\d+` |
+| REV-QUA-03 | No duplicate finding IDs in TOME | `Read` + extract all finding IDs + check uniqueness |
+
+### Completeness Checks (weight: 40%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| REV-CMP-01 | Review covered all changed files (diff files vs files mentioned in TOME) | `git diff --name-only` cross-referenced with TOME file mentions |
+| REV-CMP-02 | Gap analysis context propagated to reviewers (if gap analysis phase ran) | `Read` TOME header or review context for MISSING/PARTIAL counts |
+
+---
+
+## Phase: mend — QA Checklist
+
+The mend phase QA gate verifies that findings were resolved with evidence and the resolution
+report tracks outcomes per finding.
+
+<!-- Weight rationale: Completeness at 40% because unaddressed P1 findings represent
+     security/correctness risks that must not slip through. -->
+
+### Artifact Checks (weight: 30%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| MND-ART-01 | Resolution report exists at round-aware path: `tmp/arc/{id}/resolution-report.md` (round 0) or `tmp/arc/{id}/resolution-report-round-{N}.md` (retry) | `Glob("tmp/arc/{id}/resolution-report*.md")` |
+
+### Quality Checks (weight: 30%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| MND-QUA-01 | Resolution report has per-finding status (FIXED, WONTFIX, FALSE_POSITIVE, or FAILED) | `Read` + regex for status keywords per finding |
+| MND-QUA-02 | Each FIXED finding references a commit SHA or specific code change | `Read` + regex for git SHA pattern `/[0-9a-f]{7,40}/` near FIXED entries |
+| MND-QUA-03 | Halt condition enforced: checkpoint status is `failed` when >3 findings remain FAILED | `Read` checkpoint + count FAILED in resolution report |
+
+### Completeness Checks (weight: 40%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| MND-CMP-01 | All P1 findings from TOME addressed (not left as FAILED without justification) | Cross-reference TOME P1 findings with resolution report statuses |
+| MND-CMP-02 | Resolution report covers all TOME findings (every finding ID from TOME appears) | Extract finding IDs from both files + set difference |
+
+---
+
+## Phase: test — QA Checklist
+
+The test phase QA gate verifies that test execution produced valid reports with proper
+completion markers and that strategy preceded execution.
+
+<!-- Weight rationale: Artifacts at 40% because test output is non-blocking — the pipeline
+     continues regardless of pass/fail, so EXISTENCE of reports is the primary gate.
+     Without reports, downstream phases (audit, ship) have no test evidence. -->
+
+### Artifact Checks (weight: 40%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| TST-ART-01 | `tmp/arc/{id}/test-report.md` exists AND has >10 lines | `Glob` + `Read` line count |
+| TST-ART-02 | Test report contains SEAL marker `<!-- SEAL: test-report-complete -->` | `Read` + `includes('<!-- SEAL: test-report-complete -->')` |
+| TST-ART-03 | `tmp/arc/{id}/test-strategy.md` exists (strategy generated before execution) | `Glob("tmp/arc/{id}/test-strategy.md")` |
+
+### Quality Checks (weight: 30%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| TST-QUA-01 | Test report has pass/fail counts per tier (unit, integration, e2e) | `Read` + search for tier result tables or summary counts |
+| TST-QUA-02 | Test results are non-blocking (checkpoint status is `completed` regardless of pass/fail) | `Read` checkpoint — status should never be `failed` for test phase |
+| TST-QUA-03 | Test strategy was generated BEFORE test execution (strategy timestamp < first batch timestamp) | Compare `test-strategy.md` mtime vs first `test-results-*` mtime |
+
+### Completeness Checks (weight: 30%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| TST-CMP-01 | All active tiers ran (at minimum unit tier for any code change) | Checkpoint `tiers_run` array is non-empty |
+| TST-CMP-02 | Checkpoint has `tiers_run`, `pass_rate`, and `coverage_pct` metrics | `Read` checkpoint JSON + field existence validation |
+
+---
+
+## Phase: gap_analysis — QA Checklist
+
+The gap analysis QA gate verifies that deterministic checks produced a compliance matrix
+mapping every acceptance criterion to its implementation status.
+
+<!-- Weight rationale: Completeness at 40% because the PRIMARY purpose of gap analysis
+     is ensuring ALL acceptance criteria are accounted for — missing criteria in the
+     matrix means the pipeline lost track of requirements. -->
+
+### Artifact Checks (weight: 30%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| GAP-ART-01 | `tmp/arc/{id}/gap-analysis.md` exists with summary counts for ADDRESSED, PARTIAL, and MISSING | `Glob` + `Read` + search for count summary table |
+| GAP-ART-02 | Spec compliance matrix section exists with per-criterion status entries | `Read` + search for `## Spec Compliance Matrix` or `## Compliance Matrix` |
+
+### Quality Checks (weight: 30%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| GAP-QUA-01 | Each acceptance criterion has explicit status: ADDRESSED, PARTIAL, or MISSING | `Read` + regex for status keywords per criterion row |
+| GAP-QUA-02 | Evidence includes file:line references or code snippets (not just assertions) | `Read` + regex `/\w+\.\w+:\d+/` or backtick code blocks near evidence |
+| GAP-QUA-03 | Deterministic checks (STEP A) ran before LLM inspectors (STEP B) — ordering preserved | `Read` gap-analysis.md structure: deterministic sections appear before inspector sections |
+
+### Completeness Checks (weight: 40%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| GAP-CMP-01 | All acceptance criteria from the plan appear in the compliance matrix | Cross-reference plan AC list with matrix entries + check for gaps |
+| GAP-CMP-02 | Plan section coverage computed — all H2 headings have ADDRESSED or MISSING status | `Read` + search for plan section coverage table |
+
+---
+
+## Edge Case Handling
+
+QA gates must handle non-standard phase outcomes gracefully:
+
+### Skipped Phases
+
+When a phase has `status: "skipped"` in the checkpoint (e.g., test phase skipped via `--no-test`),
+the QA gate MUST return PASS with a skip reason — never FAIL a phase that was intentionally skipped.
+
+```json
+{
+  "phase": "test",
+  "verdict": "PASS",
+  "skip_reason": "Phase skipped via --no-test flag",
+  "scores": { "artifact_score": 100, "quality_score": 100, "completeness_score": 100, "overall_score": 100 }
+}
+```
+
+### Round-Aware Artifact Paths
+
+Mend and code review phases support convergence rounds. QA checks must accept EITHER:
+- Round 0: `resolution-report.md`, `tome.md`
+- Round N: `resolution-report-round-{N}.md`, `tome-round-{N}.md`
+
+Use glob patterns (e.g., `Glob("tmp/arc/{id}/resolution-report*.md")`) to discover the correct file.
+
+### Empty vs Missing vs Skipped Artifacts
+
+| State | Detection | QA Result |
+|-------|-----------|-----------|
+| **Missing** | File does not exist | FAIL (score: 0) |
+| **Empty** | File exists but 0 bytes or <3 lines | FAIL (score: 25) |
+| **Skip-content** | File exists with explicit skip marker (`<!-- SKIPPED: reason -->`) | PASS (score: 75) |
+| **Valid** | File exists with substantive content | PASS (score: 75-100 based on depth) |
 
 ---
 
@@ -235,8 +450,17 @@ async function runQAGate(id, parentPhase, checkpoint) {
     const qualityScore = score(qualityItems)
     const completenessScore = score(completenessItems)
 
-    // Phase weights: artifact=30%, quality=40%, completeness=30%
-    const overallScore = (artifactScore * 0.30) + (qualityScore * 0.40) + (completenessScore * 0.30)
+    // Phase-specific weights (see Dimension Weights per Phase table)
+    const PHASE_WEIGHTS = {
+      work:         { art: 0.30, qual: 0.40, cmp: 0.30 },
+      forge:        { art: 0.20, qual: 0.50, cmp: 0.30 },
+      code_review:  { art: 0.30, qual: 0.30, cmp: 0.40 },
+      mend:         { art: 0.30, qual: 0.30, cmp: 0.40 },
+      test:         { art: 0.40, qual: 0.30, cmp: 0.30 },
+      gap_analysis: { art: 0.30, qual: 0.30, cmp: 0.40 },
+    }
+    const w = PHASE_WEIGHTS[parentPhase] ?? { art: 0.33, qual: 0.34, cmp: 0.33 }
+    const overallScore = (artifactScore * w.art) + (qualityScore * w.qual) + (completenessScore * w.cmp)
 
     const allItems = [...artifactItems, ...qualityItems, ...completenessItems]
     const failedItems = allItems.filter(i => i.verdict === "FAIL")
@@ -398,31 +622,51 @@ Adding QA sub-phases requires updating TWO synchronized copies of PHASE_ORDER.
 > `PHASE_PREFIX_MAP`, and `ARC_TEAM_PREFIXES` (6 locations total).
 > Adding DECREE-003 validation to arc preflight will detect drift automatically.
 
-**Initial scope (this implementation)**: `work_qa` only. Additional `*_qa` phases are additive
-and can be enabled incrementally by inserting them into PHASE_ORDER after their parent phase.
+**Gated phases**: `forge_qa`, `work_qa`, `gap_analysis_qa`, `code_review_qa`, `mend_qa`, `test_qa`.
+Each `*_qa` phase is inserted into PHASE_ORDER immediately after its parent phase.
 
 ```javascript
-// arc-phase-constants.md — JavaScript PHASE_ORDER (add work_qa after work)
+// arc-phase-constants.md — JavaScript PHASE_ORDER (QA gates after each parent phase)
 const PHASE_ORDER = [
-  "forge", "plan_review", "plan_refinement", "verification", "semantic_verification",
+  "forge",
+  "forge_qa",              // ← QA gate for forge phase
+  "plan_review", "plan_refinement", "verification", "semantic_verification",
   "design_extraction", "design_prototype", "task_decomposition",
   "work",
-  "work_qa",          // ← NEW: QA gate for work phase
-  "gap_analysis", "code_review", "mend", "verify_mend", "design_iteration",
-  "test", "pre_ship_validation", "release_quality_check", "ship",
+  "work_qa",               // ← QA gate for work phase
+  "gap_analysis",
+  "gap_analysis_qa",       // ← QA gate for gap analysis phase
+  "code_review",
+  "code_review_qa",        // ← QA gate for code review phase
+  "mend",
+  "mend_qa",               // ← QA gate for mend phase
+  "verify_mend", "design_iteration",
+  "test",
+  "test_qa",               // ← QA gate for test phase
+  "pre_ship_validation", "release_quality_check", "ship",
   "bot_review_wait", "pr_comment_resolution", "merge"
 ]
 ```
 
 ```bash
-# arc-phase-stop-hook.sh — bash PHASE_ORDER array (add work_qa after work)
+# arc-phase-stop-hook.sh — bash PHASE_ORDER array (QA gates after each parent phase)
 PHASE_ORDER=(
-  forge plan_review plan_refinement verification semantic_verification
+  forge
+  forge_qa               # QA gate for forge phase
+  plan_review plan_refinement verification semantic_verification
   design_extraction design_prototype task_decomposition
   work
-  work_qa          # ← NEW: QA gate for work phase
-  gap_analysis code_review mend verify_mend design_iteration
-  test pre_ship_validation release_quality_check ship
+  work_qa                # QA gate for work phase
+  gap_analysis
+  gap_analysis_qa        # QA gate for gap analysis phase
+  code_review
+  code_review_qa         # QA gate for code review phase
+  mend
+  mend_qa                # QA gate for mend phase
+  verify_mend design_iteration
+  test
+  test_qa                # QA gate for test phase
+  pre_ship_validation release_quality_check ship
   bot_review_wait pr_comment_resolution merge
 )
 ```
@@ -440,7 +684,19 @@ If the QA phase crashes before writing a verdict, the 3-layer defense applies:
 | Verdict file | `tmp/arc/{id}/qa/{phase}-verdict.json` | Missing → default FAIL (stop hook) |
 
 ARC_TEAM_PREFIXES must include `arc-qa-` for pre-flight stale scan (Layer 1) and PHASE_PREFIX_MAP
-must include `work_qa → arc-qa-` for postPhaseCleanup (Layer 2). See `arc-phase-cleanup.md`.
+must include all QA phases for postPhaseCleanup (Layer 2):
+
+```javascript
+// PHASE_PREFIX_MAP entries for all QA phases
+"forge_qa":        "arc-qa-",
+"work_qa":         "arc-qa-",
+"gap_analysis_qa": "arc-qa-",
+"code_review_qa":  "arc-qa-",
+"mend_qa":         "arc-qa-",
+"test_qa":         "arc-qa-",
+```
+
+See `arc-phase-cleanup.md`.
 
 ---
 
