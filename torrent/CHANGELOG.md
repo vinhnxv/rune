@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Auto-resume on phase timeout (F5)** — automatic session restart with `/arc --resume` after phase timeout kill
+- **Three retry strategies** — PhaseTimeout (30s cooldown, 3 max), ApiOverload (progressive 15m→4h, 6 max), TokenAuth (15m→30m, 3 max)
+- **Resume state persistence** — `.torrent/state/{plan-hash}.json` survives torrent restarts
+- **New env vars** — `TORRENT_MAX_RESUMES` (default: 3), `TORRENT_RESTART_COOLDOWN` (default: 30s)
+- **Orphan cleanup on skip** — kills remaining tmux sessions and clears arc teams/tasks before next plan
+- **Rapid failure detection** — logs warning when all retries exhaust in <5 minutes
 - **Adaptive grace period (F4)** — grace duration computed from child process count and CPU activity using formula: `base + (children × 2) + (cpu% × 0.5)`, clamped to configurable min/max range
 - **Grace countdown UI** — visible progress bar with color-coded urgency (green >50%, yellow 20-50%, red <20%) and child process context
 - **Grace skip keybinding** — press `s` during grace period to skip (minimum 5s remaining enforced); contextual with existing `s` = skip plan

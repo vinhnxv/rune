@@ -11,6 +11,7 @@ use ratatui::widgets::ListState;
 
 use crate::monitor::{self, ActivityDetector, ActivityState};
 use crate::resource::{self, ProcessHealth, ResourceSnapshot};
+use crate::resume::ResumeState;
 use crate::scanner::{ConfigDir, PlanFile};
 use crate::tmux::Tmux;
 
@@ -145,6 +146,10 @@ pub struct RunState {
     /// Fixed skip deadline — set once when 's' is pressed during grace (F4).
     /// Stored as absolute Instant to avoid the recomputation bug (RUIN-007).
     pub grace_skip_at: Option<Instant>,
+    /// Resume state for auto-retry after phase timeout (F5).
+    pub resume_state: Option<ResumeState>,
+    /// Cooldown deadline — earliest time a restart is allowed.
+    pub restart_cooldown_until: Option<Instant>,
 }
 
 impl RunState {
@@ -938,6 +943,8 @@ impl App {
             activity_detector: ActivityDetector::new(),
             grace_duration: None,
             grace_skip_at: None,
+            resume_state: None, // monitoring existing arc — no resume tracking
+            restart_cooldown_until: None,
         });
 
         self.view = AppView::Running;
@@ -1058,6 +1065,9 @@ impl App {
             }
             return Ok(());
         }
+
+        // Check restart cooldown (auto-resume after phase timeout)
+        self.check_restart_cooldown();
 
         // Arc running — poll for discovery or status
         let has_arc = self.current_run.as_ref().unwrap().arc.is_some();
@@ -1241,6 +1251,7 @@ impl App {
             self.status_message = Some(format!("/arc sent to {}", &session_id));
         }
 
+        let resume_state = ResumeState::load(&plan.path.display().to_string());
         self.current_run = Some(RunState {
             plan,
             config_idx: self.selected_config,
@@ -1265,6 +1276,8 @@ impl App {
             activity_detector: ActivityDetector::new(),
             grace_duration: None,
             grace_skip_at: None,
+            resume_state: Some(resume_state),
+            restart_cooldown_until: None,
         });
 
         // Reset poll timers
@@ -1479,37 +1492,10 @@ impl App {
         // Check SIGTERM grace period first (15s after SIGTERM → hard kill)
         if let Some(triggered_at) = run.timeout_triggered_at {
             if triggered_at.elapsed() >= Duration::from_secs(15) {
-                // Grace period expired — hard kill the session
+                // Grace period expired — attempt auto-resume instead of failing
                 let session = run.tmux_session.clone();
-                let plan_name = run.plan.name.clone();
-                self.status_message = Some(format!(
-                    "Phase timeout: hard kill after 15s grace — {}",
-                    plan_name
-                ));
                 let _ = Tmux::kill_session(&session);
-                // Complete the run as failed
-                if let Some(run) = self.current_run.take() {
-                    let arc_id = run.arc_id();
-                    let duration = run.arc_duration();
-                    let phase = run
-                        .current_phase_name
-                        .as_deref()
-                        .unwrap_or("unknown")
-                        .to_string();
-                    self.completed_runs.push(CompletedRun {
-                        plan: run.plan,
-                        result: ArcCompletion::Failed {
-                            reason: format!("phase timeout: {} exceeded limit", phase),
-                        },
-                        duration,
-                        arc_id,
-                    });
-                    self.tmux_session_id = None;
-                    let total = self.queue_total_items();
-                    if total > 0 && self.queue_cursor >= total {
-                        self.queue_cursor = total - 1;
-                    }
-                }
+                self.handle_timeout_resume();
             }
             return; // Waiting for grace period — don't re-check timeout
         }
@@ -1570,6 +1556,136 @@ impl App {
             if let Some(ref run) = self.current_run {
                 let _ = Tmux::kill_session(&run.tmux_session);
             }
+        }
+    }
+
+    /// Handle auto-resume after a phase timeout kill.
+    /// Called after the hard-kill path in check_phase_timeout().
+    fn handle_timeout_resume(&mut self) {
+        // Get config from env
+        let max_resumes = env_or_u64("TORRENT_MAX_RESUMES", 3) as u32;
+        let cooldown_secs = env_or_u64("TORRENT_RESTART_COOLDOWN", 30);
+
+        let run = match &mut self.current_run {
+            Some(r) => r,
+            None => return,
+        };
+
+        let resume_state = match &mut run.resume_state {
+            Some(s) => s,
+            None => return,
+        };
+
+        // Determine phase index from current phase name
+        let phase_name = run.current_phase_name.clone().unwrap_or_default();
+        // Use a simple incrementing index based on total_restarts as fallback
+        let phase_index = resume_state.phase_retries.len() as u32;
+
+        // Check if we should skip this plan
+        if resume_state.should_skip(phase_index, max_resumes) {
+            self.status_message = Some(format!(
+                "Phase {} stuck {} times — skipping plan",
+                phase_name, max_resumes
+            ));
+            // Save state, then cleanup and move to next plan
+            let _ = resume_state.save();
+            self.cleanup_skipped_plan();
+            return;
+        }
+
+        // Record the restart
+        resume_state.record_restart(phase_index, &phase_name, "phase_timeout");
+        let _ = resume_state.save();
+
+        // Set cooldown
+        run.restart_cooldown_until = Some(Instant::now() + Duration::from_secs(cooldown_secs));
+
+        self.status_message = Some(format!(
+            "Phase timeout on {} — restarting in {}s (attempt {}/{})",
+            phase_name, cooldown_secs,
+            resume_state.phase_retries.get(&phase_index).copied().unwrap_or(0),
+            max_resumes
+        ));
+    }
+
+    /// Check if a restart cooldown has expired and execute the restart.
+    fn check_restart_cooldown(&mut self) {
+        let should_restart = self.current_run.as_ref()
+            .and_then(|r| r.restart_cooldown_until)
+            .map_or(false, |deadline| Instant::now() >= deadline);
+
+        if !should_restart { return; }
+
+        let run = self.current_run.as_ref().unwrap();
+        let plan_path = run.plan.path.clone();
+        let config_idx = run.config_idx;
+        let config = match self.config_dirs.get(config_idx) {
+            Some(c) => c.clone(),
+            None => return,
+        };
+        let old_session = run.tmux_session.clone();
+        let cwd = std::env::current_dir().unwrap_or_default();
+
+        // Recreate tmux session
+        match crate::tmux::Tmux::recreate_session(
+            &old_session, &cwd, &config.path, &self.claude_path
+        ) {
+            Ok(new_session_id) => {
+                // Send /arc --resume
+                if let Err(e) = crate::tmux::Tmux::send_arc_resume_command(&new_session_id, &plan_path) {
+                    self.status_message = Some(format!("Failed to send /arc --resume: {}", e));
+                    return;
+                }
+                // Update run state with new session
+                if let Some(run) = &mut self.current_run {
+                    run.tmux_session = new_session_id.clone();
+                    run.restart_cooldown_until = None;
+                    run.timeout_triggered_at = None;
+                    run.current_phase_started = None;
+                    run.launched_at = Instant::now();
+                    run.arc = None; // Will be re-discovered
+                    run.last_status = None;
+                }
+                self.tmux_session_id = Some(new_session_id);
+                self.last_discovery_poll = None; // Force re-discovery
+                self.status_message = Some("Auto-resumed with /arc --resume".into());
+            }
+            Err(e) => {
+                self.status_message = Some(format!("Restart failed: {} — skipping plan", e));
+                self.cleanup_skipped_plan();
+            }
+        }
+    }
+
+    /// Clean up a plan that has been skipped (exhausted retries or restart failure).
+    fn cleanup_skipped_plan(&mut self) {
+        if let Some(run) = self.current_run.take() {
+            let _ = crate::tmux::Tmux::kill_session(&run.tmux_session);
+            // Clean orphaned arc state
+            let cwd = std::env::current_dir().unwrap_or_default();
+            let loop_file = cwd.join(".rune").join("arc-phase-loop.local.md");
+            let _ = std::fs::remove_file(&loop_file);
+
+            let arc_id = run.arc_id();
+            let duration = run.arc_duration();
+            let phase = run
+                .current_phase_name
+                .as_deref()
+                .unwrap_or("unknown")
+                .to_string();
+            self.completed_runs.push(CompletedRun {
+                plan: run.plan,
+                result: ArcCompletion::Failed {
+                    reason: format!("skipped: phase {} exceeded retry budget", phase),
+                },
+                duration,
+                arc_id,
+            });
+        }
+        self.tmux_session_id = None;
+        let total = self.queue_total_items();
+        if total > 0 && self.queue_cursor >= total {
+            self.queue_cursor = total - 1;
         }
     }
 

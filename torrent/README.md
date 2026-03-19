@@ -148,6 +148,7 @@ torrent (TUI)
 ├── checkpoint.rs   — serde structs for checkpoint.json + heartbeat.json
 ├── lock.rs         — CWD-based instance lock (prevents concurrent torrent)
 ├── log.rs          — Structured JSONL run logging (append-only)
+├── resume.rs       — Auto-resume state: retry strategies, backoff, state persistence
 └── resource.rs     — process resource monitoring via sysinfo (CPU/memory)
 ```
 
@@ -230,6 +231,8 @@ Each arc phase has a timeout (default: 60 minutes). When a phase exceeds its lim
 | `TORRENT_TIMEOUT_REVIEW` | code_review, plan_review, etc. | 60 |
 | `TORRENT_TIMEOUT_SHIP` | ship, merge, pre_ship_validation, etc. | 60 |
 | `TORRENT_LOG_DIR` | Override log directory (default: `.torrent/logs/`) | — |
+| `TORRENT_MAX_RESUMES` | Max retries per plan per phase before skipping | 3 |
+| `TORRENT_RESTART_COOLDOWN` | Seconds between automatic restarts | 30 |
 
 ```bash
 # 120-minute forge timeout, 30-minute ship timeout
@@ -321,6 +324,8 @@ tmux kill-session -t rune-XXXXXX
 ## Run Logs
 
 Torrent writes structured run logs in JSONL format (one JSON object per line) to `.torrent/logs/runs.jsonl`. Each plan execution produces a per-plan entry, and a batch summary is appended when all plans finish.
+
+Auto-resume state is persisted at `.torrent/state/{plan-hash}.json` — one file per plan, keyed by a hash of the plan path. These files track retry counts and backoff state across torrent restarts.
 
 ### Log Location
 
