@@ -29,8 +29,20 @@ AskUserQuestion({
 **Error handling**: git commands wrapped in `2>/dev/null || echo "null"` for non-git directories; detached HEAD sets `branch` to `null`
 
 1. Read all research output files from `tmp/plans/{timestamp}/research/`
-2. Identify common themes, conflicting advice, key patterns
-3. Populate git metadata in plan frontmatter: include `git_sha` (from `git rev-parse HEAD`) and `branch` (from `git branch --show-current`). If the working directory is not a git repository, omit these fields. On a detached HEAD, set `branch` to `null`.
+2. Read wiring and activation research outputs (both optional — agent may timeout):
+   ```javascript
+   const wiringMap = tryRead(`tmp/plans/${timestamp}/research/wiring-map.md`)
+   const activationPath = tryRead(`tmp/plans/${timestamp}/research/activation-path.md`)
+   // tryRead = try { Read(...) } catch { null }
+   ```
+   Consolidate into `## Integration & Wiring Map` section (Standard and Comprehensive only):
+   - If BOTH agents timed out or produced no output, emit a minimal section:
+     `"## Integration & Wiring Map\n\nIntegration analysis unavailable — research agents produced no output. Manually assess integration points before implementation."`
+   - If only ONE agent produced output, populate available subsections and mark
+     missing subsections as "Pending — {agent name} output unavailable."
+   - For Minimal template: OMIT this section entirely (consistent with Boundary Map)
+3. Identify common themes, conflicting advice, key patterns
+4. Populate git metadata in plan frontmatter: include `git_sha` (from `git rev-parse HEAD`) and `branch` (from `git branch --show-current`). If the working directory is not a git repository, omit these fields. On a detached HEAD, set `branch` to `null`.
 4. **Evidence population** (Standard and Comprehensive only): For each major factual claim in Proposed Solution and Technical Approach, search research outputs (`tmp/plans/{timestamp}/research/`) for supporting evidence. Populate the Evidence Chain table with claims and their verification status. Claims without supporting evidence in research outputs get `Verified: No`. Evidence types ordered by strength: CODEBASE > DOCUMENTATION > EXTERNAL > OBSERVED > NOVEL.
 5. Draft the plan document using the template matching the selected detail level:
 
@@ -277,6 +289,68 @@ flowchart LR
     D --> F([End])
     E --> F
 ~~~
+
+## Integration & Wiring Map
+
+{Required for Standard and Comprehensive plans. Omit for Minimal.}
+{Maps how new code connects to the EXISTING system. Unlike Boundary Map
+(internal phase-to-phase contracts), this section answers: "Where does
+new code wire into the codebase, and what existing files must change?"}
+{Populated from wiring-cartographer and activation-pathfinder research outputs.}
+
+### Entry Points
+
+{How does the system invoke the new code? Trace the call chain from
+user action / external trigger to the new code.}
+
+| Trigger | Existing File | Integration Point | New Code Target |
+|---------|--------------|-------------------|-----------------|
+| {HTTP request / CLI / event / cron / UI action} | {existing route/handler} | {where hook/call is added} | {new file:function} |
+
+### Layer Traversal
+
+{Which architectural layers does this feature touch? Shows the vertical
+slice through the system stack.}
+
+| Layer | Existing File(s) | Change Type | New File(s) |
+|-------|-----------------|-------------|-------------|
+| {Route/Controller} | {path} | modify | {path or —} |
+| {Service/Logic} | {path or —} | — | {path} |
+| {Repository/Data} | {path or —} | — | {path} |
+| {Model/Schema} | {path} | modify | {path or —} |
+
+### Existing File Modifications
+
+{Files that already exist and MUST be modified for the new feature to work.
+These carry higher risk than new files because they affect existing behavior.}
+
+| File | Current Purpose | Modification | Risk |
+|------|----------------|-------------|------|
+| {path} | {what it does now} | {add import, register route, add middleware, etc.} | {Low/Med/High} |
+
+### Registration & Discovery
+
+{How does the system discover and activate the new code?}
+
+- **Route registration**: {e.g. "Add to `routes/index.ts`" or "Auto-discovered via convention"}
+- **DI/IoC binding**: {e.g. "Register in `container.ts`" or "N/A"}
+- **Plugin/middleware chain**: {e.g. "Add to middleware stack in `app.ts`" or "N/A"}
+- **Config/env**: {e.g. "Add `FEATURE_X_ENABLED` to `.env.example`" or "N/A"}
+- **Event subscription**: {e.g. "Subscribe in `events/index.ts`" or "N/A"}
+
+### Migration & Activation Path
+
+{Steps from "code merged" to "feature running". Ordered chronologically.}
+
+1. {e.g. "Run migration: `npx prisma migrate deploy`" or "No migration needed"}
+2. {e.g. "Set env var `FEATURE_X=true`" or "Active immediately"}
+3. {e.g. "Verify: health check includes new endpoint" or "Run smoke test"}
+
+### Rollback Path
+
+{How to undo if the feature causes issues in production.}
+
+1. {e.g. "Set `FEATURE_X=false`" or "Revert migration: `npx prisma migrate reset`"}
 
 ## Boundary Map
 
@@ -757,6 +831,86 @@ flowchart LR
 | Approach | Score | Top Concern | Why Not Selected |
 |----------|-------|-------------|-----------------|
 {Rejected arena solutions with scores and DA concerns}
+
+## Integration & Wiring Map
+
+{Required for Standard and Comprehensive plans. Omit for Minimal.}
+{Maps how new code connects to the EXISTING system. Unlike Boundary Map
+(internal phase-to-phase contracts), this section answers: "Where does
+new code wire into the codebase, and what existing files must change?"}
+{Populated from wiring-cartographer and activation-pathfinder research outputs.}
+
+### Entry Points
+
+{How does the system invoke the new code? Trace the call chain from
+user action / external trigger to the new code.}
+
+| Trigger | Existing File | Integration Point | New Code Target |
+|---------|--------------|-------------------|-----------------|
+| {HTTP request / CLI / event / cron / UI action} | {existing route/handler} | {where hook/call is added} | {new file:function} |
+
+### Layer Traversal
+
+{Which architectural layers does this feature touch? Shows the vertical
+slice through the system stack.}
+
+| Layer | Existing File(s) | Change Type | New File(s) |
+|-------|-----------------|-------------|-------------|
+| {Route/Controller} | {path} | modify | {path or —} |
+| {Service/Logic} | {path or —} | — | {path} |
+| {Repository/Data} | {path or —} | — | {path} |
+| {Model/Schema} | {path} | modify | {path or —} |
+
+### Layer Traversal Diagram
+
+~~~mermaid
+graph TD
+    A["{Layer 1}"] -->|calls| B["{Layer 2}"]
+    B -->|queries| C["{Layer 3}"]
+    C -->|maps| D["{Layer 4}"]
+~~~
+
+### Existing File Modifications
+
+{Files that already exist and MUST be modified for the new feature to work.
+These carry higher risk than new files because they affect existing behavior.}
+
+| File | Current Purpose | Modification | Risk |
+|------|----------------|-------------|------|
+| {path} | {what it does now} | {add import, register route, add middleware, etc.} | {Low/Med/High} |
+
+### Registration & Discovery
+
+{How does the system discover and activate the new code?}
+
+- **Route registration**: {e.g. "Add to `routes/index.ts`" or "Auto-discovered via convention"}
+- **DI/IoC binding**: {e.g. "Register in `container.ts`" or "N/A"}
+- **Plugin/middleware chain**: {e.g. "Add to middleware stack in `app.ts`" or "N/A"}
+- **Config/env**: {e.g. "Add `FEATURE_X_ENABLED` to `.env.example`" or "N/A"}
+- **Event subscription**: {e.g. "Subscribe in `events/index.ts`" or "N/A"}
+
+### Migration & Activation Path
+
+{Steps from "code merged" to "feature running". Ordered chronologically.}
+
+1. {e.g. "Run migration: `npx prisma migrate deploy`" or "No migration needed"}
+2. {e.g. "Set env var `FEATURE_X=true`" or "Active immediately"}
+3. {e.g. "Verify: health check includes new endpoint" or "Run smoke test"}
+
+### Rollback Path
+
+{How to undo if the feature causes issues in production.}
+
+1. {e.g. "Set `FEATURE_X=false`" or "Revert migration: `npx prisma migrate reset`"}
+
+### Business Logic Flow
+
+{How business rules flow between layers — where logic is defined,
+how it's exposed, and how other layers consume it.}
+
+| Business Rule | Defined In (Layer) | Exposed Via | Consumed By |
+|--------------|-------------------|------------|-------------|
+| {rule name} | {service/domain} | {API endpoint / event / method} | {frontend / other service / cron} |
 
 ## Boundary Map
 
