@@ -1564,14 +1564,62 @@ impl App {
                 } else {
                     ArcCompletion::Merged { pr_url: None }
                 };
+                // Extract phase data and config dir before consuming `run`
+                let (phases_completed, phases_total, phases_skipped) =
+                    run.last_status.as_ref()
+                        .map(|s| (s.phase_summary.completed, s.phase_summary.total, s.phase_summary.skipped))
+                        .unwrap_or((0, 0, 0));
+                let config_dir = self.config_dirs.get(run.config_idx)
+                    .map(|c| c.path.display().to_string())
+                    .unwrap_or_else(|| "~/.claude".to_string());
+
                 let arc_id = run.arc_id();
                 let duration = run.arc_duration();
-                self.completed_runs.push(CompletedRun {
+                let completed = CompletedRun {
                     plan: run.plan,
                     result,
                     duration,
                     arc_id,
-                });
+                };
+
+                // Log the completed run to structured JSONL
+                let (status, urgency) = crate::log::classify_completion(&completed.result);
+                let final_outcome = match (&status, &urgency) {
+                    (crate::log::RunStatus::Completed, crate::log::UrgencyTier::Green) => "completed",
+                    (crate::log::RunStatus::Completed, _) => "completed_with_restarts",
+                    (crate::log::RunStatus::Skipped, _) => "skipped",
+                    (crate::log::RunStatus::Failed, _) => "failed",
+                };
+                let entry = crate::log::RunLogEntry {
+                    timestamp: Utc::now(),
+                    plan: completed.plan.name.clone(),
+                    plan_file: completed.plan.path.display().to_string(),
+                    config_dir,
+                    arc_id: completed.arc_id.clone(),
+                    status,
+                    urgency,
+                    phases_completed,
+                    phases_total,
+                    phases_skipped,
+                    wallclock_seconds: completed.duration.as_secs(),
+                    pr_url: match &completed.result {
+                        ArcCompletion::Merged { pr_url } | ArcCompletion::Shipped { pr_url } => {
+                            pr_url.clone()
+                        }
+                        _ => None,
+                    },
+                    error: match &completed.result {
+                        ArcCompletion::Failed { reason } => Some(reason.clone()),
+                        _ => None,
+                    },
+                    final_outcome: final_outcome.to_string(),
+                    restarts: vec![],
+                };
+                if let Err(e) = crate::log::append_run_log(&entry) {
+                    eprintln!("warning: failed to write run log: {}", e);
+                }
+
+                self.completed_runs.push(completed);
 
                 // Clamp queue cursor after item count changed
                 let total = self.queue_total_items();
