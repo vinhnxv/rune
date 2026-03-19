@@ -338,7 +338,7 @@ Phase-specific execution logging for QA gate verification. The Tarnished writes 
 Bash(`mkdir -p "tmp/arc/${id}/execution-logs"`)
 const executionLog = {
   phase: "code_review",
-  manifest: "qa-manifests/code_review.yaml",
+  manifest: "qa-manifests/code-review.yaml",
   started_at: new Date().toISOString(),
   steps: [],
   skipped_steps: []
