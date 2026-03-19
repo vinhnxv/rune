@@ -1,0 +1,125 @@
+phase: test
+purpose: |
+  3-tier QA gate on converged code: unit, integration, and E2E/browser tests.
+  Self-managed team with batch execution, fix loops, production readiness checks,
+  and test history persistence. Non-blocking — results feed into audit but never halt pipeline.
+defined_in: plugins/rune/skills/arc/references/arc-phase-test.md
+steps:
+  - id: "TST-STEP-01"
+    name: "Pre-flight guards"
+    required: true
+    order: 1
+    artifact: null
+    artifact_check: "Arc id validated, --no-test flag checked, PR number resolved, diff files computed"
+    description: "Validate arc id format. Check --no-test flag (skip if set). Detect PR number from checkpoint or gh CLI. Resolve test scope via resolveTestScope(). Skip if no changed files."
+
+  - id: "TST-STEP-02"
+    name: "Scenario discovery"
+    required: false
+    order: 2
+    artifact: null
+    artifact_check: "Scenarios loaded from .rune/test-scenarios/*.yml and filtered by active tiers"
+    description: "Load YAML scenario files, validate schema (name + tier required), filter by active tiers, and cap at max_per_run. Gated by testing.scenarios.enabled."
+
+  - id: "TST-STEP-03"
+    name: "Scope detection and file classification"
+    required: true
+    order: 3
+    artifact: null
+    artifact_check: "Files classified into backend/frontend/test categories with active tiers determined"
+    description: "Classify changed files via Rune Gaze extensions. Determine which test tiers are active (unit, integration, E2E). Compute uncovered implementation files."
+
+  - id: "TST-STEP-04"
+    name: "Test strategy generation"
+    required: true
+    order: 4
+    artifact: "tmp/arc/{id}/test-strategy.md"
+    artifact_check: "Strategy file exists with Scope Summary, Active Tiers, Test File Assignment, Uncovered Files, Scenarios, and Risk Areas sections"
+    description: "Team lead (Opus) generates strategy document with 6 sections: scope summary, tier configuration, test file assignment, uncovered files, scenario integration, and risk areas."
+
+  - id: "TST-STEP-05"
+    name: "Test discovery"
+    required: true
+    order: 5
+    artifact: null
+    artifact_check: "Unit tests, integration tests, and E2E routes discovered from changed files"
+    description: "Discover test files using test-discovery.md algorithm. Filter paths through SAFE_PATH_PATTERN. Discover E2E routes from frontend files."
+
+  - id: "TST-STEP-06"
+    name: "Service startup"
+    required: false
+    order: 6
+    artifact: null
+    artifact_check: "Services healthy (or integration/E2E tiers skipped with warning)"
+    description: "Start services if integration or E2E tiers are active. Create screenshot directory with symlink protection (SEC-004). Skip integration/E2E if services unhealthy."
+
+  - id: "TST-STEP-07"
+    name: "Team creation"
+    required: true
+    order: 7
+    artifact: null
+    artifact_check: "Team arc-test-{id} created and checkpoint updated with in_progress status"
+    description: "Run prePhaseCleanup, create arc-test-{id} team, compute inner budget (35min with E2E, 10min without), update checkpoint."
+
+  - id: "TST-STEP-08"
+    name: "Execute test batches"
+    required: true
+    order: 8
+    artifact: "tmp/arc/{id}/test-results-{type}-batch-{N}.md"
+    artifact_check: "Per-batch result files exist with <!-- STATUS: PASS --> or failure details"
+    description: "Generate testing plan, execute batches sequentially (unit → contract → integration → e2e → extended). Each batch uses foreground agent. Fix loop with F-code classification (F3/F8/F17). Budget and iteration caps enforced."
+
+  - id: "TST-STEP-09"
+    name: "Generate test report"
+    required: true
+    order: 9
+    artifact: "tmp/arc/{id}/test-report.md"
+    artifact_check: "Report exists with SEAL marker (<!-- SEAL: test-report-complete -->)"
+    description: "Aggregate per-tier results into unified test report using test-report-template.md format. Append SEAL marker for deterministic completion detection."
+
+  - id: "TST-STEP-10"
+    name: "Evidence writes"
+    required: false
+    order: 10
+    artifact: "tmp/arc/{id}/evidence/batch-{N}-evidence.json"
+    artifact_check: "Evidence records collected and failure journal written"
+    description: "Collect batch evidence records written during execution loop. Write cumulative failure journal per evidence-protocol.md."
+
+  - id: "TST-STEP-11"
+    name: "Production readiness check"
+    required: false
+    order: 11
+    artifact: null
+    artifact_check: "Production readiness section appended to test-report.md (if enabled)"
+    description: "Inline scan for mock/stub patterns in src/, validate required env vars, check localhost health endpoints. Non-blocking. Gated by testing.production_readiness.enabled."
+
+  - id: "TST-STEP-12"
+    name: "History persistence"
+    required: false
+    order: 12
+    artifact: ".rune/test-history/test-history.jsonl"
+    artifact_check: "History entry appended with pass_rate, coverage_pct, tier_breakdown, and flaky_scores"
+    description: "Persist test run entry to rolling JSONL history. Compute tier breakdown from batch results. Run regression threshold check (5% pass rate drop). Gated by testing.history.enabled."
+
+  - id: "TST-STEP-13"
+    name: "Cleanup"
+    required: true
+    order: 13
+    artifact: null
+    artifact_check: "Team deleted, browser sessions closed, Docker stopped (if started)"
+    description: "Close browser sessions, stop Docker containers, TeamDelete with retry-with-backoff (4 attempts). Filesystem fallback if TeamDelete fails."
+
+  - id: "TST-STEP-14"
+    name: "Update checkpoint"
+    required: true
+    order: 14
+    artifact: null
+    artifact_check: "Checkpoint has phase=test, status=completed, artifact path, artifact_hash, tiers_run, pass_rate, coverage_pct"
+    description: "Write final checkpoint with test metrics: tiers_run (all executed, not just passed), pass_rate, coverage_pct, has_frontend, scope_label."
+
+success_criteria:
+  - "tmp/arc/{id}/test-report.md exists with <!-- SEAL: test-report-complete --> marker"
+  - "Checkpoint phase=test has status=completed with tiers_run and pass_rate"
+  - "Test team cleaned up (no orphaned arc-test-{id} team)"
+  - "Test results are non-blocking (pipeline continues regardless of pass/fail)"
+  - "Test strategy generated BEFORE any test execution"

@@ -1,0 +1,84 @@
+phase: code_review
+purpose: |
+  Invoke /rune:appraise --deep on the implemented changes. Multi-wave review
+  (Wave 1 core + Wave 2 investigation + Wave 3 dimension analysis) produces a
+  TOME with structured findings. Relocates TOME to arc artifacts directory.
+defined_in: plugins/rune/skills/arc/references/arc-phase-code-review.md
+steps:
+  - id: "REV-STEP-01"
+    name: "Propagate gap analysis context"
+    required: false
+    order: 1
+    artifact: null
+    artifact_check: "Review context string includes MISSING/PARTIAL counts from gap-analysis.md (if gap analysis exists)"
+    description: "Read gap-analysis.md and extract MISSING/PARTIAL counts. Build review context string so reviewers can focus on incomplete areas. Uses artifact extraction when enabled."
+
+  - id: "REV-STEP-02"
+    name: "Inject VERDICT dimension scores"
+    required: false
+    order: 2
+    artifact: null
+    artifact_check: "Review context includes low-scoring dimensions (<7/10) from gap-analysis-verdict.md"
+    description: "Read VERDICT.md for dimension scores. Extract dimensions scoring below 7/10 and inject as focus areas for reviewers. Uses artifact extraction when enabled."
+
+  - id: "REV-STEP-03"
+    name: "Codex Oracle detection"
+    required: false
+    order: 3
+    artifact: null
+    artifact_check: "Codex Oracle included if codex CLI detected and 'review' in talisman.codex.workflows"
+    description: "Run Codex detection per codex-detection.md. If detected and 'review' is in talisman.codex.workflows, include Codex Oracle as additional reviewer with CDX prefix."
+
+  - id: "REV-STEP-04"
+    name: "Record in_progress checkpoint"
+    required: true
+    order: 4
+    artifact: null
+    artifact_check: "Checkpoint has phase=code_review, status=in_progress, phase_sequence=6"
+    description: "Update checkpoint to record code_review phase as in_progress with null team_name."
+
+  - id: "REV-STEP-05"
+    name: "Delegate to /rune:appraise --deep"
+    required: true
+    order: 5
+    artifact: null
+    artifact_check: "Appraise sub-command was invoked with --deep flag and review context"
+    description: "Delegate to /rune:appraise --deep which runs multi-wave review. Manages its own team lifecycle. Arc does NOT create a team for this phase (delegation contract)."
+
+  - id: "REV-STEP-06"
+    name: "Discover team name"
+    required: false
+    order: 6
+    artifact: "tmp/.rune-review-*.json"
+    artifact_check: "State file exists with valid team_name matching SEC-001 regex"
+    description: "Read actual team name from post-delegation state file. Filter by status and age. Record in checkpoint for cancel-arc discovery."
+
+  - id: "REV-STEP-07"
+    name: "TOME relocation"
+    required: true
+    order: 7
+    artifact: "tmp/arc/{id}/tome.md"
+    artifact_check: "TOME copied to round-aware path (tome.md for round 0, tome-round-{N}.md for retries)"
+    description: "Copy TOME from tmp/reviews/{review-id}/TOME.md to arc artifacts dir. Round-aware path prevents overwriting on convergence retries. Uses glob discovery (BACK-012)."
+
+  - id: "REV-STEP-08"
+    name: "Read TOME for integrity hash"
+    required: true
+    order: 8
+    artifact: null
+    artifact_check: "TOME content read and sha256 hash computed"
+    description: "Read the relocated TOME content for checkpoint integrity hash computation."
+
+  - id: "REV-STEP-09"
+    name: "Update checkpoint"
+    required: true
+    order: 9
+    artifact: null
+    artifact_check: "Checkpoint has phase=code_review, status=completed, round-aware artifact path, and artifact_hash"
+    description: "Write final checkpoint with status=completed, round-aware TOME artifact path, and sha256 hash."
+
+success_criteria:
+  - "tmp/arc/{id}/tome.md (or tome-round-{N}.md) exists with structured findings"
+  - "Checkpoint phase=code_review has status=completed with valid artifact_hash"
+  - "Review team_name recorded in checkpoint for cancel-arc discovery"
+  - "TOME relocated from review output dir to arc artifacts dir"
