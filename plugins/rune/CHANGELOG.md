@@ -5,6 +5,15 @@
 ## [2.2.0] - 2026-03-20
 
 ### Added
+- **skill**: `/rune:self-audit` — Meta-QA self-audit for Rune's own workflow system (4 dimensions: workflow, prompt, rule, hook)
+- **agents**: 4 new meta-qa agents: `workflow-auditor`, `prompt-linter`, `rule-consistency-auditor`, `hook-integrity-auditor`
+- **echoes**: `.rune/echoes/meta-qa/` echo role with recurrence tracking and auto-promotion
+- **talisman**: `self_audit` config section (enabled, echo_persist, promotion_threshold, dimensions)
+- **agents**: 15 agent lint rules (AGT-001 through AGT-015) in prompt-linter
+- **agents**: 11 workflow checks (WF-STRUCT/ORDER/HANDOFF/SKIP/DELEG/HINT/HEAVY) in workflow-auditor
+- **agents**: 11 rule consistency checks (RC-VERSION/COUNT/NAMESPACE/TALISMAN/STALE/NAMING/CONTRADICT/HOOK-TABLE) in rule-consistency-auditor
+- **agents**: 9 hook integrity checks (HK-EXIST/EXEC/TIMEOUT/CRASH/MATCHER/TABLE/EVENT/DUPLIC/ZSH) in hook-integrity-auditor
+- **routing**: `/rune:self-audit` added to using-rune and tarnished routing tables
 - **agents**: `wiring-cartographer` — maps integration points where new code connects to the existing system (entry points, layer architecture, registration patterns, dependency graph)
 - **agents**: `activation-pathfinder` — traces activation and migration paths for new features (file creation order, configuration changes, migration steps)
 - **devise**: Phase 1A now spawns both new research agents alongside repo-surveyor, echo-reader, and git-miner (up to 10 research agents total)

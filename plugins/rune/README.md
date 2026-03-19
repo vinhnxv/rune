@@ -154,6 +154,7 @@ Rune is a token-intensive multi-agent system. Each workflow summons multiple age
 | `/rune:rest` | Clean up tmp/ artifacts |
 | `/rune:talisman` | Configure Rune settings |
 | `/rune:elicit` | Structured reasoning (Tree of Thoughts, Pre-mortem, etc.) |
+| `/rune:self-audit` | Meta-QA audit of Rune's own system health |
 | `/rune:cancel-arc` | Cancel active pipeline |
 
 For the full command reference with all flags and options, see the [Command Reference Guide](../../docs/guides/rune-command-reference.en.md).
@@ -260,7 +261,7 @@ Rune implements proof-based orchestration ensuring specification compliance. Pla
 <details>
 <summary>Agent Architecture</summary>
 
-Rune includes 112 specialized agents across 6 categories (review, research, work, utility, investigation, testing). Each agent gets its own dedicated context window via Agent Teams. Custom agents can be defined via `talisman.yml`. See the [Ash Guide skill](skills/ash-guide/SKILL.md) for the full registry.
+Rune includes 116 specialized agents across 7 categories (review, research, work, utility, investigation, testing, meta-qa). Each agent gets its own dedicated context window via Agent Teams. Custom agents can be defined via `talisman.yml`. See the [Ash Guide skill](skills/ash-guide/SKILL.md) for the full registry.
 
 </details>
 
