@@ -343,6 +343,39 @@ impl Tmux {
         Ok(())
     }
 
+    /// Kill an old session, create a fresh one, and start Claude Code in it.
+    ///
+    /// Thin composition of existing methods for the watchdog auto-resume flow.
+    /// The old session is killed best-effort (it may already be dead).
+    /// Returns the new session ID.
+    pub fn recreate_session(
+        old_session: &str,
+        working_dir: &Path,
+        config_dir: &Path,
+        claude_path: &str,
+    ) -> Result<String> {
+        let _ = Self::kill_session(old_session); // best effort
+        let new_id = Self::generate_session_id();
+        Self::create_session(&new_id, working_dir)?;
+        Self::start_claude(&new_id, config_dir, claude_path)?;
+        Ok(new_id)
+    }
+
+    /// Send `/arc <plan> --resume` command to a Claude Code session.
+    ///
+    /// Extracts the relative plan path (from `plans/` onwards) and appends
+    /// `--resume` so arc continues from the last completed phase.
+    pub fn send_arc_resume_command(session_id: &str, plan_path: &Path) -> Result<()> {
+        let display_path = plan_path.display().to_string();
+        let arc_path = if let Some(idx) = display_path.find("plans/") {
+            &display_path[idx..]
+        } else {
+            &display_path
+        };
+        let cmd = format!("/arc {} --resume", arc_path);
+        Self::send_keys(session_id, &cmd)
+    }
+
     /// Attach to a tmux session (foreground — blocks until Ctrl-B D detach).
     pub fn attach(session_id: &str) -> Result<()> {
         let status = Command::new("tmux")
