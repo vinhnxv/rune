@@ -77,7 +77,10 @@ function resolveArcConfig(arc, work, inlineFlags) {
       labels: [],
       pr_monitoring: false,
       rebase_before_merge: true,
-    }
+    },
+    // GRACE-002 FIX: Include bot_review in Layer 1 defaults for 3-layer consistency
+    bot_review: false,
+    no_bot_review: false,
   }
 
   // Layer 2: Talisman overrides (null-safe)
@@ -85,29 +88,38 @@ function resolveArcConfig(arc, work, inlineFlags) {
   const talismanShip = arc?.ship ?? {}
   const talismanPreMerge = arc?.pre_merge_checks ?? {}  // QUAL-001 FIX
 
+  // RUIN-001 FIX: Use typeof === 'boolean' for Layer 2 boolean fields (14 total).
+  // This rejects non-boolean types (string "false", numbers) AND treats null as "use default"
+  // (closes RUIN-002 null-propagation behavioral change from ?? era).
+  // GRACE-001 FIX: 14 boolean fields — 6 defaults + 6 ship + 2 top-level (bot_review, inspect_enabled).
   const config = {
-    no_forge:        talismanDefaults.no_forge !== undefined ? talismanDefaults.no_forge : defaults.no_forge,
-    approve:         talismanDefaults.approve !== undefined ? talismanDefaults.approve : defaults.approve,
-    skip_freshness:  talismanDefaults.skip_freshness !== undefined ? talismanDefaults.skip_freshness : defaults.skip_freshness,
-    confirm:         talismanDefaults.confirm !== undefined ? talismanDefaults.confirm : defaults.confirm,
-    no_test:         talismanDefaults.no_test !== undefined ? talismanDefaults.no_test : defaults.no_test,
-    accept_external_changes: talismanDefaults.accept_external_changes !== undefined ? talismanDefaults.accept_external_changes : defaults.accept_external_changes,
+    no_forge:        typeof talismanDefaults.no_forge === 'boolean' ? talismanDefaults.no_forge : defaults.no_forge,
+    approve:         typeof talismanDefaults.approve === 'boolean' ? talismanDefaults.approve : defaults.approve,
+    skip_freshness:  typeof talismanDefaults.skip_freshness === 'boolean' ? talismanDefaults.skip_freshness : defaults.skip_freshness,
+    confirm:         typeof talismanDefaults.confirm === 'boolean' ? talismanDefaults.confirm : defaults.confirm,
+    no_test:         typeof talismanDefaults.no_test === 'boolean' ? talismanDefaults.no_test : defaults.no_test,
+    accept_external_changes: typeof talismanDefaults.accept_external_changes === 'boolean' ? talismanDefaults.accept_external_changes : defaults.accept_external_changes,
     ship: {
-      auto_pr:       talismanShip.auto_pr !== undefined ? talismanShip.auto_pr : defaults.ship.auto_pr,
-      auto_merge:    talismanShip.auto_merge !== undefined ? talismanShip.auto_merge : defaults.ship.auto_merge,
+      auto_pr:       typeof talismanShip.auto_pr === 'boolean' ? talismanShip.auto_pr : defaults.ship.auto_pr,
+      auto_merge:    typeof talismanShip.auto_merge === 'boolean' ? talismanShip.auto_merge : defaults.ship.auto_merge,
       // SEC-001 FIX: Validate merge_strategy against allowlist at config resolution time
       merge_strategy: ["squash", "rebase", "merge"].includes(talismanShip.merge_strategy)
         ? talismanShip.merge_strategy : defaults.ship.merge_strategy,
-      wait_ci:       talismanShip.wait_ci !== undefined ? talismanShip.wait_ci : defaults.ship.wait_ci,
-      draft:         talismanShip.draft !== undefined ? talismanShip.draft : defaults.ship.draft,
+      wait_ci:       typeof talismanShip.wait_ci === 'boolean' ? talismanShip.wait_ci : defaults.ship.wait_ci,
+      draft:         typeof talismanShip.draft === 'boolean' ? talismanShip.draft : defaults.ship.draft,
       labels:        Array.isArray(talismanShip.labels) ? talismanShip.labels : defaults.ship.labels,  // SEC-DECREE-002: validate array
-      pr_monitoring: talismanShip.pr_monitoring !== undefined ? talismanShip.pr_monitoring : defaults.ship.pr_monitoring,
-      rebase_before_merge: talismanShip.rebase_before_merge !== undefined ? talismanShip.rebase_before_merge : defaults.ship.rebase_before_merge,
+      pr_monitoring: typeof talismanShip.pr_monitoring === 'boolean' ? talismanShip.pr_monitoring : defaults.ship.pr_monitoring,
+      rebase_before_merge: typeof talismanShip.rebase_before_merge === 'boolean' ? talismanShip.rebase_before_merge : defaults.ship.rebase_before_merge,
       // BACK-012 FIX: Include co_authors in 3-layer resolution (was read from raw talisman)
       // QUAL-003 FIX: Check arc.ship.co_authors first, fall back to work.co_authors
       co_authors: Array.isArray(talismanShip.co_authors) ? talismanShip.co_authors
         : Array.isArray(work?.co_authors) ? work.co_authors : [],
     },
+    // GRACE-002 FIX: Include bot_review in Layer 2 talisman resolution (was CLI-only)
+    bot_review: typeof (arc?.bot_review) === 'boolean' ? arc.bot_review : defaults.bot_review,
+    no_bot_review: typeof (arc?.no_bot_review) === 'boolean' ? arc.no_bot_review : defaults.no_bot_review,
+    // RUIN-004 FIX: Include inspect.enabled in 3-layer resolution (was raw talisman read in computeSkipMap)
+    inspect_enabled: typeof (arc?.inspect?.enabled) === 'boolean' ? arc.inspect.enabled : true,
     // QUAL-001 FIX: Include pre_merge_checks in config resolution (was missing — talisman overrides silently ignored)
     pre_merge_checks: {
       migration_conflict: talismanPreMerge.migration_conflict ?? true,
@@ -265,7 +277,8 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
   }
 
   // ── Inspect phases (3 phases) ──
-  if (arc?.inspect?.enabled === false) {
+  // RUIN-004 FIX: Use 3-layer resolved arcConfig instead of raw talisman read
+  if (arcConfig.inspect_enabled === false) {
     map.inspect = "inspect_disabled"
     map.inspect_fix = "inspect_disabled"
     map.verify_inspect = "inspect_disabled"
@@ -339,7 +352,8 @@ const parentPlanMeta = {
 Write(`.rune/arc/${id}/checkpoint.json`, {
   id, schema_version: 24, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
-  flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, accept_external_changes: arcConfig.accept_external_changes ?? true, bot_review: arcConfig.bot_review ?? false, no_bot_review: arcConfig.no_bot_review ?? false },
+  // RUIN-003 FIX: Remove redundant ?? guards — Layer 2 resolveArcConfig() already guarantees all values are defined
+  flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, accept_external_changes: arcConfig.accept_external_changes, bot_review: arcConfig.bot_review, no_bot_review: arcConfig.no_bot_review },
   arc_config: arcConfig,
   pr_url: null,
   freshness: freshnessResult || null,
