@@ -269,7 +269,7 @@ impl PostArcRecovery {
         checkpoint: Option<&Checkpoint>,
     ) -> Option<BranchContext> {
         let current_branch = git_current_branch()?;
-        let expected_branch = resolve_expected_branch(plan_slug, checkpoint);
+        let expected_branch = resolve_expected_branch(plan_slug, checkpoint, None);
         let is_main = current_branch == "main" || current_branch == "master";
         let is_correct = current_branch == expected_branch;
         let has_changes = git_has_changes();
