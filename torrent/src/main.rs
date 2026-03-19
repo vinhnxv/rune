@@ -1,11 +1,13 @@
 mod app;
 mod checkpoint;
+mod diagnostic;
 mod keybindings;
 mod lock;
 mod log;
 mod monitor;
-mod resume;
+mod recovery;
 mod resource;
+mod resume;
 mod scanner;
 mod tmux;
 mod ui;

@@ -9,6 +9,7 @@ use color_eyre::Result;
 
 use ratatui::widgets::ListState;
 
+use crate::diagnostic::{DiagnosticAction, DiagnosticEngine, DiagnosticResult, DiagnosticState};
 use crate::monitor::{self, ActivityDetector, ActivityState};
 use crate::resource::{self, ProcessHealth, ResourceSnapshot};
 use crate::resume::ResumeState;
@@ -96,6 +97,12 @@ pub struct App {
 
     // Phase timeout configuration (session-scoped, loaded from env once)
     pub phase_timeout_config: PhaseTimeoutConfig,
+
+    // Diagnostic engine for session health monitoring
+    pub diagnostic_engine: DiagnosticEngine,
+    pub last_diagnostic_poll: Option<Instant>,
+    /// Current diagnostic result for UI banner display.
+    pub last_diagnostic: Option<DiagnosticResult>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -414,6 +421,9 @@ impl App {
             should_quit: false,
             claude_version: Self::detect_claude_version(),
             phase_timeout_config: PhaseTimeoutConfig::from_env(),
+            diagnostic_engine: DiagnosticEngine::new(),
+            last_diagnostic_poll: None,
+            last_diagnostic: None,
         })
     }
 
@@ -1087,6 +1097,16 @@ impl App {
                 self.poll_discovery();
                 self.last_discovery_poll = Some(now);
             }
+
+            // Bootstrap diagnostic check (every 30s during discovery)
+            let should_diag = self
+                .last_diagnostic_poll
+                .map(|t| now.duration_since(t) >= Duration::from_secs(30))
+                .unwrap_or(true);
+            if should_diag {
+                self.poll_diagnostic_bootstrap();
+                self.last_diagnostic_poll = Some(now);
+            }
         } else {
             // Heartbeat polling (every 5s)
             let should_poll_hb = self
@@ -1111,6 +1131,16 @@ impl App {
                 self.refresh_git_branch();
                 self.refresh_session_info();
                 self.last_loop_state_poll = Some(now);
+            }
+
+            // Runtime diagnostic check (every 30s during execution)
+            let should_diag = self
+                .last_diagnostic_poll
+                .map(|t| now.duration_since(t) >= Duration::from_secs(30))
+                .unwrap_or(true);
+            if should_diag {
+                self.poll_diagnostic_runtime();
+                self.last_diagnostic_poll = Some(now);
             }
 
             // Check grace period completion BEFORE timeout (completion race guard)
@@ -1168,9 +1198,6 @@ impl App {
         let plan = self.plans.get(plan_idx).cloned().ok_or_else(|| {
             eyre!("plan index {plan_idx} out of bounds")
         })?;
-        let config = self.config_dirs.get(self.selected_config).ok_or_else(|| {
-            eyre!("no config dir selected")
-        })?;
 
         // Step 0: Clean stale arc state from previous run.
         // arc-phase-loop.local.md belongs to CWD (not per-arc) — if the previous
@@ -1185,6 +1212,25 @@ impl App {
         if legacy_loop.exists() {
             let _ = std::fs::remove_file(&legacy_loop);
         }
+
+        // Step 0.5: Pre-arc diagnostic check — verify session health before launch.
+        // If there's an existing tmux session we can probe, check for blocking errors
+        // (billing, auth) before spending time creating a new session.
+        if let Some(ref sid) = self.tmux_session_id {
+            if let Ok(pane_pid) = Tmux::get_pane_pid(sid) {
+                let diag = self.diagnostic_engine.check_pre_arc(sid, pane_pid);
+                if diag.action != DiagnosticAction::Continue {
+                    self.last_diagnostic = Some(diag.clone());
+                    if self.handle_diagnostic_action(&diag, plan_idx) {
+                        return Ok(());
+                    }
+                }
+            }
+        }
+
+        let config = self.config_dirs.get(self.selected_config).ok_or_else(|| {
+            eyre!("no config dir selected")
+        })?;
 
         // Step 1: git checkout main + pull (blocking, before tmux)
         // Use .output() to CAPTURE stdout/stderr — .status() leaks into TUI display
@@ -1473,6 +1519,252 @@ impl App {
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(30)
+    }
+
+    /// Run bootstrap diagnostic check during discovery phase.
+    /// Detects early failures (plan not found, plugin missing, auth errors)
+    /// before the arc checkpoint is even created.
+    fn poll_diagnostic_bootstrap(&mut self) {
+        let (session_id, pane_pid) = match self.extract_session_pane() {
+            Some(v) => v,
+            None => return,
+        };
+        // Compute elapsed time since launch for checkpoint timeout detection (D6)
+        let elapsed = self.current_run.as_ref()
+            .map(|r| r.launched_at.elapsed())
+            .unwrap_or_default();
+        let checkpoint_timeout = Duration::from_secs(
+            env_or_u64("TORRENT_CHECKPOINT_TIMEOUT", 600)
+        );
+        let diag = self.diagnostic_engine.check_bootstrap(
+            &session_id, pane_pid, elapsed, checkpoint_timeout,
+        );
+        if diag.state != DiagnosticState::Healthy {
+            self.last_diagnostic = Some(diag.clone());
+            let plan_idx = self.current_run.as_ref()
+                .and_then(|r| self.plans.iter().position(|p| p.path == r.plan.path));
+            if let Some(idx) = plan_idx {
+                self.handle_diagnostic_action(&diag, idx);
+            }
+        } else {
+            // Clear previous diagnostic on healthy check
+            self.last_diagnostic = None;
+        }
+    }
+
+    /// Run runtime diagnostic check during active arc execution.
+    /// Detects API errors, rate limits, crashes during the arc run.
+    fn poll_diagnostic_runtime(&mut self) {
+        let (session_id, pane_pid) = match self.extract_session_pane() {
+            Some(v) => v,
+            None => return,
+        };
+        let diag = self.diagnostic_engine.check_runtime(&session_id, pane_pid);
+        if diag.state != DiagnosticState::Healthy {
+            self.last_diagnostic = Some(diag.clone());
+            let plan_idx = self.current_run.as_ref()
+                .and_then(|r| self.plans.iter().position(|p| p.path == r.plan.path));
+            if let Some(idx) = plan_idx {
+                self.handle_diagnostic_action(&diag, idx);
+            }
+        } else {
+            self.last_diagnostic = None;
+        }
+    }
+
+    /// Extract tmux session ID and pane PID from the current run.
+    fn extract_session_pane(&self) -> Option<(String, u32)> {
+        let run = self.current_run.as_ref()?;
+        let session_id = self.tmux_session_id.as_ref()?;
+        let pane_pid = run.tmux_pane_pid?;
+        Some((session_id.clone(), pane_pid))
+    }
+
+    /// Handle a diagnostic action — dispatch on the prescribed action.
+    /// Returns `true` if the caller should return early (plan was skipped/stopped).
+    fn handle_diagnostic_action(&mut self, diag: &DiagnosticResult, plan_idx: usize) -> bool {
+        match diag.action {
+            DiagnosticAction::Continue => false,
+
+            DiagnosticAction::StopBatch => {
+                self.status_message = Some(format!(
+                    "DIAGNOSTIC: {} — stopping batch", diag.state.label()
+                ));
+                self.queue.clear();
+                if let Some(run) = self.current_run.take() {
+                    let _ = Tmux::kill_session(&run.tmux_session);
+                    let arc_id = run.arc_id();
+                    let duration = run.arc_duration();
+                    self.completed_runs.push(CompletedRun {
+                        plan: run.plan,
+                        result: ArcCompletion::Failed {
+                            reason: format!("diagnostic: {}", diag.state.label()),
+                        },
+                        duration,
+                        arc_id,
+                        resume_restarts: None,
+                    });
+                }
+                self.tmux_session_id = None;
+                true
+            }
+
+            DiagnosticAction::SkipPlan => {
+                self.status_message = Some(format!(
+                    "DIAGNOSTIC: {} — skipping plan", diag.state.label()
+                ));
+                if let Some(run) = self.current_run.take() {
+                    let _ = Tmux::kill_session(&run.tmux_session);
+                    let arc_id = run.arc_id();
+                    let duration = run.arc_duration();
+                    self.completed_runs.push(CompletedRun {
+                        plan: run.plan,
+                        result: ArcCompletion::Cancelled {
+                            reason: Some(format!("diagnostic: {}", diag.state.label())),
+                        },
+                        duration,
+                        arc_id,
+                        resume_restarts: None,
+                    });
+                }
+                self.tmux_session_id = None;
+                true
+            }
+
+            DiagnosticAction::KillAndCooldown | DiagnosticAction::KillAndRetryAuth => {
+                if let Some(strategy) = diag.action.retry_strategy() {
+                    let plan_name = self.current_run.as_ref()
+                        .map(|r| r.plan.path.display().to_string())
+                        .unwrap_or_default();
+                    let mut resume = self.current_run.as_ref()
+                        .and_then(|r| r.resume_state.clone())
+                        .unwrap_or_else(|| ResumeState::load(&plan_name));
+
+                    let max = strategy.max_retries();
+                    if resume.total_restarts >= max {
+                        self.status_message = Some(format!(
+                            "DIAGNOSTIC: {} — max retries exceeded, skipping",
+                            diag.state.label()
+                        ));
+                        if let Some(run) = self.current_run.take() {
+                            let _ = Tmux::kill_session(&run.tmux_session);
+                            let arc_id = run.arc_id();
+                            let duration = run.arc_duration();
+                            self.completed_runs.push(CompletedRun {
+                                plan: run.plan,
+                                result: ArcCompletion::Failed {
+                                    reason: format!("diagnostic: {} retries exhausted", diag.state.label()),
+                                },
+                                duration,
+                                arc_id,
+                                resume_restarts: None,
+                            });
+                        }
+                        self.tmux_session_id = None;
+                        return true;
+                    }
+
+                    resume.record_restart(0, "diagnostic", diag.state.label());
+                    let cooldown = strategy.backoff_duration(resume.total_restarts, None);
+
+                    self.status_message = Some(format!(
+                        "DIAGNOSTIC: {} — retry #{} in {}s",
+                        diag.state.label(),
+                        resume.total_restarts,
+                        cooldown.as_secs(),
+                    ));
+
+                    if let Some(ref sid) = self.tmux_session_id {
+                        let _ = Tmux::kill_session(sid);
+                    }
+
+                    if let Some(run) = &mut self.current_run {
+                        run.restart_cooldown_until = Some(Instant::now() + cooldown);
+                        run.resume_state = Some(resume);
+                    }
+                }
+                true
+            }
+
+            DiagnosticAction::RetrySession => {
+                self.status_message = Some(format!(
+                    "DIAGNOSTIC: {} — retrying session", diag.state.label()
+                ));
+                if let Some(run) = self.current_run.take() {
+                    let _ = Tmux::kill_session(&run.tmux_session);
+                    // Re-queue the plan for retry
+                    self.queue.push_front(QueueEntry {
+                        plan_idx,
+                        config_idx: run.config_idx,
+                    });
+                }
+                self.tmux_session_id = None;
+                true
+            }
+
+            DiagnosticAction::Retry3xThenSkip => {
+                let plan_name = self.current_run.as_ref()
+                    .map(|r| r.plan.path.display().to_string())
+                    .unwrap_or_default();
+                let mut resume = self.current_run.as_ref()
+                    .and_then(|r| r.resume_state.clone())
+                    .unwrap_or_else(|| ResumeState::load(&plan_name));
+
+                let strategy = diag.action.retry_strategy()
+                    .unwrap_or(crate::resume::RetryStrategy::RateLimit);
+                let max = strategy.max_retries();
+
+                if resume.total_restarts >= max {
+                    self.status_message = Some(format!(
+                        "DIAGNOSTIC: {} — {} retries exhausted, skipping",
+                        diag.state.label(), max,
+                    ));
+                    if let Some(run) = self.current_run.take() {
+                        let _ = Tmux::kill_session(&run.tmux_session);
+                        let arc_id = run.arc_id();
+                        let duration = run.arc_duration();
+                        self.completed_runs.push(CompletedRun {
+                            plan: run.plan,
+                            result: ArcCompletion::Failed {
+                                reason: format!("diagnostic: {} retries exhausted", diag.state.label()),
+                            },
+                            duration,
+                            arc_id,
+                            resume_restarts: None,
+                        });
+                    }
+                    self.tmux_session_id = None;
+                    return true;
+                }
+
+                resume.record_restart(0, "diagnostic", diag.state.label());
+                let cooldown = strategy.backoff_duration(resume.total_restarts, None);
+
+                self.status_message = Some(format!(
+                    "DIAGNOSTIC: {} — retry #{} in {}s",
+                    diag.state.label(),
+                    resume.total_restarts,
+                    cooldown.as_secs(),
+                ));
+
+                if let Some(ref sid) = self.tmux_session_id {
+                    let _ = Tmux::kill_session(sid);
+                }
+
+                if let Some(run) = &mut self.current_run {
+                    run.restart_cooldown_until = Some(Instant::now() + cooldown);
+                    run.resume_state = Some(resume);
+                }
+                true
+            }
+
+            DiagnosticAction::WaitTimeout | DiagnosticAction::GracePeriod => {
+                self.status_message = Some(format!(
+                    "DIAGNOSTIC: {} — waiting...", diag.state.label()
+                ));
+                false
+            }
+        }
     }
 
     /// Check if the current phase has exceeded its timeout.

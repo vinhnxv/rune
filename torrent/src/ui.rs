@@ -7,6 +7,7 @@ use ratatui::widgets::{
 use ratatui::Frame;
 
 use crate::app::{App, AppView, ArcCompletion, Panel};
+use crate::diagnostic::Severity;
 use crate::monitor::ActivityState;
 use crate::resource::ProcessHealth;
 
@@ -410,30 +411,51 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
         .and_then(|r| r.merge_detected_at.map(|_| r.grace_duration.is_some()))
         .unwrap_or(false);
 
+    // Check if a diagnostic banner should be shown (non-Healthy state).
+    let diag_banner = app.last_diagnostic.as_ref().and_then(|d| {
+        d.state.display_message().map(|msg| (msg, d.state.severity()))
+    });
+    let has_banner = diag_banner.is_some();
+
     let chunks = if grace_active {
+        let mut constraints = vec![
+            Constraint::Length(1),  // header
+        ];
+        if has_banner {
+            constraints.push(Constraint::Length(1)); // diagnostic banner
+        }
+        constraints.extend_from_slice(&[
+            Constraint::Length(13), // phases + session info + loop state
+            Constraint::Length(6),  // heartbeat + resources (no phase)
+            Constraint::Length(3),  // grace countdown (F4)
+            Constraint::Min(3),
+            Constraint::Length(1),
+        ]);
         Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(1),
-                Constraint::Length(13), // phases + session info + loop state
-                Constraint::Length(6),  // heartbeat + resources (no phase)
-                Constraint::Length(3),  // grace countdown (F4)
-                Constraint::Min(3),
-                Constraint::Length(1),
-            ])
+            .constraints(constraints)
             .split(area)
     } else {
+        let mut constraints = vec![
+            Constraint::Length(1),  // header
+        ];
+        if has_banner {
+            constraints.push(Constraint::Length(1)); // diagnostic banner
+        }
+        constraints.extend_from_slice(&[
+            Constraint::Length(13), // phases + session info + loop state
+            Constraint::Length(6),  // heartbeat + resources (no phase)
+            Constraint::Min(3),
+            Constraint::Length(1),
+        ]);
         Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(1),
-                Constraint::Length(13), // phases + session info + loop state
-                Constraint::Length(6),  // heartbeat + resources (no phase)
-                Constraint::Min(3),
-                Constraint::Length(1),
-            ])
+            .constraints(constraints)
             .split(area)
     };
+
+    // Track chunk index — banner shifts all subsequent indices by 1.
+    let mut ci = 0;
 
     // Header — use current run's config, not the selection cursor
     let run_config_idx = app.current_run.as_ref().map(|r| r.config_idx).unwrap_or(app.selected_config);
@@ -456,15 +478,33 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
             Span::styled("  ⎇ ", Style::default().fg(sol::BASE01)),
             Span::styled(&app.git_branch, Style::default().fg(sol::GREEN)),
         ])),
-        chunks[0],
+        chunks[ci],
     );
+    ci += 1;
 
-    render_checkpoint(frame, app, chunks[1]);
-    render_heartbeat(frame, app, chunks[2]);
+    // Diagnostic banner (F6) — shown only when non-Healthy state detected.
+    if let Some((msg, severity)) = diag_banner {
+        let color = severity_color(&severity);
+        frame.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled(" ⚠ ", Style::default().fg(color).add_modifier(Modifier::BOLD)),
+                Span::styled(msg, Style::default().fg(color)),
+            ])),
+            chunks[ci],
+        );
+        ci += 1;
+    }
+
+    render_checkpoint(frame, app, chunks[ci]);
+    ci += 1;
+    render_heartbeat(frame, app, chunks[ci]);
+    ci += 1;
 
     if grace_active {
-        render_grace_countdown(frame, app, chunks[3]);
-        render_queue(frame, app, chunks[4]);
+        render_grace_countdown(frame, app, chunks[ci]);
+        ci += 1;
+        render_queue(frame, app, chunks[ci]);
+        ci += 1;
 
         // Status bar with grace-specific hint
         let grace_status = if app.current_run.as_ref().map(|r| r.grace_skip_at.is_some()).unwrap_or(false) {
@@ -475,10 +515,11 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
         let status = app.status_message.as_deref().unwrap_or(grace_status);
         frame.render_widget(
             Paragraph::new(status).style(Style::default().fg(sol::BASE01)),
-            chunks[5],
+            chunks[ci],
         );
     } else {
-        render_queue(frame, app, chunks[3]);
+        render_queue(frame, app, chunks[ci]);
+        ci += 1;
 
         // Status bar — context-sensitive
         let all_done = app.current_run.is_none() && app.queue.is_empty() && !app.completed_runs.is_empty();
@@ -492,8 +533,18 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
         let status = app.status_message.as_deref().unwrap_or(default_status);
         frame.render_widget(
             Paragraph::new(status).style(Style::default().fg(sol::BASE01)),
-            chunks[4],
+            chunks[ci],
         );
+    }
+}
+
+/// Map diagnostic severity to a Solarized color for the UI banner.
+fn severity_color(severity: &Severity) -> Color {
+    match severity {
+        Severity::Critical => sol::RED,
+        Severity::High => sol::ORANGE,
+        Severity::Medium => sol::YELLOW,
+        Severity::Low => sol::GREEN,
     }
 }
 
