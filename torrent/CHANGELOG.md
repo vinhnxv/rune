@@ -7,8 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-03-19
+
 ### Added
 
+- **Tmux pane diagnostic detection (F6)** — three-phase diagnostic pipeline (pre-arc health check, arc bootstrap check, runtime monitoring) covering 10+ diagnostic states (D1-D10, D17-D24) with pattern-based detection
+- **Post-arc recovery (F6)** — branch-safe stash flows (D25/D26) using `Command::new("git")` for deterministic stash/branch operations; never drops stash on conflict, never force-checkouts
+- **Severity-colored diagnostic banners** — diagnostic state displayed in TUI Running view with color-coded severity
+- **Multi-signal activity state detection (F3)** — `ActivityState` enum with 6 states (Active, Slow, Stale, Idle, Stopped, WaitingInput) combining heartbeat freshness, pane output hash, CPU activity, and input prompt detection; informational only, does not trigger kill/restart
+- **Activity state UI indicator** — color-coded icon in heartbeat section of Running view
 - **Auto-resume on phase timeout (F5)** — automatic session restart with `/arc --resume` after phase timeout kill
 - **Three retry strategies** — PhaseTimeout (30s cooldown, 3 max), ApiOverload (progressive 15m→4h, 6 max), TokenAuth (15m→30m, 3 max)
 - **Resume state persistence** — `.torrent/state/{plan-hash}.json` survives torrent restarts

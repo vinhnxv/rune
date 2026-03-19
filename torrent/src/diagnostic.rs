@@ -32,6 +32,7 @@ pub enum Severity {
 
 impl Severity {
     /// Short label for logging.
+    #[allow(dead_code)]
     pub fn label(&self) -> &'static str {
         match self {
             Severity::Critical => "critical",
@@ -59,6 +60,7 @@ pub enum DiagnosticState {
     /// Claude Code process not found in tmux pane (exited or not started).
     NoClaude,
     /// Authentication required — login prompt or expired token.
+    #[allow(dead_code)]
     AuthRequired,
     /// Plan file not found — path error or missing file.
     PlanNotFound,
@@ -72,8 +74,10 @@ pub enum DiagnosticState {
     /// D7: Detection is PROCESS-BASED ONLY — pane text patterns are logging-only.
     ClaudeCrashed,
     /// Waiting for user input (shell prompt, y/n confirmation).
+    #[allow(dead_code)]
     InputWaiting,
     /// Unclassified error — pane contains error indicators but no specific match.
+    #[allow(dead_code)]
     Unknown,
 
     // ── API error states (D17-D24) ──
@@ -184,6 +188,7 @@ pub enum DiagnosticAction {
     /// Retry up to 3 times, then skip plan. Maps to `RetryStrategy::RateLimit`.
     Retry3xThenSkip,
     /// Wait for a timeout before re-checking.
+    #[allow(dead_code)]
     WaitTimeout,
     /// Allow grace period for process restart (e.g., self-update). 60s grace.
     GracePeriod,
@@ -217,8 +222,10 @@ pub struct DiagnosticResult {
     /// Prescribed watchdog action.
     pub action: DiagnosticAction,
     /// Snapshot of the pane text that was analyzed (last N lines).
+    #[allow(dead_code)]
     pub pane_snapshot: String,
     /// The pattern string that matched (if any). For logging/debugging.
+    #[allow(dead_code)]
     pub matched_pattern: Option<String>,
 }
 
@@ -681,6 +688,7 @@ impl DiagnosticEngine {
     ///
     /// Called by the watchdog when it independently confirms the process is alive
     /// (e.g., via heartbeat checks in the main poll loop).
+    #[allow(dead_code)]
     pub fn mark_process_alive(&mut self) {
         self.last_process_seen = Some(Instant::now());
     }
