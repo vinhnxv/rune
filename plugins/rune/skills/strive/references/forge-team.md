@@ -134,9 +134,12 @@ for (const task of extractedTasks) {
 
   // RUIN-004 FIX: Sanitize task.description for YAML frontmatter safety
   // Escape YAML special characters to prevent content injection
+  // RUIN-S1 FIX: Also escape newlines to prevent breaking out of double-quoted YAML scalars
   const sanitizedDescription = (task.description ?? '')
     .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
 
   const taskFileContent = [
     '---',
