@@ -10,6 +10,7 @@ description: |
   version/count claim accuracy, namespace prefix compliance.
 tools:
   - Read
+  - Write
   - Glob
   - Grep
   - Bash

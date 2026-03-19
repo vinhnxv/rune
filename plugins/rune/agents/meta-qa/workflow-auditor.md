@@ -10,6 +10,7 @@ description: |
   hint safety, phase count claim accuracy, HEAVY_PHASES completeness.
 tools:
   - Read
+  - Write
   - Glob
   - Grep
   - Bash

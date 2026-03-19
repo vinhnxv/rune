@@ -11,6 +11,7 @@ description: |
   fail-forward vs fail-closed consistency.
 tools:
   - Read
+  - Write
   - Glob
   - Grep
   - Bash

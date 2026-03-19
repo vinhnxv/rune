@@ -10,6 +10,7 @@ description: |
   metadata completeness, description quality, registry count verification.
 tools:
   - Read
+  - Write
   - Glob
   - Grep
   - Bash
