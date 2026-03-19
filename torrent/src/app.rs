@@ -1629,55 +1629,84 @@ impl App {
     }
 
     /// Check if a restart cooldown has expired and execute the restart.
+    ///
+    /// Two-phase non-blocking state machine (PERF-001 FIX):
+    /// Phase 1: Cooldown expires → create new tmux session, set init_wait deadline (12s)
+    /// Phase 2: Init wait expires → send /arc --resume command
+    /// This avoids blocking the tick loop with thread::sleep.
     fn check_restart_cooldown(&mut self) {
-        let should_restart = self.current_run.as_ref()
-            .and_then(|r| r.restart_cooldown_until)
-            .map_or(false, |deadline| Instant::now() >= deadline);
-
-        if !should_restart { return; }
-
-        let run = self.current_run.as_ref().unwrap();
-        let plan_path = run.plan.path.clone();
-        let config_idx = run.config_idx;
-        let config = match self.config_dirs.get(config_idx) {
-            Some(c) => c.clone(),
+        // FLAW-005 FIX: Use guard clause instead of fragile unwrap
+        let run = match &self.current_run {
+            Some(r) => r,
             None => return,
         };
-        let old_session = run.tmux_session.clone();
-        let cwd = std::env::current_dir().unwrap_or_default();
 
-        // Recreate tmux session
-        match crate::tmux::Tmux::recreate_session(
-            &old_session, &cwd, &config.path, &self.claude_path
-        ) {
-            Ok(new_session_id) => {
-                // P1-002 FIX: Wait for Claude Code to initialize before sending command.
-                // Claude Code uses Ink (React-based TUI) which needs ~12s to start up.
-                // Without this wait, the /arc --resume command is lost.
-                std::thread::sleep(Duration::from_secs(12));
+        let cooldown_deadline = match run.restart_cooldown_until {
+            Some(d) => d,
+            None => return,
+        };
 
-                // Send /arc --resume
-                if let Err(e) = crate::tmux::Tmux::send_arc_resume_command(&new_session_id, &plan_path) {
-                    self.status_message = Some(format!("Failed to send /arc --resume: {}", e));
-                    return;
+        if Instant::now() < cooldown_deadline {
+            // Show countdown in status
+            let remaining = cooldown_deadline.duration_since(Instant::now()).as_secs();
+            if remaining > 0 {
+                self.status_message = Some(format!(
+                    "Restarting in {}s...", remaining
+                ));
+            }
+            return;
+        }
+
+        // Cooldown expired — check if session already recreated (phase 2: send command)
+        // If arc is None and tmux session exists, we're in the init-wait phase
+        let has_arc = run.arc.is_some();
+        let plan_path = run.plan.path.clone();
+
+        if !has_arc {
+            // Phase 1: Cooldown just expired — create session + set init wait
+            let config_idx = run.config_idx;
+            let config = match self.config_dirs.get(config_idx) {
+                Some(c) => c.clone(),
+                None => return,
+            };
+            let old_session = run.tmux_session.clone();
+            let cwd = std::env::current_dir().unwrap_or_default();
+
+            match crate::tmux::Tmux::recreate_session(
+                &old_session, &cwd, &config.path, &self.claude_path
+            ) {
+                Ok(new_session_id) => {
+                    // Set init wait: 12s for Claude Code startup
+                    if let Some(run) = &mut self.current_run {
+                        run.tmux_session = new_session_id.clone();
+                        run.restart_cooldown_until = Some(Instant::now() + Duration::from_secs(12));
+                        run.timeout_triggered_at = None;
+                        run.current_phase_started = None;
+                        run.launched_at = Instant::now();
+                        run.arc = None;
+                        run.last_status = None;
+                    }
+                    self.tmux_session_id = Some(new_session_id);
+                    self.last_discovery_poll = None;
+                    self.status_message = Some("Session recreated — waiting for Claude Code init...".into());
                 }
-                // Update run state with new session
-                if let Some(run) = &mut self.current_run {
-                    run.tmux_session = new_session_id.clone();
-                    run.restart_cooldown_until = None;
-                    run.timeout_triggered_at = None;
-                    run.current_phase_started = None;
-                    run.launched_at = Instant::now();
-                    run.arc = None; // Will be re-discovered
-                    run.last_status = None;
+                Err(e) => {
+                    self.status_message = Some(format!("Restart failed: {} — skipping plan", e));
+                    self.cleanup_skipped_plan();
                 }
-                self.tmux_session_id = Some(new_session_id);
-                self.last_discovery_poll = None; // Force re-discovery
+            }
+        } else {
+            // Phase 2: Init wait expired + session discovered — send /arc --resume
+            if let Err(e) = crate::tmux::Tmux::send_arc_resume_command(
+                &run.tmux_session, &plan_path
+            ) {
+                self.status_message = Some(format!("Failed to send /arc --resume: {}", e));
+            } else {
                 self.status_message = Some("Auto-resumed with /arc --resume".into());
             }
-            Err(e) => {
-                self.status_message = Some(format!("Restart failed: {} — skipping plan", e));
-                self.cleanup_skipped_plan();
+            // Clear cooldown — resume is now running
+            if let Some(run) = &mut self.current_run {
+                run.restart_cooldown_until = None;
             }
         }
     }
