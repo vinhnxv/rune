@@ -80,6 +80,14 @@ DECIDED_BY: user | auto-timeout`,
 **Worker behavior on receiving answer**: Continue from where the question was sent.
 If `DECIDED_BY: auto-timeout`, worker notes this assumption in the Seal message.
 
+**Worker-side timeout (FM-3 FIX)**: Workers should NOT wait indefinitely for answers. If no
+answer arrives within ~3 minutes after sending a blocking question, the worker should:
+1. Proceed with the first option (option A) as a best-effort decision
+2. Log the assumption in the task file Worker Report: "Auto-proceeded after relay timeout"
+3. Note the assumption in the Seal message for post-completion review
+The orchestrator's relay timeout (`timeout_seconds: 180`) and `auto_answer_on_timeout` handle
+the common case, but worker-side resilience ensures forward progress even if the relay fails.
+
 ## Persistence Layer (Compaction Recovery — Orchestrator Only)
 
 **CRITICAL**: Workers do NOT write, read, or poll these files. The orchestrator writes them

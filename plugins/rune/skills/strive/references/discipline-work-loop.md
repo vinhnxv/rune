@@ -163,6 +163,31 @@ function verifyWorkerReports(timestamp) {
       reportIssues.push({ taskId, issue: 'MISSING_EVIDENCE', severity: 'CRITICAL' })
     }
 
+    // Check 3b (R3 FIX): Reject known filler phrases in Evidence section
+    const fillerPatterns = [
+      /implemented as planned/i,
+      /it works/i,
+      /works correctly/i,
+      /implemented correctly/i,
+      /changes applied/i,
+      /done as requested/i,
+    ]
+    if (evidence.length > 0 && !evidence.match(/\w+\.\w+:\d+/)) {
+      const hasFillerOnly = fillerPatterns.some(p => p.test(evidence))
+      if (hasFillerOnly) {
+        reportIssues.push({ taskId, issue: 'FILLER_EVIDENCE', severity: 'HIGH',
+          detail: 'Evidence contains only generic filler phrases without file:line references' })
+      }
+    }
+
+    // Check 3c (R3 FIX): Implementation Notes must have minimum substance
+    const implNotesMatch = content.match(/### Implementation Notes\n([\s\S]*?)(?=\n###|\n##|$)/)
+    const implNotes = implNotesMatch?.[1]?.trim() ?? ""
+    if (implNotes.length > 0 && implNotes.length < 30) {
+      reportIssues.push({ taskId, issue: 'THIN_IMPL_NOTES', severity: 'MEDIUM',
+        detail: `Implementation Notes too brief (${implNotes.length} chars, min 30)` })
+    }
+
     // Check 4: Self-Review Checklist must have checked items
     if (!content.includes('### Self-Review Checklist') || !content.match(/- \[x\]/i)) {
       reportIssues.push({ taskId, issue: 'INCOMPLETE_SELF_REVIEW', severity: 'HIGH',
