@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [2.1.8] - 2026-03-19
+
+### Added
+- **hooks**: `enforce-gh-account.sh` PreToolUse:Bash hook (GH-ACCOUNT-001) — auto-resolves correct GitHub account before `gh pr`, `gh issue`, `gh api`, `gh repo`, and `git push` commands when multiple accounts are authenticated
+- **lib**: `gh-account-resolver.sh` — shared library for multi-account detection, access testing, and `gh auth switch` auto-switching
+- **arc**: Account resolution in Phase 9 (ship) and Phase 9.5 (merge) before push/PR/merge operations
+- **strive**: Account resolution in Phase 6.5 (ship) before push/PR creation
+- **lib**: Account resolution in `pr-comment-poster.sh` before posting PR comments
+
 ## [2.1.7] - 2026-03-19
 
 ### Added
