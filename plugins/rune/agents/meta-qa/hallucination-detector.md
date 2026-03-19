@@ -11,6 +11,7 @@ description: |
   copy-paste finding detection, empty-evidence PASS verdicts.
 tools:
   - Read
+  - Write
   - Glob
   - Grep
   - Bash

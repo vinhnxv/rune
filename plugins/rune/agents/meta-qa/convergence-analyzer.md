@@ -10,6 +10,7 @@ description: |
   stagnation detection (retries without improvement).
 tools:
   - Read
+  - Write
   - Glob
   - Grep
   - Bash

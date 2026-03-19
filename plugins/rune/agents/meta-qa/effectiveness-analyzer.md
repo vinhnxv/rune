@@ -10,6 +10,7 @@ description: |
   cross-model comparison (Claude vs Codex), review dimension coverage.
 tools:
   - Read
+  - Write
   - Glob
   - Grep
   - Bash
