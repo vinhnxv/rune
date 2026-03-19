@@ -262,8 +262,9 @@ impl PhaseTimeoutConfig {
     /// Each override is (phase_category, minutes).
     pub fn apply_overrides(&mut self, overrides: &[(String, u64)]) {
         for (phase, mins) in overrides {
+            let clamped = (*mins).max(1);
             self.timeouts
-                .insert(phase.clone(), Duration::from_secs(mins * 60));
+                .insert(phase.to_lowercase(), Duration::from_secs(clamped * 60));
         }
     }
 
@@ -1475,15 +1476,35 @@ impl App {
 
         if let Some(pid) = pid_to_kill {
             // SAFETY: libc::kill sends a signal to a process. We use SIGTERM (graceful).
-            unsafe {
-                libc::kill(pid as libc::pid_t, libc::SIGTERM);
+            let ret = unsafe { libc::kill(pid as libc::pid_t, libc::SIGTERM) };
+            if ret != 0 {
+                let err = std::io::Error::last_os_error();
+                if err.raw_os_error() == Some(libc::ESRCH) {
+                    // Process already gone — skip 15s grace, go straight to tmux kill
+                    self.status_message = Some(format!(
+                        "Phase timeout: PID {} already exited, killing tmux (phase: {})",
+                        pid, phase_name,
+                    ));
+                    if let Some(run) = &self.current_run {
+                        let _ = Tmux::kill_session(&run.tmux_session);
+                    }
+                } else if err.raw_os_error() == Some(libc::EPERM) {
+                    self.status_message = Some(format!(
+                        "Phase timeout: SIGTERM to PID {} denied (EPERM) (phase: {}, limit: {}m)",
+                        pid, phase_name, timeout.as_secs() / 60,
+                    ));
+                } else {
+                    self.status_message = Some(format!(
+                        "Phase timeout: SIGTERM to PID {} failed: {} (phase: {})",
+                        pid, err, phase_name,
+                    ));
+                }
+            } else {
+                self.status_message = Some(format!(
+                    "Phase timeout: SIGTERM sent to PID {} (phase: {}, limit: {}m)",
+                    pid, phase_name, timeout.as_secs() / 60,
+                ));
             }
-            self.status_message = Some(format!(
-                "Phase timeout: SIGTERM sent to PID {} (phase: {}, limit: {}m)",
-                pid,
-                phase_name,
-                timeout.as_secs() / 60,
-            ));
         } else {
             // No PID available — fall back to tmux kill directly
             self.status_message = Some(format!(

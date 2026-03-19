@@ -105,7 +105,7 @@ cd /path/to/project
 
 Torrent launches each plan in a fresh tmux session, monitors arc progress via
 checkpoint and heartbeat JSON files, and automatically advances to the next plan
-when an arc completes (merge phase done + 4 min grace period).
+when an arc completes (merge phase done + 5 min grace period).
 
 The current phase displays elapsed time alongside its timeout limit with a color-coded
 indicator (green < 50%, yellow 50-80%, red > 80%). When a phase times out, a red
@@ -138,13 +138,16 @@ warning banner appears in the heartbeat panel.
 
 ```
 torrent (TUI)
+├── main.rs         — entry point, CLI arg parsing, event loop
 ├── scanner.rs      — discovers ~/.claude* dirs and plans/*.md files
 ├── app.rs          — application state, selection logic, quit summary
 ├── ui.rs           — ratatui rendering (selection + running views)
 ├── keybindings.rs  — input handling per view
 ├── tmux.rs         — tmux session lifecycle (create, send-keys, kill)
 ├── monitor.rs      — arc discovery + heartbeat/checkpoint polling
-└── checkpoint.rs   — serde structs for checkpoint.json + heartbeat.json
+├── checkpoint.rs   — serde structs for checkpoint.json + heartbeat.json
+├── lock.rs         — CWD-based instance lock (prevents concurrent torrent)
+└── resource.rs     — process resource monitoring via sysinfo (CPU/memory)
 ```
 
 ### Data Flow
@@ -191,7 +194,7 @@ cargo build --release --bin torrent-cli
 
 ### Grace Period
 
-The grace period after merge detection before starting the next plan defaults to 240 seconds (4 minutes). Override via environment variable:
+The grace period after merge detection before starting the next plan defaults to 300 seconds (5 minutes). Override via environment variable:
 
 ```bash
 # Shorter grace period (2 minutes)
