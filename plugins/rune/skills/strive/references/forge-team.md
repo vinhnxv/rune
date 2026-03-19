@@ -102,6 +102,12 @@ for (const task of extractedTasks) {
 }
 ```
 
+> ⚠️ **EXECUTION REQUIRED**: The code blocks below are NOT reference-only pseudocode.
+> The orchestrator MUST execute every `Write()` and `Bash()` call in this section.
+> Task files, scope files, prompt files, and the delegation manifest MUST physically exist
+> in `tmp/work/{timestamp}/` before any `Agent()` call is made.
+> Missing files = workers have no spec = silent delegation failures (root cause this plan fixes).
+
 ## Task File Creation (Discipline Bridge)
 
 ```javascript
@@ -172,6 +178,98 @@ log(`Created ${extractedTasks.length} task files in tmp/work/${timestamp}/tasks/
 - Task file uses FULL task description (not truncated to 2000 chars) — the file IS the context
 - `task-file-format.md` schema is the canonical source — this code follows it exactly
 - Task files are the SUPERSET — `TaskCreate()` descriptions can reference task file path instead of embedding full content
+
+## Worker Scope Files
+
+Write per-worker scope files BEFORE spawning any `Agent()`. One file per worker in
+`tmp/work/{timestamp}/scopes/{worker-name}.md` (AC-3). Uses `scopes/` directory — not `context/` —
+to avoid namespace collision with existing arc artifacts (E1 concern).
+
+```javascript
+// plannedWorkers is computed in worker-prompts.md:
+// Array of { name, tasks, fileTargets, blockedFiles, nonGoals }
+Bash(`mkdir -p "tmp/work/${timestamp}/scopes"`)
+
+for (const worker of plannedWorkers) {
+  const { name, tasks, fileTargets, blockedFiles, nonGoals } = worker
+
+  const scopeContent = [
+    `# Worker Scope: ${name}`,
+    ``,
+    `## Identity`,
+    ``,
+    `- **Worker**: ${name}`,
+    `- **Timestamp**: ${timestamp}`,
+    ``,
+    `## Assigned Tasks`,
+    ``,
+    ...tasks.map(t => `- Task ${t.id}: ${t.subject}`),
+    ``,
+    `## File Targets`,
+    ``,
+    ...fileTargets.map(f => `- ${f}`),
+    ``,
+    `## Blocked Files (Do NOT Modify)`,
+    ``,
+    ...(blockedFiles.length > 0 ? blockedFiles.map(f => `- ${f}`) : ['_None_']),
+    ``,
+    `## Non-Goals`,
+    ``,
+    ...(nonGoals.length > 0 ? nonGoals.map(g => `- ${g}`) : ['_None specified_']),
+  ].join('\n')
+
+  Write(`tmp/work/${timestamp}/scopes/${name}.md`, scopeContent)
+}
+
+log(`Created ${plannedWorkers.length} scope files in tmp/work/${timestamp}/scopes/`)
+```
+
+**Verification**: `Glob("tmp/work/${timestamp}/scopes/*.md").length === plannedWorkers.length`
+
+## Worker Prompt Files
+
+Write final prompt content to file BEFORE each `Agent()` call (AC-2). Enables debugging,
+auditability, and scope verification. Path: `tmp/work/{timestamp}/prompts/{worker-name}.md`.
+
+```javascript
+// promptContent = full spawn prompt string built by worker-prompts.md buildWorkerPrompt()
+Bash(`mkdir -p "tmp/work/${timestamp}/prompts"`)
+
+for (const worker of plannedWorkers) {
+  const { name, promptContent } = worker
+  Write(`tmp/work/${timestamp}/prompts/${name}.md`, promptContent)
+}
+
+log(`Created ${plannedWorkers.length} prompt files in tmp/work/${timestamp}/prompts/`)
+```
+
+**Verification**: `Glob("tmp/work/${timestamp}/prompts/*.md").length === plannedWorkers.length`
+
+## Delegation Manifest
+
+Write a single JSON manifest BEFORE any `Agent()` spawn (AC-6). Single source of truth for what
+was delegated to whom. Path: `tmp/work/{timestamp}/delegation-manifest.json`.
+
+```javascript
+const manifest = {
+  created_at: new Date().toISOString(),
+  timestamp: timestamp,
+  workers: plannedWorkers.map(worker => ({
+    name: worker.name,
+    tasks: worker.tasks.map(t => String(t.id)),
+    file_targets: worker.fileTargets,
+    scope_file: `tmp/work/${timestamp}/scopes/${worker.name}.md`,
+    prompt_file: `tmp/work/${timestamp}/prompts/${worker.name}.md`,
+  })),
+  task_count: extractedTasks.length,
+  worker_count: plannedWorkers.length,
+}
+
+Write(`tmp/work/${timestamp}/delegation-manifest.json`, JSON.stringify(manifest, null, 2))
+log(`Delegation manifest written: tmp/work/${timestamp}/delegation-manifest.json`)
+```
+
+**Verification**: `Read("tmp/work/${timestamp}/delegation-manifest.json")` — parse JSON, confirm `workers` array length matches `plannedWorkers.length`.
 
 ## TaskCreate with Task File Reference
 
