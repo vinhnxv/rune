@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [2.1.2] - 2026-03-19
+
+### Fixed
+- **arc config resolution**: Replace `??` with `!== undefined` for 12 boolean fields in `resolveArcConfig()` — fixes defense-in-depth gap where talisman boolean overrides could be silently ignored when shard resolution returns stale data (#344)
+
 ## [2.1.1] - 2026-03-19
 
 ### Added
