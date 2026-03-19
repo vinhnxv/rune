@@ -31,6 +31,17 @@ if ! command -v gh &>/dev/null; then
   exit 1
 fi
 
+# GH-ACCOUNT-001: Ensure the active gh account has access to this repository.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "${SCRIPT_DIR}/gh-account-resolver.sh" ]]; then
+  # shellcheck source=gh-account-resolver.sh
+  source "${SCRIPT_DIR}/gh-account-resolver.sh"
+  rune_gh_ensure_correct_account || {
+    echo "ERROR: No GitHub account has access to this repository. Run: gh auth login" >&2
+    exit 1
+  }
+fi
+
 # --- Input Validation ---
 
 if [[ $# -lt 2 ]]; then
