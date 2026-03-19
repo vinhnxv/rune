@@ -417,25 +417,84 @@ if (!cleanupTeamDeleteSucceeded) {
 
 ## --history Subcommand
 
-When `--history` flag is set:
+When `--history` flag is set, read all past `metrics.json` files and display a trend table.
 
 ```javascript
-// Collect all past audit directories
-const auditDirs = Glob("tmp/self-audit/*/SELF-AUDIT-REPORT.md")
-if (auditDirs.length === 0) {
+// Collect all past metrics.json files from self-audit runs
+const metricsFiles = Glob("tmp/self-audit/*/metrics.json")
+if (metricsFiles.length === 0) {
   output("No past audit results found. Run /rune:self-audit first.")
   exit
 }
 
-// Sort by timestamp (embedded in dir name)
-// Display trend table
+// Sort by timestamp directory name (newest first)
+const runs = []
+for (const mf of metricsFiles.sort().reverse()) {
+  try {
+    const metrics = JSON.parse(Read(mf))
+    const dirTs = mf.split("/")[2]  // tmp/self-audit/{timestamp}/metrics.json
+    runs.push({ timestamp: dirTs, metrics })
+  } catch { continue }  // skip unparseable files
+}
+
+// Compute per-run scores
+//   static_score: derived from static findings count (lower is better, invert to 0-100)
+//   runtime_score: derived from hallucination total_flags + wasted_retries + high_fp agents
+//   overall: weighted average (static 40%, runtime 60%)
+function computeScores(metrics) {
+  // Runtime score: start at 100, deduct for issues
+  let runtime_score = 100
+  runtime_score -= Math.min(30, (metrics.hallucination?.total_flags || 0) * 5)
+  runtime_score -= Math.min(20, (metrics.convergence?.wasted_retries || 0) * 5)
+  runtime_score -= Math.min(20, (metrics.effectiveness?.agents_with_high_fp?.length || 0) * 10)
+  runtime_score = Math.max(0, runtime_score)
+  return { runtime_score }
+}
+
+// Threshold-based trend classification (AC-9)
+//   Compares each run to the PREVIOUS run, not to a baseline regression model
+//   Thresholds: ≥5 point improvement = ↑ Improving, ≥5 point decline = ↓ Degrading, else ~ Stable
+function classifyTrend(current, previous) {
+  if (previous === null) return "—"
+  const delta = current - previous
+  if (delta >= 5) return "↑ Improving"
+  if (delta <= -5) return "↓ Degrading"
+  return "~ Stable"
+}
+
+// Build display table
+const rows = []
+let prevScore = null
+for (const run of runs) {
+  const { runtime_score } = computeScores(run.metrics)
+  const trend = classifyTrend(runtime_score, prevScore)
+  const delta = prevScore !== null ? runtime_score - prevScore : null
+  rows.push({
+    timestamp: run.timestamp,
+    arc_id: run.metrics.arc_id || "N/A",
+    halluc_flags: run.metrics.hallucination?.total_flags ?? "?",
+    wasted_retries: run.metrics.convergence?.wasted_retries ?? "?",
+    high_fp_agents: run.metrics.effectiveness?.agents_with_high_fp?.length ?? "?",
+    runtime_score,
+    trend,
+    delta: delta !== null ? (delta >= 0 ? `+${delta}` : `${delta}`) : "—"
+  })
+  prevScore = runtime_score
+}
+
+// Display
 output(`
-/rune:self-audit — History (${auditDirs.length} past audits)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Timestamp            │ Mode    │ Halluc │ FP Rate │ Retries
-─────────────────────┼─────────┼────────┼─────────┼────────
-[per audit entry]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/rune:self-audit — History (${rows.length} past audits)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Date/Time            │ Arc ID           │ Halluc │ Retries │ Score │ Trend
+─────────────────────┼──────────────────┼────────┼─────────┼───────┼──────────
+${rows.map(r =>
+  `${r.timestamp.padEnd(21)}│ ${r.arc_id.padEnd(16)} │ ${String(r.halluc_flags).padEnd(6)} │ ${String(r.wasted_retries).padEnd(7)} │ ${String(r.runtime_score).padEnd(5)} │ ${r.trend} (${r.delta})`
+).join("\n")}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Score: 100 = no issues. Deductions: -5/hallucination flag, -5/wasted retry, -10/high-FP agent
+Trend: ↑ Improving (≥5pt gain) | ~ Stable (±4pt) | ↓ Degrading (≥5pt loss)
 `)
 ```
 
