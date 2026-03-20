@@ -9,9 +9,9 @@ description: |
   Use when the arc work_qa phase needs independent verification of strive output.
   Covers all 3 dimensions: artifact existence, content quality, and task completeness.
 tools: Read, Glob, Grep, TaskList, TaskGet, TaskUpdate, SendMessage
-disallowedTools: Write, Edit, Bash, NotebookEdit, Agent, TeamCreate, TeamDelete
+disallowedTools: Edit, Bash, NotebookEdit, Agent, TeamCreate, TeamDelete
 model: sonnet
-maxTurns: 15
+maxTurns: 25
 ---
 
 # Work QA Verifier

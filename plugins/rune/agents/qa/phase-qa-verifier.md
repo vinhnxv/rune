@@ -14,9 +14,9 @@ description: |
     - "quality": verify content is substantive (not empty/generic)
     - "completeness": verify plan-to-output coverage
 tools: Read, Glob, Grep, TaskList, TaskGet, TaskUpdate, SendMessage
-disallowedTools: Write, Edit, Bash, NotebookEdit, Agent, TeamCreate, TeamDelete
+disallowedTools: Edit, Bash, NotebookEdit, Agent, TeamCreate, TeamDelete
 model: sonnet
-maxTurns: 15
+maxTurns: 25
 ---
 
 # Phase QA Verifier
