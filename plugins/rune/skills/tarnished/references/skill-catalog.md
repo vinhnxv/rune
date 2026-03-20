@@ -38,6 +38,7 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `team-status` | `/rune:team-status` | — | None | Team health report |
 | `test-browser` | `/rune:test-browser` | — | PR# or branch | E2E test results |
 | `ux-design-process` | `/rune:ux-design-process` | — | None (auto-loaded) | UX evaluation |
+| `self-audit` | `/rune:self-audit` | — | `--dimension`, `--verbose` | `tmp/self-audit/*/SELF-AUDIT-REPORT.md` |
 
 ## MCP Integration Skills (Non-Invocable)
 
@@ -60,6 +61,7 @@ MCP integration is configured via `talisman.yml` → `integrations.mcp_tools`. U
 | `arc-batch` | `--auto-merge`, `--no-merge` |
 | `arc-issues` | `--label`, `--issue`, `--max-issues` |
 | `strive` | `--approve`, `--worktree` |
+| `self-audit` | `--dimension <D>`, `--verbose` |
 
 ## Prerequisite Map
 

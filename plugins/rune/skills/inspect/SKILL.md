@@ -3,7 +3,7 @@ name: inspect
 description: |
   Plan-vs-implementation deep audit using Agent Teams. Parses a plan file (or inline description),
   extracts requirements, and summons 4 Inspector Ashes to measure implementation completeness,
-  quality across 10 dimensions, and gaps across 8 categories. Produces a VERDICT.md with
+  quality across 10 dimensions, and gaps across 9 categories. Produces a VERDICT.md with
   requirement matrix, dimension scores, gap analysis, and actionable recommendations.
 
   <example>
@@ -168,7 +168,7 @@ Poll TaskList every 30s with stale detection (3 consecutive no-progress → brea
 Read and execute [verdict-synthesis.md](references/verdict-synthesis.md) for the full Verdict Binder aggregation, score aggregation, evidence verification, gap classification, and VERDICT.md structure.
 
 **Summary:**
-1. **Phase 5.2 (Verdict Binder)**: Aggregates inspector outputs. Produces VERDICT.md with requirement matrix, 10 dimension scores, gap analysis (8 categories), recommendations.
+1. **Phase 5.2 (Verdict Binder)**: Aggregates inspector outputs. Produces VERDICT.md with requirement matrix, 10 dimension scores, gap analysis (9 categories), recommendations.
 2. **Phase 5.3 (Wait)**: TaskList polling, 2-min timeout, 10s interval.
 3. **Phase 6.1 (Evidence check)**: Verify up to 10 file references in VERDICT.md against disk.
 4. **Phase 6.2 (Display)**: Show verdict summary (verdict, completion %, finding counts, report path).
@@ -177,7 +177,7 @@ Read and execute [verdict-synthesis.md](references/verdict-synthesis.md) for the
 
 If `riskMap` is available from Phase 1.3, the Verdict Binder appends a Historical Risk Assessment section (file risk distribution, bus factor warnings, inspection coverage vs risk) to VERDICT.md. Optional — omitted on null/parse error. See [verdict-synthesis.md](references/verdict-synthesis.md) "Historical Risk Assessment" section.
 
-## 10 Dimensions + 8 Gap Categories
+## 10 Dimensions + 9 Gap Categories
 
 ### 10 Dimensions
 
@@ -194,7 +194,7 @@ If `riskMap` is available from Phase 1.3, the Verdict Binder appends a Historica
 | Maintainability | vigil-keeper | Documentation, naming, complexity |
 | Design Fidelity | grace-warden | Design spec compliance — COMPLETE/PARTIAL/MISSING/DEVIATED (conditional: design_sync.enabled + design refs) |
 
-### 8 Gap Categories
+### 9 Gap Categories
 
 | Category | Description |
 |----------|-------------|
@@ -206,6 +206,7 @@ If `riskMap` is available from Phase 1.3, the Verdict Binder appends a Historica
 | UNOBSERVABLE | No logging/metrics/tracing |
 | UNTESTED | No tests or insufficient coverage |
 | UNMAINTAINABLE | Hard to change — excessive coupling, magic values |
+| UNWIRED | Integration point not connected — file not modified, pattern not registered (WIRE- prefix, NOT auto-fixable) |
 
 ## Phase 7: Cleanup
 

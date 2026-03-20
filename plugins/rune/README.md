@@ -154,6 +154,7 @@ Rune is a token-intensive multi-agent system. Each workflow summons multiple age
 | `/rune:rest` | Clean up tmp/ artifacts |
 | `/rune:talisman` | Configure Rune settings |
 | `/rune:elicit` | Structured reasoning (Tree of Thoughts, Pre-mortem, etc.) |
+| `/rune:self-audit` | Meta-QA audit of Rune's own system health |
 | `/rune:cancel-arc` | Cancel active pipeline |
 
 For the full command reference with all flags and options, see the [Command Reference Guide](../../docs/guides/rune-command-reference.en.md).

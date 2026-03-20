@@ -675,6 +675,13 @@
     "ignore_paths": [],
     "strict_mode": false
   },
+  "self_audit": {
+    "enabled": true,
+    "auto_suggest_threshold": 3,
+    "echo_persist": true,
+    "promotion_threshold": 3,
+    "verbose_default": false
+  },
   "settings": {
     "dedup_hierarchy": [
       "SEC",
@@ -835,5 +842,9 @@
       "max_workers_per_wave": 3,
       "merge_strategy": "sequential"
     }
+  },
+  "qa_gates": {
+    "enabled": true,
+    "max_global_retries": 6
   }
 }

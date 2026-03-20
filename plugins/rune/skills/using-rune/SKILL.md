@@ -53,7 +53,7 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 | "Browser test" / "E2E test" / "test browser" | `/rune:test-browser` | Standalone browser E2E testing |
 | "UX review" / "UX patterns" / "heuristic evaluation" | `/rune:ux-design-process` | UX design intelligence and heuristic evaluation |
 | "Post findings to PR" / "share review on PR" / "post to GitHub" / "comment on PR with findings" | `/rune:post-findings` | Post Rune review findings to GitHub PR as formatted comment |
-| "Self-audit" / "audit arc run" / "check arc quality" / "hallucination detection" / "agent effectiveness" | `/rune:self-audit` | Runtime analysis of arc artifacts — hallucination, effectiveness, convergence metrics |
+| "Self-audit" / "audit arc run" / "check arc quality" / "hallucination detection" / "agent effectiveness" / "check rune health" / "lint agents" / "meta-qa" | `/rune:self-audit` | Meta-QA self-audit — static analysis + runtime arc artifact analysis |
 
 ### Beginner Aliases
 

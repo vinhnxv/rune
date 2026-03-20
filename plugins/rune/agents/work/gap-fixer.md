@@ -7,7 +7,8 @@ description: |
 
   Covers: Gap remediation from VERDICT.md, atomic commit per fix, remediation report
   generation, fix strategy per gap category (correctness, coverage, test, observability,
-  security, operational, performance, maintainability).
+  security, operational, performance, maintainability, wiring).
+  Note: wiring gaps (WIRE- prefix) are NOT auto-fixable — skip and report as deferred.
 tools:
   - Read
   - Write

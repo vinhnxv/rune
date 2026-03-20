@@ -1911,3 +1911,14 @@ context_stop_guard:
 #     sync_arc: false        # Copy arc checkpoints (default: false — each worktree independent)
 #     echo_sync_back: false  # Sync new echoes back to main repo on WorktreeRemove (default: false)
 #     shared_locks: true     # Use main repo root for workflow locks (default: true)
+
+# ──────────────────────────────────────────────
+# Self-Audit — Meta-QA for Rune itself (/rune:self-audit)
+# Audits agent definitions, workflow phases, rules, hooks for inconsistencies.
+# ──────────────────────────────────────────────
+# self_audit:
+#   enabled: true                    # Enable /rune:self-audit command (default: true)
+#   auto_suggest_threshold: 3        # Suggest self-audit after N marginal QA scores (future Phase 2)
+#   echo_persist: true               # Persist findings to .rune/echoes/meta-qa/ (default: true)
+#   promotion_threshold: 3           # Promote to Inscribed after N recurrences (default: 3)
+#   verbose_default: false           # Include P3 findings by default (default: false)
