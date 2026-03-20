@@ -985,6 +985,8 @@ try {
     // Existing static entries
     "runebinder", "doubt-seer", "cross-shard-sentinel",
     "rot-seeker", "strand-tracer", "decree-auditor", "fringe-watcher",
+    // Deep-mode agents (audit --deep: lore layer + deep aggregation)
+    "lore-analyst", "runebinder-deep", "runebinder-merge",
     "shard-reviewer-a", "shard-reviewer-b", "shard-reviewer-c",
     "shard-reviewer-d", "shard-reviewer-e",
     // Custom Ashes — best-effort from dynamic discovery (undefined on compaction = harmless empty array)
@@ -992,14 +994,17 @@ try {
   ]
 }
 
-// 2. Shutdown all teammates
+// 2. Shutdown all teammates — track confirmed alive/dead for adaptive grace
+let confirmedAlive = 0, confirmedDead = 0
 for (const member of allMembers) {
-  try { SendMessage({ type: "shutdown_request", recipient: member, content: `${label} complete` }) } catch (e) { /* member may have already exited */ }
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: `${label} complete` }); confirmedAlive++ } catch (e) { confirmedDead++ /* member may have already exited */ }
 }
 
-// 3. Grace period — let teammates deregister before TeamDelete
-if (allMembers.length > 0) {
-  Bash(`sleep 20`)
+// 3. Adaptive grace period — scale based on confirmed-alive members
+if (confirmedAlive > 0) {
+  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`)
+} else {
+  Bash("sleep 2")
 }
 
 // 3.3. Finalize per-agent artifacts (non-blocking — skip if library or runs/ absent)
