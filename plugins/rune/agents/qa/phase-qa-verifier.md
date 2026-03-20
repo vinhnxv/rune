@@ -13,7 +13,7 @@ description: |
     - "artifact": verify required files exist and are valid
     - "quality": verify content is substantive (not empty/generic)
     - "completeness": verify plan-to-output coverage
-tools: Read, Glob, Grep
+tools: Read, Glob, Grep, TaskList, TaskGet, TaskUpdate, SendMessage
 disallowedTools: Write, Edit, Bash, NotebookEdit, Agent, TeamCreate, TeamDelete
 model: sonnet
 maxTurns: 15

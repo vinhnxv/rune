@@ -81,7 +81,7 @@ rune_strip_sensitive() {
   max_chars=$(( "${max_chars}" + 0 )) 2>/dev/null || max_chars=2000
 
   local input
-  input=$(cat)
+  input=$(head -c 1048576)
 
   # Build pattern list for python3 inline.
   # Use positional list (_SPAT_LIST) for bash 3 compatibility.

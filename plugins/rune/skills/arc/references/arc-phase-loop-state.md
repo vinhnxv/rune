@@ -15,7 +15,7 @@ const sessionId = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').
 const stateContent = `---
 active: true
 iteration: 0
-max_iterations: 50
+max_iterations: 65
 checkpoint_path: .rune/arc/${id}/checkpoint.json
 plan_file: ${planFile}
 branch: ${branch}

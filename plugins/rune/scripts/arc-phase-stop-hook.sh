@@ -200,7 +200,7 @@ if ! [[ "$ITERATION" =~ ^[0-9]+$ ]]; then
   exit 0
 fi
 
-# ── GUARD 8: Max iterations check (safety cap at 50 — 27 phases + convergence rounds) ──
+# ── GUARD 8: Max iterations check (safety cap at 65 — 40 phases + 25 convergence rounds) ──
 if [[ "$MAX_ITERATIONS" =~ ^[0-9]+$ ]] && [[ "$MAX_ITERATIONS" -gt 0 ]] && [[ "$ITERATION" -ge "$MAX_ITERATIONS" ]]; then
   _trace "EXIT: max iterations reached (${ITERATION} >= ${MAX_ITERATIONS})"
   rm -f "$STATE_FILE" 2>/dev/null
