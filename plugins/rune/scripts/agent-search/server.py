@@ -508,7 +508,10 @@ def rebuild_index(
 ) -> int:
     """Rebuild the full-text search index from parsed agent entries.
 
-    Drops and recreates all rows. FTS5 triggers handle index sync.
+    Drops and recreates all rows.  FTS sync is done manually via
+    INSERT...SELECT (external content table, not automatic triggers).
+
+    Runs inside an explicit transaction for crash safety.
 
     Args:
         conn: Active database connection.
@@ -519,16 +522,21 @@ def rebuild_index(
     """
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
-    _clear_index(conn)
+    conn.execute("BEGIN")
+    try:
+        _clear_index(conn)
 
-    # DES-001 FIX: Sort entries by priority ASCENDING so that higher-priority
-    # agents are inserted LAST and win INSERT OR REPLACE conflicts.
-    # Without this, builtin (p100) inserted first gets overwritten by user (p50).
-    sorted_entries = sorted(entries, key=lambda e: e.get("priority", 50))
+        # DES-001 FIX: Sort entries by priority ASCENDING so that higher-priority
+        # agents are inserted LAST and win INSERT OR REPLACE conflicts.
+        # Without this, builtin (p100) inserted first gets overwritten by user (p50).
+        sorted_entries = sorted(entries, key=lambda e: e.get("priority", 50))
 
-    count, skipped = _insert_entries(conn, sorted_entries, now)
+        count, skipped = _insert_entries(conn, sorted_entries, now)
 
-    conn.commit()
+        conn.commit()
+    except (sqlite3.Error, OSError):
+        conn.rollback()
+        raise
     if skipped:
         logger.info("rebuild_index: %d indexed, %d skipped (priority conflicts)", count, skipped)
     return count

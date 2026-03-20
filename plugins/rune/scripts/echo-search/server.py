@@ -710,8 +710,8 @@ def _record_access(
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     truncated_query = query[:500]
     try:
-        # Collect valid entry IDs
-        entry_ids = [e.get("id", "") for e in results if e.get("id")]
+        # Collect valid entry IDs (cap at 200 consistent with _get_access_counts)
+        entry_ids = [e.get("id", "") for e in results if e.get("id")][:200]
         if not entry_ids:
             return
 
@@ -733,6 +733,7 @@ def _record_access(
         conn.commit()
         _cap_access_log(conn)
     except sqlite3.OperationalError as exc:
+        conn.rollback()
         logger.debug("_record_access failed: %s", exc)
 
 
@@ -1486,7 +1487,8 @@ def _restore_semantic_groups_from_temp(conn: sqlite3.Connection) -> int:
             WHERE entry_id IN (SELECT id FROM echo_entries)
         """)
         restored = cursor.rowcount
-    except sqlite3.OperationalError:
+    except sqlite3.OperationalError as exc:
+        logger.warning("Failed to restore semantic groups from temp: %s", exc)
         restored = 0
     # Cleanup degenerate groups (fewer than 2 members)
     try:
@@ -1496,8 +1498,8 @@ def _restore_semantic_groups_from_temp(conn: sqlite3.Connection) -> int:
                 GROUP BY group_id HAVING COUNT(*) < 2
             )
         """)
-    except sqlite3.Error:
-        pass
+    except sqlite3.Error as exc:
+        logger.debug("Degenerate group cleanup failed: %s", exc)
     # Drop temp table
     try:
         conn.execute("DROP TABLE IF EXISTS _sg_backup")
