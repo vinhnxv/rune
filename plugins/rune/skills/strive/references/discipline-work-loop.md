@@ -44,6 +44,54 @@ See [task-file-format.md](task-file-format.md) for the canonical task file schem
 - Task files include the plan section text verbatim (no paraphrasing)
 - File targets extracted from plan (backtick-wrapped paths, `Files:` annotations)
 
+### Criteria Classification (F16 Guard)
+
+During decomposition, each acceptance criterion is classified into one of three scopes.
+This prevents cross-cutting criteria from being silently dropped (F16 CROSS_CUTTING_ORPHAN).
+
+| Scope | Definition | Assignment | Verification |
+|-------|-----------|------------|-------------|
+| **TASK-SCOPED** | Can be verified within a single task's file targets | Assigned to one worker's task file | Worker collects evidence; Phase 4.5 verifies |
+| **CROSS-CUTTING** | Spans multiple tasks or files (e.g., "all endpoints return consistent error format") | NOT assigned to individual workers | Verified holistically at Phase 4.5 by orchestrator |
+| **SYSTEM-LEVEL** | Cannot be verified from code alone (e.g., "handles 1000 concurrent users") | NOT assigned to individual workers | Verified at Phase 6 (Quality Gates) or escalated to human |
+
+**Classification heuristic** (applied during Phase 1 decomposition):
+
+```javascript
+function classifyCriterion(criterion, taskFileMap) {
+  const text = criterion.text.toLowerCase()
+
+  // SYSTEM-LEVEL: performance, scalability, deployment requirements
+  const systemKeywords = ['concurrent', 'latency', 'throughput', 'deploy', 'production',
+    'load test', 'scale', 'uptime', 'availability', 'monitoring dashboard']
+  if (systemKeywords.some(k => text.includes(k))) return 'SYSTEM_LEVEL'
+
+  // CROSS-CUTTING: criteria that reference "all", "every", "consistent", or multiple files
+  const crossCuttingKeywords = ['all endpoints', 'every file', 'consistent', 'across all',
+    'uniform', 'standardized', 'each module', 'all services', 'every route']
+  if (crossCuttingKeywords.some(k => text.includes(k))) return 'CROSS_CUTTING'
+
+  // CROSS-CUTTING: criteria whose file targets span 2+ tasks
+  if (criterion.files && criterion.files.length > 0) {
+    const owningTasks = new Set()
+    for (const file of criterion.files) {
+      for (const [taskId, taskFiles] of Object.entries(taskFileMap)) {
+        if (taskFiles.includes(file)) owningTasks.add(taskId)
+      }
+    }
+    if (owningTasks.size > 1) return 'CROSS_CUTTING'
+  }
+
+  return 'TASK_SCOPED'
+}
+```
+
+**Cross-cutting criteria handling**:
+- Written to `tmp/work/{timestamp}/cross-cutting-criteria.json` during Phase 1
+- Verified at Phase 4.5 by the orchestrator (not individual workers)
+- Appear in the completion matrix with `worker: "orchestrator"` instead of a specific worker name
+- If any cross-cutting criterion is FAIL at Phase 5, it generates a gap task assigned to all relevant workers' file scope
+
 ---
 
 ## Pre-Delegation Coverage Matrix (AC-12, AC-13)
@@ -387,7 +435,10 @@ Workers implement their assigned tasks, collecting evidence as they go. Each wor
 Standard strive Phase 3 monitoring with discipline extensions:
 - Track per-criterion evidence collection (not just task completion)
 - Detect stuck workers via silence timeout (configurable, default 5 min)
-- Escalation chain: retry → decompose → reassign → human (max 4 attempts)
+- Escalation chain: retry → decompose → reassign → human (max 4 attempts per criterion)
+- Wall-clock budget: convergence loop exits with F15 if `max_convergence_wall_clock_min` exceeded (default: 60 min)
+
+See [work-loop-convergence.md](work-loop-convergence.md) "Assignment Strategy — 4-Attempt Escalation Chain" for the full escalation protocol with auto-decompose (Attempt 2) and auto-reassign (Attempt 3).
 
 ---
 

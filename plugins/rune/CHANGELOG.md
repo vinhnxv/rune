@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Fixed
+- **discipline**: Add F13 echo authenticity guard to `validate-discipline-proofs.sh` — detects verbatim copy-paste of criteria in echo-back section (>80% trigram similarity triggers warning)
+- **discipline**: Wire wall-clock budget guard (`max_convergence_wall_clock_min`, default 60min) into convergence loop — triggers F15 BUDGET_EXCEEDED when elapsed time exceeds limit
+- **discipline**: Add 4-attempt escalation chain protocol to convergence gap task assignment — Attempt 2 (auto-decompose) splits multi-concern criteria, Attempt 3 (auto-reassign) assigns to different worker, Attempt 4 (human escalation) marks F5
+- **discipline**: Add cross-cutting criteria classification (F16 guard) to Phase 1 decomposition — classifies TASK_SCOPED vs CROSS_CUTTING vs SYSTEM_LEVEL using keyword heuristics and file-target analysis
 - **qa-gates**: Inject `remediation_context` into re-dispatched phase prompt for incremental retry (AC-18 GAP-1). Previously written to checkpoint but never consumed — phases re-executed from scratch instead of fixing specific QA failures
 - **qa-gates**: Implement tiered retry budget — MARGINAL (score 50-69) gets max 1 retry, FAIL (score < 50) gets up to `max_phase_retries` (default 2) (AC-4 GAP-2)
 
