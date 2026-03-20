@@ -1,17 +1,15 @@
 #!/bin/bash
 # scripts/enforce-polling.sh
 # POLL-001: Enforce monitoring loop fidelity during active Rune workflows.
-# Blocks sleep+echo anti-pattern (sleep N && echo ...) that skips TaskList
-# and provides zero visibility into task progress.
+# Uses an ALLOWLIST approach: during active workflows, only bare "sleep N"
+# commands are permitted. Any sleep combined with other commands (echo, printf,
+# pipes, chains) is blocked — preventing polling anti-patterns that skip TaskList.
 #
 # Detection strategy:
 #   1. Fast-path: skip if command doesn't contain "sleep"
-#   2. Normalize multiline commands (newline -> space)
-#   3. Pattern match: sleep N <chain-op> echo/printf
-#      Catches: && and ; separators + echo and printf variants
+#   2. Check for active Rune workflow via state files (skip early if none)
+#   3. Allowlist: bare "sleep N" is OK, sleep+anything is blocked
 #   4. Threshold: only block sleep >= 10s (tiny sleeps are startup probes)
-#   5. Check for active Rune workflow via state files
-#   6. Block if anti-pattern detected during active workflow
 #
 # Exit 0 with hookSpecificOutput.permissionDecision="deny" JSON = tool call blocked.
 # Exit 0 without JSON = tool call allowed.
@@ -21,6 +19,8 @@ umask 077
 
 # --- Fail-forward guard (OPERATIONAL hook) ---
 # Crash before validation → allow operation (don't stall workflows).
+# NOTE: ERR trap does NOT fire on `set -u` unbound variable errors in Bash 3.2-5.x.
+# All variables used after this point must be explicitly defaulted to avoid silent bypass.
 _rune_fail_forward() {
   # SEC-002 FIX: Always emit stderr warning for enforcement hooks.
   # Silent fail-forward in a security-adjacent hook masks mid-validation crashes.
@@ -69,131 +69,145 @@ fi
 # Fast-path: skip if no sleep in command
 case "$COMMAND" in *sleep*) ;; *) exit 0 ;; esac
 
-# Normalize multiline commands (catches newline-separated sleep/echo)
-NORMALIZED=$(printf '%s\n' "$COMMAND" | tr '\n' ' ')
+# ── Session identity + state directory (unconditional) ──
+# BUGFIX: Previously, RUNE_STATE and session identity were only loaded inside the
+# old denylist regex branch. When resolve-session-identity.sh was missing,
+# RUNE_STATE remained unbound → set -u crash → ERR trap doesn't fire on unbound
+# vars in Bash 3.2-5.x → enforcement silently disabled. Now loaded unconditionally.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Pre-filter: skip if command is a simple echo/printf/cat/grep WITHOUT chain operators.
-# Known limitation: regex cannot distinguish shell quoting context. Commands that *mention*
-# the anti-pattern in string literals (e.g., echo "sleep 30 && echo poll") would false-positive.
-# This pre-filter catches the most common case, but ONLY when no chain operator is present —
-# a chained command like "echo setup && sleep 30 && echo poll" must still be checked.
-case "$NORMALIZED" in
-  echo\ *|printf\ *|cat\ *|grep\ *)
-    # Only skip if no chain operator that could hide a sleep+echo anti-pattern
-    case "$NORMALIZED" in
-      *"&&"*|*";"*) ;; # Contains chain operator — fall through to regex check
-      *) exit 0 ;;     # Simple command — safe to skip
-    esac
-    ;;
-esac
+# Always set RUNE_STATE default BEFORE sourcing rune-state.sh (defense against source failure)
+RUNE_STATE="${RUNE_STATE:-.rune}"
 
-# Detection: sleep + echo/printf pattern
-# Catches && and ; separators + echo and printf variants
-# NOTE: || excluded — "sleep N || echo" is error fallback, not polling anti-pattern
-# SEC-002 FIX: Word boundary — (^|[[:space:];|&(]) anchors "sleep" to prevent
-# matching substrings like "nosleep" in variable/function names.
-if printf '%s\n' "$NORMALIZED" | grep -qE '(^|[[:space:];|&(])sleep[[:space:]]+[0-9]+[[:space:]]*(&&|;)[[:space:]]*(echo|printf)'; then
-  # Threshold: only block sleep >= 10s (startup probes use sleep 1-5)
-  # Extract the sleep value specifically from the anti-pattern match (sleep N && echo / sleep N ; echo)
-  # not just the first sleep token in the command — avoids bypass via "sleep 1 && setup; sleep 60 && echo poll"
-  # VEIL-009 FIX: Use sort -rn to extract the MAXIMUM sleep value from all anti-pattern matches,
-  # not just the first — prevents bypass via "sleep 1 && echo setup; sleep 60 && echo poll"
-  SLEEP_NUM=$(printf '%s\n' "$NORMALIZED" | grep -oE 'sleep[[:space:]]+[0-9]+[[:space:]]*(&&|;)[[:space:]]*(echo|printf)' | grep -oE 'sleep[[:space:]]+[0-9]+' | grep -oE '[0-9]+' | sort -rn | head -1)
-  [[ "${SLEEP_NUM:-0}" -lt 10 ]] && exit 0
-
-  # Check for active Rune workflow (THIS session only)
-  active_workflow=""
-
-  # ── Session identity for cross-session ownership filtering ──
-  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  # VEIL-005 FIX: Guard against missing resolve-session-identity.sh.
-  # Without this, a missing file triggers ERR trap → fail-forward → anti-pattern allowed.
-  if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
-    # shellcheck source=resolve-session-identity.sh
-    source "${SCRIPT_DIR}/resolve-session-identity.sh"
+if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
+  # shellcheck source=resolve-session-identity.sh
+  source "${SCRIPT_DIR}/resolve-session-identity.sh"
+  # shellcheck source=lib/rune-state.sh
+  if [[ -f "${SCRIPT_DIR}/lib/rune-state.sh" ]]; then
     source "${SCRIPT_DIR}/lib/rune-state.sh"
-  else
-    # VEIL-001 FIX: PID-based fallback instead of disabling ownership entirely.
-    # Without this, _rune_skip_ownership=1 treated ALL active workflows as "ours",
-    # causing cross-session interference (session A blocks session B's polling).
-    printf 'WARNING: %s: resolve-session-identity.sh not found — using PID-based ownership fallback\n' \
-      "${BASH_SOURCE[0]##*/}" >&2 2>/dev/null || true
-    RUNE_CURRENT_CFG=""
-    rune_pid_alive() {
-      [[ "$1" =~ ^[0-9]+$ ]] || return 1
-      local _err
-      _err=$(kill -0 "$1" 2>&1) && return 0
-      # EPERM means process exists but we lack permission — treat as alive
-      # This prevents false "dead" detection for cross-user PIDs
-      case "$_err" in *ermission*|*[Pp]erm*|*EPERM*) return 0 ;; esac
-      return 1
-    }
   fi
+else
+  # VEIL-001 FIX: PID-based fallback instead of disabling ownership entirely.
+  printf 'WARNING: %s: resolve-session-identity.sh not found — using PID-based ownership fallback\n' \
+    "${BASH_SOURCE[0]##*/}" >&2 2>/dev/null || true
+  RUNE_CURRENT_CFG=""
+  rune_pid_alive() {
+    [[ "$1" =~ ^[0-9]+$ ]] || return 1
+    local _err
+    _err=$(kill -0 "$1" 2>&1) && return 0
+    case "$_err" in *ermission*|*[Pp]erm*|*EPERM*) return 0 ;; esac
+    return 1
+  }
+fi
 
-  # Arc checkpoint detection
-  if [[ -d "${CWD}/${RUNE_STATE}/arc" ]]; then
-    while IFS= read -r f; do
-      # Race condition guard: file may be deleted between find and jq
-      [[ -f "$f" ]] || continue
-      # Validate JSON before parsing — skip corrupted/truncated files
-      jq -e . "$f" >/dev/null 2>&1 || continue
-      # SEC-4 FIX: Use jq for precise field extraction instead of grep substring match
-      # FIX: Check both legacy flat schema (.phase_status/.status) AND v4 nested schema (phases.*.status)
-      has_active=$(jq -r 'if (.phase_status // .status // "none") == "in_progress" then "yes" elif ([.phases[]?.status] | any(. == "in_progress")) then "yes" else "no" end' "$f" 2>/dev/null || echo "no")
-      if [[ "$has_active" == "yes" ]]; then
-        # ── Ownership filter: skip checkpoints from other sessions ──
-        stored_cfg=$(jq -r '.config_dir // empty' "$f" 2>/dev/null || true)
-        stored_pid=$(jq -r '.owner_pid // empty' "$f" 2>/dev/null || true)
-        if [[ -n "$stored_cfg" && -n "$RUNE_CURRENT_CFG" && "$stored_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
-        if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
-          rune_pid_alive "$stored_pid" && continue  # alive = different session
-        fi
-        active_workflow="arc"
-        break
+# ── Check for active Rune workflow FIRST (skip expensive analysis if none) ──
+# This is checked before pattern analysis so we exit early when no workflow is active.
+# Uses consolidated single-jq-call per file for performance (was 3 calls per file).
+active_workflow=""
+
+# Arc checkpoint detection
+if [[ -d "${CWD}/${RUNE_STATE}/arc" ]]; then
+  while IFS= read -r f; do
+    [[ -f "$f" ]] || continue
+    # Consolidated jq: extract status + ownership fields in one call (was 3 separate calls)
+    # Uses ASCII Unit Separator (\u001f) as delimiter — NOT tab.
+    # Bash `read` collapses consecutive whitespace delimiters (tab, space, newline),
+    # which silently corrupts parsing when config_dir is empty ("yes\t\t99999999"
+    # becomes "yes" + "99999999" instead of "yes" + "" + "99999999").
+    # Unit Separator is non-whitespace, so empty fields are preserved.
+    _arc_info=$(jq -r '
+      (if (.phase_status // .status // "none") == "in_progress" then "yes"
+       elif ([.phases[]?.status] | any(. == "in_progress")) then "yes"
+       else "no" end) + "\u001f" +
+      (.config_dir // "") + "\u001f" +
+      (.owner_pid // "" | tostring)
+    ' "$f" 2>/dev/null) || continue
+    IFS=$'\x1f' read -r has_active stored_cfg stored_pid <<< "$_arc_info"
+    if [[ "$has_active" == "yes" ]]; then
+      # Ownership filter: skip checkpoints from other sessions
+      if [[ -n "$stored_cfg" && -n "${RUNE_CURRENT_CFG:-}" && "$stored_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
+      if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
+        rune_pid_alive "$stored_pid" && continue
       fi
-    done < <(find "${CWD}/${RUNE_STATE}/arc" -name checkpoint.json -maxdepth 2 -type f 2>/dev/null)
-  fi
+      active_workflow="arc"
+      break
+    fi
+  done < <(find "${CWD}/${RUNE_STATE}/arc" -maxdepth 2 -name checkpoint.json -type f 2>/dev/null)
+fi
 
-  # State file detection — all workflow types
-  if [[ -z "$active_workflow" ]]; then
-    shopt -s nullglob
-    for f in "${CWD}"/tmp/.rune-review-*.json "${CWD}"/tmp/.rune-audit-*.json \
-             "${CWD}"/tmp/.rune-work-*.json "${CWD}"/tmp/.rune-mend-*.json \
-             "${CWD}"/tmp/.rune-plan-*.json "${CWD}"/tmp/.rune-forge-*.json \
-             "${CWD}"/tmp/.rune-inspect-*.json "${CWD}"/tmp/.rune-goldmask-*.json \
-             "${CWD}"/tmp/.rune-brainstorm-*.json "${CWD}"/tmp/.rune-debug-*.json \
-             "${CWD}"/tmp/.rune-design-sync-*.json; do
-      if [[ ! -f "$f" ]]; then continue; fi
-      # SEC-4 FIX: Use jq for precise status extraction instead of grep substring match
-      file_status=$(jq -r '.status // empty' "$f" 2>/dev/null || true)
-      if [[ "$file_status" == "active" ]]; then
-        # ── Ownership filter: skip state files from other sessions ──
-        stored_cfg=$(jq -r '.config_dir // empty' "$f" 2>/dev/null || true)
-        stored_pid=$(jq -r '.owner_pid // empty' "$f" 2>/dev/null || true)
-        if [[ -n "$stored_cfg" && -n "$RUNE_CURRENT_CFG" && "$stored_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
-        if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
-          rune_pid_alive "$stored_pid" && continue  # alive = different session
-        fi
-        active_workflow=1
-        break
+# State file detection — all workflow types
+if [[ -z "$active_workflow" ]]; then
+  shopt -s nullglob
+  for f in "${CWD}"/tmp/.rune-review-*.json "${CWD}"/tmp/.rune-audit-*.json \
+           "${CWD}"/tmp/.rune-work-*.json "${CWD}"/tmp/.rune-mend-*.json \
+           "${CWD}"/tmp/.rune-plan-*.json "${CWD}"/tmp/.rune-forge-*.json \
+           "${CWD}"/tmp/.rune-inspect-*.json "${CWD}"/tmp/.rune-goldmask-*.json \
+           "${CWD}"/tmp/.rune-brainstorm-*.json "${CWD}"/tmp/.rune-debug-*.json \
+           "${CWD}"/tmp/.rune-design-sync-*.json; do
+    [[ -f "$f" ]] || continue
+    # Consolidated jq: extract status + ownership fields in one call (was 3 separate calls)
+    # Uses Unit Separator (\u001f) — see arc checkpoint comment for rationale.
+    _state_info=$(jq -r '
+      (.status // "") + "\u001f" +
+      (.config_dir // "") + "\u001f" +
+      (.owner_pid // "" | tostring)
+    ' "$f" 2>/dev/null) || continue
+    IFS=$'\x1f' read -r file_status stored_cfg stored_pid <<< "$_state_info"
+    if [[ "$file_status" == "active" ]]; then
+      # Ownership filter: skip state files from other sessions
+      if [[ -n "$stored_cfg" && -n "${RUNE_CURRENT_CFG:-}" && "$stored_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
+      if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
+        rune_pid_alive "$stored_pid" && continue
       fi
-    done
-    shopt -u nullglob
-  fi
+      active_workflow=1
+      break
+    fi
+  done
+  shopt -u nullglob
+fi
 
-  if [[ -n "$active_workflow" ]]; then
-    cat <<'DENY_JSON'
+# No active workflow → allow everything (sleep commands are fine outside workflows)
+if [[ -z "$active_workflow" ]]; then
+  exit 0
+fi
+
+# ── ALLOWLIST detection (replaces old denylist regex) ──
+# During active workflows, only bare "sleep N" is permitted.
+# Any sleep combined with other commands is blocked.
+# This catches ALL bypass variants: variable expansion, command substitution,
+# full path (/bin/sleep), env prefix, newline-separated chains, etc.
+
+# Normalize: collapse newlines to semicolons (newline IS a command separator in bash),
+# strip comments, collapse whitespace, strip trailing semicolons
+# (printf '%s\n' adds trailing newline → tr converts to ';' → must strip it)
+NORMALIZED=$(printf '%s\n' "$COMMAND" | tr '\n' ';' | sed 's/#[^"'"'"']*$//' | sed 's/[[:space:]]\{1,\}/ /g' | sed 's/^[[:space:];]*//;s/[[:space:];]*$//')
+
+# Allowlist: bare sleep command (with optional decimal, e.g., "sleep 30" or "sleep 30.5")
+# Matches: "sleep N", "sleep N.N" — nothing else
+if [[ "$NORMALIZED" =~ ^[[:space:]]*sleep[[:space:]]+[0-9]+\.?[0-9]*[[:space:]]*$ ]]; then
+  exit 0
+fi
+
+# If we reach here: sleep is combined with something else during an active workflow.
+# Extract the maximum sleep value from the command for threshold check.
+# Matches both literal numbers and covers the common LLM patterns.
+# Uses -E extended regex: finds all "sleep <number>" occurrences, takes the max.
+SLEEP_NUM=$(printf '%s\n' "$NORMALIZED" | grep -oE '(^|[[:space:];|&(/])sleep[[:space:]]+[0-9]+' | grep -oE '[0-9]+' | sort -rn | head -1)
+
+# Threshold: only block sleep >= 10s (tiny sleeps are startup probes or retry backoff)
+if [[ "${SLEEP_NUM:-0}" -lt 10 ]]; then
+  exit 0
+fi
+
+# ── Block: sleep+something during active workflow ──
+cat <<'DENY_JSON'
 {
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "POLL-001: Blocked sleep+echo monitoring anti-pattern during active Rune workflow. This pattern skips TaskList and provides zero progress visibility.",
-    "additionalContext": "CORRECT monitoring loop: (1) Call TaskList tool, (2) Count completed tasks, (3) Log progress, (4) Check if all done, (5) Check stale tasks, (6) Bash('sleep ${pollIntervalMs/1000}'). Derive sleep interval from per-command pollIntervalMs config — see monitor-utility.md configuration table for exact values. NEVER use 'sleep N && echo poll check' — it bypasses the entire monitoring contract."
+    "permissionDecisionReason": "POLL-001: Blocked sleep combined with other commands during active Rune workflow. During monitoring, sleep must be called alone — not chained with echo, printf, or any other command.",
+    "additionalContext": "CORRECT monitoring loop: (1) Call TaskList tool, (2) Count completed tasks, (3) Log progress, (4) Check if all done, (5) Check stale tasks, (6) Bash('sleep ${pollIntervalMs/1000}'). Derive sleep interval from per-command pollIntervalMs config — see monitor-utility.md configuration table for exact values. NEVER chain sleep with echo/printf — it bypasses the monitoring contract."
   }
 }
 DENY_JSON
-    exit 0
-  fi
-fi
-
 exit 0

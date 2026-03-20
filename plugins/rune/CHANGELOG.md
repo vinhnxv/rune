@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.5.0] - 2026-03-21
+
+### Added
+- **scripts/enforce-bash-timeout.sh**: PreToolUse:Bash timeout wrapper — enforces configurable `bash_timeout` (default 300s) on long-running Bash commands during active Rune workflows
+- **scripts/lib/process-tree.sh**: Recursive process tree kill — walks process tree via `pgrep -P` with SIGTERM→SIGKILL escalation and configurable grace period
+- **scripts/track-teammate-activity.sh**: Per-teammate liveness detection — monitors teammate last-activity timestamps and flags stuck teammates exceeding `teammate_stuck_threshold` (default 180s)
+- **talisman.yml** `process_management` section: `bash_timeout`, `bash_timeout_enabled`, `bash_timeout_patterns`, `process_kill_grace`, `teammate_stuck_threshold`
+
+### Changed
+- **engines.md** step 5a: Recursive process tree kill via shared `process-tree.sh` (replaces inline `pgrep -P` + `kill`)
+- **detect-workflow-complete.sh** + **on-session-stop.sh**: Shared `process-tree.sh` for 2-stage SIGTERM→SIGKILL escalation
+- **monitor-utility.md**: devise 30-min timeout, stuck-teammate detection, fast-path hybrid autoReleaseMs check (ONE TaskList call when elapsed > threshold, preserving near-zero signal-based token cost)
+
 ## [2.4.2] - 2026-03-21
 
 ### Changed

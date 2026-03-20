@@ -108,6 +108,12 @@ if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
 fi
 source "${SCRIPT_DIR}/lib/rune-state.sh"
 
+# Source process tree kill library for centralized 2-stage SIGTERM→SIGKILL
+if [[ -f "${SCRIPT_DIR}/lib/process-tree.sh" ]]; then
+  # shellcheck source=lib/process-tree.sh
+  source "${SCRIPT_DIR}/lib/process-tree.sh"
+fi
+
 if [[ -f "${SCRIPT_DIR}/lib/frontmatter-utils.sh" ]]; then
   source "${SCRIPT_DIR}/lib/frontmatter-utils.sh"
 else
@@ -280,82 +286,23 @@ fi
 # but PPID + command name together keep false-positive risk acceptably low.
 # CLD-003 FIX: Use _proc_name() for cross-platform PID validation before each kill.
 _kill_stale_teammates() {
-  local child_pids child_pid killed=0
-
   # BACK-008: Validate that PPID is actually a Claude Code process before targeting its children.
-  # Hook execution model may vary — $PPID is the hook runner, which should be node or claude.
-  # NOTE: This check is best-effort only. $PPID is captured at script start; by the time
-  # this function runs (after sleep 1 in Phase 2), the process table may have changed.
-  # The primary safety net against PID recycling is the child re-verification at Phase 2
-  # (lines below, after sleep 1): each survivor PID is re-checked by command name before SIGKILL.
   local ppid_cmd
   ppid_cmd=$(_proc_name "$PPID")
   if [[ ! "$ppid_cmd" =~ ^(node|claude)$ ]]; then
-    # Not a Claude Code process — skip kill to avoid collateral damage
     echo "0"
     return 0
   fi
 
-  child_pids=$(pgrep -P "$PPID" 2>/dev/null || true)
-  [[ -z "$child_pids" ]] && { echo "$killed"; return 0; }
-
-  # Phase 1: SIGTERM eligible children (CLD-003 FIX: verify process name before kill)
-  # XVER-001 FIX: Capture process start time (lstart) as secondary identity factor.
-  # Process name alone is insufficient — a recycled PID could coincidentally be another
-  # "node" process. lstart is an absolute timestamp that changes on PID recycling.
-  # Using lstart (not etimes) because etimes is unavailable on macOS.
-  local sigterm_pids=()
-  local sigterm_lstarts=()
-  while IFS= read -r child_pid; do
-    [[ -z "$child_pid" ]] && continue
-    [[ ! "$child_pid" =~ ^[0-9]+$ ]] && continue
-    # CLD-003 FIX: Use _proc_name() for cross-platform validation
-    local child_comm
-    child_comm=$(_proc_name "$child_pid")
-    if [[ "$child_comm" =~ ^(node|claude|claude-.*)$ ]]; then
-      # XVER-001 FIX: Record process start timestamp before SIGTERM
-      local child_lstart
-      child_lstart=$(ps -p "$child_pid" -o lstart= 2>/dev/null | tr -s ' ' || echo "")
-      kill -TERM "$child_pid" 2>/dev/null || true
-      sigterm_pids+=("$child_pid")
-      sigterm_lstarts+=("${child_lstart:-unknown}")
-    fi
-  done <<< "$child_pids"
-
-  [[ ${#sigterm_pids[@]} -eq 0 ]] && { echo "0"; return 0; }
-
-  # Phase 2: Wait 1s, then SIGKILL survivors
-  # SEC-005: Reduced from 2s to 1s (40% → 20% of 5s hook timeout budget).
-  # CLD-003 FIX: Re-verify process identity before SIGKILL to prevent
-  # killing unrelated processes due to PID recycling.
-  sleep 1
-  local idx=0
-  for child_pid in "${sigterm_pids[@]}"; do
-    if kill -0 "$child_pid" 2>/dev/null; then
-      # CLD-003 FIX: Re-check process name using _proc_name() — PID could have been recycled during sleep
-      local survivor_comm
-      survivor_comm=$(_proc_name "$child_pid")
-      if [[ "$survivor_comm" =~ ^(node|claude|claude-.*)$ ]]; then
-        # XVER-001 FIX: Verify process start time hasn't changed (PID recycling detection).
-        # A recycled PID would have a different lstart (absolute start timestamp).
-        local orig_lstart="${sigterm_lstarts[$idx]}"
-        local cur_lstart
-        cur_lstart=$(ps -p "$child_pid" -o lstart= 2>/dev/null | tr -s ' ' || echo "")
-        if [[ "$orig_lstart" != "unknown" && -n "$cur_lstart" && "$orig_lstart" != "$cur_lstart" ]]; then
-          # PID was recycled — different process start time
-          idx=$((idx + 1))
-          continue
-        fi
-        if kill -KILL "$child_pid" 2>/dev/null; then
-          killed=$((killed + 1))
-        fi
-      fi
-      # PID recycled to a non-Claude process — do NOT kill
-    fi
-    idx=$((idx + 1))
-  done
-
-  echo "$killed"
+  # Delegate to centralized process-tree.sh (2-stage SIGTERM→SIGKILL with PID recycling guard)
+  # SEC-005: Grace period 1s (20% of 5s hook timeout budget)
+  # Filter "claude" protects MCP/LSP servers
+  if declare -f _rune_kill_tree &>/dev/null; then
+    _rune_kill_tree "$PPID" "2stage" "1" "claude"
+  else
+    # Fallback: process-tree.sh not loaded — return 0 (fail-forward)
+    echo "0"
+  fi
   return 0
 }
 

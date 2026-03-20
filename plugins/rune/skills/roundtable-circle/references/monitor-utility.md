@@ -120,6 +120,26 @@ function waitForCompletion(teamName, expectedCount, opts) {
       }
     }
 
+    // Stuck-teammate detection (activity file-based)
+    // track-teammate-activity.sh (PostToolUse hook) writes epoch timestamps to
+    // tmp/.rune-signals/{team}/.activity-{agent}. If an activity file is older
+    // than teammate_stuck_threshold (talisman, default 180s / 3 min), the teammate
+    // may be hung — warn the orchestrator.
+    const stuckThreshold = talisman.teammate_stuck_threshold || 180  // seconds
+    const activityDir = `tmp/.rune-signals/${teamName}`
+    for (const task of inProgress) {
+      const agentName = task.owner  // agent name from task assignment
+      if (!agentName) continue
+      const activityFile = `${activityDir}/.activity-${agentName}`
+      if (exists(activityFile)) {
+        const actMtime = stat_mtime(activityFile)  // Unix epoch
+        const actAge = Math.floor(Date.now() / 1000) - actMtime
+        if (actAge > stuckThreshold) {
+          warn(`${label}: teammate ${agentName} (task #${task.id}) no tool activity for >${Math.floor(actAge / 60)}min — may be stuck`)
+        }
+      }
+    }
+
     // Timeout check (only if timeoutMs is defined)
     if (timeoutMs !== undefined && Date.now() - startTime > timeoutMs) {
       warn(`${label} timeout reached (${timeoutMs / 60_000} min). Collecting partial results.`)
@@ -213,7 +233,7 @@ Each command passes its own `opts` to `waitForCompletion`:
 | `audit` | 900,000 (15 min) | 300,000 (5 min) | — | 30,000 (30s) | `"Audit"` | — |
 | `strive` | 1,800,000 (30 min) | 300,000 (5 min) | 600,000 (10 min) | 30,000 (30s) | `"Work"` | Yes (milestone) |
 | `mend` | 900,000 (15 min) ‡ | 300,000 (5 min) | 600,000 (10 min) | 30,000 (30s) | `"Mend"` | — |
-| `devise` | — (none) | 300,000 (5 min) | — | 30,000 (30s) | `"Plan Research"` | — |
+| `devise` | 1,800,000 (30 min) | 300,000 (5 min) | — | 30,000 (30s) | `"Plan Research"` | — |
 | `forge` | 1,200,000 (20 min) | 300,000 (5 min) | 300,000 (5 min)* | 30,000 (30s) | `"Forge"` | — |
 | `arc` | Per-phase (varies) | 300,000 (5 min) | — | 30,000 (30s) | `"Arc: {phase}"` | Planned |
 
@@ -223,10 +243,10 @@ Each command passes its own `opts` to `waitForCompletion`:
 - `appraise` and `audit` have no `autoReleaseMs` because each Ash produces unique findings that cannot be reclaimed by another Ash.
 - `strive` and `mend` enable auto-release because their tasks are fungible (any worker can pick up a released task).
 - `forge` enables auto-release (5 min) because enrichment tasks are reassignable. *When `staleWarnMs === autoReleaseMs` (as in forge), warn and release fire on the same poll tick — this is by design since forge's stale detection and release are a single action.
-- `devise` has no `timeoutMs` — polling continues until all tasks complete or stale detection intervenes.
+- `devise` has a 30-minute `timeoutMs` (1,800,000ms) — covers the longest research phase (external research + validation) with margin. Previously had no timeout, which risked indefinite hangs if a research agent stalled without triggering stale detection.
 - `forge` has a 20-minute `timeoutMs` (`FORGE_TIMEOUT = 1_200_000` in forge.md) — enrichment sessions have a hard upper bound.
 - `arc` uses `PHASE_TIMEOUTS` from its constants (see `arc SKILL.md`) which vary per phase. Phase outer timeout = inner polling timeout + `SETUP_BUDGET` (5 min) + optional `MEND_EXTRA_BUDGET` (3 min). The inner timeout is the real enforcement — `checkArcTimeout()` only runs between phases.
-- **Signal-path compatibility**: When the Phase 2 fast path is active, `autoReleaseMs` and `onCheckpoint` are not evaluated. Commands that rely on these features (`work`, `mend`, `forge`) lose those capabilities until Phase 3 unifies both paths. Commands without these features (`review`, `audit`) behave identically on either path.
+- **Signal-path compatibility**: When the Phase 2 fast path is active, `onCheckpoint` is not evaluated. `autoReleaseMs` is now supported via a hybrid check: when elapsed time exceeds the threshold, the fast path issues ONE `TaskList()` call to detect and reassign stalled tasks — preserving near-zero token cost while recovering stalled workers. Commands without these features (`review`, `audit`) behave identically on either path.
 
 ### Wave-Aware Monitoring
 
@@ -258,8 +278,9 @@ if (result.timedOut) {
   log(`Review completed with partial results: ${result.completed.length}/${ashCount} Ashes`)
 }
 
-// In devise/SKILL.md Monitor Research (no timeout):
+// In devise/SKILL.md Monitor Research (30 min timeout):
 const result = waitForCompletion(teamName, researchTaskCount, {
+  timeoutMs: 1_800_000,
   staleWarnMs: 300_000,
   pollIntervalMs: 30_000,
   label: "Plan Research"
@@ -285,7 +306,7 @@ const result = waitForCompletion(teamName, taskCount, {
 
 ## Notes
 
-- **Timeout is optional**: When `timeoutMs` is `undefined`, the loop runs until all tasks complete. This matches `devise` which has no hard timeout.
+- **Timeout is optional**: When `timeoutMs` is `undefined`, the loop runs until all tasks complete. All current commands now define a `timeoutMs` as a safety net against indefinite hangs.
 - **Auto-release is optional**: When `autoReleaseMs` is `undefined`, stale tasks only produce warnings. This matches `appraise` and `audit` where Ash findings are non-fungible.
 - **No retry logic**: `TaskList()` errors propagate naturally. Retry logic is out of scope for Phase 1.
 - **Final sweep**: On timeout, a final `TaskList()` call captures any tasks that completed during the last poll interval. This matches the existing pattern in `appraise.md`, `audit.md`, `strive.md`, and `mend.md`.
@@ -294,6 +315,7 @@ const result = waitForCompletion(teamName, taskCount, {
 - **zsh reserved variable names**: When translating pseudocode to Bash commands, **NEVER use `status` as a shell variable name**. In zsh (macOS default shell), `$status` is a read-only built-in (equivalent to `$?`). Assigning to it causes `(eval):1: read-only variable: status`. Use alternative names like `task_status`, `tstat`, or `completion_status` instead. Other zsh reserved names to avoid: `pipestatus`, `ERRNO`, `signals`.
 - **Polling loop parameters MUST match config**: When translating `waitForCompletion` to Bash, the loop parameters MUST be derived from the configured values — not invented. Use the formula: `maxIterations = ceil(timeoutMs / pollIntervalMs)` and `sleepSeconds = pollIntervalMs / 1000`. For example, mend with `timeoutMs: 900_000` and `pollIntervalMs: 30_000` → `maxIterations=30, sleep 30`. Never use arbitrary iteration counts or sleep intervals that don't match the per-command configuration table above.
 - **Polling enforcement hook**: `enforce-polling.sh` (POLL-001) blocks `sleep+echo` anti-patterns at runtime during active Rune workflows. The `polling-guard` skill provides background knowledge for the correct monitoring loop pattern. Together, these form a 3-layer enforcement pyramid (hook + skill + text warnings) that prevents the LLM from improvising sleep-based monitoring proxies.
+- **Stuck-teammate detection**: The polling loop checks activity files written by `track-teammate-activity.sh` (PostToolUse:Bash|Write|Edit hook). Each teammate's last tool call timestamp is written atomically to `tmp/.rune-signals/{team}/.activity-{agent}`. If the file's mtime exceeds `teammate_stuck_threshold` (talisman config, default 180s / 3 min), the orchestrator warns about the potentially stuck teammate. This complements task-level stale detection (`staleWarnMs`) with tool-level liveness — a task may not be stale by time, but its agent may have stopped making tool calls.
 - **`estimated_minutes` task metadata**: Set by `estimateTaskMinutes()` during `TaskCreate` in Phase 0 (task decomposition). Each task receives an `estimated_minutes` field in its metadata based on complexity heuristics (file count, test presence, refactoring scope). This value is consumed by Phase 3 smart reassignment to determine when a task has exceeded its expected duration (`elapsed > estimated_minutes * reassignment.multiplier`), and by `computeExpectedWaveTime()` to calculate per-wave wall-clock estimates (F12 fix). Default: `5` minutes when not set.
 
 ## Phase 2: Event-Driven Fast Path
@@ -376,15 +398,16 @@ function waitForCompletion(teamName, expectedCount, opts) {
     //
     // Known limitation (Phase 2 BRIDGE): The fast path currently omits:
     //   - Stale detection (no taskStartTimes tracking or staleWarnMs checks)
-    //   - Auto-release of stalled tasks (no autoReleaseMs handling)
     //   - Checkpoint reporting (no onCheckpoint / milestone callbacks)
     // These features only run in the Phase 1 polling fallback.
-    // Phase 3 will unify both paths so stale detection, auto-release,
-    // and checkpoint reporting work in event-driven mode as well.
-    // NOTE: Commands most affected by fast-path feature gaps:
-    //   - work: loses autoReleaseMs (stalled task recovery) and onCheckpoint
-    //   - mend: loses autoReleaseMs
-    //   - forge: loses autoReleaseMs (stalled enrichment recovery)
+    // Phase 3 will unify both paths so stale detection and checkpoint
+    // reporting work in event-driven mode as well.
+    //
+    // HYBRID autoReleaseMs (v2.5.0): When autoReleaseMs is configured AND
+    // elapsed time exceeds the threshold, the fast path falls back to ONE
+    // TaskList() call per cycle to check for stale in-progress tasks needing
+    // reassignment. This preserves the near-zero token cost of signal-based
+    // monitoring while recovering stalled tasks in work/mend/forge workflows.
     // Commands unaffected: review, audit (no autoRelease/checkpoint configured)
     log(`${label}: Signal directory detected — event-driven monitoring (5s interval)`)
     let iteration = 0
@@ -419,6 +442,25 @@ function waitForCompletion(teamName, expectedCount, opts) {
           completed: finalTasks.filter(t => t.status === "completed"),
           incomplete: finalTasks.filter(t => t.status !== "completed"),
           timedOut: true
+        }
+      }
+
+      // Hybrid autoReleaseMs check (v2.5.0): when autoReleaseMs is configured
+      // and elapsed time exceeds the threshold, issue ONE TaskList() call to
+      // detect and reassign stale in-progress tasks. This adds ~100 tokens
+      // per triggered check (not every cycle) while preserving signal-based
+      // near-zero cost for normal operation.
+      if (autoReleaseMs && Date.now() - startTime > autoReleaseMs) {
+        const tasks = TaskList()
+        const inProgress = tasks.filter(t => t.status === "in_progress")
+        for (const task of inProgress) {
+          if (!taskStartTimes[task.id]) taskStartTimes[task.id] = Date.now()
+          const elapsed = Date.now() - taskStartTimes[task.id]
+          if (elapsed > autoReleaseMs) {
+            warn(`${label}: task #${task.id} stalled (>${autoReleaseMs / 60_000}min) — auto-releasing`)
+            TaskUpdate({ taskId: task.id, owner: "", status: "pending" })
+            delete taskStartTimes[task.id]
+          }
         }
       }
 

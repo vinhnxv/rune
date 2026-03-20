@@ -542,14 +542,10 @@ function shutdown(handle) {
     // 5a. Process-level kill: terminate lingering teammate processes before filesystem cleanup.
     // When TeamDelete fails, teammates are likely still running. Filesystem cleanup alone
     // leaves zombie processes that hold file locks and consume resources.
-    // pgrep -P finds children of the Claude Code process (our session).
+    // Uses centralized _rune_kill_tree for recursive descendant walk + PID recycling guard.
     const ownerPid = handle.ownerPid || Bash(`echo $PPID`).trim()
     if (ownerPid && /^\d+$/.test(ownerPid)) {
-      // SIGTERM first — give teammates a chance to exit cleanly
-      Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-      Bash(`sleep 5`)
-      // SIGKILL survivors — re-verify command name before kill (PID recycling guard)
-      Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+      Bash(`source "\${CLAUDE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "${ownerPid}" "2stage" "5" "claude"`)
     }
 
     // 5b. Filesystem cleanup
