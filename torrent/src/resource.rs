@@ -94,6 +94,11 @@ pub fn refresh_process_system(sys: &mut System) {
 /// Returns true if process exists (even if owned by another user — EPERM).
 /// Shared utility — used by lock.rs, app.rs, and scanner.rs.
 pub fn is_pid_alive(pid: u32) -> bool {
+    // Guard: reject PIDs that would silently truncate when cast to i32.
+    // libc::kill expects pid_t (i32), so PIDs > i32::MAX are invalid.
+    if pid > i32::MAX as u32 {
+        return false;
+    }
     // SAFETY: kill(pid, 0) with signal 0 only checks existence, sends no signal.
     // Returns 0 on success, -1 on error. EPERM means process exists but is
     // owned by another user — still "alive" for our purposes.

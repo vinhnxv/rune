@@ -180,6 +180,10 @@ class ClaudeRunner:
                     "refusing to add --dangerously-skip-permissions"
                 )
             else:
+                logger.warning(
+                    "ClaudeRunner: --dangerously-skip-permissions enabled — "
+                    "all permission checks bypassed"
+                )
                 args.append("--dangerously-skip-permissions")
         if self.model:
             args.extend(["--model", self.model])

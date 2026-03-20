@@ -83,14 +83,8 @@ source "$RESOLVER"
 # Capture resolver output
 resolve_output=$(rune_gh_ensure_correct_account 2>&1) || {
   # Account resolution failed — inject advisory (don't block)
-  cat <<HOOK_JSON
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PreToolUse",
-    "additionalContext": "GH-ACCOUNT-001: GitHub account resolution failed for this repository. The active gh account may not have access. Error: ${resolve_output//\"/\\\"}. Consider running 'gh auth login' with the correct account."
-  }
-}
-HOOK_JSON
+  jq -n --arg ctx "GH-ACCOUNT-001: GitHub account resolution failed for this repository. The active gh account may not have access. Error: $resolve_output. Consider running 'gh auth login' with the correct account." \
+    '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$ctx}}'
   exit 0
 }
 
@@ -100,14 +94,8 @@ date +%s > "$DEBOUNCE_MARKER" 2>/dev/null || true
 # If account was switched, inject context so Claude knows
 if echo "$resolve_output" | grep -q "Switched to account"; then
   switched_account=$(echo "$resolve_output" | grep "Switched to account" | sed "s/.*Switched to account '\\([^']*\\)'.*/\\1/")
-  cat <<HOOK_JSON
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PreToolUse",
-    "additionalContext": "GH-ACCOUNT-001: Automatically switched GitHub account to '${switched_account}' for this repository. Previous account did not have access."
-  }
-}
-HOOK_JSON
+  jq -n --arg ctx "GH-ACCOUNT-001: Automatically switched GitHub account to '$switched_account' for this repository. Previous account did not have access." \
+    '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$ctx}}'
 fi
 
 exit 0

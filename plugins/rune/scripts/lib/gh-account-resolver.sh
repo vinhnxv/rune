@@ -67,7 +67,7 @@ _gh_get_active_account() {
 _gh_list_all_accounts() {
   # gh auth status lists all accounts across all hosts
   # Extract usernames from lines like "  Logged in to github.com account username (...)"
-  gh auth status 2>&1 | grep 'Logged in to github.com account' | sed 's/.*account \([^ ]*\).*/\1/' | tr -d '[:space:]' | sort -u || true
+  gh auth status 2>&1 | grep 'Logged in to github.com account' | sed 's/.*account \([^ ]*\).*/\1/' | tr -d ' \t' | sort -u || true
 }
 
 # _gh_test_repo_access <owner/repo>

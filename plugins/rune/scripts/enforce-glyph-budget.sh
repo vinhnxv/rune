@@ -131,8 +131,11 @@ else
 fi
 
 # Atomic write: tmp file + mv (prevents partial reads)
-TREND_TMP="${TREND_FILE}.tmp.$$"
-printf '%s\n' "$UPDATED" > "$TREND_TMP" 2>/dev/null && mv -f "$TREND_TMP" "$TREND_FILE" 2>/dev/null || true
+TREND_TMP=$(mktemp "${TMPDIR:-/tmp}/rune-glyph-XXXXXX") || true
+if [[ -n "$TREND_TMP" ]]; then
+  trap 'rm -f "$TREND_TMP"' EXIT
+  printf '%s\n' "$UPDATED" > "$TREND_TMP" 2>/dev/null && mv -f "$TREND_TMP" "$TREND_FILE" 2>/dev/null || true
+fi
 
 # --- Step 7: Evidence quality heuristic ---
 # Flag evidence fields shorter than 20 characters as potentially superficial.

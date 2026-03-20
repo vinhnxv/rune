@@ -114,10 +114,13 @@ done
 
 # --- Output warning if any packs are stale ---
 if [[ -n "$warnings" ]]; then
-  # warnings contains literal \n sequences (not actual newlines)
-  # Escape double quotes for JSON safety
-  json_warnings="${warnings//\"/\\\"}"
-  printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"%s"}}\n' "$json_warnings"
+  # Use jq/python3 for safe JSON string encoding (handles quotes, backslashes, control chars)
+  if command -v jq &>/dev/null; then
+    jq -n --arg w "$warnings" --arg event "SessionStart" \
+      '{"hookSpecificOutput":{"hookEventName":$event,"additionalContext":$w}}'
+  elif command -v python3 &>/dev/null; then
+    python3 -c 'import json,sys; print(json.dumps({"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":sys.argv[1]}}))'  "$warnings"
+  fi
 fi
 
 exit 0
