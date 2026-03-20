@@ -76,11 +76,19 @@ For users new to Rune, these simpler commands forward to the full versions:
 3. **Check for prerequisites.** `/rune:strive` needs a plan file. `/rune:mend` needs a TOME. `/rune:arc` needs a plan.
 4. **Recent artifacts matter.** Check `plans/` for recent plans, `tmp/reviews/` for recent TOMEs.
 
+## Direct Actions (no Rune skill needed)
+
+These are common requests that Claude should handle directly — no agent team required.
+
+| User Says | Action | Details |
+|-----------|--------|---------|
+| "Merge PR" / "merge code" / "merge it" / "gộp code" / "gộp PR" | `gh pr merge` | NEVER use local `git merge` + `git push`. MANDATORY steps in order: (1) `command -v gh && gh auth status` — verify CLI available, (2) `source "${CLAUDE_PLUGIN_ROOT}/scripts/lib/gh-account-resolver.sh" && rune_gh_ensure_correct_account` — switch to correct account, STOP if ERROR, (3) `gh pr view --json number,state` — detect PR, STOP if no open PR, (4) `GH_PROMPT_DISABLED=1 gh pr merge <number> --squash --delete-branch`, (5) `git pull` to sync local. NEVER skip step 2. |
+
 ## When NOT to Route
 
 - Simple questions about the codebase → answer directly
 - Single-file edits → edit directly
-- Git operations → use git directly
+- Git operations (except merge — see Direct Actions above) → use git directly
 - Questions about Rune itself → use `ash-guide` skill
 
 ## Quick Reference: Command Capabilities
