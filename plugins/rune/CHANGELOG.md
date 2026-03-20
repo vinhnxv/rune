@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-03-20
+
+### Fixed
+- **qa-gates**: Extract QA gate logic to `lib/qa-gate-check.sh` for SRP and testability (SIGHT-003)
+- **qa-gates**: Sanitize remediation context before checkpoint injection — Truthbinding prefix + length limit (RUIN-001)
+- **qa-gates**: Set `qa_escalation_required` flag in checkpoint when max retries exhausted for deterministic escalation (RUIN-002)
+- **qa-gates**: Separate infrastructure retries from quality retries via `infra_retry_count` — QA agent crashes no longer consume quality retry budget (RUIN-003)
+- **qa-gates**: Validate `_qa_verdict` against known enum values (RUIN-004)
+- **qa-gates**: Consolidate duplicated jq retry-state extraction into `_qa_read_retry_state()` (SIGHT-001)
+- **qa-gates**: Wrap QA checkpoint reads with `_jq_with_budget` for timeout budget safety (SIGHT-002)
+- **hooks**: Use jq/python3 for safe JSON encoding in hook stdout outputs instead of manual escaping
+
+### Added
+- **qa-gates**: `scripts/tests/test-qa-gate.sh` — 26 test cases covering PASS/FAIL/revert/escalation/infra-retry/configurable-thresholds/symlink-guard (VIGIL-001)
+- **qa-gates**: Process Compliance checks (WRK-PRC-01 through WRK-PRC-05) for AC-15 manifest-vs-execution-vs-filesystem verification (GRACE-001)
+- **qa-gates**: Step Order Compliance checks (WRK-ORD-01 through WRK-ORD-03) for AC-21 (GRACE-002)
+- **talisman**: `qa_gates.pass_threshold` (default: 70) and `qa_gates.max_phase_retries` (default: 2) configurable via talisman (VIGIL-002/003)
+
 ## [2.3.0] - 2026-03-20
 
 ### Added
