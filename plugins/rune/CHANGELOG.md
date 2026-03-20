@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.3.4] - 2026-03-20
 
 ### Fixed
 - **discipline**: Add F13 echo authenticity guard to `validate-discipline-proofs.sh` — detects verbatim copy-paste of criteria in echo-back section (>80% trigram similarity triggers warning)
