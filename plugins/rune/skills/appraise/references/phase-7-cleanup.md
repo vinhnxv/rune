@@ -17,7 +17,10 @@ allMembers = ["forge-warden", "ward-sentinel", "pattern-seer", "veil-piercer",
   "lore-analyst", "runebinder-deep", "runebinder-merge",
   // Sharding mode agents
   "cross-shard-sentinel",
-  "shard-reviewer-a", "shard-reviewer-b", "shard-reviewer-c", "shard-reviewer-d", "shard-reviewer-e"]
+  "shard-reviewer-a", "shard-reviewer-b", "shard-reviewer-c", "shard-reviewer-d", "shard-reviewer-e",
+  // Custom Ashes from talisman.yml — hardcoded fallback (safe to send to absent members)
+  "team-lifecycle-reviewer", "agent-spawn-reviewer",
+  "dead-prompt-detector", "cleanup-completeness-reviewer", "phantom-warden"]
 ```
 
 ## Protocol

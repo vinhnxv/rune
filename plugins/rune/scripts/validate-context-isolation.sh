@@ -121,7 +121,7 @@ fi
 
 sf_owner_pid=$(jq -r '.owner_pid // ""' "$WORK_STATE" 2>/dev/null || true)
 if [[ -n "$sf_owner_pid" && "$sf_owner_pid" != "$PPID" ]]; then
-  # Check if owner PID is still alive
+  # Check if owner PID is still alive (EPERM-safe via resolve-session-identity.sh)
   if [[ -n "$sf_owner_pid" && "$sf_owner_pid" =~ ^[0-9]+$ ]] && rune_pid_alive "$sf_owner_pid"; then
     # Different live session owns this — allow
     exit 0

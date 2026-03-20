@@ -452,9 +452,25 @@ function shutdown(handle) {
     const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
     allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
   } catch (e) {
-    // FALLBACK: config.json read failed — use spawned agent list from handle.
-    // This includes wave-based names (rune-smith-w0-1, mend-fixer-w1-2, etc.).
-    allMembers = handle.spawnedAgents.map(a => a.name)
+    // FALLBACK LAYER 2: Read inscription.json from signal dir (persisted to disk in Phase 2).
+    // Catches agent-search MCP discovered agents (registry/, user_agents) that survive
+    // compaction — unlike handle.spawnedAgents which is a JS variable in context.
+    try {
+      const signalDir = `tmp/.rune-signals/${handle.teamName}`
+      const inscription = JSON.parse(Read(`${signalDir}/inscription.json`))
+      const inscriptionNames = (inscription.teammates || [])
+        .map(t => t.name)
+        .filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+      if (inscriptionNames.length > 0) {
+        allMembers = inscriptionNames
+      }
+    } catch (e2) { /* inscription also unavailable — fall through to handle */ }
+
+    // FALLBACK LAYER 3: Use spawned agent list from handle (context variable).
+    // May be empty after compaction — per-skill stub fallback arrays supplement this.
+    if (allMembers.length === 0) {
+      allMembers = (handle.spawnedAgents || []).map(a => a.name)
+    }
   }
 
   // --- 2. Send shutdown_request to all members — track delivery failures ---

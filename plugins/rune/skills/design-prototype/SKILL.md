@@ -40,7 +40,7 @@ allowed-tools:
 ---
 
 **Runtime context** (preprocessor snapshot):
-- Active workflows: !`grep -rl '"active"' tmp/.rune-*-*.json 2>/dev/null || true | wc -l | tr -d ' '`
+- Active workflows: !`find tmp -maxdepth 1 -name '.rune-*-*.json' -exec grep -l '"running"' {} + 2>/dev/null | wc -l | tr -d ' '`
 - Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 # /rune:design-prototype — Figma-to-Storybook Prototype Generator
@@ -455,7 +455,7 @@ When >= 3 components AND `--no-team` is NOT set, the pipeline uses Agent Teams f
 if components.length >= 3 AND NOT flags.noTeam:
   teamName = "rune-prototype-{timestamp}"
   try:
-    TeamCreate({ name: teamName })
+    TeamCreate({ team_name: teamName })
 
   // Create extraction tasks
   for component in components:

@@ -12,6 +12,10 @@ tools:
   - Grep
   - WebSearch
   - WebFetch
+  - SendMessage
+  - TaskList
+  - TaskGet
+  - TaskUpdate
 maxTurns: 40
 mcpServers:
   - echo-search

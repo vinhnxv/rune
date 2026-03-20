@@ -11,6 +11,9 @@ tools:
   - Grep
   - Glob
   - SendMessage
+  - TaskList
+  - TaskGet
+  - TaskUpdate
 maxTurns: 25
 mcpServers:
   - echo-search

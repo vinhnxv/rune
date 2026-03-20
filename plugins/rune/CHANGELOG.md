@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.3.6] - 2026-03-20
+
+### Fixed
+- **agents**: Add `TaskList`/`TaskGet`/`TaskUpdate` to 5 agents missing TEAM-002 tools — runebinder, flow-seer, ux-pattern-analyzer, research-verifier (+SendMessage), goldmask-coordinator. Prevents silent `waitForCompletion` stalls when these agents are spawned as teammates
+- **design-prototype**: Fix `TeamCreate({ name: })` → `TeamCreate({ team_name: })` — `name` is not a valid TeamCreate parameter (TLC-001)
+- **preprocessor**: Fix active workflow count in 7 skills (appraise, audit, strive, debug, codex-review, design-sync, design-prototype) — `ls` glob (zsh NOMATCH unsafe) → `find` (safe), grep filenames → grep file contents, `"active"` → `"running"` status match (BACK-006, BACK-013)
+- **strive**: Add `subagent_type: "general-purpose"` to unit-test-runner and test-failure-analyst spawns (SPAWN-001, SPAWN-002)
+- **reference-validator**: Add `Agent` to known tool lists — post-2.1.63 rename was missing (SPAWN-003, SPAWN-004)
+- **security**: Fix EPERM-inconsistent PID liveness check in `validate-context-isolation.sh` — use `rune_pid_alive()` (SEC-003)
+- **security**: Homoglyph detection fails closed when python3 unavailable — `{"detected":false}` → `{"detected":true}` (SEC-004)
+- **security**: Wire `sanitize-text.sh` into `advise-mcp-untrusted.sh` for suspicious pattern detection in MCP output (SEC-002, resolves VEIL-002)
+- **cleanup**: Add 5 custom Ashes from talisman.yml to hardcoded fallback arrays in orchestration-phases.md and phase-7-cleanup.md — team-lifecycle-reviewer, agent-spawn-reviewer, dead-prompt-detector, cleanup-completeness-reviewer, phantom-warden
+- **cleanup**: Add inscription.json as Layer 2 fallback in canonical `engines.md#shutdown` — catches agent-search MCP discovered agents (registry/, user_agents) that survive compaction. Systemic fix covering all 12+ skills using agent-search (v1.170.0+)
+- **cleanup**: Add inscription.json Layer 2 fallback to orchestration-phases.md shared cleanup — 3-layer cascade: config.json → inscription.json → static array + dedup
+- **self-audit**: Add 8-member fallback array to Phase 6 cleanup (TLC-003)
+
 ## [2.3.5] - 2026-03-20
 
 ### Changed
