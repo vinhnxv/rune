@@ -53,7 +53,7 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 | "Browser test" / "E2E test" / "test browser" | `/rune:test-browser` | Standalone browser E2E testing |
 | "UX review" / "UX patterns" / "heuristic evaluation" | `/rune:ux-design-process` | UX design intelligence and heuristic evaluation |
 | "Post findings to PR" / "share review on PR" / "post to GitHub" / "comment on PR with findings" | `/rune:post-findings` | Post Rune review findings to GitHub PR as formatted comment |
-| "Self-audit" / "check rune health" / "lint agents" / "meta-qa" / "audit rune itself" | `/rune:self-audit` | Meta-QA self-audit of Rune's own workflow system |
+| "Self-audit" / "audit arc run" / "check arc quality" / "hallucination detection" / "agent effectiveness" / "check rune health" / "lint agents" / "meta-qa" | `/rune:self-audit` | Meta-QA self-audit — static analysis + runtime arc artifact analysis |
 
 ### Beginner Aliases
 
@@ -112,6 +112,7 @@ For users new to Rune, these simpler commands forward to the full versions:
 | `/rune:test-browser` | No | 3-10 min | PR# or branch |
 | `/rune:ux-design-process` | No | 2-5 min | None (auto-loaded) |
 | `/rune:post-findings` | No | 1-3 min | TOME file path + PR number |
+| `/rune:self-audit` | Yes (3 agents) | 2-5 min | None (auto-detects latest arc) |
 | `/rune:plan` | (alias for `/rune:devise`) |||
 | `/rune:work` | (alias for `/rune:strive`) |||
 | `/rune:review` | (alias for `/rune:appraise`) |||

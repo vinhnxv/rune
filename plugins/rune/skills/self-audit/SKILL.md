@@ -1,298 +1,389 @@
 ---
 name: self-audit
 description: |
-  Meta-QA self-audit for Rune's own workflow system. Audits agent definitions,
-  workflow phases, rules, hooks for inconsistencies, contradictions, and drift.
-  Produces SELF-AUDIT-REPORT.md with per-dimension scores and actionable findings.
+  Use /rune:self-audit to audit the Rune plugin system itself — validating skill
+  wiring, agent definitions, hook configurations, and (in runtime mode) analyzing
+  arc run artifacts for hallucinations, effectiveness, and convergence patterns.
 
-  Use when: "audit rune itself", "check rune health", "self-audit", "meta-qa",
-  "rune consistency check", "lint agents", "validate workflow", "check hooks".
+  Modes:
+  - static (default): audits skill definitions, agent wiring, hook setup
+  - runtime: analyzes a completed arc run's artifacts post-hoc
+  - all: runs both static and runtime analyses
 
-  Covers: Workflow definition validation, agent prompt linting, rule consistency
-  checking, hook integrity verification, echo-based recurrence tracking.
+  Trigger keywords: self-audit, audit rune, audit the system, plugin health,
+  skill wiring, agent wiring, hook audit, runtime audit, arc artifact analysis,
+  hallucination detection, agent effectiveness, convergence analysis.
 
   <example>
   user: "/rune:self-audit"
-  assistant: "The Tarnished turns the gaze inward, auditing Rune's own system integrity..."
+  assistant: "Running static audit... Checking 52 skills, 112 agents, 38 hooks. Found 2 wiring issues."
   </example>
 
   <example>
-  user: "/rune:self-audit --dimension workflow"
-  assistant: "The Tarnished focuses on workflow definition validation only..."
+  user: "/rune:self-audit --mode runtime"
+  assistant: "Auto-detecting latest completed arc... Found arc-1773959688. Spawning 3 runtime agents."
+  </example>
+
+  <example>
+  user: "/rune:self-audit --mode runtime --arc-id arc-1773959688"
+  assistant: "Analyzing arc-1773959688 artifacts... Spawning hallucination-detector, effectiveness-analyzer, convergence-analyzer."
+  </example>
+
+  <example>
+  user: "/rune:self-audit --mode all"
+  assistant: "Running static + runtime audit combined..."
+  </example>
+
+  <example>
+  user: "/rune:self-audit --history"
+  assistant: "Showing past audit results with trends..."
   </example>
 user-invocable: true
-disable-model-invocation: false
-argument-hint: "[--dimension D] [--verbose]"
+argument-hint: "[--mode static|runtime|all] [--arc-id ID] [--history]"
 allowed-tools:
-  - Agent
-  - TaskCreate
-  - TaskList
-  - TaskUpdate
-  - TaskGet
-  - TeamCreate
-  - TeamDelete
-  - SendMessage
   - Read
   - Write
-  - Edit
   - Bash
   - Glob
   - Grep
+  - Agent
+  - TaskCreate
+  - TaskList
+  - TaskGet
+  - TaskUpdate
+  - TeamCreate
+  - TeamDelete
+  - SendMessage
   - AskUserQuestion
 ---
 
-# /rune:self-audit — Meta-QA Self-Audit
+# /rune:self-audit — Plugin Self-Audit
 
-Orchestrate a multi-agent audit that examines Rune's own workflow definitions, agent prompts, rules, and hooks for inconsistencies, contradictions, and drift. Each audit agent gets its own dedicated context window via Agent Teams.
+Audit the Rune plugin system itself. Two modes: **static** (wiring validation) and **runtime** (arc artifact analysis).
 
-**Load skills**: `rune-echoes`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`, `context-weaving`
-
-## Flags
-
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--dimension <D>` | Focus on a single dimension: workflow, prompt, rule, hook | All 4 dimensions |
-| `--verbose` | Include P3 (Info) findings in the report | Off (P1+P2 only) |
-
-## Detection Dimensions
-
-| # | Dimension | Agent | Output |
-|---|-----------|-------|--------|
-| 1 | Workflow Definition | `workflow-auditor` | `workflow-findings.md` |
-| 2 | Prompt/Agent Consistency | `prompt-linter` | `prompt-findings.md` |
-| 3 | Rule Consistency | `rule-consistency-auditor` | `rule-findings.md` |
-| 4 | Hook Integrity | `hook-integrity-auditor` | `hook-findings.md` |
-
-## Finding Format (All Agents)
-
-```markdown
-### SA-{DIM}-{NNN}: {Title}
-
-- **Severity**: P1 (Critical) | P2 (Warning) | P3 (Info)
-- **Dimension**: workflow | prompt | rule | hook
-- **File**: `{file_path}:{line_number}`
-- **Evidence**: {What was found, with exact quotes}
-- **Expected**: {What the correct state should be}
-- **Proposed Fix**: {Concrete change description}
-- **Self-referential**: true | false
-```
-
-## Scoring Formula
+## Invocation
 
 ```
-dimension_score = 100 - (P1_count * 15 + P2_count * 5 + P3_count * 1)
-clamped to [0, 100]
-
-overall_score = avg(all dimension scores)
+/rune:self-audit                              # Static only (default)
+/rune:self-audit --mode static                # Explicit static mode
+/rune:self-audit --mode runtime               # Runtime only (new)
+/rune:self-audit --mode runtime --arc-id ID   # Specific arc run
+/rune:self-audit --mode all                   # Static + Runtime combined
+/rune:self-audit --history                    # Show past audit results with trends
 ```
 
-Verdicts:
-- EXCELLENT (90-100): System is well-maintained
-- GOOD (70-89): Minor issues, no action required
-- NEEDS_ATTENTION (50-69): Several issues, review recommended
-- CRITICAL (0-49): Significant issues, action required
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--mode MODE` | static | `static`, `runtime`, or `all` |
+| `--arc-id ID` | auto-detect | Specific arc run ID to analyze |
+| `--history` | false | Show past self-audit results with trends |
 
----
+## Phase 0: Parse Arguments
 
-## Phase 0: Pre-flight
+Read `$ARGUMENTS` and extract:
+- `MODE` — `static` (default), `runtime`, or `all`
+- `ARC_ID` — explicit arc ID, or `null` for auto-detect
+- `HISTORY` — true if `--history` flag present
 
-Read talisman config for self_audit section:
-
+After parsing, validate `ARC_ID` format if provided:
 ```javascript
-const talisman = readTalismanSection('misc')
-const config = talisman?.self_audit ?? { enabled: true }
-if (!config.enabled) { inform("Self-audit disabled via talisman"); return }
+if (ARC_ID && !/^arc-\d{10,}$/.test(ARC_ID)) { error("Invalid --arc-id format"); return }
 ```
 
-Parse arguments:
+If `--history` flag:
+1. Read all past audit reports from `tmp/self-audit/` subdirs
+2. Display trend table (phase durations, retry counts, hallucination flags)
+3. Exit (skip remaining phases)
 
-```javascript
-const dimension = $ARGUMENTS match --dimension → extract value, else "all"
-const verbose = $ARGUMENTS includes "--verbose"
-const timestamp = Date.now()
-const outputDir = `tmp/self-audit/${timestamp}`
+```
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+AUDIT_DIR="tmp/self-audit/${TIMESTAMP}"
+mkdir -p "${AUDIT_DIR}"
 ```
 
-Create output directory:
+## Phase 1: Static Audit (skip when --mode runtime)
+
+Scan the Rune plugin for wiring issues:
+
+### 1a. Skill Inventory
 
 ```bash
-mkdir -p "${outputDir}"
+PLUGIN_ROOT=$(git rev-parse --show-toplevel)/plugins/rune
+SKILL_COUNT=$(find "${PLUGIN_ROOT}/skills" -name "SKILL.md" | wc -l)
 ```
 
-Validate workspace — confirm we are in a Rune plugin directory:
+For each `skills/*/SKILL.md`:
+- Verify `name:` field present
+- Verify `description:` field present
+- Check reference links (`references/` subdirs)
+- Flag bare `Skill("arc")` calls missing `rune:` prefix
 
-```javascript
-const hasPlugin = Glob("plugins/rune/.claude-plugin/plugin.json")
-if (!hasPlugin) { error("Not in a Rune plugin workspace"); return }
+### 1b. Agent Inventory
+
+For each `agents/**/*.md`:
+- Verify `name:` and `description:` present
+- Check `maxTurns:` present (safety net)
+- Verify spawn sites exist in skills (SDMT-001)
+- Check YAML list format for `tools:` (not comma-separated)
+
+### 1c. Hook Inventory
+
+Read `hooks/hooks.json`:
+- Verify all referenced scripts exist at path
+- Check scripts are executable (`chmod +x` equivalent)
+- Flag hooks referencing non-existent agents or skills
+
+### 1d. Namespace Validation
+
+```bash
+# Check for bare Skill() calls missing rune: prefix
+grep -rn "Skill(['\"]" "${PLUGIN_ROOT}/skills/" --include="*.md" | \
+  grep -v "rune:" | grep -v CHANGELOG | grep -v "description:"
 ```
 
-## Phase 1: Team Bootstrap + Agent Spawn
+Flag any violations.
 
-Create team:
+### 1e. Report Static Findings
 
-```javascript
-const teamName = `rune-self-audit-${timestamp}`
-TeamCreate({ team_name: teamName })
+Output a summary:
+```
+/rune:self-audit — Static Audit
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Skills:  N checked, N issues
+Agents:  N checked, N issues
+Hooks:   N checked, N issues
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-Determine which dimensions to audit:
+Write findings to `${AUDIT_DIR}/static-findings.md`.
 
+## Phase 2: Runtime Audit (skip when --mode static)
+
+See [runtime-mode.md](references/runtime-mode.md) for full details.
+
+### R0: Locate Arc Artifacts
+
+If `--arc-id` was specified:
 ```javascript
-const DIMENSIONS = {
-  workflow: { agent: "workflow-auditor", subagent: "rune:investigation:workflow-auditor", output: "workflow-findings.md" },
-  prompt:   { agent: "prompt-linter", subagent: "rune:investigation:prompt-linter", output: "prompt-findings.md" },
-  rule:     { agent: "rule-consistency-auditor", subagent: "rune:investigation:rule-consistency-auditor", output: "rule-findings.md" },
-  hook:     { agent: "hook-integrity-auditor", subagent: "rune:investigation:hook-integrity-auditor", output: "hook-findings.md" }
+// Direct lookup
+const arcId = ARC_ID.replace(/[^a-zA-Z0-9_-]/g, '')  // sanitize before path/prompt interpolation
+const checkpointPath = `.rune/arc/${arcId}/checkpoint.json`
+const artifactDir = `tmp/arc/${arcId}`
+// Read checkpoint — fail if missing
+const checkpoint = JSON.parse(Read(checkpointPath))
+```
+
+If no `--arc-id` specified (auto-detect):
+```javascript
+// Scan .rune/arc/ for latest completed checkpoint
+// NOTE: Checkpoints live at .rune/arc/{id}/checkpoint.json (NOT tmp/arc/)
+// Phase artifacts (TOME, QA verdicts, phase-log.jsonl) live at tmp/arc/{id}/
+const arcDirs = Glob(".rune/arc/arc-*")
+if (arcDirs.length === 0) {
+  output("No arc runs found in .rune/arc/. Run /rune:arc first.")
+  exit
 }
-
-const activeDimensions = dimension === "all"
-  ? Object.keys(DIMENSIONS)
-  : [dimension]
-```
-
-Create tasks and spawn agents (parallel):
-
-```javascript
-for (const dim of activeDimensions) {
-  const spec = DIMENSIONS[dim]
-
-  TaskCreate({
-    subject: `Self-Audit: ${dim} dimension`,
-    description: `Run ${spec.agent} audit. Write findings to ${outputDir}/${spec.output}. Use SA-{DIM}-NNN finding format.`
-  })
-
-  Agent({
-    name: spec.agent,
-    team_name: teamName,
-    subagent_type: spec.subagent,
-    prompt: `You are the ${spec.agent} for Rune Meta-QA self-audit.
-
-TASK CONTEXT:
-- output_path: ${outputDir}/${spec.output}
-- timestamp: ${timestamp}
-- verbose: ${verbose}
-
-Execute ALL checks defined in your agent protocol. Write structured findings to the output path. Include dimension score in summary.
-
-After completion: TaskUpdate(completed), then SendMessage seal to team-lead.`
-  })
+let located = null
+for (const dir of arcDirs.reverse()) {  // newest first (timestamp-based IDs)
+  try {
+    const checkpoint = JSON.parse(Read(`${dir}/checkpoint.json`))
+    if (checkpoint.phases?.merge?.status === "completed" ||
+        checkpoint.phases?.ship?.status === "completed") {
+      const arcId = dir.split("/").pop()
+      located = { id: arcId, checkpointPath: `${dir}/checkpoint.json`,
+                  artifactDir: `tmp/arc/${arcId}`, checkpoint }
+      break
+    }
+  } catch { continue }
+}
+if (!located) {
+  output("No completed arc runs found. Only completed arcs can be analyzed.")
+  exit
 }
 ```
 
-## Phase 2: Monitor
+Collect up to 5 recent arc runs for trend analysis:
+```javascript
+// For cross-run comparison — collect recent completed arcs
+const recentArcs = []
+for (const dir of [...arcDirs].reverse()) {
+  if (recentArcs.length >= 5) break
+  try {
+    const ckpt = JSON.parse(Read(`${dir}/checkpoint.json`))
+    if (ckpt.phases?.ship?.status === "completed") {
+      const arcId = dir.split("/").pop()
+      recentArcs.push({ id: arcId, checkpointPath: `${dir}/checkpoint.json`,
+                        artifactDir: `tmp/arc/${arcId}`, checkpoint: ckpt })
+    }
+  } catch { continue }
+}
+```
 
-Monitor via TaskList polling (30s interval per polling-guard):
+Output: `Analyzing arc: ${located.id} (artifacts at ${located.artifactDir})`
+
+### R1: Spawn Runtime Analysis Agents
+
+Create agent team and spawn 3 runtime agents in parallel:
 
 ```javascript
-waitForCompletion(teamName, activeDimensions.length, {
-  timeoutMs: 300000,   // 5 minutes
-  pollIntervalMs: 30000 // 30 seconds
+const teamName = `rune-self-audit-${TIMESTAMP}`
+TeamCreate({ name: teamName })
+try {
+
+// Create tasks before spawning agents (TEAM-002 contract)
+TaskCreate({ subject: "Hallucination detection", owner: "" })
+TaskCreate({ subject: "Effectiveness analysis", owner: "" })
+TaskCreate({ subject: "Convergence analysis", owner: "" })
+
+// Spawn 3 agents in parallel
+Agent({
+  team_name: teamName,
+  name: "hallucination-detector",
+  subagent_type: "rune:meta-qa:hallucination-detector",
+  prompt: `Analyze arc run ${located.id} for hallucination patterns.
+
+Arc artifacts at: ${located.artifactDir}
+Checkpoint at: ${located.checkpointPath}
+
+Write findings to: ${AUDIT_DIR}/hallucination-findings.md
+
+Claim your task from TaskList, set it in_progress, complete your analysis,
+write findings file, then mark task completed.`
 })
+
+Agent({
+  team_name: teamName,
+  name: "effectiveness-analyzer",
+  subagent_type: "rune:meta-qa:effectiveness-analyzer",
+  prompt: `Analyze agent effectiveness in arc run ${located.id}.
+
+Arc artifacts at: ${located.artifactDir}
+Checkpoint at: ${located.checkpointPath}
+
+Write findings to: ${AUDIT_DIR}/effectiveness-findings.md
+
+Claim your task from TaskList, set it in_progress, complete your analysis,
+write findings file, then mark task completed.`
+})
+
+Agent({
+  team_name: teamName,
+  name: "convergence-analyzer",
+  subagent_type: "rune:meta-qa:convergence-analyzer",
+  prompt: `Analyze convergence patterns in arc run ${located.id}.
+
+Arc artifacts at: ${located.artifactDir}
+Checkpoint at: ${located.checkpointPath}
+
+Write findings to: ${AUDIT_DIR}/convergence-findings.md
+
+Claim your task from TaskList, set it in_progress, complete your analysis,
+write findings file, then mark task completed.`
+})
+
+} // end try — Phase 3 cleanup in finally below
 ```
 
-Per poll cycle:
-1. `TaskList()` — count completed tasks
-2. Check for stale agents (no progress in 2 minutes)
-3. `Bash("sleep 30")` — wait before next cycle
-4. Repeat until all complete or timeout
+### R2: Collect + Compute Metrics
 
-## Phase 3: Aggregate + Ground
+Wait for all 3 agents to complete (poll TaskList every 30s).
 
-Read all `*-findings.md` files from outputDir:
+Parse agent findings and compute structured metrics:
 
 ```javascript
-const findingsFiles = Glob(`${outputDir}/*-findings.md`)
+// Read agent outputs (handle missing files gracefully)
+const hallucinationFindings = (() => { try { return Read(`${AUDIT_DIR}/hallucination-findings.md`) } catch { return "" } })()
+const effectivenessFindings = (() => { try { return Read(`${AUDIT_DIR}/effectiveness-findings.md`) } catch { return "" } })()
+const convergenceFindings = (() => { try { return Read(`${AUDIT_DIR}/convergence-findings.md`) } catch { return "" } })()
+
+// Build metrics.json
+const metrics = {
+  schema_version: "1.0",
+  arc_id: located.id,
+  timestamp: TIMESTAMP,
+  hallucination: {
+    phantom_claims: (hallucinationFindings.match(/HD-PHANTOM/g) || []).length,
+    inflated_scores: (hallucinationFindings.match(/HD-INFLATE/g) || []).length,
+    fabricated_references: (hallucinationFindings.match(/HD-EVIDENCE/g) || []).length,
+    total_flags: 0  // sum of above
+  },
+  effectiveness: {
+    agents_analyzed: 0,
+    avg_false_positive_rate: 0.0,
+    agents_with_high_fp: [],  // >20% FP rate
+    agents_with_low_unique: []  // <30% unique findings
+  },
+  convergence: {
+    total_retries: 0,
+    wasted_retries: 0,  // retries without score improvement
+    stagnation_phases: [],
+    bottleneck_phase: null  // longest duration phase
+  },
+  trends: {
+    runs_compared: recentArcs.length,
+    improving: [],   // dimensions improving across runs
+    degrading: [],   // dimensions degrading across runs
+    stable: []
+  }
+}
+metrics.hallucination.total_flags = metrics.hallucination.phantom_claims +
+  metrics.hallucination.inflated_scores + metrics.hallucination.fabricated_references
+
+// Write metrics JSON
+Write(`${AUDIT_DIR}/metrics.json`, JSON.stringify(metrics, null, 2))
 ```
 
-For each finding with a file:line citation:
-1. Verify file exists via `Glob(filePath)`
-2. Read the cited line via `Read(filePath, { offset: lineNum - 1, limit: 3 })`
-3. Verify evidence quote matches actual content
-4. Mark `verified: true | false`
-5. Drop findings with `verified: false` (hallucinated)
+### R3: Merge into Self-Audit Report
 
-Calculate per-dimension scores using scoring formula.
-
-Generate SELF-AUDIT-REPORT.md using [aggregation.md](references/aggregation.md) template.
-
-Write report to `${outputDir}/SELF-AUDIT-REPORT.md`.
-
-## Phase 4: Echo Persist
-
-Read talisman config:
-
-```javascript
-const config = readTalismanSection('misc')?.self_audit ?? {}
-if (config.echo_persist === false) { skip echo persistence }
-```
-
-Read existing `.rune/echoes/meta-qa/MEMORY.md` (create role if absent).
-
-For each P1/P2 finding:
-1. Search existing echoes for matching finding ID pattern
-2. If found: increment `recurrence_count`, update `last_seen` date
-3. If new: append as Observations-tier entry with format:
+Generate the final SELF-AUDIT-REPORT.md:
 
 ```markdown
-### [YYYY-MM-DD] Pattern: {description}
-- **layer**: observations
-- **source**: rune:self-audit {timestamp}
-- **confidence**: 0.7
-- **evidence**: `{file}:{line}` — {finding summary}
-- **recurrence_count**: 1
-- **first_seen**: {date}
-- **last_seen**: {date}
-- **finding_ids**: [SA-WF-001]
-- {The actual pattern in 1-2 sentences}
+# Rune Self-Audit Report
+Generated: ${TIMESTAMP}
+Mode: ${MODE}
+
+## Static Analysis
+[Include static findings if --mode all or --mode static]
+
+## Runtime Analysis (arc: ${located.id})
+
+### Hallucination Detection
+[Include hallucination-findings.md content]
+
+### Agent Effectiveness
+[Include effectiveness-findings.md content]
+
+### Convergence Analysis
+[Include convergence-findings.md content]
+
+### Metrics Summary
+[Render metrics.json as human-readable table]
+
+### Cross-Run Trends
+[If multiple arcs found: show trend table]
 ```
 
-4. If `recurrence_count >= promotion_threshold` (default 3): promote to Inscribed tier
+Write to `${AUDIT_DIR}/SELF-AUDIT-REPORT.md`.
+
+Output final summary to user:
+```
+/rune:self-audit — Complete
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Arc analyzed: ${located.id}
+Hallucination flags: N
+Effectiveness issues: N agents with high FP rate
+Convergence issues: N wasted retries
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Full report: ${AUDIT_DIR}/SELF-AUDIT-REPORT.md
+Metrics:     ${AUDIT_DIR}/metrics.json
+```
+
+## Phase 3: Cleanup (runtime mode only)
+
+After all agents complete (or on error), perform standard team cleanup. This runs in a `finally` block to guarantee execution:
 
 ```javascript
-const threshold = config.promotion_threshold ?? 3
-if (entry.recurrence_count >= threshold && entry.layer === "observations") {
-  entry.layer = "inscribed"
-  entry.confidence = Math.min(0.95, entry.confidence + 0.1)
-}
-```
-
-Write updated MEMORY.md.
-
-## Phase 5: Present
-
-Display summary to user:
-
-```
-Overall score: {N}/100 ({verdict})
-Per-dimension: workflow={N}, prompt={N}, rule={N}, hook={N}
-Findings: {P1_count} critical, {P2_count} warnings, {P3_count} info
-Grounding: {verified}/{total} findings verified ({pct}%)
-Report: {outputDir}/SELF-AUDIT-REPORT.md
-Echoes: {N} new, {N} recurrent, {N} promoted
-```
-
-Offer next steps via AskUserQuestion:
-
-```javascript
-AskUserQuestion({
-  question: "What would you like to do next?",
-  options: [
-    "Review full report",
-    "Show critical findings only",
-    "Done"
-  ]
-})
-```
-
-- "Review full report" -> Read and display the SELF-AUDIT-REPORT.md
-- "Show critical findings only" -> Filter and display P1 findings
-- "Done" -> Proceed to cleanup
-
-## Phase 6: Cleanup
-
-Standard 5-component cleanup (per CLAUDE.md team cleanup protocol):
-
-```javascript
+} finally {
 // 1. Dynamic member discovery
 let allMembers = []
 try {
@@ -301,16 +392,13 @@ try {
   const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
-  // FALLBACK: all possible teammates
-  allMembers = ["workflow-auditor", "prompt-linter", "rule-consistency-auditor", "hook-integrity-auditor"]
+  allMembers = ["hallucination-detector", "effectiveness-analyzer", "convergence-analyzer"]
 }
 
-// 2. shutdown_request to all members
+// 2. Shutdown all members
 let confirmedAlive = 0
-let confirmedDead = 0
 for (const member of allMembers) {
-  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Self-audit complete" }); confirmedAlive++ }
-  catch (e) { confirmedDead++ }
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Analysis complete" }); confirmedAlive++ } catch (e) { /* member already exited */ }
 }
 
 // 3. Adaptive grace period
@@ -320,21 +408,207 @@ if (confirmedAlive > 0) {
   Bash("sleep 2")
 }
 
-// 4. TeamDelete with retry-with-backoff
+// 4. TeamDelete with retry
 let cleanupTeamDeleteSucceeded = false
 const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
-  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break }
-  catch (e) { if (attempt === CLEANUP_DELAYS.length - 1) warn("cleanup: TeamDelete failed") }
+  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {}
 }
 
-// 5. Filesystem fallback (QUAL-012 gated)
+// 5. Filesystem fallback (QUAL-012 — only if TeamDelete failed)
 if (!cleanupTeamDeleteSucceeded) {
+  // 5a. Process-level kill — terminate lingering teammates before filesystem cleanup
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
   Bash(`sleep 5`)
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
-  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
-  try { TeamDelete() } catch (e) { /* best effort */ }
+  // 5b. Filesystem cleanup
+  const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+  Bash(`rm -rf "${CHOME}/teams/${teamName}/" "${CHOME}/tasks/${teamName}/" 2>/dev/null`)
+}
+} // end finally
+```
+
+## Phase 4: Echo Persist (runtime mode only)
+
+After generating the self-audit report, persist high-confidence patterns as
+Rune Echo entries in `.rune/echoes/meta-qa/MEMORY.md`.
+
+Only run when `MODE === "runtime" || MODE === "all"` and convergence findings exist.
+
+### 4a. Extract Persistable Patterns
+
+Read `${AUDIT_DIR}/convergence-findings.md` and identify CV-* findings flagged as
+ATTENTION or CRITICAL (not PASS). For each flagged finding, extract:
+- Pattern description (1-sentence summary)
+- Affected phase
+- Retry/round/score numeric data
+- Confidence (infer from evidence strength: PROVEN → 0.85, LIKELY → 0.70, UNCERTAIN → 0.55)
+- Finding IDs referenced
+
+### 4b. Build Echo Entry with metrics_snapshot
+
+For each persistable finding, construct an echo entry in this format:
+
+```markdown
+### [{YYYY-MM-DD}] Pattern: {short description}
+- **layer**: {inscribed|notes|observations}
+- **source**: rune:self-audit {arc_id}
+- **confidence**: {0.55–0.85}
+- **evidence**: `{checkpoint_path}` — {brief evidence description}
+- **recurrence_count**: {arc_count_showing_this_pattern}
+- **first_seen**: {oldest arc date or today}
+- **last_seen**: {today}
+- **finding_ids**: [{CV-RETRY-01}, ...]
+- **metrics_snapshot**:
+  - avg_retry_count: {N}
+  - avg_score_before_retry: {score or N/A}
+  - avg_score_after_retry: {score or N/A}
+  - improvement_per_retry: {pts or N/A}
+{1-2 sentence narrative explaining the pattern and its impact}
+```
+
+Layer assignment from confidence:
+| Confidence | Layer |
+|-----------|-------|
+| >= 0.80 | inscribed |
+| >= 0.65 | notes |
+| < 0.65 | observations |
+
+### 4c. Write to Meta-QA Echo Memory
+
+```javascript
+const echoPath = ".rune/echoes/meta-qa/MEMORY.md"
+
+// Read existing memory (create header if absent)
+let existing = ""
+try { existing = Read(echoPath) } catch { existing = "# Meta-QA Echoes\n" }
+
+// Dedup: skip patterns already captured (exact title match)
+// persistablePatterns: CV-* findings with ATTENTION or CRITICAL severity extracted from convergenceFindings
+// buildEchoEntry: inline template below — constructs echo markdown entry from pattern object
+const newEntries = persistablePatterns
+  .filter(p => !existing.includes(p.title))
+  .map(p => `### [${p.date}] Pattern: ${p.description}\n- **layer**: ${p.layer}\n- **source**: rune:self-audit ${located.id}\n- **confidence**: ${p.confidence}\n- **evidence**: \`${located.checkpointPath}\` — ${p.evidence}\n- **recurrence_count**: ${p.recurrence_count}\n- **first_seen**: ${p.first_seen}\n- **last_seen**: ${p.date}\n- **finding_ids**: [${p.finding_ids.join(", ")}]\n- **metrics_snapshot**:\n  - avg_retry_count: ${p.avg_retry_count}\n  - avg_score_before_retry: ${p.avg_score_before_retry}\n  - avg_score_after_retry: ${p.avg_score_after_retry}\n  - improvement_per_retry: ${p.improvement_per_retry}\n${p.narrative}`)
+  .join("\n\n")
+
+if (newEntries) {
+  Write(echoPath, existing + "\n\n" + newEntries)
+  output(`Persisted ${persistablePatterns.length} patterns to ${echoPath}`)
+} else {
+  output("No new patterns to persist (all already captured in meta-qa echoes).")
 }
 ```
+
+### Example Echo Entry
+
+```markdown
+### [2026-03-19] Pattern: Code review consistently needs retry
+- **layer**: inscribed
+- **source**: rune:self-audit arc-1773916367
+- **confidence**: 0.85
+- **evidence**: `.rune/arc/arc-*/checkpoint.json` — code_review retried in 4/5 recent arcs
+- **recurrence_count**: 4
+- **first_seen**: 2026-03-01
+- **last_seen**: 2026-03-19
+- **finding_ids**: [CV-RETRY-01]
+- **metrics_snapshot**:
+  - avg_retry_count: 1.4
+  - avg_score_before_retry: 62
+  - avg_score_after_retry: 78
+  - improvement_per_retry: 16
+Code review phase averages 1.4 retries across recent arcs. Average pre-retry score is
+62 (MARGINAL), improving to 78 (PASS) after retry. Consider investigating common review
+failures to reduce retry rate.
+```
+
+---
+
+## --history Subcommand
+
+When `--history` flag is set, read all past `metrics.json` files and display a trend table.
+
+```javascript
+// Collect all past metrics.json files from self-audit runs
+const metricsFiles = Glob("tmp/self-audit/*/metrics.json")
+if (metricsFiles.length === 0) {
+  output("No past audit results found. Run /rune:self-audit first.")
+  exit
+}
+
+// Sort by timestamp directory name (newest first)
+const runs = []
+for (const mf of metricsFiles.sort().reverse()) {
+  try {
+    const metrics = JSON.parse(Read(mf))
+    const dirTs = mf.split("/")[2]  // tmp/self-audit/{timestamp}/metrics.json
+    runs.push({ timestamp: dirTs, metrics })
+  } catch { continue }  // skip unparseable files
+}
+
+// Compute per-run scores
+//   static_score: derived from static findings count (lower is better, invert to 0-100)
+//   runtime_score: derived from hallucination total_flags + wasted_retries + high_fp agents
+//   overall: weighted average (static 40%, runtime 60%)
+function computeScores(metrics) {
+  // Runtime score: start at 100, deduct for issues
+  let runtime_score = 100
+  runtime_score -= Math.min(30, (metrics.hallucination?.total_flags || 0) * 5)
+  runtime_score -= Math.min(20, (metrics.convergence?.wasted_retries || 0) * 5)
+  runtime_score -= Math.min(20, (metrics.effectiveness?.agents_with_high_fp?.length || 0) * 10)
+  runtime_score = Math.max(0, runtime_score)
+  return { runtime_score }
+}
+
+// Threshold-based trend classification (AC-9)
+//   Compares each run to the PREVIOUS run, not to a baseline regression model
+//   Thresholds: ≥5 point improvement = ↑ Improving, ≥5 point decline = ↓ Degrading, else ~ Stable
+function classifyTrend(current, previous) {
+  if (previous === null) return "—"
+  const delta = current - previous
+  if (delta >= 5) return "↑ Improving"
+  if (delta <= -5) return "↓ Degrading"
+  return "~ Stable"
+}
+
+// Build display table — process oldest-first for correct trend direction, then reverse for display
+const rows = []
+let prevScore = null
+for (const run of [...runs].reverse()) {  // oldest-first so delta = newer - older (positive = improving)
+  const { runtime_score } = computeScores(run.metrics)
+  const trend = classifyTrend(runtime_score, prevScore)
+  const delta = prevScore !== null ? runtime_score - prevScore : null
+  rows.push({
+    timestamp: run.timestamp,
+    arc_id: run.metrics.arc_id || "N/A",
+    halluc_flags: run.metrics.hallucination?.total_flags ?? "?",
+    wasted_retries: run.metrics.convergence?.wasted_retries ?? "?",
+    high_fp_agents: run.metrics.effectiveness?.agents_with_high_fp?.length ?? "?",
+    runtime_score,
+    trend,
+    delta: delta !== null ? (delta >= 0 ? `+${delta}` : `${delta}`) : "—"
+  })
+  prevScore = runtime_score
+}
+rows.reverse()  // reverse back to newest-first for display
+
+// Display
+output(`
+/rune:self-audit — History (${rows.length} past audits)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Date/Time            │ Arc ID           │ Halluc │ Retries │ Score │ Trend
+─────────────────────┼──────────────────┼────────┼─────────┼───────┼──────────
+${rows.map(r =>
+  `${r.timestamp.padEnd(21)}│ ${r.arc_id.padEnd(16)} │ ${String(r.halluc_flags).padEnd(6)} │ ${String(r.wasted_retries).padEnd(7)} │ ${String(r.runtime_score).padEnd(5)} │ ${r.trend} (${r.delta})`
+).join("\n")}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Score: 100 = no issues. Deductions: -5/hallucination flag, -5/wasted retry, -10/high-FP agent
+Trend: ↑ Improving (≥5pt gain) | ~ Stable (±4pt) | ↓ Degrading (≥5pt loss)
+`)
+```
+
+## References
+
+- [runtime-mode.md](references/runtime-mode.md) — Full runtime mode architecture and agent protocols
+- [metrics-schema.md](references/metrics-schema.md) — metrics.json schema and cross-run trend computation algorithm

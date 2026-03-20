@@ -226,6 +226,102 @@ find -P "${CHOME}/projects/${ENCODED_PATH}" -maxdepth 1 -name "*.jsonl" -not -ty
 
 Reports: top N denied tool invocations with counts.
 
+## meta-qa-detector.sh
+
+### Purpose
+
+Detects meta-QA patterns from completed arc run checkpoints — phase retry rates,
+convergence round counts, and QA score degradation. Integrates with `/rune:learn
+--detector meta-qa` to surface systemic arc quality issues as Rune Echo entries.
+
+### Algorithm
+
+```
+INPUT: Arc checkpoint files from .rune/arc/*/checkpoint.json (last N days)
+       .rune/echoes/meta-qa/MEMORY.md (existing echoes, for dedup)
+OUTPUT: { "patterns": [...], "total_arcs_scanned": N }
+
+1. Scan .rune/arc/*/checkpoint.json (find -P, no symlinks)
+   - Filter by mtime to respect --since DAYS window
+   - Skip incomplete arcs (phases.ship.status or phases.merge.status must be "completed")
+2. For each completed arc, extract:
+   a. phase_retries: {phase_name -> retry_count} for phases with retry_count > 0
+   b. convergence_rounds: total review-mend convergence rounds (if logged)
+   c. qa_scores: {phase_name -> score} for phases with numeric QA scores
+3. Aggregate across all arcs:
+   a. Retry rate per phase: arc_count_with_retries / total_arcs
+      → Flag phases retried in >50% of arcs
+   b. High convergence count: arcs where convergence_rounds > 2
+   c. Low QA score: phases with score < 70 in any arc
+4. Dedup: skip patterns already captured in .rune/echoes/meta-qa/MEMORY.md
+   (match via pattern_key in existing entries)
+5. Assign confidence by observation count:
+   - Seen in 1 arc:  0.4 (observations tier)
+   - Seen in 2 arcs: 0.6 (notes tier)
+   - Seen in 3+ arcs: 0.8 (inscribed tier)
+6. Sort: confidence desc, arc_count desc
+```
+
+### Pattern Categories
+
+| Category | Pattern Key Format | Description |
+|----------|-------------------|-------------|
+| `retry_rate` | `retry_rate:{phase}` | Phase retried in >50% of arcs |
+| `convergence` | `convergence:high_rounds` | Arcs needing >2 convergence rounds |
+| `qa_score` | `qa_score:{phase}` | Phase QA score below 70 |
+
+### Invocation
+
+```bash
+bash "${LEARN_DIR}/meta-qa-detector.sh" \
+  --since "${SINCE_DAYS}" \
+  --project "${PROJECT_DIR}"
+```
+
+No stdin required. Reads checkpoint files directly.
+
+### Output Schema
+
+```json
+{
+  "patterns": [
+    {
+      "type": "meta-qa",
+      "pattern_key": "retry_rate:code_review",
+      "description": "code_review phase retried in 3/4 recent arcs (75%)",
+      "affected_phase": "code_review",
+      "arc_count": 3,
+      "total_arcs": 4,
+      "confidence": 0.8,
+      "evidence": [".rune/arc/arc-123/checkpoint.json"],
+      "category": "retry_rate"
+    }
+  ],
+  "total_arcs_scanned": 4
+}
+```
+
+### Error Responses
+
+| Error | JSON field |
+|-------|-----------|
+| `python3` not found | `{"patterns":[],"error":"python3_not_found"}` |
+| `.rune/arc/` directory missing | `{"patterns":[],"error":"no_arc_dir"}` |
+| No completed arcs in window | `{"patterns":[],"error":"no_completed_arcs"}` |
+| Script crash | `{"patterns":[],"error":"crashed_at_line_N"}` |
+
+All errors exit 0 (fail-forward). Crash location logged to `$RUNE_TRACE_LOG` when `RUNE_TRACE=1`.
+
+### Confidence → Echo Layer Mapping
+
+| Confidence | Arc Count | Echo Layer |
+|-----------|-----------|------------|
+| 0.8 | 3+ | inscribed |
+| 0.6 | 2 | notes |
+| 0.4 | 1 | observations |
+
+---
+
 ## echo-writer.sh Input Schema
 
 ```json

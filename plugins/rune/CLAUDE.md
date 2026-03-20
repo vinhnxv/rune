@@ -53,6 +53,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **untitledui-mcp** | UntitledUI official MCP integration — 6 tools (search_components, list_components, get_component, get_component_bundle, get_page_templates, get_page_template_files), code conventions (React Aria `Aria*` prefix, Tailwind v4.1 semantic colors, kebab-case, compound components), builder-protocol metadata for automated pipeline integration. Non-invocable — auto-loaded by design-system-discovery when UntitledUI is detected |
 | **status** | Background dispatch status — check progress, pending questions, and worker health for `/rune:strive --background` dispatches |
 | **learn** | Session self-learning — extracts CLI correction patterns and review recurrence findings from session JSONL history, persists high-confidence patterns to Rune Echoes via 4-phase pipeline (scan → detect → report → confirm+write). `/rune:learn` |
+| **self-audit** | Runtime analysis of arc artifacts — hallucination detection, agent effectiveness tracking, convergence analysis, metrics store. `--mode static\|runtime\|all`, `--arc-id`, `--history` |
 | **file-todos** | Standalone file-based todo tracking — create, triage, list, search, resolve, dedup, and track structured todo files with YAML frontmatter. Session-scoped in `tmp/`. Not integrated into workflow pipelines — invoke manually via `/rune:file-todos` |
 | **resolve-todos** | Standalone todo resolution using Agent Teams with verify-before-fix pipeline. Spawns todo-verifier + mend-fixer agents. Not integrated into workflow pipelines — invoke manually via `/rune:resolve-todos` |
 | **elevate** | Promote project echoes to global scope with domain tagging and dedup |
@@ -424,7 +425,7 @@ echo "Commands: $(find plugins/rune/commands -name '*.md' -not -path '*/referenc
 
 ## References
 
-- [Agent registry](references/agent-registry.md) — 116 total agents (73 CORE in agents/ + 43 EXTENDED in registry/). 12 stack specialist reviewers are prompt templates, not registered agents
+- [Agent registry](references/agent-registry.md) — 121 total agents (78 CORE in agents/ + 43 EXTENDED in registry/). 12 stack specialist reviewers are prompt templates, not registered agents
 - [Key concepts](references/key-concepts.md) — Tarnished, Ash, TOME, Arc, Mend, Forge Gaze, Echoes
 - [Lore glossary](references/lore-glossary.md) — Elden Ring terminology mapping
 - [Output conventions](references/output-conventions.md) — Directory structure per workflow
