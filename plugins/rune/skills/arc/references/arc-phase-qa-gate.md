@@ -1014,7 +1014,9 @@ function generateDashboardMarkdown(summary) {
     for (const w of summary.cross_validation_warnings) {
       md += `- ${w}\n`
     }
-    md += `\n\\* = orchestrator-generated verdict (QA agent timed out)\n`
+    if (summary.cross_validation_warnings.some(w => w.includes('timed_out'))) {
+      md += `\n\\* = orchestrator-generated verdict (QA agent timed out)\n`
+    }
   }
 
   return md
