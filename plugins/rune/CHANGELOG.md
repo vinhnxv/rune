@@ -5,6 +5,10 @@
 ## [2.2.0] - 2026-03-20
 
 ### Added
+- **arc**: QA Dashboard generation — `generateQADashboard(arcId)` aggregates all QA gate verdicts into `tmp/arc/{id}/qa/dashboard.json` and `dashboard.md` with weighted pipeline score and per-phase breakdown
+- **arc**: QA Dashboard injection in PR body (Phase 9: ship) — reads `dashboard.md` between Arc Pipeline Results and Review Summary sections, with inline fallback from verdict files
+- **arc**: QA Discipline Protocol section in arc SKILL.md — 6 mandatory obligations for independent quality verification (no self-evaluation, verdict file contract, GUARD 9 budget, score transparency, human escalation, dashboard generation)
+- **strive**: QA Awareness block in rune-smith and trial-forger worker prompts — teaches workers that their output will be independently verified by QA agents across 3 dimensions (artifact, quality, completeness), incentivizing thorough Worker Reports with specific evidence
 - **agents**: `wiring-cartographer` — maps integration points where new code connects to the existing system (entry points, layer architecture, registration patterns, dependency graph)
 - **agents**: `activation-pathfinder` — traces activation and migration paths for new features (file creation order, configuration changes, migration steps)
 - **devise**: Phase 1A now spawns both new research agents alongside repo-surveyor, echo-reader, and git-miner (up to 10 research agents total)
