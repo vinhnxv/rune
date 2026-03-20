@@ -998,7 +998,10 @@ try {
     "design-implementation-reviewer",
     // Elicitation sages (conditional — security-relevant scope)
     "elicitation-sage-security-1", "elicitation-sage-security-2",
-    // Custom Ashes — best-effort from dynamic discovery (undefined on compaction = harmless empty array)
+    // Custom Ashes from talisman.yml — hardcoded fallback (safe to send to absent members)
+    "team-lifecycle-reviewer", "agent-spawn-reviewer",
+    "dead-prompt-detector", "cleanup-completeness-reviewer", "phantom-warden",
+    // Custom Ashes — dynamic discovery (supplements hardcoded list above)
     ...(selectedAsh ?? [])
   ]
 }
