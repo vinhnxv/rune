@@ -258,7 +258,8 @@ if [[ "$TEAM_NAME" =~ ^(rune|arc)-work- ]]; then
     shopt -u nullglob
 
     if [[ ${#task_files[@]} -gt 0 ]]; then
-      # Batch extract: 1 jq call for all files (replaces 3N calls)
+      # Batch extract with per-file error isolation (BACK-001 fix)
+      # Each file processed independently — corrupt file N doesn't skip file N+1
       # Field order: id, status, owner — must match read variable order
       # Uses // "" (not // empty) to preserve TSV column positions
       # See also: on-task-completed.sh:92 for proven @tsv pattern
@@ -268,7 +269,7 @@ if [[ "$TEAM_NAME" =~ ^(rune|arc)-work- ]]; then
           ASSIGNED_TASKS+=("$task_id")
           [[ "$task_status" == "in_progress" ]] && IN_PROGRESS_TASKS+=("$task_id")
         fi
-      done < <(cat "${task_files[@]}" 2>/dev/null | jq -r '[.id // "", .status // "", .owner // ""] | @tsv')
+      done < <(for _tf in "${task_files[@]}"; do jq -r '[.id // "", .status // "", .owner // ""] | @tsv' "$_tf" 2>/dev/null || true; done)
     fi
   fi
 
