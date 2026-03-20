@@ -224,7 +224,8 @@ if [[ -z "$active_workflow" ]]; then
            "${CWD}"/tmp/.rune-mend-*.json "${CWD}"/tmp/.rune-plan-*.json \
            "${CWD}"/tmp/.rune-forge-*.json "${CWD}"/tmp/.rune-goldmask-*.json \
            "${CWD}"/tmp/.rune-brainstorm-*.json "${CWD}"/tmp/.rune-debug-*.json \
-           "${CWD}"/tmp/.rune-design-sync-*.json; do
+           "${CWD}"/tmp/.rune-design-sync-*.json "${CWD}"/tmp/.rune-codex-review-*.json \
+           "${CWD}"/tmp/.rune-resolve-todos-*.json "${CWD}"/tmp/.rune-self-audit-*.json; do
     # Skip files older than STALE_THRESHOLD_MIN minutes
     # PERF: per-file `find -maxdepth 0 -mmin` is O(n) but safe; batch find risks glob/ownership edge cases
     if [[ -f "$f" ]] && find "$f" -maxdepth 0 -mmin -${STALE_THRESHOLD_MIN} -print -quit 2>/dev/null | grep -q . && jq -e '.status == "active"' "$f" &>/dev/null; then

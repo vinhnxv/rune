@@ -126,9 +126,9 @@ const variantMatch = args.match(/--variant=(\w+)/)
 const variant = variantMatch ? variantMatch[1].toLowerCase() : null
 
 if (variant === "batch") {
-  // Delegate: cancel only the arc-batch loop (Steps below for batch only)
-  // Fall through to Step 0 batch section after skipping phase and hierarchy/issues sections.
-  // Set a flag so only the batch cancellation block runs.
+  // Cancel only the arc-batch loop — delete state file (same logic as Step 0 batch section)
+  _cancelBatchOnly()
+  return
 }
 if (variant === "hierarchy") {
   // Cancel only the arc-hierarchy loop — mark as cancelled, don't delete
@@ -228,6 +228,47 @@ function _cancelIssuesOnly() {
   log(`Arc issues loop cancelled at iteration ${iteration}/${totalPlans}.`)
   log("The current arc run will finish normally. No further issues will be started.")
   log("To see batch progress: Read tmp/gh-issues/batch-progress.json")
+  log("To also cancel the current arc run: /rune:cancel-arc")
+}
+```
+
+**`_cancelBatchOnly()` logic:**
+
+```javascript
+function _cancelBatchOnly() {
+  const stateFile = ".rune/arc-batch-loop.local.md"
+  const exists = Bash(`test -f "${stateFile}" && echo "yes" || echo "no"`).trim()
+  if (exists !== "yes") {
+    log("No active arc-batch loop found.")
+    return
+  }
+  const content = Read(stateFile)
+  const iterMatch = content.match(/iteration:\s*(\d+)/)
+  const totalMatch = content.match(/total_plans:\s*(\d+)/)
+  const iteration = iterMatch ? iterMatch[1] : "?"
+  const total = totalMatch ? totalMatch[1] : "?"
+  const ownerPidMatch = content.match(/owner_pid:\s*(\d+)/)
+  const configDirMatch = content.match(/config_dir:\s*(.+)/)
+  const ownerPid = ownerPidMatch ? ownerPidMatch[1].trim() : null
+  const storedCfg = configDirMatch ? configDirMatch[1].trim() : null
+  const currentCfg = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cd "$CHOME" 2>/dev/null && pwd -P`).trim()
+  const currentPid = Bash(`echo $PPID`).trim()
+
+  let foreignSession = false
+  if (storedCfg && storedCfg !== currentCfg) {
+    foreignSession = true
+  } else if (ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
+    const alive = Bash(`kill -0 "${ownerPid}" 2>/dev/null && echo "alive" || echo "dead"`).trim()
+    if (alive === "alive") foreignSession = true
+  }
+  if (foreignSession) {
+    warn(`Arc-batch loop belongs to another session (PID: ${ownerPid}). Skipping.`)
+    return
+  }
+
+  Bash("rm -f .rune/arc-batch-loop.local.md")
+  log(`Arc batch loop cancelled at iteration ${iteration}/${total}.`)
+  log("The current arc run will finish normally. No further plans will be started.")
   log("To also cancel the current arc run: /rune:cancel-arc")
 }
 ```
@@ -517,9 +558,28 @@ try {
   const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
-  // FALLBACK: attempt TeamDelete directly — config may be missing or corrupt
-  warn("Could not read/parse team config — attempting TeamDelete directly")
-  allMembers = []
+  // FALLBACK: static worst-case member list for common arc phase agents.
+  // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
+  warn("Could not read/parse team config — using static fallback member list")
+  allMembers = [
+    // Plan review agents
+    "scroll-reviewer", "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
+    "evidence-verifier", "codex-plan-reviewer",
+    // Inspect/gap analysis agents
+    "grace-warden", "ruin-prophet", "sight-oracle", "vigil-keeper",
+    "grace-warden-inspect", "ruin-prophet-inspect", "sight-oracle-inspect", "vigil-keeper-inspect",
+    "verdict-binder", "gap-fixer",
+    // Code review agents (delegated to appraise — unlikely here but safe)
+    "forge-warden", "ward-sentinel", "pattern-weaver", "veil-piercer",
+    "glyph-scribe", "knowledge-keeper", "runebinder",
+    // Test agents
+    ...Array.from({length: 6}, (_, i) => `batch-runner-${i + 1}`),
+    // Mend agents
+    ...Array.from({length: 8}, (_, i) => `mend-fixer-${i + 1}`),
+    // QA verifier (single agent per gate)
+    "qa-forge-verifier", "qa-work-verifier", "qa-code_review-verifier",
+    "qa-mend-verifier", "qa-test-verifier", "qa-gap_analysis-verifier"
+  ]
 }
 
 for (const member of allMembers) {
@@ -607,6 +667,9 @@ checkpoint.cancel_reason = "user_requested"
 checkpoint.cancelled_at = new Date().toISOString()
 checkpoint.stop_reason = "cancel-arc command invoked"
 Write(`.rune/arc/${id}/checkpoint.json`, checkpoint)
+
+// Release workflow lock (arc acquires "arc" lock at preflight)
+Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "arc"`)
 ```
 
 ### 5. Preserve Completed Artifacts
