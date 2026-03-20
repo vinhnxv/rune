@@ -223,11 +223,15 @@ Before writing output:
    - `convergence_output_path` — where to write findings
 4. Execute CV-RETRY-01 through CV-BUDGET-01 checks
 5. Write findings to `convergence_output_path`
-6. Mark complete: `TaskUpdate({ taskId: "...", status: "completed" })`
-7. Send Seal to team lead:
+6. Self-review via Inner Flame before sealing:
+   - **Grounding**: All CV-* scores sourced from actual checkpoint/artifact files (not fabricated)
+   - **Completeness**: All 5 checks (CV-RETRY-01 through CV-BUDGET-01) attempted; "N/A" for missing data
+   - **Self-Adversarial**: Could any finding be a false positive due to absent data? Mark confidence accordingly
+7. Mark complete: `TaskUpdate({ taskId: "...", status: "completed" })`
+8. Send Seal to team lead:
    ```
    SendMessage({ type: "message", recipient: "team-lead",
-     content: "DONE\nfile: {convergence_output_path}\nchecks: 5/5\nflagged: {N}\noverall: GOOD|ATTENTION|CRITICAL\nconfidence: high|medium|low\nself-reviewed: yes",
+     content: "DONE\nfile: {convergence_output_path}\nchecks: 5/5\nflagged: {N}\noverall: GOOD|ATTENTION|CRITICAL\nconfidence: high|medium|low\nself-reviewed: yes\ninner-flame: pass|fail|partial",
      summary: "Convergence Analyzer sealed" })
    ```
 

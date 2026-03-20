@@ -85,6 +85,11 @@ Read `$ARGUMENTS` and extract:
 - `ARC_ID` — explicit arc ID, or `null` for auto-detect
 - `HISTORY` — true if `--history` flag present
 
+After parsing, validate `ARC_ID` format if provided:
+```javascript
+if (ARC_ID && !/^arc-\d{10,}$/.test(ARC_ID)) { error("Invalid --arc-id format"); return }
+```
+
 If `--history` flag:
 1. Read all past audit reports from `tmp/self-audit/` subdirs
 2. Display trend table (phase durations, retry counts, hallucination flags)
@@ -201,7 +206,7 @@ Collect up to 5 recent arc runs for trend analysis:
 ```javascript
 // For cross-run comparison — collect recent completed arcs
 const recentArcs = []
-for (const dir of arcDirs.reverse()) {
+for (const dir of [...arcDirs].reverse()) {
   if (recentArcs.length >= 5) break
   try {
     const ckpt = JSON.parse(Read(`${dir}/checkpoint.json`))
@@ -233,7 +238,7 @@ TaskCreate({ subject: "Convergence analysis", owner: "" })
 Agent({
   team_name: teamName,
   name: "hallucination-detector",
-  subagent_type: "rune:investigation:hallucination-detector",
+  subagent_type: "rune:meta-qa:hallucination-detector",
   prompt: `Analyze arc run ${located.id} for hallucination patterns.
 
 Arc artifacts at: ${located.artifactDir}
@@ -248,7 +253,7 @@ write findings file, then mark task completed.`
 Agent({
   team_name: teamName,
   name: "effectiveness-analyzer",
-  subagent_type: "rune:investigation:effectiveness-analyzer",
+  subagent_type: "rune:meta-qa:effectiveness-analyzer",
   prompt: `Analyze agent effectiveness in arc run ${located.id}.
 
 Arc artifacts at: ${located.artifactDir}
@@ -263,7 +268,7 @@ write findings file, then mark task completed.`
 Agent({
   team_name: teamName,
   name: "convergence-analyzer",
-  subagent_type: "rune:investigation:convergence-analyzer",
+  subagent_type: "rune:meta-qa:convergence-analyzer",
   prompt: `Analyze convergence patterns in arc run ${located.id}.
 
 Arc artifacts at: ${located.artifactDir}
@@ -284,9 +289,9 @@ Parse agent findings and compute structured metrics:
 
 ```javascript
 // Read agent outputs (handle missing files gracefully)
-const hallucinationFindings = safeRead(`${AUDIT_DIR}/hallucination-findings.md`) || ""
-const effectivenessFindings = safeRead(`${AUDIT_DIR}/effectiveness-findings.md`) || ""
-const convergenceFindings = safeRead(`${AUDIT_DIR}/convergence-findings.md`) || ""
+const hallucinationFindings = (() => { try { return Read(`${AUDIT_DIR}/hallucination-findings.md`) } catch { return "" } })()
+const effectivenessFindings = (() => { try { return Read(`${AUDIT_DIR}/effectiveness-findings.md`) } catch { return "" } })()
+const convergenceFindings = (() => { try { return Read(`${AUDIT_DIR}/convergence-findings.md`) } catch { return "" } })()
 
 // Build metrics.json
 const metrics = {
@@ -294,9 +299,9 @@ const metrics = {
   arc_id: located.id,
   timestamp: TIMESTAMP,
   hallucination: {
-    phantom_claims: countMatches(hallucinationFindings, /HD-PHANTOM/g),
-    inflated_scores: countMatches(hallucinationFindings, /HD-INFLATE/g),
-    fabricated_evidence: countMatches(hallucinationFindings, /HD-EVIDENCE/g),
+    phantom_claims: (hallucinationFindings.match(/HD-PHANTOM/g) || []).length,
+    inflated_scores: (hallucinationFindings.match(/HD-INFLATE/g) || []).length,
+    fabricated_references: (hallucinationFindings.match(/HD-EVIDENCE/g) || []).length,
     total_flags: 0  // sum of above
   },
   effectiveness: {
@@ -311,7 +316,7 @@ const metrics = {
     stagnation_phases: [],
     bottleneck_phase: null  // longest duration phase
   },
-  trend: {
+  trends: {
     runs_compared: recentArcs.length,
     improving: [],   // dimensions improving across runs
     degrading: [],   // dimensions degrading across runs
@@ -319,7 +324,7 @@ const metrics = {
   }
 }
 metrics.hallucination.total_flags = metrics.hallucination.phantom_claims +
-  metrics.hallucination.inflated_scores + metrics.hallucination.fabricated_evidence
+  metrics.hallucination.inflated_scores + metrics.hallucination.fabricated_references
 
 // Write metrics JSON
 Write(`${AUDIT_DIR}/metrics.json`, JSON.stringify(metrics, null, 2))
@@ -378,7 +383,7 @@ After all agents complete, perform standard team cleanup:
 // 1. Dynamic member discovery
 let allMembers = []
 try {
-  const CHOME = Bash(`echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+  const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
   const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
   const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
@@ -389,8 +394,7 @@ try {
 // 2. Shutdown all members
 let confirmedAlive = 0
 for (const member of allMembers) {
-  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Analysis complete" }); confirmedAlive++ }
-  catch (e) {}
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Analysis complete" }); confirmedAlive++ } catch (e) { /* member already exited */ }
 }
 
 // 3. Adaptive grace period
@@ -410,6 +414,11 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
 
 // 5. Filesystem fallback (QUAL-012 — only if TeamDelete failed)
 if (!cleanupTeamDeleteSucceeded) {
+  // 5a. Process-level kill — terminate lingering teammates before filesystem cleanup
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+  Bash(`sleep 5`)
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  // 5b. Filesystem cleanup
   const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
   Bash(`rm -rf "${CHOME}/teams/${teamName}/" "${CHOME}/tasks/${teamName}/" 2>/dev/null`)
 }
@@ -470,10 +479,12 @@ const echoPath = ".rune/echoes/meta-qa/MEMORY.md"
 let existing = ""
 try { existing = Read(echoPath) } catch { existing = "# Meta-QA Echoes\n" }
 
-// Dedup: skip patterns already captured (Jaccard similarity >= 0.8 on description)
+// Dedup: skip patterns already captured (exact title match)
+// persistablePatterns: CV-* findings with ATTENTION or CRITICAL severity extracted from convergenceFindings
+// buildEchoEntry: inline template below — constructs echo markdown entry from pattern object
 const newEntries = persistablePatterns
-  .filter(p => !isDuplicate(p.description, existing))
-  .map(buildEchoEntry)
+  .filter(p => !existing.includes(p.title))
+  .map(p => `### [${p.date}] Pattern: ${p.description}\n- **layer**: ${p.layer}\n- **source**: rune:self-audit ${located.id}\n- **confidence**: ${p.confidence}\n- **evidence**: \`${located.checkpointPath}\` — ${p.evidence}\n- **recurrence_count**: ${p.recurrence_count}\n- **first_seen**: ${p.first_seen}\n- **last_seen**: ${p.date}\n- **finding_ids**: [${p.finding_ids.join(", ")}]\n- **metrics_snapshot**:\n  - avg_retry_count: ${p.avg_retry_count}\n  - avg_score_before_retry: ${p.avg_score_before_retry}\n  - avg_score_after_retry: ${p.avg_score_after_retry}\n  - improvement_per_retry: ${p.improvement_per_retry}\n${p.narrative}`)
   .join("\n\n")
 
 if (newEntries) {
