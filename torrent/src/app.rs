@@ -86,6 +86,10 @@ pub struct App {
     // Timestamp when all plans completed (for auto-quit countdown)
     pub all_done_at: Option<Instant>,
 
+    // Inter-plan cooldown — delay before launching next plan after merge/ship
+    // Configurable via TORRENT_INTER_PLAN_COOLDOWN env var (default: 300s = 5 min)
+    pub inter_plan_cooldown_until: Option<Instant>,
+
     // Queue editing mode — Selection view appends to queue instead of starting fresh
     pub queue_editing: bool,
 
@@ -417,6 +421,7 @@ impl App {
             sys,
             git_branch: Self::read_git_branch(),
             all_done_at: None,
+            inter_plan_cooldown_until: None,
             queue_editing: false,
             should_quit: false,
             claude_version: Self::detect_claude_version(),
@@ -791,7 +796,11 @@ impl App {
             Action::RemoveFromQueue => self.remove_queue_item(),
             Action::SkipPlan => self.skip_current_plan(),
             Action::SkipGrace => {
-                if let Some(ref mut run) = self.current_run {
+                // Skip inter-plan cooldown if active
+                if self.inter_plan_cooldown_until.is_some() {
+                    self.inter_plan_cooldown_until = None;
+                    self.status_message = Some(" Cooldown skipped — launching next plan".into());
+                } else if let Some(ref mut run) = self.current_run {
                     if run.merge_detected_at.is_some() && run.grace_skip_at.is_none() {
                         // Set fixed skip deadline: 5 seconds from now (RUIN-007 fix).
                         // Stored as absolute Instant — not recomputed each tick.
@@ -1051,6 +1060,21 @@ impl App {
         let now = Instant::now();
 
         if self.current_run.is_none() {
+            // Inter-plan cooldown gate — wait before launching next plan
+            if let Some(deadline) = self.inter_plan_cooldown_until {
+                if now < deadline {
+                    let remaining = deadline.duration_since(now).as_secs();
+                    self.status_message = Some(format!(
+                        " Next plan in {}m{}s  [s] skip cooldown",
+                        remaining / 60,
+                        remaining % 60,
+                    ));
+                    return Ok(());
+                }
+                // Cooldown expired — clear and proceed
+                self.inter_plan_cooldown_until = None;
+            }
+
             // No arc running — start next plan from queue
             if let Some(entry) = self.queue.pop_front() {
                 self.all_done_at = None;
@@ -2215,7 +2239,20 @@ impl App {
                     eprintln!("warning: failed to write run log: {}", e);
                 }
 
+                // Set inter-plan cooldown if merge/ship succeeded and more plans queued
+                let was_success = matches!(
+                    &completed.result,
+                    ArcCompletion::Merged { .. } | ArcCompletion::Shipped { .. }
+                );
                 self.completed_runs.push(completed);
+
+                if was_success && !self.queue.is_empty() {
+                    let cooldown_secs = env_or_u64("TORRENT_INTER_PLAN_COOLDOWN", 300);
+                    if cooldown_secs > 0 {
+                        self.inter_plan_cooldown_until =
+                            Some(Instant::now() + Duration::from_secs(cooldown_secs));
+                    }
+                }
 
                 // Clamp queue cursor after item count changed
                 let total = self.queue_total_items();
@@ -2430,5 +2467,260 @@ mod tests {
         unsafe {
             std::env::remove_var("TORRENT_TIMEOUT_TEST");
         }
+    }
+
+    // ── env_or_u64 tests ────────────────────────────────────
+
+    #[test]
+    fn test_env_or_u64_returns_default_when_unset() {
+        // Use a unique env var name that won't exist
+        assert_eq!(env_or_u64("TORRENT_TEST_NONEXISTENT_12345", 42), 42);
+    }
+
+    #[test]
+    fn test_env_or_u64_parses_valid_value() {
+        unsafe { std::env::set_var("TORRENT_TEST_ENV_U64", "300"); }
+        assert_eq!(env_or_u64("TORRENT_TEST_ENV_U64", 42), 300);
+        unsafe { std::env::remove_var("TORRENT_TEST_ENV_U64"); }
+    }
+
+    #[test]
+    fn test_env_or_u64_returns_default_on_invalid() {
+        unsafe { std::env::set_var("TORRENT_TEST_ENV_BAD", "not_a_number"); }
+        assert_eq!(env_or_u64("TORRENT_TEST_ENV_BAD", 99), 99);
+        unsafe { std::env::remove_var("TORRENT_TEST_ENV_BAD"); }
+    }
+
+    #[test]
+    fn test_env_or_u64_returns_default_on_negative() {
+        unsafe { std::env::set_var("TORRENT_TEST_ENV_NEG", "-5"); }
+        assert_eq!(env_or_u64("TORRENT_TEST_ENV_NEG", 50), 50);
+        unsafe { std::env::remove_var("TORRENT_TEST_ENV_NEG"); }
+    }
+
+    #[test]
+    fn test_env_or_u64_handles_zero() {
+        unsafe { std::env::set_var("TORRENT_TEST_ENV_ZERO", "0"); }
+        assert_eq!(env_or_u64("TORRENT_TEST_ENV_ZERO", 100), 0);
+        unsafe { std::env::remove_var("TORRENT_TEST_ENV_ZERO"); }
+    }
+
+    // ── Grace duration formula tests ────────────────────────
+    // Formula: base + (child_count * 2) + (cpu% * 0.5), clamped to [min, max]
+    // We test the formula directly since compute_grace_duration() reads from
+    // self.current_run which is hard to construct. Instead, test the math.
+
+    #[test]
+    fn test_grace_formula_defaults_no_load() {
+        // base=30, children=0, cpu=0% → 30, clamp [10, 120] → 30
+        let base: u64 = 30;
+        let min: u64 = 10;
+        let max: u64 = 120;
+        let child_count: u64 = 0;
+        let cpu: f32 = 0.0;
+
+        let secs = base
+            .saturating_add(child_count.saturating_mul(2))
+            .saturating_add((cpu * 0.5) as u64);
+        assert_eq!(secs.clamp(min, max), 30);
+    }
+
+    #[test]
+    fn test_grace_formula_moderate_load() {
+        // base=30, children=5, cpu=50% → 30 + 10 + 25 = 65
+        let base: u64 = 30;
+        let min: u64 = 10;
+        let max: u64 = 120;
+        let child_count: u64 = 5;
+        let cpu: f32 = 50.0;
+
+        let secs = base
+            .saturating_add(child_count.saturating_mul(2))
+            .saturating_add((cpu * 0.5) as u64);
+        assert_eq!(secs.clamp(min, max), 65);
+    }
+
+    #[test]
+    fn test_grace_formula_heavy_load_clamped_to_max() {
+        // base=30, children=20, cpu=100% → 30 + 40 + 50 = 120 (at max)
+        let base: u64 = 30;
+        let min: u64 = 10;
+        let max: u64 = 120;
+        let child_count: u64 = 20;
+        let cpu: f32 = 100.0;
+
+        let secs = base
+            .saturating_add(child_count.saturating_mul(2))
+            .saturating_add((cpu * 0.5) as u64);
+        assert_eq!(secs.clamp(min, max), 120);
+    }
+
+    #[test]
+    fn test_grace_formula_exceeds_max() {
+        // base=30, children=50, cpu=100% → 30 + 100 + 50 = 180, clamp → 120
+        let base: u64 = 30;
+        let min: u64 = 10;
+        let max: u64 = 120;
+        let child_count: u64 = 50;
+        let cpu: f32 = 100.0;
+
+        let secs = base
+            .saturating_add(child_count.saturating_mul(2))
+            .saturating_add((cpu * 0.5) as u64);
+        assert_eq!(secs.clamp(min, max), 120);
+    }
+
+    #[test]
+    fn test_grace_formula_below_min() {
+        // base=5, children=0, cpu=0% → 5, clamp [10, 120] → 10
+        let base: u64 = 5;
+        let min: u64 = 10;
+        let max: u64 = 120;
+        let child_count: u64 = 0;
+        let cpu: f32 = 0.0;
+
+        let secs = base
+            .saturating_add(child_count.saturating_mul(2))
+            .saturating_add((cpu * 0.5) as u64);
+        assert_eq!(secs.clamp(min, max), 10);
+    }
+
+    #[test]
+    fn test_grace_formula_cpu_fraction_truncated() {
+        // cpu=1.9% → (1.9 * 0.5) = 0.95 → as u64 = 0
+        let cpu: f32 = 1.9;
+        assert_eq!((cpu * 0.5) as u64, 0);
+    }
+
+    #[test]
+    fn test_grace_formula_custom_bounds() {
+        // Custom min=60, max=300, base=100, children=10, cpu=80%
+        // → 100 + 20 + 40 = 160, clamp [60, 300] → 160
+        let base: u64 = 100;
+        let min: u64 = 60;
+        let max: u64 = 300;
+        let child_count: u64 = 10;
+        let cpu: f32 = 80.0;
+
+        let secs = base
+            .saturating_add(child_count.saturating_mul(2))
+            .saturating_add((cpu * 0.5) as u64);
+        assert_eq!(secs.clamp(min, max), 160);
+    }
+
+    // ── Inter-plan cooldown tests ───────────────────────────
+
+    #[test]
+    fn test_inter_plan_cooldown_timing() {
+        // Simulate cooldown deadline in the future
+        let deadline = Instant::now() + Duration::from_secs(300);
+        let now = Instant::now();
+        assert!(now < deadline);
+        let remaining = deadline.duration_since(now).as_secs();
+        assert!(remaining >= 298 && remaining <= 300);
+    }
+
+    #[test]
+    fn test_inter_plan_cooldown_expired() {
+        // Simulate cooldown deadline in the past
+        let deadline = Instant::now() - Duration::from_secs(1);
+        let now = Instant::now();
+        assert!(now >= deadline);
+    }
+
+    #[test]
+    fn test_inter_plan_cooldown_display_format() {
+        // Verify the countdown display formatting
+        let remaining_secs: u64 = 275; // 4m35s
+        let display = format!(
+            " Next plan in {}m{}s  [s] skip cooldown",
+            remaining_secs / 60,
+            remaining_secs % 60,
+        );
+        assert_eq!(display, " Next plan in 4m35s  [s] skip cooldown");
+    }
+
+    #[test]
+    fn test_inter_plan_cooldown_display_under_one_minute() {
+        let remaining_secs: u64 = 45;
+        let display = format!(
+            " Next plan in {}m{}s  [s] skip cooldown",
+            remaining_secs / 60,
+            remaining_secs % 60,
+        );
+        assert_eq!(display, " Next plan in 0m45s  [s] skip cooldown");
+    }
+
+    #[test]
+    fn test_inter_plan_cooldown_display_exact_minutes() {
+        let remaining_secs: u64 = 300; // exactly 5m
+        let display = format!(
+            " Next plan in {}m{}s  [s] skip cooldown",
+            remaining_secs / 60,
+            remaining_secs % 60,
+        );
+        assert_eq!(display, " Next plan in 5m0s  [s] skip cooldown");
+    }
+
+    // ── ArcCompletion classification tests ──────────────────
+
+    #[test]
+    fn test_arc_completion_success_variants() {
+        let merged = ArcCompletion::Merged { pr_url: Some("https://github.com/test/1".into()) };
+        let shipped = ArcCompletion::Shipped { pr_url: Some("https://github.com/test/2".into()) };
+
+        assert!(matches!(merged, ArcCompletion::Merged { .. }));
+        assert!(matches!(shipped, ArcCompletion::Shipped { .. }));
+
+        // Both are success variants
+        assert!(matches!(&merged, ArcCompletion::Merged { .. } | ArcCompletion::Shipped { .. }));
+        assert!(matches!(&shipped, ArcCompletion::Merged { .. } | ArcCompletion::Shipped { .. }));
+    }
+
+    #[test]
+    fn test_arc_completion_failure_variants() {
+        let failed = ArcCompletion::Failed { reason: "test failure".into() };
+        let cancelled = ArcCompletion::Cancelled { reason: Some("user cancelled".into()) };
+
+        // Neither should match success pattern
+        assert!(!matches!(&failed, ArcCompletion::Merged { .. } | ArcCompletion::Shipped { .. }));
+        assert!(!matches!(&cancelled, ArcCompletion::Merged { .. } | ArcCompletion::Shipped { .. }));
+    }
+
+    #[test]
+    fn test_arc_completion_merged_without_pr_url() {
+        // Edge case: merged but no PR URL (shouldn't happen, but must not panic)
+        let merged = ArcCompletion::Merged { pr_url: None };
+        assert!(matches!(merged, ArcCompletion::Merged { pr_url: None }));
+    }
+
+    #[test]
+    fn test_arc_completion_cancelled_without_reason() {
+        let cancelled = ArcCompletion::Cancelled { reason: None };
+        assert!(matches!(cancelled, ArcCompletion::Cancelled { reason: None }));
+    }
+
+    // ── Queue state tests ───────────────────────────────────
+
+    #[test]
+    fn test_queue_entry_stores_indices() {
+        let entry = QueueEntry { plan_idx: 3, config_idx: 1 };
+        assert_eq!(entry.plan_idx, 3);
+        assert_eq!(entry.config_idx, 1);
+    }
+
+    #[test]
+    fn test_vecdeque_queue_ordering() {
+        let mut queue: VecDeque<QueueEntry> = VecDeque::new();
+        queue.push_back(QueueEntry { plan_idx: 0, config_idx: 0 });
+        queue.push_back(QueueEntry { plan_idx: 1, config_idx: 0 });
+        queue.push_back(QueueEntry { plan_idx: 2, config_idx: 0 });
+
+        // pop_front should give FIFO order
+        assert_eq!(queue.pop_front().unwrap().plan_idx, 0);
+        assert_eq!(queue.pop_front().unwrap().plan_idx, 1);
+        assert!(!queue.is_empty());
+        assert_eq!(queue.pop_front().unwrap().plan_idx, 2);
+        assert!(queue.is_empty());
     }
 }
