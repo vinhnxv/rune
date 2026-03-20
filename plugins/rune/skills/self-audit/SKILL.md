@@ -228,6 +228,7 @@ Create agent team and spawn 3 runtime agents in parallel:
 ```javascript
 const teamName = `rune-self-audit-${TIMESTAMP}`
 TeamCreate({ name: teamName })
+try {
 
 // Create tasks before spawning agents (TEAM-002 contract)
 TaskCreate({ subject: "Hallucination detection", owner: "" })
@@ -279,6 +280,8 @@ Write findings to: ${AUDIT_DIR}/convergence-findings.md
 Claim your task from TaskList, set it in_progress, complete your analysis,
 write findings file, then mark task completed.`
 })
+
+} // end try — Phase 3 cleanup in finally below
 ```
 
 ### R2: Collect + Compute Metrics
@@ -377,9 +380,10 @@ Metrics:     ${AUDIT_DIR}/metrics.json
 
 ## Phase 3: Cleanup (runtime mode only)
 
-After all agents complete, perform standard team cleanup:
+After all agents complete (or on error), perform standard team cleanup. This runs in a `finally` block to guarantee execution:
 
 ```javascript
+} finally {
 // 1. Dynamic member discovery
 let allMembers = []
 try {
@@ -422,6 +426,7 @@ if (!cleanupTeamDeleteSucceeded) {
   const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
   Bash(`rm -rf "${CHOME}/teams/${teamName}/" "${CHOME}/tasks/${teamName}/" 2>/dev/null`)
 }
+} // end finally
 ```
 
 ## Phase 4: Echo Persist (runtime mode only)
