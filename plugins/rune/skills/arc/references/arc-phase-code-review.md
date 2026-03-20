@@ -2,7 +2,7 @@
 
 Invoke `/rune:appraise --deep` on the implemented changes. Multi-wave review (Wave 1 core + Wave 2 investigation + Wave 3 dimension analysis) replaces the former separate audit phases (8/8.5/8.7).
 
-**Team**: `arc-review-{id}` (delegated to `/rune:appraise` — manages its own TeamCreate/TeamDelete with guards)
+**Team**: `rune-review-{pr}` (delegated to `/rune:appraise` — manages its own TeamCreate/TeamDelete with guards)
 **Tools**: Read, Glob, Grep, Write (own output file only)
 **Timeout**: 15 min (PHASE_TIMEOUTS.code_review = 900_000 — inner 10m + 5m setup). Deep mode extends internally via wave timeout distribution.
 **Inputs**: id (string), gap analysis path (optional: `tmp/arc/{id}/gap-analysis.md`)

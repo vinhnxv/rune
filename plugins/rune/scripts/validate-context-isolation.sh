@@ -122,7 +122,7 @@ fi
 sf_owner_pid=$(jq -r '.owner_pid // ""' "$WORK_STATE" 2>/dev/null || true)
 if [[ -n "$sf_owner_pid" && "$sf_owner_pid" != "$PPID" ]]; then
   # Check if owner PID is still alive
-  if kill -0 "$sf_owner_pid" 2>/dev/null; then
+  if [[ -n "$sf_owner_pid" && "$sf_owner_pid" =~ ^[0-9]+$ ]] && rune_pid_alive "$sf_owner_pid"; then
     # Different live session owns this — allow
     exit 0
   fi
@@ -133,7 +133,7 @@ fi
 CONTEXT_ISOLATION="true"
 TALISMAN_SHARD="${CWD}/tmp/.talisman-resolved/discipline.json"
 if [[ -f "$TALISMAN_SHARD" ]]; then
-  ci_val=$(jq -r '.context_isolation // "true"' "$TALISMAN_SHARD" 2>/dev/null || true)
+  ci_val=$(jq -r 'if .context_isolation == null then "true" else .context_isolation end' "$TALISMAN_SHARD" 2>/dev/null || true)
   if [[ "$ci_val" == "false" ]]; then
     CONTEXT_ISOLATION="false"
   fi

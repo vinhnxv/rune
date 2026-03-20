@@ -424,19 +424,25 @@ def collect_image_refs(node: FigmaIRNode) -> List[str]:
     return list(dict.fromkeys(_collect_refs_recursive(node)))  # Deduplicate while preserving order
 
 
-def _collect_refs_recursive(node: FigmaIRNode):
+_MAX_COLLECT_DEPTH = 100
+
+
+def _collect_refs_recursive(node: FigmaIRNode, _depth: int = 0):
     """Recursively yield image refs from the tree.
 
     Args:
         node: Current IR node.
+        _depth: Current recursion depth (internal guard).
 
     Yields:
         Image reference hash strings found in the subtree.
     """
+    if _depth > _MAX_COLLECT_DEPTH:
+        return
     if node.image_ref:
         yield node.image_ref
     for child in node.children:
-        yield from _collect_refs_recursive(child)
+        yield from _collect_refs_recursive(child, _depth + 1)
 
 
 def _sanitize_image_url(url: str) -> str:

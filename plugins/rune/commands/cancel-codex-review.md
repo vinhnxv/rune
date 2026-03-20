@@ -197,6 +197,9 @@ Write(`tmp/.rune-codex-review-${identifier}.json`, {
   status: "cancelled",
   cancelled_at: new Date().toISOString()
 })
+
+// Release workflow lock
+Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "codex-review"`)
 ```
 
 ### 7. Report

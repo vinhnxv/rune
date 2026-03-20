@@ -30,6 +30,9 @@ Write("{workDir}/report.md", completionReport)
 // Step 5: Update state
 updateState({ status: "completed", phase: "cleanup", fidelity_score: overallScore })
 
-// Step 6: Report to user
+// Step 6: Release workflow lock
+Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "design-sync"`)
+
+// Step 7: Report to user
 "Design sync complete. Fidelity: {score}/100. Report: {workDir}/report.md"
 ```

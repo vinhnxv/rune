@@ -194,14 +194,36 @@ Offer next steps via AskUserQuestion:
 
 ### Phase 6: Cleanup
 
-Standard 5-component cleanup per CLAUDE.md:
-1. Dynamic member discovery from team config
-2. `shutdown_request` to all members
-3. Adaptive grace period
-4. `TeamDelete` with retry-with-backoff
-5. Filesystem fallback (QUAL-012 gated)
+Teammate fallback array (when config.json unreadable):
+```javascript
+// FALLBACK: all possible self-audit agents (safe to send shutdown to absent members)
+allMembers = [
+  // Static analysis agents
+  "rule-consistency-auditor", "prompt-linter", "workflow-auditor",
+  "hook-integrity-auditor",
+  // Runtime analysis agents (conditional — --mode runtime or --mode all)
+  "hallucination-detector", "effectiveness-analyzer", "convergence-analyzer",
+  // Improvement advisor (conditional — --apply)
+  "improvement-advisor"
+]
+```
 
-Remove workflow lock.
+Follow standard shutdown from [engines.md](../team-sdk/references/engines.md#shutdown).
+
+Post-cleanup:
+```javascript
+// Update state file to completed
+const stateFiles = Glob(`tmp/.rune-self-audit-*.json`)
+if (stateFiles.length > 0) {
+  const state = JSON.parse(Read(stateFiles[0]))
+  state.status = "completed"
+  state.completed = new Date().toISOString()
+  Write(stateFiles[0], JSON.stringify(state, null, 2))
+}
+
+// Release workflow lock
+Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "self-audit"`)
+```
 
 ---
 

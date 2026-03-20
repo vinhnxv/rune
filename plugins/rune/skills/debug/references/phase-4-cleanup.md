@@ -17,6 +17,15 @@ Follow standard shutdown from [engines.md](../../team-sdk/references/engines.md#
 ### Post-Cleanup
 
 ```javascript
+// Update state file to completed (preserve session identity)
+const stateFiles = Glob(`tmp/.rune-debug-*.json`)
+if (stateFiles.length > 0) {
+  const state = JSON.parse(Read(stateFiles[0]))
+  state.status = "completed"
+  state.completed = new Date().toISOString()
+  Write(stateFiles[0], JSON.stringify(state, null, 2))
+}
+
 // Release workflow lock
 Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "debug"`)
 ```

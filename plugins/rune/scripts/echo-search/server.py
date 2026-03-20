@@ -255,11 +255,12 @@ def _check_and_clear_dirty(echo_dir):
     if not path:
         return False
     try:
-        if os.path.isfile(path):
-            os.remove(path)
-            return True
+        os.remove(path)
+        return True
+    except FileNotFoundError:
+        pass  # Signal was already consumed by another process
     except OSError:
-        pass  # Race with another consumer or permission issue — safe to ignore
+        pass  # Permission issue or other OS error — safe to ignore
     return False
 
 
@@ -2530,11 +2531,12 @@ def _check_and_clear_global_dirty() -> bool:
     if not path:
         return False
     try:
-        if os.path.isfile(path):
-            os.remove(path)
-            return True
+        os.remove(path)
+        return True
+    except FileNotFoundError:
+        pass  # Signal was already consumed by another process
     except OSError:
-        pass  # Race with another consumer or permission issue — safe to ignore
+        pass  # Permission issue or other OS error — safe to ignore
     return False
 
 

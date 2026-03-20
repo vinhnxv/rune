@@ -1260,10 +1260,10 @@ if [[ -d "$TEAMS_CANON/" ]]; then
 fi
 
 # ── Read accept_external_changes flag from checkpoint ──
-ACCEPT_EXTERNAL=$(echo "$CKPT_CONTENT" | jq -r '.flags.accept_external_changes // true' 2>/dev/null || echo "true")
+ACCEPT_EXTERNAL=$(echo "$CKPT_CONTENT" | jq -r 'if .flags.accept_external_changes == null then true else .flags.accept_external_changes end' 2>/dev/null || echo "true")
 # Also check arc_config (3-layer resolved) as fallback
 if [[ "$ACCEPT_EXTERNAL" == "null" ]]; then
-  ACCEPT_EXTERNAL=$(echo "$CKPT_CONTENT" | jq -r '.arc_config.accept_external_changes // true' 2>/dev/null || echo "true")
+  ACCEPT_EXTERNAL=$(echo "$CKPT_CONTENT" | jq -r 'if .arc_config.accept_external_changes == null then true else .arc_config.accept_external_changes end' 2>/dev/null || echo "true")
 fi
 
 # ── TESTING BATCH SUB-LOOP: check for pending test batches before normal phase dispatch ──

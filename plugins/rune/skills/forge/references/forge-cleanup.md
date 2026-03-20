@@ -45,10 +45,7 @@ if (cleanupOwnerPid && /^\d+$/.test(cleanupOwnerPid)) {
   Bash(`for pid in $(pgrep -P ${cleanupOwnerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
 }
 
-// Release workflow lock
-Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "forge"`)
-
-// Update state file to completed (preserve session identity)
+// Update state file to completed (preserve session identity — BEFORE lock release per engines.md)
 Write(`tmp/.rune-forge-${timestamp}.json`, {
   team_name: `rune-forge-${timestamp}`,
   plan: planPath,
@@ -59,6 +56,9 @@ Write(`tmp/.rune-forge-${timestamp}.json`, {
   owner_pid: ownerPid,
   session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim()
 })
+
+// Release workflow lock (AFTER state update — canonical order per engines.md)
+Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "forge"`)
 ```
 
 ## Completion Report

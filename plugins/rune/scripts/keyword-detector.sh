@@ -41,7 +41,7 @@ else
   TALISMAN_SHARD="${CWD:-${CLAUDE_PROJECT_DIR:-.}}/tmp/.talisman-resolved/keyword_detection.json"
 fi
 if [[ -f "$TALISMAN_SHARD" ]]; then
-  ENABLED=$(jq -r '.enabled // true' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
+  ENABLED=$(jq -r 'if .enabled == null then true else .enabled end' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
   [[ "$ENABLED" == "false" ]] && exit 0
 fi
 

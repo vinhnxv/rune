@@ -259,7 +259,7 @@ impl ActivityDetector {
             let trimmed = line.trim();
             if !trimmed.is_empty() {
                 for pattern in PROMPT_INDICATORS {
-                    if trimmed.contains(pattern) || trimmed.ends_with(pattern.trim()) {
+                    if trimmed.starts_with(pattern) || trimmed.ends_with(pattern.trim()) {
                         return ActivityState::WaitingInput;
                     }
                 }

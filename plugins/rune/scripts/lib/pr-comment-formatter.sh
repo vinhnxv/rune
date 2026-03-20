@@ -55,10 +55,10 @@ fi
 severity_filter=$(printf '%s' "$config_json" | jq -r '.severity_filter // ["P1","P2","P3"] | @json')
 confidence_threshold=$(printf '%s' "$config_json" | jq -r '.confidence_threshold // 0')
 max_findings=$(printf '%s' "$config_json" | jq -r '.max_findings // 30')
-include_traces=$(printf '%s' "$config_json" | jq -r '.include_traces // true')
-include_fix=$(printf '%s' "$config_json" | jq -r '.include_fix_suggestions // true')
+include_traces=$(printf '%s' "$config_json" | jq -r 'if .include_traces == null then true else .include_traces end')
+include_fix=$(printf '%s' "$config_json" | jq -r 'if .include_fix_suggestions == null then true else .include_fix_suggestions end')
 collapse_threshold=$(printf '%s' "$config_json" | jq -r '.collapse_threshold // 5 | floor')
-show_footer=$(printf '%s' "$config_json" | jq -r '.footer // true')
+show_footer=$(printf '%s' "$config_json" | jq -r 'if .footer == null then true else .footer end')
 
 # --- Filter Findings ---
 

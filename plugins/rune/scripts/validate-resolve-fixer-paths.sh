@@ -59,7 +59,7 @@ if [[ -n "$INSCR_CFG" && "$INSCR_CFG" != "$CURRENT_CFG" ]]; then
   # Inscription belongs to a different session — skip (fail-open)
   exit 0
 fi
-if [[ -n "$INSCR_PID" ]] && ! kill -0 "$INSCR_PID" 2>/dev/null; then
+if [[ -n "$INSCR_PID" && "$INSCR_PID" =~ ^[0-9]+$ ]] && ! kill -0 "$INSCR_PID" 2>/dev/null; then
   # Owner PID is dead — stale inscription, skip
   exit 0
 fi

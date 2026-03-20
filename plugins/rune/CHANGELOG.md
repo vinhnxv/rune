@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.3.5] - 2026-03-20
+
+### Changed
+- **docs**: Sync root README and plugin README component counts with actual filesystem
+- **version**: Bump version to 2.3.5
+
 ## [2.3.4] - 2026-03-20
 
 ### Fixed

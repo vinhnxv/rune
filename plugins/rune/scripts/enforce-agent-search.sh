@@ -107,7 +107,7 @@ fi
 AGENT_SEARCH_PID_FILE="${TMPDIR:-/tmp}/rune-agent-search-$(id -u).pid"
 if [[ -f "$AGENT_SEARCH_PID_FILE" ]]; then
   AGENT_SEARCH_PID=$(cat "$AGENT_SEARCH_PID_FILE" 2>/dev/null || true)
-  if [[ -n "$AGENT_SEARCH_PID" ]] && ! kill -0 "$AGENT_SEARCH_PID" 2>/dev/null; then
+  if [[ -n "$AGENT_SEARCH_PID" && "$AGENT_SEARCH_PID" =~ ^[0-9]+$ ]] && ! kill -0 "$AGENT_SEARCH_PID" 2>/dev/null; then
     # MCP server not running — suppress warning
     exit 0
   fi

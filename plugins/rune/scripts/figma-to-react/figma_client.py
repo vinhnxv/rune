@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -50,6 +51,9 @@ def _int_env(name: str, default: int) -> int:
 _DEFAULT_FILE_CACHE_TTL = _int_env("FIGMA_FILE_CACHE_TTL", 1800)
 _DEFAULT_IMAGE_CACHE_TTL = _int_env("FIGMA_IMAGE_CACHE_TTL", 86400)
 _DEFAULT_TIMEOUT = 30.0  # seconds
+
+# BACK-003: Compiled pattern for validating Figma node ID format (DIGIT:DIGIT)
+_NODE_ID_PATTERN = re.compile(r"^\d+:\d+$")
 
 
 # ---------------------------------------------------------------------------
@@ -601,8 +605,6 @@ class FigmaClient:
         """
         await self._ensure_client()  # Resolve backend before building cache key.
         # BACK-003 FIX: Validate Figma node ID format (DIGIT:DIGIT pattern)
-        import re as _re
-        _NODE_ID_PATTERN = _re.compile(r"^\d+:\d+$")
         for nid in node_ids:
             if not _NODE_ID_PATTERN.match(nid):
                 raise ValueError(f"Invalid Figma node ID format: {nid!r} (expected 'N:N')")

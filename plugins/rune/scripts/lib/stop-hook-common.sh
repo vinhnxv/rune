@@ -693,7 +693,7 @@ _rune_detect_rate_limit() {
   [[ -z "$talisman_shard" ]] && talisman_shard="${cwd}/tmp/.talisman-resolved/arc.json"
   if [[ -f "$talisman_shard" && ! -L "$talisman_shard" ]]; then
     local enabled
-    enabled=$(jq -r '.rate_limit.enabled // true' "$talisman_shard" 2>/dev/null || echo "true")
+    enabled=$(jq -r 'if .rate_limit.enabled == null then true else .rate_limit.enabled end' "$talisman_shard" 2>/dev/null || echo "true")
     [[ "$enabled" == "false" ]] && return 1
     local _dw _mw
     _dw=$(jq -r '.rate_limit.default_wait_seconds // 60' "$talisman_shard" 2>/dev/null || echo "60")
