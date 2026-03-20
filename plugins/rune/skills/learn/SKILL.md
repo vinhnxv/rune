@@ -46,7 +46,7 @@ Extract CLI correction patterns and review recurrence findings from session hist
 ## Overview
 
 ```
-/rune:learn [--since DAYS] [--detector cli|review|arc|hook|all] [--dry-run]
+/rune:learn [--since DAYS] [--detector cli|review|arc|hook|meta-qa|all] [--dry-run]
 /rune:learn --watch    # Enable real-time correction detection for this session
 /rune:learn --unwatch  # Disable real-time detection
 ```

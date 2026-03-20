@@ -30,6 +30,7 @@ set -euo pipefail
 umask 077
 
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+[[ "$RUNE_TRACE_LOG" =~ ^/tmp/ ]] || RUNE_TRACE_LOG=""
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] %s: %s\n' "$(date +%H:%M:%S)" "${BASH_SOURCE[0]##*/}" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
 _rune_fail_forward() {
@@ -86,6 +87,9 @@ done
 SINCE_DAYS=$(( "${SINCE_DAYS}" + 0 )) 2>/dev/null || SINCE_DAYS=7
 [[ "$SINCE_DAYS" -lt 1 ]] && SINCE_DAYS=7
 
+# Reject path traversal in project dir
+[[ "$PROJECT_DIR" == *..* ]] && { echo "error"; exit 1; }
+
 # Resolve project dir (never symlink)
 if [[ ! -d "$PROJECT_DIR" ]]; then
   printf '{"patterns":[],"error":"project_dir_not_found"}\n'
@@ -110,8 +114,7 @@ CHECKPOINT_LIST=""
 while IFS= read -r ckpt; do
   [[ -L "$ckpt" ]] && continue
   CHECKPOINT_LIST="${CHECKPOINT_LIST}${ckpt}"$'\n'
-done < <(find -P "$ARC_DIR" -maxdepth 2 -name "checkpoint.json" -not -type l \
-  -newer "${ARC_DIR}/../../../$(date -v-${SINCE_DAYS}d +%Y%m%d 2>/dev/null || date -d "${SINCE_DAYS} days ago" +%Y%m%d 2>/dev/null || echo '19700101')" \
+done < <(find -P "$ARC_DIR" -maxdepth 2 -name "checkpoint.json" -not -type l -mtime -${SINCE_DAYS} \
   2>/dev/null || true)
 
 # Fallback: if date arithmetic failed, collect all checkpoints
