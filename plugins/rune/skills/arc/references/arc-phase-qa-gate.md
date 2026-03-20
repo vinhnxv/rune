@@ -194,6 +194,18 @@ without destroying the original structure.
 |----|-------|------------------|
 | FRG-CMP-01 | All sections from original plan appear in enriched plan (no dropped content) | `Grep` for each original H2 heading in enriched plan |
 
+### Process Compliance Checks (AC-21)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| FRG-PRC-01 | Process manifest `qa-manifests/forge.yaml` exists for this phase | `Glob("qa-manifests/forge.yaml")` — missing manifest = skip compliance checks (INFO) |
+| FRG-PRC-02 | Every `required: true` step in manifest has a matching entry in execution log (`tmp/arc/{id}/execution-log.jsonl`) | Parse manifest steps → cross-reference execution log entries by `step_id`. Missing = FAIL with evidence. |
+| FRG-PRC-03 | Step execution order matches manifest sequence (no out-of-order steps) | Compare execution log timestamps against manifest step ordering. Out-of-order = WARN (not FAIL). |
+| FRG-PRC-04 | Every `artifact` listed in manifest has a corresponding file on disk | Extract `artifact` paths from manifest → `test -f` each. Missing artifact = FAIL with specific path. |
+| FRG-PRC-05 | Completion percentage = (executed required steps / total required steps) × 100 | Count `required: true` steps with execution log entries vs total. Report as percentage. |
+
+**Scoring**: Process compliance checks contribute to the **Quality dimension**. When no manifest exists, all PRC checks score 100.
+
 ---
 
 ## Phase: code_review — QA Checklist
@@ -227,6 +239,18 @@ relocated to the arc artifacts directory.
 | REV-CMP-01 | Review covered all changed files (diff files vs files mentioned in TOME) | `git diff --name-only` cross-referenced with TOME file mentions |
 | REV-CMP-02 | Gap analysis context propagated to reviewers (if gap analysis phase ran) | `Read` TOME header or review context for MISSING/PARTIAL counts |
 
+### Process Compliance Checks (AC-21)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| REV-PRC-01 | Process manifest `qa-manifests/code-review.yaml` exists for this phase | `Glob("qa-manifests/code-review.yaml")` — missing manifest = skip compliance checks (INFO) |
+| REV-PRC-02 | Every `required: true` step in manifest has a matching entry in execution log | Parse manifest steps → cross-reference execution log entries by `step_id`. Missing = FAIL. |
+| REV-PRC-03 | Step execution order matches manifest sequence | Compare execution log timestamps against manifest step ordering. Out-of-order = WARN. |
+| REV-PRC-04 | Every `artifact` listed in manifest has a corresponding file on disk | Extract `artifact` paths → verify existence. Missing = FAIL with specific path. |
+| REV-PRC-05 | Completion percentage = (executed required steps / total required steps) × 100 | Count and report as percentage. |
+
+**Scoring**: Process compliance checks contribute to the **Quality dimension**. When no manifest exists, all PRC checks score 100.
+
 ---
 
 ## Phase: mend — QA Checklist
@@ -257,6 +281,18 @@ report tracks outcomes per finding.
 |----|-------|------------------|
 | MND-CMP-01 | All P1 findings from TOME addressed (not left as FAILED without justification) | Cross-reference TOME P1 findings with resolution report statuses |
 | MND-CMP-02 | Resolution report covers all TOME findings (every finding ID from TOME appears) | Extract finding IDs from both files + set difference |
+
+### Process Compliance Checks (AC-21)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| MND-PRC-01 | Process manifest `qa-manifests/mend.yaml` exists for this phase | `Glob("qa-manifests/mend.yaml")` — missing manifest = skip compliance checks (INFO) |
+| MND-PRC-02 | Every `required: true` step in manifest has a matching entry in execution log | Parse manifest steps → cross-reference execution log entries by `step_id`. Missing = FAIL. |
+| MND-PRC-03 | Step execution order matches manifest sequence | Compare execution log timestamps against manifest step ordering. Out-of-order = WARN. |
+| MND-PRC-04 | Every `artifact` listed in manifest has a corresponding file on disk | Extract `artifact` paths → verify existence. Missing = FAIL with specific path. |
+| MND-PRC-05 | Completion percentage = (executed required steps / total required steps) × 100 | Count and report as percentage. |
+
+**Scoring**: Process compliance checks contribute to the **Quality dimension**. When no manifest exists, all PRC checks score 100.
 
 ---
 
@@ -292,6 +328,18 @@ completion markers and that strategy preceded execution.
 | TST-CMP-01 | All active tiers ran (at minimum unit tier for any code change) | Checkpoint `tiers_run` array is non-empty |
 | TST-CMP-02 | Checkpoint has `tiers_run`, `pass_rate`, and `coverage_pct` metrics | `Read` checkpoint JSON + field existence validation |
 
+### Process Compliance Checks (AC-21)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| TST-PRC-01 | Process manifest `qa-manifests/test.yaml` exists for this phase | `Glob("qa-manifests/test.yaml")` — missing manifest = skip compliance checks (INFO) |
+| TST-PRC-02 | Every `required: true` step in manifest has a matching entry in execution log | Parse manifest steps → cross-reference execution log entries by `step_id`. Missing = FAIL. |
+| TST-PRC-03 | Step execution order matches manifest sequence | Compare execution log timestamps against manifest step ordering. Out-of-order = WARN. |
+| TST-PRC-04 | Every `artifact` listed in manifest has a corresponding file on disk | Extract `artifact` paths → verify existence. Missing = FAIL with specific path. |
+| TST-PRC-05 | Completion percentage = (executed required steps / total required steps) × 100 | Count and report as percentage. |
+
+**Scoring**: Process compliance checks contribute to the **Quality dimension**. When no manifest exists, all PRC checks score 100.
+
 ---
 
 ## Phase: gap_analysis — QA Checklist
@@ -324,6 +372,18 @@ mapping every acceptance criterion to its implementation status.
 |----|-------|------------------|
 | GAP-CMP-01 | All acceptance criteria from the plan appear in the compliance matrix | Cross-reference plan AC list with matrix entries + check for gaps |
 | GAP-CMP-02 | Plan section coverage computed — all H2 headings have ADDRESSED or MISSING status | `Read` + search for plan section coverage table |
+
+### Process Compliance Checks (AC-21)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| GAP-PRC-01 | Process manifest `qa-manifests/gap-analysis.yaml` exists for this phase | `Glob("qa-manifests/gap-analysis.yaml")` — missing manifest = skip compliance checks (INFO) |
+| GAP-PRC-02 | Every `required: true` step in manifest has a matching entry in execution log | Parse manifest steps → cross-reference execution log entries by `step_id`. Missing = FAIL. |
+| GAP-PRC-03 | Step execution order matches manifest sequence | Compare execution log timestamps against manifest step ordering. Out-of-order = WARN. |
+| GAP-PRC-04 | Every `artifact` listed in manifest has a corresponding file on disk | Extract `artifact` paths → verify existence. Missing = FAIL with specific path. |
+| GAP-PRC-05 | Completion percentage = (executed required steps / total required steps) × 100 | Count and report as percentage. |
+
+**Scoring**: Process compliance checks contribute to the **Quality dimension**. When no manifest exists, all PRC checks score 100.
 
 ---
 
@@ -601,6 +661,19 @@ async function runQAGate(id, parentPhase, checkpoint) {
       }
     } else {
       log(`QA ${verdictStr} for ${parentPhase} (score=${overallScore.toFixed(1)}) — advancing to next phase`)
+    }
+
+    // AC-7: Deterministic dashboard trigger after the last QA-gated phase
+    // The last gated phase is "test" (test_qa). After it passes, generate the
+    // consolidated QA dashboard before any downstream phase (pre_ship_validation) runs.
+    const LAST_GATED_PHASE = "test"
+    if (parentPhase === LAST_GATED_PHASE && (verdictStr === "PASS" || verdictStr === "EXCELLENT")) {
+      try {
+        generateQADashboard(id)
+        log(`QA dashboard generated at tmp/arc/${id}/qa/dashboard.json`)
+      } catch (e) {
+        warn(`QA dashboard generation failed: ${e.message} — non-blocking, continuing`)
+      }
     }
 
   } finally {
