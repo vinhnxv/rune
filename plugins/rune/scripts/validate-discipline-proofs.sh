@@ -284,6 +284,33 @@ else
   # Check for ### Echo-Back section
   if ! grep -q "### Echo-Back" "$TASK_FILE" 2>/dev/null; then
     TASK_FILE_ISSUES="${TASK_FILE_ISSUES} [MISSING: ### Echo-Back section]"
+  else
+    # --- F13 Echo Authenticity Guard ---
+    # Detect parroting: if echo-back text is >80% identical to acceptance criteria text,
+    # the worker likely copy-pasted instead of demonstrating comprehension.
+    # Extract echo-back content (between ### Echo-Back and next ### or ##)
+    ECHO_BACK_TEXT=$(sed -n '/### Echo-Back/,/^###\|^##/{/^###\|^##/!p}' "$TASK_FILE" 2>/dev/null | tr -d '[:space:]') || true
+    # Extract acceptance criteria content (between ## Acceptance Criteria and next ##)
+    CRITERIA_TEXT=$(sed -n '/## Acceptance Criteria/,/^##/{/^##/!p}' "$TASK_FILE" 2>/dev/null | tr -d '[:space:]') || true
+    if [[ -n "$ECHO_BACK_TEXT" && -n "$CRITERIA_TEXT" && ${#ECHO_BACK_TEXT} -gt 20 && ${#CRITERIA_TEXT} -gt 20 ]]; then
+      # Compute overlap: count matching characters in echo vs criteria (simple Jaccard on trigrams)
+      # Use awk for portable trigram similarity — avoids GNU-only features
+      SIMILARITY=$(awk -v a="$ECHO_BACK_TEXT" -v b="$CRITERIA_TEXT" 'BEGIN {
+        la=length(a); lb=length(b)
+        if (la<6 || lb<6) { print 0; exit }
+        # Build trigram sets
+        for (i=1; i<=la-2; i++) { ta[substr(a,i,3)]=1; na++ }
+        for (i=1; i<=lb-2; i++) { tb[substr(b,i,3)]=1; nb++ }
+        # Count intersection
+        shared=0; total=0
+        for (t in ta) { total++; if (t in tb) shared++ }
+        for (t in tb) { if (!(t in ta)) total++ }
+        if (total>0) print int(shared*100/total); else print 0
+      }' 2>/dev/null) || SIMILARITY=0
+      if [[ "$SIMILARITY" -gt 80 ]]; then
+        TASK_FILE_ISSUES="${TASK_FILE_ISSUES} [F13: Echo-Back appears to be verbatim copy of criteria (${SIMILARITY}% similarity) — paraphrase in own words]"
+      fi
+    fi
   fi
 
   # Check for ### Self-Review Checklist section

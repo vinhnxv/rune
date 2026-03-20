@@ -30,6 +30,7 @@ with single-pass results.
 | Config Key | Default | Description |
 |---|---|---|
 | `discipline.max_convergence_iterations` | `3` | Maximum number of convergence iterations before forced exit |
+| `discipline.max_convergence_wall_clock_min` | `60` | Wall-clock time limit (minutes) for the entire convergence loop. Exceeding triggers F15 escalation. |
 | `discipline.scr_threshold` | `100` | SCR target — convergence succeeds when SCR >= threshold |
 | `discipline.block_on_fail` | `true` | Whether convergence failure blocks task completion (WARN vs BLOCK) |
 | `discipline.enabled` | `true` | Master switch for the discipline work loop |
@@ -234,16 +235,70 @@ The gap task body includes:
 4. **Failure code**: The F-code classification with its recovery hint
 5. **File scope**: Which files to modify (inherited from original task or narrowed)
 
-### Assignment Strategy
+### Assignment Strategy — 4-Attempt Escalation Chain
 
-| Gap Task Type | Assignment |
-|---|---|
-| `correction` | Same worker who produced the FAIL (they have context) |
-| `completion` | Same worker (partial work exists) |
-| `implementation` | Any available worker (fresh perspective may help) |
+Gap task assignment follows the Escalation Chain from `docs/discipline-engineering.md` Section 4.4.
+Each criterion tracks its `attempt_count` across convergence iterations.
 
-If the same worker has failed the same criterion twice, assign to a DIFFERENT worker
-on the third attempt to break potential reasoning loops.
+| Attempt | Strategy | Description |
+|---|---|---|
+| **1 (Retry)** | Same worker | Return to the original worker with specific failure feedback. They have context and the failure evidence tells them exactly what went wrong. |
+| **2 (Decompose)** | Same worker, split task | If a criterion spans multiple concerns (e.g., "validate input AND return structured error"), split into sub-criteria — one gap task per concern. Smaller scope improves worker reasoning. |
+| **3 (Reassign)** | Different worker | Assign to a DIFFERENT worker to break potential reasoning loops. A fresh perspective may succeed where the original worker's approach was fundamentally wrong. |
+| **4 (Human)** | Escalate to Tarnished | Mark criterion as `ABANDONED` with `failure_code: F5`. Present full failure history to user via `AskUserQuestion`. Do NOT create another gap task. |
+
+```javascript
+// Escalation-aware gap task assignment
+function assignGapTask(gap, iteration, failureHistory) {
+  const criterionId = gap.criterion_id
+  const attemptCount = failureHistory[criterionId]?.attempts ?? 0
+
+  if (attemptCount === 0) {
+    // Attempt 1: Retry — same worker, failure feedback attached
+    return { worker: gap.worker, strategy: 'retry' }
+  } else if (attemptCount === 1) {
+    // Attempt 2: Decompose — check if criterion can be split
+    const subCriteria = tryDecomposeCriterion(gap)
+    if (subCriteria.length > 1) {
+      return { worker: gap.worker, strategy: 'decompose', subCriteria }
+    }
+    // Cannot decompose — fall through to reassign
+    return { worker: pickDifferentWorker(gap.worker), strategy: 'reassign' }
+  } else if (attemptCount === 2) {
+    // Attempt 3: Reassign — different worker
+    return { worker: pickDifferentWorker(gap.worker), strategy: 'reassign' }
+  } else {
+    // Attempt 4: Human escalation — no gap task created
+    return { worker: null, strategy: 'escalate', failure_code: 'F5' }
+  }
+}
+
+// Attempt 2 helper: try to split a multi-concern criterion into sub-criteria
+function tryDecomposeCriterion(gap) {
+  const text = gap.text
+  // Heuristic: split on " AND ", " and also ", semicolons with distinct clauses
+  const conjunctions = text.split(/\s+(?:AND|and also)\s+|;\s+/)
+  if (conjunctions.length > 1 && conjunctions.every(c => c.trim().length > 10)) {
+    return conjunctions.map((c, i) => ({
+      id: `${gap.criterion_id}.${i + 1}`,
+      text: c.trim(),
+      proof: gap.proof,
+      args: gap.args,
+    }))
+  }
+  return [gap] // Cannot decompose — return as-is
+}
+```
+
+**Failure history tracking**: Each convergence iteration updates
+`tmp/work/{timestamp}/convergence/failure-history.json`:
+
+```json
+{
+  "AC-1.2.3": { "attempts": 2, "workers": ["rune-smith-1", "rune-smith-1"], "failure_codes": ["F3", "F3"] },
+  "AC-2.1.1": { "attempts": 1, "workers": ["rune-smith-2"], "failure_codes": ["F3"] }
+}
+```
 
 ---
 
@@ -337,6 +392,8 @@ function convergenceLoop(timestamp, matrixResult, planCriteriaMap) {
   const maxIterations = disciplineConfig?.max_convergence_iterations ?? 3
   const scrThreshold = disciplineConfig?.scr_threshold ?? 100
   const iterationTimeoutMs = disciplineConfig?.iteration_timeout_ms ?? 1_200_000  // 20 min per iteration
+  const wallClockLimitMs = (disciplineConfig?.max_convergence_wall_clock_min ?? 60) * 60_000
+  const convergenceStartTime = Date.now()
 
   // FLAW-002 FIX: Guard — no criteria = no convergence
   if (!planCriteriaMap || Object.keys(planCriteriaMap).length === 0) {
@@ -379,6 +436,13 @@ function convergenceLoop(timestamp, matrixResult, planCriteriaMap) {
         warn(`Convergence: No improvement — ${gapCriteria.length} gaps (same or more than previous)`)
         break
       }
+    }
+
+    // --- F15 Wall-clock budget guard ---
+    const elapsedMs = Date.now() - convergenceStartTime
+    if (elapsedMs > wallClockLimitMs) {
+      warn(`Convergence: F15 BUDGET_EXCEEDED — wall-clock limit reached (${Math.round(elapsedMs / 60_000)}min > ${Math.round(wallClockLimitMs / 60_000)}min limit)`)
+      break
     }
 
     log(`Convergence iteration ${iteration + 1}/${maxIterations}: ` +
