@@ -357,6 +357,16 @@ def _inject_remaining_section_defaults(data: dict[str, Any]) -> None:
         }
     data["settings"] = settings
 
+    # Process management defaults — teammate hang resilience (v2.5.0)
+    if "process_management" not in data:
+        data["process_management"] = {
+            "bash_timeout": 300,
+            "bash_timeout_enabled": True,
+            "bash_timeout_patterns": [],
+            "process_kill_grace": 5,
+            "teammate_stuck_threshold": 180,
+        }
+
 
 if __name__ == "__main__":
     build_defaults()

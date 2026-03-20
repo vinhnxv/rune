@@ -85,6 +85,12 @@ if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
 fi
 source "${SCRIPT_DIR}/lib/rune-state.sh"
 
+# Source process tree kill library for 2-stage SIGTERM→SIGKILL escalation
+if [[ -f "${SCRIPT_DIR}/lib/process-tree.sh" ]]; then
+  # shellcheck source=lib/process-tree.sh
+  source "${SCRIPT_DIR}/lib/process-tree.sh"
+fi
+
 # Source frontmatter utils for loop file ownership checks
 if [[ -f "${SCRIPT_DIR}/lib/frontmatter-utils.sh" ]]; then
   # shellcheck source=lib/frontmatter-utils.sh
@@ -379,81 +385,28 @@ for sf in "${STATE_FILES[@]}"; do
   # pgrep -P $dead_pid returns nothing for re-parented children.
   # Filesystem cleanup (rm -rf) is the primary reclamation mechanism for orphans.
 
-  # Stage 1: SIGTERM to all child processes of this session
-  # SEC-003: Collect PIDs into array for reuse in Stage 2 — avoids re-querying pgrep
-  # (PID recycling window between Stage 1 and Stage 2 is already guarded by comm= re-verify)
-  # VEIL-004: Single-pass SIGTERM→SIGKILL escalation within 30s timeout budget
-  # VEIL-004 FIX: PID TOCTOU mitigation — Stage 1 captures PIDs+comm, Stage 2 re-verifies
-  # comm= before SIGKILL. Residual TOCTOU window (ps→kill) is inherent to Unix process
-  # management and acceptable given the comm= filter restricts to node/claude processes only.
+  # Process escalation: 2-stage SIGTERM→SIGKILL via centralized process-tree.sh
+  # SEC-003: PID recycling guarded by lstart comparison (XVER-001)
+  # VEIL-004: Single-pass escalation within 30s timeout budget
+  # Filter "claude" protects MCP/LSP servers (only kills node|claude|claude-*)
 
-  _trace "Stage 1: SIGTERM for team=$SF_TEAM"
-  sigterm_pids=()
-  # XVER-001 FIX: Capture process start time (lstart) alongside PID for recycling detection.
-  # Using lstart (not etimes) because etimes is unavailable on macOS.
-  # NOTE: _sigterm_lstarts uses _ prefix (not local) because this is main script body.
-  _sigterm_lstarts=()
-  if [[ -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ ]]; then
-    # Find teammate processes that are children of the owner PID
-    while IFS= read -r child_pid; do
-      [[ -z "$child_pid" ]] && continue
-      [[ "$child_pid" =~ ^[0-9]+$ ]] || continue
-      # Verify this is a Claude/node process (not MCP/LSP server)
-      child_cmd=$(ps -p "$child_pid" -o comm= 2>/dev/null || true)
-      case "$child_cmd" in
-        node|claude|claude-*)
-          # XVER-001 FIX: Record process start timestamp before SIGTERM
-          # NOTE: _child_lstart uses _ prefix (not local) because this is main script body.
-          _child_lstart=$(ps -p "$child_pid" -o lstart= 2>/dev/null | tr -s ' ' || echo "")
-          kill -TERM "$child_pid" 2>/dev/null || true
-          sigterm_pids+=("$child_pid")
-          _sigterm_lstarts+=("${_child_lstart:-unknown}")
-          _trace "SIGTERM sent to PID=$child_pid (cmd=$child_cmd, lstart=${_child_lstart:-unknown})"
-          ;;
-      esac
-    done < <(pgrep -P "$SF_PID" 2>/dev/null | sort -u || true)  # EDGE-008 FIX: deduplicate PIDs
-  fi
-
-  # RUIN-003 FIX: Adaptive timeout — skip or reduce sleep when hook budget is nearly exhausted.
-  # Hook timeout is 30s. Track elapsed time and only sleep if budget allows.
+  # RUIN-003 FIX: Adaptive timeout — skip or reduce grace when hook budget is nearly exhausted.
   _elapsed_s=$(( $(date +%s) - ${_HOOK_START_EPOCH:-$(date +%s)} ))
-  _budget_remaining=$(( 30 - _elapsed_s - 2 ))  # 2s safety margin for SIGKILL + cleanup
+  _budget_remaining=$(( 30 - _elapsed_s - 2 ))  # 2s safety margin for cleanup
   if [[ "$_budget_remaining" -gt 0 ]]; then
-    _esc_sleep=$(( ESCALATION_TIMEOUT < _budget_remaining ? ESCALATION_TIMEOUT : _budget_remaining ))
-    sleep "$_esc_sleep" 2>/dev/null || sleep 1
+    _esc_grace=$(( ESCALATION_TIMEOUT < _budget_remaining ? ESCALATION_TIMEOUT : _budget_remaining ))
   else
-    _trace "SKIP escalation sleep: budget exhausted (elapsed=${_elapsed_s}s)"
+    _esc_grace=0
+    _trace "SKIP escalation: budget exhausted (elapsed=${_elapsed_s}s)"
   fi
 
-  # Stage 2: SIGKILL survivors — reuse Stage 1 PID list (SEC-003)
-  # SEC-008 FIX: Validate team dir still exists before SIGKILL escalation
-  # If team dir was cleaned by another path during SIGTERM grace period, skip escalation
-  if [[ -n "$SF_TEAM" && ! -d "${CHOME}/teams/${SF_TEAM}" ]]; then
-    _trace "SKIP SIGKILL: team dir ${SF_TEAM} already removed during SIGTERM grace"
-  else
-    _trace "Stage 2: SIGKILL survivors for team=$SF_TEAM"
-    # XBUG-004 FIX: Use array index iteration to avoid double-increment bug
-    for _eidx in "${!sigterm_pids[@]}"; do
-      child_pid="${sigterm_pids[$_eidx]}"
-      [[ "$child_pid" =~ ^[0-9]+$ ]] || continue
-      # Re-verify before SIGKILL (PID recycling guard — SEC-P1-001)
-      child_cmd=$(ps -p "$child_pid" -o comm= 2>/dev/null || true)
-      case "$child_cmd" in
-        node|claude|claude-*)
-          # XVER-001 FIX: Verify process start time hasn't changed (PID recycling detection).
-          # A recycled PID would have a different lstart (absolute start timestamp).
-          # NOTE: _orig_lstart and _cur_lstart use _ prefix (not local) - main script body.
-          _orig_lstart="${_sigterm_lstarts[$_eidx]}"
-          _cur_lstart=$(ps -p "$child_pid" -o lstart= 2>/dev/null | tr -s ' ' || echo "")
-          if [[ "$_orig_lstart" != "unknown" && -n "$_cur_lstart" && "$_orig_lstart" != "$_cur_lstart" ]]; then
-            _trace "SKIP SIGKILL: PID=$child_pid recycled (orig_lstart=$_orig_lstart, cur_lstart=$_cur_lstart)"
-            continue
-          fi
-          kill -KILL "$child_pid" 2>/dev/null || true
-          _trace "SIGKILL sent to PID=$child_pid"
-          ;;
-      esac
-    done
+  if [[ "$_esc_grace" -gt 0 && -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ ]]; then
+    _trace "Process escalation: team=$SF_TEAM pid=$SF_PID grace=${_esc_grace}s"
+    if declare -f _rune_kill_tree &>/dev/null; then
+      _rune_kill_tree "$SF_PID" "2stage" "$_esc_grace" "claude" >/dev/null
+    else
+      _trace "WARN: process-tree.sh not loaded — skipping process escalation"
+    fi
   fi
 
   # Filesystem cleanup

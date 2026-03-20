@@ -76,6 +76,18 @@
       },
       {
         "matcher": "Bash",
+        "_rationale": "BASH-TIMEOUT-001: Wraps long-running Bash commands with timeout/gtimeout during active Rune workflows. Default 300s. Pattern allowlist: test runners, build tools, package managers, containers, JVM. Configurable via talisman process_management.bash_timeout. OPERATIONAL — fail-forward.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/enforce-bash-timeout.sh",
+            "timeout": 5,
+            "statusMessage": "Checking bash timeout compliance..."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
         "_rationale": "GH-ACCOUNT-001: Ensures correct GitHub account is active before gh CLI commands that require repo access (gh pr, gh issue, gh api, git push). OPERATIONAL — fail-forward, never blocks. Debounced per session (30 min TTL). Fast-path exit (<1ms) for non-gh commands.",
         "hooks": [
           {
@@ -360,6 +372,18 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/reset-tool-failure.sh",
             "timeout": 2,
             "statusMessage": "Resetting tool failure counter..."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Write|Edit",
+        "_rationale": "ACTIVITY-001: Per-teammate liveness tracking. Writes epoch timestamp + tool name to activity signal files. 15s throttle prevents I/O storm. Used by monitor-utility stuck-teammate detection (>3 min stale). OPERATIONAL — fail-forward.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/track-teammate-activity.sh",
+            "timeout": 2,
+            "statusMessage": "Tracking teammate activity..."
           }
         ]
       }

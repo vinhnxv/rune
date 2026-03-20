@@ -30,10 +30,6 @@
     "gap_analysis": {
       "halt_threshold": 50,
       "inspectors": 2,
-      "reassessment": {
-        "enabled": true,
-        "drift_threshold": 0.40
-      },
       "remediation": {
         "enabled": true,
         "max_fixes": 20,
@@ -46,6 +42,11 @@
       "migration_paths": [],
       "schema_conflict": true,
       "uncommitted_changes": true
+    },
+    "rate_limit": {
+      "default_wait_seconds": 60,
+      "enabled": true,
+      "max_wait_seconds": 300
     },
     "sharding": {
       "auto_sort": true,
@@ -177,7 +178,6 @@
       }
     ]
   },
-  "user_agents": [],
   "audit": {
     "always_deep": false,
     "deep": {
@@ -369,6 +369,12 @@
       "devise"
     ]
   },
+  "context_stop_guard": {
+    "enabled": true,
+    "high_threshold": 85,
+    "max_blocks_per_session": 2,
+    "warning_threshold": 70
+  },
   "context_weaving": {
     "glyph_budget": {
       "enabled": true,
@@ -387,13 +393,15 @@
   "defaults": {
     "disable_ashes": []
   },
-  "discipline": {
+  "deliverable_verification": {
     "enabled": true,
-    "block_on_fail": true,
-    "scr_threshold": 100,
-    "max_convergence_iterations": 3,
-    "context_isolation": true,
-    "iteration_timeout_ms": 1200000
+    "min_file_size": 200
+  },
+  "deployment_verification": {
+    "auto_run_on_migrations": false,
+    "enabled": false,
+    "monitoring_stack": null,
+    "output_dir": "tmp/deploy/"
   },
   "design_sync": {
     "backend_impact": {
@@ -425,35 +433,21 @@
       "block_threshold": 40,
       "enabled": true,
       "warn_threshold": 20
-    },
-    "discipline": {
-      "enabled": true,
-      "block_on_fail": false,
-      "proof_types": {
-        "token_scan": true,
-        "story_exists": true,
-        "axe_passes": "auto",
-        "storybook_renders": "auto",
-        "screenshot_diff": "auto",
-        "responsive_check": "auto"
-      },
-      "fidelity_threshold": 0.8,
-      "max_iterations": 3
     }
-  },
-  "discipline": {
-    "enabled": true,
-    "block_on_fail": true,
-    "scr_threshold": 100,
-    "max_convergence_iterations": 3,
-    "context_isolation": true,
-    "iteration_timeout_ms": 1200000
   },
   "devise": {
     "design_system_discovery": {
       "confidence_threshold": 0.5,
       "enabled": true
     }
+  },
+  "discipline": {
+    "block_on_fail": true,
+    "context_isolation": true,
+    "enabled": true,
+    "iteration_timeout_ms": 1200000,
+    "max_convergence_iterations": 3,
+    "scr_threshold": 100
   },
   "doubt_seer": {
     "block_on_unproven": false,
@@ -575,6 +569,9 @@
     "max_fixes": 20,
     "max_inspectors": 4
   },
+  "keyword_detection": {
+    "enabled": true
+  },
   "mend": {
     "cross_file_batch_size": 4
   },
@@ -586,6 +583,13 @@
       "warn_threshold": 0.7
     },
     "verification_patterns": []
+  },
+  "process_management": {
+    "bash_timeout": 300,
+    "bash_timeout_enabled": true,
+    "bash_timeout_patterns": [],
+    "process_kill_grace": 5,
+    "teammate_stuck_threshold": 180
   },
   "question_relay": {
     "max_questions_per_worker": 3,
@@ -676,13 +680,29 @@
     "strict_mode": false
   },
   "self_audit": {
-    "enabled": true,
+    "apply_mode": {
+      "atomic_commits": true,
+      "min_recurrence": 3,
+      "require_high_confidence": true
+    },
+    "auto_suggest_debounce_hours": 24,
     "auto_suggest_threshold": 3,
     "echo_persist": true,
+    "effectiveness": {
+      "regression_alert": true,
+      "track": true
+    },
+    "enabled": true,
+    "max_injection_entries": 3,
+    "max_injection_tokens": 500,
+    "phase_injection": true,
     "promotion_threshold": 3,
     "verbose_default": false
   },
   "settings": {
+    "artifact_extraction": {
+      "enabled": true
+    },
     "dedup_hierarchy": [
       "SEC",
       "BACK",
@@ -709,9 +729,6 @@
     ],
     "max_ashes": 9,
     "max_cli_ashes": 2,
-    "artifact_extraction": {
-      "enabled": true
-    },
     "verification": {
       "layer_2_custom_agents": true
     }
@@ -754,17 +771,20 @@
     },
     "max_runtime_minutes": 20,
     "max_turns": {
-      "_comment": "category-level maxTurns defaults; overridable per-agent via frontmatter",
       "aggregation": 60,
-      "investigation": 40,
+      "investigation": 0,
       "research": 40,
       "review": 30,
-      "testing": 40,
+      "testing": 0,
       "utility": 40,
       "work": 60
     },
     "process_cleanup": true,
-    "shutdown_signal_threshold": 35
+    "shutdown_signal_threshold": 35,
+    "stale_lead_wakeup": {
+      "debounce_seconds": 300,
+      "enabled": true
+    }
   },
   "testing": {
     "enabled": true,
@@ -805,6 +825,12 @@
       }
     }
   },
+  "tool_failure_tracking": {
+    "enabled": true,
+    "escalation_threshold": 5,
+    "silent_threshold": 2,
+    "staleness_minutes": 30
+  },
   "version": 1,
   "work": {
     "approve_timeout": 180,
@@ -842,11 +868,5 @@
       "max_workers_per_wave": 3,
       "merge_strategy": "sequential"
     }
-  },
-  "qa_gates": {
-    "enabled": true,
-    "pass_threshold": 70,
-    "max_phase_retries": 2,
-    "max_global_retries": 6
   }
 }
