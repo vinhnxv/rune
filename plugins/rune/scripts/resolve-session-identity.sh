@@ -9,6 +9,15 @@
 # Uses: $PPID (Claude Code process PID — fallback identifier)
 #       CLAUDE_SESSION_ID / RUNE_SESSION_ID (primary session identifier)
 #
+# Cache: PID-scoped tmpfile at ${TMPDIR:-/tmp}/rune-identity-${PPID}
+#   Format: Two shell assignments (RUNE_CURRENT_CFG=... RUNE_CURRENT_SID=...)
+#           Values are printf-%q escaped for safe sourcing.
+#   Lifecycle: Created on first resolution per session. Keyed by PPID, so
+#              stale files from dead sessions are never read (different PPID).
+#              No explicit cleanup needed — OS tmpdir rotation handles eviction.
+#   Security: Symlink guard (! -L) before source; umask 077 on creation;
+#             atomic write (tmp+mv) prevents partial reads.
+#
 # Pattern: Three-layer session identity (XVER-004 FIX)
 #   Layer 1: config_dir (CLAUDE_CONFIG_DIR) — installation/account isolation
 #   Layer 2: session_id (CLAUDE_SESSION_ID) — primary session identifier
@@ -33,6 +42,14 @@
 #     fi
 #   fi
 
+# ── Cache file path (PID-scoped) ──
+_RUNE_IDENTITY_CACHE="${TMPDIR:-/tmp}/rune-identity-${PPID}"
+
+# ── Try reading from cache before expensive resolution ──
+if [[ -z "${RUNE_CURRENT_CFG:-}" && -f "$_RUNE_IDENTITY_CACHE" && ! -L "$_RUNE_IDENTITY_CACHE" ]]; then
+  source "$_RUNE_IDENTITY_CACHE"
+fi
+
 if [[ -z "${RUNE_CURRENT_CFG:-}" ]]; then
   RUNE_CURRENT_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   RUNE_CURRENT_CFG=$(cd "$RUNE_CURRENT_CFG" 2>/dev/null && pwd -P || echo "$RUNE_CURRENT_CFG")
@@ -50,6 +67,14 @@ if [[ -z "${RUNE_CURRENT_SID:-}" ]]; then
     RUNE_CURRENT_SID=""  # Invalid or missing — fall back to PPID-based checks
   fi
   export RUNE_CURRENT_SID
+fi
+
+# ── Write cache atomically (if not already cached) ──
+if [[ -n "${RUNE_CURRENT_CFG:-}" && ! -f "$_RUNE_IDENTITY_CACHE" ]]; then
+  _tmp_cache="${_RUNE_IDENTITY_CACHE}.$$"
+  (umask 077 && printf 'RUNE_CURRENT_CFG=%q\nRUNE_CURRENT_SID=%q\n' \
+    "$RUNE_CURRENT_CFG" "$RUNE_CURRENT_SID" > "$_tmp_cache") 2>/dev/null
+  mv "$_tmp_cache" "$_RUNE_IDENTITY_CACHE" 2>/dev/null || rm -f "$_tmp_cache" 2>/dev/null
 fi
 
 # ── PID liveness check (EPERM-safe) ──
