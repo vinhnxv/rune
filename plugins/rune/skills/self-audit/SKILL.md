@@ -11,7 +11,7 @@ description: |
   Use when: "self-audit", "meta-qa", "check rune health", "audit rune itself"
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[--mode static|runtime|all] [--apply] [--dry-run]"
+argument-hint: "[--mode static|runtime|all] [--apply] [--dry-run] [--history] [--arc-id ID]"
 ---
 
 # Self-Audit — Meta-Quality Analysis
@@ -87,11 +87,21 @@ Scans plugin source files for structural issues:
 
 ### Runtime Analysis (`--mode runtime`)
 
-Requires recent arc artifacts in `tmp/arc/`. Analyzes:
+Requires recent arc artifacts in `tmp/arc/` and checkpoints in `.rune/arc/`. Spawns 3 runtime agents in parallel (read-only):
+
+| Agent | Dimension | Output |
+|-------|-----------|--------|
+| `hallucination-detector` | Phantom claims, inflated scores, evidence fabrication | `hallucination-findings.md` |
+| `effectiveness-analyzer` | Per-agent accuracy, false-positive rates, unique contribution | `effectiveness-findings.md` |
+| `convergence-analyzer` | Retry efficiency, stagnation, phase bottlenecks | `convergence-findings.md` |
+
+Analyzes:
 - TOME findings recurrence across runs
 - Worker completion patterns and failure modes
 - Phase timing anomalies
 - QA score trends
+
+See [runtime-mode.md](references/runtime-mode.md) for the full R0–R3 phase protocol and auto-detection algorithm.
 
 ### Combined (`--mode all`)
 
@@ -254,6 +264,43 @@ self_audit:
     regression_alert: true
 ```
 
+## --history — Audit History with Trends
+
+```
+/rune:self-audit --history
+```
+
+Lists past self-audit runs with scores and trends, reading from `tmp/self-audit/*/metrics.json`:
+
+```
+Self-Audit History (last 5 runs)
+────────────────────────────────
+2026-03-19  Static:82/Runtime:75  Overall:78  GOOD     ↑ +3 from last
+2026-03-15  Static:79/Runtime:72  Overall:75  GOOD     → stable
+2026-03-10  Static:76/Runtime:--  Overall:76  GOOD     (static only)
+```
+
+## Echo Entries with Metrics Snapshot
+
+When runtime analysis produces findings, echo entries persisted to `.rune/echoes/meta-qa/MEMORY.md`
+include a `metrics_snapshot` field with quantitative data alongside qualitative learnings:
+
+```markdown
+### [2026-03-19] Pattern: Code review consistently needs retry
+- **layer**: inscribed
+- **source**: rune:self-audit runtime-{run_id}
+- **confidence**: 0.85
+- **metrics_snapshot**:
+  - avg_retry_count: 1.4
+  - avg_score_before_retry: 62
+  - avg_score_after_retry: 78
+  - improvement_per_retry: 16
+- Code review phase averages 1.4 retries. Pre-retry score 62 (MARGINAL), post-retry 78 (PASS).
+```
+
+The `metrics_snapshot` field is populated from `metrics.json` data at echo persist time.
+Numeric fields enable cross-run trend comparison and effectiveness tracking.
+
 ## Output
 
 Reports are written to `tmp/self-audit/{timestamp}/`:
@@ -273,3 +320,5 @@ Reports are written to `tmp/self-audit/{timestamp}/`:
 - [phase-injection.md](references/phase-injection.md) — Echo injection into arc phases
 - [echo-comparison.md](references/echo-comparison.md) — Delta analysis between runs
 - [effectiveness-tracking.md](references/effectiveness-tracking.md) — Fix effectiveness loop
+- [runtime-mode.md](references/runtime-mode.md) — Runtime analysis phases (R0–R3)
+- [metrics-schema.md](references/metrics-schema.md) — metrics.json schema and trend computation

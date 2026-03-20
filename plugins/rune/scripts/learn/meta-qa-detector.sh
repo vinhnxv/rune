@@ -244,7 +244,7 @@ for arc in arcs:
             qa_low_score_arcs.setdefault(pname, []).append(arc['arc_id'])
 
 # -- Extract already-echoed pattern keys --
-echoed_keys = set(re.findall(r'pattern_key[:\s]+([a-zA-Z0-9_:.-]+)', echo_memory))
+echoed_keys = set(re.findall(r'\*{0,2}pattern_key\*{0,2}[:\s]+([a-zA-Z0-9_:.-]+)', echo_memory))
 
 # -- Build patterns list --
 patterns = []

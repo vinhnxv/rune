@@ -216,6 +216,48 @@ Trend symbols:
 - `↑ Degrading` — metric is increasing (bad for flags/rates/retries)
 - `~ Stable` — within ±10% variance
 
+## Phase R3: Merge into Report
+
+After all 3 runtime agents complete and metrics.json is written, merge runtime findings
+into the main report:
+
+```javascript
+function mergeRuntimeIntoReport(outputDir, staticReport) {
+  const runtimeSection = []
+
+  // Read each agent's findings file
+  const agents = ['hallucination', 'effectiveness', 'convergence']
+  for (const agent of agents) {
+    const findingsPath = `${outputDir}/${agent}-findings.md`
+    try {
+      const content = Read(findingsPath)
+      // Extract summary section from each agent's output
+      const summary = extractSummarySection(content)
+      runtimeSection.push(`### ${agent.charAt(0).toUpperCase() + agent.slice(1)} Analysis\n\n${summary}`)
+    } catch {
+      runtimeSection.push(`### ${agent.charAt(0).toUpperCase() + agent.slice(1)} Analysis\n\n> Artifacts unavailable — agent did not produce output.`)
+    }
+  }
+
+  // Read metrics for trend table
+  try {
+    const metrics = JSON.parse(Read(`${outputDir}/metrics.json`))
+    if (metrics.trends?.compared_runs >= 2) {
+      runtimeSection.push(renderTrendTable(metrics.trends))
+    }
+  } catch { /* metrics unavailable — skip trend table */ }
+
+  // Append to SELF-AUDIT-REPORT.md
+  const reportPath = `${outputDir}/SELF-AUDIT-REPORT.md`
+  const existingReport = staticReport || ''
+  Write(reportPath, existingReport + '\n\n---\n\n## Runtime Analysis\n\n' + runtimeSection.join('\n\n'))
+}
+```
+
+When `--mode all`: static agents run first (or in parallel), then runtime agents. The merge
+appends "## Runtime Analysis" after static dimensions. When `--mode runtime`: no static
+section — the report contains only the runtime analysis.
+
 ## Output Directory Structure
 
 ```
