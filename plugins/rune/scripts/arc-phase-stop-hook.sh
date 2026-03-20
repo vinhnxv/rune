@@ -486,29 +486,33 @@ _extract_phase_echoes() {
   local in_entry=false
   local current_entry=""
   local include_entry=false
+  local layer_excluded=false
 
   while IFS= read -r line; do
     if [[ "$line" =~ ^###\ \[ ]]; then
-      if $include_entry && [[ -n "$current_entry" ]] && (( count < max_entries )); then
+      # RP-002 FIX: Flush previous entry — layer_excluded takes priority over phase_tags match
+      if $include_entry && ! $layer_excluded && [[ -n "$current_entry" ]] && (( count < max_entries )); then
         printf '%s\n\n' "$current_entry"
         (( count++ ))
       fi
       in_entry=true
       current_entry="$line"
       include_entry=false
+      layer_excluded=false
     elif $in_entry; then
       current_entry="${current_entry}
 ${line}"
       if [[ "$line" == *"phase_tags"*"$target_phase"* ]]; then
         include_entry=true
       fi
+      # RP-002 FIX: Layer exclusion cannot be overridden by later phase_tags match
       if [[ "$line" == *"**layer**: observations"* ]] || [[ "$line" == *"**layer**: traced"* ]]; then
-        include_entry=false
+        layer_excluded=true
       fi
     fi
   done < "$memory_file"
 
-  if $include_entry && [[ -n "$current_entry" ]] && (( count < max_entries )); then
+  if $include_entry && ! $layer_excluded && [[ -n "$current_entry" ]] && (( count < max_entries )); then
     printf '%s\n' "$current_entry"
   fi
 }
@@ -1425,7 +1429,13 @@ fi
 _meta_qa_echoes=""
 _mqa_file="${CWD}/.rune/echoes/meta-qa/MEMORY.md"
 if [[ -f "$_mqa_file" && ! -L "$_mqa_file" ]]; then
-  _meta_qa_echoes=$(_extract_phase_echoes "$_mqa_file" "$NEXT_PHASE")
+  # RP-001 FIX: File size guard — prevent oversized MEMORY.md from exhausting 28s hook budget
+  _mqa_size=$(wc -c < "$_mqa_file" 2>/dev/null || echo 999999)
+  if [[ "$_mqa_size" -lt 524288 ]]; then  # 512KB safety cap
+    _meta_qa_echoes=$(_extract_phase_echoes "$_mqa_file" "$NEXT_PHASE")
+  else
+    _trace "META-QA: MEMORY.md too large (${_mqa_size} bytes) — skipping echo injection"
+  fi
 fi
 if [[ -n "$_meta_qa_echoes" ]] && [[ "${#_meta_qa_echoes}" -lt 2000 ]]; then
   PHASE_PROMPT="${PHASE_PROMPT}
