@@ -6,6 +6,7 @@ use ratatui::widgets::{
 };
 use ratatui::Frame;
 
+use std::time::Instant;
 use crate::app::{App, AppView, ArcCompletion, Panel};
 use crate::diagnostic::Severity;
 use crate::monitor::ActivityState;
@@ -755,8 +756,41 @@ fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {
                 Line::from(Span::styled("    Discovering checkpoint...", Style::default().fg(sol::YELLOW))),
             ]
         }
+    } else if app.inter_plan_cooldown_until.is_some() || !app.queue.is_empty() {
+        // Between plans — cooldown active or queue has pending items
+        let done = app.completed_runs.len();
+        let remaining = app.queue.len();
+        let mut l = vec![
+            Line::from(vec![
+                Span::styled("  ⏳ Waiting for next plan", Style::default().fg(sol::YELLOW).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(vec![
+                Span::styled(format!("  Done: {done}"), Style::default().fg(sol::GREEN)),
+                Span::styled(format!("  Queued: {remaining}"), Style::default().fg(sol::CYAN)),
+            ]),
+        ];
+        if let Some(deadline) = app.inter_plan_cooldown_until {
+            let now = Instant::now();
+            if deadline > now {
+                let secs = deadline.duration_since(now).as_secs();
+                l.push(Line::from(vec![
+                    Span::styled(format!("  Next in {}m{}s", secs / 60, secs % 60), Style::default().fg(sol::YELLOW)),
+                    Span::styled("  [s] skip cooldown", Style::default().fg(sol::BASE01)),
+                ]));
+            }
+        }
+        // Show last PR URL if available
+        if let Some(last_pr) = app.completed_runs.iter().rev()
+            .find_map(|r| match &r.result {
+                ArcCompletion::Merged { pr_url } | ArcCompletion::Shipped { pr_url } => pr_url.clone(),
+                _ => None,
+            })
+        {
+            l.push(make_kv("  Last PR: ", &last_pr, sol::BLUE));
+        }
+        l
     } else {
-        // All plans done — show summary
+        // All plans truly done — show summary
         let total = app.completed_runs.len();
         let merged = app.completed_runs.iter()
             .filter(|r| matches!(r.result, ArcCompletion::Merged { .. } | ArcCompletion::Shipped { .. }))

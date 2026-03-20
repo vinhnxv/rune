@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-03-21
+
+### Fixed
+
+- **Misleading "All plans completed" during inter-plan cooldown** — Checkpoint panel now shows "⏳ Waiting for next plan" with countdown timer and queue status when cooldown is active or plans are still queued, instead of incorrectly displaying the completion summary
+
 ## [0.6.3] - 2026-03-20
 
 ### Fixed
