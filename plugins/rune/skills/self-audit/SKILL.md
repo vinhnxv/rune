@@ -31,6 +31,46 @@ inconsistencies — then proposes fixes.
 /rune:self-audit --dry-run              # Show what --apply would propose without prompting
 ```
 
+## Pre-flight: Concurrent Audit Guard
+
+Before starting any analysis, check for an active self-audit from this or another session:
+
+```javascript
+// Check for active self-audit state files
+const stateFiles = Glob('tmp/.rune-self-audit-*.json')
+for (const sf of stateFiles) {
+  const state = JSON.parse(Read(sf))
+  // Skip if owned by a dead session
+  const ownerAlive = Bash(`kill -0 ${state.owner_pid} 2>/dev/null && echo "alive" || echo "dead"`).trim()
+  if (ownerAlive === "alive" && state.status === "running") {
+    const CHOME = Bash('echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"').trim()
+    if (state.config_dir === CHOME) {
+      log(`Another self-audit is already running (PID: ${state.owner_pid}, started: ${state.started_at}).`)
+      log(`Wait for it to complete or cancel it first.`)
+      return
+    }
+  }
+  // Clean up orphaned state from dead sessions
+  if (ownerAlive === "dead") {
+    Bash(`rm -f "${sf}"`)
+  }
+}
+
+// Write our own state file with session isolation fields
+const timestamp = Date.now()
+const CHOME = Bash('echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"').trim()
+Write(`tmp/.rune-self-audit-${timestamp}.json`, JSON.stringify({
+  status: "running",
+  started_at: new Date().toISOString(),
+  config_dir: CHOME,
+  owner_pid: Bash('echo $PPID').trim(),
+  session_id: CLAUDE_SESSION_ID,
+  mode: mode
+}))
+```
+
+On completion (success or error), update state file status to `"completed"` or `"failed"` and clean up.
+
 ## Modes
 
 ### Static Analysis (`--mode static`, default)
