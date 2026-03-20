@@ -960,6 +960,48 @@ def _build_container_attr_str(
     return attr_str, node_aria
 
 
+def _try_flatten_node(
+    node: FigmaIRNode,
+    image_handler: ImageHandler,
+) -> Optional[FigmaIRNode]:
+    """Check if a frame-like node can be flattened to its single visible child.
+
+    A node qualifies for flattening when it is a frame-like wrapper with
+    exactly one visible child, no fills/strokes/effects/rounding/clipping,
+    and the child has no constraint positioning that depends on the parent.
+
+    Args:
+        node: Candidate node to flatten.
+        image_handler: Image handler for checking image fills.
+
+    Returns:
+        The single visible child node if flattening applies, None otherwise.
+    """
+    if not (node.can_be_flattened and node.is_frame_like and not image_handler.has_image(node)):
+        return None
+
+    visible_children = [c for c in node.children if c.visible]
+    has_styling = (
+        any(f.visible for f in node.fills)
+        or any(s.visible for s in node.strokes)
+        or any(e.visible for e in node.effects)
+        or node.corner_radius > 0
+        or node.clips_content
+    )
+    if len(visible_children) != 1 or has_styling:
+        return None
+
+    child = visible_children[0]
+    has_constraints = (
+        getattr(child, "constraint_horizontal", None)
+        or getattr(child, "constraint_vertical", None)
+    )
+    if has_constraints:
+        return None
+
+    return child
+
+
 def _generate_node_jsx(
     node: FigmaIRNode,
     parent: Optional[FigmaIRNode],
@@ -984,35 +1026,13 @@ def _generate_node_jsx(
     if not node.visible:
         return ""
 
-    # Node flattening: skip wrapper divs that add no value.
-    # A frame-like node with exactly one visible child, no fills/strokes/effects,
-    # and no auto-layout can be flattened — render the child directly.
-    # Guard: don't flatten if child has constraint positioning (needs parent wrapper)
-    if (
-        node.can_be_flattened
-        and node.is_frame_like
-        and not image_handler.has_image(node)
-    ):
-        visible_children = [c for c in node.children if c.visible]
-        has_styling = (
-            any(f.visible for f in node.fills)
-            or any(s.visible for s in node.strokes)
-            or any(e.visible for e in node.effects)
-            or node.corner_radius > 0
-            or node.clips_content
+    # Node flattening: skip wrapper divs that add no value
+    flat_child = _try_flatten_node(node, image_handler)
+    if flat_child is not None:
+        return _generate_node_jsx(
+            flat_child, parent, image_handler, indent_level, aria,
+            promoted_props=promoted_props,
         )
-        if len(visible_children) == 1 and not has_styling:
-            child = visible_children[0]
-            # Don't flatten if child has constraints that depend on parent
-            has_constraints = (
-                getattr(child, "constraint_horizontal", None)
-                or getattr(child, "constraint_vertical", None)
-            )
-            if not has_constraints:
-                return _generate_node_jsx(
-                    child, parent, image_handler, indent_level, aria,
-                    promoted_props=promoted_props,
-                )
 
     all_classes = _collect_node_classes(node, parent)
     class_str = " ".join(all_classes)
