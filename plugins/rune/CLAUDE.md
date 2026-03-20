@@ -53,7 +53,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **untitledui-mcp** | UntitledUI official MCP integration — 6 tools (search_components, list_components, get_component, get_component_bundle, get_page_templates, get_page_template_files), code conventions (React Aria `Aria*` prefix, Tailwind v4.1 semantic colors, kebab-case, compound components), builder-protocol metadata for automated pipeline integration. Non-invocable — auto-loaded by design-system-discovery when UntitledUI is detected |
 | **status** | Background dispatch status — check progress, pending questions, and worker health for `/rune:strive --background` dispatches |
 | **learn** | Session self-learning — extracts CLI correction patterns and review recurrence findings from session JSONL history, persists high-confidence patterns to Rune Echoes via 4-phase pipeline (scan → detect → report → confirm+write). `/rune:learn` |
-| **self-audit** | Runtime analysis of arc artifacts — hallucination detection, agent effectiveness tracking, convergence analysis, metrics store. `--mode static\|runtime\|all`, `--arc-id`, `--history` |
+| **self-audit** | Meta-QA self-audit — static analysis (workflow, agent, hook, rule consistency) + runtime analysis (hallucination detection, agent effectiveness tracking, convergence analysis, metrics store). 3 runtime agents: hallucination-detector, effectiveness-analyzer, convergence-analyzer. `--mode static\|runtime\|all`, `--arc-id`, `--history`, `--apply`. Echo-integrated recurrence tracking via `.rune/echoes/meta-qa/`. `/rune:self-audit` |
 | **file-todos** | Standalone file-based todo tracking — create, triage, list, search, resolve, dedup, and track structured todo files with YAML frontmatter. Session-scoped in `tmp/`. Not integrated into workflow pipelines — invoke manually via `/rune:file-todos` |
 | **resolve-todos** | Standalone todo resolution using Agent Teams with verify-before-fix pipeline. Spawns todo-verifier + mend-fixer agents. Not integrated into workflow pipelines — invoke manually via `/rune:resolve-todos` |
 | **elevate** | Promote project echoes to global scope with domain tagging and dedup |
@@ -62,7 +62,6 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **runs** | Workflow run history and diagnostics (non-invocable) |
 | **ux-design-process** | UX design intelligence — heuristic evaluation checklists, interaction pattern libraries, flow validation. Auto-loaded for frontend files (non-invocable) |
 | **post-findings** | Post Rune review/audit findings to GitHub PR as formatted comment. Parses TOME, formats markdown, posts via `gh`. Configurable via `pr_comment` talisman section. `/rune:post-findings` |
-| **self-audit** | Meta-QA self-audit — validates workflow definitions, agent prompts, rules, hooks for inconsistencies and drift. 4 audit dimensions with per-dimension scoring. Echo-integrated recurrence tracking via `.rune/echoes/meta-qa/`. `/rune:self-audit` |
 
 ## Commands
 
