@@ -842,5 +842,9 @@
       "max_workers_per_wave": 3,
       "merge_strategy": "sequential"
     }
+  },
+  "qa_gates": {
+    "enabled": true,
+    "max_global_retries": 6
   }
 }
