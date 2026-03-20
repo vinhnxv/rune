@@ -6,6 +6,10 @@
 // FALLBACK: all possible strive teammates (static worst-case, safe to send to absent members)
 allMembers = [
   ...Array.from({length: 6}, (_, i) => `rune-smith-${i + 1}`),
+  // CLEAN-001 FIX: Include gap convergence workers (up to 3 iterations x 2 workers each)
+  ...Array.from({length: 3}, (_, it) =>
+    Array.from({length: 2}, (_, w) => `rune-smith-gap-${it + 1}-${w + 1}`)
+  ).flat(),
   "trial-forger", "unit-test-runner", "test-failure-analyst",
   "codex-advisory"
 ]

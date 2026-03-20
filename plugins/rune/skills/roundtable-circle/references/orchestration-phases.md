@@ -980,13 +980,18 @@ try {
   // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
   allMembers = [
     // Static: all possible built-in Ashes (safe to send to absent members)
-    "forge-warden", "ward-sentinel", "pattern-weaver", "veil-piercer",
+    // CLEAN-006 FIX: "pattern-weaver" → "pattern-seer" (correct registered name)
+    "forge-warden", "ward-sentinel", "pattern-seer", "veil-piercer",
     "glyph-scribe", "knowledge-keeper", "codex-oracle",
     // Existing static entries
     "runebinder", "doubt-seer", "cross-shard-sentinel",
     "rot-seeker", "strand-tracer", "decree-auditor", "fringe-watcher",
     "shard-reviewer-a", "shard-reviewer-b", "shard-reviewer-c",
     "shard-reviewer-d", "shard-reviewer-e",
+    // CLEAN-002/003 FIX: Deep audit aggregation agents (conditional on --deep)
+    "runebinder-deep", "runebinder-merge",
+    // CLEAN-005 FIX: Lore Layer agent (conditional on goldmask.layers.lore.enabled)
+    "lore-analyst",
     // Custom Ashes — best-effort from dynamic discovery (undefined on compaction = harmless empty array)
     ...(selectedAsh ?? [])
   ]

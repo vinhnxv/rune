@@ -141,9 +141,9 @@ proof_test_passes() {
     echo "FAIL"
     return
   fi
-  # SEC-001 FIX: Expanded blocklist — reject shell metacharacters including quotes
-  if [[ "$cmd" =~ [$'\n'\;\&\|\$\`\<\>\(\)\{\}\!\~\'\"\\] ]]; then
-    echo "FAIL"  # Reject commands with shell metacharacters
+  # SEC-001 FIX v2: Allowlist — only permit safe command characters (replaces fragile denylist)
+  if [[ ! "$cmd" =~ ^[a-zA-Z0-9\ _./:=@,\-]+$ ]]; then
+    echo "FAIL"  # Reject commands with characters outside the safe allowlist
     return
   fi
   # Execute via bash -c with timeout (no eval)
@@ -163,8 +163,8 @@ proof_builds_clean() {
     echo "FAIL"
     return
   fi
-  # SEC-001 FIX: Expanded blocklist
-  if [[ "$cmd" =~ [$'\n'\;\&\|\$\`\<\>\(\)\{\}\!\~\'\"\\] ]]; then
+  # SEC-001 FIX v2: Allowlist — same pattern as proof_test_passes
+  if [[ ! "$cmd" =~ ^[a-zA-Z0-9\ _./:=@,\-]+$ ]]; then
     echo "FAIL"
     return
   fi

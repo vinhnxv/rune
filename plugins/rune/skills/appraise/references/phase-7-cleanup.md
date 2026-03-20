@@ -4,7 +4,8 @@
 
 ```javascript
 // FALLBACK: built-in Ashes + runebinder (safe to send shutdown to absent members)
-allMembers = ["forge-warden", "ward-sentinel", "pattern-weaver", "veil-piercer",
+// CLEAN-006 FIX: "pattern-weaver" → "pattern-seer" (correct registered name)
+allMembers = ["forge-warden", "ward-sentinel", "pattern-seer", "veil-piercer",
   "glyph-scribe", "knowledge-keeper", "codex-oracle", "runebinder",
   "doubt-seer", "elicitation-sage-security-1", "elicitation-sage-security-2",
   "ux-heuristic-reviewer", "ux-flow-validator", "ux-interaction-auditor", "ux-cognitive-walker",
