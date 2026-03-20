@@ -66,6 +66,20 @@ Type safety specialist with LSP-enhanced type inference.
 - Generic constraint violations
 - Async/await type correctness
 
+## Echo Integration (Past Type Safety Patterns)
+
+Before checking type safety, query Rune Echoes for previously identified type issues:
+
+1. **Primary (MCP available)**: Use `mcp__echo-search__echo_search` with type-safety-focused queries
+   - Query examples: "type safety", "missing annotation", "unsafe cast", "Optional", "Any", module names under investigation
+   - Limit: 5 results — focus on Etched entries (permanent knowledge)
+2. **Fallback (MCP unavailable)**: Skip — check all files fresh for type issues
+
+**How to use echo results:**
+- Past type findings reveal modules with history of annotation gaps
+- If an echo flags a service as using unsafe `Any` types, prioritize type escape analysis
+- Include echo context in findings as: `**Echo context:** {past pattern} (source: {role}/MEMORY.md)`
+
 ## LSP Integration
 
 For details on LSP operations and the fallback protocol, see [lsp-patterns.md](../../references/lsp-patterns.md).
@@ -81,20 +95,6 @@ For details on LSP operations and the fallback protocol, see [lsp-patterns.md](.
 ### Why LSP Matters for Type Analysis
 
 `hover` reveals types that the type checker resolves but are never annotated. This catches "missing annotation" false positives where the type IS known to the type checker — and also reveals cases where the inferred type is broader than intended (e.g., `str | None` when the developer assumed `str`).
-
-## Echo Integration (Past Type Safety Patterns)
-
-Before checking type safety, query Rune Echoes for previously identified type issues:
-
-1. **Primary (MCP available)**: Use `mcp__echo-search__echo_search` with type-safety-focused queries
-   - Query examples: "type safety", "missing annotation", "unsafe cast", "Optional", "Any", module names under investigation
-   - Limit: 5 results — focus on Etched entries (permanent knowledge)
-2. **Fallback (MCP unavailable)**: Skip — check all files fresh for type issues
-
-**How to use echo results:**
-- Past type findings reveal modules with history of annotation gaps
-- If an echo flags a service as using unsafe `Any` types, prioritize type escape analysis
-- Include echo context in findings as: `**Echo context:** {past pattern} (source: {role}/MEMORY.md)`
 
 ## Analysis Framework
 
@@ -166,8 +166,8 @@ After completing analysis, verify:
 - [ ] **Confidence level** is appropriate (don't flag uncertain items as P1)
 - [ ] All files in scope were **actually read**, not just assumed
 - [ ] Findings are **actionable** — each has a concrete fix suggestion
-- [ ] **Confidence score** assigned (0-100) with 1-sentence justification
-- [ ] **Cross-check**: confidence >= 80 requires evidence-verified ratio >= 50%
+- [ ] **Confidence score** assigned (0-100) with 1-sentence justification — reflects evidence strength, not finding severity
+- [ ] **Cross-check**: confidence >= 80 requires evidence-verified ratio >= 50%. If not, recalibrate.
 
 ### Pre-Flight
 Before writing output file, confirm:

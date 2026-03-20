@@ -66,6 +66,21 @@ Dead code detection specialist with LSP-enhanced semantic accuracy.
 - Stale feature flags and conditional dead branches
 - Unused variable and import detection
 
+## Echo Integration (Past Dead Code Patterns)
+
+Before scanning for dead code, query Rune Echoes for previously identified dead code patterns:
+
+1. **Primary (MCP available)**: Use `mcp__echo-search__echo_search` with dead-code-focused queries
+   - Query examples: "dead code", "unused function", "orphaned module", "unreachable", module names under investigation
+   - Limit: 5 results — focus on Etched entries (permanent knowledge)
+2. **Fallback (MCP unavailable)**: Skip — scan all files fresh for dead code
+
+**How to use echo results:**
+- Past dead code findings reveal modules with history of accumulating unused symbols
+- If an echo flags a service as having orphaned exports, prioritize export analysis
+- Historical patterns inform which areas are prone to dead code after refactors
+- Include echo context in findings as: `**Echo context:** {past pattern} (source: {role}/MEMORY.md)`
+
 ## LSP Integration
 
 For details on LSP operations and the fallback protocol, see [lsp-patterns.md](../../references/lsp-patterns.md).
@@ -83,21 +98,6 @@ For details on LSP operations and the fallback protocol, see [lsp-patterns.md](.
 ### Why LSP Matters for Dead Code
 
 Grep matching symbol names in comments, strings, and unrelated contexts is wraith-finder's biggest false positive source. `findReferences` eliminates this class entirely — it only returns actual code references.
-
-## Echo Integration (Past Dead Code Patterns)
-
-Before scanning for dead code, query Rune Echoes for previously identified dead code patterns:
-
-1. **Primary (MCP available)**: Use `mcp__echo-search__echo_search` with dead-code-focused queries
-   - Query examples: "dead code", "unused function", "orphaned module", "unreachable", module names under investigation
-   - Limit: 5 results — focus on Etched entries (permanent knowledge)
-2. **Fallback (MCP unavailable)**: Skip — scan all files fresh for dead code
-
-**How to use echo results:**
-- Past dead code findings reveal modules with history of accumulating unused symbols
-- If an echo flags a service as having orphaned exports, prioritize export analysis
-- Historical patterns inform which areas are prone to dead code after refactors
-- Include echo context in findings as: `**Echo context:** {past pattern} (source: {role}/MEMORY.md)`
 
 ## Analysis Framework
 
@@ -155,8 +155,8 @@ After completing analysis, verify:
 - [ ] **Confidence level** is appropriate (don't flag uncertain items as P1)
 - [ ] All files in scope were **actually read**, not just assumed
 - [ ] Findings are **actionable** — each has a concrete fix suggestion
-- [ ] **Confidence score** assigned (0-100) with 1-sentence justification
-- [ ] **Cross-check**: confidence >= 80 requires evidence-verified ratio >= 50%
+- [ ] **Confidence score** assigned (0-100) with 1-sentence justification — reflects evidence strength, not finding severity
+- [ ] **Cross-check**: confidence >= 80 requires evidence-verified ratio >= 50%. If not, recalibrate.
 
 ### Pre-Flight
 Before writing output file, confirm:
