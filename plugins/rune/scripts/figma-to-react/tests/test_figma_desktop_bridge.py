@@ -397,6 +397,38 @@ class TestParseMetadataToFile:
         with pytest.raises(ET.ParseError):
             DesktopMCPBridge._parse_metadata_to_file("<design_context unclosed")
 
+    def test_xxe_entity_declaration_rejected(self):
+        """XML containing <!ENTITY is rejected to prevent XXE attacks."""
+        xml = (
+            '<?xml version="1.0"?>'
+            '<!DOCTYPE foo [<!ENTITY xxe "pwned">]>'
+            "<design_context>&xxe;</design_context>"
+        )
+        with pytest.raises(ET.ParseError, match="entity declarations.*not allowed"):
+            DesktopMCPBridge._parse_metadata_to_file(xml)
+
+    def test_xxe_doctype_rejected(self):
+        """XML containing <!DOCTYPE is rejected to prevent XXE attacks."""
+        xml = (
+            '<!DOCTYPE design_context SYSTEM "http://evil.com/xxe.dtd">'
+            "<design_context><nodes/></design_context>"
+        )
+        with pytest.raises(ET.ParseError, match="DOCTYPE.*not allowed"):
+            DesktopMCPBridge._parse_metadata_to_file(xml)
+
+    def test_xxe_billion_laughs_rejected(self):
+        """Billion Laughs payload is rejected via entity declaration check."""
+        xml = (
+            '<?xml version="1.0"?>'
+            "<!DOCTYPE lolz ["
+            '<!ENTITY lol "lol">'
+            '<!ENTITY lol2 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">'
+            "]>"
+            "<design_context>&lol2;</design_context>"
+        )
+        with pytest.raises(ET.ParseError, match="entity declarations.*not allowed"):
+            DesktopMCPBridge._parse_metadata_to_file(xml)
+
     def test_corrupt_data_empty_string_raises_parse_error(self):
         """Empty string input raises ET.ParseError."""
         with pytest.raises(ET.ParseError):

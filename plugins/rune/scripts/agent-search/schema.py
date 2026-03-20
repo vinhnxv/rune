@@ -119,6 +119,30 @@ def _validate_body(body: Any, errors: List[str]) -> None:
         )
 
 
+def _validate_source_category(
+    source: str, category: Optional[Any], errors: List[str]
+) -> None:
+    """Validate source and category fields.
+
+    Args:
+        source: Source category string.
+        category: Optional category string.
+        errors: Error list to append to.
+    """
+    if source not in VALID_SOURCES:
+        errors.append(
+            "source must be one of: %s" % ", ".join(sorted(VALID_SOURCES))
+        )
+    if category is not None:
+        if not isinstance(category, str):
+            errors.append("category must be a string")
+        elif category.lower() not in VALID_CATEGORIES:
+            errors.append(
+                "category must be one of: %s"
+                % ", ".join(sorted(VALID_CATEGORIES))
+            )
+
+
 def validate_agent_schema(
     name: Any,
     description: Any,
@@ -147,23 +171,7 @@ def validate_agent_schema(
 
     _validate_name(name, errors)
     _validate_description(description, source, errors)
-
-    # --- Source validation ---
-    if source not in VALID_SOURCES:
-        errors.append(
-            "source must be one of: %s" % ", ".join(sorted(VALID_SOURCES))
-        )
-
-    # --- Category validation ---
-    if category is not None:
-        if not isinstance(category, str):
-            errors.append("category must be a string")
-        elif category.lower() not in VALID_CATEGORIES:
-            errors.append(
-                "category must be one of: %s"
-                % ", ".join(sorted(VALID_CATEGORIES))
-            )
-
+    _validate_source_category(source, category, errors)
     _validate_tags(tags, errors)
     _validate_body(body, errors)
 

@@ -204,6 +204,174 @@ def _filter_tree_frames(
 
 
 # ---------------------------------------------------------------------------
+# Frame elicitation — interactive frame selection for large designs
+# ---------------------------------------------------------------------------
+
+
+def _build_frame_elicitation_model(
+    frames: list[dict[str, Any]],
+) -> tuple[list[tuple[str, str]], list[str], Any]:
+    """Build a dynamic Pydantic model for frame selection elicitation.
+
+    Sanitizes frame names and creates boolean fields for each frame.
+
+    Args:
+        frames: Top-level frame dicts with 'node_id' and 'name' keys.
+
+    Returns:
+        Tuple of (sanitized name pairs, field keys, Pydantic model class).
+    """
+    sanitized: list[tuple[str, str]] = [
+        (
+            f.get("node_id", f"id_{i}"),
+            _sanitize_frame_name(f.get("name", f"Frame {i + 1}")),
+        )
+        for i, f in enumerate(frames)
+    ]
+    field_keys: list[str] = [
+        _make_frame_field_key(name, i)
+        for i, (_, name) in enumerate(sanitized)
+    ]
+    fields: dict[str, Any] = {
+        key: (
+            bool,
+            Field(
+                default=True,
+                title=sanitized[i][1],
+                description=f"Include frame: {sanitized[i][1]} (id: {sanitized[i][0]})",
+            ),
+        )
+        for i, key in enumerate(field_keys)
+    }
+    model = create_model(  # type: ignore[call-overload]
+        "FrameSelection", **fields
+    )
+    return sanitized, field_keys, model
+
+
+async def _apply_frame_selection(
+    elicit_result: Any,
+    sanitized: list[tuple[str, str]],
+    field_keys: list[str],
+    frames: list[dict[str, Any]],
+    tree: dict[str, Any],
+    content_data: dict[str, Any],
+    max_length: int,
+    start_index: int,
+) -> dict[str, Any] | None:
+    """Apply user frame selection to filter the IR tree.
+
+    Processes the elicitation result: filters frames if user accepted,
+    raises on cancel, returns None on decline (keep all frames).
+
+    Args:
+        elicit_result: Result from ctx.elicit() call.
+        sanitized: List of (node_id, display_name) tuples.
+        field_keys: Pydantic field keys matching sanitized entries.
+        frames: Original collected frames list.
+        tree: Original IR tree dict.
+        content_data: Parsed content dict containing the tree.
+        max_length: Max response characters for re-pagination.
+        start_index: Pagination offset for re-pagination.
+
+    Returns:
+        Filtered and re-paginated result dict, or None if no filtering needed.
+
+    Raises:
+        ToolError: If no frames selected or user cancelled.
+    """
+    if elicit_result.action == "accept" and elicit_result.data is not None:
+        selected_ids: set[str] = {
+            sanitized[i][0]
+            for i, key in enumerate(field_keys)
+            if getattr(elicit_result.data, key, False)
+        }
+        if not selected_ids:
+            raise ToolError(
+                "No frames were selected. Please select at least one frame "
+                "or decline the selection to return all frames."
+            )
+        if len(selected_ids) < len(frames):
+            content_data["tree"] = _filter_tree_frames(tree, selected_ids)
+            new_content = json.dumps(content_data, indent=2)
+            return core.paginate_output(
+                new_content,
+                max_length=max_length,
+                start_index=start_index,
+            )
+    elif elicit_result.action == "cancel":
+        raise ToolError("Frame selection cancelled by user.")
+    # "decline" → return all frames without filtering
+    return None
+
+
+async def _elicit_frame_selection(
+    ctx: Context,
+    result: dict[str, Any] | None,
+    max_length: int,
+    start_index: int,
+) -> dict[str, Any] | None:
+    """Run frame selection elicitation if the design has many top-level frames.
+
+    When a design has more than _ELICIT_FRAME_THRESHOLD top-level frames,
+    pauses and asks the user to choose which ones to include in the response.
+    Falls back transparently on clients that don't support elicitation.
+
+    Args:
+        ctx: MCP tool context with optional elicit() method.
+        result: Fetch result dict with 'content' key.
+        max_length: Max response characters for re-pagination.
+        start_index: Pagination offset for re-pagination.
+
+    Returns:
+        Original or filtered result dict.
+    """
+    if result is None:
+        return result  # type: ignore[return-value]
+
+    try:
+        content_str = result.get("content", "")
+        if not content_str:
+            return result
+
+        content_data = json.loads(content_str)
+        tree = content_data.get("tree", {})
+        frames = _collect_top_level_frames(tree)[:_ELICIT_FRAME_MAX]
+
+        if len(frames) <= _ELICIT_FRAME_THRESHOLD or not hasattr(ctx, "elicit"):
+            return result
+
+        sanitized, field_keys, model = _build_frame_elicitation_model(frames)
+
+        frame_list = "\n".join(
+            f"  {i + 1}. {name}" for i, (_, name) in enumerate(sanitized)
+        )
+        elicit_result = await ctx.elicit(
+            message=(
+                f"Found {len(frames)} frames in this Figma design. "
+                f"Select which frames to include in the response:\n{frame_list}"
+            ),
+            schema=model,
+        )
+
+        filtered = await _apply_frame_selection(
+            elicit_result, sanitized, field_keys, frames,
+            tree, content_data, max_length, start_index,
+        )
+        if filtered is not None:
+            return filtered
+    except ToolError:
+        raise
+    except NotImplementedError:
+        # Older Claude Code / clients without elicitation support — return all frames
+        pass
+    except (json.JSONDecodeError, ValueError, TypeError) as exc:
+        logger.warning("Frame elicitation skipped due to parse error: %s", exc)
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Tools — thin wrappers that delegate to core.py
 # ---------------------------------------------------------------------------
 
@@ -248,86 +416,7 @@ async def figma_fetch_design(
     except FigmaAPIError as exc:
         raise _handle_figma_error(exc) from exc
 
-    # --- Frame selection elicitation (MCP SDK 2.x) ---
-    # When a design has more than _ELICIT_FRAME_THRESHOLD top-level frames,
-    # pause and ask the user to choose which ones to include in the response.
-    # Falls back transparently on clients that don't support elicitation.
-    try:
-        content_str = result.get("content", "")
-        if content_str:
-            content_data = json.loads(content_str)
-            tree = content_data.get("tree", {})
-            frames = _collect_top_level_frames(tree)[:_ELICIT_FRAME_MAX]
-
-            if len(frames) > _ELICIT_FRAME_THRESHOLD and hasattr(ctx, "elicit"):
-                # Sanitize frame names before building the Pydantic model
-                sanitized: list[tuple[str, str]] = [
-                    (
-                        f.get("node_id", f"id_{i}"),
-                        _sanitize_frame_name(f.get("name", f"Frame {i + 1}")),
-                    )
-                    for i, f in enumerate(frames)
-                ]
-                field_keys: list[str] = [
-                    _make_frame_field_key(name, i)
-                    for i, (_, name) in enumerate(sanitized)
-                ]
-                fields: dict[str, Any] = {
-                    key: (
-                        bool,
-                        Field(
-                            default=True,
-                            title=sanitized[i][1],
-                            description=f"Include frame: {sanitized[i][1]} (id: {sanitized[i][0]})",
-                        ),
-                    )
-                    for i, key in enumerate(field_keys)
-                }
-                FrameSelectionModel = create_model(  # type: ignore[call-overload]
-                    "FrameSelection", **fields
-                )
-
-                frame_list = "\n".join(
-                    f"  {i + 1}. {name}" for i, (_, name) in enumerate(sanitized)
-                )
-                elicit_result = await ctx.elicit(
-                    message=(
-                        f"Found {len(frames)} frames in this Figma design. "
-                        f"Select which frames to include in the response:\n{frame_list}"
-                    ),
-                    schema=FrameSelectionModel,
-                )
-
-                if elicit_result.action == "accept" and elicit_result.data is not None:
-                    selected_ids: set[str] = {
-                        sanitized[i][0]
-                        for i, key in enumerate(field_keys)
-                        if getattr(elicit_result.data, key, False)
-                    }
-                    if not selected_ids:
-                        raise ToolError(
-                            "No frames were selected. Please select at least one frame "
-                            "or decline the selection to return all frames."
-                        )
-                    if len(selected_ids) < len(frames):
-                        content_data["tree"] = _filter_tree_frames(tree, selected_ids)
-                        new_content = json.dumps(content_data, indent=2)
-                        result = core.paginate_output(
-                            new_content,
-                            max_length=max_length,
-                            start_index=start_index,
-                        )
-                elif elicit_result.action == "cancel":
-                    raise ToolError("Frame selection cancelled by user.")
-                # "decline" → return all frames without filtering
-    except ToolError:
-        raise
-    except NotImplementedError:
-        # Older Claude Code / clients without elicitation support — return all frames
-        pass
-    except (json.JSONDecodeError, ValueError, TypeError) as exc:
-        logger.warning("Frame elicitation skipped due to parse error: %s", exc)
-
+    result = await _elicit_frame_selection(ctx, result, max_length, start_index)
     return json.dumps(result)
 
 
@@ -362,6 +451,90 @@ async def figma_inspect_node(
         raise ToolError(str(exc)) from exc
     except FigmaAPIError as exc:
         raise _handle_figma_error(exc) from exc
+
+
+async def _elicit_component_filter(
+    ctx: Context,
+    components: list[dict[str, Any]],
+) -> str | None:
+    """Prompt the user to filter a large component inventory by keyword.
+
+    When there are more than 20 components and the client supports
+    elicitation, asks the user for a category keyword to narrow results.
+    Falls back transparently on unsupported clients.
+
+    Args:
+        ctx: MCP tool context with optional elicit() method.
+        components: Full component list from core.list_components.
+
+    Returns:
+        Category keyword string if user provided one, None otherwise.
+    """
+    component_count = len(components)
+    if component_count <= 20 or not hasattr(ctx, "elicit"):
+        return None
+
+    # Sanitize component names before embedding in message
+    _MAX_NAMES = 50
+    _MAX_NAME_LEN = 128
+    sample_names: list[str] = []
+    for comp in components[:_MAX_NAMES]:
+        raw = comp.get("name", "") if isinstance(comp, dict) else ""
+        sanitized = "".join(ch for ch in str(raw) if ch.isprintable())[:_MAX_NAME_LEN]
+        if sanitized:
+            sample_names.append(sanitized)
+
+    sample_preview = ", ".join(sample_names[:10])
+    elicit_msg = (
+        f"This Figma file contains {component_count} components "
+        f"(e.g. {sample_preview}{'…' if len(sample_names) > 10 else ''}). "
+        "Enter a category keyword to filter results (e.g. 'Button', 'Card', 'Nav'), "
+        "or leave empty to return all components."
+    )
+
+    try:
+        elicit_result = await ctx.elicit(elicit_msg, ComponentCategoryFilter)
+        if elicit_result.action == "accept" and elicit_result.data is not None:
+            kw = elicit_result.data.category_filter.strip()
+            if kw:
+                return kw
+        # "decline" or "cancel" → return all components
+    except NotImplementedError:
+        logger.debug("figma_list_components: elicitation not supported, returning all %d components", component_count)
+    except Exception:
+        logger.exception("figma_list_components: elicitation failed unexpectedly, returning all components")
+
+    return None
+
+
+def _apply_component_filter(
+    result: dict[str, Any],
+    category_filter: str,
+) -> dict[str, Any]:
+    """Filter a component inventory result by category keyword.
+
+    Performs case-insensitive substring matching on component names.
+    Returns a shallow copy of the result with filtered components and
+    filter metadata added.
+
+    Args:
+        result: Component inventory dict with 'components' key.
+        category_filter: Keyword to match against component names.
+
+    Returns:
+        Filtered result dict with 'filtered_by' and 'total_before_filter' added.
+    """
+    components = result.get("components", [])
+    kw_lower = category_filter.lower()
+    filtered = [
+        comp for comp in components
+        if kw_lower in str(comp.get("name", "") if isinstance(comp, dict) else "").lower()
+    ]
+    out = dict(result)
+    out["components"] = filtered
+    out["filtered_by"] = category_filter
+    out["total_before_filter"] = len(components)
+    return out
 
 
 @mcp.tool(annotations=ToolAnnotations(
@@ -399,55 +572,10 @@ async def figma_list_components(
     except FigmaAPIError as exc:
         raise _handle_figma_error(exc) from exc
 
-    # Elicit component scope filter when inventory is large (> 20 components)
     components = result.get("components", [])
-    component_count = len(components)
-    category_filter: str | None = None
-
-    if component_count > 20 and hasattr(ctx, "elicit"):
-        # Sanitize component names before embedding in message (strip non-printable, cap)
-        _MAX_NAMES = 50
-        _MAX_NAME_LEN = 128
-        sample_names: list[str] = []
-        for comp in components[:_MAX_NAMES]:
-            raw = comp.get("name", "") if isinstance(comp, dict) else ""
-            sanitized = "".join(ch for ch in str(raw) if ch.isprintable())[:_MAX_NAME_LEN]
-            if sanitized:
-                sample_names.append(sanitized)
-
-        sample_preview = ", ".join(sample_names[:10])
-        elicit_msg = (
-            f"This Figma file contains {component_count} components "
-            f"(e.g. {sample_preview}{'…' if len(sample_names) > 10 else ''}). "
-            "Enter a category keyword to filter results (e.g. 'Button', 'Card', 'Nav'), "
-            "or leave empty to return all components."
-        )
-
-        try:
-            elicit_result = await ctx.elicit(elicit_msg, ComponentCategoryFilter)
-            if elicit_result.action == "accept" and elicit_result.data is not None:
-                kw = elicit_result.data.category_filter.strip()
-                if kw:
-                    category_filter = kw
-            # "decline" or "cancel" → return all components
-        except NotImplementedError:
-            # Elicitation not supported by this Claude Code version — return all components
-            logger.debug("figma_list_components: elicitation not supported, returning all %d components", component_count)
-        except Exception:
-            # Unexpected error — log and proceed with full list (fail-open)
-            logger.exception("figma_list_components: elicitation failed unexpectedly, returning all components")
-
-    # Apply category filter if provided
+    category_filter = await _elicit_component_filter(ctx, components)
     if category_filter:
-        kw_lower = category_filter.lower()
-        filtered = [
-            comp for comp in components
-            if kw_lower in str(comp.get("name", "") if isinstance(comp, dict) else "").lower()
-        ]
-        result = dict(result)
-        result["components"] = filtered
-        result["filtered_by"] = category_filter
-        result["total_before_filter"] = component_count
+        result = _apply_component_filter(result, category_filter)
 
     return json.dumps(result, indent=2)
 

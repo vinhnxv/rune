@@ -37,14 +37,22 @@ except ImportError:
 
         @staticmethod
         def fromstring(xml_string: str) -> ET.Element:
-            """Parse XML string with entity resolution disabled."""
-            import xml.parsers.expat as expat
+            """Parse XML string with entity resolution disabled.
 
-            parser = ET.XMLParser()
-            parser.entity = {}  # type: ignore[attr-defined]  # Disable entity resolution
-            # Disable DTD processing for defense-in-depth
-            parser.parser.UseForeignDTD(False)
-            parser.parser.SetParamEntityParsing(expat.XML_PARAM_ENTITY_PARSING_NEVER)
+            Uses a TreeBuilder target to avoid direct access to XMLParser
+            internals (parser.entity and parser.parser) which became readonly
+            or inaccessible in Python 3.9+.
+
+            Rejects XML containing entity declarations or DOCTYPE to prevent
+            Billion Laughs (CVE-2003-1564) and quadratic blowup attacks.
+            """
+            if "<!ENTITY" in xml_string or "<!DOCTYPE" in xml_string:
+                raise ET.ParseError(
+                    "XML with entity declarations or DOCTYPE is not allowed "
+                    "(XXE protection)"
+                )
+            builder = ET.TreeBuilder()
+            parser = ET.XMLParser(target=builder)
             parser.feed(xml_string)
             return parser.close()
 
