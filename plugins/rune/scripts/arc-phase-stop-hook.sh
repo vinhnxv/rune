@@ -475,6 +475,50 @@ _smart_compact_needed() {
   return 1  # Sufficient context
 }
 
+# ── Phase-specific echo extraction (Phase 3 Feedback Loop) ──
+# Extracts up to 3 matching echo entries for a target phase from MEMORY.md.
+# Filters by phase_tags match. Excludes observations/traced layers (low signal).
+_extract_phase_echoes() {
+  local memory_file="$1"
+  local target_phase="$2"
+  local max_entries=3
+  local count=0
+  local in_entry=false
+  local current_entry=""
+  local include_entry=false
+  local layer_excluded=false
+
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^###\ \[ ]]; then
+      # RP-002 FIX: Flush previous entry — layer_excluded takes priority over phase_tags match
+      if $include_entry && ! $layer_excluded && [[ -n "$current_entry" ]] && (( count < max_entries )); then
+        printf '%s\n\n' "$current_entry"
+        (( count++ ))
+      fi
+      in_entry=true
+      current_entry="$line"
+      include_entry=false
+      layer_excluded=false
+    elif $in_entry; then
+      current_entry="${current_entry}
+${line}"
+      # BACK-002 FIX: Use word-boundary matching to prevent partial matches
+      # (e.g., "work" should not match "network"). Check for comma/bracket/space delimiters.
+      if [[ "$line" == *"phase_tags"* ]] && [[ "$line" =~ (^|[],[:space:]])${target_phase}($|[],[:space:]]) ]]; then
+        include_entry=true
+      fi
+      # RP-002 FIX: Layer exclusion cannot be overridden by later phase_tags match
+      if [[ "$line" == *"**layer**: observations"* ]] || [[ "$line" == *"**layer**: traced"* ]]; then
+        layer_excluded=true
+      fi
+    fi
+  done < "$memory_file"
+
+  if $include_entry && ! $layer_excluded && [[ -n "$current_entry" ]] && (( count < max_entries )); then
+    printf '%s\n' "$current_entry"
+  fi
+}
+
 # ── Defensive: demote phases "skipped" without skip_reason back to "pending" ──
 # Root cause: LLM orchestrator may batch-skip conditional phases in a single turn
 # without reading reference files (which set skip_reason). Phases skipped legitimately
@@ -1459,6 +1503,28 @@ ${PHASE_PROMPT}"
       "$NEXT_PHASE" "$_rl_wait" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date +%Y-%m-%dT%H:%M:%SZ)" \
       >> "${_PHASE_LOG_DIR}/phase-log.jsonl" 2>/dev/null || true
   fi
+fi
+
+# ── Meta-QA Echo Injection (Phase 3 Feedback Loop) ──
+_meta_qa_echoes=""
+_mqa_file="${CWD}/.rune/echoes/meta-qa/MEMORY.md"
+if [[ -f "$_mqa_file" && ! -L "$_mqa_file" ]]; then
+  # RP-001 FIX: File size guard — prevent oversized MEMORY.md from exhausting 28s hook budget
+  _mqa_size=$(wc -c < "$_mqa_file" 2>/dev/null || echo 999999)
+  if [[ "$_mqa_size" -lt 524288 ]]; then  # 512KB safety cap
+    _meta_qa_echoes=$(_extract_phase_echoes "$_mqa_file" "$NEXT_PHASE")
+  else
+    _trace "META-QA: MEMORY.md too large (${_mqa_size} bytes) — skipping echo injection"
+  fi
+fi
+if [[ -n "$_meta_qa_echoes" ]] && [[ "${#_meta_qa_echoes}" -lt 2000 ]]; then
+  PHASE_PROMPT="${PHASE_PROMPT}
+
+## Meta-QA Warnings (from self-audit)
+The following recurring issues have been detected in previous runs of this phase.
+Take extra care to avoid these patterns:
+
+${_meta_qa_echoes}"
 fi
 
 # ── Hook execution summary to phase-log.jsonl (AC-5) ──

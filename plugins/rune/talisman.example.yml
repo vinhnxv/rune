@@ -767,6 +767,24 @@ echoes:
 #   #   hook: orchestrator
 
 # ──────────────────────────────────────────────
+# Self-Audit — Self-improvement feedback loop (v2.4.0+)
+# ──────────────────────────────────────────────
+self_audit:
+  enabled: true
+  phase_injection: true              # Inject meta-QA echoes into arc phase prompts
+  max_injection_entries: 3           # Max echo entries per phase injection
+  max_injection_tokens: 500          # Token budget for injection
+  auto_suggest_threshold: 3          # Suggest self-audit after N marginal QA scores
+  auto_suggest_debounce_hours: 24    # Don't re-suggest within this window
+  apply_mode:
+    require_high_confidence: true    # Only propose HIGH confidence fixes
+    min_recurrence: 3               # Only propose fixes for findings seen N+ times
+    atomic_commits: true            # Each fix = separate git commit
+  effectiveness:
+    track: true                     # Track pre/post metrics for applied fixes
+    regression_alert: true          # Alert when a fix causes regression
+
+# ──────────────────────────────────────────────
 # Review — Context Intelligence, Linter Awareness, and convergence (v1.35.0+)
 # ──────────────────────────────────────────────
 # review:                                # Uncomment this line AND the desired child keys below to enable review settings.
