@@ -104,6 +104,7 @@ esac
 # --- Guard 6: Determine role from team name pattern ---
 ROLE="orchestrator"
 case "$TEAM_NAME" in
+  *self-audit*|*meta-qa*)      ROLE="meta-qa" ;;
   *review*|*appraise*|*audit*) ROLE="reviewer" ;;
   *plan*|*devise*)             ROLE="planner" ;;
   *work*|*strive*|*arc*)       ROLE="workers" ;;

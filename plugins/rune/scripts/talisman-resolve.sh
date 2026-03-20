@@ -298,7 +298,8 @@ all_shards=$(echo "$merged" | jq '{
     horizon: (.horizon // {}),
     evidence: (.evidence // {}),
     doubt_seer: (.doubt_seer // {}),
-    state_weaver: (.state_weaver // {})
+    state_weaver: (.state_weaver // {}),
+    qa_gates: (.qa_gates // {})
   },
   settings: {
     version: .version,
@@ -331,7 +332,8 @@ all_shards=$(echo "$merged" | jq '{
     arc_hierarchy: (.arc_hierarchy // {}),
     schema_drift: (.schema_drift // {}),
     deployment_verification: (.deployment_verification // {}),
-    integrations: (.integrations // {})
+    integrations: (.integrations // {}),
+    self_audit: (.self_audit // {})
   },
   keyword_detection: (.keyword_detection // {}),
   tool_failure_tracking: (.tool_failure_tracking // {}),

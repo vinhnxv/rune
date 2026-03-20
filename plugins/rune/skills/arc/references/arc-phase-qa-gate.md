@@ -400,6 +400,8 @@ async function runQAGate(id, parentPhase, checkpoint) {
     : null
 
   // Spawn QA team (independent from main arc team)
+  // NOTE: Uses teamTransition protocol — TeamDelete retry before TeamCreate
+  // to handle stale teams from crashed prior runs (AC-17 edge case 6e).
   const qaTeamName = `arc-qa-${id}-${parentPhase}`
   TeamCreate({ team_name: qaTeamName })
 
@@ -697,6 +699,157 @@ must include all QA phases for postPhaseCleanup (Layer 2):
 ```
 
 See `arc-phase-cleanup.md`.
+
+---
+
+## QA Dashboard Generation
+
+After all QA gates have run, the orchestrator generates a consolidated dashboard summarizing
+quality across the entire arc pipeline. This dashboard is used in the PR body (Phase 9: ship)
+and persisted as a JSON artifact for programmatic consumption.
+
+### Dashboard Algorithm
+
+```javascript
+// Called after the last QA-gated phase completes (typically test_qa)
+// Reads all verdict files and produces a unified quality dashboard.
+function generateQADashboard(arcId) {
+  const qaDir = `tmp/arc/${arcId}/qa`
+  const GATED_PHASES = ["forge", "work", "gap_analysis", "code_review", "mend", "test"]
+
+  // Collect verdict data from all gated phases
+  const phaseResults = []
+  for (const phase of GATED_PHASES) {
+    const verdictPath = `${qaDir}/${phase}-verdict.json`
+    try {
+      const verdict = JSON.parse(Read(verdictPath))
+      phaseResults.push({
+        phase,
+        verdict: verdict.verdict ?? "UNKNOWN",
+        overall_score: verdict.scores?.overall_score ?? 0,
+        artifact_score: verdict.scores?.artifact_score ?? 0,
+        quality_score: verdict.scores?.quality_score ?? 0,
+        completeness_score: verdict.scores?.completeness_score ?? 0,
+        checks_passed: verdict.checks?.passed ?? 0,
+        checks_total: verdict.checks?.total ?? 0,
+        retry_count: verdict.retry_count ?? 0,
+        timed_out: verdict.timed_out ?? false,
+      })
+    } catch (e) {
+      // Phase was skipped or verdict file missing — record as skipped
+      phaseResults.push({
+        phase,
+        verdict: "SKIPPED",
+        overall_score: null,
+        artifact_score: null,
+        quality_score: null,
+        completeness_score: null,
+        checks_passed: 0,
+        checks_total: 0,
+        retry_count: 0,
+        timed_out: false,
+      })
+    }
+  }
+
+  // Compute weighted average across all phases that ran (exclude SKIPPED)
+  const scoredPhases = phaseResults.filter(r => r.verdict !== "SKIPPED" && r.overall_score !== null)
+
+  // Inline utility — weighted average with custom weight function
+  function weightedAverage(items, weightFn) {
+    if (items.length === 0) return 0
+    let totalWeight = 0
+    let weightedSum = 0
+    for (const item of items) {
+      const w = weightFn(item)
+      weightedSum += item.overall_score * w
+      totalWeight += w
+    }
+    return totalWeight > 0 ? Math.round((weightedSum / totalWeight) * 10) / 10 : 0
+  }
+
+  // Weight phases by check count (more checks = more influence on overall score)
+  const pipelineScore = weightedAverage(scoredPhases, (r) => Math.max(r.checks_total, 1))
+
+  // Determine pipeline integrity verdict
+  let pipelineIntegrity = "UNKNOWN"
+  const failedPhases = scoredPhases.filter(r => r.verdict === "FAIL")
+  const marginalPhases = scoredPhases.filter(r => r.verdict === "MARGINAL")
+  if (failedPhases.length > 0) {
+    pipelineIntegrity = "DEGRADED"
+  } else if (marginalPhases.length > 0) {
+    pipelineIntegrity = "ACCEPTABLE"
+  } else if (scoredPhases.length > 0) {
+    pipelineIntegrity = pipelineScore >= 90 ? "EXCELLENT" : "HEALTHY"
+  }
+
+  const totalRetries = phaseResults.reduce((sum, r) => sum + r.retry_count, 0)
+  const totalChecks = phaseResults.reduce((sum, r) => sum + r.checks_total, 0)
+  const totalPassed = phaseResults.reduce((sum, r) => sum + r.checks_passed, 0)
+
+  const summary = {
+    arc_id: arcId,
+    pipeline_score: pipelineScore,
+    pipeline_integrity: pipelineIntegrity,
+    phases_scored: scoredPhases.length,
+    phases_skipped: phaseResults.filter(r => r.verdict === "SKIPPED").length,
+    total_checks: totalChecks,
+    total_passed: totalPassed,
+    total_retries: totalRetries,
+    phase_results: phaseResults,
+    generated_at: new Date().toISOString(),
+  }
+
+  // Write JSON artifact
+  Write(`${qaDir}/dashboard.json`, JSON.stringify(summary, null, 2))
+
+  // Generate markdown table for PR body injection
+  const markdown = generateDashboardMarkdown(summary)
+  Write(`${qaDir}/dashboard.md`, markdown)
+
+  return summary
+}
+
+// Generates a markdown table summarizing QA dashboard data.
+function generateDashboardMarkdown(summary) {
+  let md = `### QA Dashboard\n\n`
+  md += `**Pipeline Score**: ${summary.pipeline_score}/100 | `
+  md += `**Integrity**: ${summary.pipeline_integrity} | `
+  md += `**Checks**: ${summary.total_passed}/${summary.total_checks} passed`
+  if (summary.total_retries > 0) {
+    md += ` | **Retries**: ${summary.total_retries}`
+  }
+  md += `\n\n`
+
+  md += `| Phase | Verdict | Score | Artifact | Quality | Completeness | Checks |\n`
+  md += `|-------|---------|-------|----------|---------|--------------|--------|\n`
+
+  for (const r of summary.phase_results) {
+    if (r.verdict === "SKIPPED") {
+      md += `| ${r.phase} | SKIPPED | — | — | — | — | — |\n`
+    } else {
+      const checkStr = `${r.checks_passed}/${r.checks_total}`
+      const retryStr = r.retry_count > 0 ? ` (${r.retry_count} retry)` : ""
+      md += `| ${r.phase} | ${r.verdict}${retryStr} | ${r.overall_score} | ${r.artifact_score} | ${r.quality_score} | ${r.completeness_score} | ${checkStr} |\n`
+    }
+  }
+
+  return md
+}
+```
+
+### Dashboard Output Paths
+
+| Artifact | Path | Format |
+|----------|------|--------|
+| Dashboard JSON | `tmp/arc/{id}/qa/dashboard.json` | Machine-readable summary |
+| Dashboard Markdown | `tmp/arc/{id}/qa/dashboard.md` | Human-readable table for PR body |
+
+### Integration Points
+
+- **Phase 9 (ship)**: Reads `dashboard.md` and injects into PR body between Arc Pipeline Results and Review Summary
+- **Post-arc completion report**: Reads `dashboard.json` for pipeline quality metrics
+- **Checkpoint**: `pipeline_score` and `pipeline_integrity` can be stored in checkpoint totals
 
 ---
 

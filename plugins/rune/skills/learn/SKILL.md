@@ -20,11 +20,16 @@ description: |
   </example>
 
   <example>
+  user: "/rune:learn --detector meta-qa"
+  assistant: "Scanning last 7 days of arc checkpoints... Found 2 meta-QA patterns (code_review retried in 3/4 arcs, high convergence in 2/4 arcs). Write 2 patterns? [y/N]"
+  </example>
+
+  <example>
   user: "/rune:learn --dry-run"
   assistant: "Dry run: 5 patterns found. No entries written."
   </example>
 user-invocable: true
-argument-hint: "[--since DAYS] [--detector cli|review|arc|hook|all] [--dry-run]"
+argument-hint: "[--since DAYS] [--detector cli|review|arc|hook|meta-qa|all] [--dry-run]"
 allowed-tools:
   - Read
   - Write
@@ -41,7 +46,7 @@ Extract CLI correction patterns and review recurrence findings from session hist
 ## Overview
 
 ```
-/rune:learn [--since DAYS] [--detector cli|review|arc|hook|all] [--dry-run]
+/rune:learn [--since DAYS] [--detector cli|review|arc|hook|meta-qa|all] [--dry-run]
 /rune:learn --watch    # Enable real-time correction detection for this session
 /rune:learn --unwatch  # Disable real-time detection
 ```
@@ -145,6 +150,33 @@ Each recurrence:
 }
 ```
 
+#### 2e. Meta-QA Detector (`--detector meta-qa|all`)
+
+```bash
+MQA_OUTPUT=$(bash "${LEARN_DIR}/meta-qa-detector.sh" \
+  --since "${SINCE_DAYS}" \
+  --project "${PROJECT_DIR}" 2>/dev/null)
+```
+
+Output: `{"patterns":[...], "total_arcs_scanned": N}`
+
+Each pattern:
+```json
+{
+  "type": "meta-qa",
+  "pattern_key": "retry_rate:code_review",
+  "description": "code_review phase retried in 3/4 recent arcs (75%)",
+  "affected_phase": "code_review",
+  "arc_count": 3,
+  "total_arcs": 4,
+  "confidence": 0.8,
+  "evidence": [".rune/arc/arc-123/checkpoint.json"],
+  "category": "retry_rate|convergence|qa_score"
+}
+```
+
+See [detectors.md](references/detectors.md) for algorithm details and pattern categories.
+
 #### 2d. Arc + Hook Detectors (inline, `--detector arc|hook|all`)
 
 These run as inline grep-based scans — no separate detector script:
@@ -180,6 +212,7 @@ Display a summary table:
  2 │ Recurrence  │ SEC-001  │ SQL injection in query()   │ high
  3 │ CLI Fix     │ Bash     │ WrongPath: ./scripts/run   │ 0.75
  4 │ Arc Failure │ Phase 7  │ Test phase timed out       │ n/a
+ 5 │ Meta-QA     │ code_review │ Phase retried in 3/4 arcs │ 0.80
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 4 patterns found. Ready to write to echoes.
 ```
@@ -214,6 +247,7 @@ Map pattern type to role:
 | Review Recurrence | reviewer |
 | Arc Failure | orchestrator |
 | Hook Denial | orchestrator |
+| Meta-QA Pattern | meta-qa |
 
 Map confidence to layer:
 | Confidence | Layer |

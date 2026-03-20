@@ -50,6 +50,7 @@ These keywords at the START of `$ARGUMENTS` trigger immediate routing (no classi
 | `team-status` / `team health` | `/rune:team-status` | Yes |
 | `test-browser` / `browser test` / `e2e` | `/rune:test-browser` | Yes |
 | `ux` / `ux-review` / `heuristic` | `/rune:ux-design-process` | Yes |
+| `self-audit` / `meta-qa` / `lint agents` / `check rune health` / `rune health` | `/rune:self-audit` | Yes |
 | `team-delegate` | `/rune:team-delegate` | Yes — experimental |
 | `cancel` | (cancel mode) | Detect active workflow → route to correct cancel command |
 | `help` | (guidance mode) | Show Rune overview + suggest next action |

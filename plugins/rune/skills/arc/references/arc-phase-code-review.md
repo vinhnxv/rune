@@ -167,6 +167,17 @@ if (exists(verdictPath)) {
   }
 }
 
+// STEP 1.7: Wiring map context injection (v2.2.0+)
+// When the plan contains `## Integration & Wiring Map`, extract it and write as
+// additional context for review agents. Advisory only — reviewers can cross-reference
+// wiring expectations against committed code but are NOT required to produce WIRE- findings.
+const planContent = Read(checkpoint.plan_file)
+const wiringSection = planContent.match(/## Integration & Wiring Map[\s\S]*?(?=\n## [^#]|\n---|\Z)/)
+if (wiringSection) {
+  Write(`tmp/arc/${id}/wiring-context.md`, wiringSection[0])
+  reviewContext += `\n\nWiring Map Context: Plan includes an Integration & Wiring Map. See tmp/arc/${id}/wiring-context.md for expected file modifications and registration points. Cross-reference committed changes against wiring expectations.`
+}
+
 // STEP 2: Codex Oracle conditional inclusion
 // Run Codex detection per roundtable-circle/references/codex-detection.md.
 // If detected and "review" is in talisman.codex.workflows, include Codex Oracle.

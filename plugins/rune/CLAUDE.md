@@ -39,7 +39,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **audit** | Full codebase audit — thin wrapper that sets scope=full, depth=deep, then delegates to shared Roundtable Circle orchestration phases. Default: deep. Use `--standard` to override. (v1.84.0+) Use `--incremental` for stateful 3-tier auditing (file, workflow, API) with persistent priority scoring and coverage tracking. (v1.91.0+) Use `--dirs`/`--exclude-dirs` for directory-scoped audits (Phase 0 pre-filter). Use `--prompt`/`--prompt-file` for custom per-session Ash instructions (Phase 0.5B injection). |
 | **forge** | Deepen existing plan with Forge Gaze enrichment (+ `--exhaustive`). Goldmask Lore Layer integration (Phase 1.5) for risk-aware section prioritization |
 | **git-worktree** | Use when running /rune:strive with --worktree flag or when work.worktree.enabled is set in talisman. Covers worktree lifecycle, wave-based execution, merge strategy, and conflict resolution patterns |
-| **inspect** | Plan-vs-implementation deep audit with 4 Inspector Ashes (10 dimensions, 8 gap categories). Dimension 10: Design Fidelity (conditional — grace-warden, DES- prefix, gated by design_sync.enabled + design refs). Goldmask Lore Layer integration (Phase 1.3) for risk-aware gap prioritization |
+| **inspect** | Plan-vs-implementation deep audit with 4 Inspector Ashes (10 dimensions, 9 gap categories). Dimension 10: Design Fidelity (conditional — grace-warden, DES- prefix, gated by design_sync.enabled + design refs). Wiring verification (conditional — grace-warden, WIRE- prefix, when plan has `## Integration & Wiring Map`). Goldmask Lore Layer integration (Phase 1.3) for risk-aware gap prioritization |
 | **mend** | Parallel finding resolution from TOME. Goldmask data passthrough (risk-overlaid severity, risk context injection) + quick check (Phase 5.95) |
 | **brainstorm** | Collaborative idea exploration — 3 modes: Solo (conversation), Roundtable Advisors (3 agent personas), Deep (advisors + elicitation sages). Persistent output in `docs/brainstorms/` |
 | **devise** | Multi-agent planning: brainstorm, research, validate, synthesize, shatter, forge, review, **grounding gate** (+ `--quick`). Predictive Goldmask (2-8 agents, basic default) for pre-implementation risk assessment. Phase 4D Grounding Gate (evidence-verifier + assumption-slayer) runs ALWAYS — even with `--quick` — to catch hallucinated solutions |
@@ -53,6 +53,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **untitledui-mcp** | UntitledUI official MCP integration — 6 tools (search_components, list_components, get_component, get_component_bundle, get_page_templates, get_page_template_files), code conventions (React Aria `Aria*` prefix, Tailwind v4.1 semantic colors, kebab-case, compound components), builder-protocol metadata for automated pipeline integration. Non-invocable — auto-loaded by design-system-discovery when UntitledUI is detected |
 | **status** | Background dispatch status — check progress, pending questions, and worker health for `/rune:strive --background` dispatches |
 | **learn** | Session self-learning — extracts CLI correction patterns and review recurrence findings from session JSONL history, persists high-confidence patterns to Rune Echoes via 4-phase pipeline (scan → detect → report → confirm+write). `/rune:learn` |
+| **self-audit** | Runtime analysis of arc artifacts — hallucination detection, agent effectiveness tracking, convergence analysis, metrics store. `--mode static\|runtime\|all`, `--arc-id`, `--history` |
 | **file-todos** | Standalone file-based todo tracking — create, triage, list, search, resolve, dedup, and track structured todo files with YAML frontmatter. Session-scoped in `tmp/`. Not integrated into workflow pipelines — invoke manually via `/rune:file-todos` |
 | **resolve-todos** | Standalone todo resolution using Agent Teams with verify-before-fix pipeline. Spawns todo-verifier + mend-fixer agents. Not integrated into workflow pipelines — invoke manually via `/rune:resolve-todos` |
 | **elevate** | Promote project echoes to global scope with domain tagging and dedup |
@@ -61,6 +62,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **runs** | Workflow run history and diagnostics (non-invocable) |
 | **ux-design-process** | UX design intelligence — heuristic evaluation checklists, interaction pattern libraries, flow validation. Auto-loaded for frontend files (non-invocable) |
 | **post-findings** | Post Rune review/audit findings to GitHub PR as formatted comment. Parses TOME, formats markdown, posts via `gh`. Configurable via `pr_comment` talisman section. `/rune:post-findings` |
+| **self-audit** | Meta-QA self-audit — validates workflow definitions, agent prompts, rules, hooks for inconsistencies and drift. 4 audit dimensions with per-dimension scoring. Echo-integrated recurrence tracking via `.rune/echoes/meta-qa/`. `/rune:self-audit` |
 
 ## Commands
 
@@ -81,6 +83,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | `/rune:work` | Beginner alias for `/rune:strive` — implement a plan |
 | `/rune:review` | Beginner alias for `/rune:appraise` — review code changes |
 | `/rune:team-delegate` | Task delegation dashboard — assign, message, create tasks (experimental) |
+| `/rune:self-audit` | Meta-QA self-audit of Rune's own workflow system (4 dimensions, echo-integrated) |
 
 ## Discipline Engineering
 
@@ -422,7 +425,7 @@ echo "Commands: $(find plugins/rune/commands -name '*.md' -not -path '*/referenc
 
 ## References
 
-- [Agent registry](references/agent-registry.md) — 112 total agents (69 CORE in agents/ + 43 EXTENDED in registry/). 12 stack specialist reviewers are prompt templates, not registered agents
+- [Agent registry](references/agent-registry.md) — 121 total agents (78 CORE in agents/ + 43 EXTENDED in registry/). 12 stack specialist reviewers are prompt templates, not registered agents
 - [Key concepts](references/key-concepts.md) — Tarnished, Ash, TOME, Arc, Mend, Forge Gaze, Echoes
 - [Lore glossary](references/lore-glossary.md) — Elden Ring terminology mapping
 - [Output conventions](references/output-conventions.md) — Directory structure per workflow

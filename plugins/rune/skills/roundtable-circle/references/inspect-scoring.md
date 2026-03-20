@@ -71,7 +71,7 @@ weightedDimScore = sum(score * weight) / sum(weights)
 
 ## Gap Classification
 
-### 8 Gap Categories
+### 9 Gap Categories
 
 Findings from all Inspectors are classified into gap categories:
 
@@ -79,6 +79,7 @@ Findings from all Inspectors are classified into gap categories:
 |-------------|-------------------|---------------------|
 | Correctness | Grace Warden | Logic errors, wrong behavior, incorrect data flow |
 | Coverage | Grace Warden | Missing requirements, unimplemented features |
+| Wiring | Grace Warden | Integration point gaps, missing file modifications, unregistered code (WIRE- prefix, NOT auto-fixable) |
 | Test | Vigil Keeper | Missing tests, untested paths, low coverage |
 | Observability | Vigil Keeper | Missing logs, metrics, traces, health checks |
 | Security | Ruin Prophet | Auth gaps, injection risks, secret exposure |
