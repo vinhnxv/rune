@@ -253,6 +253,10 @@ function spawnAgent(handleOrConfig, spec) {
   TaskCreate(taskOpts)
 
   // Spawn agent into team
+  // NOTE: The `model` parameter does not support [1m] context window variants.
+  // Teammates always get the default context window for the model, even if the
+  // lead session has 1M context. See cost-tier-mapping.md "Known Limitation" section.
+  // GitHub: #36670, #36100.
   Agent({
     name: name,
     subagent_type: "general-purpose",
@@ -270,6 +274,21 @@ function spawnAgent(handleOrConfig, spec) {
 
   // Track spawned agent on handle for cleanup fallback
   handle.spawnedAgents.push(ref)
+
+  // DUPLICATE DETECTION (GitHub #32996):
+  // Write spawn signal file. If file already exists, SDK may have duplicated the spawn.
+  // Signal dir is already created by orchestrator before spawning (TEAM-002 contract).
+  const signalDir = `tmp/.rune-signals/${handle.teamName}`
+  const spawnFile = `${signalDir}/.spawn-${name}`
+  try {
+    const existing = Read(spawnFile)
+    if (existing) {
+      warn(`DUPLICATE SPAWN DETECTED: Agent "${name}" spawn signal already exists. SDK may have duplicated this teammate (GitHub #32996). Token cost may be 2x for this agent.`)
+    }
+  } catch (e) { /* file doesn't exist — expected for first spawn */ }
+  // Write timestamp. mkdir -p is safe (dir likely exists from orchestrator setup).
+  Bash(`mkdir -p "${signalDir}" && echo "$(date +%s)" > "${spawnFile}"`)
+
   return ref
 }
 ```
@@ -354,6 +373,13 @@ function shutdownWave(handle) {
   }
 
   // 2. Send shutdown_request to all wave members
+  // NOTE: shutdownWave() does NOT use the force-reply pattern from shutdown() step 2.
+  // Rationale: inter-wave teammates are expected to be actively processing messages
+  // (they just finished their tasks and sent completion signals via SendMessage).
+  // The force-reply pattern is only needed in final shutdown() where teammates may
+  // have spent their entire lifecycle doing Read/Write/Bash without SendMessage.
+  // If shutdownWave() reliability becomes an issue, apply the same force-reply
+  // pattern here. See shutdown() step 2 and GitHub #31389.
   for (const member of waveMembers) {
     SendMessage({
       type: "shutdown_request",
@@ -474,13 +500,43 @@ function shutdown(handle) {
   }
 
   // --- 2. Send shutdown_request to all members — track delivery failures ---
+  // FORCE-REPLY PATTERN (fixes GitHub #31389):
+  // Teammates only process shutdown_request if their last turn included SendMessage.
+  // Step 2a sends a plain text message to ALL members first (batched),
+  // then Step 2b pauses once, then Step 2c sends shutdown_request to all.
+  // Batched approach: ~2s total vs ~Ns sequential (one sleep per member).
+  //
   // SendMessage throwing = teammate already exited (confirmed dead).
   // SendMessage succeeding = teammate received request (confirmed alive).
   // This is the ONLY reliable liveness signal — pgrep -P cannot detect
   // in-process or tmux teammates (they are not child processes of $PPID).
   let confirmedAlive = 0
   let confirmedDead = 0
+  const aliveMembers = []
+
+  // Step 2a: Batch force-reply — put ALL teammates in message-processing state
   for (const member of allMembers) {
+    try {
+      SendMessage({
+        type: "message",
+        recipient: member,
+        content: "Acknowledge: workflow completing"
+      })
+      aliveMembers.push(member)
+    } catch (e) {
+      // Member already exited — confirmed dead, skip shutdown_request
+      confirmedDead++
+    }
+  }
+
+  // Step 2b: Single shared pause — teammates process the force-reply message
+  // 2 seconds covers even slow tool-call completion. One pause for ALL members.
+  if (aliveMembers.length > 0) {
+    Bash("sleep 2")
+  }
+
+  // Step 2c: Send shutdown_request to all alive members
+  for (const member of aliveMembers) {
     try {
       SendMessage({
         type: "shutdown_request",
@@ -489,7 +545,7 @@ function shutdown(handle) {
       })
       confirmedAlive++
     } catch (e) {
-      // Member already exited — confirmed dead, continue with others
+      // Member exited between force-reply and shutdown — rare but possible
       confirmedDead++
     }
   }
