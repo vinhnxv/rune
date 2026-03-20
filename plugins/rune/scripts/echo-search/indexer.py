@@ -137,24 +137,70 @@ def _check_file_size(file_path: str) -> bool:
     return True
 
 
-def parse_memory_file(file_path: str, role: str) -> list[dict]:
-    """Parse structured echo entries from a role-specific MEMORY.md file."""
+def _parse_entry_metadata(
+    stripped: str, current_entry: dict, file_path: str, line_num: int,
+) -> bool:
+    """Parse metadata lines (Source, Category, Domain) from an entry.
+
+    Attempts to match the line against Source, Category, and Domain
+    patterns. Mutates ``current_entry`` in place when a match is found.
+
+    Args:
+        stripped: Stripped line text.
+        current_entry: Entry dict to update.
+        file_path: File path for warning messages.
+        line_num: 1-based line number for warning messages.
+
+    Returns:
+        True if the line was consumed as metadata, False otherwise.
+    """
+    source_match = _SOURCE_RE.match(stripped)
+    if source_match and not current_entry["source"]:
+        current_entry["source"] = source_match.group(1).strip()
+        return True
+    # QUAL-100: Parse **Category**: and **Domain**: outside in_metadata guard
+    # so doc pack entries (and entries with varied formatting) are parsed
+    # robustly. Guard with "only if still at default" to prevent re-parsing
+    # once explicitly set — preserving BACK-007 intent (first match wins).
+    category_match = _CATEGORY_RE.match(stripped)
+    if category_match and current_entry["category"] == "general":
+        raw_category = category_match.group(1).strip().lower()
+        if raw_category in ALLOWED_CATEGORIES:
+            current_entry["category"] = raw_category
+        else:
+            print("WARN: unknown category '%s' at %s:%d, defaulting to 'general'" % (
+                raw_category, file_path, line_num), file=sys.stderr)
+            current_entry["category"] = "general"
+        return True
+    domain_match = _DOMAIN_RE.match(stripped)
+    if domain_match and current_entry["domain"] == "general":
+        raw_domain = domain_match.group(1).strip().lower()
+        if raw_domain in ALLOWED_DOMAINS:
+            current_entry["domain"] = raw_domain
+        else:
+            print("WARN: unknown domain '%s' at %s:%d, defaulting to 'general'" % (
+                raw_domain, file_path, line_num), file=sys.stderr)
+        return True
+    return False
+
+
+def _extract_entries_from_sections(
+    lines: list[str], role: str, file_path: str,
+) -> list[dict]:
+    """Extract entry dicts from parsed MEMORY.md lines.
+
+    Iterates through lines, detecting entry headers and collecting
+    metadata and content for each entry section.
+
+    Args:
+        lines: Raw file lines (with newlines).
+        role: Role name for entry attribution.
+        file_path: Source file path.
+
+    Returns:
+        List of entry dicts (without IDs — caller assigns those).
+    """
     entries: list[dict] = []
-    if not os.path.isfile(file_path):
-        return entries
-
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-    except UnicodeDecodeError:
-        print("WARN: skipping binary/corrupted file: %s" % file_path, file=sys.stderr)
-        return entries
-
-    # SEC-P2-005: truncate beyond MAX_LINES
-    if len(lines) > MAX_LINES:
-        print("WARN: truncating %s at %d lines (max %d)" % (file_path, len(lines), MAX_LINES), file=sys.stderr)
-        lines = lines[:MAX_LINES]
-
     current_entry: dict | None = None
     content_lines: list[str] = []
     in_metadata = False
@@ -171,32 +217,7 @@ def parse_memory_file(file_path: str, role: str) -> list[dict]:
             prev_line_blank = True  # allow consecutive headers (next header can follow)
             continue
         if current_entry is not None:
-            source_match = _SOURCE_RE.match(stripped)
-            if source_match and not current_entry["source"]:
-                current_entry["source"] = source_match.group(1).strip()
-                continue  # source lines don't affect blank-line tracking
-            # QUAL-100: Parse **Category**: and **Domain**: outside in_metadata guard
-            # so doc pack entries (and entries with varied formatting) are parsed
-            # robustly. Guard with "only if still at default" to prevent re-parsing
-            # once explicitly set — preserving BACK-007 intent (first match wins).
-            category_match = _CATEGORY_RE.match(stripped)
-            if category_match and current_entry["category"] == "general":
-                raw_category = category_match.group(1).strip().lower()
-                if raw_category in ALLOWED_CATEGORIES:
-                    current_entry["category"] = raw_category
-                else:
-                    print("WARN: unknown category '%s' at %s:%d, defaulting to 'general'" % (
-                        raw_category, file_path, i + 1), file=sys.stderr)
-                    current_entry["category"] = "general"
-                continue
-            domain_match = _DOMAIN_RE.match(stripped)
-            if domain_match and current_entry["domain"] == "general":
-                raw_domain = domain_match.group(1).strip().lower()
-                if raw_domain in ALLOWED_DOMAINS:
-                    current_entry["domain"] = raw_domain
-                else:
-                    print("WARN: unknown domain '%s' at %s:%d, defaulting to 'general'" % (
-                        raw_domain, file_path, i + 1), file=sys.stderr)
+            if _parse_entry_metadata(stripped, current_entry, file_path, i + 1):
                 continue
             if in_metadata:
                 # First non-blank, non-source, non-category, non-domain line → end metadata
@@ -206,6 +227,27 @@ def parse_memory_file(file_path: str, role: str) -> list[dict]:
         prev_line_blank = stripped.strip() == ""
 
     _flush_entry(current_entry, content_lines, entries, file_path)
+    return entries
+
+
+def parse_memory_file(file_path: str, role: str) -> list[dict]:
+    """Parse structured echo entries from a role-specific MEMORY.md file."""
+    if not os.path.isfile(file_path):
+        return []
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+    except UnicodeDecodeError:
+        print("WARN: skipping binary/corrupted file: %s" % file_path, file=sys.stderr)
+        return []
+
+    # SEC-P2-005: truncate beyond MAX_LINES
+    if len(lines) > MAX_LINES:
+        print("WARN: truncating %s at %d lines (max %d)" % (file_path, len(lines), MAX_LINES), file=sys.stderr)
+        lines = lines[:MAX_LINES]
+
+    entries = _extract_entries_from_sections(lines, role, file_path)
 
     for entry in entries:
         entry["id"] = generate_id(entry["role"], entry["line_number"], entry["file_path"])

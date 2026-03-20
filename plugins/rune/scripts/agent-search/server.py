@@ -414,33 +414,22 @@ def _migrate_v2(conn: sqlite3.Connection) -> None:
         raise
 
 
-def rebuild_index(
-    conn: sqlite3.Connection,
-    entries: List[Dict[str, Any]],
-) -> int:
-    """Rebuild the full-text search index from parsed agent entries.
-
-    Drops and recreates all rows. FTS5 triggers handle index sync.
-
-    Args:
-        conn: Active database connection.
-        entries: List of agent entry dicts from indexer.discover_and_parse().
-
-    Returns:
-        Number of entries indexed.
-    """
-    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-    # Clear existing entries
+def _clear_index(conn: sqlite3.Connection) -> None:
+    """Clear all rows from agent_entries and FTS tables."""
     conn.execute("DELETE FROM agent_entries")
-    # Rebuild FTS content
     conn.execute("DELETE FROM agent_entries_fts")
 
-    # DES-001 FIX: Sort entries by priority ASCENDING so that higher-priority
-    # agents are inserted LAST and win INSERT OR REPLACE conflicts.
-    # Without this, builtin (p100) inserted first gets overwritten by user (p50).
-    sorted_entries = sorted(entries, key=lambda e: e.get("priority", 50))
 
+def _insert_entries(
+    conn: sqlite3.Connection,
+    sorted_entries: List[Dict[str, Any]],
+    now: str,
+) -> Tuple[int, int]:
+    """Insert agent entries with priority-aware conflict resolution.
+
+    Returns:
+        Tuple of (count_indexed, count_skipped).
+    """
     count = 0
     skipped = 0
     for entry in sorted_entries:
@@ -526,6 +515,35 @@ def rebuild_index(
         except sqlite3.IntegrityError as exc:
             logger.warning("Skipping duplicate agent '%s': %s", name, exc)
             skipped += 1
+
+    return count, skipped
+
+
+def rebuild_index(
+    conn: sqlite3.Connection,
+    entries: List[Dict[str, Any]],
+) -> int:
+    """Rebuild the full-text search index from parsed agent entries.
+
+    Drops and recreates all rows. FTS5 triggers handle index sync.
+
+    Args:
+        conn: Active database connection.
+        entries: List of agent entry dicts from indexer.discover_and_parse().
+
+    Returns:
+        Number of entries indexed.
+    """
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    _clear_index(conn)
+
+    # DES-001 FIX: Sort entries by priority ASCENDING so that higher-priority
+    # agents are inserted LAST and win INSERT OR REPLACE conflicts.
+    # Without this, builtin (p100) inserted first gets overwritten by user (p50).
+    sorted_entries = sorted(entries, key=lambda e: e.get("priority", 50))
+
+    count, skipped = _insert_entries(conn, sorted_entries, now)
 
     conn.commit()
     if skipped:
@@ -699,6 +717,115 @@ def compute_composite_score(
 
 
 # ---------------------------------------------------------------------------
+# Core operations — helpers
+# ---------------------------------------------------------------------------
+
+
+def _build_search_query(
+    fts_query: str,
+    category: Optional[str],
+    source: Optional[str],
+    language: Optional[str],
+    fetch_limit: int,
+) -> Tuple[str, List[Any]]:
+    """Build FTS5 SQL query with optional filter clauses."""
+    sql = """
+        SELECT e.*, bm25(agent_entries_fts) AS bm25_score
+        FROM agent_entries_fts f
+        JOIN agent_entries e ON f.rowid = e.rowid
+        WHERE agent_entries_fts MATCH ?
+    """
+    params: List[Any] = [fts_query]
+
+    # Apply filters via SQL WHERE clauses
+    if category:
+        sql += " AND e.category = ?"
+        params.append(category)
+    if source:
+        sql += " AND e.source = ?"
+        params.append(source)
+    if language:
+        # Comma-delimited matching: wrap stored value in commas to avoid
+        # substring false positives (e.g., 'go' matching 'golang').
+        # Parameterized query prevents SQL injection.
+        # SEC-WARD-001 FIX: Escape LIKE wildcards (% and _) in user input
+        safe_lang = language.lower().replace("%", "\\%").replace("_", "\\_")
+        sql += " AND (',' || e.languages || ',' LIKE ? ESCAPE '\\')"
+        params.append("%," + safe_lang + ",%")
+
+    sql += " ORDER BY bm25(agent_entries_fts) LIMIT ?"
+    params.append(fetch_limit)
+
+    return sql, params
+
+
+def _execute_search_query(
+    conn: sqlite3.Connection,
+    sql: str,
+    params: List[Any],
+    query: str,
+) -> List[Dict[str, Any]]:
+    """Execute FTS5 query with fallback to prefix search on syntax error."""
+    try:
+        rows = conn.execute(sql, params).fetchall()
+    except sqlite3.OperationalError as exc:
+        # FTS5 query syntax error — try plain prefix search
+        logger.debug("FTS5 query failed, trying prefix: %s", exc)
+        fts_query = _fallback_fts_query(query)
+        if not fts_query:
+            return []
+        params[0] = fts_query
+        rows = conn.execute(sql, params).fetchall()
+
+    return [dict(row) for row in rows]
+
+
+def _score_and_rank_results(
+    results: List[Dict[str, Any]],
+    query: str,
+    phase: Optional[str],
+    category: Optional[str],
+    exclude: Optional[List[str]],
+    limit: int,
+) -> Tuple[List[Dict[str, Any]], int]:
+    """Apply exclusions, composite scoring, and trim to limit."""
+    # Apply exclusions
+    if exclude:
+        exclude_set = set(n.lower() for n in exclude)
+        results = [r for r in results if r.get("name", "").lower() not in exclude_set]
+
+    # Re-rank with composite scoring
+    results = compute_composite_score(results, query, phase, category)
+
+    # Trim to requested limit
+    total = len(results)
+    results = results[:limit]
+
+    return results, total
+
+
+def _format_search_results(results: List[Dict[str, Any]]) -> None:
+    """Clean up results for output — remove body, parse CSV fields to lists."""
+    for r in results:
+        r.pop("body", None)
+        r.pop("bm25_score", None)
+        # Parse phases back to list
+        phases_str = r.get("compatible_phases", "")
+        if isinstance(phases_str, str):
+            r["compatible_phases"] = [
+                p.strip() for p in phases_str.split(",") if p.strip()
+            ]
+        # Parse tags back to list
+        tags_str = r.get("tags", "")
+        if isinstance(tags_str, str):
+            r["tags"] = [t.strip() for t in tags_str.split(",") if t.strip()]
+        # Parse languages back to list
+        langs_str = r.get("languages", "")
+        if isinstance(langs_str, str):
+            r["languages"] = [l.strip() for l in langs_str.split(",") if l.strip()]
+
+
+# ---------------------------------------------------------------------------
 # Core operations
 # ---------------------------------------------------------------------------
 
@@ -754,77 +881,11 @@ def do_search(
         # Execute BM25 search with broader fetch for re-ranking
         fetch_limit = min(limit * 3, 60)  # Fetch 3x for re-ranking headroom
 
-        sql = """
-            SELECT e.*, bm25(agent_entries_fts) AS bm25_score
-            FROM agent_entries_fts f
-            JOIN agent_entries e ON f.rowid = e.rowid
-            WHERE agent_entries_fts MATCH ?
-        """
-        params: List[Any] = [fts_query]
+        sql, params = _build_search_query(fts_query, category, source, language, fetch_limit)
+        results = _execute_search_query(conn, sql, params, query)
 
-        # Apply filters via SQL WHERE clauses
-        if category:
-            sql += " AND e.category = ?"
-            params.append(category)
-        if source:
-            sql += " AND e.source = ?"
-            params.append(source)
-        if language:
-            # Comma-delimited matching: wrap stored value in commas to avoid
-            # substring false positives (e.g., 'go' matching 'golang').
-            # Parameterized query prevents SQL injection.
-            # SEC-WARD-001 FIX: Escape LIKE wildcards (% and _) in user input
-            safe_lang = language.lower().replace("%", "\\%").replace("_", "\\_")
-            sql += " AND (',' || e.languages || ',' LIKE ? ESCAPE '\\')"
-            params.append("%," + safe_lang + ",%")
-
-        sql += " ORDER BY bm25(agent_entries_fts) LIMIT ?"
-        params.append(fetch_limit)
-
-        try:
-            rows = conn.execute(sql, params).fetchall()
-        except sqlite3.OperationalError as exc:
-            # FTS5 query syntax error — try plain prefix search
-            logger.debug("FTS5 query failed, trying prefix: %s", exc)
-            fts_query = _fallback_fts_query(query)
-            if not fts_query:
-                return {"results": [], "total": 0, "query": query, "time_ms": 0}
-            params[0] = fts_query
-            rows = conn.execute(sql, params).fetchall()
-
-        # Convert to dicts
-        results = [dict(row) for row in rows]
-
-        # Apply exclusions
-        if exclude:
-            exclude_set = set(n.lower() for n in exclude)
-            results = [r for r in results if r.get("name", "").lower() not in exclude_set]
-
-        # Re-rank with composite scoring
-        results = compute_composite_score(results, query, phase, category)
-
-        # Trim to requested limit
-        total = len(results)
-        results = results[:limit]
-
-        # Clean up results for output (remove body to save tokens)
-        for r in results:
-            r.pop("body", None)
-            r.pop("bm25_score", None)
-            # Parse phases back to list
-            phases_str = r.get("compatible_phases", "")
-            if isinstance(phases_str, str):
-                r["compatible_phases"] = [
-                    p.strip() for p in phases_str.split(",") if p.strip()
-                ]
-            # Parse tags back to list
-            tags_str = r.get("tags", "")
-            if isinstance(tags_str, str):
-                r["tags"] = [t.strip() for t in tags_str.split(",") if t.strip()]
-            # Parse languages back to list
-            langs_str = r.get("languages", "")
-            if isinstance(langs_str, str):
-                r["languages"] = [l.strip() for l in langs_str.split(",") if l.strip()]
+        results, total = _score_and_rank_results(results, query, phase, category, exclude, limit)
+        _format_search_results(results)
 
     finally:
         conn.close()

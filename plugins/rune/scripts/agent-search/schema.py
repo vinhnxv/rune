@@ -29,6 +29,96 @@ VALID_CATEGORIES = frozenset({
 })
 
 
+def _validate_name(name: Any, errors: List[str]) -> None:
+    """Validate agent name field.
+
+    Args:
+        name: Agent name value to validate.
+        errors: Error list to append to.
+    """
+    if not name or not isinstance(name, str):
+        errors.append("name is required and must be a non-empty string")
+    elif len(name) > MAX_NAME_LENGTH:
+        errors.append("name exceeds %d character limit" % MAX_NAME_LENGTH)
+    elif not VALID_NAME_RE.match(name):
+        errors.append(
+            "name must start with a lowercase letter and contain "
+            "only lowercase letters, digits, and hyphens"
+        )
+
+
+def _validate_description(
+    description: Any, source: str, errors: List[str]
+) -> None:
+    """Validate agent description field.
+
+    Args:
+        description: Agent description value to validate.
+        source: Source category (affects minimum length rule).
+        errors: Error list to append to.
+    """
+    if not description or not isinstance(description, str):
+        errors.append("description is required and must be a non-empty string")
+    elif len(description) < 20 and source == "user":
+        errors.append(
+            "description must be at least 20 characters for user agents"
+        )
+    elif len(description) > MAX_DESCRIPTION_LENGTH:
+        errors.append(
+            "description exceeds %d character limit" % MAX_DESCRIPTION_LENGTH
+        )
+
+
+_VALID_TAG_RE = re.compile(r'^[a-z0-9:._\-/]+$')
+
+
+def _validate_tags(tags: Any, errors: List[str]) -> None:
+    """Validate agent tags field.
+
+    Args:
+        tags: Tags list value to validate.
+        errors: Error list to append to.
+    """
+    if tags is None:
+        return
+    if not isinstance(tags, list):
+        errors.append("tags must be a list of strings")
+    elif len(tags) > MAX_TAGS_COUNT:
+        errors.append("tags exceed %d item limit" % MAX_TAGS_COUNT)
+    else:
+        for i, tag in enumerate(tags):
+            if not isinstance(tag, str):
+                errors.append("tags[%d] must be a string" % i)
+            elif len(tag) > MAX_TAG_LENGTH:
+                errors.append(
+                    "tags[%d] exceeds %d character limit"
+                    % (i, MAX_TAG_LENGTH)
+                )
+            elif not _VALID_TAG_RE.match(tag):
+                errors.append(
+                    "tags[%d] contains invalid characters — "
+                    "only lowercase letters, digits, colons, dots, "
+                    "hyphens, underscores, and slashes allowed" % i
+                )
+
+
+def _validate_body(body: Any, errors: List[str]) -> None:
+    """Validate agent body field.
+
+    Args:
+        body: Body markdown value to validate.
+        errors: Error list to append to.
+    """
+    if body is None:
+        return
+    if not isinstance(body, str):
+        errors.append("body must be a string")
+    elif len(body) > MAX_BODY_LENGTH:
+        errors.append(
+            "body exceeds %d character limit" % MAX_BODY_LENGTH
+        )
+
+
 def validate_agent_schema(
     name: Any,
     description: Any,
@@ -55,28 +145,8 @@ def validate_agent_schema(
     """
     errors: List[str] = []
 
-    # --- Name validation ---
-    if not name or not isinstance(name, str):
-        errors.append("name is required and must be a non-empty string")
-    elif len(name) > MAX_NAME_LENGTH:
-        errors.append("name exceeds %d character limit" % MAX_NAME_LENGTH)
-    elif not VALID_NAME_RE.match(name):
-        errors.append(
-            "name must start with a lowercase letter and contain "
-            "only lowercase letters, digits, and hyphens"
-        )
-
-    # --- Description validation ---
-    if not description or not isinstance(description, str):
-        errors.append("description is required and must be a non-empty string")
-    elif len(description) < 20 and source == "user":
-        errors.append(
-            "description must be at least 20 characters for user agents"
-        )
-    elif len(description) > MAX_DESCRIPTION_LENGTH:
-        errors.append(
-            "description exceeds %d character limit" % MAX_DESCRIPTION_LENGTH
-        )
+    _validate_name(name, errors)
+    _validate_description(description, source, errors)
 
     # --- Source validation ---
     if source not in VALID_SOURCES:
@@ -94,36 +164,7 @@ def validate_agent_schema(
                 % ", ".join(sorted(VALID_CATEGORIES))
             )
 
-    # --- Tags validation ---
-    if tags is not None:
-        if not isinstance(tags, list):
-            errors.append("tags must be a list of strings")
-        elif len(tags) > MAX_TAGS_COUNT:
-            errors.append("tags exceed %d item limit" % MAX_TAGS_COUNT)
-        else:
-            _valid_tag_re = re.compile(r'^[a-z0-9:._\-/]+$')
-            for i, tag in enumerate(tags):
-                if not isinstance(tag, str):
-                    errors.append("tags[%d] must be a string" % i)
-                elif len(tag) > MAX_TAG_LENGTH:
-                    errors.append(
-                        "tags[%d] exceeds %d character limit"
-                        % (i, MAX_TAG_LENGTH)
-                    )
-                elif not _valid_tag_re.match(tag):
-                    errors.append(
-                        "tags[%d] contains invalid characters — "
-                        "only lowercase letters, digits, colons, dots, "
-                        "hyphens, underscores, and slashes allowed" % i
-                    )
-
-    # --- Body validation ---
-    if body is not None:
-        if not isinstance(body, str):
-            errors.append("body must be a string")
-        elif len(body) > MAX_BODY_LENGTH:
-            errors.append(
-                "body exceeds %d character limit" % MAX_BODY_LENGTH
-            )
+    _validate_tags(tags, errors)
+    _validate_body(body, errors)
 
     return errors

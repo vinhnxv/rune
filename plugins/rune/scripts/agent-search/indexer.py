@@ -100,6 +100,40 @@ def _check_file_size(file_path: str) -> bool:
     return True
 
 
+def _parse_yaml_value(key: str, value: str) -> Tuple[str, Any]:
+    """Parse a YAML scalar value, handling quotes, booleans, and numbers.
+
+    Returns (key, parsed_value).
+    """
+    # FLAW-014 FIX: Strip surrounding quotes from YAML scalar values
+    if (value.startswith('"') and value.endswith('"')) or \
+       (value.startswith("'") and value.endswith("'")):
+        value = value[1:-1]
+    # Parse booleans and numbers
+    if value.lower() in ("true", "yes"):
+        return key, True
+    elif value.lower() in ("false", "no"):
+        return key, False
+    else:
+        try:
+            return key, int(value)
+        except ValueError:
+            return key, value
+
+
+def _flush_pending_state(
+    metadata: Dict[str, Any],
+    current_key: Optional[str],
+    current_list: Optional[List[str]],
+    current_multiline: Optional[List[str]],
+) -> None:
+    """Flush any pending list or multiline value into metadata."""
+    if current_key and current_list is not None:
+        metadata[current_key] = current_list
+    elif current_key and current_multiline is not None:
+        metadata[current_key] = "\n".join(current_multiline).strip()
+
+
 def _parse_frontmatter(lines: List[str]) -> Tuple[Dict[str, Any], int]:
     """Parse YAML frontmatter from lines, returning (metadata, body_start_line).
 
@@ -125,10 +159,7 @@ def _parse_frontmatter(lines: List[str]) -> Tuple[Dict[str, Any], int]:
     for i, line in enumerate(lines[1:], start=1):
         if _FRONTMATTER_RE.match(line):
             # Flush any pending state
-            if current_key and current_list is not None:
-                metadata[current_key] = current_list
-            elif current_key and current_multiline is not None:
-                metadata[current_key] = "\n".join(current_multiline).strip()
+            _flush_pending_state(metadata, current_key, current_list, current_multiline)
             body_start = i + 1
             break
 
@@ -153,13 +184,13 @@ def _parse_frontmatter(lines: List[str]) -> Tuple[Dict[str, Any], int]:
                 continue
             else:
                 # End of multiline — flush and fall through
-                metadata[current_key] = "\n".join(current_multiline).strip()
+                _flush_pending_state(metadata, current_key, current_list, current_multiline)
                 current_key = None
                 current_multiline = None
 
         # Flush pending list
         if current_key and current_list is not None:
-            metadata[current_key] = current_list
+            _flush_pending_state(metadata, current_key, current_list, current_multiline)
             current_key = None
             current_list = None
 
@@ -184,26 +215,11 @@ def _parse_frontmatter(lines: List[str]) -> Tuple[Dict[str, Any], int]:
                 current_key = None
                 current_list = None
                 current_multiline = None
-                # FLAW-014 FIX: Strip surrounding quotes from YAML scalar values
-                if (value.startswith('"') and value.endswith('"')) or \
-                   (value.startswith("'") and value.endswith("'")):
-                    value = value[1:-1]
-                # Parse booleans and numbers
-                if value.lower() in ("true", "yes"):
-                    metadata[key] = True
-                elif value.lower() in ("false", "no"):
-                    metadata[key] = False
-                else:
-                    try:
-                        metadata[key] = int(value)
-                    except ValueError:
-                        metadata[key] = value
+                _, parsed = _parse_yaml_value(key, value)
+                metadata[key] = parsed
 
     # Flush any remaining state
-    if current_key and current_list is not None:
-        metadata[current_key] = current_list
-    elif current_key and current_multiline is not None:
-        metadata[current_key] = "\n".join(current_multiline).strip()
+    _flush_pending_state(metadata, current_key, current_list, current_multiline)
 
     # Fix BACK-003: Detect unclosed frontmatter (no closing ---)
     if body_start == len(lines) and len(metadata) > 0:
@@ -453,6 +469,115 @@ def _valid_agent_files(directory: str) -> List[str]:
     return results
 
 
+def _scan_standard_sources(
+    plugin_root: str,
+    project_dir: str,
+) -> List[Dict[str, Any]]:
+    """Scan the 4 standard agent source directories.
+
+    Sources (in priority order):
+      1. agents/              (builtin, p100)
+      2. registry/            (extended, p80)
+      3. .claude/agents/      (project, p75)
+      4. .rune/rune-agents/   (rune-project, p70)
+    """
+    entries: List[Dict[str, Any]] = []
+
+    source_dirs = [
+        (os.path.join(plugin_root, "agents"), "builtin"),
+        (os.path.join(plugin_root, "registry"), "extended"),
+        (os.path.join(project_dir, ".claude", "agents"), "project"),
+        (os.path.join(project_dir, ".rune", "rune-agents"), "rune-project"),
+    ]
+
+    for dir_path, source in source_dirs:
+        for fpath in _valid_agent_files(dir_path):
+            entry = parse_agent_file(fpath, source)
+            if entry:
+                entries.append(entry)
+
+    return entries
+
+
+def _scan_extra_dirs(
+    extra_agent_dirs: Optional[List[str]],
+    project_dir: str,
+) -> List[Dict[str, Any]]:
+    """Scan extra agent directories from talisman config with containment checks."""
+    entries: List[Dict[str, Any]] = []
+
+    if not extra_agent_dirs or not isinstance(extra_agent_dirs, list):
+        return entries
+
+    for extra_dir in extra_agent_dirs:
+        if not isinstance(extra_dir, str) or not extra_dir:
+            continue
+        # Resolve relative paths against project_dir
+        if not os.path.isabs(extra_dir):
+            extra_dir = os.path.join(project_dir, extra_dir)
+        # SEC: containment — skip if path escapes project or home
+        real_dir = os.path.realpath(extra_dir)
+        real_project = os.path.realpath(project_dir)
+        real_home = os.path.expanduser("~")
+        # SEC-001 FIX: Add os.sep guard against prefix-collision bypass.
+        if not (real_dir.startswith(real_project + os.sep) or real_dir == real_project
+                or real_dir.startswith(real_home + os.sep) or real_dir == real_home):
+            print("WARN: extra_agent_dir '%s' outside project/home — skipped" % extra_dir,
+                  file=sys.stderr)
+            continue
+        for fpath in _valid_agent_files(real_dir):
+            entry = parse_agent_file(fpath, "external")
+            if entry:
+                entries.append(entry)
+
+    return entries
+
+
+def _parse_talisman_user_agents(
+    talisman_user_agents: Optional[List[Dict[str, Any]]],
+) -> List[Dict[str, Any]]:
+    """Parse inline user agent definitions from talisman.yml."""
+    entries: List[Dict[str, Any]] = []
+
+    if not talisman_user_agents or not isinstance(talisman_user_agents, list):
+        return entries
+
+    for i, agent_def in enumerate(talisman_user_agents):
+        if not isinstance(agent_def, dict):
+            continue
+        name = agent_def.get("name", "user-agent-%d" % i)
+        if not isinstance(name, str) or not VALID_NAME_RE.match(name):
+            continue
+        # Extract languages, normalize to lowercase
+        user_langs_raw = agent_def.get("languages", [])
+        if isinstance(user_langs_raw, str):
+            user_langs_raw = [user_langs_raw]
+        user_langs = [l.strip().lower() for l in user_langs_raw
+                      if isinstance(l, str) and l.strip()]
+
+        entry = {
+            "id": generate_id(name, "user", "talisman:%d" % i),
+            "name": name,
+            "description": agent_def.get("description", ""),
+            "category": agent_def.get("category", "unknown"),
+            "primary_phase": "",
+            "compatible_phases": agent_def.get("phases", []),
+            "tags": agent_def.get("tags", []),
+            "languages": user_langs,
+            "source": "user",
+            "priority": SOURCE_PRIORITIES["user"],
+            "tools": agent_def.get("tools", []),
+            "model": agent_def.get("model", ""),
+            "max_turns": agent_def.get("maxTurns", 0),
+            "body": agent_def.get("body", ""),
+            "file_path": "talisman:user_agents[%d]" % i,
+            "metadata": agent_def,
+        }
+        entries.append(entry)
+
+    return entries
+
+
 def discover_and_parse(
     plugin_root: str,
     project_dir: str,
@@ -480,90 +605,13 @@ def discover_and_parse(
     """
     all_entries: List[Dict[str, Any]] = []
 
-    # Source 1: builtin agents (agents/)
-    builtin_dir = os.path.join(plugin_root, "agents")
-    for fpath in _valid_agent_files(builtin_dir):
-        entry = parse_agent_file(fpath, "builtin")
-        if entry:
-            all_entries.append(entry)
-
-    # Source 2: extended registry (registry/)
-    registry_dir = os.path.join(plugin_root, "registry")
-    for fpath in _valid_agent_files(registry_dir):
-        entry = parse_agent_file(fpath, "extended")
-        if entry:
-            all_entries.append(entry)
-
-    # Source 3: project agents (.claude/agents/)
-    project_agents_dir = os.path.join(project_dir, ".claude", "agents")
-    for fpath in _valid_agent_files(project_agents_dir):
-        entry = parse_agent_file(fpath, "project")
-        if entry:
-            all_entries.append(entry)
-
-    # Source 4: rune-project agents (.rune/rune-agents/) — search-only
-    rune_agents_dir = os.path.join(project_dir, ".rune", "rune-agents")
-    for fpath in _valid_agent_files(rune_agents_dir):
-        entry = parse_agent_file(fpath, "rune-project")
-        if entry:
-            all_entries.append(entry)
+    # Sources 1-4: standard directory scans
+    all_entries.extend(_scan_standard_sources(plugin_root, project_dir))
 
     # Source 5: extra agent directories (from talisman extra_agent_dirs)
-    if extra_agent_dirs and isinstance(extra_agent_dirs, list):
-        for extra_dir in extra_agent_dirs:
-            if not isinstance(extra_dir, str) or not extra_dir:
-                continue
-            # Resolve relative paths against project_dir
-            if not os.path.isabs(extra_dir):
-                extra_dir = os.path.join(project_dir, extra_dir)
-            # SEC: containment — skip if path escapes project or home
-            real_dir = os.path.realpath(extra_dir)
-            real_project = os.path.realpath(project_dir)
-            real_home = os.path.expanduser("~")
-            # SEC-001 FIX: Add os.sep guard against prefix-collision bypass.
-            if not (real_dir.startswith(real_project + os.sep) or real_dir == real_project
-                    or real_dir.startswith(real_home + os.sep) or real_dir == real_home):
-                print("WARN: extra_agent_dir '%s' outside project/home — skipped" % extra_dir,
-                      file=sys.stderr)
-                continue
-            for fpath in _valid_agent_files(real_dir):
-                entry = parse_agent_file(fpath, "external")
-                if entry:
-                    all_entries.append(entry)
+    all_entries.extend(_scan_extra_dirs(extra_agent_dirs, project_dir))
 
     # Source 6: talisman user agents (inline definitions)
-    if talisman_user_agents and isinstance(talisman_user_agents, list):
-        for i, agent_def in enumerate(talisman_user_agents):
-            if not isinstance(agent_def, dict):
-                continue
-            name = agent_def.get("name", "user-agent-%d" % i)
-            if not isinstance(name, str) or not VALID_NAME_RE.match(name):
-                continue
-            # Extract languages, normalize to lowercase
-            user_langs_raw = agent_def.get("languages", [])
-            if isinstance(user_langs_raw, str):
-                user_langs_raw = [user_langs_raw]
-            user_langs = [l.strip().lower() for l in user_langs_raw
-                          if isinstance(l, str) and l.strip()]
-
-            entry = {
-                "id": generate_id(name, "user", "talisman:%d" % i),
-                "name": name,
-                "description": agent_def.get("description", ""),
-                "category": agent_def.get("category", "unknown"),
-                "primary_phase": "",
-                "compatible_phases": agent_def.get("phases", []),
-                "tags": agent_def.get("tags", []),
-                "languages": user_langs,
-                "source": "user",
-                "priority": SOURCE_PRIORITIES["user"],
-                "tools": agent_def.get("tools", []),
-                "model": agent_def.get("model", ""),
-                "max_turns": agent_def.get("maxTurns", 0),
-                "body": agent_def.get("body", ""),
-                "file_path": "talisman:user_agents[%d]" % i,
-                "metadata": agent_def,
-            }
-            all_entries.append(entry)
+    all_entries.extend(_parse_talisman_user_agents(talisman_user_agents))
 
     return all_entries
