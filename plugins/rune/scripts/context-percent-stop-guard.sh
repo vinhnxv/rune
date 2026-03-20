@@ -119,8 +119,15 @@ AGE=$(( NOW - BRIDGE_MTIME ))
 (( AGE > 300 )) && exit 0
 
 # --- Parse bridge data ---
-USED_PCT=$(jq -r '.used_percentage // 0' "$BRIDGE_FILE" 2>/dev/null || echo "0")
-REMAINING_PCT=$(jq -r '.remaining_percentage // 100' "$BRIDGE_FILE" 2>/dev/null || echo "100")
+# BUG FIX: Bridge file field is "used_pct" (not "used_percentage").
+# Previously read .used_percentage which doesn't exist → always 0 → warnings never fired.
+# Also truncate float to integer (remaining_percentage can be a float like 14.7).
+USED_PCT_RAW=$(jq -r '.used_pct // 0' "$BRIDGE_FILE" 2>/dev/null || echo "0")
+REMAINING_PCT_RAW=$(jq -r '.remaining_percentage // 100' "$BRIDGE_FILE" 2>/dev/null || echo "100")
+
+# Truncate float to integer (e.g., "85.3" → "85", "14.7" → "14")
+USED_PCT="${USED_PCT_RAW%.*}"
+REMAINING_PCT="${REMAINING_PCT_RAW%.*}"
 
 # Validate numeric values
 [[ -z "$USED_PCT" || ! "$USED_PCT" =~ ^[0-9]+$ ]] && exit 0
