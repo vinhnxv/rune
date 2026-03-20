@@ -111,7 +111,12 @@ Detect and FAIL these gap-analysis-specific anti-patterns:
 5. Compute dimension scores (average of items per dimension)
 6. Compute overall score using weights: `(artifact × 0.30) + (quality × 0.30) + (completeness × 0.40)`
 7. Write verdict JSON to the output path specified in spawn prompt
-8. Mark your assigned task as completed via `TaskUpdate`
+8. Write a human-readable report to `{qaDir}/{phase}-report.md` (AC-2) with:
+   - Summary verdict and overall score
+   - Per-dimension breakdown table (dimension | score | weight | weighted)
+   - Per-check detail table (ID | check | verdict | score | evidence)
+   - Failed checks highlighted with remediation suggestions
+9. Mark your assigned task as completed via `TaskUpdate`
 
 ## Verdict JSON Format
 

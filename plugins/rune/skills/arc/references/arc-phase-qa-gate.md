@@ -426,6 +426,71 @@ quality retry budget that should be reserved for genuine quality failures.
 
 ## QA Gate Implementation (arc-phase-qa-gate pseudocode)
 
+### `buildQAAgentPrompt()` — Content Injection (AC-24)
+
+```javascript
+// Builds the prompt for a dedicated per-phase QA agent.
+// KEY: Injects FULL CONTENT of manifest and execution log — not just file paths.
+// This ensures the QA agent has complete source of truth without needing to discover files.
+function buildQAAgentPrompt(id, parentPhase, timestamp, qaDir) {
+  let prompt = ""
+
+  // 1. Inject arc ID and phase context
+  prompt += `## QA Gate Context\n\n`
+  prompt += `- Arc ID: ${id}\n`
+  prompt += `- Parent Phase: ${parentPhase}\n`
+  prompt += `- Timestamp: ${timestamp}\n`
+  prompt += `- Output directory: ${qaDir}\n\n`
+
+  // 2. Inject FULL manifest content (AC-24)
+  const manifestPath = `tmp/arc/${id}/qa-manifests/${parentPhase}.yaml`
+  try {
+    const manifestContent = Read(manifestPath)
+    prompt += `## Process Manifest (full content)\n\n\`\`\`yaml\n${manifestContent}\n\`\`\`\n\n`
+  } catch (_) {
+    prompt += `## Process Manifest\n\nNo manifest found at ${manifestPath} — skip process compliance checks.\n\n`
+  }
+
+  // 3. Inject FULL execution log content (AC-24)
+  const logPath = `tmp/arc/${id}/execution-log.jsonl`
+  try {
+    const logContent = Read(logPath)
+    // Cap at 500 lines to avoid context overflow
+    const logLines = logContent.split('\n')
+    const cappedLog = logLines.length > 500
+      ? logLines.slice(-500).join('\n') + `\n\n(Truncated — showing last 500 of ${logLines.length} lines)`
+      : logContent
+    prompt += `## Execution Log (full content)\n\n\`\`\`jsonl\n${cappedLog}\n\`\`\`\n\n`
+  } catch (_) {
+    prompt += `## Execution Log\n\nNo execution log found at ${logPath}.\n\n`
+  }
+
+  // 4. Inject phase-specific artifact paths for the agent to verify
+  const PHASE_ARTIFACTS = {
+    work: [`tmp/work/${timestamp}/delegation-manifest.json`, `tmp/arc/${id}/work-summary.md`],
+    forge: [`tmp/arc/${id}/enriched-plan.md`],
+    code_review: [`tmp/arc/${id}/tome.md`],
+    mend: [`tmp/arc/${id}/resolution-report.md`],
+    test: [`tmp/arc/${id}/test-report.md`, `tmp/arc/${id}/test-strategy.md`],
+    gap_analysis: [`tmp/arc/${id}/gap-analysis.md`],
+  }
+  const artifacts = PHASE_ARTIFACTS[parentPhase] ?? []
+  prompt += `## Expected Artifacts\n\n${artifacts.map(a => `- \`${a}\``).join('\n')}\n\n`
+
+  // 5. Instruct the agent to cover ALL 3 dimensions and write unified verdict
+  prompt += `## Instructions\n\n`
+  prompt += `Verify ALL 3 dimensions (artifact, quality, completeness) for the **${parentPhase}** phase.\n`
+  prompt += `Use the phase-specific checklist from your agent definition.\n`
+  prompt += `Write your unified verdict JSON to: \`${qaDir}/${parentPhase}-verdict.json\`\n`
+  prompt += `Write a human-readable report to: \`${qaDir}/${parentPhase}-report.md\`\n`
+  prompt += `Then mark your task as completed via TaskUpdate.\n`
+
+  return prompt
+}
+```
+
+### `runQAGate()` — Main Orchestration
+
 ```javascript
 // Called by arc orchestrator when phase === "work_qa"
 // parentPhase = "work" (stripped "_qa" suffix)
@@ -446,69 +511,49 @@ async function runQAGate(id, parentPhase, checkpoint) {
   TeamCreate({ team_name: qaTeamName })
 
   try {
-    // QA Agent 1: Artifact verifier
-    TaskCreate({ team_name: qaTeamName, subject: `QA-ARTIFACTS: Verify ${parentPhase} output files` })
-    Agent({
-      team_name: qaTeamName,
-      name: "qa-artifact-verifier",
-      subagent_type: "rune:qa:phase-qa-verifier",
-      prompt: buildQAAgentPrompt("artifact", id, parentPhase, timestamp, qaDir)
-    })
+    // Design decision: 1 DEDICATED agent per gate, not 3 generic agents.
+    // Each gated phase spawns exactly 1 dedicated QA agent (e.g., work-qa-verifier
+    // for work phase). This agent covers all 3 dimensions (artifact, quality,
+    // completeness) because it has phase-specific domain knowledge — it knows what
+    // "quality" means for work output vs test output.
+    // 3 generic agents would be shallower (no domain expertise) and 3× more expensive.
 
-    // QA Agent 2: Quality verifier
-    TaskCreate({ team_name: qaTeamName, subject: `QA-QUALITY: Verify ${parentPhase} output quality` })
-    Agent({
-      team_name: qaTeamName,
-      name: "qa-quality-verifier",
-      subagent_type: "rune:qa:phase-qa-verifier",
-      prompt: buildQAAgentPrompt("quality", id, parentPhase, timestamp, qaDir)
-    })
-
-    // QA Agent 3: Completeness verifier
-    TaskCreate({ team_name: qaTeamName, subject: `QA-COMPLETENESS: Verify ${parentPhase} coverage` })
-    Agent({
-      team_name: qaTeamName,
-      name: "qa-completeness-verifier",
-      subagent_type: "rune:qa:phase-qa-verifier",
-      prompt: buildQAAgentPrompt("completeness", id, parentPhase, timestamp, qaDir)
-    })
-
-    // Monitor QA agents (5-minute timeout for all 3 agents)
-    waitForCompletion(qaTeamName, 3, { timeoutMs: 300_000 })
-
-    // Aggregate dimension verdicts into overall verdict
-    const artifactVerdict = safeReadJSON(`${qaDir}/${parentPhase}-artifacts.json`, { items: [], timed_out: true })
-    const qualityVerdict = safeReadJSON(`${qaDir}/${parentPhase}-quality.json`, { items: [], timed_out: true })
-    const completenessVerdict = safeReadJSON(`${qaDir}/${parentPhase}-completeness.json`, { items: [], timed_out: true })
-
-    const artifactItems = artifactVerdict.items || []
-    const qualityItems = qualityVerdict.items || []
-    const completenessItems = completenessVerdict.items || []
-
-    const score = (items) => items.length === 0 ? 0 :
-      items.reduce((sum, i) => sum + (i.score ?? (i.verdict === "PASS" ? 100 : 0)), 0) / items.length
-
-    const artifactScore = score(artifactItems)
-    const qualityScore = score(qualityItems)
-    const completenessScore = score(completenessItems)
-
-    // Phase-specific weights (see Dimension Weights per Phase table)
-    const PHASE_WEIGHTS = {
-      work:         { art: 0.30, qual: 0.40, cmp: 0.30 },
-      forge:        { art: 0.20, qual: 0.50, cmp: 0.30 },
-      code_review:  { art: 0.30, qual: 0.30, cmp: 0.40 },
-      mend:         { art: 0.30, qual: 0.30, cmp: 0.40 },
-      test:         { art: 0.40, qual: 0.30, cmp: 0.30 },
-      gap_analysis: { art: 0.30, qual: 0.30, cmp: 0.40 },
+    // Map parentPhase to dedicated agent subagent_type
+    const QA_AGENT_MAP = {
+      forge:        "rune:qa:forge-qa-verifier",
+      work:         "rune:qa:work-qa-verifier",
+      code_review:  "rune:qa:code-review-qa-verifier",
+      mend:         "rune:qa:mend-qa-verifier",
+      test:         "rune:qa:test-qa-verifier",
+      gap_analysis: "rune:qa:gap-analysis-qa-verifier",
     }
-    const w = PHASE_WEIGHTS[parentPhase] ?? { art: 0.33, qual: 0.34, cmp: 0.33 }
-    const overallScore = (artifactScore * w.art) + (qualityScore * w.qual) + (completenessScore * w.cmp)
+    const agentType = QA_AGENT_MAP[parentPhase] ?? "rune:qa:phase-qa-verifier"
+    const agentName = `qa-${parentPhase}-verifier`
 
-    const allItems = [...artifactItems, ...qualityItems, ...completenessItems]
+    TaskCreate({ team_name: qaTeamName, subject: `QA: Verify ${parentPhase} phase (all dimensions)` })
+    Agent({
+      team_name: qaTeamName,
+      name: agentName,
+      subagent_type: agentType,
+      prompt: buildQAAgentPrompt(id, parentPhase, timestamp, qaDir)
+    })
+
+    // Monitor QA agent (5-minute timeout for 1 agent)
+    waitForCompletion(qaTeamName, 1, { timeoutMs: 300_000 })
+
+    // Read unified verdict from dedicated agent
+    const verdict = safeReadJSON(`${qaDir}/${parentPhase}-verdict.json`, { items: [], timed_out: true })
+
+    // The dedicated agent writes the verdict directly — it computes scores internally
+    // using its phase-specific weights (defined in the agent's own prompt).
+    // We read the pre-computed result rather than re-aggregating from 3 dimension files.
+    const allItems = verdict.items || []
     const failedItems = allItems.filter(i => i.verdict === "FAIL")
-    const timedOut = artifactVerdict.timed_out || qualityVerdict.timed_out || completenessVerdict.timed_out
+    const timedOut = verdict.timed_out || false
+    const overallScore = verdict.scores?.overall_score ?? 0
 
-    // Determine verdict from overall score
+    // Determine verdict string from score (agent writes this too, but we re-derive
+    // as a safety check in case the agent's verdict string is malformed)
     let verdictStr = "FAIL"
     if (overallScore >= 70) verdictStr = "PASS"
     if (overallScore >= 90) verdictStr = "EXCELLENT"
@@ -516,29 +561,21 @@ async function runQAGate(id, parentPhase, checkpoint) {
 
     const retryCount = checkpoint.phases?.[`${parentPhase}_qa`]?.retry_count ?? 0
 
-    // Write aggregated verdict
-    Write(`${qaDir}/${parentPhase}-verdict.json`, JSON.stringify({
-      phase: parentPhase,
-      verdict: timedOut ? "FAIL" : verdictStr,
-      retry_count: retryCount,
-      timed_out: timedOut,
-      scores: {
-        artifact_score: Math.round(artifactScore),
-        quality_score: Math.round(qualityScore),
-        completeness_score: Math.round(completenessScore),
-        overall_score: Math.round(overallScore * 10) / 10,
-      },
-      thresholds: { pass_threshold: 70, excellence_threshold: 90 },
-      checks: {
-        total: allItems.length,
-        passed: allItems.filter(i => i.verdict === "PASS").length,
-        failed: failedItems.length,
-        warnings: allItems.filter(i => i.verdict === "WARNING").length,
-      },
-      items: allItems,
-      summary: `Phase ${parentPhase} scored ${overallScore.toFixed(1)}/100 (${verdictStr}). ${failedItems.length} failed checks.`,
-      timestamp: new Date().toISOString(),
-    }, null, 2))
+    // If agent didn't write verdict (timed out), write a FAIL verdict for the stop hook
+    if (timedOut || allItems.length === 0) {
+      Write(`${qaDir}/${parentPhase}-verdict.json`, JSON.stringify({
+        phase: parentPhase,
+        verdict: "FAIL",
+        retry_count: retryCount,
+        timed_out: true,
+        scores: { artifact_score: 0, quality_score: 0, completeness_score: 0, overall_score: 0 },
+        thresholds: { pass_threshold: 70, excellence_threshold: 90 },
+        checks: { total: 0, passed: 0, failed: 0, warnings: 0 },
+        items: [],
+        summary: `Phase ${parentPhase} QA agent timed out or produced no items.`,
+        timestamp: new Date().toISOString(),
+      }, null, 2))
+    }
 
     // Handle QA result — GUARD 9 constraint: MAX_QA_RETRIES < MAX_PHASE_DISPATCHES - 1 = 3
     const MAX_QA_RETRIES = 2  // DO NOT increase without raising MAX_PHASE_DISPATCHES in stop hook
@@ -568,7 +605,7 @@ async function runQAGate(id, parentPhase, checkpoint) {
 
   } finally {
     // Always clean up QA team (standard 5-component pattern from CLAUDE.md)
-    const allQAMembers = ["qa-artifact-verifier", "qa-quality-verifier", "qa-completeness-verifier"]
+    const allQAMembers = [agentName]  // Single dedicated agent per gate
     let confirmedAlive = 0
     for (const member of allQAMembers) {
       try { SendMessage({ type: "shutdown_request", recipient: member, content: "QA complete" }); confirmedAlive++ } catch (_) {}
@@ -898,5 +935,6 @@ function generateDashboardMarkdown(summary) {
 - [arc-phase-work.md](arc-phase-work.md) — Work phase algorithm and backward compatibility notes
 - [arc-phase-cleanup.md](arc-phase-cleanup.md) — Inter-phase cleanup and PHASE_PREFIX_MAP
 - [arc-phase-constants.md](arc-phase-constants.md) — PHASE_ORDER and PHASE_TIMEOUTS
-- [phase-qa-verifier.md](../../../agents/qa/phase-qa-verifier.md) — QA agent definition
+- [phase-qa-verifier.md](../../../agents/qa/phase-qa-verifier.md) — Generic QA agent (fallback)
+- Dedicated QA agents: [forge-qa-verifier](../../../agents/qa/forge-qa-verifier.md), [work-qa-verifier](../../../agents/qa/work-qa-verifier.md), [code-review-qa-verifier](../../../agents/qa/code-review-qa-verifier.md), [mend-qa-verifier](../../../agents/qa/mend-qa-verifier.md), [test-qa-verifier](../../../agents/qa/test-qa-verifier.md), [gap-analysis-qa-verifier](../../../agents/qa/gap-analysis-qa-verifier.md)
 - [discipline-work-loop.md](../../strive/references/discipline-work-loop.md) — Coverage matrix and worker report verification
