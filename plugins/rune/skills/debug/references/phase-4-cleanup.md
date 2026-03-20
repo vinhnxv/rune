@@ -5,8 +5,9 @@
 ### Teammate Fallback Array
 
 ```javascript
-// Fallback: known investigators from Phase 2 spawning
-allMembers = Array.from({ length: hypothesisCount }, (_, i) => `investigator-${i + 1}`)
+// Fallback: known investigators from Phase 2 spawning (static worst-case, safe to send to absent members)
+const MAX_HYPOTHESES = 6
+allMembers = Array.from({ length: MAX_HYPOTHESES }, (_, i) => `investigator-${i + 1}`)
 ```
 
 ### Protocol

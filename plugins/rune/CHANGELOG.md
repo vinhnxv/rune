@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [2.3.3] - 2026-03-20
+
+### Fixed
+- **cleanup**: Replace 5 dynamic fallback arrays with static worst-case arrays to prevent orphan agent leaks after context compaction (CLEAN-001→005)
+- **cleanup**: Add missing `codex-advisory` to strive cleanup fallback (CLEAN-002)
+- **cleanup**: Add 7 static built-in Ash names to audit orchestration cleanup fallback (CLEAN-005)
+- **agents**: Fix `improvement-advisor` agent namespace `rune:investigation:` → `rune:meta-qa:` (DPMT-001)
+- **agents**: Fix `deployment-verifier` and `codex-phase-handler` registry-only agent spawns → `general-purpose` with agent_detail injection (DPMT-002, DPMT-003)
+- **agents**: Qualify `phase-qa-verifier` subagent_type to `rune:qa:phase-qa-verifier` (DPMT-007)
+- **security**: Add 1MB stdin cap to `enforce-gh-account.sh` matching SEC-2 pattern (SEC-002)
+- **security**: Add symlink guard on trace log write in `enforce-gh-account.sh` (SEC-003)
+- **routing**: Add `cc-inspect`, `inspect`, `arc-hierarchy` to `using-rune` routing table (DPMT-004→006)
+- **cleanup**: Rename non-canonical `deleted` → `cleanupTeamDeleteSucceeded` in arc-phase-qa-gate (CLEAN-010)
+- **cleanup**: Remove phantom `reality-arbiter` and `state-weaver` from brainstorm fallback (CLEAN-009)
+- **docs**: Fix mend grace period doc drift — `sleep 20` → adaptive formula (TLC-003)
+
 ## [2.3.2] - 2026-03-20
 
 ### Fixed

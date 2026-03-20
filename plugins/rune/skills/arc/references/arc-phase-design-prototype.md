@@ -304,8 +304,10 @@ const manifest = {
 Write(`tmp/arc/${id}/prototypes/manifest.json`, JSON.stringify(manifest, null, 2))
 
 // === STEP F: Shutdown + Cleanup ===
-for (const workerName of spawnedWorkers) {
-  SendMessage({ type: "shutdown_request", recipient: workerName })
+const PROTO_WORKER_NAMES = ["proto-synth-1", "proto-synth-2", "proto-synth-3"]
+const shutdownTargets = spawnedWorkers?.length > 0 ? spawnedWorkers : PROTO_WORKER_NAMES
+for (const workerName of shutdownTargets) {
+  try { SendMessage({ type: "shutdown_request", recipient: workerName }) } catch (_) {}
 }
 sleep(20_000)
 

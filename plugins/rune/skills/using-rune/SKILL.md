@@ -25,6 +25,8 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 |-----------|---------|-----|
 | "Review my code" / "check this PR" / "code review" | `/rune:appraise` | Multi-agent review of changed files |
 | "Audit the codebase" / "security scan" / "full review" | `/rune:audit` | Comprehensive codebase analysis (all files, not just diff) |
+| "Inspect Claude Code" / "check Claude config" | `/rune:cc-inspect` | Run Claude Code built-in inspection script |
+| "Check implementation" / "plan vs code" / "verify completeness" | `/rune:inspect` | Plan-vs-implementation deep audit with Inspector Ashes |
 | "Brainstorm" / "explore idea" / "what should we build" / "thảo luận" | `/rune:brainstorm` | Collaborative idea exploration (3 modes: solo, roundtable, deep) |
 | "Plan a feature" / "design this" / "how should we build" | `/rune:devise` | Multi-agent planning pipeline (brainstorm + research + synthesize) |
 | "Quick plan" / "just outline it" | `/rune:devise --quick` | Lightweight planning (research + synthesize, skip brainstorm/forge) |
@@ -33,6 +35,7 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 | "Run everything" / "ship it" / "end to end" | `/rune:arc plans/...` | Full 29-phase pipeline (forge → work → review → mend → test → goldmask → ship → merge). Use `--status` to check current phase and progress |
 | "Batch arc" / "run all plans" / "overnight" / "multiple plans" | `/rune:arc-batch plans/*.md` | Sequential batch arc execution with auto-merge and crash recovery |
 | "Process GitHub issues" / "run issues" / "issue backlog" / "auto-implement from issues" | `/rune:arc-issues --label "rune:ready"` | GitHub Issues-driven batch arc — fetches issues, generates plans, runs arc, comments results |
+| "Run child plans" / "hierarchical execution" | `/rune:arc-hierarchy` | Execute parent/child plan decomposition with dependency DAGs |
 | "Deepen this plan" / "add more detail" / "enrich" | `/rune:forge plans/...` | Forge Gaze topic-aware enrichment |
 | "What changed?" / "blast radius" / "impact analysis" | `/rune:goldmask` | Cross-layer impact analysis (Impact + Wisdom + Lore) |
 | "Help me think through" / "structured reasoning" | `/rune:elicit` | Interactive elicitation method selection |
