@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-03-20
+
+### Fixed
+
+- **Premature plan transition on ship completion** — `check_completion()` incorrectly returned `Shipped` when `ship: completed` but `merge: pending`, killing the arc tmux session while bot_review_wait, pr_comment_resolution, and merge phases were still running. Now only returns `Shipped` when merge is `"skipped"` (--no-merge) or absent (--no-pr)
+
+### Added
+
+- **Inter-plan cooldown** — 5-minute delay after successful merge/ship before launching next plan, preventing rapid transitions. Configurable via `TORRENT_INTER_PLAN_COOLDOWN` env var (default: 300s). Press `[s]` to skip. Set to `0` to disable
+
 ## [0.6.1] - 2026-03-20
 
 ### Fixed
