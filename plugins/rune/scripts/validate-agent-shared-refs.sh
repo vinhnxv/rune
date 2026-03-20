@@ -45,6 +45,11 @@ while IFS= read -r agent_file; do
     while IFS= read -r read_path; do
       [ -z "$read_path" ] && continue
       check1_total=$((check1_total + 1))
+      # SHARED-008: Reject path traversal sequences (SEC-001)
+      if printf '%s' "$read_path" | grep -qE '\.\.'; then
+        violation "SHARED-008" "Path traversal in Read() path in $(basename "$agent_file"): $read_path"
+        continue
+      fi
       # Resolve path relative to project root (3 levels up from agents/)
       project_root="$(cd "$PLUGIN_DIR/../.." && pwd)"
       full_path="$project_root/$read_path"
@@ -53,7 +58,7 @@ while IFS= read -r agent_file; do
       else
         violation "SHARED-001" "Broken Read() path in $(basename "$agent_file"): $read_path"
       fi
-    done < <(grep -A 20 '## Bootstrap Context' "$agent_file" \
+    done < <(sed -n '/## Bootstrap Context/,/^## [^B]/p' "$agent_file" \
       | grep -oE 'plugins/rune/agents/shared/[^`'"'"'[:space:]]+' \
       2>/dev/null || true)
   fi
@@ -75,7 +80,7 @@ while IFS= read -r agent_file; do
   if grep -q '## Bootstrap Context' "$agent_file" 2>/dev/null; then
     check2_total=$((check2_total + 1))
     # Check for ${...} or $VAR patterns in Bootstrap Context Read() lines
-    if grep -A 20 '## Bootstrap Context' "$agent_file" \
+    if sed -n '/## Bootstrap Context/,/^## [^B]/p' "$agent_file" \
       | grep -E 'Read.*\$\{|Read.*\$[A-Z]' 2>/dev/null | grep -qv '^--$'; then
       violation "SHARED-002" "Variable interpolation in Bootstrap Read() paths: $(basename "$agent_file")"
       check2_violations=$((check2_violations + 1))
@@ -128,9 +133,9 @@ DUPLICATION_MARKERS=(
   "PROVEN.*Read.*traced.*confirmed"
   "LIKELY.*Read.*pattern.*known issue"
   "UNCERTAIN.*naming.*structure.*partial"
-  "shutdown_request.*respond.*shutdown_response"
-  "Adaptive Reset Depth"
-  "Context Rot Detection"
+  "## Shutdown Protocol"
+  "## Adaptive Reset Depth"
+  "## Context Rot Detection"
 )
 
 while IFS= read -r agent_file; do
@@ -178,6 +183,10 @@ section "6" "SHARED-006 — No injection patterns in shared files"
 check6_total=0
 check6_pass=0
 
+# IMPORTANT: This denylist is a BEST-EFFORT heuristic, NOT a security boundary.
+# It catches naive injection attempts but is trivially bypassable via synonym
+# substitution, encoding tricks, non-English text, or multi-line splitting.
+# The primary security control is human PR review of shared file changes.
 INJECTION_PATTERNS=(
   "ignore.*previous.*instructions"
   "ignore.*above.*instructions"
