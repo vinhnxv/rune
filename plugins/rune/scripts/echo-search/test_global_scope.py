@@ -122,13 +122,27 @@ class TestMergeScopedResults:
         assert merged[0]["id"] == "b"
         assert merged[1]["id"] == "a"
 
-    def test_merge_deduplicates_by_id(self):
-        """Same ID from both scopes — higher composite_score wins."""
+    def test_merge_keeps_same_id_from_different_scopes(self):
+        """BACK-403: Same raw ID from different scopes are kept as separate results."""
         proj = [{"id": "x", "composite_score": 0.5, "source_scope": "project"}]
         glob = [{"id": "x", "composite_score": 0.7, "source_scope": "global"}]
         merged = _merge_scoped_results(proj, glob, 10)
-        assert len(merged) == 1
+        assert len(merged) == 2
+        # Sorted by composite_score descending
         assert merged[0]["composite_score"] == 0.7
+        assert merged[0]["source_scope"] == "global"
+        assert merged[1]["composite_score"] == 0.5
+        assert merged[1]["source_scope"] == "project"
+
+    def test_merge_deduplicates_within_same_scope(self):
+        """Same ID within the same scope — last entry wins (dict overwrite)."""
+        glob = [
+            {"id": "x", "composite_score": 0.5, "source_scope": "global"},
+            {"id": "x", "composite_score": 0.9, "source_scope": "global"},
+        ]
+        merged = _merge_scoped_results([], glob, 10)
+        assert len(merged) == 1
+        assert merged[0]["composite_score"] == 0.9
 
     def test_merge_respects_limit(self):
         """Merged results respect the limit parameter."""

@@ -426,102 +426,79 @@ def _insert_entries(
     sorted_entries: List[Dict[str, Any]],
     now: str,
 ) -> Tuple[int, int]:
-    """Insert agent entries with priority-aware conflict resolution.
+    """Insert agent entries using bulk operations (PERF-009).
+
+    Assumes the index has been cleared first (via _clear_index).  Deduplicates
+    within the batch using priority-aware resolution in Python, then uses
+    executemany() for bulk INSERT and a single INSERT ... SELECT for FTS sync.
 
     Returns:
         Tuple of (count_indexed, count_skipped).
     """
-    count = 0
+    # Within-batch dedup: since tables are cleared before insert, we only need
+    # to resolve priority conflicts within the current batch.
+    # sorted_entries is already sorted by priority ASC, so later (higher
+    # priority) entries overwrite earlier ones in the dict.
+    deduped: Dict[str, Dict[str, Any]] = {}
     skipped = 0
-
-    # Pre-fetch all existing entries to avoid N+1 SELECT per entry (PERF-001).
-    # Also tracks within-batch duplicates as entries are inserted.
-    known: Dict[str, Tuple[int, str]] = {}
-    for row in conn.execute("SELECT name, priority, source FROM agent_entries"):
-        known[row["name"]] = (row["priority"], row["source"])
-
     for entry in sorted_entries:
         name = entry.get("name", "")
         if not name:
             continue
-
-        priority = entry.get("priority", 50)
-        source = entry.get("source", "builtin")
-        phases_str = ",".join(entry.get("compatible_phases", []))
-        tags_str = ",".join(entry.get("tags", []))
-        tools_str = ",".join(str(t) for t in entry.get("tools", []))
-        languages_str = ",".join(entry.get("languages", []))
-
-        # Priority-aware conflict check: skip if existing entry has higher priority
-        prev = known.get(name)
-        if prev and prev[0] > priority:
+        prev = deduped.get(name)
+        if prev and prev.get("priority", 50) > entry.get("priority", 50):
             logger.debug(
-                "Skipping '%s' (source=%s, p%d) — higher-priority entry exists (source=%s, p%d)",
-                name, source, priority, prev[1], prev[0],
+                "Skipping '%s' (source=%s, p%d) — higher-priority entry in batch",
+                name, entry.get("source", "builtin"), entry.get("priority", 50),
             )
             skipped += 1
             continue
-
-        # Delete old FTS entry before replacement to prevent ghost entries
         if prev:
-            old_row = conn.execute(
-                "SELECT rowid FROM agent_entries WHERE name = ?", (name,)
-            ).fetchone()
-            if old_row:
-                conn.execute(
-                    "DELETE FROM agent_entries_fts WHERE rowid = ?",
-                    (old_row["rowid"],),
-                )
+            skipped += 1  # the previous lower-priority entry is being replaced
+        deduped[name] = entry
 
-        try:
-            conn.execute(
-                """INSERT OR REPLACE INTO agent_entries
-                   (id, name, description, category, primary_phase,
-                    compatible_phases, tags, languages, source, priority,
-                    tools, model, max_turns, body, file_path, indexed_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    entry.get("id", ""),
-                    name,
-                    entry.get("description", ""),
-                    entry.get("category", "unknown"),
-                    entry.get("primary_phase", ""),
-                    phases_str,
-                    tags_str,
-                    languages_str,
-                    source,
-                    priority,
-                    tools_str,
-                    entry.get("model", ""),
-                    entry.get("max_turns", 0),
-                    entry.get("body", ""),
-                    entry.get("file_path", ""),
-                    now,
-                ),
-            )
-            # Manual FTS sync (content= table requires manual insert)
-            conn.execute(
-                """INSERT INTO agent_entries_fts
-                   (rowid, name, description, tags, languages, body)
-                   VALUES (
-                       (SELECT rowid FROM agent_entries WHERE id = ?),
-                       ?, ?, ?, ?, ?
-                   )""",
-                (
-                    entry.get("id", ""),
-                    name,
-                    entry.get("description", ""),
-                    tags_str,
-                    languages_str,
-                    entry.get("body", ""),
-                ),
-            )
-            known[name] = (priority, source)
-            count += 1
-        except sqlite3.IntegrityError as exc:
-            logger.warning("Skipping duplicate agent '%s': %s", name, exc)
-            skipped += 1
+    # Prepare rows for bulk INSERT
+    rows = []
+    for entry in deduped.values():
+        rows.append((
+            entry.get("id", ""),
+            entry.get("name", ""),
+            entry.get("description", ""),
+            entry.get("category", "unknown"),
+            entry.get("primary_phase", ""),
+            ",".join(entry.get("compatible_phases", [])),
+            ",".join(entry.get("tags", [])),
+            ",".join(entry.get("languages", [])),
+            entry.get("source", "builtin"),
+            entry.get("priority", 50),
+            ",".join(str(t) for t in entry.get("tools", [])),
+            entry.get("model", ""),
+            entry.get("max_turns", 0),
+            entry.get("body", ""),
+            entry.get("file_path", ""),
+            now,
+        ))
 
+    # Bulk INSERT all entries (PERF-009)
+    conn.executemany(
+        """INSERT OR REPLACE INTO agent_entries
+           (id, name, description, category, primary_phase,
+            compatible_phases, tags, languages, source, priority,
+            tools, model, max_turns, body, file_path, indexed_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        rows,
+    )
+
+    # Single FTS rebuild from inserted entries (content= table requires
+    # manual sync, but we can do it in one INSERT ... SELECT)
+    conn.execute(
+        """INSERT INTO agent_entries_fts
+               (rowid, name, description, tags, languages, body)
+           SELECT rowid, name, description, tags, languages, body
+           FROM agent_entries"""
+    )
+
+    count = len(rows)
     return count, skipped
 
 
@@ -531,7 +508,10 @@ def rebuild_index(
 ) -> int:
     """Rebuild the full-text search index from parsed agent entries.
 
-    Drops and recreates all rows. FTS5 triggers handle index sync.
+    Drops and recreates all rows.  FTS sync is done manually via
+    INSERT...SELECT (external content table, not automatic triggers).
+
+    Runs inside an explicit transaction for crash safety.
 
     Args:
         conn: Active database connection.
@@ -542,16 +522,21 @@ def rebuild_index(
     """
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
-    _clear_index(conn)
+    conn.execute("BEGIN")
+    try:
+        _clear_index(conn)
 
-    # DES-001 FIX: Sort entries by priority ASCENDING so that higher-priority
-    # agents are inserted LAST and win INSERT OR REPLACE conflicts.
-    # Without this, builtin (p100) inserted first gets overwritten by user (p50).
-    sorted_entries = sorted(entries, key=lambda e: e.get("priority", 50))
+        # DES-001 FIX: Sort entries by priority ASCENDING so that higher-priority
+        # agents are inserted LAST and win INSERT OR REPLACE conflicts.
+        # Without this, builtin (p100) inserted first gets overwritten by user (p50).
+        sorted_entries = sorted(entries, key=lambda e: e.get("priority", 50))
 
-    count, skipped = _insert_entries(conn, sorted_entries, now)
+        count, skipped = _insert_entries(conn, sorted_entries, now)
 
-    conn.commit()
+        conn.commit()
+    except (sqlite3.Error, OSError):
+        conn.rollback()
+        raise
     if skipped:
         logger.info("rebuild_index: %d indexed, %d skipped (priority conflicts)", count, skipped)
     return count
