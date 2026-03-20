@@ -37,7 +37,7 @@ allowed-tools:
 ---
 
 **Runtime context** (preprocessor snapshot):
-- Active workflows: !`grep -rl '"active"' tmp/.rune-*-*.json 2>/dev/null | wc -l | tr -d ' '`
+- Active workflows: !`find tmp -maxdepth 1 -name '.rune-*-*.json' -exec grep -l '"running"' {} + 2>/dev/null | wc -l | tr -d ' '`
 - Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 # /rune:design-sync — Figma Design Synchronization

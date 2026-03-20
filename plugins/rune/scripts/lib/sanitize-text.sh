@@ -17,10 +17,10 @@
 #
 # NOTE: Do NOT set `set -euo pipefail` here — caller's responsibility.
 #
-# VEIL-002: This library is available for sourcing but is not yet sourced by any
-# runtime consumer script (e.g. advise-mcp-untrusted.sh).  Integration requires
-# the caller to `source "${SCRIPT_DIR}/lib/sanitize-text.sh"` and pipe stdin
-# through sanitize_untrusted_text or sanitize_plan_content before use.
+# VEIL-002 (RESOLVED): This library is sourced by advise-mcp-untrusted.sh for
+# suspicious pattern detection in MCP output (PostToolUse advisory enhancement).
+# To integrate in other scripts: `source "${SCRIPT_DIR}/lib/sanitize-text.sh"`
+# and pipe stdin through sanitize_untrusted_text or sanitize_plan_content.
 #
 # QUAL-003: sanitize_untrusted_text and sanitize_plan_content share ~90% of the
 # same Python inline code in their sanitize_pass() helpers.  The duplication is
@@ -224,8 +224,8 @@ detected = "Latin" in scripts_found and bool(scripts_found & {"Cyrillic", "Greek
 result = {"detected": detected, "details": details}
 json.dump(result, sys.stdout)
 ' 2>/dev/null) || {
-    # P1-FE-006: On python3 failure, return safe default
-    printf '{"detected":false,"details":[],"error":"python3_unavailable"}'
+    # P1-FE-006: On python3 failure, fail closed — assume homoglyphs present
+    printf '{"detected":true,"details":[],"error":"python3_unavailable"}'
     return 0
   }
 

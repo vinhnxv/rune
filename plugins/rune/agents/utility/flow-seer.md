@@ -14,6 +14,9 @@ tools:
   - Glob
   - Grep
   - SendMessage
+  - TaskList
+  - TaskGet
+  - TaskUpdate
 disallowedTools:
   - Bash
 maxTurns: 40

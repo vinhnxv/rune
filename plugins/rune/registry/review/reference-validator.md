@@ -178,7 +178,7 @@ For each `.md` file in `agents/` and `skills/*/SKILL.md`:
 #### Tools Field Validation
 - Accept BOTH `tools` and `allowed-tools` field names (Rune agents use `tools`; Claude Code spec uses `allowed-tools`). Flag as missing only if NEITHER is present.
 - Each tool name must be a known tool from the valid tool list:
-  `Read`, `Write`, `Edit`, `MultiEdit`, `Glob`, `Grep`, `Bash`, `Task`, `TaskCreate`,
+  `Read`, `Write`, `Edit`, `MultiEdit`, `Glob`, `Grep`, `Bash`, `Agent`, `Task`, `TaskCreate`,
   `TaskUpdate`, `TaskList`, `TaskGet`, `SendMessage`, `TeamCreate`, `TeamDelete`,
   `AskUserQuestion`, `EnterPlanMode`, `ExitPlanMode`, `WebFetch`, `WebSearch`,
   `NotebookEdit`, `Skill`, `TodoWrite`
@@ -397,7 +397,7 @@ The following tool names are valid in agent/skill frontmatter `tools` field:
 
 **Core tools:** `Read`, `Write`, `Edit`, `MultiEdit`, `Glob`, `Grep`, `Bash`, `NotebookEdit`
 
-**Team tools:** `Task`, `TaskCreate`, `TaskUpdate`, `TaskList`, `TaskGet`, `SendMessage`, `TeamCreate`, `TeamDelete`
+**Team tools:** `Agent`, `Task`, `TaskCreate`, `TaskUpdate`, `TaskList`, `TaskGet`, `SendMessage`, `TeamCreate`, `TeamDelete`
 
 **Interaction tools:** `AskUserQuestion`, `EnterPlanMode`, `ExitPlanMode`, `Skill`, `TodoWrite`
 
