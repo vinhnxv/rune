@@ -6,10 +6,10 @@
 
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
-[![Version](https://img.shields.io/badge/version-2.1.1-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-2.3.4-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-110-purple)](#agents)
-[![Skills](https://img.shields.io/badge/skills-57-orange)](#skills)
+[![Agents](https://img.shields.io/badge/agents-126-purple)](#agents)
+[![Skills](https://img.shields.io/badge/skills-58-orange)](#skills)
 
 ---
 
@@ -338,9 +338,9 @@ Compares a plan against its implementation across 10 quality dimensions:
 
 ## Agents
 
-**110 specialized agents** across 6 categories:
+**126 specialized agents** across 8 categories:
 
-### Review Agents (47)
+### Review Agents (50)
 
 Core reviewers active in every `/rune:appraise` and `/rune:audit` run. UX and design reviewers (below) are conditionally activated for frontend files. Stack specialists are additionally auto-activated based on detected tech stack:
 
@@ -374,6 +374,8 @@ Core reviewers active in every `/rune:appraise` and `/rune:audit` run. UX and de
 | Agent Parity Reviewer | Agent-native parity, orphan features, context starvation |
 | Senior Engineer Reviewer | Persona-based senior engineer review, production thinking |
 | Cross-Shard Sentinel | Cross-shard consistency for Inscription Sharding (naming drift, pattern inconsistency, auth boundary gaps) |
+| Shard Reviewer | Universal sharded review — all dimensions for assigned file subset |
+| Sediment Detector | Feature sediment detection (dead code paths, unused config) |
 
 **UX & Design Reviewers** (conditionally activated for frontend files):
 
@@ -404,18 +406,18 @@ Core reviewers active in every `/rune:appraise` and `/rune:audit` run. UX and de
 | DI Reviewer | Dependency Injection (scope, circular deps, service locator) |
 | Design Implementation Reviewer | Design-to-code fidelity (tokens, layout, responsive, a11y, variants) |
 
-### Investigation Agents (24)
+### Investigation Agents (32)
 
 Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 | Category | Agents |
 |----------|--------|
 | Impact Tracers | API Contract, Business Logic, Data Layer, Config Dependency, Event Message |
-| Quality Inspectors | Grace Warden, Ruin Prophet, Sight Oracle, Vigil Keeper |
+| Quality Inspectors | Grace Warden (+ inspect, plan-review variants), Ruin Prophet (+ inspect, plan-review), Sight Oracle (+ inspect, plan-review), Vigil Keeper (+ inspect, plan-review) |
 | Deep Analysis | Breach Hunter, Decay Tracer, Decree Auditor, Ember Seer, Fringe Watcher, Hypothesis Investigator, Order Auditor, Rot Seeker, Ruin Watcher, Signal Watcher, Strand Tracer, Truth Seeker |
 | Synthesis | Goldmask Coordinator, Lore Analyst, Wisdom Sage |
 
-### Research Agents (5)
+### Research Agents (7)
 
 | Agent | Purpose |
 |-------|---------|
@@ -424,8 +426,10 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Git Miner | Git archaeology — commit history, contributors, code evolution |
 | Lore Scholar | Framework docs via Context7 MCP + web search fallback |
 | Practice Seeker | External best practices and industry patterns |
+| Activation Pathfinder | Maps activation path for new code (migrations, config, deployment) |
+| Wiring Cartographer | Maps integration points where new code connects to existing system |
 
-### Work Agents (6)
+### Work Agents (7)
 
 | Agent | Purpose |
 |-------|---------|
@@ -435,8 +439,9 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Design Iterator | Iterative design refinement (screenshot-analyze-fix loop) |
 | Storybook Reviewer | Component verification via screenshots (Mode A/B quality checks) |
 | Storybook Fixer | Applies Storybook finding fixes with re-verification |
+| Gap Fixer | Automated remediation of inspection gaps from VERDICT.md |
 
-### Utility Agents (19)
+### Utility Agents (22)
 
 | Agent | Purpose |
 |-------|---------|
@@ -459,8 +464,11 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | UX Pattern Analyzer | Codebase UX maturity assessment (loading, error, form, navigation patterns) |
 | Codex Phase Handler | Isolated Codex phase execution (codex-exec.sh wrapper) |
 | Tome Digest | TOME finding extraction (P1/P2/P3 counts, recurring patterns) — shell-based |
+| Forge Warden | Multi-perspective backend code review for forge enrichment |
+| Verdict Binder | Inspection aggregator — merges Inspector findings into VERDICT.md |
+| Veil Piercer (Plan) | Plan-level reality-gap analysis and assumption validation |
 
-### Testing Agents (5)
+### Testing Agents (6)
 
 | Agent | Purpose |
 |-------|---------|
@@ -469,12 +477,38 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | E2E Browser Tester | Browser automation via agent-browser CLI |
 | Test Failure Analyst | Root cause analysis of test failures |
 | Extended Test Runner | Extended-tier test execution with checkpoint/resume protocol |
+| Contract Validator | API contract validation (request/response schemas) |
+
+### QA Agents (7)
+
+| Agent | Purpose |
+|-------|---------|
+| Phase QA Verifier | Independent arc phase completion artifact verification |
+| Code Review QA Verifier | Verifies code review phase TOME existence and finding quality |
+| Forge QA Verifier | Verifies forge phase enrichment depth and structural preservation |
+| Gap Analysis QA Verifier | Verifies gap analysis compliance matrix and criteria coverage |
+| Mend QA Verifier | Verifies mend resolution report and per-finding status |
+| Test QA Verifier | Verifies test phase SEAL markers and tier coverage |
+| Work QA Verifier | Verifies work phase delegation manifests and task completeness |
+
+### Meta-QA Agents (8)
+
+| Agent | Purpose |
+|-------|---------|
+| Prompt Linter | Lints agent definition files for consistency (15 rules) |
+| Workflow Auditor | Audits arc workflow definitions for structural integrity |
+| Rule Consistency Auditor | Detects contradictions between CLAUDE.md, skills, and talisman |
+| Hook Integrity Auditor | Validates hooks.json entries match actual scripts |
+| Improvement Advisor | Generates fix proposals for meta-QA findings |
+| Hallucination Detector | Detects phantom claims and evidence fabrication in arc artifacts |
+| Effectiveness Analyzer | Per-agent finding accuracy and false-positive tracking |
+| Convergence Analyzer | Retry efficiency, quality trajectory, stagnation detection |
 
 ---
 
 ## Skills
 
-57 skills providing background knowledge, workflow orchestration, and tool integration:
+58 skills providing background knowledge, workflow orchestration, and tool integration:
 
 | Skill | Type | Purpose |
 |-------|------|---------|
@@ -532,6 +566,10 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `untitledui-mcp` | Integration | UntitledUI MCP integration (6 tools, builder-protocol) |
 | `ux-design-process` | Intelligence | UX design methodology (heuristic evaluation, flow validation) |
 | `talisman` | Configuration | Deep talisman.yml management (init, audit, update, guide, status) |
+| `cc-inspect` | Workflow | Run Claude Code built-in inspection script |
+| `discipline` | Quality | Proof-based orchestration discipline for spec compliance |
+| `post-findings` | Workflow | Post review findings to GitHub PR as formatted comment |
+| `self-audit` | Quality | Meta-QA self-audit of Rune's own plugin infrastructure |
 
 ---
 
@@ -702,14 +740,16 @@ rune/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
         │   └── plugin.json       # Plugin manifest (v1.128.0)
-        ├── agents/               # 110 agent definitions (66 agents/ + 43 registry/ + 1 CLI-backed)
+        ├── agents/               # 127 agent definitions (83 agents/ + 43 registry/ + 1 CLI-backed)
         │   ├── review/           #   12 review agents
         │   ├── investigation/    #   30 investigation agents
         │   ├── utility/          #   16 utility agents
-        │   ├── research/         #    5 research agents
+        │   ├── research/         #    7 research agents
         │   ├── work/             #    3 work agents
+        │   ├── qa/               #    7 QA agents
+        │   ├── meta-qa/          #    8 meta-QA agents
         │   └── registry/         #   43 extended agents
-        ├── skills/               # 57 skills
+        ├── skills/               # 58 skills
         ├── commands/             # 15 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json
