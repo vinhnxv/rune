@@ -8,7 +8,7 @@ description: |
 
   Covers: Inspector output aggregation, requirement matrix merging, weighted completion
   computation, dimension score merging, finding deduplication with priority ordering,
-  gap classification (8 categories), verdict determination (READY/GAPS_FOUND/INCOMPLETE/CRITICAL_ISSUES).
+  gap classification (9 categories), verdict determination (READY/GAPS_FOUND/INCOMPLETE/CRITICAL_ISSUES).
 tools:
   - Read
   - Write
@@ -200,14 +200,15 @@ If an inspector crashed (output missing), mark that dimension as "unscored".
 
 Combine all P1/P2/P3 findings from all inspectors:
 - Prefix-based dedup: same file + overlapping lines -- keep higher priority
-- Priority order: GRACE > RUIN > SIGHT > VIGIL (for overlap resolution)
+- Priority order: GRACE > WIRE > RUIN > SIGHT > VIGIL (for overlap resolution)
 - Within same priority: P1 > P2 > P3
 
 ### Step 5 -- Classify Gaps
 
-Merge gap analyses from all inspectors into 8 categories:
+Merge gap analyses from all inspectors into 9 categories:
 - Correctness gaps (from Grace Warden)
 - Coverage gaps (from Grace Warden)
+- Wiring gaps (from Grace Warden — `WIRE-` prefix, NOT auto-fixable)
 - Test gaps (from Vigil Keeper)
 - Observability gaps (from Vigil Keeper)
 - Security gaps (from Ruin Prophet)
