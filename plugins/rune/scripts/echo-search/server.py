@@ -700,23 +700,36 @@ def _record_access(
     results: List[Dict[str, Any]],
     query: str,
 ) -> None:
-    """Record access events synchronously (C2 concern, EDGE-010 cap)."""
+    """Record access events using batch operations (PERF-004, PERF-005).
+
+    Uses executemany() for INSERT and a single UPDATE ... WHERE IN for
+    unarchiving, replacing the previous per-entry loop.
+    """
     if not results:
         return
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    truncated_query = query[:500]
     try:
-        for entry in results:
-            entry_id = entry.get("id", "")
-            if entry_id:
-                conn.execute(
-                    "INSERT INTO echo_access_log "
-                    "(entry_id, accessed_at, query) VALUES (?, ?, ?)",
-                    (entry_id, now, query[:500]))
-                # BACK-014: Auto-unarchive entries when accessed
-                conn.execute(
-                    "UPDATE echo_entries SET archived = 0 "
-                    "WHERE id = ? AND archived = 1",
-                    (entry_id,))
+        # Collect valid entry IDs
+        entry_ids = [e.get("id", "") for e in results if e.get("id")]
+        if not entry_ids:
+            return
+
+        # Batch INSERT all access records (PERF-004)
+        conn.executemany(
+            "INSERT INTO echo_access_log "
+            "(entry_id, accessed_at, query) VALUES (?, ?, ?)",
+            [(eid, now, truncated_query) for eid in entry_ids],
+        )
+
+        # BACK-014: Batch unarchive accessed entries (PERF-005)
+        placeholders = ",".join("?" for _ in entry_ids)
+        conn.execute(
+            "UPDATE echo_entries SET archived = 0 "
+            "WHERE archived = 1 AND id IN (%s)" % placeholders,
+            entry_ids,
+        )
+
         conn.commit()
         _cap_access_log(conn)
     except sqlite3.OperationalError as exc:
@@ -1439,42 +1452,42 @@ _ARCHIVE_LAYERS = frozenset(
 )
 
 
-def _backup_semantic_groups(conn: sqlite3.Connection) -> List[Tuple[str, str, float, str]]:
-    """Back up semantic group memberships before DELETE+INSERT cycle."""
+def _backup_semantic_groups_to_temp(conn: sqlite3.Connection) -> bool:
+    """Back up semantic group memberships to a SQL temp table (PERF-002).
+
+    Uses CREATE TEMP TABLE ... AS SELECT instead of materializing rows into
+    Python memory.  Returns True if the backup succeeded (table exists in the
+    current schema), False otherwise (pre-V2 schema).
+    """
     try:
-        rows = conn.execute(
+        conn.execute("DROP TABLE IF EXISTS _sg_backup")
+        conn.execute(
+            "CREATE TEMP TABLE _sg_backup AS "
             "SELECT group_id, entry_id, similarity, created_at "
             "FROM semantic_groups"
-        ).fetchall()
-        return [(r[0], r[1], r[2], r[3]) for r in rows]
+        )
+        return True
     except sqlite3.OperationalError:
-        return []  # Pre-V2 schema
+        return False  # Pre-V2 schema
 
 
-def _restore_semantic_groups(
-    conn: sqlite3.Connection,
-    backup: List[Tuple[str, str, float, str]],
-) -> int:
-    """Restore semantic group memberships, skipping entries that no longer exist."""
-    if not backup:
-        return 0
-    existing_ids = frozenset(
-        r[0] for r in conn.execute("SELECT id FROM echo_entries").fetchall()
-    )
-    restored = 0
-    for group_id, entry_id, similarity, created_at in backup:
-        if entry_id not in existing_ids:
-            continue
-        try:
-            conn.execute(
-                "INSERT OR IGNORE INTO semantic_groups "
-                "(group_id, entry_id, similarity, created_at) "
-                "VALUES (?, ?, ?, ?)",
-                (group_id, entry_id, similarity, created_at),
-            )
-            restored += 1
-        except sqlite3.Error:
-            continue
+def _restore_semantic_groups_from_temp(conn: sqlite3.Connection) -> int:
+    """Restore semantic group memberships from the SQL temp table (PERF-003).
+
+    Uses a single INSERT ... SELECT filtered by entries that still exist,
+    replacing the Python-side frozenset + per-row INSERT loop.
+    """
+    try:
+        cursor = conn.execute("""
+            INSERT OR IGNORE INTO semantic_groups
+                (group_id, entry_id, similarity, created_at)
+            SELECT group_id, entry_id, similarity, created_at
+            FROM _sg_backup
+            WHERE entry_id IN (SELECT id FROM echo_entries)
+        """)
+        restored = cursor.rowcount
+    except sqlite3.OperationalError:
+        restored = 0
     # Cleanup degenerate groups (fewer than 2 members)
     try:
         conn.execute("""
@@ -1483,6 +1496,11 @@ def _restore_semantic_groups(
                 GROUP BY group_id HAVING COUNT(*) < 2
             )
         """)
+    except sqlite3.Error:
+        pass
+    # Drop temp table
+    try:
+        conn.execute("DROP TABLE IF EXISTS _sg_backup")
     except sqlite3.Error:
         pass
     return restored
@@ -1538,9 +1556,10 @@ def rebuild_index(conn, entries):
     # type: (sqlite3.Connection, List[Dict]) -> int
     conn.execute("BEGIN")  # QUAL-3: explicit transaction
     try:
-        group_backup = _backup_semantic_groups(conn)
+        has_backup = _backup_semantic_groups_to_temp(conn)
         _insert_entries(conn, entries)
-        _restore_semantic_groups(conn, group_backup)
+        if has_backup:
+            _restore_semantic_groups_from_temp(conn)
         _archive_stale_entries(conn)
         _prune_access_log(conn)
         _prune_search_failures(conn)

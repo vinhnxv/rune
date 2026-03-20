@@ -48,11 +48,12 @@ def _write_elevated_entry(elevated_dir, content, domain="backend",
     memory_file = os.path.join(elevated_dir, "MEMORY.md")
     entry_text = f"""
 ## Etched — {content[:40]} (2026-03-01)
-- **layer**: etched
-- **source**: elevated:{source_project}
-- **Category**: pattern
-- **Domain**: {domain}
-- {content}
+
+**Source**: elevated:{source_project}
+**Category**: pattern
+**Domain**: {domain}
+
+{content}
 """
     with open(memory_file, "a") as f:
         f.write(entry_text)
