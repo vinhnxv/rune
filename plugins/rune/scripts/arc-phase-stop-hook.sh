@@ -502,7 +502,9 @@ _extract_phase_echoes() {
     elif $in_entry; then
       current_entry="${current_entry}
 ${line}"
-      if [[ "$line" == *"phase_tags"*"$target_phase"* ]]; then
+      # BACK-002 FIX: Use word-boundary matching to prevent partial matches
+      # (e.g., "work" should not match "network"). Check for comma/bracket/space delimiters.
+      if [[ "$line" == *"phase_tags"* ]] && [[ "$line" =~ (^|[],[:space:]])${target_phase}($|[],[:space:]]) ]]; then
         include_entry=true
       fi
       # RP-002 FIX: Layer exclusion cannot be overridden by later phase_tags match

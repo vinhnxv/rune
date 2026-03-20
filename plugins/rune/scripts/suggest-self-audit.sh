@@ -44,8 +44,11 @@ if [[ -f "${CWD}/.rune/arc-phase-loop.local.md" ]]; then
 fi
 
 # ── Fast-path: debounce — max 1 suggestion per session ──
+# BACK-001 FIX: Use PPID as fallback for session isolation (session_id may be empty)
 _session_id=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null) || _session_id=""
-_debounce_file="${TMPDIR:-/tmp}/rune-self-audit-suggested-${_session_id:-unknown}"
+_owner_pid="${PPID:-$$}"
+_debounce_key="${_session_id:-pid-${_owner_pid}}"
+_debounce_file="${TMPDIR:-/tmp}/rune-self-audit-suggested-${_debounce_key}"
 if [[ -f "$_debounce_file" ]]; then
   exit 0
 fi
