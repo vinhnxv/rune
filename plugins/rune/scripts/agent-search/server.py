@@ -432,6 +432,13 @@ def _insert_entries(
     """
     count = 0
     skipped = 0
+
+    # Pre-fetch all existing entries to avoid N+1 SELECT per entry (PERF-001).
+    # Also tracks within-batch duplicates as entries are inserted.
+    known: Dict[str, Tuple[int, str]] = {}
+    for row in conn.execute("SELECT name, priority, source FROM agent_entries"):
+        known[row["name"]] = (row["priority"], row["source"])
+
     for entry in sorted_entries:
         name = entry.get("name", "")
         if not name:
@@ -445,20 +452,17 @@ def _insert_entries(
         languages_str = ",".join(entry.get("languages", []))
 
         # Priority-aware conflict check: skip if existing entry has higher priority
-        existing = conn.execute(
-            "SELECT priority, source FROM agent_entries WHERE name = ?",
-            (name,),
-        ).fetchone()
-        if existing and existing["priority"] > priority:
+        prev = known.get(name)
+        if prev and prev[0] > priority:
             logger.debug(
                 "Skipping '%s' (source=%s, p%d) — higher-priority entry exists (source=%s, p%d)",
-                name, source, priority, existing["source"], existing["priority"],
+                name, source, priority, prev[1], prev[0],
             )
             skipped += 1
             continue
 
         # Delete old FTS entry before replacement to prevent ghost entries
-        if existing:
+        if prev:
             old_row = conn.execute(
                 "SELECT rowid FROM agent_entries WHERE name = ?", (name,)
             ).fetchone()
@@ -511,6 +515,7 @@ def _insert_entries(
                     entry.get("body", ""),
                 ),
             )
+            known[name] = (priority, source)
             count += 1
         except sqlite3.IntegrityError as exc:
             logger.warning("Skipping duplicate agent '%s': %s", name, exc)

@@ -64,7 +64,10 @@ fn get_arg(args: &[String], flag: &str) -> Option<String> {
 }
 
 fn resolve_claude() -> String {
-    let o = Command::new("which").arg("claude").output().expect("which claude failed");
+    let o = Command::new("which").arg("claude").output().unwrap_or_else(|e| {
+        eprintln!("error: failed to run 'which claude': {}", e);
+        std::process::exit(1);
+    });
     let path = String::from_utf8_lossy(&o.stdout).trim().to_string();
     if path.is_empty() { eprintln!("claude not found in PATH"); std::process::exit(1); }
     path
@@ -101,7 +104,10 @@ fn cmd_new_session(args: &[String]) -> String {
     // Create session
     let o = Command::new("tmux")
         .args(["new-session", "-d", "-s", &session_id, "-x", "200", "-y", "50"])
-        .output().expect("tmux failed");
+        .output().unwrap_or_else(|e| {
+            eprintln!("error: failed to start tmux: {}", e);
+            std::process::exit(1);
+        });
     if !o.status.success() {
         eprintln!("tmux new-session failed: {}", String::from_utf8_lossy(&o.stderr));
         std::process::exit(1);
@@ -117,10 +123,16 @@ fn cmd_new_session(args: &[String]) -> String {
 
     Command::new("tmux")
         .args(["send-keys", "-t", &session_id, "-l", &cmd])
-        .output().expect("send-keys failed");
+        .output().unwrap_or_else(|e| {
+            eprintln!("error: tmux send-keys failed: {}", e);
+            std::process::exit(1);
+        });
     Command::new("tmux")
         .args(["send-keys", "-t", &session_id, "Enter"])
-        .output().expect("send Enter failed");
+        .output().unwrap_or_else(|e| {
+            eprintln!("error: tmux send Enter failed: {}", e);
+            std::process::exit(1);
+        });
 
     println!("✓ Session created: {}", session_id);
     println!("  Attach: tmux attach -t {}", session_id);
@@ -145,7 +157,10 @@ fn cmd_send_keys(args: &[String]) {
     // Step 1: text literally
     let o = Command::new("tmux")
         .args(["send-keys", "-t", &session, "-l", &text])
-        .output().expect("send-keys failed");
+        .output().unwrap_or_else(|e| {
+            eprintln!("error: tmux send-keys failed: {}", e);
+            std::process::exit(1);
+        });
     if !o.status.success() {
         eprintln!("send-keys failed: {}", String::from_utf8_lossy(&o.stderr));
         std::process::exit(1);
@@ -158,7 +173,10 @@ fn cmd_send_keys(args: &[String]) {
     // Step 3: Escape
     Command::new("tmux")
         .args(["send-keys", "-t", &session, "Escape"])
-        .output().expect("Escape failed");
+        .output().unwrap_or_else(|e| {
+            eprintln!("error: tmux send Escape failed: {}", e);
+            std::process::exit(1);
+        });
     println!("  escape ✓");
 
     // Step 4: wait 100ms
@@ -167,7 +185,10 @@ fn cmd_send_keys(args: &[String]) {
     // Step 5: Enter
     Command::new("tmux")
         .args(["send-keys", "-t", &session, "Enter"])
-        .output().expect("Enter failed");
+        .output().unwrap_or_else(|e| {
+            eprintln!("error: tmux send Enter failed: {}", e);
+            std::process::exit(1);
+        });
     println!("  enter ✓");
 
     println!("✓ Keys sent");
@@ -182,7 +203,10 @@ fn cmd_capture_pane(args: &[String]) {
 
     let o = Command::new("tmux")
         .args(["capture-pane", "-t", &session, "-p", "-S", &format!("-{}", lines)])
-        .output().expect("capture failed");
+        .output().unwrap_or_else(|e| {
+            eprintln!("error: tmux capture-pane failed: {}", e);
+            std::process::exit(1);
+        });
 
     print!("{}", String::from_utf8_lossy(&o.stdout));
 }
@@ -245,7 +269,10 @@ fn cmd_run(args: &[String]) {
     println!("\nCapturing pane to verify Claude is ready...");
     let o = Command::new("tmux")
         .args(["capture-pane", "-t", &session_id, "-p", "-S", "-5"])
-        .output().expect("capture failed");
+        .output().unwrap_or_else(|e| {
+            eprintln!("error: tmux capture-pane failed: {}", e);
+            std::process::exit(1);
+        });
     let pane = String::from_utf8_lossy(&o.stdout);
     let ready = pane.contains("❯") || pane.contains("bypass permissions");
     if ready {

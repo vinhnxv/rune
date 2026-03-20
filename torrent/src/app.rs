@@ -1083,8 +1083,12 @@ impl App {
         // Check restart cooldown (auto-resume after phase timeout)
         self.check_restart_cooldown();
 
-        // Arc running — poll for discovery or status
-        let has_arc = self.current_run.as_ref().unwrap().arc.is_some();
+        // FLAW-001 FIX: check_restart_cooldown() may .take() current_run via
+        // cleanup_skipped_plan() on restart failure — guard against None.
+        let has_arc = match self.current_run.as_ref() {
+            Some(run) => run.arc.is_some(),
+            None => return Ok(()),
+        };
 
         if !has_arc {
             // Discovery polling (every 10s)

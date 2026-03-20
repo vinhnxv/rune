@@ -7,7 +7,8 @@
 //! Lock file: `{CWD}/.torrent.lock` containing the PID of the owning process.
 //! On startup, torrent checks if the lock exists and the PID is alive.
 
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -46,28 +47,60 @@ pub fn acquire(dir: &Path) -> LockResult {
     let lock_path = dir.join(LOCK_FILENAME);
     let my_pid = process::id();
 
-    // Check existing lock
-    if let Ok(contents) = fs::read_to_string(&lock_path) {
-        if let Ok(existing_pid) = contents.trim().parse::<u32>() {
-            if existing_pid != my_pid && is_pid_alive(existing_pid) {
-                return LockResult::AlreadyRunning {
-                    pid: existing_pid,
-                    lock_path,
-                };
+    // Attempt atomic file creation (O_CREAT|O_EXCL) — fails if file already exists.
+    match OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&lock_path)
+    {
+        Ok(mut file) => {
+            let _ = file.write_all(my_pid.to_string().as_bytes());
+            LockResult::Acquired(LockGuard { path: lock_path })
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            // Lock file exists — check if the owning process is still alive
+            if let Ok(contents) = fs::read_to_string(&lock_path) {
+                if let Ok(existing_pid) = contents.trim().parse::<u32>() {
+                    if existing_pid == my_pid {
+                        // We already hold this lock (re-entrant)
+                        return LockResult::Acquired(LockGuard { path: lock_path });
+                    }
+                    if is_pid_alive(existing_pid) {
+                        return LockResult::AlreadyRunning {
+                            pid: existing_pid,
+                            lock_path,
+                        };
+                    }
+                }
             }
-            // Stale lock — process is dead, reclaim it
-            write_lock(&lock_path, my_pid);
-            return LockResult::StaleRecovered(LockGuard { path: lock_path });
+            // Stale lock — remove and retry atomically
+            let _ = fs::remove_file(&lock_path);
+            match OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&lock_path)
+            {
+                Ok(mut file) => {
+                    let _ = file.write_all(my_pid.to_string().as_bytes());
+                    LockResult::StaleRecovered(LockGuard { path: lock_path })
+                }
+                Err(_) => {
+                    // Another process won the race for the stale lock — treat as already running
+                    let pid = fs::read_to_string(&lock_path)
+                        .ok()
+                        .and_then(|s| s.trim().parse::<u32>().ok())
+                        .unwrap_or(0);
+                    LockResult::AlreadyRunning { pid, lock_path }
+                }
+            }
+        }
+        Err(_) => {
+            // Unexpected I/O error (permissions, disk full, etc.) — treat as acquired
+            // to avoid blocking startup; the lock is best-effort protection.
+            let _ = fs::write(&lock_path, my_pid.to_string());
+            LockResult::Acquired(LockGuard { path: lock_path })
         }
     }
-
-    // No lock or invalid contents — acquire
-    write_lock(&lock_path, my_pid);
-    LockResult::Acquired(LockGuard { path: lock_path })
-}
-
-fn write_lock(path: &Path, pid: u32) {
-    let _ = fs::write(path, pid.to_string());
 }
 
 fn is_pid_alive(pid: u32) -> bool {
