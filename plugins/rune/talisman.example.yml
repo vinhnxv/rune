@@ -767,10 +767,17 @@ echoes:
 #   #   hook: orchestrator
 
 # ──────────────────────────────────────────────
-# Self-Audit — Self-improvement feedback loop (v2.4.0+)
+# Self-Audit — Meta-QA for Rune itself (/rune:self-audit)
+# Audits agent definitions, workflow phases, rules, hooks for inconsistencies.
+# Static mode (Phase 1): 4 dimensions — workflow, prompt, rule, hook.
+# Runtime mode (Phase 2): arc artifact analysis — hallucination, effectiveness, convergence.
 # ──────────────────────────────────────────────
 self_audit:
-  enabled: true
+  enabled: true                      # Enable /rune:self-audit command
+  echo_persist: true                 # Persist findings to .rune/echoes/meta-qa/
+  promotion_threshold: 3             # Promote to Inscribed after N recurrences
+  verbose_default: false             # Include P3 findings by default
+  # Phase 2+ settings (runtime analysis, apply mode, phase injection)
   phase_injection: true              # Inject meta-QA echoes into arc phase prompts
   max_injection_entries: 3           # Max echo entries per phase injection
   max_injection_tokens: 500          # Token budget for injection
@@ -1930,13 +1937,4 @@ context_stop_guard:
 #     echo_sync_back: false  # Sync new echoes back to main repo on WorktreeRemove (default: false)
 #     shared_locks: true     # Use main repo root for workflow locks (default: true)
 
-# ──────────────────────────────────────────────
-# Self-Audit — Meta-QA for Rune itself (/rune:self-audit)
-# Audits agent definitions, workflow phases, rules, hooks for inconsistencies.
-# ──────────────────────────────────────────────
-# self_audit:
-#   enabled: true                    # Enable /rune:self-audit command (default: true)
-#   auto_suggest_threshold: 3        # Suggest self-audit after N marginal QA scores (future Phase 2)
-#   echo_persist: true               # Persist findings to .rune/echoes/meta-qa/ (default: true)
-#   promotion_threshold: 3           # Promote to Inscribed after N recurrences (default: 3)
-#   verbose_default: false           # Include P3 findings by default (default: false)
+# (Self-audit config is defined above in the active self_audit: section)

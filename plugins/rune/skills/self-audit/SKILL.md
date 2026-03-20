@@ -1,17 +1,19 @@
 ---
 name: self-audit
 description: |
-  Meta-quality analysis of Rune's own plugin infrastructure.
-  Detects stale references, missing metadata, rule contradictions,
-  and workflow inconsistencies across agents, skills, hooks, and config.
+  Meta-QA self-audit for Rune's own workflow system. Audits agent definitions,
+  workflow phases, rules, hooks for inconsistencies, contradictions, and drift.
+  Produces SELF-AUDIT-REPORT.md with per-dimension scores and actionable findings.
 
-  Phase 3 adds: echo injection, fix proposals (--apply), cross-role
-  correlation, effectiveness tracking, and auto-suggestion.
+  Use when: "audit rune itself", "check rune health", "self-audit", "meta-qa",
+  "rune consistency check", "lint agents", "validate workflow", "check hooks".
 
-  Use when: "self-audit", "meta-qa", "check rune health", "audit rune itself"
+  Covers: Workflow definition validation, agent prompt linting, rule consistency
+  checking, hook integrity verification, echo-based recurrence tracking.
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[--mode static|runtime|all] [--apply] [--dry-run] [--history] [--arc-id ID]"
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskList, TaskGet, TaskUpdate, TeamCreate, TeamDelete, SendMessage, AskUserQuestion
+argument-hint: "[--mode static|runtime|all] [--dimension D] [--apply] [--verbose] [--dry-run] [--history] [--arc-id ID]"
 ---
 
 # Self-Audit — Meta-Quality Analysis
@@ -70,6 +72,138 @@ Write(`tmp/.rune-self-audit-${timestamp}.json`, JSON.stringify({
 ```
 
 On completion (success or error), update state file status to `"completed"` or `"failed"` and clean up.
+
+## Static Mode Orchestration Protocol
+
+The static analysis pipeline follows 7 phases using Agent Teams for parallel execution.
+
+**Load skills**: `team-sdk`, `polling-guard`, `zsh-compat`, `rune-echoes`
+
+### Phase 0: Pre-flight
+
+```
+Read talisman config:
+  const talisman = readTalismanSection('misc')
+  const config = talisman?.self_audit ?? { enabled: true }
+  if (!config.enabled) { inform("Self-audit disabled via talisman"); return }
+
+Parse arguments:
+  const mode = $ARGUMENTS match --mode → extract value, else "static"
+  const dimension = $ARGUMENTS match --dimension → extract value, else "all"
+  const verbose = $ARGUMENTS includes "--verbose"
+  const timestamp = Date.now()
+  const outputDir = `tmp/self-audit/${timestamp}`
+
+Create output directory:
+  Bash(`mkdir -p "${outputDir}"`)
+```
+
+### Phase 1: Team Bootstrap + Agent Spawn
+
+```
+const teamName = `rune-self-audit-${timestamp}`
+TeamCreate({ team_name: teamName })
+
+// Create tasks (1 per dimension, or 4 if --dimension all)
+const dimensions = dimension === "all"
+  ? ["workflow", "prompt", "rule", "hook"]
+  : [dimension]
+
+for (const dim of dimensions) {
+  TaskCreate({ subject: `${dim}-audit`, description: `Run ${dim} dimension checks` })
+  Agent({
+    name: `${dim}-auditor`,
+    team_name: teamName,
+    subagent_type: "general-purpose",
+    prompt: buildAuditPrompt(dim, outputDir),
+    run_in_background: true
+  })
+}
+```
+
+### Phase 2: Monitor
+
+```
+waitForCompletion(teamName, dimensions.length, {
+  timeoutMs: 300000,
+  pollIntervalMs: 30000
+})
+```
+
+### Phase 3: Aggregate + Ground
+
+```
+Read all *-findings.md files from outputDir.
+For each finding with a file:line citation:
+  Verify file exists via Glob/Read
+  Verify line content matches evidence quote
+  Mark verified: true | false
+  Drop findings with verified: false (hallucinated)
+
+Calculate per-dimension scores:
+  dimension_score = 100 - (P1_count * 15 + P2_count * 5 + P3_count * 1)
+  clamped to [0, 100]
+
+Generate SELF-AUDIT-REPORT.md using [aggregation.md](references/aggregation.md) template.
+```
+
+### Phase 4: Echo Persist
+
+```
+Read existing .rune/echoes/meta-qa/MEMORY.md (create if absent).
+For each P1/P2 finding:
+  Search existing echoes for matching finding ID pattern
+  If found: increment recurrence_count, update last_seen date
+  If new: append as Observations-tier entry
+  If recurrence_count >= 3: promote to Inscribed tier
+    confidence = min(0.95, confidence + 0.1)
+
+Write updated MEMORY.md.
+```
+
+Echo entry format:
+
+```markdown
+### [YYYY-MM-DD] Pattern: {description}
+- **layer**: observations | inscribed
+- **source**: rune:self-audit {timestamp}
+- **confidence**: 0.7-0.9
+- **evidence**: `{file}:{line}` — {finding summary}
+- **recurrence_count**: {N}
+- **first_seen**: {date}
+- **last_seen**: {date}
+- **finding_ids**: [SA-WF-001, SA-AGT-003]
+- {The actual pattern in 1-2 sentences}
+```
+
+### Phase 5: Present
+
+```
+Display summary:
+  Overall score: {N}/100 ({verdict})
+  Per-dimension: workflow={N}, prompt={N}, rule={N}, hook={N}
+  Findings: {P1_count} critical, {P2_count} warnings, {P3_count} info
+  Report: {outputDir}/SELF-AUDIT-REPORT.md
+  Echoes: {N} new, {N} recurrent, {N} promoted
+
+Offer next steps via AskUserQuestion:
+  - "Review full report" → open report
+  - "Show critical findings only" → filter P1
+  - "Done" → proceed to cleanup
+```
+
+### Phase 6: Cleanup
+
+Standard 5-component cleanup per CLAUDE.md:
+1. Dynamic member discovery from team config
+2. `shutdown_request` to all members
+3. Adaptive grace period
+4. `TeamDelete` with retry-with-backoff
+5. Filesystem fallback (QUAL-012 gated)
+
+Remove workflow lock.
+
+---
 
 ## Modes
 
@@ -307,14 +441,48 @@ Reports are written to `tmp/self-audit/{timestamp}/`:
 
 | File | Contents |
 |------|----------|
-| `report.md` | Full audit report with all dimensions |
+| `SELF-AUDIT-REPORT.md` | Full audit report with all dimensions, grounding verification, and improvement roadmap |
+| `workflow-findings.md` | Workflow auditor dimension findings (SA-WF-*) |
+| `prompt-findings.md` | Prompt linter dimension findings (SA-AGT-*) |
+| `rule-findings.md` | Rule consistency dimension findings (SA-RC-*) |
+| `hook-findings.md` | Hook integrity dimension findings (SA-HK-*) |
 | `findings.json` | Machine-readable findings list |
 | `metrics.json` | Dimension scores and deltas |
 | `proposals.md` | Fix proposals (when `--apply`) |
-| `correlation.md` | Cross-role patterns |
+| `correlation.md` | Cross-role patterns (when `--mode all`) |
+
+## Scoring
+
+```
+dimension_score = 100 - (P1_count * 15 + P2_count * 5 + P3_count * 1)
+clamped to [0, 100]
+
+overall_score = avg(all active dimension scores)
+```
+
+| Score Range | Verdict | Meaning |
+|-------------|---------|---------|
+| 90-100 | EXCELLENT | System is well-maintained |
+| 70-89 | GOOD | Minor issues, no action required |
+| 50-69 | NEEDS_ATTENTION | Several issues, review recommended |
+| 0-49 | CRITICAL | Significant issues, action required |
+
+## Error Handling
+
+| Error | Recovery |
+|-------|----------|
+| Agent timeout (>5 min) | Proceed with partial findings from completed agents |
+| Agent produces no output file | Report dimension as "UNABLE TO AUDIT" with score N/A |
+| Grounding check finds hallucinated citations | Drop finding, log in report "Grounding Verification" section |
+| Echo MEMORY.md doesn't exist | Create with initial template |
+| Echo MEMORY.md exceeds 150 lines | Trigger pruning per echo protocol |
+| Talisman `self_audit.enabled` is false | Inform user and exit cleanly |
+| Team creation fails | Retry with teamTransition protocol |
+| Self-referential finding about meta-QA | Tag with `self_referential: true`, require human review |
 
 ## References
 
+- [aggregation.md](references/aggregation.md) — SELF-AUDIT-REPORT.md template and grounding rules
 - [apply-mode.md](references/apply-mode.md) — Interactive approval protocol
 - [cross-role-correlation.md](references/cross-role-correlation.md) — Correlation algorithm
 - [phase-injection.md](references/phase-injection.md) — Echo injection into arc phases
