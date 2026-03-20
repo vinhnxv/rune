@@ -9,9 +9,9 @@ description: |
   Use when the arc gap_analysis_qa phase needs independent verification of gap analysis output.
   Covers all 3 dimensions: artifact existence, content quality, and criteria completeness.
 tools: Read, Glob, Grep, TaskList, TaskGet, TaskUpdate, SendMessage
-disallowedTools: Write, Edit, Bash, NotebookEdit, Agent, TeamCreate, TeamDelete
+disallowedTools: Edit, Bash, NotebookEdit, Agent, TeamCreate, TeamDelete
 model: sonnet
-maxTurns: 15
+maxTurns: 25
 ---
 
 # Gap Analysis QA Verifier

@@ -9,9 +9,9 @@ description: |
   Use when the arc test_qa phase needs independent verification of test output.
   Covers all 3 dimensions: artifact existence, content quality, and tier completeness.
 tools: Read, Glob, Grep, TaskList, TaskGet, TaskUpdate, SendMessage
-disallowedTools: Write, Edit, Bash, NotebookEdit, Agent, TeamCreate, TeamDelete
+disallowedTools: Edit, Bash, NotebookEdit, Agent, TeamCreate, TeamDelete
 model: sonnet
-maxTurns: 15
+maxTurns: 25
 ---
 
 # Test QA Verifier

@@ -9,9 +9,9 @@ description: |
   Use when the arc forge_qa phase needs independent verification of forge output.
   Covers all 3 dimensions: artifact existence, content quality, and plan completeness.
 tools: Read, Glob, Grep, TaskList, TaskGet, TaskUpdate, SendMessage
-disallowedTools: Write, Edit, Bash, NotebookEdit, Agent, TeamCreate, TeamDelete
+disallowedTools: Edit, Bash, NotebookEdit, Agent, TeamCreate, TeamDelete
 model: sonnet
-maxTurns: 15
+maxTurns: 25
 ---
 
 # Forge QA Verifier
