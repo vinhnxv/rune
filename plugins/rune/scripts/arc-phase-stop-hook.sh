@@ -475,6 +475,44 @@ _smart_compact_needed() {
   return 1  # Sufficient context
 }
 
+# ── Phase-specific echo extraction (Phase 3 Feedback Loop) ──
+# Extracts up to 3 matching echo entries for a target phase from MEMORY.md.
+# Filters by phase_tags match. Excludes observations/traced layers (low signal).
+_extract_phase_echoes() {
+  local memory_file="$1"
+  local target_phase="$2"
+  local max_entries=3
+  local count=0
+  local in_entry=false
+  local current_entry=""
+  local include_entry=false
+
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^###\ \[ ]]; then
+      if $include_entry && [[ -n "$current_entry" ]] && (( count < max_entries )); then
+        printf '%s\n\n' "$current_entry"
+        (( count++ ))
+      fi
+      in_entry=true
+      current_entry="$line"
+      include_entry=false
+    elif $in_entry; then
+      current_entry="${current_entry}
+${line}"
+      if [[ "$line" == *"phase_tags"*"$target_phase"* ]]; then
+        include_entry=true
+      fi
+      if [[ "$line" == *"**layer**: observations"* ]] || [[ "$line" == *"**layer**: traced"* ]]; then
+        include_entry=false
+      fi
+    fi
+  done < "$memory_file"
+
+  if $include_entry && [[ -n "$current_entry" ]] && (( count < max_entries )); then
+    printf '%s\n' "$current_entry"
+  fi
+}
+
 # ── Defensive: demote phases "skipped" without skip_reason back to "pending" ──
 # Root cause: LLM orchestrator may batch-skip conditional phases in a single turn
 # without reading reference files (which set skip_reason). Phases skipped legitimately
@@ -1381,6 +1419,22 @@ ${PHASE_PROMPT}"
       "$NEXT_PHASE" "$_rl_wait" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date +%Y-%m-%dT%H:%M:%SZ)" \
       >> "${_PHASE_LOG_DIR}/phase-log.jsonl" 2>/dev/null || true
   fi
+fi
+
+# ── Meta-QA Echo Injection (Phase 3 Feedback Loop) ──
+_meta_qa_echoes=""
+_mqa_file="${CWD}/.rune/echoes/meta-qa/MEMORY.md"
+if [[ -f "$_mqa_file" && ! -L "$_mqa_file" ]]; then
+  _meta_qa_echoes=$(_extract_phase_echoes "$_mqa_file" "$NEXT_PHASE")
+fi
+if [[ -n "$_meta_qa_echoes" ]] && [[ "${#_meta_qa_echoes}" -lt 2000 ]]; then
+  PHASE_PROMPT="${PHASE_PROMPT}
+
+## Meta-QA Warnings (from self-audit)
+The following recurring issues have been detected in previous runs of this phase.
+Take extra care to avoid these patterns:
+
+${_meta_qa_echoes}"
 fi
 
 # ── Hook execution summary to phase-log.jsonl (AC-5) ──

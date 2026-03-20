@@ -603,6 +603,17 @@
         ]
       },
       {
+        "_rationale": "SELF-AUDIT-001: Advisory suggestion to run /rune:self-audit after repeated marginal QA scores. Non-blocking. Talisman-gated via self_audit.auto_suggest_threshold.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/suggest-self-audit.sh",
+            "timeout": 5,
+            "statusMessage": "Checking self-audit suggestion..."
+          }
+        ]
+      },
+      {
         "_rationale": "CTX-STOP-001: Context usage warning on conversation stop. Advisory — warns at 70% and 85% used thresholds via existing statusline bridge file. LAST in Stop array (per F1: must not block arc-phase-stop-hook.sh from running first). Never blocks context_limit stops or user aborts. Talisman-gated via context_stop_guard.enabled.",
         "hooks": [
           {
