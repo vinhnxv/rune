@@ -42,9 +42,10 @@ const composedPrompt = bootstrapDirectives + '\n' + agentBody
 
 | File | Lines | Track 1 Consumers (Read() in agent .md) | Track 2 Consumers (injected by orchestrator) | Content |
 |------|-------|----------------------------------------|----------------------------------------------|---------|
-| `communication-protocol.md` | ~25 | rune-smith, trial-forger, mend-fixer, gap-fixer, verdict-binder | — | Seal format, shutdown handling, SendMessage conventions, exit conditions |
-| `quality-gate-template.md` | ~30 | rune-smith, trial-forger | ward-sentinel, knowledge-keeper (via devise/arc orchestrators) | Confidence calibration, Inner Flame supplementary, self-review pass |
+| `communication-protocol.md` | ~25 | rune-smith, trial-forger, mend-fixer, gap-fixer, verdict-binder, grace-warden-inspect, sight-oracle-inspect, vigil-keeper-inspect, ruin-prophet-inspect | — | Seal format, shutdown handling, SendMessage conventions, exit conditions |
+| `quality-gate-template.md` | ~30 | rune-smith, trial-forger, grace-warden-inspect, sight-oracle-inspect, vigil-keeper-inspect, ruin-prophet-inspect | ward-sentinel, knowledge-keeper (via devise/arc orchestrators) | Confidence calibration, Inner Flame supplementary, self-review pass |
 | `context-checkpoint-protocol.md` | ~30 | rune-smith, trial-forger | — | Adaptive reset depth, Seal summary requirements, context rot detection |
+| `iron-law-protocol.md` | ~31 | — | — | Iron Law enforcement wrapper ("this rule is absolute"), agent-specific law statements remain inline |
 
 > **Note**: Track 2 consumers are general-purpose agents whose Read() directives are composed by orchestrator skills, not embedded in agent .md files. The `validate-agent-shared-refs.sh` script only validates Track 1 references. Track 2 validation is out of scope for the current script — broken Track 2 references are discovered at runtime.
 
