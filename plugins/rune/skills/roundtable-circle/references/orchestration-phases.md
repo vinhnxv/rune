@@ -975,11 +975,22 @@ try {
   const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
-  // FALLBACK: config.json read failed — include all possible agents.
-  // Static built-in Ashes + runebinder + conditionally-spawned agents.
+  // FALLBACK LAYER 2: Read inscription.json from signal dir (persisted to disk in Phase 2).
+  // This catches agent-search discovered agents (registry/, user_agents) that aren't in
+  // the static array. inscription.json survives compaction since it's on disk, not in context.
+  let inscriptionMembers = []
+  try {
+    const signalDir = `tmp/.rune-signals/${teamName}`
+    const inscription = JSON.parse(Read(`${signalDir}/inscription.json`))
+    inscriptionMembers = (inscription.teammates || [])
+      .map(t => t.name)
+      .filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+  } catch (e2) { /* inscription also unavailable — fall through to static array */ }
+
+  // FALLBACK LAYER 3: Static hardcoded array — last resort.
   // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
   allMembers = [
-    // Static: all possible built-in Ashes (safe to send to absent members)
+    // Static: all possible built-in Ashes
     // CLEAN-006 FIX: "pattern-weaver" → "pattern-seer" (correct registered name)
     "forge-warden", "ward-sentinel", "pattern-seer", "veil-piercer",
     "glyph-scribe", "knowledge-keeper", "codex-oracle",
@@ -1001,9 +1012,13 @@ try {
     // Custom Ashes from talisman.yml — hardcoded fallback (safe to send to absent members)
     "team-lifecycle-reviewer", "agent-spawn-reviewer",
     "dead-prompt-detector", "cleanup-completeness-reviewer", "phantom-warden",
-    // Custom Ashes — dynamic discovery (supplements hardcoded list above)
+    // Inscription-discovered agents (agent-search MCP, registry/, user_agents)
+    ...inscriptionMembers,
+    // Context-held dynamic list (may be empty after compaction)
     ...(selectedAsh ?? [])
   ]
+  // Deduplicate (inscription + static may overlap)
+  allMembers = [...new Set(allMembers)]
 }
 
 // 2. Shutdown all teammates — track confirmed alive/dead for adaptive grace
