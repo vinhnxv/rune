@@ -161,9 +161,9 @@ pub fn check_health(sys: &System, pid: u32) -> ProcessHealth {
     ProcessHealth::Active
 }
 
-/// Collect all descendant PIDs of a given root PID (breadth-first).
+/// Collect all descendant PIDs of a given root PID (depth-first).
 ///
-/// Builds a parent→children index in O(n) first, then BFS over the index.
+/// Builds a parent→children index in O(n) first, then DFS over the index.
 /// Previously was O(n*d) where n=all processes and d=tree depth.
 pub fn collect_descendants(sys: &System, root_pid: u32) -> Vec<u32> {
     use std::collections::{HashMap, HashSet};
@@ -179,17 +179,17 @@ pub fn collect_descendants(sys: &System, root_pid: u32) -> Vec<u32> {
         }
     }
 
-    // BFS using the index — O(d) lookups with HashSet for O(1) dedup
+    // DFS using the index — O(d) lookups with HashSet for O(1) dedup
     let mut result = Vec::new();
     let mut visited = HashSet::new();
-    let mut queue = vec![root_pid];
+    let mut stack = vec![root_pid];
 
-    while let Some(parent) = queue.pop() {
+    while let Some(parent) = stack.pop() {
         if let Some(kids) = children_map.get(&parent) {
             for &child_pid in kids {
                 if child_pid != root_pid && visited.insert(child_pid) {
                     result.push(child_pid);
-                    queue.push(child_pid);
+                    stack.push(child_pid);
                 }
             }
         }

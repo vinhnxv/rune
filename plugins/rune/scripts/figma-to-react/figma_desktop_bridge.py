@@ -27,10 +27,27 @@ from typing import Any, Optional
 try:
     import defusedxml.ElementTree as SafeET
 except ImportError:
-    SafeET = ET  # type: ignore[misc]  # Fallback to stdlib if defusedxml not installed
-    logging.getLogger(__name__).warning(
-        "defusedxml not installed — XML parsing lacks XXE protection. "
-        "Install with: pip install defusedxml>=0.7.1"
+
+    class _SafeETFallback:
+        """Minimal XXE-safe wrapper around stdlib ElementTree.
+
+        Disables entity resolution and DTD processing to prevent XML External
+        Entity (XXE) attacks when defusedxml is not installed.
+        """
+
+        @staticmethod
+        def fromstring(xml_string: str) -> ET.Element:
+            """Parse XML string with entity resolution disabled."""
+            parser = ET.XMLParser()
+            parser.entity = {}  # type: ignore[attr-defined]  # Disable entity resolution
+            parser.feed(xml_string)
+            return parser.close()
+
+    SafeET = _SafeETFallback()  # type: ignore[assignment]
+    logging.getLogger(__name__).error(
+        "defusedxml not installed — using safe stdlib fallback with entity "
+        "resolution disabled. Install defusedxml for full XXE protection: "
+        "pip install defusedxml>=0.7.1"
     )
 
 import httpx

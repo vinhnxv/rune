@@ -163,6 +163,36 @@ def _gradient_stops_css(stops: Optional[List[Any]]) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_SCALE_MODE_MAP = {
+    "FILL": "cover",
+    "FIT": "contain",
+    "CROP": "cover",
+    "TILE": "auto",
+}
+
+_BLEND_MAP = {
+    "MULTIPLY": "multiply",
+    "SCREEN": "screen",
+    "OVERLAY": "overlay",
+    "DARKEN": "darken",
+    "LIGHTEN": "lighten",
+    "COLOR_DODGE": "color-dodge",
+    "COLOR_BURN": "color-burn",
+    "HARD_LIGHT": "hard-light",
+    "SOFT_LIGHT": "soft-light",
+    "DIFFERENCE": "difference",
+    "EXCLUSION": "exclusion",
+    "HUE": "hue",
+    "SATURATION": "saturation",
+    "COLOR": "color",
+    "LUMINOSITY": "luminosity",
+}
+
+
+# ---------------------------------------------------------------------------
 # StyleBuilder
 # ---------------------------------------------------------------------------
 
@@ -232,12 +262,6 @@ class StyleBuilder:
             paint: Image fill paint object.
         """
         scale_mode = paint.scale_mode if paint.scale_mode else "FILL"
-        _SCALE_MODE_MAP = {
-            "FILL": "cover",
-            "FIT": "contain",
-            "CROP": "cover",
-            "TILE": "auto",
-        }
         self._props["background-size"] = _SCALE_MODE_MAP.get(scale_mode, "cover")
         self._props["background-position"] = "center"
         if scale_mode == "TILE":
@@ -637,23 +661,6 @@ class StyleBuilder:
         """
         if not mode:
             return self
-        _BLEND_MAP: Dict[str, str] = {
-            "MULTIPLY": "multiply",
-            "SCREEN": "screen",
-            "OVERLAY": "overlay",
-            "DARKEN": "darken",
-            "LIGHTEN": "lighten",
-            "COLOR_DODGE": "color-dodge",
-            "COLOR_BURN": "color-burn",
-            "HARD_LIGHT": "hard-light",
-            "SOFT_LIGHT": "soft-light",
-            "DIFFERENCE": "difference",
-            "EXCLUSION": "exclusion",
-            "HUE": "hue",
-            "SATURATION": "saturation",
-            "COLOR": "color",
-            "LUMINOSITY": "luminosity",
-        }
         css_val = _BLEND_MAP.get(mode)
         if css_val:
             self._props["mix-blend-mode"] = css_val

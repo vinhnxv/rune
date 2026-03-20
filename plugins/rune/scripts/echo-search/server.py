@@ -590,16 +590,31 @@ def _score_proximity(entry: Dict[str, Any], context_files: Optional[List[str]] =
     if not evidence_paths:
         return 0.0
 
-    # Best proximity across all evidence/context path pairs
+    # Pre-compute normalized context paths and their directories for O(1) lookups,
+    # avoiding the O(E*C) nested loop for the two most common proximity tiers.
+    ctx_norms = {os.path.normpath(ctx) for ctx in context_files}
+    ctx_dirs = {os.path.dirname(p) for p in ctx_norms if os.path.dirname(p)}
+
     best = 0.0
     for ev in evidence_paths:
-        for ctx in context_files:
-            ctx_norm = os.path.normpath(ctx)
-            score = compute_file_proximity(ev, ctx_norm)
-            if score > best:
-                best = score
-            if best >= 1.0:
-                return 1.0  # Can't do better than exact match
+        # Tier 1: exact match — O(1) set lookup
+        if ev in ctx_norms:
+            return 1.0
+
+        # Tier 2: same directory — O(1) set lookup
+        ev_dir = os.path.dirname(ev)
+        if ev_dir and ev_dir in ctx_dirs:
+            best = max(best, 0.8)
+            continue  # Can't beat 0.8 for this ev without exact match
+
+        # Tier 3: shared prefix — must compare against each context path
+        if best < 0.8:
+            for ctx_norm in ctx_norms:
+                score = compute_file_proximity(ev, ctx_norm)
+                if score > best:
+                    best = score
+                if best >= 0.8:
+                    break  # No need to check more context paths for this ev
 
     return best
 
@@ -672,9 +687,10 @@ def _cap_access_log(conn: sqlite3.Connection) -> None:
         "SELECT COUNT(*) FROM echo_access_log").fetchone()[0]
     if row_count > 100000:
         conn.execute("""DELETE FROM echo_access_log
-            WHERE id NOT IN (
+            WHERE id IN (
                 SELECT id FROM echo_access_log
-                ORDER BY accessed_at DESC LIMIT 90000)""")
+                ORDER BY accessed_at ASC
+                LIMIT (SELECT MAX(0, COUNT(*) - 90000) FROM echo_access_log))""")
         conn.commit()
 
 
@@ -2210,6 +2226,7 @@ def _query_by_group(conn: sqlite3.Connection, column: str) -> dict:
     if column not in ALLOWED_COLUMNS:
         raise ValueError(f"Invalid group-by column: {column}")
     result = {}  # type: Dict[str, int]
+    # Safe %-format: column is validated against ALLOWED_COLUMNS allowlist above
     for row in conn.execute(
         "SELECT %s, COUNT(*) as cnt FROM echo_entries GROUP BY %s" % (column, column)
     ):

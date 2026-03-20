@@ -9,7 +9,7 @@
 # Requires RUNE_TRACE_LOG to be set before sourcing, or falls back to default.
 # Set RUNE_TRACE=1 to enable output. Zero overhead when disabled.
 
-RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
 
 _trace() {
   [[ "${RUNE_TRACE:-}" == "1" ]] || return 0

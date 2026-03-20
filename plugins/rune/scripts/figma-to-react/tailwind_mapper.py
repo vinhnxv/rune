@@ -20,6 +20,7 @@ Usage::
 
 from __future__ import annotations
 
+import functools
 import math
 import re
 from typing import Dict, List, Optional, Tuple
@@ -214,6 +215,29 @@ _OPACITY_SCALE: Dict[str, float] = {
 }
 
 
+# Dimension property -> Tailwind prefix mapping
+_DIM_MAP: Dict[str, str] = {
+    "width": "w", "height": "h",
+    "min-width": "min-w", "max-width": "max-w",
+    "min-height": "min-h", "max-height": "max-h",
+}
+
+# Padding/gap property -> Tailwind prefix mapping
+_PAD_MAP: Dict[str, str] = {
+    "padding": "p", "padding-x": "px", "padding-y": "py",
+    "padding-top": "pt", "padding-right": "pr",
+    "padding-bottom": "pb", "padding-left": "pl",
+    "gap": "gap",
+}
+
+# CSS gradient direction -> Tailwind shorthand
+_DIRECTION_MAP: Dict[str, str] = {
+    "to bottom": "b", "to top": "t", "to right": "r", "to left": "l",
+    "to bottom right": "br", "to top right": "tr",
+    "to bottom left": "bl", "to top left": "tl",
+}
+
+
 # ---------------------------------------------------------------------------
 # Color mapping
 # ---------------------------------------------------------------------------
@@ -272,9 +296,10 @@ def _parse_rgba(rgba_str: str) -> Optional[Tuple[int, int, int]]:
     return None
 
 
+@functools.lru_cache(maxsize=32)
 def _snap_color_named(css_color: str, prefix: str) -> Optional[str]:
     """Return a Tailwind class for CSS named colors, or None if not named."""
-    _CSS_NAMED_COLORS = {
+    named_colors = {
         "transparent": f"{prefix}-transparent",
         "currentcolor": f"{prefix}-current",
         "inherit": f"{prefix}-inherit",
@@ -283,7 +308,7 @@ def _snap_color_named(css_color: str, prefix: str) -> Optional[str]:
         "black": f"{prefix}-black",
         "white": f"{prefix}-white",
     }
-    return _CSS_NAMED_COLORS.get(css_color.lower())
+    return named_colors.get(css_color.lower())
 
 
 def _snap_color_palette(rgb: Tuple[int, int, int], prefix: str) -> str:
@@ -480,12 +505,7 @@ class TailwindMapper:
 
         Returns None if the property is not a dimension property.
         """
-        _dim_map = {
-            "width": "w", "height": "h",
-            "min-width": "min-w", "max-width": "max-w",
-            "min-height": "min-h", "max-height": "max-h",
-        }
-        prefix = _dim_map.get(prop)
+        prefix = _DIM_MAP.get(prop)
         if prefix is not None:
             return [self._map_dimension(value, prefix)]
         return None
@@ -495,13 +515,7 @@ class TailwindMapper:
 
         Returns None if the property is not padding/gap-related.
         """
-        _pad_map = {
-            "padding": "p", "padding-x": "px", "padding-y": "py",
-            "padding-top": "pt", "padding-right": "pr",
-            "padding-bottom": "pb", "padding-left": "pl",
-            "gap": "gap",
-        }
-        tw_prefix = _pad_map.get(prop)
+        tw_prefix = _PAD_MAP.get(prop)
         if tw_prefix is not None:
             px = _parse_px(value)
             return [f"{tw_prefix}-{_px_to_spacing(px)}"] if px is not None else []
@@ -533,12 +547,7 @@ class TailwindMapper:
     @staticmethod
     def _resolve_gradient_direction(value: str) -> str:
         """Resolve CSS gradient direction to Tailwind shorthand."""
-        _direction_map = {
-            "to bottom": "b", "to top": "t", "to right": "r", "to left": "l",
-            "to bottom right": "br", "to top right": "tr",
-            "to bottom left": "bl", "to top left": "tl",
-        }
-        for css_dir, d in _direction_map.items():
+        for css_dir, d in _DIRECTION_MAP.items():
             if css_dir in value:
                 return d
         return "b"  # default

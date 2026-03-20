@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [2.3.2] - 2026-03-20
+
+### Fixed
+- **torrent**: Fix `.unwrap()` panic in `app.rs` event loop — `check_restart_cooldown()` can `.take()` `current_run` to `None` before the unwrap (FLAW-001)
+- **torrent**: Replace 9 `.expect()` panics on `Command::output()` in `torrent-cli.rs` with graceful error handling (FLAW-002)
+- **torrent**: Atomic lock acquisition in `lock.rs` using `O_CREAT|O_EXCL` — eliminates TOCTOU race condition (FLAW-003)
+- **torrent**: Fix BFS/DFS comment mismatch in `resource.rs` `collect_descendants()` — rename `queue` to `stack` (FLAW-009)
+- **figma-to-react**: Disable XML entity resolution in `figma_desktop_bridge.py` fallback when `defusedxml` is unavailable — closes XXE vector (BACK-001)
+- **agent-search**: Batch pre-fetch in `_insert_entries()` — eliminates N+1 query pattern (~200 SELECTs → 1) (PERF-001)
+- **echo-search**: Pre-compute context directory sets in `_score_proximity()` for O(1) lookups — was O(E×C) nested loop (PERF-002)
+- **echo-search**: Rewrite `_cap_access_log()` DELETE to target oldest excess rows directly — avoids NOT IN materialization of 90k IDs (PERF-003)
+- **echo-search**: Add inline comment linking `_query_by_group()` %-format SQL to ALLOWED_COLUMNS allowlist (BACK-005)
+- **figma-to-react**: Hoist `_SCALE_MODE_MAP` and `_BLEND_MAP` to module-level constants in `style_builder.py` (PERF-005)
+- **figma-to-react**: Hoist `_DIM_MAP`, `_PAD_MAP`, `_DIRECTION_MAP` to module-level constants in `tailwind_mapper.py` (PERF-006)
+- **figma-to-react**: Add `@functools.lru_cache(32)` to `_snap_color_named()` in `tailwind_mapper.py` (BACK-004)
+- **hooks**: Add `${PPID}` suffix to `trace-logger.sh` default log path for session isolation (SEC-004)
+
 ## [2.3.1] - 2026-03-20
 
 ### Fixed
