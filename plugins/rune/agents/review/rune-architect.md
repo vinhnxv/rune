@@ -9,6 +9,7 @@ tools:
   - Read
   - Glob
   - Grep
+  - LSP
 maxTurns: 30
 mcpServers:
   - echo-search
@@ -79,6 +80,19 @@ Before reviewing architectural compliance, query Rune Echoes for previously iden
 - If an echo flags a service as a god object, prioritize single responsibility analysis
 - Historical circular dependency patterns inform which import chains need verification
 - Include echo context in findings as: `**Echo context:** {past pattern} (source: rune-architect/MEMORY.md)`
+
+## LSP Integration
+
+For details on LSP operations and the fallback protocol, see [lsp-patterns.md](../../references/lsp-patterns.md).
+
+### LSP-Enhanced Layer Analysis
+
+1. **LSP findReferences** on domain symbols → verify only upper layers import them (not infrastructure importing domain internals)
+2. **LSP goToDefinition** on suspicious imports → confirm actual target module/layer (resolves aliased imports and re-exports)
+3. **LSP documentSymbol** on large classes → count public methods for God Object detection
+4. **Fallback**: Grep for import patterns (current behavior)
+
+**Why LSP matters**: Layer checking is mostly import-pattern based, which Grep handles adequately. LSP adds precision for edge cases — aliased imports, re-exports through barrel files, and accurate public method counting for SOLID compliance checks. Note **Source: LSP** or **Source: Grep** for each finding.
 
 ## Analysis Framework
 

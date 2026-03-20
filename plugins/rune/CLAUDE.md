@@ -84,6 +84,23 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | `/rune:team-delegate` | Task delegation dashboard — assign, message, create tasks (experimental) |
 | `/rune:self-audit` | Meta-QA self-audit of Rune's own workflow system (4 dimensions, echo-integrated) |
 
+## ToolSearch Compatibility
+
+Rune's 12 MCP tools are designed for ToolSearch discoverability. When users install multiple MCP servers and the combined schema exceeds 10K tokens, Claude Code automatically defers tool loading and uses BM25 search.
+
+### Hot vs Cold Tools (usage frequency)
+
+| Frequency | Tools | When Used |
+|-----------|-------|-----------|
+| Hot | echo_search, echo_details | Every review, audit, planning session |
+| Warm | figma_to_react, figma_list_components, query-docs, resolve-library-id | Design workflows, research phases |
+| Cold | echo_reindex, echo_stats, echo_record_access, echo_upsert_group, figma_fetch_design, figma_inspect_node | Maintenance, debugging, deep inspection |
+
+When adding new MCP tools, ensure descriptions include:
+1. Primary use case (what problem it solves)
+2. When to use it (which workflow phase)
+3. Key parameter keywords (filter dimensions, output formats)
+
 ## Discipline Engineering
 
 Rune implements structural discipline enforcement across all pipelines. See `docs/discipline-engineering.md` for the foundational document and `skills/discipline/` for the skill + references.
