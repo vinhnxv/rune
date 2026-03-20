@@ -1,0 +1,77 @@
+phase: work
+purpose: |
+  Invoke /rune:strive logic on the enriched plan. Swarm workers implement tasks
+  with incremental commits. Produces a work summary with per-task breakdown,
+  criteria coverage, and committed file inventory.
+defined_in: plugins/rune/skills/arc/references/arc-phase-work.md
+steps:
+  - id: "WRK-STEP-01"
+    name: "Create feature branch"
+    required: true
+    order: 1
+    artifact: null
+    artifact_check: "Current git branch is a feature branch (not main/master)"
+    description: "Create a feature branch if currently on main. If already on a feature branch, use the current branch."
+
+  - id: "WRK-STEP-02"
+    name: "Build worker context"
+    required: true
+    order: 2
+    artifact: null
+    artifact_check: "Worker context includes quality contract and discipline integration sections"
+    description: "Build context string for workers including reviewer concerns, verification warnings, quality contract (type annotations, docstrings, error handling, test coverage), and discipline integration instructions."
+
+  - id: "WRK-STEP-03"
+    name: "Record in_progress checkpoint"
+    required: true
+    order: 3
+    artifact: null
+    artifact_check: "Checkpoint has phase=work, status=in_progress, phase_sequence=5"
+    description: "Update checkpoint to record work phase as in_progress with null team_name (actual name discovered post-delegation)."
+
+  - id: "WRK-STEP-04"
+    name: "Delegate to /rune:strive"
+    required: true
+    order: 4
+    artifact: null
+    artifact_check: "Strive sub-command was invoked with enriched plan path and work context"
+    description: "Delegate to /rune:strive which manages its own team lifecycle (TeamCreate, TaskCreate, worker spawning, monitoring, commit brokering, ward check, cleanup, TeamDelete)."
+
+  - id: "WRK-STEP-05"
+    name: "Produce work summary"
+    required: true
+    order: 5
+    artifact: "tmp/arc/{id}/work-summary.md"
+    artifact_check: "File exists with Aggregate table, Per-Task Status table, Criteria Coverage, Committed Files, and Commits sections"
+    description: "Build enriched work summary from TaskList results including per-task breakdown (files modified, criteria passed/total, commit SHA), aggregate metrics, and committed file inventory."
+
+  - id: "WRK-STEP-06"
+    name: "Discover team name"
+    required: false
+    order: 6
+    artifact: "tmp/.rune-work-*.json"
+    artifact_check: "State file exists with valid team_name matching SEC-001 regex"
+    description: "Read actual team name from post-delegation state file. Filter by status (active or recently completed) and age. Record in checkpoint for cancel-arc discovery."
+
+  - id: "WRK-STEP-07"
+    name: "Log task file observability"
+    required: false
+    order: 7
+    artifact: null
+    artifact_check: "Phase log contains task_files_created event with file counts"
+    description: "Log counts of physical task files, prompt files, and context files created by strive Phase 1. Emit CRITICAL warning if zero task files (degraded mode)."
+
+  - id: "WRK-STEP-08"
+    name: "Update checkpoint"
+    required: true
+    order: 8
+    artifact: null
+    artifact_check: "Checkpoint has phase=work, status=completed|failed, artifact path, artifact_hash, and commits array"
+    description: "Write final checkpoint. Status is completed if >=50% tasks complete, failed otherwise. Includes artifact path, sha256 hash, and commit SHAs."
+
+success_criteria:
+  - "tmp/arc/{id}/work-summary.md exists with non-empty Aggregate and Per-Task Status sections"
+  - "Checkpoint phase=work has status=completed with valid artifact_hash"
+  - "At least 50% of tasks completed (otherwise pipeline halts)"
+  - "Code changes committed on the feature branch"
+  - "Work team_name recorded in checkpoint for cancel-arc discovery"

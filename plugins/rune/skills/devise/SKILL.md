@@ -70,8 +70,8 @@ Phase -1: Team Bootstrap (TeamCreate + state file — enables ATE-1 enforcement)
     ↓
 Phase 0: Gather Input (3 paths: --brainstorm-context → read workspace, --quick → skip, default → delegate to brainstorm protocol)
     ↓
-Phase 1: Research (up to 8 agents, conditional — join existing team)
-    ├─ Phase 1A: LOCAL RESEARCH (always — repo-surveyor, echo-reader, git-miner)
+Phase 1: Research (up to 10 agents, conditional — join existing team)
+    ├─ Phase 1A: LOCAL RESEARCH (always — repo-surveyor, echo-reader, git-miner, wiring-cartographer, activation-pathfinder)
     ├─ Phase 1B: RESEARCH DECISION (talisman plan config bypass, risk + local sufficiency scoring, URL sanitization)
     ├─ Phase 1C: EXTERNAL RESEARCH (conditional — practice-seeker + Context7 MCP, lore-scholar + Context7, codex-researcher)
     ├─ Phase 1C.5: RESEARCH VERIFICATION (conditional — research-verifier, serial/blocking)
@@ -184,9 +184,9 @@ Before researching solutions, scan affected code areas for existing bugs, gaps, 
 - Phase 2 synthesis includes: "## Existing Issues" section (Must Fix / Should Fix / Acknowledged)
 - Phase 2.3 Goldmask receives issue inventory for cross-reference
 
-## Phase 1: Research (Conditional, up to 8 agents)
+## Phase 1: Research (Conditional, up to 10 agents)
 
-Spawns local research agents (repo-surveyor, echo-reader, git-miner), evaluates risk/sufficiency scores to decide on external research (practice-seeker, lore-scholar, codex-researcher), optionally verifies external research outputs for trustworthiness (research-verifier, Phase 1C.5), then runs spec validation (flow-seer). Includes research consolidation validation checkpoint. Phase 1B reads `talisman.plan` config for `external_research` bypass modes (`always`/`auto`/`never`) and `research_urls` with SSRF-defensive URL sanitization. External research agents use Context7 MCP for framework documentation alongside WebSearch. Phase 1C.5 scores findings across 5 dimensions (relevance, accuracy, freshness, cross-validation, security) and maps verdicts (TRUSTED/CAUTION/UNTRUSTED/FLAGGED) — skipped with `--quick`, `--no-verify-research`, or when no external research ran.
+Spawns local research agents (repo-surveyor, echo-reader, git-miner, wiring-cartographer, activation-pathfinder), evaluates risk/sufficiency scores to decide on external research (practice-seeker, lore-scholar, codex-researcher), optionally verifies external research outputs for trustworthiness (research-verifier, Phase 1C.5), then runs spec validation (flow-seer). Includes research consolidation validation checkpoint. Phase 1B reads `talisman.plan` config for `external_research` bypass modes (`always`/`auto`/`never`) and `research_urls` with SSRF-defensive URL sanitization. External research agents use Context7 MCP for framework documentation alongside WebSearch. Phase 1C.5 scores findings across 5 dimensions (relevance, accuracy, freshness, cross-validation, security) and maps verdicts (TRUSTED/CAUTION/UNTRUSTED/FLAGGED) — skipped with `--quick`, `--no-verify-research`, or when no external research ran.
 
 ### MCP-First Research Agent Discovery (v1.171.0+)
 
@@ -216,9 +216,9 @@ See [solution-arena.md](references/solution-arena.md) for full protocol (sub-ste
 
 ## Phase 2: Synthesize
 
-Tarnished consolidates research findings into a plan document. User selects detail level (Minimal/Standard/Comprehensive). Includes plan templates, formatting best practices, and the Plan Section Convention (contracts before pseudocode).
+Tarnished consolidates research findings into a plan document. User selects detail level (Minimal/Standard/Comprehensive). Includes plan templates, formatting best practices, and the Plan Section Convention (contracts before pseudocode). Consolidates wiring-cartographer and activation-pathfinder outputs into `## Integration & Wiring Map` section (Standard and Comprehensive only; omitted for Minimal).
 
-**Inputs**: Research outputs from `tmp/plans/{timestamp}/research/`, user detail level selection, `designAware` (boolean from Phase 0), `figmaUrls` (string[] from Phase 0), `figmaUrl` (string or null — first entry, backward compat)
+**Inputs**: Research outputs from `tmp/plans/{timestamp}/research/` (including `wiring-map.md` and `activation-path.md` from integration research), user detail level selection, `designAware` (boolean from Phase 0), `figmaUrls` (string[] from Phase 0), `figmaUrl` (string or null — first entry, backward compat)
 **Outputs**: `plans/YYYY-MM-DD-{type}-{feature-name}-plan.md`
 **Error handling**: Missing research files -> proceed with available data
 **Comprehensive only**: Re-runs flow-seer on the drafted plan for a second SpecFlow pass

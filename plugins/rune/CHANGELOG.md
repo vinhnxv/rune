@@ -2,13 +2,25 @@
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-03-20
+
 ### Added
+- **arc**: QA Dashboard generation — `generateQADashboard(arcId)` aggregates all QA gate verdicts into `tmp/arc/{id}/qa/dashboard.json` and `dashboard.md` with weighted pipeline score and per-phase breakdown
+- **arc**: QA Dashboard injection in PR body (Phase 9: ship) — reads `dashboard.md` between Arc Pipeline Results and Review Summary sections, with inline fallback from verdict files
+- **arc**: QA Discipline Protocol section in arc SKILL.md — 6 mandatory obligations for independent quality verification (no self-evaluation, verdict file contract, GUARD 9 budget, score transparency, human escalation, dashboard generation)
 - **arc**: Wiring Map Verification — arc review pipeline now verifies `## Integration & Wiring Map` plan section during inspect (Phase 5.9), gap analysis, and code review (Phase 6)
+- **arc**: `arc-phase-inspect.md` STEP 1.5 extracts wiring map requirements into inspector context
+- **arc**: `arc-phase-code-review.md` STEP 1.7 injects wiring map as advisory context for review agents
+- **strive**: QA Awareness block in rune-smith and trial-forger worker prompts — teaches workers that their output will be independently verified by QA agents across 3 dimensions (artifact, quality, completeness), incentivizing thorough Worker Reports with specific evidence
+- **agents**: `wiring-cartographer` — maps integration points where new code connects to the existing system (entry points, layer architecture, registration patterns, dependency graph)
+- **agents**: `activation-pathfinder` — traces activation and migration paths for new features (file creation order, configuration changes, migration steps)
 - **agents**: `grace-warden` and `grace-warden-inspect` gain Step 2.5 Wiring Map Verification — checks Entry Points, Existing File Modifications, Registration & Discovery, and Layer Traversal tables
 - **agents**: `WIRE-NNN` finding prefix for wiring verification findings (alongside existing GRACE-, RUIN-, SIGHT-, VIGIL- prefixes)
 - **agents**: `verdict-binder` 9th gap category: `wiring` (WIRE- prefix, NOT auto-fixable)
-- **arc**: `arc-phase-inspect.md` STEP 1.5 extracts wiring map requirements into inspector context
-- **arc**: `arc-phase-code-review.md` STEP 1.7 injects wiring map as advisory context for review agents
+- **devise**: Phase 1A now spawns both new research agents alongside repo-surveyor, echo-reader, and git-miner (up to 10 research agents total)
+- **devise**: Phase 2 (Synthesize) consolidates integration research into `## Integration & Wiring Map` plan section (Standard and Comprehensive detail levels)
+- **devise**: Phase 6 cleanup fallback array includes both new agents to prevent orphan processes
+- **cost-tier**: Research category updated from 5 to 7 agents
 
 ### Changed
 - **agents**: Gap categories expanded from 8 to 9 across verdict-binder, gap-fixer, inspect-scoring, verdict-synthesis, inspect SKILL.md

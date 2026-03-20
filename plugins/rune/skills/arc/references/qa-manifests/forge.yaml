@@ -1,0 +1,52 @@
+phase: forge
+purpose: |
+  Invoke /rune:forge logic to enrich the plan with topic-aware Forge Gaze analysis.
+  Creates a working copy of the plan, delegates enrichment to the forge sub-command,
+  verifies the enriched output, and updates the arc checkpoint.
+defined_in: plugins/rune/skills/arc/references/arc-phase-forge.md
+steps:
+  - id: "FRG-STEP-01"
+    name: "Create working copy"
+    required: true
+    order: 1
+    artifact: "tmp/arc/{id}/enriched-plan.md"
+    artifact_check: "File exists and is a copy of the original plan"
+    description: "Copy the original plan file to tmp/arc/{id}/enriched-plan.md for in-place enrichment. Validates arc id format (SEC-007)."
+
+  - id: "FRG-STEP-02"
+    name: "Clean stale state files"
+    required: true
+    order: 2
+    artifact: null
+    artifact_check: "No completed/cancelled/expired forge state files remain"
+    description: "Remove stale tmp/.rune-forge-*.json files (completed, cancelled, or >30min old) to prevent TOCTOU confusion. Uses Glob() for ZSH-safe wildcard resolution."
+
+  - id: "FRG-STEP-03"
+    name: "Delegate to /rune:forge"
+    required: true
+    order: 3
+    artifact: "tmp/.rune-forge-*.json"
+    artifact_check: "State file exists with team_name; team_name passes SEC-001 regex validation"
+    description: "Invoke /rune:forge which manages its own team lifecycle. Record forge team_name in checkpoint for cancel-arc discovery. Validate team_name from state file (SEC-001)."
+
+  - id: "FRG-STEP-04"
+    name: "Verify enriched plan"
+    required: true
+    order: 4
+    artifact: "tmp/arc/{id}/enriched-plan.md"
+    artifact_check: "File exists, is non-empty, and contains enrichment content"
+    description: "Read the enriched plan and verify it has content. If empty, fall back to the original plan copy and warn the user."
+
+  - id: "FRG-STEP-05"
+    name: "Update checkpoint"
+    required: true
+    order: 5
+    artifact: null
+    artifact_check: "Checkpoint has phase=forge, status=completed, artifact path, and artifact_hash"
+    description: "Write final checkpoint with status=completed, artifact path to enriched-plan.md, and sha256 hash of the content."
+
+success_criteria:
+  - "tmp/arc/{id}/enriched-plan.md exists and is non-empty"
+  - "Checkpoint phase=forge has status=completed with valid artifact_hash"
+  - "Forge team_name recorded in checkpoint for cancel-arc discovery"
+  - "Original plan preserved (not overwritten) if forge fails"

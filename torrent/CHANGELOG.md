@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-03-20
+
+### Fixed
+
+- **False-positive PlanNotFound during active arc** — D4 diagnostic patterns `"no such file"` and `"file not found"` were too generic, matching normal tool output (e.g., Read errors during file probes) and incorrectly triggering SkipPlan mid-arc
+- **Bootstrap-only patterns now skipped during runtime** — added `bootstrap_only` flag to D4 (plan_not_found) and D5 (plugin_missing) patterns; `check_runtime` skips these entirely since the plan is already loaded once arc is running
+
 ## [0.6.0] - 2026-03-19
 
 ### Added

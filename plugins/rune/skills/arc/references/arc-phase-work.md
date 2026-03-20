@@ -239,3 +239,43 @@ File-based task delegation is **additive** — it extends existing flows without
 ## Feature Branch Strategy
 
 Before delegating to `/rune:strive`, the arc orchestrator ensures a feature branch exists (see SKILL.md Pre-flight: Branch Strategy COMMIT-1). If already on a feature branch, the current branch is used. `/rune:strive`'s own Phase 0.5 (env setup) skips branch creation when invoked from arc context.
+
+## Execution Log Integration
+
+Phase-specific execution logging for QA gate verification. The Tarnished writes one entry per manifest step.
+
+```javascript
+// At phase start — initialize execution log
+Bash(`mkdir -p "tmp/arc/${id}/execution-logs"`)
+const executionLog = {
+  phase: "work",
+  manifest: "qa-manifests/work.yaml",
+  started_at: new Date().toISOString(),
+  steps: [],
+  skipped_steps: []
+}
+
+// After each step — record completion
+executionLog.steps.push({
+  id: "WRK-STEP-{NN}",
+  status: "completed",  // or "skipped"
+  started_at: stepStartTs,
+  completed_at: new Date().toISOString(),
+  artifact_produced: artifactPath || null,
+  notes: ""
+})
+
+// For skipped steps (conditional steps that didn't execute)
+executionLog.skipped_steps.push({
+  id: "WRK-STEP-{NN}",
+  reason: "condition not met: {description}"
+})
+
+// At phase end (BEFORE updateCheckpoint)
+executionLog.completed_at = new Date().toISOString()
+executionLog.completed_steps = executionLog.steps.length
+executionLog.total_steps = 8  // from manifest
+executionLog.skipped_count = executionLog.skipped_steps.length
+executionLog.completion_pct = Math.round((executionLog.completed_steps / executionLog.total_steps) * 100)
+Write(`tmp/arc/${id}/execution-logs/work-execution.json`, JSON.stringify(executionLog, null, 2))
+```

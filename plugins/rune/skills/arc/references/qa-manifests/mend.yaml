@@ -1,0 +1,93 @@
+phase: mend
+purpose: |
+  Invoke /rune:mend logic on the TOME from code review. Parallel fixers resolve
+  findings with optional Elicitation Sage root cause analysis for P1 findings.
+  Produces a resolution report tracking fix outcomes per finding.
+defined_in: plugins/rune/skills/arc/references/arc-phase-mend.md
+steps:
+  - id: "MND-STEP-01"
+    name: "Select TOME source"
+    required: true
+    order: 1
+    artifact: null
+    artifact_check: "TOME source path correctly resolves to tome.md (round 0) or tome-round-{N}.md (retry)"
+    description: "Select the correct TOME input file based on convergence round. Round 0 uses tome.md from Phase 6, retry rounds use tome-round-{N}.md from re-review."
+
+  - id: "MND-STEP-02"
+    name: "Calculate timeout"
+    required: true
+    order: 2
+    artifact: null
+    artifact_check: "Timeout calculated as 23min for round 0, 13min for retry rounds"
+    description: "Compute phase timeout and inner polling timeout based on convergence round. Round 0: 23min outer / 15min inner. Retry: 13min outer / 5min inner. Floor: 2min minimum."
+
+  - id: "MND-STEP-03"
+    name: "Record in_progress checkpoint"
+    required: true
+    order: 3
+    artifact: null
+    artifact_check: "Checkpoint has phase=mend, status=in_progress, phase_sequence=7"
+    description: "Update checkpoint to record mend phase as in_progress with null team_name."
+
+  - id: "MND-STEP-04"
+    name: "Validate TOME path"
+    required: true
+    order: 4
+    artifact: null
+    artifact_check: "TOME path starts with tmp/arc/ and contains no path traversal (..)"
+    description: "Defense-in-depth validation of TOME source path. Blocks path traversal and non-arc paths."
+
+  - id: "MND-STEP-05"
+    name: "Extract TOME metrics"
+    required: true
+    order: 5
+    artifact: "tmp/arc/{id}/tome-digest.json"
+    artifact_check: "Digest contains p1_count and total_findings as numbers"
+    description: "Extract P1 finding count and total findings via shell script (zero LLM tokens). Falls back to direct TOME reading if extraction fails."
+
+  - id: "MND-STEP-06"
+    name: "Elicitation Sage root cause analysis"
+    required: false
+    order: 6
+    artifact: "tmp/arc/{id}/elicitation-root-cause.md"
+    artifact_check: "Root cause file exists if P1 findings > 0 or total findings >= 5"
+    description: "Run synchronous Elicitation Sage (5 Whys Deep Dive) for P1/recurring findings. Uses ephemeral arc-sage-{id} team. Skipped if elicitation.enabled=false or no qualifying findings."
+
+  - id: "MND-STEP-07"
+    name: "Delegate to /rune:mend"
+    required: true
+    order: 7
+    artifact: null
+    artifact_check: "Mend sub-command invoked with correct TOME source and inner polling timeout"
+    description: "Delegate to /rune:mend with TOME source path and --timeout for inner polling. Mend manages its own team lifecycle."
+
+  - id: "MND-STEP-08"
+    name: "Discover team name"
+    required: false
+    order: 8
+    artifact: "tmp/.rune-mend-*.json"
+    artifact_check: "State file exists with valid team_name matching SEC-001 regex"
+    description: "Read actual team name from post-delegation state file. Filter by status, age, and round-aware timeout. Record in checkpoint."
+
+  - id: "MND-STEP-09"
+    name: "Write resolution report"
+    required: true
+    order: 9
+    artifact: "tmp/arc/{id}/resolution-report.md"
+    artifact_check: "Resolution report exists at round-aware path (resolution-report.md or resolution-report-round-{N}.md)"
+    description: "Write the resolution report to a round-aware path. Round 0: resolution-report.md. Round N: resolution-report-round-{N}.md."
+
+  - id: "MND-STEP-10"
+    name: "Update checkpoint"
+    required: true
+    order: 10
+    artifact: null
+    artifact_check: "Checkpoint has phase=mend, status=completed|failed, artifact path, artifact_hash"
+    description: "Write final checkpoint. Status is failed if >3 findings remain FAILED (pipeline halts). Includes round-aware artifact path and sha256 hash."
+
+success_criteria:
+  - "Resolution report exists at the correct round-aware path"
+  - "Checkpoint phase=mend has status=completed|failed with valid artifact_hash"
+  - "Mend team_name recorded in checkpoint for cancel-arc discovery"
+  - "Pipeline halts if >3 FAILED findings remain (halt condition enforced)"
+  - "Elicitation root cause analysis completed before fixers start (when applicable)"

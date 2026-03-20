@@ -109,3 +109,43 @@ Delegated to `/rune:forge` — manages its own TeamCreate/TeamDelete with guards
 Arc MUST record the actual `team_name` created by `/rune:forge` in the checkpoint. This enables `/rune:cancel-arc` to discover and shut down the forge team if the user cancels mid-pipeline. The forge command creates its own team with its own naming convention — arc reads the team name back after delegation.
 
 Arc runs `prePhaseCleanup(checkpoint)` before delegation (ARC-6) and `postPhaseCleanup(checkpoint, "forge")` after checkpoint update. See SKILL.md Inter-Phase Cleanup Guard section and [arc-phase-cleanup.md](arc-phase-cleanup.md).
+
+## Execution Log Integration
+
+Phase-specific execution logging for QA gate verification. The Tarnished writes one entry per manifest step.
+
+```javascript
+// At phase start — initialize execution log
+Bash(`mkdir -p "tmp/arc/${id}/execution-logs"`)
+const executionLog = {
+  phase: "forge",
+  manifest: "qa-manifests/forge.yaml",
+  started_at: new Date().toISOString(),
+  steps: [],
+  skipped_steps: []
+}
+
+// After each step — record completion
+executionLog.steps.push({
+  id: "FRG-STEP-{NN}",
+  status: "completed",  // or "skipped"
+  started_at: stepStartTs,
+  completed_at: new Date().toISOString(),
+  artifact_produced: artifactPath || null,
+  notes: ""
+})
+
+// For skipped steps (conditional steps that didn't execute)
+executionLog.skipped_steps.push({
+  id: "FRG-STEP-{NN}",
+  reason: "condition not met: {description}"
+})
+
+// At phase end (BEFORE updateCheckpoint)
+executionLog.completed_at = new Date().toISOString()
+executionLog.completed_steps = executionLog.steps.length
+executionLog.total_steps = 5  // from manifest
+executionLog.skipped_count = executionLog.skipped_steps.length
+executionLog.completion_pct = Math.round((executionLog.completed_steps / executionLog.total_steps) * 100)
+Write(`tmp/arc/${id}/execution-logs/forge-execution.json`, JSON.stringify(executionLog, null, 2))
+```

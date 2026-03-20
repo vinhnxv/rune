@@ -339,3 +339,43 @@ Layer 1 (ORCH-1 resume), Layer 2 (`/rune:rest --heal`), Layer 3 (arc pre-flight 
 Review phase teams use `rune-review-*` prefix — handled by the sub-command's own pre-create guard (not Layer 3).
 
 See [engines.md](../../team-sdk/references/engines.md) § cleanup and [protocols.md](../../team-sdk/references/protocols.md) § Handle Serialization for full orphan recovery documentation.
+
+## Execution Log Integration
+
+Phase-specific execution logging for QA gate verification. The Tarnished writes one entry per manifest step.
+
+```javascript
+// At phase start — initialize execution log
+Bash(`mkdir -p "tmp/arc/${id}/execution-logs"`)
+const executionLog = {
+  phase: "code_review",
+  manifest: "qa-manifests/code-review.yaml",
+  started_at: new Date().toISOString(),
+  steps: [],
+  skipped_steps: []
+}
+
+// After each step — record completion
+executionLog.steps.push({
+  id: "REV-STEP-{NN}",
+  status: "completed",  // or "skipped"
+  started_at: stepStartTs,
+  completed_at: new Date().toISOString(),
+  artifact_produced: artifactPath || null,
+  notes: ""
+})
+
+// For skipped steps (conditional steps that didn't execute)
+executionLog.skipped_steps.push({
+  id: "REV-STEP-{NN}",
+  reason: "condition not met: {description}"
+})
+
+// At phase end (BEFORE updateCheckpoint)
+executionLog.completed_at = new Date().toISOString()
+executionLog.completed_steps = executionLog.steps.length
+executionLog.total_steps = 9  // from manifest
+executionLog.skipped_count = executionLog.skipped_steps.length
+executionLog.completion_pct = Math.round((executionLog.completed_steps / executionLog.total_steps) * 100)
+Write(`tmp/arc/${id}/execution-logs/code_review-execution.json`, JSON.stringify(executionLog, null, 2))
+```
