@@ -65,6 +65,20 @@ Refactoring safety specialist with LSP-enhanced orphan detection.
 - Incomplete refactoring chain detection
 - API contract drift from partial renames
 
+## LSP Integration
+
+For details on LSP operations and the fallback protocol, see [lsp-patterns.md](../../references/lsp-patterns.md).
+
+### LSP-Enhanced Orphan Detection
+
+After a rename or move operation:
+
+1. **LSP findReferences** on the OLD module/symbol → find all remaining consumers still pointing to the old name/path
+2. **LSP goToDefinition** on each reference → verify it resolves (vs dangling to a deleted target)
+3. **Fallback**: Grep for old path/name in import statements (current behavior)
+
+**Confidence adjustment**: LSP-sourced orphan detection = 90% base (vs 50% base for Grep). LSP provides authoritative reference resolution that makes manual verification of re-exports automatic.
+
 ## Echo Integration (Past Refactoring Issues)
 
 Before checking for orphaned references, query Rune Echoes for previously identified refactoring issues:
@@ -78,20 +92,6 @@ Before checking for orphaned references, query Rune Echoes for previously identi
 - Past refactoring findings reveal modules with history of incomplete renames
 - If an echo flags a barrel file as a chronic source of stale re-exports, prioritize it
 - Include echo context in findings as: `**Echo context:** {past pattern} (source: {role}/MEMORY.md)`
-
-## LSP Integration
-
-For details on LSP operations and the fallback protocol, see [lsp-patterns.md](../../references/lsp-patterns.md).
-
-### LSP-Enhanced Orphan Detection
-
-After a rename or move operation:
-
-1. **LSP findReferences** on the OLD module/symbol → find all remaining consumers still pointing to the old name/path
-2. **LSP goToDefinition** on each reference → verify it resolves (vs dangling to a deleted target)
-3. **Fallback**: Grep for old path/name in import statements (current behavior)
-
-**Confidence adjustment**: LSP-sourced findings get +20% confidence over Grep-based findings (per shared fallback protocol). LSP provides authoritative reference resolution that makes manual verification of re-exports automatic.
 
 ## Analysis Framework
 
@@ -166,8 +166,8 @@ After completing analysis, verify:
 - [ ] **Confidence level** is appropriate (don't flag uncertain items as P1)
 - [ ] All files in scope were **actually read**, not just assumed
 - [ ] Findings are **actionable** — each has a concrete fix suggestion
-- [ ] **Confidence score** assigned (0-100) with 1-sentence justification — reflects evidence strength, not finding severity
-- [ ] **Cross-check**: confidence >= 80 requires evidence-verified ratio >= 50%. If not, recalibrate.
+- [ ] **Confidence score** assigned (0-100) with 1-sentence justification
+- [ ] **Cross-check**: confidence >= 80 requires evidence-verified ratio >= 50%
 
 ### Pre-Flight
 Before writing output file, confirm:
