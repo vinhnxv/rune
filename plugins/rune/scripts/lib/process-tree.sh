@@ -89,7 +89,11 @@ _rune_kill_tree() {
 
   [[ -z "$root_pid" || ! "$root_pid" =~ ^[0-9]+$ ]] && echo "0" && return 0
 
-  # Validate root_pid is alive
+  # Validate root_pid is alive.
+  # When root is dead, its children are re-parented to PID 1 (init/launchd).
+  # pgrep -P on a dead PID returns nothing — orphaned grandchildren are not
+  # targetable via this tree walk. This is by design: re-parented processes
+  # belong to the OS, not to our session.
   if ! kill -0 "$root_pid" 2>/dev/null; then
     echo "0"
     return 0

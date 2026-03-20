@@ -176,6 +176,10 @@ if [[ -z "$match_found" ]]; then
     if [[ -n "$EXTRA_PATTERNS" ]]; then
       while IFS= read -r pat; do
         [[ -z "$pat" ]] && continue
+        # SEC-001 FIX: Validate user-supplied regex pattern (max 100 chars, no backreferences)
+        if [[ ${#pat} -gt 100 ]] || [[ "$pat" =~ \\[0-9] ]]; then
+          continue  # Skip potentially dangerous patterns
+        fi
         if printf '%s\n' "$NORMALIZED" | grep -qE "$pat" 2>/dev/null; then
           match_found="custom"
           break
@@ -191,6 +195,10 @@ if [[ -z "$match_found" ]]; then
       if [[ -n "$EXTRA_PATTERNS" ]]; then
         while IFS= read -r pat; do
           [[ -z "$pat" ]] && continue
+          # SEC-001 FIX: Validate user-supplied regex pattern (max 100 chars, no backreferences)
+          if [[ ${#pat} -gt 100 ]] || [[ "$pat" =~ \\[0-9] ]]; then
+            continue
+          fi
           if printf '%s\n' "$NORMALIZED" | grep -qE "$pat" 2>/dev/null; then
             match_found="custom"
             break
@@ -247,8 +255,11 @@ elif command -v timeout &>/dev/null; then
   fi
 fi
 
-# No timeout binary available → skip wrapping (can't enforce)
+# No timeout binary available → advisory only (AC-3: graceful degradation)
 if [[ -z "$TIMEOUT_BIN" ]]; then
+  cat <<'ENDJSON'
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","additionalContext":"WARN: No timeout binary available (timeout/gtimeout not found). Long-running commands will not be time-bounded. Consider installing coreutils (macOS: brew install coreutils)."}}
+ENDJSON
   exit 0
 fi
 
