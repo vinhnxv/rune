@@ -826,6 +826,80 @@ def _format_search_results(results: List[Dict[str, Any]]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Core operations — do_search helpers
+# ---------------------------------------------------------------------------
+
+
+def _handle_dirty_reindex(conn: sqlite3.Connection) -> None:
+    # Check for dirty signal and reindex if needed
+    # FLAW-002 FIX: Use BEGIN IMMEDIATE to serialize concurrent reindex
+    # attempts and prevent readers from seeing empty tables mid-rebuild
+    if _check_and_clear_dirty(PROJECT_DIR):
+        logger.info("Dirty signal detected — triggering auto-reindex")
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            _do_reindex_internal(conn)
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def _run_search_pipeline(
+    conn: sqlite3.Connection,
+    query: str,
+    phase: Optional[str],
+    category: Optional[str],
+    source: Optional[str],
+    language: Optional[str],
+    exclude: Optional[List[str]],
+    limit: int,
+) -> Optional[Tuple[List[Dict[str, Any]], int]]:
+    ensure_schema(conn)
+    _handle_dirty_reindex(conn)
+
+    # Build FTS5 query — sanitize for safety
+    fts_query = _sanitize_fts_query(query)
+    if not fts_query:
+        return None
+
+    # Execute BM25 search with broader fetch for re-ranking
+    fetch_limit = min(limit * 3, 60)  # Fetch 3x for re-ranking headroom
+
+    sql, params = _build_search_query(fts_query, category, source, language, fetch_limit)
+    results = _execute_search_query(conn, sql, params, query)
+
+    results, total = _score_and_rank_results(results, query, phase, category, exclude, limit)
+    _format_search_results(results)
+    return results, total
+
+
+def _build_search_response(
+    results: List[Dict[str, Any]],
+    total: int,
+    query: str,
+    phase: Optional[str],
+    category: Optional[str],
+    source: Optional[str],
+    language: Optional[str],
+    exclude: Optional[List[str]],
+    elapsed_ms: int,
+) -> Dict[str, Any]:
+    return {
+        "results": results,
+        "total": total,
+        "query": query,
+        "filters": {
+            "phase": phase,
+            "category": category,
+            "source": source,
+            "language": language,
+            "exclude": exclude or [],
+        },
+        "time_ms": elapsed_ms,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Core operations
 # ---------------------------------------------------------------------------
 
@@ -859,52 +933,20 @@ def do_search(
 
     conn = get_db(db_path)
     try:
-        ensure_schema(conn)
-
-        # Check for dirty signal and reindex if needed
-        # FLAW-002 FIX: Use BEGIN IMMEDIATE to serialize concurrent reindex
-        # attempts and prevent readers from seeing empty tables mid-rebuild
-        if _check_and_clear_dirty(PROJECT_DIR):
-            logger.info("Dirty signal detected — triggering auto-reindex")
-            conn.execute("BEGIN IMMEDIATE")
-            try:
-                _do_reindex_internal(conn)
-            except Exception:
-                conn.rollback()
-                raise
-
-        # Build FTS5 query — sanitize for safety
-        fts_query = _sanitize_fts_query(query)
-        if not fts_query:
-            return {"results": [], "total": 0, "query": query, "time_ms": 0}
-
-        # Execute BM25 search with broader fetch for re-ranking
-        fetch_limit = min(limit * 3, 60)  # Fetch 3x for re-ranking headroom
-
-        sql, params = _build_search_query(fts_query, category, source, language, fetch_limit)
-        results = _execute_search_query(conn, sql, params, query)
-
-        results, total = _score_and_rank_results(results, query, phase, category, exclude, limit)
-        _format_search_results(results)
-
+        pipeline_result = _run_search_pipeline(
+            conn, query, phase, category, source, language, exclude, limit,
+        )
     finally:
         conn.close()
 
-    elapsed_ms = int(time.time() * 1000) - start_ms
+    if pipeline_result is None:
+        return {"results": [], "total": 0, "query": query, "time_ms": 0}
 
-    return {
-        "results": results,
-        "total": total,
-        "query": query,
-        "filters": {
-            "phase": phase,
-            "category": category,
-            "source": source,
-            "language": language,
-            "exclude": exclude or [],
-        },
-        "time_ms": elapsed_ms,
-    }
+    results, total = pipeline_result
+    elapsed_ms = int(time.time() * 1000) - start_ms
+    return _build_search_response(
+        results, total, query, phase, category, source, language, exclude, elapsed_ms,
+    )
 
 
 def do_detail(db_path: str, name: str) -> Dict[str, Any]:
@@ -944,6 +986,100 @@ def do_detail(db_path: str, name: str) -> Dict[str, Any]:
         conn.close()
 
 
+def _validate_registration(
+    name: str, description: str, source: str,
+) -> Optional[Dict[str, Any]]:
+    from schema import validate_agent_schema
+    errors = validate_agent_schema(
+        name=name,
+        description=description,
+        source=source,
+    )
+    if errors:
+        logger.warning("Registration validation failed for '%s': %s", name, errors)
+        return {"error": "Validation failed", "details": errors}
+    return None
+
+
+def _check_builtin_conflict(
+    conn: sqlite3.Connection, name: str,
+) -> Optional[Dict[str, Any]]:
+    # Check for builtin/extended conflict — protect higher-priority sources
+    existing = conn.execute(
+        "SELECT source, priority FROM agent_entries WHERE name = ?",
+        (name,),
+    ).fetchone()
+    if existing and existing["source"] in ("builtin", "extended"):
+        return {
+            "error": "Cannot overwrite %s agent: %s" % (existing["source"], name),
+            "hint": "Use a different name or register as a project agent",
+        }
+    return None
+
+
+def _prepare_registration_entry(
+    name: str,
+    source: str,
+    categories: List[str],
+    compatible_phases: List[str],
+    tags: List[str],
+    languages: Optional[List[str]],
+) -> Dict[str, Any]:
+    from indexer import generate_id, SOURCE_PRIORITIES
+    return {
+        "entry_id": generate_id(name, source, "registered:%s" % name),
+        "now": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "category": categories[0] if categories else "unknown",
+        "phases_str": ",".join(compatible_phases),
+        "tags_str": ",".join(tags),
+        # BACK-P2-001 FIX: Support languages in registration
+        "languages_str": ",".join(
+            lang.strip().lower()[:50] for lang in (languages or [])
+            if isinstance(lang, str) and lang.strip()
+        ),
+        "priority": SOURCE_PRIORITIES.get(source, 50),
+    }
+
+
+def _write_agent_entry(
+    conn: sqlite3.Connection,
+    entry: Dict[str, Any],
+    name: str,
+    description: str,
+    primary_phase: str,
+    source: str,
+    body: str,
+) -> None:
+    # Fix BACK-002: Delete old FTS entry before re-registration to prevent ghost entries
+    old_row = conn.execute("SELECT rowid FROM agent_entries WHERE name = ?", (name,)).fetchone()
+    if old_row:
+        conn.execute("DELETE FROM agent_entries_fts WHERE rowid = ?", (old_row[0],))
+
+    conn.execute(
+        """INSERT OR REPLACE INTO agent_entries
+           (id, name, description, category, primary_phase,
+            compatible_phases, tags, languages, source, priority,
+            tools, model, max_turns, body, file_path, indexed_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (entry["entry_id"], name, description, entry["category"], primary_phase,
+         entry["phases_str"], entry["tags_str"], entry["languages_str"], source,
+         entry["priority"], "", "", 0, body, "registered:%s" % name, entry["now"]),
+    )
+
+    # Update FTS
+    conn.execute(
+        """INSERT INTO agent_entries_fts
+           (rowid, name, description, tags, languages, body)
+           VALUES (
+               (SELECT rowid FROM agent_entries WHERE id = ?),
+               ?, ?, ?, ?, ?
+           )""",
+        (entry["entry_id"], name, description, entry["tags_str"],
+         entry["languages_str"], body),
+    )
+    conn.commit()
+
+
 def do_register(
     db_path: str,
     name: str,
@@ -972,80 +1108,28 @@ def do_register(
     Returns:
         Dict with registration result or error.
     """
-    from schema import validate_agent_schema
-
-    # Validate
-    errors = validate_agent_schema(
-        name=name,
-        description=description,
-        source=source,
-    )
-    if errors:
-        logger.warning("Registration validation failed for '%s': %s", name, errors)
-        return {"error": "Validation failed", "details": errors}
+    validation_error = _validate_registration(name, description, source)
+    if validation_error:
+        return validation_error
 
     conn = get_db(db_path)
     try:
         ensure_schema(conn)
 
-        # Check for builtin/extended conflict — protect higher-priority sources
-        existing = conn.execute(
-            "SELECT source, priority FROM agent_entries WHERE name = ?",
-            (name,),
-        ).fetchone()
-        if existing and existing["source"] in ("builtin", "extended"):
-            return {
-                "error": "Cannot overwrite %s agent: %s" % (existing["source"], name),
-                "hint": "Use a different name or register as a project agent",
-            }
+        conflict = _check_builtin_conflict(conn, name)
+        if conflict:
+            return conflict
 
-        from indexer import generate_id, SOURCE_PRIORITIES
-
-        entry_id = generate_id(name, source, "registered:%s" % name)
-        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        category = categories[0] if categories else "unknown"
-        phases_str = ",".join(compatible_phases)
-        tags_str = ",".join(tags)
-        # BACK-P2-001 FIX: Support languages in registration
-        languages_str = ",".join(
-            lang.strip().lower()[:50] for lang in (languages or [])
-            if isinstance(lang, str) and lang.strip()
+        entry = _prepare_registration_entry(
+            name, source, categories, compatible_phases, tags, languages,
         )
-        priority = SOURCE_PRIORITIES.get(source, 50)
+        _write_agent_entry(conn, entry, name, description, primary_phase, source, body)
 
-        # Fix BACK-002: Delete old FTS entry before re-registration to prevent ghost entries
-        old_row = conn.execute("SELECT rowid FROM agent_entries WHERE name = ?", (name,)).fetchone()
-        if old_row:
-            conn.execute("DELETE FROM agent_entries_fts WHERE rowid = ?", (old_row[0],))
-
-        conn.execute(
-            """INSERT OR REPLACE INTO agent_entries
-               (id, name, description, category, primary_phase,
-                compatible_phases, tags, languages, source, priority,
-                tools, model, max_turns, body, file_path, indexed_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (entry_id, name, description, category, primary_phase,
-             phases_str, tags_str, languages_str, source, priority,
-             "", "", 0, body, "registered:%s" % name, now),
-        )
-
-        # Update FTS
-        conn.execute(
-            """INSERT INTO agent_entries_fts
-               (rowid, name, description, tags, languages, body)
-               VALUES (
-                   (SELECT rowid FROM agent_entries WHERE id = ?),
-                   ?, ?, ?, ?, ?
-               )""",
-            (entry_id, name, description, tags_str, languages_str, body),
-        )
-        conn.commit()
-
-        logger.info("Registered agent '%s' (source=%s, id=%s)", name, source, entry_id)
+        logger.info("Registered agent '%s' (source=%s, id=%s)", name, source, entry["entry_id"])
         return {
             "registered": True,
             "name": name,
-            "id": entry_id,
+            "id": entry["entry_id"],
             "source": source,
         }
     finally:
