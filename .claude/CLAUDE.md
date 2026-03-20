@@ -271,10 +271,25 @@ try {
 // Keep this pattern in sync with engines.md when either is updated.
 
 // 2. shutdown_request to all members — track delivery failures for adaptive grace
+// FORCE-REPLY PATTERN (GitHub #31389): Teammates only process shutdown_request
+// if their last turn included SendMessage. Step 2a sends a plain text message
+// first (batched), Step 2b pauses once, then Step 2c sends shutdown_request.
+// See engines.md shutdown() step 2 for the full implementation.
 let confirmedAlive = 0
 let confirmedDead = 0
+const aliveMembers = []
+
+// Step 2a: Force-reply — put ALL teammates in message-processing state
 for (const member of allMembers) {
-  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Workflow complete" }); confirmedAlive++ } catch (e) { confirmedDead++ /* member already exited */ }
+  try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { confirmedDead++ /* member already exited */ }
+}
+
+// Step 2b: Single shared pause (2s covers tool-call completion)
+if (aliveMembers.length > 0) { Bash("sleep 2") }
+
+// Step 2c: Send shutdown_request to alive members
+for (const member of aliveMembers) {
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Workflow complete" }); confirmedAlive++ } catch (e) { confirmedDead++ }
 }
 
 // 3. Adaptive grace period — scale based on confirmed-alive members

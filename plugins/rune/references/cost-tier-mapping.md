@@ -169,3 +169,17 @@ const modelId = resolveFullModelId(alias)                  // → "claude-sonnet
 - Unknown agents (e.g., future agents not yet categorized) fall back to `TIER_DEFAULTS`
 - **Tracers vs Research asymmetry**: Tracers get haiku on `balanced` tier while research gets sonnet — tracers perform mechanical reference traversal (follow imports, extract structured data) while research agents need reasoning to interpret search results and synthesize findings
 - **Pseudocode nature**: `resolveModelForAgent()` above is reference pseudocode — actual callers pass the resolved model string as the `model:` parameter in their Task spawn call. See individual skill SKILL.md files for call sites
+
+## Known Limitation: [1m] Context Window Variant
+
+The `Agent` tool's `model` parameter does not support context window variants
+(e.g., `"opus[1m]"`). Even when the lead session has 1M context, teammates
+get the default context window (~200K for Opus).
+
+**Impact**: Teammates in long workflows may hit context limits earlier than
+the lead session. This affects arc phases that spawn agents for complex tasks.
+
+**Mitigation**: Keep teammate tasks scoped (5-6 tasks per agent). The Glyph
+Budget Protocol and maxTurns safety cap already prevent runaway context growth.
+
+**Tracking**: GitHub #36670, #34421, #36100 (feature request for variant support)

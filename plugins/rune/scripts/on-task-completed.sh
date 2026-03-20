@@ -182,6 +182,23 @@ if [[ -n "${TEAMMATE_NAME:-}" ]]; then
   _trace "CLEANUP file lock signal (staged): $worker_signal"
 fi
 
+# DUPLICATE COMPLETION CHECK (GitHub #32996)
+# If we see two .done signals from the same teammate within 60 seconds,
+# it's likely a duplicate spawn. Log a warning for diagnostics.
+# Uses TEAMMATE_NAME from hook input (line 92) — already validated by SEC guards.
+if [[ -n "${TEAMMATE_NAME:-}" ]]; then
+  _DUP_FILE="${SIGNAL_DIR}/.last-completed-${TEAMMATE_NAME}"
+  if [[ -f "$_DUP_FILE" ]]; then
+    _PREV_TS=$(cat "$_DUP_FILE" 2>/dev/null || echo "0")
+    _NOW_TS=$(date +%s)
+    _DELTA=$((_NOW_TS - _PREV_TS))
+    if [[ "$_DELTA" -lt 60 ]]; then
+      echo "[WARN] Duplicate completion from teammate '${TEAMMATE_NAME}' within ${_DELTA}s. Possible SDK duplicate spawn (#32996)." >&2
+    fi
+  fi
+  echo "$(date +%s)" > "$_DUP_FILE" 2>/dev/null || true
+fi
+
 # Check if all expected tasks are complete
 EXPECTED_FILE="${SIGNAL_DIR}/.expected"
 if [[ ! -f "$EXPECTED_FILE" ]]; then
