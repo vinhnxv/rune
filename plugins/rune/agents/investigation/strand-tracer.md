@@ -9,6 +9,7 @@ tools:
   - Write
   - Glob
   - Grep
+  - LSP
   - SendMessage
 maxTurns: 40
 mcpServers:
@@ -80,9 +81,29 @@ Before tracing strands, query Rune Echoes for previously identified integration 
 
 Context budget: **30 files maximum**. Prioritize entry points, route registrations, DI containers, and barrel files.
 
+## LSP Integration
+
+For details on LSP operations and the fallback protocol, see [lsp-patterns.md](../../references/lsp-patterns.md).
+
+### LSP-Enhanced Import Tracing
+
+For each module boundary:
+1. **LSP findReferences** on exported symbols → all importers (downstream consumers)
+2. **LSP goToDefinition** on import statements → resolve through re-exports and barrel files
+3. **Fallback**: Grep for import/require/use patterns (current behavior)
+
+For DI wiring verification:
+1. **LSP findReferences** on service class → all injection sites
+2. **LSP goToDefinition** on interface references → all concrete implementations
+3. **Fallback**: Grep for registration/injection patterns
+
+**Why LSP matters**: strand-tracer currently misses re-exports through barrel files (index.ts, `__init__.py`). LSP resolves through re-exports automatically. Note **Source: LSP** or **Source: Grep** for each finding.
+
 ### Step 1 — Module Connectivity Map
 
 - Trace import/require/use statements from entry points outward
+- Use **LSP findReferences** on key exports to find all downstream consumers (Grep fallback)
+- Use **LSP goToDefinition** on imports to resolve through re-exports (Grep fallback)
 - Identify modules that are defined but never imported (orphan modules)
 - Identify modules that are imported but do not exist (broken imports)
 - Check for circular dependency chains that may cause runtime issues
@@ -97,6 +118,7 @@ Context budget: **30 files maximum**. Prioritize entry points, route registratio
 ### Step 3 — DI Wiring Gaps
 
 - Find dependency injection containers, providers, and registrations
+- Use **LSP findReferences** on service classes to find all injection sites (Grep fallback)
 - Verify each registered service is consumed somewhere
 - Check for services that are injected but never registered (will fail at runtime)
 - Flag registration/injection name mismatches (typos, renamed services)
@@ -131,12 +153,14 @@ Write findings to the designated output file:
 
 ### P1 — Critical
 - [ ] **[INTG-001]** `src/api/routes/orders.ts:45` — Route `/api/v2/orders/cancel` points to removed handler
+  - **Source:** LSP findReferences (or Grep)
   - **Confidence**: PROVEN
   - **Evidence**: Route at line 45 references `OrderController.cancel` but method was removed in commit abc123
   - **Impact**: Runtime 404 — endpoint registered but handler missing
 
 ### P2 — Significant
 - [ ] **[INTG-002]** `src/services/index.ts:12` — Barrel re-exports `PaymentValidator` but module was deleted
+  - **Source:** LSP goToDefinition (or Grep)
   - **Confidence**: PROVEN
   - **Evidence**: `export { PaymentValidator } from './payment-validator'` — file does not exist
   - **Impact**: Import fails at build time if any consumer references this export

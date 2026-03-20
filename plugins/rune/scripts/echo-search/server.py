@@ -2635,8 +2635,12 @@ TOOL_SCHEMAS = [
     {
         "name": "echo_search",
         "description": (
-            "Search the Rune echo system for learnings, patterns, "
-            "and insights using BM25 full-text search."
+            "Search Rune's persistent knowledge base for learnings, patterns, "
+            "insights, audit findings, review decisions, and cross-file "
+            "recommendations. Uses BM25 full-text search with 5-factor scoring "
+            "(relevance, importance, recency, proximity, frequency). Filter by "
+            "layer (etched/inscribed/traced), role (reviewer/planner/worker), "
+            "scope (project/global), or domain (backend/frontend)."
         ),
         "annotations": {
             "readOnlyHint": True,
@@ -2714,7 +2718,11 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "echo_details",
-        "description": "Fetch full content for specific echo entries by their IDs.",
+        "description": (
+            "Fetch full content for specific echo entries by their IDs. "
+            "Use after echo_search to retrieve complete entry text for audit "
+            "recovery, review context enrichment, or pattern deep-dive analysis."
+        ),
         "annotations": {
             "readOnlyHint": True,
             "destructiveHint": False,
@@ -2795,9 +2803,11 @@ TOOL_SCHEMAS = [
     {
         "name": "echo_record_access",
         "description": (
-            "Manually record access events for specific echo entry IDs. "
-            "Normally access is auto-recorded on search, but this tool "
-            "allows explicit recording (e.g., when an entry is viewed)."
+            "Record access events for echo entries to boost their "
+            "frequency-based ranking score. Auto-recorded on search results, "
+            "but manual recording is useful for programmatic access patterns, "
+            "batch processing, or frequency-weight tuning during audits and "
+            "reviews."
         ),
         "annotations": {
             "readOnlyHint": False,
@@ -2834,8 +2844,11 @@ TOOL_SCHEMAS = [
     {
         "name": "echo_upsert_group",
         "description": (
-            "Create or update a semantic group of echo entries. "
-            "Groups cluster related entries for expanded retrieval."
+            "Create or update a semantic group of related echo entries for "
+            "expanded retrieval. Groups cluster similar findings (e.g., all "
+            "N+1 query patterns) so searching for one surfaces the cluster. "
+            "Useful after reviews or audits that produce related findings "
+            "across files."
         ),
         "annotations": {
             "readOnlyHint": False,

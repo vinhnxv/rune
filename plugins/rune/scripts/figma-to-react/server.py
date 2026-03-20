@@ -224,7 +224,8 @@ async def figma_fetch_design(
     Parses the Figma URL, fetches the file (with depth-limited traversal),
     converts the node tree to an intermediate representation (IR), and
     returns a JSON-serialized IR tree. If a node-id is in the URL, only
-    that subtree is returned.
+    that subtree is returned. Supports design system extraction, component
+    inventory building, and design-to-code pipeline preprocessing.
 
     Large responses are paginated — use start_index to retrieve subsequent
     chunks.
@@ -342,7 +343,9 @@ async def figma_inspect_node(
 
     Requires a Figma URL with a node-id query parameter. Returns
     detailed IR properties including auto-layout, styling, text content,
-    and component references.
+    and component references. Useful for extracting design tokens (colors,
+    spacing, typography), responsive breakpoint analysis, and component
+    variant inspection.
 
     Args:
         url: Figma URL with ?node-id=... (e.g., https://www.figma.com/design/abc/Title?node-id=1-3).
@@ -373,7 +376,9 @@ async def figma_list_components(
 
     Fetches the file with depth=2, then walks the tree to find
     COMPONENT, COMPONENT_SET, and INSTANCE nodes. Detects duplicate
-    instances pointing to the same component ID.
+    instances pointing to the same component ID. Produces a component
+    inventory for design system compliance checking, UI library matching,
+    and Storybook story generation.
 
     When more than 20 components are found, elicits the user to optionally
     filter by category keyword before returning the full inventory.
@@ -507,7 +512,9 @@ async def figma_to_react(
 
     End-to-end pipeline: URL parsing -> Figma API fetch -> node parsing ->
     style extraction -> layout resolution -> React JSX generation.
-    See _run_to_react for full parameter docs.
+    Generates reference-quality React JSX (50-60% fidelity) — use as search
+    input for UI library matching (UntitledUI, shadcn/ui), not as production
+    code. See _run_to_react for full parameter docs.
 
     Args:
         url: Full Figma URL (must include node-id for specific component).
