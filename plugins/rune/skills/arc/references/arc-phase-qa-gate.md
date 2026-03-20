@@ -126,6 +126,19 @@ produced substantive, evidence-backed reports.
 | WRK-ART-06 | `coverage-matrix.json` exists in work directory AND has valid JSON with `mapped` and `unmapped` arrays | `Glob` + `JSON.parse` |
 | WRK-QUA-06 | Phase log contains `task_files_created` event with non-zero file counts (observability) | `Read` execution log + search for `task_files_created` |
 
+### Composite "Going Through the Motions" Detection (AC-11)
+
+Aggregates weak signals from individual checks to detect perfunctory task completion that
+passes each individual check at minimum threshold but collectively indicates hollow work.
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| WRK-MOT-01 | Composite motions score: count borderline signals across QUA and CMP checks for each task file. Signals: (a) Worker Report < 10 lines, (b) Evidence section has < 2 file:line refs, (c) Self-Review has exactly 1 `[x]` item, (d) Echo-Back is < 30% different from original AC text, (e) Critical Review section is absent or < 3 lines. Task with ≥ 3 signals = FAIL ("going through the motions detected"). | `Read` each task file, count signal matches per file. Report per-file signal count and which signals triggered. |
+
+**Scoring**: WRK-MOT-01 contributes to the **Quality dimension**. Weight: equivalent to one WRK-QUA check.
+A single task triggering WRK-MOT-01 caps the Quality dimension score at 60 (MARGINAL).
+Multiple tasks triggering WRK-MOT-01 caps Quality at 40 (FAIL).
+
 ### Process Compliance Checks (AC-15)
 
 Cross-references process manifests against execution logs and filesystem artifacts to detect

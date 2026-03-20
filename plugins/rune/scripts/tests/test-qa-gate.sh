@@ -328,6 +328,34 @@ assert_eq "NEXT_PHASE unchanged (symlink silently rejected)" "next_default" "$NE
 assert_eq "No log events (symlink rejected)" "0" "${#LOG_EVENTS[@]}"
 echo ""
 
+# ── Test 12: MARGINAL score (55) with 1 retry already → ESCALATION (tiered retry AC-4) ──
+echo "── Test 12: MARGINAL score with 1 retry exhausted → ESCALATION (tiered AC-4) ──"
+TEST_DIR="${TMP_DIR}/test12"
+mkdir -p "$TEST_DIR/tmp/arc/test12"
+create_verdict "$TEST_DIR/tmp/arc/test12" "work" 55 "MARGINAL"
+# 1 retry already used — MARGINAL cap is 1, so this should escalate
+create_checkpoint "$TEST_DIR/checkpoint.json" 1 0 6 70 2 "work_qa"
+
+run_qa_gate "$TEST_DIR" "work_qa" "test12"
+
+assert_eq "NEXT_PHASE unchanged (MARGINAL escalation)" "next_default" "$NEXT_PHASE"
+assert_contains "Log contains qa_fail_escalate" "qa_fail_escalate" "${LOG_EVENTS[*]:-}"
+echo ""
+
+# ── Test 13: FAIL score (40) with 1 retry → REVERT (tiered retry AC-4) ──
+echo "── Test 13: FAIL score with 1 retry → still has budget → REVERT (tiered AC-4) ──"
+TEST_DIR="${TMP_DIR}/test13"
+mkdir -p "$TEST_DIR/tmp/arc/test13"
+create_verdict "$TEST_DIR/tmp/arc/test13" "work" 40 "FAIL"
+# 1 retry used — FAIL max is 2, so this should still revert
+create_checkpoint "$TEST_DIR/checkpoint.json" 1 0 6 70 2 "work_qa"
+
+run_qa_gate "$TEST_DIR" "work_qa" "test13"
+
+assert_eq "NEXT_PHASE reverted (FAIL still has budget)" "work" "$NEXT_PHASE"
+assert_contains "Log contains qa_fail_revert" "qa_fail_revert" "${LOG_EVENTS[*]:-}"
+echo ""
+
 # ═══════════════════════════════════════════════
 echo ""
 echo "═══════════════════════════════════════════"

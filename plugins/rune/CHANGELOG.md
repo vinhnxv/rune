@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+- **qa-gates**: Inject `remediation_context` into re-dispatched phase prompt for incremental retry (AC-18 GAP-1). Previously written to checkpoint but never consumed — phases re-executed from scratch instead of fixing specific QA failures
+- **qa-gates**: Implement tiered retry budget — MARGINAL (score 50-69) gets max 1 retry, FAIL (score < 50) gets up to `max_phase_retries` (default 2) (AC-4 GAP-2)
+
+### Added
+- **qa-gates**: WRK-MOT-01 composite "going through the motions" detection — aggregates 5 weak signals per task file, caps Quality dimension score when ≥3 signals combine (AC-11 GAP-3)
+- **qa-gates**: 2 new test cases for tiered retry behavior in `test-qa-gate.sh` (Tests 12-13, total: 30)
+
 ## [2.3.3] - 2026-03-20
 
 ### Fixed
