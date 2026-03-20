@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.4.1] - 2026-03-20
+
+### Fixed
+- **echo-search**: Replace N+1 SQLite patterns with bulk operations — SQL temp table backup/restore for semantic groups (PERF-002, PERF-003), `executemany()` for batch access recording (PERF-004, PERF-005)
+- **agent-search**: Replace per-entry SELECT+DELETE+INSERT with `executemany()` + single `INSERT...SELECT` for FTS sync (PERF-009)
+- **echo-search**: Add `conn.rollback()` in `_record_access` error handler to prevent uncommitted partial writes (FLAW-001)
+- **echo-search**: Add logging to `_restore_semantic_groups_from_temp` error paths (BACK-002)
+- **agent-search**: Add explicit `BEGIN`/`try`/`rollback` transaction boundary to `rebuild_index` (BACK-001)
+- **echo-search**: Cap `entry_ids` at 200 in `_record_access` for defense-in-depth (SEC-001)
+- **tests**: Fix `test_elevation` template format to match production parser regex
+- **tests**: Fix `test_global_scope` dedup assertion for BACK-403 scope-prefixed keys
+- **tests**: Add 35 new tests for bulk operations (19 echo-search, 16 agent-search)
+
 ## [2.3.6] - 2026-03-20
 
 ### Fixed
