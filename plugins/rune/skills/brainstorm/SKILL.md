@@ -473,8 +473,8 @@ Write `workspace-meta.json` with session metadata (mode, feature, advisors, timi
 ## Teammate Fallback Array
 
 ```javascript
-allMembers = ["user-advocate", "tech-realist", "devils-advocate", "reality-arbiter",
-  "elicitation-sage-1", "elicitation-sage-2", "elicitation-sage-3", "state-weaver"]
+allMembers = ["user-advocate", "tech-realist", "devils-advocate",
+  "elicitation-sage-1", "elicitation-sage-2", "elicitation-sage-3"]
 ```
 
 ## Protocol

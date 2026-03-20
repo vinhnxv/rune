@@ -976,11 +976,20 @@ try {
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
   // FALLBACK: config.json read failed — include all possible agents.
-  // selectedAsh + runebinder + conditionally-spawned agents (doubt-seer, cross-shard-sentinel).
+  // Static built-in Ashes + runebinder + conditionally-spawned agents.
   // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
-  allMembers = [...selectedAsh, "runebinder", "doubt-seer", "cross-shard-sentinel",
+  allMembers = [
+    // Static: all possible built-in Ashes (safe to send to absent members)
+    "forge-warden", "ward-sentinel", "pattern-weaver", "veil-piercer",
+    "glyph-scribe", "knowledge-keeper", "codex-oracle",
+    // Existing static entries
+    "runebinder", "doubt-seer", "cross-shard-sentinel",
     "rot-seeker", "strand-tracer", "decree-auditor", "fringe-watcher",
-    "shard-reviewer-a", "shard-reviewer-b", "shard-reviewer-c", "shard-reviewer-d", "shard-reviewer-e"]
+    "shard-reviewer-a", "shard-reviewer-b", "shard-reviewer-c",
+    "shard-reviewer-d", "shard-reviewer-e",
+    // Custom Ashes — best-effort from dynamic discovery (undefined on compaction = harmless empty array)
+    ...(selectedAsh ?? [])
+  ]
 }
 
 // 2. Shutdown all teammates

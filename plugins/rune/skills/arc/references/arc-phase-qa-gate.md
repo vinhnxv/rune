@@ -438,7 +438,7 @@ async function runQAGate(id, parentPhase, checkpoint) {
     Agent({
       team_name: qaTeamName,
       name: "qa-artifact-verifier",
-      subagent_type: "phase-qa-verifier",
+      subagent_type: "rune:qa:phase-qa-verifier",
       prompt: buildQAAgentPrompt("artifact", id, parentPhase, timestamp, qaDir)
     })
 
@@ -447,7 +447,7 @@ async function runQAGate(id, parentPhase, checkpoint) {
     Agent({
       team_name: qaTeamName,
       name: "qa-quality-verifier",
-      subagent_type: "phase-qa-verifier",
+      subagent_type: "rune:qa:phase-qa-verifier",
       prompt: buildQAAgentPrompt("quality", id, parentPhase, timestamp, qaDir)
     })
 
@@ -456,7 +456,7 @@ async function runQAGate(id, parentPhase, checkpoint) {
     Agent({
       team_name: qaTeamName,
       name: "qa-completeness-verifier",
-      subagent_type: "phase-qa-verifier",
+      subagent_type: "rune:qa:phase-qa-verifier",
       prompt: buildQAAgentPrompt("completeness", id, parentPhase, timestamp, qaDir)
     })
 
@@ -564,12 +564,12 @@ async function runQAGate(id, parentPhase, checkpoint) {
     else Bash("sleep 2")
 
     const DELAYS = [0, 3000, 6000, 10000]
-    let deleted = false
+    let cleanupTeamDeleteSucceeded = false
     for (let i = 0; i < DELAYS.length; i++) {
       if (i > 0) Bash(`sleep ${DELAYS[i] / 1000}`)
-      try { TeamDelete({ team_name: qaTeamName }); deleted = true; break } catch (_) {}
+      try { TeamDelete({ team_name: qaTeamName }); cleanupTeamDeleteSucceeded = true; break } catch (_) {}
     }
-    if (!deleted) {
+    if (!cleanupTeamDeleteSucceeded) {
       Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${qaTeamName}/" "$CHOME/tasks/${qaTeamName}/" 2>/dev/null`)
     }
   }

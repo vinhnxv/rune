@@ -1224,7 +1224,8 @@ TaskCreate({
 Agent({
   name: "codex-phase-handler-ga",
   team_name: teamName,
-  subagent_type: "codex-phase-handler",
+  // codex-phase-handler is registry-only — use general-purpose + inject body via agent_detail()
+  subagent_type: "general-purpose",
   prompt: /* Full prompt with aspects, codex config, metadata extraction rules — see arc-codex-phases.md */
 })
 

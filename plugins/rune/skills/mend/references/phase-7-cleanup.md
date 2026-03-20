@@ -2,7 +2,7 @@
 
 1. **Dynamic member discovery** — read team config for ALL teammates (fallback: static worst-case array covering base, deep, and wave-based fixer names)
 2. **Shutdown all members** — `SendMessage(shutdown_request)` to each
-3. **Grace period** — `sleep 20` for teammate deregistration
+3. **Adaptive grace period** — `Math.min(20, Math.max(5, confirmedAlive * 5))` (or 2s if all confirmed dead)
 4. **ID validation** — defense-in-depth `..` check + regex guard (SEC-003)
 5. **TeamDelete with retry-with-backoff** (4 attempts: 0s, 3s, 6s, 10s) + process kill + filesystem fallback
 6. **Update state file** — status → `"completed"` or `"partial"`

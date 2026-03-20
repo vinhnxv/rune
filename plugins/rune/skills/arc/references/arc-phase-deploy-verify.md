@@ -108,7 +108,8 @@ const deployRelevantFiles = diffFiles.filter(f => DEPLOY_PATTERNS.some(p => p.te
 Agent({
   name: "deployment-verifier",
   team_name: teamName,
-  subagent_type: "rune:utility:deployment-verifier",
+  // deployment-verifier is registry-only — use general-purpose + inject body via agent_detail()
+  subagent_type: "general-purpose",
   prompt: `You are deployment-verifier for arc Phase 7.9.
 
 ## Assignment

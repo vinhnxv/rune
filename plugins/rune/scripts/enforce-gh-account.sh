@@ -30,14 +30,14 @@ _rune_fail_forward() {
   local line="${BASH_LINENO[0]}"
   echo "WARN: ${script_name}:${line} — fail-forward ERR trap, allowing operation" >&2
   if [[ "${RUNE_TRACE:-0}" == "1" ]]; then
-    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) WARN ${script_name}:${line} ERR-trap" >> "${RUNE_TRACE_LOG:-/tmp/rune-hook-trace.log}"
+    [[ ! -L "${RUNE_TRACE_LOG:-/tmp/rune-hook-trace.log}" ]] && echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) WARN ${script_name}:${line} ERR-trap" >> "${RUNE_TRACE_LOG:-/tmp/rune-hook-trace.log}"
   fi
   exit 0
 }
 trap '_rune_fail_forward' ERR
 
 # Read hook input from stdin
-input=$(cat)
+input=$(head -c 1048576)
 
 # Fast-path: extract command from hook input
 command_str=$(echo "$input" | jq -r '.toolInput.command // empty' 2>/dev/null) || exit 0

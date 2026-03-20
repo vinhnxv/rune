@@ -3,9 +3,12 @@
 ## Teammate Fallback Array
 
 ```javascript
-// FALLBACK: spawnedWorkerNames (rune-smith) + trial-forger + Mini Test agents
-allMembers = [...spawnedWorkerNames, "trial-forger",
-  "unit-test-runner", "test-failure-analyst"]
+// FALLBACK: all possible strive teammates (static worst-case, safe to send to absent members)
+allMembers = [
+  ...Array.from({length: 6}, (_, i) => `rune-smith-${i + 1}`),
+  "trial-forger", "unit-test-runner", "test-failure-analyst",
+  "codex-advisory"
+]
 ```
 
 ## Protocol
