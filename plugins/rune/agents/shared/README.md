@@ -40,11 +40,13 @@ const composedPrompt = bootstrapDirectives + '\n' + agentBody
 
 ## Shared Files
 
-| File | Lines | Source Agents | Content |
-|------|-------|---------------|---------|
-| `communication-protocol.md` | ~25 | rune-smith, trial-forger, mend-fixer, gap-fixer | Seal format, shutdown handling, SendMessage conventions, exit conditions |
-| `quality-gate-template.md` | ~30 | ward-sentinel, knowledge-keeper | Confidence calibration, Inner Flame supplementary, self-review pass |
-| `context-checkpoint-protocol.md` | ~30 | rune-smith, trial-forger | Adaptive reset depth, Seal summary requirements, context rot detection |
+| File | Lines | Track 1 Consumers (Read() in agent .md) | Track 2 Consumers (injected by orchestrator) | Content |
+|------|-------|----------------------------------------|----------------------------------------------|---------|
+| `communication-protocol.md` | ~25 | rune-smith, trial-forger, mend-fixer, gap-fixer, verdict-binder | — | Seal format, shutdown handling, SendMessage conventions, exit conditions |
+| `quality-gate-template.md` | ~30 | rune-smith, trial-forger | ward-sentinel, knowledge-keeper (via devise/arc orchestrators) | Confidence calibration, Inner Flame supplementary, self-review pass |
+| `context-checkpoint-protocol.md` | ~30 | rune-smith, trial-forger | — | Adaptive reset depth, Seal summary requirements, context rot detection |
+
+> **Note**: Track 2 consumers are general-purpose agents whose Read() directives are composed by orchestrator skills, not embedded in agent .md files. The `validate-agent-shared-refs.sh` script only validates Track 1 references. Track 2 validation is out of scope for the current script — broken Track 2 references are discovered at runtime.
 
 ## Rules
 
@@ -54,3 +56,14 @@ const composedPrompt = bootstrapDirectives + '\n' + agentBody
 4. **Flat structure** — no transitive includes; shared files do not Read() other shared files
 5. **Size cap** — shared files should stay under 150 lines each
 6. **Bootstrap abort-on-failure** — if any Read() fails, agents should STOP and report to team-lead
+
+## Enforcement Limitations
+
+Bootstrap abort-on-failure (Rule #6) is **prompt-level enforcement only**. There is no hook, script, or programmatic check that verifies an agent actually stops when a `Read()` returns an error. The LLM may continue processing despite the error, especially under context pressure.
+
+**Accepted risk**: Shared files are git-tracked and versioned. Accidental deletion or rename would be caught by PR review and the `validate-agent-shared-refs.sh` validation script (Check 1: SHARED-001 verifies file existence). The residual risk of an agent proceeding without shared protocol content is low-probability and bounded — agents would produce malformed output that downstream aggregation would reject.
+
+**Future hardening options** (not currently implemented):
+1. `SubagentStart` hook that validates shared file existence before the agent starts
+2. `PreToolUse:TaskUpdate` hook that checks Bootstrap Read() completion before task claiming
+3. PostToolUse:Read hook that tracks which shared files were successfully loaded

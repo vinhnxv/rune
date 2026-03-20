@@ -10,6 +10,13 @@ description: |
   Include trigger keywords so Claude matches correctly.
 
   Covers: List the key capabilities this agent provides.
+# --- Tool Security Guidance ---
+# Default: read-only tools (below). Apply least-privilege — only add Write/Edit/Bash
+# if your agent MUST modify files. Agents with Write/Edit/Bash MUST have:
+#   1. A corresponding write-guard hook (validate-*-paths.sh) to restrict file scope
+#   2. ANCHOR/RE-ANCHOR Truthbinding blocks to prevent instruction injection
+#   3. File Scope Restriction section listing allowed/blocked paths
+# See plugins/rune/scripts/validate-mend-fixer-paths.sh for a reference hook implementation.
 tools:
   - Read
   - Glob
