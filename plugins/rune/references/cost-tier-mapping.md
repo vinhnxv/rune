@@ -61,9 +61,9 @@ Centralized reference for the `cost_tier` system that controls which Claude mode
 
 `rune-smith`, `trial-forger`, `mend-fixer`, `design-sync-agent`, `design-iterator`
 
-### Research (5)
+### Research (7)
 
-`repo-surveyor`, `lore-scholar`, `practice-seeker`, `echo-reader`, `git-miner`
+`repo-surveyor`, `lore-scholar`, `practice-seeker`, `echo-reader`, `git-miner`, `wiring-cartographer`, `activation-pathfinder`
 
 ### Tracers (6)
 

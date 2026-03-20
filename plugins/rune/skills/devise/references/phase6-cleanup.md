@@ -15,6 +15,7 @@ allMembers = [
   "ux-pattern-analyzer",
   // Phase 1A: Local Research
   "repo-surveyor", "echo-reader", "git-miner",
+  "wiring-cartographer", "activation-pathfinder",
   // Phase 1C: External Research (conditional)
   "practice-seeker", "lore-scholar", "codex-researcher",
   // Phase 1C.5: Research Verification (conditional)
