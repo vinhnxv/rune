@@ -86,6 +86,10 @@ pub struct App {
     // Timestamp when all plans completed (for auto-quit countdown)
     pub all_done_at: Option<Instant>,
 
+    // Inter-plan cooldown — delay before launching next plan after merge/ship
+    // Configurable via TORRENT_INTER_PLAN_COOLDOWN env var (default: 300s = 5 min)
+    pub inter_plan_cooldown_until: Option<Instant>,
+
     // Queue editing mode — Selection view appends to queue instead of starting fresh
     pub queue_editing: bool,
 
@@ -417,6 +421,7 @@ impl App {
             sys,
             git_branch: Self::read_git_branch(),
             all_done_at: None,
+            inter_plan_cooldown_until: None,
             queue_editing: false,
             should_quit: false,
             claude_version: Self::detect_claude_version(),
@@ -791,7 +796,11 @@ impl App {
             Action::RemoveFromQueue => self.remove_queue_item(),
             Action::SkipPlan => self.skip_current_plan(),
             Action::SkipGrace => {
-                if let Some(ref mut run) = self.current_run {
+                // Skip inter-plan cooldown if active
+                if self.inter_plan_cooldown_until.is_some() {
+                    self.inter_plan_cooldown_until = None;
+                    self.status_message = Some(" Cooldown skipped — launching next plan".into());
+                } else if let Some(ref mut run) = self.current_run {
                     if run.merge_detected_at.is_some() && run.grace_skip_at.is_none() {
                         // Set fixed skip deadline: 5 seconds from now (RUIN-007 fix).
                         // Stored as absolute Instant — not recomputed each tick.
@@ -1051,6 +1060,21 @@ impl App {
         let now = Instant::now();
 
         if self.current_run.is_none() {
+            // Inter-plan cooldown gate — wait before launching next plan
+            if let Some(deadline) = self.inter_plan_cooldown_until {
+                if now < deadline {
+                    let remaining = deadline.duration_since(now).as_secs();
+                    self.status_message = Some(format!(
+                        " Next plan in {}m{}s  [s] skip cooldown",
+                        remaining / 60,
+                        remaining % 60,
+                    ));
+                    return Ok(());
+                }
+                // Cooldown expired — clear and proceed
+                self.inter_plan_cooldown_until = None;
+            }
+
             // No arc running — start next plan from queue
             if let Some(entry) = self.queue.pop_front() {
                 self.all_done_at = None;
@@ -2215,7 +2239,20 @@ impl App {
                     eprintln!("warning: failed to write run log: {}", e);
                 }
 
+                // Set inter-plan cooldown if merge/ship succeeded and more plans queued
+                let was_success = matches!(
+                    &completed.result,
+                    ArcCompletion::Merged { .. } | ArcCompletion::Shipped { .. }
+                );
                 self.completed_runs.push(completed);
+
+                if was_success && !self.queue.is_empty() {
+                    let cooldown_secs = env_or_u64("TORRENT_INTER_PLAN_COOLDOWN", 300);
+                    if cooldown_secs > 0 {
+                        self.inter_plan_cooldown_until =
+                            Some(Instant::now() + Duration::from_secs(cooldown_secs));
+                    }
+                }
 
                 // Clamp queue cursor after item count changed
                 let total = self.queue_total_items();

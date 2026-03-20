@@ -576,23 +576,26 @@ pub fn poll_arc_status(handle: &ArcHandle) -> Option<ArcStatus> {
 
 /// Check if the arc has reached a terminal state.
 fn check_completion(checkpoint: &Checkpoint) -> Option<ArcCompletion> {
-    // Check merge phase
+    // Check merge phase — the true terminal state for a full arc run
     if let Some(merge) = checkpoint.phases.get("merge") {
         if merge.status == "completed" {
             return Some(ArcCompletion::Merged);
         }
     }
 
-    // Check ship phase (shipped without merge — e.g. PR created but not merged)
+    // Check ship phase — only terminal if merge was SKIPPED (--no-merge).
+    // If merge is still pending/in_progress, arc is still running (bot_review_wait,
+    // pr_comment_resolution, merge phases come after ship).
     if let Some(ship) = checkpoint.phases.get("ship") {
         if ship.status == "completed" {
-            // Only "shipped" if merge hasn't started
-            let merge_pending = checkpoint
+            let merge_skipped = checkpoint
                 .phases
                 .get("merge")
-                .map(|m| m.status == "pending" || m.status.is_empty())
-                .unwrap_or(true);
-            if merge_pending {
+                .map(|m| m.status == "skipped")
+                .unwrap_or(false);
+            // Also treat as shipped if merge phase doesn't exist at all (--no-pr)
+            let merge_absent = !checkpoint.phases.contains_key("merge");
+            if merge_skipped || merge_absent {
                 return Some(ArcCompletion::Shipped);
             }
         }
@@ -1317,7 +1320,8 @@ session_id: s1
     // ── Completion edge cases ───────────────────────────────
 
     #[test]
-    fn test_check_completion_shipped_without_merge() {
+    fn test_check_completion_not_done_when_ship_completed_merge_pending() {
+        // ship completed + merge pending = arc still running (bot_review, pr_comments, merge)
         let mut phases = std::collections::HashMap::new();
         phases.insert("ship".into(), crate::checkpoint::PhaseStatus {
             status: "completed".into(),
@@ -1334,6 +1338,71 @@ session_id: s1
 
         let checkpoint = Checkpoint {
             id: "arc-ship".into(),
+            schema_version: Some(24),
+            plan_file: "plan.md".into(),
+            config_dir: String::new(),
+            owner_pid: String::new(),
+            session_id: String::new(),
+            phases,
+            pr_url: None,
+            commits: vec![],
+            started_at: "2026-03-18T00:00:00Z".into(),
+        };
+
+        // NOT a terminal state — arc is still running post-ship phases
+        assert!(check_completion(&checkpoint).is_none(),
+            "ship+pending merge should NOT be terminal");
+    }
+
+    #[test]
+    fn test_check_completion_shipped_when_merge_skipped() {
+        // ship completed + merge skipped = terminal (--no-merge mode)
+        let mut phases = std::collections::HashMap::new();
+        phases.insert("ship".into(), crate::checkpoint::PhaseStatus {
+            status: "completed".into(),
+            started_at: None,
+            completed_at: None,
+            team_name: None,
+        });
+        phases.insert("merge".into(), crate::checkpoint::PhaseStatus {
+            status: "skipped".into(),
+            started_at: None,
+            completed_at: None,
+            team_name: None,
+        });
+
+        let checkpoint = Checkpoint {
+            id: "arc-ship-no-merge".into(),
+            schema_version: Some(24),
+            plan_file: "plan.md".into(),
+            config_dir: String::new(),
+            owner_pid: String::new(),
+            session_id: String::new(),
+            phases,
+            pr_url: None,
+            commits: vec![],
+            started_at: "2026-03-18T00:00:00Z".into(),
+        };
+
+        match check_completion(&checkpoint) {
+            Some(ArcCompletion::Shipped) => {}
+            other => panic!("expected Shipped, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_check_completion_shipped_when_merge_absent() {
+        // ship completed + no merge phase = terminal (--no-pr or minimal pipeline)
+        let mut phases = std::collections::HashMap::new();
+        phases.insert("ship".into(), crate::checkpoint::PhaseStatus {
+            status: "completed".into(),
+            started_at: None,
+            completed_at: None,
+            team_name: None,
+        });
+
+        let checkpoint = Checkpoint {
+            id: "arc-ship-no-pr".into(),
             schema_version: Some(24),
             plan_file: "plan.md".into(),
             config_dir: String::new(),
