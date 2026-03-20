@@ -92,7 +92,7 @@ WARNING_THRESHOLD=70
 HIGH_THRESHOLD=85
 MAX_BLOCKS=2
 if [[ -f "$TALISMAN_SHARD" && ! -L "$TALISMAN_SHARD" ]]; then
-  ENABLED=$(jq -r '.enabled // true' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
+  ENABLED=$(jq -r 'if .enabled == null then true else .enabled end' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
   [[ "$ENABLED" == "false" ]] && exit 0
   # QUAL-001 FIX: Flat key access — shard file is the dedicated context_stop_guard object
   WARNING_THRESHOLD=$(jq -r '.warning_threshold // 70' "$TALISMAN_SHARD" 2>/dev/null || echo "70")

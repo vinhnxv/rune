@@ -29,7 +29,7 @@ else
 fi
 MIN_SIZE=200
 if [[ -f "$TALISMAN_SHARD" && ! -L "$TALISMAN_SHARD" ]]; then
-  ENABLED=$(jq -r '.enabled // true' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
+  ENABLED=$(jq -r 'if .enabled == null then true else .enabled end' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
   [[ "$ENABLED" == "false" ]] && exit 0
   MIN_SIZE=$(jq -r '.min_file_size // 200' "$TALISMAN_SHARD" 2>/dev/null || echo "200")
 fi

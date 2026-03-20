@@ -18,9 +18,12 @@ Follow standard shutdown from [engines.md](../../team-sdk/references/engines.md#
 ## Post-Cleanup
 
 ```javascript
-// Remove readonly marker (review complete) — run BEFORE team shutdown
+// Remove readonly marker (review complete)
 Bash(`rm -f tmp/.rune-signals/${teamName}/.readonly-active`)
 
 // Update state file
 updateStateFile(identifier, { phase: "completed", status: "completed" })
+
+// Release workflow lock
+Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "codex-review"`)
 ```

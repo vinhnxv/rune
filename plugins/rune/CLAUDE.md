@@ -337,8 +337,8 @@ Based on rlm-claude-code ADR-002 "Fail-Forward Behavior". Hooks should guide, no
 
 | Category | Behavior | Scripts |
 |----------|----------|---------|
-| SECURITY | Fail-closed (fail-closed ERR trap exits 2). Crash → blocks operation. | `enforce-readonly.sh`, `enforce-teams.sh` |
-| OPERATIONAL | Fail-forward (`_rune_fail_forward` ERR trap). Crash → allows operation. | All other 37 scripts (including `detect-stale-lead.sh`, `keyword-detector.sh`, `track-tool-failure.sh`, `reset-tool-failure.sh`, `verify-agent-deliverables.sh`, `context-percent-stop-guard.sh`, `enforce-agent-search.sh`) |
+| SECURITY | Fail-closed (fail-closed ERR trap exits 2). Crash → blocks operation. | `enforce-readonly.sh`, `enforce-teams.sh`, `elicitation-result-validator.sh`, `guard-agent-teams-flag.sh` |
+| OPERATIONAL | Fail-forward (`_rune_fail_forward` ERR trap). Crash → allows operation. | All other 35 scripts (including `detect-stale-lead.sh`, `keyword-detector.sh`, `track-tool-failure.sh`, `reset-tool-failure.sh`, `verify-agent-deliverables.sh`, `context-percent-stop-guard.sh`, `enforce-agent-search.sh`) |
 
 **VEIL-002 Advisory**: Fail-forward OPERATIONAL hooks can create silent failure cascades (zombie teams, stalled phase loops). All OPERATIONAL hooks emit stderr warnings on ERR trap activation. Set `RUNE_TRACE=1` to capture crash location in `$RUNE_TRACE_LOG`. Monitor for repeated ERR trap warnings — they indicate hook instability.
 

@@ -38,13 +38,18 @@ except ImportError:
         @staticmethod
         def fromstring(xml_string: str) -> ET.Element:
             """Parse XML string with entity resolution disabled."""
+            import xml.parsers.expat as expat
+
             parser = ET.XMLParser()
             parser.entity = {}  # type: ignore[attr-defined]  # Disable entity resolution
+            # Disable DTD processing for defense-in-depth
+            parser.parser.UseForeignDTD(False)
+            parser.parser.SetParamEntityParsing(expat.XML_PARAM_ENTITY_PARSING_NEVER)
             parser.feed(xml_string)
             return parser.close()
 
     SafeET = _SafeETFallback()  # type: ignore[assignment]
-    logging.getLogger(__name__).error(
+    logging.getLogger(__name__).warning(
         "defusedxml not installed — using safe stdlib fallback with entity "
         "resolution disabled. Install defusedxml for full XXE protection: "
         "pip install defusedxml>=0.7.1"

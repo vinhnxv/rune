@@ -120,10 +120,12 @@ if printf '%s\n' "$NORMALIZED" | grep -qE '(^|[[:space:];|&(])sleep[[:space:]]+[
       "${BASH_SOURCE[0]##*/}" >&2 2>/dev/null || true
     RUNE_CURRENT_CFG=""
     rune_pid_alive() {
-      kill -0 "$1" 2>/dev/null && return 0
+      [[ "$1" =~ ^[0-9]+$ ]] || return 1
+      local _err
+      _err=$(kill -0 "$1" 2>&1) && return 0
       # EPERM means process exists but we lack permission — treat as alive
       # This prevents false "dead" detection for cross-user PIDs
-      kill -0 "$1" 2>&1 | grep -qi "perm" && return 0
+      case "$_err" in *ermission*|*[Pp]erm*|*EPERM*) return 0 ;; esac
       return 1
     }
   fi

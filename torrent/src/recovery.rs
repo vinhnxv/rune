@@ -447,18 +447,15 @@ fn get_pr_status() -> PrStatus {
         return PrStatus::Merged;
     }
 
-    // Extract URL from JSON (simple parse — avoid adding serde dependency for this).
-    if let Some(url_start) = stdout.find("\"url\":\"") {
-        let rest = &stdout[url_start + 7..];
-        if let Some(url_end) = rest.find('"') {
-            let url = rest[..url_end].to_string();
-            return PrStatus::Open(url);
+    // Extract URL from JSON using serde_json (handles escaped quotes correctly).
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&stdout) {
+        if let Some(url) = json.get("url").and_then(|v| v.as_str()) {
+            return PrStatus::Open(url.to_string());
         }
-    }
-
-    // Fallback: PR exists but can't parse URL.
-    if text.contains("\"open\"") {
-        return PrStatus::Open("(url unavailable)".into());
+        // JSON parsed but no URL field — check state for open
+        if json.get("state").and_then(|v| v.as_str()) == Some("OPEN") {
+            return PrStatus::Open("(url unavailable)".into());
+        }
     }
 
     PrStatus::None

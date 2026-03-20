@@ -983,13 +983,21 @@ try {
     // CLEAN-006 FIX: "pattern-weaver" → "pattern-seer" (correct registered name)
     "forge-warden", "ward-sentinel", "pattern-seer", "veil-piercer",
     "glyph-scribe", "knowledge-keeper", "codex-oracle",
-    // Existing static entries
-    "runebinder", "doubt-seer", "cross-shard-sentinel",
+    // Aggregation + verification
+    "runebinder", "doubt-seer",
+    // Deep-mode agents (--deep: Wave 2 investigators + deep aggregation)
     "rot-seeker", "strand-tracer", "decree-auditor", "fringe-watcher",
-    // Deep-mode agents (audit --deep: lore layer + deep aggregation)
     "lore-analyst", "runebinder-deep", "runebinder-merge",
+    // Sharding mode agents
+    "cross-shard-sentinel",
     "shard-reviewer-a", "shard-reviewer-b", "shard-reviewer-c",
     "shard-reviewer-d", "shard-reviewer-e",
+    // Phase 1.5 UX reviewers (conditional — ux.enabled + frontend files)
+    "ux-heuristic-reviewer", "ux-flow-validator", "ux-interaction-auditor", "ux-cognitive-walker",
+    // Phase 1.6 Design fidelity reviewer (conditional — design_review.enabled + frontend files)
+    "design-implementation-reviewer",
+    // Elicitation sages (conditional — security-relevant scope)
+    "elicitation-sage-security-1", "elicitation-sage-security-2",
     // Custom Ashes — best-effort from dynamic discovery (undefined on compaction = harmless empty array)
     ...(selectedAsh ?? [])
   ]
@@ -1036,6 +1044,11 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
 }
 // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
 if (!cleanupTeamDeleteSucceeded) {
+  // 5a. Process-level kill — terminate lingering teammates before filesystem cleanup
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+  Bash(`sleep 5`)
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  // 5b. Filesystem cleanup
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
   // Deep mode: also clean wave-suffixed teams (v1.67.0+)
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && for n in 2 3 4; do rm -rf "$CHOME/teams/${teamName}-w${n}/" "$CHOME/tasks/${teamName}-w${n}/" 2>/dev/null; done`)

@@ -121,12 +121,17 @@ log("═════════════════════════
 ```javascript
 // FALLBACK: config.json read failed — use exhaustive list of all possible inspect agents.
 // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
-// CLEAN-001 FIX: Use suffixed names matching actual Agent() spawn names (-inspect and -plan-review variants).
+// Include BOTH base names (from classifyRequirements/inspectorAssignments) and suffixed names
+// (from SKILL.md MCP discovery path) to cover all spawn code paths.
 allMembers = [
+  // Base names (inspector-prompts.md spawns with `name: inspector` from inspectorAssignments)
+  "grace-warden", "ruin-prophet", "sight-oracle", "vigil-keeper",
+  // Suffixed names (SKILL.md MCP discovery path uses suffixed names)
   "grace-warden-inspect", "ruin-prophet-inspect",
   "sight-oracle-inspect", "vigil-keeper-inspect",
   "grace-warden-plan-review", "ruin-prophet-plan-review",
   "sight-oracle-plan-review", "vigil-keeper-plan-review",
+  // Aggregator + conditional agents
   "verdict-binder", "gap-fixer", "lore-analyst"
 ]
 ```
@@ -141,8 +146,6 @@ if (!/^[a-zA-Z0-9_-]+$/.test(teamName)) {
   throw new Error(`Invalid team_name: ${teamName}`)
 }
 
-// --- 6. Release workflow lock ---
-Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "inspect"`)
 ```
 
 ### Step 7.3 — Update State File
@@ -158,6 +161,9 @@ state.session_id = "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`
 state.verdict = extractVerdict(verdict)
 state.completion = extractCompletion(verdict)
 Write(stateFile, JSON.stringify(state))
+
+// Release workflow lock (AFTER state update — canonical order per engines.md)
+Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "inspect"`)
 ```
 
 ### Step 7.4 — Persist Echo (if significant findings)

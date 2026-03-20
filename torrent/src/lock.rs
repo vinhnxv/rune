@@ -95,10 +95,10 @@ pub fn acquire(dir: &Path) -> LockResult {
             }
         }
         Err(_) => {
-            // Unexpected I/O error (permissions, disk full, etc.) — treat as acquired
-            // to avoid blocking startup; the lock is best-effort protection.
-            let _ = fs::write(&lock_path, my_pid.to_string());
-            LockResult::Acquired(LockGuard { path: lock_path })
+            // Unexpected I/O error (permissions, disk full, etc.) — cannot safely
+            // acquire the lock. Return AlreadyRunning to prevent concurrent access.
+            // Non-atomic fs::write() here would risk two instances both "holding" the lock.
+            LockResult::AlreadyRunning { pid: 0, lock_path }
         }
     }
 }

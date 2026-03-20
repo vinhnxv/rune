@@ -62,9 +62,9 @@ if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
 else
   RUNE_CURRENT_CFG=$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P) || RUNE_CURRENT_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   rune_pid_alive() {
-    kill -0 "$1" 2>/dev/null && return 0
+    [[ "$1" =~ ^[0-9]+$ ]] || return 1
     local _err
-    _err=$(kill -0 "$1" 2>&1) || true
+    _err=$(kill -0 "$1" 2>&1) && return 0
     case "$_err" in *ermission*|*[Pp]erm*|*EPERM*) return 0 ;; esac
     return 1
   }
@@ -149,8 +149,8 @@ DEBOUNCE_SECONDS=300
 
 TALISMAN_SHARD="${CWD}/tmp/.talisman-resolved/misc.json"
 if [[ -f "$TALISMAN_SHARD" && ! -L "$TALISMAN_SHARD" ]]; then
-  _tw_enabled=$(jq -r '.stale_lead_wakeup.enabled // true' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
-  _tw_debounce=$(jq -r '.stale_lead_wakeup.debounce_seconds // 300' "$TALISMAN_SHARD" 2>/dev/null || echo "300")
+  _tw_enabled=$(jq -r 'if .stale_lead_wakeup.enabled == null then true else .stale_lead_wakeup.enabled end' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
+  _tw_debounce=$(jq -r 'if .stale_lead_wakeup.debounce_seconds == null then 300 else .stale_lead_wakeup.debounce_seconds end' "$TALISMAN_SHARD" 2>/dev/null || echo "300")
   [[ "$_tw_enabled" == "false" ]] && WAKEUP_ENABLED=false
   [[ "$_tw_debounce" =~ ^[0-9]+$ ]] && DEBOUNCE_SECONDS="$_tw_debounce"
 fi
