@@ -67,12 +67,14 @@ else
   # Fallback: inline resolution
   RUNE_CURRENT_CFG=$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P) || RUNE_CURRENT_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   rune_pid_alive() {
-    kill -0 "$1" 2>/dev/null && return 0
+    # BUG FIX: Single kill -0 call captures both exit code and stderr.
+    # Previous version called kill -0 twice (TOCTOU: process could die between calls).
+    # Matches on-session-stop.sh single-call pattern.
+    local _err _rc
+    _err=$(kill -0 "$1" 2>&1); _rc=$?
+    [[ $_rc -eq 0 ]] && return 0
     # EPERM means process exists but we lack permission — treat as alive
-    # This prevents false "dead" detection for cross-user PIDs
     # TOME-019 FIX: Use case pattern instead of grep -qi "perm" for locale safety
-    local _err
-    _err=$(kill -0 "$1" 2>&1) || true
     case "$_err" in *ermission*|*[Pp]erm*|*EPERM*) return 0 ;; esac
     return 1
   }

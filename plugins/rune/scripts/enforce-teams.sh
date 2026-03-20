@@ -66,24 +66,30 @@ fi
 # Team leads MUST also use team_name — this is the whole point of ATE-1.
 # Note: Claude Code 2.1.63 renamed Task → Agent. Both are checked below.
 
-# BACK-003 FIX: Use printf instead of echo to avoid flag interpretation if $INPUT starts with '-'
+# PERF-001: Batch INPUT field extraction — 5 jq calls → 1 @tsv call.
+# Fields: tool_name, cwd, agent_name, has_team_name, subagent_type
+# Uses `// ""` (not `// empty`) to preserve TSV column positions.
+# Cross-ref: on-task-completed.sh:92 for the proven @tsv pattern.
+IFS=$'\t' read -r TOOL_NAME CWD AGENT_NAME HAS_TEAM_NAME SUBAGENT_TYPE <<< \
+  "$(printf '%s\n' "$INPUT" | jq -r '[
+    (.tool_name // ""),
+    (.cwd // ""),
+    (.tool_input.name // ""),
+    (if .tool_input.team_name and (.tool_input.team_name | length > 0) then "yes" else "no" end),
+    (.tool_input.subagent_type // "")
+  ] | @tsv' 2>/dev/null)" || true
+
 # Claude Code 2.1.63+ renamed "Task" → "Agent". Match both for backward compat.
-TOOL_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)
 if [[ "$TOOL_NAME" != "Task" && "$TOOL_NAME" != "Agent" ]]; then
   exit 0
 fi
 
 # QUAL-5: Canonicalize CWD to resolve symlinks (matches on-task-completed.sh pattern)
-CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 if [[ -z "$CWD" ]]; then
   exit 0
 fi
 CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || { exit 0; }
 if [[ -z "$CWD" || "$CWD" != /* ]]; then exit 0; fi
-
-# ── Early AGENT_NAME extraction (before workflow detection) ──
-# Extract agent name once — reused by non-Rune exemption and Signal 4.
-AGENT_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.name // empty' 2>/dev/null || true)
 
 # ── Source shared agent registry ──
 SCRIPT_DIR_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -200,9 +206,12 @@ fi
 _rune_check_file_ownership() {
   local _f="$1"
   local _s_cfg _s_sid _s_pid
-  _s_cfg=$(jq -r '.config_dir // empty' "$_f" 2>/dev/null || true)
-  _s_sid=$(jq -r '.session_id // empty' "$_f" 2>/dev/null || true)
-  _s_pid=$(jq -r '.owner_pid // empty' "$_f" 2>/dev/null || true)
+  # PERF-001: Batch per-file ownership extraction — 3 jq calls → 1 @tsv call.
+  # Fields: config_dir, session_id, owner_pid
+  # Uses `// ""` (not `// empty`) to preserve TSV column positions.
+  # Cross-ref: on-task-completed.sh:92 for the proven @tsv pattern.
+  IFS=$'\t' read -r _s_cfg _s_sid _s_pid <<< \
+    "$(jq -r '[.config_dir // "", .session_id // "", .owner_pid // ""] | @tsv' "$_f" 2>/dev/null)" || true
   # Layer 1: config dir mismatch → different installation
   if [[ -n "$_s_cfg" && -n "$RUNE_CURRENT_CFG" && "$_s_cfg" != "$RUNE_CURRENT_CFG" ]]; then return 1; fi
   # Layer 2: session_id primary — definitive match/mismatch
@@ -454,8 +463,7 @@ if [[ -n "$AGENT_NAME" ]]; then
 fi
 
 # Active workflow detected — verify Agent/Task input includes team_name
-# BACK-2 FIX: Single-pass jq extraction (avoids fragile double-parse of tool_input)
-HAS_TEAM_NAME=$(printf '%s\n' "$INPUT" | jq -r 'if .tool_input.team_name and (.tool_input.team_name | length > 0) then "yes" else "no" end' 2>/dev/null || echo "no")
+# HAS_TEAM_NAME already extracted in PERF-001 batch above (field 4 of @tsv)
 
 if [[ "$HAS_TEAM_NAME" == "yes" ]]; then
   exit 0
@@ -465,7 +473,7 @@ fi
 # Explore (Haiku, read-only) and Plan (read-only) agents produce bounded output
 # and cannot modify files — no risk of context explosion. The orchestrator needs
 # these for quick codebase queries during workflow phases.
-SUBAGENT_TYPE=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.subagent_type // empty' 2>/dev/null || true)
+# SUBAGENT_TYPE already extracted in PERF-001 batch above (field 5 of @tsv)
 if [[ "$SUBAGENT_TYPE" == "Explore" || "$SUBAGENT_TYPE" == "Plan" ]]; then
   exit 0
 fi

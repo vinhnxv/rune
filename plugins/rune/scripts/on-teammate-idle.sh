@@ -248,25 +248,29 @@ if [[ "$TEAM_NAME" =~ ^(rune|arc)-work- ]]; then
   IN_PROGRESS_TASKS=()
 
   if [[ -d "$TASK_DIR" ]]; then
+    # Build file list with symlink pre-filter
+    task_files=()
     shopt -s nullglob
-    for task_file in "$TASK_DIR"/*.json; do
-      [[ -L "$task_file" ]] && continue
-      [[ -f "$task_file" ]] || continue
-
-      # Extract task owner and status
-      task_owner=$(jq -r '.owner // empty' "$task_file" 2>/dev/null || true)
-      task_status=$(jq -r '.status // empty' "$task_file" 2>/dev/null || true)
-      task_id=$(jq -r '.id // empty' "$task_file" 2>/dev/null || true)
-
-      # Check if assigned to this teammate and not completed/deleted
-      if [[ "$task_owner" == "$TEAMMATE_NAME" && "$task_status" != "completed" && "$task_status" != "deleted" ]]; then
-        ASSIGNED_TASKS+=("$task_id")
-        if [[ "$task_status" == "in_progress" ]]; then
-          IN_PROGRESS_TASKS+=("$task_id")
-        fi
-      fi
+    for f in "$TASK_DIR"/*.json; do
+      [[ -L "$f" || ! -f "$f" ]] && continue
+      task_files+=("$f")
     done
     shopt -u nullglob
+
+    if [[ ${#task_files[@]} -gt 0 ]]; then
+      # Batch extract with per-file error isolation (BACK-001 fix)
+      # Each file processed independently — corrupt file N doesn't skip file N+1
+      # Field order: id, status, owner — must match read variable order
+      # Uses // "" (not // empty) to preserve TSV column positions
+      # See also: on-task-completed.sh:92 for proven @tsv pattern
+      while IFS=$'\t' read -r task_id task_status task_owner; do
+        [[ -z "$task_id" ]] && continue
+        if [[ "$task_owner" == "$TEAMMATE_NAME" && "$task_status" != "completed" && "$task_status" != "deleted" ]]; then
+          ASSIGNED_TASKS+=("$task_id")
+          [[ "$task_status" == "in_progress" ]] && IN_PROGRESS_TASKS+=("$task_id")
+        fi
+      done < <(for _tf in "${task_files[@]}"; do jq -r '[.id // "", .status // "", .owner // ""] | @tsv' "$_tf" 2>/dev/null || true; done)
+    fi
   fi
 
   # Evidence 2: No assigned tasks → allow idle (worker spawned but pool empty)
