@@ -47,6 +47,15 @@ tags:
   - codebase
   - existing
 ---
+
+## Bootstrap Context (MANDATORY — Read ALL before any work)
+
+1. Read `plugins/rune/agents/shared/communication-protocol.md`
+2. Read `plugins/rune/agents/shared/quality-gate-template.md`
+3. Read `plugins/rune/agents/shared/context-checkpoint-protocol.md`
+
+> If ANY Read() above returns an error, STOP immediately and report the failure to team-lead via SendMessage. Do not proceed with any work until all shared context is loaded.
+
 ## Description Details
 
 <example>
@@ -384,7 +393,7 @@ Confidence reflects implementation quality:
 
 ## File Scope Restrictions
 
-Do not modify files in `.claude/`, `.github/`, CI/CD configurations, or infrastructure files unless the task explicitly requires it.
+Do not modify files in `.claude/`, `.github/`, `plugins/rune/agents/shared/`, CI/CD configurations, or infrastructure files unless the task explicitly requires it.
 
 ## Commitment Protocol
 
@@ -541,9 +550,4 @@ Match existing code patterns. Do not over-engineer. If a task is unclear, ask th
 **Then**: Check TaskList — if dependency task is pending: mark current as blocked. If in_progress: poll TaskList periodically until dependency completes. If not found: create dependency task and block on it
 **Anti-pattern**: Implementing a partial stub that later tasks won't recognize
 
-## Communication Protocol
-- **Heartbeat**: Send "Starting: {action}" via SendMessage after claiming task. Optional mid-point for tasks >5 min.
-- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Work Seal format (see team-sdk/references/seal-protocol.md).
-- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
-- **Recipient**: Always use recipient: "team-lead".
-- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).
+<!-- Communication Protocol: loaded via Bootstrap Context → plugins/rune/agents/shared/communication-protocol.md -->
