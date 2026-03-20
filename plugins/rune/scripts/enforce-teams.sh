@@ -90,6 +90,11 @@ SCRIPT_DIR_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 if [[ -f "${SCRIPT_DIR_LIB}/lib/known-rune-agents.sh" ]]; then
   # shellcheck source=lib/known-rune-agents.sh
   source "${SCRIPT_DIR_LIB}/lib/known-rune-agents.sh"
+else
+  # FIX #5: Stub when registry file is missing. Without this,
+  # is_known_rune_agent() is undefined → non-Rune exemption (line ~450) silently
+  # skips → ALL named agents denied during active workflows (false positives).
+  is_known_rune_agent() { return 1; }
 fi
 
 # Check for active Rune workflows
@@ -154,12 +159,12 @@ if [[ -d "${CWD}/tmp" ]]; then
       sleep 0.1 2>/dev/null || true
       if mkdir "$MUTEX_DIR" 2>/dev/null; then
         MUTEX_HELD=true
-      else
-        # Another workflow is actively transitioning — treat as active workflow detected
-        # This is the safe (fail-closed) behavior
-        active_workflow=1
-        detected_source="mutex-contention"
       fi
+      # FIX #4: Don't set active_workflow on mutex contention. Contention only means
+      # another hook invocation is running concurrently (e.g., parallel Agent calls) —
+      # NOT that a workflow is active. State file checks below detect actual workflows
+      # regardless of mutex. Previous behavior caused false positives when 3+ agents
+      # were spawned in parallel (each hook run races on the mutex).
     fi
   fi
 fi
@@ -184,25 +189,45 @@ else
   exit 2
 fi
 
+# ── FIX #6: Shared 3-layer ownership check helper ──
+# Deduplicates ownership logic previously copy-pasted across Signals 1, 2, and 3.
+# Reads config_dir, session_id, owner_pid from a JSON file and checks against current session.
+# Returns:
+#   0 = our session (ownership confirmed or same PID)
+#   1 = different live session (should skip)
+#   2 = dead PID orphan (caller decides: enforce or skip)
+#   3 = no ownership data in file (caller handles legacy fallback)
+_rune_check_file_ownership() {
+  local _f="$1"
+  local _s_cfg _s_sid _s_pid
+  _s_cfg=$(jq -r '.config_dir // empty' "$_f" 2>/dev/null || true)
+  _s_sid=$(jq -r '.session_id // empty' "$_f" 2>/dev/null || true)
+  _s_pid=$(jq -r '.owner_pid // empty' "$_f" 2>/dev/null || true)
+  # Layer 1: config dir mismatch → different installation
+  if [[ -n "$_s_cfg" && -n "$RUNE_CURRENT_CFG" && "$_s_cfg" != "$RUNE_CURRENT_CFG" ]]; then return 1; fi
+  # Layer 2: session_id primary — definitive match/mismatch
+  if [[ -n "$_s_sid" && -n "$RUNE_CURRENT_SID" ]]; then
+    [[ "$_s_sid" == "$RUNE_CURRENT_SID" ]] && return 0 || return 1
+  fi
+  # Layer 3: PID fallback
+  if [[ -n "$_s_pid" && "$_s_pid" =~ ^[0-9]+$ ]]; then
+    if [[ "$_s_pid" != "$PPID" ]]; then
+      rune_pid_alive "$_s_pid" && return 1 || return 2
+    fi
+    return 0  # same PID → our session
+  fi
+  # No ownership data → caller must handle (legacy inscriptions, etc.)
+  return 3
+}
+
 # Check arc checkpoints (skip stale files older than STALE_THRESHOLD_MIN)
 if [[ -d "${CWD}/${RUNE_STATE}/arc" ]]; then
   while IFS= read -r f; do
     if jq -e '(.phase_status // .phase // .status // "none" | . == "in_progress") or ([.phases[]?.status] | any(. == "in_progress"))' "$f" &>/dev/null; then
-      # ── Ownership filter: skip checkpoints from other sessions (XVER-004 FIX: 3-layer) ──
-      stored_cfg=$(jq -r '.config_dir // empty' "$f" 2>/dev/null || true)
-      stored_sid=$(jq -r '.session_id // empty' "$f" 2>/dev/null || true)
-      stored_pid=$(jq -r '.owner_pid // empty' "$f" 2>/dev/null || true)
-      # Layer 1: config dir mismatch → different installation
-      if [[ -n "$stored_cfg" && -n "$RUNE_CURRENT_CFG" && "$stored_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
-      # Layer 2: session_id primary — definitive match/mismatch
-      if [[ -n "$stored_sid" && -n "$RUNE_CURRENT_SID" ]]; then
-        [[ "$stored_sid" == "$RUNE_CURRENT_SID" ]] || continue  # different session
-      else
-        # Layer 3: PID fallback when session_id unavailable
-        if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
-          rune_pid_alive "$stored_pid" && continue  # alive = different session
-        fi
-      fi
+      # ── Ownership filter: skip checkpoints from other sessions ──
+      _own_rc=0; _rune_check_file_ownership "$f" || _own_rc=$?
+      [[ $_own_rc -eq 1 ]] && continue  # different live session → skip
+      # dead PID (rc=2) or ours (rc=0) or no data (rc=3) → proceed with detection
       active_workflow=1
       detected_source="state-file"
       # CDX-GAP-002 FIX: Extract team_name from arc checkpoint for recovery context
@@ -229,21 +254,10 @@ if [[ -z "$active_workflow" ]]; then
     # Skip files older than STALE_THRESHOLD_MIN minutes
     # PERF: per-file `find -maxdepth 0 -mmin` is O(n) but safe; batch find risks glob/ownership edge cases
     if [[ -f "$f" ]] && find "$f" -maxdepth 0 -mmin -${STALE_THRESHOLD_MIN} -print -quit 2>/dev/null | grep -q . && jq -e '.status == "active"' "$f" &>/dev/null; then
-      # ── Ownership filter: skip state files from other sessions (XVER-004 FIX: 3-layer) ──
-      stored_cfg=$(jq -r '.config_dir // empty' "$f" 2>/dev/null || true)
-      stored_sid=$(jq -r '.session_id // empty' "$f" 2>/dev/null || true)
-      stored_pid=$(jq -r '.owner_pid // empty' "$f" 2>/dev/null || true)
-      # Layer 1: config dir mismatch → different installation
-      if [[ -n "$stored_cfg" && -n "$RUNE_CURRENT_CFG" && "$stored_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
-      # Layer 2: session_id primary — definitive match/mismatch
-      if [[ -n "$stored_sid" && -n "$RUNE_CURRENT_SID" ]]; then
-        [[ "$stored_sid" == "$RUNE_CURRENT_SID" ]] || continue  # different session
-      else
-        # Layer 3: PID fallback when session_id unavailable
-        if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
-          rune_pid_alive "$stored_pid" && continue  # alive = different session
-        fi
-      fi
+      # ── Ownership filter: skip state files from other sessions ──
+      _own_rc=0; _rune_check_file_ownership "$f" || _own_rc=$?
+      [[ $_own_rc -eq 1 ]] && continue  # different live session → skip
+      # dead PID (rc=2) or ours (rc=0) or no data (rc=3) → proceed with detection
       active_workflow=1
       detected_source="state-file"
       # CDX-GAP-002 FIX: Extract team_name from state file for recovery context
@@ -264,48 +278,32 @@ fi
 # INSCR_STALE_MIN (defined at file-level constants): see cross-reference at STALE_THRESHOLD_MIN.
 if [[ -z "$active_workflow" ]]; then
   shopt -s nullglob
+  # FIX #1: Added inspect/ and codex-review/ (previously missing — defense-in-depth gap)
   for inscr in "${CWD}"/tmp/reviews/*/inscription.json \
                "${CWD}"/tmp/audit/*/inscription.json \
                "${CWD}"/tmp/forge/*/inscription.json \
                "${CWD}"/tmp/work/*/inscription.json \
-               "${CWD}"/tmp/mend/*/inscription.json; do
+               "${CWD}"/tmp/mend/*/inscription.json \
+               "${CWD}"/tmp/inspect/*/inscription.json \
+               "${CWD}"/tmp/codex-review/*/inscription.json; do
     # Recency guard: skip files older than INSCR_STALE_MIN (tighter than Signal 1)
     if [[ -f "$inscr" ]] && find "$inscr" -maxdepth 0 -mmin -${INSCR_STALE_MIN} -print -quit 2>/dev/null | grep -q .; then
 
-      # ── Layer 1: Direct ownership check from inscription.json fields (v1.167.0+) ──
-      # New inscriptions include config_dir/owner_pid/session_id. Direct check avoids
-      # team dir indirection that fails after TeamDelete cleans up .session files.
-      inscr_cfg=$(jq -r '.config_dir // empty' "$inscr" 2>/dev/null || true)
-      inscr_sid=$(jq -r '.session_id // empty' "$inscr" 2>/dev/null || true)
-      inscr_pid=$(jq -r '.owner_pid // empty' "$inscr" 2>/dev/null || true)
-
-      # Layer 1a: config dir mismatch → different installation → skip
-      if [[ -n "$inscr_cfg" && -n "$RUNE_CURRENT_CFG" && "$inscr_cfg" != "$RUNE_CURRENT_CFG" ]]; then
+      # ── Ownership check via shared helper ──
+      _own_rc=0; _rune_check_file_ownership "$inscr" || _own_rc=$?
+      if [[ $_own_rc -eq 1 ]]; then
+        continue  # different live session → skip
+      elif [[ $_own_rc -eq 2 ]]; then
+        # Dead PID → stale inscription from crashed session → skip
+        [[ -n "${RUNE_TRACE:-}" ]] && printf '[enforce-teams] Skipping dead-PID inscription: %s\n' "$inscr" >> "${RUNE_TRACE_LOG:-/dev/null}" 2>/dev/null
         continue
       fi
+      # rc=0: confirmed our session → skip legacy check, proceed to detect
+      # rc=3: no ownership data → fall through to legacy .session check
 
-      # Layer 1b: session_id available in both → definitive match/mismatch
-      if [[ -n "$inscr_sid" && -n "$RUNE_CURRENT_SID" ]]; then
-        [[ "$inscr_sid" == "$RUNE_CURRENT_SID" ]] || continue  # different session → skip
-        # Same session — fall through to active_workflow=1
-      elif [[ -n "$inscr_pid" && "$inscr_pid" =~ ^[0-9]+$ ]]; then
-        # Layer 1c: PID fallback when session_id unavailable
-        if [[ "$inscr_pid" != "$PPID" ]]; then
-          if rune_pid_alive "$inscr_pid"; then
-            continue  # different live session → skip
-          else
-            # PID dead → stale inscription from crashed session → skip
-            [[ -n "${RUNE_TRACE:-}" ]] && printf '[enforce-teams] Skipping dead-PID inscription: %s (pid=%s)\n' "$inscr" "$inscr_pid" >> "${RUNE_TRACE_LOG:-/dev/null}" 2>/dev/null
-            continue
-          fi
-        fi
-        # Same PID — fall through to active_workflow=1
-      fi
-      # If we reach here with ownership fields set, it's our session → proceed to detect
-
-      # ── Layer 2: Legacy fallback — team .session indirection (pre-v1.167.0 inscriptions) ──
-      # Only reached when inscription lacks ownership fields (inscr_sid and inscr_pid both empty)
-      if [[ -z "$inscr_sid" && -z "$inscr_pid" ]]; then
+      # ── Legacy fallback — team .session indirection (pre-v1.167.0 inscriptions) ──
+      # Only reached when inscription lacks ownership fields (rc=3)
+      if [[ $_own_rc -eq 3 ]]; then
         local_team=$(jq -r '.team_name // empty' "$inscr" 2>/dev/null || true)
         if [[ -n "$local_team" ]]; then
           CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
@@ -352,11 +350,12 @@ fi
 # Their presence indicates an active orchestration even without state files.
 if [[ -z "$active_workflow" ]]; then
   shopt -s nullglob
-  for sigdir in "${CWD}"/tmp/.rune-signals/rune-*/; do
+  # FIX #2-3: Added arc-*/ glob and updated regex to match arc-* prefixed teams
+  for sigdir in "${CWD}"/tmp/.rune-signals/rune-*/ "${CWD}"/tmp/.rune-signals/arc-*/; do
     if [[ -d "$sigdir" ]] && find "$sigdir" -maxdepth 0 -mmin -${STALE_THRESHOLD_MIN} -print -quit 2>/dev/null | grep -q .; then
       # Extract team name from directory name (tmp/.rune-signals/rune-review-abc123/ -> rune-review-abc123)
       local_team=$(basename "$sigdir")
-      if [[ "$local_team" =~ ^rune-[a-zA-Z]+-[a-zA-Z0-9_-]+$ ]]; then
+      if [[ "$local_team" =~ ^(rune|arc)-[a-zA-Z]+-[a-zA-Z0-9_-]+$ ]]; then
         # CDX-GAP-004 FIX: Session ownership check for signal directories
         CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
         sig_session_file="${CHOME}/teams/${local_team}/.session"
@@ -387,24 +386,48 @@ if [[ -z "$active_workflow" ]]; then
   shopt -u nullglob
 fi
 
-# Signal 4: Agent name matching (defense-in-depth fallback).
+# Signal 4: Agent name matching (ADVISORY only — defense-in-depth).
 # YAGNI-001 NOTE: This signal fires only when Signals 1-3 all miss AND the agent
-# name matches the registry. Narrow scenario but provides a safety net for workflows
-# that start without creating state files. Kept intentionally for defense-in-depth.
-# ── Signal 4: Known Rune agent name matching ──
-# If the Agent() call uses a name matching a known Rune Ash, this is a Rune workflow
-# even if no state file, inscription, or signal dir exists.
-# IMPORTANT: This signal does NOT set detected_team_name (we don't know which team).
-# It only activates the ATE-1 block so the deny message can guide team creation.
-# Uses AGENT_NAME extracted early (before workflow detection) and shared registry
-# from lib/known-rune-agents.sh. Supports numbered (-1, -2) and named (-deep,
-# -exhaustive) suffixes via is_known_rune_agent().
+# name matches the registry. Without corroborating evidence from Signals 1-3,
+# there is no confirmed active workflow — only a matching agent name.
+#
+# CHANGE (v2.4.2): Downgraded from hard deny to advisory allow.
+# Rationale: Signal 4 caused frequent false positives when LLMs spawned Rune-named
+# agents during workflow bootstrap (before TeamCreate) or when using subagent_type
+# with rune: prefix. Without state files/inscriptions/signal dirs, there is
+# insufficient evidence to block. The advisory warns the LLM to use proper
+# /rune:* skills while allowing the operation to proceed.
+# ── Signal 4: Known Rune agent name matching (advisory) ──
 if [[ -z "$active_workflow" ]]; then
   if [[ -n "$AGENT_NAME" ]] && type -t is_known_rune_agent &>/dev/null; then
     if is_known_rune_agent "$AGENT_NAME"; then
-      active_workflow=1
-      detected_team_name=""
-      detected_source="agent-name"
+      # No corroborating signals — emit advisory and allow
+      # Infer workflow type for targeted suggestion
+      _s4_match_name=$(printf '%s\n' "$AGENT_NAME" | sed -E 's/(-[0-9]+|-deep|-exhaustive|-plan|-inspect|-review|-w[0-9]+)*$//')
+      _s4_skill=""
+      case "$_s4_match_name" in
+        ward-sentinel|forge-warden|pattern-weaver|pattern-seer|wraith-finder|flaw-hunter|ember-oracle|rune-architect|forge-keeper|runebinder|doubt-seer|shard-reviewer)
+          _s4_skill="/rune:appraise or /rune:audit" ;;
+        rune-smith|gap-fixer) _s4_skill="/rune:strive <plan-file>" ;;
+        mend-fixer) _s4_skill="/rune:mend <TOME-file>" ;;
+        repo-surveyor|echo-reader|git-miner|practice-seeker|lore-scholar|flow-seer|scroll-reviewer|decree-arbiter)
+          _s4_skill="/rune:devise" ;;
+        grace-warden|sight-oracle|ruin-prophet|vigil-keeper|verdict-binder) _s4_skill="/rune:inspect <plan-file>" ;;
+        goldmask-coordinator|lore-analyst|wisdom-sage) _s4_skill="/rune:goldmask" ;;
+        *) _s4_skill="the appropriate /rune:* workflow skill" ;;
+      esac
+      jq -n \
+        --arg agent_name "$AGENT_NAME" \
+        --arg skill "$_s4_skill" \
+        '{
+          hookSpecificOutput: {
+            hookEventName: "PreToolUse",
+            permissionDecision: "allow",
+            additionalContext: ("ATE-1 ADVISORY: You are spawning a known Rune agent (" + $agent_name + ") without an active workflow (no state file, inscription, or signal dir found). Consider using " + $skill + " instead of bare Agent() calls — the skill handles TeamCreate and orchestration automatically. If you are intentionally bootstrapping a workflow, proceed and call TeamCreate next.")
+          }
+        }' 2>/dev/null && exit 0
+      # jq failed — allow silently (fail-forward for advisory)
+      exit 0
     fi
   fi
 fi
@@ -531,31 +554,14 @@ fi
 # SEC-003 FIX: Build recovery steps without bash interpolation of SUGGESTED_TEAM.
 # The team name is passed via jq --arg below for safe escaping.
 #
-# ATE-1-RECOVERY FIX: Three-tier recovery messages:
+# ATE-1-RECOVERY FIX: Two-tier recovery messages:
 #   (A) SUGGESTED_TEAM known → manual team steps with specific team name
-#   (B) Signal 4 (agent-name, no active workflow) → suggest the correct /rune:* skill
-#   (C) Fallback → generic manual team steps
+#   (B) Fallback → generic manual team steps
+# NOTE: Signal 4 (agent-name only) is now handled above as advisory allow (v2.4.2).
+#       It exits early and never reaches this deny block.
 if [[ -n "$SUGGESTED_TEAM" ]]; then
   # (A) Active workflow with known team name — guide manual team creation
   RECOVERY_STEPS="STOP. Do NOT write a state file — that does not create a team. Do NOT retry Agent() immediately. Follow these steps EXACTLY: Step 1: Read the phase reference file from the checkpoint to find the correct algorithm. Step 2: Call TeamCreate({ team_name: '${SUGGESTED_TEAM}' }) — this is the SDK call that registers the team. Step 3: Call TaskCreate() for each agent you plan to spawn. Step 4: THEN retry Agent() calls with team_name: '${SUGGESTED_TEAM}' on each call."
-elif [[ "$detected_source" == "agent-name" ]]; then
-  # (B) Signal 4: No active workflow, just a bare Agent() with a Rune agent name.
-  # The LLM is trying to manually orchestrate instead of using the proper skill.
-  # Map WORKFLOW_TYPE to the correct /rune:* skill suggestion.
-  _suggested_skill=""
-  case "$WORKFLOW_TYPE" in
-    review-or-audit) _suggested_skill="/rune:appraise (for code review) or /rune:audit (for full codebase audit)" ;;
-    work)            _suggested_skill="/rune:strive <plan-file>" ;;
-    mend)            _suggested_skill="/rune:mend <TOME-file>" ;;
-    plan)            _suggested_skill="/rune:devise" ;;
-    inspect)         _suggested_skill="/rune:inspect <plan-file>" ;;
-    goldmask)        _suggested_skill="/rune:goldmask" ;;
-    debug)           _suggested_skill="/rune:debug" ;;
-    test)            _suggested_skill="/rune:arc (test phase runs within arc pipeline)" ;;
-    codex)           _suggested_skill="/rune:codex-review" ;;
-    *)               _suggested_skill="/rune:appraise, /rune:audit, or the appropriate /rune:* workflow skill" ;;
-  esac
-  RECOVERY_STEPS="STOP. Do NOT spawn Rune agents directly with bare Agent() calls. You MUST use the proper Rune workflow skill instead: ${_suggested_skill}. The skill handles TeamCreate, TaskCreate, and Agent orchestration automatically. Do NOT attempt to create teams manually — invoke the Skill() tool with the correct /rune:* command."
 else
   # (C) Fallback: active workflow detected but no team name known
   RECOVERY_STEPS="STOP. Do NOT write a state file — that does not create a team. Do NOT retry Agent() immediately. Follow these steps EXACTLY: Step 1: Read the phase reference file from the checkpoint to find the correct team name and algorithm. Step 2: Call TeamCreate({ team_name: 'the-team-name-from-reference' }) — this is the SDK call that registers the team. Step 3: Call TaskCreate() for each agent you plan to spawn. Step 4: THEN retry Agent() calls with the team_name parameter on each call."
