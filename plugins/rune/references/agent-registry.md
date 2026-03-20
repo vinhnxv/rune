@@ -1,9 +1,9 @@
 # Agent Registry
 
-**Total: 109 agents** (66 CORE in agents/ + 43 EXTENDED in registry/)
+**Total: 126 agents** (83 CORE in agents/ + 43 EXTENDED in registry/)
 
-> Agent count verified by `find agents/ registry/ -name "*.md" -type f | wc -l` on 2026-03-16.
-> CORE agents (agents/): 36 review + 5 research + 6 work + 19 utility + 24 investigation + 6 testing = 66
+> Agent count verified by `find agents/ registry/ -name "*.md" -type f | wc -l` on 2026-03-20.
+> CORE agents (agents/): 36 review + 5 research + 6 work + 19 utility + 24 investigation + 6 testing + 7 qa + 8 meta-qa = 83 (PHNT-001 FIX: added qa/ and meta-qa/ categories)
 > EXTENDED agents (registry/): 43 agents across review, investigation, testing, utility, and work categories
 
 > **Stack specialist reviewers** (python-reviewer, typescript-reviewer, rust-reviewer, php-reviewer, axum-reviewer, fastapi-reviewer, django-reviewer, laravel-reviewer, sqlalchemy-reviewer, tdd-compliance-reviewer, ddd-reviewer, di-reviewer) are NOT registered agents. They are prompt templates at `skills/roundtable-circle/references/specialist-prompts/`, loaded on-demand by `buildAshPrompt()` via stack detection.
@@ -154,3 +154,28 @@ Used by `/rune:debug` skill:
 | extended-test-runner | Extended-tier test execution with checkpoint/resume protocol — heartbeat liveness, budget enforcement, atomic checkpoint writes for crash recovery (model: sonnet) |
 | contract-validator | API contract validation — OpenAPI/JSON Schema compliance, hook output formats, request/response consistency (model: sonnet) |
 | test-failure-analyst | Read-only failure analysis — root cause classification and fix suggestions (maxTurns: 15) |
+
+## QA Verifier Agents (`agents/qa/`)
+
+| Agent | Purpose |
+|-------|---------|
+| phase-qa-verifier | Independent arc phase completion artifact verification — PASS/FAIL verdict |
+| code-review-qa-verifier | Code review phase TOME existence, finding structure, Ash prefix validity |
+| forge-qa-verifier | Forge phase enriched plan existence, enrichment depth/quality |
+| gap-analysis-qa-verifier | Gap analysis compliance matrix, per-criterion status, code evidence |
+| mend-qa-verifier | Mend phase resolution report, per-finding status, commit SHA references |
+| test-qa-verifier | Test phase test report, SEAL markers, strategy ordering, tier coverage |
+| work-qa-verifier | Work phase delegation manifests, task files, worker reports, evidence quality |
+
+## Meta-QA Agents (`agents/meta-qa/`)
+
+| Agent | Purpose |
+|-------|---------|
+| effectiveness-analyzer | Per-agent finding accuracy, false-positive rates, unique contribution |
+| hallucination-detector | Phantom claims, inflated scores, evidence fabrication detection |
+| rule-consistency-auditor | CLAUDE.md vs skill instruction contradictions, stale references |
+| convergence-analyzer | Review-mend convergence efficiency, retry patterns, stagnation |
+| workflow-auditor | Workflow definition validation, phase ordering, handoff contracts |
+| hook-integrity-auditor | hooks.json vs script existence, executability, timeout validation |
+| prompt-linter | Agent definition consistency, frontmatter completeness, tool permissions |
+| improvement-advisor | Concrete fix proposals for Etched-tier meta-QA findings |

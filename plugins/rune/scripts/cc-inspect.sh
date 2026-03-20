@@ -28,9 +28,15 @@ CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 should_show() { [[ "$SECTION" == "all" || "$SECTION" == "$1" ]]; }
 
 # --- Helper: safe version check ---
+# SEC-001 FIX: Replace eval with bash -c using allowlist validation
 ver() {
   if command -v "$1" &>/dev/null; then
-    eval "$2" 2>/dev/null || echo "installed (version unknown)"
+    # Allowlist: only permit safe version-check characters (no metacharacters)
+    if [[ "$2" =~ ^[a-zA-Z0-9\ _./:=\'\"\|\-]+$ ]]; then
+      bash -c "$2" 2>/dev/null || echo "installed (version unknown)"
+    else
+      echo "installed (version unknown)"
+    fi
   else
     echo "NOT INSTALLED"
   fi

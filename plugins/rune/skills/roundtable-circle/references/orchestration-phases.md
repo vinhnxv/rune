@@ -980,7 +980,8 @@ try {
   // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
   allMembers = [
     // Static: all possible built-in Ashes (safe to send to absent members)
-    "forge-warden", "ward-sentinel", "pattern-weaver", "veil-piercer",
+    // CLEAN-006 FIX: "pattern-weaver" → "pattern-seer" (correct registered name)
+    "forge-warden", "ward-sentinel", "pattern-seer", "veil-piercer",
     "glyph-scribe", "knowledge-keeper", "codex-oracle",
     // Existing static entries
     "runebinder", "doubt-seer", "cross-shard-sentinel",
