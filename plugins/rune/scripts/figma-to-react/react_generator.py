@@ -1010,19 +1010,7 @@ def _generate_node_jsx(
     aria: bool = False,
     promoted_props: Optional[List[str]] = None,
 ) -> str:
-    """Recursively generate JSX for an IR node and its children.
-
-    Args:
-        node: Current IR node.
-        parent: Parent IR node (for child layout resolution).
-        image_handler: Image handler for resolving image fills.
-        indent_level: Current indentation level.
-        aria: When True, emit ARIA accessibility attributes.
-        promoted_props: Collector list for text-to-prop promoted prop names.
-
-    Returns:
-        JSX string for the node subtree.
-    """
+    """Recursively generate JSX for an IR node and its children."""
     if not node.visible:
         return ""
 

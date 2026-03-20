@@ -468,16 +468,37 @@ def _map_dimension_to_classes(
     return variants
 
 
+def _build_compound_variants(
+    variant_classes: list[tuple[str, list[str]]],
+    base_set: set[str],
+    first_parsed: dict[str, str],
+) -> list[dict[str, Any]]:
+    """Build compound variant entries for multi-dimensional component sets.
+
+    Args:
+        variant_classes: List of (variant_name, class_list) pairs.
+        base_set: Set of base classes shared across all variants.
+        first_parsed: Parsed dimensions from the first variant name.
+
+    Returns:
+        List of compound variant dicts with condition keys and class diffs.
+    """
+    if len(first_parsed) <= 1:
+        return []
+    compound: list[dict[str, Any]] = []
+    for vname, classes in variant_classes:
+        parsed = _parse_variant_name(vname)
+        diff = [c for c in classes if c not in base_set]
+        if diff:
+            condition = {k.lower(): v.lower() for k, v in parsed.items()}
+            compound.append({**condition, "class": diff})
+    return compound
+
+
 def generate_cva_from_variants(
     component_set: FigmaIRNode,
 ) -> dict[str, Any]:
     """Generate CVA configuration from a COMPONENT_SET's variants.
-
-    Computes:
-    - base: intersection of all variant class lists
-    - variants: per-dimension, per-value diff classes
-    - defaultVariants: first variant's values as defaults
-    - compoundVariants: cross-dimension interactions (if multi-dimensional)
 
     Returns a dict with base, variants, defaultVariants, compoundVariants.
     """
@@ -486,7 +507,6 @@ def generate_cva_from_variants(
     if not variant_classes:
         return {"base": [], "variants": {}, "defaultVariants": {}, "compoundVariants": []}
 
-    # Single variant → all classes are base, no variants needed
     if len(variant_classes) == 1:
         return {
             "base": variant_classes[0][1],
@@ -496,28 +516,13 @@ def generate_cva_from_variants(
         }
 
     base_set, base_ordered = _build_cva_schema(variant_classes)
-
     first_parsed = _parse_variant_name(variant_classes[0][0])
 
     dim_value_class_sets = _extract_variant_dimensions(variant_classes, base_set)
     variants = _map_dimension_to_classes(dim_value_class_sets)
 
-    default_variants: dict[str, str] = {}
-    for dim_key, dim_value in first_parsed.items():
-        default_variants[dim_key.lower()] = dim_value.lower()
-
-    # Compound variants for multi-dimensional sets
-    compound_variants: list[dict[str, Any]] = []
-    if len(first_parsed) > 1:
-        for vname, classes in variant_classes:
-            parsed = _parse_variant_name(vname)
-            diff = [c for c in classes if c not in base_set]
-            if diff:
-                condition = {k.lower(): v.lower() for k, v in parsed.items()}
-                compound_variants.append({
-                    **condition,
-                    "class": diff,
-                })
+    default_variants = {k.lower(): v.lower() for k, v in first_parsed.items()}
+    compound_variants = _build_compound_variants(variant_classes, base_set, first_parsed)
 
     return {
         "base": base_ordered,
