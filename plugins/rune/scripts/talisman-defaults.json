@@ -845,6 +845,8 @@
   },
   "qa_gates": {
     "enabled": true,
+    "pass_threshold": 70,
+    "max_phase_retries": 2,
     "max_global_retries": 6
   }
 }

@@ -685,81 +685,16 @@ _trace "TIMING: phase_find done at +$(( $(date +%s) - _HOOK_START_EPOCH ))s"
 _trace "Next pending phase: ${NEXT_PHASE:-NONE} (prev=${_IMMEDIATE_PREV:-NONE}, iteration ${ITERATION}, auto_skipped=${_auto_skipped})"
 
 # ── QA Gate Check (AC-3, AC-4, AC-6) ──
-# Runs after NEXT_PHASE is found. If _IMMEDIATE_PREV is a QA phase,
-# read its verdict and decide: PASS (advance) or FAIL (revert parent to pending).
-if [[ "${_IMMEDIATE_PREV:-}" == *_qa ]]; then
-  _parent_phase="${_IMMEDIATE_PREV%_qa}"
-  _qa_verdict_file="${CWD}/tmp/arc/${_ARC_ID_FOR_LOG}/qa/${_parent_phase}-verdict.json"
-
-  # SEC: Symlink guard (consistent with timing epoch file pattern at line 689)
-  if [[ -f "$_qa_verdict_file" && ! -L "$_qa_verdict_file" ]]; then
-    # Read score with integer truncation (file uses ^[0-9]+$ pattern, line 745)
-    _qa_score=$(jq -r '.scores.overall_score // 0 | floor' "$_qa_verdict_file" 2>/dev/null)
-    [[ "$_qa_score" =~ ^[0-9]+$ ]] || _qa_score=0
-    _qa_verdict=$(jq -r '.verdict // "UNKNOWN"' "$_qa_verdict_file" 2>/dev/null)
-    [[ -z "$_qa_verdict" ]] && _qa_verdict="UNKNOWN"
-
-    # Read retry count from CHECKPOINT (not verdict file — verdict is per-run)
-    # SEC-001 FIX: Use --arg instead of shell interpolation for jq filter (defense-in-depth)
-    _qa_retries=$(echo "$CKPT_CONTENT" | jq -r --arg p "$_IMMEDIATE_PREV" '.phases[$p].retry_count // 0' 2>/dev/null)
-    [[ "$_qa_retries" =~ ^[0-9]+$ ]] || _qa_retries=0
-    _qa_global=$(echo "$CKPT_CONTENT" | jq -r '.qa.global_retry_count // 0' 2>/dev/null)
-    [[ "$_qa_global" =~ ^[0-9]+$ ]] || _qa_global=0
-    _qa_max_global=$(echo "$CKPT_CONTENT" | jq -r '.qa.max_global_retries // 6' 2>/dev/null)
-    [[ "$_qa_max_global" =~ ^[0-9]+$ ]] || _qa_max_global=6
-
-    if [[ "$_qa_score" -ge 70 ]]; then
-      # PASS — advance normally
-      _log_phase "qa_pass" "$_parent_phase" "score=${_qa_score}" "verdict=${_qa_verdict}"
-    else
-      # FAIL or MARGINAL — determine max retries per AC-4
-      # NOTE: Using flat _retries < 2 for simplicity (safe with GUARD 9: MAX_PHASE_DISPATCHES=4).
-      # Differential retries (MARGINAL=1, FAIL=2) would require bumping MAX_PHASE_DISPATCHES to 5.
-      if [[ "$_qa_retries" -lt 2 && "$_qa_global" -lt "$_qa_max_global" ]]; then
-        # LOOP BACK — revert parent phase to pending with remediation context
-        _remediation=$(jq -r '[.items[] | select(.verdict=="FAIL")] |
-          map("- \(.id): \(.check) → \(.evidence)") | join("\n")' "$_qa_verdict_file" 2>/dev/null)
-
-        CKPT_CONTENT=$(echo "$CKPT_CONTENT" | jq \
-          --arg p "$_parent_phase" --arg q "$_IMMEDIATE_PREV" --arg rem "$_remediation" \
-          '.phases[$p].status = "pending" |
-           .phases[$p].remediation_context = $rem |
-           .phases[$q].status = "pending" |
-           .phases[$q].retry_count = ((.phases[$q].retry_count // 0) + 1) |
-           .qa.global_retry_count = ((.qa.global_retry_count // 0) + 1)')
-        echo "$CKPT_CONTENT" > "${CWD}/${CHECKPOINT_PATH}"
-        NEXT_PHASE="$_parent_phase"
-        _log_phase "qa_fail_revert" "$_parent_phase" "score=${_qa_score}" "retry=$((_qa_retries+1))" "global=$((_qa_global+1))"
-      else
-        # MAX RETRIES — escalation happens in QA phase prompt via AskUserQuestion
-        _log_phase "qa_fail_escalate" "$_parent_phase" "score=${_qa_score}" "retries_exhausted=true" "global_retries=${_qa_global}"
-      fi
-    fi
-
-  elif [[ ! -f "$_qa_verdict_file" ]]; then
-    # Missing verdict file — QA agent crashed. Treat as score 0, trigger retry.
-    # SEC-001 FIX: Use --arg instead of shell interpolation for jq filter (defense-in-depth)
-    _qa_retries=$(echo "$CKPT_CONTENT" | jq -r --arg p "$_IMMEDIATE_PREV" '.phases[$p].retry_count // 0' 2>/dev/null)
-    [[ "$_qa_retries" =~ ^[0-9]+$ ]] || _qa_retries=0
-    _qa_global=$(echo "$CKPT_CONTENT" | jq -r '.qa.global_retry_count // 0' 2>/dev/null)
-    [[ "$_qa_global" =~ ^[0-9]+$ ]] || _qa_global=0
-    _qa_max_global=$(echo "$CKPT_CONTENT" | jq -r '.qa.max_global_retries // 6' 2>/dev/null)
-    [[ "$_qa_max_global" =~ ^[0-9]+$ ]] || _qa_max_global=6
-
-    if [[ "$_qa_retries" -lt 2 && "$_qa_global" -lt "$_qa_max_global" ]]; then
-      CKPT_CONTENT=$(echo "$CKPT_CONTENT" | jq \
-        --arg p "$_parent_phase" --arg q "$_IMMEDIATE_PREV" \
-        '.phases[$p].status = "pending" |
-         .phases[$q].status = "pending" |
-         .phases[$q].retry_count = ((.phases[$q].retry_count // 0) + 1) |
-         .qa.global_retry_count = ((.qa.global_retry_count // 0) + 1)')
-      echo "$CKPT_CONTENT" > "${CWD}/${CHECKPOINT_PATH}"
-      NEXT_PHASE="$_parent_phase"
-      _log_phase "qa_verdict_missing" "$_parent_phase" "default=fail" "retry=$((_qa_retries+1))"
-    else
-      _log_phase "qa_fail_escalate" "$_parent_phase" "score=0" "retries_exhausted=true" "verdict_missing=true"
-    fi
-  fi
+# Extracted to lib/qa-gate-check.sh for SRP and testability (SIGHT-003).
+# Fixes: RUIN-001 (prompt injection), RUIN-002 (deterministic escalation),
+#   RUIN-003 (infra vs quality retries), RUIN-004 (verdict enum validation),
+#   SIGHT-001 (DRY jq), SIGHT-002 (_jq_with_budget), VIGIL-002/003 (configurable thresholds).
+# shellcheck source=lib/qa-gate-check.sh
+if [[ -f "${SCRIPT_DIR}/lib/qa-gate-check.sh" ]]; then
+  source "${SCRIPT_DIR}/lib/qa-gate-check.sh"
+  _qa_gate_check
+else
+  _trace "WARNING: lib/qa-gate-check.sh not found — QA gate check skipped"
 fi
 
 # ── Log recently completed/skipped phases to phase-log.jsonl ──
