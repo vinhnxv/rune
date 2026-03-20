@@ -1937,4 +1937,21 @@ context_stop_guard:
 #     echo_sync_back: false  # Sync new echoes back to main repo on WorktreeRemove (default: false)
 #     shared_locks: true     # Use main repo root for workflow locks (default: true)
 
+# ──────────────────────────────────────────────
+# Process Management — Teammate hang resilience (v2.5.0)
+# Controls bash timeout, process kill grace, and teammate stuck detection.
+# ──────────────────────────────────────────────
+# process_management:
+#   bash_timeout: 300              # Bash command timeout in seconds (default: 300)
+#   bash_timeout_enabled: true     # Master toggle for bash timeout wrapping (default: true)
+#   bash_timeout_patterns: []      # Regex patterns for commands exempt from timeout
+#   process_kill_grace: 5          # Seconds between SIGTERM and SIGKILL (default: 5)
+#   teammate_stuck_threshold: 180  # Seconds before flagging teammate as stuck (default: 180)
+#   semantic_activity:
+#     enabled: true              # Master toggle for JSONL-based activity classification
+#     window_seconds: 60         # Analysis window for recent JSONL entries
+#     error_loop_threshold: 3    # Tool errors in window to trigger ERROR_LOOP state
+#     retry_loop_threshold: 5    # Same-tool repeats in window to trigger RETRY_LOOP state
+#     permission_threshold: 3    # Permission requests in window to trigger PERMISSION_LOOP state
+
 # (Self-audit config is defined above in the active self_audit: section)
