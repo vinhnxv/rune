@@ -122,9 +122,15 @@ _qa_gate_check() {
       # PASS — advance normally
       _log_phase "qa_pass" "$_parent_phase" "score=${_qa_score}" "verdict=${_qa_verdict}"
     else
-      # FAIL or MARGINAL — check retry budget
+      # FAIL or MARGINAL — tiered retry budget (AC-4)
+      # MARGINAL (score 50-69): max 1 retry. FAIL (score < 50): up to max_phase_retries (default 2).
       # VIGIL-003: Use configurable _qa_max_phase_retries (from talisman via checkpoint)
-      if [[ "$_qa_retries" -lt "$_qa_max_phase_retries" && "$_qa_global" -lt "$_qa_max_global" ]]; then
+      local _effective_max_retries="$_qa_max_phase_retries"
+      if [[ "$_qa_score" -ge 50 ]]; then
+        # MARGINAL range (50 to pass_threshold-1): cap at 1 retry
+        _effective_max_retries=1
+      fi
+      if [[ "$_qa_retries" -lt "$_effective_max_retries" && "$_qa_global" -lt "$_qa_max_global" ]]; then
         # LOOP BACK — revert parent phase to pending with sanitized remediation context
         local _remediation_raw
         _remediation_raw=$(jq -r '[.items[] | select(.verdict=="FAIL")] |
@@ -143,7 +149,7 @@ _qa_gate_check() {
            .qa.global_retry_count = ((.qa.global_retry_count // 0) + 1)')
         _qa_write_checkpoint "revert"
         NEXT_PHASE="$_parent_phase"
-        _log_phase "qa_fail_revert" "$_parent_phase" "score=${_qa_score}" "retry=$((_qa_retries+1))" "global=$((_qa_global+1))"
+        _log_phase "qa_fail_revert" "$_parent_phase" "score=${_qa_score}" "retry=$((_qa_retries+1))" "max_retries=${_effective_max_retries}" "global=$((_qa_global+1))"
       else
         # RUIN-002: Set escalation flag in checkpoint (deterministic escalation)
         CKPT_CONTENT=$(echo "$CKPT_CONTENT" | jq \
