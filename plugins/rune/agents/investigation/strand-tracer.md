@@ -153,12 +153,14 @@ Write findings to the designated output file:
 
 ### P1 — Critical
 - [ ] **[INTG-001]** `src/api/routes/orders.ts:45` — Route `/api/v2/orders/cancel` points to removed handler
+  - **Source:** LSP findReferences (or Grep)
   - **Confidence**: PROVEN
   - **Evidence**: Route at line 45 references `OrderController.cancel` but method was removed in commit abc123
   - **Impact**: Runtime 404 — endpoint registered but handler missing
 
 ### P2 — Significant
 - [ ] **[INTG-002]** `src/services/index.ts:12` — Barrel re-exports `PaymentValidator` but module was deleted
+  - **Source:** LSP goToDefinition (or Grep)
   - **Confidence**: PROVEN
   - **Evidence**: `export { PaymentValidator } from './payment-validator'` — file does not exist
   - **Impact**: Import fails at build time if any consumer references this export
