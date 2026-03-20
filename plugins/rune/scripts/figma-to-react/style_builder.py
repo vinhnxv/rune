@@ -247,6 +247,73 @@ class StyleBuilder:
         if paint.image_ref:
             self._props["_image_ref"] = paint.image_ref
 
+    def _resolve_solid_fill(self, paint: Paint, is_text: bool) -> None:
+        """Dispatch a single paint to the appropriate fill handler.
+
+        Args:
+            paint: The single visible Figma paint.
+            is_text: If True, map solid fills to ``color``.
+        """
+        if paint.type == PaintType.SOLID:
+            self._apply_solid_fill(paint, is_text)
+        elif paint.type in (
+            PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL,
+            PaintType.GRADIENT_ANGULAR, PaintType.GRADIENT_DIAMOND,
+        ):
+            self._apply_gradient_fill(paint)
+        elif paint.type == PaintType.IMAGE:
+            self._apply_image_fill(paint)
+
+    def _resolve_gradient_fill(
+        self, visible: List[Paint], is_text: bool
+    ) -> None:
+        """Stack multiple fills into CSS gradient layers.
+
+        Iterates bottom-to-top (reversed Figma order). Solids become
+        ``background-color``, gradients are comma-separated into
+        ``background-image``, and images are dispatched individually.
+
+        Args:
+            visible: List of visible Figma paints (len >= 2).
+            is_text: If True, map solid fills to ``color``.
+        """
+        gradient_layers: List[str] = []
+        for paint in reversed(visible):  # bottom-to-top in Figma = CSS stacking order
+            if paint.type == PaintType.SOLID:
+                self._apply_solid_fill(paint, is_text)
+            elif paint.type in (
+                PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL,
+                PaintType.GRADIENT_ANGULAR, PaintType.GRADIENT_DIAMOND,
+            ):
+                stops = _gradient_stops_css(paint.gradient_stops)
+                if stops:
+                    if paint.type == PaintType.GRADIENT_LINEAR:
+                        direction = _gradient_direction(
+                            paint.gradient_handle_positions or [],
+                        )
+                        gradient_layers.append(
+                            f"linear-gradient({direction}, {stops})",
+                        )
+                    elif paint.type == PaintType.GRADIENT_RADIAL:
+                        gradient_layers.append(
+                            f"radial-gradient(circle, {stops})",
+                        )
+                    elif paint.type in (
+                        PaintType.GRADIENT_ANGULAR,
+                        PaintType.GRADIENT_DIAMOND,
+                    ):
+                        angle = _conic_gradient_angle(
+                            paint.gradient_handle_positions or [],
+                        )
+                        gradient_layers.append(
+                            f"conic-gradient(from {angle}, {stops})",
+                        )
+            elif paint.type == PaintType.IMAGE:
+                self._apply_image_fill(paint)
+
+        if gradient_layers:
+            self._props["background-image"] = ", ".join(gradient_layers)
+
     def fills(self, paints: List[Paint], *, is_text: bool = False) -> StyleBuilder:
         """Extract background/fill properties from Figma paints.
 
@@ -274,54 +341,9 @@ class StyleBuilder:
         # For multiple fills, stack gradients/images via comma-separated
         # background-image and use the topmost solid as background-color.
         if len(visible) == 1:
-            paint = visible[0]
-            if paint.type == PaintType.SOLID:
-                self._apply_solid_fill(paint, is_text)
-            elif paint.type in (
-                PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL,
-                PaintType.GRADIENT_ANGULAR, PaintType.GRADIENT_DIAMOND,
-            ):
-                self._apply_gradient_fill(paint)
-            elif paint.type == PaintType.IMAGE:
-                self._apply_image_fill(paint)
+            self._resolve_solid_fill(visible[0], is_text)
         else:
-            # Multi-fill: collect gradient layers and use last solid as bg-color
-            gradient_layers: List[str] = []
-            for paint in reversed(visible):  # bottom-to-top in Figma = CSS stacking order
-                if paint.type == PaintType.SOLID:
-                    self._apply_solid_fill(paint, is_text)
-                elif paint.type in (
-                    PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL,
-                    PaintType.GRADIENT_ANGULAR, PaintType.GRADIENT_DIAMOND,
-                ):
-                    stops = _gradient_stops_css(paint.gradient_stops)
-                    if stops:
-                        if paint.type == PaintType.GRADIENT_LINEAR:
-                            direction = _gradient_direction(
-                                paint.gradient_handle_positions or [],
-                            )
-                            gradient_layers.append(
-                                f"linear-gradient({direction}, {stops})",
-                            )
-                        elif paint.type == PaintType.GRADIENT_RADIAL:
-                            gradient_layers.append(
-                                f"radial-gradient(circle, {stops})",
-                            )
-                        elif paint.type in (
-                            PaintType.GRADIENT_ANGULAR,
-                            PaintType.GRADIENT_DIAMOND,
-                        ):
-                            angle = _conic_gradient_angle(
-                                paint.gradient_handle_positions or [],
-                            )
-                            gradient_layers.append(
-                                f"conic-gradient(from {angle}, {stops})",
-                            )
-                elif paint.type == PaintType.IMAGE:
-                    self._apply_image_fill(paint)
-
-            if gradient_layers:
-                self._props["background-image"] = ", ".join(gradient_layers)
+            self._resolve_gradient_fill(visible, is_text)
 
         return self
 

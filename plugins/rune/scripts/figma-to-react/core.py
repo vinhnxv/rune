@@ -411,6 +411,63 @@ def _collect_variant_class_lists(
     return result
 
 
+def _build_cva_schema(
+    variant_classes: list[tuple[str, list[str]]],
+) -> tuple[set[str], list[str]]:
+    all_class_sets = [set(classes) for _, classes in variant_classes]
+    base_set = set.intersection(*all_class_sets)
+
+    all_classes_union = set.union(*all_class_sets)
+    layout_candidates = {c for c in all_classes_union if _is_layout_class(c)}
+    for cls in layout_candidates:
+        has_count = sum(1 for cs in all_class_sets if cls in cs)
+        if has_count / len(variant_classes) <= 0.5:
+            base_set.discard(cls)
+
+    base_ordered = [c for c in variant_classes[0][1] if c in base_set]
+    return base_set, base_ordered
+
+
+def _extract_variant_dimensions(
+    variant_classes: list[tuple[str, list[str]]],
+    base_set: set[str],
+) -> dict[str, dict[str, list[set[str]]]]:
+    dim_value_class_sets: dict[str, dict[str, list[set[str]]]] = {}
+    for vname, classes in variant_classes:
+        parsed = _parse_variant_name(vname)
+        for dim_key, dim_value in parsed.items():
+            dim_lower = dim_key.lower()
+            val_lower = dim_value.lower()
+            dim_value_class_sets.setdefault(dim_lower, {}).setdefault(val_lower, []).append(
+                set(classes) - base_set
+            )
+    return dim_value_class_sets
+
+
+def _map_dimension_to_classes(
+    dim_value_class_sets: dict[str, dict[str, list[set[str]]]],
+) -> dict[str, dict[str, list[str]]]:
+    variants: dict[str, dict[str, list[str]]] = {}
+    for dim_lower, value_map in dim_value_class_sets.items():
+        variants[dim_lower] = {}
+        all_dim_classes: set[str] = set()
+        for class_sets in value_map.values():
+            for cs in class_sets:
+                all_dim_classes.update(cs)
+        for val_lower, class_sets in value_map.items():
+            other_values_classes: set[str] = set()
+            for other_val, other_sets in value_map.items():
+                if other_val != val_lower:
+                    for cs in other_sets:
+                        other_values_classes.update(cs)
+            value_classes = set()
+            for cs in class_sets:
+                value_classes.update(cs)
+            dim_diff = sorted(value_classes - other_values_classes)
+            variants[dim_lower][val_lower] = dim_diff
+    return variants
+
+
 def generate_cva_from_variants(
     component_set: FigmaIRNode,
 ) -> dict[str, Any]:
@@ -438,63 +495,14 @@ def generate_cva_from_variants(
             "compoundVariants": [],
         }
 
-    # Compute base classes (intersection of all variants)
-    all_class_sets = [set(classes) for _, classes in variant_classes]
-    base_set = set.intersection(*all_class_sets)
+    base_set, base_ordered = _build_cva_schema(variant_classes)
 
-    # Check layout class divergence: if a layout class appears in fewer than
-    # half of variants, remove it from base (it belongs in variant diffs)
-    all_classes_union = set.union(*all_class_sets)
-    layout_candidates = {c for c in all_classes_union if _is_layout_class(c)}
-    for cls in layout_candidates:
-        has_count = sum(1 for cs in all_class_sets if cls in cs)
-        if has_count / len(variant_classes) <= 0.5:
-            base_set.discard(cls)
-
-    # Preserve insertion order from first variant
-    base_ordered = [c for c in variant_classes[0][1] if c in base_set]
-
-    # Build per-dimension variant diffs
-    variants: dict[str, dict[str, list[str]]] = {}
-    default_variants: dict[str, str] = {}
-
-    # Parse dimension info from first variant to determine structure
     first_parsed = _parse_variant_name(variant_classes[0][0])
 
-    # Group variant classes by dimension values for per-dimension diff computation
-    dim_value_class_sets: dict[str, dict[str, list[set[str]]]] = {}
-    for vname, classes in variant_classes:
-        parsed = _parse_variant_name(vname)
-        for dim_key, dim_value in parsed.items():
-            dim_lower = dim_key.lower()
-            val_lower = dim_value.lower()
-            dim_value_class_sets.setdefault(dim_lower, {}).setdefault(val_lower, []).append(
-                set(classes) - base_set
-            )
+    dim_value_class_sets = _extract_variant_dimensions(variant_classes, base_set)
+    variants = _map_dimension_to_classes(dim_value_class_sets)
 
-    # For each dimension, compute classes unique to that dimension value
-    for dim_lower, value_map in dim_value_class_sets.items():
-        variants[dim_lower] = {}
-        # Collect all non-base classes across all values of this dimension
-        all_dim_classes: set[str] = set()
-        for class_sets in value_map.values():
-            for cs in class_sets:
-                all_dim_classes.update(cs)
-        # For each value, keep only classes that appear in this value but not in all other values
-        for val_lower, class_sets in value_map.items():
-            other_values_classes: set[str] = set()
-            for other_val, other_sets in value_map.items():
-                if other_val != val_lower:
-                    for cs in other_sets:
-                        other_values_classes.update(cs)
-            # Classes unique to this dimension value: present here, not in all others
-            value_classes = set()
-            for cs in class_sets:
-                value_classes.update(cs)
-            dim_diff = sorted(value_classes - other_values_classes)
-            variants[dim_lower][val_lower] = dim_diff
-
-    # Default variants from first variant
+    default_variants: dict[str, str] = {}
     for dim_key, dim_value in first_parsed.items():
         default_variants[dim_key.lower()] = dim_value.lower()
 

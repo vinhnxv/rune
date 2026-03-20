@@ -31,18 +31,10 @@ import re
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-# SEC-5: Agent name allowlist — lowercase letter start, lowercase + hyphens + digits
-# Plan requirement: /^[a-z][a-z0-9-]+$/ — no uppercase, no underscores
-VALID_NAME_RE = re.compile(r'^[a-z][a-z0-9-]+$')
+from schema import VALID_CATEGORIES, VALID_NAME_RE
 
 # YAML frontmatter boundary
 _FRONTMATTER_RE = re.compile(r'^---\s*$')
-
-# Standard categories for agent classification
-STANDARD_CATEGORIES = frozenset({
-    "review", "investigation", "research", "work",
-    "utility", "testing",
-})
 
 # Standard phases for agent phase mapping
 STANDARD_PHASES = frozenset({
@@ -100,110 +92,130 @@ def _check_file_size(file_path: str) -> bool:
     return True
 
 
+def _parse_yaml_value(key: str, value: str) -> Tuple[str, Any]:
+    """Parse a YAML scalar value, handling quotes, booleans, and numbers.
+
+    Returns (key, parsed_value).
+    """
+    # FLAW-014 FIX: Strip surrounding quotes from YAML scalar values
+    if (value.startswith('"') and value.endswith('"')) or \
+       (value.startswith("'") and value.endswith("'")):
+        value = value[1:-1]
+    # Parse booleans and numbers
+    if value.lower() in ("true", "yes"):
+        return key, True
+    elif value.lower() in ("false", "no"):
+        return key, False
+    else:
+        try:
+            return key, int(value)
+        except ValueError:
+            return key, value
+
+
+def _flush_pending_state(
+    metadata: Dict[str, Any],
+    current_key: Optional[str],
+    current_list: Optional[List[str]],
+    current_multiline: Optional[List[str]],
+) -> None:
+    """Flush any pending list or multiline value into metadata."""
+    if current_key and current_list is not None:
+        metadata[current_key] = current_list
+    elif current_key and current_multiline is not None:
+        metadata[current_key] = "\n".join(current_multiline).strip()
+
+
+def _try_list_continuation(
+    stripped: str,
+    current_key: Optional[str],
+    current_list: Optional[List[str]],
+) -> bool:
+    """Try to parse a list item continuation line. Returns True if consumed."""
+    if not (stripped.startswith("  - ") or stripped.startswith("  -\t")):
+        return False
+    if not (current_key and current_list is not None):
+        return False
+    item = stripped.strip()
+    # Fix: remove only the first "- " prefix, not all leading dashes
+    if item.startswith("- "):
+        item = item[2:]
+    elif item.startswith("-"):
+        item = item[1:]
+    current_list.append(item.strip())
+    return True
+
+
+def _try_multiline_continuation(
+    stripped: str,
+    metadata: Dict[str, Any],
+    current_key: Optional[str],
+    current_list: Optional[List[str]],
+    current_multiline: Optional[List[str]],
+) -> Tuple[bool, Optional[str], Optional[List[str]]]:
+    """Try multiline string continuation. Returns (consumed, updated_key, updated_multiline)."""
+    if not (current_key and current_multiline is not None):
+        return False, current_key, current_multiline
+    if stripped.startswith("  ") or stripped == "":
+        current_multiline.append(stripped.strip())
+        return True, current_key, current_multiline
+    # End of multiline — flush and fall through
+    _flush_pending_state(metadata, current_key, current_list, current_multiline)
+    return False, None, None
+
+
+def _parse_new_key_value(
+    stripped: str,
+    metadata: Dict[str, Any],
+) -> Tuple[Optional[str], Optional[List[str]], Optional[List[str]]]:
+    """Parse a new key:value line. Returns (current_key, current_list, current_multiline)."""
+    colon_pos = stripped.find(":")
+    if colon_pos <= 0:
+        return None, None, None
+    key = stripped[:colon_pos].strip()
+    value = stripped[colon_pos + 1:].strip()
+    if value == "|":
+        return key, None, []
+    elif value == "":
+        return key, [], None
+    else:
+        _, parsed = _parse_yaml_value(key, value)
+        metadata[key] = parsed
+        return None, None, None
+
+
 def _parse_frontmatter(lines: List[str]) -> Tuple[Dict[str, Any], int]:
     """Parse YAML frontmatter from lines, returning (metadata, body_start_line).
 
-    Uses a simple line-based parser to avoid PyYAML dependency in the MCP
-    server process. Handles scalar values, simple lists (- item), and
-    multi-line strings (|).
-
-    Args:
-        lines: File lines (stripped of trailing newlines).
-
-    Returns:
-        Tuple of (parsed metadata dict, line index where body starts).
+    Line-based parser (no PyYAML). Handles scalars, lists (- item), and
+    multi-line strings (|). Returns ({}, 0) if no valid frontmatter found.
     """
     if not lines or not _FRONTMATTER_RE.match(lines[0]):
         return {}, 0
 
     metadata: Dict[str, Any] = {}
-    current_key: Optional[str] = None
-    current_list: Optional[List[str]] = None
-    current_multiline: Optional[List[str]] = None
+    ck: Optional[str] = None
+    cl: Optional[List[str]] = None
+    cm: Optional[List[str]] = None
     body_start = len(lines)
 
     for i, line in enumerate(lines[1:], start=1):
         if _FRONTMATTER_RE.match(line):
-            # Flush any pending state
-            if current_key and current_list is not None:
-                metadata[current_key] = current_list
-            elif current_key and current_multiline is not None:
-                metadata[current_key] = "\n".join(current_multiline).strip()
+            _flush_pending_state(metadata, ck, cl, cm)
             body_start = i + 1
             break
-
         stripped = line.rstrip()
+        if _try_list_continuation(stripped, ck, cl):
+            continue
+        consumed, ck, cm = _try_multiline_continuation(stripped, metadata, ck, cl, cm)
+        if consumed:
+            continue
+        if ck and cl is not None:
+            _flush_pending_state(metadata, ck, cl, cm)
+            ck, cl = None, None
+        ck, cl, cm = _parse_new_key_value(stripped, metadata)
 
-        # List item continuation
-        if stripped.startswith("  - ") or stripped.startswith("  -\t"):
-            if current_key and current_list is not None:
-                item = stripped.strip()
-                # Fix: remove only the first "- " prefix, not all leading dashes
-                if item.startswith("- "):
-                    item = item[2:]
-                elif item.startswith("-"):
-                    item = item[1:]
-                current_list.append(item.strip())
-                continue
-
-        # Multiline string continuation (indented under |)
-        if current_key and current_multiline is not None:
-            if stripped.startswith("  ") or stripped == "":
-                current_multiline.append(stripped.strip())
-                continue
-            else:
-                # End of multiline — flush and fall through
-                metadata[current_key] = "\n".join(current_multiline).strip()
-                current_key = None
-                current_multiline = None
-
-        # Flush pending list
-        if current_key and current_list is not None:
-            metadata[current_key] = current_list
-            current_key = None
-            current_list = None
-
-        # New key: value pair
-        colon_pos = stripped.find(":")
-        if colon_pos > 0:
-            key = stripped[:colon_pos].strip()
-            value = stripped[colon_pos + 1:].strip()
-
-            if value == "|":
-                # Start multiline string
-                current_key = key
-                current_multiline = []
-                current_list = None
-            elif value == "":
-                # Could be start of a list
-                current_key = key
-                current_list = []
-                current_multiline = None
-            else:
-                # Simple scalar
-                current_key = None
-                current_list = None
-                current_multiline = None
-                # FLAW-014 FIX: Strip surrounding quotes from YAML scalar values
-                if (value.startswith('"') and value.endswith('"')) or \
-                   (value.startswith("'") and value.endswith("'")):
-                    value = value[1:-1]
-                # Parse booleans and numbers
-                if value.lower() in ("true", "yes"):
-                    metadata[key] = True
-                elif value.lower() in ("false", "no"):
-                    metadata[key] = False
-                else:
-                    try:
-                        metadata[key] = int(value)
-                    except ValueError:
-                        metadata[key] = value
-
-    # Flush any remaining state
-    if current_key and current_list is not None:
-        metadata[current_key] = current_list
-    elif current_key and current_multiline is not None:
-        metadata[current_key] = "\n".join(current_multiline).strip()
+    _flush_pending_state(metadata, ck, cl, cm)
 
     # Fix BACK-003: Detect unclosed frontmatter (no closing ---)
     if body_start == len(lines) and len(metadata) > 0:
@@ -224,16 +236,16 @@ def _infer_category(file_path: str, metadata: Dict[str, Any]) -> str:
         metadata: Parsed frontmatter metadata.
 
     Returns:
-        Category string from STANDARD_CATEGORIES, or "unknown".
+        Category string from VALID_CATEGORIES, or "unknown".
     """
     # Check parent directory
     parent_dir = os.path.basename(os.path.dirname(file_path))
-    if parent_dir in STANDARD_CATEGORIES:
+    if parent_dir in VALID_CATEGORIES:
         return parent_dir
 
     # Check metadata
     category = metadata.get("category", "")
-    if isinstance(category, str) and category.lower() in STANDARD_CATEGORIES:
+    if isinstance(category, str) and category.lower() in VALID_CATEGORIES:
         return category.lower()
 
     return "unknown"
@@ -318,25 +330,12 @@ def _extract_tags(metadata: Dict[str, Any], body: str) -> List[str]:
     return unique
 
 
-def parse_agent_file(
-    file_path: str,
-    source: str,
-) -> Optional[Dict[str, Any]]:
-    """Parse a single agent .md file into a structured entry dict.
-
-    Args:
-        file_path: Absolute path to the agent .md file.
-        source: Source category (builtin, extended, project, user).
-
-    Returns:
-        Entry dict with all agent fields, or None if parsing fails.
-    """
+def _read_agent_lines(file_path: str) -> Optional[List[str]]:
+    """Read and validate an agent file, returning stripped lines or None on failure."""
     if not os.path.isfile(file_path):
         return None
-
     if not _check_file_size(file_path):
         return None
-
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -344,48 +343,48 @@ def parse_agent_file(
         print("WARN: skipping unreadable agent file: %s (%s)" % (file_path, exc),
               file=sys.stderr)
         return None
-
     # SEC-P2-005: truncate beyond MAX_LINES
     if len(lines) > MAX_LINES:
         print("WARN: truncating %s at %d lines (max %d)" % (
             file_path, len(lines), MAX_LINES), file=sys.stderr)
         lines = lines[:MAX_LINES]
+    return [l.rstrip("\n") for l in lines]
 
-    stripped_lines = [l.rstrip("\n") for l in lines]
-    metadata, body_start = _parse_frontmatter(stripped_lines)
 
-    if not metadata:
-        print("WARN: no frontmatter in agent file: %s" % file_path, file=sys.stderr)
-        return None
-
-    # Derive name from metadata or filename
+def _derive_agent_name(
+    metadata: Dict[str, Any], file_path: str,
+) -> Optional[str]:
+    """Derive and validate agent name from metadata or filename. Returns None if invalid."""
     name = metadata.get("name", "")
     if not isinstance(name, str) or not name:
         name = os.path.splitext(os.path.basename(file_path))[0]
-
-    # SEC-5: Validate name
     if not VALID_NAME_RE.match(name):
         print("WARN: invalid agent name '%s' in %s — skipped" % (name, file_path),
               file=sys.stderr)
         return None
+    return name
 
-    description = metadata.get("description", "")
-    if not isinstance(description, str):
-        description = str(description)
 
-    category = _infer_category(file_path, metadata)
-    phases = _infer_phases(metadata, category)
-    body = "\n".join(stripped_lines[body_start:]).strip()
-    tags = _extract_tags(metadata, body)
-
-    # Extract languages from frontmatter, normalize to lowercase
+def _extract_languages(metadata: Dict[str, Any]) -> List[str]:
+    """Extract and normalize languages from frontmatter metadata."""
     languages_raw = metadata.get("languages", [])
     if isinstance(languages_raw, str):
         languages_raw = [languages_raw]
     # SEC-WARD-003 FIX: Truncate per-value to 50 chars, cap list at 20 items
-    languages = [lang.strip().lower()[:50] for lang in languages_raw
-                 if isinstance(lang, str) and lang.strip()][:20]
+    return [lang.strip().lower()[:50] for lang in languages_raw
+            if isinstance(lang, str) and lang.strip()][:20]
 
+
+def _build_agent_entry(
+    name: str, source: str, file_path: str,
+    metadata: Dict[str, Any], body: str,
+    category: str, phases: List[str], tags: List[str],
+    languages: List[str],
+) -> Dict[str, Any]:
+    """Build the agent entry dict from parsed components."""
+    description = metadata.get("description", "")
+    if not isinstance(description, str):
+        description = str(description)
     return {
         "id": generate_id(name, source, file_path),
         "name": name,
@@ -404,6 +403,44 @@ def parse_agent_file(
         "file_path": file_path,
         "metadata": metadata,
     }
+
+
+def parse_agent_file(
+    file_path: str,
+    source: str,
+) -> Optional[Dict[str, Any]]:
+    """Parse a single agent .md file into a structured entry dict.
+
+    Args:
+        file_path: Absolute path to the agent .md file.
+        source: Source category (builtin, extended, project, user).
+
+    Returns:
+        Entry dict with all agent fields, or None if parsing fails.
+    """
+    stripped_lines = _read_agent_lines(file_path)
+    if stripped_lines is None:
+        return None
+
+    metadata, body_start = _parse_frontmatter(stripped_lines)
+    if not metadata:
+        print("WARN: no frontmatter in agent file: %s" % file_path, file=sys.stderr)
+        return None
+
+    name = _derive_agent_name(metadata, file_path)
+    if name is None:
+        return None
+
+    category = _infer_category(file_path, metadata)
+    phases = _infer_phases(metadata, category)
+    body = "\n".join(stripped_lines[body_start:]).strip()
+    tags = _extract_tags(metadata, body)
+    languages = _extract_languages(metadata)
+
+    return _build_agent_entry(
+        name, source, file_path, metadata, body,
+        category, phases, tags, languages,
+    )
 
 
 def _valid_agent_files(directory: str) -> List[str]:
@@ -453,6 +490,115 @@ def _valid_agent_files(directory: str) -> List[str]:
     return results
 
 
+def _scan_standard_sources(
+    plugin_root: str,
+    project_dir: str,
+) -> List[Dict[str, Any]]:
+    """Scan the 4 standard agent source directories.
+
+    Sources (in priority order):
+      1. agents/              (builtin, p100)
+      2. registry/            (extended, p80)
+      3. .claude/agents/      (project, p75)
+      4. .rune/rune-agents/   (rune-project, p70)
+    """
+    entries: List[Dict[str, Any]] = []
+
+    source_dirs = [
+        (os.path.join(plugin_root, "agents"), "builtin"),
+        (os.path.join(plugin_root, "registry"), "extended"),
+        (os.path.join(project_dir, ".claude", "agents"), "project"),
+        (os.path.join(project_dir, ".rune", "rune-agents"), "rune-project"),
+    ]
+
+    for dir_path, source in source_dirs:
+        for fpath in _valid_agent_files(dir_path):
+            entry = parse_agent_file(fpath, source)
+            if entry:
+                entries.append(entry)
+
+    return entries
+
+
+def _scan_extra_dirs(
+    extra_agent_dirs: Optional[List[str]],
+    project_dir: str,
+) -> List[Dict[str, Any]]:
+    """Scan extra agent directories from talisman config with containment checks."""
+    entries: List[Dict[str, Any]] = []
+
+    if not extra_agent_dirs or not isinstance(extra_agent_dirs, list):
+        return entries
+
+    for extra_dir in extra_agent_dirs:
+        if not isinstance(extra_dir, str) or not extra_dir:
+            continue
+        # Resolve relative paths against project_dir
+        if not os.path.isabs(extra_dir):
+            extra_dir = os.path.join(project_dir, extra_dir)
+        # SEC: containment — skip if path escapes project or home
+        real_dir = os.path.realpath(extra_dir)
+        real_project = os.path.realpath(project_dir)
+        real_home = os.path.expanduser("~")
+        # SEC-001 FIX: Add os.sep guard against prefix-collision bypass.
+        if not (real_dir.startswith(real_project + os.sep) or real_dir == real_project
+                or real_dir.startswith(real_home + os.sep) or real_dir == real_home):
+            print("WARN: extra_agent_dir '%s' outside project/home — skipped" % extra_dir,
+                  file=sys.stderr)
+            continue
+        for fpath in _valid_agent_files(real_dir):
+            entry = parse_agent_file(fpath, "external")
+            if entry:
+                entries.append(entry)
+
+    return entries
+
+
+def _parse_talisman_user_agents(
+    talisman_user_agents: Optional[List[Dict[str, Any]]],
+) -> List[Dict[str, Any]]:
+    """Parse inline user agent definitions from talisman.yml."""
+    entries: List[Dict[str, Any]] = []
+
+    if not talisman_user_agents or not isinstance(talisman_user_agents, list):
+        return entries
+
+    for i, agent_def in enumerate(talisman_user_agents):
+        if not isinstance(agent_def, dict):
+            continue
+        name = agent_def.get("name", "user-agent-%d" % i)
+        if not isinstance(name, str) or not VALID_NAME_RE.match(name):
+            continue
+        # Extract languages, normalize to lowercase
+        user_langs_raw = agent_def.get("languages", [])
+        if isinstance(user_langs_raw, str):
+            user_langs_raw = [user_langs_raw]
+        user_langs = [l.strip().lower() for l in user_langs_raw
+                      if isinstance(l, str) and l.strip()]
+
+        entry = {
+            "id": generate_id(name, "user", "talisman:%d" % i),
+            "name": name,
+            "description": agent_def.get("description", ""),
+            "category": agent_def.get("category", "unknown"),
+            "primary_phase": "",
+            "compatible_phases": agent_def.get("phases", []),
+            "tags": agent_def.get("tags", []),
+            "languages": user_langs,
+            "source": "user",
+            "priority": SOURCE_PRIORITIES["user"],
+            "tools": agent_def.get("tools", []),
+            "model": agent_def.get("model", ""),
+            "max_turns": agent_def.get("maxTurns", 0),
+            "body": agent_def.get("body", ""),
+            "file_path": "talisman:user_agents[%d]" % i,
+            "metadata": agent_def,
+        }
+        entries.append(entry)
+
+    return entries
+
+
 def discover_and_parse(
     plugin_root: str,
     project_dir: str,
@@ -480,90 +626,13 @@ def discover_and_parse(
     """
     all_entries: List[Dict[str, Any]] = []
 
-    # Source 1: builtin agents (agents/)
-    builtin_dir = os.path.join(plugin_root, "agents")
-    for fpath in _valid_agent_files(builtin_dir):
-        entry = parse_agent_file(fpath, "builtin")
-        if entry:
-            all_entries.append(entry)
-
-    # Source 2: extended registry (registry/)
-    registry_dir = os.path.join(plugin_root, "registry")
-    for fpath in _valid_agent_files(registry_dir):
-        entry = parse_agent_file(fpath, "extended")
-        if entry:
-            all_entries.append(entry)
-
-    # Source 3: project agents (.claude/agents/)
-    project_agents_dir = os.path.join(project_dir, ".claude", "agents")
-    for fpath in _valid_agent_files(project_agents_dir):
-        entry = parse_agent_file(fpath, "project")
-        if entry:
-            all_entries.append(entry)
-
-    # Source 4: rune-project agents (.rune/rune-agents/) — search-only
-    rune_agents_dir = os.path.join(project_dir, ".rune", "rune-agents")
-    for fpath in _valid_agent_files(rune_agents_dir):
-        entry = parse_agent_file(fpath, "rune-project")
-        if entry:
-            all_entries.append(entry)
+    # Sources 1-4: standard directory scans
+    all_entries.extend(_scan_standard_sources(plugin_root, project_dir))
 
     # Source 5: extra agent directories (from talisman extra_agent_dirs)
-    if extra_agent_dirs and isinstance(extra_agent_dirs, list):
-        for extra_dir in extra_agent_dirs:
-            if not isinstance(extra_dir, str) or not extra_dir:
-                continue
-            # Resolve relative paths against project_dir
-            if not os.path.isabs(extra_dir):
-                extra_dir = os.path.join(project_dir, extra_dir)
-            # SEC: containment — skip if path escapes project or home
-            real_dir = os.path.realpath(extra_dir)
-            real_project = os.path.realpath(project_dir)
-            real_home = os.path.expanduser("~")
-            # SEC-001 FIX: Add os.sep guard against prefix-collision bypass.
-            if not (real_dir.startswith(real_project + os.sep) or real_dir == real_project
-                    or real_dir.startswith(real_home + os.sep) or real_dir == real_home):
-                print("WARN: extra_agent_dir '%s' outside project/home — skipped" % extra_dir,
-                      file=sys.stderr)
-                continue
-            for fpath in _valid_agent_files(real_dir):
-                entry = parse_agent_file(fpath, "external")
-                if entry:
-                    all_entries.append(entry)
+    all_entries.extend(_scan_extra_dirs(extra_agent_dirs, project_dir))
 
     # Source 6: talisman user agents (inline definitions)
-    if talisman_user_agents and isinstance(talisman_user_agents, list):
-        for i, agent_def in enumerate(talisman_user_agents):
-            if not isinstance(agent_def, dict):
-                continue
-            name = agent_def.get("name", "user-agent-%d" % i)
-            if not isinstance(name, str) or not VALID_NAME_RE.match(name):
-                continue
-            # Extract languages, normalize to lowercase
-            user_langs_raw = agent_def.get("languages", [])
-            if isinstance(user_langs_raw, str):
-                user_langs_raw = [user_langs_raw]
-            user_langs = [l.strip().lower() for l in user_langs_raw
-                          if isinstance(l, str) and l.strip()]
-
-            entry = {
-                "id": generate_id(name, "user", "talisman:%d" % i),
-                "name": name,
-                "description": agent_def.get("description", ""),
-                "category": agent_def.get("category", "unknown"),
-                "primary_phase": "",
-                "compatible_phases": agent_def.get("phases", []),
-                "tags": agent_def.get("tags", []),
-                "languages": user_langs,
-                "source": "user",
-                "priority": SOURCE_PRIORITIES["user"],
-                "tools": agent_def.get("tools", []),
-                "model": agent_def.get("model", ""),
-                "max_turns": agent_def.get("maxTurns", 0),
-                "body": agent_def.get("body", ""),
-                "file_path": "talisman:user_agents[%d]" % i,
-                "metadata": agent_def,
-            }
-            all_entries.append(entry)
+    all_entries.extend(_parse_talisman_user_agents(talisman_user_agents))
 
     return all_entries

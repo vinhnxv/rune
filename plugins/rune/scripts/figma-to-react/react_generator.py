@@ -783,31 +783,26 @@ def _is_promotable_text(
     return True
 
 
-def _generate_container_jsx(
-    node: FigmaIRNode, tag: str, attr_str: str,
-    class_str: str, node_aria: Dict[str, str],
-    image_handler: ImageHandler, indent_level: int, aria: bool,
-    promoted_props: Optional[List[str]] = None,
-) -> str:
-    """Generate JSX for a container node with children.
+def _render_children_jsx(
+    node: FigmaIRNode, image_handler: ImageHandler,
+    indent_level: int, aria: bool,
+    promoted_props: Optional[List[str]],
+) -> tuple:
+    """Iterate node children and produce JSX fragments and prop attrs.
+
+    Handles PROP-role instances, slot candidates, text-to-prop promotion,
+    and regular child nodes.
 
     Args:
-        node: Container IR node.
-        tag: Resolved HTML tag.
-        attr_str: Pre-formatted attribute string.
-        class_str: Tailwind class string.
-        node_aria: ARIA attributes dict.
+        node: Container IR node whose children to process.
         image_handler: Image handler for child nodes.
         indent_level: Current indentation level.
         aria: Whether to emit ARIA attributes.
         promoted_props: Collector list for text-to-prop promoted prop names.
 
     Returns:
-        JSX string for the container and its children.
+        Tuple of (child_jsxs list, prop_attrs list).
     """
-    if not node.children:
-        return f"<{tag}{attr_str} />"
-
     child_jsxs: List[str] = []
     prop_attrs: List[str] = []
     slot_children: List[FigmaIRNode] = []
@@ -860,10 +855,55 @@ def _generate_container_jsx(
                 prop_name = _to_prop_name(slot.slot_name or slot.name)
                 child_jsxs.append("{" + prop_name + "}")
 
-    # Append prop attrs to the tag's attribute string
+    return child_jsxs, prop_attrs
+
+
+def _build_container_attrs(attr_str: str, prop_attrs: List[str]) -> str:
+    """Append PROP-role instance attributes to a container's attribute string.
+
+    Args:
+        attr_str: Pre-formatted attribute string.
+        prop_attrs: List of prop attribute strings from PROP-role children.
+
+    Returns:
+        Updated attribute string with prop attrs appended.
+    """
     if prop_attrs:
         prop_str = " " + " ".join(prop_attrs)
-        attr_str = attr_str + prop_str
+        return attr_str + prop_str
+    return attr_str
+
+
+def _generate_container_jsx(
+    node: FigmaIRNode, tag: str, attr_str: str,
+    class_str: str, node_aria: Dict[str, str],
+    image_handler: ImageHandler, indent_level: int, aria: bool,
+    promoted_props: Optional[List[str]] = None,
+) -> str:
+    """Generate JSX for a container node with children.
+
+    Args:
+        node: Container IR node.
+        tag: Resolved HTML tag.
+        attr_str: Pre-formatted attribute string.
+        class_str: Tailwind class string.
+        node_aria: ARIA attributes dict.
+        image_handler: Image handler for child nodes.
+        indent_level: Current indentation level.
+        aria: Whether to emit ARIA attributes.
+        promoted_props: Collector list for text-to-prop promoted prop names.
+
+    Returns:
+        JSX string for the container and its children.
+    """
+    if not node.children:
+        return f"<{tag}{attr_str} />"
+
+    child_jsxs, prop_attrs = _render_children_jsx(
+        node, image_handler, indent_level, aria, promoted_props,
+    )
+
+    attr_str = _build_container_attrs(attr_str, prop_attrs)
 
     if not child_jsxs:
         return f"<{tag}{attr_str} />"

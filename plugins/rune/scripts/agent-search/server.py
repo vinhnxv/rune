@@ -414,33 +414,22 @@ def _migrate_v2(conn: sqlite3.Connection) -> None:
         raise
 
 
-def rebuild_index(
-    conn: sqlite3.Connection,
-    entries: List[Dict[str, Any]],
-) -> int:
-    """Rebuild the full-text search index from parsed agent entries.
-
-    Drops and recreates all rows. FTS5 triggers handle index sync.
-
-    Args:
-        conn: Active database connection.
-        entries: List of agent entry dicts from indexer.discover_and_parse().
-
-    Returns:
-        Number of entries indexed.
-    """
-    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-    # Clear existing entries
+def _clear_index(conn: sqlite3.Connection) -> None:
+    """Clear all rows from agent_entries and FTS tables."""
     conn.execute("DELETE FROM agent_entries")
-    # Rebuild FTS content
     conn.execute("DELETE FROM agent_entries_fts")
 
-    # DES-001 FIX: Sort entries by priority ASCENDING so that higher-priority
-    # agents are inserted LAST and win INSERT OR REPLACE conflicts.
-    # Without this, builtin (p100) inserted first gets overwritten by user (p50).
-    sorted_entries = sorted(entries, key=lambda e: e.get("priority", 50))
 
+def _insert_entries(
+    conn: sqlite3.Connection,
+    sorted_entries: List[Dict[str, Any]],
+    now: str,
+) -> Tuple[int, int]:
+    """Insert agent entries with priority-aware conflict resolution.
+
+    Returns:
+        Tuple of (count_indexed, count_skipped).
+    """
     count = 0
     skipped = 0
     for entry in sorted_entries:
@@ -526,6 +515,35 @@ def rebuild_index(
         except sqlite3.IntegrityError as exc:
             logger.warning("Skipping duplicate agent '%s': %s", name, exc)
             skipped += 1
+
+    return count, skipped
+
+
+def rebuild_index(
+    conn: sqlite3.Connection,
+    entries: List[Dict[str, Any]],
+) -> int:
+    """Rebuild the full-text search index from parsed agent entries.
+
+    Drops and recreates all rows. FTS5 triggers handle index sync.
+
+    Args:
+        conn: Active database connection.
+        entries: List of agent entry dicts from indexer.discover_and_parse().
+
+    Returns:
+        Number of entries indexed.
+    """
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    _clear_index(conn)
+
+    # DES-001 FIX: Sort entries by priority ASCENDING so that higher-priority
+    # agents are inserted LAST and win INSERT OR REPLACE conflicts.
+    # Without this, builtin (p100) inserted first gets overwritten by user (p50).
+    sorted_entries = sorted(entries, key=lambda e: e.get("priority", 50))
+
+    count, skipped = _insert_entries(conn, sorted_entries, now)
 
     conn.commit()
     if skipped:
@@ -699,6 +717,189 @@ def compute_composite_score(
 
 
 # ---------------------------------------------------------------------------
+# Core operations — helpers
+# ---------------------------------------------------------------------------
+
+
+def _build_search_query(
+    fts_query: str,
+    category: Optional[str],
+    source: Optional[str],
+    language: Optional[str],
+    fetch_limit: int,
+) -> Tuple[str, List[Any]]:
+    """Build FTS5 SQL query with optional filter clauses."""
+    sql = """
+        SELECT e.*, bm25(agent_entries_fts) AS bm25_score
+        FROM agent_entries_fts f
+        JOIN agent_entries e ON f.rowid = e.rowid
+        WHERE agent_entries_fts MATCH ?
+    """
+    params: List[Any] = [fts_query]
+
+    # Apply filters via SQL WHERE clauses
+    if category:
+        sql += " AND e.category = ?"
+        params.append(category)
+    if source:
+        sql += " AND e.source = ?"
+        params.append(source)
+    if language:
+        # Comma-delimited matching: wrap stored value in commas to avoid
+        # substring false positives (e.g., 'go' matching 'golang').
+        # Parameterized query prevents SQL injection.
+        # SEC-WARD-001 FIX: Escape LIKE wildcards (% and _) in user input
+        safe_lang = language.lower().replace("%", "\\%").replace("_", "\\_")
+        sql += " AND (',' || e.languages || ',' LIKE ? ESCAPE '\\')"
+        params.append("%," + safe_lang + ",%")
+
+    sql += " ORDER BY bm25(agent_entries_fts) LIMIT ?"
+    params.append(fetch_limit)
+
+    return sql, params
+
+
+def _execute_search_query(
+    conn: sqlite3.Connection,
+    sql: str,
+    params: List[Any],
+    query: str,
+) -> List[Dict[str, Any]]:
+    """Execute FTS5 query with fallback to prefix search on syntax error."""
+    try:
+        rows = conn.execute(sql, params).fetchall()
+    except sqlite3.OperationalError as exc:
+        # FTS5 query syntax error — try plain prefix search
+        logger.debug("FTS5 query failed, trying prefix: %s", exc)
+        fts_query = _fallback_fts_query(query)
+        if not fts_query:
+            return []
+        params[0] = fts_query
+        rows = conn.execute(sql, params).fetchall()
+
+    return [dict(row) for row in rows]
+
+
+def _score_and_rank_results(
+    results: List[Dict[str, Any]],
+    query: str,
+    phase: Optional[str],
+    category: Optional[str],
+    exclude: Optional[List[str]],
+    limit: int,
+) -> Tuple[List[Dict[str, Any]], int]:
+    """Apply exclusions, composite scoring, and trim to limit."""
+    # Apply exclusions
+    if exclude:
+        exclude_set = set(n.lower() for n in exclude)
+        results = [r for r in results if r.get("name", "").lower() not in exclude_set]
+
+    # Re-rank with composite scoring
+    results = compute_composite_score(results, query, phase, category)
+
+    # Trim to requested limit
+    total = len(results)
+    results = results[:limit]
+
+    return results, total
+
+
+def _format_search_results(results: List[Dict[str, Any]]) -> None:
+    """Clean up results for output — remove body, parse CSV fields to lists."""
+    for r in results:
+        r.pop("body", None)
+        r.pop("bm25_score", None)
+        # Parse phases back to list
+        phases_str = r.get("compatible_phases", "")
+        if isinstance(phases_str, str):
+            r["compatible_phases"] = [
+                p.strip() for p in phases_str.split(",") if p.strip()
+            ]
+        # Parse tags back to list
+        tags_str = r.get("tags", "")
+        if isinstance(tags_str, str):
+            r["tags"] = [t.strip() for t in tags_str.split(",") if t.strip()]
+        # Parse languages back to list
+        langs_str = r.get("languages", "")
+        if isinstance(langs_str, str):
+            r["languages"] = [l.strip() for l in langs_str.split(",") if l.strip()]
+
+
+# ---------------------------------------------------------------------------
+# Core operations — do_search helpers
+# ---------------------------------------------------------------------------
+
+
+def _handle_dirty_reindex(conn: sqlite3.Connection) -> None:
+    # Check for dirty signal and reindex if needed
+    # FLAW-002 FIX: Use BEGIN IMMEDIATE to serialize concurrent reindex
+    # attempts and prevent readers from seeing empty tables mid-rebuild
+    if _check_and_clear_dirty(PROJECT_DIR):
+        logger.info("Dirty signal detected — triggering auto-reindex")
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            _do_reindex_internal(conn)
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def _run_search_pipeline(
+    conn: sqlite3.Connection,
+    query: str,
+    phase: Optional[str],
+    category: Optional[str],
+    source: Optional[str],
+    language: Optional[str],
+    exclude: Optional[List[str]],
+    limit: int,
+) -> Optional[Tuple[List[Dict[str, Any]], int]]:
+    ensure_schema(conn)
+    _handle_dirty_reindex(conn)
+
+    # Build FTS5 query — sanitize for safety
+    fts_query = _sanitize_fts_query(query)
+    if not fts_query:
+        return None
+
+    # Execute BM25 search with broader fetch for re-ranking
+    fetch_limit = min(limit * 3, 60)  # Fetch 3x for re-ranking headroom
+
+    sql, params = _build_search_query(fts_query, category, source, language, fetch_limit)
+    results = _execute_search_query(conn, sql, params, query)
+
+    results, total = _score_and_rank_results(results, query, phase, category, exclude, limit)
+    _format_search_results(results)
+    return results, total
+
+
+def _build_search_response(
+    results: List[Dict[str, Any]],
+    total: int,
+    query: str,
+    phase: Optional[str],
+    category: Optional[str],
+    source: Optional[str],
+    language: Optional[str],
+    exclude: Optional[List[str]],
+    elapsed_ms: int,
+) -> Dict[str, Any]:
+    return {
+        "results": results,
+        "total": total,
+        "query": query,
+        "filters": {
+            "phase": phase,
+            "category": category,
+            "source": source,
+            "language": language,
+            "exclude": exclude or [],
+        },
+        "time_ms": elapsed_ms,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Core operations
 # ---------------------------------------------------------------------------
 
@@ -732,118 +933,20 @@ def do_search(
 
     conn = get_db(db_path)
     try:
-        ensure_schema(conn)
-
-        # Check for dirty signal and reindex if needed
-        # FLAW-002 FIX: Use BEGIN IMMEDIATE to serialize concurrent reindex
-        # attempts and prevent readers from seeing empty tables mid-rebuild
-        if _check_and_clear_dirty(PROJECT_DIR):
-            logger.info("Dirty signal detected — triggering auto-reindex")
-            conn.execute("BEGIN IMMEDIATE")
-            try:
-                _do_reindex_internal(conn)
-            except Exception:
-                conn.rollback()
-                raise
-
-        # Build FTS5 query — sanitize for safety
-        fts_query = _sanitize_fts_query(query)
-        if not fts_query:
-            return {"results": [], "total": 0, "query": query, "time_ms": 0}
-
-        # Execute BM25 search with broader fetch for re-ranking
-        fetch_limit = min(limit * 3, 60)  # Fetch 3x for re-ranking headroom
-
-        sql = """
-            SELECT e.*, bm25(agent_entries_fts) AS bm25_score
-            FROM agent_entries_fts f
-            JOIN agent_entries e ON f.rowid = e.rowid
-            WHERE agent_entries_fts MATCH ?
-        """
-        params: List[Any] = [fts_query]
-
-        # Apply filters via SQL WHERE clauses
-        if category:
-            sql += " AND e.category = ?"
-            params.append(category)
-        if source:
-            sql += " AND e.source = ?"
-            params.append(source)
-        if language:
-            # Comma-delimited matching: wrap stored value in commas to avoid
-            # substring false positives (e.g., 'go' matching 'golang').
-            # Parameterized query prevents SQL injection.
-            # SEC-WARD-001 FIX: Escape LIKE wildcards (% and _) in user input
-            safe_lang = language.lower().replace("%", "\\%").replace("_", "\\_")
-            sql += " AND (',' || e.languages || ',' LIKE ? ESCAPE '\\')"
-            params.append("%," + safe_lang + ",%")
-
-        sql += " ORDER BY bm25(agent_entries_fts) LIMIT ?"
-        params.append(fetch_limit)
-
-        try:
-            rows = conn.execute(sql, params).fetchall()
-        except sqlite3.OperationalError as exc:
-            # FTS5 query syntax error — try plain prefix search
-            logger.debug("FTS5 query failed, trying prefix: %s", exc)
-            fts_query = _fallback_fts_query(query)
-            if not fts_query:
-                return {"results": [], "total": 0, "query": query, "time_ms": 0}
-            params[0] = fts_query
-            rows = conn.execute(sql, params).fetchall()
-
-        # Convert to dicts
-        results = [dict(row) for row in rows]
-
-        # Apply exclusions
-        if exclude:
-            exclude_set = set(n.lower() for n in exclude)
-            results = [r for r in results if r.get("name", "").lower() not in exclude_set]
-
-        # Re-rank with composite scoring
-        results = compute_composite_score(results, query, phase, category)
-
-        # Trim to requested limit
-        total = len(results)
-        results = results[:limit]
-
-        # Clean up results for output (remove body to save tokens)
-        for r in results:
-            r.pop("body", None)
-            r.pop("bm25_score", None)
-            # Parse phases back to list
-            phases_str = r.get("compatible_phases", "")
-            if isinstance(phases_str, str):
-                r["compatible_phases"] = [
-                    p.strip() for p in phases_str.split(",") if p.strip()
-                ]
-            # Parse tags back to list
-            tags_str = r.get("tags", "")
-            if isinstance(tags_str, str):
-                r["tags"] = [t.strip() for t in tags_str.split(",") if t.strip()]
-            # Parse languages back to list
-            langs_str = r.get("languages", "")
-            if isinstance(langs_str, str):
-                r["languages"] = [l.strip() for l in langs_str.split(",") if l.strip()]
-
+        pipeline_result = _run_search_pipeline(
+            conn, query, phase, category, source, language, exclude, limit,
+        )
     finally:
         conn.close()
 
-    elapsed_ms = int(time.time() * 1000) - start_ms
+    if pipeline_result is None:
+        return {"results": [], "total": 0, "query": query, "time_ms": 0}
 
-    return {
-        "results": results,
-        "total": total,
-        "query": query,
-        "filters": {
-            "phase": phase,
-            "category": category,
-            "source": source,
-            "language": language,
-            "exclude": exclude or [],
-        },
-        "time_ms": elapsed_ms,
-    }
+    results, total = pipeline_result
+    elapsed_ms = int(time.time() * 1000) - start_ms
+    return _build_search_response(
+        results, total, query, phase, category, source, language, exclude, elapsed_ms,
+    )
 
 
 def do_detail(db_path: str, name: str) -> Dict[str, Any]:
@@ -883,6 +986,100 @@ def do_detail(db_path: str, name: str) -> Dict[str, Any]:
         conn.close()
 
 
+def _validate_registration(
+    name: str, description: str, source: str,
+) -> Optional[Dict[str, Any]]:
+    from schema import validate_agent_schema
+    errors = validate_agent_schema(
+        name=name,
+        description=description,
+        source=source,
+    )
+    if errors:
+        logger.warning("Registration validation failed for '%s': %s", name, errors)
+        return {"error": "Validation failed", "details": errors}
+    return None
+
+
+def _check_builtin_conflict(
+    conn: sqlite3.Connection, name: str,
+) -> Optional[Dict[str, Any]]:
+    # Check for builtin/extended conflict — protect higher-priority sources
+    existing = conn.execute(
+        "SELECT source, priority FROM agent_entries WHERE name = ?",
+        (name,),
+    ).fetchone()
+    if existing and existing["source"] in ("builtin", "extended"):
+        return {
+            "error": "Cannot overwrite %s agent: %s" % (existing["source"], name),
+            "hint": "Use a different name or register as a project agent",
+        }
+    return None
+
+
+def _prepare_registration_entry(
+    name: str,
+    source: str,
+    categories: List[str],
+    compatible_phases: List[str],
+    tags: List[str],
+    languages: Optional[List[str]],
+) -> Dict[str, Any]:
+    from indexer import generate_id, SOURCE_PRIORITIES
+    return {
+        "entry_id": generate_id(name, source, "registered:%s" % name),
+        "now": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "category": categories[0] if categories else "unknown",
+        "phases_str": ",".join(compatible_phases),
+        "tags_str": ",".join(tags),
+        # BACK-P2-001 FIX: Support languages in registration
+        "languages_str": ",".join(
+            lang.strip().lower()[:50] for lang in (languages or [])
+            if isinstance(lang, str) and lang.strip()
+        ),
+        "priority": SOURCE_PRIORITIES.get(source, 50),
+    }
+
+
+def _write_agent_entry(
+    conn: sqlite3.Connection,
+    entry: Dict[str, Any],
+    name: str,
+    description: str,
+    primary_phase: str,
+    source: str,
+    body: str,
+) -> None:
+    # Fix BACK-002: Delete old FTS entry before re-registration to prevent ghost entries
+    old_row = conn.execute("SELECT rowid FROM agent_entries WHERE name = ?", (name,)).fetchone()
+    if old_row:
+        conn.execute("DELETE FROM agent_entries_fts WHERE rowid = ?", (old_row[0],))
+
+    conn.execute(
+        """INSERT OR REPLACE INTO agent_entries
+           (id, name, description, category, primary_phase,
+            compatible_phases, tags, languages, source, priority,
+            tools, model, max_turns, body, file_path, indexed_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (entry["entry_id"], name, description, entry["category"], primary_phase,
+         entry["phases_str"], entry["tags_str"], entry["languages_str"], source,
+         entry["priority"], "", "", 0, body, "registered:%s" % name, entry["now"]),
+    )
+
+    # Update FTS
+    conn.execute(
+        """INSERT INTO agent_entries_fts
+           (rowid, name, description, tags, languages, body)
+           VALUES (
+               (SELECT rowid FROM agent_entries WHERE id = ?),
+               ?, ?, ?, ?, ?
+           )""",
+        (entry["entry_id"], name, description, entry["tags_str"],
+         entry["languages_str"], body),
+    )
+    conn.commit()
+
+
 def do_register(
     db_path: str,
     name: str,
@@ -911,80 +1108,28 @@ def do_register(
     Returns:
         Dict with registration result or error.
     """
-    from schema import validate_agent_schema
-
-    # Validate
-    errors = validate_agent_schema(
-        name=name,
-        description=description,
-        source=source,
-    )
-    if errors:
-        logger.warning("Registration validation failed for '%s': %s", name, errors)
-        return {"error": "Validation failed", "details": errors}
+    validation_error = _validate_registration(name, description, source)
+    if validation_error:
+        return validation_error
 
     conn = get_db(db_path)
     try:
         ensure_schema(conn)
 
-        # Check for builtin/extended conflict — protect higher-priority sources
-        existing = conn.execute(
-            "SELECT source, priority FROM agent_entries WHERE name = ?",
-            (name,),
-        ).fetchone()
-        if existing and existing["source"] in ("builtin", "extended"):
-            return {
-                "error": "Cannot overwrite %s agent: %s" % (existing["source"], name),
-                "hint": "Use a different name or register as a project agent",
-            }
+        conflict = _check_builtin_conflict(conn, name)
+        if conflict:
+            return conflict
 
-        from indexer import generate_id, SOURCE_PRIORITIES
-
-        entry_id = generate_id(name, source, "registered:%s" % name)
-        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        category = categories[0] if categories else "unknown"
-        phases_str = ",".join(compatible_phases)
-        tags_str = ",".join(tags)
-        # BACK-P2-001 FIX: Support languages in registration
-        languages_str = ",".join(
-            lang.strip().lower()[:50] for lang in (languages or [])
-            if isinstance(lang, str) and lang.strip()
+        entry = _prepare_registration_entry(
+            name, source, categories, compatible_phases, tags, languages,
         )
-        priority = SOURCE_PRIORITIES.get(source, 50)
+        _write_agent_entry(conn, entry, name, description, primary_phase, source, body)
 
-        # Fix BACK-002: Delete old FTS entry before re-registration to prevent ghost entries
-        old_row = conn.execute("SELECT rowid FROM agent_entries WHERE name = ?", (name,)).fetchone()
-        if old_row:
-            conn.execute("DELETE FROM agent_entries_fts WHERE rowid = ?", (old_row[0],))
-
-        conn.execute(
-            """INSERT OR REPLACE INTO agent_entries
-               (id, name, description, category, primary_phase,
-                compatible_phases, tags, languages, source, priority,
-                tools, model, max_turns, body, file_path, indexed_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (entry_id, name, description, category, primary_phase,
-             phases_str, tags_str, languages_str, source, priority,
-             "", "", 0, body, "registered:%s" % name, now),
-        )
-
-        # Update FTS
-        conn.execute(
-            """INSERT INTO agent_entries_fts
-               (rowid, name, description, tags, languages, body)
-               VALUES (
-                   (SELECT rowid FROM agent_entries WHERE id = ?),
-                   ?, ?, ?, ?, ?
-               )""",
-            (entry_id, name, description, tags_str, languages_str, body),
-        )
-        conn.commit()
-
-        logger.info("Registered agent '%s' (source=%s, id=%s)", name, source, entry_id)
+        logger.info("Registered agent '%s' (source=%s, id=%s)", name, source, entry["entry_id"])
         return {
             "registered": True,
             "name": name,
-            "id": entry_id,
+            "id": entry["entry_id"],
             "source": source,
         }
     finally:

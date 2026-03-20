@@ -198,18 +198,18 @@ def infer_categories(
     return categories
 
 
-def build_updated_frontmatter(
-    data: dict, subdir: str, raw_fm: str
-) -> tuple[str, bool]:
-    """Add new metadata fields to frontmatter without overwriting existing ones.
+def _merge_frontmatter_fields(data: dict, subdir: str) -> bool:
+    """Add missing metadata fields to frontmatter data dict.
+
+    Mutates ``data`` in place, adding source, priority, primary_phase,
+    compatible_phases, categories, and tags when absent.
 
     Args:
-        data: Parsed frontmatter dict.
+        data: Parsed frontmatter dict (mutated in place).
         subdir: The subdirectory name for phase inference.
-        raw_fm: The raw frontmatter YAML text.
 
     Returns:
-        Tuple of (new_frontmatter_yaml, was_modified).
+        True if any field was added.
     """
     modified = False
     name = data.get("name", "")
@@ -253,11 +253,18 @@ def build_updated_frontmatter(
         data["tags"] = extract_tags(desc_text, name)
         modified = True
 
-    if not modified:
-        return raw_fm, False
+    return modified
 
-    # Serialize back to YAML, preserving key order as best we can
-    # We want a specific field order for readability
+
+def _serialize_yaml_block(data: dict) -> str:
+    """Serialize frontmatter dict to YAML with canonical field ordering.
+
+    Args:
+        data: Parsed frontmatter dict.
+
+    Returns:
+        YAML-formatted string with trailing newline.
+    """
     ordered_keys = [
         "name",
         "description",
@@ -294,7 +301,28 @@ def build_updated_frontmatter(
         if key not in emitted:
             lines.append(_yaml_field(key, data[key]))
 
-    return "\n".join(lines) + "\n", True
+    return "\n".join(lines) + "\n"
+
+
+def build_updated_frontmatter(
+    data: dict, subdir: str, raw_fm: str
+) -> tuple[str, bool]:
+    """Add new metadata fields to frontmatter without overwriting existing ones.
+
+    Args:
+        data: Parsed frontmatter dict.
+        subdir: The subdirectory name for phase inference.
+        raw_fm: The raw frontmatter YAML text.
+
+    Returns:
+        Tuple of (new_frontmatter_yaml, was_modified).
+    """
+    modified = _merge_frontmatter_fields(data, subdir)
+
+    if not modified:
+        return raw_fm, False
+
+    return _serialize_yaml_block(data), True
 
 
 def _yaml_field(key: str, value: object) -> str:
