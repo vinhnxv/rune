@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-03-20
+
+### Fixed
+
+- **Panic safety in event loop** — replace `.unwrap()` in `app.rs` after `check_restart_cooldown()` with graceful error handling
+- **CLI graceful errors** — replace 9 `.expect()` panics in `torrent-cli.rs` with proper error propagation
+- **Atomic lock acquisition** — `lock.rs` now uses `O_CREAT|O_EXCL` for TOCTOU-safe lock file creation
+- **Non-atomic lock fallback removed** — `lock.rs` replaces `fs::write` fallback with error return for atomicity
+- **JSON parsing safety** — `recovery.rs` replaces manual JSON string parsing with `serde_json`
+- **Prompt detection false positives** — `monitor.rs` uses `starts_with` instead of `contains` for input prompt detection
+- **BFS/DFS comment mismatch** — `resource.rs` `collect_descendants()` comment now matches actual traversal order
+
 ## [0.6.2] - 2026-03-20
 
 ### Fixed
