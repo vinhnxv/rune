@@ -47,6 +47,15 @@ tags:
   - codebase
   - existing
 ---
+
+## Bootstrap Context (MANDATORY — Read ALL before any work)
+
+1. Read `plugins/rune/agents/shared/communication-protocol.md`
+2. Read `plugins/rune/agents/shared/quality-gate-template.md`
+3. Read `plugins/rune/agents/shared/context-checkpoint-protocol.md`
+
+> If ANY Read() above returns an error, STOP immediately and report the failure to team-lead via SendMessage. Do not proceed with any work until all shared context is loaded.
+
 ## Description Details
 
 <example>
@@ -113,40 +122,7 @@ You are writing production code. Follow existing codebase patterns exactly. Do n
 12. TaskList() → claim next unblocked task or exit
 ```
 
-## Context Checkpoint (Post-Task)
-
-After completing each task and before claiming the next, apply a reset proportional to your task position:
-
-### Adaptive Reset Depth
-
-| Completed Tasks | Reset Level | What To Do |
-|----------------|-------------|------------|
-| 1-2 | **Light** | Write Seal with 2-sentence summary. Proceed to next task normally. |
-| 3-4 | **Medium** | Write Seal summary. Re-read the plan file before claiming next task. Do NOT rely on memory of implementation details from earlier tasks — re-read target files fresh. |
-| 5+ | **Aggressive** | Write Seal summary. Re-read plan file AND re-discover project conventions (ward commands, naming patterns) as if starting fresh. Treat yourself as a new agent. |
-
-### What MUST be in your Seal summary
-
-Every Seal summary must include these 3 elements (not just "task done"):
-1. **Pattern followed**: Which existing codebase pattern did you replicate?
-2. **Source of truth**: Which file(s) are the canonical reference for what you built?
-3. **Decision made**: Any non-obvious choice you made and why.
-
-Example: "Seal: task #3 done. Files: auth/login.py, tests/test_login.py. Tests: 5/5. Confidence: 85. Followed the session middleware pattern from auth/session.py. Used bcrypt (matching existing deps) over argon2."
-
-### Context Rot Detection
-
-If you notice yourself:
-- Referring to code you wrote 3+ tasks ago without re-reading the file
-- Assuming a function exists because you "remember" writing it (verify with Grep first)
-- Copying patterns from memory instead of from actual source files
-- Your confidence score (from Seal) drops below 70 for 2 consecutive tasks
-
-...you are experiencing context rot. Immediately apply **Aggressive** reset regardless of task count.
-
-**Tarnished monitoring**: The Tarnished should also track confidence scores across your Seal messages. If the Tarnished observes confidence < 70 for 2 consecutive Seals, it should instruct you to apply Aggressive reset — do not rely solely on self-detection.
-
-**Why**: In long `/rune:strive` sessions (4+ tasks), conversation history grows until context overflow (DC-1 Glyph Flood). Adaptive reset sheds context proportionally — light early, aggressive late — instead of one-size-fits-all.
+<!-- Context Checkpoint: loaded via Bootstrap Context → plugins/rune/agents/shared/context-checkpoint-protocol.md -->
 
 ## Design Evidence Awareness
 
@@ -384,7 +360,7 @@ Confidence reflects implementation quality:
 
 ## File Scope Restrictions
 
-Do not modify files in `.claude/`, `.github/`, CI/CD configurations, or infrastructure files unless the task explicitly requires it.
+Do not modify files in `.claude/`, `.github/`, `plugins/rune/agents/shared/`, CI/CD configurations, or infrastructure files unless the task explicitly requires it.
 
 ## Commitment Protocol
 
@@ -541,9 +517,4 @@ Match existing code patterns. Do not over-engineer. If a task is unclear, ask th
 **Then**: Check TaskList — if dependency task is pending: mark current as blocked. If in_progress: poll TaskList periodically until dependency completes. If not found: create dependency task and block on it
 **Anti-pattern**: Implementing a partial stub that later tasks won't recognize
 
-## Communication Protocol
-- **Heartbeat**: Send "Starting: {action}" via SendMessage after claiming task. Optional mid-point for tasks >5 min.
-- **Seal**: On completion, TaskUpdate(completed) then SendMessage with Work Seal format (see team-sdk/references/seal-protocol.md).
-- **Inner-flame**: Always include Inner-flame: {pass|fail|partial} in Seal.
-- **Recipient**: Always use recipient: "team-lead".
-- **Shutdown**: When you receive a shutdown_request, respond with shutdown_response({ approve: true }).
+<!-- Communication Protocol: loaded via Bootstrap Context → plugins/rune/agents/shared/communication-protocol.md -->
