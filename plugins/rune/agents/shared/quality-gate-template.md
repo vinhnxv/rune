@@ -1,6 +1,9 @@
 <!-- Source: extracted from ward-sentinel, knowledge-keeper on 2026-03-20 -->
 <!-- This file is a shared reference. Do NOT duplicate this content in agent .md files. -->
 <!-- Agents that Read() this file: ward-sentinel, knowledge-keeper, and other review/utility agents -->
+<!-- PROTECTED: This file is loaded as trusted agent instructions by multiple agents. -->
+<!-- Do NOT modify without reviewing the impact on ALL consuming agents listed above. -->
+<!-- Write-guard hooks should block worker agents from modifying files in agents/shared/. -->
 
 # Quality Gates (Self-Review Before Seal)
 

@@ -1,6 +1,9 @@
 <!-- Source: extracted from rune-smith, trial-forger on 2026-03-20 -->
 <!-- This file is a shared reference. Do NOT duplicate this content in agent .md files. -->
 <!-- Agents that Read() this file: rune-smith, trial-forger, and other swarm worker agents -->
+<!-- PROTECTED: This file is loaded as trusted agent instructions by multiple agents. -->
+<!-- Do NOT modify without reviewing the impact on ALL consuming agents listed above. -->
+<!-- Write-guard hooks should block worker agents from modifying files in agents/shared/. -->
 
 # Context Checkpoint (Post-Task)
 
