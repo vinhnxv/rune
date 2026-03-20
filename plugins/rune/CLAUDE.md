@@ -169,6 +169,7 @@ that ensures teammates exit even when the team lead's context is exhausted.
 | Review         | 30               | Single-file scope |
 | Investigation  | 20-40            | Per-agent (already set) |
 | Testing        | 15-40            | Per-agent (already set) |
+| Context window | N/A              | [1m] variant not inherited — teammates get default window. Scope tasks accordingly. (#36670) |
 
 Override via `talisman.yml` → `teammate_lifecycle.max_turns.{category}`.
 
