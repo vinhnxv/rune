@@ -166,7 +166,7 @@ See [runtime-mode.md](references/runtime-mode.md) for full details.
 If `--arc-id` was specified:
 ```javascript
 // Direct lookup
-const arcId = ARC_ID  // from --arc-id flag
+const arcId = ARC_ID.replace(/[^a-zA-Z0-9_-]/g, '')  // sanitize before path/prompt interpolation
 const checkpointPath = `.rune/arc/${arcId}/checkpoint.json`
 const artifactDir = `tmp/arc/${arcId}`
 // Read checkpoint — fail if missing
@@ -571,10 +571,10 @@ function classifyTrend(current, previous) {
   return "~ Stable"
 }
 
-// Build display table
+// Build display table — process oldest-first for correct trend direction, then reverse for display
 const rows = []
 let prevScore = null
-for (const run of runs) {
+for (const run of [...runs].reverse()) {  // oldest-first so delta = newer - older (positive = improving)
   const { runtime_score } = computeScores(run.metrics)
   const trend = classifyTrend(runtime_score, prevScore)
   const delta = prevScore !== null ? runtime_score - prevScore : null
@@ -590,6 +590,7 @@ for (const run of runs) {
   })
   prevScore = runtime_score
 }
+rows.reverse()  // reverse back to newest-first for display
 
 // Display
 output(`
