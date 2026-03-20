@@ -148,17 +148,16 @@ fi
 # The task file path is embedded in TaskCreate metadata (task_file field).
 # We allow reads when the file path matches a task file that the worker's own
 # inscription.json task_ownership entry authorizes.
-# Simpler heuristic: if the worker name (from transcript_path) appears in the
-# task file name (e.g., rune-smith-1 reading task-1.1.md), this is likely a
-# self-read. Since task files are created per-plan-task (not per-worker),
-# we use a more permissive approach: allow reads of any single task file
-# (workers need to read their assigned task), but still block glob-like
-# reads that scan the entire tasks/ directory.
 #
 # CDX-GAP-001 FIX (v1.179.0): Workers must read their own task file as the
 # first step of the updated lifecycle. Without this exemption, the Discipline
 # Work Loop cannot function — workers would be blocked from reading their
 # assigned task briefs.
+#
+# SHD-001 FIX (v1.180.0): Use exact task ID matching with word boundary.
+# Previous blanket-allow made DISCIPLINE-CTX-001 a no-op — task-1 could read
+# task-10, task-11, etc. Now we extract the task ID from the file path and
+# verify it exists as an exact key in inscription.json task_ownership.
 #
 # The Separation Principle is preserved because:
 # 1. Workers only know their OWN task file path (from TaskCreate metadata)
@@ -166,5 +165,72 @@ fi
 # 3. The spawn prompt does not reveal other workers' task file paths
 # 4. inscription.json task_ownership restricts WRITE scope (SEC-STRIVE-001)
 
-# Allow the read — self-read exemption for task file discipline
+# Extract the work timestamp directory from the file path to find inscription.json.
+# FILE_PATH matches: */tmp/work/<timestamp>/tasks/<taskfile>.md
+WORK_DIR=""
+case "$FILE_PATH" in
+  */tmp/work/*/tasks/*.md)
+    # Strip everything after /tasks/ to get the work directory
+    WORK_DIR="${FILE_PATH%%/tasks/*}"
+    ;;
+esac
+
+if [[ -z "$WORK_DIR" ]]; then
+  # Can't determine work directory — fail open (allow)
+  exit 0
+fi
+
+# Extract task ID from the file being read.
+# Task files follow the pattern: task-{ID}.md (e.g., task-1.md, task-2.1.md)
+TASK_FILENAME=$(basename "$FILE_PATH")
+TASK_ID=""
+if [[ "$TASK_FILENAME" =~ ^(task-[0-9]+(\.[0-9]+)*)(\.md)$ ]]; then
+  TASK_ID="${BASH_REMATCH[1]}"
+fi
+
+if [[ -z "$TASK_ID" ]]; then
+  # Non-standard task file name — fail open (allow)
+  exit 0
+fi
+
+# Look up inscription.json for this work directory.
+# Try both signal-based path (rune-work-*/arc-work-*) and direct path.
+INSCRIPTION_PATH=""
+shopt -s nullglob
+for insc in "${CWD}/tmp/.rune-signals/"*/inscription.json; do
+  # Check if this inscription has task_ownership with our task ID as an exact key
+  if jq -e --arg tid "$TASK_ID" '.task_ownership[$tid]' "$insc" >/dev/null 2>&1; then
+    INSCRIPTION_PATH="$insc"
+    break
+  fi
+done
+shopt -u nullglob
+
+if [[ -z "$INSCRIPTION_PATH" ]]; then
+  # No inscription.json found with this task — fail open (allow)
+  # This handles early lifecycle before inscription is written
+  exit 0
+fi
+
+# Verify the task ID exists as an EXACT key in task_ownership.
+# This prevents task-1 from matching task-10, task-11, etc.
+if jq -e --arg tid "$TASK_ID" '.task_ownership | has($tid)' "$INSCRIPTION_PATH" >/dev/null 2>&1; then
+  # Task ID is a valid exact key — allow the read
+  exit 0
+fi
+
+# Task ID not found as an exact key — block the read (Separation Principle)
+DENY_MSG=$(jq -n \
+  --arg reason "DISCIPLINE-CTX-001: Context isolation blocked read of task file outside worker scope. Target: ${TASK_FILENAME}" \
+  --arg context "Workers may only read their own assigned task file. The task ID '${TASK_ID}' is not in your assigned task_ownership scope. If you need this file, request it via SendMessage to team-lead." \
+  '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: $reason,
+      additionalContext: $context
+    }
+  }')
+
+printf '%s\n' "$DENY_MSG"
 exit 0

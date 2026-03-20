@@ -145,7 +145,7 @@ ENTRY="${ENTRY//__TEAM_NAME__/$TEAM_NAME}"
 ENTRY="${ENTRY//__AGENT_NAME__/$AGENT_NAME}"
 ENTRY="${ENTRY//__TASK_DESC__/$TASK_DESC}"
 
-# Atomic append via temp file (prevent partial writes)
+# Best-effort append via temp file (source data written fully before append, but append itself is not atomic)
 TMPFILE=$(mktemp 2>/dev/null) || exit 0
 printf '%s\n' "$ENTRY" > "$TMPFILE"
 cat "$TMPFILE" >> "$MEMORY_FILE" 2>/dev/null || { rm -f "$TMPFILE"; exit 0; }

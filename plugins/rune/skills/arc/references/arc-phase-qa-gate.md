@@ -126,6 +126,30 @@ produced substantive, evidence-backed reports.
 | WRK-ART-06 | `coverage-matrix.json` exists in work directory AND has valid JSON with `mapped` and `unmapped` arrays | `Glob` + `JSON.parse` |
 | WRK-QUA-06 | Phase log contains `task_files_created` event with non-zero file counts (observability) | `Read` execution log + search for `task_files_created` |
 
+### Process Compliance Checks (AC-15)
+
+Cross-references process manifests against execution logs and filesystem artifacts to detect
+procedural drift — steps that were required but not executed, or executed out of order.
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| WRK-PRC-01 | Process manifest `qa-manifests/{phase}.yaml` exists for this phase | `Glob("qa-manifests/{phase}.yaml")` — missing manifest = skip compliance checks (INFO) |
+| WRK-PRC-02 | Every `required: true` step in manifest has a matching entry in execution log (`tmp/arc/{id}/execution-log.jsonl`) | Parse manifest steps → cross-reference execution log entries by `step_id`. Missing = FAIL with evidence. |
+| WRK-PRC-03 | Step execution order matches manifest sequence (no out-of-order steps) | Compare execution log timestamps against manifest step ordering. Out-of-order = WARN (not FAIL — some parallelization is expected). |
+| WRK-PRC-04 | Every `artifact` listed in manifest has a corresponding file on disk | Extract `artifact` paths from manifest → `test -f` each. Missing artifact = FAIL with specific path. |
+| WRK-PRC-05 | Completion percentage = (executed required steps / total required steps) × 100 | Count `required: true` steps with execution log entries vs total. Report as percentage. |
+
+**Scoring**: Process compliance checks contribute to the **Quality dimension** (not a separate dimension).
+When no process manifest exists for a phase, all PRC checks score 100 (no requirements = fully compliant).
+
+### Step Order Compliance (AC-21)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| WRK-ORD-01 | Execution log entries are in chronological order | Parse `timestamp` field from each JSONL entry, verify monotonically increasing |
+| WRK-ORD-02 | No skipped required steps between first and last executed step | Detect gaps in manifest step sequence from execution log — required steps with `executed: false` between two `executed: true` steps |
+| WRK-ORD-03 | Completion percentage includes step-level granularity | Report per-step status: EXECUTED / SKIPPED / NOT_REACHED in QA verdict `items[]` |
+
 ---
 
 ## Phase: forge — QA Checklist
@@ -380,7 +404,10 @@ task complete. The stop hook reads this file to decide whether to advance.
 
 **Missing verdict file rule**: If the QA agent times out or crashes without writing verdict JSON,
 the stop hook MUST treat the absent file as FAIL with `timed_out: true`. Timed-out FAILs do NOT
-count against the retry budget (they are infrastructure failures, not quality failures).
+count against the quality retry budget (they are infrastructure failures, not quality failures).
+Infrastructure retries are tracked separately via `infra_retry_count` (max 2) and only consume
+the `global_retry_count` as a safety cap. This prevents QA agent crashes from exhausting the
+quality retry budget that should be reserved for genuine quality failures.
 
 ---
 

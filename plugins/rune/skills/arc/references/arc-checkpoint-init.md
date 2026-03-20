@@ -462,7 +462,9 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
   // Each QA phase runs after its parent and produces a verdict.json with numerical scores.
   qa: {
     global_retry_count: 0,
-    max_global_retries: 6,
+    max_global_retries: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.max_global_retries ?? 6 })(),
+    pass_threshold: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.pass_threshold ?? 70 })(),
+    max_phase_retries: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.max_phase_retries ?? 2 })(),
     enabled: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.enabled !== false })()
   },
   // NEW (v1.66.0): Shard metadata from pre-flight shard detection (null for non-shard arcs)
