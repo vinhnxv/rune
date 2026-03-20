@@ -8,10 +8,19 @@
 - **scripts/track-teammate-activity.sh**: Per-teammate liveness detection — monitors teammate last-activity timestamps and flags stuck teammates exceeding `teammate_stuck_threshold` (default 180s)
 - **talisman.yml** `process_management` section: `bash_timeout`, `bash_timeout_enabled`, `bash_timeout_patterns`, `process_kill_grace`, `teammate_stuck_threshold`
 
+### Added
+- **cost-tier-mapping.md**: Document [1m] context window variant limitation — teammates don't inherit lead session's 1M context (GitHub #36670, #34421, #36100)
+- **on-task-completed.sh**: Duplicate teammate completion detection — warns when same teammate completes within 60s, indicating possible SDK duplicate spawn (GitHub #32996)
+- **engines.md** `spawnAgent()`: Spawn signal file for duplicate teammate detection (GitHub #32996)
+
 ### Changed
+- **engines.md** `shutdown()` step 2: Force-reply pattern — send plain text message before `shutdown_request` to ensure silent workers (Read/Write/Bash only) process the shutdown. Batched approach: ~2s total regardless of team size (GitHub #31389)
+- **engines.md** `shutdownWave()`: Added NOTE cross-referencing force-reply pattern for future maintainer awareness
 - **engines.md** step 5a: Recursive process tree kill via shared `process-tree.sh` (replaces inline `pgrep -P` + `kill`)
 - **detect-workflow-complete.sh** + **on-session-stop.sh**: Shared `process-tree.sh` for 2-stage SIGTERM→SIGKILL escalation
 - **monitor-utility.md**: devise 30-min timeout, stuck-teammate detection, fast-path hybrid autoReleaseMs check (ONE TaskList call when elapsed > threshold, preserving near-zero signal-based token cost)
+- **CLAUDE.md**: Added context window limitation row to Teammate Lifecycle Safety table
+- **.claude/CLAUDE.md**: Updated Agent Team Cleanup protocol step 2 with force-reply pattern and GitHub #31389 reference
 
 ## [2.4.2] - 2026-03-21
 
