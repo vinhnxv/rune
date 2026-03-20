@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.4.2] - 2026-03-21
+
+### Changed
+- **agents**: Teammate context distribution via Self-Read architecture — agents read their own task files instead of receiving full context in spawn prompts, reducing orchestrator token pressure (#389)
+- **scripts**: Extract long Python functions in echo-search/agent-search MCP servers + fix XMLParser compatibility for Python 3.8 (#388)
+
 ## [2.4.1] - 2026-03-20
 
 ### Fixed

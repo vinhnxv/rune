@@ -6,9 +6,9 @@
 
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
-[![Version](https://img.shields.io/badge/version-2.3.6-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-2.4.2-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-126-purple)](#agents)
+[![Agents](https://img.shields.io/badge/agents-134-purple)](#agents)
 [![Skills](https://img.shields.io/badge/skills-58-orange)](#skills)
 
 ---
@@ -338,7 +338,7 @@ Compares a plan against its implementation across 10 quality dimensions:
 
 ## Agents
 
-**126 specialized agents** across 8 categories:
+**134 specialized agents** across 8 categories:
 
 ### Review Agents (50)
 
