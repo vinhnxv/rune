@@ -118,6 +118,7 @@ produced substantive, evidence-backed reports.
 | WRK-CMP-02 | All task files have `status: DONE` (not `PENDING`, `IN_PROGRESS`, or `STUCK`) | YAML frontmatter parse per file |
 | WRK-CMP-03 | `git diff HEAD~N..HEAD` shows actual code changes (not empty commit) | `Bash("git diff --stat HEAD~1 HEAD")` |
 | WRK-CMP-04 | Task completion ratio ≥ 50% (checkpoint guard condition) | `completed_tasks / total_tasks >= 0.5` from work-summary.md |
+| WRK-CMP-05 | No wiring/routing tasks left incomplete | Cross-ref plan wiring map (if present) with committed files — all entry points must have corresponding code changes |
 
 ### Additional Work Checks (Shard 1 extension)
 
@@ -372,6 +373,7 @@ mapping every acceptance criterion to its implementation status.
 |----|-------|------------------|
 | GAP-CMP-01 | All acceptance criteria from the plan appear in the compliance matrix | Cross-reference plan AC list with matrix entries + check for gaps |
 | GAP-CMP-02 | Plan section coverage computed — all H2 headings have ADDRESSED or MISSING status | `Read` + search for plan section coverage table |
+| GAP-CMP-03 | DEFERRED findings classified correctly (no shirking) | For each DEFERRED finding: check canDefer() rules — wiring tasks must not be deferred, AC-required must not be deferred. SHIRKING score=0, LEGITIMATE score=75, none=100 |
 
 ### Process Compliance Checks (AC-21)
 
