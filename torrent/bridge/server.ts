@@ -25,6 +25,11 @@ import {
 let validatedCallbackUrl: string | undefined;
 if (process.env.TORRENT_CALLBACK_URL) {
   const parsed = new URL(process.env.TORRENT_CALLBACK_URL);
+  if (parsed.protocol !== "http:") {
+    throw new Error(
+      `TORRENT_CALLBACK_URL must use http: protocol, got: ${parsed.protocol}`,
+    );
+  }
   if (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") {
     throw new Error(
       `TORRENT_CALLBACK_URL must point to localhost or 127.0.0.1, got: ${parsed.hostname}`,

@@ -166,6 +166,9 @@ impl ChannelState {
     }
 
     /// Whether the channel has been inactive longer than [`CHANNEL_INACTIVITY_TIMEOUT`].
+    ///
+    /// Reserved for future auto-disable logic (QUAL-007).
+    #[allow(dead_code)]
     pub fn is_stale(&self) -> bool {
         self.last_event
             .map(|t| t.elapsed() > CHANNEL_INACTIVITY_TIMEOUT)
@@ -173,6 +176,9 @@ impl ChannelState {
     }
 
     /// Duration since the last successful channel event, if any.
+    ///
+    /// Reserved for future auto-disable logic (QUAL-008).
+    #[allow(dead_code)]
     pub fn since_last_event(&self) -> Option<Duration> {
         self.last_event.map(|t| t.elapsed())
     }

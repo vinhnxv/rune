@@ -358,13 +358,8 @@ impl Tmux {
         }
     }
 
-    /// Check if a tmux session still exists.
-    pub fn session_exists(session_id: &str) -> bool {
-        Command::new("tmux")
-            .args(["has-session", "-t", session_id])
-            .output()
-            .is_ok_and(|o| o.status.success())
-    }
+    // session_exists() removed — QUAL-009: identical to has_session().
+    // Callers migrated to has_session().
 
     /// Kill a tmux session. Best-effort.
     pub fn kill_session(session_id: &str) -> Result<()> {

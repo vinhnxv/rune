@@ -158,14 +158,8 @@ impl CallbackServer {
         self.rx.try_recv().ok()
     }
 
-    /// Drain all pending events into a Vec (non-blocking).
-    pub fn drain_events(&self) -> Vec<ChannelEvent> {
-        let mut events = Vec::new();
-        while let Ok(event) = self.rx.try_recv() {
-            events.push(event);
-        }
-        events
-    }
+    // drain_events() removed — BACK-017: never called; recv_event() with bounded
+    // loop (app.rs:1559-1561) is the correct pattern for backpressure-aware draining.
 
     /// Signal the background thread to stop.
     pub fn stop(&self) {
@@ -307,7 +301,10 @@ fn parse_event(body: &[u8]) -> std::result::Result<ChannelEvent, String> {
         return Err("missing session_id".into());
     }
 
-    // Field length limits to prevent abuse
+    // Field length limits to prevent abuse (SEC-013 + BACK-015)
+    if raw.session_id.len() > 128 {
+        return Err("session_id exceeds 128 chars".into());
+    }
     if raw.phase.len() > 128 {
         return Err("phase exceeds 128 chars".into());
     }
@@ -316,6 +313,20 @@ fn parse_event(body: &[u8]) -> std::result::Result<ChannelEvent, String> {
     }
     if raw.details.len() > 1024 {
         return Err("details exceeds 1024 chars".into());
+    }
+    if raw.result.len() > 32 {
+        return Err("result exceeds 32 chars".into());
+    }
+    if let Some(ref err) = raw.error {
+        if err.len() > 1024 {
+            return Err("error exceeds 1024 chars".into());
+        }
+    }
+    if raw.activity.len() > 32 {
+        return Err("activity exceeds 32 chars".into());
+    }
+    if raw.current_tool.len() > 128 {
+        return Err("current_tool exceeds 128 chars".into());
     }
     if let Some(ref url) = raw.pr_url {
         if !url.starts_with("https://") || url.len() > 512 {

@@ -595,7 +595,7 @@ impl App {
         self.active_arcs.retain(|arc| {
             // If it has a tmux session, verify it still exists
             if let Some(ref session) = arc.tmux_session {
-                if !Tmux::session_exists(session) {
+                if !Tmux::has_session(session) {
                     return false;
                 }
             }
@@ -1379,7 +1379,7 @@ impl App {
         // Step 4: Build channels config (if enabled) and start Claude Code
         let channels_cfg = if self.channels_enabled {
             Some(ChannelsConfig {
-                bridge_port: self.callback_port + 1, // bridge on adjacent port to avoid collision
+                bridge_port: self.callback_port.checked_add(1).unwrap_or(self.callback_port.saturating_sub(1)), // SEC-012: prevent u16 overflow
                 callback_port: self.callback_port,
             })
         } else {
@@ -1578,10 +1578,10 @@ impl App {
                 ChannelEvent::ArcComplete { session_id, .. } => session_id,
                 ChannelEvent::Heartbeat { session_id, .. } => session_id,
             };
-            if let Some(ref expected) = expected_session {
-                if event_session != expected {
-                    continue;
-                }
+            match &expected_session {
+                Some(expected) if event_session != expected => continue,
+                None => continue, // SEC-011: no session known yet — drop events
+                _ => {} // session matches — process event
             }
 
             // BACK-014: Retry channel state init if still None (bridge may not have been
