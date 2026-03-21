@@ -9,6 +9,8 @@ use color_eyre::Result;
 
 use ratatui::widgets::ListState;
 
+use crate::callback::{CallbackServer, ChannelEvent};
+use crate::channel::{ChannelState, ChannelsConfig};
 use crate::diagnostic::{DiagnosticAction, DiagnosticEngine, DiagnosticResult, DiagnosticState};
 use crate::monitor::{self, ActivityDetector, ActivityState};
 use crate::resource::{self, ProcessHealth, ResourceSnapshot};
@@ -107,6 +109,16 @@ pub struct App {
     pub last_diagnostic_poll: Option<Instant>,
     /// Current diagnostic result for UI banner display.
     pub last_diagnostic: Option<DiagnosticResult>,
+
+    // Channel communication (optional, experimental)
+    /// Whether channels mode is enabled (--channels flag or config).
+    pub channels_enabled: bool,
+    /// Callback port for receiving channel events from bridge.
+    pub callback_port: u16,
+    /// Callback HTTP server instance (started when channels_enabled).
+    pub callback_server: Option<CallbackServer>,
+    /// Last time we polled the channel for events.
+    pub last_channel_poll: Option<Instant>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -150,6 +162,9 @@ pub struct RunState {
     pub current_phase_started: Option<Instant>,  // Reset on phase change
     pub current_phase_name: Option<String>,       // Last known phase for change detection
     pub timeout_triggered_at: Option<Instant>,    // When SIGTERM was sent (grace period start)
+    /// Channel state for optional outbound communication (Claude → Torrent).
+    /// None when channels are disabled or failed to initialize.
+    pub channel_state: Option<ChannelState>,
     /// Activity detector for multi-signal idle/stop detection (F3).
     pub activity_detector: ActivityDetector,
     /// Adaptive grace duration computed once when merge is detected (F4).
@@ -472,6 +487,10 @@ impl App {
             diagnostic_engine: DiagnosticEngine::new(),
             last_diagnostic_poll: None,
             last_diagnostic: None,
+            channels_enabled: false,
+            callback_port: 9900,
+            callback_server: None,
+            last_channel_poll: None,
         })
     }
 
@@ -1004,6 +1023,7 @@ impl App {
             current_phase_started: None,
             current_phase_name: None,
             timeout_triggered_at: None,
+            channel_state: None, // monitoring existing arc — channels not initialized on resume
             activity_detector: ActivityDetector::new(),
             grace_duration: None,
             grace_skip_at: None,
@@ -1192,6 +1212,19 @@ impl App {
                 self.last_heartbeat_poll = Some(now);
             }
 
+            // Channel event processing (non-blocking, every 2s when enabled)
+            if self.channels_enabled {
+                let should_poll_channel = self
+                    .last_channel_poll
+                    .map(|t| now.duration_since(t) >= Duration::from_secs(2))
+                    .unwrap_or(true);
+
+                if should_poll_channel {
+                    self.drain_channel_events();
+                    self.last_channel_poll = Some(now);
+                }
+            }
+
             // Loop state liveness check (every 60s)
             // If arc-phase-loop.local.md is gone, the arc has completed or been stopped
             let should_check_loop = self
@@ -1343,8 +1376,18 @@ impl App {
         }
         self.tmux_session_id = Some(session_id.clone());
 
-        // Step 4: Start Claude Code inside the session
-        if let Err(e) = Tmux::start_claude(&session_id, &config.path, &self.claude_path) {
+        // Step 4: Build channels config (if enabled) and start Claude Code
+        let channels_cfg = if self.channels_enabled {
+            Some(ChannelsConfig {
+                bridge_port: self.callback_port + 1, // bridge on adjacent port to avoid collision
+                callback_port: self.callback_port,
+            })
+        } else {
+            None
+        };
+        if let Err(e) = Tmux::start_claude(
+            &session_id, &config.path, &self.claude_path, channels_cfg.as_ref()
+        ) {
             self.status_message = Some(format!("start claude failed: {e}"));
             return Ok(());
         }
@@ -1404,6 +1447,7 @@ impl App {
             current_phase_started: None,
             current_phase_name: None,
             timeout_triggered_at: None,
+            channel_state: None, // initialized later via try_init after bridge port discovery
             activity_detector: ActivityDetector::new(),
             grace_duration: None,
             grace_skip_at: None,
@@ -1413,10 +1457,29 @@ impl App {
             session_recreated: false,
         });
 
+        // Start callback server if channels are enabled
+        if self.channels_enabled && self.callback_server.is_none() {
+            match CallbackServer::start(self.callback_port) {
+                Ok(server) => {
+                    self.callback_server = Some(server);
+                    // Initialize channel state now that callback server is running
+                    if let Some(run) = &mut self.current_run {
+                        run.channel_state = ChannelState::try_init(
+                            &run.tmux_session,
+                        );
+                    }
+                }
+                Err(e) => {
+                    self.status_message = Some(format!("callback server failed: {e}"));
+                }
+            }
+        }
+
         // Reset poll timers
         self.last_discovery_poll = None;
         self.last_heartbeat_poll = None;
         self.last_checkpoint_poll = None;
+        self.last_channel_poll = None;
 
         Ok(())
     }
@@ -1483,6 +1546,90 @@ impl App {
     }
 
     /// Poll arc status (heartbeat + checkpoint + resources) and update display state.
+    /// Drain pending channel events from the callback server (non-blocking).
+    /// Channel events provide faster updates than file polling but file state
+    /// remains authoritative. Events update optimistic state on the current run.
+    fn drain_channel_events(&mut self) {
+        let server = match self.callback_server.as_ref() {
+            Some(s) => s,
+            None => return,
+        };
+
+        // Drain up to 10 events per tick to avoid blocking the UI loop
+        let events: Vec<_> = (0..10)
+            .map_while(|_| server.recv_event())
+            .collect();
+
+        if events.is_empty() {
+            return;
+        }
+
+        // Resolve expected session_id for the current run (from arc handle).
+        // Events from other sessions are silently dropped (SEC-001).
+        let expected_session = self
+            .current_run
+            .as_ref()
+            .and_then(|r| r.arc.as_ref().map(|a| a.session_id.clone()));
+
+        for event in events {
+            // SEC-001: Validate session_id — skip events from stale/foreign sessions
+            let event_session = match &event {
+                ChannelEvent::PhaseUpdate { session_id, .. } => session_id,
+                ChannelEvent::ArcComplete { session_id, .. } => session_id,
+                ChannelEvent::Heartbeat { session_id, .. } => session_id,
+            };
+            if let Some(ref expected) = expected_session {
+                if event_session != expected {
+                    continue;
+                }
+            }
+
+            // BACK-014: Retry channel state init if still None (bridge may not have been
+            // ready when try_init was first called during session startup).
+            if let Some(run) = &mut self.current_run {
+                if run.channel_state.is_none() {
+                    run.channel_state = ChannelState::try_init(&run.tmux_session);
+                }
+            }
+
+            // Update channel health on successful event
+            if let Some(run) = &mut self.current_run {
+                if let Some(ref mut cs) = run.channel_state {
+                    cs.record_success();
+                }
+            }
+
+            match event {
+                ChannelEvent::PhaseUpdate { phase, status, .. } => {
+                    self.status_message = Some(format!(
+                        "[ch] Phase: {} ({})", phase, status
+                    ));
+                    if let Some(run) = &mut self.current_run {
+                        run.activity_detector.hash_unchanged_count = 0;
+                    }
+                }
+                ChannelEvent::ArcComplete { result, pr_url, .. } => {
+                    self.status_message = Some(format!(
+                        "[ch] Arc complete: {} {}",
+                        result,
+                        pr_url.as_deref().unwrap_or("")
+                    ));
+                    if let Some(run) = &mut self.current_run {
+                        run.activity_detector.hash_unchanged_count = 0;
+                    }
+                }
+                ChannelEvent::Heartbeat { activity, .. } => {
+                    // Heartbeat resets idle counter — proves Claude is alive
+                    if let Some(run) = &mut self.current_run {
+                        if activity == "active" {
+                            run.activity_detector.hash_unchanged_count = 0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fn poll_status(&mut self) {
         // Refresh sysinfo for resource polling (lightweight, no sleep needed after init)
         resource::refresh_process_system(&mut self.sys);
@@ -2112,7 +2259,7 @@ impl App {
             let cwd = std::env::current_dir().unwrap_or_default();
 
             match crate::tmux::Tmux::recreate_session(
-                &old_session, &cwd, &config.path, &self.claude_path
+                &old_session, &cwd, &config.path, &self.claude_path, None // resume safety: #36638
             ) {
                 Ok(new_session_id) => {
                     // Set init wait: 12s for Claude Code startup

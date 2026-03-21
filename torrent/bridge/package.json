@@ -1,0 +1,10 @@
+{
+  "name": "torrent-bridge",
+  "version": "0.1.0",
+  "description": "MCP channel server for Torrent ↔ Claude Code communication",
+  "type": "module",
+  "main": "server.ts",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  }
+}

@@ -1,4 +1,6 @@
 mod app;
+mod callback;
+mod channel;
 mod checkpoint;
 mod diagnostic;
 mod keybindings;
@@ -24,10 +26,18 @@ use crate::tmux::Tmux;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+use crate::callback::DEFAULT_CALLBACK_PORT;
+
 /// Parsed CLI arguments.
 struct CliArgs {
     extra_config_dirs: Vec<PathBuf>,
     timeout_overrides: Vec<(String, u64)>, // (PHASE, minutes)
+    /// Enable channels bridge communication (opt-in, default false).
+    /// Precedence: CLI --channels > env TORRENT_CHANNELS_ENABLED > default (false).
+    channels_enabled: bool,
+    /// Port for the callback HTTP server (default 9900).
+    /// Precedence: CLI --callback-port > env TORRENT_CALLBACK_PORT > default.
+    callback_port: u16,
 }
 
 /// Parse CLI arguments for extra config directories and timeout overrides.
@@ -45,6 +55,8 @@ fn parse_args() -> CliArgs {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut extra_dirs = Vec::new();
     let mut timeout_overrides = Vec::new();
+    let mut channels_cli: Option<bool> = None;
+    let mut callback_port_cli: Option<u16> = None;
     let mut i = 0;
 
     while i < args.len() {
@@ -82,6 +94,29 @@ fn parse_args() -> CliArgs {
                     }
                 }
             }
+            "--channels" => {
+                channels_cli = Some(true);
+            }
+            "--no-channels" => {
+                channels_cli = Some(false);
+            }
+            "--callback-port" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("error: --callback-port requires a PORT argument");
+                    std::process::exit(1);
+                }
+                match args[i].parse::<u16>() {
+                    Ok(port) if port > 0 => callback_port_cli = Some(port),
+                    _ => {
+                        eprintln!(
+                            "error: invalid callback port '{}'. Expected a number 1-65535.",
+                            args[i]
+                        );
+                        std::process::exit(1);
+                    }
+                }
+            }
             other => {
                 eprintln!("error: unknown argument '{}'. Use --help for usage.", other);
                 std::process::exit(1);
@@ -90,9 +125,26 @@ fn parse_args() -> CliArgs {
         i += 1;
     }
 
+    // Resolve channels_enabled: CLI > env > default (false)
+    let channels_enabled = channels_cli.unwrap_or_else(|| {
+        std::env::var("TORRENT_CHANNELS_ENABLED")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false)
+    });
+
+    // Resolve callback_port: CLI > env > default (9900)
+    let callback_port = callback_port_cli.unwrap_or_else(|| {
+        std::env::var("TORRENT_CALLBACK_PORT")
+            .ok()
+            .and_then(|v| v.parse::<u16>().ok())
+            .unwrap_or(DEFAULT_CALLBACK_PORT)
+    });
+
     CliArgs {
         extra_config_dirs: extra_dirs,
         timeout_overrides,
+        channels_enabled,
+        callback_port,
     }
 }
 
@@ -118,6 +170,9 @@ fn print_help() {
     println!("  -t, --phase-timeout PHASE:MIN Set per-phase timeout in minutes");
     println!("                                (overrides TORRENT_TIMEOUT_* env vars)");
     println!("                                Phases: forge, work, test, review, ship");
+    println!("      --channels                Enable channels bridge (default: off)");
+    println!("      --no-channels             Explicitly disable channels bridge");
+    println!("      --callback-port <PORT>    Callback server port (default: 9900)");
     println!("  -V, --version                 Show version");
     println!("  -h, --help                    Show this help message");
     println!();
@@ -172,6 +227,9 @@ fn print_help() {
     println!("  torrent -c ~/.claude-work -c ~/.claude-personal");
     println!("  torrent -t forge:120 -t work:90       # 120m forge, 90m work timeout");
     println!("  CLAUDE_CONFIG_DIR=~/.claude-work torrent");
+    println!("  torrent --channels                     # enable channels bridge");
+    println!("  torrent --channels --callback-port 9999");
+    println!("  TORRENT_CHANNELS_ENABLED=1 torrent     # env var channels enable");
     println!("  TORRENT_TIMEOUT_FORGE=120 torrent      # env var timeout override");
     println!();
     println!("SEE ALSO:");
@@ -218,6 +276,10 @@ fn main() -> Result<()> {
 
     // Create application state (scans config dirs + plan files)
     let mut app = App::new(cli.extra_config_dirs)?;
+
+    // Store channels configuration for session startup
+    app.channels_enabled = cli.channels_enabled;
+    app.callback_port = cli.callback_port;
 
     // Apply CLI timeout overrides (on top of env vars)
     if !cli.timeout_overrides.is_empty() {
