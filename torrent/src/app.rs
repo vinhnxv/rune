@@ -10,7 +10,7 @@ use color_eyre::Result;
 use ratatui::widgets::ListState;
 
 use crate::callback::{CallbackServer, ChannelEvent};
-use crate::channel::ChannelState;
+use crate::channel::{ChannelState, ChannelsConfig};
 use crate::diagnostic::{DiagnosticAction, DiagnosticEngine, DiagnosticResult, DiagnosticState};
 use crate::monitor::{self, ActivityDetector, ActivityState};
 use crate::resource::{self, ProcessHealth, ResourceSnapshot};
@@ -1023,6 +1023,7 @@ impl App {
             current_phase_started: None,
             current_phase_name: None,
             timeout_triggered_at: None,
+            channel_state: None, // monitoring existing arc — channels not initialized on resume
             activity_detector: ActivityDetector::new(),
             grace_duration: None,
             grace_skip_at: None,
@@ -1248,6 +1249,10 @@ impl App {
                 self.last_diagnostic_poll = Some(now);
             }
 
+            // Drain channel events (non-blocking) — channels provide faster updates
+            // than file polling but file state remains authoritative
+            self.drain_channel_events();
+
             // Check grace period completion BEFORE timeout (completion race guard)
             self.check_grace_period(now);
 
@@ -1375,8 +1380,18 @@ impl App {
         }
         self.tmux_session_id = Some(session_id.clone());
 
-        // Step 4: Start Claude Code inside the session
-        if let Err(e) = Tmux::start_claude(&session_id, &config.path, &self.claude_path) {
+        // Step 4: Build channels config (if enabled) and start Claude Code
+        let channels_cfg = if self.channels_enabled {
+            Some(ChannelsConfig {
+                bridge_port: self.callback_port, // bridge listens on same port range
+                callback_port: self.callback_port,
+            })
+        } else {
+            None
+        };
+        if let Err(e) = Tmux::start_claude(
+            &session_id, &config.path, &self.claude_path, channels_cfg.as_ref()
+        ) {
             self.status_message = Some(format!("start claude failed: {e}"));
             return Ok(());
         }
@@ -1436,6 +1451,7 @@ impl App {
             current_phase_started: None,
             current_phase_name: None,
             timeout_triggered_at: None,
+            channel_state: None, // initialized later via try_init after bridge port discovery
             activity_detector: ActivityDetector::new(),
             grace_duration: None,
             grace_skip_at: None,
@@ -1445,10 +1461,23 @@ impl App {
             session_recreated: false,
         });
 
+        // Start callback server if channels are enabled
+        if self.channels_enabled && self.callback_server.is_none() {
+            match CallbackServer::start(self.callback_port) {
+                Ok(server) => {
+                    self.callback_server = Some(server);
+                }
+                Err(e) => {
+                    self.status_message = Some(format!("callback server failed: {e}"));
+                }
+            }
+        }
+
         // Reset poll timers
         self.last_discovery_poll = None;
         self.last_heartbeat_poll = None;
         self.last_checkpoint_poll = None;
+        self.last_channel_poll = None;
 
         Ok(())
     }
@@ -1519,46 +1548,55 @@ impl App {
     /// Channel events provide faster updates than file polling but file state
     /// remains authoritative. Events update optimistic state on the current run.
     fn drain_channel_events(&mut self) {
-        let server = match &self.callback_server {
+        let server = match self.callback_server.as_ref() {
             Some(s) => s,
             None => return,
         };
-        let run = match &mut self.current_run {
-            Some(r) => r,
-            None => return,
-        };
 
-        // Process up to 10 events per tick to avoid blocking
-        for _ in 0..10 {
-            match server.recv_event() {
-                Some(event) => {
-                    // Update channel health on successful event
-                    if let Some(ref mut cs) = run.channel_state {
-                        cs.record_success();
+        // Drain up to 10 events per tick to avoid blocking the UI loop
+        let events: Vec<_> = (0..10)
+            .map_while(|_| server.recv_event())
+            .collect();
+
+        if events.is_empty() {
+            return;
+        }
+
+        for event in events {
+            // Update channel health on successful event
+            if let Some(run) = &mut self.current_run {
+                if let Some(ref mut cs) = run.channel_state {
+                    cs.record_success();
+                }
+            }
+
+            match event {
+                ChannelEvent::PhaseUpdate { phase, status, .. } => {
+                    self.status_message = Some(format!(
+                        "[ch] Phase: {} ({})", phase, status
+                    ));
+                    if let Some(run) = &mut self.current_run {
+                        run.activity_detector.hash_unchanged_count = 0;
                     }
-
-                    match event {
-                        ChannelEvent::PhaseUpdate { phase, status, .. } => {
-                            self.status_message = Some(format!(
-                                "[ch] Phase: {} ({})", phase, status
-                            ));
-                        }
-                        ChannelEvent::ArcComplete { result, pr_url, .. } => {
-                            self.status_message = Some(format!(
-                                "[ch] Arc complete: {} {}",
-                                result,
-                                pr_url.as_deref().unwrap_or("")
-                            ));
-                        }
-                        ChannelEvent::Heartbeat { activity, .. } => {
-                            // Heartbeat updates activity detector
-                            if activity == "active" {
-                                run.activity_detector.record_activity();
-                            }
+                }
+                ChannelEvent::ArcComplete { result, pr_url, .. } => {
+                    self.status_message = Some(format!(
+                        "[ch] Arc complete: {} {}",
+                        result,
+                        pr_url.as_deref().unwrap_or("")
+                    ));
+                    if let Some(run) = &mut self.current_run {
+                        run.activity_detector.hash_unchanged_count = 0;
+                    }
+                }
+                ChannelEvent::Heartbeat { activity, .. } => {
+                    // Heartbeat resets idle counter — proves Claude is alive
+                    if let Some(run) = &mut self.current_run {
+                        if activity == "active" {
+                            run.activity_detector.hash_unchanged_count = 0;
                         }
                     }
                 }
-                None => break, // No more pending events
             }
         }
     }
@@ -2192,7 +2230,7 @@ impl App {
             let cwd = std::env::current_dir().unwrap_or_default();
 
             match crate::tmux::Tmux::recreate_session(
-                &old_session, &cwd, &config.path, &self.claude_path
+                &old_session, &cwd, &config.path, &self.claude_path, None // resume safety: #36638
             ) {
                 Ok(new_session_id) => {
                     // Set init wait: 12s for Claude Code startup
