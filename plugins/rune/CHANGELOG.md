@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.6.1] - 2026-03-21
+
+### Fixed
+- **echo-search decomposition**: Fix `mcp_handlers.py` importing from non-existent `reindexing` module (now `indexing`) (#398)
+- **echo-search back-imports**: Eliminate back-imports from `server` in `database.py`, `grouping.py`, `promotion.py` — now import from correct submodules (`config`, `scoring`) (#398)
+- **echo-search TOOL_SCHEMAS**: Restore missing `TOOL_SCHEMAS` constant to `mcp_handlers.py` (lost during extraction from monolith) (#398)
+- **echo-search main_cli()**: Pass required arguments to `do_reindex()` and `run_mcp_server()` (#398)
+- **echo-search tests**: Update monkeypatch targets to match decomposed module bindings — `server.X` → `config.X`/`pipeline.X` for 6 failing tests, now 558/558 pass (#398)
+
 ## [2.6.0] - 2026-03-21
 
 ### Added
