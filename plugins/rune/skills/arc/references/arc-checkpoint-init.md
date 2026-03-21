@@ -330,7 +330,7 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
 const skipMap = computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, codexEnabled, codex, planMeta)
 ```
 
-## Checkpoint Schema v25
+## Checkpoint Schema v26
 
 // Schema history: see CHANGELOG.md for migration notes from v12-v24.
 
@@ -369,7 +369,7 @@ const parentPlanMeta = {
 // The arc-hierarchy SKILL.md documents the injection protocol.
 
 Write(`.rune/arc/${id}/checkpoint.json`, {
-  id, schema_version: 25, plan_file: planFile,
+  id, schema_version: 26, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   // RUIN-003 FIX: Remove redundant ?? guards — Layer 2 resolveArcConfig() already guarantees all values are defined
   flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, accept_external_changes: arcConfig.accept_external_changes, bot_review: arcConfig.bot_review, no_bot_review: arcConfig.no_bot_review },
@@ -466,6 +466,33 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
     pass_threshold: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.pass_threshold ?? 70 })(),
     max_phase_retries: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.max_phase_retries ?? 2 })(),
     enabled: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.enabled !== false })()
+  },
+  // Schema v26 addition (v2.5.1): Declarative reaction engine config.
+  // Reads reactions from resolved talisman shard with fallback chain.
+  // Backward-compat: when reactions.* absent, falls back to legacy paths
+  // (gates.qa_gates.*, process_management.*). reactions.* takes precedence.
+  reactions: (() => {
+    let reactions = null
+    try {
+      reactions = JSON.parse(Read("tmp/.talisman-resolved/reactions.json"))
+    } catch (e) {
+      try {
+        const fullTalisman = Read(".rune/talisman.yml")
+        const full = parseYaml(fullTalisman)
+        reactions = full?.reactions ?? {}
+      } catch (e2) {
+        reactions = {}
+        warn("No reactions config available — using hardcoded defaults")
+      }
+    }
+    return reactions
+  })(),
+  // Schema v26 addition: Per-event reaction state tracking for retry budgets and escalation.
+  // Tracks attempt counts and first-attempt timestamps per reaction event.
+  // On --resume: firstAttemptMs is reset to current time (EC-7 fix), attemptCount preserved.
+  reaction_state: {
+    per_event_counters: {},
+    _meta: { last_resume_at: null }
   },
   // NEW (v1.66.0): Shard metadata from pre-flight shard detection (null for non-shard arcs)
   shard: shardInfo ? {

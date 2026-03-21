@@ -14,14 +14,14 @@ Extracted from SKILL.md in v1.110.0 for phase-isolated context architecture.
 | SEMANTIC VERIFICATION | Non-blocking — Codex timeout/unavailable → skip, proceed | Informational (v1.39.0) |
 | DESIGN EXTRACTION | Non-blocking — design_sync disabled or no Figma URL → skip cleanly. Timeout/MCP error → skip with warning | Conditional (v1.109.0) |
 | TASK DECOMPOSITION | Non-blocking — Codex timeout/unavailable → skip, proceed | Advisory (v1.51.0) |
-| WORK | Halt if <50% tasks complete. Partial commits preserved | `/rune:arc --resume` |
+| WORK | evaluateReaction("work_incomplete", ctx) — halt if min_completion not met after retries. Partial commits preserved | `/rune:arc --resume` |
 | DRIFT REVIEW | Non-blocking — skip on error (non-critical) | Advisory phase — pipeline continues |
 | DESIGN VERIFICATION | Non-blocking — no VSM files from design_extraction → skip cleanly. Reviewer failure → skip with warning | Conditional (v1.109.0) |
 | GAP ANALYSIS | Non-blocking — WARN only | Advisory context for code review |
 | CODEX GAP ANALYSIS | Non-blocking — Codex timeout/unavailable → skip, proceed | Advisory (v1.39.0) |
 | GAP REMEDIATION | Non-blocking — gate miss → skip cleanly. Fixer timeout → partial fixes, proceed | Advisory (v1.51.0) |
 | CODE REVIEW | Does not halt | Produces findings or clean report |
-| MEND | Halt if >3 FAILED findings | User fixes, `/rune:arc --resume` |
+| MEND | evaluateReaction("mend_findings_exceeded", ctx) — halt if max_failed_findings exceeded after retries | User fixes, `/rune:arc --resume` |
 | VERIFY MEND | Non-blocking — retries up to tier max cycles, then proceeds | Convergence gate is advisory (DECREE-002: max_rounds enforced in evaluateConvergence()) |
 | DESIGN ITERATION | Non-blocking — fidelity score >= threshold → skip cleanly. Agent-browser unavailable → skip with warning | Conditional (v1.109.0) |
 | TEST | Non-blocking WARN only. Test failures recorded in report | `--no-test` to skip entirely |
@@ -44,8 +44,8 @@ Extracted from SKILL.md in v1.110.0 for phase-isolated context architecture.
 | Phase timeout | Halt, preserve checkpoint, suggest `--resume` |
 | BLOCK verdict in plan review | Halt, report blocker details |
 | All-CONCERN escalation (3x CONCERN) | Auto-proceed with warning (use `--confirm` to pause) |
-| <50% work tasks complete | Halt, partial commits preserved |
-| >3 FAILED mend findings | Halt, resolution report available |
+| Work completion below reactions.work_incomplete.min_completion | evaluateReaction("work_incomplete") — halt after retry budget exhausted |
+| Mend findings exceed reactions.mend_findings_exceeded.max_failed_findings | evaluateReaction("mend_findings_exceeded") — halt after retry budget exhausted |
 | Worker crash mid-phase | Phase team cleanup, checkpoint preserved |
 | Branch conflict | Warn user, suggest manual resolution |
 | Total pipeline timeout (dynamic: 156-320 min) | Halt, preserve checkpoint, suggest `--resume` |

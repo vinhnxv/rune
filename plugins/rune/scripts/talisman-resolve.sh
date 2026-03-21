@@ -102,7 +102,7 @@ fi
 
 # ── Canonical shard name list (used by both fast-path check and write loop) ──
 # BACK-001 FIX: Single source of truth — prevents drift between fast-path and write loop
-SHARD_NAMES=("arc" "codex" "review" "work" "goldmask" "plan" "gates" "settings" "inspect" "testing" "audit" "ux" "misc" "keyword_detection" "tool_failure_tracking" "deliverable_verification" "context_stop_guard" "pr_comment" "discipline")
+SHARD_NAMES=("arc" "codex" "review" "work" "goldmask" "plan" "gates" "settings" "inspect" "testing" "audit" "ux" "misc" "keyword_detection" "tool_failure_tracking" "deliverable_verification" "context_stop_guard" "pr_comment" "discipline" "reactions")
 
 # ── Guard: defaults file must exist and not be a symlink ──
 # SEC-004 FIX: Add symlink check to prevent symlink-based content injection
@@ -340,7 +340,8 @@ all_shards=$(echo "$merged" | jq '{
   deliverable_verification: (.deliverable_verification // {}),
   context_stop_guard: (.context_stop_guard // {}),
   pr_comment: (.pr_comment // {}),
-  discipline: (.discipline // {})
+  discipline: (.discipline // {}),
+  reactions: (.reactions // {})
 }' 2>/dev/null)
 
 if [[ -z "$all_shards" || "$all_shards" == "null" ]]; then

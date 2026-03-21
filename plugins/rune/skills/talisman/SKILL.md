@@ -152,6 +152,7 @@ Parse remaining args after "guide":
 /rune:talisman guide goldmask     → Goldmask per-workflow integration
 /rune:talisman guide mend         → Mend settings
 /rune:talisman guide integrations → MCP tool integrations (aliases: mcp, mcp-integration)
+/rune:talisman guide reactions    → Declarative reaction engine policies (v2.5.1+)
 /rune:talisman guide [topic]      → Match to closest section
 ```
 

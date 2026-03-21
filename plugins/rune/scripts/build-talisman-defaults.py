@@ -94,6 +94,7 @@ def _inject_commented_defaults(data: dict[str, Any]) -> None:
     _inject_review_defaults(data)
     _inject_work_defaults(data)
     _inject_remaining_section_defaults(data)
+    _inject_reactions_defaults(data)
 
 
 def _inject_toplevel_defaults(data: dict[str, Any]) -> None:
@@ -365,6 +366,63 @@ def _inject_remaining_section_defaults(data: dict[str, Any]) -> None:
             "bash_timeout_patterns": [],
             "process_kill_grace": 5,
             "teammate_stuck_threshold": 180,
+        }
+
+
+def _inject_reactions_defaults(data: dict[str, Any]) -> None:
+    """Inject declarative reaction engine defaults (v2.5.1+).
+
+    Reaction policies define how the arc pipeline responds to events like
+    phase failures, stuck teammates, rate limits, and QA gate failures.
+    Defaults match current hardcoded behavior for zero-behavior-change.
+    """
+    if "reactions" not in data:
+        data["reactions"] = {
+            "plan_review_block": {
+                "action": "halt",
+                "retries": 0,
+                "message": "Plan review blocked — critical issues found",
+            },
+            "work_incomplete": {
+                "action": "retry",
+                "retries": 1,
+                "min_completion": 0.5,
+                "escalate_after_ms": 1800000,
+            },
+            "mend_findings_exceeded": {
+                "action": "retry",
+                "retries": 2,
+                "max_failed_findings": 3,
+                "improvement_ratio": 0.5,
+                "zero_progress_action": "halt",
+            },
+            "ci_failed": {
+                "action": "retry",
+                "retries": 2,
+                "wait_ms": 60000,
+                "escalate_after_ms": 1800000,
+            },
+            "review_changes_requested": {
+                "action": "retry",
+                "retries": 3,
+                "escalate_after_ms": 2400000,
+            },
+            "qa_gate_failed": {
+                "action": "retry",
+                "retries": 2,
+                "pass_threshold": 70,
+                "max_global_retries": 6,
+            },
+            "teammate_stuck": {
+                "action": "escalate",
+                "threshold_ms": 180000,
+                "force_stop_after_ms": 300000,
+            },
+            "rate_limited": {
+                "action": "wait",
+                "default_wait_ms": 60000,
+                "max_wait_ms": 300000,
+            },
         }
 
 

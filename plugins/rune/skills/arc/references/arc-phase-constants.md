@@ -204,6 +204,62 @@ function updateCascadeTracker(checkpoint, classified) {
 
   updateCheckpoint({ codex_cascade: cc })
 }
+
+// Declarative reaction evaluation — replaces hardcoded thresholds in arc-failure-policy.md.
+// Called by phase reference files when a reaction event occurs.
+// Returns { action, reason?, wait_ms? } to guide phase behavior.
+// Cycle guard: MAX_REACTION_DEPTH prevents cascading reactions (e.g., retry → timeout → retry).
+const MAX_REACTION_DEPTH = 3
+
+function evaluateReaction(eventName, context, depth = 0) {
+  if (depth >= MAX_REACTION_DEPTH) {
+    warn(`evaluateReaction: max depth (${MAX_REACTION_DEPTH}) reached for ${eventName} — halting`)
+    return { action: "halt", reason: "max_reaction_depth" }
+  }
+
+  const reaction = checkpoint.reactions?.[eventName]
+  if (!reaction) return { action: "halt", reason: "unknown_event" }  // Unknown event = safe default
+
+  const attempts = context.attemptCount || 0
+  const elapsed = context.firstAttemptMs
+    ? Date.now() - context.firstAttemptMs
+    : 0  // First attempt: elapsed = 0 (escalation timeout cannot fire)
+
+  // Escalation timeout takes priority (only after first attempt)
+  if (reaction.escalate_after_ms && elapsed > reaction.escalate_after_ms) {
+    return { action: "escalate", reason: "timeout", elapsed_ms: elapsed }
+  }
+
+  // Retry budget
+  if (attempts < (reaction.retries || 0)) {
+    return { action: "retry", wait_ms: reaction.wait_ms || 0, attempt: attempts + 1 }
+  }
+
+  // Budget exhausted — fall back to base action or halt
+  const exhaustedAction = reaction.action === "retry" ? "halt" : reaction.action
+  return { action: exhaustedAction, reason: "budget_exhausted", attempts }
+}
+
+// Helper: increment per-event counter in reaction_state
+function incrementReactionCounter(eventName) {
+  const state = checkpoint.reaction_state?.per_event_counters ?? {}
+  if (!state[eventName]) {
+    state[eventName] = { attemptCount: 0, firstAttemptMs: Date.now() }
+  }
+  state[eventName].attemptCount++
+  checkpoint.reaction_state = checkpoint.reaction_state ?? { per_event_counters: {}, _meta: {} }
+  checkpoint.reaction_state.per_event_counters = state
+  updateCheckpoint({ reaction_state: checkpoint.reaction_state })
+}
+
+// Helper: get context for evaluateReaction from reaction_state
+function getReactionContext(eventName) {
+  const counter = checkpoint.reaction_state?.per_event_counters?.[eventName]
+  return {
+    attemptCount: counter?.attemptCount ?? 0,
+    firstAttemptMs: counter?.firstAttemptMs ?? null
+  }
+}
 ```
 
 ## Skip Map Schema (v1.162.0+)
