@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.6.0] - 2026-03-21
+
+### Added
+- **scripts/lib/detect-activity-state.sh**: JSONL-based semantic activity classifier — parses Claude Code session files to classify teammate activity into 9 semantic states (WORKING, THINKING, PERMISSION_LOOP, ERROR_LOOP, RETRY_LOOP, IDLE, WAITING_INPUT, RATE_LIMITED, COMPLETED) (#394)
+- **scripts/lib/find-teammate-session.sh**: Session file discovery for teammate JSONL logs (#394)
+- **on-teammate-idle.sh**: Semantic activity check before force-stopping teammates — prevents false stuck detection when teammates are productively working (#394)
+- **monitor-inline.md**: Semantic activity check before stuck worker declaration (#394)
+- **talisman.yml** `process_management.semantic_activity` configuration section (#394)
+- **scripts/lib/echo-append.sh**: Thin wrapper around echo-writer.sh for workflow echo automation (#397)
+- **scripts/lib/echo-promote.sh**: Observation auto-promotion based on access frequency (#397)
+- **skills/rune-echoes/references/workflow-echo-schemas.md**: Content schemas for per-workflow echo entries (#397)
+- **Echo write automation**: Wired echo write path across 6 workflows (devise, appraise, arc, strive, mend, audit) via echo-append.sh, closing the feedback loop (#397)
+- **SessionStart echo injection**: Enhanced to 10 entries with relaxed title pattern matching (#397)
+- **Echo keyword detection**: Detects echo-relevant keywords in user prompts (#397)
+- **4 research agents**: Added `echo_record_access` prompt instructions for access frequency tracking (#397)
+
+### Fixed
+- **echo-promote.sh**: Filter to only promote entries with sufficient access count — was promoting ALL observations regardless of access_count (RUIN-001) (#397)
+- **echo-promote.sh**: Fix H3→H2 heading mismatch — echo-writer.sh writes H2 headings but promote looked for H3, causing promotions to silently never fire (BACK-001) (#397)
+
+### Security
+- **echo-append.sh**: Symlink guard on echoes/role directory before mkdir -p — prevents arbitrary file write via symlink attack (SEC-001) (#397)
+- **echo-promote.sh**: Symlink guard on echoes directory — prevents promotion logic from following symlinks to external directories (SEC-002) (#397)
+
 ## [2.5.0] - 2026-03-21
 
 ### Added
