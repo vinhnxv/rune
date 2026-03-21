@@ -164,6 +164,10 @@ pub struct RunState {
     /// Recovery mode determined by handle_timeout_resume() BEFORE session recreation.
     /// Consumed by check_restart_cooldown() Phase 2 AFTER run.arc is reset to None.
     pub recovery_mode: Option<crate::resume::RecoveryMode>,
+    /// Set to true after Phase 1 (session recreation) completes in check_restart_cooldown().
+    /// Used as discriminant for Phase 1 vs Phase 2 — replaces the flawed `run.arc.is_some()`
+    /// check which doesn't work for Retry mode (where arc is always None).
+    pub session_recreated: bool,
 }
 
 impl RunState {
@@ -1006,6 +1010,7 @@ impl App {
             resume_state: None, // monitoring existing arc — no resume tracking
             restart_cooldown_until: None,
             recovery_mode: None,
+            session_recreated: false,
         });
 
         self.view = AppView::Running;
@@ -1405,6 +1410,7 @@ impl App {
             resume_state: Some(resume_state),
             restart_cooldown_until: None,
             recovery_mode: None,
+            session_recreated: false,
         });
 
         // Reset poll timers
@@ -1741,7 +1747,7 @@ impl App {
                         return true;
                     }
 
-                    resume.record_restart(0, "diagnostic", diag.state.label());
+                    resume.record_restart(0, "diagnostic", diag.state.label(), crate::resume::RecoveryMode::Retry);
                     let cooldown = strategy.backoff_duration(resume.total_restarts, None);
 
                     self.status_message = Some(format!(
@@ -1814,7 +1820,7 @@ impl App {
                     return true;
                 }
 
-                resume.record_restart(0, "diagnostic", diag.state.label());
+                resume.record_restart(0, "diagnostic", diag.state.label(), crate::resume::RecoveryMode::Retry);
                 let cooldown = strategy.backoff_duration(resume.total_restarts, None);
 
                 self.status_message = Some(format!(
@@ -1938,7 +1944,7 @@ impl App {
     /// Determines recovery mode (Retry vs Resume vs Evaluate) BEFORE session
     /// recreation resets `run.arc` and `run.last_status` to None.
     fn handle_timeout_resume(&mut self) {
-        use crate::resume::{RecoveryMode, RestartRecord};
+        use crate::resume::RecoveryMode;
 
         let max_resumes = env_or_u64("TORRENT_MAX_RESUMES", 3) as u32;
 
@@ -1957,6 +1963,7 @@ impl App {
         // Store mode on RunState so check_restart_cooldown Phase 2 can use it
         // after run.arc and run.last_status have been reset to None.
         run.recovery_mode = Some(mode);
+        run.session_recreated = false; // Reset for new restart cycle
 
         let resume_state = match &mut run.resume_state {
             Some(s) => s,
@@ -1984,14 +1991,7 @@ impl App {
                     return;
                 }
                 resume_state.retry_count += 1;
-                // Record restart with phase_name "pre_arc" since arc never started
-                resume_state.record_restart(0, "pre_arc", "phase_timeout");
-                resume_state.restart_history.push(RestartRecord {
-                    mode: RecoveryMode::Retry,
-                    phase_name: "pre_arc".into(),
-                    reason: "phase_timeout".into(),
-                    timestamp: Utc::now(),
-                });
+                resume_state.record_restart(0, "pre_arc", "phase_timeout", RecoveryMode::Retry);
             }
             RecoveryMode::Resume => {
                 // P1-001 FIX: Use a deterministic hash of the phase name so the same phase
@@ -2014,14 +2014,8 @@ impl App {
                     return;
                 }
 
-                resume_state.record_restart(phase_index, &phase_name, "phase_timeout");
+                resume_state.record_restart(phase_index, &phase_name, "phase_timeout", RecoveryMode::Resume);
                 resume_state.resume_count += 1;
-                resume_state.restart_history.push(RestartRecord {
-                    mode: RecoveryMode::Resume,
-                    phase_name: phase_name.clone(),
-                    reason: "phase_timeout".into(),
-                    timestamp: Utc::now(),
-                });
             }
         }
 
@@ -2088,9 +2082,11 @@ impl App {
             None => return,
         };
 
-        if Instant::now() < cooldown_deadline {
-            // Show countdown in status
-            let remaining = cooldown_deadline.duration_since(Instant::now()).as_secs();
+        let now = Instant::now();
+        if now < cooldown_deadline {
+            // Show countdown in status (single `now` capture avoids TOCTOU panic
+            // where Instant::duration_since underflows between two Instant::now() calls)
+            let remaining = cooldown_deadline.duration_since(now).as_secs();
             if remaining > 0 {
                 self.status_message = Some(format!(
                     "Restarting in {}s...", remaining
@@ -2100,11 +2096,12 @@ impl App {
         }
 
         // Cooldown expired — check if session already recreated (phase 2: send command)
-        // If arc is None and tmux session exists, we're in the init-wait phase
-        let has_arc = run.arc.is_some();
+        // FLAW-001 FIX: Use `session_recreated` flag instead of `run.arc.is_some()`.
+        // The old check failed for Retry mode (arc is always None → infinite Phase 1 loop).
+        let already_recreated = run.session_recreated;
         let plan_path = run.plan.path.clone();
 
-        if !has_arc {
+        if !already_recreated {
             // Phase 1: Cooldown just expired — create session + set init wait
             let config_idx = run.config_idx;
             let config = match self.config_dirs.get(config_idx) {
@@ -2127,6 +2124,7 @@ impl App {
                         run.launched_at = Instant::now();
                         run.arc = None;
                         run.last_status = None;
+                        run.session_recreated = true; // FLAW-001 FIX: mark Phase 1 done
                     }
                     self.tmux_session_id = Some(new_session_id);
                     self.last_discovery_poll = None;
@@ -2213,8 +2211,10 @@ impl App {
         let cwd = std::env::current_dir().unwrap_or_default();
         match monitor::read_arc_loop_state(&cwd) {
             Some(state) => {
+                // FLAW-003 FIX: Use filename-based matching (plans_match) instead of
+                // bidirectional contains() which false-positives on substrings and empty strings.
                 let plan_str = plan.path.display().to_string();
-                state.plan_file.contains(&plan_str) || plan_str.contains(&state.plan_file)
+                plans_match(&plan_str, &state.plan_file)
             }
             None => false,
         }
@@ -2419,21 +2419,27 @@ impl App {
         }
     }
 
-    /// Send /arc command with retry logic. Returns Some(()) on success, None on failure.
+    /// Send a tmux command with retry logic. Returns Some(()) on success, None on failure.
     /// Uses exponential backoff between retries (5s, then 10s).
-    fn send_arc_with_retry(session_id: &str, plan_path: &Path, max_attempts: u8) -> Option<()> {
+    fn send_with_retry(
+        session_id: &str,
+        plan_path: &Path,
+        max_attempts: u8,
+        send_fn: fn(&str, &Path) -> color_eyre::Result<()>,
+        label: &str,
+    ) -> Option<()> {
         let mut delay_secs = 5;
 
         for attempt in 1..=max_attempts {
-            match Tmux::send_arc_command(session_id, plan_path) {
+            match send_fn(session_id, plan_path) {
                 Ok(()) => return Some(()),
                 Err(e) if attempt < max_attempts => {
-                    eprintln!("send /arc attempt {} failed: {}, retrying in {}s", attempt, e, delay_secs);
+                    eprintln!("send {} attempt {} failed: {}, retrying in {}s", label, attempt, e, delay_secs);
                     std::thread::sleep(Duration::from_secs(delay_secs));
                     delay_secs *= 2;
                 }
                 Err(e) => {
-                    eprintln!("send /arc failed after {} attempts: {}", max_attempts, e);
+                    eprintln!("send {} failed after {} attempts: {}", label, max_attempts, e);
                     return None;
                 }
             }
@@ -2441,26 +2447,14 @@ impl App {
         None
     }
 
-    /// Send /arc --resume command with retry logic. Returns Some(()) on success, None on failure.
-    /// Uses exponential backoff between retries (5s, then 10s).
-    fn send_arc_resume_with_retry(session_id: &str, plan_path: &Path, max_attempts: u8) -> Option<()> {
-        let mut delay_secs = 5;
+    /// Send /arc command with retry logic.
+    fn send_arc_with_retry(session_id: &str, plan_path: &Path, max_attempts: u8) -> Option<()> {
+        Self::send_with_retry(session_id, plan_path, max_attempts, Tmux::send_arc_command, "/arc")
+    }
 
-        for attempt in 1..=max_attempts {
-            match Tmux::send_arc_resume_command(session_id, plan_path) {
-                Ok(()) => return Some(()),
-                Err(e) if attempt < max_attempts => {
-                    eprintln!("send /arc --resume attempt {} failed: {}, retrying in {}s", attempt, e, delay_secs);
-                    std::thread::sleep(Duration::from_secs(delay_secs));
-                    delay_secs *= 2;
-                }
-                Err(e) => {
-                    eprintln!("send /arc --resume failed after {} attempts: {}", max_attempts, e);
-                    return None;
-                }
-            }
-        }
-        None
+    /// Send /arc --resume command with retry logic.
+    fn send_arc_resume_with_retry(session_id: &str, plan_path: &Path, max_attempts: u8) -> Option<()> {
+        Self::send_with_retry(session_id, plan_path, max_attempts, Tmux::send_arc_resume_command, "/arc --resume")
     }
 }
 

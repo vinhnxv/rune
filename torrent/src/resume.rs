@@ -199,8 +199,10 @@ impl ResumeState {
             .map_or(false, |&count| count >= max_retries)
     }
 
-    /// Record a restart event: bump counters and update timestamps.
-    pub fn record_restart(&mut self, phase_index: u32, phase_name: &str, reason: &str) {
+    /// Record a restart event: bump counters, update timestamps, and append to history.
+    /// Single source of truth for all restart tracking — callers should NOT manually
+    /// push to `restart_history` (FLAW-004 fix: eliminates dual-timestamp drift).
+    pub fn record_restart(&mut self, phase_index: u32, phase_name: &str, reason: &str, mode: RecoveryMode) {
         *self.phase_retries.entry(phase_index).or_insert(0) += 1;
         self.total_restarts += 1;
         let now = Utc::now();
@@ -210,6 +212,12 @@ impl ResumeState {
         self.last_restart_at = Some(now);
         self.last_restart_reason = Some(reason.to_string());
         self.last_restart_phase = Some(phase_name.to_string());
+        self.restart_history.push(RestartRecord {
+            mode,
+            phase_name: phase_name.to_string(),
+            reason: reason.to_string(),
+            timestamp: now,
+        });
     }
 
     /// Check for rapid failure: 3+ restarts within 30 seconds of the first restart.
@@ -337,8 +345,8 @@ mod tests {
     #[test]
     fn test_record_restart_increments() {
         let mut state = ResumeState::load("test-plan.md");
-        state.record_restart(2, "forge", "phase_timeout");
-        state.record_restart(2, "forge", "phase_timeout");
+        state.record_restart(2, "forge", "phase_timeout", RecoveryMode::Resume);
+        state.record_restart(2, "forge", "phase_timeout", RecoveryMode::Resume);
         assert_eq!(state.phase_retries[&2], 2);
         assert_eq!(state.total_restarts, 2);
         assert!(state.should_skip(2, 2)); // 2 >= 2
@@ -356,8 +364,8 @@ mod tests {
     #[test]
     fn test_effective_cooldown_multiple_restarts() {
         let mut state = ResumeState::load("test.md");
-        state.record_restart(1, "work", "timeout");
-        state.record_restart(1, "work", "timeout");
+        state.record_restart(1, "work", "timeout", RecoveryMode::Resume);
+        state.record_restart(1, "work", "timeout", RecoveryMode::Resume);
         assert_eq!(state.effective_cooldown(60), 120); // 2x
     }
 
