@@ -104,6 +104,8 @@ case "$LOWER" in
 (4) Merge: \`GH_PROMPT_DISABLED=1 gh pr merge <number> --squash --delete-branch\` (or --rebase/--merge per repo convention).
 (5) Sync local: \`git pull\`.
 NEVER use local \`git merge\` + \`git push\`. NEVER skip step 2 (account check)." ;;
+  *architecture*|*"kiến trúc"*|*"cấu trúc"*|*pattern*|*convention*|*"quy tắc"*|*"how does"*work*|*"how is"*structured*|*"design pattern"*|*"thiết kế"*)
+    SUGGESTION="[KEYWORD-001] This question may benefit from project memory. Consider calling echo_search MCP tool with relevant keywords to check Rune Echoes for past learnings about architecture, patterns, and conventions." ;;
 esac
 
 # --- Output ---
