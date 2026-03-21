@@ -31,7 +31,7 @@ source "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh"
 # Block A (verbose): _rune_fail_forward with always-on trace log + stderr output
 # Used by arc-phase (inner loop) where silent failures are especially dangerous.
 arc_setup_err_trap verbose
-trap '[[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit' EXIT
+trap '_rc=$?; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit $_rc' EXIT
 umask 077
 
 # Block B: trace log init (SEC-004 TMPDIR validation + TOME-011 -${PPID} suffix)

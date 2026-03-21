@@ -29,7 +29,7 @@ fi
 source "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh"
 arc_setup_err_trap  # standard variant (no verbose arg)
 
-trap '[[ -n "${SUMMARY_TMP:-}" ]] && rm -f "${SUMMARY_TMP}" 2>/dev/null; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit' EXIT
+trap '_rc=$?; [[ -n "${SUMMARY_TMP:-}" ]] && rm -f "${SUMMARY_TMP}" 2>/dev/null; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit $_rc' EXIT
 umask 077
 
 # ── Block B: Opt-in trace logging (TOME-011: -${PPID} suffix, SEC-004: TMPDIR validation) ──
