@@ -161,6 +161,13 @@ pub struct RunState {
     pub resume_state: Option<ResumeState>,
     /// Cooldown deadline — earliest time a restart is allowed.
     pub restart_cooldown_until: Option<Instant>,
+    /// Recovery mode determined by handle_timeout_resume() BEFORE session recreation.
+    /// Consumed by check_restart_cooldown() Phase 2 AFTER run.arc is reset to None.
+    pub recovery_mode: Option<crate::resume::RecoveryMode>,
+    /// Set to true after Phase 1 (session recreation) completes in check_restart_cooldown().
+    /// Used as discriminant for Phase 1 vs Phase 2 — replaces the flawed `run.arc.is_some()`
+    /// check which doesn't work for Retry mode (where arc is always None).
+    pub session_recreated: bool,
 }
 
 impl RunState {
@@ -237,12 +244,35 @@ pub struct PhaseSummary {
 /// Categories group phases with similar expected durations.
 fn phase_category(name: &str) -> &str {
     match name {
+        // Forge: plan enrichment
         "forge" => "forge",
+
+        // Work: implementation + design
         "work" | "task_decomposition" | "design_extraction" | "design_prototype"
         | "design_iteration" => "work",
+
+        // QA gates: lightweight verification
+        "forge_qa" | "work_qa" | "gap_analysis_qa" | "code_review_qa"
+        | "mend_qa" | "test_qa" => "qa",
+
+        // Analysis: medium-weight analysis
+        "gap_analysis" | "codex_gap_analysis" | "goldmask_verification"
+        | "goldmask_correlation" | "semantic_verification" | "gap_remediation"
+        | "plan_refine" | "verification" | "drift_review" => "analysis",
+
+        // Test
         "test" | "test_coverage_critique" => "test",
+
+        // Ship: merge + deploy
         "ship" | "merge" | "pre_ship_validation" | "release_quality_check"
         | "deploy_verify" | "bot_review_wait" | "pr_comment_resolution" => "ship",
+
+        // Review: code review + inspection + design verification
+        "plan_review" | "code_review" | "inspect" | "inspect_fix"
+        | "verify_inspect" | "mend" | "verify_mend"
+        | "storybook_verification" | "design_verification" | "ux_verification" => "review",
+
+        // Fallback
         _ => "review",
     }
 }
@@ -261,6 +291,8 @@ pub struct PhaseTimeoutConfig {
 impl PhaseTimeoutConfig {
     /// Parse timeout config from environment variables.
     /// Each TORRENT_TIMEOUT_<CATEGORY> is an integer in minutes.
+    /// Categories always get explicit defaults instead of falling through
+    /// to TORRENT_TIMEOUT_DEFAULT.
     pub fn from_env() -> Self {
         let default_mins: u64 = std::env::var("TORRENT_TIMEOUT_DEFAULT")
             .ok()
@@ -268,11 +300,22 @@ impl PhaseTimeoutConfig {
             .unwrap_or(60);
 
         let mut timeouts = HashMap::new();
-        for category in &["forge", "work", "test", "review", "ship"] {
-            let env_key = format!("TORRENT_TIMEOUT_{}", category.to_uppercase());
-            if let Some(mins) = std::env::var(&env_key).ok().and_then(|s| s.parse::<u64>().ok()) {
-                timeouts.insert(category.to_string(), Duration::from_secs(mins * 60));
-            }
+        let categories: &[(&str, &str, u64)] = &[
+            ("forge",    "TORRENT_TIMEOUT_FORGE",    30),  // 30 min
+            ("work",     "TORRENT_TIMEOUT_WORK",     45),  // 45 min
+            ("qa",       "TORRENT_TIMEOUT_QA",       15),  // 15 min
+            ("analysis", "TORRENT_TIMEOUT_ANALYSIS", 20),  // 20 min
+            ("test",     "TORRENT_TIMEOUT_TEST",     30),  // 30 min
+            ("review",   "TORRENT_TIMEOUT_REVIEW",   30),  // 30 min
+            ("ship",     "TORRENT_TIMEOUT_SHIP",     20),  // 20 min
+        ];
+
+        for &(cat, env_key, default) in categories {
+            let mins: u64 = std::env::var(env_key)
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(default);
+            timeouts.insert(cat.to_string(), Duration::from_secs(mins * 60));
         }
 
         Self {
@@ -966,6 +1009,8 @@ impl App {
             grace_skip_at: None,
             resume_state: None, // monitoring existing arc — no resume tracking
             restart_cooldown_until: None,
+            recovery_mode: None,
+            session_recreated: false,
         });
 
         self.view = AppView::Running;
@@ -1322,14 +1367,22 @@ impl App {
             None
         });
 
-        // Step 6: Send /arc command (uses Escape+delay+Enter workaround for Ink)
-        if Self::send_arc_with_retry(&session_id, &plan.path, 2).is_none() {
+        // Step 6: Send /arc command — check for existing checkpoint first
+        let resume_state = ResumeState::load(&plan.path.display().to_string());
+        let has_checkpoint = self.check_existing_checkpoint(&plan);
+
+        if has_checkpoint && resume_state.total_restarts == 0 {
+            // First launch but checkpoint exists from a previous torrent session — resume
+            if Self::send_arc_resume_with_retry(&session_id, &plan.path, 3).is_none() {
+                self.status_message = Some(format!("FAILED: send /arc --resume failed. tmux attach -t {}", &session_id));
+            } else {
+                self.status_message = Some("Resuming existing checkpoint".into());
+            }
+        } else if Self::send_arc_with_retry(&session_id, &plan.path, 2).is_none() {
             self.status_message = Some(format!("FAILED: send /arc failed. tmux attach -t {}", &session_id));
         } else {
             self.status_message = Some(format!("/arc sent to {}", &session_id));
         }
-
-        let resume_state = ResumeState::load(&plan.path.display().to_string());
         self.current_run = Some(RunState {
             plan,
             config_idx: self.selected_config,
@@ -1356,6 +1409,8 @@ impl App {
             grace_skip_at: None,
             resume_state: Some(resume_state),
             restart_cooldown_until: None,
+            recovery_mode: None,
+            session_recreated: false,
         });
 
         // Reset poll timers
@@ -1692,7 +1747,7 @@ impl App {
                         return true;
                     }
 
-                    resume.record_restart(0, "diagnostic", diag.state.label());
+                    resume.record_restart(0, "diagnostic", diag.state.label(), crate::resume::RecoveryMode::Retry);
                     let cooldown = strategy.backoff_duration(resume.total_restarts, None);
 
                     self.status_message = Some(format!(
@@ -1765,7 +1820,7 @@ impl App {
                     return true;
                 }
 
-                resume.record_restart(0, "diagnostic", diag.state.label());
+                resume.record_restart(0, "diagnostic", diag.state.label(), crate::resume::RecoveryMode::Retry);
                 let cooldown = strategy.backoff_duration(resume.total_restarts, None);
 
                 self.status_message = Some(format!(
@@ -1885,67 +1940,128 @@ impl App {
 
     /// Handle auto-resume after a phase timeout kill.
     /// Called after the hard-kill path in check_phase_timeout().
+    ///
+    /// Determines recovery mode (Retry vs Resume vs Evaluate) BEFORE session
+    /// recreation resets `run.arc` and `run.last_status` to None.
     fn handle_timeout_resume(&mut self) {
-        // Get config from env
+        use crate::resume::RecoveryMode;
+
         let max_resumes = env_or_u64("TORRENT_MAX_RESUMES", 3) as u32;
-        let cooldown_secs = env_or_u64("TORRENT_RESTART_COOLDOWN", 30);
+
+        // Determine recovery mode BEFORE taking mutable borrow on resume_state.
+        // This reads run.arc and run.last_status immutably.
+        let mode = match &self.current_run {
+            Some(run) => Self::determine_recovery_mode(run),
+            None => return,
+        };
 
         let run = match &mut self.current_run {
             Some(r) => r,
             None => return,
         };
 
+        // Store mode on RunState so check_restart_cooldown Phase 2 can use it
+        // after run.arc and run.last_status have been reset to None.
+        run.recovery_mode = Some(mode);
+        run.session_recreated = false; // Reset for new restart cycle
+
         let resume_state = match &mut run.resume_state {
             Some(s) => s,
             None => return,
         };
 
-        // Determine phase index from current phase name.
-        // P1-001 FIX: Use a deterministic hash of the phase name so the same phase
-        // always maps to the same index. The previous approach (phase_retries.len())
-        // gave each retry a NEW index, defeating the per-phase retry budget.
-        let phase_name = run.current_phase_name.clone().unwrap_or_default();
-        let phase_index = {
-            use std::hash::{Hash, Hasher};
-            let mut h = std::collections::hash_map::DefaultHasher::new();
-            phase_name.hash(&mut h);
-            (h.finish() % 1000) as u32
-        };
+        match mode {
+            RecoveryMode::Evaluate => {
+                // Arc is done — don't count as a restart
+                self.status_message = Some("Arc completed during timeout — evaluating".into());
+                if let Some(run) = &mut self.current_run {
+                    run.merge_detected_at = Some(Instant::now());
+                }
+                return;
+            }
+            RecoveryMode::Retry => {
+                let max_retries = env_or_u64("TORRENT_MAX_RETRIES", 3) as u32;
+                if resume_state.retry_count >= max_retries {
+                    self.status_message = Some(format!(
+                        "Pre-arc retry budget exhausted ({}/{}) — skipping plan",
+                        resume_state.retry_count, max_retries
+                    ));
+                    let _ = resume_state.save();
+                    self.cleanup_skipped_plan();
+                    return;
+                }
+                resume_state.retry_count += 1;
+                resume_state.record_restart(0, "pre_arc", "phase_timeout", RecoveryMode::Retry);
+            }
+            RecoveryMode::Resume => {
+                // P1-001 FIX: Use a deterministic hash of the phase name so the same phase
+                // always maps to the same index.
+                let phase_name = run.current_phase_name.clone().unwrap_or_default();
+                let phase_index = {
+                    use std::hash::{Hash, Hasher};
+                    let mut h = std::collections::hash_map::DefaultHasher::new();
+                    phase_name.hash(&mut h);
+                    (h.finish() % 1000) as u32
+                };
 
-        // Check if we should skip this plan
-        if resume_state.should_skip(phase_index, max_resumes) {
+                if resume_state.should_skip(phase_index, max_resumes) {
+                    self.status_message = Some(format!(
+                        "Phase {} stuck {} times — skipping plan",
+                        phase_name, max_resumes
+                    ));
+                    let _ = resume_state.save();
+                    self.cleanup_skipped_plan();
+                    return;
+                }
+
+                resume_state.record_restart(phase_index, &phase_name, "phase_timeout", RecoveryMode::Resume);
+                resume_state.resume_count += 1;
+            }
+        }
+
+        // Rapid failure escalation: skip immediately if 3+ restarts in <30s
+        if resume_state.should_skip_rapid() {
+            let phase_name = run.current_phase_name.clone().unwrap_or_else(|| "pre_arc".into());
             self.status_message = Some(format!(
-                "Phase {} stuck {} times — skipping plan",
-                phase_name, max_resumes
+                "RAPID FAILURE: {} restarts in <30s on {} — skipping plan (systemic issue)",
+                resume_state.total_restarts, phase_name
             ));
-            // Save state, then cleanup and move to next plan
             let _ = resume_state.save();
             self.cleanup_skipped_plan();
             return;
         }
 
-        // Record the restart
-        resume_state.record_restart(phase_index, &phase_name, "phase_timeout");
-
-        // Rapid failure detection (AC8): if 3+ restarts within 5 minutes, warn
-        if resume_state.is_rapid_failure() {
-            self.status_message = Some(format!(
-                "RAPID FAILURE: {} retries in <5 min on phase {} — possible systemic issue",
-                resume_state.total_restarts, phase_name
-            ));
-        }
-
         let _ = resume_state.save();
 
-        // Set cooldown
+        // Escalating cooldown based on restart density
+        let cooldown_secs = resume_state.effective_cooldown(
+            env_or_u64("TORRENT_RESTART_COOLDOWN", 60) // default increased from 30 to 60
+        );
         run.restart_cooldown_until = Some(Instant::now() + Duration::from_secs(cooldown_secs));
 
+        let phase_name = run.current_phase_name.clone().unwrap_or_else(|| "pre_arc".into());
         self.status_message = Some(format!(
-            "Phase timeout on {} — restarting in {}s (attempt {}/{})",
-            phase_name, cooldown_secs,
-            resume_state.phase_retries.get(&phase_index).copied().unwrap_or(0),
-            max_resumes
+            "{} timeout on {} — restarting in {}s (mode: {:?})",
+            match mode { RecoveryMode::Retry => "Pre-arc", _ => "Phase" },
+            phase_name, cooldown_secs, mode
         ));
+    }
+
+    /// Determine recovery mode based on current RunState.
+    /// Must be called BEFORE session recreation resets run.arc/last_status.
+    fn determine_recovery_mode(run: &RunState) -> crate::resume::RecoveryMode {
+        use crate::resume::RecoveryMode;
+
+        if let Some(ref status) = run.last_status {
+            if status.completion.is_some() {
+                return RecoveryMode::Evaluate; // Arc finished, just record result
+            }
+            return RecoveryMode::Resume; // Arc was tracked, has phase progress
+        }
+        if run.arc.is_some() {
+            return RecoveryMode::Resume; // Arc discovered, checkpoint exists
+        }
+        RecoveryMode::Retry // Arc never started or wasn't discovered
     }
 
     /// Check if a restart cooldown has expired and execute the restart.
@@ -1966,9 +2082,11 @@ impl App {
             None => return,
         };
 
-        if Instant::now() < cooldown_deadline {
-            // Show countdown in status
-            let remaining = cooldown_deadline.duration_since(Instant::now()).as_secs();
+        let now = Instant::now();
+        if now < cooldown_deadline {
+            // Show countdown in status (single `now` capture avoids TOCTOU panic
+            // where Instant::duration_since underflows between two Instant::now() calls)
+            let remaining = cooldown_deadline.duration_since(now).as_secs();
             if remaining > 0 {
                 self.status_message = Some(format!(
                     "Restarting in {}s...", remaining
@@ -1978,11 +2096,12 @@ impl App {
         }
 
         // Cooldown expired — check if session already recreated (phase 2: send command)
-        // If arc is None and tmux session exists, we're in the init-wait phase
-        let has_arc = run.arc.is_some();
+        // FLAW-001 FIX: Use `session_recreated` flag instead of `run.arc.is_some()`.
+        // The old check failed for Retry mode (arc is always None → infinite Phase 1 loop).
+        let already_recreated = run.session_recreated;
         let plan_path = run.plan.path.clone();
 
-        if !has_arc {
+        if !already_recreated {
             // Phase 1: Cooldown just expired — create session + set init wait
             let config_idx = run.config_idx;
             let config = match self.config_dirs.get(config_idx) {
@@ -2005,6 +2124,7 @@ impl App {
                         run.launched_at = Instant::now();
                         run.arc = None;
                         run.last_status = None;
+                        run.session_recreated = true; // FLAW-001 FIX: mark Phase 1 done
                     }
                     self.tmux_session_id = Some(new_session_id);
                     self.last_discovery_poll = None;
@@ -2016,15 +2136,36 @@ impl App {
                 }
             }
         } else {
-            // Phase 2: Init wait expired + session discovered — send /arc --resume
-            if let Err(e) = crate::tmux::Tmux::send_arc_resume_command(
-                &run.tmux_session, &plan_path
-            ) {
-                self.status_message = Some(format!("Failed to send /arc --resume: {}", e));
-            } else {
-                self.status_message = Some("Auto-resumed with /arc --resume".into());
+            // Phase 2: Init wait expired — send appropriate command based on recovery mode
+            let mode = run.recovery_mode.unwrap_or(crate::resume::RecoveryMode::Retry);
+            let session = run.tmux_session.clone();
+
+            match mode {
+                crate::resume::RecoveryMode::Retry => {
+                    // Fresh start — no checkpoint, arc never ran
+                    if Self::send_arc_with_retry(&session, &plan_path, 3).is_none() {
+                        self.status_message = Some("Failed to send /arc (retry)".into());
+                    } else {
+                        self.status_message = Some("Retrying with fresh /arc".into());
+                    }
+                }
+                crate::resume::RecoveryMode::Resume => {
+                    // Mid-arc crash — checkpoint exists, resume from last phase
+                    if Self::send_arc_resume_with_retry(&session, &plan_path, 3).is_none() {
+                        self.status_message = Some("Failed to send /arc --resume".into());
+                    } else {
+                        self.status_message = Some("Resuming with /arc --resume".into());
+                    }
+                }
+                crate::resume::RecoveryMode::Evaluate => {
+                    // Arc completed but session died before torrent detected it
+                    self.status_message = Some("Arc completed — evaluating result".into());
+                    if let Some(run) = &mut self.current_run {
+                        run.merge_detected_at = Some(Instant::now());
+                    }
+                }
             }
-            // Clear cooldown — resume is now running
+            // Clear cooldown — command sent (or evaluate triggered)
             if let Some(run) = &mut self.current_run {
                 run.restart_cooldown_until = None;
             }
@@ -2061,6 +2202,21 @@ impl App {
         let total = self.queue_total_items();
         if total > 0 && self.queue_cursor >= total {
             self.queue_cursor = total - 1;
+        }
+    }
+
+    /// Check if a resumable checkpoint exists for this plan.
+    /// Looks for arc-phase-loop.local.md and verifies the plan matches.
+    fn check_existing_checkpoint(&self, plan: &PlanFile) -> bool {
+        let cwd = std::env::current_dir().unwrap_or_default();
+        match monitor::read_arc_loop_state(&cwd) {
+            Some(state) => {
+                // FLAW-003 FIX: Use filename-based matching (plans_match) instead of
+                // bidirectional contains() which false-positives on substrings and empty strings.
+                let plan_str = plan.path.display().to_string();
+                plans_match(&plan_str, &state.plan_file)
+            }
+            None => false,
         }
     }
 
@@ -2263,26 +2419,42 @@ impl App {
         }
     }
 
-    /// Send /arc command with retry logic. Returns Some(()) on success, None on failure.
+    /// Send a tmux command with retry logic. Returns Some(()) on success, None on failure.
     /// Uses exponential backoff between retries (5s, then 10s).
-    fn send_arc_with_retry(session_id: &str, plan_path: &Path, max_attempts: u8) -> Option<()> {
+    fn send_with_retry(
+        session_id: &str,
+        plan_path: &Path,
+        max_attempts: u8,
+        send_fn: fn(&str, &Path) -> color_eyre::Result<()>,
+        label: &str,
+    ) -> Option<()> {
         let mut delay_secs = 5;
 
         for attempt in 1..=max_attempts {
-            match Tmux::send_arc_command(session_id, plan_path) {
+            match send_fn(session_id, plan_path) {
                 Ok(()) => return Some(()),
                 Err(e) if attempt < max_attempts => {
-                    eprintln!("send /arc attempt {} failed: {}, retrying in {}s", attempt, e, delay_secs);
+                    eprintln!("send {} attempt {} failed: {}, retrying in {}s", label, attempt, e, delay_secs);
                     std::thread::sleep(Duration::from_secs(delay_secs));
-                    delay_secs *= 2; // exponential backoff: 5s -> 10s
+                    delay_secs *= 2;
                 }
                 Err(e) => {
-                    eprintln!("send /arc failed after {} attempts: {}", max_attempts, e);
+                    eprintln!("send {} failed after {} attempts: {}", label, max_attempts, e);
                     return None;
                 }
             }
         }
         None
+    }
+
+    /// Send /arc command with retry logic.
+    fn send_arc_with_retry(session_id: &str, plan_path: &Path, max_attempts: u8) -> Option<()> {
+        Self::send_with_retry(session_id, plan_path, max_attempts, Tmux::send_arc_command, "/arc")
+    }
+
+    /// Send /arc --resume command with retry logic.
+    fn send_arc_resume_with_retry(session_id: &str, plan_path: &Path, max_attempts: u8) -> Option<()> {
+        Self::send_with_retry(session_id, plan_path, max_attempts, Tmux::send_arc_resume_command, "/arc --resume")
     }
 }
 
@@ -2337,21 +2509,54 @@ mod tests {
     }
 
     #[test]
+    fn test_phase_category_qa() {
+        assert_eq!(phase_category("forge_qa"), "qa");
+        assert_eq!(phase_category("work_qa"), "qa");
+        assert_eq!(phase_category("gap_analysis_qa"), "qa");
+        assert_eq!(phase_category("code_review_qa"), "qa");
+        assert_eq!(phase_category("mend_qa"), "qa");
+        assert_eq!(phase_category("test_qa"), "qa");
+    }
+
+    #[test]
+    fn test_phase_category_analysis() {
+        assert_eq!(phase_category("gap_analysis"), "analysis");
+        assert_eq!(phase_category("codex_gap_analysis"), "analysis");
+        assert_eq!(phase_category("goldmask_verification"), "analysis");
+        assert_eq!(phase_category("goldmask_correlation"), "analysis");
+        assert_eq!(phase_category("semantic_verification"), "analysis");
+        assert_eq!(phase_category("gap_remediation"), "analysis");
+        assert_eq!(phase_category("plan_refine"), "analysis");
+        assert_eq!(phase_category("verification"), "analysis");
+        assert_eq!(phase_category("drift_review"), "analysis");
+    }
+
+    #[test]
+    fn test_phase_category_review_explicit() {
+        assert_eq!(phase_category("plan_review"), "review");
+        assert_eq!(phase_category("code_review"), "review");
+        assert_eq!(phase_category("mend"), "review");
+        assert_eq!(phase_category("verify_mend"), "review");
+        assert_eq!(phase_category("storybook_verification"), "review");
+        assert_eq!(phase_category("design_verification"), "review");
+        assert_eq!(phase_category("ux_verification"), "review");
+    }
+
+    #[test]
     fn test_phase_category_defaults_to_review() {
         // Unknown phases fall back to "review" category
-        assert_eq!(phase_category("code_review"), "review");
-        assert_eq!(phase_category("gap_analysis"), "review");
         assert_eq!(phase_category("unknown_phase_xyz"), "review");
         assert_eq!(phase_category(""), "review");
     }
 
     #[test]
     fn test_phase_timeout_config_defaults() {
-        // No env vars set — all lookups should return the default 60 minutes
+        // No timeouts configured — all lookups should return the default_timeout
         let config = PhaseTimeoutConfig {
             timeouts: HashMap::new(),
             default_timeout: Duration::from_secs(60 * 60),
         };
+        // With empty timeouts map, everything falls through to default_timeout
         assert_eq!(config.timeout_for("forge"), Duration::from_secs(3600));
         assert_eq!(config.timeout_for("work"), Duration::from_secs(3600));
         assert_eq!(config.timeout_for("test"), Duration::from_secs(3600));
@@ -2435,12 +2640,16 @@ mod tests {
 
         let config = PhaseTimeoutConfig::from_env();
 
-        // Work category should be 120 minutes
+        // Work category should be 120 minutes (env override)
         assert_eq!(config.timeout_for("work"), Duration::from_secs(120 * 60));
         // Default should be 45 minutes
         assert_eq!(config.default_timeout, Duration::from_secs(45 * 60));
-        // Unconfigured category uses the custom default
-        assert_eq!(config.timeout_for("forge"), Duration::from_secs(45 * 60));
+        // Forge gets its category default (30 min), not TORRENT_TIMEOUT_DEFAULT
+        assert_eq!(config.timeout_for("forge"), Duration::from_secs(30 * 60));
+        // QA gets its category default (15 min)
+        assert_eq!(config.timeout_for("forge_qa"), Duration::from_secs(15 * 60));
+        // Analysis gets its category default (20 min)
+        assert_eq!(config.timeout_for("gap_analysis"), Duration::from_secs(20 * 60));
 
         // Cleanup
         unsafe {
@@ -2451,7 +2660,7 @@ mod tests {
 
     #[test]
     fn test_phase_timeout_config_from_env_invalid() {
-        // Invalid env var values should be ignored (fallback to default)
+        // Invalid env var values should be ignored (fallback to category default)
         unsafe {
             std::env::set_var("TORRENT_TIMEOUT_TEST", "not_a_number");
             std::env::remove_var("TORRENT_TIMEOUT_DEFAULT"); // ensure clean state
@@ -2459,8 +2668,8 @@ mod tests {
 
         let config = PhaseTimeoutConfig::from_env();
 
-        // Invalid value ignored — test category uses default (60 min)
-        assert_eq!(config.timeout_for("test"), Duration::from_secs(60 * 60));
+        // Invalid value ignored — test category uses its default (30 min)
+        assert_eq!(config.timeout_for("test"), Duration::from_secs(30 * 60));
         assert_eq!(config.default_timeout, Duration::from_secs(60 * 60));
 
         // Cleanup
