@@ -56,10 +56,20 @@ function buildSiblingContext(currentTask, allTasks, taskOwnership) {
   // Build the current task's file list for the "YOU are assigned" line
   const currentFiles = taskOwnership[String(currentTask.id)]?.files || []
 
+  // SEC-002 FIX: Sanitize untrusted task subjects before prompt injection
+  // Task subjects originate from plan content — strip injection vectors
+  const sanitize = (s) => String(s || "")
+    .replace(/[\r\n]+/g, " ")
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/`[^`]+`/g, "")
+    .slice(0, 150)
+    .trim()
+
   // Build markdown context block
   const siblingLines = siblings.map(s => {
     const fileList = s.files.length > 0 ? s.files.join(", ") : "(no files assigned)"
-    return `- ${s.owner}: "${s.subject}" → files: ${fileList}`
+    return `- ${s.owner}: "${sanitize(s.subject)}" → files: ${fileList}`
   })
 
   return `
@@ -68,7 +78,7 @@ function buildSiblingContext(currentTask, allTasks, taskOwnership) {
 Other workers are concurrently implementing:
 ${siblingLines.join("\n")}
 
-YOU are assigned: "${currentTask.subject}" → files: ${currentFiles.join(", ") || "(no files assigned)"}
+YOU are assigned: "${sanitize(currentTask.subject)}" → files: ${currentFiles.join(", ") || "(no files assigned)"}
 
 RULES:
 - Do NOT modify files assigned to other workers

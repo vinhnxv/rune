@@ -67,6 +67,15 @@ for (const task of parsedTasks) {
   // LLM decomposition for COMPOSITE tasks
   const subtasks = decomposeTask(task, maxSubtasks)
 
+  // SEC-003 FIX: Validate LLM-generated file_targets against path traversal
+  // Security pattern: SAFE_FILE_PATH — see security-patterns.md
+  const SAFE_FILE_PATH = /^[a-zA-Z0-9._\-\/]+$/
+  for (const st of subtasks) {
+    st.file_targets = (st.file_targets || []).filter(fp =>
+      SAFE_FILE_PATH.test(fp) && !fp.includes('..') && !fp.startsWith('/')
+    )
+  }
+
   // Post-decomposition validation (EC-2): detect overlapping file targets
   const validated = validateSubtaskOverlaps(subtasks)
 
@@ -75,9 +84,17 @@ for (const task of parsedTasks) {
     validated[i].parent_task_id = task.id
     validated[i].id = `${task.id}-sub-${i + 1}`
     // Inherit parent's blockedBy + subtask-specific depends_on
+    // BACK-001 FIX: Resolve depends_on 0-based indices to actual subtask IDs
+    // depends_on contains indices into the validated array, not task IDs
+    const resolvedDeps = (validated[i].depends_on || []).map(depIdx => {
+      if (typeof depIdx === 'number' && depIdx >= 0 && depIdx < validated.length) {
+        return `${task.id}-sub-${depIdx + 1}`  // Convert index to subtask ID
+      }
+      return String(depIdx)  // Pass through if already a string ID
+    })
     validated[i].blockedBy = [
       ...(task.blockedBy || []),
-      ...(validated[i].depends_on || [])
+      ...resolvedDeps
     ]
     // Inherit parent's type if not set
     validated[i].type = validated[i].type || task.type
@@ -141,10 +158,25 @@ function detectMultipleLayers(fileTargets) {
  * @returns {string} "ATOMIC" or "COMPOSITE"
  */
 function classifyTask(task) {
+  // SEC-001 FIX: Sanitize untrusted task fields before LLM prompt injection
+  // task.subject originates from plan content (untrusted) — strip injection vectors
+  const sanitize = (s) => String(s || "")
+    .replace(/[\r\n]+/g, " ")        // Collapse newlines (prevent prompt line injection)
+    .replace(/```[\s\S]*?```/g, "")   // Strip code fences
+    .replace(/<[^>]*>/g, "")          // Strip HTML/XML tags
+    .replace(/`[^`]+`/g, "")          // Strip inline code
+    .slice(0, 200)                     // Cap length
+    .trim()
+
+  const safeSubject = sanitize(task.subject)
+  const safeTargets = (task.file_targets || [])
+    .filter(fp => /^[a-zA-Z0-9._\-\/]+$/.test(fp) && !fp.includes('..'))
+    .slice(0, 20)
+
   const prompt = `You are a task classifier for a coding workflow.
 
-Task: "${task.subject}"
-File targets: ${JSON.stringify(task.file_targets || [])}
+Task: "${safeSubject}"
+File targets: ${JSON.stringify(safeTargets)}
 Type: ${task.type || "impl"}
 
 Classify as ATOMIC (one worker, single concern) or COMPOSITE (should split).
