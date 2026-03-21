@@ -1,3 +1,5 @@
+#[macro_use]
+mod console;
 mod app;
 mod callback;
 mod channel;

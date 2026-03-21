@@ -2717,7 +2717,7 @@ impl App {
                     restarts: completed.resume_restarts.clone().unwrap_or_default(),
                 };
                 if let Err(e) = crate::log::append_run_log(&entry) {
-                    eprintln!("warning: failed to write run log: {}", e);
+                    tlog!(WARN, "failed to write run log: {}", e);
                 }
 
                 // Set inter-plan cooldown if merge/ship succeeded and more plans queued
@@ -2759,12 +2759,12 @@ impl App {
             match send_fn(session_id, plan_path) {
                 Ok(()) => return Some(()),
                 Err(e) if attempt < max_attempts => {
-                    eprintln!("send {} attempt {} failed: {}, retrying in {}s", label, attempt, e, delay_secs);
+                    tlog!(WARN, "send {} attempt {} failed: {}, retrying in {}s", label, attempt, e, delay_secs);
                     std::thread::sleep(Duration::from_secs(delay_secs));
                     delay_secs *= 2;
                 }
                 Err(e) => {
-                    eprintln!("send {} failed after {} attempts: {}", label, max_attempts, e);
+                    tlog!(ERROR, "send {} failed after {} attempts: {}", label, max_attempts, e);
                     return None;
                 }
             }

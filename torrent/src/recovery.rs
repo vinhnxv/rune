@@ -641,7 +641,7 @@ fn wait_for_recovery(
 ///
 /// Uses the JSONL run log from F5 if available, otherwise prints to stderr.
 fn tracing_log(msg: &str) {
-    eprintln!("[recovery] {msg}");
+    tlog!(INFO, "[recovery] {msg}");
 }
 
 #[cfg(test)]

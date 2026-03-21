@@ -272,7 +272,7 @@ fn handle_request(mut request: tiny_http::Request, tx: &mpsc::Sender<ChannelEven
             match parse_event(&body) {
                 Ok(event) => {
                     if tx.send(event).is_err() {
-                        eprintln!("callback: event dropped (receiver disconnected)");
+                        tlog!(WARN, "callback: event dropped (receiver disconnected)");
                         let _ = request.respond(
                             tiny_http::Response::from_string("server shutting down")
                                 .with_status_code(503),
