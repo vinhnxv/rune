@@ -300,16 +300,6 @@ All settings are optional. Defaults shown above. When `discipline.echoes.enabled
 
 ---
 
-## See Also
-
-- [metrics-schema.md](metrics-schema.md) — SCR, first-pass rate, and other discipline metrics
-- [failure-codes.md](failure-codes.md) — F1-F17 failure code registry
-- [evidence-convention.md](evidence-convention.md) — Evidence directory layout and summary.json schema
-- [anti-rationalization.md](anti-rationalization.md) — Rationalization patterns and detection
-- [../../rune-echoes/SKILL.md](../../rune-echoes/SKILL.md) — Rune Echoes memory lifecycle
-
----
-
 ## 6. DEFERRED Accountability Protocol (v2.9.0)
 
 Classification rules for DEFERRED findings in gap remediation. Prevents AI agents from
@@ -353,3 +343,13 @@ A DEFERRED finding creates dead code when:
 **Why track**: Rising `shirking_count` across arc runs indicates agent discipline around wiring
 tasks is degrading. `forced_fix_count > 0` means the anti-shirking protocol is actively catching
 deferred wiring tasks that would have created dead code.
+
+---
+
+## See Also
+
+- [metrics-schema.md](metrics-schema.md) — SCR, first-pass rate, and other discipline metrics
+- [failure-codes.md](failure-codes.md) — F1-F17 failure code registry
+- [evidence-convention.md](evidence-convention.md) — Evidence directory layout and summary.json schema
+- [anti-rationalization.md](anti-rationalization.md) — Rationalization patterns and detection
+- [../../rune-echoes/SKILL.md](../../rune-echoes/SKILL.md) — Rune Echoes memory lifecycle

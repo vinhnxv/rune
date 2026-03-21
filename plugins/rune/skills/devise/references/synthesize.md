@@ -37,7 +37,11 @@ AskUserQuestion({
 
    // Anti-Shirking Protocol (v2.9.0): Wiring map is MANDATORY when plan introduces
    // new commands, hooks, or entry points. Detection via regex on plan content.
-   const introducesNewEntryPoints = /new\s+(sub)?command|add.*routing|register.*hook|new.*entry.?point|wire.*into|add.*to.*SKILL/i
+   // NOTE: finding.description is untrusted input (Truthbinding Core Rule 4).
+   // This heuristic classification can be overridden by human review.
+   // Patterns use word boundaries and restricted wildcards to reduce false positives
+   // from descriptive prose (see BACK-006, SEC-006).
+   const introducesNewEntryPoints = /\bnew\s+(sub)?command\b|\badd\s+(?:new\s+)?routing\b|\bregister\s+(?:new\s+)?hook\b|\bnew\s+entry\s?point\b|\bwire\s+\S+\s+into\b|\badd\s+\S+\s+to\s+SKILL\b/i
      .test(planContent)
 
    if (introducesNewEntryPoints && detailLevel !== 'minimal') {
