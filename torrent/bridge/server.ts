@@ -11,7 +11,13 @@
  *
  * Channels are OUTBOUND-ONLY (Claude → Torrent) due to v2.1.80 inbound bugs
  * (#36477, #36691). Torrent → Claude commands still use tmux send-keys.
+ *
+ * Experimental: check_inbox tool allows Claude to poll for messages from Torrent
+ * via a filesystem queue (TORRENT_INBOX_DIR or tmp/bridge-inbox/).
  */
+
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -155,6 +161,15 @@ const TOOLS = [
       required: ["activity", "session_id"],
     },
   },
+  {
+    name: "check_inbox",
+    description:
+      "Check for pending messages from Torrent orchestrator. Call periodically during long operations to receive commands.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
 ];
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -203,6 +218,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       return {
         content: [{ type: "text", text: "reported" }],
       };
+    }
+    case "check_inbox": {
+      // Poll for messages from Torrent via filesystem queue
+      const inboxDir = process.env.TORRENT_INBOX_DIR || "tmp/bridge-inbox";
+      try {
+        if (!fs.existsSync(inboxDir)) {
+          return { content: [{ type: "text", text: "no messages" }] };
+        }
+        const files = fs.readdirSync(inboxDir)
+          .filter((f: string) => f.endsWith(".msg"))
+          .sort(); // oldest first
+        if (files.length === 0) {
+          return { content: [{ type: "text", text: "no messages" }] };
+        }
+        // Read and delete messages (consume pattern)
+        const messages: string[] = [];
+        for (const file of files) {
+          const filePath = path.join(inboxDir, file);
+          const content = fs.readFileSync(filePath, "utf-8").trim();
+          if (content) messages.push(content);
+          fs.unlinkSync(filePath); // consume after reading
+        }
+        if (messages.length === 0) {
+          return { content: [{ type: "text", text: "no messages" }] };
+        }
+        return {
+          content: [{ type: "text", text: `[torrent] ${messages.join("\n[torrent] ")}` }],
+        };
+      } catch (err) {
+        return { content: [{ type: "text", text: "no messages" }] };
+      }
     }
     default:
       return {
