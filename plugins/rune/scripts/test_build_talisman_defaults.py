@@ -568,20 +568,17 @@ class TestEdgeCasesBuildDefaultsFileIO:
         assert exc_info.value.code == 1
 
     def test_build_defaults_invalid_yaml_raises(self, tmp_path, monkeypatch):
-        """test_invalid_yaml_raises — build_defaults propagates yaml.YAMLError for malformed YAML.
+        """test_invalid_yaml_raises — build_defaults exits with code 1 for malformed YAML.
 
-        The source does NOT catch yaml.YAMLError, so the raw exception propagates to
-        the caller (yaml.scanner.ScannerError or yaml.parser.ParserError, both subclass
-        yaml.YAMLError).
+        The source catches yaml.YAMLError and calls sys.exit(1) with an error message.
         """
-        import yaml as _yaml
-
         example = tmp_path / "talisman.example.yml"
         example.write_text("key: [\nbad yaml\n", encoding="utf-8")
         monkeypatch.setattr(_mod, "EXAMPLE_FILE", str(example))
         monkeypatch.setattr(_mod, "OUTPUT_FILE", str(tmp_path / "output.json"))
-        with pytest.raises(_yaml.YAMLError):
+        with pytest.raises(SystemExit) as exc_info:
             _mod.build_defaults()
+        assert exc_info.value.code == 1
 
     def test_build_defaults_empty_yaml_exits(self, tmp_path, monkeypatch):
         """test_empty_yaml_file_exits — completely empty YAML file causes sys.exit(1)."""
