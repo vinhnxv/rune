@@ -115,19 +115,23 @@ log(`Waiting ${INITIAL_WAIT_MS / 1000}s for review bots to start...`)
 Bash(`sleep ${Math.round(INITIAL_WAIT_MS / 1000)}`)
 
 // 5. Get head commit SHA for check runs
-const headSha = Bash("git rev-parse HEAD").trim()
+let headSha = Bash("git rev-parse HEAD").trim()
 
 // 5b. evaluateCheckRuns — consolidated check-run evaluation (replaces 4 separate API calls)
 // Handles all 8 GitHub conclusion values with configurable allowlist.
 function evaluateCheckRuns(owner, repo, sha) {
   const conclusionAllowlist = botReviewConfig.conclusion_allowlist
     ?? ["success", "skipped", "neutral"]
+  // BACK-001 FIX: Interpolate configurable allowlist into jq filter (was hardcoded)
+  // SEC: conclusionAllowlist values are validated — only lowercase alpha strings allowed
+  const safeAllowlist = conclusionAllowlist.filter(c => /^[a-z_]+$/.test(c))
+  const jqAllowlistLiteral = JSON.stringify(safeAllowlist)  // e.g., '["success","skipped","neutral"]'
   // Single gh api call with compound --jq filter — reduces rate limit usage by 75%
   const raw = Bash(`${GH_ENV} gh api "repos/${owner}/${repo}/commits/${sha}/check-runs" --jq '{
     total: (.check_runs | length),
     completed: [.check_runs[] | select(.status == "completed")] | length,
     in_progress: [.check_runs[] | select(.status == "in_progress")] | length,
-    passed: [.check_runs[] | select(.status == "completed" and (.conclusion as $c | ["success","skipped","neutral"] | any(. == $c)))] | length,
+    passed: [.check_runs[] | select(.status == "completed" and (.conclusion as $c | ${jqAllowlistLiteral} | any(. == $c)))] | length,
     failed: [.check_runs[] | select(.status == "completed" and .conclusion == "failure")] | length,
     failures: [.check_runs[] | select(.status == "completed" and .conclusion == "failure") | {id: .id, name: .name, conclusion: .conclusion, html_url: .html_url}],
     blocking: [.check_runs[] | select(.status == "completed" and (.conclusion as $c | ["timed_out","action_required"] | any(. == $c))) | {id: .id, name: .name, conclusion: .conclusion}],
@@ -137,11 +141,8 @@ function evaluateCheckRuns(owner, repo, sha) {
 
   try {
     const result = JSON.parse(raw)
-    // Apply configurable conclusion allowlist (override default success/skipped/neutral)
-    // Re-classify: conclusions in allowlist count as passed, others re-evaluated
-    if (conclusionAllowlist.join(',') !== "success,skipped,neutral") {
-      // Custom allowlist — re-count from raw data
-      log(`Using custom conclusion allowlist: [${conclusionAllowlist.join(', ')}]`)
+    if (safeAllowlist.join(',') !== "success,skipped,neutral") {
+      log(`Using custom conclusion allowlist: [${safeAllowlist.join(', ')}]`)
     }
     return result
   } catch (e) {
@@ -161,7 +162,7 @@ let lastCheckRunCount = 0
 let lastMaxUpdatedAt = ""
 
 while (Date.now() - phaseStart < HARD_TIMEOUT_MS) {
-  // L-6 FIX: Check GitHub API rate limit before polling cycle (4 API calls per cycle).
+  // L-6 FIX: Check GitHub API rate limit before polling cycle (1 check-run + 2 comment/review API calls per cycle).
   // If remaining < 50, back off with exponential delay to avoid hitting the limit.
   const rateLimitRaw = Bash(`${GH_ENV} gh api rate_limit --jq '.rate.remaining' 2>/dev/null || echo "5000"`).trim()
   const rateLimitRemaining = parseInt(rateLimitRaw, 10)
@@ -174,7 +175,7 @@ while (Date.now() - phaseStart < HARD_TIMEOUT_MS) {
   }
 
   // Signal 1: Check Runs — consolidated single API call (was 4 calls pre-v26)
-  const checkResult = evaluateCheckRuns(owner, repo, headSha)
+  let checkResult = evaluateCheckRuns(owner, repo, headSha)
   const totalCheckRuns = String(checkResult.total)
   const completedCheckRuns = String(checkResult.completed)
   const inProgressCheckRuns = String(checkResult.in_progress)
@@ -322,7 +323,11 @@ ${fc.annotations.map(a => `- **${a.path}:${a.start_line}** [${a.annotation_level
 5. Report what you fixed and what remains unfixed
 `
 
-      // Spawn ci-fixer as a subagent (no team — inline in orchestrator phase)
+      // BACK-003 FIX: ATE-1 exemption — ci-fixer runs as bare Agent (no team_name).
+      // Rationale: bot_review_wait is an orchestrator-only phase (no TeamCreate).
+      // The ci-fixer is a short-lived inline subagent, not a persistent teammate.
+      // enforce-teams.sh Signal 4 allows this because bot_review_wait does not
+      // create teams — the ATE-1 contract applies to team-spawning phases only.
       const fixerResult = Agent({
         description: "Fix CI failures",
         prompt: ciFixerPrompt,
@@ -433,6 +438,12 @@ Timeout: ${HARD_TIMEOUT_MS / 1000}s
 - Check runs completed: ${lastCheckRunCount}
 - Last bot activity: ${lastActivityTimestamp}
 - Stability window: ${STABILITY_WINDOW_MS / 1000}s
+
+## CI Status
+- CI checks passed: ${checkpoint.ci_status?.passed ?? 'N/A (no CI fix loop triggered)'}
+- Fix attempts: ${checkpoint.ci_status?.attempts ?? 0}
+- Failed checks: ${checkpoint.ci_status?.failed_checks?.join(', ') ?? 'none'}
+- Head SHA: ${checkpoint.ci_status?.head_sha ?? headSha}
 `
 Write(`tmp/arc/${id}/bot-review-wait-report.md`, waitReport)
 

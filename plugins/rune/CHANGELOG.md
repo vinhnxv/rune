@@ -16,6 +16,12 @@
 - **on-task-completed.sh**: Duplicate teammate completion detection — warns when same teammate completes within 60s, indicating possible SDK duplicate spawn (GitHub #32996)
 - **engines.md** `spawnAgent()`: Spawn signal file for duplicate teammate detection (GitHub #32996)
 
+### Security
+- **SEC-CI-1**: CI annotation message sanitization — strips HTML tags, HTML entities, caps at 2000 chars before prompt injection
+- **SEC-CI-2**: Check run ID validation — numeric-only guard prevents shell injection via `check.id`
+- **SEC-CI-3**: Complete conclusion handling — all 8 GitHub conclusion values classified (success/skipped/neutral → passed, failure → failed, timed_out/action_required → blocking, cancelled/stale → non-blocking)
+- **TRUTHBINDING**: ci-fixer agent prompt includes ANCHOR/RE-ANCHOR protocol to prevent instruction injection via CI annotation content
+
 ### Changed
 - **arc checkpoint schema**: v25 → v26 — added `ci_status` top-level field for CI conclusion tracking across fix loop iterations
 - **engines.md** `shutdown()` step 2: Force-reply pattern — send plain text message before `shutdown_request` to ensure silent workers (Read/Write/Bash only) process the shutdown. Batched approach: ~2s total regardless of team size (GitHub #31389)
