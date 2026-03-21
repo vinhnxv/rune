@@ -41,6 +41,7 @@ function buildSiblingContext(currentTask, allTasks, taskOwnership, workConfig) {
   if (!siblingEnabled) return ""
 
   const maxSiblingFiles = siblingConfig?.max_sibling_files ?? 5
+  const maxSiblingTasks = siblingConfig?.max_sibling_tasks ?? 10  // FIX SO-002: cap sibling count
 
   // Collect siblings: other tasks that are not yet completed and not the current task
   const siblings = allTasks
@@ -60,6 +61,7 @@ function buildSiblingContext(currentTask, allTasks, taskOwnership, workConfig) {
       }
     })
     .filter(s => s.targets.length > 0)  // Only show siblings with known file targets
+    .slice(0, maxSiblingTasks)  // FIX SO-002: cap to max_sibling_tasks to prevent token explosion
 
   if (siblings.length === 0) return ""
 

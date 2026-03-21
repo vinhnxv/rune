@@ -83,6 +83,12 @@ function runTaskDecomposition(extractedTasks, workConfig) {
       continue
     }
 
+    // FIX VK-001: Enforce maxSubtasks upper bound — LLM may return more than requested
+    if (subtasks.length > maxSubtasks) {
+      warn(`DECOMPOSITION: task #${task.id} returned ${subtasks.length} subtasks (max ${maxSubtasks}) — truncating`)
+      subtasks.length = maxSubtasks  // truncate in-place
+    }
+
     // Post-decomposition: assign IDs, parent reference, and inherited blockedBy
     for (let i = 0; i < subtasks.length; i++) {
       const subtask = subtasks[i]
@@ -92,7 +98,10 @@ function runTaskDecomposition(extractedTasks, workConfig) {
       subtask.metadata = subtask.metadata ?? {}
       // Inherit parent's blockedBy plus any intra-subtask depends_on references
       const parentBlocked = (task.blockedBy || []).map(String)
-      const subtaskDepends = (subtask.depends_on || []).map(d => `${task.id}-sub-${d}`)
+      // FIX VK-002: depends_on values are 0-based from LLM, subtask IDs are 1-based → add +1
+      const subtaskDepends = (subtask.depends_on || [])
+        .filter(d => Number.isFinite(d) && d >= 0 && d < subtasks.length)  // bounds check
+        .map(d => `${task.id}-sub-${d + 1}`)
       subtask.blockedBy = [...new Set([...parentBlocked, ...subtaskDepends])]
       delete subtask.depends_on  // normalize — strive uses blockedBy, not depends_on
     }
