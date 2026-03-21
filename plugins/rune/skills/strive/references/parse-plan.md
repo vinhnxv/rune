@@ -43,28 +43,17 @@ tasks = [
 ]
 ```
 
-## Phase 0.5: Task Decomposition (v2.5.0+)
+## Phase 1.1: Task Decomposition (Post-Extraction)
 
-After extracting tasks, optionally decompose complex tasks into subtasks using LLM classification.
+After task extraction and file target population complete, large or multi-layer tasks
+are classified and optionally split into atomic subtasks by an LLM. This runs in **Phase 1.1**
+inside `forge-team.md` — **not** in parse-plan.md — because it requires populated `fileTargets`
+and `_complexityScore` (set by `extractFileTargets()` and `scoreTaskComplexity()`).
 
-See [task-decomposition.md](task-decomposition.md) for the full decomposition algorithm.
+**parse-plan.md is responsible for**: extracting raw tasks from the plan.
+**forge-team.md Phase 1.1 is responsible for**: running `runTaskDecomposition()` on the extracted tasks.
 
-```javascript
-// Phase 0.5: Task Decomposition (after parse, before ownership assignment)
-// readTalismanSection: "work"
-const workConfig = readTalismanSection("work")
-const decompositionEnabled = workConfig?.task_decomposition?.enabled ?? true
-
-if (decompositionEnabled) {
-  const { expandTasks } = loadDecompositionModule()  // from task-decomposition.md
-  const expandedTasks = expandTasks(tasks, workConfig)
-  const originalCount = tasks.length
-  tasks = expandedTasks
-  if (tasks.length > originalCount) {
-    log(`Decomposition: ${originalCount} tasks expanded to ${tasks.length} (${tasks.length - originalCount} subtasks created)`)
-  }
-}
-```
+See [task-decomposition.md](task-decomposition.md) for the full classification and decomposition logic.
 
 ## Previous Shard Context (Multi-Shard Plans Only)
 
