@@ -17,10 +17,13 @@ description: |
     /rune:talisman update        — Add missing sections to existing talisman
     /rune:talisman guide [topic] — Explain talisman sections and best practices
     /rune:talisman status        — Show current talisman summary
+    /rune:talisman split         — Split single talisman.yml into 3 companion files
+    /rune:talisman merge         — Merge companion files back into single talisman.yml
 
   Keywords: talisman, config, configuration, setup, init, initialize, scaffold,
   customize, rune config, rune setup, talisman audit, talisman gap, mcp,
-  mcp integration, mcp setup, untitledui, untitled-ui, mcp tools, integrations.
+  mcp integration, mcp setup, untitledui, untitled-ui, mcp tools, integrations,
+  split, merge, companion, ashes, integrations file.
 
   <example>
   user: "/rune:talisman init"
@@ -38,7 +41,7 @@ description: |
   </example>
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[init|audit|update|guide|status]"
+argument-hint: "[init|audit|update|guide|status|split|merge]"
 ---
 
 # /rune:talisman — Configuration Mastery
@@ -62,6 +65,8 @@ Parse `$ARGUMENTS` to determine subcommand:
 | `update` | UPDATE | Add missing sections |
 | `guide` | GUIDE | Explain configuration |
 | `status` | STATUS | Show talisman summary |
+| `split` | SPLIT | Split into 3 companion files |
+| `merge` | MERGE | Merge companions back to single file |
 | (empty) | STATUS | Default to status |
 
 ## INIT — Scaffold New Talisman
@@ -232,6 +237,55 @@ Quick health indicators:
   ✓ arc.timeouts defined
   ✓ integrations: N configured, N connected (if present)
   ✗ Missing: [sections not present]
+```
+
+## SPLIT — Split Into Companion Files
+
+Splits a single `talisman.yml` into 3 files organized by audience. Uses text-based line processing to preserve YAML comments and key ordering.
+
+See [split-merge-protocol.md](references/split-merge-protocol.md) for the full algorithm — section mapping, split/merge procedures, comment preservation strategy, and safety guarantees.
+
+### Algorithm
+
+```
+1. Read .rune/talisman.yml
+   → If missing: suggest INIT instead
+2. Identify top-level sections by regex (^key: at column 0)
+3. Map each section to its companion file (main / ashes / integrations)
+4. Present extraction preview via AskUserQuestion:
+   "Moving N sections to talisman.ashes.yml, M sections to talisman.integrations.yml"
+5. If confirmed:
+   a. Write companion files (ashes first, then integrations)
+   b. Remove extracted sections from main file
+   c. Run talisman-resolve.sh to verify shards are identical
+   d. If verification fails: rollback (restore main, delete companions)
+6. Report: "Split complete. X sections → ashes, Y sections → integrations"
+```
+
+### Safety Guarantees
+
+- `version:` key NEVER moves — stays in main file only
+- Atomic: companions written first, main modified second
+- Shard verification: pre-split vs post-split shards must be identical
+- Rollback on any failure: restore original, delete companions
+
+## MERGE — Merge Companions Back
+
+Inverse of SPLIT — rejoins companion files into a single `talisman.yml`.
+
+See [split-merge-protocol.md](references/split-merge-protocol.md) for the full algorithm.
+
+### Algorithm
+
+```
+1. Discover companion files (.rune/talisman.ashes.yml, .rune/talisman.integrations.yml)
+   → If none found: "No companion files to merge."
+2. Read all files
+3. Concatenate sections: main first, then ashes, then integrations
+4. Write merged .rune/talisman.yml
+5. Delete companion files
+6. Run talisman-resolve.sh to verify shards unchanged
+7. Report: "Merge complete. Single-file talisman.yml restored."
 ```
 
 ## readTalisman Pattern
