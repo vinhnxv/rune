@@ -133,32 +133,36 @@ fn cmd_new_session(args: &[String]) -> String {
         shell_escape(&claude)
     );
 
-    // Append bridge MCP config when channels enabled
+    // Append channel server flag when channels enabled
     if channels {
         let bridge_port = callback_port.checked_add(1).unwrap_or(callback_port.saturating_sub(1));
+
+        // Add env vars for bridge communication
+        env_prefix = format!(
+            "TORRENT_CALLBACK_URL=http://127.0.0.1:{callback_port} \
+             TORRENT_BRIDGE_PORT={bridge_port} \
+             TORRENT_SESSION_ID={session_id} {env_prefix}"
+        );
+
+        // Resolve bridge path
         let bridge_path = std::env::current_dir()
             .map(|cwd| cwd.join("torrent/bridge/server.ts"))
             .unwrap_or_else(|_| std::path::PathBuf::from("torrent/bridge/server.ts"));
         let bridge_str = bridge_path.to_string_lossy().replace('"', r#"\""#);
-
         let mcp_json = format!(
-            concat!(
-                r#"{{"mcpServers":{{"torrent-bridge":{{"#,
-                r#""command":"npx","args":["--yes","tsx","{}"],"#,
-                r#""env":{{"TORRENT_CALLBACK_URL":"http://127.0.0.1:{}","#,
-                r#""TORRENT_BRIDGE_PORT":"{}","#,
-                r#""TORRENT_SESSION_ID":"{}"}}}}}}}}"#,
-            ),
-            bridge_str, callback_port, bridge_port, session_id
+            r#"{{"mcpServers":{{"torrent-bridge":{{"command":"npx","args":["--yes","tsx","{bridge_str}"],"env":{{}}}}}}}}"#
         );
-        cmd.push_str(&format!(" --mcp-config '{mcp_json}'"));
 
-        // Set env hint for send-msg auto-detection
-        env_prefix.push_str(&format!(
-            "TORRENT_CHANNELS_ENABLED=1 TORRENT_CALLBACK_PORT={callback_port} "
-        ));
+        // Both flags needed: --dangerously-load-development-channels enables channel listening,
+        // --mcp-config loads the bridge MCP server
+        cmd = format!(
+            "{env_prefix}{} --dangerously-skip-permissions \
+             --dangerously-load-development-channels server:torrent-bridge \
+             --mcp-config '{mcp_json}'",
+            shell_escape(&claude)
+        );
 
-        eprint!("[torrent-cli] bridge: callback={callback_port} bridge={bridge_port}\r\n");
+        eprint!("[torrent-cli] channels: callback={callback_port} bridge={bridge_port}\r\n");
     }
 
     // Send command to tmux
@@ -174,6 +178,16 @@ fn cmd_new_session(args: &[String]) -> String {
             eprint!("[torrent-cli] error: send Enter failed: {e}\r\n");
             std::process::exit(1);
         });
+
+    // Auto-accept development channels confirmation prompt
+    if channels {
+        eprint!("[torrent-cli] waiting 5s for channels prompt...\r\n");
+        thread::sleep(Duration::from_secs(5));
+        let _ = Command::new("tmux")
+            .args(["send-keys", "-t", &session_id, "Enter"])
+            .output();
+        eprint!("[torrent-cli] channels prompt accepted\r\n");
+    }
 
     eprint!("[torrent-cli] created: {session_id}\r\n");
     session_id

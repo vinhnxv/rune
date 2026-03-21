@@ -152,11 +152,6 @@ impl Tmux {
             ));
         }
 
-        // Resolve absolute path to bridge server for --mcp-config
-        let bridge_abs = std::env::current_dir()
-            .map(|cwd| cwd.join("torrent/bridge/server.ts"))
-            .unwrap_or_else(|_| std::path::PathBuf::from("torrent/bridge/server.ts"));
-
         if !is_default {
             let config_str = config_dir.to_string_lossy();
             env_prefix.push_str(&format!(
@@ -172,23 +167,20 @@ impl Tmux {
             shell_escape(claude_path)
         );
 
-        // Append bridge MCP server via --mcp-config (replaces --dangerously-load-development-channels)
-        if let Some(ch) = channels {
-            // Build inline JSON config for the bridge MCP server.
-            // Env vars are passed explicitly so the MCP subprocess gets them
-            // regardless of shell environment inheritance.
+        // Append channel server flag + MCP config for bridge
+        // Both are needed: --dangerously-load-development-channels enables channel listening,
+        // --mcp-config loads the bridge MCP server that handles channel messages.
+        if channels.is_some() {
+            let bridge_abs = std::env::current_dir()
+                .map(|cwd| cwd.join("torrent/bridge/server.ts"))
+                .unwrap_or_else(|_| std::path::PathBuf::from("torrent/bridge/server.ts"));
             let bridge_path = bridge_abs.to_string_lossy().replace('"', r#"\""#);
             let mcp_json = format!(
-                concat!(
-                    r#"{{"mcpServers":{{"torrent-bridge":{{"#,
-                    r#""command":"npx","args":["--yes","tsx","{}"],"#,
-                    r#""env":{{"TORRENT_CALLBACK_URL":"http://127.0.0.1:{}","#,
-                    r#""TORRENT_BRIDGE_PORT":"{}","#,
-                    r#""TORRENT_SESSION_ID":"{}"}}}}}}}}"#,
-                ),
-                bridge_path, ch.callback_port, ch.bridge_port, session_id
+                r#"{{"mcpServers":{{"torrent-bridge":{{"command":"npx","args":["--yes","tsx","{bridge_path}"],"env":{{}}}}}}}}"#
             );
-            cmd.push_str(&format!(" --mcp-config '{}'", mcp_json));
+            cmd.push_str(&format!(
+                " --dangerously-load-development-channels server:torrent-bridge --mcp-config '{mcp_json}'"
+            ));
         }
 
         // Send command text literally (-l), then Enter separately.
@@ -208,6 +200,17 @@ impl Tmux {
             .args(["send-keys", "-t", session_id, "Enter"])
             .output()
             .map_err(|e| eyre!("send Enter failed: {e}"))?;
+
+        // Auto-accept the development channels confirmation prompt.
+        // Claude Code shows: "❯ 1. I am using this for local development"
+        // Wait for prompt to appear, then send Enter to accept option 1.
+        if channels.is_some() {
+            std::thread::sleep(std::time::Duration::from_secs(5));
+            Command::new("tmux")
+                .args(["send-keys", "-t", session_id, "Enter"])
+                .output()
+                .map_err(|e| eyre!("send channel accept failed: {e}"))?;
+        }
 
         Ok(())
     }
