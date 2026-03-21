@@ -21,6 +21,7 @@ Use torrent when you need config-dir rotation or tmux-based process isolation.
 
 - **tmux** — `brew install tmux` (macOS) or `apt install tmux` (Linux)
 - **Claude Code** — must be on `$PATH`
+- **Bun** — only needed for `--channels` mode: `curl -fsSL https://bun.sh/install | bash`
 
 ## Installation
 
@@ -155,7 +156,7 @@ torrent (TUI)
 └── recovery.rs     — tmux session recovery (output hash-based idle detection)
 
 bridge/
-└── server.ts       — MCP server that forwards arc events from Claude Code to callback
+└── server.ts       — Bun MCP channel server: bidirectional Claude ↔ Torrent + browser UI
 ```
 
 ### Data Flow
@@ -240,7 +241,9 @@ Each arc phase has a timeout (default: 60 minutes). When a phase exceeds its lim
 | `TORRENT_MAX_RESUMES` | Max retries per plan per phase before skipping | 3 |
 | `TORRENT_RESTART_COOLDOWN` | Seconds between automatic restarts | 30 |
 | `TORRENT_CHANNELS_ENABLED` | Enable channels bridge (`1` or `true`) | `false` |
-| `TORRENT_CALLBACK_PORT` | Callback server port (1–65534) | 9900 |
+| `TORRENT_CALLBACK_PORT` | Callback server port (auto-allocated from 9900–9998) | auto |
+| `TORRENT_BRIDGE_PORT` | Bridge HTTP port (auto-allocated, callback+1) | auto |
+| `TORRENT_SESSION_ID` | Session identifier (auto-generated random hex) | auto |
 
 ```bash
 # 120-minute forge timeout, 30-minute ship timeout
@@ -255,48 +258,85 @@ torrent -t forge:120 -t work:90 -t ship:30
 
 ---
 
-## Channels Bridge (Experimental)
+## Channels Bridge
 
-The channels bridge provides a **real-time push communication channel** from Claude Code back to Torrent. Instead of relying solely on file-based polling (checkpoint.json + heartbeat.json), the bridge sends structured events over HTTP as they happen — giving Torrent instant phase updates, heartbeats, and arc completion signals.
+The channels bridge provides **bidirectional real-time communication** between Claude Code and Torrent using the [Channels API](https://code.claude.com/docs/en/channels-reference) (`notifications/claude/channel`).
 
-> **Note:** Channels are **outbound-only** (Claude → Torrent) in v0.7.0. Inbound communication (Torrent → Claude) still uses tmux send-keys.
+### Two Modes
+
+| Mode | Flag | Communication | Use case |
+|------|------|---------------|----------|
+| **File** (default) | — | tmux send-keys + checkpoint polling | Simple, no extra dependencies |
+| **Channels** | `--channels` | Bidirectional MCP + HTTP callback + web UI | Real-time events, browser chat |
+
+Without `--channels`, Torrent uses tmux send-keys and file-based monitoring — no bridge, no ports, no Bun needed.
 
 ### Enabling Channels
 
-Channels are **opt-in** (disabled by default). Enable via CLI flag or environment variable:
-
 ```bash
-# CLI flag (recommended)
+# TUI
 torrent --channels
+
+# CLI
+torrent-cli new-session --config-dir .claude --channels
+
+# Full flow: create + wait + send /arc
+torrent-cli run --config-dir .claude --plan plans/my-plan.md --channels
 
 # Environment variable
 TORRENT_CHANNELS_ENABLED=1 torrent
-
-# Explicitly disable (overrides env var)
-torrent --no-channels
 ```
-
-**Precedence:** CLI flag (`--channels` / `--no-channels`) > `TORRENT_CHANNELS_ENABLED` env var > default (`false`).
 
 ### How It Works
 
-When channels are enabled, Torrent starts two additional services:
-
-1. **Callback Server** — an HTTP server on `127.0.0.1:<port>` (default: 9900) that receives push events from the bridge
-2. **Bridge MCP Server** — a Node.js MCP server (`torrent/bridge/server.ts`) injected into the Claude Code session that forwards arc events to the callback server
-
 ```
-Claude Code (arc phases)
-    │
-    ▼
-torrent-bridge (MCP server, port callback+1)
-    │  POST /event  {"type":"phase", "session_id":"...", ...}
-    ▼
-Callback Server (port 9900)
-    │  mpsc channel
-    ▼
-Torrent TUI (instant phase updates)
+                    ┌─────────────────────────────────────┐
+                    │         torrent-bridge (Bun)         │
+  Torrent TUI      │  MCP stdio ←→ Claude Code            │   Browser UI
+  ─────────────    │                                       │   ──────────
+  POST /msg ──────→│  deliver() ─→ channel notification ──→│   ws://
+  ←── POST /event  │  ←── reply tool ── Claude responds    │──→ WebSocket
+  GET /info ──────→│  session identity                     │   localhost
+                    └─────────────────────────────────────┘
 ```
+
+**Outbound (Claude → Torrent):** Claude calls `report_phase`, `report_complete`, `heartbeat`, `reply` tools → bridge POSTs to Torrent callback server.
+
+**Inbound (Torrent → Claude):** Torrent POSTs to bridge `/msg` → bridge pushes `notifications/claude/channel` → Claude sees `<channel source="torrent-bridge">` tag and responds.
+
+### Port Allocation
+
+Ports are **auto-allocated** from range 9900–9998 to avoid conflicts between concurrent sessions:
+
+```bash
+# Auto-allocate (recommended)
+torrent --channels
+
+# Explicit port (verified free, falls back to auto if busy)
+torrent --channels --callback-port 8800
+```
+
+Each session needs a **port pair** (callback + bridge):
+- Session 1: callback=9900, bridge=9901
+- Session 2: callback=9902, bridge=9903
+
+Ports are verified free via `TcpListener::bind` before use.
+
+### Session Registry
+
+Every session (channels or file mode) is registered at `tmp/torrent-sessions/{id}.meta`:
+
+```ini
+session_id=torrent-a3f7c1b2
+config_dir=/Users/you/.claude
+mode=channels
+callback_port=9900
+bridge_port=9901
+pid=45001
+created_at=2026-03-22T14:30:00Z
+```
+
+Session IDs are random hex (`torrent-{8 hex}`), unique across runs.
 
 ### Event Types
 
@@ -305,47 +345,57 @@ Torrent TUI (instant phase updates)
 | `phase` | Phase starts/completes | `session_id`, `phase`, `status`, `details` |
 | `complete` | Arc finishes | `session_id`, `result`, `pr_url`, `error` |
 | `heartbeat` | Periodic liveness | `session_id`, `activity`, `current_tool` |
+| `reply` | Claude responds to a channel message | `session_id`, `text`, `reply_to` |
 
-### Configuring the Callback Port
+### Browser UI
 
-The callback server defaults to port **9900**. The bridge server runs on `port + 1` (9901).
+When channels are enabled, open `http://127.0.0.1:<bridge_port>` for a real-time chat interface:
 
-```bash
-# CLI flag
-torrent --channels --callback-port 8800
+- Send messages to Claude via WebSocket
+- See Claude's replies in real-time
+- Session info displayed in header
 
-# Environment variable
-TORRENT_CALLBACK_PORT=8800 torrent --channels
-```
+### Bridge Endpoints
 
-**Precedence:** CLI flag > `TORRENT_CALLBACK_PORT` env var > default (9900).
-
-**Port range:** 1–65534 (port+1 must fit in u16). Port 65535 is rejected by the CLI.
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/` | GET | Browser chat UI |
+| `/ping` | GET | Health check → `pong` |
+| `/info` | GET | Session identity JSON |
+| `/msg` | POST | Send message to Claude via channel |
+| `/ws` | WS | WebSocket for browser UI |
 
 ### Channel Health
 
-Torrent monitors channel health automatically:
+- **Health check:** Probes bridge `/ping` every 2 seconds
+- **Auto-disable:** After 3 consecutive failures, channels are disabled — falls back to file monitoring
+- **Stale detection:** No events for 5 minutes → stale (red indicator in TUI)
+- **Session validation:** Events from foreign sessions are silently dropped
 
-- **Health check:** Probes the bridge server every 2 seconds
-- **Auto-disable:** After 3 consecutive failures, channels are disabled for that session — Torrent falls back to file-based monitoring
-- **Stale detection:** Channels with no events for 5 minutes are marked stale (shown as red indicator in TUI)
-- **Session validation:** Events from foreign/stale sessions are silently dropped
+### Channels Prompt Auto-Accept
+
+Claude Code shows a confirmation prompt for development channels. Torrent auto-accepts by polling tmux pane content (up to 10s) for the prompt text, then sending Enter.
 
 ### Fallback Behavior
 
 When channels are disabled, unhealthy, or fail:
 
-- Torrent operates in **file-only monitoring mode** — the same behavior as without channels
-- Phase progress comes from `checkpoint.json` polling
-- Liveness comes from `heartbeat.json` timestamps
-- No functionality is lost; channels only add speed
+- Torrent operates in **file-only monitoring mode** — identical to running without `--channels`
+- Phase progress from `checkpoint.json` polling, liveness from `heartbeat.json`
+- No functionality is lost; channels only add speed and interactivity
+
+### Prerequisites (Channels Only)
+
+- **Bun** — `curl -fsSL https://bun.sh/install | bash` (bridge runtime)
+- **Claude Code v2.1.80+** — channels API support
 
 ### Security
 
-- The callback server binds to `127.0.0.1` only — no external network access
-- The bridge validates `TORRENT_CALLBACK_URL` must use `http:` protocol and point to `localhost`/`127.0.0.1`
-- Events are validated: per-field length limits, session_id matching, and JSON schema checks
-- Events received before a session is established (init window) are dropped
+- Callback and bridge servers bind to `127.0.0.1` only
+- `TORRENT_CALLBACK_URL` validated: must be `http://127.0.0.1`
+- `TORRENT_SESSION_ID` validated: alphanumeric + hyphens/underscores, max 64 chars
+- Per-field length limits on all event payloads
+- Events from unrecognized sessions are dropped
 
 ---
 

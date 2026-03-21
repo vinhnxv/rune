@@ -139,7 +139,7 @@ else
     mkfifo /tmp/torrent-e2e-bridge-in.fifo
 
     # Start bridge with no callback URL (tool calls will skip POST, just return "reported")
-    (cd "$BRIDGE_DIR" && npx --yes tsx server.ts \
+    (cd "$BRIDGE_DIR" && bun server.ts \
         < /tmp/torrent-e2e-bridge-in.fifo \
         > /tmp/torrent-e2e-bridge-out.log \
         2>/tmp/torrent-e2e-bridge-err.log) &
@@ -245,8 +245,8 @@ srv.shutdown()
 
         (cd "$BRIDGE_DIR" && \
             TORRENT_CALLBACK_URL="http://127.0.0.1:${CALLBACK_PORT}" \
-            CLAUDE_SESSION_ID="e2e-test-session" \
-            npx --yes tsx server.ts \
+            TORRENT_SESSION_ID="e2e-test-session" \
+            bun server.ts \
             < /tmp/torrent-e2e-bridge-in.fifo \
             > /tmp/torrent-e2e-bridge-out.log \
             2>/tmp/torrent-e2e-bridge-err.log) &
@@ -372,7 +372,7 @@ for e in events:
 
     (cd "$BRIDGE_DIR" && \
         TORRENT_CALLBACK_URL="http://127.0.0.1:${CALLBACK_PORT}" \
-        npx --yes tsx server.ts \
+        bun server.ts \
         < /tmp/torrent-e2e-bridge-in.fifo \
         > /tmp/torrent-e2e-bridge-out.log \
         2>/tmp/torrent-e2e-bridge-err.log) &

@@ -29,7 +29,15 @@ fn env_or_u64(key: &str, default: u64) -> u64 {
 /// Compare two plan names by filename (ignoring path prefix).
 /// Handles: "plans/foo.md" vs "foo.md" vs "/abs/plans/foo.md".
 fn truncate_str(s: &str, max: usize) -> &str {
-    if s.len() <= max { s } else { &s[..max] }
+    if s.len() <= max {
+        s
+    } else {
+        let mut end = max;
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        &s[..end]
+    }
 }
 
 fn plans_match(a: &str, b: &str) -> bool {
@@ -389,8 +397,17 @@ impl PhaseTimeoutConfig {
     /// Used to skip timeout checking entirely when unconfigured.
     #[allow(dead_code)] // used by UI layer and tests
     pub fn is_default(&self) -> bool {
-        self.timeouts.is_empty()
-            && self.default_timeout == Duration::from_secs(60 * 60)
+        if self.default_timeout != Duration::from_secs(60 * 60) {
+            return false;
+        }
+        let category_defaults: &[(&str, u64)] = &[
+            ("forge", 30), ("work", 45), ("qa", 15),
+            ("analysis", 20), ("test", 30), ("review", 30), ("ship", 20),
+        ];
+        self.timeouts.len() == category_defaults.len()
+            && category_defaults.iter().all(|&(cat, mins)| {
+                self.timeouts.get(cat) == Some(&Duration::from_secs(mins * 60))
+            })
     }
 }
 
@@ -1739,6 +1756,7 @@ impl App {
                 ChannelEvent::PhaseUpdate { session_id, .. } => session_id,
                 ChannelEvent::ArcComplete { session_id, .. } => session_id,
                 ChannelEvent::Heartbeat { session_id, .. } => session_id,
+                ChannelEvent::Reply { session_id, .. } => session_id,
             };
             match &expected_session {
                 Some(expected) if event_session != expected => continue,
@@ -1797,6 +1815,13 @@ impl App {
                         if activity == "active" {
                             run.activity_detector.hash_unchanged_count = 0;
                         }
+                    }
+                }
+                ChannelEvent::Reply { text, .. } => {
+                    self.status_message = Some(format!("[reply] {}", truncate_str(&text, 80)));
+                    self.last_claude_msg = Some(truncate_str(&text, 200).to_string());
+                    if let Some(run) = &mut self.current_run {
+                        run.activity_detector.hash_unchanged_count = 0;
                     }
                 }
             }
@@ -2927,11 +2952,25 @@ mod tests {
 
     #[test]
     fn test_phase_timeout_config_is_default() {
-        let default_config = PhaseTimeoutConfig {
+        // Clean env to avoid interference from parallel tests
+        unsafe {
+            for key in ["TORRENT_TIMEOUT_DEFAULT", "TORRENT_TIMEOUT_FORGE",
+                        "TORRENT_TIMEOUT_WORK", "TORRENT_TIMEOUT_QA",
+                        "TORRENT_TIMEOUT_ANALYSIS", "TORRENT_TIMEOUT_TEST",
+                        "TORRENT_TIMEOUT_REVIEW", "TORRENT_TIMEOUT_SHIP"] {
+                std::env::remove_var(key);
+            }
+        }
+        // from_env() with no env vars populates all 7 category defaults
+        let default_config = PhaseTimeoutConfig::from_env();
+        assert!(default_config.is_default());
+
+        // Empty timeouts map is NOT the default (from_env always populates 7 categories)
+        let empty_config = PhaseTimeoutConfig {
             timeouts: HashMap::new(),
             default_timeout: Duration::from_secs(60 * 60),
         };
-        assert!(default_config.is_default());
+        assert!(!empty_config.is_default());
 
         // Custom default timeout
         let custom_default = PhaseTimeoutConfig {

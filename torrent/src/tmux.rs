@@ -282,6 +282,7 @@ impl Tmux {
 
     /// Capture pane output from a tmux session.
     pub fn capture_pane(session_id: &str, lines: i32) -> Result<String> {
+        validate_session_id(session_id)?;
         let start = format!("-{}", lines);
         let output = Command::new("tmux")
             .args(["capture-pane", "-t", session_id, "-p", "-S", &start])

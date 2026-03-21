@@ -132,13 +132,13 @@ echo ""
 
 echo "[4] Bridge URL validation"
 
-# Test requires Node.js + npm
-if command -v npx &>/dev/null && [ -f "bridge/package.json" ]; then
+# Test requires Bun
+if command -v bun &>/dev/null && [ -f "bridge/package.json" ]; then
     # Ensure deps installed
-    (cd bridge && npm install --silent 2>/dev/null) || true
+    (cd bridge && bun install 2>/dev/null) || true
 
     # file:// protocol should be rejected
-    output=$(TORRENT_CALLBACK_URL="file://127.0.0.1/etc/passwd" npx --yes tsx bridge/server.ts 2>&1 &
+    output=$(TORRENT_CALLBACK_URL="file://127.0.0.1/etc/passwd" bun bridge/server.ts 2>&1 &
         BRIDGE_PID=$!
         sleep 2
         kill $BRIDGE_PID 2>/dev/null || true
@@ -152,7 +152,7 @@ if command -v npx &>/dev/null && [ -f "bridge/package.json" ]; then
     fi
 
     # ftp:// protocol should be rejected
-    output=$(TORRENT_CALLBACK_URL="ftp://127.0.0.1:9900" npx --yes tsx bridge/server.ts 2>&1 || true)
+    output=$(TORRENT_CALLBACK_URL="ftp://127.0.0.1:9900" bun bridge/server.ts 2>&1 || true)
     if echo "$output" | grep -qi "protocol"; then
         pass "ftp:// protocol rejected"
     else
@@ -160,7 +160,7 @@ if command -v npx &>/dev/null && [ -f "bridge/package.json" ]; then
     fi
 
     # Non-localhost hostname should be rejected
-    output=$(TORRENT_CALLBACK_URL="http://evil.com:9900" npx --yes tsx bridge/server.ts 2>&1 || true)
+    output=$(TORRENT_CALLBACK_URL="http://evil.com:9900" bun bridge/server.ts 2>&1 || true)
     if echo "$output" | grep -qi "127.0.0.1"; then
         pass "non-localhost hostname rejected"
     else

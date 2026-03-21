@@ -496,10 +496,21 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
         Some(crate::app::MsgTransport::Tmux) => " ✉→tmux",
         None => "",
     };
+    // Channel info: port + session for channels mode, plain [file] otherwise
+    let channel_port_info = if app.channels_enabled {
+        let port = app.current_run.as_ref()
+            .and_then(|r| r.channel_state.as_ref())
+            .and_then(|cs| cs.bridge_port)
+            .map(|p| format!(":{p}"))
+            .unwrap_or_default();
+        format!("{port}")
+    } else {
+        String::new()
+    };
     let channel_indicator = if app.channels_enabled && channel_active {
-        Span::styled(format!("  [ch]{transport_suffix}"), Style::default().fg(sol::CYAN))
+        Span::styled(format!("  [ch{channel_port_info}]{transport_suffix}"), Style::default().fg(sol::CYAN))
     } else if app.channels_enabled {
-        Span::styled(format!("  [ch?]{transport_suffix}"), Style::default().fg(sol::YELLOW))
+        Span::styled(format!("  [ch?{channel_port_info}]{transport_suffix}"), Style::default().fg(sol::YELLOW))
     } else if transport_suffix.is_empty() {
         Span::styled("  [file]", Style::default().fg(sol::BASE01))
     } else {
@@ -757,14 +768,23 @@ fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {
                 } else {
                     arc.session_id.chars().take(8).collect::<String>()
                 };
-                l.push(Line::from(vec![
+                let mut info_spans = vec![
                     Span::styled("  TMUX:  ", Style::default().fg(sol::BASE01)),
                     Span::styled(run.tmux_session.clone(), Style::default().fg(sol::GREEN)),
                     Span::styled("  CCPID: ", Style::default().fg(sol::BASE01)),
                     Span::styled(ccpid_label, Style::default().fg(sol::CYAN)),
                     Span::styled("  CCID: ", Style::default().fg(sol::BASE01)),
                     Span::styled(ccid_label, Style::default().fg(sol::BLUE)),
-                ]));
+                ];
+                // Show bridge port when channels active
+                if let Some(ref cs) = run.channel_state {
+                    if let Some(port) = cs.bridge_port {
+                        let port_color = if cs.is_active() { sol::CYAN } else { sol::YELLOW };
+                        info_spans.push(Span::styled("  CH: ", Style::default().fg(sol::BASE01)));
+                        info_spans.push(Span::styled(format!(":{port}"), Style::default().fg(port_color)));
+                    }
+                }
+                l.push(Line::from(info_spans));
             }
             // Session enrichment: started, uptime, CWD, MCP, mates
             if let Some(ref si) = run.session_info {

@@ -7,11 +7,10 @@
 //!   torrent-cli list
 //!   torrent-cli kill --session <id>
 
+use std::net::TcpListener;
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
-
-// ureq is in Cargo.toml dependencies — shared with main torrent binary
 
 /// Shell-escape a string by wrapping in single quotes.
 /// Internal single quotes are replaced with `'\''` (end-quote, escaped-quote, start-quote).
@@ -77,8 +76,67 @@ fn resolve_claude() -> String {
     path
 }
 
+/// Generate a random session ID: torrent-{8 hex chars}
 fn gen_session_id() -> String {
-    format!("torrent-{}", std::process::id())
+    let rand_bytes: u32 = rand::random();
+    format!("torrent-{:08x}", rand_bytes)
+}
+
+/// Find an available port in the range [start, end) by attempting to bind.
+/// Returns None if no port is free in the range.
+fn find_free_port(start: u16, end: u16) -> Option<u16> {
+    for port in start..end {
+        if TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            return Some(port);
+        }
+    }
+    None
+}
+
+/// Find a pair of consecutive free ports (callback, bridge) in the range.
+fn find_free_port_pair(range_start: u16, range_end: u16) -> (u16, u16) {
+    // Try to find two consecutive free ports for cleaner allocation
+    let mut port = range_start;
+    while port + 1 < range_end {
+        let cb_ok = TcpListener::bind(("127.0.0.1", port)).is_ok();
+        let br_ok = TcpListener::bind(("127.0.0.1", port + 1)).is_ok();
+        if cb_ok && br_ok {
+            return (port, port + 1);
+        }
+        port += 2;
+    }
+    // Fallback: find any two free ports
+    let cb = find_free_port(range_start, range_end).unwrap_or_else(|| {
+        eprint!("[torrent-cli] error: no free port in {range_start}..{range_end}\r\n");
+        std::process::exit(1);
+    });
+    let br = find_free_port(cb + 1, range_end).unwrap_or_else(|| {
+        eprint!("[torrent-cli] error: no free bridge port after {cb}\r\n");
+        std::process::exit(1);
+    });
+    (cb, br)
+}
+
+/// Session registry dir: tmp/torrent-sessions/
+const SESSION_REGISTRY_DIR: &str = "tmp/torrent-sessions";
+
+/// Write session metadata to registry for later lookup.
+fn register_session(session_id: &str, config_dir: &str, mode: &str, callback_port: u16, bridge_port: u16) {
+    let dir = std::path::Path::new(SESSION_REGISTRY_DIR);
+    let _ = std::fs::create_dir_all(dir);
+    let meta = format!(
+        "session_id={session_id}\n\
+         config_dir={config_dir}\n\
+         mode={mode}\n\
+         callback_port={callback_port}\n\
+         bridge_port={bridge_port}\n\
+         pid={}\n\
+         created_at={}\n",
+        std::process::id(),
+        chrono::Utc::now().to_rfc3339(),
+    );
+    let path = dir.join(format!("{session_id}.meta"));
+    let _ = std::fs::write(&path, meta);
 }
 
 // ── new-session ─────────────────────────────────────────────
@@ -90,9 +148,10 @@ fn cmd_new_session(args: &[String]) -> String {
     let claude = resolve_claude();
     let session_id = get_arg(args, "--session").unwrap_or_else(gen_session_id);
     let channels = args.iter().any(|a| a == "--channels");
-    let callback_port: u16 = get_arg(args, "--callback-port")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(9900);
+    // Port range 9901..9999 for bridge, auto-allocated to avoid conflicts
+    let explicit_callback_port: Option<u16> = get_arg(args, "--callback-port")
+        .and_then(|s| s.parse().ok());
+    let _callback_port: u16 = explicit_callback_port.unwrap_or(0); // resolved in channels block
 
     let home = dirs::home_dir().expect("no home");
     let config_path = if config_dir.starts_with('/') {
@@ -135,24 +194,47 @@ fn cmd_new_session(args: &[String]) -> String {
 
     // Append channel server flag when channels enabled
     if channels {
-        let bridge_port = callback_port.checked_add(1).unwrap_or(callback_port.saturating_sub(1));
+        // Allocate ports: explicit or auto-find free pair in 9900..9998
+        let (cb_port, br_port) = if let Some(explicit) = explicit_callback_port {
+            // Verify explicit port is free
+            let br = explicit.checked_add(1).unwrap_or(explicit);
+            if TcpListener::bind(("127.0.0.1", explicit)).is_err() {
+                eprint!("[torrent-cli] warning: callback port {explicit} in use, auto-allocating\r\n");
+                find_free_port_pair(9900, 9998)
+            } else if TcpListener::bind(("127.0.0.1", br)).is_err() {
+                eprint!("[torrent-cli] warning: bridge port {br} in use, auto-allocating\r\n");
+                find_free_port_pair(9900, 9998)
+            } else {
+                (explicit, br)
+            }
+        } else {
+            find_free_port_pair(9900, 9998)
+        };
 
         // Add env vars for bridge communication
         env_prefix = format!(
-            "TORRENT_CALLBACK_URL=http://127.0.0.1:{callback_port} \
-             TORRENT_BRIDGE_PORT={bridge_port} \
+            "TORRENT_CALLBACK_URL=http://127.0.0.1:{cb_port} \
+             TORRENT_BRIDGE_PORT={br_port} \
              TORRENT_SESSION_ID={session_id} {env_prefix}"
         );
 
         // Bridge MCP server is configured in project .mcp.json (auto-discovered by Claude Code).
-        // Only --dangerously-load-development-channels is needed to enable channel listening.
+        // --dangerously-load-development-channels enables channel listener.
+        // --teammate-mode tmux ensures teammates render in tmux panes.
         cmd = format!(
             "{env_prefix}{} --dangerously-skip-permissions \
+             --teammate-mode tmux \
              --dangerously-load-development-channels server:torrent-bridge",
             shell_escape(&claude)
         );
 
-        eprint!("[torrent-cli] channels: callback={callback_port} bridge={bridge_port}\r\n");
+        eprint!("[torrent-cli] channels: callback={cb_port} bridge={br_port} session={session_id}\r\n");
+
+        // Register session for lookup by Torrent TUI and other tools
+        register_session(&session_id, &config_path, "channels", cb_port, br_port);
+    } else {
+        // File-only mode — no bridge, still register for session tracking
+        register_session(&session_id, &config_path, "file", 0, 0);
     }
 
     // Send command to tmux
@@ -169,14 +251,40 @@ fn cmd_new_session(args: &[String]) -> String {
             std::process::exit(1);
         });
 
-    // Auto-accept development channels confirmation prompt
+    // Auto-accept development channels confirmation prompt.
+    // Claude Code shows a selection menu:
+    //   ❯ 1. I am using this for local development
+    //     2. Exit
+    // Default selection is already "1", so Enter confirms it.
+    // We poll tmux pane content to detect the prompt instead of blind sleep.
     if channels {
-        eprint!("[torrent-cli] waiting 5s for channels prompt...\r\n");
-        thread::sleep(Duration::from_secs(5));
-        let _ = Command::new("tmux")
-            .args(["send-keys", "-t", &session_id, "Enter"])
-            .output();
-        eprint!("[torrent-cli] channels prompt accepted\r\n");
+        eprint!("[torrent-cli] waiting for channels prompt...\r\n");
+        let mut accepted = false;
+        for attempt in 0..20 {
+            thread::sleep(Duration::from_millis(500));
+            // Capture tmux pane content to check if prompt appeared
+            if let Ok(output) = Command::new("tmux")
+                .args(["capture-pane", "-t", &session_id, "-p"])
+                .output()
+            {
+                let pane_text = String::from_utf8_lossy(&output.stdout);
+                if pane_text.contains("local development") || pane_text.contains("Loading development channels") {
+                    // Prompt is visible — send Enter to accept option 1
+                    let _ = Command::new("tmux")
+                        .args(["send-keys", "-t", &session_id, "Enter"])
+                        .output();
+                    eprint!("[torrent-cli] channels prompt accepted (attempt {})\r\n", attempt + 1);
+                    accepted = true;
+                    break;
+                }
+            }
+        }
+        if !accepted {
+            eprint!("[torrent-cli] channels prompt not detected after 10s — sending Enter anyway\r\n");
+            let _ = Command::new("tmux")
+                .args(["send-keys", "-t", &session_id, "Enter"])
+                .output();
+        }
     }
 
     eprint!("[torrent-cli] created: {session_id}\r\n");
@@ -282,8 +390,15 @@ fn cmd_run(args: &[String]) {
     });
     let wait_secs: u64 = get_arg(args, "--wait").and_then(|s| s.parse().ok()).unwrap_or(15);
 
-    // Step 1: Create session
-    let new_args: Vec<String> = vec!["--config-dir".into(), config_dir];
+    // Step 1: Create session (forward --channels and --callback-port if present)
+    let mut new_args: Vec<String> = vec!["--config-dir".into(), config_dir];
+    if args.iter().any(|a| a == "--channels") {
+        new_args.push("--channels".into());
+    }
+    if let Some(port) = get_arg(args, "--callback-port") {
+        new_args.push("--callback-port".into());
+        new_args.push(port);
+    }
     let session_id = cmd_new_session(&new_args);
 
     // Step 2: Wait for Claude

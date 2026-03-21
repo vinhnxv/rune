@@ -11,9 +11,8 @@ PLUGIN_DIR := ./plugins/rune
 PREFIX     ?= /usr/local
 VERSION    ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 
-# Channels bridge configuration
-CALLBACK_PORT ?= 9900
-BRIDGE_PORT   ?= 9901
+# Channels bridge configuration (PORT=auto unless overridden)
+CONFIG ?= .claude
 
 # ─── Build ──────────────────────────────────────
 
@@ -42,24 +41,18 @@ clean:
 run: build
 	@exec $(TARGET)
 
-## Run TUI with channels bridge enabled
+## Run TUI with channels bridge (port auto-allocated, or PORT=9900)
 run-channel: build bridge-deps
-	@exec $(TARGET) --channels --callback-port $(CALLBACK_PORT)
-
-## Run TUI with channels + custom ports
-run-channel-custom: build bridge-deps
-	@echo "Callback port: $(CALLBACK_PORT), Bridge port: $(BRIDGE_PORT)"
-	@exec $(TARGET) --channels --callback-port $(CALLBACK_PORT)
+	@exec $(TARGET) --channels $(if $(PORT),--callback-port $(PORT))
 
 ## Channel test: create Claude session via CLI, send test messages, capture response
-## Usage: make run-channel-test CONFIG=~/.claude-true
-CONFIG ?= $(HOME)/.claude-true
+## Usage: make run-channel-test CONFIG=~/.claude-work
 run-channel-test: build bridge-deps
 	@echo "=== Channel Bridge Test ==="
 	@echo ""
 	@echo "[1/5] Creating tmux session with Claude Code..."
 	@$(CLI_TARGET) kill --session torrent-ch-test 2>/dev/null || true
-	@$(CLI_TARGET) new-session --config-dir $(CONFIG) --session torrent-ch-test --channels --callback-port $(CALLBACK_PORT)
+	@$(CLI_TARGET) new-session --config-dir $(CONFIG) --session torrent-ch-test --channels $(if $(PORT),--callback-port $(PORT))
 	@echo ""
 	@echo "[2/5] Waiting 20s for Claude Code to start..."
 	@sleep 20
@@ -91,15 +84,23 @@ run-dev:
 
 ## Run TUI in debug mode with channels
 run-dev-channel: bridge-deps
-	cd $(TORRENT) && $(CARGO) run -- --channels --callback-port $(CALLBACK_PORT)
+	cd $(TORRENT) && $(CARGO) run -- --channels $(if $(PORT),--callback-port $(PORT))
 
 # ─── CLI ───────────────────────────────────────
 
-.PHONY: run-cli send-msg list-sessions
+.PHONY: run-cli run-cli-channel send-msg list-sessions clean-sessions
 
 ## Show CLI help
 run-cli: build
 	@$(CLI_TARGET)
+
+## Create CLI session (file mode, CONFIG=.claude)
+run-cli-session: build
+	@$(CLI_TARGET) new-session --config-dir $(CONFIG)
+
+## Create CLI session with channels (PORT=auto, CONFIG=.claude)
+run-cli-channel: build bridge-deps
+	@$(CLI_TARGET) new-session --config-dir $(CONFIG) --channels $(if $(PORT),--callback-port $(PORT))
 
 ## Send message to Claude (make send-msg MSG="hello" SESSION=rune-xxx)
 send-msg: build
@@ -109,18 +110,22 @@ send-msg: build
 list-sessions: build
 	@$(CLI_TARGET) list
 
+## Clean session registry
+clean-sessions:
+	@rm -rf tmp/torrent-sessions/
+	@echo "Session registry cleared"
+
 # ─── Bridge ────────────────────────────────────
 
 .PHONY: bridge-deps bridge-check
 
-## Install bridge npm dependencies
+## Install bridge dependencies (Bun)
 bridge-deps:
-	@cd $(TORRENT)/bridge && (test -d node_modules || npm install --silent)
+	@cd $(TORRENT)/bridge && (test -d node_modules || bun install)
 
-## Type-check bridge server
+## Verify bridge compiles
 bridge-check: bridge-deps
-	cd $(TORRENT)/bridge && npx --yes tsc --noEmit --esModuleInterop --module nodenext \
-		--moduleResolution nodenext --target es2022 server.ts 2>/dev/null || true
+	@cd $(TORRENT)/bridge && bun build --target=bun server.ts --outdir /tmp/bridge-check
 
 # ─── Test ───────────────────────────────────────
 
@@ -267,6 +272,7 @@ preflight:
 	@printf "  rustc:      " && rustc --version
 	@printf "  tmux:       " && (tmux -V 2>/dev/null || echo "NOT FOUND")
 	@printf "  claude:     " && (claude --version 2>/dev/null || echo "NOT FOUND")
+	@printf "  bun:        " && (bun --version 2>/dev/null || echo "NOT FOUND (needed for --channels)")
 	@printf "  plugin-dir: " && (test -d $(PLUGIN_DIR) && echo "OK" || echo "NOT FOUND")
 	@printf "  binary:     " && (test -f $(TARGET) && echo "OK" || echo "not built (run: make build)")
 	@echo "Done."
@@ -281,20 +287,24 @@ help:
 	@echo "    make clean              Remove build artifacts"
 	@echo ""
 	@echo "  Run:"
-	@echo "    make run                Launch TUI (file-only monitoring)"
-	@echo "    make run-channel        Launch TUI with channels bridge"
-	@echo "    make run-dev            Launch TUI in debug mode"
-	@echo "    make run-dev-channel    Launch TUI debug + channels"
+	@echo "    make run                  Launch TUI (file-only monitoring)"
+	@echo "    make run-channel          Launch TUI with channels (port auto)"
+	@echo "    make run-channel PORT=9900  Channels with explicit port"
+	@echo "    make run-dev              Launch TUI in debug mode"
+	@echo "    make run-dev-channel      Launch TUI debug + channels"
+	@echo "    make run-channel-test     Full E2E channel test"
 	@echo ""
 	@echo "  CLI:"
-	@echo "    make run-cli            Show torrent-cli help"
+	@echo "    make run-cli              Show torrent-cli help"
+	@echo "    make run-cli-session      Create session (file mode)"
+	@echo "    make run-cli-channel      Create session with channels"
+	@echo "    make run-cli-channel PORT=9900 CONFIG=~/.claude-work"
 	@echo "    make send-msg MSG=\"...\" SESSION=rune-xxx"
-	@echo "                            Send message to Claude via bridge/tmux"
-	@echo "    make list-sessions      List active tmux sessions"
+	@echo "    make list-sessions        List active tmux sessions"
 	@echo ""
 	@echo "  Bridge:"
-	@echo "    make bridge-deps        Install bridge npm dependencies"
-	@echo "    make bridge-check       Type-check bridge server"
+	@echo "    make bridge-deps          Install bridge deps (Bun)"
+	@echo "    make bridge-check         Verify bridge compiles"
 	@echo ""
 	@echo "  Test & Lint:"
 	@echo "    make test               Run Rust unit tests (225)"
@@ -317,8 +327,12 @@ help:
 	@echo "    make preflight          Check prerequisites"
 	@echo "    make loc                Lines of code"
 	@echo ""
+	@echo "  Clean:"
+	@echo "    make clean-sessions     Clear session registry"
+	@echo ""
 	@echo "  Options:"
-	@echo "    PREFIX=/custom/path     Override install prefix (default: /usr/local)"
-	@echo "    CALLBACK_PORT=9900      Callback server port (default: 9900)"
+	@echo "    PORT=9900               Callback port (default: auto 9900-9998)"
+	@echo "    CONFIG=~/.claude-work   Claude config dir (default: .claude)"
+	@echo "    PREFIX=/custom/path     Install prefix (default: /usr/local)"
 
 .DEFAULT_GOAL := help

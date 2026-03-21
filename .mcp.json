@@ -2,8 +2,8 @@
   "mcpServers": {
     "torrent-bridge": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["--yes", "tsx", "./torrent/bridge/server.ts"]
+      "command": "bun",
+      "args": ["./torrent/bridge/server.ts"]
     }
   }
 }
