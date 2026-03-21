@@ -2,18 +2,24 @@
 # TUI for managing batch Claude Code arc sessions
 
 BINARY     := torrent
+CLI_BINARY := torrent-cli
 CARGO      := cargo
 TORRENT    := torrent
 TARGET     := $(TORRENT)/target/release/$(BINARY)
+CLI_TARGET := $(TORRENT)/target/release/$(CLI_BINARY)
 PLUGIN_DIR := ./plugins/rune
 PREFIX     ?= /usr/local
 VERSION    ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+
+# Channels bridge configuration
+CALLBACK_PORT ?= 9900
+BRIDGE_PORT   ?= 9901
 
 # ─── Build ──────────────────────────────────────
 
 .PHONY: build dev release clean
 
-## Build release binary
+## Build release binary (TUI + CLI)
 build:
 	cd $(TORRENT) && $(CARGO) build --release
 
@@ -30,23 +36,80 @@ clean:
 
 # ─── Run ────────────────────────────────────────
 
-.PHONY: run
+.PHONY: run run-channel run-channel-custom run-dev run-dev-channel
 
-## Build release + launch TUI
+## Build release + launch TUI (file-only monitoring)
 run: build
 	@exec $(TARGET)
 
+## Run TUI with channels bridge enabled
+run-channel: build bridge-deps
+	@exec $(TARGET) --channels --callback-port $(CALLBACK_PORT)
+
+## Run TUI with channels + custom ports
+run-channel-custom: build bridge-deps
+	@echo "Callback port: $(CALLBACK_PORT), Bridge port: $(BRIDGE_PORT)"
+	@exec $(TARGET) --channels --callback-port $(CALLBACK_PORT)
+
+## Run TUI in debug mode
+run-dev:
+	cd $(TORRENT) && $(CARGO) run
+
+## Run TUI in debug mode with channels
+run-dev-channel: bridge-deps
+	cd $(TORRENT) && $(CARGO) run -- --channels --callback-port $(CALLBACK_PORT)
+
+# ─── CLI ───────────────────────────────────────
+
+.PHONY: run-cli send-msg list-sessions
+
+## Show CLI help
+run-cli: build
+	@$(CLI_TARGET)
+
+## Send message to Claude (make send-msg MSG="hello" SESSION=rune-xxx)
+send-msg: build
+	@$(CLI_TARGET) send-msg --session $(SESSION) --text "$(MSG)"
+
+## List active torrent/rune tmux sessions
+list-sessions: build
+	@$(CLI_TARGET) list
+
+# ─── Bridge ────────────────────────────────────
+
+.PHONY: bridge-deps bridge-check
+
+## Install bridge npm dependencies
+bridge-deps:
+	@cd $(TORRENT)/bridge && (test -d node_modules || npm install --silent)
+
+## Type-check bridge server
+bridge-check: bridge-deps
+	cd $(TORRENT)/bridge && npx --yes tsc --noEmit --esModuleInterop --module nodenext \
+		--moduleResolution nodenext --target es2022 server.ts 2>/dev/null || true
+
 # ─── Test ───────────────────────────────────────
 
-.PHONY: test test-verbose
+.PHONY: test test-verbose test-e2e test-bridge test-all
 
-## Run all tests
+## Run Rust unit tests
 test:
-	cd $(TORRENT) && $(CARGO) test
+	cd $(TORRENT) && $(CARGO) test --release
 
 ## Run tests with output visible
 test-verbose:
 	cd $(TORRENT) && $(CARGO) test -- --nocapture
+
+## Run E2E channel bridge tests (Rust + Node.js + Python)
+test-e2e: build bridge-deps
+	cd $(TORRENT) && bash tests/test_channels_e2e.sh
+
+## Run bridge integration tests
+test-bridge: build bridge-deps
+	cd $(TORRENT) && bash tests/test_channels_bridge.sh
+
+## Run everything (unit + bridge + E2E)
+test-all: test test-bridge test-e2e
 
 # ─── Lint ───────────────────────────────────────
 
@@ -75,19 +138,22 @@ fmt-check:
 
 ## Install to $(PREFIX)/bin (may need sudo)
 install: build
-	@echo "Installing $(BINARY) to $(PREFIX)/bin..."
+	@echo "Installing $(BINARY) + $(CLI_BINARY) to $(PREFIX)/bin..."
 	@if [ -w "$(PREFIX)/bin" ]; then \
 		cp $(TARGET) "$(PREFIX)/bin/$(BINARY)"; \
+		cp $(CLI_TARGET) "$(PREFIX)/bin/$(CLI_BINARY)"; \
 	else \
 		echo "Need sudo to install to $(PREFIX)/bin"; \
 		sudo cp $(TARGET) "$(PREFIX)/bin/$(BINARY)"; \
+		sudo cp $(CLI_TARGET) "$(PREFIX)/bin/$(CLI_BINARY)"; \
 	fi
-	@echo "✓ Installed $(BINARY) to $(PREFIX)/bin/$(BINARY)"
+	@echo "✓ Installed $(BINARY) + $(CLI_BINARY) to $(PREFIX)/bin/"
 
 ## Install to ~/.local/bin (no sudo needed)
 install-local: build
 	@mkdir -p ~/.local/bin
 	@cp $(TARGET) ~/.local/bin/$(BINARY)
+	@cp $(CLI_TARGET) ~/.local/bin/$(CLI_BINARY)
 	@echo "✓ Installed $(BINARY) to ~/.local/bin/$(BINARY)"
 	@if ! echo "$$PATH" | grep -q "$$HOME/.local/bin"; then \
 		echo ""; \
@@ -176,32 +242,49 @@ help:
 	@echo "Torrent — Arc Orchestrator TUI ($(VERSION))"
 	@echo ""
 	@echo "  Build:"
-	@echo "    make build          Build release binary"
-	@echo "    make dev            Build debug binary (fast compile)"
-	@echo "    make clean          Remove build artifacts"
+	@echo "    make build              Build release binaries (TUI + CLI)"
+	@echo "    make dev                Build debug binaries (fast compile)"
+	@echo "    make clean              Remove build artifacts"
 	@echo ""
 	@echo "  Run:"
-	@echo "    make run            Build + launch TUI"
+	@echo "    make run                Launch TUI (file-only monitoring)"
+	@echo "    make run-channel        Launch TUI with channels bridge"
+	@echo "    make run-dev            Launch TUI in debug mode"
+	@echo "    make run-dev-channel    Launch TUI debug + channels"
+	@echo ""
+	@echo "  CLI:"
+	@echo "    make run-cli            Show torrent-cli help"
+	@echo "    make send-msg MSG=\"...\" SESSION=rune-xxx"
+	@echo "                            Send message to Claude via bridge/tmux"
+	@echo "    make list-sessions      List active tmux sessions"
+	@echo ""
+	@echo "  Bridge:"
+	@echo "    make bridge-deps        Install bridge npm dependencies"
+	@echo "    make bridge-check       Type-check bridge server"
 	@echo ""
 	@echo "  Test & Lint:"
-	@echo "    make test           Run all tests"
-	@echo "    make check          Type-check + clippy"
-	@echo "    make fmt            Format code"
-	@echo "    make fmt-check      Check formatting (CI)"
+	@echo "    make test               Run Rust unit tests (225)"
+	@echo "    make test-bridge        Run bridge integration tests"
+	@echo "    make test-e2e           Run E2E channel tests"
+	@echo "    make test-all           Run everything"
+	@echo "    make check              Type-check + clippy"
+	@echo "    make fmt                Format code"
+	@echo "    make fmt-check          Check formatting (CI)"
 	@echo ""
 	@echo "  Install:"
-	@echo "    make install        Install to $(PREFIX)/bin (may need sudo)"
-	@echo "    make install-local  Install to ~/.local/bin (no sudo)"
-	@echo "    make uninstall      Remove from all locations"
+	@echo "    make install            Install to $(PREFIX)/bin (may need sudo)"
+	@echo "    make install-local      Install to ~/.local/bin (no sudo)"
+	@echo "    make uninstall          Remove from all locations"
 	@echo ""
 	@echo "  Distribution:"
-	@echo "    make dist           Create release tarball"
+	@echo "    make dist               Create release tarball"
 	@echo ""
 	@echo "  Utilities:"
-	@echo "    make preflight      Check prerequisites"
-	@echo "    make loc            Lines of code"
+	@echo "    make preflight          Check prerequisites"
+	@echo "    make loc                Lines of code"
 	@echo ""
 	@echo "  Options:"
-	@echo "    PREFIX=/custom/path Override install prefix (default: /usr/local)"
+	@echo "    PREFIX=/custom/path     Override install prefix (default: /usr/local)"
+	@echo "    CALLBACK_PORT=9900      Callback server port (default: 9900)"
 
 .DEFAULT_GOAL := help
