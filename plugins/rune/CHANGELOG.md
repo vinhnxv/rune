@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.9.1] - 2026-03-21
+
+### Fixed
+- **SessionStart hooks**: All 5 hooks now always emit `hookEventName` in JSON output on early exit paths, preventing "SessionStart:startup hook error" when guard clauses (missing jq, empty CHOME, CWD validation) trigger early `exit 0` with no stdout
+- **Arc Stop hooks**: All 4 arc stop hooks (phase, batch, hierarchy, issues) now preserve the original exit code in EXIT traps via `_rc=$?` capture, preventing "Stop hook error: Failed with non-blocking status code" caused by cleanup `[[ ]]` tests overwriting `$?`
+
 ## [2.9.0] - 2026-03-21
 
 ### Added
