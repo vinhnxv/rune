@@ -271,6 +271,56 @@ function preShipValidator(checkpoint, planPath) {
   }
 
   // ════════════════════════════════════════════
+  // GATE 4: Invocability Check (anti-dead-code, v2.9.0)
+  // ════════════════════════════════════════════
+  //
+  // Verifies that commands/features mentioned in acceptance criteria
+  // are actually invocable by the user (have routing entries).
+  // Severity: WARN (not BLOCK) — will be promoted to BLOCK after validation.
+
+  const planContent = Read(planPath)
+  // Match both numbered (1. [ ]) and dash (- [ ]) AC formats
+  const acLines = planContent.match(/^(?:\d+\.|-)\s*\[.\]\s*.+$/gm) || []
+
+  const COMMAND_PATTERN = /\/rune:[a-z:-]+(?:\s+[a-z]+)?|`[a-z_-]+\.sh`/gi
+  const referencedCommands = []
+  for (const ac of acLines) {
+    const matches = ac.match(COMMAND_PATTERN) || []
+    referencedCommands.push(...matches)
+  }
+
+  if (referencedCommands.length > 0) {
+    const missingRoutes = []
+    for (const cmd of referencedCommands) {
+      const cleanCmd = cmd.replace(/^\/rune:/, '').replace(/`/g, '').trim()
+      const parts = cleanCmd.split(/\s+/)
+      if (parts.length >= 1) {
+        const skill = parts[0]
+        const subcommand = parts[1] || null
+        const skillFiles = Glob(`plugins/rune/skills/${skill}/SKILL.md`)
+        if (skillFiles.length > 0 && subcommand) {
+          const skillContent = Read(skillFiles[0])
+          if (!skillContent.includes(subcommand)) {
+            missingRoutes.push(`${skill} ${subcommand}`)
+          }
+        }
+      }
+    }
+
+    if (missingRoutes.length > 0) {
+      report.gates.push({
+        gate: "invocability",
+        item: "Command routing completeness",
+        status: "WARN",
+        reason: `${missingRoutes.length} commands from ACs not found in routing: ${missingRoutes.join(', ')}`
+      })
+      report.diagnostics.push(`DEAD CODE RISK: ${missingRoutes.join(', ')} — mentioned in ACs but not wired`)
+    } else {
+      report.gates.push({ gate: "invocability", item: "Command routing completeness", status: "PASS" })
+    }
+  }
+
+  // ════════════════════════════════════════════
   // VERDICT: Aggregate gates
   // ════════════════════════════════════════════
   //
