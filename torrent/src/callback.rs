@@ -17,7 +17,7 @@ use color_eyre::eyre::{eyre, Result};
 use serde::Deserialize;
 
 /// Default callback port when TORRENT_CALLBACK_PORT is not set.
-const DEFAULT_CALLBACK_PORT: u16 = 9900;
+pub const DEFAULT_CALLBACK_PORT: u16 = 9900;
 
 /// Maximum request body size (64 KB — events are small JSON payloads).
 const MAX_BODY_SIZE: usize = 64 * 1024;
@@ -89,6 +89,8 @@ pub struct CallbackServer {
     rx: mpsc::Receiver<ChannelEvent>,
     /// Shutdown signal for the background thread.
     shutdown: Arc<AtomicBool>,
+    /// Shared server handle for unblocking on shutdown.
+    server: Arc<tiny_http::Server>,
     /// Join handle for cleanup.
     _handle: Option<thread::JoinHandle<()>>,
 }
@@ -112,6 +114,8 @@ impl CallbackServer {
             .map(|a| a.port())
             .ok_or_else(|| eyre!("callback server bound to non-IP address"))?;
 
+        let server = Arc::new(server);
+        let server_clone = Arc::clone(&server);
         let (tx, rx) = mpsc::channel();
         let shutdown = Arc::new(AtomicBool::new(false));
         let shutdown_clone = Arc::clone(&shutdown);
@@ -119,13 +123,14 @@ impl CallbackServer {
         let handle = thread::Builder::new()
             .name("torrent-callback".into())
             .spawn(move || {
-                run_server(server, tx, shutdown_clone);
+                run_server(server_clone, tx, shutdown_clone);
             })?;
 
         Ok(Self {
             port: actual_port,
             rx,
             shutdown,
+            server,
             _handle: Some(handle),
         })
     }
@@ -135,6 +140,7 @@ impl CallbackServer {
         let port = std::env::var("TORRENT_CALLBACK_PORT")
             .ok()
             .and_then(|s| s.parse::<u16>().ok())
+            .filter(|&p| p >= 1024)
             .unwrap_or(DEFAULT_CALLBACK_PORT);
         Self::start(port)
     }
@@ -163,21 +169,21 @@ impl CallbackServer {
 
     /// Signal the background thread to stop.
     pub fn stop(&self) {
-        self.shutdown.store(true, Ordering::Relaxed);
+        self.shutdown.store(true, Ordering::Release);
     }
 }
 
 impl Drop for CallbackServer {
     fn drop(&mut self) {
         self.stop();
-        // Don't join — tiny_http's accept has no timeout mechanism we control,
-        // but the thread checks shutdown between requests and will exit.
+        self.server.unblock();
+        // After unblock(), the background thread's recv() returns Err and exits.
     }
 }
 
 /// Background thread: accept HTTP requests and forward parsed events.
 fn run_server(
-    server: tiny_http::Server,
+    server: Arc<tiny_http::Server>,
     tx: mpsc::Sender<ChannelEvent>,
     shutdown: Arc<AtomicBool>,
 ) {
@@ -186,7 +192,7 @@ fn run_server(
     // won't block for long. On shutdown, the main thread drops the server
     // which unblocks accept.
     loop {
-        if shutdown.load(Ordering::Relaxed) {
+        if shutdown.load(Ordering::Acquire) {
             break;
         }
 
@@ -196,7 +202,7 @@ fn run_server(
             Err(_) => break, // Server dropped or error — exit
         };
 
-        if shutdown.load(Ordering::Relaxed) {
+        if shutdown.load(Ordering::Acquire) {
             let _ = request.respond(tiny_http::Response::from_string("shutting down")
                 .with_status_code(503));
             break;
@@ -223,6 +229,19 @@ fn handle_request(mut request: tiny_http::Request, tx: &mpsc::Sender<ChannelEven
                 return;
             }
 
+            // Require JSON content type
+            let has_json_content_type = request.headers().iter().any(|h| {
+                h.field.equiv("Content-Type")
+                    && h.value.as_str().contains("application/json")
+            });
+            if !has_json_content_type {
+                let _ = request.respond(
+                    tiny_http::Response::from_string("unsupported media type")
+                        .with_status_code(415),
+                );
+                return;
+            }
+
             // Read body with size limit
             let content_length = request
                 .body_length()
@@ -244,9 +263,24 @@ fn handle_request(mut request: tiny_http::Request, tx: &mpsc::Sender<ChannelEven
                 return;
             }
 
+            if body.len() >= MAX_BODY_SIZE {
+                let _ = request.respond(
+                    tiny_http::Response::from_string("payload too large")
+                        .with_status_code(413),
+                );
+                return;
+            }
+
             match parse_event(&body) {
                 Ok(event) => {
-                    let _ = tx.send(event); // Best-effort — if main thread dropped rx, skip
+                    if tx.send(event).is_err() {
+                        eprintln!("callback: event dropped (receiver disconnected)");
+                        let _ = request.respond(
+                            tiny_http::Response::from_string("server shutting down")
+                                .with_status_code(503),
+                        );
+                        return;
+                    }
                     let _ = request.respond(tiny_http::Response::from_string("ok"));
                 }
                 Err(msg) => {
@@ -271,6 +305,22 @@ fn parse_event(body: &[u8]) -> std::result::Result<ChannelEvent, String> {
 
     if raw.session_id.is_empty() {
         return Err("missing session_id".into());
+    }
+
+    // Field length limits to prevent abuse
+    if raw.phase.len() > 128 {
+        return Err("phase exceeds 128 chars".into());
+    }
+    if raw.status.len() > 64 {
+        return Err("status exceeds 64 chars".into());
+    }
+    if raw.details.len() > 1024 {
+        return Err("details exceeds 1024 chars".into());
+    }
+    if let Some(ref url) = raw.pr_url {
+        if !url.starts_with("https://") || url.len() > 512 {
+            return Err("pr_url must start with https:// and be at most 512 chars".into());
+        }
     }
 
     match raw.event_type.as_str() {

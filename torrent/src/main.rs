@@ -26,8 +26,7 @@ use crate::tmux::Tmux;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Default port for the callback HTTP server that receives channel events.
-const DEFAULT_CALLBACK_PORT: u16 = 9900;
+use crate::callback::DEFAULT_CALLBACK_PORT;
 
 /// Parsed CLI arguments.
 struct CliArgs {

@@ -1249,10 +1249,6 @@ impl App {
                 self.last_diagnostic_poll = Some(now);
             }
 
-            // Drain channel events (non-blocking) — channels provide faster updates
-            // than file polling but file state remains authoritative
-            self.drain_channel_events();
-
             // Check grace period completion BEFORE timeout (completion race guard)
             self.check_grace_period(now);
 
@@ -1383,7 +1379,7 @@ impl App {
         // Step 4: Build channels config (if enabled) and start Claude Code
         let channels_cfg = if self.channels_enabled {
             Some(ChannelsConfig {
-                bridge_port: self.callback_port, // bridge listens on same port range
+                bridge_port: self.callback_port + 1, // bridge on adjacent port to avoid collision
                 callback_port: self.callback_port,
             })
         } else {
@@ -1466,6 +1462,12 @@ impl App {
             match CallbackServer::start(self.callback_port) {
                 Ok(server) => {
                     self.callback_server = Some(server);
+                    // Initialize channel state now that callback server is running
+                    if let Some(run) = &mut self.current_run {
+                        run.channel_state = ChannelState::try_init(
+                            &run.tmux_session,
+                        );
+                    }
                 }
                 Err(e) => {
                     self.status_message = Some(format!("callback server failed: {e}"));
@@ -1562,7 +1564,26 @@ impl App {
             return;
         }
 
+        // Resolve expected session_id for the current run (from arc handle).
+        // Events from other sessions are silently dropped (SEC-001).
+        let expected_session = self
+            .current_run
+            .as_ref()
+            .and_then(|r| r.arc.as_ref().map(|a| a.session_id.clone()));
+
         for event in events {
+            // SEC-001: Validate session_id — skip events from stale/foreign sessions
+            let event_session = match &event {
+                ChannelEvent::PhaseUpdate { session_id, .. } => session_id,
+                ChannelEvent::ArcComplete { session_id, .. } => session_id,
+                ChannelEvent::Heartbeat { session_id, .. } => session_id,
+            };
+            if let Some(ref expected) = expected_session {
+                if event_session != expected {
+                    continue;
+                }
+            }
+
             // Update channel health on successful event
             if let Some(run) = &mut self.current_run {
                 if let Some(ref mut cs) = run.channel_state {

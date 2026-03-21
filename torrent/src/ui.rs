@@ -472,9 +472,15 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
     } else {
         format!("Done — {}", app.completed_runs.len())
     };
-    // Channel status indicator: [ch] when healthy, [file] when not enabled or unhealthy
-    let channel_indicator = if app.channels_enabled {
+    // Channel status indicator: [ch] when healthy, [ch?] when enabled but unhealthy, [file] when disabled
+    let channel_active = app.current_run.as_ref()
+        .and_then(|r| r.channel_state.as_ref())
+        .map(|cs| cs.is_active())
+        .unwrap_or(false);
+    let channel_indicator = if app.channels_enabled && channel_active {
         Span::styled("  [ch]", Style::default().fg(sol::CYAN))
+    } else if app.channels_enabled {
+        Span::styled("  [ch?]", Style::default().fg(sol::YELLOW))
     } else {
         Span::styled("  [file]", Style::default().fg(sol::BASE01))
     };

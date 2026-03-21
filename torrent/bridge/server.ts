@@ -20,6 +20,19 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
+// ── Callback URL Validation ──────────────────────────────────
+
+let validatedCallbackUrl: string | undefined;
+if (process.env.TORRENT_CALLBACK_URL) {
+  const parsed = new URL(process.env.TORRENT_CALLBACK_URL);
+  if (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") {
+    throw new Error(
+      `TORRENT_CALLBACK_URL must point to localhost or 127.0.0.1, got: ${parsed.hostname}`,
+    );
+  }
+  validatedCallbackUrl = process.env.TORRENT_CALLBACK_URL;
+}
+
 // ── Server Setup ─────────────────────────────────────────────
 
 const server = new Server(
@@ -69,8 +82,12 @@ const TOOLS = [
           type: "string",
           description: "Optional details about phase result",
         },
+        session_id: {
+          type: "string",
+          description: "Session identifier",
+        },
       },
-      required: ["phase", "status"],
+      required: ["phase", "status", "session_id"],
     },
   },
   {
@@ -97,8 +114,12 @@ const TOOLS = [
           type: "string",
           description: "Summary of all phase outcomes",
         },
+        session_id: {
+          type: "string",
+          description: "Session identifier",
+        },
       },
-      required: ["result"],
+      required: ["result", "session_id"],
     },
   },
   {
@@ -121,8 +142,12 @@ const TOOLS = [
           type: "string",
           description: "Current arc phase (if known)",
         },
+        session_id: {
+          type: "string",
+          description: "Session identifier",
+        },
       },
-      required: ["activity"],
+      required: ["activity", "session_id"],
     },
   },
 ];
@@ -135,13 +160,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
-  const callbackUrl = process.env.TORRENT_CALLBACK_URL;
 
   switch (name) {
     case "report_phase":
     case "report_complete":
     case "heartbeat": {
-      if (callbackUrl) {
+      if (validatedCallbackUrl) {
         const eventType =
           name === "report_phase"
             ? "phase"
@@ -149,13 +173,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               ? "complete"
               : "heartbeat";
 
+        // Strip `type` from caller args to prevent payload pollution,
+        // then inject session_id fallback and explicit type.
+        const { type: _ignored, ...safeArgs } = (args ?? {}) as Record<string, unknown>;
+        if (!safeArgs.session_id) {
+          safeArgs.session_id = process.env.CLAUDE_SESSION_ID || "unknown";
+        }
+
         // Best-effort POST — Torrent may not be listening yet or at all.
         // Channel is an optional enhancer, never a critical path.
-        fetch(`${callbackUrl}/event`, {
+        fetch(`${validatedCallbackUrl}/event`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: eventType, ...args }),
-        }).catch(() => {});
+          body: JSON.stringify({ ...safeArgs, type: eventType }),
+        }).catch((err: Error) => {
+          process.stderr.write(`bridge: callback POST failed: ${err.message}\n`);
+        });
       }
       return {
         content: [{ type: "text", text: "reported" }],
@@ -173,3 +206,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
+
+async function shutdown() {
+  await server.close();
+  process.exit(0);
+}
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);

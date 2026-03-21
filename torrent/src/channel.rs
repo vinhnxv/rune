@@ -10,11 +10,9 @@ const MAX_FAILURES: u32 = 3;
 /// Timeout for bridge health check requests.
 const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(2);
 
-/// Timeout for port discovery (how long to wait for port.txt).
-const PORT_DISCOVERY_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Polling interval when waiting for port.txt to appear.
-const PORT_DISCOVERY_POLL: Duration = Duration::from_millis(500);
+/// Inactivity timeout — channels with no events for this long are considered stale.
+const CHANNEL_INACTIVITY_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// Configuration for the channels bridge connection.
 ///
@@ -65,24 +63,27 @@ impl ChannelState {
     /// Try to discover bridge port from port.txt written by the bridge server.
     ///
     /// The bridge writes its port to `tmp/arc/arc-{session_id}/bridge-port.txt`
-    /// after starting. This method polls for that file up to [`PORT_DISCOVERY_TIMEOUT`].
+    /// after starting. This performs a single non-blocking read attempt.
     ///
-    /// Returns `None` if the file doesn't appear within the timeout.
+    /// Returns `None` if the file doesn't exist or can't be parsed. Caller retries on next tick.
     pub fn discover_port(session_id: &str) -> Option<u16> {
-        let port_path = format!("tmp/arc/arc-{session_id}/bridge-port.txt");
-        let path = Path::new(&port_path);
-        let start = Instant::now();
-
-        while start.elapsed() < PORT_DISCOVERY_TIMEOUT {
-            if let Ok(contents) = fs::read_to_string(path) {
-                if let Ok(port) = contents.trim().parse::<u16>() {
-                    return Some(port);
-                }
-            }
-            std::thread::sleep(PORT_DISCOVERY_POLL);
+        // SEC-006: Validate session_id format before using in path construction.
+        if session_id.is_empty()
+            || session_id.len() > 64
+            || !session_id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            return None;
         }
 
-        None
+        let port_path = format!("tmp/arc/arc-{session_id}/bridge-port.txt");
+        let path = Path::new(&port_path);
+
+        // BACK-005: Non-blocking single check. Caller retries on next tick.
+        fs::read_to_string(path)
+            .ok()
+            .and_then(|contents| contents.trim().parse::<u16>().ok())
     }
 
     /// Check bridge liveness via GET /ping.
@@ -139,7 +140,7 @@ impl ChannelState {
     ///
     /// Discovers the bridge port, then checks health. Returns `None` if
     /// port discovery fails (bridge not running or not yet ready).
-    pub fn try_init(session_id: &str, callback_port: u16) -> Option<Self> {
+    pub fn try_init(session_id: &str) -> Option<Self> {
         let bridge_port = Self::discover_port(session_id)?;
 
         let mut state = Self {
@@ -154,8 +155,6 @@ impl ChannelState {
         // The main loop will retry health checks periodically.
         state.check_health();
 
-        let _ = callback_port; // Used by callback.rs for event routing
-
         Some(state)
     }
 
@@ -164,6 +163,13 @@ impl ChannelState {
     /// Returns true only when the channel is both enabled and healthy.
     pub fn is_active(&self) -> bool {
         self.enabled && self.healthy
+    }
+
+    /// Whether the channel has been inactive longer than [`CHANNEL_INACTIVITY_TIMEOUT`].
+    pub fn is_stale(&self) -> bool {
+        self.last_event
+            .map(|t| t.elapsed() > CHANNEL_INACTIVITY_TIMEOUT)
+            .unwrap_or(false)
     }
 
     /// Duration since the last successful channel event, if any.
