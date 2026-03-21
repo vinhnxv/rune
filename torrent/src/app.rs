@@ -9,6 +9,8 @@ use color_eyre::Result;
 
 use ratatui::widgets::ListState;
 
+use crate::callback::{CallbackServer, ChannelEvent};
+use crate::channel::ChannelState;
 use crate::diagnostic::{DiagnosticAction, DiagnosticEngine, DiagnosticResult, DiagnosticState};
 use crate::monitor::{self, ActivityDetector, ActivityState};
 use crate::resource::{self, ProcessHealth, ResourceSnapshot};
@@ -107,6 +109,16 @@ pub struct App {
     pub last_diagnostic_poll: Option<Instant>,
     /// Current diagnostic result for UI banner display.
     pub last_diagnostic: Option<DiagnosticResult>,
+
+    // Channel communication (optional, experimental)
+    /// Whether channels mode is enabled (--channels flag or config).
+    pub channels_enabled: bool,
+    /// Callback port for receiving channel events from bridge.
+    pub callback_port: u16,
+    /// Callback HTTP server instance (started when channels_enabled).
+    pub callback_server: Option<CallbackServer>,
+    /// Last time we polled the channel for events.
+    pub last_channel_poll: Option<Instant>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -150,6 +162,9 @@ pub struct RunState {
     pub current_phase_started: Option<Instant>,  // Reset on phase change
     pub current_phase_name: Option<String>,       // Last known phase for change detection
     pub timeout_triggered_at: Option<Instant>,    // When SIGTERM was sent (grace period start)
+    /// Channel state for optional outbound communication (Claude → Torrent).
+    /// None when channels are disabled or failed to initialize.
+    pub channel_state: Option<ChannelState>,
     /// Activity detector for multi-signal idle/stop detection (F3).
     pub activity_detector: ActivityDetector,
     /// Adaptive grace duration computed once when merge is detected (F4).
@@ -472,6 +487,10 @@ impl App {
             diagnostic_engine: DiagnosticEngine::new(),
             last_diagnostic_poll: None,
             last_diagnostic: None,
+            channels_enabled: false,
+            callback_port: 9900,
+            callback_server: None,
+            last_channel_poll: None,
         })
     }
 
@@ -1192,6 +1211,19 @@ impl App {
                 self.last_heartbeat_poll = Some(now);
             }
 
+            // Channel event processing (non-blocking, every 2s when enabled)
+            if self.channels_enabled {
+                let should_poll_channel = self
+                    .last_channel_poll
+                    .map(|t| now.duration_since(t) >= Duration::from_secs(2))
+                    .unwrap_or(true);
+
+                if should_poll_channel {
+                    self.drain_channel_events();
+                    self.last_channel_poll = Some(now);
+                }
+            }
+
             // Loop state liveness check (every 60s)
             // If arc-phase-loop.local.md is gone, the arc has completed or been stopped
             let should_check_loop = self
@@ -1483,6 +1515,54 @@ impl App {
     }
 
     /// Poll arc status (heartbeat + checkpoint + resources) and update display state.
+    /// Drain pending channel events from the callback server (non-blocking).
+    /// Channel events provide faster updates than file polling but file state
+    /// remains authoritative. Events update optimistic state on the current run.
+    fn drain_channel_events(&mut self) {
+        let server = match &self.callback_server {
+            Some(s) => s,
+            None => return,
+        };
+        let run = match &mut self.current_run {
+            Some(r) => r,
+            None => return,
+        };
+
+        // Process up to 10 events per tick to avoid blocking
+        for _ in 0..10 {
+            match server.recv_event() {
+                Some(event) => {
+                    // Update channel health on successful event
+                    if let Some(ref mut cs) = run.channel_state {
+                        cs.record_success();
+                    }
+
+                    match event {
+                        ChannelEvent::PhaseUpdate { phase, status, .. } => {
+                            self.status_message = Some(format!(
+                                "[ch] Phase: {} ({})", phase, status
+                            ));
+                        }
+                        ChannelEvent::ArcComplete { result, pr_url, .. } => {
+                            self.status_message = Some(format!(
+                                "[ch] Arc complete: {} {}",
+                                result,
+                                pr_url.as_deref().unwrap_or("")
+                            ));
+                        }
+                        ChannelEvent::Heartbeat { activity, .. } => {
+                            // Heartbeat updates activity detector
+                            if activity == "active" {
+                                run.activity_detector.record_activity();
+                            }
+                        }
+                    }
+                }
+                None => break, // No more pending events
+            }
+        }
+    }
+
     fn poll_status(&mut self) {
         // Refresh sysinfo for resource polling (lightweight, no sleep needed after init)
         resource::refresh_process_system(&mut self.sys);

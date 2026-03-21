@@ -6,6 +6,8 @@ use std::time::Duration;
 use color_eyre::eyre::{eyre, Result};
 use rand::Rng;
 
+use crate::channel::ChannelsConfig;
+
 /// Shell-escape a string by wrapping in single quotes.
 /// Internal single quotes are replaced with `'\''` (end-quote, escaped-quote, start-quote).
 /// SEC-002 FIX: prevents command injection when values are sent to a shell via tmux send-keys.
@@ -116,10 +118,18 @@ impl Tmux {
     ///
     /// Sends the claude binary command via send-keys (not as session command).
     /// Only sets CLAUDE_CONFIG_DIR for non-default config dirs.
+    ///
+    /// When `channels` is `Some`, appends the channels bridge flag and sets
+    /// `TORRENT_CALLBACK_URL` + `TORRENT_BRIDGE_PORT` env vars for the bridge
+    /// server. Channels are OUTBOUND-ONLY (Claude → Torrent) in v0.7.0.
+    ///
+    /// **IMPORTANT**: Pass `None` for resumed sessions — `--resume` +
+    /// `--dangerously-load-development-channels` = crash (#36638).
     pub fn start_claude(
         session_id: &str,
         config_dir: &Path,
         claude_path: &str,
+        channels: Option<&ChannelsConfig>,
     ) -> Result<()> {
         validate_session_id(session_id)?;
 
@@ -128,16 +138,38 @@ impl Tmux {
             .map(|n| n == ".claude")
             .unwrap_or(false);
 
-        // SEC-002 FIX: shell-escape both paths to prevent injection via tmux send-keys
-        let cmd = if is_default {
-            format!("{} --dangerously-skip-permissions", shell_escape(claude_path))
-        } else {
+        // Build env var prefix: TORRENT_CALLBACK_URL + TORRENT_BRIDGE_PORT (if channels)
+        // + CLAUDE_CONFIG_DIR (if non-default config dir)
+        // SEC-002 FIX: shell-escape all interpolated values
+        let mut env_prefix = String::new();
+
+        if let Some(ch) = channels {
+            // Numeric u16 values are inherently safe, but we format cleanly
+            env_prefix.push_str(&format!(
+                "TORRENT_CALLBACK_URL=http://127.0.0.1:{} TORRENT_BRIDGE_PORT={} ",
+                ch.callback_port, ch.bridge_port
+            ));
+        }
+
+        if !is_default {
             let config_str = config_dir.to_string_lossy();
-            format!(
-                "CLAUDE_CONFIG_DIR={} {} --dangerously-skip-permissions",
-                shell_escape(&config_str), shell_escape(claude_path)
-            )
-        };
+            env_prefix.push_str(&format!(
+                "CLAUDE_CONFIG_DIR={} ",
+                shell_escape(&config_str)
+            ));
+        }
+
+        // Build base command
+        let mut cmd = format!(
+            "{}{} --dangerously-skip-permissions",
+            env_prefix,
+            shell_escape(claude_path)
+        );
+
+        // Append channels flag if enabled
+        if channels.is_some() {
+            cmd.push_str(" --dangerously-load-development-channels server:torrent-bridge");
+        }
 
         // Send command text literally (-l), then Enter separately.
         // This is a shell command, not Claude Code input — simple send works.
@@ -348,16 +380,24 @@ impl Tmux {
     /// Thin composition of existing methods for the watchdog auto-resume flow.
     /// The old session is killed best-effort (it may already be dead).
     /// Returns the new session ID.
+    ///
+    /// **SAFETY**: The `_channels` parameter is accepted for API consistency
+    /// but ALWAYS ignored. Resume sessions MUST NOT use channels because
+    /// `--resume` + `--dangerously-load-development-channels` crashes with
+    /// "No conversation found" (#36638). This makes the safety guarantee
+    /// explicit at the type level.
     pub fn recreate_session(
         old_session: &str,
         working_dir: &Path,
         config_dir: &Path,
         claude_path: &str,
+        _channels: Option<&ChannelsConfig>, // Intentionally unused — resume MUST NOT use channels
     ) -> Result<String> {
         let _ = Self::kill_session(old_session); // best effort
         let new_id = Self::generate_session_id();
         Self::create_session(&new_id, working_dir)?;
-        Self::start_claude(&new_id, config_dir, claude_path)?;
+        // SAFETY: Always None — channels + resume = broken (#36638)
+        Self::start_claude(&new_id, config_dir, claude_path, None)?;
         Ok(new_id)
     }
 

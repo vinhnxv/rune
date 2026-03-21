@@ -472,12 +472,19 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
     } else {
         format!("Done — {}", app.completed_runs.len())
     };
+    // Channel status indicator: [ch] when healthy, [file] when not enabled or unhealthy
+    let channel_indicator = if app.channels_enabled {
+        Span::styled("  [ch]", Style::default().fg(sol::CYAN))
+    } else {
+        Span::styled("  [file]", Style::default().fg(sol::BASE01))
+    };
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled(format!(" torrent v{VERSION} "), Style::default().fg(sol::BASE03).bg(sol::BLUE).add_modifier(Modifier::BOLD)),
             Span::styled(format!(" ⟫ {cfg} ⟫ {plan_info}"), Style::default().fg(sol::BASE0)),
             Span::styled("  ⎇ ", Style::default().fg(sol::BASE01)),
             Span::styled(&app.git_branch, Style::default().fg(sol::GREEN)),
+            channel_indicator,
         ])),
         chunks[ci],
     );
