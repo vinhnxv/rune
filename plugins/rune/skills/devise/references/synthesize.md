@@ -31,9 +31,23 @@ AskUserQuestion({
 1. Read all research output files from `tmp/plans/{timestamp}/research/`
 2. Read wiring and activation research outputs (both optional — agent may timeout):
    ```javascript
-   const wiringMap = tryRead(`tmp/plans/${timestamp}/research/wiring-map.md`)
+   let wiringMap = tryRead(`tmp/plans/${timestamp}/research/wiring-map.md`)
    const activationPath = tryRead(`tmp/plans/${timestamp}/research/activation-path.md`)
    // tryRead = try { Read(...) } catch { null }
+
+   // Anti-Shirking Protocol (v2.9.0): Wiring map is MANDATORY when plan introduces
+   // new commands, hooks, or entry points. Detection via regex on plan content.
+   const introducesNewEntryPoints = /new\s+(sub)?command|add.*routing|register.*hook|new.*entry.?point|wire.*into|add.*to.*SKILL/i
+     .test(planContent)
+
+   if (introducesNewEntryPoints && detailLevel !== 'minimal') {
+     // MANDATORY: Plan introduces new entry points — wiring map required
+     if (!wiringMap || wiringMap.trim().length === 0) {
+       warn("Anti-Shirking: Plan introduces new commands/entry points but wiring-map.md is empty. Generating minimal inline wiring map.")
+       // Fallback: generate minimal wiring map from plan content
+       wiringMap = "## Integration & Wiring Map\n\n> Auto-generated: Plan introduces new entry points. Manual wiring verification required.\n"
+     }
+   }
    ```
    Consolidate into `## Integration & Wiring Map` section (Standard and Comprehensive only):
    - If BOTH agents timed out or produced no output, emit a minimal section:
