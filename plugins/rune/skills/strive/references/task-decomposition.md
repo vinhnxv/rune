@@ -1,310 +1,271 @@
-# Task Decomposition — strive Phase 0.5 Reference
+# Task Decomposition — strive Phase 1.1 Reference
 
-LLM-driven task classification and decomposition. Runs after plan parsing (Phase 0), before file ownership assignment (Phase 1).
+LLM-driven task classification and decomposition. Runs in Phase 1 after
+`extractFileTargets()` and `scoreTaskComplexity()` complete, but **before**
+`detectAndResolveConflicts()` in file-ownership.md.
 
-**Inputs**: `parsedTasks` (array from parse-plan.md), talisman work config
-**Outputs**: `expandedTasks` (array — same size or larger than input)
-**Error handling**: LLM timeout → classify as ATOMIC (safe default). Parse failure → keep original task.
+See [forge-team.md](forge-team.md) for integration point (Phase 1.1 call site).
+See [file-ownership.md](file-ownership.md) for the conflict detection phase that follows.
 
 ## Configuration
 
-```javascript
-// readTalismanSection: "work"
-const workConfig = readTalismanSection("work")
-const decompositionEnabled = workConfig?.task_decomposition?.enabled ?? true
-const complexityThreshold = workConfig?.task_decomposition?.complexity_threshold ?? 5
-const maxSubtasks = workConfig?.task_decomposition?.max_subtasks ?? 4
-const classificationModel = workConfig?.task_decomposition?.model ?? "haiku"
+```yaml
+work:
+  task_decomposition:
+    enabled: true              # Master toggle (default: true)
+    complexity_threshold: 5    # Min file count to trigger LLM classification
+    max_subtasks: 4            # Max subtasks per composite task (range: 2-4)
+    model: "haiku"             # Model for classification/decomposition (haiku = cheap)
 ```
 
-## Algorithm
+Read via `readTalismanSection("work")?.task_decomposition`.
+
+## Phase 1.1: Task Decomposition Entry Point
+
+**Inputs**: `extractedTasks` (Array, post `extractFileTargets` + `scoreTaskComplexity`), `workConfig` (object)
+**Outputs**: `extractedTasks` — replaced in-place with expanded list (atomic tasks unchanged, composite tasks replaced by their subtasks)
+**Error handling**: Any LLM call failure → log warning, keep original task as-is (fail-open)
 
 ```javascript
-// Phase 0.5: Task Decomposition (after parse, before ownership assignment)
-// Ref: parse-plan.md → extractTasks() produces parsedTasks
-// Ref: file-ownership.md → consumes expandedTasks for ownership graph
+// Phase 1.1: Task Decomposition
+// Called after scoreTaskComplexity() completes, before detectAndResolveConflicts()
+function runTaskDecomposition(extractedTasks, workConfig) {
+  const decompositionConfig = workConfig?.task_decomposition
+  const decompositionEnabled = decompositionConfig?.enabled ?? true
 
-if (!decompositionEnabled) {
-  // Skip decomposition entirely, pass parsedTasks through unchanged
-  expandedTasks = parsedTasks
+  if (!decompositionEnabled) {
+    log("DECOMPOSITION: disabled via talisman — skipping")
+    return extractedTasks
+  }
+
+  const complexityThreshold = decompositionConfig?.complexity_threshold ?? 5
+  const maxSubtasks = decompositionConfig?.max_subtasks ?? 4
+
+  log(`DECOMPOSITION: enabled (threshold=${complexityThreshold}, maxSubtasks=${maxSubtasks})`)
+
+  const expandedTasks = []
+  for (const task of extractedTasks) {
+    const fileCount = (task.fileTargets || []).length
+    const dirCount = (task.dirTargets || []).length
+    const totalTargets = fileCount + dirCount
+
+    // Fast-path: skip LLM for obviously atomic tasks (<=2 file targets, no multi-layer)
+    if (totalTargets <= 2) {
+      log(`DECOMPOSITION: task #${task.id} fast-path ATOMIC (${totalTargets} targets)`)
+      expandedTasks.push(task)
+      continue
+    }
+
+    // Heuristic pre-filter: use _complexityScore to skip LLM for medium tasks
+    // _complexityScore is already computed by scoreTaskComplexity() — zero duplication
+    if (totalTargets < complexityThreshold && !detectMultipleLayers(task.fileTargets || [])) {
+      log(`DECOMPOSITION: task #${task.id} heuristic ATOMIC (score=${task._complexityScore}, targets=${totalTargets})`)
+      expandedTasks.push(task)
+      continue
+    }
+
+    // LLM classification: ATOMIC or COMPOSITE
+    const classification = classifyTask(task)
+
+    if (classification !== "COMPOSITE") {
+      log(`DECOMPOSITION: task #${task.id} LLM-classified ATOMIC`)
+      expandedTasks.push(task)
+      continue
+    }
+
+    // LLM decomposition: split into 2-4 subtasks
+    log(`DECOMPOSITION: task #${task.id} is COMPOSITE — decomposing`)
+    const subtasks = decomposeTask(task, maxSubtasks)
+
+    if (!subtasks || subtasks.length === 0) {
+      log(`DECOMPOSITION: task #${task.id} decomposition returned empty — keeping original`)
+      expandedTasks.push(task)
+      continue
+    }
+
+    // Post-decomposition: assign IDs, parent reference, and inherited blockedBy
+    for (let i = 0; i < subtasks.length; i++) {
+      const subtask = subtasks[i]
+      subtask.parent_task_id = task.id
+      subtask.id = `${task.id}-sub-${i + 1}`
+      subtask.type = subtask.type ?? task.type
+      subtask.metadata = subtask.metadata ?? {}
+      // Inherit parent's blockedBy plus any intra-subtask depends_on references
+      const parentBlocked = (task.blockedBy || []).map(String)
+      const subtaskDepends = (subtask.depends_on || []).map(d => `${task.id}-sub-${d}`)
+      subtask.blockedBy = [...new Set([...parentBlocked, ...subtaskDepends])]
+      delete subtask.depends_on  // normalize — strive uses blockedBy, not depends_on
+    }
+
+    // Post-decomposition validation: detect overlapping fileTargets across subtasks
+    const validatedSubtasks = validateSubtaskFileOverlap(subtasks, task)
+    log(`DECOMPOSITION: task #${task.id} → ${validatedSubtasks.length} subtasks`)
+    expandedTasks.push(...validatedSubtasks)
+  }
+
   return expandedTasks
-}
-
-const expandedTasks = []
-for (const task of parsedTasks) {
-  // EC-7 Guard: skip classification for subtasks and gap tasks
-  // Subtasks (from prior decomposition) and gap tasks (from discipline loop)
-  // are always atomic — never re-decompose them
-  if (task.parent_task_id || (task.id && String(task.id).startsWith("gap-"))) {
-    expandedTasks.push(task)
-    continue
-  }
-
-  const fileTargets = task.file_targets || []
-  const fileCount = fileTargets.length
-  const hasMultipleLayers = detectMultipleLayers(fileTargets)
-
-  // Fast-path: skip LLM for obviously atomic tasks (<=2 files, single layer)
-  if (fileCount <= 2 && !hasMultipleLayers) {
-    expandedTasks.push(task)
-    continue
-  }
-
-  // Heuristic pre-filter: below threshold and single layer → atomic
-  if (fileCount < complexityThreshold && !hasMultipleLayers) {
-    expandedTasks.push(task)
-    continue
-  }
-
-  // LLM classification — use haiku for cost efficiency
-  const classification = classifyTask(task)
-
-  if (classification === "ATOMIC") {
-    expandedTasks.push(task)
-    continue
-  }
-
-  // LLM decomposition for COMPOSITE tasks
-  const subtasks = decomposeTask(task, maxSubtasks)
-
-  // SEC-003 FIX: Validate LLM-generated file_targets against path traversal
-  // Security pattern: SAFE_FILE_PATH — see security-patterns.md
-  const SAFE_FILE_PATH = /^[a-zA-Z0-9._\-\/]+$/
-  for (const st of subtasks) {
-    st.file_targets = (st.file_targets || []).filter(fp =>
-      SAFE_FILE_PATH.test(fp) && !fp.includes('..') && !fp.startsWith('/')
-    )
-  }
-
-  // Post-decomposition validation (EC-2): detect overlapping file targets
-  const validated = validateSubtaskOverlaps(subtasks)
-
-  // Assign parent reference and IDs
-  for (let i = 0; i < validated.length; i++) {
-    validated[i].parent_task_id = task.id
-    validated[i].id = `${task.id}-sub-${i + 1}`
-    // Inherit parent's blockedBy + subtask-specific depends_on
-    // BACK-001 FIX: Resolve depends_on 0-based indices to actual subtask IDs
-    // depends_on contains indices into the validated array, not task IDs
-    const resolvedDeps = (validated[i].depends_on || []).map(depIdx => {
-      if (typeof depIdx === 'number' && depIdx >= 0 && depIdx < validated.length) {
-        return `${task.id}-sub-${depIdx + 1}`  // Convert index to subtask ID
-      }
-      return String(depIdx)  // Pass through if already a string ID
-    })
-    validated[i].blockedBy = [
-      ...(task.blockedBy || []),
-      ...resolvedDeps
-    ]
-    // Inherit parent's type if not set
-    validated[i].type = validated[i].type || task.type
-  }
-
-  // Import dependency scanning (EC-3)
-  scanImportDependencies(validated)
-
-  expandedTasks.push(...validated)
 }
 ```
 
 ## Layer Detection
 
+**Inputs**: `fileTargets` (string[])
+**Outputs**: `boolean` — true if targets span multiple architectural layers
+**Error handling**: Empty or null input → returns false (fail-open)
+
 ```javascript
-/**
- * Detect if file targets span 2+ architectural layers.
- * Uses path pattern matching — no AST required.
- *
- * @param {string[]} fileTargets - Array of file paths from the task
- * @returns {boolean} true if targets span multiple layers
- */
+// Detects whether fileTargets span multiple architectural layers.
+// Layers: api/routes, service/logic, model/schema, test, migration, config
+// A task touching 2+ layers is a decomposition candidate regardless of file count.
+const LAYER_PATTERNS = [
+  { name: "api",        pattern: /\/api\/|\/routes?\/|\/controllers?\// },
+  { name: "service",    pattern: /\/services?\/|\/handlers?\/|\/usecases?\// },
+  { name: "model",      pattern: /\/models?\/|\/schema\/|\/entities?\// },
+  { name: "test",       pattern: /\.(test|spec)\.(ts|js|py|go|rb)$|\/tests?\/|\/specs?\// },
+  { name: "migration",  pattern: /\/migrations?\// },
+  { name: "config",     pattern: /\.(config|env|yml|yaml|toml)\b|\/config\// },
+]
+
 function detectMultipleLayers(fileTargets) {
   if (!fileTargets || fileTargets.length === 0) return false
-
-  // Architectural layer patterns (order does not matter)
-  const layerPatterns = [
-    /\/(api|apis)\//,
-    /\/(routes?|routers?)\//,
-    /\/(services?|usecases?)\//,
-    /\/(models?|entities|domain)\//,
-    /\/(middleware|interceptors?)\//,
-    /\/(utils?|helpers?|lib)\//,
-    /\/(controllers?|handlers?)\//,
-    /\/(repositories|repos?|dal)\//,
-    /\/(views?|pages?|components?)\//,
-    /\/(schemas?|validators?|dtos?)\//,
-  ]
-
   const matchedLayers = new Set()
   for (const file of fileTargets) {
-    for (let i = 0; i < layerPatterns.length; i++) {
-      if (layerPatterns[i].test(file)) {
-        matchedLayers.add(i)
+    for (const layer of LAYER_PATTERNS) {
+      if (layer.pattern.test(file)) {
+        matchedLayers.add(layer.name)
+        break  // Each file counts toward at most one layer (first match wins)
       }
     }
+    if (matchedLayers.size >= 2) return true  // Early exit
   }
-
   return matchedLayers.size >= 2
 }
 ```
 
-## Classification
+## LLM Classification
+
+Uses haiku model for cost efficiency. Classification prompt defaults to ATOMIC —
+only split when there is clear evidence of composite structure.
+
+**Inputs**: `task` (object with subject, fileTargets, dirTargets, type)
+**Outputs**: `"ATOMIC"` | `"COMPOSITE"` string
+**Error handling**: Agent call failure or unrecognized output → return `"ATOMIC"` (fail-open, default safe)
 
 ```javascript
-/**
- * Classify a task as ATOMIC or COMPOSITE using lightweight LLM call.
- * Defaults to ATOMIC on any failure — safe default avoids over-fragmentation.
- *
- * @param {object} task - Parsed task with subject, file_targets, type
- * @returns {string} "ATOMIC" or "COMPOSITE"
- */
 function classifyTask(task) {
-  // SEC-001 FIX: Sanitize untrusted task fields before LLM prompt injection
-  // task.subject originates from plan content (untrusted) — strip injection vectors
-  const sanitize = (s) => String(s || "")
-    .replace(/[\r\n]+/g, " ")        // Collapse newlines (prevent prompt line injection)
-    .replace(/```[\s\S]*?```/g, "")   // Strip code fences
-    .replace(/<[^>]*>/g, "")          // Strip HTML/XML tags
-    .replace(/`[^`]+`/g, "")          // Strip inline code
-    .slice(0, 200)                     // Cap length
-    .trim()
+  const model = readTalismanSection("work")?.task_decomposition?.model ?? "haiku"
+  const fileList = (task.fileTargets || []).join(", ") || "(none)"
 
-  const safeSubject = sanitize(task.subject)
-  const safeTargets = (task.file_targets || [])
-    .filter(fp => /^[a-zA-Z0-9._\-\/]+$/.test(fp) && !fp.includes('..'))
-    .slice(0, 20)
+  const prompt = `You are a task classifier for a multi-agent coding workflow.
 
-  const prompt = `You are a task classifier for a coding workflow.
+Task: "${task.subject}"
+File targets: ${fileList}
+Task type: ${task.type ?? "impl"}
 
-Task: "${safeSubject}"
-File targets: ${JSON.stringify(safeTargets)}
-Type: ${task.type || "impl"}
-
-Classify as ATOMIC (one worker, single concern) or COMPOSITE (should split).
-Default to ATOMIC when uncertain. Only classify as COMPOSITE when:
-- Task targets 5+ files across different architectural layers
-- Task description contains "and" connecting distinct concerns
-- Task involves both creation AND testing of multiple components
+Classify as ATOMIC (single worker, single concern) or COMPOSITE (should split).
+Default to ATOMIC when uncertain. Only classify as COMPOSITE when ALL of:
+- Task targets 5+ files across different architectural layers (api + service + model)
+- Task description contains "and" connecting genuinely distinct concerns
+- Splitting would produce independently deployable units of work
 
 Respond with exactly one word: ATOMIC or COMPOSITE`
 
+  let result = "ATOMIC"
   try {
-    // Agent() call with haiku model, 1-turn max for cost efficiency
-    // classificationModel is read from talisman (default: "haiku")
-    const result = Agent({
+    // Single-turn haiku call — fast and cheap
+    result = Agent({
+      subagent_type: "general-purpose",
+      model: model,
       prompt: prompt,
-      model: classificationModel,
       maxTurns: 1,
-      description: "Classify task complexity"
-    })
-
-    const trimmed = result.trim().toUpperCase()
-    if (trimmed === "COMPOSITE" || trimmed === "ATOMIC") {
-      return trimmed
-    }
-    // Unexpected response → default ATOMIC
-    return "ATOMIC"
+    }).trim().toUpperCase()
   } catch (e) {
-    // LLM timeout or error → safe default
-    warn(`Task classification failed for "${task.subject}": ${e.message}`)
-    return "ATOMIC"
+    log(`DECOMPOSITION: classifyTask error for task #${task.id}: ${e.message} — defaulting ATOMIC`)
   }
+
+  return result === "COMPOSITE" ? "COMPOSITE" : "ATOMIC"
 }
 ```
 
-## Decomposition
+## LLM Decomposition
+
+Splits a COMPOSITE task into 2-4 atomic subtasks with non-overlapping file targets.
+
+**Inputs**: `task` (object), `maxSubtasks` (number, default 4)
+**Outputs**: `Array<{subject, fileTargets, dirTargets, depends_on}>` or empty array on failure
+**Error handling**: JSON parse failure, empty result, or invalid schema → return [] (keep parent task)
 
 ```javascript
-/**
- * Decompose a COMPOSITE task into 2-N atomic subtasks using LLM.
- * On parse failure, returns the original task unchanged.
- *
- * @param {object} task - The composite task to split
- * @param {number} maxSubtasks - Maximum number of subtasks (from talisman config)
- * @returns {object[]} Array of subtask objects
- */
 function decomposeTask(task, maxSubtasks) {
-  const prompt = `You are a task decomposer for a coding workflow.
+  const model = readTalismanSection("work")?.task_decomposition?.model ?? "haiku"
+  const fileList = JSON.stringify(task.fileTargets || [])
 
-Original task: "${task.subject}"
-File targets: ${JSON.stringify(task.file_targets || [])}
-Type: ${task.type || "impl"}
-Max subtasks: ${maxSubtasks}
+  const prompt = `You are a task decomposer for a multi-agent coding workflow.
 
-Split this task into 2-${maxSubtasks} atomic subtasks. Each subtask MUST:
-1. Be completable by one worker independently
-2. Have clear file boundaries (NO overlapping file targets between subtasks)
-3. Have a descriptive subject line
-4. List any dependencies on other subtasks by index (0-based)
+Task: "${task.subject}"
+Description: ${task.description ?? "(none)"}
+File targets: ${fileList}
+Task type: ${task.type ?? "impl"}
 
-Return ONLY a JSON array:
-[{"subject": "...", "file_targets": ["..."], "depends_on": [], "type": "impl|test"}]`
+Split this task into 2 to ${maxSubtasks} atomic subtasks. Each subtask must:
+1. Be completable by ONE worker independently in ONE session
+2. Have clear file boundaries with NO overlapping fileTargets
+3. Have a descriptive subject line starting with a verb
+4. List any intra-subtask dependencies via "depends_on" (array of sibling subtask indices, 0-based)
+
+Respond with ONLY a JSON array (no markdown, no explanation):
+[{"subject": "...", "fileTargets": [...], "dirTargets": [...], "depends_on": []}]`
 
   try {
-    const result = Agent({
+    const raw = Agent({
+      subagent_type: "general-purpose",
+      model: model,
       prompt: prompt,
-      model: classificationModel,
       maxTurns: 1,
-      description: "Decompose composite task"
-    })
+    }).trim()
 
-    // Parse JSON from LLM response — extract array from potential markdown fencing
-    const jsonMatch = result.match(/\[[\s\S]*\]/)
-    if (!jsonMatch) {
-      warn(`Decomposition returned no JSON for "${task.subject}" — keeping original`)
-      return [task]
+    // Strip optional markdown code fence
+    const jsonStr = raw.replace(/^```json?\s*/i, "").replace(/\s*```$/, "").trim()
+    const parsed = JSON.parse(jsonStr)
+
+    if (!Array.isArray(parsed) || parsed.length < 2) {
+      log(`DECOMPOSITION: decomposeTask returned ${parsed.length ?? 0} items — minimum 2 required`)
+      return []
     }
 
-    const subtasks = JSON.parse(jsonMatch[0])
-
-    // Validate structure
-    if (!Array.isArray(subtasks) || subtasks.length < 2) {
-      warn(`Decomposition returned <2 subtasks for "${task.subject}" — keeping original`)
-      return [task]
-    }
-
-    // Cap at maxSubtasks
-    return subtasks.slice(0, maxSubtasks)
+    // Validate each subtask has required fields
+    return parsed.filter(s => typeof s.subject === "string" && s.subject.length > 0)
   } catch (e) {
-    // Parse failure or LLM error → keep original task
-    warn(`Task decomposition failed for "${task.subject}": ${e.message}`)
-    return [task]
+    log(`DECOMPOSITION: decomposeTask parse error for task #${task.id}: ${e.message}`)
+    return []
   }
 }
 ```
 
-## Post-Decomposition Overlap Validation
+## Subtask File Overlap Validation
+
+Post-decomposition check: if LLM assigned the same file to multiple subtasks,
+serialize them via blockedBy rather than allowing concurrent writes.
+
+**Inputs**: `subtasks` (Array), `parentTask` (object, for log context)
+**Outputs**: `Array` — subtasks with blockedBy updated to prevent concurrent overlap
+**Error handling**: Pure in-memory logic, no I/O — no error path needed
 
 ```javascript
-/**
- * Validate that decomposed subtasks have non-overlapping file targets.
- * If overlaps are found, serialize via depends_on links (same approach
- * as file-ownership.md conflict resolution).
- *
- * @param {object[]} subtasks - Array of subtask objects from decomposeTask()
- * @returns {object[]} Validated subtasks with overlap conflicts resolved
- */
-function validateSubtaskOverlaps(subtasks) {
-  const fileToSubtask = {}  // Map<filePath, subtaskIndex[]>
+function validateSubtaskFileOverlap(subtasks, parentTask) {
+  const fileToSubtask = {}  // Map<filePath, subtaskId> — first subtask claiming file wins
 
-  for (let i = 0; i < subtasks.length; i++) {
-    for (const file of (subtasks[i].file_targets || [])) {
-      fileToSubtask[file] = fileToSubtask[file] || []
-      fileToSubtask[file].push(i)
+  for (const subtask of subtasks) {
+    const overlappingOwner = (subtask.fileTargets || []).find(f => fileToSubtask[f])
+    if (overlappingOwner) {
+      const ownerId = fileToSubtask[overlappingOwner]
+      log(`DECOMPOSITION: overlap detected in parent #${parentTask.id}: file "${overlappingOwner}" claimed by both ${ownerId} and ${subtask.id} — serializing`)
+      // Serialize: subtask must wait for the first claimer
+      subtask.blockedBy = [...new Set([...(subtask.blockedBy || []), ownerId])]
     }
-  }
-
-  // Detect overlaps and add depends_on links to serialize
-  for (const [file, indices] of Object.entries(fileToSubtask)) {
-    if (indices.length > 1) {
-      // Chain serialization: subtask[1] depends on subtask[0], subtask[2] on subtask[1], etc.
-      for (let j = 1; j < indices.length; j++) {
-        const laterIdx = indices[j]
-        const earlierIdx = indices[j - 1]
-        subtasks[laterIdx].depends_on = subtasks[laterIdx].depends_on || []
-        if (!subtasks[laterIdx].depends_on.includes(earlierIdx)) {
-          subtasks[laterIdx].depends_on.push(earlierIdx)
-        }
-      }
+    // Register unclaimed files
+    for (const f of (subtask.fileTargets || [])) {
+      if (!fileToSubtask[f]) fileToSubtask[f] = subtask.id
     }
   }
 
@@ -312,111 +273,43 @@ function validateSubtaskOverlaps(subtasks) {
 }
 ```
 
-## Import Dependency Scanning
+## inscription.json Re-write (EC-9)
+
+After decomposition expands the task list, inscription.json MUST be re-written
+to include subtask entries. The `validate-strive-worker-paths.sh` hook uses a
+flat union of all task file targets — subtask entries automatically join the allowlist.
 
 ```javascript
-/**
- * Scan subtask file targets for import dependencies between subtasks.
- * If subtask B's files import from subtask A's files, auto-add depends_on link.
- * Uses grep for import patterns — no full AST required.
- *
- * This catches implicit dependencies the LLM may not have declared (EC-3).
- *
- * @param {object[]} subtasks - Array of subtask objects (mutated in-place)
- */
-function scanImportDependencies(subtasks) {
-  // Build map: file path → subtask index (for owned files only)
-  const fileOwner = {}
-  for (let i = 0; i < subtasks.length; i++) {
-    for (const file of (subtasks[i].file_targets || [])) {
-      fileOwner[file] = i
-    }
-  }
-
-  // For each subtask, check if its files import from another subtask's files
-  for (let i = 0; i < subtasks.length; i++) {
-    for (const file of (subtasks[i].file_targets || [])) {
-      // Scan existing file for import patterns (only if file already exists)
-      try {
-        // Grep for common import patterns:
-        // import ... from './path'  (JS/TS)
-        // from path import ...      (Python)
-        // use path::...             (Rust)
-        const importResults = Grep({
-          pattern: "(?:import .+ from ['\"]|from .+ import|use .+::)",
-          path: file,
-          output_mode: "content"
-        })
-
-        if (!importResults) continue
-
-        // Check if any import path resolves to another subtask's file
-        for (const [otherFile, ownerIdx] of Object.entries(fileOwner)) {
-          if (ownerIdx === i) continue  // skip self-references
-          // Simplified path matching: check if import line references the other file's basename
-          const otherBasename = otherFile.replace(/.*\//, "").replace(/\.[^.]+$/, "")
-          if (importResults.includes(otherBasename)) {
-            subtasks[i].depends_on = subtasks[i].depends_on || []
-            if (!subtasks[i].depends_on.includes(ownerIdx)) {
-              subtasks[i].depends_on.push(ownerIdx)
-            }
-          }
-        }
-      } catch (e) {
-        // File may not exist yet (new file) — skip silently
-        continue
-      }
+// After runTaskDecomposition() returns the expanded list:
+// Re-write inscription.json task_ownership with subtask entries
+const taskOwnershipExpanded = {}
+for (const task of expandedTasks) {
+  const targets = { files: task.fileTargets || [], dirs: task.dirTargets || [] }
+  if (targets.files.length > 0 || targets.dirs.length > 0) {
+    taskOwnershipExpanded[String(task.id)] = {
+      owner: task.assignedWorker || "unassigned",
+      files: targets.files,
+      dirs: targets.dirs,
+      parent_task_id: task.parent_task_id ?? null,
     }
   }
 }
+// Overwrite existing inscription.json (same path as written in forge-team.md Team Creation)
+Write(`${signalDir}/inscription.json`, JSON.stringify({
+  ...existingInscription,
+  task_ownership: taskOwnershipExpanded,
+}))
 ```
-
-## Integration
-
-```javascript
-// Called from parse-plan.md after extractTasks() completes
-// Before file-ownership.md buildOwnershipGraph()
-
-// Phase 0: parse-plan.md → parsedTasks
-// Phase 0.5: task-decomposition.md → expandedTasks (this file)
-// Phase 1: file-ownership.md → ownership graph from expandedTasks
-
-const expandedTasks = runDecomposition(parsedTasks, workConfig)
-
-// Log decomposition results for debugging
-const originalCount = parsedTasks.length
-const expandedCount = expandedTasks.length
-if (expandedCount > originalCount) {
-  log(`Task decomposition: ${originalCount} tasks → ${expandedCount} tasks (${expandedCount - originalCount} subtasks created)`)
-}
-
-// Pass expandedTasks to file-ownership.md for Phase 1
-```
-
-## Error Handling
-
-| Scenario | Handling | Fallback |
-|----------|----------|----------|
-| LLM timeout during classification | Catch error, log warning | Classify as ATOMIC |
-| LLM timeout during decomposition | Catch error, log warning | Keep original task |
-| LLM returns invalid classification | Check for exact "ATOMIC"/"COMPOSITE" match | Default to ATOMIC |
-| LLM returns non-JSON decomposition | Regex extraction fails | Keep original task |
-| LLM returns <2 subtasks | Array length check | Keep original task |
-| Subtask file targets overlap | Chain serialization via `depends_on` | Serialized execution |
-| Import dependency scan fails | File may not exist yet | Skip silently |
-| Decomposition disabled in talisman | `enabled: false` check | Pass-through (no-op) |
-| Gap task or subtask re-enters decomposition | `parent_task_id` / `gap-` prefix guard (EC-7) | Skip, classify as ATOMIC |
-| `file_targets` is empty or missing | `fileCount === 0` → fast-path | Classify as ATOMIC |
 
 ## Edge Cases
 
 | Edge Case | Handling |
 |-----------|----------|
-| Task with no file targets | Fast-path: 0 files ≤ 2, skip classification |
-| Task with exactly `complexityThreshold` files | Enters LLM classification (threshold is inclusive) |
-| LLM generates more subtasks than `maxSubtasks` | Sliced to `maxSubtasks` via `.slice(0, maxSubtasks)` |
-| Single-file task targeting a barrel file (index.ts) | `detectMultipleLayers` checks path patterns, barrel files don't match layer patterns → ATOMIC |
-| Subtask depends_on references use 0-based index | Resolved to subtask IDs (`{parent}-sub-{N+1}`) after decomposition |
-| Convergence loop re-runs decomposition | EC-7 guard skips tasks with `parent_task_id` or `gap-` prefix |
-| All tasks are already atomic (small plan) | Fast-path exits for all → `expandedTasks === parsedTasks` (no LLM calls) |
-| Task type is "test" (trial-forger) | Inherits parent type; classification still applies — test tasks can also be composite |
+| LLM returns ATOMIC for a 10-file task | Respected — plan author's intent preserved |
+| `decomposeTask` returns overlapping fileTargets | `validateSubtaskFileOverlap` serializes via blockedBy |
+| `decomposeTask` returns `[]` (failure) | Original parent task kept in expandedTasks |
+| `depends_on` references invalid sibling index | `blockedBy` construction skips out-of-range indexes |
+| Task has 0 fileTargets | Fast-path ATOMIC (totalTargets <= 2), no LLM call |
+| `decomposition.enabled: false` | Full skip, original extractedTasks returned unchanged |
+| Subtask inherits blockedBy from parent | Parent's blockedBy always prepended to subtask.blockedBy |
+| >4 subtasks returned by LLM | Caller uses `maxSubtasks` in prompt — filter to first maxSubtasks if LLM disobeys |

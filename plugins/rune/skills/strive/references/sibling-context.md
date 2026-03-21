@@ -1,175 +1,146 @@
 # Sibling Context — strive Phase 2 Reference
 
-Sibling awareness injection into worker spawn prompts. Gives each worker visibility into what other workers are concurrently implementing, preventing duplication and enabling cross-task imports.
+Worker prompt injection providing explicit sibling awareness. Each worker
+receives a view of what other workers are implementing and which files they own,
+preventing duplicate work and cross-worker file conflicts.
 
-**Inputs**: `currentTask` (object), `allTasks` (array), `taskOwnership` (object from inscription.json)
-**Outputs**: sibling context markdown string (or empty string if no siblings)
-**Error handling**: Missing ownership data → skip sibling (show subject only, no files). Empty task list → return empty string.
+See [worker-prompts.md](worker-prompts.md) for the injection point (`siblingWorkerContext`).
+See [file-ownership.md](file-ownership.md) for the `taskOwnership` map that feeds this module.
 
 ## Configuration
 
-```javascript
-// readTalismanSection: "work"
-const workConfig = readTalismanSection("work")
-const siblingEnabled = workConfig?.sibling_awareness?.enabled ?? true
-const maxSiblingFiles = workConfig?.sibling_awareness?.max_sibling_files ?? 5
-const maxSiblingTasks = workConfig?.sibling_awareness?.max_sibling_tasks ?? 10
+```yaml
+work:
+  sibling_awareness:
+    enabled: true          # Inject sibling context into worker prompts (default: true)
+    max_sibling_files: 5   # Max files shown per sibling entry (token cap, default: 5)
 ```
+
+Read via `readTalismanSection("work")?.sibling_awareness`.
 
 ## buildSiblingContext()
 
+Builds the sibling context block injected into each worker's spawn prompt.
+Each worker receives a different view: they see all OTHER workers' tasks, not their own.
+
+**Inputs**:
+- `currentTask` (object) — the task being assigned to this worker
+- `allTasks` (Array) — full expanded task list (post-decomposition)
+- `taskOwnership` (object) — inscription.json `task_ownership` map
+- `workConfig` (object) — resolved talisman `work` section
+
+**Outputs**: `string` — markdown block to inject into worker prompt, or `""` if disabled or no siblings
+
+**Error handling**: Any missing task or ownership entry → skip that sibling silently (fail-open, never throw)
+
 ```javascript
-/**
- * Build sibling context string for injection into worker spawn prompts.
- * Shows other workers' tasks and file assignments so the current worker
- * knows what's being worked on concurrently.
- *
- * @param {object} currentTask - The task being assigned to this worker
- * @param {object[]} allTasks - All tasks in the task pool
- * @param {object} taskOwnership - Map from task ID to {owner, files, dirs} (from inscription.json)
- * @returns {string} Markdown sibling context block, or empty string if disabled/no siblings
- */
-function buildSiblingContext(currentTask, allTasks, taskOwnership) {
+function buildSiblingContext(currentTask, allTasks, taskOwnership, workConfig) {
+  const siblingConfig = workConfig?.sibling_awareness
+  const siblingEnabled = siblingConfig?.enabled ?? true
+
   if (!siblingEnabled) return ""
 
-  // Filter to active siblings: not the current task, not completed
-  let siblings = allTasks
-    .filter(t => t.id !== currentTask.id && t.status !== "completed")
-    .map(t => ({
-      id: t.id,
-      subject: t.subject,
-      files: (taskOwnership[String(t.id)]?.files || []).slice(0, maxSiblingFiles),
-      dirs: taskOwnership[String(t.id)]?.dirs || [],
-      owner: taskOwnership[String(t.id)]?.owner || "unassigned",
-      type: t.type || "impl"
-    }))
+  const maxSiblingFiles = siblingConfig?.max_sibling_files ?? 5
+
+  // Collect siblings: other tasks that are not yet completed and not the current task
+  const siblings = allTasks
+    .filter(t => String(t.id) !== String(currentTask.id) && t.status !== "completed")
+    .map(t => {
+      const ownership = taskOwnership[String(t.id)] || {}
+      const files = (ownership.files || []).slice(0, maxSiblingFiles)
+      const dirs = (ownership.dirs || []).slice(0, maxSiblingFiles)
+      const allTargets = [...files, ...dirs.map(d => d + "*")]
+      return {
+        subject: t.subject || "(unnamed task)",
+        targets: allTargets,
+        owner: ownership.owner && ownership.owner !== "unassigned"
+          ? ownership.owner
+          : `Worker #${t.id}`,
+        taskId: String(t.id),
+      }
+    })
+    .filter(s => s.targets.length > 0)  // Only show siblings with known file targets
 
   if (siblings.length === 0) return ""
 
-  // EC-5: Cap sibling count to prevent token explosion
-  // Sort by file proximity to current task before truncating
-  if (siblings.length > maxSiblingTasks) {
-    siblings = sortByFileProximity(siblings, currentTask, taskOwnership)
-    siblings = siblings.slice(0, maxSiblingTasks)
-  }
+  // Build current task's own file list for the "YOU are assigned" line
+  const myOwnership = taskOwnership[String(currentTask.id)] || {}
+  const myFiles = [...(myOwnership.files || []), ...(myOwnership.dirs || []).map(d => d + "*")]
+  const myTargetLine = myFiles.length > 0
+    ? myFiles.join(", ")
+    : "(targets not yet registered)"
 
-  // Build the current task's file list for the "YOU are assigned" line
-  const currentFiles = taskOwnership[String(currentTask.id)]?.files || []
-
-  // SEC-002 FIX: Sanitize untrusted task subjects before prompt injection
-  // Task subjects originate from plan content — strip injection vectors
-  const sanitize = (s) => String(s || "")
-    .replace(/[\r\n]+/g, " ")
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/<[^>]*>/g, "")
-    .replace(/`[^`]+`/g, "")
-    .slice(0, 150)
-    .trim()
-
-  // Build markdown context block
-  const siblingLines = siblings.map(s => {
-    const fileList = s.files.length > 0 ? s.files.join(", ") : "(no files assigned)"
-    return `- ${s.owner}: "${sanitize(s.subject)}" → files: ${fileList}`
-  })
+  const siblingLines = siblings
+    .map(s => {
+      const targetStr = s.targets.length > 0 ? s.targets.join(", ") : "(no declared targets)"
+      return `- ${s.owner}: "${s.subject}" → ${targetStr}`
+    })
+    .join("\n")
 
   return `
 ## Sibling Context (DO NOT DUPLICATE)
 
-Other workers are concurrently implementing:
-${siblingLines.join("\n")}
+Other workers are concurrently implementing these tasks:
+${siblingLines}
 
-YOU are assigned: "${sanitize(currentTask.subject)}" → files: ${currentFiles.join(", ") || "(no files assigned)"}
+YOU are assigned: "${currentTask.subject}" → ${myTargetLine}
 
 RULES:
 - Do NOT modify files assigned to other workers
-- If you need an interface/type from another worker's domain, import it — do not redefine
-- If you discover an unplanned dependency, note it in your Worker Report as SIBLING_DEP
+- If you need an interface or type from another worker's domain, import it — do not redefine
+- If you discover an unplanned dependency on another worker's output, note it in your Worker Report as SIBLING_DEP
+- If a sibling's file does not yet exist (worker not started), create a minimal stub and note it as SIBLING_STUB
 `
 }
 ```
 
-## File Proximity Sorting
+## Injection Point
+
+The `siblingWorkerContext` variable is injected between the non-goals block and the
+`YOUR LIFECYCLE:` section in the worker spawn prompt. This is distinct from:
+
+- `shardContext` — shard plan context (shared across all workers in a shard run)
+- `childWorkerContext` — hierarchical plan context (parent→child relationship)
 
 ```javascript
-/**
- * Sort siblings by number of shared path segments with currentTask's file_targets.
- * Siblings with more file path overlap are more relevant (closer architectural area).
- * Used when sibling count exceeds maxSiblingTasks (EC-5 token cap).
- *
- * @param {object[]} siblings - Sibling task objects with files array
- * @param {object} currentTask - The current worker's task
- * @param {object} taskOwnership - Ownership map for file lookup
- * @returns {object[]} Siblings sorted by proximity (most relevant first)
- */
-function sortByFileProximity(siblings, currentTask, taskOwnership) {
-  const currentFiles = taskOwnership[String(currentTask.id)]?.files || []
-  if (currentFiles.length === 0) return siblings  // no basis for sorting
-
-  // Extract directory segments from current task's files
-  const currentDirs = new Set()
-  for (const file of currentFiles) {
-    const segments = file.split("/")
-    // Build progressive path prefixes: src/, src/services/, src/services/user/
-    for (let i = 1; i < segments.length; i++) {
-      currentDirs.add(segments.slice(0, i).join("/"))
-    }
-  }
-
-  // Score each sibling by shared path segments
-  return siblings
-    .map(s => {
-      let score = 0
-      for (const file of s.files) {
-        const segments = file.split("/")
-        for (let i = 1; i < segments.length; i++) {
-          if (currentDirs.has(segments.slice(0, i).join("/"))) {
-            score++
-          }
-        }
-      }
-      return { ...s, proximityScore: score }
-    })
-    .sort((a, b) => b.proximityScore - a.proximityScore)
-}
+// In buildWorkerPrompt() (see worker-prompts.md):
+const siblingContext = buildSiblingContext(
+  claimedTask,
+  allTasks,
+  taskOwnership,
+  readTalismanSection("work")
+)
+// Inject after nonGoalsBlock, before "YOUR LIFECYCLE:"
+prompt += siblingContext
 ```
 
-## Integration
+## Example Output
 
-```javascript
-// Called from worker-prompts.md buildWorkerPrompt()
-// Injected after task description, before non-goals section
+```markdown
+## Sibling Context (DO NOT DUPLICATE)
 
-// Phase 1: file-ownership.md → taskOwnership written to inscription.json
-// Phase 2: worker spawn → buildSiblingContext() called per worker
+Other workers are concurrently implementing these tasks:
+- rune-smith-1: "Implement UserService with CRUD operations" → src/services/user.ts
+- rune-smith-3: "Add user validation middleware" → src/middleware/validate.ts, src/types/user.ts
 
-const siblingContext = buildSiblingContext(claimedTask, allTasks, taskOwnership)
+YOU are assigned: "Write User API routes" → src/routes/users.ts, src/routes/index.ts
 
-// Insert into worker spawn prompt
-if (siblingContext) {
-  workerPrompt += siblingContext
-}
+RULES:
+- Do NOT modify files assigned to other workers
+- If you need an interface or type from another worker's domain, import it — do not redefine
+- If you discover an unplanned dependency on another worker's output, note it in your Worker Report as SIBLING_DEP
+- If a sibling's file does not yet exist (worker not started), create a minimal stub and note it as SIBLING_STUB
 ```
-
-## Error Handling
-
-| Scenario | Handling | Fallback |
-|----------|----------|----------|
-| Sibling awareness disabled in talisman | `enabled: false` check | Return empty string (no-op) |
-| No active siblings (all completed) | Filter produces empty array | Return empty string |
-| Missing taskOwnership for a sibling | `files` defaults to `[]` | Show sibling with "(no files assigned)" |
-| Missing taskOwnership for current task | `currentFiles` defaults to `[]` | Show "(no files assigned)" for self |
-| Sibling count exceeds `maxSiblingTasks` | Sort by proximity, truncate | Show top N most relevant siblings |
-| File proximity sort with no current files | `currentFiles.length === 0` guard | Skip sorting, return unsorted (original order) |
-| Task ID type mismatch (number vs string) | `String(t.id)` coercion in lookup | Consistent string comparison |
 
 ## Edge Cases
 
 | Edge Case | Handling |
 |-----------|----------|
-| Single-task plan (no siblings) | Filter returns empty → empty string returned |
-| All siblings have no file targets | Each shows "(no files assigned)" — still useful for subject awareness |
-| Current task has subtasks from decomposition | Subtasks appear as separate siblings — each with own scope |
-| Gap tasks in sibling list | Included like any other task — gap tasks have file targets too |
-| Worker reassignment mid-execution | Sibling context reflects state at spawn time — stale but acceptable for v1 |
-| Blocked siblings (not yet started) | Included — worker should know about future concurrent work |
-| `maxSiblingTasks: 0` configured | Filter produces empty after truncation → empty string returned |
+| Only one task in pool | `siblings` is empty → returns `""` (no block injected) |
+| Sibling has no file targets | Filtered out — only siblings with declared targets are shown |
+| `taskOwnership` entry missing for sibling | Treat as no targets → filtered out |
+| `max_sibling_files: 0` | All target lists become empty → siblings filtered out → returns `""` |
+| `sibling_awareness.enabled: false` | Early return `""` |
+| Current task not yet in `taskOwnership` | `myTargetLine` shows "(targets not yet registered)" |
+| Sibling task is already completed | Excluded from siblings list (status filter) |
+| Subtasks from same parent | Treated as independent siblings — each sees the others' file targets |
