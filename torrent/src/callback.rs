@@ -484,4 +484,178 @@ mod tests {
 
         server.stop();
     }
+
+    // ── Field length validation tests (SEC-013 + BACK-015) ──
+
+    #[test]
+    fn reject_session_id_too_long() {
+        let long_id = "a".repeat(65);
+        let json = format!(
+            r#"{{"type":"phase","session_id":"{}","phase":"f","status":"s","details":"d"}}"#,
+            long_id
+        );
+        let err = parse_event(json.as_bytes()).unwrap_err();
+        assert!(err.contains("session_id exceeds 64 chars"), "got: {err}");
+    }
+
+    #[test]
+    fn accept_session_id_at_limit() {
+        let id = "a".repeat(64);
+        let json = format!(
+            r#"{{"type":"phase","session_id":"{}","phase":"f","status":"s","details":"d"}}"#,
+            id
+        );
+        assert!(parse_event(json.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn reject_event_type_too_long() {
+        let long_type = "x".repeat(33);
+        let json = format!(
+            r#"{{"type":"{}","session_id":"abc","phase":"f","status":"s","details":"d"}}"#,
+            long_type
+        );
+        let err = parse_event(json.as_bytes()).unwrap_err();
+        assert!(err.contains("event_type exceeds 32 chars"), "got: {err}");
+    }
+
+    #[test]
+    fn reject_result_too_long() {
+        let long_result = "r".repeat(33);
+        let json = format!(
+            r#"{{"type":"complete","session_id":"abc","result":"{}"}}"#,
+            long_result
+        );
+        let err = parse_event(json.as_bytes()).unwrap_err();
+        assert!(err.contains("result exceeds 32 chars"), "got: {err}");
+    }
+
+    #[test]
+    fn reject_error_too_long() {
+        let long_error = "e".repeat(1025);
+        let json = format!(
+            r#"{{"type":"complete","session_id":"abc","result":"ok","error":"{}"}}"#,
+            long_error
+        );
+        let err = parse_event(json.as_bytes()).unwrap_err();
+        assert!(err.contains("error exceeds 1024 chars"), "got: {err}");
+    }
+
+    #[test]
+    fn reject_activity_too_long() {
+        let long_act = "a".repeat(33);
+        let json = format!(
+            r#"{{"type":"heartbeat","session_id":"abc","activity":"{}","current_tool":"t"}}"#,
+            long_act
+        );
+        let err = parse_event(json.as_bytes()).unwrap_err();
+        assert!(err.contains("activity exceeds 32 chars"), "got: {err}");
+    }
+
+    #[test]
+    fn reject_current_tool_too_long() {
+        let long_tool = "t".repeat(129);
+        let json = format!(
+            r#"{{"type":"heartbeat","session_id":"abc","activity":"a","current_tool":"{}"}}"#,
+            long_tool
+        );
+        let err = parse_event(json.as_bytes()).unwrap_err();
+        assert!(err.contains("current_tool exceeds 128 chars"), "got: {err}");
+    }
+
+    #[test]
+    fn reject_pr_url_bad_protocol() {
+        let json = br#"{"type":"complete","session_id":"abc","result":"ok","pr_url":"http://github.com/pull/1"}"#;
+        let err = parse_event(json).unwrap_err();
+        assert!(err.contains("pr_url must start with https://"), "got: {err}");
+    }
+
+    #[test]
+    fn reject_pr_url_too_long() {
+        let long_url = format!("https://github.com/{}", "a".repeat(500));
+        let json = format!(
+            r#"{{"type":"complete","session_id":"abc","result":"ok","pr_url":"{}"}}"#,
+            long_url
+        );
+        let err = parse_event(json.as_bytes()).unwrap_err();
+        assert!(err.contains("pr_url exceeds 512 chars"), "got: {err}");
+    }
+
+    #[test]
+    fn accept_valid_pr_url() {
+        let json = br#"{"type":"complete","session_id":"abc","result":"ok","pr_url":"https://github.com/org/repo/pull/42"}"#;
+        assert!(parse_event(json).is_ok());
+    }
+
+    #[test]
+    fn accept_error_none() {
+        let json = br#"{"type":"complete","session_id":"abc","result":"ok"}"#;
+        let event = parse_event(json).unwrap();
+        match event {
+            ChannelEvent::ArcComplete { error, .. } => assert!(error.is_none()),
+            _ => panic!("expected ArcComplete"),
+        }
+    }
+
+    #[test]
+    fn accept_error_within_limit() {
+        let err_msg = "e".repeat(1024);
+        let json = format!(
+            r#"{{"type":"complete","session_id":"abc","result":"ok","error":"{}"}}"#,
+            err_msg
+        );
+        assert!(parse_event(json.as_bytes()).is_ok());
+    }
+
+    // ── HTTP integration test: field validation via live server ──
+
+    #[test]
+    fn server_rejects_oversized_session_id() {
+        let server = CallbackServer::start(0).expect("failed to start");
+        let port = server.port();
+        let url = format!("http://127.0.0.1:{}/event", port);
+
+        let long_id = "x".repeat(65);
+        let body = format!(
+            r#"{{"type":"phase","session_id":"{}","phase":"f","status":"s","details":"d"}}"#,
+            long_id
+        );
+        let resp = ureq::post(&url)
+            .set("Content-Type", "application/json")
+            .send_string(&body);
+        // Server returns 400 for validation errors
+        assert!(resp.is_err(), "expected 400 for oversized session_id");
+
+        server.stop();
+    }
+
+    #[test]
+    fn server_accepts_all_three_event_types() {
+        let server = CallbackServer::start(0).expect("failed to start");
+        let port = server.port();
+        let url = format!("http://127.0.0.1:{}/event", port);
+
+        let events = [
+            r#"{"type":"phase","session_id":"t1","phase":"work","status":"ok","details":""}"#,
+            r#"{"type":"heartbeat","session_id":"t1","activity":"coding","current_tool":"Edit"}"#,
+            r#"{"type":"complete","session_id":"t1","result":"success"}"#,
+        ];
+        for body in events {
+            let resp = ureq::post(&url)
+                .set("Content-Type", "application/json")
+                .send_string(body);
+            assert!(resp.is_ok(), "failed for: {body}");
+        }
+
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        // Verify all 3 events received
+        let mut count = 0;
+        while server.recv_event().is_some() {
+            count += 1;
+        }
+        assert_eq!(count, 3, "expected 3 events, got {count}");
+
+        server.stop();
+    }
 }
