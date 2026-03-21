@@ -99,9 +99,7 @@ fn cmd_new_session(args: &[String]) -> String {
 
     let is_default = config_dir == ".claude" || config_dir == "~/.claude";
 
-    eprintln!("[torrent-cli] Creating session: {session_id}");
-    eprintln!("[torrent-cli] Config: {config_path}");
-    eprintln!("[torrent-cli] Claude: {claude}");
+    eprint!("[torrent-cli] session={session_id} config={config_path}\r\n");
 
     // Create session
     let o = Command::new("tmux")
@@ -136,8 +134,7 @@ fn cmd_new_session(args: &[String]) -> String {
             std::process::exit(1);
         });
 
-    eprintln!("[torrent-cli] Session created: {session_id}");
-    eprintln!("[torrent-cli] Attach: tmux attach -t {session_id}");
+    eprint!("[torrent-cli] created: {session_id}\r\n");
     session_id
 }
 
@@ -153,47 +150,31 @@ fn cmd_send_keys(args: &[String]) {
         eprintln!("--text required"); std::process::exit(1);
     });
 
-    eprintln!("[torrent-cli] Sending to {session}: {text}");
-
     // Escape+delay+Enter workaround for Claude Code Ink TUI
-    // Step 1: text literally
+    // Step 1: Send text literally
     let o = Command::new("tmux")
         .args(["send-keys", "-t", &session, "-l", &text])
         .output().unwrap_or_else(|e| {
-            eprintln!("error: tmux send-keys failed: {}", e);
+            eprint!("[torrent-cli] error: tmux send-keys failed: {e}\r\n");
             std::process::exit(1);
         });
     if !o.status.success() {
-        eprintln!("send-keys failed: {}", String::from_utf8_lossy(&o.stderr));
+        let err = String::from_utf8_lossy(&o.stderr);
+        eprint!("[torrent-cli] send-keys failed: {err}\r\n");
         std::process::exit(1);
     }
-    eprintln!("[torrent-cli] text sent");
 
-    // Step 2: wait 300ms
+    // Step 2: wait 300ms → Escape → wait 100ms → Enter
     thread::sleep(Duration::from_millis(300));
-
-    // Step 3: Escape
-    Command::new("tmux")
+    let _ = Command::new("tmux")
         .args(["send-keys", "-t", &session, "Escape"])
-        .output().unwrap_or_else(|e| {
-            eprintln!("error: tmux send Escape failed: {}", e);
-            std::process::exit(1);
-        });
-    eprintln!("[torrent-cli] escape sent");
-
-    // Step 4: wait 100ms
+        .output();
     thread::sleep(Duration::from_millis(100));
-
-    // Step 5: Enter
-    Command::new("tmux")
+    let _ = Command::new("tmux")
         .args(["send-keys", "-t", &session, "Enter"])
-        .output().unwrap_or_else(|e| {
-            eprintln!("error: tmux send Enter failed: {}", e);
-            std::process::exit(1);
-        });
-    eprintln!("[torrent-cli] enter sent");
+        .output();
 
-    eprintln!("[torrent-cli] keys sent");
+    eprint!("[torrent-cli] sent to {session}\r\n");
 }
 
 // ── capture-pane ────────────────────────────────────────────
@@ -244,7 +225,7 @@ fn cmd_kill(args: &[String]) {
     let _ = Command::new("tmux")
         .args(["kill-session", "-t", &session])
         .output();
-    eprintln!("[torrent-cli] killed: {session}");
+    eprint!("[torrent-cli] killed: {session}\r\n");
 }
 
 // ── run (full flow) ─────────────────────────────────────────
@@ -261,14 +242,14 @@ fn cmd_run(args: &[String]) {
     let session_id = cmd_new_session(&new_args);
 
     // Step 2: Wait for Claude
-    eprintln!("[torrent-cli] Waiting {wait_secs}s for Claude Code...");
+    eprint!("[torrent-cli] waiting {wait_secs}s for Claude Code...\r\n");
     for i in 1..=wait_secs {
         thread::sleep(Duration::from_secs(1));
-        if i % 5 == 0 { eprintln!("[torrent-cli] {i}s..."); }
+        if i % 5 == 0 { eprint!("[torrent-cli] {i}s...\r\n"); }
     }
 
     // Step 3: Capture to verify
-    eprintln!("[torrent-cli] Checking if Claude is ready...");
+    eprint!("[torrent-cli] checking readiness...\r\n");
     let o = Command::new("tmux")
         .args(["capture-pane", "-t", &session_id, "-p", "-S", "-5"])
         .output().unwrap_or_else(|e| {
@@ -278,9 +259,9 @@ fn cmd_run(args: &[String]) {
     let pane = String::from_utf8_lossy(&o.stdout);
     let ready = pane.contains("❯") || pane.contains("bypass permissions");
     if ready {
-        eprintln!("[torrent-cli] Claude Code is ready");
+        eprint!("[torrent-cli] Claude Code ready\r\n");
     } else {
-        eprintln!("[torrent-cli] Claude may not be ready yet");
+        eprint!("[torrent-cli] Claude may not be ready yet\r\n");
     }
 
     // Step 4: Send /arc
@@ -289,10 +270,10 @@ fn cmd_run(args: &[String]) {
 
     // Step 5: Verify
     thread::sleep(Duration::from_secs(3));
-    eprintln!("[torrent-cli] Capturing output...");
+    eprint!("[torrent-cli] capturing output...\r\n");
     cmd_capture_pane(&["--session".into(), session_id.clone(), "--lines".into(), "10".into()]);
 
-    eprintln!("[torrent-cli] Attach: tmux attach -t {session_id}");
+    eprint!("[torrent-cli] attach: tmux attach -t {session_id}\r\n");
 }
 
 // ── send-msg ───────────────────────────────────────────────
@@ -370,7 +351,7 @@ fn send_via_bridge(session: &str, text: &str) {
             if let Ok(out) = resp {
                 let code = String::from_utf8_lossy(&out.stdout);
                 if code.starts_with("200") {
-                    eprintln!("[torrent-cli] sent via bridge → {session} ({} bytes)", text.len());
+                    eprint!("[torrent-cli] sent via bridge → {session} ({} bytes)\r\n", text.len());
                     return;
                 }
             }
@@ -393,7 +374,7 @@ fn send_via_bridge(session: &str, text: &str) {
     let msg_file = inbox_path.join(format!("{timestamp}.msg"));
     match std::fs::write(&msg_file, text) {
         Ok(_) => {
-            eprintln!("[torrent-cli] sent via inbox → {session} ({} bytes)", text.len());
+            eprint!("[torrent-cli] sent via inbox → {session} ({} bytes)\r\n", text.len());
         }
         Err(e) => {
             eprintln!("bridge: write failed ({e}) — falling back to tmux");
@@ -403,7 +384,7 @@ fn send_via_bridge(session: &str, text: &str) {
 }
 
 fn send_via_tmux(session: &str, text: &str) {
-    eprintln!("[torrent-cli] sent via tmux → {session}");
+    eprint!("[torrent-cli] sent via tmux → {session}\r\n");
     cmd_send_keys(&[
         "--session".into(), session.to_string(),
         "--text".into(), text.to_string(),

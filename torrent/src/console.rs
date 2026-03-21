@@ -32,8 +32,8 @@ pub fn log_line(level: &str, msg: &str) {
     let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S");
     let line = format!("{timestamp} [{level}] {msg}");
 
-    // Write to stderr (visible after TUI exits or in non-TUI mode)
-    eprintln!("{line}");
+    // Write to stderr with explicit \r\n (prevents staircase effect in terminals)
+    eprint!("{line}\r\n");
 
     // Append to log file (always available for debugging)
     if let Some(path) = log_file_path() {
