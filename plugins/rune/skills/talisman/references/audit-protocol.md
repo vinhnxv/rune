@@ -60,6 +60,57 @@ Checks (6 rules):
           INFO for orphaned entries (retired agents)
 ```
 
+### Phase 2.8: Companion File Validation
+
+When companion files (`talisman.ashes.yml`, `talisman.integrations.yml`) exist alongside the main `talisman.yml`, validate cross-file consistency.
+
+```
+Checks:
+  DUP-001 (CRITICAL) — Same top-level key in multiple files
+    Scan all files for duplicate top-level keys.
+    Example: `ashes:` in both talisman.yml and talisman.ashes.yml
+    Action: BLOCK — duplicate keys cause undefined merge behavior
+
+  VER-001 (HIGH) — `version:` found in companion file
+    The `version:` key must only appear in the main talisman.yml.
+    Companion files inherit the version from main.
+    Action: WARN — suggest removing from companion
+
+  LOC-001 (INFO) — Section in "wrong" file
+    A section exists in a file that doesn't match the expected mapping.
+    Example: `codex:` in main talisman.yml instead of talisman.integrations.yml
+    Action: SUGGEST — offer to move via /rune:talisman split
+
+  ORP-001 (INFO) — Orphaned companion sections
+    Companion file contains sections that don't match expected mapping.
+    Example: `arc:` in talisman.ashes.yml (should be in main)
+    Action: SUGGEST — offer to move to correct file
+```
+
+#### Expected Section Mapping
+
+Sections are assigned to companion files by audience:
+
+**`talisman.ashes.yml`** (agent registry):
+- `ashes` — custom review agent definitions
+- `user_agents` — inline agent definitions
+- `extra_agent_dirs` — additional agent directories
+- `doubt_seer` — cross-agent claim verification config
+
+**`talisman.integrations.yml`** (external tools):
+- `codex` — cross-model verification
+- `codex_review` — codex review workflow settings
+- `elicitation` — reasoning method configuration
+- `horizon` — strategic assessment
+- `evidence` — evidence verification
+- `echoes` — agent memory configuration
+- `state_weaver` — state machine validation
+- `file_todos` — structured todo tracking
+
+All other sections belong in the main `talisman.yml`.
+
+**Note**: Single-file layouts (no companions) skip this phase entirely. LOC-001 findings are purely informational — single-file is always valid.
+
 ## Phase 3: Gap Report
 
 Present findings in priority order:

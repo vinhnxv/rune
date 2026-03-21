@@ -334,6 +334,168 @@ fi
 rm -rf "$SHARD_DIR"
 
 # ═══════════════════════════════════════════════════════════════
+# 10. Companion file discovery and merge
+# ═══════════════════════════════════════════════════════════════
+printf "\n=== Companion File Discovery and Merge ===\n"
+
+# Clean up from prior tests
+rm -rf "$MOCK_CHOME/.rune/talisman-resolved" 2>/dev/null || true
+rm -rf "$MOCK_CWD/tmp/.talisman-resolved" 2>/dev/null || true
+
+cat > "$MOCK_CWD/.rune/talisman.yml" <<YAML
+version: "1.0"
+settings:
+  max_ashes: 3
+YAML
+
+cat > "$MOCK_CWD/.rune/talisman.ashes.yml" <<YAML
+ashes:
+  custom:
+    - name: my-reviewer
+      agent: custom-reviewer
+YAML
+
+cat > "$MOCK_CWD/.rune/talisman.integrations.yml" <<YAML
+codex:
+  enabled: true
+  model: o3
+YAML
+
+SHARD_DIR="$MOCK_CWD/tmp/.talisman-resolved"
+result=$(echo '{"cwd":"'"$MOCK_CWD"'","session_id":"test-companion-merge"}' | CLAUDE_PLUGIN_ROOT="$REAL_PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" 2>/dev/null)
+
+assert_contains "Companion merge output has Talisman Shards" "Talisman Shards" "$result"
+
+# Verify companion files were merged into shards
+TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
+_has_yaml_parser=false
+python3 -c "import yaml" 2>/dev/null && _has_yaml_parser=true
+[[ "$_has_yaml_parser" != "true" ]] && command -v yq &>/dev/null && _has_yaml_parser=true
+
+if [[ "$_has_yaml_parser" != "true" ]]; then
+  PASS_COUNT=$(( PASS_COUNT + 1 ))
+  printf "  PASS: Companion merge SKIPPED (no YAML parser)\n"
+elif [[ -f "$SHARD_DIR/codex.json" ]]; then
+  codex_enabled=$(python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("enabled",""))' < "$SHARD_DIR/codex.json" 2>/dev/null || echo "")
+  if [[ "$codex_enabled" == "True" || "$codex_enabled" == "true" ]]; then
+    PASS_COUNT=$(( PASS_COUNT + 1 ))
+    printf "  PASS: Integrations companion (codex.enabled=true) merged into codex shard\n"
+  else
+    FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+    printf "  FAIL: Integrations companion not merged (codex.enabled=%s)\n" "$codex_enabled"
+  fi
+else
+  FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+  printf "  FAIL: codex.json shard missing after companion merge\n"
+fi
+
+# Verify _meta.json records companion sources
+TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
+if [[ -f "$SHARD_DIR/_meta.json" ]]; then
+  has_companions=$(python3 -c '
+import sys, json
+d = json.load(sys.stdin)
+c = d.get("companions", {})
+proj = c.get("project", [])
+if "ashes" in proj and "integrations" in proj:
+    print("ok")
+else:
+    print("missing")
+' < "$SHARD_DIR/_meta.json" 2>/dev/null || echo "fail")
+  if [[ "$has_companions" == "ok" ]]; then
+    PASS_COUNT=$(( PASS_COUNT + 1 ))
+    printf "  PASS: _meta.json records both companion files\n"
+  else
+    FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+    printf "  FAIL: _meta.json missing companion tracking (%s)\n" "$has_companions"
+  fi
+else
+  FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+  printf "  FAIL: _meta.json not found\n"
+fi
+
+rm -f "$MOCK_CWD/.rune/talisman.yml" "$MOCK_CWD/.rune/talisman.ashes.yml" "$MOCK_CWD/.rune/talisman.integrations.yml"
+rm -rf "$SHARD_DIR"
+
+# ═══════════════════════════════════════════════════════════════
+# 11. Duplicate key detection across main and companion
+# ═══════════════════════════════════════════════════════════════
+printf "\n=== Duplicate Key Detection ===\n"
+
+cat > "$MOCK_CWD/.rune/talisman.yml" <<YAML
+version: "1.0"
+ashes:
+  custom: []
+YAML
+
+cat > "$MOCK_CWD/.rune/talisman.ashes.yml" <<YAML
+ashes:
+  custom:
+    - name: duplicate-key-test
+YAML
+
+SHARD_DIR="$MOCK_CWD/tmp/.talisman-resolved"
+result=$(echo '{"cwd":"'"$MOCK_CWD"'","session_id":"test-duplicate-key"}' | CLAUDE_PLUGIN_ROOT="$REAL_PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" 2>&1)
+
+# Should still exit 0 (fail-forward) but produce an error message
+TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
+result_code=0
+echo '{"cwd":"'"$MOCK_CWD"'","session_id":"test-duplicate-key-2"}' | CLAUDE_PLUGIN_ROOT="$REAL_PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" >/dev/null 2>&1 || result_code=$?
+if [[ "$result_code" -eq 0 ]]; then
+  PASS_COUNT=$(( PASS_COUNT + 1 ))
+  printf "  PASS: Duplicate key does not crash resolver (exit 0)\n"
+else
+  FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+  printf "  FAIL: Duplicate key caused resolver crash (exit %d)\n" "$result_code"
+fi
+
+rm -f "$MOCK_CWD/.rune/talisman.yml" "$MOCK_CWD/.rune/talisman.ashes.yml"
+rm -rf "$SHARD_DIR"
+
+# ═══════════════════════════════════════════════════════════════
+# 12. Empty companion handling
+# ═══════════════════════════════════════════════════════════════
+printf "\n=== Empty Companion Handling ===\n"
+
+cat > "$MOCK_CWD/.rune/talisman.yml" <<YAML
+version: "1.0"
+settings:
+  max_ashes: 7
+YAML
+
+# Create an empty companion file
+touch "$MOCK_CWD/.rune/talisman.ashes.yml"
+
+SHARD_DIR="$MOCK_CWD/tmp/.talisman-resolved"
+result_code=0
+echo '{"cwd":"'"$MOCK_CWD"'","session_id":"test-empty-companion"}' | CLAUDE_PLUGIN_ROOT="$REAL_PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" >/dev/null 2>&1 || result_code=$?
+assert_eq "Empty companion → exit 0" "0" "$result_code"
+
+rm -f "$MOCK_CWD/.rune/talisman.yml" "$MOCK_CWD/.rune/talisman.ashes.yml"
+rm -rf "$SHARD_DIR"
+
+# ═══════════════════════════════════════════════════════════════
+# 13. Missing companion (graceful skip)
+# ═══════════════════════════════════════════════════════════════
+printf "\n=== Missing Companion (Graceful Skip) ===\n"
+
+cat > "$MOCK_CWD/.rune/talisman.yml" <<YAML
+version: "1.0"
+review:
+  max_ashes: 4
+YAML
+
+# No companion files created — should resolve normally
+SHARD_DIR="$MOCK_CWD/tmp/.talisman-resolved"
+result_code=0
+result=$(echo '{"cwd":"'"$MOCK_CWD"'","session_id":"test-no-companion"}' | CLAUDE_PLUGIN_ROOT="$REAL_PLUGIN_ROOT" CLAUDE_CONFIG_DIR="$MOCK_CHOME" bash "$UNDER_TEST" 2>/dev/null) || result_code=$?
+assert_eq "No companion → exit 0" "0" "$result_code"
+assert_contains "No companion still resolves" "Talisman Shards" "$result"
+
+rm -f "$MOCK_CWD/.rune/talisman.yml"
+rm -rf "$SHARD_DIR"
+
+# ═══════════════════════════════════════════════════════════════
 # Results
 # ═══════════════════════════════════════════════════════════════
 printf "\n═══════════════════════════════════════════════════\n"

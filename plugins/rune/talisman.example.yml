@@ -5,6 +5,16 @@
 #   1. .rune/talisman.yml    (project, highest priority)
 #   2. ~/.claude/talisman.yml (user global)
 #   3. Plugin defaults           (7 built-in Ashes)
+#
+# Optional 3-file split:
+#   Instead of one large talisman.yml, you can split into 3 files:
+#     .rune/talisman.yml              — Core runtime config (this file)
+#     .rune/talisman.ashes.yml        — Agent registry (ashes, user_agents, doubt_seer)
+#     .rune/talisman.integrations.yml — External tools (codex, echoes, elicitation, etc.)
+#   Companion files are optional — single-file layout is fully supported.
+#   Use `/rune:talisman split` to auto-extract sections into companion files.
+#   Use `/rune:talisman merge` to rejoin them into a single file.
+#   See skills/talisman/references/talisman-sections.md for section mapping.
 
 version: 1
 

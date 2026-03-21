@@ -169,11 +169,20 @@ If .mcp.json exists:
 ## Phase 5: Write and Confirm
 
 ```
-1. Write to .rune/talisman.yml
+1. Write ONLY .rune/talisman.yml (single file)
+   - Do NOT generate companion files (talisman.ashes.yml, talisman.integrations.yml)
+   - Do NOT mention companion files or the split layout during init
+   - Companion files are an advanced feature suggested contextually later:
+     * When user adds custom ashes via /rune:talisman guide ashes
+     * When user configures codex deep integration
+     * When /rune:talisman audit detects the file exceeds ~500 lines
+   - The split layout is always optional — single-file is the default
+
 2. Show summary of what was generated:
    - Detected stack
    - Sections included
    - Key customizations made
+
 3. Suggest next steps:
    - "Review the generated file"
    - "Run /rune:talisman audit to verify completeness"
