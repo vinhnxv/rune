@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-03-22
+
+### Added
+
+- **Channels API migration** — bridge now uses `notifications/claude/channel` (official Channels API) instead of `notifications/message` (logging, ignored by Claude). Claude natively receives and responds to messages from Torrent
+- **Bun runtime** — bridge rewritten from `npx tsx` (Node) to Bun, matching the [fakechat](https://github.com/anthropics/claude-plugins-official/tree/main/external_plugins/fakechat) reference pattern. ~50ms startup vs ~3-5s
+- **`reply` tool** — Claude can send text responses back to Torrent/browser via new MCP tool. Events forwarded to both HTTP callback (Torrent TUI) and WebSocket (browser UI)
+- **Browser chat UI** — real-time WebSocket chat interface at `http://127.0.0.1:<bridge_port>`. Send messages, see Claude's replies instantly
+- **`/info` endpoint** — bridge exposes session identity JSON (`session_id`, `pid`, `uptime`) for port → session mapping
+- **Auto port allocation** — port pairs (callback + bridge) auto-allocated from 9900–9998 range via `TcpListener::bind` collision check. No more hardcoded ports
+- **Random session IDs** — `torrent-{8 hex chars}` instead of PID-based, preventing collisions across restarts
+- **Session registry** — `tmp/torrent-sessions/{id}.meta` tracks all sessions (mode, ports, config, PID, timestamp)
+- **Channels prompt auto-accept** — polls tmux pane content (up to 10s) to detect development channels confirmation prompt, sends Enter automatically. Replaces hardcoded 5s sleep
+- **`--teammate-mode tmux`** flag added to Claude command when channels enabled
+- **Channel port in TUI** — header shows `[ch:9901]` (cyan=healthy, yellow=unhealthy), session detail shows `CH: :9901`
+- **`Reply` event type** — callback server handles `type: "reply"` events with `text` and `reply_to` fields (8192 char limit)
+- **Makefile `PORT=` and `CONFIG=` variables** — `make run-channel PORT=9900`, `make run-cli-channel CONFIG=~/.claude-work`
+- **`make run-cli-channel`** — new target for CLI session creation with channels
+- **`make clean-sessions`** — clear session registry
+- **`make preflight`** — now checks for Bun availability
+
+### Changed
+
+- **Bridge is bidirectional** — was outbound-only (Claude → Torrent), now also inbound (Torrent → Claude) via Channels API
+- **Bridge version** bumped to 0.2.0
+- **`.mcp.json`** — `bun` command replaces `npx tsx`, removed hardcoded `env` block (ports inherited from shell)
+- **`deliver()` function** — centralized channel notification dispatch with `void` (fire-and-forget) instead of `await`
+- **Bridge `instructions`** — updated for `<channel source="torrent-bridge">` tag format and reply tool usage
+- **Makefile** — `bridge-deps` uses `bun install` instead of `npm install`, `bridge-check` uses `bun build`
+- **`run-channel` target** — auto port by default, explicit via `PORT=` variable
+- **`cmd_run()`** — forwards `--channels` and `--callback-port` to `cmd_new_session()`
+
+### Removed
+
+- **`CLAUDE_SESSION_ID` dependency** — was always `"unknown"` (not an env var). All references replaced with `TORRENT_SESSION_ID`
+- **`logging: {}` capability** — removed from bridge MCP server (using `claude/channel` instead)
+- **Hardcoded port 9901** — removed from `.mcp.json` env block
+- **`run-channel-custom` Makefile target** — merged into `run-channel` with `PORT=` variable
+
 ## [0.8.0] - 2026-03-22
 
 ### Added
