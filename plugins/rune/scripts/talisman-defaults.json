@@ -58,9 +58,27 @@
     "ship": {
       "auto_merge": false,
       "auto_pr": true,
+      "ci_check": {
+        "conclusion_allowlist": [
+          "success",
+          "skipped",
+          "neutral"
+        ],
+        "enabled": false,
+        "escalation_timeout_ms": 1800000,
+        "fix_retries": 2,
+        "fix_timeout_ms": 300000,
+        "poll_interval_ms": 30000,
+        "retrigger_on_push": false,
+        "timeout_ms": 900000
+      },
       "draft": false,
       "labels": [],
       "merge_strategy": "squash",
+      "merge_verification": {
+        "enabled": true,
+        "timeout_ms": 60000
+      },
       "pr_monitoring": false,
       "rebase_before_merge": true,
       "wait_ci": false
@@ -589,6 +607,13 @@
     "bash_timeout_enabled": true,
     "bash_timeout_patterns": [],
     "process_kill_grace": 5,
+    "semantic_activity": {
+      "enabled": true,
+      "error_loop_threshold": 3,
+      "permission_threshold": 3,
+      "retry_loop_threshold": 5,
+      "window_seconds": 60
+    },
     "teammate_stuck_threshold": 180
   },
   "question_relay": {
@@ -902,7 +927,17 @@
     },
     "max_workers": 3,
     "pr_monitoring": false,
+    "sibling_awareness": {
+      "enabled": true,
+      "max_sibling_files": 5
+    },
     "skip_branch_check": false,
+    "task_decomposition": {
+      "complexity_threshold": 5,
+      "enabled": true,
+      "max_subtasks": 4,
+      "model": "haiku"
+    },
     "unrestricted_shared_files": [],
     "ward_commands": [
       "make check",

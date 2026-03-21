@@ -333,7 +333,6 @@ def _inject_work_defaults(data: dict[str, Any]) -> None:
         work["sibling_awareness"] = {
             "enabled": True,
             "max_sibling_files": 5,
-            "max_sibling_tasks": 10,
         }
     data["work"] = work
 

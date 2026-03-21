@@ -81,7 +81,7 @@ Agent({
     Follow existing codebase patterns. Do not introduce new patterns or dependencies.
 
     ${nonGoalsBlock}
-
+    ${siblingWorkerContext}
     YOUR LIFECYCLE:
     1. TaskList() -> find tasks assigned to you (owner matches your name)
        If no tasks assigned yet, find unblocked, unowned implementation tasks and claim them.
@@ -456,7 +456,7 @@ Agent({
     Match existing test patterns exactly. Read existing tests before writing new ones.
 
     ${nonGoalsBlock}
-
+    ${siblingWorkerContext}
     YOUR LIFECYCLE:
     1. TaskList() -> find tasks assigned to you (owner matches your name)
        If no tasks assigned yet, find unblocked, unowned test tasks and claim them.
@@ -1181,6 +1181,34 @@ if (flowMap) {
 // Only inject this step when flowMap exists
 // When missing: step numbering goes 4.7.5/4.7.6 → 4.8 (no gap, no overhead)
 ```
+
+## Sibling Context Injection (conditional)
+
+Injects a `## Sibling Context (DO NOT DUPLICATE)` block into each worker's spawn prompt,
+showing what other workers are implementing and which files they own.
+Prevents duplicate work and cross-worker file conflicts in concurrent swarms.
+
+See [sibling-context.md](sibling-context.md) for `buildSiblingContext()` implementation.
+Config: `work.sibling_awareness` talisman section.
+
+**Injection point**: between `${nonGoalsBlock}` and `YOUR LIFECYCLE:` in both rune-smith and trial-forger prompts.
+
+```javascript
+// In buildWorkerPrompt() — called for each worker during Phase 2 spawning:
+const siblingWorkerContext = buildSiblingContext(
+  claimedTask,          // the task being assigned to this worker
+  allTasks,             // full expanded task list (post-decomposition)
+  taskOwnership,        // inscription.json task_ownership map
+  readTalismanSection("work")
+)
+// Inject after nonGoalsBlock, before "YOUR LIFECYCLE:"
+// Returns "" when sibling_awareness.enabled=false or no siblings with file targets
+```
+
+**Distinct from**:
+- `shardContext` — shard plan context (shared across all workers in a shard run)
+- `childWorkerContext` — hierarchical plan context (parent→child relationship)
+- `designContextBlock` — Figma/design spec injection (task-level, not sibling-level)
 
 ## Component Constraints Injection (conditional)
 

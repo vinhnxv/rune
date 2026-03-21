@@ -84,6 +84,18 @@ if (complexityConfig?.enabled !== false) {
 }
 ```
 
+## Phase 1.1: Task Decomposition (after complexity scoring, before conflict detection)
+
+```javascript
+// Phase 1.1: LLM-driven task classification + decomposition
+// Gated by work.task_decomposition.enabled (default: true)
+// See references/task-decomposition.md for the full runTaskDecomposition() implementation.
+const workConfig = readTalismanSection("work")
+extractedTasks = runTaskDecomposition(extractedTasks, workConfig)
+// After expansion, re-write inscription.json task_ownership with subtask entries (EC-9)
+// See task-decomposition.md "inscription.json Re-write" section for the re-write pattern.
+```
+
 ## Task Time Estimation
 
 ```javascript

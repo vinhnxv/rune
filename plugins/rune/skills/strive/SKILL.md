@@ -69,6 +69,7 @@ Phase 0.5: Environment Setup -> Branch check, stash dirty files, SDK canary (wor
     |
 Phase 1: Forge Team -> TeamCreate + TaskCreate pool
     1. Task Pool Creation (complexity ordering, time estimation)
+    1.1. Task Decomposition (LLM classification + subtask expansion, conditional)
     1.4. Design Context Discovery (conditional, zero cost if no artifacts)
     1.6. MCP Integration Discovery (conditional, zero cost if no integrations)
     1.7. File Ownership and Task Pool (static serialization via blockedBy)
@@ -289,6 +290,18 @@ Key steps: teamTransition pre-create guard → signal directory + inscription.js
 
 See [forge-team.md](references/forge-team.md) for the full implementation code.
 
+### Task Decomposition — Phase 1.1 (conditional, gated by `work.task_decomposition.enabled`)
+
+Runs **after** `extractFileTargets()` and `scoreTaskComplexity()`, **before** `detectAndResolveConflicts()`.
+Classifies tasks as ATOMIC or COMPOSITE via LLM (haiku model), then splits COMPOSITE tasks into 2-4 subtasks
+with non-overlapping `fileTargets`. Tasks with ≤2 targets skip LLM entirely (fast-path ATOMIC).
+
+See [task-decomposition.md](references/task-decomposition.md) for `runTaskDecomposition()`, `classifyTask()`,
+`decomposeTask()`, `detectMultipleLayers()`, and `validateSubtaskFileOverlap()`.
+
+**Summary**: `extractedTasks = runTaskDecomposition(extractedTasks, workConfig)`. After expansion, inscription.json
+is re-written with subtask entries (EC-9). Disabled via `work.task_decomposition.enabled: false`.
+
 ### Design Context Discovery (conditional, zero cost if no artifacts)
 
 See [design-context.md](references/design-context.md) for the 4-strategy cascade (design-package → arc-artifacts → design-sync → figma-url-only), conditional skill loading, and task annotation flow.
@@ -303,9 +316,9 @@ See [mcp-integration.md](references/mcp-integration.md) for the resolver algorit
 
 ### File Ownership and Task Pool
 
-See [file-ownership.md](references/file-ownership.md) for file target extraction, risk classification, SEC-STRIVE-001 enforcement via inscription.json, and quality contract.
+See [file-ownership.md](references/file-ownership.md) for file target extraction, risk classification, SEC-STRIVE-001 enforcement via inscription.json, quality contract, and subtask ownership handling.
 
-**Summary**: Extract file targets per task → detect overlaps → serialize via `blockedBy` → create task pool with quality contract → write `task_ownership` to inscription.json. Flat-union allowlist enforced by `validate-strive-worker-paths.sh` hook.
+**Summary**: Extract file targets per task → detect overlaps → serialize via `blockedBy` → create task pool with quality contract → write `task_ownership` to inscription.json. Flat-union allowlist enforced by `validate-strive-worker-paths.sh` hook. Subtasks from Phase 1.1 decomposition are treated as first-class tasks — no special-casing needed.
 
 ### Task File Creation (MANDATORY)
 
