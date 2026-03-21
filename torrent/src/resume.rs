@@ -255,13 +255,16 @@ impl ResumeState {
         self.is_rapid_failure() && self.total_restarts >= 3
     }
 
-    /// Simple hash of the plan filename — first 8 hex chars of a basic hash.
+    /// Simple hash of the plan filename — first 8 hex chars of FNV-1a.
     /// Not cryptographic; just needs to be stable and filesystem-safe.
+    /// Uses FNV-1a (stable across Rust versions, unlike DefaultHasher).
     pub fn plan_hash(plan_file: &str) -> String {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        plan_file.hash(&mut hasher);
-        format!("{:016x}", hasher.finish())[..8].to_string()
+        let mut hash: u64 = 0xcbf29ce484222325; // FNV-1a offset basis
+        for byte in plan_file.as_bytes() {
+            hash ^= *byte as u64;
+            hash = hash.wrapping_mul(0x100000001b3); // FNV-1a prime
+        }
+        format!("{:016x}", hash)[..8].to_string()
     }
 
     fn default_for(plan_file: &str, hash: &str) -> Self {

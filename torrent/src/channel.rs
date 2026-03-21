@@ -28,9 +28,12 @@ pub struct ChannelsConfig {
 
 /// Channel communication state for a running arc session.
 ///
-/// Channels are OUTBOUND-ONLY (Claude → Torrent) in v0.7.0.
-/// Inbound (Torrent → Claude) is broken in Claude Code v2.1.80
-/// (#36477, #36691). Command delivery still uses tmux send-keys.
+/// Channels are BIDIRECTIONAL since v0.8.0:
+///   Outbound (Claude → Torrent): report_phase/report_complete/heartbeat tools
+///   Inbound (Torrent → Claude): Channels API (notifications/claude/channel)
+///
+/// Previous limitation: inbound was broken in Claude Code v2.1.80 (#36477, #36691)
+/// and used tmux send-keys as workaround. Channels API (v2.1.80+) fixes this.
 ///
 /// When channels are disabled or unhealthy, Torrent operates in
 /// file-only monitoring mode (checkpoint.json + heartbeat.json).
@@ -164,6 +167,28 @@ impl ChannelState {
     /// Returns true only when the channel is both enabled and healthy.
     pub fn is_active(&self) -> bool {
         self.enabled && self.healthy
+    }
+
+    /// Query bridge identity via GET /info.
+    #[allow(dead_code)] // Used by Torrent TUI when verifying bridge ownership
+    ///
+    /// Returns the session_id the bridge was started with, allowing Torrent
+    /// to verify it's talking to the right bridge when multiple sessions exist.
+    pub fn query_session_id(&self) -> Option<String> {
+        let port = self.bridge_port?;
+        let url = format!("http://127.0.0.1:{port}/info");
+        let resp = ureq::get(&url)
+            .timeout(HEALTH_CHECK_TIMEOUT)
+            .call()
+            .ok()?;
+        let body = resp.into_string().ok()?;
+        // Parse {"session_id":"torrent-1234",...}
+        // Minimal JSON extraction — avoid pulling in serde just for this.
+        body.split("\"session_id\"")
+            .nth(1)?
+            .split('"')
+            .nth(1)
+            .map(|s| s.to_string())
     }
 
     /// Whether the channel has been inactive longer than [`CHANNEL_INACTIVITY_TIMEOUT`].

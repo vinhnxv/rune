@@ -5,7 +5,7 @@
 //! to the main TUI thread via `std::sync::mpsc`.
 //!
 //! This is the Torrent side of the Claude → Torrent outbound channel.
-//! Channels are OUTBOUND-ONLY in v0.7.0 (Claude Code v2.1.80 bugs #36477, #36691).
+//! Since v0.8.0, channels are bidirectional via Channels API (notifications/claude/channel).
 
 use std::io::Read as _;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -28,6 +28,7 @@ const MAX_BODY_SIZE: usize = 64 * 1024;
 /// - `report_phase` → `PhaseUpdate`
 /// - `report_complete` → `ArcComplete`
 /// - `heartbeat` → `Heartbeat`
+/// - `reply` → `Reply`
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // Fields read in tests and reserved for future UI display
 pub enum ChannelEvent {
@@ -50,6 +51,12 @@ pub enum ChannelEvent {
         session_id: String,
         activity: String,
         current_tool: String,
+    },
+    /// Text response from Claude Code to a channel message.
+    Reply {
+        session_id: String,
+        text: String,
+        reply_to: Option<String>,
     },
 }
 
@@ -75,6 +82,10 @@ struct RawEvent {
     activity: String,
     #[serde(default)]
     current_tool: String,
+    #[serde(default)]
+    text: String,
+    #[serde(default)]
+    reply_to: Option<String>,
 }
 
 /// HTTP callback server that receives push events from torrent-bridge instances.
@@ -362,6 +373,19 @@ fn parse_event(body: &[u8]) -> std::result::Result<ChannelEvent, String> {
             activity: raw.activity,
             current_tool: raw.current_tool,
         }),
+        "reply" => {
+            if raw.text.is_empty() {
+                return Err("reply missing text".into());
+            }
+            if raw.text.len() > 8192 {
+                return Err("reply text exceeds 8192 chars".into());
+            }
+            Ok(ChannelEvent::Reply {
+                session_id: raw.session_id,
+                text: raw.text,
+                reply_to: raw.reply_to,
+            })
+        }
         other => Err(format!("unknown event type: {}", other)),
     }
 }
