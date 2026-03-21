@@ -13,6 +13,23 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::time::Duration;
 
+/// Recovery mode for distinguishing pre-arc, mid-arc, and post-arc failures.
+///
+/// Torrent uses this to send the correct command after a crash:
+/// - `Retry`: No checkpoint — send `/arc plans/...` (fresh start)
+/// - `Resume`: Checkpoint exists — send `/arc plans/... --resume`
+/// - `Evaluate`: Arc completed — no retry needed, record result
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryMode {
+    /// Pre-arc: No checkpoint found. Send `/arc plans/...` (fresh start).
+    Retry,
+    /// Mid-arc: Checkpoint exists with phase progress. Send `/arc plans/... --resume`.
+    Resume,
+    /// Post-arc: Arc completed (merged/shipped/failed). No retry needed.
+    Evaluate,
+}
+
 /// Retry strategy variants, each with its own backoff curve and max retries.
 ///
 /// The strategy is chosen based on the failure signal detected by the watchdog:
@@ -49,9 +66,27 @@ pub struct ResumeState {
     pub last_restart_phase: Option<String>,
     pub deferred_until: Option<DateTime<Utc>>,
     /// Timestamp of the first restart in this session (for rapid failure detection).
-    /// If 3+ restarts occur within 5 minutes of this timestamp, it's a rapid failure.
+    /// If 3+ restarts occur within 30 seconds of this timestamp, it's a rapid failure.
     #[serde(default)]
     pub first_restart_at: Option<DateTime<Utc>>,
+    /// History of restart events with mode tracking (retry vs resume).
+    #[serde(default)]
+    pub restart_history: Vec<RestartRecord>,
+    /// Pre-arc retry count (separate from phase_retries which tracks mid-arc resumes).
+    #[serde(default)]
+    pub retry_count: u32,
+    /// Mid-arc resume count (sum of all phase retries).
+    #[serde(default)]
+    pub resume_count: u32,
+}
+
+/// Record of a single restart event, with mode tracking.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RestartRecord {
+    pub mode: RecoveryMode,
+    pub phase_name: String,
+    pub reason: String,
+    pub timestamp: DateTime<Utc>,
 }
 
 /// Tracks API-level retry counts and timestamps, separate from phase retries.
@@ -177,7 +212,7 @@ impl ResumeState {
         self.last_restart_phase = Some(phase_name.to_string());
     }
 
-    /// Check for rapid failure: 3+ restarts within 5 minutes of the first restart.
+    /// Check for rapid failure: 3+ restarts within 30 seconds of the first restart.
     /// Returns true if all retries are burning through too fast (likely a systemic issue).
     pub fn is_rapid_failure(&self) -> bool {
         if self.total_restarts < 3 {
@@ -186,10 +221,30 @@ impl ResumeState {
         match (self.first_restart_at, self.last_restart_at) {
             (Some(first), Some(last)) => {
                 let elapsed = last.signed_duration_since(first);
-                elapsed.num_seconds() < 300 // 5 minutes
+                elapsed.num_seconds() < 30 // 30 seconds (tightened from 300)
             }
             _ => false,
         }
+    }
+
+    /// Compute effective cooldown, escalating on rapid failure.
+    /// Base cooldown × multiplier based on restart density.
+    pub fn effective_cooldown(&self, base_secs: u64) -> u64 {
+        if self.is_rapid_failure() {
+            // Rapid failure: 3x base, minimum 180s
+            (base_secs * 3).max(180)
+        } else if self.total_restarts >= 2 {
+            // Multiple restarts: 2x base
+            base_secs * 2
+        } else {
+            base_secs
+        }
+    }
+
+    /// Returns true if plan should be skipped due to repeated rapid failures.
+    /// Triggered when rapid failure detected AND total restarts hit threshold.
+    pub fn should_skip_rapid(&self) -> bool {
+        self.is_rapid_failure() && self.total_restarts >= 3
     }
 
     /// Simple hash of the plan filename — first 8 hex chars of a basic hash.
@@ -213,6 +268,9 @@ impl ResumeState {
             last_restart_phase: None,
             deferred_until: None,
             first_restart_at: None,
+            restart_history: Vec::new(),
+            retry_count: 0,
+            resume_count: 0,
         }
     }
 }
@@ -285,5 +343,90 @@ mod tests {
         assert_eq!(state.total_restarts, 2);
         assert!(state.should_skip(2, 2)); // 2 >= 2
         assert!(!state.should_skip(2, 3)); // 2 < 3
+    }
+
+    // --- RecoveryMode & escalation tests ---
+
+    #[test]
+    fn test_effective_cooldown_normal() {
+        let state = ResumeState::load("test.md");
+        assert_eq!(state.effective_cooldown(60), 60);
+    }
+
+    #[test]
+    fn test_effective_cooldown_multiple_restarts() {
+        let mut state = ResumeState::load("test.md");
+        state.record_restart(1, "work", "timeout");
+        state.record_restart(1, "work", "timeout");
+        assert_eq!(state.effective_cooldown(60), 120); // 2x
+    }
+
+    #[test]
+    fn test_effective_cooldown_rapid_failure() {
+        let mut state = ResumeState::load("test.md");
+        let now = Utc::now();
+        state.first_restart_at = Some(now);
+        state.last_restart_at = Some(now + chrono::Duration::seconds(2));
+        state.total_restarts = 3;
+        assert_eq!(state.effective_cooldown(60), 180); // 3x, min 180
+    }
+
+    #[test]
+    fn test_should_skip_rapid_under_threshold() {
+        let mut state = ResumeState::load("test.md");
+        state.total_restarts = 2;
+        state.first_restart_at = Some(Utc::now());
+        state.last_restart_at = Some(Utc::now());
+        assert!(!state.should_skip_rapid()); // 2 < 3
+    }
+
+    #[test]
+    fn test_should_skip_rapid_at_threshold() {
+        let mut state = ResumeState::load("test.md");
+        state.total_restarts = 3;
+        state.first_restart_at = Some(Utc::now());
+        state.last_restart_at = Some(Utc::now());
+        assert!(state.should_skip_rapid()); // 3 >= 3 and rapid
+    }
+
+    #[test]
+    fn test_rapid_failure_30s_window() {
+        let mut state = ResumeState::load("test.md");
+        state.total_restarts = 3;
+        let now = Utc::now();
+        state.first_restart_at = Some(now);
+        // 29s apart = rapid
+        state.last_restart_at = Some(now + chrono::Duration::seconds(29));
+        assert!(state.is_rapid_failure());
+        // 31s apart = not rapid
+        state.last_restart_at = Some(now + chrono::Duration::seconds(31));
+        assert!(!state.is_rapid_failure());
+    }
+
+    #[test]
+    fn test_recovery_mode_serialization() {
+        // Verify serde round-trip for RecoveryMode
+        let record = RestartRecord {
+            mode: RecoveryMode::Resume,
+            phase_name: "work".to_string(),
+            reason: "phase_timeout".to_string(),
+            timestamp: Utc::now(),
+        };
+        let json = serde_json::to_string(&record).unwrap();
+        assert!(json.contains("\"resume\""));
+        let parsed: RestartRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.mode, RecoveryMode::Resume);
+    }
+
+    #[test]
+    fn test_should_skip_rapid_not_rapid() {
+        // 3 restarts but spread out (>30s) = not rapid, should not skip
+        let mut state = ResumeState::load("test.md");
+        state.total_restarts = 3;
+        let now = Utc::now();
+        state.first_restart_at = Some(now);
+        state.last_restart_at = Some(now + chrono::Duration::seconds(60));
+        assert!(!state.is_rapid_failure());
+        assert!(!state.should_skip_rapid());
     }
 }
