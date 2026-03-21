@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.8.0] - 2026-03-21
+
+### Added
+- **LLM-driven Task Decomposition** (`work.task_decomposition`): Phase 1.1 in strive pipeline — classifies ATOMIC vs COMPOSITE tasks using haiku model, splits composite tasks into 2-4 subtasks with non-overlapping `fileTargets`. Fast-path: tasks with ≤2 total targets skip LLM entirely. `_complexityScore` reused as heuristic pre-filter.
+- **task-decomposition.md**: New reference with `runTaskDecomposition()`, `detectMultipleLayers()` (LAYER_PATTERNS for api/service/model/test/migration/config), `classifyTask()`, `decomposeTask()`, `validateSubtaskFileOverlap()`, and EC-9 inscription.json re-write pattern for subtask entries.
+- **Sibling Awareness** (`work.sibling_awareness`): Each worker receives a "DO NOT DUPLICATE" context block showing other workers' tasks and file assignments, preventing duplicate work and cross-worker file conflicts.
+- **sibling-context.md**: New reference with `buildSiblingContext()` — per-worker sibling view with configurable `max_sibling_files` token cap.
+- **worker-prompts.md**: `${siblingWorkerContext}` injection point added to both rune-smith and trial-forger prompt templates (between nonGoalsBlock and YOUR LIFECYCLE).
+- **forge-team.md**: Phase 1.1 integration — `runTaskDecomposition()` called after `scoreTaskComplexity()`, before `detectAndResolveConflicts()`. EC-9 inscription.json re-write documented.
+- **file-ownership.md**: Subtask ownership section documenting how subtask IDs (`"3-sub-1"`) appear in `task_ownership` with `parent_task_id` field. `buildOwnershipGraph()` and hook need no changes.
+- **SKILL.md**: Phase 1.1 pipeline step and Task Decomposition section with link to reference.
+- **talisman.example.yml**: Commented `work.task_decomposition` and `work.sibling_awareness` config blocks with inline documentation.
+- **build-talisman-defaults.py**: Default values for `task_decomposition` (enabled: true, threshold: 5, max_subtasks: 4, model: haiku) and `sibling_awareness` (enabled: true, max_sibling_files: 5).
+- **parse-plan.md**: Phase 1.1 decomposition call documented after initial task extraction.
+
 ## [2.7.0] - 2026-03-21
 
 ### Added
