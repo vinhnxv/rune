@@ -298,7 +298,10 @@ function preShipValidator(checkpoint, planPath) {
         const skill = parts[0]
         const subcommand = parts[1] || null
         const skillFiles = Glob(`plugins/rune/skills/${skill}/SKILL.md`)
-        if (skillFiles.length > 0 && subcommand) {
+        if (skillFiles.length === 0) {
+          // Skill directory doesn't exist — command is completely unwired
+          missingRoutes.push(subcommand ? `${skill} ${subcommand}` : skill)
+        } else if (subcommand) {
           const skillContent = Read(skillFiles[0])
           if (!skillContent.includes(subcommand)) {
             missingRoutes.push(`${skill} ${subcommand}`)
