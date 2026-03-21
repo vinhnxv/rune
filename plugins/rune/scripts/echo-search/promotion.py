@@ -36,7 +36,7 @@ logger = logging.getLogger("echo-search")
 
 def _get_server_helpers():
     """Lazy import of utility helpers from server module."""
-    from server import (
+    from config import (
         _in_clause,
         _signal_path,
         _global_dirty_path,

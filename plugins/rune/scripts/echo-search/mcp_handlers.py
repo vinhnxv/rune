@@ -33,7 +33,7 @@ from config import (
 from database import ensure_schema, get_db, get_global_conn
 from grouping import upsert_semantic_group
 from pipeline import pipeline_search
-from reindexing import do_reindex
+from indexing import do_reindex
 from scoring import _LAYER_IMPORTANCE, _record_access
 from search import get_details, get_stats
 
@@ -591,6 +591,109 @@ async def _mcp_handle_upsert_group(arguments):
     finally:
         conn.close()
     return {"group_id": group_id, "memberships": count, "entry_ids": entry_ids}, False
+
+
+# MCP tool schema definitions (originally in server.py, extracted during decomposition)
+TOOL_SCHEMAS = [
+    {
+        "name": "echo_search",
+        "description": (
+            "Search Rune's persistent knowledge base for learnings, patterns, "
+            "insights, audit findings, review decisions, and cross-file "
+            "recommendations. Uses BM25 full-text search with 5-factor scoring "
+            "(relevance, importance, recency, proximity, frequency). Filter by "
+            "layer (etched/inscribed/traced), role (reviewer/planner/worker), "
+            "scope (project/global), or domain (backend/frontend)."
+        ),
+        "annotations": {
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search query (natural language or keywords)"},
+                "limit": {"type": "integer", "description": "Max results to return (default 10, max 50)", "default": 10},
+                "offset": {"type": "integer", "description": "Number of results to skip for pagination (default 0)", "default": 0},
+                "layer": {"type": "string", "description": "Filter by echo layer (e.g., inscribed)"},
+                "role": {"type": "string", "description": "Filter by role (e.g., orchestrator, reviewer, planner)"},
+                "context_files": {"type": "array", "items": {"type": "string"}, "description": "Optional list of currently open/edited file paths for proximity scoring"},
+                "category": {"type": "string", "enum": ["general", "pattern", "anti-pattern", "decision", "debugging"], "description": "Filter by entry category"},
+                "response_format": {"type": "string", "enum": ["json", "markdown"], "description": "Output format: json (default, structured) or markdown (human-readable)", "default": "json"},
+                "scope": {"type": "string", "enum": ["project", "global", "all"], "default": "project", "description": "Search scope: project echoes only (default), global echoes + doc packs, or both"},
+                "domain": {"type": "string", "enum": ["backend", "frontend", "devops", "database", "testing", "architecture", "general"], "description": "Filter global results by domain tag. Only effective with scope=global or scope=all."},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "echo_details",
+        "description": "Fetch full content for specific echo entries by their IDs. Use after echo_search to retrieve complete entry text.",
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "ids": {"type": "array", "items": {"type": "string"}, "description": "List of entry IDs to fetch"},
+                "scope": {"type": "string", "enum": ["project", "global", "all"], "default": "project", "description": "Which DB to query: project (default), global, or both"},
+            },
+            "required": ["ids"],
+        },
+    },
+    {
+        "name": "echo_reindex",
+        "description": "Re-parse all MEMORY.md files and rebuild the search index.",
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "scope": {"type": "string", "enum": ["project", "global", "all"], "default": "project", "description": "Which index to rebuild: project (default), global, or both"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "echo_stats",
+        "description": "Get summary statistics about the echo search index.",
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "scope": {"type": "string", "enum": ["project", "global", "all"], "default": "project", "description": "Which index to report on: project (default), global, or both"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "echo_record_access",
+        "description": "Record access events for echo entries to boost their frequency-based ranking score.",
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "entry_ids": {"type": "array", "items": {"type": "string"}, "description": "List of echo entry IDs to record access for"},
+                "query": {"type": "string", "description": "Optional context query that led to this access", "default": ""},
+                "scope": {"type": "string", "enum": ["project", "global"], "default": "project", "description": "Which DB to record access in: project (default) or global"},
+            },
+            "required": ["entry_ids"],
+        },
+    },
+    {
+        "name": "echo_upsert_group",
+        "description": "Create or update a semantic group of related echo entries for expanded retrieval.",
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "group_id": {"type": "string", "description": "Group identifier (16-char hex). Auto-generated if omitted."},
+                "entry_ids": {"type": "array", "items": {"type": "string"}, "description": "List of echo entry IDs to include in the group"},
+                "similarities": {"type": "array", "items": {"type": "number"}, "description": "Optional similarity scores per entry (default 0.0)"},
+            },
+            "required": ["entry_ids"],
+        },
+    },
+]
 
 
 # Handler dispatch table

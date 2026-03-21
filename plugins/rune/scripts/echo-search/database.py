@@ -33,7 +33,7 @@ logger = logging.getLogger("echo-search")
 
 def _get_server_constants():
     """Lazy import of configuration constants from server module."""
-    from server import GLOBAL_ECHO_DIR, GLOBAL_DB_PATH, _load_talisman
+    from config import GLOBAL_ECHO_DIR, GLOBAL_DB_PATH, _load_talisman
     return GLOBAL_ECHO_DIR, GLOBAL_DB_PATH, _load_talisman
 
 

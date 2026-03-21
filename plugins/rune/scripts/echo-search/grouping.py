@@ -444,7 +444,7 @@ def expand_semantic_groups(
 
     # Late import to avoid circular dependency — compute_composite_score
     # remains in server.py (or scoring.py once extracted).
-    from server import compute_composite_score
+    from scoring import compute_composite_score
 
     scored_expanded = compute_composite_score(
         unique, weights, conn=conn, context_files=context_files)

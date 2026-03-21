@@ -130,6 +130,7 @@ from promotion import check_promotions as _check_promotions  # noqa: F401
 
 # mcp_handlers.py — MCP server and handlers
 from mcp_handlers import (  # noqa: F401
+    TOOL_SCHEMAS,
     _VALID_SCOPES,
     _merge_scoped_results,
     _sanitize_search_filters,
@@ -147,9 +148,9 @@ def main_cli():
     args = parser.parse_args()
 
     if args.reindex:
-        do_reindex()
+        do_reindex(ECHO_DIR, DB_PATH)
     else:
-        run_mcp_server()
+        run_mcp_server(TOOL_SCHEMAS)
 
 
 if __name__ == "__main__":
