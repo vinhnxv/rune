@@ -133,7 +133,7 @@ fi
 # Atomic write: tmp file + mv (prevents partial reads)
 TREND_TMP=$(mktemp "${TMPDIR:-/tmp}/rune-glyph-XXXXXX") || true
 if [[ -n "$TREND_TMP" ]]; then
-  trap 'rm -f "$TREND_TMP"' EXIT
+  trap '_rc=$?; rm -f "$TREND_TMP" 2>/dev/null; exit $_rc' EXIT
   printf '%s\n' "$UPDATED" > "$TREND_TMP" 2>/dev/null && mv -f "$TREND_TMP" "$TREND_FILE" 2>/dev/null || true
 fi
 

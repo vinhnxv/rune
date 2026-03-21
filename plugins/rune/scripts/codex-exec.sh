@@ -260,8 +260,8 @@ _trace "EXEC model=$MODEL reasoning=$REASONING timeout=$TIMEOUT json=$JSON_MODE 
 # Capture stderr to temp file for error classification
 # QUAL-001 FIX: Use accumulative cleanup pattern to avoid overwriting prior EXIT traps
 _CLEANUP_FILES=()
-_cleanup() { _stop_watchdog; rm -f "${_CLEANUP_FILES[@]}" 2>/dev/null; }
-trap _cleanup EXIT
+_cleanup() { _stop_watchdog; rm -f "${_CLEANUP_FILES[@]}" 2>/dev/null || true; }
+trap '_rc=$?; _cleanup; exit $_rc' EXIT
 
 # Start watchdog before execution (only activates when timeout cmd unavailable)
 _start_watchdog

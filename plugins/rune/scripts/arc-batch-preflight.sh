@@ -11,7 +11,7 @@ ERRORS=0
 # QUAL-003 FIX: Use temp file + grep for O(N) dedup instead of O(N^2) array scan.
 # Maintains Bash 3.x compatibility (no associative arrays needed).
 DEDUP_FILE=$(mktemp "${TMPDIR:-/tmp}/arc-batch-dedup-XXXXXX")
-trap 'rm -f "$DEDUP_FILE"' EXIT
+trap '_rc=$?; rm -f "$DEDUP_FILE" 2>/dev/null; exit $_rc' EXIT
 
 # Source cross-platform helpers
 _PREFLIGHT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -92,8 +92,8 @@ done
 # No associative arrays — uses grep/sort for macOS bash 3.x compatibility.
 
 SHARD_TMPFILE=$(mktemp "${TMPDIR:-/tmp}/shard-check-XXXXXX")
-_cleanup_shard() { rm -f "$SHARD_TMPFILE" "$DEDUP_FILE"; }
-trap _cleanup_shard EXIT
+_cleanup_shard() { rm -f "$SHARD_TMPFILE" "$DEDUP_FILE" 2>/dev/null || true; }
+trap '_rc=$?; _cleanup_shard; exit $_rc' EXIT
 
 # Collect shard info: "prefix:num" per validated plan in DEDUP_FILE
 while IFS= read -r plan; do
