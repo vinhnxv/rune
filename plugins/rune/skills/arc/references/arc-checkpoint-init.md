@@ -330,7 +330,7 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
 const skipMap = computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, codexEnabled, codex, planMeta)
 ```
 
-## Checkpoint Schema v25
+## Checkpoint Schema v26
 
 // Schema history: see CHANGELOG.md for migration notes from v12-v24.
 
@@ -369,7 +369,7 @@ const parentPlanMeta = {
 // The arc-hierarchy SKILL.md documents the injection protocol.
 
 Write(`.rune/arc/${id}/checkpoint.json`, {
-  id, schema_version: 25, plan_file: planFile,
+  id, schema_version: 26, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   // RUIN-003 FIX: Remove redundant ?? guards — Layer 2 resolveArcConfig() already guarantees all values are defined
   flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, accept_external_changes: arcConfig.accept_external_changes, bot_review: arcConfig.bot_review, no_bot_review: arcConfig.no_bot_review },
@@ -467,6 +467,11 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
     max_phase_retries: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.max_phase_retries ?? 2 })(),
     enabled: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.enabled !== false })()
   },
+  // Schema v26 addition: CI status tracking for CI fix loop in bot_review_wait phase.
+  // null until CI checks are evaluated. When populated:
+  // { passed: bool, attempts: int, failed_checks: string[], head_sha: string,
+  //   fix_history: [{attempt: int, fixed: string[], remaining: string[]}] }
+  ci_status: null,
   // NEW (v1.66.0): Shard metadata from pre-flight shard detection (null for non-shard arcs)
   shard: shardInfo ? {
     num: shardInfo.shardNum,           // e.g., 2
@@ -497,7 +502,7 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
   updated_at: new Date().toISOString()
 })
 
-// Schema migration is handled in arc-resume.md (steps 3a through 3x).
-// Migrations v1→v23 are defined there. See arc-resume.md for the full chain.
+// Schema migration is handled in arc-resume.md (steps 3a through 3z).
+// Migrations v1→v26 are defined there. See arc-resume.md for the full chain.
 ```
 

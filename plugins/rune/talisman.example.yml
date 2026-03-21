@@ -547,6 +547,28 @@ arc:
     #   # Example: ["npm run lint", "npm run typecheck"]
     #   max_review_rounds: 3           # Max bot review→fix→push cycles (default: 3)
 
+    # ── CI Check (Phase 9.1 CI conclusion validation, v2.5.0+) ──────
+    # Validates CI check run conclusions after PR creation.
+    # Implement arc.ship.ci_check only. reactions.ci_failed is for future Reaction Engine.
+    # ci_check:
+    #   enabled: false               # Master toggle for CI conclusion checking
+    #   poll_interval_ms: 30000      # 30s between check polls
+    #   timeout_ms: 900000           # 15 min max wait for checks
+    #   fix_retries: 2               # Max CI fix attempts
+    #   fix_timeout_ms: 300000       # 5 min per fix worker
+    #   escalation_timeout_ms: 1800000  # 30 min total budget
+    #   retrigger_on_push: false     # Explicit re-run after fix push
+    #   conclusion_allowlist:        # Conclusions treated as passed
+    #     - success
+    #     - skipped
+    #     - neutral
+
+    # ── Merge Verification (Phase 9.5 post-merge, v2.5.0+) ──────
+    # Post-merge verification to confirm merge actually completed.
+    merge_verification:
+      enabled: true                # Post-merge verification
+      timeout_ms: 60000            # 60s to confirm merge
+
   # ── Pre-merge checklist (Phase 9.5) ────────
   # Deterministic checks before merge. Each boolean toggles a check.
   pre_merge_checks:

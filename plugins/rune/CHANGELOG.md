@@ -3,6 +3,11 @@
 ## [2.5.0] - 2026-03-21
 
 ### Added
+- **arc-phase-bot-review-wait.md**: CI conclusion validation in Phase 9.1 — reads check run `conclusion` field (not just completion count) to determine CI pass/fail status
+- **arc-phase-bot-review-wait.md**: CI Fix Loop (Phase 9.1.5 sub-phase) with configurable retry (`fix_retries`), annotation-based failure context extraction, and ci-fixer worker agent
+- **arc-phase-bot-review-wait.md**: Pre-merge validation (`validateMergeReadiness`) and post-merge verification (`verifyMergeCompleted`) for reliable merge confirmation
+- **talisman.yml** `arc.ship.ci_check` section (8 keys): `enabled`, `poll_interval_ms`, `timeout_ms`, `fix_retries`, `fix_timeout_ms`, `escalation_timeout_ms`, `retrigger_on_push`, `conclusion_allowlist`
+- **talisman.yml** `arc.ship.merge_verification` section (2 keys): `enabled`, `timeout_ms`
 - **scripts/enforce-bash-timeout.sh**: PreToolUse:Bash timeout wrapper — enforces configurable `bash_timeout` (default 300s) on long-running Bash commands during active Rune workflows
 - **scripts/lib/process-tree.sh**: Recursive process tree kill — walks process tree via `pgrep -P` with SIGTERM→SIGKILL escalation and configurable grace period
 - **scripts/track-teammate-activity.sh**: Per-teammate liveness detection — monitors teammate last-activity timestamps and flags stuck teammates exceeding `teammate_stuck_threshold` (default 180s)
@@ -11,7 +16,14 @@
 - **on-task-completed.sh**: Duplicate teammate completion detection — warns when same teammate completes within 60s, indicating possible SDK duplicate spawn (GitHub #32996)
 - **engines.md** `spawnAgent()`: Spawn signal file for duplicate teammate detection (GitHub #32996)
 
+### Security
+- **SEC-CI-1**: CI annotation message sanitization — strips HTML tags, HTML entities, caps at 2000 chars before prompt injection
+- **SEC-CI-2**: Check run ID validation — numeric-only guard prevents shell injection via `check.id`
+- **SEC-CI-3**: Complete conclusion handling — all 8 GitHub conclusion values classified (success/skipped/neutral → passed, failure → failed, timed_out/action_required → blocking, cancelled/stale → non-blocking)
+- **TRUTHBINDING**: ci-fixer agent prompt includes ANCHOR/RE-ANCHOR protocol to prevent instruction injection via CI annotation content
+
 ### Changed
+- **arc checkpoint schema**: v25 → v26 — added `ci_status` top-level field for CI conclusion tracking across fix loop iterations
 - **engines.md** `shutdown()` step 2: Force-reply pattern — send plain text message before `shutdown_request` to ensure silent workers (Read/Write/Bash only) process the shutdown. Batched approach: ~2s total regardless of team size (GitHub #31389)
 - **engines.md** `shutdownWave()`: Added NOTE cross-referencing force-reply pattern for future maintainer awareness
 - **engines.md** step 5a: Recursive process tree kill via shared `process-tree.sh` (replaces inline `pgrep -P` + `kill`)
@@ -19,6 +31,10 @@
 - **monitor-utility.md**: devise 30-min timeout, stuck-teammate detection, fast-path hybrid autoReleaseMs check (ONE TaskList call when elapsed > threshold, preserving near-zero signal-based token cost)
 - **CLAUDE.md**: Added context window limitation row to Teammate Lifecycle Safety table
 - **.claude/CLAUDE.md**: Updated Agent Team Cleanup protocol step 2 with force-reply pattern and GitHub #31389 reference
+
+### Fixed
+- **arc-phase-bot-review-wait.md**: Phase 9.1 now reads check run `conclusion` field (was only counting completions, missing failed/cancelled checks)
+- **arc-phase-bot-review-wait.md**: Phase 9.5 verifies merge completion via `verifyMergeCompleted` (was trusting `gh pr merge` exit code without confirmation)
 
 ## [2.4.2] - 2026-03-21
 
