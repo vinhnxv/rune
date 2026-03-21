@@ -959,11 +959,11 @@ impl App {
                 self.view = AppView::Running;
             }
             Action::OpenMessageInput => {
-                if self.channels_enabled {
+                if self.tmux_session_id.is_some() {
                     self.message_input_active = true;
                     self.message_input_buf.clear();
                 } else {
-                    self.status_message = Some("Messages require --channels mode".into());
+                    self.status_message = Some("No active session to send to".into());
                 }
             }
             Action::SubmitMessage => {
@@ -971,7 +971,7 @@ impl App {
                     let msg = self.message_input_buf.clone();
                     self.message_input_active = false;
                     self.message_input_buf.clear();
-                    self.send_inbox_message(&msg);
+                    self.send_message_to_claude(&msg);
                 }
             }
             Action::CancelMessageInput => {
@@ -1590,14 +1590,32 @@ impl App {
     }
 
     /// Poll arc status (heartbeat + checkpoint + resources) and update display state.
-    /// Drain pending channel events from the callback server (non-blocking).
-    /// Write a message to the bridge inbox directory for Claude to pick up
-    /// via the `check_inbox` MCP tool.
-    fn send_inbox_message(&mut self, msg: &str) {
+    /// Send a message to the Claude Code session.
+    ///
+    /// Delivery strategy (priority order):
+    /// 1. **Bridge inbox** — if channels enabled + healthy. Delivered via MCP check_inbox tool.
+    /// 2. **tmux send-keys** — fallback when channels off/unhealthy. Injects text directly.
+    fn send_message_to_claude(&mut self, msg: &str) {
+        let channel_healthy = self.channels_enabled
+            && self.current_run.as_ref()
+                .and_then(|r| r.channel_state.as_ref())
+                .map(|cs| cs.is_active())
+                .unwrap_or(false);
+
+        if channel_healthy {
+            self.send_via_inbox(msg);
+        } else {
+            self.send_via_tmux(msg);
+        }
+    }
+
+    /// Send via bridge inbox (MCP protocol path).
+    fn send_via_inbox(&mut self, msg: &str) {
         let session_id = self.tmux_session_id.as_deref().unwrap_or("default");
         let inbox_dir = std::path::PathBuf::from("tmp/bridge-inbox").join(session_id);
         if let Err(e) = std::fs::create_dir_all(&inbox_dir) {
-            self.status_message = Some(format!("inbox mkdir failed: {e}"));
+            self.status_message = Some(format!("inbox mkdir failed: {e} — falling back to tmux"));
+            self.send_via_tmux(msg);
             return;
         }
         let timestamp = std::time::SystemTime::now()
@@ -1607,7 +1625,27 @@ impl App {
         let path = inbox_dir.join(format!("{timestamp}.msg"));
         match std::fs::write(&path, msg) {
             Ok(_) => {
-                self.status_message = Some(format!("✉ sent: {}", truncate_str(msg, 50)));
+                self.status_message = Some(format!("✉ [ch] {}", truncate_str(msg, 50)));
+            }
+            Err(e) => {
+                self.status_message = Some(format!("inbox write failed: {e} — falling back to tmux"));
+                self.send_via_tmux(msg);
+            }
+        }
+    }
+
+    /// Send via tmux send-keys (direct text injection fallback).
+    fn send_via_tmux(&mut self, msg: &str) {
+        let session_id = match &self.tmux_session_id {
+            Some(id) => id.clone(),
+            None => {
+                self.status_message = Some("no active session".into());
+                return;
+            }
+        };
+        match Tmux::send_keys(&session_id, msg) {
+            Ok(_) => {
+                self.status_message = Some(format!("✉ [tmux] {}", truncate_str(msg, 50)));
             }
             Err(e) => {
                 self.status_message = Some(format!("send failed: {e}"));

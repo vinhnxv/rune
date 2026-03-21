@@ -541,7 +541,11 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
                 Span::styled(" ✉ msg> ", Style::default().fg(sol::CYAN).add_modifier(Modifier::BOLD)),
                 Span::styled(&app.message_input_buf, Style::default().fg(sol::BASE1)),
                 Span::styled("█", Style::default().fg(sol::CYAN)),  // cursor
-                Span::styled("  [Enter] send  [Esc] cancel", Style::default().fg(sol::BASE01)),
+                Span::styled(
+                    if app.channels_enabled { "  [Enter] send via bridge  [Esc] cancel" }
+                    else { "  [Enter] send via tmux  [Esc] cancel" },
+                    Style::default().fg(sol::BASE01),
+                ),
             ]);
             frame.render_widget(
                 Paragraph::new(input_line),
@@ -549,7 +553,7 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
             );
         } else {
             let all_done = app.current_run.is_none() && app.queue.is_empty() && !app.completed_runs.is_empty();
-            let msg_hint = if app.channels_enabled { "  [m] msg" } else { "" };
+            let msg_hint = if app.tmux_session_id.is_some() { "  [m] msg" } else { "" };
             let default_status = if all_done {
                 format!(" All done! [p] add plans{msg_hint}  [q] quit")
             } else if !app.queue.is_empty() {

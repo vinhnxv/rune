@@ -302,8 +302,7 @@ fn cmd_run(args: &[String]) {
 
 fn cmd_send_msg(args: &[String]) {
     let text = get_arg(args, "--text").unwrap_or_else(|| {
-        // Concatenate remaining non-flag args as message
-        let flags = ["--inbox", "--session", "--text"];
+        let flags = ["--inbox", "--session", "--text", "--via"];
         let mut msg_parts: Vec<&str> = Vec::new();
         let mut skip_next = false;
         for a in args {
@@ -315,36 +314,79 @@ fn cmd_send_msg(args: &[String]) {
             eprintln!("Usage: torrent-cli send-msg --session <id> --text <message>");
             eprintln!("       torrent-cli send-msg --session <id> \"your message\"");
             eprintln!("       torrent-cli send-msg \"message\"  (auto-detect session)");
+            eprintln!();
+            eprintln!("Options:");
+            eprintln!("  --via bridge|tmux|auto   Delivery method (default: auto)");
+            eprintln!("  --session <id>           Target tmux session (auto-detect if omitted)");
             std::process::exit(1);
         }
         msg_parts.join(" ")
     });
 
-    // Resolve session for inbox scoping
     let session = get_arg(args, "--session").unwrap_or_else(auto_detect_session);
+    validate_session_id(&session);
 
-    let inbox_base = get_arg(args, "--inbox").unwrap_or_else(|| "tmp/bridge-inbox".into());
-    let inbox_path = std::path::Path::new(&inbox_base).join(&session);
+    // Delivery strategy: auto (default) tries bridge first, falls back to tmux
+    let via = get_arg(args, "--via").unwrap_or_else(|| "auto".into());
 
-    if let Err(e) = std::fs::create_dir_all(&inbox_path) {
-        eprintln!("error: cannot create inbox dir '{}': {}", inbox_path.display(), e);
-        std::process::exit(1);
+    match via.as_str() {
+        "bridge" => send_via_bridge(&session, &text),
+        "tmux" => send_via_tmux(&session, &text),
+        "auto" => {
+            // Check if bridge inbox exists for this session (indicates channels mode)
+            let inbox_path = std::path::Path::new("tmp/bridge-inbox").join(&session);
+            if inbox_path.exists() {
+                send_via_bridge(&session, &text);
+            } else {
+                // Try bridge first (create inbox), but if session looks non-channel, use tmux
+                // Heuristic: if TORRENT_CHANNELS_ENABLED is set, prefer bridge
+                let channels_hint = std::env::var("TORRENT_CHANNELS_ENABLED")
+                    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                    .unwrap_or(false);
+                if channels_hint {
+                    send_via_bridge(&session, &text);
+                } else {
+                    send_via_tmux(&session, &text);
+                }
+            }
+        }
+        other => {
+            eprintln!("error: unknown --via method '{other}'. Use: bridge, tmux, auto");
+            std::process::exit(1);
+        }
     }
+}
 
+fn send_via_bridge(session: &str, text: &str) {
+    let inbox_path = std::path::Path::new("tmp/bridge-inbox").join(session);
+    if let Err(e) = std::fs::create_dir_all(&inbox_path) {
+        eprintln!("bridge: inbox mkdir failed ({e}) — falling back to tmux");
+        send_via_tmux(session, text);
+        return;
+    }
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
     let msg_file = inbox_path.join(format!("{timestamp}.msg"));
-
-    if let Err(e) = std::fs::write(&msg_file, &text) {
-        eprintln!("error: cannot write message: {}", e);
-        std::process::exit(1);
+    match std::fs::write(&msg_file, text) {
+        Ok(_) => {
+            println!("✉ [bridge] → '{session}' ({} bytes)", text.len());
+            println!("  Claude receives on next check_inbox call");
+        }
+        Err(e) => {
+            eprintln!("bridge: write failed ({e}) — falling back to tmux");
+            send_via_tmux(session, text);
+        }
     }
+}
 
-    println!("✉ Message sent to session '{session}' ({} bytes)", text.len());
-    println!("  inbox: {}", inbox_path.display());
-    println!("  Claude will receive it on next check_inbox call");
+fn send_via_tmux(session: &str, text: &str) {
+    println!("✉ [tmux] → '{session}'");
+    cmd_send_keys(&[
+        "--session".into(), session.to_string(),
+        "--text".into(), text.to_string(),
+    ]);
 }
 
 fn auto_detect_session() -> String {
