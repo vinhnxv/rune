@@ -144,21 +144,11 @@ fn cmd_new_session(args: &[String]) -> String {
              TORRENT_SESSION_ID={session_id} {env_prefix}"
         );
 
-        // Resolve bridge path
-        let bridge_path = std::env::current_dir()
-            .map(|cwd| cwd.join("torrent/bridge/server.ts"))
-            .unwrap_or_else(|_| std::path::PathBuf::from("torrent/bridge/server.ts"));
-        let bridge_str = bridge_path.to_string_lossy().replace('"', r#"\""#);
-        let mcp_json = format!(
-            r#"{{"mcpServers":{{"torrent-bridge":{{"command":"npx","args":["--yes","tsx","{bridge_str}"],"env":{{}}}}}}}}"#
-        );
-
-        // Both flags needed: --dangerously-load-development-channels enables channel listening,
-        // --mcp-config loads the bridge MCP server
+        // Bridge MCP server is configured in project .mcp.json (auto-discovered by Claude Code).
+        // Only --dangerously-load-development-channels is needed to enable channel listening.
         cmd = format!(
             "{env_prefix}{} --dangerously-skip-permissions \
-             --dangerously-load-development-channels server:torrent-bridge \
-             --mcp-config '{mcp_json}'",
+             --dangerously-load-development-channels server:torrent-bridge",
             shell_escape(&claude)
         );
 

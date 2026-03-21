@@ -167,20 +167,10 @@ impl Tmux {
             shell_escape(claude_path)
         );
 
-        // Append channel server flag + MCP config for bridge
-        // Both are needed: --dangerously-load-development-channels enables channel listening,
-        // --mcp-config loads the bridge MCP server that handles channel messages.
+        // Bridge MCP server is configured in project .mcp.json (auto-discovered by Claude Code).
+        // Only --dangerously-load-development-channels is needed to enable channel listening.
         if channels.is_some() {
-            let bridge_abs = std::env::current_dir()
-                .map(|cwd| cwd.join("torrent/bridge/server.ts"))
-                .unwrap_or_else(|_| std::path::PathBuf::from("torrent/bridge/server.ts"));
-            let bridge_path = bridge_abs.to_string_lossy().replace('"', r#"\""#);
-            let mcp_json = format!(
-                r#"{{"mcpServers":{{"torrent-bridge":{{"command":"npx","args":["--yes","tsx","{bridge_path}"],"env":{{}}}}}}}}"#
-            );
-            cmd.push_str(&format!(
-                " --dangerously-load-development-channels server:torrent-bridge --mcp-config '{mcp_json}'"
-            ));
+            cmd.push_str(" --dangerously-load-development-channels server:torrent-bridge");
         }
 
         // Send command text literally (-l), then Enter separately.

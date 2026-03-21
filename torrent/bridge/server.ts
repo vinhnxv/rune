@@ -307,12 +307,28 @@ if (bridgePort > 0) {
         }
 
         try {
-          // Push message to Claude via MCP logging notification
-          await server.sendLoggingMessage({
-            level: "info",
-            logger: "torrent-bridge",
-            data: `[torrent:bridge] ${body}`,
-          });
+          // Push message to Claude via raw notification.
+          // Try channel-specific notification first, then fall back to logging.
+          // The `notifications/message` with level="info" is treated as a log by Claude.
+          // Channel messages may use a different notification method internally.
+          try {
+            // @ts-ignore — access protected notification() for raw channel push
+            await (server as any).notification({
+              method: "notifications/message",
+              params: {
+                level: "info",
+                logger: "torrent-bridge",
+                data: `[torrent:bridge] ${body}`,
+              },
+            });
+          } catch {
+            // Fallback to standard sendLoggingMessage
+            await server.sendLoggingMessage({
+              level: "info",
+              logger: "torrent-bridge",
+              data: `[torrent:bridge] ${body}`,
+            });
+          }
           process.stderr.write(`bridge: inbound msg delivered (${body.length} bytes)\n`);
           res.writeHead(200);
           res.end("delivered");
