@@ -29,7 +29,7 @@ Read via `readTalismanSection("work")?.task_decomposition`.
 ```javascript
 // Phase 1.1: Task Decomposition
 // Called after scoreTaskComplexity() completes, before detectAndResolveConflicts()
-function runTaskDecomposition(extractedTasks, workConfig) {
+function runTaskDecomposition(extractedTasks, workConfig, teamName) {
   const decompositionConfig = workConfig?.task_decomposition
   const decompositionEnabled = decompositionConfig?.enabled ?? true
 
@@ -65,7 +65,7 @@ function runTaskDecomposition(extractedTasks, workConfig) {
     }
 
     // LLM classification: ATOMIC or COMPOSITE
-    const classification = classifyTask(task)
+    const classification = classifyTask(task, teamName)
 
     if (classification !== "COMPOSITE") {
       log(`DECOMPOSITION: task #${task.id} LLM-classified ATOMIC`)
@@ -75,7 +75,7 @@ function runTaskDecomposition(extractedTasks, workConfig) {
 
     // LLM decomposition: split into 2-4 subtasks
     log(`DECOMPOSITION: task #${task.id} is COMPOSITE — decomposing`)
-    const subtasks = decomposeTask(task, maxSubtasks)
+    const subtasks = decomposeTask(task, maxSubtasks, teamName)
 
     if (!subtasks || subtasks.length === 0) {
       log(`DECOMPOSITION: task #${task.id} decomposition returned empty — keeping original`)
@@ -92,6 +92,10 @@ function runTaskDecomposition(extractedTasks, workConfig) {
     // Post-decomposition: assign IDs, parent reference, and inherited blockedBy
     for (let i = 0; i < subtasks.length; i++) {
       const subtask = subtasks[i]
+      // SEC-002: Validate LLM-returned file paths before inscription write
+      const SAFE_FILE_PATH = /^[a-zA-Z0-9._\-\/]+$/
+      subtask.fileTargets = (subtask.fileTargets || []).filter(fp => SAFE_FILE_PATH.test(fp) && !fp.includes('..') && !fp.startsWith('/'))
+      subtask.dirTargets = (subtask.dirTargets || []).filter(dp => SAFE_FILE_PATH.test(dp) && !dp.includes('..') && !dp.startsWith('/'))
       subtask.parent_task_id = task.id
       subtask.id = `${task.id}-sub-${i + 1}`
       subtask.type = subtask.type ?? task.type
@@ -161,13 +165,16 @@ only split when there is clear evidence of composite structure.
 **Error handling**: Agent call failure or unrecognized output → return `"ATOMIC"` (fail-open, default safe)
 
 ```javascript
-function classifyTask(task) {
+// SEC-001: Sanitize task content before LLM prompt injection
+const sanitize = (s) => String(s || "").replace(/[\r\n]+/g, " ").replace(/<[^>]*>/g, "").replace(/[^\x20-\x7E]/g, "").slice(0, 2000)
+
+function classifyTask(task, teamName) {
   const model = readTalismanSection("work")?.task_decomposition?.model ?? "haiku"
   const fileList = (task.fileTargets || []).join(", ") || "(none)"
 
   const prompt = `You are a task classifier for a multi-agent coding workflow.
 
-Task: "${task.subject}"
+Task: "${sanitize(task.subject)}"
 File targets: ${fileList}
 Task type: ${task.type ?? "impl"}
 
@@ -187,6 +194,7 @@ Respond with exactly one word: ATOMIC or COMPOSITE`
       model: model,
       prompt: prompt,
       maxTurns: 1,
+      team_name: teamName,
     }).trim().toUpperCase()
   } catch (e) {
     log(`DECOMPOSITION: classifyTask error for task #${task.id}: ${e.message} — defaulting ATOMIC`)
@@ -205,14 +213,14 @@ Splits a COMPOSITE task into 2-4 atomic subtasks with non-overlapping file targe
 **Error handling**: JSON parse failure, empty result, or invalid schema → return [] (keep parent task)
 
 ```javascript
-function decomposeTask(task, maxSubtasks) {
+function decomposeTask(task, maxSubtasks, teamName) {
   const model = readTalismanSection("work")?.task_decomposition?.model ?? "haiku"
   const fileList = JSON.stringify(task.fileTargets || [])
 
   const prompt = `You are a task decomposer for a multi-agent coding workflow.
 
-Task: "${task.subject}"
-Description: ${task.description ?? "(none)"}
+Task: "${sanitize(task.subject)}"
+Description: ${sanitize(task.description)}
 File targets: ${fileList}
 Task type: ${task.type ?? "impl"}
 
@@ -231,6 +239,7 @@ Respond with ONLY a JSON array (no markdown, no explanation):
       model: model,
       prompt: prompt,
       maxTurns: 1,
+      team_name: teamName,
     }).trim()
 
     // Strip optional markdown code fence
