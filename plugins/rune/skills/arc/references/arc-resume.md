@@ -294,7 +294,41 @@ On resume, validate checkpoint integrity before proceeding:
      checkpoint.schema_version = 25
    }
    ```
-// NOTE: Step 3r runs after all schema migrations complete (steps 3a–3y). Step 3p was skipped in the original numbering.
+3z. If schema_version < 26, migrate v25 → v26:
+   ```javascript
+   // Step 3z: v25 → v26 (Declarative reaction engine config + reaction state)
+   if (checkpoint.schema_version < 26) {
+     // Add reactions config (read from resolved shard or empty default)
+     if (!checkpoint.reactions) {
+       let reactions = {}
+       try {
+         reactions = JSON.parse(Read("tmp/.talisman-resolved/reactions.json"))
+       } catch (e) {
+         // Fallback: empty reactions — defaults will be used at runtime
+       }
+       checkpoint.reactions = reactions
+     }
+     // Add reaction state with per-event counters
+     if (!checkpoint.reaction_state) {
+       checkpoint.reaction_state = {
+         per_event_counters: {},
+         _meta: { last_resume_at: new Date().toISOString() }
+       }
+     } else {
+       // EC-7 fix: On resume, reset firstAttemptMs to prevent stale escalation
+       const counters = checkpoint.reaction_state.per_event_counters || {}
+       for (const [event, counter] of Object.entries(counters)) {
+         if (counter.firstAttemptMs) {
+           counter.firstAttemptMs = Date.now()
+         }
+       }
+       checkpoint.reaction_state._meta = checkpoint.reaction_state._meta || {}
+       checkpoint.reaction_state._meta.last_resume_at = new Date().toISOString()
+     }
+     checkpoint.schema_version = 26
+   }
+   ```
+// NOTE: Step 3r runs after all schema migrations complete (steps 3a–3z). Step 3p was skipped in the original numbering.
 3r. Resume freshness re-check:
    a. Read plan file from checkpoint.plan_file
    b. Extract git_sha from plan frontmatter (use optional chaining: `extractYamlFrontmatter(planContent)?.git_sha` — returns null on parse error if plan was manually edited between sessions)

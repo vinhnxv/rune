@@ -595,6 +595,53 @@
     "max_questions_per_worker": 3,
     "timeout_seconds": 120
   },
+  "reactions": {
+    "ci_failed": {
+      "action": "retry",
+      "escalate_after_ms": 1800000,
+      "retries": 2,
+      "wait_ms": 60000
+    },
+    "mend_findings_exceeded": {
+      "action": "retry",
+      "improvement_ratio": 0.5,
+      "max_failed_findings": 3,
+      "retries": 2,
+      "zero_progress_action": "halt"
+    },
+    "plan_review_block": {
+      "action": "halt",
+      "message": "Plan review blocked — critical issues found",
+      "retries": 0
+    },
+    "qa_gate_failed": {
+      "action": "retry",
+      "max_global_retries": 6,
+      "pass_threshold": 70,
+      "retries": 2
+    },
+    "rate_limited": {
+      "action": "wait",
+      "default_wait_ms": 60000,
+      "max_wait_ms": 300000
+    },
+    "review_changes_requested": {
+      "action": "retry",
+      "escalate_after_ms": 2400000,
+      "retries": 3
+    },
+    "teammate_stuck": {
+      "action": "escalate",
+      "force_stop_after_ms": 300000,
+      "threshold_ms": 180000
+    },
+    "work_incomplete": {
+      "action": "retry",
+      "escalate_after_ms": 1800000,
+      "min_completion": 0.5,
+      "retries": 1
+    }
+  },
   "review": {
     "arc_convergence_finding_threshold": 0,
     "arc_convergence_improvement_ratio": 0.5,

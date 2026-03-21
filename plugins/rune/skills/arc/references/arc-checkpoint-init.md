@@ -485,6 +485,29 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
         warn("No reactions config available — using hardcoded defaults")
       }
     }
+    // Backward-compat aliasing (v2.5.1): when reactions.* keys are absent,
+    // fall back to legacy talisman paths. reactions.* takes precedence.
+    // Legacy paths: gates.qa_gates.* → reactions.qa_gate_failed.*
+    //               process_management.* → reactions.teammate_stuck.*
+    const gatesConfig = readTalismanSection("gates") ?? {}
+    const pmConfig = readTalismanSection("misc")?.process_management ?? readTalismanSection("process_management") ?? {}
+    if (!reactions.qa_gate_failed && gatesConfig.qa_gates) {
+      warn("DEPRECATION: gates.qa_gates.* used as fallback for reactions.qa_gate_failed — migrate to reactions: section")
+      reactions.qa_gate_failed = {
+        action: "retry",
+        retries: gatesConfig.qa_gates.max_phase_retries ?? 2,
+        pass_threshold: gatesConfig.qa_gates.pass_threshold ?? 70,
+        max_global_retries: gatesConfig.qa_gates.max_global_retries ?? 6
+      }
+    }
+    if (!reactions.teammate_stuck && pmConfig.teammate_stuck_threshold) {
+      warn("DEPRECATION: process_management.teammate_stuck_threshold used as fallback for reactions.teammate_stuck — migrate to reactions: section")
+      reactions.teammate_stuck = {
+        action: "escalate",
+        threshold_ms: (pmConfig.teammate_stuck_threshold ?? 180) * 1000,
+        force_stop_after_ms: 300000
+      }
+    }
     return reactions
   })(),
   // Schema v26 addition: Per-event reaction state tracking for retry budgets and escalation.
