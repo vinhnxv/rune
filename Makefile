@@ -51,19 +51,38 @@ run-channel-custom: build bridge-deps
 	@echo "Callback port: $(CALLBACK_PORT), Bridge port: $(BRIDGE_PORT)"
 	@exec $(TARGET) --channels --callback-port $(CALLBACK_PORT)
 
-## Run channel test: start TUI, send "hello" then "explain codebase" via CLI
+## Channel test: create Claude session via CLI, send test messages, capture response
+## Usage: make run-channel-test CONFIG=~/.claude-true
+CONFIG ?= $(HOME)/.claude-true
 run-channel-test: build bridge-deps
-	@echo "Starting Torrent with channels..."
-	@$(TARGET) --channels --callback-port $(CALLBACK_PORT) &
-	@TORRENT_PID=$$!; \
-	echo "Waiting 25s for Claude Code to start..."; \
-	sleep 25; \
-	echo "Sending: hello"; \
-	$(CLI_TARGET) send-msg --via bridge --session "$$($(CLI_TARGET) list 2>/dev/null | head -1 | awk '{print $$1}')" --text "hello"; \
-	sleep 5; \
-	echo "Sending: explain codebase"; \
-	$(CLI_TARGET) send-msg --via bridge --session "$$($(CLI_TARGET) list 2>/dev/null | head -1 | awk '{print $$1}')" --text "explain this codebase briefly"; \
-	echo "Messages sent. Torrent TUI is running (PID $$TORRENT_PID). Press q in TUI to quit."
+	@echo "=== Channel Bridge Test ==="
+	@echo ""
+	@echo "[1/5] Creating tmux session with Claude Code..."
+	@$(CLI_TARGET) new-session --config-dir $(CONFIG) --session torrent-ch-test
+	@echo ""
+	@echo "[2/5] Waiting 20s for Claude Code to start..."
+	@sleep 20
+	@$(CLI_TARGET) capture-pane --session torrent-ch-test --lines 5
+	@echo ""
+	@echo "[3/5] Sending: hello"
+	@$(CLI_TARGET) send-msg --session torrent-ch-test --text "hello"
+	@sleep 10
+	@echo ""
+	@echo "[4/5] Sending: explain codebase"
+	@$(CLI_TARGET) send-msg --session torrent-ch-test --text "explain this codebase briefly in 2 sentences"
+	@sleep 15
+	@echo ""
+	@echo "[5/5] Capturing Claude response..."
+	@$(CLI_TARGET) capture-pane --session torrent-ch-test --lines 15
+	@echo ""
+	@echo "=== Test complete. Session still running. ==="
+	@echo "  Attach:  tmux attach -t torrent-ch-test"
+	@echo "  Kill:    make kill-channel-test"
+	@echo "  Send:    make send-msg SESSION=torrent-ch-test MSG=\"your message\""
+
+## Kill the channel test session
+kill-channel-test: build
+	@$(CLI_TARGET) kill --session torrent-ch-test
 
 ## Run TUI in debug mode
 run-dev:
