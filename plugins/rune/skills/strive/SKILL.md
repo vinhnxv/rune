@@ -63,6 +63,8 @@ Parses a plan into tasks with dependencies, summons swarm workers, and coordinat
 ```
 Phase 0: Parse Plan -> Extract tasks, clarify ambiguities, detect --worktree flag
     |
+Phase 0.3: Task Decomposition -> LLM classification + decomposition of complex tasks (optional)
+    |
 Phase 0.5: Environment Setup -> Branch check, stash dirty files, SDK canary (worktree)
     |
 Phase 1: Forge Team -> TeamCreate + TaskCreate pool
@@ -248,6 +250,18 @@ if (resumeRequested) {
 Parse `--worktree` flag and talisman config. When active: loads `git-worktree` skill, uses wave-aware monitoring, and replaces commit broker with merge broker.
 
 See [worktree-and-mcp.md](references/worktree-and-mcp.md) for the full detection code and mode effects.
+
+### Task Decomposition (Phase 0.3, optional)
+
+After parsing, optionally decompose complex tasks (5+ files, multi-layer) into 2-4 atomic subtasks. See [task-decomposition.md](references/task-decomposition.md).
+
+**Gate**: `work.task_decomposition.enabled` (default: `true`). Fast-path: tasks with ≤2 files skip LLM entirely.
+
+### Sibling Context Injection (Phase 2 enhancement)
+
+Workers receive context about concurrent sibling tasks to prevent duplication. See [sibling-context.md](references/sibling-context.md).
+
+**Gate**: `work.sibling_awareness.enabled` (default: `true`).
 
 ## Phase 0.5: Environment Setup
 
