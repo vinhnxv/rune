@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.7.0] - 2026-03-21
+
+### Added
+- **Talisman 3-file config split**: Split `talisman.yml` into 3 files organized by audience — main config, agent registry (`talisman.ashes.yml`), and external integrations (`talisman.integrations.yml`). Full backward compatibility with single-file layouts.
+- **talisman-resolve.sh**: Companion file discovery via `merge_companions()` function — discovers `.ashes.yml` and `.integrations.yml` alongside main talisman, merges before sharding
+- **talisman-resolve.sh**: `_meta.json` tracks companion file sources with suffix arrays
+- **talisman-resolve.sh**: Hash cache expansion includes companion files for cache invalidation
+- **talisman-resolve.sh**: Missing shard extractions added (`file_todos`, `devise`, `strive` in misc shard)
+- **talisman-invalidate.sh**: Companion file edits trigger shard re-resolution
+- **split-merge-protocol.md**: New reference for `/rune:talisman split` and `/rune:talisman merge` commands with text-based YAML comment preservation
+- **audit-protocol.md**: Companion file validation checks (DUP-001, VER-001, LOC-001, ORP-001)
+- **init-protocol.md**: Progressive disclosure — init generates single file, companions suggested contextually
+- **talisman-sections.md**: Companion file documentation section
+- **talisman.example.yml**: Header comments explaining split option
+- **read-talisman.md**: Architecture note about companion file merge
+- **test-talisman-resolve.sh**: Companion file test cases (discovery, merge, duplicate detection, empty handling)
+
+### Fixed
+- **talisman-resolve.sh**: SEC-006 — companion merge error output uses `jq env` instead of raw shell interpolation
+- **talisman-resolve.sh**: Duplicate key detection reports user-facing error via SessionStart additionalContext
+
 ## [2.6.1] - 2026-03-21
 
 ### Fixed

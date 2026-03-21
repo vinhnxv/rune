@@ -254,7 +254,11 @@ global_json=$(merge_companions "$GLOBAL_BASE" "$global_json")
 if [[ -n "$COMPANION_MERGE_ERRORS" ]]; then
   _trace "ERROR: companion merge errors encountered: $COMPANION_MERGE_ERRORS"
   # User-facing error notification (stderr — not stdout to avoid JSON corruption)
-  echo "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"[Talisman ERROR] Companion file merge errors: ${COMPANION_MERGE_ERRORS}\"}}" >&2
+  # SEC-006 FIX: Use jq env to safely read untrusted content without shell expansion.
+  # COMPANION_MERGE_ERRORS may contain backticks, $(), or other shell metacharacters
+  # from user-authored YAML key names. Using env.CME avoids shell expansion entirely.
+  CME="$COMPANION_MERGE_ERRORS" jq -n \
+    '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":("[Talisman ERROR] Companion file merge errors: " + env.CME)}}' >&2 || true
 fi
 
 defaults_json=$(cat "$DEFAULTS_FILE")
@@ -609,11 +613,11 @@ if [[ "$CACHE_TYPE" == "project" ]]; then
   [[ -f "$GLOBAL_TALISMAN" && ! -L "$GLOBAL_TALISMAN" ]] && hash_sources+=("$GLOBAL_TALISMAN")
   # Include companion files in hash (resolve suffixes back to paths)
   for suffix in "${PROJECT_COMPANIONS[@]}"; do
-    local comp="${PROJECT_BASE}.${suffix}.yml"
+    comp="${PROJECT_BASE}.${suffix}.yml"
     [[ -f "$comp" && ! -L "$comp" ]] && hash_sources+=("$comp")
   done
   for suffix in "${GLOBAL_COMPANIONS[@]}"; do
-    local comp="${GLOBAL_BASE}.${suffix}.yml"
+    comp="${GLOBAL_BASE}.${suffix}.yml"
     [[ -f "$comp" && ! -L "$comp" ]] && hash_sources+=("$comp")
   done
   if [[ ${#hash_sources[@]} -gt 0 ]]; then
