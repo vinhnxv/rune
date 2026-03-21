@@ -11,6 +11,8 @@ use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
+// ureq is in Cargo.toml dependencies — shared with main torrent binary
+
 /// Shell-escape a string by wrapping in single quotes.
 /// Internal single quotes are replaced with `'\''` (end-quote, escaped-quote, start-quote).
 /// SEC-002 FIX: prevents command injection when values are sent to a shell via tmux send-keys.
@@ -375,34 +377,27 @@ fn cmd_send_msg(args: &[String]) {
 }
 
 fn send_via_bridge(session: &str, text: &str) {
-    // Try bridge HTTP server first (direct push via MCP notification)
-    let port_file = format!("tmp/arc/arc-{session}/bridge-port.txt");
-    if let Ok(port_str) = std::fs::read_to_string(&port_file) {
-        if let Ok(port) = port_str.trim().parse::<u16>() {
-            let url = format!("http://127.0.0.1:{port}/msg");
-            let resp = Command::new("curl")
-                .args(["-s", "-o", "/dev/null", "-w", "%{http_code}",
-                       "-X", "POST", &url,
-                       "-H", "Content-Type: text/plain",
-                       "-d", text,
-                       "--connect-timeout", "2"])
-                .output();
-            if let Ok(out) = resp {
-                let code = String::from_utf8_lossy(&out.stdout);
-                if code.starts_with("200") {
-                    eprint!("[torrent-cli] sent via bridge → {session} ({} bytes)\r\n", text.len());
-                    return;
-                }
-            }
-            // Bridge HTTP failed — fall through to inbox
-            eprintln!("bridge: HTTP delivery failed — using inbox fallback");
+    // Discover bridge port: try bridge-port.txt from multiple base dirs, then default 9901
+    let port = discover_bridge_port(session);
+
+    let url = format!("http://127.0.0.1:{port}/msg");
+    match ureq::post(&url)
+        .set("Content-Type", "text/plain")
+        .send_string(text)
+    {
+        Ok(_) => {
+            eprint!("[torrent-cli] sent via bridge → {session} ({} bytes, port {port})\r\n", text.len());
+            return;
+        }
+        Err(e) => {
+            eprint!("[torrent-cli] bridge HTTP failed on port {port} ({e}) — trying inbox\r\n");
         }
     }
 
     // Fallback: file-based inbox
     let inbox_path = std::path::Path::new("tmp/bridge-inbox").join(session);
     if let Err(e) = std::fs::create_dir_all(&inbox_path) {
-        eprintln!("bridge: inbox mkdir failed ({e}) — falling back to tmux");
+        eprint!("[torrent-cli] inbox failed ({e}) — using tmux\r\n");
         send_via_tmux(session, text);
         return;
     }
@@ -416,7 +411,7 @@ fn send_via_bridge(session: &str, text: &str) {
             eprint!("[torrent-cli] sent via inbox → {session} ({} bytes)\r\n", text.len());
         }
         Err(e) => {
-            eprintln!("bridge: write failed ({e}) — falling back to tmux");
+            eprint!("[torrent-cli] inbox write failed ({e}) — using tmux\r\n");
             send_via_tmux(session, text);
         }
     }
@@ -428,6 +423,35 @@ fn send_via_tmux(session: &str, text: &str) {
         "--session".into(), session.to_string(),
         "--text".into(), text.to_string(),
     ]);
+}
+
+/// Discover bridge port for a session.
+/// Searches bridge-port.txt in CWD, parent dir, and env var. Falls back to 9901.
+fn discover_bridge_port(session: &str) -> u16 {
+    let port_filename = format!("tmp/arc/arc-{session}/bridge-port.txt");
+
+    // Try CWD
+    if let Ok(s) = std::fs::read_to_string(&port_filename) {
+        if let Ok(p) = s.trim().parse::<u16>() { return p; }
+    }
+
+    // Try parent dir (when running from torrent/ subdir)
+    let parent = format!("../{port_filename}");
+    if let Ok(s) = std::fs::read_to_string(&parent) {
+        if let Ok(p) = s.trim().parse::<u16>() { return p; }
+    }
+
+    // Try env var
+    if let Ok(s) = std::env::var("TORRENT_BRIDGE_PORT") {
+        if let Ok(p) = s.parse::<u16>() { return p; }
+    }
+
+    // Default: callback_port (9900) + 1
+    let callback = std::env::var("TORRENT_CALLBACK_PORT")
+        .ok()
+        .and_then(|s| s.parse::<u16>().ok())
+        .unwrap_or(9900);
+    callback.checked_add(1).unwrap_or(9901)
 }
 
 fn auto_detect_session() -> String {
