@@ -604,7 +604,7 @@ fn wait_for_recovery(
         thread::sleep(poll_interval);
 
         // Check if session still exists.
-        if !Tmux::session_exists(session_id) {
+        if !Tmux::has_session(session_id) {
             return RecoveryResult::Failed(format!(
                 "tmux session disappeared during {operation}"
             ));

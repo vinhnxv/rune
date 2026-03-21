@@ -535,20 +535,38 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
         render_queue(frame, app, chunks[ci]);
         ci += 1;
 
-        // Status bar — context-sensitive
-        let all_done = app.current_run.is_none() && app.queue.is_empty() && !app.completed_runs.is_empty();
-        let default_status = if all_done {
-            " All done! [p] add plans  [q] quit"
-        } else if !app.queue.is_empty() {
-            " [a] attach  [s] skip  [k] kill  [p] add  [d] remove  [q] quit"
+        // Status bar — message input mode or context-sensitive help
+        if app.message_input_active {
+            let input_line = Line::from(vec![
+                Span::styled(" ✉ msg> ", Style::default().fg(sol::CYAN).add_modifier(Modifier::BOLD)),
+                Span::styled(&app.message_input_buf, Style::default().fg(sol::BASE1)),
+                Span::styled("█", Style::default().fg(sol::CYAN)),  // cursor
+                Span::styled(
+                    if app.channels_enabled { "  [Enter] send via bridge  [Esc] cancel" }
+                    else { "  [Enter] send via tmux  [Esc] cancel" },
+                    Style::default().fg(sol::BASE01),
+                ),
+            ]);
+            frame.render_widget(
+                Paragraph::new(input_line),
+                chunks[ci],
+            );
         } else {
-            " [a] attach  [s] skip  [k] kill  [p] add plans  [q] quit"
-        };
-        let status = app.status_message.as_deref().unwrap_or(default_status);
-        frame.render_widget(
-            Paragraph::new(status).style(Style::default().fg(sol::BASE01)),
-            chunks[ci],
-        );
+            let all_done = app.current_run.is_none() && app.queue.is_empty() && !app.completed_runs.is_empty();
+            let msg_hint = if app.tmux_session_id.is_some() { "  [m] msg" } else { "" };
+            let default_status = if all_done {
+                format!(" All done! [p] add plans{msg_hint}  [q] quit")
+            } else if !app.queue.is_empty() {
+                format!(" [a] attach  [s] skip  [k] kill  [p] add  [d] remove{msg_hint}  [q] quit")
+            } else {
+                format!(" [a] attach  [s] skip  [k] kill  [p] add plans{msg_hint}  [q] quit")
+            };
+            let status = app.status_message.as_deref().unwrap_or(&default_status);
+            frame.render_widget(
+                Paragraph::new(status.to_string()).style(Style::default().fg(sol::BASE01)),
+                chunks[ci],
+            );
+        }
     }
 }
 

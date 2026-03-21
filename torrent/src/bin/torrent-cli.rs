@@ -40,6 +40,7 @@ fn main() {
     match args[1].as_str() {
         "new-session" => { cmd_new_session(&args[2..]); },
         "send-keys" => cmd_send_keys(&args[2..]),
+        "send-msg" | "msg" => cmd_send_msg(&args[2..]),
         "capture-pane" | "capture" => cmd_capture_pane(&args[2..]),
         "list" | "ls" => cmd_list(),
         "kill" => cmd_kill(&args[2..]),
@@ -53,6 +54,7 @@ fn print_usage() {
     eprintln!("Commands:");
     eprintln!("  new-session --config-dir <path>          Create tmux session + start Claude");
     eprintln!("  send-keys --session <id> --text <text>   Send keys with Escape workaround");
+    eprintln!("  send-msg --session <id> --text <message>   Send message to specific session");
     eprintln!("  capture-pane --session <id>              Capture pane output");
     eprintln!("  list                                     List torrent sessions");
     eprintln!("  kill --session <id>                      Kill session");
@@ -294,6 +296,123 @@ fn cmd_run(args: &[String]) {
     cmd_capture_pane(&["--session".into(), session_id.clone(), "--lines".into(), "10".into()]);
 
     println!("\nAttach: tmux attach -t {}", session_id);
+}
+
+// ── send-msg ───────────────────────────────────────────────
+
+fn cmd_send_msg(args: &[String]) {
+    let text = get_arg(args, "--text").unwrap_or_else(|| {
+        let flags = ["--inbox", "--session", "--text", "--via"];
+        let mut msg_parts: Vec<&str> = Vec::new();
+        let mut skip_next = false;
+        for a in args {
+            if skip_next { skip_next = false; continue; }
+            if flags.contains(&a.as_str()) { skip_next = true; continue; }
+            msg_parts.push(a);
+        }
+        if msg_parts.is_empty() {
+            eprintln!("Usage: torrent-cli send-msg --session <id> --text <message>");
+            eprintln!("       torrent-cli send-msg --session <id> \"your message\"");
+            eprintln!("       torrent-cli send-msg \"message\"  (auto-detect session)");
+            eprintln!();
+            eprintln!("Options:");
+            eprintln!("  --via bridge|tmux|auto   Delivery method (default: auto)");
+            eprintln!("  --session <id>           Target tmux session (auto-detect if omitted)");
+            std::process::exit(1);
+        }
+        msg_parts.join(" ")
+    });
+
+    let session = get_arg(args, "--session").unwrap_or_else(auto_detect_session);
+    validate_session_id(&session);
+
+    // Delivery strategy: auto (default) tries bridge first, falls back to tmux
+    let via = get_arg(args, "--via").unwrap_or_else(|| "auto".into());
+
+    match via.as_str() {
+        "bridge" => send_via_bridge(&session, &text),
+        "tmux" => send_via_tmux(&session, &text),
+        "auto" => {
+            // Check if bridge inbox exists for this session (indicates channels mode)
+            let inbox_path = std::path::Path::new("tmp/bridge-inbox").join(&session);
+            if inbox_path.exists() {
+                send_via_bridge(&session, &text);
+            } else {
+                // Try bridge first (create inbox), but if session looks non-channel, use tmux
+                // Heuristic: if TORRENT_CHANNELS_ENABLED is set, prefer bridge
+                let channels_hint = std::env::var("TORRENT_CHANNELS_ENABLED")
+                    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                    .unwrap_or(false);
+                if channels_hint {
+                    send_via_bridge(&session, &text);
+                } else {
+                    send_via_tmux(&session, &text);
+                }
+            }
+        }
+        other => {
+            eprintln!("error: unknown --via method '{other}'. Use: bridge, tmux, auto");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn send_via_bridge(session: &str, text: &str) {
+    // Try bridge HTTP server first (direct push via MCP notification)
+    let port_file = format!("tmp/arc/arc-{session}/bridge-port.txt");
+    if let Ok(port_str) = std::fs::read_to_string(&port_file) {
+        if let Ok(port) = port_str.trim().parse::<u16>() {
+            let url = format!("http://127.0.0.1:{port}/msg");
+            let resp = Command::new("curl")
+                .args(["-s", "-o", "/dev/null", "-w", "%{http_code}",
+                       "-X", "POST", &url,
+                       "-H", "Content-Type: text/plain",
+                       "-d", text,
+                       "--connect-timeout", "2"])
+                .output();
+            if let Ok(out) = resp {
+                let code = String::from_utf8_lossy(&out.stdout);
+                if code.starts_with("200") {
+                    println!("✉ [bridge] → '{session}' ({} bytes)", text.len());
+                    println!("  Delivered via MCP notification (port {port})");
+                    return;
+                }
+            }
+            // Bridge HTTP failed — fall through to inbox
+            eprintln!("bridge: HTTP delivery failed — using inbox fallback");
+        }
+    }
+
+    // Fallback: file-based inbox
+    let inbox_path = std::path::Path::new("tmp/bridge-inbox").join(session);
+    if let Err(e) = std::fs::create_dir_all(&inbox_path) {
+        eprintln!("bridge: inbox mkdir failed ({e}) — falling back to tmux");
+        send_via_tmux(session, text);
+        return;
+    }
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let msg_file = inbox_path.join(format!("{timestamp}.msg"));
+    match std::fs::write(&msg_file, text) {
+        Ok(_) => {
+            println!("✉ [inbox] → '{session}' ({} bytes)", text.len());
+            println!("  Claude receives on next check_inbox call");
+        }
+        Err(e) => {
+            eprintln!("bridge: write failed ({e}) — falling back to tmux");
+            send_via_tmux(session, text);
+        }
+    }
+}
+
+fn send_via_tmux(session: &str, text: &str) {
+    println!("✉ [tmux] → '{session}'");
+    cmd_send_keys(&[
+        "--session".into(), session.to_string(),
+        "--text".into(), text.to_string(),
+    ]);
 }
 
 fn auto_detect_session() -> String {

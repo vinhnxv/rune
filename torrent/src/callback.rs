@@ -29,6 +29,7 @@ const MAX_BODY_SIZE: usize = 64 * 1024;
 /// - `report_complete` → `ArcComplete`
 /// - `heartbeat` → `Heartbeat`
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Fields read in tests and reserved for future UI display
 pub enum ChannelEvent {
     /// Phase started or completed.
     PhaseUpdate {
@@ -84,6 +85,7 @@ struct RawEvent {
 /// 3. `drop()` sets shutdown flag → background thread exits on next accept timeout
 pub struct CallbackServer {
     /// Actual port the server bound to.
+    #[allow(dead_code)] // Read via port() method in tests
     port: u16,
     /// Receive end for events from the HTTP thread.
     rx: mpsc::Receiver<ChannelEvent>,
@@ -136,16 +138,21 @@ impl CallbackServer {
     }
 
     /// Start the callback server using TORRENT_CALLBACK_PORT env var or default.
+    ///
+    /// Not currently used — port resolution happens in `main.rs` CLI parsing.
+    /// Kept for potential future use as a standalone entry point.
+    #[allow(dead_code)]
     pub fn start_from_env() -> Result<Self> {
         let port = std::env::var("TORRENT_CALLBACK_PORT")
             .ok()
             .and_then(|s| s.parse::<u16>().ok())
-            .filter(|&p| p >= 1024)
+            .filter(|&p| p > 0 && p <= 65534)
             .unwrap_or(DEFAULT_CALLBACK_PORT);
         Self::start(port)
     }
 
     /// The port the server is listening on.
+    #[allow(dead_code)] // Used in tests
     pub fn port(&self) -> u16 {
         self.port
     }
@@ -156,15 +163,6 @@ impl CallbackServer {
     /// in the main event loop.
     pub fn recv_event(&self) -> Option<ChannelEvent> {
         self.rx.try_recv().ok()
-    }
-
-    /// Drain all pending events into a Vec (non-blocking).
-    pub fn drain_events(&self) -> Vec<ChannelEvent> {
-        let mut events = Vec::new();
-        while let Ok(event) = self.rx.try_recv() {
-            events.push(event);
-        }
-        events
     }
 
     /// Signal the background thread to stop.
@@ -255,7 +253,7 @@ fn handle_request(mut request: tiny_http::Request, tx: &mpsc::Sender<ChannelEven
             }
 
             let mut body = Vec::with_capacity(content_length.min(MAX_BODY_SIZE));
-            if let Err(_) = request.as_reader().take(MAX_BODY_SIZE as u64).read_to_end(&mut body) {
+            if request.as_reader().take(MAX_BODY_SIZE as u64).read_to_end(&mut body).is_err() {
                 let _ = request.respond(
                     tiny_http::Response::from_string("read error")
                         .with_status_code(400),
@@ -307,7 +305,13 @@ fn parse_event(body: &[u8]) -> std::result::Result<ChannelEvent, String> {
         return Err("missing session_id".into());
     }
 
-    // Field length limits to prevent abuse
+    // Field length limits to prevent abuse (SEC-013 + BACK-015)
+    if raw.session_id.len() > 64 {
+        return Err("session_id exceeds 64 chars".into());
+    }
+    if raw.event_type.len() > 32 {
+        return Err("event_type exceeds 32 chars".into());
+    }
     if raw.phase.len() > 128 {
         return Err("phase exceeds 128 chars".into());
     }
@@ -317,9 +321,26 @@ fn parse_event(body: &[u8]) -> std::result::Result<ChannelEvent, String> {
     if raw.details.len() > 1024 {
         return Err("details exceeds 1024 chars".into());
     }
+    if raw.result.len() > 32 {
+        return Err("result exceeds 32 chars".into());
+    }
+    if let Some(ref err) = raw.error {
+        if err.len() > 1024 {
+            return Err("error exceeds 1024 chars".into());
+        }
+    }
+    if raw.activity.len() > 32 {
+        return Err("activity exceeds 32 chars".into());
+    }
+    if raw.current_tool.len() > 128 {
+        return Err("current_tool exceeds 128 chars".into());
+    }
     if let Some(ref url) = raw.pr_url {
-        if !url.starts_with("https://") || url.len() > 512 {
-            return Err("pr_url must start with https:// and be at most 512 chars".into());
+        if !url.starts_with("https://") {
+            return Err("pr_url must start with https://".into());
+        }
+        if url.len() > 512 {
+            return Err("pr_url exceeds 512 chars".into());
         }
     }
 
@@ -463,6 +484,180 @@ mod tests {
         let ping_url = format!("http://127.0.0.1:{}/ping", port);
         let resp = ureq::get(&ping_url).call();
         assert!(resp.is_ok());
+
+        server.stop();
+    }
+
+    // ── Field length validation tests (SEC-013 + BACK-015) ──
+
+    #[test]
+    fn reject_session_id_too_long() {
+        let long_id = "a".repeat(65);
+        let json = format!(
+            r#"{{"type":"phase","session_id":"{}","phase":"f","status":"s","details":"d"}}"#,
+            long_id
+        );
+        let err = parse_event(json.as_bytes()).unwrap_err();
+        assert!(err.contains("session_id exceeds 64 chars"), "got: {err}");
+    }
+
+    #[test]
+    fn accept_session_id_at_limit() {
+        let id = "a".repeat(64);
+        let json = format!(
+            r#"{{"type":"phase","session_id":"{}","phase":"f","status":"s","details":"d"}}"#,
+            id
+        );
+        assert!(parse_event(json.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn reject_event_type_too_long() {
+        let long_type = "x".repeat(33);
+        let json = format!(
+            r#"{{"type":"{}","session_id":"abc","phase":"f","status":"s","details":"d"}}"#,
+            long_type
+        );
+        let err = parse_event(json.as_bytes()).unwrap_err();
+        assert!(err.contains("event_type exceeds 32 chars"), "got: {err}");
+    }
+
+    #[test]
+    fn reject_result_too_long() {
+        let long_result = "r".repeat(33);
+        let json = format!(
+            r#"{{"type":"complete","session_id":"abc","result":"{}"}}"#,
+            long_result
+        );
+        let err = parse_event(json.as_bytes()).unwrap_err();
+        assert!(err.contains("result exceeds 32 chars"), "got: {err}");
+    }
+
+    #[test]
+    fn reject_error_too_long() {
+        let long_error = "e".repeat(1025);
+        let json = format!(
+            r#"{{"type":"complete","session_id":"abc","result":"ok","error":"{}"}}"#,
+            long_error
+        );
+        let err = parse_event(json.as_bytes()).unwrap_err();
+        assert!(err.contains("error exceeds 1024 chars"), "got: {err}");
+    }
+
+    #[test]
+    fn reject_activity_too_long() {
+        let long_act = "a".repeat(33);
+        let json = format!(
+            r#"{{"type":"heartbeat","session_id":"abc","activity":"{}","current_tool":"t"}}"#,
+            long_act
+        );
+        let err = parse_event(json.as_bytes()).unwrap_err();
+        assert!(err.contains("activity exceeds 32 chars"), "got: {err}");
+    }
+
+    #[test]
+    fn reject_current_tool_too_long() {
+        let long_tool = "t".repeat(129);
+        let json = format!(
+            r#"{{"type":"heartbeat","session_id":"abc","activity":"a","current_tool":"{}"}}"#,
+            long_tool
+        );
+        let err = parse_event(json.as_bytes()).unwrap_err();
+        assert!(err.contains("current_tool exceeds 128 chars"), "got: {err}");
+    }
+
+    #[test]
+    fn reject_pr_url_bad_protocol() {
+        let json = br#"{"type":"complete","session_id":"abc","result":"ok","pr_url":"http://github.com/pull/1"}"#;
+        let err = parse_event(json).unwrap_err();
+        assert!(err.contains("pr_url must start with https://"), "got: {err}");
+    }
+
+    #[test]
+    fn reject_pr_url_too_long() {
+        let long_url = format!("https://github.com/{}", "a".repeat(500));
+        let json = format!(
+            r#"{{"type":"complete","session_id":"abc","result":"ok","pr_url":"{}"}}"#,
+            long_url
+        );
+        let err = parse_event(json.as_bytes()).unwrap_err();
+        assert!(err.contains("pr_url exceeds 512 chars"), "got: {err}");
+    }
+
+    #[test]
+    fn accept_valid_pr_url() {
+        let json = br#"{"type":"complete","session_id":"abc","result":"ok","pr_url":"https://github.com/org/repo/pull/42"}"#;
+        assert!(parse_event(json).is_ok());
+    }
+
+    #[test]
+    fn accept_error_none() {
+        let json = br#"{"type":"complete","session_id":"abc","result":"ok"}"#;
+        let event = parse_event(json).unwrap();
+        match event {
+            ChannelEvent::ArcComplete { error, .. } => assert!(error.is_none()),
+            _ => panic!("expected ArcComplete"),
+        }
+    }
+
+    #[test]
+    fn accept_error_within_limit() {
+        let err_msg = "e".repeat(1024);
+        let json = format!(
+            r#"{{"type":"complete","session_id":"abc","result":"ok","error":"{}"}}"#,
+            err_msg
+        );
+        assert!(parse_event(json.as_bytes()).is_ok());
+    }
+
+    // ── HTTP integration test: field validation via live server ──
+
+    #[test]
+    fn server_rejects_oversized_session_id() {
+        let server = CallbackServer::start(0).expect("failed to start");
+        let port = server.port();
+        let url = format!("http://127.0.0.1:{}/event", port);
+
+        let long_id = "x".repeat(65);
+        let body = format!(
+            r#"{{"type":"phase","session_id":"{}","phase":"f","status":"s","details":"d"}}"#,
+            long_id
+        );
+        let resp = ureq::post(&url)
+            .set("Content-Type", "application/json")
+            .send_string(&body);
+        // Server returns 400 for validation errors
+        assert!(resp.is_err(), "expected 400 for oversized session_id");
+
+        server.stop();
+    }
+
+    #[test]
+    fn server_accepts_all_three_event_types() {
+        let server = CallbackServer::start(0).expect("failed to start");
+        let port = server.port();
+        let url = format!("http://127.0.0.1:{}/event", port);
+
+        let events = [
+            r#"{"type":"phase","session_id":"t1","phase":"work","status":"ok","details":""}"#,
+            r#"{"type":"heartbeat","session_id":"t1","activity":"coding","current_tool":"Edit"}"#,
+            r#"{"type":"complete","session_id":"t1","result":"success"}"#,
+        ];
+        for body in events {
+            let resp = ureq::post(&url)
+                .set("Content-Type", "application/json")
+                .send_string(body);
+            assert!(resp.is_ok(), "failed for: {body}");
+        }
+
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        // Verify all 3 events received
+        let mut count = 0;
+        while server.recv_event().is_some() {
+            count += 1;
+        }
+        assert_eq!(count, 3, "expected 3 events, got {count}");
 
         server.stop();
     }

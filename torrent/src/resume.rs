@@ -196,7 +196,7 @@ impl ResumeState {
     pub fn should_skip(&self, phase_index: u32, max_retries: u32) -> bool {
         self.phase_retries
             .get(&phase_index)
-            .map_or(false, |&count| count >= max_retries)
+            .is_some_and(|&count| count >= max_retries)
     }
 
     /// Record a restart event: bump counters, update timestamps, and append to history.

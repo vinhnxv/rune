@@ -145,9 +145,10 @@ impl Tmux {
 
         if let Some(ch) = channels {
             // Numeric u16 values are inherently safe, but we format cleanly
+            // TORRENT_SESSION_ID scopes the bridge inbox to this session
             env_prefix.push_str(&format!(
-                "TORRENT_CALLBACK_URL=http://127.0.0.1:{} TORRENT_BRIDGE_PORT={} ",
-                ch.callback_port, ch.bridge_port
+                "TORRENT_CALLBACK_URL=http://127.0.0.1:{} TORRENT_BRIDGE_PORT={} TORRENT_SESSION_ID={} ",
+                ch.callback_port, ch.bridge_port, session_id
             ));
         }
 
@@ -358,13 +359,6 @@ impl Tmux {
         }
     }
 
-    /// Check if a tmux session still exists.
-    pub fn session_exists(session_id: &str) -> bool {
-        Command::new("tmux")
-            .args(["has-session", "-t", session_id])
-            .output()
-            .is_ok_and(|o| o.status.success())
-    }
 
     /// Kill a tmux session. Best-effort.
     pub fn kill_session(session_id: &str) -> Result<()> {

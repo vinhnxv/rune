@@ -107,10 +107,10 @@ fn parse_args() -> CliArgs {
                     std::process::exit(1);
                 }
                 match args[i].parse::<u16>() {
-                    Ok(port) if port > 0 => callback_port_cli = Some(port),
+                    Ok(port) if port > 0 && port <= 65534 => callback_port_cli = Some(port),
                     _ => {
                         eprintln!(
-                            "error: invalid callback port '{}'. Expected a number 1-65535.",
+                            "error: invalid callback port '{}'. Expected a number 1-65534 (port+1 used for bridge).",
                             args[i]
                         );
                         std::process::exit(1);
@@ -137,6 +137,7 @@ fn parse_args() -> CliArgs {
         std::env::var("TORRENT_CALLBACK_PORT")
             .ok()
             .and_then(|v| v.parse::<u16>().ok())
+            .filter(|&p| p > 0 && p <= 65534)
             .unwrap_or(DEFAULT_CALLBACK_PORT)
     });
 

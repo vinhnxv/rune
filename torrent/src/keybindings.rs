@@ -9,6 +9,11 @@ pub fn handle_key(app: &App, key: KeyEvent) -> Action {
         return Action::None;
     }
 
+    // Message input mode intercepts all keys
+    if app.message_input_active {
+        return handle_message_input_key(key);
+    }
+
     match app.view {
         AppView::ActiveArcs => handle_active_arcs_key(app, key),
         AppView::Selection if app.queue_editing => handle_queue_edit_key(app, key),
@@ -71,6 +76,7 @@ fn handle_running_key(app: &App, key: KeyEvent) -> Action {
         KeyCode::Char('s') if grace_active => Action::SkipGrace,
         KeyCode::Char('s') => Action::SkipPlan,
         KeyCode::Char('k') => Action::KillSession,
+        KeyCode::Char('m') => Action::OpenMessageInput,
         KeyCode::Char('p') => Action::PickPlans,
         KeyCode::Char('d') => Action::RemoveFromQueue,
         KeyCode::Up => Action::MoveUp,
@@ -103,6 +109,17 @@ fn handle_queue_edit_key(app: &App, key: KeyEvent) -> Action {
         }
         KeyCode::Up => Action::MoveUp,
         KeyCode::Down => Action::MoveDown,
+        _ => Action::None,
+    }
+}
+
+/// Message input mode: captures text until Enter (submit) or Esc (cancel).
+fn handle_message_input_key(key: KeyEvent) -> Action {
+    match key.code {
+        KeyCode::Enter => Action::SubmitMessage,
+        KeyCode::Esc => Action::CancelMessageInput,
+        KeyCode::Backspace => Action::MessageBackspace,
+        KeyCode::Char(c) => Action::MessageChar(c),
         _ => Action::None,
     }
 }

@@ -28,6 +28,10 @@ fn env_or_u64(key: &str, default: u64) -> u64 {
 
 /// Compare two plan names by filename (ignoring path prefix).
 /// Handles: "plans/foo.md" vs "foo.md" vs "/abs/plans/foo.md".
+fn truncate_str(s: &str, max: usize) -> &str {
+    if s.len() <= max { s } else { &s[..max] }
+}
+
 fn plans_match(a: &str, b: &str) -> bool {
     let fa = a.rsplit('/').next().unwrap_or(a);
     let fb = b.rsplit('/').next().unwrap_or(b);
@@ -119,6 +123,12 @@ pub struct App {
     pub callback_server: Option<CallbackServer>,
     /// Last time we polled the channel for events.
     pub last_channel_poll: Option<Instant>,
+
+    // Message input mode (send messages to Claude via bridge inbox)
+    /// Whether the message input bar is active.
+    pub message_input_active: bool,
+    /// Current message text being typed.
+    pub message_input_buf: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -413,6 +423,12 @@ pub enum Action {
     // Queue-edit mode (Selection while queue_editing=true)
     AppendToQueue,   // Confirm — append selected plans to queue
     CancelQueueEdit, // Cancel — return to Running without changes
+    // Message input mode
+    OpenMessageInput,   // Open message input bar
+    SubmitMessage,      // Send message to Claude via bridge inbox
+    CancelMessageInput, // Cancel message input
+    MessageChar(char),  // Append character to message buffer
+    MessageBackspace,   // Delete last character from buffer
     // No-op
     None,
 }
@@ -491,6 +507,8 @@ impl App {
             callback_port: 9900,
             callback_server: None,
             last_channel_poll: None,
+            message_input_active: false,
+            message_input_buf: String::new(),
         })
     }
 
@@ -595,7 +613,7 @@ impl App {
         self.active_arcs.retain(|arc| {
             // If it has a tmux session, verify it still exists
             if let Some(ref session) = arc.tmux_session {
-                if !Tmux::session_exists(session) {
+                if !Tmux::has_session(session) {
                     return false;
                 }
             }
@@ -939,6 +957,32 @@ impl App {
                 self.selected_plans.clear();
                 self.queue_editing = false;
                 self.view = AppView::Running;
+            }
+            Action::OpenMessageInput => {
+                if self.tmux_session_id.is_some() {
+                    self.message_input_active = true;
+                    self.message_input_buf.clear();
+                } else {
+                    self.status_message = Some("No active session to send to".into());
+                }
+            }
+            Action::SubmitMessage => {
+                if !self.message_input_buf.trim().is_empty() {
+                    let msg = self.message_input_buf.clone();
+                    self.message_input_active = false;
+                    self.message_input_buf.clear();
+                    self.send_message_to_claude(&msg);
+                }
+            }
+            Action::CancelMessageInput => {
+                self.message_input_active = false;
+                self.message_input_buf.clear();
+            }
+            Action::MessageChar(c) => {
+                self.message_input_buf.push(c);
+            }
+            Action::MessageBackspace => {
+                self.message_input_buf.pop();
             }
             Action::None => {}
         }
@@ -1379,7 +1423,7 @@ impl App {
         // Step 4: Build channels config (if enabled) and start Claude Code
         let channels_cfg = if self.channels_enabled {
             Some(ChannelsConfig {
-                bridge_port: self.callback_port + 1, // bridge on adjacent port to avoid collision
+                bridge_port: self.callback_port.checked_add(1).unwrap_or(self.callback_port.saturating_sub(1)), // SEC-012: prevent u16 overflow
                 callback_port: self.callback_port,
             })
         } else {
@@ -1546,7 +1590,105 @@ impl App {
     }
 
     /// Poll arc status (heartbeat + checkpoint + resources) and update display state.
-    /// Drain pending channel events from the callback server (non-blocking).
+    /// Send a message to the Claude Code session.
+    ///
+    /// Delivery strategy (priority order):
+    /// 1. **Bridge HTTP** — POST to bridge inbound server (notifications/message → Claude).
+    /// 2. **Bridge inbox** — file-based fallback if HTTP fails.
+    /// 3. **tmux send-keys** — last resort when channels off/unhealthy.
+    fn send_message_to_claude(&mut self, msg: &str) {
+        let channel_healthy = self.channels_enabled
+            && self.current_run.as_ref()
+                .and_then(|r| r.channel_state.as_ref())
+                .map(|cs| cs.is_active())
+                .unwrap_or(false);
+
+        if channel_healthy {
+            self.send_via_bridge_http(msg);
+        } else {
+            self.send_via_tmux(msg);
+        }
+    }
+
+    /// Send via bridge HTTP server (MCP notification path — fastest).
+    fn send_via_bridge_http(&mut self, msg: &str) {
+        let bridge_port = self.current_run.as_ref()
+            .and_then(|r| r.channel_state.as_ref())
+            .and_then(|cs| cs.bridge_port);
+
+        let port = match bridge_port {
+            Some(p) => p,
+            None => {
+                // No bridge port discovered — fall back to inbox
+                self.send_via_inbox(msg);
+                return;
+            }
+        };
+
+        let url = format!("http://127.0.0.1:{port}/msg");
+        match ureq::post(&url)
+            .set("Content-Type", "text/plain")
+            .send_string(msg)
+        {
+            Ok(resp) => {
+                let status = resp.into_string().unwrap_or_default();
+                self.status_message = Some(format!("✉ [bridge] {}", truncate_str(msg, 50)));
+                if status.contains("inbox") {
+                    // Bridge fell back to inbox internally
+                    self.status_message = Some(format!("✉ [inbox] {}", truncate_str(msg, 50)));
+                }
+            }
+            Err(_) => {
+                // Bridge HTTP unreachable — fall back to inbox, then tmux
+                self.send_via_inbox(msg);
+            }
+        }
+    }
+
+    /// Send via bridge inbox (file-based fallback).
+    fn send_via_inbox(&mut self, msg: &str) {
+        let session_id = self.tmux_session_id.as_deref().unwrap_or("default");
+        let inbox_dir = std::path::PathBuf::from("tmp/bridge-inbox").join(session_id);
+        if let Err(e) = std::fs::create_dir_all(&inbox_dir) {
+            self.status_message = Some(format!("inbox failed: {e} — using tmux"));
+            self.send_via_tmux(msg);
+            return;
+        }
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = inbox_dir.join(format!("{timestamp}.msg"));
+        match std::fs::write(&path, msg) {
+            Ok(_) => {
+                self.status_message = Some(format!("✉ [inbox] {}", truncate_str(msg, 50)));
+            }
+            Err(e) => {
+                self.status_message = Some(format!("inbox write failed: {e} — using tmux"));
+                self.send_via_tmux(msg);
+            }
+        }
+    }
+
+    /// Send via tmux send-keys (last resort fallback).
+    fn send_via_tmux(&mut self, msg: &str) {
+        let session_id = match &self.tmux_session_id {
+            Some(id) => id.clone(),
+            None => {
+                self.status_message = Some("no active session".into());
+                return;
+            }
+        };
+        match Tmux::send_keys(&session_id, msg) {
+            Ok(_) => {
+                self.status_message = Some(format!("✉ [tmux] {}", truncate_str(msg, 50)));
+            }
+            Err(e) => {
+                self.status_message = Some(format!("send failed: {e}"));
+            }
+        }
+    }
+
     /// Channel events provide faster updates than file polling but file state
     /// remains authoritative. Events update optimistic state on the current run.
     fn drain_channel_events(&mut self) {
@@ -1578,10 +1720,10 @@ impl App {
                 ChannelEvent::ArcComplete { session_id, .. } => session_id,
                 ChannelEvent::Heartbeat { session_id, .. } => session_id,
             };
-            if let Some(ref expected) = expected_session {
-                if event_session != expected {
-                    continue;
-                }
+            match &expected_session {
+                Some(expected) if event_session != expected => continue,
+                None => continue, // SEC-011: no session known yet — drop events
+                _ => {} // session matches — process event
             }
 
             // BACK-014: Retry channel state init if still None (bridge may not have been
@@ -2381,9 +2523,11 @@ impl App {
             || std::env::var("TORRENT_GRACE_MIN").is_ok()
             || std::env::var("TORRENT_GRACE_MAX").is_ok();
 
-        if legacy_secs.is_some() && !has_new_vars {
-            // Legacy mode: use fixed duration from GRACE_PERIOD_SECS
-            return Duration::from_secs(legacy_secs.unwrap());
+        if let Some(secs) = legacy_secs {
+            if !has_new_vars {
+                // Legacy mode: use fixed duration from GRACE_PERIOD_SECS
+                return Duration::from_secs(secs);
+            }
         }
 
         let base = env_or_u64("TORRENT_GRACE_BASE", 30);

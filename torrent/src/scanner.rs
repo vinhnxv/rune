@@ -988,6 +988,6 @@ mod tests {
         // No extra dirs — should still work (backward compatible)
         let configs = scan_config_dirs(&[]).unwrap();
         // Just verify it doesn't crash; actual dirs depend on the host
-        assert!(configs.len() >= 0);
+        let _ = configs; // verify no crash; actual dirs depend on the host
     }
 }
