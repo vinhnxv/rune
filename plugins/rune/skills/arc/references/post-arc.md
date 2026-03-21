@@ -165,11 +165,11 @@ if (exists(`tmp/arc/${id}/gap-remediation-report.md`)) {
   const gapReport = Read(`tmp/arc/${id}/gap-remediation-report.md`)
   // Match both ## and ### heading levels (gap-remediation.md uses ## Deferred Findings)
   const deferredSection = gapReport.match(/#{2,3} Deferred[\s\S]*?(?=#{2,3} |$)/)?.[0] || ''
-  const deferredItems = (deferredSection.match(/^- \[.\] .+$/gm) || [])
+  const deferredItems = (deferredSection.match(/^- \[ \] .+$/gm) || [])
 
   if (deferredItems.length > 0) {
     function classifyDeferred(desc) {
-      if (/routing|wiring|wire|register|hook|entry.?point|SKILL\.md|hooks\.json/i.test(desc)) return 'SHIRKING'
+      if (/routing|wiring|wire|register|hook|entry.?point|SKILL\.md|hooks\.json|dispatcher|command.?table/i.test(desc)) return 'SHIRKING'
       if (/AC|acceptance.*criter/i.test(desc)) return 'SHIRKING'
       if (/too.*large|needs.*plan|separate.*scope|dedicated.*plan/i.test(desc)) return 'LEGITIMATE'
       return 'REVIEW_NEEDED'
