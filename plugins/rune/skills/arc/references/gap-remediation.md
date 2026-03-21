@@ -477,13 +477,16 @@ if (!cleanupTeamDeleteSucceeded) {
 // so future arc sessions benefit from the gap pattern awareness
 // BACK-007: Include both overflow findings (beyond max_fixes cap) AND unfixed-within-cap findings
 // Anti-Shirking: Force non-deferrable overflow findings into the fix queue
-const nonDeferrableOverflow = allFindings.slice(cappedFindings.length)
+// BACK-001 FIX: Save original cap length before push to avoid read-after-write hazard
+const originalCapLength = cappedFindings.length
+const nonDeferrableOverflow = allFindings.slice(originalCapLength)
   .filter(f => !canDefer(f, allFindings).canDefer)
 if (nonDeferrableOverflow.length > 0) {
   cappedFindings.push(...nonDeferrableOverflow)
   log(`Anti-Shirking: ${nonDeferrableOverflow.length} overflow findings forced into fix queue (non-deferrable)`)
 }
-const overflowFindings = allFindings.slice(cappedFindings.length)
+const overflowFindings = allFindings.slice(originalCapLength)
+  .filter(f => !nonDeferrableOverflow.includes(f))
 const overflowIds = overflowFindings.map(f => f.id)
 // VK-002 FIX: Persist BOTH overflow IDs (beyond max_fixes cap) AND within-cap deferred
 // findings (attempted but unfixable by the agent). Within-cap deferred are identified
