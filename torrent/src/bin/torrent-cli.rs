@@ -358,6 +358,32 @@ fn cmd_send_msg(args: &[String]) {
 }
 
 fn send_via_bridge(session: &str, text: &str) {
+    // Try bridge HTTP server first (direct push via MCP notification)
+    let port_file = format!("tmp/arc/arc-{session}/bridge-port.txt");
+    if let Ok(port_str) = std::fs::read_to_string(&port_file) {
+        if let Ok(port) = port_str.trim().parse::<u16>() {
+            let url = format!("http://127.0.0.1:{port}/msg");
+            let resp = Command::new("curl")
+                .args(["-s", "-o", "/dev/null", "-w", "%{http_code}",
+                       "-X", "POST", &url,
+                       "-H", "Content-Type: text/plain",
+                       "-d", text,
+                       "--connect-timeout", "2"])
+                .output();
+            if let Ok(out) = resp {
+                let code = String::from_utf8_lossy(&out.stdout);
+                if code.starts_with("200") {
+                    println!("✉ [bridge] → '{session}' ({} bytes)", text.len());
+                    println!("  Delivered via MCP notification (port {port})");
+                    return;
+                }
+            }
+            // Bridge HTTP failed — fall through to inbox
+            eprintln!("bridge: HTTP delivery failed — using inbox fallback");
+        }
+    }
+
+    // Fallback: file-based inbox
     let inbox_path = std::path::Path::new("tmp/bridge-inbox").join(session);
     if let Err(e) = std::fs::create_dir_all(&inbox_path) {
         eprintln!("bridge: inbox mkdir failed ({e}) — falling back to tmux");
@@ -371,7 +397,7 @@ fn send_via_bridge(session: &str, text: &str) {
     let msg_file = inbox_path.join(format!("{timestamp}.msg"));
     match std::fs::write(&msg_file, text) {
         Ok(_) => {
-            println!("✉ [bridge] → '{session}' ({} bytes)", text.len());
+            println!("✉ [inbox] → '{session}' ({} bytes)", text.len());
             println!("  Claude receives on next check_inbox call");
         }
         Err(e) => {

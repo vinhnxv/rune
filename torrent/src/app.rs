@@ -1593,8 +1593,9 @@ impl App {
     /// Send a message to the Claude Code session.
     ///
     /// Delivery strategy (priority order):
-    /// 1. **Bridge inbox** — if channels enabled + healthy. Delivered via MCP check_inbox tool.
-    /// 2. **tmux send-keys** — fallback when channels off/unhealthy. Injects text directly.
+    /// 1. **Bridge HTTP** — POST to bridge inbound server (notifications/message → Claude).
+    /// 2. **Bridge inbox** — file-based fallback if HTTP fails.
+    /// 3. **tmux send-keys** — last resort when channels off/unhealthy.
     fn send_message_to_claude(&mut self, msg: &str) {
         let channel_healthy = self.channels_enabled
             && self.current_run.as_ref()
@@ -1603,18 +1604,53 @@ impl App {
                 .unwrap_or(false);
 
         if channel_healthy {
-            self.send_via_inbox(msg);
+            self.send_via_bridge_http(msg);
         } else {
             self.send_via_tmux(msg);
         }
     }
 
-    /// Send via bridge inbox (MCP protocol path).
+    /// Send via bridge HTTP server (MCP notification path — fastest).
+    fn send_via_bridge_http(&mut self, msg: &str) {
+        let bridge_port = self.current_run.as_ref()
+            .and_then(|r| r.channel_state.as_ref())
+            .and_then(|cs| cs.bridge_port);
+
+        let port = match bridge_port {
+            Some(p) => p,
+            None => {
+                // No bridge port discovered — fall back to inbox
+                self.send_via_inbox(msg);
+                return;
+            }
+        };
+
+        let url = format!("http://127.0.0.1:{port}/msg");
+        match ureq::post(&url)
+            .set("Content-Type", "text/plain")
+            .send_string(msg)
+        {
+            Ok(resp) => {
+                let status = resp.into_string().unwrap_or_default();
+                self.status_message = Some(format!("✉ [bridge] {}", truncate_str(msg, 50)));
+                if status.contains("inbox") {
+                    // Bridge fell back to inbox internally
+                    self.status_message = Some(format!("✉ [inbox] {}", truncate_str(msg, 50)));
+                }
+            }
+            Err(_) => {
+                // Bridge HTTP unreachable — fall back to inbox, then tmux
+                self.send_via_inbox(msg);
+            }
+        }
+    }
+
+    /// Send via bridge inbox (file-based fallback).
     fn send_via_inbox(&mut self, msg: &str) {
         let session_id = self.tmux_session_id.as_deref().unwrap_or("default");
         let inbox_dir = std::path::PathBuf::from("tmp/bridge-inbox").join(session_id);
         if let Err(e) = std::fs::create_dir_all(&inbox_dir) {
-            self.status_message = Some(format!("inbox mkdir failed: {e} — falling back to tmux"));
+            self.status_message = Some(format!("inbox failed: {e} — using tmux"));
             self.send_via_tmux(msg);
             return;
         }
@@ -1625,16 +1661,16 @@ impl App {
         let path = inbox_dir.join(format!("{timestamp}.msg"));
         match std::fs::write(&path, msg) {
             Ok(_) => {
-                self.status_message = Some(format!("✉ [ch] {}", truncate_str(msg, 50)));
+                self.status_message = Some(format!("✉ [inbox] {}", truncate_str(msg, 50)));
             }
             Err(e) => {
-                self.status_message = Some(format!("inbox write failed: {e} — falling back to tmux"));
+                self.status_message = Some(format!("inbox write failed: {e} — using tmux"));
                 self.send_via_tmux(msg);
             }
         }
     }
 
-    /// Send via tmux send-keys (direct text injection fallback).
+    /// Send via tmux send-keys (last resort fallback).
     fn send_via_tmux(&mut self, msg: &str) {
         let session_id = match &self.tmux_session_id {
             Some(id) => id.clone(),

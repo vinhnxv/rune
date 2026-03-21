@@ -51,6 +51,7 @@ const server = new Server(
   {
     capabilities: {
       experimental: { "claude/channel": {} },
+      logging: {},
       tools: {},
     },
     instructions: `You are running inside Torrent orchestration.
@@ -260,12 +261,104 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-// ── Start ────────────────────────────────────────────────────
+// ── Inbound HTTP Server (Torrent → Bridge → Claude) ─────────
+//
+// Listens on TORRENT_BRIDGE_PORT for messages from Torrent.
+// Pushes them into Claude via sendLoggingMessage (notifications/message).
+// This replaces the file-based inbox for inbound messaging.
+
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+
+const bridgePort = parseInt(process.env.TORRENT_BRIDGE_PORT || "0", 10);
+let inboundServer: ReturnType<typeof createServer> | undefined;
+
+if (bridgePort > 0) {
+  inboundServer = createServer(
+    async (req: IncomingMessage, res: ServerResponse) => {
+      // Health check
+      if (req.method === "GET" && req.url === "/ping") {
+        res.writeHead(200);
+        res.end("pong");
+        return;
+      }
+
+      // Inbound message: Torrent → Claude
+      if (req.method === "POST" && req.url === "/msg") {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+          chunks.push(chunk as Buffer);
+          if (chunks.reduce((s, c) => s + c.length, 0) > 65536) {
+            res.writeHead(413);
+            res.end("payload too large");
+            return;
+          }
+        }
+        const body = Buffer.concat(chunks).toString("utf-8").trim();
+        if (!body) {
+          res.writeHead(400);
+          res.end("empty message");
+          return;
+        }
+
+        try {
+          // Push message to Claude via MCP logging notification
+          await server.sendLoggingMessage({
+            level: "info",
+            logger: "torrent-bridge",
+            data: `[torrent] ${body}`,
+          });
+          process.stderr.write(`bridge: inbound msg delivered (${body.length} bytes)\n`);
+          res.writeHead(200);
+          res.end("delivered");
+        } catch (err) {
+          // Fallback: write to file inbox if notification fails
+          const sessionId = process.env.TORRENT_SESSION_ID || "default";
+          const inboxDir = path.join("tmp/bridge-inbox", sessionId);
+          try {
+            fs.mkdirSync(inboxDir, { recursive: true });
+            const ts = Date.now();
+            fs.writeFileSync(path.join(inboxDir, `${ts}.msg`), body);
+            process.stderr.write(
+              `bridge: notification failed, wrote to inbox fallback\n`,
+            );
+            res.writeHead(200);
+            res.end("delivered-via-inbox");
+          } catch {
+            res.writeHead(500);
+            res.end("delivery failed");
+          }
+        }
+        return;
+      }
+
+      res.writeHead(404);
+      res.end("not found");
+    },
+  );
+
+  inboundServer.listen(bridgePort, "127.0.0.1", () => {
+    process.stderr.write(
+      `bridge: inbound server listening on 127.0.0.1:${bridgePort}\n`,
+    );
+    // Write port file for discovery
+    const sessionId = process.env.TORRENT_SESSION_ID || "default";
+    const portDir = `tmp/arc/arc-${sessionId}`;
+    try {
+      fs.mkdirSync(portDir, { recursive: true });
+      fs.writeFileSync(path.join(portDir, "bridge-port.txt"), `${bridgePort}\n`);
+    } catch {
+      // Non-critical — Torrent already knows the port via env var
+    }
+  });
+}
+
+// ── Start MCP (stdio) ───────────────────────────────────────
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
 async function shutdown() {
+  if (inboundServer) inboundServer.close();
   await server.close();
   process.exit(0);
 }
