@@ -1111,6 +1111,21 @@ work:
   #                                   #   merge  — standard merge commit (default, preserves child history)
   #                                   #   squash — squash child commits into one commit per child
 
+  # ── Task Decomposition (v2.5.0+) ──────────────
+  # LLM-driven classification and decomposition of complex tasks.
+  # task_decomposition:
+  #   enabled: true                    # Master toggle
+  #   complexity_threshold: 5          # Min file count to trigger LLM classification
+  #   max_subtasks: 4                  # Max subtasks per composite task
+  #   model: "haiku"                   # Model for classification (haiku = cheap)
+
+  # ── Sibling Awareness (v2.5.0+) ──────────────
+  # Inject context about other workers' tasks into each worker's prompt.
+  # sibling_awareness:
+  #   enabled: true                    # Inject sibling context into worker prompts
+  #   max_sibling_files: 5             # Max files shown per sibling (token cap)
+  #   max_sibling_tasks: 10            # Max siblings shown (relevance sorted)
+
 # ──────────────────────────────────────────────
 # Strive — Frontend component context injection (v1.129.0+)
 # ──────────────────────────────────────────────
