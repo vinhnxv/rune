@@ -17,6 +17,14 @@ FAIL=0
 TORRENT_BIN="${TORRENT_BIN:-./target/release/torrent}"
 PORT="${TEST_PORT:-19900}"  # Use non-standard port to avoid conflicts
 
+# Helper: run cargo test and check for "passed" in output.
+# Avoids pipefail issues where cargo's warning exit code taints the pipeline.
+cargo_test_passes() {
+    local out
+    out=$(cargo test "$@" --release 2>&1) || true
+    echo "$out" | grep -q "passed"
+}
+
 # ── Helpers ──────────────────────────────────────────────────
 
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
@@ -83,7 +91,7 @@ echo "[2] Callback server field validation (HTTP)"
 # Use cargo test for HTTP tests (they start their own server on port 0)
 echo "  (HTTP tests run via cargo test — see Rust unit tests)"
 echo "  Running: cargo test server_ --release --quiet"
-if cargo test server_ --release --quiet 2>&1; then
+if cargo_test_passes server_; then
     pass "HTTP integration tests via cargo test"
 else
     fail "HTTP integration tests" "cargo test failed"
@@ -111,7 +119,7 @@ test_names=(
 )
 
 for test_name in "${test_names[@]}"; do
-    if cargo test "$test_name" --release --quiet 2>&1; then
+    if cargo_test_passes "$test_name"; then
         pass "$test_name"
     else
         fail "$test_name" "test failed"
@@ -168,7 +176,7 @@ echo ""
 
 echo "[5] Full test suite"
 
-if cargo test --release --quiet 2>&1; then
+if cargo_test_passes; then
     pass "cargo test --release (all tests)"
 else
     fail "cargo test --release" "some tests failed"
