@@ -386,7 +386,25 @@ def _inject_remaining_section_defaults(data: dict[str, Any]) -> None:
             "bash_timeout_patterns": [],
             "process_kill_grace": 5,
             "teammate_stuck_threshold": 180,
+            "semantic_activity": {
+                "enabled": True,
+                "window_seconds": 60,
+                "error_loop_threshold": 3,
+                "retry_loop_threshold": 5,
+                "permission_threshold": 3,
+            },
         }
+    else:
+        # Ensure semantic_activity exists even if process_management was user-provided
+        pm = data["process_management"]
+        if "semantic_activity" not in pm:
+            pm["semantic_activity"] = {
+                "enabled": True,
+                "window_seconds": 60,
+                "error_loop_threshold": 3,
+                "retry_loop_threshold": 5,
+                "permission_threshold": 3,
+            }
 
 
 if __name__ == "__main__":
