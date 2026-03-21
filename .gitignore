@@ -63,3 +63,4 @@ plugins/rune/ROADMAP.md
 todos/
 .rune/
 .torrent/
+dist/

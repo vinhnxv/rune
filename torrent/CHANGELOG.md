@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-03-21
+
+### Added
+
+- **Recovery mode distinction** — new `RecoveryMode` enum (Retry/Resume/Evaluate) distinguishes pre-arc failures (no checkpoint, fresh `/arc`), mid-arc crashes (checkpoint exists, `/arc --resume`), and post-arc completion (evaluate result, no restart)
+- **Escalating cooldown** — restart cooldown scales with failure density: 1x base (normal), 2x (2+ restarts), 3x with 180s minimum (rapid failure). Base default increased from 30s to 60s
+- **Rapid failure skip** — 3+ restarts within 30 seconds triggers immediate plan skip (tightened from 5-minute window that never caught real rapid failures)
+- **QA phase timeout category** — `forge_qa`, `work_qa`, `gap_analysis_qa`, `code_review_qa`, `mend_qa`, `test_qa` phases now timeout at 15 minutes (was 60 minutes via default fallthrough). Override: `TORRENT_TIMEOUT_QA`
+- **Analysis phase timeout category** — `gap_analysis`, `codex_gap_analysis`, `goldmask_verification`, `goldmask_correlation`, `semantic_verification`, `gap_remediation`, `plan_refine`, `verification`, `drift_review` phases now timeout at 20 minutes. Override: `TORRENT_TIMEOUT_ANALYSIS`
+- **Checkpoint-aware initial launch** — `launch_next_plan()` detects existing checkpoints from previous torrent sessions and auto-resumes instead of starting fresh
+- **Restart history tracking** — `RestartRecord` captures mode, phase, reason, and timestamp for each restart event; `ResumeState` tracks separate `retry_count` and `resume_count`
+- **New env vars** — `TORRENT_MAX_RETRIES` (default: 3, pre-arc retry budget), `TORRENT_TIMEOUT_QA` (default: 15 min), `TORRENT_TIMEOUT_ANALYSIS` (default: 20 min)
+
+### Fixed
+
+- **Wrong recovery command after crash** — pre-arc failures no longer send `/arc --resume` (which fails without a checkpoint); they correctly send `/arc` for a fresh start
+- **Rapid failure burn-through** — 3 restarts in <2 seconds no longer exhausts the retry budget silently; escalating cooldown and rapid-skip prevent wasted cycles
+- **Restart state machine discriminant** — `check_restart_cooldown()` Phase 1/Phase 2 now uses a dedicated `session_recreated` flag instead of `run.arc.is_some()`, which failed for Retry mode (arc always None → infinite session recreation loop)
+- **TOCTOU panic in cooldown countdown** — `Instant::now()` captured once before `duration_since` comparison, preventing underflow panic when deadline expires between two calls
+- **Checkpoint matching false-positives** — `check_existing_checkpoint()` now uses filename-based `plans_match()` instead of bidirectional `contains()` which matched substrings (e.g., `auth.md` matched `oauth.md`)
+- **Dual timestamp drift in restart recording** — `record_restart()` now owns the full recording lifecycle (counters + history + timestamp), eliminating separate `Utc::now()` calls for the same event
+
+### Changed
+
+- **Default `TORRENT_RESTART_COOLDOWN`** increased from 30s to 60s
+- **`is_rapid_failure()` window** tightened from 300s (5 min) to 30s
+- **`phase_category()` expanded** from 5 to 7 categories — all 32 arc phases now have explicit category mappings instead of 16 falling through to the "review" default
+- **`PhaseTimeoutConfig::from_env()` behavior** — categories now always get explicit defaults (forge=30m, work=45m, qa=15m, analysis=20m, test=30m, review=30m, ship=20m) instead of falling through to `TORRENT_TIMEOUT_DEFAULT` (60m)
+- **`send_arc_with_retry` / `send_arc_resume_with_retry`** consolidated into generic `send_with_retry()` helper
+
 ## [0.6.4] - 2026-03-21
 
 ### Fixed
