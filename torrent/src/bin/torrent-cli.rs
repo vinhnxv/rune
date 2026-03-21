@@ -40,6 +40,7 @@ fn main() {
     match args[1].as_str() {
         "new-session" => { cmd_new_session(&args[2..]); },
         "send-keys" => cmd_send_keys(&args[2..]),
+        "send-msg" | "msg" => cmd_send_msg(&args[2..]),
         "capture-pane" | "capture" => cmd_capture_pane(&args[2..]),
         "list" | "ls" => cmd_list(),
         "kill" => cmd_kill(&args[2..]),
@@ -53,6 +54,7 @@ fn print_usage() {
     eprintln!("Commands:");
     eprintln!("  new-session --config-dir <path>          Create tmux session + start Claude");
     eprintln!("  send-keys --session <id> --text <text>   Send keys with Escape workaround");
+    eprintln!("  send-msg --text <message> [--inbox <dir>]  Send message via bridge inbox");
     eprintln!("  capture-pane --session <id>              Capture pane output");
     eprintln!("  list                                     List torrent sessions");
     eprintln!("  kill --session <id>                      Kill session");
@@ -294,6 +296,45 @@ fn cmd_run(args: &[String]) {
     cmd_capture_pane(&["--session".into(), session_id.clone(), "--lines".into(), "10".into()]);
 
     println!("\nAttach: tmux attach -t {}", session_id);
+}
+
+// ── send-msg ───────────────────────────────────────────────
+
+fn cmd_send_msg(args: &[String]) {
+    let text = get_arg(args, "--text").unwrap_or_else(|| {
+        // Concatenate remaining args as message
+        let msg: Vec<_> = args.iter().filter(|a| *a != "--inbox").collect();
+        if msg.is_empty() {
+            eprintln!("Usage: torrent-cli send-msg --text <message> [--inbox <dir>]");
+            eprintln!("       torrent-cli send-msg \"your message here\"");
+            std::process::exit(1);
+        }
+        msg.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(" ")
+    });
+
+    let inbox = get_arg(args, "--inbox").unwrap_or_else(|| "tmp/bridge-inbox".into());
+    let inbox_path = std::path::Path::new(&inbox);
+
+    if let Err(e) = std::fs::create_dir_all(inbox_path) {
+        eprintln!("error: cannot create inbox dir '{}': {}", inbox, e);
+        std::process::exit(1);
+    }
+
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let msg_file = inbox_path.join(format!("{timestamp}.msg"));
+
+    if let Err(e) = std::fs::write(&msg_file, &text) {
+        eprintln!("error: cannot write message: {}", e);
+        std::process::exit(1);
+    }
+
+    println!("✉ Message sent ({} bytes)", text.len());
+    println!("  inbox: {}", inbox);
+    println!("  file:  {}", msg_file.display());
+    println!("  Claude will receive it on next check_inbox call");
 }
 
 fn auto_detect_session() -> String {

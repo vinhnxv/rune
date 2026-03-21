@@ -28,6 +28,10 @@ fn env_or_u64(key: &str, default: u64) -> u64 {
 
 /// Compare two plan names by filename (ignoring path prefix).
 /// Handles: "plans/foo.md" vs "foo.md" vs "/abs/plans/foo.md".
+fn truncate_str(s: &str, max: usize) -> &str {
+    if s.len() <= max { s } else { &s[..max] }
+}
+
 fn plans_match(a: &str, b: &str) -> bool {
     let fa = a.rsplit('/').next().unwrap_or(a);
     let fb = b.rsplit('/').next().unwrap_or(b);
@@ -119,6 +123,12 @@ pub struct App {
     pub callback_server: Option<CallbackServer>,
     /// Last time we polled the channel for events.
     pub last_channel_poll: Option<Instant>,
+
+    // Message input mode (send messages to Claude via bridge inbox)
+    /// Whether the message input bar is active.
+    pub message_input_active: bool,
+    /// Current message text being typed.
+    pub message_input_buf: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -413,6 +423,12 @@ pub enum Action {
     // Queue-edit mode (Selection while queue_editing=true)
     AppendToQueue,   // Confirm — append selected plans to queue
     CancelQueueEdit, // Cancel — return to Running without changes
+    // Message input mode
+    OpenMessageInput,   // Open message input bar
+    SubmitMessage,      // Send message to Claude via bridge inbox
+    CancelMessageInput, // Cancel message input
+    MessageChar(char),  // Append character to message buffer
+    MessageBackspace,   // Delete last character from buffer
     // No-op
     None,
 }
@@ -491,6 +507,8 @@ impl App {
             callback_port: 9900,
             callback_server: None,
             last_channel_poll: None,
+            message_input_active: false,
+            message_input_buf: String::new(),
         })
     }
 
@@ -939,6 +957,32 @@ impl App {
                 self.selected_plans.clear();
                 self.queue_editing = false;
                 self.view = AppView::Running;
+            }
+            Action::OpenMessageInput => {
+                if self.channels_enabled {
+                    self.message_input_active = true;
+                    self.message_input_buf.clear();
+                } else {
+                    self.status_message = Some("Messages require --channels mode".into());
+                }
+            }
+            Action::SubmitMessage => {
+                if !self.message_input_buf.trim().is_empty() {
+                    let msg = self.message_input_buf.clone();
+                    self.message_input_active = false;
+                    self.message_input_buf.clear();
+                    self.send_inbox_message(&msg);
+                }
+            }
+            Action::CancelMessageInput => {
+                self.message_input_active = false;
+                self.message_input_buf.clear();
+            }
+            Action::MessageChar(c) => {
+                self.message_input_buf.push(c);
+            }
+            Action::MessageBackspace => {
+                self.message_input_buf.pop();
             }
             Action::None => {}
         }
@@ -1547,6 +1591,29 @@ impl App {
 
     /// Poll arc status (heartbeat + checkpoint + resources) and update display state.
     /// Drain pending channel events from the callback server (non-blocking).
+    /// Write a message to the bridge inbox directory for Claude to pick up
+    /// via the `check_inbox` MCP tool.
+    fn send_inbox_message(&mut self, msg: &str) {
+        let inbox_dir = std::path::PathBuf::from("tmp/bridge-inbox");
+        if let Err(e) = std::fs::create_dir_all(&inbox_dir) {
+            self.status_message = Some(format!("inbox mkdir failed: {e}"));
+            return;
+        }
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = inbox_dir.join(format!("{timestamp}.msg"));
+        match std::fs::write(&path, msg) {
+            Ok(_) => {
+                self.status_message = Some(format!("✉ sent: {}", truncate_str(msg, 50)));
+            }
+            Err(e) => {
+                self.status_message = Some(format!("send failed: {e}"));
+            }
+        }
+    }
+
     /// Channel events provide faster updates than file polling but file state
     /// remains authoritative. Events update optimistic state on the current run.
     fn drain_channel_events(&mut self) {
