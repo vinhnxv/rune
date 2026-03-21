@@ -300,6 +300,52 @@ All settings are optional. Defaults shown above. When `discipline.echoes.enabled
 
 ---
 
+## 6. DEFERRED Accountability Protocol (v2.9.0)
+
+Classification rules for DEFERRED findings in gap remediation. Prevents AI agents from
+"shirking" by deferring small wiring/routing tasks that create dead code.
+
+### Classification Rules
+
+| Condition | Classification | Action |
+|-----------|---------------|--------|
+| Wiring/routing task (regex match + small scope) | SHIRKING | MUST FIX — cannot defer |
+| AC requires feature to work (file referenced in ACs) | SHIRKING | MUST FIX — AC overrides timeline |
+| Deferring creates dead code (FIXED dependents exist) | SHIRKING | MUST FIX — dead code = immediate debt |
+| Feature genuinely too large (needs own plan) | LEGITIMATE | OK to defer with dedicated plan reference |
+| Feature is optional/nice-to-have | LEGITIMATE | OK to defer |
+| Unclear classification | REVIEW_NEEDED | Flag for human decision |
+
+### Dead Code Detection Heuristic
+
+A DEFERRED finding creates dead code when:
+1. Other FIXED findings reference it (dependency chain)
+2. Implemented code has no entry point without it (routing/registration)
+3. Documentation describes a feature users cannot invoke
+
+### Enforcement Points
+
+| Phase | Mechanism | Gate |
+|-------|-----------|------|
+| Gap Remediation (5.8) | `canDefer()` called before every DEFERRED classification | Hard — non-deferrable findings forced into fix queue |
+| Pre-Ship Validation (8.5) | Gate 4 checks AC commands are routable | Soft (WARN) — promoted to BLOCK after 5+ arc validations |
+| QA Gates | GAP-CMP-03 audits DEFERRED classifications | Scoring — SHIRKING=0, LEGITIMATE=75, none=100 |
+| Post-Arc | Deferred Audit in completion report | Informational — SHIRKING/LEGITIMATE labels visible to user |
+
+### Tracking Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `deferred_classifications` | array | Per-finding `{ id, classification, reason }` from canDefer() |
+| `forced_fix_count` | integer | Count of findings forced from DEFERRED to FIX by anti-shirking |
+| `shirking_count` | integer | Count of SHIRKING-classified items in post-arc audit |
+
+**Why track**: Rising `shirking_count` across arc runs indicates agent discipline around wiring
+tasks is degrading. `forced_fix_count > 0` means the anti-shirking protocol is actively catching
+deferred wiring tasks that would have created dead code.
+
+---
+
 ## See Also
 
 - [metrics-schema.md](metrics-schema.md) — SCR, first-pass rate, and other discipline metrics

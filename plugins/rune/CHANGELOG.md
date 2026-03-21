@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.9.0] - 2026-03-21
+
+### Added
+- Anti-Shirking Enforcement Protocol — prevents AI agents from deferring wiring/routing tasks that create dead code
+  - `canDefer()` classification function in gap-remediation.md (STEP 1.5)
+  - Gate 4 (Invocability Check) in pre-ship-validator.md — verifies AC commands are routable
+  - GAP-CMP-03 and WRK-CMP-05 QA checklist items in arc-phase-qa-gate.md
+  - Mandatory wiring map for plans introducing new commands in synthesize.md
+  - DEFERRED Audit section in post-arc completion report with SHIRKING/LEGITIMATE classification
+  - DEFERRED Accountability Protocol in discipline accountability-protocol.md
+
 ## [2.8.0] - 2026-03-21
 
 ### Added

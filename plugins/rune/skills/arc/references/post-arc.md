@@ -157,6 +157,39 @@ Next steps:
 4. /rune:rest — Clean up tmp/ artifacts when done
 ```
 
+### DEFERRED Audit (Anti-Shirking Protocol, v2.9.0)
+
+```javascript
+// DEFERRED Audit — classify each deferred item for the completion report
+if (exists(`tmp/arc/${id}/gap-remediation-report.md`)) {
+  const gapReport = Read(`tmp/arc/${id}/gap-remediation-report.md`)
+  // Match both ## and ### heading levels (gap-remediation.md uses ## Deferred Findings)
+  const deferredSection = gapReport.match(/#{2,3} Deferred[\s\S]*?(?=#{2,3} |$)/)?.[0] || ''
+  const deferredItems = (deferredSection.match(/^- \[ \] .+$/gm) || [])
+
+  if (deferredItems.length > 0) {
+    function classifyDeferred(desc) {
+      if (/routing|wiring|wire|register|hook|entry.?point|SKILL\.md|hooks\.json|dispatcher|command.?table/i.test(desc)) return 'SHIRKING'
+      if (/AC|acceptance.*criter/i.test(desc)) return 'SHIRKING'
+      if (/too.*large|needs.*plan|separate.*scope|dedicated.*plan/i.test(desc)) return 'LEGITIMATE'
+      return 'REVIEW_NEEDED'
+    }
+
+    completionReport += `\n## Deferred Items Audit\n\n`
+    completionReport += `| Item | Classification | Reason |\n`
+    completionReport += `|------|----------------|--------|\n`
+    for (const item of deferredItems) {
+      const classification = classifyDeferred(item)
+      completionReport += `| ${item.slice(6)} | ${classification} | Auto-classified |\n`
+    }
+    const shirkingCount = deferredItems.filter(d => classifyDeferred(d) === 'SHIRKING').length
+    if (shirkingCount > 0) {
+      completionReport += `\n**WARNING**: ${shirkingCount} deferred item(s) classified as SHIRKING.\n`
+    }
+  }
+}
+```
+
 ## Post-Arc Final Sweep (ARC-9)
 
 > **IMPORTANT — Execution order**: This step runs AFTER the completion report. It catches zombie

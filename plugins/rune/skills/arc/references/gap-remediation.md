@@ -75,6 +75,50 @@ if (needsTaskRemediation && missingPlanTasks.length > 0) {
 
 ---
 
+## STEP 1.5: DEFERRED Classification (Anti-Shirking Protocol, v2.9.0)
+
+```javascript
+// DEFERRED Classification Rules (Anti-Shirking Protocol)
+// A finding can only be DEFERRED if it passes ALL checks.
+// Called before any DEFERRED classification in STEP 10/11.
+function canDefer(finding, allFindings) {
+  // RULE 1: Wiring/routing tasks (<50 LOC estimated) are NEVER deferrable
+  // Heuristic: check description + file path for wiring keywords
+  const isWiringTask = /routing|wiring|wire|register|hook|entry.?point|SKILL\.md|hooks\.json|dispatcher|command.?table/i
+    .test(finding.description + ' ' + (finding.file || ''))
+  // Heuristic: estimate LOC from file reference (files <200 lines = small task)
+  const isSmallTask = true  // Default conservative — treat unknown sizes as small
+  if (isWiringTask && isSmallTask) {
+    return { canDefer: false, reason: "WIRING_REQUIRED: routing/wiring task" }
+  }
+
+  // RULE 2: If deferring creates dead code (other findings depend on this one)
+  const dependents = allFindings.filter(f =>
+    (f.depends_on?.includes(finding.id)) ||
+    (f.file === finding.file && f.id !== finding.id)
+  )
+  const wouldCreateDeadCode = dependents.some(d => d.status === 'FIXED')
+  if (wouldCreateDeadCode) {
+    return { canDefer: false, reason: "DEAD_CODE: deferring would make fixed code unreachable" }
+  }
+
+  // RULE 3: If plan acceptance criteria reference this finding's file
+  const planContent = Read(checkpoint.plan_file)
+  const acLines = (planContent.match(/^\d+\.\s*\[.\]\s*.+$/gm) || [])
+  const acMentionsFile = acLines.some(ac =>
+    finding.file && ac.toLowerCase().includes(finding.file.split('/').pop().toLowerCase())
+  )
+  if (acMentionsFile) {
+    return { canDefer: false, reason: "AC_REQUIRED: acceptance criterion references this file" }
+  }
+
+  // RULE 4: Genuinely large features can be deferred
+  return { canDefer: true, reason: "LEGITIMATE: large feature, needs dedicated plan" }
+}
+```
+
+---
+
 ## STEP 2: Pre-Fix SHA Capture
 
 ```javascript
@@ -432,7 +476,17 @@ if (!cleanupTeamDeleteSucceeded) {
 // Findings not fixed (manual-review required) are surfaced as inscribed echoes
 // so future arc sessions benefit from the gap pattern awareness
 // BACK-007: Include both overflow findings (beyond max_fixes cap) AND unfixed-within-cap findings
-const overflowFindings = allFindings.slice(cappedFindings.length)
+// Anti-Shirking: Force non-deferrable overflow findings into the fix queue
+// BACK-001 FIX: Save original cap length before push to avoid read-after-write hazard
+const originalCapLength = cappedFindings.length
+const nonDeferrableOverflow = allFindings.slice(originalCapLength)
+  .filter(f => !canDefer(f, allFindings).canDefer)
+if (nonDeferrableOverflow.length > 0) {
+  cappedFindings.push(...nonDeferrableOverflow)
+  log(`Anti-Shirking: ${nonDeferrableOverflow.length} overflow findings forced into fix queue (non-deferrable)`)
+}
+const overflowFindings = allFindings.slice(originalCapLength)
+  .filter(f => !nonDeferrableOverflow.includes(f))
 const overflowIds = overflowFindings.map(f => f.id)
 // VK-002 FIX: Persist BOTH overflow IDs (beyond max_fixes cap) AND within-cap deferred
 // findings (attempted but unfixable by the agent). Within-cap deferred are identified
@@ -454,9 +508,16 @@ const allDeferredIds = overflowIds  // Will be extended with within-cap deferred
 const fixedFindingIds = cappedFindings
   .filter(f => fixedFiles.includes(f.file))
   .map(f => f.id)
+// Anti-Shirking: Only defer findings that pass canDefer() check
 const deferredFindingIds = cappedFindings
-  .filter(f => !fixedFiles.includes(f.file))
+  .filter(f => !fixedFiles.includes(f.file) && canDefer(f, allFindings).canDefer)
   .map(f => f.id)
+const forcedFixIds = cappedFindings
+  .filter(f => !fixedFiles.includes(f.file) && !canDefer(f, allFindings).canDefer)
+  .map(f => f.id)
+if (forcedFixIds.length > 0) {
+  log(`Anti-Shirking: ${forcedFixIds.length} within-cap findings forced to non-deferred: ${forcedFixIds.join(', ')}`)
+}
 
 // VK-002 FIX: Extend allDeferredIds with within-cap deferred findings (now known)
 // and persist combined set to echoes. Covers both overflow (cap-exceeded) and
