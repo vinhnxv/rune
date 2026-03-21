@@ -123,19 +123,50 @@ rune_echo_promote() {
       continue  # No observations in this file
     fi
 
-    # ── Promote: rewrite layer from observations to inscribed ──
+    # ── Promote: selectively rewrite layer for promotable entries only ──
     # Use temp file approach (no sed -i for portability)
+    # RUIN-001 FIX: Only promote entries whose IDs are in _promotable_ids
+    # (previously promoted ALL observations regardless of access count)
     local _tmpfile
     _tmpfile=$(mktemp "${TMPDIR:-/tmp}/echo-promote-XXXXXX") || continue
 
-    # Simple approach: replace ALL observations with inscribed in this file
-    # This is safe because entries that shouldn't be promoted will re-enter
-    # as observations on next write (echo-writer.sh dedup handles this)
-    sed 's/\*\*layer\*\*: observations/**layer**: inscribed/' "$_memory_file" > "$_tmpfile"
+    # Build a set of promotable entry IDs for fast lookup
+    local _current_entry_id=""
+    local _in_promotable=false
+    local _promoted_count=0
 
-    if [[ -s "$_tmpfile" ]]; then
+    while IFS= read -r _line; do
+      # Detect entry boundaries: ### [date] Title pattern
+      if [[ "$_line" == "### "* ]]; then
+        _in_promotable=false
+        _current_entry_id=""
+        # Extract a pseudo-ID from the title for matching against DB IDs
+        # Entry IDs in the DB use the format: role/title-slug
+        local _title_part="${_line#\#\#\# }"
+        _title_part="${_title_part#\[*\] }"  # Strip date prefix if present
+        # Check if any promotable ID contains this title (fuzzy match)
+        while IFS= read -r _pid_line; do
+          local _pid="${_pid_line%%|*}"
+          if [[ -n "$_pid" && "$_title_part" == *"${_pid##*/}"* ]]; then
+            _in_promotable=true
+            break
+          fi
+        done <<< "$_promotable_ids"
+      fi
+
+      # Only replace layer for entries in the promotable set
+      if [[ "$_in_promotable" == true && "$_line" == *"**layer**: observations"* ]]; then
+        printf '%s\n' "${_line/\*\*layer\*\*: observations/**layer**: inscribed}" >> "$_tmpfile"
+        _promoted_count=$((_promoted_count + 1))
+        _in_promotable=false  # Reset after promoting
+      else
+        printf '%s\n' "$_line" >> "$_tmpfile"
+      fi
+    done < "$_memory_file"
+
+    if [[ -s "$_tmpfile" && $_promoted_count -gt 0 ]]; then
       mv "$_tmpfile" "$_memory_file"
-      _promoted_total=$((_promoted_total + 1))
+      _promoted_total=$((_promoted_total + _promoted_count))
     else
       rm -f "$_tmpfile"
     fi
