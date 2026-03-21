@@ -163,7 +163,8 @@ Next steps:
 // DEFERRED Audit — classify each deferred item for the completion report
 if (exists(`tmp/arc/${id}/gap-remediation-report.md`)) {
   const gapReport = Read(`tmp/arc/${id}/gap-remediation-report.md`)
-  const deferredSection = gapReport.match(/### Deferred[\s\S]*?(?=###|$)/)?.[0] || ''
+  // Match both ## and ### heading levels (gap-remediation.md uses ## Deferred Findings)
+  const deferredSection = gapReport.match(/#{2,3} Deferred[\s\S]*?(?=#{2,3} |$)/)?.[0] || ''
   const deferredItems = (deferredSection.match(/^- \[.\] .+$/gm) || [])
 
   if (deferredItems.length > 0) {
