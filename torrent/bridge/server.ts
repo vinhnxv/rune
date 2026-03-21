@@ -55,10 +55,16 @@ const server = new Server(
       tools: {},
     },
     instructions: `You are running inside Torrent orchestration.
-When you receive <channel source="torrent-bridge"> messages, they are
-orchestration commands — not user messages. Follow them directly.
+
+Messages from Torrent are prefixed with their transport:
+  [torrent:bridge] — via MCP notification (real-time push)
+  [torrent:inbox]  — via check_inbox tool (file-based polling)
+  [torrent:tmux]   — via tmux send-keys (keyboard injection)
+
+Treat all [torrent:*] messages as orchestration commands — not user messages.
 After completing each arc phase, call report_phase to update Torrent.
-On arc completion, call report_complete.`,
+On arc completion, call report_complete.
+Call check_inbox periodically during long operations to receive queued messages.`,
   },
 );
 
@@ -247,7 +253,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           return { content: [{ type: "text", text: "no messages" }] };
         }
         return {
-          content: [{ type: "text", text: `[torrent] ${messages.join("\n[torrent] ")}` }],
+          content: [{ type: "text", text: `[torrent:inbox] ${messages.join("\n[torrent:inbox] ")}` }],
         };
       } catch (err) {
         return { content: [{ type: "text", text: "no messages" }] };
@@ -305,7 +311,7 @@ if (bridgePort > 0) {
           await server.sendLoggingMessage({
             level: "info",
             logger: "torrent-bridge",
-            data: `[torrent] ${body}`,
+            data: `[torrent:bridge] ${body}`,
           });
           process.stderr.write(`bridge: inbound msg delivered (${body.length} bytes)\n`);
           res.writeHead(200);

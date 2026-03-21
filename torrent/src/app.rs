@@ -1688,6 +1688,7 @@ impl App {
     }
 
     /// Send via tmux send-keys (last resort fallback).
+    /// Wraps message with [torrent:tmux] prefix so Claude can identify the source.
     fn send_via_tmux(&mut self, msg: &str) {
         let session_id = match &self.tmux_session_id {
             Some(id) => id.clone(),
@@ -1696,7 +1697,8 @@ impl App {
                 return;
             }
         };
-        match Tmux::send_keys(&session_id, msg) {
+        let prefixed = format!("[torrent:tmux] {msg}");
+        match Tmux::send_keys(&session_id, &prefixed) {
             Ok(_) => {
                 self.last_msg_transport = Some(MsgTransport::Tmux);
                 self.status_message = Some(format!("✉ [tmux] {}", truncate_str(msg, 50)));
