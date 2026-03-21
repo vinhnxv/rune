@@ -58,6 +58,7 @@ run-channel-test: build bridge-deps
 	@echo "=== Channel Bridge Test ==="
 	@echo ""
 	@echo "[1/5] Creating tmux session with Claude Code..."
+	@$(CLI_TARGET) kill --session torrent-ch-test 2>/dev/null || true
 	@$(CLI_TARGET) new-session --config-dir $(CONFIG) --session torrent-ch-test
 	@echo ""
 	@echo "[2/5] Waiting 20s for Claude Code to start..."

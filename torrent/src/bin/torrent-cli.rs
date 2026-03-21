@@ -99,9 +99,9 @@ fn cmd_new_session(args: &[String]) -> String {
 
     let is_default = config_dir == ".claude" || config_dir == "~/.claude";
 
-    println!("Creating session: {}", session_id);
-    println!("Config: {} (default={})", config_path, is_default);
-    println!("Claude: {}", claude);
+    eprintln!("[torrent-cli] Creating session: {session_id}");
+    eprintln!("[torrent-cli] Config: {config_path}");
+    eprintln!("[torrent-cli] Claude: {claude}");
 
     // Create session
     let o = Command::new("tmux")
@@ -136,8 +136,8 @@ fn cmd_new_session(args: &[String]) -> String {
             std::process::exit(1);
         });
 
-    println!("✓ Session created: {}", session_id);
-    println!("  Attach: tmux attach -t {}", session_id);
+    eprintln!("[torrent-cli] Session created: {session_id}");
+    eprintln!("[torrent-cli] Attach: tmux attach -t {session_id}");
     session_id
 }
 
@@ -153,7 +153,7 @@ fn cmd_send_keys(args: &[String]) {
         eprintln!("--text required"); std::process::exit(1);
     });
 
-    println!("Sending to {}: {}", session, text);
+    eprintln!("[torrent-cli] Sending to {session}: {text}");
 
     // Escape+delay+Enter workaround for Claude Code Ink TUI
     // Step 1: text literally
@@ -167,7 +167,7 @@ fn cmd_send_keys(args: &[String]) {
         eprintln!("send-keys failed: {}", String::from_utf8_lossy(&o.stderr));
         std::process::exit(1);
     }
-    println!("  text sent ✓");
+    eprintln!("[torrent-cli] text sent");
 
     // Step 2: wait 300ms
     thread::sleep(Duration::from_millis(300));
@@ -179,7 +179,7 @@ fn cmd_send_keys(args: &[String]) {
             eprintln!("error: tmux send Escape failed: {}", e);
             std::process::exit(1);
         });
-    println!("  escape ✓");
+    eprintln!("[torrent-cli] escape sent");
 
     // Step 4: wait 100ms
     thread::sleep(Duration::from_millis(100));
@@ -191,9 +191,9 @@ fn cmd_send_keys(args: &[String]) {
             eprintln!("error: tmux send Enter failed: {}", e);
             std::process::exit(1);
         });
-    println!("  enter ✓");
+    eprintln!("[torrent-cli] enter sent");
 
-    println!("✓ Keys sent");
+    eprintln!("[torrent-cli] keys sent");
 }
 
 // ── capture-pane ────────────────────────────────────────────
@@ -244,7 +244,7 @@ fn cmd_kill(args: &[String]) {
     let _ = Command::new("tmux")
         .args(["kill-session", "-t", &session])
         .output();
-    println!("✓ Killed: {}", session);
+    eprintln!("[torrent-cli] killed: {session}");
 }
 
 // ── run (full flow) ─────────────────────────────────────────
@@ -261,29 +261,26 @@ fn cmd_run(args: &[String]) {
     let session_id = cmd_new_session(&new_args);
 
     // Step 2: Wait for Claude
-    println!("\nWaiting {}s for Claude Code...", wait_secs);
+    eprintln!("[torrent-cli] Waiting {wait_secs}s for Claude Code...");
     for i in 1..=wait_secs {
         thread::sleep(Duration::from_secs(1));
-        if i % 5 == 0 { println!("  {}s", i); }
+        if i % 5 == 0 { eprintln!("[torrent-cli] {i}s..."); }
     }
 
     // Step 3: Capture to verify
-    println!("\nCapturing pane to verify Claude is ready...");
+    eprintln!("[torrent-cli] Checking if Claude is ready...");
     let o = Command::new("tmux")
         .args(["capture-pane", "-t", &session_id, "-p", "-S", "-5"])
         .output().unwrap_or_else(|e| {
-            eprintln!("error: tmux capture-pane failed: {}", e);
+            eprintln!("[torrent-cli] error: capture-pane failed: {e}");
             std::process::exit(1);
         });
     let pane = String::from_utf8_lossy(&o.stdout);
     let ready = pane.contains("❯") || pane.contains("bypass permissions");
     if ready {
-        println!("  ✓ Claude Code is ready");
+        eprintln!("[torrent-cli] Claude Code is ready");
     } else {
-        println!("  ⚠ Claude may not be ready. Pane tail:");
-        for l in pane.lines().filter(|l| !l.trim().is_empty()).rev().take(3).collect::<Vec<_>>().into_iter().rev() {
-            println!("    | {}", l);
-        }
+        eprintln!("[torrent-cli] Claude may not be ready yet");
     }
 
     // Step 4: Send /arc
@@ -292,10 +289,10 @@ fn cmd_run(args: &[String]) {
 
     // Step 5: Verify
     thread::sleep(Duration::from_secs(3));
-    println!("\nFinal capture:");
+    eprintln!("[torrent-cli] Capturing output...");
     cmd_capture_pane(&["--session".into(), session_id.clone(), "--lines".into(), "10".into()]);
 
-    println!("\nAttach: tmux attach -t {}", session_id);
+    eprintln!("[torrent-cli] Attach: tmux attach -t {session_id}");
 }
 
 // ── send-msg ───────────────────────────────────────────────
@@ -373,8 +370,7 @@ fn send_via_bridge(session: &str, text: &str) {
             if let Ok(out) = resp {
                 let code = String::from_utf8_lossy(&out.stdout);
                 if code.starts_with("200") {
-                    println!("✉ [bridge] → '{session}' ({} bytes)", text.len());
-                    println!("  Delivered via MCP notification (port {port})");
+                    eprintln!("[torrent-cli] sent via bridge → {session} ({} bytes)", text.len());
                     return;
                 }
             }
@@ -397,8 +393,7 @@ fn send_via_bridge(session: &str, text: &str) {
     let msg_file = inbox_path.join(format!("{timestamp}.msg"));
     match std::fs::write(&msg_file, text) {
         Ok(_) => {
-            println!("✉ [inbox] → '{session}' ({} bytes)", text.len());
-            println!("  Claude receives on next check_inbox call");
+            eprintln!("[torrent-cli] sent via inbox → {session} ({} bytes)", text.len());
         }
         Err(e) => {
             eprintln!("bridge: write failed ({e}) — falling back to tmux");
@@ -408,7 +403,7 @@ fn send_via_bridge(session: &str, text: &str) {
 }
 
 fn send_via_tmux(session: &str, text: &str) {
-    println!("✉ [tmux] → '{session}'");
+    eprintln!("[torrent-cli] sent via tmux → {session}");
     cmd_send_keys(&[
         "--session".into(), session.to_string(),
         "--text".into(), text.to_string(),
