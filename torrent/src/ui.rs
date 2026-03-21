@@ -477,12 +477,21 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
         .and_then(|r| r.channel_state.as_ref())
         .map(|cs| cs.is_active())
         .unwrap_or(false);
+    // Channel status + last message transport indicator
+    let transport_suffix = match app.last_msg_transport {
+        Some(crate::app::MsgTransport::Bridge) => " ✉→bridge",
+        Some(crate::app::MsgTransport::Inbox) => " ✉→inbox",
+        Some(crate::app::MsgTransport::Tmux) => " ✉→tmux",
+        None => "",
+    };
     let channel_indicator = if app.channels_enabled && channel_active {
-        Span::styled("  [ch]", Style::default().fg(sol::CYAN))
+        Span::styled(format!("  [ch]{transport_suffix}"), Style::default().fg(sol::CYAN))
     } else if app.channels_enabled {
-        Span::styled("  [ch?]", Style::default().fg(sol::YELLOW))
-    } else {
+        Span::styled(format!("  [ch?]{transport_suffix}"), Style::default().fg(sol::YELLOW))
+    } else if transport_suffix.is_empty() {
         Span::styled("  [file]", Style::default().fg(sol::BASE01))
+    } else {
+        Span::styled(format!("  [file]{transport_suffix}"), Style::default().fg(sol::BASE01))
     };
     frame.render_widget(
         Paragraph::new(Line::from(vec![
@@ -542,7 +551,8 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
                 Span::styled(&app.message_input_buf, Style::default().fg(sol::BASE1)),
                 Span::styled("█", Style::default().fg(sol::CYAN)),  // cursor
                 Span::styled(
-                    if app.channels_enabled { "  [Enter] send via bridge  [Esc] cancel" }
+                    if channel_active { "  [Enter] send via bridge  [Esc] cancel" }
+                    else if app.channels_enabled { "  [Enter] send via inbox  [Esc] cancel" }
                     else { "  [Enter] send via tmux  [Esc] cancel" },
                     Style::default().fg(sol::BASE01),
                 ),

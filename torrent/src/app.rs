@@ -129,6 +129,19 @@ pub struct App {
     pub message_input_active: bool,
     /// Current message text being typed.
     pub message_input_buf: String,
+    /// Last message delivery transport (for UI display).
+    pub last_msg_transport: Option<MsgTransport>,
+}
+
+/// Message delivery transport used for the last sent message.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MsgTransport {
+    /// HTTP POST to bridge → MCP notification → Claude
+    Bridge,
+    /// File queue → check_inbox tool → Claude
+    Inbox,
+    /// tmux send-keys → keyboard injection → Claude
+    Tmux,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -509,6 +522,7 @@ impl App {
             last_channel_poll: None,
             message_input_active: false,
             message_input_buf: String::new(),
+            last_msg_transport: None,
         })
     }
 
@@ -1632,10 +1646,12 @@ impl App {
         {
             Ok(resp) => {
                 let status = resp.into_string().unwrap_or_default();
-                self.status_message = Some(format!("✉ [bridge] {}", truncate_str(msg, 50)));
                 if status.contains("inbox") {
-                    // Bridge fell back to inbox internally
+                    self.last_msg_transport = Some(MsgTransport::Inbox);
                     self.status_message = Some(format!("✉ [inbox] {}", truncate_str(msg, 50)));
+                } else {
+                    self.last_msg_transport = Some(MsgTransport::Bridge);
+                    self.status_message = Some(format!("✉ [bridge] {}", truncate_str(msg, 50)));
                 }
             }
             Err(_) => {
@@ -1661,6 +1677,7 @@ impl App {
         let path = inbox_dir.join(format!("{timestamp}.msg"));
         match std::fs::write(&path, msg) {
             Ok(_) => {
+                self.last_msg_transport = Some(MsgTransport::Inbox);
                 self.status_message = Some(format!("✉ [inbox] {}", truncate_str(msg, 50)));
             }
             Err(e) => {
@@ -1681,6 +1698,7 @@ impl App {
         };
         match Tmux::send_keys(&session_id, msg) {
             Ok(_) => {
+                self.last_msg_transport = Some(MsgTransport::Tmux);
                 self.status_message = Some(format!("✉ [tmux] {}", truncate_str(msg, 50)));
             }
             Err(e) => {
