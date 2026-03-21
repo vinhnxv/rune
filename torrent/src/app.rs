@@ -1584,6 +1584,14 @@ impl App {
                 }
             }
 
+            // BACK-014: Retry channel state init if still None (bridge may not have been
+            // ready when try_init was first called during session startup).
+            if let Some(run) = &mut self.current_run {
+                if run.channel_state.is_none() {
+                    run.channel_state = ChannelState::try_init(&run.tmux_session);
+                }
+            }
+
             // Update channel health on successful event
             if let Some(run) = &mut self.current_run {
                 if let Some(ref mut cs) = run.channel_state {
