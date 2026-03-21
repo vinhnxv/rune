@@ -1074,6 +1074,28 @@ work:
   # consistency:                   # Doc-consistency checks for Phase 4.3 (v1.19.0+)
   #   checks: []                   # Same schema as arc.consistency.checks. If empty, falls back to arc checks, then defaults.
 
+  # ── LLM-driven Task Decomposition (v2.5.0+) ───
+  # Classifies tasks as ATOMIC or COMPOSITE at parse time (Phase 1.1 in forge-team.md).
+  # COMPOSITE tasks are split into 2-4 subtasks with non-overlapping fileTargets.
+  # Decomposition runs AFTER extractFileTargets() and scoreTaskComplexity() complete.
+  # NOTE: distinct from codex.task_decomposition (Phase 4.5 cross-model validation — different concept).
+  # See references/task-decomposition.md for the full classification + decomposition logic.
+  # task_decomposition:
+  #   enabled: true                # Master toggle — skip all LLM calls when false (default: true)
+  #   complexity_threshold: 5      # Min total file targets to trigger LLM classification (default: 5)
+  #                                # Tasks with <=2 targets always skip LLM (fast-path ATOMIC).
+  #   max_subtasks: 4              # Max subtasks per composite task (range: 2-4, default: 4)
+  #   model: "haiku"               # Model for classification + decomposition (default: haiku)
+
+  # ── Sibling Awareness (v2.5.0+) ───────────────
+  # Injects sibling context into each worker's spawn prompt so workers know what
+  # other workers are implementing and which files they own (DO NOT DUPLICATE block).
+  # Context is per-worker: each worker sees all OTHER workers' tasks, not their own.
+  # See references/sibling-context.md for the buildSiblingContext() implementation.
+  # sibling_awareness:
+  #   enabled: true                # Inject sibling context into worker prompts (default: true)
+  #   max_sibling_files: 5         # Max files shown per sibling entry — token cap (default: 5)
+
   # ── Worktree isolation (v1.95.0+) ─────────────
   # Use with /rune:strive --worktree or set enabled: true as default
   # worktree:
