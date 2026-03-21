@@ -568,12 +568,7 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
                 Span::styled(" ✉ msg> ", Style::default().fg(sol::CYAN).add_modifier(Modifier::BOLD)),
                 Span::styled(&app.message_input_buf, Style::default().fg(sol::BASE1)),
                 Span::styled("█", Style::default().fg(sol::CYAN)),  // cursor
-                Span::styled(
-                    if channel_active { "  [Enter] send via bridge  [Esc] cancel" }
-                    else if app.channels_enabled { "  [Enter] send via inbox  [Esc] cancel" }
-                    else { "  [Enter] send via tmux  [Esc] cancel" },
-                    Style::default().fg(sol::BASE01),
-                ),
+                Span::styled("  [Enter] send  [Esc] cancel", Style::default().fg(sol::BASE01)),
             ]);
             frame.render_widget(
                 Paragraph::new(input_line),

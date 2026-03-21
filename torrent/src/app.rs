@@ -137,6 +137,7 @@ pub struct App {
 
 /// Message delivery transport used for the last sent message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)] // Bridge/Inbox reserved for when Claude Code supports inbound MCP messages
 pub enum MsgTransport {
     /// HTTP POST to bridge → MCP notification → Claude
     Bridge,
@@ -1609,25 +1610,19 @@ impl App {
     /// Poll arc status (heartbeat + checkpoint + resources) and update display state.
     /// Send a message to the Claude Code session.
     ///
-    /// Delivery strategy (priority order):
-    /// 1. **Bridge HTTP** — POST to bridge inbound server (notifications/message → Claude).
-    /// 2. **Bridge inbox** — file-based fallback if HTTP fails.
-    /// 3. **tmux send-keys** — last resort when channels off/unhealthy.
+    /// Uses tmux send-keys — the only method Claude Code actually processes.
+    /// MCP notifications (sendLoggingMessage) are delivered but silently ignored
+    /// by Claude Code v2.1.81 — they appear as internal logs, not prompts.
+    ///
+    /// Bridge HTTP and inbox are kept for outbound (Claude → Torrent) only.
     fn send_message_to_claude(&mut self, msg: &str) {
-        let channel_healthy = self.channels_enabled
-            && self.current_run.as_ref()
-                .and_then(|r| r.channel_state.as_ref())
-                .map(|cs| cs.is_active())
-                .unwrap_or(false);
-
-        if channel_healthy {
-            self.send_via_bridge_http(msg);
-        } else {
-            self.send_via_tmux(msg);
-        }
+        self.send_via_tmux(msg);
     }
 
-    /// Send via bridge HTTP server (MCP notification path — fastest).
+    /// Send via bridge HTTP server (MCP notification path).
+    /// NOTE: Claude Code v2.1.81 silently ignores sendLoggingMessage notifications.
+    /// Kept for future use when inbound MCP messages are supported.
+    #[allow(dead_code)]
     fn send_via_bridge_http(&mut self, msg: &str) {
         let bridge_port = self.current_run.as_ref()
             .and_then(|r| r.channel_state.as_ref())
@@ -1665,6 +1660,8 @@ impl App {
     }
 
     /// Send via bridge inbox (file-based fallback).
+    /// NOTE: Requires Claude to call check_inbox tool. Kept for future use.
+    #[allow(dead_code)]
     fn send_via_inbox(&mut self, msg: &str) {
         let session_id = self.tmux_session_id.as_deref().unwrap_or("default");
         let inbox_dir = std::path::PathBuf::from("tmp/bridge-inbox").join(session_id);

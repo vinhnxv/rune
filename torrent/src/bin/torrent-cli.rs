@@ -345,32 +345,23 @@ fn cmd_send_msg(args: &[String]) {
     let session = get_arg(args, "--session").unwrap_or_else(auto_detect_session);
     validate_session_id(&session);
 
-    // Delivery strategy: auto (default) tries bridge first, falls back to tmux
+    // Delivery strategy:
+    //   auto (default) = tmux (only method Claude actually processes)
+    //   bridge = MCP notification (delivered but Claude ignores — for testing only)
+    //   tmux = keyboard injection (always works)
+    //
+    // NOTE: sendLoggingMessage (notifications/message) is delivered to Claude Code
+    // but treated as an internal log, NOT as a prompt. Claude does not respond to it.
+    // Until Claude Code supports inbound prompt injection via MCP, tmux is the
+    // only way to send messages that Claude will actually process.
     let via = get_arg(args, "--via").unwrap_or_else(|| "auto".into());
 
     match via.as_str() {
         "bridge" => send_via_bridge(&session, &text),
         "tmux" => send_via_tmux(&session, &text),
-        "auto" => {
-            // Check if bridge inbox exists for this session (indicates channels mode)
-            let inbox_path = std::path::Path::new("tmp/bridge-inbox").join(&session);
-            if inbox_path.exists() {
-                send_via_bridge(&session, &text);
-            } else {
-                // Try bridge first (create inbox), but if session looks non-channel, use tmux
-                // Heuristic: if TORRENT_CHANNELS_ENABLED is set, prefer bridge
-                let channels_hint = std::env::var("TORRENT_CHANNELS_ENABLED")
-                    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-                    .unwrap_or(false);
-                if channels_hint {
-                    send_via_bridge(&session, &text);
-                } else {
-                    send_via_tmux(&session, &text);
-                }
-            }
-        }
+        "auto" => send_via_tmux(&session, &text),
         other => {
-            eprintln!("error: unknown --via method '{other}'. Use: bridge, tmux, auto");
+            eprint!("error: unknown --via method '{other}'. Use: bridge, tmux, auto\r\n");
             std::process::exit(1);
         }
     }

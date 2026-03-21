@@ -65,12 +65,12 @@ run-channel-test: build bridge-deps
 	@sleep 20
 	@$(CLI_TARGET) capture-pane --session torrent-ch-test --lines 5
 	@echo ""
-	@echo "[3/5] Sending: hello (via bridge)"
-	@$(CLI_TARGET) send-msg --session torrent-ch-test --via bridge --text "hello"
+	@echo "[3/5] Sending: hello"
+	@$(CLI_TARGET) send-msg --session torrent-ch-test --text "hello"
 	@sleep 10
 	@echo ""
-	@echo "[4/5] Sending: explain codebase (via bridge)"
-	@$(CLI_TARGET) send-msg --session torrent-ch-test --via bridge --text "explain this codebase briefly in 2 sentences"
+	@echo "[4/5] Sending: explain codebase"
+	@$(CLI_TARGET) send-msg --session torrent-ch-test --text "explain this codebase briefly in 2 sentences"
 	@sleep 15
 	@echo ""
 	@echo "[5/5] Capturing Claude response..."
