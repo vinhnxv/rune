@@ -33,7 +33,7 @@ INPUT=$(head -c 1048576 2>/dev/null || true)
 
 # Quick grep — exit immediately if not talisman
 # Matches file_path or filePath containing "talisman.yml"
-if ! printf '%s\n' "$INPUT" | grep -q 'talisman\.yml' 2>/dev/null; then
+if ! printf '%s\n' "$INPUT" | grep -qE 'talisman(\.(ashes|integrations))?\.yml' 2>/dev/null; then
   exit 0
 fi
 
@@ -45,10 +45,11 @@ else
   FILE_PATH="talisman.yml"
 fi
 
-# Confirm it actually ends with talisman.yml
-if [[ "$FILE_PATH" != *talisman.yml ]]; then
-  exit 0
-fi
+# Confirm it actually ends with a talisman config file name
+case "$FILE_PATH" in
+  *talisman.yml|*talisman.ashes.yml|*talisman.integrations.yml) ;;
+  *) exit 0 ;;
+esac
 
 # ── Trace logging ──
 if [[ "${RUNE_TRACE:-}" == "1" ]]; then

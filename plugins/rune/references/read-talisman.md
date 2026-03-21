@@ -266,10 +266,27 @@ const elicitEnabled = gates?.elicitation?.enabled !== false
 3. Check variable scope — if file uses multiple sections, make separate `readTalismanSection()` calls
 4. Do NOT change any logic — only the read mechanism
 
+## Companion File Merge
+
+The resolver supports an optional 3-file split layout where configuration is distributed across companion files:
+
+- `.rune/talisman.yml` — main config (always loaded)
+- `.rune/talisman.ashes.yml` — agent registry sections (optional)
+- `.rune/talisman.integrations.yml` — external tool sections (optional)
+
+Companion files are discovered alongside their parent `talisman.yml` and merged into the same layer BEFORE the `defaults < global < project` merge. This means:
+
+1. The shard layer sees a single unified JSON regardless of source file count
+2. `readTalismanSection()` works identically whether config is in one file or three
+3. No consumer code changes are needed — the abstraction boundary is at the resolver level
+
+Companion files that don't exist are silently skipped. Empty companions are treated as `{}`. Duplicate top-level keys across main and companion files in the same layer produce an error (companion skipped, main preserved).
+
 ## Cross-References
 
 - [chome-pattern skill](../skills/chome-pattern/SKILL.md) — full CLAUDE_CONFIG_DIR resolution guide
 - [zsh-compat skill](../skills/zsh-compat/SKILL.md) — ZSH shell compatibility patterns
 - [configuration-guide.md](configuration-guide.md) — talisman.yml schema and defaults
+- [talisman-sections.md](../skills/talisman/references/talisman-sections.md) — section map and companion file layout
 - `scripts/talisman-resolve.sh` — SessionStart hook that generates JSON shards
 - `scripts/talisman-defaults.json` — Build-time defaults registry

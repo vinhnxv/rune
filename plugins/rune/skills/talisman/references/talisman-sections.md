@@ -314,3 +314,39 @@ When `elegance_check: true` is enabled, the following additional checks activate
 4. **YAGNI?** — No features added "just in case"
 
 The elegance check is **opt-in** (default: false) because it adds overhead for code changes where elegance analysis would itself be inelegant (simple, obvious fixes).
+
+## Companion Files (Optional 3-File Layout)
+
+Talisman configuration can optionally be split into 3 files organized by audience:
+
+```
+.rune/
+├── talisman.yml                  # Main config (~18 sections, ~350L)
+├── talisman.ashes.yml            # Agent registry (~4 sections, ~150L)  [OPTIONAL]
+└── talisman.integrations.yml     # External tools (~8 sections, ~200L)  [OPTIONAL]
+```
+
+### Section Mapping
+
+| File | Sections | Audience |
+|------|----------|----------|
+| `talisman.yml` | `version`, `cost_tier`, `rune-gaze`, `settings`, `defaults`, `review`, `work`, `arc`, `testing`, `audit`, `inspect`, `plan`, `mend`, `inner_flame`, `teammate_lifecycle`, `context_monitor`, `context_weaving`, `devise`, `strive`, `discipline`, `solution_arena` | All users (core runtime config) |
+| `talisman.ashes.yml` | `ashes`, `user_agents`, `extra_agent_dirs`, `doubt_seer` | Agent authors (custom review agents) |
+| `talisman.integrations.yml` | `codex`, `codex_review`, `elicitation`, `horizon`, `evidence`, `echoes`, `state_weaver`, `file_todos` | Power users (external tool integrations) |
+
+### Merge Behavior
+
+- **Merge order**: `defaults` < `global talisman.yml + global companions` < `project talisman.yml + project companions`
+- **Within a layer**: companions merge left-to-right (ashes first, then integrations)
+- **Duplicate key detection**: Same top-level key in main file AND a companion = hard error (companion skipped, main preserved)
+- **jq `*` semantics**: Recursive object merge but **replaces** arrays (not append). If main has `ashes.custom: [a]` and companion has `ashes.custom: [b]`, result is `[b]` not `[a, b]`
+- **Missing companions**: Silently skipped — single-file layout remains fully supported
+- **Empty companions**: Ignored (treated as `{}`)
+
+### Companion vs Shard Boundaries
+
+Companion file boundaries (authoring concern) do NOT align 1:1 with shard boundaries (consumption concern). For example:
+- The `settings` shard aggregates from both `talisman.yml` (`version`, `settings`, `defaults`) and `talisman.ashes.yml` (`ashes`, `user_agents`)
+- The `gates` shard aggregates from both `talisman.ashes.yml` (`doubt_seer`) and `talisman.integrations.yml` (`elicitation`, `horizon`, `evidence`)
+
+This is architecturally correct because merge happens BEFORE sharding — the shard layer sees a single unified JSON regardless of how many source files contributed.
