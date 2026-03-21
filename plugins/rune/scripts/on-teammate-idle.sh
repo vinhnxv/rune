@@ -183,6 +183,27 @@ else
   fi
   elapsed=$(( now_epoch - first_idle_epoch ))
   if (( elapsed > MAX_IDLE_DURATION_SECS )); then
+    # ── Semantic activity check (before force-stop) ──
+    # If teammate is actually productive (JSONL shows WORKING), extend timer
+    # instead of force-stopping. Prevents false positives from stale activity files.
+    if [[ -f "${SCRIPT_DIR}/lib/find-teammate-session.sh" ]] && \
+       [[ -f "${SCRIPT_DIR}/lib/detect-activity-state.sh" ]]; then
+      source "${SCRIPT_DIR}/lib/find-teammate-session.sh"
+      _sem_session=$(_find_teammate_session "${TEAMMATE_NAME}" "${TEAM_NAME}" 2>/dev/null) || true
+      if [[ -n "$_sem_session" ]]; then
+        _sem_state=$(bash "${SCRIPT_DIR}/lib/detect-activity-state.sh" "$_sem_session" 2>/dev/null) || true
+        _sem_activity=$(echo "$_sem_state" | jq -r '.state // empty' 2>/dev/null) || true
+        if [[ "$_sem_activity" == "WORKING" ]]; then
+          # Agent is productive — reset timer, don't force-stop
+          _trace "SEMANTIC-OVERRIDE: ${TEAMMATE_NAME} idle but JSONL shows WORKING — resetting timer"
+          printf '%s' "$now_epoch" > "${FIRST_IDLE_FILE}.tmp.$$" 2>/dev/null && \
+            mv -f "${FIRST_IDLE_FILE}.tmp.$$" "$FIRST_IDLE_FILE" 2>/dev/null || true
+          echo "Teammate idle but JSONL shows productive work — extending timer" >&2
+          exit 0
+        fi
+        _trace "SEMANTIC-CHECK: ${TEAMMATE_NAME} activity state: ${_sem_activity:-unknown}"
+      fi
+    fi
     # Time-gated force stop
     _trace "TIME-GATE: ${TEAMMATE_NAME} idle for ${elapsed}s (>${MAX_IDLE_DURATION_SECS}s) — force-stopping"
     jq -n --arg reason "Teammate idle for ${elapsed}s (>${MAX_IDLE_DURATION_SECS}s cumulative threshold)" \

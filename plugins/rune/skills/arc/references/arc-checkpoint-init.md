@@ -517,6 +517,11 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
     per_event_counters: {},
     _meta: { last_resume_at: null }
   },
+  // Schema v26 addition: CI status tracking for CI fix loop in bot_review_wait phase.
+  // null until CI checks are evaluated. When populated:
+  // { passed: bool, attempts: int, failed_checks: string[], head_sha: string,
+  //   fix_history: [{attempt: int, fixed: string[], remaining: string[]}] }
+  ci_status: null,
   // NEW (v1.66.0): Shard metadata from pre-flight shard detection (null for non-shard arcs)
   shard: shardInfo ? {
     num: shardInfo.shardNum,           // e.g., 2
@@ -547,7 +552,7 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
   updated_at: new Date().toISOString()
 })
 
-// Schema migration is handled in arc-resume.md (steps 3a through 3x).
-// Migrations v1→v23 are defined there. See arc-resume.md for the full chain.
+// Schema migration is handled in arc-resume.md (steps 3a through 3z).
+// Migrations v1→v26 are defined there. See arc-resume.md for the full chain.
 ```
 

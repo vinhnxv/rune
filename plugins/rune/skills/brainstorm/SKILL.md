@@ -141,10 +141,14 @@ const brainstorms = [
 // If match found: AskUserQuestion to confirm reuse (never auto-use)
 ```
 
-Also check echo search for related brainstorms:
+Also check echo search for related brainstorms and architectural knowledge:
 ```javascript
-const echoResults = mcp__plugin_rune_echo_search__echo_search({ query: featureDescription, limit: 3 })
-// If echo results contain brainstorm-related entries: AskUserQuestion to offer reuse
+const echoResults = mcp__plugin_rune_echo_search__echo_search({
+  query: `${featureDescription} architecture conventions patterns layers structure`,
+  limit: 5
+})
+// If echo results contain brainstorm-related or architectural entries: inject into context
+// AskUserQuestion to offer reuse of relevant past discoveries
 ```
 
 ### Clarity Check
@@ -197,7 +201,7 @@ Before brainstorming new approaches, assess what already exists in the codebase.
 3. **Trace dependency chain**: For each affected file, find importers (downstream) and imports (upstream)
 4. **Scan for existing issues**: TODOs, FIXMEs, wrong patterns in affected files
 5. **Present impact context**: Show user what exists before brainstorming starts
-6. **Inject into advisor context** (Team/Deep mode): Advisors receive dependency chain + discovered issues
+6. **Inject into context** (all modes): Solo mode uses echo results directly; Team/Deep mode advisors receive dependency chain + discovered issues + echo architectural knowledge
 
 This ensures brainstorming is grounded in reality — exploring solutions for the actual codebase state, not an imagined blank slate.
 

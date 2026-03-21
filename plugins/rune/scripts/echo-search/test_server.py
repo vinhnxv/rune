@@ -1456,7 +1456,7 @@ class TestLoadTalisman:
         echoes_dir.mkdir(parents=True)
         talisman = claude_dir / "talisman.yml"
         talisman.write_text("via_echo_dir: true\n")
-        monkeypatch.setattr("server.ECHO_DIR", str(echoes_dir))
+        monkeypatch.setattr("config.ECHO_DIR", str(echoes_dir))
         monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "elsewhere"))
         result = _load_talisman()
         assert result.get("via_echo_dir") is True
@@ -1496,13 +1496,13 @@ class TestTrace:
     """Unit tests for _trace stderr instrumentation."""
 
     def test_no_output_when_disabled(self, capsys, monkeypatch):
-        monkeypatch.setattr("server._RUNE_TRACE", False)
+        monkeypatch.setattr("config._RUNE_TRACE", False)
         _trace("test_stage", 0.0)
         assert capsys.readouterr().err == ""
 
     def test_outputs_when_enabled(self, capsys, monkeypatch):
         import time
-        monkeypatch.setattr("server._RUNE_TRACE", True)
+        monkeypatch.setattr("config._RUNE_TRACE", True)
         start = time.time()
         _trace("test_stage", start)
         output = capsys.readouterr().err
@@ -1580,7 +1580,7 @@ class TestPipelineSearch:
     def test_toggle_combinations(self, pipeline_db, monkeypatch, decomp, groups, retry, rerank):
         """EDGE-027: pipeline runs without error for all 16 toggle combos."""
         talisman = self._make_talisman(decomp, groups, retry, rerank)
-        monkeypatch.setattr("server._load_talisman", lambda: talisman)
+        monkeypatch.setattr("pipeline._load_talisman", lambda: talisman)
         # Mock decompose_query to avoid subprocess
         mock_decompose = AsyncMock(return_value=["lifecycle", "cleanup"])
         mock_merge = MagicMock(side_effect=lambda results: results[0] if results else [])
@@ -1607,7 +1607,7 @@ class TestPipelineSearch:
         talisman = self._make_talisman(rerank=True)
         # Set high threshold so reranking is skipped
         talisman["echoes"]["reranking"]["threshold"] = 100
-        monkeypatch.setattr("server._load_talisman", lambda: talisman)
+        monkeypatch.setattr("pipeline._load_talisman", lambda: talisman)
         mock_rerank = AsyncMock(side_effect=lambda q, r, c: r)
         with patch.dict("sys.modules", {
             "reranker": MagicMock(rerank_results=mock_rerank),
@@ -1623,7 +1623,7 @@ class TestPipelineSearch:
     def test_all_disabled_bm25_passthrough(self, pipeline_db, monkeypatch):
         """All features disabled returns BM25 results with composite scoring."""
         talisman = self._make_talisman()
-        monkeypatch.setattr("server._load_talisman", lambda: talisman)
+        monkeypatch.setattr("pipeline._load_talisman", lambda: talisman)
         results = self._run(pipeline_search(
             pipeline_db, "lifecycle cleanup", 10,
         ))
@@ -1636,7 +1636,7 @@ class TestPipelineSearch:
     def test_overfetch_limit(self, pipeline_db, monkeypatch):
         """BM25 stage uses limit * 3 candidates (capped at 150)."""
         talisman = self._make_talisman()
-        monkeypatch.setattr("server._load_talisman", lambda: talisman)
+        monkeypatch.setattr("pipeline._load_talisman", lambda: talisman)
         original_search = search_entries
         called_with_limit = []
 
@@ -1644,14 +1644,14 @@ class TestPipelineSearch:
             called_with_limit.append(limit)
             return original_search(conn, query, limit, layer, role, category)
 
-        monkeypatch.setattr("server.search_entries", tracking_search)
+        monkeypatch.setattr("pipeline.search_entries", tracking_search)
         self._run(pipeline_search(pipeline_db, "lifecycle", 5))
         assert called_with_limit[0] == 15  # 5 * 3
 
     def test_overfetch_capped_at_150(self, pipeline_db, monkeypatch):
         """Overfetch limit caps at 150."""
         talisman = self._make_talisman()
-        monkeypatch.setattr("server._load_talisman", lambda: talisman)
+        monkeypatch.setattr("pipeline._load_talisman", lambda: talisman)
         original_search = search_entries
         called_with_limit = []
 
@@ -1659,7 +1659,7 @@ class TestPipelineSearch:
             called_with_limit.append(limit)
             return original_search(conn, query, limit, layer, role, category)
 
-        monkeypatch.setattr("server.search_entries", tracking_search)
+        monkeypatch.setattr("pipeline.search_entries", tracking_search)
         self._run(pipeline_search(pipeline_db, "lifecycle", 100))
         assert called_with_limit[0] == 150  # min(100*3, 150) = 150
 
@@ -1668,7 +1668,7 @@ class TestPipelineSearch:
     def test_layer_role_passthrough(self, pipeline_db, monkeypatch):
         """Layer and role filters are passed to BM25 search."""
         talisman = self._make_talisman()
-        monkeypatch.setattr("server._load_talisman", lambda: talisman)
+        monkeypatch.setattr("pipeline._load_talisman", lambda: talisman)
         results = self._run(pipeline_search(
             pipeline_db, "lifecycle", 10, layer="inscribed",
         ))
@@ -1679,7 +1679,7 @@ class TestPipelineSearch:
     def test_decomposition_fallback_on_import_error(self, pipeline_db, monkeypatch):
         """Decomposition falls back to original query when import fails."""
         talisman = self._make_talisman(decomp=True)
-        monkeypatch.setattr("server._load_talisman", lambda: talisman)
+        monkeypatch.setattr("pipeline._load_talisman", lambda: talisman)
         # Remove decomposer from sys.modules to force ImportError
         with patch.dict("sys.modules", {"decomposer": None}):
             results = self._run(pipeline_search(
@@ -1693,7 +1693,7 @@ class TestPipelineSearch:
         """Reranking falls back to BM25 results when import fails."""
         talisman = self._make_talisman(rerank=True)
         talisman["echoes"]["reranking"]["threshold"] = 1
-        monkeypatch.setattr("server._load_talisman", lambda: talisman)
+        monkeypatch.setattr("pipeline._load_talisman", lambda: talisman)
         with patch.dict("sys.modules", {"reranker": None}):
             results = self._run(pipeline_search(
                 pipeline_db, "lifecycle cleanup", 10,
@@ -1705,7 +1705,7 @@ class TestPipelineSearch:
     def test_retry_injection_merges_entries(self, pipeline_db, monkeypatch):
         """Retry stage injects previously-failed entries matching fingerprint."""
         talisman = self._make_talisman(retry=True)
-        monkeypatch.setattr("server._load_talisman", lambda: talisman)
+        monkeypatch.setattr("pipeline._load_talisman", lambda: talisman)
         # Record a search failure — entry_id must exist in echo_entries (FK)
         fp = compute_token_fingerprint("lifecycle cleanup")
         if fp:
@@ -1720,7 +1720,7 @@ class TestPipelineSearch:
     def test_empty_query_returns_empty(self, pipeline_db, monkeypatch):
         """Empty query returns empty results."""
         talisman = self._make_talisman()
-        monkeypatch.setattr("server._load_talisman", lambda: talisman)
+        monkeypatch.setattr("pipeline._load_talisman", lambda: talisman)
         results = self._run(pipeline_search(
             pipeline_db, "", 10,
         ))
@@ -1731,7 +1731,7 @@ class TestPipelineSearch:
     def test_result_limit(self, pipeline_db, monkeypatch):
         """Final results are capped at the requested limit."""
         talisman = self._make_talisman()
-        monkeypatch.setattr("server._load_talisman", lambda: talisman)
+        monkeypatch.setattr("pipeline._load_talisman", lambda: talisman)
         results = self._run(pipeline_search(
             pipeline_db, "lifecycle cleanup security", 1,
         ))
@@ -1743,7 +1743,7 @@ class TestPipelineSearch:
         """Integration test: all stages enabled with mocked subprocesses."""
         talisman = self._make_talisman(decomp=True, groups=True, retry=True, rerank=True)
         talisman["echoes"]["reranking"]["threshold"] = 1
-        monkeypatch.setattr("server._load_talisman", lambda: talisman)
+        monkeypatch.setattr("pipeline._load_talisman", lambda: talisman)
 
         # Set up semantic groups for group expansion (entry_ids as list)
         upsert_semantic_group(pipeline_db, "grp-001", ["pipe-entry-001", "pipe-entry-003"], [0.8, 0.8])
@@ -1781,16 +1781,18 @@ class TestPipelineSearch:
     def test_trace_gated_behind_env(self, pipeline_db, monkeypatch, capsys):
         """EDGE-029: Trace output only when _RUNE_TRACE is True."""
         talisman = self._make_talisman()
-        monkeypatch.setattr("server._load_talisman", lambda: talisman)
-        monkeypatch.setattr("server._RUNE_TRACE", False)
+        monkeypatch.setattr("pipeline._load_talisman", lambda: talisman)
+        monkeypatch.setattr("pipeline._RUNE_TRACE", False)
+        monkeypatch.setattr("config._RUNE_TRACE", False)
         self._run(pipeline_search(pipeline_db, "lifecycle", 5))
         assert capsys.readouterr().err == ""
 
     def test_trace_output_when_enabled(self, pipeline_db, monkeypatch, capsys):
         """EDGE-029: Trace output appears when _RUNE_TRACE is True."""
         talisman = self._make_talisman()
-        monkeypatch.setattr("server._load_talisman", lambda: talisman)
-        monkeypatch.setattr("server._RUNE_TRACE", True)
+        monkeypatch.setattr("pipeline._load_talisman", lambda: talisman)
+        monkeypatch.setattr("pipeline._RUNE_TRACE", True)
+        monkeypatch.setattr("config._RUNE_TRACE", True)
         self._run(pipeline_search(pipeline_db, "lifecycle", 5))
         err = capsys.readouterr().err
         assert "[echo-search]" in err

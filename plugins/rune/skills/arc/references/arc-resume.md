@@ -1,6 +1,6 @@
 # Resume (`--resume`) — Full Algorithm
 
-Full `--resume` logic: checkpoint discovery, validation, schema migration (v1→v22),
+Full `--resume` logic: checkpoint discovery, validation, schema migration (v1→v26),
 hash integrity verification, orphan cleanup, and phase demotion.
 
 > Requires familiarity with checkpoint schema from [arc-checkpoint-init.md](arc-checkpoint-init.md).
@@ -296,7 +296,7 @@ On resume, validate checkpoint integrity before proceeding:
    ```
 3z. If schema_version < 26, migrate v25 → v26:
    ```javascript
-   // Step 3z: v25 → v26 (Declarative reaction engine config + reaction state)
+   // Step 3z: v25 → v26 (Declarative reaction engine config + reaction state + CI status)
    if (checkpoint.schema_version < 26) {
      // Add reactions config (read from resolved shard or empty default)
      if (!checkpoint.reactions) {
@@ -325,6 +325,10 @@ On resume, validate checkpoint integrity before proceeding:
        checkpoint.reaction_state._meta = checkpoint.reaction_state._meta || {}
        checkpoint.reaction_state._meta.last_resume_at = new Date().toISOString()
      }
+     // ci_status is null until CI checks are evaluated during bot_review_wait phase.
+     // Schema: { passed: bool, attempts: int, failed_checks: string[], head_sha: string,
+     //   fix_history: [{attempt: int, fixed: string[], remaining: string[]}] }
+     if (!checkpoint.ci_status) checkpoint.ci_status = null
      checkpoint.schema_version = 26
    }
    ```

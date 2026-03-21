@@ -44,15 +44,18 @@ if (exists(".rune/echoes/")) {
     gap_missing: missingCount,
   }
 
-  appendEchoEntry(".rune/echoes/planner/MEMORY.md", {
-    layer: "inscribed",
-    source: `rune:arc ${id}`,
-    content: `Arc completed: ${metrics.phases_completed}/${PHASE_ORDER.length} phases, ` +
-      `${metrics.tome_findings.p1} P1 findings, ` +
-      `${metrics.convergence_cycles} mend cycle(s), ` +
-      `${metrics.gap_missing} missing criteria. ` +
-      `Duration: ${metrics.duration_minutes}min.`
-  })
+  const echoLib = `\${CLAUDE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
+  const planName = checkpoint.plan_file?.split('/').pop()?.replace('.md', '') || id
+  const echoContent = `Phases: ${metrics.phases_completed}/${PHASE_ORDER.length}, ` +
+    `P1: ${metrics.tome_findings.p1}, Convergence: ${metrics.convergence_cycles}, ` +
+    `Duration: ${metrics.duration_minutes}min`
+  Bash(`source "${echoLib}" && rune_echo_append \
+    --role planner --layer inscribed \
+    --source "rune:arc ${id}" \
+    --title "Pipeline: ${planName} outcomes" \
+    --content "${echoContent}" \
+    --confidence HIGH \
+    --tags "arc,pipeline,${planName}"`)
 }
 ```
 
@@ -80,12 +83,16 @@ if (decisions.length > 0) {
   const topDecisions = unique.slice(0, 5)
 
   // Write to planner/ echoes (same as existing post-arc echo) so /rune:devise echo-reader surfaces them
-  const planName = checkpoint.plan_file?.split('/').pop()?.replace('.md', '') || id
-  appendEchoEntry(".rune/echoes/planner/MEMORY.md", {
-    layer: "inscribed",
-    source: `rune:arc ${id} decisions`,
-    content: `Key decisions for ${planName}:\n${topDecisions.map(d => `- ${d}`).join("\n")}`
-  })
+  const echoLib = `\${CLAUDE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
+  const planName2 = checkpoint.plan_file?.split('/').pop()?.replace('.md', '') || id
+  const decisionContent = topDecisions.map(d => `- ${d}`).join("\\n")
+  Bash(`source "${echoLib}" && rune_echo_append \
+    --role planner --layer inscribed \
+    --source "rune:arc ${id} decisions" \
+    --title "Decisions: ${planName2}" \
+    --content "${decisionContent}" \
+    --confidence HIGH \
+    --tags "arc,decisions,${planName2}"`)
 }
 ```
 

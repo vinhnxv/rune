@@ -36,4 +36,19 @@ if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error(`Invalid mend id: ${id}`)
 
 // 7. Release workflow lock
 Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "mend"`)
+
+// 8. Persist mend learnings to Rune Echoes
+// Only persist if meaningful work was done (fixed + false positives + failed >= 1)
+const totalFindings = fixedCount + falsePositiveCount + failedCount
+if (totalFindings >= 1) {
+  const echoLib = `\${CLAUDE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
+  const mendContent = `Fixed: ${fixedCount}, False positives: ${falsePositiveCount}, Failed: ${failedCount}, Skipped: ${skippedCount}`
+  Bash(`source "${echoLib}" && rune_echo_append \
+    --role reviewer --layer inscribed \
+    --source "rune:mend ${id}" \
+    --title "Fix patterns: ${tomeSource} remediation" \
+    --content "${mendContent}" \
+    --confidence HIGH \
+    --tags "mend,fixes,convergence"`)
+}
 ```

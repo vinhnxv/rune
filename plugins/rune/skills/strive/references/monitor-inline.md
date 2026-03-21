@@ -156,6 +156,33 @@ const maxRuntimeMs = maxRuntimeMinutes * 60 * 1000
 for (const [workerName, spawnTime] of Object.entries(workerSpawnTimes)) {
   const elapsed = Date.now() - spawnTime
   if (elapsed > maxRuntimeMs) {
+    // ── Semantic activity check (before stuck declaration) ──
+    // If worker's JSONL shows productive activity, skip stuck action.
+    // Prevents false positives when activity file is stale but worker is productive.
+    const sessionJsonl = Bash(`bash "\${CLAUDE_PLUGIN_ROOT}/scripts/lib/find-teammate-session.sh" "${workerName}" "${teamName}" 2>/dev/null`).trim()
+    if (sessionJsonl) {
+      const stateResult = Bash(`bash "\${CLAUDE_PLUGIN_ROOT}/scripts/lib/detect-activity-state.sh" "${sessionJsonl}" 2>/dev/null`).trim()
+      try {
+        const state = JSON.parse(stateResult)
+        switch (state.state) {
+          case "WORKING":
+            warn(`${workerName}: runtime exceeded but JSONL shows WORKING — skipping stuck action`)
+            continue  // Skip stuck handling for this worker
+          case "ERROR_LOOP":
+            SendMessage({ to: workerName, message: `You appear stuck in an error loop (${state.details}). Try a different approach.`, summary: `Error loop hint for ${workerName}` })
+            break
+          case "RETRY_LOOP":
+            SendMessage({ to: workerName, message: `You're retrying the same action repeatedly (${state.details}). Step back and reconsider.`, summary: `Retry loop hint for ${workerName}` })
+            break
+          case "PERMISSION_LOOP":
+            warn(`${workerName}: stuck in permission dialog loop — may need human intervention`)
+            break
+          case "RATE_LIMITED":
+            warn(`${workerName}: rate limited — extending stuck threshold`)
+            continue  // Don't penalize for API limits
+        }
+      } catch (e) { /* Parse error — fall through to stuck handling */ }
+    }
     warn(`STUCK WORKER: ${workerName} exceeded ${maxRuntimeMinutes}min runtime (${Math.round(elapsed/60000)}min). Sending shutdown_request.`)
     SendMessage({ type: "shutdown_request", recipient: workerName, content: `Runtime budget exceeded (${maxRuntimeMinutes}min). Shutting down.` })
     // Release any in_progress task owned by this worker
