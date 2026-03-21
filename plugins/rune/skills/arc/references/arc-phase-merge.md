@@ -528,7 +528,10 @@ updateCheckpoint({
 | Pre-merge HIGH issue | AskUserQuestion -- user decides |
 | Rebase conflicts | Phase failed -- abort rebase, write conflict report, manual resolution |
 | Force-push fails | Phase failed -- someone else pushed to the branch |
+| PR not mergeable (blocked/conflicts) | Phase failed -- readiness check writes NOT READY report |
+| PR closed without merging | Merge verification detects -- reported in merge report |
 | gh pr merge fails | Phase failed -- check PR status manually |
+| Merge verification timeout | Phase completes with MERGE UNCONFIRMED or AUTO-MERGE PENDING status |
 
 ## Failure Policy
 
