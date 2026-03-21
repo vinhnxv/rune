@@ -370,6 +370,35 @@ if (conflictSummary) {
 | `fileTargets` not yet populated | **Precondition**: `extractFileTargets()` must run first (documented above) |
 | > 200 file targets | Existing O(n²) cap in Task Pool Creation step 3 (detection) applies — truncate at 200 targets |
 | 5+ tasks share same file | Chain length warning: "Consider merging these tasks" |
+| Subtask with `parent_task_id` | Treated as a first-class task — `fileTargets` and `blockedBy` already set by `runTaskDecomposition()`. No special-casing in `buildOwnershipGraph`. |
+| Subtask overlaps sibling subtask | Caught by `validateSubtaskFileOverlap()` in task-decomposition.md BEFORE this phase runs. Additional safety: `detectAndResolveConflicts()` handles any missed overlaps via `blockedBy`. |
+
+## Subtask Ownership (Phase 1.1 Integration)
+
+When `work.task_decomposition.enabled` is true, `runTaskDecomposition()` (see
+[task-decomposition.md](task-decomposition.md)) replaces COMPOSITE tasks with subtasks
+before this phase runs. Each subtask has:
+
+- `id`: `"{parent_id}-sub-{N}"` (e.g., `"3-sub-1"`, `"3-sub-2"`)
+- `parent_task_id`: original task ID for traceability
+- `fileTargets`: non-overlapping file list (validated by `validateSubtaskFileOverlap`)
+- `blockedBy`: parent's `blockedBy` + any intra-subtask dependencies
+
+The existing `buildOwnershipGraph()` and `detectAndResolveConflicts()` functions
+handle subtasks identically to top-level tasks — no code changes needed. Subtask
+IDs appear naturally in `task_ownership` in inscription.json:
+
+```json
+{
+  "task_ownership": {
+    "3-sub-1": { "owner": "rune-smith-1", "files": ["src/api/users.ts"], "dirs": [], "parent_task_id": "3" },
+    "3-sub-2": { "owner": "rune-smith-2", "files": ["src/services/user.ts"], "dirs": [], "parent_task_id": "3" }
+  }
+}
+```
+
+The `validate-strive-worker-paths.sh` hook uses a flat union of all `files[]` arrays
+regardless of whether the task is a top-level or subtask — no hook changes needed.
 
 ## Quality Contract
 
