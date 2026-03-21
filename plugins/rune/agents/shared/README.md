@@ -40,12 +40,26 @@ const composedPrompt = bootstrapDirectives + '\n' + agentBody
 
 ## Shared Files
 
+### Core Protocols
+
 | File | Lines | Track 1 Consumers (Read() in agent .md) | Track 2 Consumers (injected by orchestrator) | Content |
 |------|-------|----------------------------------------|----------------------------------------------|---------|
-| `communication-protocol.md` | ~25 | rune-smith, trial-forger, mend-fixer, gap-fixer, verdict-binder, grace-warden-inspect, sight-oracle-inspect, vigil-keeper-inspect, ruin-prophet-inspect | — | Seal format, shutdown handling, SendMessage conventions, exit conditions |
-| `quality-gate-template.md` | ~30 | rune-smith, trial-forger, grace-warden-inspect, sight-oracle-inspect, vigil-keeper-inspect, ruin-prophet-inspect | ward-sentinel, knowledge-keeper (via devise/arc orchestrators) | Confidence calibration, Inner Flame supplementary, self-review pass |
-| `context-checkpoint-protocol.md` | ~30 | rune-smith, trial-forger | — | Adaptive reset depth, Seal summary requirements, context rot detection |
+| `communication-protocol.md` | ~36 | rune-smith, trial-forger, mend-fixer, gap-fixer, verdict-binder, grace-warden-inspect, sight-oracle-inspect, vigil-keeper-inspect, ruin-prophet-inspect | — | Seal format, shutdown handling, SendMessage conventions, exit conditions |
+| `quality-gate-template.md` | ~37 | rune-smith, trial-forger, grace-warden-inspect, sight-oracle-inspect, vigil-keeper-inspect, ruin-prophet-inspect | ward-sentinel, knowledge-keeper (via devise/arc orchestrators) | Confidence calibration, Inner Flame supplementary, self-review pass |
+| `context-checkpoint-protocol.md` | ~39 | rune-smith, trial-forger | — | Adaptive reset depth, Seal summary requirements, context rot detection |
 | `iron-law-protocol.md` | ~31 | — | — | Iron Law enforcement wrapper ("this rule is absolute"), agent-specific law statements remain inline |
+| `truthbinding-protocol.md` | ~96 | rune-smith, trial-forger, mend-fixer, gap-fixer, ward-sentinel, pattern-seer, flaw-hunter, lore-analyst, goldmask-coordinator, grace-warden-inspect, sight-oracle-inspect, vigil-keeper-inspect, ruin-prophet-inspect | — | ANCHOR/RE-ANCHOR Truthbinding security framing, untrusted content handling, injection defense |
+| `finding-format-template.md` | ~62 | ward-sentinel, pattern-seer, flaw-hunter, grace-warden-inspect, knowledge-keeper | — | Standardized finding output format, severity levels, evidence requirements |
+
+### Phase-Specific Protocols
+
+| File | Lines | Track 1 Consumers (Read() in agent .md) | Content |
+|------|-------|----------------------------------------|---------|
+| `phase-review.md` | ~149 | ward-sentinel, pattern-seer, flaw-hunter, knowledge-keeper | Review-phase conventions, file scope, output format, review workflow |
+| `phase-work.md` | ~112 | rune-smith, trial-forger | Work-phase swarm worker patterns, TDD cycle, ward checks, task lifecycle |
+| `phase-goldmask.md` | ~101 | lore-analyst, goldmask-coordinator | Goldmask investigation patterns, risk scoring, lore layer conventions |
+| `phase-inspect.md` | ~120 | grace-warden-inspect, sight-oracle-inspect, vigil-keeper-inspect, ruin-prophet-inspect | Inspect investigation patterns, requirement matrix, gap categories |
+| `phase-devise.md` | ~121 | knowledge-keeper, scroll-reviewer, decree-arbiter | Devise/planning utility patterns, plan review conventions, enrichment workflow |
 
 > **Note**: Track 2 consumers are general-purpose agents whose Read() directives are composed by orchestrator skills, not embedded in agent .md files. The `validate-agent-shared-refs.sh` script only validates Track 1 references. Track 2 validation is out of scope for the current script — broken Track 2 references are discovered at runtime.
 
