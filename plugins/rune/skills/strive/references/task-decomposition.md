@@ -39,7 +39,8 @@ function runTaskDecomposition(extractedTasks, workConfig, teamName) {
   }
 
   const complexityThreshold = decompositionConfig?.complexity_threshold ?? 5
-  const maxSubtasks = decompositionConfig?.max_subtasks ?? 4
+  // SEC-005: Clamp max_subtasks to sane range (min 2, max 10)
+  const maxSubtasks = Math.max(2, Math.min(decompositionConfig?.max_subtasks ?? 4, 10))
 
   log(`DECOMPOSITION: enabled (threshold=${complexityThreshold}, maxSubtasks=${maxSubtasks})`)
 

@@ -72,10 +72,13 @@ function buildSiblingContext(currentTask, allTasks, taskOwnership, workConfig) {
     ? myFiles.join(", ")
     : "(targets not yet registered)"
 
+  // SEC-004: Sanitize untrusted task subjects, owners, and file paths before prompt injection
+  const sanitize = (s) => String(s || "").replace(/[\r\n]+/g, " ").replace(/<[^>]*>/g, "").replace(/[^\x20-\x7E]/g, "").slice(0, 200)
+
   const siblingLines = siblings
     .map(s => {
-      const targetStr = s.targets.length > 0 ? s.targets.join(", ") : "(no declared targets)"
-      return `- ${s.owner}: "${s.subject}" → ${targetStr}`
+      const targetStr = s.targets.length > 0 ? s.targets.map(t => sanitize(t)).join(", ") : "(no declared targets)"
+      return `- ${sanitize(s.owner)}: "${sanitize(s.subject)}" → ${targetStr}`
     })
     .join("\n")
 
