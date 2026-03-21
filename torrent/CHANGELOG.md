@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-03-22
+
+### Added
+
+- **Inbound messaging** — send messages to Claude Code from Torrent TUI (`[m]` key) or CLI (`torrent-cli send-msg`). 3-tier delivery cascade: bridge HTTP → file inbox → tmux send-keys
+- **Bridge HTTP inbound server** — bridge now listens on `TORRENT_BRIDGE_PORT` for POST `/msg` requests, delivering messages to Claude via MCP `sendLoggingMessage()` notification
+- **`check_inbox` MCP tool** — Claude can poll for queued messages from Torrent via filesystem-based inbox (fallback when HTTP notification fails)
+- **Transport prefix** — all messages tagged with source: `[torrent:bridge]`, `[torrent:inbox]`, or `[torrent:tmux]` so Claude can identify delivery method
+- **Transport indicator in TUI** — status bar shows `✉→bridge`, `✉→inbox`, or `✉→tmux` after sending, plus predicted transport in message input bar
+- **Session-scoped inbox** — messages scoped to `tmp/bridge-inbox/{session_id}/` preventing cross-session message leaks
+- **`torrent-cli send-msg`** — CLI command with `--via bridge|tmux|auto` delivery mode, `--session` targeting, and auto-detection
+- **Makefile** — consolidated all targets into root Makefile: `make run-channel`, `make send-msg`, `make test-e2e`, `make test-all`, `make bridge-deps`
+- **Channels bridge E2E tests** — 14 Rust unit tests for field validation + shell harness testing full MCP JSON-RPC pipeline (bridge init → tool call → callback POST)
+- **Bridge GET `/ping`** health check endpoint and `bridge-port.txt` discovery file
+
+### Fixed
+
+- **SEC-011**: Drop channel events during init window when `expected_session` is `None`
+- **SEC-012**: Prevent u16 overflow on `callback_port + 1` via `checked_add` with `saturating_sub` fallback; CLI port cap at 65534
+- **SEC-013 / BACK-015**: Add per-field length limits for `session_id` (64), `event_type` (32), `result` (32), `error` (1024), `activity` (32), `current_tool` (128)
+- **BACK-002**: Env var `TORRENT_CALLBACK_PORT` now range-validated (1–65534), matching CLI validation
+- **BACK-016**: Validate `http:` or `https:` protocol scheme on callback URL
+- **QUAL-001**: Align `session_id` limit to 64 chars across all modules (was 128 in callback, 64 in tmux/channel)
+- **QUAL-003**: Tighten bridge hostname check to `127.0.0.1` only (was also accepting `localhost`)
+- **QUAL-006**: Split `pr_url` compound validation into separate protocol and length checks
+- **QUAL-009**: Remove duplicate `session_exists()` method, migrate callers to `has_session()`
+- **SEC-002 (bridge)**: Add 64KB payload size guard before HTTP POST
+- Zero compiler warnings (`cargo check`) and zero clippy issues
+
+### Changed
+
+- **Bridge loading** — replaced `--dangerously-load-development-channels` with `--mcp-config` inline JSON (no confirmation prompt, no "dangerously" warning)
+- **Bridge env vars** — `TORRENT_CALLBACK_URL`, `TORRENT_BRIDGE_PORT`, `TORRENT_SESSION_ID` passed via MCP config `env` block (explicit, not inherited)
+- **`start_from_env()`** — annotated as `#[allow(dead_code)]` with aligned port validation (1–65534)
+- **Dead code cleanup** — removed `drain_events()` (BACK-017), annotated `is_stale()`/`since_last_event()` for future use (QUAL-007/008)
+
+### Removed
+
+- **`torrent/Makefile`** — consolidated into root Makefile
+- **Tombstone comments** — removed "function removed" comments in favor of git history
+
 ## [0.7.0] - 2026-03-21
 
 ### Added
