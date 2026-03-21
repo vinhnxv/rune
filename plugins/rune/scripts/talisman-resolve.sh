@@ -33,6 +33,15 @@ _rune_fail_forward() {
 }
 trap '_rune_fail_forward' ERR
 
+# ── EXIT trap: ensure hookEventName is always emitted (prevents "hook error") ──
+_HOOK_JSON_SENT=false
+_rune_session_hook_exit() {
+  if [[ "$_HOOK_JSON_SENT" != "true" ]]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"SessionStart"}}\n'
+  fi
+}
+trap '_rune_session_hook_exit' EXIT
+
 # ── Guard: jq dependency ──
 if ! command -v jq &>/dev/null; then
   exit 0
@@ -329,6 +338,7 @@ if [[ "$project_json" == '{}' && "$global_json" == '{}' ]]; then
         _trace "Fast path: defaults hash match, skipping resolve"
         existing_meta=$(cat "${SYSTEM_SHARD_DIR}/_meta.json" 2>/dev/null || echo '{}')
         shard_count=$(printf '%s' "$existing_meta" | jq -r '.shard_count // 17' 2>/dev/null || echo "17")
+        _HOOK_JSON_SENT=true
         jq -n \
           --arg count "$shard_count" \
           --arg dir "$SYSTEM_SHARD_DIR" \
@@ -642,6 +652,7 @@ fi
 _trace "OK: resolved $shard_count shards to $SHARD_DIR in ~${ELAPSED}s (status=$RESOLVER_STATUS, timing=coarse)"
 
 # ── Output hook-specific JSON (SEC-006: jq --arg instead of heredoc interpolation) ──
+_HOOK_JSON_SENT=true
 jq -n \
   --arg count "$shard_count" \
   --arg dir "$SHARD_DIR" \

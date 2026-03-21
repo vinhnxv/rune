@@ -26,6 +26,15 @@ _rune_fail_forward() {
 }
 trap '_rune_fail_forward' ERR
 
+# ── EXIT trap: ensure hookEventName is always emitted (prevents "hook error") ──
+_HOOK_JSON_SENT=false
+_rune_session_hook_exit() {
+  if [[ "$_HOOK_JSON_SENT" != "true" ]]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"SessionStart"}}\n'
+  fi
+}
+trap '_rune_session_hook_exit' EXIT
+
 # --- Trace logging ---
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-${UID:-$(id -u)}.log}"
 _trace() {
@@ -114,6 +123,7 @@ done
 
 # --- Output warning if any packs are stale ---
 if [[ -n "$warnings" ]]; then
+  _HOOK_JSON_SENT=true
   # Use jq/python3 for safe JSON string encoding (handles quotes, backslashes, control chars)
   if command -v jq &>/dev/null; then
     jq -n --arg w "$warnings" --arg event "SessionStart" \

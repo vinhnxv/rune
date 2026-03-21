@@ -19,6 +19,15 @@ _rune_fail_forward() {
 }
 trap '_rune_fail_forward' ERR
 
+# ── EXIT trap: ensure hookEventName is always emitted (prevents "hook error") ──
+_HOOK_JSON_SENT=false
+_rune_session_hook_exit() {
+  if [[ "$_HOOK_JSON_SENT" != "true" ]]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"SessionStart"}}\n'
+  fi
+}
+trap '_rune_session_hook_exit' EXIT
+
 # ── Opt-in trace logging ──
 _trace() {
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
@@ -239,6 +248,7 @@ fi
 # This injects the skill routing table into Claude's context
 # Echo summary appended if available (P2: Session-Start Echo Summary Injection)
 # Session ID appended if available (P3: Session ID Bridge Injection)
+_HOOK_JSON_SENT=true
 cat <<EOF
 {"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"[Rune Plugin Active] ${ESCAPED_CONTENT}${ECHO_SUMMARY}${SESSION_CTX}${_WT_ADVISORY}"}}
 EOF

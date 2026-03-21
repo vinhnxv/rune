@@ -32,6 +32,15 @@ _rune_fail_forward() {
 }
 trap '_rune_fail_forward' ERR
 
+# ── EXIT trap: ensure hookEventName is always emitted (prevents "hook error") ──
+_HOOK_JSON_SENT=false
+_rune_session_hook_exit() {
+  if [[ "$_HOOK_JSON_SENT" != "true" ]]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"SessionStart"}}\n'
+  fi
+}
+trap '_rune_session_hook_exit' EXIT
+
 # ── PW-002 FIX: Opt-in trace logging (consistent with on-task-completed.sh) ──
 _trace() {
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
@@ -227,6 +236,7 @@ if [[ -z "$TEAM_NAME" ]]; then
     fi
 
     CONTEXT_MSG="RUNE COMPACT RECOVERY (saved at ${SAVED_AT}): No active team at compaction time.${LOOP_INFO}${COMPACT_FAILED_MSG}${COMPACT_SUMMARY_INFO}"
+    _HOOK_JSON_SENT=true
     jq -n --arg ctx "$CONTEXT_MSG" '{
       hookSpecificOutput: {
         hookEventName: "SessionStart",
@@ -264,6 +274,7 @@ TEAM_DIR="$CHOME/teams/${TEAM_NAME}"
 if [[ ! -d "$TEAM_DIR" ]] || [[ -L "$TEAM_DIR" ]]; then
   # Team no longer exists — checkpoint is stale, clean up
   rm -f "$CHECKPOINT_FILE" 2>/dev/null
+  _HOOK_JSON_SENT=true
   jq -n --arg team "$TEAM_NAME" '{
     hookSpecificOutput: {
       hookEventName: "SessionStart",
@@ -415,6 +426,7 @@ CONTEXT_MSG="RUNE COMPACT RECOVERY: Team '${TEAM_NAME}' state restored (saved at
 
 # ── OUTPUT: hookSpecificOutput with hookEventName ──
 # PW-008 FIX: Output JSON first, THEN delete checkpoint. If jq fails, checkpoint is preserved.
+_HOOK_JSON_SENT=true
 jq -n --arg ctx "$CONTEXT_MSG" '{
   hookSpecificOutput: {
     hookEventName: "SessionStart",

@@ -30,6 +30,15 @@ _rune_fail_forward() {
 }
 trap '_rune_fail_forward' ERR
 
+# ── EXIT trap: ensure hookEventName is always emitted (prevents "hook error") ──
+_HOOK_JSON_SENT=false
+_rune_session_hook_exit() {
+  if [[ "$_HOOK_JSON_SENT" != "true" ]]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"SessionStart"}}\n'
+  fi
+}
+trap '_rune_session_hook_exit' EXIT
+
 # Guard: jq dependency
 if ! command -v jq &>/dev/null; then
   exit 0
@@ -443,6 +452,7 @@ if [[ $remaining_orphans -gt 0 ]] || [[ $stale_state_count -gt 0 ]] || [[ $orpha
   if [[ ${#orphan_names[@]} -gt 0 ]] && [[ $remaining_orphans -gt 0 ]]; then
     msg+=" Orphans: ${orphan_names[*]:0:5}"
   fi
+  _HOOK_JSON_SENT=true
   jq -n --arg ctx "$msg" '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $ctx}}'
 fi
 
