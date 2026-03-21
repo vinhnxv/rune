@@ -58,7 +58,7 @@ steps:
     required: true
     order: 7
     artifact: null
-    artifact_check: "Plan section coverage table with ADDRESSED/MISSING status per H2 heading"
+    artifact_check: "Plan section coverage table with ADDRESSED/MISSING/CLAIMED/SKIPPED status per H2 heading"
     description: "Cross-reference plan H2 headings against committed code changes. Extract identifiers (backtick-quoted, CamelCase, file paths) and grep in diff files."
 
   - id: "GAP-STEP-08"
