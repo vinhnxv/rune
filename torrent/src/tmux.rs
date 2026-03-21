@@ -119,12 +119,12 @@ impl Tmux {
     /// Sends the claude binary command via send-keys (not as session command).
     /// Only sets CLAUDE_CONFIG_DIR for non-default config dirs.
     ///
-    /// When `channels` is `Some`, appends the channels bridge flag and sets
-    /// `TORRENT_CALLBACK_URL` + `TORRENT_BRIDGE_PORT` env vars for the bridge
-    /// server. Channels are OUTBOUND-ONLY (Claude → Torrent) in v0.7.0.
+    /// When `channels` is `Some`, loads the bridge MCP server via `--mcp-config`
+    /// and sets `TORRENT_CALLBACK_URL` + `TORRENT_BRIDGE_PORT` + `TORRENT_SESSION_ID`
+    /// env vars for bridge communication.
     ///
     /// **IMPORTANT**: Pass `None` for resumed sessions — `--resume` +
-    /// `--dangerously-load-development-channels` = crash (#36638).
+    /// MCP config may cause issues with session state (#36638).
     pub fn start_claude(
         session_id: &str,
         config_dir: &Path,
@@ -152,6 +152,11 @@ impl Tmux {
             ));
         }
 
+        // Resolve absolute path to bridge server for --mcp-config
+        let bridge_abs = std::env::current_dir()
+            .map(|cwd| cwd.join("torrent/bridge/server.ts"))
+            .unwrap_or_else(|_| std::path::PathBuf::from("torrent/bridge/server.ts"));
+
         if !is_default {
             let config_str = config_dir.to_string_lossy();
             env_prefix.push_str(&format!(
@@ -167,9 +172,23 @@ impl Tmux {
             shell_escape(claude_path)
         );
 
-        // Append channels flag if enabled
-        if channels.is_some() {
-            cmd.push_str(" --dangerously-load-development-channels server:torrent-bridge");
+        // Append bridge MCP server via --mcp-config (replaces --dangerously-load-development-channels)
+        if let Some(ch) = channels {
+            // Build inline JSON config for the bridge MCP server.
+            // Env vars are passed explicitly so the MCP subprocess gets them
+            // regardless of shell environment inheritance.
+            let bridge_path = bridge_abs.to_string_lossy().replace('"', r#"\""#);
+            let mcp_json = format!(
+                concat!(
+                    r#"{{"mcpServers":{{"torrent-bridge":{{"#,
+                    r#""command":"npx","args":["--yes","tsx","{}"],"#,
+                    r#""env":{{"TORRENT_CALLBACK_URL":"http://127.0.0.1:{}","#,
+                    r#""TORRENT_BRIDGE_PORT":"{}","#,
+                    r#""TORRENT_SESSION_ID":"{}"}}}}}}}}"#,
+                ),
+                bridge_path, ch.callback_port, ch.bridge_port, session_id
+            );
+            cmd.push_str(&format!(" --mcp-config '{}'", mcp_json));
         }
 
         // Send command text literally (-l), then Enter separately.
