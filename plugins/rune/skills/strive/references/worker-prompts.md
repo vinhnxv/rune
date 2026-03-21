@@ -1351,3 +1351,21 @@ Workers receive pre-assigned tasks via `TaskUpdate({ owner })` before spawning. 
 **Talisman configuration**:
 - `work.tasks_per_worker`: Maximum tasks per worker per wave (default: 3)
 - `work.max_workers`: Maximum workers per role (default: 3)
+
+## Step 4.6: Sibling Context Injection (v2.5.0+)
+
+When sibling awareness is enabled, inject context about other workers' tasks into the spawn prompt.
+
+See [sibling-context.md](sibling-context.md) for the `buildSiblingContext()` function.
+
+```javascript
+// readTalismanSection: "work"
+const siblingEnabled = readTalismanSection("work")?.sibling_awareness?.enabled ?? true
+
+if (siblingEnabled) {
+  const siblingContext = buildSiblingContext(claimedTask, allTasks, taskOwnership)
+  if (siblingContext) {
+    prompt += siblingContext  // Insert after task list, before non-goals
+  }
+}
+```

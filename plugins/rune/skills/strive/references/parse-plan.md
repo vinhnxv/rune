@@ -43,6 +43,29 @@ tasks = [
 ]
 ```
 
+## Phase 0.5: Task Decomposition (v2.5.0+)
+
+After extracting tasks, optionally decompose complex tasks into subtasks using LLM classification.
+
+See [task-decomposition.md](task-decomposition.md) for the full decomposition algorithm.
+
+```javascript
+// Phase 0.5: Task Decomposition (after parse, before ownership assignment)
+// readTalismanSection: "work"
+const workConfig = readTalismanSection("work")
+const decompositionEnabled = workConfig?.task_decomposition?.enabled ?? true
+
+if (decompositionEnabled) {
+  const { expandTasks } = loadDecompositionModule()  // from task-decomposition.md
+  const expandedTasks = expandTasks(tasks, workConfig)
+  const originalCount = tasks.length
+  tasks = expandedTasks
+  if (tasks.length > originalCount) {
+    log(`Decomposition: ${originalCount} tasks expanded to ${tasks.length} (${tasks.length - originalCount} subtasks created)`)
+  }
+}
+```
+
 ## Previous Shard Context (Multi-Shard Plans Only)
 
 When the plan is a shard (filename matches `*-shard-N-*`), inject context from completed sibling shards into worker prompts.

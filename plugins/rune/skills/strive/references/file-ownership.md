@@ -11,6 +11,30 @@
 7. Compute wave groupings (worktree mode only) using DFS depth algorithm
 8. Write `task_ownership` to inscription.json for runtime enforcement (SEC-STRIVE-001)
 
+### Subtask Ownership (v2.5.0+)
+
+When task decomposition is active, subtasks inherit ownership from decomposition output:
+
+- Each subtask gets its own `file_targets` from the LLM decomposition
+- Subtask IDs use format `{parentId}-sub-{index}` (e.g., `1-sub-1`, `1-sub-2`)
+- `inscription.json` task_ownership includes subtask entries alongside parent entries
+- `blockedBy` links auto-generated between subtasks with overlapping targets
+- `validate-strive-worker-paths.sh` resolves subtask IDs via the same flat-union allowlist
+
+```javascript
+// When building task_ownership for inscription.json:
+for (const task of expandedTasks) {
+  const taskId = task.parent_task_id
+    ? `${task.parent_task_id}-sub-${task.id.split('-sub-')[1]}`
+    : String(task.id)
+  taskOwnership[taskId] = {
+    owner: null,  // assigned during claim
+    files: task.file_targets || [],
+    dirs: task.dir_targets || []
+  }
+}
+```
+
 ## Runtime File Ownership Enforcement (SEC-STRIVE-001)
 
 After creating the task pool, write `task_ownership` to `inscription.json` mapping each task to its file/dir targets. The `validate-strive-worker-paths.sh` PreToolUse hook reads this at runtime to block writes outside assigned scope.

@@ -322,6 +322,19 @@ def _inject_work_defaults(data: dict[str, Any]) -> None:
         work["unrestricted_shared_files"] = []
     if "consistency" not in work:
         work["consistency"] = {"checks": []}
+    if "task_decomposition" not in work:
+        work["task_decomposition"] = {
+            "enabled": True,
+            "complexity_threshold": 5,
+            "max_subtasks": 4,
+            "model": "haiku",
+        }
+    if "sibling_awareness" not in work:
+        work["sibling_awareness"] = {
+            "enabled": True,
+            "max_sibling_files": 5,
+            "max_sibling_tasks": 10,
+        }
     data["work"] = work
 
 
