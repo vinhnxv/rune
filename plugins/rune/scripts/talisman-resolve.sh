@@ -167,6 +167,66 @@ except Exception:
   return 0
 }
 
+# ── Companion file support ──
+# Companion files extend the main talisman.yml with domain-specific config
+# (e.g., talisman-ashes.yml, talisman-integrations.yml)
+COMPANION_SUFFIXES=("ashes" "integrations")
+COMPANION_MERGE_ERRORS=""
+
+# merge_companions(base_path, layer_json)
+# Discovers and merges companion files into the layer JSON.
+# base_path: path without .yml extension (e.g., /path/to/talisman)
+# layer_json: existing JSON from the main talisman file
+# Outputs merged JSON to stdout. Errors go to COMPANION_MERGE_ERRORS (never stdout).
+merge_companions() {
+  local base_path="$1"
+  local result_json="$2"
+
+  for suffix in "${COMPANION_SUFFIXES[@]}"; do
+    local companion_file="${base_path}-${suffix}.yml"
+
+    # Guard: must exist, must not be a symlink
+    if [[ ! -f "$companion_file" ]] || [[ -L "$companion_file" ]]; then
+      continue
+    fi
+
+    # Convert companion YAML to JSON
+    local companion_json
+    companion_json=$(yaml_to_json "$companion_file")
+    if [[ -z "$companion_json" || "$companion_json" == '{}' ]]; then
+      continue
+    fi
+
+    # Detect duplicate top-level keys (hard error — skip this companion)
+    local main_keys companion_keys duplicate_keys
+    main_keys=$(printf '%s' "$result_json" | jq -r 'keys[]' 2>/dev/null || true)
+    companion_keys=$(printf '%s' "$companion_json" | jq -r 'keys[]' 2>/dev/null || true)
+    duplicate_keys=""
+    if [[ -n "$main_keys" && -n "$companion_keys" ]]; then
+      duplicate_keys=$(comm -12 \
+        <(printf '%s\n' "$main_keys" | sort) \
+        <(printf '%s\n' "$companion_keys" | sort) 2>/dev/null || true)
+    fi
+
+    if [[ -n "$duplicate_keys" ]]; then
+      COMPANION_MERGE_ERRORS="${COMPANION_MERGE_ERRORS}Companion ${companion_file##*/} has duplicate top-level keys: $(echo "$duplicate_keys" | tr '\n' ', ' | sed 's/,$//'). Skipped.\n"
+      _trace "WARN: companion ${companion_file##*/} has duplicate keys, skipping"
+      continue
+    fi
+
+    # Merge: main * companion (companion values overlay)
+    local merged_result
+    merged_result=$(jq -s '.[0] * .[1]' <(printf '%s' "$result_json") <(printf '%s' "$companion_json") 2>/dev/null) || {
+      COMPANION_MERGE_ERRORS="${COMPANION_MERGE_ERRORS}Failed to merge companion ${companion_file##*/}.\n"
+      _trace "WARN: failed to merge companion ${companion_file##*/}"
+      continue
+    }
+    result_json="$merged_result"
+  done
+
+  printf '%s' "$result_json"
+}
+
 # ── Convert YAML sources to JSON ──
 # Track which sources were used
 PROJECT_SOURCE="null"
@@ -182,6 +242,20 @@ global_json='{}'
 if [[ -f "$GLOBAL_TALISMAN" && ! -L "$GLOBAL_TALISMAN" ]]; then
   global_json=$(yaml_to_json "$GLOBAL_TALISMAN")
   GLOBAL_SOURCE="\"${GLOBAL_TALISMAN}\""
+fi
+
+# ── Merge companion files ──
+PROJECT_BASE="${PROJECT_TALISMAN%.yml}"
+GLOBAL_BASE="${GLOBAL_TALISMAN%.yml}"
+project_json=$(merge_companions "$PROJECT_BASE" "$project_json")
+global_json=$(merge_companions "$GLOBAL_BASE" "$global_json")
+
+# Emit companion merge errors as trace warnings
+if [[ -n "$COMPANION_MERGE_ERRORS" ]]; then
+  _trace "WARN: companion merge errors encountered:"
+  printf '%b' "$COMPANION_MERGE_ERRORS" | while IFS= read -r line; do
+    [[ -n "$line" ]] && _trace "  $line"
+  done
 fi
 
 defaults_json=$(cat "$DEFAULTS_FILE")
@@ -333,7 +407,10 @@ all_shards=$(echo "$merged" | jq '{
     schema_drift: (.schema_drift // {}),
     deployment_verification: (.deployment_verification // {}),
     integrations: (.integrations // {}),
-    self_audit: (.self_audit // {})
+    self_audit: (.self_audit // {}),
+    file_todos: (.file_todos // {}),
+    devise: (.devise // {}),
+    strive: (.strive // {})
   },
   keyword_detection: (.keyword_detection // {}),
   tool_failure_tracking: (.tool_failure_tracking // {}),
@@ -389,6 +466,30 @@ if [[ "$project_json" == '{}' && "$global_json" == '{}' ]]; then
   RESOLVER_STATUS="defaults_only"
 fi
 
+# ── Track companion files ──
+PROJECT_COMPANIONS=()
+GLOBAL_COMPANIONS=()
+for suffix in "${COMPANION_SUFFIXES[@]}"; do
+  local_companion="${PROJECT_BASE}-${suffix}.yml"
+  if [[ -f "$local_companion" && ! -L "$local_companion" ]]; then
+    PROJECT_COMPANIONS+=("${local_companion}")
+  fi
+  global_companion="${GLOBAL_BASE}-${suffix}.yml"
+  if [[ -f "$global_companion" && ! -L "$global_companion" ]]; then
+    GLOBAL_COMPANIONS+=("${global_companion}")
+  fi
+done
+
+# Build companion JSON arrays for _meta.json
+PROJECT_COMPANIONS_JSON="[]"
+if [[ ${#PROJECT_COMPANIONS[@]} -gt 0 ]]; then
+  PROJECT_COMPANIONS_JSON=$(printf '%s\n' "${PROJECT_COMPANIONS[@]}" | jq -R . | jq -s . 2>/dev/null || echo '[]')
+fi
+GLOBAL_COMPANIONS_JSON="[]"
+if [[ ${#GLOBAL_COMPANIONS[@]} -gt 0 ]]; then
+  GLOBAL_COMPANIONS_JSON=$(printf '%s\n' "${GLOBAL_COMPANIONS[@]}" | jq -R . | jq -s . 2>/dev/null || echo '[]')
+fi
+
 # ── Write _meta.json LAST (commit signal) ──
 RESOLVED_AT=$("$RUNE_PYTHON" -c "from datetime import datetime, timezone; print(datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))" 2>/dev/null || date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo "unknown")
 
@@ -411,6 +512,8 @@ if [[ "$CACHE_TYPE" == "system" ]]; then
     --arg merge_status "$MERGE_STATUS" \
     --arg cache_type "system" \
     --arg defaults_hash "${CURRENT_DEFAULTS_HASH:-}" \
+    --argjson project_companions "$PROJECT_COMPANIONS_JSON" \
+    --argjson global_companions "$GLOBAL_COMPANIONS_JSON" \
     '{
       cache_type: $cache_type,
       resolved_at: $resolved_at,
@@ -420,7 +523,8 @@ if [[ "$CACHE_TYPE" == "system" ]]; then
       shard_count: $shard_count,
       schema_version: $schema_version,
       resolver_status: $resolver_status,
-      defaults_hash: $defaults_hash
+      defaults_hash: $defaults_hash,
+      companions: { project: $project_companions, global: $global_companions }
     }')
 else
   meta_json=$(jq -n \
@@ -438,6 +542,8 @@ else
     --arg owner_pid "$OWNER_PID" \
     --arg session_id "${SESSION_ID:-unknown}" \
     --arg cache_type "project" \
+    --argjson project_companions "$PROJECT_COMPANIONS_JSON" \
+    --argjson global_companions "$GLOBAL_COMPANIONS_JSON" \
     '{
       cache_type: $cache_type,
       resolved_at: $resolved_at,
@@ -453,7 +559,8 @@ else
       resolver_status: $resolver_status,
       config_dir: $config_dir,
       owner_pid: $owner_pid,
-      session_id: $session_id
+      session_id: $session_id,
+      companions: { project: $project_companions, global: $global_companions }
     }')
 fi
 
@@ -469,6 +576,48 @@ fi
 ELAPSED=$((SECONDS - RESOLVE_START))
 if [[ $ELAPSED -gt 3 ]]; then
   _trace "WARN: resolver took ${ELAPSED}s (>80% of 5s budget, integer precision)"
+fi
+
+# ── Source hash computation (includes companion files) ──
+# compute_source_hash(files...)
+# Computes a combined hash of all source files for cache invalidation.
+# Only used for project cache path — system cache uses defaults hash only.
+compute_source_hash() {
+  local hash_input=""
+  for file in "$@"; do
+    if [[ -f "$file" && ! -L "$file" ]]; then
+      local file_hash
+      if type _rune_venv_hash &>/dev/null; then
+        file_hash=$(_rune_venv_hash "$file")
+      else
+        file_hash=$(shasum -a 256 "$file" 2>/dev/null | cut -d' ' -f1 || sha256sum "$file" 2>/dev/null | cut -d' ' -f1 || echo "no-hash")
+      fi
+      hash_input="${hash_input}${file_hash}"
+    fi
+  done
+  if [[ -n "$hash_input" ]]; then
+    printf '%s' "$hash_input" | shasum -a 256 2>/dev/null | cut -d' ' -f1 || printf '%s' "$hash_input" | sha256sum 2>/dev/null | cut -d' ' -f1 || echo "no-hash"
+  else
+    echo "no-hash"
+  fi
+}
+
+# Write project source hash (includes main talisman + companions)
+if [[ "$CACHE_TYPE" == "project" ]]; then
+  SOURCE_HASH_FILE="${SHARD_DIR}/.source-hash"
+  hash_sources=()
+  [[ -f "$PROJECT_TALISMAN" && ! -L "$PROJECT_TALISMAN" ]] && hash_sources+=("$PROJECT_TALISMAN")
+  [[ -f "$GLOBAL_TALISMAN" && ! -L "$GLOBAL_TALISMAN" ]] && hash_sources+=("$GLOBAL_TALISMAN")
+  hash_sources+=("${PROJECT_COMPANIONS[@]}" "${GLOBAL_COMPANIONS[@]}")
+  if [[ ${#hash_sources[@]} -gt 0 ]]; then
+    SOURCE_HASH=$(compute_source_hash "${hash_sources[@]}")
+    if [[ "$SOURCE_HASH" != "no-hash" ]]; then
+      tmp_shash=$(mktemp "${SHARD_DIR}/.source-hash.XXXXXX" 2>/dev/null) || tmp_shash="${SHARD_DIR}/.source-hash.tmp.$$"
+      echo "$SOURCE_HASH" > "$tmp_shash" 2>/dev/null && \
+        mv -f "$tmp_shash" "$SOURCE_HASH_FILE" 2>/dev/null || \
+        rm -f "$tmp_shash" 2>/dev/null
+    fi
+  fi
 fi
 
 # ── Write defaults hash after successful system-level resolve ──
