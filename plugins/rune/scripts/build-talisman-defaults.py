@@ -331,6 +331,27 @@ def _inject_remaining_section_defaults(data: dict[str, Any]) -> None:
         arc.setdefault("defaults", {})["no_test"] = False
     if "consistency" not in arc:
         arc["consistency"] = {"checks": []}
+
+    # CI check defaults — Phase 9.1 CI conclusion validation (v2.5.0)
+    ship = arc.get("ship", {})
+    if "ci_check" not in ship:
+        ship["ci_check"] = {
+            "enabled": False,
+            "poll_interval_ms": 30000,
+            "timeout_ms": 900000,
+            "fix_retries": 2,
+            "fix_timeout_ms": 300000,
+            "escalation_timeout_ms": 1800000,
+            "retrigger_on_push": False,
+            "conclusion_allowlist": ["success", "skipped", "neutral"],
+        }
+    if "merge_verification" not in ship:
+        ship["merge_verification"] = {
+            "enabled": True,
+            "timeout_ms": 60000,
+        }
+    arc["ship"] = ship
+
     data["arc"] = arc
 
     audit = data.get("audit", {})

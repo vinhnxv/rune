@@ -142,6 +142,82 @@ function runPreMergeChecklist(currentBranch, defaultBranch, arcConfig) {
 }
 ```
 
+### Merge Readiness Validation
+
+```javascript
+// Validates PR is ready to merge via GitHub API
+// Checks: open state, mergeable flag, mergeable_state not blocked
+function validateMergeReadiness(owner, repo, prNumber) {
+  const prData = JSON.parse(
+    Bash(`${GH_ENV} gh api repos/${owner}/${repo}/pulls/${prNumber} --jq '{state,mergeable,mergeable_state}'`).trim()
+  )
+
+  if (prData.state !== "open") {
+    return { ready: false, reason: `PR is ${prData.state} (expected: open). It may have been closed or already merged.` }
+  }
+
+  if (prData.mergeable === false) {
+    return { ready: false, reason: "PR has merge conflicts. Rebase or resolve conflicts before merging." }
+  }
+
+  if (prData.mergeable_state === "blocked") {
+    // Identify which protection rules are blocking
+    const checks = JSON.parse(
+      Bash(`${GH_ENV} gh api repos/${owner}/${repo}/commits/$(gh pr view ${prNumber} --json headRefOid -q .headRefOid)/check-runs --jq '[.check_runs[] | {name,status,conclusion}]'`).trim() || "[]"
+    )
+    const failedChecks = checks.filter(c => c.conclusion === "failure" || c.conclusion === "cancelled")
+    const pendingChecks = checks.filter(c => c.status !== "completed")
+    const blockReasons = []
+    if (failedChecks.length > 0) {
+      blockReasons.push(`Failed checks: ${failedChecks.map(c => c.name).join(', ')}`)
+    }
+    if (pendingChecks.length > 0) {
+      blockReasons.push(`Pending checks: ${pendingChecks.map(c => c.name).join(', ')}`)
+    }
+    if (blockReasons.length === 0) {
+      blockReasons.push("Branch protection rules are blocking merge (review approvals or other requirements)")
+    }
+    return { ready: false, reason: `PR is blocked by protection rules:\n  ${blockReasons.join('\n  ')}` }
+  }
+
+  return { ready: true, reason: "PR is ready to merge" }
+}
+```
+
+### Merge Completion Verification
+
+```javascript
+// Polls PR state to verify merge actually completed
+// For immediate merge: short timeout (60s). For auto-merge: longer (ci_check.timeout_ms).
+function verifyMergeCompleted(owner, repo, prNumber, timeoutMs) {
+  const pollIntervalMs = 30_000  // 30s between polls
+  const maxIterations = Math.ceil(timeoutMs / pollIntervalMs)
+  const startTime = Date.now()
+
+  for (let i = 0; i < maxIterations; i++) {
+    const prState = JSON.parse(
+      Bash(`${GH_ENV} gh api repos/${owner}/${repo}/pulls/${prNumber} --jq '{state,merged,merged_at}'`).trim()
+    )
+
+    if (prState.merged === true) {
+      return { merged: true, mergedAt: prState.merged_at, reason: "PR merged successfully" }
+    }
+
+    if (prState.state === "closed" && !prState.merged) {
+      return { merged: false, mergedAt: null, reason: "PR was closed without merging" }
+    }
+
+    // PR still open — wait and poll again
+    if (i < maxIterations - 1) {
+      Bash(`sleep ${pollIntervalMs / 1000}`)
+    }
+  }
+
+  const elapsedSec = Math.round((Date.now() - startTime) / 1000)
+  return { merged: false, mergedAt: null, reason: `Merge not confirmed after ${elapsedSec}s. PR may still be waiting for CI checks.` }
+}
+```
+
 **Issue severity handling**:
 - **CRITICAL** issues --> abort merge immediately, require manual resolution
 - **HIGH** issues --> warn user, ask confirmation via AskUserQuestion
@@ -327,6 +403,25 @@ if (!PR_URL_RE.test(checkpoint.pr_url)) {
 // SEC-004 FIX: Extract PR number from validated URL for explicit gh pr merge target
 const prNumber = checkpoint.pr_url.match(/\/pull\/(\d+)$/)?.[1]
 
+// Extract owner/repo from PR URL for API calls (used by readiness check and verification)
+const prUrlParts = checkpoint.pr_url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\//)
+const owner = prUrlParts?.[1]
+const repo = prUrlParts?.[2]
+
+// 3.5. Validate merge readiness before attempting merge
+const mergeReadiness = validateMergeReadiness(owner, repo, prNumber)
+if (!mergeReadiness.ready) {
+  warn(`Merge phase: PR not ready to merge — ${mergeReadiness.reason}`)
+  const readinessReport = `# Merge Report\n\nStatus: NOT READY\nBranch: ${currentBranch}\nTarget: ${defaultBranch}\nPR: ${checkpoint.pr_url}\n\n## Merge Readiness Failure\n${mergeReadiness.reason}\n\nResolve the blocking condition, then retry or merge manually.`
+  Write(`tmp/arc/${id}/merge-report.md`, readinessReport)
+  updateCheckpoint({
+    phase: "merge", status: "failed",
+    artifact: `tmp/arc/${id}/merge-report.md`,
+    artifact_hash: sha256(readinessReport)
+  })
+  return
+}
+
 // 4. Merge PR
 // SEC-001 FIX: Validate merge_strategy against allowlist (warns on invalid, defaults to squash)
 const MERGE_STRATEGIES = { squash: "--squash", rebase: "--rebase", merge: "--merge" }
@@ -335,6 +430,8 @@ if (!MERGE_STRATEGIES[strategy]) {
   warn(`Merge phase: Invalid merge_strategy "${strategy}" -- defaulting to squash`)
 }
 const strategyFlag = MERGE_STRATEGIES[strategy] ?? "--squash"
+
+let mergeVerification = null
 
 if (arcConfig.ship.wait_ci) {
   // Use --auto: merge when all required checks pass
@@ -348,7 +445,12 @@ if (arcConfig.ship.wait_ci) {
     updateCheckpoint({ phase: "merge", status: "failed" })
     return
   }
-  log("Auto-merge enabled. PR will merge when CI checks pass. Verify CI completion manually.")
+  log("Auto-merge enabled. Polling for CI completion and merge...")
+  const ciTimeout = arcConfig.ci_check?.timeout_ms ?? 900_000  // default 15 min
+  mergeVerification = verifyMergeCompleted(owner, repo, prNumber, ciTimeout)
+  if (!mergeVerification.merged) {
+    log(`Auto-merge verification: ${mergeVerification.reason}`)
+  }
 } else {
   // Merge immediately without waiting for CI
   log("Merging PR immediately (CI wait disabled)...")
@@ -358,13 +460,39 @@ if (arcConfig.ship.wait_ci) {
     updateCheckpoint({ phase: "merge", status: "failed" })
     return
   }
-  log("PR merged successfully.")
+  log("PR merged. Verifying merge completion...")
+  mergeVerification = verifyMergeCompleted(owner, repo, prNumber, 60_000)  // 60s for immediate
+  if (!mergeVerification.merged) {
+    warn(`Merge verification: ${mergeVerification.reason}`)
+  }
 }
 
-// 5. Write merge report
+// 5. Determine final merge status from verification
+const mergeStatus = mergeVerification?.merged
+  ? "MERGED"
+  : arcConfig.ship.wait_ci
+    ? "AUTO-MERGE PENDING (CI checks incomplete)"
+    : "MERGE UNCONFIRMED"
+
+// 6. Write merge report
+const ciStatusSection = checkpoint.ci_status != null ? `
+## CI Status
+CI Result: ${checkpoint.ci_status.passed ? "PASSED" : "FAILED"}
+Fix Attempts: ${checkpoint.ci_status.fix_attempts ?? 0}
+${checkpoint.ci_status.fixed_checks?.length > 0 ? `Fixed Checks: ${checkpoint.ci_status.fixed_checks.join(', ')}` : ''}
+${checkpoint.ci_status.remaining_failures?.length > 0 ? `Remaining Failures: ${checkpoint.ci_status.remaining_failures.join(', ')}` : ''}
+` : ''
+
+const mergeVerificationSection = `
+## Merge Verification
+Merged: ${mergeVerification?.merged ? 'Yes' : 'No'}
+${mergeVerification?.mergedAt ? `Merged At: ${mergeVerification.mergedAt}` : ''}
+${mergeVerification?.reason ? `Details: ${mergeVerification.reason}` : ''}
+`
+
 const mergeReport = `# Merge Report
 
-Status: ${arcConfig.ship.wait_ci ? "AUTO-MERGE REQUESTED (verify CI completion manually)" : "MERGED"}
+Status: ${mergeStatus}
 Branch: ${currentBranch}
 Target: ${defaultBranch}
 Strategy: ${arcConfig.ship.merge_strategy}
@@ -377,7 +505,7 @@ ${checklistIssues.length === 0
   ? "All checks passed."
   : checklistIssues.map(i => `- [${i.severity}] **${i.type}**: ${i.message}`).join('\n')
 }
-`
+${ciStatusSection}${mergeVerificationSection}`
 
 Write(`tmp/arc/${id}/merge-report.md`, mergeReport)
 updateCheckpoint({
