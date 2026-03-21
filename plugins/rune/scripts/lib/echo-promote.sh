@@ -63,6 +63,11 @@ rune_echo_promote() {
   if [[ ! -d "$_echoes_dir" ]]; then
     return 0  # No echoes dir, nothing to promote
   fi
+  # SEC-002 FIX: Symlink guard on echoes directory
+  if [[ -L "$_echoes_dir" ]]; then
+    echo "WARN: echoes directory is a symlink — refusing to promote: ${_echoes_dir}" >&2
+    return 0
+  fi
 
   # ── Find the echo-search database ──
   # DB location: .rune/.echo-search-index.db (same dir as echoes parent)
@@ -136,13 +141,14 @@ rune_echo_promote() {
     local _promoted_count=0
 
     while IFS= read -r _line; do
-      # Detect entry boundaries: ### [date] Title pattern
-      if [[ "$_line" == "### "* ]]; then
+      # Detect entry boundaries: ## [date] Title pattern
+      # BACK-001 FIX: echo-writer.sh writes H2 (##) headings, not H3 (###)
+      if [[ "$_line" == "## "* ]]; then
         _in_promotable=false
         _current_entry_id=""
         # Extract a pseudo-ID from the title for matching against DB IDs
         # Entry IDs in the DB use the format: role/title-slug
-        local _title_part="${_line#\#\#\# }"
+        local _title_part="${_line#\#\# }"
         _title_part="${_title_part#\[*\] }"  # Strip date prefix if present
         # Check if any promotable ID contains this title (fuzzy match)
         while IFS= read -r _pid_line; do

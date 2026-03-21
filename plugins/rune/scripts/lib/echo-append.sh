@@ -139,12 +139,24 @@ rune_echo_append() {
   local _echoes_dir="${RUNE_STATE_ABS:-${RUNE_STATE:-.rune}}/echoes"
   local _role_dir="${_echoes_dir}/${_role}"
 
+  # SEC-001 FIX: Symlink guard on echoes directory before mkdir
+  if [[ -L "$_echoes_dir" ]]; then
+    echo "WARN: echoes directory is a symlink — refusing to write: ${_echoes_dir}" >&2
+    return 1
+  fi
+
   # Ensure base echoes directory exists
   if [[ ! -d "$_echoes_dir" ]]; then
     mkdir -p "$_echoes_dir" 2>/dev/null || {
       echo "WARN: cannot create echoes directory: ${_echoes_dir}" >&2
       return 1
     }
+  fi
+
+  # SEC-001 FIX: Symlink guard on role directory
+  if [[ -L "$_role_dir" ]]; then
+    echo "WARN: role directory is a symlink — refusing to write: ${_role_dir}" >&2
+    return 1
   fi
 
   # Create role directory (the key fix for the silent-skip bug)
