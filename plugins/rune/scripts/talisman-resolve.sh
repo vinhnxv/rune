@@ -183,7 +183,7 @@ merge_companions() {
   local result_json="$2"
 
   for suffix in "${COMPANION_SUFFIXES[@]}"; do
-    local companion_file="${base_path}-${suffix}.yml"
+    local companion_file="${base_path}.${suffix}.yml"
 
     # Guard: must exist, must not be a symlink
     if [[ ! -f "$companion_file" ]] || [[ -L "$companion_file" ]]; then
@@ -250,12 +250,11 @@ GLOBAL_BASE="${GLOBAL_TALISMAN%.yml}"
 project_json=$(merge_companions "$PROJECT_BASE" "$project_json")
 global_json=$(merge_companions "$GLOBAL_BASE" "$global_json")
 
-# Emit companion merge errors as trace warnings
+# Emit companion merge errors — user-facing via SessionStart additionalContext
 if [[ -n "$COMPANION_MERGE_ERRORS" ]]; then
-  _trace "WARN: companion merge errors encountered:"
-  printf '%b' "$COMPANION_MERGE_ERRORS" | while IFS= read -r line; do
-    [[ -n "$line" ]] && _trace "  $line"
-  done
+  _trace "ERROR: companion merge errors encountered: $COMPANION_MERGE_ERRORS"
+  # User-facing error notification (stderr — not stdout to avoid JSON corruption)
+  echo "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"[Talisman ERROR] Companion file merge errors: ${COMPANION_MERGE_ERRORS}\"}}" >&2
 fi
 
 defaults_json=$(cat "$DEFAULTS_FILE")
@@ -470,13 +469,13 @@ fi
 PROJECT_COMPANIONS=()
 GLOBAL_COMPANIONS=()
 for suffix in "${COMPANION_SUFFIXES[@]}"; do
-  local_companion="${PROJECT_BASE}-${suffix}.yml"
+  local_companion="${PROJECT_BASE}.${suffix}.yml"
   if [[ -f "$local_companion" && ! -L "$local_companion" ]]; then
-    PROJECT_COMPANIONS+=("${local_companion}")
+    PROJECT_COMPANIONS+=("${suffix}")
   fi
-  global_companion="${GLOBAL_BASE}-${suffix}.yml"
+  global_companion="${GLOBAL_BASE}.${suffix}.yml"
   if [[ -f "$global_companion" && ! -L "$global_companion" ]]; then
-    GLOBAL_COMPANIONS+=("${global_companion}")
+    GLOBAL_COMPANIONS+=("${suffix}")
   fi
 done
 
@@ -608,7 +607,15 @@ if [[ "$CACHE_TYPE" == "project" ]]; then
   hash_sources=()
   [[ -f "$PROJECT_TALISMAN" && ! -L "$PROJECT_TALISMAN" ]] && hash_sources+=("$PROJECT_TALISMAN")
   [[ -f "$GLOBAL_TALISMAN" && ! -L "$GLOBAL_TALISMAN" ]] && hash_sources+=("$GLOBAL_TALISMAN")
-  hash_sources+=("${PROJECT_COMPANIONS[@]}" "${GLOBAL_COMPANIONS[@]}")
+  # Include companion files in hash (resolve suffixes back to paths)
+  for suffix in "${PROJECT_COMPANIONS[@]}"; do
+    local comp="${PROJECT_BASE}.${suffix}.yml"
+    [[ -f "$comp" && ! -L "$comp" ]] && hash_sources+=("$comp")
+  done
+  for suffix in "${GLOBAL_COMPANIONS[@]}"; do
+    local comp="${GLOBAL_BASE}.${suffix}.yml"
+    [[ -f "$comp" && ! -L "$comp" ]] && hash_sources+=("$comp")
+  done
   if [[ ${#hash_sources[@]} -gt 0 ]]; then
     SOURCE_HASH=$(compute_source_hash "${hash_sources[@]}")
     if [[ "$SOURCE_HASH" != "no-hash" ]]; then
