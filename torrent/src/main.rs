@@ -137,6 +137,7 @@ fn parse_args() -> CliArgs {
         std::env::var("TORRENT_CALLBACK_PORT")
             .ok()
             .and_then(|v| v.parse::<u16>().ok())
+            .filter(|&p| p > 0 && p <= 65534)
             .unwrap_or(DEFAULT_CALLBACK_PORT)
     });
 

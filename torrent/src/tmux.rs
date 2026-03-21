@@ -358,8 +358,6 @@ impl Tmux {
         }
     }
 
-    // session_exists() removed — QUAL-009: identical to has_session().
-    // Callers migrated to has_session().
 
     /// Kill a tmux session. Best-effort.
     pub fn kill_session(session_id: &str) -> Result<()> {

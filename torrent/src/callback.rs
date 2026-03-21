@@ -136,11 +136,15 @@ impl CallbackServer {
     }
 
     /// Start the callback server using TORRENT_CALLBACK_PORT env var or default.
+    ///
+    /// Not currently used — port resolution happens in `main.rs` CLI parsing.
+    /// Kept for potential future use as a standalone entry point.
+    #[allow(dead_code)]
     pub fn start_from_env() -> Result<Self> {
         let port = std::env::var("TORRENT_CALLBACK_PORT")
             .ok()
             .and_then(|s| s.parse::<u16>().ok())
-            .filter(|&p| p >= 1024)
+            .filter(|&p| p > 0 && p <= 65534)
             .unwrap_or(DEFAULT_CALLBACK_PORT);
         Self::start(port)
     }
@@ -157,9 +161,6 @@ impl CallbackServer {
     pub fn recv_event(&self) -> Option<ChannelEvent> {
         self.rx.try_recv().ok()
     }
-
-    // drain_events() removed — BACK-017: never called; recv_event() with bounded
-    // loop (app.rs:1559-1561) is the correct pattern for backpressure-aware draining.
 
     /// Signal the background thread to stop.
     pub fn stop(&self) {
@@ -302,8 +303,11 @@ fn parse_event(body: &[u8]) -> std::result::Result<ChannelEvent, String> {
     }
 
     // Field length limits to prevent abuse (SEC-013 + BACK-015)
-    if raw.session_id.len() > 128 {
-        return Err("session_id exceeds 128 chars".into());
+    if raw.session_id.len() > 64 {
+        return Err("session_id exceeds 64 chars".into());
+    }
+    if raw.event_type.len() > 32 {
+        return Err("event_type exceeds 32 chars".into());
     }
     if raw.phase.len() > 128 {
         return Err("phase exceeds 128 chars".into());
@@ -329,8 +333,11 @@ fn parse_event(body: &[u8]) -> std::result::Result<ChannelEvent, String> {
         return Err("current_tool exceeds 128 chars".into());
     }
     if let Some(ref url) = raw.pr_url {
-        if !url.starts_with("https://") || url.len() > 512 {
-            return Err("pr_url must start with https:// and be at most 512 chars".into());
+        if !url.starts_with("https://") {
+            return Err("pr_url must start with https://".into());
+        }
+        if url.len() > 512 {
+            return Err("pr_url exceeds 512 chars".into());
         }
     }
 

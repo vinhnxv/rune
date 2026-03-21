@@ -25,14 +25,14 @@ import {
 let validatedCallbackUrl: string | undefined;
 if (process.env.TORRENT_CALLBACK_URL) {
   const parsed = new URL(process.env.TORRENT_CALLBACK_URL);
-  if (parsed.protocol !== "http:") {
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error(
-      `TORRENT_CALLBACK_URL must use http: protocol, got: ${parsed.protocol}`,
+      `TORRENT_CALLBACK_URL must use http: or https: protocol, got: ${parsed.protocol}`,
     );
   }
-  if (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") {
+  if (parsed.hostname !== "127.0.0.1") {
     throw new Error(
-      `TORRENT_CALLBACK_URL must point to localhost or 127.0.0.1, got: ${parsed.hostname}`,
+      `TORRENT_CALLBACK_URL must point to 127.0.0.1, got: ${parsed.hostname}`,
     );
   }
   validatedCallbackUrl = process.env.TORRENT_CALLBACK_URL;
@@ -187,10 +187,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         // Best-effort POST — Torrent may not be listening yet or at all.
         // Channel is an optional enhancer, never a critical path.
+        const payload = JSON.stringify({ ...safeArgs, type: eventType });
+        if (payload.length > 65536) {
+          process.stderr.write(`bridge: payload exceeds 64KB limit (${payload.length} bytes), dropping\n`);
+          break;
+        }
         fetch(`${validatedCallbackUrl}/event`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...safeArgs, type: eventType }),
+          body: payload,
         }).catch((err: Error) => {
           process.stderr.write(`bridge: callback POST failed: ${err.message}\n`);
         });
