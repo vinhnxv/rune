@@ -217,7 +217,15 @@ function evaluateReaction(eventName, context, depth = 0) {
     return { action: "halt", reason: "max_reaction_depth" }
   }
 
-  const reaction = checkpoint.reactions?.[eventName]
+  // SEC-001 FIX: Prototype pollution guard — reject __proto__, constructor, prototype
+  if (FORBIDDEN_PHASE_KEYS.has(eventName)) {
+    warn(`evaluateReaction: blocked prototype pollution attempt: ${eventName}`)
+    return { action: "halt", reason: "forbidden_key" }
+  }
+
+  // BACK-001 FIX: Null guard — reactions shard may resolve to null when talisman is malformed
+  const reactions = checkpoint.reactions ?? {}
+  const reaction = reactions[eventName]
   if (!reaction) return { action: "halt", reason: "unknown_event" }  // Unknown event = safe default
 
   const attempts = context.attemptCount || 0
@@ -242,6 +250,8 @@ function evaluateReaction(eventName, context, depth = 0) {
 
 // Helper: increment per-event counter in reaction_state
 function incrementReactionCounter(eventName) {
+  // SEC-001 FIX: Prototype pollution guard
+  if (FORBIDDEN_PHASE_KEYS.has(eventName)) return
   const state = checkpoint.reaction_state?.per_event_counters ?? {}
   if (!state[eventName]) {
     state[eventName] = { attemptCount: 0, firstAttemptMs: Date.now() }

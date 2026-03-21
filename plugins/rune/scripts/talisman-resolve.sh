@@ -276,7 +276,7 @@ else
 fi
 
 # ── Batch shard extraction (single jq call) ──
-# Produces a JSON object with all 19 shard payloads keyed by shard name
+# Produces a JSON object with all 20 shard payloads keyed by shard name
 all_shards=$(echo "$merged" | jq '{
   arc: {
     defaults: .arc.defaults,
