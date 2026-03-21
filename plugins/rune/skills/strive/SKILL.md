@@ -493,28 +493,44 @@ Read and execute [quality-gates.md](references/quality-gates.md) before proceedi
 ## Phase 5: Echo Persist
 
 ```javascript
-if (exists(".rune/echoes/workers/")) {
-  appendEchoEntry(".rune/echoes/workers/MEMORY.md", {
-    layer: "inscribed",
-    source: `rune:strive ${timestamp}`,
-  })
-}
+// Resolve echo library path once
+const ECHO_LIB = `${Bash("echo ${CLAUDE_PLUGIN_ROOT}")}/scripts/lib/echo-append.sh`
+
+// Persist implementation patterns — workers echo
+const completedTasks = TaskList().filter(t => t.status === "completed")
+const taskCount = completedTasks.length
+const failedTasks = TaskList().filter(t => t.status === "failed")
+const modifiedFiles = Bash("git diff --name-only HEAD~1 HEAD 2>/dev/null || echo '(none)'").trim()
+
+Bash(`source "${ECHO_LIB}" && rune_echo_append \
+  --role workers --layer inscribed \
+  --source "rune:strive ${timestamp}" \
+  --title "Work session: ${planName}" \
+  --content "Completed ${taskCount} tasks, ${failedTasks.length} failed. Key files: ${modifiedFiles.split('\n').slice(0,5).join(', ')}" \
+  --confidence MEDIUM \
+  --tags "work,strive,${planName}"`)
 
 // Discipline accountability echo — persist run metrics for trend detection
-if (disciplineEnabled && exists(`tmp/work/${timestamp}/convergence/metrics.json`)) {
-  const metrics = JSON.parse(Read(`tmp/work/${timestamp}/convergence/metrics.json`))
-  ensureDir(".rune/echoes/discipline/")
-  appendEchoEntry(".rune/echoes/discipline/MEMORY.md", {
-    layer: "inscribed",
-    source: `rune:strive ${timestamp}`,
-    role: "discipline",
-    domain: "verification",
-    tags: ["discipline", "accountability", "metrics"],
-    scr: metrics.metrics?.scr?.value,
-    first_pass_rate: metrics.metrics?.first_pass_rate?.value,
-    convergence_iterations: metrics.metrics?.convergence_iterations?.value,
-    failure_codes: metrics.convergence?.failure_code_histogram ?? {},
-  })
+if (disciplineEnabled) {
+  try {
+    const metricsFile = `tmp/work/${timestamp}/convergence/metrics.json`
+    const metrics = JSON.parse(Read(metricsFile))
+    const scr = metrics.metrics?.scr?.value ?? "N/A"
+    const fpr = metrics.metrics?.first_pass_rate?.value ?? "N/A"
+    const iters = metrics.metrics?.convergence_iterations?.value ?? "N/A"
+    const failures = Object.entries(metrics.convergence?.failure_code_histogram ?? {})
+      .map(([k, v]) => `${k}:${v}`).join(", ") || "none"
+
+    Bash(`source "${ECHO_LIB}" && rune_echo_append \
+      --role discipline --layer inscribed \
+      --source "rune:strive ${timestamp}" \
+      --title "Discipline: ${planName}" \
+      --content "SCR: ${scr}, First-pass rate: ${fpr}, Iterations: ${iters}, Failures: ${failures}" \
+      --confidence HIGH \
+      --tags "discipline,accountability,metrics"`)
+  } catch (e) {
+    // metrics.json may not exist for non-convergence runs — skip silently
+  }
 }
 // See discipline/references/accountability-protocol.md for full echo format and trend detection
 ```

@@ -209,6 +209,20 @@ const params = {
 // Phase 6: Verify (Truthsight)
 // Phase 7: Cleanup (shutdown, TeamDelete, state update, Echo persist)
 //   Includes: Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "audit"`)
+//   Echo persist: After cleanup, persist audit findings summary to echoes
+const totalFindings = p1Count + p2Count + p3Count
+if (totalFindings >= 3) {
+  const echoLib = `\${CLAUDE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
+  const topIssuesList = [...p1Findings, ...p2Findings].slice(0, 5)
+    .map(f => `- [${f.prefix}] ${f.title}`).join("\\n")
+  Bash(`source "${echoLib}" && rune_echo_append \
+    --role auditor --layer inscribed \
+    --source "rune:audit ${scope}" \
+    --title "Audit findings: ${scope} health" \
+    --content "P1: ${p1Count}, P2: ${p2Count}, P3: ${p3Count}. Top issues:\\n${topIssuesList}" \
+    --confidence HIGH \
+    --tags "audit,health,${scopeSlug}"`)
+}
 ```
 
 ### Audit-Specific Post-Orchestration

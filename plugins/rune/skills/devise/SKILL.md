@@ -317,17 +317,52 @@ See [plan-review.md](references/plan-review.md) Phase 4D section for the full pr
 
 ## Phase 5: Echo Persist
 
-Persist planning learnings to Rune Echoes:
+Persist planning learnings to Rune Echoes via `echo-append.sh`:
 
 ```javascript
-if (exists(".rune/echoes/planner/")) {
-  appendEchoEntry(".rune/echoes/planner/MEMORY.md", {
-    layer: "inscribed",
-    source: `rune:devise ${timestamp}`,
-    // ... key learnings from this planning session
-  })
+// Resolve echo-append.sh path once
+const PLUGIN_ROOT = Bash("echo ${CLAUDE_PLUGIN_ROOT}").trim()
+const ECHO_LIB = `${PLUGIN_ROOT}/scripts/lib/echo-append.sh`
+
+// Persist architectural discoveries from research phase
+const researchFiles = Glob(`tmp/plans/${timestamp}/research/*.md`)
+if (researchFiles.length > 0) {
+  const analysis = Read(`tmp/plans/${timestamp}/research/codebase-analysis.md`)
+  // Extract key patterns (tech stack, conventions)
+  const techStack = extractSection(analysis, "Tech Stack") || ""
+  const conventions = extractSection(analysis, "Conventions") || ""
+  const combined = (techStack + "\n" + conventions).trim()
+
+  if (combined.length > 0) {
+    Bash(`source "${ECHO_LIB}" && rune_echo_append \
+      --role planner --layer inscribed \
+      --source "rune:devise ${timestamp}" \
+      --title "Architecture: ${featureName}" \
+      --content "$(printf '%s' "${combined}" | head -c 1800)" \
+      --confidence HIGH \
+      --tags "architecture,devise,${featureSlug}"`)
+  }
+}
+
+// Persist plan decisions (scope, approach, constraints)
+const planFile = Read(`plans/${planFilename}`)
+const approach = extractSection(planFile, "Approach") || extractSection(planFile, "Tasks") || ""
+if (approach.length > 0) {
+  Bash(`source "${ECHO_LIB}" && rune_echo_append \
+    --role planner --layer inscribed \
+    --source "rune:devise ${timestamp}" \
+    --title "Decision: ${featureName} approach" \
+    --content "$(printf '%s' "${approach}" | head -c 1800)" \
+    --confidence HIGH \
+    --tags "decision,devise,${featureSlug}"`)
 }
 ```
+
+**Content schema** (devise):
+- Title: `"Architecture: {feature}"` or `"Decision: {feature} approach"`
+- Layer: `inscribed` (90-day TTL, weight 0.7)
+- Confidence: `HIGH` (backed by research agents)
+- Tags: `architecture` or `decision`, `devise`, `{feature-slug}`
 
 ## Phase 6: Cleanup & Present
 

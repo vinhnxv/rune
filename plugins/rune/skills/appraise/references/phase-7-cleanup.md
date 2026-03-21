@@ -35,7 +35,28 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_re
 
 // 3.6. Update state file to "completed" (preserve config_dir, owner_pid, session_id)
 
-// 4. Persist P1/P2 patterns to .rune/echoes/reviewer/MEMORY.md (if exists)
+// 4. Persist P1/P2 patterns to .rune/echoes/reviewer/MEMORY.md
+// Extract recurring P1/P2 patterns from TOME and persist as echo entry
+const tome = Read(`tmp/reviews/${identifier}/TOME.md`)
+const p1Findings = extractFindings(tome, "P1")
+const p2Findings = extractFindings(tome, "P2")
+
+// Only persist if significant findings exist (>= 2 P1/P2)
+if (p1Findings.length + p2Findings.length >= 2) {
+  const patterns = [...p1Findings, ...p2Findings]
+    .map(f => `- [${f.prefix}] ${f.title}: ${f.summary}`)
+    .slice(0, 5)  // Max 5 patterns per review
+    .join("\\n")
+
+  const echoLib = `\${CLAUDE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
+  Bash(`source "${echoLib}" && rune_echo_append \
+    --role reviewer --layer inscribed \
+    --source "rune:appraise ${identifier}" \
+    --title "Review patterns: ${scope}" \
+    --content "${patterns}" \
+    --confidence MEDIUM \
+    --tags "review,patterns,${scopeSlug}"`)
+}
 
 // 5. Read and present TOME.md to user
 

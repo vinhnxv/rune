@@ -110,6 +110,8 @@ Include any relevant echoes in your report under a `### Past Learnings` subsecti
 
 If no relevant echoes exist, omit the subsection entirely.
 
+**Access tracking**: After referencing echo search results in your output, call `mcp__echo-search__echo_record_access(entry_id)` for each entry you cited. This powers access-frequency scoring and auto-promotion of frequently-referenced entries.
+
 ## Code Skimming Protocol
 
 When exploring files you haven't read before, use a two-pass strategy.

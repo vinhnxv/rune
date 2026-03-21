@@ -151,8 +151,8 @@ inject_echo_summary() {
 
   local summary=""
   local count=0
-  local max_entries=5
-  local max_chars=500
+  local max_entries=10
+  local max_chars=1200
   local total_chars=0
 
   # Collect entries from all role directories
@@ -163,14 +163,14 @@ inject_echo_summary() {
     local mem="${role_dir}MEMORY.md"
     [[ -f "$mem" && ! -L "$mem" ]] || continue
 
-    # Parse entries: match title heading, then check layer on next lines
-    # Entry format: ### [YYYY-MM-DD] Pattern: {description}
-    #               - **layer**: etched|inscribed
+    # Parse entries: match any ### heading, then check layer on next lines
+    # Entry format: ### [YYYY-MM-DD] {type}: {description}
+    #               - **layer**: etched|inscribed|observations
     # Use glob matching (==), NOT regex (=~) for markdown bold
     # Bash regex treats ** as quantifier; glob treats ** as literal via quoting
     local current_title=""
     while IFS= read -r line; do
-      if [[ "$line" == "### "* && "$line" == *"Pattern:"* ]]; then
+      if [[ "$line" == "### "* ]]; then
         current_title="$line"
       elif [[ -n "$current_title" && "$line" == *"**layer**: etched"* ]]; then
         # Etched entry — always include (highest priority)
@@ -180,6 +180,12 @@ inject_echo_summary() {
         current_title=""
       elif [[ -n "$current_title" && "$line" == *"**layer**: inscribed"* ]]; then
         # Inscribed entry — include if under budget
+        summary="${summary}- ${current_title#\#\#\# }\\n"
+        total_chars=$((total_chars + ${#current_title}))
+        count=$((count + 1))
+        current_title=""
+      elif [[ -n "$current_title" && "$line" == *"**layer**: observations"* ]]; then
+        # Observations entry — include promoted/frequently-accessed entries
         summary="${summary}- ${current_title#\#\#\# }\\n"
         total_chars=$((total_chars + ${#current_title}))
         count=$((count + 1))
