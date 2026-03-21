@@ -50,6 +50,7 @@ pub struct ChannelState {
 
 impl ChannelState {
     /// Create a new disabled channel state (default for resumed sessions).
+    #[allow(dead_code)] // Used in tests
     pub fn disabled() -> Self {
         Self {
             bridge_port: None,

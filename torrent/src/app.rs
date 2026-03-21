@@ -2381,9 +2381,11 @@ impl App {
             || std::env::var("TORRENT_GRACE_MIN").is_ok()
             || std::env::var("TORRENT_GRACE_MAX").is_ok();
 
-        if legacy_secs.is_some() && !has_new_vars {
-            // Legacy mode: use fixed duration from GRACE_PERIOD_SECS
-            return Duration::from_secs(legacy_secs.unwrap());
+        if let Some(secs) = legacy_secs {
+            if !has_new_vars {
+                // Legacy mode: use fixed duration from GRACE_PERIOD_SECS
+                return Duration::from_secs(secs);
+            }
         }
 
         let base = env_or_u64("TORRENT_GRACE_BASE", 30);

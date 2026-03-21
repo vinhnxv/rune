@@ -29,6 +29,7 @@ const MAX_BODY_SIZE: usize = 64 * 1024;
 /// - `report_complete` → `ArcComplete`
 /// - `heartbeat` → `Heartbeat`
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Fields read in tests and reserved for future UI display
 pub enum ChannelEvent {
     /// Phase started or completed.
     PhaseUpdate {
@@ -84,6 +85,7 @@ struct RawEvent {
 /// 3. `drop()` sets shutdown flag → background thread exits on next accept timeout
 pub struct CallbackServer {
     /// Actual port the server bound to.
+    #[allow(dead_code)] // Read via port() method in tests
     port: u16,
     /// Receive end for events from the HTTP thread.
     rx: mpsc::Receiver<ChannelEvent>,
@@ -150,6 +152,7 @@ impl CallbackServer {
     }
 
     /// The port the server is listening on.
+    #[allow(dead_code)] // Used in tests
     pub fn port(&self) -> u16 {
         self.port
     }
@@ -250,7 +253,7 @@ fn handle_request(mut request: tiny_http::Request, tx: &mpsc::Sender<ChannelEven
             }
 
             let mut body = Vec::with_capacity(content_length.min(MAX_BODY_SIZE));
-            if let Err(_) = request.as_reader().take(MAX_BODY_SIZE as u64).read_to_end(&mut body) {
+            if request.as_reader().take(MAX_BODY_SIZE as u64).read_to_end(&mut body).is_err() {
                 let _ = request.respond(
                     tiny_http::Response::from_string("read error")
                         .with_status_code(400),
