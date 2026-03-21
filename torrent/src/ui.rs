@@ -425,9 +425,15 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
         if has_banner {
             constraints.push(Constraint::Length(1)); // diagnostic banner
         }
+        let has_claude_msg = app.last_claude_msg.is_some();
         constraints.extend_from_slice(&[
             Constraint::Length(13), // phases + session info + loop state
             Constraint::Length(6),  // heartbeat + resources (no phase)
+        ]);
+        if has_claude_msg {
+            constraints.push(Constraint::Length(3)); // claude message section
+        }
+        constraints.extend_from_slice(&[
             Constraint::Length(3),  // grace countdown (F4)
             Constraint::Min(3),
             Constraint::Length(1),
@@ -443,9 +449,15 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
         if has_banner {
             constraints.push(Constraint::Length(1)); // diagnostic banner
         }
+        let has_claude_msg = app.last_claude_msg.is_some();
         constraints.extend_from_slice(&[
             Constraint::Length(13), // phases + session info + loop state
             Constraint::Length(6),  // heartbeat + resources (no phase)
+        ]);
+        if has_claude_msg {
+            constraints.push(Constraint::Length(3)); // claude message section
+        }
+        constraints.extend_from_slice(&[
             Constraint::Min(3),
             Constraint::Length(1),
         ]);
@@ -522,6 +534,12 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
     ci += 1;
     render_heartbeat(frame, app, chunks[ci]);
     ci += 1;
+
+    // Claude message section (from channel events)
+    if app.last_claude_msg.is_some() {
+        render_claude_msg(frame, app, chunks[ci]);
+        ci += 1;
+    }
 
     if grace_active {
         render_grace_countdown(frame, app, chunks[ci]);
@@ -988,6 +1006,39 @@ fn render_heartbeat(frame: &mut Frame, app: &App, area: Rect) {
         ),
         area,
     );
+}
+
+/// Render the last Claude Code message received via channel bridge.
+/// Shows a compact 3-line section with source transport tag.
+fn render_claude_msg(frame: &mut Frame, app: &App, area: Rect) {
+    let msg = match &app.last_claude_msg {
+        Some(m) => m.as_str(),
+        None => return,
+    };
+
+    let transport_tag = match app.last_msg_transport {
+        Some(crate::app::MsgTransport::Bridge) => "bridge",
+        Some(crate::app::MsgTransport::Inbox) => "inbox",
+        Some(crate::app::MsgTransport::Tmux) => "tmux",
+        None => "ch",
+    };
+
+    let block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(sol::BASE01))
+        .title(Span::styled(
+            format!(" Claude [{transport_tag}] "),
+            Style::default().fg(sol::CYAN).add_modifier(Modifier::BOLD),
+        ));
+
+    let text = Paragraph::new(Line::from(vec![
+        Span::styled("  ", Style::default()),
+        Span::styled(msg, Style::default().fg(sol::BASE1)),
+    ]))
+    .block(block)
+    .wrap(ratatui::widgets::Wrap { trim: true });
+
+    frame.render_widget(text, area);
 }
 
 fn render_queue(frame: &mut Frame, app: &mut App, area: Rect) {

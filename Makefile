@@ -51,6 +51,20 @@ run-channel-custom: build bridge-deps
 	@echo "Callback port: $(CALLBACK_PORT), Bridge port: $(BRIDGE_PORT)"
 	@exec $(TARGET) --channels --callback-port $(CALLBACK_PORT)
 
+## Run channel test: start TUI, send "hello" then "explain codebase" via CLI
+run-channel-test: build bridge-deps
+	@echo "Starting Torrent with channels..."
+	@$(TARGET) --channels --callback-port $(CALLBACK_PORT) &
+	@TORRENT_PID=$$!; \
+	echo "Waiting 25s for Claude Code to start..."; \
+	sleep 25; \
+	echo "Sending: hello"; \
+	$(CLI_TARGET) send-msg --via bridge --session "$$($(CLI_TARGET) list 2>/dev/null | head -1 | awk '{print $$1}')" --text "hello"; \
+	sleep 5; \
+	echo "Sending: explain codebase"; \
+	$(CLI_TARGET) send-msg --via bridge --session "$$($(CLI_TARGET) list 2>/dev/null | head -1 | awk '{print $$1}')" --text "explain this codebase briefly"; \
+	echo "Messages sent. Torrent TUI is running (PID $$TORRENT_PID). Press q in TUI to quit."
+
 ## Run TUI in debug mode
 run-dev:
 	cd $(TORRENT) && $(CARGO) run

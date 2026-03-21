@@ -131,6 +131,8 @@ pub struct App {
     pub message_input_buf: String,
     /// Last message delivery transport (for UI display).
     pub last_msg_transport: Option<MsgTransport>,
+    /// Last message received from Claude Code via channel events (trimmed to 200 chars).
+    pub last_claude_msg: Option<String>,
 }
 
 /// Message delivery transport used for the last sent message.
@@ -523,6 +525,7 @@ impl App {
             message_input_active: false,
             message_input_buf: String::new(),
             last_msg_transport: None,
+            last_claude_msg: None,
         })
     }
 
@@ -1762,26 +1765,37 @@ impl App {
             }
 
             match event {
-                ChannelEvent::PhaseUpdate { phase, status, .. } => {
-                    self.status_message = Some(format!(
-                        "[ch] Phase: {} ({})", phase, status
-                    ));
+                ChannelEvent::PhaseUpdate { phase, status, details, .. } => {
+                    let msg = if details.is_empty() {
+                        format!("Phase: {} ({})", phase, status)
+                    } else {
+                        format!("Phase: {} ({}) — {}", phase, status, details)
+                    };
+                    self.status_message = Some(format!("[ch] {}", truncate_str(&msg, 80)));
+                    self.last_claude_msg = Some(truncate_str(&msg, 200).to_string());
                     if let Some(run) = &mut self.current_run {
                         run.activity_detector.hash_unchanged_count = 0;
                     }
                 }
-                ChannelEvent::ArcComplete { result, pr_url, .. } => {
-                    self.status_message = Some(format!(
-                        "[ch] Arc complete: {} {}",
-                        result,
-                        pr_url.as_deref().unwrap_or("")
-                    ));
+                ChannelEvent::ArcComplete { result, pr_url, error, .. } => {
+                    let msg = match (&*result, pr_url.as_deref(), error.as_deref()) {
+                        ("success", Some(url), _) => format!("Arc complete: success — {}", url),
+                        ("failed", _, Some(err)) => format!("Arc failed: {}", err),
+                        _ => format!("Arc complete: {}", result),
+                    };
+                    self.status_message = Some(format!("[ch] {}", truncate_str(&msg, 80)));
+                    self.last_claude_msg = Some(truncate_str(&msg, 200).to_string());
                     if let Some(run) = &mut self.current_run {
                         run.activity_detector.hash_unchanged_count = 0;
                     }
                 }
-                ChannelEvent::Heartbeat { activity, .. } => {
-                    // Heartbeat resets idle counter — proves Claude is alive
+                ChannelEvent::Heartbeat { activity, current_tool, .. } => {
+                    let msg = if current_tool.is_empty() {
+                        format!("Claude: {}", activity)
+                    } else {
+                        format!("Claude: {} (using {})", activity, current_tool)
+                    };
+                    self.last_claude_msg = Some(truncate_str(&msg, 200).to_string());
                     if let Some(run) = &mut self.current_run {
                         if activity == "active" {
                             run.activity_detector.hash_unchanged_count = 0;
