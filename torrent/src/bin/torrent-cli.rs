@@ -52,7 +52,7 @@ fn main() {
 fn print_usage() {
     eprintln!("torrent-cli — tmux session manager for Claude Code\n");
     eprintln!("Commands:");
-    eprintln!("  new-session --config-dir <path>          Create tmux session + start Claude");
+    eprintln!("  new-session --config-dir <path> [--channels]  Create session (--channels loads bridge)");
     eprintln!("  send-keys --session <id> --text <text>   Send keys with Escape workaround");
     eprintln!("  send-msg --session <id> --text <message>   Send message to specific session");
     eprintln!("  capture-pane --session <id>              Capture pane output");
@@ -87,6 +87,10 @@ fn cmd_new_session(args: &[String]) -> String {
     });
     let claude = resolve_claude();
     let session_id = get_arg(args, "--session").unwrap_or_else(gen_session_id);
+    let channels = args.iter().any(|a| a == "--channels");
+    let callback_port: u16 = get_arg(args, "--callback-port")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(9900);
 
     let home = dirs::home_dir().expect("no home");
     let config_path = if config_dir.starts_with('/') {
@@ -98,39 +102,74 @@ fn cmd_new_session(args: &[String]) -> String {
     };
 
     let is_default = config_dir == ".claude" || config_dir == "~/.claude";
+    let mode = if channels { "channels" } else { "file" };
 
-    eprint!("[torrent-cli] session={session_id} config={config_path}\r\n");
+    eprint!("[torrent-cli] session={session_id} config={config_path} mode={mode}\r\n");
 
-    // Create session
+    // Create tmux session
     let o = Command::new("tmux")
         .args(["new-session", "-d", "-s", &session_id, "-x", "200", "-y", "50"])
         .output().unwrap_or_else(|e| {
-            eprintln!("error: failed to start tmux: {}", e);
+            eprint!("[torrent-cli] error: tmux failed: {e}\r\n");
             std::process::exit(1);
         });
     if !o.status.success() {
-        eprintln!("tmux new-session failed: {}", String::from_utf8_lossy(&o.stderr));
+        let err = String::from_utf8_lossy(&o.stderr);
+        eprint!("[torrent-cli] tmux new-session failed: {err}\r\n");
         std::process::exit(1);
     }
 
-    // Start claude (SEC-002: shell-escape both paths to prevent injection via tmux send-keys)
-    let cmd = if is_default {
-        format!("{} --dangerously-skip-permissions", shell_escape(&claude))
-    } else {
-        format!("CLAUDE_CONFIG_DIR={} {} --dangerously-skip-permissions",
-            shell_escape(&config_path), shell_escape(&claude))
-    };
+    // Build claude command
+    // SEC-002: shell-escape paths to prevent injection via tmux send-keys
+    let mut env_prefix = String::new();
+    if !is_default {
+        env_prefix.push_str(&format!("CLAUDE_CONFIG_DIR={} ", shell_escape(&config_path)));
+    }
 
+    let mut cmd = format!(
+        "{env_prefix}{} --dangerously-skip-permissions",
+        shell_escape(&claude)
+    );
+
+    // Append bridge MCP config when channels enabled
+    if channels {
+        let bridge_port = callback_port.checked_add(1).unwrap_or(callback_port.saturating_sub(1));
+        let bridge_path = std::env::current_dir()
+            .map(|cwd| cwd.join("torrent/bridge/server.ts"))
+            .unwrap_or_else(|_| std::path::PathBuf::from("torrent/bridge/server.ts"));
+        let bridge_str = bridge_path.to_string_lossy().replace('"', r#"\""#);
+
+        let mcp_json = format!(
+            concat!(
+                r#"{{"mcpServers":{{"torrent-bridge":{{"#,
+                r#""command":"npx","args":["--yes","tsx","{}"],"#,
+                r#""env":{{"TORRENT_CALLBACK_URL":"http://127.0.0.1:{}","#,
+                r#""TORRENT_BRIDGE_PORT":"{}","#,
+                r#""TORRENT_SESSION_ID":"{}"}}}}}}}}"#,
+            ),
+            bridge_str, callback_port, bridge_port, session_id
+        );
+        cmd.push_str(&format!(" --mcp-config '{mcp_json}'"));
+
+        // Set env hint for send-msg auto-detection
+        env_prefix.push_str(&format!(
+            "TORRENT_CHANNELS_ENABLED=1 TORRENT_CALLBACK_PORT={callback_port} "
+        ));
+
+        eprint!("[torrent-cli] bridge: callback={callback_port} bridge={bridge_port}\r\n");
+    }
+
+    // Send command to tmux
     Command::new("tmux")
         .args(["send-keys", "-t", &session_id, "-l", &cmd])
         .output().unwrap_or_else(|e| {
-            eprintln!("error: tmux send-keys failed: {}", e);
+            eprint!("[torrent-cli] error: send-keys failed: {e}\r\n");
             std::process::exit(1);
         });
     Command::new("tmux")
         .args(["send-keys", "-t", &session_id, "Enter"])
         .output().unwrap_or_else(|e| {
-            eprintln!("error: tmux send Enter failed: {}", e);
+            eprint!("[torrent-cli] error: send Enter failed: {e}\r\n");
             std::process::exit(1);
         });
 
