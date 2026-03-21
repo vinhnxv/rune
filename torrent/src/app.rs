@@ -1594,7 +1594,8 @@ impl App {
     /// Write a message to the bridge inbox directory for Claude to pick up
     /// via the `check_inbox` MCP tool.
     fn send_inbox_message(&mut self, msg: &str) {
-        let inbox_dir = std::path::PathBuf::from("tmp/bridge-inbox");
+        let session_id = self.tmux_session_id.as_deref().unwrap_or("default");
+        let inbox_dir = std::path::PathBuf::from("tmp/bridge-inbox").join(session_id);
         if let Err(e) = std::fs::create_dir_all(&inbox_dir) {
             self.status_message = Some(format!("inbox mkdir failed: {e}"));
             return;

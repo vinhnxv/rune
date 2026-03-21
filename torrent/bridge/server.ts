@@ -13,7 +13,7 @@
  * (#36477, #36691). Torrent → Claude commands still use tmux send-keys.
  *
  * Experimental: check_inbox tool allows Claude to poll for messages from Torrent
- * via a filesystem queue (TORRENT_INBOX_DIR or tmp/bridge-inbox/).
+ * via a filesystem queue scoped by session: tmp/bridge-inbox/{TORRENT_SESSION_ID}/.
  */
 
 import * as fs from "node:fs";
@@ -221,7 +221,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     case "check_inbox": {
       // Poll for messages from Torrent via filesystem queue
-      const inboxDir = process.env.TORRENT_INBOX_DIR || "tmp/bridge-inbox";
+      const sessionId = process.env.TORRENT_SESSION_ID || "default";
+      const inboxBase = process.env.TORRENT_INBOX_DIR || "tmp/bridge-inbox";
+      const inboxDir = path.join(inboxBase, sessionId);
       try {
         if (!fs.existsSync(inboxDir)) {
           return { content: [{ type: "text", text: "no messages" }] };

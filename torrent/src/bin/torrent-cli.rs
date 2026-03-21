@@ -54,7 +54,7 @@ fn print_usage() {
     eprintln!("Commands:");
     eprintln!("  new-session --config-dir <path>          Create tmux session + start Claude");
     eprintln!("  send-keys --session <id> --text <text>   Send keys with Escape workaround");
-    eprintln!("  send-msg --text <message> [--inbox <dir>]  Send message via bridge inbox");
+    eprintln!("  send-msg --session <id> --text <message>   Send message to specific session");
     eprintln!("  capture-pane --session <id>              Capture pane output");
     eprintln!("  list                                     List torrent sessions");
     eprintln!("  kill --session <id>                      Kill session");
@@ -302,21 +302,32 @@ fn cmd_run(args: &[String]) {
 
 fn cmd_send_msg(args: &[String]) {
     let text = get_arg(args, "--text").unwrap_or_else(|| {
-        // Concatenate remaining args as message
-        let msg: Vec<_> = args.iter().filter(|a| *a != "--inbox").collect();
-        if msg.is_empty() {
-            eprintln!("Usage: torrent-cli send-msg --text <message> [--inbox <dir>]");
-            eprintln!("       torrent-cli send-msg \"your message here\"");
+        // Concatenate remaining non-flag args as message
+        let flags = ["--inbox", "--session", "--text"];
+        let mut msg_parts: Vec<&str> = Vec::new();
+        let mut skip_next = false;
+        for a in args {
+            if skip_next { skip_next = false; continue; }
+            if flags.contains(&a.as_str()) { skip_next = true; continue; }
+            msg_parts.push(a);
+        }
+        if msg_parts.is_empty() {
+            eprintln!("Usage: torrent-cli send-msg --session <id> --text <message>");
+            eprintln!("       torrent-cli send-msg --session <id> \"your message\"");
+            eprintln!("       torrent-cli send-msg \"message\"  (auto-detect session)");
             std::process::exit(1);
         }
-        msg.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(" ")
+        msg_parts.join(" ")
     });
 
-    let inbox = get_arg(args, "--inbox").unwrap_or_else(|| "tmp/bridge-inbox".into());
-    let inbox_path = std::path::Path::new(&inbox);
+    // Resolve session for inbox scoping
+    let session = get_arg(args, "--session").unwrap_or_else(auto_detect_session);
 
-    if let Err(e) = std::fs::create_dir_all(inbox_path) {
-        eprintln!("error: cannot create inbox dir '{}': {}", inbox, e);
+    let inbox_base = get_arg(args, "--inbox").unwrap_or_else(|| "tmp/bridge-inbox".into());
+    let inbox_path = std::path::Path::new(&inbox_base).join(&session);
+
+    if let Err(e) = std::fs::create_dir_all(&inbox_path) {
+        eprintln!("error: cannot create inbox dir '{}': {}", inbox_path.display(), e);
         std::process::exit(1);
     }
 
@@ -331,9 +342,8 @@ fn cmd_send_msg(args: &[String]) {
         std::process::exit(1);
     }
 
-    println!("✉ Message sent ({} bytes)", text.len());
-    println!("  inbox: {}", inbox);
-    println!("  file:  {}", msg_file.display());
+    println!("✉ Message sent to session '{session}' ({} bytes)", text.len());
+    println!("  inbox: {}", inbox_path.display());
     println!("  Claude will receive it on next check_inbox call");
 }
 
