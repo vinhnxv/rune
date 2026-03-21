@@ -296,8 +296,35 @@ On resume, validate checkpoint integrity before proceeding:
    ```
 3z. If schema_version < 26, migrate v25 → v26:
    ```javascript
-   // Step 3z: v25 → v26 (CI status tracking for CI fix loop)
+   // Step 3z: v25 → v26 (Declarative reaction engine config + reaction state + CI status)
    if (checkpoint.schema_version < 26) {
+     // Add reactions config (read from resolved shard or empty default)
+     if (!checkpoint.reactions) {
+       let reactions = {}
+       try {
+         reactions = JSON.parse(Read("tmp/.talisman-resolved/reactions.json"))
+       } catch (e) {
+         // Fallback: empty reactions — defaults will be used at runtime
+       }
+       checkpoint.reactions = reactions
+     }
+     // Add reaction state with per-event counters
+     if (!checkpoint.reaction_state) {
+       checkpoint.reaction_state = {
+         per_event_counters: {},
+         _meta: { last_resume_at: new Date().toISOString() }
+       }
+     } else {
+       // EC-7 fix: On resume, reset firstAttemptMs to prevent stale escalation
+       const counters = checkpoint.reaction_state.per_event_counters || {}
+       for (const [event, counter] of Object.entries(counters)) {
+         if (counter.firstAttemptMs) {
+           counter.firstAttemptMs = Date.now()
+         }
+       }
+       checkpoint.reaction_state._meta = checkpoint.reaction_state._meta || {}
+       checkpoint.reaction_state._meta.last_resume_at = new Date().toISOString()
+     }
      // ci_status is null until CI checks are evaluated during bot_review_wait phase.
      // Schema: { passed: bool, attempts: int, failed_checks: string[], head_sha: string,
      //   fix_history: [{attempt: int, fixed: string[], remaining: string[]}] }

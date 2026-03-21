@@ -655,6 +655,68 @@ arc:
     default_wait_seconds: 60       # Wait duration when no retry-after header found (default: 60)
     max_wait_seconds: 300          # Cap to prevent indefinite waits (default: 300)
 
+# ──────────────────────────────────────────────────────
+# Reactions — Declarative arc pipeline reaction policies (v2.5.1+)
+# ──────────────────────────────────────────────────────
+# Configures how the arc pipeline responds to events like phase failures,
+# stuck teammates, rate limits, and QA gate failures. Each reaction defines
+# an action (halt/retry/skip/escalate/wait), retry budget, and optional
+# escalation timeout. Defaults match current hardcoded behavior — no
+# behavior change for users without a custom reactions: section.
+#
+# Migration: reactions: takes precedence over legacy paths when both exist.
+# Legacy paths (gates.qa_gates.*, process_management.*) remain as aliases.
+# Deprecation warnings in v2.6.0, removal in v3.0.0.
+reactions:
+  # Phase failure reactions
+  plan_review_block:
+    action: halt              # halt | retry | skip
+    retries: 0                # 0 = immediate halt on BLOCK verdict
+    message: "Plan review blocked — critical issues found"
+
+  work_incomplete:
+    action: retry
+    retries: 1                # Retry work phase once
+    min_completion: 0.5       # Halt if <50% tasks done after retry
+    escalate_after_ms: 1800000  # 30 min — then halt regardless
+
+  mend_findings_exceeded:
+    action: retry
+    retries: 2                # Matches current tier-based behavior
+    max_failed_findings: 3    # Halt if >3 FAILED findings after retries
+    improvement_ratio: 0.5    # Minimum improvement per round (matches review.arc_convergence_improvement_ratio)
+    zero_progress_action: halt  # halt | skip — what to do when mend makes zero progress
+
+  # CI and review reactions (post-ship)
+  ci_failed:
+    action: retry
+    retries: 2                # NEW — currently no CI retry logic
+    wait_ms: 60000            # Wait 60s before retry
+    escalate_after_ms: 1800000  # 30 min escalation timeout
+
+  review_changes_requested:
+    action: retry
+    retries: 3                # Aligns with bot_review.max_review_rounds
+    escalate_after_ms: 2400000  # 40 min escalation timeout
+
+  # QA gate reactions
+  qa_gate_failed:
+    action: retry
+    retries: 2                # Matches gates.qa_gates.max_phase_retries
+    pass_threshold: 70        # Matches gates.qa_gates.pass_threshold
+    max_global_retries: 6     # Matches gates.qa_gates.max_global_retries
+
+  # Stuck/timeout reactions
+  teammate_stuck:
+    action: escalate          # escalate = warn lead + continue
+    threshold_ms: 180000      # Matches process_management.teammate_stuck_threshold * 1000
+    force_stop_after_ms: 300000  # Force-kill after 5 min
+
+  rate_limited:
+    action: wait
+    default_wait_ms: 60000    # Matches arc.rate_limit.default_wait_seconds * 1000
+    max_wait_ms: 300000       # Matches arc.rate_limit.max_wait_seconds * 1000
+
 # ──────────────────────────────────────────────
 # Arc — Convergence loop settings (v1.37.0+)
 # ──────────────────────────────────────────────

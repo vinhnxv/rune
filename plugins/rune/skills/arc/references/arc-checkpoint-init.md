@@ -467,6 +467,56 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
     max_phase_retries: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.max_phase_retries ?? 2 })(),
     enabled: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.enabled !== false })()
   },
+  // Schema v26 addition (v2.5.1): Declarative reaction engine config.
+  // Reads reactions from resolved talisman shard with fallback chain.
+  // Backward-compat: when reactions.* absent, falls back to legacy paths
+  // (gates.qa_gates.*, process_management.*). reactions.* takes precedence.
+  reactions: (() => {
+    let reactions = null
+    try {
+      reactions = JSON.parse(Read("tmp/.talisman-resolved/reactions.json"))
+    } catch (e) {
+      try {
+        const fullTalisman = Read(".rune/talisman.yml")
+        const full = parseYaml(fullTalisman)
+        reactions = full?.reactions ?? {}
+      } catch (e2) {
+        reactions = {}
+        warn("No reactions config available — using hardcoded defaults")
+      }
+    }
+    // Backward-compat aliasing (v2.5.1): when reactions.* keys are absent,
+    // fall back to legacy talisman paths. reactions.* takes precedence.
+    // Legacy paths: gates.qa_gates.* → reactions.qa_gate_failed.*
+    //               process_management.* → reactions.teammate_stuck.*
+    const gatesConfig = readTalismanSection("gates") ?? {}
+    const pmConfig = readTalismanSection("misc")?.process_management ?? readTalismanSection("process_management") ?? {}
+    if (!reactions.qa_gate_failed && gatesConfig.qa_gates) {
+      warn("DEPRECATION: gates.qa_gates.* used as fallback for reactions.qa_gate_failed — migrate to reactions: section")
+      reactions.qa_gate_failed = {
+        action: "retry",
+        retries: gatesConfig.qa_gates.max_phase_retries ?? 2,
+        pass_threshold: gatesConfig.qa_gates.pass_threshold ?? 70,
+        max_global_retries: gatesConfig.qa_gates.max_global_retries ?? 6
+      }
+    }
+    if (!reactions.teammate_stuck && pmConfig.teammate_stuck_threshold) {
+      warn("DEPRECATION: process_management.teammate_stuck_threshold used as fallback for reactions.teammate_stuck — migrate to reactions: section")
+      reactions.teammate_stuck = {
+        action: "escalate",
+        threshold_ms: (pmConfig.teammate_stuck_threshold ?? 180) * 1000,
+        force_stop_after_ms: 300000
+      }
+    }
+    return reactions
+  })(),
+  // Schema v26 addition: Per-event reaction state tracking for retry budgets and escalation.
+  // Tracks attempt counts and first-attempt timestamps per reaction event.
+  // On --resume: firstAttemptMs is reset to current time (EC-7 fix), attemptCount preserved.
+  reaction_state: {
+    per_event_counters: {},
+    _meta: { last_resume_at: null }
+  },
   // Schema v26 addition: CI status tracking for CI fix loop in bot_review_wait phase.
   // null until CI checks are evaluated. When populated:
   // { passed: bool, attempts: int, failed_checks: string[], head_sha: string,
