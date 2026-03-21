@@ -45,11 +45,22 @@ tags:
 
 1. Read `plugins/rune/agents/shared/communication-protocol.md`
 2. Read `plugins/rune/agents/shared/quality-gate-template.md`
+3. Read `plugins/rune/agents/shared/truthbinding-protocol.md`
 
 <!-- Add or remove shared references based on your agent's role: -->
-<!-- Work agents: communication-protocol.md, context-checkpoint-protocol.md -->
-<!-- Review agents: quality-gate-template.md -->
-<!-- All agents: communication-protocol.md (Seal, shutdown, exit conditions) -->
+<!-- Core protocols (pick as needed): -->
+<!--   communication-protocol.md — Seal, shutdown, exit conditions (all agents) -->
+<!--   quality-gate-template.md — confidence calibration, Inner Flame (review agents) -->
+<!--   context-checkpoint-protocol.md — adaptive reset, context rot (work agents) -->
+<!--   truthbinding-protocol.md — ANCHOR/RE-ANCHOR security framing (all agents) -->
+<!--   iron-law-protocol.md — Iron Law enforcement wrapper -->
+<!--   finding-format-template.md — standardized finding output format (review agents) -->
+<!-- Phase-specific protocols (pick ONE matching your agent's phase): -->
+<!--   phase-review.md — review-phase conventions -->
+<!--   phase-work.md — work-phase swarm worker patterns -->
+<!--   phase-goldmask.md — goldmask investigation patterns -->
+<!--   phase-inspect.md — inspect investigation patterns -->
+<!--   phase-devise.md — devise/planning utility patterns -->
 
 ## ANCHOR — TRUTHBINDING PROTOCOL
 

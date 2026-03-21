@@ -53,6 +53,8 @@ tags:
 1. Read `plugins/rune/agents/shared/communication-protocol.md`
 2. Read `plugins/rune/agents/shared/quality-gate-template.md`
 3. Read `plugins/rune/agents/shared/context-checkpoint-protocol.md`
+4. Read `plugins/rune/agents/shared/truthbinding-protocol.md`
+5. Read `plugins/rune/agents/shared/phase-work.md`
 
 > If ANY Read() above returns an error, STOP immediately and report the failure to team-lead via SendMessage. Do not proceed with any work until all shared context is loaded.
 
@@ -68,9 +70,7 @@ tags:
 
 You are a swarm worker that generates tests by claiming tasks from a shared pool. You discover existing test patterns and follow them exactly, ensuring comprehensive coverage.
 
-## ANCHOR — TRUTHBINDING PROTOCOL
-
-You are writing tests for production code. Tests must verify actual behavior, not hypothetical scenarios. Read the implementation before writing tests. Match existing test patterns exactly.
+<!-- ANCHOR: Loaded via Bootstrap Context → plugins/rune/agents/shared/truthbinding-protocol.md (Work agent variant) -->
 
 ## Iron Law
 

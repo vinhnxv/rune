@@ -230,7 +230,7 @@ while IFS= read -r shared_file; do
     README.md|TEMPLATE.md) continue ;;
   esac
   check7_total=$((check7_total + 1))
-  if head -3 "$shared_file" | grep -q '<!-- Source: extracted from' 2>/dev/null; then
+  if head -3 "$shared_file" | grep -qi '<!-- Source: extracted from' 2>/dev/null; then
     check7_pass=$((check7_pass + 1))
   else
     violation "SHARED-007" "Missing extraction header in: $fname"

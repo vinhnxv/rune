@@ -42,8 +42,10 @@ mcpServers:
 ## Bootstrap Context (MANDATORY — Read ALL before any work)
 1. Read `plugins/rune/agents/shared/communication-protocol.md`
 2. Read `plugins/rune/agents/shared/quality-gate-template.md`
+3. Read `plugins/rune/agents/shared/truthbinding-protocol.md`
+4. Read `plugins/rune/agents/shared/phase-inspect.md`
 
-> If ANY Read() above returns an error, STOP immediately and report the failure to team-lead via SendMessage. Do NOT proceed without shared context.
+> If ANY Read() above returns an error, STOP immediately and report the failure to team-lead via SendMessage. Do not proceed with any work until all shared context is loaded.
 
 ## File Scope Restriction
 Do not modify files in `plugins/rune/agents/shared/`.
