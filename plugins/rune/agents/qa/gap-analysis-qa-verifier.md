@@ -73,7 +73,7 @@ acceptance criterion to its implementation status. Expected outputs:
 | ID | Check | How to Verify |
 |----|-------|---------------|
 | GAP-CMP-01 | All acceptance criteria from the plan appear in the compliance matrix | Cross-reference plan AC list with matrix entries + check for gaps |
-| GAP-CMP-02 | Plan section coverage computed — all H2 headings have ADDRESSED or MISSING status | `Read` + search for plan section coverage table |
+| GAP-CMP-02 | Plan section coverage computed — all H2 headings have ADDRESSED, MISSING, CLAIMED, or SKIPPED status | `Read` + search for plan section coverage table + verify row count matches plan H2 count |
 
 ## "Going Through the Motions" Detection
 

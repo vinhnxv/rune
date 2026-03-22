@@ -347,7 +347,10 @@ if (diffFiles.length === 0) {
       'Risk Analysis', 'References', 'Success Metrics', 'Cross-File Consistency',
       'Documentation Impact', 'Documentation Plan', 'Future Considerations',
       'AI-Era Considerations', 'Alternative Approaches', 'Forge Enrichment']
-    if (skipSections.some(s => heading.includes(s))) continue
+    if (skipSections.some(s => heading.includes(s))) {
+      sectionCoverage.push({ heading, status: 'SKIPPED' })
+      continue  // Don't search for identifiers — metadata sections don't map to code
+    }
 
     // Extract identifiers from section text
     const backtickIds = (section.match(/`([a-zA-Z0-9._\-\/]+)`/g) || []).map(m => m.replace(/`/g, ''))
@@ -406,13 +409,14 @@ if (diffFiles.length === 0) {
   const covAddressed = sectionCoverage.filter(s => s.status === "ADDRESSED").length
   const covMissing = sectionCoverage.filter(s => s.status === "MISSING").length
   const covClaimed = sectionCoverage.filter(s => s.status === "CLAIMED").length
+  const covSkipped = sectionCoverage.filter(s => s.status === "SKIPPED").length
 
   planSectionCoverageSection = `\n## PLAN SECTION COVERAGE\n\n` +
     `**Status**: ${covMissing > 0 ? "WARN" : "PASS"}\n` +
     `**Checked at**: ${new Date().toISOString()}\n\n` +
     `| Section | Status |\n|---------|--------|\n` +
     sectionCoverage.map(s => `| ${s.heading} | ${s.status} |`).join('\n') + '\n\n' +
-    `Summary: ${covAddressed} ADDRESSED, ${covMissing} MISSING, ${covClaimed} CLAIMED\n`
+    `Summary: ${covAddressed} ADDRESSED, ${covMissing} MISSING, ${covClaimed} CLAIMED, ${covSkipped} SKIPPED (metadata)\n`
 
   if (covMissing > 0) {
     warn(`Plan section coverage: ${covMissing} MISSING section(s)`)

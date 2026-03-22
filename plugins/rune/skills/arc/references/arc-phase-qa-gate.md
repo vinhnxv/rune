@@ -372,7 +372,7 @@ mapping every acceptance criterion to its implementation status.
 | ID | Check | Evidence Required |
 |----|-------|------------------|
 | GAP-CMP-01 | All acceptance criteria from the plan appear in the compliance matrix | Cross-reference plan AC list with matrix entries + check for gaps |
-| GAP-CMP-02 | Plan section coverage computed — all H2 headings have ADDRESSED or MISSING status | `Read` + search for plan section coverage table |
+| GAP-CMP-02 | Plan section coverage computed — all H2 headings have ADDRESSED, MISSING, CLAIMED, or SKIPPED status | `Read` + search for plan section coverage table + verify row count matches plan H2 count |
 | GAP-CMP-03 | DEFERRED findings classified correctly (no shirking) | For each DEFERRED finding: check canDefer() rules — wiring tasks must not be deferred, AC-required must not be deferred. SHIRKING score=0, LEGITIMATE score=75, none=100 |
 
 ### Process Compliance Checks (AC-21)
