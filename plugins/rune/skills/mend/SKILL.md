@@ -267,9 +267,75 @@ if (fixersClaimingEvidence > 0 && evidenceDirs.length === 0) {
 
 ## Phase 6: RESOLUTION REPORT
 
-Aggregates fixer SEALs, cross-file fixes, doc-consistency fixes into `tmp/mend/{id}/resolution-report.md`. Convergence: FIXED > FALSE_POSITIVE > FAILED > SKIPPED. P1 FAILED/SKIPPED triggers escalation warning. Goldmask Integration section (risk overlay + quick check results).
+Aggregates fixer SEALs, cross-file fixes, doc-consistency fixes into `tmp/mend/{id}/resolution-report.md`. P1 FAILED/SKIPPED triggers escalation warning. Goldmask Integration section (risk overlay + quick check results).
 
 See [resolution-report.md](references/resolution-report.md) for the full report format, convergence logic, Goldmask section, and Codex verification.
+
+### Status Normalization (MANDATORY)
+
+All finding statuses in the resolution report MUST use spec-compliant keywords. When aggregating fixer SEALs, normalize all statuses through this mapping before writing the report:
+
+```javascript
+// STATUS_MAP covers two sources:
+// 1. Fixer SEALs (Phase 3): emit FIXED, FALSE_POSITIVE, FAILED, SKIPPED
+// 2. Orchestrator-generated sections (Phase 5.5/5.7): WONTFIX, QUESTION, NIT, CONSISTENCY_FIX
+// The 'question' and 'nit' entries are for orchestrator stub sections — fixers never emit these
+// (Q/N findings are filtered out before fixer assignment per Phase 2 inscription).
+const STATUS_MAP = {
+  'fixed': 'FIXED',
+  'fixed_cross_file': 'FIXED',  // Cross-file fixes (Phase 5.5) map to FIXED
+  'deferred': 'WONTFIX',
+  'not fixed': 'WONTFIX',
+  'false positive': 'FALSE_POSITIVE',
+  'false_positive': 'FALSE_POSITIVE',
+  'failed': 'FAILED',
+  'skipped': 'SKIPPED',
+  'wontfix': 'WONTFIX',
+  'question': 'QUESTION',       // Orchestrator stub sections only
+  'nit': 'NIT',                 // Orchestrator stub sections only
+  'consistency_fix': 'CONSISTENCY_FIX',
+}
+
+function normalizeStatus(status) {
+  return STATUS_MAP[status.toLowerCase().trim()] ?? 'FAILED'
+}
+```
+
+Valid spec-compliant statuses: `FIXED`, `FALSE_POSITIVE`, `FAILED`, `SKIPPED`, `WONTFIX`, `CONSISTENCY_FIX`, `QUESTION`, `NIT`.
+
+### Per-Finding Section Constraint (MANDATORY)
+
+Every finding ID from the TOME MUST have its own `<!-- RESOLVED:ID:STATUS -->` section in the resolution report. Bulk ranges (e.g., "BACK-004-009") are PROHIBITED — they prevent QA verification. If a group of findings share the same disposition, each still gets its own section with a shared justification reference.
+
+For findings that the fixer didn't address (P3 low-priority), generate stub sections:
+
+```markdown
+<!-- RESOLVED:BACK-004:WONTFIX -->
+### BACK-004: evaluateReaction call-order contract not enforced
+**Status**: WONTFIX
+**Severity**: P2
+**Reason**: Design choice — acceptable for initial release. Tracked for future improvement.
+<!-- /RESOLVED:BACK-004 -->
+```
+
+### Summary Arithmetic Validation (MANDATORY)
+
+After writing the resolution report, validate that summary counts match actual section counts:
+
+```javascript
+// Finding ID format: PREFIX-DIGITS (e.g., SEC-001, BACK-005, CONSIST-001, QUAL-002)
+// PREFIX = uppercase letters, DIGITS = one or more digits. All Rune finding generators follow this convention.
+const VALID_STATUSES = ['FIXED', 'FALSE_POSITIVE', 'FAILED', 'SKIPPED', 'WONTFIX', 'QUESTION', 'NIT', 'CONSISTENCY_FIX']
+const sectionCounts = {}
+for (const status of VALID_STATUSES) {
+  const re = new RegExp(`<!-- RESOLVED:[A-Z]+-\\d+:${status} -->`, 'g')
+  sectionCounts[status] = (report.match(re) || []).length
+}
+const computedTotal = Object.values(sectionCounts).reduce((a, b) => a + b, 0)
+if (computedTotal !== tomeFindings.length) {
+  warn(`Resolution report count mismatch: ${computedTotal} sections vs ${tomeFindings.length} TOME findings`)
+}
+```
 
 ## Phase 7: CLEANUP
 
