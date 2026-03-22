@@ -328,6 +328,22 @@ const strategy = generateTestStrategy({
 })
 Write(`tmp/arc/${id}/test-strategy.md`, strategy)
 
+// Verification guard: test-strategy.md MUST exist before STEP 2
+// Context pressure may cause the Write above to be skipped silently.
+// This guard ensures a minimal fallback strategy is always available
+// for downstream test runners (AC: TST-ART-03 reliability fix).
+const strategyExists = exists(`tmp/arc/${id}/test-strategy.md`)
+if (!strategyExists) {
+  warn("STEP 1.5: test-strategy.md was not written — generating minimal fallback")
+  const fallbackStrategy = `# Test Strategy (Fallback)\n\n` +
+    `> **Note**: This is a minimal fallback strategy generated because the primary strategy ` +
+    `generation was skipped under context pressure. Downstream runners should treat this as ` +
+    `degraded mode.\n\n` +
+    `## Scope\n- ${diffFiles.length} changed files (${scopeLabel})\n\n` +
+    `## Tiers\n- Unit: ${unitEnabled}\n- Integration: ${integrationEnabled}\n- E2E: ${e2eEnabled}\n`
+  Write(`tmp/arc/${id}/test-strategy.md`, fallbackStrategy)
+}
+
 // ═══════════════════════════════════════════════════════
 // STEP 2: TEST DISCOVERY
 // ═══════════════════════════════════════════════════════
