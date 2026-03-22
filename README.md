@@ -7,14 +7,22 @@
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Supported-7F4DFF)](https://docs.anthropic.com/en/docs/claude-code)
-[![Version](https://img.shields.io/badge/version-2.9.2-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-2.9.3-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Agents](https://img.shields.io/badge/agents-142-purple)](#agents)
 [![Skills](https://img.shields.io/badge/skills-58-orange)](#skills)
 
 ---
 
-## Why Multi-Agent?
+## What Is This?
+
+Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 142 specialized AI agents, 58 skills, and a 29-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
+
+**Compatibility:** Requires **Claude Code 2.1.81+** with Agent Teams support. macOS 12+ or Linux. See [full requirements](#requirements).
+
+---
+
+## Why This Exists
 
 Claude Code is powerful on its own — but a single agent has a single context window. As tasks grow in scope (reviewing a 50-file diff, planning a feature across multiple services, running a full implementation pipeline), one context window becomes the bottleneck:
 
@@ -741,21 +749,21 @@ rune/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
         │   └── plugin.json       # Plugin manifest (v1.128.0)
-        ├── agents/               # 127 agent definitions (83 agents/ + 43 registry/ + 1 CLI-backed)
-        │   ├── review/           #   12 review agents
+        ├── agents/               # 99 core agent definitions
+        │   ├── review/           #   15 review agents
         │   ├── investigation/    #   30 investigation agents
         │   ├── utility/          #   16 utility agents
         │   ├── research/         #    7 research agents
         │   ├── work/             #    3 work agents
         │   ├── qa/               #    7 QA agents
-        │   ├── meta-qa/          #    8 meta-QA agents
-        │   └── registry/         #   43 extended agents
+        │   └── meta-qa/          #    8 meta-QA agents
+        ├── registry/             # 43 extended agents
         ├── skills/               # 58 skills
         ├── commands/             # 15 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json
-        ├── scripts/              # Hook & utility scripts (171 .sh/.py files)
-        ├── .mcp.json             # MCP server config (3 servers: echo-search, figma-to-react, context7)
+        ├── scripts/              # Hook & utility scripts (244 .sh/.py files)
+        ├── .mcp.json             # MCP server config (4 servers: echo-search, figma-to-react, agent-search, context7)
         ├── talisman.example.yml  # Configuration reference
         ├── CLAUDE.md             # Plugin instructions
         ├── CHANGELOG.md
@@ -821,10 +829,36 @@ See [torrent/README.md](torrent/README.md) for full documentation.
 
 ---
 
-## Requirements
+## Requirements & Compatibility
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with plugin support
-- **Claude Max ($200/month) or higher recommended** — see [token and runtime warning](#token-warning) above
+| Requirement | Minimum | Recommended |
+|------------|---------|-------------|
+| Claude Code | **2.1.81+** | Latest |
+| OS | macOS 12+, Linux (Ubuntu 20.04+) | macOS 14+, Ubuntu 22.04+ |
+| Shell | bash 3.2+ or zsh 5.0+ | zsh (macOS default) |
+| Python | 3.11+ (for MCP servers) | 3.12+ |
+| Node.js | 18+ (for Context7 MCP) | 20+ |
+| jq | 1.6+ | Latest |
+| git | 2.25+ | Latest |
+| Claude Plan | Pro ($20/mo) for basic use | **Max ($200/mo)** for full Arc pipeline |
+
+> **Windows**: Not currently supported. WSL2 with Ubuntu may work but is untested.
+
+---
+
+## Resources Overview
+
+| Resource | What you'll find |
+|----------|-----------------|
+| [Getting Started](docs/guides/rune-getting-started.en.md) | First-time walkthrough — plan, work, review in 3 commands |
+| [Plugin Component Reference](plugins/rune/README.md) | All agents, skills, commands, hooks in detail |
+| [Arc & Batch Guide](docs/guides/rune-arc-and-batch-guide.en.md) | End-to-end pipeline, batch mode, GitHub Issues |
+| [Talisman Configuration](docs/guides/rune-talisman-deep-dive-guide.en.md) | Full configuration reference |
+| [Troubleshooting](docs/guides/rune-troubleshooting-and-optimization-guide.en.md) | Debugging, cost optimization, common issues |
+| [Documentation Hub](docs/README.md) | All guides, English + Vietnamese |
+| [State Machines](docs/state-machine.md) | Mermaid diagrams of all 10 workflow state machines |
+| [Torrent TUI](torrent/README.md) | Tmux-based multi-session arc orchestrator |
+| [Changelog](plugins/rune/CHANGELOG.md) | Release history |
 
 ---
 

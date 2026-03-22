@@ -2,6 +2,21 @@
 
 Use this page to quickly find the right Rune docs.
 
+## What Is This?
+
+Rune is a multi-agent engineering orchestration plugin for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). It coordinates 142 specialized AI agents across planning, implementation, code review, testing, and deployment — each with its own dedicated context window.
+
+## Why This Exists
+
+A single AI agent loses effectiveness as tasks grow in scope. Rune splits work across specialized agents that run in parallel: security reviewers catch vulnerabilities while performance reviewers find N+1 queries while consistency reviewers flag naming drift — all simultaneously. The result is higher quality output at the cost of more tokens.
+
+## Compatibility
+
+- **Claude Code 2.1.81+** with Agent Teams enabled
+- macOS 12+ or Linux (Ubuntu 20.04+)
+- Python 3.11+ (for MCP servers)
+- **Claude Max ($200/mo) recommended** for full Arc pipeline
+
 ## Start Here
 
 - New user (English): [Getting started](guides/rune-getting-started.en.md)

@@ -4,6 +4,18 @@ Multi-agent engineering orchestration for [Claude Code](https://claude.ai/claude
 
 <!-- DEMO_PLACEHOLDER — GIF/asciicast will be added in Phase 2 -->
 
+## What Is This?
+
+This is the **Rune plugin** — the detailed component reference for the Rune multi-agent orchestration system. It documents all 142 agents, 58 skills, 15 commands, 4 MCP servers, and the hook infrastructure that powers Rune's workflows.
+
+For the high-level overview, see the [root README](../../README.md).
+
+## Why This Exists
+
+A single Claude Code agent reviewing 50 files loses focus by file 35. One agent hunting for security issues, performance bugs, and naming inconsistencies simultaneously does none well. Rune solves this by giving each task to a **specialized agent with its own full context window** — Ward Sentinel for security, Ember Oracle for performance, Pattern Seer for consistency — running in parallel.
+
+The trade-off is token cost. Rune is designed for cases where quality, thoroughness, and coverage matter more than minimizing API usage. See [Cost Guide](#cost-guide).
+
 ## Quick Start
 
 New to Rune? Three commands to go from idea to reviewed code:
@@ -95,14 +107,35 @@ python3 -m pip install "mcp[cli]>=1.2.0" "httpx>=0.27.0" "pydantic>=2.0" --break
 claude --plugin-dir /path/to/rune-plugin
 ```
 
-## Platform Requirements
+## How It Works
+
+Rune orchestrates multi-agent workflows through Claude Code's **Agent Teams**:
+
+1. **You invoke a command** — e.g., `/rune:review` or `/rune:arc plans/my-plan.md`
+2. **The Tarnished (orchestrator)** analyzes the scope, selects specialized agents, and creates a team
+3. **Ash teammates spawn** — each in its own context window, with file-based coordination via `inscription.json`
+4. **Work completes in parallel** — reviewers review, workers implement, researchers research
+5. **Results aggregate** — findings merge into a TOME (review report), or code commits merge into a branch
+6. **Team cleans up** — teammates shut down, temp files remain in `tmp/` until `/rune:rest`
+
+For the full workflow state machines, see [docs/state-machine.md](../../docs/state-machine.md).
+
+## Setup Process Details
+
+1. **Install the plugin** via marketplace or local development (see [Install](#install))
+2. **Enable Agent Teams** — add `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"` to settings
+3. **Include output directories** — add `includedGitignorePatterns` for `plans/`, `tmp/`, `.rune/`
+4. **(Optional) Initialize talisman** — run `/rune:talisman init` to generate `.rune/talisman.yml` tailored to your stack
+5. **(Optional) Enable MCP servers** — Rune's 4 MCP servers (echo-search, figma-to-react, agent-search, context7) auto-install dependencies on first use
+
+## Platform Requirements & Compatibility
 
 | Requirement | Minimum | Recommended |
 |------------|---------|-------------|
 | OS | macOS 12+, Linux (Ubuntu 20.04+) | macOS 14+, Ubuntu 22.04+ |
 | Shell | bash 3.2+ or zsh 5.0+ | zsh (macOS default) |
-| Claude Code | 2.1.63+ | Latest |
-| Python | 3.7+ (for MCP servers) | 3.10+ |
+| Claude Code | **2.1.81+** | Latest |
+| Python | 3.11+ (for MCP servers) | 3.12+ |
 | Node.js | 18+ (for Context7 MCP) | 20+ |
 | jq | 1.6+ | Latest |
 | git | 2.25+ | Latest |
@@ -261,16 +294,31 @@ Rune implements proof-based orchestration ensuring specification compliance. Pla
 <details>
 <summary>Agent Architecture</summary>
 
-Rune includes 142 specialized agents across 8 categories (review, research, work, utility, investigation, testing, qa, meta-qa). Each agent gets its own dedicated context window via Agent Teams. Custom agents can be defined via `talisman.yml`. See the [Ash Guide skill](skills/ash-guide/SKILL.md) for the full registry.
+Rune includes 142 specialized agents across 8 categories — 99 core (in `agents/`) + 43 extended (in `registry/`) — spanning review, research, work, utility, investigation, testing, qa, and meta-qa. Each agent gets its own dedicated context window via Agent Teams. Custom agents can be defined via `talisman.yml`. See the [Ash Guide skill](skills/ash-guide/SKILL.md) for the full registry.
 
 </details>
 
 ## Requirements
 
-- [Claude Code](https://claude.ai/claude-code) 2.1.63+
+- [Claude Code](https://claude.ai/claude-code) 2.1.81+
 - Agent Teams enabled (see Install section)
-- Python 3.7+ (for MCP servers)
+- Python 3.11+ (for MCP servers)
 - macOS or Linux
+
+## Resources Overview
+
+| Resource | Description |
+|----------|-------------|
+| [Root README](../../README.md) | High-level overview, workflow details, full agent catalog |
+| [Documentation Hub](../../docs/README.md) | Guide index (English + Vietnamese) |
+| [Getting Started](../../docs/guides/rune-getting-started.en.md) | First-time user walkthrough |
+| [Arc & Batch Guide](../../docs/guides/rune-arc-and-batch-guide.en.md) | End-to-end pipeline, batch mode |
+| [Talisman Deep Dive](../../docs/guides/rune-talisman-deep-dive-guide.en.md) | Full configuration reference |
+| [Troubleshooting](../../docs/guides/rune-troubleshooting-and-optimization-guide.en.md) | Debugging, cost, optimization |
+| [State Machines](../../docs/state-machine.md) | Mermaid diagrams of all 10 workflows |
+| [Discipline Engineering](../../docs/discipline-engineering.md) | Proof-based architecture foundation |
+| [Changelog](CHANGELOG.md) | Release history |
+| [talisman.example.yml](talisman.example.yml) | Full configuration schema with all options |
 
 ## License
 
