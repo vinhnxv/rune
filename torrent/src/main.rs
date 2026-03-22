@@ -294,6 +294,9 @@ fn main() -> Result<()> {
     let tick_rate = Duration::from_secs(1);
 
     while !app.should_quit {
+        // Auto-clear expired status messages so bottom bar returns to help text
+        app.expire_status_message();
+
         // Draw current state
         terminal.draw(|frame| ui::draw(frame, &mut app))?;
 

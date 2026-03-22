@@ -85,8 +85,9 @@ pub struct App {
     pub last_active_arcs_prune: Option<Instant>,
     pub launched_wall_clock: Option<chrono::DateTime<Utc>>,
 
-    // Status message for display in UI
+    // Status message for display in UI (auto-clears after STATUS_MESSAGE_TTL)
     pub status_message: Option<String>,
+    pub status_message_set_at: Option<Instant>,
 
     // Resolved absolute path to claude binary (avoids PATH issues in tmux)
     pub claude_path: String,
@@ -523,6 +524,7 @@ impl App {
             last_active_arcs_prune: None,
             launched_wall_clock: None,
             status_message: initial_status,
+            status_message_set_at: None,
             claude_path: crate::tmux::Tmux::resolve_claude_path()
                 .unwrap_or_else(|_| "claude".to_string()),
             sys,
@@ -561,6 +563,25 @@ impl App {
                 }
             })
             .unwrap_or_else(|| "—".into())
+    }
+
+    /// Duration before a transient status message auto-clears, restoring help text.
+    const STATUS_MESSAGE_TTL: Duration = Duration::from_secs(5);
+
+    /// Set a transient status message (auto-clears after STATUS_MESSAGE_TTL).
+    pub fn set_status(&mut self, msg: impl Into<String>) {
+        self.status_message = Some(msg.into());
+        self.status_message_set_at = Some(Instant::now());
+    }
+
+    /// Clear expired status message so the bottom bar returns to help text.
+    pub fn expire_status_message(&mut self) {
+        if let Some(set_at) = self.status_message_set_at {
+            if set_at.elapsed() >= Self::STATUS_MESSAGE_TTL {
+                self.status_message = None;
+                self.status_message_set_at = None;
+            }
+        }
     }
 
     /// Detect Claude Code version from `claude --version`.
@@ -914,13 +935,13 @@ impl App {
                 // Skip inter-plan cooldown if active
                 if self.inter_plan_cooldown_until.is_some() {
                     self.inter_plan_cooldown_until = None;
-                    self.status_message = Some(" Cooldown skipped — launching next plan".into());
+                    self.set_status(" Cooldown skipped — launching next plan");
                 } else if let Some(ref mut run) = self.current_run {
                     if run.merge_detected_at.is_some() && run.grace_skip_at.is_none() {
                         // Set fixed skip deadline: 5 seconds from now (RUIN-007 fix).
                         // Stored as absolute Instant — not recomputed each tick.
                         run.grace_skip_at = Instant::now().checked_add(Duration::from_secs(5));
-                        self.status_message = Some(" Grace skip in 5s…".into());
+                        self.set_status(" Grace skip in 5s…");
                     }
                 }
             }
@@ -968,7 +989,7 @@ impl App {
                         if dropped > 0 {
                             parts.push(format!("{dropped} queued plan(s) removed (file deleted)"));
                         }
-                        self.status_message = Some(parts.join(", "));
+                        self.set_status(parts.join(", "));
                     }
                 }
                 self.queue_editing = true;
@@ -986,7 +1007,7 @@ impl App {
                 self.queue_editing = false;
                 self.all_done_at = None; // reset auto-quit since queue grew
                 self.view = AppView::Running;
-                self.status_message = Some(format!("{count} plan(s) added to queue"));
+                self.set_status(format!("{count} plan(s) added to queue"));
             }
             Action::CancelQueueEdit => {
                 self.selected_plans.clear();
@@ -998,7 +1019,7 @@ impl App {
                     self.message_input_active = true;
                     self.message_input_buf.clear();
                 } else {
-                    self.status_message = Some("No active session to send to".into());
+                    self.set_status("No active session to send to");
                 }
             }
             Action::SubmitMessage => {
@@ -1124,7 +1145,7 @@ impl App {
 
         if self.queue_cursor < non_removable {
             // Cursor is on a completed run or current — not removable
-            self.status_message = Some("Cannot remove completed or running items".into());
+            self.set_status("Cannot remove completed or running items");
             return;
         }
 
@@ -1135,7 +1156,7 @@ impl App {
                 .and_then(|e| self.plans.get(e.plan_idx))
                 .map(|p| p.name.clone())
                 .unwrap_or_else(|| "?".into());
-            self.status_message = Some(format!("Removed: {name}"));
+            self.set_status(format!("Removed: {name}"));
 
             // Adjust cursor if it's past the end
             let total = self.queue_total_items();
@@ -1208,7 +1229,7 @@ impl App {
             if let Some(deadline) = self.inter_plan_cooldown_until {
                 if now < deadline {
                     let remaining = deadline.duration_since(now).as_secs();
-                    self.status_message = Some(format!(
+                    self.set_status(format!(
                         " Next plan in {}m{}s  [s] skip cooldown",
                         remaining / 60,
                         remaining % 60,
@@ -1235,7 +1256,7 @@ impl App {
                         if remaining == 0 {
                             self.should_quit = true;
                         } else {
-                            self.status_message = Some(format!(
+                            self.set_status(format!(
                                 " All done! Auto-quit in {}s  [q] quit now",
                                 remaining
                             ));
@@ -1345,8 +1366,8 @@ impl App {
         let loop_file = cwd.join(".rune").join("arc-phase-loop.local.md");
 
         if !loop_file.exists() {
-            self.status_message = Some(
-                "arc-phase-loop.local.md removed — arc completed or stopped".into(),
+            self.set_status(
+                "arc-phase-loop.local.md removed — arc completed or stopped",
             );
             if let Some(run) = &mut self.current_run {
                 if run.merge_detected_at.is_none() {
@@ -1366,8 +1387,8 @@ impl App {
             }
             None => {
                 // active: false — arc cancelled
-                self.status_message = Some(
-                    "arc-phase-loop.local.md active: false — arc cancelled".into(),
+                self.set_status(
+                    "arc-phase-loop.local.md active: false — arc cancelled",
                 );
                 if let Some(run) = &mut self.current_run {
                     if run.merge_detected_at.is_none() {
@@ -1413,9 +1434,9 @@ impl App {
             }
         }
 
-        let config = self.config_dirs.get(self.selected_config).ok_or_else(|| {
-            eyre!("no config dir selected")
-        })?;
+        let config_path = self.config_dirs.get(self.selected_config)
+            .ok_or_else(|| eyre!("no config dir selected"))?
+            .path.clone();
 
         // Step 1: git checkout main + pull (blocking, before tmux)
         // Use .output() to CAPTURE stdout/stderr — .status() leaks into TUI display
@@ -1423,7 +1444,7 @@ impl App {
             .args(["checkout", "main"])
             .output();
         if checkout.as_ref().map_or(true, |o| !o.status.success()) {
-            self.status_message = Some("git checkout main failed — clean up working tree".into());
+            self.set_status("git checkout main failed — clean up working tree");
             self.queue.push_front(QueueEntry {
                 plan_idx,
                 config_idx: self.selected_config,
@@ -1434,7 +1455,7 @@ impl App {
             .args(["pull", "--ff-only"])
             .output();
         if pull.as_ref().map_or(true, |o| !o.status.success()) {
-            self.status_message = Some("git pull failed — retrying...".into());
+            self.set_status("git pull failed — retrying...");
             self.queue.push_front(QueueEntry {
                 plan_idx,
                 config_idx: self.selected_config,
@@ -1450,7 +1471,7 @@ impl App {
         let session_id = Tmux::generate_session_id();
         let cwd = std::env::current_dir().unwrap_or_default();
         if let Err(e) = Tmux::create_session(&session_id, &cwd) {
-            self.status_message = Some(format!("tmux failed: {e}"));
+            self.set_status(format!("tmux failed: {e}"));
             return Ok(());
         }
         self.tmux_session_id = Some(session_id.clone());
@@ -1465,14 +1486,14 @@ impl App {
             None
         };
         if let Err(e) = Tmux::start_claude(
-            &session_id, &config.path, &self.claude_path, channels_cfg.as_ref()
+            &session_id, &config_path, &self.claude_path, channels_cfg.as_ref()
         ) {
-            self.status_message = Some(format!("start claude failed: {e}"));
+            self.set_status(format!("start claude failed: {e}"));
             return Ok(());
         }
 
         // Step 5: Wait for Claude Code to fully initialize (12s)
-        self.status_message = Some(format!("Waiting for Claude Code in {}...", &session_id));
+        self.set_status(format!("Waiting for Claude Code in {}...", &session_id));
         std::thread::sleep(Duration::from_secs(12));
 
         // Step 5.5: Capture tmux pane PID (shell inside tmux)
@@ -1496,14 +1517,14 @@ impl App {
         if has_checkpoint && resume_state.total_restarts == 0 {
             // First launch but checkpoint exists from a previous torrent session — resume
             if Self::send_arc_resume_with_retry(&session_id, &plan.path, 3).is_none() {
-                self.status_message = Some(format!("FAILED: send /arc --resume failed. tmux attach -t {}", &session_id));
+                self.set_status(format!("FAILED: send /arc --resume failed. tmux attach -t {}", &session_id));
             } else {
-                self.status_message = Some("Resuming existing checkpoint".into());
+                self.set_status("Resuming existing checkpoint");
             }
         } else if Self::send_arc_with_retry(&session_id, &plan.path, 2).is_none() {
-            self.status_message = Some(format!("FAILED: send /arc failed. tmux attach -t {}", &session_id));
+            self.set_status(format!("FAILED: send /arc failed. tmux attach -t {}", &session_id));
         } else {
-            self.status_message = Some(format!("/arc sent to {}", &session_id));
+            self.set_status(format!("/arc sent to {}", &session_id));
         }
         self.current_run = Some(RunState {
             plan,
@@ -1519,7 +1540,7 @@ impl App {
             session_info: claude_pid.and_then(|pid| {
                 crate::scanner::enrich_session_info(
                     &pid.to_string(),
-                    &config.path.to_string_lossy(),
+                    &config_path.to_string_lossy(),
                     &self.sys,
                 )
             }),
@@ -1549,7 +1570,7 @@ impl App {
                     }
                 }
                 Err(e) => {
-                    self.status_message = Some(format!("callback server failed: {e}"));
+                    self.set_status(format!("callback server failed: {e}"));
                 }
             }
         }
@@ -1597,7 +1618,7 @@ impl App {
         if !has_loop_state {
             let loop_state = monitor::read_arc_loop_state(&cwd);
             if loop_state.is_some() {
-                self.status_message = Some("Arc loop state detected, discovering checkpoint...".into());
+                self.set_status("Arc loop state detected, discovering checkpoint...");
             }
             if let Some(run) = &mut self.current_run {
                 run.loop_state = loop_state;
@@ -1663,10 +1684,10 @@ impl App {
                 let status = resp.into_string().unwrap_or_default();
                 if status.contains("inbox") {
                     self.last_msg_transport = Some(MsgTransport::Inbox);
-                    self.status_message = Some(format!("✉ [inbox] {}", truncate_str(msg, 50)));
+                    self.set_status(format!("✉ [inbox] {}", truncate_str(msg, 50)));
                 } else {
                     self.last_msg_transport = Some(MsgTransport::Bridge);
-                    self.status_message = Some(format!("✉ [bridge] {}", truncate_str(msg, 50)));
+                    self.set_status(format!("✉ [bridge] {}", truncate_str(msg, 50)));
                 }
             }
             Err(_) => {
@@ -1683,7 +1704,7 @@ impl App {
         let session_id = self.tmux_session_id.as_deref().unwrap_or("default");
         let inbox_dir = std::path::PathBuf::from("tmp/bridge-inbox").join(session_id);
         if let Err(e) = std::fs::create_dir_all(&inbox_dir) {
-            self.status_message = Some(format!("inbox failed: {e} — using tmux"));
+            self.set_status(format!("inbox failed: {e} — using tmux"));
             self.send_via_tmux(msg);
             return;
         }
@@ -1695,10 +1716,10 @@ impl App {
         match std::fs::write(&path, msg) {
             Ok(_) => {
                 self.last_msg_transport = Some(MsgTransport::Inbox);
-                self.status_message = Some(format!("✉ [inbox] {}", truncate_str(msg, 50)));
+                self.set_status(format!("✉ [inbox] {}", truncate_str(msg, 50)));
             }
             Err(e) => {
-                self.status_message = Some(format!("inbox write failed: {e} — using tmux"));
+                self.set_status(format!("inbox write failed: {e} — using tmux"));
                 self.send_via_tmux(msg);
             }
         }
@@ -1710,7 +1731,7 @@ impl App {
         let session_id = match &self.tmux_session_id {
             Some(id) => id.clone(),
             None => {
-                self.status_message = Some("no active session".into());
+                self.set_status("no active session");
                 return;
             }
         };
@@ -1718,10 +1739,10 @@ impl App {
         match Tmux::send_keys(&session_id, &prefixed) {
             Ok(_) => {
                 self.last_msg_transport = Some(MsgTransport::Tmux);
-                self.status_message = Some(format!("✉ [tmux] {}", truncate_str(msg, 50)));
+                self.set_status(format!("✉ [tmux] {}", truncate_str(msg, 50)));
             }
             Err(e) => {
-                self.status_message = Some(format!("send failed: {e}"));
+                self.set_status(format!("send failed: {e}"));
             }
         }
     }
@@ -1786,7 +1807,7 @@ impl App {
                     } else {
                         format!("Phase: {} ({}) — {}", phase, status, details)
                     };
-                    self.status_message = Some(format!("[ch] {}", truncate_str(&msg, 80)));
+                    self.set_status(format!("[ch] {}", truncate_str(&msg, 80)));
                     self.last_claude_msg = Some(truncate_str(&msg, 200).to_string());
                     if let Some(run) = &mut self.current_run {
                         run.activity_detector.hash_unchanged_count = 0;
@@ -1798,7 +1819,7 @@ impl App {
                         ("failed", _, Some(err)) => format!("Arc failed: {}", err),
                         _ => format!("Arc complete: {}", result),
                     };
-                    self.status_message = Some(format!("[ch] {}", truncate_str(&msg, 80)));
+                    self.set_status(format!("[ch] {}", truncate_str(&msg, 80)));
                     self.last_claude_msg = Some(truncate_str(&msg, 200).to_string());
                     if let Some(run) = &mut self.current_run {
                         run.activity_detector.hash_unchanged_count = 0;
@@ -1818,7 +1839,7 @@ impl App {
                     }
                 }
                 ChannelEvent::Reply { text, .. } => {
-                    self.status_message = Some(format!("[reply] {}", truncate_str(&text, 80)));
+                    self.set_status(format!("[reply] {}", truncate_str(&text, 80)));
                     self.last_claude_msg = Some(truncate_str(&text, 200).to_string());
                     if let Some(run) = &mut self.current_run {
                         run.activity_detector.hash_unchanged_count = 0;
@@ -1867,6 +1888,7 @@ impl App {
             if run.last_status.is_none() {
                 if let Some(ref warning) = status.schema_warning {
                     self.status_message = Some(format!("⚠ {}", warning));
+                    self.status_message_set_at = Some(Instant::now());
                 }
             }
 
@@ -2015,7 +2037,7 @@ impl App {
             DiagnosticAction::Continue => false,
 
             DiagnosticAction::StopBatch => {
-                self.status_message = Some(format!(
+                self.set_status(format!(
                     "DIAGNOSTIC: {} — stopping batch", diag.state.label()
                 ));
                 self.queue.clear();
@@ -2038,7 +2060,7 @@ impl App {
             }
 
             DiagnosticAction::SkipPlan => {
-                self.status_message = Some(format!(
+                self.set_status(format!(
                     "DIAGNOSTIC: {} — skipping plan", diag.state.label()
                 ));
                 if let Some(run) = self.current_run.take() {
@@ -2070,7 +2092,7 @@ impl App {
 
                     let max = strategy.max_retries();
                     if resume.total_restarts >= max {
-                        self.status_message = Some(format!(
+                        self.set_status(format!(
                             "DIAGNOSTIC: {} — max retries exceeded, skipping",
                             diag.state.label()
                         ));
@@ -2095,7 +2117,7 @@ impl App {
                     resume.record_restart(0, "diagnostic", diag.state.label(), crate::resume::RecoveryMode::Retry);
                     let cooldown = strategy.backoff_duration(resume.total_restarts, None);
 
-                    self.status_message = Some(format!(
+                    self.set_status(format!(
                         "DIAGNOSTIC: {} — retry #{} in {}s",
                         diag.state.label(),
                         resume.total_restarts,
@@ -2115,7 +2137,7 @@ impl App {
             }
 
             DiagnosticAction::RetrySession => {
-                self.status_message = Some(format!(
+                self.set_status(format!(
                     "DIAGNOSTIC: {} — retrying session", diag.state.label()
                 ));
                 if let Some(run) = self.current_run.take() {
@@ -2143,7 +2165,7 @@ impl App {
                 let max = strategy.max_retries();
 
                 if resume.total_restarts >= max {
-                    self.status_message = Some(format!(
+                    self.set_status(format!(
                         "DIAGNOSTIC: {} — {} retries exhausted, skipping",
                         diag.state.label(), max,
                     ));
@@ -2168,7 +2190,7 @@ impl App {
                 resume.record_restart(0, "diagnostic", diag.state.label(), crate::resume::RecoveryMode::Retry);
                 let cooldown = strategy.backoff_duration(resume.total_restarts, None);
 
-                self.status_message = Some(format!(
+                self.set_status(format!(
                     "DIAGNOSTIC: {} — retry #{} in {}s",
                     diag.state.label(),
                     resume.total_restarts,
@@ -2187,7 +2209,7 @@ impl App {
             }
 
             DiagnosticAction::WaitTimeout | DiagnosticAction::GracePeriod => {
-                self.status_message = Some(format!(
+                self.set_status(format!(
                     "DIAGNOSTIC: {} — waiting...", diag.state.label()
                 ));
                 false
@@ -2246,7 +2268,7 @@ impl App {
                 let err = std::io::Error::last_os_error();
                 if err.raw_os_error() == Some(libc::ESRCH) {
                     // Process already gone — skip 15s grace, go straight to tmux kill
-                    self.status_message = Some(format!(
+                    self.set_status(format!(
                         "Phase timeout: PID {} already exited, killing tmux (phase: {})",
                         pid, phase_name,
                     ));
@@ -2254,25 +2276,25 @@ impl App {
                         let _ = Tmux::kill_session(&run.tmux_session);
                     }
                 } else if err.raw_os_error() == Some(libc::EPERM) {
-                    self.status_message = Some(format!(
+                    self.set_status(format!(
                         "Phase timeout: SIGTERM to PID {} denied (EPERM) (phase: {}, limit: {}m)",
                         pid, phase_name, timeout.as_secs() / 60,
                     ));
                 } else {
-                    self.status_message = Some(format!(
+                    self.set_status(format!(
                         "Phase timeout: SIGTERM to PID {} failed: {} (phase: {})",
                         pid, err, phase_name,
                     ));
                 }
             } else {
-                self.status_message = Some(format!(
+                self.set_status(format!(
                     "Phase timeout: SIGTERM sent to PID {} (phase: {}, limit: {}m)",
                     pid, phase_name, timeout.as_secs() / 60,
                 ));
             }
         } else {
             // No PID available — fall back to tmux kill directly
-            self.status_message = Some(format!(
+            self.set_status(format!(
                 "Phase timeout: no PID, killing tmux (phase: {}, limit: {}m)",
                 phase_name,
                 timeout.as_secs() / 60,
@@ -2319,6 +2341,7 @@ impl App {
             RecoveryMode::Evaluate => {
                 // Arc is done — don't count as a restart
                 self.status_message = Some("Arc completed during timeout — evaluating".into());
+                self.status_message_set_at = Some(Instant::now());
                 if let Some(run) = &mut self.current_run {
                     run.merge_detected_at = Some(Instant::now());
                 }
@@ -2331,6 +2354,7 @@ impl App {
                         "Pre-arc retry budget exhausted ({}/{}) — skipping plan",
                         resume_state.retry_count, max_retries
                     ));
+                    self.status_message_set_at = Some(Instant::now());
                     let _ = resume_state.save();
                     self.cleanup_skipped_plan();
                     return;
@@ -2354,6 +2378,7 @@ impl App {
                         "Phase {} stuck {} times — skipping plan",
                         phase_name, max_resumes
                     ));
+                    self.status_message_set_at = Some(Instant::now());
                     let _ = resume_state.save();
                     self.cleanup_skipped_plan();
                     return;
@@ -2371,6 +2396,7 @@ impl App {
                 "RAPID FAILURE: {} restarts in <30s on {} — skipping plan (systemic issue)",
                 resume_state.total_restarts, phase_name
             ));
+            self.status_message_set_at = Some(Instant::now());
             let _ = resume_state.save();
             self.cleanup_skipped_plan();
             return;
@@ -2390,6 +2416,7 @@ impl App {
             match mode { RecoveryMode::Retry => "Pre-arc", _ => "Phase" },
             phase_name, cooldown_secs, mode
         ));
+        self.status_message_set_at = Some(Instant::now());
     }
 
     /// Determine recovery mode based on current RunState.
@@ -2433,7 +2460,7 @@ impl App {
             // where Instant::duration_since underflows between two Instant::now() calls)
             let remaining = cooldown_deadline.duration_since(now).as_secs();
             if remaining > 0 {
-                self.status_message = Some(format!(
+                self.set_status(format!(
                     "Restarting in {}s...", remaining
                 ));
             }
@@ -2473,10 +2500,10 @@ impl App {
                     }
                     self.tmux_session_id = Some(new_session_id);
                     self.last_discovery_poll = None;
-                    self.status_message = Some("Session recreated — waiting for Claude Code init...".into());
+                    self.set_status("Session recreated — waiting for Claude Code init...");
                 }
                 Err(e) => {
-                    self.status_message = Some(format!("Restart failed: {} — skipping plan", e));
+                    self.set_status(format!("Restart failed: {} — skipping plan", e));
                     self.cleanup_skipped_plan();
                 }
             }
@@ -2489,22 +2516,22 @@ impl App {
                 crate::resume::RecoveryMode::Retry => {
                     // Fresh start — no checkpoint, arc never ran
                     if Self::send_arc_with_retry(&session, &plan_path, 3).is_none() {
-                        self.status_message = Some("Failed to send /arc (retry)".into());
+                        self.set_status("Failed to send /arc (retry)");
                     } else {
-                        self.status_message = Some("Retrying with fresh /arc".into());
+                        self.set_status("Retrying with fresh /arc");
                     }
                 }
                 crate::resume::RecoveryMode::Resume => {
                     // Mid-arc crash — checkpoint exists, resume from last phase
                     if Self::send_arc_resume_with_retry(&session, &plan_path, 3).is_none() {
-                        self.status_message = Some("Failed to send /arc --resume".into());
+                        self.set_status("Failed to send /arc --resume");
                     } else {
-                        self.status_message = Some("Resuming with /arc --resume".into());
+                        self.set_status("Resuming with /arc --resume");
                     }
                 }
                 crate::resume::RecoveryMode::Evaluate => {
                     // Arc completed but session died before torrent detected it
-                    self.status_message = Some("Arc completed — evaluating result".into());
+                    self.set_status("Arc completed — evaluating result");
                     if let Some(run) = &mut self.current_run {
                         run.merge_detected_at = Some(Instant::now());
                     }
