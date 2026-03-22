@@ -89,11 +89,10 @@ BUDGET="${RUNE_GLYPH_BUDGET:-300}"
 # Validate budget is numeric
 [[ "$BUDGET" =~ ^[0-9]+$ ]] || BUDGET=300
 
-# --- Step 5: Check compliance and inject advisory if over budget ---
+# --- Step 5: Check compliance — collect budget advisory for combined output ---
+BUDGET_ADVISORY=""
 if [[ "$WORD_COUNT" -gt "$BUDGET" ]]; then
-  jq -n \
-    --arg ctx "GLYPH-BUDGET-VIOLATION: Teammate message was ${WORD_COUNT} words (budget: ${BUDGET}). The Glyph Budget protocol requires teammates to write verbose output to tmp/ files and send only a file path + 50-word summary via SendMessage. Consider redirecting this teammate to file-based output for future messages." \
-    '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}' 2>/dev/null || true
+  BUDGET_ADVISORY="GLYPH-BUDGET-VIOLATION: Teammate message was ${WORD_COUNT} words (budget: ${BUDGET}). The Glyph Budget protocol requires teammates to write verbose output to tmp/ files and send only a file path + 50-word summary via SendMessage. Consider redirecting this teammate to file-based output for future messages. "
 fi
 
 # --- Step 6: Stateful trend tracking (silent backpressure detection) ---
@@ -155,8 +154,10 @@ if [[ -n "$EVIDENCE_FIELDS" ]]; then
   done <<< "$EVIDENCE_FIELDS"
 fi
 
-# --- Step 8: Emit combined advisory if any warnings triggered ---
-COMBINED_ADVISORY="${TREND_ADVISORY}${EVIDENCE_ADVISORY}"
+# --- Step 8: Emit single combined advisory if any warnings triggered ---
+# FLAW-001 FIX: Merge all advisories into a single JSON output to avoid
+# sending multiple JSON objects to stdout (Claude Code expects one).
+COMBINED_ADVISORY="${BUDGET_ADVISORY}${TREND_ADVISORY}${EVIDENCE_ADVISORY}"
 if [[ -n "$COMBINED_ADVISORY" ]]; then
   jq -n \
     --arg ctx "$COMBINED_ADVISORY" \

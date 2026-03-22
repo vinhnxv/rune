@@ -52,6 +52,12 @@ SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null |
 
 [[ -z "$TOOL_NAME" || -z "$CWD" || -z "$SESSION_ID" ]] && exit 0
 
+# --- FLAW-002 FIX: Canonicalize CWD early (before tier checks) ---
+# Previously CWD was only canonicalized in the Warning tier (line 218), so the
+# Critical tier path used raw CWD for mkdir -p and file writes.
+CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || exit 0
+[[ "$CWD" == /* ]] || exit 0
+
 # --- Guard: Teammate bypass (subagents can't spawn teams) ---
 TRANSCRIPT_PATH=$(printf '%s\n' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
 if [[ -n "$TRANSCRIPT_PATH" && "$TRANSCRIPT_PATH" == *"/subagents/"* ]]; then
@@ -214,9 +220,7 @@ if [[ "$REM_INT" -le "$WARNING_THRESHOLD" && "$REM_INT" -gt "$CRITICAL_THRESHOLD
 
   # --- Layer 1 Shutdown Signal: Write signal file for orchestrator consumption ---
   # Idempotent — only write once per session (hook fires every tool call)
-  # Canonicalize CWD before use in signal file path (SEC-005)
-  CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || exit 0
-  [[ "$CWD" == /* ]] || exit 0
+  # CWD already canonicalized at early guard (FLAW-002 FIX)
   SIGNAL_FILE="${CWD}/tmp/.rune-shutdown-signal-${SESSION_ID}.json"
   if [[ ! -f "$SIGNAL_FILE" ]]; then
     mkdir -p "${CWD}/tmp" 2>/dev/null

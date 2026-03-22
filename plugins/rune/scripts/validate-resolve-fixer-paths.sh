@@ -111,7 +111,9 @@ done <<< "$ALLOWED_FILES"
 
 # Also allow writes to the resolve-todos output directory (agents write reports there)
 # Scope output prefix to current workflow's timestamp (not any resolve-todos- dir)
-RESOLVE_OUTPUT_PREFIX="tmp/resolve-todos-${IDENTIFIER}"
+# FLAW-004 FIX: Added trailing / to prevent prefix matching longer directory names
+# (e.g., "resolve-todos-abc" matching "resolve-todos-abcdef/file.txt")
+RESOLVE_OUTPUT_PREFIX="tmp/resolve-todos-${IDENTIFIER}/"
 if [[ "$REL_FILE_PATH" == ${RESOLVE_OUTPUT_PREFIX}* ]]; then
   exit 0
 fi

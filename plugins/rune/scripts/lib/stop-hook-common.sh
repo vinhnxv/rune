@@ -118,12 +118,13 @@ parse_frontmatter() {
 }
 
 # ── get_field(): Extract named field from FRONTMATTER ──
-# Args: $1 = field name (must match ^[a-z_]+$)
+# Args: $1 = field name (must match ^[a-zA-Z0-9_-]+$)
 # Returns: field value (stripped of surrounding quotes), or empty string
 # SEC-2: Validates field name to prevent regex metachar injection via grep/sed.
+# PAT-013 FIX: Widened from ^[a-z_]+$ to match _get_fm_field() in frontmatter-utils.sh.
 get_field() {
   local field="$1"
-  [[ "$field" =~ ^[a-z_]+$ ]] || return 1
+  [[ "$field" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
   # BACK-B4-004 FIX: `|| true` prevents grep exit code 1 (no match) from propagating
   # through pipefail → set -e → ERR trap → script exit. Missing fields return empty string.
   echo "$FRONTMATTER" | grep "^${field}:" | sed "s/^${field}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true

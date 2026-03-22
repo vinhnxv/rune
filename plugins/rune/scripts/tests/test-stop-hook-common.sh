@@ -312,12 +312,12 @@ result=$(_capture_sub '
 ')
 assert_eq "Quoted field value has quotes stripped" "plans/feature.md" "$result"
 
-# 6e. Invalid field name rejected (contains uppercase)
+# 6e. Uppercase field name accepted (PAT-013 FIX: widened to ^[a-zA-Z0-9_-]+$)
 result=$(_capture_sub '
   FRONTMATTER="Status: active"
   get_field "Status" && echo "OK" || echo "REJECTED"
 ')
-assert_contains "Uppercase field name rejected" "REJECTED" "$result"
+assert_contains "Uppercase field name accepted" "OK" "$result"
 
 # 6f. Invalid field name with special chars rejected
 result=$(_capture_sub '
