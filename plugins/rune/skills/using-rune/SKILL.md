@@ -30,6 +30,7 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 | "Brainstorm" / "explore idea" / "what should we build" / "thảo luận" | `/rune:brainstorm` | Collaborative idea exploration (3 modes: solo, roundtable, deep) |
 | "Plan a feature" / "design this" / "how should we build" | `/rune:devise` | Multi-agent planning pipeline (brainstorm + research + synthesize) |
 | "Quick plan" / "just outline it" | `/rune:devise --quick` | Lightweight planning (research + synthesize, skip brainstorm/forge) |
+| "Quick run" / "fast" / "plan and build" / "nhanh" / "chạy nhanh" | `/rune:arc-quick` | Lightweight 3-phase pipeline: plan -> work -> review |
 | "Implement this" / "build it" / "execute the plan" | `/rune:strive plans/...` | Swarm workers execute a plan file |
 | "Fix these findings" / "resolve the review" | `/rune:mend tmp/.../TOME.md` | Parallel resolution of review findings |
 | "Run everything" / "ship it" / "end to end" | `/rune:arc plans/...` | Full 29-phase pipeline (forge → work → review → mend → test → goldmask → ship → merge). Use `--status` to check current phase and progress |
@@ -68,6 +69,7 @@ For users new to Rune, these simpler commands forward to the full versions:
 | "plan" / "plan this" | `/rune:plan` | `/rune:devise` |
 | "work" / "build" / "implement" | `/rune:work` | `/rune:strive` |
 | "review" / "check my code" | `/rune:review` | `/rune:appraise` |
+| "quick" / "nhanh" / "fast run" | `/rune:quick` | `/rune:arc-quick` |
 
 ## Routing Rules
 
@@ -101,6 +103,7 @@ These are common requests that Claude should handle directly — no agent team r
 | `/rune:strive` | Yes (swarm) | 10-30 min | Plan file path |
 | `/rune:mend` | Yes (per file) | 3-10 min | TOME file path |
 | `/rune:arc` | Yes (per phase) | 30-90 min | Plan file path |
+| `/rune:arc-quick` | Yes (per phase) | 25-60 min | Prompt or plan file |
 | `/rune:arc-batch` | Yes (per plan) | 45-240 min/plan | Plan glob or queue file |
 | `/rune:arc-issues` | Yes (per issue) | 45-240 min/issue | GitHub issue labels or numbers |
 | `/rune:forge` | Yes (per section) | 5-15 min | Plan file path |
