@@ -181,6 +181,10 @@ pub struct App {
     /// Scroll offset for Bridge View message list (0 = auto-scroll to bottom).
     /// Incremented by Up, decremented by Down, reset to 0 on new message or SubmitMessage.
     pub bridge_scroll_offset: usize,
+
+    /// Last time an auto-accept was sent for a permission/yes-no prompt.
+    /// Used for debouncing — at most 1 auto-accept per 60 seconds.
+    pub last_auto_accept: Option<Instant>,
 }
 
 /// Message delivery transport used for the last sent message.
@@ -596,6 +600,7 @@ impl App {
             bridge_messages: VecDeque::with_capacity(BRIDGE_MSG_DISPLAY_CAP),
             bridge_log_file: None,
             bridge_scroll_offset: 0,
+            last_auto_accept: None,
         })
     }
 
@@ -1638,6 +1643,9 @@ impl App {
             None
         };
 
+        // Track what was dispatched for Bridge View display (before plan is moved)
+        let mut arc_dispatch_msg: Option<String> = None;
+
         if has_checkpoint && resume_state.total_restarts == 0 {
             // First launch but checkpoint exists from a previous torrent session — resume
             if Self::send_arc_prefer_bridge(&session_id, &plan.path, 3, bridge_port, true).is_none() {
@@ -1645,12 +1653,14 @@ impl App {
             } else {
                 let transport = if bridge_port.is_some() { "bridge" } else { "tmux" };
                 self.set_status(format!("Resuming existing checkpoint [{}]", transport));
+                arc_dispatch_msg = Some(format!("/arc {} --resume [{}]", plan.path.display(), transport));
             }
         } else if Self::send_arc_prefer_bridge(&session_id, &plan.path, 2, bridge_port, false).is_none() {
             self.set_status(format!("FAILED: send /arc failed. tmux attach -t {}", &session_id));
         } else {
             let transport = if bridge_port.is_some() { "bridge" } else { "tmux" };
             self.set_status(format!("/arc sent to {} [{}]", &session_id, transport));
+            arc_dispatch_msg = Some(format!("/arc {} [{}]", plan.path.display(), transport));
         }
         // Reset bridge log file for new session (so it opens a fresh file for this session_id)
         self.bridge_log_file = None;
@@ -1692,6 +1702,15 @@ impl App {
             timestamp: chrono::Local::now().time(),
             kind: BridgeMessageKind::Phase,
         });
+
+        // Show the dispatched /arc command in Bridge View
+        if let Some(msg) = arc_dispatch_msg {
+            self.push_bridge_message(BridgeMessage {
+                text: msg,
+                timestamp: chrono::Local::now().time(),
+                kind: BridgeMessageKind::Sent,
+            });
+        }
 
         // Start callback server if channels are enabled
         if self.channels_enabled && self.callback_server.is_none() {
@@ -2195,21 +2214,49 @@ impl App {
             }
 
             // Activity detection: update pane hash on 30s interval, then detect state
-            let activity_state = if run.activity_detector.should_check() {
+            let (activity_state, auto_accept_info) = if run.activity_detector.should_check() {
                 let pane_hash = Tmux::capture_pane_hash(&run.tmux_session, 30);
                 let last_line = Tmux::capture_last_line(&run.tmux_session);
                 run.activity_detector.update_hash(pane_hash);
                 let cpu = res_snapshot.as_ref().map(|s| s.cpu_percent);
                 let process_found = proc_health != ProcessHealth::NotFound;
-                Some(run.activity_detector.detect(
+                let state = run.activity_detector.detect(
                     status.is_stale,
                     cpu,
                     process_found,
                     last_line.as_deref(),
-                ))
+                );
+
+                // Auto-accept permission/yes-no prompts during arc runs.
+                // When Claude Code is stuck on a confirmation prompt, send Enter
+                // to unblock the pipeline. Only triggers for known safe patterns
+                // (permission prompts, y/n questions) — NOT shell prompts.
+                // Debounce: max 1 auto-accept per 60 seconds to avoid spamming.
+                // Deferred: capture info here, act after the borrow on `run` ends.
+                let auto_accept_info = if state == ActivityState::WaitingInput {
+                    last_line.as_deref()
+                        .filter(|line| monitor::is_auto_acceptable_prompt(line))
+                        .and_then(|line| {
+                            let should_send = self.last_auto_accept
+                                .map(|t| t.elapsed() >= Duration::from_secs(60))
+                                .unwrap_or(true);
+                            if should_send {
+                                // send_keys sends Escape+Enter — accepts the default option
+                                let _ = Tmux::send_keys(&run.tmux_session, "");
+                                self.last_auto_accept = Some(Instant::now());
+                                Some(line.chars().take(60).collect::<String>())
+                            } else {
+                                None
+                            }
+                        })
+                } else {
+                    None
+                };
+
+                (Some(state), auto_accept_info)
             } else {
                 // Between pane checks, reuse last known activity state
-                run.last_status.as_ref().and_then(|s| s.activity_state)
+                (run.last_status.as_ref().and_then(|s| s.activity_state), None)
             };
 
             // Convert monitor::ArcStatus to app::ArcStatus
@@ -2236,6 +2283,16 @@ impl App {
                 process_health: proc_health,
                 activity_state,
             });
+
+            // Deferred auto-accept side effects (after run borrow ends)
+            if let Some(prompt_preview) = auto_accept_info {
+                self.set_status(format!("Auto-accepted prompt: {}", prompt_preview));
+                self.push_bridge_message(BridgeMessage {
+                    text: format!("[auto-accept] {}", prompt_preview),
+                    timestamp: chrono::Local::now().time(),
+                    kind: BridgeMessageKind::Sent,
+                });
+            }
         }
     }
 
@@ -2804,7 +2861,13 @@ impl App {
                     if Self::send_arc_prefer_bridge(&session, &plan_path, 3, bp, false).is_none() {
                         self.set_status("Failed to send /arc (retry)");
                     } else {
+                        let transport = if bp.is_some() { "bridge" } else { "tmux" };
                         self.set_status("Retrying with fresh /arc");
+                        self.push_bridge_message(BridgeMessage {
+                            text: format!("/arc {} (retry) [{}]", plan_path.display(), transport),
+                            timestamp: chrono::Local::now().time(),
+                            kind: BridgeMessageKind::Sent,
+                        });
                     }
                 }
                 crate::resume::RecoveryMode::Resume => {
@@ -2812,7 +2875,13 @@ impl App {
                     if Self::send_arc_prefer_bridge(&session, &plan_path, 3, bp, true).is_none() {
                         self.set_status("Failed to send /arc --resume");
                     } else {
+                        let transport = if bp.is_some() { "bridge" } else { "tmux" };
                         self.set_status("Resuming with /arc --resume");
+                        self.push_bridge_message(BridgeMessage {
+                            text: format!("/arc {} --resume (recovery) [{}]", plan_path.display(), transport),
+                            timestamp: chrono::Local::now().time(),
+                            kind: BridgeMessageKind::Sent,
+                        });
                     }
                 }
                 crate::resume::RecoveryMode::Evaluate => {

@@ -185,6 +185,43 @@ pub struct ActivityDetector {
 /// Well-known input prompt patterns (checked via simple string matching).
 const PROMPT_INDICATORS: &[&str] = &["$ ", "% ", "# ", "> ", "❯ ", "› ", "? (y/n)", "? (yes/no)", "Allow", "Deny", "approve", "Enter "];
 
+/// Permission/yes-no prompt patterns that are safe to auto-accept with Enter.
+///
+/// These are prompts where Claude Code is waiting for user confirmation during
+/// an arc run. Since torrent launches with `--dangerously-skip-permissions`,
+/// these should rarely appear — but when they do (e.g. edge cases, permission
+/// mode changes mid-session), auto-accepting keeps the arc pipeline moving.
+///
+/// Patterns are checked case-insensitively against the last non-empty pane line.
+const AUTO_ACCEPT_PATTERNS: &[&str] = &[
+    "? (y/n)",
+    "? (yes/no)",
+    "(y/n)",
+    "(yes/no)",
+    "allow tool",
+    "allow edit",
+    "allow write",
+    "allow bash",
+    "approve",
+    "do you want to proceed",
+    "do you want to continue",
+    "press enter",
+    "continue?",
+];
+
+/// Check if a pane last-line matches a permission/yes-no prompt that is safe
+/// to auto-accept by sending Enter.
+///
+/// Returns `true` only for patterns indicating Claude Code is blocked on a
+/// confirmation prompt. Shell prompts (`$ `, `❯ `) return `false`.
+pub fn is_auto_acceptable_prompt(line: &str) -> bool {
+    let lower = line.trim().to_lowercase();
+    if lower.is_empty() {
+        return false;
+    }
+    AUTO_ACCEPT_PATTERNS.iter().any(|p| lower.contains(p))
+}
+
 impl ActivityDetector {
     /// Create a new detector with default 30-second check interval.
     pub fn new() -> Self {
@@ -2124,5 +2161,38 @@ session_id: s
         assert_eq!(summary.skipped, 0);
         // When all completed, current phase shows last completed phase with ✓
         assert!(summary.current_phase_name.contains('✓'));
+    }
+
+    // ── is_auto_acceptable_prompt tests ──
+
+    #[test]
+    fn test_auto_accept_yn_prompts() {
+        assert!(is_auto_acceptable_prompt("? (y/n)"));
+        assert!(is_auto_acceptable_prompt("? (yes/no)"));
+        assert!(is_auto_acceptable_prompt("Allow tool Bash? (y/n)"));
+        assert!(is_auto_acceptable_prompt("  Do you want to continue?  "));
+        assert!(is_auto_acceptable_prompt("Do you want to proceed with changes?"));
+        assert!(is_auto_acceptable_prompt("Press Enter to continue"));
+        assert!(is_auto_acceptable_prompt("Allow edit to src/main.rs"));
+        assert!(is_auto_acceptable_prompt("Allow write to output.json"));
+        assert!(is_auto_acceptable_prompt("approve this action"));
+        assert!(is_auto_acceptable_prompt("Continue?"));
+    }
+
+    #[test]
+    fn test_auto_accept_rejects_shell_prompts() {
+        assert!(!is_auto_acceptable_prompt("$ "));
+        assert!(!is_auto_acceptable_prompt("% "));
+        assert!(!is_auto_acceptable_prompt("❯ "));
+        assert!(!is_auto_acceptable_prompt("> "));
+        assert!(!is_auto_acceptable_prompt(""));
+        assert!(!is_auto_acceptable_prompt("   "));
+    }
+
+    #[test]
+    fn test_auto_accept_case_insensitive() {
+        assert!(is_auto_acceptable_prompt("ALLOW TOOL Bash"));
+        assert!(is_auto_acceptable_prompt("Allow Bash? (Y/N)"));
+        assert!(is_auto_acceptable_prompt("DO YOU WANT TO CONTINUE"));
     }
 }

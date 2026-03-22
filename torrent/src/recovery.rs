@@ -4,7 +4,8 @@
 //! states: uncommitted changes on the wrong branch, unpushed commits, missing
 //! PRs, or git conflicts. This module detects those states and attempts
 //! automated recovery — either via direct git commands (for stash/branch
-//! operations) or by sending recovery prompts to Claude Code via tmux.
+//! operations) or by sending recovery prompts to Claude Code via bridge
+//! (preferred) or tmux (fallback).
 //!
 //! # Safety Invariants
 //!
@@ -29,11 +30,15 @@ const RECOVERY_TIMEOUT_SECS: u64 = 120;
 ///
 /// Detects git state anomalies after an arc run completes and attempts
 /// automated recovery. Uses direct `Command::new("git")` for deterministic
-/// stash/branch operations (D25/D26) and `Tmux::send_keys` for operations
-/// that benefit from Claude's judgment (D11-D14 commit/push/PR).
+/// stash/branch operations (D25/D26) and bridge HTTP (with tmux fallback)
+/// for operations that benefit from Claude's judgment (D11-D14 commit/push/PR).
 pub struct PostArcRecovery {
     /// Maximum time to wait for a recovery prompt to complete.
     pub recovery_timeout: Duration,
+    /// Bridge HTTP port for channels-first delivery. When `Some`, recovery
+    /// prompts are sent via HTTP POST to `http://127.0.0.1:{port}/msg`.
+    /// Falls back to `Tmux::send_keys` when `None` or bridge unreachable.
+    pub bridge_port: Option<u16>,
 }
 
 /// Branch context resolved before any git recovery action.
@@ -121,10 +126,19 @@ impl std::fmt::Display for RecoveryError {
 }
 
 impl PostArcRecovery {
-    /// Create a new recovery engine with default timeout.
+    /// Create a new recovery engine with default timeout (no bridge).
     pub fn new() -> Self {
         Self {
             recovery_timeout: Duration::from_secs(RECOVERY_TIMEOUT_SECS),
+            bridge_port: None,
+        }
+    }
+
+    /// Create a new recovery engine with bridge-first delivery.
+    pub fn with_bridge(bridge_port: Option<u16>) -> Self {
+        Self {
+            recovery_timeout: Duration::from_secs(RECOVERY_TIMEOUT_SECS),
+            bridge_port,
         }
     }
 
@@ -180,7 +194,7 @@ impl PostArcRecovery {
     /// Attempt automated recovery based on the detected state.
     ///
     /// For D25/D26 (stash+branch), uses `Command::new("git")` directly.
-    /// For D11-D14 (commit/push/PR), uses `Tmux::send_keys` to Claude Code.
+    /// For D11-D14 (commit/push/PR), uses bridge HTTP (with tmux fallback).
     pub fn attempt_recovery(
         &self,
         session_id: &str,
@@ -194,10 +208,11 @@ impl PostArcRecovery {
             PostArcState::UncommittedOnMain(ctx) => {
                 match stash_and_switch_branch(&ctx.expected_branch, true) {
                     Ok(()) => {
-                        // Changes now on correct branch — send commit prompt via tmux.
+                        // Changes now on correct branch — send commit prompt.
                         send_recovery_prompt(
                             session_id,
                             "git add -A && git commit -m 'recovered: apply stashed changes'",
+                            self.bridge_port,
                         );
                         RecoveryResult::PartialRecovery(format!(
                             "stashed and switched to {}, commit prompt sent",
@@ -218,6 +233,7 @@ impl PostArcRecovery {
                         send_recovery_prompt(
                             session_id,
                             "git add -A && git commit -m 'recovered: apply stashed changes'",
+                            self.bridge_port,
                         );
                         RecoveryResult::PartialRecovery(format!(
                             "stashed and switched to {}, commit prompt sent",
@@ -233,19 +249,19 @@ impl PostArcRecovery {
 
             // D11: Uncommitted changes on correct branch — ask Claude to commit.
             PostArcState::UncommittedChanges => {
-                send_recovery_prompt(session_id, "Please commit all pending changes");
+                send_recovery_prompt(session_id, "Please commit all pending changes", self.bridge_port);
                 wait_for_recovery(session_id, self.recovery_timeout, "commit")
             }
 
             // D12: Unpushed commits — ask Claude to push.
             PostArcState::UnpushedCommits => {
-                send_recovery_prompt(session_id, "Please push your commits");
+                send_recovery_prompt(session_id, "Please push your commits", self.bridge_port);
                 wait_for_recovery(session_id, self.recovery_timeout, "push")
             }
 
             // D13: No PR — ask Claude to create one.
             PostArcState::NoPullRequest => {
-                send_recovery_prompt(session_id, "Please create a pull request");
+                send_recovery_prompt(session_id, "Please create a pull request", self.bridge_port);
                 wait_for_recovery(session_id, self.recovery_timeout, "pr creation")
             }
 
@@ -573,14 +589,36 @@ fn get_stash_ref() -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Recovery prompts (D11-D14) — via Tmux::send_keys
+// Recovery prompts (D11-D14) — bridge-first with tmux fallback
 // ---------------------------------------------------------------------------
 
-/// Send a recovery prompt to Claude Code via tmux.
+/// Send a recovery prompt to Claude Code.
 ///
-/// Uses `Tmux::send_keys` which handles the Ink autocomplete workaround
-/// (Escape+delay+Enter). Best-effort — logs but does not fail on error.
-fn send_recovery_prompt(session_id: &str, prompt: &str) {
+/// When `bridge_port` is `Some`, attempts HTTP POST to bridge `/msg` endpoint
+/// first (Channels API — `notifications/claude/channel`). Falls back to
+/// `Tmux::send_keys` if bridge is unreachable or `bridge_port` is `None`.
+///
+/// Best-effort — logs but does not fail on error.
+fn send_recovery_prompt(session_id: &str, prompt: &str, bridge_port: Option<u16>) {
+    // Try bridge first when available
+    if let Some(port) = bridge_port {
+        let url = format!("http://127.0.0.1:{port}/msg");
+        match ureq::post(&url)
+            .timeout(Duration::from_secs(5))
+            .set("Content-Type", "text/plain")
+            .send_string(prompt)
+        {
+            Ok(_) => {
+                tracing_log(&format!("recovery: prompt sent via bridge (port {port})"));
+                return;
+            }
+            Err(e) => {
+                tracing_log(&format!("recovery: bridge failed ({e}), falling back to tmux"));
+            }
+        }
+    }
+
+    // Fallback: tmux send-keys
     if let Err(e) = Tmux::send_keys(session_id, prompt) {
         tracing_log(&format!("recovery: send_keys failed: {e}"));
     }
@@ -671,5 +709,13 @@ mod tests {
     fn test_post_arc_recovery_new() {
         let recovery = PostArcRecovery::new();
         assert_eq!(recovery.recovery_timeout.as_secs(), 120);
+        assert!(recovery.bridge_port.is_none());
+    }
+
+    #[test]
+    fn test_post_arc_recovery_with_bridge() {
+        let recovery = PostArcRecovery::with_bridge(Some(9901));
+        assert_eq!(recovery.recovery_timeout.as_secs(), 120);
+        assert_eq!(recovery.bridge_port, Some(9901));
     }
 }

@@ -465,20 +465,18 @@ fn cmd_send_msg(args: &[String]) {
     validate_session_id(&session);
 
     // Delivery strategy:
-    //   auto (default) = tmux (only method Claude actually processes)
-    //   bridge = MCP notification (delivered but Claude ignores — for testing only)
-    //   tmux = keyboard injection (always works)
+    //   auto (default) = bridge-first, tmux fallback
+    //   bridge = bridge only (HTTP → inbox → tmux fallback)
+    //   tmux = keyboard injection (always works, legacy)
     //
-    // NOTE: sendLoggingMessage (notifications/message) is delivered to Claude Code
-    // but treated as an internal log, NOT as a prompt. Claude does not respond to it.
-    // Until Claude Code supports inbound prompt injection via MCP, tmux is the
-    // only way to send messages that Claude will actually process.
+    // The bridge server uses Channels API (notifications/claude/channel),
+    // which Claude Code processes as inbound prompts — not logging messages.
+    // Bridge is the preferred transport; tmux is the last-resort fallback.
     let via = get_arg(args, "--via").unwrap_or_else(|| "auto".into());
 
     match via.as_str() {
-        "bridge" => send_via_bridge(&session, &text),
+        "bridge" | "auto" => send_via_bridge(&session, &text),
         "tmux" => send_via_tmux(&session, &text),
-        "auto" => send_via_tmux(&session, &text),
         other => {
             eprint!("error: unknown --via method '{other}'. Use: bridge, tmux, auto\r\n");
             std::process::exit(1);
