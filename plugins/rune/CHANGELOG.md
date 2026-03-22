@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.10.0] - 2026-03-22
+
+### Added
+- **`/rune:arc-quick`** — Lightweight 3-phase pipeline (plan -> work -> review) for small-to-medium plans. Accepts prompt string or plan file path. Complexity gate warns on complex plans and suggests `/rune:arc` unless `--force` is passed.
+- **`/rune:quick`** — Beginner alias for `/rune:arc-quick`
+- Registered in using-rune routing table, tarnished, and command reference
+
 ## [2.9.3] - 2026-03-22
 
 ### Fixed

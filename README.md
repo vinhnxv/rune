@@ -7,16 +7,16 @@
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Supported-7F4DFF)](https://docs.anthropic.com/en/docs/claude-code)
-[![Version](https://img.shields.io/badge/version-2.9.3-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-2.10.0-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Agents](https://img.shields.io/badge/agents-142-purple)](#agents)
-[![Skills](https://img.shields.io/badge/skills-58-orange)](#skills)
+[![Skills](https://img.shields.io/badge/skills-59-orange)](#skills)
 
 ---
 
 ## What Is This?
 
-Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 142 specialized AI agents, 58 skills, and a 29-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
+Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 142 specialized AI agents, 59 skills, and a 29-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
 
 **Compatibility:** Requires **Claude Code 2.1.81+** with Agent Teams support. macOS 12+ or Linux. See [full requirements](#requirements).
 
@@ -151,6 +151,7 @@ You ──► /rune:devise ──► Plan
 | `/rune:work` | Implement a plan with AI workers | `/rune:strive` |
 | `/rune:review` | Review your code changes | `/rune:appraise` |
 | `/rune:brainstorm` | Explore ideas through dialogue | `/rune:brainstorm` |
+| `/rune:quick` | Quick 3-phase pipeline (plan -> work -> review) | `/rune:arc-quick` |
 
 ### `/rune:tarnished` — The Unified Entry Point
 
@@ -189,6 +190,7 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 | [`/rune:strive`](#strive) | Execute plans with self-organizing swarm workers | 2-6 | 10–30 min |
 | [`/rune:appraise`](#appraise) | Multi-agent code review on your diff | up to 8 | 5–20 min |
 | [`/rune:audit`](#audit) | Full codebase audit with specialized reviewers | up to 8 | 10–30 min |
+| `/rune:arc-quick` | Quick pipeline: plan → work → review (3 phases) | varies | 25–60 min |
 | [`/rune:arc`](#arc) | End-to-end pipeline: plan → work → review → test → ship | varies | **1–3 hours** |
 | [`/rune:mend`](#mend) | Parallel resolution of review findings | 1-5 | 3–10 min |
 | [`/rune:forge`](#forge) | Deepen a plan with topic-aware research enrichment | 3-12 | 5–15 min |

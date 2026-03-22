@@ -6,7 +6,7 @@ Multi-agent engineering orchestration for [Claude Code](https://claude.ai/claude
 
 ## What Is This?
 
-This is the **Rune plugin** — the detailed component reference for the Rune multi-agent orchestration system. It documents all 142 agents, 58 skills, 15 commands, 4 MCP servers, and the hook infrastructure that powers Rune's workflows.
+This is the **Rune plugin** — the detailed component reference for the Rune multi-agent orchestration system. It documents all 142 agents, 59 skills, 16 commands, 4 MCP servers, and the hook infrastructure that powers Rune's workflows.
 
 For the high-level overview, see the [root README](../../README.md).
 
@@ -178,6 +178,7 @@ Rune is a token-intensive multi-agent system. Each workflow summons multiple age
 | `/rune:arc-batch plans/*.md` | Run Arc (end-to-end pipeline) on multiple plans sequentially |
 | `/rune:arc-issues --label "rune:ready"` | Process GitHub Issues → Plans → PRs automatically |
 | `/rune:arc-hierarchy plans/parent.md` | Execute hierarchical child plans in dependency order |
+| `/rune:arc-quick` | Quick 3-phase pipeline: plan -> work -> review (25-60 min) |
 
 ### Utilities
 

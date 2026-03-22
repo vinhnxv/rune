@@ -35,6 +35,7 @@ Related guides:
 | `/rune:plan` | `/rune:devise` | Beginner planning entry point |
 | `/rune:work` | `/rune:strive` | Beginner implementation entry point |
 | `/rune:review` | `/rune:appraise` | Beginner code review entry point |
+| `/rune:quick` | `/rune:arc-quick` | Beginner quick pipeline entry point |
 
 ---
 
@@ -53,6 +54,7 @@ Related guides:
 | `/rune:mend` | Resolve findings from TOME | `--all`, `--max-fixers` |
 | `/rune:inspect` | Plan-vs-implementation gap audit | `--focus`, `--mode plan`, `--fix`, `--dry-run` |
 | `/rune:arc` | Full pipeline from plan to ship/merge | `--resume`, `--no-forge`, `--approve`, `--no-pr`, `--no-merge` |
+| `/rune:arc-quick` | Lightweight plan -> work -> review pipeline | `--force` |
 
 ---
 
