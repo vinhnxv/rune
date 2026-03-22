@@ -38,14 +38,18 @@ TOME: {tome_path}
 <!-- /RESOLVED:BACK-005 -->
 
 ## Failed Findings
+<!-- RESOLVED:QUAL-002:FAILED -->
 ### QUAL-002: Missing Error Handling
 **Status**: FAILED
 **Reason**: Ward check failed after implementing fix
+<!-- /RESOLVED:QUAL-002 -->
 
 ## Skipped Findings
+<!-- RESOLVED:DOC-001:SKIPPED -->
 ### DOC-001: Missing API Documentation
 **Status**: SKIPPED
 **Reason**: Blocked by SEC-001 (same file, lower priority)
+<!-- /RESOLVED:DOC-001 -->
 
 ## Consistency Fixes
 <!-- RESOLVED:CONSIST-001:CONSISTENCY_FIX -->
@@ -56,20 +60,38 @@ TOME: {tome_path}
 **Old value**: 1.1.0, **New value**: 1.2.0
 <!-- /RESOLVED:CONSIST-001 -->
 
+## WONTFIX (Deferred)
+<!-- RESOLVED:BACK-004:WONTFIX -->
+### BACK-004: evaluateReaction call-order contract not enforced
+**Status**: WONTFIX
+**Severity**: P2
+**Reason**: Design choice — acceptable for initial release. Tracked for future improvement.
+<!-- /RESOLVED:BACK-004 -->
+
 ## Questions (awaiting author clarification)
+<!-- RESOLVED:BACK-010:QUESTION -->
 ### BACK-010: Custom token validator diverges from framework
 **Status**: QUESTION
 **File**: src/auth/handler.py:45
 **Question**: Why was this approach chosen over framework.validate_token()?
 **Fallback**: If no response, treating as P3 suggestion to align with convention.
+<!-- /RESOLVED:BACK-010 -->
 
 ## Nits (author's discretion)
+<!-- RESOLVED:QUAL-011:NIT -->
 ### QUAL-011: Variable naming preference
 **Status**: NIT
 **File**: src/utils/format.py:12
 **Nit**: Variable `x` could be `formatted_output` for clarity.
 **Author's call**: Cosmetic only — no functional impact.
+<!-- /RESOLVED:QUAL-011 -->
 ```
+
+## Per-Finding Section Constraint
+
+**CONSTRAINT**: Every finding ID from the TOME MUST have its own `<!-- RESOLVED:ID:STATUS -->` section. Bulk ranges (e.g., "BACK-004-009") are PROHIBITED — they prevent QA verification. If a group of findings share the same disposition, each still gets its own section with a shared justification reference.
+
+**Valid statuses**: `FIXED`, `FALSE_POSITIVE`, `FAILED`, `SKIPPED`, `WONTFIX`, `CONSISTENCY_FIX`, `QUESTION`, `NIT`.
 
 ## Convergence Logic
 
@@ -77,9 +99,28 @@ When building the resolution summary, aggregate statuses from fixer SendMessage 
 
 1. Collect SEAL lines from all fixer messages: `FIXED:N FAILED:N SKIPPED:N FALSE_POSITIVE:N`
 2. Cross-reference with `inscription.json` finding IDs for each fixer
-3. For each finding: last reported status wins (FIXED > FALSE_POSITIVE > FAILED > SKIPPED)
+3. For each finding: last reported status wins (FIXED > CONSISTENCY_FIX > FALSE_POSITIVE > WONTFIX > FAILED > SKIPPED > QUESTION > NIT)
 4. Cross-file fixes (Phase 5.5) add `FIXED_CROSS_FILE` status
 5. Doc-consistency fixes (Phase 5.7) add `CONSISTENCY_FIX` status
+
+## Summary Arithmetic Validation
+
+After writing the resolution report, validate that summary counts match actual RESOLVED marker counts:
+
+```javascript
+const VALID_STATUSES = ['FIXED', 'FALSE_POSITIVE', 'FAILED', 'SKIPPED', 'WONTFIX', 'QUESTION', 'NIT', 'CONSISTENCY_FIX']
+const sectionCounts = {}
+for (const status of VALID_STATUSES) {
+  const re = new RegExp(`<!-- RESOLVED:[A-Z]+-\\d+:${status} -->`, 'g')
+  sectionCounts[status] = (report.match(re) || []).length
+}
+const computedTotal = Object.values(sectionCounts).reduce((a, b) => a + b, 0)
+if (computedTotal !== tomeFindings.length) {
+  warn(`Resolution report count mismatch: ${computedTotal} sections vs ${tomeFindings.length} TOME findings`)
+}
+```
+
+If there is a mismatch, review the report for missing findings or duplicate entries before finalizing.
 
 ## P1 Escalation
 
