@@ -2028,6 +2028,8 @@ if (reassessmentEnabled) {
 // status back to the plan so deferred tasks are explicitly recorded.
 // This prevents the "silent deferral" problem where tasks disappear without trace.
 
+// planPath from checkpoint — gap-analysis uses checkpoint.plan_file throughout
+const planPath = checkpoint.plan_file
 if (planPath && totalTasks > 0) {
   const timestamp = new Date().toISOString().split('T')[0]  // YYYY-MM-DD
   const arcRunId = id

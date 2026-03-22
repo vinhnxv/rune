@@ -854,29 +854,55 @@ if [[ -z "$NEXT_PHASE" ]]; then
   _trace "All phases complete — removing state file"
 
   # Check if an outer loop (batch/hierarchy/issues) is active.
-  # If so, exit silently — the outer loop's Stop hook will fire next
-  # and handle the plan-to-plan transition. Injecting a summary prompt
-  # here would burn context that the outer loop needs for its transition.
+  # If so, use a lightweight prompt — the outer loop's Stop hook will fire next
+  # and handle the plan-to-plan transition. Still need post-arc steps (completion
+  # stamp writes to plan file, which must happen before the next arc starts).
   _BATCH_STATE="${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"
   _HIERARCHY_STATE="${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"
   _ISSUES_STATE="${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"
+  _HAS_OUTER_LOOP=false
   if [[ -f "$_BATCH_STATE" && ! -L "$_BATCH_STATE" ]] \
      || [[ -f "$_HIERARCHY_STATE" && ! -L "$_HIERARCHY_STATE" ]] \
      || [[ -f "$_ISSUES_STATE" && ! -L "$_ISSUES_STATE" ]]; then
-    _trace "Outer loop active — exiting silently to preserve context for plan transition"
-    exit 0
+    _HAS_OUTER_LOOP=true
+    _trace "Outer loop active — will inject post-arc steps with minimal summary"
   fi
 
-  # Standalone arc (no outer loop) — inject lightweight summary
-  # Add context check first to avoid injecting into exhausted context
+  # Context exhaustion check — if critical, skip post-arc (best effort)
   if _check_context_critical 2>/dev/null; then
-    _trace "Context critical at standalone arc completion — allowing stop without summary"
+    _trace "Context critical at arc completion — allowing stop without post-arc steps"
     exit 0
   fi
 
   # Stop hook: exit 2 = show stderr to model and continue conversation.
   # Exit 0 silently discards all output for Stop hooks (stdout/stderr not shown).
-  printf '%s\n' "Arc pipeline complete — all phases finished. The checkpoint at ${CHECKPOINT_PATH} has been fully updated. Present a brief summary of the arc execution and STOP responding." >&2
+  #
+  # CRITICAL: The prompt MUST instruct the model to execute post-arc steps:
+  # 1. Plan Completion Stamp (writes execution record to plan file)
+  # 2. Echo Persist + Completion Report
+  # 3. Lock release + ARC-9 sweep
+  # Without explicit instructions, the model skips these steps and just summarizes.
+  if [[ "$_HAS_OUTER_LOOP" == "true" ]]; then
+    # Outer loop: execute post-arc steps but skip the verbose summary
+    printf '%s\n' "Arc pipeline complete — all phases finished. Checkpoint: ${CHECKPOINT_PATH}
+
+MANDATORY post-arc steps — execute ALL before stopping:
+1. Read and execute [arc-phase-completion-stamp.md](references/arc-phase-completion-stamp.md) — writes Arc Completion Record to plan file
+2. Read and execute [post-arc.md](references/post-arc.md) — echo persist, state file update, ARC-9 sweep
+3. Release workflow locks
+
+After completing these steps, STOP responding immediately (outer loop will continue)." >&2
+  else
+    # Standalone arc: execute post-arc steps then present summary
+    printf '%s\n' "Arc pipeline complete — all phases finished. Checkpoint: ${CHECKPOINT_PATH}
+
+MANDATORY post-arc steps — execute ALL before presenting summary:
+1. Read and execute [arc-phase-completion-stamp.md](references/arc-phase-completion-stamp.md) — writes Arc Completion Record to plan file
+2. Read and execute [post-arc.md](references/post-arc.md) — echo persist, completion report, ARC-9 sweep
+3. Release workflow locks
+
+After completing these steps, present a brief summary of the arc execution and STOP responding." >&2
+  fi
   exit 2
 fi
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.10.4] - 2026-03-23
+
+### Fixed
+- **Post-arc plan file not updated** — Stop hook completion prompt now explicitly instructs model to execute Plan Completion Stamp (`arc-phase-completion-stamp.md`) and Post-Arc steps (`post-arc.md`). Previously, the prompt only said "summarize and stop" which caused the model to skip writing the `## Arc Completion Record` section and `**Status**:` update to the plan file.
+- **Gap analysis Step D.7 undefined `planPath`** — `planPath` variable was never declared in gap-analysis.md, causing the `## Implementation Status` section to silently fail. Now correctly reads from `checkpoint.plan_file`.
+- **Outer loop (batch/hierarchy/issues) skipping post-arc** — When an outer loop was active, the Stop hook exited silently (`exit 0`), completely skipping plan file updates. Now injects a lightweight post-arc prompt so the completion stamp runs between arc iterations.
+
 ## [2.10.3] - 2026-03-23
 
 ### Fixed

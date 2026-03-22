@@ -357,7 +357,7 @@ The `plan_file` path written to the phase loop state file and checkpoint is prop
 
 ## Post-Arc (Final Phase)
 
-These steps run after Phase 9.5 MERGE (the last phase). The Stop hook injects a completion prompt when all phases are done.
+**MANDATORY**: These steps run after Phase 9.5 MERGE (the last phase). The Stop hook injects a completion prompt when all phases are done. You MUST read and execute `arc-phase-completion-stamp.md` and `post-arc.md` — do NOT skip them or just present a summary. The plan file update is the primary deliverable of this phase.
 
 ### Timing Totals + Completion Stamp (schema v19)
 
