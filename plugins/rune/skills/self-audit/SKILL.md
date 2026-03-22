@@ -266,70 +266,9 @@ to detect pipeline-spanning patterns.
 
 ## --apply Interactive Approval Flow
 
-The `--apply` flag activates the fix proposal pipeline. See [apply-mode.md](references/apply-mode.md) for full protocol.
+The `--apply` flag activates the fix proposal pipeline: filters Etched-tier findings with recurrence >= 3, spawns improvement-advisor, presents proposals via AskUserQuestion (Apply/Skip/Reject), creates atomic commits per fix (`self-audit-fix({context}): [{ID}] description`). Rejection tracking suppresses future proposals. Active arc conflict check defers proposals to `.rune/echoes/meta-qa/deferred-proposals.md`.
 
-### Flow
-
-```
-/rune:self-audit --apply
-  1. Run full audit (static + runtime if available)
-  2. Filter: only Etched-tier findings AND recurrence >= 3
-  3. Spawn improvement-advisor agent for eligible findings
-  4. For each proposal:
-     a. Display preview via AskUserQuestion
-     b. User selects: Apply / Skip / Reject (with reason)
-     c. If Apply: Edit target file, create atomic commit
-     d. If Reject: Record reason in meta-qa echo (suppresses future proposals)
-  5. Summary: N applied, N skipped, N rejected
-```
-
-### Commit Format
-
-Each applied fix gets its own atomic commit:
-
-```
-self-audit-fix(prompt): [SA-AGT-001] Add missing maxTurns to phase-qa-verifier
-self-audit-fix(workflow): [SA-WF-004] Update phase count from 29 to 34
-self-audit-fix(rule): [SA-RC-001] Sync plugin version in marketplace.json
-self-audit-fix(hook): [SA-HK-006] Add missing hook to CLAUDE.md table
-```
-
-Context types: `prompt`, `workflow`, `rule`, `hook`, `config`, `agent`.
-
-### Rejection Tracking
-
-When a user rejects a proposal, the rejection reason is recorded in
-`.rune/echoes/meta-qa/MEMORY.md` with `suppress_future: true`. This prevents
-the same proposal from being surfaced in future audits:
-
-```markdown
-### [2026-03-19] Rejected: SA-AGT-001 maxTurns for phase-qa-verifier
-- **layer**: notes
-- **source**: rune:self-audit apply-{run_id}
-- **confidence**: 1.0
-- **rejection_reason**: "Intentionally low — QA agents are lightweight"
-- **suppress_future**: true
-```
-
-### Active Arc Conflict Check
-
-Before applying fixes, check for active arc state:
-
-```javascript
-// Defer if an arc is currently running
-const arcActive = Glob('.rune/arc-phase-loop.local.md')
-if (arcActive.length > 0) {
-  // Save proposals to deferred file instead of applying
-  Write('.rune/echoes/meta-qa/deferred-proposals.md', proposals)
-  // Inform user
-  log('Active arc detected. Proposals saved to deferred-proposals.md.')
-  log('Run /rune:self-audit --apply again after the arc completes.')
-  return
-}
-```
-
-Deferred proposals are saved to `.rune/echoes/meta-qa/deferred-proposals.md`
-and surfaced on the next `--apply` invocation.
+See [apply-mode.md](references/apply-mode.md) for full protocol, commit format, rejection tracking, and arc conflict handling.
 
 ## Cross-Role Echo Correlation
 

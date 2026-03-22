@@ -202,3 +202,38 @@ graph LR
 | API coverage | 20% | 70% |
 | **Weighted total** | | **86%** |
 ```
+
+## Output Directory Structure
+
+```
+tmp/design-prototype/{timestamp}/{component-name}/
+├── extraction.tsx                  # Raw figma-to-react output
+├── prototype.tsx                   # Synthesized React component
+├── prototype.stories.tsx           # Storybook CSF3 story
+└── match.json                      # Library match result for this component
+
+tmp/design-prototype/{timestamp}/
+├── tokens-snapshot.json            # Extracted design tokens
+├── match-report.json               # Library match results (all components)
+├── flow-map.md                     # UX flow mapping (>= 2 components)
+├── verify-report.md                # Verification results
+└── summary.json                    # Aggregate summary
+
+tmp/storybook/                          # Ephemeral Storybook runtime (cleaned by /rune:rest)
+├── .storybook/main.ts              # Scans src/**/*.stories.@(ts|tsx)
+├── .storybook/preview.ts           # layout: "fullscreen" default
+├── package.json                    # Storybook 10 + React 18 + Tailwind v4
+├── vite.config.ts                  # @tailwindcss/vite plugin
+├── src/
+│   ├── index.css                   # @import "tailwindcss"
+│   └── prototypes/                 # Copied from tmp/design-prototype/{timestamp}/prototypes/
+│       ├── {ComponentA}/
+│       │   ├── prototype.tsx
+│       │   └── prototype.stories.tsx
+│       ├── {ComponentB}/
+│       │   ├── prototype.tsx
+│       │   └── prototype.stories.tsx
+│       └── {FullPageComponent}/    # Full-screen composition (imports others)
+│           ├── prototype.tsx       # ← PRIMARY: composes all sub-components
+│           └── prototype.stories.tsx  # ← layout: "fullscreen", opened by default
+```

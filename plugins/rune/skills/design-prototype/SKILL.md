@@ -338,43 +338,9 @@ Bootstraps an ephemeral Storybook environment at `tmp/storybook/`, copies protot
 
 **Gate**: `--no-storybook` is NOT set AND prototypes were generated.
 
-```javascript
-if (!flags.noStorybook && Glob(`${outputDir}/prototypes/*/prototype.tsx`).length > 0) {
-  // 1. Bootstrap: scaffold + install deps + copy prototypes (single script)
-  const bootstrapScript = `${CLAUDE_PLUGIN_ROOT}/scripts/storybook/bootstrap.sh`
-  const result = Bash(`cd "${CWD}" && bash "${bootstrapScript}" "${outputDir}/prototypes"`)
-  const bootstrapResult = JSON.parse(result)  // { storybook_dir, full_page_component, ready }
+Uses `scripts/storybook/bootstrap.sh` which handles: scaffold (once) → install deps (once) → copy prototypes → detect full-page composition → return JSON `{ storybook_dir, full_page_component, ready }`. After bootstrap, kills existing Storybook on port 6006, launches fresh, and opens the full-page composition (or first component) in browser.
 
-  // 2. Kill any existing Storybook on port 6006, launch fresh
-  Bash(`lsof -ti:6006 | xargs kill -9 2>/dev/null || true`)
-  Bash(`cd "${bootstrapResult.storybook_dir}" && npm run storybook &`)
-  Bash(`sleep 10`)
-
-  // 3. Open full-page composition in browser (or first component if no full page)
-  const fullPage = bootstrapResult.full_page_component
-  const storyId = fullPage
-    ? `prototypes-${fullPage.toLowerCase()}--primary`
-    : `prototypes-${components[0].safeName.toLowerCase()}--primary`
-  Bash(`open "http://localhost:6006/?path=/story/${storyId}"`)
-
-  summary.storybook_dir = bootstrapResult.storybook_dir
-  summary.storybook_launched = true
-  summary.storybook_url = `http://localhost:6006/?path=/story/${storyId}`
-  summary.full_page_component = fullPage
-}
-```
-
-### Bootstrap Script (`scripts/storybook/bootstrap.sh`)
-
-Handles the full lifecycle:
-1. **Scaffold** (once): Creates `tmp/storybook/` with package.json, .storybook/main.ts, preview.ts, vite.config.ts, index.css
-2. **Install** (once): `npm install --legacy-peer-deps` if node_modules missing
-3. **Copy**: Copies prototype directories into `tmp/storybook/src/prototypes/`
-4. **Detect**: Finds full-page composition component (imports >= 2 sibling prototypes)
-
-Returns JSON: `{ storybook_dir, full_page_component, ready }`
-
-**Skip conditions**: `--no-storybook` flag, no prototypes generated.
+See [pipeline-phases.md](references/pipeline-phases.md) for the full Phase 4.5 implementation code and bootstrap script details.
 
 ## Phase 5: Present
 
@@ -414,38 +380,9 @@ See [report-format.md](references/report-format.md) for summary formatting.
 
 ## Output Directory Structure
 
-```
-tmp/design-prototype/{timestamp}/{component-name}/
-├── extraction.tsx                  # Raw figma-to-react output
-├── prototype.tsx                   # Synthesized React component
-├── prototype.stories.tsx           # Storybook CSF3 story
-└── match.json                      # Library match result for this component
+Per-component: `tmp/design-prototype/{timestamp}/{component-name}/` with `extraction.tsx`, `prototype.tsx`, `prototype.stories.tsx`, `match.json`. Per-run: `tokens-snapshot.json`, `match-report.json`, `flow-map.md`, `verify-report.md`, `summary.json`. Storybook runtime at `tmp/storybook/` (session-scoped, cleaned by `/rune:rest`).
 
-tmp/design-prototype/{timestamp}/
-├── tokens-snapshot.json            # Extracted design tokens
-├── match-report.json               # Library match results (all components)
-├── flow-map.md                     # UX flow mapping (>= 2 components)
-├── verify-report.md                # Verification results
-└── summary.json                    # Aggregate summary
-
-tmp/storybook/                          # Ephemeral Storybook runtime (cleaned by /rune:rest)
-├── .storybook/main.ts              # Scans src/**/*.stories.@(ts|tsx)
-├── .storybook/preview.ts           # layout: "fullscreen" default
-├── package.json                    # Storybook 10 + React 18 + Tailwind v4
-├── vite.config.ts                  # @tailwindcss/vite plugin
-├── src/
-│   ├── index.css                   # @import "tailwindcss"
-│   └── prototypes/                 # Copied from tmp/design-prototype/{timestamp}/prototypes/
-│       ├── {ComponentA}/
-│       │   ├── prototype.tsx
-│       │   └── prototype.stories.tsx
-│       ├── {ComponentB}/
-│       │   ├── prototype.tsx
-│       │   └── prototype.stories.tsx
-│       └── {FullPageComponent}/    # Full-screen composition (imports others)
-│           ├── prototype.tsx       # ← PRIMARY: composes all sub-components
-│           └── prototype.stories.tsx  # ← layout: "fullscreen", opened by default
-```
+See [report-format.md](references/report-format.md) § Output Directory Structure for the full tree.
 
 ## Agent Team Architecture
 
