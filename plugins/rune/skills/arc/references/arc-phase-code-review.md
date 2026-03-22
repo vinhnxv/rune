@@ -261,6 +261,14 @@ if (tomeCandidates.length === 0) {
 // Now reads tomeTarget content explicitly.
 const tomeContent = exists(tomeTarget) ? Read(tomeTarget) : ''
 
+// STEP 4.6: Post-TOME marker verification (observability + diagnostics)
+// Informational only — does NOT block the pipeline. Fallback parsing in verify-mend handles recovery.
+if (tomeContent && !tomeContent.includes('RUNE:FINDING') && !tomeContent.includes('<!-- CLEAN -->')) {
+  warn("TOME written without RUNE:FINDING markers — Runebinder may have crashed or timed out. Fallback parsing in verify-mend will handle this.")
+}
+const markerCount = tomeContent ? (tomeContent.match(/<!-- RUNE:FINDING[^>]*-->/g) || []).length : 0
+log(`TOME relocated to ${tomeTarget}: ${markerCount} RUNE:FINDING markers`)
+
 // STEP 5: Update checkpoint
 // BUG FIX: artifact path was hardcoded to `tome.md` — wrong on convergence retry
 // rounds where TOME is at `tome-round-{N}.md`. Now uses round-aware tomeTarget.
