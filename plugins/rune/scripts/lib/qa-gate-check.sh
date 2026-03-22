@@ -163,23 +163,32 @@ _qa_gate_check() {
   # ── Branch 2: Verdict file missing (QA agent crashed) ──
   elif [[ ! -f "$_qa_verdict_file" ]]; then
     # RUIN-003: Infrastructure retries do NOT count against quality retry budget.
-    # Use separate infra_retry_count field. Only consume global budget as a safety cap.
+    # Use separate infra_retry_count (per-phase) and infra_global_retry_count (pipeline-wide).
+    # Quality global_retry_count is NOT incremented here — only infra_global_retry_count.
     local _infra_retries
     _infra_retries=$(_jq_with_budget -r --arg p "$_IMMEDIATE_PREV" \
       '.phases[$p].infra_retry_count // 0' <<< "$CKPT_CONTENT" 2>/dev/null) || _infra_retries=0
     [[ "$_infra_retries" =~ ^[0-9]+$ ]] || _infra_retries=0
 
-    if [[ "$_infra_retries" -lt 2 && "$_qa_global" -lt "$_qa_max_global" ]]; then
+    # Read infra-specific global counters (separate from quality global budget)
+    local _infra_global
+    _infra_global=$(_jq_with_budget -r '.qa.infra_global_retry_count // 0' <<< "$CKPT_CONTENT" 2>/dev/null) || _infra_global=0
+    [[ "$_infra_global" =~ ^[0-9]+$ ]] || _infra_global=0
+    local _max_infra_global
+    _max_infra_global=$(_jq_with_budget -r '.qa.max_infra_global_retries // 12' <<< "$CKPT_CONTENT" 2>/dev/null) || _max_infra_global=12
+    [[ "$_max_infra_global" =~ ^[0-9]+$ ]] || _max_infra_global=12
+
+    if [[ "$_infra_retries" -lt 2 && "$_infra_global" -lt "$_max_infra_global" ]]; then
       CKPT_CONTENT=$(echo "$CKPT_CONTENT" | jq \
         --arg p "$_parent_phase" --arg q "$_IMMEDIATE_PREV" \
         '.phases[$p].status = "pending" |
          .phases[$p].remediation_context = "QA agent crashed without producing verdict. Infrastructure retry — re-execute phase normally." |
          .phases[$q].status = "pending" |
          .phases[$q].infra_retry_count = ((.phases[$q].infra_retry_count // 0) + 1) |
-         .qa.global_retry_count = ((.qa.global_retry_count // 0) + 1)')
+         .qa.infra_global_retry_count = ((.qa.infra_global_retry_count // 0) + 1)')
       _qa_write_checkpoint "verdict-missing"
       NEXT_PHASE="$_parent_phase"
-      _log_phase "qa_verdict_missing" "$_parent_phase" "default=fail" "infra_retry=$((_infra_retries+1))"
+      _log_phase "qa_verdict_missing" "$_parent_phase" "default=fail" "infra_retry=$((_infra_retries+1))" "infra_global=$((_infra_global+1))"
     else
       # RUIN-002: Set escalation flag
       CKPT_CONTENT=$(echo "$CKPT_CONTENT" | jq \

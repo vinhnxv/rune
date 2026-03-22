@@ -369,7 +369,7 @@ const parentPlanMeta = {
 // The arc-hierarchy SKILL.md documents the injection protocol.
 
 Write(`.rune/arc/${id}/checkpoint.json`, {
-  id, schema_version: 26, plan_file: planFile,
+  id, schema_version: 27, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   // RUIN-003 FIX: Remove redundant ?? guards — Layer 2 resolveArcConfig() already guarantees all values are defined
   flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, accept_external_changes: arcConfig.accept_external_changes, bot_review: arcConfig.bot_review, no_bot_review: arcConfig.no_bot_review },
@@ -458,11 +458,15 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
   // Schema v25 addition: inspect convergence — separate from review-mend convergence.
   // Controls the inspect → inspect_fix → verify_inspect loop (Phases 5.9, 5.95, 5.99).
   inspect_convergence: { round: 0, max_rounds: 2, threshold: 95, history: [] },
-  // Schema v25 addition: QA gate configuration — controls per-phase QA verification.
+  // Schema v27 addition: QA gate configuration — controls per-phase QA verification.
   // Each QA phase runs after its parent and produces a verdict.json with numerical scores.
+  // v27: Separated infra vs quality global retry budgets. Infrastructure retries (agent
+  // timeout/crash) no longer consume the quality retry budget (global_retry_count).
   qa: {
-    global_retry_count: 0,
+    global_retry_count: 0,                // quality retries only (not incremented on infra failures)
+    infra_global_retry_count: 0,          // infra retries only (timeout/crash — separate budget)
     max_global_retries: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.max_global_retries ?? 6 })(),
+    max_infra_global_retries: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.max_infra_global_retries ?? 12 })(),  // 6 phases × 2 retries
     pass_threshold: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.pass_threshold ?? 70 })(),
     max_phase_retries: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.max_phase_retries ?? 2 })(),
     enabled: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.enabled !== false })()

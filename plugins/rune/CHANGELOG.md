@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.9.3] - 2026-03-22
+
+### Fixed
+- **QA global retry budget separation** — infrastructure retries (agent timeout/crash) no longer consume the quality retry budget (`global_retry_count`). New `infra_global_retry_count` field tracks infra failures independently with its own cap (default: 12). Prevents infra instability from starving quality retries in long arc runs. Schema v27.
+
 ## [2.9.2] - 2026-03-22
 
 ### Fixed
