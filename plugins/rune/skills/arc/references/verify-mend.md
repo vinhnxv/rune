@@ -74,20 +74,75 @@ try {
   updateCheckpoint({ phase: 'verify_mend', status: 'completed', phase_sequence: 7.5, team_name: null })
   return
 }
-if (!currentTome || (!currentTome.includes('RUNE:FINDING') && !currentTome.includes('<!-- CLEAN -->'))) {
-  warn(`TOME at ${tomeFile} appears empty or malformed — halting convergence.`)
-  // BACK-001 FIX: p1_remaining/p2_remaining null — TOME malformed, counts unreliable
+// STEP 1: Try structured markers first (preferred)
+if (!currentTome) {
+  warn(`TOME at ${tomeFile} is empty — halting convergence.`)
   checkpoint.convergence.history.push({
     round: mendRound, findings_before: 0, findings_after: 0,
-    p1_remaining: null, p2_remaining: null, verdict: 'halted', reason: 'tome_malformed', timestamp: new Date().toISOString()
+    p1_remaining: null, p2_remaining: null,
+    verdict: 'halted', reason: 'tome_malformed',
+    timestamp: new Date().toISOString()
   })
   updateCheckpoint({ phase: 'verify_mend', status: 'completed', phase_sequence: 7.5, team_name: null })
   return
 }
 
+let allFindingMarkers = currentTome.match(/<!-- RUNE:FINDING[^>]*-->/g) || []
+
+// STEP 1b: Fallback to markdown parsing when no structured markers
+// When Runebinder crashes/times out, the TOME has markdown content but no RUNE:FINDING markers.
+// This 2-pass fallback parses severity section headers and finding list items.
+// NOTE: Fallback-synthesized markers include source="markdown_fallback" for downstream diagnostics.
+// They intentionally LACK nonce and interaction attributes — downstream filters handle this:
+//   - Nonce: effectiveNonce=null path (line ~168) includes all markers (safe fallback)
+//   - Interaction: Q/N filter (line ~141) won't match → counted as assertions (safe overcount)
+//   - Scope: scopeStats will be null → smart convergence scoring skipped (correct)
+if (allFindingMarkers.length === 0 && !currentTome.includes('<!-- CLEAN -->')) {
+  warn("TOME lacks RUNE:FINDING markers — falling back to markdown parsing")
+
+  // Pass 1: find severity sections (## P1 (Critical) — {count}, ## P2 (High) — {count}, etc.)
+  const severitySections = currentTome.match(/^## P([123]) \([^)]+\)/gm) || []
+  // Pass 2: find findings within each section (- [ ] **[PREFIX-NNN] Title** in `file:line`)
+  const findingPattern = /^- \[ \] \*\*\[(\w+-\d+)\]/gm
+
+  if (severitySections.length > 0) {
+    // Split TOME by severity sections — capture group produces alternating array:
+    // [header, severity1, content1, severity2, content2, ...]
+    const sections = currentTome.split(/^## P([123]) \([^)]+\)/m)
+    for (let i = 1; i < sections.length; i += 2) {
+      const severity = sections[i]  // "1", "2", or "3"
+      const content = sections[i + 1] || ''
+      let match
+      findingPattern.lastIndex = 0  // Reset global regex per section
+      while ((match = findingPattern.exec(content)) !== null) {
+        const findingId = match[1]
+        allFindingMarkers.push(
+          `<!-- RUNE:FINDING id="${findingId}" severity="P${severity}" source="markdown_fallback" -->`
+        )
+      }
+    }
+    if (allFindingMarkers.length > 0) {
+      warn(`Parsed ${allFindingMarkers.length} findings from markdown (fallback mode)`)
+    }
+  }
+
+  // If still no findings after fallback, truly malformed
+  if (allFindingMarkers.length === 0) {
+    warn(`TOME at ${tomeFile} appears empty or malformed — halting convergence.`)
+    // BACK-001 FIX: p1_remaining/p2_remaining null — TOME malformed, counts unreliable
+    checkpoint.convergence.history.push({
+      round: mendRound, findings_before: 0, findings_after: 0,
+      p1_remaining: null, p2_remaining: null,
+      verdict: 'halted', reason: 'tome_malformed',
+      timestamp: new Date().toISOString()
+    })
+    updateCheckpoint({ phase: 'verify_mend', status: 'completed', phase_sequence: 7.5, team_name: null })
+    return
+  }
+}
+
 // v1.60.0: Exclude Q/N interaction findings from convergence counting
 // Q/N findings are human-facing only and should not influence convergence decisions
-const allFindingMarkers = currentTome.match(/<!-- RUNE:FINDING[^>]*-->/g) || []
 const assertionMarkers = allFindingMarkers.filter(m => !/interaction="(question|nit)"/.test(m))
 const currentFindingCount = assertionMarkers.length
 const p1Count = assertionMarkers.filter(m => /severity="P1"/i.test(m)).length
