@@ -16,6 +16,11 @@ programmatically. This eliminates the conflict-of-interest of the Tarnished eval
 > With max 2 retries, the parent phase dispatches 3 times — within safe bounds.
 > Increasing MAX_QA_RETRIES to 3 would cause GUARD 9 to destroy the state file and halt the pipeline.
 > Do NOT increase this limit without first raising MAX_PHASE_DISPATCHES in arc-phase-stop-hook.sh.
+>
+> **Retry budget separation (v2.9.3+)**:
+> - `global_retry_count` / `max_global_retries` (default: 6) — tracks **quality retries only** (QA score below threshold)
+> - `infra_global_retry_count` / `max_infra_global_retries` (default: 12) — tracks **infrastructure retries only** (agent timeout/crash, missing verdict file)
+> - Infrastructure retries do NOT consume the quality retry budget. Each budget is independent.
 
 ---
 
@@ -480,9 +485,11 @@ task complete. The stop hook reads this file to decide whether to advance.
 **Missing verdict file rule**: If the QA agent times out or crashes without writing verdict JSON,
 the stop hook MUST treat the absent file as FAIL with `timed_out: true`. Timed-out FAILs do NOT
 count against the quality retry budget (they are infrastructure failures, not quality failures).
-Infrastructure retries are tracked separately via `infra_retry_count` (max 2) and only consume
-the `global_retry_count` as a safety cap. This prevents QA agent crashes from exhausting the
-quality retry budget that should be reserved for genuine quality failures.
+Infrastructure retries are tracked separately via per-phase `infra_retry_count` (max 2) and
+pipeline-wide `infra_global_retry_count` (max 12, configurable via `max_infra_global_retries`).
+The quality `global_retry_count` is NOT incremented on infrastructure retries — only
+`infra_global_retry_count` is. This prevents QA agent crashes from exhausting the quality retry
+budget that should be reserved for genuine quality failures.
 
 ---
 
