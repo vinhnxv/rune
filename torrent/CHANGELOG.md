@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-03-22
+
+### Fixed
+
+- **Bridge View session guard** — `OpenBridge` now requires active session, not just `--channels` flag. Shows "No active session" if pressed before arc starts
+- **SendFailed indicator** — messages that fail delivery across all transports (bridge, inbox, tmux) now shown as `"you (failed)"` in red instead of falsely appearing as sent
+- **Unicode input cap** — message input limit changed from byte length to char count (`chars().count() < 2000`) for correct handling of Vietnamese, CJK, and other multi-byte input
+- **Bridge View scrolling** — added Up/Down arrow keys to scroll through message history with yellow `"↓ N more"` indicator when scrolled up
+- **Bridge log file reset** — `bridge_log_file` now properly reset when starting a new session, ensuring each session gets its own JSONL file
+- **Arc completion color** — Bridge View now shows arc completion in red for failures, green for success (was always green)
+
+### Added
+
+- **Session separator** — `"── new session: rune-xyz ──"` marker inserted in Bridge View when starting a new arc execution
+- **Scroll hint** — Bridge View input bar shows `[↑↓] scroll` alongside existing `[Enter] send` and `[Esc] back to arc`
+
 ## [0.10.0] - 2026-03-22
 
 ### Added
