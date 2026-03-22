@@ -130,7 +130,9 @@ if (sbRunning === "down") {
       const storyFiles = changedFiles.filter(f => f.endsWith('.stories.tsx'))
       if (storyFiles.length > 0) {
         const bootstrapScript = `${CLAUDE_PLUGIN_ROOT}/scripts/storybook/bootstrap.sh`
-        Bash(`cd "${CWD}" && bash "${bootstrapScript}" --story-files ${storyFiles.join(' ')}`)
+        // SEC: Quote each story file path to prevent shell injection from paths with spaces/special chars
+        const quotedFiles = storyFiles.map(f => `"${f.replace(/"/g, '\\"')}"`).join(' ')
+        Bash(`cd "${CWD}" && bash "${bootstrapScript}" --story-files ${quotedFiles}`)
       }
       Bash(`cd "${CWD}/tmp/storybook" && npm run storybook -- --port ${sbPort} --ci --no-open &`, { timeout: 15000 })
     } else {
@@ -347,12 +349,28 @@ try {
   allMembers = Array.from({ length: maxWorkers }, (_, i) => `storybook-reviewer-${i + 1}`)
 }
 
+// 2a. Force-reply — put all teammates in message-processing state
+let confirmedAlive = 0
+let confirmedDead = 0
+const aliveMembers = []
 for (const member of allMembers) {
-  SendMessage({ type: "shutdown_request", recipient: member, content: "Storybook verification complete" })
+  try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { confirmedDead++ }
+}
+if (aliveMembers.length > 0) { Bash("sleep 2") }
+
+// 2c. Send shutdown_request to alive members
+for (const member of aliveMembers) {
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Storybook verification complete" }); confirmedAlive++ } catch (e) { confirmedDead++ }
 }
 
-if (allMembers.length > 0) { Bash("sleep 20") }
+// 3. Adaptive grace period
+if (confirmedAlive > 0) {
+  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`)
+} else {
+  Bash("sleep 2")
+}
 
+// 4. TeamDelete with retry-with-backoff
 let cleanupTeamDeleteSucceeded = false
 const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
@@ -362,8 +380,11 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   }
 }
 
-// Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+// 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
 if (!cleanupTeamDeleteSucceeded) {
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+  Bash(`sleep 5`)
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }

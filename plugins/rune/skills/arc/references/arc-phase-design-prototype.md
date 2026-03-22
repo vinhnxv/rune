@@ -58,7 +58,7 @@ if (!extractionPhase || extractionPhase.status === "skipped") {
 }
 
 // 2. Verify VSM files exist
-const vsmFiles = Glob("tmp/arc/{id}/vsm/*.json")
+const vsmFiles = Glob(`tmp/arc/${id}/vsm/*.json`)
 if (vsmFiles.length === 0) {
   warn("Design prototype: No VSM files found from Phase 3. Skipping.")
   updateCheckpoint({ phase: "design_prototype", status: "skipped", skip_reason: "no_vsm_files" })
@@ -146,9 +146,17 @@ for (const vsmPath of vsmFiles.slice(0, maxComponents)) {
 
 if (components.length === 0) {
   warn("Design prototype: All figma_to_react calls failed. Skipping.")
-  // Cleanup team before early return
-  // No workers spawned at this point — go straight to TeamDelete
-  try { TeamDelete() } catch (e) { /* best effort */ }
+  // Cleanup team before early return — no workers spawned, use retry-with-backoff
+  const EARLY_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
+  for (let attempt = 0; attempt < EARLY_CLEANUP_DELAYS.length; attempt++) {
+    if (attempt > 0) Bash(`sleep ${EARLY_CLEANUP_DELAYS[attempt] / 1000}`)
+    try { TeamDelete(); break } catch (e) {
+      if (attempt === EARLY_CLEANUP_DELAYS.length - 1) {
+        Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/arc-prototype-${id}/" "$CHOME/tasks/arc-prototype-${id}/" 2>/dev/null`)
+        try { TeamDelete() } catch (_) { /* best effort */ }
+      }
+    }
+  }
   updateCheckpoint({ phase: "design_prototype", status: "skipped", skip_reason: "all_extractions_failed" })
   return
 }
@@ -304,13 +312,40 @@ const manifest = {
 Write(`tmp/arc/${id}/prototypes/manifest.json`, JSON.stringify(manifest, null, 2))
 
 // === STEP F: Shutdown + Cleanup ===
-const PROTO_WORKER_NAMES = ["proto-synth-1", "proto-synth-2", "proto-synth-3"]
-const shutdownTargets = spawnedWorkers?.length > 0 ? spawnedWorkers : PROTO_WORKER_NAMES
-for (const workerName of shutdownTargets) {
-  try { SendMessage({ type: "shutdown_request", recipient: workerName }) } catch (_) {}
+// --- Standard 5-component cleanup (CLAUDE.md compliance) ---
+// 1. Dynamic member discovery
+let allMembers = []
+try {
+  const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/arc-prototype-${id}/config.json`))
+  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
+  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+} catch (e) {
+  allMembers = spawnedWorkers?.length > 0 ? spawnedWorkers : ["proto-synth-1", "proto-synth-2", "proto-synth-3"]
 }
-sleep(20_000)
 
+// 2a. Force-reply
+let confirmedAlive = 0
+let confirmedDead = 0
+const aliveMembers = []
+for (const member of allMembers) {
+  try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { confirmedDead++ }
+}
+if (aliveMembers.length > 0) { Bash("sleep 2") }
+
+// 2c. Send shutdown_request
+for (const member of aliveMembers) {
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Design prototype complete" }); confirmedAlive++ } catch (e) { confirmedDead++ }
+}
+
+// 3. Adaptive grace period
+if (confirmedAlive > 0) {
+  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`)
+} else {
+  Bash("sleep 2")
+}
+
+// 4. TeamDelete with retry-with-backoff
 let cleanupTeamDeleteSucceeded = false
 const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
@@ -319,12 +354,12 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
     if (attempt === CLEANUP_DELAYS.length - 1) warn(`design-prototype cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
   }
 }
+
+// 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
 if (!cleanupTeamDeleteSucceeded) {
-  // 5a. Process-level kill — terminate lingering teammates before filesystem cleanup
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
   Bash(`sleep 5`)
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
-  // 5b. Filesystem cleanup
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/arc-prototype-${id}/" "$CHOME/tasks/arc-prototype-${id}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }

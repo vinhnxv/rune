@@ -81,10 +81,19 @@ try {
 
   if (candidates?.results?.length > 0) {
     const builtinNames = new Set(["ux-heuristic-reviewer", "ux-flow-validator", "ux-interaction-auditor", "ux-cognitive-walker"])
+    // Track used prefixes to avoid collisions (P2-5 fix: UXF is already used by ux-flow-validator)
+    const usedPrefixes = new Set(agents.map(a => a.prefix))
     let userIdx = 1
     for (const c of candidates.results) {
       if (!builtinNames.has(c.name) && (c.source === "user" || c.source === "project")) {
-        const prefix = `UX${String.fromCharCode(65 + agents.length)}`  // UXE, UXF, ...
+        // Find next available prefix letter, skipping collisions
+        let prefixChar = 65 + agents.length  // Start from current count
+        let prefix = `UX${String.fromCharCode(prefixChar)}`
+        while (usedPrefixes.has(prefix) && prefixChar < 91) {
+          prefixChar++
+          prefix = `UX${String.fromCharCode(prefixChar)}`
+        }
+        usedPrefixes.add(prefix)
         agents.push({ name: `ux-user-${userIdx}`, agent: c.name, prefix })
         userIdx++
       }
@@ -126,13 +135,40 @@ for (const { name, agent } of agents) {
 // 6. Monitor — waitForCompletion with 5-min timeout
 waitForCompletion(`arc-ux-${id}`, agents.length, { timeoutMs: 240_000, pollIntervalMs: 30_000, staleWarnMs: 300_000, label: "Arc: UX Verification" })
 
-// 7. Cleanup — standard 5-component pattern
-for (const { name } of agents) {
-  try { SendMessage({ type: "shutdown_request", recipient: name, content: `UX verification complete` }) } catch (e) { /* agent may be done */ }
+// 7. Cleanup — standard 5-component pattern (CLAUDE.md compliance)
+// 1. Dynamic member discovery
+let allMembers = []
+try {
+  const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/arc-ux-${id}/config.json`))
+  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
+  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+} catch (e) {
+  allMembers = agents.map(a => a.name)
 }
-Bash("sleep 20")  // Grace period
 
-// TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s)
+// 2a. Force-reply
+let confirmedAlive = 0
+let confirmedDead = 0
+const aliveMembers = []
+for (const member of allMembers) {
+  try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { confirmedDead++ }
+}
+if (aliveMembers.length > 0) { Bash("sleep 2") }
+
+// 2c. Send shutdown_request
+for (const member of aliveMembers) {
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "UX verification complete" }); confirmedAlive++ } catch (e) { confirmedDead++ }
+}
+
+// 3. Adaptive grace period
+if (confirmedAlive > 0) {
+  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`)
+} else {
+  Bash("sleep 2")
+}
+
+// 4. TeamDelete with retry-with-backoff
 let cleanupTeamDeleteSucceeded = false
 const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
@@ -141,9 +177,14 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
     if (attempt === CLEANUP_DELAYS.length - 1) warn(`ux-verification cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
   }
 }
+
+// 5. Filesystem fallback (QUAL-012)
 if (!cleanupTeamDeleteSucceeded) {
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+  Bash(`sleep 5`)
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/arc-ux-${id}/" "$CHOME/tasks/arc-ux-${id}/" 2>/dev/null`)
-  try { TeamDelete() } catch (e) { /* best effort */ }
+  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
 
 // 8. Aggregate findings
