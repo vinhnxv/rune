@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.10.2] - 2026-03-23
+
+### Fixed
+- **TOME convergence fallback parser** — `verify-mend.md` convergence controller now recovers findings via 2-pass markdown parsing when `RUNE:FINDING` structured markers are missing (Runebinder crash/timeout). Findings tagged `source="markdown_fallback"` for traceability. Previously halted with `tome_malformed` — now gracefully falls back to section headers + finding list items.
+- **Post-TOME marker observability** — `arc-phase-code-review.md` STEP 4.6 logs marker count at TOME relocation time for early diagnosis of missing markers.
+
 ## [2.10.1] - 2026-03-22
 
 ### Changed

@@ -92,6 +92,11 @@ let allFindingMarkers = currentTome.match(/<!-- RUNE:FINDING[^>]*-->/g) || []
 // STEP 1b: Fallback to markdown parsing when no structured markers
 // When Runebinder crashes/times out, the TOME has markdown content but no RUNE:FINDING markers.
 // This 2-pass fallback parses severity section headers and finding list items.
+// NOTE: Fallback-synthesized markers include source="markdown_fallback" for downstream diagnostics.
+// They intentionally LACK nonce and interaction attributes — downstream filters handle this:
+//   - Nonce: effectiveNonce=null path (line ~168) includes all markers (safe fallback)
+//   - Interaction: Q/N filter (line ~141) won't match → counted as assertions (safe overcount)
+//   - Scope: scopeStats will be null → smart convergence scoring skipped (correct)
 if (allFindingMarkers.length === 0 && !currentTome.includes('<!-- CLEAN -->')) {
   warn("TOME lacks RUNE:FINDING markers — falling back to markdown parsing")
 
