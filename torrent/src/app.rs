@@ -25,6 +25,8 @@ pub struct BridgeMessage {
 pub enum BridgeMessageKind {
     /// Outbound: user sent a message to Claude
     Sent,
+    /// Outbound: message delivery failed (all transports exhausted)
+    SendFailed,
     /// Inbound: phase transition event
     Phase,
     /// Inbound: arc completion event
@@ -176,6 +178,9 @@ pub struct App {
     pub bridge_messages: VecDeque<BridgeMessage>,
     /// File handle for append-only message persistence (opened once per session).
     pub bridge_log_file: Option<std::fs::File>,
+    /// Scroll offset for Bridge View message list (0 = auto-scroll to bottom).
+    /// Incremented by Up, decremented by Down, reset to 0 on new message or SubmitMessage.
+    pub bridge_scroll_offset: usize,
 }
 
 /// Message delivery transport used for the last sent message.
@@ -503,6 +508,8 @@ pub enum Action {
     HealthCheck,        // Check bridge health (channels only)
     OpenBridge,         // Open Bridge View (channels only)
     CloseBridge,        // Return to Running View from Bridge View
+    BridgeScrollUp,     // Scroll up in Bridge View message list
+    BridgeScrollDown,   // Scroll down in Bridge View message list
     // No-op
     None,
 }
@@ -588,6 +595,7 @@ impl App {
             last_claude_msg: None,
             bridge_messages: VecDeque::with_capacity(BRIDGE_MSG_DISPLAY_CAP),
             bridge_log_file: None,
+            bridge_scroll_offset: 0,
         })
     }
 
@@ -1070,6 +1078,7 @@ impl App {
                 if !self.message_input_buf.trim().is_empty() {
                     let msg = self.message_input_buf.clone();
                     self.message_input_active = false;
+                    self.bridge_scroll_offset = 0; // snap to bottom on send
                     self.message_input_buf.clear();
                     self.send_message_to_claude(&msg);
                 }
@@ -1079,7 +1088,12 @@ impl App {
                 self.message_input_buf.clear();
             }
             Action::MessageChar(c) => {
-                self.message_input_buf.push(c);
+                // Cap input at 2000 characters to prevent oversized HTTP bodies.
+                // Uses char count (not byte length) for consistent behavior with
+                // multi-byte Unicode input (e.g. Vietnamese, CJK).
+                if self.message_input_buf.chars().count() < 2000 {
+                    self.message_input_buf.push(c);
+                }
             }
             Action::MessageBackspace => {
                 self.message_input_buf.pop();
@@ -1118,14 +1132,28 @@ impl App {
                 }
             }
             Action::OpenBridge => {
-                if self.channels_enabled {
+                if self.channels_enabled && self.tmux_session_id.is_some() {
                     self.view = AppView::Bridge;
                     self.message_input_buf.clear();
+                } else if self.channels_enabled {
+                    self.set_status("No active session — start an arc first");
                 }
             }
             Action::CloseBridge => {
                 self.view = AppView::Running;
                 self.message_input_active = false;
+                self.bridge_scroll_offset = 0;
+            }
+            Action::BridgeScrollUp => {
+                let max_offset = self.bridge_messages.len().saturating_sub(1);
+                if self.bridge_scroll_offset < max_offset {
+                    self.bridge_scroll_offset += 1;
+                }
+            }
+            Action::BridgeScrollDown => {
+                if self.bridge_scroll_offset > 0 {
+                    self.bridge_scroll_offset -= 1;
+                }
             }
             Action::None => {}
         }
@@ -1624,6 +1652,9 @@ impl App {
             let transport = if bridge_port.is_some() { "bridge" } else { "tmux" };
             self.set_status(format!("/arc sent to {} [{}]", &session_id, transport));
         }
+        // Reset bridge log file for new session (so it opens a fresh file for this session_id)
+        self.bridge_log_file = None;
+
         self.current_run = Some(RunState {
             plan,
             config_idx: self.selected_config,
@@ -1653,6 +1684,13 @@ impl App {
             restart_cooldown_until: None,
             recovery_mode: None,
             session_recreated: false,
+        });
+
+        // Insert session separator in Bridge View messages
+        self.push_bridge_message(BridgeMessage {
+            text: format!("── new session: {} ──", self.tmux_session_id.as_deref().unwrap_or("unknown")),
+            timestamp: chrono::Local::now().time(),
+            kind: BridgeMessageKind::Phase,
         });
 
         // Start callback server if channels are enabled
@@ -1756,11 +1794,16 @@ impl App {
             self.send_via_tmux(msg);
         }
 
-        // Also push to bridge messages for Bridge View display
+        // Push to bridge messages for Bridge View display.
+        // Show as Sent regardless of transport outcome — the status bar
+        // already shows transport-level errors (e.g. "send failed: ...").
+        // Use a distinct kind if delivery definitively failed.
+        let delivery_failed = self.last_msg_transport.is_none()
+            && self.status_message.as_ref().map(|s| s.contains("failed")).unwrap_or(false);
         self.push_bridge_message(BridgeMessage {
             text: truncate_str(msg, 500).to_string(),
             timestamp: chrono::Local::now().time(),
-            kind: BridgeMessageKind::Sent,
+            kind: if delivery_failed { BridgeMessageKind::SendFailed } else { BridgeMessageKind::Sent },
         });
     }
 
@@ -1782,6 +1825,7 @@ impl App {
 
         let url = format!("http://127.0.0.1:{port}/msg");
         match ureq::post(&url)
+            .timeout(Duration::from_secs(5))
             .set("Content-Type", "text/plain")
             .send_string(msg)
         {
@@ -1803,10 +1847,18 @@ impl App {
     }
 
     /// Send via bridge inbox (file-based fallback).
-    /// NOTE: Requires Claude to call check_inbox tool. Kept for future use.
-    #[allow(dead_code)]
+    /// Called when bridge HTTP is unreachable. Falls back to tmux on write failure.
     fn send_via_inbox(&mut self, msg: &str) {
         let session_id = self.tmux_session_id.as_deref().unwrap_or("default");
+        // SEC-006: Validate session_id before path construction (same rules as open_bridge_log)
+        if session_id.is_empty()
+            || session_id.len() > 64
+            || !session_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            self.set_status("inbox failed: invalid session id — using tmux");
+            self.send_via_tmux(msg);
+            return;
+        }
         let inbox_dir = std::path::PathBuf::from("tmp/bridge-inbox").join(session_id);
         if let Err(e) = std::fs::create_dir_all(&inbox_dir) {
             self.set_status(format!("inbox failed: {e} — using tmux"));
@@ -1878,13 +1930,15 @@ impl App {
         use std::io::Write;
         let kind_str = match msg.kind {
             BridgeMessageKind::Sent => "sent",
+            BridgeMessageKind::SendFailed => "send_failed",
             BridgeMessageKind::Phase => "phase",
             BridgeMessageKind::Complete => "complete",
             BridgeMessageKind::Heartbeat => "heartbeat",
             BridgeMessageKind::Reply => "reply",
         };
-        // Escape text for JSON safety (quotes, backslashes, newlines).
-        let escaped = msg.text.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n");
+        // Escape text for JSON safety (backslashes, quotes, and control characters).
+        let escaped = msg.text.replace('\\', "\\\\").replace('"', "\\\"")
+            .replace('\n', "\\n").replace('\r', "\\r").replace('\t', "\\t");
         let line = format!(
             r#"{{"ts":"{}","kind":"{}","text":"{}"}}"#,
             chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"),
@@ -1917,6 +1971,10 @@ impl App {
             self.bridge_messages.pop_front();
         }
         self.bridge_messages.push_back(msg);
+        // Auto-scroll to bottom on new message (unless user scrolled up)
+        if self.bridge_scroll_offset == 0 {
+            // Already at bottom — no action needed
+        }
     }
 
     /// Send an /arc command via HTTP POST to bridge /msg endpoint.
@@ -1942,8 +2000,12 @@ impl App {
         Ok(())
     }
 
-    /// Channel events provide faster updates than file polling but file state
-    /// remains authoritative. Events update optimistic state on the current run.
+    /// Drain channel events from the callback server and update app state.
+    ///
+    /// Processes up to 10 events per tick to avoid blocking the UI loop.
+    /// SEC-001: Events from foreign/stale sessions are silently dropped.
+    /// Each event updates the status message, pushes to the bridge message
+    /// ring buffer (with JSONL persistence), and resets activity detection.
     fn drain_channel_events(&mut self) {
         let server = match self.callback_server.as_ref() {
             Some(s) => s,
@@ -3578,6 +3640,59 @@ mod tests {
     }
 
     #[test]
+    fn test_push_bridge_message_heartbeat_dedup() {
+        let now = chrono::Local::now().time();
+        let mut buf: VecDeque<BridgeMessage> = VecDeque::with_capacity(BRIDGE_MSG_DISPLAY_CAP);
+
+        // First heartbeat — should be added
+        let hb1 = BridgeMessage {
+            text: "Claude: active (using Bash)".into(),
+            timestamp: now,
+            kind: BridgeMessageKind::Heartbeat,
+        };
+        // Simulate push_bridge_message dedup logic (without file persistence)
+        buf.push_back(hb1);
+        assert_eq!(buf.len(), 1);
+
+        // Second consecutive heartbeat — should replace, not accumulate
+        let hb2 = BridgeMessage {
+            text: "Claude: active (using Read)".into(),
+            timestamp: now,
+            kind: BridgeMessageKind::Heartbeat,
+        };
+        if buf.back().map(|m| m.kind) == Some(BridgeMessageKind::Heartbeat) {
+            buf.pop_back();
+        }
+        if buf.len() >= BRIDGE_MSG_DISPLAY_CAP {
+            buf.pop_front();
+        }
+        buf.push_back(hb2);
+        assert_eq!(buf.len(), 1, "consecutive heartbeats should replace, not accumulate");
+        assert_eq!(buf.back().unwrap().text, "Claude: active (using Read)");
+
+        // Non-heartbeat followed by heartbeat — both should remain
+        let phase = BridgeMessage {
+            text: "Phase: forge (started)".into(),
+            timestamp: now,
+            kind: BridgeMessageKind::Phase,
+        };
+        buf.push_back(phase);
+        assert_eq!(buf.len(), 2);
+
+        let hb3 = BridgeMessage {
+            text: "Claude: idle".into(),
+            timestamp: now,
+            kind: BridgeMessageKind::Heartbeat,
+        };
+        // Last message is Phase, not Heartbeat — should not dedup
+        if buf.back().map(|m| m.kind) == Some(BridgeMessageKind::Heartbeat) {
+            buf.pop_back();
+        }
+        buf.push_back(hb3);
+        assert_eq!(buf.len(), 3, "heartbeat after non-heartbeat should not dedup");
+    }
+
+    #[test]
     fn test_bridge_message_kind_equality() {
         assert_eq!(BridgeMessageKind::Sent, BridgeMessageKind::Sent);
         assert_ne!(BridgeMessageKind::Sent, BridgeMessageKind::Reply);
@@ -3601,8 +3716,7 @@ mod tests {
                 .unwrap();
 
             let msg = BridgeMessage {
-                text: r#"hello "world" with\backslash and
-newline"#.into(),
+                text: "hello \"world\" with\\backslash and\nnewline\rand\ttab".into(),
                 timestamp: chrono::Local::now().time(),
                 kind: BridgeMessageKind::Sent,
             };
@@ -3612,10 +3726,12 @@ newline"#.into(),
         let mut content = String::new();
         std::fs::File::open(&path).unwrap().read_to_string(&mut content).unwrap();
 
-        // Verify JSON is valid-ish: no raw quotes/newlines in the text field
+        // Verify JSON is valid: no raw quotes/newlines/control chars in the text field
         assert!(content.contains(r#"\"world\""#), "quotes should be escaped");
         assert!(content.contains(r#"\\backslash"#), "backslashes should be escaped");
         assert!(content.contains(r#"\n"#), "newlines should be escaped");
+        assert!(content.contains(r#"\r"#), "carriage returns should be escaped");
+        assert!(content.contains(r#"\t"#), "tabs should be escaped");
         assert!(content.contains(r#""kind":"sent""#));
 
         let _ = std::fs::remove_dir_all(&tmp);

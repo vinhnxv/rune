@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-03-22
+
+### Added
+
+- **Bridge View** — dedicated full-screen TUI view for interacting with the torrent-bridge (`[b]` key from Running View, `--channels` only). Features:
+  - Header with `torrent-bridge` title, connected/disconnected badge, session ID and port info
+  - Message list showing up to 26 recent messages with color-coded labels (you/phase/arc/claude)
+  - Text input bar for sending messages directly to Claude Code via bridge
+  - Up/Down arrow scrolling with `"↓ N more"` indicator when scrolled up
+  - Auto-scroll to bottom on new messages and on send
+  - Hint bar: `[Enter] send  [↑↓] scroll  [Esc] back to arc`
+- **Bridge health check** — `[h]` key in Running View pings the bridge and shows session identity (session ID, uptime). `--channels` only
+- **Bridge-based command dispatch** — when `--channels` is active, `/arc` and `/arc --resume` commands are sent via HTTP POST to bridge `/msg` endpoint instead of tmux send-keys. Falls back to tmux automatically if bridge is unreachable
+- **Message persistence** — all bridge messages (sent, received, heartbeats) persisted to `.torrent/sessions/{session_id}/messages.jsonl` (append-only JSONL, one JSON per line). Review with `cat .torrent/sessions/rune-*/messages.jsonl | jq .`
+- **`SendFailed` message kind** — Bridge View shows `"you (failed)"` in red when message delivery fails across all transports
+- **Session separator** — `"── new session: rune-xyz ──"` marker inserted in Bridge View when starting a new arc execution
+- **Heartbeat dedup in display** — consecutive heartbeats replace each other in the display buffer (all still persisted to JSONL)
+- **Arc completion color** — Bridge View shows arc completion in green (success) or red (failed)
+
+### Changed
+
+- **`send_message_to_claude()`** — now prefers bridge HTTP when `--channels` is active, with tmux as fallback. Previously always used tmux
+- **`send_via_bridge_http()`** — no longer dead code; activated as primary transport in channels mode
+- **`send_arc_with_retry()`** — new `send_arc_prefer_bridge()` wrapper attempts bridge dispatch first, falls back to tmux with retry
+- **Message input cap** — changed from byte length to char count (`chars().count() < 2000`) for correct Unicode handling (Vietnamese, CJK)
+- **`OpenBridge` guard** — requires both `channels_enabled` AND active session (`tmux_session_id.is_some()`). Shows "No active session" otherwise
+- **Bridge log file reset** — `bridge_log_file` is reset to `None` when starting a new session, ensuring each session gets its own JSONL file
+
+### Fixed
+
+- **Bridge View accessible with no session** — previously allowed opening Bridge View before any arc started, leading to cryptic errors
+- **Sent messages shown on failed delivery** — `send_message_to_claude()` now detects delivery failure and marks message as `SendFailed`
+- **Bridge log file stale across sessions** — file handle was kept from previous session; now properly reset on new execution
+
 ## [0.9.0] - 2026-03-22
 
 ### Added

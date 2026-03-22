@@ -123,6 +123,8 @@ fn handle_bridge_key(key: KeyEvent) -> Action {
         KeyCode::Esc => Action::CloseBridge,
         KeyCode::Enter => Action::SubmitMessage,
         KeyCode::Backspace => Action::MessageBackspace,
+        KeyCode::Up => Action::BridgeScrollUp,
+        KeyCode::Down => Action::BridgeScrollDown,
         KeyCode::Char(c) => Action::MessageChar(c),
         _ => Action::None,
     }

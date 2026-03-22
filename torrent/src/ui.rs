@@ -1158,6 +1158,7 @@ fn render_queue(frame: &mut Frame, app: &mut App, area: Rect) {
 
 // ── Bridge View ──────────────────────────────────────────
 
+/// Render the Bridge View: header with connection badge, scrollable message list, and input bar.
 fn render_bridge(frame: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -1213,8 +1214,16 @@ fn render_bridge(frame: &mut Frame, app: &mut App, area: Rect) {
             let time = msg.timestamp.format("%H:%M:%S").to_string();
             let (label, label_color) = match msg.kind {
                 BridgeMessageKind::Sent => ("you", sol::BLUE),
+                BridgeMessageKind::SendFailed => ("you (failed)", sol::RED),
                 BridgeMessageKind::Phase => ("phase", sol::CYAN),
-                BridgeMessageKind::Complete => ("arc", sol::GREEN),
+                BridgeMessageKind::Complete => {
+                    // Color based on result text
+                    if msg.text.contains("failed") || msg.text.contains("Failed") {
+                        ("arc", sol::RED)
+                    } else {
+                        ("arc", sol::GREEN)
+                    }
+                }
                 BridgeMessageKind::Heartbeat => ("claude", sol::BASE01),
                 BridgeMessageKind::Reply => ("claude", sol::ORANGE),
             };
@@ -1231,10 +1240,30 @@ fn render_bridge(frame: &mut Frame, app: &mut App, area: Rect) {
             .block(Block::default().borders(Borders::NONE))
             .style(Style::default().bg(sol::BASE03));
 
-        // Auto-scroll to bottom
+        // Scroll position: 0 = auto-scroll to bottom, >0 = offset from bottom
+        let selected = if app.bridge_scroll_offset == 0 {
+            msg_count.saturating_sub(1)
+        } else {
+            msg_count.saturating_sub(1).saturating_sub(app.bridge_scroll_offset)
+        };
         let mut list_state = ratatui::widgets::ListState::default();
-        list_state.select(Some(msg_count.saturating_sub(1)));
+        list_state.select(Some(selected));
         frame.render_stateful_widget(list, chunks[1], &mut list_state);
+
+        // Show scroll indicator when not at bottom
+        if app.bridge_scroll_offset > 0 {
+            let scroll_hint = Span::styled(
+                format!(" ↓ {} more ", app.bridge_scroll_offset),
+                Style::default().fg(sol::YELLOW),
+            );
+            let hint_area = Rect {
+                x: chunks[1].x + chunks[1].width.saturating_sub(15),
+                y: chunks[1].y + chunks[1].height.saturating_sub(1),
+                width: 15.min(chunks[1].width),
+                height: 1,
+            };
+            frame.render_widget(Paragraph::new(scroll_hint), hint_area);
+        }
     }
 
     // ── Input bar ──
@@ -1269,6 +1298,8 @@ fn render_bridge(frame: &mut Frame, app: &mut App, area: Rect) {
     // Hint line
     let hint = Line::from(vec![
         Span::styled("[Enter] send", Style::default().fg(sol::BASE01)),
+        Span::styled("  ", Style::default()),
+        Span::styled("[↑↓] scroll", Style::default().fg(sol::BASE01)),
         Span::styled("  ", Style::default()),
         Span::styled("[Esc] back to arc", Style::default().fg(sol::BASE01)),
     ]);
