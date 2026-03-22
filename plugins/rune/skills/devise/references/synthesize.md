@@ -61,8 +61,42 @@ AskUserQuestion({
    - For Minimal template: OMIT this section entirely (consistent with Boundary Map)
 3. Identify common themes, conflicting advice, key patterns
 4. Populate git metadata in plan frontmatter: include `git_sha` (from `git rev-parse HEAD`) and `branch` (from `git branch --show-current`). If the working directory is not a git repository, omit these fields. On a detached HEAD, set `branch` to `null`.
-4. **Evidence population** (Standard and Comprehensive only): For each major factual claim in Proposed Solution and Technical Approach, search research outputs (`tmp/plans/{timestamp}/research/`) for supporting evidence. Populate the Evidence Chain table with claims and their verification status. Claims without supporting evidence in research outputs get `Verified: No`. Evidence types ordered by strength: CODEBASE > DOCUMENTATION > EXTERNAL > OBSERVED > NOVEL.
-5. Draft the plan document using the template matching the selected detail level:
+4b. **Evidence population** (Standard and Comprehensive only): For each major factual claim in Proposed Solution and Technical Approach, search research outputs (`tmp/plans/{timestamp}/research/`) for supporting evidence. Populate the Evidence Chain table with claims and their verification status. Claims without supporting evidence in research outputs get `Verified: No`. Evidence types ordered by strength: CODEBASE > DOCUMENTATION > EXTERNAL > OBSERVED > NOVEL.
+5. **Design field population** (MANDATORY when `designAware === true`): Populate design-related frontmatter fields from Phase 0 detection state. This step MUST run before drafting the plan document — without it, design fields remain at their empty template defaults.
+   ```javascript
+   // Phase 0 passes: designAware (boolean), figmaUrls (string[]), figmaUrl (string|null), design_sync_candidate (boolean)
+   // Also available: design-pipeline-agent output in tmp/plans/{timestamp}/design-references/
+
+   if (designAware && figmaUrls && figmaUrls.length > 0) {
+     // Populate frontmatter fields — these replace the empty template defaults
+     frontmatter.figma_url = figmaUrls[0]  // Primary URL (backward compat, MUST be double-quoted in YAML)
+     frontmatter.figma_urls = figmaUrls.map(url => ({ url, role: "auto" }))
+     frontmatter.design_sync = true
+
+     // Check for design-pipeline-agent output (may still be running in background)
+     const designRefsPath = `tmp/plans/${timestamp}/design-references`
+     const inventoryExists = tryRead(`${designRefsPath}/inventory.json`)
+     if (inventoryExists) {
+       frontmatter.design_references_path = designRefsPath
+       // Read library match count if available
+       const matchReport = tryRead(`${designRefsPath}/match-report.json`)
+       if (matchReport) {
+         frontmatter.library_match_count = JSON.parse(matchReport).matches?.length ?? 0
+       }
+       // Check for UX flow map
+       const flowMap = tryRead(`${designRefsPath}/flow-map.md`)
+       if (flowMap) frontmatter.ux_flow_mapped = true
+       // Check for page compositions
+       const manifest = tryRead(`${designRefsPath}/prototypes-manifest.json`)
+       if (manifest) {
+         frontmatter.page_compositions = JSON.parse(manifest).components?.length ?? 0
+       }
+     }
+   }
+   // When designAware is false: leave all design fields at template defaults (empty/false/0)
+   ```
+   **CRITICAL**: The `figma_url` value MUST be double-quoted in the final YAML output (e.g., `figma_url: "https://..."`) because Figma URLs contain special YAML characters (colons, query params). Unquoted URLs cause YAML parse failures in downstream consumers (strive, arc, design-sync).
+6. Draft the plan document using the template matching the selected detail level:
 
 ## Minimal Template
 
