@@ -7,7 +7,7 @@ use ratatui::widgets::{
 use ratatui::Frame;
 
 use std::time::Instant;
-use crate::app::{App, AppView, ArcCompletion, Panel};
+use crate::app::{App, AppView, ArcCompletion, BridgeMessageKind, Panel};
 use crate::diagnostic::Severity;
 use crate::monitor::ActivityState;
 use crate::resource::ProcessHealth;
@@ -45,6 +45,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         AppView::ActiveArcs => render_active_arcs(frame, app, area),
         AppView::Selection => render_selection(frame, app, area),
         AppView::Running => render_running(frame, app, area),
+        AppView::Bridge => render_bridge(frame, app, area),
     }
 }
 
@@ -588,12 +589,13 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
         } else {
             let all_done = app.current_run.is_none() && app.queue.is_empty() && !app.completed_runs.is_empty();
             let msg_hint = if app.tmux_session_id.is_some() { "  [m] msg" } else { "" };
+            let ch_hint = if app.channels_enabled { "  [h] health  [b] bridge" } else { "" };
             let default_status = if all_done {
-                format!(" All done! [p] add plans{msg_hint}  [q] quit")
+                format!(" All done! [p] add plans{msg_hint}{ch_hint}  [q] quit")
             } else if !app.queue.is_empty() {
-                format!(" [a] attach  [s] skip  [k] kill  [p] add  [d] remove{msg_hint}  [q] quit")
+                format!(" [a] attach  [s] skip  [k] kill  [p] add  [d] remove{msg_hint}{ch_hint}  [q] quit")
             } else {
-                format!(" [a] attach  [s] skip  [k] kill  [p] add plans{msg_hint}  [q] quit")
+                format!(" [a] attach  [s] skip  [k] kill  [p] add plans{msg_hint}{ch_hint}  [q] quit")
             };
             let status = app.status_message.as_deref().unwrap_or(&default_status);
             frame.render_widget(
@@ -1151,6 +1153,128 @@ fn render_queue(frame: &mut Frame, app: &mut App, area: Rect) {
         area,
         app.queue_cursor,
         &mut app.queue_list_state,
+    );
+}
+
+// ── Bridge View ──────────────────────────────────────────
+
+fn render_bridge(frame: &mut Frame, app: &mut App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1),  // header
+            Constraint::Min(5),    // message area
+            Constraint::Length(3), // input bar
+        ])
+        .split(area);
+
+    // ── Header ──
+    let is_connected = app.current_run.as_ref()
+        .and_then(|r| r.channel_state.as_ref())
+        .map(|cs| cs.is_active())
+        .unwrap_or(false);
+    let badge = if is_connected {
+        Span::styled(" connected ", Style::default().fg(Color::Black).bg(sol::GREEN))
+    } else {
+        Span::styled(" disconnected ", Style::default().fg(Color::White).bg(sol::RED))
+    };
+
+    let session_info = app.current_run.as_ref()
+        .and_then(|r| r.channel_state.as_ref())
+        .and_then(|cs| cs.bridge_port.map(|p| {
+            let sid = app.tmux_session_id.as_deref().unwrap_or("—");
+            format!("session: {} · port: {}", sid, p)
+        }))
+        .unwrap_or_else(|| "not connected".into());
+
+    let header = Line::from(vec![
+        Span::styled(
+            " torrent-bridge ",
+            Style::default().fg(sol::ORANGE).add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" "),
+        badge,
+        Span::styled(
+            format!("  {}", session_info),
+            Style::default().fg(sol::BASE01),
+        ),
+    ]);
+    frame.render_widget(Paragraph::new(header).style(Style::default().bg(sol::BASE03)), chunks[0]);
+
+    // ── Message area ──
+    if app.bridge_messages.is_empty() {
+        let empty = Paragraph::new("No messages yet")
+            .style(Style::default().fg(sol::BASE01))
+            .alignment(ratatui::layout::Alignment::Center)
+            .block(Block::default().borders(Borders::NONE));
+        frame.render_widget(empty, chunks[1]);
+    } else {
+        let items: Vec<ListItem> = app.bridge_messages.iter().map(|msg| {
+            let time = msg.timestamp.format("%H:%M:%S").to_string();
+            let (label, label_color) = match msg.kind {
+                BridgeMessageKind::Sent => ("you", sol::BLUE),
+                BridgeMessageKind::Phase => ("phase", sol::CYAN),
+                BridgeMessageKind::Complete => ("arc", sol::GREEN),
+                BridgeMessageKind::Heartbeat => ("claude", sol::BASE01),
+                BridgeMessageKind::Reply => ("claude", sol::ORANGE),
+            };
+            let line = Line::from(vec![
+                Span::styled(format!("[{}] ", time), Style::default().fg(sol::BASE01)),
+                Span::styled(format!("{}: ", label), Style::default().fg(label_color)),
+                Span::styled(msg.text.clone(), Style::default().fg(sol::BASE0)),
+            ]);
+            ListItem::new(line)
+        }).collect();
+
+        let msg_count = items.len();
+        let list = List::new(items)
+            .block(Block::default().borders(Borders::NONE))
+            .style(Style::default().bg(sol::BASE03));
+
+        // Auto-scroll to bottom
+        let mut list_state = ratatui::widgets::ListState::default();
+        list_state.select(Some(msg_count.saturating_sub(1)));
+        frame.render_stateful_widget(list, chunks[1], &mut list_state);
+    }
+
+    // ── Input bar ──
+    let input_block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(sol::BASE01));
+
+    let inner = input_block.inner(chunks[2]);
+    frame.render_widget(input_block, chunks[2]);
+
+    let input_lines = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Length(1)])
+        .split(inner);
+
+    if app.message_input_buf.is_empty() {
+        // Placeholder
+        frame.render_widget(
+            Paragraph::new("Send a message to Claude...")
+                .style(Style::default().fg(sol::BASE01)),
+            input_lines[0],
+        );
+    } else {
+        // Active input with cursor
+        let input_line = Line::from(vec![
+            Span::styled(&app.message_input_buf, Style::default().fg(sol::BASE1)),
+            Span::styled("█", Style::default().fg(sol::CYAN)),
+        ]);
+        frame.render_widget(Paragraph::new(input_line), input_lines[0]);
+    }
+
+    // Hint line
+    let hint = Line::from(vec![
+        Span::styled("[Enter] send", Style::default().fg(sol::BASE01)),
+        Span::styled("  ", Style::default()),
+        Span::styled("[Esc] back to arc", Style::default().fg(sol::BASE01)),
+    ]);
+    frame.render_widget(
+        Paragraph::new(hint).alignment(ratatui::layout::Alignment::Right),
+        input_lines[1],
     );
 }
 

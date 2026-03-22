@@ -19,6 +19,7 @@ pub fn handle_key(app: &App, key: KeyEvent) -> Action {
         AppView::Selection if app.queue_editing => handle_queue_edit_key(app, key),
         AppView::Selection => handle_selection_key(app, key),
         AppView::Running => handle_running_key(app, key),
+        AppView::Bridge => handle_bridge_key(key),
     }
 }
 
@@ -76,6 +77,8 @@ fn handle_running_key(app: &App, key: KeyEvent) -> Action {
         KeyCode::Char('s') if grace_active => Action::SkipGrace,
         KeyCode::Char('s') => Action::SkipPlan,
         KeyCode::Char('k') => Action::KillSession,
+        KeyCode::Char('h') if app.channels_enabled => Action::HealthCheck,
+        KeyCode::Char('b') if app.channels_enabled => Action::OpenBridge,
         KeyCode::Char('m') => Action::OpenMessageInput,
         KeyCode::Char('p') => Action::PickPlans,
         KeyCode::Char('d') => Action::RemoveFromQueue,
@@ -109,6 +112,18 @@ fn handle_queue_edit_key(app: &App, key: KeyEvent) -> Action {
         }
         KeyCode::Up => Action::MoveUp,
         KeyCode::Down => Action::MoveDown,
+        _ => Action::None,
+    }
+}
+
+/// Bridge View: full-screen chat with the bridge.
+/// All character input goes to the message buffer (no separate focus toggle).
+fn handle_bridge_key(key: KeyEvent) -> Action {
+    match key.code {
+        KeyCode::Esc => Action::CloseBridge,
+        KeyCode::Enter => Action::SubmitMessage,
+        KeyCode::Backspace => Action::MessageBackspace,
+        KeyCode::Char(c) => Action::MessageChar(c),
         _ => Action::None,
     }
 }

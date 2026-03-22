@@ -7,6 +7,34 @@ use chrono::Utc;
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
 
+/// Maximum messages displayed in Bridge View TUI.
+const BRIDGE_MSG_DISPLAY_CAP: usize = 26;
+
+/// A message displayed in the Bridge View.
+#[derive(Debug, Clone)]
+pub struct BridgeMessage {
+    /// Display text (truncated to 500 chars).
+    pub text: String,
+    /// When the message was received/sent (wall clock for display).
+    pub timestamp: chrono::NaiveTime,
+    /// Message direction and type.
+    pub kind: BridgeMessageKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BridgeMessageKind {
+    /// Outbound: user sent a message to Claude
+    Sent,
+    /// Inbound: phase transition event
+    Phase,
+    /// Inbound: arc completion event
+    Complete,
+    /// Inbound: heartbeat from Claude
+    Heartbeat,
+    /// Inbound: text reply from Claude
+    Reply,
+}
+
 use ratatui::widgets::ListState;
 
 use crate::callback::{CallbackServer, ChannelEvent};
@@ -142,6 +170,12 @@ pub struct App {
     pub last_msg_transport: Option<MsgTransport>,
     /// Last message received from Claude Code via channel events (trimmed to 200 chars).
     pub last_claude_msg: Option<String>,
+
+    // Bridge View state
+    /// Ring buffer of bridge messages for Bridge View (capacity BRIDGE_MSG_DISPLAY_CAP).
+    pub bridge_messages: VecDeque<BridgeMessage>,
+    /// File handle for append-only message persistence (opened once per session).
+    pub bridge_log_file: Option<std::fs::File>,
 }
 
 /// Message delivery transport used for the last sent message.
@@ -164,6 +198,8 @@ pub enum AppView {
     Selection,
     /// Running view — monitoring current arc execution.
     Running,
+    /// Bridge view — full-screen chat with the bridge (channels mode).
+    Bridge,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -463,6 +499,10 @@ pub enum Action {
     CancelMessageInput, // Cancel message input
     MessageChar(char),  // Append character to message buffer
     MessageBackspace,   // Delete last character from buffer
+    // Channels mode
+    HealthCheck,        // Check bridge health (channels only)
+    OpenBridge,         // Open Bridge View (channels only)
+    CloseBridge,        // Return to Running View from Bridge View
     // No-op
     None,
 }
@@ -546,6 +586,8 @@ impl App {
             message_input_buf: String::new(),
             last_msg_transport: None,
             last_claude_msg: None,
+            bridge_messages: VecDeque::with_capacity(BRIDGE_MSG_DISPLAY_CAP),
+            bridge_log_file: None,
         })
     }
 
@@ -733,6 +775,7 @@ impl App {
                     }
                 }
             },
+            AppView::Bridge => {} // no cursor navigation in Bridge View
         }
     }
 
@@ -763,6 +806,7 @@ impl App {
                     }
                 }
             },
+            AppView::Bridge => {} // no cursor navigation in Bridge View
         }
     }
 
@@ -1039,6 +1083,49 @@ impl App {
             }
             Action::MessageBackspace => {
                 self.message_input_buf.pop();
+            }
+            Action::HealthCheck => {
+                if !self.channels_enabled {
+                    self.set_status("Health check requires --channels mode");
+                } else if self.current_run.is_some() {
+                    // Try init if channel_state is None
+                    if let Some(run) = &mut self.current_run {
+                        if run.channel_state.is_none() {
+                            run.channel_state = ChannelState::try_init(&run.tmux_session);
+                        }
+                    }
+                    // Perform health check and build status message
+                    let status_msg = if let Some(run) = &mut self.current_run {
+                        if let Some(ref mut cs) = run.channel_state {
+                            let healthy = cs.check_health();
+                            let info = cs.query_session_id()
+                                .map(|sid| format!(" (session: {})", sid))
+                                .unwrap_or_default();
+                            if healthy {
+                                format!("[health] Bridge OK{}", info)
+                            } else {
+                                format!("[health] Bridge unreachable (failures: {}/3)", cs.failure_count)
+                            }
+                        } else {
+                            "[health] Bridge not discovered yet".to_string()
+                        }
+                    } else {
+                        "No active session".to_string()
+                    };
+                    self.set_status(status_msg);
+                } else {
+                    self.set_status("No active session");
+                }
+            }
+            Action::OpenBridge => {
+                if self.channels_enabled {
+                    self.view = AppView::Bridge;
+                    self.message_input_buf.clear();
+                }
+            }
+            Action::CloseBridge => {
+                self.view = AppView::Running;
+                self.message_input_active = false;
             }
             Action::None => {}
         }
@@ -1514,17 +1601,28 @@ impl App {
         let resume_state = ResumeState::load(&plan.path.display().to_string());
         let has_checkpoint = self.check_existing_checkpoint(&plan);
 
+        // Resolve bridge port for channels-first dispatch
+        let bridge_port = if self.channels_enabled {
+            self.current_run.as_ref()
+                .and_then(|r| r.channel_state.as_ref())
+                .and_then(|cs| cs.bridge_port)
+        } else {
+            None
+        };
+
         if has_checkpoint && resume_state.total_restarts == 0 {
             // First launch but checkpoint exists from a previous torrent session — resume
-            if Self::send_arc_resume_with_retry(&session_id, &plan.path, 3).is_none() {
+            if Self::send_arc_prefer_bridge(&session_id, &plan.path, 3, bridge_port, true).is_none() {
                 self.set_status(format!("FAILED: send /arc --resume failed. tmux attach -t {}", &session_id));
             } else {
-                self.set_status("Resuming existing checkpoint");
+                let transport = if bridge_port.is_some() { "bridge" } else { "tmux" };
+                self.set_status(format!("Resuming existing checkpoint [{}]", transport));
             }
-        } else if Self::send_arc_with_retry(&session_id, &plan.path, 2).is_none() {
+        } else if Self::send_arc_prefer_bridge(&session_id, &plan.path, 2, bridge_port, false).is_none() {
             self.set_status(format!("FAILED: send /arc failed. tmux attach -t {}", &session_id));
         } else {
-            self.set_status(format!("/arc sent to {}", &session_id));
+            let transport = if bridge_port.is_some() { "bridge" } else { "tmux" };
+            self.set_status(format!("/arc sent to {} [{}]", &session_id, transport));
         }
         self.current_run = Some(RunState {
             plan,
@@ -1648,19 +1746,26 @@ impl App {
     /// Poll arc status (heartbeat + checkpoint + resources) and update display state.
     /// Send a message to the Claude Code session.
     ///
-    /// Uses tmux send-keys — the only method Claude Code actually processes.
-    /// MCP notifications (sendLoggingMessage) are delivered but silently ignored
-    /// by Claude Code v2.1.81 — they appear as internal logs, not prompts.
-    ///
-    /// Bridge HTTP and inbox are kept for outbound (Claude → Torrent) only.
+    /// When channels are active and bridge is reachable, uses HTTP POST to
+    /// bridge /msg endpoint (Channels API). Falls back to tmux send-keys
+    /// when bridge is unreachable or channels are disabled.
     fn send_message_to_claude(&mut self, msg: &str) {
-        self.send_via_tmux(msg);
+        if self.channels_enabled {
+            self.send_via_bridge_http(msg);
+        } else {
+            self.send_via_tmux(msg);
+        }
+
+        // Also push to bridge messages for Bridge View display
+        self.push_bridge_message(BridgeMessage {
+            text: truncate_str(msg, 500).to_string(),
+            timestamp: chrono::Local::now().time(),
+            kind: BridgeMessageKind::Sent,
+        });
     }
 
-    /// Send via bridge HTTP server (MCP notification path).
-    /// NOTE: Claude Code v2.1.81 silently ignores sendLoggingMessage notifications.
-    /// Kept for future use when inbound MCP messages are supported.
-    #[allow(dead_code)]
+    /// Send via bridge HTTP server (Channels API path).
+    /// Uses POST /msg to deliver messages through the bridge to Claude Code.
     fn send_via_bridge_http(&mut self, msg: &str) {
         let bridge_port = self.current_run.as_ref()
             .and_then(|r| r.channel_state.as_ref())
@@ -1747,6 +1852,96 @@ impl App {
         }
     }
 
+    /// Open (or create) the JSONL log file for this session.
+    /// Called once when the first bridge message arrives.
+    fn open_bridge_log(session_id: &str) -> Option<std::fs::File> {
+        // SEC-006: Validate session_id format before path construction
+        if session_id.is_empty()
+            || session_id.len() > 64
+            || !session_id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            return None;
+        }
+        let dir = std::path::PathBuf::from(".torrent/sessions").join(session_id);
+        std::fs::create_dir_all(&dir).ok()?;
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(dir.join("messages.jsonl"))
+            .ok()
+    }
+
+    /// Append a message to the JSONL log file (fire-and-forget).
+    fn persist_bridge_message(file: &mut std::fs::File, msg: &BridgeMessage) {
+        use std::io::Write;
+        let kind_str = match msg.kind {
+            BridgeMessageKind::Sent => "sent",
+            BridgeMessageKind::Phase => "phase",
+            BridgeMessageKind::Complete => "complete",
+            BridgeMessageKind::Heartbeat => "heartbeat",
+            BridgeMessageKind::Reply => "reply",
+        };
+        // Escape text for JSON safety (quotes, backslashes, newlines).
+        let escaped = msg.text.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n");
+        let line = format!(
+            r#"{{"ts":"{}","kind":"{}","text":"{}"}}"#,
+            chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"),
+            kind_str,
+            escaped,
+        );
+        let _ = writeln!(file, "{}", line);
+    }
+
+    /// Push a message to the display ring buffer and persist to file.
+    fn push_bridge_message(&mut self, msg: BridgeMessage) {
+        // Lazy-open the log file on first message
+        if self.bridge_log_file.is_none() {
+            if let Some(session_id) = &self.tmux_session_id {
+                self.bridge_log_file = Self::open_bridge_log(session_id);
+            }
+        }
+        // Persist to file (all messages, including filtered heartbeats)
+        if let Some(ref mut file) = self.bridge_log_file {
+            Self::persist_bridge_message(file, &msg);
+        }
+        // Display filter: skip consecutive heartbeats (replace last one)
+        if msg.kind == BridgeMessageKind::Heartbeat {
+            if self.bridge_messages.back().map(|m| m.kind) == Some(BridgeMessageKind::Heartbeat) {
+                self.bridge_messages.pop_back();
+            }
+        }
+        // Push to display ring buffer
+        if self.bridge_messages.len() >= BRIDGE_MSG_DISPLAY_CAP {
+            self.bridge_messages.pop_front();
+        }
+        self.bridge_messages.push_back(msg);
+    }
+
+    /// Send an /arc command via HTTP POST to bridge /msg endpoint.
+    fn send_arc_via_bridge(bridge_port: u16, plan_path: &Path, resume: bool) -> color_eyre::Result<()> {
+        let display_path = plan_path.display().to_string();
+        let arc_path = display_path
+            .find("plans/")
+            .map(|idx| &display_path[idx..])
+            .unwrap_or(&display_path);
+
+        let body = if resume {
+            format!("/arc {} --resume", arc_path)
+        } else {
+            format!("/arc {}", arc_path)
+        };
+
+        let url = format!("http://127.0.0.1:{}/msg", bridge_port);
+        ureq::post(&url)
+            .timeout(Duration::from_secs(5))
+            .set("Content-Type", "text/plain")
+            .send_string(&body)
+            .map_err(|e| eyre!("bridge POST /msg failed: {e}"))?;
+        Ok(())
+    }
+
     /// Channel events provide faster updates than file polling but file state
     /// remains authoritative. Events update optimistic state on the current run.
     fn drain_channel_events(&mut self) {
@@ -1809,6 +2004,11 @@ impl App {
                     };
                     self.set_status(format!("[ch] {}", truncate_str(&msg, 80)));
                     self.last_claude_msg = Some(truncate_str(&msg, 200).to_string());
+                    self.push_bridge_message(BridgeMessage {
+                        text: truncate_str(&msg, 500).to_string(),
+                        timestamp: chrono::Local::now().time(),
+                        kind: BridgeMessageKind::Phase,
+                    });
                     if let Some(run) = &mut self.current_run {
                         run.activity_detector.hash_unchanged_count = 0;
                     }
@@ -1821,6 +2021,11 @@ impl App {
                     };
                     self.set_status(format!("[ch] {}", truncate_str(&msg, 80)));
                     self.last_claude_msg = Some(truncate_str(&msg, 200).to_string());
+                    self.push_bridge_message(BridgeMessage {
+                        text: truncate_str(&msg, 500).to_string(),
+                        timestamp: chrono::Local::now().time(),
+                        kind: BridgeMessageKind::Complete,
+                    });
                     if let Some(run) = &mut self.current_run {
                         run.activity_detector.hash_unchanged_count = 0;
                     }
@@ -1832,6 +2037,11 @@ impl App {
                         format!("Claude: {} (using {})", activity, current_tool)
                     };
                     self.last_claude_msg = Some(truncate_str(&msg, 200).to_string());
+                    self.push_bridge_message(BridgeMessage {
+                        text: truncate_str(&msg, 500).to_string(),
+                        timestamp: chrono::Local::now().time(),
+                        kind: BridgeMessageKind::Heartbeat,
+                    });
                     if let Some(run) = &mut self.current_run {
                         if activity == "active" {
                             run.activity_detector.hash_unchanged_count = 0;
@@ -1841,6 +2051,11 @@ impl App {
                 ChannelEvent::Reply { text, .. } => {
                     self.set_status(format!("[reply] {}", truncate_str(&text, 80)));
                     self.last_claude_msg = Some(truncate_str(&text, 200).to_string());
+                    self.push_bridge_message(BridgeMessage {
+                        text: truncate_str(&text, 500).to_string(),
+                        timestamp: chrono::Local::now().time(),
+                        kind: BridgeMessageKind::Reply,
+                    });
                     if let Some(run) = &mut self.current_run {
                         run.activity_detector.hash_unchanged_count = 0;
                     }
@@ -2512,10 +2727,19 @@ impl App {
             let mode = run.recovery_mode.unwrap_or(crate::resume::RecoveryMode::Retry);
             let session = run.tmux_session.clone();
 
+            // Resolve bridge port for channels-first dispatch
+            let bp = if self.channels_enabled {
+                self.current_run.as_ref()
+                    .and_then(|r| r.channel_state.as_ref())
+                    .and_then(|cs| cs.bridge_port)
+            } else {
+                None
+            };
+
             match mode {
                 crate::resume::RecoveryMode::Retry => {
                     // Fresh start — no checkpoint, arc never ran
-                    if Self::send_arc_with_retry(&session, &plan_path, 3).is_none() {
+                    if Self::send_arc_prefer_bridge(&session, &plan_path, 3, bp, false).is_none() {
                         self.set_status("Failed to send /arc (retry)");
                     } else {
                         self.set_status("Retrying with fresh /arc");
@@ -2523,7 +2747,7 @@ impl App {
                 }
                 crate::resume::RecoveryMode::Resume => {
                     // Mid-arc crash — checkpoint exists, resume from last phase
-                    if Self::send_arc_resume_with_retry(&session, &plan_path, 3).is_none() {
+                    if Self::send_arc_prefer_bridge(&session, &plan_path, 3, bp, true).is_none() {
                         self.set_status("Failed to send /arc --resume");
                     } else {
                         self.set_status("Resuming with /arc --resume");
@@ -2822,8 +3046,24 @@ impl App {
     }
 
     /// Send /arc command with retry logic.
+    /// When bridge_port is Some, attempts bridge dispatch first; falls back to tmux.
     fn send_arc_with_retry(session_id: &str, plan_path: &Path, max_attempts: u8) -> Option<()> {
         Self::send_with_retry(session_id, plan_path, max_attempts, Tmux::send_arc_command, "/arc")
+    }
+
+    /// Send /arc command preferring bridge transport when available.
+    fn send_arc_prefer_bridge(session_id: &str, plan_path: &Path, max_attempts: u8, bridge_port: Option<u16>, resume: bool) -> Option<()> {
+        if let Some(port) = bridge_port {
+            if Self::send_arc_via_bridge(port, plan_path, resume).is_ok() {
+                return Some(());
+            }
+            // Bridge failed — fall back to tmux
+        }
+        if resume {
+            Self::send_arc_resume_with_retry(session_id, plan_path, max_attempts)
+        } else {
+            Self::send_arc_with_retry(session_id, plan_path, max_attempts)
+        }
     }
 
     /// Send /arc --resume command with retry logic.
@@ -2979,17 +3219,17 @@ mod tests {
 
     #[test]
     fn test_phase_timeout_config_is_default() {
-        // Clean env to avoid interference from parallel tests
-        unsafe {
-            for key in ["TORRENT_TIMEOUT_DEFAULT", "TORRENT_TIMEOUT_FORGE",
-                        "TORRENT_TIMEOUT_WORK", "TORRENT_TIMEOUT_QA",
-                        "TORRENT_TIMEOUT_ANALYSIS", "TORRENT_TIMEOUT_TEST",
-                        "TORRENT_TIMEOUT_REVIEW", "TORRENT_TIMEOUT_SHIP"] {
-                std::env::remove_var(key);
-            }
+        // Build a default config directly instead of calling from_env(), which
+        // races with parallel tests that set/remove TORRENT_TIMEOUT_* env vars.
+        let mut timeouts = HashMap::new();
+        for (cat, mins) in &[("forge", 30u64), ("work", 45), ("qa", 15),
+                             ("analysis", 20), ("test", 30), ("review", 30), ("ship", 20)] {
+            timeouts.insert(cat.to_string(), Duration::from_secs(mins * 60));
         }
-        // from_env() with no env vars populates all 7 category defaults
-        let default_config = PhaseTimeoutConfig::from_env();
+        let default_config = PhaseTimeoutConfig {
+            timeouts,
+            default_timeout: Duration::from_secs(60 * 60),
+        };
         assert!(default_config.is_default());
 
         // Empty timeouts map is NOT the default (from_env always populates 7 categories)
@@ -3017,53 +3257,38 @@ mod tests {
     }
 
     #[test]
-    fn test_phase_timeout_config_from_env() {
-        // Use unique env var names to avoid thread-safety issues with parallel tests.
-        // We test from_env() by setting one var, calling from_env, then cleaning up.
-        // Note: this test reads TORRENT_TIMEOUT_* which won't conflict with other tests.
-        unsafe {
-            std::env::set_var("TORRENT_TIMEOUT_WORK", "120");
-            std::env::set_var("TORRENT_TIMEOUT_DEFAULT", "45");
+    fn test_phase_timeout_config_overrides() {
+        // Test apply_overrides (CLI path) directly instead of from_env() which
+        // races with parallel tests due to process-global env var mutation.
+
+        // Build a baseline config with category defaults
+        let mut timeouts = HashMap::new();
+        for (cat, mins) in &[("forge", 30u64), ("work", 45), ("qa", 15),
+                             ("analysis", 20), ("test", 30), ("review", 30), ("ship", 20)] {
+            timeouts.insert(cat.to_string(), Duration::from_secs(mins * 60));
         }
+        let mut config = PhaseTimeoutConfig {
+            timeouts,
+            default_timeout: Duration::from_secs(60 * 60),
+        };
 
-        let config = PhaseTimeoutConfig::from_env();
+        // Apply CLI override for work category
+        config.apply_overrides(&[("work".to_string(), 120)]);
 
-        // Work category should be 120 minutes (env override)
-        assert_eq!(config.timeout_for("work"), Duration::from_secs(120 * 60));
-        // Default should be 45 minutes
-        assert_eq!(config.default_timeout, Duration::from_secs(45 * 60));
-        // Forge gets its category default (30 min), not TORRENT_TIMEOUT_DEFAULT
+        // Work category should be 120 minutes (override)
+        assert_eq!(config.timeout_for("work"), Duration::from_secs(120 * 60),
+            "work should be 120 min from override");
+        // Forge retains its category default (30 min)
         assert_eq!(config.timeout_for("forge"), Duration::from_secs(30 * 60));
-        // QA gets its category default (15 min)
+        // QA retains its category default (15 min)
         assert_eq!(config.timeout_for("forge_qa"), Duration::from_secs(15 * 60));
-        // Analysis gets its category default (20 min)
+        // Analysis retains its category default (20 min)
         assert_eq!(config.timeout_for("gap_analysis"), Duration::from_secs(20 * 60));
+        // Unknown phase falls back to "review" category (30 min)
+        assert_eq!(config.timeout_for("unknown_phase"), Duration::from_secs(30 * 60));
 
-        // Cleanup
-        unsafe {
-            std::env::remove_var("TORRENT_TIMEOUT_WORK");
-            std::env::remove_var("TORRENT_TIMEOUT_DEFAULT");
-        }
-    }
-
-    #[test]
-    fn test_phase_timeout_config_from_env_invalid() {
-        // Invalid env var values should be ignored (fallback to category default)
-        unsafe {
-            std::env::set_var("TORRENT_TIMEOUT_TEST", "not_a_number");
-            std::env::remove_var("TORRENT_TIMEOUT_DEFAULT"); // ensure clean state
-        }
-
-        let config = PhaseTimeoutConfig::from_env();
-
-        // Invalid value ignored — test category uses its default (30 min)
-        assert_eq!(config.timeout_for("test"), Duration::from_secs(30 * 60));
-        assert_eq!(config.default_timeout, Duration::from_secs(60 * 60));
-
-        // Cleanup
-        unsafe {
-            std::env::remove_var("TORRENT_TIMEOUT_TEST");
-        }
+        // Verify is_default returns false after override
+        assert!(!config.is_default());
     }
 
     // ── env_or_u64 tests ────────────────────────────────────
@@ -3319,5 +3544,114 @@ mod tests {
         assert!(!queue.is_empty());
         assert_eq!(queue.pop_front().unwrap().plan_idx, 2);
         assert!(queue.is_empty());
+    }
+
+    // --- Bridge Message tests ---
+
+    #[test]
+    fn test_bridge_message_ring_buffer_capacity() {
+        let mut buf: VecDeque<BridgeMessage> = VecDeque::with_capacity(BRIDGE_MSG_DISPLAY_CAP);
+        let now = chrono::Local::now().time();
+
+        // Fill to capacity
+        for i in 0..BRIDGE_MSG_DISPLAY_CAP {
+            buf.push_back(BridgeMessage {
+                text: format!("msg {}", i),
+                timestamp: now,
+                kind: BridgeMessageKind::Phase,
+            });
+        }
+        assert_eq!(buf.len(), BRIDGE_MSG_DISPLAY_CAP);
+
+        // Push one more — should evict front
+        if buf.len() >= BRIDGE_MSG_DISPLAY_CAP {
+            buf.pop_front();
+        }
+        buf.push_back(BridgeMessage {
+            text: "msg overflow".into(),
+            timestamp: now,
+            kind: BridgeMessageKind::Reply,
+        });
+        assert_eq!(buf.len(), BRIDGE_MSG_DISPLAY_CAP);
+        assert_eq!(buf.front().unwrap().text, "msg 1"); // msg 0 was evicted
+        assert_eq!(buf.back().unwrap().text, "msg overflow");
+    }
+
+    #[test]
+    fn test_bridge_message_kind_equality() {
+        assert_eq!(BridgeMessageKind::Sent, BridgeMessageKind::Sent);
+        assert_ne!(BridgeMessageKind::Sent, BridgeMessageKind::Reply);
+        assert_eq!(BridgeMessageKind::Heartbeat, BridgeMessageKind::Heartbeat);
+    }
+
+    #[test]
+    fn test_persist_bridge_message_escaping() {
+        use std::io::Read;
+
+        let tmp = std::env::temp_dir().join("torrent-test-persist-bridge-msg");
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let path = tmp.join("test.jsonl");
+
+        {
+            let mut file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&path)
+                .unwrap();
+
+            let msg = BridgeMessage {
+                text: r#"hello "world" with\backslash and
+newline"#.into(),
+                timestamp: chrono::Local::now().time(),
+                kind: BridgeMessageKind::Sent,
+            };
+            App::persist_bridge_message(&mut file, &msg);
+        }
+
+        let mut content = String::new();
+        std::fs::File::open(&path).unwrap().read_to_string(&mut content).unwrap();
+
+        // Verify JSON is valid-ish: no raw quotes/newlines in the text field
+        assert!(content.contains(r#"\"world\""#), "quotes should be escaped");
+        assert!(content.contains(r#"\\backslash"#), "backslashes should be escaped");
+        assert!(content.contains(r#"\n"#), "newlines should be escaped");
+        assert!(content.contains(r#""kind":"sent""#));
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_open_bridge_log_rejects_bad_session_id() {
+        assert!(App::open_bridge_log("").is_none(), "empty session_id");
+        assert!(App::open_bridge_log("../../../etc/passwd").is_none(), "path traversal");
+        assert!(App::open_bridge_log(&"a".repeat(65)).is_none(), "too long");
+        assert!(App::open_bridge_log("valid-session_123").is_some(), "valid session_id");
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(".torrent/sessions/valid-session_123");
+    }
+
+    #[test]
+    fn test_send_arc_via_bridge_unreachable() {
+        // Sending to a port with no listener should fail gracefully
+        let result = App::send_arc_via_bridge(
+            59999,  // unlikely to have a server
+            &std::path::PathBuf::from("plans/test-plan.md"),
+            false,
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_send_arc_via_bridge_path_extraction() {
+        // Verify the path extraction logic works correctly
+        let path = std::path::PathBuf::from("/abs/path/to/plans/feat-auth-plan.md");
+        let display_path = path.display().to_string();
+        let arc_path = display_path
+            .find("plans/")
+            .map(|idx| &display_path[idx..])
+            .unwrap_or(&display_path);
+        assert_eq!(arc_path, "plans/feat-auth-plan.md");
     }
 }

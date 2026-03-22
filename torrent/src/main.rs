@@ -213,10 +213,18 @@ fn print_help() {
     println!("    a            Attach to tmux session (Ctrl-B D to detach)");
     println!("    s            Skip current plan (kill + advance queue)");
     println!("    k            Kill tmux session");
+    println!("    m            Send message to Claude");
     println!("    p            Pick more plans to append to queue");
     println!("    d            Remove selected item from queue");
+    println!("    h            Check bridge health (--channels)");
+    println!("    b            Open bridge view (--channels)");
     println!("    Up/Down      Navigate queue");
     println!("    q            Quit");
+    println!();
+    println!("  Bridge View (--channels mode chat with bridge):");
+    println!("    <type>       Compose message");
+    println!("    Enter        Send message to Claude");
+    println!("    Esc          Return to Running view");
     println!();
     println!("  Queue Edit Mode (adding plans while arc is running):");
     println!("    Tab          Switch panels");
@@ -309,8 +317,9 @@ fn main() -> Result<()> {
         }
 
         // Tick execution logic (discovery, polling, grace period, next plan)
+        // Bridge View continues tick_execution so channel events and arc state update in background
         match app.view {
-            AppView::Running => app.tick_execution()?,
+            AppView::Running | AppView::Bridge => app.tick_execution()?,
             AppView::ActiveArcs => app.prune_stale_active_arcs(),
             _ => {}
         }
