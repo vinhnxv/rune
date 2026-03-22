@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.9.2] - 2026-03-22
+
+### Fixed
+- **Gap analysis coverage table** — metadata sections (Overview, Dependencies, etc.) now reported as SKIPPED instead of silently omitted, fixing GAP-CMP-02 QA scoring at 50-75% (#408)
+
 ## [2.9.1] - 2026-03-21
 
 ### Fixed
