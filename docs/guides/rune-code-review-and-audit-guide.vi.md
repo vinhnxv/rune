@@ -274,7 +274,7 @@ Chạy Claude và OpenAI Codex reviewer song song, kiểm tra chéo phát hiện
 
 ### Chu trình đầy đủ trong arc
 
-`/rune:arc` chạy review → mend → verify-mend tự động trong pipeline 29 phase. Dùng appraise/mend riêng khi bạn muốn review có mục tiêu mà không cần full pipeline.
+`/rune:arc` chạy review → mend → verify-mend tự động trong pipeline 40 phase. Dùng appraise/mend riêng khi bạn muốn review có mục tiêu mà không cần full pipeline.
 
 ---
 

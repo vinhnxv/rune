@@ -56,7 +56,7 @@ Dùng plan phân cấp khi feature có:
 1. **Lập plan** — chạy `/rune:devise` và chọn "Hierarchical" tại Phase 2.5 (xuất hiện khi complexity >= 0.65).
 2. **Kiểm tra** — xem bảng thực thi và ma trận dependency contract của plan cha.
 3. **Thực thi** — chạy `/rune:arc-hierarchy plans/parent-plan.md`.
-4. **Mỗi plan con** chạy pipeline arc 29 phase đầy đủ (forge → work → review → mend → test → ship).
+4. **Mỗi plan con** chạy pipeline arc 40 phase đầy đủ (forge → work → review → mend → test → ship).
 5. **Một PR duy nhất** vào main được tạo sau khi tất cả plan con hoàn thành.
 
 ### 2.3 Các flag
@@ -165,7 +165,7 @@ Dùng arc-issues khi bạn có backlog GitHub issues sẵn sàng để implement
 
 1. Body issue được sanitize và chuyển thành file plan trong `tmp/gh-plans/`.
 2. Chất lượng plan được kiểm tra (body >= 50 ký tự, hoặc `--force` để bỏ qua).
-3. Pipeline arc 29 phase đầy đủ chạy (forge → work → review → mend → test → ship → merge).
+3. Pipeline arc 40 phase đầy đủ chạy (forge → work → review → mend → test → ship → merge).
 4. Thành công: PR với `Fixes #{number}`, comment thành công, label `rune:done`.
 5. Thất bại: comment lỗi, label `rune:failed`.
 

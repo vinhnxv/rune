@@ -1,6 +1,6 @@
 # Phase Summary Template
 
-Arc phase summaries are written by the orchestrator at the end of each **phase group** to compress completed phase history before entering the next group. This prevents inline phase history from accumulating across 29 phases and exhausting context.
+Arc phase summaries are written by the orchestrator at the end of each **phase group** to compress completed phase history before entering the next group. This prevents inline phase history from accumulating across 40 phases and exhausting context.
 
 ## Phase Groups
 
@@ -63,7 +63,7 @@ MANDATORY after writing each summary:
 5. If context compaction occurs: read phase_summaries from checkpoint to restore state
 ```
 
-**Why**: Arc's 29-phase pipeline accumulates significant inline context across phases. Without compression, the orchestrator hits context limits by Phase 7-8. Summaries compress multi-phase history into a fixed-size read (~50 lines per group) while preserving all carry-forward state needed for subsequent phases.
+**Why**: Arc's 40-phase pipeline accumulates significant inline context across phases. Without compression, the orchestrator hits context limits by Phase 7-8. Summaries compress multi-phase history into a fixed-size read (~50 lines per group) while preserving all carry-forward state needed for subsequent phases.
 
 ## postPhaseCleanup Considerations
 

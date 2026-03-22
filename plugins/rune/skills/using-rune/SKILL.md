@@ -33,7 +33,7 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 | "Quick run" / "fast" / "plan and build" / "nhanh" / "chạy nhanh" | `/rune:arc-quick` | Lightweight 3-phase pipeline: plan -> work -> review |
 | "Implement this" / "build it" / "execute the plan" | `/rune:strive plans/...` | Swarm workers execute a plan file |
 | "Fix these findings" / "resolve the review" | `/rune:mend tmp/.../TOME.md` | Parallel resolution of review findings |
-| "Run everything" / "ship it" / "end to end" | `/rune:arc plans/...` | Full 29-phase pipeline (forge → work → review → mend → test → goldmask → ship → merge). Use `--status` to check current phase and progress |
+| "Run everything" / "ship it" / "end to end" | `/rune:arc plans/...` | Full 40-phase pipeline (forge → work → review → mend → test → goldmask → ship → merge). Use `--status` to check current phase and progress |
 | "Batch arc" / "run all plans" / "overnight" / "multiple plans" | `/rune:arc-batch plans/*.md` | Sequential batch arc execution with auto-merge and crash recovery |
 | "Process GitHub issues" / "run issues" / "issue backlog" / "auto-implement from issues" | `/rune:arc-issues --label "rune:ready"` | GitHub Issues-driven batch arc — fetches issues, generates plans, runs arc, comments results |
 | "Run child plans" / "hierarchical execution" | `/rune:arc-hierarchy` | Execute parent/child plan decomposition with dependency DAGs |

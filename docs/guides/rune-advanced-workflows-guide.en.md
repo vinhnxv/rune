@@ -48,7 +48,7 @@ Use hierarchical plans when a feature has:
 1. **Plan** — run `/rune:devise` and select "Hierarchical" at Phase 2.5 (appears when complexity >= 0.65).
 2. **Review** — inspect the parent plan's execution table and dependency contract matrix.
 3. **Execute** — run `/rune:arc-hierarchy plans/parent-plan.md`.
-4. **Each child** runs its own full 29-phase arc pipeline (forge → work → review → mend → test → ship).
+4. **Each child** runs its own full 40-phase arc pipeline (forge → work → review → mend → test → ship).
 5. **Single PR** to main is created after all children complete.
 
 ### 2.3 Flags
@@ -157,7 +157,7 @@ Use arc-issues when you have a backlog of GitHub issues ready for automated impl
 
 1. Issue body is sanitized and converted to a plan file in `tmp/gh-plans/`.
 2. Plan quality is validated (body >= 50 chars, or `--force` to skip).
-3. Full 29-phase arc pipeline runs (forge → work → review → mend → test → ship → merge).
+3. Full 40-phase arc pipeline runs (forge → work → review → mend → test → ship → merge).
 4. On success: PR with `Fixes #{number}`, success comment, `rune:done` label.
 5. On failure: error comment, `rune:failed` label.
 

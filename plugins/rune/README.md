@@ -38,7 +38,7 @@ New to Rune? Three commands to go from idea to reviewed code:
 
 These are beginner-friendly aliases for `/rune:devise`, `/rune:strive`, and `/rune:appraise`.
 
-**Want the full pipeline?** Run `/rune:arc plans/my-plan.md` for an automated 29-phase pipeline: plan enrichment → code review → auto-fix → testing → PR → merge.
+**Want the full pipeline?** Run `/rune:arc plans/my-plan.md` for an automated 40-phase pipeline: plan enrichment → code review → auto-fix → testing → PR → merge.
 
 **Not sure which command?** Use `/rune:tarnished` — the intelligent entry point that routes natural language to the right workflow (English and Vietnamese supported).
 
@@ -202,7 +202,7 @@ For the full command reference with all flags and options, see the [Command Refe
 | Tarnished | Orchestrator | The lead agent that coordinates workflows |
 | Forge | Plan enrichment | Research phase that deepens a plan |
 | Mend | Auto-fix findings | Parallel resolution of review findings |
-| Arc | End-to-end pipeline | 29-phase automated workflow |
+| Arc | End-to-end pipeline | 40-phase automated workflow |
 | Echoes | Persistent memory | Cross-session project knowledge |
 | Roundtable Circle | Parallel review | Pattern for orchestrating multiple Ash (review agent) teammates |
 
@@ -225,7 +225,7 @@ See the [Glossary](../../docs/guides/rune-glossary.en.md) for the complete termi
 
 ### Arc (End-to-End Pipeline)
 
-Chains 29 phases: Forge (plan enrichment) → Plan Review → Work → Gap Analysis → Code Review → Mend (auto-fix findings) → Test → Ship → Merge. Checkpoint-based resume (`--resume`) available if interrupted.
+Chains 40 phases: Forge (plan enrichment) → Plan Review → Work → Gap Analysis → Code Review → Mend (auto-fix findings) → Test → Ship → Merge. Checkpoint-based resume (`--resume`) available if interrupted.
 
 For detailed Arc (end-to-end pipeline) phase documentation, see the [Arc & Batch Guide](../../docs/guides/rune-arc-and-batch-guide.en.md).
 

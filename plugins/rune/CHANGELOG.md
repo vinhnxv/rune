@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.10.3] - 2026-03-23
+
+### Fixed
+- **Arc phase count documentation** — Update all references from "29-phase" to "40-phase" across READMEs, skills, guides (EN + VI), and commands to match actual PHASE_ORDER (40 entries). Historical CHANGELOG entries preserved.
+- **Agent registry stale counts** — Fix CORE/EXTENDED breakdown in agent-registry.md (was 129/86/3 → now 142/99/13 matching actual agent files)
+- **Exception narrowing** — Narrow `except Exception` to specific types (`sqlite3.DatabaseError`, `OSError`, `ValueError`) in agent-search server.py (3 locations)
+- **Context guard patterns** — Add 3 missing workflow patterns to guard-context-critical.sh (codex-review, resolve-todos, self-audit state files)
+- **Root README version badge** — Update from 2.10.1 to 2.10.3
+
 ## [2.10.2] - 2026-03-23
 
 ### Fixed

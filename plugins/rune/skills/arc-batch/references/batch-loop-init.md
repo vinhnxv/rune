@@ -133,7 +133,7 @@ Skill("rune:arc", arcArgs)
 //   5. Execute the first pending phase
 //
 // DO NOT end your response after the Skill call. The Skill call LOADS instructions.
-// You must EXECUTE them. The arc pipeline has 29 phases — start the first one.
+// You must EXECUTE them. The arc pipeline has 40 phases — start the first one.
 // DO NOT implement the plan code directly. Follow the loaded arc skill instructions.
 
 // After the first arc completes, Claude's response ends.
