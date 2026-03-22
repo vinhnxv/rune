@@ -115,136 +115,9 @@ See [parse-plan.md](references/parse-plan.md) for detailed task extraction, shar
 
 ### Resume Detection (Phase 0, after plan path validation)
 
-When `--resume` is passed, the orchestrator scans for a valid checkpoint from a prior crashed or interrupted session and reconstructs the task pool with completed tasks pre-marked.
+When `--resume` is passed, the orchestrator scans for a valid checkpoint from a prior crashed or interrupted session and reconstructs the task pool with completed tasks pre-marked. Handles session isolation, plan modification detection, artifact verification, and dependency graph pruning.
 
-```javascript
-// Parse --resume flag
-const resumeRequested = args.includes("--resume")
-
-if (resumeRequested) {
-  const checkpointMaxAgeMs = readTalismanSection("work")?.checkpoint_max_age_ms ?? 86400000  // 24h default
-  const configDir = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
-  let checkpointFile = null
-  let checkpoint = null
-
-  // Auto-detect: find most recent checkpoint matching this plan
-  const candidates = Glob("tmp/work/*/strive-checkpoint.json")
-  for (const candidate of candidates.sort().reverse()) {  // newest first by timestamp dir
-    let parsed
-    try {
-      parsed = JSON.parse(Read(candidate))
-    } catch (e) {
-      log(`Resume: skipping corrupted checkpoint ${candidate}`)
-      continue  // corrupted JSON → skip
-    }
-
-    // Session isolation: config_dir must match
-    if (parsed.config_dir !== configDir) continue
-
-    // Plan match check
-    if (parsed.plan_path !== planPath) continue
-
-    // Staleness check (configurable, default 24h)
-    if ((Date.now() - parsed.updated_at) > checkpointMaxAgeMs) {
-      log(`Resume: skipping stale checkpoint ${candidate} (age > ${checkpointMaxAgeMs}ms)`)
-      continue
-    }
-
-    // Live session check: skip if another live session owns this checkpoint
-    if (parsed.owner_pid) {
-      // SEC-001: Validate owner_pid is purely numeric before shell use
-      if (!/^\d+$/.test(String(parsed.owner_pid))) {
-        log(`Resume: skipping checkpoint with invalid owner_pid format`)
-        continue
-      }
-      const pidAlive = Bash(`kill -0 ${parsed.owner_pid} 2>/dev/null && echo "alive" || echo "dead"`).trim()
-      if (pidAlive === "alive" && String(parsed.owner_pid) !== String(Bash("echo $PPID").trim())) {
-        log(`Resume: skipping checkpoint owned by live session PID ${parsed.owner_pid}`)
-        continue
-      }
-    }
-
-    checkpointFile = candidate
-    checkpoint = parsed
-    break
-  }
-
-  if (!checkpointFile) {
-    log("Resume: no valid checkpoint found for this plan. Starting fresh.")
-    // Fall through to normal flow
-  } else {
-    // Plan modification detection: compare plan file mtime
-    // SEC-006: Validate planPath before shell use
-    if (!/^[a-zA-Z0-9._\-\/]+$/.test(planPath) || planPath.includes('..')) {
-      log(`Resume: invalid planPath format — skipping modification check`)
-    } else {
-    const currentMtime = Bash(`stat -f '%m' "${planPath}" 2>/dev/null || stat -c '%Y' "${planPath}" 2>/dev/null`).trim()
-    if (checkpoint.plan_mtime && currentMtime !== checkpoint.plan_mtime) {
-      log("Resume: WARNING — plan file modified since checkpoint. Changes may affect task definitions.")
-      // Warn user but proceed (plan modifications may be intentional refinements)
-    }
-
-    // Reconstruct task pool with completion status
-    const completedTaskIds = (checkpoint.completed_tasks || []).map(id => String(id))
-    for (const task of extractedTasks) {
-      const taskIdStr = String(task.id)
-      if (completedTaskIds.includes(taskIdStr)) {
-        // Verify completed task artifacts still exist
-        const artifactInfo = checkpoint.task_artifacts?.[taskIdStr]
-        const taskFiles = artifactInfo?.files || []
-        let allFilesExist = true
-        for (const file of taskFiles) {
-          // SEC-002: Validate artifact file path before shell use
-          if (!/^[a-zA-Z0-9._\-\/]+$/.test(file) || file.includes('..')) {
-            log(`Resume: skipping artifact with invalid path format: ${file}`)
-            allFilesExist = false
-            break
-          }
-          const exists = Bash(`test -f "${file}" && echo "yes" || echo "no"`).trim()
-          if (exists !== "yes") {
-            log(`Resume: completed task ${taskIdStr} artifact missing: ${file} — re-adding to pool`)
-            allFilesExist = false
-            break
-          }
-        }
-
-        if (allFilesExist) {
-          task.status = "completed"
-          task.resumed = true
-        }
-        // If files missing, task stays pending (re-added to pool)
-      }
-    }
-
-    const remainingTasks = extractedTasks.filter(t => t.status !== "completed")
-    log(`Resume: ${completedTaskIds.length} tasks already done, ${remainingTasks.length} remaining`)
-
-    // Re-validate dependency graph: prune blockedBy edges to completed tasks
-    for (const task of remainingTasks) {
-      if (task.blockedBy) {
-        task.blockedBy = task.blockedBy.filter(depId =>
-          !completedTaskIds.includes(String(depId))
-        )
-      }
-    }
-  }  // end SEC-006 else (valid planPath)
-  }  // end checkpointFile else
-}
-```
-
-**Edge cases handled**:
-
-| Edge Case | Handling |
-|-----------|----------|
-| Plan modified since checkpoint | Warn via log, proceed (user refinements are common) |
-| Checkpoint from different config_dir | Skipped (session isolation) |
-| Checkpoint > 24h old | Skipped as stale (configurable via `work.checkpoint_max_age_ms`) |
-| Live session owns checkpoint | Skipped if owner PID alive and not current session |
-| Completed task files deleted | Artifact verification catches this → re-added to pool |
-| Corrupted checkpoint JSON | Caught by try/catch → skipped with warning |
-| `--resume` with no checkpoint | Warning, falls through to fresh start |
-| Task ID type mismatch | All IDs cast to `String()` at read boundaries |
-| Circular deps after filtering completed tasks | `blockedBy` edges to completed tasks pruned eagerly |
+See [resume-detection.md](references/resume-detection.md) for the full implementation code and edge case table.
 
 ### Worktree Mode Detection (Phase 0)
 
@@ -446,24 +319,9 @@ See [discipline-work-loop.md](references/discipline-work-loop.md) Phase 4.5 for 
 
 ### Discipline Escalation Chain (Phase 3 — Planned)
 
-> **Status**: Planned — not yet implemented. This section documents the intended escalation behavior when the `validate-discipline-proofs.sh` TaskCompleted hook blocks task completion. Only activates when `discipline.enabled: true` AND `discipline.block_on_fail: true` in talisman.
+> **Status**: Planned — not yet implemented. 4-attempt recovery chain (retry → decompose → reassign → human escalation) when discipline proof hook blocks task completion.
 
-When the discipline proof hook exits 2 (BLOCK), the worker receives feedback via stderr. The escalation chain provides structured recovery with a maximum of 4 attempts before human intervention:
-
-1. **ATTEMPT 1 — Retry**: Worker receives the hook's failure message (which criteria failed, what evidence is missing). Worker retries the task with the discipline feedback, addressing the specific failing proofs.
-
-2. **ATTEMPT 2 — Decompose**: If retry fails, the orchestrator splits the task into smaller sub-tasks. Each sub-task gets its own evidence path (`tmp/work/{timestamp}/evidence/{sub-task-id}/`). Decomposed tasks inherit the parent's acceptance criteria subset.
-
-3. **ATTEMPT 3 — Reassign**: If decomposed tasks still fail, reassign to a different worker (fresh context window). The new worker receives the full failure history and prior evidence attempts.
-
-4. **ATTEMPT 4 — Human escalation**: If all automated attempts fail, invoke `AskUserQuestion` with the failure details including: task description, all prior attempt results, failing criteria IDs, and evidence paths. Includes `silence_timeout` (default 5 min, separate from `max_convergence_iterations`) — if no human response within the timeout, mark task as FAILED and continue with remaining tasks.
-
-**Configuration**:
-- `discipline.max_convergence_iterations`: Controls automated attempts (default: 3). Total attempts = `max_convergence_iterations` + 1 (human).
-- `discipline.block_on_fail: false` (WARN mode): No escalation triggered — hook warnings are advisory only.
-- `discipline.enabled: false`: Entire escalation chain is skipped. Existing smart reassignment still operates independently.
-
-**Attempt tracking**: Per-task attempt count tracked via task metadata field `discipline_attempts`. Incremented on each TaskCompleted hook rejection.
+See [discipline-escalation.md](references/discipline-escalation.md) for the full escalation protocol and configuration.
 
 ### Phase 3.5: Commit Broker (Orchestrator-Only, Patch Mode)
 
@@ -519,48 +377,9 @@ Read and execute [quality-gates.md](references/quality-gates.md) before proceedi
 
 ## Phase 5: Echo Persist
 
-```javascript
-// Resolve echo library path once
-const ECHO_LIB = `${Bash("echo ${CLAUDE_PLUGIN_ROOT}")}/scripts/lib/echo-append.sh`
+Persist implementation patterns and discipline metrics to Rune Echoes. Workers echo records completed/failed task counts and key modified files. Discipline echo records SCR, first-pass rate, convergence iterations, and failure histogram.
 
-// Persist implementation patterns — workers echo
-const completedTasks = TaskList().filter(t => t.status === "completed")
-const taskCount = completedTasks.length
-const failedTasks = TaskList().filter(t => t.status === "failed")
-const modifiedFiles = Bash("git diff --name-only HEAD~1 HEAD 2>/dev/null || echo '(none)'").trim()
-
-Bash(`source "${ECHO_LIB}" && rune_echo_append \
-  --role workers --layer inscribed \
-  --source "rune:strive ${timestamp}" \
-  --title "Work session: ${planName}" \
-  --content "Completed ${taskCount} tasks, ${failedTasks.length} failed. Key files: ${modifiedFiles.split('\n').slice(0,5).join(', ')}" \
-  --confidence MEDIUM \
-  --tags "work,strive,${planName}"`)
-
-// Discipline accountability echo — persist run metrics for trend detection
-if (disciplineEnabled) {
-  try {
-    const metricsFile = `tmp/work/${timestamp}/convergence/metrics.json`
-    const metrics = JSON.parse(Read(metricsFile))
-    const scr = metrics.metrics?.scr?.value ?? "N/A"
-    const fpr = metrics.metrics?.first_pass_rate?.value ?? "N/A"
-    const iters = metrics.metrics?.convergence_iterations?.value ?? "N/A"
-    const failures = Object.entries(metrics.convergence?.failure_code_histogram ?? {})
-      .map(([k, v]) => `${k}:${v}`).join(", ") || "none"
-
-    Bash(`source "${ECHO_LIB}" && rune_echo_append \
-      --role discipline --layer inscribed \
-      --source "rune:strive ${timestamp}" \
-      --title "Discipline: ${planName}" \
-      --content "SCR: ${scr}, First-pass rate: ${fpr}, Iterations: ${iters}, Failures: ${failures}" \
-      --confidence HIGH \
-      --tags "discipline,accountability,metrics"`)
-  } catch (e) {
-    // metrics.json may not exist for non-convergence runs — skip silently
-  }
-}
-// See discipline/references/accountability-protocol.md for full echo format and trend detection
-```
+See [echo-persist.md](references/echo-persist.md) for the full implementation code.
 
 ## Phase 6: Cleanup & Report
 
@@ -568,53 +387,7 @@ Standard cleanup: cache TaskList → dynamic member discovery → shutdown → g
 
 See [phase-6-cleanup.md](references/phase-6-cleanup.md) for the full cleanup pseudocode and completion report template. See [engines.md](../team-sdk/references/engines.md) § cleanup for the shared pattern.
 
-**Phase 6 — Per-Task Status Table** (discipline-enabled plans only):
-
-```javascript
-// Read all task files to build per-task status breakdown
-const taskFiles = Glob(`tmp/work/${timestamp}/tasks/task-*.md`)
-const perTaskStatus = []
-
-for (const tf of taskFiles) {
-  const content = Read(tf)
-  const fm = parseYAMLFrontmatter(content)
-  const taskId = String(fm.task_id)  // FLAW-008: normalize to String
-  if (taskId.startsWith('gap-')) continue  // Skip gap tasks in primary summary
-
-  const evidencePath = `tmp/work/${timestamp}/evidence/${taskId}/summary.json`
-  let evidence = null
-  try { evidence = JSON.parse(Read(evidencePath)) } catch {}
-
-  const criteriaTotal = fm.proof_count ?? 0
-  const criteriaPass = evidence?.criteria_results?.filter(r => r.result === 'PASS').length ?? 0
-
-  perTaskStatus.push({
-    task_id: taskId,
-    status: fm.status,
-    worker: fm.assigned_to,
-    criteria: `${criteriaPass}/${criteriaTotal}`,
-    has_report: content.includes('### Echo-Back') && !content.includes('_To be filled'),
-  })
-}
-
-// Include per-task table in completion report
-const perTaskTable = [
-  '| Task | Status | Worker | Criteria | Report |',
-  '|------|--------|--------|----------|--------|',
-  ...perTaskStatus.map(t =>
-    `| ${t.task_id} | ${t.status} | ${t.worker ?? 'unassigned'} | ${t.criteria} | ${t.has_report ? '✓' : '✗'} |`
-  ),
-].join('\n')
-
-// Append convergence metrics if available
-let convergenceSection = ''
-if (exists(`tmp/work/${timestamp}/convergence/metrics.json`)) {
-  const metrics = JSON.parse(Read(`tmp/work/${timestamp}/convergence/metrics.json`))
-  const scr = metrics.metrics?.scr?.value ?? 'N/A'
-  const iterations = metrics.metrics?.convergence_iterations?.value ?? 0
-  convergenceSection = `\nSCR: ${scr}% | Convergence iterations: ${iterations}`
-}
-```
+**Phase 6 — Per-Task Status Table** (discipline-enabled plans only): Reads task files to build per-task status breakdown with criteria pass/fail counts and convergence metrics. See [phase-6-cleanup.md](references/phase-6-cleanup.md) § Per-Task Status Table.
 
 ## Phase 6.5: Ship (Optional)
 

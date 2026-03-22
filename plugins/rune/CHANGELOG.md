@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.10.1] - 2026-03-22
+
+### Changed
+- **SKILL.md line compliance** — Extract verbose inline sections from 4 SKILL.md files exceeding 500-line limit (strive 696→469, brainstorm 562→496, design-prototype 537→474, self-audit 514→453). Content moved to reference files with no information loss.
+
 ## [2.10.0] - 2026-03-22
 
 ### Added
