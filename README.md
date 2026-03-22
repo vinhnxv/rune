@@ -7,7 +7,7 @@
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Supported-7F4DFF)](https://docs.anthropic.com/en/docs/claude-code)
-[![Version](https://img.shields.io/badge/version-2.9.1-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-2.9.2-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Agents](https://img.shields.io/badge/agents-142-purple)](#agents)
 [![Skills](https://img.shields.io/badge/skills-58-orange)](#skills)
@@ -805,6 +805,7 @@ See the [Troubleshooting guide](docs/guides/rune-troubleshooting-and-optimizatio
 - **Multi-config support** — use different `CLAUDE_CONFIG_DIR` accounts
 - **tmux isolation** — each arc gets its own Claude Code instance with clean context
 - **Crash resilience** — tmux sessions survive if torrent exits
+- **Channels bridge** (`--channels`) — bidirectional communication with Claude Code via Channels API. Bridge View (`[b]` key) provides full-screen chat with message history and persistence
 
 ### Install
 
