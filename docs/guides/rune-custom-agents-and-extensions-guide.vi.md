@@ -317,6 +317,10 @@ Bạn là reviewer chuyên gia domain e-commerce.
 - Tính giá phía client không có server validation
 - State transition không có guard conditions
 - Thiếu rollback khi thanh toán thất bại một phần
+
+## Evidence
+
+Mọi finding phải bao gồm Rune Trace với đường dẫn file chính xác, số dòng, và code snippet.
 ```
 
 ### Đăng ký talisman

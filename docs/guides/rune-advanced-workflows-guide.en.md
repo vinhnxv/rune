@@ -48,7 +48,7 @@ Use hierarchical plans when a feature has:
 1. **Plan** — run `/rune:devise` and select "Hierarchical" at Phase 2.5 (appears when complexity >= 0.65).
 2. **Review** — inspect the parent plan's execution table and dependency contract matrix.
 3. **Execute** — run `/rune:arc-hierarchy plans/parent-plan.md`.
-4. **Each child** runs its own full 26-phase arc pipeline (forge → work → review → mend → test → ship).
+4. **Each child** runs its own full 29-phase arc pipeline (forge → work → review → mend → test → ship).
 5. **Single PR** to main is created after all children complete.
 
 ### 2.3 Flags
@@ -157,7 +157,7 @@ Use arc-issues when you have a backlog of GitHub issues ready for automated impl
 
 1. Issue body is sanitized and converted to a plan file in `tmp/gh-plans/`.
 2. Plan quality is validated (body >= 50 chars, or `--force` to skip).
-3. Full 26-phase arc pipeline runs (forge → work → review → mend → test → ship → merge).
+3. Full 29-phase arc pipeline runs (forge → work → review → mend → test → ship → merge).
 4. On success: PR with `Fixes #{number}`, success comment, `rune:done` label.
 5. On failure: error comment, `rune:failed` label.
 
@@ -218,12 +218,16 @@ Creates a Notes-tier entry that is permanent and never auto-pruned. Use this for
 
 ### 4.5 How echoes improve workflows
 
-| Workflow | How echoes are used |
-|---|---|
-| `/rune:appraise` | Reviewers read past findings to avoid duplicate reports |
-| `/rune:audit` | Auditors build on previous audit knowledge |
-| `/rune:devise` | Echo Reader agent surfaces relevant past learnings |
-| `/rune:strive` | Workers read implementation patterns from past sessions |
+Echoes are **automatically written** during all 6 major workflows — you don't need to do anything. After each task completion, agents persist their learnings as Observations-tier entries. Frequently referenced observations auto-promote to Inscribed tier.
+
+| Workflow | How echoes are read | How echoes are written |
+|---|---|---|
+| `/rune:appraise` | Reviewers read past findings to avoid duplicates | New patterns auto-persisted after review |
+| `/rune:audit` | Auditors build on previous audit knowledge | Audit findings auto-persisted |
+| `/rune:devise` | Echo Reader agent surfaces relevant learnings | Planning decisions auto-recorded |
+| `/rune:strive` | Workers read implementation patterns | Implementation patterns auto-persisted |
+| `/rune:mend` | Fixers read past fix strategies | Fix patterns auto-recorded |
+| `/rune:arc` | All phases read relevant echoes | All phases auto-write echoes |
 
 ### 4.6 Memory structure
 

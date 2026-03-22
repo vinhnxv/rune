@@ -62,9 +62,10 @@ Rune parses the plan into tasks, spawns self-organizing workers, and implements 
 ### 3.3 What happens during strive
 
 1. **Parse plan** — extracts tasks with dependencies, clarifies ambiguities.
+1b. **Task decomposition (v1.140.0+)** — each task is classified as ATOMIC or COMPOSITE. COMPOSITE tasks are split into 2-4 subtasks. Configure via `work.task_decomposition` in talisman.
 2. **Environment setup** — branch safety check (warns on `main`), stash dirty files.
 3. **Create task pool** — `TaskCreate` with dependency chains (`blockedBy`).
-4. **Summon workers** — Rune Smiths (implementation) and Trial Forgers (tests) claim tasks independently.
+4. **Summon workers** — Rune Smiths (implementation) and Trial Forgers (tests) claim tasks independently. Workers receive **sibling awareness** context showing what files other workers are editing to prevent conflicts (configure via `work.sibling_awareness` in talisman).
 5. **Monitor progress** — polls TaskList every 30s, detects stalled workers (5-min warn, 10-min auto-release).
 6. **Commit broker** — orchestrator applies patches and commits (prevents index.lock contention).
 7. **Ward check** — runs auto-discovered quality gates + verification checklist.

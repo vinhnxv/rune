@@ -102,7 +102,7 @@ Arc chạy pipeline theo phase, gồm:
 - Convergence: Code Review (--deep), Goldmask Correlation, Mend, Verify Mend, Design Iteration loop.
 - Delivery: Test (3 tầng: unit/integration/E2E), Test Coverage Critique, Pre-Ship Validation, Release Quality Check, Ship, Bot Review Wait, PR Comment Resolution, Merge.
 
-> **Lưu ý (v1.120.2+):** Arc pipeline hiện có 26 phase (tăng từ 23), thêm Design Extraction, Design Verification, và Design Iteration cho Figma design sync.
+> **Lưu ý (v1.120.2+):** Arc pipeline hiện có 29 phase (tăng từ 23), thêm Design Extraction, Design Prototype, Design Verification, Design Iteration, UX Verification, và Pre-Ship Validation.
 
 ### 4.5 Theo dõi state ở đâu
 - Checkpoint: `.rune/arc/{arc-id}/checkpoint.json`

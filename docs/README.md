@@ -44,6 +44,8 @@ A single AI agent loses effectiveness as tasks grow in scope. Rune splits work a
 | Advanced workflows | `/rune:arc-hierarchy`, `/rune:arc-issues`, `/rune:echoes`, `/rune:learn`, `/rune:test-browser`, `/rune:debug` | [Advanced workflows](guides/rune-advanced-workflows-guide.en.md) | [Workflow nâng cao](guides/rune-advanced-workflows-guide.vi.md) |
 | Configure Rune behavior | `/rune:talisman` | [Talisman deep dive](guides/rune-talisman-deep-dive-guide.en.md) | [Talisman chuyên sâu](guides/rune-talisman-deep-dive-guide.vi.md) |
 | Extend Rune with custom agents | custom Ashes, Forge Gaze, CLI-backed reviewers | [Custom agents and extensions](guides/rune-custom-agents-and-extensions-guide.en.md) | [Custom agent và mở rộng](guides/rune-custom-agents-and-extensions-guide.vi.md) |
+| Integrate MCP component libraries | UI Builder Protocol, phase routing, triggers | [UI Builder Protocol](guides/ui-builder-protocol.en.md) | [UI Builder Protocol](guides/ui-builder-protocol.vi.md) |
+| Add third-party MCP tools | declarative integration, 3 levels | [MCP Integration Spec](guides/mcp-integration-spec.en.md) | [MCP Integration Spec](guides/mcp-integration-spec.vi.md) |
 | Troubleshoot failures and optimize cost | diagnostics, cleanup, tuning | [Troubleshooting and optimization](guides/rune-troubleshooting-and-optimization-guide.en.md) | [Xử lý sự cố và tối ưu](guides/rune-troubleshooting-and-optimization-guide.vi.md) |
 | Use GLM-5 via claude-code-router | Alibaba Cloud Coding Plan setup | [GLM-5 setup guide](glm-5-setup.md) | [Hướng dẫn GLM-5](glm-5-setup.md#tiếng-việt) |
 

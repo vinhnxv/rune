@@ -95,7 +95,7 @@ Arc runs a phased pipeline including:
 - Convergence: Code Review (--deep), Goldmask Correlation, Mend, Verify Mend, Design Iteration loops.
 - Delivery: Test (3-tier: unit/integration/E2E), Test Coverage Critique, Pre-Ship Validation, Release Quality Check, Ship, Bot Review Wait, PR Comment Resolution, Merge.
 
-> **Note (v1.120.2+):** The arc pipeline now has 26 phases (up from the original 23), with the addition of Design Extraction, Design Verification, and Design Iteration phases for Figma design sync support.
+> **Note (v1.120.2+):** The arc pipeline now has 29 phases (up from the original 23), with the addition of Design Extraction, Design Prototype, Design Verification, Design Iteration, UX Verification, and Pre-Ship Validation phases.
 
 ### 4.5 Where to inspect state
 - Checkpoint: `.rune/arc/{arc-id}/checkpoint.json`

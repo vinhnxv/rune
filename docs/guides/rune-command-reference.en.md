@@ -2,7 +2,7 @@
 
 A practical command index for Rune users.
 
-Verified against this repository on **March 1, 2026**:
+Verified against this repository on **March 22, 2026**:
 - command specs in `plugins/rune/commands/*.md`
 - workflow skills in `plugins/rune/skills/*/SKILL.md`
 
@@ -42,6 +42,7 @@ Related guides:
 
 | Command | Purpose | Common Flags |
 |---------|---------|--------------|
+| `/rune:brainstorm` | Collaborative idea exploration (solo, roundtable, deep) | `--quick`, `--deep` |
 | `/rune:devise` | Multi-agent planning pipeline | `--quick`, `--no-brainstorm`, `--no-forge`, `--exhaustive` |
 | `/rune:forge` | Deepen an existing plan | `--exhaustive` |
 | `/rune:plan-review` | Review code blocks in a plan (`inspect --mode plan`) | `--focus`, `--dry-run` |
@@ -74,7 +75,7 @@ Related guides:
 | Command | Purpose |
 |---------|---------|
 | `/rune:tarnished` | Unified natural-language router across workflows |
-| `/rune:talisman` | Configure and audit `talisman.yml` (`init`, `audit`, `update`, `guide`, `status`) |
+| `/rune:talisman` | Configure and audit `talisman.yml` (`init`, `audit`, `update`, `guide`, `status`, `split`, `merge`) |
 | `/rune:elicit` | Structured reasoning method selection |
 | `/rune:file-todos` | Session-scoped file-based todo operations |
 | `/rune:rest` | Clean completed workflow artifacts under `tmp/` |

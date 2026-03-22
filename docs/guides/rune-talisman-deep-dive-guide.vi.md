@@ -40,9 +40,46 @@ Cách nhanh nhất để có talisman cấu hình đúng là dùng skill `/rune:
 
 # Xem tổng quan tình trạng talisman
 /rune:talisman status
+
+# Tách thành 3 file companion (theo đối tượng sử dụng)
+/rune:talisman split
+
+# Gộp các file companion lại thành một talisman.yml
+/rune:talisman merge
 ```
 
 Subcommand `init` tự detect stack dự án (Python, TypeScript, Rust, PHP, Go, v.v.) và tạo talisman với `ward_commands`, `backend_extensions`, và `dedup_hierarchy` phù hợp.
+
+### Split / Merge — Bố cục file Companion
+
+Khi `talisman.yml` lớn lên, bạn có thể tách thành **3 file companion** theo đối tượng sử dụng:
+
+| File | Chứa | Ai chỉnh sửa |
+|------|------|---------------|
+| `.rune/talisman.yml` | Config runtime chính (rune-gaze, review, work, arc, testing, v.v.) | Hầu hết người dùng |
+| `.rune/talisman.ashes.yml` | Định nghĩa agent tùy chỉnh (ashes, user_agents, extra_agent_dirs) | Tác giả agent |
+| `.rune/talisman.integrations.yml` | Công cụ bên ngoài (codex, elicitation, echoes, evidence, v.v.) | Power users |
+
+```bash
+# Tách talisman.yml thành 3 file
+/rune:talisman split
+
+# Gộp các file companion lại thành một
+/rune:talisman merge
+```
+
+**Cách hoạt động:**
+- Split dùng **xử lý text theo dòng** (không parse YAML) — comments, khoảng trắng, và thứ tự được giữ nguyên
+- Xác minh shard đảm bảo resolver tạo JSON giống hệt trước và sau khi split
+- Rollback khi thất bại: nếu xác minh lỗi, file gốc được khôi phục và companions bị xóa
+- `split → merge` tương đương ngữ nghĩa; `merge → split → merge` idempotent
+
+**Khi nào nên dùng split:**
+- Talisman.yml lớn (100+ dòng) nơi các thành viên khác nhau chỉnh sửa các phần khác nhau
+- Tách agent registry (ashes) khỏi config chính để giảm merge conflict
+- Giữ config tích hợp bên ngoài riêng biệt để dễ audit
+
+Resolver (`talisman-resolve.sh`) tự động gộp tất cả companion files trước khi tạo JSON shards — không cần thay đổi workflow.
 
 ---
 
@@ -356,7 +393,33 @@ Tuỳ chọn nâng cao (opt-in):
 
 ---
 
-## 11. Biến môi trường Platform
+## 11. Codex Oracle (Xác minh đa model)
+
+```yaml
+codex:
+  disabled: false              # Kill switch
+  model: "gpt-5.3-codex"
+  reasoning: "xhigh"          # xhigh | high | medium | low
+  timeout: 600                 # Timeout ngoài (giây)
+  stream_idle_timeout: 540     # Timeout idle trong
+
+  # QUAN TRỌNG: bao gồm "arc" để Codex chạy trong các phase arc (v1.87.0+)
+  workflows: [review, audit, plan, forge, work, mend, goldmask, inspect, arc]
+
+  # 17 điểm xác minh inline (v1.51.0+, mở rộng v1.87.0+)
+  diff_verification:
+    enabled: true              # So khớp findings P1/P2 với diff hunks
+  test_coverage_critique:
+    enabled: true              # Phát hiện gaps coverage test
+  section_validation:
+    enabled: true              # Kiểm tra coverage section plan
+  task_decomposition:
+    enabled: true              # Kiểm tra độ chi tiết task
+```
+
+---
+
+## 12. Biến môi trường Platform
 
 Đặt trong `.claude/settings.json` (không phải talisman):
 
@@ -378,7 +441,7 @@ Tuỳ chọn nâng cao (opt-in):
 
 ---
 
-## 12. Công thức theo loại dự án
+## 13. Công thức theo loại dự án
 
 ### Node.js/TypeScript
 
@@ -419,7 +482,7 @@ testing:
 
 ---
 
-## 13. Mend
+## 14. Mend
 
 ```yaml
 mend:
@@ -429,7 +492,7 @@ mend:
 
 ---
 
-## 14. File Todos (Schema v2, v1.101.0+)
+## 15. File Todos (Schema v2, v1.101.0+)
 
 Tất cả todos đều session-scoped và bắt buộc. Các key sau đã bị **xoá** trong v1.101.0:
 - `file_todos.enabled` — todos luôn bật
@@ -452,7 +515,7 @@ file_todos:
 
 ---
 
-## 15. Quản lý Context
+## 16. Quản lý Context
 
 ### Context Monitor
 
@@ -474,7 +537,7 @@ context_weaving:
 
 ---
 
-## 16. Tham khảo nhanh: Tất cả key cấp cao nhất
+## 17. Tham khảo nhanh: Tất cả key cấp cao nhất
 
 | Key | Mục đích | Mặc định |
 |-----|---------|---------|

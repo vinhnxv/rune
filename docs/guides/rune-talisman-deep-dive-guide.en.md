@@ -33,9 +33,46 @@ The fastest way to get a properly configured talisman is the `/rune:talisman` sk
 
 # View talisman health summary
 /rune:talisman status
+
+# Split into 3 companion files (by audience)
+/rune:talisman split
+
+# Merge companion files back into single talisman.yml
+/rune:talisman merge
 ```
 
 The `init` subcommand detects your project stack (Python, TypeScript, Rust, PHP, Go, etc.) and generates a customized talisman with appropriate `ward_commands`, `backend_extensions`, and `dedup_hierarchy` prefixes.
+
+### Split / Merge — Companion File Layout
+
+As `talisman.yml` grows, it can be split into **3 companion files** organized by audience:
+
+| File | Contains | Who edits |
+|------|----------|-----------|
+| `.rune/talisman.yml` | Core runtime config (rune-gaze, review, work, arc, testing, etc.) | Most users |
+| `.rune/talisman.ashes.yml` | Custom agent definitions (ashes, user_agents, extra_agent_dirs) | Agent authors |
+| `.rune/talisman.integrations.yml` | External tools (codex, elicitation, echoes, evidence, etc.) | Power users |
+
+```bash
+# Split a single talisman.yml into 3 files
+/rune:talisman split
+
+# Merge companion files back into one
+/rune:talisman merge
+```
+
+**How it works:**
+- Split uses **text-based line processing** (not YAML parsing) — comments, whitespace, and ordering are preserved
+- Shard verification ensures the resolver produces identical JSON before and after split
+- Rollback on failure: if verification fails, the original file is restored and companions deleted
+- `split → merge` is semantically identical; `merge → split → merge` is idempotent
+
+**When to use split:**
+- Large talisman.yml (100+ lines) where different team members edit different sections
+- Separating agent registry (ashes) from core config to reduce merge conflicts
+- Keeping external integrations config isolated for easier auditing
+
+The resolver (`talisman-resolve.sh`) automatically merges all companion files before producing JSON shards — no workflow changes needed.
 
 ---
 
@@ -204,6 +241,23 @@ work:
 
 **Important**: Ward commands must complete within `BASH_DEFAULT_TIMEOUT_MS` (recommend 600000 = 10 min). If your test suite takes longer, increase the timeout in `.claude/settings.json`.
 
+### Task Decomposition (v1.140.0+)
+
+LLM-driven task decomposition splits complex plan tasks into smaller atomic subtasks before assigning to workers:
+
+```yaml
+work:
+  task_decomposition:
+    enabled: true               # Enable LLM-driven decomposition at Phase 1.1
+    max_subtasks: 4             # Max subtasks per composite task (2-4)
+    classification: auto        # auto | manual — ATOMIC vs COMPOSITE classification
+  sibling_awareness:
+    enabled: true               # Inject concurrent sibling context into worker prompts
+    include_file_assignments: true  # Show which files other workers are editing
+```
+
+**What this does:** At Phase 1.1, each plan task is classified as ATOMIC (single worker) or COMPOSITE (split into 2-4 subtasks). Workers also receive context about what their siblings are working on, preventing duplicate work on the same files.
+
 ---
 
 ## 5. Arc Pipeline Configuration
@@ -233,7 +287,17 @@ arc:
     draft: false              # Create draft PR
     labels: ["rune"]          # Labels on PR
     rebase_before_merge: true # Rebase onto target before merge
+    ci_check:
+      enabled: true           # Check GitHub CI status after PR creation
+      timeout_ms: 600000      # 10 min wait for CI to complete
+      fix_attempts: 2         # Max CI fix loop iterations
+    merge_verification:
+      enabled: true           # Verify merge actually completed
+      poll_interval_ms: 5000  # Poll interval for merge status
+      timeout_ms: 30000       # Max wait for merge confirmation
 ```
+
+**CI failure detection (v1.143.0+):** When `ci_check.enabled: true`, arc monitors GitHub check runs after PR creation. If CI fails, arc enters a fix loop — reading failure logs, applying fixes, and re-pushing — up to `fix_attempts` times. After merge, `merge_verification` polls to confirm the merge actually completed.
 
 ### 5.3 Bot review integration
 
@@ -637,7 +701,33 @@ context_weaving:
 
 ---
 
-## 18. Quick Reference: All Top-Level Keys
+## 18. Reactions — Pipeline Response Policies (v1.144.0+)
+
+Consolidates all arc pipeline reaction policies (retry counts, escalation timeouts, convergence thresholds) into a single configurable section:
+
+```yaml
+reactions:
+  plan_review_block:
+    max_refinements: 2          # Max plan refinement iterations before proceeding
+  qa_gate_failed:
+    max_retries: 2              # Max QA gate retry attempts
+  mend_stagnation:
+    max_loops: 3                # Max review-mend convergence loops
+    stagnation_threshold: 0     # Min findings reduction to continue looping
+  teammate_stuck:
+    timeout_ms: 300000          # Time before declaring a teammate stuck (5 min)
+    escalation: "skip"          # skip | retry | abort
+  ci_failed:
+    max_fix_attempts: 2         # Max CI fix loop iterations
+  convergence_stall:
+    min_improvement: 0.1        # Min % improvement per loop to continue
+```
+
+**Why this exists:** Before `reactions:`, retry/escalation settings were scattered across `arc.timeouts`, `gates.qa_gates`, and `process_management`. The `reactions:` section unifies them. Legacy paths still work (backward-compatible aliasing).
+
+---
+
+## 19. Quick Reference: All Top-Level Keys
 
 | Key | Purpose | Default |
 |-----|---------|---------|
@@ -668,6 +758,8 @@ context_weaving:
 | `context_weaving` | Glyph budget and offloading | 300 words budget |
 | `inner_flame` | Self-review protocol | Enabled |
 | `doubt_seer` | Evidence quality challenger | Disabled (opt-in) |
+| `reactions` | Pipeline response policies (retry, escalation, convergence) | See defaults |
+| `integrations` | MCP tool phase routing and triggers | None |
 
 > **Tip**: Use `/rune:talisman audit` to compare your project config against the latest template and find missing keys.
 
