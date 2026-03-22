@@ -39,7 +39,7 @@ The mend phase resolves findings from the TOME (code review output) by spawning 
 agents that apply targeted fixes. Expected outputs:
 
 - `tmp/arc/{id}/resolution-report.md` (or `resolution-report-round-{N}.md` for retries) — per-finding outcomes
-- Each finding has a status: FIXED, WONTFIX, FALSE_POSITIVE, or FAILED
+- Each finding has a status: FIXED, WONTFIX, FALSE_POSITIVE, FAILED, SKIPPED, QUESTION, NIT, or CONSISTENCY_FIX
 - FIXED findings reference specific commit SHAs or code changes
 - Checkpoint updated with mend phase status
 
@@ -63,7 +63,7 @@ agents that apply targeted fixes. Expected outputs:
 
 | ID | Check | How to Verify |
 |----|-------|---------------|
-| MND-QUA-01 | Resolution report has per-finding status (FIXED, WONTFIX, FALSE_POSITIVE, or FAILED) | `Read` + regex for status keywords per finding |
+| MND-QUA-01 | Resolution report has per-finding status using spec-compliant keywords (FIXED, WONTFIX, FALSE_POSITIVE, FAILED, SKIPPED, QUESTION, NIT, or CONSISTENCY_FIX) | `Read` + regex for `**Status**: (FIXED\|WONTFIX\|FALSE_POSITIVE\|FAILED\|SKIPPED\|QUESTION\|NIT\|CONSISTENCY_FIX)` per finding section |
 | MND-QUA-02 | Each FIXED finding references a commit SHA or specific code change | `Read` + regex for git SHA pattern `/[0-9a-f]{7,40}/` near FIXED entries |
 | MND-QUA-03 | Halt condition enforced: checkpoint status is `failed` when >3 findings remain FAILED | `Read` checkpoint + count FAILED in resolution report |
 

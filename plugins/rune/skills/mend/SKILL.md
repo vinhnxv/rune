@@ -276,9 +276,14 @@ See [resolution-report.md](references/resolution-report.md) for the full report 
 All finding statuses in the resolution report MUST use spec-compliant keywords. When aggregating fixer SEALs, normalize all statuses through this mapping before writing the report:
 
 ```javascript
+// STATUS_MAP covers two sources:
+// 1. Fixer SEALs (Phase 3): emit FIXED, FALSE_POSITIVE, FAILED, SKIPPED
+// 2. Orchestrator-generated sections (Phase 5.5/5.7): WONTFIX, QUESTION, NIT, CONSISTENCY_FIX
+// The 'question' and 'nit' entries are for orchestrator stub sections — fixers never emit these
+// (Q/N findings are filtered out before fixer assignment per Phase 2 inscription).
 const STATUS_MAP = {
   'fixed': 'FIXED',
-  'fixed_cross_file': 'FIXED',  // Cross-file fixes map to FIXED
+  'fixed_cross_file': 'FIXED',  // Cross-file fixes (Phase 5.5) map to FIXED
   'deferred': 'WONTFIX',
   'not fixed': 'WONTFIX',
   'false positive': 'FALSE_POSITIVE',
@@ -286,8 +291,8 @@ const STATUS_MAP = {
   'failed': 'FAILED',
   'skipped': 'SKIPPED',
   'wontfix': 'WONTFIX',
-  'question': 'QUESTION',
-  'nit': 'NIT',
+  'question': 'QUESTION',       // Orchestrator stub sections only
+  'nit': 'NIT',                 // Orchestrator stub sections only
   'consistency_fix': 'CONSISTENCY_FIX',
 }
 
@@ -318,6 +323,8 @@ For findings that the fixer didn't address (P3 low-priority), generate stub sect
 After writing the resolution report, validate that summary counts match actual section counts:
 
 ```javascript
+// Finding ID format: PREFIX-DIGITS (e.g., SEC-001, BACK-005, CONSIST-001, QUAL-002)
+// PREFIX = uppercase letters, DIGITS = one or more digits. All Rune finding generators follow this convention.
 const VALID_STATUSES = ['FIXED', 'FALSE_POSITIVE', 'FAILED', 'SKIPPED', 'WONTFIX', 'QUESTION', 'NIT', 'CONSISTENCY_FIX']
 const sectionCounts = {}
 for (const status of VALID_STATUSES) {
