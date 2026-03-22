@@ -1,10 +1,10 @@
 # Agent Registry
 
-**Total: 129 agent definitions** (86 CORE in agents/ + 43 EXTENDED in registry/, 3 shared)
+**Total: 142 agent definitions** (99 CORE in agents/ + 43 EXTENDED in registry/, 13 shared)
 
-> Agent count verified by `find agents/ registry/ -name "*.md" -type f | wc -l` on 2026-03-20.
-> CORE agents (agents/): 36 review + 7 research + 6 work + 19 utility + 24 investigation + 6 testing + 7 qa + 8 meta-qa = 86 (includes wiring-cartographer + activation-pathfinder)
-> EXTENDED agents (registry/): 43 agents across review, investigation, testing, utility, and work categories
+> Agent count verified by `find agents/ registry/ -name "*.md" -type f | wc -l` on 2026-03-23.
+> CORE agents (agents/): 15 review + 7 research + 3 work + 16 utility + 30 investigation + 0 testing + 7 qa + 8 meta-qa + 13 shared (incl. README, TEMPLATE) = 99
+> EXTENDED agents (registry/): 25 review + 4 work + 6 utility + 2 investigation + 6 testing = 43
 
 > **Stack specialist reviewers** (python-reviewer, typescript-reviewer, rust-reviewer, php-reviewer, axum-reviewer, fastapi-reviewer, django-reviewer, laravel-reviewer, sqlalchemy-reviewer, tdd-compliance-reviewer, ddd-reviewer, di-reviewer) are NOT registered agents. They are prompt templates at `skills/roundtable-circle/references/specialist-prompts/`, loaded on-demand by `buildAshPrompt()` via stack detection.
 
@@ -146,7 +146,7 @@ Used by `/rune:debug` skill:
 |-------|---------|
 | hypothesis-investigator | ACH-based hypothesis investigation — structured Analysis of Competing Hypotheses with 4 evidence tiers (DIRECT/CORRELATIONAL/TESTIMONIAL/ABSENCE) and consistency matrix scoring |
 
-## Testing Agents (`agents/testing/`)
+## Testing Agents (`registry/testing/` — all EXTENDED)
 
 | Agent | Purpose |
 |-------|---------|

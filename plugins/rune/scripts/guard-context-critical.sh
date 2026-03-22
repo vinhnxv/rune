@@ -180,6 +180,9 @@ if [[ "$REM_INT" -le "$WARNING_THRESHOLD" && "$REM_INT" -gt "$CRITICAL_THRESHOLD
     "$CWD/tmp/.rune-brainstorm-"*.json \
     "$CWD/tmp/.rune-debug-"*.json \
     "$CWD/tmp/.rune-design-sync-"*.json \
+    "$CWD/tmp/.rune-codex-review-"*.json \
+    "$CWD/tmp/.rune-resolve-todos-"*.json \
+    "$CWD/tmp/.rune-self-audit-"*.json \
     "$CWD/tmp/.rune-arc-"*.json; do
     [[ -f "$sf" ]] || continue
     # Session ownership check before reading

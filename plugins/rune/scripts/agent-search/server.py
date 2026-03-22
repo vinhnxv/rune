@@ -410,7 +410,7 @@ def _migrate_v2(conn: sqlite3.Connection) -> None:
             FROM agent_entries""")
 
         conn.execute("COMMIT")
-    except Exception:
+    except (sqlite3.OperationalError, sqlite3.IntegrityError, sqlite3.DatabaseError):
         conn.execute("ROLLBACK")
         raise
 
@@ -830,7 +830,7 @@ def _handle_dirty_reindex(conn: sqlite3.Connection) -> None:
         conn.execute("BEGIN IMMEDIATE")
         try:
             _do_reindex_internal(conn)
-        except Exception:
+        except (sqlite3.OperationalError, sqlite3.IntegrityError, sqlite3.DatabaseError):
             conn.rollback()
             raise
 
@@ -1762,7 +1762,7 @@ def _startup_index_if_empty(db_path: str) -> None:
                 logger.info("Startup check: index has %d agents — skipping rebuild", count)
         finally:
             conn.close()
-    except Exception as exc:
+    except (sqlite3.Error, OSError, ValueError) as exc:
         # Fail-forward: startup indexing failure must not prevent server launch
         logger.warning("Startup indexing failed (non-fatal): %s", exc)
 
