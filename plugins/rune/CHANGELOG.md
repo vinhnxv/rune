@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.10.5] - 2026-03-23
+
+### Fixed
+- **enforce-glyph-budget.sh double JSON output** — Merge budget, trend, and evidence advisories into a single JSON object. Previously emitted two JSON objects to stdout when word count exceeded budget AND trend/evidence advisory was triggered; Claude Code only processes the first, silently dropping the second.
+- **guard-context-critical.sh CWD not canonicalized in Critical tier** — Move CWD canonicalization (`cd + pwd -P`) before tier checks. Previously, if context dropped directly from >40% to <=25% (Critical), CWD was used raw for `mkdir -p` and signal file writes, skipping the Warning tier's canonicalization.
+- **CLAUDE.md wrong matcher for track-teammate-activity.sh** — Correct Hook Infrastructure table entry from `PostToolUse:SendMessage` to `PostToolUse:Bash|Write|Edit` matching actual hooks.json configuration.
+- **stop-hook-common.sh get_field() regex too restrictive** — Widen field name validation from `^[a-z_]+$` to `^[a-zA-Z0-9_-]+$` to match `_get_fm_field()` in frontmatter-utils.sh. Fields with uppercase, digits, or hyphens previously failed silently.
+- **validate-resolve-fixer-paths.sh output prefix missing trailing /** — Add trailing `/` to `RESOLVE_OUTPUT_PREFIX` to prevent directory name prefix collisions (e.g., `resolve-todos-abc` matching `resolve-todos-abcdef/`).
+
 ## [2.10.4] - 2026-03-23
 
 ### Fixed
