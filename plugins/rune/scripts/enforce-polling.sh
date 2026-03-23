@@ -45,7 +45,7 @@ trap '_rune_fail_forward' ERR
 # Useful for long-running background tasks, test suites, service monitoring,
 # or any scenario where sleep+echo is a legitimate monitoring pattern.
 # Also configurable via talisman.yml: process_management.poll_guard_enabled: false
-if [[ "${RUNE_DISABLE_POLL_GUARD:-}" == "1" ]]; then
+if [[ "${RUNE_DISABLE_POLL_GUARD:-1}" == "1" ]]; then
   exit 0
 fi
 
