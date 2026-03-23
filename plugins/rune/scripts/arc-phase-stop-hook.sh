@@ -1402,9 +1402,9 @@ if [[ "$NEXT_PHASE" == "test" ]]; then
                   && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
                   || rm -f "$_STATE_TMP" 2>/dev/null
               else
-                # Append test_finalized to frontmatter (before closing ---)
-                sed '/^---$/a\
-test_finalized: true' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
+                # Insert test_finalized before LAST --- (closing frontmatter delimiter)
+                # Use awk to insert before the last --- line only (sed '/^---$/a' would match ALL --- lines)
+                awk 'BEGIN{found=0} /^---$/{if(found){print "test_finalized: true"} found=1} {print}' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
                   && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
                   || rm -f "$_STATE_TMP" 2>/dev/null
               fi
