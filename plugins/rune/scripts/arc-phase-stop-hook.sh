@@ -334,6 +334,37 @@ _check_test_batches() {
   local plan_path="${CWD}/tmp/arc/${arc_id}/testing-plan.json"
   [[ ! -f "$plan_path" || -L "$plan_path" ]] && return 1
 
+  # ── Edge Case 1: Recover orphaned "running" or "fixing" batches ──
+  # If the lead crashed mid-batch, the batch stays "running" in testing-plan.json.
+  # The stop hook only looks for "pending" — so orphaned batches would be missed.
+  # Fix: reset any "running"/"fixing" batch back to "pending" (same as resumeOrCreate).
+  # This is safe because foreground agents complete before the lead's turn ends;
+  # if the lead's turn ended (stop hook fired), the agent is already done or dead.
+  local _orphan_fixed=false
+  local _orphan_result
+  _orphan_result=$(jq '
+    [.batches[] | select(.status == "running" or .status == "fixing")] | length
+  ' "$plan_path" 2>/dev/null || echo "0")
+  if [[ "$_orphan_result" -gt 0 ]]; then
+    _trace "Recovering ${_orphan_result} orphaned running/fixing batch(es) → pending"
+    local _plan_tmp
+    _plan_tmp=$(mktemp "${plan_path}.XXXXXX" 2>/dev/null) || _plan_tmp=""
+    if [[ -n "$_plan_tmp" ]]; then
+      if jq '
+        .batches |= map(
+          if .status == "running" or .status == "fixing" then
+            .status = "pending" | .started_at = null
+          else . end
+        )
+      ' "$plan_path" > "$_plan_tmp" 2>/dev/null; then
+        mv -f "$_plan_tmp" "$plan_path" 2>/dev/null || rm -f "$_plan_tmp" 2>/dev/null
+        _orphan_fixed=true
+      else
+        rm -f "$_plan_tmp" 2>/dev/null
+      fi
+    fi
+  fi
+
   # Find next pending batch (by .id, 0-based index)
   local next_batch
   next_batch=$(jq -r '.batches[] | select(.status == "pending") | .id' "$plan_path" 2>/dev/null | head -1)
@@ -371,6 +402,15 @@ _check_test_batches() {
     component_line="Component: ${batch_component} (run tests from ${batch_component}/ directory)"
   fi
 
+  # Edge Case 2: Service health reminder for integration/e2e batches
+  # Services (Docker, TestContainers) were started in the first test turn (STEP 3).
+  # Across stop hook turns, services should still be running (Docker persists).
+  # But if they crashed or timed out, the runner needs to know to re-check health.
+  local service_hint=""
+  if [[ "$batch_type" == "integration" || "$batch_type" == "e2e" ]]; then
+    service_hint="NOTE: This batch requires running services (database, message queue, etc.). If services were started in an earlier turn, verify they are still healthy before running tests. If not, re-start them per STEP 3 of arc-phase-test.md."
+  fi
+
   # Fix retry context
   local fix_context=""
   if [[ "$batch_fix_attempts" -gt 0 ]]; then
@@ -383,6 +423,7 @@ _check_test_batches() {
 ANCHOR — Arc Pipeline: Test Batch ${next_batch}/${total_batches} [${batch_label:-${batch_type}}] (${completed_batches}/${total_batches} done)
 ${component_line}
 ${fix_context}
+${service_hint}
 
 Execute ONE test batch using a dedicated teammate agent.
 
