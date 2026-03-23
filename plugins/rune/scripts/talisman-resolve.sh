@@ -397,7 +397,8 @@ all_shards=$(echo "$merged" | jq '{
     ashes: (.ashes // {}),
     user_agents: (.user_agents // []),
     extra_agent_dirs: (.extra_agent_dirs // []),
-    echoes: (.echoes // {})
+    echoes: (.echoes // {}),
+    process_management: (.process_management // {})
   },
   inspect: (.inspect // {}),
   testing: (.testing // {}),

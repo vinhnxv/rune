@@ -146,6 +146,12 @@ proof_test_passes() {
     echo "FAIL"  # Reject commands with characters outside the safe allowlist
     return
   fi
+  # SEC-001 FIX v3: Validate first token is a known safe command binary
+  local first_token="${cmd%% *}"
+  case "$first_token" in
+    npm|npx|yarn|pnpm|node|python3|python|pytest|cargo|make|go|tsc|jest|vitest|bun|deno|php|composer|ruby|bundle|mvn|gradle|dotnet) ;;
+    *) echo "FAIL"; return ;;  # Unknown command binary — reject
+  esac
   # Execute via bash -c with timeout (no eval)
   if timeout 60 bash -c "$cmd" >/dev/null 2>&1; then
     echo "PASS"
@@ -168,6 +174,12 @@ proof_builds_clean() {
     echo "FAIL"
     return
   fi
+  # SEC-001 FIX v3: Validate first token is a known safe command binary
+  local first_token="${cmd%% *}"
+  case "$first_token" in
+    npm|npx|yarn|pnpm|node|python3|python|pytest|cargo|make|go|tsc|jest|vitest|bun|deno|php|composer|ruby|bundle|mvn|gradle|dotnet) ;;
+    *) echo "FAIL"; return ;;
+  esac
   if timeout 120 bash -c "$cmd" >/dev/null 2>&1; then
     echo "PASS"
   else

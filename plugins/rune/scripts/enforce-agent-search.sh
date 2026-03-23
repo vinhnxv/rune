@@ -71,23 +71,27 @@ HAS_WORKFLOW=false
 for dir in "$CWD"/tmp/reviews "$CWD"/tmp/audit "$CWD"/tmp/work "$CWD"/tmp/inspect "$CWD"/tmp/mend "$CWD"/tmp/goldmask; do
   if [[ -d "$dir" ]]; then
     # Check for any inscription.json in subdirectories (no subprocess fork)
+    shopt -s nullglob
     for f in "$dir"/*/inscription.json; do
       if [[ -f "$f" ]]; then
         HAS_WORKFLOW=true
         break 2
       fi
     done
+    shopt -u nullglob
   fi
 done
 
 # Also check state files
 if [[ "$HAS_WORKFLOW" != "true" ]]; then
+  shopt -s nullglob
   for f in "$CWD"/tmp/.rune-*.json; do
     if [[ -f "$f" ]]; then
       HAS_WORKFLOW=true
       break
     fi
   done
+  shopt -u nullglob
 fi
 
 if [[ "$HAS_WORKFLOW" != "true" ]]; then

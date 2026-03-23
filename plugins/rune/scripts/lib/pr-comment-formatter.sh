@@ -278,9 +278,9 @@ if [[ "$p3_count" -gt 0 ]]; then
     fi
 
     # BACK-003/FLAW-006: Escape pipe characters in table cell values
-    local safe_ftitle="${local_ftitle//|/∣}"
-    local safe_loc="${local_loc//|/∣}"
-    local safe_fconf="${local_fconf//|/∣}"
+    safe_ftitle="${local_ftitle//|/∣}"
+    safe_loc="${local_loc//|/∣}"
+    safe_fconf="${local_fconf//|/∣}"
     _append "| ${local_fid} | ${safe_ftitle} | ${safe_loc} | ${safe_fconf} |"
   done
 

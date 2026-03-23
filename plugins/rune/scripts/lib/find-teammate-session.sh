@@ -22,25 +22,13 @@
 # Requirements: bash 3.2+
 # Compatible: macOS + Linux
 
-# ── Fail-forward trap (OPERATIONAL library — ADR-002) ──
-_rune_fail_forward() {
-  local _crash_line="${BASH_LINENO[0]:-unknown}"
-  if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
-      "$(date +%H:%M:%S 2>/dev/null || true)" \
-      "${BASH_SOURCE[0]##*/}" \
-      "$_crash_line" \
-      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-${UID:-$(id -u)}.log}" 2>/dev/null
-  fi
-  # Library function — return empty string instead of exit
-  return 0
-}
-trap '_rune_fail_forward' ERR
+# NOTE: This is a sourced library. Callers should set their own ERR trap.
+# We intentionally do NOT set an ERR trap here to avoid hijacking the caller's trap.
 
 # ── Source cross-platform stat helpers ──
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_FIND_TEAMMATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -z "${_RUNE_PLATFORM:-}" ]]; then
-  source "${SCRIPT_DIR}/platform.sh"
+  source "${_FIND_TEAMMATE_DIR}/platform.sh"
 fi
 
 # _find_teammate_session <teammate_name> <team_name>

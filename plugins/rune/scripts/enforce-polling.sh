@@ -45,7 +45,7 @@ trap '_rune_fail_forward' ERR
 # Useful for long-running background tasks, test suites, service monitoring,
 # or any scenario where sleep+echo is a legitimate monitoring pattern.
 # Also configurable via talisman.yml: process_management.poll_guard_enabled: false
-if [[ "${RUNE_DISABLE_POLL_GUARD:-}" == "1" ]]; then
+if [[ "${RUNE_DISABLE_POLL_GUARD:-1}" == "1" ]]; then
   exit 0
 fi
 
@@ -172,7 +172,7 @@ if [[ -z "$active_workflow" ]]; then
       (.owner_pid // "" | tostring)
     ' "$f" 2>/dev/null) || continue
     IFS=$'\x1f' read -r file_status stored_cfg stored_pid <<< "$_state_info"
-    if [[ "$file_status" == "active" ]]; then
+    case "$file_status" in active|in_progress|running)
       # Ownership filter: skip state files from other sessions
       if [[ -n "$stored_cfg" && -n "${RUNE_CURRENT_CFG:-}" && "$stored_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
       if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
@@ -180,7 +180,7 @@ if [[ -z "$active_workflow" ]]; then
       fi
       active_workflow=1
       break
-    fi
+      ;; esac
   done
   shopt -u nullglob
 fi

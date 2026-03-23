@@ -244,9 +244,9 @@ arc_compact_interlude_phase_a() {
   # F-05 FIX: Verify compact_pending was actually written
   if ! grep -q '^compact_pending: true' "$state_file" 2>/dev/null; then
     if declare -f _trace &>/dev/null; then
-      _trace "F-05: compact_pending write verification failed — aborting"
+      _trace "F-05: compact_pending write verification failed — preserving state file, exiting"
     fi
-    rm -f "$state_file" 2>/dev/null
+    # FIX: Don't delete state file on transient sed/write failure — preserve for retry
     exit 0
   fi
 
@@ -297,10 +297,10 @@ arc_compact_interlude_phase_b() {
           _trace "F-02: Stale compact_pending (${_sf_age}s > 300s) — resetting to false"
         fi
         local _state_tmp
-        _state_tmp=$(mktemp "${state_file}.XXXXXX" 2>/dev/null) || { rm -f "$state_file" 2>/dev/null; exit 0; }
+        _state_tmp=$(mktemp "${state_file}.XXXXXX" 2>/dev/null) || { exit 0; }
         sed 's/^compact_pending: true$/compact_pending: false/' "$state_file" > "$_state_tmp" 2>/dev/null \
           && mv -f "$_state_tmp" "$state_file" 2>/dev/null \
-          || { rm -f "$_state_tmp" "$state_file" 2>/dev/null; exit 0; }
+          || { rm -f "$_state_tmp" 2>/dev/null; exit 0; }
         COMPACT_PENDING="false"
         # After resetting stale flag, return so Phase A can be entered on this cycle
         return 0

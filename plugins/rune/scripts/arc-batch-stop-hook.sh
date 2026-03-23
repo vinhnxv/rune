@@ -274,7 +274,7 @@ if [[ "$SUMMARY_ENABLED" != "false" ]]; then
     if [[ -n "$SUMMARY_PATH" ]]; then
       # SEC-101: Validate all values before embedding in YAML heredoc (injection prevention)
       [[ "$SUMMARY_PLAN_PATH" =~ ^[a-zA-Z0-9._/-]+$ ]] || SUMMARY_PLAN_PATH="unknown"
-      _plan_started=$(echo "$SUMMARY_PLAN_META" | grep '^started:' | sed 's/^started:[[:space:]]*//' | head -1)
+      _plan_started=$(echo "$SUMMARY_PLAN_META" | grep '^started:' | sed 's/^started:[[:space:]]*//' | head -1 || true)
       [[ "$_plan_started" =~ ^[0-9TZ:.+-]+$ ]] || _plan_started="unknown"
       [[ "$BRANCH" =~ ^[a-zA-Z0-9._/-]+$ ]] || BRANCH="unknown"
       # QUAL-001 FIX: Strict PR URL validation (parity with arc-issues BACK-005)

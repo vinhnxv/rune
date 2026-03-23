@@ -16,22 +16,21 @@ set -euo pipefail
 # Fail-closed ERR trap (SECURITY classification)
 trap 'echo "STRIVE-001: enforce-strive-delegation.sh crashed at line $LINENO" >&2; exit 2' ERR
 
+# Guard: jq required (fail-closed for SECURITY hook)
+command -v jq >/dev/null 2>&1 || { echo "STRIVE-001: jq not found" >&2; exit 2; }
+
 # ── Fast-path exits ──
 
-# Skip if no arc phase loop active
-[ -f ".rune/arc-phase-loop.local.md" ] || exit 0
+CWD="${CLAUDE_PROJECT_DIR:-.}"
 
-# Read hook input from stdin
-INPUT=$(cat)
+# Skip if no arc phase loop active
+[ -f "${CWD}/.rune/arc-phase-loop.local.md" ] || exit 0
+
+# Read hook input from stdin (SEC-2: 1MB cap)
+INPUT=$(head -c 1048576)
 
 # Extract tool input (file path being written)
-TARGET_FILE=$(echo "$INPUT" | python3 -c "
-import json, sys
-try:
-    data = json.load(sys.stdin)
-    print(data.get('toolInput', {}).get('file_path', '') or data.get('toolInput', {}).get('filePath', ''))
-except: print('')
-" 2>/dev/null)
+TARGET_FILE=$(printf '%s\n' "$INPUT" | jq -r '(.tool_input.file_path // .tool_input.filePath // .toolInput.file_path // .toolInput.filePath) // empty' 2>/dev/null || true)
 
 # Skip if no target file
 [ -z "$TARGET_FILE" ] && exit 0
@@ -44,17 +43,12 @@ esac
 # ── Check if arc work phase is in_progress ──
 
 # Find the checkpoint path from the state file
-CHECKPOINT_PATH=$(grep -o 'checkpoint_path: .*' .rune/arc-phase-loop.local.md 2>/dev/null | head -1 | sed 's/checkpoint_path: //')
+CHECKPOINT_PATH=$(grep -o 'checkpoint_path: .*' "${CWD}/.rune/arc-phase-loop.local.md" 2>/dev/null | head -1 | sed 's/checkpoint_path: //')
 [ -z "$CHECKPOINT_PATH" ] && exit 0
 [ -f "$CHECKPOINT_PATH" ] || exit 0
 
-# Check work phase status
-WORK_STATUS=$(python3 -c "
-import json
-with open('$CHECKPOINT_PATH') as f:
-    cp = json.load(f)
-print(cp.get('phases', {}).get('work', {}).get('status', ''))
-" 2>/dev/null)
+# Check work phase status (SEC-001 FIX: use jq instead of Python string interpolation)
+WORK_STATUS=$(jq -r '.phases.work.status // empty' "$CHECKPOINT_PATH" 2>/dev/null || true)
 
 [ "$WORK_STATUS" != "in_progress" ] && exit 0
 

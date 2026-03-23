@@ -43,9 +43,9 @@ sanitize_untrusted_text() {
   # P1-FE-001: Quote max_chars in arithmetic to prevent injection
   max_chars=$(( "${max_chars}" + 0 )) 2>/dev/null || max_chars=2000
 
-  # P1-FE-002: Read from stdin
+  # P1-FE-002: Read from stdin (SEC-2: 1MB cap to prevent memory exhaustion)
   local input
-  input=$(cat)
+  input=$(head -c 1048576)
 
   # P1-FE-005: stderr suppression on python3, P1-FE-006: passthrough on failure
   local result
@@ -100,9 +100,9 @@ sanitize_plan_content() {
   # P1-FE-001: Quote max_chars in arithmetic to prevent injection
   max_chars=$(( "${max_chars}" + 0 )) 2>/dev/null || max_chars=4000
 
-  # P1-FE-002: Read from stdin
+  # P1-FE-002: Read from stdin (SEC-2: 1MB cap to prevent memory exhaustion)
   local input
-  input=$(cat)
+  input=$(head -c 1048576)
 
   # P1-FE-005: stderr suppression on python3, P1-FE-006: passthrough on failure
   local result
@@ -153,9 +153,9 @@ sys.stdout.write(text)
 # Input: stdin (P1-FE-002)
 # Output: stdout (NFC-normalized text)
 normalize_unicode_nfc() {
-  # P1-FE-002: Read from stdin
+  # P1-FE-002: Read from stdin (SEC-2: 1MB cap to prevent memory exhaustion)
   local input
-  input=$(cat)
+  input=$(head -c 1048576)
 
   local result
   result=$(printf '%s' "$input" | python3 -c '
@@ -184,9 +184,9 @@ sys.stdout.write(unicodedata.normalize("NFC", text))
 # Input: stdin
 # Output: stdout (JSON)
 detect_homoglyphs_tier_ab() {
-  # P1-FE-002: Read from stdin
+  # P1-FE-002: Read from stdin (SEC-2: 1MB cap to prevent memory exhaustion)
   local input
-  input=$(cat)
+  input=$(head -c 1048576)
 
   local result
   result=$(printf '%s' "$input" | python3 -c '

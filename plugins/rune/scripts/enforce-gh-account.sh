@@ -22,7 +22,7 @@
 #   - GH_PROMPT_DISABLED=1 on all gh commands (SEC-DECREE-003)
 #   - No command modification (read-only advisory)
 
-set -uo pipefail
+set -euo pipefail
 
 # Fail-forward ERR trap (OPERATIONAL category)
 _rune_fail_forward() {
@@ -30,7 +30,7 @@ _rune_fail_forward() {
   local line="${BASH_LINENO[0]}"
   echo "WARN: ${script_name}:${line} — fail-forward ERR trap, allowing operation" >&2
   if [[ "${RUNE_TRACE:-0}" == "1" ]]; then
-    [[ ! -L "${RUNE_TRACE_LOG:-/tmp/rune-hook-trace.log}" ]] && echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) WARN ${script_name}:${line} ERR-trap" >> "${RUNE_TRACE_LOG:-/tmp/rune-hook-trace.log}"
+    [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace.log}" ]] && echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) WARN ${script_name}:${line} ERR-trap" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace.log}"
   fi
   exit 0
 }
@@ -39,8 +39,11 @@ trap '_rune_fail_forward' ERR
 # Read hook input from stdin
 input=$(head -c 1048576)
 
-# Fast-path: extract command from hook input
-command_str=$(echo "$input" | jq -r '.toolInput.command // empty' 2>/dev/null) || exit 0
+# Guard: jq dependency (fail-open without jq)
+command -v jq >/dev/null 2>&1 || exit 0
+
+# Fast-path: extract command from hook input (support both snake_case and camelCase)
+command_str=$(printf '%s\n' "$input" | jq -r '(.tool_input.command // .toolInput.command) // empty' 2>/dev/null) || exit 0
 [[ -z "$command_str" ]] && exit 0
 
 # Fast-path: skip if command doesn't involve gh or git push

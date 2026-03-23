@@ -64,7 +64,21 @@ ComponentType =
   | "checkbox"
   | "tooltip"
   | "dropdown-menu"
+
+  // Extended types (v2.12.0)
+  | "toggle"
+  | "radio"
+  | "textarea"
+  | "slider"
+  | "progress"
+  | "alert"
+  | "sidebar"
+  | "file-upload"
 ```
+
+**Alias**: `"modal"` is NOT a separate type — it is an alias for `"dialog"`.
+During IR extraction, `classifyComponentType()` normalizes `"modal"` → `"dialog"`.
+This prevents adapter duplication while preserving Figma naming conventions.
 
 **Fallback rule**: When an adapter does not implement a `ComponentType`, the code generator
 MUST fall through to the Tailwind fallback adapter and emit a warning comment:
@@ -236,10 +250,21 @@ function classifyComponentType(tagName, className):
     "select": "select",  "Select": "select",
     "table": "table",    "Table": "table",
     "dialog": "dialog",  "Dialog": "dialog",
+    "textarea": "textarea", "Textarea": "textarea",
+    "progress": "progress", "Progress": "progress",
+    "toggle": "toggle",  "Toggle": "toggle",
+    "radio": "radio",    "Radio": "radio",
+    "slider": "slider",  "Slider": "slider",
+    "alert": "alert",    "Alert": "alert",
+    "sidebar": "sidebar", "Sidebar": "sidebar",
+    // Alias: "modal" normalizes to "dialog" (v2.12.0)
+    "modal": "dialog",   "Modal": "dialog",
   }
   IF TAG_MAP.has(tagName): RETURN TAG_MAP[tagName]
 
   // Class-based heuristics (from figma_to_react Tailwind output)
+  // IMPORTANT: Iteration order matters — toast MUST be checked before alert
+  // to ensure fixed/absolute-positioned elements classify as toast, not alert.
   CLASS_PATTERNS = {
     "badge": /inline-flex.*rounded-full|badge/,
     "card": /rounded-.*shadow|border.*p-[46]/,
@@ -251,12 +276,53 @@ function classifyComponentType(tagName, className):
     "checkbox": /checkbox|type="checkbox"/,
     "tooltip": /tooltip|role="tooltip"/,
     "dropdown-menu": /dropdown|role="menu"/,
+    // Extended types (v2.12.0)
+    "toggle": /\btoggle\b|role="switch"/,
+    "radio": /\bradio\b|role="radio"|type="radio"/,
+    "textarea": /\btextarea\b|\bmultiline\b/,
+    "slider": /\bslider\b|type="range"|role="slider"/,
+    "progress": /\bprogress\b|role="progressbar"|\bmeter\b/,
+    "alert": /alert(?!.{0,200}(fixed|absolute))|role="alert"|banner/,
+    "sidebar": /\bsidebar\b|\baside\b|\bdrawer\b|nav.*w-\d{2,3}/,
+    "file-upload": /file-upload|dropzone|type="file"|drag.*drop/,
   }
   FOR type, pattern IN CLASS_PATTERNS:
     IF pattern.test(className): RETURN type
 
   RETURN null  // Not a recognized component
+
+// Exclusion guard: alert vs toast overlap (v2.12.0)
+// Both alert and toast can match "alert" in class names.
+// Disambiguation rule: if BOTH match, check for positional CSS.
+// Fixed/absolute positioning → toast (transient notification).
+// Static/relative positioning → alert (inline feedback).
+// The "alert" pattern uses bounded negative lookahead (?!.{0,200}(fixed|absolute))
+// to exclude fixed/absolute-positioned elements, classified as "toast" instead.
+// Bounded quantifier (.{0,200}) prevents ReDoS on long input strings.
 ```
+
+### Extended Types (v2.12.0)
+
+8 new `ComponentType` values added in v2.12.0:
+
+| Type | Semantic Role | Key Patterns |
+|------|--------------|--------------|
+| `toggle` | On/off switch control | Matches `role="switch"`, Figma `Toggle`/`Switch` components |
+| `radio` | Single-selection from group | Matches `role="radio"`, `type="radio"` |
+| `textarea` | Multi-line text input | Matches `<textarea>` tag, `multiline` class |
+| `slider` | Numeric range input | Matches `role="slider"`, `type="range"` |
+| `progress` | Determinate/indeterminate progress | Matches `role="progressbar"`, `<meter>` |
+| `alert` | Inline feedback message | Matches `role="alert"`, `banner`; excludes fixed/absolute-positioned (→ toast) |
+| `sidebar` | Persistent navigation panel | Matches `<aside>`, `drawer`, wide `<nav>` elements |
+| `file-upload` | File input with drag-and-drop | Matches `dropzone`, `type="file"`, drag-and-drop patterns |
+
+**Normalization**: `"modal"` is an alias for `"dialog"` — see TAG_MAP. During IR extraction,
+`classifyComponentType()` normalizes modal → dialog to prevent adapter duplication.
+
+**Alert/Toast disambiguation**: Both types may contain "alert" in class names. The alert regex
+uses a bounded negative lookahead `(?!.{0,200}(fixed|absolute))` to exclude positionally-fixed
+elements, which are classified as `toast` instead. CLASS_PATTERNS iteration order is significant:
+toast must be checked before alert.
 
 ### Intent Extraction from Figma Variants
 

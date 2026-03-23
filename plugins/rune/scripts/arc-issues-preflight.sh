@@ -94,7 +94,7 @@ _add_skipped() {
 # use numbers. This is intentional — invalid entries carry the raw input which may not be
 # numeric (e.g. "abc", "99999999"), so string type preserves the original value for diagnostics.
 _add_invalid() {
-  INVALID_JSON=$(echo "$INVALID_JSON" | jq --argjson n "\"$1\"" '. += [$n]' 2>/dev/null || echo '[]')
+  INVALID_JSON=$(printf '%s\n' "$INVALID_JSON" | jq --arg n "$1" '. += [$n]' 2>/dev/null || echo '[]')
 }
 
 # ── Output JSON and exit ──

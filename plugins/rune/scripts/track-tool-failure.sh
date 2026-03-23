@@ -97,9 +97,10 @@ COUNT=$(( COUNT + 1 ))
 
 # --- Write updated state (atomic: tmp file + mv) ---
 if [[ -f "$FAILURE_FILE" ]]; then
+  _tmp_fail=$(mktemp "${FAILURE_FILE}.XXXXXX" 2>/dev/null || echo "${FAILURE_FILE}.tmp.$$")
   jq --arg t "$TOOL_NAME" --argjson c "$COUNT" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '.[$t] = { count: $c, last_error_at: $ts }' "$FAILURE_FILE" > "${FAILURE_FILE}.tmp" 2>/dev/null \
-    && mv "${FAILURE_FILE}.tmp" "$FAILURE_FILE" 2>/dev/null || true
+    '.[$t] = { count: $c, last_error_at: $ts }' "$FAILURE_FILE" > "$_tmp_fail" 2>/dev/null \
+    && mv "$_tmp_fail" "$FAILURE_FILE" 2>/dev/null || { rm -f "$_tmp_fail" 2>/dev/null; true; }
 else
   jq -n --arg t "$TOOL_NAME" --argjson c "$COUNT" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '{ ($t): { count: $c, last_error_at: $ts } }' > "$FAILURE_FILE" 2>/dev/null || true

@@ -104,11 +104,18 @@ _status_sym() {
 
 # ── Phase order (must match arc-phase-stop-hook.sh PHASE_ORDER exactly) ──
 PHASE_ORDER=(
-  forge plan_review plan_refine verification semantic_verification
-  design_extraction design_prototype task_decomposition work storybook_verification design_verification
-  ux_verification gap_analysis codex_gap_analysis gap_remediation goldmask_verification
-  code_review goldmask_correlation mend verify_mend design_iteration
-  test test_coverage_critique pre_ship_validation release_quality_check
+  forge forge_qa
+  plan_review plan_refine verification semantic_verification
+  design_extraction design_prototype task_decomposition work work_qa
+  drift_review storybook_verification design_verification
+  ux_verification gap_analysis gap_analysis_qa
+  codex_gap_analysis gap_remediation
+  inspect inspect_fix verify_inspect goldmask_verification
+  code_review code_review_qa
+  goldmask_correlation mend mend_qa
+  verify_mend design_iteration
+  test test_qa
+  test_coverage_critique deploy_verify pre_ship_validation release_quality_check
   ship bot_review_wait pr_comment_resolution merge
 )
 

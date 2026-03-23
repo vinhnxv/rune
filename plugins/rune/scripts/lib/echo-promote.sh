@@ -89,27 +89,26 @@ rune_echo_promote() {
   fi
 
   # ── Collect role directories to scan ──
-  local _roles=""
+  local _roles_arr=()
   if [[ -n "$_role" ]]; then
     if [[ ! "$_role" =~ ^[a-zA-Z0-9_-]+$ ]]; then
       echo "ERROR: invalid role name: ${_role}" >&2
       return 1
     fi
-    _roles="$_role"
+    _roles_arr+=("$_role")
   else
     # Scan all role directories
-    _roles=""
     for _d in "${_echoes_dir}"/*/; do
       [[ -d "$_d" ]] || continue
       local _rname
       _rname="$(basename "$_d")"
-      [[ "$_rname" =~ ^[a-zA-Z0-9_-]+$ ]] && _roles="${_roles} ${_rname}"
+      [[ "$_rname" =~ ^[a-zA-Z0-9_-]+$ ]] && _roles_arr+=("$_rname")
     done
   fi
 
   local _promoted_total=0
 
-  for _r in $_roles; do
+  for _r in "${_roles_arr[@]}"; do
     local _memory_file="${_echoes_dir}/${_r}/MEMORY.md"
     [[ -f "$_memory_file" ]] || continue
     [[ -L "$_memory_file" ]] && continue  # Symlink guard
@@ -181,7 +180,7 @@ rune_echo_promote() {
   if [[ $_promoted_total -gt 0 ]]; then
     # Signal echo-search dirty for re-indexing
     local _signal_dir
-    _signal_dir="$(pwd)/tmp/.rune-signals"
+    _signal_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}/tmp/.rune-signals"
     if [[ -d "$_signal_dir" ]]; then
       touch "${_signal_dir}/.echo-dirty" 2>/dev/null || true
     fi

@@ -110,6 +110,27 @@ if (!designContext.builder || designContext.synthesis_strategy === "tailwind") {
   skip("No builder MCP or tailwind-only strategy")
 }
 
+// Page Template Pre-Step (v2.12.0)
+// Gate: builder has templates capability AND access tier is PRO
+let templateMode = false
+let baseCode = null
+if (builderProfile.capabilities.templates && !flags.skipTemplates && builderProfile.accessTier === "pro") {
+  try {
+    const templates = get_page_templates()
+    const bestTemplate = matchPageTemplate(templates, extractedRegions)
+    if (bestTemplate.score >= 0.80) {
+      log("Page template match: " + bestTemplate.name + " (score: " + bestTemplate.score + ")")
+      // Use template as starting skeleton — fill regions from component matches
+      baseCode = get_page_template_files(bestTemplate.slug)
+      templateMode = true
+    }
+    // If score < 0.80, templateMode stays false — proceed with per-component matching
+  } catch (e) {
+    // Template fetch failed — not fatal, proceed with per-component matching
+    warn("Page template check failed: " + e.message)
+  }
+}
+
 let consecutiveFailures = 0
 for (const comp of successfulExtractions) {
   if (consecutiveFailures >= 3) { warn("Circuit breaker: 3 consecutive failures"); break }
@@ -163,9 +184,10 @@ for (const comp of componentsWithBothRefs) {
   // Returns SemanticComponent[] — each with type, intent, size, state, icons, children
 
   // Step 3.3: Generate code using adapter dispatch table (DEPTH-001)
-  // Adapter handles all 15 ComponentTypes from the IR:
+  // Adapter handles all 23 ComponentTypes from the IR:
   //   button, input, select, badge, card, breadcrumb, pagination, avatar-group,
-  //   dialog, tabs, tooltip, toggle, alert, table, dropdown-menu
+  //   dialog, tabs, tooltip, toggle, alert, table, dropdown-menu,
+  //   toast, checkbox, radio, textarea, slider, progress, sidebar, file-upload
   // Unhandled types fall through to Tailwind with warning comment
   const codeFragments = irComponents.map(irComp => {
     const typeMapping = adapter.types[irComp.type]

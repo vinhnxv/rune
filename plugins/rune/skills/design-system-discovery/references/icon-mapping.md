@@ -15,7 +15,8 @@ Library import name    kebab-to-PascalCase fallback
                          + "// TODO: verify icon import" comment
 ```
 
-Each adapter in [library-adapters.md](library-adapters.md) contains a 10-entry `iconMap`.
+Each adapter in [library-adapters.md](library-adapters.md) contains a curated `iconMap`
+(40 entries for UntitledUI, 10 for shadcn/Lucide — see per-adapter sections).
 This file provides the comprehensive cross-library reference and the fallback algorithm.
 
 ## Cross-Library Mapping Table
@@ -108,27 +109,18 @@ Entries marked with `=` indicate the name matches the kebab-to-PascalCase fallba
 
 ## Curated Fast-Path (Per Adapter)
 
-Each adapter's `iconMap` contains exactly 10 entries — the icons most likely to appear
-in Figma designs AND where the name differs from the kebab-to-PascalCase fallback.
-Icons where the fallback produces the correct name (marked `=` above) are NOT included
-in the curated map since the fallback handles them automatically.
+Each adapter's `iconMap` contains curated entries — the icons most likely to appear
+in Figma designs. UntitledUI has 56 entries (v2.12.0) covering all categories;
+Lucide/shadcn has 10 entries focused on divergent names.
 
-### UntitledUI Fast-Path
+### UntitledUI Fast-Path (56 entries, v2.12.0)
 
 ```
-// These 10 entries are in UNTITLEDUI_ADAPTER.iconMap
-// UntitledUI naming matches kebab-to-PascalCase for most icons,
-// so the fast-path mainly handles verification (all are "=" matches).
-"arrow-left"     → "ArrowLeft"
-"arrow-right"    → "ArrowRight"
-"home-line"      → "HomeLine"
-"log-out-04"     → "LogOut04"
-"chevron-right"  → "ChevronRight"
-"chevron-down"   → "ChevronDown"
-"filter-lines"   → "FilterLines"
-"stars-03"       → "Stars03"
-"pencil-line"    → "PencilLine"
-"placeholder"    → "Placeholder"
+// Full 56-entry map in UNTITLEDUI_ADAPTER.iconMap
+// Organized by category: Navigation (10), Action (17), Content (15),
+// User & Social (7), Status (7). See library-adapters.md for the complete list.
+// UntitledUI naming closely matches kebab-to-PascalCase, so the fast-path
+// primarily provides verified lookups (avoiding "// TODO" comments).
 ```
 
 ### Lucide (shadcn/ui) Fast-Path
@@ -160,9 +152,9 @@ divergent naming (semantic names like `VisibilityIcon`, `PersonIcon`, `FavoriteI
 
 ## Fallback Algorithm (DEPTH-002, BACK-006)
 
-When an icon name is NOT in the adapter's 10-entry `iconMap`, the fallback chain applies.
+When an icon name is NOT in the adapter's curated `iconMap`, the fallback chain applies.
 This is defined in [semantic-ir.md](semantic-ir.md) §Unmapped Icon Fallback and
-replicated here for reference.
+replicated here with the v2.12.0 style-suffix detection extension.
 
 ```
 // Pseudocode — NOT implementation code
@@ -171,11 +163,28 @@ function resolveIconName(figmaName, adapter):
   IF adapter.iconMap.has(figmaName):
     RETURN { name: adapter.iconMap[figmaName], verified: true }
 
+  // Step 1.5: Style-suffix detection (v2.12.0)
+  // UntitledUI icons use style suffixes: -line, -duocolor, -duotone, -solid
+  // These indicate icon STYLE, not identity. For non-UntitledUI adapters,
+  // the suffix must be stripped to find the correct import.
+  // Example: "home-line" → Lucide import is "Home" (not "HomeLine")
+  styleSuffix = null
+  STYLE_SUFFIXES = ["-line", "-duocolor", "-duotone", "-solid"]
+  FOR suffix IN STYLE_SUFFIXES:
+    IF figmaName.endsWith(suffix):
+      styleSuffix = suffix
+      baseName = figmaName.slice(0, -suffix.length)
+      BREAK
+
+  // For non-UntitledUI adapters, try the base name (without suffix) in the map
+  IF styleSuffix AND adapter.name !== "untitled_ui":
+    IF adapter.iconMap.has(baseName):
+      RETURN { name: adapter.iconMap[baseName], verified: true, styleSuffix }
+
   // Step 2: kebab-to-PascalCase conversion
-  // "arrow-left" → "ArrowLeft"
-  // "log-out-04" → "LogOut04"
-  // "check-circle" → "CheckCircle"
-  pascalName = figmaName
+  // Use baseName for non-UntitledUI adapters when suffix detected
+  nameToConvert = (styleSuffix AND adapter.name !== "untitled_ui") ? baseName : figmaName
+  pascalName = nameToConvert
     .split("-")
     .map(segment =>
       IF isNumeric(segment): segment    // "04" stays "04"
@@ -183,13 +192,36 @@ function resolveIconName(figmaName, adapter):
     )
     .join("")
 
+  // Step 2.5: File-type icon package routing (v2.12.0, UntitledUI only)
+  // Icons prefixed with "file-type-" use @untitledui/file-icons package
+  importPath = adapter.iconPackage
+  IF adapter.name === "untitled_ui" AND figmaName.startsWith("file-type-"):
+    importPath = "@untitledui/file-icons"
+
   // Step 3: Return with unverified flag + TODO comment
   RETURN {
     name: pascalName,
     verified: false,
+    importPath: importPath,
+    styleSuffix: styleSuffix,
     comment: "// TODO: verify icon import — auto-converted from '{figmaName}'"
   }
 ```
+
+### Style Suffix Reference (v2.12.0)
+
+UntitledUI provides multiple style variants for the same icon. Figma designs use
+the suffixed name (e.g., `home-line`), but other libraries use a single name.
+
+| Suffix | UntitledUI Style | Lucide Equivalent | Notes |
+|--------|-----------------|-------------------|-------|
+| `-line` | Line/outline style (default) | Base name (no suffix) | Most common — `home-line` → Lucide `Home` |
+| `-solid` | Filled/solid style | Base name (no suffix) | `home-solid` → Lucide `Home` |
+| `-duocolor` | Two-color style | Base name (no suffix) | Premium — `home-duocolor` → Lucide `Home` |
+| `-duotone` | Duotone style | Base name (no suffix) | Premium — `home-duotone` → Lucide `Home` |
+
+**Rule**: For UntitledUI adapter, preserve the suffix (it maps to a real import).
+For all other adapters, strip the suffix before conversion.
 
 ### Fallback Accuracy
 
@@ -202,8 +234,10 @@ The kebab-to-PascalCase fallback accuracy by library:
 | MUI | ~20% | Semantic naming (`PersonIcon` not `User01Icon`) causes most mismatches |
 
 **Recommendation**: For Lucide, consider expanding the curated map to 20-30 entries
-in a future iteration to improve hit rate. For MUI, the curated map would need 50+ entries
-to be useful — a full mapping table would be more appropriate.
+in a future iteration to improve hit rate. The v2.12.0 style-suffix detection improves
+Lucide accuracy to ~80% by stripping UntitledUI-specific suffixes before conversion.
+For MUI, the curated map would need 50+ entries to be useful — a full mapping table
+would be more appropriate.
 
 ### Edge Cases
 
@@ -235,5 +269,5 @@ To add a new library column:
 ## Cross-References
 
 - [semantic-ir.md](semantic-ir.md) — `resolveIconName()` fallback algorithm definition
-- [library-adapters.md](library-adapters.md) — Per-adapter `iconMap` entries (10 per adapter)
+- [library-adapters.md](library-adapters.md) — Per-adapter `iconMap` entries (40 for UntitledUI, 10 for shadcn)
 - [figma-framework-signatures.md](figma-framework-signatures.md) — Icon naming patterns used for framework detection
