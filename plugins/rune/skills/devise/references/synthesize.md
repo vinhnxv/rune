@@ -170,6 +170,8 @@ design_references_path: ""      # Auto-populated: path to design-references/ dir
 library_match_count: 0          # Number of components matched to UI library (from match-report.json)
 ux_flow_mapped: false           # Whether flow-map.md was generated (>= 2 components)
 page_compositions: 0            # Number of page-level prototypes generated
+source_images: []               # Auto-populated from arc-issues: [{url, alt, source}]
+image_count: 0                  # Count of extracted source images
 design_system_library: ""       # Auto-detected: "shadcn" | "untitled-ui" | "generic" | "" (non-frontend)
 design_system_confidence: 0.0   # Detection confidence 0.0–1.0 (from discoverDesignSystem())
 component_count_new: 0          # Number of CREATE-strategy components (from UI/UX protocol Step 3)
@@ -193,6 +195,10 @@ session_budget:
 ## Problem Statement
 
 {Why this matters, who is affected}
+
+## Visual Context (conditional — omit when source_images is empty)
+
+{When source_images.length > 0, include extracted images from source GitHub issue with analysis descriptions from Claude vision. Omit this entire section when no source images exist.}
 
 ## Proposed Solution
 
@@ -679,6 +685,8 @@ design_references_path: ""      # Auto-populated: path to design-references/ dir
 library_match_count: 0          # Number of components matched to UI library (from match-report.json)
 ux_flow_mapped: false           # Whether flow-map.md was generated (>= 2 components)
 page_compositions: 0            # Number of page-level prototypes generated
+source_images: []               # Auto-populated from arc-issues: [{url, alt, source}]
+image_count: 0                  # Count of extracted source images
 design_system_library: ""       # Auto-detected: "shadcn" | "untitled-ui" | "generic" | "" (non-frontend)
 design_system_confidence: 0.0   # Detection confidence 0.0–1.0 (from discoverDesignSystem())
 component_count_new: 0          # Number of CREATE-strategy components (from UI/UX protocol Step 3)
@@ -702,6 +710,10 @@ session_budget:
 ## Problem Statement
 
 {Detailed problem analysis with stakeholder impact}
+
+## Visual Context (conditional — omit when source_images is empty)
+
+{When source_images.length > 0, include extracted images from source GitHub issue with analysis descriptions from Claude vision. Omit this entire section when no source images exist.}
 
 ## Proposed Solution
 

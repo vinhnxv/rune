@@ -70,6 +70,8 @@ Phase -1: Team Bootstrap (TeamCreate + state file — enables ATE-1 enforcement)
     ↓
 Phase 0: Gather Input (3 paths: --brainstorm-context → read workspace, --quick → skip, default → delegate to brainstorm protocol)
     ↓
+Phase 0.2: Source Image Analysis (conditional — fetch + vision describe source_images from plan frontmatter)
+    ↓
 Phase 1: Research (up to 10 agents, conditional — join existing team)
     ├─ Phase 1A: LOCAL RESEARCH (always — repo-surveyor, echo-reader, git-miner, wiring-cartographer, activation-pathfinder)
     ├─ Phase 1B: RESEARCH DECISION (talisman plan config bypass, risk + local sufficiency scoring, URL sanitization)
@@ -149,6 +151,27 @@ Read and execute when Phase 0 runs.
 Runs design system and UI builder discovery after Figma URL detection, before Phase 1. Zero cost when no design system or builder is detected. Loads companion skill (e.g., `untitledui-mcp`) when a builder is found.
 
 See [design-system-discovery/SKILL.md](../design-system-discovery/SKILL.md) for the full algorithms. See [ux-and-mcp-discovery.md](references/ux-and-mcp-discovery.md) for the inline discovery code.
+
+### Phase 0.2: Source Image Analysis (conditional)
+
+When the plan frontmatter contains `source_images` (populated by `/rune:arc-issues`), fetch and analyze each image to extract visual context for downstream agents.
+
+**Skip condition**: No `source_images` in plan frontmatter, or `source_images` is empty.
+
+**Algorithm**:
+1. Parse plan frontmatter for `source_images` array
+2. For each image (capped at 5):
+   a. Attempt `WebFetch(img.url)` to retrieve the image
+   b. If WebFetch succeeds, Claude's multimodal vision describes the visual content
+   c. If WebFetch fails (expired URL, unsupported format), record `[Image unavailable]` fallback
+3. Write analysis to `tmp/plans/{timestamp}/research/visual-context.md`
+4. Inject `brainstormContext.visual_context` for downstream research agents
+
+**Fallback strategy**: Vision analysis via WebFetch is best-effort. If image URLs are expired or WebFetch cannot process the format, the feature degrades gracefully — URLs are still preserved in the plan frontmatter (`source_images`) for manual inspection. The primary value of image extraction (Tasks 1-3) does not depend on successful vision analysis.
+
+**Output**: `tmp/plans/{timestamp}/research/visual-context.md` — one section per image with source URL, alt text, and visual description (or unavailability notice).
+
+**Downstream consumers**: Research agents (repo-surveyor, wiring-cartographer) receive `brainstormContext.visual_context` in their spawn prompts when available.
 
 ### Phase 0.3: UX Research (conditional)
 
