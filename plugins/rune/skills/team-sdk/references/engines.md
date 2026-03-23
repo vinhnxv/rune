@@ -601,7 +601,7 @@ function shutdown(handle) {
     // Uses centralized _rune_kill_tree for recursive descendant walk + PID recycling guard.
     const ownerPid = handle.ownerPid || Bash(`echo $PPID`).trim()
     if (ownerPid && /^\d+$/.test(ownerPid)) {
-      Bash(`source "\${CLAUDE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "${ownerPid}" "2stage" "5" "claude"`)
+      Bash(`source "\${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "${ownerPid}" "2stage" "5" "claude"`)
     }
 
     // 5b. Filesystem cleanup

@@ -212,7 +212,7 @@ const params = {
 //   Echo persist: After cleanup, persist audit findings summary to echoes
 const totalFindings = p1Count + p2Count + p3Count
 if (totalFindings >= 3) {
-  const echoLib = `\${CLAUDE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
+  const echoLib = `\${RUNE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
   const topIssuesList = [...p1Findings, ...p2Findings].slice(0, 5)
     .map(f => `- [${f.prefix}] ${f.title}`).join("\\n")
   Bash(`source "${echoLib}" && rune_echo_append \

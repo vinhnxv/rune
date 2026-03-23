@@ -193,11 +193,11 @@ Install a bundled doc pack to the global echo store.
 
 **Flow**:
 1. Validate `<stack>` name against `^[a-zA-Z][a-zA-Z0-9_-]{1,63}$`
-2. Read `${CLAUDE_PLUGIN_ROOT}/data/doc-packs/registry.json` — verify `<stack>` exists
+2. Read `${RUNE_PLUGIN_ROOT}/data/doc-packs/registry.json` — verify `<stack>` exists
 3. Check if already installed: `$CHOME/echoes/global/doc-packs/<stack>/MEMORY.md`
    - If exists: overwrite (idempotent re-install)
 4. Create directories: `mkdir -p "$CHOME/echoes/global/doc-packs/<stack>" "$CHOME/echoes/global/manifests"`
-5. Copy pack: `cp "${CLAUDE_PLUGIN_ROOT}/data/doc-packs/<stack>/MEMORY.md" "$CHOME/echoes/global/doc-packs/<stack>/"`
+5. Copy pack: `cp "${RUNE_PLUGIN_ROOT}/data/doc-packs/<stack>/MEMORY.md" "$CHOME/echoes/global/doc-packs/<stack>/"`
 6. Write manifest to `$CHOME/echoes/global/manifests/<stack>.json`:
    ```json
    {
@@ -217,7 +217,7 @@ Install a bundled doc pack to the global echo store.
 List available and installed doc packs.
 
 **Flow**:
-1. Read `${CLAUDE_PLUGIN_ROOT}/data/doc-packs/registry.json`
+1. Read `${RUNE_PLUGIN_ROOT}/data/doc-packs/registry.json`
 2. For each pack, check if manifest exists at `$CHOME/echoes/global/manifests/<name>.json`
 3. Display table:
    ```

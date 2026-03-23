@@ -69,7 +69,7 @@ Write(`tmp/forge/${timestamp}/codex-prompt.txt`, codexPrompt)
 // Codex Oracle forge agent uses codex-exec.sh wrapper (v1.81.0+)
 // Timeouts resolved via resolveCodexTimeouts() from talisman.yml (see codex-detection.md)
 // SEC-009: Use codex-exec.sh wrapper for stdin pipe, model validation, error classification
-// Bash: "${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
+// Bash: "${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
 //   -m "${codexModel}" -r "high" -t ${codexTimeout} -s ${codexStreamIdleMs} -j -g \
 //   "tmp/forge/${timestamp}/codex-prompt.txt"
 ```

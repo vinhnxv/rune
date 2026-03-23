@@ -634,7 +634,7 @@ Base findings on actual file content, not assumptions.
 1. Claim the "Codex release quality check" task
 2. Gate check: command -v codex
 3. Write the prompt to the prompt file path
-4. Run: "${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -g -o tmp/arc/${id}/release-quality.md tmp/arc/${id}/.codex-prompt-release-quality.tmp
+4. Run: "${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -g -o tmp/arc/${id}/release-quality.md tmp/arc/${id}/.codex-prompt-release-quality.tmp
 5. Clean up prompt file
 6. Compute sha256sum of final report
 7. Count CDX-RELEASE findings

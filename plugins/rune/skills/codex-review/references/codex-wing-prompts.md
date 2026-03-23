@@ -34,7 +34,7 @@ Each Codex teammate (a `general-purpose` Claude subagent) follows this pattern:
 2. Render the prompt template (substituting variables)
 3. Write rendered prompt to {PROMPT_FILE_PATH}   ← SEC-003: write to file, not inline
 4. Invoke codex exec:
-   "${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
+   "${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
      --prompt-file "{PROMPT_FILE_PATH}" \
      --output-file "{OUTPUT_PATH}" \
      --model "{CODEX_MODEL}" \
@@ -271,7 +271,7 @@ ${rendered}
 --- PROMPT END ---
 
 2. Run Codex:
-   "${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" \\
+   "${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" \\
      --prompt-file "${promptFilePath}" \\
      --output-file "${outputPath}" \\
      --model "${codexModel}" \\

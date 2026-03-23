@@ -127,7 +127,7 @@ If no contradictions found, output: "No scope/timeline contradictions detected."
 1. Claim the "Codex semantic verification" task
 2. Write each aspect prompt to its prompt file path
 3. Run BOTH aspects in PARALLEL:
-   "${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${codexReasoning}" -t ${semanticTimeoutValidated} -g -o {aspect_output_path} {prompt_file}
+   "${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${codexReasoning}" -t ${semanticTimeoutValidated} -g -o {aspect_output_path} {prompt_file}
 4. After both complete, aggregate into report_output_path with headers:
    ## Technology & Dependency Contradictions
    {content from tech-deps output or "No contradictions detected."}
@@ -347,7 +347,7 @@ If no issues found, output: "No integrity gaps detected."
 1. Claim the "Codex gap analysis" task
 2. Write each aspect prompt to its prompt file path
 3. Run BOTH aspects in PARALLEL:
-   "${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${codexReasoning}" -t ${perAspectTimeout} -g -o {aspect_output_path} {prompt_file}
+   "${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${codexReasoning}" -t ${perAspectTimeout} -g -o {aspect_output_path} {prompt_file}
 4. After both complete, aggregate into report_output_path with header:
    # Codex Gap Analysis (Parallel Aspects)
    ## Completeness — Missing Features & Acceptance Criteria

@@ -308,7 +308,7 @@ It encapsulates SEC-009 stdin pipe, model allowlist, timeout clamping, and error
 in a single script — replacing raw `Bash()` commands that the LLM might improvise incorrectly.
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" [OPTIONS] PROMPT_FILE
+"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" [OPTIONS] PROMPT_FILE
 
 Options:
   -m MODEL          Model (default: gpt-5.3-codex, validated against allowlist)
@@ -334,7 +334,7 @@ Options:
 
 **Example** (arc Phase 2.8 semantic verification):
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
+"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
   -m "${codexModel}" -r "${codexReasoning}" -t ${semanticTimeout} -g \
   "tmp/arc/${id}/codex-semantic-${aspect.name}-prompt.txt"
 ```
@@ -346,8 +346,8 @@ Options:
 | Check if Codex available | `command -v codex >/dev/null 2>&1` |
 | Check version | `codex --version` |
 | Check auth | `codex login status` |
-| Run via wrapper (preferred) | `"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m gpt-5.3-codex -r xhigh -t 600 -g PROMPT.txt` |
-| Run with JSON parsing | `"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" -j -g PROMPT.txt` |
+| Run via wrapper (preferred) | `"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m gpt-5.3-codex -r xhigh -t 600 -g PROMPT.txt` |
+| Run with JSON parsing | `"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" -j -g PROMPT.txt` |
 | Review files (legacy) | `codex exec -m gpt-5.3-codex --sandbox read-only --full-auto --json "Review: ..."` |
 | Resume session | `echo "continue" \| codex exec resume --last` |
 | Check jq available | `command -v jq >/dev/null 2>&1` |

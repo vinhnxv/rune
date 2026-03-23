@@ -80,7 +80,7 @@ If no architectural issues found, output: "No architectural drift detected."`)
 
     // Execute via canonical codex-exec.sh wrapper
     const outputPath = `tmp/work/${timestamp}/architectural-critique.md`
-    const result = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${codexReasoning}" -t ${codexTimeout} -j -g "${promptPath}"`)
+    const result = Bash(`"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${codexReasoning}" -t ${codexTimeout} -j -g "${promptPath}"`)
 
     if (result.exitCode === 0) {
       const findings = result.stdout

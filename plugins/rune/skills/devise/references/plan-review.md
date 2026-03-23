@@ -558,7 +558,7 @@ if (codexAvailable && !codexDisabled) {
              --skip-git-repo-check \\
              // SEC-009: Use codex-exec.sh wrapper for stdin pipe, model validation, error classification
              // SEC-003: Plan content already written to temp file before codex exec
-           "${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" \\
+           "${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" \\
              -m "${codexModel}" -r "${codexReasoning}" -t ${codexTimeout} \\
              -s ${codexStreamIdleMs} -j -g \\
              "tmp/plans/${timestamp}/codex-plan-prompt.txt"

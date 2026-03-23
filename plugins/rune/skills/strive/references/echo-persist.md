@@ -6,7 +6,7 @@ Persist implementation patterns and discipline metrics to Rune Echoes.
 
 ```javascript
 // Resolve echo library path once
-const ECHO_LIB = `${Bash("echo ${CLAUDE_PLUGIN_ROOT}")}/scripts/lib/echo-append.sh`
+const ECHO_LIB = `${Bash("echo ${RUNE_PLUGIN_ROOT}")}/scripts/lib/echo-append.sh`
 
 // Persist implementation patterns — workers echo
 const completedTasks = TaskList().filter(t => t.status === "completed")

@@ -46,7 +46,7 @@ Include the full dependency path (A → B → C) for each chain.
 Base findings on actual dependency data, not assumptions.`
 
     Write(promptTmpFile, promptContent)
-    const result = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g "${promptTmpFile}"`)
+    const result = Bash(`"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g "${promptTmpFile}"`)
     const classified = classifyCodexError(result)
 
     Write(`${output_dir}risk-amplification.md`, formatRiskAmplificationReport(classified, result))

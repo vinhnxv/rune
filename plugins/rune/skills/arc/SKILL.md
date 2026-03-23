@@ -229,7 +229,7 @@ Early return — display current arc phase, progress, and elapsed time without e
 
 ```javascript
 if (args.includes("--status")) {
-  const output = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/rune-status.sh"`)
+  const output = Bash(`"${RUNE_PLUGIN_ROOT}/scripts/rune-status.sh"`)
   // Display current phase, elapsed time, completed/total phases
   return output
 }

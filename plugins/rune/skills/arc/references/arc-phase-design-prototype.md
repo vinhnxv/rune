@@ -277,7 +277,7 @@ waitForCompletion(`arc-prototype-${id}`, spawnedWorkers.length, { timeoutMs: 480
 // === STEP D: Bootstrap Storybook with prototypes ===
 const prototypeFiles = Glob(`tmp/arc/${id}/prototypes/*/prototype.tsx`)
 if (prototypeFiles.length > 0) {
-  const bootstrapScript = `${CLAUDE_PLUGIN_ROOT}/scripts/storybook/bootstrap.sh`
+  const bootstrapScript = `${RUNE_PLUGIN_ROOT}/scripts/storybook/bootstrap.sh`
   try {
     const bootstrapResult = JSON.parse(
       Bash(`cd "${CWD}" && bash "${bootstrapScript}" --src-dir "tmp/arc/${id}/prototypes"`)

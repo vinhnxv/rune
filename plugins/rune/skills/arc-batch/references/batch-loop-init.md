@@ -11,7 +11,7 @@ Extracted from SKILL.md Phase 5 in v1.110.0 for context reduction.
 ## Algorithm
 
 ```javascript
-const pluginDir = Bash(`echo "${CLAUDE_PLUGIN_ROOT}"`).trim()
+const pluginDir = Bash(`echo "${RUNE_PLUGIN_ROOT}"`).trim()
 const planListFile = "tmp/arc-batch/plan-list.txt"
 Write(planListFile, planPaths.join('\n'))
 

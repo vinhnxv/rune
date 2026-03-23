@@ -58,7 +58,8 @@ All paths must be relative, starting with `./`. Custom paths ADD to defaults —
 
 ### Environment Variables
 
-- `${CLAUDE_PLUGIN_ROOT}` — absolute path to plugin directory. Use in hooks, MCP, scripts.
+- `${CLAUDE_PLUGIN_ROOT}` — absolute path to plugin directory. Available in hooks, MCP, scripts (hook context only).
+- `${RUNE_PLUGIN_ROOT}` — bridged plugin root path. Available in Bash() tool calls (injected via CLAUDE_ENV_FILE by SessionStart hook). Use this in skill pseudocode instead of CLAUDE_PLUGIN_ROOT.
 - `$CLAUDE_PROJECT_DIR` — project root. Use in project-level hook scripts.
 
 ## Skills

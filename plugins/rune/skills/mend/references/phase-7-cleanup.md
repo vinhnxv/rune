@@ -41,7 +41,7 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_re
 // Only persist if meaningful work was done (fixed + false positives + failed >= 1)
 const totalFindings = fixedCount + falsePositiveCount + failedCount
 if (totalFindings >= 1) {
-  const echoLib = `\${CLAUDE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
+  const echoLib = `\${RUNE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
   const mendContent = `Fixed: ${fixedCount}, False positives: ${falsePositiveCount}, Failed: ${failedCount}, Skipped: ${skippedCount}`
   Bash(`source "${echoLib}" && rune_echo_append \
     --role reviewer --layer inscribed \

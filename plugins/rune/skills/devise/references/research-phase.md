@@ -628,7 +628,7 @@ if (codexAvailable && !codexDisabled) {
              "Confidence threshold: only include findings with >= 80% confidence.")
            // Timeouts resolved via resolveCodexTimeouts() — see codex-detection.md
            // SEC-009: Use codex-exec.sh wrapper for stdin pipe, model validation, error classification
-           Bash: "${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" \\
+           Bash: "${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" \\
              -m "${codexModel}" -r "${codexReasoning}" -t ${codexTimeout} \\
              -s ${codexStreamIdleMs} -j -g \\
              "tmp/plans/{timestamp}/research/codex-prompt.txt"

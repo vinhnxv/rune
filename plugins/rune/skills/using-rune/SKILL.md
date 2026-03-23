@@ -84,7 +84,7 @@ These are common requests that Claude should handle directly — no agent team r
 
 | User Says | Action | Details |
 |-----------|--------|---------|
-| "Merge PR" / "merge code" / "merge it" / "gộp code" / "gộp PR" | `gh pr merge` | NEVER use local `git merge` + `git push`. MANDATORY steps in order: (1) `command -v gh && gh auth status` — verify CLI available, (2) `source "${CLAUDE_PLUGIN_ROOT}/scripts/lib/gh-account-resolver.sh" && rune_gh_ensure_correct_account` — switch to correct account, STOP if ERROR, (3) `gh pr view --json number,state` — detect PR, STOP if no open PR, (4) `GH_PROMPT_DISABLED=1 gh pr merge <number> --squash --delete-branch`, (5) `git pull` to sync local. NEVER skip step 2. |
+| "Merge PR" / "merge code" / "merge it" / "gộp code" / "gộp PR" | `gh pr merge` | NEVER use local `git merge` + `git push`. MANDATORY steps in order: (1) `command -v gh && gh auth status` — verify CLI available, (2) `source "${RUNE_PLUGIN_ROOT}/scripts/lib/gh-account-resolver.sh" && rune_gh_ensure_correct_account` — switch to correct account, STOP if ERROR, (3) `gh pr view --json number,state` — detect PR, STOP if no open PR, (4) `GH_PROMPT_DISABLED=1 gh pr merge <number> --squash --delete-branch`, (5) `git pull` to sync local. NEVER skip step 2. |
 
 ## When NOT to Route
 

@@ -99,7 +99,7 @@ case "$LOWER" in
   *merge*pr*|*merge*code*|*merge*it*|*"merge this"*|*"gộp code"*|*"gộp pr"*)
     SUGGESTION="[KEYWORD-001] Detected merge request. MANDATORY steps — do ALL in order, do NOT skip:
 (1) Check gh CLI: \`command -v gh && gh auth status\` — if missing, tell user to install/login and STOP.
-(2) Ensure correct account: run \`source \"\${CLAUDE_PLUGIN_ROOT}/scripts/lib/gh-account-resolver.sh\" && rune_gh_ensure_correct_account\` — if it prints ERROR, tell user and STOP. Do NOT proceed with wrong account.
+(2) Ensure correct account: run \`source \"\${RUNE_PLUGIN_ROOT}/scripts/lib/gh-account-resolver.sh\" && rune_gh_ensure_correct_account\` — if it prints ERROR, tell user and STOP. Do NOT proceed with wrong account.
 (3) Detect current PR: \`gh pr view --json number,state -q '\"\\(.number) \\(.state)\"'\` — if no PR or state!=OPEN, tell user and STOP.
 (4) Merge: \`GH_PROMPT_DISABLED=1 gh pr merge <number> --squash --delete-branch\` (or --rebase/--merge per repo convention).
 (5) Sync local: \`git pull\`.

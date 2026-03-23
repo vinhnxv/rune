@@ -129,7 +129,7 @@ if (sbRunning === "down") {
       // Copy work phase component stories into tmp/storybook/src/components/
       const storyFiles = changedFiles.filter(f => f.endsWith('.stories.tsx'))
       if (storyFiles.length > 0) {
-        const bootstrapScript = `${CLAUDE_PLUGIN_ROOT}/scripts/storybook/bootstrap.sh`
+        const bootstrapScript = `${RUNE_PLUGIN_ROOT}/scripts/storybook/bootstrap.sh`
         // SEC: Quote each story file path to prevent shell injection from paths with spaces/special chars
         const quotedFiles = storyFiles.map(f => `"${f.replace(/"/g, '\\"')}"`).join(' ')
         Bash(`cd "${CWD}" && bash "${bootstrapScript}" --story-files ${quotedFiles}`)
@@ -438,7 +438,7 @@ if (disciplineEnabled && changedComponents.length > 0) {
   const criteriaPath = `tmp/arc/${id}/storybook-verification/design-criteria.json`
   Write(criteriaPath, JSON.stringify(designCriteria, null, 2))
 
-  const proofScript = `${CLAUDE_PLUGIN_ROOT}/scripts/execute-discipline-proofs.sh`
+  const proofScript = `${RUNE_PLUGIN_ROOT}/scripts/execute-discipline-proofs.sh`
   const proofOutput = Bash(`bash "${proofScript}" "${criteriaPath}" "${CWD}" 2>/dev/null || true`)
 
   // Write per-check evidence artifact: storybook-verification.json

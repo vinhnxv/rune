@@ -58,7 +58,7 @@ Also cancels arc-batch, arc-hierarchy, and arc-issues loop state files owned by 
 ```javascript
 const args = "$ARGUMENTS"
 if (args.includes('--status')) {
-  const output = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/rune-status.sh"`)
+  const output = Bash(`"${RUNE_PLUGIN_ROOT}/scripts/rune-status.sh"`)
   // Display output and return — no cancellation
   return output
 }

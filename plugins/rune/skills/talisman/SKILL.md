@@ -95,7 +95,7 @@ See [init-protocol.md](references/init-protocol.md) for the full Phase 2-5 pseud
 ```
 1. Read project talisman: .rune/talisman.yml
    → If missing: suggest INIT instead
-2. Read example template: ${CLAUDE_PLUGIN_ROOT}/talisman.example.yml
+2. Read example template: ${RUNE_PLUGIN_ROOT}/talisman.example.yml
 ```
 
 ### Phases 2-4: Deep Comparison, Integration Validation, Gap Report

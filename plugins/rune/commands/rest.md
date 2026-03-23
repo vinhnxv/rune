@@ -351,9 +351,9 @@ done
 
 # 2. Strive worktrees (rune-work-*) — session-safe cleanup via shared GC library
 #    WORKTREE-GC: Remove when SDK provides native worktree lifecycle management
-if [[ -f "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-gc.sh" ]]; then
-  source "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-session-identity.sh"
-  source "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-gc.sh"
+if [[ -f "${RUNE_PLUGIN_ROOT}/scripts/lib/worktree-gc.sh" ]]; then
+  source "${RUNE_PLUGIN_ROOT}/scripts/resolve-session-identity.sh"
+  source "${RUNE_PLUGIN_ROOT}/scripts/lib/worktree-gc.sh"
   result=$(rune_worktree_gc "$(pwd)" "rest")
   [ -n "$result" ] && echo "$result"
 else

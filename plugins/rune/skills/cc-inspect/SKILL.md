@@ -26,7 +26,7 @@ session identity, plugin state, and system toolchain.
 Run the diagnostic script:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/cc-inspect.sh"
+bash "${RUNE_PLUGIN_ROOT}/scripts/cc-inspect.sh"
 ```
 
 Fallback (outside plugin context):
@@ -59,7 +59,8 @@ If the user passes `--json`, present findings as structured key-value data.
 
 | Variable | Description |
 |----------|-------------|
-| `CLAUDE_PLUGIN_ROOT` | Absolute path to the active plugin directory |
+| `CLAUDE_PLUGIN_ROOT` | Absolute path to the active plugin directory (hook context only) |
+| `RUNE_PLUGIN_ROOT` | Bridged plugin root path (available in Bash() tool calls via CLAUDE_ENV_FILE) |
 | `CLAUDE_PLUGIN_DATA` | Plugin-scoped persistent data directory |
 
 #### Rune-Specific
@@ -95,7 +96,8 @@ If the user passes `--json`, present findings as structured key-value data.
 
 ### Troubleshooting
 
-- `CLAUDE_PLUGIN_ROOT` / `CLAUDE_PLUGIN_DATA` not set: running outside plugin context
+- `CLAUDE_PLUGIN_ROOT` / `CLAUDE_PLUGIN_DATA` not set: running outside plugin context (hook context)
+- `RUNE_PLUGIN_ROOT` not set: SessionStart hook failed to inject (check CLAUDE_ENV_FILE)
 - `CLAUDE_CONFIG_DIR` not set: using default `~/.claude` (single-account setup)
 - `CLAUDE_SESSION_ID` not set: older Claude Code version or non-interactive context
 - `PPID` mismatch between skill and hook: expected — hooks run via hook runner subprocess

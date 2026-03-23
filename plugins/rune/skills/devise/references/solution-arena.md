@@ -286,7 +286,7 @@ Report as: [CDX-ARENA-NNN] {solution_name}: {score}/10 — {brief assessment}`
       1. TaskList() -> claim the "Codex Arena Judge" task
       2. Check codex availability
       3. Run codex exec with the prompt file (SEC-009: wrapper script):
-         Bash(\`"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" \\
+         Bash(\`"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" \\
            -m "${codexModel}" -r "${codexReasoning}" -t ${arenaTimeout} -g \\
            "tmp/plans/${timestamp}/arena/codex-judge-prompt.txt"\`)
       4. Write results to tmp/plans/${timestamp}/arena/codex-arena-judge.md

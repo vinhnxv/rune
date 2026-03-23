@@ -1132,7 +1132,7 @@ Confidence thresholds:
   const claimTimeout = Math.min(talisman?.codex?.gap_analysis?.claim_timeout ?? 300, 600)
   // C3 FIX: Use codex-exec.sh wrapper (SEC-009) instead of raw codex exec.
   // The wrapper enforces model allowlist, timeout clamping [300,900], and error classification.
-  const claimResult = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
+  const claimResult = Bash(`"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
     -m "${claimCodexModel}" -r "xhigh" -t ${claimTimeout} -g \
     "${claimPromptPath}"; echo "EXIT:$?"`)
 

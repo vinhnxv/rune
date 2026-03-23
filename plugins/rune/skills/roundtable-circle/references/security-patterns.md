@@ -197,6 +197,51 @@ function sanitizeUntrustedText(text, maxChars) {
 
 **Consumers**: review.md (Phase 0.3 — PR body, issue body), plan.md (plan content sanitization)
 
+### extractImageUrls()
+<!-- PATTERN:extractImageUrls regex="see function body" version="1" -->
+
+Extracts image URLs from raw user-authored content (issue bodies) before sanitization strips them. Runs BEFORE `sanitizeUntrustedText()` to preserve visual context.
+
+```javascript
+function extractImageUrls(rawBody, maxImages = 5) {
+  const IMAGE_MD_PATTERN = /!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g
+  const IMAGE_HTML_PATTERN = /<img[^>]+src=["'](https?:\/\/[^"']+)["'][^>]*(?:alt=["']([^"']*)["'])?/gi
+
+  // WONTFIX(SEC-004): imgur.com is intentionally included — plan explicitly
+  // supports imgur-hosted screenshots in GitHub Issues (common user workflow).
+  const ALLOWED_DOMAINS = [
+    /^https:\/\/user-images\.githubusercontent\.com\//,
+    /^https:\/\/github\.com\/.*\/assets\//,
+    /^https:\/\/raw\.githubusercontent\.com\//,
+    /^https:\/\/i\.imgur\.com\//,
+    /^https:\/\/objects\.githubusercontent\.com\//,
+    /^https:\/\/avatars\.githubusercontent\.com\//
+  ]
+
+  const images = []
+  let match
+  while ((match = IMAGE_MD_PATTERN.exec(rawBody)) !== null) {
+    images.push({ alt: match[1] || '', url: match[2] })
+  }
+  while ((match = IMAGE_HTML_PATTERN.exec(rawBody)) !== null) {
+    images.push({ alt: match[2] || '', url: match[1] })
+  }
+
+  return [...new Map(images.map(i => [i.url, i])).values()]
+    .filter(img => ALLOWED_DOMAINS.some(pattern => pattern.test(img.url)))
+    .map(img => ({
+      ...img,
+      url: img.url.replace(/[\r\n]/g, ''),
+      alt: (img.alt || '').slice(0, 200)
+    }))
+    .slice(0, maxImages)
+}
+```
+
+**Threat model**: Prevents SSRF via domain allowlist (6 trusted GitHub-adjacent hosts + imgur). Prevents prompt injection via alt text length cap (200 chars). Prevents header injection via newline stripping on URLs. **Note**: Alt text newline stripping is applied to URLs but not to alt text itself — alt text may contain embedded newlines from markdown source. Consumers should strip newlines from alt text before injecting into single-line contexts (e.g., prompt templates). The `.slice(0,200)` cap bounds length but does not sanitize content.
+**ReDoS safe**: Yes (non-overlapping character classes with bounded quantifiers in both regex patterns)
+**Consumers**: arc-issues-algorithm.md (Phase 2 — pre-sanitization image extraction)
+
 ### SAFE_ISSUE_NUMBER
 <!-- PATTERN:SAFE_ISSUE_NUMBER regex="/^\d{1,7}$/" version="1" -->
 **Regex**: `/^\d{1,7}$/`
