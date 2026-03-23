@@ -19,6 +19,7 @@ from figma_client import FigmaClient, FigmaAPIError  # noqa: F401
 from figma_types import NodeType
 from image_handler import collect_image_refs
 from node_parser import FigmaIRNode, count_nodes, mark_cross_file_refs, parse_node, walk_tree
+from semantic_classifier import annotate as annotate_semantics
 from react_generator import (
     generate_component, generate_split_components, _collect_node_classes,
 )
@@ -35,7 +36,7 @@ DEFAULT_START_INDEX = 0
 
 # BACK-004: Schema version for public API response dicts.
 # Bump when the response shape changes (new fields, removed fields, type changes).
-RESPONSE_SCHEMA_VERSION = 1
+RESPONSE_SCHEMA_VERSION = 2
 
 
 # ---------------------------------------------------------------------------
@@ -98,6 +99,16 @@ def _ir_text_and_refs(node: FigmaIRNode, result: dict[str, Any]) -> None:
             result["font_family"] = node.text_style.font_family
             if node.text_style.font_size:
                 result["font_size"] = node.text_style.font_size
+            if node.text_style.font_weight is not None:
+                result["font_weight"] = node.text_style.font_weight
+            if node.text_style.letter_spacing is not None:
+                result["letter_spacing"] = node.text_style.letter_spacing
+            if node.text_style.line_height_px is not None:
+                result["line_height_px"] = node.text_style.line_height_px
+            if node.text_style.text_decoration is not None:
+                result["text_decoration"] = node.text_style.text_decoration
+            if node.text_style.text_case is not None:
+                result["text_case"] = node.text_style.text_case
 
     if node.component_id:
         result["component_id"] = node.component_id
@@ -143,6 +154,12 @@ def ir_to_dict(node: FigmaIRNode, max_depth: int = 20) -> dict[str, Any]:
     _ir_flags(node, result)
     _ir_auto_layout(node, result)
     _ir_text_and_refs(node, result)
+
+    # Semantic classification
+    if node.semantic_role is not None:
+        result["semantic_role"] = node.semantic_role
+    if node.semantic_confidence is not None:
+        result["semantic_confidence"] = node.semantic_confidence
 
     # Children
     if node.children:
@@ -924,6 +941,7 @@ async def to_react(
     if ir_root is None:
         raise FigmaAPIError("Failed to parse design — no supported nodes found.")
     mark_cross_file_refs(ir_root)
+    annotate_semantics(ir_root)
 
     (image_refs, image_urls), svg_urls = await asyncio.gather(
         _resolve_image_urls(client, file_key, ir_root),

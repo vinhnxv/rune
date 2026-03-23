@@ -133,6 +133,19 @@ def _resolve_html_tag(node: FigmaIRNode) -> str:
     if tag:
         return tag
 
+    # Fallback: use semantic_role from the classification layer.
+    _SEMANTIC_ROLE_TAGS = {
+        "sidebar": "aside",
+        "navigation": "nav",
+        "breadcrumb": "nav",
+        "search": "search",
+        "toolbar": "div",
+    }
+    if node.semantic_role:
+        semantic_tag = _SEMANTIC_ROLE_TAGS.get(node.semantic_role)
+        if semantic_tag:
+            return semantic_tag
+
     if node.node_type == NodeType.TEXT:
         heading = _resolve_text_heading(node.text_style)
         if heading:
@@ -1002,6 +1015,56 @@ def _try_flatten_node(
     return child
 
 
+# ---------------------------------------------------------------------------
+# Semantic role hints — JSX comments for classified nodes
+# ---------------------------------------------------------------------------
+
+#: Mapping from semantic role to a suggested component name or usage hint.
+_SEMANTIC_ROLE_HINTS: Dict[str, str] = {
+    "pagination": "Consider using a Pagination component",
+    "avatar": "Consider using an Avatar component",
+    "toolbar": "Semantic: toolbar region",
+    "data-table": "Consider using a DataTable component",
+    "breadcrumb": "Consider using a Breadcrumb component",
+    "tabs": "Consider using a Tabs component",
+    "search": "Semantic: search input region",
+    "badge": "Consider using a Badge component",
+    "card": "Semantic: card container",
+    "modal": "Consider using a Modal/Dialog component",
+    "sidebar": "Semantic: sidebar navigation",
+    "accordion": "Consider using an Accordion component",
+    "carousel": "Consider using a Carousel component",
+    "toast": "Consider using a Toast/Notification component",
+    "dropdown": "Consider using a Dropdown/Select component",
+    "progress": "Consider using a ProgressBar component",
+    "tooltip": "Consider using a Tooltip component",
+    "rating": "Consider using a Rating component",
+}
+
+
+def _semantic_comment(node: FigmaIRNode) -> Optional[str]:
+    """Build a JSX comment hint for a semantically classified node.
+
+    Returns None if the node has no semantic role or confidence is below
+    the display threshold.
+
+    Args:
+        node: IR node potentially annotated with semantic classification.
+
+    Returns:
+        A JSX comment string like ``{/* Semantic: pagination component */}``
+        or None.
+    """
+    role = node.semantic_role
+    if role is None:
+        return None
+    hint = _SEMANTIC_ROLE_HINTS.get(role, f"Semantic: {role}")
+    confidence = node.semantic_confidence
+    if confidence is not None:
+        return f"{{/* {hint} (confidence: {confidence:.0%}) */}}"
+    return f"{{/* {hint} */}}"
+
+
 def _generate_node_jsx(
     node: FigmaIRNode,
     parent: Optional[FigmaIRNode],
@@ -1035,11 +1098,18 @@ def _generate_node_jsx(
         return _generate_text_node_jsx(node, all_classes, tag, indent_level, aria)
 
     attr_str, node_aria = _build_container_attr_str(tag, class_str, aria, node)
-    return _generate_container_jsx(
+    jsx = _generate_container_jsx(
         node, tag, attr_str, class_str, node_aria,
         image_handler, indent_level, aria,
         promoted_props=promoted_props,
     )
+
+    # Prepend semantic role comment when present
+    comment = _semantic_comment(node)
+    if comment is not None:
+        jsx = f"{comment}\n{jsx}"
+
+    return jsx
 
 
 # ---------------------------------------------------------------------------

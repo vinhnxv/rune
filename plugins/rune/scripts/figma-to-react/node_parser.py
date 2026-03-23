@@ -304,6 +304,10 @@ class FigmaIRNode:
     # Vertical text alignment (TOP, CENTER, BOTTOM)
     text_align_vertical: Optional[str] = None
 
+    # Semantic classification (populated by semantic classifier)
+    semantic_role: Optional[str] = None
+    semantic_confidence: Optional[float] = None
+
     # Raw data for fallback
     raw: Optional[Dict[str, Any]] = field(default=None, repr=False)
 

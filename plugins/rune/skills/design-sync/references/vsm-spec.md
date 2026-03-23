@@ -29,17 +29,20 @@ function readVSM(vsmPath):
     ...vsm,
     variant_sources: isV11 ? (vsm.variant_sources ?? []) : [],
     relationship_group: isV11 ? (vsm.relationship_group ?? null) : null,
-    relationship_confidence: isV11 ? (vsm.relationship_confidence ?? null) : null
+    relationship_confidence: isV11 ? (vsm.relationship_confidence ?? null) : null,
+    // Semantic fields are version-independent (optional in all versions)
+    semantic_component_map: vsm.semantic_component_map ?? []
   }
 ```
 
-Six required guard checks:
+Seven required guard checks:
 1. `vsm_schema_version` field exists before comparing
 2. Default to `"1.0"` if field absent (backward compat)
 3. Parse as float before numeric comparison
 4. `variant_sources` defaults to `[]` when absent
 5. `relationship_group` defaults to `null` when absent
 6. `relationship_confidence` defaults to `null` when absent
+7. `semantic_component_map` defaults to `[]` when absent (version-independent)
 
 ### Consumer Guard Enforcement
 
@@ -192,6 +195,25 @@ Hierarchical decomposition of the component structure.
 ```
 
 Each node specifies: semantic element, layout classes, sizing, and token references.
+
+Nodes may optionally include a `Semantic Role` annotation to classify their UI purpose:
+
+```markdown
+## Region Tree
+
+- **AppRoot** — `<div>`, flex-row
+  - Semantic Role: page-layout (0.95)
+  - **NavBar** — `<nav>`, flex-row, h-16, bg-background, border-b
+    - Semantic Role: navigation (0.98)
+  - **MainContent** — `<main>`, flex-1, flex-col
+    - Semantic Role: content-area (0.90)
+    - **HeroSection** — `<section>`, w-full, py-16, bg-gradient-to-r
+      - Semantic Role: hero (0.92)
+    - **CardGrid** — `<div>`, grid, grid-cols-3, gap-4
+      - Semantic Role: content-list (0.85)
+```
+
+The `Semantic Role` line is OPTIONAL. When present, it follows the format: `Semantic Role: {role} ({confidence})` where confidence is in [0.0, 1.0]. Omit for nodes with no clear semantic classification.
 
 ## Section 3: Variant Map
 
@@ -424,6 +446,70 @@ Each compound interaction defines:
 
 Keyboard maps follow WAI-ARIA Authoring Practices for the component pattern.
 
+## Section 9: Semantic Component Map (OPTIONAL)
+
+Maps design regions to their semantic UI roles, enabling verification that implementation components match the design's intended purpose. This section is **optional** — omit it when semantic classification has not been performed.
+
+**When to include**: When the semantic classifier has been run on the design and produced role assignments with sufficient confidence.
+
+```yaml
+semantic_component_map:
+  - region: "NavBar"
+    semantic_role: "navigation"
+    confidence: 0.98
+    expected_element: "<nav>"
+    expected_patterns:
+      - "links or menu items"
+      - "logo/brand region"
+    notes: "Primary site navigation"
+  - region: "HeroSection"
+    semantic_role: "hero"
+    confidence: 0.92
+    expected_element: "<section>"
+    expected_patterns:
+      - "headline text"
+      - "call-to-action button"
+      - "background image or gradient"
+    notes: "Above-the-fold hero area"
+  - region: "CardGrid"
+    semantic_role: "content-list"
+    confidence: 0.85
+    expected_element: "<div> or <ul>"
+    expected_patterns:
+      - "repeated card items"
+      - "grid or flex layout"
+    notes: "Repeating content cards"
+  - region: "AppFooter"
+    semantic_role: "footer"
+    confidence: 0.96
+    expected_element: "<footer>"
+    expected_patterns:
+      - "copyright text"
+      - "secondary navigation links"
+    notes: "Site footer"
+```
+
+Each entry in the semantic component map contains:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `region` | Yes | Name of the region node from the Region Tree |
+| `semantic_role` | Yes | Classified UI role (e.g., navigation, hero, content-list, footer, sidebar, form, modal) |
+| `confidence` | Yes | Classification confidence score in [0.0, 1.0] |
+| `expected_element` | No | Suggested semantic HTML element for implementation |
+| `expected_patterns` | No | List of expected sub-patterns within this region |
+| `notes` | No | Free-text annotation for implementation guidance |
+
+### Consumer Guard Pattern
+
+Before reading the Semantic Component Map, consumers MUST apply this guard:
+
+```javascript
+const semantic_component_map = vsm.semantic_component_map ?? []
+```
+
+This ensures backward compatibility — VSMs without semantic classification return an empty array.
+
 ## Variant Map Merge Algorithm (v1.1 Only)
 
 When a VSM is generated from a same-screen group (multiple `variant_sources`), the
@@ -537,4 +623,8 @@ Unmatched nodes are annotated with `[{state_name} only]` in the Region Tree.
 17. relationship_group MUST match /^grp-\d{3}$/ when present
 18. relationship_confidence MUST be in [0.0, 1.0] when present
 19. Exactly one variant_sources entry MUST have role: "primary"
+// Semantic Component Map rules (apply when semantic_component_map is present)
+20. Semantic Component Map is OPTIONAL — omit when semantic classification not performed
+21. Each semantic_component_map entry MUST have region, semantic_role, and confidence fields
+22. semantic_component_map[].confidence MUST be in [0.0, 1.0]
 ```
