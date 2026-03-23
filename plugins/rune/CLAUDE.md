@@ -292,6 +292,7 @@ Rune uses Claude Code hooks for event-driven agent synchronization, quality gate
 | Hook | Script | Purpose |
 |------|--------|---------|
 | `PreToolUse:Write\|Edit\|Bash\|NotebookEdit` | `scripts/enforce-readonly.sh` | SEC-001: Blocks write tools for review/audit/inspect Ashes when `.readonly-active` marker exists. |
+| `PreToolUse:Write\|Edit` | `scripts/enforce-strive-delegation.sh` | STRIVE-001: Blocks direct Write/Edit on source files during arc work phase when no strive team exists. Prevents orchestrator from bypassing `/rune:strive` delegation. SECURITY — fail-closed. |
 | `PreToolUse:Bash` | `scripts/enforce-polling.sh` | POLL-001: Blocks `sleep+echo` monitoring anti-pattern during active Rune workflows. Enforces TaskList-based polling loops. Filters workflow detection by session ownership. |
 | `PreToolUse:Bash` | `scripts/enforce-zsh-compat.sh` | ZSH-001: (A) Blocks assignment to zsh read-only variables (`status`), (B) auto-fixes unprotected glob in for-loops with setopt nullglob, (C) auto-fixes `! [[` history expansion to `[[ !`, (D) auto-fixes `\!=` to `!=` in conditions, (E) auto-fixes unprotected globs in command arguments with setopt nullglob. Only active when user's shell is zsh (or macOS fallback). |
 | `PreToolUse:Bash` | `scripts/enforce-gh-account.sh` | GH-ACCOUNT-001: Ensures correct GitHub account is active before `gh` CLI commands requiring repo access (`gh pr`, `gh issue`, `gh api repos/`, `gh repo`, `git push`). Auto-switches via `gh auth switch` when multiple accounts are authenticated and the active one lacks access. OPERATIONAL — fail-forward, never blocks. Debounced per session (30 min TTL). Fast-path exit (<1ms) for non-gh commands. Uses `lib/gh-account-resolver.sh`. |
@@ -357,7 +358,7 @@ Based on rlm-claude-code ADR-002 "Fail-Forward Behavior". Hooks should guide, no
 
 | Category | Behavior | Scripts |
 |----------|----------|---------|
-| SECURITY | Fail-closed (fail-closed ERR trap exits 2). Crash → blocks operation. | `enforce-readonly.sh`, `enforce-teams.sh`, `elicitation-result-validator.sh`, `guard-agent-teams-flag.sh` |
+| SECURITY | Fail-closed (fail-closed ERR trap exits 2). Crash → blocks operation. | `enforce-readonly.sh`, `enforce-strive-delegation.sh`, `enforce-teams.sh`, `elicitation-result-validator.sh`, `guard-agent-teams-flag.sh` |
 | OPERATIONAL | Fail-forward (`_rune_fail_forward` ERR trap). Crash → allows operation. | All other 35 scripts (including `detect-stale-lead.sh`, `keyword-detector.sh`, `track-tool-failure.sh`, `reset-tool-failure.sh`, `verify-agent-deliverables.sh`, `context-percent-stop-guard.sh`, `enforce-agent-search.sh`) |
 
 **VEIL-002 Advisory**: Fail-forward OPERATIONAL hooks can create silent failure cascades (zombie teams, stalled phase loops). All OPERATIONAL hooks emit stderr warnings on ERR trap activation. Set `RUNE_TRACE=1` to capture crash location in `$RUNE_TRACE_LOG`. Monitor for repeated ERR trap warnings — they indicate hook instability.

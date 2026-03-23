@@ -16,6 +16,24 @@ Invoke `/rune:strive` logic on the enriched plan. Swarm workers implement tasks 
 
 > **Note**: `sha256()`, `updateCheckpoint()`, `exists()`, and `warn()` are dispatcher-provided utilities available in the arc orchestrator context. Phase reference files call these without import.
 
+## ENFORCEMENT (v2.10.7+)
+
+**BLOCK**: The Tarnished MUST NOT implement code directly during Phase 5.
+ALL implementation MUST go through `/rune:strive` delegation via `Skill("rune:strive", planPath)`.
+There are NO exceptions for "simple changes", "documentation-only", or "markdown files".
+
+The strive pipeline provides audit trail (delegation-manifest, worker reports), quality gates
+(ward check, self-review), commit serialization (commit broker), and file ownership enforcement
+(SEC-STRIVE-001). Direct implementation bypasses ALL of these.
+
+**Runtime enforcement**: `enforce-strive-delegation.sh` (STRIVE-001) blocks Write/Edit on source
+files during arc work phase when no strive team exists. Work QA gate scores mandatory artifacts
+at 0 when missing (not 50), forcing a retry.
+
+**Anti-rationalization**: If you are tempted to skip strive because "it's just markdown" or
+"these are simple changes" — STOP. This is a documented rationalization pattern. Invoke
+`Skill("rune:strive", enrichedPlanPath)`. Non-negotiable.
+
 ## Algorithm
 
 ```javascript

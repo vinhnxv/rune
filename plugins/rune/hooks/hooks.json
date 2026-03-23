@@ -53,6 +53,18 @@
         ]
       },
       {
+        "_rationale": "STRIVE-001: Blocks direct Write/Edit on source files during arc work phase when no strive team exists. Prevents orchestrator from bypassing /rune:strive delegation. SECURITY — fail-closed.",
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/enforce-strive-delegation.sh",
+            "timeout": 5,
+            "statusMessage": "Checking strive delegation compliance..."
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {

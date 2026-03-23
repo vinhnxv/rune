@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.10.7] - 2026-03-23
+
+### Added
+- **enforce-strive-delegation.sh (STRIVE-001)** — New SECURITY-class PreToolUse hook that blocks direct Write/Edit on source files during arc work phase when no strive team exists. Prevents orchestrator from bypassing `/rune:strive` delegation. Fail-closed.
+- **Work QA mandatory artifact rule** — WRK-ART-01 through WRK-ART-04 now score 0 (not 50) when missing, ensuring overall score falls below PASS threshold and triggers retry with proper strive invocation.
+- **arc-phase-work.md ENFORCEMENT block** — Explicit anti-rationalization instructions preventing the Tarnished from implementing directly during Phase 5. Documents that "markdown-only" and "simple changes" are not valid exceptions.
+
 ## [2.10.6] - 2026-03-23
 
 ### Fixed

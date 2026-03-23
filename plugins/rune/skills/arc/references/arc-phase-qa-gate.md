@@ -95,15 +95,22 @@ Where `W_art`, `W_qual`, `W_cmp` are looked up from the table above per phase.
 The work phase QA gate verifies that strive file-based delegation ran correctly and workers
 produced substantive, evidence-backed reports.
 
+> **MANDATORY ARTIFACT RULE (v2.10.7+)**: WRK-ART-01 through WRK-ART-04 are **mandatory** —
+> score 0 (not 50) when missing. These artifacts prove that `/rune:strive` was invoked correctly.
+> Missing artifacts indicate the orchestrator bypassed strive and implemented directly, which
+> violates Core Rule #2 ("The Tarnished coordinates only — does not implement code directly").
+> A score of 0 on mandatory artifacts caps overall_score below PASS threshold (70), forcing a
+> retry that correctly invokes `/rune:strive`.
+
 ### Artifact Checks (weight: 30%)
 
-| ID | Check | Evidence Required |
-|----|-------|------------------|
-| WRK-ART-01 | `tmp/work/{ts}/delegation-manifest.json` exists AND is valid JSON AND `workers` array is not empty | `Glob` + `JSON.parse` |
-| WRK-ART-02 | `tmp/work/{ts}/tasks/task-*.md` count matches plan task count | `Glob` count vs `total_tasks` in manifest |
-| WRK-ART-03 | `tmp/work/{ts}/scopes/*.md` count matches worker count from manifest | `Glob` count vs `workers.length` in manifest |
-| WRK-ART-04 | `tmp/work/{ts}/prompts/*.md` count matches worker count from manifest | `Glob` count vs `workers.length` in manifest |
-| WRK-ART-05 | `tmp/arc/{id}/work-summary.md` exists and has >10 lines | `Read` + line count |
+| ID | Check | Evidence Required | Mandatory |
+|----|-------|------------------|-----------|
+| WRK-ART-01 | `tmp/work/{ts}/delegation-manifest.json` exists AND is valid JSON AND `workers` array is not empty | `Glob` + `JSON.parse` | **YES** — score 0 if missing |
+| WRK-ART-02 | `tmp/work/{ts}/tasks/task-*.md` count matches plan task count | `Glob` count vs `total_tasks` in manifest | **YES** — score 0 if missing |
+| WRK-ART-03 | `tmp/work/{ts}/scopes/*.md` count matches worker count from manifest | `Glob` count vs `workers.length` in manifest | **YES** — score 0 if missing |
+| WRK-ART-04 | `tmp/work/{ts}/prompts/*.md` count matches worker count from manifest | `Glob` count vs `workers.length` in manifest | **YES** — score 0 if missing |
+| WRK-ART-05 | `tmp/arc/{id}/work-summary.md` exists and has >10 lines | `Read` + line count | No |
 
 ### Quality Checks (weight: 40%)
 
