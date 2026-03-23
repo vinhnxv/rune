@@ -76,7 +76,7 @@ Base findings on actual code and plan content, not assumptions.
 Only report genuine semantic drift — not stylistic differences.`
 
     Write(promptTmpFile, promptContent)
-    const result = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g "${promptTmpFile}"`)
+    const result = Bash(`"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g "${promptTmpFile}"`)
     const classified = classifyCodexError(result)
 
     // Write drift report (even on error)

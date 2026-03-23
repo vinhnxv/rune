@@ -382,7 +382,7 @@ if (!ghMergeAvailable) {
 
 // GH-ACCOUNT-001: Ensure the active gh account has access to this repository.
 // Re-resolve account before merge — session may have changed since ship phase.
-const ghMergeAccountResolved = Bash(`${GH_ENV} source "\${CLAUDE_PLUGIN_ROOT}/scripts/lib/gh-account-resolver.sh" && rune_gh_ensure_correct_account`).trim()
+const ghMergeAccountResolved = Bash(`${GH_ENV} source "\${RUNE_PLUGIN_ROOT}/scripts/lib/gh-account-resolver.sh" && rune_gh_ensure_correct_account`).trim()
 if (ghMergeAccountResolved.includes("ERROR: No authenticated GitHub account")) {
   warn("Merge phase: No authenticated GitHub account has access to this repository.")
   warn("Run 'gh auth login' with an account that has access, then retry.")

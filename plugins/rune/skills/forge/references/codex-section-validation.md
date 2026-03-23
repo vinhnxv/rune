@@ -53,7 +53,7 @@ be missed by topic-based agent matching. Output [] if all sections are covered.
 Base assessment on actual file references, not assumptions.`
 
       Write(promptTmpFile, promptContent)
-      const result = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g "${promptTmpFile}"`)
+      const result = Bash(`"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g "${promptTmpFile}"`)
       const classified = classifyCodexError(result)
 
       if (classified === "SUCCESS") {

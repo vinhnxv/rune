@@ -412,7 +412,7 @@ Bash('mkdir -p tmp/gh-issues tmp/gh-plans')
 const preflight_input = issueRefs.map(r => r.number).join('\n')
 Write('tmp/gh-issues/preflight-input.txt', preflight_input)
 
-const validated = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/arc-issues-preflight.sh" < "tmp/gh-issues/preflight-input.txt"`)
+const validated = Bash(`"${RUNE_PLUGIN_ROOT}/scripts/arc-issues-preflight.sh" < "tmp/gh-issues/preflight-input.txt"`)
 if (validated.exitCode !== 0) {
   error('Pre-flight validation failed. Fix errors above and retry.')
   return
@@ -794,7 +794,7 @@ if (issuesForArc.length > 10) {
 ## Phase 6: Start Batch Loop (Stop Hook Pattern)
 
 ```javascript
-const pluginDir = Bash(`echo "${CLAUDE_PLUGIN_ROOT}"`).trim()
+const pluginDir = Bash(`echo "${RUNE_PLUGIN_ROOT}"`).trim()
 const issueListFile = 'tmp/gh-issues/issue-list.json'
 Write(issueListFile, JSON.stringify(issuesForArc.map(i => ({
   number: i.number,

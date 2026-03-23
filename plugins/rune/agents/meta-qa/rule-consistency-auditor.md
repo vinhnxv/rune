@@ -103,7 +103,7 @@ Exclude CHANGELOG and description fields.
 ### RC-NAMESPACE-02: codex-exec.sh uses full path (Error)
 
 Grep for `codex-exec.sh` invocations.
-Flag any without `${CLAUDE_PLUGIN_ROOT}` prefix.
+Flag any without `${RUNE_PLUGIN_ROOT}` prefix (or `${CLAUDE_PLUGIN_ROOT}` in hook scripts).
 
 ### RC-TALISMAN-01: Talisman config vs hardcoded defaults (Warning)
 

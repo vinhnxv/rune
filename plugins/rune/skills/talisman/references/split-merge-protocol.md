@@ -238,7 +238,7 @@ Write(".rune/talisman.yml", "\n".join(main_content))
 Run the resolver and compare shard output to pre-split snapshot:
 
 ```
-Bash("bash ${CLAUDE_PLUGIN_ROOT}/scripts/talisman-resolve.sh")
+Bash("bash ${RUNE_PLUGIN_ROOT}/scripts/talisman-resolve.sh")
 Bash("for f in tmp/.talisman-resolved/*.json; do shasum -a 256 \"$f\"; done > /tmp/rune-post-split-shards.txt")
 diff_result = Bash("diff /tmp/rune-pre-split-shards.txt /tmp/rune-post-split-shards.txt")
 ```
@@ -362,7 +362,7 @@ Write(".rune/talisman.yml", "\n".join(merged))
 ### Phase 5: Verify Shard Equivalence
 
 ```
-Bash("bash ${CLAUDE_PLUGIN_ROOT}/scripts/talisman-resolve.sh")
+Bash("bash ${RUNE_PLUGIN_ROOT}/scripts/talisman-resolve.sh")
 Bash("for f in tmp/.talisman-resolved/*.json; do shasum -a 256 \"$f\"; done > /tmp/rune-post-merge-shards.txt")
 diff_result = Bash("diff /tmp/rune-pre-merge-shards.txt /tmp/rune-post-merge-shards.txt")
 ```

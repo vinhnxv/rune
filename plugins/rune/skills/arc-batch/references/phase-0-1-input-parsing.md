@@ -158,7 +158,7 @@ Read("references/batch-shard-parsing.md")
 // SEC-007 FIX: Write paths to temp file first to avoid shell injection via echo interpolation.
 // Queue file paths (untrusted input) could contain shell metacharacters.
 Write("tmp/arc-batch/preflight-input.txt", planPaths.join('\n'))
-const validated = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/arc-batch-preflight.sh" < "tmp/arc-batch/preflight-input.txt"`)
+const validated = Bash(`"${RUNE_PLUGIN_ROOT}/scripts/arc-batch-preflight.sh" < "tmp/arc-batch/preflight-input.txt"`)
 if (validated.exitCode !== 0) {
   error("Pre-flight validation failed. Fix errors above and retry.")
   return

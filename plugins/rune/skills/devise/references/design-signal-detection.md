@@ -82,7 +82,7 @@ if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
   const outputDir = `tmp/plans/${timestamp}/design-references`
 
   // Check if design-prototype skill is installed (Shard 1 dependency)
-  const pluginRoot = Bash("echo ${CLAUDE_PLUGIN_ROOT}").trim()
+  const pluginRoot = Bash("echo ${RUNE_PLUGIN_ROOT}").trim()
   const designPrototypeInstalled = Glob("plugins/rune/skills/design-prototype/SKILL.md").length > 0
     || (pluginRoot && Glob(`${pluginRoot}/skills/design-prototype/SKILL.md`).length > 0)
 

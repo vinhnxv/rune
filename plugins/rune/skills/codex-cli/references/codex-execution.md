@@ -16,7 +16,7 @@ in a single script. Use this instead of crafting raw `codex exec` commands.
 
 ```bash
 # Standard invocation (raw output)
-"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
+"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
   -m "${CODEX_MODEL:-gpt-5.3-codex}" \
   -r "${CODEX_REASONING:-xhigh}" \
   -t ${CODEX_TIMEOUT:-600} \
@@ -25,7 +25,7 @@ in a single script. Use this instead of crafting raw `codex exec` commands.
   "path/to/prompt-file.txt"
 
 # With JSON parsing (--json + jq)
-"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
+"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
   -m "${CODEX_MODEL:-gpt-5.3-codex}" \
   -r "${CODEX_REASONING:-xhigh}" \
   -t ${CODEX_TIMEOUT:-600} \

@@ -70,32 +70,48 @@ if command -v jq &>/dev/null; then
   SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
 fi
 
-# ── Session ID injection into Bash tool environment ──
-# Workaround: $CLAUDE_SESSION_ID is NOT available as a shell env var (anthropics/claude-code#25642).
-# Hooks receive session_id in stdin JSON, so we bridge it to $CLAUDE_ENV_FILE
-# making it available to Bash() calls as $RUNE_SESSION_ID.
-# NOTE: Hook scripts (.sh) do NOT source CLAUDE_ENV_FILE — they get session_id
-# from stdin JSON instead. This bridge only helps Bash tool context in skills.
+# ── Env injection into Bash tool environment ──
+# Workaround: $CLAUDE_SESSION_ID and $CLAUDE_PLUGIN_ROOT are NOT available as
+# shell env vars in Bash() tool calls. Hooks receive them in stdin JSON or as
+# process env, so we bridge them to $CLAUDE_ENV_FILE making them available to
+# Bash() calls as $RUNE_SESSION_ID and $RUNE_PLUGIN_ROOT.
+# NOTE: Hook scripts (.sh) do NOT source CLAUDE_ENV_FILE — they get these values
+# from stdin JSON / BASH_SOURCE instead. This bridge only helps Bash tool context in skills.
 # Guard: only write once per session (idempotent on resume/clear/compact).
-# SEC: Validate session_id format before writing to env file (shell injection prevention).
-if [[ -n "$SESSION_ID" && -n "${CLAUDE_ENV_FILE:-}" ]]; then
-  # COMPAT: Bash 3.2 (macOS) does not support {n,m} quantifiers in [[ =~ ]].
-  # Use + quantifier and length check instead.
-  if [[ "$SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]] && [[ ${#SESSION_ID} -le 128 ]]; then
-    # SEC-004: Canonicalize CLAUDE_ENV_FILE and validate it resides under the expected config dir.
-    # Prevents path traversal attacks where a malicious CLAUDE_ENV_FILE writes to arbitrary locations.
-    _real_env_file="$(cd "$(dirname "$CLAUDE_ENV_FILE")" 2>/dev/null && pwd -P)/$(basename "$CLAUDE_ENV_FILE")" 2>/dev/null || true
-    _expected_prefix="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-    if [[ -n "$_real_env_file" ]] && [[ "$_real_env_file" == "$_expected_prefix"/* ]]; then
+# SEC: Validate all values before writing to env file (shell injection prevention).
+if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
+  # SEC-004: Canonicalize CLAUDE_ENV_FILE and validate it resides under the expected config dir.
+  # Prevents path traversal attacks where a malicious CLAUDE_ENV_FILE writes to arbitrary locations.
+  _real_env_file="$(cd "$(dirname "$CLAUDE_ENV_FILE")" 2>/dev/null && pwd -P)/$(basename "$CLAUDE_ENV_FILE")" 2>/dev/null || true
+  _expected_prefix="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  if [[ -n "$_real_env_file" ]] && [[ "$_real_env_file" == "$_expected_prefix"/* ]]; then
+    # Bridge RUNE_SESSION_ID
+    # COMPAT: Bash 3.2 (macOS) does not support {n,m} quantifiers in [[ =~ ]].
+    # Use + quantifier and length check instead.
+    if [[ -n "$SESSION_ID" ]] && [[ "$SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]] && [[ ${#SESSION_ID} -le 128 ]]; then
       if ! grep -q "RUNE_SESSION_ID" "$CLAUDE_ENV_FILE" 2>/dev/null; then
         printf 'export RUNE_SESSION_ID="%s"\n' "$SESSION_ID" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true
         _trace "Injected RUNE_SESSION_ID=${SESSION_ID} into CLAUDE_ENV_FILE"
       fi
     else
-      _trace "WARN: CLAUDE_ENV_FILE path validation failed, skipping env injection: '${CLAUDE_ENV_FILE}'"
+      _trace "WARN: session_id failed format validation, skipping env injection: '${SESSION_ID:0:32}'"
+    fi
+
+    # Bridge RUNE_PLUGIN_ROOT — makes ${RUNE_PLUGIN_ROOT} available in Bash() tool calls.
+    # CLAUDE_PLUGIN_ROOT is only available in hook script execution, not in Bash() tool context.
+    # SEC: PLUGIN_ROOT is derived from CLAUDE_PLUGIN_ROOT or BASH_SOURCE (line 40), both trusted.
+    # Validate: must be an absolute path containing /scripts/ dir, no shell metacharacters.
+    # Path varies: /repo/plugins/rune (dev) vs ~/.claude/plugins/cache/.../rune/2.11.0 (installed).
+    if [[ -n "$PLUGIN_ROOT" ]] && [[ "$PLUGIN_ROOT" == /* ]] && [[ -d "$PLUGIN_ROOT/scripts" ]] && [[ ! "$PLUGIN_ROOT" =~ [\;\|\&\$\`] ]]; then
+      if ! grep -q "RUNE_PLUGIN_ROOT" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+        printf 'export RUNE_PLUGIN_ROOT="%s"\n' "$PLUGIN_ROOT" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true
+        _trace "Injected RUNE_PLUGIN_ROOT=${PLUGIN_ROOT} into CLAUDE_ENV_FILE"
+      fi
+    else
+      _trace "WARN: PLUGIN_ROOT validation failed, skipping env injection: '${PLUGIN_ROOT:0:64}'"
     fi
   else
-    _trace "WARN: session_id failed format validation, skipping env injection: '${SESSION_ID:0:32}'"
+    _trace "WARN: CLAUDE_ENV_FILE path validation failed, skipping env injection: '${CLAUDE_ENV_FILE}'"
   fi
 fi
 

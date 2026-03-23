@@ -81,7 +81,7 @@ Append to generated talisman:
 
 ```
 Read the canonical example:
-  Read("${CLAUDE_PLUGIN_ROOT}/talisman.example.yml")
+  Read("${RUNE_PLUGIN_ROOT}/talisman.example.yml")
 
 This is the SINGLE SOURCE OF TRUTH for all talisman keys.
 ```

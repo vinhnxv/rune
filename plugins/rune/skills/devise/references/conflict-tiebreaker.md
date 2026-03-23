@@ -94,7 +94,7 @@ Tag your verdict with [CDX-TIEBREAKER] for transparency.
 Base analysis on technical merits, not assumptions.`
 
         Write(promptTmpFile, promptContent)
-        const result = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g "${promptTmpFile}"`)
+        const result = Bash(`"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g "${promptTmpFile}"`)
         const classified = classifyCodexError(result)
 
         if (classified === "SUCCESS" && result.stdout) {

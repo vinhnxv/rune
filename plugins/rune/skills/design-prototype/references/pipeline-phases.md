@@ -306,7 +306,7 @@ copies prototypes, launches the dev server, and opens the full-page composition.
 ```javascript
 if (!flags.noStorybook && Glob(`${outputDir}/prototypes/*/prototype.tsx`).length > 0) {
   // 1. Bootstrap: scaffold + install deps + copy prototypes
-  const bootstrapScript = `${CLAUDE_PLUGIN_ROOT}/scripts/storybook/bootstrap.sh`
+  const bootstrapScript = `${RUNE_PLUGIN_ROOT}/scripts/storybook/bootstrap.sh`
   const result = Bash(`cd "${CWD}" && bash "${bootstrapScript}" --src-dir "${outputDir}/prototypes"`)
   const bootstrapResult = JSON.parse(result)
 

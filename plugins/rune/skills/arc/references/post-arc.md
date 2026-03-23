@@ -44,7 +44,7 @@ if (exists(".rune/echoes/")) {
     gap_missing: missingCount,
   }
 
-  const echoLib = `\${CLAUDE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
+  const echoLib = `\${RUNE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
   const planName = checkpoint.plan_file?.split('/').pop()?.replace('.md', '') || id
   const echoContent = `Phases: ${metrics.phases_completed}/${PHASE_ORDER.length}, ` +
     `P1: ${metrics.tome_findings.p1}, Convergence: ${metrics.convergence_cycles}, ` +
@@ -83,7 +83,7 @@ if (decisions.length > 0) {
   const topDecisions = unique.slice(0, 5)
 
   // Write to planner/ echoes (same as existing post-arc echo) so /rune:devise echo-reader surfaces them
-  const echoLib = `\${CLAUDE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
+  const echoLib = `\${RUNE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
   const planName2 = checkpoint.plan_file?.split('/').pop()?.replace('.md', '') || id
   const decisionContent = topDecisions.map(d => `- ${d}`).join("\\n")
   Bash(`source "${echoLib}" && rune_echo_append \

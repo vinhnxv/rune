@@ -218,11 +218,11 @@ Install a curated doc pack (framework patterns, gotchas, recipes) to the global 
 **Steps:**
 
 1. Validate `<stack>` against `^[a-zA-Z][a-zA-Z0-9_-]{1,63}$` (SEC-P3-001)
-2. Read registry: `${CLAUDE_PLUGIN_ROOT}/data/doc-packs/registry.json`
+2. Read registry: `${RUNE_PLUGIN_ROOT}/data/doc-packs/registry.json`
 3. Verify `<stack>` exists in registry — error if not
 4. Set `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`
 5. Create dirs: `mkdir -p "$CHOME/echoes/global/doc-packs/<stack>" "$CHOME/echoes/global/manifests"`
-6. Copy: `cp "${CLAUDE_PLUGIN_ROOT}/data/doc-packs/<stack>/MEMORY.md" "$CHOME/echoes/global/doc-packs/<stack>/"`
+6. Copy: `cp "${RUNE_PLUGIN_ROOT}/data/doc-packs/<stack>/MEMORY.md" "$CHOME/echoes/global/doc-packs/<stack>/"`
 7. Write manifest JSON to `$CHOME/echoes/global/manifests/<stack>.json`
 8. Write dirty signal: `touch "$CHOME/echoes/global/.global-echo-dirty"`
 9. Report: "Installed `<stack>` (v1.0.0). Search with `echo_search(query, scope='global')`"
@@ -233,7 +233,7 @@ Show all available doc packs and their install status.
 
 **Steps:**
 
-1. Read registry from `${CLAUDE_PLUGIN_ROOT}/data/doc-packs/registry.json`
+1. Read registry from `${RUNE_PLUGIN_ROOT}/data/doc-packs/registry.json`
 2. For each pack, check `$CHOME/echoes/global/manifests/<name>.json`
 3. Display: `✓ installed (version, date)` or `○ not installed`
 

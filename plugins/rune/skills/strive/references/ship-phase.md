@@ -14,7 +14,7 @@ if (!ghAvailable) {
 // GH-ACCOUNT-001: Ensure the active gh account has access to this repository.
 // When multiple GitHub accounts are authenticated, the default may lack repo access.
 if (ghAvailable) {
-  const accountResult = Bash('GH_PROMPT_DISABLED=1 source "${CLAUDE_PLUGIN_ROOT}/scripts/lib/gh-account-resolver.sh" && rune_gh_ensure_correct_account').trim()
+  const accountResult = Bash('GH_PROMPT_DISABLED=1 source "${RUNE_PLUGIN_ROOT}/scripts/lib/gh-account-resolver.sh" && rune_gh_ensure_correct_account').trim()
   if (accountResult.includes("ERROR: No authenticated GitHub account")) {
     warn("No authenticated GitHub account has access to this repo. PR creation may fail.")
     warn("Run 'gh auth login' with the correct account.")

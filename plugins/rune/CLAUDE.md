@@ -258,7 +258,7 @@ Every change to this plugin MUST include updates to all four files:
 - [ ] README.md Skills table includes all skills
 - [ ] plugin.json description counts match actual files
 - [ ] No bare `Skill()` calls without `rune:` prefix (run namespace validation command)
-- [ ] No bare `codex-exec.sh` without `${CLAUDE_PLUGIN_ROOT}` path
+- [ ] No bare `codex-exec.sh` without `${RUNE_PLUGIN_ROOT}` path
 - [ ] Run `bash scripts/validate-plugin-wiring.sh` — no SDMT-* violations
 - [ ] Run `bash scripts/validate-task-contract.sh` — no TEAM-002 violations (TaskCreate before Agent, TaskUpdate in agent tools)
 - [ ] New agents have >=1 spawn site in skills/ (SDMT-001)
@@ -414,7 +414,7 @@ When adding or modifying skills, verify:
 
 ### Namespace Prefix (CRITICAL)
 - [ ] All `Skill()` calls use the `rune:` prefix: `Skill("rune:arc", ...)` — NEVER `Skill("arc", ...)`
-- [ ] All `codex-exec.sh` invocations use full path: `"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh"` — NEVER bare `codex-exec.sh` or `./scripts/codex-exec.sh`
+- [ ] All `codex-exec.sh` invocations use full path: `"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh"` — NEVER bare `codex-exec.sh` or `./scripts/codex-exec.sh`
 - [ ] Stop hook prompts use escaped `Skill(\"rune:arc\", ...)` — same prefix rule applies
 
 **Why**: Plugin skills are namespaced as `rune:<skill>`. Without the prefix, skill resolution fails silently — Claude either can't find the skill or skips the pipeline and implements directly. Bare script paths fail with exit 127 in teammate contexts where CWD differs from plugin root. See ARC-BATCH-001 (v1.109.4, v1.143.3).

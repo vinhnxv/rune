@@ -48,7 +48,7 @@ if (p1Findings.length + p2Findings.length >= 2) {
     .slice(0, 5)  // Max 5 patterns per review
     .join("\\n")
 
-  const echoLib = `\${CLAUDE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
+  const echoLib = `\${RUNE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
   Bash(`source "${echoLib}" && rune_echo_append \
     --role reviewer --layer inscribed \
     --source "rune:appraise ${identifier}" \

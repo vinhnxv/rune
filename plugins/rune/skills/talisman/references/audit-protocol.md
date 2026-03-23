@@ -41,8 +41,8 @@ Cross-field consistency checks that detect logical contradictions between config
 Run `validate-talisman-consistency.sh` and present findings inline with Phase 3 report.
 
 ```
-result = Bash("bash ${CLAUDE_PLUGIN_ROOT}/scripts/validate-talisman-consistency.sh \
-  .rune/talisman.yml . ${CLAUDE_PLUGIN_ROOT}")
+result = Bash("bash ${RUNE_PLUGIN_ROOT}/scripts/validate-talisman-consistency.sh \
+  .rune/talisman.yml . ${RUNE_PLUGIN_ROOT}")
 parsed = JSON.parse(result)
 
 Checks (6 rules):

@@ -344,7 +344,7 @@ Persist planning learnings to Rune Echoes via `echo-append.sh`:
 
 ```javascript
 // Resolve echo-append.sh path once
-const PLUGIN_ROOT = Bash("echo ${CLAUDE_PLUGIN_ROOT}").trim()
+const PLUGIN_ROOT = Bash("echo ${RUNE_PLUGIN_ROOT}").trim()
 const ECHO_LIB = `${PLUGIN_ROOT}/scripts/lib/echo-append.sh`
 
 // Persist architectural discoveries from research phase

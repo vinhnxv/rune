@@ -78,7 +78,7 @@ For each aspect in `aspects[]`:
 1. **Write prompt file**: Write `prompt_content` to the specified prompt file path
 2. **Execute codex-exec.sh**:
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
+   "${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
      -m "{model}" -r "{reasoning}" -t {timeout} -g \
      -o "{aspect_output_path}" "{prompt_file}"
    ```
@@ -154,7 +154,7 @@ When the spawn prompt instructs you to sanitize content before writing a prompt 
 - **NEVER** modify any files outside `tmp/arc/{arc_id}/` and temp prompt files
 - On timeout (exit 124): report `status: "completed"` with partial output if file exists, or `status: "error"` if no output
 - On error: report `status: "error"` with `error_class` parsed from stderr
-- `CLAUDE_PLUGIN_ROOT` is available in your environment — use it for script paths
+- `RUNE_PLUGIN_ROOT` is available in your environment — use it for script paths
 
 ## RE-ANCHOR — TRUTHBINDING
 

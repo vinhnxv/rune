@@ -49,7 +49,7 @@ REMINDER: Classify the learning above. Return JSON only."""
   const stderrFile = Bash("mktemp ${TMPDIR:-/tmp}/codex-stderr-XXXXXX").trim()
 
   // SEC-009: Use codex-exec.sh wrapper for stdin pipe, model validation, error classification
-  result = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
+  result = Bash(`"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" \
     -m "${codexModel}" -r low -t ${codexTimeout} -s ${codexStreamIdleMs} -g \
     "tmp/${workflow}/${id}/codex-echo-prompt.txt"`)
   // Exit code 2 = pre-flight failure, 124 = timeout — both non-fatal

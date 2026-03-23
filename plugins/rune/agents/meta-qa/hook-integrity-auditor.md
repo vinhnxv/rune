@@ -82,7 +82,7 @@ Read these files in order:
 
 For each hook entry in hooks.json:
   Extract script path from `command` field
-  Resolve against ${CLAUDE_PLUGIN_ROOT}
+  Resolve against ${CLAUDE_PLUGIN_ROOT} (hooks.json uses CLAUDE_PLUGIN_ROOT, which is injected by Claude Code runtime)
   Verify file exists via Glob
   Flag missing scripts
 

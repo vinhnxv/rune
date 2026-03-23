@@ -58,7 +58,7 @@ For each finding, output: CDX-VERIFY-NNN: CONFIRMED|WEAKENED|REFUTED — reason
 Base verdicts on actual code, not assumptions.`
 
       Write(promptTmpFile, promptContent)
-      const result = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g "${promptTmpFile}"`)
+      const result = Bash(`"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g "${promptTmpFile}"`)
       const classified = classifyCodexError(result)
 
       if (classified === "SUCCESS") {
@@ -130,7 +130,7 @@ Include evidence from the TOME findings that support each architectural observat
 Base findings on actual patterns, not assumptions.`
 
     Write(promptTmpFile, promptContent)
-    const result = Bash(`"${CLAUDE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g "${promptTmpFile}"`)
+    const result = Bash(`"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh" -m "${codexModel}" -r "${reasoning}" -t ${timeout} -j -g "${promptTmpFile}"`)
     const classified = classifyCodexError(result)
 
     Write(`${outputDir}architecture-review.md`, formatArchReviewReport(classified, result))

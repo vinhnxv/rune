@@ -95,7 +95,7 @@ const configJson = JSON.stringify({
 
 let findingsJson
 try {
-  findingsJson = Bash(`bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/tome-parser.sh" "${tomePath}" '${configJson}'`)
+  findingsJson = Bash(`bash "${RUNE_PLUGIN_ROOT}/scripts/lib/tome-parser.sh" "${tomePath}" '${configJson}'`)
 } catch (e) {
   warn(`TOME parser failed: ${e.message}`)
   updateCheckpoint({
@@ -134,7 +134,7 @@ const collapseThreshold = config.collapse_threshold || 5
 const showFooter = config.footer !== false
 
 try {
-  Bash(`bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/pr-comment-formatter.sh" "${findingsFile}" "${collapseThreshold}" "${showFooter}" > "${commentFile}"`)
+  Bash(`bash "${RUNE_PLUGIN_ROOT}/scripts/lib/pr-comment-formatter.sh" "${findingsFile}" "${collapseThreshold}" "${showFooter}" > "${commentFile}"`)
 } catch (e) {
   warn(`Comment formatter failed: ${e.message}`)
   updateCheckpoint({
@@ -146,7 +146,7 @@ try {
 
 // STEP 6: Post comment to PR
 try {
-  const postResult = Bash(`bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/pr-comment-poster.sh" "${prNumber}" "${commentFile}"`)
+  const postResult = Bash(`bash "${RUNE_PLUGIN_ROOT}/scripts/lib/pr-comment-poster.sh" "${prNumber}" "${commentFile}"`)
 
   if (postResult.includes("ERROR")) {
     warn(`Poster reported error: ${postResult}`)

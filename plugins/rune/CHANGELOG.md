@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.11.1] - 2026-03-24
+
+### Fixed
+- **RUNE_PLUGIN_ROOT env bridging** — `CLAUDE_PLUGIN_ROOT` is only available in hook script execution context, not in Bash() tool calls from skills. Added `RUNE_PLUGIN_ROOT` injection via `CLAUDE_ENV_FILE` in SessionStart hook (`session-start.sh`). All 57 skill/command/agent `.md` files updated from `${CLAUDE_PLUGIN_ROOT}` to `${RUNE_PLUGIN_ROOT}` in Bash() pseudocode contexts. Hook scripts (`.sh`) unchanged — they correctly receive `CLAUDE_PLUGIN_ROOT` from Claude Code runtime. Fixes "no such file or directory: /scripts/lib/..." errors when skills invoke plugin scripts via Bash().
+- **session-start.sh validation** — Fixed `PLUGIN_ROOT` validation that rejected plugin cache paths (`~/.claude/plugins/cache/.../rune/2.11.0`). Replaced string pattern match (`*/plugins/rune*`) with directory existence check (`-d "$PLUGIN_ROOT/scripts"`), which works for both dev (`/repo/plugins/rune`) and installed (`~/.claude/plugins/cache/.../rune/X.Y.Z`) paths.
+
 ## [2.11.0] - 2026-03-23
 
 ### Changed
