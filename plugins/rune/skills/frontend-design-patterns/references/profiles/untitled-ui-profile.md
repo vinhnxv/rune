@@ -4,36 +4,45 @@
 profile_schema_version: 1
 library: Untitled UI
 base_primitive: CSS custom properties / design tokens
-styling: CSS custom properties + CSS Modules / Tailwind
+styling: Tailwind CSS v4.1 + CSS custom properties (design tokens)
 ```
 
-Untitled UI is a large-scale Figma design system + React component library built on CSS custom properties (design tokens) for theming and a 3-tier directory structure for organizing components by use case. It provides production-ready components with comprehensive CSS variable-driven theming and optional React Aria integration for accessible interactive primitives.
+> **Canonical Implementation Reference**: For code patterns (imports, variants, styling), see `agent-conventions.md`. This profile focuses on design token semantics and Figma variable mapping.
 
-## File Organization — 3-Tier Directory
+Untitled UI is a large-scale Figma design system + React component library built on CSS custom properties (design tokens) for theming and a 5-tier directory structure for organizing components by use case. It provides production-ready components with comprehensive CSS variable-driven theming and React Aria integration for accessible interactive primitives.
+
+## File Organization — 5-Tier Directory
 
 ```
 src/
 └── components/
-    ├── base/            ← Tier 1: Atoms and primitives (Button, Input, Badge, Avatar)
-    │   ├── Button/
-    │   │   ├── Button.tsx
-    │   │   ├── Button.module.css
+    ├── base/              ← Tier 1: Atoms and primitives (Button, Input, Badge, Avatar)
+    │   ├── buttons/
+    │   │   ├── button.tsx
     │   │   └── index.ts
     │   └── ...
-    ├── application/     ← Tier 2: Molecules and organisms for app UI (Modal, DataTable, Sidebar)
-    │   ├── Modal/
-    │   ├── DataTable/
+    ├── application/       ← Tier 2: Molecules and organisms for app UI (Modal, DataTable, Sidebar)
+    │   ├── modal/
+    │   ├── data-table/
     │   └── ...
-    └── marketing/       ← Tier 3: Page sections for landing/marketing pages (Hero, PricingCard, Testimonial)
-        ├── Hero/
-        ├── PricingCard/
+    ├── foundations/        ← Tier 3: Design tokens, FeaturedIcon, icons, logos
+    │   ├── featured-icon/
+    │   └── ...
+    ├── marketing/         ← Tier 4: Page sections for landing/marketing pages (Hero, PricingCard, Testimonial)
+    │   ├── hero/
+    │   ├── pricing-card/
+    │   └── ...
+    └── shared-assets/     ← Tier 5: Login, signup, 404 pages (PRO)
+        ├── login/
         └── ...
 ```
 
 **Tier rules:**
 - `base/` components have zero business logic — pure UI primitives
 - `application/` components may read from stores or context but do not fetch data
+- `foundations/` contains design infrastructure — tokens, icons, logos, featured-icon
 - `marketing/` components are typically static or CMS-driven; avoid shared state coupling
+- `shared-assets/` contains full page layouts (login, signup, 404) — PRO tier only
 
 ## CSS Variable Token System
 
@@ -77,8 +86,8 @@ Untitled UI tokens use `--fg-` (foreground) and `--bg-` (background) prefix conv
   --spacing-3xl: 64px;
 }
 
-/* Dark mode token override */
-[data-theme="dark"] {
+/* Dark mode token override — applied via Tailwind dark: class-based mode */
+.dark {
   --fg-primary: #f9fafb;
   --fg-secondary: #e4e7ec;
   --bg-primary: #0c111d;
@@ -101,6 +110,8 @@ Untitled UI tokens use `--fg-` (foreground) and `--bg-` (background) prefix conv
 ## React Aria Integration
 
 Untitled UI uses React Aria hooks for accessible behavior and React Aria Components for composable primitives.
+
+**CRITICAL — `Aria*` Prefix Convention**: All imports from `react-aria-components` MUST be aliased with the `Aria*` prefix to avoid naming conflicts with UntitledUI's own components (e.g., `import { Button as AriaButton } from "react-aria-components"`). See `agent-conventions.md` for the full import pattern.
 
 ### React Aria Hooks
 
@@ -171,128 +182,49 @@ function AlertDialog({ title, children, onConfirm }) {
 
 **Rule**: Always use React Aria hooks or components for interactive elements. Never build custom focus traps, keyboard handlers, or ARIA state management from scratch.
 
-## Variant Patterns via CSS Classes
+## Variant Patterns
 
-Untitled UI uses CSS class-based variants instead of CVA (the library predates CVA adoption):
-
-```css
-/* Button.module.css */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  border-radius: var(--radius-md);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 150ms, border-color 150ms, box-shadow 150ms;
-}
-
-/* Variant: primary */
-.btn--primary {
-  background-color: var(--bg-brand-primary);
-  color: var(--fg-white);
-  border: 1px solid var(--bg-brand-primary);
-}
-.btn--primary:hover {
-  background-color: #6941c6;
-  border-color: #6941c6;
-}
-
-/* Variant: secondary-color */
-.btn--secondary-color {
-  background-color: var(--bg-primary);
-  color: var(--fg-brand-primary);
-  border: 1px solid var(--border-primary);
-}
-
-/* Variant: destructive */
-.btn--destructive {
-  background-color: #D92D20;
-  color: var(--fg-white);
-}
-
-/* Size: sm */
-.btn--sm {
-  height: 36px;
-  padding: 0 var(--spacing-sm);
-  font-size: 14px;
-}
-
-/* Size: md */
-.btn--md {
-  height: 40px;
-  padding: 0 var(--spacing-md);
-  font-size: 14px;
-}
-
-/* Size: lg */
-.btn--lg {
-  height: 44px;
-  padding: 0 var(--spacing-lg);
-  font-size: 16px;
-}
-```
-
-```typescript
-// Component usage
-function Button({ variant = "primary", size = "md", className, children, ...props }) {
-  return (
-    <button
-      className={cn(
-        styles.btn,
-        styles[`btn--${variant}`],
-        styles[`btn--${size}`],
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </button>
-  )
-}
-```
+For component variant patterns, see the canonical reference: `agent-conventions.md` (sortCx pattern with Tailwind utilities). Untitled UI uses the `sortCx()` utility for organizing variant styles with semantic Tailwind classes — not BEM-style CSS Modules.
 
 ## Import Conventions
 
 ```typescript
-// Base components
-import { Button } from "@/components/base/Button"
-import { Input } from "@/components/base/Input"
-import { Badge } from "@/components/base/Badge"
+// Base components (kebab-case paths)
+import { Button } from "@/components/base/buttons/button"
+import { Input } from "@/components/base/input/input"
+import { Badge } from "@/components/base/badges/badges"
 
 // Application components
-import { Modal } from "@/components/application/Modal"
-import { DataTable } from "@/components/application/DataTable"
+import { Modal } from "@/components/application/modal/modal"
+import { DataTable } from "@/components/application/data-table/data-table"
+
+// Foundations
+import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icon"
 
 // Marketing components
-import { Hero } from "@/components/marketing/Hero"
+import { Hero } from "@/components/marketing/hero/hero"
 
-// Styles (CSS Modules)
-import styles from "./Button.module.css"
+// React Aria — MUST use Aria* prefix to avoid naming conflicts
+import { Button as AriaButton } from "react-aria-components"
+import { TextField as AriaTextField } from "react-aria-components"
 
-// React Aria
+// React Aria hooks (no prefix needed — hooks don't conflict)
 import { useButton } from "@react-aria/button"
 import { useDialog } from "@react-aria/dialog"
 ```
 
 ## Dark Mode Implementation
 
-Toggle `data-theme="dark"` on the `<html>` element. CSS variables switch automatically:
+Untitled UI uses Tailwind's class-based dark mode (`dark:` variant). Add the `dark` class to the `<html>` element to activate dark mode. Semantic color tokens switch automatically via Tailwind's `@theme` configuration — no manual CSS variable overrides needed.
 
 ```typescript
-// Theme toggle
+// Theme toggle — class-based dark mode
 function toggleTheme() {
-  const html = document.documentElement
-  const current = html.getAttribute("data-theme")
-  html.setAttribute("data-theme", current === "dark" ? "light" : "dark")
+  document.documentElement.classList.toggle("dark")
 }
-
-// CSS: color-scheme for native OS integration
-:root { color-scheme: light; }
-[data-theme="dark"] { color-scheme: dark; }
 ```
 
-**Rule**: Never use `className="dark:text-white"` Tailwind dark variants — Untitled UI uses `data-theme` attribute, not `.dark` class prefix.
+**Rule**: Use Tailwind `dark:` variant with semantic color classes (e.g., `dark:bg-primary`, `dark:text-primary`). The semantic tokens already resolve to correct dark mode values. Do NOT use raw `[data-theme="dark"]` attribute selectors — the Tailwind v4.1 stack uses class-based dark mode.
 
 ## Figma Variable Mapping
 
@@ -309,9 +241,9 @@ Untitled UI Figma variables map directly to CSS tokens:
 ## NEVER-Do List
 
 ```
-NEVER: Use Tailwind color utilities directly (use CSS variables instead)
+NEVER: Use raw Tailwind color utilities (use semantic classes instead)
   ✗ className="text-purple-600"
-  ✓ style={{ color: "var(--fg-brand-primary)" }} or className={styles.brandText}
+  ✓ className="text-brand-primary" or className="fg-brand-primary"
 
 NEVER: Build custom focus traps or keyboard handling
   ✗ Custom onKeyDown event for Escape/Tab in modals
@@ -321,13 +253,17 @@ NEVER: Put application components in base/ or vice versa
   ✗ base/UserProfileCard (has business logic)
   ✓ application/UserProfileCard
 
-NEVER: Override dark mode with media queries instead of data-theme
+NEVER: Override dark mode with media queries instead of dark: variant
   ✗ @media (prefers-color-scheme: dark) in component CSS
-  ✓ [data-theme="dark"] .component { ... }
+  ✓ Use Tailwind dark: variant with semantic classes
+
+NEVER: Import react-aria-components without Aria* prefix
+  ✗ import { Button } from "react-aria-components"
+  ✓ import { Button as AriaButton } from "react-aria-components"
 
 NEVER: Use px values directly — use spacing tokens
   ✗ padding: 16px
-  ✓ padding: var(--spacing-md)
+  ✓ padding: var(--spacing-md) or className="p-md"
 ```
 
 ## Cross-References

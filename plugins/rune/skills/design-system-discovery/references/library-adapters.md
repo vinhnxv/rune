@@ -406,27 +406,264 @@ UNTITLEDUI_ADAPTER["dropdown-menu"] = {
 }
 ```
 
+#### toggle (v2.12.0)
+
+```
+UNTITLEDUI_ADAPTER.toggle = {
+  propName: "variant",
+  variants: {
+    primary: "default", secondary: "default", tertiary: "default",
+    destructive: "default", link: "default", ghost: "default",
+    success: "default", warning: "default", info: "default", error: "default",
+  },
+  sizeProp: "size",
+  sizes: { xs: "sm", sm: "sm", md: "md", lg: "lg", xl: "lg", "2xl": "lg" },
+  iconProps: { leading: null, trailing: null },
+  stateProps: {
+    default: null, hover: null, focused: null,
+    disabled: "isDisabled", loading: null,
+    active: "isChecked", selected: "isChecked", error: null, readonly: null, indeterminate: null,
+  },
+}
+```
+
+#### radio (v2.12.0)
+
+```
+UNTITLEDUI_ADAPTER.radio = {
+  propName: "variant",
+  variants: {
+    primary: "default", secondary: "default", tertiary: "default",
+    destructive: "default", link: "default", ghost: "default",
+    success: "default", warning: "default", info: "default", error: "default",
+  },
+  sizeProp: "size",
+  sizes: { xs: "sm", sm: "sm", md: "md", lg: "lg", xl: "lg", "2xl": "lg" },
+  iconProps: { leading: null, trailing: null },
+  stateProps: {
+    default: null, hover: null, focused: null,
+    disabled: "isDisabled", loading: null,
+    active: null, selected: "isChecked", error: "isError", readonly: "isReadOnly", indeterminate: null,
+  },
+}
+```
+
+#### textarea (v2.12.0)
+
+```
+UNTITLEDUI_ADAPTER.textarea = {
+  propName: "variant",
+  variants: {
+    primary: "default", secondary: "default", tertiary: "default",
+    destructive: "default", link: "default", ghost: "default",
+    success: "default", warning: "default", info: "default", error: "default",
+  },
+  sizeProp: "size",
+  sizes: { xs: "sm", sm: "sm", md: "md", lg: "lg", xl: "lg", "2xl": "lg" },
+  iconProps: { leading: null, trailing: null },
+  stateProps: {
+    default: null, hover: null, focused: null,
+    disabled: "isDisabled", loading: null,
+    active: null, selected: null, error: "isError", readonly: "isReadOnly", indeterminate: null,
+  },
+}
+```
+
+#### slider (v2.12.0)
+
+```
+UNTITLEDUI_ADAPTER.slider = {
+  propName: "variant",
+  variants: {
+    primary: "default", secondary: "default", tertiary: "default",
+    destructive: "default", link: "default", ghost: "default",
+    success: "default", warning: "default", info: "default", error: "default",
+  },
+  sizeProp: "size",
+  sizes: { xs: "sm", sm: "sm", md: "md", lg: "lg", xl: "lg", "2xl": "lg" },
+  iconProps: { leading: null, trailing: null },
+  stateProps: {
+    default: null, hover: null, focused: null,
+    disabled: "isDisabled", loading: null,
+    active: null, selected: null, error: null, readonly: null, indeterminate: null,
+  },
+}
+```
+
+#### progress (v2.12.0)
+
+```
+UNTITLEDUI_ADAPTER.progress = {
+  propName: "color",
+  variants: {
+    primary: "brand", secondary: "gray", tertiary: "gray",
+    destructive: "error", link: "brand", ghost: "gray",
+    success: "success", warning: "warning", info: "blue", error: "error",
+  },
+  sizeProp: "size",
+  sizes: { xs: "sm", sm: "sm", md: "md", lg: "lg", xl: "lg", "2xl": "lg" },
+  iconProps: { leading: null, trailing: null },
+  stateProps: {
+    default: null, hover: null, focused: null,
+    disabled: null, loading: null,
+    active: null, selected: null, error: null, readonly: null, indeterminate: "isIndeterminate",
+  },
+}
+```
+
+#### alert (v2.12.0)
+
+```
+UNTITLEDUI_ADAPTER.alert = {
+  propName: "color",
+  variants: {
+    primary: "brand", secondary: "gray", tertiary: "gray",
+    destructive: "error", link: "brand", ghost: "gray",
+    success: "success", warning: "warning", info: "blue", error: "error",
+  },
+  sizeProp: "size",
+  sizes: { xs: "sm", sm: "sm", md: "md", lg: "lg", xl: "lg", "2xl": "lg" },
+  iconProps: { leading: "icon", trailing: "closeIcon" },
+  stateProps: {
+    default: null, hover: null, focused: null,
+    disabled: null, loading: null,
+    active: null, selected: null, error: null, readonly: null, indeterminate: null,
+  },
+}
+```
+
+#### sidebar (v2.12.0)
+
+```
+UNTITLEDUI_ADAPTER.sidebar = {
+  propName: "variant",
+  variants: {
+    primary: "default", secondary: "default", tertiary: "default",
+    destructive: "default", link: "default", ghost: "default",
+    success: "default", warning: "default", info: "default", error: "default",
+  },
+  sizeProp: "width",
+  sizes: { xs: "xs", sm: "sm", md: "md", lg: "lg", xl: "xl", "2xl": "2xl" },
+  iconProps: { leading: null, trailing: null },
+  stateProps: {
+    default: null, hover: null, focused: null,
+    disabled: null, loading: null,
+    active: null, selected: null, error: null, readonly: null, indeterminate: null,
+  },
+}
+```
+
+#### file-upload (v2.12.0)
+
+```
+UNTITLEDUI_ADAPTER["file-upload"] = {
+  propName: "variant",
+  variants: {
+    primary: "default", secondary: "default", tertiary: "default",
+    destructive: "default", link: "default", ghost: "default",
+    success: "default", warning: "default", info: "default", error: "default",
+  },
+  sizeProp: "size",
+  sizes: { xs: "sm", sm: "sm", md: "md", lg: "lg", xl: "lg", "2xl": "lg" },
+  iconProps: { leading: "icon", trailing: null },
+  stateProps: {
+    default: null, hover: null, focused: null,
+    disabled: "isDisabled", loading: "isUploading",
+    active: "isDragActive", selected: null, error: "isError", readonly: null, indeterminate: null,
+  },
+}
+```
+
 ### Icon Map (Curated Fast-Path)
 
-10-entry curated mapping of common Figma icon names to UntitledUI import names.
+40-entry curated mapping of common Figma icon names to UntitledUI import names (v2.12.0).
 Unmapped icons use the kebab-to-PascalCase fallback from [semantic-ir.md](semantic-ir.md) §Unmapped Icon Fallback.
 
 ```
 UNTITLEDUI_ADAPTER.iconMap = {
+  // Navigation (10)
   "arrow-left": "ArrowLeft",
   "arrow-right": "ArrowRight",
-  "home-line": "HomeLine",
-  "log-out-04": "LogOut04",
+  "arrow-up": "ArrowUp",
+  "arrow-down": "ArrowDown",
+  "chevron-left": "ChevronLeft",
   "chevron-right": "ChevronRight",
   "chevron-down": "ChevronDown",
-  "filter-lines": "FilterLines",
-  "stars-03": "Stars03",
+  "chevron-up": "ChevronUp",
+  "home-line": "HomeLine",
+  "menu-01": "Menu01",
+
+  // Action (12)
+  "plus": "Plus",
+  "x": "X",
+  "x-close": "XClose",
+  "check": "Check",
+  "check-circle": "CheckCircle",
+  "search-lg": "SearchLg",
+  "search-sm": "SearchSm",
+  "edit-05": "Edit05",
   "pencil-line": "PencilLine",
+  "trash-01": "Trash01",
+  "trash-03": "Trash03",
+  "copy-01": "Copy01",
+  "download-01": "Download01",
+  "upload-01": "Upload01",
+  "log-out-04": "LogOut04",
+  "log-in-04": "LogIn04",
+  "refresh-cw-01": "RefreshCw01",
+
+  // Content (10)
+  "filter-lines": "FilterLines",
+  "filter-funnel-01": "FilterFunnel01",
+  "stars-03": "Stars03",
   "placeholder": "Placeholder",
+  "eye": "Eye",
+  "eye-off": "EyeOff",
+  "settings-01": "Settings01",
+  "settings-02": "Settings02",
+  "bell-01": "Bell01",
+  "calendar": "Calendar",
+  "clock": "Clock",
+  "mail-01": "Mail01",
+  "link-01": "Link01",
+  "image-01": "Image01",
+  "file-06": "File06",
+
+  // User & Social (5)
+  "user-01": "User01",
+  "user-circle": "UserCircle",
+  "users-01": "Users01",
+  "heart": "Heart",
+  "star-01": "Star01",
+  "share-07": "Share07",
+  "message-circle-02": "MessageCircle02",
+
+  // Status (4)
+  "alert-circle": "AlertCircle",
+  "alert-triangle": "AlertTriangle",
+  "info-circle": "InfoCircle",
+  "help-circle": "HelpCircle",
+  "x-circle": "XCircle",
+  "loader-01": "Loader01",
+  "minus": "Minus",
 }
 ```
 
 **Import pattern**: `import { ArrowLeft } from "@untitledui/icons"`
+
+**File icon import** (v2.12.0): Icons prefixed with `file-type-` use a separate package:
+`import { FileTypePdf } from "@untitledui/file-icons"`
+
+```
+// File-type icon prefix mapping
+// Figma name: "file-type-pdf" → import from "@untitledui/file-icons"
+// Figma name: "arrow-left"    → import from "@untitledui/icons" (default)
+function resolveUntitledUIImportPath(figmaName):
+  IF figmaName.startsWith("file-type-"):
+    RETURN "@untitledui/file-icons"
+  ELSE:
+    RETURN "@untitledui/icons"
+```
 
 ### Code Generation Examples
 
@@ -989,6 +1226,195 @@ SHADCN_ADAPTER["dropdown-menu"] = {
 }
 ```
 
+#### toggle (v2.12.0)
+
+```
+SHADCN_ADAPTER.toggle = {
+  propName: "variant",
+  variants: {
+    primary: "default", secondary: "outline", tertiary: "outline",
+    destructive: "default", link: "default", ghost: "outline",
+    success: "default", warning: "default", info: "default", error: "default",
+  },
+  sizeProp: "size",
+  sizes: { xs: "sm", sm: "sm", md: "default", lg: "lg", xl: "lg", "2xl": "lg" },
+  iconProps: { leading: null, trailing: null },
+  stateProps: {
+    default: null, hover: null, focused: null,
+    disabled: "disabled", loading: null,
+    active: "data-state='on'", selected: "data-state='on'",
+    error: null, readonly: null, indeterminate: null,
+  },
+  subcomponentHierarchy: null, // Toggle is flat
+}
+```
+
+#### radio (v2.12.0)
+
+```
+SHADCN_ADAPTER.radio = {
+  propName: "className",
+  variants: { primary: "", secondary: "", tertiary: "", destructive: "", link: "", ghost: "", success: "", warning: "", info: "", error: "" },
+  sizeProp: "className",
+  sizes: { xs: "h-3 w-3", sm: "h-4 w-4", md: "h-4 w-4", lg: "h-5 w-5", xl: "h-6 w-6", "2xl": "h-7 w-7" },
+  iconProps: { leading: null, trailing: null },
+  stateProps: {
+    default: null, hover: null, focused: null,
+    disabled: "disabled", loading: null,
+    active: "checked", selected: "checked",
+    error: "aria-invalid='true'", readonly: "disabled", indeterminate: null,
+  },
+  subcomponentHierarchy: {
+    wrapper: "RadioGroup",
+    children: [
+      { component: "RadioGroupItem", repeat: "options", props: { value: "{option.value}" } }
+    ],
+    imports: ["RadioGroup", "RadioGroupItem"],
+    importPath: "@/components/ui/radio-group",
+  },
+}
+```
+
+#### textarea (v2.12.0)
+
+```
+SHADCN_ADAPTER.textarea = {
+  propName: "className",
+  variants: { primary: "", secondary: "", tertiary: "", destructive: "", link: "", ghost: "", success: "", warning: "", info: "", error: "" },
+  sizeProp: "className",
+  sizes: { xs: "h-16 text-xs", sm: "h-20 text-sm", md: "h-24 text-sm", lg: "h-32 text-base", xl: "h-40 text-base", "2xl": "h-48 text-lg" },
+  iconProps: { leading: null, trailing: null },
+  stateProps: {
+    default: null, hover: null, focused: null,
+    disabled: "disabled", loading: null,
+    active: null, selected: null,
+    error: "aria-invalid='true'", readonly: "readOnly", indeterminate: null,
+  },
+  subcomponentHierarchy: null, // Textarea is flat
+}
+```
+
+#### slider (v2.12.0)
+
+```
+SHADCN_ADAPTER.slider = {
+  propName: "className",
+  variants: { primary: "", secondary: "", tertiary: "", destructive: "", link: "", ghost: "", success: "", warning: "", info: "", error: "" },
+  sizeProp: "className",
+  sizes: { xs: "h-1", sm: "h-1.5", md: "h-2", lg: "h-2.5", xl: "h-3", "2xl": "h-4" },
+  iconProps: { leading: null, trailing: null },
+  stateProps: {
+    default: null, hover: null, focused: null,
+    disabled: "disabled", loading: null,
+    active: null, selected: null,
+    error: "aria-invalid='true'", readonly: "disabled", indeterminate: null,
+  },
+  subcomponentHierarchy: null, // Slider is flat
+}
+```
+
+#### progress (v2.12.0)
+
+```
+SHADCN_ADAPTER.progress = {
+  propName: "className",
+  variants: {
+    primary: "", secondary: "", tertiary: "",
+    destructive: "bg-red-100 [&>div]:bg-red-600",
+    link: "", ghost: "",
+    success: "bg-green-100 [&>div]:bg-green-600",
+    warning: "bg-yellow-100 [&>div]:bg-yellow-600",
+    info: "bg-blue-100 [&>div]:bg-blue-600",
+    error: "bg-red-100 [&>div]:bg-red-600",
+  },
+  sizeProp: "className",
+  sizes: { xs: "h-1", sm: "h-1.5", md: "h-2", lg: "h-3", xl: "h-4", "2xl": "h-5" },
+  iconProps: { leading: null, trailing: null },
+  stateProps: {
+    default: null, hover: null, focused: null,
+    disabled: null, loading: null,
+    active: null, selected: null,
+    error: null, readonly: null, indeterminate: "data-state='indeterminate'",
+  },
+  subcomponentHierarchy: null, // Progress is flat
+}
+```
+
+#### alert (v2.12.0)
+
+```
+SHADCN_ADAPTER.alert = {
+  propName: "variant",
+  variants: {
+    primary: "default", secondary: "default", tertiary: "default",
+    destructive: "destructive", link: "default", ghost: "default",
+    success: "default", warning: "default", info: "default", error: "destructive",
+  },
+  sizeProp: "className",
+  sizes: { xs: "p-2 text-xs", sm: "p-3 text-sm", md: "p-4 text-sm", lg: "p-5 text-base", xl: "p-6 text-base", "2xl": "p-8 text-lg" },
+  iconProps: { leading: "inline-icon", trailing: null },
+  stateProps: { default: null, hover: null, focused: null, disabled: null, loading: null, active: null, selected: null, error: null, readonly: null, indeterminate: null },
+  subcomponentHierarchy: {
+    wrapper: "Alert",
+    children: [
+      { component: "AlertTitle", content: "{title}" },
+      { component: "AlertDescription", content: "{children}" }
+    ],
+    imports: ["Alert", "AlertDescription", "AlertTitle"],
+    importPath: "@/components/ui/alert",
+  },
+}
+```
+
+#### sidebar (v2.12.0)
+
+```
+SHADCN_ADAPTER.sidebar = {
+  propName: "side",
+  variants: { primary: "left", secondary: "left", tertiary: "left", destructive: "left", link: "left", ghost: "left", success: "left", warning: "left", info: "left", error: "left" },
+  sizeProp: "className",
+  sizes: { xs: "w-48", sm: "w-56", md: "w-64", lg: "w-72", xl: "w-80", "2xl": "w-96" },
+  iconProps: { leading: null, trailing: null },
+  stateProps: {
+    default: null, hover: null, focused: null,
+    disabled: null, loading: null,
+    active: "data-state='open'", selected: null,
+    error: null, readonly: null, indeterminate: null,
+  },
+  subcomponentHierarchy: {
+    wrapper: "SidebarProvider",
+    children: [
+      { component: "Sidebar", children: [
+        { component: "SidebarHeader", content: "{header}", optional: true },
+        { component: "SidebarContent", content: "{children}" },
+        { component: "SidebarFooter", content: "{footer}", optional: true }
+      ]}
+    ],
+    imports: ["Sidebar", "SidebarContent", "SidebarFooter", "SidebarHeader", "SidebarProvider"],
+    importPath: "@/components/ui/sidebar",
+  },
+}
+```
+
+#### file-upload (v2.12.0)
+
+```
+SHADCN_ADAPTER["file-upload"] = {
+  propName: "className",
+  variants: { primary: "", secondary: "", tertiary: "", destructive: "", link: "", ghost: "", success: "", warning: "", info: "", error: "" },
+  sizeProp: "className",
+  sizes: { xs: "h-24", sm: "h-32", md: "h-40", lg: "h-48", xl: "h-56", "2xl": "h-64" },
+  iconProps: { leading: "inline-icon", trailing: null },
+  stateProps: {
+    default: null, hover: null, focused: null,
+    disabled: "disabled", loading: null,
+    active: "data-state='active'", selected: null,
+    error: "aria-invalid='true'", readonly: "disabled", indeterminate: null,
+  },
+  subcomponentHierarchy: null, // File upload is flat (custom component)
+}
+```
+
 ### Icon Map (Curated Fast-Path)
 
 10-entry curated mapping of common Figma icon names to Lucide React import names.
@@ -1219,7 +1645,8 @@ function generateTailwindComponent(component, cssVersion):
   // Step 6: Tailwind version-aware class syntax
   IF cssVersion === 4:
     // Tailwind v4: @theme variables, oklch colors, container queries
-    classes = applyV4Syntax(classes)
+    // tokenMap comes from parsed untitled-ui-token-map.yaml (or equivalent for other libraries)
+    classes = applyV4Syntax(classes, tokenMap)
   // v3 classes are default — no transformation needed
 
   RETURN {
@@ -1253,6 +1680,15 @@ TAILWIND_TAG_MAP = {
   "checkbox": "input",        // type="checkbox" added via props
   "tooltip": "div",
   "dropdown-menu": "div",
+  // Extended types (v2.12.0)
+  "toggle": "button",         // role="switch" added via props
+  "radio": "input",           // type="radio" added via props
+  "textarea": "textarea",
+  "slider": "input",          // type="range" added via props
+  "progress": "progress",
+  "alert": "div",             // role="alert" added via props
+  "sidebar": "aside",
+  "file-upload": "div",
 }
 ```
 
@@ -1342,6 +1778,21 @@ TAILWIND_BASE_CLASSES = {
               "text-xs", "text-white", "shadow-md"],
   "dropdown-menu": ["absolute", "z-50", "min-w-[8rem]", "rounded-md", "border",
                     "bg-white", "p-1", "shadow-md"],
+  // Extended types (v2.12.0)
+  "toggle": ["inline-flex", "items-center", "justify-center", "rounded-md",
+             "font-medium", "transition-colors"],
+  "radio": ["h-4", "w-4", "rounded-full", "border", "border-gray-300"],
+  "textarea": ["flex", "w-full", "rounded-md", "border", "border-gray-300",
+               "bg-white", "shadow-sm", "resize-vertical", "min-h-[80px]"],
+  "slider": ["w-full", "h-2", "rounded-full", "bg-gray-200", "appearance-none",
+             "cursor-pointer"],
+  "progress": ["w-full", "h-2", "rounded-full", "bg-gray-200", "overflow-hidden"],
+  "alert": ["relative", "w-full", "rounded-lg", "border", "p-4",
+            "flex", "items-start", "gap-3"],
+  "sidebar": ["flex", "flex-col", "h-full", "border-r", "border-gray-200", "bg-white"],
+  "file-upload": ["flex", "flex-col", "items-center", "justify-center", "rounded-lg",
+                  "border-2", "border-dashed", "border-gray-300", "bg-gray-50",
+                  "p-6", "text-center", "cursor-pointer", "hover:border-gray-400"],
 }
 ```
 
@@ -1372,26 +1823,110 @@ function generateInlineSVG(figmaIconName):
 
 ### Tailwind v4 Syntax Adaptation
 
-When Layer 1 detects `cssVersion === 4`, adapt class output:
+When Layer 1 detects `cssVersion === 4`, adapt class output using the token map for semantic replacements.
 
 ```
 // Pseudocode — NOT implementation code
-function applyV4Syntax(classes):
-  // Tailwind v4 changes:
-  // 1. Colors use oklch() by default — semantic tokens from @theme
-  // 2. Container queries supported natively
-  // 3. @theme replaces tailwind.config.js values
-  //
-  // For generated code, the main impact is:
-  // - Prefer semantic color names from the project's @theme if available
-  // - Use css variables: bg-[var(--color-primary)] instead of bg-blue-600
-  //
-  // v3 utility classes still work in v4 (backward compatible),
-  // so no transformation is strictly required for fallback output.
-  // The main benefit is when a design-system-profile.yaml provides
-  // semantic token mappings that can replace hardcoded color values.
+// Expanded signature: applyV4Syntax(classes, tokenMap, opts?)
+//   classes:  string[] — array of Tailwind utility classes
+//   tokenMap: object   — parsed token map YAML (semantic_mapping section)
+//                        from untitled-ui-token-map.yaml or equivalent
+//   opts:     object?  — { strategy?: "conservative" | "aggressive" }
+//                        conservative (default): keep original if no mapping
+//                        aggressive: warn on unmapped raw colors
+//
+// Returns: string[] — transformed classes
 
-  RETURN classes  // Pass-through for now — v3 classes are valid in v4
+function applyV4Syntax(classes, tokenMap, opts = { strategy: "conservative" }):
+  // Step 1: Build reverse lookup from token map
+  // Maps raw Tailwind color utilities → semantic equivalents
+  // e.g., "text-purple-600" → "text-fg-brand-primary"
+  //        "bg-white"       → "bg-bg-primary"
+  reverseLookup = buildReverseLookup(tokenMap)
+
+  result = []
+  FOR cls IN classes:
+    // Step 2: Handle modifier prefixes (hover:, sm:, dark:, focus:, etc.)
+    // Split on last colon to separate modifier chain from base utility
+    // e.g., "hover:sm:text-gray-900" → prefix="hover:sm:", base="text-gray-900"
+    IF cls contains ":":
+      lastColon = cls.lastIndexOf(":")
+      prefix = cls.slice(0, lastColon + 1)
+      base = cls.slice(lastColon + 1)
+    ELSE:
+      prefix = ""
+      base = cls
+
+    // Step 3: Check if base utility has a semantic replacement
+    IF reverseLookup.has(base):
+      // Replace raw color with semantic token class
+      result.push(prefix + reverseLookup.get(base))
+    ELSE:
+      // Step 4: Non-color utilities pass through unchanged
+      // (spacing, layout, typography, etc. are version-agnostic)
+      result.push(cls)
+
+      // Step 4b: In aggressive mode, warn on unmapped raw color patterns
+      IF opts.strategy === "aggressive" AND isRawColorUtility(base):
+        log("WARNING: unmapped raw color '{base}' — consider adding to token map")
+
+  RETURN result
+
+
+// Build reverse lookup: raw Tailwind utility → semantic class
+// Input: tokenMap with semantic_mapping (intent → semantic class)
+// Output: Map<rawUtility, semanticClass>
+function buildReverseLookup(tokenMap):
+  lookup = new Map()
+  IF NOT tokenMap?.semantic_mapping:
+    RETURN lookup
+
+  // Known raw Tailwind equivalents for common UntitledUI CSS variable values
+  // This maps the raw color that a CSS variable resolves to back to the semantic class
+  RAW_COLOR_MAP = {
+    // Text/foreground
+    "text-gray-900":    "text-fg-primary",        // --fg-primary: #101828
+    "text-gray-700":    "text-fg-secondary",       // --fg-secondary: #344054
+    "text-gray-600":    "text-fg-tertiary",        // --fg-tertiary: #475467
+    "text-gray-500":    "text-fg-quaternary",      // --fg-quaternary: #667085
+    "text-purple-600":  "text-fg-brand-primary",   // --fg-brand-primary: #7F56D9
+    "text-purple-700":  "text-fg-brand-secondary", // --fg-brand-secondary: #6941c6
+    "text-red-600":     "text-fg-error-primary",   // --fg-error-primary: #D92D20
+    "text-green-600":   "text-fg-success-primary", // --fg-success-primary: #039855
+    "text-yellow-700":  "text-fg-warning-primary", // --fg-warning-primary: #DC6803
+    "text-white":       "text-fg-white",
+    // Background
+    "bg-white":         "bg-bg-primary",           // --bg-primary: #ffffff
+    "bg-gray-50":       "bg-bg-secondary",         // --bg-secondary: #f9fafb
+    "bg-gray-100":      "bg-bg-tertiary",          // --bg-tertiary: #f2f4f7
+    "bg-gray-200":      "bg-bg-quaternary",        // --bg-quaternary: #e4e7ec
+    "bg-purple-600":    "bg-bg-brand-solid",       // --bg-brand-solid: #7F56D9
+    "bg-purple-50":     "bg-bg-brand-primary",     // --bg-brand-primary: #f4ebff
+    "bg-red-50":        "bg-bg-error-primary",     // --bg-error-primary: #FEF3F2
+    "bg-green-50":      "bg-bg-success-primary",   // --bg-success-primary: #ECFDF3
+    "bg-yellow-50":     "bg-bg-warning-primary",   // --bg-warning-primary: #FFFAEB
+    // Border
+    "border-gray-300":  "border-border-primary",   // --border-primary: #d0d5dd
+    "border-gray-200":  "border-border-secondary", // --border-secondary: #e4e7ec
+    "border-purple-300":"border-border-brand",     // --border-brand: #d6bbfb
+    "border-red-300":   "border-border-error",     // --border-error: #FDA29B
+    // Ring
+    "ring-purple-300":  "ring-border-brand",
+    "ring-red-300":     "ring-border-error",
+  }
+
+  FOR [raw, semantic] IN RAW_COLOR_MAP:
+    lookup.set(raw, semantic)
+
+  RETURN lookup
+
+
+// Detect raw Tailwind color utilities (for aggressive mode warnings)
+function isRawColorUtility(cls):
+  // Matches: text-{color}-{shade}, bg-{color}-{shade}, border-{color}-{shade}
+  // Does NOT match semantic tokens (text-fg-*, bg-bg-*, border-border-*)
+  RETURN cls matches /^(text|bg|border|ring)-(red|blue|green|yellow|purple|gray|slate|zinc|neutral|stone|orange|amber|lime|emerald|teal|cyan|sky|indigo|violet|fuchsia|pink|rose)-\d+$/
+    AND NOT cls matches /^(text-fg-|bg-bg-|border-border-|ring-border-)/
 ```
 
 ---

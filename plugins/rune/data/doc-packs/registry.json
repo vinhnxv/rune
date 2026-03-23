@@ -60,7 +60,8 @@
       "last_updated": "2026-03-11",
       "description": "Component conventions, token system, variant patterns",
       "detectors": [
-        {"file": ".mcp.json", "pattern": "untitledui"}
+        {"file": ".mcp.json", "pattern": "untitledui"},
+        {"file": "package.json", "pattern": "\"@untitledui/"}
       ],
       "domains": ["frontend"]
     }

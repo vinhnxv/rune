@@ -252,3 +252,63 @@ foreground_pairs:
   "bg-bg-overlay":           "text-fg-white"
   "bg-bg-disabled":          "text-fg-disabled"
   "bg-bg-active":            "text-fg-brand-primary"
+
+# ─────────────────────────────────────────────
+# Spacing Tokens: Figma spacing → Tailwind v4 arbitrary values
+# ─────────────────────────────────────────────
+#
+# UntitledUI uses a spacing scale based on 4px increments.
+# Tailwind v4 maps these via --spacing-* custom properties.
+# Arbitrary values used where UntitledUI scale diverges from Tailwind defaults.
+
+spacing_tokens:
+  "spacing/none":    "0"           # 0px
+  "spacing/xxs":     "0.5"         # 2px  → gap-0.5, p-0.5
+  "spacing/xs":      "1"           # 4px  → gap-1, p-1
+  "spacing/sm":      "1.5"         # 6px  → gap-1.5, p-1.5
+  "spacing/md":      "2"           # 8px  → gap-2, p-2
+  "spacing/lg":      "3"           # 12px → gap-3, p-3
+  "spacing/xl":      "4"           # 16px → gap-4, p-4
+  "spacing/2xl":     "5"           # 20px → gap-5, p-5
+  "spacing/3xl":     "6"           # 24px → gap-6, p-6
+  "spacing/4xl":     "8"           # 32px → gap-8, p-8
+  "spacing/5xl":     "10"          # 40px → gap-10, p-10
+  "spacing/6xl":     "12"          # 48px → gap-12, p-12
+  "spacing/7xl":     "16"          # 64px → gap-16, p-16
+  "spacing/8xl":     "20"          # 80px → gap-20, p-20
+  "spacing/section": "24"          # 96px → section-level spacing
+
+# ─────────────────────────────────────────────
+# Radius Tokens: Figma corner radius → Tailwind v4 utilities
+# ─────────────────────────────────────────────
+#
+# UntitledUI radius scale. Maps to Tailwind border-radius utilities.
+# Arbitrary values [Npx] used where scale diverges from Tailwind defaults.
+
+radius_tokens:
+  "radius/none":     "rounded-none"     # 0px
+  "radius/xxs":      "rounded-[2px]"    # 2px  — UntitledUI-specific
+  "radius/xs":       "rounded"          # 4px
+  "radius/sm":       "rounded-md"       # 6px
+  "radius/md":       "rounded-lg"       # 8px
+  "radius/lg":       "rounded-xl"       # 12px
+  "radius/xl":       "rounded-2xl"      # 16px
+  "radius/2xl":      "rounded-[20px]"   # 20px — UntitledUI-specific
+  "radius/3xl":      "rounded-3xl"      # 24px
+  "radius/full":     "rounded-full"     # 9999px — pill/circle
+
+# ─────────────────────────────────────────────
+# Shadow Tokens: Figma effects → Tailwind v4 shadow utilities
+# ─────────────────────────────────────────────
+#
+# UntitledUI shadow scale. Uses dual-layer shadows at each level.
+# Maps to Tailwind shadow utilities via --shadow-* custom properties.
+
+shadow_tokens:
+  "shadow/xs":       "shadow-xs"        # 0 1px 2px rgba(16,24,40,0.05)
+  "shadow/sm":       "shadow-sm"        # 0 1px 3px + 0 1px 2px
+  "shadow/md":       "shadow-md"        # 0 4px 8px -2px + 0 2px 4px -2px
+  "shadow/lg":       "shadow-lg"        # 0 12px 16px -4px + 0 4px 6px -2px
+  "shadow/xl":       "shadow-xl"        # 0 20px 24px -4px + 0 8px 8px -4px
+  "shadow/2xl":      "shadow-2xl"       # 0 24px 48px -12px
+  "shadow/3xl":      "shadow-[0_32px_64px_-12px_rgba(16,24,40,0.14)]"  # UntitledUI extended

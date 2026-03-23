@@ -64,7 +64,21 @@ ComponentType =
   | "checkbox"
   | "tooltip"
   | "dropdown-menu"
+
+  // Extended types (v2.12.0)
+  | "toggle"
+  | "radio"
+  | "textarea"
+  | "slider"
+  | "progress"
+  | "alert"
+  | "sidebar"
+  | "file-upload"
 ```
+
+**Alias**: `"modal"` is NOT a separate type — it is an alias for `"dialog"`.
+During IR extraction, `classifyComponentType()` normalizes `"modal"` → `"dialog"`.
+This prevents adapter duplication while preserving Figma naming conventions.
 
 **Fallback rule**: When an adapter does not implement a `ComponentType`, the code generator
 MUST fall through to the Tailwind fallback adapter and emit a warning comment:
@@ -236,6 +250,10 @@ function classifyComponentType(tagName, className):
     "select": "select",  "Select": "select",
     "table": "table",    "Table": "table",
     "dialog": "dialog",  "Dialog": "dialog",
+    "textarea": "textarea", "Textarea": "textarea",
+    "progress": "progress", "Progress": "progress",
+    // Alias: "modal" normalizes to "dialog" (v2.12.0)
+    "modal": "dialog",   "Modal": "dialog",
   }
   IF TAG_MAP.has(tagName): RETURN TAG_MAP[tagName]
 
@@ -251,11 +269,28 @@ function classifyComponentType(tagName, className):
     "checkbox": /checkbox|type="checkbox"/,
     "tooltip": /tooltip|role="tooltip"/,
     "dropdown-menu": /dropdown|role="menu"/,
+    // Extended types (v2.12.0)
+    "toggle": /toggle|role="switch"|switch/,
+    "radio": /radio|role="radio"|type="radio"/,
+    "textarea": /textarea|multiline/,
+    "slider": /slider|range|role="slider"/,
+    "progress": /progress|role="progressbar"|meter/,
+    "alert": /alert(?!.*fixed)|role="alert"|banner/,
+    "sidebar": /sidebar|aside|drawer|nav.*w-\d{2,3}/,
+    "file-upload": /file-upload|dropzone|type="file"|drag.*drop/,
   }
   FOR type, pattern IN CLASS_PATTERNS:
     IF pattern.test(className): RETURN type
 
   RETURN null  // Not a recognized component
+
+// Exclusion guard: alert vs toast overlap (v2.12.0)
+// Both alert and toast can match "alert" in class names.
+// Disambiguation rule: if BOTH match, check for positional CSS.
+// Fixed/absolute positioning → toast (transient notification).
+// Static/relative positioning → alert (inline feedback).
+// The "alert" pattern uses negative lookahead (?!.*fixed) to exclude
+// fixed-position elements, which are classified as "toast" instead.
 ```
 
 ### Intent Extraction from Figma Variants

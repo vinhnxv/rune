@@ -3,6 +3,12 @@
 Adapted from the official UntitledUI AGENT.md. These conventions are injected into
 Rune worker prompts when UntitledUI is the active UI builder.
 
+> **Quick Reference** (most critical rules):
+> React 19.1 + Tailwind v4.1 + React Aria. Semantic colors only (`text-primary`, NOT `text-gray-900`).
+> All `react-aria-components` imports MUST use `Aria*` prefix (`Button as AriaButton`).
+> Kebab-case file names. Variants via `sortCx()`. Icons need `data-icon` attr in JSX.
+> 5-tier dirs: base/ application/ foundations/ marketing/ shared-assets/.
+
 ## Architecture Foundation
 
 - **React 19.1.1** with TypeScript
@@ -10,83 +16,59 @@ Rune worker prompts when UntitledUI is the active UI builder.
 - **React Aria Components** as the accessibility and behavior foundation
 - All components follow the **compound component pattern** (e.g., `Select.Item`, `Select.ComboBox`)
 
-## Development Commands
+## Styling Rules
 
-```bash
-npm run dev        # Start Vite dev server (http://localhost:5173)
-npm run build      # Production build
-```
-
-## Authentication & Access Tiers
-
-UntitledUI MCP supports 3 authentication modes. The access tier determines which
-components and templates are available to agents.
-
-### `UNTITLEDUI_ACCESS_TOKEN` Environment Variable
-
-This is the UntitledUI PRO API key. When set, agents gain access to all PRO
-components, page templates, and shared assets. The value is the same API key
-used in `Authorization: Bearer <key>` headers and the per-call `key` parameter.
-
-```bash
-# Set in shell profile or .env
-export UNTITLEDUI_ACCESS_TOKEN="<your-token-here>"
-```
-
-**MCP server setup**:
-```bash
-# OAuth (recommended — auto-handles login flow, no env var needed):
-claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp
-
-# API key (explicit — passes UNTITLEDUI_ACCESS_TOKEN as Bearer token):
-claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp \
-  --header "Authorization: Bearer $UNTITLEDUI_ACCESS_TOKEN"
-```
-
-### Access Tier Detection
-
-Agents determine the access tier at runtime based on MCP tool response:
-
-| Tier | Detection | Available |
-|------|-----------|-----------|
-| **PRO** | `UNTITLEDUI_ACCESS_TOKEN` set OR OAuth authenticated | All 6 tools, all categories, page templates |
-| **Free** | MCP server configured, no auth | `search_components`, `list_components`, `get_component` (base only), `get_component_bundle` (free only) |
-| **None** | No `untitledui` MCP server | Fall back to Tailwind + conventions from this file |
-
-### Agent Behavior by Tier
+### Semantic Colors ONLY — Never Raw Tailwind
 
 ```
-PRO tier:
-  1. search_components("query") → match found
-  2. get_component("Name") → full source code
-  3. get_page_templates() → browse page layouts (PRO exclusive)
-  4. Customize with project conventions
+text-primary           # CORRECT — semantic
+text-gray-900          # WRONG — raw Tailwind
 
-Free tier:
-  1. search_components("query") → match found
-  2. get_component("Name") → success (base) OR auth error (PRO-only)
-  3. Auth error → build from scratch with Tailwind + conventions below
-  4. NEVER retry with fabricated keys
+bg-brand-solid         # CORRECT — semantic
+bg-blue-700            # WRONG — raw Tailwind
 
-None tier (no MCP):
-  1. Skip MCP tool calls entirely
-  2. Build components from scratch using Tailwind + conventions below
-  3. Follow import patterns, semantic colors, and kebab-case naming
+border-secondary       # CORRECT — semantic
+border-gray-200        # WRONG — raw Tailwind
+
+fg-brand-primary       # CORRECT — semantic foreground
+text-purple-600        # WRONG — raw Tailwind
 ```
 
-### Per-Call `key` Parameter
+### Key Semantic Color Classes
 
-All UntitledUI MCP tools accept an optional `key` parameter as an alternative
-to OAuth. When `UNTITLEDUI_ACCESS_TOKEN` is available, agents MAY pass it:
+**Text**: `text-primary`, `text-secondary`, `text-tertiary`, `text-quaternary`, `text-disabled`, `text-placeholder`, `text-brand-primary`, `text-brand-secondary`, `text-error-primary`, `text-warning-primary`, `text-success-primary`
+
+**Background**: `bg-primary`, `bg-secondary`, `bg-tertiary`, `bg-active`, `bg-disabled`, `bg-overlay`, `bg-brand-primary`, `bg-brand-solid`, `bg-brand-section`, `bg-error-primary`, `bg-error-solid`, `bg-warning-primary`, `bg-success-primary`
+
+**Border**: `border-primary`, `border-secondary`, `border-tertiary`, `border-disabled`, `border-brand`, `border-error`
+
+**Foreground**: `fg-primary`, `fg-secondary`, `fg-tertiary`, `fg-quaternary`, `fg-disabled`, `fg-brand-primary`, `fg-error-primary`, `fg-success-primary`
+
+### Style Organization with `sortCx`
 
 ```typescript
-// Agent tool call with explicit key
-search_components({ query: "sidebar navigation", key: process.env.UNTITLEDUI_ACCESS_TOKEN })
-get_component({ name: "SidebarNavigation", key: process.env.UNTITLEDUI_ACCESS_TOKEN })
+export const styles = sortCx({
+  common: {
+    root: "base-classes-here",
+    icon: "icon-classes-here",
+  },
+  sizes: {
+    sm: { root: "small-size-classes" },
+    md: { root: "medium-size-classes" },
+  },
+  colors: {
+    primary: { root: "primary-color-classes" },
+    secondary: { root: "secondary-color-classes" },
+  },
+});
 ```
 
-**Important**: Agents MUST NOT hardcode, fabricate, or guess API keys. If no token
-is available and a PRO component is needed, fall back to conventions-guided Tailwind.
+### CSS Transitions
+
+Default transition for hover states and small UI changes:
+```typescript
+className="transition duration-100 ease-linear"
+```
 
 ## Import Conventions
 
@@ -163,60 +145,6 @@ src/
 ├── styles/                 # Global styles and theme
 ├── types/                  # TypeScript type definitions
 └── utils/                  # Utilities (cx, sortCx, isReactComponent)
-```
-
-## Styling Rules
-
-### Semantic Colors ONLY — Never Raw Tailwind
-
-```
-text-primary           # CORRECT — semantic
-text-gray-900          # WRONG — raw Tailwind
-
-bg-brand-solid         # CORRECT — semantic
-bg-blue-700            # WRONG — raw Tailwind
-
-border-secondary       # CORRECT — semantic
-border-gray-200        # WRONG — raw Tailwind
-
-fg-brand-primary       # CORRECT — semantic foreground
-text-purple-600        # WRONG — raw Tailwind
-```
-
-### Key Semantic Color Classes
-
-**Text**: `text-primary`, `text-secondary`, `text-tertiary`, `text-quaternary`, `text-disabled`, `text-placeholder`, `text-brand-primary`, `text-brand-secondary`, `text-error-primary`, `text-warning-primary`, `text-success-primary`
-
-**Background**: `bg-primary`, `bg-secondary`, `bg-tertiary`, `bg-active`, `bg-disabled`, `bg-overlay`, `bg-brand-primary`, `bg-brand-solid`, `bg-brand-section`, `bg-error-primary`, `bg-error-solid`, `bg-warning-primary`, `bg-success-primary`
-
-**Border**: `border-primary`, `border-secondary`, `border-tertiary`, `border-disabled`, `border-brand`, `border-error`
-
-**Foreground**: `fg-primary`, `fg-secondary`, `fg-tertiary`, `fg-quaternary`, `fg-disabled`, `fg-brand-primary`, `fg-error-primary`, `fg-success-primary`
-
-### Style Organization with `sortCx`
-
-```typescript
-export const styles = sortCx({
-  common: {
-    root: "base-classes-here",
-    icon: "icon-classes-here",
-  },
-  sizes: {
-    sm: { root: "small-size-classes" },
-    md: { root: "medium-size-classes" },
-  },
-  colors: {
-    primary: { root: "primary-color-classes" },
-    secondary: { root: "secondary-color-classes" },
-  },
-});
-```
-
-### CSS Transitions
-
-Default transition for hover states and small UI changes:
-```typescript
-className="transition duration-100 ease-linear"
 ```
 
 ## Icon Usage Rules
@@ -334,6 +262,13 @@ Modify `src/styles/theme.css` → `--color-brand-*` variables (scale from 25 to 
 --color-brand-600: rgb(127 86 217);    /* Primary interactive */
 ```
 
+## Development Commands
+
+```bash
+npm run dev        # Start Vite dev server (http://localhost:5173)
+npm run build      # Production build
+```
+
 ## Validation Checklist
 
 Before completing any UntitledUI component implementation:
@@ -346,3 +281,74 @@ Before completing any UntitledUI component implementation:
 - [ ] Components in correct directory (base/, application/, foundations/, marketing/)
 - [ ] Proper size variants (`sm`, `md`, `lg`) where applicable
 - [ ] State props used correctly (`isDisabled`, `isLoading`, `isInvalid`, `isRequired`)
+
+## Authentication & Access Tiers
+
+UntitledUI MCP supports 3 authentication modes. The access tier determines which
+components and templates are available to agents.
+
+### `UNTITLEDUI_ACCESS_TOKEN` Environment Variable
+
+This is the UntitledUI PRO API key. When set, agents gain access to all PRO
+components, page templates, and shared assets. The value is the same API key
+used in `Authorization: Bearer <key>` headers and the per-call `key` parameter.
+
+```bash
+# Set in shell profile or .env
+export UNTITLEDUI_ACCESS_TOKEN="<your-token-here>"
+```
+
+**MCP server setup**:
+```bash
+# OAuth (recommended — auto-handles login flow, no env var needed):
+claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp
+
+# API key (explicit — passes UNTITLEDUI_ACCESS_TOKEN as Bearer token):
+claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp \
+  --header "Authorization: Bearer $UNTITLEDUI_ACCESS_TOKEN"
+```
+
+### Access Tier Detection
+
+Agents determine the access tier at runtime based on MCP tool response:
+
+| Tier | Detection | Available |
+|------|-----------|-----------|
+| **PRO** | `UNTITLEDUI_ACCESS_TOKEN` set OR OAuth authenticated | All 6 tools, all categories, page templates |
+| **Free** | MCP server configured, no auth | `search_components`, `list_components`, `get_component` (base only), `get_component_bundle` (free only) |
+| **None** | No `untitledui` MCP server | Fall back to Tailwind + conventions from this file |
+
+### Agent Behavior by Tier
+
+```
+PRO tier:
+  1. search_components("query") → match found
+  2. get_component("Name") → full source code
+  3. get_page_templates() → browse page layouts (PRO exclusive)
+  4. Customize with project conventions
+
+Free tier:
+  1. search_components("query") → match found
+  2. get_component("Name") → success (base) OR auth error (PRO-only)
+  3. Auth error → build from scratch with Tailwind + conventions below
+  4. NEVER retry with fabricated keys
+
+None tier (no MCP):
+  1. Skip MCP tool calls entirely
+  2. Build components from scratch using Tailwind + conventions below
+  3. Follow import patterns, semantic colors, and kebab-case naming
+```
+
+### Per-Call `key` Parameter
+
+All UntitledUI MCP tools accept an optional `key` parameter as an alternative
+to OAuth. When `UNTITLEDUI_ACCESS_TOKEN` is available, agents MAY pass it:
+
+```typescript
+// Agent tool call with explicit key
+search_components({ query: "sidebar navigation", key: process.env.UNTITLEDUI_ACCESS_TOKEN })
+get_component({ name: "SidebarNavigation", key: process.env.UNTITLEDUI_ACCESS_TOKEN })
+```
+
+**Important**: Agents MUST NOT hardcode, fabricate, or guess API keys. If no token
+is available and a PRO component is needed, fall back to conventions-guided Tailwind.

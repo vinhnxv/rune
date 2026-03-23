@@ -115,6 +115,16 @@ if builderProfile.capabilities.templates AND NOT flags.skipTemplates AND builder
   catch:
     // Template check failed — not fatal
 
+## Consuming Page Template Matches
+
+When `enrichedVsm._page_template` is set (Step 5 output), downstream consumers should:
+1. Use the template as a page-level starting skeleton
+2. Fill component-level customizations per-region from the component matches
+3. Template provides layout structure; component matches provide widget-level detail
+4. If template score < 0.80, ignore _page_template and use per-component assembly
+
+PRO tier gating: _page_template is only populated when accessTier === "pro"
+
 // Step 6: Write enriched VSM (includes skipped regions metadata for observability)
 Bash("mkdir -p {workDir}/vsm")
 if (skippedRegions.length > 0) {

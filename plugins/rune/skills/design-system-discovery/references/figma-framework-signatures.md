@@ -51,6 +51,9 @@ FRAMEWORK_SIGNATURES["untitled_ui"] = {
     /^_[A-Z].*base$/,                   // Internal base components: "_Breadcrumb button base"
     /^(Metric item|Feature icon|Header section|Footer)/,
     /^(Input field|Textarea|Checkbox|Radio|Toggle|Dropdown)/,
+    /^(Sidebar navigation|Header navigation|Command menu|Slideout menu)$/,  // Application UI — unique compound names
+    /^(Featured icon|Badge group|Button group|Rating badge)$/,              // Unique to UntitledUI
+    /^(Metric item|Activity feed|Progress steps|Content divider)$/,        // Specific naming
   ],
 
   variant_patterns: [
@@ -60,6 +63,9 @@ FRAMEWORK_SIGNATURES["untitled_ui"] = {
     /Breakpoint=(Mobile|Desktop)/,
     /Color=(Primary|Gray|Error|Warning|Success)/,
     /Type=(Filled|Light|Outline)/,
+    /Destructive=(True|False)/,           // UntitledUI-specific boolean variant
+    /Dot=(True|False)/,                   // Badge-specific
+    /SupportingText=(True|False)/,        // Input-specific
   ],
 
   icon_patterns: [
@@ -74,6 +80,12 @@ FRAMEWORK_SIGNATURES["untitled_ui"] = {
     /^Shadows\/shadow-(xs|sm|md|lg|xl)/,
     /^Gradient\/(skeuemorphic|Linear)/,
     /^Colors\//,
+  ],
+
+  // Conclusive signals — weight 1.0, bypasses scoring when matched
+  conclusive_signals: [
+    /[_\s]UntitledUI\b/i,                // Library name containing "_UntitledUI" or "UntitledUI"
+    /\bUntitled\s*UI\b/i,                // Library name containing "Untitled UI" (with optional space)
   ],
 }
 ```

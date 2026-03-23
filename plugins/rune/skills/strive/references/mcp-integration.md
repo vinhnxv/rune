@@ -346,18 +346,20 @@ function buildBuilderWorkflowBlock(uiBuilder) {
   block += `ALWAYS prefer: VSM tokens > library components > project patterns > reference code.\n`
   block += `For regions with match_score < 0.60 in enriched-vsm.json: build from scratch using VSM.\n`
 
-  // Inject conventions content, truncated to 2000 chars at a line boundary
+  // Inject conventions content, truncated to 4000 chars at a line boundary
+  // Increased from 2000 to 4000 to avoid losing critical styling/import rules
+  // when conventions files grow (e.g., agent-conventions.md at ~8k chars).
   // SEC-002: Wrap in Truthbinding nonce block to prevent prompt injection from conventions files
   if (uiBuilder.conventions) {
     // S-2: conventions path already validated by discoverUIBuilder() — no .. / ~ / leading /
     const nonce = Math.random().toString(36).slice(2, 10)
     try {
       let conventions = Read(uiBuilder.conventions)
-      if (conventions.length > 2000) {
+      if (conventions.length > 4000) {
         // Truncate at last complete line boundary (same pattern as buildMCPContextBlock rule truncation)
-        const lastNewline = conventions.lastIndexOf('\n', 2000)
-        conventions = conventions.slice(0, lastNewline > 0 ? lastNewline : 2000)
-          + '\n[...truncated to fit 2000 char limit]'
+        const lastNewline = conventions.lastIndexOf('\n', 4000)
+        conventions = conventions.slice(0, lastNewline > 0 ? lastNewline : 4000)
+          + '\n[...truncated to fit 4000 char limit]'
       }
       block += `\n### Library Conventions\n`
       // SEC-002: Truthbinding nonce wrapper prevents agent from following instructions in conventions
