@@ -53,6 +53,20 @@ tmp/arc/{id}/
 **Duration**: {total}
 **Tiers Run**: [{list}]
 
+## Pre-Scan Checklist
+> Read from `tmp/arc/{id}/test-pre-scan.json` written during STEP 2
+
+| Check | Status | Detail |
+|-------|--------|--------|
+| Unit test files exist | {PASS/FAIL} | {N}/{M} valid |
+| Integration test files exist | {PASS/FAIL} | {N}/{M} valid |
+| E2E routes discovered | {PASS/FAIL} | {N} routes |
+| Test framework detected | {PASS/FAIL} | {frameworks per component} |
+| No missing test files | {PASS/FAIL} | {N} missing |
+
+**Frameworks**: {component → framework map from pre-scan}
+**Missing files**: {list of files discovered but not found on disk}
+
 ## Integrity Checks
 - Stale test detection (WF-1): {PASS/WARNING}
 - Shallow verification (WF-2): {N/A or routes with depth=0}
@@ -64,16 +78,46 @@ tmp/arc/{id}/
 - {file_path} — no test file found
 
 ## Batch Execution Summary
-| # | Type | Files | Duration | Status | Retries | Fixes |
-|---|------|-------|----------|--------|---------|-------|
-| 1 | unit | 18 | 45s | PASS | 0 | — |
-| 2 | unit | 12 | 38s | PASS | 0 | — |
-| 3 | integration | 6 | 2m 10s | PASS (after fix) | 1 | src/api/auth.ts |
-| 4 | e2e | 3 | 3m 20s | FAIL | 2 | — |
+> Each batch ran as a dedicated teammate agent in its own context turn.
+> Timing computed from `started_at`/`completed_at` in testing-plan.json.
+
+| # | Label | Component | Type | Files | Duration | Status | Retries | Fixed Files |
+|---|-------|-----------|------|-------|----------|--------|---------|-------------|
+| 0 | backend-unit-1/2 | backend | unit | 18 | 45s | PASS | 0 | — |
+| 1 | backend-unit-2/2 | backend | unit | 12 | 38s | PASS | 0 | — |
+| 2 | dashboard-unit | dashboard | unit | 15 | 22s | PASS | 0 | — |
+| 3 | backend-integration | backend | integration | 6 | 2m 10s | PASS (after fix) | 1 | src/api/auth.ts |
+| 4 | dashboard-e2e | dashboard | e2e | 3 | 3m 20s | FAIL | 2 | — |
 
 **Batches**: {passed}/{total} passed · {failed} failed · {skipped} skipped
 **Fix loop**: {fixes_applied} fix(es) applied · {batches_fixed} batch(es) recovered
 **Avg batch duration**: {avg_ms}ms
+
+## Timing Breakdown
+> Wall-clock times from testing-plan.json batch timestamps
+
+| Component | Tier | Batches | Total Duration | Avg per Batch |
+|-----------|------|---------|----------------|---------------|
+| backend | unit | 2 | 1m 23s | 41s |
+| dashboard | unit | 1 | 22s | 22s |
+| backend | integration | 1 | 2m 10s | 2m 10s |
+| dashboard | e2e | 1 | 3m 20s | 3m 20s |
+| **Total** | | **5** | **7m 15s** | **1m 27s** |
+
+**Phase wall-clock**: {total from phase started_at to completed_at}
+**Overhead** (setup, compaction, stop hook): {phase_wall_clock - sum_batch_durations}
+
+## Fix History
+> Aggregated from `tmp/arc/{id}/evidence/batch-{N}-evidence.json` fix_loop entries
+
+| Batch | Attempt | File Fixed | Description | Rerun Result |
+|-------|---------|------------|-------------|--------------|
+| 3 | 1 | src/api/auth.ts | Add expiry check before refresh | PASSED |
+| 4 | 1 | src/ui/form.tsx | Fix null check on submit | FAILED |
+| 4 | 2 | src/ui/form.tsx | Handle empty state edge case | FAILED (stagnated) |
+
+**Total fixes applied**: {N}
+**Recovery rate**: {batches_recovered}/{batches_with_fixes} ({pct}%)
 
 ## Flaky Tests
 - {test_name} — passed on retry (flaky: true, tier: {tier})

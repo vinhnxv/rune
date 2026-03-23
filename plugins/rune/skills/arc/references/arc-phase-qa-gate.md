@@ -325,6 +325,9 @@ completion markers and that strategy preceded execution.
 | TST-ART-01 | `tmp/arc/{id}/test-report.md` exists AND has >10 lines | `Glob` + `Read` line count |
 | TST-ART-02 | Test report contains SEAL marker `<!-- SEAL: test-report-complete -->` | `Read` + `includes('<!-- SEAL: test-report-complete -->')` |
 | TST-ART-03 | `tmp/arc/{id}/test-strategy.md` exists (strategy generated before execution) | `Glob("tmp/arc/{id}/test-strategy.md")` |
+| TST-ART-04 | `tmp/arc/{id}/testing-plan.json` exists with valid JSON and `batches[]` array | `Read` + `JSON.parse` + `plan.batches.length > 0` |
+| TST-ART-05 | `tmp/arc/{id}/test-pre-scan.json` exists with pre-scan checklist | `Glob` + `Read` + verify `checklist` array present. Missing = WARN (not blocking — pre-scan is new in v2.10.8) |
+| TST-ART-06 | Per-batch result files exist for all non-skipped batches | `testing-plan.json` → for each batch with `status != "skipped"`, verify `result_path` file exists |
 
 ### Quality Checks (weight: 30%)
 
@@ -340,6 +343,9 @@ completion markers and that strategy preceded execution.
 |----|-------|------------------|
 | TST-CMP-01 | All active tiers ran (at minimum unit tier for any code change) | Checkpoint `tiers_run` array is non-empty |
 | TST-CMP-02 | Checkpoint has `tiers_run`, `pass_rate`, and `coverage_pct` metrics | `Read` checkpoint JSON + field existence validation |
+| TST-CMP-03 | All batches in testing-plan.json have terminal status (`passed`/`failed`/`skipped`) | `Read` testing-plan.json → check no batch has `pending`/`running`/`fixing` status. Non-terminal batches = incomplete execution. |
+| TST-CMP-04 | Test report contains Timing Breakdown section | `Grep` for `## Timing Breakdown` in test-report.md. Missing = WARN (new in v2.10.8) |
+| TST-CMP-05 | Test report contains Fix History section when batches had retries | If any batch has `fix_attempts > 0` in testing-plan.json, `Grep` for `## Fix History` in test-report.md. Missing = WARN |
 
 ### Process Compliance Checks (AC-21)
 

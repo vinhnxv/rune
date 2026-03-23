@@ -28,6 +28,8 @@ See [batch-execution.md](batch-execution.md) for the functions that read and wri
     {
       "id": 0,
       "type": "unit",
+      "component": "backend",
+      "label": "backend-unit",
       "files": ["tests/foo.test.ts", "tests/bar.test.ts"],
       "prompt_context": "Run unit tests for changed auth module files.",
       "expected_behavior": "All unit assertions pass with no regressions.",
@@ -79,6 +81,8 @@ See [batch-execution.md](batch-execution.md) for the functions that read and wri
 |-------|------|----------|-------------|
 | `id` | integer | yes | Zero-based batch index. Unique within the plan. Immutable. |
 | `type` | string | yes | Test tier: `"unit"`, `"integration"`, `"e2e"`, `"contract"`, or `"extended"`. |
+| `component` | string | yes | Component directory this batch belongs to (e.g., `"backend"`, `"dashboard"`, `"root"`). Used for test runner selection and report grouping. Added in v2.10.8. |
+| `label` | string | yes | Human-readable batch label (e.g., `"backend-unit-1/3"`). Used in task subjects and reports. Added in v2.10.8. |
 | `files` | string[] | yes | Test file paths (or route paths for e2e) assigned to this batch. |
 | `prompt_context` | string | yes | Context injected into the runner agent prompt. Describes what to test. |
 | `expected_behavior` | string | yes | Human-readable description of the expected outcome. |

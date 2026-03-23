@@ -345,7 +345,7 @@ if (!strategyExists) {
 }
 
 // ═══════════════════════════════════════════════════════
-// STEP 2: TEST DISCOVERY
+// STEP 2: TEST DISCOVERY + PRE-SCAN VALIDATION
 // ═══════════════════════════════════════════════════════
 
 // See testing/references/test-discovery.md for full algorithm
@@ -355,6 +355,72 @@ const integrationTests = discoverIntegrationTests(diffFiles).filter(p => SAFE_PA
 const e2eRoutes = has_frontend ? discoverE2ERoutes(frontendFiles).filter(r => SAFE_PATH_PATTERN.test(r)) : []
 // For E2E sub-tiers (visual regression, accessibility, design token compliance),
 // see testing/references/visual-regression.md
+
+// ── PRE-SCAN VALIDATION CHECKLIST ──
+// Verify test files actually exist before creating batches.
+// Prevents wasted agent spawns on deleted/moved test files.
+const preScanResults = {
+  checklist: [],
+  valid_unit: [],
+  valid_integration: [],
+  valid_e2e: [],
+  missing_files: [],
+  framework_detected: {},
+  scan_timestamp: new Date().toISOString()
+}
+
+// 1. Verify each discovered test file exists on disk
+for (const testFile of unitTests) {
+  if (exists(testFile)) {
+    preScanResults.valid_unit.push(testFile)
+  } else {
+    preScanResults.missing_files.push({ file: testFile, tier: "unit" })
+    warn(`Pre-scan: unit test file missing: ${testFile}`)
+  }
+}
+for (const testFile of integrationTests) {
+  if (exists(testFile)) {
+    preScanResults.valid_integration.push(testFile)
+  } else {
+    preScanResults.missing_files.push({ file: testFile, tier: "integration" })
+  }
+}
+preScanResults.valid_e2e = e2eRoutes  // Routes are virtual — no file existence check
+
+// 2. Detect test frameworks per component (for correct runner selection)
+const componentDirs = [...new Set([
+  ...preScanResults.valid_unit.map(f => f.split("/")[0]),
+  ...preScanResults.valid_integration.map(f => f.split("/")[0])
+])]
+for (const dir of componentDirs) {
+  if (exists(`${dir}/pytest.ini`) || exists(`${dir}/pyproject.toml`)) {
+    preScanResults.framework_detected[dir] = "pytest"
+  } else if (exists(`${dir}/vitest.config.ts`) || exists(`${dir}/vitest.config.js`)) {
+    preScanResults.framework_detected[dir] = "vitest"
+  } else if (exists(`${dir}/jest.config.ts`) || exists(`${dir}/jest.config.js`)) {
+    preScanResults.framework_detected[dir] = "jest"
+  } else if (exists(`${dir}/package.json`)) {
+    const pkg = Read(`${dir}/package.json`)
+    if (pkg.includes('"vitest"')) preScanResults.framework_detected[dir] = "vitest"
+    else if (pkg.includes('"jest"')) preScanResults.framework_detected[dir] = "jest"
+  }
+}
+
+// 3. Build pre-scan checklist (pass/fail for each check)
+preScanResults.checklist = [
+  { check: "Unit test files exist", pass: preScanResults.valid_unit.length > 0 || unitTests.length === 0, detail: `${preScanResults.valid_unit.length}/${unitTests.length} valid` },
+  { check: "Integration test files exist", pass: preScanResults.valid_integration.length > 0 || integrationTests.length === 0, detail: `${preScanResults.valid_integration.length}/${integrationTests.length} valid` },
+  { check: "E2E routes discovered", pass: preScanResults.valid_e2e.length > 0 || !has_frontend, detail: `${preScanResults.valid_e2e.length} routes` },
+  { check: "Test framework detected", pass: Object.keys(preScanResults.framework_detected).length > 0, detail: JSON.stringify(preScanResults.framework_detected) },
+  { check: "No missing test files", pass: preScanResults.missing_files.length === 0, detail: preScanResults.missing_files.length > 0 ? `${preScanResults.missing_files.length} missing` : "all present" },
+]
+
+// 4. Write pre-scan report (persists across turns for final report aggregation)
+Write(`tmp/arc/${id}/test-pre-scan.json`, JSON.stringify(preScanResults, null, 2))
+
+// Use validated file lists for batch generation (skip missing files)
+const validUnitTests = preScanResults.valid_unit
+const validIntegrationTests = preScanResults.valid_integration
 
 // ═══════════════════════════════════════════════════════
 // STEP 3: SERVICE STARTUP (conditional)
