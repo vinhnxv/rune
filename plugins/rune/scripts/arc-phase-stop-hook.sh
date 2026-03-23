@@ -1438,6 +1438,19 @@ if [[ "$NEXT_PHASE" == "test" ]]; then
               printf '# Test Report (Force-Advanced)\n\nTest phase exceeded finalization retry limit (%d attempts).\nBatches completed but report generation failed under context pressure.\n\n<!-- SEAL: test-report-complete -->\n' "$_MAX_FIN_RETRIES" > "$_test_report" 2>/dev/null || true
             fi
             rm -f "$_fin_count_file" 2>/dev/null
+            # Force-cleanup test team (finalization failed → Claude never ran STEP 10)
+            _force_test_team="arc-test-${_arc_id_for_fin}"
+            _trace "Force-cleanup: removing team ${_force_test_team}"
+            CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+            CHOME=$(cd "$CHOME" 2>/dev/null && pwd -P || echo "$CHOME")
+            if [[ -d "$CHOME/teams/${_force_test_team}" && ! -L "$CHOME/teams/${_force_test_team}" ]]; then
+              # Kill lingering teammate processes
+              for _fpid in $(pgrep -P "$PPID" 2>/dev/null || true); do
+                case "$(ps -p "$_fpid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$_fpid" 2>/dev/null ;; esac
+              done
+              sleep 2
+              rm -rf "$CHOME/teams/${_force_test_team}/" "$CHOME/tasks/${_force_test_team}/" 2>/dev/null
+            fi
             _log_phase "phase_force_advanced" "test" "reason=finalization_retry_exceeded" "retries=${_fin_retries}"
             # Re-read checkpoint and fall through to normal phase advance
             CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
@@ -1454,20 +1467,52 @@ if [[ "$NEXT_PHASE" == "test" ]]; then
             # Break out of the test sub-loop — fall through to normal phase dispatch
           else
             _rel_fin_plan="tmp/arc/${_arc_id_for_fin}/testing-plan.json"
+            _test_team="arc-test-${_arc_id_for_fin}"
             cat >&2 <<FINALIZE_EOF
 ANCHOR — Arc Pipeline: Test Phase Finalization (attempt ${_fin_retries}/${_MAX_FIN_RETRIES})
 
-All test batches have completed. Generate the final test report.
+All test batches have completed. Execute STEP 9 (report) and STEP 10 (cleanup).
+Do NOT re-read arc-phase-test.md — this prompt contains everything you need.
 
-1. Read the checkpoint: ${CHECKPOINT_PATH}
-2. Read the testing plan: ${_rel_fin_plan}
-3. Aggregate batch results and generate tmp/arc/${_arc_id_for_fin}/test-report.md
-4. Update the state file: set test_finalized: true in ${STATE_FILE}
-5. Update the checkpoint: set phases.test.status to "completed"
-6. Write the checkpoint to ${CHECKPOINT_PATH}
-7. STOP responding — the Stop hook will advance to the next phase.
+## STEP 9: Generate Test Report
 
-CRITICAL: You MUST set test_finalized: true in the state file. If this step fails ${_MAX_FIN_RETRIES} times, the pipeline will force-advance with a minimal report.
+1. Read the testing plan: ${_rel_fin_plan}
+2. Read the checkpoint: ${CHECKPOINT_PATH}
+3. Read pre-scan results: tmp/arc/${_arc_id_for_fin}/test-pre-scan.json (if exists)
+4. For each completed batch, use Grep to extract pass/fail counts from result files
+   (do NOT Read full result files — only Grep for STATUS markers and summary lines)
+5. Aggregate into test-report.md with sections:
+   - Pre-Scan Checklist (from pre-scan.json)
+   - Summary table (tier × status × pass × fail × duration)
+   - Batch Execution Summary table (per-batch: label, component, type, files, duration, status, retries)
+   - Timing Breakdown (per-component per-tier wall-clock from batch timestamps)
+   - Fix History (from evidence/batch-N-evidence.json fix_loop entries, if any)
+   - Uncovered implementations
+6. Write to: tmp/arc/${_arc_id_for_fin}/test-report.md
+7. Append SEAL marker: <!-- SEAL: test-report-complete -->
+
+## STEP 10: Cleanup (MANDATORY — prevents orphan teams)
+
+1. Send shutdown_request to all registered teammates on team ${_test_team}:
+   - Read team config to discover members
+   - SendMessage({ type: "shutdown_request", recipient: member, content: "Test phase complete" })
+   - Fallback: if config read fails, send to known patterns: batch-runner-*, batch-fixer-*
+2. Wait 5 seconds for graceful shutdown
+3. Close browser sessions: agent-browser close --session "arc-e2e-${_arc_id_for_fin}" (if applicable)
+4. Stop Docker: docker compose down --timeout 10 (if services were started)
+5. TeamDelete with retry (4 attempts: 0s, 3s, 6s, 10s)
+6. Filesystem fallback if TeamDelete fails:
+   CHOME="\${CLAUDE_CONFIG_DIR:-\$HOME/.claude}"
+   rm -rf "\$CHOME/teams/${_test_team}/" "\$CHOME/tasks/${_test_team}/" 2>/dev/null
+
+## STEP 11: Update Checkpoint + State
+
+1. Update the state file: set test_finalized: true in ${STATE_FILE}
+2. Update the checkpoint: set phases.test.status to "completed"
+3. Write the checkpoint to ${CHECKPOINT_PATH}
+4. STOP responding — the Stop hook will advance to the next phase.
+
+CRITICAL: You MUST complete ALL steps (report + cleanup + checkpoint). If this fails ${_MAX_FIN_RETRIES} times, the pipeline will force-advance with a minimal report.
 
 RE-ANCHOR: Execute finalization only. Do NOT skip ahead.
 FINALIZE_EOF
