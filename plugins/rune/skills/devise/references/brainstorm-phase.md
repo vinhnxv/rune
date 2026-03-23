@@ -25,6 +25,24 @@ const patternsFound = Read(`${workspacePath}/research/patterns-found.md`)
 const riskSignals = Read(`${workspacePath}/research/risk-signals.md`)
 const brainstormDecisions = Read(`${workspacePath}/brainstorm-decisions.md`)
 
+// Extract design URLs from brainstorm workspace metadata
+// Validate design_urls is actually an array (defensive against schema mismatch)
+const designUrlsFromBrainstorm = Array.isArray(meta.design_urls) ? meta.design_urls : []
+const designUrlPrimary = meta.design_url_primary || null
+
+if (designUrlsFromBrainstorm.length > 0 && !designAware) {
+  // Brainstorm detected Figma URLs that weren't in the initial user description
+  figmaUrls = designUrlsFromBrainstorm
+  figmaUrl = designUrlPrimary || designUrlsFromBrainstorm[0]
+  designAware = true
+  design_sync_candidate = true
+  log(`Devise Phase 0: Recovered ${designUrlsFromBrainstorm.length} Figma URL(s) from brainstorm workspace.`)
+
+  // Also load design-related skills
+  loadedSkills.push('design-sync')
+  loadedSkills.push('frontend-design-patterns')
+}
+
 // Also copy decisions to legacy location for pipeline compatibility
 Write(`tmp/plans/${timestamp}/brainstorm-decisions.md`, brainstormDecisions)
 

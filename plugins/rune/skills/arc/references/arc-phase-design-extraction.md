@@ -42,10 +42,30 @@ if (!designSyncEnabled) {
 // === STEP 1: Read Figma URLs ===
 // readFigmaUrls() supports both figma_urls[] array and deprecated figma_url scalar
 const planContent = Read(checkpoint.plan_file)
-const figmaUrls = readFigmaUrls(planContent)
+let figmaUrls = readFigmaUrls(planContent)
+
+// === FALLBACK: Scan plan body if frontmatter empty ===
+if (figmaUrls.length === 0) {
+  // Fallback: extract Figma URLs from plan body text (e.g., from arc-issues generated plans)
+  // Only scan AFTER the YAML frontmatter delimiter (second ---)
+  const bodyStart = planContent.indexOf('---', planContent.indexOf('---') + 3)
+  const planBody = bodyStart >= 0 ? planContent.substring(bodyStart + 3) : ''
+
+  const FIGMA_URL_BODY_PATTERN = /https?:\/\/[^\s]*figma\.com\/[^\s]+/g
+  const FIGMA_DOMAIN_BODY_PATTERN = /^https:\/\/(www\.)?figma\.com\/(design|file)\/[A-Za-z0-9]+/
+  const bodyUrls = (planBody.match(FIGMA_URL_BODY_PATTERN) || [])
+    .map(url => url.replace(/[\r\n)>\]]/g, ''))  // Strip trailing markdown chars
+    .filter(url => FIGMA_DOMAIN_BODY_PATTERN.test(url))
+    .slice(0, 10)
+
+  if (bodyUrls.length > 0) {
+    log(`Design extraction: Recovered ${bodyUrls.length} Figma URL(s) from plan body (fallback scan).`)
+    figmaUrls = bodyUrls
+  }
+}
 
 if (figmaUrls.length === 0) {
-  log("Design extraction skipped — no figma_url(s) found in plan frontmatter.")
+  log("Design extraction skipped — no figma_url(s) found in plan frontmatter or body.")
   updateCheckpoint({ phase: "design_extraction", status: "skipped", skip_reason: "no_figma_urls" })
   return
 }
@@ -80,6 +100,26 @@ if (validUrls.length === 0) {
 // Pre-discovery dedup: remove duplicate URLs (same full URL string)
 const dedupedUrls = [...new Set(validUrls)]
 const urlCount = dedupedUrls.length
+
+// === STEP 2.5: Load UI builder companion skill if detected ===
+// Reads ui_builder from plan frontmatter (written by devise Phase 0.5 or arc-issues Task 6)
+const uiBuilderMatch = planContent.match(/ui_builder:\s*\n\s+builder_mcp:\s*"([^"]+)"/)
+const companionSkillMatch = planContent.match(/companion_skill:\s*"([^"]+)"/)
+let extractionWorkerContext = ''
+
+if (uiBuilderMatch) {
+  const builderMcp = uiBuilderMatch[1]
+  const companionSkill = companionSkillMatch?.[1]
+  log(`Design extraction: UI builder detected — ${builderMcp}`)
+
+  if (companionSkill) {
+    loadedSkills.push(companionSkill)
+    log(`Design extraction: Loaded companion skill '${companionSkill}' for ${builderMcp}`)
+  }
+
+  // Inject builder context into extraction worker prompts
+  extractionWorkerContext += `\n\nUI Builder available: ${builderMcp}. Use its search_components() tool to find matching library components for extracted Figma designs. Prefer library matches over raw figma_to_react output.\n`
+}
 
 // === STEP 3: Check Figma MCP Availability ===
 let figmaMcpAvailable = false

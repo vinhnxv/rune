@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.10.6] - 2026-03-23
+
+### Fixed
+- **arc-issues: Figma URL detection** — Extract Figma URLs from GitHub issue body, write to plan frontmatter (`figma_urls` array), enable Arc design-sync phases (Phase 3, 5.2, 7.4) for design-aware implementations
+- **arc Phase 3: frontmatter-only check** — Add fallback body scan when `figma_urls` frontmatter is empty; update `computeSkipMap()` to check plan body before skipping `design_extraction`
+- **brainstorm: SSRF bypass (P1)** — Replace bypassable `url.includes("figma.com")` with domain-anchored `FIGMA_DOMAIN_PATTERN` in design-asset-detection.md
+- **devise: brainstorm context handoff** — Extract design URLs from brainstorm workspace metadata in Phase 0
+- **arc-issues: design system discovery** — Run `discoverDesignSystem()` and `discoverUIBuilder()` when Figma URLs detected and `design_sync.enabled`
+- **arc Phase 3: companion skill loading** — Load UI builder companion skill (e.g., `untitledui-mcp`) when `ui_builder` present in plan frontmatter
+
 ## [2.10.5] - 2026-03-23
 
 ### Fixed

@@ -153,9 +153,12 @@ Questions to resolve during planning/research (not during brainstorm).
 
 > **Note**: This section is present only when Figma URLs or design keywords were detected.
 
-- **Figma URL**: {url or "none detected"}
-- **Design keywords**: {detected keywords}
-- **Status**: {auto-detected | user-provided | none}
+- **Figma URLs**: ${safeFigmaUrls.length > 0
+    ? safeFigmaUrls.map((url, i) => `\n  ${i + 1}. [${url}](${url})`).join('')
+    : 'none detected'}
+- **Design keywords**: ${detectedKeywords || 'none'}
+- **Status**: ${figmaUrl ? (wasUserProvided ? 'user-provided' : 'auto-detected') : 'none'}
+- **design_sync_candidate**: ${design_sync_candidate}
 
 ## Elicitation Insights
 

@@ -218,7 +218,7 @@ const codexEnabled = codexAvailable
  *   ux_disabled, codex_unavailable, codex_disabled_for_arc, codex_phase_disabled,
  *   bot_review_disabled, testing_disabled
  */
-function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, codexEnabled, codex, planMeta) {
+function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, codexEnabled, codex, planMeta, planFile) {
   const map = {}
 
   // ── Forge (unified via skip_map instead of inline status) ──
@@ -229,6 +229,22 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
   // ── Design phases (4 phases when design_sync disabled, 2 when enabled but no URLs) ──
   const designEnabled = designSync.enabled === true
   const hasFigmaUrls = Array.isArray(planMeta?.figma_urls) && planMeta.figma_urls.length > 0
+
+  // Fallback: scan plan body for Figma URLs when frontmatter is empty.
+  // This handles arc-issues generated plans where URLs are in the body but not frontmatter.
+  const hasFigmaUrlsInBody = (() => {
+    if (hasFigmaUrls) return false  // Frontmatter has URLs — no need to scan body
+    try {
+      const planContent = Read(planFile)
+      const bodyStart = planContent.indexOf('---', planContent.indexOf('---') + 3)
+      if (bodyStart < 0) return false
+      const planBody = planContent.substring(bodyStart + 3)
+      // Strip code blocks before scanning
+      const bodyClean = planBody.replace(/```[\s\S]*?```/g, '')
+      return /https:\/\/(www\.)?figma\.com\/(design|file)\/[A-Za-z0-9]+/.test(bodyClean)
+    } catch (e) { return false }
+  })()
+
   if (!designEnabled) {
     map.design_extraction = "design_sync_disabled"
     map.design_prototype = "design_sync_disabled"
@@ -236,7 +252,7 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
     // so design_verification and design_iteration are also deterministically skippable.
     map.design_verification = "design_sync_disabled"
     map.design_iteration = "design_sync_disabled"
-  } else if (!hasFigmaUrls) {
+  } else if (!hasFigmaUrls && !hasFigmaUrlsInBody) {
     map.design_extraction = "no_figma_urls"
     map.design_prototype = "no_figma_urls"
     // design_verification: runtime-dependent (VSM files may come from other sources)
@@ -327,7 +343,7 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
   return map
 }
 
-const skipMap = computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, codexEnabled, codex, planMeta)
+const skipMap = computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, codexEnabled, codex, planMeta, planFile)
 ```
 
 ## Checkpoint Schema v26

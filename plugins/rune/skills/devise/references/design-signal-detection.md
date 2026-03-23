@@ -29,6 +29,23 @@ if (quickMode && !designAware) {
   }
 }
 
+// --brainstorm-context fallback: extract from workspace metadata
+// This runs AFTER the user description scan and --quick fallback
+if (!designAware && brainstormContextFlag) {
+  try {
+    const bsMeta = JSON.parse(Read(`${brainstormContextFlag}/workspace-meta.json`))
+    const bsUrls = bsMeta.design_urls || []
+    if (bsUrls.length > 0) {
+      figmaUrls = bsUrls.slice(0, maxFigmaUrls)
+      figmaUrl = bsUrls[0]
+      designAware = true
+      design_sync_candidate = true
+    }
+  } catch (e) {
+    // workspace-meta.json missing or malformed — proceed without design context
+  }
+}
+
 // Pass designAware, figmaUrls (full array), and figmaUrl (primary, backward compat) downstream:
 // - brainstorm phase (Phase 3.5 design asset detection)
 // - synthesize phase (figma_urls frontmatter array + Design Implementation section)
