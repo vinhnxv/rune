@@ -978,12 +978,25 @@ When a task has `has_design_context === true`, inject design artifacts into the 
 **Inputs**: task (object with `has_design_context`, `design_artifacts`), signalDir (string)
 **Outputs**: `designContextBlock` (string, injected into worker prompt AFTER existing sections, BEFORE task list)
 **Preconditions**: Task extracted with design context annotation (parse-plan.md § Design Context Detection)
-**Error handling**: Read(VSM/DCD/design-package) failure → skip artifact, inject warning comment; content > 3000 chars → truncate with "[...truncated]" marker
+**Error handling**: Read(VSM/DCD/design-package) failure → skip artifact, inject warning comment; content > 4000 chars → truncate with "[...truncated]" marker
 
 ```javascript
+// Helper: extract a named section from VSM/DCD content
+function extractSection(content, sectionName) {
+  const pattern = new RegExp(`^##\\s+${sectionName}\\b.*$`, 'm')
+  const match = content.match(pattern)
+  if (!match) return null
+  const start = match.index + match[0].length
+  const nextSection = content.slice(start).match(/^## /m)
+  const end = nextSection ? start + nextSection.index : content.length
+  return content.slice(start, end).trim()
+}
+
 // Build design context block for worker prompt injection
 function buildDesignContextBlock(task) {
   if (!task.has_design_context) return ''  // Zero cost — empty string
+
+  let vsmContent = null  // Hoisted for use in Step 3 and Step 3.5
 
   let block = `\n    DESIGN CONTEXT (auto-injected — design_sync enabled):\n`
 
@@ -999,8 +1012,8 @@ function buildDesignContextBlock(task) {
   if (task.design_artifacts?.dcd_path) {
     try {
       let dcdContent = Read(task.design_artifacts.dcd_path)
-      if (dcdContent.length > 3000) {
-        dcdContent = dcdContent.slice(0, 3000) + '\n[...truncated to 3000 chars]'
+      if (dcdContent.length > 4000) {
+        dcdContent = dcdContent.slice(0, 4000) + '\n[...truncated to 4000 chars]'
       }
       block += `    ## Design Component Document\n${dcdContent}\n\n`
     } catch (e) {
@@ -1011,13 +1024,32 @@ function buildDesignContextBlock(task) {
   // Step 3: Inject VSM (Visual Spec Map) summary if available
   if (task.design_artifacts?.vsm_path) {
     try {
-      let vsmContent = Read(task.design_artifacts.vsm_path)
-      if (vsmContent.length > 3000) {
-        vsmContent = vsmContent.slice(0, 3000) + '\n[...truncated to 3000 chars]'
+      vsmContent = Read(task.design_artifacts.vsm_path)
+      if (vsmContent.length > 4000) {
+        vsmContent = vsmContent.slice(0, 4000) + '\n[...truncated to 4000 chars]'
       }
       block += `    ## Visual Spec Map Summary\n${vsmContent}\n\n`
     } catch (e) {
       block += `    ## Visual Spec Map Summary\n    [VSM unavailable: ${e.message}]\n\n`
+    }
+  }
+
+  // Step 3.5: Extract and inject Semantic Component Map from VSM content
+  // Helper: extract a markdown section by heading name
+  function extractSection(markdown, sectionName) {
+    const regex = new RegExp('## ' + sectionName + '\\n([\\s\\S]*?)(?=\\n## |$)')
+    const match = markdown.match(regex)
+    return match ? match[1].trim() : null
+  }
+
+  if (vsmContent) {
+    const semanticMap = extractSection(vsmContent, 'Semantic Component Map')
+    if (semanticMap) {
+      block += `    ## SEMANTIC COMPONENT GUIDE\n`
+      block += `    Match semantic roles to the correct library components.\n`
+      block += `    When the VSM identifies a semantic role (e.g., "Hero Banner", "Feature Grid"),\n`
+      block += `    map it to the corresponding component from your design system library.\n\n`
+      block += `${semanticMap}\n\n`
     }
   }
 
@@ -1032,7 +1064,8 @@ function buildDesignContextBlock(task) {
     - [ ] Verify responsive breakpoints match Figma frames
     - [ ] Check accessibility attributes (aria-labels, roles, contrast ratios)
     - [ ] Component structure matches VSM hierarchy
-    - [ ] Interactive states (hover, focus, active, disabled) match design specs\n`
+    - [ ] Interactive states (hover, focus, active, disabled) match design specs
+    - [ ] Semantic roles mapped to correct library components\n`
 
   return block
 }

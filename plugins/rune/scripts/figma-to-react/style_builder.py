@@ -666,6 +666,165 @@ class StyleBuilder:
             self._props["mix-blend-mode"] = css_val
         return self
 
+    def build_token_mapping(
+        self, *, token_snap_distance: float = 20.0,
+    ) -> Dict[str, Dict[str, Any]]:
+        """Produce a mapping of CSS properties to their nearest design tokens.
+
+        For each accumulated CSS property that has a corresponding Tailwind
+        token (colors, font sizes, font weights, letter spacing, line height),
+        returns the raw value, resolved token name, and the distance from the
+        raw value to the nearest token.
+
+        A distance of ``0`` means an exact match.  Values beyond
+        *token_snap_distance* still get a token entry (the closest one), but
+        callers can filter on ``distance`` to decide whether to accept it.
+
+        Args:
+            token_snap_distance: Maximum distance for color snapping.
+                Passed through to the internal color palette lookup.
+                Defaults to 20.0 (matches Tailwind mapper default).
+
+        Returns:
+            Dict keyed by semantic property name (e.g. ``"bg_color"``,
+            ``"font_size"``) mapping to ``{"raw": ..., "token": ...,
+            "distance": ...}`` dicts.
+        """
+        from tailwind_mapper import (
+            _parse_hex,
+            _parse_rgba,
+            _rgb_distance,
+            _TW_COLORS,
+            _FONT_SIZE_SCALE,
+            snap_color,
+            map_font_size,
+            map_font_weight,
+            map_letter_spacing,
+            map_line_height,
+        )
+
+        mapping: Dict[str, Dict[str, Any]] = {}
+
+        # --- Color tokens ---
+        color_props = {
+            "bg_color": "background-color",
+            "text_color": "color",
+            "border_color": "border-color",
+            "outline_color": "outline-color",
+        }
+        for token_key, css_key in color_props.items():
+            raw = self._props.get(css_key)
+            if raw is None:
+                continue
+            tw_prefix = {
+                "bg_color": "bg",
+                "text_color": "text",
+                "border_color": "border",
+                "outline_color": "outline",
+            }[token_key]
+
+            rgb = _parse_hex(raw) or _parse_rgba(raw)
+            if rgb is None:
+                mapping[token_key] = {
+                    "raw": raw, "token": snap_color(raw, tw_prefix), "distance": -1,
+                }
+                continue
+
+            # Find nearest palette color and its distance
+            best_dist = float("inf")
+            best_name = ""
+            best_shade = 500
+            for palette_name, shades in _TW_COLORS.items():
+                for shade, palette_rgb in shades.items():
+                    dist = _rgb_distance(rgb, palette_rgb)
+                    if dist < best_dist:
+                        best_dist = dist
+                        best_name = palette_name
+                        best_shade = shade
+
+            if best_dist <= token_snap_distance:
+                token = f"{tw_prefix}-{best_name}-{best_shade}"
+            else:
+                hex_color = f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
+                token = f"{tw_prefix}-[{hex_color}]"
+
+            mapping[token_key] = {
+                "raw": raw,
+                "token": token,
+                "distance": round(best_dist, 1),
+            }
+
+        # --- Font size token ---
+        for css_key in ("font-size",):
+            raw = self._props.get(css_key)
+            if raw is None:
+                continue
+            try:
+                px = float(raw.replace("px", ""))
+            except (ValueError, AttributeError):
+                continue
+
+            token = map_font_size(px)
+            # Compute distance: 0 if exact match, else abs diff
+            best_diff = float("inf")
+            for _, scale_px in _FONT_SIZE_SCALE.items():
+                diff = abs(px - scale_px)
+                if diff < best_diff:
+                    best_diff = diff
+            mapping["font_size"] = {
+                "raw": px, "token": token, "distance": round(best_diff, 1),
+            }
+
+        # --- Font weight token ---
+        for css_key in ("font-weight",):
+            raw = self._props.get(css_key)
+            if raw is None:
+                continue
+            try:
+                weight = float(raw)
+            except (ValueError, AttributeError):
+                continue
+
+            token = map_font_weight(weight)
+            rounded = round(weight / 100) * 100
+            rounded = max(100, min(900, rounded))
+            dist = abs(weight - rounded)
+            mapping["font_weight"] = {
+                "raw": weight, "token": token, "distance": round(dist, 1),
+            }
+
+        # --- Letter spacing token ---
+        for css_key in ("letter-spacing",):
+            raw = self._props.get(css_key)
+            if raw is None:
+                continue
+            try:
+                px = float(raw.replace("px", "").replace("em", ""))
+            except (ValueError, AttributeError):
+                continue
+
+            token = map_letter_spacing(px)
+            mapping["letter_spacing"] = {
+                "raw": px, "token": token, "distance": 0,
+            }
+
+        # --- Line height token ---
+        font_size_raw = self._props.get("font-size")
+        line_height_raw = self._props.get("line-height")
+        if line_height_raw and font_size_raw:
+            try:
+                lh_px = float(line_height_raw.replace("px", ""))
+                fs_px = float(font_size_raw.replace("px", ""))
+            except (ValueError, AttributeError):
+                pass
+            else:
+                token = map_line_height(lh_px, fs_px)
+                mapping["line_height"] = {
+                    "raw": lh_px, "token": token, "distance": 0,
+                }
+
+        return mapping
+
     def build(self) -> Dict[str, str]:
         """Return the accumulated CSS properties dict.
 

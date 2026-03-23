@@ -72,6 +72,7 @@ Design-to-implementation fidelity specialist. Reviews frontend components agains
 - Component variant completeness (all Figma variants have code counterparts)
 - Visual region structural accuracy (DOM nesting matches design hierarchy)
 - State coverage (loading, error, empty, success implementations)
+- Semantic completeness (VSM semantic roles have matching implementation components)
 
 ## Echo Integration (Past Design Patterns)
 
@@ -170,18 +171,49 @@ Check for:
 - Disabled state (opacity + cursor + aria-disabled)
 ```
 
+### 7. Semantic Completeness
+
+Verify that every semantic role defined in the VSM's Semantic Component Map has a corresponding component in the implementation:
+
+```
+Check:
+- Every semantic_role in VSM semantic_component_map has a matching component
+- Components use appropriate semantic HTML elements (e.g., <nav> for "navigation")
+- Semantic hierarchy is preserved (parent-child relationships match design intent)
+- No semantic roles are silently dropped or merged in implementation
+- Components with confidence >= 0.8 MUST have explicit semantic counterparts
+```
+
+Guard: Only run semantic checks when `semantic_component_map` is present and non-empty in the VSM. When absent, this dimension scores N/A and is excluded from the weighted total.
+
+```javascript
+const semanticMap = vsm.semantic_component_map ?? []
+if (semanticMap.length === 0) {
+  // Skip semantic dimension — redistribute its 15% weight proportionally
+  return { score: "N/A", skipped: true }
+}
+```
+
+Finding format for semantic issues: `DES-{component}-semantic`
+
+Example findings:
+- `DES-NavBar-semantic`: VSM defines "navigation" role but implementation uses `<div>` instead of `<nav>`
+- `DES-HeroSection-semantic`: VSM semantic role "hero" (confidence: 0.92) has no corresponding component in implementation
+- `DES-CardGrid-semantic`: VSM defines "content-list" role but implementation lacks list semantics (no `<ul>` or grid pattern)
+
 ## Fidelity Scoring
 
 Score each dimension on a 0-100 scale:
 
 | Dimension | Weight | What to Measure |
 |-----------|--------|-----------------|
-| Token compliance | 25% | % of visual properties using tokens vs hardcoded |
-| Layout fidelity | 20% | Structural match between Figma and DOM |
-| Responsive coverage | 15% | % of specified breakpoints implemented |
-| Accessibility | 20% | WCAG 2.1 AA compliance checklist pass rate |
-| Variant completeness | 10% | % of Figma variants with code counterparts |
-| State coverage | 10% | % of required states implemented |
+| Token compliance | 20% | % of visual properties using tokens vs hardcoded |
+| Layout fidelity | 17% | Structural match between Figma and DOM |
+| Responsive coverage | 13% | % of specified breakpoints implemented |
+| Accessibility | 18% | WCAG 2.1 AA compliance checklist pass rate |
+| Variant completeness | 8% | % of Figma variants with code counterparts |
+| State coverage | 9% | % of required states implemented |
+| Semantic completeness | 15% | % of VSM semantic roles with matching implementation components |
 
 **Overall fidelity** = weighted sum. Report in the output header.
 
@@ -194,7 +226,8 @@ Score each dimension on a 0-100 scale:
 4. [ ] Check **accessibility** (keyboard, ARIA, contrast, labels)
 5. [ ] Verify **variant completeness** against Figma Component Set
 6. [ ] Check **state coverage** (loading, error, empty, success)
-7. [ ] Verify **component reuse** (no unnecessary duplication)
+7. [ ] Verify **semantic completeness** — every VSM semantic role has a matching implementation component
+8. [ ] Verify **component reuse** (no unnecessary duplication)
 
 ### Self-Review
 After completing analysis, verify:
@@ -220,7 +253,7 @@ Before writing output file, confirm:
 ```markdown
 ## Design Fidelity Review
 
-**Fidelity Score: {score}/100** (Token: {t}/100, Layout: {l}/100, Responsive: {r}/100, A11Y: {a}/100, Variants: {v}/100, States: {s}/100)
+**Fidelity Score: {score}/100** (Token: {t}/100, Layout: {l}/100, Responsive: {r}/100, A11Y: {a}/100, Variants: {v}/100, States: {s}/100, Semantic: {sem}/100)
 
 ### P1 (Critical) — Design Contract Violations
 - [ ] **[FIDE-001] Hardcoded color bypasses design system** in `components/Card.tsx:42`
