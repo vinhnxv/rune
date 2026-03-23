@@ -506,147 +506,155 @@ for (const batch of testingPlan.batches) {
     } catch (e) { /* bridge unavailable or stale — continue normally */ }
   }
 
-  // Mark running + atomic checkpoint
-  batch.status = "running"
-  batch.started_at = new Date().toISOString()
+  // ═══════════════════════════════════════════════════════
+  // ONE BATCH PER TURN — Stop Hook Driven Execution
+  // ═══════════════════════════════════════════════════════
+  //
+  // ARCHITECTURE (v2.10.8):
+  // Each batch runs in its OWN Claude Code turn via the Stop hook sub-loop
+  // (_check_test_batches in arc-phase-stop-hook.sh). This ensures:
+  //   1. Each batch agent has a FRESH context window (no accumulation)
+  //   2. Team lead's context stays clean between batches
+  //   3. Context compaction can happen between batches
+  //   4. Long test suites (400+ files, 15-20 min) won't exhaust context
+  //
+  // Flow: Lead executes ONE batch → writes checkpoint → STOPS responding →
+  //       Stop hook reads testing-plan.json → finds next pending batch →
+  //       re-injects batch-specific prompt → new turn starts
+  //
+  // Only the FIRST pending batch is executed per turn.
+  // The loop exits after one batch — the stop hook handles continuation.
+
+  const nextBatch = batch  // First pending batch from the for-loop
+  nextBatch.status = "running"
+  nextBatch.started_at = new Date().toISOString()
   writeCheckpoint(id, testingPlan)
 
-  // TEAM-002: TaskCreate BEFORE Agent() — required by Iron Law
   // Component-aware batch label for task visibility
-  const batchLabel = batch.label ?? `${batch.type}-batch-${batch.id}`
-  const componentHint = batch.component && batch.component !== "root"
-    ? `Component: ${batch.component} (run tests from ${batch.component}/ directory)\n      `
+  const batchLabel = nextBatch.label ?? `${nextBatch.type}-batch-${nextBatch.id}`
+  const componentHint = nextBatch.component && nextBatch.component !== "root"
+    ? `Component: ${nextBatch.component} (run tests from ${nextBatch.component}/ directory)\n      `
     : ""
 
+  // TEAM-002: TaskCreate BEFORE Agent() — required by Iron Law
   TaskCreate({
-    subject: `Batch ${batch.id}: ${batchLabel} (${batch.files.length} files)`,
-    description: `Run ${batch.type} tests [${batch.component ?? "root"}]: ${batch.files.join(', ')}`
+    subject: `Batch ${nextBatch.id}: ${batchLabel} (${nextBatch.files.length} files)`,
+    description: `Run ${nextBatch.type} tests [${nextBatch.component ?? "root"}]: ${nextBatch.files.join(', ')}`
   })
 
-  // Foreground agent (run_in_background: false — blocking call, zero idle risk)
-  // PAT-003 FIX: Unified result path convention — includes batch type for readability
-  const resultPath = `tmp/arc/${id}/test-results-${batch.type}-batch-${batch.id}.md`
+  // Foreground agent — runs in teammate's own context window, NOT the lead's
+  const resultPath = `tmp/arc/${id}/test-results-${nextBatch.type}-batch-${nextBatch.id}.md`
   Agent({
     team_name: testTeamName,
-    name: `batch-runner-${batch.id}`,
-    subagent_type: resolveRunnerAgentType(batch.type),  // see batch-execution.md agent type table
-    model: resolveModelForAgent(`${batch.type}-test-runner`, talisman),
-    run_in_background: false,  // CRITICAL: blocking — agent completes before loop continues
-    prompt: `Run these ${batch.type} tests: ${batch.files.join(', ')}
+    name: `batch-runner-${nextBatch.id}`,
+    subagent_type: resolveRunnerAgentType(nextBatch.type),
+    model: resolveModelForAgent(`${nextBatch.type}-test-runner`, talisman),
+    run_in_background: false,  // Blocking — agent completes before lead continues
+    prompt: `Run these ${nextBatch.type} tests: ${nextBatch.files.join(', ')}
       ${componentHint}Output to: ${resultPath}
       Strategy: ${Read(`tmp/arc/${id}/test-strategy.md`)}
       DISCIPLINE: Before running tests, echo-back your test strategy at the top of your output:
         "I will verify: AC-X via [test type]: [test name], AC-Y via [test type]: [test name], AC-Z has no test (WARN)"
         Map each acceptance criterion from the strategy to the specific test that verifies it.
-      IMPORTANT: Include <!-- STATUS: PASS --> if all tests pass, or FAIL with details.
+      IMPORTANT: Include <!-- STATUS: PASS --> if all tests pass, or <!-- STATUS: FAIL --> with details.
+      If tests fail, include the FULL error output so the fix agent can diagnose.
       When done, claim your task via TaskList + TaskUpdate (status: "completed").`
   })
 
-  // Read result and classify pass/fail
-  const batchResult = exists(resultPath) ? Read(resultPath) : ""
-  // PAT-001 FIX: Use structured marker (consistent with batch-execution.md)
-  // BACK-002 FIX: Empty/missing result = agent crash = FAIL (not false-positive PASS)
-  let passed = batchResult.length > 0 && batchResult.includes("<!-- STATUS: PASS -->")
+  // Lightweight result classification — only read STATUS marker, not full content
+  // This prevents the lead from ingesting large test outputs into its context
+  const resultExists = exists(resultPath)
+  let passed = false
+  if (resultExists) {
+    // Use Grep to check for STATUS marker without reading full file into context
+    const statusLines = Grep({ pattern: "<!-- STATUS: (PASS|FAIL) -->", path: resultPath, output_mode: "content" })
+    passed = statusLines.includes("<!-- STATUS: PASS -->")
+  }
 
-  // DISCIPLINE INTEGRATION — F-code classification in fix loop (AC-8.4.3):
-  // Classify each failure with discipline failure codes before deciding recovery strategy
-  // (see discipline/references/failure-codes.md for full F1-F17 registry):
-  //   F3  (PROOF_FAILURE): Implementation is wrong — fix code
-  //   F8  (INFRASTRUCTURE_FAILURE): Test/infra broken — fix test
-  //   F17 (CONVERGENCE_STAGNATION): Same assertion fails 2+ attempts — escalate immediately
-  // Classification enables smarter recovery: F3 → fix code, F8 → fix test, F17 → stop retrying.
-  // F-code classification feeds into discipline metrics for pattern tracking across runs.
-  let lastFailureSignature = null
+  // Fix loop — spawn fixer teammate if batch failed (up to max_fix_retries)
+  // Each fix attempt also runs as a separate agent to keep lead context clean
+  if (!passed && resultExists) {
+    const maxRetries = batchConfig.max_fix_retries ?? 2
 
-  // F3/F8 classification helper: distinguish implementation failures from infra failures.
-  // Heuristic: failures in test setup/teardown/import/connection → F8 (infra), failures in
-  // assertion body → F3 (implementation). Used for logging — both currently retry with fixer.
-  function classifyFailure(failureText) {
+    // Read only the failure summary (first 50 lines) — not the entire output
+    const failureSummary = Read(resultPath, { limit: 50 })
+
+    // F-code classification: infra (F8) vs implementation (F3) failures
     const infraPatterns = /\b(ImportError|ModuleNotFoundError|ConnectionRefused|ECONNREFUSED|ENOENT|timeout|setUp|tearDown|fixture|docker|port\s+\d+|cannot\s+connect)\b/i
-    return infraPatterns.test(failureText) ? 'F8' : 'F3'
-  }
+    const fCode = infraPatterns.test(failureSummary) ? 'F8' : 'F3'
+    warn(`Batch ${nextBatch.id} failure classified as ${fCode} (${fCode === 'F8' ? 'infra/test broken' : 'implementation wrong'})`)
 
-  // Fix loop — up to max_fix_retries on failure (DEEP-006 FIX: spawn fixer before rerun)
-  for (let retry = 0; !passed && retry < batchConfig.max_fix_retries; retry++) {
-    // F17 (CONVERGENCE_STAGNATION) detection: same test fails same assertion across 2+ fix attempts
-    // Normalize signature: strip line numbers, file paths, and timestamps to reduce false negatives
-    const rawSignature = batchResult.match(/FAIL:?\s*(.{0,200})/)?.[1] || ''
-    const currentFailureSignature = rawSignature
-      .replace(/:\d+/g, ':N')           // normalize line numbers
-      .replace(/\/[\w./-]+\.\w+/g, '')  // strip file paths
-      .replace(/\d{4}-\d{2}-\d{2}/g, '') // strip dates
-      .trim()
-    if (lastFailureSignature && currentFailureSignature === lastFailureSignature) {
-      warn(`F17 CONVERGENCE_STAGNATION: batch ${batch.id} — same assertion failed 2+ attempts. Escalating immediately.`)
-      break  // Stop retrying — escalate to failure analyst or human
+    // F17 (CONVERGENCE_STAGNATION): check if same failure persists from previous attempt
+    const prevSignaturePath = `tmp/arc/${id}/batch-${nextBatch.id}-failure-sig.txt`
+    const rawSignature = (failureSummary.match(/FAIL:?\s*(.{0,200})/)?.[1] || '')
+      .replace(/:\d+/g, ':N').replace(/\/[\w./-]+\.\w+/g, '').replace(/\d{4}-\d{2}-\d{2}/g, '').trim()
+
+    let stagnated = false
+    if (exists(prevSignaturePath)) {
+      const prevSig = Read(prevSignaturePath).trim()
+      if (prevSig === rawSignature) {
+        warn(`F17 CONVERGENCE_STAGNATION: batch ${nextBatch.id} — same assertion failed across fix attempts. Skipping further retries.`)
+        stagnated = true
+      }
     }
-    const fCode = classifyFailure(rawSignature)
-    warn(`Batch ${batch.id} failure classified as ${fCode} (${fCode === 'F8' ? 'infra/test broken' : 'implementation wrong'})`)
-    lastFailureSignature = currentFailureSignature
-    batch.status = "fixing"
-    batch.fix_attempts = retry + 1
+    Write(prevSignaturePath, rawSignature)
+
+    if (!stagnated && (nextBatch.fix_attempts ?? 0) < maxRetries) {
+      // Mark as fixing — stop hook will re-inject this batch after fix
+      nextBatch.status = "fixing"
+      nextBatch.fix_attempts = (nextBatch.fix_attempts ?? 0) + 1
+      writeCheckpoint(id, testingPlan)
+
+      // Spawn fixer agent (separate context — doesn't pollute lead)
+      TaskCreate({
+        subject: `Fix batch ${nextBatch.id} attempt ${nextBatch.fix_attempts}: ${nextBatch.type}`,
+        description: `Read failure details from ${resultPath} and apply code fixes`
+      })
+      Agent({
+        team_name: testTeamName,
+        name: `batch-fixer-${nextBatch.id}-fix-${nextBatch.fix_attempts}`,
+        subagent_type: "rune:work:rune-smith",
+        model: resolveModelForAgent("rune-smith", talisman),
+        run_in_background: false,
+        prompt: `Read the test failure details from ${resultPath} and fix the failing code.
+          Files under test: ${nextBatch.files.join(', ')}
+          Apply targeted Edit() fixes to resolve the failures.
+          When done, claim your task via TaskList + TaskUpdate (status: "completed").`
+      })
+
+      // Mark batch back to pending — stop hook will re-run it on next turn
+      nextBatch.status = "pending"
+      writeCheckpoint(id, testingPlan)
+
+      // STOP responding here — stop hook will re-inject this batch for re-run
+      // This gives the fixed code a fresh context for the retry
+      break  // Exit batch loop — stop hook continues
+    }
+  }
+
+  // Finalize batch status (only if not sent back for fixing)
+  if (nextBatch.status === "running") {
+    nextBatch.status = passed ? "passed" : "failed"
+    nextBatch.completed_at = new Date().toISOString()
+    nextBatch.result_path = resultPath
+    testingPlan.summary.completed += 1
+    if (!passed) testingPlan.summary.failed += 1
+    executedTiers.push(nextBatch.type)
+    if (passed) activeTiers.push(nextBatch.type)
     writeCheckpoint(id, testingPlan)
-    warn(`Batch ${batch.id} fix attempt ${retry + 1}/${batchConfig.max_fix_retries}`)
 
-    // DEEP-006 FIX: Spawn rune-smith fixer to apply code fixes BEFORE re-running tests
-    TaskCreate({
-      subject: `Fix batch ${batch.id} attempt ${retry + 1}: ${batch.type}`,
-      description: `Read failure details from ${resultPath} and apply code fixes`
-    })
-    Agent({
-      team_name: testTeamName,
-      name: `batch-fixer-${batch.id}-fix-${retry}`,
-      subagent_type: "rune:work:rune-smith",
-      model: resolveModelForAgent("rune-smith", talisman),
-      run_in_background: false,
-      prompt: `Read the test failure details from ${resultPath} and fix the failing code.
-        Files under test: ${batch.files.join(', ')}
-        Apply targeted Edit() fixes to resolve the failures.
-        When done, claim your task via TaskList + TaskUpdate (status: "completed").`
-    })
-
-    // Re-run tests after fix
-    TaskCreate({
-      subject: `Batch ${batch.id} rerun ${retry + 1}: ${batch.type} tests`,
-      description: `Rerun ${batch.type} tests after fix attempt ${retry + 1}`
-    })
-    Agent({
-      team_name: testTeamName,
-      name: `batch-runner-${batch.id}-retry-${retry}`,
-      subagent_type: resolveRunnerAgentType(batch.type),
-      model: resolveModelForAgent(`${batch.type}-test-runner`, talisman),
-      run_in_background: false,
-      prompt: `Rerun these ${batch.type} tests after fix: ${batch.files.join(', ')}
-        Output to: ${resultPath}
-        Include <!-- STATUS: PASS --> if all tests pass.
-        When done, claim your task via TaskList + TaskUpdate (status: "completed").`
-    })
-
-    const retryResult = exists(resultPath) ? Read(resultPath) : ""
-    // PAT-001 FIX: Same structured marker check as initial run
-    passed = retryResult.length > 0 && retryResult.includes("<!-- STATUS: PASS -->")
+    // Write per-batch evidence
+    const batchResult = resultExists ? Read(resultPath, { limit: 100 }) : ""
+    writeBatchEvidence(id, nextBatch, batchResult, nextBatch.fix_attempts > 0 ? { attempts: nextBatch.fix_attempts } : null)
   }
 
-  // Finalize batch status
-  batch.status = passed ? "passed" : "failed"
-  batch.completed_at = new Date().toISOString()
-  batch.result_path = resultPath
-  testingPlan.summary.completed += 1
-  if (!passed) testingPlan.summary.failed += 1
-  // DEEP-007 FIX: Track executed tiers unconditionally (activeTiers = passed tiers only for pass_rate)
-  executedTiers.push(batch.type)
-  if (passed) activeTiers.push(batch.type)  // may contain duplicates — deduped at STEP 10
-  writeCheckpoint(id, testingPlan)
-  batchesExecuted++
-
-  // DEEP-001 FIX: Write per-batch evidence after status finalization
-  // See testing/references/evidence-protocol.md for writeBatchEvidence() contract
-  writeBatchEvidence(id, batch, batchResult, batch.fix_attempts > 0 ? { attempts: batch.fix_attempts } : null)
-
-  // Inter-batch delay (configurable, default 5s — avoids resource contention)
-  if (batchConfig.inter_batch_delay_ms > 0) {
-    Bash(`sleep ${Math.ceil(batchConfig.inter_batch_delay_ms / 1000)}`)
-  }
+  // STOP responding — the Stop hook (_check_test_batches) will:
+  //   1. Read testing-plan.json
+  //   2. Find next pending batch
+  //   3. Re-inject batch-specific prompt in a NEW Claude Code turn
+  //   4. Each turn gets fresh context → no accumulation
+  // If no more pending batches → stop hook triggers finalization
+  break  // Exit the for-loop — only ONE batch per turn
 }
 
 // Update testing plan markdown after all batches complete

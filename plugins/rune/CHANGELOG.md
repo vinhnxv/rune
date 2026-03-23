@@ -11,6 +11,9 @@
 ### Added
 - **Component-aware test batching** — Test batches are now split by component (backend/, dashboard/, admin/, etc.) before chunking by file count. Each component gets its own batch sequence with dedicated agent context. Ensures correct test runner selection per component (pytest for backend, vitest for dashboard, playwright for e2e). Batch labels show component origin (e.g., `backend-unit-1/3`). Configurable via `talisman.testing.batch.component_dirs` (string array of directory names).
 
+### Changed
+- **One batch per turn architecture** — Test batch execution switched from "all batches in one Claude Code turn" to "one batch per turn via Stop hook sub-loop". Each batch runs as a dedicated teammate agent with its own context window. The team lead only checks STATUS markers (via Grep, not full Read) to keep its context clean. The Stop hook's `_check_test_batches()` drives batch-by-batch advancement across turns, with context compaction between batches. Fix retries also get their own turn — fixer agent runs, batch resets to pending, stop hook re-injects for rerun. Eliminates context accumulation that caused arc death on large test suites (400+ files, 15-20 min runs).
+
 ## [2.10.7] - 2026-03-23
 
 ### Added

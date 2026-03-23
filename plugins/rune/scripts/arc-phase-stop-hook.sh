@@ -347,27 +347,56 @@ _check_test_batches() {
   executed=$(jq '[.batches[] | select(.status == "passed" or .status == "failed" or .status == "fixing")] | length' "$plan_path" 2>/dev/null)
   [[ "$executed" -ge "$max_iterations" ]] && return 1  # Safety cap hit
 
-  # Read batch details
-  local batch_type batch_files total_batches
-  # BACK-004 FIX: Use select(.id == N) instead of array index — ids may not be sequential
-  # FLAW-001 FIX: Use --argjson to safely pass numeric batch ID (prevents jq injection)
-  batch_type=$(jq -r --argjson bid "$next_batch" '.batches[] | select(.id == $bid) | .type // "unit"' "$plan_path" 2>/dev/null)
-  batch_files=$(jq -r --argjson bid "$next_batch" '.batches[] | select(.id == $bid) | .files | join(", ")' "$plan_path" 2>/dev/null)
-  total_batches=$(jq '.batches | length' "$plan_path" 2>/dev/null)
+  # Read batch details (single jq call for all fields — avoids 4 separate forks)
+  local batch_type batch_files batch_component batch_label total_batches completed_batches
+  local _batch_info
+  _batch_info=$(jq -r --argjson bid "$next_batch" '
+    (.batches[] | select(.id == $bid)) as $b |
+    [$b.type // "unit", ($b.files | join(", ")), $b.component // "root", $b.label // "", $b.fix_attempts // 0] |
+    join("\u001f")
+  ' "$plan_path" 2>/dev/null) || _batch_info=""
+
+  if [[ -n "$_batch_info" ]]; then
+    IFS=$'\x1f' read -r batch_type batch_files batch_component batch_label batch_fix_attempts <<< "$_batch_info"
+  else
+    batch_type="unit"; batch_files=""; batch_component="root"; batch_label=""; batch_fix_attempts=0
+  fi
+
+  total_batches=$(jq '.batches | length' "$plan_path" 2>/dev/null || echo "?")
+  completed_batches=$(jq '[.batches[] | select(.status == "passed" or .status == "failed" or .status == "skipped")] | length' "$plan_path" 2>/dev/null || echo "0")
+
+  # Component context for the runner agent
+  local component_line=""
+  if [[ -n "$batch_component" && "$batch_component" != "root" ]]; then
+    component_line="Component: ${batch_component} (run tests from ${batch_component}/ directory)"
+  fi
+
+  # Fix retry context
+  local fix_context=""
+  if [[ "$batch_fix_attempts" -gt 0 ]]; then
+    fix_context="This is a RETRY after fix attempt ${batch_fix_attempts}. Previous run failed — check if the fix resolved the issue."
+  fi
 
   # Build batch-specific re-injection prompt
   local _rel_plan="tmp/arc/${arc_id}/testing-plan.json"
   cat >&2 <<BATCH_EOF
-ANCHOR — Arc Pipeline: Test Batch ${next_batch}/${total_batches} (${batch_type})
+ANCHOR — Arc Pipeline: Test Batch ${next_batch}/${total_batches} [${batch_label:-${batch_type}}] (${completed_batches}/${total_batches} done)
+${component_line}
+${fix_context}
 
-Continue executing the testing phase batch loop.
+Execute ONE test batch using a dedicated teammate agent.
 
 1. Read the checkpoint: ${CHECKPOINT_PATH}
 2. Read the testing plan: ${_rel_plan}
-3. Read the batch execution model: plugins/rune/skills/testing/references/batch-execution.md
+3. Read arc-phase-test.md STEP 5 for the batch execution model
 4. Execute batch ${next_batch} (type: ${batch_type}, files: ${batch_files})
-5. Update testing-plan.json with the result
-6. STOP responding — the Stop hook will advance to the next batch.
+5. The batch runner agent writes results to its own file — do NOT read the full result into your context
+6. Use Grep to check for <!-- STATUS: PASS --> or <!-- STATUS: FAIL --> marker only
+7. Update testing-plan.json with the batch status (passed/failed/fixing)
+8. STOP responding — the Stop hook will advance to the next batch
+
+CRITICAL: Execute only this ONE batch, then STOP. Do NOT loop through remaining batches.
+The Stop hook drives batch-by-batch execution — each batch gets a fresh context turn.
 
 Anti-Skip Rules: ALL test files MUST run. Fix-before-continue is MANDATORY.
 RE-ANCHOR: Execute this batch only. Do NOT skip ahead.
