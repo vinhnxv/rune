@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.12.0] - 2026-03-24
+
+### Added
+- **UntitledUI pipeline enhancement** — 8 tasks across design system infrastructure (#418):
+  - `applyV4Syntax()` token transformation for Tailwind v4.1 alignment
+  - 8 new Semantic IR ComponentTypes (+ `modal→dialog` alias)
+  - 56 curated icon mapping entries with style suffix detection
+  - Enriched Figma framework signatures (compound detection + conclusive match)
+  - Page templates wired into design-prototype pipeline
+  - Doc pack + token map for UntitledUI
+
+### Fixed
+- **Convention conflict resolution** — Tailwind v4.1 syntax alignment in UntitledUI conventions
+- **Convention truncation** — Section reordering and limit increase to prevent truncated agent conventions
+
 ## [2.11.1] - 2026-03-24
 
 ### Fixed
