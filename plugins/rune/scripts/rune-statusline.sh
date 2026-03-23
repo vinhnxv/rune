@@ -102,7 +102,8 @@ if [[ -d "${DIR}/.git" ]] || git -C "$DIR" rev-parse --git-dir &>/dev/null 2>&1;
   fi
 fi
 
-# Cost formatting
+# Cost formatting (validate numeric before printf)
+[[ "$COST" =~ ^[0-9.]+$ ]] || COST=0
 COST_FMT=$(printf '$%.2f' "$COST" 2>/dev/null || echo '$0.00')
 
 # Active Rune workflow detection

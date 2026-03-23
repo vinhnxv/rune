@@ -72,7 +72,7 @@ if [[ -f "$_RUNE_LOCK_ROOT/.git" ]]; then
   _RUNE_WT_MARKER="${_RUNE_LOCK_ROOT}/.rune/.rune-worktree-source"
   # Fallback to legacy marker location (pre-migration worktrees)
   if [[ ! -f "$_RUNE_WT_MARKER" || -L "$_RUNE_WT_MARKER" ]]; then
-    local _legacy="${_RUNE_LOCK_ROOT}/.claude/.rune-worktree-source"
+    _legacy="${_RUNE_LOCK_ROOT}/.claude/.rune-worktree-source"
     [[ -f "$_legacy" && ! -L "$_legacy" ]] && _RUNE_WT_MARKER="$_legacy"
   fi
   if [[ -f "$_RUNE_WT_MARKER" && ! -L "$_RUNE_WT_MARKER" ]]; then

@@ -75,8 +75,11 @@ while [[ $# -gt 0 ]]; do
         printf '{"state":"IDLE","confidence":0.5,"details":"--window requires a value"}\n'
         exit 0
       fi
-      WINDOW_SECS=$(( "$1" + 0 )) 2>/dev/null || WINDOW_SECS=60
-      [[ "$WINDOW_SECS" -gt 0 ]] || WINDOW_SECS=60
+      if [[ "${1:-}" =~ ^[0-9]+$ ]]; then
+        WINDOW_SECS="$1"
+      else
+        WINDOW_SECS=60
+      fi
       shift
       ;;
     -*)

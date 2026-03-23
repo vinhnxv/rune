@@ -101,7 +101,8 @@ rune_resolve_venv() {
 
   # Write hash (atomic: write to tmp then rename)
   if [[ "$current_hash" != "no-hash" ]]; then
-    local tmp_hash="${hash_file}.tmp.$$"
+    local tmp_hash
+    tmp_hash=$(mktemp "${hash_file}.XXXXXX" 2>/dev/null || echo "${hash_file}.tmp.$$")
     echo "$current_hash" > "$tmp_hash" 2>/dev/null && mv -f "$tmp_hash" "$hash_file" 2>/dev/null || rm -f "$tmp_hash" 2>/dev/null
   fi
 

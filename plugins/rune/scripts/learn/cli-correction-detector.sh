@@ -69,7 +69,7 @@ while [[ $# -gt 0 ]]; do
     --window)
       shift
       WINDOW="${1:-5}"
-      shift
+      [[ $# -gt 0 ]] && shift
       ;;
     *)
       shift

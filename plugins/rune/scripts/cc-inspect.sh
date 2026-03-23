@@ -368,7 +368,7 @@ if should_show "runtime"; then
 
     # Arc checkpoint
     if [[ -d "${RUNE_STATE}/arc" ]]; then
-      checkpoint_count=$(find ${RUNE_STATE}/arc -name 'checkpoint.json' 2>/dev/null | wc -l | tr -d ' ')
+      checkpoint_count=$(find "${RUNE_STATE}/arc" -name 'checkpoint.json' 2>/dev/null | wc -l | tr -d ' ')
       echo "  Arc checkpoints    : ${checkpoint_count}"
     fi
 
@@ -403,7 +403,7 @@ if should_show "runtime"; then
   # Talisman config
   echo "  Talisman Config:"
   if [[ -f "${RUNE_STATE}/talisman.yml" ]]; then
-    size=$(du -h ${RUNE_STATE}/talisman.yml 2>/dev/null | cut -f1)
+    size=$(du -h "${RUNE_STATE}/talisman.yml" 2>/dev/null | cut -f1)
     echo "    Project: ${RUNE_STATE}/talisman.yml (${size})"
   else
     echo "    Project: (not found)"
@@ -425,7 +425,7 @@ if should_show "echoes"; then
   echo "─────────────────────────────────────────────────────"
   if [[ -d "${RUNE_STATE}/echoes" ]]; then
     total_entries=0
-    for role_dir in ${RUNE_STATE}/echoes/*/; do
+    for role_dir in "${RUNE_STATE}/echoes"/*/; do
       if [[ -d "$role_dir" ]]; then
         role=$(basename "$role_dir")
         if [[ -f "${role_dir}MEMORY.md" ]]; then

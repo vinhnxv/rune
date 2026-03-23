@@ -30,7 +30,7 @@ set -euo pipefail
 umask 077
 
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
-[[ "$RUNE_TRACE_LOG" =~ ^/tmp/ ]] || RUNE_TRACE_LOG=""
+[[ "$RUNE_TRACE_LOG" =~ ^(/tmp/|${TMPDIR:-/tmp}/) ]] || RUNE_TRACE_LOG=""
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] %s: %s\n' "$(date +%H:%M:%S)" "${BASH_SOURCE[0]##*/}" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
 _rune_fail_forward() {
@@ -70,12 +70,12 @@ while [[ $# -gt 0 ]]; do
     --since)
       shift
       SINCE_DAYS="${1:-7}"
-      shift
+      [[ $# -gt 0 ]] && shift
       ;;
     --project)
       shift
       PROJECT_DIR="${1:-$PWD}"
-      shift
+      [[ $# -gt 0 ]] && shift
       ;;
     *)
       shift

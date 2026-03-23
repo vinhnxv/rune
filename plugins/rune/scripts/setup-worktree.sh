@@ -283,7 +283,7 @@ if [[ -L "$MARKER" ]]; then
 fi
 
 # Write canonicalized main repo path (atomic via tmp+mv)
-_marker_tmp="${MARKER}.tmp.$$"
+_marker_tmp=$(mktemp "${MARKER}.XXXXXX" 2>/dev/null || echo "${MARKER}.tmp.$$")
 if printf '%s\n' "$CWD" > "$_marker_tmp" && mv -f "$_marker_tmp" "$MARKER"; then
   _trace "Wrote marker: $MARKER → $CWD"
 else

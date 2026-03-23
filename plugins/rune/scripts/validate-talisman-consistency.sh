@@ -39,11 +39,12 @@ if [ ! -f "$TALISMAN_PATH" ]; then
 fi
 
 # ── Parse talisman with Python (PyYAML) ──
+# SEC-001 FIX: Pass TALISMAN_PATH via sys.argv instead of shell interpolation
 
-PARSED=$(python3 -c "
+PARSED=$(python3 - "$TALISMAN_PATH" <<'PYEOF'
 import yaml, json, sys
 
-with open('$TALISMAN_PATH') as f:
+with open(sys.argv[1]) as f:
     t = yaml.safe_load(f) or {}
 
 settings = t.get('settings', {})
@@ -75,18 +76,19 @@ for c in custom:
     result['total_context_budget'] += agent['context_budget']
 
 json.dump(result, sys.stdout)
-" 2>/dev/null) || {
+PYEOF
+) || {
   echo '{"findings":[],"error":"PyYAML not available","checks_run":0}'
   exit 0
 }
 
-# ── Extract values ──
+# ── Extract values (use jq instead of python3 for each field) ──
 
-max_ashes=$(echo "$PARSED" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['max_ashes'])")
-custom_count=$(echo "$PARSED" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['custom_count'])")
-total_budget=$(echo "$PARSED" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['total_context_budget'])")
-max_dim_agents=$(echo "$PARSED" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['max_dimension_agents'])")
-dim_count=$(echo "$PARSED" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['dimension_count'])")
+max_ashes=$(printf '%s\n' "$PARSED" | jq -r '.max_ashes' 2>/dev/null || echo "9")
+custom_count=$(printf '%s\n' "$PARSED" | jq -r '.custom_count' 2>/dev/null || echo "0")
+total_budget=$(printf '%s\n' "$PARSED" | jq -r '.total_context_budget' 2>/dev/null || echo "0")
+max_dim_agents=$(printf '%s\n' "$PARSED" | jq -r '.max_dimension_agents' 2>/dev/null || echo "7")
+dim_count=$(printf '%s\n' "$PARSED" | jq -r '.dimension_count' 2>/dev/null || echo "0")
 
 checks_run=0
 
@@ -102,14 +104,18 @@ if [ "$max_ashes" -lt "$needed" ]; then
 fi
 
 # ── TC-002 / TC-003: custom agent source resolution ──
+# FIX: Use process substitution instead of pipe to preserve add_finding state
 
 checks_run=$((checks_run + 1))
-echo "$PARSED" | python3 -c "
+while IFS='|' read -r id severity message fix; do
+  [[ -z "$id" ]] && continue
+  add_finding "$id" "$severity" "$message" "$fix"
+done < <(printf '%s\n' "$PARSED" | python3 - "$PROJECT_DIR" "$PLUGIN_ROOT" <<'PYEOF'
 import sys, json, os
 
 d = json.load(sys.stdin)
-project_dir = '$PROJECT_DIR'
-plugin_root = '$PLUGIN_ROOT'
+project_dir = sys.argv[1]
+plugin_root = sys.argv[2]
 
 for agent in d['custom_agents']:
     name = agent['name']
@@ -119,9 +125,8 @@ for agent in d['custom_agents']:
     if source == 'local':
         path = os.path.join(project_dir, '.claude', 'agents', agent_file + '.md')
         if not os.path.isfile(path):
-            print(f'TC-002|CRITICAL|Custom ash \"{name}\" has source: local but {path} does not exist. Agent will never spawn.|Change source to \"plugin\" if agent is in registry/, or create .claude/agents/{agent_file}.md')
+            print(f'TC-002|CRITICAL|Custom ash "{name}" has source: local but {path} does not exist. Agent will never spawn.|Change source to "plugin" if agent is in registry/, or create .claude/agents/{agent_file}.md')
     elif source == 'plugin':
-        # Check registry/ and agents/ in plugin
         registry_path = os.path.join(plugin_root, 'registry')
         agents_path = os.path.join(plugin_root, 'agents')
         found = False
@@ -133,10 +138,9 @@ for agent in d['custom_agents']:
             if found:
                 break
         if not found:
-            print(f'TC-003|HIGH|Custom ash \"{name}\" has source: plugin but no {agent_file}.md found in {plugin_root}/agents/ or {plugin_root}/registry/.|Verify agent file exists or change source')
-" 2>/dev/null | while IFS='|' read -r id severity message fix; do
-  add_finding "$id" "$severity" "$message" "$fix"
-done
+            print(f'TC-003|HIGH|Custom ash "{name}" has source: plugin but no {agent_file}.md found in {plugin_root}/agents/ or {plugin_root}/registry/.|Verify agent file exists or change source')
+PYEOF
+)
 
 # ── TC-004: total context_budget ──
 
@@ -161,22 +165,24 @@ elif [ "$dim_count" -gt 0 ] && [ "$max_dim_agents" -eq "$dim_count" ]; then
 fi
 
 # ── TC-006: dedup_hierarchy vs custom agent prefixes ──
+# FIX: Use process substitution instead of pipe to preserve add_finding state
 
 checks_run=$((checks_run + 1))
-echo "$PARSED" | python3 -c "
+while IFS='|' read -r id severity message fix; do
+  [[ -z "$id" ]] && continue
+  add_finding "$id" "$severity" "$message" "$fix"
+done < <(printf '%s\n' "$PARSED" | python3 <<'PYEOF'
 import sys, json
 
 d = json.load(sys.stdin)
 hierarchy = d.get('dedup_hierarchy', [])
 custom_prefixes = {a['finding_prefix'] for a in d['custom_agents'] if a.get('finding_prefix')}
 
-# Check custom prefixes not in hierarchy
 missing = custom_prefixes - set(hierarchy)
 if missing:
     for prefix in sorted(missing):
-        print(f'TC-006|HIGH|Custom ash prefix \"{prefix}\" not in dedup_hierarchy. Findings with this prefix may not deduplicate correctly.|Add \"{prefix}\" to settings.dedup_hierarchy')
+        print(f'TC-006|HIGH|Custom ash prefix "{prefix}" not in dedup_hierarchy. Findings with this prefix may not deduplicate correctly.|Add "{prefix}" to settings.dedup_hierarchy')
 
-# Check hierarchy entries with no matching custom agent or known built-in
 known_builtin = {'SEC', 'BACK', 'VEIL', 'DOUBT', 'DOC', 'QUAL', 'FRONT', 'CDX',
                  'PY', 'TSR', 'RST', 'PHP', 'FAPI', 'DJG', 'LARV', 'SQLA', 'TDD', 'DDD', 'DI',
                  'UXH', 'UXI', 'UXF', 'UIQA', 'DES', 'SHARD'}
@@ -184,10 +190,9 @@ all_known = known_builtin | custom_prefixes
 orphaned = [p for p in hierarchy if p not in all_known]
 if orphaned:
     for prefix in orphaned:
-        print(f'TC-006|INFO|Dedup hierarchy entry \"{prefix}\" has no matching built-in or custom agent.|Remove if agent was retired, or verify prefix is correct')
-" 2>/dev/null | while IFS='|' read -r id severity message fix; do
-  add_finding "$id" "$severity" "$message" "$fix"
-done
+        print(f'TC-006|INFO|Dedup hierarchy entry "{prefix}" has no matching built-in or custom agent.|Remove if agent was retired, or verify prefix is correct')
+PYEOF
+)
 
 # ── Output JSON ──
 

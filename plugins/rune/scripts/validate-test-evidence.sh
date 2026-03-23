@@ -89,6 +89,7 @@ CURRENT_PID="$PPID"
 # Check team state file for session ownership
 # CDXB-002 FIX: Filter state files by TEAM_NAME instead of taking the first match
 STATE_FILE=""
+shopt -s nullglob
 for sf in "$CWD/tmp/.rune-work-"*.json; do
   [[ -f "$sf" ]] || continue
   sf_team=$(jq -r '.team_name // empty' "$sf" 2>/dev/null || echo "")

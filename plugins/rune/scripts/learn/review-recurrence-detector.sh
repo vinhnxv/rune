@@ -57,12 +57,12 @@ while [[ $# -gt 0 ]]; do
     --project)
       shift
       PROJECT_DIR="${1:-}"
-      shift
+      [[ $# -gt 0 ]] && shift
       ;;
     --min-count)
       shift
       MIN_COUNT="${1:-2}"
-      shift
+      [[ $# -gt 0 ]] && shift
       ;;
     *)
       shift

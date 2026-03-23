@@ -122,8 +122,8 @@ source "${SCRIPT_DIR}/lib/rune-state.sh"
 # ── GUARD 7: Ownership verification (session isolation) ──
 # If checkpoint includes config_dir/owner_pid, verify this session owns it.
 # Fail-open: missing fields = legacy checkpoint → allow recovery.
-CHKPT_CFG=$(echo "$CHECKPOINT_DATA" | jq -r '.config_dir // empty' 2>/dev/null || true)
-CHKPT_PID=$(echo "$CHECKPOINT_DATA" | jq -r '.owner_pid // empty' 2>/dev/null || true)
+CHKPT_CFG=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.config_dir // empty' 2>/dev/null || true)
+CHKPT_PID=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.owner_pid // empty' 2>/dev/null || true)
 
 if [[ -n "$CHKPT_CFG" ]]; then
   CHKPT_CFG_RESOLVED=$(cd "$CHKPT_CFG" 2>/dev/null && pwd -P || echo "$CHKPT_CFG")
@@ -155,7 +155,7 @@ if [[ -n "$COMPACT_FAILED_MSG" ]]; then
 fi
 
 # ── EXTRACT: team name from checkpoint ──
-TEAM_NAME=$(echo "$CHECKPOINT_DATA" | jq -r '.team_name // empty' 2>/dev/null || true)
+TEAM_NAME=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.team_name // empty' 2>/dev/null || true)
 
 # Check for arc-batch state (v1.72.0) — may exist even without an active team
 # v1.101.1 FIX (Finding #8): Verify the ACTUAL loop state file is still active before
@@ -163,7 +163,7 @@ TEAM_NAME=$(echo "$CHECKPOINT_DATA" | jq -r '.team_name // empty' 2>/dev/null ||
 # during ARC-9 cleanup, the checkpoint has stale loop state. Re-injecting "resume batch"
 # would cause Claude to restart a completed batch, preventing session from ending.
 HAS_BATCH_STATE="false"
-_batch_checkpoint=$(echo "$CHECKPOINT_DATA" | jq -r 'if .arc_batch_state and .arc_batch_state != {} and (.arc_batch_state | has("iteration")) then "true" else "false" end' 2>/dev/null || echo "false")
+_batch_checkpoint=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r 'if .arc_batch_state and .arc_batch_state != {} and (.arc_batch_state | has("iteration")) then "true" else "false" end' 2>/dev/null || echo "false")
 if [[ "$_batch_checkpoint" == "true" ]]; then
   # Cross-check with actual loop state file
   if [[ -f "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md" ]] && [[ ! -L "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md" ]]; then
@@ -181,7 +181,7 @@ fi
 
 # Check for arc-issues state — may exist even without an active team
 HAS_ISSUES_STATE="false"
-_issues_checkpoint=$(echo "$CHECKPOINT_DATA" | jq -r 'if .arc_issues_state and .arc_issues_state != {} and (.arc_issues_state | has("iteration")) then "true" else "false" end' 2>/dev/null || echo "false")
+_issues_checkpoint=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r 'if .arc_issues_state and .arc_issues_state != {} and (.arc_issues_state | has("iteration")) then "true" else "false" end' 2>/dev/null || echo "false")
 if [[ "$_issues_checkpoint" == "true" ]]; then
   if [[ -f "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md" ]] && [[ ! -L "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md" ]]; then
     _issues_fm=$(sed -n '/^---$/,/^---$/p' "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md" 2>/dev/null | sed '1d;$d')
@@ -200,15 +200,15 @@ if [[ -z "$TEAM_NAME" ]]; then
   # No team — but if arc-batch or arc-issues state exists, still inject loop context
   if [[ "$HAS_BATCH_STATE" == "true" ]] || [[ "$HAS_ISSUES_STATE" == "true" ]]; then
     _trace "Recovery: teamless checkpoint with loop state (batch=${HAS_BATCH_STATE} issues=${HAS_ISSUES_STATE})"
-    SAVED_AT=$(echo "$CHECKPOINT_DATA" | jq -r '.saved_at // "unknown"' 2>/dev/null || echo "unknown")
+    SAVED_AT=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.saved_at // "unknown"' 2>/dev/null || echo "unknown")
 
     LOOP_INFO=""
 
     # Arc-batch info
     if [[ "$HAS_BATCH_STATE" == "true" ]]; then
-      BATCH_ITER=$(echo "$CHECKPOINT_DATA" | jq -r '.arc_batch_state.iteration // empty' 2>/dev/null || true)
-      BATCH_TOTAL=$(echo "$CHECKPOINT_DATA" | jq -r '.arc_batch_state.total_plans // empty' 2>/dev/null || true)
-      BATCH_SUMMARY=$(echo "$CHECKPOINT_DATA" | jq -r '.arc_batch_state.latest_summary // empty' 2>/dev/null || true)
+      BATCH_ITER=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.arc_batch_state.iteration // empty' 2>/dev/null || true)
+      BATCH_TOTAL=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.arc_batch_state.total_plans // empty' 2>/dev/null || true)
+      BATCH_SUMMARY=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.arc_batch_state.latest_summary // empty' 2>/dev/null || true)
       if [[ -n "$BATCH_ITER" ]] && [[ "$BATCH_ITER" =~ ^[0-9]+$ ]]; then
         if [[ ! "$BATCH_TOTAL" =~ ^[0-9]+$ ]]; then BATCH_TOTAL="unknown"; fi
         LOOP_INFO="${LOOP_INFO} Arc-batch iteration ${BATCH_ITER}/${BATCH_TOTAL}."
@@ -226,8 +226,8 @@ if [[ -z "$TEAM_NAME" ]]; then
 
     # Arc-issues info
     if [[ "$HAS_ISSUES_STATE" == "true" ]]; then
-      ISSUES_ITER=$(echo "$CHECKPOINT_DATA" | jq -r '.arc_issues_state.iteration // empty' 2>/dev/null || true)
-      ISSUES_TOTAL=$(echo "$CHECKPOINT_DATA" | jq -r '.arc_issues_state.total_plans // empty' 2>/dev/null || true)
+      ISSUES_ITER=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.arc_issues_state.iteration // empty' 2>/dev/null || true)
+      ISSUES_TOTAL=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.arc_issues_state.total_plans // empty' 2>/dev/null || true)
       if [[ -n "$ISSUES_ITER" ]] && [[ "$ISSUES_ITER" =~ ^[0-9]+$ ]]; then
         if [[ ! "$ISSUES_TOTAL" =~ ^[0-9]+$ ]]; then ISSUES_TOTAL="unknown"; fi
         LOOP_INFO="${LOOP_INFO} Arc-issues iteration ${ISSUES_ITER}/${ISSUES_TOTAL}."
@@ -288,10 +288,10 @@ _trace "Recovery: team=${TEAM_NAME} checkpoint=$CHECKPOINT_FILE"
 
 # ── BUILD COMPACT SUMMARY ──
 # Extract key fields for the summary (keep it concise for context injection)
-SAVED_AT=$(echo "$CHECKPOINT_DATA" | jq -r '.saved_at // "unknown"' 2>/dev/null || echo "unknown")
+SAVED_AT=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.saved_at // "unknown"' 2>/dev/null || echo "unknown")
 
 # Task summary: count by status
-TASK_SUMMARY=$(echo "$CHECKPOINT_DATA" | jq -r '
+TASK_SUMMARY=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '
   .tasks // [] |
   group_by(.status // "unknown") |
   map("\(.[0].status // "unknown"): \(length)") |
@@ -302,8 +302,8 @@ TASK_SUMMARY=$(echo "$CHECKPOINT_DATA" | jq -r '
 TASK_SUMMARY="${TASK_SUMMARY//$'\n'/ }"
 
 # Workflow type and status
-WORKFLOW_TYPE=$(echo "$CHECKPOINT_DATA" | jq -r '.workflow_state.workflow // .workflow_state.type // "unknown"' 2>/dev/null || echo "unknown")
-WORKFLOW_STATUS=$(echo "$CHECKPOINT_DATA" | jq -r '.workflow_state.status // "unknown"' 2>/dev/null || echo "unknown")
+WORKFLOW_TYPE=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.workflow_state.workflow // .workflow_state.type // "unknown"' 2>/dev/null || echo "unknown")
+WORKFLOW_STATUS=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.workflow_state.status // "unknown"' 2>/dev/null || echo "unknown")
 
 # WS-004 FIX: Validate WORKFLOW_TYPE and WORKFLOW_STATUS (consistent with ARC_PHASE validation)
 if [[ ! "$WORKFLOW_TYPE" =~ ^[a-zA-Z0-9_:\ -]+$ ]] || [[ ${#WORKFLOW_TYPE} -gt 64 ]]; then
@@ -314,7 +314,7 @@ if [[ ! "$WORKFLOW_STATUS" =~ ^[a-zA-Z0-9_:\ -]+$ ]] || [[ ${#WORKFLOW_STATUS} -
 fi
 
 # Arc phase if present
-ARC_PHASE=$(echo "$CHECKPOINT_DATA" | jq -r '.arc_checkpoint.current_phase // empty' 2>/dev/null || true)
+ARC_PHASE=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.arc_checkpoint.current_phase // empty' 2>/dev/null || true)
 # WS-002 FIX: Validate ARC_PHASE against character allowlist (closes prompt injection surface)
 ARC_INFO=""
 if [[ -n "$ARC_PHASE" ]] && [[ "$ARC_PHASE" =~ ^[a-zA-Z0-9_:\ -]+$ ]] && [[ ${#ARC_PHASE} -le 64 ]]; then
@@ -339,14 +339,14 @@ if [[ -n "$ARC_PHASE" ]] && [[ "$ARC_PHASE" =~ ^[a-zA-Z0-9_:\ -]+$ ]] && [[ ${#A
 fi
 
 # Team member count
-MEMBER_COUNT=$(echo "$CHECKPOINT_DATA" | jq -r '.team_config.members // [] | length' 2>/dev/null || echo "0")
+MEMBER_COUNT=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.team_config.members // [] | length' 2>/dev/null || echo "0")
 
 # [NEW] Arc phase summaries if present (Feature 5 — phase memory handoff)
 # These are paths to compressed phase group summaries written before compaction.
 # Re-injecting them tells the resumed session which groups are already summarized and
 # how to restore carry-forward state without re-reading verbose phase artifacts.
 PHASE_SUMMARY_INFO=""
-_raw_phase_summaries=$(echo "$CHECKPOINT_DATA" | jq -r '
+_raw_phase_summaries=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '
   .arc_phase_summaries // {} | to_entries[] | "\(.key):\(.value)"
 ' 2>/dev/null || true)
 if [[ -n "$_raw_phase_summaries" ]]; then
@@ -370,9 +370,9 @@ fi
 # v1.101.1 FIX (Finding #8): Cross-check with actual loop state file before injecting
 # resume context. Same guard as the teamless path above.
 BATCH_INFO=""
-BATCH_ITER=$(echo "$CHECKPOINT_DATA" | jq -r '.arc_batch_state.iteration // empty' 2>/dev/null || true)
-BATCH_TOTAL=$(echo "$CHECKPOINT_DATA" | jq -r '.arc_batch_state.total_plans // empty' 2>/dev/null || true)
-BATCH_SUMMARY=$(echo "$CHECKPOINT_DATA" | jq -r '.arc_batch_state.latest_summary // empty' 2>/dev/null || true)
+BATCH_ITER=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.arc_batch_state.iteration // empty' 2>/dev/null || true)
+BATCH_TOTAL=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.arc_batch_state.total_plans // empty' 2>/dev/null || true)
+BATCH_SUMMARY=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.arc_batch_state.latest_summary // empty' 2>/dev/null || true)
 
 if [[ -n "$BATCH_ITER" ]] && [[ "$BATCH_ITER" =~ ^[0-9]+$ ]]; then
   # Cross-check: only inject if loop state file is still active
@@ -402,8 +402,8 @@ fi
 
 # Arc-issues state if present
 ISSUES_INFO=""
-ISSUES_ITER=$(echo "$CHECKPOINT_DATA" | jq -r '.arc_issues_state.iteration // empty' 2>/dev/null || true)
-ISSUES_TOTAL=$(echo "$CHECKPOINT_DATA" | jq -r '.arc_issues_state.total_plans // empty' 2>/dev/null || true)
+ISSUES_ITER=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.arc_issues_state.iteration // empty' 2>/dev/null || true)
+ISSUES_TOTAL=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.arc_issues_state.total_plans // empty' 2>/dev/null || true)
 if [[ -n "$ISSUES_ITER" ]] && [[ "$ISSUES_ITER" =~ ^[0-9]+$ ]]; then
   # Cross-check: only inject if loop state file is still active
   _issues_still_active="false"

@@ -52,7 +52,8 @@ FAILURE_FILE="${TMPDIR:-/tmp}/rune-tool-failures-${SAFE_SESSION}.json"
 [[ -f "$FAILURE_FILE" ]] || exit 0
 
 # --- Remove failure entry for this tool (atomic: tmp file + mv) ---
-jq --arg t "$TOOL_NAME" 'del(.[$t])' "$FAILURE_FILE" > "${FAILURE_FILE}.tmp" 2>/dev/null \
-  && mv "${FAILURE_FILE}.tmp" "$FAILURE_FILE" 2>/dev/null || true
+_tmp_reset=$(mktemp "${FAILURE_FILE}.XXXXXX" 2>/dev/null || echo "${FAILURE_FILE}.tmp.$$")
+jq --arg t "$TOOL_NAME" 'del(.[$t])' "$FAILURE_FILE" > "$_tmp_reset" 2>/dev/null \
+  && mv "$_tmp_reset" "$FAILURE_FILE" 2>/dev/null || { rm -f "$_tmp_reset" 2>/dev/null; true; }
 
 exit 0

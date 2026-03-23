@@ -91,7 +91,7 @@ rune_echo_append() {
         # Skip unknown args
         ;;
     esac
-    shift
+    [[ $# -gt 0 ]] && shift
   done
 
   # ── Validate required args ──
