@@ -29,14 +29,32 @@ const SSRF_BLOCKLIST = [
   /^https?:\/\/\[::ffff:127\./,
   /^https?:\/\/[^/]*\.(local|internal|corp|test|example|invalid|localhost)(\/|$)/i,
 ]
-const safeFigmaUrls = figmaUrls.filter(url =>
-  url.includes("figma.com") && !SSRF_BLOCKLIST.some(re => re.test(url))
-)
+// SSRF: domain-anchored filter (replaces bypassable url.includes("figma.com"))
+// SYNC: figma-domain-pattern — shared with devise/references/design-signal-detection.md
+const FIGMA_DOMAIN_PATTERN = /^https:\/\/(www\.)?figma\.com\//
+const safeFigmaUrls = figmaUrls
+  .map(url => url.replace(/[\r\n)>\]|"]/g, ''))  // Strip injection chars
+  .filter(url => FIGMA_DOMAIN_PATTERN.test(url))   // Domain-anchored whitelist
+  .filter(url => !SSRF_BLOCKLIST.some(re => re.test(url)))  // Keep blocklist as defense-in-depth
+  .map(url => url.slice(0, 2048))  // Cap per-URL length to prevent token bloat
 const figmaUrl = safeFigmaUrls.length > 0 ? safeFigmaUrls[0] : null
 const hasDesignKeywords = DESIGN_KEYWORD_PATTERN.test(searchText)
 
 if (figmaUrl) {
   design_sync_candidate = true
+
+  // Persist design URLs to workspace metadata for devise handoff
+  const metaPath = `tmp/brainstorm-${timestamp}/workspace-meta.json`
+  let existingMeta = {}
+  try { existingMeta = JSON.parse(Read(metaPath) || '{}') } catch (e) { /* start fresh */ }
+  existingMeta.design_urls = safeFigmaUrls
+  existingMeta.design_url_primary = figmaUrl
+  existingMeta.design_sync_candidate = true
+  existingMeta.design_keywords_detected = hasDesignKeywords
+  const tmpMeta = metaPath + '.tmp'
+  Write(tmpMeta, JSON.stringify(existingMeta, null, 2))
+  Bash(`mv "${tmpMeta}" "${metaPath}"`)
+
   // Append Design Assets section to brainstorm context
 
   // Component preview: call figma_list_components when design_sync enabled
