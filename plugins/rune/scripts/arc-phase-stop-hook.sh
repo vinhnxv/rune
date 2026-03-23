@@ -426,18 +426,31 @@ ${fix_context}
 ${service_hint}
 
 Execute ONE test batch using a dedicated teammate agent.
+Do NOT re-read arc-phase-test.md — this prompt contains everything you need.
+Do NOT re-run TeamCreate or re-execute STEPs 0-4 — the team already exists.
 
-1. Read the checkpoint: ${CHECKPOINT_PATH}
-2. Read the testing plan: ${_rel_plan}
-3. Read arc-phase-test.md STEP 5 for the batch execution model
-4. Execute batch ${next_batch} (type: ${batch_type}, files: ${batch_files})
-5. The batch runner agent writes results to its own file — do NOT read the full result into your context
-6. Use Grep to check for <!-- STATUS: PASS --> or <!-- STATUS: FAIL --> marker only
-7. Update testing-plan.json with the batch status (passed/failed/fixing)
-8. STOP responding — the Stop hook will advance to the next batch
+## Steps
 
-CRITICAL: Execute only this ONE batch, then STOP. Do NOT loop through remaining batches.
-The Stop hook drives batch-by-batch execution — each batch gets a fresh context turn.
+1. Read the testing plan: ${_rel_plan}
+2. Read the checkpoint: ${CHECKPOINT_PATH}
+3. Find batch ${next_batch} in testing-plan.json
+4. Mark batch status → "running", write checkpoint
+5. Spawn a foreground agent (run_in_background: false) on team arc-test-{id}:
+   - TaskCreate BEFORE Agent (Iron Law TEAM-002)
+   - Agent writes results to tmp/arc/{id}/test-results-${batch_type}-batch-${next_batch}.md
+   - Agent prompt: run ${batch_type} tests for files: ${batch_files}
+   - Agent includes <!-- STATUS: PASS --> or <!-- STATUS: FAIL --> marker
+6. After agent completes, use Grep (NOT Read) to check STATUS marker only
+7. If PASS → mark batch "passed", write checkpoint
+8. If FAIL → read first 50 lines only, classify failure (F3/F8/F17):
+   - If retries remaining AND not stagnated → spawn fixer agent → mark "pending" → STOP
+   - Otherwise → mark batch "failed", write checkpoint
+9. STOP responding — the Stop hook will advance to the next batch
+
+## Rules
+- Do NOT read the full test output into your context — only Grep for STATUS marker
+- Do NOT loop through remaining batches — only this ONE batch per turn
+- Do NOT create a new team or call TeamCreate — reuse existing arc-test-{id}
 
 Anti-Skip Rules: ALL test files MUST run. Fix-before-continue is MANDATORY.
 RE-ANCHOR: Execute this batch only. Do NOT skip ahead.

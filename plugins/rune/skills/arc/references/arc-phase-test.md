@@ -723,19 +723,32 @@ for (const batch of testingPlan.batches) {
   break  // Exit the for-loop — only ONE batch per turn
 }
 
-// Update testing plan markdown after all batches complete
+// ── EARLY EXIT: If there are still pending batches, STOP here ──
+// Do NOT proceed to STEP 9 (report) or STEP 10 (cleanup) until ALL batches are done.
+// The stop hook will re-inject for the next batch. STEP 9-10 only run during
+// the finalization turn (triggered by stop hook when no pending batches remain).
+const hasPendingBatches = testingPlan.batches.some(b =>
+  b.status === "pending" || b.status === "running" || b.status === "fixing"
+)
+
+// Update checkpoint with progress for stop hook continuation
 Write(`tmp/arc/${id}/testing-plan.md`, renderTestingPlanMarkdown(testingPlan))
 
-// Update checkpoint for stop hook sub-loop continuation
 updateCheckpoint({
   phase: "test", status: "in_progress",
   testing_plan_batches_total: testingPlan.summary.total_batches,
   testing_plan_batches_completed: testingPlan.summary.completed,
-  testing_plan_has_pending: testingPlan.batches.some(b => b.status === "pending")
+  testing_plan_has_pending: hasPendingBatches
 })
 
+if (hasPendingBatches) {
+  // More batches remain — STOP here. The stop hook will re-inject for the next batch.
+  // Do NOT proceed to STEP 9 (report) or STEP 10 (cleanup/TeamDelete).
+  return  // Early exit — stop hook continues the batch loop
+}
+
 // ═══════════════════════════════════════════════════════
-// STEP 9: GENERATE TEST REPORT
+// STEP 9: GENERATE TEST REPORT (only runs when ALL batches are done)
 // ═══════════════════════════════════════════════════════
 
 // Reserve last 60s for STEPS 9-10
