@@ -259,7 +259,11 @@ Write(`tmp/arc/${id}/pr-body.md`, prBody)
 // 5. Create PR
 // Validate labels array before .map() (SEC-DECREE-002 / concern #13)
 const labelsArray = Array.isArray(arcConfig.ship.labels) ? arcConfig.ship.labels : []
-const draftFlag = arcConfig.ship.draft ? "--draft" : ""
+// draft_until_ready: true → create as draft, auto-mark ready after bot_review_wait passes
+// draft: true → create as draft, stay draft (manual ready)
+// neither → create as non-draft (ready immediately)
+const draftUntilReady = arcConfig.ship.draft_until_ready ?? false
+const draftFlag = (arcConfig.ship.draft || draftUntilReady) ? "--draft" : ""
 const labelFlag = labelsArray.length > 0
   ? labelsArray.map(l => `--label "${l.replace(/[^a-zA-Z0-9 ._\-]/g, '')}"`).join(' ')
   : ""
@@ -293,13 +297,15 @@ if (!/^https:\/\//.test(prUrl)) {
 }
 log(`PR created: ${prUrl}`)
 
-// 6. Update checkpoint
+// 6. Update checkpoint (include draft_until_ready for bot_review_wait to consume)
 checkpoint.pr_url = prUrl
+checkpoint.draft_until_ready = draftUntilReady
 updateCheckpoint({
   phase: "ship", status: "completed",
   artifact: `tmp/arc/${id}/pr-body.md`,
   artifact_hash: sha256(Read(`tmp/arc/${id}/pr-body.md`)),
-  phase_sequence: 9, team_name: null
+  phase_sequence: 9, team_name: null,
+  draft_until_ready: draftUntilReady
 })
 ```
 

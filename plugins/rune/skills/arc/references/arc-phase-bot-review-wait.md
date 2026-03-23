@@ -471,6 +471,23 @@ updateCheckpoint({
     last_activity: lastActivityTimestamp
   }
 })
+
+// 8. Auto-mark PR ready for review (Option B: draft_until_ready)
+// When ship.draft_until_ready is set, the PR was created as draft to avoid
+// pinging reviewers before quality gates pass. Now that bot review is complete
+// (CI passed, bot comments resolved), mark the PR ready for review.
+if (checkpoint.draft_until_ready && checkpoint.pr_url) {
+  const prNumber = checkpoint.pr_url.match(/\/pull\/(\d+)/)?.[1]
+  if (prNumber) {
+    log(`Marking PR #${prNumber} as ready for review (draft_until_ready)...`)
+    const readyResult = Bash(`${GH_ENV} gh pr ready "${prNumber}"`)
+    if (readyResult.exitCode === 0) {
+      log(`PR #${prNumber} marked ready for review — reviewers will be notified.`)
+    } else {
+      warn(`Failed to mark PR ready: ${readyResult}. Mark manually: gh pr ready ${prNumber}`)
+    }
+  }
+}
 ```
 
 ## Dynamic Timeout Budget
