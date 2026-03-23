@@ -341,7 +341,7 @@ completion markers and that strategy preceded execution.
 
 | ID | Check | Evidence Required |
 |----|-------|------------------|
-| TST-CMP-01 | All active tiers ran (at minimum unit tier for any code change) | Checkpoint `tiers_run` array is non-empty |
+| TST-CMP-01 | All active tiers ran (at minimum unit tier for any code change) | Cross-reference checkpoint `tiers_run` against active tiers from `testing-plan.json` config. At minimum, `tiers_run` MUST be non-empty AND include `"unit"` when implementation files changed. If `tiers_run` is a strict subset of active tiers, check `testing-plan.json` for `skip_reason: "context_exhaustion"` — acceptable if documented |
 | TST-CMP-02 | Checkpoint has `tiers_run`, `pass_rate`, and `coverage_pct` metrics | `Read` checkpoint JSON + field existence validation |
 | TST-CMP-03 | All batches in testing-plan.json have terminal status (`passed`/`failed`/`skipped`) | `Read` testing-plan.json → check no batch has `pending`/`running`/`fixing` status. Non-terminal batches = incomplete execution. |
 | TST-CMP-04 | Test report contains Timing Breakdown section | `Grep` for `## Timing Breakdown` in test-report.md. Missing = WARN (new in v2.10.8) |

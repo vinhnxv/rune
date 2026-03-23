@@ -905,7 +905,7 @@ if (historyEnabled) {
     scope_label: scopeLabel,
     pass_rate: computePassRate(report),
     coverage_pct: computeDiffCoverage(report),
-    tiers_run: activeTiers,
+    tiers_run: [...new Set(executedTiers)],  // DEEP-007 consistency: use executedTiers (all ran), not activeTiers (only passed)
     tier_breakdown: tierBreakdown,
     flaky_scores: flakyScores,
     pr_number: prFromGh || null
