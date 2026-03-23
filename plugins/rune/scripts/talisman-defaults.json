@@ -606,6 +606,7 @@
     "bash_timeout": 300,
     "bash_timeout_enabled": true,
     "bash_timeout_patterns": [],
+    "poll_guard_enabled": false,
     "process_kill_grace": 5,
     "semantic_activity": {
       "enabled": true,
