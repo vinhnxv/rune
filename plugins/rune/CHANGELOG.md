@@ -9,6 +9,9 @@
 - **stop-hook-common.sh get_field() regex too restrictive** — Widen field name validation from `^[a-z_]+$` to `^[a-zA-Z0-9_-]+$` to match `_get_fm_field()` in frontmatter-utils.sh. Fields with uppercase, digits, or hyphens previously failed silently.
 - **validate-resolve-fixer-paths.sh output prefix missing trailing /** — Add trailing `/` to `RESOLVE_OUTPUT_PREFIX` to prevent directory name prefix collisions (e.g., `resolve-todos-abc` matching `resolve-todos-abcdef/`).
 
+### Changed
+- **agent-browser skill v0.21 update** — Updated from v0.15.x to v0.21+ baseline. Added 9 new command sections (iframe, HAR, video, cookies, network, tabs, dialogs, viewport/device, clipboard). Expanded auth from 1 approach (auth vault) to 5 concise approaches with 10 detailed patterns in references. Added Rust binary detection in installation guard. Added browser engine selection (Chrome/Lightpanda) and configuration file sections. Created 7 reference docs (commands, authentication, snapshot-refs, session-management, video-recording, proxy-support, profiling) and 3 shell templates (authenticated-session, capture-workflow, form-automation). SKILL.md stays at 322 lines (under 500-line limit). All Rune-specific sections preserved (Truthbinding, Context Optimization, Headed Mode guard, Chrome MCP prohibition).
+
 ## [2.10.4] - 2026-03-23
 
 ### Fixed
