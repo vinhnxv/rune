@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.11.0] - 2026-03-23
+
+### Changed
+- Version bump to 2.11.0 — consolidates testing pipeline architecture, arc stability fixes, and ship workflow improvements from 2.10.x series
+
 ## [2.10.8] - 2026-03-23
 
 ### Fixed
