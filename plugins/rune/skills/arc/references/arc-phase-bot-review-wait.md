@@ -159,7 +159,8 @@ let lastActivityTimestamp = new Date().toISOString()
 let detectedBots = new Set()
 let lastCommentCount = 0
 let lastCheckRunCount = 0
-let lastMaxUpdatedAt = ""
+let lastMaxUpdatedAt = null  // BUG FIX (v2.10.8): Use null instead of "" — matches currentMaxUpdatedAt sentinel
+let ciFixAbandoned = false   // BUG FIX (v2.10.8): Flag to break outer loop when CI fixer makes no commits
 
 while (Date.now() - phaseStart < HARD_TIMEOUT_MS) {
   // L-6 FIX: Check GitHub API rate limit before polling cycle (1 check-run + 2 comment/review API calls per cycle).
@@ -195,12 +196,13 @@ while (Date.now() - phaseStart < HARD_TIMEOUT_MS) {
   const inProgressCount = parseInt(inProgressCheckRuns || "0", 10)
 
   // Compute maximum updated_at across all signals
-  const timestamps = [checkRunUpdatedAt, commentUpdatedAt, reviewUpdatedAt].filter(Boolean)
-  const currentMaxUpdatedAt = timestamps.length > 0 ? timestamps.sort().pop() : ""
+  // BUG FIX (v2.10.8): Use null sentinel instead of "" to distinguish "no activity" from "empty API response"
+  const timestamps = [checkRunUpdatedAt, commentUpdatedAt, reviewUpdatedAt].filter(t => t && t.length > 0)
+  const currentMaxUpdatedAt = timestamps.length > 0 ? timestamps.sort().pop() : null
 
   // Detect new activity — either count increased OR updated_at changed
   const countChanged = currentCommentCount > lastCommentCount || currentCheckRunCount > lastCheckRunCount
-  const timestampChanged = currentMaxUpdatedAt && currentMaxUpdatedAt !== lastMaxUpdatedAt
+  const timestampChanged = currentMaxUpdatedAt !== null && currentMaxUpdatedAt !== lastMaxUpdatedAt
 
   if (countChanged || timestampChanged) {
     lastActivityTimestamp = new Date().toISOString()
@@ -345,6 +347,9 @@ ${fc.annotations.map(a => `- **${a.path}:${a.start_line}** [${a.annotation_level
           remaining: checkResult.failures.map(f => f.name)
         })
         updateCheckpoint({ ci_status: checkpoint.ci_status })
+        // BUG FIX (v2.10.8): Set flag to break outer while loop too.
+        // Without this, after inner break, outer loop continues polling for 15min.
+        ciFixAbandoned = true
         break
       }
 
@@ -416,6 +421,12 @@ ${fc.annotations.map(a => `- **${a.path}:${a.start_line}** [${a.annotation_level
   // If no bots detected at all after 50% of timeout, skip
   if ((Date.now() - phaseStart) > (HARD_TIMEOUT_MS * 0.5) && currentCommentCount === 0 && currentCheckRunCount === 0) {
     log("No bot reviews detected after 50% of timeout. Proceeding without bot review wait.")
+    break
+  }
+
+  // BUG FIX (v2.10.8): Break outer loop when CI fixer was abandoned (no commits made)
+  if (ciFixAbandoned) {
+    warn("CI fix abandoned (fixer made no commits). Exiting bot review wait — proceeding with current state.")
     break
   }
 

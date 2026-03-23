@@ -190,7 +190,10 @@ function validateMergeReadiness(owner, repo, prNumber) {
 // Polls PR state to verify merge actually completed
 // For immediate merge: short timeout (60s). For auto-merge: longer (ci_check.timeout_ms).
 function verifyMergeCompleted(owner, repo, prNumber, timeoutMs) {
-  const pollIntervalMs = 30_000  // 30s between polls
+  // BUG FIX (v2.10.8): Use 10s interval for short timeouts (<=60s) to avoid missing merge state.
+  // GitHub merge propagation takes 2-5s. With 30s interval + 60s timeout = only 2 polls.
+  // With 10s interval + 60s timeout = 6 polls — much more likely to catch the merged state.
+  const pollIntervalMs = timeoutMs <= 60_000 ? 10_000 : 30_000
   const maxIterations = Math.ceil(timeoutMs / pollIntervalMs)
   const startTime = Date.now()
 
@@ -358,9 +361,11 @@ if (arcConfig.ship.rebase_before_merge) {
   log("Rebase successful. Pushing updated branch...")
   const pushResult = Bash(`git push --force-with-lease origin -- "${currentBranch}"`)
   if (pushResult.exitCode !== 0) {
-    // BACK-007 FIX: Provide pre-rebase SHA for recovery
-    warn("Merge phase: Force-push after rebase failed. Local branch is in rebased state.")
-    warn(`To restore pre-rebase state: git reset --hard ${preRebaseSha}`)
+    // BUG FIX (v2.10.8): Auto-restore pre-rebase state instead of leaving repo rebased.
+    // Without this, --resume would try to rebase already-rebased commits → conflict.
+    warn("Merge phase: Force-push after rebase failed. Restoring pre-rebase state...")
+    Bash(`git reset --hard ${preRebaseSha}`)
+    warn(`Restored to pre-rebase SHA: ${preRebaseSha}`)
     updateCheckpoint({ phase: "merge", status: "failed" })
     return
   }
