@@ -4,6 +4,8 @@
 
 ### Fixed
 - **arc-phase-stop-hook.sh: add `test` and `test_qa` to HEAVY_PHASES** — Test phase consumes massive context (multiple foreground batch agents, fix loops, strategy files) but was not triggering mandatory compaction after completion. This caused context exhaustion before the next phase could be injected, silently killing the arc pipeline. Root cause of "arc stuck after testing phase" reports.
+- **arc-phase-test.md: context-aware early exit in batch loop** — Before each test batch, check remaining context % via bridge file. If below 30%, skip all remaining batches and proceed to report generation + checkpoint update. Prevents silent arc death from context exhaustion during long test runs.
+- **arc-phase-stop-hook.sh: test finalization retry counter** — If `test_finalized` flag is not set after 2 finalization attempts, force-advance the test phase with a minimal report. Writes `force_advanced: true` to checkpoint. Prevents infinite finalization loop when Claude fails to write the flag under context pressure.
 - **enforce-polling.sh: add env toggle `RUNE_DISABLE_POLL_GUARD=1`** — Allow disabling POLL-001 sleep+echo enforcement for legitimate use cases (long-running background tasks, test suite monitoring, service health checks). Also configurable via `talisman.yml` → `process_management.poll_guard_enabled: false`.
 
 ## [2.10.7] - 2026-03-23

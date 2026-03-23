@@ -473,6 +473,39 @@ for (const batch of testingPlan.batches) {
     continue
   }
 
+  // Context-aware early exit: check remaining context % before each batch.
+  // Long-running test phases (10-35 min) consume massive context from agent
+  // spawns, strategy reads, and result aggregation. If context is critically low,
+  // skip remaining batches and proceed to report generation + checkpoint update
+  // to prevent silent arc death from context exhaustion.
+  // Reads bridge file written by rune-statusline.sh (Notification:statusline hook).
+  const contextBridge = `${process.env.TMPDIR || '/tmp'}/rune-ctx-${process.env.CLAUDE_SESSION_ID}.json`
+  if (exists(contextBridge)) {
+    try {
+      const bridgeData = JSON.parse(Read(contextBridge))
+      const remainingPct = bridgeData.remaining_percentage ?? 100
+      if (remainingPct < 30) {
+        warn(`Context critically low (${remainingPct}% remaining) — skipping remaining test batches to preserve context for report + cleanup`)
+        batch.status = "skipped"
+        batch.skip_reason = "context_exhaustion"
+        batch.completed_at = new Date().toISOString()
+        testingPlan.summary.skipped += 1
+        writeCheckpoint(id, testingPlan)
+        // Skip ALL remaining pending batches (not just this one)
+        for (const remaining of testingPlan.batches) {
+          if (remaining.status === "pending") {
+            remaining.status = "skipped"
+            remaining.skip_reason = "context_exhaustion"
+            remaining.completed_at = new Date().toISOString()
+            testingPlan.summary.skipped += 1
+          }
+        }
+        writeCheckpoint(id, testingPlan)
+        break  // Exit batch loop — proceed to STEP 9 report generation
+      }
+    } catch (e) { /* bridge unavailable or stale — continue normally */ }
+  }
+
   // Mark running + atomic checkpoint
   batch.status = "running"
   batch.started_at = new Date().toISOString()

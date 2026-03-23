@@ -1308,9 +1308,71 @@ if [[ "$NEXT_PHASE" == "test" ]]; then
       if [[ -f "$_fin_plan_path" && ! -L "$_fin_plan_path" ]]; then
         _test_finalized=$(get_field "test_finalized")
         if [[ "$_test_finalized" != "true" ]]; then
-          _rel_fin_plan="tmp/arc/${_arc_id_for_fin}/testing-plan.json"
-          cat >&2 <<FINALIZE_EOF
-ANCHOR — Arc Pipeline: Test Phase Finalization
+          # ── Fix 3: Finalization retry counter ──
+          # If test_finalized is not set after MAX_FIN_RETRIES attempts, force-set it
+          # and advance the pipeline. Prevents infinite finalization loop when Claude
+          # fails to write the flag (context exhaustion, tool errors, etc.).
+          _MAX_FIN_RETRIES=2
+          _fin_count_file="${CWD}/tmp/arc/${_arc_id_for_fin}/test-fin-retry-count"
+          _fin_retries=0
+          if [[ -f "$_fin_count_file" && ! -L "$_fin_count_file" ]]; then
+            _fin_retries=$(cat "$_fin_count_file" 2>/dev/null || echo "0")
+            [[ "$_fin_retries" =~ ^[0-9]+$ ]] || _fin_retries=0
+          fi
+          _fin_retries=$(( _fin_retries + 1 ))
+          printf '%d' "$_fin_retries" > "$_fin_count_file" 2>/dev/null || true
+
+          if [[ "$_fin_retries" -gt "$_MAX_FIN_RETRIES" ]]; then
+            _trace "Test finalization exceeded ${_MAX_FIN_RETRIES} retries — force-advancing"
+            # Force-set test_finalized in state file
+            _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || _STATE_TMP=""
+            if [[ -n "$_STATE_TMP" ]]; then
+              if grep -q 'test_finalized:' "$STATE_FILE" 2>/dev/null; then
+                sed 's/^test_finalized: .*/test_finalized: true/' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
+                  && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
+                  || rm -f "$_STATE_TMP" 2>/dev/null
+              else
+                # Append test_finalized to frontmatter (before closing ---)
+                sed '/^---$/a\
+test_finalized: true' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
+                  && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
+                  || rm -f "$_STATE_TMP" 2>/dev/null
+              fi
+            fi
+            # Force-update checkpoint: test phase → completed
+            _ckpt_tmp=$(mktemp "${_cb_cp_path}.XXXXXX" 2>/dev/null) || _ckpt_tmp=""
+            if [[ -n "$_ckpt_tmp" ]]; then
+              _now_ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
+              if jq --arg ts "$_now_ts" '.phases.test.status = "completed" | .phases.test.completed_at = $ts | .phases.test.force_advanced = true' "$_cb_cp_path" > "$_ckpt_tmp" 2>/dev/null; then
+                mv -f "$_ckpt_tmp" "$_cb_cp_path" 2>/dev/null || rm -f "$_ckpt_tmp" 2>/dev/null
+              else
+                rm -f "$_ckpt_tmp" 2>/dev/null
+              fi
+            fi
+            # Write minimal test report if missing (so downstream phases don't fail)
+            _test_report="${CWD}/tmp/arc/${_arc_id_for_fin}/test-report.md"
+            if [[ ! -f "$_test_report" ]]; then
+              printf '# Test Report (Force-Advanced)\n\nTest phase exceeded finalization retry limit (%d attempts).\nBatches completed but report generation failed under context pressure.\n\n<!-- SEAL: test-report-complete -->\n' "$_MAX_FIN_RETRIES" > "$_test_report" 2>/dev/null || true
+            fi
+            rm -f "$_fin_count_file" 2>/dev/null
+            _log_phase "phase_force_advanced" "test" "reason=finalization_retry_exceeded" "retries=${_fin_retries}"
+            # Re-read checkpoint and fall through to normal phase advance
+            CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
+            # Re-find next phase (test should now be "completed")
+            NEXT_PHASE=""
+            for phase in "${PHASE_ORDER[@]}"; do
+              phase_status=$(echo "$CKPT_CONTENT" | jq -r ".phases.${phase}.status // \"pending\"" 2>/dev/null || echo "pending")
+              if [[ "$phase_status" == "pending" ]]; then
+                NEXT_PHASE="$phase"
+                break
+              fi
+            done
+            _trace "After force-advance: NEXT_PHASE=${NEXT_PHASE:-NONE}"
+            # Break out of the test sub-loop — fall through to normal phase dispatch
+          else
+            _rel_fin_plan="tmp/arc/${_arc_id_for_fin}/testing-plan.json"
+            cat >&2 <<FINALIZE_EOF
+ANCHOR — Arc Pipeline: Test Phase Finalization (attempt ${_fin_retries}/${_MAX_FIN_RETRIES})
 
 All test batches have completed. Generate the final test report.
 
@@ -1322,9 +1384,15 @@ All test batches have completed. Generate the final test report.
 6. Write the checkpoint to ${CHECKPOINT_PATH}
 7. STOP responding — the Stop hook will advance to the next phase.
 
+CRITICAL: You MUST set test_finalized: true in the state file. If this step fails ${_MAX_FIN_RETRIES} times, the pipeline will force-advance with a minimal report.
+
 RE-ANCHOR: Execute finalization only. Do NOT skip ahead.
 FINALIZE_EOF
-          exit 2
+            exit 2
+          fi
+        else
+          # test_finalized=true — clean up retry counter if present
+          [[ -n "$_arc_id_for_fin" ]] && rm -f "${CWD}/tmp/arc/${_arc_id_for_fin}/test-fin-retry-count" 2>/dev/null || true
         fi
         # test_finalized=true — fall through to normal phase advance (phases.test → completed)
       fi
