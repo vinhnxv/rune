@@ -41,9 +41,14 @@ _gh_extract_remote_repo() {
   remote_url=$(git remote get-url origin 2>/dev/null) || { echo ""; return; }
 
   local owner_repo=""
-  # HTTPS format: https://github.com/owner/repo.git
+  # HTTPS: https://github.com/owner/repo.git  SSH: git@github.com:owner/repo.git
   if [[ "$remote_url" =~ github\.com[/:]([^/]+)/([^/.]+)(\.git)?$ ]]; then
-    owner_repo="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+    # zsh populates match[], bash populates BASH_REMATCH[] — support both
+    if [[ -n "${match[1]:-}" ]]; then
+      owner_repo="${match[1]}/${match[2]}"
+    else
+      owner_repo="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+    fi
   fi
 
   # Validate extracted owner/repo
