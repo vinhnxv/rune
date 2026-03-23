@@ -207,12 +207,15 @@ function extractImageUrls(rawBody, maxImages = 5) {
   const IMAGE_MD_PATTERN = /!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g
   const IMAGE_HTML_PATTERN = /<img[^>]+src=["'](https?:\/\/[^"']+)["'][^>]*(?:alt=["']([^"']*)["'])?/gi
 
+  // WONTFIX(SEC-004): imgur.com is intentionally included — plan explicitly
+  // supports imgur-hosted screenshots in GitHub Issues (common user workflow).
   const ALLOWED_DOMAINS = [
     /^https:\/\/user-images\.githubusercontent\.com\//,
     /^https:\/\/github\.com\/.*\/assets\//,
     /^https:\/\/raw\.githubusercontent\.com\//,
     /^https:\/\/i\.imgur\.com\//,
-    /^https:\/\/objects\.githubusercontent\.com\//
+    /^https:\/\/objects\.githubusercontent\.com\//,
+    /^https:\/\/avatars\.githubusercontent\.com\//
   ]
 
   const images = []
@@ -235,7 +238,7 @@ function extractImageUrls(rawBody, maxImages = 5) {
 }
 ```
 
-**Threat model**: Prevents SSRF via domain allowlist (5 trusted GitHub-adjacent hosts). Prevents prompt injection via alt text length cap (200 chars). Prevents header injection via newline stripping on URLs.
+**Threat model**: Prevents SSRF via domain allowlist (6 trusted GitHub-adjacent hosts + imgur). Prevents prompt injection via alt text length cap (200 chars). Prevents header injection via newline stripping on URLs. **Note**: Alt text newline stripping is applied to URLs but not to alt text itself — alt text may contain embedded newlines from markdown source. Consumers should strip newlines from alt text before injecting into single-line contexts (e.g., prompt templates). The `.slice(0,200)` cap bounds length but does not sanitize content.
 **ReDoS safe**: Yes (non-overlapping character classes with bounded quantifiers in both regex patterns)
 **Consumers**: arc-issues-algorithm.md (Phase 2 — pre-sanitization image extraction)
 

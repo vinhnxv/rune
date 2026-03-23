@@ -167,7 +167,7 @@ When the plan frontmatter contains `source_images` (populated by `/rune:arc-issu
 3. Write analysis to `tmp/plans/{timestamp}/research/visual-context.md`
 4. Inject `brainstormContext.visual_context` for downstream research agents
 
-**Fallback strategy**: Vision analysis via WebFetch is best-effort. If image URLs are expired or WebFetch cannot process the format, the feature degrades gracefully — URLs are still preserved in the plan frontmatter (`source_images`) for manual inspection. The primary value of image extraction (Tasks 1-3) does not depend on successful vision analysis.
+**Fallback strategy**: Vision analysis via WebFetch is best-effort. If image URLs are expired or WebFetch cannot process the format, the feature degrades gracefully — URLs are still preserved in the plan frontmatter (`source_images`) for manual inspection. The primary value of image extraction (Tasks 1-3) does not depend on successful vision analysis. WebFetch follows redirects by default. GitHub CDN URLs may redirect — this is expected behavior. Non-image responses degrade gracefully.
 
 **Output**: `tmp/plans/{timestamp}/research/visual-context.md` — one section per image with source URL, alt text, and visual description (or unavailability notice).
 

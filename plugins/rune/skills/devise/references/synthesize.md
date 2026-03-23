@@ -198,7 +198,7 @@ session_budget:
 
 ## Visual Context (conditional — omit when source_images is empty)
 
-{When source_images.length > 0, include extracted images from source GitHub issue with analysis descriptions from Claude vision. Omit this entire section when no source images exist.}
+{When source_images.length > 0, include extracted images from source GitHub issue with analysis descriptions from Claude vision. Each image entry has url, alt text, and source (the originating GitHub issue URL). Include the source attribution for traceability. Omit this entire section when no source images exist.}
 
 ## Proposed Solution
 
@@ -713,7 +713,7 @@ session_budget:
 
 ## Visual Context (conditional — omit when source_images is empty)
 
-{When source_images.length > 0, include extracted images from source GitHub issue with analysis descriptions from Claude vision. Omit this entire section when no source images exist.}
+{When source_images.length > 0, include extracted images from source GitHub issue with analysis descriptions from Claude vision. Each image entry has url, alt text, and source (the originating GitHub issue URL). Include the source attribution for traceability. Omit this entire section when no source images exist.}
 
 ## Proposed Solution
 
