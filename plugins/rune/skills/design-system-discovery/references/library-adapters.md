@@ -1840,9 +1840,9 @@ When Layer 1 detects `cssVersion === 4`, adapt class output using the token map 
 function applyV4Syntax(classes, tokenMap, opts = { strategy: "conservative" }):
   // Step 1: Build reverse lookup from token map
   // Maps raw Tailwind color utilities → semantic equivalents
-  // e.g., "text-purple-600" → "text-fg-brand-primary"
-  //        "bg-white"       → "bg-bg-primary"
-  reverseLookup = buildReverseLookup(tokenMap)
+  // e.g., "text-purple-600" → "text-brand-primary"
+  //        "bg-white"       → "bg-primary"
+  reverseLookup = buildUntitledUIReverseLookup()
 
   result = []
   FOR cls IN classes:
@@ -1874,12 +1874,10 @@ function applyV4Syntax(classes, tokenMap, opts = { strategy: "conservative" }):
 
 
 // Build reverse lookup: raw Tailwind utility → semantic class
-// Input: tokenMap with semantic_mapping (intent → semantic class)
+// UntitledUI-specific hardcoded mapping (not driven by tokenMap input)
 // Output: Map<rawUtility, semanticClass>
-function buildReverseLookup(tokenMap):
+function buildUntitledUIReverseLookup():
   lookup = new Map()
-  IF NOT tokenMap?.semantic_mapping:
-    RETURN lookup
 
   // Known raw Tailwind equivalents for common UntitledUI CSS variable values
   // This maps the raw color that a CSS variable resolves to back to the semantic class
