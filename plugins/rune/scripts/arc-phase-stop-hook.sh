@@ -249,7 +249,7 @@ PHASE_ORDER=(
 )
 
 # Heavy phases that ALWAYS trigger compact interlude (tier 1)
-HEAVY_PHASES="work work_qa code_review code_review_qa mend mend_qa inspect"
+HEAVY_PHASES="work work_qa code_review code_review_qa mend mend_qa inspect test test_qa"
 
 # Compact interval fallback (tier 3): when bridge file is unavailable,
 # compact every COMPACT_INTERVAL completed phases as a safety net.

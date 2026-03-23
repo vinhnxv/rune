@@ -40,6 +40,15 @@ _rune_fail_forward() {
 }
 trap '_rune_fail_forward' ERR
 
+# ── ENV TOGGLE: Allow disabling POLL-001 entirely ──
+# Use RUNE_DISABLE_POLL_GUARD=1 to bypass sleep+echo enforcement.
+# Useful for long-running background tasks, test suites, service monitoring,
+# or any scenario where sleep+echo is a legitimate monitoring pattern.
+# Also configurable via talisman.yml: process_management.poll_guard_enabled: false
+if [[ "${RUNE_DISABLE_POLL_GUARD:-}" == "1" ]]; then
+  exit 0
+fi
+
 # Pre-flight: jq is required for JSON parsing.
 # If missing, exit 0 (non-blocking) — allow rather than crash.
 if ! command -v jq &>/dev/null; then
@@ -60,6 +69,16 @@ if [[ -z "$CWD" ]]; then
 fi
 CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || { exit 0; }
 if [[ -z "$CWD" || "$CWD" != /* ]]; then exit 0; fi
+
+# ── Talisman config toggle: process_management.poll_guard_enabled ──
+# Resolved talisman shards take priority over env var.
+_talisman_shard="${CWD}/tmp/.talisman-resolved/settings.json"
+if [[ -f "$_talisman_shard" && ! -L "$_talisman_shard" ]]; then
+  _poll_enabled=$(jq -r '.process_management.poll_guard_enabled // true' "$_talisman_shard" 2>/dev/null || echo "true")
+  if [[ "$_poll_enabled" == "false" ]]; then
+    exit 0
+  fi
+fi
 
 COMMAND=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || true)
 if [[ -z "$COMMAND" ]]; then
