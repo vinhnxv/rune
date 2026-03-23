@@ -576,7 +576,7 @@ UNTITLEDUI_ADAPTER["file-upload"] = {
 
 ### Icon Map (Curated Fast-Path)
 
-40-entry curated mapping of common Figma icon names to UntitledUI import names (v2.12.0).
+56-entry curated mapping of common Figma icon names to UntitledUI import names (v2.12.0).
 Unmapped icons use the kebab-to-PascalCase fallback from [semantic-ir.md](semantic-ir.md) §Unmapped Icon Fallback.
 
 ```
@@ -593,7 +593,7 @@ UNTITLEDUI_ADAPTER.iconMap = {
   "home-line": "HomeLine",
   "menu-01": "Menu01",
 
-  // Action (12)
+  // Action (17)
   "plus": "Plus",
   "x": "X",
   "x-close": "XClose",
@@ -612,7 +612,7 @@ UNTITLEDUI_ADAPTER.iconMap = {
   "log-in-04": "LogIn04",
   "refresh-cw-01": "RefreshCw01",
 
-  // Content (10)
+  // Content (15)
   "filter-lines": "FilterLines",
   "filter-funnel-01": "FilterFunnel01",
   "stars-03": "Stars03",
@@ -629,7 +629,7 @@ UNTITLEDUI_ADAPTER.iconMap = {
   "image-01": "Image01",
   "file-06": "File06",
 
-  // User & Social (5)
+  // User & Social (7)
   "user-01": "User01",
   "user-circle": "UserCircle",
   "users-01": "Users01",
@@ -638,7 +638,7 @@ UNTITLEDUI_ADAPTER.iconMap = {
   "share-07": "Share07",
   "message-circle-02": "MessageCircle02",
 
-  // Status (4)
+  // Status (7)
   "alert-circle": "AlertCircle",
   "alert-triangle": "AlertTriangle",
   "info-circle": "InfoCircle",

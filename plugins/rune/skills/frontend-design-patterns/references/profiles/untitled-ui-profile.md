@@ -7,7 +7,7 @@ base_primitive: CSS custom properties / design tokens
 styling: Tailwind CSS v4.1 + CSS custom properties (design tokens)
 ```
 
-> **Canonical Implementation Reference**: For code patterns (imports, variants, styling), see `agent-conventions.md`. This profile focuses on design token semantics and Figma variable mapping.
+> **Canonical Implementation Reference**: For code patterns (imports, variants, styling), see [`agent-conventions.md`](../../untitledui-mcp/references/agent-conventions.md). This profile focuses on design token semantics and Figma variable mapping.
 
 Untitled UI is a large-scale Figma design system + React component library built on CSS custom properties (design tokens) for theming and a 5-tier directory structure for organizing components by use case. It provides production-ready components with comprehensive CSS variable-driven theming and React Aria integration for accessible interactive primitives.
 
@@ -111,7 +111,7 @@ Untitled UI tokens use `--fg-` (foreground) and `--bg-` (background) prefix conv
 
 Untitled UI uses React Aria hooks for accessible behavior and React Aria Components for composable primitives.
 
-**CRITICAL — `Aria*` Prefix Convention**: All imports from `react-aria-components` MUST be aliased with the `Aria*` prefix to avoid naming conflicts with UntitledUI's own components (e.g., `import { Button as AriaButton } from "react-aria-components"`). See `agent-conventions.md` for the full import pattern.
+**CRITICAL — `Aria*` Prefix Convention**: All imports from `react-aria-components` MUST be aliased with the `Aria*` prefix to avoid naming conflicts with UntitledUI's own components (e.g., `import { Button as AriaButton } from "react-aria-components"`). See [`agent-conventions.md`](../../untitledui-mcp/references/agent-conventions.md) for the full import pattern.
 
 ### React Aria Hooks
 
@@ -184,7 +184,7 @@ function AlertDialog({ title, children, onConfirm }) {
 
 ## Variant Patterns
 
-For component variant patterns, see the canonical reference: `agent-conventions.md` (sortCx pattern with Tailwind utilities). Untitled UI uses the `sortCx()` utility for organizing variant styles with semantic Tailwind classes — not BEM-style CSS Modules.
+For component variant patterns, see the canonical reference: [`agent-conventions.md`](../../untitledui-mcp/references/agent-conventions.md) (sortCx pattern with Tailwind utilities). Untitled UI uses the `sortCx()` utility for organizing variant styles with semantic Tailwind classes — not BEM-style CSS Modules.
 
 ## Import Conventions
 
@@ -271,4 +271,4 @@ NEVER: Use px values directly — use spacing tokens
 - [accessibility-patterns.md](../accessibility-patterns.md) — WCAG 2.1 AA requirements (React Aria fulfills most)
 - [design-token-reference.md](../design-token-reference.md) — Token patterns applicable to CSS variable systems
 - [variant-mapping.md](../variant-mapping.md) — Figma variant → CSS class mapping
-- [component-reuse-strategy.md](../component-reuse-strategy.md) — REUSE > EXTEND > CREATE in the 3-tier structure
+- [component-reuse-strategy.md](../component-reuse-strategy.md) — REUSE > EXTEND > CREATE in the 5-tier structure
