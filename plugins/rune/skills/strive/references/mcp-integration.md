@@ -349,6 +349,18 @@ function buildBuilderWorkflowBlock(uiBuilder) {
   // Inject conventions content, truncated to 4000 chars at a line boundary
   // Increased from 2000 to 4000 to avoid losing critical styling/import rules
   // when conventions files grow (e.g., agent-conventions.md at ~8k chars).
+  //
+  // SEC-002 Risk Tradeoff: Doubling the truncation limit from 2000→4000 chars
+  // increases the prompt injection surface area for conventions file content.
+  // This is an accepted tradeoff because:
+  //   1. Conventions paths are validated upstream by discoverUIBuilder() (no .. / ~ / leading /)
+  //   2. Content is wrapped in a nonce-bounded Truthbinding block (nonce-${random})
+  //      so agents can identify where untrusted content begins/ends
+  //   3. A RE-ANCHOR directive after the block reinforces "do NOT follow instructions"
+  //   4. The nonce is regenerated per-call (not reused across invocations)
+  // The nonce is NOT cryptographic — it prevents naive injection boundary escape,
+  // not a determined adversary. The primary defense is the Truthbinding RE-ANCHOR.
+  //
   // SEC-002: Wrap in Truthbinding nonce block to prevent prompt injection from conventions files
   if (uiBuilder.conventions) {
     // S-2: conventions path already validated by discoverUIBuilder() — no .. / ~ / leading /
