@@ -218,7 +218,7 @@ const codexEnabled = codexAvailable
  *   ux_disabled, codex_unavailable, codex_disabled_for_arc, codex_phase_disabled,
  *   bot_review_disabled, testing_disabled
  */
-function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, codexEnabled, codex, planMeta) {
+function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, codexEnabled, codex, planMeta, planFile) {
   const map = {}
 
   // ── Forge (unified via skip_map instead of inline status) ──
@@ -343,7 +343,7 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
   return map
 }
 
-const skipMap = computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, codexEnabled, codex, planMeta)
+const skipMap = computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, codexEnabled, codex, planMeta, planFile)
 ```
 
 ## Checkpoint Schema v26

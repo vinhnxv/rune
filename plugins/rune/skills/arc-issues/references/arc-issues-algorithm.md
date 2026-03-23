@@ -586,7 +586,7 @@ source_url: "${issueUrl}"
 source_repo: "${ref.owner ? `${ref.owner}/${ref.repo}` : 'current'}"
 complexity: "Medium"
 estimated_effort: "M"
-${figmaUrls.length > 0 ? `figma_urls:\n${figmaUrls.map(url => `  - "${url}"`).join('\n')}` : ''}
+${figmaUrls.length > 0 ? `figma_urls:\n${figmaUrls.map(url => `  - "${url.replace(/"/g, '').replace(/\\/g, '')}"`).join('\n')}` : ''}
 ${hasDesignReference ? `design_sync: true` : ''}
 ${designSystemProfile ? `design_system:\n  library: "${designSystemProfile.library || 'custom'}"\n  version: "${designSystemProfile.version || 'unknown'}"\n  confidence: ${designSystemProfile.confidence}` : ''}
 ${uiBuilderInfo ? `ui_builder:\n  builder_mcp: "${uiBuilderInfo.builder_mcp}"\n  source: "${uiBuilderInfo.source}"\n  companion_skill: "${uiBuilderInfo.companion_skill || ''}"` : ''}
