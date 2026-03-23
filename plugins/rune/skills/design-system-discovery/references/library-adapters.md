@@ -1884,35 +1884,35 @@ function buildReverseLookup(tokenMap):
   // Known raw Tailwind equivalents for common UntitledUI CSS variable values
   // This maps the raw color that a CSS variable resolves to back to the semantic class
   RAW_COLOR_MAP = {
-    // Text/foreground
-    "text-gray-900":    "text-fg-primary",        // --fg-primary: #101828
-    "text-gray-700":    "text-fg-secondary",       // --fg-secondary: #344054
-    "text-gray-600":    "text-fg-tertiary",        // --fg-tertiary: #475467
-    "text-gray-500":    "text-fg-quaternary",      // --fg-quaternary: #667085
-    "text-purple-600":  "text-fg-brand-primary",   // --fg-brand-primary: #7F56D9
-    "text-purple-700":  "text-fg-brand-secondary", // --fg-brand-secondary: #6941c6
-    "text-red-600":     "text-fg-error-primary",   // --fg-error-primary: #D92D20
-    "text-green-600":   "text-fg-success-primary", // --fg-success-primary: #039855
-    "text-yellow-700":  "text-fg-warning-primary", // --fg-warning-primary: #DC6803
-    "text-white":       "text-fg-white",
-    // Background
-    "bg-white":         "bg-bg-primary",           // --bg-primary: #ffffff
-    "bg-gray-50":       "bg-bg-secondary",         // --bg-secondary: #f9fafb
-    "bg-gray-100":      "bg-bg-tertiary",          // --bg-tertiary: #f2f4f7
-    "bg-gray-200":      "bg-bg-quaternary",        // --bg-quaternary: #e4e7ec
-    "bg-purple-600":    "bg-bg-brand-solid",       // --bg-brand-solid: #7F56D9
-    "bg-purple-50":     "bg-bg-brand-primary",     // --bg-brand-primary: #f4ebff
-    "bg-red-50":        "bg-bg-error-primary",     // --bg-error-primary: #FEF3F2
-    "bg-green-50":      "bg-bg-success-primary",   // --bg-success-primary: #ECFDF3
-    "bg-yellow-50":     "bg-bg-warning-primary",   // --bg-warning-primary: #FFFAEB
-    // Border
-    "border-gray-300":  "border-border-primary",   // --border-primary: #d0d5dd
-    "border-gray-200":  "border-border-secondary", // --border-secondary: #e4e7ec
-    "border-purple-300":"border-border-brand",     // --border-brand: #d6bbfb
-    "border-red-300":   "border-border-error",     // --border-error: #FDA29B
+    // Text — semantic names per agent-conventions.md (text-primary, NOT text-fg-primary)
+    "text-gray-900":    "text-primary",            // --fg-primary: #101828
+    "text-gray-700":    "text-secondary",          // --fg-secondary: #344054
+    "text-gray-600":    "text-tertiary",           // --fg-tertiary: #475467
+    "text-gray-500":    "text-quaternary",         // --fg-quaternary: #667085
+    "text-purple-600":  "text-brand-primary",      // --fg-brand-primary: #7F56D9
+    "text-purple-700":  "text-brand-secondary",    // --fg-brand-secondary: #6941c6
+    "text-red-600":     "text-error-primary",      // --fg-error-primary: #D92D20
+    "text-green-600":   "text-success-primary",    // --fg-success-primary: #039855
+    "text-yellow-700":  "text-warning-primary",    // --fg-warning-primary: #DC6803
+    "text-white":       "text-white",
+    // Background — semantic names per agent-conventions.md (bg-primary, NOT bg-bg-primary)
+    "bg-white":         "bg-primary",              // --bg-primary: #ffffff
+    "bg-gray-50":       "bg-secondary",            // --bg-secondary: #f9fafb
+    "bg-gray-100":      "bg-tertiary",             // --bg-tertiary: #f2f4f7
+    "bg-gray-200":      "bg-quaternary",           // --bg-quaternary: #e4e7ec
+    "bg-purple-600":    "bg-brand-solid",          // --bg-brand-solid: #7F56D9
+    "bg-purple-50":     "bg-brand-primary",        // --bg-brand-primary: #f4ebff
+    "bg-red-50":        "bg-error-primary",        // --bg-error-primary: #FEF3F2
+    "bg-green-50":      "bg-success-primary",      // --bg-success-primary: #ECFDF3
+    "bg-yellow-50":     "bg-warning-primary",      // --bg-warning-primary: #FFFAEB
+    // Border — semantic names per agent-conventions.md (border-primary, NOT border-border-primary)
+    "border-gray-300":  "border-primary",          // --border-primary: #d0d5dd
+    "border-gray-200":  "border-secondary",        // --border-secondary: #e4e7ec
+    "border-purple-300":"border-brand",            // --border-brand: #d6bbfb
+    "border-red-300":   "border-error",            // --border-error: #FDA29B
     // Ring
-    "ring-purple-300":  "ring-border-brand",
-    "ring-red-300":     "ring-border-error",
+    "ring-purple-300":  "ring-brand",
+    "ring-red-300":     "ring-error",
   }
 
   FOR [raw, semantic] IN RAW_COLOR_MAP:
