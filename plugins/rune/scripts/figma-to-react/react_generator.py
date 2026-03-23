@@ -133,6 +133,19 @@ def _resolve_html_tag(node: FigmaIRNode) -> str:
     if tag:
         return tag
 
+    # Fallback: use semantic_role from the classification layer.
+    _SEMANTIC_ROLE_TAGS = {
+        "sidebar": "aside",
+        "navigation": "nav",
+        "breadcrumb": "nav",
+        "search": "search",
+        "toolbar": "div",
+    }
+    if node.semantic_role:
+        semantic_tag = _SEMANTIC_ROLE_TAGS.get(node.semantic_role)
+        if semantic_tag:
+            return semantic_tag
+
     if node.node_type == NodeType.TEXT:
         heading = _resolve_text_heading(node.text_style)
         if heading:
@@ -1042,11 +1055,11 @@ def _semantic_comment(node: FigmaIRNode) -> Optional[str]:
         A JSX comment string like ``{/* Semantic: pagination component */}``
         or None.
     """
-    role = getattr(node, "semantic_role", None)
+    role = node.semantic_role
     if role is None:
         return None
     hint = _SEMANTIC_ROLE_HINTS.get(role, f"Semantic: {role}")
-    confidence = getattr(node, "semantic_confidence", None)
+    confidence = node.semantic_confidence
     if confidence is not None:
         return f"{{/* {hint} (confidence: {confidence:.0%}) */}}"
     return f"{{/* {hint} */}}"

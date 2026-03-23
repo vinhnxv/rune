@@ -24,6 +24,7 @@ import re
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from figma_types import (
+    ComponentPropertyDefinition,
     FigmaPropertyType,
     LayoutMode,
     NodeType,
@@ -122,6 +123,8 @@ def _is_rounded(node: FigmaIRNode, threshold: float = 50.0) -> bool:
     min_dim = min(node.width, node.height) if node.width and node.height else 0
     if min_dim == 0:
         return False
+    if abs(node.width - node.height) / max(node.width, node.height, 1) > 0.2:
+        return False
     return (node.corner_radius / min_dim) * 100 >= threshold
 
 
@@ -171,10 +174,12 @@ def _classify_data_table(node: FigmaIRNode) -> bool:
     ref_width = frame_children[0].width
     if ref_width == 0:
         return False
+    valid_children = [c for c in frame_children[1:] if c.width > 0]
+    if not valid_children:
+        return False
     return all(
         abs(c.width - ref_width) / ref_width < 0.05
-        for c in frame_children[1:]
-        if c.width > 0
+        for c in valid_children
     )
 
 
@@ -239,7 +244,11 @@ def _classify_by_properties(node: FigmaIRNode) -> Tuple[Optional[str], float]:
         return None, 0.0
 
     prop_names = list(props.keys())
-    prop_types = {name: defn.type for name, defn in props.items()}
+    prop_types = {}
+    for name, defn in props.items():
+        if not isinstance(defn, ComponentPropertyDefinition):
+            continue
+        prop_types[name] = defn.type
 
     has_size = any(_SIZE_PROPS.search(n) for n in prop_names)
     has_variant = any(
@@ -324,13 +333,8 @@ def _annotate_recursive(node: FigmaIRNode) -> None:
     """Recursively classify and annotate *node* and its children."""
     role, confidence = classify(node)
 
-    # Only set attributes if the fields exist on the dataclass.
-    # This allows the classifier to be used before or after the IR
-    # schema is extended with semantic fields.
-    if hasattr(node, "semantic_role"):
-        node.semantic_role = role  # type: ignore[attr-defined]
-    if hasattr(node, "semantic_confidence"):
-        node.semantic_confidence = confidence  # type: ignore[attr-defined]
+    node.semantic_role = role
+    node.semantic_confidence = confidence if role else None
 
     for child in node.children:
         _annotate_recursive(child)

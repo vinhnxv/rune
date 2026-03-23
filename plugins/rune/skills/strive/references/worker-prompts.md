@@ -1035,12 +1035,7 @@ function buildDesignContextBlock(task) {
   }
 
   // Step 3.5: Extract and inject Semantic Component Map from VSM content
-  // Helper: extract a markdown section by heading name
-  function extractSection(markdown, sectionName) {
-    const regex = new RegExp('## ' + sectionName + '\\n([\\s\\S]*?)(?=\\n## |$)')
-    const match = markdown.match(regex)
-    return match ? match[1].trim() : null
-  }
+  // Uses top-level extractSection() helper defined above
 
   if (vsmContent) {
     const semanticMap = extractSection(vsmContent, 'Semantic Component Map')
