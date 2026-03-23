@@ -10,20 +10,38 @@ for the full JSON schema.
 ## Constants
 
 ```javascript
-const TARGET_BATCH_DURATION_MS = 180_000   // 3 min target per batch
+// v2.10.8: Tuned for one-batch-per-turn architecture.
+// Each batch runs as a separate Claude Code turn with its own context window.
+// Per-turn overhead is ~10-15s (stop hook jq parsing, compact check, prompt injection).
+// Larger batches reduce total turns → less overhead → faster overall execution.
+const TARGET_BATCH_DURATION_MS = 300_000   // 5 min target per batch (was 3 min)
 const MIN_BATCH_SIZE = 1
-const MAX_BATCH_SIZE = 20
-const HARD_BATCH_TIMEOUT_MS = 240_000      // 4 min hard cap per batch
+const MAX_BATCH_SIZE = 50                  // Raised from 20 — each batch has own context
+const HARD_BATCH_TIMEOUT_MS = 420_000      // 7 min hard cap per batch (was 4 min)
 const MAX_BATCH_ITERATIONS = 50            // Safety cap against infinite re-injection
+const MAX_BATCHES_TOTAL = 15               // Cap total batches to prevent 40+ turn sessions
+                                           // Override via talisman.testing.batch.max_batches_total
 
 const DEFAULT_AVG_DURATION = {
-  unit:        10_000,    // 10s
-  integration: 30_000,    // 30s
-  e2e:         60_000,    // 60s
-  contract:    15_000,    // 15s
-  extended:   120_000,    // 2 min
+  unit:        10_000,    // 10s per test file
+  integration: 30_000,    // 30s per test file
+  e2e:         60_000,    // 60s per route/spec
+  contract:    15_000,    // 15s per contract test
+  extended:   120_000,    // 2 min per extended scenario
 }
 ```
+
+### Computed Batch Sizes (with new defaults)
+
+| Type | Avg duration | Batch size | Rationale |
+|------|-------------|------------|-----------|
+| unit | 10s | 30 | 5 min target ÷ 10s = 50, capped at 50 → 30 (practical limit) |
+| contract | 15s | 20 | 5 min ÷ 15s = 33, capped at 50 → 20 |
+| integration | 30s | 16 | 5 min ÷ 30s = 16 |
+| e2e | 60s | 5 | 5 min ÷ 60s = 5 |
+| extended | 120s | 2 | 5 min ÷ 120s = 2 |
+
+For thechoice (486 files): ~12 batches instead of ~40.
 
 ## Batch Size Formula
 
@@ -171,6 +189,58 @@ function generateTestingPlan(id, talisman, context) {
         })
       }
     }
+  }
+
+  // 3.5. Batch count cap — merge smallest batches if total exceeds MAX_BATCHES_TOTAL.
+  // Each batch = 1 stop hook turn (~10-15s overhead). 40 batches = 10+ minutes of pure overhead.
+  // When over the cap, merge the smallest same-type batches until under the limit.
+  const maxBatchesTotal = talisman?.testing?.batch?.max_batches_total ?? MAX_BATCHES_TOTAL
+  while (batches.length > maxBatchesTotal) {
+    // Find the smallest batch (by file count) and merge it into its neighbor
+    let smallestIdx = -1
+    let smallestSize = Infinity
+    for (let i = 0; i < batches.length; i++) {
+      if (batches[i].files.length < smallestSize) {
+        smallestSize = batches[i].files.length
+        smallestIdx = i
+      }
+    }
+    if (smallestIdx < 0) break  // Safety — shouldn't happen
+
+    // Find a neighbor with same type+component to merge into (prefer same component)
+    let mergeTarget = -1
+    // First pass: same type AND same component
+    for (let i = 0; i < batches.length; i++) {
+      if (i === smallestIdx) continue
+      if (batches[i].type === batches[smallestIdx].type &&
+          batches[i].component === batches[smallestIdx].component) {
+        mergeTarget = i
+        break
+      }
+    }
+    // Second pass: same type only (cross-component merge as last resort)
+    if (mergeTarget < 0) {
+      for (let i = 0; i < batches.length; i++) {
+        if (i === smallestIdx) continue
+        if (batches[i].type === batches[smallestIdx].type) {
+          mergeTarget = i
+          break
+        }
+      }
+    }
+    if (mergeTarget < 0) break  // No merge target found — can't reduce further
+
+    // Merge smallest into target
+    batches[mergeTarget].files.push(...batches[smallestIdx].files)
+    batches[mergeTarget].estimated_duration_ms += batches[smallestIdx].estimated_duration_ms
+    batches[mergeTarget].label = `${batches[mergeTarget].component}-${batches[mergeTarget].type}` +
+      (batches[mergeTarget].component !== batches[smallestIdx].component ? '+' : '')
+    batches.splice(smallestIdx, 1)
+  }
+
+  // Re-index batch IDs after merging (IDs must be sequential for stop hook)
+  for (let i = 0; i < batches.length; i++) {
+    batches[i].id = i
   }
 
   // 4. Build the plan document
