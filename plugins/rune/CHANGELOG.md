@@ -8,6 +8,9 @@
 - **arc-phase-stop-hook.sh: test finalization retry counter** — If `test_finalized` flag is not set after 2 finalization attempts, force-advance the test phase with a minimal report. Writes `force_advanced: true` to checkpoint. Prevents infinite finalization loop when Claude fails to write the flag under context pressure.
 - **enforce-polling.sh: add env toggle `RUNE_DISABLE_POLL_GUARD=1`** — Allow disabling POLL-001 sleep+echo enforcement for legitimate use cases (long-running background tasks, test suite monitoring, service health checks). Also configurable via `talisman.yml` → `process_management.poll_guard_enabled: false`.
 
+### Added
+- **Component-aware test batching** — Test batches are now split by component (backend/, dashboard/, admin/, etc.) before chunking by file count. Each component gets its own batch sequence with dedicated agent context. Ensures correct test runner selection per component (pytest for backend, vitest for dashboard, playwright for e2e). Batch labels show component origin (e.g., `backend-unit-1/3`). Configurable via `talisman.testing.batch.component_dirs` (string array of directory names).
+
 ## [2.10.7] - 2026-03-23
 
 ### Added

@@ -512,9 +512,15 @@ for (const batch of testingPlan.batches) {
   writeCheckpoint(id, testingPlan)
 
   // TEAM-002: TaskCreate BEFORE Agent() — required by Iron Law
+  // Component-aware batch label for task visibility
+  const batchLabel = batch.label ?? `${batch.type}-batch-${batch.id}`
+  const componentHint = batch.component && batch.component !== "root"
+    ? `Component: ${batch.component} (run tests from ${batch.component}/ directory)\n      `
+    : ""
+
   TaskCreate({
-    subject: `Batch ${batch.id}: ${batch.type} tests (${batch.files.length} files)`,
-    description: `Run ${batch.type} tests: ${batch.files.join(', ')}`
+    subject: `Batch ${batch.id}: ${batchLabel} (${batch.files.length} files)`,
+    description: `Run ${batch.type} tests [${batch.component ?? "root"}]: ${batch.files.join(', ')}`
   })
 
   // Foreground agent (run_in_background: false — blocking call, zero idle risk)
@@ -527,7 +533,7 @@ for (const batch of testingPlan.batches) {
     model: resolveModelForAgent(`${batch.type}-test-runner`, talisman),
     run_in_background: false,  // CRITICAL: blocking — agent completes before loop continues
     prompt: `Run these ${batch.type} tests: ${batch.files.join(', ')}
-      Output to: ${resultPath}
+      ${componentHint}Output to: ${resultPath}
       Strategy: ${Read(`tmp/arc/${id}/test-strategy.md`)}
       DISCIPLINE: Before running tests, echo-back your test strategy at the top of your output:
         "I will verify: AC-X via [test type]: [test name], AC-Y via [test type]: [test name], AC-Z has no test (WARN)"

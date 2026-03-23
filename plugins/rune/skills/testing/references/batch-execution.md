@@ -74,7 +74,58 @@ function generateTestingPlan(id, talisman, context) {
     extended:    computeBatchSize("extended",    talisman),
   }
 
-  // 3. Slice each tier into batches — ordering: unit → contract → integration → e2e → extended
+  // 3. Component-aware batching: split files by component THEN by chunk size.
+  //
+  // WHY: Monorepos (e.g., backend/ + dashboard/) have different test runners
+  // (pytest vs vitest vs playwright), different working directories, and different
+  // dependency setups. Running backend and frontend tests in the same batch causes
+  // confusion and errors. Splitting by component ensures each batch agent knows
+  // exactly which test runner to use and which directory to operate in.
+  //
+  // For large test suites (400+ files), this also prevents context exhaustion —
+  // each batch runs as a separate foreground agent with its own context window.
+  //
+  // Component detection heuristic:
+  //   - Files matching known component directories (backend/, frontend/, dashboard/,
+  //     admin/, api/, web/, server/, client/, packages/*/) get grouped by component.
+  //   - Files not matching any component pattern go into a "root" group.
+  //   - Configurable via talisman.testing.batch.component_dirs (string[]).
+  //
+  // Batch ordering: fast-first strategy
+  //   backend-unit → frontend-unit → backend-contract → backend-integration → frontend-e2e → extended
+  //   This gives early feedback on unit tests before slow integration/e2e batches.
+
+  const COMPONENT_PATTERNS = talisman?.testing?.batch?.component_dirs ?? [
+    "backend", "frontend", "dashboard", "admin", "api", "web",
+    "server", "client", "app", "mobile", "packages"
+  ]
+
+  function detectComponent(filePath) {
+    const parts = filePath.split("/")
+    for (const part of parts) {
+      if (COMPONENT_PATTERNS.includes(part)) return part
+    }
+    // Check for packages/*/... monorepo pattern
+    const packagesMatch = filePath.match(/^packages\/([^/]+)\//)
+    if (packagesMatch) return `packages/${packagesMatch[1]}`
+    return "root"
+  }
+
+  function splitByComponent(files) {
+    const groups = {}
+    for (const file of files) {
+      const component = detectComponent(file)
+      if (!groups[component]) groups[component] = []
+      groups[component].push(file)
+    }
+    // Sort components: "root" last, others alphabetically (stable ordering for reproducibility)
+    return Object.entries(groups).sort(([a], [b]) => {
+      if (a === "root") return 1
+      if (b === "root") return -1
+      return a.localeCompare(b)
+    })
+  }
+
   const batches = []
   let batchId = 0
 
@@ -89,26 +140,36 @@ function generateTestingPlan(id, talisman, context) {
     if (!files || files.length === 0) continue
 
     const size = batchSizes[type]
-    for (let i = 0; i < files.length; i += size) {
-      const slice = files.slice(i, i + size)
-      const avgDuration = talisman?.testing?.batch?.avg_duration?.[type]
-                        ?? DEFAULT_AVG_DURATION[type]
+    const avgDuration = talisman?.testing?.batch?.avg_duration?.[type]
+                      ?? DEFAULT_AVG_DURATION[type]
 
-      batches.push({
-        id:               batchId++,
-        type,
-        files:            slice,
-        prompt_context:   buildBatchPromptContext(type, slice, context),
-        expected_behavior: describeExpectedBehavior(type, slice),
-        pass_criteria:    buildPassCriteria(type, talisman),
-        status:           "pending",
-        fix_attempts:     0,
-        started_at:       null,
-        completed_at:     null,
-        result_path:      null,
-        skip_reason:      null,
-        estimated_duration_ms: slice.length * avgDuration,
-      })
+    // Split by component first, then chunk each component group
+    const componentGroups = splitByComponent(files)
+
+    for (const [component, componentFiles] of componentGroups) {
+      for (let i = 0; i < componentFiles.length; i += size) {
+        const slice = componentFiles.slice(i, i + size)
+        const chunkIndex = Math.floor(i / size) + 1
+        const totalChunks = Math.ceil(componentFiles.length / size)
+
+        batches.push({
+          id:               batchId++,
+          type,
+          component,        // NEW: which component this batch belongs to
+          files:            slice,
+          label:            `${component}-${type}${totalChunks > 1 ? `-${chunkIndex}/${totalChunks}` : ""}`,
+          prompt_context:   buildBatchPromptContext(type, slice, context),
+          expected_behavior: describeExpectedBehavior(type, slice),
+          pass_criteria:    buildPassCriteria(type, talisman),
+          status:           "pending",
+          fix_attempts:     0,
+          started_at:       null,
+          completed_at:     null,
+          result_path:      null,
+          skip_reason:      null,
+          estimated_duration_ms: slice.length * avgDuration,
+        })
+      }
     }
   }
 
