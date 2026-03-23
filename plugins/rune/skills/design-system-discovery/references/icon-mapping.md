@@ -110,13 +110,13 @@ Entries marked with `=` indicate the name matches the kebab-to-PascalCase fallba
 ## Curated Fast-Path (Per Adapter)
 
 Each adapter's `iconMap` contains curated entries — the icons most likely to appear
-in Figma designs. UntitledUI has 40 entries (v2.12.0) covering all categories;
+in Figma designs. UntitledUI has 56 entries (v2.12.0) covering all categories;
 Lucide/shadcn has 10 entries focused on divergent names.
 
-### UntitledUI Fast-Path (40 entries, v2.12.0)
+### UntitledUI Fast-Path (56 entries, v2.12.0)
 
 ```
-// Full 40-entry map in UNTITLEDUI_ADAPTER.iconMap
+// Full 56-entry map in UNTITLEDUI_ADAPTER.iconMap
 // Organized by category: Navigation (10), Action (17), Content (15),
 // User & Social (7), Status (7). See library-adapters.md for the complete list.
 // UntitledUI naming closely matches kebab-to-PascalCase, so the fast-path
