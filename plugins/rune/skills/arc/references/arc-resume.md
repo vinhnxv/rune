@@ -16,7 +16,7 @@ hash integrity verification, orphan cleanup, and phase demotion.
 On resume, validate checkpoint integrity before proceeding:
 
 ```
-1. Find most recent checkpoint: find "${CWD}/.rune/arc" -maxdepth 2 -name checkpoint.json -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1
+1. Find most recent checkpoint: find "${CWD}/.rune/arc" -maxdepth 2 -name checkpoint.json -not -path "*/archived/*" -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1
 2. Read "${CWD}/.rune/arc/{id}/checkpoint.json" — extract plan_file for downstream phases
 2b. Validate session_nonce from checkpoint (prevents tampering):
    ```javascript

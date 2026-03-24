@@ -184,7 +184,7 @@ These run as inline grep-based scans — no separate detector script:
 **Arc failures:**
 ```bash
 # Grep checkpoint.json files for failed phases
-find -P "${PROJECT_DIR}/.rune/arc" -name "checkpoint.json" -not -type l 2>/dev/null | \
+find -P "${PROJECT_DIR}/.rune/arc" -name "checkpoint.json" -not -type l -not -path "*/archived/*" 2>/dev/null | \
   xargs grep -l '"status":"failed"' 2>/dev/null | head -10
 ```
 Extract phase name and failure reason from the checkpoint JSON.

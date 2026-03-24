@@ -269,7 +269,7 @@ CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 if command -v jq >/dev/null 2>&1; then
   # SEC-5 FIX: Place -maxdepth before -name for POSIX portability (BSD find on macOS)
   # FIX: Search CWD-scoped .rune/arc/ (where checkpoints live), not $CHOME/arc/ (wrong directory)
-  active=$(find "${CWD}/.rune/arc" -maxdepth 2 -name checkpoint.json 2>/dev/null | while read f; do
+  active=$(find "${CWD}/.rune/arc" -maxdepth 2 -name checkpoint.json -not -path "*/archived/*" 2>/dev/null | while read f; do
     # Skip checkpoints older than 7 days (abandoned)
     started_at=$(jq -r '.started_at // empty' "$f" 2>/dev/null)
     if [ -n "$started_at" ]; then
@@ -293,7 +293,7 @@ if command -v jq >/dev/null 2>&1; then
 else
   # NOTE: grep fallback is imprecise — matches "in_progress" anywhere in file, not field-specific.
   # Acceptable as degraded-mode check when jq is unavailable. The jq path above is the robust check.
-  active=$(find "${CWD}/.rune/arc" -maxdepth 2 -name checkpoint.json 2>/dev/null | while read f; do
+  active=$(find "${CWD}/.rune/arc" -maxdepth 2 -name checkpoint.json -not -path "*/archived/*" 2>/dev/null | while read f; do
     if grep -q '"status"[[:space:]]*:[[:space:]]*"in_progress"' "$f" 2>/dev/null; then basename "$(dirname "$f")"; fi
   done)
 fi
