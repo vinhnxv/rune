@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.16.0] - 2026-03-24
+
+### Added
+- **Design Phase QA — Tier 3 Full Discipline Parity** — Comprehensive improvements bringing design phases to full parity with core arc phases:
+  - Anti-pattern detection rules (DES-AP-01 through DES-AP-05) and DES-MOT-01 composite "going through the motions" scoring in `design-qa-verifier` agent
+  - New `design-qa-anti-patterns.md` reference file with detection logic, examples, and threshold rationale
+  - Design-specific Inner Flame role checklists for Proto-Worker, Design-Iterator, and Design-Implementation-Reviewer roles
+  - Structured JSON artifact output and confidence scoring (4-dimension weighted algorithm with weight redistribution) for Storybook verification (Phase 3.3)
+  - Mend-compatible bridge format (`design-findings-mend-compat.json`) for DES- findings cross-phase resolution
+  - Per-component VSM quality scoring (6-dimension checks, HIGH/MEDIUM/LOW tiers) in design extraction (Phase 3)
+
+### Changed
+- **Discipline opt-in default**: `design_sync.discipline.enabled` now defaults to `true` when `design_sync.enabled` is `true` (was explicit opt-in). Explicit `false` still works as opt-out.
+
 ## [2.15.0] - 2026-03-24
 
 ### Added
