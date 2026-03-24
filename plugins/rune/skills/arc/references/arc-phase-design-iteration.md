@@ -281,6 +281,35 @@ if (criteriaMatrix) {
   }
   Write(`tmp/arc/${id}/design-criteria-matrix-1.json`, JSON.stringify(postMatrix, null, 2))
 
+  // 11.1. Generate mend-compatible bridge format (design-convergence.md § Mend-Compatible Bridge Format)
+  // Converts FAIL DES- criteria into mend-compatible findings for cross-phase resolution.
+  const mendFindings = updatedCriteria
+    .filter(c => c.status === "FAIL")
+    .map(c => {
+      const finding = findings.find(f => `DES-${f.component}-${f.dimension}` === c.id)
+      const severity = finding?.severity ?? "MAJOR"
+      const priority = (severity === "CRITICAL" || severity === "MAJOR") ? "P1"
+        : severity === "MINOR" ? "P2" : "P3"
+      return {
+        id: c.id,
+        prefix: "DES",
+        priority,
+        title: finding?.title ?? `${c.dimension} issue in ${c.component}`,
+        file: finding?.file ?? finding?.source_file ?? null,
+        line: finding?.line ?? null,
+        evidence: c.evidence,
+        fix_suggestion: finding?.fix_suggestion ?? null,
+        status: "FAIL",
+        resolution: null
+      }
+    })
+
+  Write(`tmp/arc/${id}/design-findings-mend-compat.json`, JSON.stringify({
+    source: "design_verification",
+    format_version: "1.0",
+    findings: mendFindings
+  }, null, 2))
+
   // Write convergence report
   Write(`tmp/arc/${id}/design-convergence-report.json`, JSON.stringify({
     design_convergence: {

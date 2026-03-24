@@ -99,7 +99,7 @@ Phase 4: Cleanup → Shutdown workers, persist echoes, report results
 
 ## Acceptance Criteria Generation from VSM
 
-When `design_sync.discipline.enabled` is `true`, the design extraction pipeline auto-generates acceptance criteria for each component based on VSM content. Criteria are written to the DCD `acceptance_criteria` frontmatter field.
+When `design_sync.discipline.enabled` is not explicitly `false`, the design extraction pipeline auto-generates acceptance criteria for each component based on VSM content. Criteria are written to the DCD `acceptance_criteria` frontmatter field.
 
 **Generation logic**: For each component in the VSM:
 1. **Token criteria** (`token_scan`): One criterion per token category (colors, spacing, typography) that has entries in the VSM. Verifies the component uses design tokens instead of hardcoded values.
@@ -111,7 +111,7 @@ When `design_sync.discipline.enabled` is `true`, the design extraction pipeline 
 
 Criteria IDs follow the format `DES-{component}-{dimension}` (e.g., `DES-Button-color-tokens`). Each criterion maps to a specific design proof type and fidelity dimension for evidence collection.
 
-When `design_sync.discipline.enabled` is `false` or absent, no acceptance criteria are generated — DCDs use the existing score-only fidelity dimensions (backward compatible).
+When `design_sync.discipline.enabled` is explicitly `false`, no acceptance criteria are generated — DCDs use the existing score-only fidelity dimensions (backward compatible).
 
 See [design-proof-types.md](../discipline/references/design-proof-types.md) for the full proof type reference and DCD acceptance criteria format.
 

@@ -601,6 +601,89 @@ if (gateEnabled && cachedVsmFiles.length > 0) {
   }
 }
 
+// === STEP 13.7: VSM Quality Scoring ===
+// Per-VSM quality checks to prevent low-quality VSMs from propagating to downstream phases.
+// See design-convergence.md for how quality tiers affect downstream consumers.
+const qualityReport = { vsms: [], summary: {} }
+
+for (const vsmPath of cachedVsmFiles) {
+  try {
+    const vsm = JSON.parse(Read(vsmPath))
+    const componentName = vsmPath.split('/').pop().replace('.json', '')
+
+    // 6-dimension quality check
+    const checks = {
+      has_tokens: Boolean(vsm.tokens && Object.keys(vsm.tokens).length > 0),
+      has_variants: Boolean(vsm.variants && vsm.variants.length > 0),
+      has_a11y: Boolean(vsm.accessibility),
+      has_breakpoints: Boolean(vsm.breakpoints && vsm.breakpoints.length > 0),
+      has_states: Boolean(vsm.states && vsm.states.length > 0),
+      has_layout: Boolean(vsm.layout)
+    }
+
+    // Handle empty VSMs (valid JSON but no data) — score 0
+    const isEmptyVsm = Object.keys(vsm).length === 0
+    const passed = isEmptyVsm ? 0 : Object.values(checks).filter(Boolean).length
+    const total = Object.keys(checks).length
+    const score = Math.round((passed / total) * 100)
+
+    // Quality tier: >= 80 HIGH, >= 50 MEDIUM, < 50 LOW
+    const tier = score >= 80 ? "HIGH" : score >= 50 ? "MEDIUM" : "LOW"
+
+    qualityReport.vsms.push({
+      file: vsmPath,
+      component: componentName,
+      score,
+      tier,
+      checks,
+      empty: isEmptyVsm
+    })
+  } catch (e) {
+    // Per-VSM try/catch: one malformed VSM does not block the entire report
+    qualityReport.vsms.push({
+      file: vsmPath,
+      component: vsmPath.split('/').pop().replace('.json', ''),
+      score: 0,
+      tier: "LOW",
+      checks: { has_tokens: false, has_variants: false, has_a11y: false, has_breakpoints: false, has_states: false, has_layout: false },
+      empty: false,
+      error: e.message ?? "Parse error"
+    })
+  }
+}
+
+// Aggregate summary
+const highCount = qualityReport.vsms.filter(v => v.tier === "HIGH").length
+const medCount = qualityReport.vsms.filter(v => v.tier === "MEDIUM").length
+const lowCount = qualityReport.vsms.filter(v => v.tier === "LOW").length
+const avgScore = qualityReport.vsms.length > 0
+  ? Math.round(qualityReport.vsms.reduce((sum, v) => sum + v.score, 0) / qualityReport.vsms.length)
+  : 0
+
+qualityReport.summary = {
+  total: qualityReport.vsms.length,
+  high: highCount,
+  medium: medCount,
+  low: lowCount,
+  average_score: avgScore,
+  timestamp: new Date().toISOString()
+}
+
+// LOW quality advisory for downstream phases
+if (lowCount > 0) {
+  const lowComponents = qualityReport.vsms.filter(v => v.tier === "LOW").map(v => v.component)
+  warn(`VSM Quality: ${lowCount} LOW-quality VSM(s) detected: ${lowComponents.join(', ')}. ` +
+    `Downstream consumers should handle missing dimensions gracefully.`)
+}
+
+Write(`tmp/arc/${id}/vsm/quality-report.json`, JSON.stringify(qualityReport, null, 2))
+
+// Store quality summary in checkpoint for downstream phase injection
+checkpoint.vsm_quality_summary = qualityReport.summary
+checkpoint.vsm_low_quality_components = qualityReport.vsms
+  .filter(v => v.tier === "LOW")
+  .map(v => v.component)
+
 // === STEP 14: Shutdown + Cleanup (standard 5-component pattern) ===
 // 1. Dynamic member discovery
 let allMembers = []
@@ -746,3 +829,81 @@ Errors are always written to the `errors[]` field of the checkpoint update, even
 Recovery: On `--resume`, if design_extraction is `in_progress`, clean up stale team and re-run from the beginning. Extraction is idempotent — IR tree and VSM files are overwritten cleanly.
 
 Per-URL checkpoint: each `{url-hash}/ir-tree.json` serves as an atomic checkpoint for that URL's extraction. If resume detects all IR trees exist, the extraction phase is skipped and VSM generation proceeds directly from cached IR data.
+
+## VSM Quality Scoring
+
+Per-component quality scoring applied after VSM extraction (Step 13.7) to gate downstream
+phase behavior. Prevents low-quality VSMs from causing cascading INCONCLUSIVE results.
+
+### Quality Dimensions (6 checks)
+
+| Dimension | Check | What it validates |
+|---|---|---|
+| `has_tokens` | `vsm.tokens && Object.keys(vsm.tokens).length > 0` | Design tokens extracted (colors, spacing, typography) |
+| `has_variants` | `vsm.variants && vsm.variants.length > 0` | Component variants identified (hover, disabled, sizes) |
+| `has_a11y` | `vsm.accessibility` truthy | Accessibility metadata present (ARIA, contrast, focus) |
+| `has_breakpoints` | `vsm.breakpoints && vsm.breakpoints.length > 0` | Responsive breakpoints detected |
+| `has_states` | `vsm.states && vsm.states.length > 0` | Interactive states mapped (loading, error, empty) |
+| `has_layout` | `vsm.layout` truthy | Layout structure extracted (flex, grid, positioning) |
+
+### Score Calculation
+
+```
+score = (checks_passed / total_checks) * 100
+```
+
+### Quality Tiers
+
+| Tier | Score Range | Meaning |
+|---|---|---|
+| `HIGH` | >= 80 | Rich VSM — all major dimensions present |
+| `MEDIUM` | >= 50, < 80 | Partial VSM — some dimensions missing |
+| `LOW` | < 50 | Sparse VSM — most dimensions missing |
+
+### Edge Cases
+
+- **Empty VSM** (valid JSON, no keys): score 0, tier LOW
+- **Malformed VSM** (parse error): per-VSM try/catch catches error, score 0, tier LOW with `error` field
+- **One malformed VSM does NOT block** the quality report for other VSMs
+
+### Output
+
+Written to `tmp/arc/{id}/vsm/quality-report.json`:
+
+```json
+{
+  "vsms": [
+    {
+      "file": "tmp/arc/{id}/vsm/Button.json",
+      "component": "Button",
+      "score": 83,
+      "tier": "HIGH",
+      "checks": {
+        "has_tokens": true,
+        "has_variants": true,
+        "has_a11y": true,
+        "has_breakpoints": false,
+        "has_states": true,
+        "has_layout": true
+      },
+      "empty": false
+    }
+  ],
+  "summary": {
+    "total": 5,
+    "high": 3,
+    "medium": 1,
+    "low": 1,
+    "average_score": 70,
+    "timestamp": "2026-03-24T12:00:00Z"
+  }
+}
+```
+
+### Downstream Consumers
+
+| Phase | Behavior with LOW-quality VSMs |
+|---|---|
+| **Phase 3.2 (Design Prototypes)** | Skip LOW-quality components — insufficient data for prototype generation |
+| **Phase 5 (Work)** | Workers receive `vsm_quality_summary` in checkpoint — quality advisory for implementation decisions |
+| **Phase 5.2 (Design Verification)** | Mark dimensions with missing VSM data as `INCONCLUSIVE` instead of `FAIL` — absence of VSM data ≠ implementation failure |

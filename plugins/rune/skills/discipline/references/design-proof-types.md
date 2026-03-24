@@ -427,7 +427,7 @@ Acceptance criteria are auto-generated from VSM data during DCD creation (Phase 
 | `responsive.breakpoints[]` | Layout adapts per breakpoint | `responsive_check` |
 | Design reference | Visual fidelity match | `screenshot_diff` |
 
-The `acceptance_criteria` field is **optional** for backward compatibility. Existing DCDs without criteria continue to work — they just lack per-criterion evidence trails. The `acceptance_criteria` field is populated during DCD generation when `design_sync.discipline.enabled` is `true`.
+The `acceptance_criteria` field is **optional** for backward compatibility. Existing DCDs without criteria continue to work — they just lack per-criterion evidence trails. The `acceptance_criteria` field is populated during DCD generation when `design_sync.discipline.enabled` is not explicitly `false` (default: enabled when `design_sync.enabled` is `true`). Set `design_sync.discipline.enabled: false` in talisman.yml to opt out.
 
 ---
 

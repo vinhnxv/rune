@@ -80,6 +80,42 @@ Each finding in `design-findings.json` should have an `id`, `component`, `dimens
 | DES-CMP-02 | All components listed in design-criteria-matrix have corresponding entries in design-findings (even if empty findings array per component) | Cross-reference component IDs between matrix and findings |
 | DES-CMP-03 | Overall fidelity score is computed and present in the report | `Read` + search for overall/composite score value |
 
+### Anti-Pattern Detection (DES-AP)
+
+Structured anti-pattern checks with per-finding score penalties. Applied during quality evaluation.
+
+| ID | Pattern | Detection | Score Impact |
+|----|---------|-----------|--------------|
+| DES-AP-01 | Generic evidence | `evidence` matches `/looks? good\|matches? (the )?design\|implemented correctly\|as expected\|no issues/i` | -30 per finding |
+| DES-AP-02 | Missing file:line | `evidence` does NOT contain `/\w+\.\w+:\d+/` regex | -15 per finding |
+| DES-AP-03 | Uniform scores | All findings have identical score AND findings.length >= 3 | -20 aggregate |
+| DES-AP-04 | Zero findings for multi-component review | `findings.length === 0` when `vsm_count >= 3` (exclude SKIP components) | -40 aggregate |
+| DES-AP-05 | Missing dimensions | Component has <4 of 6 dimensions covered | -10 per missing dimension |
+
+**How to apply**: For each finding in `design-findings.json`, check DES-AP-01 and DES-AP-02. For the findings array as a whole, check DES-AP-03 and DES-AP-04. For each component in `design-criteria-matrix`, check DES-AP-05. Accumulate penalties and subtract from the quality dimension score.
+
+See [design-qa-anti-patterns.md](../../skills/arc/references/design-qa-anti-patterns.md) for detailed detection logic and examples.
+
+### Composite: Going Through the Motions (DES-MOT-01)
+
+Aggregates anti-pattern signals into a single "going through the motions" verdict. If 3+ weakness signals are present, the entire verification is FAIL regardless of individual dimension scores.
+
+```
+weakness_signals = [
+  DES-AP-01 count >= 2,
+  DES-AP-02 count >= 3,
+  DES-AP-03,
+  DES-AP-04,
+  DES-AP-05 count >= component_count / 2
+]
+if (weakness_signals.filter(Boolean).length >= 3) {
+  verdict = "FAIL"
+  reason = "DES-MOT-01: Design review appears to be going through the motions."
+}
+```
+
+**Threshold rationale**: 3-of-5 signals required to avoid false positives from legitimate edge cases (e.g., single-component reviews may naturally have fewer dimensions). The composite check is designed to catch systemic quality issues, not individual oversights.
+
 ## "Going Through the Motions" Detection
 
 Detect and FAIL these design-verification-specific anti-patterns:

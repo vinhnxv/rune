@@ -338,6 +338,112 @@ ${result.timedOut ? '\n**WARNING**: Verification timed out. Results may be incom
 
 log(`Storybook verification: ${overallStatus} (${avgScore}/100, ${p1Count} P1, ${p2Count} P2)`)
 
+// 11.5. QA Artifact: Structured JSON report with confidence scoring
+// Write per-story results with confidence scores for downstream consumption
+// by Phase 5.2 (DESIGN VERIFICATION) and Phase 7.7 (TEST).
+const storyResults = []
+for (const report of reports) {
+  const content = Read(report)
+  const componentName = report.split('/').pop().replace(/\.md$/, '')
+  const scoreMatch = content.match(/Final Score:\s*(\d+)/)
+  const renderOk = !content.includes("[FAIL] Render")
+  const a11yMatch = content.match(/Accessibility:\s*(PASS|FAIL)/)
+  const visualMatch = content.match(/Visual Score:\s*(\d+)/)
+  const variantMatch = content.match(/Variant Coverage:\s*(PASS|FAIL|(\d+)\/(\d+))/)
+
+  // Confidence scoring algorithm:
+  // - Render success: 50% weight (binary)
+  // - Visual comparison: 20% weight (null if unavailable → redistribute)
+  // - Accessibility scan: 20% weight (null if unavailable → redistribute)
+  // - Variant coverage: 10% weight (binary)
+  const hasVisual = visualMatch !== null
+  const hasA11y = a11yMatch !== null
+
+  // Redistribute weights when optional dimensions are unavailable
+  let weights = { render: 50, visual: 20, a11y: 20, variant: 10 }
+  if (!hasVisual && !hasA11y) {
+    weights = { render: 75, visual: 0, a11y: 0, variant: 25 }
+  } else if (!hasVisual) {
+    weights = { render: 60, visual: 0, a11y: 25, variant: 15 }
+  } else if (!hasA11y) {
+    weights = { render: 60, visual: 25, a11y: 0, variant: 15 }
+  }
+
+  const renderScore = renderOk ? weights.render : 0
+  const visualScore = hasVisual ? Math.round((parseInt(visualMatch[1]) / 100) * weights.visual) : null
+  const a11yScore = hasA11y ? (a11yMatch[1] === "PASS" ? weights.a11y : 0) : null
+  const variantOk = variantMatch ? (variantMatch[1] === "PASS" || variantMatch[1].startsWith(variantMatch[3])) : false
+  const variantScore = variantOk ? weights.variant : 0
+
+  const confidence = renderScore
+    + (visualScore ?? 0)
+    + (a11yScore ?? 0)
+    + variantScore
+
+  // Extract issues from report
+  const issueMatches = content.match(/\[(P[123])\]\s*(.+)/g) || []
+  const issues = issueMatches.map(m => {
+    const parts = m.match(/\[(P[123])\]\s*(.+)/)
+    return { severity: parts[1], description: parts[2] }
+  })
+
+  storyResults.push({
+    story: `${componentName}--default`,
+    component: componentName,
+    render_success: renderOk,
+    visual_score: hasVisual ? parseInt(visualMatch[1]) : null,
+    a11y_passed: hasA11y ? a11yMatch[1] === "PASS" : null,
+    variant_covered: variantOk,
+    confidence: confidence,
+    confidence_weights: weights,
+    issues: issues
+  })
+}
+
+// Low-confidence flagging: stories with score < 60 flagged for manual review
+const lowConfidence = storyResults.filter(r => r.confidence < 60)
+if (lowConfidence.length > 0) {
+  warn(`Storybook QA: ${lowConfidence.length} story/stories below confidence threshold (<60): ${lowConfidence.map(r => r.component).join(', ')}`)
+}
+
+const aggregateConfidence = storyResults.length > 0
+  ? Math.round(storyResults.reduce((sum, r) => sum + r.confidence, 0) / storyResults.length)
+  : 0
+
+// Write structured QA artifact
+const qaReportPath = `tmp/arc/${id}/storybook-verification-report.json`
+Write(qaReportPath, JSON.stringify({
+  timestamp: new Date().toISOString(),
+  stories_tested: storyResults.length,
+  stories_passed: storyResults.filter(r => r.confidence >= 60).length,
+  stories_failed: storyResults.filter(r => r.confidence < 60 && r.confidence > 0).length,
+  stories_skipped: changedComponents.length - storyResults.length,
+  results: storyResults,
+  aggregate_confidence: aggregateConfidence,
+  low_confidence_flagged: lowConfidence.map(r => ({
+    component: r.component,
+    confidence: r.confidence,
+    reason: !r.render_success ? "render_failure"
+      : r.confidence < 30 ? "multiple_failures"
+      : "below_threshold"
+  })),
+  threshold: 60,
+  mode: mode,
+  fidelity_threshold: fidelityThreshold
+}, null, 2))
+
+// Artifact validation: verify report JSON exists and is parseable
+const qaReportExists = (() => {
+  try {
+    const raw = Read(qaReportPath)
+    JSON.parse(raw)
+    return true
+  } catch { return false }
+})()
+if (!qaReportExists) {
+  warn("Storybook QA: Failed to write or validate storybook-verification-report.json")
+}
+
 // 12. Cleanup (5-component standard pattern)
 let allMembers = []
 try {
