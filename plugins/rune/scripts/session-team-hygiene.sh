@@ -404,6 +404,48 @@ orphan_checkpoint_count=$(
 
 [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphaned checkpoints found: ${orphan_checkpoint_count}" >> "${_RUNE_TRACE_PATH}"
 
+# ── Stale checkpoint archival (48h TTL for incomplete arcs) ──
+# Moves checkpoints with no completed_at that are older than 48h to archived/
+# Non-destructive — archived checkpoints can be manually restored (AC-3)
+stale_archived_count=0
+STALE_THRESHOLD=$((48 * 3600))  # 48 hours in seconds
+NOW_ARCHIVE=$(date +%s)
+for ckpt_dir in "${CWD}/${RUNE_STATE}/arc" "${CWD}/.claude/arc"; do
+  [[ -d "$ckpt_dir" ]] || continue
+  ARCHIVE_DIR="${ckpt_dir}/archived"
+  shopt -s nullglob 2>/dev/null || true
+  for ckpt in "$ckpt_dir"/*/checkpoint.json; do
+    [[ -f "$ckpt" ]] && [[ ! -L "$ckpt" ]] || continue
+    # Skip if already in archived/
+    [[ "$ckpt" == */archived/* ]] && continue
+    # Skip if completed
+    completed=$(jq -r '.completed_at // empty' "$ckpt" 2>/dev/null || true)
+    [[ -n "$completed" ]] && continue
+    # Check age
+    ckpt_mtime=$(_stat_mtime "$ckpt"); ckpt_mtime="${ckpt_mtime:-0}"
+    age=$(( NOW_ARCHIVE - ckpt_mtime ))
+    if [[ "$age" -gt "$STALE_THRESHOLD" ]]; then
+      arc_dir=$(dirname "$ckpt")
+      # XVER-001: Reject symlinked arc directories before mv
+      [[ -L "$arc_dir" ]] && continue
+      arc_id=$(basename "$arc_dir")
+      # SEC-006: Validate arc_id before use in paths
+      [[ "$arc_id" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
+      [[ "$arc_id" == *".."* ]] && continue
+      if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" == "1" ]]; then
+        stale_archived_count=$((stale_archived_count + 1))
+        [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: DRY RUN: would archive stale checkpoint: $arc_id (age: $((age/3600))h)" >> "${_RUNE_TRACE_PATH}"
+      else
+        mkdir -p "$ARCHIVE_DIR"
+        mv "$arc_dir" "$ARCHIVE_DIR/$arc_id" 2>/dev/null && stale_archived_count=$((stale_archived_count + 1))
+        [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: archived stale checkpoint: $arc_id (age: $((age/3600))h)" >> "${_RUNE_TRACE_PATH}"
+      fi
+    fi
+  done
+done
+
+[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: stale checkpoints archived: ${stale_archived_count}" >> "${_RUNE_TRACE_PATH}"
+
 # ── Layer 2: Resumable arc detection — REMOVED (v1.156.0) ──
 # Previously detected interrupted arcs and injected an advisory message into
 # additionalContext ("ARC CRASH RECOVERY: ... Resume: /rune:arc --resume").
@@ -438,13 +480,16 @@ fi
 # Report if anything found
 # BACK-007 FIX: Conditionally append orphan list to avoid trailing "Orphans: " with no names
 remaining_orphans=$((orphan_count - orphans_cleaned))
-if [[ $remaining_orphans -gt 0 ]] || [[ $stale_state_count -gt 0 ]] || [[ $orphan_checkpoint_count -gt 0 ]] || [[ $orphaned_wt_count -gt 0 ]] || [[ $orphans_cleaned -gt 0 ]] || [[ $orphan_procs_killed -gt 0 ]]; then
+if [[ $remaining_orphans -gt 0 ]] || [[ $stale_state_count -gt 0 ]] || [[ $orphan_checkpoint_count -gt 0 ]] || [[ $orphaned_wt_count -gt 0 ]] || [[ $orphans_cleaned -gt 0 ]] || [[ $orphan_procs_killed -gt 0 ]] || [[ $stale_archived_count -gt 0 ]]; then
   msg="TLC-003 SESSION HYGIENE:"
   if [[ $orphans_cleaned -gt 0 ]]; then
     msg+=" Auto-cleaned ${orphans_cleaned} PID-dead orphan(s)."
   fi
   if [[ $orphan_procs_killed -gt 0 ]]; then
     msg+=" Killed ${orphan_procs_killed} orphan teammate process(es)."
+  fi
+  if [[ $stale_archived_count -gt 0 ]]; then
+    msg+=" Archived ${stale_archived_count} stale checkpoint(s) (>48h incomplete)."
   fi
   if [[ $remaining_orphans -gt 0 ]] || [[ $stale_state_count -gt 0 ]] || [[ $orphan_checkpoint_count -gt 0 ]] || [[ $orphaned_wt_count -gt 0 ]]; then
     msg+=" Found ${remaining_orphans} orphaned team dir(s), ${stale_state_count} stale state file(s), ${orphan_checkpoint_count} orphaned checkpoint(s), and ${orphaned_wt_count} orphaned worktree(s) from prior sessions. Run /rune:rest --heal to clean up."

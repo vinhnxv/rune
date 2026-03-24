@@ -201,7 +201,7 @@ These run as inline Bash/grep scans within the skill — no separate detector sc
 Targets: `.rune/arc/*/checkpoint.json`
 
 ```bash
-find -P "${PROJECT_DIR}/.rune/arc" -name "checkpoint.json" -not -type l 2>/dev/null | \
+find -P "${PROJECT_DIR}/.rune/arc" -name "checkpoint.json" -not -type l -not -path "*/archived/*" 2>/dev/null | \
   while IFS= read -r f; do
     jq -r --arg f "$f" '
       .phases | to_entries[] |
