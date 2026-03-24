@@ -39,9 +39,11 @@ CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null) || CWD=""
 [[ -n "$CWD" && -d "$CWD" ]] || exit 0
 
 # ── Fast-path: active arc → exit 0 (don't suggest during arc) ──
-if [[ -f "${CWD}/.rune/arc-phase-loop.local.md" ]]; then
-  exit 0
-fi
+for _loop_file in arc-phase-loop.local.md arc-batch-loop.local.md arc-hierarchy-loop.local.md arc-issues-loop.local.md; do
+  if [[ -f "${CWD}/.rune/${_loop_file}" ]]; then
+    exit 0
+  fi
+done
 
 # ── Fast-path: debounce — max 1 suggestion per session ──
 # BACK-001 FIX: Use PPID as fallback for session isolation (session_id may be empty)
