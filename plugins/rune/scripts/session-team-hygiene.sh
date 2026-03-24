@@ -426,6 +426,8 @@ for ckpt_dir in "${CWD}/${RUNE_STATE}/arc" "${CWD}/.claude/arc"; do
     age=$(( NOW_ARCHIVE - ckpt_mtime ))
     if [[ "$age" -gt "$STALE_THRESHOLD" ]]; then
       arc_dir=$(dirname "$ckpt")
+      # XVER-001: Reject symlinked arc directories before mv
+      [[ -L "$arc_dir" ]] && continue
       arc_id=$(basename "$arc_dir")
       # SEC-006: Validate arc_id before use in paths
       [[ "$arc_id" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
