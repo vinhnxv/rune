@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.16.1] - 2026-03-24
+
+### Fixed
+- **Arc checkpoint timing**: Guard against negative `duration_ms` values in arc checkpoint timing calculations (#423)
+- **Arc checkpoint archival**: Auto-archive stale incomplete arc checkpoints to prevent accumulation of orphaned checkpoint files (#424)
+
 ## [2.16.0] - 2026-03-24
 
 ### Added
