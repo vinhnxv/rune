@@ -284,6 +284,98 @@ On loop exit, write summary to `tmp/arc/{id}/design-convergence-report.json`:
 
 ---
 
+## Mend-Compatible Bridge Format
+
+Design findings (DES- prefix) can be converted to mend-compatible format for cross-phase resolution.
+This enables the existing `/rune:mend` pipeline to resolve design fidelity issues alongside
+code review findings — no separate resolution workflow needed.
+
+### Bridge Schema
+
+Written to `tmp/arc/{id}/design-findings-mend-compat.json`:
+
+```json
+{
+  "source": "design_verification",
+  "format_version": "1.0",
+  "findings": [{
+    "id": "DES-Button-tokens",
+    "prefix": "DES",
+    "priority": "P1",
+    "title": "Hardcoded color in Button component",
+    "file": "src/components/Button.tsx",
+    "line": 42,
+    "evidence": "className=\"bg-[#3B82F6]\" — should use bg-primary token",
+    "fix_suggestion": "Replace bg-[#3B82F6] with bg-primary from design system",
+    "status": "FAIL",
+    "resolution": null
+  }]
+}
+```
+
+### Priority Mapping
+
+| Design Severity | Mend Priority | Rationale |
+|---|---|---|
+| `CRITICAL` | `P1` | Blocks visual correctness or accessibility |
+| `MAJOR` | `P1` | Significant deviation from design spec |
+| `MINOR` | `P2` | Noticeable but non-blocking deviation |
+| `INFO` | `P3` | Cosmetic or suggestion-level finding |
+
+### Inclusion Rules
+
+- **Only FAIL** findings are included in the bridge format
+- **INCONCLUSIVE** findings are excluded — they indicate tool unavailability, not implementation failure
+- **PASS** findings are excluded — no action needed
+- The bridge file is written AFTER the criteria matrix update in each convergence iteration
+
+### Generation Algorithm
+
+```
+function generateMendBridge(criteriaMatrix, findings):
+  mendFindings = []
+  for criterion in criteriaMatrix.criteria:
+    if criterion.status != "FAIL": continue
+
+    finding = findings.find(f => `DES-${f.component}-${f.dimension}` == criterion.id)
+    if !finding: continue
+
+    severity = finding.severity ?? "MAJOR"
+    priority = (severity == "CRITICAL" || severity == "MAJOR") ? "P1"
+             : severity == "MINOR" ? "P2" : "P3"
+
+    mendFindings.push({
+      id: criterion.id,
+      prefix: "DES",
+      priority: priority,
+      title: finding.title ?? `${criterion.dimension} issue in ${criterion.component}`,
+      file: finding.file ?? finding.source_file,
+      line: finding.line ?? null,
+      evidence: criterion.evidence,
+      fix_suggestion: finding.fix_suggestion ?? null,
+      status: "FAIL",
+      resolution: null
+    })
+
+  return {
+    source: "design_verification",
+    format_version: "1.0",
+    findings: mendFindings
+  }
+```
+
+### Output Location
+
+`tmp/arc/{id}/design-findings-mend-compat.json`
+
+This file is consumed by:
+- **Phase 7.5 (Mend)**: If `design_sync.mend_bridge` is enabled, mend-fixer agents receive
+  DES- findings alongside BACK-/SEC-/QUAL- findings from the TOME
+- **Phase 7.6 (Design Iteration)**: Bridge is regenerated after each iteration to reflect
+  updated criteria status
+
+---
+
 ## See Also
 
 - [work-loop-convergence.md](../../strive/references/work-loop-convergence.md) — Code convergence protocol (pattern source)

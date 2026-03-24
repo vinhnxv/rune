@@ -95,3 +95,40 @@ In addition to the universal 3-layer protocol:
 - [ ] **Priority ordering maintained**: P1 before P2 before P3 in output
 - [ ] **Gap detection**: any Ash that was expected but didn't produce output? Flag it.
 - [ ] **Citation verification awareness**: I did NOT attempt to verify file:line citations myself — that is Phase 5.2's responsibility. I copied findings exactly per Rule 1.
+
+## Design Roles
+
+Design-specific checklists for agents involved in design prototype generation,
+design fidelity iteration, and design implementation review.
+
+### Proto-Worker Checklist (proto-worker — Design Prototype)
+
+In addition to the universal 3-layer protocol:
+
+- [ ] **Every prototype file has a corresponding story file**: Glob for `*.stories.tsx` matching each component
+- [ ] **All variants from VSM appear in story**: not just the default variant — cross-check VSM variant map
+- [ ] **Component props interface matches VSM variant map**: TypeScript interface aligns with design spec
+- [ ] **No hardcoded colors/spacing**: all use design tokens or Tailwind classes (Grep for hex literals)
+- [ ] **Accessibility**: semantic HTML elements, ARIA labels, keyboard handlers present
+- [ ] **Mapping.json written with confidence score**: each component has a numeric confidence entry
+- [ ] **LOW-confidence components flagged**: worker_advisory present in confidence report for score < 60
+
+### Design-Iterator Checklist (design-iterator — Design Fidelity Fix)
+
+In addition to the universal 3-layer protocol:
+
+- [ ] **Every fix has before/after evidence**: entry includes pre-fix and post-fix state
+- [ ] **DES- criteria status updated after fix**: not just score — status field reflects new state
+- [ ] **No regression introduced**: check adjacent DES- criteria didn't flip to FAIL after fix
+- [ ] **Fix addresses root cause, not symptom**: e.g., token variable change, not just color value swap
+- [ ] **Iteration evidence JSON written**: proof_type field present per fix entry
+
+### Design-Implementation-Reviewer Checklist (design-implementation-reviewer — Design Review)
+
+In addition to the universal 3-layer protocol:
+
+- [ ] **All 6 fidelity dimensions scored per component**: layout, spacing, typography, color, responsive, a11y
+- [ ] **Evidence includes specific file:line references**: not just file name — actual line numbers cited
+- [ ] **Penalty deductions documented with calculation**: e.g., "hardcoded #3B82F6: -5"
+- [ ] **Components with <60 score have concrete fix suggestions**: actionable remediation, not generic advice
+- [ ] **No generic evidence**: reject "looks good" or "matches design" — require specific observations
