@@ -104,7 +104,7 @@ if figmaProviderOverride === "rune" OR figmaProviderOverride === "auto":
 if mcpProvider === null AND (figmaProviderOverride === "official" OR figmaProviderOverride === "auto"):
   // Probe Official Figma MCP
   try:
-    mcp__claude_ai_Figma__get_metadata(fileKey=parsedUrl.fileKey)
+    mcp__plugin_figma_figma__get_metadata(fileKey=parsedUrl.fileKey)
     mcpProvider = "official"
   catch:
     // Official MCP not available — fall through

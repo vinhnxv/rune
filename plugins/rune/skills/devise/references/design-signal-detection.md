@@ -116,7 +116,7 @@ if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
         ## MCP Tool Availability
         Two Figma MCP namespaces may be available. Try in this order:
         1. **Rune tools** (preferred): figma_list_components, figma_fetch_design, figma_inspect_node, figma_to_react
-        2. **Official Figma MCP** (fallback): mcp__claude_ai_Figma__get_metadata, mcp__claude_ai_Figma__get_design_context
+        2. **Official Figma MCP** (fallback): mcp__plugin_figma_figma__get_metadata, mcp__plugin_figma_figma__get_design_context
 
         **IMPORTANT — MCP namespace verification**: Before calling any MCP tool, verify it exists
         in your available MCP server list. If figma_list_components is not listed in your available
@@ -203,7 +203,7 @@ if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
         ## MCP Tool Availability
         Two Figma MCP namespaces may be available. Try in this order:
         1. **Rune tools** (preferred): figma_list_components, figma_fetch_design, figma_inspect_node
-        2. **Official Figma MCP** (fallback): mcp__claude_ai_Figma__get_metadata, mcp__claude_ai_Figma__get_design_context
+        2. **Official Figma MCP** (fallback): mcp__plugin_figma_figma__get_metadata, mcp__plugin_figma_figma__get_design_context
 
         **IMPORTANT — MCP namespace verification**: Before calling any MCP tool, verify it exists
         in your available MCP server list. If figma_list_components is not listed in your available
@@ -224,7 +224,7 @@ if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
               - Record mcpProvider: "rune" in output
            b. **If Rune tools fail**: fall back to Official MCP:
               - Extract fileKey from the Figma URL
-              - Call mcp__claude_ai_Figma__get_metadata(fileKey="{fileKey}")
+              - Call mcp__plugin_figma_figma__get_metadata(fileKey="{fileKey}")
               - Parse component names and node IDs from XML response
               - Record mcpProvider: "official" in output
         4. Write component inventory to: ${outputDir}/inventory.json

@@ -69,10 +69,10 @@ The Official Figma MCP tools use `fileKey` + `nodeId` as separate parameters ins
 
 ```
 // Official MCP tools — separate fileKey and nodeId params
-mcp__claude_ai_Figma__get_design_context(fileKey, nodeId)
-mcp__claude_ai_Figma__get_metadata(fileKey)
-mcp__claude_ai_Figma__get_code_connect_map(fileKey, nodeIds)
-mcp__claude_ai_Figma__get_variable_defs(fileKey)
+mcp__plugin_figma_figma__get_design_context(fileKey, nodeId)
+mcp__plugin_figma_figma__get_metadata(fileKey)
+mcp__plugin_figma_figma__get_code_connect_map(fileKey, nodeIds)
+mcp__plugin_figma_figma__get_variable_defs(fileKey)
 ```
 
 ### Node ID Format Difference

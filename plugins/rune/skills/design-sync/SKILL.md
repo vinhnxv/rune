@@ -310,7 +310,7 @@ All state files follow session isolation rules:
 
 | Error | Rune MCP | Official MCP | Desktop MCP |
 |-------|----------|--------------|-------------|
-| Provider not detected | `figma_fetch_design` probe failed — check `.mcp.json` for Rune server entry | `mcp__claude_ai_Figma__get_metadata` probe failed — check `FIGMA_TOKEN` env var | `mcp__figma_desktop__get_selection` probe failed — Open Figma Desktop → Enable Dev Mode (Shift+D) |
+| Provider not detected | `figma_fetch_design` probe failed — check `.mcp.json` for Rune server entry | `mcp__plugin_figma_figma__get_metadata` probe failed — check `FIGMA_TOKEN` env var | `mcp__figma_desktop__get_selection` probe failed — Open Figma Desktop → Enable Dev Mode (Shift+D) |
 | Auth failure | Rune MCP uses bundled token — check `scripts/figma-to-react/start.sh` config | `FIGMA_TOKEN` invalid or expired — regenerate at figma.com/settings | Desktop bridge requires active Figma Desktop session |
 | File not found | File key invalid or not accessible to configured account | Same | Same — file must be open in Desktop |
 | Rate limit | Rune MCP handles internally | Figma REST API rate-limited (429) — retry after delay | N/A (local IPC) |

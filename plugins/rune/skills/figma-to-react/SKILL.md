@@ -49,7 +49,7 @@ Example: `<nav className="w-64"><a>Dashboard</a></nav>` is analyzed as:
 The Rune MCP server bundles its own Figma API access and works without a personal token.
 
 `FIGMA_TOKEN` is **required** only when:
-- Using the **Official Figma MCP** (`mcp__claude_ai_Figma__*` tools)
+- Using the **Official Figma MCP** (`mcp__plugin_figma_figma__*` tools)
 - Running the `scripts/figma-to-react/cli.py` CLI directly against the Figma REST API
 
 ```bash
