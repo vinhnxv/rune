@@ -249,8 +249,9 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
     map.design_extraction = "design_sync_disabled"
     map.design_prototype = "design_sync_disabled"
     // When design_sync is disabled, no VSM files will ever be produced,
-    // so design_verification and design_iteration are also deterministically skippable.
+    // so design_verification, design_verification_qa, and design_iteration are also deterministically skippable.
     map.design_verification = "design_sync_disabled"
+    map.design_verification_qa = "design_sync_disabled"
     map.design_iteration = "design_sync_disabled"
   } else if (!hasFigmaUrls && !hasFigmaUrlsInBody) {
     map.design_extraction = "no_figma_urls"
@@ -315,7 +316,7 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
 
   // ── QA gate phase skip propagation ──
   // QUAL-001 FIX: Order matches PHASE_ORDER canonical sequence
-  const QA_GATED_PHASES = ['forge', 'work', 'gap_analysis', 'code_review', 'mend', 'test']
+  const QA_GATED_PHASES = ['forge', 'work', 'gap_analysis', 'code_review', 'mend', 'test', 'design_verification']
   // readTalismanSection: "gates"
   const gatesConfig = readTalismanSection("gates") ?? {}
   const qaEnabled = gatesConfig?.qa_gates?.enabled !== false  // default: true
@@ -431,6 +432,7 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
     drift_review: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     storybook_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     design_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
+    design_verification_qa: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0 },
     ux_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     gap_analysis: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     gap_analysis_qa: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0 },

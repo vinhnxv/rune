@@ -236,7 +236,7 @@ PHASE_ORDER=(
   forge forge_qa
   plan_review plan_refine verification semantic_verification
   design_extraction design_prototype task_decomposition work work_qa
-  drift_review storybook_verification design_verification
+  drift_review storybook_verification design_verification design_verification_qa
   ux_verification gap_analysis gap_analysis_qa
   codex_gap_analysis gap_remediation
   inspect inspect_fix verify_inspect goldmask_verification

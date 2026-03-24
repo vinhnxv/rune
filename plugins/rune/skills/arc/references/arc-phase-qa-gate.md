@@ -7,7 +7,7 @@ stop hook advances to the next phase. QA agents are completely separate from the
 they read artifacts only, cannot modify code, and their verdict cannot be overridden
 programmatically. This eliminates the conflict-of-interest of the Tarnished evaluating its own work.
 
-**Scope**: All 6 gated phases — work, forge, code_review, mend, test, gap_analysis.
+**Scope**: All 7 gated phases — work, forge, code_review, mend, test, gap_analysis, design_verification.
 
 **Reference**: Plan AC-15, AC-16, AC-17.
 
@@ -83,6 +83,7 @@ Dimension score = average of all check items in that dimension.
 | mend | 30% | 30% | 40% | Completeness highest — all findings must be addressed |
 | test | 40% | 30% | 30% | Artifacts highest — test report + SEAL marker existence is critical |
 | gap_analysis | 30% | 30% | 40% | Completeness highest — all acceptance criteria must appear in matrix |
+| design_verification | 30% | 40% | 30% | Quality highest — evidence depth per finding is primary value |
 
 `overall_score = (artifact_score × W_art) + (quality_score × W_qual) + (completeness_score × W_cmp)`
 
@@ -407,6 +408,41 @@ mapping every acceptance criterion to its implementation status.
 
 ---
 
+## Phase: design_verification — QA Checklist
+
+The design verification QA gate verifies that implementation fidelity was measured against Figma
+design specifications and findings were documented with concrete evidence.
+
+<!-- Weight rationale: Quality at 40% because evidence depth per finding is the primary value —
+     a design review that notes discrepancies without specific measurements is worse than none. -->
+
+### Artifact Checks (weight: 30%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| DES-ART-01 | `tmp/arc/{id}/design-verification-report.md` exists AND has >10 lines | `Glob` + `Read` line count |
+| DES-ART-02 | `tmp/arc/{id}/design-findings.json` exists AND is valid JSON AND `findings` array is present | `Glob` + `Read` JSON structure |
+| DES-ART-03 | `tmp/arc/{id}/design-criteria-matrix-0.json` exists AND is valid JSON with component entries | `Glob` + `Read` JSON structure |
+
+### Quality Checks (weight: 40%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| DES-QUA-01 | Verification report contains per-dimension fidelity scores (layout, typography, color, spacing, etc.) | `Read` + search for dimension score table or per-dimension breakdown |
+| DES-QUA-02 | Each finding in `design-findings.json` has `evidence` field with file:line reference or component path | `Read` JSON + regex `/\w+\.\w+:\d+/` or component path patterns |
+| DES-QUA-03 | No finding has a generic description like "does not match design" without specific measurements | `Read` + anti-pattern check for vague descriptions without pixel/token specifics |
+| DES-QUA-04 | Criteria matrix contains per-component status (PASS/FAIL/PARTIAL/SKIP) for all evaluated components | `Read` JSON + verify each entry has a `status` field |
+
+### Completeness Checks (weight: 30%)
+
+| ID | Check | Evidence Required |
+|----|-------|------------------|
+| DES-CMP-01 | Verification report covers all 6 standard fidelity dimensions: layout, typography, color, spacing, responsive, accessibility | `Read` + search for each dimension keyword in report |
+| DES-CMP-02 | All components listed in design-criteria-matrix have corresponding entries in design-findings | Cross-reference component IDs between matrix and findings |
+| DES-CMP-03 | Overall fidelity score is computed and present in the report | `Read` + search for overall/composite score value |
+
+---
+
 ## Edge Case Handling
 
 QA gates must handle non-standard phase outcomes gracefully:
@@ -555,6 +591,7 @@ function buildQAAgentPrompt(id, parentPhase, timestamp, qaDir) {
     mend: [`tmp/arc/${id}/resolution-report.md`],
     test: [`tmp/arc/${id}/test-report.md`, `tmp/arc/${id}/test-strategy.md`],
     gap_analysis: [`tmp/arc/${id}/gap-analysis.md`],
+    design_verification: [`tmp/arc/${id}/design-verification-report.md`, `tmp/arc/${id}/design-findings.json`],
   }
   const artifacts = PHASE_ARTIFACTS[parentPhase] ?? []
   prompt += `## Expected Artifacts\n\n${artifacts.map(a => `- \`${a}\``).join('\n')}\n\n`
@@ -608,6 +645,7 @@ async function runQAGate(id, parentPhase, checkpoint) {
       mend:         "rune:qa:mend-qa-verifier",
       test:         "rune:qa:test-qa-verifier",
       gap_analysis: "rune:qa:gap-analysis-qa-verifier",
+      design_verification: "rune:qa:design-qa-verifier",
     }
     const agentType = QA_AGENT_MAP[parentPhase] ?? "rune:qa:phase-qa-verifier"
     const agentName = `qa-${parentPhase}-verifier`
@@ -661,6 +699,18 @@ async function runQAGate(id, parentPhase, checkpoint) {
 
     // Handle QA result — GUARD 9 constraint: MAX_QA_RETRIES < MAX_PHASE_DISPATCHES - 1 = 3
     const MAX_QA_RETRIES = 2  // DO NOT increase without raising MAX_PHASE_DISPATCHES in stop hook
+
+    // Non-blocking QA gate for design_verification — controlled by arcConfig.design_sync?.qa_blocking
+    // When qa_blocking is false (default: false), design QA failures advance the pipeline with a warning.
+    // This prevents design discrepancies from blocking ship when design_sync is in advisory mode.
+    if (parentPhase === "design_verification" && arcConfig.design_sync?.qa_blocking !== true) {
+      if (verdictStr === "FAIL" || verdictStr === "MARGINAL") {
+        warn(`Design QA ${verdictStr} (score=${overallScore.toFixed(1)}) — non-blocking, advancing (set design_sync.qa_blocking=true to enforce)`)
+      } else {
+        log(`Design QA ${verdictStr} (score=${overallScore.toFixed(1)}) — advancing`)
+      }
+      return  // Non-blocking: always advance regardless of score
+    }
 
     if ((verdictStr === "FAIL" || verdictStr === "MARGINAL") && !timedOut) {
       if (retryCount >= MAX_QA_RETRIES) {
@@ -808,6 +858,8 @@ const PHASE_ORDER = [
   "design_extraction", "design_prototype", "task_decomposition",
   "work",
   "work_qa",               // ← QA gate for work phase
+  "design_verification",
+  "design_verification_qa", // ← QA gate for design_verification phase
   "gap_analysis",
   "gap_analysis_qa",       // ← QA gate for gap analysis phase
   "code_review",
@@ -831,6 +883,8 @@ PHASE_ORDER=(
   design_extraction design_prototype task_decomposition
   work
   work_qa                # QA gate for work phase
+  design_verification
+  design_verification_qa # QA gate for design_verification phase
   gap_analysis
   gap_analysis_qa        # QA gate for gap analysis phase
   code_review
@@ -862,12 +916,13 @@ must include all QA phases for postPhaseCleanup (Layer 2):
 
 ```javascript
 // PHASE_PREFIX_MAP entries for all QA phases
-"forge_qa":        "arc-qa-",
-"work_qa":         "arc-qa-",
-"gap_analysis_qa": "arc-qa-",
-"code_review_qa":  "arc-qa-",
-"mend_qa":         "arc-qa-",
-"test_qa":         "arc-qa-",
+"forge_qa":             "arc-qa-",
+"work_qa":              "arc-qa-",
+"design_verification_qa": "arc-qa-",
+"gap_analysis_qa":      "arc-qa-",
+"code_review_qa":       "arc-qa-",
+"mend_qa":              "arc-qa-",
+"test_qa":              "arc-qa-",
 ```
 
 See `arc-phase-cleanup.md`.
@@ -887,7 +942,7 @@ and persisted as a JSON artifact for programmatic consumption.
 // Reads all verdict files and produces a unified quality dashboard.
 function generateQADashboard(arcId) {
   const qaDir = `tmp/arc/${arcId}/qa`
-  const GATED_PHASES = ["forge", "work", "gap_analysis", "code_review", "mend", "test"]
+  const GATED_PHASES = ["forge", "work", "gap_analysis", "code_review", "mend", "test", "design_verification"]
 
   // Collect verdict data from all gated phases
   const phaseResults = []

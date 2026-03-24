@@ -298,6 +298,64 @@ if (criteriaMatrix) {
   }, null, 2))
 }
 
+// 11.5. Build resolution report (mirrors mend resolution report pattern)
+// Compare baseline (matrix-0) vs latest post-iteration matrix (matrix-N) criteria statuses.
+const currentIteration = (() => {
+  try {
+    const conv = JSON.parse(Read(`tmp/arc/${id}/design-convergence-report.json`))
+    return Math.max(1, conv.design_convergence?.iterations_used ?? 1)
+  } catch (_) { return 1 }
+})()
+const baselineMatrixPath = `tmp/arc/${id}/design-criteria-matrix-0.json`
+const latestMatrixPath = `tmp/arc/${id}/design-criteria-matrix-${currentIteration}.json`
+
+if (exists(baselineMatrixPath) && exists(latestMatrixPath)) {
+  const baselineMatrix = JSON.parse(Read(baselineMatrixPath))
+  const latestMatrix = JSON.parse(Read(latestMatrixPath))
+  const baselineById = Object.fromEntries(baselineMatrix.criteria.map(c => [c.id, c]))
+  const resolved = []   // FAIL → PASS
+  const regressed = []  // PASS → FAIL (F10)
+  const inconclusive = []
+  const unresolved = []
+
+  for (const c of latestMatrix.criteria) {
+    const prev = baselineById[c.id]
+    const prevStatus = prev?.status ?? "FAIL"
+    if (prevStatus === "FAIL" && c.status === "PASS") {
+      resolved.push(c.id)
+    } else if (prevStatus === "PASS" && c.status === "FAIL") {
+      regressed.push(c.id)
+    } else if (c.status === "INCONCLUSIVE") {
+      inconclusive.push(c.id)
+    } else if (c.status !== "PASS") {
+      unresolved.push(c.id)
+    }
+  }
+
+  Write(`tmp/arc/${id}/design-resolution-report.json`, JSON.stringify({
+    total_criteria: latestMatrix.criteria.length,
+    resolved,
+    unresolved,
+    regressed,
+    inconclusive,
+    baseline_matrix: baselineMatrixPath,
+    latest_matrix: latestMatrixPath,
+    iteration: currentIteration,
+    timestamp: new Date().toISOString()
+  }, null, 2))
+} else {
+  // Matrices missing — write minimal report with skip reason
+  Write(`tmp/arc/${id}/design-resolution-report.json`, JSON.stringify({
+    total_criteria: 0,
+    resolved: [],
+    unresolved: [],
+    regressed: [],
+    inconclusive: [],
+    skip_reason: !exists(baselineMatrixPath) ? "baseline_matrix_missing" : "latest_matrix_missing",
+    timestamp: new Date().toISOString()
+  }, null, 2))
+}
+
 const iterReport = exists(`tmp/arc/${id}/design-iteration-report.md`)
   ? Read(`tmp/arc/${id}/design-iteration-report.md`) : "No iteration report generated."
 

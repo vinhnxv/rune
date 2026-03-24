@@ -9,7 +9,7 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 ## Phase Order
 
 ```javascript
-const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'design_prototype', 'task_decomposition', 'work', 'work_qa', 'drift_review', 'storybook_verification', 'design_verification', 'ux_verification', 'gap_analysis', 'gap_analysis_qa', 'codex_gap_analysis', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification', 'code_review', 'code_review_qa', 'goldmask_correlation', 'mend', 'mend_qa', 'verify_mend', 'design_iteration', 'test', 'test_qa', 'test_coverage_critique', 'deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
+const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'design_prototype', 'task_decomposition', 'work', 'work_qa', 'drift_review', 'storybook_verification', 'design_verification', 'design_verification_qa', 'ux_verification', 'gap_analysis', 'gap_analysis_qa', 'codex_gap_analysis', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification', 'code_review', 'code_review_qa', 'goldmask_correlation', 'mend', 'mend_qa', 'verify_mend', 'design_iteration', 'test', 'test_qa', 'test_coverage_critique', 'deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
 
 // Heavy phases that MUST be delegated to sub-skills — never implemented inline.
 // These phases consume significant tokens and require fresh teammate context windows.
@@ -91,6 +91,7 @@ const PHASE_TIMEOUTS = {
   merge:         talismanTimeouts.merge ?? 600_000,     // 10 min (orchestrator-only)
   forge_qa:        talismanTimeouts.forge_qa ?? 300_000,        //  5 min (QA gate — 1 agent)
   work_qa:         talismanTimeouts.work_qa ?? 300_000,         //  5 min (QA gate — 1 agent)
+  design_verification_qa: talismanTimeouts.design_verification_qa ?? 300_000,  //  5 min (QA gate — 1 agent)
   gap_analysis_qa: talismanTimeouts.gap_analysis_qa ?? 300_000, //  5 min (QA gate — 1 agent)
   code_review_qa:  talismanTimeouts.code_review_qa ?? 300_000,  //  5 min (QA gate — 1 agent)
   mend_qa:         talismanTimeouts.mend_qa ?? 300_000,         //  5 min (QA gate — 1 agent)
@@ -145,6 +146,7 @@ function calculateDynamicTimeout(tier) {
     PHASE_TIMEOUTS.design_prototype + PHASE_TIMEOUTS.task_decomposition +
     PHASE_TIMEOUTS.work + PHASE_TIMEOUTS.work_qa +
     PHASE_TIMEOUTS.storybook_verification + PHASE_TIMEOUTS.design_verification +
+    PHASE_TIMEOUTS.design_verification_qa +
     PHASE_TIMEOUTS.ux_verification +
     PHASE_TIMEOUTS.gap_analysis + PHASE_TIMEOUTS.gap_analysis_qa +
     PHASE_TIMEOUTS.codex_gap_analysis + PHASE_TIMEOUTS.gap_remediation +

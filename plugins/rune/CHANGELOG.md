@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.15.0] - 2026-03-24
+
+### Added
+- **Design Phase QA — Tier 2 Structured Gates** — Comprehensive QA discipline for design phases:
+  - New `design-qa-verifier` agent (`agents/qa/design-qa-verifier.md`) for independent design phase QA verification — validates prototype artifacts, Storybook stories, and fidelity criteria before advancing
+  - Extended arc QA gate scope to include `design_verification` phase (7 gated phases total)
+  - Design finding resolution tracking in Phase 7.6 (design-iterator) — structured resolution report per DES- finding
+  - Design fidelity metrics surfaced in ship phase PR body — prototype count, library matches, fidelity score, LOW confidence component warnings
+  - Pre-prototype confidence assessment (STEP B.5) in Phase 3.2 — evaluates each component's readiness before spawning synthesis workers, writes `confidence-report.json` with HIGH/MEDIUM/LOW trust levels
+- **Agent count updated: 145 (102 core + 43 extended)**
+
 ## [2.14.0] - 2026-03-24
 
 ### Added
