@@ -151,7 +151,7 @@ try {
 // Spawn design-iterator workers with agent-browser
 for (let i = 0; i < Math.min(maxWorkers, componentsToIterate.length); i++) {
   Agent({
-    subagent_type: "general-purpose", model: "sonnet",
+    subagent_type: "design-iterator", model: "sonnet",
     name: `design-iter-${i + 1}`, team_name: `arc-design-iter-${id}`,
     prompt: `You are design-iter-${i + 1}. Run screenshot→analyze→fix loop to improve design fidelity.
       Base URL: ${baseUrl}
@@ -160,7 +160,17 @@ for (let i = 0; i < Math.min(maxWorkers, componentsToIterate.length); i++) {
       Fidelity threshold: ${fidelityThreshold}
       Output iteration report to: tmp/arc/${id}/design-iteration-report.md
       [inject agent-browser skill content]
-      [inject screenshot-comparison.md content]`
+      [inject screenshot-comparison.md content]
+
+## Inner Flame Self-Review Protocol
+
+Before completing your iteration task, execute the Inner Flame self-review:
+
+**Layer 1 (Grounding):** For every fix I applied — did I verify the change by re-reading the file? For every fidelity improvement claimed — do I have evidence (screenshot diff, token scan)? For every file path in my report — did I Read() it?
+
+**Layer 2 (Completeness):** Did I address all non-PASS DES- criteria assigned to me? Did I write iteration evidence to tmp/arc/{id}/design-iteration-evidence-{component}.json? Did I update the iteration report?
+
+**Layer 3 (Self-Adversarial):** Could my fix introduce regressions in other dimensions (F10)? Did I check adjacent components for side effects? Am I reporting genuine improvement or just restating the original finding?`
   })
 }
 

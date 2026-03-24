@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.14.0] - 2026-03-24
+
+### Added
+- **Design Phase QA — Tier 1 Quick Wins** — Close critical gaps in design phase discipline engineering:
+  - Inner Flame self-review protocol injected into proto-worker spawn prompts (Phase 3.2)
+  - Inner Flame self-review protocol injected into design-iterator spawn prompts (Phase 7.6)
+  - Mandatory artifact validation (step 7.5) in Phase 5.2 with fallback artifact creation
+  - New `proto-worker` agent definition (`agents/work/proto-worker.md`) with structured prompt, output contract, and trust hierarchy
+  - New `design-iterator` agent definition (`agents/work/design-iterator.md`) with screenshot-analyze-fix loop, DES- criteria awareness, and regression detection (F10)
+  - Agent count updated: 144 (101 core + 43 extended)
+
 ## [2.13.0] - 2026-03-24
 
 ### Added
