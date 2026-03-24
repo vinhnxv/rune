@@ -212,7 +212,7 @@ if (arcConfig.design_sync?.enabled === true) {
       const dsrPct = dsr !== null ? `${Math.round(dsr * 100)}%` : "N/A"
       const iterationsUsed = convergence?.design_convergence?.iterations_used ?? (diPhase?.status === "skipped" ? 0 : null)
 
-      const vsmComponents = criteriaMatrix ? [...new Set(criteriaMatrix.criteria.map(c => c.id.split('-')[1]).filter(Boolean))].length : "N/A"
+      const vsmComponents = criteriaMatrix ? [...new Set(criteriaMatrix.criteria.map(c => c.component).filter(Boolean))].length : "N/A"
       const desCriteria = criteriaMatrix?.summary?.total ?? "N/A"
       const passCount = criteriaMatrix?.summary?.pass ?? "N/A"
       const failCount = criteriaMatrix?.summary?.fail ?? "N/A"
