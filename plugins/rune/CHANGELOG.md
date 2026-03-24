@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.17.1] - 2026-03-25
+
+### Changed
+- **UntitledUI conventions**: Update Tailwind CSS v4.1 → v4.2 to match official UntitledUI AGENT.md
+- **MCP tools decision tree**: Add icon search guidance via `search_components("icon keyword")`
+
 ## [2.17.0] - 2026-03-25
 
 ### Added
