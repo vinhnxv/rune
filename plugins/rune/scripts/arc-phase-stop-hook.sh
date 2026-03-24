@@ -295,7 +295,7 @@ _phase_ref() {
     bot_review_wait)          echo "${base}/arc-phase-bot-review-wait.md" ;;
     pr_comment_resolution)    echo "${base}/arc-phase-pr-comment-resolution.md" ;;
     merge)                    echo "${base}/arc-phase-merge.md" ;;
-    forge_qa|work_qa|gap_analysis_qa|code_review_qa|mend_qa|test_qa)
+    forge_qa|work_qa|gap_analysis_qa|code_review_qa|mend_qa|test_qa|design_verification_qa)
                               echo "${base}/arc-phase-qa-gate.md" ;;
     *)                        echo "" ;;
   esac
