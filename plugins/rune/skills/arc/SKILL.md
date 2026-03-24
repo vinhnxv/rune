@@ -334,7 +334,9 @@ const completionTs = Date.now()
 checkpoint.phases[firstPending].completed_at = new Date(completionTs).toISOString()
 const phaseStartMs = new Date(checkpoint.phases[firstPending].started_at).getTime()
 checkpoint.totals = checkpoint.totals ?? { phase_times: {}, total_duration_ms: null, cost_at_completion: null }
-checkpoint.totals.phase_times[firstPending] = Number.isFinite(phaseStartMs) ? completionTs - phaseStartMs : null
+const phaseDuration = completionTs - phaseStartMs
+checkpoint.totals.phase_times[firstPending] = Number.isFinite(phaseDuration) && phaseDuration >= 0
+  ? phaseDuration : null
 // Then STOP responding — the Stop hook will advance to the next phase.
 ```
 
@@ -368,7 +370,13 @@ Before calling the Plan Completion Stamp, record arc-level timing metrics:
 const completedAtTs = new Date().toISOString()
 checkpoint.completed_at = completedAtTs
 checkpoint.totals = checkpoint.totals ?? { phase_times: {}, total_duration_ms: null, cost_at_completion: null }
-checkpoint.totals.total_duration_ms = Date.now() - new Date(checkpoint.started_at).getTime()
+const totalDuration = Date.now() - new Date(checkpoint.started_at).getTime()
+if (!Number.isFinite(totalDuration) || totalDuration < 0) {
+  warn(`Arc timing anomaly: computed duration ${totalDuration}ms — setting to null`)
+  checkpoint.totals.total_duration_ms = null
+} else {
+  checkpoint.totals.total_duration_ms = totalDuration
+}
 
 // Read cost from statusline bridge file (non-blocking — skip if unavailable)
 if (ctxBridgeFile) {
