@@ -76,13 +76,16 @@ _gh_list_all_accounts() {
 }
 
 # _gh_test_repo_access <owner/repo>
-# Tests if the currently active account can access the given repo.
-# Returns 0 if accessible, 1 if not.
+# Tests if the currently active account has PUSH (write) access to the given repo.
+# Returns 0 if the account can push (create PRs, merge), 1 if read-only or no access.
+# FIX (v2.15.0): Previously checked .full_name (read access only), which caused
+# PR creation to fail when the active account could read but not write to the repo.
+# Now checks .permissions.push to verify collaborator-level access.
 _gh_test_repo_access() {
   local owner_repo="$1"
-  # Use gh api with a lightweight endpoint (repo metadata)
-  gh api "repos/${owner_repo}" --jq '.full_name' >/dev/null 2>&1
-  return $?
+  local can_push
+  can_push=$(gh api "repos/${owner_repo}" --jq '.permissions.push // false' 2>/dev/null) || return 1
+  [[ "$can_push" == "true" ]]
 }
 
 # _gh_switch_account <username>

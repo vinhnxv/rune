@@ -173,6 +173,66 @@ if (exists(resolutionPath)) {
   }
 }
 
+// Design fidelity section (conditional — design_sync.enabled + DV phase not skipped)
+let designFidelitySection = ""
+if (arcConfig.design_sync?.enabled === true) {
+  const dvPhase = checkpoint.phases?.design_verification
+  const diPhase = checkpoint.phases?.design_iteration
+  if (dvPhase?.status !== "skipped") {
+    try {
+      // Criteria matrix: try latest (matrix-1), fall back to baseline (matrix-0)
+      let criteriaMatrix = null
+      const latestMatrixPath = `tmp/arc/${id}/design-criteria-matrix-1.json`
+      const baselineMatrixPath = `tmp/arc/${id}/design-criteria-matrix-0.json`
+      if (exists(latestMatrixPath)) {
+        criteriaMatrix = JSON.parse(Read(latestMatrixPath))
+      } else if (exists(baselineMatrixPath)) {
+        criteriaMatrix = JSON.parse(Read(baselineMatrixPath))
+      }
+
+      // Convergence report
+      let convergence = null
+      const convergencePath = `tmp/arc/${id}/design-convergence-report.json`
+      if (exists(convergencePath)) {
+        convergence = JSON.parse(Read(convergencePath))
+      }
+
+      // QA verdict
+      let designQaScore = null
+      const designVerdictPath = `tmp/arc/${id}/qa/design_verification-verdict.json`
+      if (exists(designVerdictPath)) {
+        try {
+          const v = JSON.parse(Read(designVerdictPath))
+          designQaScore = v.scores?.overall_score ?? null
+        } catch (_) {}
+      }
+
+      // DSR fallback chain
+      const dsr = diPhase?.dsr ?? dvPhase?.dsr ?? criteriaMatrix?.summary?.dsr ?? null
+      const dsrPct = dsr !== null ? `${Math.round(dsr * 100)}%` : "N/A"
+      const iterationsUsed = convergence?.design_convergence?.iterations_used ?? (diPhase?.status === "skipped" ? 0 : null)
+
+      const vsmComponents = criteriaMatrix ? [...new Set(criteriaMatrix.criteria.map(c => c.component).filter(Boolean))].length : "N/A"
+      const desCriteria = criteriaMatrix?.summary?.total ?? "N/A"
+      const passCount = criteriaMatrix?.summary?.pass ?? "N/A"
+      const failCount = criteriaMatrix?.summary?.fail ?? "N/A"
+      const inconclusiveCount = criteriaMatrix?.summary?.inconclusive ?? "N/A"
+
+      designFidelitySection = `
+### Design Fidelity
+| Metric | Value |
+|--------|-------|
+| VSM Components | ${vsmComponents} |
+| DES- Criteria | ${desCriteria} |
+| PASS / FAIL / INCONCLUSIVE | ${passCount} / ${failCount} / ${inconclusiveCount} |
+| Iterations Used | ${iterationsUsed ?? "N/A"} |
+| Fidelity Score (DSR) | ${dsrPct} |
+| Design QA Score | ${designQaScore !== null ? `${designQaScore}%` : "N/A"} |
+`
+    } catch (_) {}
+  }
+}
+
 // Read talisman PR settings
 const monitoringRequired = arcConfig.ship.pr_monitoring
 // BACK-012 FIX: Read co_authors from arcConfig.ship (resolved via resolveArcConfig)
@@ -219,7 +279,7 @@ ${diffStat}
 - **Commits**: ${commitCount} incremental commits, each ward-checked
 - **Code Review**: ${exists(`tmp/arc/${id}/tome.md`) ? "TOME generated (deep review)" : "N/A"}
 - **Mend**: ${checkpoint.convergence?.history?.length ?? 0} convergence cycle(s)${unfixedSection}
-${qaSection}
+${qaSection}${designFidelitySection}
 ### Review Summary
 ${reviewSummary}
 

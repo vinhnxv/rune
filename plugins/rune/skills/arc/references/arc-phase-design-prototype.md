@@ -198,6 +198,58 @@ if (builderProfile !== null) {
   Write(`tmp/arc/${id}/prototypes/match-report.json`, JSON.stringify(matchResults, null, 2))
 }
 
+// === STEP B.5: Pre-prototype confidence assessment ===
+// Evaluate each component's readiness for synthesis before spawning workers.
+// Combines library match confidence + figma-reference quality into a single score.
+const confidenceReport = components.map(comp => {
+  const matchResult = matchResults.find(m => m.component === comp.safeName)
+  const matchConfidence = matchResult?.match?.confidence ?? 0
+
+  // Assess figma-reference quality by file size (larger = more detail extracted)
+  let figmaRefQuality = "unknown"
+  try {
+    const figmaRefContent = Read(`tmp/arc/${id}/prototypes/${comp.safeName}/figma-reference.tsx`)
+    const lineCount = figmaRefContent.split('\n').length
+    figmaRefQuality = lineCount >= 50 ? "rich" : lineCount >= 20 ? "moderate" : "sparse"
+  } catch (e) {
+    figmaRefQuality = "missing"
+  }
+
+  // Determine trust level from combined signals
+  // >= 0.80 = HIGH (strong library match + good figma ref)
+  // >= 0.60 = MEDIUM (partial match or moderate figma ref)
+  // < 0.60 = LOW (no match or sparse reference — worker must implement more from scratch)
+  const trustLevel = matchConfidence >= 0.80 ? "HIGH"
+    : matchConfidence >= 0.60 ? "MEDIUM"
+    : "LOW"
+
+  return {
+    component: comp.safeName,
+    trust_level: trustLevel,
+    match_confidence: matchConfidence,
+    figma_ref_quality: figmaRefQuality,
+    has_library_match: matchResult?.match !== null && matchResult?.match !== undefined,
+    library: matchResult?.library || null
+  }
+})
+
+// Warn if any components have LOW confidence — workers will need more design context
+const lowConfidenceComponents = confidenceReport.filter(c => c.trust_level === "LOW")
+if (lowConfidenceComponents.length > 0) {
+  warn(`Design prototype: ${lowConfidenceComponents.length} component(s) have LOW confidence — workers will implement from minimal reference: ${lowConfidenceComponents.map(c => c.component).join(', ')}`)
+}
+
+Write(`tmp/arc/${id}/prototypes/confidence-report.json`, JSON.stringify({
+  generated_at: new Date().toISOString(),
+  summary: {
+    total: confidenceReport.length,
+    high: confidenceReport.filter(c => c.trust_level === "HIGH").length,
+    medium: confidenceReport.filter(c => c.trust_level === "MEDIUM").length,
+    low: confidenceReport.filter(c => c.trust_level === "LOW").length
+  },
+  components: confidenceReport
+}, null, 2))
+
 // === STEP C: Synthesize prototypes ===
 // Create tasks for prototype synthesis — each component gets a task
 for (const comp of components) {
@@ -462,6 +514,7 @@ instance is reused by:
 | Prototypes | `tmp/arc/{id}/prototypes/{name}/prototype.tsx` |
 | Stories | `tmp/arc/{id}/prototypes/{name}/prototype.stories.tsx` |
 | Match report | `tmp/arc/{id}/prototypes/match-report.json` |
+| Confidence report | `tmp/arc/{id}/prototypes/confidence-report.json` |
 | Manifest | `tmp/arc/{id}/prototypes/manifest.json` |
 | Team config | `$CHOME/teams/arc-prototype-{id}/` |
 | Checkpoint state | `.rune/arc/{id}/checkpoint.json` (phase: "design_prototype") |
@@ -475,6 +528,7 @@ from the beginning. Prototype generation is idempotent — files are overwritten
 tmp/arc/{id}/prototypes/
 ├── manifest.json                      # Component inventory + metadata
 ├── match-report.json                  # Library match results (all components)
+├── confidence-report.json             # Pre-prototype trust levels (HIGH/MEDIUM/LOW per component)
 ├── {ComponentName}/
 │   ├── figma-reference.tsx            # Raw figma-to-react output
 │   ├── library-match.tsx              # UI builder match (if found)
