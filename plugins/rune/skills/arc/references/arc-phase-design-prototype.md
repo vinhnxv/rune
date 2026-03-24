@@ -250,7 +250,7 @@ for (let i = 0; i < workerCount; i++) {
   const workerName = `proto-synth-${i + 1}`
   spawnedWorkers.push(workerName)
   Agent({
-    subagent_type: "general-purpose", model: "sonnet",
+    subagent_type: "proto-worker", model: "sonnet",
     name: workerName, team_name: `arc-prototype-${id}`,
     prompt: `You are ${workerName}. Synthesize React prototype components from Figma references and library matches.
 
@@ -268,7 +268,17 @@ For CSF3 stories, use this pattern:
 - Named exports = individual stories (Default, Loading, Error, Empty, Disabled)
 - Use layout: "fullscreen" for page-level compositions
 
-Claim tasks from the pool. Mark each completed when prototype.tsx is written.`
+Claim tasks from the pool. Mark each completed when prototype.tsx is written.
+
+## Inner Flame Self-Review Protocol
+
+Before completing your task, execute the Inner Flame self-review:
+
+**Layer 1 (Grounding):** For every file path cited — did I Read() it? For every component referenced — did I see it in actual code? For every library import used — does it exist in the project?
+
+**Layer 2 (Completeness):** Did I process all assigned VSM components? Are all prototype files written (prototype.tsx + story)? Do stories cover all variants (Default, Loading, Error, Empty, Disabled)? Did I write mapping.json with confidence scores?
+
+**Layer 3 (Self-Adversarial):** Would a reviewer flag any of my prototypes as incomplete? Did I miss accessibility attributes (aria-labels, roles, keyboard navigation)? Are my Tailwind classes consistent with the design tokens from VSM?`
   })
 }
 

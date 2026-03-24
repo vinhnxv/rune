@@ -134,6 +134,26 @@ if (!cleanupTeamDeleteSucceeded) {
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
 
+// 7.5. Mandatory artifact check (mirrors WRK-ART pattern)
+const reportExists = exists(`tmp/arc/${id}/design-verification-report.md`)
+const findingsFileExists = exists(`tmp/arc/${id}/design-findings.json`)
+
+if (!reportExists || !findingsFileExists) {
+  warn(`Design verification: Missing mandatory artifacts. Report: ${reportExists}, Findings: ${findingsFileExists}`)
+  // Write empty-but-present artifacts to prevent downstream parse errors
+  if (!reportExists) {
+    Write(`tmp/arc/${id}/design-verification-report.md`, `# Design Verification Report\n\n**Status**: INCOMPLETE — reviewer agent failed to produce output.\n**Action**: Manual design review recommended.\n`)
+  }
+  if (!findingsFileExists) {
+    Write(`tmp/arc/${id}/design-findings.json`, '[]')
+  }
+  updateCheckpoint({
+    phase: "design_verification", status: "completed",
+    artifact_incomplete: true,
+    missing_artifacts: [!reportExists && "report", !findingsFileExists && "findings"].filter(Boolean)
+  })
+}
+
 // 8. Read findings
 const findingsExist = exists(`tmp/arc/${id}/design-findings.json`)
 const findings = findingsExist ? JSON.parse(Read(`tmp/arc/${id}/design-findings.json`)) : []
