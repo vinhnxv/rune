@@ -3,7 +3,7 @@ name: untitledui-mcp
 description: |
   UntitledUI official MCP integration for Rune workflows. Provides 6 MCP tools
   for searching, browsing, and installing UntitledUI React components (free + PRO).
-  Includes code conventions (React Aria, Tailwind v4.1, semantic colors, kebab-case),
+  Includes code conventions (React Aria, Tailwind v4.2, semantic colors, kebab-case),
   component patterns, and builder protocol metadata for automated pipeline integration.
   Use when agents build UI with UntitledUI components, when design-sync resolves
   components against UntitledUI library, or when workers need UntitledUI conventions.

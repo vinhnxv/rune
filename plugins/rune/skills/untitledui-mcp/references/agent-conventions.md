@@ -4,7 +4,7 @@ Adapted from the official UntitledUI AGENT.md. These conventions are injected in
 Rune worker prompts when UntitledUI is the active UI builder.
 
 > **Quick Reference** (most critical rules):
-> React 19.1 + Tailwind v4.1 + React Aria. Semantic colors only (`text-primary`, NOT `text-gray-900`).
+> React 19.1 + Tailwind v4.2 + React Aria. Semantic colors only (`text-primary`, NOT `text-gray-900`).
 > All `react-aria-components` imports MUST use `Aria*` prefix (`Button as AriaButton`).
 > Kebab-case file names. Variants via `sortCx()`. Icons need `data-icon` attr in JSX.
 > 5-tier dirs: base/ application/ foundations/ marketing/ shared-assets/.
@@ -12,7 +12,7 @@ Rune worker prompts when UntitledUI is the active UI builder.
 ## Architecture Foundation
 
 - **React 19.1.1** with TypeScript
-- **Tailwind CSS v4.1** for styling
+- **Tailwind CSS v4.2** for styling
 - **React Aria Components** as the accessibility and behavior foundation
 - All components follow the **compound component pattern** (e.g., `Select.Item`, `Select.ComboBox`)
 

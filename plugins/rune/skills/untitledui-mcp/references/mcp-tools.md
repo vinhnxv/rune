@@ -200,6 +200,7 @@ Need to implement UI?
 │   ├── Match found → get_component("name")
 │   └── No match → list_components(category) to explore
 ├── Multiple components → search each, then get_component_bundle([names])
+├── Need an icon → search_components("icon keyword") → find icon packages
 └── Exploring library → list_components(category, limit=50)
 ```
 
