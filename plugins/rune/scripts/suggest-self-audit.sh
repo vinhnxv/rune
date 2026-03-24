@@ -39,6 +39,9 @@ CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null) || CWD=""
 [[ -n "$CWD" && -d "$CWD" ]] || exit 0
 
 # ── Fast-path: active arc → exit 0 (don't suggest during arc) ──
+# Arc loop state files — one per loop type. If a new loop type is added,
+# update this list AND the corresponding stop hook (e.g., arc-new-loop-stop-hook.sh).
+# Current types: phase (inner), batch, hierarchy, issues (outer loops).
 for _loop_file in arc-phase-loop.local.md arc-batch-loop.local.md arc-hierarchy-loop.local.md arc-issues-loop.local.md; do
   if [[ -f "${CWD}/.rune/${_loop_file}" ]]; then
     exit 0

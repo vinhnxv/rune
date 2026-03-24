@@ -63,6 +63,12 @@ _trace "ERROR_TYPE=${ERROR_TYPE} WAIT_SECONDS=${WAIT_SECONDS} ERROR_ACTION=${ERR
 checkpoint_path=$(get_field "checkpoint_path")
 _trace "checkpoint_path=${checkpoint_path}"
 
+# SEC-001: Validate checkpoint_path before use (path traversal + metachar rejection)
+if [[ -n "$checkpoint_path" ]] && ! validate_paths "$checkpoint_path"; then
+  _trace "WARN: checkpoint_path failed validation, clearing"
+  checkpoint_path=""
+fi
+
 # Determine current phase from checkpoint (if readable)
 current_phase=""
 next_phase=""

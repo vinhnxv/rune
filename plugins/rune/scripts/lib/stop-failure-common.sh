@@ -147,42 +147,39 @@ classify_stop_failure() {
 # Input: already-lowercased error text string.
 
 # RATE_LIMIT: 429, rate limit, too many requests, overloaded, retry-after
+# Uses word-boundary matching (\b) for HTTP codes to avoid false positives
+# (e.g., port 4290 should not match 429).
 _match_rate_limit() {
   local text="$1"
   case "$text" in
-    *429*) return 0 ;;
     *overloaded_error*) return 0 ;;
   esac
-  # Use grep -qE for more complex patterns (word-boundary-ish matching)
-  if printf '%s' "$text" | grep -qE '(rate.?limit|too many requests|retry.?after)' 2>/dev/null; then
+  # Word-boundary matching for HTTP code 429 and text patterns
+  if printf '%s' "$text" | grep -qE '(\b429\b|rate.?limit|too many requests|retry.?after)' 2>/dev/null; then
     return 0
   fi
   return 1
 }
 
 # AUTH: 401, 403, auth fail, token expired, permission denied
+# Uses word-boundary matching (\b) for HTTP codes to avoid false positives
+# (e.g., "503" should not substring-match "403", port 4013 should not match 401).
 _match_auth() {
   local text="$1"
-  case "$text" in
-    *401*) return 0 ;;
-    *403*) return 0 ;;
-  esac
-  if printf '%s' "$text" | grep -qE '(auth.*fail|token.*expired|permission.*denied)' 2>/dev/null; then
+  # Word-boundary matching for HTTP codes 401/403 and text patterns
+  if printf '%s' "$text" | grep -qE '(\b401\b|\b403\b|auth.*fail|token.*expired|permission.*denied)' 2>/dev/null; then
     return 0
   fi
   return 1
 }
 
 # SERVER: 500, 502, 503, 504, internal error, service unavailable
+# Uses word-boundary matching (\b) for HTTP codes to avoid false positives
+# (e.g., "5000" port should not match 500, "5032" should not match 503).
 _match_server() {
   local text="$1"
-  case "$text" in
-    *500*) return 0 ;;
-    *502*) return 0 ;;
-    *503*) return 0 ;;
-    *504*) return 0 ;;
-  esac
-  if printf '%s' "$text" | grep -qE '(internal.*error|service.*unavailable)' 2>/dev/null; then
+  # Word-boundary matching for HTTP codes 500/502/503/504 and text patterns
+  if printf '%s' "$text" | grep -qE '(\b500\b|\b502\b|\b503\b|\b504\b|internal.*error|service.*unavailable)' 2>/dev/null; then
     return 0
   fi
   return 1
