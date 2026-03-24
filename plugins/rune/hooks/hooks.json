@@ -671,6 +671,19 @@
         ]
       }
     ],
+    "StopFailure": [
+      {
+        "_rationale": "STOP-FAILURE-001: Handle API errors during arc pipeline. Classifies error (rate_limit/auth/server/unknown), applies backoff for rate limits, preserves checkpoint for resume. Lightweight — does NOT re-run full phase loop logic.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/on-stop-failure.sh",
+            "timeout": 15,
+            "statusMessage": "Handling API error during arc pipeline..."
+          }
+        ]
+      }
+    ],
     "Elicitation": [
       {
         "_rationale": "ELIX-LOG-001: Append-only audit log for elicitation requests from echo-search and figma-to-react prompts. Logs to ${TMPDIR}/rune-elicitation-log-$(id -u).jsonl with a 5MB size cap. OPERATIONAL — fail-forward, never blocks.",

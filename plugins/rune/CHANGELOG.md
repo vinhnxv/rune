@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.17.0] - 2026-03-25
+
+### Added
+- **StopFailure hook handler** — `on-stop-failure.sh` for API error recovery during arc pipeline (AC-1, AC-2, AC-3)
+- **Error classification library** — `lib/stop-failure-common.sh` with 4-type classification: RATE_LIMIT, AUTH, SERVER, UNKNOWN
+
+### Fixed
+- **Session stop session_id extraction** — `on-session-stop.sh`: Extract session_id from hook input JSON instead of unavailable env vars (AC-4)
+- **Self-audit arc loop guard** — `suggest-self-audit.sh`: Guard all 4 arc loop types (phase, batch, hierarchy, issues), not just phase loop (AC-5)
+
 ## [2.16.1] - 2026-03-24
 
 ### Fixed

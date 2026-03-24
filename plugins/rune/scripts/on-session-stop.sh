@@ -144,7 +144,14 @@ _check_loop_ownership() {
   fi
   # Prefer session_id for ownership (consistent across skills and hooks)
   if [[ -n "$sid" && "$sid" != "unknown" ]]; then
-    local current_sid="${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}"
+    local current_sid=""
+    if [[ -n "${INPUT:-}" ]]; then
+      current_sid=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+    fi
+    # Validate format (SEC-004)
+    if [[ -n "$current_sid" ]] && [[ ! "$current_sid" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+      current_sid=""
+    fi
     if [[ -n "$current_sid" && "$sid" != "$current_sid" ]]; then
       # Different session — check if owner PID is still alive (orphan recovery)
       if [[ -n "$pid" && "$pid" =~ ^[0-9]+$ ]] && rune_pid_alive "$pid"; then
