@@ -1593,7 +1593,8 @@ Writing a JSON state file is NOT a substitute for TeamCreate. The enforce-teams.
      checkpoint.phases.${NEXT_PHASE}.completed_at = new Date(completionTs).toISOString()
      const startMs = new Date(checkpoint.phases.${NEXT_PHASE}.started_at).getTime()
      checkpoint.totals = checkpoint.totals ?? { phase_times: {}, total_duration_ms: null, cost_at_completion: null }
-     checkpoint.totals.phase_times["${NEXT_PHASE}"] = Number.isFinite(startMs) ? completionTs - startMs : null
+     const phaseDuration = completionTs - startMs
+     checkpoint.totals.phase_times["${NEXT_PHASE}"] = Number.isFinite(phaseDuration) && phaseDuration >= 0 ? phaseDuration : null
 5. When done, update the checkpoint: set phases.${NEXT_PHASE}.status to \"completed\" (or \"skipped\" if the phase gate check says to skip).
 6. Write the updated checkpoint back to ${CHECKPOINT_PATH}.
 7. STOP responding immediately after updating the checkpoint.
