@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.13.0] - 2026-03-24
+
+### Added
+- **Semantic component detection for design pipeline** — 3-tier heuristic classifier (name-based, structural, component property inference) with 13 component roles for Figma-to-code pipeline (#419):
+  - New `semantic_classifier.py` with 3-tier classification (name → structure → properties)
+  - 51 unit tests covering all tiers, edge cases, and backward compatibility
+  - Typography field serialization + classifier integration in `core.py` `to_react()` pipeline
+  - `semantic_role` and `semantic_confidence` fields added to `FigmaIRNode`
+  - Semantic role → HTML tag mapping in `react_generator.py`
+  - Token mapping capability in `style_builder.py` using `snap_color()` infrastructure
+  - VSM Section 9 "Semantic Component Map" (optional, backward compatible)
+  - Worker semantic context injection (Step 3.5) + quality checklist item
+  - Design verification 7th dimension "Semantic Completeness" (15% weight)
+
 ## [2.12.0] - 2026-03-24
 
 ### Added
