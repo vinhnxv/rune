@@ -356,6 +356,37 @@ assert_eq "NEXT_PHASE reverted (FAIL still has budget)" "work" "$NEXT_PHASE"
 assert_contains "Log contains qa_fail_revert" "qa_fail_revert" "${LOG_EVENTS[*]:-}"
 echo ""
 
+# ── Test 14: Skipped QA phase → no verdict check (qa_gates.enabled: false) ──
+echo "── Test 14: Skipped QA phase → no verdict check (prevents infinite retry loop) ──"
+TEST_DIR="${TMP_DIR}/test14"
+mkdir -p "$TEST_DIR/tmp/arc/test14"
+# No verdict file created — QA was skipped
+# Checkpoint has the QA phase marked as "skipped" (as skip_map would set it)
+cat > "$TEST_DIR/checkpoint.json" <<'CKPT14_EOF'
+{
+  "phases": {
+    "gap_analysis": { "status": "completed" },
+    "gap_analysis_qa": { "status": "skipped", "skip_reason": "qa_gates_disabled" }
+  },
+  "qa": {
+    "global_retry_count": 0,
+    "max_global_retries": 6,
+    "pass_threshold": 70,
+    "max_phase_retries": 2
+  }
+}
+CKPT14_EOF
+
+run_qa_gate "$TEST_DIR" "gap_analysis_qa" "test14"
+
+assert_eq "NEXT_PHASE unchanged (skipped QA — no verdict check)" "next_default" "$NEXT_PHASE"
+assert_eq "No log events (skipped QA)" "0" "${#LOG_EVENTS[@]}"
+# Verify parent phase was NOT demoted back to pending
+local_ckpt=$(cat "$TEST_DIR/checkpoint.json")
+local_parent_status=$(echo "$local_ckpt" | jq -r '.phases.gap_analysis.status')
+assert_eq "Parent phase stays completed (not demoted)" "completed" "$local_parent_status"
+echo ""
+
 # ═══════════════════════════════════════════════
 echo ""
 echo "═══════════════════════════════════════════"

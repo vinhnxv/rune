@@ -99,6 +99,18 @@ _qa_write_checkpoint() {
 _qa_gate_check() {
   [[ "${_IMMEDIATE_PREV:-}" == *_qa ]] || return 0
 
+  # FIX: Skip verdict check if the QA phase was skipped (e.g., qa_gates.enabled: false).
+  # When QA is disabled, skip_map marks QA phases as "skipped" but _IMMEDIATE_PREV still
+  # picks them up (any non-pending status). Without this guard, the "verdict missing" branch
+  # demotes the parent phase back to "pending", creating an infinite retry loop.
+  local _qa_phase_status
+  _qa_phase_status=$(_jq_with_budget -r --arg p "$_IMMEDIATE_PREV" \
+    '.phases[$p].status // "pending"' <<< "$CKPT_CONTENT" 2>/dev/null) || _qa_phase_status=""
+  if [[ "$_qa_phase_status" == "skipped" ]]; then
+    _trace "QA gate: ${_IMMEDIATE_PREV} was skipped — no verdict check needed"
+    return 0
+  fi
+
   local _parent_phase="${_IMMEDIATE_PREV%_qa}"
   local _qa_verdict_file="${CWD}/tmp/arc/${_ARC_ID_FOR_LOG}/qa/${_parent_phase}-verdict.json"
 

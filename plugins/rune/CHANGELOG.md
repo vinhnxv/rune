@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.17.3] - 2026-03-25
+
+### Fixed
+- **QA gate infinite retry loop**: `_qa_gate_check()` in `lib/qa-gate-check.sh` now checks the QA phase status before looking for a verdict file. When `qa_gates.enabled: false`, QA phases are skipped via skip_map but the verdict check still ran, found no file, and demoted the parent phase back to "pending" — creating an infinite retry loop that burned through `infra_global_retry_count`
+
 ## [2.17.2] - 2026-03-25
 
 ### Fixed
