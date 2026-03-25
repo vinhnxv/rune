@@ -8,7 +8,8 @@
 #     --title "Architecture: layered API" \
 #     --content "Project uses api→services→repos→models pattern" \
 #     --confidence HIGH \
-#     --tags "architecture,layers"
+#     --tags "architecture,layers" \
+#     --domain backend
 #
 # Provides:
 #   rune_echo_append  — Format JSON and pipe to echo-writer.sh
@@ -38,7 +39,8 @@ fi
 
 # ── Main function ──
 # rune_echo_append --role ROLE --layer LAYER --source SOURCE \
-#   --title TITLE --content CONTENT [--confidence HIGH|MEDIUM|LOW] [--tags "t1,t2"]
+#   --title TITLE --content CONTENT [--confidence HIGH|MEDIUM|LOW] [--tags "t1,t2"] \
+#   [--domain DOMAIN]
 rune_echo_append() {
   # ── Guard: jq required ──
   if ! command -v jq &>/dev/null; then
@@ -55,7 +57,7 @@ rune_echo_append() {
 
   # ── Parse named arguments ──
   local _role="" _layer="observations" _source="" _title="" _content=""
-  local _confidence="MEDIUM" _tags=""
+  local _confidence="MEDIUM" _tags="" _domain=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -86,6 +88,10 @@ rune_echo_append() {
       --tags)
         shift
         _tags="${1:-}"
+        ;;
+      --domain)
+        shift
+        _domain="${1:-}"
         ;;
       *)
         # Skip unknown args
@@ -165,6 +171,17 @@ rune_echo_append() {
       echo "WARN: cannot create role directory: ${_role_dir}" >&2
       return 1
     }
+  fi
+
+  # ── Prepend domain metadata to content (if --domain provided) ──
+  if [[ -n "$_domain" ]]; then
+    # Validate domain: alphanumeric + hyphens only
+    if [[ "$_domain" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+      _content="**Domain**: ${_domain}
+${_content}"
+    else
+      echo "WARN: invalid domain '${_domain}' (must match [a-zA-Z0-9_-]+), skipping domain tag" >&2
+    fi
   fi
 
   # ── Build tags JSON array ──
