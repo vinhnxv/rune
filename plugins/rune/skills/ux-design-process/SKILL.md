@@ -152,6 +152,30 @@ UX prefixes are positioned below FRONT in the Rune dedup hierarchy.
 
 See [ux-scoring.md](references/ux-scoring.md) for the scoring framework.
 
+### Echo Persistence
+
+When UX evaluation produces actionable findings, persist them with domain tagging:
+
+```
+const echoLib = `${RUNE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
+if (uxFindings.length > 0) {
+  const patterns = uxFindings
+    .filter(f => f.severity <= 1)  // P0 and P1 only
+    .map(f => `- [${f.prefix}] ${f.title}`)
+    .slice(0, 5)
+    .join("\\n")
+
+  Bash(`source "${echoLib}" && rune_echo_append \
+    --role designer --layer inscribed \
+    --source "rune:ux-design-process" \
+    --title "UX patterns: ${projectContext}" \
+    --content "**Domain**: design\\n${patterns}" \
+    --confidence MEDIUM \
+    --domain design \
+    --tags "design,ux,heuristic"`)
+}
+```
+
 ### Integration with Rune Review Pipeline
 
 UX review agents participate in the Roundtable Circle as conditional Ashes:

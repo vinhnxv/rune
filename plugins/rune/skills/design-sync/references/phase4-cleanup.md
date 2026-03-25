@@ -26,6 +26,22 @@ Write("{workDir}/report.md", completionReport)
 
 // Step 2: Persist echoes (run before team shutdown)
 // Write design patterns learned to .rune/echoes/
+const echoLib = `${RUNE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
+if (fidelityPatterns.length > 0) {
+  const patterns = fidelityPatterns
+    .map(p => `- ${p.dimension}: ${p.summary}`)
+    .slice(0, 5)
+    .join("\\n")
+
+  Bash(`source "${echoLib}" && rune_echo_append \
+    --role designer --layer inscribed \
+    --source "rune:design-sync ${figmaUrl}" \
+    --title "Design fidelity patterns: ${componentScope}" \
+    --content "**Domain**: design\\n${patterns}" \
+    --confidence MEDIUM \
+    --domain design \
+    --tags "design,fidelity,${scopeSlug}"`)
+}
 
 // Step 5: Update state
 updateState({ status: "completed", phase: "cleanup", fidelity_score: overallScore })
