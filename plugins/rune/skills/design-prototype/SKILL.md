@@ -83,6 +83,7 @@ Phase 0: Validate Input + 3-Layer Detection
     → Check design_sync.enabled gate
     → Phase 0a (parallel): L1 discoverFrontendStack() + L3 discoverUIBuilder()
     → Phase 0b (sequential, URL mode): L2 discoverFigmaFramework()
+    → Phase 0c: Read brand config (readTalismanSection('brand')), inject brand.typography into DesignContext
     → Compose DesignContext → Write design-context.yaml
     → Create output directory
     |
@@ -360,6 +361,19 @@ summary = {
 }
 
 Write("{outputDir}/summary.json", summary)
+
+// Persist design learnings to echoes
+const echoLib = `${RUNE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
+if (summary.prototypes_generated > 0) {
+  Bash(`source "${echoLib}" && rune_echo_append \
+    --role designer --layer observations \
+    --source "rune:design-prototype" \
+    --title "Prototype patterns: ${summary.components_extracted} components" \
+    --content "Generated ${summary.prototypes_generated} prototypes with ${summary.library_matches} library matches" \
+    --confidence MEDIUM \
+    --domain design \
+    --tags "design,prototype,${designContext.synthesis_strategy}"`)
+}
 
 // Present full-page component prominently
 if (summary.full_page_component) {

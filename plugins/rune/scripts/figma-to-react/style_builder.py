@@ -666,29 +666,97 @@ class StyleBuilder:
             self._props["mix-blend-mode"] = css_val
         return self
 
+    @staticmethod
+    def _match_custom_tokens(
+        rgb: Tuple[int, int, int],
+        token_map: Dict[str, str],
+        tw_prefix: str,
+        snap_distance: float,
+    ) -> Optional[Dict[str, Any]]:
+        """Match an RGB color against a custom token map.
+
+        Iterates through the token map looking for the closest color match
+        within the snap distance threshold. Token map values must be hex
+        strings (e.g. ``"#7F56D9"``).
+
+        Args:
+            rgb: The RGB tuple (0-255) to match against.
+            token_map: Mapping of token name to hex color string.
+            tw_prefix: Tailwind prefix for the result (e.g. ``"bg"``).
+            snap_distance: Maximum Euclidean RGB distance for a valid match.
+
+        Returns:
+            Match dict with ``token`` and ``distance`` keys if a match
+            is found within snap distance, or None.
+        """
+        from tailwind_mapper import _parse_hex, _rgb_distance
+
+        best_dist = float("inf")
+        best_token_name = ""
+        for token_name, hex_value in token_map.items():
+            token_rgb = _parse_hex(hex_value)
+            if token_rgb is None:
+                continue
+            dist = _rgb_distance(rgb, token_rgb)
+            if dist < best_dist:
+                best_dist = dist
+                best_token_name = token_name
+
+        if best_dist <= snap_distance and best_token_name:
+            return {
+                "token": f"{tw_prefix}-{best_token_name}",
+                "distance": round(best_dist, 1),
+            }
+        return None
+
     def build_token_mapping(
-        self, *, token_snap_distance: float = 20.0,
+        self,
+        *,
+        token_snap_distance: float = 20.0,
+        project_tokens: Optional[Dict[str, str]] = None,
+        library_tokens: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Dict[str, Any]]:
         """Produce a mapping of CSS properties to their nearest design tokens.
 
-        For each accumulated CSS property that has a corresponding Tailwind
-        token (colors, font sizes, font weights, letter spacing, line height),
-        returns the raw value, resolved token name, and the distance from the
-        raw value to the nearest token.
+        Uses a three-layer resolution cascade for color tokens:
 
-        A distance of ``0`` means an exact match.  Values beyond
-        *token_snap_distance* still get a token entry (the closest one), but
-        callers can filter on ``distance`` to decide whether to accept it.
+        - **Layer 2 (Semantic)**: ``project_tokens`` — purpose aliases from
+          the project's design system (e.g. ``{"brand-primary": "#7F56D9"}``).
+          Checked first.
+        - **Layer 3 (Component)**: ``library_tokens`` — UI library adapter
+          tokens (e.g. ``{"brand-600": "#7F56D9"}``). Checked second.
+        - **Fallback**: Tailwind palette snap — the existing 242-color palette
+          match. Always available as safety net.
+
+        Layer 1 (Primitive) values are the raw Figma colors already stored in
+        ``self._props`` — they are the input to the resolution cascade.
+
+        For non-color properties (font sizes, font weights, letter spacing,
+        line height), the existing Tailwind-based mapping is used directly.
+
+        The function remains a pure function — it does NOT read YAML files.
+        The caller is responsible for loading token maps from
+        ``design-system-profile.yaml`` or other sources.
 
         Args:
             token_snap_distance: Maximum distance for color snapping.
                 Passed through to the internal color palette lookup.
                 Defaults to 20.0 (matches Tailwind mapper default).
+            project_tokens: Optional Layer 2 semantic token map. Keys are
+                token names (e.g. ``"brand-primary"``), values are hex
+                color strings (e.g. ``"#7F56D9"``). Checked before
+                library_tokens and Tailwind fallback.
+            library_tokens: Optional Layer 3 component token map. Keys are
+                library token names (e.g. ``"brand-600"``), values are hex
+                color strings. Checked after project_tokens but before
+                Tailwind fallback.
 
         Returns:
             Dict keyed by semantic property name (e.g. ``"bg_color"``,
             ``"font_size"``) mapping to ``{"raw": ..., "token": ...,
-            "distance": ...}`` dicts.
+            "distance": ..., "source": ...}`` dicts. The ``source`` field
+            indicates which layer matched: ``"project"``, ``"library"``,
+            or ``"tailwind"``.
         """
         from tailwind_mapper import (
             _parse_hex,
@@ -705,7 +773,7 @@ class StyleBuilder:
 
         mapping: Dict[str, Dict[str, Any]] = {}
 
-        # --- Color tokens ---
+        # --- Color tokens (three-layer resolution) ---
         color_props = {
             "bg_color": "background-color",
             "text_color": "color",
@@ -726,11 +794,36 @@ class StyleBuilder:
             rgb = _parse_hex(raw) or _parse_rgba(raw)
             if rgb is None:
                 mapping[token_key] = {
-                    "raw": raw, "token": snap_color(raw, tw_prefix), "distance": -1,
+                    "raw": raw, "token": snap_color(raw, tw_prefix),
+                    "distance": -1, "source": "tailwind",
                 }
                 continue
 
-            # Find nearest palette color and its distance
+            # Layer 2: Semantic tokens (project design system)
+            if project_tokens:
+                match = self._match_custom_tokens(
+                    rgb, project_tokens, tw_prefix, token_snap_distance,
+                )
+                if match is not None:
+                    mapping[token_key] = {
+                        "raw": raw, "token": match["token"],
+                        "distance": match["distance"], "source": "project",
+                    }
+                    continue
+
+            # Layer 3: Component tokens (library adapter)
+            if library_tokens:
+                match = self._match_custom_tokens(
+                    rgb, library_tokens, tw_prefix, token_snap_distance,
+                )
+                if match is not None:
+                    mapping[token_key] = {
+                        "raw": raw, "token": match["token"],
+                        "distance": match["distance"], "source": "library",
+                    }
+                    continue
+
+            # Fallback: Tailwind palette snap (existing behavior)
             best_dist = float("inf")
             best_name = ""
             best_shade = 500
@@ -752,6 +845,7 @@ class StyleBuilder:
                 "raw": raw,
                 "token": token,
                 "distance": round(best_dist, 1),
+                "source": "tailwind",
             }
 
         # --- Font size token ---
@@ -773,6 +867,7 @@ class StyleBuilder:
                     best_diff = diff
             mapping["font_size"] = {
                 "raw": px, "token": token, "distance": round(best_diff, 1),
+                "source": "tailwind",
             }
 
         # --- Font weight token ---
@@ -791,6 +886,7 @@ class StyleBuilder:
             dist = abs(weight - rounded)
             mapping["font_weight"] = {
                 "raw": weight, "token": token, "distance": round(dist, 1),
+                "source": "tailwind",
             }
 
         # --- Letter spacing token ---
@@ -806,6 +902,7 @@ class StyleBuilder:
             token = map_letter_spacing(px)
             mapping["letter_spacing"] = {
                 "raw": px, "token": token, "distance": 0,
+                "source": "tailwind",
             }
 
         # --- Line height token ---
@@ -821,6 +918,7 @@ class StyleBuilder:
                 token = map_line_height(lh_px, fs_px)
                 mapping["line_height"] = {
                     "raw": lh_px, "token": token, "distance": 0,
+                    "source": "tailwind",
                 }
 
         return mapping

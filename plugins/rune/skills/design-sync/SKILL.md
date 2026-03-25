@@ -119,7 +119,7 @@ See [design-proof-types.md](../discipline/references/design-proof-types.md) for 
 
 ## Phase 0: Pre-Flight
 
-Validates talisman config (`design_sync.enabled`), parses arguments and collects Figma URLs (from positional args or `--urls` file), validates URLs with strict/lenient patterns, detects MCP provider (auto-probe cascade: rune → official → desktop), checks agent-browser availability, sets up session directories, writes state file with session isolation, and handles `--resume-work`/`--review-only` flags.
+Validates talisman config (`design_sync.enabled`), parses arguments and collects Figma URLs (from positional args or `--urls` file), validates URLs with strict/lenient patterns, detects MCP provider (auto-probe cascade: rune → official → desktop), checks agent-browser availability, sets up session directories, writes state file with session isolation, reads brand config (`readTalismanSection('brand')`) and injects `brand.colors` as highest-priority token overrides for the token resolution pipeline, and handles `--resume-work`/`--review-only` flags.
 
 See [phase0-preflight.md](references/phase0-preflight.md) for the full pre-flight implementation code, URL validation constants, and MCP provider fallback strategy.
 See [figma-url-parser.md](references/figma-url-parser.md) for URL format details.

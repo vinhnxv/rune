@@ -2,18 +2,44 @@
 
 Maps Figma design tokens to framework-specific semantic token names. Goes beyond raw Tailwind palette snapping (which maps `#7F56D9` to `purple-600`) to produce framework-native semantic references (`bg-brand-solid` for UntitledUI, `bg-primary` for shadcn).
 
+## Three-Layer Token Architecture
+
+The resolver operates within a three-layer token architecture that separates
+concerns from raw values to framework-specific tokens:
+
+| Layer | Name | Source | Purpose |
+|-------|------|--------|---------|
+| 1 | **Primitive** | Figma node properties | Raw design values (hex, rgba) |
+| 2 | **Semantic** | `design-system-profile.yaml`, project tokens | Purpose aliases (brand-primary, surface-elevated) |
+| 3 | **Component** | Library adapter maps | Framework-native tokens (bg-primary, bg-brand-solid) |
+| — | **Fallback** | Tailwind default palette | Safety net when no layer matches |
+
+This resolver primarily operates at **Layer 3** (Component), consuming Layer 1
+primitive values and Layer 2 semantic context to produce framework-native output.
+The `build_token_mapping()` function in `style_builder.py` accepts `project_tokens`
+(Layer 2) and `library_tokens` (Layer 3) as optional parameters, keeping the
+resolution pipeline pure and caller-driven.
+
+See [design-token-mapping.md](../../design-sync/references/design-token-mapping.md) for
+the full three-layer algorithm specification.
+
 ## Resolution Algorithm
 
-The resolver uses a 4-step cascade. First match wins.
+The resolver uses a 4-step cascade. First match wins. Steps 1-3 correspond to
+Layer 2 (Semantic) and Layer 3 (Component) token lookups; step 4 is the
+Tailwind palette fallback.
 
 ```
 Input:  Figma color value (hex/rgba), Figma style name (optional),
-        design-system-profile.yaml (detected framework + token source)
+        design-system-profile.yaml (detected framework + token source),
+        project_tokens (Layer 2 — optional, passed by caller),
+        library_tokens (Layer 3 — optional, passed by caller)
 Output: Framework-specific semantic token name
 
 Resolution order:
 
 1. EXACT MATCH — Figma color value matches a token definition exactly
+   - Check project_tokens (Layer 2) first, then library_tokens (Layer 3)
    - shadcn: parse globals.css :root and :dark blocks for oklch values
    - UntitledUI: parse theme.css @theme block for RGB/oklch values
    - Compare in the token's native color space (no conversion needed)
@@ -26,6 +52,7 @@ Resolution order:
    - Result: mapped semantic token name
 
 3. CLOSEST MATCH — Within snap distance threshold
+   - Check project_tokens (Layer 2) first, then library_tokens (Layer 3)
    - Find the nearest semantic token by color distance
    - shadcn (oklch): use Delta-E (CIE 2000) metric — NOT RGB Euclidean distance
    - UntitledUI (oklch/rgb): use Delta-E (CIE 2000) for oklch tokens, RGB distance for legacy

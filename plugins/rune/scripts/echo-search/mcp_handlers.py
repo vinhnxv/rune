@@ -101,7 +101,7 @@ _VALID_CATEGORIES = frozenset(
 _VALID_SCOPES = frozenset({"project", "global", "all"})
 _VALID_DOMAINS = frozenset(
     {"backend", "frontend", "devops", "database",
-     "testing", "architecture", "general"})
+     "testing", "architecture", "design", "general"})
 
 
 def _sanitize_search_filters(arguments: Dict) -> Dict[str, Any]:
@@ -623,7 +623,7 @@ TOOL_SCHEMAS = [
                 "category": {"type": "string", "enum": ["general", "pattern", "anti-pattern", "decision", "debugging"], "description": "Filter by entry category"},
                 "response_format": {"type": "string", "enum": ["json", "markdown"], "description": "Output format: json (default, structured) or markdown (human-readable)", "default": "json"},
                 "scope": {"type": "string", "enum": ["project", "global", "all"], "default": "project", "description": "Search scope: project echoes only (default), global echoes + doc packs, or both"},
-                "domain": {"type": "string", "enum": ["backend", "frontend", "devops", "database", "testing", "architecture", "general"], "description": "Filter global results by domain tag. Only effective with scope=global or scope=all."},
+                "domain": {"type": "string", "enum": ["backend", "frontend", "devops", "database", "testing", "architecture", "design", "general"], "description": "Filter global results by domain tag. Only effective with scope=global or scope=all."},
             },
             "required": ["query"],
         },

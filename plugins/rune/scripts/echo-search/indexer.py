@@ -24,7 +24,7 @@ ALLOWED_CATEGORIES = {"pattern", "anti-pattern", "decision", "debugging", "gener
 VALID_LAYERS = frozenset({"etched", "notes", "inscribed", "observations", "traced"})
 ALLOWED_DOMAINS = frozenset({
     "backend", "frontend", "devops", "database",
-    "testing", "architecture", "general",
+    "testing", "architecture", "design", "general",
 })
 
 MAX_PACK_SIZE_MB = 10  # SEC-P2-005: reject files larger than this
