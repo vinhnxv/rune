@@ -6,11 +6,13 @@ Each item includes: ID, category, description, code-level check instruction, sev
 
 ## Severity Weights and Priority Labels
 
-| Weight | Priority | Meaning | Finding Prefix |
-|--------|----------|---------|---------------|
+| Weight | Priority | Meaning | Severity Prefix |
+|--------|----------|---------|----------------|
 | 3 | Critical | User cannot complete core tasks without this | UXH-P0 |
 | 2 | High | Significant usability impact — degrades experience | UXH-P1 |
 | 1 | Medium | Nice-to-have polish — cosmetic or improvement | UXH-P2 |
+
+> **Note:** Full finding IDs append a sequence number: `UXH-P0-001`, `UXH-P1-002`, etc. See [ux-scoring.md](ux-scoring.md) for the complete ID format.
 
 ## H1: Visibility of System Status
 

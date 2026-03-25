@@ -432,7 +432,8 @@ all_shards=$(echo "$merged" | jq '{
   context_stop_guard: (.context_stop_guard // {}),
   pr_comment: (.pr_comment // {}),
   discipline: (.discipline // {}),
-  reactions: (.reactions // {})
+  reactions: (.reactions // {}),
+  brand: (.brand // {})
 }' 2>/dev/null)
 
 if [[ -z "$all_shards" || "$all_shards" == "null" ]]; then

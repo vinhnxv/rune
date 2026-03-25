@@ -686,8 +686,8 @@ class StyleBuilder:
             snap_distance: Maximum Euclidean RGB distance for a valid match.
 
         Returns:
-            Match dict with ``raw``, ``token``, ``distance``, and ``source``
-            keys if a match is found within snap distance, or None.
+            Match dict with ``token`` and ``distance`` keys if a match
+            is found within snap distance, or None.
         """
         from tailwind_mapper import _parse_hex, _rgb_distance
 
@@ -867,6 +867,7 @@ class StyleBuilder:
                     best_diff = diff
             mapping["font_size"] = {
                 "raw": px, "token": token, "distance": round(best_diff, 1),
+                "source": "tailwind",
             }
 
         # --- Font weight token ---
@@ -885,6 +886,7 @@ class StyleBuilder:
             dist = abs(weight - rounded)
             mapping["font_weight"] = {
                 "raw": weight, "token": token, "distance": round(dist, 1),
+                "source": "tailwind",
             }
 
         # --- Letter spacing token ---
@@ -900,6 +902,7 @@ class StyleBuilder:
             token = map_letter_spacing(px)
             mapping["letter_spacing"] = {
                 "raw": px, "token": token, "distance": 0,
+                "source": "tailwind",
             }
 
         # --- Line height token ---
@@ -915,6 +918,7 @@ class StyleBuilder:
                 token = map_line_height(lh_px, fs_px)
                 mapping["line_height"] = {
                     "raw": lh_px, "token": token, "distance": 0,
+                    "source": "tailwind",
                 }
 
         return mapping

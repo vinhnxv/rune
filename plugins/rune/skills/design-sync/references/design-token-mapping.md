@@ -26,6 +26,8 @@ within snap distance wins. If no layer matches, the Tailwind palette fallback
 
 Raw color values extracted directly from Figma fills, strokes, and effects.
 These are the unprocessed design values before any semantic mapping.
+Layer 1 is an extraction step, not a matching step — it produces the input
+color that Layers 2–3 attempt to match against token definitions.
 
 ```
 Source: Figma node properties (fills, strokes, effects)
@@ -103,6 +105,9 @@ Layer 1 (Primitive):  Raw hex value extracted               → always available
 Layer 2 (Semantic):   project_tokens lookup (if provided)   → first match wins
 Layer 3 (Component):  library_tokens lookup (if provided)   → second match wins
 Fallback:             Tailwind palette snap                 → guaranteed result
+
+Output fields per match: {raw, token, distance, source}
+  source = "project" (Layer 2) | "library" (Layer 3) | "tailwind" (Fallback)
 ```
 
 ### Snap Distance Reference

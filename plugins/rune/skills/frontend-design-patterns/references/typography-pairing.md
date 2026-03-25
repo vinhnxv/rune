@@ -21,7 +21,7 @@ Quick lookup for common project types:
 | E-commerce | Montserrat / Open Sans | Montserrat | Open Sans | Strong heading presence for product names, Open Sans is universally legible for descriptions and prices |
 | Documentation | JetBrains Mono / IBM Plex Sans | JetBrains Mono | IBM Plex Sans | Monospace headings signal technical content, IBM Plex Sans has excellent readability and multilingual support |
 
-## Full Pairing Catalog
+## Full Pairing Catalog (16 pairings)
 
 ### 1. Inter / Inter (Single-Family)
 
@@ -239,7 +239,7 @@ fontFamily: {
 - **Classification**: Sans-serif (neo-grotesque) / Monospace
 - **Rationale**: Vercel's Geist family is purpose-built for developer interfaces. Sans for UI elements and prose, Mono for code blocks and technical data. Tight metrics reduce visual noise.
 - **Best for**: Next.js apps, developer dashboards, Vercel-style projects
-- **Note**: Available via `@vercel/font` or self-hosted — also on Google Fonts as of 2024
+- **Note**: Available via `@vercel/font` or self-hosted — check Google Fonts availability before using CDN link
 
 ```js
 fontFamily: {

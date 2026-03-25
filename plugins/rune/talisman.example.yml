@@ -1900,6 +1900,8 @@ context_weaving:
 #     scale_ratio: 1.25                        # Type scale ratio (default: 1.25 — Major Third)
 #                                              # Common ratios: 1.125 (Major Second), 1.2 (Minor Third),
 #                                              # 1.25 (Major Third), 1.333 (Perfect Fourth), 1.5 (Perfect Fifth)
+#                                              # Note: typography-pairing.md uses string names (e.g. "modular")
+#                                              # which map to these numeric ratios
 #   voice: null                                # Brand voice description for content generation
 #                                              # e.g. "Professional yet approachable, concise, action-oriented"
 

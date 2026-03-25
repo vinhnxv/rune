@@ -248,6 +248,7 @@ design_context:
   # Brand overrides (optional — from talisman brand section)
   brand:
     enabled: false                  # Whether brand config is populated
+    guidelines: null                # URL or path to brand guidelines (null = not configured)
     colors:                         # Highest-priority token overrides
       primary: "#7F56D9"            # Overrides project_tokens in Layer 2
       secondary: "#6941C6"
@@ -256,6 +257,7 @@ design_context:
       body_font: "Inter"
       base_size: 16
       scale_ratio: 1.25
+    voice: null                     # Brand voice description (null = not configured)
 
   # Synthesis decision
   synthesis_strategy: "library"     # "library" | "tailwind" | "hybrid"
