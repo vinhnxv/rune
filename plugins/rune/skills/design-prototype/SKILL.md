@@ -369,7 +369,7 @@ if (summary.prototypes_generated > 0) {
     --role designer --layer observations \
     --source "rune:design-prototype" \
     --title "Prototype patterns: ${summary.components_extracted} components" \
-    --content "**Domain**: design\\nGenerated ${summary.prototypes_generated} prototypes with ${summary.library_matches} library matches" \
+    --content "Generated ${summary.prototypes_generated} prototypes with ${summary.library_matches} library matches" \
     --confidence MEDIUM \
     --domain design \
     --tags "design,prototype,${designContext.synthesis_strategy}"`)

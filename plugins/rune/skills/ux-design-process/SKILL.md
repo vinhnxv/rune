@@ -169,7 +169,7 @@ if (uxFindings.length > 0) {
     --role designer --layer inscribed \
     --source "rune:ux-design-process" \
     --title "UX patterns: ${projectContext}" \
-    --content "**Domain**: design\\n${patterns}" \
+    --content "${patterns}" \
     --confidence MEDIUM \
     --domain design \
     --tags "design,ux,heuristic"`)

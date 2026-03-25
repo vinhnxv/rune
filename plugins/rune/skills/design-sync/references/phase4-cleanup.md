@@ -37,7 +37,7 @@ if (fidelityPatterns.length > 0) {
     --role designer --layer inscribed \
     --source "rune:design-sync ${figmaUrl}" \
     --title "Design fidelity patterns: ${componentScope}" \
-    --content "**Domain**: design\\n${patterns}" \
+    --content "${patterns}" \
     --confidence MEDIUM \
     --domain design \
     --tags "design,fidelity,${scopeSlug}"`)
