@@ -41,10 +41,10 @@ AskUserQuestion({
    // This heuristic classification can be overridden by human review.
    // Patterns use word boundaries and restricted wildcards to reduce false positives
    // from descriptive prose (see BACK-006, SEC-006).
-   const introducesNewEntryPoints = /\bnew\s+(sub)?command\b|\badd\s+(?:new\s+)?routing\b|\bregister\s+(?:new\s+)?hook\b|\bnew\s+entry\s?point\b|\bwire\s+\S+\s+into\b|\badd\s+\S+\s+to\s+SKILL\b/i
+   const introducesNewEntryPoints = /\bnew\s+(sub)?command\b|\badd\s+(?:new\s+)?routing\b|\bregister\s+(?:new\s+)?hook\b|\bnew\s+entry\s?point\b|\bwire\s+\S+\s+into\b|\badd\s+\S+\s+to\s+SKILL\b|\bnew\s+(?:service|middleware|migration)\b|\badd\s+.*\bbarrel\b|\bexport\s+.*\bfrom\b|\bnew\s+(?:handler|subscriber)\b|\badd\s+.*\bprovider\b|\bregister\s+.*\bmodule\b/i
      .test(planContent)
 
-   if (introducesNewEntryPoints && detailLevel !== 'minimal') {
+   if (introducesNewEntryPoints) {
      // MANDATORY: Plan introduces new entry points — wiring map required
      if (!wiringMap || wiringMap.trim().length === 0) {
        warn("Anti-Shirking: Plan introduces new commands/entry points but wiring-map.md is empty. Generating minimal inline wiring map.")
@@ -53,12 +53,13 @@ AskUserQuestion({
      }
    }
    ```
-   Consolidate into `## Integration & Wiring Map` section (Standard and Comprehensive only):
+   // v2.2.0: Wiring map now generated for ALL detail levels (previously excluded Minimal)
+   Consolidate into `## Integration & Wiring Map` section (all detail levels — condensed for Minimal):
    - If BOTH agents timed out or produced no output, emit a minimal section:
      `"## Integration & Wiring Map\n\nIntegration analysis unavailable — research agents produced no output. Manually assess integration points before implementation."`
    - If only ONE agent produced output, populate available subsections and mark
      missing subsections as "Pending — {agent name} output unavailable."
-   - For Minimal template: OMIT this section entirely (consistent with Boundary Map)
+   - For Minimal template: Generate condensed `## Integration & Wiring Map (condensed)` section (Entry Points + Registration only)
 3. Identify common themes, conflicting advice, key patterns
 4. Populate git metadata in plan frontmatter: include `git_sha` (from `git rev-parse HEAD`) and `branch` (from `git branch --show-current`). If the working directory is not a git repository, omit these fields. On a detached HEAD, set `branch` to `null`.
 4b. **Evidence population** (Standard and Comprehensive only): For each major factual claim in Proposed Solution and Technical Approach, search research outputs (`tmp/plans/{timestamp}/research/`) for supporting evidence. Populate the Evidence Chain table with claims and their verification status. Claims without supporting evidence in research outputs get `Verified: No`. Evidence types ordered by strength: CODEBASE > DOCUMENTATION > EXTERNAL > OBSERVED > NOVEL.
@@ -136,6 +137,17 @@ session_budget:
 ## Context
 
 {Any critical information -- constraints, dependencies, deadlines}
+
+## Integration & Wiring Map (condensed)
+
+> Condensed wiring map for minimal plans. Verify these integration points before implementation.
+
+### Entry Points
+| Trigger | Existing File | New Code Target |
+|---------|--------------|-----------------|
+
+### Registration & Discovery
+- {bullet list of registration needs}
 
 ## Evidence Chain (optional)
 

@@ -8,7 +8,7 @@ description: |
 
   Covers: Inspector output aggregation, requirement matrix merging, weighted completion
   computation, dimension score merging, finding deduplication with priority ordering,
-  gap classification (9 categories), verdict determination (READY/GAPS_FOUND/INCOMPLETE/CRITICAL_ISSUES).
+  gap classification (10 categories), verdict determination (READY/GAPS_FOUND/INCOMPLETE/CRITICAL_ISSUES).
 tools:
   - Read
   - Write
@@ -208,15 +208,16 @@ If an inspector crashed (output missing), mark that dimension as "unscored".
 
 Combine all P1/P2/P3 findings from all inspectors:
 - Prefix-based dedup: same file + overlapping lines -- keep higher priority
-- Priority order: GRACE > WIRE > RUIN > SIGHT > VIGIL (for overlap resolution)
+- Priority order: GRACE > WIRE > WIRE-H > RUIN > SIGHT > VIGIL (for overlap resolution)
 - Within same priority: P1 > P2 > P3
 
 ### Step 5 -- Classify Gaps
 
-Merge gap analyses from all inspectors into 9 categories:
+Merge gap analyses from all inspectors into 10 categories:
 - Correctness gaps (from Grace Warden)
 - Coverage gaps (from Grace Warden)
 - Wiring gaps (from Grace Warden — `WIRE-` prefix, NOT auto-fixable)
+- Heuristic wiring gaps (from Grace Warden — `WIRE-H` prefix, P2 severity, NOT auto-fixable, source: "heuristic")
 - Test gaps (from Vigil Keeper)
 - Observability gaps (from Vigil Keeper)
 - Security gaps (from Ruin Prophet)
@@ -240,6 +241,24 @@ elif (adjustedCompletion < completion_threshold || p2Gaps.length > 0):
   verdict = "GAPS_FOUND"
 else:
   verdict = "READY"
+```
+
+### WIRE-H Completion Cap
+
+WIRE-H (heuristic) findings are advisory — they should surface gaps without tanking the READY verdict.
+
+```
+WIREH_MAX_PENALTY_PCT = 5
+
+# After computing adjustedCompletion, apply WIRE-H cap:
+wireHFindings = allFindings.filter(f => f.id.startsWith("WIRE-H"))
+if wireHFindings.length > 0:
+  # Calculate how much WIRE-H findings reduced completion
+  wireHPenalty = sum(wireHFindings.map(f => f.completionImpact ?? (100 / totalRequirements)))
+  if wireHPenalty > WIREH_MAX_PENALTY_PCT:
+    # Clamp: restore excess penalty
+    excessPenalty = wireHPenalty - WIREH_MAX_PENALTY_PCT
+    adjustedCompletion = adjustedCompletion + excessPenalty
 ```
 
 ## VERDICT.md FORMAT
@@ -333,6 +352,18 @@ For each resolved disagreement, the audit trail records:
 ### Minor Gaps (P3)
 
 (same format)
+
+## Detected Wiring Gaps (Heuristic)
+
+> Advisory: These gaps were detected by heuristic analysis (4-layer decision tree).
+> WIRE-H findings are non-blocking and capped at 5% completion impact.
+> They complement plan-verified WIRE findings, not replace them.
+
+| ID | File | Pattern | Confidence | Suggested Fix |
+|----|------|---------|-----------|---------------|
+{wireHFindings rows}
+
+_Suppress individual findings with `// @wire-skip: {reason}` in file header._
 
 ## Recommendations
 

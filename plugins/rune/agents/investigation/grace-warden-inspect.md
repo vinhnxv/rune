@@ -142,6 +142,83 @@ This step runs AFTER the standard requirement assessment and produces `WIRE-NNN`
 
 **Skip condition**: If plan has no `## Integration & Wiring Map` section, skip entirely.
 Do NOT report this as a gap — the section is optional.
+**Empty section guard**: If the `## Integration & Wiring Map` section exists but contains no tables (header only, no content rows), treat it as absent — skip plan-verified wiring checks and fall through to heuristic detection instead.
+
+### Heuristic Wiring Detection (plan-independent fallback)
+
+When the plan has NO `## Integration & Wiring Map` section, run heuristic detection to find unwired new files. This is a fallback — when the plan HAS a wiring map, skip this section entirely (no duplicate reporting).
+
+**Talisman config**: Read `inspect.detect_wiring_heuristics` (default: `true`). If `false`, skip entirely. Read `inspect.wiring_patterns` for active patterns (default: `["barrel_exports", "migrations"]`). Validate that `inspect.wiring_patterns` is an array — if scalar or null, treat as the default `["barrel_exports", "migrations"]`. Read `inspect.wiring_exclusions` for additional exclusion paths.
+
+**Algorithm — 4-layer decision tree for each new file from git diff:**
+
+#### Phase 1: Identify new files
+Parse scope files or run `git diff --name-status` for files with "A" (added) status. Extract list of newly added files.
+
+#### Phase 2: Apply decision tree
+
+**Layer 1 — EXCLUSION CHECK** (immediate skip):
+Skip if file path matches any of:
+- Directories: `utils/`, `helpers/`, `types/`, `__tests__/`, `test/`, `scripts/`, `docs/`, `assets/`, `public/`, `static/`
+- File patterns: `*.test.ts`, `*.spec.ts`, `*.d.ts`, `*Factory.ts`, `*Mock.ts`, `seed*.ts`, `*.config.ts`
+- Files with `// @wire-skip` comment in first 5 lines (suppression annotation)
+- Additional paths from talisman `inspect.wiring_exclusions`
+Result: Skip → not flagged
+
+**Layer 2 — PATTERN EXISTENCE CHECK**:
+For each candidate file, determine expected wiring pattern:
+- File in `components/**/` or similar component directory: expected barrel export pattern (`index.ts` re-export)
+- File in `db/migrate/`, `migrations/`, or `alembic/`: expected migration runner reference
+Check: Does this pattern exist elsewhere in the codebase? Grep for `index.ts` barrel files (for barrel pattern) or migration runner configs (for migration pattern) in OTHER directories.
+If pattern doesn't exist in codebase → skip (project doesn't use this pattern).
+Only check patterns listed in talisman `inspect.wiring_patterns`.
+
+**Layer 3 — GREP VALIDATION**:
+Search for the new file's exported name or basename in registration code:
+- Two-pass search: (a) search for exported identifier name, (b) search for file basename in import/from clauses
+- Found in barrel/index.ts re-export → already wired, skip
+- Found in migration runner/config → already wired, skip
+- Found ONLY in tests or comments → not wired
+- NOT found anywhere → not wired
+
+**Layer 4 — SIBLING CHECK**:
+Check if other files in the same directory follow the wiring pattern:
+- If no siblings exist in the directory (new file is the only file), skip Layer 4 (treat as no sibling pattern)
+- If siblings ARE exported from barrel `index.ts` → this file should be too
+- If siblings are NOT exported → pattern not enforced locally, skip
+- Scope to IMMEDIATE parent directory's `index.ts` only — do not traverse nested barrel chains (e.g., parent's parent `index.ts` re-exporting a child `index.ts`)
+
+#### Phase 3: Generate WIRE-H findings
+
+For files surviving all 4 layers, generate findings:
+- **Prefix**: `WIRE-H{NNN}` (H = heuristic, distinct from plan-verified `WIRE-NNN`). The `H` is appended directly without a dash separator — this is intentional to keep IDs compact while remaining visually distinct from `WIRE-NNN`.
+- **Severity**: P2 (advisory, non-blocking) — hardcoded, never P1
+- **Confidence**: 0.70–0.95 based on layer depth:
+  - Survived layers 1–4 with sibling match: 0.90–0.95
+  - Survived layers 1–3, no sibling data: 0.70–0.80
+- **Category**: `wiring`
+- **Format**:
+```
+WIRE-H{NNN} [DETECTED WIRING GAP] (P2, confidence: {score})
+  File: {path} (new)
+  Pattern: {Barrel export missing | Migration registration missing}
+  Expected: {expected wiring target}
+  Siblings: {sibling files that ARE wired, if applicable}
+  Suggested fix: {specific fix suggestion}
+  Suppress: Add `// @wire-skip: {reason}` to file header
+```
+
+**MVP patterns** (ship these first):
+
+| Pattern | Detection | Expected FP Rate |
+|---------|-----------|-----------------|
+| Barrel exports | New file in dir with `index.ts` that re-exports siblings, but not this file | <5% |
+| Migration registration | New file in `migrations/` or `db/migrate/` dir, not referenced by migration runner config | <8% |
+
+**@wire-skip annotation support**:
+- Scan first 5 lines of each new file for `// @wire-skip` (with optional colon and reason)
+- If found: skip ALL heuristic checks for that file (Layer 1 exclusion)
+- `@wire-skip` does NOT suppress plan-verified `WIRE-NNN` findings — only heuristic `WIRE-H` findings
 
 ### Sub-Classification Taxonomy
 
