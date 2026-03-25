@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.17.4] - 2026-03-25
+
+### Added
+- **Heuristic wiring gap detection**: grace-warden-inspect now runs a 4-layer decision tree (exclusion → pattern existence → grep validation → sibling check) to detect unwired new files when plans lack an explicit `## Integration & Wiring Map` section. MVP patterns: barrel exports (<5% FP) and migration registration (<8% FP)
+- **WIRE-H finding prefix**: New `WIRE-H{NNN}` findings for heuristic-detected wiring gaps, distinct from plan-verified `WIRE-NNN`. P2 severity, capped at 5% completion impact in verdict-binder
+- **Always-on wiring map generation**: devise synthesize.md now generates `## Integration & Wiring Map` for ALL detail levels including Minimal and `--quick` mode
+- **Expanded Anti-Shirking regex**: Catches additional wiring-relevant patterns: `new service`, `new middleware`, `new migration`, `add barrel`, `export from`, `new handler`, `new subscriber`, `add provider`, `register module`
+- **Talisman wiring config**: `inspect.detect_wiring_heuristics`, `inspect.wiring_patterns`, `inspect.wiring_exclusions` for controlling heuristic detection behavior
+- **`@wire-skip` annotation**: File-level suppression for heuristic findings via `// @wire-skip` in first 5 lines. Does NOT suppress plan-verified WIRE-NNN findings
+
+### Fixed
+- **NaN guard on WIRE-H completionImpact**: verdict-binder now derives completionImpact when field is missing from grace-warden output
+- **Gap category count**: Updated from "9 categories" to "10 categories" in verdict-binder after adding heuristic wiring gaps
+
 ## [2.17.3] - 2026-03-25
 
 ### Fixed
