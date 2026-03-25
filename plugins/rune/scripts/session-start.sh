@@ -102,7 +102,7 @@ if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
     # SEC: PLUGIN_ROOT is derived from CLAUDE_PLUGIN_ROOT or BASH_SOURCE (line 40), both trusted.
     # Validate: must be an absolute path containing /scripts/ dir, no shell metacharacters.
     # Path varies: /repo/plugins/rune (dev) vs ~/.claude/plugins/cache/.../rune/2.11.0 (installed).
-    if [[ -n "$PLUGIN_ROOT" ]] && [[ "$PLUGIN_ROOT" == /* ]] && [[ -d "$PLUGIN_ROOT/scripts" ]] && [[ ! "$PLUGIN_ROOT" =~ [\;\|\&\$\`] ]]; then
+    if [[ -n "$PLUGIN_ROOT" ]] && [[ "$PLUGIN_ROOT" == /* ]] && [[ -d "$PLUGIN_ROOT/scripts" ]] && [[ "$PLUGIN_ROOT" =~ ^[a-zA-Z0-9/_\.\ @=-]+$ ]]; then
       if ! grep -q "RUNE_PLUGIN_ROOT" "$CLAUDE_ENV_FILE" 2>/dev/null; then
         printf 'export RUNE_PLUGIN_ROOT="%s"\n' "$PLUGIN_ROOT" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true
         _trace "Injected RUNE_PLUGIN_ROOT=${PLUGIN_ROOT} into CLAUDE_ENV_FILE"
@@ -181,7 +181,9 @@ inject_echo_summary() {
   local total_chars=0
 
   # Collect entries from all role directories
-  # Portable nullglob: shopt -s for bash, restore after loop
+  # Portable nullglob: save/restore state (FLAW-007 fix)
+  local _prev_nullglob
+  _prev_nullglob=$(shopt -p nullglob 2>/dev/null || echo "shopt -u nullglob")
   shopt -s nullglob
   for role_dir in "$echo_dir"/*/; do
     [[ -d "$role_dir" ]] || continue
@@ -221,7 +223,7 @@ inject_echo_summary() {
       [[ "$count" -ge "$max_entries" || "$total_chars" -ge "$max_chars" ]] && break 2
     done < "$mem"
   done
-  shopt -u nullglob
+  eval "$_prev_nullglob"
 
   [[ "$count" -gt 0 ]] && ECHO_SUMMARY="\\n\\n## Echo Learnings (${count} entries)\\n${summary}"
 }

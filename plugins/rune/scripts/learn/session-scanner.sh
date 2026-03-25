@@ -116,7 +116,7 @@ PROJECT_PATH=$(cd "$PROJECT_PATH" 2>/dev/null && pwd -P) || {
 }
 
 # ── Locate Claude Code session files ──
-# Sessions live in ~/.claude/projects/{encoded-path}/*.jsonl
+# Sessions live in $CHOME/projects/{encoded-path}/*.jsonl
 # Encoded path: CWD with / replaced by -
 CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 

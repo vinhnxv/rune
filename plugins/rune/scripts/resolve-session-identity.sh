@@ -89,7 +89,7 @@ rune_pid_alive() {
   # Single kill -0 call — captures both exit code and stderr in one shot.
   # Fixes BACK-P2-001: eliminates TOCTOU window from double kill -0 calls.
   local err rc
-  err=$(kill -0 "$pid" 2>&1); rc=$?
+  err=$(kill -0 "$pid" 2>&1) && rc=0 || rc=$?
   [[ $rc -eq 0 ]] && return 0  # definitely alive
   # kill -0 failed — distinguish ESRCH (dead) from EPERM (alive, different user)
   case "$err" in

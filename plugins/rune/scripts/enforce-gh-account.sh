@@ -37,7 +37,7 @@ _rune_fail_forward() {
 trap '_rune_fail_forward' ERR
 
 # Read hook input from stdin
-input=$(head -c 1048576)
+input=$(head -c 1048576 2>/dev/null || true)
 
 # Guard: jq dependency (fail-open without jq)
 command -v jq >/dev/null 2>&1 || exit 0
@@ -58,7 +58,7 @@ if echo "$command_str" | grep -qE '(^|\s)gh\s+auth\s+(login|switch|status|setup-
 fi
 
 # Debounce: only resolve once per session (write marker on success)
-DEBOUNCE_MARKER="${TMPDIR:-/tmp}/rune-gh-account-resolved-${CLAUDE_SESSION_ID:-unknown}"
+DEBOUNCE_MARKER="${TMPDIR:-/tmp}/rune-gh-account-resolved-${CLAUDE_SESSION_ID:-${PPID:-unknown}}"
 if [[ -f "$DEBOUNCE_MARKER" ]]; then
   # Already resolved this session — check if marker is fresh (< 30 min)
   local_now=$(date +%s 2>/dev/null || echo "0")

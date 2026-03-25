@@ -90,6 +90,8 @@ fi
 # (see skills/roundtable-circle/SKILL.md "Forge Team" step 3). The review/audit command
 # must write this marker BEFORE spawning Ashes for enforcement to take effect.
 # SEC-4 FIX: nullglob prevents literal glob strings when no directories match
+# Save/restore nullglob state (FLAW-007 fix)
+_prev_nullglob=$(shopt -p nullglob 2>/dev/null || echo "shopt -u nullglob")
 shopt -s nullglob
 for dir in "$SIGNAL_BASE"/rune-review-* "$SIGNAL_BASE"/arc-review-* \
            "$SIGNAL_BASE"/rune-audit-* "$SIGNAL_BASE"/arc-audit-* \
@@ -102,7 +104,7 @@ for dir in "$SIGNAL_BASE"/rune-review-* "$SIGNAL_BASE"/arc-review-* \
     exit 0
   fi
 done
-shopt -u nullglob
+eval "$_prev_nullglob"
 
 # No active review/audit team with readonly marker — allow
 exit 0

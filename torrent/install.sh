@@ -171,7 +171,7 @@ if [[ "$HTTP_CODE" != "200" ]]; then
   fi
 
   # Build from source
-  TMP_DIR=$(mktemp -d)
+  TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/torrent-install-XXXXXX")
   trap 'rm -rf "$TMP_DIR"' EXIT
 
   info "Cloning repository..."
@@ -184,7 +184,7 @@ if [[ "$HTTP_CODE" != "200" ]]; then
   BINARY_PATH="target/release/$BINARY_NAME"
 else
   # Download pre-built binary
-  TMP_DIR=$(mktemp -d)
+  TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/torrent-install-XXXXXX")
   trap 'rm -rf "$TMP_DIR"' EXIT
 
   info "Downloading $ASSET_NAME..."

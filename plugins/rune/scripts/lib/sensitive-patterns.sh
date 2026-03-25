@@ -60,6 +60,7 @@ _SPAT_LIST=(
 )
 
 # Populate associative array if supported (bash 4+)
+# _SPAT_LIST: always available (Bash 3.2+). SENSITIVE_PATTERNS: Bash 4+ only (associative lookup).
 if declare -A _SPAT_TEST 2>/dev/null; then
   for _spat_entry in "${_SPAT_LIST[@]}"; do
     _spat_label="${_spat_entry%%:*}"
@@ -81,7 +82,7 @@ rune_strip_sensitive() {
   max_chars=$(( "${max_chars}" + 0 )) 2>/dev/null || max_chars=2000
 
   local input
-  input=$(head -c 1048576)
+  input=$(head -c 1048576 2>/dev/null || true)
 
   # Build pattern list for python3 inline.
   # Use positional list (_SPAT_LIST) for bash 3 compatibility.

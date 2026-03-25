@@ -110,7 +110,7 @@ ERROR_COUNT=0
 
 if [[ -d "$JSONL_DIR" && ! -L "$JSONL_DIR" ]]; then
   # Find latest JSONL file
-  LATEST=$(ls -t "$JSONL_DIR"/*.jsonl 2>/dev/null | head -1)
+  LATEST=$(find "$JSONL_DIR" -maxdepth 1 -name '*.jsonl' -type f -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1)
   if [[ -n "$LATEST" && -f "$LATEST" && ! -L "$LATEST" ]]; then
     # Check last 200 lines for is_error:true (indicates error→fix pattern)
     # Use grep -c (count) — NOT grep -oP (Perl regex unavailable on macOS)

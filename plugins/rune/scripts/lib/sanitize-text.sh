@@ -45,7 +45,7 @@ sanitize_untrusted_text() {
 
   # P1-FE-002: Read from stdin (SEC-2: 1MB cap to prevent memory exhaustion)
   local input
-  input=$(head -c 1048576)
+  input=$(head -c 1048576 2>/dev/null || true)
 
   # P1-FE-005: stderr suppression on python3, P1-FE-006: passthrough on failure
   local result
@@ -102,7 +102,7 @@ sanitize_plan_content() {
 
   # P1-FE-002: Read from stdin (SEC-2: 1MB cap to prevent memory exhaustion)
   local input
-  input=$(head -c 1048576)
+  input=$(head -c 1048576 2>/dev/null || true)
 
   # P1-FE-005: stderr suppression on python3, P1-FE-006: passthrough on failure
   local result
@@ -155,7 +155,7 @@ sys.stdout.write(text)
 normalize_unicode_nfc() {
   # P1-FE-002: Read from stdin (SEC-2: 1MB cap to prevent memory exhaustion)
   local input
-  input=$(head -c 1048576)
+  input=$(head -c 1048576 2>/dev/null || true)
 
   local result
   result=$(printf '%s' "$input" | python3 -c '
@@ -186,7 +186,7 @@ sys.stdout.write(unicodedata.normalize("NFC", text))
 detect_homoglyphs_tier_ab() {
   # P1-FE-002: Read from stdin (SEC-2: 1MB cap to prevent memory exhaustion)
   local input
-  input=$(head -c 1048576)
+  input=$(head -c 1048576 2>/dev/null || true)
 
   local result
   result=$(printf '%s' "$input" | python3 -c '

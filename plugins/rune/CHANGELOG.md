@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.17.2] - 2026-03-25
+
+### Fixed
+- **STRIVE-001 security bypass (FLAW-001, P1)**: Rewrote `enforce-strive-delegation.sh` to use shared `pretooluse-write-guard.sh` library — absolute paths from Claude Code now correctly normalized to relative before case pattern matching. Previously, all case patterns used relative globs that never matched absolute file paths, rendering the security hook non-functional
+- **SIGPIPE guard (FLAW-002)**: Added `2>/dev/null || true` to `head -c 1048576` in 6 scripts (`enforce-gh-account.sh`, `validate-test-evidence.sh`, `lib/sensitive-patterns.sh`, `lib/sanitize-text.sh`) — prevents unexpected exit under `set -e` when stdin closes early
+- **CWD resolution (FLAW-003, SEC-002)**: `enforce-strive-delegation.sh` now parses CWD from hook input JSON `.cwd` field and canonicalizes via `pwd -P`, fixing incorrect state file lookups in worktree contexts
+- **Session isolation (FLAW-004)**: Added `config_dir` + `owner_pid` ownership checks to `enforce-strive-delegation.sh` — prevents cross-session interference per Core Rule 11
+- **Symlink rejection (FLAW-005)**: Added `[[ -L ... ]]` guards on state file and checkpoint path reads in `enforce-strive-delegation.sh`
+- **`kill -0` pattern (FLAW-006)**: `rune_pid_alive()` in `resolve-session-identity.sh` now uses `&& rc=0 || rc=$?` pattern — safe under `set -e` in any calling context
+- **Nullglob state restore (FLAW-007)**: `session-start.sh` and `enforce-readonly.sh` now save/restore nullglob state instead of unconditionally disabling it
+- **Kill counter (FLAW-008)**: `process-tree.sh` `rune_kill_process_tree()` now counts SIGTERM'd processes, not just SIGKILL'd
+- **mktemp failure handling (FLAW-009)**: `arc-stop-hook-common.sh` warns on mktemp failure instead of deleting the state file
+- **Poll guard default (SEC-003)**: `enforce-polling.sh` `RUNE_DISABLE_POLL_GUARD` default changed from `:-1` (disabled) to `:-0` (enabled) — hook was previously a no-op in standard configurations
+- **Debounce marker isolation (SEC-004)**: `enforce-gh-account.sh` debounce marker includes `$PPID` fallback when `CLAUDE_SESSION_ID` is unset
+- **Trace log isolation (SEC-006)**: `on-session-stop.sh` trace log path includes `-${PPID}` suffix to prevent cross-session log interleaving
+- **PLUGIN_ROOT validation (SEC-007)**: `session-start.sh` uses positive allowlist regex instead of incomplete denylist for metacharacter validation
+- **JSON fallback escaping (SEC-008)**: `advise-mcp-untrusted.sh` sed-based JSON fallback uses `tr` for control characters (tab, newline, CR)
+- **File discovery safety (SEC-009)**: `detect-corrections.sh` uses `find -print0 | xargs -0 ls -t` instead of bare `ls -t *.jsonl`
+- **Hardcoded `/tmp` paths (PAT-001/002)**: `torrent/tests/test_channels_e2e.sh` — all 15+ `/tmp/torrent-e2e-*` paths replaced with `${TMPDIR:-/tmp}/torrent-e2e-*`
+- **macOS `date +%s%N` (PAT-003)**: `echo-writer.sh` removed broken `date +%s%N` fallback that produces garbage on macOS (literal `N` instead of nanoseconds)
+- **Missing `set -e` (PAT-004)**: `torrent/tests/test_channels_e2e.sh` `set -uo pipefail` → `set -euo pipefail`
+- **Stale comments (PAT-005/006)**: `session-scanner.sh` and `enforce-team-lifecycle.sh` comments now reference `$CHOME` instead of `~/.claude/`
+- **mktemp template (PAT-007)**: `torrent/install.sh` uses `${TMPDIR:-/tmp}/torrent-install-XXXXXX` template
+- **declare -A comment (PAT-008)**: `sensitive-patterns.sh` clarifies dual-path design for Bash 3.2/4+ compatibility
+
 ## [2.17.1] - 2026-03-25
 
 ### Changed

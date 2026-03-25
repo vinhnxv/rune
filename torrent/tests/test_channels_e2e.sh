@@ -14,7 +14,7 @@
 #   cargo build --release
 #   bash tests/test_channels_e2e.sh
 
-set -uo pipefail
+set -euo pipefail
 
 PASS=0
 FAIL=0
@@ -41,8 +41,8 @@ cleanup() {
     [ -n "$BRIDGE_PID" ] && kill "$BRIDGE_PID" 2>/dev/null
     wait 2>/dev/null
     # Clean up temp files
-    rm -f /tmp/torrent-e2e-callback.log /tmp/torrent-e2e-bridge-in.fifo \
-          /tmp/torrent-e2e-bridge-out.log /tmp/torrent-e2e-bridge-err.log 2>/dev/null
+    rm -f ${TMPDIR:-/tmp}/torrent-e2e-callback.log ${TMPDIR:-/tmp}/torrent-e2e-bridge-in.fifo \
+          ${TMPDIR:-/tmp}/torrent-e2e-bridge-out.log ${TMPDIR:-/tmp}/torrent-e2e-bridge-err.log 2>/dev/null
 }
 trap cleanup EXIT
 
@@ -135,14 +135,14 @@ else
     echo "[3.1] MCP initialize + tools/list"
 
     # Create a named pipe for bridge stdin
-    rm -f /tmp/torrent-e2e-bridge-in.fifo
-    mkfifo /tmp/torrent-e2e-bridge-in.fifo
+    rm -f ${TMPDIR:-/tmp}/torrent-e2e-bridge-in.fifo
+    mkfifo ${TMPDIR:-/tmp}/torrent-e2e-bridge-in.fifo
 
     # Start bridge with no callback URL (tool calls will skip POST, just return "reported")
     (cd "$BRIDGE_DIR" && bun server.ts \
-        < /tmp/torrent-e2e-bridge-in.fifo \
-        > /tmp/torrent-e2e-bridge-out.log \
-        2>/tmp/torrent-e2e-bridge-err.log) &
+        < ${TMPDIR:-/tmp}/torrent-e2e-bridge-in.fifo \
+        > ${TMPDIR:-/tmp}/torrent-e2e-bridge-out.log \
+        2>${TMPDIR:-/tmp}/torrent-e2e-bridge-err.log) &
     BRIDGE_PID=$!
     sleep 2
 
@@ -156,13 +156,13 @@ else
         # List tools
         printf '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n'
         sleep 2
-    } > /tmp/torrent-e2e-bridge-in.fifo &
+    } > ${TMPDIR:-/tmp}/torrent-e2e-bridge-in.fifo &
 
     sleep 5
 
     # Check bridge output for tool names
-    if [ -f /tmp/torrent-e2e-bridge-out.log ]; then
-        bridge_out=$(cat /tmp/torrent-e2e-bridge-out.log)
+    if [ -f ${TMPDIR:-/tmp}/torrent-e2e-bridge-out.log ]; then
+        bridge_out=$(cat ${TMPDIR:-/tmp}/torrent-e2e-bridge-out.log)
         if echo "$bridge_out" | grep -q "report_phase"; then
             pass "Bridge lists report_phase tool"
         else
@@ -184,7 +184,7 @@ else
 
     # Clean up bridge
     kill "$BRIDGE_PID" 2>/dev/null; wait "$BRIDGE_PID" 2>/dev/null; BRIDGE_PID=""
-    rm -f /tmp/torrent-e2e-bridge-in.fifo /tmp/torrent-e2e-bridge-out.log /tmp/torrent-e2e-bridge-err.log
+    rm -f ${TMPDIR:-/tmp}/torrent-e2e-bridge-in.fifo ${TMPDIR:-/tmp}/torrent-e2e-bridge-out.log ${TMPDIR:-/tmp}/torrent-e2e-bridge-err.log
 
     echo ""
 
@@ -211,7 +211,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b'ok')
         # Write received events to file for verification
-        with open('/tmp/torrent-e2e-received.json', 'w') as f:
+        with open('${TMPDIR:-/tmp}/torrent-e2e-received.json', 'w') as f:
             json.dump(received, f)
     def log_message(self, *args):
         pass  # suppress logs
@@ -240,16 +240,16 @@ srv.shutdown()
 
     if [ -n "$CALLBACK_PID" ]; then
         # Start bridge with callback URL pointing to our listener
-        rm -f /tmp/torrent-e2e-bridge-in.fifo
-        mkfifo /tmp/torrent-e2e-bridge-in.fifo
+        rm -f ${TMPDIR:-/tmp}/torrent-e2e-bridge-in.fifo
+        mkfifo ${TMPDIR:-/tmp}/torrent-e2e-bridge-in.fifo
 
         (cd "$BRIDGE_DIR" && \
             TORRENT_CALLBACK_URL="http://127.0.0.1:${CALLBACK_PORT}" \
             TORRENT_SESSION_ID="e2e-test-session" \
             bun server.ts \
-            < /tmp/torrent-e2e-bridge-in.fifo \
-            > /tmp/torrent-e2e-bridge-out.log \
-            2>/tmp/torrent-e2e-bridge-err.log) &
+            < ${TMPDIR:-/tmp}/torrent-e2e-bridge-in.fifo \
+            > ${TMPDIR:-/tmp}/torrent-e2e-bridge-out.log \
+            2>${TMPDIR:-/tmp}/torrent-e2e-bridge-err.log) &
         BRIDGE_PID=$!
         sleep 2
 
@@ -272,14 +272,14 @@ srv.shutdown()
             # Call report_complete tool
             printf '{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"report_complete","arguments":{"result":"success","pr_url":"https://github.com/test/repo/pull/1","session_id":"e2e-test-session"}}}\n'
             sleep 3
-        } > /tmp/torrent-e2e-bridge-in.fifo &
+        } > ${TMPDIR:-/tmp}/torrent-e2e-bridge-in.fifo &
 
         # Wait for events to flow through
         sleep 10
 
         # Verify bridge responded to tool calls
-        if [ -f /tmp/torrent-e2e-bridge-out.log ]; then
-            bridge_out=$(cat /tmp/torrent-e2e-bridge-out.log)
+        if [ -f ${TMPDIR:-/tmp}/torrent-e2e-bridge-out.log ]; then
+            bridge_out=$(cat ${TMPDIR:-/tmp}/torrent-e2e-bridge-out.log)
             reported_count=$(echo "$bridge_out" | grep -c "reported" || true)
             if [ "$reported_count" -ge 3 ]; then
                 pass "Bridge returned 'reported' for all 3 tool calls"
@@ -289,8 +289,8 @@ srv.shutdown()
         fi
 
         # Verify callback server received the events
-        if [ -f /tmp/torrent-e2e-received.json ]; then
-            received=$(cat /tmp/torrent-e2e-received.json)
+        if [ -f ${TMPDIR:-/tmp}/torrent-e2e-received.json ]; then
+            received=$(cat ${TMPDIR:-/tmp}/torrent-e2e-received.json)
 
             # Check we received events (first one is our test ping, then 3 real ones)
             event_count=$(echo "$received" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
@@ -306,7 +306,7 @@ srv.shutdown()
                 local found
                 found=$(python3 -c "
 import json, sys
-events = json.load(open('/tmp/torrent-e2e-received.json'))
+events = json.load(open('${TMPDIR:-/tmp}/torrent-e2e-received.json'))
 for e in events:
     if e.get('$field') == '$value':
         print('found')
@@ -328,7 +328,7 @@ for e in events:
             # Check pr_url (nested string with special chars — use python directly)
             pr_found=$(python3 -c "
 import json
-events = json.load(open('/tmp/torrent-e2e-received.json'))
+events = json.load(open('${TMPDIR:-/tmp}/torrent-e2e-received.json'))
 for e in events:
     if 'pr_url' in e and 'github.com' in str(e['pr_url']):
         print('found')
@@ -344,8 +344,8 @@ for e in events:
         fi
 
         # Check bridge stderr for errors
-        if [ -f /tmp/torrent-e2e-bridge-err.log ]; then
-            bridge_errors=$(grep -i "error\|fail\|exception" /tmp/torrent-e2e-bridge-err.log || true)
+        if [ -f ${TMPDIR:-/tmp}/torrent-e2e-bridge-err.log ]; then
+            bridge_errors=$(grep -i "error\|fail\|exception" ${TMPDIR:-/tmp}/torrent-e2e-bridge-err.log || true)
             if [ -z "$bridge_errors" ]; then
                 pass "Bridge stderr: no errors"
             else
@@ -358,8 +358,8 @@ for e in events:
         kill "$CALLBACK_PID" 2>/dev/null; wait "$CALLBACK_PID" 2>/dev/null; CALLBACK_PID=""
     fi
 
-    rm -f /tmp/torrent-e2e-bridge-in.fifo /tmp/torrent-e2e-bridge-out.log \
-          /tmp/torrent-e2e-bridge-err.log /tmp/torrent-e2e-received.json
+    rm -f ${TMPDIR:-/tmp}/torrent-e2e-bridge-in.fifo ${TMPDIR:-/tmp}/torrent-e2e-bridge-out.log \
+          ${TMPDIR:-/tmp}/torrent-e2e-bridge-err.log ${TMPDIR:-/tmp}/torrent-e2e-received.json
 
     echo ""
 
@@ -367,15 +367,15 @@ for e in events:
 
     echo "[3.3] Bridge payload size guard (>64KB)"
 
-    rm -f /tmp/torrent-e2e-bridge-in.fifo
-    mkfifo /tmp/torrent-e2e-bridge-in.fifo
+    rm -f ${TMPDIR:-/tmp}/torrent-e2e-bridge-in.fifo
+    mkfifo ${TMPDIR:-/tmp}/torrent-e2e-bridge-in.fifo
 
     (cd "$BRIDGE_DIR" && \
         TORRENT_CALLBACK_URL="http://127.0.0.1:${CALLBACK_PORT}" \
         bun server.ts \
-        < /tmp/torrent-e2e-bridge-in.fifo \
-        > /tmp/torrent-e2e-bridge-out.log \
-        2>/tmp/torrent-e2e-bridge-err.log) &
+        < ${TMPDIR:-/tmp}/torrent-e2e-bridge-in.fifo \
+        > ${TMPDIR:-/tmp}/torrent-e2e-bridge-out.log \
+        2>${TMPDIR:-/tmp}/torrent-e2e-bridge-err.log) &
     BRIDGE_PID=$!
     sleep 2
 
@@ -389,12 +389,12 @@ for e in events:
         sleep 1
         printf '{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"report_phase","arguments":{"phase":"test","status":"ok","details":"%s","session_id":"big"}}}\n' "$BIG_DETAILS"
         sleep 3
-    } > /tmp/torrent-e2e-bridge-in.fifo &
+    } > ${TMPDIR:-/tmp}/torrent-e2e-bridge-in.fifo &
 
     sleep 6
 
-    if [ -f /tmp/torrent-e2e-bridge-err.log ]; then
-        if grep -q "64KB\|exceeds" /tmp/torrent-e2e-bridge-err.log; then
+    if [ -f ${TMPDIR:-/tmp}/torrent-e2e-bridge-err.log ]; then
+        if grep -q "64KB\|exceeds" ${TMPDIR:-/tmp}/torrent-e2e-bridge-err.log; then
             pass "Bridge dropped oversized payload (>64KB)"
         else
             # Bridge may still return "reported" but skip the POST
@@ -405,7 +405,7 @@ for e in events:
     fi
 
     kill "$BRIDGE_PID" 2>/dev/null; wait "$BRIDGE_PID" 2>/dev/null; BRIDGE_PID=""
-    rm -f /tmp/torrent-e2e-bridge-in.fifo /tmp/torrent-e2e-bridge-out.log /tmp/torrent-e2e-bridge-err.log
+    rm -f ${TMPDIR:-/tmp}/torrent-e2e-bridge-in.fifo ${TMPDIR:-/tmp}/torrent-e2e-bridge-out.log ${TMPDIR:-/tmp}/torrent-e2e-bridge-err.log
 fi
 
 echo ""

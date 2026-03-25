@@ -237,7 +237,7 @@ if [[ "$DEDUP_RESULT" == "DUPLICATE" ]]; then
   # Write dedup signal
   SIGNAL_DIR="${PROJECT_DIR}/tmp/.rune-signals"
   mkdir -p "$SIGNAL_DIR" 2>/dev/null || true
-  DEDUP_HASH=$(printf '%s' "${ENTRY_TITLE}${ENTRY_CONTENT}" | python3 -c 'import sys,hashlib; print(hashlib.sha256(sys.stdin.read().encode()).hexdigest()[:16])' 2>/dev/null || date +%s%N 2>/dev/null || date +%s)
+  DEDUP_HASH=$(printf '%s' "${ENTRY_TITLE}${ENTRY_CONTENT}" | python3 -c 'import sys,hashlib; print(hashlib.sha256(sys.stdin.read().encode()).hexdigest()[:16])' 2>/dev/null || date +%s)
   touch "${SIGNAL_DIR}/.learn-${DEDUP_HASH}" 2>/dev/null || true
   exit 0
 fi

@@ -146,7 +146,7 @@ fi
 
 # XVER-001 FIX: Canonicalize CHOME and reject symlinked intermediate roots
 # This prevents symlink-based path traversal attacks where an attacker could
-# create ~/.claude/teams -> /some/sensitive/path and cause rm -rf to follow it.
+# create $CHOME/teams -> /some/sensitive/path and cause rm -rf to follow it.
 CHOME_CANONICAL="$(_resolve_path "$CHOME")"
 if [[ -z "$CHOME_CANONICAL" ]] || [[ "$CHOME_CANONICAL" != /* ]]; then
   exit 0  # Canonical resolution failed, skip scan

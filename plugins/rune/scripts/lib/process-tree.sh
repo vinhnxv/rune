@@ -131,9 +131,12 @@ _rune_kill_tree() {
 
   [[ ${#_kill_pids[@]} -eq 0 ]] && echo "0" && return 0
 
+  # Count SIGTERM'd processes (FLAW-008 fix: track all terminated, not just SIGKILL'd)
+  killed=${#_kill_pids[@]}
+
   # If term-only mode, we're done
   if [[ "$mode" == "term" ]]; then
-    echo "${#_kill_pids[@]}"
+    echo "$killed"
     return 0
   fi
 

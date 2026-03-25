@@ -49,7 +49,7 @@ SCRIPT_NAME="validate-test-evidence.sh"
 MIN_FILE_SIZE=50  # Minimum bytes for evidence file (per BACK-007 pattern)
 
 # ── Read stdin (capped to 1MB per SEC-003) ──
-INPUT=$(head -c 1048576)
+INPUT=$(head -c 1048576 2>/dev/null || true)
 if [[ -z "$INPUT" ]]; then
   exit 0  # No input, skip
 fi

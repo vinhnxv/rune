@@ -136,6 +136,6 @@ if [[ "$HAS_JQ" == "true" ]]; then
 else
   # P2-FE-002: Fallback — use printf with escaped advisory
   # Escape special JSON characters in advisory
-  ESCAPED_ADVISORY=$(printf '%s' "$ADVISORY" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g; s/\n/\\n/g; s/\r/\\r/g')
+  ESCAPED_ADVISORY=$(printf '%s' "$ADVISORY" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\t' ' ' | tr '\n' ' ' | tr '\r' ' ')
   printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"%s"}}' "$ESCAPED_ADVISORY"
 fi
