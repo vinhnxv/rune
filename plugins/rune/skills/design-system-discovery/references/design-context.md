@@ -245,6 +245,18 @@ design_context:
     matches_figma: true             # Does builder match Figma-detected framework?
     confidence: 0.90                # 0.50-0.95
 
+  # Brand overrides (optional — from talisman brand section)
+  brand:
+    enabled: false                  # Whether brand config is populated
+    colors:                         # Highest-priority token overrides
+      primary: "#7F56D9"            # Overrides project_tokens in Layer 2
+      secondary: "#6941C6"
+    typography:                     # Brand typography for prototype generation
+      heading_font: "Inter"
+      body_font: "Inter"
+      base_size: 16
+      scale_ratio: 1.25
+
   # Synthesis decision
   synthesis_strategy: "library"     # "library" | "tailwind" | "hybrid"
   rationale: "UntitledUI detected in Figma (0.82), UntitledUI MCP available, React+Tailwind v4 project"

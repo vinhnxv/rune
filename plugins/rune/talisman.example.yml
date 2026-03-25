@@ -1878,6 +1878,31 @@ context_weaving:
 #       screenshot_diff: auto                # Tier 3 — auto-detect agent-browser
 #       responsive_check: auto               # Tier 3 — auto-detect agent-browser
 
+# ── Brand Guidelines (v2.17.5+) ──
+# Defines brand-level overrides for design workflows. When populated,
+# brand colors become highest-priority token overrides in design-sync Phase 0,
+# and brand typography is read by design-prototype Phase 0.
+# All fields are optional — workflows function normally without this section.
+# brand:
+#   enabled: false                             # Master switch (default: false)
+#   guidelines: null                           # URL or file path to brand guidelines document
+#                                              # e.g. "https://brand.example.com/guidelines" or "docs/brand.md"
+#   colors:                                    # Brand color definitions — highest-priority token overrides
+#     primary: "#7F56D9"                       # Primary brand color (hex)
+#     secondary: "#6941C6"                     # Secondary brand color (hex)
+#     accent: "#F79009"                        # Accent color (hex)
+#     # Additional custom colors can be added as key-value pairs
+#   typography:                                # Brand typography definitions
+#     heading_font: "Inter"                    # Font family for headings
+#     body_font: "Inter"                       # Font family for body text
+#     mono_font: "JetBrains Mono"             # Font family for code/monospace
+#     base_size: 16                            # Base font size in px (default: 16)
+#     scale_ratio: 1.25                        # Type scale ratio (default: 1.25 — Major Third)
+#                                              # Common ratios: 1.125 (Major Second), 1.2 (Minor Third),
+#                                              # 1.25 (Major Third), 1.333 (Perfect Fourth), 1.5 (Perfect Fifth)
+#   voice: null                                # Brand voice description for content generation
+#                                              # e.g. "Professional yet approachable, concise, action-oriented"
+
 # ──────────────────────────────────────────────────────────────────
 # MCP Tool Integrations
 # ──────────────────────────────────────────────────────────────────

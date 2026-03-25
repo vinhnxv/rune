@@ -198,6 +198,13 @@ def _inject_toplevel_feature_defaults(data: dict[str, Any]) -> None:
         "dir": "tmp/storybook",
         "max_rounds": 3,
     })
+    data.setdefault("brand", {
+        "enabled": False,
+        "guidelines": None,
+        "colors": {},
+        "typography": {},
+        "voice": None,
+    })
 
 
 def _inject_goldmask_defaults(data: dict[str, Any]) -> None:
