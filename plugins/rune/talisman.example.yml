@@ -497,6 +497,18 @@ inspect:
   gap_threshold: 20            # CRITICAL_ISSUES threshold
   max_fixes: 20                # --fix cap (standalone)
   fix_timeout: 600000          # --fix timeout (standalone)
+  # Heuristic wiring gap detection (grace-warden fallback)
+  # Activates when plan lacks ## Integration & Wiring Map section
+  detect_wiring_heuristics: true          # Master switch (default: true)
+  wiring_patterns:                        # Which patterns to check
+    - barrel_exports                      # index.ts re-export detection
+    - migrations                          # Migration runner registration
+    # - di_registration                   # Phase 2: DI container checks
+    # - route_wiring                      # Phase 2: Router registration
+  wiring_exclusions:                      # Additional paths to skip (beyond defaults)
+    - "**/__fixtures__/**"
+    - "**/__mocks__/**"
+    # - "src/legacy/**"                   # Project-specific exclusions
 
 # ──────────────────────────────────────────────
 # Arc — Default flag overrides (v1.40.0+)
