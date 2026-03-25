@@ -67,6 +67,12 @@ Enforce constraints from the project's design system: permitted colors, spacing 
 
 See [design-system-rules.md](references/design-system-rules.md) for generic design system constraints.
 
+### Typography Pairing
+
+Select heading/body font combinations based on project context, contrast principles, x-height compatibility, and performance budget. Cross-references `brand.typography` talisman config when available.
+
+For typography guidance, see [typography-pairing.md](references/typography-pairing.md).
+
 ### Layout and Alignment
 
 Use Flexbox and Grid patterns that match the design's alignment intent. Auto-layout in Figma maps directly to flex properties.
@@ -115,5 +121,6 @@ See [storybook-patterns.md](references/storybook-patterns.md) for CSF3 format an
 - [responsive-patterns.md](references/responsive-patterns.md) — Mobile-first responsive design
 - [state-and-error-handling.md](references/state-and-error-handling.md) — UI state patterns
 - [storybook-patterns.md](references/storybook-patterns.md) — CSF3 format and autodocs
+- [typography-pairing.md](references/typography-pairing.md) — Proven heading/body font combinations
 - [visual-region-analysis.md](references/visual-region-analysis.md) — Screenshot-to-structure analysis
 - [variant-mapping.md](references/variant-mapping.md) — Figma variant-to-prop mapping
