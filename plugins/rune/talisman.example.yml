@@ -500,6 +500,7 @@ inspect:
   # Heuristic wiring gap detection (grace-warden fallback)
   # Activates when plan lacks ## Integration & Wiring Map section
   detect_wiring_heuristics: true          # Master switch (default: true)
+  # Array values — first array-typed keys under inspect: namespace
   wiring_patterns:                        # Which patterns to check
     - barrel_exports                      # index.ts re-export detection
     - migrations                          # Migration runner registration

@@ -53,12 +53,13 @@ AskUserQuestion({
      }
    }
    ```
+   // v2.2.0: Wiring map now generated for ALL detail levels (previously excluded Minimal)
    Consolidate into `## Integration & Wiring Map` section (all detail levels — condensed for Minimal):
    - If BOTH agents timed out or produced no output, emit a minimal section:
      `"## Integration & Wiring Map\n\nIntegration analysis unavailable — research agents produced no output. Manually assess integration points before implementation."`
    - If only ONE agent produced output, populate available subsections and mark
      missing subsections as "Pending — {agent name} output unavailable."
-   - For Minimal template: Generate condensed `## Wiring Checklist` section (Entry Points + Registration only)
+   - For Minimal template: Generate condensed `## Integration & Wiring Map (condensed)` section (Entry Points + Registration only)
 3. Identify common themes, conflicting advice, key patterns
 4. Populate git metadata in plan frontmatter: include `git_sha` (from `git rev-parse HEAD`) and `branch` (from `git branch --show-current`). If the working directory is not a git repository, omit these fields. On a detached HEAD, set `branch` to `null`.
 4b. **Evidence population** (Standard and Comprehensive only): For each major factual claim in Proposed Solution and Technical Approach, search research outputs (`tmp/plans/{timestamp}/research/`) for supporting evidence. Populate the Evidence Chain table with claims and their verification status. Claims without supporting evidence in research outputs get `Verified: No`. Evidence types ordered by strength: CODEBASE > DOCUMENTATION > EXTERNAL > OBSERVED > NOVEL.
@@ -137,7 +138,7 @@ session_budget:
 
 {Any critical information -- constraints, dependencies, deadlines}
 
-## Wiring Checklist (auto-generated)
+## Integration & Wiring Map (condensed)
 
 > Condensed wiring map for minimal plans. Verify these integration points before implementation.
 

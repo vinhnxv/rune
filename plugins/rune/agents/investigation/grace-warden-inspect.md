@@ -142,12 +142,13 @@ This step runs AFTER the standard requirement assessment and produces `WIRE-NNN`
 
 **Skip condition**: If plan has no `## Integration & Wiring Map` section, skip entirely.
 Do NOT report this as a gap — the section is optional.
+**Empty section guard**: If the `## Integration & Wiring Map` section exists but contains no tables (header only, no content rows), treat it as absent — skip plan-verified wiring checks and fall through to heuristic detection instead.
 
 ### Heuristic Wiring Detection (plan-independent fallback)
 
 When the plan has NO `## Integration & Wiring Map` section, run heuristic detection to find unwired new files. This is a fallback — when the plan HAS a wiring map, skip this section entirely (no duplicate reporting).
 
-**Talisman config**: Read `inspect.detect_wiring_heuristics` (default: `true`). If `false`, skip entirely. Read `inspect.wiring_patterns` for active patterns (default: `["barrel_exports", "migrations"]`). Read `inspect.wiring_exclusions` for additional exclusion paths.
+**Talisman config**: Read `inspect.detect_wiring_heuristics` (default: `true`). If `false`, skip entirely. Read `inspect.wiring_patterns` for active patterns (default: `["barrel_exports", "migrations"]`). Validate that `inspect.wiring_patterns` is an array — if scalar or null, treat as the default `["barrel_exports", "migrations"]`. Read `inspect.wiring_exclusions` for additional exclusion paths.
 
 **Algorithm — 4-layer decision tree for each new file from git diff:**
 
@@ -182,14 +183,15 @@ Search for the new file's exported name or basename in registration code:
 
 **Layer 4 — SIBLING CHECK**:
 Check if other files in the same directory follow the wiring pattern:
+- If no siblings exist in the directory (new file is the only file), skip Layer 4 (treat as no sibling pattern)
 - If siblings ARE exported from barrel `index.ts` → this file should be too
 - If siblings are NOT exported → pattern not enforced locally, skip
-- Scope to IMMEDIATE parent directory's `index.ts` only (no barrel chain traversal)
+- Scope to IMMEDIATE parent directory's `index.ts` only — do not traverse nested barrel chains (e.g., parent's parent `index.ts` re-exporting a child `index.ts`)
 
 #### Phase 3: Generate WIRE-H findings
 
 For files surviving all 4 layers, generate findings:
-- **Prefix**: `WIRE-H{NNN}` (H = heuristic, distinct from plan-verified `WIRE-NNN`)
+- **Prefix**: `WIRE-H{NNN}` (H = heuristic, distinct from plan-verified `WIRE-NNN`). The `H` is appended directly without a dash separator — this is intentional to keep IDs compact while remaining visually distinct from `WIRE-NNN`.
 - **Severity**: P2 (advisory, non-blocking) — hardcoded, never P1
 - **Confidence**: 0.70–0.95 based on layer depth:
   - Survived layers 1–4 with sibling match: 0.90–0.95

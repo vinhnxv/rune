@@ -8,7 +8,7 @@ description: |
 
   Covers: Inspector output aggregation, requirement matrix merging, weighted completion
   computation, dimension score merging, finding deduplication with priority ordering,
-  gap classification (9 categories), verdict determination (READY/GAPS_FOUND/INCOMPLETE/CRITICAL_ISSUES).
+  gap classification (10 categories), verdict determination (READY/GAPS_FOUND/INCOMPLETE/CRITICAL_ISSUES).
 tools:
   - Read
   - Write
@@ -213,7 +213,7 @@ Combine all P1/P2/P3 findings from all inspectors:
 
 ### Step 5 -- Classify Gaps
 
-Merge gap analyses from all inspectors into 9 categories:
+Merge gap analyses from all inspectors into 10 categories:
 - Correctness gaps (from Grace Warden)
 - Coverage gaps (from Grace Warden)
 - Wiring gaps (from Grace Warden — `WIRE-` prefix, NOT auto-fixable)
@@ -254,7 +254,7 @@ WIREH_MAX_PENALTY_PCT = 5
 wireHFindings = allFindings.filter(f => f.id.startsWith("WIRE-H"))
 if wireHFindings.length > 0:
   # Calculate how much WIRE-H findings reduced completion
-  wireHPenalty = sum(wireHFindings.map(f => f.completionImpact))
+  wireHPenalty = sum(wireHFindings.map(f => f.completionImpact ?? (100 / totalRequirements)))
   if wireHPenalty > WIREH_MAX_PENALTY_PCT:
     # Clamp: restore excess penalty
     excessPenalty = wireHPenalty - WIREH_MAX_PENALTY_PCT
