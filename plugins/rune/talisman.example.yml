@@ -2020,6 +2020,9 @@ context_weaving:
 #   enabled: false                             # Master switch — must be true for Phase 5.3 to run (default: false)
 #   blocking: false                            # When true, P1 UX findings halt the pipeline (default: false, non-blocking)
 #   cognitive_walkthrough: false               # Enable cognitive walker agent for cognitive load analysis (default: false)
+#   industry: null                             # Manual domain override for UXH scoring weights (default: null = auto-detect)
+#                                              # Values: general, e-commerce, saas, fintech, healthcare, creative, education, content
+#                                              # When null, uses inferProjectDomain() with confidence >= 0.70 threshold
 #   agents:                                    # Agent selection (all enabled when ux.enabled is true)
 #     - ux-heuristic-reviewer                  # Nielsen heuristics evaluation (UXH- prefix)
 #     - ux-flow-validator                      # User flow integrity checks (UXF- prefix)

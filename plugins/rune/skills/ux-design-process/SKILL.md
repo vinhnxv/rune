@@ -33,6 +33,12 @@ ux:
   touch_target_minimum: 44  # px -- 48px recommended
   finding_prefix: true      # Emit UXH/UXF/UXI/UXC prefixed findings
   blocking: false           # UX findings are non-blocking by default
+  industry: null            # Manual domain override for UXH scoring weights.
+                            # Values: general, e-commerce, saas, fintech,
+                            # healthcare, creative, education, content.
+                            # When null, domain is auto-detected via
+                            # inferProjectDomain() (requires confidence >= 0.70).
+                            # See references/industry-weights.md for weight tables.
 ```
 
 **Important**: `ux.enabled` defaults to `false`. Users must explicitly opt in via talisman.yml.
@@ -213,3 +219,4 @@ See [heuristic-checklist.md](references/heuristic-checklist.md) for cognitive wa
 - [aesthetic-direction.md](references/aesthetic-direction.md) -- Visual design principles
 - [web-interface-rules.md](references/web-interface-rules.md) -- Vercel-adapted interface rules
 - [ux-scoring.md](references/ux-scoring.md) -- Finding severity scoring framework
+- [industry-weights.md](references/industry-weights.md) -- Domain-aware UXH category weights
