@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.18.1] - 2026-03-26
+
+### Changed
+- **Design prototype skill**: Refactored team architecture section into dedicated reference file (`team-architecture.md`) for better maintainability
+
 ## [2.18.0] - 2026-03-26
 
 ### Added
