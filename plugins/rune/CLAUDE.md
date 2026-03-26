@@ -93,8 +93,8 @@ Rune's 12 MCP tools are designed for ToolSearch discoverability. When users inst
 | Frequency | Tools | When Used |
 |-----------|-------|-----------|
 | Hot | echo_search, echo_details | Every review, audit, planning session |
-| Warm | figma_to_react, figma_list_components, query-docs, resolve-library-id | Design workflows, research phases |
-| Cold | echo_reindex, echo_stats, echo_record_access, echo_upsert_group, figma_fetch_design, figma_inspect_node | Maintenance, debugging, deep inspection |
+| Warm | figma_to_react, figma_list_components, get_figma_data, query-docs, resolve-library-id | Design workflows, research phases |
+| Cold | echo_reindex, echo_stats, echo_record_access, echo_upsert_group, figma_fetch_design, figma_inspect_node, download_figma_images | Maintenance, debugging, deep inspection |
 
 When adding new MCP tools, ensure descriptions include:
 1. Primary use case (what problem it solves)
@@ -378,6 +378,7 @@ All hooks require `jq` for JSON parsing. If `jq` is missing, SECURITY-CRITICAL h
 | `figma-to-react` | `figma_fetch_design`, `figma_inspect_node`, `figma_list_components`, `figma_to_react` | Converts Figma designs to React + Tailwind CSS v4 components. Parses Figma URLs, fetches node trees via Figma API, extracts styling/layout/typography, generates JSX with Tailwind classes. Supports component extraction, pagination, and depth-limited traversal. Requires `FIGMA_ACCESS_TOKEN`. Launched via `scripts/figma-to-react/start.sh`. |
 | `agent-search` | `agent_search`, `agent_detail`, `agent_register`, `agent_stats`, `agent_reindex` | Agent registry search over all agent definitions (agents/*.md, registry/*.md, .claude/agents/*.md, talisman user_agents). SQLite FTS5 with hybrid scoring (BM25 + tag + phase + category). Phase-aware, category-aware agent discovery for workflow orchestrators. Requires Python 3.7+. Launched via `scripts/agent-search/start.sh`. |
 | `context7` | `resolve-library-id`, `query-docs` | Live framework and library documentation via Context7. Resolves library names to IDs, then fetches version-specific docs, API references, and migration guides. Used by practice-seeker and lore-scholar during `/rune:devise` Phase 1C external research. Requires Node.js (npx). Launched via `npx -y @upstash/context7-mcp@2.1.3`. |
+| `figma-context` | `get_figma_data`, `download_figma_images` | AI-optimized Figma data extraction via figma-context-mcp (Framelink). ~90% data compression vs raw Figma API. Primary alternative provider for design-sync alongside Rune's figma-to-react MCP. Auto-detection cascade: rune → framelink → desktop. Requires `FIGMA_TOKEN`. Launched via `npx -y figma-developer-mcp@0.8.0`. |
 
 **agent-search tools:**
 - `agent_search(query, phase?, category?, source?, exclude?, limit?)` — Hybrid BM25 + multi-factor scoring for agent discovery. Filters by phase (review, audit, goldmask, etc.), category (security, performance, etc.), and source (builtin, user, project). Returns ranked summaries with scores.

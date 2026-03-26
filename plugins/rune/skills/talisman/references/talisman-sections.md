@@ -277,7 +277,7 @@ Figma design synchronization pipeline configuration. Gated by `enabled: true`.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | bool | `false` | Enable design sync pipeline |
-| `figma_provider` | string | `"auto"` | Figma MCP provider (`"auto"` for auto-detection) |
+| `figma_provider` | string | `"auto"` | Figma MCP provider: `auto\|rune\|framelink\|desktop` (`"auto"` probes rune → framelink → desktop) |
 | `max_figma_urls` | number | `10` | Maximum Figma URLs per invocation |
 | `max_extraction_workers` | number | `2` | Parallel workers for design extraction phase |
 | `max_implementation_workers` | number | `3` | Parallel workers for implementation phase |

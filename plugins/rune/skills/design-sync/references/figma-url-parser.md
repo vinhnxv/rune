@@ -63,53 +63,28 @@ figma_inspect_node(url="https://www.figma.com/design/{file_key}/{name}?node-id={
 figma_list_components(url="https://www.figma.com/design/{file_key}/{name}")
 ```
 
-## Official MCP Parameter Format
+## Framelink (figma-context-mcp) Parameter Format
 
-The Official Figma MCP tools use `fileKey` + `nodeId` as separate parameters instead of full URLs.
+The figma-context-mcp tools use `fileKey` + `nodeId` as separate parameters instead of full URLs.
 
 ```
-// Official MCP tools — separate fileKey and nodeId params
-mcp__plugin_figma_figma__get_design_context(fileKey, nodeId)
-mcp__plugin_figma_figma__get_metadata(fileKey)
-mcp__plugin_figma_figma__get_code_connect_map(fileKey, nodeIds)
-mcp__plugin_figma_figma__get_variable_defs(fileKey)
+// figma-context-mcp tools
+get_figma_data(fileKey, nodeId?, depth?)
+download_figma_images(fileKey, nodes, format?)
 ```
+
+- `fileKey`: extracted from URL path (same as `parsedUrl.file_key`)
+- `nodeId`: colon-separated `"1:3"` (same as `parsedUrl.node_id` — already converted by parser)
+- `depth`: traversal depth (optional, default varies by server)
 
 ### Node ID Format Difference
 
 ```
-Rune MCP (URL parameter): "1-3"  (hyphen-separated — matches Figma URL ?node-id= format)
-Official MCP (parameter):  "1:3"  (colon-separated — matches Figma internal API format)
+Rune MCP (URL parameter):       "1-3"  (hyphen-separated — matches Figma URL ?node-id= format)
+Framelink / Figma API (parameter): "1:3"  (colon-separated — matches Figma internal API format)
 
 The parseFigmaUrl() function already converts URL hyphens to colons in the node_id field.
-So parsedUrl.node_id is always in colon format ("1:3") — ready for Official MCP directly.
-```
-
-### `convertToOfficialParams(parsedUrl)` Helper
-
-```
-function convertToOfficialParams(parsedUrl):
-  // parsedUrl is the return value of parseFigmaUrl(url)
-  // parsedUrl.node_id is already colon-separated (e.g. "1:3")
-
-  if not parsedUrl.valid:
-    throw Error("Cannot convert invalid parsed URL to Official MCP params")
-
-  fileKey = parsedUrl.file_key   // Extracted from URL path: /design/{fileKey}/...
-  nodeId = parsedUrl.node_id     // Already colon format; null if not in URL
-
-  return {
-    fileKey: fileKey,             // Used as-is for all Official MCP tools
-    nodeId: nodeId,               // "1:3" or null — check before passing
-    nodeIds: nodeId ? [nodeId] : []  // Array form for get_code_connect_map
-  }
-
-// Usage
-parsed = parseFigmaUrl("https://www.figma.com/design/abc123/Name?node-id=1-3")
-params = convertToOfficialParams(parsed)
-// params.fileKey = "abc123"
-// params.nodeId  = "1:3"
-// params.nodeIds = ["1:3"]
+So parsedUrl.node_id is always in colon format ("1:3") — ready for Framelink directly.
 ```
 
 ## Validation Rules

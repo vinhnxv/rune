@@ -91,7 +91,7 @@ Two URL patterns are used depending on context:
 
 ```
 figmaProviderOverride = config?.design_sync?.figma_provider ?? "auto"
-mcpProvider = null  // "rune" | "official" | "desktop" | null
+mcpProvider = null  // "rune" | "framelink" | "desktop" | null
 
 if figmaProviderOverride === "rune" OR figmaProviderOverride === "auto":
   // Probe Rune MCP — use figma_fetch_design(depth=1) as cheap availability check
@@ -101,13 +101,23 @@ if figmaProviderOverride === "rune" OR figmaProviderOverride === "auto":
   catch:
     // Rune MCP not available — fall through to next provider
 
-if mcpProvider === null AND (figmaProviderOverride === "official" OR figmaProviderOverride === "auto"):
-  // Probe Official Figma MCP
+if mcpProvider === null AND (figmaProviderOverride === "framelink" OR figmaProviderOverride === "auto"):
+  // Probe figma-context-mcp (Framelink)
   try:
-    mcp__plugin_figma_figma__get_metadata(fileKey=parsedUrl.fileKey)
-    mcpProvider = "official"
+    get_figma_data(fileKey=parsedUrl.fileKey, depth=1)
+    mcpProvider = "framelink"
   catch:
-    // Official MCP not available — fall through
+    // figma-context-mcp not available — fall through
+
+if mcpProvider === null AND figmaProviderOverride === "official":
+  // Soft-deprecation: "official" is no longer a valid provider
+  warn('figma_provider: "official" is deprecated in Rune v2.19.0. Use "framelink" or "auto" instead.')
+  // Treat "official" as "framelink" for backward compatibility
+  try:
+    get_figma_data(fileKey=parsedUrl.fileKey, depth=1)
+    mcpProvider = "framelink"
+  catch:
+    // figma-context-mcp not available — fall through
 
 if mcpProvider === null AND figmaProviderOverride === "desktop":
   // Probe Desktop MCP bridge directly
@@ -122,7 +132,7 @@ if mcpProvider === null:
   AskUserQuestion(
     "No Figma MCP provider detected. Choose a setup option:\n\n" +
     "1. **Rune MCP** (recommended): Add to .mcp.json — see scripts/figma-to-react/start.sh\n" +
-    "2. **Official Figma MCP**: Add FIGMA_TOKEN to .mcp.json official server config\n" +
+    "2. **figma-context-mcp** (Framelink): Set FIGMA_TOKEN env var — already configured in .mcp.json as 'figma-context'\n" +
     "3. **Desktop MCP**: Open Figma Desktop → Enable Dev Mode (Shift+D) → enable MCP bridge\n\n" +
     "After setup, set `design_sync.figma_provider` in talisman.yml to skip auto-detection."
   )

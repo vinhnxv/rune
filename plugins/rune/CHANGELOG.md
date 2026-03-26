@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.19.0] - 2026-03-26
+
+### Changed
+- **Figma MCP provider**: Replaced Official Figma MCP fallback with figma-context-mcp (Framelink) — ~90% data compression, 2 focused tools (`get_figma_data`, `download_figma_images`) instead of 16
+- **MCP provider cascade**: Auto-detection now probes rune → framelink → desktop (was rune → official → desktop)
+- **`.mcp.json`**: Added `figma-context` server entry (figma-developer-mcp@0.8.0)
+- **CLAUDE.md**: Added `figma-context` to MCP Servers table
+- **Soft deprecation**: `figma_provider: "official"` logs deprecation warning and falls back to framelink
+- **Removed**: `convertToOfficialParams()` helper, all `mcp__plugin_figma_figma__*` tool references
+- **CLAUDE.md**: Updated `figma-context` description from "Fallback provider" to "Primary alternative provider" with cascade docs; added `get_figma_data`/`download_figma_images` to Hot/Cold tools table
+
 ## [2.18.1] - 2026-03-26
 
 ### Changed
