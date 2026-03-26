@@ -69,21 +69,23 @@ if (vsmFiles.length === 0) {
 const planContent = Read(checkpoint.plan_file)
 const figmaUrls = readFigmaUrls(planContent)
 if (figmaUrls.length === 0) {
-  warn("Design prototype: No Figma URLs — cannot call figma_to_react. Skipping.")
+  warn("Design prototype: No Figma URLs — cannot extract design data. Skipping.")
   updateCheckpoint({ phase: "design_prototype", status: "skipped", skip_reason: "no_figma_urls" })
   return
 }
 
-// 4. Check Figma MCP availability
-let figmaMcpAvailable = false
-try {
-  figma_list_components({ url: figmaUrls[0] })
-  figmaMcpAvailable = true
-} catch (e) {
-  warn("Design prototype: Figma MCP tools unavailable. Skipping.")
+// 4. Check Figma MCP availability (Composition Model)
+// figma_to_react is Rune-only, but we can still build prototypes from VSM if only Framelink available
+const providers = { framelink: false, rune: false }
+try { get_figma_data({ fileKey: parseFigmaUrl(figmaUrls[0]).fileKey, depth: 1 }); providers.framelink = true } catch (e) { /* Framelink unavailable */ }
+try { figma_list_components({ url: figmaUrls[0] }); providers.rune = true } catch (e) { /* Rune unavailable */ }
+
+if (!providers.framelink && !providers.rune) {
+  warn("Design prototype: No Figma MCP providers available. Skipping.")
   updateCheckpoint({ phase: "design_prototype", status: "skipped", skip_reason: "figma_mcp_unavailable" })
   return
 }
+const figmaMcpAvailable = true
 
 // 5. Discover UI builder MCP (UntitledUI, shadcn, etc.)
 // Uses discoverUIBuilder() from design-system-discovery skill
@@ -108,8 +110,9 @@ updateCheckpoint({
   team_name: `arc-prototype-${id}`
 })
 
-// === STEP A: Extract reference JSX via figma_to_react ===
+// === STEP A: Extract reference JSX via figma_to_react (Rune-only, graceful skip) ===
 // For each VSM component, call figma_to_react to get reference React + Tailwind code
+// When Rune MCP unavailable: skip code gen, workers implement from VSM structure directly
 const components = []
 for (const vsmPath of vsmFiles.slice(0, maxComponents)) {
   const vsm = JSON.parse(Read(vsmPath))
@@ -145,7 +148,7 @@ for (const vsmPath of vsmFiles.slice(0, maxComponents)) {
 }
 
 if (components.length === 0) {
-  warn("Design prototype: All figma_to_react calls failed. Skipping.")
+  warn("Design prototype: No reference code generated (Rune MCP unavailable or all figma_to_react calls failed). Workers will implement from VSM structure.")
   // Cleanup team before early return — no workers spawned, use retry-with-backoff
   const EARLY_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
   for (let attempt = 0; attempt < EARLY_CLEANUP_DELAYS.length; attempt++) {
@@ -497,11 +500,12 @@ instance is reused by:
 |-------|----------|
 | `design_sync.enabled` is false | Skip phase — status "skipped" |
 | No VSM files from Phase 3 | Skip phase — nothing to prototype |
-| Figma MCP unavailable | Skip phase — cannot call figma_to_react |
+| No Figma MCP providers available | Skip phase — cannot extract design data |
+| Rune MCP unavailable (Framelink-only) | Skip code gen — workers implement from VSM structure directly |
 | figma_to_react fails for component | Skip that component, continue with others |
-| UI builder MCP unavailable | Proceed without library matching — raw figma-ref prototypes |
+| UI builder MCP unavailable | Proceed without library matching — raw figma-ref or VSM-only prototypes |
 | Circuit breaker (3 builder failures) | Stop matching, use existing matches + raw figma-ref for rest |
-| All figma_to_react calls fail | Skip phase — workers implement without prototypes |
+| All figma_to_react calls fail | Workers implement from VSM structure without reference code |
 | Storybook bootstrap fails | Non-blocking — prototypes still available as files |
 | Agent timeout (>8 min) | Proceed with completed prototypes |
 

@@ -60,12 +60,18 @@ See [worker-trust-hierarchy.md](worker-trust-hierarchy.md) for the full source p
 ```
 1. Read VSM file for the target component
 2. Extract:
-   - Token map (design tokens to use)
-   - Region tree (component structure)
+   - Token map (design tokens to use — including per-side spacing, full borders, margins)
+   - Region tree (component structure — including separators, stacking context, icons)
+   - Icon inventory (icon names, libraries, sizes, color tokens)
    - Variant map (props to implement)
    - Responsive spec (breakpoint behavior)
    - Accessibility requirements
    - Component dependencies (REUSE or EXTEND candidates)
+3. Flag commonly-missed details for explicit verification:
+   - Count separator nodes in Region Tree → these MUST appear in output
+   - Count border entries in Token Map → these MUST be applied
+   - Count icons in Icon Inventory → these MUST use correct names
+   - Check for z-index annotations → stacking context MUST be set up
 ```
 
 ### Step 2: Component Scaffolding
@@ -92,10 +98,20 @@ See [worker-trust-hierarchy.md](worker-trust-hierarchy.md) for the full source p
 For each visual property in the VSM token map:
   Apply the mapped token:
   - Colors → className="bg-{token}" or style={{ color: 'var(--{token})' }}
-  - Spacing → className="p-{n} gap-{n}" or style with CSS custom property
+  - Spacing (MUST be per-side when VSM specifies asymmetric):
+    - Symmetric → className="p-{n} gap-{n}"
+    - Asymmetric → className="pt-{n} pr-{n} pb-{n} pl-{n}"
+    - Margins → className="mb-{n} mt-{n}" (from parent gap or VSM margin entries)
   - Typography → className="text-{size} font-{weight} leading-{n}"
   - Shadows → className="shadow-{level}"
-  - Borders → className="rounded-{size} border-{width}"
+  - Borders (MUST include all of: width + color + style + radius):
+    - All sides → className="border border-{color} rounded-{size}"
+    - Per-side → className="border-b border-{color}" (common for headers, list items)
+    - Width > 1px → className="border-2 border-{color}"
+  - Icons (from Icon Inventory):
+    - Import correct icon: import { {IconName} } from '{library}'
+    - Apply size: className="w-{size} h-{size}" or size={n} prop
+    - Apply color: className="text-{color-token}"
 
 RULE: Never use hardcoded values. Every visual property must reference a token.
 If the VSM flags a value as "unmatched," use the closest token and add a TODO comment.

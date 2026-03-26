@@ -60,7 +60,61 @@ if (designAware) {
 
 ## Design Pipeline Agent (conditional, Phase 0 post-step)
 
-When `design_sync_candidate === true` AND `talisman.design_sync.enabled === true`, spawn a design-pipeline-agent that runs the full design-prototype 3-stage pipeline (extract, match, synthesize) to produce `design-references/` with prototypes, library matches, and UX flow mapping.
+When `design_sync_candidate === true` AND `talisman.design_sync.enabled === true`, spawn a design-pipeline-agent that runs a mandatory element analysis step BEFORE the prototype pipeline.
+
+### MANDATORY: Pre-Implementation Element Analysis
+
+**Before ANY extraction or prototype generation**, the agent MUST use `get_figma_data` (Framelink, preferred) to enumerate all elements in the design. This prevents missing data, elements, or components during implementation.
+
+```
+// Step 0: Deep element analysis via figma-context-mcp (MANDATORY)
+// This runs BEFORE the 3-stage pipeline to establish the complete element inventory.
+// Prefer Framelink because its AI-optimized output captures element relationships
+// that raw Figma API nodes miss (compressed but semantically complete).
+
+const parsedUrl = parseFigmaUrl(figmaUrls[0])
+let elementInventory = null
+
+try {
+  // Framelink preferred — AI-optimized, captures all elements including thin separators
+  const rawData = get_figma_data(fileKey=parsedUrl.fileKey, nodeId=parsedUrl.nodeId)
+  elementInventory = analyzeDesignElements(rawData)
+} catch (e) {
+  // Fallback to Rune MCP
+  try {
+    const rawData = figma_fetch_design(url=figmaUrls[0], depth=5)
+    elementInventory = analyzeDesignElements(rawData)
+  } catch (e2) {
+    warn("Cannot analyze design elements — both Framelink and Rune MCP unavailable")
+  }
+}
+
+function analyzeDesignElements(data):
+  return {
+    total_nodes: countNodes(data),
+    frames: listFrames(data),
+    components: listComponents(data),           // buttons, inputs, cards, etc.
+    icons: listIcons(data),                     // icon instances + small vector groups
+    separators: listSeparators(data),           // LINE + thin RECTANGLE nodes
+    bordered_elements: listBorderedElements(data), // nodes with strokes
+    overlapping_elements: listOverlays(data),    // absolute-positioned nodes (z-index risk)
+    text_nodes: listTextNodes(data),
+    images: listImages(data)
+  }
+
+// Write inventory for pipeline stages
+Write(`${outputDir}/element-inventory.json`, JSON.stringify(elementInventory, null, 2))
+log(`Design analysis complete: ${elementInventory.total_nodes} nodes, ` +
+    `${elementInventory.components.length} components, ${elementInventory.icons.length} icons, ` +
+    `${elementInventory.separators.length} separators, ${elementInventory.bordered_elements.length} bordered, ` +
+    `${elementInventory.overlapping_elements.length} overlays`)
+```
+
+This inventory becomes the verification checklist — after implementation, every separator, border, icon, and overlay in the inventory MUST have a corresponding element in the output.
+
+### Pipeline Stages
+
+After element analysis, runs the design-prototype 3-stage pipeline (extract, match, synthesize) to produce `design-references/` with prototypes, library matches, and UX flow mapping. The element inventory is passed to each stage as context.
 
 Falls back to `figma_list_components`-only inventory when the design-prototype skill is not installed.
 
@@ -115,13 +169,14 @@ if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
 
         ## MCP Tool Availability
         Two Figma MCP namespaces may be available. Try in this order:
-        1. **Rune tools** (preferred): figma_list_components, figma_fetch_design, figma_inspect_node, figma_to_react
-        2. **figma-context-mcp** (fallback): get_figma_data, download_figma_images
+        1. **figma-context-mcp** (Framelink, preferred for data — AI-optimized ~90% compression): get_figma_data, download_figma_images
+        2. **Rune tools** (unique capabilities — deep inspect + code gen): figma_list_components, figma_fetch_design, figma_inspect_node, figma_to_react
 
         **IMPORTANT — MCP namespace verification**: Before calling any MCP tool, verify it exists
-        in your available MCP server list. If figma_list_components is not listed in your available
-        tools, skip to the figma-context-mcp fallback. Do not attempt to call a tool that is not present
-        in your tool list.
+        in your available MCP server list. Use BOTH providers when available (composition model):
+        - Framelink for component listing (get_figma_data with depth=1)
+        - Rune for code generation (figma_to_react) — skip gracefully if unavailable
+        If neither is available, abort the pipeline.
 
         To extract fileKey from the Figma URL for figma-context-mcp tools:
         - Parse: https://www.figma.com/design/{fileKey}/{name}?node-id={nodeId}
@@ -132,12 +187,14 @@ if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
         1. Claim the "Run design prototype pipeline" task via TaskList/TaskUpdate
         2. Create output directory: Bash("mkdir -p ${outputDir}/extractions ${outputDir}/prototypes")
         3. For EACH URL in the Figma URLs list:
-           a. Call figma_list_components(url="{url}") to discover components
+           a. Component listing (prefer Framelink for compressed data):
+              - Try get_figma_data(fileKey, depth=1) first → parse components
+              - If unavailable: fall back to figma_list_components(url="{url}")
            b. Cap to maxComponents (sorted by visual hierarchy)
-           c. For each component: call figma_to_react(nodeId) to get reference JSX + Tailwind
+           c. For each component: call figma_to_react(nodeId) to get reference JSX + Tailwind (Rune-only)
               - On success: write to ${outputDir}/extractions/{safeName}.tsx
-              - On failure: warn, skip this component, continue with others
-           d. If Rune tools fail: fall back to figma-context-mcp for component listing
+              - On failure or Rune unavailable: skip code gen, component still in inventory
+           d. Record which providers were used in output
         4. Write ${outputDir}/tokens-snapshot.json with design token summary
         5. Write ${outputDir}/inventory.json with component list:
            Format: { "components": [{ "name": "...", "node_id": "...", "type": "...", "source_url": "...", "extraction_path": "..." }], "figma_urls": [...], "mcpProvider": "rune|framelink" }
@@ -200,15 +257,14 @@ if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
         Primary URL: ${figmaUrls[0]}
         Output directory: ${outputDir}
 
-        ## MCP Tool Availability
-        Two Figma MCP namespaces may be available. Try in this order:
-        1. **Rune tools** (preferred): figma_list_components, figma_fetch_design, figma_inspect_node
-        2. **figma-context-mcp** (fallback): get_figma_data, download_figma_images
+        ## MCP Tool Availability (Composition Model)
+        Two Figma MCP namespaces may be available. Use BOTH for best results:
+        1. **figma-context-mcp** (Framelink, preferred for data — AI-optimized ~90% compression): get_figma_data, download_figma_images
+        2. **Rune tools** (unique capabilities — deep inspect): figma_list_components, figma_fetch_design, figma_inspect_node
 
         **IMPORTANT — MCP namespace verification**: Before calling any MCP tool, verify it exists
-        in your available MCP server list. If figma_list_components is not listed in your available
-        tools, skip to the figma-context-mcp fallback. Do not attempt to call a tool that is not present
-        in your tool list.
+        in your available MCP server list. Use whichever providers are available — prefer
+        Framelink for component listing (compressed data), Rune for deep node inspection.
 
         To extract fileKey from the Figma URL for figma-context-mcp tools:
         - Parse: https://www.figma.com/design/{fileKey}/{name}?node-id={nodeId}
@@ -219,16 +275,13 @@ if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
         1. Claim the "Run design prototype pipeline" task via TaskList/TaskUpdate
         2. Create output directory: Bash("mkdir -p ${outputDir}")
         3. For EACH URL in the Figma URLs list:
-           a. **Try Rune tools first**: Call figma_list_components(url="{url}")
-              - On success: extract component names, node IDs, and types from result
-              - Record mcpProvider: "rune" in output
-           b. **If Rune tools fail**: fall back to figma-context-mcp:
-              - Extract fileKey from the Figma URL
-              - Call get_figma_data(fileKey="{fileKey}", depth=1)
+           a. **Prefer Framelink** for component listing: get_figma_data(fileKey, depth=1)
               - Parse component names and node IDs from compressed response
-              - Record mcpProvider: "framelink" in output
+           b. **If Framelink unavailable**: fall back to Rune: figma_list_components(url="{url}")
+              - Extract component names, node IDs, and types from result
+           c. Record which providers were used in output
         4. Write component inventory to: ${outputDir}/inventory.json
-           Format: { "components": [{ "name": "...", "node_id": "...", "type": "...", "source_url": "..." }], "figma_urls": [...], "mcpProvider": "rune|framelink" }
+           Format: { "components": [{ "name": "...", "node_id": "...", "type": "...", "source_url": "..." }], "figma_urls": [...], "providers": { "framelink": bool, "rune": bool } }
         5. If BOTH tool namespaces fail for a URL, record:
            { "error": "Figma MCP not available", "figma_url": "{url}" } in components array
         6. Do not write implementation code. Inventory only.

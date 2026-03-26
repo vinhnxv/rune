@@ -2,9 +2,9 @@
 
 ## Analysis Workflow
 
-1. `figma_fetch_design()` (Rune) or `get_figma_data()` (Framelink) — structure overview (fast, cheap)
+1. `get_figma_data()` (Framelink, preferred) or `figma_fetch_design()` (Rune) — structure overview (fast, cheap)
 2. Screenshot + VSM creation (VISUAL-FIRST — before code analysis)
-3. `figma_inspect_node()` (Rune) or `get_figma_data()` (Framelink) + `figma_to_react()` — code extraction (secondary)
+3. `figma_inspect_node()` (Rune-only, graceful skip) + `figma_to_react()` (Rune-only, graceful skip) — deep inspection + code extraction (secondary)
 4. Cross-Verification Gate — PASS/WARN/BLOCK
 5. Document missing elements (Source: "Visual")
 6. Search UI builder MCP for matches

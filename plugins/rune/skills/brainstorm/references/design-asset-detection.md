@@ -57,14 +57,22 @@ if (figmaUrl) {
 
   // Append Design Assets section to brainstorm context
 
-  // Component preview: call figma_list_components when design_sync enabled
+  // Component preview: list components when design_sync enabled (prefer Framelink for compressed data)
   const miscConfig = readTalismanSection("misc") || {}
   const designSyncEnabled = miscConfig.design_sync?.enabled === true
 
   if (designSyncEnabled) {
     try {
       // SSRF defense: figmaUrl already validated by safeFigmaUrls filter above (lines 266-280)
-      const components = mcp__plugin_rune_figma_to_react__figma_list_components({ url: figmaUrl })
+      // Composition: prefer Framelink (compressed), fall back to Rune
+      const parsedUrl = parseFigmaUrl(figmaUrl)
+      let components
+      try {
+        const rawData = mcp__plugin_rune_figma_context__get_figma_data({ fileKey: parsedUrl.fileKey, depth: 1 })
+        components = parseComponentsFromData(rawData)
+      } catch (e) {
+        components = mcp__plugin_rune_figma_to_react__figma_list_components({ url: figmaUrl })
+      }
       const componentNames = (components || []).slice(0, 10).map(c => c.name)
       if (componentNames.length > 0) {
         const totalCount = (components || []).length

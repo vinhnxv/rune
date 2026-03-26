@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.20.0] - 2026-03-26
+
+### Changed
+- **Figma MCP provider composition**: Replaced exclusive cascade (pick one provider) with composition model — probes ALL available providers independently and uses each for its strengths (Framelink for compressed data + images, Rune for deep inspection + code generation)
+- **Provider detection**: `figma_provider: auto` now probes Framelink AND Rune simultaneously, stores `providers` object in state file
+- **Data extraction preference**: Framelink `get_figma_data` preferred for data extraction (~90% compression, better for LLM context) with Rune `figma_fetch_design` as fallback
+- **Graceful degradation**: When only one provider available, pipeline degrades gracefully — Framelink-only skips inspect+codegen, Rune-only works as before
+- **Setup recommendation**: Both Framelink + Rune recommended for optimal results (was: Rune only)
+- **Cross-skill updates**: Composition model applied to design-sync, devise (design-signal-detection), arc (design-extraction, design-prototype), and brainstorm (design-asset-detection)
+
+### Added
+- **VSM spec v1.2**: Enhanced fidelity extraction — icon inventory, full borders (width/color/style, not just radius), per-side spacing (pt/pr/pb/pl + margins), separator/divider detection, stacking context (z-index) annotations
+- **Separator Detection Algorithm**: LINE nodes and thin RECTANGLE (height≤2px) preserved as `<hr>` separator nodes in Region Tree — never skipped or merged
+- **Icon Detection Algorithm**: Extracts icon name, library, size, and color token from Figma INSTANCE and small FRAME/GROUP nodes
+- **Full Border Extraction**: `extractFullBorders()` captures stroke width, color, style, and per-side individual strokes — not just border-radius
+- **Stacking Context Detection**: Absolute-positioned nodes annotated with z-index inferred from Figma layer order; parent nodes annotated with `relative`
+- **Commonly Missed Details Checklist**: Mandatory worker checklist in worker-trust-hierarchy.md — covers borders, dividers, icons, z-index, per-side spacing
+- **Fidelity scoring penalties**: Missing dividers (-8), wrong z-index (-10), missing borders (-5), wrong icons (-5), wrong per-side spacing (-3)
+- **Naming clarity**: All user-facing references to "Framelink" now include "figma-context-mcp" for disambiguation
+
 ## [2.19.0] - 2026-03-26
 
 ### Changed

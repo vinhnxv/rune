@@ -28,6 +28,9 @@ Penalties:
   - Each hardcoded color: -5 points
   - Each off-scale spacing value: -3 points
   - Each arbitrary font-size: -3 points
+  - Each missing border (VSM has border, code doesn't): -5 points
+  - Each wrong per-side spacing (e.g., p-4 when VSM says pt-4 pb-2): -3 points
+  - Each missing margin/gap between siblings: -3 points
 ```
 
 ### Layout Fidelity (20%)
@@ -38,9 +41,12 @@ For each node in VSM region tree:
     - Correct flex/grid direction: +10 per match
     - Correct alignment (justify/items): +5 per match
     - Correct gap value: +5 per match
-    - Correct padding: +5 per match
+    - Correct per-side padding (pt/pr/pb/pl): +5 per match
     - Correct nesting depth: +5 per match
     - Correct sizing (fixed/fill/hug): +5 per match
+    - Separator present (when VSM has separator node): +5 per match
+    - Correct z-index (for absolute nodes): +5 per match
+    - Correct stacking context (relative on parent): +5 per match
 
 score = (matched_checks / total_checks) * 100
 
@@ -48,6 +54,11 @@ Penalties:
   - Wrong flex direction: -15 points (layout completely wrong)
   - Extra nesting level: -5 per level
   - Missing node: -10 per node
+  - Missing separator/divider: -8 per missing (high impact on visual fidelity)
+  - Wrong/missing z-index causing overlap: -10 per instance (blocks interactivity)
+  - Missing border between sections: -5 per missing
+  - Wrong icon name: -5 per icon (visual mismatch)
+  - Missing icon entirely: -8 per missing
 ```
 
 ### Responsive Coverage (15%)

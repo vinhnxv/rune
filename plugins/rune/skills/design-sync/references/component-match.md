@@ -9,22 +9,23 @@ try:
   builderProfile = Read("{workDir}/../builder-profile.yaml")
 catch:
   // No builder — skip Phase 1.3 entirely, proceed to Phase 1.5
-  warn("No UI builder detected. Using figma-to-react reference output (~50-60% component match). To enable enhanced component matching (85-95%), configure a builder MCP — see docs/guides/ui-builder-protocol.en.md")
+  warn("No UI builder detected. Using figma-to-react reference output (~50-60% component match) or VSM-only path. To enable enhanced component matching (85-95%), configure a builder MCP — see docs/guides/ui-builder-protocol.en.md")
   goto Phase1_5
 
 if NOT builderProfile?.capabilities?.search:
   // Builder exists but has no search capability — skip
   goto Phase1_5
 
-// Step 2: Read reference code produced in Phase 1 by figma_to_react()
-// NOTE: figma_to_react() output is REFERENCE CODE (~50-60% match) — NOT implementation.
-// Its purpose here is to extract visual intent for library component searches.
+// Step 2: Read reference code produced in Phase 1 by figma_to_react() (if available)
+// NOTE: figma_to_react() is a Rune MCP-only capability. When only Framelink is available,
+// referenceCode will be null and component matching uses VSM region names/types directly.
 referenceCodePath = "{workDir}/figma-reference.tsx"
 referenceCode = null
 try:
   referenceCode = Read(referenceCodePath)
 catch:
-  // No reference code — fallback to VSM-only queries
+  // No reference code (Rune MCP unavailable or figma_to_react failed)
+  // Fallback: use VSM region names + types as search queries instead
   referenceCode = null
 
 // Step 3: Read VSM files to extract region list
