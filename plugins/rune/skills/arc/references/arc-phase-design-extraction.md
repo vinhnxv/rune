@@ -121,16 +121,18 @@ if (uiBuilderMatch) {
   extractionWorkerContext += `\n\nUI Builder available: ${builderMcp}. Use its search_components() tool to find matching library components for extracted Figma designs. Prefer library matches over raw figma_to_react output.\n`
 }
 
-// === STEP 3: Check Figma MCP Availability ===
-let figmaMcpAvailable = false
-try {
-  figma_list_components({ url: dedupedUrls[0] })
-  figmaMcpAvailable = true
-} catch (e) {
-  warn("Design extraction: Figma MCP tools unavailable. Skipping design extraction. Check .mcp.json configuration.")
+// === STEP 3: Check Figma MCP Availability (Composition Model) ===
+// Probe ALL providers independently — use each for its strengths
+const providers = { framelink: false, rune: false }
+try { get_figma_data({ fileKey: parseFigmaUrl(dedupedUrls[0]).fileKey, depth: 1 }); providers.framelink = true } catch (e) { /* Framelink unavailable */ }
+try { figma_list_components({ url: dedupedUrls[0] }); providers.rune = true } catch (e) { /* Rune unavailable */ }
+
+if (!providers.framelink && !providers.rune) {
+  warn("Design extraction: No Figma MCP providers available. Skipping design extraction. Check .mcp.json configuration.")
   updateCheckpoint({ phase: "design_extraction", status: "skipped", skip_reason: "figma_mcp_unavailable" })
   return
 }
+const figmaMcpAvailable = true
 
 // === FAST PATH: Single-URL (preserves existing behavior exactly) ===
 if (urlCount === 1) {
@@ -146,8 +148,14 @@ if (urlCount === 1) {
     figma_urls: [figmaUrl]
   })
 
-  const figmaData = figma_fetch_design({ url: figmaUrl })
-  const components = figma_list_components({ url: figmaUrl })
+  // Composition: prefer Framelink for data (compressed), Rune as fallback
+  const parsedUrl = parseFigmaUrl(figmaUrl)
+  const figmaData = providers.framelink
+    ? get_figma_data({ fileKey: parsedUrl.fileKey, nodeId: parsedUrl.nodeId })
+    : figma_fetch_design({ url: figmaUrl })
+  const components = providers.framelink
+    ? parseComponentsFromData(get_figma_data({ fileKey: parsedUrl.fileKey, depth: 1 }))
+    : figma_list_components({ url: figmaUrl })
   const maxWorkers = designSyncConfig.max_extraction_workers ?? 2
 
   for (const component of components.slice(0, 20)) {

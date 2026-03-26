@@ -66,15 +66,23 @@ Extracts design specifications from Figma, creates Visual Spec Maps (VSM), coord
 ## Pipeline Overview
 
 ```
-Phase 0: Pre-Flight → Validate URL, check MCP availability, read talisman config
+Phase 0: Pre-Flight → Validate URL, probe ALL providers (composition model), read talisman config
+         Detects: figma-context-mcp/Framelink (data), Rune (inspect+codegen), Desktop — uses each for its strengths
+    |
+Phase 0.8: Element Analysis (MANDATORY) → Deep enumeration of ALL elements via get_figma_data
+           Lists: components, icons, separators, bordered nodes, overlays, text, images
+           This inventory becomes the "nothing missing" verification checklist
     |
 Phase 1: Design Extraction (PLAN) → Fetch Figma data, create VSM files
-         figma_to_react() → REFERENCE CODE (~50-60% match) stored, NOT applied directly
+         Data: figma-context-mcp (Framelink) get_figma_data (preferred, ~90% compression) or Rune figma_fetch_design
+         Inspect: Rune figma_inspect_node (unique — graceful skip when unavailable)
+         Code gen: Rune figma_to_react → REFERENCE CODE (~50-60% match), NOT applied directly
+         Images: figma-context-mcp (Framelink) download_figma_images (unique — optional enrichment)
     |
 Phase 1.5: User Confirmation → Show VSM summary, confirm or edit before implementation
     |
 [Phase 1.3: Component Match — conditional on builderProfile.capabilities.search]
-           → Analyze reference code for component intent
+           → Analyze reference code (or VSM regions if no code gen) for component intent
            → Search UI builder MCP for real library components
            → Enrich VSM with real component matches (~85-95% match path)
            → Propagate match_score + confidence (high/medium/low) per region
@@ -84,6 +92,7 @@ Phase 1.4: Verification Gate → Compare VSM regions vs extraction coverage (PAS
 Phase 2: Implementation (WORK) → Create components from VSM using swarm workers
          With builder: workers receive enriched VSM + real library component code
          Without builder: workers apply figma-to-react reference code directly (fallback)
+         Without code gen: workers implement from VSM structure + tokens (figma-context-mcp-only path)
     |
 Phase 2.5: Design Iteration → Optional screenshot→analyze→fix loop for fidelity
     |
@@ -92,10 +101,16 @@ Phase 3: Fidelity Review (REVIEW) → Score implementation against VSM
 Phase 4: Cleanup → Shutdown workers, persist echoes, report results
 ```
 
+> **Provider Composition**: design-sync probes ALL available Figma MCP providers and uses each
+> for its strengths — figma-context-mcp (Framelink) for compressed data extraction, Rune for deep inspection +
+> code generation, figma-context-mcp for image download. When only one provider is available, it
+> handles all capabilities with graceful degradation for missing ones.
+>
 > **figma-to-react output is REFERENCE CODE** (~50-60% match). When a UI builder MCP is
 > available (`builderProfile !== null`), it is analyzed for visual intent and used as
 > search queries against the real component library — NOT applied to workers directly.
 > When no builder is available, the reference code is used as-is (graceful fallback).
+> When Rune MCP is unavailable (Framelink-only), VSM regions drive component matching directly.
 
 ## Acceptance Criteria Generation from VSM
 
@@ -119,7 +134,7 @@ See [design-proof-types.md](../discipline/references/design-proof-types.md) for 
 
 ## Phase 0: Pre-Flight
 
-Validates talisman config (`design_sync.enabled`), parses arguments and collects Figma URLs (from positional args or `--urls` file), validates URLs with strict/lenient patterns, detects MCP provider (auto-probe cascade: rune → framelink → desktop), checks agent-browser availability, sets up session directories, writes state file with session isolation, reads brand config (`readTalismanSection('brand')`) and injects `brand.colors` as highest-priority token overrides for the token resolution pipeline, and handles `--resume-work`/`--review-only` flags.
+Validates talisman config (`design_sync.enabled`), parses arguments and collects Figma URLs (from positional args or `--urls` file), validates URLs with strict/lenient patterns, probes ALL MCP providers independently (composition model: Framelink + Rune + Desktop — each for its strengths), checks agent-browser availability, sets up session directories, writes state file with session isolation (includes `providers` object), reads brand config (`readTalismanSection('brand')`) and injects `brand.colors` as highest-priority token overrides for the token resolution pipeline, and handles `--resume-work`/`--review-only` flags.
 
 ```javascript
 // Query past design decisions before extraction
@@ -272,10 +287,10 @@ See [phase4-cleanup.md](references/phase4-cleanup.md) for the full cleanup imple
 # talisman.yml
 design_sync:
   enabled: false                         # Master toggle (default: false)
-  figma_provider: auto                   # MCP provider: auto|rune|framelink|desktop (default: auto)
-                                         #   auto      — probe Rune first, then Framelink, then fail
+  figma_provider: auto                   # MCP provider filter: auto|rune|framelink|desktop (default: auto)
+                                         #   auto      — probe ALL providers, compose by capability (recommended)
                                          #   rune      — Rune figma-to-react MCP only (no FIGMA_TOKEN needed)
-                                         #   framelink — figma-context-mcp (Framelink) — read-only, AI-optimized (~90% compression)
+                                         #   framelink — figma-context-mcp (Framelink) only — AI-optimized (~90% compression)
                                          #   desktop   — Figma Desktop bridge (requires Dev Mode Shift+D)
   max_extraction_workers: 2              # Extraction phase workers
   max_implementation_workers: 3          # Implementation phase workers
@@ -327,7 +342,8 @@ All state files follow session isolation rules:
     { "url": "https://www.figma.com/design/xyz789/Components", "status": "pending", "vsm_count": 0 }
   ],
   "parsed_url": { "fileKey": "abc123", "nodeId": "1-3", "type": "design" },
-  "mcp_provider": "rune",
+  "mcp_provider": "framelink",
+  "providers": { "framelink": true, "rune": true, "desktop": false },
   "work_dir": "tmp/design-sync/20260225-120000",
   "components": [],
   "fidelity_scores": {}
@@ -348,12 +364,13 @@ All state files follow session isolation rules:
 
 ### Setup Options (when no provider detected)
 
-1. **Rune MCP** (recommended, no personal token needed): Add to `.mcp.json`:
+1. **Both Framelink + Rune** (recommended, best results): Configure both for provider composition — Framelink for compressed data + images, Rune for deep inspection + code generation
+2. **figma-context-mcp** (Framelink, requires `FIGMA_TOKEN`): Set `FIGMA_TOKEN=figd_...` in env — already configured in `.mcp.json` as `figma-context`. AI-optimized data, ~90% compression.
+3. **Rune MCP** (no personal token needed): Add to `.mcp.json`:
    ```json
    { "mcpServers": { "figma-to-react": { "command": "bash", "args": ["scripts/figma-to-react/start.sh"] } } }
    ```
-2. **figma-context-mcp** (Framelink, requires personal token): Set `FIGMA_TOKEN=figd_...` in env — already configured in `.mcp.json` as `figma-context`
-3. **Desktop MCP**: Open Figma Desktop → Dev Mode (`Shift+D`) → enable MCP bridge in settings
+4. **Desktop MCP**: Open Figma Desktop → Dev Mode (`Shift+D`) → enable MCP bridge in settings
 
 ### Error Response Convention
 

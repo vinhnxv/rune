@@ -7,6 +7,7 @@ The VSM is the intermediate representation between Figma design data and code im
 ```yaml
 vsm_schema_version: "1.0"  # single-URL extraction (original)
 vsm_schema_version: "1.1"  # multi-URL extraction with variant_sources
+vsm_schema_version: "1.2"  # enhanced fidelity: icon inventory, full borders, per-side spacing, separators, stacking context
 ```
 
 All VSM files MUST include the schema version as the first field in the YAML frontmatter.
@@ -153,7 +154,7 @@ relationship_confidence: 0.82     # analyst composite score for the primary pair
 
 ## Section 1: Token Map
 
-Maps every visual property to a design token.
+Maps every visual property to a design token. v1.2 adds per-side spacing, margin, and full border details.
 
 ```markdown
 ## Token Map
@@ -162,39 +163,64 @@ Maps every visual property to a design token.
 |----------|------------|-------------|----------|--------|
 | Background | #FFFFFF | --color-background | bg-white | matched |
 | Text color | #0A0A0A | --color-foreground | text-foreground | matched |
-| Padding | 16px | --spacing-4 | p-4 | matched |
+| Padding-top | 16px | --spacing-4 | pt-4 | matched |
+| Padding-right | 16px | --spacing-4 | pr-4 | matched |
+| Padding-bottom | 8px | --spacing-2 | pb-2 | matched |
+| Padding-left | 16px | --spacing-4 | pl-4 | matched |
 | Gap | 12px | --spacing-3 | gap-3 | matched |
-| Border radius | 8px | --radius-lg | rounded-lg | matched |
+| Margin-bottom | 24px | --spacing-6 | mb-6 | matched |
+| Border-width | 1px | — | border | matched |
+| Border-color | #E5E7EB | --color-border | border-border | matched |
+| Border-style | solid | — | — | default |
+| Border-radius | 8px | --radius-lg | rounded-lg | matched |
+| Border-bottom-width | 1px | — | border-b | matched |
 | Shadow | 0 1px 3px rgba(0,0,0,0.1) | shadow-sm | shadow-sm | matched |
 | Font size | 18px | text-lg | text-lg | matched |
 | Font weight | 600 | font-semibold | font-semibold | matched |
 | Accent color | #7C3AED | — | — | unmatched |
 ```
 
+**v1.2 Token Map rules:**
+- **Per-side spacing**: When padding/margin differs per side, list each side separately (`pt`, `pr`, `pb`, `pl`). When symmetric, use shorthand (`px`, `py` or `p`).
+- **Margin**: Figma has no native margin. Inferred from parent auto-layout gap or absolute positioning offsets. Always include if non-zero.
+- **Full borders**: Always include border-width, border-color, border-style (not just radius). When only specific sides have borders (e.g., bottom divider), use `Border-{side}-width`.
+- **Separator borders**: Thin LINE/RECTANGLE separators between items should appear as `Border-bottom-width: 1px` on the preceding item OR as a dedicated `<hr>` in Region Tree.
+
 Status values:
 - `matched` — exact or snapped token found
 - `unmatched` — no token within snap distance (requires manual mapping)
 - `off-scale` — value not on standard scale (rounded in Tailwind column)
+- `default` — CSS default value (e.g., border-style: solid), no explicit token needed
 
 ## Section 2: Region Tree
 
-Hierarchical decomposition of the component structure.
+Hierarchical decomposition of the component structure. v1.2 adds separator nodes, icon nodes, stacking context annotations, and per-side spacing.
 
 ```markdown
 ## Region Tree
 
-- **CardRoot** — `<article>`, flex-col, gap-3, p-4, rounded-lg, shadow-sm
+- **CardRoot** — `<article>`, flex-col, gap-3, pt-4 pr-4 pb-2 pl-4, rounded-lg, shadow-sm, border border-border
   - **CardImage** — `<img>`, w-full, h-48, object-cover, rounded-t-lg
+  - **Separator** — `<hr>`, border-t border-border ← DIVIDER
   - **CardBody** — `<div>`, flex-col, gap-2
     - **CardTitle** — `<h3>`, text-lg, font-semibold, text-foreground
     - **CardDescription** — `<p>`, text-sm, text-muted-foreground, line-clamp-2
+  - **Separator** — `<hr>`, border-t border-border ← DIVIDER
   - **CardFooter** — `<div>`, flex-row, justify-between, items-center
     - **CardMeta** — `<span>`, text-xs, text-muted
-    - **CardActions** — `<div>`, flex-row, gap-2
+    - **CardActions** — `<div>`, flex-row, gap-2, relative ← STACKING CONTEXT
       - **ActionButton** — `<button>`, variant=ghost, size=sm
+      - **DropdownMenu** — `<div>`, absolute, z-50, top-full, right-0 ← z-index tracked
 ```
 
 Each node specifies: semantic element, layout classes, sizing, and token references.
+
+**v1.2 Region Tree rules:**
+- **Separators**: `LINE` nodes and thin `RECTANGLE` (height≤2px) nodes MUST appear as `**Separator** — <hr>, border-t border-{color}`. NEVER skip or merge into parent.
+- **Stacking context**: Nodes with `position: absolute` MUST include `z-{index}` annotation. Parent MUST include `relative` to establish stacking context.
+- **Per-side spacing**: When padding differs per side, use `pt-4 pr-4 pb-2 pl-4` instead of `p-4`.
+- **Borders**: All nodes with Figma strokes MUST include `border border-{color}` or per-side `border-b border-{color}`.
+- **Icons**: See Icon Inventory section below — icons in Region Tree are annotated with `← ICON: {name}`.
 
 Nodes may optionally include a `Semantic Role` annotation to classify their UI purpose:
 
@@ -446,7 +472,29 @@ Each compound interaction defines:
 
 Keyboard maps follow WAI-ARIA Authoring Practices for the component pattern.
 
-## Section 9: Semantic Component Map (OPTIONAL)
+## Section 9: Icon Inventory (v1.2)
+
+Maps every icon in the design to its name, library, size, and color token. Prevents wrong icon implementation.
+
+```markdown
+## Icon Inventory
+
+| Region | Icon Name | Library | Size | Color Token | Notes |
+|--------|-----------|---------|------|-------------|-------|
+| SearchInput.leadingIcon | Search | lucide | 16px | text-muted-foreground | |
+| DropdownTrigger.trailingIcon | ChevronDown | lucide | 14px | text-foreground | Rotates on open |
+| CloseButton | X | lucide | 16px | text-muted-foreground | |
+| StatusBadge.icon | CheckCircle | lucide | 12px | text-success | |
+| NavItem.icon | Home | lucide | 20px | text-foreground | Active: text-primary |
+```
+
+**Extraction rules:**
+- Icon name is inferred from Figma component name (e.g., `Icons/ChevronDown` → `ChevronDown`)
+- Library is inferred from project dependencies (`lucide-react`, `@heroicons/react`, `react-icons`)
+- If icon name cannot be determined, mark as `unknown` with visual description: `"arrow pointing down, 14px"`
+- Icons inside buttons, inputs, and navigation MUST be captured — these are most commonly wrong
+
+## Section 10: Semantic Component Map (OPTIONAL)
 
 Maps design regions to their semantic UI roles, enabling verification that implementation components match the design's intended purpose. This section is **optional** — omit it when semantic classification has not been performed.
 
@@ -627,4 +675,11 @@ Unmatched nodes are annotated with `[{state_name} only]` in the Region Tree.
 20. Semantic Component Map is OPTIONAL — omit when semantic classification not performed
 21. Each semantic_component_map entry MUST have region, semantic_role, and confidence fields
 22. semantic_component_map[].confidence MUST be in [0.0, 1.0]
+// v1.2-only rules (enhanced fidelity)
+23. Token Map MUST include per-side spacing when padding/margin is asymmetric
+24. Token Map MUST include border-width + border-color for nodes with Figma strokes (NOT just radius)
+25. Region Tree MUST preserve LINE and thin RECTANGLE nodes as Separator — NEVER skip
+26. Region Tree MUST annotate absolute-positioned nodes with z-index
+27. Icon Inventory is REQUIRED when icons are present in the design — NEVER omit
+28. Each Icon Inventory entry MUST have region, icon_name (or "unknown"), size, and color_token
 ```

@@ -87,60 +87,86 @@ Two URL patterns are used depending on context:
 - Step 2 (validate before MCP probing): use `FIGMA_URL_STRICT` — reject invalid URLs early, before API calls
 - MCP tool calls: always validate with `FIGMA_URL_STRICT` first; never pass unvalidated URLs to MCP tools
 
-## Step 3.5: MCP Provider Detection
+## Step 3.5: MCP Provider Detection (Composition Model)
+
+Probes ALL available providers independently — not an exclusive cascade.
+Each provider contributes its unique capabilities. See capability routing in Phase 1.
 
 ```
 figmaProviderOverride = config?.design_sync?.figma_provider ?? "auto"
-mcpProvider = null  // "rune" | "framelink" | "desktop" | null
 
-if figmaProviderOverride === "rune" OR figmaProviderOverride === "auto":
-  // Probe Rune MCP — use figma_fetch_design(depth=1) as cheap availability check
+// --- Probe each provider independently ---
+providers = { framelink: false, rune: false, desktop: false }
+
+if figmaProviderOverride === "auto" OR figmaProviderOverride === "framelink":
+  // Probe Framelink — preferred for data extraction (AI-optimized, ~90% compression)
+  try:
+    get_figma_data(fileKey=parsedUrl.fileKey, depth=1)
+    providers.framelink = true
+  catch:
+    // figma-context-mcp not available
+
+if figmaProviderOverride === "auto" OR figmaProviderOverride === "rune":
+  // Probe Rune MCP — unique capabilities: figma_inspect_node, figma_to_react
   try:
     figma_fetch_design(url=figmaUrl, depth=1)
-    mcpProvider = "rune"
+    providers.rune = true
   catch:
-    // Rune MCP not available — fall through to next provider
+    // Rune MCP not available
 
-if mcpProvider === null AND (figmaProviderOverride === "framelink" OR figmaProviderOverride === "auto"):
-  // Probe figma-context-mcp (Framelink)
-  try:
-    get_figma_data(fileKey=parsedUrl.fileKey, depth=1)
-    mcpProvider = "framelink"
-  catch:
-    // figma-context-mcp not available — fall through
-
-if mcpProvider === null AND figmaProviderOverride === "official":
+if figmaProviderOverride === "official":
   // Soft-deprecation: "official" is no longer a valid provider
   warn('figma_provider: "official" is deprecated in Rune v2.19.0. Use "framelink" or "auto" instead.')
-  // Treat "official" as "framelink" for backward compatibility
   try:
     get_figma_data(fileKey=parsedUrl.fileKey, depth=1)
-    mcpProvider = "framelink"
+    providers.framelink = true
   catch:
-    // figma-context-mcp not available — fall through
+    // figma-context-mcp not available
 
-if mcpProvider === null AND figmaProviderOverride === "desktop":
-  // Probe Desktop MCP bridge directly
+if figmaProviderOverride === "desktop":
   try:
     mcp__figma_desktop__get_selection()
-    mcpProvider = "desktop"
+    providers.desktop = true
   catch:
     // Desktop bridge not available
 
+// --- Determine primary provider (for backward-compat state field) ---
+// Priority: framelink (best data quality) > rune (most tools) > desktop (local)
+const mcpProvider = providers.framelink ? "framelink"
+                  : providers.rune ? "rune"
+                  : providers.desktop ? "desktop"
+                  : null
+
 if mcpProvider === null:
-  // No provider detected — show setup options
   AskUserQuestion(
     "No Figma MCP provider detected. Choose a setup option:\n\n" +
-    "1. **Rune MCP** (recommended): Add to .mcp.json — see scripts/figma-to-react/start.sh\n" +
-    "2. **figma-context-mcp** (Framelink): Set FIGMA_TOKEN env var — already configured in .mcp.json as 'figma-context'\n" +
+    "1. **figma-context-mcp** (Framelink, recommended): Set FIGMA_TOKEN env var — already configured in .mcp.json as 'figma-context'. AI-optimized data, ~90% compression.\n" +
+    "2. **Rune MCP**: Add to .mcp.json — see scripts/figma-to-react/start.sh. Unique: deep inspection + code generation.\n" +
     "3. **Desktop MCP**: Open Figma Desktop → Enable Dev Mode (Shift+D) → enable MCP bridge\n\n" +
+    "**Best setup**: Both Framelink + Rune MCP for optimal results (compressed data + deep inspection + code gen).\n" +
     "After setup, set `design_sync.figma_provider` in talisman.yml to skip auto-detection."
   )
   STOP
 
-stateExtras = { mcp_provider: mcpProvider, parsed_url: parsedUrl }
-figmaMcpAvailable = mcpProvider !== null
+stateExtras = { mcp_provider: mcpProvider, providers: providers, parsed_url: parsedUrl }
+figmaMcpAvailable = true
 ```
+
+### Provider Composition: Capability Routing
+
+When multiple providers are available, each is used for its strengths:
+
+| Capability | Best Provider | Fallback | Graceful Skip? |
+|------------|--------------|----------|----------------|
+| Data extraction (structure, tokens) | figma-context-mcp (Framelink) `get_figma_data` | Rune `figma_fetch_design` | No — at least one required |
+| Component listing | figma-context-mcp (Framelink) `get_figma_data(depth=1)` | Rune `figma_list_components` | No — at least one required |
+| Deep node inspection | Rune `figma_inspect_node` | _(none)_ | Yes — VSM still usable without deep inspection |
+| Reference code generation | Rune `figma_to_react` | _(none)_ | Yes — VSM-only path works |
+| Image download | figma-context-mcp (Framelink) `download_figma_images` | _(none)_ | Yes — optional enrichment |
+
+**When only Rune available**: works exactly as before (backward compatible).
+**When only Framelink available**: data extraction + images, no deep inspect or code gen (graceful degradation).
+**When both available**: best of both worlds — compressed data + deep inspection + code gen + images.
 
 ### MCP Provider Fallback Strategy
 
@@ -178,7 +204,8 @@ Write(stateFile, JSON.stringify({
   figma_urls: figmaUrls,         // full URL array
   url_statuses: figmaUrls.map(url => ({ url, status: "pending", vsm_count: 0 })),
   parsed_url: stateExtras.parsed_url,
-  mcp_provider: stateExtras.mcp_provider,
+  mcp_provider: stateExtras.mcp_provider,      // backward compat: primary provider name
+  providers: stateExtras.providers,              // composition: { framelink, rune, desktop } booleans
   work_dir: workDir,
   config_dir: CHOME,
   owner_pid: "$PPID",

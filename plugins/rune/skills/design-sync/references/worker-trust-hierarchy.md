@@ -92,3 +92,36 @@ For each VSM region:
    - Implement with project design system patterns
    - Reference code is INTENT hint only, not implementation base
 7. ALWAYS: Cross-check result against VSM layout/spacing/token specs
+8. ALWAYS: Run the Commonly Missed Details Checklist below before marking task complete
+
+## Commonly Missed Details Checklist (MANDATORY)
+
+These details are the most frequently missed during design implementation. Workers MUST verify
+each item against the VSM before marking a task complete. Skipping this checklist is a fidelity
+failure — the implementation will look "almost right" but feel wrong.
+
+### Spacing & Layout
+- [ ] **Per-side padding**: Check if VSM specifies different padding per side (e.g., `pt-4 pb-2`). Do NOT use shorthand `p-4` when sides differ.
+- [ ] **Margins between siblings**: Check parent gap value in VSM. Missing gap between items is the #1 spacing error.
+- [ ] **Inner padding on containers**: Cards, sections, and modals almost always have padding. If it looks cramped, you missed padding.
+
+### Borders & Dividers
+- [ ] **Borders on cards/containers**: Check VSM Token Map for `Border-width` and `Border-color`. Most containers have subtle 1px borders.
+- [ ] **Dividers between list items**: Check VSM Region Tree for `Separator` nodes. Missing dividers between items is extremely common.
+- [ ] **Section dividers**: Horizontal rules between header/content/footer sections. Check for `<hr>` or `border-b` in Region Tree.
+- [ ] **Border-bottom on headers**: Navigation and header bars almost always have a bottom border.
+
+### Icons
+- [ ] **Correct icon name**: Check VSM Icon Inventory. Using `ChevronRight` instead of `ChevronDown` is a common mistake.
+- [ ] **Icon size**: Check the `Size` column. Icons are frequently rendered at wrong sizes (16px vs 20px vs 24px).
+- [ ] **Icon color**: Icons should use the color token from VSM, not inherit parent text color when the design specifies differently.
+
+### Stacking & Overlays
+- [ ] **z-index on dropdowns/popovers**: Check VSM Region Tree for `z-{index}` annotations. Dropdowns MUST sit above adjacent content.
+- [ ] **relative on parent**: The parent of any absolutely-positioned element MUST have `position: relative`.
+- [ ] **Overlay order**: In lists, items rendered later in DOM sit visually above earlier items. If a dropdown in row 1 gets covered by row 2, the dropdown needs explicit z-index.
+
+### Common Patterns
+- [ ] **Empty states**: Check VSM States section for required empty/loading/error states.
+- [ ] **Hover/focus states**: Check VSM Micro-Design section for interactive state definitions.
+- [ ] **Truncation**: Long text should use `line-clamp-N` or `truncate` as specified in Region Tree.
