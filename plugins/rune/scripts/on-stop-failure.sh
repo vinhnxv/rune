@@ -1,8 +1,8 @@
 #!/bin/bash
 # scripts/on-stop-failure.sh
-# STOP-FAILURE-001: Handle API errors during arc pipeline execution.
+# STOP-FAILURE-001: Handle API errors during arc pipeline and standalone workflows.
 # Hook event: StopFailure
-# Exit 0: No active arc — allow failure (stdout/stderr discarded by Claude Code)
+# Exit 0: No active workflow — allow failure (stdout/stderr discarded by Claude Code)
 # Exit 2 + stderr: Re-inject recovery prompt (with backoff for rate limits)
 #
 # OPERATIONAL: Fail-forward (crash -> exit 0, allow failure, don't make worse)
@@ -34,8 +34,47 @@ parse_input
 # ── Guard 2: Resolve CWD ──
 resolve_cwd
 
-# ── Guard 3: Check for active arc (state file must exist) ──
+# ── Standalone handler for non-arc workflows ──
+_handle_standalone_stop_failure() {
+  local error_type="$1"
+  local wait_seconds="$2"
+  case "$error_type" in
+    RATE_LIMIT)
+      local has_active=false
+      local sf
+      for sf in $(find "${CWD}/tmp" -maxdepth 1 -name '.rune-*.json' -type f 2>/dev/null); do
+        [[ -L "$sf" ]] && continue
+        local sf_status
+        sf_status=$(jq -r '.status // empty' "$sf" 2>/dev/null || true)
+        [[ "$sf_status" == "active" ]] && has_active=true && break
+      done
+      if [[ "$has_active" == "true" ]]; then
+        printf '[STOP-FAILURE] API rate limit during active Rune workflow. Wait %d seconds then retry.\n' "$wait_seconds" >&2
+        exit 2
+      fi
+      printf '[STOP-FAILURE] API rate limit. Wait and retry your request.\n' >&2
+      exit 0
+      ;;
+    AUTH)
+      printf '[STOP-FAILURE] Authentication error. Check your API key and billing status.\n' >&2
+      exit 0
+      ;;
+    *)
+      printf '[STOP-FAILURE] API error (%s). Retry your request.\n' "$error_type" >&2
+      exit 0
+      ;;
+  esac
+}
+
+# ── Guard 3: Check for active arc OR handle standalone ──
 STATE_FILE="${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"
+if [[ ! -f "$STATE_FILE" ]]; then
+  # No arc state — handle standalone workflows
+  source "${SCRIPT_DIR}/lib/stop-failure-common.sh"
+  classify_stop_failure
+  _handle_standalone_stop_failure "$ERROR_TYPE" "$WAIT_SECONDS"
+  # _handle_standalone_stop_failure exits internally
+fi
 check_state_file "$STATE_FILE"
 
 # ── Guard 4: Reject symlinks on state file ──
