@@ -189,6 +189,20 @@ Bash("mkdir -p {outputDir}")
 Write("{outputDir}/design-context.yaml", designContext)  // Persist for Phase 2/3
 
 maxComponents = flags.components ?? talisman?.design_sync?.max_reference_components ?? 5
+
+// Query past design decisions before prototype generation
+try {
+  const pastDesign = mcp__plugin_rune_echo_search__echo_search({
+    query: `${componentName} design tokens color typography layout`,
+    limit: 3
+  })
+  if (pastDesign.results?.length > 0) {
+    designContext.past_decisions = pastDesign.results.map(r => r.content)
+  }
+} catch (e) {
+  // Non-blocking — echo-search MCP may be unavailable
+  designContext.past_decisions = []
+}
 ```
 
 **Tool call budget (BACK-009)**: Phase 0 costs ~4-6 tool calls total:

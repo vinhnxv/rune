@@ -121,6 +121,22 @@ See [design-proof-types.md](../discipline/references/design-proof-types.md) for 
 
 Validates talisman config (`design_sync.enabled`), parses arguments and collects Figma URLs (from positional args or `--urls` file), validates URLs with strict/lenient patterns, detects MCP provider (auto-probe cascade: rune → official → desktop), checks agent-browser availability, sets up session directories, writes state file with session isolation, reads brand config (`readTalismanSection('brand')`) and injects `brand.colors` as highest-priority token overrides for the token resolution pipeline, and handles `--resume-work`/`--review-only` flags.
 
+```javascript
+// Query past design decisions before extraction
+try {
+  const pastDesign = mcp__plugin_rune_echo_search__echo_search({
+    query: `${componentName} design tokens color typography layout`,
+    limit: 3
+  })
+  if (pastDesign.results?.length > 0) {
+    designContext.past_decisions = pastDesign.results.map(r => r.content)
+  }
+} catch (e) {
+  // Non-blocking — echo-search MCP may be unavailable
+  designContext.past_decisions = []
+}
+```
+
 See [phase0-preflight.md](references/phase0-preflight.md) for the full pre-flight implementation code, URL validation constants, and MCP provider fallback strategy.
 See [figma-url-parser.md](references/figma-url-parser.md) for URL format details.
 
@@ -233,6 +249,18 @@ See [fidelity-scoring.md](references/fidelity-scoring.md) for the scoring algori
 ## Phase 4: Cleanup
 
 Standard 5-component team cleanup: generate completion report → persist echoes → dynamic member discovery with shutdown_request → TeamDelete with retry-with-backoff (4 attempts) → process-level kill + filesystem fallback when TeamDelete fails → update state → report to user.
+
+```bash
+// Persist notable design decisions to echoes
+source "${RUNE_PLUGIN_ROOT}/scripts/lib/echo-append.sh" && rune_echo_append \
+  --role designer --layer inscribed \
+  --source "rune:design-sync" \
+  --title "Design tokens: ${componentName}" \
+  --content "Primary: ${primaryColor}. Typography: ${headingFont}/${bodyFont}. Layout: ${layoutPattern}." \
+  --confidence HIGH \
+  --domain design \
+  --tags "design-tokens,${componentSlug}"
+```
 
 See [phase4-cleanup.md](references/phase4-cleanup.md) for the full cleanup implementation code.
 
