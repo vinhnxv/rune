@@ -244,6 +244,7 @@ PHASE_ORDER=(
   goldmask_correlation mend mend_qa
   verify_mend design_iteration
   test test_qa
+  browser_test browser_test_fix verify_browser_test
   test_coverage_critique deploy_verify pre_ship_validation release_quality_check
   ship bot_review_wait pr_comment_resolution merge
 )
@@ -287,6 +288,9 @@ _phase_ref() {
     verify_mend)              echo "${base}/verify-mend.md" ;;
     design_iteration)         echo "${base}/arc-phase-design-iteration.md" ;;
     test)                     echo "${base}/arc-phase-test.md" ;;
+    browser_test)             echo "${base}/arc-phase-browser-test.md" ;;
+    browser_test_fix)         echo "${base}/arc-phase-browser-test-fix.md" ;;
+    verify_browser_test)      echo "${base}/arc-phase-verify-browser-test.md" ;;
     test_coverage_critique)   echo "${base}/arc-phase-test-coverage-critique.md" ;;
     deploy_verify)            echo "${base}/arc-phase-deploy-verify.md" ;;
     pre_ship_validation)      echo "${base}/arc-phase-pre-ship-validator.md" ;;
@@ -312,6 +316,7 @@ _phase_section_hint() {
     semantic_verification)    echo "Execute Phase 2.8 (Semantic Verification) section ONLY. Do NOT execute Phase 5.6." ;;
     codex_gap_analysis)       echo "Execute Phase 5.6 (Codex Gap Analysis) section ONLY. Do NOT execute Phase 2.8." ;;
     test)                     echo "" ;;
+    browser_test|browser_test_fix|verify_browser_test) echo "" ;;
     test_coverage_critique)   echo "" ;;
     pre_ship_validation)      echo "Execute Phase 8.5 (Pre-Ship Completion Validator) section ONLY. Do NOT execute Phase 8.55 (Release Quality Check)." ;;
     release_quality_check)    echo "Execute Phase 8.55 (Release Quality Check) section ONLY. Do NOT execute Phase 8.5 (Pre-Ship Completion Validator)." ;;
@@ -473,6 +478,7 @@ _phase_weight() {
     gap_analysis|gap_remediation|goldmask_verification|goldmask_correlation) echo 2 ;;
     storybook_verification|ux_verification)  echo 2 ;;
     verify_mend|codex_gap_analysis|test_coverage_critique) echo 2 ;;
+    browser_test|browser_test_fix)           echo 2 ;;
     *)                                       echo 1 ;;
   esac
 }
