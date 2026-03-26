@@ -230,6 +230,23 @@ session_budget:
 
 {Who is affected: end users, developers, operations}
 
+## Design Context (conditional — omit when `designAware !== true`)
+
+{Omit this entire section when `designAware` is not `true`. Non-design features skip this section entirely (zero noise).}
+
+```javascript
+// When brainstormContext.domain exists and designAware === true:
+if (designAware && brainstormContext.domain) {
+  // Emit "## Design Context" section in the plan document
+  // Domain and hints from design-system-profile.yaml (loaded in Phase 0.5)
+  // Past design patterns from echo-search query (loaded in Phase 0.5)
+}
+```
+
+**Domain**: {brainstormContext.domain.name} (confidence: {brainstormContext.domain.confidence})
+**Design hints**: {brainstormContext.domain.design_hints?.summary || "No domain-specific hints"}
+**Past design patterns**: {brainstormContext.design_history?.length > 0 ? "See research/" : "No prior design decisions found"}
+
 ## Frontend Architecture (conditional — omit when no frontend stack detected by stacks)
 
 {Omit this entire section when design_system_library is empty or stacks detects no frontend files.}

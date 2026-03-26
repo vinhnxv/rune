@@ -60,6 +60,28 @@ if (brainstormContext.ui_builder?.builder_skill) {
   loadedSkills.push(brainstormContext.ui_builder.builder_skill)
   // e.g., loads untitledui-mcp skill for conventions and builder protocol knowledge
 }
+
+// After discoverDesignSystem(): Load domain context from profile
+const profile = tryRead(`${sessionCacheDir}/design-system-profile.yaml`)
+const domain = profile?.domain ?? { name: "general", confidence: 0 }
+if (domain.confidence >= 0.70) {
+  brainstormContext.domain = domain
+  brainstormContext.design_hints = domain.design_hints
+}
+
+// Query past design patterns — non-blocking
+// Follows brainstorm/SKILL.md:146 echo query pattern
+try {
+  const designEchoes = mcp__plugin_rune_echo_search__echo_search({
+    query: `${brainstormContext.feature_description} design patterns components layout`,
+    limit: 5
+  })
+  if (designEchoes.results?.length > 0) {
+    brainstormContext.design_history = designEchoes.results
+  }
+} catch (e) {
+  // Non-blocking — echo-search may be unavailable
+}
 ```
 
 ## MCP Integration Discovery (Phase 0, conditional)
