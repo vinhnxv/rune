@@ -80,7 +80,12 @@ AXE_EXIT=0
 # Try running axe via npx with timeout
 # QUAL-302/SEC-002: Use tr for lowercase (Bash 3.2 compatible, replaces ${var,,})
 COMPONENT_NAME_LOWER="$(printf '%s' "$COMPONENT_NAME" | tr '[:upper:]' '[:lower:]')"
-AXE_OUTPUT="$(timeout 60 npx @axe-core/cli --tags "$RULES" --exit "http://localhost:6006/iframe.html?id=${COMPONENT_NAME_LOWER}--default" 2>&1)" || AXE_EXIT=$?
+# Guard: timeout may not be available on macOS without coreutils
+if command -v timeout &>/dev/null; then
+  AXE_OUTPUT="$(timeout 60 npx @axe-core/cli --tags "$RULES" --exit "http://localhost:6006/iframe.html?id=${COMPONENT_NAME_LOWER}--default" 2>&1)" || AXE_EXIT=$?
+else
+  AXE_OUTPUT="$(npx @axe-core/cli --tags "$RULES" --exit "http://localhost:6006/iframe.html?id=${COMPONENT_NAME_LOWER}--default" 2>&1)" || AXE_EXIT=$?
+fi
 
 if [[ $AXE_EXIT -eq 124 ]]; then
   emit_result "INCONCLUSIVE" "axe-core scan timed out (60s)" "F4"

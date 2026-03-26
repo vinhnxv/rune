@@ -91,10 +91,14 @@ for bp in "${breakpoints[@]}"; do
     total_checks=$((total_checks + 1))
 
     # Run agent-browser DOM inspection at this breakpoint
-    if timeout 30 agent-browser inspect \
-      --url "$story_url" \
-      --viewport-width "$bp" \
-      --check "$check" >/dev/null 2>&1; then
+    # Guard: timeout may not be available on macOS without coreutils
+    _inspect_ok=false
+    if command -v timeout &>/dev/null; then
+      timeout 30 agent-browser inspect --url "$story_url" --viewport-width "$bp" --check "$check" >/dev/null 2>&1 && _inspect_ok=true
+    else
+      agent-browser inspect --url "$story_url" --viewport-width "$bp" --check "$check" >/dev/null 2>&1 && _inspect_ok=true
+    fi
+    if [[ "$_inspect_ok" == "true" ]]; then
       passed_count=$((passed_count + 1))
     else
       failures+=("${check}@${bp}px")

@@ -7,9 +7,9 @@ Before creating a new state file, check if one already exists from a previous or
 | F1 | No | — | — | — | **Proceed**: create state file, start arc |
 | F2 | Yes | Same | Yes | Same | **BLOCKED**: already running in this session |
 | F3 | Yes | Same | Yes | Different | **BLOCKED**: running in another session |
-| F4 | Yes | Same | No | — | **Prompt**: resume or fresh start? |
+| F4 | Yes | Same | No | — | **Auto-decide**: resume if checkpoint has completed phases, else fresh start |
 | F5 | Yes | Different | Yes | — | **BLOCKED**: different plan is running |
-| F6 | Yes | Different | No | — | **Prompt**: clean up stale state? |
+| F6 | Yes | Different | No | — | **Auto-fresh**: clean up stale state silently |
 
 > **F2, F3, F5 are hard blocks** — no "proceed anyway" option. The user MUST cancel the existing arc first via `/rune:cancel-arc`.
 
@@ -52,22 +52,35 @@ if (stateExists) {
       )
     }
     if (samePlan && !pidAlive) {
-      // F4: Same plan, owner dead → ask user
-      const choice = AskUserQuestion({
-        question:
-          "Found interrupted arc for the same plan (owner session is dead).\n" +
-          "- **Resume**: continue from where it stopped\n" +
-          "- **Fresh**: delete stale state and start from scratch\n\n" +
-          "Choose: resume / fresh"
-      })
-      if (choice.toLowerCase().includes("resume")) {
-        // Switch to --resume flow
+      // F4: Same plan, owner dead → auto-decide based on checkpoint progress
+      // Check if checkpoint exists and has completed phases
+      const checkpointFiles = Bash(
+        `find "${CWD}/.rune/arc" -maxdepth 2 -name checkpoint.json -not -path "*/archived/*" -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1`
+      ).trim()
+      let completedPhaseCount = 0
+      if (checkpointFiles) {
+        try {
+          const cpContent = Read(checkpointFiles)
+          const cp = JSON.parse(cpContent)
+          // Count phases with status "completed" or "skipped"
+          if (cp.phases) {
+            completedPhaseCount = Object.values(cp.phases)
+              .filter(p => p.status === "completed" || p.status === "skipped").length
+          }
+        } catch (e) { /* corrupted checkpoint → fresh start */ }
+      }
+
+      if (completedPhaseCount > 0) {
+        // Auto-resume: checkpoint has progress worth preserving
+        // Log the decision for transparency (not a blocking prompt)
+        warn(`F4 auto-resume: Found interrupted arc with ${completedPhaseCount} completed/skipped phases. Resuming automatically.`)
         args = args.replace(planFile, "--resume")
         Read("references/arc-resume.md")
         // Execute resume algorithm and return — do not create new state file
         return
       } else {
-        // Clean up stale state file + checkpoint, then proceed
+        // Auto-fresh: no completed phases → nothing to preserve, clean start is better
+        warn("F4 auto-fresh: Interrupted arc has no completed phases. Starting fresh.")
         Bash(`rm -f "${stateFile}"`)
       }
     }
@@ -79,18 +92,11 @@ if (stateExists) {
       )
     }
     if (!samePlan && !pidAlive) {
-      // F6: Different plan, owner dead → ask user
-      const choice = AskUserQuestion({
-        question:
-          `Found stale arc state for a different plan (${statePlanFile}, owner PID ${stateOwnerPid} is dead).\n` +
-          "Clean up stale state and start fresh? (yes / no)"
-      })
-      if (choice.toLowerCase().includes("yes")) {
-        Bash(`rm -f "${stateFile}"`)
-        // Proceed to create new state file
-      } else {
-        throw new Error("Aborted by user. Clean up manually or run `/rune:cancel-arc`.")
-      }
+      // F6: Different plan, owner dead → auto-clean silently
+      // Dead owner + different plan = stale orphan, no reason to keep it
+      warn(`F6 auto-clean: Removing stale arc state for different plan (${statePlanFile}, owner PID ${stateOwnerPid} is dead).`)
+      Bash(`rm -f "${stateFile}"`)
+      // Proceed to create new state file
     }
   }
 }

@@ -223,7 +223,8 @@ inject_echo_summary() {
       [[ "$count" -ge "$max_entries" || "$total_chars" -ge "$max_chars" ]] && break 2
     done < "$mem"
   done
-  eval "$_prev_nullglob"
+  # CLD-SEC-001: Restore nullglob without eval (safe pattern)
+  if [[ "$_prev_nullglob" == *"-s"* ]]; then shopt -s nullglob; else shopt -u nullglob; fi
 
   [[ "$count" -gt 0 ]] && ECHO_SUMMARY="\\n\\n## Echo Learnings (${count} entries)\\n${summary}"
 }

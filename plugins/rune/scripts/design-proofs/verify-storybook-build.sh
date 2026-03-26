@@ -88,7 +88,12 @@ BUILD_EXIT=0
 
 # SEC-001: Execute via word-split array instead of bash -c to prevent injection
 read -ra CMD_ARGS <<< "$COMMAND"
-BUILD_OUTPUT="$(timeout 120 "${CMD_ARGS[@]}" 2>&1)" || BUILD_EXIT=$?
+# Guard: timeout may not be available on macOS without coreutils
+if command -v timeout &>/dev/null; then
+  BUILD_OUTPUT="$(timeout 120 "${CMD_ARGS[@]}" 2>&1)" || BUILD_EXIT=$?
+else
+  BUILD_OUTPUT="$("${CMD_ARGS[@]}" 2>&1)" || BUILD_EXIT=$?
+fi
 
 if [[ $BUILD_EXIT -eq 124 ]]; then
   emit_result "INCONCLUSIVE" "Storybook build timed out (120s)" "F4"

@@ -84,6 +84,8 @@ _gh_list_all_accounts() {
 _gh_test_repo_access() {
   local owner_repo="$1"
   local can_push
+  # FLAW-015 aware: jq '//' treats false as falsy, but here it's safe because
+  # we compare with == "true" (both null and false yield "false" string → correct rejection)
   can_push=$(gh api "repos/${owner_repo}" --jq '.permissions.push // false' 2>/dev/null) || return 1
   [[ "$can_push" == "true" ]]
 }

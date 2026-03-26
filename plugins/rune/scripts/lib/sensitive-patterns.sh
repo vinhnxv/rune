@@ -61,6 +61,8 @@ _SPAT_LIST=(
 
 # Populate associative array if supported (bash 4+)
 # _SPAT_LIST: always available (Bash 3.2+). SENSITIVE_PATTERNS: Bash 4+ only (associative lookup).
+# NOTE: zsh also supports declare -A but with different semantics. The _SPAT_LIST fallback
+# ensures correct behavior regardless of shell version.
 if declare -A _SPAT_TEST 2>/dev/null; then
   for _spat_entry in "${_SPAT_LIST[@]}"; do
     _spat_label="${_spat_entry%%:*}"

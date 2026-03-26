@@ -104,7 +104,8 @@ for dir in "$SIGNAL_BASE"/rune-review-* "$SIGNAL_BASE"/arc-review-* \
     exit 0
   fi
 done
-eval "$_prev_nullglob"
+# CLD-SEC-001: Restore nullglob without eval (safe pattern)
+if [[ "$_prev_nullglob" == *"-s"* ]]; then shopt -s nullglob; else shopt -u nullglob; fi
 
 # No active review/audit team with readonly marker — allow
 exit 0

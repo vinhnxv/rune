@@ -297,7 +297,7 @@ ${ENTRY_CONTENT}
 "
 
 # Atomic append via temp file
-TMPFILE=$(mktemp 2>/dev/null) || { echo "WARN: mktemp failed" >&2; exit 0; }
+TMPFILE=$(mktemp "${TMPDIR:-/tmp}/rune-echo-XXXXXX" 2>/dev/null) || { echo "WARN: mktemp failed" >&2; exit 0; }
 printf '%s\n' "$ENTRY" > "$TMPFILE"
 cat "$TMPFILE" >> "$MEMORY_FILE" 2>/dev/null || { rm -f "$TMPFILE"; exit 0; }
 rm -f "$TMPFILE"

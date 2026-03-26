@@ -199,7 +199,7 @@ Workers following the discipline protocol naturally satisfy this invariant becau
 standard workflow is:
 
 1. Implement the acceptance criterion
-2. Collect evidence (write to `evidence/{task-id}/summary.json`)
+2. Collect evidence (write to `tmp/work/{timestamp}/evidence/{task-id}/summary.json`)
 3. Run self-review (Inner Flame)
 4. Mark task complete (`TaskUpdate`)
 

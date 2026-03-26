@@ -14,24 +14,22 @@ inter-phase cleanup guard, and stale team scan.
 
 ## Branch Strategy (COMMIT-1)
 
-Safety-first branch strategy. NEVER silently creates branches, discards changes, or force-checkouts.
-Always pulls latest before branching. Always asks user before operating on a non-main branch.
+Safety-first branch strategy. NEVER silently discards changes or force-checkouts.
+Pulls latest when on main. Auto-decides branch strategy to avoid blocking the pipeline.
 
-**Core Principle**: The user's uncommitted work is sacred. Rune never discards it.
+**Core Principle**: The user's uncommitted work is sacred. Rune never discards it — but Rune
+also never blocks the pipeline with interactive prompts when the right action is unambiguous.
 
-> **Design Rationale (VEIL-005)**: The 4-case matrix below is deliberate — each combination of
-> (main vs feature branch) × (clean vs dirty working tree) requires distinct user prompts and
-> safety guarantees. Collapsing cases would lose important UX distinctions (e.g., dirty+feature
-> needs both stash and WIP-commit options, while dirty+main only needs stash). The shard branch
-> path adds a 5th case for multi-shard coordination. This complexity is justified by the
-> irreversibility of branch operations on user work.
+> **Design Rationale (VEIL-005 + AUTO-001)**: The 4-case matrix below auto-decides the safest
+> non-destructive action for each combination. Only network/auth failures that require human
+> intervention still prompt the user. Auto-stash and WIP commits are always reversible.
 
 | Current Branch | Working Tree | Action |
 |---|---|---|
 | main/master | Clean | `git pull --ff-only` → create feature branch → proceed |
-| main/master | Dirty | WARN: offer Stash+proceed or Abort |
-| Feature branch | Clean | ASK: Use current / Switch to main / Abort |
-| Feature branch | Dirty | ASK: Stash+switch / Commit WIP+switch / Use current (risky) / Abort |
+| main/master | Dirty | **Auto-stash** → pull → create branch → warn (restore with `git stash pop`) |
+| Feature branch | Clean | **Auto-use current branch** → proceed (no branch switch) |
+| Feature branch | Dirty | **Auto-WIP commit** tracked files → proceed on current branch |
 | Feature branch (shard) | Any | Reuse existing shard branch (`rune/arc-{feature}-shards-*`) or create new one |
 
 ```javascript
@@ -124,19 +122,9 @@ if (!isWorktree && isMainBranch && !isDirty) {
   // Pull latest — ensure we branch from up-to-date code
   const pullResult = Bash(`git pull --ff-only origin "${mainBranch}" 2>&1`).trim()
   if (pullResult.includes("fatal") || pullResult.includes("error")) {
-    // Pull failed — diverged history or network issue
-    const choice = AskUserQuestion({
-      question:
-        `Failed to pull latest from origin/${mainBranch}:\n\`\`\`\n${pullResult}\n\`\`\`\n\n` +
-        "Options:\n" +
-        "1. **Proceed anyway** — branch from current local main (may be outdated)\n" +
-        "2. **Abort** — fix the issue manually first"
-    })
-    if (choice.toLowerCase().includes("abort")) {
-      throw new Error("Aborted by user — fix git pull issue and retry.")
-    }
+    // Pull failed — auto-proceed with local main (warn but don't block)
+    warn(`AUTO-001: git pull failed — proceeding with local ${mainBranch} (may be outdated).\n  ${pullResult}`)
   } else {
-    // Inform user if new commits were pulled
     const commitsPulled = (pullResult.match(/(\d+) files? changed/) || [])[0]
     if (commitsPulled) {
       log(`Pulled latest from origin/${mainBranch}: ${commitsPulled}`)
@@ -148,108 +136,58 @@ if (!isWorktree && isMainBranch && !isDirty) {
 }
 
 // ── CASE 2: On main/master, dirty working tree ──
+// AUTO-001: Auto-stash uncommitted changes, pull latest, create feature branch.
+// Stash is always reversible — user can `git stash pop` after arc completes.
 if (!isWorktree && isMainBranch && isDirty) {
-  const choice = AskUserQuestion({
-    question:
-      `You have ${fileCount} uncommitted change(s) on \`${mainBranch}\`.\n` +
-      "Arc needs a clean main to create a feature branch.\n\n" +
-      "Options:\n" +
-      "1. **Stash & proceed** — `git stash` your changes, pull latest, create branch\n" +
-      "   (restore later with `git stash pop`)\n" +
-      "2. **Abort** — commit or stash your changes manually first"
-  })
-  if (choice.toLowerCase().includes("stash")) {
-    Bash("git stash push -m 'rune-arc: auto-stash before branch creation'")
-    const pullResult = Bash(`git pull --ff-only origin "${mainBranch}" 2>&1`).trim()
-    if (pullResult.includes("fatal") || pullResult.includes("error")) {
-      // Restore stash before aborting
-      Bash("git stash pop 2>/dev/null || true")
-      throw new Error(`Pull failed after stash: ${pullResult}. Your changes were restored.`)
-    }
-    warn("Your changes were stashed. Run `git stash pop` after arc completes to restore them.")
-    const branch = createFeatureBranch(planFile, shardInfo)
+  warn(`AUTO-001: ${fileCount} uncommitted change(s) on ${mainBranch} — auto-stashing before branch creation.`)
+  Bash("git stash push -m 'rune-arc: auto-stash before branch creation'")
+  const pullResult = Bash(`git pull --ff-only origin "${mainBranch}" 2>&1`).trim()
+  if (pullResult.includes("fatal") || pullResult.includes("error")) {
+    // Pull failed — restore stash, proceed on current main with dirty tree
+    Bash("git stash pop 2>/dev/null || true")
+    warn(`AUTO-001: git pull failed after stash — restored changes, proceeding on local ${mainBranch}.\n  ${pullResult}`)
   } else {
-    throw new Error("Aborted by user — handle uncommitted changes and retry.")
+    warn("Your changes were stashed. Run `git stash pop` after arc completes to restore them.")
   }
+  const branch = createFeatureBranch(planFile, shardInfo)
 }
 
 // ── CASE 3: On feature branch, clean working tree ──
+// AUTO-001: Use current feature branch as-is. User intentionally checked out this branch —
+// arc commits directly on it. No branch switch, no pull (feature branch may have diverged from main).
 if (!isWorktree && !isMainBranch && !isDirty) {
-  const choice = AskUserQuestion({
-    question:
-      `You're on branch \`${currentBranch}\`, not \`${mainBranch}\`.\n\n` +
-      "Options:\n" +
-      `1. **Use current branch** — arc will make commits directly on \`${currentBranch}\`\n` +
-      `2. **Switch to main** — checkout \`${mainBranch}\`, pull latest, create a new feature branch\n` +
-      "3. **Abort** — handle branch management yourself first"
-  })
-  if (choice.toLowerCase().includes("current branch") || choice.toLowerCase().includes("use current")) {
-    // Use current branch as-is — no new branch created
-    log(`Using existing branch: ${currentBranch}`)
-    // branch = currentBranch (set for checkpoint)
-  } else if (choice.toLowerCase().includes("switch") || choice.toLowerCase().includes("main")) {
-    Bash(`git checkout "${mainBranch}"`)
-    const pullResult = Bash(`git pull --ff-only origin "${mainBranch}" 2>&1`).trim()
-    if (pullResult.includes("fatal") || pullResult.includes("error")) {
-      warn(`Pull failed: ${pullResult}. Proceeding with local ${mainBranch}.`)
-    }
-    const branch = createFeatureBranch(planFile, shardInfo)
-  } else {
-    throw new Error("Aborted by user.")
-  }
+  log(`AUTO-001: On feature branch ${currentBranch} (clean) — using as-is.`)
+  // branch = currentBranch (set for checkpoint)
 }
 
 // ── CASE 4: On feature branch, dirty working tree ──
+// AUTO-001: Auto-WIP commit tracked files on current branch, then proceed.
+// WIP commit preserves user's work in git history (reversible via `git reset HEAD~1`).
+// SEC-002: Uses `git add -u` (tracked files only) — never stages untracked files
+// that may contain sensitive data (.env, credentials, etc.).
+// Does NOT switch to main — user intentionally checked out this feature branch.
 if (!isWorktree && !isMainBranch && isDirty) {
-  const choice = AskUserQuestion({
-    question:
-      `You're on branch \`${currentBranch}\` with ${fileCount} uncommitted change(s).\n` +
-      "Arc will make commits on this branch — your work could get mixed in.\n\n" +
-      "**Recommended**: Handle your changes first.\n\n" +
-      "Options:\n" +
-      `1. **Stash & switch** — stash changes, checkout \`${mainBranch}\`, pull latest, create new branch\n` +
-      `2. **Commit WIP & switch** — commit tracked files as WIP on \`${currentBranch}\`, checkout \`${mainBranch}\`, pull, create new branch\n` +
-      `   ⚠️ Only tracked files are committed. Untracked files remain in the working tree.\n` +
-      `3. **Use current branch (risky)** — arc commits on \`${currentBranch}\` alongside your uncommitted changes\n` +
-      "4. **Abort** — handle it yourself first"
-  })
-  if (choice.toLowerCase().includes("stash")) {
-    Bash("git stash push -m 'rune-arc: auto-stash before branch switch'")
-    Bash(`git checkout "${mainBranch}"`)
-    const pullResult = Bash(`git pull --ff-only origin "${mainBranch}" 2>&1`).trim()
-    if (pullResult.includes("fatal") || pullResult.includes("error")) {
-      warn(`Pull failed: ${pullResult}. Proceeding with local ${mainBranch}.`)
-    }
-    warn(`Your changes on \`${currentBranch}\` were stashed. Run \`git checkout ${currentBranch} && git stash pop\` to restore them.`)
-    const branch = createFeatureBranch(planFile, shardInfo)
-  } else if (choice.toLowerCase().includes("commit wip") || choice.toLowerCase().includes("wip")) {
-    // SEC-002: Use git add -u (tracked files only) instead of git add -A to avoid
-    // staging untracked files that may contain sensitive data (.env, credentials, etc.)
-    Bash(`git add -u && git commit -m "WIP: auto-committed by rune-arc before branch switch"`)
-    Bash(`git checkout "${mainBranch}"`)
-    const pullResult = Bash(`git pull --ff-only origin "${mainBranch}" 2>&1`).trim()
-    if (pullResult.includes("fatal") || pullResult.includes("error")) {
-      warn(`Pull failed: ${pullResult}. Proceeding with local ${mainBranch}.`)
-    }
-    warn(`Your WIP was committed on \`${currentBranch}\`. You can amend or squash it later.`)
-    const branch = createFeatureBranch(planFile, shardInfo)
-  } else if (choice.toLowerCase().includes("current branch") || choice.toLowerCase().includes("risky")) {
-    warn("Proceeding on dirty branch — your uncommitted changes may be mixed with arc's commits.")
-    // Use current branch as-is
-  } else {
-    throw new Error("Aborted by user.")
-  }
+  warn(`AUTO-001: ${fileCount} uncommitted change(s) on ${currentBranch} — auto-committing WIP.`)
+  Bash(`git add -u && git commit -m "wip: auto-committed by rune-arc (pre-pipeline save)"`)
+  warn(`Your changes were saved as a WIP commit on ${currentBranch}. You can amend or reset later.`)
+  // branch = currentBranch (set for checkpoint)
 }
 ```
 
 **Edge Cases**:
-- `git pull --ff-only` fails (diverged history): warn user, offer proceed-anyway or abort
-- Remote unreachable (offline): pull fails gracefully, offer proceed with local main
+- `git pull --ff-only` fails (diverged history): warn and proceed with local main (AUTO-001 — never blocks)
+- Remote unreachable (offline): pull fails gracefully, proceed with local main
 - Stash fails (nothing to stash, permission error): error propagates to user
 - Shard mode: if sibling shard already created a branch, checkout + pull existing branch (skip creation)
 - Multiple shard branches for same feature: use most recent (sort by creator date)
 - Branch was force-deleted between shard runs: create new branch
-- User selects "Commit WIP": uses `git add -u` (tracked files only) to avoid staging untracked sensitive files (.env, credentials). Untracked files remain in the working tree.
+- Auto-WIP commit (Case 4): uses `git add -u` (tracked files only) to avoid staging untracked sensitive files (.env, credentials). Untracked files remain in the working tree.
+- Auto-stash restore fail (Case 2): if `git stash pop` fails after pull error, changes are still in stash list (`git stash list`)
+
+**AUTO-001 Design Principle**: Arc never blocks the pipeline with interactive prompts when the
+right action is unambiguous. All auto-decisions are reversible (stash pop, reset HEAD~1, etc.).
+Only hard blocks (F2/F3/F5 in arc-state-conflict.md) require user action — these represent
+truly dangerous concurrent operations that cannot be auto-resolved safely.
 
 ## Concurrent Arc Prevention
 

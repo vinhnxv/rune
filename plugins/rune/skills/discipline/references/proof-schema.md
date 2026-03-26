@@ -288,7 +288,7 @@ like INCONCLUSIVE, but instead halt the convergence loop.
 │  └──────────────┬─────────────────┘                      │
 │                 │                                        │
 │  Output: { criterion_id, result, evidence, timestamp }   │
-│  Persisted to: evidence/{task_id}/{criterion_id}.json    │
+│  Persisted to: tmp/work/{timestamp}/evidence/{task_id}/{criterion_id}.json │
 └─────────────────────────────────────────────────────────┘
 ```
 
