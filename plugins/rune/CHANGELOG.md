@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.21.0] - 2026-03-27
+
+### Added
+- **Browser test convergence loop**: 3 new arc phases (7.7.5 `browser_test`, 7.7.6 `browser_test_fix`, 7.7.7 `verify_browser_test`) — automated browser E2E test → fix → verify cycle with convergence detection, mirroring the existing review→mend→verify_mend pattern
+- **`--no-browser-test` flag**: Skip the browser test loop independently of `--no-test`
+- **Talisman config**: `testing.browser_test` section with `enabled`, `max_cycles`, `max_routes`, `auto_start_server`, `fix_timeout` keys
+- **Arc phase timeouts**: `browser_test` (15 min), `browser_test_fix` (15 min), `verify_browser_test` (4 min) configurable via `arc.timeouts`
+- **Convergence state**: `browser_test_convergence` checkpoint object with round tracking, max cycles (3), and per-round history
+- **Conditional activation**: Browser test loop only runs when frontend files in diff + `agent-browser` CLI available + `testing.tiers.e2e.enabled !== false`
+- **Zero-progress detection**: Halts convergence loop when fix round makes no progress (EC-1 pattern)
+- **Resume compatibility**: Schema migration adds browser test phases to old checkpoints on `--resume`
+
+### Changed
+- **Arc pipeline phase count**: 40 → 43 phases (all docs, guides, READMEs updated)
+- **PHASE_ORDER**: Inserted `browser_test`, `browser_test_fix`, `verify_browser_test` after `test_qa`
+- **Crash recovery layers**: `PHASE_PREFIX_MAP` and `ARC_TEAM_PREFIXES` include `arc-browser-test-` and `arc-browser-fix-` prefixes
+- **Stop hook dispatch**: `_phase_ref()`, `_phase_section_hint()`, `_phase_weight()` handle new browser test phases
+
 ## [2.20.0] - 2026-03-26
 
 ### Changed

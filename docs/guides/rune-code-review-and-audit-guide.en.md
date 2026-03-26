@@ -277,7 +277,7 @@ This runs Claude and OpenAI Codex reviewers in parallel, cross-verifies findings
 
 ### Full cycle in arc
 
-`/rune:arc` runs review → mend → verify-mend automatically as part of its 40-phase pipeline. Use standalone appraise/mend when you want targeted review without the full pipeline.
+`/rune:arc` runs review → mend → verify-mend automatically as part of its 43-phase pipeline. Use standalone appraise/mend when you want targeted review without the full pipeline.
 
 ---
 

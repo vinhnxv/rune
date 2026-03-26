@@ -60,7 +60,7 @@ Hướng dẫn liên quan:
 | `/rune:audit` | Audit toàn bộ codebase | `--focus`, `--incremental`, `--deep`, `--dry-run` |
 | `/rune:mend` | Sửa finding từ TOME | `--all`, `--max-fixers` |
 | `/rune:inspect` | Audit độ khớp giữa plan và implementation | `--focus`, `--mode plan`, `--fix`, `--dry-run` |
-| `/rune:arc` | Pipeline đầy đủ từ plan tới ship/merge | `--resume`, `--no-forge`, `--approve`, `--no-pr`, `--no-merge` |
+| `/rune:arc` | Pipeline đầy đủ từ plan tới ship/merge | `--resume`, `--no-forge`, `--approve`, `--no-pr`, `--no-merge`, `--no-browser-test` |
 
 ---
 

@@ -196,6 +196,9 @@ See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integratio
 | `arc.timeouts.mend` | number | `1380000` | Phase 7: Mend (23 min) |
 | `arc.timeouts.verify_mend` | number | `240000` | Phase 7.5: Verify mend (4 min) |
 | `arc.timeouts.test` | number | `900000` | Phase 7.7: Test (15 min) |
+| `arc.timeouts.browser_test` | number | `900000` | Phase 7.7.5: Browser E2E test (15 min) |
+| `arc.timeouts.browser_test_fix` | number | `900000` | Phase 7.7.6: Browser test fix (15 min) |
+| `arc.timeouts.verify_browser_test` | number | `240000` | Phase 7.7.7: Verify browser test (4 min) |
 | `arc.timeouts.ship` | number | `300000` | Phase 9: Ship (5 min) |
 | `arc.timeouts.merge` | number | `600000` | Phase 9.5: Merge (10 min) |
 | `arc.timeouts.design_extraction` | number | `300000` | Phase 3: Design extraction (5 min) |
@@ -357,6 +360,11 @@ See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integratio
 | `testing.tiers.integration.enabled` | boolean | `true` | Run integration tests |
 | `testing.tiers.integration.timeout_ms` | number | `300000` | Integration timeout |
 | `testing.tiers.e2e.enabled` | boolean | `true` | Run E2E tests |
+| `testing.browser_test.enabled` | boolean | `true` | Master switch for browser test convergence loop (Arc Phase 7.7.5-7.7.7) |
+| `testing.browser_test.max_cycles` | number | `3` | Max test→fix→verify iterations before halting |
+| `testing.browser_test.max_routes` | number | `5` | Max routes per browser test run |
+| `testing.browser_test.auto_start_server` | boolean | `true` | Try to start dev server if not running |
+| `testing.browser_test.fix_timeout` | number | `900000` | Timeout per fix round in milliseconds (15 min) |
 
 ### `inner_flame` — Self-Review Protocol
 
@@ -750,6 +758,9 @@ Per-phase timeout values in milliseconds. Values are clamped to 10s–3600s rang
 | `code_review` | number | 900000 | Phase 6: Code review (15 min) |
 | `mend` | number | 1380000 | Phase 7: Mend (23 min) |
 | `verify_mend` | number | 240000 | Phase 7.5: Verify mend (4 min) |
+| `browser_test` | number | 900000 | Phase 7.7.5: Browser E2E test (15 min, v2.19.0+) |
+| `browser_test_fix` | number | 900000 | Phase 7.7.6: Browser test fix (15 min, v2.19.0+) |
+| `verify_browser_test` | number | 240000 | Phase 7.7.7: Verify browser test (4 min, v2.19.0+) |
 <!-- v1.67.0: audit/audit_mend/audit_verify removed (unified into Phase 6 --deep) -->
 | `ship` | number | 300000 | Phase 9: PR creation (5 min, v1.40.0+) |
 | `merge` | number | 600000 | Phase 9.5: Merge (10 min, v1.40.0+) |
