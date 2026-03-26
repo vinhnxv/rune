@@ -7,17 +7,18 @@ description: |
   design-extraction, design-prototype, design-verification, design-iteration, work,
   gap-analysis, codex-gap-analysis, gap-remediation, goldmask-verification,
   code-review, goldmask-correlation, mend, verify-mend, test,
+  browser-test, browser-test-fix, verify-browser-test,
   pre-ship-validation, bot-review-wait, pr-comment-resolution, ship, merge).
   Use when checkpoint resume is needed after a crash or session end.
-  40-phase pipeline with convergence loops, Goldmask risk analysis,
+  43-phase pipeline with convergence loops, Goldmask risk analysis,
   pre-ship validation, bot review integration, cross-model verification,
   and conditional design sync (Figma VSM extraction, prototype generation, fidelity verification, iteration).
   Keywords: arc, pipeline, --resume, checkpoint, convergence, forge, mend,
-  bot review, PR comments, ship, merge, design sync, Figma, VSM, 40 phases.
+  bot review, PR comments, ship, merge, design sync, Figma, VSM, 43 phases.
 
   <example>
   user: "/rune:arc plans/feat-user-auth-plan.md"
-  assistant: "The Tarnished begins the arc — 40 phases of forge, review, design sync, goldmask, test, mend, convergence, pre-ship validation, bot review, ship, and merge..."
+  assistant: "The Tarnished begins the arc — 43 phases of forge, review, design sync, goldmask, test, browser test convergence, mend, convergence, pre-ship validation, bot review, ship, and merge..."
   </example>
 
   <example>
@@ -51,7 +52,7 @@ allowed-tools:
 
 Chains forty phases into a single automated pipeline. Each phase runs as its own Claude Code turn with fresh context — the `arc-phase-stop-hook.sh` drives phase iteration via the Stop hook pattern. Artifact-based handoff connects phases. Checkpoint state enables resume after failure.
 
-**Context budget advisory**: Full arc run: 40 phases x ~3.5min avg = ~140 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. The `PreCompact` hook saves checkpoint state automatically.
+**Context budget advisory**: Full arc run: 43 phases x ~3.5min avg = ~140 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. The `PreCompact` hook saves checkpoint state automatically.
 
 **Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `codex-cli`, `team-sdk`, `testing`, `agent-browser`, `polling-guard`, `zsh-compat`, `design-sync`
 
@@ -103,6 +104,9 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | 7.3 | `verify_mend` | Inline | 4 min | — |
 | 7.4 | `design_iteration` | Team | 15 min | Conditional: design fidelity |
 | 7.7 | `test` | Team | 25-50 min | Testing agents |
+| 7.7.5 | `browser_test` | Team | 15 min | Conditional: frontend + agent-browser |
+| 7.7.6 | `browser_test_fix` | Team | 15 min | Conditional: browser_test failures |
+| 7.7.7 | `verify_browser_test` | Inline | 4 min | Convergence controller |
 | 7.8 | `test_coverage_critique` | Team | 15 min | Codex (conditional) |
 | 7.9 | `deploy_verify` | Team | 5 min | Conditional: deployment verification |
 | 8.5 | `pre_ship_validation` | Inline | 6 min | — |
@@ -143,6 +147,7 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | `--no-pr` | Skip Phase 9 (PR creation) | Off |
 | `--no-merge` | Skip Phase 9.5 (auto merge) | Off |
 | `--no-test` | Skip Phase 7.7 (testing) | Off |
+| `--no-browser-test` | Skip Phase 7.7.5-7.7.7 (browser test convergence loop) | Off |
 | `--draft` | Create PR as draft | Off |
 | `--accept-external` | Accept external changes (bug fixes, audit commits) on branch without prompting | **On** |
 | `--no-accept-external` | Prompt user when unrelated changes are detected on branch | Off |
