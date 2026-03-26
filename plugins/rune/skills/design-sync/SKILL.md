@@ -119,7 +119,7 @@ See [design-proof-types.md](../discipline/references/design-proof-types.md) for 
 
 ## Phase 0: Pre-Flight
 
-Validates talisman config (`design_sync.enabled`), parses arguments and collects Figma URLs (from positional args or `--urls` file), validates URLs with strict/lenient patterns, detects MCP provider (auto-probe cascade: rune → official → desktop), checks agent-browser availability, sets up session directories, writes state file with session isolation, reads brand config (`readTalismanSection('brand')`) and injects `brand.colors` as highest-priority token overrides for the token resolution pipeline, and handles `--resume-work`/`--review-only` flags.
+Validates talisman config (`design_sync.enabled`), parses arguments and collects Figma URLs (from positional args or `--urls` file), validates URLs with strict/lenient patterns, detects MCP provider (auto-probe cascade: rune → framelink → desktop), checks agent-browser availability, sets up session directories, writes state file with session isolation, reads brand config (`readTalismanSection('brand')`) and injects `brand.colors` as highest-priority token overrides for the token resolution pipeline, and handles `--resume-work`/`--review-only` flags.
 
 ```javascript
 // Query past design decisions before extraction
@@ -272,11 +272,11 @@ See [phase4-cleanup.md](references/phase4-cleanup.md) for the full cleanup imple
 # talisman.yml
 design_sync:
   enabled: false                         # Master toggle (default: false)
-  figma_provider: auto                   # MCP provider: auto|rune|official|desktop (default: auto)
-                                         #   auto     — probe Rune first, then Official, then fail
-                                         #   rune     — Rune figma-to-react MCP only (no FIGMA_TOKEN needed)
-                                         #   official — Official Figma MCP only (requires FIGMA_TOKEN)
-                                         #   desktop  — Figma Desktop bridge (requires Dev Mode Shift+D)
+  figma_provider: auto                   # MCP provider: auto|rune|framelink|desktop (default: auto)
+                                         #   auto      — probe Rune first, then Framelink, then fail
+                                         #   rune      — Rune figma-to-react MCP only (no FIGMA_TOKEN needed)
+                                         #   framelink — figma-context-mcp (Framelink) — read-only, AI-optimized (~90% compression)
+                                         #   desktop   — Figma Desktop bridge (requires Dev Mode Shift+D)
   max_extraction_workers: 2              # Extraction phase workers
   max_implementation_workers: 3          # Implementation phase workers
   max_iteration_workers: 2              # Iteration phase workers
@@ -338,9 +338,9 @@ All state files follow session isolation rules:
 
 ### MCP Provider Errors
 
-| Error | Rune MCP | Official MCP | Desktop MCP |
-|-------|----------|--------------|-------------|
-| Provider not detected | `figma_fetch_design` probe failed — check `.mcp.json` for Rune server entry | `mcp__plugin_figma_figma__get_metadata` probe failed — check `FIGMA_TOKEN` env var | `mcp__figma_desktop__get_selection` probe failed — Open Figma Desktop → Enable Dev Mode (Shift+D) |
+| Error | Rune MCP | Framelink (figma-context-mcp) | Desktop MCP |
+|-------|----------|-------------------------------|-------------|
+| Provider not detected | `figma_fetch_design` probe failed — check `.mcp.json` for Rune server entry | `get_figma_data` probe failed — check `FIGMA_TOKEN` env var | `mcp__figma_desktop__get_selection` probe failed — Open Figma Desktop → Enable Dev Mode (Shift+D) |
 | Auth failure | Rune MCP uses bundled token — check `scripts/figma-to-react/start.sh` config | `FIGMA_TOKEN` invalid or expired — regenerate at figma.com/settings | Desktop bridge requires active Figma Desktop session |
 | File not found | File key invalid or not accessible to configured account | Same | Same — file must be open in Desktop |
 | Rate limit | Rune MCP handles internally | Figma REST API rate-limited (429) — retry after delay | N/A (local IPC) |
@@ -352,7 +352,7 @@ All state files follow session isolation rules:
    ```json
    { "mcpServers": { "figma-to-react": { "command": "bash", "args": ["scripts/figma-to-react/start.sh"] } } }
    ```
-2. **Official Figma MCP** (requires personal token): Set `FIGMA_TOKEN=figd_...` in env, configure official MCP server
+2. **figma-context-mcp** (Framelink, requires personal token): Set `FIGMA_TOKEN=figd_...` in env — already configured in `.mcp.json` as `figma-context`
 3. **Desktop MCP**: Open Figma Desktop → Dev Mode (`Shift+D`) → enable MCP bridge in settings
 
 ### Error Response Convention

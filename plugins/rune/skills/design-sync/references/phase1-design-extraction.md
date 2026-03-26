@@ -96,17 +96,17 @@ See [design-token-mapping.md](design-token-mapping.md) for detailed snapping alg
 
 The design-sync skill supports two MCP providers. The provider is determined from the workflow state file (`mcpProvider` field). Default is `rune` when field is absent.
 
-| Rune MCP Tool | Official MCP Equivalent | Notes |
-|---------------|------------------------|-------|
-| `figma_fetch_design(url)` | `mcp__plugin_figma_figma__get_design_context(fileKey, nodeId)` | Official returns structured context; Rune returns IR node tree |
-| `figma_list_components(url)` | `mcp__plugin_figma_figma__get_metadata(fileKey)` | Official returns XML — needs parsing; Rune returns JSON component inventory |
-| `figma_inspect_node(url)` | `mcp__plugin_figma_figma__get_code_connect_map(fileKey, nodeIds)` | `nodeIds` is array of colon-separated IDs (e.g. `["1:3"]`) |
-| _(no equivalent)_ | `mcp__plugin_figma_figma__get_variable_defs(fileKey)` | Bonus: retrieves named design tokens (colors, spacing, typography as variables) |
+| Rune MCP Tool | Framelink Equivalent | Notes |
+|---------------|---------------------|-------|
+| `figma_fetch_design(url)` | `get_figma_data(fileKey, nodeId?)` | Framelink returns AI-optimized compressed data (~90% smaller); Rune returns IR node tree |
+| `figma_list_components(url)` | `get_figma_data(fileKey, depth=1)` | Parse components from compressed response structure |
+| `figma_inspect_node(url)` | _(no equivalent)_ | Falls back to Rune primary; Framelink lacks per-node inspection |
+| _(no equivalent)_ | `download_figma_images(fileKey, nodes, format?)` | Download rendered images of specific nodes |
 
 **Key differences:**
-- Official MCP uses `fileKey` + `nodeId` as separate parameters (not full URLs)
-- Official `nodeId` format: colon-separated `"1:3"` (same as Figma internal format)
-- Rune tools accept full Figma URLs; use [figma-url-parser.md](figma-url-parser.md) `convertToOfficialParams()` to convert
+- Framelink uses `fileKey` + `nodeId` as separate parameters (not full URLs)
+- Framelink `nodeId` format: colon-separated `"1:3"` (same as Figma internal format)
+- Rune tools accept full Figma URLs; Framelink uses the same `fileKey`/`nodeId` params from [figma-url-parser.md](figma-url-parser.md)
 
 ### Extraction Algorithm with Provider Branching
 
@@ -117,38 +117,29 @@ mcpProvider = state.mcpProvider ?? "rune"
 function fetchDesign(parsedUrl):
   if mcpProvider == "rune":
     return figma_fetch_design(url=parsedUrl.original_url, depth=3)
-  else:  // "official"
-    params = convertToOfficialParams(parsedUrl)
-    return mcp__plugin_figma_figma__get_design_context(
-      fileKey=params.fileKey,
-      nodeId=params.nodeId
+  else:  // "framelink"
+    return get_figma_data(
+      fileKey=parsedUrl.file_key,
+      nodeId=parsedUrl.node_id  // Already colon-separated from parser
     )
 
 function listComponents(parsedUrl):
   if mcpProvider == "rune":
     return figma_list_components(url=parsedUrl.original_url)
-  else:  // "official"
-    params = convertToOfficialParams(parsedUrl)
-    rawXml = mcp__plugin_figma_figma__get_metadata(fileKey=params.fileKey)
-    return parseComponentsFromXml(rawXml)  // Extract name/node_id from XML tree
+  else:  // "framelink"
+    rawData = get_figma_data(fileKey=parsedUrl.file_key, depth=1)
+    return parseComponentsFromData(rawData)  // Extract components from compressed response
 
 function inspectNode(parsedUrl):
   if mcpProvider == "rune":
     return figma_inspect_node(url=parsedUrl.original_url)
-  else:  // "official"
-    params = convertToOfficialParams(parsedUrl)
-    return mcp__plugin_figma_figma__get_code_connect_map(
-      fileKey=params.fileKey,
-      nodeIds=[params.nodeId]  // Colon-separated format: "1:3"
-    )
+  else:  // "framelink" — no equivalent, fall back to Rune primary
+    return null
 
 function fetchDesignTokens(parsedUrl):
-  // Only available via Official MCP — Rune has no equivalent
-  if mcpProvider == "official":
-    params = convertToOfficialParams(parsedUrl)
-    return mcp__plugin_figma_figma__get_variable_defs(fileKey=params.fileKey)
-  else:
-    return null  // Fall back to token extraction from design tree
+  // Neither Rune nor Framelink has a dedicated token endpoint
+  // Fall back to token extraction from design tree (universal fallback)
+  return null
 ```
 
 ## Error Handling

@@ -116,17 +116,17 @@ if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
         ## MCP Tool Availability
         Two Figma MCP namespaces may be available. Try in this order:
         1. **Rune tools** (preferred): figma_list_components, figma_fetch_design, figma_inspect_node, figma_to_react
-        2. **Official Figma MCP** (fallback): mcp__plugin_figma_figma__get_metadata, mcp__plugin_figma_figma__get_design_context
+        2. **figma-context-mcp** (fallback): get_figma_data, download_figma_images
 
         **IMPORTANT — MCP namespace verification**: Before calling any MCP tool, verify it exists
         in your available MCP server list. If figma_list_components is not listed in your available
-        tools, skip to the Official MCP fallback. Do not attempt to call a tool that is not present
+        tools, skip to the figma-context-mcp fallback. Do not attempt to call a tool that is not present
         in your tool list.
 
-        To extract fileKey from the Figma URL for Official MCP tools:
+        To extract fileKey from the Figma URL for figma-context-mcp tools:
         - Parse: https://www.figma.com/design/{fileKey}/{name}?node-id={nodeId}
         - fileKey is the alphanumeric segment after /design/ or /file/
-        - nodeId in URL uses hyphens ("1-3"); Official MCP needs colons ("1:3")
+        - nodeId in URL uses hyphens ("1-3"); figma-context-mcp needs colons ("1:3")
 
         ## Stage 1: Extract (REQUIRED — abort pipeline only if this fails entirely)
         1. Claim the "Run design prototype pipeline" task via TaskList/TaskUpdate
@@ -137,10 +137,10 @@ if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
            c. For each component: call figma_to_react(nodeId) to get reference JSX + Tailwind
               - On success: write to ${outputDir}/extractions/{safeName}.tsx
               - On failure: warn, skip this component, continue with others
-           d. If Rune tools fail: fall back to Official MCP for component listing
+           d. If Rune tools fail: fall back to figma-context-mcp for component listing
         4. Write ${outputDir}/tokens-snapshot.json with design token summary
         5. Write ${outputDir}/inventory.json with component list:
-           Format: { "components": [{ "name": "...", "node_id": "...", "type": "...", "source_url": "...", "extraction_path": "..." }], "figma_urls": [...], "mcpProvider": "rune|official" }
+           Format: { "components": [{ "name": "...", "node_id": "...", "type": "...", "source_url": "...", "extraction_path": "..." }], "figma_urls": [...], "mcpProvider": "rune|framelink" }
 
         If ALL extractions fail for ALL URLs → write inventory.json with error entries,
         skip Stages 2-3, proceed to Stage 1 output finalization, then mark task complete.
@@ -203,17 +203,17 @@ if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
         ## MCP Tool Availability
         Two Figma MCP namespaces may be available. Try in this order:
         1. **Rune tools** (preferred): figma_list_components, figma_fetch_design, figma_inspect_node
-        2. **Official Figma MCP** (fallback): mcp__plugin_figma_figma__get_metadata, mcp__plugin_figma_figma__get_design_context
+        2. **figma-context-mcp** (fallback): get_figma_data, download_figma_images
 
         **IMPORTANT — MCP namespace verification**: Before calling any MCP tool, verify it exists
         in your available MCP server list. If figma_list_components is not listed in your available
-        tools, skip to the Official MCP fallback. Do not attempt to call a tool that is not present
+        tools, skip to the figma-context-mcp fallback. Do not attempt to call a tool that is not present
         in your tool list.
 
-        To extract fileKey from the Figma URL for Official MCP tools:
+        To extract fileKey from the Figma URL for figma-context-mcp tools:
         - Parse: https://www.figma.com/design/{fileKey}/{name}?node-id={nodeId}
         - fileKey is the alphanumeric segment after /design/ or /file/
-        - nodeId in URL uses hyphens ("1-3"); Official MCP needs colons ("1:3")
+        - nodeId in URL uses hyphens ("1-3"); figma-context-mcp needs colons ("1:3")
 
         ## Lifecycle
         1. Claim the "Run design prototype pipeline" task via TaskList/TaskUpdate
@@ -222,13 +222,13 @@ if (design_sync_candidate && designSyncEnabled && figmaUrls.length > 0) {
            a. **Try Rune tools first**: Call figma_list_components(url="{url}")
               - On success: extract component names, node IDs, and types from result
               - Record mcpProvider: "rune" in output
-           b. **If Rune tools fail**: fall back to Official MCP:
+           b. **If Rune tools fail**: fall back to figma-context-mcp:
               - Extract fileKey from the Figma URL
-              - Call mcp__plugin_figma_figma__get_metadata(fileKey="{fileKey}")
-              - Parse component names and node IDs from XML response
-              - Record mcpProvider: "official" in output
+              - Call get_figma_data(fileKey="{fileKey}", depth=1)
+              - Parse component names and node IDs from compressed response
+              - Record mcpProvider: "framelink" in output
         4. Write component inventory to: ${outputDir}/inventory.json
-           Format: { "components": [{ "name": "...", "node_id": "...", "type": "...", "source_url": "..." }], "figma_urls": [...], "mcpProvider": "rune|official" }
+           Format: { "components": [{ "name": "...", "node_id": "...", "type": "...", "source_url": "..." }], "figma_urls": [...], "mcpProvider": "rune|framelink" }
         5. If BOTH tool namespaces fail for a URL, record:
            { "error": "Figma MCP not available", "figma_url": "{url}" } in components array
         6. Do not write implementation code. Inventory only.

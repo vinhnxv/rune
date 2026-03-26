@@ -88,7 +88,7 @@ Each region in the element inventory MUST have a Source column:
 
 | Source | Meaning |
 |--------|---------|
-| Code | Extracted from `get_design_context()` or `figma_to_react()` |
+| Code | Extracted from `figma_inspect_node()` / `get_figma_data()` or `figma_to_react()` |
 | Visual | Identified from screenshot VSM analysis only |
 | Both | Confirmed by both code extraction and visual analysis |
 | Manual | Added by user during WARN/BLOCK resolution |
