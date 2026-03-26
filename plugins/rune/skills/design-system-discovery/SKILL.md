@@ -60,6 +60,16 @@ Resolves the project's design token format (Tailwind v4 theme, v3 config, Style 
 
 See [signal-aggregation.md](references/signal-aggregation.md) for the full Phase 4 (Token System Resolution) and Phase 5 (Variant System Resolution) pseudocode.
 
+### Phase 5.5: Domain Inference
+
+Infers the project's business domain (e-commerce, saas, fintech, healthcare, creative, education, content, or general) from 4 signal sources: file/directory keywords (0.4), route patterns (0.3), package dependencies (0.2), and README content (0.1).
+
+Uses a proportional confidence formula: `confidence = sum(matched_weights) / sum(all_weights)`. At least 3 signal sources must agree for confidence >= 0.70. Below that threshold, domain falls back to "general".
+
+Gated by `talisman.yml` → `devise.design_system_discovery.domain_inference.enabled` (default: true). Manual override via `domain_inference.override` bypasses inference entirely.
+
+See [domain-inference.md](references/domain-inference.md) for the full algorithm pseudocode, domain registry (8 domains), signal maps (DOMAIN_KEYWORD_MAP, DOMAIN_ROUTE_MAP, DOMAIN_DEP_MAP), worked examples, and edge cases.
+
 ### Phase 6: Component Inventory
 
 ```
@@ -139,6 +149,11 @@ tailwind:
   version: "4"                 # "4" | "3" | null
   config_type: css             # js | ts | css | null
   plugins: []                  # e.g., ["@tailwindcss/typography", "tailwindcss-animate"]
+
+domain:
+  inferred: "e-commerce"         # Business domain: e-commerce | saas | fintech | healthcare | creative | education | content | general
+  confidence: 0.90               # 0.0–1.0 — proportional weighted formula (NOT library detection formula)
+  source: "inferred"             # "inferred" | "talisman_override" | "disabled" | "low_confidence"
 
 path_alias: "@"                # "@" | null
 evidence_files:
@@ -255,3 +270,4 @@ stack_awareness:
 - [design-sync](../design-sync/SKILL.md) — Figma design synchronization workflow
 - [strive](../strive/SKILL.md) — Worker prompt injection for component constraints
 - [untitledui-mcp](../untitledui-mcp/SKILL.md) — Built-in UntitledUI builder skill with `builder-protocol` frontmatter (detected by `discoverUIBuilder()`)
+- [domain-inference.md](references/domain-inference.md) — Domain inference algorithm, signal maps, and worked examples

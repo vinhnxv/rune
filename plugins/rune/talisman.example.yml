@@ -485,6 +485,12 @@ devise:
                                  # Set false to skip entirely (e.g., backend-only projects)
     confidence_threshold: 0.5   # Minimum confidence (0.0–1.0) to inject profile into context (default: 0.5)
                                  # Profiles below this threshold are generated but not injected
+    domain_inference:
+      enabled: true              # Run inferProjectDomain() during Phase 5.5 (default: true)
+                                 # Set false to skip domain inference (domain will be "general")
+      # override: "e-commerce"   # Manual domain override — bypasses inference entirely (default: null)
+                                 # Valid values: e-commerce, saas, fintech, healthcare, creative, education, content, general
+                                 # Use when inference is wrong or for monorepos with a known primary domain
 
 # ──────────────────────────────────────────────
 # Inspect — Plan-vs-implementation audit (v1.50.0+)

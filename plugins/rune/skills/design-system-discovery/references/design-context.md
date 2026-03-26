@@ -245,6 +245,13 @@ design_context:
     matches_figma: true             # Does builder match Figma-detected framework?
     confidence: 0.90                # 0.50-0.95
 
+  # Domain inference (from Phase 5.5 of discoverDesignSystem)
+  # Populated from design-system-profile.yaml in sessionCacheDir
+  domain:
+    inferred: "e-commerce"          # Business domain key from registry
+    confidence: 0.90                # 0.0–1.0 proportional weighted formula
+    source: "inferred"              # "inferred" | "talisman_override" | "disabled" | "low_confidence"
+
   # Brand overrides (optional — from talisman brand section)
   brand:
     enabled: false                  # Whether brand config is populated
