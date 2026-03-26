@@ -203,8 +203,25 @@ From VSM accessibility requirements:
    (fallback to VSM-guided Tailwind implementation per worker-trust-hierarchy.md)
 ```
 
+## Domain Hints (Conditional Suffix)
+
+When `designContext.domain` is present with confidence >= 0.70 and domain is not "general",
+append domain-specific design hints to the worker prompt. Domain hints are the **lowest trust
+level** — they never override Figma specs, VSM tokens, or library patterns.
+
+```
+// Appended AFTER Step 8 checklist, BEFORE worker begins implementation
+IF designContext.domain AND designContext.domain.confidence >= 0.70
+   AND designContext.domain.inferred !== "general":
+  domainGuide = Read("frontend-design-patterns/references/domain-design-guide.md",
+                     section=designContext.domain.inferred)
+  workerPrompt += "\n\n## Domain Context: {designContext.domain.inferred}\n{domainGuide}"
+  // ~50-100 words of additive hints — UX priorities and anti-patterns for this domain
+```
+
 ## Cross-References
 
 - [component-reuse-strategy.md](../../frontend-design-patterns/references/component-reuse-strategy.md) — REUSE > EXTEND > CREATE
 - [layout-alignment.md](../../frontend-design-patterns/references/layout-alignment.md) — Flex/Grid patterns
 - [vsm-spec.md](vsm-spec.md) — VSM schema
+- [domain-design-guide.md](../../frontend-design-patterns/references/domain-design-guide.md) — Per-domain design recommendations

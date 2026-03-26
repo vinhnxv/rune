@@ -55,6 +55,15 @@ See [variant-mapping.md](references/variant-mapping.md) for the Figma variant-to
 
 ## Layer 2: Implementation Patterns
 
+### Domain Context Injection
+
+When `designContext.domain` is available with confidence >= 0.70 and domain is not "general",
+domain-specific design hints are injected as the lowest-trust layer of implementation guidance.
+These hints cover color palette conventions, typography hierarchy, layout patterns, UX priorities,
+and anti-patterns specific to the detected business domain.
+
+See [domain-design-guide.md](references/domain-design-guide.md) for per-domain recommendations (8 domains) and the trust hierarchy.
+
 ### Component Reuse Strategy
 
 Follow the REUSE > EXTEND > CREATE decision tree to minimize duplication and maintain consistency.
@@ -124,3 +133,4 @@ See [storybook-patterns.md](references/storybook-patterns.md) for CSF3 format an
 - [typography-pairing.md](references/typography-pairing.md) — Proven heading/body font combinations
 - [visual-region-analysis.md](references/visual-region-analysis.md) — Screenshot-to-structure analysis
 - [variant-mapping.md](references/variant-mapping.md) — Figma variant-to-prop mapping
+- [domain-design-guide.md](references/domain-design-guide.md) — Per-domain design recommendations

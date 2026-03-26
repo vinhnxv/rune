@@ -309,9 +309,26 @@ for component in components:
     Write("{outputDir}/prototypes/{component.name}/prototype.stories.tsx", storyCode)
 ```
 
+### Domain Hints (Conditional)
+
+When `designContext.domain` is present with confidence >= 0.70 and domain is not "general",
+inject domain-specific hints into the synthesis prompt as the lowest-trust context layer:
+
+```
+IF designContext.domain AND designContext.domain.confidence >= 0.70
+   AND designContext.domain.inferred !== "general":
+  domainGuide = Read("frontend-design-patterns/references/domain-design-guide.md",
+                     section=designContext.domain.inferred)
+  synthesisContext += "\n\n## Domain Context: {designContext.domain.inferred}\n{domainGuide}"
+```
+
+Domain hints inform UX priorities and anti-patterns but never override Figma specs, VSM tokens,
+or library adapter output.
+
 See [prototype-conventions.md](references/prototype-conventions.md) for synthesis rules, library-specific import patterns, and adapter-aware conventions.
 See [library-adapters.md](../design-system-discovery/references/library-adapters.md) for adapter registry and `selectAdapter()`.
 See [semantic-ir.md](../design-system-discovery/references/semantic-ir.md) for `SemanticComponent` interface and `extractSemanticIR()`.
+See [domain-design-guide.md](../frontend-design-patterns/references/domain-design-guide.md) for per-domain design recommendations.
 
 ## Phase 3.5: UX Flow Mapping
 
