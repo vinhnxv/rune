@@ -345,7 +345,25 @@ On resume, validate checkpoint integrity before proceeding:
      checkpoint.schema_version = 27
    }
    ```
-// NOTE: Step 3r runs after all schema migrations complete (steps 3a–3aa). Step 3p was skipped in the original numbering.
+3ab. Browser test phases migration (field-existence check, no schema version bump):
+   ```javascript
+   // Step 3ab: Add browser test phases if missing (backward compat — no version bump needed)
+   // Old checkpoints from pre-browser-test arcs won't have these fields.
+   // Default "pending" — the dispatcher will evaluate gate conditions at runtime.
+   if (!checkpoint.phases.browser_test) {
+     checkpoint.phases.browser_test = { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, routes_tested: 0, routes_passed: 0, routes_failed: 0 }
+     checkpoint.phases.browser_test_fix = { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, fixed_count: null }
+     checkpoint.phases.verify_browser_test = { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null }
+   }
+   if (!checkpoint.browser_test_convergence) {
+     checkpoint.browser_test_convergence = { round: 0, max_cycles: 3, history: [] }
+   }
+   // Add no_browser_test to flags if missing
+   if (checkpoint.flags && checkpoint.flags.no_browser_test === undefined) {
+     checkpoint.flags.no_browser_test = false
+   }
+   ```
+// NOTE: Step 3r runs after all schema migrations complete (steps 3a–3ab). Step 3p was skipped in the original numbering.
 3r. Resume freshness re-check:
    a. Read plan file from checkpoint.plan_file
    b. Extract git_sha from plan frontmatter (use optional chaining: `extractYamlFrontmatter(planContent)?.git_sha` — returns null on parse error if plan was manually edited between sessions)
