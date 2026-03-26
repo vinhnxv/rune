@@ -286,6 +286,13 @@ When the `codex` CLI is installed, Rune adds Codex Oracle as a built-in Ash (rev
 </details>
 
 <details>
+<summary>Design Workflow</summary>
+
+Rune includes domain-aware design intelligence: automatic project domain inference (ecommerce, saas, healthcare, fintech, media, social, education, productivity), industry-weighted UX scoring, and domain-specific design recommendations. The design system discovery pipeline (`discoverDesignSystem()`) detects installed component libraries, token systems, and project domain to provide contextual design guidance during planning and review. See reference files: [domain-inference.md](skills/design-system-discovery/references/domain-inference.md), [domain-design-guide.md](skills/frontend-design-patterns/references/domain-design-guide.md), [industry-weights.md](skills/ux-design-process/references/industry-weights.md).
+
+</details>
+
+<details>
 <summary>Discipline Engineering</summary>
 
 Rune implements proof-based orchestration ensuring specification compliance. Plans with YAML acceptance criteria (`AC-*` blocks) activate the Discipline Work Loop — an 8-phase convergence cycle. See [Discipline Engineering](../../docs/discipline-engineering.md).
