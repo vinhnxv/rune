@@ -9,6 +9,7 @@
 - **CLAUDE.md**: Added `figma-context` to MCP Servers table
 - **Soft deprecation**: `figma_provider: "official"` logs deprecation warning and falls back to framelink
 - **Removed**: `convertToOfficialParams()` helper, all `mcp__plugin_figma_figma__*` tool references
+- **CLAUDE.md**: Updated `figma-context` description from "Fallback provider" to "Primary alternative provider" with cascade docs; added `get_figma_data`/`download_figma_images` to Hot/Cold tools table
 
 ## [2.18.1] - 2026-03-26
 
