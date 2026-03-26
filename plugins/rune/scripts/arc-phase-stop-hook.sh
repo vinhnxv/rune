@@ -1426,7 +1426,7 @@ if [[ "$NEXT_PHASE" == "test" ]]; then
             _ckpt_tmp=$(mktemp "${_cb_cp_path}.XXXXXX" 2>/dev/null) || _ckpt_tmp=""
             if [[ -n "$_ckpt_tmp" ]]; then
               _now_ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
-              if jq --arg ts "$_now_ts" '.phases.test.status = "completed" | .phases.test.completed_at = $ts | .phases.test.force_advanced = true' "$_cb_cp_path" > "$_ckpt_tmp" 2>/dev/null; then
+              if jq --arg ts "$_now_ts" '.phases.test.status = "completed" | .phases.test.completed_at = $ts | .phases.test.force_advanced = true | .api_error_retries = 0' "$_cb_cp_path" > "$_ckpt_tmp" 2>/dev/null; then
                 mv -f "$_ckpt_tmp" "$_cb_cp_path" 2>/dev/null || rm -f "$_ckpt_tmp" 2>/dev/null
               else
                 rm -f "$_ckpt_tmp" 2>/dev/null
@@ -1595,7 +1595,8 @@ Writing a JSON state file is NOT a substitute for TeamCreate. The enforce-teams.
      checkpoint.totals = checkpoint.totals ?? { phase_times: {}, total_duration_ms: null, cost_at_completion: null }
      const phaseDuration = completionTs - startMs
      checkpoint.totals.phase_times["${NEXT_PHASE}"] = Number.isFinite(phaseDuration) && phaseDuration >= 0 ? phaseDuration : null
-5. When done, update the checkpoint: set phases.${NEXT_PHASE}.status to \"completed\" (or \"skipped\" if the phase gate check says to skip).
+     checkpoint.api_error_retries = 0
+5. When done, update the checkpoint: set phases.${NEXT_PHASE}.status to \"completed\" (or \"skipped\" if the phase gate check says to skip). Also reset api_error_retries to 0.
 6. Write the updated checkpoint back to ${CHECKPOINT_PATH}.
 7. STOP responding immediately after updating the checkpoint.
 
