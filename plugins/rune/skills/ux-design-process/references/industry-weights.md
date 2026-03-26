@@ -185,7 +185,7 @@ All tables sum to 100. The "general" domain matches the existing default weights
 
 ## Integration
 
-- **Domain detection**: Uses `inferProjectDomain()` from [domain-inference algorithm](../../../references/domain-inference.md)
+- **Domain detection**: Uses `inferProjectDomain()` from [domain-inference.md](../../design-system-discovery/references/domain-inference.md)
 - **Confidence threshold**: Domain weights apply when confidence >= 0.70; otherwise falls back to "general"
 - **Manual override**: `ux.industry` in talisman.yml takes precedence over auto-detection
 - **Scope**: Industry weights affect ONLY UXH (heuristic) scoring. UXF, UXI, and UXC scoring is domain-independent

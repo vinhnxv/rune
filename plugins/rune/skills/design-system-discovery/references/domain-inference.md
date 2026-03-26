@@ -170,10 +170,10 @@ sources contribute proportionally. The formula yields intuitive results:
 **Threshold**: confidence >= 0.70 → domain used for downstream recommendations.
 confidence < 0.70 → domain set to "general" (safe fallback).
 
-**Minimum agreement**: At least 3 signal sources must agree for confidence >= 0.70.
-This is a structural property of the weights: the highest 2 weights sum to 0.7,
-but that requires keywords (0.4) + routes (0.3) — the two strongest. In practice,
-3/4 agreement is needed for a reliable inference.
+**Minimum agreement**: The proportional formula naturally requires 3+ signal categories
+to match for confidence >= 0.70 (2 signals max: 0.4+0.3=0.70 which equals the threshold;
+3 signals: 0.4+0.3+0.2=0.90 which exceeds it). The boundary case (exactly 0.70 with 2
+signals) is accepted as valid. In practice, 3/4 agreement is the reliable threshold.
 
 ## Worked Examples
 
@@ -488,7 +488,7 @@ Keyword and dependency scans work identically for mobile projects.
 ```yaml
 # Added to design-system-profile.yaml by Phase 5.5
 domain:
-  inferred: "e-commerce"          # Domain key from registry
+  name: "e-commerce"               # Domain key from registry
   confidence: 0.90                # 0.0–1.0
   source: "inferred"              # "inferred" | "talisman_override" | "disabled" | "low_confidence"
   signal_breakdown:
