@@ -4,7 +4,7 @@ Use this page to quickly find the right Rune docs.
 
 ## What Is This?
 
-Rune is a multi-agent engineering orchestration plugin for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). It coordinates 142 specialized AI agents across planning, implementation, code review, testing, and deployment — each with its own dedicated context window.
+Rune is a multi-agent engineering orchestration plugin for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). It coordinates 144 specialized AI agents across planning, implementation, code review, testing, and deployment — each with its own dedicated context window.
 
 ## Why This Exists
 

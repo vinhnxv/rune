@@ -7,16 +7,16 @@
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Supported-7F4DFF)](https://docs.anthropic.com/en/docs/claude-code)
-[![Version](https://img.shields.io/badge/version-2.13.0-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-2.18.0-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-142-purple)](#agents)
+[![Agents](https://img.shields.io/badge/agents-144-purple)](#agents)
 [![Skills](https://img.shields.io/badge/skills-59-orange)](#skills)
 
 ---
 
 ## What Is This?
 
-Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 142 specialized AI agents, 59 skills, and a 40-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
+Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 144 specialized AI agents, 59 skills, and a 40-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
 
 **Compatibility:** Requires **Claude Code 2.1.81+** with Agent Teams support. macOS 12+ or Linux. See [full requirements](#requirements).
 
@@ -349,7 +349,7 @@ Compares a plan against its implementation across 10 quality dimensions:
 
 ## Agents
 
-**142 specialized agents** across 8 categories:
+**144 specialized agents** across 8 categories:
 
 ### Review Agents (50)
 
@@ -440,11 +440,12 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Activation Pathfinder | Maps activation path for new code (migrations, config, deployment) |
 | Wiring Cartographer | Maps integration points where new code connects to existing system |
 
-### Work Agents (7)
+### Work Agents (8)
 
 | Agent | Purpose |
 |-------|---------|
 | Rune Smith | TDD-driven code implementation |
+| Proto Worker | Design prototype synthesis from Figma references |
 | Trial Forger | Test generation following project patterns |
 | Design Sync Agent | Figma extraction and Visual Spec Map creation |
 | Design Iterator | Iterative design refinement (screenshot-analyze-fix loop) |
@@ -490,7 +491,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Extended Test Runner | Extended-tier test execution with checkpoint/resume protocol |
 | Contract Validator | API contract validation (request/response schemas) |
 
-### QA Agents (7)
+### QA Agents (8)
 
 | Agent | Purpose |
 |-------|---------|
@@ -501,6 +502,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Mend QA Verifier | Verifies mend resolution report and per-finding status |
 | Test QA Verifier | Verifies test phase SEAL markers and tier coverage |
 | Work QA Verifier | Verifies work phase delegation manifests and task completeness |
+| Design QA Verifier | Verifies design verification phase report and criteria matrix |
 
 ### Meta-QA Agents (8)
 
@@ -519,7 +521,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 ## Skills
 
-58 skills providing background knowledge, workflow orchestration, and tool integration:
+59 skills providing background knowledge, workflow orchestration, and tool integration:
 
 | Skill | Type | Purpose |
 |-------|------|---------|
@@ -581,6 +583,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `discipline` | Quality | Proof-based orchestration discipline for spec compliance |
 | `post-findings` | Workflow | Post review findings to GitHub PR as formatted comment |
 | `self-audit` | Quality | Meta-QA self-audit of Rune's own plugin infrastructure |
+| `arc-quick` | Workflow | Quick 3-phase pipeline: plan → work → review |
 
 ---
 
@@ -751,17 +754,17 @@ rune/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
         │   └── plugin.json       # Plugin manifest (v1.128.0)
-        ├── agents/               # 99 core agent definitions
+        ├── agents/               # 101 core agent definitions
         │   ├── review/           #   15 review agents
         │   ├── investigation/    #   30 investigation agents
         │   ├── utility/          #   16 utility agents
         │   ├── research/         #    7 research agents
-        │   ├── work/             #    3 work agents
-        │   ├── qa/               #    7 QA agents
+        │   ├── work/             #    5 work agents
+        │   ├── qa/               #    8 QA agents
         │   └── meta-qa/          #    8 meta-QA agents
         ├── registry/             # 43 extended agents
-        ├── skills/               # 58 skills
-        ├── commands/             # 15 slash commands
+        ├── skills/               # 59 skills
+        ├── commands/             # 16 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json
         ├── scripts/              # Hook & utility scripts (244 .sh/.py files)
