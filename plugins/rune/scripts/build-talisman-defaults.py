@@ -95,6 +95,8 @@ def _inject_commented_defaults(data: dict[str, Any]) -> None:
     _inject_work_defaults(data)
     _inject_remaining_section_defaults(data)
     _inject_reactions_defaults(data)
+    _inject_devise_defaults(data)
+    _inject_ux_defaults(data)
 
 
 def _inject_toplevel_defaults(data: dict[str, Any]) -> None:
@@ -483,6 +485,26 @@ def _inject_reactions_defaults(data: dict[str, Any]) -> None:
                 "max_wait_ms": 300000,
             },
         }
+
+
+def _inject_ux_defaults(data: dict[str, Any]) -> None:
+    """Inject ux sub-key defaults for UX verification config."""
+    ux = data.get("ux", {})
+    ux.setdefault("industry", None)
+    data["ux"] = ux
+
+
+def _inject_devise_defaults(data: dict[str, Any]) -> None:
+    """Inject devise sub-key defaults for domain inference."""
+    devise = data.get("devise", {})
+    dsd = devise.get("design_system_discovery", {})
+    if "domain_inference" not in dsd:
+        dsd["domain_inference"] = {
+            "enabled": True,
+            "override": None,
+        }
+    devise["design_system_discovery"] = dsd
+    data["devise"] = devise
 
 
 if __name__ == "__main__":

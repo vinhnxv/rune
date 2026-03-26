@@ -485,6 +485,12 @@ devise:
                                  # Set false to skip entirely (e.g., backend-only projects)
     confidence_threshold: 0.5   # Minimum confidence (0.0–1.0) to inject profile into context (default: 0.5)
                                  # Profiles below this threshold are generated but not injected
+    domain_inference:
+      enabled: true              # Run inferProjectDomain() during Phase 5.5 (default: true)
+                                 # Set false to skip domain inference (domain will be "general")
+      # override: "e-commerce"   # Manual domain override — bypasses inference entirely (default: null)
+                                 # Valid values: e-commerce, saas, fintech, healthcare, creative, education, content, general
+                                 # Use when inference is wrong or for monorepos with a known primary domain
 
 # ──────────────────────────────────────────────
 # Inspect — Plan-vs-implementation audit (v1.50.0+)
@@ -2014,6 +2020,9 @@ context_weaving:
 #   enabled: false                             # Master switch — must be true for Phase 5.3 to run (default: false)
 #   blocking: false                            # When true, P1 UX findings halt the pipeline (default: false, non-blocking)
 #   cognitive_walkthrough: false               # Enable cognitive walker agent for cognitive load analysis (default: false)
+#   industry: null                             # Manual domain override for UXH scoring weights (default: null = auto-detect)
+#                                              # Values: general, e-commerce, saas, fintech, healthcare, creative, education, content
+#                                              # When null, uses inferProjectDomain() with confidence >= 0.70 threshold
 #   agents:                                    # Agent selection (all enabled when ux.enabled is true)
 #     - ux-heuristic-reviewer                  # Nielsen heuristics evaluation (UXH- prefix)
 #     - ux-flow-validator                      # User flow integrity checks (UXF- prefix)

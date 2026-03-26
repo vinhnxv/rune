@@ -113,34 +113,26 @@ For each heuristic category (H1-H10):
 Category score = 10 * (1 - weighted_fails / weighted_total)
 Overall UXH score = weighted average across categories
 
-Weights per category (with rationale):
-  H1 (Visibility):       15%  # Users abandon apps that feel unresponsive — loading/progress feedback
-                               # is the #1 driver of perceived performance and trust.
-  H2 (Real world):        5%  # Important for internationalized apps but rarely a blocker.
-                               # Increase to 10-15% for multilingual or domain-specific apps.
-  H3 (User control):     15%  # Undo, cancel, and escape paths prevent user frustration and data loss.
-                               # Core to error recovery — tied with H9 for impact on user confidence.
-  H4 (Consistency):      10%  # Inconsistency creates cognitive overhead but rarely blocks task completion.
-                               # Increase to 15% for design-system-first projects or large teams.
-  H5 (Error prevention): 15%  # Preventing errors is cheaper than recovering from them (NN Group research).
-                               # Forms-heavy apps (checkout, onboarding) should weight this highest.
-  H6 (Recognition):      10%  # Visible labels and contextual help reduce learning curve.
-                               # Increase to 15% for complex enterprise tools with many features.
-  H7 (Flexibility):       5%  # Expert accelerators matter long-term but aren't critical for initial UX.
-                               # Increase to 10-15% for power-user tools (IDEs, admin dashboards).
-  H8 (Aesthetics):        5%  # Clean design supports usability but rarely determines task success.
-                               # Increase to 10% for consumer-facing or brand-critical products.
-  H9 (Error recovery):   15%  # When errors DO occur, recovery quality determines whether users leave.
-                               # Matches H1 weight — errors and feedback are the two critical moments.
-  H10 (Help):             5%  # Well-designed UIs minimize help needs. Help is a safety net, not a crutch.
-                               # Increase to 10-15% for first-time-use-heavy apps (onboarding flows).
+Weights per category:
+  weights = getHeuristicWeights(domain)
 
-Weight adjustment guidance:
-  - Accessibility-critical apps: increase H4 (+5%) and H6 (+5%), decrease H7 and H8
-  - Forms-heavy apps (checkout, registration): increase H5 (+5%) and H9 (+5%), decrease H2 and H10
-  - Data dashboards: increase H1 (+5%) and H7 (+5%), decrease H3 and H8
-  - Consumer mobile apps: increase H8 (+5%) and H1 (+5%), decrease H7 and H10
-  - Total must always equal 100%. When increasing one category, decrease another by the same amount.
+  Default "general" domain weights (backward-compatible):
+    H1:15  H2:5  H3:15  H4:10  H5:15  H6:10  H7:5  H8:5  H9:15  H10:5
+
+  Domain is resolved via:
+    1. talisman.yml → ux.industry (manual override, highest precedence)
+    2. inferProjectDomain() when confidence >= 0.70
+    3. Fallback: "general"
+
+  When a category has 0 applicable items, its weight is redistributed
+  proportionally to active categories (preserves relative proportions).
+
+  See [industry-weights.md](industry-weights.md) for:
+    - Full weight tables for 8 domains (general, e-commerce, saas, fintech,
+      healthcare, creative, education, content)
+    - getHeuristicWeights(domain) pseudocode
+    - redistributeWeights() algorithm
+    - Per-domain rationale citing UX research
 ```
 
 ### UXF (Flow) Scoring

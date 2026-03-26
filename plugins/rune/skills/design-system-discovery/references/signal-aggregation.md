@@ -107,3 +107,46 @@ ELSE:
   variants.system = "unknown"
   variants.pattern = null
 ```
+
+## Phase 5.5: Domain Signal Aggregation
+
+Domain inference uses a separate signal category with its own confidence formula.
+Unlike library/token/variant signals (which use `maxWeight * (matchedCount / totalSignals) ^ 0.3`),
+domain signals use proportional weighting: `confidence = sum(matched_weights) / sum(all_weights)`.
+
+```
+domain_signals = {
+  keywords: { weight: 0.4 },   // File/directory name keyword matches
+  routes:   { weight: 0.3 },   // URL route pattern matches
+  deps:     { weight: 0.2 },   // Package dependency matches
+  readme:   { weight: 0.1 }    // README.md phrase matches
+}
+```
+
+**Confidence formula** (domain-specific):
+
+```
+matched_weights = sum of weights for sources that matched the winning domain
+all_weights     = 0.4 + 0.3 + 0.2 + 0.1 = 1.0
+
+confidence = matched_weights / all_weights
+```
+
+**Worked example — SaaS project with 3/4 signals**:
+
+| Source | Weight | Matched? | Domain |
+|--------|--------|----------|--------|
+| keywords | 0.4 | Yes — "dashboard", "tenant", "subscription" found | saas |
+| routes | 0.3 | Yes — /dashboard, /settings, /billing routes | saas |
+| deps | 0.2 | No — no saas-specific deps | — |
+| readme | 0.1 | Yes — "multi-tenant SaaS" in README | saas |
+
+```
+matched_weights = 0.4 + 0.3 + 0.0 + 0.1 = 0.8
+confidence = 0.8 / 1.0 = 0.80
+Result: domain = "saas", confidence = 0.80 (>= 0.70 threshold → accepted)
+```
+
+**Threshold**: >= 0.70 → domain used for downstream recommendations. < 0.70 → "general" fallback.
+
+See [domain-inference.md](domain-inference.md) for the full algorithm, domain registry, signal maps, and edge cases.

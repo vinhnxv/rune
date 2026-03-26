@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.18.0] - 2026-03-26
+
+### Added
+- **Domain inference algorithm**: `inferProjectDomain()` as Phase 5.5 of `discoverDesignSystem()` — analyzes manifest files, directory names, and file patterns to classify projects into 8 domains (ecommerce, saas, healthcare, fintech, media, social, education, productivity)
+- **Domain-aware design recommendations**: `domain-design-guide.md` reference with per-domain UX patterns, component priorities, and accessibility requirements for 8 domains
+- **Industry-weighted UX scoring**: `getHeuristicWeights(domain)` adjusts UX heuristic evaluation weights based on detected project domain — e.g., fintech emphasizes error prevention, healthcare emphasizes accessibility
+- **Design echo search integration**: Echo search now surfaces design-sync and design-prototype learnings for relevant queries
+- **Design context enrichment**: `/rune:devise` planning pipeline now includes design system context (detected libraries, tokens, domain) in research phase output
+
 ## [2.17.4] - 2026-03-25
 
 ### Added
