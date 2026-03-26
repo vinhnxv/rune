@@ -99,12 +99,66 @@ elif [[ -n "$current_phase" ]]; then
   resume_phase=" from phase '${current_phase}'"
 fi
 
+# ── Resolve talisman shard for retry config ──
+talisman_shard=""
+if type _rune_resolve_talisman_shard &>/dev/null; then
+  talisman_shard=$(_rune_resolve_talisman_shard "arc" "${CWD:-}" 2>/dev/null || true)
+fi
+[[ -z "$talisman_shard" ]] && talisman_shard="${CWD}/tmp/.talisman-resolved/arc.json"
+
 # ── Actions by error type (all via stderr + exit 2) ──
 case "$ERROR_TYPE" in
   RATE_LIMIT)
-    _trace "RATE_LIMIT — injecting backoff wait of ${WAIT_SECONDS}s"
+    # ── Retry counter with exponential backoff ──
+    api_retries=0
+    if [[ -n "$checkpoint_path" ]] && [[ -f "${CWD}/${checkpoint_path}" ]] && [[ ! -L "${CWD}/${checkpoint_path}" ]]; then
+      api_retries=$(jq -r '.api_error_retries // 0' "${CWD}/${checkpoint_path}" 2>/dev/null || echo "0")
+    fi
+    [[ "$api_retries" =~ ^[0-9]+$ ]] || api_retries=0
+
+    # Read max_retries from talisman (default: 3)
+    max_retries=3
+    if [[ -f "$talisman_shard" ]] && [[ ! -L "$talisman_shard" ]]; then
+      _mr=$(jq -r '.rate_limit.max_retries // 3' "$talisman_shard" 2>/dev/null || echo "3")
+      [[ "$_mr" =~ ^[0-9]+$ ]] && max_retries="$_mr"
+    fi
+
+    # Check if retries exceeded — halt if so
+    if [[ "$api_retries" -ge "$max_retries" ]]; then
+      _trace "RATE_LIMIT — retries exhausted (${api_retries}/${max_retries}), halting"
+      cat >&2 <<EOF
+API rate limit hit${phase_info}. Retry limit reached (${api_retries}/${max_retries}). Arc paused.
+
+Checkpoint preserved at: ${checkpoint_path:-<unknown>}
+To resume later: /rune:arc --resume
+EOF
+      exit 0
+    fi
+
+    # Calculate exponential backoff: base_wait * 2^retries, capped at max_wait
+    backoff=$((1 << api_retries))
+    WAIT_SECONDS=$((WAIT_SECONDS * backoff))
+    # Cap at max_wait from talisman
+    max_wait=300
+    if [[ -f "$talisman_shard" ]] && [[ ! -L "$talisman_shard" ]]; then
+      _mw=$(jq -r '.rate_limit.max_wait_seconds // 300' "$talisman_shard" 2>/dev/null || echo "300")
+      [[ "$_mw" =~ ^[0-9]+$ ]] && max_wait="$_mw"
+    fi
+    [[ "$WAIT_SECONDS" -gt "$max_wait" ]] && WAIT_SECONDS="$max_wait"
+
+    # Increment retry counter atomically in checkpoint
+    if [[ -n "$checkpoint_path" ]] && [[ -f "${CWD}/${checkpoint_path}" ]] && [[ ! -L "${CWD}/${checkpoint_path}" ]]; then
+      _tmp=$(mktemp "${TMPDIR:-/tmp}/rune-cp-XXXXXX")
+      if jq ".api_error_retries = $((api_retries + 1))" "${CWD}/${checkpoint_path}" > "$_tmp" 2>/dev/null; then
+        mv -f "$_tmp" "${CWD}/${checkpoint_path}"
+      else
+        rm -f "$_tmp"
+      fi
+    fi
+
+    _trace "RATE_LIMIT — retry ${api_retries}/${max_retries}, backoff=${backoff}x, wait=${WAIT_SECONDS}s"
     cat >&2 <<EOF
-API rate limit hit${phase_info}. Wait ${WAIT_SECONDS} seconds before continuing.
+API rate limit hit${phase_info}. Retry ${api_retries}/${max_retries} — wait ${WAIT_SECONDS} seconds (${backoff}x backoff).
 
 After waiting, continue arc${resume_phase}. Checkpoint preserved at: ${checkpoint_path:-<unknown>}
 
@@ -114,9 +168,55 @@ EOF
     ;;
 
   SERVER)
-    _trace "SERVER — injecting backoff wait of ${WAIT_SECONDS}s"
+    # ── Retry counter for server errors ──
+    server_retries=0
+    if [[ -n "$checkpoint_path" ]] && [[ -f "${CWD}/${checkpoint_path}" ]] && [[ ! -L "${CWD}/${checkpoint_path}" ]]; then
+      server_retries=$(jq -r '.server_error_retries // 0' "${CWD}/${checkpoint_path}" 2>/dev/null || echo "0")
+    fi
+    [[ "$server_retries" =~ ^[0-9]+$ ]] || server_retries=0
+
+    # Read max_server_retries from talisman (default: 2)
+    max_server_retries=2
+    if [[ -f "$talisman_shard" ]] && [[ ! -L "$talisman_shard" ]]; then
+      _msr=$(jq -r '.rate_limit.max_server_retries // 2' "$talisman_shard" 2>/dev/null || echo "2")
+      [[ "$_msr" =~ ^[0-9]+$ ]] && max_server_retries="$_msr"
+    fi
+
+    # Check if retries exceeded — halt if so
+    if [[ "$server_retries" -ge "$max_server_retries" ]]; then
+      _trace "SERVER — retries exhausted (${server_retries}/${max_server_retries}), halting"
+      cat >&2 <<EOF
+API server error${phase_info}. Retry limit reached (${server_retries}/${max_server_retries}). Arc paused.
+
+Checkpoint preserved at: ${checkpoint_path:-<unknown>}
+To resume later: /rune:arc --resume
+EOF
+      exit 0
+    fi
+
+    # Calculate exponential backoff for server errors
+    backoff=$((1 << server_retries))
+    WAIT_SECONDS=$((WAIT_SECONDS * backoff))
+    max_wait=300
+    if [[ -f "$talisman_shard" ]] && [[ ! -L "$talisman_shard" ]]; then
+      _mw=$(jq -r '.rate_limit.max_wait_seconds // 300' "$talisman_shard" 2>/dev/null || echo "300")
+      [[ "$_mw" =~ ^[0-9]+$ ]] && max_wait="$_mw"
+    fi
+    [[ "$WAIT_SECONDS" -gt "$max_wait" ]] && WAIT_SECONDS="$max_wait"
+
+    # Increment retry counter atomically in checkpoint
+    if [[ -n "$checkpoint_path" ]] && [[ -f "${CWD}/${checkpoint_path}" ]] && [[ ! -L "${CWD}/${checkpoint_path}" ]]; then
+      _tmp=$(mktemp "${TMPDIR:-/tmp}/rune-cp-XXXXXX")
+      if jq ".server_error_retries = $((server_retries + 1))" "${CWD}/${checkpoint_path}" > "$_tmp" 2>/dev/null; then
+        mv -f "$_tmp" "${CWD}/${checkpoint_path}"
+      else
+        rm -f "$_tmp"
+      fi
+    fi
+
+    _trace "SERVER — retry ${server_retries}/${max_server_retries}, backoff=${backoff}x, wait=${WAIT_SECONDS}s"
     cat >&2 <<EOF
-API server error${phase_info}. Wait ${WAIT_SECONDS} seconds before retrying.
+API server error${phase_info}. Retry ${server_retries}/${max_server_retries} — wait ${WAIT_SECONDS} seconds (${backoff}x backoff).
 
 After waiting, continue arc${resume_phase}. Checkpoint preserved at: ${checkpoint_path:-<unknown>}
 
