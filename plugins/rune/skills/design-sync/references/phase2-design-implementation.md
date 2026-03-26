@@ -211,11 +211,12 @@ level** — they never override Figma specs, VSM tokens, or library patterns.
 
 ```
 // Appended AFTER Step 8 checklist, BEFORE worker begins implementation
+// Uses loadDomainHints() pattern from domain-design-guide.md (same algorithm, inline here for clarity)
 IF designContext.domain AND designContext.domain.confidence >= 0.70
    AND designContext.domain.inferred !== "general":
-  domainGuide = Read("frontend-design-patterns/references/domain-design-guide.md",
-                     section=designContext.domain.inferred)
-  workerPrompt += "\n\n## Domain Context: {designContext.domain.inferred}\n{domainGuide}"
+  domainHints = loadDomainHints(designContext.domain.inferred)
+  // loadDomainHints reads domain-design-guide.md section for the inferred domain
+  workerPrompt += "\n\n## Domain Context: {designContext.domain.inferred}\n{domainHints}"
   // ~50-100 words of additive hints — UX priorities and anti-patterns for this domain
 ```
 

@@ -236,6 +236,9 @@ session_budget:
 
 ```javascript
 // When brainstormContext.domain exists and designAware === true:
+// NOTE: brainstormContext.domain is used in devise (planning context).
+// designContext.domain is the equivalent field in strive/design-sync (implementation context).
+// Same data, different context objects.
 if (designAware && brainstormContext.domain) {
   // Emit "## Design Context" section in the plan document
   // Domain and hints from design-system-profile.yaml (loaded in Phase 0.5)

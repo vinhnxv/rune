@@ -123,6 +123,8 @@ Validates talisman config (`design_sync.enabled`), parses arguments and collects
 
 ```javascript
 // Query past design decisions before extraction
+// NOTE: This echo query pattern is intentionally duplicated in design-prototype/SKILL.md Phase 0.
+// Both skills query independently — no shared function needed (pseudocode, not runtime code).
 try {
   const pastDesign = mcp__plugin_rune_echo_search__echo_search({
     query: `${componentName} design tokens color typography layout`,
