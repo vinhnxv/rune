@@ -155,13 +155,14 @@ for (let i = 0; i < routeBatches.length; i++) {
     subagent_type: "general-purpose",
     prompt: `You are browser-tester-${i}. Test these routes using agent-browser CLI (headless mode):
 
-Routes: ${batch.join(', ')}
+Routes: ${batch.map(r => r.replace(/[^a-zA-Z0-9/_.-]/g, '')).join(', ')}
 Base URL: ${baseUrl}
 
 For each route:
-1. Run: agent-browser open "${baseUrl}${route}" --headless
-2. Check for: console errors, blank pages, error states, broken layouts
-3. Take screenshot: agent-browser screenshot --output tmp/arc/${id}/screenshots/browser/${route.replace(/\//g, '_')}.png
+1. Sanitize route: const safeRoute = route.replace(/[^a-zA-Z0-9/_.-]/g, '')
+2. Run: agent-browser open "${baseUrl}${safeRoute}" --headless
+3. Check for: console errors, blank pages, error states, broken layouts
+4. Take screenshot: agent-browser screenshot --output tmp/arc/${id}/screenshots/browser/${safeRoute.replace(/\//g, '_')}.png
 
 Write results to: tmp/arc/${id}/browser-test-batch-${i}.json
 Format: { "results": [{ "route": "/path", "status": "pass"|"fail", "errors": [...], "screenshot": "path" }] }

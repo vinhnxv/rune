@@ -758,9 +758,9 @@ Per-phase timeout values in milliseconds. Values are clamped to 10s–3600s rang
 | `code_review` | number | 900000 | Phase 6: Code review (15 min) |
 | `mend` | number | 1380000 | Phase 7: Mend (23 min) |
 | `verify_mend` | number | 240000 | Phase 7.5: Verify mend (4 min) |
-| `browser_test` | number | 900000 | Phase 7.7.5: Browser E2E test (15 min, v2.19.0+) |
-| `browser_test_fix` | number | 900000 | Phase 7.7.6: Browser test fix (15 min, v2.19.0+) |
-| `verify_browser_test` | number | 240000 | Phase 7.7.7: Verify browser test (4 min, v2.19.0+) |
+| `browser_test` | number | 900000 | Phase 7.7.5: Browser E2E test (15 min, v2.21.0+) |
+| `browser_test_fix` | number | 900000 | Phase 7.7.6: Browser test fix (15 min, v2.21.0+) |
+| `verify_browser_test` | number | 240000 | Phase 7.7.7: Verify browser test (4 min, v2.21.0+) |
 <!-- v1.67.0: audit/audit_mend/audit_verify removed (unified into Phase 6 --deep) -->
 | `ship` | number | 300000 | Phase 9: PR creation (5 min, v1.40.0+) |
 | `merge` | number | 600000 | Phase 9.5: Merge (10 min, v1.40.0+) |

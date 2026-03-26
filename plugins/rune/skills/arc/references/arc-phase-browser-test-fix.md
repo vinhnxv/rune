@@ -177,7 +177,7 @@ Write(`tmp/arc/${id}/browser-fix-report.md`, reportLines.join('\n'))
 // Atomic commit for fixes (if any files changed)
 const diffCheck = Bash("git diff --name-only 2>/dev/null").trim()
 if (diffCheck) {
-  Bash("git add -A")
+  Bash("git add -u")  // SEC-001 FIX: Use -u (tracked files only) instead of -A to avoid staging secrets
   // SEC-011: Write commit message to temp file
   Write(`tmp/arc/${id}/browser-fix-commit-msg.txt`,
     `fix(browser): resolve E2E test failures [round ${round + 1}]`)

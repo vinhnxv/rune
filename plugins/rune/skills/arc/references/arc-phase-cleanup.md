@@ -53,6 +53,7 @@ const PHASE_PREFIX_MAP = {
   test:                   ["arc-test-"],
   browser_test:           ["arc-browser-test-"],               // Phase 7.7.5 (conditional — frontend + agent-browser)
   browser_test_fix:       ["arc-browser-fix-"],                // Phase 7.7.6 (conditional — browser_test failures)
+  verify_browser_test:    [],                                   // Phase 7.7.7 (no team — orchestrator-only convergence check)
   design_prototype:       ["arc-prototype-", "rune-prototype-"],  // Phase 3.2 arc prototype + /rune:design-prototype standalone (conditional — design_sync.enabled)
   deploy_verify:          ["arc-deploy-"],                        // Phase 7.9 (conditional — deployment-relevant files in diff)
   forge_qa:               ["arc-qa-"],                             // QA gate for forge phase (conditional — qa_gates.enabled)

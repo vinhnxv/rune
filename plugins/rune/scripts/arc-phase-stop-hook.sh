@@ -478,7 +478,7 @@ _phase_weight() {
     gap_analysis|gap_remediation|goldmask_verification|goldmask_correlation) echo 2 ;;
     storybook_verification|ux_verification)  echo 2 ;;
     verify_mend|codex_gap_analysis|test_coverage_critique) echo 2 ;;
-    browser_test|browser_test_fix)           echo 2 ;;
+    browser_test|browser_test_fix|verify_browser_test) echo 2 ;;
     *)                                       echo 1 ;;
   esac
 }
