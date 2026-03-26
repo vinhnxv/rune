@@ -767,6 +767,31 @@ _trace "TIMING: phase_find done at +$(( $(date +%s) - _HOOK_START_EPOCH ))s"
 
 _trace "Next pending phase: ${NEXT_PHASE:-NONE} (prev=${_IMMEDIATE_PREV:-NONE}, iteration ${ITERATION}, auto_skipped=${_auto_skipped})"
 
+# ── Reset api_error_retries on successful phase completion ──
+# Safety net: the agent prompt instructs the LLM to reset api_error_retries = 0
+# when completing a phase, but under context pressure it may forget. The hook
+# enforces the reset here to prevent retry counts from accumulating across phases.
+if [[ -n "$NEXT_PHASE" && -n "$_IMMEDIATE_PREV" ]]; then
+  _prev_status=$(echo "$CKPT_CONTENT" | _jq_with_budget -r ".phases.${_IMMEDIATE_PREV}.status // \"pending\"" 2>/dev/null || echo "pending")
+  if [[ "$_prev_status" == "completed" || "$_prev_status" == "skipped" ]]; then
+    _current_retries=$(echo "$CKPT_CONTENT" | _jq_with_budget -r '.api_error_retries // 0' 2>/dev/null || echo "0")
+    if [[ "$_current_retries" != "0" && "$_current_retries" != "null" ]]; then
+      _trace "Resetting api_error_retries (was ${_current_retries}) after successful phase: ${_IMMEDIATE_PREV}"
+      CKPT_CONTENT=$(echo "$CKPT_CONTENT" | jq '.api_error_retries = 0' 2>/dev/null || echo "$CKPT_CONTENT")
+      _ckpt_tmp=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null) || _ckpt_tmp=""
+      if [[ -n "$_ckpt_tmp" ]]; then
+        if echo "$CKPT_CONTENT" | jq -e '.' > "$_ckpt_tmp" 2>/dev/null; then
+          mv -f "$_ckpt_tmp" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || rm -f "$_ckpt_tmp" 2>/dev/null
+        else
+          _trace "WARNING: api_error_retries reset checkpoint JSON validation failed — skipping write"
+          rm -f "$_ckpt_tmp" 2>/dev/null
+          CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
+        fi
+      fi
+    fi
+  fi
+fi
+
 # ── QA Gate Check (AC-3, AC-4, AC-6) ──
 # Extracted to lib/qa-gate-check.sh for SRP and testability (SIGHT-003).
 # Fixes: RUIN-001 (prompt injection), RUIN-002 (deterministic escalation),
