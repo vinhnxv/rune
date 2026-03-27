@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.29.0] - 2026-03-28
+
+### Added
+- **Supply chain risk audit**: New `supply-chain-sentinel` review agent (`agents/review/supply-chain-sentinel.md`) — evaluates each direct dependency across 6 risk dimensions: maintainer count, last commit date, CVE history, download trajectory, bus factor, and security policy presence. Supports npm, pip, cargo, go mod, and composer. Produces `SUPPLY-` prefixed findings with composite risk scores
+- **`/rune:supply-chain-audit` skill**: New user-invocable skill for standalone dependency risk analysis — auto-detects package manager, extracts direct dependencies, queries registry and GitHub APIs for health signals, generates structured risk report with severity ratings and alternative suggestions
+- **Forge Gaze topic registration**: `supply-chain-sentinel` registered in Forge Gaze topic registry under `supply-chain` topic with 0.95 affinity for dependency-related plan sections
+- **Talisman config**: New `supply_chain` section with `enabled` (default: true), `max_dependencies` (default: 50), `risk_threshold` (`low`/`medium`/`high`), and `registries` override
+- **Agent registry**: `supply-chain-sentinel` added to `known-rune-agents.sh` (plugin total: 149 agents — 106 core + 43 extended)
+
 ## [2.28.0] - 2026-03-28
 
 ### Added

@@ -63,6 +63,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **runs** | Workflow run history and diagnostics (non-invocable) |
 | **ux-design-process** | UX design intelligence — heuristic evaluation checklists, interaction pattern libraries, flow validation. Auto-loaded for frontend files (non-invocable) |
 | **variant-hunt** | Systematic variant analysis — "find more like this" for confirmed findings. Takes a TOME finding ID, pattern description, or TOME path, spawns variant-hunter agents with progressive generalization (exact → structural → semantic). Opt-in via `variant_analysis.enabled`. `/rune:variant-hunt` |
+| **supply-chain-audit** | Analyze project dependencies for supply chain risks — maintainer count, commit frequency, CVE history, abandonment signals, bus factor, and security policy. Supports npm, pip, cargo, go mod, composer. Configurable via `supply_chain` talisman section. `/rune:supply-chain-audit` |
 | **post-findings** | Post Rune review/audit findings to GitHub PR as formatted comment. Parses TOME, formats markdown, posts via `gh`. Configurable via `pr_comment` talisman section. `/rune:post-findings` |
 
 ## Commands
@@ -449,7 +450,7 @@ echo "Commands: $(find plugins/rune/commands -name '*.md' -not -path '*/referenc
 
 ## References
 
-- [Agent registry](references/agent-registry.md) — 146 agent definitions (103 CORE in agents/ + 43 EXTENDED in registry/, 13 shared). 12 stack specialist reviewers are prompt templates, not registered agents
+- [Agent registry](references/agent-registry.md) — 147 agent definitions (104 CORE in agents/ + 43 EXTENDED in registry/, 13 shared). 12 stack specialist reviewers are prompt templates, not registered agents
 - [Key concepts](references/key-concepts.md) — Tarnished, Ash, TOME, Arc, Mend, Forge Gaze, Echoes
 - [Lore glossary](references/lore-glossary.md) — Elden Ring terminology mapping
 - [Output conventions](references/output-conventions.md) — Directory structure per workflow
