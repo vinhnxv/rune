@@ -29,6 +29,7 @@
 #   - 150-line pre-flight warning on MEMORY.md
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 umask 077
 
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"

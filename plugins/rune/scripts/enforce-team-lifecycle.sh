@@ -15,6 +15,7 @@
 # Exit 0: Allow (with optional JSON for additionalContext or deny)
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 umask 077
 
 # ── Script directory for library sourcing ──

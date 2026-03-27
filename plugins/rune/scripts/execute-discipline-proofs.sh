@@ -23,6 +23,7 @@
 #   responsive_check   — DOM inspection at viewport breakpoints (design-proofs/verify-responsive.sh)
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 umask 077
 
 # --- Fail-forward guard (OPERATIONAL — see ADR-002) ---
@@ -152,8 +153,11 @@ proof_test_passes() {
     npm|npx|yarn|pnpm|node|python3|python|pytest|cargo|make|go|tsc|jest|vitest|bun|deno|php|composer|ruby|bundle|mvn|gradle|dotnet) ;;
     *) echo "FAIL"; return ;;  # Unknown command binary — reject
   esac
-  # Execute via bash -c with timeout (no eval)
-  if timeout 60 bash -c "$cmd" >/dev/null 2>&1; then
+  # SEC-001 AUDIT FIX: Execute via word-split array instead of bash -c to prevent injection.
+  # The allowlist above ensures $cmd contains only safe chars (alphanumeric, space, path separators).
+  # Word splitting on space is intentional — commands are simple "binary arg1 arg2" format.
+  # shellcheck disable=SC2086
+  if timeout 60 $cmd >/dev/null 2>&1; then
     echo "PASS"
   else
     echo "FAIL"
@@ -180,7 +184,9 @@ proof_builds_clean() {
     npm|npx|yarn|pnpm|node|python3|python|pytest|cargo|make|go|tsc|jest|vitest|bun|deno|php|composer|ruby|bundle|mvn|gradle|dotnet) ;;
     *) echo "FAIL"; return ;;
   esac
-  if timeout 120 bash -c "$cmd" >/dev/null 2>&1; then
+  # SEC-001 AUDIT FIX: Word-split execution (same as proof_test_passes)
+  # shellcheck disable=SC2086
+  if timeout 120 $cmd >/dev/null 2>&1; then
     echo "PASS"
   else
     echo "FAIL"

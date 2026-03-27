@@ -19,6 +19,7 @@
 
 # Fail-forward: errors allow the operation (exit 0) rather than blocking.
 # Using set -euo pipefail (aligned with sibling validate-*-paths.sh scripts).
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 # The ERR trap exits 0 before -e would trigger for most failures.
 set -euo pipefail
 umask 077

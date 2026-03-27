@@ -26,6 +26,7 @@
 #   These are audit trail comments referencing the finding that motivated the change.
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 umask 077
 
 # --- Fail-forward guard (OPERATIONAL hook) ---

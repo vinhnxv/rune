@@ -14,6 +14,7 @@
 #   - Already suggested this session (debounce) → exit 0
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 
 # Fail-forward: any error → exit 0 (allow stop, don't crash session)
 _rune_fail_forward() { exit 0; }

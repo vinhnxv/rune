@@ -9,6 +9,7 @@
 # Max log size: 5MB (512 * 1024 * 10 bytes) — skips append when exceeded
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 umask 077  # SEC-002: ensure log file created 0600 (not world-readable)
 
 # Trace helper — consistent with post-compact-verify.sh / session-compact-recovery.sh pattern

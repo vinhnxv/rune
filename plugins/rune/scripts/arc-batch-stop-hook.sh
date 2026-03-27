@@ -15,6 +15,7 @@
 # Exit 2 with stderr prompt: Re-inject next arc prompt (Claude continues conversation)
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded by arc_setup_err_trap below
 
 # ── Block A: ERR trap (fail-forward) — defined at top-level before any code ──
 # Delegated to arc-stop-hook-common.sh arc_setup_err_trap (standard variant).

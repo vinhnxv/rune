@@ -6,6 +6,7 @@
 # Exit 0 + {"continue": false} JSON = stop teammate (Claude Code 2.1.69+).
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 umask 077
 
 # --- Fail-forward guard (OPERATIONAL hook) ---
@@ -382,13 +383,20 @@ fi
 FULL_OUTPUT_PATH="${CWD}/${OUTPUT_DIR}${EXPECTED_OUTPUT}"
 
 # SEC-004: Canonicalize and verify output path stays within output_dir
-# Use grealpath -m (GNU coreutils on macOS) or realpath -m (Linux), with
-# shell-based fallback for environments where neither is available.
+# QUAL-005 AUDIT FIX: Use lib/platform.sh _resolve_path() instead of inline duplicate.
 # The fallback is safe because .. is already rejected above (lines 72, 92).
+if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
+  source "${SCRIPT_DIR}/lib/platform.sh"
+fi
 resolve_path() {
-  grealpath -m "$1" 2>/dev/null || realpath -m "$1" 2>/dev/null || \
-    { command -v readlink >/dev/null 2>&1 && readlink -f "$1" 2>/dev/null; } || \
-    { echo "WARN: realpath not available, skipping canonicalization" >&2; echo "$1"; }
+  if type _resolve_path &>/dev/null; then
+    _resolve_path "$1"
+  else
+    # Fallback if platform.sh unavailable (same chain as before)
+    grealpath -m "$1" 2>/dev/null || realpath -m "$1" 2>/dev/null || \
+      { command -v readlink >/dev/null 2>&1 && readlink -f "$1" 2>/dev/null; } || \
+      { echo "WARN: realpath not available, skipping canonicalization" >&2; echo "$1"; }
+  fi
 }
 RESOLVED_OUTPUT=$(resolve_path "$FULL_OUTPUT_PATH")
 RESOLVED_OUTDIR=$(resolve_path "${CWD}/${OUTPUT_DIR}")

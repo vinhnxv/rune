@@ -21,6 +21,7 @@
 # Exit 2 with stderr prompt: Re-inject next child arc prompt
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded by arc_setup_err_trap below
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/arc-stop-hook-common.sh
 if [[ ! -f "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh" ]]; then

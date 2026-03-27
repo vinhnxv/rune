@@ -10,6 +10,7 @@
 # Non-blocking: exits 0 on all failures
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 umask 077
 
 # --- Fail-forward guard (OPERATIONAL hook) ---

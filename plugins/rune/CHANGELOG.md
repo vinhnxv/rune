@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.29.2] - 2026-03-28
+
+### Fixed
+- **SEC-001: Remove pipe from cc-inspect.sh allowlist** — `ver()` function's character allowlist included `|` (pipe), enabling potential command chaining via `bash -c`. Removed pipe from regex; version commands fall through safely to "installed (version unknown)"
+- **SEC-002: Replace bash -c with word-split execution in discipline proofs** — `proof_test_passes()` and `proof_builds_clean()` in `execute-discipline-proofs.sh` used `bash -c "$cmd"` for agent-configured commands. Replaced with direct word-split `$cmd` execution (same pattern as `verify-storybook-build.sh`). Allowlist + binary allowlist still enforce safety
+- **SEC-003: Document _SPAT_LIST as mandatory primary interface** — Added clarifying comment in `sensitive-patterns.sh` that `_SPAT_LIST` is the required interface for all consumers, not the Bash 4+-only `SENSITIVE_PATTERNS` associative array
+- **QUAL-003: DRY — deduplicate resolve_path() in on-teammate-idle.sh** — Replaced inline `resolve_path()` (grealpath → realpath → readlink -f chain) with `source lib/platform.sh` + delegation to `_resolve_path()`, keeping fallback for unavailable platform.sh
+- **QUAL-004: Fix hardcoded ~/.claude/ in session-start.sh comment** — Updated documentation comment to use `$CHOME/plugins/cache/...` for consistency with CHOME pattern
+
 ## [2.29.1] - 2026-03-28
 
 ### Fixed

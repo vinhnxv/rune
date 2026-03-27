@@ -22,6 +22,7 @@
 # Exit 2 = hook error, stderr fed to Claude (not used by this script).
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 umask 077
 
 # --- Fail-closed guard (SECURITY-ADJACENT hook) ---

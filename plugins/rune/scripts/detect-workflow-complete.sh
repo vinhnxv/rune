@@ -20,6 +20,7 @@
 # Timeout: 30s (accounts for grace period + escalation + filesystem cleanup)
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 
 # RUIN-003 FIX: Capture hook start time for adaptive timeout budget tracking
 _HOOK_START_EPOCH=$(date +%s)

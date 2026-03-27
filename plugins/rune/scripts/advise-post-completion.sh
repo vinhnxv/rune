@@ -9,6 +9,7 @@
 # BD-2 doc: This hook is purely advisory. It will NEVER emit permissionDecision: "deny".
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 umask 077
 
 # --- Fail-open wrapper ---

@@ -32,7 +32,8 @@ should_show() { [[ "$SECTION" == "all" || "$SECTION" == "$1" ]]; }
 ver() {
   if command -v "$1" &>/dev/null; then
     # Allowlist: only permit safe version-check characters (no metacharacters)
-    if [[ "$2" =~ ^[a-zA-Z0-9\ _./:=\'\"\|\-]+$ ]]; then
+    # SEC-001 AUDIT FIX: Removed pipe (|) from allowlist — it enables command chaining in bash -c
+    if [[ "$2" =~ ^[a-zA-Z0-9\ _./:=\'\"\-]+$ ]]; then
       bash -c "$2" 2>/dev/null || echo "installed (version unknown)"
     else
       echo "installed (version unknown)"

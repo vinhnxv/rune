@@ -21,6 +21,7 @@
 # STALE-LEAD-001
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 
 # OPERATIONAL: Capture hook start time for timeout budget tracking
 _HOOK_START_EPOCH=$(date +%s)

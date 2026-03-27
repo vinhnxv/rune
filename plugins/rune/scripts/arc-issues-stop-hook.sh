@@ -21,6 +21,7 @@
 # Exit 2 with stderr: Re-inject prompt to model and continue conversation
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded by arc_setup_err_trap below
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/arc-stop-hook-common.sh
 if [[ ! -f "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh" ]]; then

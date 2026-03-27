@@ -16,6 +16,7 @@
 #   - mcp__plugin_rune_echo-search__*     (echo memory search)
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 
 # Fail-forward: crash allows operation (OPERATIONAL hook, not SECURITY)
 _rune_fail_forward() {

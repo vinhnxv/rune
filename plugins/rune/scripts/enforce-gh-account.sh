@@ -23,6 +23,7 @@
 #   - No command modification (read-only advisory)
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 umask 077  # WARD-004 FIX: Match all other enforcement scripts
 
 # Fail-forward ERR trap (OPERATIONAL category)

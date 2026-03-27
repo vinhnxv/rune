@@ -3,6 +3,7 @@
 # Ensures Rune workflow routing is available from the very first message.
 # Runs synchronously (async: false) so content is present before user's first prompt.
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 umask 077
 
 # --- Fail-forward guard (OPERATIONAL hook) ---
@@ -101,7 +102,7 @@ if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
     # CLAUDE_PLUGIN_ROOT is only available in hook script execution, not in Bash() tool context.
     # SEC: PLUGIN_ROOT is derived from CLAUDE_PLUGIN_ROOT or BASH_SOURCE (line 40), both trusted.
     # Validate: must be an absolute path containing /scripts/ dir, no shell metacharacters.
-    # Path varies: /repo/plugins/rune (dev) vs ~/.claude/plugins/cache/.../rune/2.11.0 (installed).
+    # Path varies: /repo/plugins/rune (dev) vs $CHOME/plugins/cache/.../rune/2.11.0 (installed).
     if [[ -n "$PLUGIN_ROOT" ]] && [[ "$PLUGIN_ROOT" == /* ]] && [[ -d "$PLUGIN_ROOT/scripts" ]] && [[ "$PLUGIN_ROOT" =~ ^[a-zA-Z0-9/_\.\ @=-]+$ ]]; then
       if ! grep -q "RUNE_PLUGIN_ROOT" "$CLAUDE_ENV_FILE" 2>/dev/null; then
         printf 'export RUNE_PLUGIN_ROOT="%s"\n' "$PLUGIN_ROOT" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true

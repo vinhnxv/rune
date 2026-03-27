@@ -30,6 +30,7 @@
 #      as an independent degradation signal, independent of any signal files.
 
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 
 # --- Fail-forward (OPERATIONAL hook) ---
 _rune_fail_forward() { exit 0; }

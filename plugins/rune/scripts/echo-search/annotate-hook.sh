@@ -3,6 +3,7 @@
 # Exits 0 for non-echo file writes. May exit non-zero on malformed JSON (set -e).
 # Signal-file pattern for debounced reindex.
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 umask 077
 
 # --- Fail-forward guard (OPERATIONAL hook) ---

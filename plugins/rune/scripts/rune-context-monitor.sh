@@ -2,6 +2,7 @@
 # Rune Context Monitor — Consumer half of context monitoring pipeline
 # PostToolUse hook: reads bridge file, injects warnings when context runs low
 set -euo pipefail
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 # --- Fail-forward guard (OPERATIONAL hook) ---
 # Crash before validation → allow operation (don't stall workflows).
 _rune_fail_forward() {
