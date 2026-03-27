@@ -54,6 +54,13 @@ _proc_name() {
   fi
 }
 
+# ── GUARD 0.5: Auto-cleanup kill switch (MCP-PROTECT-002) ──
+# Auto-cleanup is DISABLED by default to prevent accidental MCP/LSP server kills.
+# Set RUNE_DISABLE_AUTO_CLEANUP=0 to enable process cleanup on session stop.
+if [[ "${RUNE_DISABLE_AUTO_CLEANUP:-1}" == "1" ]]; then
+  exit 0
+fi
+
 # ── GUARD 1: jq dependency (fail-open) ──
 if ! command -v jq &>/dev/null; then
   exit 0
@@ -303,7 +310,8 @@ _kill_stale_teammates() {
 
   # Delegate to centralized process-tree.sh (2-stage SIGTERM→SIGKILL with PID recycling guard)
   # SEC-005: Grace period 1s (20% of 5s hook timeout budget)
-  # Filter "claude" protects MCP/LSP servers
+  # Filter "claude" targets node|claude|claude-* processes (teammates)
+  # MCP-PROTECT-001: MCP/LSP servers (--stdio processes) are excluded by process-tree.sh
   if declare -f _rune_kill_tree &>/dev/null; then
     _rune_kill_tree "$PPID" "2stage" "1" "claude"
   else

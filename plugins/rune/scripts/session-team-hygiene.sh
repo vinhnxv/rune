@@ -39,6 +39,11 @@ _rune_session_hook_exit() {
 }
 trap '_rune_session_hook_exit' EXIT
 
+# Guard: Auto-cleanup kill switch (MCP-PROTECT-002)
+if [[ "${RUNE_DISABLE_AUTO_CLEANUP:-1}" == "1" ]]; then
+  exit 0
+fi
+
 # Guard: jq dependency
 if ! command -v jq &>/dev/null; then
   exit 0
@@ -292,6 +297,9 @@ if [[ -d "${CWD}/tmp" ]]; then
         node|claude|claude-*) ;;
         *) continue ;;
       esac
+      # MCP-PROTECT-001: Skip MCP/LSP servers (--stdio processes)
+      child_args=$(ps -p "$cpid" -o args= 2>/dev/null || true)
+      case "$child_args" in *--stdio*) continue ;; esac
       if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" == "1" ]]; then
         orphan_procs_killed=$((orphan_procs_killed + 1))
         [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: DRY RUN: would kill orphan PID=$cpid (comm=$child_comm)" >> "${_RUNE_TRACE_PATH}"

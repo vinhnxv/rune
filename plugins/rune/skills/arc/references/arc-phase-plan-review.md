@@ -582,9 +582,9 @@ if (!cleanupTeamDeleteSucceeded) {
   // 5a. Process-level kill — terminate lingering teammates before filesystem cleanup
   const ownerPid = Bash(`echo $PPID`).trim()
   if (ownerPid && /^\d+$/.test(ownerPid)) {
-    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio \&\& continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
     Bash(`sleep 5`)
-    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio \&\& continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   }
   // 5b. Filesystem fallback with CHOME
   // SEC-005: id validated at line 37 — contains only [a-zA-Z0-9_-]

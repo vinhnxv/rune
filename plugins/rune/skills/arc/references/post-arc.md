@@ -250,7 +250,7 @@ try {
   // behind TeamDelete failure. Safe: kills only child claude/node processes.
   const arcOwnerPid = Bash(`echo $PPID`).trim()
   if (arcOwnerPid && /^\d+$/.test(arcOwnerPid)) {
-    Bash(`for pid in $(pgrep -P ${arcOwnerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+    Bash(`for pid in $(pgrep -P ${arcOwnerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
   }
 
   // ── Step 2: Send ALL shutdown_requests at once (no sleep between) ──
@@ -276,9 +276,9 @@ try {
   // ── Step 5: Filesystem fallback — only if TeamDelete never succeeded (QUAL-012) ──
   if (!sweepCleared) {
     // Process-level kill — terminate lingering teammates before filesystem cleanup
-    Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+    Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
     Bash(`sleep 5`)
-    Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+    Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
     // Filesystem cleanup for all checkpoint-recorded teams
     if (allTeamNames.length > 0) {
       const rmCommands = allTeamNames.map(tn =>

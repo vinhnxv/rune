@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.21.4] - 2026-03-27
+
+### Fixed
+- **MCP-PROTECT-001**: Fix cleanup hooks killing MCP/LSP server processes. Root cause: `node|claude|claude-*` process name filter matched MCP servers (which are also `node` processes). Added `--stdio` cmdline detection to skip MCP/LSP servers in all kill paths:
+  - `process-tree.sh`: New `_is_mcp_server()` function, skip in both SIGTERM and SIGKILL phases
+  - `session-team-hygiene.sh`: Inline `--stdio` check before SIGTERM
+  - 21 pseudocode `.md` files + `arc-phase-stop-hook.sh`: Updated 49 inline kill patterns
+- **MCP-PROTECT-002**: Add `RUNE_DISABLE_AUTO_CLEANUP` env var (default: `1` = disabled) as kill switch for all process cleanup hooks (`on-session-stop.sh`, `detect-workflow-complete.sh`, `session-team-hygiene.sh`). Set to `0` to opt-in to auto-cleanup
+- **POLL-002**: Change `RUNE_DISABLE_POLL_GUARD` default from `0` (enabled) to `1` (disabled) — polling enforcement is now opt-in
+
 ## [2.21.3] - 2026-03-27
 
 ### Fixed

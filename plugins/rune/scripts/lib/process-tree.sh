@@ -11,6 +11,7 @@
 #   - Recursive pgrep -P walk with max depth 8
 #   - 2-stage SIGTERM→SIGKILL with PID recycling guard (lstart comparison)
 #   - Filter mode: "all" (default) or "claude" (node|claude|claude-* only)
+#   - MCP/LSP server protection: --stdio processes are never killed (MCP-PROTECT-001)
 #   - Uses parallel indexed arrays (Bash 3.2 compatible — no declare -A)
 #   - Sources lib/platform.sh for _RUNE_PLATFORM and _proc_name if not defined
 #
@@ -38,6 +39,29 @@ if ! declare -f _proc_name &>/dev/null; then
     fi
   }
 fi
+
+# MCP/LSP server process detection (MCP-PROTECT-001)
+# MCP servers use --stdio flag for JSON-RPC transport. This is a reliable
+# signature that distinguishes them from teammate processes (which use
+# Claude Code's internal protocol, not --stdio).
+# Returns 0 if the process is an MCP/LSP server, 1 otherwise.
+_is_mcp_server() {
+  local pid="$1"
+  [[ -z "$pid" || ! "$pid" =~ ^[0-9]+$ ]] && return 1
+  local cmdline
+  # Cross-platform: /proc on Linux, ps on macOS
+  if [[ -r "/proc/$pid/cmdline" ]]; then
+    cmdline=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)
+  else
+    cmdline=$(ps -p "$pid" -o args= 2>/dev/null || true)
+  fi
+  [[ -z "$cmdline" ]] && return 1
+  # MCP servers always use --stdio for JSON-RPC stdio transport
+  case "$cmdline" in
+    *--stdio*) return 0 ;;
+  esac
+  return 1
+}
 
 # _RUNE_DESC_PIDS — populated by _rune_collect_descendants
 _RUNE_DESC_PIDS=()
@@ -120,6 +144,13 @@ _rune_kill_tree() {
         node|claude|claude-*) ;;
         *) continue ;;
       esac
+      # MCP-PROTECT-001: Skip MCP/LSP server processes.
+      # MCP servers are node processes with --stdio flag — they must survive
+      # teammate cleanup. Without this guard, cleanup hooks kill all node
+      # children of Claude Code, disconnecting MCP servers mid-session.
+      if _is_mcp_server "$pid"; then
+        continue
+      fi
     fi
 
     # XVER-001: Record lstart before SIGTERM for recycling detection
@@ -156,6 +187,11 @@ _rune_kill_tree() {
             continue
             ;;
         esac
+        # MCP-PROTECT-001: Re-check MCP server status before SIGKILL
+        if _is_mcp_server "$pid"; then
+          idx=$((idx + 1))
+          continue
+        fi
       fi
 
       # XVER-001: Verify lstart hasn't changed (PID recycling detection)

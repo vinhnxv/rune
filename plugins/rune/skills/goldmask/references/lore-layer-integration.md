@@ -102,7 +102,7 @@ Output format: { "files": [{ "path", "tier", "risk_score", "metrics": { "frequen
   // Uses the same process-kill pattern as engines.md step 5a.
   const loreOwnerPid = Bash(`echo $PPID`).trim()
   if (loreOwnerPid && /^\d+$/.test(loreOwnerPid)) {
-    Bash(`for pid in $(pgrep -P ${loreOwnerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+    Bash(`for pid in $(pgrep -P ${loreOwnerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio \&\& continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
   }
 }
 ```

@@ -1477,7 +1477,7 @@ if [[ "$NEXT_PHASE" == "test" ]]; then
             if [[ -d "$CHOME/teams/${_force_test_team}" && ! -L "$CHOME/teams/${_force_test_team}" ]]; then
               # Kill lingering teammate processes
               for _fpid in $(pgrep -P "$PPID" 2>/dev/null || true); do
-                case "$(ps -p "$_fpid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$_fpid" 2>/dev/null ;; esac
+                case "$(ps -p "$_fpid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$_fpid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$_fpid" 2>/dev/null ;; esac
               done
               sleep 2
               rm -rf "$CHOME/teams/${_force_test_team}/" "$CHOME/tasks/${_force_test_team}/" 2>/dev/null

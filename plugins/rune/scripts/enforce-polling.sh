@@ -41,11 +41,9 @@ _rune_fail_forward() {
 trap '_rune_fail_forward' ERR
 
 # ── ENV TOGGLE: Allow disabling POLL-001 entirely ──
-# Use RUNE_DISABLE_POLL_GUARD=1 to bypass sleep+echo enforcement.
-# Useful for long-running background tasks, test suites, service monitoring,
-# or any scenario where sleep+echo is a legitimate monitoring pattern.
+# POLL-001 is DISABLED by default. Set RUNE_DISABLE_POLL_GUARD=0 to enable.
 # Also configurable via talisman.yml: process_management.poll_guard_enabled: false
-if [[ "${RUNE_DISABLE_POLL_GUARD:-0}" == "1" ]]; then
+if [[ "${RUNE_DISABLE_POLL_GUARD:-1}" == "1" ]]; then
   exit 0
 fi
 

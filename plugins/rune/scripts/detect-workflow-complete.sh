@@ -42,7 +42,13 @@ trap '_rune_fail_forward' ERR
 
 CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
-# ── GUARD 0: jq dependency (fail-open) ──
+# ── GUARD 0: Auto-cleanup kill switch (MCP-PROTECT-002) ──
+# Auto-cleanup is DISABLED by default. Set RUNE_DISABLE_AUTO_CLEANUP=0 to enable.
+if [[ "${RUNE_DISABLE_AUTO_CLEANUP:-1}" == "1" ]]; then
+  exit 0
+fi
+
+# ── GUARD 0.5: jq dependency (fail-open) ──
 if ! command -v jq &>/dev/null; then
   exit 0
 fi

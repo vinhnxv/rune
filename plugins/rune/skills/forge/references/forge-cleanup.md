@@ -42,7 +42,7 @@ if (!/^[a-zA-Z0-9_-]+$/.test(timestamp)) throw new Error("Invalid forge identifi
 // is the only cleanup mechanism. Same pattern as engines.md step 5a.
 const cleanupOwnerPid = Bash(`echo $PPID`).trim()
 if (cleanupOwnerPid && /^\d+$/.test(cleanupOwnerPid)) {
-  Bash(`for pid in $(pgrep -P ${cleanupOwnerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+  Bash(`for pid in $(pgrep -P ${cleanupOwnerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio \&\& continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
 }
 
 // Update state file to completed (preserve session identity — BEFORE lock release per engines.md)
