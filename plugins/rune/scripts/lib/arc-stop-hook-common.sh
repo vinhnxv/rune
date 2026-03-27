@@ -325,7 +325,7 @@ arc_compact_interlude_phase_b() {
   _state_tmp=$(mktemp "${state_file}.XXXXXX" 2>/dev/null) || { echo "WARN: mktemp failed for state file update" >&2; exit 0; }
   sed 's/^compact_pending: true$/compact_pending: false/' "$state_file" > "$_state_tmp" 2>/dev/null \
     && mv -f "$_state_tmp" "$state_file" 2>/dev/null \
-    || { rm -f "$_state_tmp" "$state_file" 2>/dev/null; exit 0; }
+    || { rm -f "$_state_tmp" 2>/dev/null; exit 0; }
 
   if declare -f _trace &>/dev/null; then
     _trace "Compact interlude Phase B: context checkpointed, proceeding to arc prompt"

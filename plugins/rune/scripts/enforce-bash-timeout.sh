@@ -197,11 +197,11 @@ if [[ -z "$match_found" ]]; then
       if [[ -n "$EXTRA_PATTERNS" ]]; then
         while IFS= read -r pat; do
           [[ -z "$pat" ]] && continue
-          # SEC-001 FIX: Validate user-supplied regex pattern (max 100 chars, no backreferences)
-          if [[ ${#pat} -gt 100 ]] || [[ "$pat" =~ \\[0-9] ]]; then
+          # SEC-001 FIX: Validate user-supplied regex pattern (max 100 chars, no backreferences, no nested quantifiers)
+          if [[ ${#pat} -gt 100 ]] || [[ "$pat" =~ \\[0-9] ]] || [[ "$pat" =~ \(\.\*\)\+ ]] || [[ "$pat" =~ \(.+\)\+ ]] || [[ "$pat" =~ \(.+\)\* ]]; then
             continue
           fi
-          if printf '%s\n' "$NORMALIZED" | grep -qE "$pat" 2>/dev/null; then
+          if timeout 1 grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
             match_found="custom"
             break
           fi

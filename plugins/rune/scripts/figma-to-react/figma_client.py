@@ -695,6 +695,9 @@ class FigmaClient:
             Dict mapping node_id to image URL (or None if export failed).
         """
         await self._ensure_client()  # Resolve backend before building cache key.
+        for nid in node_ids:
+            if not _NODE_ID_PATTERN.match(nid):
+                raise ValueError(f"Invalid Figma node ID format: {nid!r}")
         ids_str = ",".join(node_ids)
         cache_key = f"images:{self._backend}:{file_key}:{ids_str}:{format}:{scale}"
         cached = self._cache.get(cache_key)

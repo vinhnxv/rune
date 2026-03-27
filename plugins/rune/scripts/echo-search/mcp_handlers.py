@@ -762,7 +762,8 @@ def _register_mcp_handlers(server, types, tool_schemas):
                 isError=True if is_error else None,
             )]
         except (ValueError, TypeError, KeyError, sqlite3.Error, OSError) as e:
-            err_msg = str(e)[:200] if str(e) else "Internal server error"
+            logger.exception("MCP handler error in echo-search")
+            err_msg = "Internal server error"
             return [types.TextContent(
                 type="text", text=json.dumps({"error": err_msg}),
                 isError=True,

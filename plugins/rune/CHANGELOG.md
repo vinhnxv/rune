@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.21.5] - 2026-03-27
+
+### Fixed
+- **FLAW-001**: Fix state file destruction on transient `mv` failure in `arc-stop-hook-common.sh` — error handler was removing both temp AND original state file, stalling arc pipelines permanently
+- **FLAW-002**: Add missing ReDoS protection (nested quantifier rejection + `timeout 1` wrapper) to second pattern validation loop in `enforce-bash-timeout.sh` — first loop had guards, second was unprotected
+- **BACK-001**: Fix information leakage in echo-search MCP error handler — internal exception messages (file paths, SQL errors) were returned verbatim to MCP clients. Now returns generic "Internal server error" with `logger.exception()` for debugging
+- **BACK-002**: Add `_NODE_ID_PATTERN` validation to `get_images()` in figma-to-react `figma_client.py` — `get_nodes()` validated IDs but `get_images()` passed them directly to Figma API without validation
+- **FLAW-005**: Add numeric validation guard for stamp file in `mcp-pkg-manager.sh` — corrupted stamp files caused repeated `npm list -g` calls on every MCP server startup
+
 ## [2.21.4] - 2026-03-27
 
 ### Fixed

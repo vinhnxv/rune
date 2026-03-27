@@ -28,6 +28,7 @@ _mcp_cache_fresh() {
   [[ -f "$stamp" && ! -L "$stamp" ]] || return 1
   local last_check installed_ver
   last_check=$(head -1 "$stamp" 2>/dev/null || echo 0)
+  [[ "$last_check" =~ ^[0-9]+$ ]] || return 1  # treat non-numeric as stale
   local now
   now=$(date +%s)
   local age=$(( now - last_check ))
