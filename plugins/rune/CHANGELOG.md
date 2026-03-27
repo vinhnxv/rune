@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.24.0] - 2026-03-27
+
+### Added
+- **Phase necessity audit dimension**: New `--mode necessity` for `/rune:self-audit` — evaluates whether each arc phase still contributes measurable quality improvement. Inspired by Anthropic's harness design principle: "every component encodes an assumption about model limitations worth stress testing"
+- **necessity-analyzer agent**: New meta-QA agent (`agents/meta-qa/necessity-analyzer.md`) — analyzes arc checkpoints across multiple runs to compute per-phase necessity scores (0.0-1.0) using weighted formula: artifact_value, quality_delta, skip_rate, uniqueness. Produces ESSENTIAL / REVIEW / CANDIDATE_FOR_REMOVAL recommendations
+- **Necessity report template**: New reference (`skills/self-audit/references/necessity-report-template.md`) — per-phase table with score breakdown, trend analysis, model-version context, and caveats
+- **Agent registry**: `necessity-analyzer` added to `known-rune-agents.sh` (plugin total: 146 agents — 103 core + 43 extended)
+
 ## [2.23.1] - 2026-03-27
 
 ### Changed

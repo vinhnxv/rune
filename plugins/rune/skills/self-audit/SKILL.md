@@ -9,11 +9,12 @@ description: |
   "rune consistency check", "lint agents", "validate workflow", "check hooks".
 
   Covers: Workflow definition validation, agent prompt linting, rule consistency
-  checking, hook integrity verification, echo-based recurrence tracking.
+  checking, hook integrity verification, echo-based recurrence tracking,
+  phase necessity analysis (harness component stress testing).
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent, TaskCreate, TaskList, TaskGet, TaskUpdate, TeamCreate, TeamDelete, SendMessage, AskUserQuestion
-argument-hint: "[--mode static|runtime|all] [--dimension D] [--apply] [--verbose] [--dry-run] [--history] [--arc-id ID]"
+argument-hint: "[--mode static|runtime|necessity|all] [--dimension D] [--apply] [--verbose] [--dry-run] [--history] [--arc-id ID]"
 ---
 
 # Self-Audit — Meta-Quality Analysis
@@ -28,7 +29,8 @@ inconsistencies — then proposes fixes.
 /rune:self-audit                        # Default: static analysis
 /rune:self-audit --mode static          # Analyze agents, skills, hooks, config
 /rune:self-audit --mode runtime         # Analyze recent arc artifacts
-/rune:self-audit --mode all             # Both static + runtime
+/rune:self-audit --mode all             # Both static + runtime + necessity
+/rune:self-audit --mode necessity       # Phase necessity analysis (harness stress test)
 /rune:self-audit --apply                # Propose and interactively apply fixes
 /rune:self-audit --dry-run              # Show what --apply would propose without prompting
 ```
@@ -203,6 +205,8 @@ allMembers = [
   "hook-integrity-auditor",
   // Runtime analysis agents (conditional — --mode runtime or --mode all)
   "hallucination-detector", "effectiveness-analyzer", "convergence-analyzer",
+  // Necessity analysis agent (conditional — --mode necessity or --mode all)
+  "necessity-analyzer",
   // Improvement advisor (conditional — --apply)
   "improvement-advisor"
 ]
@@ -259,9 +263,68 @@ Analyzes:
 
 See [runtime-mode.md](references/runtime-mode.md) for the full R0–R3 phase protocol and auto-detection algorithm.
 
+### Necessity Analysis (`--mode necessity`)
+
+Evaluates whether each arc phase still contributes measurable quality improvement.
+Inspired by Anthropic's harness design principle: every scaffolding component encodes
+an assumption about model limitations that should be periodically stress-tested.
+
+Spawns 1 necessity agent (read-only):
+
+| Agent | Dimension | Output |
+|-------|-----------|--------|
+| `necessity-analyzer` | Per-phase value measurement, redundancy detection | `necessity-findings.md` |
+
+Requires at least 3 completed arc runs in `.rune/arc/` for meaningful analysis.
+Warns (but still runs with lower confidence) if fewer are available.
+
+Analyzes per phase:
+- **Artifact production**: Does this phase produce substantial, unique output?
+- **Quality delta**: Do quality metrics improve after this phase runs?
+- **Skip rate**: How often is this phase skipped by conditions?
+- **Uniqueness**: Does this phase catch issues no other phase catches?
+- **Cost-benefit**: Is the phase's time investment justified by its value?
+
+Produces recommendations: `ESSENTIAL` (>= 0.70), `REVIEW` (0.40-0.69),
+`CANDIDATE_FOR_REMOVAL` (< 0.40).
+
+See [necessity-report-template.md](references/necessity-report-template.md) for the report format.
+
+#### Necessity Mode Orchestration
+
+```javascript
+// Phase N0: Locate arc run data (reuses runtime-mode auto-detection)
+const arcRuns = collectRecentArcs(5)  // see runtime-mode.md
+if (arcRuns.length === 0) {
+  warn("No completed arc runs found in .rune/arc/. Run at least 3 arcs first.")
+  return
+}
+if (arcRuns.length < 3) {
+  warn(`Only ${arcRuns.length} arc run(s) found. Minimum 3 recommended for reliable scores.`)
+}
+
+// Phase N1: Spawn necessity-analyzer
+TaskCreate({ subject: "necessity-audit", description: buildNecessityPrompt(arcRuns, outputDir) })
+Agent({
+  name: "necessity-analyzer",
+  team_name: teamName,
+  subagent_type: "rune:meta-qa:necessity-analyzer",
+  prompt: buildNecessityPrompt(arcRuns, outputDir),
+  run_in_background: true
+})
+
+// Phase N2: Wait for completion
+waitForCompletion(teamName, 1, { timeoutMs: 300000, pollIntervalMs: 30000 })
+
+// Phase N3: Merge into SELF-AUDIT-REPORT.md
+// Read necessity-findings.md, extract per-phase table and recommendations
+// Add "Phase Necessity" dimension to the report
+// Calculate necessity dimension score: 100 - (candidates * 10 + review * 3)
+```
+
 ### Combined (`--mode all`)
 
-Runs both static and runtime analysis, then performs cross-role echo correlation
+Runs static, runtime, and necessity analysis, then performs cross-role echo correlation
 to detect pipeline-spanning patterns.
 
 ## --apply Interactive Approval Flow
@@ -407,6 +470,7 @@ Reports are written to `tmp/self-audit/{timestamp}/`:
 | `prompt-findings.md` | Prompt linter dimension findings (SA-AGT-*) |
 | `rule-findings.md` | Rule consistency dimension findings (SA-RC-*) |
 | `hook-findings.md` | Hook integrity dimension findings (SA-HK-*) |
+| `necessity-findings.md` | Phase necessity dimension findings (NEC-*) |
 | `findings.json` | Machine-readable findings list |
 | `metrics.json` | Dimension scores and deltas |
 | `proposals.md` | Fix proposals (when `--apply`) |
@@ -451,3 +515,4 @@ overall_score = avg(all active dimension scores)
 - [effectiveness-tracking.md](references/effectiveness-tracking.md) — Fix effectiveness loop
 - [runtime-mode.md](references/runtime-mode.md) — Runtime analysis phases (R0–R3)
 - [metrics-schema.md](references/metrics-schema.md) — metrics.json schema and trend computation
+- [necessity-report-template.md](references/necessity-report-template.md) — Phase necessity report format and scoring thresholds

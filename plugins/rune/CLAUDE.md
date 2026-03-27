@@ -54,7 +54,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **untitledui-mcp** | UntitledUI official MCP integration — 6 tools (search_components, list_components, get_component, get_component_bundle, get_page_templates, get_page_template_files), code conventions (React Aria `Aria*` prefix, Tailwind v4.2 semantic colors, kebab-case, compound components), builder-protocol metadata for automated pipeline integration. Non-invocable — auto-loaded by design-system-discovery when UntitledUI is detected |
 | **status** | Background dispatch status — check progress, pending questions, and worker health for `/rune:strive --background` dispatches |
 | **learn** | Session self-learning — extracts CLI correction patterns and review recurrence findings from session JSONL history, persists high-confidence patterns to Rune Echoes via 4-phase pipeline (scan → detect → report → confirm+write). `/rune:learn` |
-| **self-audit** | Meta-QA self-audit — static analysis (workflow, agent, hook, rule consistency) + runtime analysis (hallucination detection, agent effectiveness tracking, convergence analysis, metrics store). 3 runtime agents: hallucination-detector, effectiveness-analyzer, convergence-analyzer. `--mode static\|runtime\|all`, `--arc-id`, `--history`, `--apply`. Echo-integrated recurrence tracking via `.rune/echoes/meta-qa/`. `/rune:self-audit` |
+| **self-audit** | Meta-QA self-audit — static analysis (workflow, agent, hook, rule consistency) + runtime analysis (hallucination detection, agent effectiveness tracking, convergence analysis, metrics store) + necessity analysis (per-phase value measurement, harness stress testing). 3 runtime agents + 1 necessity agent: hallucination-detector, effectiveness-analyzer, convergence-analyzer, necessity-analyzer. `--mode static\|runtime\|necessity\|all`, `--arc-id`, `--history`, `--apply`. Echo-integrated recurrence tracking via `.rune/echoes/meta-qa/`. `/rune:self-audit` |
 | **file-todos** | Standalone file-based todo tracking — create, triage, list, search, resolve, dedup, and track structured todo files with YAML frontmatter. Session-scoped in `tmp/`. Not integrated into workflow pipelines — invoke manually via `/rune:file-todos` |
 | **resolve-todos** | Standalone todo resolution using Agent Teams with verify-before-fix pipeline. Spawns todo-verifier + mend-fixer agents. Not integrated into workflow pipelines — invoke manually via `/rune:resolve-todos` |
 | **elevate** | Promote project echoes to global scope with domain tagging and dedup |
@@ -83,7 +83,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | `/rune:work` | Beginner alias for `/rune:strive` — implement a plan |
 | `/rune:review` | Beginner alias for `/rune:appraise` — review code changes |
 | `/rune:team-delegate` | Task delegation dashboard — assign, message, create tasks (experimental) |
-| `/rune:self-audit` | Meta-QA self-audit of Rune's own workflow system (4 dimensions, echo-integrated) |
+| `/rune:self-audit` | Meta-QA self-audit of Rune's own workflow system (5 dimensions including phase necessity, echo-integrated) |
 
 ## ToolSearch Compatibility
 
@@ -448,7 +448,7 @@ echo "Commands: $(find plugins/rune/commands -name '*.md' -not -path '*/referenc
 
 ## References
 
-- [Agent registry](references/agent-registry.md) — 145 agent definitions (102 CORE in agents/ + 43 EXTENDED in registry/, 13 shared). 12 stack specialist reviewers are prompt templates, not registered agents
+- [Agent registry](references/agent-registry.md) — 146 agent definitions (103 CORE in agents/ + 43 EXTENDED in registry/, 13 shared). 12 stack specialist reviewers are prompt templates, not registered agents
 - [Key concepts](references/key-concepts.md) — Tarnished, Ash, TOME, Arc, Mend, Forge Gaze, Echoes
 - [Lore glossary](references/lore-glossary.md) — Elden Ring terminology mapping
 - [Output conventions](references/output-conventions.md) — Directory structure per workflow
