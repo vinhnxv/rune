@@ -228,6 +228,53 @@ See [worker-prompts.md](references/worker-prompts.md) for full worker prompt tem
 
 See [todo-protocol.md](references/todo-protocol.md) for the worker todo file protocol that MUST be included in all spawn prompts.
 
+### Micro-Evaluator Spawning (conditional)
+
+When `work.micro_evaluator.enabled` is true in talisman, spawn a `micro-evaluator` agent as an additional teammate on the same team. The evaluator watches for task completion signals and provides per-task quality feedback before tasks are marked done.
+
+```javascript
+// readTalismanSection: "work"
+const workConfig = readTalismanSection("work") ?? {}
+const microEvalConfig = workConfig.micro_evaluator ?? {}
+const microEvalEnabled = microEvalConfig.enabled === true
+
+if (microEvalEnabled) {
+  // Create evaluator output directory
+  Bash(`mkdir -p tmp/work/${timestamp}/evaluator`)
+
+  // Create a task for the evaluator
+  TaskCreate({
+    subject: "Micro-evaluator: review task outputs",
+    description: `Monitor tmp/work/${timestamp}/evaluator/ for request-*.json signals. ` +
+      `For each request, read the task file and changed files, evaluate across dimensions ` +
+      `(${Object.keys(microEvalConfig.dimensions ?? {}).filter(d => microEvalConfig.dimensions[d]).join(", ")}), ` +
+      `and write verdict to tmp/work/${timestamp}/evaluator/{task-id}.json. ` +
+      `Max ${microEvalConfig.max_iterations ?? 2} iterations per task. ` +
+      `Timeout: ${microEvalConfig.timeout_ms ?? 30000}ms per evaluation.`
+  })
+
+  // Spawn micro-evaluator as teammate
+  Agent({
+    prompt: `You are the micro-evaluator for this strive session.
+Watch for evaluation request files in tmp/work/${timestamp}/evaluator/request-*.json.
+For each request, evaluate the worker's changes and write a verdict.
+See your agent definition for full protocol.
+Timestamp: ${timestamp}. Team: ${teamName}.`,
+    subagent_type: "rune:work:micro-evaluator",
+    team_name: teamName,
+    name: "micro-evaluator",
+    model: microEvalConfig.model ?? "haiku"
+  })
+}
+```
+
+**Key design decisions:**
+- Evaluator spawns **once** for the entire strive session, not per-task
+- Communication is **file-based** (signal files), not via SendMessage — avoids context pressure
+- Workers poll for verdict with a **30s timeout** — auto-APPROVE if evaluator is slow
+- Evaluator only sees the **diff** for each task, not the full codebase
+- **Non-blocking fallback**: If evaluator crashes or times out, tasks proceed as approved
+
 ### Wave-Based Execution
 
 See [wave-execution.md](references/wave-execution.md) for the wave loop algorithm, SEC-002 sanitization, non-goals extraction, and worktree mode spawning.

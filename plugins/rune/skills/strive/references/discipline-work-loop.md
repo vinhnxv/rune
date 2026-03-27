@@ -462,6 +462,23 @@ Build a completion matrix per task after workers finish. Reads task files to det
 
 **Output**: `tmp/work/{timestamp}/work-review/completion-matrix.md`
 
+### Micro-Evaluator Iterations in Completion Matrix
+
+When `work.micro_evaluator.enabled` is true, the completion matrix includes evaluator iteration counts per task. This provides visibility into how many refinement cycles each task required before passing quality checks.
+
+| Task | Criterion | Status | Evidence | Worker | Eval Iterations |
+|------|-----------|--------|----------|--------|-----------------|
+| T1 | AC-1.1 | PASS | pattern-match-001.json | rune-smith-1 | 1 (APPROVE) |
+| T1 | AC-1.2 | PASS | refine-001.json | rune-smith-1 | 2 (REFINE→APPROVE) |
+| T2 | AC-2.1 | PASS | file-exists-001.json | rune-smith-2 | 0 (no evaluator) |
+
+**Evaluator metrics** (collected from `tmp/work/{timestamp}/evaluator/*.json`):
+- `eval_total_iterations`: Sum of all iterations across all evaluated tasks
+- `eval_first_pass_rate`: Percentage of tasks that received APPROVE on first evaluation
+- `eval_pivot_count`: Number of tasks where the evaluator recommended a PIVOT
+
+These metrics are included in the convergence report (Phase 5) and persisted to Rune Echoes (Phase 5 echo-persist) for cross-session learning.
+
 ### Utility: parseYAMLFrontmatter
 
 Inline regex parser for task file YAML frontmatter. No external YAML dependency.

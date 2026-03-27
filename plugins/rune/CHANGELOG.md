@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.23.0] - 2026-03-27
+
+### Added
+- **Per-task micro-evaluator**: New `micro-evaluator` agent (`agents/work/micro-evaluator.md`) — lightweight Haiku-model quality evaluator that reviews worker diffs per-task and provides structured APPROVE/REFINE/PIVOT feedback before task completion. Inspired by Anthropic's Generator-Evaluator harness pattern
+- **Micro-evaluator orchestration**: Strive Phase 2 conditionally spawns micro-evaluator teammate when `work.micro_evaluator.enabled` is true. File-based signal communication (zero context pressure). Non-blocking 30s timeout with auto-approve fallback
+- **Worker feedback protocol**: Worker prompts (rune-smith + trial-forger) include new step 7.6 — micro-evaluation feedback reception with REFINE iteration (max 2) and PIVOT approach change support
+- **Talisman configuration**: New `work.micro_evaluator` section with `enabled` (default: false), `max_iterations` (2), `timeout_ms` (30000), `model` (haiku), and per-dimension toggles (pattern_compliance, error_handling, edge_cases, naming_consistency)
+- **Quality gates integration**: Phase 3.8 micro-evaluator summary collects verdict distribution and iteration metrics. Completion matrix includes evaluator iterations per task. Metrics feed into Echo Persist for cross-session learning
+- **Agent registry**: `micro-evaluator` added to `known-rune-agents.sh` (141 agents) and Phase 6 cleanup fallback array
+
 ## [2.22.0] - 2026-03-27
 
 ### Added

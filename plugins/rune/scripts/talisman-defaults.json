@@ -946,6 +946,18 @@
       "max_subtasks": 4,
       "model": "haiku"
     },
+    "micro_evaluator": {
+      "dimensions": {
+        "edge_cases": true,
+        "error_handling": true,
+        "naming_consistency": true,
+        "pattern_compliance": true
+      },
+      "enabled": false,
+      "max_iterations": 2,
+      "model": "haiku",
+      "timeout_ms": 30000
+    },
     "unrestricted_shared_files": [],
     "ward_commands": [
       "make check",

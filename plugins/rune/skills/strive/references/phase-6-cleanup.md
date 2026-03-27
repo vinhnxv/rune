@@ -14,7 +14,7 @@ allMembers = [
   // Gap convergence workers (up to 6 iterations x 2 concurrent = 12 workers)
   ...Array.from({length: 12}, (_, i) => `rune-smith-gap-${Math.floor(i / 2) + 1}-${(i % 2) + 1}`),
   "trial-forger", "unit-test-runner", "test-failure-analyst",
-  "codex-advisory"
+  "codex-advisory", "micro-evaluator"
 ]
 ```
 
