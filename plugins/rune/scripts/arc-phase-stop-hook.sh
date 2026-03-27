@@ -773,23 +773,25 @@ _trace "TIMING: phase_find done at +$(( $(date +%s) - _HOOK_START_EPOCH ))s"
 
 _trace "Next pending phase: ${NEXT_PHASE:-NONE} (prev=${_IMMEDIATE_PREV:-NONE}, iteration ${ITERATION}, auto_skipped=${_auto_skipped})"
 
-# ── Reset api_error_retries on successful phase completion ──
-# Safety net: the agent prompt instructs the LLM to reset api_error_retries = 0
+# ── Reset api_error_retries and server_error_retries on successful phase completion ──
+# Safety net: the agent prompt instructs the LLM to reset retry counters to 0
 # when completing a phase, but under context pressure it may forget. The hook
 # enforces the reset here to prevent retry counts from accumulating across phases.
 if [[ -n "$NEXT_PHASE" && -n "$_IMMEDIATE_PREV" ]]; then
   _prev_status=$(echo "$CKPT_CONTENT" | _jq_with_budget -r ".phases.${_IMMEDIATE_PREV}.status // \"pending\"" 2>/dev/null || echo "pending")
   if [[ "$_prev_status" == "completed" || "$_prev_status" == "skipped" ]]; then
-    _current_retries=$(echo "$CKPT_CONTENT" | _jq_with_budget -r '.api_error_retries // 0' 2>/dev/null || echo "0")
-    if [[ "$_current_retries" != "0" && "$_current_retries" != "null" ]]; then
-      _trace "Resetting api_error_retries (was ${_current_retries}) after successful phase: ${_IMMEDIATE_PREV}"
-      CKPT_CONTENT=$(echo "$CKPT_CONTENT" | jq '.api_error_retries = 0' 2>/dev/null || echo "$CKPT_CONTENT")
+    _current_api_retries=$(echo "$CKPT_CONTENT" | _jq_with_budget -r '.api_error_retries // 0' 2>/dev/null || echo "0")
+    _current_server_retries=$(echo "$CKPT_CONTENT" | _jq_with_budget -r '.server_error_retries // 0' 2>/dev/null || echo "0")
+    if [[ "$_current_api_retries" != "0" && "$_current_api_retries" != "null" ]] || \
+       [[ "$_current_server_retries" != "0" && "$_current_server_retries" != "null" ]]; then
+      _trace "Resetting error retries (api=${_current_api_retries}, server=${_current_server_retries}) after successful phase: ${_IMMEDIATE_PREV}"
+      CKPT_CONTENT=$(echo "$CKPT_CONTENT" | jq '.api_error_retries = 0 | .server_error_retries = 0' 2>/dev/null || echo "$CKPT_CONTENT")
       _ckpt_tmp=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null) || _ckpt_tmp=""
       if [[ -n "$_ckpt_tmp" ]]; then
         if echo "$CKPT_CONTENT" | jq -e '.' > "$_ckpt_tmp" 2>/dev/null; then
           mv -f "$_ckpt_tmp" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || rm -f "$_ckpt_tmp" 2>/dev/null
         else
-          _trace "WARNING: api_error_retries reset checkpoint JSON validation failed — skipping write"
+          _trace "WARNING: error retries reset checkpoint JSON validation failed — skipping write"
           rm -f "$_ckpt_tmp" 2>/dev/null
           CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
         fi
@@ -1457,7 +1459,7 @@ if [[ "$NEXT_PHASE" == "test" ]]; then
             _ckpt_tmp=$(mktemp "${_cb_cp_path}.XXXXXX" 2>/dev/null) || _ckpt_tmp=""
             if [[ -n "$_ckpt_tmp" ]]; then
               _now_ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
-              if jq --arg ts "$_now_ts" '.phases.test.status = "completed" | .phases.test.completed_at = $ts | .phases.test.force_advanced = true | .api_error_retries = 0' "$_cb_cp_path" > "$_ckpt_tmp" 2>/dev/null; then
+              if jq --arg ts "$_now_ts" '.phases.test.status = "completed" | .phases.test.completed_at = $ts | .phases.test.force_advanced = true | .api_error_retries = 0 | .server_error_retries = 0' "$_cb_cp_path" > "$_ckpt_tmp" 2>/dev/null; then
                 mv -f "$_ckpt_tmp" "$_cb_cp_path" 2>/dev/null || rm -f "$_ckpt_tmp" 2>/dev/null
               else
                 rm -f "$_ckpt_tmp" 2>/dev/null
@@ -1627,7 +1629,8 @@ Writing a JSON state file is NOT a substitute for TeamCreate. The enforce-teams.
      const phaseDuration = completionTs - startMs
      checkpoint.totals.phase_times["${NEXT_PHASE}"] = Number.isFinite(phaseDuration) && phaseDuration >= 0 ? phaseDuration : null
      checkpoint.api_error_retries = 0
-5. When done, update the checkpoint: set phases.${NEXT_PHASE}.status to \"completed\" (or \"skipped\" if the phase gate check says to skip). Also reset api_error_retries to 0.
+     checkpoint.server_error_retries = 0
+5. When done, update the checkpoint: set phases.${NEXT_PHASE}.status to \"completed\" (or \"skipped\" if the phase gate check says to skip). Also reset api_error_retries and server_error_retries to 0.
 6. Write the updated checkpoint back to ${CHECKPOINT_PATH}.
 7. STOP responding immediately after updating the checkpoint.
 
