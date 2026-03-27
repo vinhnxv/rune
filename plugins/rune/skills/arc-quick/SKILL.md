@@ -345,6 +345,18 @@ ${hasP1 ? `- \`/rune:mend ${latestTome}\` --- auto-fix P1 review findings` : ""}
  * @returns {{ verdict, findings, confidence, iteration, timestamp, reason }}
  */
 function evaluateIteration(planPath, iterationNumber, baseRef) {
+  // BACK-001: Read evaluate_timeout_ms from talisman (default 60s)
+  const evaluateTimeoutMs = (readTalismanSection("arc")?.quick?.evaluate_timeout_ms) ?? 60000
+  log(`Evaluator iteration ${iterationNumber}: starting (timeout: ${evaluateTimeoutMs}ms)`)
+
+  // SEC-004: Validate git ref before interpolation
+  if (!/^[0-9a-f]{7,40}$/.test(baseRef)) {
+    log(`Evaluator iteration ${iterationNumber}: invalid baseRef "${baseRef}", skipping`)
+    return { verdict: "ITERATE", findings: [{ type: "error", name: "invalid-ref", detail: "baseRef failed validation" }],
+             confidence: 0.3, iteration: iterationNumber, timestamp: new Date().toISOString(),
+             reason: "Invalid git ref — cannot evaluate" }
+  }
+
   const findings = []
   const changedFiles = Bash(`git diff --name-only ${baseRef}`).trim()
 
@@ -358,9 +370,10 @@ function evaluateIteration(planPath, iterationNumber, baseRef) {
   const fileList = changedFiles.split("\n").filter(Boolean)
 
   // 1. Run ward checks (project-agnostic quality gates)
+  // SEC-001: discoverWards() returns project-defined commands already validated by ward-check.md
   const wards = discoverWards()  // see ward-check.md Ward Discovery Protocol
   for (const ward of wards) {
-    const result = Bash(ward.command)
+    const result = Bash(ward.command, { timeout: evaluateTimeoutMs })
     if (result.exitCode !== 0) {
       findings.push({ type: "ward", name: ward.name,
                        detail: result.stderr.slice(0, 500) })
@@ -383,10 +396,13 @@ function evaluateIteration(planPath, iterationNumber, baseRef) {
   const confidence = findings.length === 0 ? 95
     : Math.max(30, 90 - findings.length * 10)
 
+  // BACK-006: Log evaluator result for observability
+  const reason = verdict === "PASS" ? "All wards passed, no quality signals"
+    : `${findings.length} finding(s): ${findings.map(f => f.name ?? f.pattern ?? "unknown").join(", ")}`
+  log(`Evaluator iteration ${iterationNumber}: verdict=${verdict} confidence=${confidence} findings=${findings.length}`)
+
   return { verdict, findings, confidence, iteration: iterationNumber,
-           timestamp: new Date().toISOString(),
-           reason: verdict === "PASS" ? "All wards passed, no quality signals"
-             : `${findings.length} finding(s): ${findings.map(f => f.name || f.pattern).join(", ")}` }
+           timestamp: new Date().toISOString(), reason }
 }
 ```
 
