@@ -9,13 +9,15 @@ description: |
   naming consistency checks. Returns APPROVE/REFINE/PIVOT verdicts with confidence scores.
 tools:
   - Read
+  - Write
   - Grep
   - Glob
+  - TaskList
   - TaskGet
   - TaskUpdate
   - SendMessage
 model: haiku
-maxTurns: 5
+maxTurns: 30
 source: builtin
 priority: 80
 primary_phase: work
@@ -49,14 +51,13 @@ You receive evaluation requests via signal files at:
 Each request contains:
 - `task_id`: The task being evaluated
 - `task_file`: Path to the task file with acceptance criteria
-- `patch_file`: Path to the worker's diff/patch
 - `changed_files`: List of files modified by the worker
 - `iteration`: Current evaluation iteration (1-based, max from talisman)
 
 ## Evaluation Protocol
 
 1. **Read the task file** to understand acceptance criteria and scope
-2. **Read the patch/diff** to understand what changed
+2. **Derive the diff** by running `git diff HEAD -- {changed_files}` to see what changed
 3. **Read changed files** (full content) to evaluate in context
 4. **Evaluate across 4 dimensions** (see below)
 5. **Write verdict** to `tmp/work/{timestamp}/evaluator/{task-id}.json`
@@ -107,7 +108,7 @@ Write your verdict as JSON to `tmp/work/{timestamp}/evaluator/{task-id}.json`:
 ## Verdict Decisions
 
 - **APPROVE** (confidence >= 0.8): Changes meet quality bar. No significant issues found.
-- **REFINE** (confidence 0.4-0.8): Changes need targeted improvements. Provide specific suggestions.
+- **REFINE** (confidence >= 0.4 and < 0.8): Changes need targeted improvements. Provide specific suggestions.
 - **PIVOT** (confidence < 0.4): Approach is fundamentally flawed. Explain why and suggest alternative.
 
 ## Constraints

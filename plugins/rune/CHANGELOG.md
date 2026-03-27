@@ -8,7 +8,7 @@
 - **Worker feedback protocol**: Worker prompts (rune-smith + trial-forger) include new step 7.6 — micro-evaluation feedback reception with REFINE iteration (max 2) and PIVOT approach change support
 - **Talisman configuration**: New `work.micro_evaluator` section with `enabled` (default: false), `max_iterations` (2), `timeout_ms` (30000), `model` (haiku), and per-dimension toggles (pattern_compliance, error_handling, edge_cases, naming_consistency)
 - **Quality gates integration**: Phase 3.8 micro-evaluator summary collects verdict distribution and iteration metrics. Completion matrix includes evaluator iterations per task. Metrics feed into Echo Persist for cross-session learning
-- **Agent registry**: `micro-evaluator` added to `known-rune-agents.sh` (141 agents) and Phase 6 cleanup fallback array
+- **Agent registry**: `micro-evaluator` added to `known-rune-agents.sh` and Phase 6 cleanup fallback array (plugin total: 145 agents)
 
 ## [2.22.0] - 2026-03-27
 

@@ -38,20 +38,26 @@ if (exists(critiquePath)) {
 When `work.micro_evaluator.enabled` is true and the micro-evaluator ran during this session, the orchestrator collects evaluator verdicts and includes them in the quality summary.
 
 ```javascript
-// Phase 3.8: Collect micro-evaluator results (optional)
+// Phase 3.8: Collect micro-evaluator results (optional, non-blocking)
 const evalDir = `tmp/work/${timestamp}/evaluator`
-const verdictFiles = Glob(`${evalDir}/task-*.json`)
+// Match all JSON files except request-*.json signal files
+const allFiles = Glob(`${evalDir}/*.json`)
+const verdictFiles = allFiles.filter(f => !f.includes('/request-'))
 if (verdictFiles.length > 0) {
   let totalIterations = 0
   let approveCount = 0
   let refineCount = 0
   let pivotCount = 0
   for (const vf of verdictFiles) {
-    const verdict = JSON.parse(Read(vf))
-    totalIterations += verdict.iteration ?? 1
-    if (verdict.verdict === "APPROVE") approveCount++
-    else if (verdict.verdict === "REFINE") refineCount++
-    else if (verdict.verdict === "PIVOT") pivotCount++
+    try {
+      const verdict = JSON.parse(Read(vf))
+      totalIterations += verdict.iteration ?? 1
+      if (verdict.verdict === "APPROVE") approveCount++
+      else if (verdict.verdict === "REFINE") refineCount++
+      else if (verdict.verdict === "PIVOT") pivotCount++
+    } catch (e) {
+      warn(`Phase 3.8: skipping malformed verdict file ${vf}: ${e.message}`)
+    }
   }
   log(`Micro-Evaluator Summary: ${verdictFiles.length} tasks evaluated, ` +
       `${approveCount} approved, ${refineCount} refined, ${pivotCount} pivoted, ` +

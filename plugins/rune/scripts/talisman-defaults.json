@@ -956,7 +956,7 @@
       "enabled": false,
       "max_iterations": 2,
       "model": "haiku",
-      "timeout_ms": 30000
+      "timeout_ms": 60000
     },
     "unrestricted_shared_files": [],
     "ward_commands": [
