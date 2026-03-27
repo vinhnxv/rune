@@ -88,6 +88,20 @@ if (!enrichedPlan || enrichedPlan.trim().length === 0) {
   Bash(`cp -- "${planFile}" "${forgePlanPath}"`)
 }
 
+// STEP 3.5: Enrichment delta validation
+// Compare enriched plan size against original to detect ghost forges
+// (sub-second completions that mark "completed" without real enrichment).
+const originalPlan = Read(planFile)
+const originalLines = originalPlan.split('\n').length
+const enrichedLines = (enrichedPlan || Read(forgePlanPath)).split('\n').length
+const delta = enrichedLines - originalLines
+
+if (delta <= 0) {
+  warn(`Forge enrichment delta: ${delta} lines — enriched plan is not larger than original. Forge may have been skipped.`)
+} else {
+  log(`Forge enrichment delta: +${delta} lines (${originalLines} → ${enrichedLines})`)
+}
+
 // STEP 4: Update checkpoint with artifact hash
 // CRITICAL: Re-read the enriched plan to compute hash — do NOT skip this.
 const forgePlanContent = Read(forgePlanPath)

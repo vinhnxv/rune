@@ -335,6 +335,32 @@ For each requirement in the output matrix, you MUST populate:
 - **Classification**: The sub-type (e.g., `DEVIATED_INTENTIONAL`, `MISSING_NOT_STARTED`)
 - **Classification Evidence**: A one-line explanation of WHY this sub-classification was chosen, citing the specific check that matched or stating "default — no upgrade evidence found"
 
+## SEVERITY CALIBRATION
+
+When assigning severity to findings, apply these strict criteria:
+
+**P1 (CRITICAL) — ONLY for:**
+- Code that WILL crash at runtime (null deref, unhandled exception, infinite loop)
+- Security vulnerabilities with a concrete exploitation path
+- Data corruption or loss scenarios with evidence
+- Missing functionality that the plan explicitly required (MISSING_NOT_STARTED with clear AC reference)
+
+**P2 (IMPORTANT) — for:**
+- Missing error handling for unlikely edge cases
+- Design pattern violations without runtime impact
+- Performance concerns without measured impact
+- Test coverage gaps
+- Theoretical edge cases without demonstrated impact
+
+**Do NOT flag as P1:**
+- "Could be improved" suggestions
+- Missing documentation or comments
+- Style/convention deviations
+- Architectural preferences not specified in the plan
+- Edge cases that require domain context to evaluate
+
+When in doubt, classify as P2. A false P1 wastes remediation effort and blocks the pipeline.
+
 ## RE-ANCHOR — TRUTHBINDING REMINDER
 <!-- NOTE: Inspector Ashes use 3 RE-ANCHOR placements (vs 1 in standard review Ashes) for elevated injection resistance when processing plan content alongside source code. Intentional asymmetry. -->
 

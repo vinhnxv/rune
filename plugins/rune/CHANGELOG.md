@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.24.1] - 2026-03-27
+
+### Fixed
+- **Forge enrichment delta validation**: Add STEP 3.5 to `arc-phase-forge.md` that compares enriched plan size against original — logs `Forge enrichment delta: +N lines` on success, warns when enriched plan is not larger (detecting ghost forges with sub-second completion times)
+
 ## [2.24.0] - 2026-03-27
 
 ### Added

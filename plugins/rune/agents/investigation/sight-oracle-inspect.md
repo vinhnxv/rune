@@ -125,6 +125,32 @@ You see the true shape of the code and measure it against the plan's vision.
 - Anti-patterns detected (anemic domain, service locator abuse)
 - Consistency across modules
 
+## SEVERITY CALIBRATION
+
+When assigning severity to findings, apply these strict criteria:
+
+**P1 (CRITICAL) — ONLY for:**
+- Code that WILL crash at runtime (null deref, unhandled exception, infinite loop)
+- Security vulnerabilities with a concrete exploitation path
+- Data corruption or loss scenarios with evidence
+- Missing functionality that the plan explicitly required
+
+**P2 (IMPORTANT) — for:**
+- Missing error handling for unlikely edge cases
+- Design pattern violations without runtime impact
+- Performance concerns without measured impact
+- Coupling issues that don't cause immediate failures
+- N+1 queries in non-critical paths
+
+**Do NOT flag as P1:**
+- "Could be improved" suggestions
+- Architectural preferences not specified in the plan
+- Style/convention deviations
+- Theoretical performance issues without load evidence
+- Design pattern deviations that still produce correct behavior
+
+When in doubt, classify as P2. A false P1 wastes remediation effort and blocks the pipeline.
+
 ## RE-ANCHOR — TRUTHBINDING REMINDER
 <!-- NOTE: Inspector Ashes use 3 RE-ANCHOR placements (vs 1 in standard review Ashes) for elevated injection resistance when processing plan content alongside source code. Intentional asymmetry. -->
 
