@@ -174,12 +174,38 @@ const p1Markers = Number.isFinite(rawP1) ? rawP1 : 0
 const verdictMatch = verdictContent.match(/Final Verdict:\s*(READY|GAPS_FOUND|INCOMPLETE|CRITICAL_ISSUES)/)
 const inspectVerdict = verdictMatch ? verdictMatch[1] : 'GAPS_FOUND'
 
+// P1 Fixability Assessment: classify P1 findings before passing to inspect_fix
+// Design/architecture findings are downgraded to P2 since gap-fixer cannot
+// meaningfully resolve them without full business context.
+let adjustedP1Count = p1Markers
+if (p1Markers > 0) {
+  // Parse P1 findings from VERDICT.md
+  const p1Regex = /- \[ \] \*\*\[(\w+-\d+)\] (.+?)\*\*.+?\n\s+- \*\*Category:\*\* (\w+)/g
+  let match
+  const downgrades = []
+  while ((match = p1Regex.exec(verdictContent)) !== null) {
+    const [, findingId, title, category] = match
+    // Design and architectural findings are not auto-fixable
+    if (['architectural', 'design', 'maintainability', 'documentation', 'observability'].includes(category)) {
+      downgrades.push({ id: findingId, title, category, reason: 'design decision — not auto-fixable' })
+    }
+  }
+  if (downgrades.length > 0) {
+    adjustedP1Count = Math.max(0, p1Markers - downgrades.length)
+    for (const d of downgrades) {
+      warn(`Inspect: Downgraded ${d.id} from P1 to P2 (${d.reason})`)
+    }
+    log(`Inspect P1 fixability: ${p1Markers} raw → ${adjustedP1Count} fixable (${downgrades.length} downgraded)`)
+  }
+}
+
 updateCheckpoint({
   phase: 'inspect', status: 'completed', phase_sequence: 5.9,
   artifact: `tmp/arc/${id}/inspect-verdict.md`,
   artifact_hash: sha256(verdictContent),
   completion_pct: completionPct,
-  p1_count: p1Markers,
+  p1_count: adjustedP1Count,
+  p1_raw_count: p1Markers,
   verdict: inspectVerdict,
 })
 

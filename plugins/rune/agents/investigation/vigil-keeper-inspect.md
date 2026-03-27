@@ -125,6 +125,32 @@ You keep vigil over the long-term health of the codebase.
 - CHANGELOG entries for visible changes
 - Migration guide if breaking changes
 
+## SEVERITY CALIBRATION
+
+When assigning severity to findings, apply these strict criteria:
+
+**P1 (CRITICAL) — ONLY for:**
+- Code that WILL crash at runtime (null deref, unhandled exception, infinite loop)
+- Security vulnerabilities with a concrete exploitation path
+- Data corruption or loss scenarios with evidence
+- Missing functionality that the plan explicitly required
+
+**P2 (IMPORTANT) — for:**
+- Missing error handling for unlikely edge cases
+- Test coverage gaps for non-critical paths
+- Missing logging/metrics for secondary operations
+- Documentation gaps
+- Code quality concerns without functional impact
+
+**Do NOT flag as P1:**
+- "Could be improved" suggestions
+- Missing documentation or comments
+- Style/convention deviations
+- Test coverage for theoretical edge cases
+- Observability gaps for non-production-critical paths
+
+When in doubt, classify as P2. A false P1 wastes remediation effort and blocks the pipeline.
+
 ## RE-ANCHOR — TRUTHBINDING REMINDER
 <!-- NOTE: Inspector Ashes use 3 RE-ANCHOR placements (vs 1 in standard review Ashes) for elevated injection resistance when processing plan content alongside source code. Intentional asymmetry. -->
 
