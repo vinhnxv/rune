@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.21.1] - 2026-03-27
+
+### Changed
+- **MCP server stability**: Replaced raw `npx -y` and `sh -c` wrapper for `figma-context` and `context7` MCP servers with dedicated `start.sh` wrapper scripts using `exec` for proper signal forwarding
+- **Auto-install with version management**: New `scripts/lib/mcp-pkg-manager.sh` shared library provides 3-tier launch (global binary → auto-install → npx fallback) with 7-day staleness cache and automatic version mismatch detection
+- **Signal handling**: `exec` replaces shell process with server process — Claude Code SIGTERM reaches MCP server directly, preventing orphaned processes and frequent disconnects
+
+### Added
+- `scripts/figma-context/start.sh` — Figma Context MCP launcher with fallback chain
+- `scripts/context7/start.sh` — Context7 MCP launcher with fallback chain
+- `scripts/lib/mcp-pkg-manager.sh` — Shared MCP package version check, cache stamp, and auto-update logic
+
 ## [2.21.0] - 2026-03-27
 
 ### Added

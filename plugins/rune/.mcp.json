@@ -17,14 +17,14 @@
     },
     "context7": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp@2.1.3"],
+      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/context7/start.sh",
+      "args": [],
       "_supply_chain_note": "Pinned to exact version 2.1.3. Verify with `npm pack` if stricter supply-chain controls are required."
     },
     "figma-context": {
       "type": "stdio",
-      "command": "sh",
-      "args": ["-c", "npx -y figma-developer-mcp@0.8.0 --figma-api-key=$FIGMA_TOKEN --stdio"],
+      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/figma-context/start.sh",
+      "args": [],
       "env": { "FIGMA_TOKEN": "${FIGMA_TOKEN}" }
     }
   }
