@@ -373,7 +373,8 @@ all_shards=$(echo "$merged" | jq '{
     sharding: .arc.sharding,
     batch: .arc.batch,
     gap_analysis: .arc.gap_analysis,
-    consistency: .arc.consistency
+    consistency: .arc.consistency,
+    quick: .arc.quick
   },
   codex: (.codex // {}),
   review: (.review // {}),
