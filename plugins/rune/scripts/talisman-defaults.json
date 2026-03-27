@@ -933,7 +933,7 @@
       "sync_main_before_pr": true,
       "test_timeout_ms": 300000
     },
-    "max_workers": 3,
+    "max_workers": 4,
     "pr_monitoring": false,
     "sibling_awareness": {
       "enabled": true,
@@ -953,7 +953,7 @@
         "naming_consistency": true,
         "pattern_compliance": true
       },
-      "enabled": false,
+      "enabled": true,
       "max_iterations": 2,
       "model": "haiku",
       "timeout_ms": 60000

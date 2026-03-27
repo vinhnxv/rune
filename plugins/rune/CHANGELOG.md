@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.23.1] - 2026-03-27
+
+### Changed
+- **Micro-evaluator default enabled**: `work.micro_evaluator.enabled` now defaults to `true` — per-task quality feedback is active out-of-the-box for all strive sessions. Disable via `talisman.yml` if unwanted
+
 ## [2.23.0] - 2026-03-27
 
 ### Added
