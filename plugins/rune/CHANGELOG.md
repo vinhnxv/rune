@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.25.0] - 2026-03-27
+
+### Added
+- **Insecure defaults detection**: New review dimension for `ward-sentinel` agent — detects fail-open configuration patterns (CWE-1188) across 6 categories: hardcoded fallback secrets, default credentials, weak cryptographic defaults, permissive access control defaults, debug/dev mode defaults, and missing security headers. Inspired by Trail of Bits' `insecure-defaults` plugin
+- **Insecure defaults pattern library**: New reference document (`agents/review/references/insecure-defaults-patterns.md`) with comprehensive per-language patterns (JavaScript/TypeScript, Python, Go, Ruby, Rust), severity guide, and false positive guidance
+
 ## [2.24.1] - 2026-03-27
 
 ### Fixed
