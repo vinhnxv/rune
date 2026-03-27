@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.26.0] - 2026-03-28
+
+### Added
+- **Property-based testing**: New PBT pattern detection for `trial-forger` agent — detects roundtrip, validator, idempotent, sorting, data structure, and mathematical patterns suitable for property-based testing. Generates invariant tests alongside example-based tests using fast-check (JS/TS), hypothesis (Python), proptest (Rust), or rapid (Go)
+- **PBT reference library**: New reference document (`skills/testing/references/property-based-testing.md`) with per-language code templates, generator tables, detection protocol, and common property patterns
+- **PBT testing tier**: New Tier 1.5 in arc Phase 7.7 testing pipeline — runs between unit (Tier 1) and integration (Tier 2) tests when PBT library detected. 2x timeout multiplier for CPU-intensive property generation. Graceful skip when no PBT library installed
+
 ## [2.25.0] - 2026-03-27
 
 ### Added
