@@ -88,12 +88,21 @@ if (!enrichedPlan || enrichedPlan.trim().length === 0) {
   Bash(`cp -- "${planFile}" "${forgePlanPath}"`)
 }
 
-// STEP 4: Update checkpoint
-const writtenContent = Read(forgePlanPath)
+// STEP 4: Update checkpoint with artifact hash
+// CRITICAL: Re-read the enriched plan to compute hash — do NOT skip this.
+const forgePlanContent = Read(forgePlanPath)
+if (!forgePlanContent || forgePlanContent.length < 100) {
+  warn("Forge phase produced empty or suspiciously small enriched plan")
+}
+const forgeHash = sha256(forgePlanContent)
 updateCheckpoint({
   phase: "forge", status: "completed",
-  artifact: forgePlanPath, artifact_hash: sha256(writtenContent), phase_sequence: 1
+  artifact: forgePlanPath,
+  artifact_hash: forgeHash,  // MUST be non-null
+  phase_sequence: 1
 })
+// Verification: log hash for audit trail
+log(`Forge complete: artifact_hash=${forgeHash.slice(0, 12)}...`)
 ```
 
 **Output**: `tmp/arc/{id}/enriched-plan.md`
