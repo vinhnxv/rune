@@ -33,6 +33,46 @@ if (exists(critiquePath)) {
 
 ---
 
+## Phase 3.8: Micro-Evaluator Summary (optional, pre-ward-check)
+
+When `work.micro_evaluator.enabled` is true and the micro-evaluator ran during this session, the orchestrator collects evaluator verdicts and includes them in the quality summary.
+
+```javascript
+// Phase 3.8: Collect micro-evaluator results (optional, non-blocking)
+const evalDir = `tmp/work/${timestamp}/evaluator`
+// Match all JSON files except request-*.json signal files
+const allFiles = Glob(`${evalDir}/*.json`)
+const verdictFiles = allFiles.filter(f => !f.includes('/request-'))
+if (verdictFiles.length > 0) {
+  let totalIterations = 0
+  let approveCount = 0
+  let refineCount = 0
+  let pivotCount = 0
+  for (const vf of verdictFiles) {
+    try {
+      const verdict = JSON.parse(Read(vf))
+      totalIterations += verdict.iteration ?? 1
+      if (verdict.verdict === "APPROVE") approveCount++
+      else if (verdict.verdict === "REFINE") refineCount++
+      else if (verdict.verdict === "PIVOT") pivotCount++
+    } catch (e) {
+      warn(`Phase 3.8: skipping malformed verdict file ${vf}: ${e.message}`)
+    }
+  }
+  log(`Micro-Evaluator Summary: ${verdictFiles.length} tasks evaluated, ` +
+      `${approveCount} approved, ${refineCount} refined, ${pivotCount} pivoted, ` +
+      `${totalIterations} total iterations`)
+  // Advisory only — does NOT block ward check
+}
+```
+
+**Key design decisions:**
+- **Non-blocking**: Micro-evaluator results are informational. They do not gate the ward check.
+- **Runs only when evaluator was active**: If `micro_evaluator.enabled` is false or the evaluator directory is empty, this phase is a no-op.
+- **Metrics feed into Phase 5 (Echo Persist)**: evaluator iteration counts and verdict distribution are persisted as echoes for future session context.
+
+---
+
 ## Phase 4: Ward Check
 
 After all tasks complete, run project-wide quality gates. See [ward-check.md](../../roundtable-circle/references/ward-check.md) for ward discovery protocol, gate execution, post-ward verification checklist, and bisection algorithm.

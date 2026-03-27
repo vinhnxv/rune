@@ -329,6 +329,45 @@ Agent({
          Mark each item [x] as you verify it. If any item fails:
            → Fix the issue before proceeding. Do NOT mark complete with known checklist failures.
            → If you CANNOT fix it: send a STUCK report (see step 9.7 or ## Communication with Team Lead).
+    7.6. MICRO-EVALUATION FEEDBACK (conditional — when micro-evaluator is active):
+         IF a micro-evaluator is active on this team (check: does
+         tmp/work/{timestamp}/evaluator/ directory exist?):
+
+         a. Write a signal file for the evaluator:
+            Write tmp/work/{timestamp}/evaluator/request-{task-id}.json with:
+            { task_id, task_file: "tmp/work/{timestamp}/tasks/task-{task-id}.md",
+              changed_files: [list of files you modified], iteration: 1 }
+         b. Poll for verdict (max 30s, check every 5s):
+            - Try: Read tmp/work/{timestamp}/evaluator/{task-id}.json
+            - If file not found: wait 5s and retry (not an error)
+            - If file found and valid JSON: parse verdict
+            - If file found but invalid JSON: wait 2s and retry (partial write)
+         c. IF verdict file not found after 30s: auto-APPROVE (timeout fallback), proceed to step 8
+         d. IF verdict is APPROVE: proceed to step 8
+         e. IF verdict is REFINE:
+            - eval_iterations += 1
+            - IF eval_iterations >= max_iterations (default 2 from talisman): auto-APPROVE, proceed to step 8
+            - Read feedback and suggestions from verdict file
+            - Apply the suggested improvements to your code
+            - Re-run ward check (step 7)
+            - Delete old request file: rm tmp/work/{timestamp}/evaluator/request-{task-id}.json
+            - Write updated request signal with incremented iteration and re-poll for verdict
+         f. IF verdict is PIVOT:
+            - Read the pivot reason from verdict file
+            - Revert your changes for this task:
+              For tracked modified files: git checkout -- <tracked-changed-files>
+              For new untracked files: git clean -f -- <new-files>
+              For staged files: git reset HEAD -- <staged-files>
+            - Re-implement using the suggested alternative approach
+            - Re-run steps 6 through 7.6 with the new approach
+            - Track: eval_iterations += 1, eval_pivoted: true
+         g. Record evaluator feedback in Worker Report:
+            Edit task file ## Worker Report → ### Evaluator Feedback:
+            - Verdict: {verdict}, Confidence: {confidence}, Iterations: {count}
+            - Feedback: {evaluator feedback summary}
+            - Suggestions applied: [list of changes made in response]
+
+         IF micro-evaluator is NOT active: skip this step entirely.
     8. IF ward passes:
        a. Mark new files for diff tracking: git add -N <new-files>
        b. Generate patch: git diff --binary HEAD -- <specific files> > tmp/work/{timestamp}/patches/{task-id}.patch
@@ -662,6 +701,35 @@ Agent({
          Mark each item [x] as you verify it. If any item fails:
            → Fix the issue before proceeding. Do NOT mark complete with known checklist failures.
            → If you CANNOT fix it: send a STUCK report (see step 9.7 or ## Communication with Team Lead).
+    7.6. MICRO-EVALUATION FEEDBACK (conditional — when micro-evaluator is active):
+         IF a micro-evaluator is active on this team (check: does
+         tmp/work/{timestamp}/evaluator/ directory exist?):
+
+         a. Write a signal file for the evaluator:
+            Write tmp/work/{timestamp}/evaluator/request-{task-id}.json with:
+            { task_id, task_file: "tmp/work/{timestamp}/tasks/task-{task-id}.md",
+              changed_files: [list of test files you modified], iteration: 1 }
+         b. Poll for verdict (max 30s, check every 5s):
+            - Try: Read tmp/work/{timestamp}/evaluator/{task-id}.json
+            - If file not found: wait 5s and retry (not an error)
+            - If file found and valid JSON: parse verdict
+         c. IF verdict file not found after 30s: auto-APPROVE (timeout fallback), proceed to step 8
+         d. IF verdict is APPROVE: proceed to step 8
+         e. IF verdict is REFINE:
+            - eval_iterations += 1
+            - IF eval_iterations >= max_iterations (default 2): auto-APPROVE, proceed to step 8
+            - Apply suggested improvements to your tests
+            - Re-run tests (step 7)
+            - Delete old request file, write updated request with incremented iteration, re-poll
+         f. IF verdict is PIVOT:
+            - Revert test changes (git checkout/clean/reset as needed)
+            - Re-write tests using the suggested alternative approach
+            - Re-run steps 6 through 7.6
+            - Track: eval_iterations += 1, eval_pivoted: true
+         g. Record evaluator feedback in Worker Report → ### Evaluator Feedback:
+            Verdict: {verdict}, Confidence: {confidence}, Iterations: {count}
+
+         IF micro-evaluator is NOT active: skip this step entirely.
     8. IF tests pass:
        a. Mark new files for diff tracking: git add -N <new-files>
        b. Generate patch: git diff --binary HEAD -- <specific files> > tmp/work/{timestamp}/patches/{task-id}.patch
