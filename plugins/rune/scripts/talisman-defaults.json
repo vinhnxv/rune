@@ -46,6 +46,8 @@
     "rate_limit": {
       "default_wait_seconds": 60,
       "enabled": true,
+      "max_retries": 3,
+      "max_server_retries": 2,
       "max_wait_seconds": 300
     },
     "sharding": {
