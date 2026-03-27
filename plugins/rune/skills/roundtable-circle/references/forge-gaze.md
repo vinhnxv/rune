@@ -57,6 +57,7 @@ Each agent declares which plan section topics it can enrich, what subsection it 
 | reality-arbiter | production, deployment, integration, viability, realistic, monitoring, operational, observability, real-world | — | Production Viability Analysis | production readiness and integration honesty |
 | assumption-slayer | assumptions, premise, justification, rationale, why, problem-fit, cargo-cult, fashion, hype, trend | — | Assumption Challenge | premise validation and cargo cult detection |
 | entropy-prophet | maintenance, long-term, debt, lock-in, vendor, dependency, evolution, future, entropy, cost, burden | — | Long-term Consequence Analysis | hidden costs, complexity trajectory, and lock-in risks |
+| supply-chain-sentinel | supply-chain, dependencies, packages, npm, pip, cargo, go-mod, maintainer, abandonment, cve, bus-factor, security-policy | ui-styling, css-layout, animation | Supply Chain Risk Analysis | dependency health, maintainer risk, abandonment signals, and CVE history |
 
 ### Research Agents (Research Budget)
 

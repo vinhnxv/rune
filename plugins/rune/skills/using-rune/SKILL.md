@@ -58,6 +58,7 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 | "UX review" / "UX patterns" / "heuristic evaluation" | `/rune:ux-design-process` | UX design intelligence and heuristic evaluation |
 | "Post findings to PR" / "share review on PR" / "post to GitHub" / "comment on PR with findings" | `/rune:post-findings` | Post Rune review findings to GitHub PR as formatted comment |
 | "Self-audit" / "audit arc run" / "check arc quality" / "hallucination detection" / "agent effectiveness" / "check rune health" / "lint agents" / "meta-qa" | `/rune:self-audit` | Meta-QA self-audit — static analysis + runtime arc artifact analysis |
+| "Supply chain audit" / "dependency risk" / "check dependencies" / "package security" / "abandoned packages" | `/rune:supply-chain-audit` | Analyze project dependencies for maintainer risk, abandonment, and CVE history |
 
 ### Beginner Aliases
 

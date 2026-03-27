@@ -1011,6 +1011,18 @@ Use when auto-detection fails (monorepos, custom frameworks, polyglot projects).
 | `custom_rules[].workflows` | string[] | — | Active workflows: `review`, `work`, `audit` |
 | `custom_rules[].stacks` | string[] | — | Stack triggers: `python`, `typescript`, etc. |
 
+## supply_chain — Dependency Risk Analysis (v2.29.0+)
+
+### `supply_chain` settings
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `supply_chain.enabled` | boolean | `true` | Enable supply chain analysis in review/audit |
+| `supply_chain.max_dependencies` | number | `50` | Cap on dependencies to analyze (API rate limits) |
+| `supply_chain.risk_threshold` | string | `"medium"` | Minimum risk level to report: `low`, `medium`, `high` |
+| `supply_chain.registries.npm` | string | `"https://registry.npmjs.org"` | Override npm registry API endpoint |
+| `supply_chain.registries.pypi` | string | `"https://pypi.org/pypi"` | Override PyPI registry API endpoint |
+
 ---
 
 See `../skills/roundtable-circle/references/custom-ashes.md` for full schema and `talisman.example.yml` at plugin root.
