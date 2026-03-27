@@ -30,7 +30,7 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 | "Brainstorm" / "explore idea" / "what should we build" / "thảo luận" | `/rune:brainstorm` | Collaborative idea exploration (3 modes: solo, roundtable, deep) |
 | "Plan a feature" / "design this" / "how should we build" | `/rune:devise` | Multi-agent planning pipeline (brainstorm + research + synthesize) |
 | "Quick plan" / "just outline it" | `/rune:devise --quick` | Lightweight planning (research + synthesize, skip brainstorm/forge) |
-| "Quick run" / "fast" / "plan and build" / "nhanh" / "chạy nhanh" | `/rune:arc-quick` | Lightweight 3-phase pipeline: plan -> work -> review |
+| "Quick run" / "fast" / "plan and build" / "nhanh" / "chạy nhanh" | `/rune:arc-quick` | Lightweight 3-phase pipeline: plan -> work+evaluate loop -> review |
 | "Implement this" / "build it" / "execute the plan" | `/rune:strive plans/...` | Swarm workers execute a plan file |
 | "Fix these findings" / "resolve the review" | `/rune:mend tmp/.../TOME.md` | Parallel resolution of review findings |
 | "Run everything" / "ship it" / "end to end" | `/rune:arc plans/...` | Full 43-phase pipeline (forge → work → review → mend → test → goldmask → ship → merge). Use `--status` to check current phase and progress |

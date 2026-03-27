@@ -20,6 +20,11 @@
     "consistency": {
       "checks": []
     },
+    "quick": {
+      "max_iterations": 3,
+      "evaluate_timeout_ms": 60000,
+      "skip_evaluate": false
+    },
     "defaults": {
       "approve": false,
       "confirm": false,

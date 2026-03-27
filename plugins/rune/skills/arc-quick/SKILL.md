@@ -1,8 +1,10 @@
 ---
 name: arc-quick
 description: |
-  Lightweight 3-phase pipeline: Plan -> Work -> Review.
-  Chains devise --quick -> strive -> appraise in one command.
+  Lightweight 3-phase pipeline: Plan -> Work+Evaluate -> Review.
+  Chains devise --quick -> strive (with evaluator loop) -> appraise in one command.
+  Work phase iterates up to max_iterations (default 3) with ward checks and
+  quality signal detection between passes. Stagnation detection prevents infinite loops.
   Accepts a prompt string or existing plan file path.
   Recommends /rune:arc for complex plans (8+ tasks) unless --force is passed.
   Use when: "quick run", "fast pipeline", "plan and build", "nhanh",
@@ -66,15 +68,18 @@ Complexity Gate (always, after plan is available)
   If complex AND NOT --force: suggest /rune:arc
   If user accepts arc: Skill("rune:arc", planPath) --- then STOP
 
-Phase 2: WORK
-  Skill("rune:strive", planPath)
+Phase 2: WORK + EVALUATE LOOP (max_iterations from talisman, default 3)
+  Loop:
+    Skill("rune:strive", planPath)       // iteration 1: full, 2+: --resume
+    evaluateIteration(planPath, N, baseRef)
+    Break on: PASS, stagnation, or max iterations
   Output: implemented code on feature branch
 
 Phase 3: REVIEW
   Skill("rune:appraise")
   Output: TOME with findings
 
-Summary: present results + next steps
+Summary: present results + iteration history + next steps
 ```
 
 ## Execution
@@ -187,10 +192,81 @@ if (isComplex && !force) {
 }
 ```
 
-### Step 5: Phase 2 --- WORK
+### Step 5: Phase 2 --- WORK + EVALUATE LOOP
 
 ```javascript
-Skill("rune:strive", planPath)
+// readTalismanSection: "arc"
+const arcQuickConfig = readTalismanSection("arc")?.quick ?? {}
+let maxIterations = Math.max(1, Math.min(arcQuickConfig.max_iterations ?? 3, 10))
+let skipEvaluate = arcQuickConfig.skip_evaluate ?? false
+
+// FLAW-002: max_iterations:0 means "skip evaluator", not "skip work phase"
+if ((arcQuickConfig.max_iterations ?? 3) === 0) {
+  maxIterations = 1
+  skipEvaluate = true
+}
+
+let iteration = 0
+const iterationHistory = []
+
+while (iteration < maxIterations) {
+  iteration++
+
+  // Record git ref before this strive pass for diff scoping
+  const baseRef = Bash("git rev-parse HEAD").trim()
+
+  if (iteration === 1) {
+    // First pass: full strive
+    Skill("rune:strive", planPath)
+  } else {
+    // Subsequent passes: write evaluator feedback to sidecar file, then resume
+    const prevResult = iterationHistory[iterationHistory.length - 1]
+    const feedbackSection = `## Evaluator Feedback — Iteration ${iteration}\n\n` +
+      `Previous iteration found ${prevResult.findings.length} issue(s):\n` +
+      prevResult.findings.map(f =>
+        `- **${f.type}**: ${f.name ?? f.pattern ?? "unknown"} ${f.file ? `in \`${f.file}\`` : ""}`
+      ).join("\n") +
+      `\n\nFix these issues. Do not introduce new regressions.\n`
+    // BACK-004: Write to sidecar instead of Edit(append) which is invalid
+    // FLAW-006: Prevents unbounded plan file growth
+    Write(`tmp/arc-quick-feedback-${iteration}.md`, feedbackSection)
+    Skill("rune:strive", `${planPath} --resume`)
+  }
+
+  // FLAW-005: Detect strive producing no commits (empty diff = strive failure, not success)
+  const headAfterStrive = Bash("git rev-parse HEAD").trim()
+  if (headAfterStrive === baseRef) {
+    iterationHistory.push({ verdict: "ITERATE", findings: [{ type: "strive", name: "no-commits" }],
+                            confidence: 0.3, iteration, timestamp: new Date().toISOString(),
+                            reason: "Strive produced no commits — no changes to evaluate" })
+    if (iteration >= maxIterations) break
+    continue
+  }
+
+  // Skip evaluation if configured
+  if (skipEvaluate) {
+    // BACK-003: Confidence normalized to 0.0-1.0 per AC-5
+    iterationHistory.push({ verdict: "PASS", findings: [], confidence: 1.0,
+                            iteration, timestamp: new Date().toISOString(),
+                            reason: "Evaluation skipped (skip_evaluate: true)" })
+    break
+  }
+
+  // Evaluate this iteration's changes
+  const evalResult = evaluateIteration(planPath, iteration, baseRef)
+  iterationHistory.push(evalResult)
+
+  if (evalResult.verdict === "PASS") break
+
+  // Stagnation detection: findings not decreasing → stop iterating
+  if (iteration >= 2) {
+    const prevCount = iterationHistory[iteration - 2].findings.length
+    if (evalResult.findings.length >= prevCount) {
+      evalResult.reason += " (stagnation detected — findings not decreasing)"
+      break
+    }
+  }
+}
 ```
 
 ### Step 6: Phase 3 --- REVIEW
@@ -201,7 +277,7 @@ Skill("rune:appraise")
 
 ### Step 7: Summary
 
-After all 3 phases complete, present results:
+After all phases complete, present results with iteration history:
 
 ```javascript
 // Find the TOME from the review
@@ -211,6 +287,27 @@ const latestTome = tomes.length > 0 ? tomes[0] : null
 // Get current branch
 const branch = Bash("git branch --show-current").trim()
 
+// Compute quality trajectory from iterationHistory
+function computeTrajectory(history) {
+  if (history.length <= 1) return "N/A"
+  const counts = history.map(h => h.findings.length)
+  const improving = counts.every((c, i) => i === 0 || c < counts[i - 1])
+  const stagnating = counts.every((c, i) => i === 0 || c === counts[i - 1])
+  if (improving) return "IMPROVING"
+  if (stagnating) return "STAGNATING"
+  return counts[counts.length - 1] > counts[0] ? "DEGRADING" : "MIXED"
+}
+
+const trajectory = computeTrajectory(iterationHistory)
+
+// Build iteration history table rows
+const iterationRows = iterationHistory.map(h =>
+  `| ${h.iteration} | ${h.verdict} | ${h.findings.length} | ${h.confidence} | ${h.reason} |`
+).join("\n")
+
+// Check if appraise found P1 findings (recommend mend only if so)
+const hasP1 = latestTome ? Read(latestTome).includes("P1") : false
+
 // Present summary
 const summary = `
 ## Quick Pipeline Complete
@@ -218,12 +315,20 @@ const summary = `
 | Phase | Result |
 |-------|--------|
 | Plan | ${planPath} |
-| Work | Implemented on branch \`${branch}\` |
+| Work | Implemented on branch \`${branch}\` (${iterationHistory.length} iteration${iterationHistory.length > 1 ? "s" : ""}) |
 | Review | ${latestTome ? `Findings in \`${latestTome}\`` : "No findings file found"} |
+
+### Iteration History
+
+| # | Verdict | Findings | Confidence | Reason |
+|---|---------|----------|------------|--------|
+${iterationRows}
+
+**Quality trajectory**: ${trajectory}
 
 ### Next Steps
 
-${latestTome ? `- \`/rune:mend ${latestTome}\` --- auto-fix review findings` : ""}
+${hasP1 ? `- \`/rune:mend ${latestTome}\` --- auto-fix P1 review findings` : ""}
 - \`/rune:arc ${planPath}\` --- run full 43-phase pipeline if needed
 - \`git push\` --- push your changes
 - \`/rune:rest\` --- clean up tmp/ artifacts
@@ -238,6 +343,84 @@ ${latestTome ? `- \`/rune:mend ${latestTome}\` --- auto-fix review findings` : "
 | Phase 2 (strive) | Workers fail | Stop, present partial results, suggest `--approve` |
 | Phase 3 (appraise) | Review fails | Non-blocking --- warn, suggest manual `/rune:review` |
 | Complexity gate | User picks arc | Delegate to `/rune:arc`, stop quick pipeline |
+
+### Evaluator Function
+
+```javascript
+/**
+ * Evaluate iteration quality after a strive pass.
+ * Uses discoverWards() (see ward-check.md) — never hardcodes test commands.
+ * Scopes quality signals to changed files only to avoid false positives.
+ *
+ * @param {string} planPath — path to the plan file
+ * @param {number} iterationNumber — current iteration (1-based)
+ * @param {string} baseRef — git ref before this strive pass
+ * @returns {{ verdict, findings, confidence, iteration, timestamp, reason }}
+ */
+function evaluateIteration(planPath, iterationNumber, baseRef) {
+  // BACK-001: Read evaluate_timeout_ms from talisman (default 60s)
+  const evaluateTimeoutMs = (readTalismanSection("arc")?.quick?.evaluate_timeout_ms) ?? 60000
+  log(`Evaluator iteration ${iterationNumber}: starting (timeout: ${evaluateTimeoutMs}ms)`)
+
+  // SEC-004: Validate git ref before interpolation
+  if (!/^[0-9a-f]{7,40}$/.test(baseRef)) {
+    log(`Evaluator iteration ${iterationNumber}: invalid baseRef "${baseRef}", skipping`)
+    return { verdict: "ITERATE", findings: [{ type: "error", name: "invalid-ref", detail: "baseRef failed validation" }],
+             confidence: 0.3, iteration: iterationNumber, timestamp: new Date().toISOString(),
+             reason: "Invalid git ref — cannot evaluate" }
+  }
+
+  const findings = []
+  const changedFiles = Bash(`git diff --name-only ${baseRef}`).trim()
+
+  // Empty diff = nothing to evaluate → auto-PASS
+  if (changedFiles === "") {
+    return { verdict: "PASS", findings: [], confidence: 1.0,
+             iteration: iterationNumber, timestamp: new Date().toISOString(),
+             reason: "No changes detected — nothing to evaluate" }
+  }
+
+  const fileList = changedFiles.split("\n").filter(Boolean)
+
+  // 1. Run ward checks (project-agnostic quality gates)
+  // SEC-001: discoverWards() returns project-defined commands already validated by ward-check.md
+  const wards = discoverWards()  // see ward-check.md Ward Discovery Protocol
+  for (const ward of wards) {
+    const result = Bash(ward.command, { timeout: evaluateTimeoutMs })
+    if (result.exitCode !== 0) {
+      findings.push({ type: "ward", name: ward.name,
+                       detail: result.stderr.slice(0, 500) })
+    }
+  }
+
+  // 2. Grep quality signals scoped to changed files only
+  // BACK-002: Known limitation — catches pre-existing signals in changed files, not just new ones.
+  // Scoping to diff hunks deferred to v2.
+  const patterns = [/TODO|FIXME|HACK|XXX/, /console\.log/, /debugger/]
+  for (const file of fileList) {
+    for (const pat of patterns) {
+      const hits = Grep(pat.source, file)
+      if (hits.length > 0) {
+        findings.push({ type: "quality", file, pattern: pat.source,
+                         count: hits.length })
+      }
+    }
+  }
+
+  const verdict = findings.length === 0 ? "PASS" : "ITERATE"
+  // BACK-003: Confidence normalized to 0.0-1.0 per AC-5
+  const confidence = findings.length === 0 ? 0.95
+    : Math.max(0.3, 0.9 - findings.length * 0.1)
+
+  // BACK-006: Log evaluator result for observability
+  const reason = verdict === "PASS" ? "All wards passed, no quality signals"
+    : `${findings.length} finding(s): ${findings.map(f => f.name ?? f.pattern ?? "unknown").join(", ")}`
+  log(`Evaluator iteration ${iterationNumber}: verdict=${verdict} confidence=${confidence} findings=${findings.length}`)
+
+  return { verdict, findings, confidence, iteration: iterationNumber,
+           timestamp: new Date().toISOString(), reason }
+}
+```
 
 ## Design Decisions
 

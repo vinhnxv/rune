@@ -175,6 +175,9 @@ See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integratio
 | `arc.gap_analysis.remediation.timeout` | number | `600000` | Inner timeout (ms) |
 | `arc.batch.smart_ordering.enabled` | boolean | `true` | Enable smart plan ordering |
 | `arc.consistency.checks[]` | object[] | `[]` | Cross-file consistency checks |
+| `arc.quick.max_iterations` | number | `3` | Max work+evaluate iterations (0 = skip evaluator) |
+| `arc.quick.evaluate_timeout_ms` | number | `60000` | Evaluator timeout per iteration |
+| `arc.quick.skip_evaluate` | boolean | `false` | Disable evaluator (revert to linear behavior) |
 
 ### `arc.timeouts` — Per-Phase Timeouts (ms)
 

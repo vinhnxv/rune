@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.22.0] - 2026-03-27
+
+### Added
+- **arc-quick evaluator loop**: Work phase now iterates with `evaluateIteration()` — runs ward checks and quality signal detection between strive passes. Breaks on PASS, stagnation (findings not decreasing), or `max_iterations` (default 3). Configurable via `talisman.yml` → `arc.quick.max_iterations`, `arc.quick.skip_evaluate`, `arc.quick.evaluate_timeout_ms`
+- **Iteration history in summary**: Quick pipeline summary now includes per-iteration verdict table and quality trajectory (IMPROVING/STAGNATING/DEGRADING/MIXED)
+- **P1-conditional mend recommendation**: Summary only suggests `/rune:mend` when appraise finds P1-severity findings
+
 ## [2.21.5] - 2026-03-27
 
 ### Fixed
