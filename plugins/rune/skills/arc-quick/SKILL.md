@@ -195,9 +195,16 @@ if (isComplex && !force) {
 ### Step 5: Phase 2 --- WORK + EVALUATE LOOP
 
 ```javascript
+// readTalismanSection: "arc"
 const arcQuickConfig = readTalismanSection("arc")?.quick ?? {}
-const maxIterations = arcQuickConfig.max_iterations ?? 3
-const skipEvaluate = arcQuickConfig.skip_evaluate ?? false
+let maxIterations = Math.max(1, Math.min(arcQuickConfig.max_iterations ?? 3, 10))
+let skipEvaluate = arcQuickConfig.skip_evaluate ?? false
+
+// FLAW-002: max_iterations:0 means "skip evaluator", not "skip work phase"
+if ((arcQuickConfig.max_iterations ?? 3) === 0) {
+  maxIterations = 1
+  skipEvaluate = true
+}
 
 let iteration = 0
 const iterationHistory = []
