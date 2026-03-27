@@ -1,16 +1,20 @@
 ---
 name: testing
 description: |
-  Test orchestration pipeline for arc Phase 7.7. Provides 3-tier testing
-  (unit, integration, E2E/browser) with diff-scoped discovery, service startup,
-  and structured reporting. Includes extended tier with checkpoint/resume,
-  contract validation, visual regression, design token compliance, accessibility
-  checks, test history persistence, regression detection, and flaky test
-  identification. Auto-loaded by arc orchestrator during test phase.
+  Test orchestration pipeline for arc Phase 7.7. Provides 4-tier testing
+  (unit, property-based, integration, E2E/browser) with diff-scoped discovery,
+  service startup, and structured reporting. Tier 1.5 property-based testing
+  detects roundtrip/validator/idempotent patterns and generates invariant tests
+  with fast-check, hypothesis, proptest, or rapid. Includes extended tier with
+  checkpoint/resume, contract validation, visual regression, design token
+  compliance, accessibility checks, test history persistence, regression
+  detection, and flaky test identification. Auto-loaded by arc orchestrator
+  during test phase.
   Trigger keywords: testing, test pipeline, unit test, integration test, E2E test,
   test discovery, test report, QA, quality assurance, scenario schema, checkpoint,
   fixture, visual regression, design token, accessibility, test history,
-  regression detection, flaky test, extended tier, contract validation.
+  regression detection, flaky test, extended tier, contract validation,
+  property-based testing, PBT, fast-check, hypothesis, proptest, invariant.
 user-invocable: false
 disable-model-invocation: false
 ---
@@ -24,16 +28,28 @@ It is auto-loaded by the arc orchestrator and injected into test runner agents.
 
 ```
        /\
-      /E2E\         ← Slow, few (max 3 routes)
+      /E2E\           ← Slow, few (max 3 routes)
      /------\
-    /Integr. \      ← Moderate speed, moderate count
+    /Integr. \        ← Moderate speed, moderate count
    /----------\
-  / Unit Tests \    ← Fast, many (diff-scoped)
+  / PBT (1.5)  \     ← Fast, invariant-based (when PBT lib available)
  /--------------\
+/ Unit Tests (1) \    ← Fast, many (diff-scoped)
+/------------------\
 ```
 
-**Execution order**: Unit → Integration → E2E (serial by tier, parallel within tier)
-**Failure cascade**: Tiers execute serially (unit → integration → E2E). Tier failures are non-blocking — all enabled tiers execute regardless of prior tier results, based on scope detection and service health.
+**Execution order**: Unit → PBT → Integration → E2E (serial by tier, parallel within tier)
+**Failure cascade**: Tiers execute serially (unit → PBT → integration → E2E). Tier failures are non-blocking — all enabled tiers execute regardless of prior tier results, based on scope detection and service health.
+
+### Tier 1.5: Property-Based Testing
+
+PBT tests invariants with randomly generated inputs, catching edge cases that example-based tests miss. Runs between unit (Tier 1) and integration (Tier 2) tests.
+
+**Skip conditions**: No PBT library in dependencies AND no PBT-suitable patterns detected in changed code.
+**Discovery**: Check `package.json` for `fast-check`, `requirements.txt`/`pyproject.toml` for `hypothesis`, `Cargo.toml` for `proptest`, `go.mod` for `rapid`. If library present, run PBT tier. If absent but patterns detected, suggest adding the library.
+**Timeout**: 2x unit test timeout (PBT generation is CPU-intensive). Configurable via `talisman.testing.tiers.pbt.timeout_multiplier` (default: 2).
+
+See [property-based-testing.md](references/property-based-testing.md) for library selection, code templates, discovery protocol, and common property patterns.
 
 ## Model Routing Rules
 
@@ -156,7 +172,7 @@ Test runner detects failure
 Phase 7.7 uses sequential batched execution instead of parallel background agents.
 Each batch = 1 foreground agent (blocking call, zero idle risk).
 
-**Execution order**: unit batches → contract → integration → e2e → extended
+**Execution order**: unit batches → PBT → contract → integration → e2e → extended
 **Batch sizing**: TARGET_BATCH_DURATION_MS / avg_test_duration (clamped to 1-20)
 **Fix loop**: On failure, lead analyzes + fixes + reruns (max 2 retries)
 **Checkpoint**: testing-plan.json is both plan AND checkpoint (atomic writes)
@@ -188,7 +204,7 @@ See [scenario-schema.md](references/scenario-schema.md) for the YAML test scenar
 
 Summary:
 - Scenarios live in `.rune/test-scenarios/*.yml`
-- Required fields: `name`, `tier` (unit/integration/e2e/extended/contract)
+- Required fields: `name`, `tier` (unit/pbt/integration/e2e/extended/contract)
 - Discovered in STEP 0.5, merged into strategy in STEP 1.5
 - Capped at `testing.scenarios.max_per_run` (default 50)
 - Gate: `testing.scenarios.enabled` (default true)

@@ -3,10 +3,11 @@ name: trial-forger
 description: |
   Test generation agent that writes tests following project patterns.
   Claims testing tasks from the shared pool, generates tests, and verifies they run.
-  
+
   Covers: Generate unit tests following project conventions, generate integration tests
-  for service boundaries, discover and use existing test utilities and fixtures, verify
-  tests pass before marking complete.
+  for service boundaries, generate property-based tests for roundtrip/validator/idempotent
+  patterns, discover and use existing test utilities and fixtures, verify tests pass
+  before marking complete.
 tools:
   - Read
   - Write
@@ -46,6 +47,9 @@ tags:
   - complete
   - discover
   - existing
+  - property-based
+  - invariant
+  - roundtrip
 ---
 
 ## Bootstrap Context (MANDATORY — Read ALL before any work)
@@ -272,6 +276,69 @@ Before writing tests, query Rune Echoes for past test-related learnings:
 - If an echo says "N+1 queries found in service layers," add a test for query count
 - If an echo flags past flaky test patterns, avoid those patterns in your tests
 - Past review findings (QUAL-, BACK-) often reveal untested edge cases worth covering
+
+## Property-Based Testing Patterns
+
+In addition to example-based tests, generate property-based tests (PBT) when code under test matches any of the patterns below. PBT tests invariants with random inputs, catching edge cases that hand-written examples miss.
+
+**Decision rule**: When you encounter any of these patterns, generate a property-based test IN ADDITION TO (not instead of) example-based tests.
+
+### Detectable Patterns
+
+| Pattern | Property to Test | Example Code |
+|---------|-----------------|--------------|
+| Serialization pairs (encode/decode) | `decode(encode(x)) === x` | JSON, protobuf, base64, URL encoding |
+| Parsers | `parse(valid_input)` never throws | URL, config, CSV, date parsers |
+| Validators | `validate(generated_valid) === true` | Email, phone, UUID, schema validators |
+| Idempotent operations | `f(f(x)) === f(x)` | normalize, sanitize, deduplicate, trim |
+| Sorting/ordering | `sort(sort(x)) === sort(x)` and length preserved | Custom comparators, ranking |
+| Data structures | Invariants hold after any operation sequence | Add/remove/get on collections, caches |
+| Mathematical operations | Commutativity, associativity, distributivity | Custom numeric types, currency |
+
+### Library Selection
+
+| Stack | Library | Install | Import |
+|-------|---------|---------|--------|
+| TypeScript/JavaScript | fast-check | `npm i -D fast-check` | `import * as fc from 'fast-check'` |
+| Python | hypothesis | `pip install hypothesis` | `from hypothesis import given, strategies as st` |
+| Rust | proptest | `proptest = "1.0"` in Cargo.toml | `use proptest::prelude::*;` |
+| Go | rapid | `go get pgregory.net/rapid` | `import "pgregory.net/rapid"` |
+
+**Library detection**: Check `package.json` for `fast-check`, `requirements.txt`/`pyproject.toml` for `hypothesis`, `Cargo.toml` for `proptest`. If library is already installed, use it. If absent but PBT-suitable patterns detected, suggest installing it in your Seal message.
+
+### PBT Code Templates
+
+```typescript
+// fast-check: roundtrip property
+import * as fc from 'fast-check';
+test('encode/decode roundtrip', () => {
+  fc.assert(fc.property(fc.string(), (input) => {
+    expect(decode(encode(input))).toEqual(input);
+  }));
+});
+
+// fast-check: idempotency property
+test('normalize is idempotent', () => {
+  fc.assert(fc.property(fc.string(), (input) => {
+    expect(normalize(normalize(input))).toEqual(normalize(input));
+  }));
+});
+```
+
+```python
+# hypothesis: validator property
+from hypothesis import given, strategies as st
+@given(st.emails())
+def test_valid_email_accepted(email):
+    assert validate_email(email) is True
+
+# hypothesis: roundtrip property
+@given(st.text())
+def test_json_roundtrip(data):
+    assert json.loads(json.dumps(data)) == data
+```
+
+See [property-based-testing.md](../../skills/testing/references/property-based-testing.md) for the complete reference with Go, Rust examples and advanced generator patterns.
 
 ## Test Quality Rules
 
