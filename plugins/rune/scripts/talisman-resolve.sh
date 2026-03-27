@@ -299,7 +299,9 @@ if [[ $merged_size -gt 524288 ]]; then
 fi
 # Check 2: Reject values containing shell injection patterns (backticks, $(), process substitution)
 # These should never appear in talisman config values — they indicate tampering or misconfiguration
-# Exclude ward_commands (intentionally shell commands) before checking
+# Exclude ward_commands (intentionally shell commands) before checking.
+# SAFE: ward_commands values are validated at consumption time in phase-work.md (Ward Check section)
+# via SAFE_EXECUTABLES allowlist — only known build tool commands are executed.
 if printf '%s' "$merged" | jq 'del(.work.ward_commands)' 2>/dev/null | grep -qE '`[^`]+`|\$\([^)]+\)|<\(|>\(' 2>/dev/null; then
   _trace "WARN: merged config contains shell injection patterns, using defaults only"
   merged="$defaults_json"
