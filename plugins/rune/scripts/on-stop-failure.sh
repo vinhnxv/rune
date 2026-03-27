@@ -87,7 +87,11 @@ parse_frontmatter "$STATE_FILE"
 arc_get_hook_session_id
 
 # ── Guard 7: Validate session ownership (exit 0 if different session) ──
-validate_session_ownership_strict "$STATE_FILE"
+# FLAW-002 FIX: Use if-guard instead of bare call (avoids ERR trap as control flow)
+if ! validate_session_ownership_strict "$STATE_FILE"; then
+  _trace "EXIT: session ownership strict check failed"
+  exit 0
+fi
 
 _trace "Guards passed — classifying stop failure"
 
@@ -187,7 +191,8 @@ EOF
 
     # Increment retry counter atomically in checkpoint
     if [[ -n "$checkpoint_path" ]] && [[ -f "${CWD}/${checkpoint_path}" ]] && [[ ! -L "${CWD}/${checkpoint_path}" ]]; then
-      _tmp=$(mktemp "${TMPDIR:-/tmp}/rune-cp-XXXXXX")
+      # FLAW-003 FIX: Create temp file on same filesystem for atomic rename
+      _tmp=$(mktemp "${CWD}/${checkpoint_path}.XXXXXX" 2>/dev/null || mktemp "${TMPDIR:-/tmp}/rune-cp-XXXXXX")
       if jq ".api_error_retries = $((api_retries + 1))" "${CWD}/${checkpoint_path}" > "$_tmp" 2>/dev/null; then
         mv -f "$_tmp" "${CWD}/${checkpoint_path}"
       else
@@ -245,7 +250,8 @@ EOF
 
     # Increment retry counter atomically in checkpoint
     if [[ -n "$checkpoint_path" ]] && [[ -f "${CWD}/${checkpoint_path}" ]] && [[ ! -L "${CWD}/${checkpoint_path}" ]]; then
-      _tmp=$(mktemp "${TMPDIR:-/tmp}/rune-cp-XXXXXX")
+      # FLAW-003 FIX: Create temp file on same filesystem for atomic rename
+      _tmp=$(mktemp "${CWD}/${checkpoint_path}.XXXXXX" 2>/dev/null || mktemp "${TMPDIR:-/tmp}/rune-cp-XXXXXX")
       if jq ".server_error_retries = $((server_retries + 1))" "${CWD}/${checkpoint_path}" > "$_tmp" 2>/dev/null; then
         mv -f "$_tmp" "${CWD}/${checkpoint_path}"
       else

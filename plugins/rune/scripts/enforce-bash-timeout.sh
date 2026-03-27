@@ -177,10 +177,12 @@ if [[ -z "$match_found" ]]; then
       while IFS= read -r pat; do
         [[ -z "$pat" ]] && continue
         # SEC-001 FIX: Validate user-supplied regex pattern (max 100 chars, no backreferences)
-        if [[ ${#pat} -gt 100 ]] || [[ "$pat" =~ \\[0-9] ]]; then
+        # WARD-001 FIX: Also reject nested quantifiers that cause ReDoS
+        if [[ ${#pat} -gt 100 ]] || [[ "$pat" =~ \\[0-9] ]] || [[ "$pat" =~ \(\.\*\)\+ ]] || [[ "$pat" =~ \(.+\)\+ ]] || [[ "$pat" =~ \(.+\)\* ]]; then
           continue  # Skip potentially dangerous patterns
         fi
-        if printf '%s\n' "$NORMALIZED" | grep -qE "$pat" 2>/dev/null; then
+        # WARD-001 FIX: Wrap in timeout to prevent ReDoS stalling the hook
+        if timeout 1 grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
           match_found="custom"
           break
         fi

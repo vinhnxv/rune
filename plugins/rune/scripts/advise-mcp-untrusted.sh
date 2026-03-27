@@ -134,8 +134,7 @@ if [[ "$HAS_JQ" == "true" ]]; then
     }
   }'
 else
-  # P2-FE-002: Fallback — use printf with escaped advisory
-  # Escape special JSON characters in advisory
-  ESCAPED_ADVISORY=$(printf '%s' "$ADVISORY" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\t' ' ' | tr '\n' ' ' | tr '\r' ' ')
-  printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"%s"}}' "$ESCAPED_ADVISORY"
+  # WARD-002 FIX: If jq is unavailable, exit silently (advisory hook — not critical)
+  # Previous printf fallback was vulnerable to JSON injection
+  exit 0
 fi

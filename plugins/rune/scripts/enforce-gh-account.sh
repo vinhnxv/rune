@@ -23,6 +23,7 @@
 #   - No command modification (read-only advisory)
 
 set -euo pipefail
+umask 077  # WARD-004 FIX: Match all other enforcement scripts
 
 # Fail-forward ERR trap (OPERATIONAL category)
 _rune_fail_forward() {
@@ -92,6 +93,8 @@ resolve_output=$(rune_gh_ensure_correct_account 2>&1) || {
 }
 
 # Resolution succeeded — write debounce marker
+# WARD-003 FIX: Reject symlink before writing to prevent symlink TOCTOU
+[[ -L "$DEBOUNCE_MARKER" ]] && rm -f "$DEBOUNCE_MARKER" 2>/dev/null
 date +%s > "$DEBOUNCE_MARKER" 2>/dev/null || true
 
 # If account was switched, inject context so Claude knows

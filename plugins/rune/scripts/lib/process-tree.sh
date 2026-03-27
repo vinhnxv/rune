@@ -168,9 +168,8 @@ _rune_kill_tree() {
         continue
       fi
 
-      if kill -KILL "$pid" 2>/dev/null; then
-        killed=$((killed + 1))
-      fi
+      # FLAW-001 FIX: Don't double-count — process was already counted in SIGTERM phase
+      kill -KILL "$pid" 2>/dev/null || true
     fi
     idx=$((idx + 1))
   done

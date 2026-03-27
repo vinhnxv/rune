@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.21.2] - 2026-03-27
+
+### Fixed
+- **FLAW-001**: Fix double-counting of killed processes in `_rune_kill_tree` (SIGKILL'd survivors no longer counted twice)
+- **FLAW-002**: Wrap `validate_session_ownership_strict` in if-guard in `on-stop-failure.sh` (prevents ERR trap as control flow)
+- **FLAW-003**: Use same-filesystem temp file for atomic checkpoint writes in `on-stop-failure.sh` (fixes non-atomic `mv` across filesystems in Docker/NFS)
+- **WARD-001**: Add `timeout 1` wrapper and nested quantifier rejection for ReDoS protection in `enforce-bash-timeout.sh`
+- **WARD-002**: Remove vulnerable printf JSON fallback in `advise-mcp-untrusted.sh` (exit silently when jq unavailable)
+- **WARD-003**: Add symlink check before debounce marker write in `enforce-gh-account.sh`
+- **WARD-004**: Add missing `umask 077` to `enforce-gh-account.sh` (only enforcement script without it)
+- **WARD-009**: Remove single pipe (`|`) from elicitation metachar check to prevent false positives on natural language
+- **FLAW-009**: Add symlink rejection on talisman shard read in `track-tool-failure.sh`
+
 ## [2.21.1] - 2026-03-27
 
 ### Changed
