@@ -62,6 +62,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **team-status** | Team health dashboard — show active team members, task progress, and communication state (non-invocable) |
 | **runs** | Workflow run history and diagnostics (non-invocable) |
 | **ux-design-process** | UX design intelligence — heuristic evaluation checklists, interaction pattern libraries, flow validation. Auto-loaded for frontend files (non-invocable) |
+| **variant-hunt** | Systematic variant analysis — "find more like this" for confirmed findings. Takes a TOME finding ID, pattern description, or TOME path, spawns variant-hunter agents with progressive generalization (exact → structural → semantic). Opt-in via `variant_analysis.enabled`. `/rune:variant-hunt` |
 | **post-findings** | Post Rune review/audit findings to GitHub PR as formatted comment. Parses TOME, formats markdown, posts via `gh`. Configurable via `pr_comment` talisman section. `/rune:post-findings` |
 
 ## Commands

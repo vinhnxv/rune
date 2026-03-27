@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.28.0] - 2026-03-28
+
+### Added
+- **Variant analysis**: New `variant-hunter` investigation agent (`agents/investigation/variant-hunter.md`) — given a confirmed finding, systematically searches the codebase for similar patterns using 5-step progressive generalization (understand → exact match → abstract → generalize → triage). Produces VARIANT-prefixed findings with search statistics
+- **`/rune:variant-hunt` skill**: New user-invocable skill for standalone variant hunting — accepts finding ID, pattern description, or TOME path. Spawns variant-hunter agents with team lifecycle management
+- **Talisman config**: New `variant_analysis` section with `enabled` (default: false), `auto_trigger` (`p1_only` | `p1_p2` | `all`), and `max_variants_per_finding` (default: 10)
+- **Agent registry**: `variant-hunter` added to `known-rune-agents.sh` (plugin total: 148 agents — 105 core + 43 extended)
+
 ## [2.27.0] - 2026-03-28
 
 ### Added
