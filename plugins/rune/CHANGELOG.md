@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.27.0] - 2026-03-28
+
+### Added
+- **Audit context building**: New `context-builder` research agent (`agents/research/context-builder.md`) — performs deep architectural comprehension (entry points, trust boundaries, invariants, state flows) before vulnerability hunting begins. Pure comprehension agent — does NOT identify vulnerabilities
+- **Audit Phase 0.45**: Context builder integration in audit workflow — spawns before Ash summoning, produces structured context map injected into every Ash's `## Shared Audit Context` prompt section. Graceful degradation on timeout
+- **Talisman config**: New `audit.context_building` (`"auto"` | `"always"` | `"never"`, default: `"auto"` = deep only) and `audit.context_timeout` (default: 300s) configuration keys
+- **Agent registry**: `context-builder` added to `known-rune-agents.sh` (plugin total: 147 agents — 104 core + 43 extended)
+
 ## [2.26.0] - 2026-03-28
 
 ### Added
