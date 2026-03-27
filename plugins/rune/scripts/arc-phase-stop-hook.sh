@@ -169,6 +169,78 @@ if [[ -L "${CWD}/${CHECKPOINT_PATH}" ]]; then
   exit 0
 fi
 
+# ── GUARD 5.6: CKPT-001 — Validate checkpoint_path format (canonical path enforcement) ──
+# The canonical path is `.rune/arc/arc-{timestamp}/checkpoint.json`.
+# LLM drift can produce paths like `.rune/arc-checkpoint.local.md` (wrong extension + flat path).
+# Recovery strategy: detect drift → find canonical checkpoint → auto-fix state file.
+#
+# Rule 1: Extension MUST be .json (JSON content requires .json extension)
+# Rule 2: Path MUST match .rune/arc/arc-{ts}/checkpoint.json (nested directory structure)
+_CKPT_CANONICAL_PATTERN='^\.rune/arc/arc-[0-9]+/checkpoint\.json$'
+_CKPT_PATH_IS_CANONICAL=true
+
+# Check 1: Must end with .json
+if [[ "$CHECKPOINT_PATH" != *.json ]]; then
+  _trace "WARN CKPT-001: checkpoint_path has non-.json extension: '${CHECKPOINT_PATH}' — JSON content MUST use .json"
+  _CKPT_PATH_IS_CANONICAL=false
+fi
+
+# Check 2: Must match canonical pattern
+if [[ ! "$CHECKPOINT_PATH" =~ $_CKPT_CANONICAL_PATTERN ]]; then
+  _trace "WARN CKPT-001: Non-canonical checkpoint_path='${CHECKPOINT_PATH}' (expected .rune/arc/arc-{ts}/checkpoint.json)"
+  _CKPT_PATH_IS_CANONICAL=false
+fi
+
+if [[ "$_CKPT_PATH_IS_CANONICAL" != "true" ]]; then
+  # Non-canonical path — attempt recovery
+  local _recovered=""
+
+  # Strategy 1: If the drifted file exists, extract arc id and find canonical path
+  if [[ -f "${CWD}/${CHECKPOINT_PATH}" ]]; then
+    local _arc_id_from_drift
+    _arc_id_from_drift=$(jq -r '.id // empty' "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
+    if [[ -n "$_arc_id_from_drift" ]]; then
+      local _canonical="${RUNE_STATE}/arc/${_arc_id_from_drift}/checkpoint.json"
+      if [[ -f "${CWD}/${_canonical}" ]]; then
+        _recovered="$_canonical"
+        _trace "CKPT-001: Found canonical checkpoint via drifted file's arc id: '${_recovered}'"
+      fi
+    fi
+  fi
+
+  # Strategy 2: Scan for newest checkpoint.json
+  if [[ -z "$_recovered" ]]; then
+    local _scan_result
+    _scan_result=$(ls -t "${CWD}/${RUNE_STATE}/arc"/*/checkpoint.json 2>/dev/null | head -1) || true
+    if [[ -n "$_scan_result" && -f "$_scan_result" ]]; then
+      _recovered="${_scan_result#${CWD}/}"
+      _trace "CKPT-001: Found canonical checkpoint via scan: '${_recovered}'"
+    fi
+  fi
+
+  # Strategy 3: If drifted file exists but no canonical found, use drifted file (backwards compat)
+  if [[ -z "$_recovered" && -f "${CWD}/${CHECKPOINT_PATH}" ]]; then
+    _recovered="$CHECKPOINT_PATH"
+    _trace "CKPT-001: No canonical checkpoint found — using drifted path as fallback: '${_recovered}'"
+  fi
+
+  if [[ -n "$_recovered" ]]; then
+    CHECKPOINT_PATH="$_recovered"
+    # Auto-fix state file so future invocations use the correct path
+    local _tmp_fix
+    _tmp_fix=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || true
+    if [[ -n "$_tmp_fix" ]]; then
+      sed "s|^checkpoint_path:.*|checkpoint_path: ${CHECKPOINT_PATH}|" "$STATE_FILE" > "$_tmp_fix" 2>/dev/null && \
+        mv -f "$_tmp_fix" "$STATE_FILE" 2>/dev/null || rm -f "$_tmp_fix" 2>/dev/null
+      _trace "CKPT-001: Auto-fixed state file checkpoint_path to '${CHECKPOINT_PATH}'"
+    fi
+  else
+    _trace "EXIT CKPT-001: Non-canonical checkpoint_path AND no checkpoint found anywhere — cannot proceed"
+    rm -f "$STATE_FILE" 2>/dev/null
+    exit 0
+  fi
+fi
+
 # ── EXTRACT: session_id for session-scoped operations ──
 HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
 if [[ -n "$HOOK_SESSION_ID" ]] && [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then

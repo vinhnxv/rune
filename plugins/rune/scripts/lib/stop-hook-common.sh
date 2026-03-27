@@ -513,6 +513,29 @@ _find_arc_checkpoint() {
     echo "$newest"
     return 0
   fi
+
+  # CKPT-001 FALLBACK: Search for drifted checkpoint files (e.g., .rune/arc-checkpoint.local.md)
+  # LLM drift can produce checkpoint files at non-canonical paths. These are valid JSON files
+  # with arc checkpoint schema but wrong filename/location. Search known drift patterns.
+  local _drift_paths=("${CWD}/${RUNE_STATE}/arc-checkpoint.local.md" "${CWD}/.rune/arc-checkpoint.local.md")
+  local _dp
+  for _dp in "${_drift_paths[@]}"; do
+    [[ -f "$_dp" ]] && [[ ! -L "$_dp" ]] || continue
+    # Verify it's valid checkpoint JSON with session match
+    if [[ -n "${HOOK_SESSION_ID:-}" ]]; then
+      grep -q "\"session_id\"[[:space:]]*:[[:space:]]*\"${HOOK_SESSION_ID:-}\"" "$_dp" 2>/dev/null || continue
+    else
+      grep -qE "\"owner_pid\"[[:space:]]*:[[:space:]]*${PPID}([^0-9]|$)" "$_dp" 2>/dev/null || continue
+    fi
+    # Verify it has checkpoint schema fields
+    grep -q '"phases"' "$_dp" 2>/dev/null || continue
+    if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+      _trace "CKPT-001 FALLBACK: Found drifted checkpoint at ${_dp}"
+    fi
+    echo "$_dp"
+    return 0
+  done
+
   return 1
 }
 

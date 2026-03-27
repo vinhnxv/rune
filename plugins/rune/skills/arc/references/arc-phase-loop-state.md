@@ -17,6 +17,10 @@ After checkpoint initialization (or resume), write the phase loop state file tha
 // (anthropics/claude-code#25642). The SKILL.md preprocessor replaces ${CLAUDE_SESSION_ID}
 // at skill load time, providing the real session ID without Bash.
 const sessionId = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
+// IRON LAW CKPT-001: checkpoint_path MUST be `.rune/arc/${id}/checkpoint.json`.
+// Extension MUST be .json (JSON content requires .json extension — NEVER .md).
+// NEVER use `.rune/arc-checkpoint.local.md` or any flat file path.
+// The stop hook (GUARD 5.6) validates this format and auto-recovers non-canonical paths.
 const stateContent = `---
 active: true
 iteration: 0

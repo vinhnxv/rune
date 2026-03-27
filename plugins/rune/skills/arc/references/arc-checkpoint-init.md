@@ -397,7 +397,26 @@ const parentPlanMeta = {
 // Detection: check for --hierarchy-child flag or HIERARCHY_CONTEXT env override in args.
 // The arc-hierarchy SKILL.md documents the injection protocol.
 
-Write(`.rune/arc/${id}/checkpoint.json`, {
+// ┌─────────────────────────────────────────────────────────────────────────────┐
+// │ IRON LAW CKPT-001: Checkpoint path is NON-NEGOTIABLE                       │
+// │                                                                             │
+// │ Path: `.rune/arc/${id}/checkpoint.json`                                     │
+// │                                                                             │
+// │ Rules:                                                                      │
+// │   1. Extension MUST be .json — content is JSON, extension MUST match        │
+// │   2. Path MUST be nested: .rune/arc/{id}/checkpoint.json                    │
+// │   3. NEVER use flat files like .rune/arc-checkpoint.local.md                │
+// │   4. NEVER use .md extension for JSON content                               │
+// │                                                                             │
+// │ Violating this breaks:                                                      │
+// │   - Stop hook phase loop (arc-phase-stop-hook.sh GUARD 5.6)                │
+// │   - Resume search (_find_arc_checkpoint scans arc/*/checkpoint.json)        │
+// │   - Arc-batch checkpoint discovery                                          │
+// │   - Session-team-hygiene orphan detection                                   │
+// └─────────────────────────────────────────────────────────────────────────────┘
+const checkpointPath = `.rune/arc/${id}/checkpoint.json`
+Bash(`mkdir -p ".rune/arc/${id}"`)
+Write(checkpointPath, {
   id, schema_version: 27, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   // RUIN-003 FIX: Remove redundant ?? guards — Layer 2 resolveArcConfig() already guarantees all values are defined
@@ -629,6 +648,19 @@ Write('.rune/arc-phase-loop.local.md', stateContent)
 const stateFileVerify = Bash('test -f ".rune/arc-phase-loop.local.md" && echo "ok" || echo "missing"').trim()
 if (stateFileVerify !== 'ok') {
   throw new Error('FATAL: Phase loop state file write failed — Stop hook cannot drive arc phases. Aborting.')
+}
+
+// CKPT-001 VERIFICATION: Confirm checkpoint was written to the EXACT canonical path.
+// This catches LLM drift where checkpoint gets written to a different path (e.g., .rune/arc-checkpoint.local.md).
+const ckptVerify = Bash(`test -f "${checkpointPath}" && echo "ok" || echo "missing"`).trim()
+if (ckptVerify !== 'ok') {
+  throw new Error(`FATAL (CKPT-001): Checkpoint not found at canonical path "${checkpointPath}". ` +
+    `Did you write it to a different location? The ONLY valid path is .rune/arc/{id}/checkpoint.json. Aborting.`)
+}
+// Also verify the state file's checkpoint_path matches the actual path
+const stateCheckpointPath = Bash('grep "^checkpoint_path:" .rune/arc-phase-loop.local.md | sed "s/^checkpoint_path: //"').trim()
+if (stateCheckpointPath !== checkpointPath) {
+  throw new Error(`FATAL (CKPT-001): State file checkpoint_path "${stateCheckpointPath}" does not match canonical "${checkpointPath}". Fix the state file.`)
 }
 ```
 

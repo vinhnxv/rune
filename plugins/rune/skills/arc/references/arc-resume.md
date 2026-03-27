@@ -17,6 +17,10 @@ On resume, validate checkpoint integrity before proceeding:
 
 ```
 1. Find most recent checkpoint: find "${CWD}/.rune/arc" -maxdepth 2 -name checkpoint.json -not -path "*/archived/*" -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1
+   // IRON LAW CKPT-001: checkpointPath MUST end with .json and match .rune/arc/arc-{ts}/checkpoint.json
+   // If find returns empty, also check for drifted files: .rune/arc-checkpoint.local.md (backwards compat).
+   // If a drifted file is found, migrate it to the canonical path before proceeding.
+   // NEVER set checkpointPath to a .md file — JSON content MUST use .json extension.
 2. Read "${CWD}/.rune/arc/{id}/checkpoint.json" — extract plan_file for downstream phases
 2b. Validate session_nonce from checkpoint (prevents tampering):
    ```javascript

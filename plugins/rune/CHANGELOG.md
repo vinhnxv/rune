@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.29.1] - 2026-03-28
+
+### Fixed
+- **CKPT-001: Checkpoint path drift hardening** — LLM could write checkpoint to `.rune/arc-checkpoint.local.md` instead of canonical `.rune/arc/{id}/checkpoint.json`, breaking stop hook phase loop and `--resume` search
+  - Added IRON LAW constraint in `arc-checkpoint-init.md` with post-write verification (file exists + state file path match)
+  - Added `mkdir -p` and `checkpointPath` variable to prevent flat-file drift
+  - Added GUARD 5.6 in `arc-phase-stop-hook.sh` — validates `.json` extension + canonical path pattern, 3-strategy recovery cascade (extract arc id → scan → fallback)
+  - Added drifted-path fallback in `_find_arc_checkpoint()` (`stop-hook-common.sh`) for `--resume` backwards compatibility
+  - Enforced `.json` extension rule: JSON content MUST use `.json` extension, never `.md`
+
 ## [2.29.0] - 2026-03-28
 
 ### Added
