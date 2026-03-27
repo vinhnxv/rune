@@ -219,21 +219,34 @@ while (iteration < maxIterations) {
     // First pass: full strive
     Skill("rune:strive", planPath)
   } else {
-    // Subsequent passes: append evaluator feedback to plan, then resume
+    // Subsequent passes: write evaluator feedback to sidecar file, then resume
     const prevResult = iterationHistory[iterationHistory.length - 1]
-    const feedbackSection = `\n\n## Evaluator Feedback — Iteration ${iteration}\n\n` +
+    const feedbackSection = `## Evaluator Feedback — Iteration ${iteration}\n\n` +
       `Previous iteration found ${prevResult.findings.length} issue(s):\n` +
       prevResult.findings.map(f =>
-        `- **${f.type}**: ${f.name || f.pattern} ${f.file ? `in \`${f.file}\`` : ""}`
+        `- **${f.type}**: ${f.name ?? f.pattern ?? "unknown"} ${f.file ? `in \`${f.file}\`` : ""}`
       ).join("\n") +
       `\n\nFix these issues. Do not introduce new regressions.\n`
-    Edit(planPath, { append: feedbackSection })
+    // BACK-004: Write to sidecar instead of Edit(append) which is invalid
+    // FLAW-006: Prevents unbounded plan file growth
+    Write(`tmp/arc-quick-feedback-${iteration}.md`, feedbackSection)
     Skill("rune:strive", `${planPath} --resume`)
+  }
+
+  // FLAW-005: Detect strive producing no commits (empty diff = strive failure, not success)
+  const headAfterStrive = Bash("git rev-parse HEAD").trim()
+  if (headAfterStrive === baseRef) {
+    iterationHistory.push({ verdict: "ITERATE", findings: [{ type: "strive", name: "no-commits" }],
+                            confidence: 0.3, iteration, timestamp: new Date().toISOString(),
+                            reason: "Strive produced no commits — no changes to evaluate" })
+    if (iteration >= maxIterations) break
+    continue
   }
 
   // Skip evaluation if configured
   if (skipEvaluate) {
-    iterationHistory.push({ verdict: "PASS", findings: [], confidence: 100,
+    // BACK-003: Confidence normalized to 0.0-1.0 per AC-5
+    iterationHistory.push({ verdict: "PASS", findings: [], confidence: 1.0,
                             iteration, timestamp: new Date().toISOString(),
                             reason: "Evaluation skipped (skip_evaluate: true)" })
     break
@@ -362,7 +375,7 @@ function evaluateIteration(planPath, iterationNumber, baseRef) {
 
   // Empty diff = nothing to evaluate → auto-PASS
   if (changedFiles === "") {
-    return { verdict: "PASS", findings: [], confidence: 100,
+    return { verdict: "PASS", findings: [], confidence: 1.0,
              iteration: iterationNumber, timestamp: new Date().toISOString(),
              reason: "No changes detected — nothing to evaluate" }
   }
@@ -381,6 +394,8 @@ function evaluateIteration(planPath, iterationNumber, baseRef) {
   }
 
   // 2. Grep quality signals scoped to changed files only
+  // BACK-002: Known limitation — catches pre-existing signals in changed files, not just new ones.
+  // Scoping to diff hunks deferred to v2.
   const patterns = [/TODO|FIXME|HACK|XXX/, /console\.log/, /debugger/]
   for (const file of fileList) {
     for (const pat of patterns) {
@@ -393,8 +408,9 @@ function evaluateIteration(planPath, iterationNumber, baseRef) {
   }
 
   const verdict = findings.length === 0 ? "PASS" : "ITERATE"
-  const confidence = findings.length === 0 ? 95
-    : Math.max(30, 90 - findings.length * 10)
+  // BACK-003: Confidence normalized to 0.0-1.0 per AC-5
+  const confidence = findings.length === 0 ? 0.95
+    : Math.max(0.3, 0.9 - findings.length * 0.1)
 
   // BACK-006: Log evaluator result for observability
   const reason = verdict === "PASS" ? "All wards passed, no quality signals"
