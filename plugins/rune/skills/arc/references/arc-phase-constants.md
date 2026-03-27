@@ -9,7 +9,7 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 ## Phase Order
 
 ```javascript
-const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'design_prototype', 'task_decomposition', 'work', 'work_qa', 'drift_review', 'storybook_verification', 'design_verification', 'design_verification_qa', 'ux_verification', 'gap_analysis', 'gap_analysis_qa', 'codex_gap_analysis', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification', 'code_review', 'code_review_qa', 'goldmask_correlation', 'mend', 'mend_qa', 'verify_mend', 'design_iteration', 'test', 'test_qa', 'test_coverage_critique', 'deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
+const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'design_prototype', 'task_decomposition', 'work', 'work_qa', 'drift_review', 'storybook_verification', 'design_verification', 'design_verification_qa', 'ux_verification', 'gap_analysis', 'gap_analysis_qa', 'codex_gap_analysis', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification', 'code_review', 'code_review_qa', 'goldmask_correlation', 'mend', 'mend_qa', 'verify_mend', 'design_iteration', 'test', 'test_qa', 'browser_test', 'browser_test_fix', 'verify_browser_test', 'test_coverage_critique', 'deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
 
 // Heavy phases that MUST be delegated to sub-skills — never implemented inline.
 // These phases consume significant tokens and require fresh teammate context windows.
@@ -96,6 +96,9 @@ const PHASE_TIMEOUTS = {
   code_review_qa:  talismanTimeouts.code_review_qa ?? 300_000,  //  5 min (QA gate — 1 agent)
   mend_qa:         talismanTimeouts.mend_qa ?? 300_000,         //  5 min (QA gate — 1 agent)
   test_qa:         talismanTimeouts.test_qa ?? 300_000,         //  5 min (QA gate — 1 agent)
+  browser_test:         talismanTimeouts.browser_test ?? 900_000,         // 15 min (conditional — frontend + agent-browser)
+  browser_test_fix:     talismanTimeouts.browser_test_fix ?? 900_000,     // 15 min (conditional — browser_test failures)
+  verify_browser_test:  talismanTimeouts.verify_browser_test ?? 240_000,  //  4 min (convergence evaluation, no team)
 }
 ```
 
@@ -117,6 +120,14 @@ const CYCLE_BUDGET = {
   pass_N_mend:   780_000,    // 13 min (retry mend)
   convergence:   240_000,    //  4 min (Phase 7.5 evaluation)
 }
+
+// Browser test convergence cycle budgets (v1.170.0+)
+const BROWSER_TEST_CYCLE_BUDGET = {
+  test: 900_000,       // 15 min per browser test run
+  fix: 900_000,        // 15 min per fix round
+  verify: 240_000,     //  4 min per convergence check
+}
+const MAX_BROWSER_TEST_CYCLES = 3  // Hard cap on test→fix→verify iterations
 
 // Batch testing configuration defaults (v1.165.0+)
 // readTalismanSection: "testing"
@@ -158,6 +169,7 @@ function calculateDynamicTimeout(tier) {
     PHASE_TIMEOUTS.verify_mend +
     PHASE_TIMEOUTS.design_iteration +
     PHASE_TIMEOUTS.test + PHASE_TIMEOUTS.test_qa +
+    PHASE_TIMEOUTS.browser_test + PHASE_TIMEOUTS.browser_test_fix + PHASE_TIMEOUTS.verify_browser_test +
     PHASE_TIMEOUTS.test_coverage_critique +
     PHASE_TIMEOUTS.pre_ship_validation + PHASE_TIMEOUTS.release_quality_check +
     PHASE_TIMEOUTS.bot_review_wait + PHASE_TIMEOUTS.pr_comment_resolution +
@@ -303,13 +315,15 @@ const SKIP_REASONS = {
   BOT_REVIEW_DISABLED: "bot_review_disabled",         // bot_review not enabled via flag or talisman
   TESTING_DISABLED: "testing_disabled",               // --no-test flag or arc.defaults.no_test
   INSPECT_DISABLED: "inspect_disabled",               // arc.inspect.enabled === false
+  BROWSER_TEST_DISABLED: "browser_test_disabled",     // --no-browser-test flag or arc.defaults.no_browser_test
 }
 
 // ── Phase skip classification ──
 // Pre-computable: forge, design_extraction, design_prototype, design_verification*,
 //   design_iteration*, storybook_verification, ux_verification, task_decomposition,
 //   semantic_verification, codex_gap_analysis, test_coverage_critique,
-//   release_quality_check, bot_review_wait, pr_comment_resolution, test*
+//   release_quality_check, bot_review_wait, pr_comment_resolution, test*,
+//   browser_test*, browser_test_fix*, verify_browser_test*
 //   (* = conditionally pre-computable — only when parent feature is disabled)
 //
 // Runtime-dependent (NOT in skip_map): plan_refine (depends on Phase 2 verdicts),

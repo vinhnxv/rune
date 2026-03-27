@@ -53,7 +53,7 @@ Related guides:
 | `/rune:audit` | Full-codebase audit | `--focus`, `--incremental`, `--deep`, `--dry-run` |
 | `/rune:mend` | Resolve findings from TOME | `--all`, `--max-fixers` |
 | `/rune:inspect` | Plan-vs-implementation gap audit | `--focus`, `--mode plan`, `--fix`, `--dry-run` |
-| `/rune:arc` | Full pipeline from plan to ship/merge | `--resume`, `--no-forge`, `--approve`, `--no-pr`, `--no-merge` |
+| `/rune:arc` | Full pipeline from plan to ship/merge | `--resume`, `--no-forge`, `--approve`, `--no-pr`, `--no-merge`, `--no-browser-test` |
 | `/rune:arc-quick` | Lightweight plan -> work -> review pipeline | `--force` |
 
 ---

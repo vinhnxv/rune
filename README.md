@@ -16,7 +16,7 @@ Plan, implement, review, test, and audit your codebase using coordinated Agent T
 
 ## What Is This?
 
-Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 144 specialized AI agents, 59 skills, and a 40-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
+Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 144 specialized AI agents, 59 skills, and a 43-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
 
 **Compatibility:** Requires **Claude Code 2.1.81+** with Agent Teams support. macOS 12+ or Linux. See [full requirements](#requirements).
 
@@ -50,7 +50,7 @@ The trade-off is token cost — multi-agent workflows consume more tokens than a
 > | `/rune:appraise` | 5–20 min | Up to 8 review agents analyzing your diff in parallel — scales with LOC changed |
 > | `/rune:audit` | 10–30 min | Full codebase scan — same agents, broader scope |
 > | `/rune:strive` | 10–30 min | Swarm workers implementing tasks in parallel |
-> | `/rune:arc` | **1–2 hours** | Full 40-phase pipeline (forge → plan review → work → gap analysis → code review → mend → test → ship → merge) |
+> | `/rune:arc` | **1–2 hours** | Full 43-phase pipeline (forge → plan review → work → gap analysis → code review → mend → test → ship → merge) |
 > | `/rune:arc` (complex) | **up to 3 hours** | Large plans with multiple review-mend convergence loops |
 >
 > `/rune:arc` is intentionally slow because it runs the **entire software development lifecycle** autonomously — planning enrichment, parallel implementation, multi-agent code review, automated fixes, 3-tier testing, and PR creation. Each phase spawns and tears down a separate agent team. The result is higher quality, but it takes time.
@@ -249,7 +249,7 @@ Output: `plans/YYYY-MM-DD-{type}-{name}-plan.md`
 
 ### <a name="arc"></a> `/rune:arc` — End-to-End Pipeline
 
-The full pipeline from plan to merged PR, with 40 phases:
+The full pipeline from plan to merged PR, with 43 phases:
 
 ```
 Forge → Plan Review → Refinement → Verification → Semantic Verification

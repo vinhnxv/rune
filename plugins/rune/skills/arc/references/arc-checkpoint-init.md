@@ -67,6 +67,7 @@ function resolveArcConfig(arc, work, inlineFlags) {
     skip_freshness: false,
     confirm: false,
     no_test: false,
+    no_browser_test: false,
     accept_external_changes: true,
     ship: {
       auto_pr: true,
@@ -98,6 +99,7 @@ function resolveArcConfig(arc, work, inlineFlags) {
     skip_freshness:  typeof talismanDefaults.skip_freshness === 'boolean' ? talismanDefaults.skip_freshness : defaults.skip_freshness,
     confirm:         typeof talismanDefaults.confirm === 'boolean' ? talismanDefaults.confirm : defaults.confirm,
     no_test:         typeof talismanDefaults.no_test === 'boolean' ? talismanDefaults.no_test : defaults.no_test,
+    no_browser_test: typeof talismanDefaults.no_browser_test === 'boolean' ? talismanDefaults.no_browser_test : defaults.no_browser_test,
     accept_external_changes: typeof talismanDefaults.accept_external_changes === 'boolean' ? talismanDefaults.accept_external_changes : defaults.accept_external_changes,
     ship: {
       auto_pr:       typeof talismanShip.auto_pr === 'boolean' ? talismanShip.auto_pr : defaults.ship.auto_pr,
@@ -136,6 +138,7 @@ function resolveArcConfig(arc, work, inlineFlags) {
   if (inlineFlags.skip_freshness !== undefined) config.skip_freshness = inlineFlags.skip_freshness
   if (inlineFlags.confirm !== undefined) config.confirm = inlineFlags.confirm
   if (inlineFlags.no_test !== undefined) config.no_test = inlineFlags.no_test
+  if (inlineFlags.no_browser_test !== undefined) config.no_browser_test = inlineFlags.no_browser_test
   if (inlineFlags.accept_external_changes !== undefined) config.accept_external_changes = inlineFlags.accept_external_changes
   // Ship flags can also be overridden inline
   if (inlineFlags.no_pr !== undefined) config.ship.auto_pr = !inlineFlags.no_pr
@@ -156,6 +159,7 @@ const inlineFlags = {
   skip_freshness: args.includes('--skip-freshness') ? true : undefined,
   confirm: args.includes('--confirm') ? true : undefined,
   no_test: args.includes('--no-test') ? true : undefined,
+  no_browser_test: args.includes('--no-browser-test') ? true : undefined,
   // --no-accept-external (force off) > --accept-external (force on) > talisman default (true)
   accept_external_changes: args.includes('--no-accept-external') ? false
     : args.includes('--accept-external') ? true : undefined,
@@ -314,6 +318,14 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
     map.test = "testing_disabled"
   }
 
+  // ── Browser test phases ──
+  // Skip all 3 browser test loop phases when --no-browser-test or --no-test
+  if (arcConfig.no_browser_test || arcConfig.no_test) {
+    map.browser_test = "browser_test_disabled"
+    map.browser_test_fix = "browser_test_disabled"
+    map.verify_browser_test = "browser_test_disabled"
+  }
+
   // ── QA gate phase skip propagation ──
   // QUAL-001 FIX: Order matches PHASE_ORDER canonical sequence
   const QA_GATED_PHASES = ['forge', 'work', 'gap_analysis', 'code_review', 'mend', 'test', 'design_verification']
@@ -389,7 +401,7 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
   id, schema_version: 27, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   // RUIN-003 FIX: Remove redundant ?? guards — Layer 2 resolveArcConfig() already guarantees all values are defined
-  flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, accept_external_changes: arcConfig.accept_external_changes, bot_review: arcConfig.bot_review, no_bot_review: arcConfig.no_bot_review },
+  flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, no_browser_test: arcConfig.no_browser_test, accept_external_changes: arcConfig.accept_external_changes, bot_review: arcConfig.bot_review, no_bot_review: arcConfig.no_bot_review },
   arc_config: arcConfig,
   pr_url: null,
   freshness: freshnessResult || null,
@@ -451,6 +463,9 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
     design_iteration: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     test:         { status: "pending", artifact: null, artifact_hash: null, team_name: null, tiers_run: [], pass_rate: null, coverage_pct: null, has_frontend: false, started_at: null, completed_at: null },
     test_qa:      { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0 },
+    browser_test:         { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, routes_tested: 0, routes_passed: 0, routes_failed: 0 },
+    browser_test_fix:     { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, fixed_count: null },
+    verify_browser_test:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     test_coverage_critique: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     pre_ship_validation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     release_quality_check: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
@@ -476,6 +491,12 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
   // Schema v25 addition: inspect convergence — separate from review-mend convergence.
   // Controls the inspect → inspect_fix → verify_inspect loop (Phases 5.9, 5.95, 5.99).
   inspect_convergence: { round: 0, max_rounds: 2, threshold: 95, history: [] },
+  // Browser test convergence — controls the browser_test → browser_test_fix → verify_browser_test loop (Phases 7.7.5-7.7.7).
+  browser_test_convergence: {
+    round: 0,
+    max_cycles: MAX_BROWSER_TEST_CYCLES,  // 3
+    history: [],   // { round, routes_tested, routes_passed, routes_failed, fixes_applied, verdict, timestamp }
+  },
   // Schema v27 addition: QA gate configuration — controls per-phase QA verification.
   // Each QA phase runs after its parent and produces a verdict.json with numerical scores.
   // v27: Separated infra vs quality global retry budgets. Infrastructure retries (agent

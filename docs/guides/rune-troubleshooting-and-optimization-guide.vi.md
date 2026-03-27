@@ -377,7 +377,7 @@ Phase 8/26: WORK — 3 workers implementing...
 Phase 12/29: CODE REVIEW — 5 Ashes reviewing...
 ```
 
-> **Lưu ý (v1.120.2+):** Arc hiện có 40 phase (thêm Design Extraction, Design Prototype, Design Verification, Design Iteration, UX Verification, và Pre-Ship Validation).
+> **Lưu ý (v1.120.2+):** Arc hiện có 43 phase (thêm Design Extraction, Design Prototype, Design Verification, Design Iteration, UX Verification, và Pre-Ship Validation).
 
 ### 6.2 Trong review/audit
 

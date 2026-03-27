@@ -51,6 +51,9 @@ const PHASE_PREFIX_MAP = {
   mend:                   ["rune-mend-", "arc-sage-"],          // mend sub-command + ephemeral elicitation sage
   design_iteration:       ["arc-design-iter-"],                 // Phase 7.6 (conditional — fidelity < threshold)
   test:                   ["arc-test-"],
+  browser_test:           ["arc-browser-test-"],               // Phase 7.7.5 (conditional — frontend + agent-browser)
+  browser_test_fix:       ["arc-browser-fix-"],                // Phase 7.7.6 (conditional — browser_test failures)
+  verify_browser_test:    [],                                   // Phase 7.7.7 (no team — orchestrator-only convergence check)
   design_prototype:       ["arc-prototype-", "rune-prototype-"],  // Phase 3.2 arc prototype + /rune:design-prototype standalone (conditional — design_sync.enabled)
   deploy_verify:          ["arc-deploy-"],                        // Phase 7.9 (conditional — deployment-relevant files in diff)
   forge_qa:               ["arc-qa-"],                             // QA gate for forge phase (conditional — qa_gates.enabled)
@@ -61,7 +64,7 @@ const PHASE_PREFIX_MAP = {
   test_qa:                ["arc-qa-"],                             // QA gate for test phase
   design_verification_qa: ["arc-qa-"],                             // QA gate for design_verification phase
 }
-// NOTE: 21 delegated phases (9 original + 1 storybook phase + 3 design phases + 1 UX phase + 5 Codex handler phases + 1 design-prototype + 1 deploy-verify). Phases removed in v1.67.0 (audit, audit_mend) are NOT listed.
+// NOTE: 23 delegated phases (9 original + 1 storybook phase + 3 design phases + 1 UX phase + 5 Codex handler phases + 1 design-prototype + 1 deploy-verify + 2 browser test phases). Phases removed in v1.67.0 (audit, audit_mend) are NOT listed.
 // Multi-prefix entries: plan_review has Layer 2 inspect team (arc-plan-inspect-), mend has ephemeral sage team (arc-sage-).
 // Design phases are conditional — only create teams when design_sync.enabled === true.
 // UX verification is conditional — only creates teams when ux.enabled === true + frontend files detected.
