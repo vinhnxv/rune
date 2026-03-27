@@ -260,11 +260,11 @@ See [arc-state-conflict.md](references/arc-state-conflict.md) for the full confl
 
 ## Phase Loop State File
 
-Writes the YAML state file that drives `arc-phase-stop-hook.sh`. Includes session isolation fields (`config_dir`, `owner_pid`, `session_id`), checkpoint path, and arc flags.
+**Co-located with checkpoint init (v2.6.0)**: The phase loop state file is now written as part of [arc-checkpoint-init.md](references/arc-checkpoint-init.md), immediately after the checkpoint `Write()` call. This eliminates the "missing state file" bug where the LLM wrote the checkpoint but skipped this step under context pressure.
 
-**CRITICAL**: `session_id` MUST use SKILL.md substitution (`"${CLAUDE_SESSION_ID}"`) — NOT `Bash('echo $CLAUDE_SESSION_ID')` which is unavailable in Bash tool context.
+If you are here during execution, the state file (`.rune/arc-phase-loop.local.md`) should already exist. If it does not, the safety guard in "First Phase Invocation" below will catch and recover.
 
-See [arc-phase-loop-state.md](references/arc-phase-loop-state.md) for the full state file template and write logic.
+See [arc-phase-loop-state.md](references/arc-phase-loop-state.md) for the state file schema reference.
 
 ## Discipline Integration
 
@@ -295,6 +295,40 @@ Execute the first pending phase from the checkpoint. The Stop hook (`arc-phase-s
 **CRITICAL — Single-Phase-Per-Turn Rule**: You MUST execute exactly ONE phase per turn, then STOP responding. Do NOT batch-process multiple phases in a single turn. Do NOT skip conditional phases (semantic_verification, design_extraction, design_prototype, task_decomposition) based on assumptions — each phase has its own gate logic in its reference file that MUST be executed. The Stop hook advances to the next phase automatically. Violating this rule causes phases to be skipped without proper gate evaluation.
 
 ```javascript
+// ── SAFETY GUARD: Verify phase loop state file exists before first phase ──
+// FIX (v2.6.0): Catches the case where checkpoint init completed but state file
+// write was skipped (context pressure, LLM shortcutting, or error between steps).
+// Without this file, the Stop hook silently exits 0 and the arc stalls after Phase 1.
+const stateFilePath = '.rune/arc-phase-loop.local.md'
+const stateFileExists = Bash(`test -f "${stateFilePath}" && echo "ok" || echo "missing"`).trim()
+if (stateFileExists !== 'ok') {
+  warn('RECOVERY: Phase loop state file missing — recreating from checkpoint.')
+  // Reconstruct from checkpoint data (checkpoint was written successfully)
+  const cp = JSON.parse(Read(checkpointPath))
+  const recoverySessionId = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
+  const recoveryBranch = Bash("git branch --show-current 2>/dev/null").trim() || 'main'
+  const recoveryContent = `---
+active: true
+iteration: 0
+max_iterations: 65
+checkpoint_path: ${checkpointPath}
+plan_file: ${cp.plan_file}
+branch: ${recoveryBranch}
+arc_flags: ${(cp.flags?.no_forge ? '--no-forge ' : '') + (cp.flags?.approve ? '--approve ' : '') + (cp.flags?.no_test ? '--no-test ' : '')}
+config_dir: ${cp.config_dir}
+owner_pid: ${Bash('echo $PPID').trim()}
+session_id: ${recoverySessionId}
+compact_pending: false
+user_cancelled: false
+cancel_reason: null
+cancelled_at: null
+stop_reason: null
+---
+`
+  Write(stateFilePath, recoveryContent)
+  log('Phase loop state file recovered successfully.')
+}
+
 // Check for context-critical shutdown signal before starting next phase (Layer 1)
 const shutdownSignalCheck = (() => {
   try {

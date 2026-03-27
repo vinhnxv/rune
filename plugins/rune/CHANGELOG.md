@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.21.3] - 2026-03-27
+
+### Fixed
+- **ARC-STALL-001**: Fix "missing phase loop state file" bug causing arc to stall after first phase. Root cause: state file write was a separate pseudocode section in SKILL.md that could be skipped under context pressure or LLM step-shortcutting. Defense-in-depth fix with 3 layers:
+  - **Layer 1**: Co-locate state file write with checkpoint init in `arc-checkpoint-init.md` (same code block — can't skip one without the other)
+  - **Layer 2**: Add state file write to `arc-resume.md` step 9 (resume path had the same gap)
+  - **Layer 3**: Safety guard in SKILL.md "First Phase Invocation" reconstructs state file from checkpoint if missing
+
 ## [2.21.2] - 2026-03-27
 
 ### Fixed

@@ -597,5 +597,38 @@ Write(`.rune/arc/${id}/checkpoint.json`, {
 
 // Schema migration is handled in arc-resume.md (steps 3a through 3z).
 // Migrations v1→v26 are defined there. See arc-resume.md for the full chain.
+
+// ── MANDATORY: Write phase loop state file immediately after checkpoint ──
+// FIX (v2.6.0): Co-locate state file write with checkpoint init to prevent
+// the "missing state file" bug where the LLM writes the checkpoint but skips
+// the phase loop state file under context pressure or step-shortcutting.
+// Previously this was a separate section in SKILL.md that could be skipped.
+// See arc-phase-loop-state.md for the state file schema.
+const sessionId = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
+const branch = Bash("git branch --show-current 2>/dev/null").trim() || 'main'
+const stateContent = `---
+active: true
+iteration: 0
+max_iterations: 65
+checkpoint_path: .rune/arc/${id}/checkpoint.json
+plan_file: ${planFile}
+branch: ${branch}
+arc_flags: ${args.replace(/\s+/g, ' ').trim()}
+config_dir: ${configDir}
+owner_pid: ${ownerPid}
+session_id: ${sessionId}
+compact_pending: false
+user_cancelled: false
+cancel_reason: null
+cancelled_at: null
+stop_reason: null
+---
+`
+Write('.rune/arc-phase-loop.local.md', stateContent)
+// Verify state file was written (defense-in-depth)
+const stateFileVerify = Bash('test -f ".rune/arc-phase-loop.local.md" && echo "ok" || echo "missing"').trim()
+if (stateFileVerify !== 'ok') {
+  throw new Error('FATAL: Phase loop state file write failed — Stop hook cannot drive arc phases. Aborting.')
+}
 ```
 

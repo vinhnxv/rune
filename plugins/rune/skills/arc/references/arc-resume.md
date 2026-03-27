@@ -564,6 +564,40 @@ Continue from: ${contextMeta.last_action ?? 'last known state'}.
    Unlike CDX-7 Layer 1 (which resets phase status), this only cleans teams
    without changing phase status — the phase dispatching logic handles retries.
    `prePhaseCleanup(checkpoint)`
+
+9. **MANDATORY: Write phase loop state file** (v2.6.0).
+   Same fix as arc-checkpoint-init.md — co-locate state file write with checkpoint ownership.
+   Without this, the Stop hook silently exits 0 and the arc stalls after the first resumed phase.
+   ```javascript
+   const sessionId = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
+   const branch = Bash("git branch --show-current 2>/dev/null").trim() || 'main'
+   const resumeFlags = [
+     checkpoint.flags?.no_forge ? '--no-forge' : '',
+     checkpoint.flags?.approve ? '--approve' : '',
+     checkpoint.flags?.no_test ? '--no-test' : '',
+     checkpoint.flags?.no_browser_test ? '--no-browser-test' : '',
+     checkpoint.flags?.bot_review ? '--bot-review' : '',
+   ].filter(Boolean).join(' ')
+   const stateContent = `---
+active: true
+iteration: 0
+max_iterations: 65
+checkpoint_path: ${checkpointPath}
+plan_file: ${checkpoint.plan_file}
+branch: ${branch}
+arc_flags: ${resumeFlags}
+config_dir: ${configDir}
+owner_pid: ${ownerPid}
+session_id: ${sessionId}
+compact_pending: false
+user_cancelled: false
+cancel_reason: null
+cancelled_at: null
+stop_reason: null
+---
+`
+   Write('.rune/arc-phase-loop.local.md', stateContent)
+   ```
 ```
 
 Hash mismatch warning:

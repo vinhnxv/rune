@@ -1,5 +1,10 @@
 # Phase Loop State File
 
+> **Co-located (v2.6.0)**: This write is now embedded at the end of [arc-checkpoint-init.md](arc-checkpoint-init.md),
+> immediately after the checkpoint `Write()` call. This reference file documents the schema
+> for the state file. The SKILL.md "First Phase Invocation" section has a safety guard that
+> recreates the file from checkpoint data if it is missing.
+
 After checkpoint initialization (or resume), write the phase loop state file that drives `arc-phase-stop-hook.sh`:
 
 ```javascript
