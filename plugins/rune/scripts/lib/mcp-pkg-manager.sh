@@ -95,7 +95,15 @@ mcp_ensure_package() {
     # Version mismatch or not found — update
     echo "Updating ${package}: ${installed_ver:-unknown} → ${version}..." >&2
     npm install -g "${package}@${version}" --silent 2>&1 >&2 || true
-    _mcp_write_stamp "$binary" "$version"
+    # CDX-BUG-003 FIX: Only write stamp after verifying the installed version matches.
+    # Previously, failed npm installs were cached as successful.
+    local verify_ver
+    verify_ver=$(_mcp_installed_version "$package")
+    if [[ "$verify_ver" == "$version" ]]; then
+      _mcp_write_stamp "$binary" "$version"
+    else
+      echo "WARN: ${package}@${version} install failed (got ${verify_ver:-none}), stamp not updated" >&2
+    fi
   fi
 
   # Binary exists (may be outdated if npm failed), still usable

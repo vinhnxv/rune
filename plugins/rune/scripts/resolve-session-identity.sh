@@ -46,8 +46,26 @@
 _RUNE_IDENTITY_CACHE="${TMPDIR:-/tmp}/rune-identity-${PPID}"
 
 # ── Try reading from cache before expensive resolution ──
+# SEC: Never source cache files from shared /tmp — parse key=value safely instead.
+# XVER-SEC-001 FIX: Replaced `source` with read-based parsing + UID ownership check.
 if [[ -z "${RUNE_CURRENT_CFG:-}" && -f "$_RUNE_IDENTITY_CACHE" && ! -L "$_RUNE_IDENTITY_CACHE" ]]; then
-  source "$_RUNE_IDENTITY_CACHE"
+  # Verify file is owned by current user (prevents attacker-planted files)
+  _cache_uid=$(stat -c '%u' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || stat -f '%u' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || echo "")
+  if [[ -n "$_cache_uid" && "$_cache_uid" == "$(id -u)" ]]; then
+    # Parse key=value lines safely — only accept expected variable names
+    while IFS='=' read -r _key _val; do
+      _key="${_key## }"  # trim leading space
+      _val="${_val## }"  # trim leading space
+      # Remove printf %q quoting (leading/trailing $'...' or '...')
+      _val="${_val#\$\'}" ; _val="${_val%\'}"
+      _val="${_val#\'}"   ; _val="${_val%\'}"
+      case "$_key" in
+        RUNE_CURRENT_CFG) RUNE_CURRENT_CFG="$_val" ;;
+        RUNE_CURRENT_SID) RUNE_CURRENT_SID="$_val" ;;
+        *) ;; # ignore unexpected keys
+      esac
+    done < "$_RUNE_IDENTITY_CACHE"
+  fi
 fi
 
 if [[ -z "${RUNE_CURRENT_CFG:-}" ]]; then

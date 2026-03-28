@@ -294,11 +294,12 @@ if [[ "$TOOL_NAME" == "Task" || "$TOOL_NAME" == "Agent" ]]; then
   fi
 fi
 
-# For TeamCreate: check if the team name starts with "rune-" prefix.
+# For TeamCreate: check if the team name starts with "rune-" or "arc-" prefix.
 # Non-Rune teams pass through — other plugins manage their own lifecycle.
+# CDX-BUG-001 FIX: Added arc- prefix — arc-* teams are Rune-managed too.
 if [[ "$TOOL_NAME" == "TeamCreate" ]]; then
   CTX_TEAM_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.team_name // empty' 2>/dev/null || true)
-  if [[ -n "$CTX_TEAM_NAME" && ! "$CTX_TEAM_NAME" =~ ^rune- ]]; then
+  if [[ -n "$CTX_TEAM_NAME" && ! "$CTX_TEAM_NAME" =~ ^(rune|arc)- ]]; then
     exit 0  # Non-Rune team — allow even at critical context
   fi
 fi

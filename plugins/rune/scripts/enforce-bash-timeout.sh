@@ -273,11 +273,17 @@ if [[ "$KILL_AFTER" -lt 5 ]]; then
   KILL_AFTER=5
 fi
 
-# Determine if the command needs bash -c wrapping (pipes, chains, redirects)
+# Determine if the command needs bash -c wrapping (pipes, chains, redirects, env assignments)
+# CDX-BUG-002 FIX: Also wrap commands starting with VAR=value (env-prefixed) —
+# without bash -c, `gtimeout ... CI=1 npm test` treats CI=1 as argv0.
 NEEDS_BASH_C=""
 case "$MATCH_CMD" in
   *\|*|*\&\&*|*\|\|*|*\;*|*\>*|*\<*) NEEDS_BASH_C="1" ;;
 esac
+# Detect env-prefixed commands: one or more VAR=value before the actual command
+if [[ -z "$NEEDS_BASH_C" && "$MATCH_CMD" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+  NEEDS_BASH_C="1"
+fi
 
 TIMEOUT_PREFIX="$TIMEOUT_BIN"
 if [[ -n "$KILL_AFTER_SUPPORTED" ]]; then
