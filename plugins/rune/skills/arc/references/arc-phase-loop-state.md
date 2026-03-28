@@ -5,6 +5,37 @@
 > for the state file. The SKILL.md "First Phase Invocation" section has a safety guard that
 > recreates the file from checkpoint data if it is missing.
 
+## Integrity Validation (v2.30.0)
+
+The state file is validated at **three layers** to prevent LLM variable drift and cross-run contamination:
+
+### Layer 1: Pre-Write Assertions (INTEG-INIT / INTEG-RESUME)
+In `arc-checkpoint-init.md` and `arc-resume.md`, assertions fire BEFORE `Write()`:
+- `config_dir` must NOT be a `tmp/` path (must be CLAUDE_CONFIG_DIR)
+- `owner_pid` must be non-empty and numeric
+- `id` must match `arc-{timestamp}` format
+- `checkpointPath` must use the same `id`
+- `planFile` must not be empty/null
+- `sessionId` must not be 'unknown'
+
+### Layer 2: Post-Write Cross-Field Verification (INTEG-POST)
+After `Write()`, reads back the state file and verifies every field matches the source variable.
+Catches template interpolation bugs where `${configDir}` resolves to the wrong value.
+
+### Layer 3: Runtime Validation (GUARD 5.8 + GUARD 8.5)
+In `arc-phase-stop-hook.sh`, before processing:
+- **GUARD 5.8**: `validate_state_file_integrity()` checks all 11 INTEG rules
+- **GUARD 8.5**: `validate_checkpoint_json_integrity()` checks 6 CKPT-INT rules
+On failure: writes diagnostic to `.rune/arc-integrity-failure.txt`, halts phase loop.
+
+### Known Corruption Vectors (Root Cause)
+| Vector | Example | Detection |
+|--------|---------|-----------|
+| LLM variable drift | `config_dir: tmp/arc/arc-123` instead of `/Users/x/.claude` | INTEG-001 |
+| Cross-run mixing | checkpoint_path from run A, config_dir from run B | INTEG-011 |
+| Empty session identity | `owner_pid:` (blank) | INTEG-004, INTEG-005 |
+| Wrong checkpoint path | `.rune/arc-checkpoint.local.md` | INTEG-002, CKPT-001 |
+
 After checkpoint initialization (or resume), write the phase loop state file that drives `arc-phase-stop-hook.sh`:
 
 ```javascript

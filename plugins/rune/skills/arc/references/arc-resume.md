@@ -574,6 +574,30 @@ Continue from: ${contextMeta.last_action ?? 'last known state'}.
    Without this, the Stop hook silently exits 0 and the arc stalls after the first resumed phase.
    ```javascript
    const sessionId = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
+
+   // ── PRE-WRITE VALIDATION (INTEG-RESUME, v2.30.0) ──
+   // Same assertions as arc-checkpoint-init.md. Catches LLM drift during resume path.
+   // INTEG-RESUME-001: configDir must be CLAUDE_CONFIG_DIR, NOT tmp/arc/
+   if (!configDir || configDir.startsWith('tmp/') || configDir.startsWith('./tmp/') || configDir.includes('/tmp/arc/')) {
+     throw new Error(`FATAL (INTEG-RESUME-001): configDir "${configDir}" looks like arc working dir, not CLAUDE_CONFIG_DIR.`)
+   }
+   // INTEG-RESUME-002: ownerPid must be non-empty and numeric
+   if (!ownerPid || !/^\d+$/.test(String(ownerPid))) {
+     throw new Error(`FATAL (INTEG-RESUME-002): ownerPid "${ownerPid}" is empty or non-numeric.`)
+   }
+   // INTEG-RESUME-003: checkpointPath must match canonical format
+   if (!checkpointPath || !/^\.rune\/arc\/arc-\d+\/checkpoint\.json$/.test(checkpointPath)) {
+     throw new Error(`FATAL (INTEG-RESUME-003): checkpointPath "${checkpointPath}" does not match canonical format.`)
+   }
+   // INTEG-RESUME-004: sessionId must not be 'unknown'
+   if (sessionId === 'unknown') {
+     throw new Error(`FATAL (INTEG-RESUME-004): sessionId is 'unknown' — session identity unavailable.`)
+   }
+   // INTEG-RESUME-005: checkpoint.plan_file must not be empty
+   if (!checkpoint.plan_file || checkpoint.plan_file === 'null') {
+     throw new Error(`FATAL (INTEG-RESUME-005): checkpoint.plan_file is empty/null.`)
+   }
+
    const branch = Bash("git branch --show-current 2>/dev/null").trim() || 'main'
    const resumeFlags = [
      checkpoint.flags?.no_forge ? '--no-forge' : '',
@@ -601,6 +625,16 @@ stop_reason: null
 ---
 `
    Write('.rune/arc-phase-loop.local.md', stateContent)
+
+   // ── POST-WRITE CROSS-FIELD VERIFICATION (INTEG-RESUME-POST, v2.30.0) ──
+   const stateConfigDir = Bash('grep "^config_dir:" .rune/arc-phase-loop.local.md | sed "s/^config_dir: //"').trim()
+   if (stateConfigDir !== configDir) {
+     throw new Error(`FATAL (INTEG-RESUME-POST-001): Written config_dir "${stateConfigDir}" ≠ configDir "${configDir}".`)
+   }
+   const stateOwnerPid = Bash('grep "^owner_pid:" .rune/arc-phase-loop.local.md | sed "s/^owner_pid: //"').trim()
+   if (stateOwnerPid !== String(ownerPid)) {
+     throw new Error(`FATAL (INTEG-RESUME-POST-002): Written owner_pid "${stateOwnerPid}" ≠ ownerPid "${ownerPid}".`)
+   }
    ```
 ```
 

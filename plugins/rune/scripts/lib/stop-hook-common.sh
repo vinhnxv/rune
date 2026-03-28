@@ -450,6 +450,243 @@ validate_session_ownership_strict() {
   _validate_session_ownership_core "strict" "$1"
 }
 
+# ── validate_state_file_integrity(): GUARD 5.8 — pre-execution metadata validation ──
+# Validates arc-phase-loop.local.md fields for correctness, completeness, and cross-field
+# consistency BEFORE the stop hook processes the state file.
+#
+# BUG FIX (v2.30.0): Detects LLM variable substitution drift where config_dir gets
+# written as tmp/arc/... instead of CLAUDE_CONFIG_DIR, checkpoint_path references a
+# different arc run than config_dir, or required fields (owner_pid, session_id) are empty.
+#
+# Args:
+#   $1 = state file path (absolute)
+#   $2 = CWD (absolute path to project root)
+# Returns: 0 if valid, 1 if integrity check failed.
+# NEVER calls exit — always returns to caller.
+# Caller decides whether to abort (remove state file + exit 0) or warn.
+#
+# Checks performed:
+#   INTEG-001: config_dir must NOT be a tmp/ or relative arc working dir
+#   INTEG-002: checkpoint_path must match .rune/arc/arc-{ts}/checkpoint.json canonical format
+#   INTEG-003: checkpoint_path must reference an existing file on disk
+#   INTEG-004: owner_pid must not be empty
+#   INTEG-005: session_id must not be empty or "null" or "unknown"
+#   INTEG-006: plan_file must not be empty or "null"
+#   INTEG-007: plan_file must exist on disk (warning only — may be on different branch)
+#   INTEG-008: iteration and max_iterations must be numeric
+#   INTEG-009: active must be "true" (otherwise state file should not be processed)
+#   INTEG-010: branch must not be empty
+#   INTEG-011: cross-field — if checkpoint.json exists, its id must match checkpoint_path arc ID
+validate_state_file_integrity() {
+  local state_file="$1"
+  local cwd="$2"
+  local _errors=0
+  local _warnings=0
+  local _trace_fn="_trace"
+  # Fallback trace if caller's _trace is not available
+  if ! declare -f _trace &>/dev/null; then
+    _trace_fn="echo"
+  fi
+
+  # Helper: increment error counter and trace
+  _integ_fail() {
+    local code="$1" msg="$2"
+    $_trace_fn "INTEG FAIL ${code}: ${msg}"
+    _errors=$((_errors + 1))
+  }
+  _integ_warn() {
+    local code="$1" msg="$2"
+    $_trace_fn "INTEG WARN ${code}: ${msg}"
+    _warnings=$((_warnings + 1))
+  }
+
+  # ── Read fields (reuse already-parsed FRONTMATTER if available) ──
+  local _cfg_dir _ckpt_path _owner_pid _session_id _plan_file _iteration _max_iter _active _branch
+
+  _cfg_dir=$(get_field "config_dir" 2>/dev/null || true)
+  _ckpt_path=$(get_field "checkpoint_path" 2>/dev/null || true)
+  _owner_pid=$(get_field "owner_pid" 2>/dev/null || true)
+  _session_id=$(get_field "session_id" 2>/dev/null || true)
+  _plan_file=$(get_field "plan_file" 2>/dev/null || true)
+  _iteration=$(get_field "iteration" 2>/dev/null || true)
+  _max_iter=$(get_field "max_iterations" 2>/dev/null || true)
+  _active=$(get_field "active" 2>/dev/null || true)
+  _branch=$(get_field "branch" 2>/dev/null || true)
+
+  # ── INTEG-001: config_dir must be CLAUDE_CONFIG_DIR, not a tmp/arc path ──
+  # Valid: /Users/x/.claude, /home/x/.claude-work, etc.
+  # Invalid: tmp/arc/arc-123, ./tmp/arc/..., relative paths without leading /
+  if [[ -z "$_cfg_dir" ]]; then
+    _integ_fail "INTEG-001" "config_dir is empty"
+  elif [[ "$_cfg_dir" == tmp/* ]] || [[ "$_cfg_dir" == ./tmp/* ]] || [[ "$_cfg_dir" == */tmp/arc/* ]]; then
+    _integ_fail "INTEG-001" "config_dir '${_cfg_dir}' looks like an arc working dir, not CLAUDE_CONFIG_DIR"
+  elif [[ "$_cfg_dir" != /* ]] && [[ "$_cfg_dir" != '${CLAUDE_CONFIG_DIR'* ]]; then
+    # config_dir should be an absolute path (resolved from CLAUDE_CONFIG_DIR)
+    _integ_warn "INTEG-001" "config_dir '${_cfg_dir}' is not an absolute path — may be corrupt"
+  fi
+
+  # ── INTEG-002: checkpoint_path canonical format ──
+  if [[ -z "$_ckpt_path" ]]; then
+    _integ_fail "INTEG-002" "checkpoint_path is empty"
+  elif [[ ! "$_ckpt_path" =~ ^\.rune/arc/arc-[0-9]+/checkpoint\.json$ ]]; then
+    # Also allow legacy .claude/arc/ prefix
+    if [[ ! "$_ckpt_path" =~ ^\.claude/arc/arc-[0-9]+/checkpoint\.json$ ]]; then
+      _integ_warn "INTEG-002" "checkpoint_path '${_ckpt_path}' does not match canonical format .rune/arc/arc-{ts}/checkpoint.json"
+    fi
+  fi
+
+  # ── INTEG-003: checkpoint file must exist on disk ──
+  if [[ -n "$_ckpt_path" ]] && [[ ! -f "${cwd}/${_ckpt_path}" ]]; then
+    _integ_fail "INTEG-003" "checkpoint_path '${_ckpt_path}' does not exist at ${cwd}/${_ckpt_path}"
+  fi
+
+  # ── INTEG-004: owner_pid required ──
+  if [[ -z "$_owner_pid" ]] || [[ "$_owner_pid" == "null" ]]; then
+    _integ_fail "INTEG-004" "owner_pid is empty or null — session isolation broken"
+  elif [[ ! "$_owner_pid" =~ ^[0-9]+$ ]]; then
+    _integ_fail "INTEG-004" "owner_pid '${_owner_pid}' is not numeric"
+  fi
+
+  # ── INTEG-005: session_id required ──
+  if [[ -z "$_session_id" ]] || [[ "$_session_id" == "null" ]] || [[ "$_session_id" == "unknown" ]]; then
+    _integ_fail "INTEG-005" "session_id is empty/null/unknown — session isolation broken"
+  fi
+
+  # ── INTEG-006: plan_file required ──
+  if [[ -z "$_plan_file" ]] || [[ "$_plan_file" == "null" ]] || [[ "$_plan_file" == "unknown" ]]; then
+    _integ_fail "INTEG-006" "plan_file is empty/null/unknown"
+  fi
+
+  # ── INTEG-007: plan_file should exist (warning — may be on different branch) ──
+  if [[ -n "$_plan_file" ]] && [[ "$_plan_file" != "null" ]] && [[ "$_plan_file" != "unknown" ]]; then
+    if [[ ! -f "${cwd}/${_plan_file}" ]]; then
+      _integ_warn "INTEG-007" "plan_file '${_plan_file}' not found at ${cwd}/${_plan_file}"
+    fi
+  fi
+
+  # ── INTEG-008: numeric fields ──
+  if [[ -n "$_iteration" ]] && [[ ! "$_iteration" =~ ^[0-9]+$ ]]; then
+    _integ_fail "INTEG-008" "iteration '${_iteration}' is not numeric"
+  fi
+  if [[ -n "$_max_iter" ]] && [[ ! "$_max_iter" =~ ^[0-9]+$ ]]; then
+    _integ_fail "INTEG-008" "max_iterations '${_max_iter}' is not numeric"
+  fi
+
+  # ── INTEG-009: active must be "true" ──
+  if [[ "$_active" != "true" ]]; then
+    _integ_fail "INTEG-009" "active is '${_active}', expected 'true'"
+  fi
+
+  # ── INTEG-010: branch must not be empty ──
+  if [[ -z "$_branch" ]] || [[ "$_branch" == "null" ]]; then
+    _integ_warn "INTEG-010" "branch is empty or null"
+  fi
+
+  # ── INTEG-011: cross-field consistency — checkpoint arc ID matches checkpoint_path ──
+  if [[ -n "$_ckpt_path" ]] && [[ -f "${cwd}/${_ckpt_path}" ]]; then
+    local _ckpt_arc_id=""
+    _ckpt_arc_id=$(jq -r '.id // empty' "${cwd}/${_ckpt_path}" 2>/dev/null || true)
+    if [[ -n "$_ckpt_arc_id" ]]; then
+      # Extract arc ID from checkpoint_path: .rune/arc/arc-12345/checkpoint.json → arc-12345
+      local _path_arc_id=""
+      _path_arc_id=$(echo "$_ckpt_path" | sed -n 's|.*arc/\(arc-[0-9]*\)/checkpoint\.json|\1|p')
+      if [[ -n "$_path_arc_id" ]] && [[ "$_ckpt_arc_id" != "$_path_arc_id" ]]; then
+        _integ_fail "INTEG-011" "checkpoint.json id '${_ckpt_arc_id}' does not match path arc ID '${_path_arc_id}'"
+      fi
+    fi
+  fi
+
+  # ── Summary ──
+  if [[ $_errors -gt 0 ]]; then
+    $_trace_fn "STATE INTEGRITY CHECK FAILED: ${_errors} error(s), ${_warnings} warning(s) for ${state_file}"
+    return 1
+  fi
+  if [[ $_warnings -gt 0 ]]; then
+    $_trace_fn "STATE INTEGRITY CHECK PASSED with ${_warnings} warning(s) for ${state_file}"
+  fi
+  return 0
+}
+
+# ── validate_checkpoint_json_integrity(): Validate checkpoint.json structure and fields ──
+# Validates the checkpoint JSON file for required fields, correct types, and cross-field
+# consistency. Called by the stop hook after reading checkpoint but before phase dispatch.
+#
+# Args:
+#   $1 = checkpoint path (absolute)
+# Returns: 0 if valid, 1 if integrity check failed.
+# NEVER calls exit — always returns to caller.
+#
+# Checks performed:
+#   CKPT-INT-001: File must be valid JSON
+#   CKPT-INT-002: Required fields: id, plan_file, schema_version
+#   CKPT-INT-003: id must match arc-{ts} format
+#   CKPT-INT-004: config_dir must not be a tmp/ path
+#   CKPT-INT-005: schema_version must be numeric and >= 1
+#   CKPT-INT-006: plan_file must not be empty
+validate_checkpoint_json_integrity() {
+  local ckpt_path="$1"
+  local _errors=0
+  local _trace_fn="_trace"
+  if ! declare -f _trace &>/dev/null; then
+    _trace_fn="echo"
+  fi
+
+  _ckpt_integ_fail() {
+    local code="$1" msg="$2"
+    $_trace_fn "CKPT-INTEG FAIL ${code}: ${msg}"
+    _errors=$((_errors + 1))
+  }
+
+  # ── CKPT-INT-001: Valid JSON ──
+  if ! jq empty "$ckpt_path" 2>/dev/null; then
+    _ckpt_integ_fail "CKPT-INT-001" "checkpoint file is not valid JSON: ${ckpt_path}"
+    return 1  # Can't check further if not valid JSON
+  fi
+
+  # ── CKPT-INT-002: Required fields ──
+  local _id _plan _schema _cfg _pid _sid
+  _id=$(jq -r '.id // empty' "$ckpt_path" 2>/dev/null || true)
+  _plan=$(jq -r '.plan_file // empty' "$ckpt_path" 2>/dev/null || true)
+  _schema=$(jq -r '.schema_version // empty' "$ckpt_path" 2>/dev/null || true)
+  _cfg=$(jq -r '.config_dir // empty' "$ckpt_path" 2>/dev/null || true)
+  _pid=$(jq -r '.owner_pid // empty' "$ckpt_path" 2>/dev/null || true)
+  _sid=$(jq -r '.session_id // empty' "$ckpt_path" 2>/dev/null || true)
+
+  [[ -z "$_id" ]] && _ckpt_integ_fail "CKPT-INT-002" "missing required field: id"
+  [[ -z "$_plan" ]] && _ckpt_integ_fail "CKPT-INT-002" "missing required field: plan_file"
+  [[ -z "$_schema" ]] && _ckpt_integ_fail "CKPT-INT-002" "missing required field: schema_version"
+
+  # ── CKPT-INT-003: id format ──
+  if [[ -n "$_id" ]] && [[ ! "$_id" =~ ^arc-[0-9]+$ ]]; then
+    _ckpt_integ_fail "CKPT-INT-003" "id '${_id}' does not match arc-{timestamp} format"
+  fi
+
+  # ── CKPT-INT-004: config_dir not tmp/ ──
+  if [[ -n "$_cfg" ]]; then
+    if [[ "$_cfg" == tmp/* ]] || [[ "$_cfg" == ./tmp/* ]] || [[ "$_cfg" == */tmp/arc/* ]]; then
+      _ckpt_integ_fail "CKPT-INT-004" "config_dir '${_cfg}' in checkpoint looks like arc working dir, not CLAUDE_CONFIG_DIR"
+    fi
+  fi
+
+  # ── CKPT-INT-005: schema_version numeric ──
+  if [[ -n "$_schema" ]] && [[ ! "$_schema" =~ ^[0-9]+$ ]]; then
+    _ckpt_integ_fail "CKPT-INT-005" "schema_version '${_schema}' is not numeric"
+  elif [[ -n "$_schema" ]] && [[ "$_schema" -lt 1 ]]; then
+    _ckpt_integ_fail "CKPT-INT-005" "schema_version '${_schema}' must be >= 1"
+  fi
+
+  # ── CKPT-INT-006: plan_file not empty ──
+  if [[ -n "$_plan" ]] && [[ "$_plan" == "null" ]]; then
+    _ckpt_integ_fail "CKPT-INT-006" "plan_file is 'null' in checkpoint"
+  fi
+
+  if [[ $_errors -gt 0 ]]; then
+    $_trace_fn "CHECKPOINT INTEGRITY CHECK FAILED: ${_errors} error(s) for ${ckpt_path}"
+    return 1
+  fi
+  return 0
+}
+
 # ── _find_arc_checkpoint(): Find the most recent arc checkpoint for current session ──
 # Searches ${CWD}/.rune/arc/*/checkpoint.json, ${CWD}/.claude/arc/*/checkpoint.json (legacy),
 # AND ${CWD}/tmp/arc/*/checkpoint.json for the newest checkpoint belonging to the current

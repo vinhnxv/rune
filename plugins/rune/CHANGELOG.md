@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.29.4] - 2026-03-28
+
+### Fixed
+- **INTEG-001 (P0): 3-layer arc state file integrity validation** — Prevents LLM variable substitution drift where `config_dir` gets written as `tmp/arc/...` instead of `CLAUDE_CONFIG_DIR`, cross-run ID mismatches between `checkpoint_path` and `config_dir`, and empty `owner_pid`/`session_id` fields that break session isolation
+  - **Layer 1 (Pre-Write)**: 6 assertions in `arc-checkpoint-init.md` and 5 in `arc-resume.md` fire BEFORE `Write()` to catch wrong variable usage at source
+  - **Layer 2 (Post-Write)**: Cross-field verification reads back the state file after `Write()` and compares every field against the source variable to catch template interpolation bugs
+  - **Layer 3 (Runtime)**: GUARD 5.8 (`validate_state_file_integrity()`, 11 INTEG rules) and GUARD 8.5 (`validate_checkpoint_json_integrity()`, 6 CKPT-INT rules) in `arc-phase-stop-hook.sh` validate metadata before every phase dispatch
+  - Writes diagnostic to `.rune/arc-integrity-failure.txt` on validation failure for post-mortem analysis
+  - Documents known corruption vectors and detection matrix in `arc-phase-loop-state.md`
+
 ## [2.29.3] - 2026-03-28
 
 ### Fixed

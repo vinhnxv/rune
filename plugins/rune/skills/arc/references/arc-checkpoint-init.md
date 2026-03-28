@@ -617,6 +617,34 @@ Write(checkpointPath, {
 // Schema migration is handled in arc-resume.md (steps 3a through 3z).
 // Migrations v1→v26 are defined there. See arc-resume.md for the full chain.
 
+// ── PRE-WRITE VALIDATION (INTEG-INIT, v2.30.0): Validate variables BEFORE writing state file ──
+// BUG FIX: LLM variable substitution drift can write wrong values (e.g., config_dir=tmp/arc/...).
+// These assertions catch the drift AT WRITE TIME, not after the stop hook reads corrupt data.
+//
+// INTEG-INIT-001: configDir must be CLAUDE_CONFIG_DIR (absolute path), NOT tmp/arc/ working dir
+if (!configDir || configDir.startsWith('tmp/') || configDir.startsWith('./tmp/') || configDir.includes('/tmp/arc/')) {
+  throw new Error(`FATAL (INTEG-INIT-001): configDir "${configDir}" looks like an arc working directory, not CLAUDE_CONFIG_DIR. ` +
+    `configDir must be the resolved CLAUDE_CONFIG_DIR path (e.g., /Users/x/.claude). ` +
+    `Did you confuse the arc tmp dir with configDir? Re-read the configDir resolution above.`)
+}
+// INTEG-INIT-002: ownerPid must be non-empty and numeric
+if (!ownerPid || !/^\d+$/.test(String(ownerPid))) {
+  throw new Error(`FATAL (INTEG-INIT-002): ownerPid "${ownerPid}" is empty or non-numeric. ` +
+    `ownerPid must come from Bash('echo $PPID'). Session isolation cannot work without it.`)
+}
+// INTEG-INIT-003: id must match arc-{timestamp} format
+if (!id || !/^arc-\d+$/.test(id)) {
+  throw new Error(`FATAL (INTEG-INIT-003): id "${id}" does not match arc-{timestamp} format.`)
+}
+// INTEG-INIT-004: checkpointPath must use the SAME id
+if (checkpointPath !== `.rune/arc/${id}/checkpoint.json`) {
+  throw new Error(`FATAL (INTEG-INIT-004): checkpointPath "${checkpointPath}" does not match expected ".rune/arc/${id}/checkpoint.json". Cross-ID mismatch.`)
+}
+// INTEG-INIT-005: planFile must not be empty
+if (!planFile || planFile === 'null' || planFile === 'unknown') {
+  throw new Error(`FATAL (INTEG-INIT-005): planFile "${planFile}" is empty/null/unknown.`)
+}
+
 // ── MANDATORY: Write phase loop state file immediately after checkpoint ──
 // FIX (v2.6.0): Co-locate state file write with checkpoint init to prevent
 // the "missing state file" bug where the LLM writes the checkpoint but skips
@@ -624,6 +652,10 @@ Write(checkpointPath, {
 // Previously this was a separate section in SKILL.md that could be skipped.
 // See arc-phase-loop-state.md for the state file schema.
 const sessionId = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
+// INTEG-INIT-006: sessionId must not be 'unknown' (both sources failed)
+if (sessionId === 'unknown') {
+  throw new Error(`FATAL (INTEG-INIT-006): sessionId is 'unknown' — neither CLAUDE_SESSION_ID nor RUNE_SESSION_ID is available.`)
+}
 const branch = Bash("git branch --show-current 2>/dev/null").trim() || 'main'
 const stateContent = `---
 active: true
@@ -661,6 +693,26 @@ if (ckptVerify !== 'ok') {
 const stateCheckpointPath = Bash('grep "^checkpoint_path:" .rune/arc-phase-loop.local.md | sed "s/^checkpoint_path: //"').trim()
 if (stateCheckpointPath !== checkpointPath) {
   throw new Error(`FATAL (CKPT-001): State file checkpoint_path "${stateCheckpointPath}" does not match canonical "${checkpointPath}". Fix the state file.`)
+}
+
+// ── POST-WRITE CROSS-FIELD VERIFICATION (INTEG-POST, v2.30.0) ──
+// Read back the state file and verify all fields match the variables used to write it.
+// This catches template interpolation bugs where ${configDir} resolved to wrong value.
+const stateConfigDir = Bash('grep "^config_dir:" .rune/arc-phase-loop.local.md | sed "s/^config_dir: //"').trim()
+if (stateConfigDir !== configDir) {
+  throw new Error(`FATAL (INTEG-POST-001): State file config_dir "${stateConfigDir}" does not match configDir "${configDir}". Template interpolation bug.`)
+}
+const stateOwnerPid = Bash('grep "^owner_pid:" .rune/arc-phase-loop.local.md | sed "s/^owner_pid: //"').trim()
+if (stateOwnerPid !== String(ownerPid)) {
+  throw new Error(`FATAL (INTEG-POST-002): State file owner_pid "${stateOwnerPid}" does not match ownerPid "${ownerPid}". Template interpolation bug.`)
+}
+const statePlanFile = Bash('grep "^plan_file:" .rune/arc-phase-loop.local.md | sed "s/^plan_file: //"').trim()
+if (statePlanFile !== planFile) {
+  throw new Error(`FATAL (INTEG-POST-003): State file plan_file "${statePlanFile}" does not match planFile "${planFile}". Template interpolation bug.`)
+}
+const stateSessionId = Bash('grep "^session_id:" .rune/arc-phase-loop.local.md | sed "s/^session_id: //"').trim()
+if (stateSessionId !== sessionId) {
+  throw new Error(`FATAL (INTEG-POST-004): State file session_id "${stateSessionId}" does not match sessionId "${sessionId}". Template interpolation bug.`)
 }
 ```
 
