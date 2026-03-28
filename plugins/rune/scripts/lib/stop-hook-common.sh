@@ -467,6 +467,11 @@ validate_session_ownership_strict() {
 _find_arc_checkpoint() {
   local newest="" newest_mtime=0
 
+  # XVER-SEC-006 FIX: Defense-in-depth — validate HOOK_SESSION_ID locally before grep interpolation
+  if [[ -n "${HOOK_SESSION_ID:-}" ]] && [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    HOOK_SESSION_ID=""
+  fi
+
   # Search .rune/arc/ (primary), .claude/arc/ (legacy fallback), and tmp/arc/ (post-compaction).
   local ckpt_dir
   for ckpt_dir in "${CWD}/${RUNE_STATE}/arc" "${CWD}/.claude/arc" "${CWD}/tmp/arc"; do
@@ -517,7 +522,8 @@ _find_arc_checkpoint() {
   # CKPT-001 FALLBACK: Search for drifted checkpoint files (e.g., .rune/arc-checkpoint.local.md)
   # LLM drift can produce checkpoint files at non-canonical paths. These are valid JSON files
   # with arc checkpoint schema but wrong filename/location. Search known drift patterns.
-  local _drift_paths=("${CWD}/${RUNE_STATE}/arc-checkpoint.local.md" "${CWD}/.rune/arc-checkpoint.local.md")
+  # CLD-BUG-002 FIX: Removed duplicate path (both resolved to same file when RUNE_STATE=.rune)
+  local _drift_paths=("${CWD}/${RUNE_STATE}/arc-checkpoint.local.md")
   local _dp
   for _dp in "${_drift_paths[@]}"; do
     [[ -f "$_dp" ]] && [[ ! -L "$_dp" ]] || continue

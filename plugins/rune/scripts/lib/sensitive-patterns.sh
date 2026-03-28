@@ -59,20 +59,10 @@ _SPAT_LIST=(
   "hex_token:[=:][[:space:]]*['\"]?[0-9a-fA-F]{40,}['\"]?"
 )
 
-# Populate associative array if supported (bash 4+)
-# _SPAT_LIST: always available (Bash 3.2+). SENSITIVE_PATTERNS: Bash 4+ only (associative lookup).
-# NOTE: zsh also supports declare -A but with different semantics. The _SPAT_LIST fallback
-# ensures correct behavior regardless of shell version.
-# IMPORTANT: All consumers MUST use _SPAT_LIST as the primary interface (see rune_strip_sensitive).
-# SENSITIVE_PATTERNS is a convenience-only secondary index — never rely on it for correctness.
-if declare -A _SPAT_TEST 2>/dev/null; then
-  for _spat_entry in "${_SPAT_LIST[@]}"; do
-    _spat_label="${_spat_entry%%:*}"
-    _spat_regex="${_spat_entry#*:}"
-    SENSITIVE_PATTERNS["$_spat_label"]="$_spat_regex"
-  done
-  unset _SPAT_TEST _spat_entry _spat_label _spat_regex
-fi
+# CLD-DEAD-001: SENSITIVE_PATTERNS associative array removed — never consumed in production.
+# All consumers use _SPAT_LIST (positional array) via rune_strip_sensitive().
+# CLD-SEC-003 FIX: Make _SPAT_LIST readonly to prevent modification after sourcing.
+readonly _SPAT_LIST
 
 # ── rune_strip_sensitive ──
 # Filter sensitive data patterns from stdin using python3.
