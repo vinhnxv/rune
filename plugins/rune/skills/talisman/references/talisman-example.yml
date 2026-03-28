@@ -71,7 +71,7 @@ plan:
 #   severity_filter: ["P1", "P2"]      # Only post findings at these severity levels
 #   confidence_threshold: 50           # Minimum confidence score (0-100) to include finding
 #   max_findings: 30                   # Maximum findings to include in comment
-#   format: "summary"                  # Output format: "summary" | "detailed" | "minimal"
+#   format: "summary"                  # Output format: "summary" | "detailed" | "minimal" (PHNT-004: NOT YET CONSUMED — reserved for future use)
 #   include_traces: true               # Include Rune Traces (file:line evidence)
 #   include_fix_suggestions: true      # Include fix suggestions from findings
 #   collapse_threshold: 5              # Collapse findings list into <details> after this count
@@ -102,9 +102,9 @@ plan:
 discipline:
   # enabled: true              # Enable discipline proof validation
   # block_on_fail: false       # WARN mode (default for rollout). Set true for BLOCK mode.
-  # proof_timeout: 60          # Timeout in seconds for individual proof execution
+  # proof_timeout: 60          # Timeout in seconds for individual proof execution (PHNT-003: consumed by execute-discipline-proofs.sh)
   # max_convergence_iterations: 3  # Max proof retry attempts before escalation
-  # echo_back_required: true   # Require workers to echo-back acceptance criteria
+  # echo_back_required: true   # Require workers to echo-back acceptance criteria (PHNT-003: consumed by strive worker prompt injection)
 
 # ──────────────────────────────────────────────
 # Design Sync — Figma design synchronization
@@ -149,5 +149,5 @@ discipline:
 #   enabled: true                    # Enable /rune:self-audit command (default: true)
 #   auto_suggest_threshold: 3        # Suggest self-audit after N marginal QA scores (future Phase 2)
 #   echo_persist: true               # Persist findings to .rune/echoes/meta-qa/ (default: true)
-#   promotion_threshold: 3           # Promote to Inscribed after N recurrences (default: 3)
+#   promotion_threshold: 3           # Promote to Inscribed after N recurrences (PHNT-006: NOT YET CONSUMED — reserved for future echo promotion logic)
 #   verbose_default: false           # Include P3 findings by default (default: false)

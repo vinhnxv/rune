@@ -52,13 +52,15 @@ if [[ ! -f "$INSCRIPTION_PATH" ]]; then
 fi
 
 # Extract all file_group entries from inscription to build the allowed file set.
-# DESIGN LIMITATION (SEC-001): We collect ALL fixers' file groups into one flat
+# DESIGN LIMITATION (SEC-002): We collect ALL fixers' file groups into one flat
 # allowlist because transcript_path format is undocumented and may not contain
 # the fixer name reliably. This means fixer-A can write to fixer-B's files.
 # Compensating controls: (1) blockedBy serialization prevents temporal overlap
 # for dependent groups (Phase 1.5), (2) prompt instructions restrict each fixer
 # to its assigned files, (3) ward check in Phase 5 catches any regressions.
 # The key guarantee: files NOT in ANY fixer's group are blocked.
+# FUTURE: Implement per-fixer transcript tracking for least-privilege enforcement.
+# See https://github.com/vinhnx/rune-plugin/issues — track as enhancement.
 ALLOWED_FILES=$(jq -r '.fixers[].file_group[]' "$INSCRIPTION_PATH" 2>/dev/null || true)
 
 if [[ -z "$ALLOWED_FILES" ]]; then

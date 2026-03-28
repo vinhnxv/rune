@@ -599,6 +599,8 @@ function shutdown(handle) {
     // When TeamDelete fails, teammates are likely still running. Filesystem cleanup alone
     // leaves zombie processes that hold file locks and consume resources.
     // Uses centralized _rune_kill_tree for recursive descendant walk + PID recycling guard.
+    // NOTE: _rune_kill_tree implements MCP-PROTECT-001 internally — it skips --stdio
+    // processes (MCP/LSP servers) during teammate cleanup to avoid killing shared services.
     const ownerPid = handle.ownerPid || Bash(`echo $PPID`).trim()
     if (ownerPid && /^\d+$/.test(ownerPid)) {
       Bash(`source "\${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "${ownerPid}" "2stage" "5" "claude"`)

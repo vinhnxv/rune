@@ -79,44 +79,44 @@ Chains forty phases into a single automated pipeline. Each phase runs as its own
 
 The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numeric labels below are for human reference only — execution order is always determined by position in `PHASE_ORDER`.
 
-| # | Phase Key | Type | Timeout | Delegated To |
-|---|-----------|------|---------|-------------|
-| 1 | `forge` | Team | 15 min | `/rune:forge` |
-| 2 | `plan_review` | Team | 15 min | `/rune:appraise` (inspect mode) |
-| 2.5 | `plan_refine` | Inline | 3 min | — |
-| 2.7 | `verification` | Inline | 30 sec | — |
-| 2.8 | `semantic_verification` | Team | 12 min | Codex (conditional) |
-| 3 | `design_extraction` | Team | 10 min | Conditional: `design_sync.enabled` |
-| 3.2 | `design_prototype` | Team | 10 min | Conditional: `design_sync.enabled` + VSM files |
-| 4.5 | `task_decomposition` | Team | 10 min | Codex (conditional) |
-| 5 | `work` | Team | 35 min | `/rune:strive` |
-| 5.1 | `drift_review` | Inline | 2 min | — |
-| 3.3 | `storybook_verification` | Team | 15 min | Conditional: `storybook.enabled` |
-| 5.2 | `design_verification` | Team | 8 min | Conditional: VSM files |
-| 5.3 | `ux_verification` | Team | 5 min | Conditional: `ux.enabled` |
-| 5.5 | `gap_analysis` | Team | 12 min | — |
-| 5.6 | `codex_gap_analysis` | Team | 16 min | Codex (conditional) |
-| 5.8 | `gap_remediation` | Team | 15 min | — |
-| 5.7 | `goldmask_verification` | Team | 15 min | `/rune:goldmask` |
-| 6 | `code_review` | Team | 15 min | `/rune:appraise --deep` |
-| 6.5 | `goldmask_correlation` | Inline | 1 min | — |
-| 7 | `mend` | Team | 23 min | `/rune:mend` |
-| 7.3 | `verify_mend` | Inline | 4 min | — |
-| 7.4 | `design_iteration` | Team | 15 min | Conditional: design fidelity |
-| 7.7 | `test` | Team | 25-50 min | Testing agents |
-| 7.7.5 | `browser_test` | Team | 15 min | Conditional: frontend + agent-browser |
-| 7.7.6 | `browser_test_fix` | Team | 15 min | Conditional: browser_test failures |
-| 7.7.7 | `verify_browser_test` | Inline | 4 min | Convergence controller |
-| 7.8 | `test_coverage_critique` | Team | 15 min | Codex (conditional) |
-| 7.9 | `deploy_verify` | Team | 5 min | Conditional: deployment verification |
-| 8.5 | `pre_ship_validation` | Inline | 6 min | — |
-| 8.55 | `release_quality_check` | Team | 10 min | Codex (conditional) |
-| 9 | `ship` | Inline | 5 min | — |
-| 9.1 | `bot_review_wait` | Inline | 15 min | Conditional: `--bot-review` |
-| 9.2 | `pr_comment_resolution` | Inline | 20 min | Conditional: `--bot-review` |
-| 9.5 | `merge` | Inline | 10 min | — |
+| # | Exec Order | Phase Key | Type | Timeout | Delegated To |
+|---|-----------|-----------|------|---------|-------------|
+| 1 | 1 | `forge` | Team | 15 min | `/rune:forge` |
+| 2 | 2 | `plan_review` | Team | 15 min | `/rune:appraise` (inspect mode) |
+| 2.5 | 3 | `plan_refine` | Inline | 3 min | — |
+| 2.7 | 4 | `verification` | Inline | 30 sec | — |
+| 2.8 | 5 | `semantic_verification` | Team | 12 min | Codex (conditional) |
+| 3 | 6 | `design_extraction` | Team | 10 min | Conditional: `design_sync.enabled` |
+| 3.2 | 7 | `design_prototype` | Team | 10 min | Conditional: `design_sync.enabled` + VSM files |
+| 4.5 | 8 | `task_decomposition` | Team | 10 min | Codex (conditional) |
+| 5 | 9 | `work` | Team | 35 min | `/rune:strive` |
+| 5.1 | 10 | `drift_review` | Inline | 2 min | — |
+| 3.3 | 11 | `storybook_verification` | Team | 15 min | Conditional: `storybook.enabled` |
+| 5.2 | 12 | `design_verification` | Team | 8 min | Conditional: VSM files |
+| 5.3 | 13 | `ux_verification` | Team | 5 min | Conditional: `ux.enabled` |
+| 5.5 | 14 | `gap_analysis` | Team | 12 min | — |
+| 5.6 | 15 | `codex_gap_analysis` | Team | 16 min | Codex (conditional) |
+| 5.8 | 16 | `gap_remediation` | Team | 15 min | — |
+| 5.7 | 17 | `goldmask_verification` | Team | 15 min | `/rune:goldmask` |
+| 6 | 18 | `code_review` | Team | 15 min | `/rune:appraise --deep` |
+| 6.5 | 19 | `goldmask_correlation` | Inline | 1 min | — |
+| 7 | 20 | `mend` | Team | 23 min | `/rune:mend` |
+| 7.3 | 21 | `verify_mend` | Inline | 4 min | — |
+| 7.4 | 22 | `design_iteration` | Team | 15 min | Conditional: design fidelity |
+| 7.7 | 23 | `test` | Team | 25-50 min | Testing agents |
+| 7.7.5 | 24 | `browser_test` | Team | 15 min | Conditional: frontend + agent-browser |
+| 7.7.6 | 25 | `browser_test_fix` | Team | 15 min | Conditional: browser_test failures |
+| 7.7.7 | 26 | `verify_browser_test` | Inline | 4 min | Convergence controller |
+| 7.8 | 27 | `test_coverage_critique` | Team | 15 min | Codex (conditional) |
+| 7.9 | 28 | `deploy_verify` | Team | 5 min | Conditional: deployment verification |
+| 8.5 | 29 | `pre_ship_validation` | Inline | 6 min | — |
+| 8.55 | 30 | `release_quality_check` | Team | 10 min | Codex (conditional) |
+| 9 | 31 | `ship` | Inline | 5 min | — |
+| 9.1 | 32 | `bot_review_wait` | Inline | 15 min | Conditional: `--bot-review` |
+| 9.2 | 33 | `pr_comment_resolution` | Inline | 20 min | Conditional: `--bot-review` |
+| 9.5 | 34 | `merge` | Inline | 10 min | — |
 
-> **Non-monotonic numbering**: Phase 5.8 (gap_remediation) executes **before** 5.7 (goldmask_verification). Always use `PHASE_ORDER` array position, not numeric IDs.
+> **Execution order**: The "Exec Order" column shows the actual sequence. Phase numbers (#) are for human reference only and are **non-monotonic** — e.g., 5.8 (gap_remediation) runs before 5.7 (goldmask_verification). Always use `PHASE_ORDER` array position, not numeric IDs. Total: 34 phases.
 
 ## Usage
 

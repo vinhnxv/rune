@@ -173,6 +173,8 @@ Context gathering agents read affected files in parallel. See references for ful
 // Team bootstrap
 const teamName = `rune-resolve-todos-${timestamp}`
 TeamCreate({ team_name: teamName })
+// Cleanup fallback array (TLC-003): ["context-0", "context-1", ..., "verifier-0", ..., "fixer-0", ...]
+// Dynamic member discovery is primary; this list covers worst-case for filesystem fallback.
 
 // Spawn context gathering agents (Explore, read-only)
 // NOTE: Phase 2 is optional — verifiers in Phase 3 read files directly.

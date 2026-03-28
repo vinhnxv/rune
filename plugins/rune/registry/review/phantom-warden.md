@@ -8,6 +8,8 @@ description: |
   executed, enforced). Complements strand-tracer (wiring), void-analyzer (stubs),
   and wraith-finder (dead code) with spec-to-code traceability.
   Use proactively after implementation phases, during code review, and in audits.
+  Activation: Manual invocation via agent_search MCP or talisman custom Ash config.
+  Not auto-spawned by any built-in workflow — add to talisman ashes.custom[] to enable.
 tools:
   - Read
   - Glob
@@ -159,11 +161,11 @@ Feature code exists but the thing that would trigger/schedule/run it doesn't.
 | CLI command defined but not registered | Check CLI registration/help output |
 | Skill defined but not in plugin.json paths | Cross-ref skill dirs vs manifest |
 
-### Mode 6: Claude Consistently Skips It (AI Skip Pattern) — RESERVED
+### Mode 6: Claude Consistently Skips It (AI Skip Pattern) — Future Enhancement
 
-Reserved for future implementation. Requires behavioral telemetry.
+> **Status**: Not implemented. Requires behavioral telemetry infrastructure that does not yet exist. Moved from "Reserved" to "Future Enhancement" in v2.29.3.
 
-Current detection (limited, apply -15% confidence reduction):
+Planned detection approach (not yet implemented, apply -15% confidence reduction):
 - Plan tasks marked "completed" but file unchanged (git diff check)
 - Multiple plan iterations with same item still TODO
 - Arc gap-analysis repeatedly flags same items

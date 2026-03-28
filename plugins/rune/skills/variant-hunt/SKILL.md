@@ -125,6 +125,7 @@ for (let i = 0; i < maxHunters; i++) {
 
 // Step 6: Cleanup
 // Standard shutdown + TeamDelete pattern (see CLAUDE.md Agent Team Cleanup)
+// Fallback array (CLEAN-002): ["variant-hunter-1", "variant-hunter-2", "variant-hunter-3"]
 
 // Step 7: Present summary
 log(`Variant hunt complete: ${totalVariants} variant(s) found across ${maxHunters} finding(s).`)

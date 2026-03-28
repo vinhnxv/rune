@@ -10,6 +10,9 @@ description: |
   Trigger keywords: cc inspect, claude code inspect, env check,
   environment, session id, config dir, diagnostic, runtime info,
   plugin env, plugin root, system info, toolchain.
+  Note: This skill uses disable-model-invocation: true because it is
+  a diagnostic tool meant for explicit user invocation only.
+  It appears in the /rune:cc-inspect routing table entry.
 user-invocable: true
 disable-model-invocation: true
 allowed-tools: Bash, Read, Glob

@@ -236,7 +236,7 @@ try {
 
 ### Summon Investigators
 
-For each hypothesis, spawn a `${investigatorType}` agent:
+For each hypothesis, spawn an investigator agent (all investigators use `general-purpose` subagent type — agent specialization comes from the prompt, not from the subagent type):
 
 ```
 Agent({

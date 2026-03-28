@@ -204,28 +204,30 @@ for ckpt in "${CHECKPOINT_FILES[@]}"; do
     continue
   fi
 
-  # ── Extract all fields via individual jq calls (avoids IFS tab collapsing empty fields) ──
-  SCHEMA_VER=$(jq -r '.schema_version // 0' "$ckpt" 2>/dev/null || echo "0")
-  PLAN_FILE=$(jq -r '.plan_file // "unknown"' "$ckpt" 2>/dev/null || echo "unknown")
-  SESSION_ID=$(jq -r '.session_id // ""' "$ckpt" 2>/dev/null || echo "")
-  STARTED_AT=$(jq -r '.started_at // ""' "$ckpt" 2>/dev/null || echo "")
-  COMPLETED_AT=$(jq -r '.completed_at // "null"' "$ckpt" 2>/dev/null || echo "null")
-  CONV_ROUND=$(jq -r '.convergence.round // 0' "$ckpt" 2>/dev/null || echo "0")
-  CONV_MAX=$(jq -r '.convergence.max_rounds // 0' "$ckpt" 2>/dev/null || echo "0")
-  ARC_STATUS=$(jq -r '
-    if .phases | to_entries | map(select(.value.status == "in_progress")) | length > 0
-    then "in_progress"
-    elif .phases | to_entries | map(select(.value.status == "pending")) | length > 0
-    then "active"
-    else "completed" end
-  ' "$ckpt" 2>/dev/null || echo "unknown")
-  CNT_COMPLETED=$(jq -r '.phases | to_entries | map(select(.value.status == "completed")) | length' "$ckpt" 2>/dev/null || echo "0")
-  CNT_IN_PROGRESS=$(jq -r '.phases | to_entries | map(select(.value.status == "in_progress")) | length' "$ckpt" 2>/dev/null || echo "0")
-  CNT_PENDING=$(jq -r '.phases | to_entries | map(select(.value.status == "pending")) | length' "$ckpt" 2>/dev/null || echo "0")
-  CNT_SKIPPED=$(jq -r '.phases | to_entries | map(select(.value.status == "skipped")) | length' "$ckpt" 2>/dev/null || echo "0")
-  CNT_CANCELLED=$(jq -r '.phases | to_entries | map(select(.value.status == "cancelled")) | length' "$ckpt" 2>/dev/null || echo "0")
-  ACTIVE_PHASE=$(jq -r '(.phases | to_entries | map(select(.value.status == "in_progress")) | first | .key) // ""' "$ckpt" 2>/dev/null || echo "")
-  ACTIVE_TEAM=$(jq -r '(.phases | to_entries | map(select(.value.status == "in_progress")) | first | .value.team_name) // ""' "$ckpt" 2>/dev/null || echo "")
+  # ── BACK-001 FIX: Single jq call with @tsv output (was 15+ individual subprocess calls) ──
+  IFS=$'\t' read -r SCHEMA_VER PLAN_FILE SESSION_ID STARTED_AT COMPLETED_AT \
+    CONV_ROUND CONV_MAX ARC_STATUS CNT_COMPLETED CNT_IN_PROGRESS CNT_PENDING \
+    CNT_SKIPPED CNT_CANCELLED ACTIVE_PHASE ACTIVE_TEAM <<< "$(jq -r '[
+      (.schema_version // 0),
+      (.plan_file // "unknown"),
+      (.session_id // ""),
+      (.started_at // ""),
+      (.completed_at // "null"),
+      (.convergence.round // 0),
+      (.convergence.max_rounds // 0),
+      (if .phases | to_entries | map(select(.value.status == "in_progress")) | length > 0
+       then "in_progress"
+       elif .phases | to_entries | map(select(.value.status == "pending")) | length > 0
+       then "active"
+       else "completed" end),
+      (.phases | to_entries | map(select(.value.status == "completed")) | length),
+      (.phases | to_entries | map(select(.value.status == "in_progress")) | length),
+      (.phases | to_entries | map(select(.value.status == "pending")) | length),
+      (.phases | to_entries | map(select(.value.status == "skipped")) | length),
+      (.phases | to_entries | map(select(.value.status == "cancelled")) | length),
+      ((.phases | to_entries | map(select(.value.status == "in_progress")) | first | .key) // ""),
+      ((.phases | to_entries | map(select(.value.status == "in_progress")) | first | .value.team_name) // "")
+    ] | @tsv' "$ckpt" 2>/dev/null || echo "0	unknown				null	0	0	unknown	0	0	0	0	0		")"
 
   # Ensure numeric fields are actually numeric
   [[ "$SCHEMA_VER" =~ ^[0-9]+$ ]] || SCHEMA_VER="0"

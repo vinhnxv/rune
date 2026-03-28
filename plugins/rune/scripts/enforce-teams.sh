@@ -58,6 +58,9 @@ fi
 
 # Pre-flight: jq is required for JSON parsing.
 # If missing, exit 2 (fail-closed) — consistent with _rune_fail_closed ERR trap.
+# SEC-003 NOTE: This is a SECURITY-class hook, so jq absence is fail-closed (exit 2).
+# OPERATIONAL-class hooks (e.g., track-teammate-activity.sh) use fail-forward (exit 0)
+# when jq is missing. This asymmetry is intentional — see CLAUDE.md § Hook Crash Classification.
 if ! command -v jq &>/dev/null; then
   echo "ERROR: jq not found — enforce-teams.sh requires jq (fail-closed)" >&2
   exit 2

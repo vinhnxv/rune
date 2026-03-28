@@ -340,8 +340,9 @@ rune_check_conflicts() {
     setopt localoptions nullglob 2>/dev/null
   else
     # FLAW-005 FIX: Save nullglob state to restore after loop
-    local _ng_was_set=1
-    shopt -q nullglob 2>/dev/null && _ng_was_set=0
+    # BACK-003 FIX: Standardized to match rune_release_all_locks pattern (0=not set, 1=was set)
+    local _ng_was_set=0
+    shopt -q nullglob 2>/dev/null && _ng_was_set=1
     shopt -s nullglob 2>/dev/null || true
   fi
   for lock_dir in "$LOCK_BASE"/*/; do
@@ -392,7 +393,8 @@ rune_check_conflicts() {
   done
 
   # FLAW-005 FIX: Restore nullglob state (bash only — zsh uses localoptions)
-  if [[ -z "${ZSH_VERSION:-}" && "${_ng_was_set:-1}" -eq 1 ]]; then
+  # BACK-003 FIX: Standardized — unset only when nullglob was NOT already set (0 = not set)
+  if [[ -z "${ZSH_VERSION:-}" && "${_ng_was_set:-0}" == "0" ]]; then
     shopt -u nullglob 2>/dev/null || true
   fi
 

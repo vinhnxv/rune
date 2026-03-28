@@ -293,7 +293,7 @@ audit:
       - decay-tracer                 # Maintainability (MTNB)
     max_dimension_agents: 7          # Cap on dimension agents per pass (1-8)
   always_deep: false              # When true, all audits run deep pass without --deep flag
-  # audit_mend: Removed in v1.67.0 (audit phases unified into Phase 6 --deep)
+  # NOTE: audit_mend was removed in v1.67.0 (audit phases unified into Phase 6 --deep)
 
   # ── Incremental Stateful Audit (v1.84.0+) ──────
   # Opt-in incremental auditing with persistent state, priority scoring,
@@ -888,7 +888,7 @@ echoes:
 self_audit:
   enabled: true                      # Enable /rune:self-audit command
   echo_persist: true                 # Persist findings to .rune/echoes/meta-qa/
-  promotion_threshold: 3             # Promote to Inscribed after N recurrences
+  promotion_threshold: 3             # Promote to Inscribed after N recurrences (PHNT-006: not yet consumed — reserved for future echo promotion logic)
   verbose_default: false             # Include P3 findings by default
   # Phase 2+ settings (runtime analysis, apply mode, phase injection)
   phase_injection: true              # Inject meta-QA echoes into arc phase prompts

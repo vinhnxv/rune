@@ -153,11 +153,12 @@ proof_test_passes() {
     npm|npx|yarn|pnpm|node|python3|python|pytest|cargo|make|go|tsc|jest|vitest|bun|deno|php|composer|ruby|bundle|mvn|gradle|dotnet) ;;
     *) echo "FAIL"; return ;;  # Unknown command binary — reject
   esac
-  # SEC-001 AUDIT FIX: Execute via word-split array instead of bash -c to prevent injection.
-  # The allowlist above ensures $cmd contains only safe chars (alphanumeric, space, path separators).
-  # Word splitting on space is intentional — commands are simple "binary arg1 arg2" format.
-  # shellcheck disable=SC2086
-  if timeout 60 $cmd >/dev/null 2>&1; then
+  # SEC-001 AUDIT FIX v4: Array-based execution — explicit argument separation.
+  # read -ra splits $cmd on IFS (space) into array elements, then "${cmd_arr[@]}"
+  # passes each element as a separate argument. Prevents word-split edge cases.
+  local -a cmd_arr
+  read -ra cmd_arr <<< "$cmd"
+  if timeout 60 "${cmd_arr[@]}" >/dev/null 2>&1; then
     echo "PASS"
   else
     echo "FAIL"
@@ -184,9 +185,10 @@ proof_builds_clean() {
     npm|npx|yarn|pnpm|node|python3|python|pytest|cargo|make|go|tsc|jest|vitest|bun|deno|php|composer|ruby|bundle|mvn|gradle|dotnet) ;;
     *) echo "FAIL"; return ;;
   esac
-  # SEC-001 AUDIT FIX: Word-split execution (same as proof_test_passes)
-  # shellcheck disable=SC2086
-  if timeout 120 $cmd >/dev/null 2>&1; then
+  # SEC-001 AUDIT FIX v4: Array-based execution (same pattern as proof_test_passes)
+  local -a cmd_arr
+  read -ra cmd_arr <<< "$cmd"
+  if timeout 120 "${cmd_arr[@]}" >/dev/null 2>&1; then
     echo "PASS"
   else
     echo "FAIL"

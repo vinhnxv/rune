@@ -40,8 +40,10 @@ Remove ephemeral `tmp/` output directories from completed Rune workflows. Preser
 | `tmp/.talisman-resolved/` | Talisman shard resolver cache (JSON shards) | Yes (unconditional, regenerated at next SessionStart) |
 | `tmp/.rune-signals/` | Event-driven signal files from Phase 2 hooks | Yes (unconditional, symlink-guarded) |
 | `tmp/.rune-locks/` | Workflow lock directories (PID-guarded) | Yes (dead PIDs only; live PIDs preserved) |
-| `~/.claude/teams/{rune-*/arc-*}/` (or `$CLAUDE_CONFIG_DIR/teams/` if set) | Orphaned team configs from crashed workflows | `--heal` only |
-| `~/.claude/tasks/{rune-*/arc-*}/` (or `$CLAUDE_CONFIG_DIR/tasks/` if set) | Orphaned task lists from crashed workflows | `--heal` only |
+| `$CHOME/teams/{rune-*/arc-*}/` | Orphaned team configs from crashed workflows | `--heal` only |
+| `$CHOME/tasks/{rune-*/arc-*}/` | Orphaned task lists from crashed workflows | `--heal` only |
+
+> **CHOME pattern**: `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`. Never hardcode `~/.claude/` — see CLAUDE.md § CLAUDE_CONFIG_DIR.
 
 **Note:** Per-agent artifact directories (`runs/` subdirectories containing `meta.json` and `input.md`) live inside workflow output directories (e.g., `tmp/plans/{id}/runs/`, `tmp/work/{id}/runs/`, `tmp/reviews/{id}/runs/`). They are cleaned implicitly when their parent workflow directory is removed — no separate cleanup entry is needed.
 
