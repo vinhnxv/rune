@@ -36,7 +36,8 @@ fi
 
 # --- Read Input ---
 
-findings_json=$(cat)
+# FLAW-006 fix: cap stdin read to 5MB to prevent memory exhaustion
+findings_json=$(head -c 5242880 2>/dev/null || true)
 
 # Validate input is a JSON array
 if ! printf '%s' "$findings_json" | jq -e 'type == "array"' &>/dev/null; then

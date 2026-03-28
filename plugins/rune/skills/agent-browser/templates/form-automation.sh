@@ -18,8 +18,9 @@ agent-browser find label "Password"    # -> @e4
 agent-browser find role/button "Submit" # -> @e5
 
 # Fill and submit
-agent-browser fill @e3 "test@example.com"
-agent-browser fill @e4 "password123"
+# SEC-003 fix: use env vars for credentials — NEVER commit real credentials
+agent-browser fill @e3 "${TEST_EMAIL:-test@example.com}"
+agent-browser fill @e4 "${TEST_PASSWORD:?Set TEST_PASSWORD env var}"
 agent-browser click @e5
 
 # Wait for submission and verify

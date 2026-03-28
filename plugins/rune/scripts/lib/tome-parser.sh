@@ -80,7 +80,8 @@ _extract_attr() {
 
 # --- Main Parser ---
 
-findings_json="[]"
+# FLAW-003 fix: collect findings as newline-delimited JSON, combine once at end (O(n) vs O(n²))
+findings_ndjson=""
 in_finding=0
 current_marker=""
 current_body=""
@@ -155,7 +156,13 @@ _flush_finding() {
       ash: $ash
     }')
 
-  findings_json=$(printf '%s' "$findings_json" | jq --argjson f "$finding" '. + [$f]')
+  # FLAW-003 fix: append to newline-delimited buffer instead of O(n²) jq re-parse
+  if [[ -n "$findings_ndjson" ]]; then
+    findings_ndjson="${findings_ndjson}
+${finding}"
+  else
+    findings_ndjson="$finding"
+  fi
 
   # Reset state
   current_marker=""
@@ -300,4 +307,9 @@ if [[ $in_finding -eq 1 ]]; then
 fi
 
 # Output findings JSON
-printf '%s' "$findings_json"
+# FLAW-003 fix: combine all findings into JSON array in a single jq pass
+if [[ -n "$findings_ndjson" ]]; then
+  printf '%s\n' "$findings_ndjson" | jq -s '.'
+else
+  echo "[]"
+fi
