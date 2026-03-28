@@ -36,12 +36,23 @@ fi
 
 # --- Read Input ---
 
-# FLAW-006 fix: cap stdin read to 5MB to prevent memory exhaustion
-findings_json=$(head -c 5242880 2>/dev/null || true)
+# FLAW-006 fix: cap stdin read to 1MB to prevent memory exhaustion from unbounded input.
+# If input exceeds the cap, we detect truncation and inject a warning into the output.
+STDIN_SIZE_CAP=1048576  # 1MB
+findings_json=$(head -c $(( STDIN_SIZE_CAP + 1 )) 2>/dev/null || true)
+stdin_truncated=false
+if [[ ${#findings_json} -gt $STDIN_SIZE_CAP ]]; then
+  stdin_truncated=true
+  findings_json="${findings_json:0:$STDIN_SIZE_CAP}"
+fi
 
 # Validate input is a JSON array
 if ! printf '%s' "$findings_json" | jq -e 'type == "array"' &>/dev/null; then
-  echo "ERROR: Input must be a JSON array of findings" >&2
+  if [[ "$stdin_truncated" == "true" ]]; then
+    echo "ERROR: Input was truncated at ${STDIN_SIZE_CAP} bytes and is no longer valid JSON. Pipe smaller input or increase STDIN_SIZE_CAP." >&2
+  else
+    echo "ERROR: Input must be a JSON array of findings" >&2
+  fi
   exit 1
 fi
 
@@ -136,6 +147,12 @@ _append "**Findings**: ${counts}"
 
 if [[ "$total_filtered" -lt "$total_original" ]]; then
   _append "**Filtered**: Showing ${total_filtered} of ${total_original} total findings"
+fi
+
+# FLAW-006: Warn if stdin was truncated (input exceeded size cap)
+if [[ "$stdin_truncated" == "true" ]]; then
+  _append ""
+  _append "> **Warning**: Input was truncated at ${STDIN_SIZE_CAP} bytes. Some findings may be missing."
 fi
 
 _append ""

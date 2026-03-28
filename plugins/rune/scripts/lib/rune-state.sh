@@ -79,11 +79,18 @@ _rune_migrate_legacy() {
     # Another process holds the lock — skip (it will complete the migration)
     return 0
   fi
+<<<<<<< HEAD
   # Ensure lock is released when function returns (normal or error)
   # CLD-QAL-001 FIX: Use RETURN trap (function-scoped) instead of EXIT (process-scoped).
   # EXIT inside a function registers a process-level handler that blocks re-entrant calls.
   # RETURN is correct: it fires when _rune_migrate_legacy() returns, releasing the lock.
   trap 'rmdir "${_lockdir}" 2>/dev/null || true' RETURN
+=======
+  # Ensure lock is released on function exit (normal or error)
+  # FLAW-001 fix: Explicit cleanup at each exit point instead of trap.
+  # trap ... RETURN leaks to callers on bash 4.0+; trap ... EXIT overwrites
+  # the caller's EXIT trap when this file is sourced. Both are unsafe.
+>>>>>>> aaaa49f (fix(scripts): resolve 15 audit findings — trap leaks, injection guards, and per-fixer scoping)
 
   # Helper: migrate a single item with error logging
   _migrate_item() {
@@ -190,4 +197,7 @@ _rune_migrate_legacy() {
   if [[ $_warn_count -gt 0 ]]; then
     echo >&2 "[rune] Migration completed with ${_warn_count} warning(s) — some items may need manual migration"
   fi
+
+  # FLAW-001: Explicit lock release (no trap — see comment at lock acquisition)
+  rmdir "${_lockdir}" 2>/dev/null
 }

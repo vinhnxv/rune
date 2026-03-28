@@ -110,17 +110,20 @@ _parse_iso_epoch_ms() {
   else
     ts_bsd="${ts_utc%Z}Z"
   fi
+  # FLAW-002 fix: validate numeric output from each fallback to prevent
+  # non-numeric values from causing arithmetic errors in callers
+  local _ms_result
   # gdate supports %s%3N (milliseconds) — handles timezone offsets natively
   # Guard with command -v to avoid ERR trap on exit code 127 (TOME-012 fix)
-  command -v gdate &>/dev/null && gdate -d "$ts_utc" +%s%3N 2>/dev/null && return 0
+  _ms_result=$(command -v gdate &>/dev/null && gdate -d "$ts_utc" +%s%3N 2>/dev/null || true)
+  [[ "$_ms_result" =~ ^[0-9]+$ ]] && echo "$_ms_result" && return 0
   # GNU date on Linux supports %s%3N — handles timezone offsets natively
-  if date --version &>/dev/null; then
-    date -d "$ts_utc" +%s%3N 2>/dev/null && return 0
-  fi
+  _ms_result=$(date -d "$ts_utc" +%s%3N 2>/dev/null || true)
+  [[ "$_ms_result" =~ ^[0-9]+$ ]] && echo "$_ms_result" && return 0
   # BSD fallback: seconds * 1000 (loses sub-second precision, timezone stripped)
-  local ep
-  ep=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts_bsd" +%s 2>/dev/null || echo "0")
-  echo $(( ep * 1000 ))
+  _ms_result=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts_bsd" +%s 2>/dev/null || true)
+  [[ "$_ms_result" =~ ^[0-9]+$ ]] && echo $(( _ms_result * 1000 )) && return 0
+  echo "0"
 }
 
 # _now_epoch_ms

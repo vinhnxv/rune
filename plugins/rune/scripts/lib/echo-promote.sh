@@ -151,10 +151,11 @@ rune_echo_promote() {
         # Entry IDs in the DB use the format: role/title-slug
         local _title_part="${_line#\#\# }"
         _title_part="${_title_part#\[*\] }"  # Strip date prefix if present
-        # Check if any promotable ID contains this title (fuzzy match)
+        # Check if any promotable ID matches this title (exact match)
+        # FLAW-007 FIX: Use exact comparison instead of fuzzy substring glob
         while IFS= read -r _pid_line; do
           local _pid="${_pid_line%%|*}"
-          if [[ -n "$_pid" && "$_title_part" == *"${_pid##*/}"* ]]; then
+          if [[ -n "$_pid" && "$_title_part" == "${_pid##*/}" ]]; then
             _in_promotable=true
             break
           fi

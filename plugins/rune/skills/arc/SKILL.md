@@ -10,15 +10,15 @@ description: |
   browser-test, browser-test-fix, verify-browser-test,
   pre-ship-validation, bot-review-wait, pr-comment-resolution, ship, merge).
   Use when checkpoint resume is needed after a crash or session end.
-  43-phase pipeline with convergence loops, Goldmask risk analysis,
+  44-phase pipeline with convergence loops, Goldmask risk analysis,
   pre-ship validation, bot review integration, cross-model verification,
   and conditional design sync (Figma VSM extraction, prototype generation, fidelity verification, iteration).
   Keywords: arc, pipeline, --resume, checkpoint, convergence, forge, mend,
-  bot review, PR comments, ship, merge, design sync, Figma, VSM, 43 phases.
+  bot review, PR comments, ship, merge, design sync, Figma, VSM, 44 phases.
 
   <example>
   user: "/rune:arc plans/feat-user-auth-plan.md"
-  assistant: "The Tarnished begins the arc — 43 phases of forge, review, design sync, goldmask, test, browser test convergence, mend, convergence, pre-ship validation, bot review, ship, and merge..."
+  assistant: "The Tarnished begins the arc — 44 phases of forge, review, design sync, goldmask, test, browser test convergence, mend, convergence, pre-ship validation, bot review, ship, and merge..."
   </example>
 
   <example>

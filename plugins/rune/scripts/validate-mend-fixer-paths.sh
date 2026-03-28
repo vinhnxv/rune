@@ -51,17 +51,53 @@ if [[ ! -f "$INSCRIPTION_PATH" ]]; then
   exit 0
 fi
 
-# Extract all file_group entries from inscription to build the allowed file set.
-# DESIGN LIMITATION (SEC-002): We collect ALL fixers' file groups into one flat
-# allowlist because transcript_path format is undocumented and may not contain
-# the fixer name reliably. This means fixer-A can write to fixer-B's files.
-# Compensating controls: (1) blockedBy serialization prevents temporal overlap
-# for dependent groups (Phase 1.5), (2) prompt instructions restrict each fixer
-# to its assigned files, (3) ward check in Phase 5 catches any regressions.
-# The key guarantee: files NOT in ANY fixer's group are blocked.
-# FUTURE: Implement per-fixer transcript tracking for least-privilege enforcement.
-# See https://github.com/vinhnx/rune-plugin/issues — track as enhancement.
-ALLOWED_FILES=$(jq -r '.fixers[].file_group[]' "$INSCRIPTION_PATH" 2>/dev/null || true)
+# SEC-005 FIX: Per-fixer file scope enforcement.
+# Extract the caller's agent name from TRANSCRIPT_PATH to scope the allowlist
+# to only the files assigned to THIS fixer (not all fixers).
+# Transcript path format: .../subagents/{agent-name}/transcript
+# Fixer names in inscription.json: mend-fixer-1, mend-fixer-w1-2, etc.
+#
+# Fallback: If agent name cannot be determined or doesn't match any fixer,
+# fall back to the flat union of all file groups (fail-open, preserves
+# backward compatibility).
+CALLER_AGENT=""
+if [[ -n "$TRANSCRIPT_PATH" ]]; then
+  # Extract the segment after "subagents/" — this is the agent name
+  # e.g., /path/subagents/mend-fixer-1/transcript → mend-fixer-1
+  CALLER_AGENT=$(printf '%s' "$TRANSCRIPT_PATH" | sed -n 's|.*/subagents/\([^/]*\)/.*|\1|p')
+fi
+
+ALLOWED_FILES=""
+if [[ -n "$CALLER_AGENT" ]]; then
+  # Try per-fixer scoping: find this fixer's file_group in inscription.json
+  # SEC-4: Validate agent name before using in jq query (safe chars only)
+  if [[ "$CALLER_AGENT" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    ALLOWED_FILES=$(jq -r --arg name "$CALLER_AGENT" \
+      '.fixers[] | select(.name == $name) | .file_group[]' \
+      "$INSCRIPTION_PATH" 2>/dev/null || true)
+  fi
+fi
+
+# Wave-mode name resolution: spawned as "mend-fixer-w1-1" but inscription has "mend-fixer-1"
+# Wave format: mend-fixer-w{wave}-{suffix} where suffix = fixer.name.split('-').pop()
+if [[ -z "$ALLOWED_FILES" && -n "$CALLER_AGENT" && "$CALLER_AGENT" =~ -w[0-9]+-([0-9]+)$ ]]; then
+  local_suffix="${BASH_REMATCH[1]}"
+  base_name="mend-fixer-${local_suffix}"
+  if [[ "$base_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    ALLOWED_FILES=$(jq -r --arg name "$base_name" \
+      '.fixers[] | select(.name == $name) | .file_group[]' \
+      "$INSCRIPTION_PATH" 2>/dev/null || true)
+  fi
+fi
+
+if [[ -z "$ALLOWED_FILES" ]]; then
+  # Fallback: flat union of all fixers' file groups (original behavior).
+  # This triggers when: (1) CALLER_AGENT is empty, (2) agent name doesn't
+  # match any fixer in inscription after wave-mode resolution,
+  # or (3) matched fixer has an empty file_group.
+  echo "WARNING: Could not scope allowlist to fixer '${CALLER_AGENT:-unknown}' — using flat union" >&2
+  ALLOWED_FILES=$(jq -r '.fixers[].file_group[]' "$INSCRIPTION_PATH" 2>/dev/null || true)
+fi
 
 if [[ -z "$ALLOWED_FILES" ]]; then
   # Empty file group list — fail open (allow) but warn if inscription exists

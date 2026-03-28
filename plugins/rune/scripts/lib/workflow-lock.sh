@@ -174,6 +174,8 @@ _rune_atomic_reclaim() {
       return 0
     fi
     # DEEP-104 FIX: Finalize failed — restore stashed lock to preserve old metadata
+    # FLAW-008 FIX: rm first to prevent mv moving stale INTO existing dir
+    rm -rf "$lock_dir" 2>/dev/null
     mv "$_reclaim_stash/stale" "$lock_dir" 2>/dev/null || true
     rm -rf "$_reclaim_stash" 2>/dev/null
     rm -f "$_reclaim_tmp" 2>/dev/null
@@ -181,6 +183,8 @@ _rune_atomic_reclaim() {
   fi
 
   # Step 5: mkdir failed (contention loss) — restore stashed lock
+  # FLAW-008 FIX: rm first to prevent mv moving stale INTO existing dir
+  rm -rf "$lock_dir" 2>/dev/null
   mv "$_reclaim_stash/stale" "$lock_dir" 2>/dev/null || true
   rm -rf "$_reclaim_stash" 2>/dev/null
   rm -f "$_reclaim_tmp" 2>/dev/null
@@ -311,8 +315,8 @@ rune_release_all_locks() {
   if [[ -n "${ZSH_VERSION:-}" ]]; then
     setopt localoptions nullglob 2>/dev/null
   else
-    local _nullglob_was_set=0
-    shopt -q nullglob 2>/dev/null && _nullglob_was_set=1
+    local _nullglob_was_set=false
+    shopt -q nullglob 2>/dev/null && _nullglob_was_set=true
     shopt -s nullglob 2>/dev/null || true
   fi
   for lock_dir in "$LOCK_BASE"/*/; do
@@ -323,7 +327,7 @@ rune_release_all_locks() {
     [[ "$stored_pid" == "$PPID" ]] && rm -rf "$lock_dir" 2>/dev/null
   done
   # BACK-011: Restore nullglob state to avoid leaking into caller (bash only)
-  if [[ -z "${ZSH_VERSION:-}" && "${_nullglob_was_set:-0}" == "0" ]]; then
+  if [[ -z "${ZSH_VERSION:-}" && "${_nullglob_was_set:-false}" == "false" ]]; then
     shopt -u nullglob 2>/dev/null || true
   fi
   return 0
@@ -340,9 +344,9 @@ rune_check_conflicts() {
     setopt localoptions nullglob 2>/dev/null
   else
     # FLAW-005 FIX: Save nullglob state to restore after loop
-    # BACK-003 FIX: Standardized to match rune_release_all_locks pattern (0=not set, 1=was set)
-    local _ng_was_set=0
-    shopt -q nullglob 2>/dev/null && _ng_was_set=1
+    # BACK-003 FIX: Standardized to match rune_release_all_locks pattern (false=not set, true=was set)
+    local _ng_was_set=false
+    shopt -q nullglob 2>/dev/null && _ng_was_set=true
     shopt -s nullglob 2>/dev/null || true
   fi
   for lock_dir in "$LOCK_BASE"/*/; do
@@ -393,8 +397,8 @@ rune_check_conflicts() {
   done
 
   # FLAW-005 FIX: Restore nullglob state (bash only — zsh uses localoptions)
-  # BACK-003 FIX: Standardized — unset only when nullglob was NOT already set (0 = not set)
-  if [[ -z "${ZSH_VERSION:-}" && "${_ng_was_set:-0}" == "0" ]]; then
+  # BACK-003 FIX: Standardized — unset only when nullglob was NOT already set (false = not set)
+  if [[ -z "${ZSH_VERSION:-}" && "${_ng_was_set:-false}" == "false" ]]; then
     shopt -u nullglob 2>/dev/null || true
   fi
 
