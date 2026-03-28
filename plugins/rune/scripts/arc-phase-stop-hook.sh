@@ -279,6 +279,29 @@ if ! validate_session_ownership_strict "$STATE_FILE"; then
   exit 0
 fi
 
+# ── GUARD 5.8: State file integrity validation (v2.29.8) ──
+# Validates ALL fields in the state file for completeness, correct format, and cross-field
+# consistency BEFORE any phase processing. Catches LLM variable drift (config_dir=tmp/arc/...),
+# cross-run ID mismatches, missing required fields, and corrupt metadata.
+# On failure: log errors, remove corrupt state file, exit 0 (halt arc — do not proceed with bad state).
+if ! validate_state_file_integrity "$STATE_FILE" "$CWD"; then
+  _trace "GUARD 5.8 FAILED: State file integrity check failed — halting arc phase loop"
+  _trace "GUARD 5.8: Corrupt state file preserved at ${STATE_FILE} for diagnosis"
+  # Do NOT delete — preserve for user diagnosis. Write a marker so SKILL.md can detect and advise.
+  _diag_file="${CWD}/${RUNE_STATE}/arc-integrity-failure.txt"
+  {
+    echo "timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "state_file: ${STATE_FILE}"
+    echo "checkpoint_path: ${CHECKPOINT_PATH}"
+    echo "config_dir: $(get_field 'config_dir' 2>/dev/null || echo 'UNREADABLE')"
+    echo "owner_pid: $(get_field 'owner_pid' 2>/dev/null || echo 'UNREADABLE')"
+    echo "session_id: $(get_field 'session_id' 2>/dev/null || echo 'UNREADABLE')"
+    echo "plan_file: ${PLAN_FILE}"
+  } > "$_diag_file" 2>/dev/null || true
+  exit 0
+fi
+_trace "GUARD 5.8 PASSED: State file integrity OK"
+
 # ── GUARD 6: Validate active flag ──
 if [[ "$ACTIVE" != "true" ]]; then
   _trace "EXIT: active=${ACTIVE} (not 'true')"
@@ -312,6 +335,14 @@ if [[ -z "$CKPT_CONTENT" ]]; then
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi
+
+# ── GUARD 8.5: Checkpoint JSON integrity validation (v2.29.8) ──
+# Validates checkpoint.json structure and required fields before phase dispatch.
+if ! validate_checkpoint_json_integrity "${CWD}/${CHECKPOINT_PATH}"; then
+  _trace "GUARD 8.5 FAILED: Checkpoint integrity check failed — halting arc"
+  exit 0
+fi
+_trace "GUARD 8.5 PASSED: Checkpoint integrity OK"
 
 # ── Initialize phase log path from checkpoint ID ──
 _ARC_ID_FOR_LOG=$(echo "$CKPT_CONTENT" | jq -r '.id // empty' 2>/dev/null || true)
