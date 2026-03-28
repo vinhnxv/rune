@@ -40,8 +40,8 @@
 # Output: stdout (sanitized text)
 sanitize_untrusted_text() {
   local max_chars="${1:-2000}"
-  # P1-FE-001: Quote max_chars in arithmetic to prevent injection
-  max_chars=$(( "${max_chars}" + 0 )) 2>/dev/null || max_chars=2000
+  # FLAW-010 fix: validate with regex before arithmetic to prevent injection via array subscript
+  [[ "$max_chars" =~ ^[0-9]+$ ]] || max_chars=2000
 
   # P1-FE-002: Read from stdin (SEC-2: 1MB cap to prevent memory exhaustion)
   local input

@@ -99,7 +99,7 @@ COUNT=$(( COUNT + 1 ))
 
 # --- Write updated state (atomic: tmp file + mv) ---
 if [[ -f "$FAILURE_FILE" ]]; then
-  _tmp_fail=$(mktemp "${FAILURE_FILE}.XXXXXX" 2>/dev/null || echo "${FAILURE_FILE}.tmp.$$")
+  _tmp_fail=$(mktemp "${FAILURE_FILE}.XXXXXX" 2>/dev/null) || { exit 0; }  # SEC-001 fix: no predictable fallback
   jq --arg t "$TOOL_NAME" --argjson c "$COUNT" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '.[$t] = { count: $c, last_error_at: $ts }' "$FAILURE_FILE" > "$_tmp_fail" 2>/dev/null \
     && mv "$_tmp_fail" "$FAILURE_FILE" 2>/dev/null || { rm -f "$_tmp_fail" 2>/dev/null; true; }

@@ -80,7 +80,10 @@ _rune_migrate_legacy() {
     return 0
   fi
   # Ensure lock is released on exit (normal or error)
-  trap 'rmdir "${_lockdir}" 2>/dev/null' RETURN
+  # FLAW-001 fix: Use cleanup function instead of RETURN trap to avoid
+  # bash 4.0+ trap leak to callers (cross-platform behavioral divergence)
+  _rune_migrate_cleanup() { rmdir "${_lockdir}" 2>/dev/null || true; }
+  trap '_rune_migrate_cleanup' EXIT
 
   # Helper: migrate a single item with error logging
   _migrate_item() {

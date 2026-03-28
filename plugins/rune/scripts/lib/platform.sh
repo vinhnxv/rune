@@ -70,17 +70,24 @@ _parse_iso_epoch() {
   else
     ts_bsd="${ts_utc%Z}Z"
   fi
+  # FLAW-002 fix: validate numeric output from each fallback to prevent
+  # non-numeric values from causing arithmetic errors in callers
+  local _epoch_result
   # Try gdate (GNU coreutils on macOS) first — handles timezone offsets natively
   # Guard with command -v to avoid ERR trap on exit code 127 (TOME-012 fix)
-  command -v gdate &>/dev/null && gdate -d "$ts_utc" +%s 2>/dev/null && return 0
+  _epoch_result=$(command -v gdate &>/dev/null && gdate -d "$ts_utc" +%s 2>/dev/null || true)
+  [[ "$_epoch_result" =~ ^[0-9]+$ ]] && echo "$_epoch_result" && return 0
   # Try GNU date (Linux) — handles timezone offsets natively
   # No date --version guard needed: date -d is harmless on BSD — just fails silently
   # and falls through to the BSD fallback below (TOME-017 rationale)
-  date -d "$ts_utc" +%s 2>/dev/null && return 0
+  _epoch_result=$(date -d "$ts_utc" +%s 2>/dev/null || true)
+  [[ "$_epoch_result" =~ ^[0-9]+$ ]] && echo "$_epoch_result" && return 0
   # Try Busybox date (Alpine/Docker minimal) — uses -D for input format (TOME-013 fix)
-  date -D '%Y-%m-%dT%H:%M:%S' -d "${ts_bsd%Z}" +%s 2>/dev/null && return 0
+  _epoch_result=$(date -D '%Y-%m-%dT%H:%M:%S' -d "${ts_bsd%Z}" +%s 2>/dev/null || true)
+  [[ "$_epoch_result" =~ ^[0-9]+$ ]] && echo "$_epoch_result" && return 0
   # Try BSD date (macOS native) — timezone stripped, UTC assumed
-  date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts_bsd" +%s 2>/dev/null && return 0
+  _epoch_result=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts_bsd" +%s 2>/dev/null || true)
+  [[ "$_epoch_result" =~ ^[0-9]+$ ]] && echo "$_epoch_result" && return 0
   echo "0"
 }
 

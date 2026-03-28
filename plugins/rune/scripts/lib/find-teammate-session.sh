@@ -108,7 +108,8 @@ _find_teammate_session() {
       best_mtime="$fmtime"
       best_file="$candidate"
     fi
-  done < <(find -P "$session_dir" -maxdepth 1 -name "*.jsonl" -type f 2>/dev/null || true)
+  # FLAW-009 fix: filter by teammate_name to avoid returning wrong teammate's session
+  done < <(find -P "$session_dir" -maxdepth 1 -name "*${teammate_name}*.jsonl" -type f 2>/dev/null || true)
 
   # Output result (empty string if not found)
   if [[ -n "$best_file" ]]; then
