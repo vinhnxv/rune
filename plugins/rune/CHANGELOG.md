@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.29.7] - 2026-03-28
+
+### Fixed
+- **FLAW-001 (P1): Remove RETURN trap leak in rune-state.sh** — `trap ... RETURN` in `_rune_migrate_legacy()` leaks to callers on bash 4.0+ (Linux). Replaced with explicit `rmdir` cleanup at function exit point
+- **FLAW-002 (P1): Add numeric validation to platform.sh epoch fallback** — `_parse_iso_epoch_ms` fallback chain now validates output with `[[ =~ ^[0-9]+$ ]]` after each attempt. Non-numeric values fall through to next fallback
+- **ARCH-002 (P1): Update phase count 43 → 44** — Corrected phase count in arc/SKILL.md, plugin README, and root README to match actual PHASE_ORDER array (44 phases)
+- **SEC-005 (P2): Per-fixer file scope in validate-mend-fixer-paths.sh** — Replaced flat union allowlist with per-fixer scoping via TRANSCRIPT_PATH agent name extraction and inscription.json lookup
+- **FLAW-004 (P2): Fix inverted nullglob boolean in workflow-lock.sh** — Changed `0`/`1` to `false`/`true` with matching comparison to eliminate boolean inversion refactoring hazard
+- **FLAW-005 (P2): Compose EXIT traps in codex-exec.sh** — Capture existing EXIT trap before overwriting; new `_cleanup()` runs both handlers via `eval`
+- **FLAW-006 (P2): Add 1MB stdin cap to pr-comment-formatter.sh** — Prevents memory exhaustion from unbounded stdin. Detects truncation and injects warning
+- **FLAW-007 (P2): Fix fuzzy substring match in echo-promote.sh** — Changed `*"${_pid##*/}"*` glob (substring) to `"${_pid##*/}"` (exact match) to prevent wrong entry promotion
+- **FLAW-008 (P2): Fix mv-into-dir in workflow-lock.sh** — Added `rm -rf "$lock_dir"` before `mv` at both restore points to prevent stale being moved into existing directory
+- **FLAW-010 (P2): Fix arithmetic injection in sanitize-text.sh** — Replaced `$(( "${max_chars}" + 0 ))` with regex validation `[[ =~ ^[0-9]+$ ]]` before arithmetic use
+- **Cross-model review fixes**: Resolved XVER-SEC-001, CDX-BUG-001/002/003 in enforce-bash-timeout.sh, guard-context-critical.sh, mcp-pkg-manager.sh, resolve-session-identity.sh
+
 ## [2.29.3] - 2026-03-28
 
 ### Fixed
