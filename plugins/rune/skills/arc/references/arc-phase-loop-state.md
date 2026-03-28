@@ -9,14 +9,16 @@
 
 The state file is validated at **three layers** to prevent LLM variable drift and cross-run contamination:
 
-### Layer 1: Pre-Write Assertions (INTEG-INIT / INTEG-RESUME)
-In `arc-checkpoint-init.md` and `arc-resume.md`, assertions fire BEFORE `Write()`:
+### Layer 1: Pre-Write Assertions (INTEG-INIT / INTEG-RESUME / INTEG-RECOVERY)
+In `arc-checkpoint-init.md`, `arc-resume.md`, AND `SKILL.md` safety guard, assertions fire BEFORE `Write()`:
 - `config_dir` must NOT be a `tmp/` path (must be CLAUDE_CONFIG_DIR)
 - `owner_pid` must be non-empty and numeric
 - `id` must match `arc-{timestamp}` format
 - `checkpointPath` must use the same `id`
 - `planFile` must not be empty/null
 - `sessionId` must not be 'unknown'
+
+**CRITICAL**: The SKILL.md recovery path resolves `config_dir` from `CLAUDE_CONFIG_DIR` directly — it does NOT trust `checkpoint.config_dir`. This prevents propagation of corrupt config_dir from a bad checkpoint.
 
 ### Layer 2: Post-Write Cross-Field Verification (INTEG-POST)
 After `Write()`, reads back the state file and verifies every field matches the source variable.

@@ -317,6 +317,30 @@ if (stateFileExists !== 'ok') {
   const cp = JSON.parse(Read(checkpointPath))
   const recoverySessionId = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
   const recoveryBranch = Bash("git branch --show-current 2>/dev/null").trim() || 'main'
+  const recoveryOwnerPid = Bash('echo $PPID').trim()
+
+  // ── INTEG-RECOVERY validation (v2.29.8): Validate checkpoint fields before propagating ──
+  // BUG FIX: If checkpoint has corrupt config_dir (e.g., tmp/arc/...), the recovery path
+  // would propagate the corruption to the new state file, bypassing all 3 layers of validation.
+  // Resolve config_dir from CLAUDE_CONFIG_DIR directly — do NOT trust checkpoint's config_dir.
+  const recoveryConfigDir = Bash('cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P').trim()
+  if (!recoveryConfigDir || recoveryConfigDir.startsWith('tmp/') || recoveryConfigDir.includes('/tmp/arc/')) {
+    throw new Error(`FATAL (INTEG-RECOVERY-001): Resolved config_dir "${recoveryConfigDir}" is invalid. Cannot recover state file.`)
+  }
+  if (!recoveryOwnerPid || !/^\d+$/.test(recoveryOwnerPid)) {
+    throw new Error(`FATAL (INTEG-RECOVERY-002): owner_pid "${recoveryOwnerPid}" is invalid.`)
+  }
+  if (recoverySessionId === 'unknown') {
+    throw new Error(`FATAL (INTEG-RECOVERY-003): session_id is unknown — cannot recover state file without session identity.`)
+  }
+  if (!cp.plan_file || cp.plan_file === 'null') {
+    throw new Error(`FATAL (INTEG-RECOVERY-004): checkpoint.plan_file is empty/null — cannot recover.`)
+  }
+  // Warn if checkpoint config_dir was corrupt (the bug we're fixing)
+  if (cp.config_dir && (cp.config_dir.startsWith('tmp/') || cp.config_dir.includes('/tmp/arc/'))) {
+    warn(`INTEG-RECOVERY: Checkpoint had corrupt config_dir="${cp.config_dir}" — using fresh resolution "${recoveryConfigDir}" instead.`)
+  }
+
   const recoveryContent = `---
 active: true
 iteration: 0
@@ -325,8 +349,8 @@ checkpoint_path: ${checkpointPath}
 plan_file: ${cp.plan_file}
 branch: ${recoveryBranch}
 arc_flags: ${(cp.flags?.no_forge ? '--no-forge ' : '') + (cp.flags?.approve ? '--approve ' : '') + (cp.flags?.no_test ? '--no-test ' : '')}
-config_dir: ${cp.config_dir}
-owner_pid: ${Bash('echo $PPID').trim()}
+config_dir: ${recoveryConfigDir}
+owner_pid: ${recoveryOwnerPid}
 session_id: ${recoverySessionId}
 compact_pending: false
 user_cancelled: false
@@ -336,6 +360,12 @@ stop_reason: null
 ---
 `
   Write(stateFilePath, recoveryContent)
+
+  // Post-write verification (same pattern as arc-checkpoint-init.md)
+  const recoveryVerifyConfigDir = Bash('grep "^config_dir:" .rune/arc-phase-loop.local.md | sed "s/^config_dir: //"').trim()
+  if (recoveryVerifyConfigDir !== recoveryConfigDir) {
+    throw new Error(`FATAL (INTEG-RECOVERY-POST): Written config_dir "${recoveryVerifyConfigDir}" ≠ expected "${recoveryConfigDir}".`)
+  }
   log('Phase loop state file recovered successfully.')
 }
 
