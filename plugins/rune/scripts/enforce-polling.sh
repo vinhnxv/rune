@@ -98,6 +98,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNE_STATE="${RUNE_STATE:-.rune}"
 
 if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
+  # EDGE-001 FIX: Initialize with safe default before sourcing — if resolve-session-identity.sh
+  # fails to set RUNE_CURRENT_CFG (e.g., partial source failure), the variable remains
+  # defined (empty) instead of unbound, preventing set -u crashes in Bash 3.2-5.x.
+  RUNE_CURRENT_CFG="${RUNE_CURRENT_CFG:-}"
   # shellcheck source=resolve-session-identity.sh
   source "${SCRIPT_DIR}/resolve-session-identity.sh"
   # shellcheck source=lib/rune-state.sh

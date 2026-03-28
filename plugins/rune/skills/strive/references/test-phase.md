@@ -265,7 +265,7 @@ const testCommand = needsFullSuite
 
 // Spawn test runner with pipefail warning
 const spawnResult = Agent({
-  name: "unit-test-runner",  // Uses existing agents/testing/unit-test-runner.md
+  name: "unit-test-runner",  // Uses existing registry/testing/unit-test-runner.md
   subagent_type: "general-purpose",
   team_name: teamName,  // Use existing strive team
   prompt: `You are a lightweight unit test runner for the strive workflow.
@@ -389,7 +389,7 @@ Output: tmp/work/${timestamp}/test-failure-analysis.md`,
   })
 
   Agent({
-    name: "test-failure-analyst",  // Uses existing agents/testing/test-failure-analyst.md
+    name: "test-failure-analyst",  // Uses existing registry/testing/test-failure-analyst.md
     subagent_type: "general-purpose",
     team_name: teamName,
     prompt: `You are a test failure analyst for the strive workflow.
@@ -403,7 +403,7 @@ Read: tmp/work/${timestamp}/test-results-unit.md
 ## Output
 Write analysis to: tmp/work/${timestamp}/test-failure-analysis.md
 
-Use the format from agents/testing/test-failure-analyst.md:
+Use the format from registry/testing/test-failure-analyst.md:
 - Root cause category
 - Log attribution
 - Proposed fix

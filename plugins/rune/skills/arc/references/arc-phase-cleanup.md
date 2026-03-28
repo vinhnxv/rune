@@ -19,12 +19,19 @@ Maps each delegated phase to its expected team name prefixes. Used by `postPhase
 
 **IMPORTANT**: New delegated phases MUST add their prefix here, or orphans won't be caught by postPhaseCleanup. Keep in sync with `ARC_TEAM_PREFIXES` in `arc-preflight.md`.
 
-**DECREE-003 Validation — Pre-flight sync check**: Before arc execution, the preflight scan validates PHASE_PREFIX_MAP is synchronized with actual TeamCreate calls in the codebase. The validation script (`scripts/audit-agent-registry.sh`) cross-references:
-1. All `TeamCreate({ team_name: "prefix-..." })` patterns in SKILL.md files
-2. All `Agent({ team_name: "...", name: "prefix-..." })` spawn patterns
-3. Expected prefixes in PHASE_PREFIX_MAP
+<!-- MAINTENANCE: When adding a new phase with TeamCreate to arc, update ALL 3 locations:
+     1. PHASE_PREFIX_MAP in this file
+     2. ARC_TEAM_PREFIXES in arc-preflight.md
+     3. Crash recovery table in the phase's reference file
+     Failure to update all 3 creates orphan detection blind spots. -->
 
-If a mismatch is detected, the preflight warns but proceeds (non-blocking). Add new phases to PHASE_PREFIX_MAP when spawning new team types.
+<!-- DECREE-003: PHASE_PREFIX_MAP sync verification (MANUAL)
+     Status: Manual verification required — no automated validation implemented.
+     Run `bash scripts/audit-agent-registry.sh` for agent registry validation.
+     PHASE_PREFIX_MAP cross-reference with TeamCreate patterns is a manual step.
+     See VEIL-Q01 for discussion on automated validation. -->
+
+Add new phases to PHASE_PREFIX_MAP when spawning new team types.
 
 Multi-prefix entries cover both arc-owned and sub-command-owned team variants (EC-7, rune-architect #2: audited against actual TeamCreate calls per phase).
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.29.3] - 2026-03-28
+
+### Fixed
+- **VEIL-002 (P1): Add process liveness check to adaptive grace period** — `engines.md` shutdown pseudocode now uses `pgrep -P` to detect hung teammate processes before declaring "all dead". Prevents premature 2s grace period when teammates are alive but unresponsive to SendMessage
+- **VEIL-001 (P1): Document Signal 4 advisory-only as accepted risk** — Added compensating controls documentation in `enforce-teams.sh` explaining why Signal 4 was downgraded from hard deny (v2.4.2) with explicit bootstrap window risk acknowledgment
+- **PHNT-001 (P1): Correct DECREE-003 false validation claim** — Updated `arc-phase-cleanup.md` to mark DECREE-003 PHASE_PREFIX_MAP sync as manual verification, replacing incorrect claim of automated validation in `audit-agent-registry.sh`
+- **EDGE-001: Fix unbound variable crash in enforce-polling.sh** — Initialize `RUNE_CURRENT_CFG` with safe default before sourcing `resolve-session-identity.sh`, preventing `set -u` crashes in Bash 3.2-5.x when helper file fails
+- **EDGE-003: Fix grace period fallback in process-tree.sh** — Changed fallback chain from hardcoded `sleep 1` to validated `sleep "${grace:-2}"`, using configured grace value instead of arbitrary minimum
+- **BIZL-001: Add SYNC-CRITICAL warning to arc-phase-constants.md** — Documents PHASE_ORDER dual-sync constraint between JavaScript reference and Bash dispatch array
+- **BIZL-002: Mark DECREE-001 assertion as reference-only** — Added "REFERENCE ONLY — not executed at runtime" annotation to `assertPhaseOrderCorrect()` pseudocode
+- **INTG-001: Fix agent path references in test-phase.md** — Corrected 3 references from `agents/testing/` to `registry/testing/` for unit-test-runner.md and test-failure-analyst.md
+- **INTG-002: Add unused advisory to echo-append.sh and echo-promote.sh** — Marked `rune_echo_append()` and `rune_echo_promote()` as reserved for future integration with v3.0.0 removal target
+- **INTG-003: Add usage documentation to run-artifacts.sh** — Added consumer reference header listing actual source sites (strive, roundtable-circle, devise)
+- **VEIL-003: Document mutex TOCTOU race as accepted risk** — Added risk annotation in `enforce-teams.sh` explaining atomic mkdir + fail-closed fallback
+- **VEIL-004: Document force-reply best-effort limitation** — Added note in `engines.md` that teammates in long-running tool calls may not process shutdown_request immediately
+- **VEIL-005: Add PPID session isolation advisory** — Documented `session_id` as authoritative mechanism over `PPID` in `enforce-teams.sh`
+- **EDGE-002: Document temporal validation grace window limitation** — Added advisory in `validate-discipline-proofs.sh` about 5s window not covering hook timing gap
+
 ## [2.29.2] - 2026-03-28
 
 ### Fixed

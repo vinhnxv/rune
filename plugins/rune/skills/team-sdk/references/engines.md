@@ -531,6 +531,10 @@ function shutdown(handle) {
 
   // Step 2b: Single shared pause — teammates process the force-reply message
   // 2 seconds covers even slow tool-call completion. One pause for ALL members.
+  // NOTE (VEIL-004): Force-reply is best-effort. Teammates in long-running tool calls
+  // (e.g., Bash with timeout=600s) may not process the shutdown_request until the tool
+  // completes. The 2s pause covers most tool completions but not all. For guaranteed
+  // shutdown of hung teammates, the filesystem fallback (Step 5) provides the safety net.
   if (aliveMembers.length > 0) {
     Bash("sleep 2")
   }
@@ -554,12 +558,31 @@ function shutdown(handle) {
   // Scale based on confirmed-alive members from step 2.
   // When ALL SendMessage calls threw → all dead → minimal SDK propagation pause.
   // When some alive → scale: max(5, alive_count * 5), capped at 20s.
+  // VEIL-002 FIX: Check process liveness before declaring "all dead".
+  // SendMessage failure does NOT guarantee process exit — processes may be hung
+  // (infinite loop, blocked I/O). Check OS-level process tree as secondary signal.
+  let processesStillRunning = 0
+  if (confirmedAlive === 0) {
+    // All SendMessage calls failed — but processes may still be running (hung state)
+    try {
+      const childPids = Bash(`pgrep -P $PPID 2>/dev/null | head -20 || true`).trim()
+      if (childPids) {
+        processesStillRunning = childPids.split('\n').filter(p => p.trim()).length
+      }
+    } catch (e) { /* pgrep unavailable — fall through to original 2s */ }
+  }
+
   let gracePeriodUsed = 0
   if (confirmedAlive > 0) {
     gracePeriodUsed = Math.min(20, Math.max(5, confirmedAlive * 5))
     Bash(`sleep ${gracePeriodUsed}`)
+  } else if (processesStillRunning > 0) {
+    // VEIL-002: Processes still running despite SendMessage failure — use proportional grace
+    gracePeriodUsed = Math.min(15, Math.max(5, processesStillRunning * 3))
+    warn(`cleanup: ${processesStillRunning} teammate processes still running despite SendMessage failure — using ${gracePeriodUsed}s grace`)
+    Bash(`sleep ${gracePeriodUsed}`)
   } else {
-    // All confirmed dead — skip full grace period.
+    // All confirmed dead AND no lingering processes — safe to use minimal pause.
     // Minimal pause for SDK internal state propagation (deregistration).
     gracePeriodUsed = 2
     Bash(`sleep 2`)

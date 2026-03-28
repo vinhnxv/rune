@@ -35,6 +35,8 @@ _PROMOTE_THRESHOLD=3
 _PROMOTE_DATE=$(date +%Y-%m-%d)
 
 # ── Main function ──
+# ADVISORY: INTG-002 — rune_echo_promote() is currently unused. Reserved for future
+# echo workflow integration from bash hooks. Remove if still unused by v3.0.0.
 # rune_echo_promote [--role ROLE]
 # If --role omitted, promotes across all role directories.
 rune_echo_promote() {

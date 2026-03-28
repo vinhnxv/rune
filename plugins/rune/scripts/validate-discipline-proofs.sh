@@ -135,7 +135,12 @@ if [[ -n "$EVIDENCE_DIR" && -n "$EVIDENCE_SUMMARY" ]] && command -v _stat_mtime 
 
   if [[ -n "$EVIDENCE_MTIME" && -n "$COMPLETION_TIME" ]]; then
     # Phantom completion detection: evidence created AFTER completion request
-    # A 5-second grace window accounts for filesystem timestamp granularity
+    # ADVISORY: EDGE-002 — 5-second grace window covers filesystem timestamp granularity
+    # (e.g., HFS+ 1-second resolution, ext4 nanosecond but journaled) but does NOT
+    # account for the timing gap between evidence write and this hook's $(date +%s) call.
+    # Under heavy load or slow I/O, the gap can exceed 5 seconds, causing false F12 alerts.
+    # For stronger temporal validation, capture completion_start_time at hook entry
+    # (before evidence discovery) and compare against that instead of the current timestamp.
     TEMPORAL_GRACE=5
     if [[ "$EVIDENCE_MTIME" -gt $((COMPLETION_TIME + TEMPORAL_GRACE)) ]]; then
       if [[ "$BLOCK_ON_FAIL" == "true" ]]; then

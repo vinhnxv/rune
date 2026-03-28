@@ -172,7 +172,10 @@ _rune_kill_tree() {
   fi
 
   # Phase 2: Wait grace period, then SIGKILL survivors
-  sleep "$grace" 2>/dev/null || sleep 1
+  # EDGE-003 FIX: Use validated grace value in fallback instead of hardcoded 1.
+  # $grace is already validated as numeric by the caller or defaults to 5.
+  # Fallback chain: try grace → try safe minimum (2s) → guaranteed minimum.
+  sleep "$grace" 2>/dev/null || sleep "${grace:-2}" 2>/dev/null || sleep 2
 
   local idx=0
   for pid in "${_kill_pids[@]}"; do

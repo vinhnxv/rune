@@ -38,6 +38,8 @@ if [[ -z "${RUNE_STATE:-}" ]]; then
 fi
 
 # ── Main function ──
+# ADVISORY: INTG-002 — rune_echo_append() is currently unused. Reserved for future
+# echo workflow integration from bash hooks. Remove if still unused by v3.0.0.
 # rune_echo_append --role ROLE --layer LAYER --source SOURCE \
 #   --title TITLE --content CONTENT [--confidence HIGH|MEDIUM|LOW] [--tags "t1,t2"] \
 #   [--domain DOMAIN]

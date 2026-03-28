@@ -17,6 +17,11 @@
 # Uses: resolve-session-identity.sh (RUNE_CURRENT_CFG, rune_pid_alive) — soft dep
 # Requires: jq (fail-open stubs if missing)
 
+# NOTE: This library is sourced via Bash() tool calls in skill pseudocode
+# (strive/wave-execution.md, roundtable-circle/orchestration-phases.md,
+# devise/research-phase.md, strive/phase-6-cleanup.md). Grep for
+# "source plugins/rune/scripts/lib/run-artifacts.sh" to find all consumers.
+
 # Source guard — only load once
 [[ -n "${_RUNE_ARTIFACTS_LOADED:-}" ]] && return 0
 _RUNE_ARTIFACTS_LOADED=1

@@ -142,6 +142,11 @@ _rune_release_ate1_mutex() {
   fi
 }
 
+# ACCEPTED-RISK: VEIL-003 — TOCTOU race in stale mutex recovery.
+# The mkdir itself is atomic (kernel-level). The find→mv→mkdir sequence has a theoretical
+# race window, but: (1) mutex is only contested during concurrent hook invocations,
+# (2) worst case is a spurious "mutex busy" — fail-closed, not fail-open.
+
 # Only acquire mutex if tmp/ exists (no tmp = no possible workflow)
 if [[ -d "${CWD}/tmp" ]]; then
   trap '_rune_release_ate1_mutex' EXIT
@@ -180,6 +185,9 @@ if [[ -d "${CWD}/tmp" ]]; then
 fi
 
 # ── Session identity for cross-session ownership filtering ──
+# ADVISORY: VEIL-005 — PPID may differ between skills and hooks (hook runner subprocess).
+# session_id is the authoritative isolation mechanism. PPID is a supplementary check
+# with kill -0 liveness validation. See CLAUDE.md session isolation rule.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=resolve-session-identity.sh
 # SEC-001/VEIL-005 FIX: Guard against missing resolve-session-identity.sh.
@@ -399,6 +407,13 @@ if [[ -z "$active_workflow" ]]; then
   shopt -u nullglob
 fi
 
+# ACCEPTED-RISK: VEIL-001 — Signal 4 advisory-only by design (v2.4.2).
+# Compensating controls: Signals 1-3 verify state file ownership (config_dir + owner_pid + session_id).
+# Bootstrap window (0-30s) is an accepted risk — no state file exists yet, but
+# legitimate workflows will create one within seconds. An attacker would need to:
+# (1) match a known Rune agent name, AND (2) bypass Signals 1-3, AND (3) act within 30s.
+# False-positive rate was unacceptable with hard deny — see CHANGELOG v2.4.2.
+#
 # Signal 4: Agent name matching (ADVISORY only — defense-in-depth).
 # YAGNI-001 NOTE: This signal fires only when Signals 1-3 all miss AND the agent
 # name matches the registry. Without corroborating evidence from Signals 1-3,
