@@ -21,7 +21,7 @@
 # CLD-QUAL-001 FIX: set -euo before trap (consistent with sibling scripts).
 # CLD-QUAL-002 FIX: Removed duplicate trap.
 set -euo pipefail
-trap 'exit 0' ERR
+trap 'exit 2' ERR  # XVER-SEC-001 FIX: fail-closed for SECURITY hook (consistent with enforce-readonly.sh et al)
 umask 077
 
 # Pre-flight: jq is required for JSON parsing (SEC-002: fail-closed if missing)

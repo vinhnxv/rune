@@ -5,8 +5,9 @@ set -euo pipefail
 
 URL="${1:?Usage: provide URL}"
 OUTPUT_DIR="${2:-tmp/test/captures}"
-# SEC-002 fix: reject path traversal in OUTPUT_DIR
+# SEC-002 fix: reject path traversal and absolute paths in OUTPUT_DIR
 [[ "$OUTPUT_DIR" == *..* ]] && { echo "ERROR: path traversal in OUTPUT_DIR" >&2; exit 1; }
+[[ "$OUTPUT_DIR" =~ ^/ ]] && { echo "ERROR: OUTPUT_DIR must be a relative path" >&2; exit 1; }
 mkdir -p "$OUTPUT_DIR"
 
 # Cleanup on exit

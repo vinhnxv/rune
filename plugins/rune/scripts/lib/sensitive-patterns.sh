@@ -66,6 +66,7 @@ _SPAT_LIST=(
 # CLD-SEC-003 FIX: Make _SPAT_LIST readonly to prevent modification after sourcing.
 readonly _SPAT_LIST
 _SPAT_LIST_LOADED=1
+readonly _SPAT_LIST_LOADED
 
 # ── rune_strip_sensitive ──
 # Filter sensitive data patterns from stdin using python3.

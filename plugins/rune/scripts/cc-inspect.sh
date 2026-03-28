@@ -28,14 +28,15 @@ CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 should_show() { [[ "$SECTION" == "all" || "$SECTION" == "$1" ]]; }
 
 # --- Helper: safe version check ---
-# XVER-SEC-003 FIX: Use subshell eval instead of bash -c. Pipe (|) restored in
-# allowlist — all callers are hardcoded in this script, never user-controlled.
+# CLD-SEC-001 FIX: Use bash -c (subshell) with strict allowlist. Pipe permitted
+# because all callers are hardcoded in this script — enforced by character allowlist
+# that blocks $, (, ), `, {, }, preventing command substitution or expansion.
 ver() {
   if command -v "$1" &>/dev/null; then
-    # Allowlist: permit safe version-check characters including pipe for command chains
-    # All ver() callers are hardcoded below — no untrusted input reaches here
+    # Allowlist: alphanumeric, space, pipe, dot, slash, colon, equals, quotes, hyphen
+    # Explicitly EXCLUDES: $ ( ) ` { } < > & ; ! \ — blocks all injection vectors
     if [[ "$2" =~ ^[a-zA-Z0-9\ _./:=\'\"\|\-]+$ ]]; then
-      (eval "$2") 2>/dev/null || echo "installed (version unknown)"
+      bash -c "$2" 2>/dev/null || echo "installed (version unknown)"
     else
       echo "installed (version unknown)"
     fi
