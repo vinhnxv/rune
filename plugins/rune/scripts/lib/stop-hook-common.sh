@@ -468,8 +468,11 @@ _find_arc_checkpoint() {
   local newest="" newest_mtime=0
 
   # XVER-SEC-006 FIX: Defense-in-depth — validate HOOK_SESSION_ID locally before grep interpolation
-  if [[ -n "${HOOK_SESSION_ID:-}" ]] && [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-    HOOK_SESSION_ID=""
+  # CLD-002 FIX: Align to ^[a-zA-Z0-9_-]{1,128}$ (consistent with arc-stop-hook-common.sh:349)
+  # CLD-003 FIX: Use local variable instead of mutating global HOOK_SESSION_ID
+  local _safe_session_id="${HOOK_SESSION_ID:-}"
+  if [[ -n "$_safe_session_id" ]] && [[ ! "$_safe_session_id" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+    _safe_session_id=""
   fi
 
   # Search .rune/arc/ (primary), .claude/arc/ (legacy fallback), and tmp/arc/ (post-compaction).
@@ -493,8 +496,8 @@ _find_arc_checkpoint() {
       # BUG FIX (v1.144.16): $PPID in hooks differs from $PPID in Bash tool.
       local _ckpt_matched=false
       # Try session_id first (from hook input JSON — set by caller or extracted from INPUT)
-      if [[ -n "${HOOK_SESSION_ID:-}" ]]; then
-        if grep -q "\"session_id\"[[:space:]]*:[[:space:]]*\"${HOOK_SESSION_ID:-}\"" "$f" 2>/dev/null; then
+      if [[ -n "$_safe_session_id" ]]; then
+        if grep -q "\"session_id\"[[:space:]]*:[[:space:]]*\"${_safe_session_id}\"" "$f" 2>/dev/null; then
           _ckpt_matched=true
         fi
       fi
@@ -528,8 +531,8 @@ _find_arc_checkpoint() {
   for _dp in "${_drift_paths[@]}"; do
     [[ -f "$_dp" ]] && [[ ! -L "$_dp" ]] || continue
     # Verify it's valid checkpoint JSON with session match
-    if [[ -n "${HOOK_SESSION_ID:-}" ]]; then
-      grep -q "\"session_id\"[[:space:]]*:[[:space:]]*\"${HOOK_SESSION_ID:-}\"" "$_dp" 2>/dev/null || continue
+    if [[ -n "$_safe_session_id" ]]; then
+      grep -q "\"session_id\"[[:space:]]*:[[:space:]]*\"${_safe_session_id}\"" "$_dp" 2>/dev/null || continue
     else
       grep -qE "\"owner_pid\"[[:space:]]*:[[:space:]]*${PPID}([^0-9]|$)" "$_dp" 2>/dev/null || continue
     fi

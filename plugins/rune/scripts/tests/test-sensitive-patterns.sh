@@ -350,42 +350,39 @@ rc=$?
 assert_eq "Exit code 0 on success" "0" "$rc"
 
 # ═══════════════════════════════════════════════════════════════
-# 6. SENSITIVE_PATTERNS associative array (bash 4+)
+# 6. SENSITIVE_PATTERNS removal verification (CLD-DEAD-001)
 # ═══════════════════════════════════════════════════════════════
-printf "\n=== SENSITIVE_PATTERNS associative array ===\n"
+printf "\n=== SENSITIVE_PATTERNS removal verification ===\n"
 
-# 6a. Check if associative array populated (bash 4+ only)
+# 6a. Verify SENSITIVE_PATTERNS associative array does NOT exist (removed in CLD-DEAD-001)
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
-if declare -A _test_assoc 2>/dev/null; then
-  # bash 4+ — SENSITIVE_PATTERNS should be populated
-  if [[ ${#SENSITIVE_PATTERNS[@]} -gt 0 ]]; then
-    PASS_COUNT=$(( PASS_COUNT + 1 ))
-    printf "  PASS: SENSITIVE_PATTERNS populated (bash 4+): %d entries\n" "${#SENSITIVE_PATTERNS[@]}"
-  else
-    FAIL_COUNT=$(( FAIL_COUNT + 1 ))
-    printf "  FAIL: SENSITIVE_PATTERNS empty on bash 4+\n"
-  fi
-  unset _test_assoc
-
-  # 6b. SENSITIVE_PATTERNS count matches _SPAT_LIST count
-  assert_eq "SENSITIVE_PATTERNS count matches _SPAT_LIST" "${#_SPAT_LIST[@]}" "${#SENSITIVE_PATTERNS[@]}"
-
-  # 6c. Keys in SENSITIVE_PATTERNS match labels in _SPAT_LIST
-  for entry in "${_SPAT_LIST[@]}"; do
-    label="${entry%%:*}"
-    TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
-    if [[ -n "${SENSITIVE_PATTERNS[$label]+x}" ]]; then
-      PASS_COUNT=$(( PASS_COUNT + 1 ))
-      printf "  PASS: SENSITIVE_PATTERNS has key '%s'\n" "$label"
-    else
-      FAIL_COUNT=$(( FAIL_COUNT + 1 ))
-      printf "  FAIL: SENSITIVE_PATTERNS missing key '%s'\n" "$label"
-    fi
-  done
+if declare -p SENSITIVE_PATTERNS &>/dev/null; then
+  FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+  printf "  FAIL: SENSITIVE_PATTERNS still exists — should have been removed (CLD-DEAD-001)\n"
 else
-  # bash 3 — skip (expected)
   PASS_COUNT=$(( PASS_COUNT + 1 ))
-  printf "  PASS: SENSITIVE_PATTERNS skipped (bash 3 — expected)\n"
+  printf "  PASS: SENSITIVE_PATTERNS removed (CLD-DEAD-001 verified)\n"
+fi
+
+# 6b. Verify _SPAT_LIST is readonly (CLD-SEC-003)
+# declare -p shows "declare -ar" for readonly arrays (the 'r' flag)
+TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
+if declare -p _SPAT_LIST 2>/dev/null | grep -q -- '-[a-zA-Z]*r'; then
+  PASS_COUNT=$(( PASS_COUNT + 1 ))
+  printf "  PASS: _SPAT_LIST is readonly\n"
+else
+  FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+  printf "  FAIL: _SPAT_LIST is not readonly\n"
+fi
+
+# 6c. Verify source guard works (XVER-001) — double-source should not error
+TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
+if source "$SCRIPT_DIR/../lib/sensitive-patterns.sh" 2>/dev/null; then
+  PASS_COUNT=$(( PASS_COUNT + 1 ))
+  printf "  PASS: Double-source does not error (XVER-001 verified)\n"
+else
+  FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+  printf "  FAIL: Double-source causes error\n"
 fi
 
 # ═══════════════════════════════════════════════════════════════

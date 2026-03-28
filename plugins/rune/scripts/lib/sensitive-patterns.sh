@@ -7,7 +7,6 @@
 #   source "${SCRIPT_DIR}/lib/sensitive-patterns.sh"
 #
 # Exports:
-#   SENSITIVE_PATTERNS  — associative array of label → regex (bash 4+ only)
 #   _SPAT_LIST          — indexed array of "label:regex" pairs (all bash versions)
 #   rune_strip_sensitive [max_chars]  — Filter stdin, write clean text to stdout
 #
@@ -16,14 +15,19 @@
 #
 # NOTE: Do NOT set `set -euo pipefail` here — caller's responsibility.
 
-# ── SENSITIVE_PATTERNS ──
+# ── _SPAT_LIST ──
 # 16 regex patterns for common sensitive data.
 # Order: most specific first (API keys with clear prefix, then generic tokens).
 # SEC-PAT-001: Patterns are designed for grep -E / sed -E compatibility.
 #
 # Escape note: These are POSIX ERE patterns for use with `grep -E` or `sed -E`.
-# Populated from _SPAT_LIST below if bash 4+ (associative arrays supported).
-# For bash 3 (macOS default), we use positional logic in rune_strip_sensitive
+# All consumers use _SPAT_LIST (positional array) via rune_strip_sensitive().
+
+# Source guard: prevent readonly error on double-source (XVER-001)
+if [[ -n "${_SPAT_LIST_LOADED:-}" ]]; then
+  return 0 2>/dev/null || true
+fi
+
 _SPAT_LIST=(
   # 1. OpenAI API keys: sk-[A-Za-z0-9]{20,}
   "openai_key:sk-[A-Za-z0-9_-]{20,}"
@@ -59,10 +63,9 @@ _SPAT_LIST=(
   "hex_token:[=:][[:space:]]*['\"]?[0-9a-fA-F]{40,}['\"]?"
 )
 
-# CLD-DEAD-001: SENSITIVE_PATTERNS associative array removed — never consumed in production.
-# All consumers use _SPAT_LIST (positional array) via rune_strip_sensitive().
 # CLD-SEC-003 FIX: Make _SPAT_LIST readonly to prevent modification after sourcing.
 readonly _SPAT_LIST
+_SPAT_LIST_LOADED=1
 
 # ── rune_strip_sensitive ──
 # Filter sensitive data patterns from stdin using python3.

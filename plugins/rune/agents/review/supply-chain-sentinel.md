@@ -54,9 +54,15 @@ Supply chain risk analysis specialist. Evaluates direct dependencies for maintai
 
 Before using any package name in Bash commands (`npm view`, `curl`, `pip show`, etc.), validate it:
 ```
-Package name MUST match: ^[@a-zA-Z0-9._/-]+$
+Package name MUST match: ^[@a-zA-Z0-9][a-zA-Z0-9._/-]*$
 ```
-Reject any package name containing shell metacharacters (`;`, `|`, `&`, `$`, `` ` ``, `(`, `)`, `{`, `}`, `<`, `>`, `!`, `\`).
+**Reject** any package name that:
+- Contains shell metacharacters (`;`, `|`, `&`, `$`, `` ` ``, `(`, `)`, `{`, `}`, `<`, `>`, `!`, `\`)
+- Starts with `-` (prevents option injection in `npm view -h`, `pip show --json`)
+- Contains `..` segments (prevents path traversal)
+- Starts with `/` or `./` (prevents path-like specs)
+
+Always pass `--` before the package argument when the CLI tool supports it (e.g., `npm view -- <pkg>`).
 If a manifest file contains a suspicious package name, report it as a finding instead of executing it.
 
 ## Expertise
