@@ -100,12 +100,23 @@ function postPhaseCleanup(checkpoint, phaseName) {
         const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
         const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
         const members = Array.isArray(teamConfig?.members) ? teamConfig.members : []
+        // Force-reply pattern (GitHub #31389): message first, pause, then shutdown_request
+        const aliveMembers = []
         for (const m of members) {
           if (m.name && /^[a-zA-Z0-9_-]+$/.test(m.name)) {
-            try { SendMessage({ type: "shutdown_request", recipient: m.name, content: `Phase ${phaseName} complete — cleanup` }) } catch (e) { /* member may already be gone */ }
+            try { SendMessage({ type: "message", recipient: m.name, content: "Acknowledge: phase completing" }); aliveMembers.push(m.name) } catch (e) { /* member already exited */ }
           }
         }
-        if (members.length > 0) Bash(`sleep 20`)  // Grace period — 20s covers slow tool calls
+        if (aliveMembers.length > 0) Bash("sleep 2")
+        let confirmedAlive = 0
+        for (const name of aliveMembers) {
+          try { SendMessage({ type: "shutdown_request", recipient: name, content: `Phase ${phaseName} complete — cleanup` }); confirmedAlive++ } catch (e) { /* member exited between steps */ }
+        }
+        if (confirmedAlive > 0) {
+          Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`)
+        } else if (members.length > 0) {
+          Bash("sleep 2")  // SDK propagation pause
+        }
       } catch (e) { /* team config unreadable — proceed to filesystem cleanup */ }
 
       // SDK state clear + filesystem rm-rf — retry-with-backoff pattern (4 attempts: 0s, 3s, 6s, 10s)

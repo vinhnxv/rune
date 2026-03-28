@@ -256,7 +256,7 @@ Aggregate visual regression summary in `tmp/arc/{id}/test-results-e2e.md`:
 - **STEP 9 (Report)**: Visual diff section added to test report template
 - **STEP 9.5 (History)**: Visual regression results included in history entries
 - **Test report template**: See [test-report-template.md](test-report-template.md)
-- **E2E browser tester agent**: See `agents/testing/e2e-browser-tester.md`
+- **E2E browser tester agent**: See [registry/testing/e2e-browser-tester.md](../../../../registry/testing/e2e-browser-tester.md)
 
 ## TVAL References
 

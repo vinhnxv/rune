@@ -62,6 +62,7 @@ _LAYER_IMPORTANCE = {
 
 # Recency half-life in days — entries older than this get < 0.5 score
 _RECENCY_HALF_LIFE_DAYS = 30.0
+_MAX_IN_CLAUSE_ENTRIES = 200
 
 # Layer-aware decay: per-layer half-life defaults (days).
 # Etched = permanent (infinite half-life), Notes = slow decay, etc.
@@ -393,7 +394,7 @@ def _get_access_counts(conn: sqlite3.Connection, entry_ids: List[str]) -> Dict[s
     if not entry_ids:
         return {}
     # Cap to prevent oversized IN clause
-    capped_ids = entry_ids[:200]
+    capped_ids = entry_ids[:_MAX_IN_CLAUSE_ENTRIES]
     cursor = conn.execute(
         """SELECT entry_id, COUNT(*) AS cnt
            FROM echo_access_log

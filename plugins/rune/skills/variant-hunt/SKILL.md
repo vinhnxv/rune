@@ -75,7 +75,7 @@ if (args.endsWith(".md") && args.includes("TOME")) {
 Bash(`mkdir -p ${outputDir}`)
 
 const teamName = `rune-variant-${timestamp.slice(0, 8)}`
-TeamCreate({ name: teamName })
+TeamCreate({ team_name: teamName })
 
 // Step 3: Spawn variant-hunter for each finding (max 3 concurrent)
 const maxHunters = Math.min(findings.length, 3)

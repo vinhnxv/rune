@@ -50,9 +50,9 @@ allowed-tools:
 
 # /rune:arc — End-to-End Orchestration Pipeline
 
-Chains forty phases into a single automated pipeline. Each phase runs as its own Claude Code turn with fresh context — the `arc-phase-stop-hook.sh` drives phase iteration via the Stop hook pattern. Artifact-based handoff connects phases. Checkpoint state enables resume after failure.
+Chains thirty-four phases into a single automated pipeline. Each phase runs as its own Claude Code turn with fresh context — the `arc-phase-stop-hook.sh` drives phase iteration via the Stop hook pattern. Artifact-based handoff connects phases. Checkpoint state enables resume after failure.
 
-**Context budget advisory**: Full arc run: 43 phases x ~3.5min avg = ~140 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. The `PreCompact` hook saves checkpoint state automatically.
+**Context budget advisory**: Full arc run: 34 phases x ~3.5min avg = ~119 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. The `PreCompact` hook saves checkpoint state automatically.
 
 **Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `codex-cli`, `team-sdk`, `testing`, `agent-browser`, `polling-guard`, `zsh-compat`, `design-sync`
 

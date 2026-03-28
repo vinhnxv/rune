@@ -132,22 +132,39 @@ try {
     "shard-reviewer-d", "shard-reviewer-e", "elicitation-sage-security-1", "elicitation-sage-security-2"]
 }
 
+// Step 1: Force-reply — put all teammates in message-processing state (GitHub #31389)
+const aliveMembers = []
 for (const member of allMembers) {
-  SendMessage({
-    type: "shutdown_request",
-    recipient: member,
-    content: "Review cancelled by user"
-  })
+  try {
+    SendMessage({ type: "message", recipient: member, content: "Acknowledge: review cancelling" })
+    aliveMembers.push(member)
+  } catch (e) { /* member already exited */ }
+}
+
+// Step 2: Brief pause for tool-call completion
+if (aliveMembers.length > 0) { Bash("sleep 2") }
+
+// Step 3: Send shutdown_request to alive members
+for (const member of aliveMembers) {
+  try {
+    SendMessage({
+      type: "shutdown_request",
+      recipient: member,
+      content: "Review cancelled by user"
+    })
+  } catch (e) { /* member exited between steps */ }
 }
 ```
 
-### 5. Grace Period (20s)
+### 5. Grace Period (adaptive)
 
 Let teammates process shutdown_request and deregister before TeamDelete.
 
 ```javascript
-if (allMembers.length > 0) {
-  Bash(`sleep 20`)
+if (aliveMembers.length > 0) {
+  Bash(`sleep ${Math.min(20, Math.max(5, aliveMembers.length * 5))}`)
+} else {
+  Bash("sleep 2")
 }
 ```
 

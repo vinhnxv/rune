@@ -140,14 +140,16 @@ In `/rune:appraise`, agents are grouped into 7 built-in Ashes (extensible via ta
 | `rune:work:rune-smith` | Code implementation (TDD-aware) |
 | `rune:work:trial-forger` | Test generation |
 
-## Testing Agents
+## Testing Agents (Registry — Not Directly Spawnable)
+
+> These agents live in `registry/testing/` and are spawned indirectly by the `/rune:testing` skill during arc Phase 7.7. They cannot be passed to the `Agent()` tool's `subagent_type` parameter directly.
 
 | Agent | Role |
 |-------|------|
-| `rune:testing:unit-test-runner` | Diff-scoped unit test execution (Sonnet) |
-| `rune:testing:integration-test-runner` | Integration test execution with service management (Sonnet) |
-| `rune:testing:e2e-browser-tester` | E2E browser testing via agent-browser (Sonnet) |
-| `rune:testing:test-failure-analyst` | Read-only failure analysis and fix suggestions (Opus inherit) |
+| `registry:testing:unit-test-runner` | Diff-scoped unit test execution (Sonnet) |
+| `registry:testing:integration-test-runner` | Integration test execution with service management (Sonnet) |
+| `registry:testing:e2e-browser-tester` | E2E browser testing via agent-browser (Sonnet) |
+| `registry:testing:test-failure-analyst` | Read-only failure analysis and fix suggestions (Opus inherit) |
 
 ## Ash Selection Logic
 

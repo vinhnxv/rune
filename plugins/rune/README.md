@@ -6,7 +6,7 @@ Multi-agent engineering orchestration for [Claude Code](https://claude.ai/claude
 
 ## What Is This?
 
-This is the **Rune plugin** — the detailed component reference for the Rune multi-agent orchestration system. It documents all 145 agents, 60 skills, 16 commands, 4 MCP servers, and the hook infrastructure that powers Rune's workflows.
+This is the **Rune plugin** — the detailed component reference for the Rune multi-agent orchestration system. It documents all 150 agents, 61 skills, 16 commands, 4 MCP servers, and the hook infrastructure that powers Rune's workflows.
 
 For the high-level overview, see the [root README](../../README.md).
 

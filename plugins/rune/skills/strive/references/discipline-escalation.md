@@ -1,6 +1,10 @@
 # Discipline Escalation Chain (Phase 3 — Planned)
 
-> **⚠️ NOT IMPLEMENTED**: This document describes a **planned design** — none of the escalation behavior below is implemented in code. Current behavior when discipline proofs fail: the TaskCompleted hook blocks the task (exit 2) and the worker receives stderr feedback. There is no automatic Retry → Decompose → Reassign → Escalate chain. Only activates when `discipline.enabled: true` AND `discipline.block_on_fail: true` in talisman.
+> **🚧 DRAFT — NOT IMPLEMENTED**
+>
+> This document describes a **planned design** — none of the escalation behavior below is implemented in code. Do not reference this as operational guidance.
+>
+> **Current behavior**: When discipline proofs fail, the TaskCompleted hook blocks the task (exit 2) and the worker receives stderr feedback. There is no automatic Retry → Decompose → Reassign → Escalate chain. Only activates when `discipline.enabled: true` AND `discipline.block_on_fail: true` in talisman.
 
 When the discipline proof hook exits 2 (BLOCK), the worker receives feedback via stderr. The escalation chain provides structured recovery with a maximum of 4 attempts before human intervention:
 
