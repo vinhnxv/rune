@@ -477,6 +477,10 @@ validate_session_ownership_strict() {
 #   INTEG-009: active must be "true" (otherwise state file should not be processed)
 #   INTEG-010: branch must not be empty
 #   INTEG-011: cross-field — if checkpoint.json exists, its id must match checkpoint_path arc ID
+#   INTEG-012: state machine — user_cancelled=true + active=true is inconsistent (partial cancel)
+#   INTEG-013: state machine — stop_reason set + active=true is inconsistent (zombie loop)
+#   INTEG-014: branch drift — state file branch must match actual git branch
+#   INTEG-015: cancel_reason set but user_cancelled=false is inconsistent (warning only)
 validate_state_file_integrity() {
   local state_file="$1"
   local cwd="$2"
@@ -594,6 +598,42 @@ validate_state_file_integrity() {
         _integ_fail "INTEG-011" "checkpoint.json id '${_ckpt_arc_id}' does not match path arc ID '${_path_arc_id}'"
       fi
     fi
+  fi
+
+  # ── INTEG-012: State machine — user_cancelled must be consistent with active ──
+  # If user_cancelled is true but active is also true, /cancel-arc partially wrote
+  # (set cancelled flag but failed to set active=false). This is a P1 — arc would continue.
+  local _user_cancelled
+  _user_cancelled=$(get_field "user_cancelled" 2>/dev/null || true)
+  if [[ "$_user_cancelled" == "true" ]] && [[ "$_active" == "true" ]]; then
+    _integ_fail "INTEG-012" "user_cancelled=true but active=true — partial cancel write, arc should not continue"
+  fi
+
+  # ── INTEG-013: State machine — stop_reason set but active still true ──
+  # stop_reason is set when arc terminates (context_limit, error, user_abort, etc.).
+  # If stop_reason is set but active is true, the state file is inconsistent.
+  local _stop_reason
+  _stop_reason=$(get_field "stop_reason" 2>/dev/null || true)
+  if [[ -n "$_stop_reason" ]] && [[ "$_stop_reason" != "null" ]] && [[ "$_active" == "true" ]]; then
+    _integ_fail "INTEG-013" "stop_reason='${_stop_reason}' but active=true — inconsistent termination state"
+  fi
+
+  # ── INTEG-014: Branch drift — state file branch vs actual git branch ──
+  # If the state file says branch X but git is on branch Y, phases will execute on
+  # the wrong branch. This catches manual git checkout during arc execution.
+  if [[ -n "$_branch" ]] && [[ "$_branch" != "null" ]]; then
+    local _git_branch=""
+    _git_branch=$(cd "$cwd" && git branch --show-current 2>/dev/null || true)
+    if [[ -n "$_git_branch" ]] && [[ "$_git_branch" != "$_branch" ]]; then
+      _integ_fail "INTEG-014" "branch drift: state file says '${_branch}' but git is on '${_git_branch}'"
+    fi
+  fi
+
+  # ── INTEG-015: cancel_reason consistency — cancel_reason set but user_cancelled false ──
+  local _cancel_reason
+  _cancel_reason=$(get_field "cancel_reason" 2>/dev/null || true)
+  if [[ -n "$_cancel_reason" ]] && [[ "$_cancel_reason" != "null" ]] && [[ "$_user_cancelled" != "true" ]]; then
+    _integ_warn "INTEG-015" "cancel_reason='${_cancel_reason}' but user_cancelled is not true — inconsistent"
   fi
 
   # ── Summary ──

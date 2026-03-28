@@ -24,7 +24,7 @@ Catches template interpolation bugs where `${configDir}` resolves to the wrong v
 
 ### Layer 3: Runtime Validation (GUARD 5.8 + GUARD 8.5)
 In `arc-phase-stop-hook.sh`, before processing:
-- **GUARD 5.8**: `validate_state_file_integrity()` checks all 11 INTEG rules
+- **GUARD 5.8**: `validate_state_file_integrity()` checks all 15 INTEG rules
 - **GUARD 8.5**: `validate_checkpoint_json_integrity()` checks 6 CKPT-INT rules
 On failure: writes diagnostic to `.rune/arc-integrity-failure.txt`, halts phase loop.
 
@@ -35,6 +35,10 @@ On failure: writes diagnostic to `.rune/arc-integrity-failure.txt`, halts phase 
 | Cross-run mixing | checkpoint_path from run A, config_dir from run B | INTEG-011 |
 | Empty session identity | `owner_pid:` (blank) | INTEG-004, INTEG-005 |
 | Wrong checkpoint path | `.rune/arc-checkpoint.local.md` | INTEG-002, CKPT-001 |
+| Partial cancel write | `user_cancelled: true` + `active: true` | INTEG-012 |
+| Zombie loop | `stop_reason: context_limit` + `active: true` | INTEG-013 |
+| Branch drift | State says `feat-x` but git on `main` | INTEG-014 |
+| Cancel inconsistency | `cancel_reason` set but `user_cancelled: false` | INTEG-015 |
 
 After checkpoint initialization (or resume), write the phase loop state file that drives `arc-phase-stop-hook.sh`:
 
