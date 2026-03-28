@@ -617,7 +617,7 @@ Write(checkpointPath, {
 // Schema migration is handled in arc-resume.md (steps 3a through 3z).
 // Migrations v1→v26 are defined there. See arc-resume.md for the full chain.
 
-// ── PRE-WRITE VALIDATION (INTEG-INIT, v2.30.0): Validate variables BEFORE writing state file ──
+// ── PRE-WRITE VALIDATION (INTEG-INIT, v2.29.4): Validate variables BEFORE writing state file ──
 // BUG FIX: LLM variable substitution drift can write wrong values (e.g., config_dir=tmp/arc/...).
 // These assertions catch the drift AT WRITE TIME, not after the stop hook reads corrupt data.
 //
@@ -695,7 +695,7 @@ if (stateCheckpointPath !== checkpointPath) {
   throw new Error(`FATAL (CKPT-001): State file checkpoint_path "${stateCheckpointPath}" does not match canonical "${checkpointPath}". Fix the state file.`)
 }
 
-// ── POST-WRITE CROSS-FIELD VERIFICATION (INTEG-POST, v2.30.0) ──
+// ── POST-WRITE CROSS-FIELD VERIFICATION (INTEG-POST, v2.29.4) ──
 // Read back the state file and verify all fields match the variables used to write it.
 // This catches template interpolation bugs where ${configDir} resolved to wrong value.
 const stateConfigDir = Bash('grep "^config_dir:" .rune/arc-phase-loop.local.md | sed "s/^config_dir: //"').trim()

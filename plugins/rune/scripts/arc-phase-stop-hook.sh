@@ -279,7 +279,7 @@ if ! validate_session_ownership_strict "$STATE_FILE"; then
   exit 0
 fi
 
-# ── GUARD 5.8: State file integrity validation (v2.30.0) ──
+# ── GUARD 5.8: State file integrity validation (v2.29.4) ──
 # Validates ALL fields in the state file for completeness, correct format, and cross-field
 # consistency BEFORE any phase processing. Catches LLM variable drift (config_dir=tmp/arc/...),
 # cross-run ID mismatches, missing required fields, and corrupt metadata.
@@ -336,7 +336,7 @@ if [[ -z "$CKPT_CONTENT" ]]; then
   exit 0
 fi
 
-# ── GUARD 8.5: Checkpoint JSON integrity validation (v2.30.0) ──
+# ── GUARD 8.5: Checkpoint JSON integrity validation (v2.29.4) ──
 # Validates checkpoint.json structure and required fields before phase dispatch.
 if ! validate_checkpoint_json_integrity "${CWD}/${CHECKPOINT_PATH}"; then
   _trace "GUARD 8.5 FAILED: Checkpoint integrity check failed — halting arc"

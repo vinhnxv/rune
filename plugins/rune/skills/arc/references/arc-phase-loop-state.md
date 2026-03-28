@@ -5,7 +5,7 @@
 > for the state file. The SKILL.md "First Phase Invocation" section has a safety guard that
 > recreates the file from checkpoint data if it is missing.
 
-## Integrity Validation (v2.30.0)
+## Integrity Validation (v2.29.4)
 
 The state file is validated at **three layers** to prevent LLM variable drift and cross-run contamination:
 

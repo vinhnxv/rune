@@ -575,7 +575,7 @@ Continue from: ${contextMeta.last_action ?? 'last known state'}.
    ```javascript
    const sessionId = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
 
-   // ── PRE-WRITE VALIDATION (INTEG-RESUME, v2.30.0) ──
+   // ── PRE-WRITE VALIDATION (INTEG-RESUME, v2.29.4) ──
    // Same assertions as arc-checkpoint-init.md. Catches LLM drift during resume path.
    // INTEG-RESUME-001: configDir must be CLAUDE_CONFIG_DIR, NOT tmp/arc/
    if (!configDir || configDir.startsWith('tmp/') || configDir.startsWith('./tmp/') || configDir.includes('/tmp/arc/')) {
@@ -626,7 +626,7 @@ stop_reason: null
 `
    Write('.rune/arc-phase-loop.local.md', stateContent)
 
-   // ── POST-WRITE CROSS-FIELD VERIFICATION (INTEG-RESUME-POST, v2.30.0) ──
+   // ── POST-WRITE CROSS-FIELD VERIFICATION (INTEG-RESUME-POST, v2.29.4) ──
    const stateConfigDir = Bash('grep "^config_dir:" .rune/arc-phase-loop.local.md | sed "s/^config_dir: //"').trim()
    if (stateConfigDir !== configDir) {
      throw new Error(`FATAL (INTEG-RESUME-POST-001): Written config_dir "${stateConfigDir}" ≠ configDir "${configDir}".`)

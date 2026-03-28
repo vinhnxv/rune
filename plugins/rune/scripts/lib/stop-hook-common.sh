@@ -454,7 +454,7 @@ validate_session_ownership_strict() {
 # Validates arc-phase-loop.local.md fields for correctness, completeness, and cross-field
 # consistency BEFORE the stop hook processes the state file.
 #
-# BUG FIX (v2.30.0): Detects LLM variable substitution drift where config_dir gets
+# BUG FIX (v2.29.4): Detects LLM variable substitution drift where config_dir gets
 # written as tmp/arc/... instead of CLAUDE_CONFIG_DIR, checkpoint_path references a
 # different arc run than config_dir, or required fields (owner_pid, session_id) are empty.
 #
@@ -655,6 +655,8 @@ validate_checkpoint_json_integrity() {
   [[ -z "$_id" ]] && _ckpt_integ_fail "CKPT-INT-002" "missing required field: id"
   [[ -z "$_plan" ]] && _ckpt_integ_fail "CKPT-INT-002" "missing required field: plan_file"
   [[ -z "$_schema" ]] && _ckpt_integ_fail "CKPT-INT-002" "missing required field: schema_version"
+  [[ -z "$_pid" ]] && _ckpt_integ_fail "CKPT-INT-002" "missing required field: owner_pid"
+  [[ -z "$_sid" ]] && _ckpt_integ_fail "CKPT-INT-002" "missing required field: session_id"
 
   # ── CKPT-INT-003: id format ──
   if [[ -n "$_id" ]] && [[ ! "$_id" =~ ^arc-[0-9]+$ ]]; then
