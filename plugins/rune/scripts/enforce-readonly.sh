@@ -13,17 +13,12 @@
 # Exit 2 = hook error, stderr fed to Claude (not used by this script).
 
 set -euo pipefail
-trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
+trap 'exit 2' ERR  # XVER-SEC-002 FIX: fail-closed from start for SECURITY hook
 umask 077
 
-# --- SECURITY hook (two-phase ERR trap) ---
-# Phase 1 (fast-path): fail-FORWARD — crashes in non-subagent detection exit 0.
-#   The fast-path (non-subagent) has no security risk, so failing open is safe.
-#   This prevents intermittent "PreToolUse:Bash hook error" in Claude Code logs
-#   from edge cases in jq parsing or system-level issues.
-# Phase 2 (subagent detected): fail-CLOSED — crashes exit 2 to block the tool.
-#   Once we know a subagent is running during a review/audit, failing open would
-#   bypass SEC-001 read-only enforcement.
+# --- SECURITY hook (fail-closed from start, XVER-SEC-002) ---
+# Initial trap is fail-closed (exit 2) to eliminate bypass window.
+# Phase 2 (subagent detected): upgrades to detailed fail-closed handler.
 # See CLAUDE.md "Hook Crash Classification" for the SECURITY vs OPERATIONAL distinction.
 _rune_fail_forward() {
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then

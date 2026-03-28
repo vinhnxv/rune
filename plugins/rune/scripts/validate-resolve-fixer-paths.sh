@@ -18,12 +18,11 @@
 # Fail-closed on missing jq (SECURITY-class requirement).
 
 # Fail-forward: errors allow the operation (exit 0) rather than blocking.
-# Using set -euo pipefail (aligned with sibling validate-*-paths.sh scripts).
-trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
-# The ERR trap exits 0 before -e would trigger for most failures.
+# CLD-QUAL-001 FIX: set -euo before trap (consistent with sibling scripts).
+# CLD-QUAL-002 FIX: Removed duplicate trap.
 set -euo pipefail
-umask 077
 trap 'exit 0' ERR
+umask 077
 
 # Pre-flight: jq is required for JSON parsing (SEC-002: fail-closed if missing)
 if ! command -v jq &>/dev/null; then

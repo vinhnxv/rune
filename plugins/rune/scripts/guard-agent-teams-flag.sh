@@ -4,7 +4,7 @@
 # Matcher: TeamCreate (only)
 # Behavior: fail-closed (SECURITY pattern)
 set -euo pipefail
-trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
+trap 'exit 2' ERR  # XVER-SEC-002 FIX: fail-closed from start for SECURITY hook
 umask 077
 
 # ERR trap: fail-closed — emit deny JSON on any unexpected error

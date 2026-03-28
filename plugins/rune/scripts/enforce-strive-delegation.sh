@@ -20,7 +20,7 @@
 #   - Standard deny JSON output
 
 set -euo pipefail
-trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
+trap 'exit 2' ERR  # XVER-SEC-002 FIX: fail-closed from start for SECURITY hook
 umask 077
 
 # Fail-closed ERR trap (SECURITY classification)

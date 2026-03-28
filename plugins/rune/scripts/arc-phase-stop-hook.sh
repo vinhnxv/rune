@@ -194,14 +194,22 @@ fi
 
 if [[ "$_CKPT_PATH_IS_CANONICAL" != "true" ]]; then
   # Non-canonical path — attempt recovery
-  local _recovered=""
+  # XVER-SEC-001 FIX: Use plain assignments — `local` outside function fails on Bash 3.2 (macOS)
+  _recovered=""
 
   # Strategy 1: If the drifted file exists, extract arc id and find canonical path
   if [[ -f "${CWD}/${CHECKPOINT_PATH}" ]]; then
-    local _arc_id_from_drift
+    _arc_id_from_drift=""
     _arc_id_from_drift=$(jq -r '.id // empty' "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
     if [[ -n "$_arc_id_from_drift" ]]; then
-      local _canonical="${RUNE_STATE}/arc/${_arc_id_from_drift}/checkpoint.json"
+      # XVER-SEC-004 FIX: Validate arc id before path construction (prevent path traversal)
+      if [[ ! "$_arc_id_from_drift" =~ ^arc-[0-9]+$ ]]; then
+        _trace "CKPT-001: Invalid arc id format '${_arc_id_from_drift}' — skipping strategy 1"
+        _arc_id_from_drift=""
+      fi
+    fi
+    if [[ -n "$_arc_id_from_drift" ]]; then
+      _canonical="${RUNE_STATE}/arc/${_arc_id_from_drift}/checkpoint.json"
       if [[ -f "${CWD}/${_canonical}" ]]; then
         _recovered="$_canonical"
         _trace "CKPT-001: Found canonical checkpoint via drifted file's arc id: '${_recovered}'"
@@ -210,9 +218,20 @@ if [[ "$_CKPT_PATH_IS_CANONICAL" != "true" ]]; then
   fi
 
   # Strategy 2: Scan for newest checkpoint.json
+  # XVER-SEC-001 FIX: plain assignment (no `local` outside function)
+  # CLD-BUG-001 FIX: Use find instead of ls -t glob (per project convention)
   if [[ -z "$_recovered" ]]; then
-    local _scan_result
-    _scan_result=$(ls -t "${CWD}/${RUNE_STATE}/arc"/*/checkpoint.json 2>/dev/null | head -1) || true
+    _scan_result=""
+    _scan_newest_mtime=0
+    # Use find + _stat_mtime (from platform.sh) for cross-platform newest-file detection
+    while IFS= read -r _scan_f; do
+      [[ -f "$_scan_f" ]] || continue
+      _scan_mt=$(_stat_mtime "$_scan_f") || continue
+      if [[ "${_scan_mt:-0}" -gt "$_scan_newest_mtime" ]]; then
+        _scan_newest_mtime="$_scan_mt"
+        _scan_result="$_scan_f"
+      fi
+    done < <(find "${CWD}/${RUNE_STATE}/arc" -maxdepth 2 -name "checkpoint.json" -type f 2>/dev/null)
     if [[ -n "$_scan_result" && -f "$_scan_result" ]]; then
       _recovered="${_scan_result#${CWD}/}"
       _trace "CKPT-001: Found canonical checkpoint via scan: '${_recovered}'"
@@ -228,7 +247,8 @@ if [[ "$_CKPT_PATH_IS_CANONICAL" != "true" ]]; then
   if [[ -n "$_recovered" ]]; then
     CHECKPOINT_PATH="$_recovered"
     # Auto-fix state file so future invocations use the correct path
-    local _tmp_fix
+    # XVER-SEC-001 FIX: plain assignment (no `local` outside function)
+    _tmp_fix=""
     _tmp_fix=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || true
     if [[ -n "$_tmp_fix" ]]; then
       sed "s|^checkpoint_path:.*|checkpoint_path: ${CHECKPOINT_PATH}|" "$STATE_FILE" > "$_tmp_fix" 2>/dev/null && \
