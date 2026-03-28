@@ -65,8 +65,13 @@ fi
 
 # ── Blocked path patterns ──────────────────────────────────────────────────
 # Gap fixers must not touch infrastructure config, CI pipelines, or secret files.
+# DSEC-002 FIX: Block URL-encoded sequences that could bypass literal '..' checks
+# Reject any path containing % (URL encoding), which is never valid in source file paths
+if [[ "$REL_FILE_PATH" == *%* ]]; then
+  DENY_REASON="SEC-GAP-001: Path contains URL-encoded sequences (potential traversal bypass)."
+  DENY=1
 # Path traversal check: reject paths that navigate outside CWD.
-if [[ "$REL_FILE_PATH" == *../* ]] || [[ "$REL_FILE_PATH" == *.. ]]; then
+elif [[ "$REL_FILE_PATH" == *../* ]] || [[ "$REL_FILE_PATH" == *.. ]]; then
   DENY_REASON="SEC-GAP-001: Path traversal denied."
   DENY=1
 elif [[ "$REL_FILE_PATH" == */.* && "$REL_FILE_PATH" != .claude/* && "$REL_FILE_PATH" != */.gitignore && "$REL_FILE_PATH" != */.dockerignore && "$REL_FILE_PATH" != */.eslintrc* && "$REL_FILE_PATH" != */.prettierrc* && "$REL_FILE_PATH" != */.editorconfig ]]; then

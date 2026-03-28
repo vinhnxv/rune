@@ -94,6 +94,9 @@ for dir in "$SIGNAL_BASE"/rune-review-* "$SIGNAL_BASE"/arc-review-* \
            "$SIGNAL_BASE"/rune-inspect-*; do
   # Validate directory name contains only safe characters
   [[ "$(basename "$dir")" =~ ^(rune|arc)-(review|audit|inspect)-[a-zA-Z0-9_-]+$ ]] || continue
+  # DSEC-003 FIX: Reject symlinks to prevent TOCTOU race (attacker could symlink signal dir)
+  [[ -L "$dir" ]] && continue
+  [[ -L "${dir}/.readonly-active" ]] && continue
   if [[ -f "${dir}/.readonly-active" ]]; then
     # Active review/audit team found + caller is a subagent → deny
     echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"SEC-001: review/audit Ashes are read-only. Use Read, Glob, Grep only."}}'

@@ -90,11 +90,18 @@ while IFS= read -r value; do
 
   # Check 3: Command injection metacharacters
   # Patterns: semicolon sequences (;), AND (&&), OR (||), pipe (|), backtick (`),
-  # command substitution ($(, ${), newline-as-separator injection (\n in string)
+  # command substitution ($(, ${), process substitution (<(, >()), brace expansion ({..})
   # WARD-009 FIX: Remove single pipe (|) — too aggressive for natural language input
-  # Dangerous patterns (||, ;, &&, backtick, $(, ${) are sufficient
-  if printf '%s' "$value" | grep -qE '(;|&&|\|\||`|\$\(|\$\{)'; then
-    echo "SEC-ELICIT-001: Blocked elicitation response containing shell metacharacter. Value rejected for security. Avoid characters like: ; && || | \` \$( \${" >&2
+  # DSEC-001 FIX: Added process substitution (<(, >() and literal newline detection
+  if printf '%s' "$value" | grep -qE '(;|&&|\|\||`|\$\(|\$\{|<\(|>\()'; then
+    echo "SEC-ELICIT-001: Blocked elicitation response containing shell metacharacter. Value rejected for security. Avoid characters like: ; && || \` \$( \${ <( >(" >&2
+    exit 2
+  fi
+
+  # DSEC-001 FIX: Detect literal newline/carriage return injection (can terminate commands in shell context)
+  # Uses printf %b to interpret escape sequences, then checks if value contains them
+  if [[ "$value" == *$'\n'* ]] || [[ "$value" == *$'\r'* ]]; then
+    echo "SEC-ELICIT-001: Blocked elicitation response containing newline injection." >&2
     exit 2
   fi
 

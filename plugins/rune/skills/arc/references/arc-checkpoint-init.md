@@ -628,7 +628,7 @@ const branch = Bash("git branch --show-current 2>/dev/null").trim() || 'main'
 const stateContent = `---
 active: true
 iteration: 0
-max_iterations: 65
+max_iterations: 66
 checkpoint_path: .rune/arc/${id}/checkpoint.json
 plan_file: ${planFile}
 branch: ${branch}

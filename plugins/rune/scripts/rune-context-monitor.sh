@@ -6,11 +6,15 @@ trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 # --- Fail-forward guard (OPERATIONAL hook) ---
 # Crash before validation → allow operation (don't stall workflows).
 _rune_fail_forward() {
+  local _ff_exit=$?
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
+    # OBSV-002 FIX: Include failing command and exit code for error diagnosis
+    printf '[%s] %s: ERR trap — fail-forward activated (line %s, exit %s, cmd: %s)\n' \
       "$(date +%H:%M:%S 2>/dev/null || true)" \
       "${BASH_SOURCE[0]##*/}" \
       "${BASH_LINENO[0]:-?}" \
+      "$_ff_exit" \
+      "${BASH_COMMAND:-unknown}" \
       >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" 2>/dev/null
   fi
   exit 0

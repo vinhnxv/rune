@@ -161,9 +161,10 @@ TEMP_FILE="${SIGNAL_FILE}.tmp.$$"
 COMPLETED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # BACK-002: Wrap jq+mv in error handler
+# OBSV-001 FIX: Include team_name as workflow correlation ID for cross-workflow tracing
 if ! jq -n --arg tid "$TASK_ID" --arg tn "$TEAMMATE_NAME" --arg ts "$TASK_SUBJECT" \
-  --arg ca "$COMPLETED_AT" \
-  '{task_id: $tid, teammate: $tn, subject: $ts, completed_at: $ca}' > "$TEMP_FILE" 2>/dev/null; then
+  --arg ca "$COMPLETED_AT" --arg wf "$TEAM_NAME" \
+  '{task_id: $tid, teammate: $tn, subject: $ts, completed_at: $ca, workflow_id: $wf}' > "$TEMP_FILE" 2>/dev/null; then
   echo "ERROR: Failed to write signal file for task ${TASK_ID}" >&2
   rm -f "$TEMP_FILE" 2>/dev/null
   exit 0

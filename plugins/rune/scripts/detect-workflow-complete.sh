@@ -274,6 +274,13 @@ for sf in "${STATE_FILES[@]}"; do
     .rune-shutdown-signal-*|.rune-force-shutdown-*|.rune-compact-*) continue ;;
   esac
 
+  # OBSV-003 FIX: Validate JSON before field extraction — warn on corruption instead of silent skip
+  if ! jq empty "$sf" 2>/dev/null; then
+    echo "WARN: Corrupted state file (invalid JSON): $sf — skipping" >&2
+    _trace "CORRUPT state file: $sf"
+    continue
+  fi
+
   # Session ownership check
   SF_CFG=$(jq -r '.config_dir // empty' "$sf" 2>/dev/null || true)
   SF_PID=$(jq -r '.owner_pid // empty' "$sf" 2>/dev/null || true)

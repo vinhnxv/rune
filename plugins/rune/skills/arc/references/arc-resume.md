@@ -585,7 +585,7 @@ Continue from: ${contextMeta.last_action ?? 'last known state'}.
    const stateContent = `---
 active: true
 iteration: 0
-max_iterations: 65
+max_iterations: 66
 checkpoint_path: ${checkpointPath}
 plan_file: ${checkpoint.plan_file}
 branch: ${branch}

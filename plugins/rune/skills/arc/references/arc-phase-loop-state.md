@@ -16,7 +16,10 @@ After checkpoint initialization (or resume), write the phase loop state file tha
 // DO NOT use Bash('echo $CLAUDE_SESSION_ID') — it is NOT available in Bash tool context
 // (anthropics/claude-code#25642). The SKILL.md preprocessor replaces ${CLAUDE_SESSION_ID}
 // at skill load time, providing the real session ID without Bash.
-const sessionId = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
+const sessionId = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim()
+if (!sessionId) {
+  throw new Error('BIZL-002: session_id is required for session isolation — neither CLAUDE_SESSION_ID nor RUNE_SESSION_ID is available. Cannot create arc state file without session identity.')
+}
 // IRON LAW CKPT-001: checkpoint_path MUST be `.rune/arc/${id}/checkpoint.json`.
 // Extension MUST be .json (JSON content requires .json extension — NEVER .md).
 // NEVER use `.rune/arc-checkpoint.local.md` or any flat file path.
@@ -24,7 +27,7 @@ const sessionId = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').
 const stateContent = `---
 active: true
 iteration: 0
-max_iterations: 65
+max_iterations: 66
 checkpoint_path: .rune/arc/${id}/checkpoint.json
 plan_file: ${planFile}
 branch: ${branch}

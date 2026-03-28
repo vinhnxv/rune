@@ -183,7 +183,7 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
   const existingRecords = (content.match(/## Arc Completion Record/g) || []).length
 
   // Phase results table
-  // Phase table dynamically matches PHASE_ORDER (34 phases, v1.179.0+)
+  // Phase table dynamically matches PHASE_ORDER (44 phases, v2.29.6+)
   // WARNING: Order follows PHASE_ORDER (execution order), NOT numeric phase IDs.
   // Phase 5.8 (GAP REMEDIATION) executes before Phase 5.7 (GOLDMASK VERIFICATION).
   const phases = [
