@@ -454,7 +454,7 @@ validate_session_ownership_strict() {
 # Validates arc-phase-loop.local.md fields for correctness, completeness, and cross-field
 # consistency BEFORE the stop hook processes the state file.
 #
-# BUG FIX (v2.29.4): Detects LLM variable substitution drift where config_dir gets
+# BUG FIX (v2.29.8): Detects LLM variable substitution drift where config_dir gets
 # written as tmp/arc/... instead of CLAUDE_CONFIG_DIR, checkpoint_path references a
 # different arc run than config_dir, or required fields (owner_pid, session_id) are empty.
 #
