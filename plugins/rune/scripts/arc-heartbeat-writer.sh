@@ -113,6 +113,10 @@ fi
 _NONCE="${RUNE_SESSION_ID:-$$-$(date +%s)}"
 _NONCE="${_NONCE:0:16}"
 
+# ── Session isolation fields (AC-3.4: config_dir + session_id + owner_pid) ──
+_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+_SESSION_ID="${RUNE_SESSION_ID:-unknown}"
+
 # ── Atomic write (mktemp + mv) ──
 mkdir -p "$HEARTBEAT_DIR" 2>/dev/null || exit 0
 HB_TMP=$(mktemp "${HEARTBEAT_FILE}.XXXXXX" 2>/dev/null) || exit 0
@@ -123,7 +127,9 @@ jq -n \
   --arg arc_id "$ARC_ID" \
   --arg nonce "$_NONCE" \
   --argjson owner_pid "${PPID:-0}" \
-  '{arc_id: $arc_id, phase: $phase, last_tool: $tool, last_activity: $ts, nonce: $nonce, owner_pid: $owner_pid}' \
+  --arg config_dir "$_CONFIG_DIR" \
+  --arg session_id "$_SESSION_ID" \
+  '{arc_id: $arc_id, phase: $phase, last_tool: $tool, last_activity: $ts, nonce: $nonce, owner_pid: $owner_pid, config_dir: $config_dir, session_id: $session_id}' \
   > "$HB_TMP" 2>/dev/null || { rm -f "$HB_TMP" 2>/dev/null; exit 0; }
 mv -f "$HB_TMP" "$HEARTBEAT_FILE" 2>/dev/null || rm -f "$HB_TMP" 2>/dev/null
 exit 0

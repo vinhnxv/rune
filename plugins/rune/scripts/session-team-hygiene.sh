@@ -294,15 +294,22 @@ _scan_stale_heartbeats() {
     [[ -L "$hb_file" ]] && continue
 
     # Extract fields from heartbeat JSON
-    local hb_arc_id hb_last_activity hb_owner_pid hb_nonce
+    local hb_arc_id hb_last_activity hb_owner_pid hb_nonce hb_config_dir hb_session_id
     hb_arc_id=$(jq -r '.arc_id // empty' "$hb_file" 2>/dev/null || true)
     hb_last_activity=$(jq -r '.last_activity // empty' "$hb_file" 2>/dev/null || true)
     hb_owner_pid=$(jq -r '.owner_pid // empty' "$hb_file" 2>/dev/null || true)
     hb_nonce=$(jq -r '.nonce // empty' "$hb_file" 2>/dev/null || true)
+    hb_config_dir=$(jq -r '.config_dir // empty' "$hb_file" 2>/dev/null || true)
+    hb_session_id=$(jq -r '.session_id // empty' "$hb_file" 2>/dev/null || true)
 
     # Skip if missing critical fields
     [[ -n "$hb_arc_id" && "$hb_arc_id" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
     [[ -n "$hb_last_activity" ]] || continue
+
+    # AC-3.4: Session isolation — skip heartbeats from different config_dir (installation isolation)
+    if [[ -n "$hb_config_dir" && "$hb_config_dir" != "$CHOME" ]]; then
+      continue
+    fi
 
     # Parse last_activity timestamp to epoch
     local hb_epoch

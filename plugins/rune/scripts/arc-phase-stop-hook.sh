@@ -1106,6 +1106,12 @@ if [[ -n "$NEXT_PHASE" && -n "$_IMMEDIATE_PREV" ]]; then
       [[ "$_current_cost" =~ ^[0-9]+$ ]] || _current_cost=0
 
       if [[ "$_current_retries" -lt "$_persist_max_retries" && "$_current_cost" -lt "$_persist_max_budget" ]]; then
+        # AC-1.6: Budget warning at 30% consumption
+        _warn_threshold=$(( _persist_max_budget * 30 / 100 ))
+        if [[ "$_current_cost" -ge "$_warn_threshold" && "$_warn_threshold" -gt 0 ]]; then
+          _trace "PERSISTENCE WARNING: Budget ${_current_cost}c / ${_persist_max_budget}c (>= 30% threshold ${_warn_threshold}c)"
+          echo "[arc-persistence] WARNING: Retry budget at ${_current_cost}c / ${_persist_max_budget}c ($(((_current_cost * 100) / _persist_max_budget))% used)" >&2
+        fi
         _trace "PERSISTENCE: Retrying failed phase ${_IMMEDIATE_PREV} (retry $((${_current_retries}+1))/${_persist_max_retries}, cost ${_current_cost}c/${_persist_max_budget}c)"
         _log_phase "persistence_retry" "$_IMMEDIATE_PREV" "retry=$((${_current_retries}+1)),max=${_persist_max_retries},cost=${_current_cost}"
         # Update checkpoint: increment retry counter, reset phase to pending
