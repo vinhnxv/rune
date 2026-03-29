@@ -1098,6 +1098,8 @@ if [[ -n "$NEXT_PHASE" && -n "$_IMMEDIATE_PREV" ]]; then
     # Validate extracted values are numeric (SEC: prevent jq injection)
     [[ "$_persist_max_retries" =~ ^[0-9]+$ ]] || _persist_max_retries=3
     [[ "$_persist_max_budget" =~ ^[0-9]+$ ]] || _persist_max_budget=500
+    # RP-002 FIX: Guard against division-by-zero when max_budget_cents=0
+    [[ "$_persist_max_budget" -gt 0 ]] || _persist_max_budget=500
 
     if [[ "$_persist_enabled" == "true" ]]; then
       _current_retries=$(echo "$CKPT_CONTENT" | _jq_with_budget -r '.stop_hook_retries // 0' 2>/dev/null || echo "0")
