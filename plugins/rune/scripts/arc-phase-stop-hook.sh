@@ -1100,6 +1100,9 @@ if [[ -n "$NEXT_PHASE" && -n "$_IMMEDIATE_PREV" ]]; then
     [[ "$_persist_max_budget" =~ ^[0-9]+$ ]] || _persist_max_budget=500
     # RP-002 FIX: Guard against division-by-zero when max_budget_cents=0
     [[ "$_persist_max_budget" -gt 0 ]] || _persist_max_budget=500
+    # BACK-002 FIX: Clamp max_retries to [1, 10] to prevent runaway retries
+    [[ "$_persist_max_retries" -gt 10 ]] && _persist_max_retries=10
+    [[ "$_persist_max_retries" -lt 1 ]] && _persist_max_retries=3
 
     if [[ "$_persist_enabled" == "true" ]]; then
       _current_retries=$(echo "$CKPT_CONTENT" | _jq_with_budget -r '.stop_hook_retries // 0' 2>/dev/null || echo "0")
@@ -1116,10 +1119,16 @@ if [[ -n "$NEXT_PHASE" && -n "$_IMMEDIATE_PREV" ]]; then
         fi
         _trace "PERSISTENCE: Retrying failed phase ${_IMMEDIATE_PREV} (retry $((${_current_retries}+1))/${_persist_max_retries}, cost ${_current_cost}c/${_persist_max_budget}c)"
         _log_phase "persistence_retry" "$_IMMEDIATE_PREV" "retry=$((${_current_retries}+1)),max=${_persist_max_retries},cost=${_current_cost}"
-        # Update checkpoint: increment retry counter, reset phase to pending
+        # Update checkpoint: increment retry counter + cost, reset phase to pending
+        # SEC-001/BACK-001 FIX: Use --arg for phase name to prevent jq filter injection
+        # BACK-003 FIX: Increment cumulative_retry_cost_cents (estimate 100c per retry)
+        _estimated_retry_cost=100
+        _new_cost=$((_current_cost + _estimated_retry_cost))
         CKPT_CONTENT=$(echo "$CKPT_CONTENT" | jq \
           --argjson retries "$((_current_retries + 1))" \
-          '.stop_hook_retries = $retries | .phases.'"${_IMMEDIATE_PREV}"'.status = "pending" | .work_completion_verified = false' \
+          --argjson cost "$_new_cost" \
+          --arg phase "$_IMMEDIATE_PREV" \
+          '.stop_hook_retries = $retries | .cumulative_retry_cost_cents = $cost | .phases[$phase].status = "pending" | .work_completion_verified = false' \
           2>/dev/null || echo "$CKPT_CONTENT")
         _ckpt_tmp=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null) || _ckpt_tmp=""
         if [[ -n "$_ckpt_tmp" ]]; then
