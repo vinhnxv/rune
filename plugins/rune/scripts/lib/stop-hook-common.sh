@@ -722,6 +722,54 @@ validate_checkpoint_json_integrity() {
     _ckpt_integ_fail "CKPT-INT-006" "plan_file is 'null' in checkpoint"
   fi
 
+  # ── CKPT-INT-007: Duplicate key detection + auto-fix ──
+  # LLM-generated JSON can have duplicate top-level keys (e.g., phase_sequence
+  # written at init AND during updateCheckpoint). jq silently deduplicates on
+  # read, so we use python3 object_pairs_hook or grep heuristic to detect.
+  # Auto-fix: re-serialize through jq (keeps last value, same as most parsers).
+  local _dup_keys=""
+  if command -v python3 &>/dev/null; then
+    _dup_keys=$(python3 -c "
+import json, sys
+class D:
+    def __init__(self):
+        self.dups = []
+    def check(self, pairs):
+        keys = {}
+        for k, v in pairs:
+            if k in keys:
+                self.dups.append(k)
+            keys[k] = v
+        return keys
+d = D()
+with open(sys.argv[1], 'r') as f:
+    json.loads(f.read(), object_pairs_hook=d.check)
+seen = set()
+for k in d.dups:
+    if k not in seen:
+        seen.add(k)
+        print(k)
+" "$ckpt_path" 2>/dev/null | tr '\n' ',' | sed 's/,$//' || true)
+  else
+    # Fallback: grep top-level keys for duplicates
+    _dup_keys=$(grep -E '^\s{2}"[^"]+"\s*:' "$ckpt_path" 2>/dev/null \
+      | sed -E 's/^\s*"([^"]+)".*/\1/' | sort | uniq -d \
+      | tr '\n' ',' | sed 's/,$//' || true)
+  fi
+  if [[ -n "$_dup_keys" ]]; then
+    $_trace_fn "CKPT-INT-007: Duplicate top-level keys detected: ${_dup_keys} — auto-fixing"
+    local _fix_tmp=""
+    _fix_tmp=$(mktemp "${ckpt_path}.fix-XXXXXX" 2>/dev/null) || true
+    if [[ -n "$_fix_tmp" ]] && jq '.' "$ckpt_path" > "$_fix_tmp" 2>/dev/null; then
+      mv -f "$_fix_tmp" "$ckpt_path"
+      $_trace_fn "CKPT-INT-007: Auto-fixed — re-serialized through jq"
+    else
+      rm -f "$_fix_tmp" 2>/dev/null
+      $_trace_fn "CKPT-INT-007: Auto-fix failed — duplicate keys remain"
+      # Don't count as error — jq reads fine with duplicates (last wins)
+    fi
+  fi
+
   if [[ $_errors -gt 0 ]]; then
     $_trace_fn "CHECKPOINT INTEGRITY CHECK FAILED: ${_errors} error(s) for ${ckpt_path}"
     return 1

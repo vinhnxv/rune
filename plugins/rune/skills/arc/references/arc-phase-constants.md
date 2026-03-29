@@ -346,3 +346,78 @@ const SKIP_REASONS = {
 ```
 
 See [phase-tool-matrix.md](phase-tool-matrix.md) for per-phase tool restrictions and time budget details.
+
+## updateCheckpoint() — Dispatcher Utility (v2.30.0+)
+
+`updateCheckpoint(fields)` is a dispatcher-provided pseudo-function called by all phase reference files.
+It merges `fields` into the in-memory checkpoint object and writes the result to disk.
+
+### Merge Semantics (CRITICAL)
+
+`updateCheckpoint` MUST **replace** existing keys, never append duplicate keys to the JSON.
+When serializing checkpoint to JSON via `Write()`, ensure the in-memory object has each key
+only once. The jq `*` operator (recursive merge) is the correct semantic — it replaces
+existing keys with new values.
+
+**Common bug**: LLM writes `phase_sequence` at init (value 0) and again during phase updates
+(value N), producing duplicate JSON keys. Most parsers silently use the last value, but this
+is a data integrity issue. The stop hook's `validate_checkpoint_json_integrity()` (CKPT-INT-007)
+auto-detects and fixes duplicates by re-serializing through jq.
+
+### Implementation
+
+```javascript
+// updateCheckpoint() — merge fields into checkpoint, then write atomically.
+// This is pseudocode that the LLM executes via Read/Write tools.
+//
+// RULE: When updating phase_sequence or current_phase, you are REPLACING
+// the existing top-level value — not adding a second copy. The in-memory
+// checkpoint object is a single JS object where assignment overwrites.
+function updateCheckpoint(fields) {
+  // Phase-level fields go into checkpoint.phases[phase]
+  if (fields.phase && checkpoint.phases[fields.phase]) {
+    const phaseFields = ['status', 'artifact', 'artifact_hash', 'team_name',
+      'started_at', 'completed_at', 'skip_reason', 'retry_count', 'score',
+      'verdicts', 'refinements', 'fixed_count', 'deferred_count']
+    for (const key of phaseFields) {
+      if (key in fields) {
+        checkpoint.phases[fields.phase][key] = fields[key]
+      }
+    }
+  }
+  // Top-level fields go into checkpoint root (REPLACES existing keys)
+  for (const [key, value] of Object.entries(fields)) {
+    if (key !== 'phase') {  // 'phase' is the routing key, not stored at root
+      checkpoint[key] = value  // assignment = replacement, no duplicates
+    }
+  }
+  // Atomic write
+  Write(checkpointPath, JSON.stringify(checkpoint, null, 2))
+}
+```
+
+### Script-Based Alternative
+
+For deterministic writes without LLM serialization risk, use the
+`checkpoint-update.sh` utility:
+
+```bash
+# Top-level merge
+"${RUNE_PLUGIN_ROOT}/scripts/lib/checkpoint-update.sh" "$checkpointPath" \
+  '{"phase_sequence":1,"current_phase":"forge"}'
+
+# Phase-aware merge (routes fields to .phases[phase] automatically)
+"${RUNE_PLUGIN_ROOT}/scripts/lib/checkpoint-update.sh" "$checkpointPath" \
+  '{"phase":"forge","status":"completed","artifact":"tmp/arc/id/enriched-plan.md","phase_sequence":1}' \
+  --phase-update
+```
+
+### Validation
+
+```bash
+# Check for duplicate keys, missing fields, schema issues
+"${RUNE_PLUGIN_ROOT}/scripts/lib/checkpoint-validate.sh" "$checkpointPath"
+
+# Auto-fix duplicates
+"${RUNE_PLUGIN_ROOT}/scripts/lib/checkpoint-validate.sh" "$checkpointPath" --fix
+```

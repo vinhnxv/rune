@@ -177,15 +177,58 @@ def _validate_convergence(checkpoint: dict, report: CheckpointReport) -> None:
         report.add_warning(None, f"max_rounds ({conv['max_rounds']}) exceeds CONVERGENCE_MAX_ROUNDS (2)")
 
 
-def validate_checkpoint(checkpoint: dict, workspace: Path | None = None) -> CheckpointReport:
+def detect_duplicate_keys(filepath: Path) -> list[str]:
+    """Detect duplicate top-level JSON keys in a checkpoint file.
+
+    Uses object_pairs_hook to see all key-value pairs before deduplication.
+    Returns a list of key names that appear more than once.
+    """
+    class _DupDetector:
+        def __init__(self) -> None:
+            self.duplicates: list[str] = []
+
+        def check(self, pairs: list[tuple[str, object]]) -> dict:
+            keys: dict[str, object] = {}
+            for key, value in pairs:
+                if key in keys:
+                    self.duplicates.append(key)
+                keys[key] = value
+            return keys
+
+    detector = _DupDetector()
+    raw = filepath.read_text()
+    json.loads(raw, object_pairs_hook=detector.check)
+    # Deduplicate the list
+    seen: set[str] = set()
+    unique: list[str] = []
+    for k in detector.duplicates:
+        if k not in seen:
+            seen.add(k)
+            unique.append(k)
+    return unique
+
+
+def validate_checkpoint(
+    checkpoint: dict,
+    workspace: Path | None = None,
+    filepath: Path | None = None,
+) -> CheckpointReport:
     """Validate a checkpoint dict against the v4 schema.
 
     Args:
         checkpoint: Parsed checkpoint.json contents.
         workspace: If provided, also checks artifact files exist and hashes match.
+        filepath: If provided, also checks for duplicate JSON keys in the raw file.
     """
     report = CheckpointReport()
     _validate_metadata(checkpoint, report)
+
+    # Check for duplicate keys in raw JSON (LLM serialization bug)
+    if filepath and filepath.exists():
+        dup_keys = detect_duplicate_keys(filepath)
+        if dup_keys:
+            report.add_warning(None, f"Duplicate top-level JSON keys: {', '.join(dup_keys)}")
+
     if not _validate_phases(checkpoint, report, workspace):
         return report
     _validate_convergence(checkpoint, report)
