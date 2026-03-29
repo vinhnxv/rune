@@ -100,7 +100,7 @@ class DupKeyDetector:
         return keys
 
 detector = DupKeyDetector()
-with open('$file', 'r') as f:
+with open(sys.argv[1], 'r') as f:
     json.loads(f.read(), object_pairs_hook=detector.check)
 
 if detector.duplicates:
@@ -114,7 +114,7 @@ if detector.duplicates:
     print(','.join(unique_dups))
 else:
     print('')
-" 2>/dev/null
+" "$file" 2>/dev/null
     return
   fi
 
