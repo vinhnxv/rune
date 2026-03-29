@@ -69,7 +69,7 @@ Phase 6.3: Arch Review     → Codex architecture review (audit mode only, v1.51
 Phase 7:   Cleanup         → Shutdown requests → approvals → TeamDelete
 ```
 
-### Built-in Ash Roles (Max 7)
+### Built-in Ash Roles (Max 8)
 
 | Ash | Role | When Selected | Perspectives |
 |-----------|------|---------------|-------------|
@@ -79,6 +79,7 @@ Phase 7:   Cleanup         → Shutdown requests → approvals → TeamDelete
 | **Veil Piercer** | Truth-telling review | Every review | Premise validation, production viability, long-term consequences |
 | **Glyph Scribe** | Frontend review | Frontend files changed | TypeScript safety, React performance, accessibility |
 | **Knowledge Keeper** | Docs review | Docs changed (>= 10 lines) | Accuracy, completeness, anti-injection |
+| **Flow Integrity Tracer** | Data flow review | 2+ stack layers in diff | Field phantoms, persistence gaps, roundtrip asymmetry |
 | **Codex Oracle** | Cross-model review | `codex` CLI available | Cross-model security, logic, quality (GPT-5.3-codex) |
 
 Plus **Runebinder** (utility) for aggregation in Phase 5.
@@ -93,7 +94,7 @@ Projects can register additional Ash from local agents, global agents, or other 
 - **Verified** by Truthsight (if `settings.verification.layer_2_custom_agents: true`)
 - **Aggregated** into TOME.md by Runebinder
 
-**Max total:** 7 built-in + up to 2 custom = 9 Ashes (configurable via `settings.max_ashes`). The cap exists because each Ash output (~10k tokens) consumes verifier context budget. Custom Ash ceiling: 2 (total max: 9 = 7 built-in + 2 custom). Increased from 5+3 in v1.17.0 to 6+2 in v1.18.0, then to 7+2 in v1.43.0 (Veil Piercer).
+**Max total:** 8 built-in + up to 2 custom = 10 Ashes (configurable via `settings.max_ashes`). The cap exists because each Ash output (~10k tokens) consumes verifier context budget. Custom Ash ceiling: 2 (total max: 10 = 8 built-in + 2 custom). Increased from 5+3 in v1.17.0 to 6+2 in v1.18.0, then 7+2 in v1.43.0 (Veil Piercer), then 8+2 (Flow Integrity Tracer).
 
 **Migration note (v1.18.0):** Custom Ash ceiling reduced from 3 to 2 due to Codex Oracle addition. Projects using 3 custom Ashes should reduce to 2 or disable Codex Oracle via `talisman.codex.disabled: true`.
 
@@ -110,6 +111,7 @@ tmp/reviews/{id}/
 ├── veil-piercer.md          # Truth-telling findings
 ├── glyph-scribe.md          # Frontend review findings (if summoned)
 ├── knowledge-keeper.md      # Docs review findings (if summoned)
+├── flow-integrity-tracer.md # Data flow review findings (if summoned)
 ├── codex-oracle.md          # Cross-model review findings (if codex CLI available)
 ├── condensed/               # Pre-aggregated Ash outputs (Phase 5.0, when threshold exceeded)
 │   ├── forge-warden.md      #   Condensed: findings + assumptions + summary only

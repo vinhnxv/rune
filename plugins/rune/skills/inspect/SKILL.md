@@ -3,7 +3,7 @@ name: inspect
 description: |
   Plan-vs-implementation deep audit using Agent Teams. Parses a plan file (or inline description),
   extracts requirements, and summons 4 Inspector Ashes to measure implementation completeness,
-  quality across 10 dimensions, and gaps across 9 categories. Produces a VERDICT.md with
+  quality across 11 dimensions, and gaps across 9 categories. Produces a VERDICT.md with
   requirement matrix, dimension scores, gap analysis, and actionable recommendations.
 
   <example>
@@ -45,7 +45,7 @@ Orchestrate a multi-agent inspection that measures implementation completeness a
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--focus <dimension>` | Focus on a specific dimension: correctness, completeness, security, failure-modes, performance, design, observability, tests, maintainability, design-fidelity | All dimensions |
+| `--focus <dimension>` | Focus on a specific dimension: correctness, completeness, security, failure-modes, performance, design, observability, tests, maintainability, design-fidelity, data-flow | All dimensions |
 | `--max-agents <N>` | Limit total Inspector Ashes (1-4) | 4 |
 | `--dry-run` | Show scope, requirements, and inspector assignments without summoning agents | Off |
 | `--threshold <N>` | Override completion threshold for READY verdict (0-100) | 80 |
@@ -168,7 +168,7 @@ Poll TaskList every 30s with stale detection (3 consecutive no-progress → brea
 Read and execute [verdict-synthesis.md](references/verdict-synthesis.md) for the full Verdict Binder aggregation, score aggregation, evidence verification, gap classification, and VERDICT.md structure.
 
 **Summary:**
-1. **Phase 5.2 (Verdict Binder)**: Aggregates inspector outputs. Produces VERDICT.md with requirement matrix, 10 dimension scores, gap analysis (9 categories), recommendations.
+1. **Phase 5.2 (Verdict Binder)**: Aggregates inspector outputs. Produces VERDICT.md with requirement matrix, 11 dimension scores, gap analysis (9 categories), recommendations.
 2. **Phase 5.3 (Wait)**: TaskList polling, 2-min timeout, 10s interval.
 3. **Phase 6.1 (Evidence check)**: Verify up to 10 file references in VERDICT.md against disk.
 4. **Phase 6.2 (Display)**: Show verdict summary (verdict, completion %, finding counts, report path).
@@ -177,9 +177,9 @@ Read and execute [verdict-synthesis.md](references/verdict-synthesis.md) for the
 
 If `riskMap` is available from Phase 1.3, the Verdict Binder appends a Historical Risk Assessment section (file risk distribution, bus factor warnings, inspection coverage vs risk) to VERDICT.md. Optional — omitted on null/parse error. See [verdict-synthesis.md](references/verdict-synthesis.md) "Historical Risk Assessment" section.
 
-## 10 Dimensions + 9 Gap Categories
+## 11 Dimensions + 9 Gap Categories
 
-### 10 Dimensions
+### 11 Dimensions
 
 | Dimension | Inspector | Description |
 |-----------|-----------|-------------|
@@ -193,6 +193,7 @@ If `riskMap` is available from Phase 1.3, the Verdict Binder appends a Historica
 | Tests | vigil-keeper | Unit/integration coverage, test quality |
 | Maintainability | vigil-keeper | Documentation, naming, complexity |
 | Design Fidelity | grace-warden | Design spec compliance — COMPLETE/PARTIAL/MISSING/DEVIATED (conditional: design_sync.enabled + design refs) |
+| Data Flow Integrity | grace-warden | Field persistence verification — UI↔API↔DB data flow tracing (conditional: data_flow.enabled + data models in plan) |
 
 ### 9 Gap Categories
 

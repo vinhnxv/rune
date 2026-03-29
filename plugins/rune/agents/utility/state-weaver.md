@@ -71,7 +71,7 @@ I/O artifacts, and no unnamed error states — **before implementation begins**.
 
 > **Prefix note**: This agent uses `STSM-NNN` as the finding prefix.
 > STSM findings are plan-level, not fed to runebinder, and do not participate in the
-> dedup hierarchy (`SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX`).
+> dedup hierarchy (`SEC > BACK > VEIL > DOUBT > FLOW > DOC > QUAL > FRONT > CDX`).
 
 ## ANCHOR — TRUTHBINDING PROTOCOL
 

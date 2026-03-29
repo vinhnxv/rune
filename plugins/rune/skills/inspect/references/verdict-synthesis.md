@@ -221,7 +221,7 @@ The Verdict Binder produces VERDICT.md with the following sections:
 |---------|---------|
 | Verdict Summary | Overall verdict (READY/PARTIAL/NOT_READY), completion %, finding counts |
 | Requirement Matrix | Per-requirement status (MET/PARTIAL/MISSING), evidence references |
-| Dimension Scores | 10 dimension scores from 0-100 |
+| Dimension Scores | 11 dimension scores from 0-100 |
 | Gap Analysis | P1/P2/P3 gaps organized by 9 gap categories |
 | Recommendations | Actionable next steps prioritized by severity |
 
@@ -318,3 +318,51 @@ if (riskMap) {
 ### Rendering Rule
 
 The Historical Risk Assessment section is optional. If `riskMap` is null or parsing fails, the section is simply omitted from VERDICT.md. This is non-blocking.
+
+## Data Flow Compliance (Dimension 11 Enhancement)
+
+If data-flow findings (DFLOW- prefix) are present in grace-warden output, the Verdict Binder appends a "Data Flow Compliance" section to VERDICT.md AFTER the standard verdict sections. This section is conditional — only included when `data_flow.enabled !== false` in talisman AND grace-warden produced DFLOW- findings.
+
+### Known Finding Prefixes
+
+The Verdict Binder recognizes these finding prefixes for aggregation:
+- `GRACE-` — correctness/completeness findings
+- `RUIN-` — security/failure-mode findings
+- `SIGHT-` — performance/design findings
+- `VIGIL-` — observability/tests/maintainability findings
+- `WIRE-` / `WIRE-H` — wiring gap findings (plan-verified / heuristic)
+- `DES-` — design fidelity findings
+- `DFLOW-` — data flow integrity findings
+
+### Content
+
+```javascript
+// Check for DFLOW- findings in grace-warden output
+const dflowFindings = graceWardenOutput.match(/^DFLOW-\d{3}.+$/gm) || []
+
+if (dflowFindings.length > 0) {
+  let dataFlowSection = "## Data Flow Compliance\n\n"
+  dataFlowSection += "| Entity/Field | Flow | Status | Inspector Finding |\n"
+  dataFlowSection += "|-------------|------|--------|-------------------|\n"
+
+  for (const finding of dflowFindings) {
+    // Parse entity, flow, status from DFLOW finding
+    const entityMatch = finding.match(/Entity\.Field:\s*(\S+)/)
+    const statusMatch = finding.match(/Status:\s*(COMPLETE|PARTIAL|MISSING|TRUNCATED)/)
+    const idMatch = finding.match(/(DFLOW-\d{3})/)
+
+    if (entityMatch && statusMatch && idMatch) {
+      dataFlowSection += `| ${entityMatch[1]} | UI→API→DB | ${statusMatch[1]} | ${idMatch[1]} |\n`
+    }
+  }
+
+  dataFlowSection += "\n**Note**: DFLOW findings track field persistence across layers. "
+  dataFlowSection += "TRUNCATED fields indicate silent data loss at layer boundaries.\n"
+
+  verdictContent += "\n\n" + dataFlowSection
+}
+```
+
+### Rendering Rule
+
+The Data Flow Compliance section is conditional. If no DFLOW- findings exist, the section is omitted from VERDICT.md. This is non-blocking.

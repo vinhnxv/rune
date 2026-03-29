@@ -348,6 +348,27 @@ def _inject_work_defaults(data: dict[str, Any]) -> None:
 
 def _inject_remaining_section_defaults(data: dict[str, Any]) -> None:
     """Inject arc, audit, and echoes sub-key defaults."""
+    data.setdefault("data_flow", {
+        "enabled": True,
+        "min_layers": 2,
+        "auto_fields": [
+            "id", "pk", "uuid",
+            "created_at", "updated_at", "deleted_at",
+            "version",
+        ],
+        "exclude_fields": [],
+        "severity": {
+            "field_phantom": "P1",
+            "persistence_gap": "P1",
+            "roundtrip_asymmetry": "P1",
+            "display_ghost": "P2",
+            "schema_drift": "P2",
+        },
+        "generate_tests": True,
+        "devise_scanning": True,
+        "inspect_dimension": True,
+    })
+
     arc = data.get("arc", {})
     if "no_test" not in arc.get("defaults", {}):
         arc.setdefault("defaults", {})["no_test"] = False

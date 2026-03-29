@@ -84,6 +84,9 @@ Thin wrapper that sets audit-specific parameters, then delegates to the shared R
 
 **Max agents** reduces team size when context or cost is a concern. Priority order: Ward Sentinel > Forge Warden > Veil Piercer > Pattern Weaver > Glyph Scribe > Knowledge Keeper > Codex Oracle.
 
+**Conditional Ashes** (not counted in the 7 built-in cap — spawned only when gate conditions are met):
+- **flow-integrity-tracer** (FLOW- prefix): Data flow integrity verification across UI↔API↔DB layers. Gate: `talisman.data_flow.enabled` (default: true) AND 2+ stack layers detected in scanned files. See [circle-registry.md](../roundtable-circle/references/circle-registry.md) for the full conditional Ash registry.
+
 ## Preamble: Set Parameters
 
 ```javascript

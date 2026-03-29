@@ -428,7 +428,8 @@ all_shards=$(echo "$merged" | jq '{
     self_audit: (.self_audit // {}),
     file_todos: (.file_todos // {}),
     devise: (.devise // {}),
-    strive: (.strive // {})
+    strive: (.strive // {}),
+    data_flow: (.data_flow // {})
   },
   keyword_detection: (.keyword_detection // {}),
   tool_failure_tracking: (.tool_failure_tracking // {}),

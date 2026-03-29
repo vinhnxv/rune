@@ -89,7 +89,7 @@ Agent({
   name: "runebinder",
   subagent_type: "general-purpose",
   prompt: `Read all findings from tmp/reviews/{identifier}/.
-    Deduplicate using hierarchy from settings.dedup_hierarchy (default: SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX).
+    Deduplicate using hierarchy from settings.dedup_hierarchy (default: SEC > BACK > VEIL > DOUBT > FLOW > DOC > QUAL > FRONT > CDX).
     Include custom Ash outputs and Codex Oracle (CDX prefix) in dedup — use their finding_prefix from config.
     Write unified summary to tmp/reviews/{identifier}/TOME.md.
     Use the TOME format from ../../../agents/utility/runebinder.md.

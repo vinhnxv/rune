@@ -105,7 +105,7 @@ All specialist agents produce findings with unique prefixes to enable dedup:
 **Dedup hierarchy position**: Stack specialist prefixes are positioned BELOW the core Roundtable Circle prefixes:
 
 ```
-SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > FIDE > DSYS > CDX > PY > TSR > RST > AXUM > PHP > FAPI > DJG > LARV > SQLA > REACT > VUE > NEXT > VTE > TDD > DDD > DI
+SEC > BACK > VEIL > DOUBT > FLOW > DOC > QUAL > FRONT > FIDE > DSYS > CDX > PY > TSR > RST > AXUM > PHP > FAPI > DJG > LARV > SQLA > REACT > VUE > NEXT > VTE > TDD > DDD > DI
 ```
 
 When a stack specialist and a core Ash find the same issue, the core Ash's finding takes priority.
