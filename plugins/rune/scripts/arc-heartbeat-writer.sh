@@ -109,6 +109,10 @@ if [[ -f "$CKPT_PATH" && ! -L "$CKPT_PATH" ]]; then
   fi
 fi
 
+# ── Session nonce (stable per session, truncated to 16 chars) ──
+_NONCE="${RUNE_SESSION_ID:-$$-$(date +%s)}"
+_NONCE="${_NONCE:0:16}"
+
 # ── Atomic write (mktemp + mv) ──
 mkdir -p "$HEARTBEAT_DIR" 2>/dev/null || exit 0
 HB_TMP=$(mktemp "${HEARTBEAT_FILE}.XXXXXX" 2>/dev/null) || exit 0
@@ -117,7 +121,9 @@ jq -n \
   --arg tool "${TOOL_NAME:-unknown}" \
   --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg arc_id "$ARC_ID" \
-  '{arc_id: $arc_id, phase: $phase, last_tool: $tool, last_activity: $ts}' \
+  --arg nonce "$_NONCE" \
+  --argjson owner_pid "${PPID:-0}" \
+  '{arc_id: $arc_id, phase: $phase, last_tool: $tool, last_activity: $ts, nonce: $nonce, owner_pid: $owner_pid}' \
   > "$HB_TMP" 2>/dev/null || { rm -f "$HB_TMP" 2>/dev/null; exit 0; }
 mv -f "$HB_TMP" "$HEARTBEAT_FILE" 2>/dev/null || rm -f "$HB_TMP" 2>/dev/null
 exit 0

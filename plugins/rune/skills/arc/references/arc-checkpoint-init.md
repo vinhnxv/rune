@@ -129,7 +129,9 @@ function resolveArcConfig(arc, work, inlineFlags) {
       lock_file_conflict: talismanPreMerge.lock_file_conflict ?? true,
       uncommitted_changes: talismanPreMerge.uncommitted_changes ?? true,
       migration_paths: Array.isArray(talismanPreMerge.migration_paths) ? talismanPreMerge.migration_paths : [],
-    }
+    },
+    // v2.31.0: User-defined phase skip list (merged into skip_map at init time)
+    skip_phases: Array.isArray(arc?.skip_phases) ? arc.skip_phases : [],
   }
 
   // Layer 3: Inline CLI flags override (only if explicitly passed)
@@ -345,6 +347,23 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
     }
   }
 
+  // ── User-defined skip phases (v2.31.0+) ──
+  // Merge arc.skip_phases[] from talisman config. Applied AFTER all feature-based
+  // skip logic so user overrides don't conflict with safety-critical skips.
+  // FORBIDDEN_PHASE_KEYS guard prevents prototype pollution.
+  const userSkipPhases = arcConfig.skip_phases ?? []
+  for (const phase of userSkipPhases) {
+    if (FORBIDDEN_PHASE_KEYS.has(phase)) continue
+    if (PHASE_ORDER.includes(phase)) {
+      // Don't override existing skip reasons — user_skip is lower priority
+      if (!map[phase]) {
+        map[phase] = "user_skip"
+      }
+    } else {
+      warn(`arc.skip_phases: unknown phase "${phase}" — ignoring`)
+    }
+  }
+
   // ── Validate all keys exist in PHASE_ORDER (defense-in-depth) ──
   for (const key of Object.keys(map)) {
     if (!PHASE_ORDER.includes(key)) {
@@ -417,7 +436,7 @@ const parentPlanMeta = {
 const checkpointPath = `.rune/arc/${id}/checkpoint.json`
 Bash(`mkdir -p ".rune/arc/${id}"`)
 Write(checkpointPath, {
-  id, schema_version: 27, plan_file: planFile,
+  id, schema_version: 28, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   // RUIN-003 FIX: Remove redundant ?? guards — Layer 2 resolveArcConfig() already guarantees all values are defined
   flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, no_browser_test: arcConfig.no_browser_test, accept_external_changes: arcConfig.accept_external_changes, bot_review: arcConfig.bot_review, no_bot_review: arcConfig.no_bot_review },
@@ -609,6 +628,13 @@ Write(checkpointPath, {
     last_resume_at: null,
     consecutive_failures: 0
   },
+  // Schema v28 addition: Operational reliability — stop hook persistence and retry tracking.
+  // work_completion_verified: set to true by stop hook after confirming work phase output exists.
+  // stop_hook_retries: number of times the stop hook has re-injected due to transient failures.
+  // cumulative_retry_cost_cents: running total of API cost (in cents) consumed by stop hook retries.
+  work_completion_verified: false,
+  stop_hook_retries: 0,
+  cumulative_retry_cost_cents: 0,
   commits: [],
   started_at: new Date().toISOString(),
   updated_at: new Date().toISOString()

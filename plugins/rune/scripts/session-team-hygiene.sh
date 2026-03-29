@@ -261,6 +261,85 @@ fi
 
 [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: orphans auto-cleaned: ${orphans_cleaned}" >> "${_RUNE_TRACE_PATH}"
 
+# ── Stale heartbeat detection (advisory only) ──
+# Scans tmp/arc/*/heartbeat.json for heartbeats whose owner_pid is dead,
+# indicating a crashed arc session. Reports to stderr — does NOT auto-cleanup.
+_scan_stale_heartbeats() {
+  local cwd="$1"
+  local hb_dir="${cwd}/tmp/arc"
+  [[ -d "$hb_dir" ]] || return 0
+
+  # Read stale threshold from talisman arc shard (default: 15 minutes)
+  local stale_threshold_min=15
+  local talisman_shard="${cwd}/tmp/.talisman-resolved/arc.json"
+  if [[ -f "$talisman_shard" ]] && [[ ! -L "$talisman_shard" ]]; then
+    local talisman_val
+    talisman_val=$(jq -r '.heartbeat.stale_threshold_minutes // 15' "$talisman_shard" 2>/dev/null || echo "15")
+    if [[ "$talisman_val" =~ ^[0-9]+$ ]]; then
+      stale_threshold_min="$talisman_val"
+      # Clamp to [5, 120]
+      [[ "$stale_threshold_min" -lt 5 ]] && stale_threshold_min=5
+      [[ "$stale_threshold_min" -gt 120 ]] && stale_threshold_min=120
+    fi
+  fi
+
+  local stale_threshold_sec=$(( stale_threshold_min * 60 ))
+  local now_epoch
+  now_epoch=$(date +%s)
+  local stale_hb_count=0
+
+  shopt -s nullglob 2>/dev/null || true
+  for hb_file in "$hb_dir"/*/heartbeat.json; do
+    [[ -f "$hb_file" ]] || continue
+    [[ -L "$hb_file" ]] && continue
+
+    # Extract fields from heartbeat JSON
+    local hb_arc_id hb_last_activity hb_owner_pid hb_nonce
+    hb_arc_id=$(jq -r '.arc_id // empty' "$hb_file" 2>/dev/null || true)
+    hb_last_activity=$(jq -r '.last_activity // empty' "$hb_file" 2>/dev/null || true)
+    hb_owner_pid=$(jq -r '.owner_pid // empty' "$hb_file" 2>/dev/null || true)
+    hb_nonce=$(jq -r '.nonce // empty' "$hb_file" 2>/dev/null || true)
+
+    # Skip if missing critical fields
+    [[ -n "$hb_arc_id" && "$hb_arc_id" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
+    [[ -n "$hb_last_activity" ]] || continue
+
+    # Parse last_activity timestamp to epoch
+    local hb_epoch
+    hb_epoch=$(_parse_iso_epoch "$hb_last_activity" 2>/dev/null || echo "0")
+    [[ "$hb_epoch" =~ ^[0-9]+$ ]] || hb_epoch=0
+
+    # Calculate elapsed time
+    local elapsed=$(( now_epoch - hb_epoch ))
+    [[ "$elapsed" -lt 0 ]] && elapsed=0
+
+    # Check staleness: elapsed > threshold AND owner_pid is dead
+    if [[ "$elapsed" -gt "$stale_threshold_sec" ]]; then
+      # If owner_pid is present and valid, check liveness
+      if [[ -n "$hb_owner_pid" && "$hb_owner_pid" =~ ^[0-9]+$ ]]; then
+        # SEC-008: Skip sentinel PIDs
+        [[ "$hb_owner_pid" == "0" || "$hb_owner_pid" == "1" ]] && continue
+        # Owner alive → not stale (active session, just slow)
+        if rune_pid_alive "$hb_owner_pid"; then
+          continue
+        fi
+      fi
+
+      # Advisory: emit warning to stderr
+      local elapsed_min=$(( elapsed / 60 ))
+      printf 'WARN: TLC-003: stale heartbeat detected — arc_id=%s, last_activity=%s (%d min ago), owner_pid=%s (dead), nonce=%s\n' \
+        "$hb_arc_id" "$hb_last_activity" "$elapsed_min" "${hb_owner_pid:-unknown}" "${hb_nonce:-unknown}" >&2
+      stale_hb_count=$((stale_hb_count + 1))
+    fi
+  done
+  shopt -u nullglob 2>/dev/null || true
+
+  [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && \
+    echo "[$(date '+%H:%M:%S')] TLC-003: stale heartbeats found: ${stale_hb_count} (threshold: ${stale_threshold_min}m)" >> "${_RUNE_TRACE_PATH}"
+}
+
+_scan_stale_heartbeats "$CWD"
+
 # ── Kill orphan teammate processes on resume ──
 # Same pattern as on-session-stop.sh Phase 0 (_kill_stale_teammates), but scoped to
 # dead owner PIDs found in state files. On crash-resume, teammate processes from the

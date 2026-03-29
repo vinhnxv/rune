@@ -8,7 +8,7 @@ description: |
 
   Covers: Inspector output aggregation, requirement matrix merging, weighted completion
   computation, dimension score merging, finding deduplication with priority ordering,
-  gap classification (10 categories), verdict determination (READY/GAPS_FOUND/INCOMPLETE/CRITICAL_ISSUES).
+  gap classification (10 categories), verdict determination (READY/READY_PARTIAL/GAPS_FOUND/INCOMPLETE/CRITICAL_ISSUES).
 tools:
   - Read
   - Write
@@ -243,6 +243,52 @@ else:
   verdict = "READY"
 ```
 
+### Step 7 -- Skipped Phase Handling (v2.31.0+)
+
+When phases have `user_skip` reason in the checkpoint's `skip_map`, flag them as UNTESTED
+in the verdict. Read `skip_map` from the checkpoint (passed via task context).
+
+```
+// Phase-to-dimension mapping for UNTESTED labeling
+PHASE_DIMENSION_MAP = {
+  code_review: "Code Quality",
+  inspect: "Correctness",
+  test: "Test Coverage",
+  gap_analysis: "Gap Analysis",
+  mend: "Finding Resolution",
+  design_verification: "Design Fidelity",
+  browser_test: "Browser Testing",
+}
+
+// Security-critical phases — skipping these downgrades READY to READY_PARTIAL
+SECURITY_CRITICAL_PHASES = ["code_review", "inspect", "test"]
+
+userSkippedPhases = Object.entries(skip_map)
+  .filter(([phase, reason]) => reason === "user_skip")
+  .map(([phase]) => phase)
+
+if (userSkippedPhases.length > 0):
+  // Downgrade READY → READY_PARTIAL when security-critical phases are skipped
+  hasCriticalSkip = userSkippedPhases.some(p => SECURITY_CRITICAL_PHASES.includes(p))
+  if (verdict === "READY" && hasCriticalSkip):
+    verdict = "READY_PARTIAL"
+```
+
+When user-skipped phases exist, add a `## Skipped Phases (UNTESTED)` section to the VERDICT.md
+output (after Dimension Scores, before Gap Analysis):
+
+```markdown
+## Skipped Phases (UNTESTED)
+
+The following phases were skipped via `arc.skip_phases` or `--depth` preset.
+Their quality dimensions are **unverified** in this verdict.
+
+| Phase | Dimension | Impact |
+|-------|-----------|--------|
+| code_review | Code Quality | Unverified |
+| inspect | Correctness | Unverified |
+```
+
 ### WIRE-H Completion Cap
 
 WIRE-H (heuristic) findings are advisory — they should surface gaps without tanking the READY verdict.
@@ -281,7 +327,7 @@ Write exactly this structure:
 | P1 Findings (Raw) | (count) |
 | P1 Findings (Adjusted) | (count) (excluding INTENTIONAL/EXCLUDED/FP) |
 | Classifications Applied | (summary, e.g., 1 INTENTIONAL, 1 DRIFT) |
-| Verdict | **(READY/GAPS_FOUND/INCOMPLETE/CRITICAL_ISSUES)** |
+| Verdict | **(READY/READY_PARTIAL/GAPS_FOUND/INCOMPLETE/CRITICAL_ISSUES)** |
 | Inspectors | (count)/(summoned) completed |
 | Date | (timestamp) |
 

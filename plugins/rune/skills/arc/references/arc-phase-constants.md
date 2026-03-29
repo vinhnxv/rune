@@ -323,6 +323,7 @@ const SKIP_REASONS = {
   TESTING_DISABLED: "testing_disabled",               // --no-test flag or arc.defaults.no_test
   INSPECT_DISABLED: "inspect_disabled",               // arc.inspect.enabled === false
   BROWSER_TEST_DISABLED: "browser_test_disabled",     // --no-browser-test flag or arc.defaults.no_browser_test
+  USER_SKIP: "user_skip",                             // arc.skip_phases[] or --depth preset
 }
 
 // ── Phase skip classification ──
@@ -343,6 +344,32 @@ const SKIP_REASONS = {
 // ── phase_skip_log entry schema (appended to checkpoint by stop hook) ──
 // { phase: string, event: "auto_skipped", reason: string,
 //   source: "preflight_skip_map", timestamp: ISO8601 }
+
+// ── Depth presets (v2.31.0+) ──
+// Predefined skip_phases sets for --depth flag. Each preset maps to an array
+// of phases to skip via user_skip reason. Resolved at checkpoint init time.
+// Usage: /rune:arc --depth quick  →  arc.skip_phases = DEPTH_PRESETS.quick
+const DEPTH_PRESETS = {
+  // quick: Skip heavy quality gates — fastest path to PR
+  quick: [
+    "forge", "forge_qa", "semantic_verification", "design_extraction",
+    "design_prototype", "design_verification", "design_verification_qa",
+    "ux_verification", "storybook_verification", "codex_gap_analysis",
+    "goldmask_verification", "goldmask_correlation", "inspect", "inspect_fix",
+    "verify_inspect", "design_iteration", "browser_test", "browser_test_fix",
+    "verify_browser_test", "test_coverage_critique", "release_quality_check",
+    "bot_review_wait", "pr_comment_resolution"
+  ],
+  // standard: Default — skip optional/conditional phases only
+  standard: [
+    "design_extraction", "design_prototype", "design_verification",
+    "design_verification_qa", "ux_verification", "storybook_verification",
+    "design_iteration", "browser_test", "browser_test_fix",
+    "verify_browser_test", "bot_review_wait", "pr_comment_resolution"
+  ],
+  // thorough: Skip nothing — all phases run (empty list)
+  thorough: []
+}
 ```
 
 See [phase-tool-matrix.md](phase-tool-matrix.md) for per-phase tool restrictions and time budget details.
@@ -394,6 +421,25 @@ function updateCheckpoint(fields) {
   // Atomic write
   Write(checkpointPath, JSON.stringify(checkpoint, null, 2))
 }
+```
+
+### Operational Reliability Fields (Schema v28)
+
+Top-level checkpoint fields for stop hook persistence and retry cost tracking:
+
+| Field | Type | Default | Updated by |
+|-------|------|---------|------------|
+| `work_completion_verified` | boolean | `false` | Stop hook — set `true` after confirming work phase output exists |
+| `stop_hook_retries` | integer | `0` | Stop hook — incremented on each re-injection due to transient failure |
+| `cumulative_retry_cost_cents` | integer | `0` | Stop hook — running total of API cost (cents) consumed by retries |
+
+Usage in stop hook:
+```javascript
+updateCheckpoint({
+  stop_hook_retries: checkpoint.stop_hook_retries + 1,
+  cumulative_retry_cost_cents: checkpoint.cumulative_retry_cost_cents + estimatedCostCents,
+  work_completion_verified: true  // after confirming work output
+})
 ```
 
 ### Script-Based Alternative

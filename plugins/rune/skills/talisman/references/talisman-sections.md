@@ -38,6 +38,7 @@ This list reflects the documented schema used by Rune (including default-injecte
 | 30 | `discipline` | Proof validation | `enabled`, `block_on_fail`, `proof_timeout`, `max_convergence_iterations`, `echo_back_required` |
 | 31 | `stack_awareness` | Stack detection & specialist selection | `enabled`, `confidence_threshold`, `max_stack_ashes`, `design_compliance`, `override.*`, `custom_rules[]`, `priority.*` |
 | 32 | `data_flow` | Field-level persistence verification | `enabled`, `min_layers`, `auto_fields[]`, `exclude_fields[]`, `severity.*`, `generate_tests`, `devise_scanning`, `inspect_dimension` |
+| 33 | `arc.persistence` | Arc pipeline retry on API failures | `enabled`, `max_retries`, `max_budget_cents` |
 
 ## Critical Sections (Must-Have)
 
