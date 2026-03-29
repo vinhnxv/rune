@@ -43,6 +43,7 @@ Each agent uses a unique prefix for its findings:
 | WIRE | grace-warden | Wiring map verification |
 | UXH | ux-heuristic-reviewer | UX heuristics |
 | UXI | ux-interaction-auditor | Micro-interactions |
+| FLOW | flow-integrity-tracer | Data flow integrity |
 | DES | design-implementation-reviewer | Design fidelity |
 
 ### Confidence Calibration

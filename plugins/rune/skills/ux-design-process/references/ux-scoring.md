@@ -74,7 +74,7 @@ Examples:
 UX prefixes are positioned below FRONT in the Rune dedup hierarchy:
 
 ```
-SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > UXH > UXF > UXI > UXC > CDX
+SEC > BACK > VEIL > DOUBT > FLOW > DOC > QUAL > FRONT > UXH > UXF > UXI > UXC > CDX
 ```
 
 ### Dedup Rules

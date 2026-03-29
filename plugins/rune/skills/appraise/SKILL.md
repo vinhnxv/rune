@@ -7,6 +7,7 @@ description: |
   Optional `--deep` runs multi-wave deep review with up to 18 Ashes across 3 waves.
   Phase 1.5 adds UX reviewers when `talisman.ux.enabled` + frontend files detected.
   Phase 1.6 adds design fidelity reviewer (DES prefix) when `talisman.design_review.enabled` + frontend files detected.
+  Phase 1.7 adds data flow integrity reviewer (FLOW prefix) when 2+ stack layers detected in diff.
 
   <example>
   user: "/rune:appraise"
@@ -211,7 +212,7 @@ Read and execute [tome-aggregation.md](references/tome-aggregation.md) for the f
 
 **Summary of phases:**
 - **Phase 4.5 (Doubt Seer)**: Conditional. Strict opt-in (`talisman.doubt_seer.enabled = true`). Cross-examines P1/P2 findings. 5-min timeout. VERDICT: BLOCK sets `workflow_blocked` flag.
-- **Phase 5 (Runebinder)**: Aggregates all Ash findings. Deduplicates using `SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > DES > AESTH > UXH > UXF > UXI > UXC > CDX` hierarchy. Writes `TOME.md`. Every finding MUST be wrapped in `<!-- RUNE:FINDING ... -->` markers for mend parsing.
+- **Phase 5 (Runebinder)**: Aggregates all Ash findings. Deduplicates using `SEC > BACK > VEIL > DOUBT > FLOW > DOC > QUAL > FRONT > DES > AESTH > UXH > UXF > UXI > UXC > CDX` hierarchy. Writes `TOME.md`. Every finding MUST be wrapped in `<!-- RUNE:FINDING ... -->` markers for mend parsing.
 - **Phase 5.3 (Diff-Scope Tagging)**: Orchestrator-only. Tags findings with `scope="in-diff"` or `scope="pre-existing"`.
 - **Phase 5.5 (Cross-Model Verification)**: Only if Codex Oracle was summoned. Verifies CDX findings against source. Removes HALLUCINATED + UNVERIFIED findings.
 - **Phase 6 (Truthsight)**: Layer 0 inline checks + Layer 2 verifier for P1 findings.

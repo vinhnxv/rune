@@ -1884,6 +1884,31 @@ context_weaving:
 #       screenshot_diff: auto                # Tier 3 — auto-detect agent-browser
 #       responsive_check: auto               # Tier 3 — auto-detect agent-browser
 
+# ── Data Flow Integrity Verification (v2.30.0+) ──────────────
+# Field-level persistence verification across UI ↔ API ↔ Database layers.
+# Detects field phantoms, persistence gaps, roundtrip asymmetry.
+# data_flow:
+#   enabled: true                              # Master switch (default: true)
+#   min_layers: 2                              # Minimum layers to verify (2 = API↔DB, 3 = UI↔API↔DB)
+#   auto_fields:                               # Fields automatically tracked across all layers
+#     - id
+#     - pk
+#     - uuid
+#     - created_at
+#     - updated_at
+#     - deleted_at
+#     - version
+#   exclude_fields: []                         # Fields to exclude from verification
+#   severity:                                  # Finding severity mapping
+#     field_phantom: P1                        # Field exists in API but not in DB
+#     persistence_gap: P1                      # Field written but never persisted
+#     roundtrip_asymmetry: P1                  # Create/read field sets differ
+#     display_ghost: P2                        # UI shows field not in API response
+#     schema_drift: P2                         # DB schema diverges from ORM model
+#   generate_tests: true                       # Auto-generate roundtrip verification tests
+#   devise_scanning: true                      # Scan during /rune:devise for data flow risks
+#   inspect_dimension: true                    # Enable as inspect dimension 11
+
 # ── Brand Guidelines (v2.17.5+) ──
 # Defines brand-level overrides for design workflows. When populated,
 # brand colors become highest-priority token overrides in design-sync Phase 0,

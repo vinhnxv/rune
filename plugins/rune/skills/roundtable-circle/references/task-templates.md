@@ -107,7 +107,7 @@ Identical to review mode except:
 ```
 TaskCreate({
   subject: "Aggregate findings into TOME",
-  description: "Read all Ash output files from {output_dir}. Deduplicate using hierarchy (SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX). Write TOME.md with unified findings sorted by priority.",
+  description: "Read all Ash output files from {output_dir}. Deduplicate using hierarchy (SEC > BACK > VEIL > DOUBT > FLOW > DOC > QUAL > FRONT > CDX). Write TOME.md with unified findings sorted by priority.",
   activeForm: "Aggregating findings into TOME"
 })
 ```

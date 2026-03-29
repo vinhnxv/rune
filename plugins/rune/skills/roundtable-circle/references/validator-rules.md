@@ -110,7 +110,7 @@ aggregate_confidence = weighted_average(
 ### Hierarchy
 
 ```
-SEC (Ward Sentinel) > BACK (Forge Warden) > VEIL (Veil Piercer) > DOUBT (Doubt Seer) > DOC (Knowledge Keeper) > QUAL (Pattern Weaver) > FRONT (Glyph Scribe) > CDX (Codex Oracle)
+SEC (Ward Sentinel) > BACK (Forge Warden) > VEIL (Veil Piercer) > DOUBT (Doubt Seer) > FLOW (Flow Integrity Tracer) > DOC (Knowledge Keeper) > QUAL (Pattern Weaver) > FRONT (Glyph Scribe) > CDX (Codex Oracle)
 ```
 
 ### Same-File, Same-Line Detection

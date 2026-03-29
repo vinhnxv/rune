@@ -197,7 +197,7 @@ Before researching solutions, scan affected code areas for existing bugs, gaps, 
 
 **Issue inventory categories**:
 - **Bugs**: Signature violations, undefined references, stale patterns, contract violations
-- **Gaps**: Missing tests, orphaned references, missing error handling, undocumented behavior
+- **Gaps**: Missing tests, orphaned references, missing error handling, undocumented behavior, field persistence — fields that don't flow through all CRUD layers (model→serializer→handler→form)
 - **Risks**: High-fanout files, shared state, implicit contracts, fragile tests
 
 **Dependency chain tracing**: For each discovered issue, trace upstream (where does the wrong value come from?) and downstream (what's impacted?). Classify fix_location as "upstream" or "local".

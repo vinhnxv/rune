@@ -83,7 +83,7 @@ Before beginning aggregation, query Rune Echoes for previously identified aggreg
    > Condensed files preserve all RUNE:FINDING markers, Reviewer Assumptions, and Summary sections.
    > Non-finding sections (Self-Review Log, Unverified Observations, boilerplate) are stripped.
    > The dedup algorithm is identical — only input volume changes.
-2. Deduplicate findings using the hierarchy: SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX
+2. Deduplicate findings using the hierarchy: SEC > BACK > VEIL > DOUBT > FLOW > DOC > QUAL > FRONT > CDX
 2.3. Parse `confidence` and `confidence_score` from RUNE:FINDING markers. Both are OPTIONAL. Missing values default to `confidence="UNKNOWN"`, `confidence_score=50`. When two findings match same file + 5-line window + same hierarchy level, higher `confidence_score` wins the tiebreak. Include `also_flagged_by` annotations with confidence labels (e.g., "also flagged by: Flaw Hunter [HIGH]").
 2.5. Parse `## Reviewer Assumptions` from each Ash output — collect per-Ash assumption lists and confidence breakdowns (PROVEN/LIKELY/UNCERTAIN counts). If an Ash output is missing `## Reviewer Assumptions`, record it in Coverage Gaps as "partial (no assumptions)". Confidence values are informational only in v1 — NOT used as inputs to mend priority, convergence scoring, or file-todo triage.
 3. Prioritize: P1 first, then P2, then P3
@@ -97,7 +97,7 @@ When two Ash flag the same file within a 5-line range:
 | Condition | Action |
 |-----------|--------|
 | Same file + same 5-line window | Keep higher-priority Ash's finding |
-| Same severity | Keep by hierarchy: SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX |
+| Same severity | Keep by hierarchy: SEC > BACK > VEIL > DOUBT > FLOW > DOC > QUAL > FRONT > CDX |
 | Same severity + same hierarchy level | **Within-tier tiebreaker**: keep finding with higher `confidence_score`. Applied AFTER the Ash-priority rule — only when both Ash priority AND hierarchy level are identical |
 | Different severity | Keep highest severity (P1 > P2 > P3) |
 | Different perspectives | Keep both (different value) |
@@ -223,7 +223,7 @@ When spawned as a Rune teammate, your runtime context (task_id, output_path, cha
 When the same file + line range (5-line window) is flagged by multiple Ash:
 
 Priority order (highest first):
-  SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX
+  SEC > BACK > VEIL > DOUBT > FLOW > DOC > QUAL > FRONT > CDX
   (Ward Sentinel > Forge Warden > Veil Piercer > Knowledge Keeper > Pattern Weaver > Glyph Scribe > Codex Oracle)
 
 Rules:
@@ -315,7 +315,7 @@ Include in Statistics: "Inner Flame: grounding={pass/fail}, dropped={count}, fab
 
 ### Cross-Chunk Merge
 
-When chunked review is active, Runebinder receives multiple chunk TOMEs instead of a single set of Ash output files. Apply standard 5-line window dedup algorithm stripping the `chunk` attribute before keying. Priority order remains: `SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX`. After dedup, the winning finding retains its `chunk` attribute for traceability.
+When chunked review is active, Runebinder receives multiple chunk TOMEs instead of a single set of Ash output files. Apply standard 5-line window dedup algorithm stripping the `chunk` attribute before keying. Priority order remains: `SEC > BACK > VEIL > DOUBT > FLOW > DOC > QUAL > FRONT > CDX`. After dedup, the winning finding retains its `chunk` attribute for traceability.
 
 ### Exit Conditions
 

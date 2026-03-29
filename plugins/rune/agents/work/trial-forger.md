@@ -294,6 +294,7 @@ In addition to example-based tests, generate property-based tests (PBT) when cod
 | Sorting/ordering | `sort(sort(x)) === sort(x)` and length preserved | Custom comparators, ranking |
 | Data structures | Invariants hold after any operation sequence | Add/remove/get on collections, caches |
 | Mathematical operations | Commutativity, associativity, distributivity | Custom numeric types, currency |
+| CRUD roundtrip | `read(create(x)).fields ⊇ x.fields` | REST APIs, GraphQL mutations, ORM model persistence |
 
 ### Library Selection
 
@@ -305,6 +306,25 @@ In addition to example-based tests, generate property-based tests (PBT) when cod
 | Go | rapid | `go get pgregory.net/rapid` | `import "pgregory.net/rapid"` |
 
 **Library detection**: Check `package.json` for `fast-check`, `requirements.txt`/`pyproject.toml` for `hypothesis`, `Cargo.toml` for `proptest`. If library is already installed, use it. If absent but PBT-suitable patterns detected, suggest installing it in your Seal message.
+
+### CRUD Roundtrip Detection
+
+When code under test includes CRUD operations (create/read/update/delete on a resource), generate a roundtrip property test that verifies **field persistence** across the full stack: model → serializer → handler → response.
+
+**Detection triggers**:
+- REST handlers with POST+GET or PUT+GET on the same resource path
+- ORM models with corresponding serializer/schema classes
+- GraphQL mutation+query pairs for the same type
+- Repository/DAO classes with save+find method pairs
+
+**Property**: For any valid input fields `F`, `read(create(F)).fields ⊇ F` — every field written must appear in the read response. For update: `read(update(id, F)).fields ⊇ F`.
+
+**What this catches**: Fields defined in the model but omitted from the serializer, fields accepted on write but stripped on read, fields lost during ORM hydration, and nullable fields that silently drop values.
+
+**Integration test infrastructure**: CRUD roundtrip tests typically require a running database or test server. Detect existing integration test infrastructure:
+1. Check for `docker-compose.test.yml`, `testcontainers`, or `@testcontainers/*` in dependencies
+2. Check for `conftest.py` with database fixtures, or `beforeAll`/`setupFilesAfterFramework` with DB setup
+3. If infrastructure exists, use it. If absent, generate the test with a `@pytest.mark.integration` / `describe.skip("requires DB")` marker and note in Seal.
 
 ### PBT Code Templates
 
@@ -336,6 +356,39 @@ def test_valid_email_accepted(email):
 @given(st.text())
 def test_json_roundtrip(data):
     assert json.loads(json.dumps(data)) == data
+```
+
+```typescript
+// fast-check: CRUD roundtrip property
+import * as fc from 'fast-check';
+test('created resource fields persist through read', () => {
+  fc.assert(fc.asyncProperty(fc.record({
+    name: fc.string({ minLength: 1 }),
+    email: fc.emailAddress(),
+    age: fc.integer({ min: 0, max: 150 }),
+  }), async (input) => {
+    const created = await api.post('/resources', input);
+    const fetched = await api.get(`/resources/${created.id}`);
+    expect(fetched).toMatchObject(input);
+  }));
+});
+```
+
+```python
+# hypothesis: CRUD roundtrip property
+from hypothesis import given, strategies as st
+
+@given(st.fixed_dictionaries({
+    'name': st.text(min_size=1, max_size=100),
+    'email': st.emails(),
+    'age': st.integers(min_value=0, max_value=150),
+}))
+def test_create_read_roundtrip(fields):
+    """Fields written via create must all appear in subsequent read."""
+    created = client.post('/resources', json=fields).json()
+    fetched = client.get(f'/resources/{created["id"]}').json()
+    for key, value in fields.items():
+        assert fetched[key] == value, f"Field '{key}' lost in roundtrip"
 ```
 
 See [property-based-testing.md](../../skills/testing/references/property-based-testing.md) for the complete reference with Go, Rust examples and advanced generator patterns.

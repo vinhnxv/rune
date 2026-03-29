@@ -1,9 +1,9 @@
 # Agent Registry
 
-**Total: 142 agent definitions** (99 CORE in agents/ + 43 EXTENDED in registry/, 13 shared)
+**Total: 151 agent definitions** (108 CORE in agents/ + 43 EXTENDED in registry/, 13 shared)
 
-> Agent count verified by `find agents/ registry/ -name "*.md" -type f | wc -l` on 2026-03-23.
-> CORE agents (agents/): 15 review + 7 research + 3 work + 16 utility + 30 investigation + 0 testing + 7 qa + 8 meta-qa + 13 shared (incl. README, TEMPLATE) = 99
+> Agent count verified by `find agents/ registry/ -name "*.md" -type f | wc -l` on 2026-03-29.
+> CORE agents (agents/): 17 review + 8 research + 6 work + 16 utility + 31 investigation + 0 testing + 8 qa + 9 meta-qa + 13 shared (incl. README, TEMPLATE) = 108
 > EXTENDED agents (registry/): 25 review + 4 work + 6 utility + 2 investigation + 6 testing = 43
 
 > **Stack specialist reviewers** (python-reviewer, typescript-reviewer, rust-reviewer, php-reviewer, axum-reviewer, fastapi-reviewer, django-reviewer, laravel-reviewer, sqlalchemy-reviewer, tdd-compliance-reviewer, ddd-reviewer, di-reviewer) are NOT registered agents. They are prompt templates at `skills/roundtable-circle/references/specialist-prompts/`, loaded on-demand by `buildAshPrompt()` via stack detection.
@@ -50,6 +50,7 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | ux-cognitive-walker | Cognitive walkthrough — first-time user simulation, discoverability, learnability, error recovery, progressive disclosure (UXC-). Model: opus. Off by default (`cognitive_walkthrough: true` to enable) |
 | aesthetic-quality-reviewer | Aesthetic quality beyond pixel fidelity — anti-slop detection, visual coherence, typography, whitespace balance, design personality scoring (0-100). Complements design-implementation-reviewer |
 | design-system-compliance-reviewer | Design system convention enforcement — token usage, variant patterns (CVA), import paths, class merge utilities, dark mode. Conditional: frontend stack + design system detected (confidence >= 0.70) |
+| flow-integrity-tracer | Field-level data flow verification across UI↔API↔DB layers — field phantoms, persistence gaps, roundtrip asymmetry, display ghosts, schema drift (FLOW-). Conditional: `data_flow.enabled` + 2+ stack layers in diff |
 
 ## Research Agents (`agents/research/`)
 

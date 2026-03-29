@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.30.0] - 2026-03-29
+
+### Added
+- **Data flow integrity verification**: New `flow-integrity-tracer` review agent (`agents/review/flow-integrity-tracer.md`) — traces field-level data flow across UI↔API↔DB layers. Detects field phantoms, persistence gaps, roundtrip asymmetry, display ghosts, schema drift. FLOW- finding prefix. Conditional activation: 2+ stack layers in diff
+- **Inspect Dimension 11**: Data Flow Integrity (DFLOW- prefix) — traces fields through plan requirements to implementation layers
+- **Talisman config**: New `data_flow` section with `enabled` (default: true), `min_layers` (default: 2), severity overrides
+- **CRUD roundtrip tests**: Trial-forger generates field persistence property tests when models/serializers in diff
+- **Devise Phase 0.8**: Field persistence gap scanning in issue discovery
+- **Agent registry**: `flow-integrity-tracer` added (plugin total: 151 agents — 108 core + 43 extended)
+
 ## [2.29.8] - 2026-03-28
 
 ### Fixed

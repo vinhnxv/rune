@@ -97,6 +97,47 @@ if (designReviewEnabled && designSyncEnabled && hasFrontendFiles) {
 
 **Prefix switching**: `design-implementation-reviewer` emits `DES-` prefixed findings when spawned via Phase 1.6 gate. The `FIDE-` prefix in the standalone specialist template is overridden by inscription metadata field `finding_prefix: "DES"` injected at Phase 2.
 
+## Phase 1.7: Data Flow Integrity Reviewer Selection
+
+Conditional data flow integrity agent spawning. Gated by `talisman.data_flow.enabled` (default: true, opt-out) AND 2+ stack layers detected in `changed_files`. Uses the `flow-integrity-tracer` review agent.
+
+```javascript
+// Data Flow Integrity Reviewer Gate — follows the same pattern as Phase 1.6
+const dataFlowEnabled = talisman?.data_flow?.enabled !== false  // default: true (opt-out)
+const minLayers = talisman?.data_flow?.min_layers ?? 2
+
+// Classify changed files into stack layers
+const LAYER_PATTERNS = {
+  frontend:   [/components\//, /pages\//, /views\//, /app\//, /\.tsx$/, /\.vue$/, /\.svelte$/],
+  api:        [/controllers\//, /handlers\//, /routes\//, /api\//, /endpoints\//],
+  model:      [/models\//, /entities\//, /schema\//, /\.prisma$/],
+  migration:  [/migrations\//, /alembic\//, /\.sql$/],
+  serializer: [/serializers\//, /dto\//, /schemas\//, /validators\//],
+}
+
+const layersTouched = new Set()
+for (const file of changed_files) {
+  for (const [layer, patterns] of Object.entries(LAYER_PATTERNS)) {
+    if (patterns.some(p => p.test(file))) {
+      layersTouched.add(layer)
+    }
+  }
+}
+
+if (dataFlowEnabled && layersTouched.size >= minLayers) {
+  ash_selections.add("flow-integrity-tracer")
+  log(`Phase 1.7: flow-integrity-tracer activated — ${layersTouched.size} layers: ${[...layersTouched].join(', ')}`)
+} else {
+  log(`Phase 1.7: flow-integrity-tracer skipped — ${layersTouched.size}/${minLayers} layers`)
+}
+```
+
+**Skip conditions**: `talisman.data_flow.enabled` is `false`, or fewer than `min_layers` (default 2) stack layers detected in diff.
+
+**Finding prefix**: `FLOW` — data flow integrity findings.
+
+**Timeout dead-end**: If `flow-integrity-tracer` task times out during Phase 4 Monitor, treat its contribution as empty findings. Runebinder proceeds with whatever other Ash outputs are present.
+
 ### Dry-Run Exit Point
 
 If `--dry-run` flag is set, display the plan and stop. Do NOT proceed to Phase 2.
@@ -106,7 +147,7 @@ If `--dry-run` flag is set, display the plan and stop. Do NOT proceed to Phase 2
 - Selected Ashes with file assignments per Ash
 - Estimated team size (total Ash count)
 - Chunk plan if file count exceeds CHUNK_THRESHOLD (default: 20)
-- Dedup hierarchy preview: `SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > DES > AESTH > UXH > UXF > UXI > UXC > CDX`
+- Dedup hierarchy preview: `SEC > BACK > VEIL > DOUBT > FLOW > DOC > QUAL > FRONT > DES > AESTH > UXH > UXF > UXI > UXC > CDX`
 - Warnings (e.g., `--deep + --partial` sparse findings warning)
 
 **Does NOT create:**

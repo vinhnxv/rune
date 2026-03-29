@@ -139,6 +139,101 @@ When design-fidelity findings (DES-) are present, the Verdict Binder appends a "
 | AvatarGroup | MISSING | DES-003 |
 ```
 
+## Data Flow Integrity Dimension (Dimension 11) — grace-warden Extension
+
+Data flow integrity is a **conditional dimension** that extends `grace-warden` scope when the plan contains data model definitions and `data_flow.enabled` is not explicitly disabled.
+
+### Gate
+
+```javascript
+// Phase 0.5: Evaluate data-flow-integrity gate
+const inspectConfig = readTalismanSection("inspect")
+const dataFlowConfig = inspectConfig?.data_flow ?? {}
+const dataFlowEnabled = dataFlowConfig.enabled !== false  // default true — opt-out, unlike design-fidelity
+
+// Detect data models in plan (schemas, entities, migrations, CRUD operations)
+function planHasDataModels(parsedPlan) {
+  const planText = parsedPlan?.content ?? ""
+  const dataModelPatterns = [
+    /\b(schema|model|entity|table|migration|field|column)\b/i,
+    /\b(CRUD|create.*read.*update|database|DB|ORM|repository)\b/i,
+    /\b(API.*endpoint|request.*body|response.*body|payload|DTO)\b/i
+  ]
+  return dataModelPatterns.some(p => p.test(planText))
+}
+
+const dataFlowActive = (
+  dataFlowEnabled
+  && planHasDataModels(parsedPlan)
+)
+```
+
+### grace-warden Prompt Extension
+
+When `dataFlowActive === true`, append the following block to the grace-warden prompt AFTER the standard requirements section (and after Design Fidelity if both are active):
+
+```
+## Data Flow Integrity (Dimension 11) — DFLOW- Prefix
+
+You are ALSO responsible for dimension 11: Data Flow Integrity.
+
+For each data entity/model referenced in the plan, trace the field flow through all layers:
+- UI → API: Are form fields / component props correctly mapped to request payloads?
+- API → DB: Are request fields correctly mapped to ORM model fields / DB columns?
+- DB → API: Are stored fields correctly retrieved and serialized in responses?
+- API → UI: Are response fields correctly consumed and displayed in components?
+
+For each field flow, classify its status:
+- COMPLETE: field persists correctly through all layers with correct types
+- PARTIAL: field exists in some layers but is missing or mistyped in others
+- MISSING: field defined in plan but not implemented in any layer
+- TRUNCATED: field exists but is silently dropped or transformed at a layer boundary
+
+Report each classification as a DFLOW- finding:
+
+  DFLOW-001 | P1 | [PERSISTENCE GAP] user.email
+    Plan: User registration stores email
+    Expected: form → POST /users body → User.email column
+    Actual: form sends email, API accepts but ORM model lacks email field
+    Status: TRUNCATED at API→DB boundary
+
+  DFLOW-002 | P2 | [TYPE MISMATCH] order.total
+    Plan: Order total as decimal currency
+    Expected: number → decimal(10,2) column
+    Actual: API sends string, DB stores as integer
+    Status: PARTIAL — exists in all layers but type drift
+
+Gap category mapping:
+- COMPLETE → no gap
+- PARTIAL → INCOMPLETE gap category
+- MISSING → MISSING gap category
+- TRUNCATED → INCORRECT gap category
+```
+
+### Inscription Context Field
+
+When `dataFlowActive === true`, add `data_flow_context` to `inscription.json` before spawning agents:
+
+```javascript
+inscription.data_flow_context = {
+  enabled: true,
+  data_models: extractDataModels(parsedPlan)  // extracted entity names from plan
+}
+```
+
+### VERDICT.md Integration
+
+When data-flow findings (DFLOW-) are present, the Verdict Binder appends a "Data Flow Compliance" section to the requirement matrix:
+
+```markdown
+## Data Flow Compliance
+
+| Entity/Field | Flow | Status | Inspector Finding |
+|-------------|------|--------|-------------------|
+| user.email  | UI→API→DB | TRUNCATED | DFLOW-001 |
+| order.total | UI→API→DB→API→UI | PARTIAL | DFLOW-002 |
+```
+
 ## Phase 3: Summon Inspector Ashes
 
 For each inspector in `inspectorAssignments`, summon using the Agent tool with Agent Teams:
@@ -223,19 +318,20 @@ When `--focus` is active, only 1 inspector is summoned:
 if (flag("--focus")) {
   const inspectorMap = {
     "correctness": "grace-warden",
-    "completeness": "grace-warden",        // QUAL-002 FIX: was missing from original system (now 10 dimensions)
+    "completeness": "grace-warden",        // QUAL-002 FIX: was missing from original system (now 11 dimensions)
     "security": "ruin-prophet",
-    "failure-modes": "ruin-prophet",        // QUAL-002 FIX: was missing from original system (now 10 dimensions)
+    "failure-modes": "ruin-prophet",        // QUAL-002 FIX: was missing from original system (now 11 dimensions)
     "performance": "sight-oracle",
     "design": "sight-oracle",
     "observability": "vigil-keeper",
     "tests": "vigil-keeper",
     "maintainability": "vigil-keeper",
-    "design-fidelity": "grace-warden"      // Dimension 10: conditional on design_sync.enabled + design refs
+    "design-fidelity": "grace-warden",     // Dimension 10: conditional on design_sync.enabled + design refs
+    "data-flow": "grace-warden"            // Dimension 11: conditional on data_flow.enabled + data models in plan
   }
   if (!(focusDimension in inspectorMap)) {
     // SEC-006 FIX: Use fixed error message — do not echo unvalidated user input
-    error("Unknown --focus dimension. Valid: correctness, completeness, security, failure-modes, performance, design, observability, tests, maintainability, design-fidelity")
+    error("Unknown --focus dimension. Valid: correctness, completeness, security, failure-modes, performance, design, observability, tests, maintainability, design-fidelity, data-flow")
   }
 
   // Keep only the focused inspector

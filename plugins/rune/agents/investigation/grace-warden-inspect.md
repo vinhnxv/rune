@@ -220,6 +220,53 @@ WIRE-H{NNN} [DETECTED WIRING GAP] (P2, confidence: {score})
 - If found: skip ALL heuristic checks for that file (Layer 1 exclusion)
 - `@wire-skip` does NOT suppress plan-verified `WIRE-NNN` findings — only heuristic `WIRE-H` findings
 
+### Data Flow Integrity Verification (conditional)
+
+If the plan contains data models (schemas, entities, CRUD operations) AND `data_flow.enabled !== false` in talisman, trace field persistence across all application layers.
+This step runs AFTER wiring verification and produces `DFLOW-NNN` findings.
+
+**Skip condition**: If plan has no data model definitions (no schema/model/entity/table/migration/field/column/CRUD/database/ORM/repository/DTO keywords), skip entirely.
+
+**Algorithm — per entity/field from plan:**
+
+#### Phase 1: Extract data entities from plan
+Parse plan for entity definitions, field lists, and CRUD operations. Build entity→field map.
+
+#### Phase 2: Trace each field through layers
+For each field in each entity:
+1. **UI Layer**: Grep for field name in component files (forms, props, state). Check form inputs, display components.
+2. **API Layer**: Grep for field name in route handlers, controllers, request/response DTOs, validators.
+3. **DB Layer**: Grep for field name in ORM models, migration files, schema definitions.
+4. **Serialization**: Check API response serializers/transformers include the field.
+
+#### Phase 3: Classify field flow status
+
+| Status | When to Assign |
+|--------|---------------|
+| COMPLETE | Field found in all relevant layers with consistent types |
+| PARTIAL | Field exists in some layers but missing or mistyped in others |
+| MISSING | Field defined in plan but not found in any layer |
+| TRUNCATED | Field exists but silently dropped or transformed at a layer boundary |
+
+#### Phase 4: Generate DFLOW findings
+
+For fields with non-COMPLETE status, generate findings:
+- **Prefix**: `DFLOW-NNN`
+- **Severity**: P1 for MISSING/TRUNCATED (data loss risk), P2 for PARTIAL (type drift)
+- **Confidence**: PROVEN when verified via Grep across layers, LIKELY when inferred from pattern
+- **Category**: `correctness` (field persistence is a correctness concern)
+- **Format**:
+```
+DFLOW-NNN [PERSISTENCE GAP | TYPE MISMATCH | FIELD MISSING] (severity, confidence: {score})
+  Entity.Field: {entity}.{field}
+  Plan: {what the plan specifies}
+  Expected flow: {layer} → {layer} → {layer}
+  Actual: {what was found}
+  Status: {PARTIAL|MISSING|TRUNCATED} at {layer}→{layer} boundary
+```
+
+**Distinction from WIRE- findings**: WIRE- findings detect missing *connectivity* (file not imported, route not registered). DFLOW- findings detect missing *field persistence* (data silently lost between layers even when files are connected). A fully wired system can still have DFLOW gaps.
+
 ### Sub-Classification Taxonomy
 
 Each status has sub-classifications with adjusted scores and evidence requirements.

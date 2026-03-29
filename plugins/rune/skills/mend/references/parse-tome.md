@@ -178,7 +178,7 @@ if (mendRound > 0) {
 
 ## Deduplicate
 
-Apply Dedup Hierarchy: `SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX`
+Apply Dedup Hierarchy: `SEC > BACK > VEIL > DOUBT > FLOW > DOC > QUAL > FRONT > CDX`
 
 If the same file+line has findings from multiple categories, keep only the highest-priority one. Log deduplicated findings for transparency.
 

@@ -20,11 +20,6 @@
     "consistency": {
       "checks": []
     },
-    "quick": {
-      "max_iterations": 3,
-      "evaluate_timeout_ms": 60000,
-      "skip_evaluate": false
-    },
     "defaults": {
       "approve": false,
       "confirm": false,
@@ -51,8 +46,6 @@
     "rate_limit": {
       "default_wait_seconds": 60,
       "enabled": true,
-      "max_retries": 3,
-      "max_server_retries": 2,
       "max_wait_seconds": 300
     },
     "sharding": {
@@ -232,6 +225,13 @@
       "enabled": false
     }
   },
+  "brand": {
+    "colors": {},
+    "enabled": false,
+    "guidelines": null,
+    "typography": {},
+    "voice": null
+  },
   "codex": {
     "architecture_review": {
       "enabled": false,
@@ -408,6 +408,30 @@
     }
   },
   "cost_tier": "balanced",
+  "data_flow": {
+    "auto_fields": [
+      "id",
+      "pk",
+      "uuid",
+      "created_at",
+      "updated_at",
+      "deleted_at",
+      "version"
+    ],
+    "devise_scanning": true,
+    "enabled": true,
+    "exclude_fields": [],
+    "generate_tests": true,
+    "inspect_dimension": true,
+    "min_layers": 2,
+    "severity": {
+      "display_ghost": "P2",
+      "field_phantom": "P1",
+      "persistence_gap": "P1",
+      "roundtrip_asymmetry": "P1",
+      "schema_drift": "P2"
+    }
+  },
   "debug": {
     "echo_on_verdict": true,
     "max_investigators": 4,
@@ -463,6 +487,9 @@
   "devise": {
     "design_system_discovery": {
       "confidence_threshold": 0.5,
+      "domain_inference": {
+        "enabled": true
+      },
       "enabled": true
     }
   },
@@ -589,10 +616,19 @@
   },
   "inspect": {
     "completion_threshold": 80,
+    "detect_wiring_heuristics": true,
     "fix_timeout": 600000,
     "gap_threshold": 20,
     "max_fixes": 20,
-    "max_inspectors": 4
+    "max_inspectors": 4,
+    "wiring_exclusions": [
+      "**/__fixtures__/**",
+      "**/__mocks__/**"
+    ],
+    "wiring_patterns": [
+      "barrel_exports",
+      "migrations"
+    ]
   },
   "keyword_detection": {
     "enabled": true
@@ -911,6 +947,9 @@
     "silent_threshold": 2,
     "staleness_minutes": 30
   },
+  "ux": {
+    "industry": null
+  },
   "version": 1,
   "work": {
     "approve_timeout": 180,
@@ -933,7 +972,7 @@
       "sync_main_before_pr": true,
       "test_timeout_ms": 300000
     },
-    "max_workers": 4,
+    "max_workers": 3,
     "pr_monitoring": false,
     "sibling_awareness": {
       "enabled": true,
@@ -945,18 +984,6 @@
       "enabled": true,
       "max_subtasks": 4,
       "model": "haiku"
-    },
-    "micro_evaluator": {
-      "dimensions": {
-        "edge_cases": true,
-        "error_handling": true,
-        "naming_consistency": true,
-        "pattern_compliance": true
-      },
-      "enabled": true,
-      "max_iterations": 2,
-      "model": "haiku",
-      "timeout_ms": 60000
     },
     "unrestricted_shared_files": [],
     "ward_commands": [

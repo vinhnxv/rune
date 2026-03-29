@@ -1007,6 +1007,8 @@ try {
     "ux-heuristic-reviewer", "ux-flow-validator", "ux-interaction-auditor", "ux-cognitive-walker",
     // Phase 1.6 Design fidelity reviewer (conditional — design_review.enabled + frontend files)
     "design-implementation-reviewer",
+    // Phase 1.7 Data flow integrity reviewer (conditional — data_flow.enabled + 2+ layers)
+    "flow-integrity-tracer",
     // Elicitation sages (conditional — security-relevant scope)
     "elicitation-sage-security-1", "elicitation-sage-security-2",
     // Custom Ashes from talisman.yml — hardcoded fallback (safe to send to absent members)

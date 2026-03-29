@@ -185,7 +185,7 @@ Knowledge Keeper uses blockquotes instead of code blocks for evidence:
 When the same finding appears from multiple Ash:
 
 ```
-SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX
+SEC > BACK > VEIL > DOUBT > FLOW > DOC > QUAL > FRONT > CDX
 ```
 
 Keep the finding from the higher-priority Ash. DOUBT- prefix is non-deduplicable — DOUBT findings target meta-review claims about other agents' findings and should never be merged with findings from other prefixes during deduplication. See [Dedup Runes](dedup-runes.md) for full algorithm.
