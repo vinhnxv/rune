@@ -1899,7 +1899,7 @@ context_weaving:
 #     - deleted_at
 #     - version
 #   exclude_fields: []                         # Fields to exclude from verification
-#   severity:                                  # Finding severity mapping
+#   severity:                                  # Finding severity mapping (valid values: P1, P2, P3)
 #     field_phantom: P1                        # Field exists in API but not in DB
 #     persistence_gap: P1                      # Field written but never persisted
 #     roundtrip_asymmetry: P1                  # Create/read field sets differ

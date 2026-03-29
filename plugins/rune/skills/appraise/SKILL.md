@@ -1,7 +1,7 @@
 ---
 name: appraise
 description: |
-  Multi-agent code review using Agent Teams. Summons up to 7 built-in Ashes
+  Multi-agent code review using Agent Teams. Summons up to 8 built-in Ashes
   (plus custom Ash from talisman.yml), each with their own dedicated context window.
   Handles scope selection, team creation, review orchestration, aggregation, verification, and cleanup.
   Optional `--deep` runs multi-wave deep review with up to 18 Ashes across 3 waves.

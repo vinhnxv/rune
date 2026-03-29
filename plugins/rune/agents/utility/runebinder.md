@@ -224,7 +224,7 @@ When the same file + line range (5-line window) is flagged by multiple Ash:
 
 Priority order (highest first):
   SEC > BACK > VEIL > DOUBT > FLOW > DOC > QUAL > FRONT > CDX
-  (Ward Sentinel > Forge Warden > Veil Piercer > Knowledge Keeper > Pattern Weaver > Glyph Scribe > Codex Oracle)
+  (Ward Sentinel > Forge Warden > Veil Piercer > Doubt Seer > Flow Integrity Tracer > Knowledge Keeper > Pattern Weaver > Glyph Scribe > Codex Oracle)
 
 Rules:
 - Same file + overlapping lines → keep higher-priority Ash's finding

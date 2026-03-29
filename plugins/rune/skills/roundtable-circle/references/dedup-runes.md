@@ -32,7 +32,7 @@ This design preserves auditability: readers can see that a lower-priority Ash fl
 **Default (built-in only):**
 
 ```
-Ward Sentinel > Forge Warden > Veil Piercer > Knowledge Keeper > Pattern Weaver > Glyph Scribe > Aesthetic Quality Reviewer > Design Implementation Reviewer > Codex Oracle > Shard Reviewers > Cross-Shard Sentinel
+Ward Sentinel > Forge Warden > Veil Piercer > Doubt Seer > Flow Integrity Tracer > Knowledge Keeper > Pattern Weaver > Glyph Scribe > Aesthetic Quality Reviewer > Design Implementation Reviewer > Codex Oracle > Shard Reviewers > Cross-Shard Sentinel
 SEC > BACK > VEIL > DOUBT > FLOW > SH{X} > DOC > QUAL > FRONT > DES > AESTH > UXH > UXF > UXI > UXC > CDX > XSH
 ```
 

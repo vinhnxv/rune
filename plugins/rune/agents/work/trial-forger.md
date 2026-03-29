@@ -324,7 +324,12 @@ When code under test includes CRUD operations (create/read/update/delete on a re
 **Integration test infrastructure**: CRUD roundtrip tests typically require a running database or test server. Detect existing integration test infrastructure:
 1. Check for `docker-compose.test.yml`, `testcontainers`, or `@testcontainers/*` in dependencies
 2. Check for `conftest.py` with database fixtures, or `beforeAll`/`setupFilesAfterFramework` with DB setup
-3. If infrastructure exists, use it. If absent, generate the test with a `@pytest.mark.integration` / `describe.skip("requires DB")` marker and note in Seal.
+3. If infrastructure exists, use it. If absent, generate the test with a `@pytest.mark.integration` / `describe.skip("requires DB")` marker, note in Seal, and emit a CONCERN to the team lead:
+   ```
+   CONCERN: task #{id}: CRUD roundtrip test generated without integration test infrastructure (no testcontainers, docker-compose.test.yml, or DB fixtures detected). Test is marked as skipped. Consider adding integration test setup for full roundtrip coverage.
+   Context: Generated test uses @pytest.mark.integration / describe.skip("requires DB") marker.
+   Action recommended: Add integration test infrastructure or confirm skip is acceptable.
+   ```
 
 ### PBT Code Templates
 

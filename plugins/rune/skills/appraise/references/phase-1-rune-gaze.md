@@ -1,4 +1,4 @@
-# Phase 1: Rune Gaze (Scope Selection) + Phase 1.5: UX Reviewer Selection + Phase 1.6: Design Fidelity Reviewer Selection
+# Phase 1: Rune Gaze (Scope Selection) + Phase 1.5: UX Reviewer Selection + Phase 1.6: Design Fidelity Reviewer Selection + Phase 1.7: Data Flow Integrity Reviewer Selection
 
 ## Phase 1: Rune Gaze
 
@@ -103,6 +103,7 @@ Conditional data flow integrity agent spawning. Gated by `talisman.data_flow.ena
 
 ```javascript
 // Data Flow Integrity Reviewer Gate — follows the same pattern as Phase 1.6
+// Safety: talisman?.data_flow is accessed with optional chaining — safe against undefined talisman or missing data_flow section
 const dataFlowEnabled = talisman?.data_flow?.enabled !== false  // default: true (opt-out)
 const minLayers = talisman?.data_flow?.min_layers ?? 2
 
