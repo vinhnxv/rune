@@ -16,6 +16,7 @@ from helpers.checkpoint_validator import (
     ORCHESTRATOR_ONLY,
     PHASE_ORDER,
     VALID_STATUSES,
+    detect_duplicate_keys,
     migrate_checkpoint,
     validate_checkpoint,
 )
@@ -430,3 +431,76 @@ class TestConstants:
     def test_valid_statuses(self) -> None:
         expected = {"pending", "in_progress", "completed", "failed", "skipped", "timeout", "cancelled"}
         assert VALID_STATUSES == expected
+
+
+# ---------------------------------------------------------------------------
+# Duplicate key detection
+# ---------------------------------------------------------------------------
+
+class TestDuplicateKeyDetection:
+    """Tests for detect_duplicate_keys() and filepath-aware validation."""
+
+    def test_no_duplicates_in_clean_json(self, tmp_path: Path) -> None:
+        """Clean JSON has no duplicate keys."""
+        f = tmp_path / "clean.json"
+        f.write_text('{"id": "arc-123", "phase_sequence": 1, "plan_file": "p.md"}')
+        assert detect_duplicate_keys(f) == []
+
+    def test_detects_duplicate_top_level_key(self, tmp_path: Path) -> None:
+        """Detects phase_sequence appearing twice (the actual bug)."""
+        f = tmp_path / "dup.json"
+        # Simulate the LLM bug: phase_sequence at line 52 and line 88
+        f.write_text(
+            '{\n'
+            '  "id": "arc-123",\n'
+            '  "phase_sequence": 0,\n'
+            '  "plan_file": "plan.md",\n'
+            '  "current_phase": "forge",\n'
+            '  "phase_sequence": 1\n'
+            '}'
+        )
+        dups = detect_duplicate_keys(f)
+        assert dups == ["phase_sequence"]
+
+    def test_detects_multiple_duplicate_keys(self, tmp_path: Path) -> None:
+        """Detects multiple different keys that are each duplicated."""
+        f = tmp_path / "multi.json"
+        f.write_text(
+            '{\n'
+            '  "id": "arc-1",\n'
+            '  "id": "arc-2",\n'
+            '  "plan_file": "a.md",\n'
+            '  "plan_file": "b.md"\n'
+            '}'
+        )
+        dups = detect_duplicate_keys(f)
+        assert set(dups) == {"id", "plan_file"}
+
+    def test_validate_with_filepath_warns_on_duplicates(self, tmp_path: Path) -> None:
+        """validate_checkpoint with filepath param adds duplicate key warning."""
+        f = tmp_path / "checkpoint.json"
+        # Write a minimal valid-ish checkpoint with a duplicate key
+        content = (
+            '{\n'
+            '  "id": "arc-1234567890",\n'
+            '  "schema_version": 4,\n'
+            '  "plan_file": "plan.md",\n'
+            '  "session_nonce": "abcdef123456",\n'
+            '  "phase_sequence": 0,\n'
+            '  "phase_sequence": 1,\n'
+            '  "phases": {},\n'
+            '  "convergence": {"round": 0, "max_rounds": 2, "history": []}\n'
+            '}'
+        )
+        f.write_text(content)
+        checkpoint = json.loads(content)  # json.loads deduplicates (last wins)
+        report = validate_checkpoint(checkpoint, filepath=f)
+        dup_warnings = [i for i in report.issues if "Duplicate" in i.message]
+        assert len(dup_warnings) == 1
+        assert "phase_sequence" in dup_warnings[0].message
+
+    def test_validate_without_filepath_skips_dup_check(self, v4_checkpoint: dict) -> None:
+        """Without filepath, no duplicate key check is performed."""
+        report = validate_checkpoint(v4_checkpoint)
+        dup_warnings = [i for i in report.issues if "Duplicate" in i.message]
+        assert len(dup_warnings) == 0

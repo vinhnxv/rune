@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.30.1] - 2026-03-30
+
+### Fixed
+- **CKPT-INT-007: Duplicate JSON key detection + auto-fix in checkpoint validation** — LLM-generated checkpoints can produce duplicate top-level keys (e.g., `phase_sequence` written at init AND during `updateCheckpoint()`). Most JSON parsers silently use the last value, but this is a data integrity bug. The stop hook's `validate_checkpoint_json_integrity()` now detects duplicates via Python `object_pairs_hook` (with grep fallback) and auto-fixes by re-serializing through `jq`
+
+### Added
+- **`checkpoint-update.sh`**: Deterministic `jq`-based checkpoint merge utility (`scripts/lib/checkpoint-update.sh`). Replaces error-prone LLM JSON serialization with atomic read → merge → validate → write pipeline. Supports `--phase-update` mode that routes fields to `.phases[name]` vs top-level automatically. Backup rotation (last 3), post-write validation, and restore-on-failure
+- **`checkpoint-validate.sh`**: Standalone checkpoint validator (`scripts/lib/checkpoint-validate.sh`) with 7 checks: valid JSON (CKPT-VAL-001), duplicate keys (CKPT-VAL-002), required fields (CKPT-VAL-003), phase_sequence integrity (CKPT-VAL-004), phase statuses (CKPT-VAL-005), unknown keys (CKPT-VAL-006), schema version range (CKPT-VAL-007). Supports `--fix` for one-shot repair
+- **`detect_duplicate_keys()` in Python validator**: New function in `tests/helpers/checkpoint_validator.py` for test-level duplicate key detection. `validate_checkpoint()` now accepts optional `filepath` param to enable raw-file duplicate checks
+- **`updateCheckpoint()` formal definition**: Documented merge semantics, implementation pseudocode, and script-based alternative in `arc-phase-constants.md`
+- **5 new tests**: `TestDuplicateKeyDetection` class in `test_checkpoint.py` — covers clean JSON, single duplicate, multiple duplicates, filepath-aware validation, and no-filepath skip
+
 ## [2.30.0] - 2026-03-29
 
 ### Added
