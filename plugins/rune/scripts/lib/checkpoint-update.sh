@@ -163,10 +163,12 @@ _post_schema=$(jq -r '.schema_version // empty' "$CHECKPOINT_PATH" 2>/dev/null |
 if [[ -z "$_post_id" ]] || [[ -z "$_post_plan" ]] || [[ -z "$_post_schema" ]]; then
   echo "ERROR: post-write validation failed — required fields missing after merge" >&2
   # Restore from backup
-  local_bak=$(find "$(dirname "$CHECKPOINT_PATH")" -maxdepth 1 -name "$(basename "$CHECKPOINT_PATH").bak.*" -type f -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1)
-  if [[ -n "$local_bak" ]]; then
-    cp -f "$local_bak" "$CHECKPOINT_PATH" 2>/dev/null || true
-    echo "RESTORED from backup: $local_bak" >&2
+  # BACK-001 FIX: Use _local_bak (prefixed) to avoid global variable leakage.
+  # Cannot use 'local' here — this is script-level, not inside a function.
+  _local_bak=$(find "$(dirname "$CHECKPOINT_PATH")" -maxdepth 1 -name "$(basename "$CHECKPOINT_PATH").bak.*" -type f -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1)
+  if [[ -n "$_local_bak" ]]; then
+    cp -f "$_local_bak" "$CHECKPOINT_PATH" 2>/dev/null || true
+    echo "RESTORED from backup: $_local_bak" >&2
   fi
   exit 6
 fi

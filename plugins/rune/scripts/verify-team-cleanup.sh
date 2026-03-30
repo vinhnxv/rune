@@ -26,7 +26,7 @@ _rune_fail_forward() {
       "$(date +%H:%M:%S 2>/dev/null || true)" \
       "${BASH_SOURCE[0]##*/}" \
       "${BASH_LINENO[0]:-?}" \
-      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" 2>/dev/null
+      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" 2>/dev/null
   fi
   exit 0
 }
@@ -80,7 +80,7 @@ fi
 
 # SEC-P3-002: Symlink guard before trace log append
 if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-  RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+  RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
   [[ ! -L "$RUNE_TRACE_LOG" ]] && echo "[$(date '+%H:%M:%S')] TLC-002 [${SHORT_SID:-no-sid}]: remaining team dirs after TeamDelete: ${#remaining[@]}" >> "$RUNE_TRACE_LOG"
 fi
 

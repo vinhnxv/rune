@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/resolve-session-identity.sh"
 source "${SCRIPT_DIR}/lib/platform.sh"
 
 # Trace logging (SB-IMPL: match all Rune hooks)
-RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] rune-statusline: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
 INPUT=$(head -c 1048576 2>/dev/null || true)

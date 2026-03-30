@@ -19,7 +19,7 @@ umask 077
 # Crash before validation → allow operation (don't stall worktree creation).
 _rune_fail_forward() {
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
     [[ ! -L "$_log" ]] && printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
       "$(date +%H:%M:%S 2>/dev/null || true)" \
       "${BASH_SOURCE[0]##*/}" \
@@ -33,7 +33,7 @@ trap '_rune_fail_forward' ERR
 # ── Opt-in trace logging ──
 _trace() {
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
     [[ ! -L "$_log" ]] && echo "[setup-worktree] $*" >> "$_log" 2>/dev/null
   fi
   return 0

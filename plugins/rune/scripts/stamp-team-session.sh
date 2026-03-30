@@ -28,7 +28,7 @@ _rune_fail_forward() {
       "$(date +%H:%M:%S 2>/dev/null || true)" \
       "${BASH_SOURCE[0]##*/}" \
       "${BASH_LINENO[0]:-?}" \
-      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" 2>/dev/null
+      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" 2>/dev/null
   fi
   exit 0
 }
@@ -94,7 +94,7 @@ else
 fi
 
 # QUAL-005 FIX: Use standard RUNE_TRACE_LOG path instead of hardcoded /tmp/rune-hook-trace.log
-RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
 [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] TLC-004: stamped .session for team=%s session=%s\n' "$(date '+%H:%M:%S')" "$TEAM_NAME" "$HOOK_SESSION_ID" >> "$RUNE_TRACE_LOG"
 
 exit 0

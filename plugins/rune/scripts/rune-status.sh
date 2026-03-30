@@ -38,7 +38,7 @@ source "${SCRIPT_DIR}/lib/rune-state.sh"
 CWD="$(pwd -P)"
 
 # ── Trace logging (opt-in via RUNE_TRACE=1) ──
-RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
 _trace() {
   [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && \
     printf '[%s] rune-status: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"

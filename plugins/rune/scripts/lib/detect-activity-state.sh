@@ -40,7 +40,7 @@ umask 077
 # ── Fail-forward guard (OPERATIONAL hook — ADR-002) ──
 _rune_fail_forward() {
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    local _ffl="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+    local _ffl="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
     [[ -n "$_ffl" && ! -L "$_ffl" && ! -L "${_ffl%/*}" ]] && \
       printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
         "$(date +%H:%M:%S 2>/dev/null || true)" \

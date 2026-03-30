@@ -23,7 +23,7 @@ _rune_fail_forward() {
     "${BASH_LINENO[0]:-?}" \
     >&2 2>/dev/null || true
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
     [[ ! -L "$_log" ]] && printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
       "$(date +%H:%M:%S 2>/dev/null || true)" \
       "${BASH_SOURCE[0]##*/}" \
@@ -57,7 +57,7 @@ RESOLVE_START=$SECONDS
 # ── Trace logging ──
 _trace() {
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
     [[ ! -L "$_log" ]] && echo "[talisman-resolve] $*" >> "$_log" 2>/dev/null
   fi
   return 0
