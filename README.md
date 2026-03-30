@@ -7,16 +7,16 @@
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Supported-7F4DFF)](https://docs.anthropic.com/en/docs/claude-code)
-[![Version](https://img.shields.io/badge/version-2.21.1-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-2.31.0-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-144-purple)](#agents)
-[![Skills](https://img.shields.io/badge/skills-59-orange)](#skills)
+[![Agents](https://img.shields.io/badge/agents-151-purple)](#agents)
+[![Skills](https://img.shields.io/badge/skills-61-orange)](#skills)
 
 ---
 
 ## What Is This?
 
-Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 150 specialized AI agents, 61 skills, and a 44-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
+Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 151 specialized AI agents, 61 skills, and a 44-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
 
 **Compatibility:** Requires **Claude Code 2.1.81+** with Agent Teams support. macOS 12+ or Linux. See [full requirements](#requirements).
 
@@ -349,7 +349,7 @@ Compares a plan against its implementation across 10 quality dimensions:
 
 ## Agents
 
-**150 specialized agents** across 8 categories:
+**151 specialized agents** across 8 categories:
 
 ### Review Agents (50)
 
@@ -584,6 +584,8 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `post-findings` | Workflow | Post review findings to GitHub PR as formatted comment |
 | `self-audit` | Quality | Meta-QA self-audit of Rune's own plugin infrastructure |
 | `arc-quick` | Workflow | Quick 3-phase pipeline: plan → work → review |
+| `variant-hunt` | Analysis | Systematic variant analysis — "find more like this" for confirmed findings |
+| `supply-chain-audit` | Security | Dependency risk analysis (maintainer count, CVE history, abandonment) |
 
 ---
 
@@ -754,21 +756,21 @@ rune/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
         │   └── plugin.json       # Plugin manifest (v1.128.0)
-        ├── agents/               # 101 core agent definitions
-        │   ├── review/           #   15 review agents
-        │   ├── investigation/    #   30 investigation agents
+        ├── agents/               # 108 core agent definitions
+        │   ├── review/           #   17 review agents
+        │   ├── investigation/    #   31 investigation agents
         │   ├── utility/          #   16 utility agents
-        │   ├── research/         #    7 research agents
-        │   ├── work/             #    5 work agents
+        │   ├── research/         #    8 research agents
+        │   ├── work/             #    6 work agents
         │   ├── qa/               #    8 QA agents
-        │   └── meta-qa/          #    8 meta-QA agents
+        │   └── meta-qa/          #    9 meta-QA agents
         ├── registry/             # 43 extended agents
         ├── skills/               # 61 skills
         ├── commands/             # 16 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json
-        ├── scripts/              # Hook & utility scripts (244 .sh/.py files)
-        ├── .mcp.json             # MCP server config (4 servers: echo-search, figma-to-react, agent-search, context7)
+        ├── scripts/              # Hook & utility scripts (256 .sh/.py files)
+        ├── .mcp.json             # MCP server config (5 servers: echo-search, figma-to-react, agent-search, context7, figma-context)
         ├── talisman.example.yml  # Configuration reference
         ├── CLAUDE.md             # Plugin instructions
         ├── CHANGELOG.md
