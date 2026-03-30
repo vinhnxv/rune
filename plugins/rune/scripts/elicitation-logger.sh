@@ -15,7 +15,7 @@ umask 077  # SEC-002: ensure log file created 0600 (not world-readable)
 # Trace helper — consistent with post-compact-verify.sh / session-compact-recovery.sh pattern
 _trace() {
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
     [[ ! -L "$_log" ]] && echo "[elicitation-logger] $*" >> "$_log" 2>/dev/null
   fi
   return 0

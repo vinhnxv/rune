@@ -15,7 +15,7 @@ _rune_fail_forward() {
       "${BASH_LINENO[0]:-?}" \
       "$_ff_exit" \
       "${BASH_COMMAND:-unknown}" \
-      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" 2>/dev/null
+      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" 2>/dev/null
   fi
   exit 0
 }
@@ -30,7 +30,7 @@ source "${SCRIPT_DIR}/lib/platform.sh"
 source "${SCRIPT_DIR}/lib/rune-state.sh"
 
 # Trace logging (match all Rune hooks)
-RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] rune-context-monitor: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
 # Constants (overridable via talisman — see Phase 1.2)

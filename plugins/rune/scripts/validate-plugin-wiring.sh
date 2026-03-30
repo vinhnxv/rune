@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # scripts/validate-plugin-wiring.sh
-# Validates plugin wiring integrity with 4 deterministic checks.
+# Validates plugin wiring integrity with 5 deterministic checks.
 # Detects sediment: orphaned agents, unwired skills, missing SKILL.md,
-# and disconnected scripts.
+# disconnected scripts, and PHASE_PREFIX_MAP sync gaps.
 #
 # Usage: bash plugins/rune/scripts/validate-plugin-wiring.sh
 # Exit: 0 if clean, 1 if violations found.
@@ -220,6 +220,35 @@ done < <(find "$PLUGIN_DIR/scripts" -name '*.sh' \
 
 CHECKED=$((CHECKED + check4_total))
 printf "  Checked %d scripts, %d wired, %d disconnected\n" "$check4_total" "$check4_pass" "$((check4_total - check4_pass))"
+
+# --- Check 5: PHASE_PREFIX_MAP ↔ ARC_TEAM_PREFIXES sync (STRAND-003) ---
+printf "\n[5/5] PHASE_PREFIX_MAP ↔ ARC_TEAM_PREFIXES sync\n"
+_cleanup_file="$PLUGIN_DIR/skills/arc/references/arc-phase-cleanup.md"
+_preflight_file="$PLUGIN_DIR/skills/arc/references/arc-preflight.md"
+check5_violations=0
+
+if [[ -f "$_cleanup_file" ]] && [[ -f "$_preflight_file" ]]; then
+  # Extract prefixes from PHASE_PREFIX_MAP (cleanup.md)
+  _phase_prefixes=$(grep -oE '"[a-z][-a-z]*-"' "$_cleanup_file" | tr -d '"' | sort -u)
+  # Extract prefixes from ARC_TEAM_PREFIXES (preflight.md)
+  _arc_prefixes=$(grep -oE '"[a-z][-a-z]*-"' "$_preflight_file" | tr -d '"' | sort -u)
+
+  # Find prefixes in PHASE_PREFIX_MAP but missing from ARC_TEAM_PREFIXES
+  while IFS= read -r prefix; do
+    [[ -z "$prefix" ]] && continue
+    if ! echo "$_arc_prefixes" | grep -qF "$prefix"; then
+      printf "  SDMT-006: prefix '%s' in PHASE_PREFIX_MAP but missing from ARC_TEAM_PREFIXES\n" "$prefix"
+      check5_violations=$((check5_violations + 1))
+      VIOLATIONS=$((VIOLATIONS + 1))
+    fi
+  done <<< "$_phase_prefixes"
+
+  if [[ $check5_violations -eq 0 ]]; then
+    printf "  All PHASE_PREFIX_MAP prefixes found in ARC_TEAM_PREFIXES\n"
+  fi
+else
+  printf "  SKIP: arc reference files not found\n"
+fi
 
 # --- Summary ---
 printf "\n─────────────────────────────────────\n"

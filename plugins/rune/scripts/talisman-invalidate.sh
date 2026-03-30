@@ -21,7 +21,7 @@ _rune_fail_forward() {
       "$(date +%H:%M:%S 2>/dev/null || true)" \
       "${BASH_SOURCE[0]##*/}" \
       "${BASH_LINENO[0]:-?}" \
-      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" 2>/dev/null
+      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" 2>/dev/null
   fi
   exit 0
 }
@@ -54,7 +54,7 @@ esac
 
 # ── Trace logging ──
 if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-  _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+  _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
   [[ ! -L "$_log" ]] && echo "[talisman-invalidate] Detected talisman.yml write: $FILE_PATH — regenerating shards" >> "$_log" 2>/dev/null
 fi
 
@@ -66,7 +66,7 @@ RESOLVER="${PLUGIN_ROOT}/scripts/talisman-resolve.sh"
 if [[ -x "$RESOLVER" ]] && [[ ! -L "$RESOLVER" ]]; then
   printf '%s\n' "$INPUT" | "$RESOLVER" || {
     if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-      _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+      _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
       [[ ! -L "$_log" ]] && echo "[talisman-invalidate] WARN: resolver failed with exit code $?" >> "$_log" 2>/dev/null
     fi
     exit 0  # Non-blocking per design

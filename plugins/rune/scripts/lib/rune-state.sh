@@ -191,5 +191,8 @@ _rune_migrate_legacy() {
   fi
 
   # FLAW-001: Explicit lock release (no trap — see comment at lock acquisition)
-  rmdir "${_lockdir}" 2>/dev/null
+  # BACK-002 FIX: Check rmdir result — stale lock could cause migration skips
+  if ! rmdir "${_lockdir}" 2>/dev/null; then
+    echo >&2 "[rune] WARNING: failed to release migration lock: ${_lockdir} — remove manually if migrations are skipped"
+  fi
 }

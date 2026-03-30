@@ -23,14 +23,19 @@ fi
 PACKAGE="figma-developer-mcp"
 VERSION="0.8.0"
 
+# SEC-001 FIX: Pass token via env var (FIGMA_ACCESS_TOKEN) instead of CLI arg
+# to avoid exposure in process listings (ps aux). The figma-developer-mcp package
+# reads FIGMA_ACCESS_TOKEN from env when --figma-api-key is not provided.
+export FIGMA_ACCESS_TOKEN="$FIGMA_TOKEN"
+
 # Option 1: Global install with version check + auto-update
 if mcp_ensure_package "$PACKAGE" "$VERSION" "$PACKAGE"; then
-  exec "$PACKAGE" --figma-api-key="$FIGMA_TOKEN" --stdio
+  exec "$PACKAGE" --stdio
 fi
 
 # Option 2: npx fallback (exec replaces shell — proper signal forwarding)
 if command -v npx >/dev/null 2>&1; then
-  exec npx -y "${PACKAGE}@${VERSION}" --figma-api-key="$FIGMA_TOKEN" --stdio
+  exec npx -y "${PACKAGE}@${VERSION}" --stdio
 fi
 
 echo "Error: npm/npx not found in PATH. Cannot install or run ${PACKAGE}." >&2

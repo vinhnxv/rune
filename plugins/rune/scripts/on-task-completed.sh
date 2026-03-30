@@ -42,7 +42,7 @@ _rune_fail_forward() {
       "$(date +%H:%M:%S 2>/dev/null || true)" \
       "${BASH_SOURCE[0]##*/}" \
       "$_crash_line" \
-      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}" 2>/dev/null
+      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" 2>/dev/null
   fi
   # Best-effort crash marker — if SIGNAL_DIR and TASK_ID are set, write a marker
   # the orchestrator can check to detect "hook ran but crashed before signal write"
@@ -61,7 +61,7 @@ trap '_rune_fail_forward' ERR
 # RUNE_TRACE: opt-in trace logging (off by default, zero overhead in production)
 # NOTE(QUAL-007): _trace() is intentionally duplicated in on-teammate-idle.sh — each script
 # must be self-contained for hook execution. Sharing via source would add a dependency.
-RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] on-task-completed: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
 # Cleanup trap — remove temp files on exit (BACK-002)

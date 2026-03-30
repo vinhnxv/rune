@@ -12,7 +12,7 @@ umask 077
 # Crash before validation → allow operation (don't stall workflows).
 _rune_fail_forward() {
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u).log}"
+    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
     # SEC-007: reject symlink to prevent log redirection attacks
     [[ ! -L "$_log" ]] && printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
       "$(date +%H:%M:%S 2>/dev/null || true)" \
