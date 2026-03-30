@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.31.1] - 2026-03-30
+
+### Fixed
+- **figma-context MCP server**: Fix env var name for `figma-developer-mcp@0.8.0` — package now expects `FIGMA_API_KEY` instead of the deprecated `FIGMA_ACCESS_TOKEN`, causing "Failed to reconnect" on startup
+
 ## [2.31.0] - 2026-03-30
 
 ### Added

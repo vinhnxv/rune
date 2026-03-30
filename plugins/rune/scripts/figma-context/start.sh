@@ -23,10 +23,11 @@ fi
 PACKAGE="figma-developer-mcp"
 VERSION="0.8.0"
 
-# SEC-001 FIX: Pass token via env var (FIGMA_ACCESS_TOKEN) instead of CLI arg
+# SEC-001 FIX: Pass token via env var instead of CLI arg
 # to avoid exposure in process listings (ps aux). The figma-developer-mcp package
-# reads FIGMA_ACCESS_TOKEN from env when --figma-api-key is not provided.
-export FIGMA_ACCESS_TOKEN="$FIGMA_TOKEN"
+# v0.8.0+ reads FIGMA_API_KEY from env when --figma-api-key is not provided.
+# (Earlier versions used FIGMA_ACCESS_TOKEN, which no longer works.)
+export FIGMA_API_KEY="$FIGMA_TOKEN"
 
 # Option 1: Global install with version check + auto-update
 if mcp_ensure_package "$PACKAGE" "$VERSION" "$PACKAGE"; then
