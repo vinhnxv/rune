@@ -607,6 +607,24 @@ arc:
     uncommitted_changes: true    # Check for uncommitted changes
     migration_paths: []          # Additional paths to scan for migration conflicts (e.g., ["db/migrate/", "alembic/versions/"])
 
+  # ── Skip Phases (v2.31.0+) ──────────────────
+  # User-defined phases to skip. Applied at checkpoint init time via skip_map.
+  # Use --depth preset for predefined sets: quick, standard, thorough.
+  # skip_phases: []                 # e.g., ["forge", "inspect", "browser_test"]
+
+  # ── Heartbeat (v2.31.0+) ──────────────────
+  # Stale arc detection for crash recovery.
+  # heartbeat:
+  #   stale_threshold_minutes: 15   # Minutes of inactivity before arc is considered stuck (default: 15)
+
+  # ── Persistence (v2.31.0+) ─────────────────
+  # Controls arc pipeline retry behavior on API failures (rate limit, server error).
+  # When enabled, the stop hook checks budget + retry limits before retrying.
+  # persistence:
+  #   enabled: false               # Master toggle (default: false — opt-in)
+  #   max_retries: 3               # Max retry attempts per arc run (default: 3, range: 1-10)
+  #   max_budget_cents: 500        # Max budget in cents before halting retries (default: 500)
+
   # ── Batch settings (v1.42.0+, talisman support v1.49.0+) ──
   # Per-plan and batch-level limits for /rune:arc-batch.
   # 3-layer priority: hardcoded defaults → talisman.yml → (future CLI flags).

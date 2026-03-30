@@ -1072,6 +1072,84 @@ if [[ -n "$NEXT_PHASE" && -n "$_ARC_ID_FOR_LOG" && "$_ARC_ID_FOR_LOG" =~ ^[a-zA-
   # is actually dispatched (just before printf/exit 2 at end of script).
 fi
 
+# ── Stop hook persistence check (v2.31.0) ──
+# When a phase fails due to transient API errors and persistence is enabled,
+# the stop hook can retry instead of advancing. Reads arc.persistence from
+# talisman shard, checks checkpoint retry counters against budget limits.
+if [[ -n "$NEXT_PHASE" && -n "$_IMMEDIATE_PREV" ]]; then
+  _prev_phase_status=$(echo "$CKPT_CONTENT" | _jq_with_budget -r ".phases.${_IMMEDIATE_PREV}.status // \"pending\"" 2>/dev/null || echo "pending")
+  if [[ "$_prev_phase_status" == "failed" ]]; then
+    # Resolve talisman arc shard for persistence config
+    # shellcheck source=lib/talisman-shard-path.sh
+    if [[ -f "${SCRIPT_DIR}/lib/talisman-shard-path.sh" ]]; then
+      source "${SCRIPT_DIR}/lib/talisman-shard-path.sh"
+      _arc_shard=$(_rune_resolve_talisman_shard "arc" "$CWD")
+    else
+      _arc_shard=""
+    fi
+    _persist_enabled="false"
+    _persist_max_retries=3
+    _persist_max_budget=500
+    if [[ -n "$_arc_shard" && -f "$_arc_shard" ]]; then
+      _persist_enabled=$(jq -r '.persistence.enabled // false' "$_arc_shard" 2>/dev/null || echo "false")
+      _persist_max_retries=$(jq -r '.persistence.max_retries // 3' "$_arc_shard" 2>/dev/null || echo "3")
+      _persist_max_budget=$(jq -r '.persistence.max_budget_cents // 500' "$_arc_shard" 2>/dev/null || echo "500")
+    fi
+    # Validate extracted values are numeric (SEC: prevent jq injection)
+    [[ "$_persist_max_retries" =~ ^[0-9]+$ ]] || _persist_max_retries=3
+    [[ "$_persist_max_budget" =~ ^[0-9]+$ ]] || _persist_max_budget=500
+    # RP-002 FIX: Guard against division-by-zero when max_budget_cents=0
+    [[ "$_persist_max_budget" -gt 0 ]] || _persist_max_budget=500
+    # BACK-002 FIX: Clamp max_retries to [1, 10] to prevent runaway retries
+    [[ "$_persist_max_retries" -gt 10 ]] && _persist_max_retries=10
+    [[ "$_persist_max_retries" -lt 1 ]] && _persist_max_retries=3
+
+    if [[ "$_persist_enabled" == "true" ]]; then
+      _current_retries=$(echo "$CKPT_CONTENT" | _jq_with_budget -r '.stop_hook_retries // 0' 2>/dev/null || echo "0")
+      _current_cost=$(echo "$CKPT_CONTENT" | _jq_with_budget -r '.cumulative_retry_cost_cents // 0' 2>/dev/null || echo "0")
+      [[ "$_current_retries" =~ ^[0-9]+$ ]] || _current_retries=0
+      [[ "$_current_cost" =~ ^[0-9]+$ ]] || _current_cost=0
+
+      if [[ "$_current_retries" -lt "$_persist_max_retries" && "$_current_cost" -lt "$_persist_max_budget" ]]; then
+        # AC-1.6: Budget warning at 30% consumption
+        _warn_threshold=$(( _persist_max_budget * 30 / 100 ))
+        if [[ "$_current_cost" -ge "$_warn_threshold" && "$_warn_threshold" -gt 0 ]]; then
+          _trace "PERSISTENCE WARNING: Budget ${_current_cost}c / ${_persist_max_budget}c (>= 30% threshold ${_warn_threshold}c)"
+          echo "[arc-persistence] WARNING: Retry budget at ${_current_cost}c / ${_persist_max_budget}c ($(((_current_cost * 100) / _persist_max_budget))% used)" >&2
+        fi
+        _trace "PERSISTENCE: Retrying failed phase ${_IMMEDIATE_PREV} (retry $((${_current_retries}+1))/${_persist_max_retries}, cost ${_current_cost}c/${_persist_max_budget}c)"
+        _log_phase "persistence_retry" "$_IMMEDIATE_PREV" "retry=$((${_current_retries}+1)),max=${_persist_max_retries},cost=${_current_cost}"
+        # Update checkpoint: increment retry counter + cost, reset phase to pending
+        # SEC-001/BACK-001 FIX: Use --arg for phase name to prevent jq filter injection
+        # BACK-003 FIX: Increment cumulative_retry_cost_cents (estimate 100c per retry)
+        _estimated_retry_cost=100
+        _new_cost=$((_current_cost + _estimated_retry_cost))
+        CKPT_CONTENT=$(echo "$CKPT_CONTENT" | jq \
+          --argjson retries "$((_current_retries + 1))" \
+          --argjson cost "$_new_cost" \
+          --arg phase "$_IMMEDIATE_PREV" \
+          '.stop_hook_retries = $retries | .cumulative_retry_cost_cents = $cost | .phases[$phase].status = "pending" | .work_completion_verified = false' \
+          2>/dev/null || echo "$CKPT_CONTENT")
+        _ckpt_tmp=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null) || _ckpt_tmp=""
+        if [[ -n "$_ckpt_tmp" ]]; then
+          if echo "$CKPT_CONTENT" | jq -e '.' > "$_ckpt_tmp" 2>/dev/null; then
+            mv -f "$_ckpt_tmp" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || rm -f "$_ckpt_tmp" 2>/dev/null
+          else
+            _trace "WARNING: persistence retry checkpoint write failed — skipping retry"
+            rm -f "$_ckpt_tmp" 2>/dev/null
+            CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
+          fi
+        fi
+        # Re-inject the same phase by overriding NEXT_PHASE to the failed phase
+        NEXT_PHASE="$_IMMEDIATE_PREV"
+      else
+        _trace "PERSISTENCE: Budget exhausted for ${_IMMEDIATE_PREV} (retries=${_current_retries}/${_persist_max_retries}, cost=${_current_cost}c/${_persist_max_budget}c) — advancing"
+        _log_phase "persistence_exhausted" "$_IMMEDIATE_PREV" "retries=${_current_retries},cost=${_current_cost}"
+      fi
+    fi
+  fi
+fi
+
 if [[ -z "$NEXT_PHASE" ]]; then
   _log_phase "pipeline_complete" "all" "iteration=${ITERATION}"
   # ── ALL PHASES DONE ──

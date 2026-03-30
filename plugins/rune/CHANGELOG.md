@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.31.0] - 2026-03-30
+
+### Added
+- **Arc operational reliability**: Stop hook persistence (`arc-phase-stop-hook.sh`) — arc pipeline state now survives session crashes, enabling reliable resume with `/rune:arc --resume`
+- **`skip_phases` talisman config**: New option to skip specific arc phases (e.g., skip forge for quick iterations). Configured via `arc.skip_phases` in `talisman.yml`
+- **Heartbeat scanner improvements**: Enhanced `arc-heartbeat-writer.sh` for better detection of stale/stuck phases
+- **Session team hygiene**: New `session-team-hygiene.sh` script for orphaned team cleanup across sessions at startup/resume
+- **Arc phase constants**: New `arc-phase-constants.md` reference with phase order and skip support
+- **Stop hook persistence test suite**: 247-line test suite (`test-stop-hook-persistence.sh`) covering crash recovery scenarios
+
+### Fixed
+- **SEC: jq injection guard** — sanitize shell variables before interpolation in jq expressions (P1 security)
+- **Division-by-zero protection** — guard against zero denominator in persistence budget check (RP-002)
+- **Session isolation enforcement** — stricter ownership validation in gap analysis findings
+- **Budget warning improvements** — clearer messaging when persistence budget is exceeded
+
 ## [2.30.1] - 2026-03-30
 
 ### Fixed

@@ -395,6 +395,24 @@ def _inject_remaining_section_defaults(data: dict[str, Any]) -> None:
         }
     arc["ship"] = ship
 
+    # Persistence defaults — arc pipeline retry on API failures (v2.31.0)
+    if "persistence" not in arc:
+        arc["persistence"] = {
+            "enabled": False,
+            "max_retries": 3,
+            "max_budget_cents": 500,
+        }
+
+    # Heartbeat defaults — stale arc detection threshold (v2.31.0)
+    if "heartbeat" not in arc:
+        arc["heartbeat"] = {
+            "stale_threshold_minutes": 15,
+        }
+
+    # Skip phases — user-defined phase skip list (v2.31.0)
+    if "skip_phases" not in arc:
+        arc["skip_phases"] = []
+
     data["arc"] = arc
 
     audit = data.get("audit", {})

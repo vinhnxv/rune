@@ -6,7 +6,7 @@ Multi-agent engineering orchestration for [Claude Code](https://claude.ai/claude
 
 ## What Is This?
 
-This is the **Rune plugin** — the detailed component reference for the Rune multi-agent orchestration system. It documents all 151 agents, 61 skills, 16 commands, 4 MCP servers, and the hook infrastructure that powers Rune's workflows.
+This is the **Rune plugin** — the detailed component reference for the Rune multi-agent orchestration system. It documents all 151 agents, 61 skills, 16 commands, 5 MCP servers, and the hook infrastructure that powers Rune's workflows.
 
 For the high-level overview, see the [root README](../../README.md).
 
@@ -126,7 +126,7 @@ For the full workflow state machines, see [docs/state-machine.md](../../docs/sta
 2. **Enable Agent Teams** — add `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"` to settings
 3. **Include output directories** — add `includedGitignorePatterns` for `plans/`, `tmp/`, `.rune/`
 4. **(Optional) Initialize talisman** — run `/rune:talisman init` to generate `.rune/talisman.yml` tailored to your stack
-5. **(Optional) Enable MCP servers** — Rune's 4 MCP servers (echo-search, figma-to-react, agent-search, context7) auto-install dependencies on first use
+5. **(Optional) Enable MCP servers** — Rune's 5 MCP servers (echo-search, figma-to-react, agent-search, context7, figma-context) auto-install dependencies on first use
 
 ## Platform Requirements & Compatibility
 
@@ -275,6 +275,7 @@ Vietnamese guides are also available — see `docs/guides/*-vi.md`.
 | `figma-to-react` | Convert Figma designs to React + Tailwind CSS v4 components |
 | `agent-search` | Agent registry search for workflow orchestrators |
 | `context7` | Live framework documentation via Context7 |
+| `figma-context` | AI-optimized Figma data extraction (~90% compression vs raw API) |
 
 </details>
 
@@ -302,7 +303,7 @@ Rune implements proof-based orchestration ensuring specification compliance. Pla
 <details>
 <summary>Agent Architecture</summary>
 
-Rune includes 146 specialized agents across 8 categories — 103 core (in `agents/`) + 43 extended (in `registry/`) — spanning review, research, work, utility, investigation, testing, qa, and meta-qa. Each agent gets its own dedicated context window via Agent Teams. Custom agents can be defined via `talisman.yml`. See the [Ash Guide skill](skills/ash-guide/SKILL.md) for the full registry.
+Rune includes 151 specialized agents across 8 categories — 108 core (in `agents/`) + 43 extended (in `registry/`) — spanning review, research, work, utility, investigation, testing, qa, and meta-qa. Each agent gets its own dedicated context window via Agent Teams. Custom agents can be defined via `talisman.yml`. See the [Ash Guide skill](skills/ash-guide/SKILL.md) for the full registry.
 
 </details>
 
