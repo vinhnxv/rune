@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.32.1] - 2026-03-31
+
+### Changed
+- **pr-guardian**: Add `--disable-auto-merge` flag for monitor-only mode — watches PR, fixes issues, but skips auto-merge
+
 ## [2.32.0] - 2026-03-31
 
 ### Added

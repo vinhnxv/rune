@@ -17,6 +17,16 @@ description: |
   user: "/rune:pr-guardian 42"
   assistant: "PR Guardian activated for PR #42. Checking every 5 minutes..."
   </example>
+
+  <example>
+  user: "/rune:pr-guardian --disable-auto-merge"
+  assistant: "PR Guardian activated for PR #N (monitor-only mode). Auto-merge disabled..."
+  </example>
+
+  <example>
+  user: "/rune:pr-guardian 42 --disable-auto-merge"
+  assistant: "PR Guardian activated for PR #42 (monitor-only mode). Auto-merge disabled..."
+  </example>
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -56,21 +66,31 @@ An autonomous cron-based loop that watches your current PR and drives it to merg
 ## Usage
 
 ```
-/rune:pr-guardian              # Start the guardian on current branch's PR
-/rune:pr-guardian <PR_NUMBER>  # Watch a specific PR
+/rune:pr-guardian                              # Start the guardian on current branch's PR
+/rune:pr-guardian <PR_NUMBER>                  # Watch a specific PR
+/rune:pr-guardian --disable-auto-merge         # Watch PR but skip auto-merge (monitor + fix only)
+/rune:pr-guardian <PR_NUMBER> --disable-auto-merge  # Watch specific PR, skip auto-merge
 ```
 
 ## Activation
 
 When this skill is invoked, perform these steps **in order**:
 
-### Step 0 — Detect PR
+### Step 0 — Parse Arguments & Detect PR
 
 ```bash
-# Get current PR number (from args or auto-detect)
-PR_NUMBER="$ARGUMENTS"
+# Parse arguments — extract PR number and flags
+PR_NUMBER=""
+DISABLE_AUTO_MERGE=false
 
-# If no argument, detect from current branch
+for arg in $ARGUMENTS; do
+  case "$arg" in
+    --disable-auto-merge) DISABLE_AUTO_MERGE=true ;;
+    [0-9]*) PR_NUMBER="$arg" ;;
+  esac
+done
+
+# If no PR number provided, detect from current branch
 if [ -z "$PR_NUMBER" ]; then
   gh pr view --json number -q '.number'
 fi
@@ -89,7 +109,10 @@ Use **CronCreate** with:
 **Save the returned job ID** — you will need it for self-deletion in Step 5.
 
 Tell the user:
-> "PR Guardian activated for PR #<NUMBER>. Checking every 5 minutes. I'll auto-merge when everything is green. The cron auto-expires after 7 days if not completed sooner."
+- If `DISABLE_AUTO_MERGE=false`:
+  > "PR Guardian activated for PR #<NUMBER>. Checking every 5 minutes. I'll auto-merge when everything is green. The cron auto-expires after 7 days if not completed sooner."
+- If `DISABLE_AUTO_MERGE=true`:
+  > "PR Guardian activated for PR #<NUMBER> (monitor-only mode). Checking every 5 minutes. Auto-merge is disabled — I'll fix issues but won't merge. The cron auto-expires after 7 days."
 
 ### Step 2 — The Guardian Loop Prompt
 
@@ -97,7 +120,7 @@ Each cron tick should execute this prompt (adapt the PR number):
 
 ---
 
-**You are the PR Guardian. Execute these steps for PR #<PR_NUMBER> in order. Stop at the first step that requires action and re-check on the next tick.**
+**You are the PR Guardian. Execute these steps for PR #<PR_NUMBER> in order. Stop at the first step that requires action and re-check on the next tick. Auto-merge is <ENABLED|DISABLED based on DISABLE_AUTO_MERGE flag>.**
 
 #### Phase 1: Review Comments
 
@@ -266,6 +289,14 @@ All conditions met:
 - Branch is up-to-date with main
 - Migrations applied, no conflicts, database healthy
 - Browser tests pass (or skipped)
+
+**If `DISABLE_AUTO_MERGE=true`** (monitor-only mode):
+1. Tell the user:
+   > "PR #<PR_NUMBER> is fully green — all checks pass, no unresolved comments, branch is up-to-date. Auto-merge is disabled. Merge manually when ready."
+2. **Delete this cron job** using CronDelete with the saved job ID (no further monitoring needed)
+3. **STOP** — do not merge
+
+**If `DISABLE_AUTO_MERGE=false`** (default):
 
 Execute the merge:
 
