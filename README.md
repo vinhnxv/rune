@@ -16,7 +16,7 @@ Plan, implement, review, test, and audit your codebase using coordinated Agent T
 
 ## What Is This?
 
-Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 151 specialized AI agents, 61 skills, and a 44-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
+Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 151 specialized AI agents, 62 skills, and a 44-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
 
 **Compatibility:** Requires **Claude Code 2.1.81+** with Agent Teams support. macOS 12+ or Linux. See [full requirements](#requirements).
 
@@ -223,6 +223,7 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 | `/rune:cancel-codex-review` | Stop an active codex review |
 | `/rune:team-delegate` | Task delegation dashboard |
 | `/rune:plan-review` | Review plan code samples for correctness |
+| `/rune:pr-guardian` | Automated PR shepherd — lint, CI, rebase, migrations, browser test, auto-merge (cron every 5 min) |
 
 ---
 
@@ -521,7 +522,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 ## Skills
 
-61 skills providing background knowledge, workflow orchestration, and tool integration:
+62 skills providing background knowledge, workflow orchestration, and tool integration:
 
 | Skill | Type | Purpose |
 |-------|------|---------|
@@ -586,6 +587,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `arc-quick` | Workflow | Quick 3-phase pipeline: plan → work → review |
 | `variant-hunt` | Analysis | Systematic variant analysis — "find more like this" for confirmed findings |
 | `supply-chain-audit` | Security | Dependency risk analysis (maintainer count, CVE history, abandonment) |
+| `pr-guardian` | Automation | Cron-based PR shepherd loop — comments, lint, CI, rebase, migrations, browser test, auto-merge |
 
 ---
 
@@ -765,7 +767,7 @@ rune/
         │   ├── qa/               #    8 QA agents
         │   └── meta-qa/          #    9 meta-QA agents
         ├── registry/             # 43 extended agents
-        ├── skills/               # 61 skills
+        ├── skills/               # 62 skills
         ├── commands/             # 16 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json

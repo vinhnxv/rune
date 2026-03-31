@@ -53,6 +53,7 @@ These keywords at the START of `$ARGUMENTS` trigger immediate routing (no classi
 | `self-audit` / `meta-qa` / `lint agents` / `check rune health` / `rune health` | `/rune:self-audit` | Yes |
 | `variant-hunt` / `find similar` / `find more like this` / `variant analysis` | `/rune:variant-hunt` | Yes |
 | `supply-chain-audit` / `dependency risk` / `check dependencies` / `package security` | `/rune:supply-chain-audit` | Yes |
+| `pr-guardian` / `watch my PR` / `auto merge` / `shepherd PR` / `monitor PR` | `/rune:pr-guardian` | Yes |
 | `post-findings` / `post to PR` / `share findings` | `/rune:post-findings` | Yes |
 | `team-delegate` | `/rune:team-delegate` | Yes — experimental |
 | `cancel` | (cancel mode) | Detect active workflow → route to correct cancel command |

@@ -63,18 +63,47 @@ src/components/UserForm.tsx  → (component — find parent page)
 **Detection**: Look for router config in `src/App.tsx`, `src/router.ts`, etc.
 Parse route definitions from JSX `<Route>` elements or route config objects.
 
+## Backend File → Route (via Impact Tracing)
+
+When changed files are backend-only, trace impact to frontend routes.
+See [backend-impact-tracing.md](../../test-browser/references/backend-impact-tracing.md) for the full algorithm.
+
+```
+# Controllers/handlers → extract API endpoints → grep frontend for consumers
+app/controllers/users_controller.rb  → /api/users → grep fetch("/api/users") → /users page
+backend/views/user_views.py          → /api/users → grep api.get("/users") → /users page
+src/controllers/auth.controller.ts   → /api/auth  → grep fetch("/api/auth") → /login page
+
+# Models/migrations → find consuming controllers → extract endpoints → trace to frontend
+db/migrate/20240101_add_role.rb       → User model → UsersController → /api/users → /users page
+backend/models/order.py               → Order model → OrderViewSet → /api/orders → /orders page
+
+# Services → find consuming controllers → extract endpoints → trace to frontend
+backend/services/payment_service.py   → PaymentController → /api/payments → /checkout page
+src/services/auth.service.ts          → AuthController → /api/auth → /login page
+```
+
+**Detection**: Files matching backend patterns (controllers, models, services, migrations,
+serializers, handlers, resolvers) that don't match any frontend pattern.
+
 ## Mapping Algorithm
 
 ```
-1. Identify changed frontend files from diff
-2. Classify each file:
+1. Classify changed files: frontend vs backend vs shared
+2. For frontend files:
    a. Page/view file → direct route mapping
    b. Component file → find importing page → route mapping
    c. Layout/wrapper file → affects multiple routes → test top-level route
    d. Utility/helper file → no route (skip E2E for this file)
-3. Deduplicate routes
-4. Cap at max_routes (talisman config, default: 3)
-5. Priority: login/auth routes > data mutation routes > read-only routes
+3. For backend files (when no frontend files, or mixed):
+   a. Controller/handler → extract API endpoint → find frontend consumer → route
+   b. Model/migration → find consuming controller → extract endpoint → trace to frontend
+   c. Service/repository → find consuming controller → extract endpoint → trace to frontend
+   d. Fallback: extract resource name from filename → grep frontend for resource
+4. Combine and deduplicate routes
+5. Cap at max_routes (talisman config, default: 3)
+6. Priority: frontend-direct > backend HIGH confidence > backend MEDIUM > backend LOW
+   Within each tier: login/auth routes > data mutation routes > read-only routes
 ```
 
 ## URL Construction
