@@ -111,4 +111,5 @@ MCP integration is configured via `talisman.yml` → `integrations.mcp_tools`. U
 | `team-status` | None | < 1 min |
 | `test-browser` | None | 3-10 min |
 | `ux-design-process` | None | 2-5 min |
+| `pr-guardian` | None (cron) | 5 min/tick |
 | `rest` | None | < 1 min |

@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.32.0] - 2026-03-31
+
+### Added
+- **pr-guardian skill**: Automated PR shepherd loop — cron-based (every 5 min) that checks review comments, runs local lint/typecheck gate, monitors CI/CD, rebases onto main, starts Docker services, detects/resolves migration conflicts (Alembic, Django, Rails, Prisma, Sequelize, Knex, TypeORM), applies pending migrations with round-trip verification, runs browser tests, and auto-merges when all green. 7-day auto-expiry. `/rune:pr-guardian [PR#]`
+- **test-browser deep testing** (`--deep`): 5-layer deep testing beyond smoke tests — interaction testing (form fill, button clicks), data persistence (submit → navigate → verify), visual/layout inspection (overflow, spacing, touch targets, responsive breakpoints), UX logic (empty states, loading, a11y, error handling), data diagnosis (HAR-based null/empty root cause analysis)
+- **test-browser cross-screen workflow continuity**: Create→List→Edit→Save CRUD lifecycle testing across related routes — detects data not persisting between screens, edit pages not pre-populated, list pages missing created data
+- **test-browser backend impact tracing**: When PR has only backend/API/database changes, traces impact forward (backend file → API endpoint → frontend consumer → page → route) to discover and test consuming frontend routes. 4-layer tracing: direct endpoints, model/migration impact, service layer, resource name fallback
+- **test-browser data diagnosis layer**: Table empty column detection (>50% null), raw null/undefined display detection, detail view empty field analysis, HAR-based root cause analysis (API error vs API null fields vs empty array vs UI rendering issue)
+
+### Changed
+- **test-browser**: Updated description, workflow overview, and talisman config to reflect deep testing capabilities. Added `--deep` flag support with auto-cap to 3 routes
+- **using-rune**: Added pr-guardian routing entry
+- **tarnished**: Added pr-guardian to intent-patterns and skill-catalog
+
 ## [2.31.1] - 2026-03-30
 
 ### Fixed
