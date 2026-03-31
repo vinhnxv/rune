@@ -1,9 +1,9 @@
 ---
 name: rune:quick
 description: |
-  Quick 3-phase pipeline. Beginner-friendly alias for /rune:arc-quick.
+  Quick 4-phase pipeline. Beginner-friendly alias for /rune:arc-quick.
   Use when the user says "quick", "fast", "nhanh", "quick run",
-  "plan build review", or wants the simplified pipeline.
+  "plan build review mend", or wants the simplified pipeline.
   Forwards all arguments to /rune:arc-quick.
 
   <example>
@@ -38,8 +38,8 @@ allowed-tools:
 
 Delegates to `/rune:arc-quick $ARGUMENTS`.
 
-A beginner-friendly shortcut for `/rune:arc-quick`. Runs the lightweight 3-phase
-pipeline: Plan -> Work -> Review in one command.
+A beginner-friendly shortcut for `/rune:arc-quick`. Runs the lightweight 4-phase
+pipeline: Plan -> Work -> Review -> Mend in one command.
 
 ## Usage
 

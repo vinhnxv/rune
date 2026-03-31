@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.33.0] - 2026-03-31
+
+### Changed
+- **arc-quick**: Add mend phase — pipeline is now 4 phases (plan → work+evaluate → review → mend). Mend runs conditionally when TOME contains P1/P2 findings, skips gracefully otherwise. Closes the feedback loop so review findings get auto-resolved in the same pipeline run.
+
 ## [2.32.1] - 2026-03-31
 
 ### Changed

@@ -190,7 +190,7 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 | [`/rune:strive`](#strive) | Execute plans with self-organizing swarm workers | 2-6 | 10–30 min |
 | [`/rune:appraise`](#appraise) | Multi-agent code review on your diff | up to 8 | 5–20 min |
 | [`/rune:audit`](#audit) | Full codebase audit with specialized reviewers | up to 8 | 10–30 min |
-| `/rune:arc-quick` | Quick pipeline: plan → work → review (3 phases) | varies | 25–60 min |
+| `/rune:arc-quick` | Quick pipeline: plan → work → review → mend (4 phases) | varies | 25–60 min |
 | [`/rune:arc`](#arc) | End-to-end pipeline: plan → work → review → test → ship | varies | **1–3 hours** |
 | [`/rune:mend`](#mend) | Parallel resolution of review findings | 1-5 | 3–10 min |
 | [`/rune:forge`](#forge) | Deepen a plan with topic-aware research enrichment | 3-12 | 5–15 min |
@@ -584,7 +584,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `discipline` | Quality | Proof-based orchestration discipline for spec compliance |
 | `post-findings` | Workflow | Post review findings to GitHub PR as formatted comment |
 | `self-audit` | Quality | Meta-QA self-audit of Rune's own plugin infrastructure |
-| `arc-quick` | Workflow | Quick 3-phase pipeline: plan → work → review |
+| `arc-quick` | Workflow | Quick 4-phase pipeline: plan → work → review → mend |
 | `variant-hunt` | Analysis | Systematic variant analysis — "find more like this" for confirmed findings |
 | `supply-chain-audit` | Security | Dependency risk analysis (maintainer count, CVE history, abandonment) |
 | `pr-guardian` | Automation | Cron-based PR shepherd loop — comments, lint, CI, rebase, migrations, browser test, auto-merge |

@@ -178,7 +178,7 @@ Rune is a token-intensive multi-agent system. Each workflow summons multiple age
 | `/rune:arc-batch plans/*.md` | Run Arc (end-to-end pipeline) on multiple plans sequentially |
 | `/rune:arc-issues --label "rune:ready"` | Process GitHub Issues → Plans → PRs automatically |
 | `/rune:arc-hierarchy plans/parent.md` | Execute hierarchical child plans in dependency order |
-| `/rune:arc-quick` | Quick 3-phase pipeline: plan -> work -> review (25-60 min) |
+| `/rune:arc-quick` | Quick 4-phase pipeline: plan -> work -> review -> mend (25-60 min) |
 
 ### Utilities
 

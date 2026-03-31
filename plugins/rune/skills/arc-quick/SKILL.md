@@ -1,15 +1,16 @@
 ---
 name: arc-quick
 description: |
-  Lightweight 3-phase pipeline: Plan -> Work+Evaluate -> Review.
-  Chains devise --quick -> strive (with evaluator loop) -> appraise in one command.
+  Lightweight 4-phase pipeline: Plan -> Work+Evaluate -> Review -> Mend.
+  Chains devise --quick -> strive (with evaluator loop) -> appraise -> mend in one command.
   Work phase iterates up to max_iterations (default 3) with ward checks and
   quality signal detection between passes. Stagnation detection prevents infinite loops.
+  Mend phase auto-fixes P1/P2 findings from the review TOME.
   Accepts a prompt string or existing plan file path.
   Recommends /rune:arc for complex plans (8+ tasks) unless --force is passed.
   Use when: "quick run", "fast pipeline", "plan and build", "nhanh",
-  "chay nhanh", "quick arc", "simple pipeline", "3 steps",
-  "plan work review", "quick", "arc-quick".
+  "chay nhanh", "quick arc", "simple pipeline", "4 steps",
+  "plan work review mend", "quick", "arc-quick".
 
   <example>
   user: "/rune:arc-quick add a health check endpoint"
@@ -29,9 +30,9 @@ user-invocable: true
 argument-hint: "[prompt or plan-path] [--force]"
 ---
 
-# /rune:arc-quick --- Lightweight 3-Phase Pipeline
+# /rune:arc-quick --- Lightweight 4-Phase Pipeline
 
-Runs **Plan -> Work -> Review** (`devise --quick` -> `strive` -> `appraise`) in one command.
+Runs **Plan -> Work -> Review -> Mend** (`devise --quick` -> `strive` -> `appraise` -> `mend`) in one command.
 A simplified alternative to `/rune:arc` (43 phases) for small-to-medium features.
 
 **Load skills**: `polling-guard`, `zsh-compat`
@@ -78,6 +79,10 @@ Phase 2: WORK + EVALUATE LOOP (max_iterations from talisman, default 3)
 Phase 3: REVIEW
   Skill("rune:appraise")
   Output: TOME with findings
+
+Phase 4: MEND (conditional --- only when TOME has P1/P2 findings)
+  Skill("rune:mend", tomePath)
+  Output: findings resolved, code updated
 
 Summary: present results + iteration history + next steps
 ```
@@ -178,12 +183,12 @@ const isComplex = taskCount >= 8 || (sectionCount >= 6 && effort !== "S")
 
 if (isComplex && !force) {
   AskUserQuestion({
-    question: `This plan has ${taskCount} tasks and ${sectionCount} sections --- it looks complex.\n\nThe quick pipeline (plan -> work -> review) skips forge enrichment, gap analysis, mend loops, testing, and ship/merge. For complex plans, these steps catch issues early.\n\nWhat would you like to do?`,
+    question: `This plan has ${taskCount} tasks and ${sectionCount} sections --- it looks complex.\n\nThe quick pipeline (plan -> work -> review -> mend) skips forge enrichment, gap analysis, testing, and ship/merge. For complex plans, these steps catch issues early.\n\nWhat would you like to do?`,
     options: [
       { label: "Switch to /rune:arc (full 43-phase pipeline)",
         description: "Recommended for complex plans --- thorough but takes 1-3 hours" },
       { label: "Continue with quick pipeline",
-        description: "Plan -> Work -> Review only --- faster but less thorough" }
+        description: "Plan -> Work -> Review -> Mend --- faster but less thorough" }
     ]
   })
   // If user picks arc:
@@ -275,15 +280,32 @@ while (iteration < maxIterations) {
 Skill("rune:appraise")
 ```
 
-### Step 7: Summary
-
-After all phases complete, present results with iteration history:
+### Step 7: Phase 4 --- MEND (conditional)
 
 ```javascript
 // Find the TOME from the review
 const tomes = Glob("tmp/reviews/*/TOME.md")
 const latestTome = tomes.length > 0 ? tomes[0] : null
 
+if (latestTome) {
+  const tomeContent = Read(latestTome)
+  const hasActionableFindings = /\bP1\b|\bP2\b/.test(tomeContent)
+
+  if (hasActionableFindings) {
+    Skill("rune:mend", latestTome)
+  } else {
+    log("No P1/P2 findings in TOME — skipping mend phase")
+  }
+} else {
+  log("No TOME found — skipping mend phase")
+}
+```
+
+### Step 8: Summary
+
+After all phases complete, present results with iteration history:
+
+```javascript
 // Get current branch
 const branch = Bash("git branch --show-current").trim()
 
@@ -305,8 +327,10 @@ const iterationRows = iterationHistory.map(h =>
   `| ${h.iteration} | ${h.verdict} | ${h.findings.length} | ${h.confidence} | ${h.reason} |`
 ).join("\n")
 
-// Check if appraise found P1 findings (recommend mend only if so)
-const hasP1 = latestTome ? Read(latestTome).includes("P1") : false
+// Check for mend resolution report
+const mendReports = Glob("tmp/mend/*/resolution-report.md")
+const mendReport = mendReports.length > 0 ? mendReports[0] : null
+const mendStatus = mendReport ? "Resolved" : (latestTome ? "Skipped (no P1/P2)" : "Skipped (no TOME)")
 
 // Present summary
 const summary = `
@@ -317,6 +341,7 @@ const summary = `
 | Plan | ${planPath} |
 | Work | Implemented on branch \`${branch}\` (${iterationHistory.length} iteration${iterationHistory.length > 1 ? "s" : ""}) |
 | Review | ${latestTome ? `Findings in \`${latestTome}\`` : "No findings file found"} |
+| Mend | ${mendStatus}${mendReport ? ` — see \`${mendReport}\`` : ""} |
 
 ### Iteration History
 
@@ -328,7 +353,6 @@ ${iterationRows}
 
 ### Next Steps
 
-${hasP1 ? `- \`/rune:mend ${latestTome}\` --- auto-fix P1 review findings` : ""}
 - \`/rune:arc ${planPath}\` --- run full 43-phase pipeline if needed
 - \`git push\` --- push your changes
 - \`/rune:rest\` --- clean up tmp/ artifacts
@@ -342,6 +366,7 @@ ${hasP1 ? `- \`/rune:mend ${latestTome}\` --- auto-fix P1 review findings` : ""}
 | Phase 1 (devise) | No plan generated | Stop, suggest manual `/rune:plan` |
 | Phase 2 (strive) | Workers fail | Stop, present partial results, suggest `--approve` |
 | Phase 3 (appraise) | Review fails | Non-blocking --- warn, suggest manual `/rune:review` |
+| Phase 4 (mend) | Mend fails | Non-blocking --- warn, suggest manual `/rune:mend` |
 | Complexity gate | User picks arc | Delegate to `/rune:arc`, stop quick pipeline |
 
 ### Evaluator Function
@@ -424,7 +449,8 @@ function evaluateIteration(planPath, iterationNumber, baseRef) {
 
 ## Design Decisions
 
-1. **No Stop hook loop** --- 3 sequential Skill() calls. Simpler and more debuggable than a state machine.
+1. **No Stop hook loop** --- 4 sequential Skill() calls. Simpler and more debuggable than a state machine.
 2. **No checkpoint/resume** --- Total runtime is 25-60 min. If it fails, rerun the command.
 3. **No parent team** --- Each Skill() creates and cleans up its own team independently.
-4. **No forge, mend, test, ship** --- These make `/rune:arc` take 1-3 hours. Run them separately if needed.
+4. **No forge, test, ship** --- These make `/rune:arc` take 1-3 hours. Run them separately if needed.
+5. **Conditional mend** --- Only runs when TOME has P1/P2 findings. Skips gracefully otherwise.
