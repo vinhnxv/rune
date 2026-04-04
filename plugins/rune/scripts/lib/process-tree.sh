@@ -124,11 +124,15 @@ _collect_teammate_pids() {
   local sig_dir="${_RUNE_PT_CWD:-$PWD}/tmp/.rune-signals/${team_name}"
   if [[ -d "$sig_dir" && ! -L "$sig_dir" ]]; then
     local pf sp
+    # ZSH-001: Protect glob from NOMATCH fatal error
+    local _orig_ng=""
+    if shopt -q nullglob 2>/dev/null; then _orig_ng="on"; else shopt -s nullglob 2>/dev/null || true; fi
     for pf in "${sig_dir}"/*.pid; do
       [[ -f "$pf" && ! -L "$pf" ]] || continue
       sp=$(cat "$pf" 2>/dev/null || true)
       [[ "$sp" =~ ^[0-9]+$ ]] && pids_raw="${pids_raw}${sp}"$'\n'
     done
+    [[ "$_orig_ng" != "on" ]] && shopt -u nullglob 2>/dev/null || true
   fi
 
   # Deduplicate candidate PIDs

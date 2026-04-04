@@ -329,12 +329,16 @@ _kill_stale_teammates() {
   local _active_team=""
   if [[ -d "${_chome}/teams" ]]; then
     local _d
+    # ZSH-001: Protect glob from NOMATCH fatal error
+    local _orig_nullglob=""
+    if shopt -q nullglob 2>/dev/null; then _orig_nullglob="on"; else shopt -s nullglob 2>/dev/null || true; fi
     for _d in "${_chome}/teams/"rune-* "${_chome}/teams/"arc-*; do
       if [[ -d "$_d" && ! -L "$_d" ]]; then
         _active_team=$(basename "$_d")
         break
       fi
     done
+    [[ "$_orig_nullglob" != "on" ]] && shopt -u nullglob 2>/dev/null || true
   fi
 
   # Set CWD context for _collect_teammate_pids signal file lookup
