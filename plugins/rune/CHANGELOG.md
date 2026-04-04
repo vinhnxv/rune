@@ -9,6 +9,9 @@
 - **session-team-hygiene.sh**: Same default flip and talisman config support
 - **track-teammate-activity.sh**: Write teammate PID signal files (`{agent-name}.pid`) as secondary PID source for the whitelist
 - **context-percent-stop-guard.sh**: Fix stale comment about hook ordering
+- **CLAUDE.md**: Add Iron Law PROC-001 (Read Before Kill) — Claude Code must read and classify process list before killing any PID
+- **engines.md**: Update step 5a to use read-first-kill-second protocol with `"teammates"` filter and LLM-in-the-loop classification
+- **project CLAUDE.md**: Update step 5a cleanup pattern with mandatory process list review before kill
 
 ## [2.33.0] - 2026-03-31
 

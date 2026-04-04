@@ -158,6 +158,12 @@ Rune implements structural discipline enforcement across all pipelines. See `doc
     - **Signal directory**: Set up `tmp/.rune-signals/{teamName}/` with `.expected` count before spawning agents for Phase 2 fast-path monitoring.
     - **Validation**: Run `bash scripts/validate-task-contract.sh` to detect violations. See Pre-Commit Checklist.
     - **Why**: This bug caused arc pipeline stalls in Phase 2 (plan review) and Phase 7.7 (test) — agents completed work but orchestrator had no way to detect it, causing indefinite polling or timeout.
+14. **Iron Law PROC-001 — Read Before Kill** (MCP-PROTECT-003): Claude Code MUST read and understand the process list BEFORE killing ANY process. Never use blind `pgrep | kill` loops. The mandatory sequence is:
+    - **Step 1 (READ)**: `Bash("ps -o pid,ppid,comm,args ...")` — list all candidate processes with full details
+    - **Step 2 (UNDERSTAND)**: Claude Code classifies each process: TEAMMATE (kill), MCP_SERVER (protect), CONNECTOR (protect), OTHER (protect). Classification rules: TEAMMATE = `comm` is `node|claude|claude-*` AND `args` has NO `--stdio`/`--lsp`/`mcp-server`/`connector`. Everything else is protected.
+    - **Step 3 (KILL)**: Only send signals to PIDs classified as TEAMMATE. Use explicit PID list — NEVER a blind for-loop over `pgrep` output.
+    - **Bash-level fallback**: When process kill happens inside hook scripts (bash, no LLM access), use `_rune_kill_tree()` with `"teammates"` filter — it applies the same 3-check verification automatically via `_collect_teammate_pids()`.
+    - **Why**: MCP/LSP servers, Claude Code connectors, and non-teammate processes share the same process tree. A blind `pgrep -P $PPID | xargs kill` kills MCP servers, breaking tool connectivity mid-session.
 
 ## Teammate Lifecycle Safety
 

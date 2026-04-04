@@ -618,15 +618,32 @@ function shutdown(handle) {
 
   // --- 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012) ---
   if (!cleanupTeamDeleteSucceeded) {
-    // 5a. Process-level kill: terminate lingering teammate processes before filesystem cleanup.
-    // When TeamDelete fails, teammates are likely still running. Filesystem cleanup alone
-    // leaves zombie processes that hold file locks and consume resources.
-    // Uses centralized _rune_kill_tree for recursive descendant walk + PID recycling guard.
-    // NOTE: _rune_kill_tree implements MCP-PROTECT-001 internally — it skips --stdio
-    // processes (MCP/LSP servers) during teammate cleanup to avoid killing shared services.
+    // 5a. Process-level kill — READ-FIRST, KILL-SECOND (MCP-PROTECT-003)
+    // MANDATORY: Claude Code MUST read and understand the process list before killing ANY process.
+    // When TeamDelete fails, teammates are likely still running. But we must verify what each
+    // process IS before sending any signal. This is the LLM-in-the-loop safety layer.
     const ownerPid = handle.ownerPid || Bash(`echo $PPID`).trim()
     if (ownerPid && /^\d+$/.test(ownerPid)) {
-      Bash(`source "\${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "${ownerPid}" "2stage" "5" "claude"`)
+      // Step 1: READ — list all child processes with full details
+      const processListOutput = Bash(`ps -o pid,ppid,comm,args -p $(pgrep -P ${ownerPid} 2>/dev/null | head -30 | tr '\\n' ',') 2>/dev/null || echo "NO_CHILDREN"`)
+
+      // Step 2: UNDERSTAND — Claude Code classifies each process:
+      //   TEAMMATE (kill):   comm=node|claude|claude-*, args has NO --stdio/--lsp/mcp-server/connector
+      //   MCP_SERVER (keep): args contains --stdio, --lsp, mcp-server, mcp*server, figma-developer-mcp, context7-mcp
+      //   CONNECTOR (keep):  args contains @anthropic*connector or claude-connector
+      //   OTHER (keep):      comm is NOT node|claude|claude-*
+      // Log classification for audit trail before proceeding.
+
+      // Step 3: KILL — only PIDs classified as TEAMMATE from Step 2
+      // Use explicit PID list — NEVER a blind for-loop over pgrep output.
+      // Example: teammateKillList = [1234, 5678]
+      //   Bash(`kill -TERM 1234 5678 2>/dev/null || true`)
+      //   Bash(`sleep 5`)
+      //   Bash(`kill -KILL 1234 5678 2>/dev/null || true`)  // survivors only
+
+      // Alternative: delegate to _rune_kill_tree with "teammates" filter (pre-verified whitelist)
+      // This uses _collect_teammate_pids() which applies the same 3-check verification.
+      Bash(`source "\${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _RUNE_PT_CWD="$(pwd)" && _rune_kill_tree "${ownerPid}" "2stage" "5" "teammates" "${handle.teamName}"`)
     }
 
     // 5b. Filesystem cleanup
