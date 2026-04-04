@@ -40,14 +40,27 @@ _rune_session_hook_exit() {
 }
 trap '_rune_session_hook_exit' EXIT
 
-# Guard: Auto-cleanup kill switch (MCP-PROTECT-002)
-if [[ "${RUNE_DISABLE_AUTO_CLEANUP:-1}" == "1" ]]; then
+# Guard: Auto-cleanup toggle (MCP-PROTECT-003)
+# Auto-cleanup is ENABLED by default. Uses positive teammate PID whitelist (MCP-PROTECT-003).
+# Set RUNE_DISABLE_AUTO_CLEANUP=1 to disable, or talisman process_management.auto_cleanup: false.
+if [[ "${RUNE_DISABLE_AUTO_CLEANUP:-0}" == "1" ]]; then
   exit 0
 fi
 
 # Guard: jq dependency
 if ! command -v jq &>/dev/null; then
   exit 0
+fi
+
+# Guard: Talisman auto_cleanup config (AC-5)
+if [[ -z "${RUNE_DISABLE_AUTO_CLEANUP:-}" ]]; then
+  _talisman_shard="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/misc.json"
+  if [[ -f "$_talisman_shard" && ! -L "$_talisman_shard" ]]; then
+    _auto_cleanup=$(jq -r '.process_management.auto_cleanup // empty' "$_talisman_shard" 2>/dev/null || true)
+    if [[ "$_auto_cleanup" == "false" ]]; then
+      exit 0
+    fi
+  fi
 fi
 
 # DSEC-005 FIX: Cache trace log path once to prevent TOCTOU write-to-symlink races.

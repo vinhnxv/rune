@@ -55,16 +55,28 @@ _proc_name() {
   fi
 }
 
-# ── GUARD 0.5: Auto-cleanup kill switch (MCP-PROTECT-002) ──
-# Auto-cleanup is DISABLED by default to prevent accidental MCP/LSP server kills.
-# Set RUNE_DISABLE_AUTO_CLEANUP=0 to enable process cleanup on session stop.
-if [[ "${RUNE_DISABLE_AUTO_CLEANUP:-1}" == "1" ]]; then
+# ── GUARD 0.5: Auto-cleanup toggle (MCP-PROTECT-003) ──
+# Auto-cleanup is ENABLED by default. Uses positive teammate PID whitelist (MCP-PROTECT-003).
+# Set RUNE_DISABLE_AUTO_CLEANUP=1 to disable, or talisman process_management.auto_cleanup: false.
+if [[ "${RUNE_DISABLE_AUTO_CLEANUP:-0}" == "1" ]]; then
   exit 0
 fi
 
 # ── GUARD 1: jq dependency (fail-open) ──
 if ! command -v jq &>/dev/null; then
   exit 0
+fi
+
+# ── GUARD 1.5: Talisman auto_cleanup config (AC-5) ──
+# Env var takes precedence. If not set, check talisman process_management.auto_cleanup.
+if [[ -z "${RUNE_DISABLE_AUTO_CLEANUP:-}" ]]; then
+  _talisman_shard="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/misc.json"
+  if [[ -f "$_talisman_shard" && ! -L "$_talisman_shard" ]]; then
+    _auto_cleanup=$(jq -r '.process_management.auto_cleanup // empty' "$_talisman_shard" 2>/dev/null || true)
+    if [[ "$_auto_cleanup" == "false" ]]; then
+      exit 0
+    fi
+  fi
 fi
 
 # ── GUARD 2: Input size cap (SEC-2: 1MB DoS prevention) ──
@@ -292,13 +304,11 @@ if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"; then
 fi
 
 # ── Helper: Kill stale teammate processes ──
-# Terminates child processes of this Claude Code session (node/claude/claude-*).
-# SIGTERM first (graceful), then SIGKILL survivors after 2s.
+# MCP-PROTECT-003: Uses positive teammate PID whitelist when available.
+# Discovers team name from CHOME/teams/, then delegates to _rune_kill_tree with
+# "teammates" filter. Falls back to "claude" filter if no team found.
 # Only kills OUR session's children — PPID match guarantees this.
 # SEC-002: PPID scoping limits blast radius to children of this Claude Code process.
-# Command name filter (node|claude|claude-*) further narrows targets to teammate processes.
-# Intentional trade-off: command name could theoretically match non-teammate child processes,
-# but PPID + command name together keep false-positive risk acceptably low.
 # CLD-003 FIX: Use _proc_name() for cross-platform PID validation before each kill.
 _kill_stale_teammates() {
   # BACK-008: Validate that PPID is actually a Claude Code process before targeting its children.
@@ -309,15 +319,34 @@ _kill_stale_teammates() {
     return 0
   fi
 
-  # Delegate to centralized process-tree.sh (2-stage SIGTERM→SIGKILL with PID recycling guard)
-  # SEC-005: Grace period 1s (20% of 5s hook timeout budget)
-  # Filter "claude" targets node|claude|claude-* processes (teammates)
-  # MCP-PROTECT-001: MCP/LSP servers (--stdio processes) are excluded by process-tree.sh
-  if declare -f _rune_kill_tree &>/dev/null; then
-    _rune_kill_tree "$PPID" "2stage" "1" "claude"
-  else
-    # Fallback: process-tree.sh not loaded — return 0 (fail-forward)
+  if ! declare -f _rune_kill_tree &>/dev/null; then
     echo "0"
+    return 0
+  fi
+
+  # MCP-PROTECT-003: Discover active team name for positive PID whitelist
+  local _chome="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  local _active_team=""
+  if [[ -d "${_chome}/teams" ]]; then
+    local _d
+    for _d in "${_chome}/teams/"rune-* "${_chome}/teams/"arc-*; do
+      if [[ -d "$_d" && ! -L "$_d" ]]; then
+        _active_team=$(basename "$_d")
+        break
+      fi
+    done
+  fi
+
+  # Set CWD context for _collect_teammate_pids signal file lookup
+  _RUNE_PT_CWD="${CWD:-$PWD}"
+
+  # SEC-005: Grace period 1s (20% of 5s hook timeout budget)
+  if [[ -n "$_active_team" ]]; then
+    # Use positive PID whitelist via "teammates" filter
+    _rune_kill_tree "$PPID" "2stage" "1" "teammates" "$_active_team"
+  else
+    # No team found — fall back to "claude" filter with enhanced MCP detection
+    _rune_kill_tree "$PPID" "2stage" "1" "claude"
   fi
   return 0
 }

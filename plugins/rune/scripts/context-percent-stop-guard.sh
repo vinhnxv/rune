@@ -4,7 +4,7 @@
 # Classification: OPERATIONAL (fail-forward)
 # Timeout: 5s
 #
-# IMPORTANT: This script MUST be placed LAST in the Stop array.
+# IMPORTANT: This script MUST be placed BEFORE on-session-stop.sh (second-to-last in Stop array).
 # arc-phase-stop-hook.sh, arc-batch-stop-hook.sh, arc-hierarchy-stop-hook.sh,
 # arc-issues-stop-hook.sh, detect-workflow-complete.sh, and on-session-stop.sh
 # all run before this guard. When an arc loop is active, this guard exits 0

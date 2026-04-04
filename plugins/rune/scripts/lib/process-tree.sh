@@ -40,11 +40,9 @@ if ! declare -f _proc_name &>/dev/null; then
   }
 fi
 
-# MCP/LSP server process detection (MCP-PROTECT-001)
-# MCP servers use --stdio flag for JSON-RPC transport. This is a reliable
-# signature that distinguishes them from teammate processes (which use
-# Claude Code's internal protocol, not --stdio).
+# MCP/LSP server process detection (MCP-PROTECT-001, enhanced MCP-PROTECT-003)
 # Returns 0 if the process is an MCP/LSP server, 1 otherwise.
+# Checks multiple signatures beyond just --stdio to catch custom MCP/LSP servers.
 _is_mcp_server() {
   local pid="$1"
   [[ -z "$pid" || ! "$pid" =~ ^[0-9]+$ ]] && return 1
@@ -56,11 +54,124 @@ _is_mcp_server() {
     cmdline=$(ps -p "$pid" -o args= 2>/dev/null || true)
   fi
   [[ -z "$cmdline" ]] && return 1
-  # MCP servers always use --stdio for JSON-RPC stdio transport
+
+  # MCP servers: --stdio transport (most common)
+  case "$cmdline" in *--stdio*) return 0 ;; esac
+
+  # LSP servers: --lsp flag
+  case "$cmdline" in *--lsp*) return 0 ;; esac
+
+  # Known MCP server patterns (Python, npx)
   case "$cmdline" in
-    *--stdio*) return 0 ;;
+    *mcp*server*|*mcp-server*) return 0 ;;
+    *uvicorn*mcp*|*python*-m*mcp*) return 0 ;;
+    *figma-developer-mcp*|*context7-mcp*) return 0 ;;
   esac
+
+  # Claude Code's own connector processes (not teammates)
+  case "$cmdline" in
+    *@anthropic*connector*|*claude-connector*) return 0 ;;
+  esac
+
   return 1
+}
+
+# _describe_process <pid>
+# Returns a human-readable description of a process: "PID comm args_prefix"
+# Used for trace logging before any kill decision. Read-first, kill-second.
+_describe_process() {
+  local pid="$1"
+  [[ -z "$pid" || ! "$pid" =~ ^[0-9]+$ ]] && return 0
+  local comm args
+  comm=$(_proc_name "$pid" 2>/dev/null || echo "?")
+  if [[ -r "/proc/$pid/cmdline" ]]; then
+    args=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | head -c 200 || true)
+  else
+    args=$(ps -p "$pid" -o args= 2>/dev/null | head -c 200 || true)
+  fi
+  printf 'pid=%s comm=%s args="%s"' "$pid" "$comm" "${args:-?}"
+}
+
+# _collect_teammate_pids <team_name>
+# Returns confirmed Rune teammate PIDs from two sources:
+#   (1) SDK team config.json members[].pid
+#   (2) Rune activity signal files (written by track-teammate-activity.sh)
+# Returns empty if no teammate PIDs can be identified (caller falls back to negative filter).
+#
+# MCP-PROTECT-003: Positive identification — only PIDs from these sources are kill targets.
+# Each candidate PID is VERIFIED before being returned:
+#   - Must be alive (kill -0)
+#   - Must look like a Claude Code process (node|claude|claude-*)
+#   - Must NOT be an MCP/LSP server
+# This ensures the caller receives a pre-validated list — no blind kills.
+_collect_teammate_pids() {
+  local team_name="$1"
+  [[ -z "$team_name" || ! "$team_name" =~ ^[a-zA-Z0-9_-]+$ ]] && return 0
+  local chome="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  local pids_raw=""
+
+  # Source 1: SDK team config
+  local cfg="${chome}/teams/${team_name}/config.json"
+  if [[ -f "$cfg" && ! -L "$cfg" ]]; then
+    local member_pids
+    member_pids=$(jq -r '.members[]?.pid // empty' "$cfg" 2>/dev/null || true)
+    if [[ -n "$member_pids" ]]; then
+      pids_raw="${pids_raw}${member_pids}"$'\n'
+    fi
+  fi
+
+  # Source 2: Rune activity signal files (written by track-teammate-activity.sh)
+  local sig_dir="${_RUNE_PT_CWD:-$PWD}/tmp/.rune-signals/${team_name}"
+  if [[ -d "$sig_dir" && ! -L "$sig_dir" ]]; then
+    local pf sp
+    for pf in "${sig_dir}"/*.pid; do
+      [[ -f "$pf" && ! -L "$pf" ]] || continue
+      sp=$(cat "$pf" 2>/dev/null || true)
+      [[ "$sp" =~ ^[0-9]+$ ]] && pids_raw="${pids_raw}${sp}"$'\n'
+    done
+  fi
+
+  # Deduplicate candidate PIDs
+  local candidates
+  candidates=$(printf '%s\n' "$pids_raw" | grep -E '^[0-9]+$' | sort -u 2>/dev/null || true)
+  [[ -z "$candidates" ]] && return 0
+
+  # VERIFY each candidate before returning — read-first, kill-second discipline
+  local candidate_pid candidate_comm
+  while IFS= read -r candidate_pid; do
+    [[ -z "$candidate_pid" ]] && continue
+
+    # 1. Must be alive
+    kill -0 "$candidate_pid" 2>/dev/null || continue
+
+    # 2. Must look like a Claude Code teammate process
+    candidate_comm=$(_proc_name "$candidate_pid" 2>/dev/null || true)
+    case "$candidate_comm" in
+      node|claude|claude-*) ;;
+      *)
+        # Trace: candidate PID is not a Claude process — skip
+        if [[ "${RUNE_TRACE:-}" == "1" ]]; then
+          printf '[process-tree] SKIP candidate %s — not a Claude process (comm=%s)\n' \
+            "$candidate_pid" "$candidate_comm" >&2
+        fi
+        continue
+        ;;
+    esac
+
+    # 3. Must NOT be an MCP/LSP server (double safety net)
+    if _is_mcp_server "$candidate_pid"; then
+      if [[ "${RUNE_TRACE:-}" == "1" ]]; then
+        printf '[process-tree] SKIP candidate %s — MCP/LSP server detected\n' "$candidate_pid" >&2
+      fi
+      continue
+    fi
+
+    # All checks passed — this is a verified teammate PID
+    if [[ "${RUNE_TRACE:-}" == "1" ]]; then
+      printf '[process-tree] VERIFIED teammate: %s\n' "$(_describe_process "$candidate_pid")" >&2
+    fi
+    printf '%s\n' "$candidate_pid"
+  done <<< "$candidates"
 }
 
 # _RUNE_DESC_PIDS — populated by _rune_collect_descendants
@@ -90,7 +201,7 @@ _rune_collect_descendants() {
   done <<< "$children"
 }
 
-# _rune_kill_tree <root_pid> <mode> [grace_seconds] [filter]
+# _rune_kill_tree <root_pid> <mode> [grace_seconds] [filter] [team_name]
 #
 # Kills process tree rooted at root_pid.
 #
@@ -98,7 +209,9 @@ _rune_collect_descendants() {
 #   root_pid       — PID whose children to kill (the root itself is NOT killed)
 #   mode           — "2stage" (SIGTERM then SIGKILL) or "term" (SIGTERM only)
 #   grace_seconds  — seconds between SIGTERM and SIGKILL (default: 5)
-#   filter         — "all" (default, kill all descendants) or "claude" (only node|claude|claude-*)
+#   filter         — "all" (kill all descendants), "claude" (only node|claude|claude-*),
+#                    or "teammates" (MCP-PROTECT-003: positive PID whitelist from team config)
+#   team_name      — required when filter="teammates"; the team name to look up PIDs for
 #
 # Returns: number of processes killed (echoed to stdout)
 #
@@ -109,6 +222,7 @@ _rune_kill_tree() {
   local mode="${2:-2stage}"
   local grace="${3:-5}"
   local filter="${4:-all}"
+  local team_name="${5:-}"
   local killed=0
 
   [[ -z "$root_pid" || ! "$root_pid" =~ ^[0-9]+$ ]] && echo "0" && return 0
@@ -133,12 +247,51 @@ _rune_kill_tree() {
   local _kill_pids=()
   local _kill_lstarts=()
 
+  # MCP-PROTECT-003: Build teammate PID whitelist for "teammates" filter
+  local _whitelist_pids=""
+  local _whitelist_available=false
+  if [[ "$filter" == "teammates" && -n "$team_name" ]]; then
+    _whitelist_pids=$(_collect_teammate_pids "$team_name")
+    if [[ -n "$_whitelist_pids" ]]; then
+      _whitelist_available=true
+      if [[ "${RUNE_TRACE:-}" == "1" ]]; then
+        local _wl_count
+        _wl_count=$(printf '%s\n' "$_whitelist_pids" | wc -l | tr -d ' ')
+        printf '[process-tree] Teammate whitelist for team=%s: %s verified PID(s)\n' \
+          "$team_name" "$_wl_count" >&2
+      fi
+    else
+      if [[ "${RUNE_TRACE:-}" == "1" ]]; then
+        printf '[process-tree] No teammate whitelist for team=%s — falling back to claude filter\n' \
+          "$team_name" >&2
+      fi
+    fi
+    # If no whitelist available, fall back to "claude" filter behavior
+  fi
+
   local pid child_comm child_lstart
   for pid in "${_RUNE_DESC_PIDS[@]}"; do
     [[ -z "$pid" || ! "$pid" =~ ^[0-9]+$ ]] && continue
 
     # Apply filter
-    if [[ "$filter" == "claude" ]]; then
+    if [[ "$filter" == "teammates" ]]; then
+      if [[ "$_whitelist_available" == "true" ]]; then
+        # Positive filter: only kill PIDs in the whitelist
+        if ! printf '%s\n' "$_whitelist_pids" | grep -qx "$pid"; then
+          continue
+        fi
+      else
+        # Fallback: no whitelist available — use "claude" filter with enhanced MCP detection
+        child_comm=$(_proc_name "$pid")
+        case "$child_comm" in
+          node|claude|claude-*) ;;
+          *) continue ;;
+        esac
+        if _is_mcp_server "$pid"; then
+          continue
+        fi
+      fi
+    elif [[ "$filter" == "claude" ]]; then
       child_comm=$(_proc_name "$pid")
       case "$child_comm" in
         node|claude|claude-*) ;;
@@ -151,6 +304,12 @@ _rune_kill_tree() {
       if _is_mcp_server "$pid"; then
         continue
       fi
+    fi
+
+    # MCP-PROTECT-003: Log process identity before any kill (read-first, kill-second)
+    if [[ "${RUNE_TRACE:-}" == "1" ]]; then
+      printf '[process-tree] SIGTERM target: %s (filter=%s)\n' \
+        "$(_describe_process "$pid")" "$filter" >&2
     fi
 
     # XVER-001: Record lstart before SIGTERM for recycling detection
@@ -181,7 +340,26 @@ _rune_kill_tree() {
   for pid in "${_kill_pids[@]}"; do
     if kill -0 "$pid" 2>/dev/null; then
       # Re-verify process identity (PID recycling guard — CLD-003)
-      if [[ "$filter" == "claude" ]]; then
+      if [[ "$filter" == "teammates" ]]; then
+        if [[ "$_whitelist_available" == "true" ]]; then
+          # Re-verify PID is still in whitelist (shouldn't change, but defensive)
+          if ! printf '%s\n' "$_whitelist_pids" | grep -qx "$pid"; then
+            idx=$((idx + 1))
+            continue
+          fi
+        else
+          # Fallback: re-verify with claude filter
+          child_comm=$(_proc_name "$pid")
+          case "$child_comm" in
+            node|claude|claude-*) ;;
+            *) idx=$((idx + 1)); continue ;;
+          esac
+          if _is_mcp_server "$pid"; then
+            idx=$((idx + 1))
+            continue
+          fi
+        fi
+      elif [[ "$filter" == "claude" ]]; then
         child_comm=$(_proc_name "$pid")
         case "$child_comm" in
           node|claude|claude-*) ;;

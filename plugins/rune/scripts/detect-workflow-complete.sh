@@ -43,15 +43,27 @@ trap '_rune_fail_forward' ERR
 
 CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
-# ── GUARD 0: Auto-cleanup kill switch (MCP-PROTECT-002) ──
-# Auto-cleanup is DISABLED by default. Set RUNE_DISABLE_AUTO_CLEANUP=0 to enable.
-if [[ "${RUNE_DISABLE_AUTO_CLEANUP:-1}" == "1" ]]; then
+# ── GUARD 0: Auto-cleanup toggle (MCP-PROTECT-003) ──
+# Auto-cleanup is ENABLED by default. Uses positive teammate PID whitelist (MCP-PROTECT-003).
+# Set RUNE_DISABLE_AUTO_CLEANUP=1 to disable, or talisman process_management.auto_cleanup: false.
+if [[ "${RUNE_DISABLE_AUTO_CLEANUP:-0}" == "1" ]]; then
   exit 0
 fi
 
 # ── GUARD 0.5: jq dependency (fail-open) ──
 if ! command -v jq &>/dev/null; then
   exit 0
+fi
+
+# ── GUARD 0.6: Talisman auto_cleanup config (AC-5) ──
+if [[ -z "${RUNE_DISABLE_AUTO_CLEANUP:-}" ]]; then
+  _talisman_shard="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/misc.json"
+  if [[ -f "$_talisman_shard" && ! -L "$_talisman_shard" ]]; then
+    _auto_cleanup=$(jq -r '.process_management.auto_cleanup // empty' "$_talisman_shard" 2>/dev/null || true)
+    if [[ "$_auto_cleanup" == "false" ]]; then
+      exit 0
+    fi
+  fi
 fi
 
 # ── GUARD 1: Read CWD from stdin (consistent with other Stop hooks) ──
@@ -404,7 +416,8 @@ for sf in "${STATE_FILES[@]}"; do
   # Process escalation: 2-stage SIGTERM→SIGKILL via centralized process-tree.sh
   # SEC-003: PID recycling guarded by lstart comparison (XVER-001)
   # VEIL-004: Single-pass escalation within 30s timeout budget
-  # Filter "claude" protects MCP/LSP servers (only kills node|claude|claude-*)
+  # MCP-PROTECT-003: "teammates" filter uses positive PID whitelist when available
+  _RUNE_PT_CWD="${CWD:-$PWD}"
 
   # RUIN-003 FIX: Adaptive timeout — skip or reduce grace when hook budget is nearly exhausted.
   _elapsed_s=$(( $(date +%s) - ${_HOOK_START_EPOCH:-$(date +%s)} ))
@@ -419,7 +432,7 @@ for sf in "${STATE_FILES[@]}"; do
   if [[ "$_esc_grace" -gt 0 && -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ ]]; then
     _trace "Process escalation: team=$SF_TEAM pid=$SF_PID grace=${_esc_grace}s"
     if declare -f _rune_kill_tree &>/dev/null; then
-      _rune_kill_tree "$SF_PID" "2stage" "$_esc_grace" "claude" >/dev/null
+      _rune_kill_tree "$SF_PID" "2stage" "$_esc_grace" "teammates" "$SF_TEAM" >/dev/null
     else
       _trace "WARN: process-tree.sh not loaded — skipping process escalation"
     fi
