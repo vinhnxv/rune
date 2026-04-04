@@ -313,12 +313,27 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
 
 // 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
 if (!cleanupTeamDeleteSucceeded) {
-  // 5a. Process-level kill — terminate lingering teammates before filesystem cleanup
-  // NOTE: $PPID is always set by the shell. engines.md additionally validates with /^\d+$/ — see engines.md step 5a for the full guard.
-  // MCP-PROTECT-001: Skip --stdio processes (MCP/LSP servers) during teammate cleanup
-  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-  Bash(`sleep 5`)
-  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  // 5a. Process-level kill — READ-FIRST, KILL-SECOND (MCP-PROTECT-003)
+  // MANDATORY: Claude Code MUST read and understand the process list before killing ANY process.
+  // Step 1: List all child processes with full details
+  const processListOutput = Bash(`ps -o pid,ppid,comm,args -p $(pgrep -P $PPID 2>/dev/null | head -30 | tr '\n' ',') 2>/dev/null || echo "NO_CHILDREN"`)
+
+  // Step 2: Claude Code reads the output and identifies which PIDs are teammates vs MCP/LSP/other.
+  // Classification rules (evaluate EACH process):
+  //   - TEAMMATE (kill): comm is node|claude|claude-*, AND args does NOT contain --stdio/--lsp/mcp-server/connector
+  //   - MCP_SERVER (protect): args contains --stdio, --lsp, mcp-server, mcp*server, figma-developer-mcp, context7-mcp
+  //   - CONNECTOR (protect): args contains @anthropic*connector or claude-connector
+  //   - OTHER (protect): comm is NOT node|claude|claude-*
+  // Log the classification for each process before proceeding.
+
+  // Step 3: Only kill PIDs classified as TEAMMATE
+  // Build the kill list from Step 2 classification (only TEAMMATE PIDs)
+  // Example: if PIDs 1234, 5678 are teammates and 9012 is MCP server:
+  //   Bash(`kill -TERM 1234 5678 2>/dev/null || true`)  // only teammates
+  //   Bash(`sleep 5`)
+  //   Bash(`kill -KILL 1234 5678 2>/dev/null || true`)  // survivors only
+  // NEVER use a for-loop over pgrep output — always use the explicit PID list from Step 2.
+
   // 5b. Filesystem cleanup
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }

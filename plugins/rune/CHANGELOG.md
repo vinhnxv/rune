@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.34.0] - 2026-04-04
+
+### Changed
+- **process-tree.sh**: Add MCP-PROTECT-003 — positive teammate PID whitelist. New `_collect_teammate_pids()` reads SDK config.json + signal files, verifies each PID (alive, Claude process, not MCP/LSP) before returning. New `"teammates"` filter mode for `_rune_kill_tree()`. Enhanced `_is_mcp_server()` with --lsp, known MCP binary patterns, and Claude connector detection. Added `_describe_process()` for trace logging before kills (read-first, kill-second discipline)
+- **on-session-stop.sh**: Flip `RUNE_DISABLE_AUTO_CLEANUP` default from `1` to `0` — cleanup is now ENABLED by default. Uses `"teammates"` filter with positive PID whitelist. Add talisman `process_management.auto_cleanup` config support
+- **detect-workflow-complete.sh**: Same default flip and `"teammates"` filter upgrade. Add talisman config support
+- **session-team-hygiene.sh**: Same default flip and talisman config support
+- **track-teammate-activity.sh**: Write teammate PID signal files (`{agent-name}.pid`) as secondary PID source for the whitelist
+- **context-percent-stop-guard.sh**: Fix stale comment about hook ordering
+- **CLAUDE.md**: Add Iron Law PROC-001 (Read Before Kill) — Claude Code must read and classify process list before killing any PID
+- **engines.md**: Update step 5a to use read-first-kill-second protocol with `"teammates"` filter and LLM-in-the-loop classification
+- **project CLAUDE.md**: Update step 5a cleanup pattern with mandatory process list review before kill
+
 ## [2.33.0] - 2026-03-31
 
 ### Changed

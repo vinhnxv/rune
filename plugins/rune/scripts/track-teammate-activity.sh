@@ -95,4 +95,17 @@ printf '%s %s\n' "$(date +%s)" "${TOOL_NAME:-unknown}" > "$ACT_TMP" 2>/dev/null 
   exit 0
 }
 mv -f "$ACT_TMP" "$ACTIVITY_FILE" 2>/dev/null || rm -f "$ACT_TMP" 2>/dev/null
+
+# ── MCP-PROTECT-003: Write teammate PID signal file (one-time per agent) ──
+# Complements SDK config.json as a second PID source for the teammate whitelist.
+# Only written once (skip if already exists) — PID doesn't change per agent.
+PID_FILE="${SIGNAL_DIR}/${AGENT_NAME}.pid"
+if [[ ! -f "$PID_FILE" ]]; then
+  AGENT_PID=$(printf '%s\n' "$INPUT" | jq -r '.agent_pid // empty' 2>/dev/null || true)
+  if [[ -n "$AGENT_PID" && "$AGENT_PID" =~ ^[0-9]+$ ]]; then
+    PID_TMP=$(mktemp "${PID_FILE}.XXXXXX" 2>/dev/null) || exit 0
+    printf '%s\n' "$AGENT_PID" > "$PID_TMP" 2>/dev/null || { rm -f "$PID_TMP" 2>/dev/null; exit 0; }
+    mv -f "$PID_TMP" "$PID_FILE" 2>/dev/null || rm -f "$PID_TMP" 2>/dev/null
+  fi
+fi
 exit 0
