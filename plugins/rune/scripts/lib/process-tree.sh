@@ -40,9 +40,15 @@ if ! declare -f _proc_name &>/dev/null; then
   }
 fi
 
-# MCP/LSP server process detection (MCP-PROTECT-001, enhanced MCP-PROTECT-003)
+# MCP/LSP server process detection (MCP-PROTECT-001, enhanced MCP-PROTECT-003, MCP-PROTECT-004)
 # Returns 0 if the process is an MCP/LSP server, 1 otherwise.
-# Checks multiple signatures beyond just --stdio to catch custom MCP/LSP servers.
+#
+# 3-layer detection strategy:
+#   Layer 1 — Known binary whitelist (highest confidence, from .mcp.json + common servers)
+#   Layer 2 — Transport/protocol markers (--stdio, --lsp, --sse, --transport)
+#   Layer 3 — Generic MCP/LSP pattern matching (broad catch-all)
+#
+# Checks are ordered from most-specific to least-specific for fast early exit.
 _is_mcp_server() {
   local pid="$1"
   [[ -z "$pid" || ! "$pid" =~ ^[0-9]+$ ]] && return 1
@@ -55,19 +61,93 @@ _is_mcp_server() {
   fi
   [[ -z "$cmdline" ]] && return 1
 
-  # MCP servers: --stdio transport (most common)
-  case "$cmdline" in *--stdio*) return 0 ;; esac
-
-  # LSP servers: --lsp flag
-  case "$cmdline" in *--lsp*) return 0 ;; esac
-
-  # Broad MCP binary detection: any process with mcp-* or mcp_* in its path/args.
-  # Covers: mcp-remote (SSE proxy), mcp-server-* (npm packages), figma-developer-mcp,
-  # context7-mcp, uvicorn+mcp, python -m mcp, and any future MCP tooling.
-  # Safe: teammate processes (node claude-code args) never have "mcp-" in their cmdline.
+  # ── Layer 1: Known binary whitelist (MCP-PROTECT-004) ──
+  # Comprehensive whitelist of known MCP/LSP server binaries and paths.
+  # Organized by: Rune → Anthropic official → npm scoped → third-party → LSP.
+  # When adding new entries, place them in the correct category.
   case "$cmdline" in
-    *mcp-*|*mcp_*) return 0 ;;
+    # ─ Rune plugin MCP servers (plugins/rune/.mcp.json) ─
+    *echo-search/server.py*) return 0 ;;
+    *agent-search/server.py*) return 0 ;;
+    *figma-to-react/server.py*) return 0 ;;
+    *pace_mcp_server*) return 0 ;;
+    *context7-mcp*|*context7*) return 0 ;;
+    *figma-developer-mcp*|*figma-context*) return 0 ;;
+
+    # ─ Anthropic official MCP servers ─
+    *sequential-thinking*) return 0 ;;
+    *@anthropic-ai/*) return 0 ;;
+
+    # ─ npm scoped MCP packages (official registries) ─
+    *@modelcontextprotocol/*) return 0 ;;   # server-filesystem, server-git, server-memory, server-fetch, server-time, server-everything
+    *@upstash/*) return 0 ;;               # context7-mcp, ratelimit-mcp
+    *@playwright/*) return 0 ;;            # playwright MCP
+    *@cloudflare/*) return 0 ;;            # cloudflare workers MCP
+    *@stripe/*) return 0 ;;               # stripe MCP
+
+    # ─ Figma ecosystem ─
+    *figma-developer*|*figma_*) return 0 ;;
+
+    # ─ Database & data MCP servers ─
+    *postgres-mcp*|*mcp-server-postgres*) return 0 ;;
+    *supabase-mcp*|*supabase*server*) return 0 ;;
+    *sqlite-mcp*|*mcp-server-sqlite*) return 0 ;;
+    *mysql-mcp*|*mcp-server-mysql*) return 0 ;;
+    *redis-mcp*|*mcp-server-redis*) return 0 ;;
+    *neo4j-mcp*|*qdrant-mcp*|*meilisearch-mcp*) return 0 ;;
+    *chroma-mcp*|*claude-mem*) return 0 ;;
+
+    # ─ Cloud & infrastructure MCP servers ─
+    *stripe-mcp*|*stripe*server*) return 0 ;;
+    *aws-mcp*|*vercel-mcp*|*cloudflare-mcp*) return 0 ;;
+    *github-mcp*|*notion-mcp*|*linear-mcp*|*slack-mcp*) return 0 ;;
+    *jira-mcp*|*asana-mcp*|*salesforce-mcp*) return 0 ;;
+
+    # ─ Browser automation MCP servers ─
+    *puppeteer-mcp*|*playwright-mcp*|*browserbase-mcp*) return 0 ;;
+
+    # ─ Search & web MCP servers ─
+    *tavily-mcp*|*exa-mcp*|*firecrawl-mcp*) return 0 ;;
+    *e2b-mcp*) return 0 ;;
+
+    # ─ UI component library MCP servers ─
+    *untitledui*) return 0 ;;
+
+    # ─ Common LSP servers ─
+    *typescript-language-server*|*tsserver*) return 0 ;;
+    *pyright*|*pylsp*|*python-lsp*|*jedi-language*) return 0 ;;
+    *rust-analyzer*) return 0 ;;
+    *gopls*) return 0 ;;
+    *vscode-*-language*|*vscode-langservers*) return 0 ;;
+    *lua-language-server*) return 0 ;;
+    *eslint*language*|*tailwindcss*language*|*cssmodules*language*) return 0 ;;
+    *clangd*|*ccls*) return 0 ;;
+    *solargraph*|*ruby-lsp*) return 0 ;;
+    *intelephense*|*phpactor*) return 0 ;;
+    *yaml-language*|*json-language*|*html-language*) return 0 ;;
+  esac
+
+  # ── Layer 2: Transport/protocol markers (most reliable generic detection) ──
+  # MCP stdio transport — the dominant transport mode for local MCP servers
+  case "$cmdline" in *--stdio*) return 0 ;; esac
+  # LSP flag
+  case "$cmdline" in *--lsp*) return 0 ;; esac
+  # SSE transport and explicit transport flag (MCP over HTTP)
+  case "$cmdline" in *--sse*|*--transport*stdio*|*--transport*sse*) return 0 ;; esac
+
+  # ── Layer 3: Generic MCP/LSP pattern matching (broad catch-all) ──
+  # Covers any process with "mcp" as a hyphenated/underscored component in its path/args.
+  # Both directions: "mcp-foo" (prefix, e.g. mcp-remote) and "foo-mcp" (suffix, e.g. context7-mcp).
+  # Safe: teammate processes (node claude-code args) never have "mcp" in their cmdline.
+  case "$cmdline" in
+    *mcp-*|*mcp_*|*-mcp|*-mcp\ *|*_mcp|*_mcp\ *) return 0 ;;
+  esac
+
+  # Python processes running MCP servers (uvicorn, python -m mcp, FastMCP)
+  case "$cmdline" in
     *python*mcp*) return 0 ;;
+    *uvicorn*) return 0 ;;
+    *fastmcp*) return 0 ;;
   esac
 
   # Claude Code's own connector processes (not teammates)

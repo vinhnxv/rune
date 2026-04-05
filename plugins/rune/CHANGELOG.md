@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.34.2] - 2026-04-06
+
+### Fixed
+- **process-tree.sh**: 3-layer MCP/LSP server protection (MCP-PROTECT-004). Layer 1: Known binary whitelist covering 60+ MCP servers (Rune, Anthropic official, @modelcontextprotocol/*, database, cloud, browser, search, UI libraries) and 18+ LSP servers. Layer 2: Transport markers (`--stdio`, `--lsp`, `--sse`, `--transport`). Layer 3: Generic pattern matching with both prefix (`mcp-foo`) and suffix (`foo-mcp`) patterns. Fixes `context7-mcp` being killed on session stop — binary name ends with `-mcp` which the old `*mcp-*` prefix-only pattern missed. Also adds `uvicorn` and `fastmcp` detection for Python MCP servers
+
 ## [2.34.1] - 2026-04-06
 
 ### Fixed

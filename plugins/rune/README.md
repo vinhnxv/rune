@@ -278,6 +278,11 @@ Vietnamese guides are also available — see `docs/guides/*-vi.md`.
 | `context7` | Live framework documentation via Context7 |
 | `figma-context` | AI-optimized Figma data extraction (~90% compression vs raw API) |
 
+**MCP/LSP Process Protection (MCP-PROTECT-004):** All MCP and LSP server processes are protected from accidental cleanup kills via a 3-layer detection strategy in `scripts/lib/process-tree.sh`:
+1. **Known binary whitelist** — 60+ named MCP servers (Rune, Anthropic official, database, cloud, browser, search, UI) + 18+ LSP servers
+2. **Transport markers** — `--stdio`, `--lsp`, `--sse`, `--transport` flags
+3. **Generic pattern matching** — any process with `mcp`/`lsp` in its cmdline (both prefix and suffix)
+
 </details>
 
 <details>
