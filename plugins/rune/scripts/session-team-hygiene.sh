@@ -397,9 +397,9 @@ if [[ -d "${CWD}/tmp" ]]; then
         node|claude|claude-*) ;;
         *) continue ;;
       esac
-      # MCP-PROTECT-001: Skip MCP/LSP servers (--stdio processes)
+      # MCP-PROTECT-001: Skip MCP/LSP servers (broad pattern — --stdio, --lsp, mcp-*, mcp_*)
       child_args=$(ps -p "$cpid" -o args= 2>/dev/null || true)
-      case "$child_args" in *--stdio*) continue ;; esac
+      case "$child_args" in *--stdio*|*--lsp*|*mcp-*|*mcp_*|*python*mcp*|*@anthropic*connector*) continue ;; esac
       if [[ "${RUNE_CLEANUP_DRY_RUN:-0}" == "1" ]]; then
         orphan_procs_killed=$((orphan_procs_killed + 1))
         [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] && echo "[$(date '+%H:%M:%S')] TLC-003: DRY RUN: would kill orphan PID=$cpid (comm=$child_comm)" >> "${_RUNE_TRACE_PATH}"

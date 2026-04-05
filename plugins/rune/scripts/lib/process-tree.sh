@@ -11,7 +11,7 @@
 #   - Recursive pgrep -P walk with max depth 8
 #   - 2-stage SIGTERM→SIGKILL with PID recycling guard (lstart comparison)
 #   - Filter mode: "all" (default) or "claude" (node|claude|claude-* only)
-#   - MCP/LSP server protection: --stdio processes are never killed (MCP-PROTECT-001)
+#   - MCP/LSP server protection: broad mcp-*/mcp_*/--stdio/--lsp pattern (MCP-PROTECT-001)
 #   - Uses parallel indexed arrays (Bash 3.2 compatible — no declare -A)
 #   - Sources lib/platform.sh for _RUNE_PLATFORM and _proc_name if not defined
 #
@@ -61,11 +61,13 @@ _is_mcp_server() {
   # LSP servers: --lsp flag
   case "$cmdline" in *--lsp*) return 0 ;; esac
 
-  # Known MCP server patterns (Python, npx)
+  # Broad MCP binary detection: any process with mcp-* or mcp_* in its path/args.
+  # Covers: mcp-remote (SSE proxy), mcp-server-* (npm packages), figma-developer-mcp,
+  # context7-mcp, uvicorn+mcp, python -m mcp, and any future MCP tooling.
+  # Safe: teammate processes (node claude-code args) never have "mcp-" in their cmdline.
   case "$cmdline" in
-    *mcp*server*|*mcp-server*) return 0 ;;
-    *uvicorn*mcp*|*python*-m*mcp*) return 0 ;;
-    *figma-developer-mcp*|*context7-mcp*) return 0 ;;
+    *mcp-*|*mcp_*) return 0 ;;
+    *python*mcp*) return 0 ;;
   esac
 
   # Claude Code's own connector processes (not teammates)

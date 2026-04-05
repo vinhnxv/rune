@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.34.1] - 2026-04-06
+
+### Fixed
+- **process-tree.sh**: Broaden MCP server detection from enumerated patterns to broad prefix matching (`*mcp-*|*mcp_*`). Fixes `mcp-remote` SSE proxy processes being killed on session stop (MCP-PROTECT-001). Previously only `--stdio` transport and specific binary names were protected — now any process with `mcp-` or `mcp_` in its cmdline is safe
+- **session-team-hygiene.sh**: Sync inline MCP protection check with broad pattern matching (`--stdio`, `--lsp`, `mcp-*`, `mcp_*`, `python*mcp*`, connectors)
+
 ## [2.34.0] - 2026-04-04
 
 ### Changed
