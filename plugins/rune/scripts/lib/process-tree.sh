@@ -40,13 +40,15 @@ if ! declare -f _proc_name &>/dev/null; then
   }
 fi
 
-# MCP/LSP server process detection (MCP-PROTECT-001, enhanced MCP-PROTECT-003, MCP-PROTECT-004)
-# Returns 0 if the process is an MCP/LSP server, 1 otherwise.
+# MCP/LSP server and Claude Code infrastructure process detection
+# (MCP-PROTECT-001, enhanced MCP-PROTECT-003, MCP-PROTECT-004, MCP-PROTECT-005)
+# Returns 0 if the process is an MCP/LSP server or protected infrastructure, 1 otherwise.
 #
 # 3-layer detection strategy:
 #   Layer 1 — Known binary whitelist (highest confidence, from .mcp.json + common servers)
 #   Layer 2 — Transport/protocol markers (--stdio, --lsp, --sse, --transport)
 #   Layer 3 — Generic MCP/LSP pattern matching (broad catch-all)
+# Plus: Claude Code infrastructure (connectors, statusline/powerline UI processes)
 #
 # Checks are ordered from most-specific to least-specific for fast early exit.
 _is_mcp_server() {
@@ -150,9 +152,10 @@ _is_mcp_server() {
     *fastmcp*) return 0 ;;
   esac
 
-  # Claude Code's own connector processes (not teammates)
+  # Claude Code's own infrastructure processes (not teammates)
   case "$cmdline" in
     *@anthropic*connector*|*claude-connector*) return 0 ;;
+    *claude-powerline*|*statusline*) return 0 ;;
   esac
 
   return 1

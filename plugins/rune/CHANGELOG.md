@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.34.3] - 2026-04-06
+
+### Fixed
+- **process-tree.sh**: Protect statusline/powerline UI processes from being killed on session stop (MCP-PROTECT-005). These run as `node`/child processes, so the `"claude"` fallback filter matched and killed them. Added broad `*statusline*` and `*claude-powerline*` patterns to the infrastructure protection layer alongside existing connector detection
+
 ## [2.34.2] - 2026-04-06
 
 ### Fixed
