@@ -15,6 +15,7 @@ mod resource;
 mod resume;
 mod scanner;
 mod tmux;
+mod types;
 mod ui;
 
 use std::path::PathBuf;

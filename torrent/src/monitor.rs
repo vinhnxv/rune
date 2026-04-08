@@ -5,18 +5,7 @@ use std::time::Instant;
 use chrono::{DateTime, Utc};
 
 use crate::checkpoint::{Checkpoint, Heartbeat};
-
-/// Handle to a discovered arc instance. Links checkpoint + heartbeat paths.
-#[derive(Debug, Clone)]
-pub struct ArcHandle {
-    pub arc_id: String,
-    pub checkpoint_path: PathBuf,
-    pub heartbeat_path: PathBuf,
-    pub plan_file: String,
-    pub config_dir: String,
-    pub owner_pid: String,
-    pub session_id: String,
-}
+use crate::types::{ArcHandle, PhaseSummary};
 
 // ── Arc Phase Loop State ───────────────────────────────────────
 
@@ -349,15 +338,6 @@ pub struct ArcStatus {
     /// Activity state from multi-signal detection (None if detector not initialized).
     #[allow(dead_code)]
     pub activity_state: Option<ActivityState>,
-}
-
-/// Summary of phase progress derived from checkpoint.json.
-#[derive(Debug, Clone)]
-pub struct PhaseSummary {
-    pub completed: u32,
-    pub total: u32,
-    pub skipped: u32,
-    pub current_phase_name: String,
 }
 
 /// Previous / current / next phase with timing info.
