@@ -164,6 +164,7 @@ Rune implements structural discipline enforcement across all pipelines. See `doc
     - **Step 3 (KILL)**: Only send signals to PIDs classified as TEAMMATE. Use explicit PID list — NEVER a blind for-loop over `pgrep` output.
     - **Bash-level fallback**: When process kill happens inside hook scripts (bash, no LLM access), use `_rune_kill_tree()` with `"teammates"` filter — it applies the same 3-check verification automatically via `_collect_teammate_pids()`.
     - **Why**: MCP/LSP servers, Claude Code connectors, and non-teammate processes share the same process tree. A blind `pgrep -P $PPID | xargs kill` kills MCP servers, breaking tool connectivity mid-session.
+15. **TaskOutput deprecated** (Claude Code v2.1.83): Use `Read` on the background task's output file path instead. Rune already follows this pattern — do not introduce TaskOutput usage.
 
 ## Teammate Lifecycle Safety
 
@@ -379,6 +380,18 @@ The `_rune_fail_forward` function logs crash location (`BASH_LINENO[0]`) to `$RU
 All hooks require `jq` for JSON parsing. If `jq` is missing, SECURITY-CRITICAL hooks (`enforce-readonly.sh`) exit 2 (blocking). Non-security hooks exit 0 (non-blocking, fail-open). The 3 `validate-*-paths.sh` scripts and `pretooluse-write-guard.sh` (shared library) all exit 0 when jq is missing. A `SessionStart` hook validates `jq` availability and warns if missing. Hook configuration lives in `hooks/hooks.json`.
 
 **Trace logging**: Set `RUNE_TRACE=1` to enable append-mode trace output to `/tmp/rune-hook-trace.log`. Applies to event-driven hooks (`on-task-completed.sh`, `on-teammate-idle.sh`). Enforcement hooks (`enforce-readonly.sh`, `enforce-polling.sh`, `enforce-zsh-compat.sh`, `enforce-teams.sh`, `enforce-team-lifecycle.sh`) emit deny/allow decisions directly. Informational hooks (`verify-team-cleanup.sh`, `session-team-hygiene.sh`) emit messages directly to stdout; their output appears in the session transcript. Off by default — zero overhead in production. **Dry-run mode**: Set `RUNE_CLEANUP_DRY_RUN=1` to make cleanup hooks (detect-workflow-complete.sh, on-session-stop.sh, session-team-hygiene.sh) log what they would do without actually killing processes, deleting teams, or modifying state files. Useful for debugging cleanup behavior in production. **Timeout rationale**: PreToolUse 5s (fast-path guard), PostToolUse 5s (fast-path verify), PostToolUse 2s (reset-tool-failure.sh: single jq del + mv), PostToolUseFailure 3s (track-tool-failure.sh: stat + jq read/write), UserPromptSubmit 3s (keyword-detector.sh: stdin parse + regex — fires on every prompt), SubagentStop 5s (verify-agent-deliverables.sh: filesystem checks), SessionStart 5s (startup scan), TaskCompleted 15s (signal I/O + haiku gate + observation recording), TeammateIdle 15s (inscription parse + output validation), PreCompact 10s (team state checkpoint with filesystem discovery), SessionStart:compact 5s (JSON parse + context injection), Stop 30s (arc-phase loop: phase finding + compact eval + zombie cleanup + prompt build) and 15s (arc-batch loop + arc-hierarchy loop + arc-issues loop: git ops + progress file I/O + gh API calls) and 10s (detect-stale-lead.sh: 4-method detection cascade, filesystem-only) and 5s (on-session-stop: workflow state file scan + context-percent-stop-guard.sh: bridge file read) and 30s (detect-workflow-complete.sh: 2-stage SIGTERM→SIGKILL escalation + filesystem cleanup), StopFailure 15s (on-stop-failure.sh: error classification + backoff prompt construction).
+
+### FileChanged / CwdChanged Hooks (v2.1.83 — evaluated, deferred)
+
+**FileChanged**: Evaluated for replacing PostToolUse:Write|Edit file-detection hooks
+(talisman-invalidate, echo-annotate, arc-result-signal, agent-search-annotate,
+correction-signal). Current signal-based pattern (fast-path grep → signal file →
+lazy reindex) provides debouncing that FileChanged lacks. Migration would increase
+I/O from batched signals to per-file events. **Decision: defer. Revisit if
+FileChanged gains matcher/filter support.**
+
+**CwdChanged**: No current use case. CWD is already provided in hook input JSON.
+Claude Code CWD is session-stable (rare `:cd`). **Decision: not adopted.**
 
 ## MCP Servers
 
