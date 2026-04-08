@@ -14,7 +14,7 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
-use color_eyre::Result;
+use color_eyre::{eyre::eyre, Result};
 
 use crate::monitor;
 use crate::scanner::PlanFile;
@@ -22,7 +22,7 @@ use crate::tmux::Tmux;
 use crate::types::*;
 
 /// Core execution state for arc plan runs.
-pub struct ExecutionEngine {
+pub(crate) struct ExecutionEngine {
     pub queue: VecDeque<QueueEntry>,
     pub current_run: Option<RunState>,
     pub completed_runs: Vec<CompletedRun>,
@@ -34,7 +34,7 @@ pub struct ExecutionEngine {
 
 impl ExecutionEngine {
     /// Create a new execution engine with default state.
-    pub fn new(phase_timeout_config: PhaseTimeoutConfig) -> Self {
+    pub(crate) fn new(phase_timeout_config: PhaseTimeoutConfig) -> Self {
         Self {
             queue: VecDeque::new(),
             current_run: None,
@@ -48,14 +48,14 @@ impl ExecutionEngine {
 
     /// Total items visible in the Running view queue area:
     /// current run (if any) + remaining queue entries + completed runs.
-    pub fn queue_total_items(&self) -> usize {
+    pub(crate) fn queue_total_items(&self) -> usize {
         let running = if self.current_run.is_some() { 1 } else { 0 };
         running + self.queue.len() + self.completed_runs.len()
     }
 
     /// Skip the current plan — cancel and move to completed.
     /// Returns the new total item count for UI cursor clamping.
-    pub fn skip_current_plan(&mut self) -> usize {
+    pub(crate) fn skip_current_plan(&mut self) -> usize {
         if let Some(run) = self.current_run.take() {
             let _ = Tmux::kill_session(&run.tmux_session);
             let arc_id = run.arc_id();
@@ -75,7 +75,7 @@ impl ExecutionEngine {
     }
 
     /// Kill the current session and clear the entire queue.
-    pub fn kill_current_session(&mut self) {
+    pub(crate) fn kill_current_session(&mut self) {
         if let Some(session_id) = &self.tmux_session_id {
             let _ = Tmux::kill_session(session_id);
         }
@@ -97,7 +97,7 @@ impl ExecutionEngine {
     }
 
     /// Check if a plan already has an active checkpoint from a previous session.
-    pub fn check_existing_checkpoint(plan: &PlanFile) -> bool {
+    pub(crate) fn check_existing_checkpoint(plan: &PlanFile) -> bool {
         let cwd = std::env::current_dir().unwrap_or_default();
         match monitor::read_arc_loop_state(&cwd) {
             Some(state) => {
@@ -112,35 +112,35 @@ impl ExecutionEngine {
 // ── launch_next_plan sub-functions ────────────────────────────
 
 /// Step 1: Git checkout main + pull. Returns Ok(()) on success, Err with status message on failure.
-pub fn checkout_plan_branch() -> Result<(), String> {
+pub(crate) fn checkout_plan_branch() -> Result<()> {
     let checkout = Command::new("git")
         .args(["checkout", "main"])
         .output();
     if checkout.as_ref().map_or(true, |o| !o.status.success()) {
-        return Err("git checkout main failed — clean up working tree".into());
+        return Err(eyre!("git checkout main failed — clean up working tree"));
     }
     let pull = Command::new("git")
         .args(["pull", "--ff-only"])
         .output();
     if pull.as_ref().map_or(true, |o| !o.status.success()) {
-        return Err("git pull failed — retrying...".into());
+        return Err(eyre!("git pull failed — retrying..."));
     }
     Ok(())
 }
 
 /// Step 3: Create a tmux session in the given working directory.
 /// Returns the session ID on success.
-pub fn create_tmux_session(cwd: &Path) -> Result<String, String> {
+pub(crate) fn create_tmux_session(cwd: &Path) -> Result<String> {
     let session_id = Tmux::generate_session_id();
     if let Err(e) = Tmux::create_session(&session_id, cwd) {
-        return Err(format!("tmux failed: {e}"));
+        return Err(eyre!("tmux failed: {e}"));
     }
     Ok(session_id)
 }
 
 /// Step 5.5-5.6: Detect Claude Code PID by finding child of tmux pane shell.
 /// Polls up to 3 times with 2s delay between attempts.
-pub fn detect_claude_pid(session_id: &str) -> (Option<u32>, Option<u32>) {
+pub(crate) fn detect_claude_pid(session_id: &str) -> (Option<u32>, Option<u32>) {
     let tmux_pane_pid = Tmux::get_pane_pid(session_id).ok();
     let claude_pid = tmux_pane_pid.and_then(|ppid| {
         for _ in 0..3 {
@@ -155,7 +155,7 @@ pub fn detect_claude_pid(session_id: &str) -> (Option<u32>, Option<u32>) {
 }
 
 /// Clean stale arc state from a previous run.
-pub fn clean_stale_arc_state() {
+pub(crate) fn clean_stale_arc_state() {
     let cwd = std::env::current_dir().unwrap_or_default();
     let stale_loop = cwd.join(".rune").join("arc-phase-loop.local.md");
     if stale_loop.exists() {
