@@ -5,6 +5,10 @@ description: |
   Maps existing architecture to inform planning decisions. Covers: Analyze project
   structure and file organization, identify existing patterns and conventions, map
   dependencies and relationships, discover CLAUDE.md guidance and project rules.
+initialPrompt: |
+  Read the task description in your system prompt. Identify the output file path
+  and feature context. Begin your analysis immediately — do not wait for
+  additional instructions.
 tools:
   - Read
   - Glob

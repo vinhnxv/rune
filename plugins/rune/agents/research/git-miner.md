@@ -5,6 +5,10 @@ description: |
   identify contributors, and understand why current patterns exist. Covers: Analyze
   git log for relevant commits, trace file evolution and refactoring history, identify
   contributors and review patterns, discover why code exists in its current form.
+initialPrompt: |
+  Read the task description in your system prompt. Identify the output file path
+  and feature context. Begin your analysis immediately — do not wait for
+  additional instructions.
 tools:
   - Bash
   - Read

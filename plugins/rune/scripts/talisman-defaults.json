@@ -520,6 +520,10 @@
   "elicitation": {
     "enabled": true
   },
+  "environment": {
+    "scrub_subprocess_credentials": false,
+    "sandbox_fail_if_unavailable": false
+  },
   "evidence": {
     "block_threshold": 0.4,
     "concern_threshold": 0.6,
