@@ -142,6 +142,7 @@ fn cmd_new_session(args: &[String]) -> String {
     });
     let claude = resolve_claude();
     let session_id = get_arg(args, "--session").unwrap_or_else(gen_session_id);
+    validate_session_id(&session_id);
     let channels = args.iter().any(|a| a == "--channels");
     // Port range 9901..9999 for bridge, auto-allocated to avoid conflicts
     let explicit_callback_port: Option<u16> = get_arg(args, "--callback-port")
@@ -182,6 +183,10 @@ fn cmd_new_session(args: &[String]) -> String {
         env_prefix.push_str(&format!("CLAUDE_CONFIG_DIR={} ", shell_escape(&config_path)));
     }
 
+    // SEC-004: --dangerously-skip-permissions is intentionally unconditional.
+    // Torrent manages Claude Code sessions non-interactively (tmux), where permission
+    // prompts cannot be answered. A future --safe-mode could omit this flag for
+    // interactive/development use cases.
     let mut cmd = format!(
         "{env_prefix}{} --dangerously-skip-permissions",
         shell_escape(&claude)
@@ -207,10 +212,13 @@ fn cmd_new_session(args: &[String]) -> String {
         };
 
         // Add env vars for bridge communication
+        // SEC-005: session_id is validated at entry (validate_session_id), but
+        // shell_escape() provides defense-in-depth for env var interpolation.
         env_prefix = format!(
             "TORRENT_CALLBACK_URL=http://127.0.0.1:{cb_port} \
              TORRENT_BRIDGE_PORT={br_port} \
-             TORRENT_SESSION_ID={session_id} {env_prefix}"
+             TORRENT_SESSION_ID={} {env_prefix}",
+            shell_escape(&session_id),
         );
 
         // Bridge MCP server is configured in project .mcp.json (auto-discovered by Claude Code).
