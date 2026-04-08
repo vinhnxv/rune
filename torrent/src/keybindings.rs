@@ -66,7 +66,7 @@ fn handle_selection_key(app: &App, key: KeyEvent) -> Action {
 fn handle_running_key(app: &App, key: KeyEvent) -> Action {
     // Contextual 's' dispatch: during grace period → SkipGrace; otherwise → SkipPlan.
     // This resolves the key conflict where 's' was previously always SkipPlan.
-    let grace_active = app.current_run
+    let grace_active = app.execution.current_run
         .as_ref()
         .map(|r| r.merge_detected_at.is_some() && r.grace_duration.is_some())
         .unwrap_or(false);

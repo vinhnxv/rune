@@ -231,7 +231,7 @@ fn render_selection(frame: &mut Frame, app: &mut App, area: Rect) {
         Line::from(vec![
             Span::styled(format!(" torrent v{VERSION} "), Style::default().fg(sol::BASE03).bg(sol::ORANGE).add_modifier(Modifier::BOLD)),
             Span::styled(" — Add Plans to Queue", Style::default().fg(sol::ORANGE)),
-            Span::styled(format!("  ({} in queue)", app.queue.len()), Style::default().fg(sol::CYAN)),
+            Span::styled(format!("  ({} in queue)", app.execution.queue.len()), Style::default().fg(sol::CYAN)),
             Span::styled("  ⎇ ", Style::default().fg(sol::BASE01)),
             Span::styled(&app.git_branch, Style::default().fg(sol::GREEN)),
         ])
@@ -325,13 +325,13 @@ fn render_plan_panel(frame: &mut Frame, app: &mut App, area: Rect) {
         let entry_config = selected_entry.map(|(_, e)| e.config_idx);
 
         let marker = if in_flight {
-            if app.current_run.as_ref().map(|r| {
+            if app.execution.current_run.as_ref().map(|r| {
                 let fa = r.plan.name.rsplit('/').next().unwrap_or(&r.plan.name);
                 let fb = plan.name.rsplit('/').next().unwrap_or(&plan.name);
                 fa == fb
             }).unwrap_or(false) {
                 " ▶ ".to_string()
-            } else if app.queue.iter().any(|e| e.plan_idx == i) {
+            } else if app.execution.queue.iter().any(|e| e.plan_idx == i) {
                 " ◆ ".to_string()
             } else {
                 " ✓ ".to_string()
@@ -408,7 +408,7 @@ fn render_plan_panel(frame: &mut Frame, app: &mut App, area: Rect) {
 
 fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
     // Check if grace period is active for conditional layout
-    let grace_active = app.current_run
+    let grace_active = app.execution.current_run
         .as_ref()
         .and_then(|r| r.merge_detected_at.map(|_| r.grace_duration.is_some()))
         .unwrap_or(false);
@@ -472,21 +472,21 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
     let mut ci = 0;
 
     // Header — use current run's config, not the selection cursor
-    let run_config_idx = app.current_run.as_ref().map(|r| r.config_idx).unwrap_or(app.selected_config);
+    let run_config_idx = app.execution.current_run.as_ref().map(|r| r.config_idx).unwrap_or(app.selected_config);
     let cfg = app.config_dirs.get(run_config_idx).map(|c| c.label.as_str()).unwrap_or("?");
     // Compute plan position dynamically so the header stays in sync
     // when plans are added/removed from the queue at runtime.
-    let plan_info = if app.current_run.is_some() {
-        let position = app.completed_runs.len() + 1;
-        let total = app.completed_runs.len()
+    let plan_info = if app.execution.current_run.is_some() {
+        let position = app.execution.completed_runs.len() + 1;
+        let total = app.execution.completed_runs.len()
             + 1
-            + app.queue.len();
+            + app.execution.queue.len();
         format!("Plan {position}/{total}")
     } else {
-        format!("Done — {}", app.completed_runs.len())
+        format!("Done — {}", app.execution.completed_runs.len())
     };
     // Channel status indicator: [ch] when healthy, [ch?] when enabled but unhealthy, [file] when disabled
-    let channel_active = app.current_run.as_ref()
+    let channel_active = app.execution.current_run.as_ref()
         .and_then(|r| r.channel_state.as_ref())
         .map(|cs| cs.is_active())
         .unwrap_or(false);
@@ -499,7 +499,7 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
     };
     // Channel info: port + session for channels mode, plain [file] otherwise
     let channel_port_info = if app.channels_enabled {
-        let port = app.current_run.as_ref()
+        let port = app.execution.current_run.as_ref()
             .and_then(|r| r.channel_state.as_ref())
             .and_then(|cs| cs.bridge_port)
             .map(|p| format!(":{p}"))
@@ -560,7 +560,7 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
         ci += 1;
 
         // Status bar with grace-specific hint
-        let grace_status = if app.current_run.as_ref().map(|r| r.grace_skip_at.is_some()).unwrap_or(false) {
+        let grace_status = if app.execution.current_run.as_ref().map(|r| r.grace_skip_at.is_some()).unwrap_or(false) {
             " Grace skip requested… [a] attach  [k] kill  [q] quit"
         } else {
             " [s] skip grace (min 5s)  [a] attach  [k] kill  [q] quit"
@@ -587,12 +587,12 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
                 chunks[ci],
             );
         } else {
-            let all_done = app.current_run.is_none() && app.queue.is_empty() && !app.completed_runs.is_empty();
-            let msg_hint = if app.tmux_session_id.is_some() { "  [m] msg" } else { "" };
+            let all_done = app.execution.current_run.is_none() && app.execution.queue.is_empty() && !app.execution.completed_runs.is_empty();
+            let msg_hint = if app.execution.tmux_session_id.is_some() { "  [m] msg" } else { "" };
             let ch_hint = if app.channels_enabled { "  [h] health  [b] bridge" } else { "" };
             let default_status = if all_done {
                 format!(" All done! [p] add plans{msg_hint}{ch_hint}  [q] quit")
-            } else if !app.queue.is_empty() {
+            } else if !app.execution.queue.is_empty() {
                 format!(" [a] attach  [s] skip  [k] kill  [p] add  [d] remove{msg_hint}{ch_hint}  [q] quit")
             } else {
                 format!(" [a] attach  [s] skip  [k] kill  [p] add plans{msg_hint}{ch_hint}  [q] quit")
@@ -618,7 +618,7 @@ fn severity_color(severity: &Severity) -> Color {
 
 /// Render the grace period countdown with progress bar (F4).
 fn render_grace_countdown(frame: &mut Frame, app: &App, area: Rect) {
-    let (elapsed_secs, total_secs, child_count, skip_requested) = if let Some(ref run) = app.current_run {
+    let (elapsed_secs, total_secs, child_count, skip_requested) = if let Some(ref run) = app.execution.current_run {
         let elapsed = run.merge_detected_at
             .map(|t| t.elapsed().as_secs())
             .unwrap_or(0);
@@ -678,7 +678,7 @@ fn render_grace_countdown(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {
-    let lines = if let Some(run) = &app.current_run {
+    let lines = if let Some(run) = &app.execution.current_run {
         if let Some(st) = &run.last_status {
             let s = &st.phase_summary;
             let mut l = vec![
@@ -715,7 +715,7 @@ fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {
                         ),
                     ];
                     // Show timeout remaining: "45m23s / 90m0s ⏱"
-                    let timeout = app.phase_timeout_config.timeout_for(&curr.name);
+                    let timeout = app.execution.phase_timeout_config.timeout_for(&curr.name);
                     let timeout_secs = timeout.as_secs() as i64;
                     if let Some(elapsed) = curr.duration_secs {
                         let ratio = elapsed as f64 / timeout_secs as f64;
@@ -832,10 +832,10 @@ fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {
                 Line::from(Span::styled("    Discovering checkpoint...", Style::default().fg(sol::YELLOW))),
             ]
         }
-    } else if app.inter_plan_cooldown_until.is_some() || !app.queue.is_empty() {
+    } else if app.execution.inter_plan_cooldown_until.is_some() || !app.execution.queue.is_empty() {
         // Between plans — cooldown active or queue has pending items
-        let done = app.completed_runs.len();
-        let remaining = app.queue.len();
+        let done = app.execution.completed_runs.len();
+        let remaining = app.execution.queue.len();
         let mut l = vec![
             Line::from(vec![
                 Span::styled("  ⏳ Waiting for next plan", Style::default().fg(sol::YELLOW).add_modifier(Modifier::BOLD)),
@@ -845,7 +845,7 @@ fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {
                 Span::styled(format!("  Queued: {remaining}"), Style::default().fg(sol::CYAN)),
             ]),
         ];
-        if let Some(deadline) = app.inter_plan_cooldown_until {
+        if let Some(deadline) = app.execution.inter_plan_cooldown_until {
             let now = Instant::now();
             if deadline > now {
                 let secs = deadline.duration_since(now).as_secs();
@@ -856,7 +856,7 @@ fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {
             }
         }
         // Show last PR URL if available
-        if let Some(last_pr) = app.completed_runs.iter().rev()
+        if let Some(last_pr) = app.execution.completed_runs.iter().rev()
             .find_map(|r| match &r.result {
                 ArcCompletion::Merged { pr_url } | ArcCompletion::Shipped { pr_url } => pr_url.clone(),
                 _ => None,
@@ -867,17 +867,17 @@ fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {
         l
     } else {
         // All plans truly done — show summary
-        let total = app.completed_runs.len();
-        let merged = app.completed_runs.iter()
+        let total = app.execution.completed_runs.len();
+        let merged = app.execution.completed_runs.iter()
             .filter(|r| matches!(r.result, ArcCompletion::Merged { .. } | ArcCompletion::Shipped { .. }))
             .count();
-        let failed = app.completed_runs.iter()
+        let failed = app.execution.completed_runs.iter()
             .filter(|r| matches!(r.result, ArcCompletion::Failed { .. }))
             .count();
-        let cancelled = app.completed_runs.iter()
+        let cancelled = app.execution.completed_runs.iter()
             .filter(|r| matches!(r.result, ArcCompletion::Cancelled { .. }))
             .count();
-        let total_duration: u64 = app.completed_runs.iter()
+        let total_duration: u64 = app.execution.completed_runs.iter()
             .map(|r| r.duration.as_secs())
             .sum();
 
@@ -909,7 +909,7 @@ fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {
         ];
 
         // Show last PR URL if available
-        if let Some(last_pr) = app.completed_runs.iter().rev()
+        if let Some(last_pr) = app.execution.completed_runs.iter().rev()
             .find_map(|r| match &r.result {
                 ArcCompletion::Merged { pr_url } | ArcCompletion::Shipped { pr_url } => pr_url.clone(),
                 _ => None,
@@ -932,7 +932,7 @@ fn render_checkpoint(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_heartbeat(frame: &mut Frame, app: &App, area: Rect) {
-    let lines = if let Some(run) = &app.current_run {
+    let lines = if let Some(run) = &app.execution.current_run {
         if let Some(st) = &run.last_status {
             // Determine liveness status based on last_activity timestamp + process health
             let (icon, color) = if st.is_stale { ("● stale", sol::RED) }
@@ -1063,7 +1063,7 @@ fn render_queue(frame: &mut Frame, app: &mut App, area: Rect) {
     let mut row: usize = 0;
 
     // Completed runs — show arc_id, PR, and checkpoint-based duration
-    for run in &app.completed_runs {
+    for run in &app.execution.completed_runs {
         let is_cursor = row == app.queue_cursor;
         let (icon, status_text, pr_text, color) = match &run.result {
             ArcCompletion::Merged { pr_url } => {
@@ -1101,7 +1101,7 @@ fn render_queue(frame: &mut Frame, app: &mut App, area: Rect) {
     }
 
     // Currently running — uses its own config_idx, not selected_config
-    if let Some(run) = &app.current_run {
+    if let Some(run) = &app.execution.current_run {
         let is_cursor = row == app.queue_cursor;
         let phase = run.last_status.as_ref().map(|s| s.current_phase.as_str()).unwrap_or("discovering...");
         let run_cfg = app.config_dirs.get(run.config_idx).map(|c| c.label.as_str()).unwrap_or("?");
@@ -1116,7 +1116,7 @@ fn render_queue(frame: &mut Frame, app: &mut App, area: Rect) {
     }
 
     // Pending in queue (deletable) — each entry has its own config dir
-    for entry in &app.queue {
+    for entry in &app.execution.queue {
         if let Some(plan) = app.plans.get(entry.plan_idx) {
             let is_cursor = row == app.queue_cursor;
             let entry_cfg = app.config_dirs.get(entry.config_idx)
@@ -1170,7 +1170,7 @@ fn render_bridge(frame: &mut Frame, app: &mut App, area: Rect) {
         .split(area);
 
     // ── Header ──
-    let is_connected = app.current_run.as_ref()
+    let is_connected = app.execution.current_run.as_ref()
         .and_then(|r| r.channel_state.as_ref())
         .map(|cs| cs.is_active())
         .unwrap_or(false);
@@ -1180,10 +1180,10 @@ fn render_bridge(frame: &mut Frame, app: &mut App, area: Rect) {
         Span::styled(" disconnected ", Style::default().fg(Color::White).bg(sol::RED))
     };
 
-    let session_info = app.current_run.as_ref()
+    let session_info = app.execution.current_run.as_ref()
         .and_then(|r| r.channel_state.as_ref())
         .and_then(|cs| cs.bridge_port.map(|p| {
-            let sid = app.tmux_session_id.as_deref().unwrap_or("—");
+            let sid = app.execution.tmux_session_id.as_deref().unwrap_or("—");
             format!("session: {} · port: {}", sid, p)
         }))
         .unwrap_or_else(|| "not connected".into());

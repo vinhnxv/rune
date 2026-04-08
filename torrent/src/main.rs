@@ -5,6 +5,7 @@ mod callback;
 mod channel;
 mod checkpoint;
 mod diagnostic;
+mod execution;
 mod keybindings;
 mod lock;
 mod log;
@@ -295,7 +296,7 @@ fn main() -> Result<()> {
 
     // Apply CLI timeout overrides (on top of env vars)
     if !cli.timeout_overrides.is_empty() {
-        app.phase_timeout_config
+        app.execution.phase_timeout_config
             .apply_overrides(&cli.timeout_overrides);
     }
 
@@ -330,7 +331,7 @@ fn main() -> Result<()> {
     ratatui::restore();
 
     // Write structured batch summary to JSONL log
-    if let Err(e) = crate::log::write_batch_summary(&app.completed_runs) {
+    if let Err(e) = crate::log::write_batch_summary(&app.execution.completed_runs) {
         eprintln!("warning: failed to write batch summary log: {}", e);
     }
 
