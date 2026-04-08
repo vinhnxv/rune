@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.35.0] - 2026-04-08
+
+### Added
+- **agents**: Add `initialPrompt` to 5 research agents and 2 work agents for faster startup (Claude Code v2.1.83)
+- **talisman**: Add `environment:` section with `scrub_subprocess_credentials` and `sandbox_fail_if_unavailable` recommendations
+
+### Changed
+- **CLAUDE.md**: Document TaskOutput deprecation (v2.1.83) as Core Rule 15
+- **CLAUDE.md**: Document FileChanged/CwdChanged hook evaluation decision (deferred)
+
 ## [2.34.3] - 2026-04-06
 
 ### Fixed

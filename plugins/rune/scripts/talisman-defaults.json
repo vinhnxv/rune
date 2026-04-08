@@ -517,6 +517,10 @@
     "fts_enabled": true,
     "version_controlled": false
   },
+  "environment": {
+    "scrub_subprocess_credentials": false,
+    "sandbox_fail_if_unavailable": false
+  },
   "elicitation": {
     "enabled": true
   },

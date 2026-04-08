@@ -2146,6 +2146,20 @@ context_stop_guard:
 #   echo_on_verdict: true       # Persist verdict to rune-echoes after resolution
 
 # ──────────────────────────────────────────────
+# Environment — Subprocess isolation and security
+# ──────────────────────────────────────────────
+environment:
+  # Strip Anthropic and cloud provider credentials from subprocess environments
+  # (Bash tool, hooks, MCP stdio servers). Requires Claude Code >= 2.1.83.
+  # Set to true to enable CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1.
+  scrub_subprocess_credentials: false    # default: false (opt-in)
+
+  # Exit with error when sandbox is enabled but cannot start, instead of
+  # running unsandboxed. Requires Claude Code >= 2.1.83.
+  # Set to true to enable sandbox.failIfUnavailable setting.
+  sandbox_fail_if_unavailable: false     # default: false (opt-in)
+
+# ──────────────────────────────────────────────
 # Worktree — Session support for `claude --worktree` (v1.176.0+)
 # ──────────────────────────────────────────────
 # Controls behavior when running in a git worktree created by Claude Code.
