@@ -11,10 +11,9 @@ use color_eyre::Result;
 // Other modules (ui.rs, keybindings.rs, log.rs) import from `crate::app::*`.
 pub use crate::types::*;
 
-/// Maximum messages displayed in Bridge View TUI.
-const BRIDGE_MSG_DISPLAY_CAP: usize = 26;
-
 use ratatui::widgets::ListState;
+
+use crate::messaging::truncate_str;
 
 use crate::callback::{CallbackServer, ChannelEvent};
 use crate::channel::{ChannelState, ChannelsConfig};
@@ -35,18 +34,6 @@ fn env_or_u64(key: &str, default: u64) -> u64 {
 
 /// Compare two plan names by filename (ignoring path prefix).
 /// Handles: "plans/foo.md" vs "foo.md" vs "/abs/plans/foo.md".
-fn truncate_str(s: &str, max: usize) -> &str {
-    if s.len() <= max {
-        s
-    } else {
-        let mut end = max;
-        while end > 0 && !s.is_char_boundary(end) {
-            end -= 1;
-        }
-        &s[..end]
-    }
-}
-
 pub(crate) fn plans_match(a: &str, b: &str) -> bool {
     let fa = a.rsplit('/').next().unwrap_or(a);
     let fb = b.rsplit('/').next().unwrap_or(b);
@@ -124,38 +111,10 @@ pub struct App {
     /// Current diagnostic result for UI banner display.
     pub last_diagnostic: Option<DiagnosticResult>,
 
-    // Channel communication (optional, experimental)
-    /// Whether channels mode is enabled (--channels flag or config).
-    pub channels_enabled: bool,
-    /// Callback port for receiving channel events from bridge.
-    pub callback_port: u16,
-    /// Callback HTTP server instance (started when channels_enabled).
-    pub callback_server: Option<CallbackServer>,
+    // Channel communication + message transport + bridge view state
+    pub messaging: crate::messaging::MessageState,
     /// Last time we polled the channel for events.
     pub last_channel_poll: Option<Instant>,
-
-    // Message input mode (send messages to Claude via bridge inbox)
-    /// Whether the message input bar is active.
-    pub message_input_active: bool,
-    /// Current message text being typed.
-    pub message_input_buf: String,
-    /// Last message delivery transport (for UI display).
-    pub last_msg_transport: Option<MsgTransport>,
-    /// Last message received from Claude Code via channel events (trimmed to 200 chars).
-    pub last_claude_msg: Option<String>,
-
-    // Bridge View state
-    /// Ring buffer of bridge messages for Bridge View (capacity BRIDGE_MSG_DISPLAY_CAP).
-    pub bridge_messages: VecDeque<BridgeMessage>,
-    /// File handle for append-only message persistence (opened once per session).
-    pub bridge_log_file: Option<std::fs::File>,
-    /// Scroll offset for Bridge View message list (0 = auto-scroll to bottom).
-    /// Incremented by Up, decremented by Down, reset to 0 on new message or SubmitMessage.
-    pub bridge_scroll_offset: usize,
-
-    /// Last time an auto-accept was sent for a permission/yes-no prompt.
-    /// Used for debouncing — at most 1 auto-accept per 60 seconds.
-    pub last_auto_accept: Option<Instant>,
 }
 
 impl App {
@@ -223,18 +182,8 @@ impl App {
             diagnostic_engine: DiagnosticEngine::new(),
             last_diagnostic_poll: None,
             last_diagnostic: None,
-            channels_enabled: false,
-            callback_port: 9900,
-            callback_server: None,
+            messaging: crate::messaging::MessageState::new(),
             last_channel_poll: None,
-            message_input_active: false,
-            message_input_buf: String::new(),
-            last_msg_transport: None,
-            last_claude_msg: None,
-            bridge_messages: VecDeque::with_capacity(BRIDGE_MSG_DISPLAY_CAP),
-            bridge_log_file: None,
-            bridge_scroll_offset: 0,
-            last_auto_accept: None,
         })
     }
 
@@ -705,38 +654,38 @@ impl App {
             }
             Action::OpenMessageInput => {
                 if self.execution.tmux_session_id.is_some() {
-                    self.message_input_active = true;
-                    self.message_input_buf.clear();
+                    self.messaging.message_input_active = true;
+                    self.messaging.message_input_buf.clear();
                 } else {
                     self.set_status("No active session to send to");
                 }
             }
             Action::SubmitMessage => {
-                if !self.message_input_buf.trim().is_empty() {
-                    let msg = self.message_input_buf.clone();
-                    self.message_input_active = false;
-                    self.bridge_scroll_offset = 0; // snap to bottom on send
-                    self.message_input_buf.clear();
+                if !self.messaging.message_input_buf.trim().is_empty() {
+                    let msg = self.messaging.message_input_buf.clone();
+                    self.messaging.message_input_active = false;
+                    self.messaging.bridge_scroll_offset = 0; // snap to bottom on send
+                    self.messaging.message_input_buf.clear();
                     self.send_message_to_claude(&msg);
                 }
             }
             Action::CancelMessageInput => {
-                self.message_input_active = false;
-                self.message_input_buf.clear();
+                self.messaging.message_input_active = false;
+                self.messaging.message_input_buf.clear();
             }
             Action::MessageChar(c) => {
                 // Cap input at 2000 characters to prevent oversized HTTP bodies.
                 // Uses char count (not byte length) for consistent behavior with
                 // multi-byte Unicode input (e.g. Vietnamese, CJK).
-                if self.message_input_buf.chars().count() < 2000 {
-                    self.message_input_buf.push(c);
+                if self.messaging.message_input_buf.chars().count() < 2000 {
+                    self.messaging.message_input_buf.push(c);
                 }
             }
             Action::MessageBackspace => {
-                self.message_input_buf.pop();
+                self.messaging.message_input_buf.pop();
             }
             Action::HealthCheck => {
-                if !self.channels_enabled {
+                if !self.messaging.channels_enabled {
                     self.set_status("Health check requires --channels mode");
                 } else if self.execution.current_run.is_some() {
                     // Try init if channel_state is None
@@ -769,27 +718,27 @@ impl App {
                 }
             }
             Action::OpenBridge => {
-                if self.channels_enabled && self.execution.tmux_session_id.is_some() {
+                if self.messaging.channels_enabled && self.execution.tmux_session_id.is_some() {
                     self.view = AppView::Bridge;
-                    self.message_input_buf.clear();
-                } else if self.channels_enabled {
+                    self.messaging.message_input_buf.clear();
+                } else if self.messaging.channels_enabled {
                     self.set_status("No active session — start an arc first");
                 }
             }
             Action::CloseBridge => {
                 self.view = AppView::Running;
-                self.message_input_active = false;
-                self.bridge_scroll_offset = 0;
+                self.messaging.message_input_active = false;
+                self.messaging.bridge_scroll_offset = 0;
             }
             Action::BridgeScrollUp => {
-                let max_offset = self.bridge_messages.len().saturating_sub(1);
-                if self.bridge_scroll_offset < max_offset {
-                    self.bridge_scroll_offset += 1;
+                let max_offset = self.messaging.bridge_messages.len().saturating_sub(1);
+                if self.messaging.bridge_scroll_offset < max_offset {
+                    self.messaging.bridge_scroll_offset += 1;
                 }
             }
             Action::BridgeScrollDown => {
-                if self.bridge_scroll_offset > 0 {
-                    self.bridge_scroll_offset -= 1;
+                if self.messaging.bridge_scroll_offset > 0 {
+                    self.messaging.bridge_scroll_offset -= 1;
                 }
             }
             Action::None => {}
@@ -1032,7 +981,7 @@ impl App {
             }
 
             // Channel event processing (non-blocking, every 2s when enabled)
-            if self.channels_enabled {
+            if self.messaging.channels_enabled {
                 let should_poll_channel = self
                     .last_channel_poll
                     .map(|t| now.duration_since(t) >= Duration::from_secs(2))
@@ -1171,10 +1120,10 @@ impl App {
         self.execution.tmux_session_id = Some(session_id.clone());
 
         // Step 4: Build channels config (if enabled) and start Claude Code
-        let channels_cfg = if self.channels_enabled {
+        let channels_cfg = if self.messaging.channels_enabled {
             Some(ChannelsConfig {
-                bridge_port: self.callback_port.checked_add(1).unwrap_or(self.callback_port.saturating_sub(1)), // SEC-012: prevent u16 overflow
-                callback_port: self.callback_port,
+                bridge_port: self.messaging.callback_port.checked_add(1).unwrap_or(self.messaging.callback_port.saturating_sub(1)), // SEC-012: prevent u16 overflow
+                callback_port: self.messaging.callback_port,
             })
         } else {
             None
@@ -1198,7 +1147,7 @@ impl App {
         let has_checkpoint = self.check_existing_checkpoint(&plan);
 
         // Resolve bridge port for channels-first dispatch
-        let bridge_port = if self.channels_enabled {
+        let bridge_port = if self.messaging.channels_enabled {
             self.execution.current_run.as_ref()
                 .and_then(|r| r.channel_state.as_ref())
                 .and_then(|cs| cs.bridge_port)
@@ -1226,7 +1175,7 @@ impl App {
             arc_dispatch_msg = Some(format!("/arc {} [{}]", plan.path.display(), transport));
         }
         // Reset bridge log file for new session (so it opens a fresh file for this session_id)
-        self.bridge_log_file = None;
+        self.messaging.bridge_log_file = None;
 
         self.execution.current_run = Some(RunState {
             plan,
@@ -1276,10 +1225,10 @@ impl App {
         }
 
         // Start callback server if channels are enabled
-        if self.channels_enabled && self.callback_server.is_none() {
-            match CallbackServer::start(self.callback_port) {
+        if self.messaging.channels_enabled && self.messaging.callback_server.is_none() {
+            match CallbackServer::start(self.messaging.callback_port) {
                 Ok(server) => {
-                    self.callback_server = Some(server);
+                    self.messaging.callback_server = Some(server);
                     // Initialize channel state now that callback server is running
                     if let Some(run) = &mut self.execution.current_run {
                         run.channel_state = ChannelState::try_init(
@@ -1362,7 +1311,7 @@ impl App {
     /// bridge /msg endpoint (Channels API). Falls back to tmux send-keys
     /// when bridge is unreachable or channels are disabled.
     fn send_message_to_claude(&mut self, msg: &str) {
-        if self.channels_enabled {
+        if self.messaging.channels_enabled {
             self.send_via_bridge_http(msg);
         } else {
             self.send_via_tmux(msg);
@@ -1372,7 +1321,7 @@ impl App {
         // Show as Sent regardless of transport outcome — the status bar
         // already shows transport-level errors (e.g. "send failed: ...").
         // Use a distinct kind if delivery definitively failed.
-        let delivery_failed = self.last_msg_transport.is_none()
+        let delivery_failed = self.messaging.last_msg_transport.is_none()
             && self.status_message.as_ref().map(|s| s.contains("failed")).unwrap_or(false);
         self.push_bridge_message(BridgeMessage {
             text: truncate_str(msg, 500).to_string(),
@@ -1406,10 +1355,10 @@ impl App {
             Ok(resp) => {
                 let status = resp.into_string().unwrap_or_default();
                 if status.contains("inbox") {
-                    self.last_msg_transport = Some(MsgTransport::Inbox);
+                    self.messaging.last_msg_transport = Some(MsgTransport::Inbox);
                     self.set_status(format!("✉ [inbox] {}", truncate_str(msg, 50)));
                 } else {
-                    self.last_msg_transport = Some(MsgTransport::Bridge);
+                    self.messaging.last_msg_transport = Some(MsgTransport::Bridge);
                     self.set_status(format!("✉ [bridge] {}", truncate_str(msg, 50)));
                 }
             }
@@ -1446,7 +1395,7 @@ impl App {
         let path = inbox_dir.join(format!("{timestamp}.msg"));
         match std::fs::write(&path, msg) {
             Ok(_) => {
-                self.last_msg_transport = Some(MsgTransport::Inbox);
+                self.messaging.last_msg_transport = Some(MsgTransport::Inbox);
                 self.set_status(format!("✉ [inbox] {}", truncate_str(msg, 50)));
             }
             Err(e) => {
@@ -1469,7 +1418,7 @@ impl App {
         let prefixed = format!("[torrent:tmux] {msg}");
         match Tmux::send_keys(&session_id, &prefixed) {
             Ok(_) => {
-                self.last_msg_transport = Some(MsgTransport::Tmux);
+                self.messaging.last_msg_transport = Some(MsgTransport::Tmux);
                 self.set_status(format!("✉ [tmux] {}", truncate_str(msg, 50)));
             }
             Err(e) => {
@@ -1478,77 +1427,10 @@ impl App {
         }
     }
 
-    /// Open (or create) the JSONL log file for this session.
-    /// Called once when the first bridge message arrives.
-    fn open_bridge_log(session_id: &str) -> Option<std::fs::File> {
-        // SEC-006: Validate session_id format before path construction
-        if session_id.is_empty()
-            || session_id.len() > 64
-            || !session_id
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-        {
-            return None;
-        }
-        let dir = std::path::PathBuf::from(".torrent/sessions").join(session_id);
-        std::fs::create_dir_all(&dir).ok()?;
-        std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(dir.join("messages.jsonl"))
-            .ok()
-    }
-
-    /// Append a message to the JSONL log file (fire-and-forget).
-    fn persist_bridge_message(file: &mut std::fs::File, msg: &BridgeMessage) {
-        use std::io::Write;
-        let kind_str = match msg.kind {
-            BridgeMessageKind::Sent => "sent",
-            BridgeMessageKind::SendFailed => "send_failed",
-            BridgeMessageKind::Phase => "phase",
-            BridgeMessageKind::Complete => "complete",
-            BridgeMessageKind::Heartbeat => "heartbeat",
-            BridgeMessageKind::Reply => "reply",
-        };
-        // Escape text for JSON safety (backslashes, quotes, and control characters).
-        let escaped = msg.text.replace('\\', "\\\\").replace('"', "\\\"")
-            .replace('\n', "\\n").replace('\r', "\\r").replace('\t', "\\t");
-        let line = format!(
-            r#"{{"ts":"{}","kind":"{}","text":"{}"}}"#,
-            chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"),
-            kind_str,
-            escaped,
-        );
-        let _ = writeln!(file, "{}", line);
-    }
-
     /// Push a message to the display ring buffer and persist to file.
     fn push_bridge_message(&mut self, msg: BridgeMessage) {
-        // Lazy-open the log file on first message
-        if self.bridge_log_file.is_none() {
-            if let Some(session_id) = &self.execution.tmux_session_id {
-                self.bridge_log_file = Self::open_bridge_log(session_id);
-            }
-        }
-        // Persist to file (all messages, including filtered heartbeats)
-        if let Some(ref mut file) = self.bridge_log_file {
-            Self::persist_bridge_message(file, &msg);
-        }
-        // Display filter: skip consecutive heartbeats (replace last one)
-        if msg.kind == BridgeMessageKind::Heartbeat {
-            if self.bridge_messages.back().map(|m| m.kind) == Some(BridgeMessageKind::Heartbeat) {
-                self.bridge_messages.pop_back();
-            }
-        }
-        // Push to display ring buffer
-        if self.bridge_messages.len() >= BRIDGE_MSG_DISPLAY_CAP {
-            self.bridge_messages.pop_front();
-        }
-        self.bridge_messages.push_back(msg);
-        // Auto-scroll to bottom on new message (unless user scrolled up)
-        if self.bridge_scroll_offset == 0 {
-            // Already at bottom — no action needed
-        }
+        let session_id = self.execution.tmux_session_id.as_deref();
+        self.messaging.push_bridge_message(msg, session_id);
     }
 
     /// Send an /arc command via HTTP POST to bridge /msg endpoint.
@@ -1581,7 +1463,7 @@ impl App {
     /// Each event updates the status message, pushes to the bridge message
     /// ring buffer (with JSONL persistence), and resets activity detection.
     fn drain_channel_events(&mut self) {
-        let server = match self.callback_server.as_ref() {
+        let server = match self.messaging.callback_server.as_ref() {
             Some(s) => s,
             None => return,
         };
@@ -1639,7 +1521,7 @@ impl App {
                         format!("Phase: {} ({}) — {}", phase, status, details)
                     };
                     self.set_status(format!("[ch] {}", truncate_str(&msg, 80)));
-                    self.last_claude_msg = Some(truncate_str(&msg, 200).to_string());
+                    self.messaging.last_claude_msg = Some(truncate_str(&msg, 200).to_string());
                     self.push_bridge_message(BridgeMessage {
                         text: truncate_str(&msg, 500).to_string(),
                         timestamp: chrono::Local::now().time(),
@@ -1656,7 +1538,7 @@ impl App {
                         _ => format!("Arc complete: {}", result),
                     };
                     self.set_status(format!("[ch] {}", truncate_str(&msg, 80)));
-                    self.last_claude_msg = Some(truncate_str(&msg, 200).to_string());
+                    self.messaging.last_claude_msg = Some(truncate_str(&msg, 200).to_string());
                     self.push_bridge_message(BridgeMessage {
                         text: truncate_str(&msg, 500).to_string(),
                         timestamp: chrono::Local::now().time(),
@@ -1672,7 +1554,7 @@ impl App {
                     } else {
                         format!("Claude: {} (using {})", activity, current_tool)
                     };
-                    self.last_claude_msg = Some(truncate_str(&msg, 200).to_string());
+                    self.messaging.last_claude_msg = Some(truncate_str(&msg, 200).to_string());
                     self.push_bridge_message(BridgeMessage {
                         text: truncate_str(&msg, 500).to_string(),
                         timestamp: chrono::Local::now().time(),
@@ -1686,7 +1568,7 @@ impl App {
                 }
                 ChannelEvent::Reply { text, .. } => {
                     self.set_status(format!("[reply] {}", truncate_str(&text, 80)));
-                    self.last_claude_msg = Some(truncate_str(&text, 200).to_string());
+                    self.messaging.last_claude_msg = Some(truncate_str(&text, 200).to_string());
                     self.push_bridge_message(BridgeMessage {
                         text: truncate_str(&text, 500).to_string(),
                         timestamp: chrono::Local::now().time(),
@@ -1782,13 +1664,13 @@ impl App {
                     last_line.as_deref()
                         .filter(|line| monitor::is_auto_acceptable_prompt(line))
                         .and_then(|line| {
-                            let should_send = self.last_auto_accept
+                            let should_send = self.messaging.last_auto_accept
                                 .map(|t| t.elapsed() >= Duration::from_secs(60))
                                 .unwrap_or(true);
                             if should_send {
                                 // send_keys sends Escape+Enter — accepts the default option
                                 let _ = Tmux::send_keys(&run.tmux_session, "");
-                                self.last_auto_accept = Some(Instant::now());
+                                self.messaging.last_auto_accept = Some(Instant::now());
                                 Some(line.chars().take(60).collect::<String>())
                             } else {
                                 None
@@ -2392,7 +2274,7 @@ impl App {
             let session = run.tmux_session.clone();
 
             // Resolve bridge port for channels-first dispatch
-            let bp = if self.channels_enabled {
+            let bp = if self.messaging.channels_enabled {
                 self.execution.current_run.as_ref()
                     .and_then(|r| r.channel_state.as_ref())
                     .and_then(|cs| cs.bridge_port)
@@ -2743,6 +2625,7 @@ impl App {
 mod tests {
     use super::*;
     use std::collections::HashMap;
+    use crate::messaging::BRIDGE_MSG_DISPLAY_CAP;
 
     #[test]
     fn test_plans_match_same_filename() {
@@ -3326,7 +3209,7 @@ mod tests {
                 timestamp: chrono::Local::now().time(),
                 kind: BridgeMessageKind::Sent,
             };
-            App::persist_bridge_message(&mut file, &msg);
+            crate::messaging::persist_bridge_message(&mut file, &msg);
         }
 
         let mut content = String::new();
@@ -3345,10 +3228,10 @@ mod tests {
 
     #[test]
     fn test_open_bridge_log_rejects_bad_session_id() {
-        assert!(App::open_bridge_log("").is_none(), "empty session_id");
-        assert!(App::open_bridge_log("../../../etc/passwd").is_none(), "path traversal");
-        assert!(App::open_bridge_log(&"a".repeat(65)).is_none(), "too long");
-        assert!(App::open_bridge_log("valid-session_123").is_some(), "valid session_id");
+        assert!(crate::messaging::open_bridge_log("").is_none(), "empty session_id");
+        assert!(crate::messaging::open_bridge_log("../../../etc/passwd").is_none(), "path traversal");
+        assert!(crate::messaging::open_bridge_log(&"a".repeat(65)).is_none(), "too long");
+        assert!(crate::messaging::open_bridge_log("valid-session_123").is_some(), "valid session_id");
 
         // Cleanup
         let _ = std::fs::remove_dir_all(".torrent/sessions/valid-session_123");

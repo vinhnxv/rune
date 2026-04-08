@@ -426,7 +426,7 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
         if has_banner {
             constraints.push(Constraint::Length(1)); // diagnostic banner
         }
-        let has_claude_msg = app.last_claude_msg.is_some();
+        let has_claude_msg = app.messaging.last_claude_msg.is_some();
         constraints.extend_from_slice(&[
             Constraint::Length(13), // phases + session info + loop state
             Constraint::Length(6),  // heartbeat + resources (no phase)
@@ -450,7 +450,7 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
         if has_banner {
             constraints.push(Constraint::Length(1)); // diagnostic banner
         }
-        let has_claude_msg = app.last_claude_msg.is_some();
+        let has_claude_msg = app.messaging.last_claude_msg.is_some();
         constraints.extend_from_slice(&[
             Constraint::Length(13), // phases + session info + loop state
             Constraint::Length(6),  // heartbeat + resources (no phase)
@@ -491,14 +491,14 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
         .map(|cs| cs.is_active())
         .unwrap_or(false);
     // Channel status + last message transport indicator
-    let transport_suffix = match app.last_msg_transport {
+    let transport_suffix = match app.messaging.last_msg_transport {
         Some(crate::app::MsgTransport::Bridge) => " ✉→bridge",
         Some(crate::app::MsgTransport::Inbox) => " ✉→inbox",
         Some(crate::app::MsgTransport::Tmux) => " ✉→tmux",
         None => "",
     };
     // Channel info: port + session for channels mode, plain [file] otherwise
-    let channel_port_info = if app.channels_enabled {
+    let channel_port_info = if app.messaging.channels_enabled {
         let port = app.execution.current_run.as_ref()
             .and_then(|r| r.channel_state.as_ref())
             .and_then(|cs| cs.bridge_port)
@@ -508,9 +508,9 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
     } else {
         String::new()
     };
-    let channel_indicator = if app.channels_enabled && channel_active {
+    let channel_indicator = if app.messaging.channels_enabled && channel_active {
         Span::styled(format!("  [ch{channel_port_info}]{transport_suffix}"), Style::default().fg(sol::CYAN))
-    } else if app.channels_enabled {
+    } else if app.messaging.channels_enabled {
         Span::styled(format!("  [ch?{channel_port_info}]{transport_suffix}"), Style::default().fg(sol::YELLOW))
     } else if transport_suffix.is_empty() {
         Span::styled("  [file]", Style::default().fg(sol::BASE01))
@@ -548,7 +548,7 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
     ci += 1;
 
     // Claude message section (from channel events)
-    if app.last_claude_msg.is_some() {
+    if app.messaging.last_claude_msg.is_some() {
         render_claude_msg(frame, app, chunks[ci]);
         ci += 1;
     }
@@ -575,10 +575,10 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
         ci += 1;
 
         // Status bar — message input mode or context-sensitive help
-        if app.message_input_active {
+        if app.messaging.message_input_active {
             let input_line = Line::from(vec![
                 Span::styled(" ✉ msg> ", Style::default().fg(sol::CYAN).add_modifier(Modifier::BOLD)),
-                Span::styled(&app.message_input_buf, Style::default().fg(sol::BASE1)),
+                Span::styled(&app.messaging.message_input_buf, Style::default().fg(sol::BASE1)),
                 Span::styled("█", Style::default().fg(sol::CYAN)),  // cursor
                 Span::styled("  [Enter] send  [Esc] cancel", Style::default().fg(sol::BASE01)),
             ]);
@@ -589,7 +589,7 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
         } else {
             let all_done = app.execution.current_run.is_none() && app.execution.queue.is_empty() && !app.execution.completed_runs.is_empty();
             let msg_hint = if app.execution.tmux_session_id.is_some() { "  [m] msg" } else { "" };
-            let ch_hint = if app.channels_enabled { "  [h] health  [b] bridge" } else { "" };
+            let ch_hint = if app.messaging.channels_enabled { "  [h] health  [b] bridge" } else { "" };
             let default_status = if all_done {
                 format!(" All done! [p] add plans{msg_hint}{ch_hint}  [q] quit")
             } else if !app.execution.queue.is_empty() {
@@ -1028,12 +1028,12 @@ fn render_heartbeat(frame: &mut Frame, app: &App, area: Rect) {
 /// Render the last Claude Code message received via channel bridge.
 /// Shows a compact 3-line section with source transport tag.
 fn render_claude_msg(frame: &mut Frame, app: &App, area: Rect) {
-    let msg = match &app.last_claude_msg {
+    let msg = match &app.messaging.last_claude_msg {
         Some(m) => m.as_str(),
         None => return,
     };
 
-    let transport_tag = match app.last_msg_transport {
+    let transport_tag = match app.messaging.last_msg_transport {
         Some(crate::app::MsgTransport::Bridge) => "bridge",
         Some(crate::app::MsgTransport::Inbox) => "inbox",
         Some(crate::app::MsgTransport::Tmux) => "tmux",
@@ -1203,14 +1203,14 @@ fn render_bridge(frame: &mut Frame, app: &mut App, area: Rect) {
     frame.render_widget(Paragraph::new(header).style(Style::default().bg(sol::BASE03)), chunks[0]);
 
     // ── Message area ──
-    if app.bridge_messages.is_empty() {
+    if app.messaging.bridge_messages.is_empty() {
         let empty = Paragraph::new("No messages yet")
             .style(Style::default().fg(sol::BASE01))
             .alignment(ratatui::layout::Alignment::Center)
             .block(Block::default().borders(Borders::NONE));
         frame.render_widget(empty, chunks[1]);
     } else {
-        let items: Vec<ListItem> = app.bridge_messages.iter().map(|msg| {
+        let items: Vec<ListItem> = app.messaging.bridge_messages.iter().map(|msg| {
             let time = msg.timestamp.format("%H:%M:%S").to_string();
             let (label, label_color) = match msg.kind {
                 BridgeMessageKind::Sent => ("you", sol::BLUE),
@@ -1241,19 +1241,19 @@ fn render_bridge(frame: &mut Frame, app: &mut App, area: Rect) {
             .style(Style::default().bg(sol::BASE03));
 
         // Scroll position: 0 = auto-scroll to bottom, >0 = offset from bottom
-        let selected = if app.bridge_scroll_offset == 0 {
+        let selected = if app.messaging.bridge_scroll_offset == 0 {
             msg_count.saturating_sub(1)
         } else {
-            msg_count.saturating_sub(1).saturating_sub(app.bridge_scroll_offset)
+            msg_count.saturating_sub(1).saturating_sub(app.messaging.bridge_scroll_offset)
         };
         let mut list_state = ratatui::widgets::ListState::default();
         list_state.select(Some(selected));
         frame.render_stateful_widget(list, chunks[1], &mut list_state);
 
         // Show scroll indicator when not at bottom
-        if app.bridge_scroll_offset > 0 {
+        if app.messaging.bridge_scroll_offset > 0 {
             let scroll_hint = Span::styled(
-                format!(" ↓ {} more ", app.bridge_scroll_offset),
+                format!(" ↓ {} more ", app.messaging.bridge_scroll_offset),
                 Style::default().fg(sol::YELLOW),
             );
             let hint_area = Rect {
@@ -1279,7 +1279,7 @@ fn render_bridge(frame: &mut Frame, app: &mut App, area: Rect) {
         .constraints([Constraint::Length(1), Constraint::Length(1)])
         .split(inner);
 
-    if app.message_input_buf.is_empty() {
+    if app.messaging.message_input_buf.is_empty() {
         // Placeholder
         frame.render_widget(
             Paragraph::new("Send a message to Claude...")
@@ -1289,7 +1289,7 @@ fn render_bridge(frame: &mut Frame, app: &mut App, area: Rect) {
     } else {
         // Active input with cursor
         let input_line = Line::from(vec![
-            Span::styled(&app.message_input_buf, Style::default().fg(sol::BASE1)),
+            Span::styled(&app.messaging.message_input_buf, Style::default().fg(sol::BASE1)),
             Span::styled("█", Style::default().fg(sol::CYAN)),
         ]);
         frame.render_widget(Paragraph::new(input_line), input_lines[0]);

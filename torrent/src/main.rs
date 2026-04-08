@@ -7,6 +7,7 @@ mod checkpoint;
 mod diagnostic;
 mod execution;
 mod keybindings;
+mod messaging;
 mod lock;
 mod log;
 mod monitor;
@@ -291,8 +292,8 @@ fn main() -> Result<()> {
     let mut app = App::new(cli.extra_config_dirs)?;
 
     // Store channels configuration for session startup
-    app.channels_enabled = cli.channels_enabled;
-    app.callback_port = cli.callback_port;
+    app.messaging.channels_enabled = cli.channels_enabled;
+    app.messaging.callback_port = cli.callback_port;
 
     // Apply CLI timeout overrides (on top of env vars)
     if !cli.timeout_overrides.is_empty() {
