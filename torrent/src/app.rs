@@ -69,11 +69,7 @@ pub struct App {
     pub queue_list_state: ListState,
 
     // Polling timers (non-blocking, checked on each tick)
-    pub last_discovery_poll: Option<Instant>,
-    pub last_heartbeat_poll: Option<Instant>,
-    pub last_checkpoint_poll: Option<Instant>,
-    pub last_loop_state_poll: Option<Instant>,
-    pub last_active_arcs_prune: Option<Instant>,
+    pub polling: crate::polling::PollingScheduler,
     // (launched_wall_clock moved to ExecutionEngine)
 
     // Status message for display in UI (auto-clears after STATUS_MESSAGE_TTL)
@@ -107,14 +103,11 @@ pub struct App {
 
     // Diagnostic engine for session health monitoring
     pub diagnostic_engine: DiagnosticEngine,
-    pub last_diagnostic_poll: Option<Instant>,
     /// Current diagnostic result for UI banner display.
     pub last_diagnostic: Option<DiagnosticResult>,
 
     // Channel communication + message transport + bridge view state
     pub messaging: crate::messaging::MessageState,
-    /// Last time we polled the channel for events.
-    pub last_channel_poll: Option<Instant>,
 }
 
 impl App {
@@ -164,11 +157,7 @@ impl App {
             config_list_state: ListState::default(),
             plan_list_state: ListState::default(),
             queue_list_state: ListState::default(),
-            last_discovery_poll: None,
-            last_heartbeat_poll: None,
-            last_checkpoint_poll: None,
-            last_loop_state_poll: None,
-            last_active_arcs_prune: None,
+            polling: crate::polling::PollingScheduler::new(),
             status_message: initial_status,
             status_message_set_at: None,
             claude_path: crate::tmux::Tmux::resolve_claude_path()
@@ -180,10 +169,8 @@ impl App {
             should_quit: false,
             claude_version: Self::detect_claude_version(),
             diagnostic_engine: DiagnosticEngine::new(),
-            last_diagnostic_poll: None,
             last_diagnostic: None,
             messaging: crate::messaging::MessageState::new(),
-            last_channel_poll: None,
         })
     }
 
@@ -295,14 +282,10 @@ impl App {
     /// Throttled to every 10s to avoid excessive process checks.
     pub fn prune_stale_active_arcs(&mut self) {
         let now = Instant::now();
-        let should_prune = self
-            .last_active_arcs_prune
-            .map(|t| now.duration_since(t) >= Duration::from_secs(10))
-            .unwrap_or(true);
-        if !should_prune {
+        if !self.polling.should_poll(crate::polling::ACTIVE_ARCS_PRUNE, Duration::from_secs(10)) {
             return;
         }
-        self.last_active_arcs_prune = Some(now);
+        self.polling.mark_polled(crate::polling::ACTIVE_ARCS_PRUNE, now);
 
         self.active_arcs.retain(|arc| {
             // If it has a tmux session, verify it still exists
@@ -949,72 +932,43 @@ impl App {
 
         if !has_arc {
             // Discovery polling (every 10s)
-            let should_poll = self
-                .last_discovery_poll
-                .map(|t| now.duration_since(t) >= Duration::from_secs(10))
-                .unwrap_or(true);
-
-            if should_poll {
+            if self.polling.should_poll(crate::polling::DISCOVERY, Duration::from_secs(10)) {
                 self.poll_discovery();
-                self.last_discovery_poll = Some(now);
+                self.polling.mark_polled(crate::polling::DISCOVERY, now);
             }
 
             // Bootstrap diagnostic check (every 30s during discovery)
-            let should_diag = self
-                .last_diagnostic_poll
-                .map(|t| now.duration_since(t) >= Duration::from_secs(30))
-                .unwrap_or(true);
-            if should_diag {
+            if self.polling.should_poll(crate::polling::DIAGNOSTIC, Duration::from_secs(30)) {
                 self.poll_diagnostic_bootstrap();
-                self.last_diagnostic_poll = Some(now);
+                self.polling.mark_polled(crate::polling::DIAGNOSTIC, now);
             }
         } else {
             // Heartbeat polling (every 5s)
-            let should_poll_hb = self
-                .last_heartbeat_poll
-                .map(|t| now.duration_since(t) >= Duration::from_secs(5))
-                .unwrap_or(true);
-
-            if should_poll_hb {
+            if self.polling.should_poll(crate::polling::HEARTBEAT, Duration::from_secs(5)) {
                 self.poll_status();
-                self.last_heartbeat_poll = Some(now);
+                self.polling.mark_polled(crate::polling::HEARTBEAT, now);
             }
 
             // Channel event processing (non-blocking, every 2s when enabled)
-            if self.messaging.channels_enabled {
-                let should_poll_channel = self
-                    .last_channel_poll
-                    .map(|t| now.duration_since(t) >= Duration::from_secs(2))
-                    .unwrap_or(true);
-
-                if should_poll_channel {
-                    self.drain_channel_events();
-                    self.last_channel_poll = Some(now);
-                }
+            if self.messaging.channels_enabled
+                && self.polling.should_poll(crate::polling::CHANNEL, Duration::from_secs(2))
+            {
+                self.drain_channel_events();
+                self.polling.mark_polled(crate::polling::CHANNEL, now);
             }
 
             // Loop state liveness check (every 60s)
-            // If arc-phase-loop.local.md is gone, the arc has completed or been stopped
-            let should_check_loop = self
-                .last_loop_state_poll
-                .map(|t| now.duration_since(t) >= Duration::from_secs(60))
-                .unwrap_or(true);
-
-            if should_check_loop {
+            if self.polling.should_poll(crate::polling::LOOP_STATE, Duration::from_secs(60)) {
                 self.check_loop_state_liveness();
                 self.refresh_git_branch();
                 self.refresh_session_info();
-                self.last_loop_state_poll = Some(now);
+                self.polling.mark_polled(crate::polling::LOOP_STATE, now);
             }
 
             // Runtime diagnostic check (every 30s during execution)
-            let should_diag = self
-                .last_diagnostic_poll
-                .map(|t| now.duration_since(t) >= Duration::from_secs(30))
-                .unwrap_or(true);
-            if should_diag {
+            if self.polling.should_poll(crate::polling::DIAGNOSTIC, Duration::from_secs(30)) {
                 self.poll_diagnostic_runtime();
-                self.last_diagnostic_poll = Some(now);
+                self.polling.mark_polled(crate::polling::DIAGNOSTIC, now);
             }
 
             // Check grace period completion BEFORE timeout (completion race guard)
@@ -1243,10 +1197,12 @@ impl App {
         }
 
         // Reset poll timers
-        self.last_discovery_poll = None;
-        self.last_heartbeat_poll = None;
-        self.last_checkpoint_poll = None;
-        self.last_channel_poll = None;
+        self.polling.reset_many(&[
+            crate::polling::DISCOVERY,
+            crate::polling::HEARTBEAT,
+            crate::polling::CHECKPOINT,
+            crate::polling::CHANNEL,
+        ]);
 
         Ok(())
     }
@@ -2260,7 +2216,7 @@ impl App {
                         run.session_recreated = true; // FLAW-001 FIX: mark Phase 1 done
                     }
                     self.execution.tmux_session_id = Some(new_session_id);
-                    self.last_discovery_poll = None;
+                    self.polling.reset(crate::polling::DISCOVERY);
                     self.set_status("Session recreated — waiting for Claude Code init...");
                 }
                 Err(e) => {

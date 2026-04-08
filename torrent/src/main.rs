@@ -8,6 +8,7 @@ mod diagnostic;
 mod execution;
 mod keybindings;
 mod messaging;
+mod polling;
 mod lock;
 mod log;
 mod monitor;
