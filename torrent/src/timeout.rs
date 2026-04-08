@@ -90,12 +90,25 @@ impl App {
         run.timeout_triggered_at = Some(Instant::now());
 
         if let Some(pid) = pid_to_kill {
+            // Guard: reject PIDs that would silently truncate when cast to i32.
+            // libc::kill expects pid_t (i32), so PIDs > i32::MAX are invalid.
+            if pid > i32::MAX as u32 {
+                self.set_status(format!(
+                    "Phase timeout: PID {} exceeds i32::MAX, killing tmux (phase: {})",
+                    pid, phase_name,
+                ));
+                if let Some(run) = &self.execution.current_run {
+                    let _ = Tmux::kill_session(&run.tmux_session);
+                }
+                self.handle_timeout_resume();
+                return;
+            }
             // SAFETY: libc::kill sends a signal to a process. We use SIGTERM (graceful).
             let ret = unsafe { libc::kill(pid as libc::pid_t, libc::SIGTERM) };
             if ret != 0 {
                 let err = std::io::Error::last_os_error();
                 if err.raw_os_error() == Some(libc::ESRCH) {
-                    // Process already gone — skip 15s grace, go straight to tmux kill
+                    // Process already gone — skip 15s grace, go straight to tmux kill + resume
                     self.set_status(format!(
                         "Phase timeout: PID {} already exited, killing tmux (phase: {})",
                         pid, phase_name,
@@ -103,6 +116,7 @@ impl App {
                     if let Some(run) = &self.execution.current_run {
                         let _ = Tmux::kill_session(&run.tmux_session);
                     }
+                    self.handle_timeout_resume();
                 } else if err.raw_os_error() == Some(libc::EPERM) {
                     self.set_status(format!(
                         "Phase timeout: SIGTERM to PID {} denied (EPERM) (phase: {}, limit: {}m)",
@@ -121,7 +135,7 @@ impl App {
                 ));
             }
         } else {
-            // No PID available — fall back to tmux kill directly
+            // No PID available — fall back to tmux kill + immediate resume
             self.set_status(format!(
                 "Phase timeout: no PID, killing tmux (phase: {}, limit: {}m)",
                 phase_name,
@@ -130,6 +144,7 @@ impl App {
             if let Some(ref run) = self.execution.current_run {
                 let _ = Tmux::kill_session(&run.tmux_session);
             }
+            self.handle_timeout_resume();
         }
     }
 
