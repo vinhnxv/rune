@@ -869,7 +869,7 @@ impl App {
     /// Handles: launching new plans, discovery polling, heartbeat/checkpoint
     /// polling, completion detection with grace period.
     pub fn tick_execution(&mut self) -> Result<()> {
-        if self.view != AppView::Running {
+        if !matches!(self.view, AppView::Running | AppView::Bridge) {
             return Ok(());
         }
 
