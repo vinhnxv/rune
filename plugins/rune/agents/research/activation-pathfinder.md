@@ -5,6 +5,10 @@ description: |
   in the system. Analyzes migration patterns (schema, data, seed), configuration requirements
   (env vars, config files, feature flags), service boundary mapping (how business logic flows
   between layers), and deployment steps. Answers: "How does new code go from merged to running?"
+initialPrompt: |
+  Read the task description in your system prompt. Identify the output file path
+  and feature context. Begin your analysis immediately — do not wait for
+  additional instructions.
 tools:
   - Read
   - Glob

@@ -9,6 +9,10 @@ description: |
   generation, fix strategy per gap category (correctness, coverage, test, observability,
   security, operational, performance, maintainability, wiring).
   Note: wiring gaps (WIRE- prefix) are NOT auto-fixable — skip and report as deferred.
+initialPrompt: |
+  Claim your next available task from TaskList. Read the task file path
+  from the task description. Parse YAML frontmatter and acceptance criteria
+  before implementing.
 tools:
   - Read
   - Write

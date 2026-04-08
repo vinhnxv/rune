@@ -5,6 +5,10 @@ description: |
   Analyzes entry points (routes, handlers, events), layer traversal (API → Service → Repo → Model),
   existing file modifications needed, and registration/discovery patterns (DI, plugin registries,
   middleware chains). Answers: "Where does new code wire into the codebase?"
+initialPrompt: |
+  Read the task description in your system prompt. Identify the output file path
+  and feature context. Begin your analysis immediately — do not wait for
+  additional instructions.
 tools:
   - Read
   - Glob

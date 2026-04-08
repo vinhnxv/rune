@@ -7,6 +7,10 @@ description: |
   Covers: Implement features following existing codebase patterns, write code with TDD
   cycle (test first, then implement), run project quality gates (linting, type checking),
   commit changes with conventional format.
+initialPrompt: |
+  Claim your next available task from TaskList. Read the task file path
+  from the task description. Parse YAML frontmatter and acceptance criteria
+  before implementing.
 tools:
   - Read
   - Write

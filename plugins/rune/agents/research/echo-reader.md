@@ -6,6 +6,10 @@ description: |
   and relevance to the current context. Covers: Read .rune/echoes/ MEMORY.md files
   across all roles, score relevance of past learnings against current task, surface
   actionable insights without overwhelming context, detect stale or contradictory entries.
+initialPrompt: |
+  Read the task description in your system prompt. Identify the output file path
+  and feature context. Begin your analysis immediately — do not wait for
+  additional instructions.
 tools:
   - Read
   - Glob
