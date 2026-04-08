@@ -54,7 +54,7 @@ if (!agentBrowserVersion) {
 
 // Guard 4: Talisman config
 const testingConfig = readTalismanSection("testing") ?? {}
-const browserTestConfig = testingConfig?.browser_test ?? {}
+const browserTestConfig = testingConfig?.browser ?? {}
 if (browserTestConfig.enabled === false || testingConfig?.tiers?.e2e?.enabled === false) {
   updateCheckpoint({ phase: "browser_test", status: "skipped", skip_reason: "talisman_disabled" })
   updateCheckpoint({ phase: "browser_test_fix", status: "skipped" })
@@ -127,14 +127,8 @@ let testPlan = null
 const sessionTimestamp = Date.now()
 
 if (browserConfig.test_plan !== false) {
-  const context = {
-    planFilePath: planPath,
-    prNumber: prNumber,
-    diffFiles: diffFiles,
-    routes: testRoutes,
-    infrastructure: infrastructure
-  }
-  testPlan = generateTestPlan(context, infrastructure, sessionTimestamp)
+  const scope = { files: diffFiles, source: prNumber ? "pr" : "branch", label: prNumber ? `PR #${prNumber}` : "current" }
+  testPlan = generateTestPlan(scope, planPath, infrastructure, testRoutes, sessionTimestamp)
   // Arc mode: skip Step 4.5 (user review) — arc is non-interactive
 }
 ```

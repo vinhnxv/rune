@@ -55,7 +55,7 @@ discoverInfrastructure() → InfraResult
         if key.match(/EMAIL|USERNAME|USER|LOGIN/i):
           result.credentials = result.credentials ?? {}
           result.credentials.email = result.credentials.email ?? value
-        if key.match(/PASSWORD|PASS|SECRET/i) and not key.match(/DB_|DATABASE_|REDIS_|AWS_|API_|SMTP_|MAIL_|S3_|GCS_|FIREBASE_|STRIPE_/i):
+        if key.match(/PASSWORD|PASS|SECRET/i) and not key.match(/DB_|DATABASE_|REDIS_|AWS_|API_|SMTP_|MAIL_|S3_|GCS_|FIREBASE_|STRIPE_|JWT_|TOKEN_|HASH_|SALT_|ENCRYPTION_/i):
           result.credentials = result.credentials ?? {}
           result.credentials.password = result.credentials.password ?? value
 
@@ -169,6 +169,13 @@ discoverInfrastructure() → InfraResult
     if result.credentials?.email and result.credentials?.password:
       result.credential_source = source
       break
+
+  // ═══════════════════════════════════════════
+  // 4.1 Credential Sanitization
+  // ═══════════════════════════════════════════
+  // SEC: NEVER include raw credential values in test-plan.md or logs
+  // Mask credentials in any output: result.credentials.password = "****" for display
+  // Only pass raw values to agent-browser fill commands (never to Write/log)
 
   // ═══════════════════════════════════════════
   // 5. Base URL Fallback

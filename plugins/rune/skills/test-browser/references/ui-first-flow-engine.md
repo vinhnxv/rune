@@ -58,18 +58,24 @@ executeUIFirstFlows(testPlan, infrastructure, sessionName, timestamp) → Execut
     try:
       // Navigate to route (reusing existing browser session for state)
       fullUrl = infrastructure.base_url + tc.route
-      Bash(`agent-browser open "${fullUrl}" ${modeFlag} --session "${sessionName}"`)
-      Bash(`agent-browser wait --load networkidle`)
+
+      // SEC: Validate URL before shell interpolation — reject shell metacharacters
+      if (!/^https?:\/\/[a-zA-Z0-9._:\/-]+$/.test(fullUrl)):
+        log WARN: "Invalid URL for ${tc.id} — skipping (possible injection): ${fullUrl}"
+        continue
+
+      Bash(`timeout 60 agent-browser open "${fullUrl}" ${modeFlag} --session "${sessionName}"`, { timeout: 65000 })
+      Bash(`timeout 30 agent-browser wait --load networkidle`, { timeout: 35000 })
       // SPA hydration fallback — networkidle may not trigger for client-side routing
-      Bash(`agent-browser wait 1000`)
+      Bash(`agent-browser wait 1000`, { timeout: 5000 })
 
       // Take "before" screenshot
       beforeScreenshot = `${workspacePath}/screenshots/${tc.id}-before.png`
       Bash(`mkdir -p "${workspacePath}/screenshots"`)
-      Bash(`agent-browser screenshot "${beforeScreenshot}"`)
+      Bash(`timeout 30 agent-browser screenshot "${beforeScreenshot}"`, { timeout: 35000 })
 
       // Get initial snapshot
-      snapshot = Bash(`agent-browser snapshot -i`)
+      snapshot = Bash(`timeout 30 agent-browser snapshot -i`, { timeout: 35000 })
 
       // ═══════════════════════════════════════
       // Execute test case steps through UI
@@ -79,10 +85,10 @@ executeUIFirstFlows(testPlan, infrastructure, sessionName, timestamp) → Execut
 
       // Take "after" screenshot
       afterScreenshot = `${workspacePath}/screenshots/${tc.id}-after.png`
-      Bash(`agent-browser screenshot "${afterScreenshot}"`)
+      Bash(`timeout 30 agent-browser screenshot "${afterScreenshot}"`, { timeout: 35000 })
 
       // Get final snapshot for verification
-      finalSnapshot = Bash(`agent-browser snapshot -i`)
+      finalSnapshot = Bash(`timeout 30 agent-browser snapshot -i`, { timeout: 35000 })
 
       // ═══════════════════════════════════════
       // Verify expected results
@@ -104,7 +110,7 @@ executeUIFirstFlows(testPlan, infrastructure, sessionName, timestamp) → Execut
       // ═══════════════════════════════════════
 
       // Check console errors (may reveal bugs outside PR scope)
-      consoleErrors = Bash(`agent-browser errors`)
+      consoleErrors = Bash(`timeout 15 agent-browser errors`, { timeout: 20000 })
       if consoleErrors.trim():
         for each error in consoleErrors.trim().split("\n"):
           allAnomalies.push({
@@ -137,9 +143,12 @@ executeUIFirstFlows(testPlan, infrastructure, sessionName, timestamp) → Execut
       Write(`${workspacePath}/results/${tc.id}-result.md`, formatTestCaseResult(results[tc.id]))
 
     catch err:
+      // SEC: Clean up browser session on fatal error to prevent resource leaks
+      Bash(`agent-browser close --session "${sessionName}" 2>/dev/null || true`, { timeout: 10000 })
+
       // Capture error screenshot
       errorScreenshot = `${workspacePath}/screenshots/${tc.id}-error.png`
-      Bash(`agent-browser screenshot "${errorScreenshot}" 2>/dev/null || true`)
+      Bash(`timeout 15 agent-browser screenshot "${errorScreenshot}" 2>/dev/null || true`, { timeout: 20000 })
 
       results[tc.id] = {
         status: "ERROR",
