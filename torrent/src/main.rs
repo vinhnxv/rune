@@ -13,8 +13,6 @@ mod timeout;
 mod lock;
 mod log;
 mod monitor;
-#[allow(dead_code)]
-mod recovery;
 mod resource;
 mod resume;
 mod scanner;

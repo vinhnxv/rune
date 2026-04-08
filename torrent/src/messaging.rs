@@ -90,10 +90,10 @@ impl MessageState {
             persist_bridge_message(file, &msg);
         }
         // Display filter: skip consecutive heartbeats (replace last one)
-        if msg.kind == BridgeMessageKind::Heartbeat {
-            if self.bridge_messages.back().map(|m| m.kind) == Some(BridgeMessageKind::Heartbeat) {
-                self.bridge_messages.pop_back();
-            }
+        if msg.kind == BridgeMessageKind::Heartbeat
+            && self.bridge_messages.back().map(|m| m.kind) == Some(BridgeMessageKind::Heartbeat)
+        {
+            self.bridge_messages.pop_back();
         }
         // Push to display ring buffer
         if self.bridge_messages.len() >= BRIDGE_MSG_DISPLAY_CAP {

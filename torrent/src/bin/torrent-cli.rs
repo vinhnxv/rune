@@ -85,12 +85,7 @@ fn gen_session_id() -> String {
 /// Find an available port in the range [start, end) by attempting to bind.
 /// Returns None if no port is free in the range.
 fn find_free_port(start: u16, end: u16) -> Option<u16> {
-    for port in start..end {
-        if TcpListener::bind(("127.0.0.1", port)).is_ok() {
-            return Some(port);
-        }
-    }
-    None
+    (start..end).find(|&port| TcpListener::bind(("127.0.0.1", port)).is_ok())
 }
 
 /// Find a pair of consecutive free ports (callback, bridge) in the range.

@@ -504,7 +504,7 @@ fn render_running(frame: &mut Frame, app: &mut App, area: Rect) {
             .and_then(|cs| cs.bridge_port)
             .map(|p| format!(":{p}"))
             .unwrap_or_default();
-        format!("{port}")
+        port
     } else {
         String::new()
     };

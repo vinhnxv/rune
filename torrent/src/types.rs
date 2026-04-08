@@ -110,6 +110,7 @@ pub struct ArcHandle {
     pub arc_id: String,
     pub checkpoint_path: PathBuf,
     pub heartbeat_path: PathBuf,
+    #[allow(dead_code)] // Set at construction, not yet consumed — reserved for future UI display
     pub plan_file: String,
     pub config_dir: String,
     pub owner_pid: String,
