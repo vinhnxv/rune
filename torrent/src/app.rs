@@ -1050,8 +1050,8 @@ impl App {
             .path.clone();
 
         // Step 1: git checkout main + pull (blocking, before tmux)
-        if let Err(msg) = crate::execution::checkout_plan_branch() {
-            self.set_status(msg);
+        if let Err(err) = crate::execution::checkout_plan_branch() {
+            self.set_status(err.to_string());
             self.execution.queue.push_front(QueueEntry {
                 plan_idx,
                 config_idx: self.selected_config,
@@ -1066,8 +1066,8 @@ impl App {
         let cwd = std::env::current_dir().unwrap_or_default();
         let session_id = match crate::execution::create_tmux_session(&cwd) {
             Ok(sid) => sid,
-            Err(msg) => {
-                self.set_status(msg);
+            Err(err) => {
+                self.set_status(err.to_string());
                 return Ok(());
             }
         };
