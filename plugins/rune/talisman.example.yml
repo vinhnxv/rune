@@ -1242,6 +1242,13 @@ horizon:
 # Test failures are non-blocking WARNs — they do NOT halt the pipeline.
 testing:
   enabled: true                    # Set false to skip Phase 7.7 globally (CLI: --no-test)
+  browser:
+    headed: false                  # Run browser in headed mode for debugging (default: false)
+    deep: false                    # Enable deep testing layers (default: false)
+    infrastructure_discovery: true # Auto-detect docker-compose, tunnels, proxies (default: true)
+    test_plan: true                # Generate test plan with dependency chains (default: true)
+    ui_first: true                 # Enforce UI-only data creation — no API/SQL shortcuts (default: true)
+    report_out_of_scope: true      # Include out-of-scope anomalies in report (default: true)
   tiers:
     unit:
       enabled: true                # Run unit tests (default: true)

@@ -399,20 +399,99 @@ findNullFields(obj, prefix) → string[]
 ## Step 8: Summary Report
 
 ```
-// Build markdown table
+// Build markdown report
+timestamp = Date.now()
+workspacePath = `tmp/test-browser-${timestamp}/`
+
 lines = [
   `# /rune:test-browser — Test Report`,
   ``,
   `**Scope**: ${scope.label}`,
   `**Mode**: ${mode}${shouldRunDeep ? " + DEEP" : ""}`,
-  `**Base URL**: ${baseUrl}`,
+  `**Base URL**: ${baseUrl} (source: ${infrastructureSource ?? "default"})`,
+  `**Plan file**: ${planFilePath ?? "none"}`,
+  `**Workspace**: ${workspacePath}`,
   `**Routes tested**: ${routes.length} (max: ${effectiveMax})`,
-  ``,
-  `## Route Results`,
-  ``,
-  `| Route | Source | Status | Notes |`,
-  `|-------|--------|--------|-------|`,
 ]
+
+// ============================
+// INFRASTRUCTURE SECTION
+// ============================
+if infrastructureConfig:
+  lines.push(``)
+  lines.push(`## Infrastructure`)
+  lines.push(``)
+  lines.push(`| Component | Status | Details |`)
+  lines.push(`|-----------|--------|---------|`)
+  lines.push(`| Docker Compose | ${infrastructureConfig.docker ? "yes" : "no"} | ${infrastructureConfig.dockerServices ?? "n/a"} |`)
+  lines.push(`| Tunnel | ${infrastructureConfig.tunnel ?? "none"} | ${infrastructureConfig.tunnelConfig ?? "n/a"} |`)
+  lines.push(`| Proxy | ${infrastructureConfig.proxy ?? "none"} | ${infrastructureConfig.proxyConfig ?? "n/a"} |`)
+  lines.push(`| Credentials | ${infrastructureConfig.credentials ?? "n/a"} | ${infrastructureConfig.credentialSource ?? "n/a"} |`)
+
+// ============================
+// TEST PLAN CHECKLIST
+// ============================
+lines.push(``)
+lines.push(`## Test Plan Checklist`)
+lines.push(``)
+lines.push(`| TC | Scenario | Type | Status | Duration | Screenshots |`)
+lines.push(`|----|----------|------|--------|----------|-------------|`)
+
+tcIndex = 1
+for each [route, result] in routeResults:
+  tcId = `TC-${String(tcIndex).padStart(3, "0")}`
+  tcType = traceSource[route]?.startsWith("backend") ? "traced" : "primary"
+  duration = result.duration ? `${result.duration}s` : "n/a"
+  status = result.status  // PASS, FAIL, WARN, PARTIAL, ERROR
+
+  // Screenshot links
+  screenshotLinks = ""
+  if result.screenshot:
+    screenshotLinks = `[snap](${result.screenshot})`
+  if result.screenshotBefore:
+    screenshotLinks = `[before](${result.screenshotBefore}) [after](${result.screenshotAfter ?? result.screenshot})`
+  if status == "FAIL" and result.screenshotError:
+    screenshotLinks += ` [error](${result.screenshotError})`
+
+  lines.push(`| ${tcId} | \`${route}\` | ${tcType} | **${status}** | ${duration} | ${screenshotLinks} |`)
+  tcIndex++
+
+passed = Object.values(routeResults).filter(r => r.status == "PASS").length
+total = Object.keys(routeResults).length
+lines.push(``)
+lines.push(`**Completion**: ${passed}/${total} passed (${total > 0 ? Math.round(passed / total * 100) : 0}%)`)
+
+// ============================
+// DEPENDENCY CHAIN TRACE
+// ============================
+if testPlan and testPlan.dependencyChain and testPlan.dependencyChain.length > 0:
+  lines.push(``)
+  lines.push(`## Dependency Chain Trace`)
+  lines.push(``)
+  lines.push("```")
+  for each chain in testPlan.dependencyChain:
+    chainStr = chain.steps.map(step => {
+      statusIcon = routeResults[step.route]?.status == "PASS" ? "✓" : "✗"
+      return `${step.id} ${step.label} ${statusIcon}`
+    }).join(" → ")
+
+    // Annotate failure point
+    failedStep = chain.steps.find(s => routeResults[s.route]?.status != "PASS")
+    if failedStep:
+      failNote = routeResults[failedStep.route]?.note ?? "Failed"
+      chainStr += `\n${" ".repeat(chainStr.lastIndexOf(failedStep.id))}↑ Failed: "${failNote}"`
+
+    lines.push(chainStr)
+  lines.push("```")
+
+// ============================
+// ROUTE RESULTS TABLE (existing)
+// ============================
+lines.push(``)
+lines.push(`## Route Results`)
+lines.push(``)
+lines.push(`| Route | Source | Status | Notes |`)
+lines.push(`|-------|--------|--------|-------|`)
 
 for each [route, result] in routeResults:
   notes = result.note ?? result.reason ?? ""
@@ -519,9 +598,61 @@ if gatedRoutes.length > 0:
   lines.push(`**Human gates**: ${gatedRoutes.length} route(s) required out-of-band verification`)
   lines.push(`> Note: AskUserQuestion has no timeout — gate pauses block indefinitely if unattended.`)
 
+// ============================
+// ANOMALIES SECTION
+// ============================
+if anomalyReport and (anomalyReport.inScope.length > 0 or anomalyReport.outOfScope.length > 0):
+  lines.push(``)
+  lines.push(`## Anomalies`)
+  lines.push(``)
+
+  if anomalyReport.inScope.length > 0:
+    lines.push(`### In-Scope Anomalies`)
+    lines.push(``)
+    lines.push(`| ID | Severity | Route | Description | Expected vs Actual |`)
+    lines.push(`|----|----------|-------|-------------|-------------------|`)
+    for each anomaly in anomalyReport.inScope:
+      lines.push(`| \`${anomaly.id}\` | **${anomaly.severity}** | \`${anomaly.route}\` | ${anomaly.message} | ${anomaly.expected ?? "n/a"} vs ${anomaly.actual ?? "n/a"} |`)
+
+  if anomalyReport.outOfScope.length > 0:
+    lines.push(``)
+    lines.push(`### Out-of-Scope Anomalies (Unexpected Bugs)`)
+    lines.push(``)
+    for each anomaly in anomalyReport.outOfScope:
+      lines.push(`- **${anomaly.severity}** \`${anomaly.route}\`: ${anomaly.message}`)
+
+// ============================
+// EVIDENCE PRESERVATION
+// ============================
+lines.push(``)
+lines.push(`## Evidence Preservation`)
+lines.push(``)
+lines.push(`All test artifacts are preserved at \`${workspacePath}\` for human verification:`)
+lines.push(``)
+lines.push(`| Artifact | Path | Purpose |`)
+lines.push(`|----------|------|---------|`)
+if testPlan:
+  lines.push(`| Test plan | test-plan.md | Pre-test planning and expectations |`)
+if infrastructureConfig:
+  lines.push(`| Infrastructure | infrastructure.md | Detected infrastructure config |`)
+lines.push(`| Screenshots | screenshots/*.png | Visual evidence per test case |`)
+lines.push(`| Results | results/TC-*.md | Per-case detailed results |`)
+if anomalyReport:
+  lines.push(`| Anomalies | results/anomalies.md | All errors and unusual behavior |`)
+lines.push(`| HAR files | results/har/*.har | Network traffic capture |`)
+lines.push(`| Report | report.md | This summary report |`)
+lines.push(``)
+lines.push(`> **For human review**: Screenshots and HAR files are preserved for manual verification.`)
+lines.push(`> Run \`open ${workspacePath}screenshots/\` to browse visual evidence.`)
+
 lines.push(``)
 lines.push(`**Screenshots**: tmp/test-browser/${sessionName}/`)
 
 report = lines.join("\n")
+
+// Write report to workspace
+Bash(`mkdir -p "${workspacePath}"`)
+Write(`${workspacePath}report.md`, report)
+
 log INFO: report
 ```

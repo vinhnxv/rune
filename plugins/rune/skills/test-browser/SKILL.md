@@ -10,12 +10,16 @@ description: |
 
   Use when the user says "test browser", "run browser tests", "E2E test my changes",
   "test routes", "browser test PR", "test-browser", "test API changes",
-  "test backend impact", or invokes /rune:test-browser.
+  "test backend impact", "test plan file", or invokes /rune:test-browser.
 
   Scope input (optional first argument):
     - PR number (e.g., "42") → fetches changed files from gh pr view
     - Branch name (e.g., "feature/login") → diffs against default branch
     - Empty → diffs current HEAD against default branch
+
+  Plan file (optional .md argument):
+    - Path to a plan file (e.g., "plans/my-feature.md") → extracts acceptance criteria
+      and UI-relevant routes for targeted testing. Can combine with scope input.
 
   Flags:
     --headed      Show browser window (requires display server)
@@ -45,9 +49,19 @@ description: |
   user: "/rune:test-browser 55"
   assistant: "PR #55 has only backend changes (API controllers, models). Tracing impact to frontend... Found 3 consuming routes: /users, /dashboard, /settings. Running browser tests..."
   </example>
+
+  <example>
+  user: "/rune:test-browser plans/my-feature.md --deep"
+  assistant: "Loading plan file plans/my-feature.md for acceptance criteria... Running deep browser tests on UI routes from plan..."
+  </example>
+
+  <example>
+  user: "/rune:test-browser 42 plans/my-feature.md"
+  assistant: "Fetching changed files from PR #42, using plan plans/my-feature.md for targeted acceptance criteria..."
+  </example>
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[PR# | branch-name] [--headed] [--deep] [--max-routes N]"
+argument-hint: "[PR# | branch-name] [plan-file.md] [--headed] [--deep] [--max-routes N]"
 ---
 
 # /rune:test-browser — Standalone Browser E2E Testing
@@ -73,6 +87,10 @@ Designed for interactive failure handling during development — no team coordin
 - [deep-testing-layers.md](references/deep-testing-layers.md) — interaction, data persistence, visual, UX, workflow continuity
 - [human-gates.md](references/human-gates.md) — OAuth/payment/2FA gate handling
 - [failure-handling.md](references/failure-handling.md) — interactive failure recovery
+- [infrastructure-discovery.md](references/infrastructure-discovery.md) — docker-compose, tunnel, proxy, credential detection
+- [test-plan-generation.md](references/test-plan-generation.md) — test plan generation with dependency chains
+- [ui-first-flow-engine.md](references/ui-first-flow-engine.md) — UI-first flow execution engine
+- [anomaly-report.md](references/anomaly-report.md) — anomaly detection and reporting
 
 ## Argument Parsing
 
@@ -89,13 +107,27 @@ deep = args.includes("--deep")
 maxRoutesIdx = args.indexOf("--max-routes")
 maxRoutes = maxRoutesIdx >= 0 ? parseInt(args[maxRoutesIdx + 1], 10) || 5 : 5
 
-// Scope: first positional arg (not a flag, not the value after --max-routes)
+// Positional args: everything that isn't a flag or a flag's value
 flagsWithValues = ["--max-routes"]
-scopeInput = args.filter((a, i) => {
+positionalArgs = args.filter((a, i) => {
   if (a.startsWith("--")) return false                    // skip flags
   if (i > 0 && flagsWithValues.includes(args[i - 1])) return false  // skip flag values
   return true
-})[0] ?? ""
+})
+
+// Plan file: detect .md file in positional args
+planFilePath = null
+for each arg in positionalArgs:
+  if arg.endsWith(".md") and not arg.startsWith("--"):
+    planFilePath = arg
+    // Validate file exists
+    if not fileExists(planFilePath):
+      WARN: "Plan file not found: ${planFilePath}. Proceeding without plan context."
+      planFilePath = null
+    break
+
+// Scope: first positional arg that is NOT the plan file (PR# or branch name)
+scopeInput = positionalArgs.filter(a => a !== planFilePath)[0] ?? ""
 
 // Validate maxRoutes (injection prevention — must be a positive integer)
 if isNaN(maxRoutes) OR maxRoutes < 1 OR maxRoutes > 50:
@@ -107,21 +139,20 @@ if isNaN(maxRoutes) OR maxRoutes < 1 OR maxRoutes > 50:
 | Step | Name | Description |
 |------|------|-------------|
 | 0 | Installation Guard | Check agent-browser is available |
+| 0.5 | Infrastructure Discovery | Detect docker-compose, tunnels, proxies, credentials |
 | 1 | Scope Detection | Resolve changed files via resolveTestScope() |
 | 1.5 | Backend Impact Tracing | If backend-only: trace API → frontend consumers → routes |
 | 2 | Route Discovery | Map changed files to testable URLs (frontend + traced routes) |
+| 2.5 | Test Plan Generation | Analyze PR/plan, build dependency chain, generate test cases |
 | 3 | Mode Selection | Headed vs headless determination |
 | 4 | Server Verification | Confirm dev server is up via verifyServerWithSnapshot |
-| 5 | Test Loop | Per-route: navigate → snapshot → core assertions → screenshot |
-| 5D | Deep: Interaction | `--deep`: fill forms, click buttons, verify elements respond |
-| 5E | Deep: Data Persistence | `--deep`: submit form → navigate away → return → verify data saved |
-| 5F | Deep: Visual/Layout | `--deep`: overflow, spacing, touch targets, responsive breakpoints |
-| 5G | Deep: UX Logic | `--deep`: empty states, loading, a11y, error handling, destructive actions |
-| 5H | Deep: Data Diagnosis | `--deep`: HAR analysis, null/empty column detection, API vs UI root cause |
+| 4.5 | Test Plan Presentation | Show plan to user, allow review before execution |
+| 5 | UI-First Flow Execution | Execute dependency chain through UI, then test target routes |
+| 5D-5H | Deep Testing Layers | Interaction, data persistence, visual, UX, data diagnosis |
 | 5W | Deep: Workflow Continuity | `--deep`: Create→List→Edit→Save cross-screen CRUD verification |
 | 6 | Human Gates | Pause for OAuth/payment/2FA flows (standalone only) |
 | 7 | Failure Handling | Offer Fix / Todo / Skip for each failure |
-| 8 | Summary Report | Full report: per-route + findings by category + screenshots |
+| 8 | Summary Report | Full report with checklist, anomalies, evidence links |
 
 ---
 
@@ -138,6 +169,24 @@ if result is empty OR exit code != 0:
 ```
 
 Do NOT auto-install. User consent for global tool installations is mandatory.
+
+## Step 0.5: Infrastructure Discovery
+
+```
+// Detect docker-compose, tunnels, proxies, and credentials
+// See references/infrastructure-discovery.md
+infrastructure = discoverInfrastructure()
+
+// Override base URL if infrastructure found a better one
+if infrastructure.base_url:
+  baseUrl = infrastructure.base_url
+
+log INFO: "Infrastructure: base_url=${baseUrl}, credentials=${infrastructure.credentials ? 'found' : 'not found'}"
+
+// Write infrastructure report to workspace
+Bash(`mkdir -p tmp/test-browser-${timestamp}`)
+Write(`tmp/test-browser-${timestamp}/infrastructure.md`, formatInfraReport(infrastructure))
+```
 
 ## Step 1: Scope Detection
 
@@ -258,6 +307,17 @@ for each route in routes:
 log INFO: "Routes to test (${routes.length}): ${routes.join(', ')}"
 ```
 
+## Step 2.5: Test Plan Generation
+
+```
+// Generate structured test plan with dependency chains
+// See references/test-plan-generation.md
+testPlan = generateTestPlan(scope, planFilePath, infrastructure, routes, timestamp)
+
+log INFO: "Test plan generated: ${testPlan.testCases.length} test cases, ${testPlan.executionOrder.length} execution steps"
+log INFO: "Test plan saved to: ${testPlan.planPath}"
+```
+
 ## Step 3: Headed/Headless Mode
 
 ```
@@ -310,9 +370,46 @@ if verifyResult != "ok":
     Start your server and re-run /rune:test-browser."
 ```
 
-## Steps 5-8: Test Loop, Deep Testing, Failure Handling, Report
+## Step 4.5: Test Plan Presentation
 
-### Smoke Test (always)
+```
+// Show test plan to user for optional review before execution
+// Only in standalone mode — arc mode auto-proceeds
+if testPlan:
+  log INFO: "── Test Plan ──"
+  log INFO: testPlan.summary  // Dependency chain + test case list
+  log INFO: "Review the full plan at: ${testPlan.planPath}"
+  // In standalone mode, user can review before continuing
+  // In arc mode, this step is skipped (non-interactive)
+```
+
+## Steps 5-8: Flow Execution, Deep Testing, Failure Handling, Report
+
+### UI-First Flow Execution (when test plan exists)
+
+When a test plan is available, Step 5 uses the UI-first flow execution engine
+instead of the isolated per-route loop. See [ui-first-flow-engine.md](references/ui-first-flow-engine.md).
+
+```
+// Step 5: UI-First Flow Execution
+if testPlan:
+  executionResult = executeUIFirstFlows(testPlan, infrastructure, sessionName, timestamp)
+  routeResults = executionResult.results
+  allAnomalies = executionResult.allAnomalies
+
+  // After dependency chain execution, run existing deep testing on target routes
+  if shouldRunDeep:
+    for each tc in testPlan.testCases.filter(t => t.type == "primary"):
+      // Navigate to route (session state already has auth/data from prerequisites)
+      // Run deep testing layers as before (interaction, data persistence, visual, UX)
+      // ...existing deep testing code...
+
+else:
+  // Fallback: no test plan — use existing per-route loop
+  // ...existing Step 5 code unchanged...
+```
+
+### Smoke Test (fallback — no test plan)
 Per-route: navigate → wait networkidle → snapshot → human gate check ([human-gates.md](references/human-gates.md)) → core assertions (console errors, blank/error patterns, snapshot length) → screenshot.
 
 ### Deep Testing (with `--deep` or `testing.browser.deep: true`)
@@ -338,9 +435,10 @@ After per-route loop, tests cross-screen relationships. See [deep-testing-layers
 Findings use `FLOW-` prefix with severity `critical` for data flow breaks.
 
 ### Failure Handling + Report
-Interactive Fix/Todo/Skip per failure ([failure-handling.md](references/failure-handling.md)). Report includes per-route status table, deep findings grouped by category (INT/DATA/VIS/UX/FLOW), severity breakdown, and workflow continuity summary.
+Interactive Fix/Todo/Skip per failure ([failure-handling.md](references/failure-handling.md)). Report includes test plan checklist with completion status, per-route status table, dependency chain execution trace, deep findings grouped by category (INT/DATA/VIS/UX/FLOW), anomaly report (in-scope + out-of-scope with severity and confidence), severity breakdown, workflow continuity summary, and evidence preservation links.
 
 See [test-loop-and-report.md](references/test-loop-and-report.md) for the full Step 5 test loop, deep mode activation, and Step 8 report template pseudocode.
+See [anomaly-report.md](references/anomaly-report.md) for anomaly detection, scope classification, and reporting.
 
 ## Version Guards for agent-browser Features
 
@@ -390,6 +488,10 @@ testing:
   browser:
     headed: false          # Default headless; override with --headed flag
     deep: false            # Default off; override with --deep flag
+    infrastructure_discovery: true   # Enable/disable infra detection
+    test_plan: true                  # Enable/disable test plan step
+    ui_first: true                   # When true, NEVER use API shortcuts (hard rule)
+    report_out_of_scope: true        # Include out-of-scope anomalies in report
   human_gates:
     enabled: true          # Set false to auto-skip all gates
   tiers:

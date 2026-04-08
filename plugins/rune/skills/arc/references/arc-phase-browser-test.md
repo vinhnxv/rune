@@ -63,6 +63,32 @@ if (browserTestConfig.enabled === false || testingConfig?.tiers?.e2e?.enabled ==
 }
 ```
 
+## STEP 0.5: Infrastructure Discovery
+
+```javascript
+// ═══════════════════════════════════════════════════════
+// STEP 0.5: INFRASTRUCTURE DISCOVERY
+// ═══════════════════════════════════════════════════════
+
+// See references/infrastructure-discovery.md (test-browser skill) for full algorithm
+const browserConfig = testingConfig?.browser ?? {}
+let infrastructure = null
+
+if (browserConfig.infrastructure_discovery !== false) {
+  infrastructure = discoverInfrastructure()
+  // infrastructure.base_url overrides talisman default if found
+  // infrastructure.credentials available for UI-first flows
+  // Write report for checkpoint
+  writeInfrastructureReport(infrastructure, `tmp/arc/${id}`)
+}
+
+// Resolve base URL: infrastructure discovery > talisman > default
+const baseUrl = infrastructure?.base_url ?? testingConfig?.tiers?.e2e?.base_url ?? "http://localhost:3000"
+
+// Read plan file path from parent arc checkpoint for test plan generation
+const planPath = checkpoint.plan_path ?? ""
+```
+
 ## STEP 1: Route Discovery
 
 ```javascript
@@ -89,6 +115,30 @@ if (testRoutes.length === 0) {
 }
 ```
 
+## STEP 2.5: Test Plan Generation (Arc Mode)
+
+```javascript
+// ═══════════════════════════════════════════════════════
+// STEP 2.5: TEST PLAN GENERATION (non-interactive)
+// ═══════════════════════════════════════════════════════
+
+// See references/test-plan-generation.md (test-browser skill) for full algorithm
+let testPlan = null
+const sessionTimestamp = Date.now()
+
+if (browserConfig.test_plan !== false) {
+  const context = {
+    planFilePath: planPath,
+    prNumber: prNumber,
+    diffFiles: diffFiles,
+    routes: testRoutes,
+    infrastructure: infrastructure
+  }
+  testPlan = generateTestPlan(context, infrastructure, sessionTimestamp)
+  // Arc mode: skip Step 4.5 (user review) — arc is non-interactive
+}
+```
+
 ## STEP 2: Server Verification
 
 ```javascript
@@ -97,7 +147,7 @@ if (testRoutes.length === 0) {
 // ═══════════════════════════════════════════════════════
 
 // Reuse verifyServerWithSnapshot() from testing/references/service-startup.md
-const baseUrl = testingConfig?.tiers?.e2e?.base_url ?? "http://localhost:3000"
+// baseUrl already resolved in Step 0.5 (infrastructure > talisman > default)
 const sessionName = `browser-test-${id}`
 const verifyResult = verifyServerWithSnapshot(baseUrl, sessionName)
 
@@ -214,7 +264,13 @@ updateCheckpoint({
   team_name: teamName,
   routes_tested: allResults.length,
   routes_passed: passed.length,
-  routes_failed: failed.length
+  routes_failed: failed.length,
+  // New fields from enhanced browser testing pipeline
+  test_plan_path: testPlan ? `tmp/test-browser-${sessionTimestamp}/test-plan.md` : null,
+  test_plan_status: testPlan ? "generated" : "skipped",
+  anomalies_count: allAnomalies?.length ?? 0,
+  out_of_scope_count: allAnomalies?.filter(a => !a.inScope)?.length ?? 0,
+  infrastructure_source: infrastructure ? (infrastructure.infrastructure?.docker_compose?.found ? "docker-compose" : infrastructure.infrastructure?.tunnel?.found ? "tunnel" : "talisman") : "talisman"
 })
 ```
 
@@ -231,3 +287,7 @@ If the phase crashes mid-execution:
 - [test-discovery.md](../../testing/references/test-discovery.md) — `discoverE2ERoutes()`
 - [service-startup.md](../../testing/references/service-startup.md) — `verifyServerWithSnapshot()`
 - [arc-phase-constants.md](arc-phase-constants.md) — `BROWSER_TEST_CYCLE_BUDGET`, `MAX_BROWSER_TEST_CYCLES`
+- [infrastructure-discovery.md](../../test-browser/references/infrastructure-discovery.md) — `discoverInfrastructure()`
+- [test-plan-generation.md](../../test-browser/references/test-plan-generation.md) — `generateTestPlan()`
+- [ui-first-flow-engine.md](../../test-browser/references/ui-first-flow-engine.md) — `executeUIFirstFlows()`
+- [anomaly-report.md](../../test-browser/references/anomaly-report.md) — anomaly detection + reporting
