@@ -907,6 +907,14 @@
     }
   },
   "testing": {
+    "browser": {
+      "deep": false,
+      "headed": false,
+      "infrastructure_discovery": true,
+      "report_out_of_scope": true,
+      "test_plan": true,
+      "ui_first": true
+    },
     "enabled": true,
     "history": {
       "directory": ".rune/test-history",

@@ -26,7 +26,7 @@ This list reflects the documented schema used by Rune (including default-injecte
 | 17 | `review` | Review settings | `diff_scope`, `convergence`, `arc_convergence_*`, `shard_*` |
 | 18 | `work` | Work/strive settings | `ward_commands`, `max_workers`, `commit_format`, `co_authors`, `branch_prefix`, `unrestricted_shared_files`, `worktree.*` |
 | 20 | `horizon` | Strategic assessment | `enabled`, `min_score`, `dimensions` |
-| 21 | `testing` | Test orchestration | `tiers.unit`, `tiers.integration`, `tiers.e2e`, `service.*`, `scenarios.*`, `extended_tier.*`, `contract.*`, `visual_regression.*`, `accessibility.*`, `history.*`, `fixtures.*`, `flaky_detection.*`, `production_readiness.*` |
+| 21 | `testing` | Test orchestration | `browser.*` (`headed`, `deep`, `infrastructure_discovery`, `test_plan`, `ui_first`, `report_out_of_scope`), `tiers.unit`, `tiers.integration`, `tiers.e2e`, `service.*`, `scenarios.*`, `extended_tier.*`, `contract.*`, `visual_regression.*`, `accessibility.*`, `history.*`, `fixtures.*`, `flaky_detection.*`, `production_readiness.*` |
 | 22 | `doubt_seer` | Claim verification | `enabled`, `min_claims`, `verdict_threshold` |
 | 23 | `codex` | Cross-model verification | `model`, `workflows`, `timeout`, 17 deep integration keys |
 | 24 | `context_monitor` + `context_weaving` | Context management | `enabled`, `warning_threshold`, `glyph_budget`, `offload_threshold`, `pretooluse_guard.enabled` |

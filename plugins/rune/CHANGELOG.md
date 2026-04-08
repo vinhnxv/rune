@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.35.1] - 2026-04-08
+
+### Fixed
+- **arc-phase-browser-test.md**: Fix `generateTestPlan()` call signature to match canonical 5-parameter definition in test-plan-generation.md (BACK-001)
+- **arc-phase-browser-test.md**: Fix phantom config path `testing.browser_test` → `testing.browser` to match talisman-defaults.json structure (BACK-002)
+
 ## [2.35.0] - 2026-04-08
 
 ### Added
