@@ -137,11 +137,10 @@ pub(crate) fn persist_bridge_message(file: &mut std::fs::File, msg: &BridgeMessa
         BridgeMessageKind::Heartbeat => "heartbeat",
         BridgeMessageKind::Reply => "reply",
     };
-    // Escape text for JSON safety (backslashes, quotes, and control characters).
-    let escaped = msg.text.replace('\\', "\\\\").replace('"', "\\\"")
-        .replace('\n', "\\n").replace('\r', "\\r").replace('\t', "\\t");
+    // Use serde_json for RFC 8259-compliant escaping (handles Unicode control chars).
+    let escaped = serde_json::to_string(&msg.text).unwrap_or_else(|_| "\"\"".to_string());
     let line = format!(
-        r#"{{"ts":"{}","kind":"{}","text":"{}"}}"#,
+        r#"{{"ts":"{}","kind":"{}","text":{}}}"#,
         chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"),
         kind_str,
         escaped,
