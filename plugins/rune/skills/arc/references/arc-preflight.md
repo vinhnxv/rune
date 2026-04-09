@@ -754,6 +754,7 @@ CDX-7 Layer 3: Scan for orphaned arc-specific teams from prior sessions. Runs af
 const ARC_TEAM_PREFIXES = [
   "arc-forge-", "arc-plan-review-", "arc-plan-inspect-", "arc-verify-", "arc-gap-fix-", "arc-inspect-", "arc-inspect-full-", "arc-inspect-fix-", "arc-test-",  // arc-owned teams
   "rune-inspect-",  // inspect skill teams (delegated sub-command)
+  "arc-fv-",  // finding verification team (Phase 6.7 — conditional on arc.verify.enabled)
   "arc-sage-",  // ephemeral elicitation sage team (mend Phase 7 — conditional on P1 findings)
   "arc-storybook-",  // Storybook verification team (conditional — storybook.enabled)
   "arc-design-", "arc-prototype-", "arc-design-verify-", "arc-design-iter-",  // design sync teams (conditional — design_sync.enabled)

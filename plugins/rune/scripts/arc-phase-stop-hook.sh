@@ -365,7 +365,7 @@ PHASE_ORDER=(
   codex_gap_analysis gap_remediation
   inspect inspect_fix verify_inspect goldmask_verification
   code_review code_review_qa
-  goldmask_correlation mend mend_qa
+  goldmask_correlation verify mend mend_qa
   verify_mend design_iteration
   test test_qa
   browser_test browser_test_fix verify_browser_test
@@ -374,7 +374,7 @@ PHASE_ORDER=(
 )
 
 # Heavy phases that ALWAYS trigger compact interlude (tier 1)
-HEAVY_PHASES="work work_qa code_review code_review_qa mend mend_qa inspect test test_qa"
+HEAVY_PHASES="work work_qa code_review code_review_qa verify mend mend_qa inspect test test_qa"
 
 # Compact interval fallback (tier 3): when bridge file is unavailable,
 # compact every COMPACT_INTERVAL completed phases as a safety net.
@@ -408,6 +408,7 @@ _phase_ref() {
     goldmask_verification)    echo "${base}/arc-phase-goldmask-verification.md" ;;
     code_review)              echo "${base}/arc-phase-code-review.md" ;;
     goldmask_correlation)     echo "${base}/arc-phase-goldmask-correlation.md" ;;
+    verify)                   echo "${base}/arc-phase-verify.md" ;;
     mend)                     echo "${base}/arc-phase-mend.md" ;;
     verify_mend)              echo "${base}/verify-mend.md" ;;
     design_iteration)         echo "${base}/arc-phase-design-iteration.md" ;;
@@ -599,7 +600,7 @@ _phase_weight() {
     forge|mend|test)                         echo 3 ;;
     plan_review|plan_refine)                 echo 3 ;;
     design_extraction|design_verification|design_iteration|design_prototype) echo 2 ;;
-    gap_analysis|gap_remediation|goldmask_verification|goldmask_correlation) echo 2 ;;
+    gap_analysis|gap_remediation|goldmask_verification|goldmask_correlation|verify) echo 2 ;;
     storybook_verification|ux_verification)  echo 2 ;;
     verify_mend|codex_gap_analysis|test_coverage_critique) echo 2 ;;
     browser_test|browser_test_fix|verify_browser_test) echo 2 ;;

@@ -299,6 +299,11 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
       map.release_quality_check = "codex_release_quality_disabled"
   }
 
+  // ── Verify phase (1 phase) ──
+  if (arcConfig.verify_enabled === false) {
+    map.verify = "verify_disabled"
+  }
+
   // ── Inspect phases (3 phases) ──
   // RUIN-004 FIX: Use 3-layer resolved arcConfig instead of raw talisman read
   if (arcConfig.inspect_enabled === false) {
@@ -495,6 +500,7 @@ Write(checkpointPath, {
     code_review:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     code_review_qa: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0 },
     goldmask_correlation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
+    verify:       { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     mend:         { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
     mend_qa:      { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0 },
     verify_mend:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null },
