@@ -33,9 +33,14 @@ description: |
   assistant: "Cross-model review of staged changes focused on bugs and quality..."
   </example>
 
+  <example>
+  user: "/rune:codex-review --adversarial"
+  assistant: "[EXPERIMENTAL] Adversarial cross-model review — challenging design decisions..."
+  </example>
+
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[<path|PR#N> | --staged | --commits <range> | --prompt <text>] [--focus <areas>] [--max-agents <N>] [--claude-only | --codex-only] [--no-cross-verify] [--reasoning <level>]"
+argument-hint: "[<path|PR#N> | --staged | --commits <range> | --prompt <text>] [--focus <areas>] [--max-agents <N>] [--claude-only | --codex-only] [--no-cross-verify] [--reasoning <level>] [--adversarial]"
 allowed-tools:
   - Agent
   - TaskCreate
@@ -95,6 +100,7 @@ agents in parallel. Cross-verify findings between models for higher-confidence r
 | `--codex-only` | Skip Claude, Codex agents only | false |
 | `--no-cross-verify` | Skip cross-verification, just merge findings | false |
 | `--reasoning <level>` | Codex reasoning: high, medium, low | high |
+| `--adversarial` | [EXPERIMENTAL] Challenge-mode review: question decisions, not just bugs | false |
 
 ---
 
@@ -108,13 +114,14 @@ See [scope-detection.md](references/scope-detection.md) for argument parsing, sc
 
 ## Phase 1: Prerequisites & Detection
 
-**Goal**: Check codex availability, select agents, write inscription.
+**Goal**: Check codex availability, select agents, detect review mode, write inscription.
 
 1. **Setup**: Create `tmp/codex-review/{identifier}/claude` and `codex` dirs
-2. **Talisman**: Check `codex.disabled` (global) + `codex_review.disabled` (skill-specific). Fall back to Claude-only if disabled.
-3. **Codex Detection**: 9-step algorithm from [codex-detection.md](../roundtable-circle/references/codex-detection.md). Resolution: `--codex-only` + unavailable → ERROR; else → Claude-only fallback.
-4. **Agent Selection**: Focus-based selection (5 Claude agents, 4 Codex agents). Max-agents cap splits 60/40 Claude/Codex.
-5. **Write Inscription**: `inscription.json` + state file with session isolation fields.
+2. **Review Mode**: Detect `--adversarial` flag → set `reviewMode = "adversarial"` (default: `"standard"`). Pass `reviewMode` to Phase 2 spawn.
+3. **Talisman**: Check `codex.disabled` (global) + `codex_review.disabled` (skill-specific). Fall back to Claude-only if disabled.
+4. **Codex Detection**: 9-step algorithm from [codex-detection.md](../roundtable-circle/references/codex-detection.md). Resolution: `--codex-only` + unavailable → ERROR; else → Claude-only fallback.
+5. **Agent Selection**: Focus-based selection (5 Claude agents, 4 Codex agents). Max-agents cap splits 60/40 Claude/Codex.
+6. **Write Inscription**: `inscription.json` + state file with session isolation fields. Include `reviewMode` in inscription.
 
 See [phase1-setup.md](references/phase1-setup.md) for full pseudocode (talisman config, agent tables, inscription schema).
 
@@ -224,6 +231,15 @@ Read and execute [report-template.md](references/report-template.md) for the ful
 
 Subcategory: `-SEC-`, `-BUG-`, `-PERF-`, `-QUAL-`, `-DEAD-`
 
+#### Adversarial Mode Prefixes (when `--adversarial`)
+
+| Prefix | Meaning |
+|--------|---------|
+| `XADV-SEC`, `XADV-BUG`, `XADV-QAL`, `XADV-DEAD`, `XADV-PERF` | Claude adversarial findings |
+| `CDXA-S`, `CDXA-B`, `CDXA-Q`, `CDXA-P` | Codex adversarial findings |
+
+Adversarial findings include `DECISION_CHALLENGED` blocks proposing alternative approaches. See [adversarial-prompts.md](references/adversarial-prompts.md).
+
 **TOME compatibility**: All findings include `<!-- RUNE:FINDING {id} {priority} -->` markers
 for `/rune:mend` consumption. Format: `<!-- RUNE:FINDING {id} {priority} -->`.
 
@@ -332,8 +348,9 @@ Also inherits from `codex:` section (model, reasoning, disabled flags).
 - [scope-detection.md](references/scope-detection.md) — Phase 0 scope type detection and file list assembly
 - [phase1-setup.md](references/phase1-setup.md) — Phase 1 talisman config, codex detection, agent selection, inscription
 - [agents-md-template.md](references/agents-md-template.md) — AGENTS.md template for Codex context
-- [claude-wing-prompts.md](references/claude-wing-prompts.md) — Claude agent prompt templates
-- [codex-wing-prompts.md](references/codex-wing-prompts.md) — Codex agent prompt templates
+- [claude-wing-prompts.md](references/claude-wing-prompts.md) — Claude agent prompt templates (standard mode)
+- [codex-wing-prompts.md](references/codex-wing-prompts.md) — Codex agent prompt templates (standard mode)
+- [adversarial-prompts.md](references/adversarial-prompts.md) — [EXPERIMENTAL] Adversarial prompt templates for `--adversarial` mode
 - [cross-verification.md](references/cross-verification.md) — Cross-verification algorithm detail
 - [report-template.md](references/report-template.md) — CROSS-REVIEW.md template
 - [codex-detection.md](../roundtable-circle/references/codex-detection.md) — 9-step Codex detection algorithm

@@ -98,9 +98,13 @@ content = content.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
 content = content.replace(/<[^>]+>/g, '')
 // Step 3: Apply sanitizeUntrustedText() before regex parsing
 
-// Prefix enforcement: reject non-CDX- prefixes
+// Prefix enforcement: reject non-CDX-/CDXA- prefixes
+// Standard mode: CDX-* prefixes allowed. Adversarial mode: CDXA-* also allowed.
+const validCodexPrefixes = reviewMode === "adversarial"
+  ? ["CDX-", "CDXA-"]
+  : ["CDX-"]
 for each parsed finding:
-  if not finding.id.startsWith("CDX-"):
+  if not validCodexPrefixes.some(p => finding.id.startsWith(p)):
     log.warn("SUSPICIOUS_PREFIX in Codex output:", finding.id)
     finding.status = "SUSPICIOUS_PREFIX"  // excluded from cross-verification
 

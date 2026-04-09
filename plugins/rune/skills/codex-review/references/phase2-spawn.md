@@ -71,6 +71,15 @@ Bash(`mkdir -p tmp/.rune-signals/${teamName}`)
 Write(`tmp/.rune-signals/${teamName}/.readonly-active`, "active")
 ```
 
+## Template Selection (Adversarial Mode)
+
+```javascript
+// Select prompt templates based on reviewMode (AC-1, AC-4)
+// reviewMode set in Phase 1 from --adversarial flag (default: "standard")
+const { claudeTemplates, codexTemplates, claudePrefixes, codexPrefixes } =
+  selectPromptTemplates(reviewMode)  // See adversarial-prompts.md § Prompt Selection Function
+```
+
 ## Spawn Claude Wing (ALL in ONE call — parallel)
 
 ```javascript
@@ -88,13 +97,15 @@ for (const agent of claudeAgents) {
       scope: scopeType,
       outputPath: `${REVIEW_DIR}/claude/${agent.outputFile}`,
       customPrompt: flags['--prompt'],
-      nonce: identifier  // Nonce boundary for injected content (SEC-NONCE-001)
+      nonce: identifier,  // Nonce boundary for injected content (SEC-NONCE-001)
+      templates: claudeTemplates,  // Standard or adversarial templates
+      prefixes: claudePrefixes     // Standard or XADV-* prefixes
     })
   })
 }
 ```
 
-Each Claude agent prompt includes ANCHOR/RE-ANCHOR Truthbinding, nonce-bounded content, perspective checklist, finding format (P1/P2/P3 with `<!-- RUNE:FINDING -->` markers), and Seal. See [claude-wing-prompts.md](claude-wing-prompts.md) for full template.
+Each Claude agent prompt includes ANCHOR/RE-ANCHOR Truthbinding, nonce-bounded content, perspective checklist, finding format (P1/P2/P3 with `<!-- RUNE:FINDING -->` markers), and Seal. See [claude-wing-prompts.md](claude-wing-prompts.md) for standard templates. When `reviewMode === "adversarial"`, use [adversarial-prompts.md](adversarial-prompts.md) templates instead — these emit `DECISION_CHALLENGED` blocks and use `XADV-*` prefixes.
 
 ## Spawn Codex Wing (staggered starts — rate limit guard)
 
@@ -118,10 +129,12 @@ for (let i = 0; i < codexAgents.length; i++) {
       model: talisman?.codex?.model || 'gpt-5.3-codex',
       reasoning: flags['--reasoning'],
       customPrompt: flags['--prompt'],
-      agentsMdPath: `${REVIEW_DIR}/AGENTS.md`
+      agentsMdPath: `${REVIEW_DIR}/AGENTS.md`,
+      templates: codexTemplates,  // Standard or adversarial templates
+      prefixes: codexPrefixes     // Standard or CDXA-* prefixes
     })
   })
 }
 ```
 
-Codex agents use temp prompt files (SEC-003), `.codexignore` filtering (SEC-CODEX-001), timeout cascade, ANCHOR stripping (SEC-ANCHOR-001), prefix enforcement (SEC-PREFIX-001), and HTML sanitization. See [codex-wing-prompts.md](codex-wing-prompts.md) for full prompt template.
+Codex agents use temp prompt files (SEC-003), `.codexignore` filtering (SEC-CODEX-001), timeout cascade, ANCHOR stripping (SEC-ANCHOR-001), prefix enforcement (SEC-PREFIX-001), and HTML sanitization. See [codex-wing-prompts.md](codex-wing-prompts.md) for standard templates. When `reviewMode === "adversarial"`, use [adversarial-prompts.md](adversarial-prompts.md) templates instead — these use `CDXA-*` prefixes.

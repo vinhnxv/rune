@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.36.0] - 2026-04-09
+
+### Added
+- **codex-review**: Add `--adversarial` flag for [EXPERIMENTAL] challenge-mode review that questions design decisions, not just bugs (AC-1, AC-2)
+- **codex-review**: Adversarial prompt templates for all 9 agents (5 Claude + 4 Codex) with `DECISION_CHALLENGED` blocks proposing alternative approaches (AC-3)
+- **codex-review**: Adversarial finding prefixes: `XADV-SEC/BUG/QAL/DEAD/PERF` (Claude), `CDXA-S/B/Q/P` (Codex)
+- **codex-review**: New reference file `adversarial-prompts.md` with template selection function
+
+### Unchanged
+- Standard review behavior when `--adversarial` is not passed (AC-4)
+
 ## [2.35.1] - 2026-04-08
 
 ### Fixed
