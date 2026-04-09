@@ -55,6 +55,7 @@ const PHASE_PREFIX_MAP = {
   inspect_fix:            ["arc-inspect-fix-"],
   goldmask_verification:  ["goldmask-"],
   code_review:            ["rune-review-"],
+  verify:                 ["arc-fv-"],                           // Phase 6.7 (finding verification — conditional on arc.verify.enabled)
   mend:                   ["rune-mend-", "arc-sage-"],          // mend sub-command + ephemeral elicitation sage
   design_iteration:       ["arc-design-iter-"],                 // Phase 7.6 (conditional — fidelity < threshold)
   test:                   ["arc-test-"],

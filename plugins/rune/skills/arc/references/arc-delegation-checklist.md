@@ -230,6 +230,26 @@ Orchestrator-only phase — no delegation, no team creation. Reads Phase 5.7 + P
 
 On re-review rounds (`round > 0`), `goldmask_correlation` is reset to `pending` by verify-mend.md so it re-correlates with the new TOME. Goldmask verification is NOT re-run (blast radius doesn't change between mend cycles).
 
+## Phase 6.7: VERIFY — Finding Verification Gate → `/rune:verify`
+
+Delegated to `/rune:verify` skill. Spawns finding-verifier agents via `arc-fv-{id}` team.
+
+| Step | Action | Reason |
+|------|--------|--------|
+| prePhaseCleanup | **RUN** | Clear stale verify state files before delegation |
+| Team lifecycle | **RUN** | `/rune:verify` manages its own TeamCreate/TeamDelete |
+| TOME resolution | **ADAPT** | Read from `checkpoint.phases.code_review.artifact` (round-aware) |
+| Verdict output | **RUN** | Write VERDICTS.md to `tmp/arc/{id}/verify/` |
+| Skip conditions | **ADAPT** | `arc.verify.enabled: false` or `--no-verify` flag → skip |
+
+### Skip conditions
+- `arc.verify.enabled: false` in talisman
+- `--no-verify` flag
+- Pre-computed in `checkpoint.skip_map.verify` as `SKIP_REASONS.VERIFY_DISABLED`
+
+### Failure policy
+Verify timeout or failure → proceed to mend with all findings unverified. Log warning. Mend handles absence of VERDICTS.md gracefully.
+
 ## Phase 7.5: VERIFY MEND — ORCHESTRATOR-ONLY
 
 No delegation. Runs inline in arc orchestrator context.

@@ -108,7 +108,7 @@ Read `$ARGUMENTS`. Three paths:
 
 Fast-path keywords: `plan`, `work`, `review`, `brainstorm`, `explore`, `devise`,
 `strive`, `appraise`, `audit`, `arc`, `arc-batch`, `arc-issues`, `arc-hierarchy`,
-`forge`, `mend`, `inspect`, `goldmask`, `elicit`, `rest`, `echoes`, `clean`, `variant-hunt`, `supply-chain-audit`, `post-findings`,
+`forge`, `verify`, `mend`, `inspect`, `goldmask`, `elicit`, `rest`, `echoes`, `clean`, `variant-hunt`, `supply-chain-audit`, `post-findings`,
 `ship`, `fix`, `debug`, `cancel`, `mcp`, `untitledui`, `design-sync`, `elevate`,
 `file-todos`, `learn`, `resolve-comments`, `resolve-comment`, `resolve-todos`,
 `skill-testing`, `team-status`, `test-browser`, `ux`, `team-delegate`,

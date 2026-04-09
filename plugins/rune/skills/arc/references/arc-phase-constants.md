@@ -14,7 +14,7 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 //   2. arc-phase-stop-hook.sh (Bash array for phase dispatch)
 // These MUST stay in sync. Divergence causes silent phase ordering bugs.
 // TODO: Add preflight assertion comparing both arrays.
-const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'design_prototype', 'task_decomposition', 'work', 'work_qa', 'drift_review', 'storybook_verification', 'design_verification', 'design_verification_qa', 'ux_verification', 'gap_analysis', 'gap_analysis_qa', 'codex_gap_analysis', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification', 'code_review', 'code_review_qa', 'goldmask_correlation', 'mend', 'mend_qa', 'verify_mend', 'design_iteration', 'test', 'test_qa', 'browser_test', 'browser_test_fix', 'verify_browser_test', 'test_coverage_critique', 'deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
+const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'design_prototype', 'task_decomposition', 'work', 'work_qa', 'drift_review', 'storybook_verification', 'design_verification', 'design_verification_qa', 'ux_verification', 'gap_analysis', 'gap_analysis_qa', 'codex_gap_analysis', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification', 'code_review', 'code_review_qa', 'goldmask_correlation', 'verify', 'mend', 'mend_qa', 'verify_mend', 'design_iteration', 'test', 'test_qa', 'browser_test', 'browser_test_fix', 'verify_browser_test', 'test_coverage_critique', 'deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
 
 // Heavy phases that MUST be delegated to sub-skills — never implemented inline.
 // These phases consume significant tokens and require fresh teammate context windows.
@@ -22,7 +22,9 @@ const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verific
 // NOTE: This list covers phases that delegate to /rune:strive, /rune:appraise, /rune:mend.
 // Phases like goldmask_verification and gap_remediation also spawn teams but are managed
 // by their own reference files, not sub-skill commands — they are NOT included here.
-const HEAVY_PHASES = ['work', 'code_review', 'mend', 'inspect']
+// SYNC-NOTE: arc-phase-stop-hook.sh has a separate HEAVY_PHASES for compact interlude triggers
+// (includes QA and test phases). The two lists serve different purposes — do not unify.
+const HEAVY_PHASES = ['work', 'code_review', 'verify', 'mend', 'inspect']
 
 // IMPORTANT: checkArcTimeout() runs BETWEEN phases, not during. A phase that exceeds
 // its budget will only be detected after it finishes/times out internally.
@@ -94,6 +96,7 @@ const PHASE_TIMEOUTS = {
   pr_comment_resolution: talismanTimeouts.pr_comment_resolution ?? 1_200_000,  // 20 min (orchestrator-only)
   goldmask_verification: talismanTimeouts.goldmask_verification ?? 900_000,  // 15 min (inner 10m + 5m setup)
   goldmask_correlation:  talismanTimeouts.goldmask_correlation ?? 60_000,    //  1 min (orchestrator-only, no team)
+  verify:        talismanTimeouts.verify ?? 600_000,        // 10 min (finding verification — spawns verifier agents)
   ship:          talismanTimeouts.ship ?? 300_000,      //  5 min (orchestrator-only)
   merge:         talismanTimeouts.merge ?? 600_000,     // 10 min (orchestrator-only)
   forge_qa:        talismanTimeouts.forge_qa ?? 300_000,        //  5 min (QA gate — 1 agent)
@@ -172,6 +175,7 @@ function calculateDynamicTimeout(tier) {
     PHASE_TIMEOUTS.goldmask_verification +
     PHASE_TIMEOUTS.code_review + PHASE_TIMEOUTS.code_review_qa +
     PHASE_TIMEOUTS.goldmask_correlation +
+    PHASE_TIMEOUTS.verify +
     PHASE_TIMEOUTS.mend + PHASE_TIMEOUTS.mend_qa +
     PHASE_TIMEOUTS.verify_mend +
     PHASE_TIMEOUTS.design_iteration +
@@ -322,6 +326,7 @@ const SKIP_REASONS = {
   BOT_REVIEW_DISABLED: "bot_review_disabled",         // bot_review not enabled via flag or talisman
   TESTING_DISABLED: "testing_disabled",               // --no-test flag or arc.defaults.no_test
   INSPECT_DISABLED: "inspect_disabled",               // arc.inspect.enabled === false
+  VERIFY_DISABLED: "verify_disabled",                 // arc.verify.enabled === false or --no-verify flag
   BROWSER_TEST_DISABLED: "browser_test_disabled",     // --no-browser-test flag or arc.defaults.no_browser_test
   USER_SKIP: "user_skip",                             // arc.skip_phases[] or --depth preset
 }

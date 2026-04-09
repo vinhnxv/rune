@@ -752,8 +752,9 @@ CDX-7 Layer 3: Scan for orphaned arc-specific teams from prior sessions. Runs af
 // arc-* prefixes: teams created directly by arc (plan review, plan inspect, sage, design, gap, test, verify)
 // rune-* prefixes: teams created by delegated sub-commands (forge, work, review, mend, audit)
 const ARC_TEAM_PREFIXES = [
-  "arc-forge-", "arc-plan-review-", "arc-plan-inspect-", "arc-verify-", "arc-gap-fix-", "arc-inspect-", "arc-inspect-full-", "arc-inspect-fix-", "arc-test-",  // arc-owned teams
+  "arc-forge-", "arc-plan-review-", "arc-plan-inspect-", "arc-gap-fix-", "arc-inspect-", "arc-inspect-full-", "arc-inspect-fix-", "arc-test-",  // arc-owned teams
   "rune-inspect-",  // inspect skill teams (delegated sub-command)
+  "arc-fv-",  // finding verification team (Phase 6.7 — conditional on arc.verify.enabled)
   "arc-sage-",  // ephemeral elicitation sage team (mend Phase 7 — conditional on P1 findings)
   "arc-storybook-",  // Storybook verification team (conditional — storybook.enabled)
   "arc-design-", "arc-prototype-", "arc-design-verify-", "arc-design-iter-",  // design sync teams (conditional — design_sync.enabled)
@@ -761,7 +762,7 @@ const ARC_TEAM_PREFIXES = [
   "arc-browser-test-", "arc-browser-fix-",  // browser test convergence loop teams (conditional — frontend + agent-browser)
   "arc-deploy-",  // deployment verification team (conditional — deployment-relevant files in diff)
   "arc-codex-sv-", "arc-codex-td-", "arc-codex-ga-", "arc-codex-tc-", "arc-codex-rq-",  // Codex phase handler teams (delegated to codex-phase-handler teammate)
-  "rune-forge-", "rune-work-", "rune-review-", "rune-mend-", "rune-mend-deep-", "rune-audit-",  // sub-command teams
+  "rune-forge-", "rune-work-", "rune-review-", "rune-mend-", "rune-mend-deep-", "rune-audit-", "rune-verify-",  // sub-command teams (rune-verify- = standalone /rune:verify)
   "rune-brainstorm-",  // brainstorm skill teams (Solo/Roundtable/Deep modes)
   "rune-plan-",  // devise skill teams (orphaned from prior /rune:devise sessions)
   "rune-prototype-",  // design-prototype skill teams (conditional — design_sync.enabled)

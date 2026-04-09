@@ -130,6 +130,58 @@ if (skippedCount > 0) {
 
 **Standalone invocation**: When `/rune:mend` runs without arc (no Phase 5.2), no findings will have `[UNVERIFIED]` or `[SUSPECT]` tags — all are treated as CONFIRMED with normal priority.
 
+### Verdict-Based Finding Filtering (v2.40.0+)
+
+After filtering UNVERIFIED findings, check for VERDICTS.md from the verify phase (Phase 6.7). If present, exclude findings classified as FALSE_POSITIVE:
+
+```javascript
+// Step: Verdict-based finding filtering
+// VERDICTS.md is produced by /rune:verify (arc Phase 6.7) or standalone /rune:verify
+// Backward compatible: if no VERDICTS.md exists, skip filtering entirely
+
+const skippedByVerdict = []
+
+// Resolve VERDICTS.md path — arc context or standalone
+const verdictsPath = arcId
+  ? `tmp/arc/${arcId}/verify/VERDICTS.md`
+  : Glob("tmp/verify/*/VERDICTS.md")[0] ?? null
+
+if (verdictsPath && exists(verdictsPath)) {
+  const verdictsContent = Read(verdictsPath)
+
+  // Parse verdict entries: extract finding ID → verdict mapping
+  // Format: <!-- VERDICT id="SEC-001" verdict="FALSE_POSITIVE" confidence="0.92" -->
+  const verdictPattern = /<!-- VERDICT id="([^"]+)" verdict="([^"]+)"[^>]*-->/g
+  const verdicts = {}
+  let match
+  while ((match = verdictPattern.exec(verdictsContent)) !== null) {
+    verdicts[match[1]] = match[2]
+  }
+
+  // Filter out FALSE_POSITIVE findings
+  for (const finding of actionableFindings) {
+    if (verdicts[finding.id] === 'FALSE_POSITIVE') {
+      finding.mend_priority = "SKIP"
+      finding.skip_reason = "verdict_false_positive"
+      skippedByVerdict.push(finding)
+    }
+    // NEEDS_CONTEXT findings are processed normally (conservative — fix unless proven false)
+    // TRUE_POSITIVE findings are processed normally
+  }
+
+  // Remove verdict-skipped findings from actionable list
+  actionableFindings = actionableFindings.filter(f => f.skip_reason !== "verdict_false_positive")
+
+  if (skippedByVerdict.length > 0) {
+    log(`Verdict filtering: ${skippedByVerdict.length} findings excluded (FALSE_POSITIVE by /rune:verify)`)
+  }
+}
+
+// skippedByVerdict reported in Phase 6 Resolution Report with "EXCLUDED (false positive)" status
+```
+
+**Backward compatibility**: When no VERDICTS.md exists (standalone `/rune:mend` without prior verify, or arc with verify phase skipped/failed), no findings are filtered — all are processed normally. Zero behavioral change for existing workflows.
+
 ### Round-Aware Severity Filtering (v1.163.0+)
 
 After extracting, filtering Q/N interactions, and filtering UNVERIFIED findings, apply round-aware severity filtering:
@@ -279,7 +331,7 @@ for (const finding of allFindings) {
 
 // Filter: remove skipped pre-existing findings from file groups
 // Skipped findings are still recorded in the resolution report as SKIPPED (scope)
-let actionableFindings = allFindings.filter(f => f.scopeAction === "fix" || !f.scope)
+let actionableFindings = allFindings.filter(f => (f.scopeAction === "fix" || !f.scope) && f.mend_priority !== "SKIP")
 const skippedByScope = allFindings.filter(f => f.scopeAction === "skip")
 if (skippedByScope.length > 0) {
   log(`Scope filtering: ${skippedByScope.length} pre-existing findings skipped (${actionableFindings.length} actionable)`)
