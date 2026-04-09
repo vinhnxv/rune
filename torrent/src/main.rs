@@ -5,16 +5,19 @@ mod callback;
 mod channel;
 mod checkpoint;
 mod diagnostic;
+mod execution;
 mod keybindings;
+mod messaging;
+mod polling;
+mod timeout;
 mod lock;
 mod log;
 mod monitor;
-#[allow(dead_code)]
-mod recovery;
 mod resource;
 mod resume;
 mod scanner;
 mod tmux;
+mod types;
 mod ui;
 
 use std::path::PathBuf;
@@ -289,12 +292,12 @@ fn main() -> Result<()> {
     let mut app = App::new(cli.extra_config_dirs)?;
 
     // Store channels configuration for session startup
-    app.channels_enabled = cli.channels_enabled;
-    app.callback_port = cli.callback_port;
+    app.messaging.channels_enabled = cli.channels_enabled;
+    app.messaging.callback_port = cli.callback_port;
 
     // Apply CLI timeout overrides (on top of env vars)
     if !cli.timeout_overrides.is_empty() {
-        app.phase_timeout_config
+        app.execution.phase_timeout_config
             .apply_overrides(&cli.timeout_overrides);
     }
 
@@ -329,7 +332,7 @@ fn main() -> Result<()> {
     ratatui::restore();
 
     // Write structured batch summary to JSONL log
-    if let Err(e) = crate::log::write_batch_summary(&app.completed_runs) {
+    if let Err(e) = crate::log::write_batch_summary(&app.execution.completed_runs) {
         eprintln!("warning: failed to write batch summary log: {}", e);
     }
 
