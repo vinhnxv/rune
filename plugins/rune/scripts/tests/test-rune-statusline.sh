@@ -65,9 +65,14 @@ mkdir -p "$FAKE_DIR/tmp"
 
 # Helper: build valid statusline input JSON
 mk_input() {
-  local model="${1:-Claude}" dir="${2:-$FAKE_DIR}" sid="${3:-test-session-id}" remaining="${4:-75}" used="${5:-25}" cost="${6:-0.50}"
-  printf '{"model":{"display_name":"%s"},"workspace":{"current_dir":"%s"},"session_id":"%s","context_window":{"remaining_percentage":%s,"used_percentage":%s},"cost":{"total_cost_usd":%s}}' \
-    "$model" "$dir" "$sid" "$remaining" "$used" "$cost"
+  local model="${1:-Claude}" dir="${2:-$FAKE_DIR}" sid="${3:-test-session-id}" remaining="${4:-75}" used="${5:-25}" cost="${6:-0.50}" worktree="${7:-}"
+  if [[ -n "$worktree" ]]; then
+    printf '{"model":{"display_name":"%s"},"workspace":{"current_dir":"%s","git_worktree":"%s"},"session_id":"%s","context_window":{"remaining_percentage":%s,"used_percentage":%s},"cost":{"total_cost_usd":%s}}' \
+      "$model" "$dir" "$worktree" "$sid" "$remaining" "$used" "$cost"
+  else
+    printf '{"model":{"display_name":"%s"},"workspace":{"current_dir":"%s"},"session_id":"%s","context_window":{"remaining_percentage":%s,"used_percentage":%s},"cost":{"total_cost_usd":%s}}' \
+      "$model" "$dir" "$sid" "$remaining" "$used" "$cost"
+  fi
 }
 
 # ===================================================================
@@ -298,6 +303,82 @@ else
   FAIL_COUNT=$(( FAIL_COUNT + 1 ))
   printf "  FAIL: No orange for 70%% usage\n"
 fi
+
+# ===================================================================
+# 16. Worktree indicator shown when git_worktree is present
+# ===================================================================
+printf "\n=== Worktree indicator shown ===\n"
+
+# Create a fake git repo so BRANCH is populated
+WT_DIR="${TMPROOT}/wt-workspace"
+mkdir -p "$WT_DIR/tmp"
+git -C "$WT_DIR" init -q 2>/dev/null
+git -C "$WT_DIR" checkout -q -b feat-auth 2>/dev/null || true
+
+output=$(mk_input "Claude" "$WT_DIR" "sid-wt" 60 40 0.50 "/tmp/worktrees/feat-auth" | bash "$STATUSLINE" 2>/dev/null)
+clean=$(printf '%s' "$output" | sed 's/\x1b\[[0-9;]*m//g')
+assert_contains "Worktree indicator present" "wt" "$clean"
+
+# ===================================================================
+# 17. No worktree indicator when git_worktree is absent
+# ===================================================================
+printf "\n=== No worktree indicator when absent ===\n"
+
+output=$(mk_input "Claude" "$WT_DIR" "sid-nowt" 60 40 0.50 | bash "$STATUSLINE" 2>/dev/null)
+clean=$(printf '%s' "$output" | sed 's/\x1b\[[0-9;]*m//g')
+assert_not_contains "No worktree indicator" "wt" "$clean"
+
+# ===================================================================
+# 18. Bridge file includes is_worktree field
+# ===================================================================
+printf "\n=== Bridge file is_worktree field ===\n"
+
+WT_BRIDGE_SID="test-wt-bridge"
+WT_BRIDGE_FILE="${TMPDIR:-/tmp}/rune-ctx-${WT_BRIDGE_SID}.json"
+rm -f "$WT_BRIDGE_FILE" 2>/dev/null
+
+mk_input "Claude" "$WT_DIR" "$WT_BRIDGE_SID" 70 30 0.50 "/tmp/worktrees/feat-auth" | bash "$STATUSLINE" >/dev/null 2>&1
+
+if [[ -f "$WT_BRIDGE_FILE" ]]; then
+  wt_val=$(python3 -c "
+import json, sys
+d = json.load(open('$WT_BRIDGE_FILE'))
+assert d.get('is_worktree') == True, f'is_worktree={d.get(\"is_worktree\")}'
+print('ok')
+" 2>/dev/null || echo "fail")
+  assert_eq "Bridge is_worktree=true for worktree session" "ok" "$wt_val"
+else
+  TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
+  FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+  printf "  FAIL: Bridge file missing for worktree check\n"
+fi
+rm -f "$WT_BRIDGE_FILE" 2>/dev/null
+
+# ===================================================================
+# 19. Bridge file is_worktree=false when not in worktree
+# ===================================================================
+printf "\n=== Bridge file is_worktree=false when absent ===\n"
+
+NOWT_BRIDGE_SID="test-nowt-bridge"
+NOWT_BRIDGE_FILE="${TMPDIR:-/tmp}/rune-ctx-${NOWT_BRIDGE_SID}.json"
+rm -f "$NOWT_BRIDGE_FILE" 2>/dev/null
+
+mk_input "Claude" "$FAKE_DIR" "$NOWT_BRIDGE_SID" 70 30 0.50 | bash "$STATUSLINE" >/dev/null 2>&1
+
+if [[ -f "$NOWT_BRIDGE_FILE" ]]; then
+  nowt_val=$(python3 -c "
+import json, sys
+d = json.load(open('$NOWT_BRIDGE_FILE'))
+assert d.get('is_worktree') == False, f'is_worktree={d.get(\"is_worktree\")}'
+print('ok')
+" 2>/dev/null || echo "fail")
+  assert_eq "Bridge is_worktree=false for normal session" "ok" "$nowt_val"
+else
+  TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
+  FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+  printf "  FAIL: Bridge file missing for non-worktree check\n"
+fi
+rm -f "$NOWT_BRIDGE_FILE" 2>/dev/null
 
 # ===================================================================
 # Results
