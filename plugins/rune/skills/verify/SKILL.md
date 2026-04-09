@@ -376,7 +376,11 @@ ${verdicts.filter(v => v.verdict === "NEEDS_CONTEXT").map(v =>
 
 ## Detailed Verdicts
 
-${verdicts.map(v => v.fullBlock).join("\n\n---\n\n")}
+${verdicts.map(v => {
+  // Include HTML comment marker for mend consumption (machine-parseable)
+  const marker = `<!-- VERDICT id="${v.findingId}" verdict="${v.verdict}" confidence="${v.confidenceScore ?? 0.5}" -->`
+  return `${marker}\n${v.fullBlock}`
+}).join("\n\n---\n\n")}
 `
 
 Write(`${outputDir}/VERDICTS.md`, verdictsContent)
