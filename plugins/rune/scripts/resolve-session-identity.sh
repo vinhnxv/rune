@@ -55,7 +55,7 @@ if [[ -z "${RUNE_CURRENT_CFG:-}" && -f "$_RUNE_IDENTITY_CACHE" && ! -L "$_RUNE_I
   _RUNE_CACHE_TTL=3600  # 1 hour
   _cache_mtime_raw=""
   # Cross-platform stat: macOS uses -f, Linux uses -c (platform.sh may not be available here)
-  _cache_mtime_raw=$(stat -f '%m' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || stat -c '%Y' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || echo "")
+  _cache_mtime_raw=$(stat -c '%Y' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || stat -f '%m' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || echo "")
   _cache_now=$(date +%s 2>/dev/null || echo "0")
   if [[ -n "$_cache_mtime_raw" && "$_cache_mtime_raw" =~ ^[0-9]+$ && "$_cache_now" =~ ^[0-9]+$ && "$_cache_now" != "0" ]]; then
     if [[ $(( _cache_now - _cache_mtime_raw )) -gt $_RUNE_CACHE_TTL ]]; then
@@ -67,22 +67,22 @@ if [[ -z "${RUNE_CURRENT_CFG:-}" && -f "$_RUNE_IDENTITY_CACHE" && ! -L "$_RUNE_I
   # Verify file is owned by current user (prevents attacker-planted files)
   # Re-check -f after potential TTL eviction
   if [[ -f "$_RUNE_IDENTITY_CACHE" && ! -L "$_RUNE_IDENTITY_CACHE" ]]; then
-  _cache_uid=$(stat -c '%u' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || stat -f '%u' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || echo "")
-  if [[ -n "$_cache_uid" && "$_cache_uid" == "$(id -u)" ]]; then
-    # Parse key=value lines safely — only accept expected variable names
-    while IFS='=' read -r _key _val; do
-      _key="${_key## }"  # trim leading space
-      _val="${_val## }"  # trim leading space
-      # Remove printf %q quoting (leading/trailing $'...' or '...')
-      _val="${_val#\$\'}" ; _val="${_val%\'}"
-      _val="${_val#\'}"   ; _val="${_val%\'}"
-      case "$_key" in
-        RUNE_CURRENT_CFG) RUNE_CURRENT_CFG="$_val" ;;
-        RUNE_CURRENT_SID) RUNE_CURRENT_SID="$_val" ;;
-        *) ;; # ignore unexpected keys
-      esac
-    done < "$_RUNE_IDENTITY_CACHE"
-  fi
+    _cache_uid=$(stat -c '%u' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || stat -f '%u' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || echo "")
+    if [[ -n "$_cache_uid" && "$_cache_uid" == "$(id -u)" ]]; then
+      # Parse key=value lines safely — only accept expected variable names
+      while IFS='=' read -r _key _val; do
+        _key="${_key## }"  # trim leading space
+        _val="${_val## }"  # trim leading space
+        # Remove printf %q quoting (leading/trailing $'...' or '...')
+        _val="${_val#\$\'}" ; _val="${_val%\'}"
+        _val="${_val#\'}"   ; _val="${_val%\'}"
+        case "$_key" in
+          RUNE_CURRENT_CFG) RUNE_CURRENT_CFG="$_val" ;;
+          RUNE_CURRENT_SID) RUNE_CURRENT_SID="$_val" ;;
+          *) ;; # ignore unexpected keys
+        esac
+      done < "$_RUNE_IDENTITY_CACHE"
+    fi
   fi  # end TTL re-check guard
 fi
 
