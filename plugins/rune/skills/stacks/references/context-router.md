@@ -175,7 +175,7 @@ computeContextManifest(task_type, file_scope, detected_stack, task_description):
     if NOT ds_disabled AND ds_confidence >= 0.5:
       manifest.agents_selected.push("design-system-compliance-reviewer")
 
-  # Step 6: Select frontend knowledge skills (v2.36.0+)
+  # Step 6: Select frontend knowledge skills (v2.40.0+)
   # These skills provide deep domain knowledge for React, web UI, and mobile development.
 
   if detected_stack?.frameworks:

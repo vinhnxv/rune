@@ -98,7 +98,7 @@ Each agent declares which plan section topics it can enrich, what subsection it 
 
 **DO NOT remove or modify existing criteria** even if they appear redundant after enrichment. Criteria integrity is validated post-enrichment by Phase 5.5 (Criteria Guard). Violations are detected and may trigger a revert to the pre-enrichment backup.
 
-### Frontend Knowledge Skill Topics (v2.36.0+)
+### Frontend Knowledge Skill Topics (v2.40.0+)
 
 > These topics enable Forge Gaze to match plan sections to frontend knowledge skills.
 > When a topic matches, the corresponding skill is loaded as additional context for
