@@ -102,7 +102,7 @@ if (!tome) {
 // 0.3 Parse structured findings using RUNE:FINDING markers
 // Reuse the same parsing approach as mend's parse-tome.md
 const findings = []
-for (const marker of tome.matchAll(/<!-- RUNE:FINDING.*?-->/g)) {
+for (const marker of tome.matchAll(/<!-- RUNE:FINDING.*?-->/gs)) {
   const finding = {
     id: marker.attr("id"),           // e.g., "SEC-003"
     file: marker.attr("file"),       // e.g., "src/api/users.py"
@@ -153,6 +153,15 @@ const batches = []
 let currentBatch = { files: [], findings: [] }
 
 for (const [file, fileFindings] of Object.entries(fileGroups)) {
+  // Split single-file groups that exceed batch cap
+  if (fileFindings.length > 5) {
+    if (currentBatch.findings.length > 0) batches.push(currentBatch)
+    currentBatch = { files: [], findings: [] }
+    for (let i = 0; i < fileFindings.length; i += 5) {
+      batches.push({ files: [file], findings: fileFindings.slice(i, i + 5) })
+    }
+    continue
+  }
   if (currentBatch.findings.length + fileFindings.length > 5) {
     if (currentBatch.findings.length > 0) batches.push(currentBatch)
     currentBatch = { files: [], findings: [] }
@@ -237,7 +246,7 @@ for (let i = 0; i < Math.min(batches.length, maxConcurrent); i++) {
   const batch = batches[i]
   Agent({
     description: `Verify batch ${i}: ${batch.findings.length} findings`,
-    subagent_type: "rune:investigation:finding-verifier",
+    subagent_type: "rune:utility:finding-verifier",
     team_name: teamName,
     name: `verifier-${i}`,
     run_in_background: true,
@@ -278,7 +287,7 @@ if (batches.length > maxConcurrent) {
     const batch = batches[i]
     Agent({
       description: `Verify batch ${i}: ${batch.findings.length} findings`,
-      subagent_type: "rune:investigation:finding-verifier",
+      subagent_type: "rune:utility:finding-verifier",
       team_name: teamName,
       name: `verifier-${i}`,
       run_in_background: true,
@@ -432,10 +441,14 @@ if (fpFindings.length > 0) {
 
     // 5.3 Find the original finding for metadata
     const originalFinding = verifiableFindings.find(f => f.id === fp.findingId)
-    const ashPrefix = fp.findingId.split("-")[0]
-    const category = originalFinding?.file?.split("/").slice(-2, -1)[0] || "unknown"
+    let ashPrefix = fp.findingId.split("-")[0]
+    let category = originalFinding?.file?.split("/").slice(-2, -1)[0] || "unknown"
 
-    // 5.4 Write echo entry
+    // SEC-001: Sanitize TOME-derived values before shell interpolation
+    if (!/^[A-Z]+$/.test(ashPrefix)) ashPrefix = "UNKNOWN"
+    if (!/^[a-zA-Z0-9_-]+$/.test(category)) category = "unknown"
+
+    // 5.4 Write echo entry via temp file (safe from shell injection in content)
     const content = [
       `Finding: ${originalFinding?.title || fp.findingId}`,
       `File: ${originalFinding?.file || "unknown"}`,
@@ -443,13 +456,16 @@ if (fpFindings.length > 0) {
       `Pattern: ${ashPrefix} findings in this area are often false positives due to ${fp.reasoning}`
     ].join("\n")
 
+    const contentTmpFile = `${outputDir}/.echo-content-${ashPrefix}-${i}.tmp`
+    Write(contentTmpFile, content)
     Bash(`source "${echoLib}" && rune_echo_append \
       --role verifier --layer inscribed \
       --source "rune:verify ${id}" \
       --title "FP Pattern: ${ashPrefix}-${category}" \
-      --content "$(printf '%s' "${content}" | head -c 1800)" \
+      --content "$(head -c 1800 "${contentTmpFile}")" \
       --confidence HIGH \
       --tags "false-positive,${ashPrefix},${category}"`)
+    Bash(`rm -f "${contentTmpFile}"`)
   }
 
   log(`Persisted ${fpFindings.length} FP patterns to echoes`)
@@ -468,8 +484,8 @@ try {
   const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
-  // FALLBACK: hardcoded list of all possible verifiers
-  allMembers = ["verifier-0", "verifier-1", "verifier-2"]
+  // FALLBACK: generate from batch count (safe to send shutdown_request to absent members)
+  allMembers = Array.from({ length: Math.max(batches.length, 3) }, (_, i) => `verifier-${i}`)
 }
 
 // Force-reply + shutdown_request

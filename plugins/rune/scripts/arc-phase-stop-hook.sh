@@ -374,6 +374,9 @@ PHASE_ORDER=(
 )
 
 # Heavy phases that ALWAYS trigger compact interlude (tier 1)
+# SYNC-NOTE: This list intentionally differs from HEAVY_PHASES in arc-phase-constants.md.
+# JS version tracks phases that delegate to sub-skills (work, code_review, verify, mend, inspect).
+# This bash version tracks phases that trigger compact interlude — includes QA and test phases.
 HEAVY_PHASES="work work_qa code_review code_review_qa verify mend mend_qa inspect test test_qa"
 
 # Compact interval fallback (tier 3): when bridge file is unavailable,

@@ -4,7 +4,7 @@
 
 ### Added
 - **verify**: New user-invocable skill (`/rune:verify`) — finding verification gate that classifies TOME findings as TRUE_POSITIVE, FALSE_POSITIVE, or NEEDS_CONTEXT with evidence chains before mend dispatch
-- **finding-verifier**: New agent (`agents/investigation/finding-verifier.md`) — spawned by verify skill to classify individual findings against actual source code
+- **finding-verifier**: New agent (`agents/utility/finding-verifier.md`) — spawned by verify skill to classify individual findings against actual source code
 - Arc Phase 6.7 VERIFY: New pipeline phase between `goldmask_correlation` and `mend` that auto-runs finding verification on TOME output
 - Mend verdict filtering: `parse-tome.md` now checks VERDICTS.md and excludes FALSE_POSITIVE findings from mend-fixer dispatch (backward compatible — skipped when no VERDICTS.md exists)
 - Skip condition: `arc.verify.enabled: false` or `--no-verify` flag disables verification phase

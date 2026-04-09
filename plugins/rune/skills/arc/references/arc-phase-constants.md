@@ -22,6 +22,8 @@ const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verific
 // NOTE: This list covers phases that delegate to /rune:strive, /rune:appraise, /rune:mend.
 // Phases like goldmask_verification and gap_remediation also spawn teams but are managed
 // by their own reference files, not sub-skill commands — they are NOT included here.
+// SYNC-NOTE: arc-phase-stop-hook.sh has a separate HEAVY_PHASES for compact interlude triggers
+// (includes QA and test phases). The two lists serve different purposes — do not unify.
 const HEAVY_PHASES = ['work', 'code_review', 'verify', 'mend', 'inspect']
 
 // IMPORTANT: checkArcTimeout() runs BETWEEN phases, not during. A phase that exceeds

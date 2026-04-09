@@ -122,6 +122,8 @@ function resolveArcConfig(arc, work, inlineFlags) {
     no_bot_review: typeof (arc?.no_bot_review) === 'boolean' ? arc.no_bot_review : defaults.no_bot_review,
     // RUIN-004 FIX: Include inspect.enabled in 3-layer resolution (was raw talisman read in computeSkipMap)
     inspect_enabled: typeof (arc?.inspect?.enabled) === 'boolean' ? arc.inspect.enabled : true,
+    // BACK-001 FIX: Include verify.enabled in 3-layer resolution (was missing — computeSkipMap check was dead code)
+    verify_enabled: typeof (arc?.verify?.enabled) === 'boolean' ? arc.verify.enabled : true,
     // QUAL-001 FIX: Include pre_merge_checks in config resolution (was missing — talisman overrides silently ignored)
     pre_merge_checks: {
       migration_conflict: talismanPreMerge.migration_conflict ?? true,
@@ -150,6 +152,8 @@ function resolveArcConfig(arc, work, inlineFlags) {
   // Phase 9.1/9.2 read these from arcConfig via flags.bot_review / flags.no_bot_review
   if (inlineFlags.bot_review !== undefined) config.bot_review = inlineFlags.bot_review
   if (inlineFlags.no_bot_review !== undefined) config.no_bot_review = inlineFlags.no_bot_review
+  // BACK-001 FIX: Wire --no-verify CLI flag to verify_enabled (was missing — skip map dead code)
+  if (inlineFlags.no_verify !== undefined) config.verify_enabled = !inlineFlags.no_verify
 
   return config
 }
@@ -170,6 +174,8 @@ const inlineFlags = {
   draft: args.includes('--draft') ? true : undefined,
   bot_review: args.includes('--bot-review') ? true : undefined,
   no_bot_review: args.includes('--no-bot-review') ? true : undefined,
+  // BACK-001 FIX: Wire --no-verify CLI flag into inlineFlags (was missing)
+  no_verify: args.includes('--no-verify') ? true : undefined,
 }
 const arcConfig = resolveArcConfig(arc, work, inlineFlags)
 // Use arcConfig.no_forge, arcConfig.approve, arcConfig.ship.auto_pr, etc. throughout
