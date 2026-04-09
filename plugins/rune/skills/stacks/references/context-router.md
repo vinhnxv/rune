@@ -18,7 +18,7 @@ computeContextManifest(task_type, file_scope, detected_stack, task_description):
   }
 
   # Step 1: Classify files into domains
-  domains = { backend: false, frontend: false, database: false, testing: false, infra: false, docs: false, design: false }
+  domains = { backend: false, frontend: false, database: false, testing: false, infra: false, docs: false, design: false, mobile: false }
 
   for file in file_scope:
     ext = file.extension
@@ -66,6 +66,12 @@ computeContextManifest(task_type, file_scope, detected_stack, task_description):
       domains.design = true
     elif file.name in [".figmarc", "figma.config.json"]:
       domains.design = true
+
+    # Mobile detection
+    if path.includes("/android/") OR path.includes("/ios/") OR path.includes("/native/") OR path.includes("/expo/"):
+      domains.mobile = true
+    elif ext in [".swift", ".kt", ".m", ".mm", ".java"] AND (path.includes("ios/") OR path.includes("android/")):
+      domains.mobile = true
 
   # Design domain inference: if Figma/Storybook detected in stack, mark design domain
   if detected_stack?.frameworks:
@@ -169,7 +175,46 @@ computeContextManifest(task_type, file_scope, detected_stack, task_description):
     if NOT ds_disabled AND ds_confidence >= 0.5:
       manifest.agents_selected.push("design-system-compliance-reviewer")
 
-  # Step 6: Load custom rules from talisman
+  # Step 6: Select frontend knowledge skills (v2.40.0+)
+  # These skills provide deep domain knowledge for React, web UI, and mobile development.
+
+  if detected_stack?.frameworks:
+    fw_names = [f for f in detected_stack.frameworks]
+
+    # react-performance-rules: React/Next.js performance optimization
+    if ("react" in fw_names OR "nextjs" in fw_names) AND (domains.frontend OR domains.backend):
+      manifest.skills_to_load.push("react-performance-rules")
+    elif "react" in fw_names OR "nextjs" in fw_names:
+      manifest.skills_excluded["react-performance-rules"] = "No frontend/backend files in scope"
+
+    # react-composition-patterns: compound components, React 19 APIs
+    if ("react" in fw_names OR "nextjs" in fw_names):
+      if domains.frontend:
+        manifest.skills_to_load.push("react-composition-patterns")
+      else:
+        manifest.skills_excluded["react-composition-patterns"] = "No frontend files in scope"
+
+    # react-view-transitions: View Transition API (React 19+ or explicit usage)
+    lib_names = [l for l in (detected_stack?.libraries ?? [])]
+    if "react-19" in lib_names AND domains.frontend:
+      manifest.skills_to_load.push("react-view-transitions")
+    elif domains.frontend:
+      has_view_transitions = any(f for f in file_scope if "ViewTransition" in f.path OR "ViewTransition" in f.content_hint)
+      if has_view_transitions:
+        manifest.skills_to_load.push("react-view-transitions")
+
+    # react-native-patterns: React Native / Expo best practices
+    if "react-native" in fw_names OR "expo" in fw_names:
+      if domains.frontend OR domains.mobile:
+        manifest.skills_to_load.push("react-native-patterns")
+      else:
+        manifest.skills_excluded["react-native-patterns"] = "No frontend/mobile files in scope"
+
+  # web-interface-rules: broad web UI quality rules (works for any frontend framework)
+  if domains.frontend:
+    manifest.skills_to_load.push("web-interface-rules")
+
+  # Step 7: Load custom rules from talisman
   custom_rules = talisman?.stack_awareness?.custom_rules ?? []
   for rule in custom_rules:
     # SEC-001: Validate custom rule path against path traversal
@@ -200,14 +245,14 @@ computeContextManifest(task_type, file_scope, detected_stack, task_description):
         "Domain filter: requires " + rule_domains.join("/") +
         " but current domains are " + Object.keys(domains).filter(k => domains[k]).join("/")
 
-  # Step 7: Select specialists from SKILL_TO_PROMPT_MAP
+  # Step 8: Select specialists from SKILL_TO_PROMPT_MAP
   # Note: Specialist names are prompt template identifiers (specialist-prompts/), not agent files.
   for skill in manifest.skills_to_load:
     agent = SKILL_TO_PROMPT_MAP[skill]  # Returns specialist name for buildAshPrompt() dispatch
     if agent:
       manifest.agents_selected.push(agent)
 
-  # Step 8: Deduplicate
+  # Step 9: Deduplicate
   manifest.skills_to_load = dedupe(manifest.skills_to_load)
   manifest.agents_selected = dedupe(manifest.agents_selected)
 
