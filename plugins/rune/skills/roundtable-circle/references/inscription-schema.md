@@ -104,6 +104,8 @@
   // Note: dir_scope is null (not the object) when neither --dirs nor talisman.audit.dirs is set.
   // Only consumed by rune-audit and rune-audit-deep.
 
+  "context_map": "string | null — Phase 0.6 context-builder output. Structured markdown with Trust Boundaries, Data Flow Paths, State Invariants, Entry Points, and Key Dependencies. Capped at 80 lines (~2000 tokens). null when context building was skipped or failed. Injected into every Ash prompt via buildAshPrompt(). (v2.44.0+, rune-review only)",
+
   "custom_prompt": {
     "active": "boolean — whether prompt injection is enabled (default: false)",
     "prompt_file": "string — path to Markdown prompt file relative to repo root (e.g., '.rune/prompts/audit-focus.md'). Only consumed by rune-audit and rune-audit-deep."
@@ -334,6 +336,7 @@ The `design_context` field is populated exclusively by **arc Phase 3 (design ext
 | `teammates[].required_sections` | Yes | — |
 | `dir_scope` | No | `null` (full repo). Array of directory glob strings. Only consumed by audit workflows. (v1.90.0+) |
 | `custom_prompt` | No | `{ "active": false }`. Only consumed by audit workflows. (v1.90.0+) |
+| `context_map` | No | `null` — Phase 0.6 context-builder output (structured markdown). Populated when `review.context_building` gate triggers. Injected into Ash prompts via `buildAshPrompt()`. (v2.44.0+, rune-review only) |
 | `diff_scope` | No | `{ "enabled": false }` |
 | `context_intelligence` | No | `{ "available": false }` (v1.60.0+) |
 | `linter_context` | No | `{ "detected": [], "rule_categories": [], "suppress_categories": [] }` (v1.60.0+) |

@@ -128,6 +128,7 @@ Write(`${outputDir}inscription.json`, {
   session_nonce: sessionNonce,
   dir_scope: dirScope || null,           // #20: directory scoping — null = all files
   has_custom_prompt: !!customPromptBlock, // #21: signals custom criteria are active (content not stored here)
+  context_map: contextMap || null,       // #22: Phase 0.6 context-builder output (null when skipped/failed)
   teammates: selectedAsh.map(r => ({
     name: r,
     output_file: `${r}.md`,
@@ -292,6 +293,21 @@ for (const ash of selectedAsh) {
 //   ... [standard Ash system prompt for ${ash}] ...
 //   ... [file list, output path, scope context] ...
 //   [inscription metadata including dirScope if set]
+//
+//   // ── CONTEXT MAP INJECTION (Phase 0.6) ──────────────────────────
+//   // When a context map was built by Phase 0.6, inject it as pre-loaded
+//   // architectural knowledge so Ashes skip redundant comprehension work.
+//   // Injected BEFORE custom criteria — foundational context, not user instructions.
+//   // Token cap: context map is already capped at 80 lines (~2000 tokens) by Phase 0.6.
+//   //
+//   if (inscription.context_map) {
+//     ashPrompt += `\n\n## Pre-Loaded Architectural Context\n\n`
+//     ashPrompt += `The following context map was built by analyzing the changed files and their dependencies. `
+//     ashPrompt += `Use this as foundational knowledge — do NOT re-derive this information.\n\n`
+//     ashPrompt += inscription.context_map
+//     ashPrompt += `\n\n---\nFocus your review on finding issues WITHIN this architectural context, not on re-mapping the architecture.\n`
+//   }
+//   // ── END CONTEXT MAP INJECTION ──────────────────────────────────
 //
 //   if (params.customPromptBlock) {
 //     const sanitized = sanitizeCustomPrompt(params.customPromptBlock)

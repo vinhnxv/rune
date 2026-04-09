@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.44.0] - 2026-04-10
+
+### Added
+- **Review context building**: Phase 0.6 in appraise spawns `context-builder` agent to produce architectural context map (trust boundaries, data flows, state invariants, entry points, key dependencies) before Ash review begins
+- **Context map injection**: `buildAshPrompt()` injects Phase 0.6 context map into every Ash's spawn prompt as pre-loaded architectural knowledge, reducing redundant comprehension work
+- **`context_map` inscription field**: New `inscription.json` field carries context-builder output through the orchestration pipeline (null when skipped/failed)
+- **Talisman `review.context_building`**: New config gate (`auto`/`always`/`never`) with configurable thresholds (`context_building_threshold.lines`, `context_building_threshold.files`) and timeout (`context_building_timeout`)
+- Auto mode triggers when diff exceeds 500 lines or touches 5+ files; skipped for `--dry-run`
+
 ## [2.43.0] - 2026-04-09
 
 ### Added

@@ -716,6 +716,12 @@
     }
   },
   "review": {
+    "context_building": "auto",
+    "context_building_threshold": {
+      "lines": 500,
+      "files": 5
+    },
+    "context_building_timeout": 60000,
     "arc_convergence_finding_threshold": 0,
     "arc_convergence_improvement_ratio": 0.5,
     "arc_convergence_max_cycles": null,

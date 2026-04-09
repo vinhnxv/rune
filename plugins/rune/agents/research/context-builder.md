@@ -19,6 +19,7 @@ primary_phase: audit
 compatible_phases:
   - audit
   - inspect
+  - review
 categories:
   - research
   - security

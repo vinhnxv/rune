@@ -294,6 +294,10 @@ See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integratio
 | `review.arc_convergence_finding_threshold` | number | `0` | P1 threshold for convergence |
 | `review.arc_convergence_p2_threshold` | number | `0` | P2 threshold |
 | `review.arc_convergence_improvement_ratio` | number | `0.5` | Required improvement ratio |
+| `review.context_building` | string | `"auto"` | Context building gate: `auto` (trigger on large diffs), `always`, `never` |
+| `review.context_building_threshold.lines` | number | `500` | Diff line count threshold for auto mode (50-10000) |
+| `review.context_building_threshold.files` | number | `5` | File count threshold for auto mode (2-100) |
+| `review.context_building_timeout` | number | `60000` | Context builder timeout in ms (10000-300000) |
 
 ### `work` — Swarm Execution
 
@@ -586,6 +590,12 @@ echoes:
   # auto_observation: true             # Auto-record Observations-tier echoes after task completion
 
 review:
+  # Context building (v1.99.0+) — architectural comprehension before Ash review
+  context_building: "auto"               # "auto" | "always" | "never" — gate context-builder agent
+  context_building_threshold:
+    lines: 500                           # Trigger when diff exceeds N lines (50-10000)
+    files: 5                             # Trigger when N+ files changed (2-100)
+  context_building_timeout: 60000        # Max ms for context-builder agent (10000-300000)
   # Diff-scope tagging (v1.38.0+) — generates line-level diff ranges for scope-aware review
   diff_scope:
     enabled: true                        # Enable diff range generation and TOME tagging
