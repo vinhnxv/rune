@@ -98,6 +98,21 @@ Each agent declares which plan section topics it can enrich, what subsection it 
 
 **DO NOT remove or modify existing criteria** even if they appear redundant after enrichment. Criteria integrity is validated post-enrichment by Phase 5.5 (Criteria Guard). Violations are detected and may trigger a revert to the pre-enrichment backup.
 
+### Frontend Knowledge Skill Topics (v2.36.0+)
+
+> These topics enable Forge Gaze to match plan sections to frontend knowledge skills.
+> When a topic matches, the corresponding skill is loaded as additional context for
+> the enrichment agent. Unlike agent topics (which select WHICH agent enriches),
+> skill topics select WHAT knowledge the agent has access to.
+
+| Topic | Keywords | Agents | Budget | Skills |
+|-------|----------|--------|--------|--------|
+| react-performance | performance, optimization, bundle, waterfall, lazy, suspense, cache, memo, rerender, re-render, dynamic import | ember-oracle, pattern-seer | enrichment | react-performance-rules |
+| web-interface-quality | accessibility, a11y, ARIA, focus, keyboard, form, animation, touch, dark mode, i18n, typography | ux-heuristic-reviewer, ux-interaction-auditor | enrichment | web-interface-rules |
+| react-composition | component, composition, compound, variant, props, context, provider, architecture | pattern-seer, rune-architect | enrichment | react-composition-patterns |
+| view-transitions | animation, transition, ViewTransition, morph, page transition, route animation | ux-interaction-auditor | enrichment | react-view-transitions |
+| react-native | mobile, react native, expo, FlashList, Reanimated, navigation, iOS, Android | ember-oracle, pattern-seer | enrichment | react-native-patterns |
+
 ### Weight Overrides
 
 Agents with uniform topic weights (all topics equally important) need no entry here — the scoring algorithm treats list-format topics as weight 1.0 each. Only agents with graduated expertise declare weight overrides using dict format. Topics MUST be listed in descending weight order (highest first) since the top-3 by weight drive the `title_bonus` calculation.

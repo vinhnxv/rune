@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.40.0] - 2026-04-09
+
+### Added
+- Frontend knowledge skills auto-loaded by stacks context router (#v2.40.0)
+  - `react-performance-rules`: React/Next.js performance optimization (69 rules)
+  - `web-interface-rules`: Web interface quality (100+ rules)
+  - `react-composition-patterns`: Compound components, React 19 APIs
+  - `react-view-transitions`: View Transition API integration
+  - `react-native-patterns`: React Native/Expo best practices
+- React Native/Expo detection in `detectStack()` (app.json, metro.config.js, android+ios directories)
+- `mobile` domain classification in context router
+- Forge Gaze topic registry for 5 frontend knowledge skill topics
+- React 19 version detection for composition patterns gating
+
 ## [2.39.0] - 2026-04-09
 
 ### Added

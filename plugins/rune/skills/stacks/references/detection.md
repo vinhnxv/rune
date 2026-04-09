@@ -18,6 +18,9 @@ detectStack(repoRoot):
     "tsconfig.json":    detectTypeScriptStack,
     "Cargo.toml":       detectRustStack,
     "composer.json":    detectPHPStack,
+    "app.json":         detectExpoStack,
+    "app.config.js":    detectExpoStack,
+    "metro.config.js":  detectReactNativeStack,
   }
 
   # Step 1b: Scan design tool config files
@@ -34,6 +37,10 @@ detectStack(repoRoot):
   # Step 1c: Check for design tool directories
   if exists(repoRoot + "/.storybook/"):
     evidence[".storybook/"] = { language: null, frameworks: ["storybook"], databases: [], libraries: [], tooling: [] }
+
+  # Step 1d: Check for mobile platform directories
+  if exists(repoRoot + "/android/") AND exists(repoRoot + "/ios/"):
+    evidence["android/+ios/"] = { language: null, frameworks: ["react-native"], databases: [], libraries: [], tooling: [] }
 
   # SECURITY: Raw manifest content is untrusted input.
   # Only propagate the structured result object downstream — never raw content strings.
@@ -96,7 +103,7 @@ detectStack(repoRoot):
   # Gated by talisman.devise.design_system_discovery.enabled (default: true).
   is_frontend = (
     stack.languages intersects ["typescript", "javascript"]
-    AND stack.frameworks intersects ["react", "nextjs", "vuejs", "nuxt", "vite", "svelte", "astro", "remix", "solidjs", "qwik"]
+    AND stack.frameworks intersects ["react", "nextjs", "vuejs", "nuxt", "vite", "svelte", "astro", "remix", "solidjs", "qwik", "react-native", "expo"]
   )
 
   if is_frontend:
@@ -182,6 +189,14 @@ detectTypeScriptStack(content):
   if contains(content, "express"):     result.frameworks.push("express")
   if contains(content, "nestjs") OR contains(content, "@nestjs"):
     result.frameworks.push("nestjs")
+  if contains(content, "react-native"):
+    result.frameworks.push("react-native")
+  if contains(content, "expo"):
+    result.frameworks.push("expo")
+
+  # React 19 version detection
+  if contains(content, '"react"') AND (contains(content, '"19.') OR contains(content, '"^19') OR contains(content, 'canary')):
+    result.libraries.push("react-19")
 
   # Database detection
   if contains(content, "prisma"):      result.databases.push("prisma")
@@ -263,6 +278,42 @@ detectPHPStack(content):
   if contains(content, "phpunit"):     result.tooling.push("phpunit")
   if contains(content, "phpstan"):     result.tooling.push("phpstan")
   if contains(content, "psalm"):       result.tooling.push("psalm")
+
+  return result
+```
+
+### detectExpoStack(content)
+
+```
+detectExpoStack(content):
+  result = { language: "typescript", frameworks: ["expo"], databases: [], libraries: [], tooling: [] }
+
+  # Expo SDK detection
+  if contains(content, "expo-router"):   result.frameworks.push("expo-router")
+  if contains(content, "react-native"):  result.frameworks.push("react-native")
+
+  # Library detection
+  if contains(content, "expo-image"):    result.libraries.push("expo-image")
+  if contains(content, "expo-av"):       result.libraries.push("expo-av")
+  if contains(content, "expo-camera"):   result.libraries.push("expo-camera")
+  if contains(content, "expo-notifications"):
+    result.libraries.push("expo-notifications")
+
+  return result
+```
+
+### detectReactNativeStack(content)
+
+```
+detectReactNativeStack(content):
+  result = { language: "typescript", frameworks: ["react-native"], databases: [], libraries: [], tooling: [] }
+
+  # Metro bundler is the signal file — react-native is already set
+  # Check for common RN libraries
+  if contains(content, "reanimated") OR contains(content, "react-native-reanimated"):
+    result.libraries.push("reanimated")
+  if contains(content, "@react-navigation"):
+    result.libraries.push("react-navigation")
 
   return result
 ```
@@ -396,6 +447,7 @@ VALID_LANGUAGES = ["python", "typescript", "rust", "php"]
 VALID_FRAMEWORKS = ["fastapi", "django", "flask", "laravel", "symfony", "sqlalchemy",
                     "nextjs", "react", "vuejs", "nuxt", "express", "nestjs",
                     "actix-web", "axum", "rocket",
+                    "react-native", "expo", "expo-router",
                     "figma", "storybook"]
 
 if talisman?.stack_awareness?.override:
