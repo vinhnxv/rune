@@ -341,6 +341,7 @@ for (const ash of selectedAsh) {
 //   //   "dead-code": "Architecture & Patterns",
 //   //   "refactoring": "Architecture & Patterns",
 //   //   "frontend": "Architecture & Patterns",
+//   //   "observability": "Architecture & Patterns",
 //   //   "documentation": "Documentation",
 //   //   // "ux" — no table; UX agents are non-blocking by default
 //   //   // "review" — shard-reviewer special case: inject ALL tables (see below)

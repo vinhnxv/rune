@@ -228,8 +228,6 @@ Valid anti-rationalization categories (from buildAshPrompt categoryMap):
 **If** intersection is empty →
 **P2**: "Review agent '{name}' has no category matching anti-rationalization tables. Categories: [{categories}]. Add a mapped category or the agent won't receive rationalization guards."
 
-Finding prefix: `SA-AGT-016`
-
 ## Self-Referential Scanning
 
 IMPORTANT: Include `plugins/rune/agents/meta-qa/` in the scan scope.

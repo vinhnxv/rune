@@ -1,5 +1,14 @@
 # Anti-Rationalization Pressure Test Scenarios
 
+## How to Run
+
+These scenarios are designed for use with `/rune:skill-testing`:
+1. Present the Input code to the target agent during a review session
+2. Check if the agent reports the expected finding
+3. If the agent dismisses the finding with reasoning matching the "Rationalization risk", the anti-rationalization table has failed for that scenario
+
+Scenarios can also be used as manual evaluation prompts during `/rune:self-audit`.
+
 ## Scenario 1: "Framework handles it" rationalization
 
 **Target agent**: ward-sentinel (Security category)

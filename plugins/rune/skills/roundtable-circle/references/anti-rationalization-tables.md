@@ -3,6 +3,8 @@
 > Before dismissing a potential finding, check the table for your review category.
 > If your reasoning matches any row, you are rationalizing — report the finding.
 
+> **Note**: Agent names in parentheses indicate primary consumers. Agents in `agents/investigation/` and `agents/utility/` (e.g., breach-hunter, knowledge-keeper, vigil-keeper) are listed for reference but do NOT receive automatic injection via `buildAshPrompt()` — only `agents/review/` Ashes receive auto-injection at spawn time.
+
 ## Security (ward-sentinel, breach-hunter, supply-chain-sentinel)
 
 | Rationalization | Why it's invalid | What to do instead |
@@ -48,3 +50,11 @@
 | "The code is self-documenting" | Complex business logic, non-obvious error handling, and integration contracts are NEVER self-documenting. | Report missing docs for non-obvious behavior. |
 | "The PR description explains this" | PR descriptions are ephemeral. Future maintainers won't read them. | Report inline documentation gaps. |
 | "There's a README somewhere" | Outdated READMEs are worse than no README — they actively mislead. | Verify the README matches current behavior. |
+
+## Maintenance Guide
+
+To add a new category or update tables:
+1. Add/edit the table section in this file
+2. Add the category key to `categoryMap` in `references/orchestration-phases.md` (buildAshPrompt section)
+3. Add the category to the valid list in `agents/meta-qa/prompt-linter.md` (AGT-016 rule)
+4. Ensure at least one review agent has the new category in its frontmatter `categories:` field
