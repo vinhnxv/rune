@@ -118,9 +118,9 @@ else:
     return
   fi
 
-  # Strategy 2: grep-based heuristic (top-level keys only)
-  # Count occurrences of each top-level key pattern "  "key":
-  # This catches the most common case (top-level duplicates) but misses nested ones
+  # Strategy 2: grep-based heuristic (any indentation level)
+  # Count occurrences of each key pattern at any indent depth
+  # Note: may report nested keys as duplicates — jq primary path handles this correctly
   local raw_keys
   raw_keys=$(grep -E '^\s+"[^"]+"\s*:' "$file" 2>/dev/null | sed -E 's/^\s*"([^"]+)".*/\1/' | sort | uniq -d)
   echo "$raw_keys" | tr '\n' ',' | sed 's/,$//'
