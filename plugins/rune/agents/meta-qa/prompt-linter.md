@@ -3,7 +3,7 @@ name: prompt-linter
 description: |
   Lints all Rune agent definition files for consistency with CLAUDE.md rules,
   frontmatter completeness, tool permission correctness, and structural integrity.
-  Implements 15 lint rules (AGT-001 through AGT-015). Part of /rune:self-audit.
+  Implements 16 lint rules (AGT-001 through AGT-016). Part of /rune:self-audit.
 
   Covers: maxTurns validation, model field audit, tool list consistency, skill
   reference resolution, MCP server validation, Truthbinding anchor presence,
@@ -214,6 +214,20 @@ If a tool is mentioned in the body but NOT in the frontmatter tools list →
 Note: Exclude tool names that appear only in documentation/example contexts (inside
 code blocks or after "Example:" headers). Focus on imperative usage patterns.
 
+### AGT-016: Review agent anti-rationalization coverage (Warning)
+
+Agents with `primary_phase: review` or `compatible_phases` containing `review` MUST have
+at least one category that maps to an anti-rationalization table section.
+
+Valid anti-rationalization categories (from buildAshPrompt categoryMap):
+`security`, `code-review`, `code-quality`, `type-safety`, `data`, `testing`,
+`performance`, `architecture`, `dead-code`, `refactoring`, `frontend`,
+`documentation`, `review` (shard-reviewer special case).
+
+**Check**: Parse `categories:` array from YAML frontmatter. Compute intersection with valid category set.
+**If** intersection is empty →
+**P2**: "Review agent '{name}' has no category matching anti-rationalization tables. Categories: [{categories}]. Add a mapped category or the agent won't receive rationalization guards."
+
 ## Self-Referential Scanning
 
 IMPORTANT: Include `plugins/rune/agents/meta-qa/` in the scan scope.
@@ -235,7 +249,7 @@ Write findings to `{outputDir}/prompt-findings.md` using this format:
 ## Summary
 
 - **Agents scanned**: {N}
-- **Rules checked**: 15 (AGT-001 through AGT-015)
+- **Rules checked**: 16 (AGT-001 through AGT-016)
 - **Total findings**: {N} ({P1} critical, {P2} warnings, {P3} info)
 - **Dimension score**: {score}/100
 
