@@ -125,9 +125,23 @@ parse_frontmatter() {
 get_field() {
   local field="$1"
   [[ "$field" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
-  # BACK-B4-004 FIX: `|| true` prevents grep exit code 1 (no match) from propagating
-  # through pipefail → set -e → ERR trap → script exit. Missing fields return empty string.
-  echo "$FRONTMATTER" | grep "^${field}:" | sed "s/^${field}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true
+  # PERF-001 FIX: Pure bash — zero subprocesses (was: echo|grep|sed|sed|sed|head = 5 forks/call)
+  # BACK-B4-004: Missing fields return empty string (no ERR trap trigger).
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      "${field}:"*)
+        line="${line#"${field}:"}"
+        line="${line#"${line%%[![:space:]]*}"}"  # strip leading whitespace
+        line="${line#\"}"   # strip leading quote
+        line="${line%\"}"   # strip trailing quote
+        printf '%s' "$line"
+        return 0
+        ;;
+    esac
+  done <<< "$FRONTMATTER"
+  # No match — return empty (equivalent to grep finding nothing + || true)
+  return 0
 }
 
 # ── _validate_session_ownership_core(): Shared session isolation logic ──

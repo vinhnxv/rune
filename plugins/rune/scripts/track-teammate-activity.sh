@@ -39,7 +39,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Read stdin (PostToolUse hook input) ──
 INPUT=$(head -c 1048576 2>/dev/null || true)
-CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+# PERF-006 FIX: Single jq call (was 4 separate forks)
+read -r CWD TRANSCRIPT_PATH TOOL_NAME AGENT_NAME <<< "$(printf '%s' "$INPUT" | jq -r '[.cwd // "", .transcript_path // "", .tool_name // "", .agent_name // ""] | @tsv' 2>/dev/null)"
 [[ -n "$CWD" && "$CWD" == /* ]] || exit 0
 
 # ── GUARD 1: Fast-path — is there an active Rune team? ──
@@ -57,12 +58,9 @@ fi
 [[ -n "$TEAM_NAME" ]] || exit 0
 
 # ── GUARD 2: Teammate check — only track subagent tool calls ──
-TRANSCRIPT_PATH=$(printf '%s\n' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
 [[ -n "$TRANSCRIPT_PATH" && "$TRANSCRIPT_PATH" == */subagents/* ]] || exit 0
 
-# ── Extract agent context ──
-TOOL_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)
-AGENT_NAME=$(printf '%s\n' "$INPUT" | jq -r '.agent_name // empty' 2>/dev/null || true)
+# ── Extract agent context (already parsed above) ──
 [[ -n "$AGENT_NAME" ]] || exit 0
 
 # ── SEC-4: Validate agent_name before using in file path ──

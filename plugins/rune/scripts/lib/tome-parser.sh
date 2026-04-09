@@ -71,7 +71,7 @@ _validate_length() {
 # Extract key="value" from a marker line via bash regex
 _extract_attr() {
   local marker="$1" key="$2"
-  if [[ "$marker" =~ ${key}=\"([^\"]*) ]]; then
+  if [[ "$marker" =~ [[:space:]]${key}=\"([^\"]*) ]]; then
     printf '%s' "${BASH_REMATCH[1]}"
   else
     printf ''

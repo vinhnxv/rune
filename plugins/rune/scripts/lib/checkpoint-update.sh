@@ -75,6 +75,13 @@ fi
 # ── Backup before write ──
 cp -f "$CHECKPOINT_PATH" "${CHECKPOINT_PATH}.bak.$(date +%s)" 2>/dev/null || true
 
+# BUG-004 FIX: Prune old backups (keep 3 most recent)
+# FLAW-002/QUAL-003 FIX: Use ls -t (mtime sort) instead of fragile dot-count sort key.
+# Epoch-suffixed filenames sort identically by name and by mtime.
+_bak_dir="$(dirname "$CHECKPOINT_PATH")"
+_bak_base="$(basename "$CHECKPOINT_PATH")"
+find "$_bak_dir" -name "${_bak_base}.bak.*" -type f 2>/dev/null | while IFS= read -r _f; do echo "$_f"; done | sort -rn | tail -n +4 | while IFS= read -r _f; do rm -f "$_f" 2>/dev/null; done
+
 # ── Read current checkpoint ──
 CURRENT=$(cat "$CHECKPOINT_PATH" 2>/dev/null)
 if [[ -z "$CURRENT" ]] || ! echo "$CURRENT" | jq empty 2>/dev/null; then

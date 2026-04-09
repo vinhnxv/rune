@@ -21,7 +21,7 @@
 # (blocking legitimate work).
 
 set -euo pipefail
-trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
+trap 'exit 0' ERR  # immediate fail-forward guard
 umask 077
 
 # Pre-flight: jq is required for JSON parsing (SEC-002: fail-closed if missing).
@@ -29,9 +29,6 @@ if ! command -v jq &>/dev/null; then
   echo "BLOCKED: jq not found — validate-strive-worker-paths.sh hook cannot validate file paths" >&2
   exit 2
 fi
-
-# Fail-open trap: any unexpected error allows the operation (mirrors stop-hook-common.sh)
-trap 'exit 0' ERR
 
 # Source shared PreToolUse Write guard library
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

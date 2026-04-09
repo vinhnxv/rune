@@ -60,6 +60,16 @@ _mcp_write_stamp() {
 mcp_ensure_package() {
   local package="$1" version="$2" binary="$3"
 
+  # SEC-002 FIX: Validate package name and version against allowlist patterns
+  if [[ ! "$package" =~ ^@?[a-zA-Z0-9._-]+(/[a-zA-Z0-9._-]+)?$ ]]; then
+    echo "mcp-pkg-manager: invalid package name: ${package}" >&2
+    return 1
+  fi
+  if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+    echo "mcp-pkg-manager: invalid version: ${version}" >&2
+    return 1
+  fi
+
   # No binary found at all → need install
   if ! command -v "$binary" >/dev/null 2>&1; then
     if command -v npm >/dev/null 2>&1; then
