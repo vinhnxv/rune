@@ -38,7 +38,7 @@ New to Rune? Three commands to go from idea to reviewed code:
 
 These are beginner-friendly aliases for `/rune:devise`, `/rune:strive`, and `/rune:appraise`.
 
-**Want the full pipeline?** Run `/rune:arc plans/my-plan.md` for an automated 44-phase pipeline: plan enrichment → code review → auto-fix → testing → PR → merge.
+**Want the full pipeline?** Run `/rune:arc plans/my-plan.md` for an automated 45-phase pipeline: plan enrichment → code review → auto-fix → testing → PR → merge.
 
 **Not sure which command?** Use `/rune:tarnished` — the intelligent entry point that routes natural language to the right workflow (English and Vietnamese supported).
 
@@ -203,7 +203,7 @@ For the full command reference with all flags and options, see the [Command Refe
 | Tarnished | Orchestrator | The lead agent that coordinates workflows |
 | Forge | Plan enrichment | Research phase that deepens a plan |
 | Mend | Auto-fix findings | Parallel resolution of review findings |
-| Arc | End-to-end pipeline | 44-phase automated workflow |
+| Arc | End-to-end pipeline | 45-phase automated workflow |
 | Echoes | Persistent memory | Cross-session project knowledge |
 | Roundtable Circle | Parallel review | Pattern for orchestrating multiple Ash (review agent) teammates |
 

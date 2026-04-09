@@ -122,7 +122,7 @@ else:
   # Count occurrences of each top-level key pattern "  "key":
   # This catches the most common case (top-level duplicates) but misses nested ones
   local raw_keys
-  raw_keys=$(grep -E '^\s{2}"[^"]+"\s*:' "$file" 2>/dev/null | sed -E 's/^\s*"([^"]+)".*/\1/' | sort | uniq -d)
+  raw_keys=$(grep -E '^\s+"[^"]+"\s*:' "$file" 2>/dev/null | sed -E 's/^\s*"([^"]+)".*/\1/' | sort | uniq -d)
   echo "$raw_keys" | tr '\n' ',' | sed 's/,$//'
 }
 

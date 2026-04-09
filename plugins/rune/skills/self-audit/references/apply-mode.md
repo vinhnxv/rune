@@ -54,6 +54,8 @@ For eligible findings, spawn the `improvement-advisor` agent:
 ```javascript
 Agent({
   subagent_type: 'rune:meta-qa:improvement-advisor',
+  team_name: teamName,
+  name: 'improvement-advisor',
   prompt: `Analyze these findings and generate fix proposals:
     ${JSON.stringify(eligibleFindings)}
 

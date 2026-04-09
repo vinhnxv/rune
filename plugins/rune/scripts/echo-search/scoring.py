@@ -473,6 +473,9 @@ def _record_access(
         if not entry_ids:
             return
 
+        # BACK-001 fix: Explicit transaction for atomicity across Python versions
+        conn.execute("BEGIN")
+
         # Batch INSERT all access records (PERF-004)
         conn.executemany(
             "INSERT INTO echo_access_log "

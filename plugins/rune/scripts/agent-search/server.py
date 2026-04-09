@@ -1406,6 +1406,12 @@ async def _mcp_handle_register(arguments: Dict) -> Tuple[Dict, bool]:
     if not isinstance(name, str) or not name.strip():
         return {"error": "name parameter is required"}, True
 
+    # SEC-004: Validate name format — reject path traversal, control chars, unicode confusables
+    import re
+    _SAFE_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+    if not _SAFE_NAME_RE.match(name.strip()):
+        return {"error": "name must be 1-64 chars, alphanumeric/hyphen/underscore only"}, True
+
     description = arguments.get("description", "")
     if not isinstance(description, str):
         description = str(description)
