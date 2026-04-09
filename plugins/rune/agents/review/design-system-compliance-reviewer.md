@@ -459,6 +459,19 @@ Before writing output file, confirm:
 - DSYS-PAT → P1: If class merge conflict causes visible visual regression in production
 - DSYS-THM → P2: If dark mode token is missing entirely (undefined CSS variable at runtime)
 
+## Web Interface Design Compliance (always for frontend files)
+
+### Token Anti-Patterns
+- `outline: none` / `outline-none` without `focus-visible:ring-*` replacement
+- Hardcoded color values instead of design tokens (especially for dark mode)
+- Missing `color-scheme: dark` on `<html>` for dark themes
+
+### Typography Anti-Patterns
+- Straight quotes `"` instead of curly quotes (user-facing text content only, not code strings)
+- `...` instead of proper ellipsis `…`
+- Missing `font-variant-numeric: tabular-nums` on number columns (tables, dashboards, prices)
+- Missing `text-wrap: balance` on headings (P3 — Chrome 114+, progressive enhancement)
+
 ## Output Format
 
 ```markdown

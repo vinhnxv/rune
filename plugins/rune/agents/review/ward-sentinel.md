@@ -204,6 +204,18 @@ When reviewing security-sensitive code, structure your analysis using the Red Te
 - Provide specific code-level fixes
 - Reference OWASP/CWE identifiers where applicable
 
+## React Security Patterns (when React stack detected)
+
+### Hydration Safety (flag as SEC-HYDRATION-*)
+- `<input value={}>` without `onChange` (controlled without handler — P3 informational)
+- Date/time rendering without hydration mismatch guard (server vs client locale)
+- `suppressHydrationWarning` used without documented justification (P3 — legitimate for timestamps)
+
+### Input Safety (flag as SEC-INPUT-*)
+- `dangerouslySetInnerHTML` without sanitization
+- Unvalidated URL construction from user input in `href`/`src` (JavaScript URI attacks)
+- Missing `rel="noopener noreferrer"` on external links with `target="_blank"` (when href is dynamic)
+
 ## Review Checklist
 
 ### Analysis Todo

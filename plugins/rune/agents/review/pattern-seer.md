@@ -314,6 +314,26 @@ def isEnabled(self):
 
 **Cluster Escalation:** When 3+ naming findings cluster in the same module, escalate to architecture-level investigation (connects to cross-cutting consistency analysis).
 
+### 9. React Composition Patterns
+
+Reference `react-composition-patterns` skill. Flag these anti-patterns:
+
+#### Boolean Prop Proliferation
+- Components with 3+ boolean props (`isLoading`, `isError`, `isCompact`, `isDisabled`)
+  → Should use composition (compound components) or explicit variants
+- Conditional rendering chains driven by boolean props
+  → Should be discrete variant components
+
+#### React 19 Migration
+- `forwardRef` usage → direct `ref` prop (React 19)
+- `useContext()` → `use()` hook (React 19)
+- Context providers wrapping single consumers → direct `use()`
+
+#### Architecture Signals
+- Render props pattern where children composition suffices
+- Provider components mixing UI rendering with state management (rendering DOM beyond `{children}`)
+- Missing TypeScript generic interfaces on context (state + actions + metadata)
+
 ## Echo Integration (Past Convention Knowledge)
 
 Before analyzing patterns, query Rune Echoes for previously established conventions:

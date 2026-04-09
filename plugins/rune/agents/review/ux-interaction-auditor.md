@@ -221,6 +221,28 @@ Before writing output file, confirm:
 | No prefers-reduced-motion | P2 | P1 if animation causes vestibular issues |
 | Missing scroll indicator | P3 | P2 if content is hidden without indication |
 
+## Web Interaction Rules (always for frontend files)
+
+Reference `web-interface-rules` skill (Animation, Touch, Focus sections).
+
+### Animation (flag as UXI-ANIM-*)
+- Missing `prefers-reduced-motion` media query on animations
+- Animating properties other than `transform`/`opacity` (non-compositor properties)
+- `transition: all` — must list explicit properties
+- Non-interruptible animations (don't respond to user input mid-animation)
+- SVG transforms not on `<g>` wrapper with `transform-box: fill-box` (P3)
+
+### Touch & Interaction (flag as UXI-TOUCH-*)
+- Missing `touch-action: manipulation` on interactive elements
+- No `overscroll-behavior: contain` on modals/drawers/sheets
+- `autoFocus` on mobile-targeted inputs (disruptive on mobile — only flag with mobile markers)
+- Missing `-webkit-tap-highlight-color` consideration
+
+### Focus (flag as UXI-FOCUS-*)
+- `:focus` used instead of `:focus-visible` (shows ring on mouse click)
+- No visible focus indicator on interactive elements
+- Missing `:focus-within` on compound controls (input groups)
+
 ## Output Format
 
 ```markdown

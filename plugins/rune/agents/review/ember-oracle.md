@@ -142,6 +142,30 @@ filtered = [r for r in all_records if r.active]
 active_records = await repo.find_active(limit=100, offset=page * 100)
 ```
 
+### 5. React/Next.js Performance
+
+Reference `react-performance-rules` skill for exhaustive patterns. Priority findings:
+
+#### CRITICAL — Waterfall Detection
+- Sequential `await` in components (should be `Promise.all` or parallel Suspense)
+- Client-side fetch inside useEffect when server fetch would eliminate roundtrip
+- Missing Suspense boundaries causing full-page loading states
+
+#### CRITICAL — Bundle Anti-patterns
+- Barrel file imports (`import { x } from './components'`) preventing tree-shaking
+- Large libraries imported synchronously that should use `React.lazy()`/`dynamic()`
+- Third-party scripts loaded synchronously in render path
+
+#### HIGH — Server Performance
+- Missing `cache()` wrapper on repeated server-side data fetches (Server Components only)
+- Sequential nested fetches that should be parallel
+- Shared mutable module state in server components
+
+#### MEDIUM — Re-render Triggers
+- Components defined inline inside render (creates new reference every render)
+- Missing/incorrect dependency arrays on useMemo/useCallback
+- Derived state computed in useEffect instead of directly in render
+
 ## Review Checklist
 
 ### Analysis Todo
@@ -153,6 +177,9 @@ active_records = await repo.find_active(limit=100, offset=page * 100)
 6. [ ] Check **memory allocation** (loading full datasets, large list comprehensions)
 7. [ ] Verify **caching opportunities** for repeated expensive operations
 8. [ ] Check for **missing indexes** on frequently queried columns
+9. [ ] Scan for **sequential await chains** in React components (should be Promise.all or parallel Suspense)
+10. [ ] Check for **barrel file imports** that prevent tree-shaking
+11. [ ] Look for **missing cache() wrapper** on repeated server-side fetches
 
 ### Self-Review
 After completing analysis, verify:
