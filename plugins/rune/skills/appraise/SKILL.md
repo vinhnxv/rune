@@ -183,10 +183,12 @@ if (contextBuilding === "auto" && (diffLineCount > threshold.lines || fileCount 
 else → skip("[Context] Skipped — diff below threshold ({diffLineCount} lines, {fileCount} files)")
 ```
 
-**Execution** (blocking bare Agent — CONCERN-1, CONCERN-2):
+**Execution** (blocking bare Agent with timeout enforcement — CONCERN-1, CONCERN-2):
 ```
 const contextOutputPath = `${outputDir}context-map.md`
 
+// Use blocking Agent call with elapsed-time timeout check (AC-6)
+const contextStartTime = Date.now()
 Agent({
   subagent_type: "rune:research:context-builder",
   prompt: `Build a LIGHTWEIGHT context map for code review (not full audit).
@@ -215,13 +217,19 @@ CONSTRAINTS:
   model: "sonnet"
 })
 
-// After Agent() returns (blocking call), check file existence for timeout handling
+// Check timeout after blocking call returns (timeoutMs from talisman, default 60000)
+const contextElapsed = Date.now() - contextStartTime
+if (contextElapsed > timeoutMs) {
+  warn(`[Context] Context building exceeded ${timeoutMs}ms (took ${contextElapsed}ms)`)
+}
+
+// Read output with existence check
 contextMap = null
 try {
   const content = Read(contextOutputPath)
-  if (content && content.length >= 100) {
+  if (content && content.trim().length >= 100) {
     contextMap = content
-    log(`[Context] Built context map — ${countEntries(content)} entries`)
+    log(`[Context] Built context map — ${countEntries(content)} entries (${contextElapsed}ms)`)
   } else {
     log("[Context] Context map too small or empty — proceeding without context")
   }

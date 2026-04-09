@@ -25,7 +25,7 @@ Write("tmp/.rune-review-{identifier}.json", {
   expected_files: selectedAsh.map(r => `tmp/reviews/${identifier}/${r}.md`)
 })
 
-// 4. Generate inscription.json — includes diff_scope, context_intelligence, linter_context
+// 4. Generate inscription.json — includes diff_scope, context_intelligence, linter_context, context_map
 // See roundtable-circle/references/inscription-schema.md
 
 // 5. Pre-create guard: teamTransition protocol (see team-sdk/references/engines.md)
@@ -70,6 +70,7 @@ The inscription.json written in Phase 2 contains all data needed for Ash spawnin
   context_intelligence: contextIntel,       // PR metadata, linked issues from Phase 0.3
   linter_context: linterContext,            // Discovered linters from Phase 0.4
   risk_map: riskMap,                        // From Phase 0.5 Lore Layer (if enabled)
+  context_map: contextMap || null,          // From Phase 0.6 Context Building (if enabled)
   verification: {                           // For Phase 5.5 cross-model verification
     enabled: true,
     fuzzy_match_threshold: 0.7
