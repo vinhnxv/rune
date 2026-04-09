@@ -27,8 +27,11 @@ fi
 
 # PERF-002 FIX: Cache UID once — avoids 30+ `$(id -u)` subprocess forks across hook scripts.
 # $UID is a bash built-in (zero forks). Fallback to `id -u` for non-bash shells.
+# SEC-001 FIX: Fallback to 65534 (nobody) instead of 0 (root) to prevent false ownership matches.
+# QUAL-002 FIX: readonly to match _RUNE_PLATFORM immutability pattern.
 if [[ -z "${_RUNE_UID:-}" ]]; then
-  _RUNE_UID="${UID:-$(id -u 2>/dev/null || echo 0)}"
+  _RUNE_UID="${UID:-$(id -u 2>/dev/null || echo 65534)}"
+  readonly _RUNE_UID
 fi
 
 # _stat_mtime <path>
