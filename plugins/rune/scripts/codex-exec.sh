@@ -258,15 +258,13 @@ fi
 _trace "EXEC model=$MODEL reasoning=$REASONING timeout=$TIMEOUT json=$JSON_MODE git_skip=$SKIP_GIT_CHECK file=$PROMPT_FILE output=$OUTPUT_FILE"
 
 # Capture stderr to temp file for error classification
-# QUAL-001 + FLAW-005 FIX: Compose traps instead of overwriting — capture existing EXIT trap
-_existing_exit_trap=$(trap -p EXIT | sed "s/^trap -- '//;s/' EXIT$//")
+# QUAL-001 + FLAW-005 FIX: Compose traps instead of overwriting
+# SEC-001 FIX: Call _stop_watchdog directly instead of eval on captured trap string
 _CLEANUP_FILES=()
 _cleanup() {
   rm -f "${_CLEANUP_FILES[@]}" 2>/dev/null || true
   # FLAW-005: Run the previously registered EXIT trap (watchdog cleanup)
-  if [[ -n "$_existing_exit_trap" ]]; then
-    eval "$_existing_exit_trap" 2>/dev/null || true
-  fi
+  _stop_watchdog 2>/dev/null || true
 }
 trap '_rc=$?; _cleanup; exit $_rc' EXIT
 

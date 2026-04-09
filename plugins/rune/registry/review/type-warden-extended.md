@@ -1,5 +1,5 @@
 ---
-name: type-warden
+name: type-warden-extended
 description: |
   Python type safety and quality enforcement. Verifies type annotations, mypy strict
   compliance, modern Python idioms, and async correctness patterns. Covers: complete
@@ -40,7 +40,7 @@ Triggers: Python code review, backend review, type hint verification.
 
 <example>
   user: "Review type safety in the Python backend"
-  assistant: "I'll use type-warden to check type hints, mypy compliance, and Python idioms."
+  assistant: "I'll use type-warden-extended to check type hints, mypy compliance, and Python idioms."
   </example>
 
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash

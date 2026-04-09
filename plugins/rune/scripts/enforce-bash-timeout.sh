@@ -99,6 +99,17 @@ if [[ -f "${SCRIPT_DIR}/lib/rune-state.sh" ]]; then
   source "${SCRIPT_DIR}/lib/rune-state.sh"
 fi
 
+# FLAW-001 FIX: Source resolve-session-identity.sh for rune_pid_alive()
+# (used by session ownership filtering below)
+if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
+  # shellcheck source=resolve-session-identity.sh
+  source "${SCRIPT_DIR}/resolve-session-identity.sh"
+fi
+# Fallback if resolve-session-identity.sh is unavailable
+if ! command -v rune_pid_alive &>/dev/null; then
+  rune_pid_alive() { kill -0 "$1" 2>/dev/null; }
+fi
+
 # Check for active Rune workflow (arc checkpoint OR state files)
 active_workflow=""
 
@@ -106,12 +117,22 @@ active_workflow=""
 if [[ -d "${CWD}/${RUNE_STATE}/arc" ]]; then
   while IFS= read -r f; do
     [[ -f "$f" ]] || continue
-    _arc_status=$(jq -r '
-      if (.phase_status // .status // "none") == "in_progress" then "yes"
-      elif ([.phases[]?.status] | any(. == "in_progress")) then "yes"
-      else "no" end
+    # Consolidated jq: extract status + ownership fields in one call
+    # Uses Unit Separator (\u001f) to avoid delimiter collisions with JSON values
+    _arc_info=$(jq -r '
+      (if (.phase_status // .status // "none") == "in_progress" then "yes"
+       elif ([.phases[]?.status] | any(. == "in_progress")) then "yes"
+       else "no" end) + "\u001f" +
+      (.config_dir // "") + "\u001f" +
+      (.owner_pid // "" | tostring)
     ' "$f" 2>/dev/null) || continue
-    if [[ "$_arc_status" == "yes" ]]; then
+    IFS=$'\x1f' read -r has_active stored_cfg stored_pid <<< "$_arc_info"
+    if [[ "$has_active" == "yes" ]]; then
+      # Ownership filter: skip checkpoints from other sessions
+      if [[ -n "$stored_cfg" && -n "${RUNE_CURRENT_CFG:-}" && "$stored_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
+      if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
+        rune_pid_alive "$stored_pid" && continue
+      fi
       active_workflow="arc"
       break
     fi
@@ -128,13 +149,22 @@ if [[ -z "$active_workflow" ]]; then
            "${CWD}"/tmp/.rune-brainstorm-*.json "${CWD}"/tmp/.rune-debug-*.json \
            "${CWD}"/tmp/.rune-design-sync-*.json; do
     [[ -f "$f" ]] || continue
-    _wf_status=$(jq -r '.status // "none"' "$f" 2>/dev/null) || continue
-    case "$_wf_status" in
-      in_progress|active|running)
-        active_workflow="state"
-        break
-        ;;
-    esac
+    # Consolidated jq: extract status + ownership fields in one call
+    _state_info=$(jq -r '
+      (.status // "") + "\u001f" +
+      (.config_dir // "") + "\u001f" +
+      (.owner_pid // "" | tostring)
+    ' "$f" 2>/dev/null) || continue
+    IFS=$'\x1f' read -r file_status stored_cfg stored_pid <<< "$_state_info"
+    case "$file_status" in active|in_progress|running)
+      # Ownership filter: skip state files from other sessions
+      if [[ -n "$stored_cfg" && -n "${RUNE_CURRENT_CFG:-}" && "$stored_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
+      if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ && "$stored_pid" != "$PPID" ]]; then
+        rune_pid_alive "$stored_pid" && continue
+      fi
+      active_workflow="state"
+      break
+      ;; esac
   done
   shopt -u nullglob
 fi

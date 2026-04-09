@@ -1,5 +1,5 @@
 ---
-name: wraith-finder
+name: wraith-finder-extended
 description: |
   Dead code and unwired code detection. Finds unreachable code paths, unused exports,
   orphaned files, commented-out code, missing DI wiring, unregistered routes/handlers,
@@ -39,7 +39,7 @@ Triggers: Refactoring, large PRs, after AI code generation, new services/routes/
 
 <example>
   user: "Find dead code in the services"
-  assistant: "I'll use wraith-finder to detect unused, orphaned, and unwired code."
+  assistant: "I'll use wraith-finder-extended to detect unused, orphaned, and unwired code."
   </example>
 
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash
