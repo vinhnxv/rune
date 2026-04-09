@@ -2,7 +2,7 @@
 
 **Total: 152 agent definitions** (109 CORE in agents/ + 43 EXTENDED in registry/, 13 shared)
 
-> Agent count verified by `find agents/ registry/ -name "*.md" -type f | wc -l` on 2026-04-09.
+> Agent count verified by `find agents/ registry/ -name "*.md" -type f -not -path "*/references/*" | wc -l` on 2026-04-09.
 > CORE agents (agents/): 17 review + 8 research + 6 work + 17 utility + 31 investigation + 0 testing + 8 qa + 9 meta-qa + 13 shared (incl. README, TEMPLATE) = 109
 > EXTENDED agents (registry/): 25 review + 4 work + 6 utility + 2 investigation + 6 testing = 43
 
