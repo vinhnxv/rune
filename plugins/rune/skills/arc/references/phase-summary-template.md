@@ -1,6 +1,6 @@
 # Phase Summary Template
 
-Arc phase summaries are written by the orchestrator at the end of each **phase group** to compress completed phase history before entering the next group. This prevents inline phase history from accumulating across 43 phases and exhausting context.
+Arc phase summaries are written by the orchestrator at the end of each **phase group** to compress completed phase history before entering the next group. This prevents inline phase history from accumulating across 44 phases and exhausting context.
 
 ## Phase Groups
 

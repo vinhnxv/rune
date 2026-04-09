@@ -72,6 +72,8 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **codex-status** | Show Codex activity summary for the current or most recent arc run — phase status, finding counts, simplified verification verdicts. Read-only, no agents. `/rune:codex-status` |
 | **pr-guardian** | Automated PR shepherd loop — cron-based (every 5 min) that checks review comments, CI/CD status, branch freshness, runs browser tests, and auto-merges when green. 7-day auto-expiry. `/rune:pr-guardian` |
 | **post-findings** | Post Rune review/audit findings to GitHub PR as formatted comment. Parses TOME, formats markdown, posts via `gh`. Configurable via `pr_comment` talisman section. `/rune:post-findings` |
+| **cc-inspect** | Claude Code runtime environment inspector — reports environment variables, session identity, config directory, plugin paths, system toolchain versions, Rune runtime state, and platform details. Diagnostic tool for explicit user invocation. `/rune:cc-inspect` |
+| **verify** | Verify TOME findings before mend resolution. Classifies each finding as TRUE_POSITIVE, FALSE_POSITIVE, or NEEDS_CONTEXT with evidence chains. Prevents wasted mend-fixer effort on false positives. `/rune:verify` |
 
 ## Commands
 
@@ -476,7 +478,7 @@ echo "Commands: $(find plugins/rune/commands -name '*.md' -not -path '*/referenc
 
 ## References
 
-- [Agent registry](references/agent-registry.md) — 151 agent definitions (108 CORE in agents/ + 43 EXTENDED in registry/, 13 shared). 12 stack specialist reviewers are prompt templates, not registered agents
+- [Agent registry](references/agent-registry.md) — 152 agent definitions (109 CORE in agents/ + 43 EXTENDED in registry/, 13 shared). 12 stack specialist reviewers are prompt templates, not registered agents
 - [Key concepts](references/key-concepts.md) — Tarnished, Ash, TOME, Arc, Mend, Forge Gaze, Echoes
 - [Lore glossary](references/lore-glossary.md) — Elden Ring terminology mapping
 - [Output conventions](references/output-conventions.md) — Directory structure per workflow

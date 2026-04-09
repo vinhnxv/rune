@@ -15,5 +15,9 @@ _get_fm_field() {
   local fm="$1" field="$2"
   # SEC-002: Validate field name to prevent regex injection
   [[ "$field" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
-  printf '%s\n' "$fm" | grep "^${field}:" | sed "s/^${field}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true
+  # Extract only frontmatter block (between first two --- lines)
+  local fm_block
+  fm_block=$(printf '%s\n' "$fm" | sed -n '/^---$/,/^---$/{ /^---$/d; p; }' | head -50)
+  [[ -z "$fm_block" ]] && fm_block="$fm"  # Fallback if no --- delimiters found
+  printf '%s\n' "$fm_block" | grep "^${field}:" | sed "s/^${field}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true
 }
