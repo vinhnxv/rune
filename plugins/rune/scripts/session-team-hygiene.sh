@@ -464,17 +464,18 @@ stale_state_count=$(
 
 # Count orphaned arc checkpoints (v1.110.0: Bug 2 fix)
 # Scan ${RUNE_STATE}/arc/ and tmp/arc/ for checkpoints with dead owner_pid
-# v1.174.0: Also scan worktree checkpoint directories (${RUNE_STATE}/worktrees/*/. claude/arc/)
+# v1.174.0: Also scan worktree checkpoint directories (.claude/worktrees/*/.rune/arc/)
 # so orphaned worktree arc checkpoints are visible from the main repo session.
+# NOTE: Claude Code SDK creates worktrees at .claude/worktrees/ (not .rune/worktrees/).
 orphan_checkpoint_count=0
 orphan_checkpoint_count=$(
   count=0
   # Build scan dirs: project root + any worktree ${RUNE_STATE}/arc/ directories
   scan_dirs=("${CWD}/${RUNE_STATE}/arc" "${CWD}/.claude/arc" "${CWD}/tmp/arc")
-  # Add worktree checkpoint dirs (worktrees are at ${RUNE_STATE}/worktrees/*/)
+  # Add worktree checkpoint dirs (worktrees are at .claude/worktrees/*/)
   # SEC-S8-002 FIX: Reject symlinks on worktree dirs (parity with team dir scanning at line 108)
   shopt -s nullglob 2>/dev/null || true
-  for wt_dir in "${CWD}/${RUNE_STATE}/worktrees"/*/${RUNE_STATE}/arc; do
+  for wt_dir in "${CWD}/.claude/worktrees"/*/${RUNE_STATE}/arc; do
     [[ -d "$wt_dir" ]] || continue
     [[ -L "$wt_dir" ]] && continue  # symlink rejection
     # SEC-S8-001: path traversal guard on worktree dir name

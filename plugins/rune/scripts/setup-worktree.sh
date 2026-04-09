@@ -12,7 +12,7 @@
 # Fail-forward: exits 0 on all errors — worktree still usable without Rune config.
 
 set -euo pipefail
-trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
+trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below (validation phase only)
 umask 077
 
 # ── Fail-forward guard (OPERATIONAL hook) ──
@@ -113,9 +113,10 @@ if _is_bare_repo "$CWD"; then
 fi
 
 # ── Derive worktree_path if not provided ──
-# Claude Code creates worktrees at ${RUNE_STATE}/worktrees/<name>/
+# Claude Code SDK creates worktrees at .claude/worktrees/<name>/ (not .rune/worktrees/).
+# The .rune/worktrees/ path was a Rune-side assumption that didn't match SDK behavior.
 if [[ -z "$WT_PATH" && -n "$WT_NAME" ]]; then
-  WT_PATH="${CWD}/${RUNE_STATE}/worktrees/${WT_NAME}"
+  WT_PATH="${CWD}/.claude/worktrees/${WT_NAME}"
 fi
 
 if [[ -z "$WT_PATH" ]]; then
@@ -220,9 +221,17 @@ _check_disk_space "$CWD" "$WT_PATH"
 
 _trace "Setting up Rune config in worktree: $WT_PATH"
 
+# ── Disable ERR trap for copy phase ──
+# Previous behavior: ERR trap during copy would exit 0 on ANY failed command,
+# silently skipping all subsequent operations (talisman copy, echoes copy,
+# marker write). This caused incomplete worktree setups in production.
+# Each copy operation now uses explicit || true guards instead.
+trap - ERR
+set +e
+
 # ── Create target directories ──
-mkdir -p "$DST_CLAUDE"
-mkdir -p "$DST_RUNE"
+mkdir -p "$DST_CLAUDE" 2>/dev/null || { _trace "WARN: cannot create $DST_CLAUDE"; }
+mkdir -p "$DST_RUNE" 2>/dev/null || { _trace "WARN: cannot create $DST_RUNE"; }
 
 # ── Copy Claude Code platform files (.claude/) ──
 if [[ -d "$SRC_CLAUDE" ]]; then
@@ -248,8 +257,11 @@ if [[ -d "$SRC_RUNE" ]]; then
   # Individual files
   for file in talisman.yml; do
     if [[ -f "$SRC_RUNE/$file" && ! -L "$SRC_RUNE/$file" ]]; then
-      cp -f "$SRC_RUNE/$file" "$DST_RUNE/$file" 2>/dev/null || true
-      _trace "Copied .rune/$file"
+      if cp -f "$SRC_RUNE/$file" "$DST_RUNE/$file" 2>/dev/null; then
+        _trace "Copied .rune/$file"
+      else
+        _trace "WARN: failed to copy .rune/$file — continuing"
+      fi
     fi
   done
 
@@ -258,13 +270,13 @@ if [[ -d "$SRC_RUNE" ]]; then
   # EXCLUDE: worktrees/ (prevent recursion), audit-state/ (session-specific)
   for dir in echoes arc; do
     if [[ -d "$SRC_RUNE/$dir" && ! -L "$SRC_RUNE/$dir" ]]; then
-      mkdir -p "$DST_RUNE/$dir"
-      if ! cp -R "$SRC_RUNE/$dir/." "$DST_RUNE/$dir/" 2>/dev/null; then
-        _trace "WARN: cp -R failed for .rune/$dir/ — partial copy may exist"
-      else
+      mkdir -p "$DST_RUNE/$dir" 2>/dev/null || true
+      if cp -R "$SRC_RUNE/$dir/." "$DST_RUNE/$dir/" 2>/dev/null; then
         # SEC-007: Remove symlinks within copied tree to prevent following into external paths
         find "$DST_RUNE/$dir" -type l -delete 2>/dev/null || true
         _trace "Copied .rune/$dir/"
+      else
+        _trace "WARN: cp -R failed for .rune/$dir/ — partial copy may exist, continuing"
       fi
     fi
   done
@@ -273,9 +285,10 @@ fi
 # ── Create tmp/ directory in worktree ──
 mkdir -p "$WT_PATH/tmp" 2>/dev/null || true
 
-# ── Write worktree source marker ──
+# ── Write worktree source marker (MUST run even if copies above failed) ──
 # Downstream scripts (workflow-lock.sh, stop-hook-common.sh) read this
 # to resolve the main repo root for shared resources.
+# Without this marker, worktree-resolve.sh cannot find the main repo.
 MARKER="$DST_RUNE/.rune-worktree-source"
 
 # SEC-004: Marker must not be a symlink
@@ -289,7 +302,9 @@ if printf '%s\n' "$CWD" > "$_marker_tmp" && mv -f "$_marker_tmp" "$MARKER"; then
   _trace "Wrote marker: $MARKER → $CWD"
 else
   rm -f "$_marker_tmp" 2>/dev/null || true
-  _trace "WARN: failed to write marker atomically"
+  # Fallback: direct write (non-atomic but better than no marker)
+  printf '%s\n' "$CWD" > "$MARKER" 2>/dev/null || true
+  _trace "WARN: atomic marker write failed, used direct write fallback"
 fi
 
 _trace "Worktree setup complete"

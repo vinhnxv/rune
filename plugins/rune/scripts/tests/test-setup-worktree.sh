@@ -109,13 +109,13 @@ assert_exit_zero() {
 # Helper: create a standard main repo fixture
 setup_main_repo() {
   local base="$1"
-  mkdir -p "$base/.rune/echoes" "$base/.rune/arc" "$base/.rune/worktrees/other"
+  mkdir -p "$base/.rune/echoes" "$base/.rune/arc" "$base/.claude/worktrees/other"
   mkdir -p "$base/.claude"
   echo "test: true" > "$base/.rune/talisman.yml"
   echo '{}' > "$base/.claude/settings.json"
   echo "echo-entry" > "$base/.rune/echoes/MEMORY.md"
   echo "arc-data" > "$base/.rune/arc/checkpoint.json"
-  echo "should-not-copy" > "$base/.rune/worktrees/other/data"
+  echo "should-not-copy" > "$base/.claude/worktrees/other/data"
 }
 
 # Helper: run the hook with given JSON input
@@ -184,8 +184,10 @@ assert_dir_not_exists "No .claude/ created in worktree" "$WT3/.claude"
 printf "\n"
 
 # ── Test 4: Excludes worktrees/ directory ──
+# Worktrees live at .claude/worktrees/ (SDK-managed). setup-worktree.sh only copies
+# .claude/settings.json and .claude/CLAUDE.local.md — not the worktrees/ subdir.
 printf "Test 4: Excludes worktrees/ directory\n"
-assert_dir_not_exists "worktrees/ NOT copied" "$WT/.rune/worktrees"
+assert_dir_not_exists "worktrees/ NOT copied into worktree .claude/" "$WT/.claude/worktrees"
 printf "\n"
 
 # ── Test 5: No stdin input ──
@@ -223,16 +225,17 @@ assert_exit_zero "Path traversal exits 0 (fail-forward)" "$EXIT_CODE"
 printf "\n"
 
 # ── Test 8: Derive worktree_path from name + cwd ──
+# Claude Code SDK creates worktrees at .claude/worktrees/<name>/ (not .rune/worktrees/).
 printf "Test 8: Derive worktree_path from name when not provided\n"
 MAIN8="$TMP_DIR/test8/main"
 setup_main_repo "$MAIN8"
-mkdir -p "$MAIN8/.rune/worktrees/my-feature/.claude"
+mkdir -p "$MAIN8/.claude/worktrees/my-feature/.claude"
 INPUT8=$(jq -n --arg cwd "$MAIN8" '{"name":"my-feature","cwd":$cwd}')
 run_hook "$INPUT8"
 EXIT_CODE=$?
 
 assert_exit_zero "Derived path exits 0" "$EXIT_CODE"
-assert_file_exists "talisman.yml in derived path" "$MAIN8/.rune/worktrees/my-feature/.rune/talisman.yml"
+assert_file_exists "talisman.yml in derived path" "$MAIN8/.claude/worktrees/my-feature/.rune/talisman.yml"
 printf "\n"
 
 # ── Test 9: agent-memory/ and agent-memory-local/ excluded ──

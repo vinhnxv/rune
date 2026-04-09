@@ -119,7 +119,7 @@ result=$(rune_extract_wt_timestamp "rune-work-20260301-123456")
 assert_eq "Timestamp from rune-work pattern" "20260301-123456" "$result"
 
 # 2b. With full path
-result=$(rune_extract_wt_timestamp "/home/user/repo/.rune/worktrees/rune-work-abc123")
+result=$(rune_extract_wt_timestamp "/home/user/repo/.claude/worktrees/rune-work-abc123")
 assert_eq "Timestamp from full path" "abc123" "$result"
 
 # 2c. No rune-work pattern -> empty

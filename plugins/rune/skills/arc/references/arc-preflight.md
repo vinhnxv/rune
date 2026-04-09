@@ -34,7 +34,7 @@ also never blocks the pipeline with interactive prompts when the right action is
 
 ```javascript
 // ── WORKTREE DETECTION (v1.174.0) ──
-// Detect if arc is running inside a git worktree (e.g., .rune/worktrees/{name}/).
+// Detect if arc is running inside a git worktree (e.g., .claude/worktrees/{name}/).
 // When git-common-dir differs from git-dir parent, we're in a worktree.
 // Worktrees have an isolated branch already — skip branch creation entirely.
 const gitCommonDir = Bash("git rev-parse --git-common-dir 2>/dev/null").trim()
