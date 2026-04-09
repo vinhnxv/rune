@@ -30,7 +30,10 @@ _rune_fail_forward() {
   fi
   exit 0
 }
-trap '_rune_fail_forward' ERR
+# NOTE: _rune_fail_forward is intentionally NOT trapped here.
+# The initial fail-closed trap (line 16: trap 'exit 2' ERR) must remain active
+# during stdin parsing and subagent detection (SEC-003 fix).
+# Phase 2 (subagent detected) sets _rune_fail_closed for detailed error handling.
 
 # Pre-flight: jq is required for JSON parsing.
 # If missing, exit 2 (blocking) — deny rather than silently disable enforcement.

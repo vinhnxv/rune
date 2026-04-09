@@ -108,7 +108,12 @@
         "./skills/arc-quick",
         "./skills/variant-hunt",
         "./skills/supply-chain-audit",
-        "./skills/pr-guardian"
+        "./skills/pr-guardian",
+        "./skills/react-composition-patterns",
+        "./skills/react-native-patterns",
+        "./skills/react-performance-rules",
+        "./skills/react-view-transitions",
+        "./skills/web-interface-rules"
       ],
       "source": "./plugins/rune"
     }

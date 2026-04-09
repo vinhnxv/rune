@@ -25,7 +25,7 @@
 #   - Atomic write via tmp + mv (no partial writes)
 #   - Duplicate key prevention (jq merge produces clean JSON)
 #   - Post-write validation (re-reads and checks required fields)
-#   - Backup before write (.bak file, last 3 kept)
+#   - Backup before write (.bak file)
 #
 # Exit codes:
 #   0 = success
@@ -72,22 +72,7 @@ if ! echo "$UPDATE_JSON" | jq empty 2>/dev/null; then
   exit 4
 fi
 
-# ── Backup rotation (keep last 3) ──
-_rotate_backups() {
-  local base="$1"
-  # Remove oldest backups beyond 3
-  # Use find + sort to avoid zsh NOMATCH and ls parsing issues
-  local count=0
-  while IFS= read -r bak; do
-    [[ -z "$bak" ]] && continue
-    count=$((count + 1))
-    if [[ $count -gt 3 ]]; then
-      rm -f "$bak" 2>/dev/null || true
-    fi
-  done < <(find "$(dirname "$base")" -maxdepth 1 -name "$(basename "$base").bak.*" -type f -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null)
-}
-
-_rotate_backups "$CHECKPOINT_PATH"
+# ── Backup before write ──
 cp -f "$CHECKPOINT_PATH" "${CHECKPOINT_PATH}.bak.$(date +%s)" 2>/dev/null || true
 
 # ── Read current checkpoint ──

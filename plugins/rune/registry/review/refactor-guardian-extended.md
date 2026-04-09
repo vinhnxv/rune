@@ -1,5 +1,5 @@
 ---
-name: refactor-guardian
+name: refactor-guardian-extended
 description: |
   Refactoring completeness and integrity detection. Finds orphaned callers after move/rename,
   incomplete extractions, broken import paths after split/reorganize, and test files referencing
@@ -44,7 +44,7 @@ code splitting, large structural PRs.
 
 <example>
   user: "Verify the refactoring didn't break any references"
-  assistant: "I'll use refactor-guardian to detect orphaned callers and incomplete migrations."
+  assistant: "I'll use refactor-guardian-extended to detect orphaned callers and incomplete migrations."
   </example>
 
 <!-- NOTE: allowed-tools enforced only in standalone mode. When embedded in Ash

@@ -431,6 +431,8 @@ def _collect_variant_class_lists(
 def _build_cva_schema(
     variant_classes: list[tuple[str, list[str]]],
 ) -> tuple[set[str], list[str]]:
+    if not variant_classes:
+        return set(), []
     all_class_sets = [set(classes) for _, classes in variant_classes]
     base_set = set.intersection(*all_class_sets)
 
