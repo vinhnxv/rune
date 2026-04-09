@@ -32,6 +32,7 @@ updateCheckpoint({ phase: "semantic_verification", status: "in_progress", phase_
 if (checkpoint.codex_cascade?.cascade_warning === true) {
   Write(`tmp/arc/${id}/codex-semantic-verification.md`, "Codex semantic verification skipped: cascade circuit breaker active.")
   updateCheckpoint({ phase: "semantic_verification", status: "skipped", skip_reason: "cascade_circuit_breaker", artifact: `tmp/arc/${id}/codex-semantic-verification.md`, artifact_hash: sha256("Codex semantic verification skipped: cascade circuit breaker active."), phase_sequence: 4.5, team_name: null })
+  output(`[Codex] Semantic Verification — skipped (cascade circuit breaker)`)
   return
 }
 
@@ -246,6 +247,7 @@ updateCheckpoint({ phase: "codex_gap_analysis", status: "in_progress", phase_seq
 if (checkpoint.codex_cascade?.cascade_warning === true) {
   Write(`tmp/arc/${id}/codex-gap-analysis.md`, "Codex gap analysis skipped: cascade circuit breaker active.")
   updateCheckpoint({ phase: "codex_gap_analysis", status: "skipped", skip_reason: "cascade_circuit_breaker", artifact: `tmp/arc/${id}/codex-gap-analysis.md`, artifact_hash: sha256("Codex gap analysis skipped: cascade circuit breaker active."), phase_sequence: 5.6, team_name: null, codex_needs_remediation: false })
+  output(`[Codex] Gap Analysis — skipped (cascade circuit breaker)`)
   return
 }
 
