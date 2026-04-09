@@ -99,6 +99,17 @@ if [[ -f "${SCRIPT_DIR}/lib/rune-state.sh" ]]; then
   source "${SCRIPT_DIR}/lib/rune-state.sh"
 fi
 
+# FLAW-001 FIX: Source resolve-session-identity.sh for rune_pid_alive()
+# (used by session ownership filtering below)
+if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
+  # shellcheck source=resolve-session-identity.sh
+  source "${SCRIPT_DIR}/resolve-session-identity.sh"
+fi
+# Fallback if resolve-session-identity.sh is unavailable
+if ! command -v rune_pid_alive &>/dev/null; then
+  rune_pid_alive() { kill -0 "$1" 2>/dev/null; }
+fi
+
 # Check for active Rune workflow (arc checkpoint OR state files)
 active_workflow=""
 

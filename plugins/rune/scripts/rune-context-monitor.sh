@@ -105,7 +105,8 @@ fi
 # EDGE-MON-008: Cap bridge file read (consistent with stdin 1MB cap pattern)
 BRIDGE=$(head -c 4096 "$BRIDGE_FILE" 2>/dev/null) || exit 0
 # Batch jq: extract all 3 fields in one call (saves 2 fork+parse cycles)
-read -r REMAINING USED_PCT TIMESTAMP <<< "$(echo "$BRIDGE" | jq -r '[.remaining_percentage // empty, .used_pct // empty, .timestamp // 0] | @tsv' 2>/dev/null || true)"
+# FLAW-002 FIX: Use // "" instead of // empty to preserve @tsv field positions
+read -r REMAINING USED_PCT TIMESTAMP <<< "$(echo "$BRIDGE" | jq -r '[.remaining_percentage // "", .used_pct // "", .timestamp // 0] | @tsv' 2>/dev/null || true)"
 
 [[ -z "$REMAINING" || -z "$USED_PCT" ]] && exit 0
 # P2-4 FIX: Validate USED_PCT is numeric before interpolation into warning message
