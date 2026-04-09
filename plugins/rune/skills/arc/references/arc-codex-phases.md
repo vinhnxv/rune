@@ -32,6 +32,7 @@ updateCheckpoint({ phase: "semantic_verification", status: "in_progress", phase_
 if (checkpoint.codex_cascade?.cascade_warning === true) {
   Write(`tmp/arc/${id}/codex-semantic-verification.md`, "Codex semantic verification skipped: cascade circuit breaker active.")
   updateCheckpoint({ phase: "semantic_verification", status: "skipped", skip_reason: "cascade_circuit_breaker", artifact: `tmp/arc/${id}/codex-semantic-verification.md`, artifact_hash: sha256("Codex semantic verification skipped: cascade circuit breaker active."), phase_sequence: 4.5, team_name: null })
+  output(`[Codex] Semantic Verification — skipped (cascade circuit breaker)`)
   return
 }
 
@@ -181,6 +182,14 @@ If no contradictions found, output: "No scope/timeline contradictions detected."
       phase_sequence: 4.5,
       team_name: teamName
     })
+
+    // User-visible Codex summary line (AC-1, AC-4)
+    const svHasFindings = teammateMetadata?.has_findings ?? false
+    if (svHasFindings) {
+      output(`[Codex] Semantic Verification — findings detected (see tmp/arc/${id}/codex-semantic-verification.md)`)
+    } else {
+      output(`[Codex] Semantic Verification — no contradictions found`)
+    }
   } else {
     Write(`tmp/arc/${id}/codex-semantic-verification.md`, "Codex semantic verification disabled via talisman.")
     updateCheckpoint({
@@ -192,6 +201,7 @@ If no contradictions found, output: "No scope/timeline contradictions detected."
       phase_sequence: 4.5,
       team_name: null
     })
+    output(`[Codex] Semantic Verification — skipped (disabled via talisman)`)
   }
 } else {
   Write(`tmp/arc/${id}/codex-semantic-verification.md`, "Codex unavailable — semantic verification skipped.")
@@ -204,6 +214,7 @@ If no contradictions found, output: "No scope/timeline contradictions detected."
     phase_sequence: 4.5,
     team_name: null
   })
+  output(`[Codex] Semantic Verification — skipped (Codex unavailable)`)
 }
 ```
 
@@ -236,6 +247,7 @@ updateCheckpoint({ phase: "codex_gap_analysis", status: "in_progress", phase_seq
 if (checkpoint.codex_cascade?.cascade_warning === true) {
   Write(`tmp/arc/${id}/codex-gap-analysis.md`, "Codex gap analysis skipped: cascade circuit breaker active.")
   updateCheckpoint({ phase: "codex_gap_analysis", status: "skipped", skip_reason: "cascade_circuit_breaker", artifact: `tmp/arc/${id}/codex-gap-analysis.md`, artifact_hash: sha256("Codex gap analysis skipped: cascade circuit breaker active."), phase_sequence: 5.6, team_name: null, codex_needs_remediation: false })
+  output(`[Codex] Gap Analysis — skipped (cascade circuit breaker)`)
   return
 }
 
@@ -418,6 +430,10 @@ If no issues found, output: "No integrity gaps detected."
       codex_finding_count: codexFindingCount,
       codex_threshold: codexThreshold
     })
+
+    // User-visible Codex summary line (AC-1, AC-4)
+    const remediationNote = codexNeedsRemediation ? " → remediation triggered" : ""
+    output(`[Codex] Gap Analysis — ${codexFindingCount} finding(s)${remediationNote}`)
   } else {
     Write(`tmp/arc/${id}/codex-gap-analysis.md`, "Codex gap analysis disabled via talisman.")
     updateCheckpoint({
@@ -430,6 +446,7 @@ If no issues found, output: "No integrity gaps detected."
       team_name: null,
       codex_needs_remediation: false
     })
+    output(`[Codex] Gap Analysis — skipped (disabled via talisman)`)
   }
 } else {
   Write(`tmp/arc/${id}/codex-gap-analysis.md`, "Codex gap analysis skipped (unavailable or disabled).")
@@ -443,5 +460,6 @@ If no issues found, output: "No integrity gaps detected."
     team_name: null,
     codex_needs_remediation: false
   })
+  output(`[Codex] Gap Analysis — skipped (Codex unavailable)`)
 }
 ```

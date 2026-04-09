@@ -69,6 +69,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **react-native-patterns** | React Native/Expo best practices — FlashList, Reanimated, native navigation, expo-image, safe areas, monorepo config. Non-invocable — auto-loaded for React Native/Expo projects |
 | **variant-hunt** | Systematic variant analysis — "find more like this" for confirmed findings. Takes a TOME finding ID, pattern description, or TOME path, spawns variant-hunter agents with progressive generalization (exact → structural → semantic). Opt-in via `variant_analysis.enabled`. `/rune:variant-hunt` |
 | **supply-chain-audit** | Analyze project dependencies for supply chain risks — maintainer count, commit frequency, CVE history, abandonment signals, bus factor, and security policy. Supports npm, pip, cargo, go mod, composer. Configurable via `supply_chain` talisman section. `/rune:supply-chain-audit` |
+| **codex-status** | Show Codex activity summary for the current or most recent arc run — phase status, finding counts, simplified verification verdicts. Read-only, no agents. `/rune:codex-status` |
 | **pr-guardian** | Automated PR shepherd loop — cron-based (every 5 min) that checks review comments, CI/CD status, branch freshness, runs browser tests, and auto-merges when green. 7-day auto-expiry. `/rune:pr-guardian` |
 | **post-findings** | Post Rune review/audit findings to GitHub PR as formatted comment. Parses TOME, formats markdown, posts via `gh`. Configurable via `pr_comment` talisman section. `/rune:post-findings` |
 
