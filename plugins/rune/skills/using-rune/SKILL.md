@@ -60,6 +60,7 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 | "Self-audit" / "audit arc run" / "check arc quality" / "hallucination detection" / "agent effectiveness" / "check rune health" / "lint agents" / "meta-qa" | `/rune:self-audit` | Meta-QA self-audit — static analysis + runtime arc artifact analysis |
 | "Supply chain audit" / "dependency risk" / "check dependencies" / "package security" / "abandoned packages" | `/rune:supply-chain-audit` | Analyze project dependencies for maintainer risk, abandonment, and CVE history |
 | "Watch my PR" / "pr guardian" / "auto merge" / "shepherd PR" / "monitor PR" | `/rune:pr-guardian` | Automated cron loop: check comments, CI, rebase, browser test, auto-merge |
+| "Codex status" / "codex results" / "what did codex find" / "codex activity" | `/rune:codex-status` | Show Codex activity summary for current/recent arc run |
 
 ### Beginner Aliases
 
@@ -129,6 +130,7 @@ These are common requests that Claude should handle directly — no agent team r
 | `/rune:ux-design-process` | No | 2-5 min | None (auto-loaded) |
 | `/rune:post-findings` | No | 1-3 min | TOME file path + PR number |
 | `/rune:self-audit` | Yes (3 agents) | 2-5 min | None (auto-detects latest arc) |
+| `/rune:codex-status` | No | <1 min | None (reads arc checkpoint) |
 | `/rune:plan` | (alias for `/rune:devise`) |||
 | `/rune:work` | (alias for `/rune:strive`) |||
 | `/rune:review` | (alias for `/rune:appraise`) |||

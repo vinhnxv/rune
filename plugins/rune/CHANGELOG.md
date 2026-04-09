@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.41.0] - 2026-04-09
+
+### Added
+- **codex-status**: New user-invocable skill (`/rune:codex-status`) — shows Codex activity summary for current/recent arc run with phase status, finding counts, and simplified verification verdicts (AC-2, AC-3)
+- **arc-codex-phases**: User-visible `[Codex]` summary lines emitted after Phase 2.8 (Semantic Verification) and Phase 5.6 (Gap Analysis) complete — one line per phase with progressive disclosure (AC-1, AC-4)
+- Simplified verdict labels: `CROSS-VERIFIED` → "Both models agree", `DISPUTED` → "Models disagree — review recommended" (AC-3)
+- Routing table entries for codex-status in using-rune, tarnished, and CLAUDE.md
+
 ## [2.40.0] - 2026-04-09
 
 ### Added

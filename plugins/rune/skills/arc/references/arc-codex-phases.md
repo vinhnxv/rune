@@ -181,6 +181,14 @@ If no contradictions found, output: "No scope/timeline contradictions detected."
       phase_sequence: 4.5,
       team_name: teamName
     })
+
+    // User-visible Codex summary line (AC-1, AC-4)
+    const svHasFindings = teammateMetadata?.has_findings ?? false
+    if (svHasFindings) {
+      output(`[Codex] Semantic Verification — findings detected (see tmp/arc/${id}/codex-semantic-verification.md)`)
+    } else {
+      output(`[Codex] Semantic Verification — no contradictions found`)
+    }
   } else {
     Write(`tmp/arc/${id}/codex-semantic-verification.md`, "Codex semantic verification disabled via talisman.")
     updateCheckpoint({
@@ -192,6 +200,7 @@ If no contradictions found, output: "No scope/timeline contradictions detected."
       phase_sequence: 4.5,
       team_name: null
     })
+    output(`[Codex] Semantic Verification — skipped (disabled via talisman)`)
   }
 } else {
   Write(`tmp/arc/${id}/codex-semantic-verification.md`, "Codex unavailable — semantic verification skipped.")
@@ -204,6 +213,7 @@ If no contradictions found, output: "No scope/timeline contradictions detected."
     phase_sequence: 4.5,
     team_name: null
   })
+  output(`[Codex] Semantic Verification — skipped (Codex unavailable)`)
 }
 ```
 
@@ -418,6 +428,10 @@ If no issues found, output: "No integrity gaps detected."
       codex_finding_count: codexFindingCount,
       codex_threshold: codexThreshold
     })
+
+    // User-visible Codex summary line (AC-1, AC-4)
+    const remediationNote = codexNeedsRemediation ? " → remediation triggered" : ""
+    output(`[Codex] Gap Analysis — ${codexFindingCount} finding(s)${remediationNote}`)
   } else {
     Write(`tmp/arc/${id}/codex-gap-analysis.md`, "Codex gap analysis disabled via talisman.")
     updateCheckpoint({
@@ -430,6 +444,7 @@ If no issues found, output: "No integrity gaps detected."
       team_name: null,
       codex_needs_remediation: false
     })
+    output(`[Codex] Gap Analysis — skipped (disabled via talisman)`)
   }
 } else {
   Write(`tmp/arc/${id}/codex-gap-analysis.md`, "Codex gap analysis skipped (unavailable or disabled).")
@@ -443,5 +458,6 @@ If no issues found, output: "No integrity gaps detected."
     team_name: null,
     codex_needs_remediation: false
   })
+  output(`[Codex] Gap Analysis — skipped (Codex unavailable)`)
 }
 ```
