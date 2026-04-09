@@ -24,17 +24,18 @@ if ! command -v jq &>/dev/null; then
 fi
 
 # SB-PERF-001: Single jq call with @tsv instead of 6 separate invocations
-IFS=$'\t' read -r MODEL DIR SESSION_ID REMAINING USED COST <<< "$(
+IFS=$'\t' read -r MODEL DIR SESSION_ID REMAINING USED COST GIT_WORKTREE <<< "$(
   printf '%s\n' "$INPUT" | jq -r '[
     (.model.display_name // "Claude"),
     (.workspace.current_dir // ""),
     (.session_id // ""),
     (.context_window.remaining_percentage // ""),
     ((.context_window.used_percentage // 0) | tostring | split(".")[0]),
-    (.cost.total_cost_usd // 0)
+    (.cost.total_cost_usd // 0),
+    (.workspace.git_worktree // "")
   ] | @tsv' 2>/dev/null
 )" || { echo "[Rune] parse error"; exit 0; }
-_trace "PARSED model=$MODEL used=$USED remaining=$REMAINING"
+_trace "PARSED model=$MODEL used=$USED remaining=$REMAINING worktree=${GIT_WORKTREE:-}"
 
 # --- Bridge file write (best-effort, never crash statusline) ---
 if [[ -n "$SESSION_ID" && -n "$REMAINING" ]]; then
@@ -56,7 +57,8 @@ if [[ -n "$SESSION_ID" && -n "$REMAINING" ]]; then
         --argjson ts "$(date +%s)" \
         --arg cfg "$RUNE_CURRENT_CFG" \
         --arg pid "${PPID:-0}" \
-        '{session_id: $sid, remaining_percentage: ($rem | tonumber), used_pct: ($used | tonumber), timestamp: $ts, config_dir: $cfg, owner_pid: $pid}' \
+        --arg wt "${GIT_WORKTREE:-}" \
+        '{session_id: $sid, remaining_percentage: ($rem | tonumber), used_pct: ($used | tonumber), timestamp: $ts, config_dir: $cfg, owner_pid: $pid, is_worktree: ($wt | length > 0)}' \
         > "$_BRIDGE_TMP" 2>/dev/null && mv -f "$_BRIDGE_TMP" "$BRIDGE_FILE" 2>/dev/null || rm -f "$_BRIDGE_TMP" 2>/dev/null
     fi
     _trace "BRIDGE written: $BRIDGE_FILE"
@@ -123,5 +125,9 @@ shopt -u nullglob
 
 # Output
 BRANCH_DISPLAY=""
-[[ -n "$BRANCH" ]] && BRANCH_DISPLAY=" ${DIM}${BRANCH}${RESET}"
+WORKTREE_INDICATOR=""
+if [[ -n "${GIT_WORKTREE:-}" ]]; then
+  WORKTREE_INDICATOR=" ${YELLOW}⎇wt${RESET}"
+fi
+[[ -n "$BRANCH" ]] && BRANCH_DISPLAY=" ${DIM}${BRANCH}${RESET}${WORKTREE_INDICATOR}"
 printf '%b' "${DIM}[${MODEL}]${RESET}${BRANCH_DISPLAY}${WORKFLOW} ${BAR_COLOR}${BAR}${RESET} ${USED}%% ${DIM}${COST_FMT}${RESET}\n"

@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.37.0] - 2026-04-09
+
+### Added
+- **statusline**: Show `⎇wt` worktree indicator next to branch name when `workspace.git_worktree` is present (CC v2.1.97)
+- **statusline**: Add `is_worktree` boolean to bridge file JSON for downstream consumers
+- **statusline**: Add 4 worktree test cases (indicator presence/absence, bridge field true/false)
+
 ## [2.36.1] - 2026-04-09
 
 ### Added
