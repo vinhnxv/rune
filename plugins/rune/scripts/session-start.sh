@@ -90,9 +90,19 @@ if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
     # COMPAT: Bash 3.2 (macOS) does not support {n,m} quantifiers in [[ =~ ]].
     # Use + quantifier and length check instead.
     if [[ -n "$SESSION_ID" ]] && [[ "$SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]] && [[ ${#SESSION_ID} -le 128 ]]; then
-      if ! grep -q "RUNE_SESSION_ID" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+      # IDEMPOTENT BRIDGE (v2.39.1): On resume, the session ID changes but the old
+      # value persists in CLAUDE_ENV_FILE. Check existence AND value correctness.
+      _current_sid_in_file=$(grep "RUNE_SESSION_ID" "$CLAUDE_ENV_FILE" 2>/dev/null | sed 's/.*RUNE_SESSION_ID="\{0,1\}\([^"]*\)"\{0,1\}/\1/' || true)
+      if [[ -z "$_current_sid_in_file" ]]; then
+        # Not present — append
         printf 'export RUNE_SESSION_ID="%s"\n' "$SESSION_ID" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true
         _trace "Injected RUNE_SESSION_ID=${SESSION_ID} into CLAUDE_ENV_FILE"
+      elif [[ "$_current_sid_in_file" != "$SESSION_ID" ]]; then
+        # Value mismatch (resume with new session) — replace via temp file (portable, no sed -i)
+        sed 's/^export RUNE_SESSION_ID=.*/export RUNE_SESSION_ID="'"$SESSION_ID"'"/' \
+          "$CLAUDE_ENV_FILE" > "${CLAUDE_ENV_FILE}.tmp" 2>/dev/null && \
+          mv "${CLAUDE_ENV_FILE}.tmp" "$CLAUDE_ENV_FILE" 2>/dev/null || true
+        _trace "Updated RUNE_SESSION_ID=${SESSION_ID} in CLAUDE_ENV_FILE (was: ${_current_sid_in_file})"
       fi
     else
       _trace "WARN: session_id failed format validation, skipping env injection: '${SESSION_ID:0:32}'"
@@ -104,9 +114,16 @@ if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
     # Validate: must be an absolute path containing /scripts/ dir, no shell metacharacters.
     # Path varies: /repo/plugins/rune (dev) vs $CHOME/plugins/cache/.../rune/2.11.0 (installed).
     if [[ -n "$PLUGIN_ROOT" ]] && [[ "$PLUGIN_ROOT" == /* ]] && [[ -d "$PLUGIN_ROOT/scripts" ]] && [[ "$PLUGIN_ROOT" =~ ^[a-zA-Z0-9/_\.\ @=-]+$ ]]; then
-      if ! grep -q "RUNE_PLUGIN_ROOT" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+      # IDEMPOTENT BRIDGE (v2.39.1): Same pattern as RUNE_SESSION_ID — check value, not just presence
+      _current_root_in_file=$(grep "RUNE_PLUGIN_ROOT" "$CLAUDE_ENV_FILE" 2>/dev/null | sed 's/.*RUNE_PLUGIN_ROOT="\{0,1\}\([^"]*\)"\{0,1\}/\1/' || true)
+      if [[ -z "$_current_root_in_file" ]]; then
         printf 'export RUNE_PLUGIN_ROOT="%s"\n' "$PLUGIN_ROOT" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true
         _trace "Injected RUNE_PLUGIN_ROOT=${PLUGIN_ROOT} into CLAUDE_ENV_FILE"
+      elif [[ "$_current_root_in_file" != "$PLUGIN_ROOT" ]]; then
+        sed 's|^export RUNE_PLUGIN_ROOT=.*|export RUNE_PLUGIN_ROOT="'"$PLUGIN_ROOT"'"|' \
+          "$CLAUDE_ENV_FILE" > "${CLAUDE_ENV_FILE}.tmp" 2>/dev/null && \
+          mv "${CLAUDE_ENV_FILE}.tmp" "$CLAUDE_ENV_FILE" 2>/dev/null || true
+        _trace "Updated RUNE_PLUGIN_ROOT=${PLUGIN_ROOT} in CLAUDE_ENV_FILE (was: ${_current_root_in_file})"
       fi
     else
       _trace "WARN: PLUGIN_ROOT validation failed, skipping env injection: '${PLUGIN_ROOT:0:64}'"
