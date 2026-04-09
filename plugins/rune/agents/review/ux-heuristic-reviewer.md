@@ -229,6 +229,31 @@ Check:
 Flag: Complex features with no in-context help
 ```
 
+## Code-Level Web Interface Rules (always for frontend files)
+
+Reference `web-interface-rules` skill. These complement Nielsen/Baymard heuristics with specific code patterns:
+
+### Accessibility (flag as UXH-A11Y-*)
+- Icon-only `<button>` without `aria-label`
+- Interactive elements without keyboard handlers (`onKeyDown`/`onKeyUp`)
+- `<div onClick>` or `<span onClick>` that should be `<button>` or `<a>` (unless `role="button"` + `tabIndex` present)
+- Missing `aria-live="polite"` on async updates (toasts, validation messages)
+- Non-hierarchical headings (`<h1>` followed by `<h3>`)
+
+### Forms (flag as UXH-FORM-*)
+- `<input>` without `autocomplete` attribute (for name, email, address, payment fields)
+- Wrong `type` on inputs (e.g., `type="text"` for email fields)
+- `onPaste` with `preventDefault` (blocking paste is hostile — flag as P3 advisory for security fields)
+- Submit button disabled during idle state (should stay enabled until request starts)
+- Missing unsaved changes warning (`beforeunload`)
+
+### Anti-Patterns (flag as UXH-ANTI-*)
+- `outline: none` or `outline-none` without `focus-visible` replacement (check for `ring-*` Tailwind classes or `:focus-visible` pseudo)
+- `transition: all` instead of explicit property list
+- `user-scalable=no` or `maximum-scale=1` disabling zoom
+- Raster images without explicit `width`/`height` (causes CLS — SVGs exempt)
+- Large lists (>50 items) without virtualization
+
 ## Review Checklist
 
 ### Analysis Todo

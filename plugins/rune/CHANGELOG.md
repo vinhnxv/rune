@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.39.0] - 2026-04-09
+
+### Added
+- 6 review agents enhanced with frontend-specific rule sections (ember-oracle, pattern-seer, ux-heuristic-reviewer, ux-interaction-auditor, ward-sentinel, design-system-compliance-reviewer)
+- React Performance Reviewer specialist prompt (RPR-001 through RPR-010)
+- Web Interface Reviewer specialist prompt (WIR-001 through WIR-010)
+
 ## [2.38.0] - 2026-04-09
 
 ### Added
