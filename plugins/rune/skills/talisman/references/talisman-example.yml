@@ -49,6 +49,12 @@ plan:
 #   enabled: true                    # Master gate for verify-agent-deliverables.sh
 #   min_file_size: 200               # Minimum bytes for review/research deliverable files
 
+# Statusline (Notification hook — rune-statusline.sh)
+# Controls the status line auto-refresh interval (CC v2.1.97+).
+# Set to 0 to disable auto-refresh (notification-only, pre-2.1.97 behavior).
+# statusline:
+#   refresh_interval: 10             # seconds, 0 = notification-only
+
 # Context stop guard (Stop hook — CTX-STOP-001)
 # Warns when context usage exceeds threshold at conversation stop.
 # Reads the statusline bridge file (consistent with guard-context-critical.sh).

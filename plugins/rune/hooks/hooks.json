@@ -554,6 +554,7 @@
     "Notification": [
       {
         "matcher": "statusline",
+        "refreshInterval": 10,
         "hooks": [
           {
             "type": "command",

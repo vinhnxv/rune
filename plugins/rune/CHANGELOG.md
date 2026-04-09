@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.36.1] - 2026-04-09
+
+### Added
+- **statusline**: Add `refreshInterval: 10` to hooks.json for auto-refreshing context bar every 10 seconds (CC v2.1.97)
+- **talisman**: Add `statusline.refresh_interval` config option to talisman-example.yml
+
 ## [2.36.0] - 2026-04-09
 
 ### Added
