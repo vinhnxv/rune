@@ -116,10 +116,9 @@ _rune_migrate_legacy() {
     _migrate_item "${legacy}/audit-state" "${target}/audit-state" ".claude/audit-state"
   fi
 
-  # Worktrees
-  if [[ -d "${legacy}/worktrees" ]] && [[ ! -L "${legacy}/worktrees" ]] && [[ ! -d "${target}/worktrees" ]]; then
-    _migrate_item "${legacy}/worktrees" "${target}/worktrees" ".claude/worktrees"
-  fi
+  # Worktrees — DO NOT migrate. Claude Code SDK creates worktrees at .claude/worktrees/
+  # (not .rune/worktrees/). Moving them would break git worktree references.
+  # The .rune/worktrees/ directory (if it exists from older Rune versions) is unused.
 
   # Agent search index — migrate .db + .db-shm + .db-wal as a group for SQLite integrity
   # FLAW-004: Individual migration can corrupt the DB if interrupted between .db and -wal moves

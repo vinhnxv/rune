@@ -13,7 +13,7 @@ All Rune workflow state lives in `.rune/` at project root (NOT `.claude/`).
 | `.rune/echoes/` | Rune Echoes memory |
 | `.rune/talisman.yml` | Rune configuration |
 | `.rune/audit-state/` | Incremental audit state |
-| `.rune/worktrees/` | Worktree tracking |
+| `.claude/worktrees/` | Git worktrees (created by Claude Code SDK, NOT Rune) |
 | `.rune/.agent-search-index.db` | Agent search index |
 | `.rune/test-history/` | Persistent test history |
 | `.rune/test-scenarios/` | Declarative test scenarios |
