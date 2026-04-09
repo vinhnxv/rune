@@ -306,10 +306,13 @@ rune_release_lock() {
   return 0
 }
 
-# Release ALL locks owned by this PID (for arc final cleanup)
+# Release ALL locks owned by this PID + session (for arc final cleanup)
+# FLAW-004 FIX: Added session_id verification matching rune_release_lock() pattern.
+# PID-only check was insufficient — PID recycling could cause incorrect lock deletion.
 rune_release_all_locks() {
   [[ -d "$LOCK_BASE" ]] || return 0
-  local stored_pid
+  local stored_pid stored_sid
+  local _current_sid="${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-unknown}}"
   # zsh-compat: shopt is bash-only; use setopt localoptions for zsh
   # BACK-011: Save and restore nullglob state to avoid leaking into caller
   if [[ -n "${ZSH_VERSION:-}" ]]; then
@@ -324,7 +327,13 @@ rune_release_all_locks() {
     _rune_lock_safe "$lock_dir" || continue
     [[ -f "$lock_dir/meta.json" ]] || { rm -rf "$lock_dir" 2>/dev/null; continue; }
     stored_pid=$(jq -r '.pid // empty' "$lock_dir/meta.json" 2>/dev/null || true)
-    [[ "$stored_pid" == "$PPID" ]] && rm -rf "$lock_dir" 2>/dev/null
+    # FLAW-004: Require both PID and session_id match (when available), matching rune_release_lock()
+    if [[ "$stored_pid" == "$PPID" ]]; then
+      stored_sid=$(jq -r '.session_id // empty' "$lock_dir/meta.json" 2>/dev/null || true)
+      if [[ "$stored_sid" == "unknown" || "$_current_sid" == "unknown" || "$stored_sid" == "$_current_sid" ]]; then
+        rm -rf "$lock_dir" 2>/dev/null
+      fi
+    fi
   done
   # BACK-011: Restore nullglob state to avoid leaking into caller (bash only)
   if [[ -z "${ZSH_VERSION:-}" && "${_nullglob_was_set:-false}" == "false" ]]; then
