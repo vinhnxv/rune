@@ -25,6 +25,12 @@ if [[ -z "${_RUNE_PLATFORM:-}" ]]; then
   readonly _RUNE_PLATFORM
 fi
 
+# PERF-002 FIX: Cache UID once — avoids 30+ `$(id -u)` subprocess forks across hook scripts.
+# $UID is a bash built-in (zero forks). Fallback to `id -u` for non-bash shells.
+if [[ -z "${_RUNE_UID:-}" ]]; then
+  _RUNE_UID="${UID:-$(id -u 2>/dev/null || echo 0)}"
+fi
+
 # _stat_mtime <path>
 # Prints modification time as Unix epoch. Empty string on failure.
 _stat_mtime() {
@@ -129,8 +135,10 @@ _parse_iso_epoch_ms() {
 # _now_epoch_ms
 # Returns current epoch in milliseconds. Cross-platform.
 _now_epoch_ms() {
+  # BUG-009 FIX: Use _RUNE_PLATFORM instead of probing `date --version` (which
+  # forks a subprocess and writes stderr on BSD/macOS).
   command -v gdate &>/dev/null && gdate +%s%3N 2>/dev/null && return 0
-  if date --version &>/dev/null; then
+  if [[ "$_RUNE_PLATFORM" != "darwin" ]]; then
     date +%s%3N 2>/dev/null && return 0
   fi
   echo $(( $(date +%s) * 1000 ))

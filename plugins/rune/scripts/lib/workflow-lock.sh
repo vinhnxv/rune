@@ -379,10 +379,10 @@ rune_check_conflicts() {
     [[ -n "$stored_cfg" && "$stored_cfg" != "$_current_cfg" ]] && continue
     # Skip same session (re-entrant)
     [[ -n "$stored_pid" && "$stored_pid" == "$PPID" ]] && continue
-    # Skip dead PIDs (cleanup)
+    # Skip dead PIDs — cleanup deferred to rune_acquire_lock()
     if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
       if ! rune_pid_alive "$stored_pid"; then
-        rm -rf "$lock_dir" 2>/dev/null
+        # Dead PID detected — cleanup deferred to rune_acquire_lock()
         continue
       fi
     fi

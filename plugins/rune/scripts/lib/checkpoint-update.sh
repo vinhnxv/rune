@@ -75,6 +75,9 @@ fi
 # ── Backup before write ──
 cp -f "$CHECKPOINT_PATH" "${CHECKPOINT_PATH}.bak.$(date +%s)" 2>/dev/null || true
 
+# BUG-004 FIX: Prune old backups (keep 3 most recent)
+find "$(dirname "$CHECKPOINT_PATH")" -name "$(basename "$CHECKPOINT_PATH").bak.*" -type f 2>/dev/null | sort -t. -k$(( $(echo "$CHECKPOINT_PATH" | tr -cd '.' | wc -c) + 2 )) -rn | tail -n +4 | xargs rm -f 2>/dev/null || true
+
 # ── Read current checkpoint ──
 CURRENT=$(cat "$CHECKPOINT_PATH" 2>/dev/null)
 if [[ -z "$CURRENT" ]] || ! echo "$CURRENT" | jq empty 2>/dev/null; then

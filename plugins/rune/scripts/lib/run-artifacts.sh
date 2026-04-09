@@ -98,7 +98,8 @@ _rune_artifact_safe_path() {
   local dir="$target"
   while [[ "$dir" != "/" && "$dir" != "." ]]; do
     [[ ! -L "$dir" ]] || return 1
-    dir="$(dirname "$dir")"
+    dir="${dir%/*}"  # PERF-005 FIX: pure bash — no subprocess
+    [[ -z "$dir" ]] && dir="/"
   done
   return 0
 }
@@ -367,6 +368,7 @@ _rune_artifact_locked_append() {
         fi
         if [[ $lock_age -gt 5 ]]; then
           rmdir "$lock_dir" 2>/dev/null
+          attempts=0  # BUG-008 FIX: Reset counter after stale lock recovery
         else
           # Give up — append without lock as last resort
           printf '%s\n' "$row" >> "$index_file" 2>/dev/null

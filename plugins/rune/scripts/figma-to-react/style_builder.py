@@ -36,6 +36,8 @@ from figma_types import (
     PaintType,
 )
 
+logger = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -244,7 +246,7 @@ class StyleBuilder:
             self._props["background-image"] = f"conic-gradient(from {angle}, {stops})"
         elif paint.type == PaintType.GRADIENT_DIAMOND:
             # Diamond → radial-gradient approximation (no native CSS diamond gradient)
-            logging.getLogger(__name__).warning(
+            logger.warning(
                 "Diamond gradient approximated as radial-gradient"
             )
             self._props["background-image"] = f"radial-gradient(circle, {stops})"
@@ -401,8 +403,7 @@ class StyleBuilder:
         elif paint.type in (PaintType.GRADIENT_LINEAR, PaintType.GRADIENT_RADIAL):
             # BACK-002: Gradient stroke fallback — CSS border-image not widely supported,
             # so we approximate with the first gradient stop color and log a warning.
-            import logging as _logging
-            _logging.getLogger(__name__).warning(
+            logger.warning(
                 "Gradient stroke detected — CSS gradient borders not supported, "
                 "falling back to first gradient stop color"
             )

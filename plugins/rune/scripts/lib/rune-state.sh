@@ -96,19 +96,31 @@ _rune_migrate_legacy() {
     return 0
   }
 
-  # Arc checkpoints
+  # BUG-001 FIX: Track critical migration failures. If arc/echoes/talisman fail,
+  # skip remaining items to prevent partial state corruption.
+  local _critical_failed=0
+
+  # Arc checkpoints (CRITICAL)
   if [[ -d "${legacy}/arc" ]] && [[ ! -L "${legacy}/arc" ]] && [[ ! -d "${target}/arc" ]]; then
-    _migrate_item "${legacy}/arc" "${target}/arc" ".claude/arc"
+    _migrate_item "${legacy}/arc" "${target}/arc" ".claude/arc" || _critical_failed=1
   fi
 
-  # Echoes
-  if [[ -d "${legacy}/echoes" ]] && [[ ! -L "${legacy}/echoes" ]] && [[ ! -d "${target}/echoes" ]]; then
-    _migrate_item "${legacy}/echoes" "${target}/echoes" ".claude/echoes"
+  # Echoes (CRITICAL)
+  if [[ $_critical_failed -eq 0 ]] && [[ -d "${legacy}/echoes" ]] && [[ ! -L "${legacy}/echoes" ]] && [[ ! -d "${target}/echoes" ]]; then
+    _migrate_item "${legacy}/echoes" "${target}/echoes" ".claude/echoes" || _critical_failed=1
   fi
 
-  # Talisman
-  if [[ -f "${legacy}/talisman.yml" ]] && [[ ! -L "${legacy}/talisman.yml" ]] && [[ ! -f "${target}/talisman.yml" ]]; then
-    _migrate_item "${legacy}/talisman.yml" "${target}/talisman.yml" ".claude/talisman.yml"
+  # Talisman (CRITICAL)
+  if [[ $_critical_failed -eq 0 ]] && [[ -f "${legacy}/talisman.yml" ]] && [[ ! -L "${legacy}/talisman.yml" ]] && [[ ! -f "${target}/talisman.yml" ]]; then
+    _migrate_item "${legacy}/talisman.yml" "${target}/talisman.yml" ".claude/talisman.yml" || _critical_failed=1
+  fi
+
+  # If critical items failed, skip remaining non-critical items to avoid partial state
+  if [[ $_critical_failed -eq 1 ]]; then
+    echo >&2 "[rune] CRITICAL: Migration of core state items failed — skipping remaining items."
+    echo >&2 "[rune] CRITICAL: Manual migration may be needed: check both .claude/ and .rune/"
+    rmdir "${_lockdir}" 2>/dev/null || true
+    return 0
   fi
 
   # Audit state
