@@ -228,6 +228,24 @@ _validate_session_ownership_core() {
   # by walking the process tree: hook script → hook runner → Claude Code session PID.
   # If the hook's ancestor chain does NOT include stored_pid, this is a DIFFERENT session.
   if [[ -n "$hook_session_id" && ( -z "$stored_session_id" || "$stored_session_id" == "unknown" ) ]]; then
+    # STALENESS GUARD (v2.39.1): Reject claim if state file is too old.
+    # If a state file has been sitting with session_id: unknown for >2 minutes,
+    # the session that created it likely crashed. The process tree walk alone
+    # can't distinguish "slow session" from "different session with recycled PID".
+    local _MAX_CLAIM_AGE=120  # 2 minutes
+    local _state_mtime _now_epoch _state_age
+    _state_mtime=$(_stat_mtime "$state_file")
+    _now_epoch=$(date +%s 2>/dev/null || echo "0")
+    if [[ -n "$_state_mtime" && "$_state_mtime" =~ ^[0-9]+$ && "$_now_epoch" =~ ^[0-9]+$ && "$_now_epoch" != "0" ]]; then
+      _state_age=$(( _now_epoch - _state_mtime ))
+      if [[ $_state_age -gt $_MAX_CLAIM_AGE ]]; then
+        if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+          _trace "${_tp}: claim-on-first-touch REJECTED — state file too old (${_state_age}s > ${_MAX_CLAIM_AGE}s)"
+        fi
+        _ownership_reject; return $?
+      fi
+    fi
+
     # Process tree guard: verify hook is descendant of the owning session
     if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
       local _ancestor="$PPID" _is_descendant=false
@@ -301,6 +319,17 @@ _validate_session_ownership_core() {
     if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
       _trace "${_tp}: session_id comparison — match=${_session_match}"
     fi
+
+    # FORMAT CONSISTENCY ASSERTION (v2.39.1, AC-4): When CLAUDE_SESSION_ID env var is
+    # available, compare it against the hook's session_id to detect format divergence.
+    # This fires when the native env var ships — diagnostic only, does not affect flow.
+    if [[ -n "${CLAUDE_SESSION_ID:-}" && -n "$hook_session_id" ]]; then
+      if [[ "$CLAUDE_SESSION_ID" != "$hook_session_id" ]]; then
+        if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+          _trace "${_tp}: WARN: format mismatch — CLAUDE_SESSION_ID='${CLAUDE_SESSION_ID:0:16}...' vs hook_session_id='${hook_session_id:0:16}...'"
+        fi
+      fi
+    fi
   fi
 
   if [[ "$_session_match" == "yes" ]]; then
@@ -321,6 +350,10 @@ _validate_session_ownership_core() {
           _trace "${_tp}: session_id match — updated stale owner_pid ${stored_pid} → ${PPID}"
         fi
       fi
+    fi
+    # OBSERVABILITY (v2.39.1, AC-7): Log successful ownership confirmation
+    if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
+      _trace "${_tp}: OWNERSHIP: result=accept layer=2 stored_sid='${stored_session_id:0:16}...' hook_sid='${hook_session_id:0:16}...'"
     fi
     return 0
   elif [[ "$_session_match" == "no" ]]; then

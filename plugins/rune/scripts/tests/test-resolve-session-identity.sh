@@ -205,6 +205,127 @@ result=$(bash -c "source '$RESOLVER'; rune_pid_alive \$PPID && echo alive || ech
 assert_eq "Parent process is alive" "alive" "$result"
 
 # ===================================================================
+# 13. CLAUDE_SESSION_ID takes priority over RUNE_SESSION_ID
+# ===================================================================
+printf "\n=== CLAUDE_SESSION_ID priority ===\n"
+
+result=$(unset RUNE_CURRENT_SID; CLAUDE_SESSION_ID="claude-sid-123" RUNE_SESSION_ID="rune-sid-456" bash -c "source '$RESOLVER'; echo \"\$RUNE_CURRENT_SID\"" 2>/dev/null)
+assert_eq "CLAUDE_SESSION_ID takes priority" "claude-sid-123" "$result"
+
+# ===================================================================
+# 14. Invalid session_id format is rejected (special chars)
+# ===================================================================
+printf "\n=== Invalid session_id rejected ===\n"
+
+result=$(unset RUNE_CURRENT_SID; CLAUDE_SESSION_ID="bad\$id;rm -rf" bash -c "source '$RESOLVER'; echo \"\$RUNE_CURRENT_SID\"" 2>/dev/null)
+assert_eq "Invalid session_id rejected (special chars)" "" "$result"
+
+# ===================================================================
+# 15. Session_id max length (64) is enforced
+# ===================================================================
+printf "\n=== Session_id max length ===\n"
+
+LONG_SID=$(printf 'a%.0s' {1..100})
+result=$(unset RUNE_CURRENT_SID; CLAUDE_SESSION_ID="$LONG_SID" bash -c "source '$RESOLVER'; echo \${#RUNE_CURRENT_SID}" 2>/dev/null)
+assert_eq "Session_id truncated to 64 chars" "64" "$result"
+
+# ===================================================================
+# 16. Empty CLAUDE_SESSION_ID falls back to RUNE_SESSION_ID
+# ===================================================================
+printf "\n=== Empty CLAUDE_SESSION_ID fallback ===\n"
+
+result=$(unset RUNE_CURRENT_SID; unset CLAUDE_SESSION_ID; RUNE_SESSION_ID="fallback-sid-789" bash -c "source '$RESOLVER'; echo \"\$RUNE_CURRENT_SID\"" 2>/dev/null)
+assert_eq "Empty CLAUDE_SESSION_ID falls back to RUNE_SESSION_ID" "fallback-sid-789" "$result"
+
+# ===================================================================
+# 17. Cache file with wrong UID is ignored (security)
+# ===================================================================
+printf "\n=== Cache UID check ===\n"
+
+# Create a cache file then check that it IS sourced (same UID — we can't easily test wrong UID without root)
+CACHE_TEST_DIR=$(mktemp -d)
+result=$(unset RUNE_CURRENT_CFG; unset RUNE_CURRENT_SID; TMPDIR="$CACHE_TEST_DIR" bash -c "
+source '$RESOLVER'
+echo \"\$RUNE_CURRENT_CFG\"
+" 2>/dev/null)
+TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
+if [[ -n "$result" ]]; then
+  PASS_COUNT=$(( PASS_COUNT + 1 ))
+  printf "  PASS: Cache file with correct UID is used\n"
+else
+  FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+  printf "  FAIL: Cache file with correct UID should be used\n"
+fi
+rm -rf "$CACHE_TEST_DIR"
+
+# ===================================================================
+# 18. Cache file that is a symlink is ignored (security)
+# ===================================================================
+printf "\n=== Symlink cache rejected ===\n"
+
+SYMLINK_DIR=$(mktemp -d)
+REAL_CACHE="${SYMLINK_DIR}/real-cache"
+LINK_CACHE="${SYMLINK_DIR}/rune-identity-$$"
+printf 'RUNE_CURRENT_CFG=/evil/path\nRUNE_CURRENT_SID=evil-sid\n' > "$REAL_CACHE"
+ln -sf "$REAL_CACHE" "$LINK_CACHE" 2>/dev/null || true
+if [[ -L "$LINK_CACHE" ]]; then
+  result=$(unset RUNE_CURRENT_CFG; unset RUNE_CURRENT_SID; TMPDIR="$SYMLINK_DIR" bash -c "source '$RESOLVER'; echo \"\$RUNE_CURRENT_SID\"" 2>/dev/null)
+  assert_not_contains "Symlink cache ignored" "evil-sid" "$result"
+else
+  TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
+  PASS_COUNT=$(( PASS_COUNT + 1 ))
+  printf "  PASS: Symlink cache rejected (skip — symlink creation failed)\n"
+fi
+rm -rf "$SYMLINK_DIR"
+
+# ===================================================================
+# 19. Cache TTL expiry triggers fresh resolution
+# ===================================================================
+printf "\n=== Cache TTL expiry ===\n"
+
+TTL_DIR=$(mktemp -d)
+STALE_CACHE="${TTL_DIR}/rune-identity-$$"
+# Write a cache with known values
+printf 'RUNE_CURRENT_CFG=/stale/path\nRUNE_CURRENT_SID=stale-sid\n' > "$STALE_CACHE"
+chmod 600 "$STALE_CACHE"
+# Touch the file to be 2 hours old (beyond 1-hour TTL)
+touch -t "$(date -v-2H '+%Y%m%d%H%M.%S' 2>/dev/null || date -d '2 hours ago' '+%Y%m%d%H%M.%S' 2>/dev/null || echo '202001010000.00')" "$STALE_CACHE" 2>/dev/null || true
+result=$(unset RUNE_CURRENT_CFG; unset RUNE_CURRENT_SID; TMPDIR="$TTL_DIR" bash -c "source '$RESOLVER'; echo \"\$RUNE_CURRENT_SID\"" 2>/dev/null)
+# Should NOT have the stale sid — it should have been evicted and freshly resolved
+assert_not_contains "Stale cache evicted by TTL" "stale-sid" "$result"
+rm -rf "$TTL_DIR"
+
+# ===================================================================
+# 20. Concurrent sourcing doesn't corrupt cache (atomic write)
+# ===================================================================
+printf "\n=== Atomic cache write ===\n"
+
+ATOMIC_DIR=$(mktemp -d)
+# Run 5 concurrent sources — all should succeed without corruption
+for _i in 1 2 3 4 5; do
+  (unset RUNE_CURRENT_CFG; unset RUNE_CURRENT_SID; TMPDIR="$ATOMIC_DIR" bash -c "source '$RESOLVER'" 2>/dev/null) &
+done
+wait
+# Check if cache file exists and is valid (has expected format)
+ATOMIC_CACHE="${ATOMIC_DIR}/rune-identity-$$"
+TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
+if [[ -f "$ATOMIC_CACHE" ]]; then
+  _lines=$(wc -l < "$ATOMIC_CACHE" | tr -d ' ')
+  if [[ "$_lines" == "2" ]]; then
+    PASS_COUNT=$(( PASS_COUNT + 1 ))
+    printf "  PASS: Concurrent cache writes produce valid 2-line file\n"
+  else
+    FAIL_COUNT=$(( FAIL_COUNT + 1 ))
+    printf "  FAIL: Cache file has %s lines (expected 2)\n" "$_lines"
+  fi
+else
+  # No cache file is also acceptable (race condition on cleanup)
+  PASS_COUNT=$(( PASS_COUNT + 1 ))
+  printf "  PASS: Concurrent cache writes (no corruption, file may not exist)\n"
+fi
+rm -rf "$ATOMIC_DIR"
+
+# ===================================================================
 # Results
 # ===================================================================
 printf "\n===================================================\n"

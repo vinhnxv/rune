@@ -49,23 +49,41 @@ _RUNE_IDENTITY_CACHE="${TMPDIR:-/tmp}/rune-identity-${PPID}"
 # SEC: Never source cache files from shared /tmp — parse key=value safely instead.
 # XVER-SEC-001 FIX: Replaced `source` with read-based parsing + UID ownership check.
 if [[ -z "${RUNE_CURRENT_CFG:-}" && -f "$_RUNE_IDENTITY_CACHE" && ! -L "$_RUNE_IDENTITY_CACHE" ]]; then
-  # Verify file is owned by current user (prevents attacker-planted files)
-  _cache_uid=$(stat -c '%u' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || stat -f '%u' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || echo "")
-  if [[ -n "$_cache_uid" && "$_cache_uid" == "$(id -u)" ]]; then
-    # Parse key=value lines safely — only accept expected variable names
-    while IFS='=' read -r _key _val; do
-      _key="${_key## }"  # trim leading space
-      _val="${_val## }"  # trim leading space
-      # Remove printf %q quoting (leading/trailing $'...' or '...')
-      _val="${_val#\$\'}" ; _val="${_val%\'}"
-      _val="${_val#\'}"   ; _val="${_val%\'}"
-      case "$_key" in
-        RUNE_CURRENT_CFG) RUNE_CURRENT_CFG="$_val" ;;
-        RUNE_CURRENT_SID) RUNE_CURRENT_SID="$_val" ;;
-        *) ;; # ignore unexpected keys
-      esac
-    done < "$_RUNE_IDENTITY_CACHE"
+  # TTL GUARD (v2.39.1): Evict stale cache to prevent PID reuse reading wrong values.
+  # Cache is PID-scoped, but on long-running machines PIDs can wrap around. 1-hour TTL
+  # ensures stale cache files from dead sessions with recycled PIDs are discarded.
+  _RUNE_CACHE_TTL=3600  # 1 hour
+  _cache_mtime_raw=""
+  # Cross-platform stat: macOS uses -f, Linux uses -c (platform.sh may not be available here)
+  _cache_mtime_raw=$(stat -c '%Y' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || stat -f '%m' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || echo "")
+  _cache_now=$(date +%s 2>/dev/null || echo "0")
+  if [[ -n "$_cache_mtime_raw" && "$_cache_mtime_raw" =~ ^[0-9]+$ && "$_cache_now" =~ ^[0-9]+$ && "$_cache_now" != "0" ]]; then
+    if [[ $(( _cache_now - _cache_mtime_raw )) -gt $_RUNE_CACHE_TTL ]]; then
+      rm -f "$_RUNE_IDENTITY_CACHE" 2>/dev/null
+      # Fall through to fresh resolution below
+    fi
   fi
+
+  # Verify file is owned by current user (prevents attacker-planted files)
+  # Re-check -f after potential TTL eviction
+  if [[ -f "$_RUNE_IDENTITY_CACHE" && ! -L "$_RUNE_IDENTITY_CACHE" ]]; then
+    _cache_uid=$(stat -c '%u' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || stat -f '%u' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || echo "")
+    if [[ -n "$_cache_uid" && "$_cache_uid" == "$(id -u)" ]]; then
+      # Parse key=value lines safely — only accept expected variable names
+      while IFS='=' read -r _key _val; do
+        _key="${_key## }"  # trim leading space
+        _val="${_val## }"  # trim leading space
+        # Remove printf %q quoting (leading/trailing $'...' or '...')
+        _val="${_val#\$\'}" ; _val="${_val%\'}"
+        _val="${_val#\'}"   ; _val="${_val%\'}"
+        case "$_key" in
+          RUNE_CURRENT_CFG) RUNE_CURRENT_CFG="$_val" ;;
+          RUNE_CURRENT_SID) RUNE_CURRENT_SID="$_val" ;;
+          *) ;; # ignore unexpected keys
+        esac
+      done < "$_RUNE_IDENTITY_CACHE"
+    fi
+  fi  # end TTL re-check guard
 fi
 
 if [[ -z "${RUNE_CURRENT_CFG:-}" ]]; then
@@ -85,6 +103,34 @@ if [[ -z "${RUNE_CURRENT_SID:-}" ]]; then
     RUNE_CURRENT_SID=""  # Invalid or missing — fall back to PPID-based checks
   fi
   export RUNE_CURRENT_SID
+
+  # FORMAT CONSISTENCY ASSERTION (v2.39.1, AC-4): When native CLAUDE_SESSION_ID
+  # ships, it might differ from the hook-bridged RUNE_SESSION_ID. Log diagnostic
+  # when both sources are available and diverge — prefer CLAUDE_SESSION_ID (authoritative).
+  if [[ -n "${CLAUDE_SESSION_ID:-}" && -n "${RUNE_SESSION_ID:-}" ]]; then
+    if [[ "$CLAUDE_SESSION_ID" != "$RUNE_SESSION_ID" ]]; then
+      # Diagnostic trace — not an error, just a mismatch to investigate during migration
+      if [[ "${RUNE_TRACE:-}" == "1" ]]; then
+        _rune_trace_log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+        [[ ! -L "$_rune_trace_log" ]] && \
+          echo "[resolve-session-identity] WARN: session_id source mismatch — CLAUDE_SESSION_ID='${CLAUDE_SESSION_ID:0:16}...' vs RUNE_SESSION_ID='${RUNE_SESSION_ID:0:16}...'" \
+          >> "$_rune_trace_log" 2>/dev/null
+      fi
+    fi
+  fi
+fi
+
+# OBSERVABILITY (v2.39.1, AC-7): Log session identity resolution result
+if [[ "${RUNE_TRACE:-}" == "1" ]]; then
+  _rune_sid_source="unknown"
+  if [[ -n "${CLAUDE_SESSION_ID:-}" ]]; then _rune_sid_source="CLAUDE_SESSION_ID"
+  elif [[ -n "${RUNE_SESSION_ID:-}" ]]; then _rune_sid_source="RUNE_SESSION_ID"
+  elif [[ -n "${RUNE_CURRENT_SID:-}" ]]; then _rune_sid_source="cache"
+  fi
+  _rune_trace_log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+  [[ ! -L "$_rune_trace_log" ]] && \
+    echo "[resolve-session-identity] SESSION-ID: source=${_rune_sid_source} value=${RUNE_CURRENT_SID:0:16}... cache=${_RUNE_IDENTITY_CACHE}" \
+    >> "$_rune_trace_log" 2>/dev/null
 fi
 
 # ── Write cache atomically (if not already cached) ──
