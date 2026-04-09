@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.38.0] - 2026-04-09
+
+### Added
+- **react-performance-rules**: New knowledge skill — 69 React/Next.js performance rules across 8 categories (waterfalls, bundle, server, client, re-render, rendering, JS, advanced). Non-invocable, auto-loaded by Stacks
+- **web-interface-rules**: New knowledge skill — 100+ code-level web interface rules across 15 categories (accessibility, forms, animation, typography, performance, dark mode, i18n, anti-patterns). Non-invocable, auto-loaded for frontend files
+- **react-composition-patterns**: New knowledge skill — 8 React composition patterns (compound components, state lifting, explicit variants, React 19 APIs). Non-invocable, auto-loaded for React 19+
+- **react-view-transitions**: New knowledge skill — React View Transition API guide with CSS recipes and Next.js integration. Non-invocable, auto-loaded when ViewTransition detected
+- **react-native-patterns**: New knowledge skill — 16+ React Native/Expo best practices across 8 categories (FlashList, Reanimated, native navigation, expo-image, safe areas, monorepo). Non-invocable, auto-loaded for RN/Expo projects
+
 ## [2.37.0] - 2026-04-09
 
 ### Added
