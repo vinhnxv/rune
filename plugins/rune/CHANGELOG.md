@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.43.0] - 2026-04-09
+
+### Added
+- **Anti-rationalization framework**: Shared reference file with per-category rationalization rejection tables (Security, Logic & Correctness, Performance, Architecture & Patterns, Documentation)
+- **buildAshPrompt() injection**: Auto-injects matching anti-rationalization table based on agent category tags during review (~300 tokens per agent)
+- **AGT-016 lint rule**: New prompt-linter rule validates review agents have anti-rationalization category coverage (Warning severity)
+- **Pressure test scenarios**: Skill-testing scenarios for rationalization resistance verification
+
 ## [2.42.0] - 2026-04-09
 
 ### Added
