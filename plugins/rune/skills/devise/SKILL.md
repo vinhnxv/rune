@@ -436,7 +436,7 @@ Read and execute when user selects "Create issue".
 | Predictive Goldmask agent failure | Non-blocking — proceed with partial data or skip injection |
 | Predictive Goldmask: enhanced budget exceeded | Fallback to basic mode (2 agents) |
 | TeamCreate failure ("Already leading") | Catch-and-recover via teamTransition protocol |
-| TeamDelete failure (cleanup) | Retry-with-backoff (3 attempts), filesystem fallback |
+| TeamDelete failure (cleanup) | Retry-with-backoff (4 attempts), filesystem fallback |
 | Scroll review finds critical gaps | Address before presenting |
 | Plan review BLOCK verdict | Address blocking issues before presenting plan |
 | Grounding Gate: evidence score < 0.80 | BLOCK — auto-fix false claims, retry once |

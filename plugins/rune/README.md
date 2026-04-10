@@ -2,8 +2,6 @@
 
 Multi-agent engineering orchestration for [Claude Code](https://claude.ai/claude-code). Plan features, implement with swarm workers, review code, and ship — all with parallel AI agents that each get their own dedicated context window.
 
-<!-- DEMO_PLACEHOLDER — GIF/asciicast will be added in Phase 2 -->
-
 ## What Is This?
 
 This is the **Rune plugin** — the detailed component reference for the Rune multi-agent orchestration system. It documents all 152 agents, 69 skills, 16 commands, 5 MCP servers, and the hook infrastructure that powers Rune's workflows.

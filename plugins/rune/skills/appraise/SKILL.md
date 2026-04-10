@@ -165,6 +165,89 @@ Runs BEFORE team creation. Summons `lore-analyst` as a bare Agent (no team yet �
 
 **Skip conditions**: non-git repo, `--no-lore`, `talisman.goldmask.layers.lore.enabled === false`, fewer than 5 commits in lookback window (G5 guard).
 
+## Phase 0.6: Context Building (Conditional)
+
+Runs BEFORE team creation. Spawns `context-builder` as a bare Agent (no TaskCreate, no team_name — same pattern as Phase 0.5 Lore Layer). Produces `context-map.md` for injection into Ash prompts.
+
+**Gate logic** (talisman `review.context_building`):
+```
+const reviewConfig = readTalismanSection("review")
+const contextBuilding = reviewConfig?.context_building ?? "auto"
+const threshold = reviewConfig?.context_building_threshold ?? { lines: 500, files: 5 }
+const timeoutMs = reviewConfig?.context_building_timeout ?? 60000
+
+if (contextBuilding === "never") → skip
+if (flags['--dry-run']) → skip
+if (contextBuilding === "always") → run
+if (contextBuilding === "auto" && (diffLineCount > threshold.lines || fileCount >= threshold.files)) → run
+else → skip("[Context] Skipped — diff below threshold ({diffLineCount} lines, {fileCount} files)")
+```
+
+**Execution** (blocking bare Agent with elapsed-time timeout check; note the timeout is a post-hoc elapsed-time warning, not a hard preemptive kill — the Agent tool does not support explicit timeouts):
+```
+const contextOutputPath = `${outputDir}context-map.md`
+
+// Sanitize file paths before injecting into prompt (SEC-002)
+// Strip newlines/carriage returns that could inject instructions, truncate long paths
+const sanitizedFiles = changedFiles.map(f =>
+  f.replace(/[\n\r]/g, '').slice(0, 256)
+)
+
+// Use blocking Agent call; elapsed-time check below is advisory only (not a hard timeout)
+const contextStartTime = Date.now()
+Agent({
+  subagent_type: "rune:research:context-builder",
+  prompt: `Build a LIGHTWEIGHT context map for code review (not full audit).
+
+SCOPE: Only analyze these changed files and their direct imports:
+${sanitizedFiles.map(f => '- ' + f).join('\n')}
+
+OUTPUT: Write to ${contextOutputPath}. Format:
+## Trust Boundaries (max 5 entries)
+- [BOUNDARY-N] {description} at {file:line} via {mechanism}
+## Data Flow Paths (max 5 entries)
+- [FLOW-N] {source} → {transform} → {sink} (files: {list})
+## State Invariants (max 5 entries)
+- [INV-N] {description} — ENFORCED|ASSUMED at {file:line}
+## Entry Points (max 5 entries)
+- [ENTRY-N] {route/handler} at {file:line} — reaches changed code via {path}
+## Key Dependencies (max 5 entries)
+- [DEP-N] {module} — guarantees: {what it provides}
+
+CONSTRAINTS:
+- Total output MUST be under 80 lines (2000 token budget)
+- ONLY map architecture relevant to the changed files
+- Cite file:line for every claim
+- COMPREHENSION ONLY — do NOT report vulnerabilities
+- Time budget: 45 seconds (leave 15s buffer for I/O)`,
+  model: "sonnet"
+})
+
+// Check timeout after blocking call returns (timeoutMs from talisman, default 60000)
+// Known limitation: context_building_timeout is a soft budget advisory via prompt instruction,
+// not a hard platform-level timeout. The Agent tool does not support explicit timeouts.
+const contextElapsed = Date.now() - contextStartTime
+if (contextElapsed > timeoutMs) {
+  warn(`[Context] Context building exceeded ${timeoutMs}ms (took ${contextElapsed}ms)`)
+}
+
+// Read output with existence check
+contextMap = null
+try {
+  const content = Read(contextOutputPath)
+  if (content && content.trim().length >= 100) {
+    contextMap = content
+    log(`[Context] Built context map — ${countEntries(content)} entries (${contextElapsed}ms)`)
+  } else {
+    log("[Context] Context map too small or empty — proceeding without context")
+  }
+} catch {
+  log("[Context] Context builder timed out or failed — proceeding without context")
+}
+```
+
+**Skip conditions**: `--dry-run`, `review.context_building === "never"`, diff below auto thresholds.
+
 ## Phase 1: Rune Gaze (Scope Selection)
 
 Classifies changed files by extension → selects Ashes. Custom Ash discovery (agent-backed + CLI-backed) happens here. Phase 1.5 adds UX reviewers when `talisman.ux.enabled` + frontend files detected. Phase 1.6 adds design fidelity reviewer (`DES`-prefixed findings) when `talisman.design_review.enabled` + frontend files detected. `--dry-run` exits after this phase.

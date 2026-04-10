@@ -520,7 +520,22 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
 if (!cleanupTeamDeleteSucceeded) {
   const processListOutput = Bash(`ps -o pid,ppid,comm,args -p $(pgrep -P $PPID 2>/dev/null | head -30 | tr '\n' ',') 2>/dev/null || echo "NO_CHILDREN"`)
   // Classify: TEAMMATE (kill) vs MCP_SERVER/CONNECTOR/OTHER (protect)
+  // TEAMMATE: comm is node|claude|claude-* AND args has NO --stdio/--lsp/mcp-server/connector
+  // MCP_SERVER/CONNECTOR/OTHER: everything else (protect)
   // Only kill PIDs classified as TEAMMATE
+  // Build kill list from classification (only TEAMMATE PIDs)
+  // Example: Bash(`kill -TERM ${teammatePids.join(' ')} 2>/dev/null || true`)
+  // Bash(`sleep 5`)
+  // Bash(`kill -KILL ${teammatePids.join(' ')} 2>/dev/null || true`)
+  // Alternative (preferred): use process-tree.sh helper
+  // Pattern choice: process-tree.sh provides MCP-PROTECT-003 positive whitelist + 2-stage kill with grace period
+  const ownerPid = Bash("echo $PPID").trim()
+  if (!Bash(`test -n "${RUNE_PLUGIN_ROOT}" && test -f "${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && echo OK`).includes("OK")) {
+    warn("[Cleanup] process-tree.sh not found — falling back to manual kill list above")
+  } else {
+    Bash(`source "\${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "\${ownerPid}" "2stage" "5" "teammates" "\${teamName}"`)
+  }
+
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort */ }
 }

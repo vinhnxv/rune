@@ -1,10 +1,11 @@
 ---
 name: context-builder
 description: |
-  Deep architectural context building for security audits. Performs block-by-block
-  analysis of security-critical code paths, identifies trust boundaries, state flows,
+  Deep architectural context building for security audits and code reviews. Performs
+  block-by-block analysis of code paths, identifies trust boundaries, state flows,
   invariants, and assumptions. Pure comprehension — does NOT identify vulnerabilities.
-  Use when: audit needs architectural understanding before vulnerability hunting.
+  Use when: audit needs architectural understanding before vulnerability hunting,
+  or review needs context map for changed files before Ash review begins.
 tools:
   - Read
   - Glob
@@ -15,10 +16,11 @@ mcpServers:
   - echo-search
 source: builtin
 priority: 100
-primary_phase: audit
+primary_phase: review
 compatible_phases:
   - audit
   - inspect
+  - review
 categories:
   - research
   - security

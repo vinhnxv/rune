@@ -123,9 +123,67 @@ for (let i = 0; i < maxHunters; i++) {
   }
 }
 
-// Step 6: Cleanup
-// Standard shutdown + TeamDelete pattern (see CLAUDE.md Agent Team Cleanup)
-// Fallback array (CLEAN-002): ["variant-hunter-1", "variant-hunter-2", "variant-hunter-3"]
+// Step 6: Cleanup — 5-component standard pattern (CLAUDE.md Agent Team Cleanup)
+const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+
+// 1. Dynamic member discovery
+let allMembers = []
+try {
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
+  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
+  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+} catch (e) {
+  // Fallback: hardcoded list of all possible variant hunters
+  allMembers = ["variant-hunter-1", "variant-hunter-2", "variant-hunter-3"]
+}
+
+// 2. shutdown_request to all members — track delivery failures for adaptive grace
+let confirmedAlive = 0
+let confirmedDead = 0
+const aliveMembers = []
+
+// Step 2a: Force-reply — put all teammates in message-processing state
+for (const member of allMembers) {
+  try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { confirmedDead++ }
+}
+
+// Step 2b: Single shared pause
+if (aliveMembers.length > 0) { Bash("sleep 2") }
+
+// Step 2c: Send shutdown_request to alive members
+for (const member of aliveMembers) {
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Variant hunt complete" }); confirmedAlive++ } catch (e) { confirmedDead++ }
+}
+
+// 3. Adaptive grace period — scale based on confirmed-alive members
+if (confirmedAlive > 0) {
+  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`)
+} else {
+  Bash("sleep 2")
+}
+
+// 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s = 19s total)
+let cleanupTeamDeleteSucceeded = false
+const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
+for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
+  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
+  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
+    if (attempt === CLEANUP_DELAYS.length - 1) log(`cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
+  }
+}
+
+// 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+if (!cleanupTeamDeleteSucceeded) {
+  // Process-level kill — READ-FIRST, KILL-SECOND (MCP-PROTECT-003)
+  const processListOutput = Bash(`ps -o pid,ppid,comm,args -p $(pgrep -P $PPID 2>/dev/null | head -30 | tr '\n' ',') 2>/dev/null || echo "NO_CHILDREN"`)
+  // Classify each process: TEAMMATE (kill) vs MCP_SERVER/CONNECTOR/OTHER (protect)
+  // TEAMMATE = comm is node|claude|claude-* AND args has NO --stdio/--lsp/mcp-server/connector
+  // Only kill PIDs classified as TEAMMATE — NEVER blind for-loop over pgrep output
+  // Bash("sleep 5")  // Commented: no kill calls surround this sleep
+  // Filesystem cleanup
+  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
+  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
+}
 
 // Step 7: Present summary
 log(`Variant hunt complete: ${totalVariants} variant(s) found across ${maxHunters} finding(s).`)

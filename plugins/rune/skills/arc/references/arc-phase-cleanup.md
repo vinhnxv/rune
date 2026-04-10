@@ -138,10 +138,20 @@ function postPhaseCleanup(checkpoint, phaseName) {
       }
       // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
       if (!phaseCleanupSucceeded) {
-        // Process-level kill before filesystem cleanup to prevent zombie processes
-        Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-        Bash(`sleep 5`)
-        Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+        // Process-level kill — READ-FIRST, KILL-SECOND (MCP-PROTECT-003)
+        // Step 1: READ — list all child processes with full details
+        const processListOutput = Bash(`ps -o pid,ppid,comm,args -p $(pgrep -P $PPID 2>/dev/null | head -30 | tr '\\n' ',') 2>/dev/null || echo "NO_CHILDREN"`)
+        // Step 2: UNDERSTAND — Claude Code classifies each process:
+        //   TEAMMATE (kill):   comm=node|claude|claude-*, args has NO --stdio/--lsp/mcp-server/connector
+        //   MCP_SERVER (keep): args contains --stdio, --lsp, mcp-server, mcp*server, figma-developer-mcp, context7-mcp
+        //   CONNECTOR (keep):  args contains @anthropic*connector or claude-connector
+        //   OTHER (keep):      comm is NOT node|claude|claude-*
+        // Step 3: KILL — only PIDs classified as TEAMMATE from Step 2
+        // Build kill list from classification (only TEAMMATE PIDs)
+        // Bash(`kill -TERM <teammate_pids> 2>/dev/null || true`)
+        // Bash(`sleep 5`)
+        // Bash(`kill -KILL <teammate_pids> 2>/dev/null || true`)  // survivors only
+        Bash(`source "${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "$PPID" "2stage" "5" "teammates" "${teamName}"`)
         // SEC: teamName validated above with /^[a-zA-Z0-9_-]+$/ — shell injection not possible
         Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
         try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
