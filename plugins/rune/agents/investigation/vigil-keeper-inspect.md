@@ -4,6 +4,7 @@ description: |
   Observability, testing, maintainability, and documentation inspector for /rune:inspect mode.
   Evaluates test coverage gaps, logging/metrics presence, code quality, and documentation
   completeness against plan requirements in the codebase.
+model: sonnet
 tools:
   - Read
   - Glob

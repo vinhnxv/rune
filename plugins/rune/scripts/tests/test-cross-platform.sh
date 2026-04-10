@@ -82,11 +82,9 @@ assert_true() {
 printf "\n=== Static Analysis: Forbidden Patterns ===\n"
 
 # Collect all .sh files (excluding tests/ and node_modules)
-mapfile -t SH_FILES < <(find "$SCRIPTS_DIR" -name '*.sh' -not -path '*/tests/*' -not -path '*/node_modules/*' -type f 2>/dev/null) || {
-  # Bash 3.2 fallback
-  SH_FILES=()
-  while IFS= read -r f; do SH_FILES+=("$f"); done < <(find "$SCRIPTS_DIR" -name '*.sh' -not -path '*/tests/*' -not -path '*/node_modules/*' -type f 2>/dev/null)
-}
+# Bash 3.2 compatible (no mapfile/readarray)
+SH_FILES=()
+while IFS= read -r f; do SH_FILES+=("$f"); done < <(find "$SCRIPTS_DIR" -name '*.sh' -not -path '*/tests/*' -not -path '*/node_modules/*' -type f 2>/dev/null)
 
 # 1a. No readarray/mapfile (Bash 4+ only)
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))

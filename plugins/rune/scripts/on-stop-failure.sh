@@ -8,6 +8,7 @@
 # OPERATIONAL: Fail-forward (crash -> exit 0, allow failure, don't make worse)
 
 set -euo pipefail
+umask 077  # PAT-003 FIX
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Source ordering (verified from arc-phase-stop-hook.sh) ──
@@ -118,8 +119,9 @@ next_phase=""
 if [[ -n "$checkpoint_path" ]] && [[ -f "${CWD}/${checkpoint_path}" ]] && [[ ! -L "${CWD}/${checkpoint_path}" ]]; then
   current_phase=$(jq -r '.current_phase // empty' "${CWD}/${checkpoint_path}" 2>/dev/null || true)
   # Find next pending phase
+  # FLAW-011 FIX: checkpoint .phases is an object (keys=phase names), not an array
   next_phase=$(jq -r '
-    .phases // [] | map(select(.status == "pending")) | .[0].name // empty
+    .phases // {} | to_entries | map(select(.value.status == "pending")) | .[0].key // empty
   ' "${CWD}/${checkpoint_path}" 2>/dev/null || true)
 fi
 

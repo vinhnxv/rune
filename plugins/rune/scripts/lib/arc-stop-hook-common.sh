@@ -346,7 +346,8 @@ arc_compact_interlude_phase_b() {
 # Sets:     HOOK_SESSION_ID (global)
 arc_get_hook_session_id() {
   HOOK_SESSION_ID=$(printf '%s\n' "${INPUT:-}" | jq -r '.session_id // empty' 2>/dev/null || true)
-  if [[ -n "$HOOK_SESSION_ID" ]] && [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+  # NOTE: {1,128} quantifier not supported in Bash 3.2 (macOS) — use + and length check
+  if [[ -n "$HOOK_SESSION_ID" ]] && { [[ ${#HOOK_SESSION_ID} -gt 128 ]] || [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; }; then
     if declare -f _trace &>/dev/null; then
       _trace "Invalid session_id format — sanitizing to empty"
     fi

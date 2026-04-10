@@ -4,6 +4,7 @@ description: |
   Design, architecture, and performance inspector for /rune:inspect mode.
   Evaluates architectural alignment with plan, coupling analysis, and
   performance profile against codebase implementation.
+model: sonnet
 tools:
   - Read
   - Glob

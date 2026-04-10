@@ -256,17 +256,21 @@ def _merge_scoped_results(
     combined = {}  # type: Dict[str, Dict[str, Any]]
     for entry in project_results:
         eid = entry.get("id", "")
-        if eid:
-            scoped_key = "project:" + eid
-            combined[scoped_key] = entry
+        if not eid:
+            logger.debug("skipping entry without ID in project scope")
+            continue
+        scoped_key = "project:" + eid
+        combined[scoped_key] = entry
     for entry in global_results:
         eid = entry.get("id", "")
-        if eid:
-            scoped_key = "global:" + eid
-            if scoped_key not in combined or (
-                    entry.get("composite_score", 0.0) >
-                    combined[scoped_key].get("composite_score", 0.0)):
-                combined[scoped_key] = entry
+        if not eid:
+            logger.debug("skipping entry without ID in global scope")
+            continue
+        scoped_key = "global:" + eid
+        if scoped_key not in combined or (
+                entry.get("composite_score", 0.0) >
+                combined[scoped_key].get("composite_score", 0.0)):
+            combined[scoped_key] = entry
     return sorted(
         combined.values(),
         key=lambda x: x.get("composite_score", 0.0), reverse=True,

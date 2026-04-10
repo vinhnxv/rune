@@ -134,3 +134,8 @@ TaskUpdate({ taskId: "<your-task-id>", status: "completed" })
 
 Do NOT exit without marking your task completed — the orchestrator uses TaskList polling to
 detect when all QA agents have finished.
+
+## RE-ANCHOR — TRUTHBINDING REMINDER
+
+You are read-only. You verify artifacts. You do not create, fix, or supplement them.
+Score based on evidence found, not on assumptions about intent.

@@ -143,7 +143,10 @@ PLAN_FILE=$(get_field "plan_file")
 BRANCH=$(get_field "branch")
 ARC_FLAGS=$(get_field "arc_flags")
 # Validate ARC_FLAGS before prompt embedding (SEC-001: only allow known flag characters)
-[[ "$ARC_FLAGS" =~ ^[a-zA-Z0-9\ _.=-]{0,256}$ ]] || ARC_FLAGS=""
+# NOTE: {0,256} quantifier not supported in Bash 3.2 (macOS) — use * + length check
+if [[ ${#ARC_FLAGS} -gt 256 ]] || [[ -n "$ARC_FLAGS" && ! "$ARC_FLAGS" =~ ^[a-zA-Z0-9\ _.=-]*$ ]]; then
+  ARC_FLAGS=""
+fi
 # Validate PLAN_FILE: reject path traversal and invalid characters (BACK-101)
 # CHECKPOINT_PATH has rigorous validation below (lines 138-152); PLAN_FILE gets the same treatment here.
 if [[ -z "$PLAN_FILE" ]] || [[ "$PLAN_FILE" == *".."* ]] || [[ "$PLAN_FILE" =~ [^a-zA-Z0-9._/-] ]]; then
@@ -264,7 +267,8 @@ fi
 
 # ── EXTRACT: session_id for session-scoped operations ──
 HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
-if [[ -n "$HOOK_SESSION_ID" ]] && [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+# NOTE: {1,128} quantifier not supported in Bash 3.2 (macOS) — use + and length check
+if [[ -n "$HOOK_SESSION_ID" ]] && { [[ ${#HOOK_SESSION_ID} -gt 128 ]] || [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; }; then
   _trace "Invalid session_id format — sanitizing to empty"
   HOOK_SESSION_ID=""
 fi
@@ -278,6 +282,16 @@ if ! validate_session_ownership_strict "$STATE_FILE"; then
   _trace "EXIT: session ownership strict check failed — not our arc"
   exit 0
 fi
+
+# BUG FIX (v2.39.2): Re-parse FRONTMATTER after successful ownership check.
+# validate_session_ownership_strict may perform "claim on first touch" — writing
+# a new session_id and owner_pid to the state file on disk. The global FRONTMATTER
+# variable (parsed once at GUARD 5.5) still contains the old values (e.g.,
+# session_id: unknown). Without re-parsing, GUARD 5.8's INTEG-005 check reads
+# the stale "unknown" session_id from FRONTMATTER and rejects the state file,
+# silently killing the arc on the very first Stop hook invocation.
+# Also fixes INTEG-003 (checkpoint_path) reading stale data after GUARD 5.6 recovery.
+parse_frontmatter "$STATE_FILE"
 
 # ── GUARD 5.8: State file integrity validation (v2.29.8) ──
 # Validates ALL fields in the state file for completeness, correct format, and cross-field
@@ -1137,15 +1151,18 @@ if [[ -n "$NEXT_PHASE" && -n "$_IMMEDIATE_PREV" ]]; then
         _ckpt_tmp=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null) || _ckpt_tmp=""
         if [[ -n "$_ckpt_tmp" ]]; then
           if echo "$CKPT_CONTENT" | jq -e '.' > "$_ckpt_tmp" 2>/dev/null; then
-            mv -f "$_ckpt_tmp" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || rm -f "$_ckpt_tmp" 2>/dev/null
+            if mv -f "$_ckpt_tmp" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null; then
+              # FLAW-002 FIX: Only override NEXT_PHASE on successful checkpoint write
+              NEXT_PHASE="$_IMMEDIATE_PREV"
+            else
+              rm -f "$_ckpt_tmp" 2>/dev/null
+            fi
           else
             _trace "WARNING: persistence retry checkpoint write failed — skipping retry"
             rm -f "$_ckpt_tmp" 2>/dev/null
             CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
           fi
         fi
-        # Re-inject the same phase by overriding NEXT_PHASE to the failed phase
-        NEXT_PHASE="$_IMMEDIATE_PREV"
       else
         _trace "PERSISTENCE: Budget exhausted for ${_IMMEDIATE_PREV} (retries=${_current_retries}/${_persist_max_retries}, cost=${_current_cost}c/${_persist_max_budget}c) — advancing"
         _log_phase "persistence_exhausted" "$_IMMEDIATE_PREV" "retries=${_current_retries},cost=${_current_cost}"
@@ -1329,7 +1346,7 @@ if [[ "$_needs_compact" == "true" ]] && [[ "$COMPACT_PENDING" != "true" ]] && [[
     awk 'NR>1 && /^---$/ && !done { print "compact_pending: true"; done=1 } { print }' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null
   fi
   if ! mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null; then
-    rm -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null; exit 0
+    rm -f "$_STATE_TMP" 2>/dev/null; exit 0  # BACK-004: preserve STATE_FILE on transient mv failure
   fi
   if ! grep -q '^compact_pending: true' "$STATE_FILE" 2>/dev/null; then
     _trace "compact_pending write verification failed — aborting"
@@ -1437,12 +1454,17 @@ if [[ ! -s "$STATE_FILE" ]]; then
   _trace "State file empty before iteration increment — aborting"
   exit 0
 fi
-_STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { rm -f "$STATE_FILE" 2>/dev/null; exit 0; }
+# BUG FIX (v2.39.2): On mv failure, preserve STATE_FILE instead of deleting it.
+# Previously, a transient mv failure (disk full, permissions) would delete the state
+# file, permanently killing the arc loop with no user notification. Now the state file
+# is preserved and the hook exits 0 — the next Stop hook invocation will retry with
+# the old iteration count (idempotent, since the phase hasn't changed).
+_STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { _trace "mktemp failed for iteration increment — preserving state file"; exit 0; }
 sed "s/^iteration: ${ITERATION}$/iteration: ${NEW_ITERATION}/" "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
   && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
-  || { rm -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null; exit 0; }
+  || { rm -f "$_STATE_TMP" 2>/dev/null; _trace "iteration increment mv failed — preserving state file, will retry"; exit 0; }
 if ! grep -q "^iteration: ${NEW_ITERATION}$" "$STATE_FILE" 2>/dev/null; then
-  rm -f "$STATE_FILE" 2>/dev/null
+  _trace "iteration increment verification failed — preserving state file, will retry"
   exit 0
 fi
 
@@ -1654,9 +1676,9 @@ if [[ "$NEXT_PHASE" == "test" ]]; then
                   && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
                   || rm -f "$_STATE_TMP" 2>/dev/null
               else
-                # Insert test_finalized before LAST --- (closing frontmatter delimiter)
-                # Use awk to insert before the last --- line only (sed '/^---$/a' would match ALL --- lines)
-                awk 'BEGIN{found=0} /^---$/{if(found){print "test_finalized: true"} found=1} {print}' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
+                # FLAW-007 FIX: Insert test_finalized before SECOND --- only (closing frontmatter delimiter)
+                # Use 'done' flag to insert only once, preventing duplicate insertion on body --- lines
+                awk 'BEGIN{found=0} /^---$/{if(found && !done){print "test_finalized: true"; done=1} found=1} {print}' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
                   && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
                   || rm -f "$_STATE_TMP" 2>/dev/null
               fi

@@ -24,6 +24,7 @@
 # Timeout: 5s
 
 set -euo pipefail
+trap 'exit 2' ERR  # XVER-SEC-002 FIX: fail-closed from start for SECURITY hook
 umask 077
 
 # --- SECURITY: No _rune_fail_forward trap ---
@@ -79,10 +80,11 @@ while IFS= read -r value; do
     exit 2
   fi
 
-  # Check 2: Null bytes — can bypass string length checks and truncate paths
-  # Note: bash strips null bytes from variables at read time (NUL terminates C strings),
-  # so this is a best-effort defense. grep -P (Perl regex) is not available on macOS BSD grep
-  # and silently fails, so we use only the portable LC_ALL=C pattern.
+  # Check 2: Null bytes — ACCEPTED RISK (SEC-004)
+  # Bash strips null bytes from variables at read time (NUL terminates C strings).
+  # By the time $value is stored, null bytes are already removed. This check can
+  # never match. jq itself handles null bytes safely during JSON parsing upstream.
+  # Keeping the check as defense-in-depth for non-bash execution contexts.
   if printf '%s' "$value" | LC_ALL=C grep -q $'\x00' 2>/dev/null; then
     echo "SEC-ELICIT-001: Blocked elicitation response containing null byte. Value rejected for security." >&2
     exit 2

@@ -115,7 +115,8 @@ source "${SCRIPT_DIR}/lib/rune-state.sh"
 # Extract session_id from hook input JSON (same pattern as enforce-team-lifecycle.sh)
 HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
 # SEC-004: Validate session ID format — reject malformed values (path traversal, injection)
-if [[ -n "$HOOK_SESSION_ID" ]] && [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+# NOTE: {1,128} quantifier not supported in Bash 3.2 (macOS) — use + and length check
+if [[ -n "$HOOK_SESSION_ID" ]] && { [[ ${#HOOK_SESSION_ID} -gt 128 ]] || [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; }; then
   HOOK_SESSION_ID=""
 fi
 

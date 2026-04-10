@@ -180,9 +180,10 @@ rune_verify_session_ownership() {
         exit 0
       fi
     else
-      # PID is dead — orphan state, clean up stale file and skip
-      rm -f "$state_file" 2>/dev/null || true
-      echo "TRACE: rune_verify_session_ownership: cleaned up stale state file (dead PID $state_owner_pid): $state_file" >&2
+      # SEC-008 FIX: PID is dead — mark stale instead of deleting inline.
+      # Deletion by guard functions is a privilege escalation risk (kill PID → disable guards).
+      # session-team-hygiene.sh handles actual cleanup.
+      echo "TRACE: rune_verify_session_ownership: stale state file detected (dead PID $state_owner_pid): $state_file — skipping (cleanup deferred)" >&2
       exit 0
     fi
   fi

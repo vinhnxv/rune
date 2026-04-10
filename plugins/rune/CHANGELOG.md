@@ -9,6 +9,48 @@
 - **Talisman `review.context_building`**: New config gate (`auto`/`always`/`never`) with configurable thresholds (`context_building_threshold.lines`, `context_building_threshold.files`) and timeout (`context_building_timeout`)
 - Auto mode triggers when diff exceeds 500 lines or touches 5+ files; skipped for `--dry-run`
 
+## [2.43.4] - 2026-04-10
+
+### Fixed
+- **elicitation-result-validator.sh**: Add missing `trap 'exit 2' ERR` to SECURITY hook — crash previously exited with code 1 (non-blocking) instead of 2 (deny), allowing malicious elicitation responses through (PAT-001)
+- **arc-phase-stop-hook.sh**: Remove `$STATE_FILE` from `rm -f` on compact Phase A `mv` failure — previously deleted both temp and state files, permanently killing the arc phase loop with no recovery (FLAW-003, BACK-004 alignment)
+- **arc-phase-stop-hook.sh**: Gate `NEXT_PHASE` override on successful checkpoint write — previously set unconditionally, causing phase regression on transient filesystem errors (FLAW-002)
+- **arc-phase-stop-hook.sh**: Add `done` flag to test_finalized awk insertion — prevents duplicate field insertion when state file body contains `---` lines (FLAW-007)
+- **on-stop-failure.sh**: Fix `.phases` jq query from array to object schema — `next_phase` was always empty due to schema mismatch with arc checkpoint format (FLAW-011)
+- **enforce-readonly.sh**: Remove dead `_rune_fail_forward()` function from SECURITY hook — maintenance hazard that could accidentally convert fail-closed to fail-open (SEC-001)
+- **validate-strive-worker-paths.sh**: Resolve fail-forward/fail-closed classification contradiction — ERR trap was `exit 0` but jq guard was `exit 2`. Now consistently OPERATIONAL with proper `_rune_fail_forward` trap (SEC-003)
+- **validate-gap-fixer-paths.sh**: Same fail-forward classification fix as validate-strive-worker-paths.sh (SEC-003)
+- **sensitive-patterns.sh**: Replace `$(())` arithmetic validation with regex — prevents potential arithmetic injection in `rune_strip_sensitive()` (SEC-009)
+- **elicitation-logger.sh**: Use `--arg` instead of `--argjson` for untrusted input; extract `.response` field only — reduces log injection surface (SEC-005)
+- **enforce-teams.sh**: Cache `_RUNE_UID` at script start and add PID scope to trace log path — eliminates subprocess fork on every ERR trap invocation (SEC-006)
+- **on-session-stop.sh**: Check both `status` and `active` fields in GUARD 5b hierarchy check — prevents premature cleanup when hierarchy state file only has `active: true` (FLAW-004)
+- **detect-stale-lead.sh**: Use `session_id` from hook input for ownership check with PID fallback — PPID is unreliable in hook context (FLAW-005)
+- **detect-corrections.sh**: Use `session_id` for debounce key instead of PPID — prevents debounce failure across hook invocations (FLAW-008)
+- **suggest-self-audit.sh**: Increase stdin read cap from 64KB to 1MB — consistent with all other hooks, prevents JSON truncation (FLAW-006)
+- **enforce-gh-account.sh**: Add PID scope to trace log path — prevents write race on shared Linux `/tmp` (COMPAT-002)
+- **pretooluse-write-guard.sh**: Remove inline state file deletion for dead PIDs — defer cleanup to session-team-hygiene.sh to prevent privilege-to-cleanup escalation (SEC-008)
+- **advise-mcp-untrusted.sh**: Add `agent-search` to matched tools documentation — aligns with hooks.json matcher (PAT-005)
+- **PAT-003**: Add `umask 077` to 6 scripts missing it (advise-mcp-untrusted, context-percent-stop-guard, detect-stale-lead, on-stop-failure, suggest-self-audit, verify-agent-deliverables)
+
+## [2.43.3] - 2026-04-10
+
+### Fixed
+- **arc-phase-stop-hook.sh**: Re-parse FRONTMATTER after claim-on-first-touch in GUARD 5.7. Stale in-memory FRONTMATTER (still containing `session_id: unknown`) caused GUARD 5.8 INTEG-005 to reject valid state files on the very first Stop hook invocation, silently killing every arc before its second phase
+- **stop-hook-common.sh**: Increase process tree walk depth from 4 to 8 levels for claim-on-first-touch ancestry verification. Sandbox wrappers, PTY layers, tmux/screen, and Greater-Will orchestration add intermediate processes that exceeded the original depth, causing false ownership rejection
+- **stop-hook-common.sh**: Downgrade INTEG-014 (branch drift) from `_integ_fail` to `_integ_warn`. Branch changes during arc execution (detached HEAD, rebase, worktrees, parallel sessions) are legitimate and should not silently kill the pipeline
+- **arc-phase-stop-hook.sh**: Preserve STATE_FILE on iteration increment failure instead of deleting it. Transient disk errors (full, permissions) previously caused permanent arc death with no user notification — now the hook exits cleanly and retries on the next invocation
+
+## [2.43.2] - 2026-04-10
+
+### Fixed
+- **Bash 3.2 `{n,m}` regex crash**: Replace all `{n,m}` repetition quantifiers in `[[ =~ ]]` across 14 shell scripts — Bash 3.2 (macOS default) does not support ERE `{n,m}` in `=~`, causing "invalid repetition count" errors that silently kill arc phase Stop hooks via ERR trap. Critical fix for `arc-phase-stop-hook.sh:146` (root cause of phase loop death on all repos), `lib/stop-hook-common.sh:939` (`_iso_to_epoch` crash), and `lib/platform.sh` (timestamp parsing). Uses explicit `[0-9][0-9]` repetition or `+`/`*` with `${#var}` length checks
+- **test-cross-platform.sh**: Replace `mapfile` (Bash 4+) with `while read` loop for Bash 3.2 compatibility
+
+## [2.43.1] - 2026-04-10
+
+### Fixed
+- **enforce-team-lifecycle.sh**: Fix `bad substitution` error on macOS Bash 3.2 — replaced `${TEAM_NAME//$'\0'/}` (unsupported null byte in parameter expansion) with portable `tr -d '\0'` pipe
+
 ## [2.43.0] - 2026-04-09
 
 ### Added

@@ -67,14 +67,15 @@ _parse_iso_epoch() {
   # Uses regex capture to preserve timezone suffix correctly (TOME-001 fix)
   # e.g. "2026-03-08T12:00:00.123+05:30" → "2026-03-08T12:00:00+05:30"
   #      "2026-03-08T12:00:00.123Z" → "2026-03-08T12:00:00Z"
-  if [[ "$ts" =~ ^([^.]+)\.[0-9]+(Z|[+-][0-9]{2}:[0-9]{2})$ ]]; then
+  # NOTE: {N} quantifier not supported in Bash 3.2 (macOS) — use explicit repetition
+  if [[ "$ts" =~ ^([^.]+)\.[0-9]+(Z|[+-][0-9][0-9]:[0-9][0-9])$ ]]; then
     ts="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
   fi
   # Preserve timezone offset (+HH:MM, -HH:MM, Z) — gdate/date -d handle natively
   local ts_utc="$ts"
   # BSD date -j needs offset stripped (precision loss acceptable, UTC assumed)
   local ts_bsd
-  if [[ "$ts_utc" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}) ]]; then
+  if [[ "$ts_utc" =~ ^([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]) ]]; then
     ts_bsd="${BASH_REMATCH[1]}Z"
   else
     ts_bsd="${ts_utc%Z}Z"
@@ -107,14 +108,15 @@ _parse_iso_epoch_ms() {
   [[ -z "$ts" || "$ts" == "null" ]] && echo "0" && return 0
   # Strip fractional seconds (capture for ms if available, but not worth the complexity)
   # Uses regex capture to preserve timezone suffix correctly (TOME-001 fix)
-  if [[ "$ts" =~ ^([^.]+)\.[0-9]+(Z|[+-][0-9]{2}:[0-9]{2})$ ]]; then
+  # NOTE: {N} quantifier not supported in Bash 3.2 (macOS) — use explicit repetition
+  if [[ "$ts" =~ ^([^.]+)\.[0-9]+(Z|[+-][0-9][0-9]:[0-9][0-9])$ ]]; then
     ts="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
   fi
   # Preserve timezone offset (+HH:MM, -HH:MM, Z) — gdate/date -d handle natively
   local ts_utc="$ts"
   # BSD date -j needs offset stripped (precision loss acceptable, UTC assumed)
   local ts_bsd
-  if [[ "$ts_utc" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}) ]]; then
+  if [[ "$ts_utc" =~ ^([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]) ]]; then
     ts_bsd="${BASH_REMATCH[1]}Z"
   else
     ts_bsd="${ts_utc%Z}Z"

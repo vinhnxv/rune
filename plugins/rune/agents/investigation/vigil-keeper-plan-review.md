@@ -5,6 +5,7 @@ description: |
   Reviews proposed code in plan files for test coverage planning,
   observability hooks, maintainability concerns, and documentation
   needs before implementation begins.
+model: sonnet
 tools:
   - Read
   - Glob

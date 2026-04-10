@@ -228,7 +228,7 @@ Swarm workers operate in parallel. Complex plans with many tasks take longer.
 Use `--approve` flag to auto-approve worker commits for faster execution.
 
 ### 4. "I want to skip some arc phases"
-Use `--skip-forge` to skip enrichment. Or break the arc into individual steps:
+Use `--no-forge` to skip enrichment. Or break the arc into individual steps:
 plan → work → review (manually, without the full arc pipeline).
 
 ### 5. "How do I resume a failed arc?"

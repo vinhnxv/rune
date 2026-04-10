@@ -24,10 +24,10 @@ set -euo pipefail
 umask 077
 trap 'exit 0' ERR
 
-# Pre-flight: jq is required for JSON parsing (SEC-002: fail-closed if missing).
+# Pre-flight: jq is required for JSON parsing (fail-open if missing).
 if ! command -v jq &>/dev/null; then
-  echo "BLOCKED: jq not found — validate-mend-fixer-paths.sh hook cannot validate file paths" >&2
-  exit 2
+  echo "WARNING: jq not found — validate-mend-fixer-paths.sh hook cannot validate file paths" >&2
+  exit 0
 fi
 
 # Source shared PreToolUse Write guard library

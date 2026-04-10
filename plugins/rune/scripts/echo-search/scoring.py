@@ -473,6 +473,11 @@ def _record_access(
         if not entry_ids:
             return
 
+        # BACK-001: Python sqlite3 with default isolation_level="" auto-issues BEGIN
+        # before DML. Explicit BEGIN would raise OperationalError inside the implicit
+        # transaction. The existing conn.commit() at line 491 commits both operations
+        # atomically within the implicit transaction. No explicit BEGIN needed.
+
         # Batch INSERT all access records (PERF-004)
         conn.executemany(
             "INSERT INTO echo_access_log "

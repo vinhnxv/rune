@@ -68,8 +68,8 @@ MARKER_CONFIG_DIR=$(printf '%s\n' "$MARKER_DATA" | jq -r '.config_dir // empty' 
 MARKER_OWNER_PID=$(printf '%s\n' "$MARKER_DATA" | jq -r '.owner_pid // empty' 2>/dev/null || true)
 
 # Validate config_dir matches current session
-CURRENT_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-[[ "$MARKER_CONFIG_DIR" == "$CURRENT_CONFIG_DIR" ]] || exit 0
+CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+[[ "$MARKER_CONFIG_DIR" == "$CHOME" ]] || exit 0
 
 # Validate owner_pid is still alive (session isolation)
 [[ -n "$MARKER_OWNER_PID" && "$MARKER_OWNER_PID" =~ ^[0-9]+$ ]] || exit 0

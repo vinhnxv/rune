@@ -166,6 +166,7 @@ function calculateDynamicTimeout(tier) {
     PHASE_TIMEOUTS.semantic_verification + PHASE_TIMEOUTS.design_extraction +
     PHASE_TIMEOUTS.design_prototype + PHASE_TIMEOUTS.task_decomposition +
     PHASE_TIMEOUTS.work + PHASE_TIMEOUTS.work_qa +
+    PHASE_TIMEOUTS.drift_review +  // DECR-001 fix: was missing from budget
     PHASE_TIMEOUTS.storybook_verification + PHASE_TIMEOUTS.design_verification +
     PHASE_TIMEOUTS.design_verification_qa +
     PHASE_TIMEOUTS.ux_verification +
@@ -182,6 +183,7 @@ function calculateDynamicTimeout(tier) {
     PHASE_TIMEOUTS.test + PHASE_TIMEOUTS.test_qa +
     PHASE_TIMEOUTS.browser_test + PHASE_TIMEOUTS.browser_test_fix + PHASE_TIMEOUTS.verify_browser_test +
     PHASE_TIMEOUTS.test_coverage_critique +
+    PHASE_TIMEOUTS.deploy_verify +  // DECR-001 fix: was missing from budget
     PHASE_TIMEOUTS.pre_ship_validation + PHASE_TIMEOUTS.release_quality_check +
     PHASE_TIMEOUTS.bot_review_wait + PHASE_TIMEOUTS.pr_comment_resolution +
     PHASE_TIMEOUTS.ship + PHASE_TIMEOUTS.merge

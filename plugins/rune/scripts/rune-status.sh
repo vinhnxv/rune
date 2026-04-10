@@ -103,7 +103,7 @@ _status_sym() {
 }
 
 # ── Phase order (must match arc-phase-stop-hook.sh PHASE_ORDER exactly) ──
-# ARCH-001 fix: synced with arc-phase-stop-hook.sh PHASE_ORDER (44 phases)
+# ARCH-001 fix: synced with arc-phase-stop-hook.sh PHASE_ORDER (45 phases)
 PHASE_ORDER=(
   forge forge_qa
   plan_review plan_refine verification semantic_verification

@@ -20,19 +20,9 @@ umask 077
 # Initial trap is fail-closed (exit 2) to eliminate bypass window.
 # Phase 2 (subagent detected): upgrades to detailed fail-closed handler.
 # See CLAUDE.md "Hook Crash Classification" for the SECURITY vs OPERATIONAL distinction.
-_rune_fail_forward() {
-  if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    printf '[%s] %s: ERR trap — fail-forward (line %s)\n' \
-      "$(date +%H:%M:%S 2>/dev/null || true)" \
-      "${BASH_SOURCE[0]##*/}" \
-      "${BASH_LINENO[0]:-?}" \
-      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" 2>/dev/null
-  fi
-  exit 0
-}
-# NOTE: _rune_fail_forward is intentionally NOT trapped here.
-# The initial fail-closed trap (line 16: trap 'exit 2' ERR) must remain active
-# during stdin parsing and subagent detection (SEC-003 fix).
+# SEC-001 FIX: Removed dead _rune_fail_forward() function.
+# SECURITY hooks must only have fail-closed traps. The initial trap 'exit 2' ERR (line 16)
+# remains active during stdin parsing and subagent detection (SEC-003 fix).
 # Phase 2 (subagent detected) sets _rune_fail_closed for detailed error handling.
 
 # Pre-flight: jq is required for JSON parsing.

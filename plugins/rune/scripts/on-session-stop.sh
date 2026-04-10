@@ -169,7 +169,8 @@ _check_loop_ownership() {
       current_sid=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
     fi
     # Validate format (SEC-004)
-    if [[ -n "$current_sid" ]] && [[ ! "$current_sid" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+    # NOTE: {1,128} quantifier not supported in Bash 3.2 (macOS) — use + and length check
+    if [[ -n "$current_sid" ]] && { [[ ${#current_sid} -gt 128 ]] || [[ ! "$current_sid" =~ ^[a-zA-Z0-9_-]+$ ]]; }; then
       current_sid=""
     fi
     if [[ -n "$current_sid" && "$sid" != "$current_sid" ]]; then
@@ -266,8 +267,10 @@ fi
 # runs multiple child arcs sequentially, each taking 30-90 min).
 _HIERARCHY_STALE_MIN=150
 if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"; then
+  # FLAW-004 FIX: Check both 'status' and 'active' fields (hierarchy uses either)
   _hier_status=$(_get_fm_field "$_LOOP_FM" "status")
-  if [[ "$_hier_status" == "active" ]]; then
+  _hier_active=$(_get_fm_field "$_LOOP_FM" "active")
+  if [[ "$_hier_status" == "active" || "$_hier_active" == "true" ]]; then
     _hier_mtime=$(_stat_mtime "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"); _hier_mtime="${_hier_mtime:-0}"
     if [[ "$_hier_mtime" -le 0 ]]; then exit 0; fi
     _hier_age_min=$(( (NOW - _hier_mtime) / 60 ))

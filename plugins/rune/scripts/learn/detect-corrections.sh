@@ -67,8 +67,8 @@ MARKER_CONFIG_DIR=$(printf '%s\n' "$MARKER_DATA" | jq -r '.config_dir // empty' 
 MARKER_OWNER_PID=$(printf '%s\n' "$MARKER_DATA" | jq -r '.owner_pid // empty' 2>/dev/null || true)
 
 # Validate config_dir matches current session
-CURRENT_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-[[ "$MARKER_CONFIG_DIR" == "$CURRENT_CONFIG_DIR" ]] || exit 0
+CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+[[ "$MARKER_CONFIG_DIR" == "$CHOME" ]] || exit 0
 
 # Validate owner_pid is still alive (session isolation)
 [[ -n "$MARKER_OWNER_PID" && "$MARKER_OWNER_PID" =~ ^[0-9]+$ ]] || exit 0
@@ -91,7 +91,10 @@ for sf in "${CWD}"/tmp/arc-*/*.json; do
 done 2>/dev/null || true
 
 # ── GUARD 5: Debounce — max 1 suggestion per session ──
-DEBOUNCE="${CWD}/tmp/.rune-signals/.learn-suggested-${PPID}"
+# FLAW-008 FIX: Use session_id for debounce key (PPID unreliable in hooks)
+_session_id=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null) || _session_id=""
+_debounce_key="${_session_id:-pid-${PPID}}"
+DEBOUNCE="${CWD}/tmp/.rune-signals/.learn-suggested-${_debounce_key}"
 [[ -f "$DEBOUNCE" && ! -L "$DEBOUNCE" ]] && exit 0
 
 # ── Signal 1: File-revert detection (from correction-signal-writer.sh) ──

@@ -1264,6 +1264,9 @@ def _do_reindex_internal(conn: sqlite3.Connection) -> int:
 # and backslash to prevent query injection
 _FTS_SPECIAL = re.compile(r'[":*^~(){}+\-:\\]')
 
+# SEC-004: Name validation for agent registration — reject path traversal, control chars
+_SAFE_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+
 # FTS5 boolean keywords that must be filtered from user queries
 _FTS_BOOLEAN_KEYWORDS = frozenset({"AND", "OR", "NOT", "NEAR"})
 
@@ -1405,6 +1408,10 @@ async def _mcp_handle_register(arguments: Dict) -> Tuple[Dict, bool]:
     name = arguments.get("name", "")
     if not isinstance(name, str) or not name.strip():
         return {"error": "name parameter is required"}, True
+
+    # SEC-004: Validate name format (uses module-level _SAFE_NAME_RE)
+    if not _SAFE_NAME_RE.match(name.strip()):
+        return {"error": "name must be 1-64 chars, alphanumeric/hyphen/underscore only"}, True
 
     description = arguments.get("description", "")
     if not isinstance(description, str):
